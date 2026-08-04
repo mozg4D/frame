@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SVG icon editor</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#222;color:#ddd;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  #app{display:flex;gap:16px;padding:14px;align-items:flex-start;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:10px}
+  #big{width:min(1200px,calc(100vh - 140px),calc(100vw - 360px));height:min(1200px,calc(100vh - 140px),calc(100vw - 360px));
+    background:#2a2a2a;border:1px solid #000;display:block;touch-action:none;box-shadow:0 0 0 1px #000,0 10px 30px #0006}
+  #gridLayer line{vector-effect:non-scaling-stroke;stroke-width:1px}
+  .handle{cursor:move;pointer-events:all;transition:r .06s}
+  .offpt{cursor:crosshair;pointer-events:all}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .grp{display:flex;flex-direction:column;gap:4px}
+  .lab{color:#e2e2e2;font-size:14px;letter-spacing:.02em}
+  .hint{color:#a8a8a8;font-size:14px}
+  button{background:#333;color:#ddd;border:1px solid #000;border-radius:4px;padding:4px 8px;cursor:pointer;font:inherit;transition:background .09s,transform .04s}
+  button:hover{background:#444}
+  button:active{background:#2c2c2c;transform:translateY(1px)}
+  button.on{background:#3a3a3a;border-color:#888}
+  .sw{width:18px;height:18px;border:1px solid #000;border-radius:3px;cursor:pointer;padding:0;transition:transform .07s,box-shadow .07s}
+  .sw:hover{transform:scale(1.12);box-shadow:0 0 0 1px #fff6}
+  .sw.on{outline:2px solid #fff;outline-offset:1px}
+  select,input[type=number]{background:#333;color:#ddd;border:1px solid #000;border-radius:4px;font:inherit;padding:2px 4px}
+  input[type=color]{-webkit-appearance:none;appearance:none;width:30px;height:24px;padding:0;border:1px solid #000;background:#1a1a1a;border-radius:3px;cursor:pointer;flex:0 0 auto}
+  input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+  input[type=color]::-webkit-color-swatch{border:none;border-radius:2px}
+  input[type=color]::-moz-color-swatch{border:none;border-radius:2px}
+  #previews{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+  .pv svg{background:#1c1c1c;border:1px solid #000;display:block}
+  .pv span{color:#cfcfcf;font-size:14px}
+  #pvPixel{width:320px;height:320px;image-rendering:pixelated;image-rendering:crisp-edges;background:#1c1c1c;border:1px solid #000;display:block}
+  #pasteBox{width:100%;height:120px;background:#1a1a1a;color:#cfcfcf;border:1px solid #000;border-radius:4px;font:14px/1.4 ui-monospace,monospace;padding:6px;resize:vertical;white-space:pre-wrap;word-break:break-all;overflow:auto}
+  #pasteBox::-webkit-scrollbar{width:10px;height:10px}
+  #pasteBox::-webkit-scrollbar-track{background:#141414}
+  #pasteBox::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:5px;border:2px solid #141414}
+  #pasteBox::-webkit-scrollbar-thumb:hover{background:#4d4d4d}
+  #pasteBox{scrollbar-width:thin;scrollbar-color:#3a3a3a #141414}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="col">
+    <div class="row">
+      <select id="iconSelect" style="width:130px"></select>
+      <button id="addIconBtn" title="create new empty icon">+ icon</button>
+      <button id="delIconBtn" title="delete current icon">×</button>
+      <button id="openIconsBtn">Open icons.js</button>
+      <button id="saveIconsBtn">Save icons.js</button>
+    </div>
+    <div class="row">
+      <button class="tool on" data-tool="select">Select</button>
+      <button class="tool" data-tool="line">Line</button>
+      <button class="tool" data-tool="polyline">Polyline</button>
+      <button class="tool" data-tool="rect">Rect</button>
+      <button class="tool" data-tool="ellipse">Ellipse</button>
+      <button class="tool" data-tool="halfellipse">½ Ellipse</button>
+      <button id="layerBack" title="send backward (z-)">⇣</button>
+      <button id="layerFwd" title="bring forward (z+)">⇡</button>
+    </div>
+    <svg id="big" viewBox="0 0 32 32">
+      <rect id="bg" width="100%" height="100%" fill="transparent"/>
+      <g id="gridLayer"></g>
+      <g id="figLayer" style="pointer-events:none"></g>
+      <g id="uiLayer" style="pointer-events:none"></g>
+    </svg>
+  </div>
+  <div class="col">
+    <div class="grp"><span class="lab">stroke</span><div class="row" id="strokeRow"></div></div>
+    <div class="grp"><span class="lab">fill</span><div class="row" id="fillRow"></div></div>
+    <div class="row">
+      <span class="lab">palette</span>
+      <input type="color" id="addColorIn" value="#000000" title="add color to palette">
+      <span class="hint">right‑click swatch = remove</span>
+    </div>
+    <div class="row">
+      <span class="lab">width</span>
+      <input type="number" id="swIn" value="1.6" min="0" step="0.1" style="width:60px">
+      <button class="swbtn" data-sw="0.3">.3</button><button class="swbtn" data-sw="0.4">.4</button><button class="swbtn" data-sw="0.5">.5</button>
+      <button class="swbtn" data-sw="1">1</button><button class="swbtn" data-sw="1.4">1.4</button><button class="swbtn" data-sw="1.6">1.6</button>
+      <button class="swbtn" data-sw="2">2</button><button class="swbtn" data-sw="2.8">2.8</button><button class="swbtn" data-sw="3.6">3.6</button><button class="swbtn" data-sw="5.2">5.2</button>
+    </div>
+    <div class="row">
+      <span class="lab">cap</span><select id="capIn"><option>round</option><option>butt</option><option>square</option></select>
+      <span class="lab">join</span><select id="joinIn"><option>round</option><option>miter</option><option>bevel</option></select>
+    </div>
+    <div id="previews">
+      <div class="pv"><svg id="pv32" viewBox="0 0 32 32" width="32" height="32" fill="none"></svg></div>
+      <div class="pv"><canvas id="pvPixel" width="32" height="32"></canvas></div>
+    </div>
+    <div class="grp">
+      <span class="lab">code of current icon — edit / paste const ICO_… = `&lt;svg&gt;` to update</span>
+      <textarea id="pasteBox" spellcheck="false"></textarea>
+    </div>
+  </div>
+</div>
+<script>
+const DEFAULT_PALETTE=['#000000','#606060','#9a9a9a','#c2c2c2','#ffffff','#ff0000','#ff8000','#ffff00','#00ff00','#00ffff','#0000ff','#ff00ff','#ff5a5a','#f08a1d','#5ad17a','#5a8aff','#b8b8b8','#c4c4c4','#c9b7a6','#c99359'];
+function loadPalette(){ try{ const s=localStorage.getItem('iconEditorPalette'); if(s){ const a=JSON.parse(s); if(Array.isArray(a)&&a.length)return a; } }catch(e){} return DEFAULT_PALETTE.slice(); }
+function savePalette(){ try{ localStorage.setItem('iconEditorPalette',JSON.stringify(palette)); }catch(e){} }
+let palette=loadPalette();
+const COLORS={DIM:'#9a9a9a',GI:'#c2c2c2',RED:'#ff5a5a',GRN:'#5ad17a',BLU:'#5a8aff',ORG:'#f08a1d',MID:'#b8b8b8',WHT:'#ffffff',SQ1:'#c4c4c4',SQ2:'#606060'};
+const ORDER=['ICO_GRID','ICO_MAGNET','ICO_GLOBE','ICO_ARROW','ICO_CUBE','ICO_SQUARE','ICO_PERSON','ICO_NEW','ICO_OPEN','ICO_SAVE','ICO_SAVEAS','ICO_SAVEINC','ICO_DOWNLOAD','ICO_RECENTS','ICO_CUSTOM_1','ICO_BROWSER_FOLDED','ICO_BROWSER_UNFOLDED','ICO_CUSTOM_2','ICO_TAB_ATTRIBUTES','ICO_TAB_MATERIAL_MGR','ICO_TAB_MATERIALS','ICO_TAB_TEXTURES','ICO_TAB_OBJECTS','ICO_TAB_DELETE_UNUSED','ICO_TAB_ADD_MATERIAL'];
+const ICONS={
+ICO_GRID:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><line x1="5.5" y1="3" x2="5.5" y2="29"/><line x1="12.5" y1="3" x2="12.5" y2="29"/><line x1="19.5" y1="3" x2="19.5" y2="29"/><line x1="26.5" y1="3" x2="26.5" y2="29"/><line x1="3" y1="5.5" x2="29" y2="5.5"/><line x1="3" y1="12.5" x2="29" y2="12.5"/><line x1="3" y1="19.5" x2="29" y2="19.5"/><line x1="3" y1="26.5" x2="29" y2="26.5"/><circle cx="19.5" cy="12.5" r="3" fill="#f08a1d" stroke="none"/></svg>`,
+ICO_MAGNET:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#c2c2c2" stroke-width="5.2" stroke-linecap="butt" stroke-linejoin="round"><line x1="17.273" y1="5.111" x2="13" y2="9.5"/><path d="M14 8.5L8.788 13.596Q3.131 19.253 7.939 24.061" stroke="#5a8aff"/><line x1="26.889" y1="14.727" x2="23" y2="18.5"/><path d="M7.939 24.061Q12.747 28.869 18.404 23.212L23.5 18" stroke="#ff5a5a"/></svg>`,
+ICO_GLOBE:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="12.5" stroke-width="1.6"/><ellipse cx="16" cy="16" rx="6.8" ry="12.5"/><line x1="3.5" y1="16" x2="28.5" y2="16"/><line x1="16" y1="3.5" x2="16" y2="28.5"/><line x1="5.5" y1="10" x2="27" y2="10"/><line x1="5.5" y1="22" x2="26" y2="22"/></svg>`,
+ICO_ARROW:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 25L7 9"/><path d="M7 25L23 25"/><path d="M7 3L3 9L11 9Z" fill="#9a9a9a" stroke="none"/><path d="M29.1 25L23.1 21L23.1 29Z" fill="#9a9a9a" stroke="none"/></svg>`,
+ICO_CUBE:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ff5a5a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><line x1="13.52" y1="17.08" x2="4.96" y2="24.14" stroke-width="1.3"/><line x1="13.52" y1="17.08" x2="27.26" y2="20.46" stroke="#5ad17a" stroke-width="1"/><line x1="13.52" y1="17.08" x2="13.24" y2="3" stroke="#5a8aff"/><path d="M27.26 20.46L20.66 29M13.24 3L3.64 7.9M28.36 5.32L21.18 11.36M4.96 24.14L20.66 29M13.24 3L28.36 5.32M3.64 7.9L21.18 11.36M4.96 24.14L3.64 7.9M20.66 29L21.18 11.36M27.26 20.46L28.36 5.32" stroke="#9a9a9a"/></svg>`,
+ICO_SQUARE:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><rect x="4" y="4" width="12" height="12" fill="#9a9a9a" stroke="none"/><rect x="16" y="4" width="12" height="12" fill="#606060" stroke="none"/><rect x="4" y="16" width="12" height="12" fill="#606060" stroke="none"/><rect x="16" y="16" width="12" height="12" fill="#9a9a9a" stroke="none"/></svg>`,
+ICO_PERSON:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 13A10.5 10 0 0 1 26.5 13"/><line x1="5.5" y1="13" x2="5.5" y2="26.5"/><line x1="26.5" y1="13" x2="26.5" y2="26.5"/><ellipse cx="16" cy="26.9" rx="10.5" ry="2.1"/><circle cx="16" cy="10.7" r="3" fill="#9a9a9a" stroke="none"/><path d="M10.8 22.6C10.8 15.4 13.4 13.8 16 13.8C18.6 13.8 21.2 15.4 21.2 22.6Z" fill="#9a9a9a" stroke="none"/></svg>`,
+ICO_NEW:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4L20 4L26 10L26 15"/><path d="M20 4L20 10L25.5 10"/><path d="M16 27L7 27L7 4"/><path d="M23 18L23 28" stroke="#c2c2c2" stroke-linecap="butt"/><path d="M18 23L28 23" stroke="#c2c2c2" stroke-linecap="butt"/></svg>`,
+ICO_OPEN:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#c9b7a6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 26L8 13L28.5 13L26 26Z"/><polyline points="5,26 4,6 11.5,6 13,9 24,9 24.5,13"/></svg>`,
+ICO_SAVE:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="square" stroke-linejoin="round"><line x1="10" y1="16" x2="21" y2="16"/><line x1="10" y1="20" x2="21" y2="20"/><line x1="10" y1="24" x2="21" y2="24"/><polyline points="6,4 4,6 4,26 6,28 26,28 28,26 28,9 23,4 6,4" stroke="#5a8aff" stroke-linecap="round"/><polyline points="20.5,4 9.5,4 9.5,10 20.5,10 20.5,4 17.5,4 17.5,10" stroke-linecap="round"/></svg>`,
+ICO_SAVEAS:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="square" stroke-linejoin="round"><line x1="10" y1="16" x2="13" y2="16"/><line x1="10" y1="20" x2="11" y2="20"/><line x1="10" y1="24" x2="21" y2="24"/><polyline points="16.5,18 15.5,20 18,20 28.5,12.5 27,10.5 16.5,18 18,20" stroke="#f0f0f0" stroke-linecap="round"/><polyline points="25.5,6.5 23,4 6,4 4,6 4,26 6,28 26,28 28,26 28,17.5" stroke="#5a8aff" stroke-linecap="round"/><polyline points="20.5,4 9.5,4 9.5,10 20.5,10 20.5,4 17.5,4 17.5,10" stroke-linecap="round"/></svg>`,
+ICO_SAVEINC:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4L17.5 4L21 7.5L21 19L5 19Z" stroke="#5a8aff"/><line x1="8" y1="13" x2="17" y2="13" stroke-linecap="butt"/><line x1="8" y1="16" x2="17" y2="16" stroke-linecap="butt"/><path d="M25 20L25 28" stroke="#c2c2c2" stroke-linecap="square"/><path d="M21 24L29 24" stroke="#c2c2c2" stroke-linecap="square"/><polyline points="12.5,9 8,9 8,4 15,4 15,9 12.5,9 12.5,4"/></svg>`,
+ICO_DOWNLOAD:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#c2c2c2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 6L16 20"/><path d="M11 15L16 20L21 15"/><path d="M5 21L5 26L27 26L27 21"/></svg>`,
+ICO_RECENTS:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#b09678" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16.5" r="10"/><path d="M16 10.7L15.5 16.5L21.5 19.5" stroke="#b0b0b0"/><path d="M10 3.7L6.4 6.9M22 3.7L25.6 6.9" stroke-width="1.6"/><line x1="8" y1="27.5" x2="9.5" y2="25.5" stroke-width="2.8"/><line x1="22.5" y1="25.5" x2="24" y2="27.5" stroke-width="2.8"/></svg>`,
+ICO_CUSTOM_1:`<svg viewBox="0 0 32 32" fill="none"></svg>`,
+ICO_BROWSER_FOLDED:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4.5,21 16.5,28 27.5,21"/><polyline points="4.5,12.5 16.5,4.5 27.5,12.5"/></svg>`,
+ICO_BROWSER_UNFOLDED:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="4.5,27.5 16.5,19.5 27.5,27.5"/><polyline points="4.5,4.5 16.5,11.5 27.5,4.5"/></svg>`,
+ICO_CUSTOM_2:`<svg viewBox="0 0 32 32" fill="none"></svg>`,
+ICO_TAB_ATTRIBUTES:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-linecap="round"><line x1="6" y1="9" x2="26" y2="9"/><circle cx="13" cy="9" r="2.4" fill="#9a9a9a" stroke="none"/><line x1="6" y1="16" x2="26" y2="16"/><circle cx="20" cy="16" r="2.4" fill="#9a9a9a" stroke="none"/><line x1="6" y1="23" x2="26" y2="23"/><circle cx="11" cy="23" r="2.4" fill="#9a9a9a" stroke="none"/></svg>`,
+ICO_TAB_MATERIAL_MGR:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="14" r="8"/><ellipse cx="14" cy="14" rx="3.4" ry="8"/><line x1="6" y1="14" x2="22" y2="14"/><circle cx="24" cy="23" r="2.2" fill="#9a9a9a" stroke="none"/><line x1="20" y1="23" x2="28" y2="23"/></svg>`,
+ICO_TAB_MATERIALS:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linejoin="round"><rect x="6" y="6" width="6" height="6" fill="#9a9a9a" stroke="none"/><line x1="15" y1="9" x2="26" y2="9"/><rect x="6" y="13" width="6" height="6" fill="#606060" stroke="none"/><line x1="15" y1="16" x2="26" y2="16"/><rect x="6" y="20" width="6" height="6" fill="#c2c2c2" stroke="none"/><line x1="15" y1="23" x2="26" y2="23"/></svg>`,
+ICO_TAB_TEXTURES:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.2" stroke-linejoin="round"><rect x="5" y="5" width="10" height="10"/><line x1="5" y1="8.3" x2="15" y2="8.3"/><line x1="5" y1="11.6" x2="15" y2="11.6"/><rect x="17" y="5" width="10" height="10"/><line x1="17" y1="5" x2="27" y2="15"/><line x1="20" y1="5" x2="27" y2="12"/><rect x="5" y="17" width="10" height="10"/><line x1="5" y1="17" x2="15" y2="27"/><line x1="8" y1="17" x2="15" y2="24"/><rect x="17" y="17" width="10" height="10"/><circle cx="22" cy="22" r="3.4"/></svg>`,
+ICO_TAB_OBJECTS:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.3" stroke-linejoin="round"><rect x="5" y="5" width="9" height="9"/><circle cx="22" cy="9.5" r="4.5"/><path d="M9.5 17L5 26H14Z"/><path d="M22 17L26.5 21.5L22 26L17.5 21.5Z"/></svg>`,
+ICO_TAB_DELETE_UNUSED:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linejoin="round"><rect x="5" y="6" width="13" height="13" rx="1.5"/><line x1="8" y1="10" x2="15" y2="10"/><line x1="8" y1="13" x2="15" y2="13"/><circle cx="23" cy="22" r="5" stroke="#ff5a5a"/><line x1="20.5" y1="22" x2="25.5" y2="22" stroke="#ff5a5a" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+ICO_TAB_ADD_MATERIAL:`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linejoin="round"><rect x="5" y="6" width="13" height="13" rx="1.5"/><line x1="8" y1="10" x2="15" y2="10"/><line x1="8" y1="13" x2="15" y2="13"/><circle cx="23" cy="22" r="5"/><line x1="23" y1="19.5" x2="23" y2="24.5" stroke-linecap="round"/><line x1="20.5" y1="22" x2="25.5" y2="22" stroke-linecap="round"/></svg>`
+};
+window.ICONS=Object.assign(window.ICONS||{},ICONS);
+
+const grid=32, snap=true, snapStep=0.5, CANVAS_DIV=32, HIT_THR=1.0, HANDLE_PX=40, HANDLE_ON_PX=48;
+let figures=[], undoStack=[], idc=0, customN=0;
+let tool='select', selection=new Set(), activeHandle=null, interaction=null, winBound=false;
+let hoverNode=null, lastPointer=null;
+let curStroke=COLORS.DIM, curSW=1.6, curCap='round', curJoin='round', curFill='none';
+let pixelTimer=null, pixelSeq=0, iconsHandle=null, currentName=null;
+let clipboard=null, pasteN=0;
+const SVGNS='http://www.w3.org/2000/svg';
+const selFirst=()=>selection.values().next().value;
+const big=document.getElementById('big'), gridLayer=document.getElementById('gridLayer'), figLayer=document.getElementById('figLayer'), uiLayer=document.getElementById('uiLayer'),
+  pvPixel=document.getElementById('pvPixel'), pvCtx=pvPixel.getContext('2d'), iconSelect=document.getElementById('iconSelect'), pasteBox=document.getElementById('pasteBox');
+const PV=[document.getElementById('pv32')];
+const n=v=>{ v=+v; if(!isFinite(v))v=0; return +(v.toFixed(3)); };
+const addId=(s,id)=>s.replace(/^<([a-zA-Z]+)/,(m,t)=>`<${t} data-id="${id}"`);
+const figObj=id=>figures.find(f=>f.id===id);
+const newId=()=>'f'+(++idc);
+const px2u=()=>grid/(big.clientWidth||1200);
+function isTextInputEl(ae){ const tag=ae&&ae.tagName; return tag==='TEXTAREA'||(tag==='INPUT'&&ae.type!=='color'&&ae.type!=='button'&&ae.type!=='checkbox'&&ae.type!=='radio'); }
+function elViewBoxRect(el){ const br=el.getBoundingClientRect(),br0=big.getBoundingClientRect(); return {x:(br.left-br0.left)/br0.width*grid,y:(br.top-br0.top)/br0.height*grid,w:br.width/br0.width*grid,h:br.height/br0.height*grid}; }
+function halfEllipsePathD(f){ const o=f.orient||0,rx=n(f.rx),ry=n(f.ry),cx=n(f.cx),cy=n(f.cy);
+  if(o===0)return `M${n(f.cx-f.rx)} ${cy}A${rx} ${ry} 0 0 1 ${n(f.cx+f.rx)} ${cy}`;
+  if(o===2)return `M${n(f.cx-f.rx)} ${cy}A${rx} ${ry} 0 0 0 ${n(f.cx+f.rx)} ${cy}`;
+  if(o===1)return `M${cx} ${n(f.cy-f.ry)}A${rx} ${ry} 0 0 1 ${cx} ${n(f.cy+f.ry)}`;
+  return `M${cx} ${n(f.cy-f.ry)}A${rx} ${ry} 0 0 0 ${cx} ${n(f.cy+f.ry)}`; }
+function halfEllipsePoints(f,N=24){ const o=f.orient||0,pts=[]; for(let k=0;k<=N;k++){ const t=k/N*Math.PI; let x,y;
+  if(o===0){x=f.cx+f.rx*Math.cos(t);y=f.cy-f.ry*Math.sin(t);} else if(o===2){x=f.cx+f.rx*Math.cos(t);y=f.cy+f.ry*Math.sin(t);}
+  else if(o===1){x=f.cx+f.rx*Math.sin(t);y=f.cy-f.ry*Math.cos(t);} else {x=f.cx-f.rx*Math.sin(t);y=f.cy-f.ry*Math.cos(t);} pts.push([x,y]); } return pts; }
+const M_ID=()=>[1,0,0,1,0,0];
+function M_mul(A,B){ return [A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]]; }
+function M_apply(M,x,y){ return [M[0]*x+M[2]*y+M[4],M[1]*x+M[3]*y+M[5]]; }
+function M_translate(tx,ty){ return [1,0,0,1,tx,ty]; }
+function M_rotate(a){ const c=Math.cos(a),s=Math.sin(a); return [c,s,-s,c,0,0]; }
+function M_scale(sx,sy){ return [sx,0,0,sy,0,0]; }
+function parseTransform(str){ let M=M_ID(); if(!str)return M; const re=/([a-zA-Z]+)\s*\(([^)]*)\)/g; let m;
+  while((m=re.exec(str))){ const cmd=m[1]; const nums=(m[2].match(/-?\d*\.?\d+(?:e-?\d+)?/g)||[]).map(Number); let T=M_ID();
+    if(cmd==='matrix'&&nums.length>=6)T=[nums[0],nums[1],nums[2],nums[3],nums[4],nums[5]];
+    else if(cmd==='translate')T=M_translate(nums[0]||0,nums[1]||0);
+    else if(cmd==='rotate'){ const a=(nums[0]||0)*Math.PI/180; if(nums.length>=3){const cx=nums[1],cy=nums[2];T=M_mul(M_translate(cx,cy),M_mul(M_rotate(a),M_translate(-cx,-cy)));}else T=M_rotate(a); }
+    else if(cmd==='scale'){ const sx=nums[0]!=null?nums[0]:1,sy=nums[1]!=null?nums[1]:sx; T=M_scale(sx,sy); }
+    else if(cmd==='skewX'&&nums.length)T=[1,0,Math.tan(nums[0]*Math.PI/180),1,0,0];
+    else if(cmd==='skewY'&&nums.length)T=[1,Math.tan(nums[0]*Math.PI/180),0,1,0,0];
+    M=M_mul(M,T); } return M; }
+function parsePathCommands(d){ const toks=[...d.matchAll(/([A-Za-z])|(-?\d*\.?\d+(?:e-?\d+)?)/g)].map(x=>x[1]!=null?{c:x[1]}:{n:parseFloat(x[2])});
+  const cmds=[]; let i=0,cx=0,cy=0,sx=0,sy=0,last='';
+  const grab=k=>{ const o=[]; for(let j=0;j<k;j++){ if(i<toks.length&&toks[i].n!==undefined){o.push(toks[i].n);i++;}else return null; } return o; };
+  const rel=c=>c===c.toLowerCase();
+  while(i<toks.length){ let cmd; if(toks[i].c!==undefined){cmd=toks[i].c;i++;} else { const imp=last==='M'?'L':last==='m'?'l':last; if(!imp||imp==='Z'||imp==='z')break; cmd=imp; }
+    const C=cmd.toUpperCase(),R=rel(cmd); last=cmd; if(C==='Z'){cmds.push({t:'Z'});cx=sx;cy=sy;continue;} let first=true;
+    while(true){ if(C==='M'||C==='L'){ const g=grab(2); if(!g)break; let x=g[0],y=g[1]; if(R){x+=cx;y+=cy;} cx=x;cy=y; if(first&&C==='M'){sx=x;sy=y;} cmds.push({t:(first&&C==='M')?'M':'L',p:[n(x),n(y)]}); }
+      else if(C==='H'){ const g=grab(1); if(!g)break; let x=g[0]; if(R)x+=cx; cx=x; cmds.push({t:'L',p:[n(cx),n(cy)]}); }
+      else if(C==='V'){ const g=grab(1); if(!g)break; let y=g[0]; if(R)y+=cy; cy=y; cmds.push({t:'L',p:[n(cx),n(cy)]}); }
+      else if(C==='Q'){ const g=grab(4); if(!g)break; let x1=g[0],y1=g[1],x=g[2],y=g[3]; if(R){x1+=cx;y1+=cy;x+=cx;y+=cy;} cx=x;cy=y; cmds.push({t:'Q',c:[n(x1),n(y1)],p:[n(x),n(y)]}); }
+      else if(C==='C'){ const g=grab(6); if(!g)break; let x1=g[0],y1=g[1],x2=g[2],y2=g[3],x=g[4],y=g[5]; if(R){x1+=cx;y1+=cy;x2+=cx;y2+=cy;x+=cx;y+=cy;} cx=x;cy=y; cmds.push({t:'C',c:[n(x1),n(y1),n(x2),n(y2)],p:[n(x),n(y)]}); }
+      else return null; first=false; if(i>=toks.length||toks[i].c!==undefined)break; if(!(C==='M'||C==='L'||C==='H'||C==='V'||C==='Q'||C==='C'))break; } }
+  return cmds.length?cmds:null; }
+function transformCmds(cmds,M){ const tp=([x,y])=>M_apply(M,x,y); return cmds.map(c=>{ if(c.t==='Z')return {t:'Z'}; const o={t:c.t,p:tp(c.p).map(n)}; if(c.c)o.c=c.c.length===2?tp(c.c).map(n):[...tp([c.c[0],c.c[1]]),...tp([c.c[2],c.c[3]])].map(n); return o; }); }
+function buildPathD(cmds){ let s=''; for(const c of cmds){ if(c.t==='M')s+=`M${c.p[0]} ${c.p[1]}`; else if(c.t==='L')s+=`L${c.p[0]} ${c.p[1]}`; else if(c.t==='Q')s+=`Q${c.c[0]} ${c.c[1]} ${c.p[0]} ${c.p[1]}`; else if(c.t==='C')s+=`C${c.c[0]} ${c.c[1]} ${c.c[2]} ${c.c[3]} ${c.p[0]} ${c.p[1]}`; else if(c.t==='Z')s+='Z'; } return s; }
+function sampleCmd(c,from){ const pts=[from]; const N=12; if(c.t==='L'||c.t==='M')pts.push(c.p);
+  else if(c.t==='Q'){ const [x0,y0]=from,[x1,y1]=c.c,[x2,y2]=c.p; for(let k=1;k<=N;k++){const t=k/N,mt=1-t;pts.push([mt*mt*x0+2*mt*t*x1+t*t*x2,mt*mt*y0+2*mt*t*y1+t*t*y2]);} }
+  else if(c.t==='C'){ const [x0,y0]=from,[x1,y1,x2,y2]=c.c,[x3,y3]=c.p; for(let k=1;k<=N;k++){const t=k/N,mt=1-t;pts.push([mt*mt*mt*x0+3*mt*mt*t*x1+3*mt*t*t*x2+t*t*t*x3,mt*mt*mt*y0+3*mt*mt*t*y1+3*mt*t*t*y2+t*t*t*y3]);} }
+  return pts; }
+function styleStr(f){ let s=(f.fill&&f.fill!=='none')?` fill="${f.fill}"`:` fill="none"`; if(f.stroke&&f.stroke!=='none')s+=` stroke="${f.stroke}" stroke-width="${n(f.sw)}" stroke-linecap="${f.cap||'round'}" stroke-linejoin="${f.join||'round'}"`; return s; }
+function geomAttrs(f){ switch(f.type){ case 'line':return `x1="${n(f.x1)}" y1="${n(f.y1)}" x2="${n(f.x2)}" y2="${n(f.y2)}"`; case 'polyline':return `points="${f.pts.map(p=>n(p[0])+','+n(p[1])).join(' ')}"`; case 'rect':return `x="${n(f.x)}" y="${n(f.y)}" width="${n(f.w)}" height="${n(f.h)}"`; case 'circle':return `cx="${n(f.cx)}" cy="${n(f.cy)}" r="${n(f.r)}"`; case 'ellipse':return `cx="${n(f.cx)}" cy="${n(f.cy)}" rx="${n(f.rx)}" ry="${n(f.ry)}"`; case 'halfellipse':return `cx="${n(f.cx)}" cy="${n(f.cy)}" rx="${n(f.rx)}" ry="${n(f.ry)}" orient="${f.orient||0}"`; case 'path':return `d="${buildPathD(f.cmds)}"`; } return ''; }
+function compactAttrs(f,def){ let a=''; if(f.fill&&f.fill!=='none')a+=` fill="${f.fill}"`; if(f.stroke&&f.stroke!=='none'){ if(f.stroke!==def.stroke)a+=` stroke="${f.stroke}"`; if(n(f.sw)!==n(def.sw))a+=` stroke-width="${n(f.sw)}"`; if((f.cap||'round')!==def.cap)a+=` stroke-linecap="${f.cap||'round'}"`; if((f.join||'round')!==def.join)a+=` stroke-linejoin="${f.join||'round'}"`; } else a+=` stroke="none"`; return a; }
+function figToSVG(f,withId){ let t=''; switch(f.type){ case 'line':t=`<line ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'polyline':t=`<polyline ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'rect':t=`<rect ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'circle':t=`<circle ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'ellipse':t=`<ellipse ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'halfellipse':t=`<path d="${halfEllipsePathD(f)}"${styleStr(f)}/>`;break; case 'path':t=`<path ${geomAttrs(f)}${styleStr(f)}/>`;break; case 'raw':t=f.svg;break; } return withId?addId(t,f.id):t; }
+function figToSVGCompact(f,def){ if(f.type==='raw')return f.svg; if(f.type==='halfellipse')return `<path d="${halfEllipsePathD(f)}"${compactAttrs(f,def)}/>`; return `<${f.type} ${geomAttrs(f)}${compactAttrs(f,def)}/>`; }
+function computeDefault(){ const sf=figures.filter(f=>f.type!=='raw'&&f.stroke&&f.stroke!=='none'); if(!sf.length)return {stroke:'none',sw:1.6,cap:'round',join:'round'};
+  const mode=key=>{ const m={}; sf.forEach(f=>{ const v=String(f[key]==null?(key==='sw'?f.sw:f[key]):f[key]); m[v]=(m[v]||0)+1; }); let bk=null,bn=-1; for(const k in m)if(m[k]>bn){bn=m[k];bk=k;} return bk; };
+  return {stroke:mode('stroke'),sw:parseFloat(mode('sw')),cap:mode('cap')||'round',join:mode('join')||'round'}; }
+function innerExport(def){ return figures.map(f=>figToSVGCompact(f,def)).join(''); }
+function wrapSVG(inner,def,size){ let attrs=`xmlns="${SVGNS}" viewBox="0 0 ${grid} ${grid}" fill="none"`; if(def.stroke!=='none')attrs+=` stroke="${def.stroke}" stroke-width="${n(def.sw)}" stroke-linecap="${def.cap}" stroke-linejoin="${def.join}"`; if(size)attrs+=` width="${size}" height="${size}"`; return `<svg ${attrs}>${inner}</svg>`; }
+function toLogical(e){ const r=big.getBoundingClientRect(); let x=(e.clientX-r.left)/r.width*grid,y=(e.clientY-r.top)/r.height*grid; if(snap){x=Math.round(x/snapStep)*snapStep;y=Math.round(y/snapStep)*snapStep;} return {x:n(x),y:n(y)}; }
+function createFigure(type,geom){ return Object.assign({id:newId(),type,stroke:curStroke,sw:curSW,cap:curCap,join:curJoin,fill:curFill},geom); }
+function getAttr(el,a){ return el.getAttribute&&el.getAttribute(a); }
+function walk(el,inhStyle,inhMatrix,accTr){ const out=[]; const tag=el.tagName?el.tagName.toLowerCase():''; let style={...inhStyle},matrix=inhMatrix,acc=accTr;
+  if(tag==='g'||tag==='svg'){ const tf=getAttr(el,'transform'); if(tf){matrix=M_mul(inhMatrix,parseTransform(tf));acc=(acc?acc+' ':'')+tf;} const fs=getAttr(el,'fill'); if(fs!=null)style.fill=fs; const st=getAttr(el,'stroke'); if(st!=null)style.stroke=st; const sw=getAttr(el,'stroke-width'); if(sw!=null)style.sw=parseFloat(sw); const cp=getAttr(el,'stroke-linecap'); if(cp!=null)style.cap=cp; const jn=getAttr(el,'stroke-linejoin'); if(jn!=null)style.join=jn; for(const ch of el.children)out.push(...walk(ch,style,matrix,acc)); return out; }
+  const fs=getAttr(el,'fill'); if(fs!=null)style.fill=fs; const st=getAttr(el,'stroke'); if(st!=null)style.stroke=st; const sw=getAttr(el,'stroke-width'); if(sw!=null)style.sw=parseFloat(sw); const cp=getAttr(el,'stroke-linecap'); if(cp!=null)style.cap=cp; const jn=getAttr(el,'stroke-linejoin'); if(jn!=null)style.join=jn;
+  const base={stroke:style.stroke||'none',sw:style.sw!=null?style.sw:1,cap:style.cap||'round',join:style.join||'round',fill:style.fill||'none'}; const tf=getAttr(el,'transform'); const M=tf?M_mul(matrix,parseTransform(tf)):matrix; const accFinal=(acc?acc+' ':'')+(tf||''); const tp=([x,y])=>M_apply(M,x,y); const num=a=>{ const v=getAttr(el,a); return v==null?0:parseFloat(v); };
+  if(tag==='line'){ const a=tp([num('x1'),num('y1')]),b=tp([num('x2'),num('y2')]); out.push(Object.assign({id:newId(),type:'line',x1:n(a[0]),y1:n(a[1]),x2:n(b[0]),y2:n(b[1])},base)); }
+  else if(tag==='polyline'){ const pts=(getAttr(el,'points')||'').trim().split(/\s+/).map(s=>s.split(',').map(Number)).map(p=>tp(p).map(n)); out.push(Object.assign({id:newId(),type:'polyline',pts},base)); }
+  else if(tag==='rect'){ const x=num('x'),y=num('y'),w=num('width'),h=num('height'); const p0=tp([x,y]),p1=tp([x+w,y+h]); out.push(Object.assign({id:newId(),type:'rect',x:n(Math.min(p0[0],p1[0])),y:n(Math.min(p0[1],p1[1])),w:n(Math.abs(p1[0]-p0[0])),h:n(Math.abs(p1[1]-p0[1]))},base)); }
+  else if(tag==='circle'){ const c=tp([num('cx'),num('cy')]); out.push(Object.assign({id:newId(),type:'circle',cx:n(c[0]),cy:n(c[1]),r:n(num('r'))},base)); }
+  else if(tag==='ellipse'){ const c=tp([num('cx'),num('cy')]); out.push(Object.assign({id:newId(),type:'ellipse',cx:n(c[0]),cy:n(c[1]),rx:n(num('rx')),ry:n(num('ry'))},base)); }
+  else if(tag==='halfellipse'){ const c=tp([num('cx'),num('cy')]); const hasRot=!(Math.abs(M[0]-1)<1e-6&&Math.abs(M[1])<1e-6&&Math.abs(M[2])<1e-6&&Math.abs(M[3]-1)<1e-6);
+    if(hasRot){ const clone=el.cloneNode(false); clone.setAttribute('fill',base.fill); clone.setAttribute('stroke',base.stroke); clone.setAttribute('stroke-width',n(base.sw)); clone.setAttribute('stroke-linecap',base.cap); clone.setAttribute('stroke-linejoin',base.join); clone.removeAttribute('transform'); let node=clone; if(accFinal.trim()){const g=document.createElementNS(SVGNS,'g');g.setAttribute('transform',accFinal.trim());g.appendChild(clone);node=g;} out.push({id:newId(),type:'raw',svg:node.outerHTML}); }
+    else out.push(Object.assign({id:newId(),type:'halfellipse',cx:n(c[0]),cy:n(c[1]),rx:n(num('rx')),ry:n(num('ry')),orient:num('orient')||0},base)); }
+  else if(tag==='path'){ const d=getAttr(el,'d')||''; const cmds=parsePathCommands(d); if(cmds)out.push(Object.assign({id:newId(),type:'path',cmds:transformCmds(cmds,M)},base));
+    else { const clone=el.cloneNode(false); clone.setAttribute('fill',base.fill); clone.setAttribute('stroke',base.stroke); clone.setAttribute('stroke-width',n(base.sw)); clone.setAttribute('stroke-linecap',base.cap); clone.setAttribute('stroke-linejoin',base.join); clone.removeAttribute('transform'); let node=clone; if(accFinal.trim()){const g=document.createElementNS(SVGNS,'g');g.setAttribute('transform',accFinal.trim());g.appendChild(clone);node=g;} out.push({id:newId(),type:'raw',svg:node.outerHTML}); } }
+  return out; }
+function parseIntoFigures(text){ const m=text.match(/<svg[\s\S]*?<\/svg>/i); const svgText=m?m[0]:`<svg viewBox="0 0 ${grid} ${grid}" xmlns="${SVGNS}">${text}</svg>`; const doc=new DOMParser().parseFromString(svgText,'image/svg+xml'); if(doc.getElementsByTagName('parsererror').length)return null; return walk(doc.documentElement,{fill:'none',stroke:'none',sw:1,cap:'round',join:'round'},M_ID(),''); }
+function snap_(){ return JSON.parse(JSON.stringify(figures)); }
+function pushUndo(){ undoStack.push({fig:snap_()}); if(undoStack.length>80)undoStack.shift(); }
+function undo(){ if(!undoStack.length)return; const s=undoStack.pop(); figures=s.fig; selection.clear(); activeHandle=null; interaction=null; clipboard=null; pasteN=0; renderAll(); }
+function translateFig(f,dx,dy){ if(f.type==='line'){f.x1+=dx;f.y1+=dy;f.x2+=dx;f.y2+=dy;} else if(f.type==='polyline'){f.pts=f.pts.map(p=>[n(p[0]+dx),n(p[1]+dy)]);} else if(f.type==='rect'){f.x+=dx;f.y+=dy;} else if(f.type==='circle'||f.type==='ellipse'||f.type==='halfellipse'){f.cx+=dx;f.cy+=dy;} else if(f.type==='path'){ for(const c of f.cmds){ if(c.p){c.p[0]+=dx;c.p[1]+=dy;} if(c.c){for(let k=0;k<c.c.length;k+=2){c.c[k]+=dx;c.c[k+1]+=dy;}} } } else if(f.type==='raw'){ f.svg=`<g transform="translate(${n(dx)} ${n(dy)})">${f.svg}</g>`; } }
+function handlesOf(f){ const H=[];
+  if(f.type==='line'){ H.push({x:f.x1,y:f.y1,move:(x,y)=>{f.x1=x;f.y1=y;}}); H.push({x:f.x2,y:f.y2,move:(x,y)=>{f.x2=x;f.y2=y;}}); }
+  else if(f.type==='polyline'){ f.pts.forEach((p,i)=>H.push({x:p[0],y:p[1],move:(x,y)=>{f.pts[i]=[x,y];}})); }
+  else if(f.type==='rect'){ const R=()=>f.x+f.w,B=()=>f.y+f.h; H.push({x:f.x,y:f.y,move:(x,y)=>{const r=R(),b=B();f.x=Math.min(x,r);f.y=Math.min(y,b);f.w=r-f.x;f.h=b-f.y;}}); H.push({x:R(),y:f.y,move:(x,y)=>{const L=f.x,b=B();f.w=Math.max(0,x-L);f.y=Math.min(y,b);f.h=b-f.y;}}); H.push({x:R(),y:B(),move:(x,y)=>{const L=f.x,T=f.y;f.w=Math.max(0,x-L);f.h=Math.max(0,y-T);}}); H.push({x:f.x,y:B(),move:(x,y)=>{const r=R(),T=f.y;f.x=Math.min(x,r);f.w=r-f.x;f.h=Math.max(0,y-T);}}); }
+  else if(f.type==='circle'){ H.push({x:f.cx,y:f.cy,move:(x,y)=>{f.cx=x;f.cy=y;}}); H.push({x:f.cx+f.r,y:f.cy,move:(x,y)=>{f.r=Math.max(0,x-f.cx);}}); }
+  else if(f.type==='ellipse'){ H.push({x:f.cx,y:f.cy,move:(x,y)=>{f.cx=x;f.cy=y;}}); H.push({x:f.cx+f.rx,y:f.cy,move:(x,y)=>{f.rx=Math.max(0,x-f.cx);}}); H.push({x:f.cx,y:f.cy+f.ry,move:(x,y)=>{f.ry=Math.max(0,y-f.cy);}}); }
+  else if(f.type==='halfellipse'){ const o=f.orient||0; let vtx,vtxM,side,sideM;
+    if(o===0){vtx=[f.cx,f.cy-f.ry];vtxM=(x,y)=>{f.ry=Math.max(0,f.cy-y);};side=[f.cx+f.rx,f.cy];sideM=(x,y)=>{f.rx=Math.max(0,x-f.cx);};}
+    else if(o===2){vtx=[f.cx,f.cy+f.ry];vtxM=(x,y)=>{f.ry=Math.max(0,y-f.cy);};side=[f.cx+f.rx,f.cy];sideM=(x,y)=>{f.rx=Math.max(0,x-f.cx);};}
+    else if(o===1){vtx=[f.cx+f.rx,f.cy];vtxM=(x,y)=>{f.rx=Math.max(0,x-f.cx);};side=[f.cx,f.cy-f.ry];sideM=(x,y)=>{f.ry=Math.max(0,f.cy-y);};}
+    else {vtx=[f.cx-f.rx,f.cy];vtxM=(x,y)=>{f.rx=Math.max(0,f.cx-x);};side=[f.cx,f.cy-f.ry];sideM=(x,y)=>{f.ry=Math.max(0,f.cy-y);};}
+    H.push({x:f.cx,y:f.cy,move:(x,y)=>{f.cx=x;f.cy=y;}}); H.push({x:vtx[0],y:vtx[1],move:vtxM}); H.push({x:side[0],y:side[1],move:sideM}); }
+  else if(f.type==='path'){ f.cmds.forEach((c)=>{ if(c.c){ for(let k=0;k<c.c.length;k+=2){ const cx=c.c[k],cy=c.c[k+1]; H.push({x:cx,y:cy,off:true,move:(x,y)=>{c.c[k]=x;c.c[k+1]=y;}}); } } if(c.p){ H.push({x:c.p[0],y:c.p[1],off:false,move:(x,y)=>{c.p[0]=x;c.p[1]=y;}}); } }); }
+  return H; }
+function ptSeg(px,py,x1,y1,x2,y2){ const dx=x2-x1,dy=y2-y1,l2=dx*dx+dy*dy; if(l2===0)return Math.hypot(px-x1,py-y1); let t=((px-x1)*dx+(py-y1)*dy)/l2; t=Math.max(0,Math.min(1,t)); return Math.hypot(px-(x1+t*dx),py-(y1+t*dy)); }
+function pointInPoly(px,py,poly){ let inside=false; for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1]; if(((yi>py)!==(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside; } return inside; }
+function hitFigure(f,p){ const sVis=f.stroke&&f.stroke!=='none',fVis=f.fill&&f.fill!=='none'; if(!sVis&&!fVis)return Infinity;
+  switch(f.type){ case 'line':return sVis?ptSeg(p.x,p.y,f.x1,f.y1,f.x2,f.y2):Infinity;
+    case 'polyline':{ let d=Infinity; if(sVis)for(let i=0;i<f.pts.length-1;i++)d=Math.min(d,ptSeg(p.x,p.y,f.pts[i][0],f.pts[i][1],f.pts[i+1][0],f.pts[i+1][1])); if(fVis&&pointInPoly(p.x,p.y,f.pts))d=0; return d; }
+    case 'rect':{ const x=f.x,y=f.y,w=f.w,h=f.h; let d=Infinity; if(sVis)d=Math.min(ptSeg(p.x,p.y,x,y,x+w,y),ptSeg(p.x,p.y,x+w,y,x+w,y+h),ptSeg(p.x,p.y,x+w,y+h,x,y+h),ptSeg(p.x,p.y,x,y+h,x,y)); if(fVis&&p.x>=x&&p.x<=x+w&&p.y>=y&&p.y<=y+h)d=0; return d; }
+    case 'circle':{ const d0=Math.hypot(p.x-f.cx,p.y-f.cy); if(fVis&&d0<=f.r)return 0; return sVis?Math.abs(d0-f.r):Infinity; }
+    case 'ellipse':{ if(f.rx<=0||f.ry<=0)return Infinity; const a=(p.x-f.cx)/f.rx,b=(p.y-f.cy)/f.ry,v=a*a+b*b; if(fVis&&v<=1)return 0; return sVis?Math.abs(Math.sqrt(v)-1)*Math.min(f.rx,f.ry):Infinity; }
+    case 'halfellipse':{ if(!sVis)return Infinity; const pts=halfEllipsePoints(f); let d=Infinity; for(let i=0;i<pts.length-1;i++)d=Math.min(d,ptSeg(p.x,p.y,pts[i][0],pts[i][1],pts[i+1][0],pts[i+1][1])); return d; }
+    case 'path':{ let prev=null; const poly=[]; let d=Infinity; for(const c of f.cmds){ if(sVis){const seg=sampleCmd(c,prev||c.p||[0,0]); for(let k=1;k<seg.length;k++)d=Math.min(d,ptSeg(p.x,p.y,seg[k-1][0],seg[k-1][1],seg[k][0],seg[k][1]));} if(c.p){prev=c.p;poly.push(c.p);} if(c.t==='M'&&poly.length)poly.push(poly[0]); } if(fVis&&poly.length>2&&pointInPoly(p.x,p.y,poly))d=0; return d; } }
+  return Infinity; }
+function hitTest(p){ let bestId=null,bestD=HIT_THR+1e-9; for(let i=figures.length-1;i>=0;i--){ const f=figures[i]; let d=Infinity;
+  if(f.type==='raw'){ const el=figLayer.querySelector('[data-id="'+f.id+'"]'); if(el){ try{ const r=elViewBoxRect(el); if(p.x>=r.x-HIT_THR&&p.x<=r.x+r.w+HIT_THR&&p.y>=r.y-HIT_THR&&p.y<=r.y+r.h+HIT_THR)d=0; }catch(e){} } }
+  else d=hitFigure(f,p); if(d<bestD){bestD=d;bestId=f.id;} } return bestId; }
+function drawGrid(){ let s=''; for(let i=0;i<=CANVAS_DIV;i++){ const c=n(i*grid/CANVAS_DIV); const major=(i%8===0); const col=major?'#565b63':'#32363c';
+  s+=`<line x1="${c}" y1="0" x2="${c}" y2="${grid}" stroke="${col}"/><line x1="0" y1="${c}" x2="${grid}" y2="${c}" stroke="${col}"/>`; } gridLayer.innerHTML=s; }
+function renderFigs(){ figLayer.innerHTML=figures.map(f=>figToSVG(f,true)).join(''); }
+function renderPreviews(def){ const inner=innerExport(def); PV.forEach(p=>{ p.setAttribute('viewBox',`0 0 ${grid} ${grid}`); if(def.stroke!=='none'){p.setAttribute('stroke',def.stroke);p.setAttribute('stroke-width',n(def.sw));p.setAttribute('stroke-linecap',def.cap);p.setAttribute('stroke-linejoin',def.join);} else {p.removeAttribute('stroke');p.removeAttribute('stroke-width');p.removeAttribute('stroke-linecap');p.removeAttribute('stroke-linejoin');} p.innerHTML=inner; }); schedulePixel(def); }
+function renderUI(){ let s=''; const u=px2u();
+  if(tool==='select'&&selection.size===1){ const f=figObj(selFirst()); if(f&&f.type!=='raw'){ handlesOf(f).forEach((h,i)=>{ const on=activeHandle&&activeHandle.id===f.id&&activeHandle.idx===i; const rr=(on?HANDLE_ON_PX:HANDLE_PX)*u;
+    if(h.off){ const hs=rr*0.32; s+=`<rect class="offpt" data-h="${i}" x="${n(h.x-hs)}" y="${n(h.y-hs)}" width="${n(hs*2)}" height="${n(hs*2)}" fill="${on?'#fff':'#7fd0ff'}" stroke="#000" stroke-width="${u*0.7}" transform="rotate(45 ${n(h.x)} ${n(h.y)})"/>`; }
+    else s+=`<circle class="handle" data-h="${i}" cx="${n(h.x)}" cy="${n(h.y)}" r="${n(rr*0.5)}" fill="${on?'#ffd24a':COLORS.ORG}" stroke="#000" stroke-width="${u}"/>`; }); } }
+  const node=lastPointer||hoverNode; if(node&&tool!=='select')s+=`<circle cx="${n(node.x)}" cy="${n(node.y)}" r="${6*u}" fill="${COLORS.ORG}" stroke="none"/>`;
+  if(interaction&&interaction.kind==='poly'){ const f=figObj(interaction.id); if(f&&f.pts.length&&node){ const lp=f.pts[f.pts.length-1]; s+=`<line x1="${n(lp[0])}" y1="${n(lp[1])}" x2="${n(node.x)}" y2="${n(node.y)}" stroke="${curStroke}" stroke-width="${u}" stroke-dasharray="${n(u*4)}"/>`; } }
+  uiLayer.innerHTML=s; }
+function syncCodeBox(){ if(document.activeElement===pasteBox)return; pasteBox.value=(currentName&&ICONS[currentName]!=null)?`const ${currentName} =\`${ICONS[currentName]}\``:''; }
+function renderAll(){ const def=computeDefault(); renderFigs(); renderPreviews(def); renderUI(); syncCodeBox(); }
+function schedulePixel(def){ if(interaction)return; clearTimeout(pixelTimer); pixelTimer=setTimeout(()=>renderPixel(def||computeDefault()),60); }
+function renderPixel(def){ pvCtx.clearRect(0,0,32,32); const svgText=wrapSVG(innerExport(def),def,32); const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svgText); const seq=++pixelSeq; const img=new Image(); img.onload=()=>{ if(seq!==pixelSeq)return; pvCtx.imageSmoothingEnabled=false; pvCtx.clearRect(0,0,32,32); pvCtx.drawImage(img,0,0,32,32); }; img.src=url; }
+function renderPalette(){ [['strokeRow','stroke'],['fillRow','fill']].forEach(([rowId,mode])=>{ const row=document.getElementById(rowId); row.innerHTML='';
+  palette.forEach(c=>{ const b=document.createElement('button'); b.className='sw'; b.style.background=c; b.dataset.c=c; b.dataset.mode=mode; b.title=c+'  (right‑click to remove)'; row.appendChild(b); });
+  if(mode==='fill'){ const none=document.createElement('button'); none.className='sw'; none.textContent='∅'; none.style.background='#222'; none.dataset.c='none'; none.dataset.mode='fill'; none.title='none'; row.appendChild(none); }
+  const inp=document.createElement('input'); inp.type='color'; inp.dataset.mode=mode; inp.title='pick '+mode+' color'; inp.value=(mode==='stroke'?curStroke:(curFill!=='none'?curFill:'#000000')); row.appendChild(inp); }); syncStyleUI(); }
+function setStroke(c){ if(selection.size)pushUndo(); curStroke=c; applySel(); syncStyleUI(); renderAll(); }
+function setFill(c){ if(selection.size)pushUndo(); curFill=c; applySel(); syncStyleUI(); renderAll(); }
+function applySel(){ selection.forEach(id=>{ const f=figObj(id); if(f&&f.type!=='raw'){ f.stroke=curStroke; f.sw=curSW; f.cap=curCap; f.join=curJoin; f.fill=curFill; } }); }
+function syncStyleUI(){ document.querySelectorAll('#strokeRow .sw').forEach(b=>b.classList.toggle('on',b.dataset.c===curStroke)); document.querySelectorAll('#fillRow .sw').forEach(b=>b.classList.toggle('on',b.dataset.c===curFill));
+  const si=document.querySelector('#strokeRow input[type=color]'); if(si&&/^#[0-9a-f]{6}$/i.test(curStroke))si.value=curStroke; const fi=document.querySelector('#fillRow input[type=color]'); if(fi&&/^#[0-9a-f]{6}$/i.test(curFill))fi.value=curFill;
+  document.getElementById('swIn').value=curSW; document.getElementById('capIn').value=curCap; document.getElementById('joinIn').value=curJoin; }
+function syncStyleFromSelected(){ for(const id of selection){ const f=figObj(id); if(f&&f.type!=='raw'){ curStroke=f.stroke; curSW=f.sw; curCap=f.cap; curJoin=f.join; curFill=f.fill; syncStyleUI(); return; } } }
+function commitCurrent(){ if(currentName&&figures.length)ICONS[currentName]=wrapSVG(innerExport(computeDefault()),computeDefault()); }
+function applyFromCodeText(t){ const f=parseIntoFigures(t); if(f===null)return; figures=f; selection.clear(); activeHandle=null; interaction=null; renderAll(); }
+function fillIconSelect(){ iconSelect.innerHTML=''; ORDER.forEach(name=>{ const o=document.createElement('option'); o.value=name; o.textContent=name.replace('ICO_',''); iconSelect.appendChild(o); }); }
+function selectIcon(name){ if(currentName&&currentName!==name&&figures.length)ICONS[currentName]=wrapSVG(innerExport(computeDefault()),computeDefault()); currentName=name; iconSelect.value=name; applyFromCodeText(`const ${name} =\`${ICONS[name]}\``); }
+function parseIconsBlock(text){ const found={},order=[]; const re=/const\s+(ICO_\w+)\s*=\s*`([\s\S]*?)`/g; let m; while((m=re.exec(text))){ found[m[1]]=m[2]; order.push(m[1]); } return {found,order}; }
+function exportIconsFileText(order){ const list=(order&&order.length?order:ORDER).filter(n=>ICONS[n]!=null); return list.map(n=>`const ${n} =\`${ICONS[n]}\`;`).join('\n')+`\n\nwindow.ICONS = { ${list.join(', ')} };\n`; }
+function onCodeInput(){ const t=pasteBox.value; const re=/const\s+(ICO_\w+)\s*=\s*`([\s\S]*?)`/g; let m; const found={}; let firstName=null,any=false; while((m=re.exec(t))){ found[m[1]]=m[2]; if(!firstName)firstName=m[1]; any=true; } if(!any)return;
+  for(const k in found){ ICONS[k]=found[k]; if(!ORDER.includes(k))ORDER.push(k); } fillIconSelect(); const target=(currentName&&found[currentName])?currentName:firstName; if(target){ currentName=target; iconSelect.value=target; applyFromCodeText(`const ${target} =\`${found[target]}\``); } }
+function addIconEmpty(){ const name='ICO_CUSTOM_'+(++customN); ICONS[name]=`<svg viewBox="0 0 32 32" fill="none"></svg>`; ORDER.push(name); fillIconSelect(); currentName=name; applyFromCodeText(`const ${name} =\`${ICONS[name]}\``); }
+function deleteIcon(){ if(!currentName)return; const i=ORDER.indexOf(currentName); if(i<0)return; delete ICONS[currentName]; ORDER.splice(i,1); fillIconSelect(); if(ORDER.length){ const ni=Math.min(i,ORDER.length-1); currentName=ORDER[ni]; applyFromCodeText(`const ${currentName} =\`${ICONS[currentName]}\``); } else { currentName=null; figures=[]; selection.clear(); renderAll(); } }
+async function openIconsFile(){ const FSAok=('showOpenFilePicker' in window); let text=null; if(FSAok){ try{ const hs=await showOpenFilePicker({multiple:false}); const h=hs[0]; text=await (await h.getFile()).text(); iconsHandle=h; }catch(e){ return; } } else { const f=await new Promise(res=>{ const inp=document.createElement('input'); inp.type='file'; inp.onchange=()=>res(inp.files[0]); inp.click(); }); if(!f)return; text=await f.text(); iconsHandle=null; }
+  const {found,order}=parseIconsBlock(text); for(const k in found)ICONS[k]=found[k]; ORDER.length=0; order.forEach(n=>{ if(!ORDER.includes(n))ORDER.push(n); }); fillIconSelect(); const cur=iconSelect.value||ORDER[0]; if(ICONS[cur]){ currentName=cur; applyFromCodeText(`const ${cur} =\`${ICONS[cur]}\``); } }
+async function saveIconsFile(){ commitCurrent(); const text=exportIconsFileText(); const FSAok=('showSaveFilePicker' in window); if(iconsHandle&&FSAok){ try{ const w=await iconsHandle.createWritable(); await w.write(text); await w.close(); return; }catch(e){ iconsHandle=null; } } if(FSAok){ try{ const h=await showSaveFilePicker({suggestedName:'icons.js'}); const w=await h.createWritable(); await w.write(text); await w.close(); iconsHandle=h; return; }catch(e){ return; } } const blob=new Blob([text],{type:'text/javascript'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='icons.js'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),1000); }
+function moveLayer(dir){ if(selection.size!==1)return; const id=selFirst(); const i=figures.findIndex(f=>f.id===id),j=i+dir; if(j<0||j>=figures.length)return; pushUndo(); const t=figures[i];figures[i]=figures[j];figures[j]=t; renderAll(); }
+function setTool(t){ if(interaction){ if(interaction.kind==='poly')finishPoly(); else { interaction=null; unbindWin(); } } activeHandle=null; lastPointer=null; tool=t; document.querySelectorAll('.tool').forEach(x=>x.classList.toggle('on',x.dataset.tool===t)); big.style.cursor=t==='select'?'default':'crosshair'; renderUI(); }
+function bindWin(){ if(winBound)return; winBound=true; window.addEventListener('pointermove',onWinMove); window.addEventListener('pointerup',onWinUp); }
+function unbindWin(){ winBound=false; window.removeEventListener('pointermove',onWinMove); window.removeEventListener('pointerup',onWinUp); }
+function onBigDown(e){ if(e.button!==0)return; if(e.target.classList&&(e.target.classList.contains('handle')||e.target.classList.contains('offpt')))return; const p=toLogical(e);
+  if(tool==='select'){ const id=hitTest(p); if(e.shiftKey){ if(id){ selection.has(id)?selection.delete(id):selection.add(id); } } else if(!(e.ctrlKey||e.metaKey)){ selection=id?new Set([id]):new Set(); } if((e.ctrlKey||e.metaKey)&&selection.size===0&&id)selection=new Set([id]); activeHandle=null;
+    if((e.ctrlKey||e.metaKey)&&selection.size>0){ pushUndo(); const prevSel=new Set(selection); const newSel=new Set(); const origs=new Map(); selection.forEach(sid=>{ const src=figObj(sid); if(!src)return; const f=JSON.parse(JSON.stringify(src)); f.id=newId(); figures.push(f); newSel.add(f.id); origs.set(f.id,JSON.parse(JSON.stringify(f))); }); selection=newSel; interaction={kind:'groupmove',sx:p.x,sy:p.y,origs,prevSel,moved:false}; bindWin(); }
+    else if(selection.size>0&&id&&selection.has(id)){ pushUndo(); const origs=new Map(); selection.forEach(sid=>{ const f=figObj(sid); if(f)origs.set(sid,JSON.parse(JSON.stringify(f))); }); interaction={kind:'groupmove',sx:p.x,sy:p.y,origs,moved:false}; bindWin(); }
+    if(selection.size>=1)syncStyleFromSelected(); renderAll(); }
+  else if(tool==='polyline'){ if(!interaction||interaction.kind!=='poly'){ pushUndo(); const f=createFigure('polyline',{pts:[[p.x,p.y]]}); figures.push(f); selection=new Set([f.id]); activeHandle=null; interaction={kind:'poly',id:f.id}; } else { const f=figObj(interaction.id); f.pts.push([p.x,p.y]); } bindWin(); lastPointer=p; renderAll(); }
+  else { pushUndo(); let f; if(tool==='line')f=createFigure('line',{x1:p.x,y1:p.y,x2:p.x,y2:p.y}); else if(tool==='rect')f=createFigure('rect',{x:p.x,y:p.y,w:0,h:0,x0:p.x,y0:p.y}); else if(tool==='ellipse')f=createFigure('ellipse',{cx:p.x,cy:p.y,rx:0,ry:0,x0:p.x,y0:p.y}); else if(tool==='halfellipse')f=createFigure('halfellipse',{cx:p.x,cy:p.y,rx:0,ry:0,orient:0,x0:p.x,y0:p.y}); figures.push(f); selection=new Set([f.id]); activeHandle=null; interaction={kind:'create',id:f.id,type:tool,x0:p.x,y0:p.y}; bindWin(); lastPointer=p; renderAll(); } }
+function onWinMove(e){ const p=toLogical(e); lastPointer=p; if(interaction){ const f=figObj(interaction.id);
+  if(interaction.kind==='create'&&f){ if(interaction.type==='line'){f.x2=p.x;f.y2=p.y;} else if(interaction.type==='rect'){f.x=Math.min(interaction.x0,p.x);f.y=Math.min(interaction.y0,p.y);f.w=Math.abs(p.x-interaction.x0);f.h=Math.abs(p.y-interaction.y0);} else if(interaction.type==='ellipse'){f.cx=(interaction.x0+p.x)/2;f.cy=(interaction.y0+p.y)/2;f.rx=Math.abs(p.x-interaction.x0)/2;f.ry=Math.abs(p.y-interaction.y0)/2;} else if(interaction.type==='halfellipse'){f.cx=(interaction.x0+p.x)/2;f.cy=(interaction.y0+p.y)/2;f.rx=Math.abs(p.x-interaction.x0)/2;f.ry=Math.abs(p.y-interaction.y0)/2;} }
+  else if(interaction.kind==='groupmove'){ const dx=p.x-interaction.sx,dy=p.y-interaction.sy; interaction.moved=true; interaction.origs.forEach((orig,sid)=>{ const g=figObj(sid); if(!g)return; for(const k in orig)if(k!=='id')g[k]=JSON.parse(JSON.stringify(orig[k])); translateFig(g,dx,dy); }); }
+  else if(interaction.kind==='handle'){ interaction.move(p.x,p.y); } } renderAll(); }
+function onWinUp(){ if(interaction&&interaction.kind==='poly'){ lastPointer=null; renderUI(); schedulePixel(); return; }
+  if(interaction&&interaction.kind==='groupmove'&&!interaction.moved&&interaction.prevSel){ interaction.origs.forEach((_,cid)=>{ figures=figures.filter(f=>f.id!==cid); }); selection=interaction.prevSel; undoStack.pop(); }
+  if(interaction&&interaction.kind==='create'){ const f=figObj(interaction.id); let bad=false; if(f.type==='line'&&f.x1===f.x2&&f.y1===f.y2)bad=true; if(f.type==='rect'&&(f.w<0.001||f.h<0.001))bad=true; if((f.type==='ellipse'||f.type==='halfellipse')&&(f.rx<0.001||f.ry<0.001))bad=true; if(bad){ figures=figures.filter(x=>x.id!==f.id); undoStack.pop(); selection.clear(); activeHandle=null; } }
+  interaction=null; unbindWin(); lastPointer=null; renderAll(); }
+function onHandleDown(e){ if(!e.target.classList.contains('handle')&&!e.target.classList.contains('offpt'))return; e.stopPropagation(); const f=figObj(selFirst()); if(!f)return; const idx=+e.target.dataset.h; activeHandle={id:f.id,idx}; const move=handlesOf(f)[idx].move; pushUndo(); interaction={kind:'handle',id:f.id,move}; bindWin(); lastPointer=toLogical(e); }
+function finishPoly(){ const f=figObj(interaction.id); if(!f||f.pts.length<2){ figures=figures.filter(x=>x.id!==interaction.id); undoStack.pop(); selection.clear(); activeHandle=null; } interaction=null; unbindWin(); lastPointer=null; renderAll(); }
+big.addEventListener('pointerdown',onBigDown); uiLayer.addEventListener('pointerdown',onHandleDown);
+big.addEventListener('pointermove',e=>{ if(interaction)return; if(tool==='select'){ if(hoverNode){hoverNode=null;renderUI();} return; } hoverNode=toLogical(e); renderUI(); });
+big.addEventListener('pointerleave',()=>{ if(hoverNode){hoverNode=null;renderUI();} });
+big.addEventListener('dblclick',()=>{ if(tool==='polyline'&&interaction&&interaction.kind==='poly')finishPoly(); });
+big.addEventListener('contextmenu',e=>e.preventDefault());
+document.querySelectorAll('.tool').forEach(b=>b.addEventListener('click',()=>setTool(b.dataset.tool)));
+document.getElementById('layerFwd').onclick=()=>moveLayer(1); document.getElementById('layerBack').onclick=()=>moveLayer(-1);
+document.getElementById('addIconBtn').onclick=addIconEmpty; document.getElementById('delIconBtn').onclick=deleteIcon;
+document.getElementById('addColorIn').addEventListener('change',e=>{ const c=e.target.value; if(!palette.includes(c)){ palette.push(c); savePalette(); renderPalette(); } e.target.value='#000000'; });
+['strokeRow','fillRow'].forEach(id=>{ const row=document.getElementById(id);
+  row.addEventListener('click',e=>{ const b=e.target.closest('.sw'); if(!b)return; const c=b.dataset.c; if(b.dataset.mode==='stroke')setStroke(c); else setFill(c); });
+  row.addEventListener('input',e=>{ if(e.target.type==='color'){ const c=e.target.value; if(e.target.dataset.mode==='stroke')setStroke(c); else setFill(c); } });
+  row.addEventListener('contextmenu',e=>{ const b=e.target.closest('.sw'); if(!b||b.dataset.c==='none')return; e.preventDefault(); const c=b.dataset.c; const i=palette.indexOf(c); if(i>=0&&palette.length>1){ palette.splice(i,1); savePalette(); renderPalette(); } }); });
+pasteBox.addEventListener('input',onCodeInput);
+document.getElementById('swIn').addEventListener('input',e=>{ curSW=Math.max(0,+e.target.value||0); applySel(); renderAll(); });
+document.querySelectorAll('.swbtn').forEach(b=>b.addEventListener('click',()=>{ curSW=+b.dataset.sw; applySel(); syncStyleUI(); renderAll(); }));
+document.getElementById('capIn').addEventListener('change',e=>{ curCap=e.target.value; applySel(); renderAll(); });
+document.getElementById('joinIn').addEventListener('change',e=>{ curJoin=e.target.value; applySel(); renderAll(); });
+iconSelect.addEventListener('change',e=>selectIcon(e.target.value));
+document.getElementById('openIconsBtn').onclick=openIconsFile; document.getElementById('saveIconsBtn').onclick=saveIconsFile;
+document.addEventListener('keydown',e=>{ const ae=document.activeElement; const isTextInput=isTextInputEl(ae); const code=e.code,key=e.key;
+  if((e.ctrlKey||e.metaKey)&&code==='KeyS'){ e.preventDefault(); saveIconsFile(); return; }
+  if((e.ctrlKey||e.metaKey)&&code==='KeyZ'){ if(isTextInput)return; e.preventDefault(); undo(); return; }
+  if((e.ctrlKey||e.metaKey)&&code==='KeyC'){ if(isTextInput)return; if(selection.size){ clipboard=[...selection].map(id=>JSON.parse(JSON.stringify(figObj(id)))).filter(Boolean); pasteN=0; e.preventDefault(); } return; }
+  if((e.ctrlKey||e.metaKey)&&code==='KeyV'){ if(isTextInput)return; if(clipboard&&clipboard.length){ e.preventDefault(); pasteN++; const ids=new Set(); clipboard.forEach(src=>{ const f=JSON.parse(JSON.stringify(src)); f.id=newId(); translateFig(f,pasteN,pasteN); pushUndo(); figures.push(f); ids.add(f.id); }); selection=ids; activeHandle=null; renderAll(); } return; }
+  if(isTextInput||ae.tagName==='SELECT')return;
+  if(key==='Escape'){ if(interaction){ if(interaction.kind==='poly')finishPoly(); else undo(); } setTool('select'); return; }
+  if(key==='Enter'){ if(interaction&&interaction.kind==='poly')finishPoly(); return; }
+  if(key==='Delete'||key==='Backspace'){ if(selection.size){ pushUndo(); figures=figures.filter(f=>!selection.has(f.id)); selection.clear(); activeHandle=null; renderAll(); } return; }
+  if(key.startsWith('Arrow')&&selection.size){ e.preventDefault(); const step=e.shiftKey?5:e.altKey?0.25:0.5; let dx=0,dy=0; if(key==='ArrowLeft')dx=-step; else if(key==='ArrowRight')dx=step; else if(key==='ArrowUp')dy=-step; else if(key==='ArrowDown')dy=step; if(dx===0&&dy===0)return; pushUndo();
+    if(activeHandle&&selection.size===1){ const h=handlesOf(figObj(selFirst()))[activeHandle.idx]; if(h)h.move(n(h.x+dx),n(h.y+dy)); } else selection.forEach(sid=>{ const f=figObj(sid); if(f)translateFig(f,dx,dy); }); renderAll(); } });
+renderPalette(); fillIconSelect(); drawGrid(); selectIcon('ICO_GRID');
+</script>
+</body>
+</html>
