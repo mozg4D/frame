@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>frame</title>
+<link rel="stylesheet" href="./style.css?v=final-qa-5"/>
+<script type="importmap">{ "imports":{ "three":"https://unpkg.com/three@0.162.0/build/three.module.js", "three/addons/":"https://unpkg.com/three@0.162.0/examples/jsm/" } }</script>
+</head>
+<body>
+<div id="app">
+<div id="vp"></div>
+<div id="panel">
+<div id="filebar">
+<div class="tbtn" id="btnNew"      title="New"></div>
+<div class="tbtn" id="btnOpen"     title="Open (.hash)"></div>
+<div class="tbtn" id="btnRecents"  title="Recent files (hold)"></div>
+<div class="tbtn" id="btnSave"     title="Save"></div>
+<div class="tbtn" id="btnSaveAs"   title="Save as…"></div>
+<div class="tbtn" id="btnSaveInc"  title="Save incremental (+1)"></div>
+<div class="tbtn" id="btnDownload" title="Download as .hash"></div>
+<div class="tbtn" id="btnBrowser"  title="Fold all / restore tree"></div>
+</div>
+<div id="obWrap"><div id="obScroll"><div id="obInner"></div></div></div>
+<div id="tabstrip">
+<div class="tabgrp">
+<div class="tabbtn" id="tabAttributes"  title="Attributes manager"></div>
+<div class="tabbtn" id="tabObjects"     title="Objects library"></div>
+<div class="tabbtn" id="tabMaterialMgr" title="Material editor"></div>
+<div class="tabbtn" id="tabMaterials"   title="Materials"></div>
+<div class="tabbtn" id="tabTextures"    title="Textures library"></div>
+</div>
+<div class="tabact">
+<div class="tabbtn actbtn" id="tabDelUnused" title="Remove unused / duplicate materials" style="display:none"></div>
+<div class="tabbtn actbtn" id="tabAddNew"    title="Add new" style="display:none"></div>
+</div>
+</div>
+<div id="panels">
+<div id="attributesPanel" class="panel-content" style="display:none"><div id="attrContent"></div></div>
+<div id="objectsPanel" class="panel-content" style="display:none"></div>
+<div id="matEditorPanel" class="panel-content" style="display:none">
+<div id="matEditorContent">
+<div class="me-layout">
+<canvas id="matPreview" width="53" height="53" draggable="true"></canvas>
+<div class="me-right">
+<div class="me-hsl">
+<div class="me-grad" id="gradH"></div>
+<input class="me-inp" id="inpH" value="0.0" spellcheck="false" autocomplete="off">
+<div class="me-grad" id="gradS"></div>
+<input class="me-inp" id="inpS" value="0.0" spellcheck="false" autocomplete="off">
+<div class="me-grad" id="gradL"></div>
+<input class="me-inp" id="inpL" value="80.0" spellcheck="false" autocomplete="off">
+<div class="me-swatch"></div>
+</div>
+</div>
+</div>
+<div class="me-bottom">
+<div class="me-pal" id="mePal"></div>
+<div class="me-params">
+<span class="me-plab">Emissive</span><input class="me-inp" id="inpEmm" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Roughness</span><input class="me-inp" id="inpRough" value="50.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Metalness</span><input class="me-inp" id="inpMetal" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Opacity</span><input class="me-inp" id="inpOpac" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab" id="bumpLab" style="display:none">Bump</span><input class="me-inp" id="inpBump" value="0.0" spellcheck="false" autocomplete="off" style="display:none">
+</div>
+<div class="me-tex-col">
+<div class="me-tex-btn" id="btnLoadTex" title="Load texture"></div>
+<div class="me-tex-btn" id="btnDelTex" title="Delete texture" style="display:none"></div>
+</div>
+</div>
+</div>
+</div>
+<div id="materialsPanel" class="panel-content checker" style="display:none"><div id="matList"></div></div>
+<div id="texturesPanel" class="panel-content" style="display:none">
+<div id="texScroll"><div id="texGrid"></div></div>
+</div>
+</div>
+<div class="trow" id="modelbar">
+<div class="tbtn" id="btnHelp"     title="Help"></div>
+<div class="tbtn" id="btnInstance" title="Instance"></div>
+<div class="tbtn" id="btnBoolean"  title="Boolean"></div>
+<div class="tbtn" id="btnSymmetry" title="Symmetry"></div>
+<div class="tbtn" id="btnCloner"   title="Cloner"></div>
+<div class="tbtn" id="btnEnv"      title="Environment"></div>
+</div>
+<div class="trow" id="modelbar2">
+<div class="tbtn" id="btnVertexMode"  title="Vertex selection mode"></div>
+<div class="tbtn" id="btnEdgeMode"    title="Edge selection mode"></div>
+<div class="tbtn" id="btnPolygonMode" title="Polygon selection mode"></div>
+<div class="tbtn" id="btnSpline"      title="Draw spline"></div>
+<div class="tbtn" id="btnExtrude"     title="Extrude"></div>
+<div class="tbtn" id="btnLathe"       title="Lathe"></div>
+<div class="tbtn" id="btnSweep"       title="Sweep"></div>
+<div class="tbtn" id="btnSplinePatch" title="Spline patch"></div>
+</div>
+<div id="toolbar">
+<div class="tbtn" id="btnShading" title="Shading mode"></div>
+<div class="tbtn on" id="btnQuant"  title="Quantize (Q)"></div>
+<div class="tbtn" id="btnSnap"   title="Snapping (S)"></div>
+<div class="tbtn" id="coordBtn" title="World / Object coordinates (W)"></div>
+<div class="tbtn" id="btnPivot"  title="Edit pivot (P)"></div>
+<div class="tbtn" id="btnLocal"  title="Auto pivot to far bbox corner"></div>
+<div class="tbtn" id="btnUV"     title="UV edit / display"></div>
+<div class="tbtn" id="btnSolo"   title="Solo mode"></div>
+</div>
+<div id="timeline">
+<span class="tl-frame">frame</span>
+<input class="tl-inp" id="tlCur" inputmode="numeric" autocomplete="off" spellcheck="false">
+<span class="tl-sep">/</span>
+<input class="tl-inp" id="tlTotal" inputmode="numeric" autocomplete="off" spellcheck="false">
+<button class="tl-btn" id="tlPlay" title="Play / Pause"></button>
+<button class="tl-btn" id="tlPrevKey" title="Previous key"></button>
+<button class="tl-btn" id="tlNextKey" title="Next key"></button>
+<button class="tl-btn" id="tlSetKey" title="Set key"></button>
+<button class="tl-btn" id="tlDelKey" title="Delete key"></button>
+<button class="tl-toggle" id="tlInterp" title="Interpolation type"></button>
+</div>
+<div id="units">
+<span class="ugrp" id="dispGrp"><span class="ulab">disp</span><button class="ubtn" id="dM">−</button><span class="uval" id="dV">mm</span><button class="ubtn" id="dP">+</button></span>
+<span class="ugrp" id="rsclGrp"><span class="ulab">rscl</span><button class="ubtn" id="rM">−</button><span class="uval" id="rV">mm</span><button class="ubtn" id="rP">+</button></span>
+</div>
+<div id="hud">
+<div class="row"><span class="ax ax-x">x</span><input class="val" id="px" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="rx" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sx" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+<div class="row"><span class="ax ax-y">y</span><input class="val" id="py" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="ry" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sy" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+<div class="row"><span class="ax ax-z">z</span><input class="val" id="pz" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="rz" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sz" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+</div>
+</div>
+</div>
+<input type="file" id="fileInput" style="display:none" accept=".hash,.gltf,.glb,.obj,.stl,.ply,.svg,.dxf"/>
+<input type="file" id="texInput" style="display:none" accept="image/*"/>
+<div id="recentsMenu"></div>
+<div id="obMenu"></div>
+<div id="vpMenu"></div>
+<div id="dragInfo"></div>
+<dialog id="helpDialog" aria-labelledby="helpTitle">
+  <form method="dialog" class="help-card">
+    <div class="help-head"><strong id="helpTitle">FRAME Help</strong><button value="close" aria-label="Close">×</button></div>
+    <div class="help-body">
+      <p><kbd>Q</kbd> Quantize · <kbd>S</kbd> Snap · <kbd>W</kbd> World/Object · <kbd>P</kbd> Pivot</p>
+      <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
+      <p>Open supports native HASH, glTF/GLB, OBJ, STL, PLY, SVG and the documented DXF subset. Save As chooses a format; right-click Download exports interchange files.</p>
+      <p>Native HASH is the lossless format for editable splines, generators, hierarchy, materials and animation.</p>
+    </div>
+  </form>
+</dialog>
+<script src="./boot-diagnostics.js?v=3"></script>
+<script src="./icons.js?v=redrawn-icons-5"></script>
+  <script type="module" src="./app.js?v=production-6-js-r2"></script>
+</body>
+</html>
