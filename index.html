@@ -1239,8 +1239,8 @@ function exactClosedCellCover(candidates, edgeIds, limit = 15e4) {
   return solve() ? [...chosen].map((i) => candidates[i]) : null;
 }
 function explicitPatchSide(data, value, from, to) {
-  let ids = (Array.isArray(value) ? value : [value]).map(String);
-  if (!ids.length) return null;
+  let ids = (Array.isArray(value) ? value : value == null ? [] : [value]).map(String);
+  if (!ids.length) return from === to ? [] : null;
   let edges = [], vertex = from;
   for (let sid of ids) {
     let s = data.segments[sid];
@@ -1262,8 +1262,80 @@ function explicitPatchCell(data, spec, vertices) {
   let edges = sides.flat();
   return { id: "cell:" + cycleKey(vertices) + ":" + sides.map((side) => side.map((x) => x.id).join("+")).join("|"), vertices: vertices.slice(), sides, edges, surfaceControls: Array.isArray(spec.controls) ? spec.controls.map(([key, p]) => [key, p.slice()]) : null, chartDescriptor: spec.chartDescriptor || null, sourceSpec: spec };
 }
+function inferProfilePathCells(data) {
+  let sequences = data.sequences.filter((q) => q.segments.length).map((sequence) => ({ sequence, ...orderedSplineSequence(data, sequence) }));
+  if (sequences.length < 2) return null;
+  let path = sequences.at(-1), profiles = sequences.slice(0, -1);
+  if (!path.edges.length || profiles.some((q) => !q.edges.length)) return null;
+  let controls = profiles.flatMap((q) => q.edges.flatMap((edge) => segmentPoints(data, edge.id) || [])).map((p) => new THREE2.Vector3().fromArray(p)), plane = deterministicSplineWorldPlane(controls);
+  if (!plane?.planar || plane.collinear) return null;
+  let pathControls = path.edges.flatMap((edge) => segmentPoints(data, edge.id) || []).map((p) => new THREE2.Vector3().fromArray(p)), allPlane = deterministicSplineWorldPlane(controls.concat(pathControls));
+  if (allPlane?.planar) return null;
+  return profiles.map((profile, i) => ({
+    id: `profile-path:${profile.sequence.id}:${path.sequence.id}`,
+    vertices: profile.vertices.slice(),
+    edges: profile.edges.concat(path.edges),
+    sides: [],
+    plane: { planar: !1, normal: plane.normal.toArray?.() || plane.normal },
+    planar: !1,
+    sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !!profile.sequence.closed, pathClosed: !!path.sequence.closed, profileIndex: i }
+  }));
+}
+function inferContourPathCells(data, component) {
+  let componentEdges = new Set(component.edges), fillUse = /* @__PURE__ */ new Map();
+  for (let fill2 of data.planarFills || []) for (let ref of fill2.edges || []) {
+    let id2 = typeof ref == "string" ? ref : ref.id;
+    fillUse.set(id2, (fillUse.get(id2) || 0) + 1);
+  }
+  let sequences = data.sequences.filter((q) => q.segments.length && q.segments.every((id2) => componentEdges.has(id2)) && !q.segments.every((id2) => (fillUse.get(id2) || 0) > 1)).map((sequence) => ({ sequence, ...orderedSplineSequence(data, sequence) }));
+  if (sequences.length < 2 || sequences.length > 4) return null;
+  let reverseChain = (chain) => ({ ...chain, vertices: chain.vertices.slice().reverse(), edges: reverseLogicalEdges(chain.edges) }), rotateClosed = (chain, anchor) => {
+    let at = chain.vertices.indexOf(anchor);
+    if (at < 0) return null;
+    return { ...chain, vertices: chain.vertices.slice(at).concat(chain.vertices.slice(0, at)), edges: chain.edges.slice(at).concat(chain.edges.slice(0, at)) };
+  }, ids = (chain) => chain.edges.map((edge) => edge.id), between = (chain, a, b) => chain.vertices[0] === a && chain.vertices.at(-1) === b ? ids(chain) : chain.vertices[0] === b && chain.vertices.at(-1) === a ? ids(reverseChain(chain)) : null, make = (vertices, edges) => explicitPatchCell(data, { vertices, edges }, vertices), closed = sequences.filter((x) => x.sequence.closed), open = sequences.filter((x) => !x.sequence.closed), cells = [];
+  if (closed.length === 2 && open.length === 1) {
+    let rail = open[0], a = rail.vertices[0], b = rail.vertices.at(-1), p0 = rotateClosed(closed[0], a), p1 = rotateClosed(closed[1], b);
+    if (!p0 || !p1) p0 = rotateClosed(closed[0], b), p1 = rotateClosed(closed[1], a), rail = reverseChain(rail), a = rail.vertices[0], b = rail.vertices.at(-1);
+    if (!p0 || !p1) return null;
+    let r = ids(rail), cell = make([a, a, b, b], [ids(p0), r, ids(p1).reverse(), r.slice().reverse()]);
+    return cell ? [cell] : null;
+  }
+  if (closed.length === 2 && !open.length) {
+    let common = closed[0].vertices.find((v) => closed[1].vertices.includes(v));
+    if (!common) return null;
+    let profile = rotateClosed(closed[0], common), rail = rotateClosed(closed[1], common), p = ids(profile), r = ids(rail), cell = make([common, common, common, common], [p, r, p.slice().reverse(), r.slice().reverse()]);
+    return cell ? [cell] : null;
+  }
+  if (open.length >= 2 && (closed.length || open.length <= 4)) {
+    let profiles = open.slice(0, 2), rails = [...open.slice(2), ...closed], variants = [profiles, [reverseChain(profiles[0]), profiles[1]], [profiles[0], reverseChain(profiles[1])], [reverseChain(profiles[0]), reverseChain(profiles[1])]];
+    for (let [p0, p1] of variants) {
+      let a0 = p0.vertices[0], a1 = p0.vertices.at(-1), b0 = p1.vertices[0], b1 = p1.vertices.at(-1), railFor = (a, b) => a === b ? [] : rails.map((r) => between(r, a, b)).find(Boolean) || null, r0 = railFor(a0, b0), r1 = railFor(a1, b1);
+      if (r0 && r1) {
+        let cell = make([a0, a1, b1, b0], [ids(p0), r1, ids(p1).slice().reverse(), r0.slice().reverse()]);
+        if (cell) return [cell];
+      }
+    }
+  }
+  if (open.length === 1 && closed.length) {
+    let profile = open[0], start = profile.vertices[0], end = profile.vertices.at(-1), startRail = closed.find((r) => r.vertices.includes(start)), endRail = closed.find((r) => r.vertices.includes(end) && r !== startRail);
+    if (startRail || endRail) {
+      let sr = startRail ? rotateClosed(startRail, start) : null, er = endRail ? rotateClosed(endRail, end) : null, p = ids(profile), cell = make([start, end, end, start], [p, er ? ids(er) : [], p.slice().reverse(), sr ? ids(sr).reverse() : []]);
+      return cell ? [cell] : null;
+    }
+    let rail = closed[0], anchor = profile.vertices.find((v, i) => i > 0 && i < profile.vertices.length - 1 && rail.vertices.includes(v)), split = anchor ? profile.vertices.indexOf(anchor) : -1;
+    if (split <= 0 || split >= profile.edges.length) return null;
+    rail = rotateClosed(rail, anchor);
+    let r = ids(rail), a = ids(profile).slice(0, split), b = ids(profile).slice(split), c0 = make([start, anchor, anchor, start], [a, r, a.slice().reverse(), []]), c1 = make([anchor, end, end, anchor], [b, [], b.slice().reverse(), r.slice().reverse()]);
+    return c0 && c1 ? [c0, c1] : null;
+  }
+  return null;
+}
 function resolveSplineTopology(data) {
   let adj = graphAdjacency(data), components = findComponents(data, adj), contours = [], patchCells = [], warnings = [];
+  let profilePath = !data.patchCells?.length && inferProfilePathCells(data);
+  if (profilePath?.length)
+    return { components: components.map((c) => ({ vertices: c.vertices.slice(), edges: c.edges.slice() })), contours: [], planarContours: [], patchCells: profilePath, warnings };
   if (Array.isArray(data.patchCells) && data.patchCells.length) {
     let explicit = [];
     for (let spec of data.patchCells) {
@@ -1280,11 +1352,19 @@ function resolveSplineTopology(data) {
       let id2 = typeof ref == "string" ? ref : ref.id;
       edgeUse.set(id2, (edgeUse.get(id2) || 0) + 1);
     }
-    if (explicit.length === data.patchCells.length && Object.keys(data.segments).every((id2) => (edgeUse.get(id2) || 0) === 2))
+    if (explicit.length === data.patchCells.length && Object.keys(data.segments).every((id2) => (edgeUse.get(id2) || 0) >= 1 && (edgeUse.get(id2) || 0) <= 2))
       return explicit.some((cell) => cell.surfaceControls) || orientPatchCells(data, explicit), { components: components.map((c) => ({ vertices: c.vertices.slice(), edges: c.edges.slice() })), contours: [], planarContours: [], patchCells: explicit, warnings };
     warnings.push("generated patch-cell cache is stale; topology was resolved automatically");
   }
   for (let component of components) {
+    let contourPath = inferContourPathCells(data, component);
+    if (contourPath?.length) {
+      for (let cell of contourPath) {
+        let plane = deterministicPlane(cycleControlPoints(data, cell));
+        cell.plane = plane, cell.planar = !!plane?.planar, patchCells.push(cell);
+      }
+      continue;
+    }
     let loop = branchlessCycle(data, component, adj);
     if (loop) {
       loop.sides = loop.edges.map((edge) => [edge]);
@@ -1539,27 +1619,9 @@ function createSplineNgonClosedData(sideCount = 5, { irregular = !1, warped = !1
   return d.patchCells = [cell(base), ...base.map((v, i) => cell([v, apex, base[(i + 1) % n]]))], d;
 }
 function createSplineSphereCageData() {
-  let d = createSplineData({ angle: 5 }), r = 520, k = r * 0.5522847498307936, axis = {
-    xp: addSplineVertex(d, [r, 0, 0]),
-    xn: addSplineVertex(d, [-r, 0, 0]),
-    yp: addSplineVertex(d, [0, r, 0]),
-    yn: addSplineVertex(d, [0, -r, 0]),
-    zp: addSplineVertex(d, [0, 0, r]),
-    zn: addSplineVertex(d, [0, 0, -r])
-  }, circles = [
-    [["xp", "yp", "xn", "yn"], [[0, k, 0], [-k, 0, 0], [0, -k, 0], [k, 0, 0]]],
-    [["yp", "zp", "yn", "zn"], [[0, 0, k], [0, -k, 0], [0, 0, -k], [0, k, 0]]],
-    [["zp", "xp", "zn", "xn"], [[k, 0, 0], [0, 0, -k], [-k, 0, 0], [0, 0, k]]]
-  ], edgeMap = /* @__PURE__ */ new Map(), edgeKey = (a, b) => [a, b].sort().join("|");
-  for (let [names, tangents] of circles) {
-    let q = addSplineSequence(d, !0);
-    for (let i = 0; i < 4; i++) {
-      let a = names[i], b = names[(i + 1) % 4], sid = addSplineSegment(d, q, axis[a], axis[b], tangents[i], mul(tangents[(i + 1) % 4], -1));
-      edgeMap.set(edgeKey(a, b), sid);
-    }
-  }
-  let faces = [["xp", "yp", "zp"], ["yp", "xn", "zp"], ["xn", "yn", "zp"], ["yn", "xp", "zp"], ["xp", "zn", "yp"], ["yp", "zn", "xn"], ["xn", "zn", "yn"], ["yn", "zn", "xp"]];
-  return d.patchCells = faces.map((names) => ({ vertices: names.map((x) => axis[x]), edges: names.map((x, i) => edgeMap.get(edgeKey(x, names[(i + 1) % 3]))) })), d;
+  let profile = createSplineData({ angle: 5 }), r = 520, k = r * 0.5522847498307936, q = addSplineSequence(profile, !1), south = addSplineVertex(profile, [0, -r, 0]), equator = addSplineVertex(profile, [r, 0, 0]), north = addSplineVertex(profile, [0, r, 0]);
+  addSplineSegment(profile, q, south, equator, [k, 0, 0], [0, -k, 0]), addSplineSegment(profile, q, equator, north, [0, k, 0], [k, 0, 0]);
+  return buildLatheSplineCage(profile, { angle: 360, approximation: 5 });
 }
 function createSplineMixedClosedData() {
   let d = createSplineData({ angle: 5 }), r = 520, z = 430, vertices = {};
@@ -2237,7 +2299,7 @@ var envelope = (d) => d * (1 - d) ** 3, envelopeDerivative = (d) => (1 - d) ** 2
     for (let j = 0; j < resolution; j++) for (let i = 0; i < resolution; i++) {
       let u = i / (resolution - 1), v = j / (resolution - 1);
       if (this.domain.type === "triangle" && u + v > 1 + 1e-12) continue;
-      let apexUv = this.domain.type === "triangle" ? this.domain.apexUv || [0, 1] : null, apex = !!apexUv && Math.abs(u - apexUv[0]) <= 1e-14 && Math.abs(v - apexUv[1]) <= 1e-14, jet;
+      let apexUv = this.domain.type === "triangle" ? this.domain.apexUv || [0, 1] : null, lensCoordinate = this.domain.collapsedAxis === "v" ? v : u, apex = !!apexUv && Math.abs(u - apexUv[0]) <= 1e-14 && Math.abs(v - apexUv[1]) <= 1e-14 || this.domain.type === "lens" && (Math.abs(lensCoordinate) <= 1e-14 || Math.abs(lensCoordinate - 1) <= 1e-14), jet;
       try {
         jet = this.EvalJet([u, v]);
       } catch {
@@ -2413,6 +2475,29 @@ function buildQuadRenderTopology(input, { mergeDistance = null, tessellationVers
   let indices = new Uint32Array(triangles.flatMap((f) => f.map((id2) => indexOf.get(id2)))), boundaryAnchors = nodes.filter((n) => n.anchor).map((n) => ({ id: n.anchor, uv: n.uv.slice(), xyz: n.xyz.slice(), root: weld.rootOf.get(n.id) }));
   return { uv, positions, indices, logicalFaces, boundaryAnchors, rawNodeCount: nodes.length, vertexCount: vertexIds.length, mergeDistance: threshold, horizontalLines: H.length, verticalLines: V.length, tessellationVersion, geometryVersion: input.surface.GeometryVersion?.() ?? input.geometryVersion ?? 0, chartVersion: input.surface.ChartVersion?.() ?? input.chartVersion ?? 0 };
 }
+var boundaryIdSignature = (side, reverse2 = !1) => (reverse2 ? side.slice().reverse() : side).map((sample) => String(sample.id)).join("|");
+function periodicQuadAxes(boundaries) {
+  return { u: boundaryIdSignature(boundaries.left) === boundaryIdSignature(boundaries.right) || boundaryIdSignature(boundaries.left) === boundaryIdSignature(boundaries.right, !0), v: boundaryIdSignature(boundaries.bottom) === boundaryIdSignature(boundaries.top) || boundaryIdSignature(boundaries.bottom) === boundaryIdSignature(boundaries.top, !0) };
+}
+function buildPeriodicQuadRenderTopology(input, { tessellationVersion = 1 } = {}) {
+  let boundaries = Object.fromEntries(["bottom", "top", "left", "right"].map((side) => [side, normalizeSamples(side, input.boundaries[side])])), periodic = periodicQuadAxes(boundaries), trimLoop = (side, active) => active && side.length > 2 && side[0].id === side.at(-1).id ? side.slice(0, -1) : side.slice(), bottom = trimLoop(boundaries.bottom, periodic.u), top = trimLoop(boundaries.top, periodic.u), left = trimLoop(boundaries.left, periodic.v), right = trimLoop(boundaries.right, periodic.v), collapsed = (side) => side.every((sample) => sample.id === side[0].id || Math.hypot(sample.xyz[0] - side[0].xyz[0], sample.xyz[1] - side[0].xyz[1], sample.xyz[2] - side[0].xyz[2]) < 1e-10), sampleAt = (side, index, count) => {
+    if (collapsed(side)) return { ...side[0], s: index / Math.max(1, count - (periodic.u || periodic.v ? 0 : 1)) };
+    if (side.length === count) return side[index];
+    return side[Math.round(index * (side.length - 1) / Math.max(1, count - 1))];
+  };
+  if (!periodic.u && !periodic.v || bottom.length < 2 || top.length < 2 || left.length < 2 || right.length < 2) return buildQuadRenderTopology(input, { tessellationVersion });
+  let nu = Math.max(bottom.length, top.length), nv = Math.max(left.length, right.length), positions = new Float64Array(nu * nv * 3), uv = new Float64Array(nu * nv * 2), boundaryAnchors = [], at = (i, j) => j * nu + i;
+  for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) {
+    let id2 = at(i, j), bs = sampleAt(bottom, i, nu), ts = sampleAt(top, i, nu), ls = sampleAt(left, j, nv), rs = sampleAt(right, j, nv), u = bs.s, v = (left.length >= right.length ? ls : rs).s, anchor = j === 0 ? bs : !periodic.v && j === nv - 1 ? ts : i === 0 ? ls : !periodic.u && i === nu - 1 ? rs : null, point = anchor ? anchor.xyz : input.surface.Eval([u, v]);
+    uv[id2 * 2] = u, uv[id2 * 2 + 1] = v, positions.set(point, id2 * 3), anchor && boundaryAnchors.push({ id: anchor.id, uv: [u, v], xyz: anchor.xyz.slice(), root: id2 });
+  }
+  let indices = [], logicalFaces = [], uCells = periodic.u ? nu : nu - 1, vCells = periodic.v ? nv : nv - 1;
+  for (let j = 0; j < vCells; j++) for (let i = 0; i < uCells; i++) {
+    let i1 = (i + 1) % nu, j1 = (j + 1) % nv, face = [at(i, j), at(i1, j), at(i1, j1), at(i, j1)];
+    logicalFaces.push(face), indices.push(face[0], face[1], face[2], face[0], face[2], face[3]);
+  }
+  return { uv, positions, indices: new Uint32Array(indices), logicalFaces, boundaryAnchors, rawNodeCount: nu * nv, vertexCount: nu * nv, mergeDistance: 0, horizontalLines: nv, verticalLines: nu, periodic, tessellationVersion, geometryVersion: input.surface.GeometryVersion?.() ?? input.geometryVersion ?? 0, chartVersion: input.surface.ChartVersion?.() ?? input.chartVersion ?? 0 };
+}
 var triangleUv = (edge, s) => edge === "AB" ? [s, 0] : edge === "AC" ? [0, s] : edge === "BA" ? [1 - s, 0] : edge === "BC" ? [1 - s, s] : edge === "CB" ? [s, 1 - s] : [0, 1 - s], normalizeTriangleEdge = (edge, samples) => samples.map((sample, index) => {
   let s = Number.isFinite(sample.s) ? sample.s : index / Math.max(1, samples.length - 1);
   return { id: String(sample.id ?? `${edge}:${index}`), s, uv: sample.uv?.slice() || triangleUv(edge, s), xyz: sample.xyz.slice() };
@@ -2457,10 +2542,7 @@ function planarFaces(representatives, edges) {
 }
 function buildTriangleRenderTopology(input, { mergeDistance = null, tessellationVersion = 1 } = {}) {
   let base = { AB: normalizeTriangleEdge("AB", input.boundaries.AB), AC: normalizeTriangleEdge("AC", input.boundaries.AC), BC: normalizeTriangleEdge("BC", input.boundaries.BC) };
-  if (base.AB.length === base.AC.length && base.AB.length === base.BC.length && base.AB.every((sample, i) => {
-    let target = i / (base.AB.length - 1);
-    return Math.abs(sample.s - target) <= 1e-12 && Math.abs(base.AC[i].s - target) <= 1e-12 && Math.abs(base.BC[i].s - target) <= 1e-12;
-  })) {
+  if (base.AB.length === base.AC.length && base.AB.length === base.BC.length) {
     let n = base.AB.length - 1, count = (n + 1) * (n + 2) / 2, rowStart = (j) => j * (n + 1) - j * (j - 1) / 2, at = (i, j) => rowStart(j) + i, positions2 = new Float64Array(count * 3), uv2 = new Float64Array(count * 2), boundaryAnchors = [];
     for (let j = 0; j <= n; j++) for (let i = 0; i + j <= n; i++) {
       let anchor = null;
@@ -2528,159 +2610,26 @@ function buildBoundaryAnchorTopology(kind, input, { tessellationVersion = 1 } = 
 }
 var buildNgonRenderTopology = (input, options = {}) => buildQuadRenderTopology({ surface: input.surface, boundaries: input.parentChartBoundaries }, options);
 
-// work/frame-clean/frame-surface-g1.js?v=surface-builder-8
-var mul3 = (a, s) => [a[0] * s, a[1] * s, a[2] * s], dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2], unit2 = (a) => {
-  let n = Math.hypot(a[0], a[1], a[2]);
-  return n > 1e-12 ? mul3(a, 1 / n) : [0, 0, 0];
-}, controls = (data, id2) => segmentPoints(data, id2).map((p) => p.slice()), edgePool = /* @__PURE__ */ new Map(), pooledEdge = (data, id2, geometryVersion) => {
-  let value = controls(data, id2), key = JSON.stringify(value), edge = edgePool.get(key);
-  return edge || (edge = new EdgeGeomCache([value], { geometryVersion }), edgePool.set(key, edge), edgePool.size > 4096 && edgePool.delete(edgePool.keys().next().value)), edge;
-}, Field = class {
-  constructor(fn, n = 129, stations = null) {
-    this.s = [.../* @__PURE__ */ new Set([0, 1, ...Array.from({ length: n }, (_, i) => i / (n - 1)), ...stations || []])].filter(Number.isFinite).map((x) => Math.max(0, Math.min(1, x))).sort((a, b) => a - b), this.v = this.s.map(fn);
-  }
-  #span(s) {
-    s = Math.max(0, Math.min(1, s));
-    let hi = 1;
-    for (; hi < this.s.length - 1 && this.s[hi] < s; ) hi++;
-    let lo = hi - 1, d = this.s[hi] - this.s[lo];
-    return { lo, hi, t: d ? (s - this.s[lo]) / d : 0, d };
-  }
-  eval(s) {
-    let q = this.#span(s), a = this.v[q.lo], b = this.v[q.hi];
-    return [a[0] + (b[0] - a[0]) * q.t, a[1] + (b[1] - a[1]) * q.t, a[2] + (b[2] - a[2]) * q.t];
-  }
-  derivative(s) {
-    let q = this.#span(s), a = this.v[q.lo], b = this.v[q.hi], k = q.d ? 1 / q.d : 0;
-    return [(b[0] - a[0]) * k, (b[1] - a[1]) * k, (b[2] - a[2]) * k];
-  }
-}, FrameSurfaceG1Context = class {
-  constructor(data, topology, { geometryVersion = 1, collinearTolerance = 5e-13 } = {}) {
-    this.data = data, this.topology = topology, this.geometryVersion = geometryVersion, this.collinearTolerance = collinearTolerance, this.edges = new Map(Object.keys(data.segments).map((id2) => [id2, pooledEdge(data, id2, geometryVersion)])), this.occurrences = /* @__PURE__ */ new Map(), this.shared = /* @__PURE__ */ new Map(), this.cellStatuses = /* @__PURE__ */ new Map();
-    for (let cell of topology.patchCells) for (let side = 0; side < (cell.sides || cell.edges.map((edge) => [edge])).length; side++) for (let edge of (cell.sides || cell.edges.map((edge2) => [edge2]))[side]) {
-      let entry = { cell, side, edge, start: edge.from, end: edge.to }, key = `${cell.id}:${edge.id}`;
-      this.occurrences.set(key, entry);
-      let list = this.shared.get(edge.id) || [];
-      list.push(entry), this.shared.set(edge.id, list);
-    }
-    this.planeByOccurrence = /* @__PURE__ */ new Map(), this.#compilePlanes();
-  }
-  #status(cell, status) {
-    if (!status || status === "Ok") return;
-    let set = this.cellStatuses.get(cell.id);
-    set || this.cellStatuses.set(cell.id, set = /* @__PURE__ */ new Set()), set.add(status);
-  }
-  #outgoing(edge, vertex) {
-    let cache = this.edges.get(edge.id), segment = this.data.segments[edge.id];
-    return segment.a === vertex ? cache.EvalTangent(0) : segment.b === vertex ? mul3(cache.EvalTangent(1), -1) : null;
-  }
-  #cornerTangents(occurrence, vertex) {
-    return occurrence.cell.edges.filter((edge) => edge.from === vertex || edge.to === vertex).map((edge) => this.#outgoing(edge, vertex)).filter(Boolean);
-  }
-  #transverse(occurrence, vertex) {
-    let pair = this.#cornerTangents(occurrence, vertex), edgeT = this.#outgoing(occurrence.edge, vertex);
-    return pair.find((t) => Math.abs(dot3(unit2(t), unit2(edgeT))) < 1 - this.collinearTolerance) || pair[1] || pair[0];
-  }
-  #smoothAt(a, b, vertex) {
-    let x = unit2(this.#transverse(a, vertex)), y = unit2(this.#transverse(b, vertex));
-    return Math.abs(dot3(x, y)) >= 1 - this.collinearTolerance;
-  }
-  #plane(edge, startFan, endFan) {
-    try {
-      return new EdgePlaneCache(this.edges.get(edge.id), startFan, endFan, { geometryVersion: this.geometryVersion });
-    } catch {
-      return null;
-    }
-  }
-  #compilePlanes() {
-    for (let [edgeId, list] of this.shared) {
-      let edge = list[0].edge, segment = this.data.segments[edgeId], inferredSmooth = list.length === 2 && this.#smoothAt(list[0], list[1], segment.a) && this.#smoothAt(list[0], list[1], segment.b);
-      if (list.length === 2 && (!!segment.soft || inferredSmooth)) {
-        let start = new VertexFanPlaneCache([...this.#cornerTangents(list[0], segment.a), ...this.#cornerTangents(list[1], segment.a)], { geometryVersion: this.geometryVersion }), end = new VertexFanPlaneCache([...this.#cornerTangents(list[0], segment.b), ...this.#cornerTangents(list[1], segment.b)], { geometryVersion: this.geometryVersion }), plane = start.valid && end.valid ? this.#plane(edge, start, end) : null;
-        for (let occurrence of list)
-          this.planeByOccurrence.set(`${occurrence.cell.id}:${edgeId}`, plane), occurrence.cell.vertices.includes(segment.a) && this.#status(occurrence.cell, start.status), occurrence.cell.vertices.includes(segment.b) && this.#status(occurrence.cell, end.status);
-      } else for (let occurrence of list) {
-        let start = new VertexFanPlaneCache(this.#cornerTangents(occurrence, segment.a), { geometryVersion: this.geometryVersion }), end = new VertexFanPlaneCache(this.#cornerTangents(occurrence, segment.b), { geometryVersion: this.geometryVersion });
-        this.planeByOccurrence.set(`${occurrence.cell.id}:${edgeId}`, start.valid && end.valid ? this.#plane(edge, start, end) : null), occurrence.cell.vertices.includes(segment.a) && this.#status(occurrence.cell, start.status), occurrence.cell.vertices.includes(segment.b) && this.#status(occurrence.cell, end.status);
-      }
-    }
-  }
-  #normal(cell, edge, s) {
-    return this.planeByOccurrence.get(`${cell.id}:${edge.id}`)?.EvalPlaneNormal(edge.reversed ? 1 - s : s) || null;
-  }
-  #spec(cell, edge, predictor, uv, inward, normalFn = null, stations = null) {
-    let normal = normalFn || ((s) => this.#normal(cell, edge, s));
-    if (!normal(0.5)) return { activeResidual: !1 };
-    let field = new Field((s) => {
-      let n = normal(s);
-      return n ? projectG1Residual(inward(predictor.EvalJet(...uv(s)), s), n) : [0, 0, 0];
-    }, 129, stations);
-    return { activeResidual: !0, residual: (s) => field.eval(s), residualDerivative: (s) => field.derivative(s) };
-  }
-  #logicalSpec(cell, logical, predictor, uv, inward) {
-    let locate = (s) => {
-      s = Math.max(0, Math.min(1, s));
-      let i = Math.min(logical.edges.length - 1, logical.knots.findIndex((x, k) => k && s <= x) - 1);
-      i < 0 && (i = logical.edges.length - 1);
-      let a = logical.knots[i], b = logical.knots[i + 1], local = b > a ? (s - a) / (b - a) : 0;
-      return { edge: logical.edges[i], local };
-    }, normal = (s) => {
-      let q = locate(s);
-      return this.#normal(cell, q.edge, q.local);
-    };
-    return this.#spec(cell, logical.edges[0], predictor, uv, inward, normal, logical.knots);
-  }
-  correctQuad(cell, predictor, edges) {
-    let spec = { bottom: this.#spec(cell, edges.bottom, predictor, (s) => [s, 0], (j) => j.Sv), right: this.#spec(cell, edges.right, predictor, (s) => [1, s], (j) => mul3(j.Su, -1)), top: this.#spec(cell, edges.top, predictor, (s) => [s, 1], (j) => mul3(j.Sv, -1)), left: this.#spec(cell, edges.left, predictor, (s) => [0, s], (j) => j.Su) };
-    return new G1Corrector(predictor, quadSideFields(spec));
-  }
-  correctTriangle(cell, predictor, edges) {
-    let left = this.#spec(cell, edges.left, predictor, (s) => [0, s], (j, s) => j.Su.map((x, i) => x - s * j.Sv[i]));
-    left.orientation = -1;
-    let spec = { side2: this.#spec(cell, edges.base, predictor, (s) => [s, 0], (j, s) => j.Sv.map((x, i) => x - s * j.Su[i])), side1: left, side0: this.#spec(cell, edges.right, predictor, (s) => [1 - s, s], (j, s) => j.Su.map((x, i) => -(1 - s) * x - s * j.Sv[i])) };
-    return new G1Corrector(predictor, triangleSideFields(spec), { domainType: "triangle" });
-  }
-  correctTriangleLogical(cell, predictor, edges) {
-    let left = this.#logicalSpec(cell, edges.left, predictor, (s) => [0, s], (j, s) => j.Su.map((x, i) => x - s * j.Sv[i]));
-    left.orientation = -1;
-    let spec = { side2: this.#logicalSpec(cell, edges.base, predictor, (s) => [s, 0], (j, s) => j.Sv.map((x, i) => x - s * j.Su[i])), side1: left, side0: this.#logicalSpec(cell, edges.right, predictor, (s) => [1 - s, s], (j, s) => j.Su.map((x, i) => -(1 - s) * x - s * j.Sv[i])) };
-    return new G1Corrector(predictor, triangleSideFields(spec), { domainType: "triangle" });
-  }
-  correctNgon(cell, predictor, edges) {
-    let spec = { bottom: this.#logicalSpec(cell, edges.bottom, predictor, (s) => [s, 0], (j) => j.Sv), right: this.#logicalSpec(cell, edges.right, predictor, (s) => [1, s], (j) => mul3(j.Su, -1)), top: this.#logicalSpec(cell, edges.top, predictor, (s) => [s, 1], (j) => mul3(j.Sv, -1)), left: this.#logicalSpec(cell, edges.left, predictor, (s) => [0, s], (j) => j.Su) };
-    return new G1Corrector(predictor, quadSideFields(spec));
-  }
-  statusesForCell(cell) {
-    return [...this.cellStatuses.get(cell.id) || []];
-  }
-  diagnostics() {
-    let shared = 0, crease = 0, unresolved = 0;
-    for (let list of this.shared.values()) {
-      let planes = list.map((x) => this.planeByOccurrence.get(`${x.cell.id}:${x.edge.id}`));
-      planes.some((x) => !x) ? unresolved++ : list.length === 2 && planes[0] === planes[1] ? shared++ : crease++;
-    }
-    return { sharedSmoothEdges: shared, creaseEdges: crease, unresolvedEdges: unresolved };
-  }
-}, contextCache = /* @__PURE__ */ new WeakMap();
-function getFrameSurfaceG1Context(data, topology, { geometryVersion = 1 } = {}) {
-  let old = contextCache.get(data);
-  if (old?.geometryVersion === geometryVersion) return old.context;
-  let context = new FrameSurfaceG1Context(data, topology, { geometryVersion });
-  return contextCache.set(data, { geometryVersion, context }), context;
-}
-
 // work/frame-clean/frame-surface-adapter.js?v=surface-builder-25
 var orientedControls = (data, edge) => {
   let p = segmentPoints(data, edge.id).map((x) => x.slice());
   return edge.reversed ? p.reverse() : p;
 };
 var phaseClock = () => globalThis.performance?.now?.() ?? Date.now();
-var logicalChain = (data, edges, { detectCusp = !0 } = {}) => {
-  let pieces = edges.map((edge) => orientedControls(data, edge)), cache = new EdgeGeomCache(pieces), knots = [0], sum = 0;
+var logicalChainCache = /* @__PURE__ */ new WeakMap(), logicalChain = (data, edges, { detectCusp = !0 } = {}) => {
+  let pieces = edges.map((edge) => orientedControls(data, edge)), soft = edges.map((edge) => !!data.segments[edge.id]?.soft), key = JSON.stringify([pieces, soft]), store = logicalChainCache.get(data);
+  store || logicalChainCache.set(data, store = /* @__PURE__ */ new Map());
+  let cached = store.get(key), cache = cached?.cache || new EdgeGeomCache(pieces), knots = cached?.knots?.slice() || [0], sum = 0;
+  if (cached) return { edges, cache, knots, hardKnots: cached.hardKnots.slice(), closureCrease: cached.closureCrease, boundaryCusp: detectCusp && cached.boundaryCusp };
   for (let piece of cache.pieces)
     sum += piece.length, knots.push(cache.totalLength ? sum / cache.totalLength : knots.length / edges.length);
-  return { edges, cache, knots, boundaryCusp: detectCusp && cache.cuspMarkers.length > 0 };
-}, reverseLogicalEdges = (edges) => edges.slice().reverse().map((edge) => ({ ...edge, from: edge.to, to: edge.from, reversed: !edge.reversed })), pointEdge = (p, id2) => new EdgeGeomCache([[p.slice(), p.slice(), p.slice(), p.slice()]], { geometryVersion: id2 }), orientedSamples = (data, edge) => {
+  let hardKnots = [];
+  for (let i = 1; i < knots.length - 1; i++) (!soft[i - 1] || !soft[i]) && hardKnots.push(knots[i]);
+  for (let marker of cache.cuspMarkers) marker.s > 1e-10 && marker.s < 1 - 1e-10 && hardKnots.push(marker.s);
+  hardKnots = [...new Set(hardKnots.map((x) => Number(x.toPrecision(14))))].sort((a, b) => a - b);
+  let closed = edges.length > 1 && edges[0].from === edges.at(-1).to, firstTangent = cache.pieces[0] && tangentLimit(cache.pieces[0].controls, 0, 1), lastTangent = cache.pieces.at(-1) && tangentLimit(cache.pieces.at(-1).controls, 1, -1), closureCrease = !!(closed && (!soft[0] || !soft.at(-1) || firstTangent && lastTangent && dot2(firstTangent, lastTangent) < 1 - 1e-5)), boundaryCusp = cache.cuspMarkers.length > 0 || hardKnots.length > 0 || closureCrease;
+  return store.set(key, { cache, knots: knots.slice(), hardKnots: hardKnots.slice(), closureCrease, boundaryCusp }), store.size > 1024 && store.delete(store.keys().next().value), { edges, cache, knots, hardKnots, closureCrease, boundaryCusp: detectCusp && boundaryCusp };
+}, reverseLogicalEdges = (edges) => edges.slice().reverse().map((edge) => ({ ...edge, from: edge.to, to: edge.from, reversed: !edge.reversed })), pointEdge = (p, id2) => new EdgeGeomCache([[p.slice(), p.slice(), p.slice(), p.slice()]], { geometryVersion: id2 }), logicalPatchSide = (data, edges, vertex, version) => edges.length ? logicalChain(data, edges) : { edges: [], cache: pointEdge(data.vertices[vertex], version), knots: [0, 1], boundaryCusp: !1, virtualPoint: { id: vertex, xyz: data.vertices[vertex].slice() } }, orientedSamples = (data, edge) => {
   let segment = data.segments[edge.id], raw = sampleSplineSegment(data, edge.id), lengths = [0];
   for (let i = 1; i < raw.length; i++) lengths.push(lengths.at(-1) + Math.hypot(raw[i].position[0] - raw[i - 1].position[0], raw[i].position[1] - raw[i - 1].position[1], raw[i].position[2] - raw[i - 1].position[2]));
   let total = lengths.at(-1) || 1, rows = raw.map((x, i) => ({ x, arc: lengths[i] / total }));
@@ -2689,22 +2638,36 @@ var logicalChain = (data, edges, { detectCusp = !0 } = {}) => {
     return { id: canonical === 0 ? `v:${segment.a}` : canonical === 1 ? `v:${segment.b}` : `e:${edge.id}:${Math.round(canonical * 1e9)}`, s, xyz: x.position.slice() };
   });
 }, logicalSamples = (data, logical) => {
+  if (logical.virtualPoint) return [{ id: `v:${logical.virtualPoint.id}`, s: 0, xyz: logical.virtualPoint.xyz.slice() }, { id: `v:${logical.virtualPoint.id}`, s: 1, xyz: logical.virtualPoint.xyz.slice() }];
   let rows = [];
-  for (let edge of logical.edges) {
+  for (let edgeIndex = 0; edgeIndex < logical.edges.length; edgeIndex++) {
+    let edge = logical.edges[edgeIndex], a = logical.knots[edgeIndex], b = logical.knots[edgeIndex + 1];
     let samples = orientedSamples(data, edge);
-    for (let i = rows.length ? 1 : 0; i < samples.length; i++) rows.push({ ...samples[i] });
+    for (let i = rows.length ? 1 : 0; i < samples.length; i++) rows.push({ ...samples[i], s: a + (b - a) * samples[i].s });
   }
-  let lengths = [0];
-  for (let i = 1; i < rows.length; i++) lengths.push(lengths.at(-1) + Math.hypot(rows[i].xyz[0] - rows[i - 1].xyz[0], rows[i].xyz[1] - rows[i - 1].xyz[1], rows[i].xyz[2] - rows[i - 1].xyz[2]));
-  let total = lengths.at(-1) || 1;
-  return rows.map((row, i) => ({ ...row, s: lengths[i] / total }));
-}, surfaceStatuses = (g1, cell, logical = []) => [.../* @__PURE__ */ new Set([...g1.statusesForCell?.(cell) || [], ...logical.some((side) => side.boundaryCusp) ? ["BoundaryCusp"] : []])], boundaryMapFor = (specs) => {
+  return rows;
+}, surfaceStatuses = (g1, cell, logical = []) => [.../* @__PURE__ */ new Set([...g1?.statusesForCell?.(cell) || [], ...logical.some((side) => side.boundaryCusp) ? ["BoundaryCusp"] : []])], boundaryMapFor = (specs) => {
   let map = {};
   for (let [logical, toUv] of specs) for (let i = 0; i < logical.edges.length; i++) {
     let edge = logical.edges[i], a = logical.knots[i], b = logical.knots[i + 1];
     map[edge.id] = (s) => toUv(a + (b - a) * (edge.reversed ? 1 - s : s));
   }
   return map;
+}, axisLensPredictor = (bottom, top, start, end) => {
+  let origin = start.slice(), axis = unit(sub2(end, start)), theta = 0;
+  for (let s of [0.5, 0.25, 0.75, 0.125, 0.875]) {
+    let p0 = bottom.cache.EvalPosition(s), p1 = top.cache.EvalPosition(s), r0 = reject(sub2(p0, origin), axis), r1 = reject(sub2(p1, origin), axis);
+    if (len2(r0) > 1e-9 && len2(r1) > 1e-9) {
+      theta = Math.atan2(dot2(axis, cross2(r0, r1)), dot2(r0, r1));
+      break;
+    }
+  }
+  if (len2(axis) < 1e-9 || Math.abs(theta) < 1e-9) throw new Error("axis lens patch cannot infer its rotation");
+  let jet = (u, v) => {
+    let p = bottom.cache.EvalPosition(u), tangent = mul2(bottom.cache.EvalTangent(u), bottom.cache.totalLength), offset = sub2(p, origin), axial = mul2(axis, dot2(offset, axis)), radial = sub2(offset, axial), rotated = rotate(radial, axis, theta * v), position = add2(origin, add2(axial, rotated));
+    return { position, Su: rotate(tangent, axis, theta * v), Sv: mul2(cross2(axis, rotated), theta) };
+  };
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
 }, trianglePredictor = (morph) => ({ Eval: (u, v) => v >= 1 ? morph.Eval(0, 1) : morph.Eval(u / (1 - v), v), EvalJet: (u, v) => {
   if (v >= 1) return morph.EvalJet(0, 1);
   let d = 1 - v, s = u / d, j = morph.EvalJet(s, v);
@@ -2718,8 +2681,8 @@ function ngonCandidates(data, cell, version, persistentKey = null) {
     for (let k = (i - 1 + n) % n; k !== j; k = (k - 1 + n) % n) leftEdges.push(...reverse(sides[k]));
     let left = logicalChain(data, leftEdges, { detectCusp: !1 }), logicalRef = (logical) => ({ id: logical.edges.map((x) => x.id).join("+"), orientation: logical.edges[0]?.reversed ? -1 : 1 }), descriptor = { domainType: "ngon", primaryEdgeA: logicalRef(bottom), primaryEdgeB: logicalRef(top), leftChain: left.edges.map(edgeRef2), rightChain: right.edges.map(edgeRef2), chartVersion: Math.max(1, +cell.chartDescriptor?.chartVersion || 1) };
     if (persistentKey && new ChartDescriptor(descriptor).persistentKey() !== persistentKey) continue;
-    let morph = new CurveMorphCache(bottom.cache, top.cache, left.cache, right.cache, { geometryVersion: version });
-    out.push({ morph, descriptor, bishopScore: morph.StructuralResidual(), bottom, top, left, right });
+    let total = Math.max(1e-12, bottom.cache.totalLength + top.cache.totalLength + left.cache.totalLength + right.cache.totalLength), balance = (Math.abs(bottom.cache.totalLength - top.cache.totalLength) + Math.abs(left.cache.totalLength - right.cache.totalLength)) / total;
+    out.push({ descriptor, bishopScore: balance, bottom, top, left, right });
   }
   return out;
 }
@@ -2733,26 +2696,143 @@ function compileNgonSurface(data, cell, version, g1, includeBoundaries) {
   let candidates = ngonCandidates(data, cell, version, key);
   if (key && candidates.length ? chosen = candidates[0] : (candidates = ngonCandidates(data, cell, version), descriptor = null), !candidates.length) throw new Error("N-gon has no valid parent-chart hypothesis");
   if (!chosen) {
-    let nextVersion = Math.max(1, (+cell.chartDescriptor?.chartVersion || 0) + (cell.chartDescriptor, 1)), initialized = initializeChart(candidates, { chartVersion: nextVersion });
-    if (initialized.status !== "Valid") throw new Error("N-gon parent chart is singular");
-    descriptor = initialized.descriptor, chosen = candidates.find((q) => new ChartDescriptor(q.descriptor).persistentKey() === descriptor.persistentKey()), cell.sourceSpec && (cell.sourceSpec.chartDescriptor = descriptor.toJSON());
+    candidates.sort((a, b) => a.bishopScore - b.bishopScore || new ChartDescriptor(a.descriptor).persistentKey().localeCompare(new ChartDescriptor(b.descriptor).persistentKey())), chosen = candidates[0], descriptor = new ChartDescriptor(chosen.descriptor), cell.sourceSpec && (cell.sourceSpec.chartDescriptor = descriptor.toJSON());
   }
-  let logical = [chosen.bottom, chosen.right, chosen.top, chosen.left], outer = g1.correctNgon(cell, chosen.morph, { bottom: chosen.bottom, right: chosen.right, top: chosen.top, left: chosen.left }), fanAt = (cut) => {
-    let a = outer.EvalJet(0, cut), b = outer.EvalJet(1, cut), start = new VertexFanPlaneCache([a.Su, a.Sv], { geometryVersion: version }), end = new VertexFanPlaneCache([b.Su, b.Sv], { geometryVersion: version });
-    if (!start.valid || !end.valid) throw new Error("N-gon virtual seam endpoint plane is underdetermined");
-    return { start, end };
-  }, surfaceEval = new NgonVirtualStripSurface(chosen.morph, outer, { left: chosen.left.knots, right: chosen.right.knots }, fanAt, { geometryVersion: version }), boundaryMap = boundaryMapFor([[chosen.bottom, (s) => [s, 0]], [chosen.right, (s) => [1, s]], [chosen.top, (s) => [s, 1]], [chosen.left, (s) => [0, s]]]), surface = new CompiledSurfaceCell(cell.id, surfaceEval, { domain: { type: "ngon" }, boundaryMap, geometryVersion: version, chartVersion: descriptor.chartVersion, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(g1, cell, logical) }), boundaries = includeBoundaries ? { bottom: logicalSamples(data, chosen.bottom), top: logicalSamples(data, chosen.top), left: logicalSamples(data, chosen.left), right: logicalSamples(data, chosen.right) } : null;
-  return { surface, boundaries, parentChartBoundaries: boundaries, kind: "ngon", chart: descriptor.toJSON() };
+  let logical = [chosen.bottom, chosen.right, chosen.top, chosen.left], boundaryMap = boundaryMapFor([[chosen.bottom, (s) => [s, 0]], [chosen.right, (s) => [1, s]], [chosen.top, (s) => [s, 1]], [chosen.left, (s) => [0, s]]]), evaluator = coonsPatchPredictor(chosen.bottom.cache, chosen.top.cache, chosen.left.cache, chosen.right.cache), surface = new CompiledSurfaceCell(cell.id, evaluator, { domain: { type: "ngon" }, boundaryMap, geometryVersion: version, chartVersion: descriptor.chartVersion, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, logical) }), boundaries = includeBoundaries ? { bottom: logicalSamples(data, chosen.bottom), top: logicalSamples(data, chosen.top), left: logicalSamples(data, chosen.left), right: logicalSamples(data, chosen.right) } : null;
+  return { surface, boundaries, parentChartBoundaries: boundaries, kind: "ngon", chart: descriptor.toJSON(), algorithm: "analytic-ngon-coons" };
 }
-var cellSurface = (data, cell, version, g1 = getFrameSurfaceG1Context(data, resolveSplineTopology(data), { geometryVersion: version }), includeBoundaries = !0) => {
+var translationPatchVector = (bottom, top, left, right) => {
+  let samples = [0, 0.25, 0.5, 0.75, 1], delta = sub2(top.cache.EvalPosition(0), bottom.cache.EvalPosition(0)), scale = Math.max(1, bottom.cache.totalLength, top.cache.totalLength, left.cache.totalLength, right.cache.totalLength, len2(delta)), tolerance = scale * 1e-8, near = (a, b) => len2(sub2(a, b)) <= tolerance;
+  if (!samples.every((u) => near(sub2(top.cache.EvalPosition(u), bottom.cache.EvalPosition(u)), delta))) return null;
+  let a0 = bottom.cache.EvalPosition(0), b0 = bottom.cache.EvalPosition(1);
+  if (!samples.every((v) => near(left.cache.EvalPosition(v), add2(a0, mul2(delta, v))) && near(right.cache.EvalPosition(v), add2(b0, mul2(delta, v))))) return null;
+  return delta;
+}, translationPatchPredictor = (profile, delta) => {
+  let jet = (u, v) => ({ position: add2(profile.EvalPosition(u), mul2(delta, v)), Su: mul2(profile.EvalTangent(u), profile.totalLength), Sv: delta.slice() });
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+}, coonsPatchPredictor = (bottom, top, left, right) => {
+  let p00 = bottom.EvalPosition(0), p10 = bottom.EvalPosition(1), p01 = top.EvalPosition(0), p11 = top.EvalPosition(1), edgeDerivative = (edge, s) => mul2(edge.EvalTangent(s), edge.totalLength), jet = (u, v) => {
+    let c0 = bottom.EvalPosition(u), c1 = top.EvalPosition(u), a = left.EvalPosition(v), b = right.EvalPosition(v), blend = add2(add2(mul2(p00, (1 - u) * (1 - v)), mul2(p10, u * (1 - v))), add2(mul2(p01, (1 - u) * v), mul2(p11, u * v))), position = sub2(add2(add2(mul2(c0, 1 - v), mul2(c1, v)), add2(mul2(a, 1 - u), mul2(b, u))), blend), blendU = add2(mul2(sub2(p10, p00), 1 - v), mul2(sub2(p11, p01), v)), blendV = add2(mul2(sub2(p01, p00), 1 - u), mul2(sub2(p11, p10), u)), Su = sub2(add2(add2(mul2(edgeDerivative(bottom, u), 1 - v), mul2(edgeDerivative(top, u), v)), sub2(b, a)), blendU), Sv = sub2(add2(sub2(c1, c0), add2(mul2(edgeDerivative(left, v), 1 - u), mul2(edgeDerivative(right, v), u))), blendV);
+    return { position, Su, Sv };
+  };
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+}, rotationPatchPredictor = (bottom, top, left, right) => {
+  let fail = () => null;
+  let p0 = bottom.cache.EvalPosition(0), p1 = bottom.cache.EvalPosition(1), q0 = top.cache.EvalPosition(0), a = left.cache.EvalPosition(0), b = left.cache.EvalPosition(1), ta = left.cache.EvalTangent(0), tb = left.cache.EvalTangent(1), axis = unit(cross2(ta, tb));
+  if (len2(axis) < 1e-8) return fail();
+  let r0 = unit(cross2(ta, axis)), r1 = unit(cross2(tb, axis)), dr = sub2(r1, r0), radius = dot2(sub2(b, a), dr) / Math.max(1e-30, dot2(dr, dr));
+  if (!Number.isFinite(radius) || Math.abs(radius) < 1e-8) return fail();
+  let center = sub2(a, mul2(r0, radius)), ra = sub2(a, center), rb = sub2(b, center), theta = Math.atan2(dot2(axis, cross2(ra, rb)), dot2(ra, rb));
+  if (Math.abs(theta) < 1e-7) return fail();
+  let scale = Math.max(1, bottom.cache.totalLength, top.cache.totalLength, left.cache.totalLength, right.cache.totalLength), tolerance = scale * 2e-6, railTolerance = scale * 1e-3, rotatePoint = (p, v) => add2(center, rotate(sub2(p, center), axis, theta * v)), samples = [0, 0.25, 0.5, 0.75, 1], near = (x, y, epsilon = tolerance) => len2(sub2(x, y)) <= epsilon;
+  if (!samples.every((u) => near(rotatePoint(bottom.cache.EvalPosition(u), 1), top.cache.EvalPosition(u)))) return fail();
+  if (!samples.every((v) => near(rotatePoint(p0, v), left.cache.EvalPosition(v), railTolerance) && near(rotatePoint(p1, v), right.cache.EvalPosition(v), railTolerance))) return fail();
+  let jet = (u, v) => {
+    let radial = rotate(sub2(bottom.cache.EvalPosition(u), center), axis, theta * v), tangent = rotate(mul2(bottom.cache.EvalTangent(u), bottom.cache.totalLength), axis, theta * v), base = add2(center, radial), baseV = mul2(cross2(axis, radial), theta), r0v = rotatePoint(p0, v), r1v = rotatePoint(p1, v), d0 = sub2(left.cache.EvalPosition(v), r0v), d1 = sub2(right.cache.EvalPosition(v), r1v), leftV = mul2(left.cache.EvalTangent(v), left.cache.totalLength), rightV = mul2(right.cache.EvalTangent(v), right.cache.totalLength), r0d = mul2(cross2(axis, sub2(r0v, center)), theta), r1d = mul2(cross2(axis, sub2(r1v, center)), theta);
+    return { position: add2(base, add2(mul2(d0, 1 - u), mul2(d1, u))), Su: add2(tangent, sub2(d1, d0)), Sv: add2(baseV, add2(mul2(sub2(leftV, r0d), 1 - u), mul2(sub2(rightV, r1d), u))) };
+  };
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+}, alignVector = (value, from, to) => {
+  let a = unit(from), b = unit(to), axis = cross2(a, b), sine = len2(axis), cosine = Math.max(-1, Math.min(1, dot2(a, b)));
+  if (sine > 1e-10) return rotate(value, mul2(axis, 1 / sine), Math.atan2(sine, cosine));
+  if (cosine > 0) return value.slice();
+  let basis = Math.abs(a[0]) < 0.75 ? [1, 0, 0] : Math.abs(a[1]) < 0.75 ? [0, 1, 0] : [0, 0, 1], fallback = unit(cross2(a, basis));
+  return rotate(value, fallback, Math.PI);
+}, fullRotationPatchPredictor = (bottom, top, left, right) => {
+  let samples = [0, 0.25, 0.5, 0.75, 1], scale = Math.max(1, bottom.cache.totalLength, top.cache.totalLength, left.cache.totalLength, right.cache.totalLength), tolerance = scale * 2e-5, near = (a, b, epsilon = tolerance) => len2(sub2(a, b)) <= epsilon;
+  if (!samples.every((u) => near(bottom.cache.EvalPosition(u), top.cache.EvalPosition(u)))) return null;
+  let rails = [left.cache, right.cache].filter((rail) => rail.totalLength > tolerance && near(rail.EvalPosition(0), rail.EvalPosition(1), scale * 1e-3));
+  for (let rail of rails) {
+    let p0 = rail.EvalPosition(0), p1 = rail.EvalPosition(0.25), t0 = rail.EvalTangent(0), t1 = rail.EvalTangent(0.25), axis = unit(cross2(t0, t1));
+    if (len2(axis) < 1e-8) continue;
+    let r0 = unit(cross2(t0, axis)), r1 = unit(cross2(t1, axis)), cosine = dot2(r0, r1), denominator = 1 - cosine * cosine;
+    if (denominator < 1e-8) continue;
+    let w = sub2(p0, p1), d = dot2(r0, w), e = dot2(r1, w), s = (cosine * e - d) / denominator, center = add2(p0, mul2(r0, s)), radial = sub2(p0, center), radius = len2(radial);
+    if (!Number.isFinite(radius) || radius < tolerance) continue;
+    let sign = dot2(cross2(axis, radial), t0) >= 0 ? 1 : -1, theta = sign * Math.PI * 2, rotatePoint = (p, v) => add2(center, rotate(sub2(p, center), axis, theta * v));
+    if (!samples.every((v) => near(rotatePoint(p0, v), rail.EvalPosition(v), scale * 2e-3))) continue;
+    let jet = (u, v) => {
+      let radial2 = rotate(sub2(bottom.cache.EvalPosition(u), center), axis, theta * v), tangent = rotate(mul2(bottom.cache.EvalTangent(u), bottom.cache.totalLength), axis, theta * v);
+      return { position: add2(center, radial2), Su: tangent, Sv: mul2(cross2(axis, radial2), theta) };
+    };
+    return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+  }
+  return null;
+}, railSweepPatchPredictor = (bottom, top, left, right) => {
+  let samples = [0, 0.25, 0.5, 0.75, 1], scale = Math.max(1, bottom.cache.totalLength, top.cache.totalLength, left.cache.totalLength, right.cache.totalLength), tolerance = scale * 2e-4, near = (a, b, epsilon = tolerance) => len2(sub2(a, b)) <= epsilon, closedProfile = near(bottom.cache.EvalPosition(0), bottom.cache.EvalPosition(1)) && near(top.cache.EvalPosition(0), top.cache.EvalPosition(1));
+  if (!closedProfile || !samples.every((v) => near(left.cache.EvalPosition(v), right.cache.EvalPosition(v), scale * 2e-3))) return null;
+  let rail = left.cache.totalLength >= right.cache.totalLength ? left.cache : right.cache;
+  if (rail.totalLength <= tolerance) return null;
+  let origin = rail.EvalPosition(0), end = rail.EvalPosition(1), t0 = rail.EvalTangent(0), t1 = rail.EvalTangent(1), twist = 0;
+  for (let u of [0.25, 0.5, 0.75]) {
+    let source = sub2(bottom.cache.EvalPosition(u), origin), target = sub2(top.cache.EvalPosition(u), end), aligned = alignVector(source, t0, t1), a = sub2(aligned, mul2(t1, dot2(aligned, t1))), b = sub2(target, mul2(t1, dot2(target, t1)));
+    if (len2(a) > tolerance && len2(b) > tolerance) {
+      twist = Math.atan2(dot2(t1, cross2(a, b)), dot2(a, b));
+      break;
+    }
+  }
+  let frame = (value, v) => {
+    let tangent = rail.EvalTangent(v), aligned = alignVector(value, t0, tangent);
+    return Math.abs(twist) > 1e-12 ? rotate(aligned, tangent, twist * v) : aligned;
+  }, position = (u, v) => add2(rail.EvalPosition(v), frame(sub2(bottom.cache.EvalPosition(u), origin), v));
+  if (!samples.every((u) => near(position(u, 1), top.cache.EvalPosition(u), scale * 3e-3))) return null;
+  let jet = (u, v) => ({ position: position(u, v), Su: frame(mul2(bottom.cache.EvalTangent(u), bottom.cache.totalLength), v), Sv: mul2(rail.EvalTangent(v), rail.totalLength) });
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+}, profilePathPredictor = (profile, path, pathClosed = !1) => {
+  let samples = [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1], start = path.EvalPosition(0), finish = path.EvalPosition(1), scale = Math.max(1, profile.totalLength, path.totalLength), tolerance = scale * 2e-5, straight = samples.every((v) => len2(sub2(path.EvalPosition(v), add2(start, mul2(sub2(finish, start), v)))) <= tolerance);
+  if (straight && len2(sub2(finish, start)) > tolerance) {
+    let jet = (u, v) => ({ position: add2(profile.EvalPosition(u), sub2(path.EvalPosition(v), start)), Su: mul2(profile.EvalTangent(u), profile.totalLength), Sv: mul2(path.EvalTangent(v), path.totalLength) });
+    return { predictor: { Eval: (u, v) => jet(u, v).position, EvalJet: jet }, algorithm: "analytic-profile-path-translation" };
+  }
+  let a = path.EvalPosition(0), m = path.EvalPosition(pathClosed ? 0.25 : 0.5), b = path.EvalPosition(pathClosed ? 0.5 : 1), ab = sub2(m, a), ac = sub2(b, a), axis = unit(cross2(ab, ac)), n2 = dot2(cross2(ab, ac), cross2(ab, ac)), center = null;
+  if (n2 > tolerance * tolerance * tolerance * tolerance) {
+    let n = cross2(ab, ac), offset = mul2(add2(mul2(cross2(ac, n), dot2(ab, ab)), mul2(cross2(n, ab), dot2(ac, ac))), 1 / (2 * n2));
+    center = add2(a, offset);
+    let radial = sub2(a, center), tangent = path.EvalTangent(0);
+    dot2(cross2(axis, radial), tangent) < 0 && (axis = mul2(axis, -1));
+    let endRadial = sub2(path.EvalPosition(1), center), theta = pathClosed ? TAU : Math.atan2(dot2(axis, cross2(radial, endRadial)), dot2(radial, endRadial));
+    theta <= 1e-8 && (theta += TAU);
+    let rotatePoint = (p, v) => add2(center, rotate(sub2(p, center), axis, theta * v)), circular = samples.every((v) => len2(sub2(rotatePoint(a, v), path.EvalPosition(v))) <= scale * 2e-3);
+    if (circular) {
+      let jet = (u, v) => {
+        let radial2 = rotate(sub2(profile.EvalPosition(u), center), axis, theta * v), tangent2 = rotate(mul2(profile.EvalTangent(u), profile.totalLength), axis, theta * v);
+        return { position: add2(center, radial2), Su: tangent2, Sv: mul2(cross2(axis, radial2), theta) };
+      };
+      return { predictor: { Eval: (u, v) => jet(u, v).position, EvalJet: jet }, algorithm: pathClosed ? "analytic-profile-path-rotation-full" : "analytic-profile-path-rotation" };
+    }
+  }
+  let t0 = path.EvalTangent(0), frame = (value, v) => alignVector(value, t0, path.EvalTangent(v)), position = (u, v) => add2(path.EvalPosition(v), frame(sub2(profile.EvalPosition(u), start), v)), jet = (u, v) => ({ position: position(u, v), Su: frame(mul2(profile.EvalTangent(u), profile.totalLength), v), Sv: mul2(path.EvalTangent(v), path.totalLength) });
+  return { predictor: { Eval: (u, v) => jet(u, v).position, EvalJet: jet }, algorithm: "analytic-profile-path-sweep" };
+}, transposePatchPredictor = (predictor) => ({ Eval: (u, v) => predictor.Eval(v, u), EvalJet: (u, v) => {
+  let jet = predictor.EvalJet(v, u);
+  return { position: jet.position, Su: jet.Sv, Sv: jet.Su };
+} }), sphericalTrianglePredictor = (predictor, base, left, right) => {
+  let p0 = base.EvalPosition(0), p1 = base.EvalPosition(1), apex = left.EvalPosition(1), n0 = unit(cross2(base.EvalTangent(0), left.EvalTangent(0))), n1 = unit(cross2(base.EvalTangent(1), right.EvalTangent(0))), cosine = dot2(n0, n1), determinant = 1 - cosine * cosine;
+  if (len2(n0) < 1e-8 || len2(n1) < 1e-8 || determinant < 1e-8) return null;
+  let d = sub2(p0, p1), rhs0 = dot2(n0, d), rhs1 = dot2(mul2(n1, -1), d), b = -cosine, s = (rhs0 - b * rhs1) / determinant, t = (rhs1 - b * rhs0) / determinant, c0 = sub2(p0, mul2(n0, s)), c1 = sub2(p1, mul2(n1, t)), center = mul2(add2(c0, c1), 0.5), radius = (len2(sub2(p0, center)) + len2(sub2(p1, center)) + len2(sub2(apex, center))) / 3, scale = Math.max(1, radius), samples = [0, 0.25, 0.5, 0.75, 1], boundaries = [base, left, right];
+  if (!Number.isFinite(radius) || radius < 1e-8 || len2(sub2(c0, c1)) > scale * 1e-4 || boundaries.some((edge) => samples.some((x) => Math.abs(len2(sub2(edge.EvalPosition(x), center)) - radius) > scale * 8e-4))) return null;
+  let jet = (u, v) => {
+    let j = predictor.EvalJet(u, v), radial = sub2(j.position, center), length = len2(radial);
+    if (length < 1e-12) return j;
+    let projectDerivative = (derivative2) => mul2(sub2(derivative2, mul2(radial, dot2(radial, derivative2) / (length * length))), radius / length);
+    return { position: add2(center, mul2(radial, radius / length)), Su: projectDerivative(j.Su), Sv: projectDerivative(j.Sv) };
+  };
+  return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
+};
+var cellSurface = (data, cell, version, g1 = null, includeBoundaries = !0) => {
+  if (cell.sweep) {
+    let profile = logicalChain(data, cell.sweep.profile), path = logicalChain(data, cell.sweep.path), result = profilePathPredictor(profile.cache, path.cache, cell.sweep.pathClosed), predictor = result.predictor, bottom = logicalSamples(data, profile), pathSamples = logicalSamples(data, path), generated = (side, u) => pathSamples.map((sample, i) => ({ id: `${cell.id}:${side}:${i}`, s: sample.s, xyz: predictor.Eval(u, sample.s) })), left = generated("left", 0), right = cell.sweep.profileClosed ? left.map((sample) => ({ ...sample })) : generated("right", 1), top = cell.sweep.pathClosed ? bottom.map((sample) => ({ ...sample })) : bottom.map((sample, i) => ({ id: `${cell.id}:top:${i}`, s: sample.s, xyz: predictor.Eval(sample.s, 1) })), boundaryMap = boundaryMapFor([[profile, (s) => [s, 0]], [path, (s) => [0, s]]]), boundaries = includeBoundaries ? { bottom, top, left, right } : null;
+    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: { type: "quad" }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, [profile, path]) }), boundaries, kind: "quad", algorithm: result.algorithm, hardU: profile.hardKnots || [], hardClosure: !!profile.closureCrease, needsPositionWeld: !cell.sweep.profileClosed && cell.sweep.pathClosed, sweepCap: !cell.sweep.pathClosed && bottom.length >= 3 ? { start: bottom, end: top, group: cell.sweep.path[0] } : null };
+  }
   let sides = cell.sides || cell.edges.map((edge) => [edge]);
   if (sides.length === 4) {
-    let bottom = logicalChain(data, sides[0]), right = logicalChain(data, sides[1]), top = logicalChain(data, reverseLogicalEdges(sides[2])), left = logicalChain(data, reverseLogicalEdges(sides[3])), logical = [bottom, right, top, left], boundaryMap = boundaryMapFor([[bottom, (s) => [s, 0]], [right, (s) => [1, s]], [top, (s) => [s, 1]], [left, (s) => [0, s]]]), morph = new CurveMorphCache(bottom.cache, top.cache, left.cache, right.cache, { geometryVersion: version }), predictor = g1.correctNgon(cell, morph, { bottom, right, top, left });
-    return { surface: new CompiledSurfaceCell(cell.id, predictor, { boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(g1, cell, logical) }), boundaries: includeBoundaries ? { bottom: logicalSamples(data, bottom), top: logicalSamples(data, top), left: logicalSamples(data, left), right: logicalSamples(data, right) } : null, kind: "quad" };
+    let bottom = logicalPatchSide(data, sides[0], cell.vertices[0], version), right = logicalPatchSide(data, sides[1], cell.vertices[1], version), top = logicalPatchSide(data, reverseLogicalEdges(sides[2]), cell.vertices[3], version), left = logicalPatchSide(data, reverseLogicalEdges(sides[3]), cell.vertices[0], version), logical = [bottom, right, top, left], boundaryMap = boundaryMapFor([[bottom, (s) => [s, 0]], [right, (s) => [1, s]], [top, (s) => [s, 1]], [left, (s) => [0, s]]]), lens = !right.edges.length && !left.edges.length, translation = lens ? null : translationPatchVector(bottom, top, left, right), transposedTranslation = lens || translation ? null : translationPatchVector(left, right, bottom, top), rotational = lens || translation || transposedTranslation ? null : rotationPatchPredictor(bottom, top, left, right), transposedRotation = lens || translation || transposedTranslation || rotational ? null : rotationPatchPredictor(left, right, bottom, top), fullRotation = lens || translation || transposedTranslation || rotational || transposedRotation ? null : fullRotationPatchPredictor(bottom, top, left, right), transposedFullRotation = lens || translation || transposedTranslation || rotational || transposedRotation || fullRotation ? null : fullRotationPatchPredictor(left, right, bottom, top), railSweep = lens || translation || transposedTranslation || rotational || transposedRotation || fullRotation || transposedFullRotation ? null : railSweepPatchPredictor(bottom, top, left, right), transposedRailSweep = lens || translation || transposedTranslation || rotational || transposedRotation || fullRotation || transposedFullRotation || railSweep ? null : railSweepPatchPredictor(left, right, bottom, top), predictor = lens ? axisLensPredictor(bottom, top, data.vertices[cell.vertices[0]], data.vertices[cell.vertices[1]]) : translation ? translationPatchPredictor(bottom.cache, translation) : transposedTranslation ? transposePatchPredictor(translationPatchPredictor(left.cache, transposedTranslation)) : rotational || transposedRotation ? rotational || transposePatchPredictor(transposedRotation) : fullRotation || transposedFullRotation ? fullRotation || transposePatchPredictor(transposedFullRotation) : railSweep || transposedRailSweep ? railSweep || transposePatchPredictor(transposedRailSweep) : coonsPatchPredictor(bottom.cache, top.cache, left.cache, right.cache), algorithm = lens ? "analytic-rotation-lens" : translation ? "analytic-translation" : transposedTranslation ? "analytic-translation-transposed" : rotational ? "analytic-rotation" : transposedRotation ? "analytic-rotation-transposed" : fullRotation ? "analytic-rotation-full" : transposedFullRotation ? "analytic-rotation-full-transposed" : railSweep ? "analytic-rail-sweep" : transposedRailSweep ? "analytic-rail-sweep-transposed" : "analytic-coons";
+    let collapsedRotation = (fullRotation || transposedFullRotation) && (!bottom.edges.length || !top.edges.length || !left.edges.length || !right.edges.length), collapsedAxis = !left.edges.length || !right.edges.length ? "u" : "v";
+    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: lens || collapsedRotation ? { type: "lens", collapsedAxis } : { type: "quad" }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, logical) }), boundaries: includeBoundaries ? { bottom: logicalSamples(data, bottom), top: logicalSamples(data, top), left: logicalSamples(data, left), right: logicalSamples(data, right) } : null, kind: "quad", algorithm, hardU: [...new Set([...(bottom.hardKnots || []), ...(top.hardKnots || [])])], hardV: [...new Set([...(left.hardKnots || []), ...(right.hardKnots || [])])] };
   }
   if (sides.length === 3) {
-    let base = logicalChain(data, sides[0]), right = logicalChain(data, sides[1]), left = logicalChain(data, reverseLogicalEdges(sides[2])), logical = [base, right, left], boundaryMap = boundaryMapFor([[base, (s) => [s, 0]], [left, (s) => [0, s]], [right, (s) => [1 - s, s]]]), apex = data.vertices[cell.vertices[2]], morph = new CurveMorphCache(base.cache, pointEdge(apex, version), left.cache, right.cache, { geometryVersion: version }), basePredictor = trianglePredictor(morph), predictor = g1.correctTriangleLogical(cell, basePredictor, { base, right, left });
-    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: { type: "triangle", apexUv: [0, 1] }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(g1, cell, logical) }), boundaries: includeBoundaries ? { AB: logicalSamples(data, base), AC: logicalSamples(data, left), BC: logicalSamples(data, right) } : null, kind: "triangle" };
+    let base = logicalChain(data, sides[0]), right = logicalChain(data, sides[1]), left = logicalChain(data, reverseLogicalEdges(sides[2])), logical = [base, right, left], boundaryMap = boundaryMapFor([[base, (s) => [s, 0]], [left, (s) => [0, s]], [right, (s) => [1 - s, s]]]), apex = data.vertices[cell.vertices[2]], collapsed = pointEdge(apex, version), coons = trianglePredictor(coonsPatchPredictor(base.cache, collapsed, left.cache, right.cache)), spherical = sphericalTrianglePredictor(coons, base.cache, left.cache, right.cache), predictor = spherical || coons;
+    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: { type: "triangle", apexUv: [0, 1] }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, logical) }), boundaries: includeBoundaries ? { AB: logicalSamples(data, base), AC: logicalSamples(data, left), BC: logicalSamples(data, right) } : null, kind: "triangle", algorithm: spherical ? "analytic-spherical-triangle" : "analytic-triangle-coons" };
   }
   if (sides.length >= 5) return compileNgonSurface(data, cell, version, g1, includeBoundaries);
   throw new Error(`unsupported ${sides.length}-side patch cell`);
@@ -2764,10 +2844,14 @@ var renderBoundaryFolded = (mesh, boundaries) => {
     edgeUse.set(id2, (edgeUse.get(id2) || 0) + 1);
   }
   if ([...edgeUse.values()].some((n) => n > 2)) return !0;
+  let signature = (side) => side.map((sample) => String(sample.id)).join("|"), reverseSignature = (side) => side.slice().reverse().map((sample) => String(sample.id)).join("|");
+  if (signature(boundaries.left) === signature(boundaries.right) || signature(boundaries.left) === reverseSignature(boundaries.right) || signature(boundaries.bottom) === signature(boundaries.top) || signature(boundaries.bottom) === reverseSignature(boundaries.top)) return !1;
   let rootByAnchor = new Map(mesh.boundaryAnchors.map((a) => [a.id, a.root]));
   for (let side of Object.values(boundaries)) for (let i = 1; i < side.length; i++) {
     let a = rootByAnchor.get(String(side[i - 1].id)), b = rootByAnchor.get(String(side[i].id));
-    if (a == null || b == null || a === b || edgeUse.get(key(a, b)) !== 1) return !0;
+    if (a == null || b == null) return !0;
+    if (a === b) continue;
+    if (edgeUse.get(key(a, b)) !== 1) return !0;
   }
   return !1;
 }, cachedAnchorPosition = (data, id2) => {
@@ -2778,10 +2862,13 @@ var renderBoundaryFolded = (mesh, boundaries) => {
   return points && Number.isFinite(stamp) ? cubicPoint(points, stamp / 1e9) : null;
 };
 function analyticNormals(vertexEvaluators, compiledById) {
-  let started = phaseClock(), normals = new Float64Array(vertexEvaluators.length * 3), groups = /* @__PURE__ */ new Map();
+  let started = phaseClock(), normals = new Float64Array(vertexEvaluators.length * 3), cornerByCell = /* @__PURE__ */ new Map(), groups = /* @__PURE__ */ new Map();
   for (let i = 0; i < vertexEvaluators.length; i++) {
-    let evaluator = vertexEvaluators[i], group = groups.get(evaluator.cellId);
-    group || groups.set(evaluator.cellId, group = []), group.push({ i, uv: evaluator.uv });
+    let evaluator = vertexEvaluators[i], occurrences = evaluator.occurrences?.length ? evaluator.occurrences : [{ cellId: evaluator.cellId, uv: evaluator.uv }];
+    for (let occurrence of occurrences) {
+      let group = groups.get(occurrence.cellId);
+      group || groups.set(occurrence.cellId, group = []), group.push({ i, uv: occurrence.uv, primary: occurrence.cellId === evaluator.cellId });
+    }
   }
   for (let [cellId, group] of groups) {
     let surface = compiledById.get(cellId)?.surface;
@@ -2790,19 +2877,47 @@ function analyticNormals(vertexEvaluators, compiledById) {
     for (let j = 0; j < group.length; j++) {
       let at = j * 3, n = [batch.normals[at], batch.normals[at + 1], batch.normals[at + 2]];
       if (n.some((x) => !Number.isFinite(x))) throw new Error(`surface normal ${cellId} is non-finite`);
-      normals.set(n, group[j].i * 3);
+      cornerByCell.set(`${group[j].i}|${cellId}`, n), group[j].primary && normals.set(n, group[j].i * 3);
     }
   }
-  return { normals, milliseconds: phaseClock() - started };
+  return { normals, cornerByCell, milliseconds: phaseClock() - started };
 }
-function rebuildFrozenRender(data, topology, renderCache, { geometryVersion }, g1, planarFillEdgeSets) {
+function analyticCornerNormals(indices, triangleSources, analytic, vertexEvaluators = null, compiledById = null) {
+  let out = new Float64Array(indices.length * 3);
+  for (let at = 0; at < indices.length; at += 3) {
+    let cell = triangleSources[at / 3], surface = compiledById?.get(cell)?.surface, uvCandidates = [0, 1, 2].map((k) => {
+      let evaluator = vertexEvaluators?.[indices[at + k]], candidates = evaluator?.occurrences?.filter((x) => x.cellId === cell) || [];
+      return candidates.length ? candidates.map((x) => x.uv.slice()) : evaluator?.cellId === cell && evaluator.uv ? [evaluator.uv.slice()] : [];
+    }), uvs = (() => {
+      if (uvCandidates.some((list) => !list.length)) return [null, null, null];
+      let best = null, bestCost = Infinity;
+      for (let a of uvCandidates[0]) for (let b of uvCandidates[1]) for (let c of uvCandidates[2]) {
+        let cost = (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (b[0] - c[0]) ** 2 + (b[1] - c[1]) ** 2 + (c[0] - a[0]) ** 2 + (c[1] - a[1]) ** 2;
+        cost < bestCost && (bestCost = cost, best = [a, b, c]);
+      }
+      return best || [null, null, null];
+    })(), centroid = uvs.every(Boolean) ? [uvs.reduce((sum, uv) => sum + uv[0], 0) / 3, uvs.reduce((sum, uv) => sum + uv[1], 0) / 3] : null;
+    let compiled = compiledById?.get(cell), wrapU = !!(compiled?.hardClosure && uvs.every(Boolean) && Math.max(...uvs.map((uv) => uv[0])) - Math.min(...uvs.map((uv) => uv[0])) > 0.5), wrappedCentroidU = wrapU ? uvs.reduce((sum, uv) => sum + (uv[0] < 0.5 ? uv[0] + 1 : uv[0]), 0) / 3 : null, hardUAt = (uv) => !!uv && ([...(compiled?.hardU || [])].some((x) => Math.abs(uv[0] - x) < 1e-6) || compiled?.hardClosure && (uv[0] < 1e-8 || uv[0] > 1 - 1e-8)), hardVAt = (uv) => !!uv && [...(compiled?.hardV || [])].some((x) => Math.abs(uv[1] - x) < 1e-6);
+    for (let k = 0; k < 3; k++) {
+      let vertex = indices[at + k], n = analytic.cornerByCell.get(`${vertex}|${cell}`) || [analytic.normals[vertex * 3], analytic.normals[vertex * 3 + 1], analytic.normals[vertex * 3 + 2]];
+      if (surface && centroid && uvs[k]) try {
+        let hardU = hardUAt(uvs[k]), hardV = hardVAt(uvs[k]), baseU = wrapU && uvs[k][0] < 0.5 ? uvs[k][0] + 1 : uvs[k][0], targetU = wrapU ? wrappedCentroidU : centroid[0], uv = [hardU ? Math.max(0, Math.min(1, baseU + (targetU - baseU) * 0.2)) : uvs[k][0], hardV ? uvs[k][1] + (centroid[1] - uvs[k][1]) * 0.2 : uvs[k][1]], oneSided = surface.EvalNormal(uv);
+        oneSided.every(Number.isFinite) && (n = oneSided);
+      } catch {
+      }
+      out.set(n, (at + k) * 3);
+    }
+  }
+  return out;
+}
+function rebuildFrozenRender(data, topology, renderCache, { geometryVersion }, planarFillEdgeSets) {
   if (!renderCache?.vertices?.length || !renderCache?.indices?.length) return null;
-  let compiledById = /* @__PURE__ */ new Map(), cells = [], errors = [...topology.warnings];
+  let compiledById = /* @__PURE__ */ new Map(), cells = [], errors = [...topology.warnings], virtualPlanarLoops = [], needsPositionWeld = !1;
   for (let cell of topology.patchCells)
     if (!planarFillEdgeSets.has(cell.edges.map((e) => e.id).sort().join("|")))
       try {
-        let compiled = cellSurface(data, cell, geometryVersion, g1, !1), previous = renderCache.cells?.find((x) => x.id === cell.id);
-        compiledById.set(cell.id, compiled), cells.push(previous ? { ...previous, kind: compiled.kind } : { id: cell.id, kind: compiled.kind, status: { ok: !0 }, render: null });
+        let compiled = cellSurface(data, cell, geometryVersion, null, !1), previous = renderCache.cells?.find((x) => x.id === cell.id);
+        compiledById.set(cell.id, compiled), needsPositionWeld ||= !!compiled.needsPositionWeld, compiled.sweepCap && virtualPlanarLoops.push({ id: `${cell.id}:start`, fillGroup: "profile-path:start", points: compiled.sweepCap.start.map((x) => x.xyz) }, { id: `${cell.id}:end`, fillGroup: "profile-path:end", points: compiled.sweepCap.end.map((x) => x.xyz) }), cells.push(previous ? { ...previous, kind: compiled.kind } : { id: cell.id, kind: compiled.kind, status: { ok: !0 }, render: null });
       } catch (error) {
         errors.push(`${cell.id}: ${error.message}`);
       }
@@ -2815,22 +2930,28 @@ function rebuildFrozenRender(data, topology, renderCache, { geometryVersion }, g
     if (!p || p.some((x) => !Number.isFinite(x))) return null;
     positions[i * 3] = p[0], positions[i * 3 + 1] = p[1], positions[i * 3 + 2] = p[2];
   }
-  let analytic = analyticNormals(renderCache.vertices, compiledById), indices = renderCache.indices.slice(), triangleSources = renderCache.triangleSources.slice(), report = { ...renderCache.report, ok: !0, errors: [], components: topology.components.length, contours: topology.planarContours.length, patchCells: topology.patchCells.length, vertices: positions.length / 3, triangles: indices.length / 3, frozenRenderTopology: !0, normalBackend: "analytic-EvalBatch", evalBatchMilliseconds: analytic.milliseconds, normalMilliseconds: analytic.milliseconds };
-  return { positions, normals: analytic.normals, indices, triangleSources, topology, subdivisions: renderCache.subdivisions, cells, report, renderCache: { vertices: renderCache.vertices, indices: renderCache.indices, triangleSources: renderCache.triangleSources, cells, subdivisions: renderCache.subdivisions, report } };
+  let analytic = analyticNormals(renderCache.vertices, compiledById), indices = renderCache.indices.slice(), triangleSources = renderCache.triangleSources.slice(), cornerNormals = analyticCornerNormals(indices, triangleSources, analytic, renderCache.vertices, compiledById), algorithmCounts = {};
+  for (let compiled of compiledById.values()) algorithmCounts[compiled.algorithm] = (algorithmCounts[compiled.algorithm] || 0) + 1;
+  let report = { ...renderCache.report, backend: "local_analytic_spline_patch", ok: !0, errors: [], components: topology.components.length, contours: topology.planarContours.length, patchCells: topology.patchCells.length, vertices: positions.length / 3, triangles: indices.length / 3, frozenRenderTopology: !0, normalBackend: "analytic-EvalBatch", algorithmCounts, cellLocal: !0, evalBatchMilliseconds: analytic.milliseconds, normalMilliseconds: analytic.milliseconds };
+  return { positions, normals: analytic.normals, cornerNormals, indices, triangleSources, topology, subdivisions: renderCache.subdivisions, cells, report, virtualPlanarLoops, needsPositionWeld, renderCache: { vertices: renderCache.vertices, indices: renderCache.indices, triangleSources: renderCache.triangleSources, cells, subdivisions: renderCache.subdivisions, report } };
+}
+function normalizeSplinePatchValidation(status, domain = null) {
+  let statuses = [...new Set(status?.statuses || [])], hasBoundaryCusp = statuses.includes("BoundaryCusp"), collapsedDomainStatuses = domain?.type === "lens" || domain?.type === "triangle" ? new Set(["G1CornerIncompatible", "CornerPlaneUnderdetermined"]) : /* @__PURE__ */ new Set(), warningStatuses = statuses.filter((value) => value === "BoundaryCusp" || value === "ChartSingular" && hasBoundaryCusp || collapsedDomainStatuses.has(value)), fatalStatuses = statuses.filter((value) => !warningStatuses.includes(value));
+  return { ...status, status: fatalStatuses[0] || "Valid", statuses: fatalStatuses, warnings: [...new Set([...(status?.warnings || []), ...warningStatuses])] };
 }
 function buildCompiledSplineSurfaceMesh(data, { geometryVersion = 1, tessellationVersion = 1, renderCache = null, freezeRenderTopology = !1 } = {}) {
-  let buildStarted = phaseClock(), topologyStarted = phaseClock(), topology = resolveSplineTopology(data), topologyMilliseconds = phaseClock() - topologyStarted, compileMilliseconds = 0, renderTopologyMilliseconds = 0, bufferAssemblyMilliseconds = 0, positions = [], indices = [], triangleSources = [], global = /* @__PURE__ */ new Map(), vertexEvaluators = [], errors = [...topology.warnings], cells = [], compiledById = /* @__PURE__ */ new Map(), planarFillEdgeSets = new Set((data.planarFills || []).map((fill2) => (fill2.edges || []).map((e) => typeof e == "string" ? e : e.id).sort().join("|"))), g1 = getFrameSurfaceG1Context(data, topology, { geometryVersion });
+  let buildStarted = phaseClock(), topologyStarted = phaseClock(), topology = resolveSplineTopology(data), topologyMilliseconds = phaseClock() - topologyStarted, compileMilliseconds = 0, renderTopologyMilliseconds = 0, bufferAssemblyMilliseconds = 0, positions = [], indices = [], triangleSources = [], global = /* @__PURE__ */ new Map(), vertexEvaluators = [], errors = [...topology.warnings], cells = [], compiledById = /* @__PURE__ */ new Map(), virtualPlanarLoops = [], needsPositionWeld = !1, planarFillEdgeSets = new Set((data.planarFills || []).map((fill2) => (fill2.edges || []).map((e) => typeof e == "string" ? e : e.id).sort().join("|")));
   if (freezeRenderTopology) {
-    let frozen = rebuildFrozenRender(data, topology, renderCache, { geometryVersion }, g1, planarFillEdgeSets);
+    let frozen = rebuildFrozenRender(data, topology, renderCache, { geometryVersion }, planarFillEdgeSets);
     if (frozen)
       return Object.assign(frozen.report, { topologyMilliseconds, compileMilliseconds: phaseClock() - buildStarted - topologyMilliseconds, renderTopologyMilliseconds: 0, bufferAssemblyMilliseconds: 0, totalMilliseconds: phaseClock() - buildStarted }), frozen;
   }
   for (let cell of topology.patchCells)
     if (!planarFillEdgeSets.has(cell.edges.map((e) => e.id).sort().join("|")))
       try {
-        let phaseStarted = phaseClock(), compiled = cellSurface(data, cell, geometryVersion, g1);
-        compileMilliseconds += phaseClock() - phaseStarted, compiledById.set(cell.id, compiled);
-        let render2 = (options) => compiled.kind === "triangle" ? buildTriangleRenderTopology({ surface: compiled.surface, boundaries: compiled.boundaries }, { tessellationVersion, ...options }) : compiled.kind === "ngon" ? buildNgonRenderTopology({ surface: compiled.surface, parentChartBoundaries: compiled.boundaries }, { tessellationVersion, ...options }) : buildQuadRenderTopology({ surface: compiled.surface, boundaries: compiled.boundaries }, { tessellationVersion, ...options });
+        let phaseStarted = phaseClock(), compiled = cellSurface(data, cell, geometryVersion, null);
+        compileMilliseconds += phaseClock() - phaseStarted, compiledById.set(cell.id, compiled), needsPositionWeld ||= !!compiled.needsPositionWeld, compiled.sweepCap && virtualPlanarLoops.push({ id: `${cell.id}:start`, fillGroup: "profile-path:start", points: compiled.sweepCap.start.map((x) => x.xyz) }, { id: `${cell.id}:end`, fillGroup: "profile-path:end", points: compiled.sweepCap.end.map((x) => x.xyz) });
+        let periodic = compiled.kind === "quad" && periodicQuadAxes(compiled.boundaries), render2 = (options) => compiled.kind === "triangle" ? buildTriangleRenderTopology({ surface: compiled.surface, boundaries: compiled.boundaries }, { tessellationVersion, ...options }) : compiled.kind === "ngon" ? buildNgonRenderTopology({ surface: compiled.surface, parentChartBoundaries: compiled.boundaries }, { tessellationVersion, ...options }) : periodic.u || periodic.v ? buildPeriodicQuadRenderTopology({ surface: compiled.surface, boundaries: compiled.boundaries }, { tessellationVersion, ...options }) : buildQuadRenderTopology({ surface: compiled.surface, boundaries: compiled.boundaries }, { tessellationVersion, ...options });
         phaseStarted = phaseClock();
         let mesh = render2({}), boundaryWeldFallback = renderBoundaryFolded(mesh, compiled.boundaries);
         boundaryWeldFallback && (mesh = render2({ mergeDistance: 0 }));
@@ -2839,19 +2960,26 @@ function buildCompiledSplineSurfaceMesh(data, { geometryVersion = 1, tessellatio
         let anchorByLocal = new Map(mesh.boundaryAnchors.map((a) => [a.root, a.id])), map = [];
         for (let i = 0; i < mesh.vertexCount; i++) {
           let anchor = anchorByLocal.get(i), gi = anchor ? global.get(anchor) : null;
-          gi == null && (gi = positions.length / 3, positions.push(mesh.positions[i * 3], mesh.positions[i * 3 + 1], mesh.positions[i * 3 + 2]), anchor && global.set(anchor, gi), vertexEvaluators[gi] = { cellId: cell.id, uv: [mesh.uv[i * 2], mesh.uv[i * 2 + 1]], anchor: anchor || null }), map.push(gi);
+          let uv = [mesh.uv[i * 2], mesh.uv[i * 2 + 1]];
+          if (gi == null)
+            gi = positions.length / 3, positions.push(mesh.positions[i * 3], mesh.positions[i * 3 + 1], mesh.positions[i * 3 + 2]), anchor && global.set(anchor, gi), vertexEvaluators[gi] = { cellId: cell.id, uv, anchor: anchor || null, occurrences: [{ cellId: cell.id, uv }] };
+          else {
+            let evaluator = vertexEvaluators[gi];
+            evaluator.occurrences ||= [{ cellId: evaluator.cellId, uv: evaluator.uv }], evaluator.occurrences.some((x) => x.cellId === cell.id && Math.abs(x.uv[0] - uv[0]) < 1e-12 && Math.abs(x.uv[1] - uv[1]) < 1e-12) || evaluator.occurrences.push({ cellId: cell.id, uv });
+          }
+          map.push(gi);
         }
         for (let i = 0; i < mesh.indices.length; i += 3) {
           let a = map[mesh.indices[i]], b = map[mesh.indices[i + 1]], c = map[mesh.indices[i + 2]];
           a === b || b === c || c === a || (indices.push(a, b, c), triangleSources.push(cell.id));
         }
         bufferAssemblyMilliseconds += phaseClock() - phaseStarted;
-        let status = compiled.surface.Validate({ resolution: 5 });
-        status.status !== "Valid" && errors.push(`${cell.id}: ${status.status}`), cells.push({ id: cell.id, kind: compiled.kind, status, chart: compiled.chart || null, render: { vertices: mesh.vertexCount, triangles: mesh.indices.length / 3, mergeDistance: mesh.mergeDistance, boundaryWeldFallback, boundaryTopologyFallback } });
+        let status = normalizeSplinePatchValidation(compiled.surface.Validate({ resolution: 5 }), compiled.surface.Domain());
+        status.status !== "Valid" && errors.push(`${cell.id}: ${status.status}`), cells.push({ id: cell.id, kind: compiled.kind, algorithm: compiled.algorithm, status, chart: compiled.chart || null, render: { vertices: mesh.vertexCount, triangles: mesh.indices.length / 3, mergeDistance: mesh.mergeDistance, boundaryWeldFallback, boundaryTopologyFallback } });
       } catch (error) {
         errors.push(`${cell.id}: ${error.message}`);
       }
-  let analytic = analyticNormals(vertexEvaluators, compiledById), assemblyStarted = phaseClock(), edgeOwners = /* @__PURE__ */ new Map(), ek = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
+  let analytic = analyticNormals(vertexEvaluators, compiledById), cornerNormals = analyticCornerNormals(indices, triangleSources, analytic, vertexEvaluators, compiledById), assemblyStarted = phaseClock(), edgeOwners = /* @__PURE__ */ new Map(), ek = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
   for (let i = 0; i < indices.length; i += 3) for (let k = 0; k < 3; k++) {
     let a = indices[i + k], b = indices[i + (k + 1) % 3], id2 = ek(a, b), owners = edgeOwners.get(id2);
     owners || edgeOwners.set(id2, owners = []), owners.push({ triangle: i / 3, cell: triangleSources[i / 3], a, b });
@@ -2860,39 +2988,41 @@ function buildCompiledSplineSurfaceMesh(data, { geometryVersion = 1, tessellatio
   nonManifoldEdges && errors.push("surface edge is non-manifold");
   let topologyDiagnostics = [...edgeOwners].filter(([, owners]) => owners.length > 2).slice(0, 32).map(([edge, owners]) => ({ edge, use: owners.length, cells: [...new Set(owners.map((x) => x.cell))], vertices: edge.split(":").map(Number).map((i) => vertexEvaluators[i] || null) })), subdivisions = Math.max(1, ...Object.keys(data.segments).map((id2) => sampleSplineSegment(data, id2).length - 1));
   bufferAssemblyMilliseconds += phaseClock() - assemblyStarted;
-  let report = { backend: "persistent_chart_surface_builder", ok: !errors.length, errors: [...new Set(errors)], components: topology.components.length, contours: topology.planarContours.length, patchCells: topology.patchCells.length, boundaryEdges, nonManifoldEdges, closed: indices.length > 0 && boundaryEdges === 0, vertices: positions.length / 3, triangles: indices.length / 3, topologyDiagnostics, normalBackend: "analytic-EvalBatch", compileMilliseconds, topologyMilliseconds, renderTopologyMilliseconds, evalBatchMilliseconds: analytic.milliseconds, normalMilliseconds: analytic.milliseconds, bufferAssemblyMilliseconds, totalMilliseconds: phaseClock() - buildStarted };
-  return { positions, normals: analytic.normals, indices, triangleSources, topology, subdivisions, cells, report, renderCache: { vertices: vertexEvaluators, indices: indices.slice(), triangleSources: triangleSources.slice(), cells: cells.map((x) => ({ ...x })), subdivisions, report: { ...report } } };
+  let algorithmCounts = {};
+  for (let compiled of compiledById.values()) algorithmCounts[compiled.algorithm] = (algorithmCounts[compiled.algorithm] || 0) + 1;
+  let report = { backend: "local_analytic_spline_patch", ok: !errors.length, errors: [...new Set(errors)], components: topology.components.length, contours: topology.planarContours.length, patchCells: topology.patchCells.length, boundaryEdges, nonManifoldEdges, closed: indices.length > 0 && boundaryEdges === 0, vertices: positions.length / 3, triangles: indices.length / 3, topologyDiagnostics, normalBackend: "analytic-EvalBatch", algorithmCounts, cellLocal: !0, compileMilliseconds, topologyMilliseconds, renderTopologyMilliseconds, evalBatchMilliseconds: analytic.milliseconds, normalMilliseconds: analytic.milliseconds, bufferAssemblyMilliseconds, totalMilliseconds: phaseClock() - buildStarted };
+  return { positions, normals: analytic.normals, cornerNormals, indices, triangleSources, topology, subdivisions, cells, report, virtualPlanarLoops, needsPositionWeld, renderCache: { vertices: vertexEvaluators, indices: indices.slice(), triangleSources: triangleSources.slice(), cells: cells.map((x) => ({ ...x })), subdivisions, report: { ...report } } };
 }
 
 // work/frame-clean/procedural-cage.js?v=surface-builder-2
 var add3 = (a, b) => a.map((x, i) => x + b[i]), mul4 = (a, s) => a.map((x) => x * s);
+var reverseSplineIds = (edges) => edges.slice().reverse();
+function addContourPathCell(data, { startEdges, endEdges, startStart, startEnd, endStart, endEnd, startRail = [], endRail = [], closedProfile = !1 }) {
+  let a = Array.isArray(startRail) ? startRail.slice() : startRail ? [startRail] : [], b = Array.isArray(endRail) ? endRail.slice() : endRail ? [endRail] : [];
+  if (closedProfile) {
+    if (!a.length && b.length) a = b.slice();
+    if (!b.length && a.length) b = a.slice();
+    if (!a.length) throw new Error("Closed contour sweep needs one connecting rail");
+    data.patchCells.push({ vertices: [startStart, startStart, endStart, endStart], edges: [startEdges.slice(), b, reverseSplineIds(endEdges), reverseSplineIds(a)] });
+  } else
+    data.patchCells.push({ vertices: [startStart, startEnd, endEnd, endStart], edges: [startEdges.slice(), b, reverseSplineIds(endEdges), reverseSplineIds(a)] });
+}
 function buildExtrudeSplineCage(source, offsetVector) {
   let topology = resolveSplineTopology(source), cycles = topology.planarContours.filter((c) => c.edges.length);
   if (!cycles.length) throw new Error("Extrude needs at least one closed planar contour");
   if (cycles.some((c) => !c.plane?.planar)) throw new Error("Extrude profile must be planar");
-  let cage = createSplineData();
-  cage.approximation = { ...source.approximation }, cage.planarFills = [], cage.patchCells = [];
-  let edgeCopies = [];
+  let cage = createSplineData({ angle: source.approximation?.angle || 5 }), vertices = /* @__PURE__ */ new Map(), edgeCopies = [], copyVertex = (id2) => (vertices.has(id2) || vertices.set(id2, addSplineVertex(cage, source.vertices[id2].slice())), vertices.get(id2));
+  cage.planarFills = [], cage.patchCells = [];
   for (let cycle of cycles) {
-    let bottom = /* @__PURE__ */ new Map(), top = /* @__PURE__ */ new Map(), getVertex = (map, id2, delta) => (map.has(id2) || map.set(id2, addSplineVertex(cage, add3(source.vertices[id2], delta))), map.get(id2)), bottomEdges = [], topEdges = [];
+    let sequence = addSplineSequence(cage, !0), edges = [];
     for (let edge of cycle.edges) {
-      let s = source.segments[edge.id], a = getVertex(bottom, s.a, [0, 0, 0]), b = getVertex(bottom, s.b, [0, 0, 0]), ta = getVertex(top, s.a, offsetVector), tb = getVertex(top, s.b, offsetVector), qb = addSplineSequence(cage), qt = addSplineSequence(cage);
-      bottomEdges.push({ id: addSplineSegment(cage, qb, a, b, s.ha.slice(), s.hb.slice()), reversed: !!edge.reversed }), topEdges.push({ id: addSplineSegment(cage, qt, ta, tb, s.ha.slice(), s.hb.slice()), reversed: !!edge.reversed });
+      let s = source.segments[edge.id], ha = edge.reversed ? s.hb : s.ha, hb = edge.reversed ? s.ha : s.hb, sid = addSplineSegment(cage, sequence, copyVertex(edge.from), copyVertex(edge.to), ha.slice(), hb.slice());
+      cage.segments[sid].soft = !!s.soft, edges.push(sid);
     }
-    let railBySource = /* @__PURE__ */ new Map();
-    for (let id2 of new Set(cycle.edges.flatMap((e) => {
-      let s = source.segments[e.id];
-      return [s.a, s.b];
-    }))) {
-      let q = addSplineSequence(cage), a = getVertex(bottom, id2, [0, 0, 0]), b = getVertex(top, id2, offsetVector);
-      railBySource.set(id2, addSplineSegment(cage, q, a, b, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3)));
-    }
-    for (let i = 0; i < cycle.edges.length; i++) {
-      let edge = cycle.edges[i], s = source.segments[edge.id], be = bottomEdges[i].id, te = topEdges[i].id;
-      cage.patchCells.push({ vertices: [bottom.get(s.a), bottom.get(s.b), top.get(s.b), top.get(s.a)], edges: [be, railBySource.get(s.b), te, railBySource.get(s.a)] });
-    }
-    cage.planarFills.push({ id: `${cycle.id}:bottom`, edges: bottomEdges.slice() }, { id: `${cycle.id}:top`, edges: topEdges.slice() }), edgeCopies.push({ cycle: cycle.id, bottomEdges, topEdges, rails: [...railBySource.values()] });
+    edgeCopies.push({ cycle: cycle.id, bottomEdges: edges, topEdges: [], rails: [] });
   }
+  let anchor = cycles[0].vertices[0], start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
+  cage.segments[rail].soft = !0, edgeCopies[0].rails.push(rail);
   let report = validateSpline(cage);
   if (!report.ok) throw new Error(report.errors.join("; "));
   return { data: cage, sourceTopology: topology, edgeCopies };
@@ -4022,14 +4152,18 @@ function clearReplicaGeometry(state) {
 function setReplicaError(h, state, message) {
   state.ready = !1, state.error = message, clearReplicaGeometry(state), renderRows(), scheduleRender();
 }
-function buildGeneratorRenderGeometry(positions, indices, groups, analyticNormals2 = null) {
-  let vertexCount = positions.length / 3, coord = new Array(vertexCount), coordFaces = /* @__PURE__ */ new Map(), edgeFaces = /* @__PURE__ */ new Map(), faceNormals = [], faceAreaNormals = [], valid = [], coordKey = (v) => `${positions[v * 3].toFixed(6)},${positions[v * 3 + 1].toFixed(6)},${positions[v * 3 + 2].toFixed(6)}`;
+function buildGeneratorRenderGeometry(positions, indices, groups, analyticNormals2 = null, cornerNormals = null) {
+  let vertexCount = positions.length / 3, coord = new Array(vertexCount), coordFaces = /* @__PURE__ */ new Map(), edgeFaces = /* @__PURE__ */ new Map(), faceNormals = [], faceAreaNormals = [], faceCornerNormals = /* @__PURE__ */ new Map(), hasCornerNormals = cornerNormals?.length === indices.length * 3, valid = [], coordKey = (v) => `${positions[v * 3].toFixed(6)},${positions[v * 3 + 1].toFixed(6)},${positions[v * 3 + 2].toFixed(6)}`;
   for (let v = 0; v < vertexCount; v++) coord[v] = coordKey(v);
   for (let f = 0; f < indices.length / 3; f++) {
     let ia = indices[f * 3], ib = indices[f * 3 + 1], ic = indices[f * 3 + 2], ax = positions[ia * 3], ay = positions[ia * 3 + 1], az = positions[ia * 3 + 2], abx = positions[ib * 3] - ax, aby = positions[ib * 3 + 1] - ay, abz = positions[ib * 3 + 2] - az, acx = positions[ic * 3] - ax, acy = positions[ic * 3 + 1] - ay, acz = positions[ic * 3 + 2] - az, nx = aby * acz - abz * acy, ny = abz * acx - abx * acz, nz = abx * acy - aby * acx, len3 = Math.hypot(nx, ny, nz);
     if (len3 < 1e-10) continue;
     faceAreaNormals[f] = [nx, ny, nz], faceNormals[f] = [nx / len3, ny / len3, nz / len3], valid.push(f);
     let faceCoords = [coord[ia], coord[ib], coord[ic]];
+    if (hasCornerNormals) for (let k = 0; k < 3; k++) {
+      let at = (f * 3 + k) * 3, n = [cornerNormals[at], cornerNormals[at + 1], cornerNormals[at + 2]], length = Math.hypot(n[0], n[1], n[2]) || 1;
+      n = [n[0] / length, n[1] / length, n[2] / length], n[0] * faceNormals[f][0] + n[1] * faceNormals[f][1] + n[2] * faceNormals[f][2] < 0 && (n = [-n[0], -n[1], -n[2]]), faceCornerNormals.set(`${f}|${faceCoords[k]}`, n);
+    }
     for (let key of new Set(faceCoords)) {
       let list = coordFaces.get(key);
       list || coordFaces.set(key, list = []), list.push(f);
@@ -4041,25 +4175,28 @@ function buildGeneratorRenderGeometry(positions, indices, groups, analyticNormal
       list || edgeFaces.set(key, list = []), list.includes(f) || list.push(f);
     }
   }
-  let smooth = new Map(valid.map((f) => [f, /* @__PURE__ */ new Set()]));
-  for (let list of edgeFaces.values()) for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-    let a = list[i], b = list[j], na = faceNormals[a], nb = faceNormals[b];
-    na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2] >= CREASE_COS && (smooth.get(a)?.add(b), smooth.get(b)?.add(a));
-  }
-  let component = /* @__PURE__ */ new Map(), componentNormal = /* @__PURE__ */ new Map(), coordComponentCount = /* @__PURE__ */ new Map();
-  for (let [key, faces] of coordFaces) {
-    let allowed = new Set(faces), seen = /* @__PURE__ */ new Set();
-    for (let seed of faces) {
-      if (seen.has(seed)) continue;
-      coordComponentCount.set(key, (coordComponentCount.get(key) || 0) + 1);
-      let id2 = `${key}#${seed}`, stack = [seed], nx = 0, ny = 0, nz = 0;
-      for (seen.add(seed); stack.length; ) {
-        let f = stack.pop(), n = faceAreaNormals[f];
-        component.set(`${key}|${f}`, id2), nx += n[0], ny += n[1], nz += n[2];
-        for (let q of smooth.get(f) || []) allowed.has(q) && !seen.has(q) && (seen.add(q), stack.push(q));
+  let smooth = new Map(valid.map((f) => [f, /* @__PURE__ */ new Set()])), component = /* @__PURE__ */ new Map(), componentNormal = /* @__PURE__ */ new Map(), coordComponentCount = /* @__PURE__ */ new Map();
+  if (!hasCornerNormals) {
+    for (let [edgeKey, list] of edgeFaces) for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    let a = list[i], b = list[j], isSmooth;
+    let na = faceNormals[a], nb = faceNormals[b];
+    isSmooth = na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2] >= CREASE_COS;
+    isSmooth && (smooth.get(a)?.add(b), smooth.get(b)?.add(a));
+    }
+    for (let [key, faces] of coordFaces) {
+      let allowed = new Set(faces), seen = /* @__PURE__ */ new Set();
+      for (let seed of faces) {
+        if (seen.has(seed)) continue;
+        coordComponentCount.set(key, (coordComponentCount.get(key) || 0) + 1);
+        let id2 = `${key}#${seed}`, stack = [seed], nx = 0, ny = 0, nz = 0;
+        for (seen.add(seed); stack.length; ) {
+          let f = stack.pop(), n = faceAreaNormals[f];
+          component.set(`${key}|${f}`, id2), nx += n[0], ny += n[1], nz += n[2];
+          for (let q of smooth.get(f) || []) allowed.has(q) && !seen.has(q) && (seen.add(q), stack.push(q));
+        }
+        let len3 = Math.hypot(nx, ny, nz) || 1;
+        componentNormal.set(id2, [nx / len3, ny / len3, nz / len3]);
       }
-      let len3 = Math.hypot(nx, ny, nz) || 1;
-      componentNormal.set(id2, [nx / len3, ny / len3, nz / len3]);
     }
   }
   let outP = [], outN = [], outI = [], source = [], normalSource = [], vertices = /* @__PURE__ */ new Map(), faceMaterials = [], gi = 0, materialForFace = (f) => {
@@ -4071,10 +4208,10 @@ function buildGeneratorRenderGeometry(positions, indices, groups, analyticNormal
   for (let f of valid) {
     faceMaterials.push(materialForFace(f));
     for (let k = 0; k < 3; k++) {
-      let v = indices[f * 3 + k], id2 = component.get(`${coord[v]}|${f}`) || `${coord[v]}#${f}`, oi = vertices.get(id2);
+      let v = indices[f * 3 + k], analyticCorner = hasCornerNormals ? faceCornerNormals.get(`${f}|${coord[v]}`) || faceNormals[f] : null, normalKey = analyticCorner?.map((x) => Math.round(x * 1e7)).join(","), id2 = hasCornerNormals ? `${coord[v]}|n:${normalKey}` : component.get(`${coord[v]}|${f}`) || `${coord[v]}#${f}`, oi = vertices.get(id2);
       if (oi === void 0) {
         oi = outP.length / 3, vertices.set(id2, oi), source.push(v), outP.push(positions[v * 3], positions[v * 3 + 1], positions[v * 3 + 2]);
-        let useAnalytic = analyticNormals2?.length === positions.length && coordComponentCount.get(coord[v]) === 1, n = useAnalytic ? [analyticNormals2[v * 3], analyticNormals2[v * 3 + 1], analyticNormals2[v * 3 + 2]] : componentNormal.get(id2) || faceNormals[f];
+        let useAnalytic = !hasCornerNormals && analyticNormals2?.length === positions.length && coordComponentCount.get(coord[v]) === 1, n = analyticCorner || (useAnalytic ? [analyticNormals2[v * 3], analyticNormals2[v * 3 + 1], analyticNormals2[v * 3 + 2]] : componentNormal.get(id2) || faceNormals[f]);
         normalSource.push(useAnalytic ? v : -1), outN.push(n[0], n[1], n[2]);
       }
       outI.push(oi);
@@ -4148,10 +4285,17 @@ function generatorFaceOrientation(positions, indices, closed) {
   }
   return flip;
 }
-function applyGeneratorFaceOrientation(indices, flip) {
+function applyGeneratorFaceOrientation(indices, flip, cornerNormals = null) {
   for (let f = 0; f < flip.length; f++) if (flip[f]) {
     let at = f * 3, q = indices[at + 1];
     indices[at + 1] = indices[at + 2], indices[at + 2] = q;
+    if (cornerNormals?.length === indices.length * 3) {
+      for (let k = 0; k < 3; k++) {
+        let a = (at + 1) * 3 + k, b = (at + 2) * 3 + k, n = cornerNormals[a];
+        cornerNormals[a] = cornerNormals[b], cornerNormals[b] = n;
+      }
+      for (let corner = 0; corner < 3; corner++) for (let k = 0; k < 3; k++) cornerNormals[(at + corner) * 3 + k] *= -1;
+    }
   }
 }
 function applyRadialSurfaceNormals(g) {
@@ -4183,10 +4327,10 @@ function applyRoundPrimitiveNormals(g, tube = !1) {
   }
   g.setAttribute("normal", new THREE2.BufferAttribute(normal, 3));
 }
-function installReplicaResult(h, state, positions, indices, materials, groups, normals = null) {
+function installReplicaResult(h, state, positions, indices, materials, groups, normals = null, cornerNormals = null) {
   if (positions.length % 3 || indices.length % 3 || positions.some((v) => !Number.isFinite(v)) || indices.some((v) => !Number.isInteger(v) || v < 0 || v >= positions.length / 3)) throw new Error("Generator produced invalid geometry");
   let uploadStarted = performance.now(), type = objParams.get(h)?.__type, liveSurface = ["spline_patch", "extrude", "lathe", "sweep"].includes(type) || PARAMETRIC_MESH_TYPES.has(type), creaseSurface = ["boolean", "spline_patch", "extrude", "lathe", "sweep", "cube", "cylinder", "tube"].includes(type), hasAnalytic = normals?.length === positions.length, rawIndexHash = indices.reduce((v, x, i) => ((v ^ (x + 1) * (i + 17)) >>> 0) * 16777619 >>> 0, 2166136261);
-  liveSurface && ((state.rawIndexHash !== rawIndexHash || state.faceOrientation?.length !== indices.length / 3) && (state.faceOrientation = generatorFaceOrientation(positions, indices, !!state.report?.closed)), applyGeneratorFaceOrientation(indices, state.faceOrientation));
+  liveSurface && ((state.rawIndexHash !== rawIndexHash || state.faceOrientation?.length !== indices.length / 3) && (state.faceOrientation = generatorFaceOrientation(positions, indices, !!state.report?.closed)), applyGeneratorFaceOrientation(indices, state.faceOrientation, cornerNormals));
   let indexHash = indices.reduce((v, x, i) => ((v ^ (x + 1) * (i + 17)) >>> 0) * 16777619 >>> 0, 2166136261), old = state.mesh.geometry, oldShared = !!state.sharedGeometry, oldPos = old.attributes.position, forceFinal = !gizDrag && state.needsFinalBuild, same = !oldShared && liveSurface && !forceFinal && state.rawVertexCount === positions.length / 3 && state.indexHash === indexHash && state.renderSourceMap && oldPos?.count === state.renderSourceMap.length, g, normalBackend = "geometric-face-area";
   if (state.mesh.matrix.identity(), same) {
     g = old;
@@ -4196,8 +4340,8 @@ function installReplicaResult(h, state, positions, indices, materials, groups, n
     }
     oldPos.needsUpdate = !0, hasAnalytic && updateGeneratorNormals(g, normals, state.renderNormalSource) ? normalBackend = "analytic-EvalBatch" : g.computeVertexNormals(), g.computeBoundingBox(), g.computeBoundingSphere(), generatorPerformance.positionUpdates++;
   } else if (creaseSurface) {
-    let built = buildGeneratorRenderGeometry(positions, indices, groups, hasAnalytic ? normals : null);
-    g = built.geometry, state.renderSourceMap = built.source, state.renderNormalSource = built.normalSource, hasAnalytic && built.normalSource.some((x) => x >= 0) && (normalBackend = "analytic-EvalBatch+crease-area"), state.mesh.geometry = g, oldShared || old.dispose();
+    let built = buildGeneratorRenderGeometry(positions, indices, groups, hasAnalytic ? normals : null, cornerNormals);
+    g = built.geometry, state.renderSourceMap = built.source, state.renderNormalSource = built.normalSource, cornerNormals?.length === indices.length * 3 ? normalBackend = "analytic-cell-tangent-collinearity" : hasAnalytic && built.normalSource.some((x) => x >= 0) && (normalBackend = "analytic-EvalBatch+crease-area"), state.mesh.geometry = g, oldShared || old.dispose();
   } else if (liveSurface) {
     g = new THREE2.BufferGeometry(), g.setAttribute("position", new THREE2.Float32BufferAttribute(positions, 3)), g.setIndex(indices);
     for (let group of groups) g.addGroup(group.start, group.count, group.materialIndex);
@@ -4478,7 +4622,7 @@ function evaluateSplinePatchNode(h) {
   let rel = (root?.matrixWorld || worldMatrix(n)).clone().invert().multiply(source?.matrixWorld || worldMatrix(OBJ.get(child))), signature = JSON.stringify(data) + "|" + rel.elements.map((x) => Number(x.toPrecision(10))).join(",");
   if (state.signature === signature && (state.ready || state.error) && !(!gizDrag && state.needsFinalBuild)) return;
   state.signature = signature;
-  let built = buildSplineSurfaceMeshData(data, { runtimeKey: child });
+  let built = compileSplinePatchBackend(data, child);
   if (state.report = built.report, state.topology = built.topology, !built.report.ok) {
     setReplicaError(h, state, built.report.errors[0] || "Spline cage cannot form a manifold surface"), updateSplineVisual(child);
     return;
@@ -4487,15 +4631,21 @@ function evaluateSplinePatchNode(h) {
     setReplicaError(h, state, "Spline cage has no closed contours or patch cells"), updateSplineVisual(child);
     return;
   }
-  let positions = [], normals = [], p = new THREE2.Vector3(), normalMatrix = new THREE2.Matrix3().getNormalMatrix(rel);
+  let positions = [], normals = [], cornerNormals = [], p = new THREE2.Vector3(), normalMatrix = new THREE2.Matrix3().getNormalMatrix(rel);
   for (let i = 0; i < built.positions.length; i += 3)
     p.set(built.positions[i], built.positions[i + 1], built.positions[i + 2]).applyMatrix4(rel), positions.push(p.x, p.y, p.z), built.normals?.length === built.positions.length && (p.set(built.normals[i], built.normals[i + 1], built.normals[i + 2]).applyMatrix3(normalMatrix).normalize(), normals.push(p.x, p.y, p.z));
+  for (let i = 0; i < (built.cornerNormals?.length || 0); i += 3)
+    p.set(built.cornerNormals[i], built.cornerNormals[i + 1], built.cornerNormals[i + 2]).applyMatrix3(normalMatrix).normalize(), cornerNormals.push(p.x, p.y, p.z);
   let indices = built.indices.slice();
   if (rel.determinant() < 0) for (let i = 0; i < indices.length; i += 3) {
     let q = indices[i + 1];
     indices[i + 1] = indices[i + 2], indices[i + 2] = q;
+    if (cornerNormals.length === indices.length * 3) for (let k = 0; k < 3; k++) {
+      let a = (i + 1) * 3 + k, b = (i + 2) * 3 + k, n2 = cornerNormals[a];
+      cornerNormals[a] = cornerNormals[b], cornerNormals[b] = n2;
+    }
   }
-  installReplicaResult(h, state, positions, indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: indices.length, materialIndex: 0 }], normals);
+  installReplicaResult(h, state, positions, indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: indices.length, materialIndex: 0 }], normals, cornerNormals);
   let cage = approximateSpline(data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => p.fromArray(x.position).applyMatrix4(rel).toArray()) }));
   installGeneratorCage(h, state, cage);
   let cageData = cloneSplineData(data);
@@ -4515,7 +4665,7 @@ function evaluateSplineGeneratorNode(h) {
     source?.updateMatrixWorld(!0);
     let rel = rootInv.clone().multiply(source?.matrixWorld || worldMatrix(childNode)), pivot = rel.clone().multiply(childNode?.pivot || new THREE2.Matrix4()), data = cloneSplineData(evaluatedSplineData(child));
     return transformWholeSplineData(data, rel), { child, data, rel, pivot };
-  }), signature = JSON.stringify(p) + "|" + sources.map((q) => JSON.stringify(q.data) + "@" + q.rel.elements.map((x) => Number(x.toPrecision(10))).join(",") + "#" + q.pivot.elements.map((x) => Number(x.toPrecision(10))).join(",")).join("|");
+  }), generatorPivot = n.pivot?.clone() || new THREE2.Matrix4(), signature = JSON.stringify(p) + "|" + sources.map((q) => JSON.stringify(q.data) + "@" + q.rel.elements.map((x) => Number(x.toPrecision(10))).join(",") + "#" + q.pivot.elements.map((x) => Number(x.toPrecision(10))).join(",")).join("|") + "|pivot:" + generatorPivot.elements.map((x) => Number(x.toPrecision(10))).join(",");
   if (type === "sweep" && !resolveSplineTopology(sources[0].data).planarContours.length && resolveSplineTopology(sources[1].data).planarContours.length && sources.reverse(), !(state.signature === signature && (state.ready || state.error) && !(!gizDrag && state.needsFinalBuild))) {
     state.signature = signature;
     try {
@@ -4528,11 +4678,11 @@ function evaluateSplineGeneratorNode(h) {
           let offset = new THREE2.Vector3().fromArray(first.plane.normal).normalize().multiplyScalar(+p.offset || 0).toArray();
           generated = buildExtrudeSplineCage(sources[0].data, offset);
         }
-      } else type === "lathe" ? generated = { data: buildLatheSplineCage(sources[0].data, p, sources[0].pivot), sourceTopology: resolveSplineTopology(sources[0].data) } : generated = { data: buildSweepSplineCage(sources[0].data, sources[1].data), sourceTopology: resolveSplineTopology(sources[0].data) };
+      } else type === "lathe" ? generated = { data: buildLatheSplineCage(sources[0].data, p, generatorPivot), sourceTopology: resolveSplineTopology(sources[0].data) } : generated = { data: buildSweepSplineCage(sources[0].data, sources[1].data, sources[0].pivot), sourceTopology: resolveSplineTopology(sources[0].data) };
       state.generatedCageData = cloneSplineData(generated.data);
-      let built = buildSplineSurfaceMeshData(generated.data, { runtimeKey: `generator:${h}` });
+      let built = compileSplinePatchBackend(generated.data, `generator:${h}`);
       if (built.report = { ...built.report, generator: type, generatedCage: !0, triangleFallback: !1, inputContours: generated.sourceTopology?.planarContours?.length ?? null, buildMilliseconds: performance.now() - buildStarted }, built.cage = approximateSpline(generated.data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) })), built.cageData = generated.data, state.report = built.report, state.topology = built.topology || null, !built.report.ok || !built.indices.length) throw new Error(built.report?.errors?.[0] || `${type} result is empty`);
-      installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals), installGeneratorCage(h, state, built.cage), state.virtualCage.data = built.cageData;
+      installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals, built.cornerNormals), installGeneratorCage(h, state, built.cage), state.virtualCage.data = built.cageData;
     } catch (error) {
       state.report = error.report || state.report, setReplicaError(h, state, error.message || String(error));
     }
@@ -4753,6 +4903,12 @@ function createWeldedBoxGeometry(sx2, sy2, sz2) {
   return g.setAttribute("position", new THREE2.Float32BufferAttribute(p, 3)), g.setIndex(i), g.computeVertexNormals(), g.computeBoundingBox(), g;
 }
 var PARAMETRIC_MESH_TYPES = /* @__PURE__ */ new Set(["cube", "cylinder", "tube", "sphere"]), PARAMETRIC_SPLINE_TYPES = /* @__PURE__ */ new Set(["square", "circle", "polyhedron", "text"]);
+function isVertexEditableMesh(h) {
+  let node = OBJ.get(h), type = objParams.get(h)?.__type;
+  if (!node || splineData.has(h)) return !1;
+  if (type === "spline_patch") return !0;
+  return node.type === TYPE_MESH && !PARAMETRIC_MESH_TYPES.has(type);
+}
 function approximationAngle(p) {
   let a = Number.isFinite(+p?.approximation) ? +p.approximation : Number.isFinite(+p?.subdivs) ? 360 / Math.max(3, +p.subdivs) : 5;
   return THREE2.MathUtils.clamp(Math.round(a), 1, 180);
@@ -4825,10 +4981,139 @@ function requestParametricTextFont() {
     parametricTextFontLoading = !1, console.warn("Spline text font failed to load", error);
   }));
 }
+function fontCommandCubic(start, command) {
+  let p0 = start.slice(), p3 = command.end.slice();
+  if (command.kind === "q") {
+    let c = command.c1;
+    return [p0, [p0[0] + (c[0] - p0[0]) * 2 / 3, p0[1] + (c[1] - p0[1]) * 2 / 3], [p3[0] + (c[0] - p3[0]) * 2 / 3, p3[1] + (c[1] - p3[1]) * 2 / 3], p3];
+  }
+  return command.kind === "b" ? [p0, command.c1.slice(), command.c2.slice(), p3] : [p0, p0.slice(), p3.slice(), p3];
+}
+function fontCurveTangent(curve, end = !1) {
+  let pairs = end ? [[3, 2], [3, 1], [3, 0]] : [[1, 0], [2, 0], [3, 0]];
+  for (let [a, b] of pairs) {
+    let x = curve[a][0] - curve[b][0], y = curve[a][1] - curve[b][1], length = Math.hypot(x, y);
+    if (length > 1e-9) return [x / length, y / length];
+  }
+  return [0, 0];
+}
+function fitFontCubicPoints(points, tolerance, t0, t1) {
+  if (points.length < 2) return null;
+  let p0 = points[0], p3 = points.at(-1), parameters = [0], pathLength = 0;
+  for (let i = 1; i < points.length; i++) pathLength += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]), parameters.push(pathLength);
+  if (pathLength <= 1e-9) return null;
+  parameters = parameters.map((value) => value / pathLength);
+  let generate = (u) => {
+    let c00 = 0, c01 = 0, c11 = 0, x0 = 0, x1 = 0;
+    for (let i = 0; i < points.length; i++) {
+      let t = u[i], s = 1 - t, b0 = s * s * s, b1 = 3 * s * s * t, b2 = 3 * s * t * t, b3 = t * t * t, a0 = [b1 * t0[0], b1 * t0[1]], a1 = [b2 * t1[0], b2 * t1[1]], rhs = [points[i][0] - (b0 + b1) * p0[0] - (b2 + b3) * p3[0], points[i][1] - (b0 + b1) * p0[1] - (b2 + b3) * p3[1]];
+      c00 += a0[0] * a0[0] + a0[1] * a0[1], c01 += a0[0] * a1[0] + a0[1] * a1[1], c11 += a1[0] * a1[0] + a1[1] * a1[1], x0 += a0[0] * rhs[0] + a0[1] * rhs[1], x1 += a1[0] * rhs[0] + a1[1] * rhs[1];
+    }
+    let determinant = c00 * c11 - c01 * c01, alpha = 0, beta = 0, chord = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]);
+    Math.abs(determinant) > 1e-12 && (alpha = (x0 * c11 - x1 * c01) / determinant, beta = (c00 * x1 - c01 * x0) / determinant);
+    let epsilon = Math.max(1e-9, chord * 1e-6);
+    (alpha < epsilon || beta < epsilon || alpha > pathLength * 2 || beta > pathLength * 2) && (alpha = beta = chord / 3);
+    return [p0.slice(), [p0[0] + t0[0] * alpha, p0[1] + t0[1] * alpha], [p3[0] + t1[0] * beta, p3[1] + t1[1] * beta], p3.slice()];
+  }, jet = (curve, t) => {
+    let s = 1 - t, q = [s * s * s * curve[0][0] + 3 * s * s * t * curve[1][0] + 3 * s * t * t * curve[2][0] + t * t * t * curve[3][0], s * s * s * curve[0][1] + 3 * s * s * t * curve[1][1] + 3 * s * t * t * curve[2][1] + t * t * t * curve[3][1]], d = [3 * s * s * (curve[1][0] - curve[0][0]) + 6 * s * t * (curve[2][0] - curve[1][0]) + 3 * t * t * (curve[3][0] - curve[2][0]), 3 * s * s * (curve[1][1] - curve[0][1]) + 6 * s * t * (curve[2][1] - curve[1][1]) + 3 * t * t * (curve[3][1] - curve[2][1])], dd = [6 * s * (curve[2][0] - 2 * curve[1][0] + curve[0][0]) + 6 * t * (curve[3][0] - 2 * curve[2][0] + curve[1][0]), 6 * s * (curve[2][1] - 2 * curve[1][1] + curve[0][1]) + 6 * t * (curve[3][1] - 2 * curve[2][1] + curve[1][1])];
+    return { q, d, dd };
+  }, measure = (curve, u) => {
+    let maximum = 0;
+    for (let i = 1; i + 1 < points.length; i++) {
+      let q = jet(curve, u[i]).q, dx = q[0] - points[i][0], dy = q[1] - points[i][1];
+      maximum = Math.max(maximum, dx * dx + dy * dy);
+    }
+    return maximum;
+  }, best = null;
+  for (let iteration = 0; iteration < 6; iteration++) {
+    let curve = generate(parameters), error = measure(curve, parameters);
+    (!best || error < best.error) && (best = { curve, error });
+    let next = [0], valid = !0;
+    for (let i = 1; i + 1 < points.length; i++) {
+      let j = jet(curve, parameters[i]), rx = j.q[0] - points[i][0], ry = j.q[1] - points[i][1], denominator = j.d[0] * j.d[0] + j.d[1] * j.d[1] + rx * j.dd[0] + ry * j.dd[1], value = Math.abs(denominator) > 1e-12 ? parameters[i] - (rx * j.d[0] + ry * j.d[1]) / denominator : parameters[i];
+      value = Math.max(0, Math.min(1, value)), value <= next.at(-1) + 1e-7 && (valid = !1), next.push(value);
+    }
+    next.push(1), valid && (parameters = next);
+    if (!valid) break;
+  }
+  if (best?.error <= tolerance * tolerance) return best;
+  let curveSamples = Array.from({ length: 49 }, (_, i) => jet(best.curve, i / 48).q), pointSegmentDistanceSq = (point, a, b) => {
+    let dx = b[0] - a[0], dy = b[1] - a[1], length2 = dx * dx + dy * dy, t = length2 > 1e-18 ? ((point[0] - a[0]) * dx + (point[1] - a[1]) * dy) / length2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    let x = a[0] + dx * t - point[0], y = a[1] + dy * t - point[1];
+    return x * x + y * y;
+  }, directedDistance = (source, target) => {
+    let maximum = 0;
+    for (let point of source) {
+      let nearest = 1 / 0;
+      for (let i = 1; i < target.length; i++) nearest = Math.min(nearest, pointSegmentDistanceSq(point, target[i - 1], target[i]));
+      maximum = Math.max(maximum, nearest);
+      if (maximum > tolerance * tolerance) break;
+    }
+    return maximum;
+  }, geometricError = Math.max(directedDistance(points, curveSamples), directedDistance(curveSamples, points));
+  return geometricError <= tolerance * tolerance ? { curve: best.curve, error: geometricError } : null;
+}
+function simplifyFontContour(start, commands, tolerance = 0.5) {
+  let curves = [], current = start.slice();
+  for (let command of commands) {
+    let curve = fontCommandCubic(current, command);
+    Math.hypot(curve[3][0] - curve[0][0], curve[3][1] - curve[0][1]) > 1e-9 && curves.push({ curve, command }), current = command.end.slice();
+  }
+  let microLength = Math.max(0.75, tolerance * 3);
+  for (let i = 1; i + 1 < curves.length; i++) if (curves[i].command.kind === "l" && Math.hypot(curves[i].curve[3][0] - curves[i].curve[0][0], curves[i].curve[3][1] - curves[i].curve[0][1]) <= microLength) {
+    let anchor = [(curves[i].curve[0][0] + curves[i].curve[3][0]) * 0.5, (curves[i].curve[0][1] + curves[i].curve[3][1]) * 0.5];
+    curves[i - 1].curve[3] = anchor.slice(), curves[i - 1].command.end = anchor.slice(), curves[i + 1].curve[0] = anchor.slice(), curves.splice(i, 1), i--;
+  }
+  let smooth = (a, b) => {
+    let x = fontCurveTangent(a.curve, !0), y = fontCurveTangent(b.curve);
+    return x[0] * y[0] + x[1] * y[1] >= Math.cos(8 * Math.PI / 180);
+  }, runs = [], out = [];
+  for (let curve of curves) {
+    let run = runs.at(-1);
+    !run || !smooth(run.at(-1), curve) ? runs.push([curve]) : run.push(curve);
+  }
+  for (let run of runs) {
+    let n = run.length, cache = /* @__PURE__ */ new Map(), fit = (a, b) => {
+      let key = `${a}:${b}`;
+      if (cache.has(key)) return cache.get(key);
+      let points = [];
+      for (let ci = a; ci < b; ci++) for (let k = ci === a ? 0 : 1; k <= 10; k++) points.push(cubicPoint(run[ci].curve.map((p) => [p[0], p[1], 0]), k / 10).slice(0, 2));
+      let startTangent = fontCurveTangent(run[a].curve), endForward = fontCurveTangent(run[b - 1].curve, !0), value = fitFontCubicPoints(points, tolerance, startTangent, [-endForward[0], -endForward[1]]);
+      return cache.set(key, value), value;
+    }, best = Array(n + 1).fill(null);
+    best[0] = { count: 0, error: 0, previous: -1, fitted: null };
+    for (let end = 1; end <= n; end++) for (let begin = 0; begin < end; begin++) if (best[begin]) {
+      let fitted = fit(begin, end);
+      if (!fitted) continue;
+      let candidate = { count: best[begin].count + 1, error: best[begin].error + fitted.error, previous: begin, fitted }, currentBest = best[end];
+      (!currentBest || candidate.count < currentBest.count || candidate.count === currentBest.count && candidate.error < currentBest.error) && (best[end] = candidate);
+    }
+    if (!best[n]) {
+      for (let item of run) out.push({ ...item.command, end: item.command.end.slice() });
+      continue;
+    }
+    let fitted = [];
+    for (let end = n; end > 0; ) {
+      let choice = best[end];
+      fitted.push({ begin: choice.previous, end, ...choice.fitted }), end = choice.previous;
+    }
+    for (let choice of fitted.reverse()) {
+      let exactLine = run.slice(choice.begin, choice.end).every((item) => item.command.kind === "l");
+      exactLine ? out.push({ kind: "l", end: choice.curve[3].slice() }) : out.push({ kind: "b", end: choice.curve[3].slice(), c1: choice.curve[1].slice(), c2: choice.curve[2].slice() });
+    }
+  }
+  if (out.length === 2) {
+    let starts = [start.slice(), out[0].end.slice()], curves2 = out.map((command, i) => fontCommandCubic(starts[i], command)), index = Math.hypot(curves2[1][3][0] - curves2[1][0][0], curves2[1][3][1] - curves2[1][0][1]) > Math.hypot(curves2[0][3][0] - curves2[0][0][0], curves2[0][3][1] - curves2[0][0][1]) ? 1 : 0, curve = curves2[index], lerp2 = (a, b) => [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5], p01 = lerp2(curve[0], curve[1]), p12 = lerp2(curve[1], curve[2]), p23 = lerp2(curve[2], curve[3]), p012 = lerp2(p01, p12), p123 = lerp2(p12, p23), middle = lerp2(p012, p123);
+    out.splice(index, 1, { kind: "b", end: middle, c1: p01, c2: p012 }, { kind: "b", end: curve[3].slice(), c1: p123, c2: p23 });
+  }
+  return out;
+}
 function addFontContour(data, start, commands) {
   if (!start || !commands.length) return;
   let same = (a2, b) => Math.hypot(a2[0] - b[0], a2[1] - b[1]) < 1e-7;
   same(commands.at(-1).end, start) || commands.push({ kind: "l", end: start.slice() });
+  commands = simplifyFontContour(start, commands);
   let q = addSplineSequence(data, !0), first = addSplineVertex(data, [start[0], start[1], 0]), a = first, current = start.slice();
   for (let i = 0; i < commands.length; i++) {
     let command = commands[i], closing = i === commands.length - 1 && same(command.end, start), b = closing ? first : addSplineVertex(data, [command.end[0], command.end[1], 0]);
@@ -4849,7 +5134,7 @@ function createFontTextSpline(data, value) {
   let font = parametricTextFont;
   if (!font)
     return requestParametricTextFont(), data;
-  let size = 100, scale = size / font.resolution, lines = String(value || "Text").split(`
+  let size = 100, scale = size / font.resolution, lines = String(value == null ? "Text" : value).split(`
 `), fallback = font.glyphs["?"], lineHeight = (font.boundingBox.yMax - font.boundingBox.yMin + font.underlineThickness) * scale, width = (line) => [...line].reduce((sum, ch) => sum + (font.glyphs[ch] || fallback)?.ha * scale || sum, 0), baseY = -(font.boundingBox.yMax + font.boundingBox.yMin) * scale * 0.5 + (lines.length - 1) * lineHeight * 0.5;
   for (let li = 0; li < lines.length; li++) {
     let x = -width(lines[li]) * 0.5, y = baseY - li * lineHeight;
@@ -4950,7 +5235,7 @@ function buildParametricCageObject(h, p) {
     if (!data) throw new Error("primitive spline cage is empty");
     let built = buildSplineSurfaceMeshData(data, { runtimeKey: `primitive:${h}` });
     if (state.report = { ...built.report, generator: p.__type, generatedCage: !0 }, state.topology = built.topology, !built.report.ok || !built.indices.length) throw new Error(built.report.errors?.[0] || "primitive spline cage cannot form a surface");
-    installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals), installGeneratorCage(h, state, approximateSpline(data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) }))), state.virtualCage && (state.virtualCage.data = data);
+    installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals, built.cornerNormals), installGeneratorCage(h, state, approximateSpline(data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) }))), state.virtualCage && (state.virtualCage.data = data);
   } catch (error) {
     state.report = state.report || { generator: p.__type, generatedCage: !0 }, setReplicaError(h, state, error.message || String(error));
   }
@@ -5138,9 +5423,9 @@ function appendPlanarSplineFills(data, built) {
       if (at < 0) break;
       ref = refs.splice(at, 1)[0], id2 = typeof ref == "string" ? ref : ref.id, s = data.segments[id2], reversed = s.b === current, from = current, to = reversed ? s.a : s.b, edges.push({ id: id2, from, to, reversed }), current = to;
     }
-    edges.length && addLoop({ id: spec.id || `fill:${loops.length}`, edges, plane: null });
+    edges.length && addLoop({ id: spec.id || `fill:${loops.length}`, edges, plane: null, fillGroup: spec.group || null });
   }
-  if (!loops.length) {
+  if (!loops.length && !built.virtualPlanarLoops?.length) {
     built.report.planarFillRegions = 0, built.report.planarFillTriangles = 0;
     return;
   }
@@ -5153,12 +5438,23 @@ function appendPlanarSplineFills(data, built) {
       let raw = sampleSplineSegment(data, edge.id), oriented2 = edge.reversed ? raw.slice().reverse() : raw;
       for (let i = 0; i < oriented2.length - 1; i++) points.push(oriented2[i].position.slice());
     }
-    points.length >= 3 && records.push({ loop, points, origin, u: axis, v, normal, flat: points.map((p) => {
+    points.length >= 3 && records.push({ loop, fillGroup: loop.fillGroup || null, points, origin, u: axis, v, normal, flat: points.map((p) => {
       let x = V(p).sub(origin);
       return new THREE2.Vector2(x.dot(axis), x.dot(v));
     }), parent: null, depth: 0 });
   }
-  let coplanar = (a, b) => Math.abs(Math.abs(a.normal.dot(b.normal)) - 1) < 1e-6 && Math.abs(b.origin.clone().sub(a.origin).dot(a.normal)) < 1e-5, groups = [];
+  for (let virtual of built.virtualPlanarLoops || []) {
+    let points = virtual.points.map((p) => p.slice());
+    points.length > 2 && splineMath.dist(points[0], points.at(-1)) < 1e-8 && points.pop();
+    let plane = deterministicSplineWorldPlane(points.map(V));
+    if (!plane?.planar || points.length < 3) continue;
+    let normal = V(plane.normal), axis = V(plane.u || plane.axis), v = plane.v ? V(plane.v) : new THREE2.Vector3().crossVectors(normal, axis).normalize(), origin = V(plane.origin), loop = { id: virtual.id, edges: [] };
+    records.push({ loop, fillGroup: virtual.fillGroup || null, points, origin, u: axis, v, normal, flat: points.map((p) => {
+      let x = V(p).sub(origin);
+      return new THREE2.Vector2(x.dot(axis), x.dot(v));
+    }), parent: null, depth: 0 });
+  }
+  let coplanar = (a, b) => (!a.fillGroup || !b.fillGroup || a.fillGroup === b.fillGroup) && Math.abs(Math.abs(a.normal.dot(b.normal)) - 1) < 1e-6 && Math.abs(b.origin.clone().sub(a.origin).dot(a.normal)) < 1e-5, groups = [];
   for (let r of records) {
     let group = groups.find((g) => coplanar(g[0], r));
     group || (group = [], groups.push(group)), group.push(r);
@@ -5224,12 +5520,19 @@ function weldCompiledMeshPositions(built) {
     let key = keyAt(i), q = keys.get(key);
     q == null && (q = positions.length / 3, keys.set(key, q), positions.push(built.positions[i * 3], built.positions[i * 3 + 1], built.positions[i * 3 + 2])), map[i] = q;
   }
-  let indices = [], sources = [];
+  let indices = [], sources = [], cornerNormals = [];
   for (let i = 0; i < built.indices.length; i += 3) {
     let a = map[built.indices[i]], b = map[built.indices[i + 1]], c = map[built.indices[i + 2]];
-    a === b || b === c || c === a || (indices.push(a, b, c), sources.push(built.triangleSources[i / 3]));
+    if (a === b || b === c || c === a) continue;
+    indices.push(a, b, c), sources.push(built.triangleSources[i / 3]);
+    if (built.cornerNormals?.length >= (i + 3) * 3)
+      for (let k = 0; k < 9; k++) cornerNormals.push(built.cornerNormals[i * 3 + k]);
+    else {
+      let ax = positions[a * 3], ay = positions[a * 3 + 1], az = positions[a * 3 + 2], ab = [positions[b * 3] - ax, positions[b * 3 + 1] - ay, positions[b * 3 + 2] - az], ac = [positions[c * 3] - ax, positions[c * 3 + 1] - ay, positions[c * 3 + 2] - az], n = unit(cross2(ab, ac));
+      cornerNormals.push(...n, ...n, ...n);
+    }
   }
-  built.positions = positions, built.indices = indices, built.triangleSources = sources;
+  built.positions = positions, built.indices = indices, built.triangleSources = sources, built.cornerNormals = cornerNormals;
 }
 function buildSplineSurfaceMeshData(data, options = {}) {
   options = { ...options, preview: options.preview ?? !!gizDrag };
@@ -5238,7 +5541,7 @@ function buildSplineSurfaceMeshData(data, options = {}) {
   let surfaceStarted = performance.now(), built = buildCompiledSplineSurfaceMesh(data, { ...options, geometryVersion: state.geometryVersion, tessellationVersion: state.tessellationVersion, renderCache: state.renderCache, freezeRenderTopology: !!options.preview && state.topologyKey === topologyKey && state.angle === angle });
   built.renderCache && (state.renderCache = built.renderCache), built.report.surfaceBuilderMilliseconds = performance.now() - surfaceStarted, built.report.surfaceOnly = { boundaryEdges: built.report.boundaryEdges, nonManifoldEdges: built.report.nonManifoldEdges, vertices: built.report.vertices, triangles: built.report.triangles };
   let planarStarted = performance.now();
-  if (appendPlanarSplineFills(data, built), data.planarFills?.length) {
+  if (appendPlanarSplineFills(data, built), data.planarFills?.length || built.virtualPlanarLoops?.length || built.needsPositionWeld) {
     weldCompiledMeshPositions(built);
     let edgeUse = /* @__PURE__ */ new Map(), edgeKey = (a, b) => a < b ? `${a}:${b}` : `${b}:${a}`;
     for (let i = 0; i < built.indices.length; i += 3) for (let k = 0; k < 3; k++) {
@@ -5248,6 +5551,9 @@ function buildSplineSurfaceMeshData(data, options = {}) {
     built.report.boundaryEdges = [...edgeUse.values()].filter((n) => n.length === 1).length, built.report.nonManifoldEdges = [...edgeUse.values()].filter((n) => n.length > 2).length, built.report.finalTopologyDiagnostics = [...edgeUse].filter(([, owners]) => owners.length !== 2).sort((a, b) => b[1].length - a[1].length).slice(0, 24).map(([edge, owners]) => ({ edge, use: owners.length, sources: [...new Set(owners.map((x) => x.source))], points: edge.split(":").map(Number).map((i) => built.positions.slice(i * 3, i * 3 + 3)) })), built.report.closed = built.indices.length > 0 && !built.report.boundaryEdges && !built.report.nonManifoldEdges, built.report.vertices = built.positions.length / 3, built.report.triangles = built.indices.length / 3, built.report.ok = built.report.ok && !built.report.nonManifoldEdges;
   }
   return built.report.planarFillMilliseconds = performance.now() - planarStarted, Object.assign(built.report, { geometryVersion: state.geometryVersion, chartVersion: state.chartVersion, tessellationVersion: state.tessellationVersion }), built;
+}
+function compileSplinePatchBackend(data, runtimeKey) {
+  return buildSplineSurfaceMeshData(data, { runtimeKey });
 }
 function generatorSequencePoints(data, sequence) {
   let out = [];
@@ -5340,57 +5646,54 @@ function splineCageEdge(data, a, b, ha = [0, 0, 0], hb = [0, 0, 0], soft = !1) {
   let q = addSplineSequence(data, !1), sid = addSplineSegment(data, q, a, b, ha, hb);
   return soft && (data.segments[sid].soft = !0), sid;
 }
+function rigidSplinePivotMatrix(matrix) {
+  let source = matrix?.isMatrix4 ? matrix : new THREE2.Matrix4().fromArray(matrix || new THREE2.Matrix4().elements), position = new THREE2.Vector3(), rotation = new THREE2.Quaternion(), scale = new THREE2.Vector3();
+  if (Math.abs(source.determinant()) < 1e-12) throw new Error("Spline pivot transform is singular");
+  return source.decompose(position, rotation, scale), new THREE2.Matrix4().compose(position, rotation.normalize(), new THREE2.Vector3(1, 1, 1));
+}
 function rotateLathePoint(point, theta) {
   let c = Math.cos(theta), s = Math.sin(theta);
   return [c * point[0] + s * point[2], point[1], -s * point[0] + c * point[2]];
 }
 function buildLatheSplineCage(source, p, axisMatrix = null) {
   let axis = null;
-  axisMatrix && (axis = axisMatrix.isMatrix4 ? axisMatrix.clone() : new THREE2.Matrix4().fromArray(axisMatrix), source = cloneSplineData(source), transformWholeSplineData(source, axis.clone().invert()));
-  let degrees = THREE2.MathUtils.clamp(+p.angle || 0, 0, 360), angle = degrees * D2R, full = Math.abs(degrees - 360) < 1e-7, intervals = Math.max(1, Math.ceil(Math.max(degrees, 1) / 90 - 1e-9)), columns = full ? intervals : intervals + 1, data = createSplineData({ angle: approximationAngle(p) }), axisTolerance = Math.max(1e-7, Math.max(...Object.values(source.vertices).map((v) => Math.hypot(v[0], v[2])), 1) * 1e-8), onAxis = (v) => Math.hypot(v[0], v[2]) <= axisTolerance, columnVertices = /* @__PURE__ */ new Map(), profileEdges = /* @__PURE__ */ new Map(), railEdges = /* @__PURE__ */ new Map(), sourceSegments = Object.values(source.segments);
+  axisMatrix && (axis = rigidSplinePivotMatrix(axisMatrix), source = cloneSplineData(source), transformWholeSplineData(source, axis.clone().invert()));
+  let degrees = THREE2.MathUtils.clamp(+p.angle || 0, 0, 360);
+  if (degrees <= 1e-7) throw new Error("Lathe angle must be greater than zero");
+  let angle = degrees * D2R, full = Math.abs(degrees - 360) < 1e-7, intervals = Math.max(1, Math.ceil(degrees / 90 - 1e-9)), data = createSplineData({ angle: approximationAngle(p) }), sourceSequences = source.sequences.filter((q) => q.segments.length), vertexCopies = /* @__PURE__ */ new Map();
+  if (!sourceSequences.length) throw new Error("Lathe needs a non-empty spline profile");
   data.patchCells = [], data.planarFills = [];
-  let cv = (vid, j) => {
-    let key = vid + "@" + (full ? (j % columns + columns) % columns : j);
-    if (columnVertices.has(key)) return columnVertices.get(key);
-    let point = source.vertices[vid];
-    if (onAxis(point)) {
-      let pole = "pole@" + vid;
-      if (columnVertices.has(pole)) return columnVertices.get(pole);
-      let id3 = addSplineVertex(data, point.slice());
-      return columnVertices.set(pole, id3), id3;
+  let copyVertex = (vid) => (vertexCopies.has(vid) || vertexCopies.set(vid, addSplineVertex(data, source.vertices[vid].slice())), vertexCopies.get(vid)), orderedProfiles = [];
+  for (let sequence of sourceSequences) {
+    let ordered = orderedSplineSequence(source, sequence);
+    if (!ordered.edges.length) continue;
+    let q = addSplineSequence(data, !!sequence.closed), edges = [];
+    for (let edge of ordered.edges) {
+      let segment = source.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, q, copyVertex(edge.from), copyVertex(edge.to), ha.slice(), hb.slice());
+      data.segments[sid].soft = !!segment.soft, edges.push(sid);
     }
-    let id2 = addSplineVertex(data, rotateLathePoint(point, angle * j / intervals));
-    return columnVertices.set(key, id2), id2;
-  };
-  for (let j = 0; j < columns; j++) for (let s of sourceSegments) {
-    let theta = angle * j / intervals, a = cv(s.a, j), b = cv(s.b, j), sid = splineCageEdge(data, a, b, rotateLathePoint(s.ha, theta), rotateLathePoint(s.hb, theta), !1);
-    profileEdges.set(s.id + "@" + j, sid);
+    orderedProfiles.push(ordered);
   }
-  for (let vid of Object.keys(source.vertices)) {
-    let point = source.vertices[vid];
-    if (!onAxis(point))
-      for (let j = 0; j < intervals; j++) {
-        let k = full ? (j + 1) % columns : j + 1, theta0 = angle * j / intervals, theta1 = angle * (j + 1) / intervals, delta = theta1 - theta0, h = 4 / 3 * Math.tan(delta / 4), a = cv(vid, j), b = cv(vid, k), pa = rotateLathePoint(point, theta0), pb = rotateLathePoint(point, theta1), ta = [pa[2] * h, 0, -pa[0] * h], tb = [-pb[2] * h, 0, pb[0] * h], sid = splineCageEdge(data, a, b, ta, tb, !1);
-        railEdges.set(vid + "@" + j, sid);
-      }
-  }
-  for (let s of sourceSegments) for (let j = 0; j < intervals; j++) {
-    let k = full ? (j + 1) % columns : j + 1, a0 = cv(s.a, j), b0 = cv(s.b, j), a1 = cv(s.a, k), b1 = cv(s.b, k), e0 = profileEdges.get(s.id + "@" + j), e1 = profileEdges.get(s.id + "@" + k);
-    a0 === a1 && b0 === b1 || (a0 === a1 ? data.patchCells.push({ vertices: [a0, b0, b1], edges: [e0, railEdges.get(s.b + "@" + j), e1] }) : b0 === b1 ? data.patchCells.push({ vertices: [a0, b0, a1], edges: [e0, e1, railEdges.get(s.a + "@" + j)] }) : data.patchCells.push({ vertices: [a0, b0, b1, a1], edges: [e0, railEdges.get(s.b + "@" + j), e1, railEdges.get(s.a + "@" + j)] }));
-  }
-  if (!full) for (let sequence of source.sequences.filter((q) => !q.closed && q.segments.length)) {
-    let first = source.segments[sequence.segments[0]], last = source.segments[sequence.segments.at(-1)];
-    if (!first || !last || !onAxis(source.vertices[first.a]) || !onAxis(source.vertices[last.b])) continue;
-    let axis2 = splineCageEdge(data, cv(last.b, 0), cv(first.a, 0));
-    data.planarFills.push({ id: `${sequence.id}:lathe-start`, edges: sequence.segments.map((id2) => profileEdges.get(id2 + "@0")).concat(axis2) }, { id: `${sequence.id}:lathe-end`, edges: sequence.segments.map((id2) => profileEdges.get(id2 + "@" + intervals)).concat(axis2) });
+  let candidates = orderedProfiles.flatMap((ordered) => ordered.vertices), anchor = candidates.reduce((best, vid) => !best || Math.hypot(source.vertices[vid][0], source.vertices[vid][2]) > Math.hypot(source.vertices[best][0], source.vertices[best][2]) ? vid : best, null), point = anchor && source.vertices[anchor];
+  if (!point || Math.hypot(point[0], point[2]) < 1e-8) throw new Error("Lathe profile needs at least one off-axis point");
+  let path = addSplineSequence(data, full), pathVertices = [copyVertex(anchor)], pathEdges = [];
+  for (let j = 1; j < intervals; j++) pathVertices.push(addSplineVertex(data, rotateLathePoint(point, angle * j / intervals)));
+  full || pathVertices.push(addSplineVertex(data, rotateLathePoint(point, angle)));
+  for (let j = 0; j < intervals; j++) {
+    let a = pathVertices[j], b = full && j + 1 === intervals ? pathVertices[0] : pathVertices[j + 1], theta0 = angle * j / intervals, theta1 = angle * (j + 1) / intervals, delta = theta1 - theta0, h = 4 / 3 * Math.tan(delta / 4), pa = rotateLathePoint(point, theta0), pb = rotateLathePoint(point, theta1), sid = addSplineSegment(data, path, a, b, [pa[2] * h, 0, -pa[0] * h], [-pb[2] * h, 0, pb[0] * h]);
+    data.segments[sid].soft = !0, pathEdges.push(sid);
   }
   let validation = validateSpline(data);
   if (!validation.ok) throw new Error(validation.errors.join("; "));
   return axis && transformWholeSplineData(data, axis), data;
 }
-function buildSweepFrames(path, closed, initialNormal) {
-  let n = path.length, tangents = path.map((p, i) => new THREE2.Vector3().fromArray(path[(i + 1) % n]).sub(new THREE2.Vector3().fromArray(path[(i - 1 + n) % n])).normalize());
-  closed || (tangents[0] = new THREE2.Vector3().fromArray(path[1]).sub(new THREE2.Vector3().fromArray(path[0])).normalize(), tangents[n - 1] = new THREE2.Vector3().fromArray(path[n - 1]).sub(new THREE2.Vector3().fromArray(path[n - 2])).normalize());
+function buildSweepFrames(path, closed, initialNormal, tangentHints = null) {
+  let n = path.length, chordTangents = path.map((p, i) => new THREE2.Vector3().fromArray(path[(i + 1) % n]).sub(new THREE2.Vector3().fromArray(path[(i - 1 + n) % n])).normalize());
+  closed || (chordTangents[0] = new THREE2.Vector3().fromArray(path[1]).sub(new THREE2.Vector3().fromArray(path[0])).normalize(), chordTangents[n - 1] = new THREE2.Vector3().fromArray(path[n - 1]).sub(new THREE2.Vector3().fromArray(path[n - 2])).normalize());
+  let tangents = chordTangents.map((fallback, i) => {
+    let hint = tangentHints?.[i]?.clone?.() || null;
+    return hint && hint.lengthSq() > 1e-12 ? hint.normalize() : fallback;
+  });
   let normal = initialNormal.clone().addScaledVector(tangents[0], -initialNormal.dot(tangents[0]));
   normal.lengthSq() < 1e-12 && (normal = new THREE2.Vector3(Math.abs(tangents[0].x) < 0.8 ? 1 : 0, Math.abs(tangents[0].x) < 0.8 ? 0 : 1, 0).addScaledVector(tangents[0], -(Math.abs(tangents[0].x) < 0.8 ? tangents[0].x : tangents[0].y))), normal.normalize();
   let frames = [];
@@ -5406,21 +5709,48 @@ function buildSweepFrames(path, closed, initialNormal) {
   }
   return frames;
 }
-function buildSweepSplineCage(profileData, pathData) {
+function orderedSplineSequence(data, sequence) {
+  let source = sequence.segments.map((id2) => data.segments[id2]).filter(Boolean);
+  if (!source.length) return { vertices: [], edges: [] };
+  let first = source[0], next = source[1], from = first.a, to = first.b;
+  next && next.a !== to && next.b !== to && (next.a === from || next.b === from) && (from = first.b, to = first.a);
+  let vertices = [from, to], edges = [{ id: first.id, from, to, reversed: first.a !== from }], current = to;
+  for (let i = 1; i < source.length; i++) {
+    let segment = source[i], edgeFrom = current, edgeTo = segment.a === current ? segment.b : segment.b === current ? segment.a : null;
+    if (!edgeTo) throw new Error("Sweep path segments must form one ordered chain");
+    edges.push({ id: segment.id, from: edgeFrom, to: edgeTo, reversed: segment.a !== edgeFrom }), vertices.push(edgeTo), current = edgeTo;
+  }
+  sequence.closed && vertices.at(-1) === vertices[0] && vertices.pop();
+  return { vertices, edges };
+}
+function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
+  if (profilePivot) {
+    let pivot = rigidSplinePivotMatrix(profilePivot);
+    profileData = cloneSplineData(profileData), transformWholeSplineData(profileData, pivot.invert());
+  }
   let topology = resolveSplineTopology(profileData), contours = topology.planarContours, pathSequence = pathData.sequences.find((q) => q.segments.length);
   if (!contours.length || !pathSequence) throw new Error("Sweep cage needs a closed profile and a path");
-  let pathPoints = generatorSequencePoints(pathData, pathSequence);
-  if (pathPoints.length < 2) throw new Error("Sweep path needs at least two evaluated points");
-  let allProfileSegments = contours.flatMap((c) => c.edges.map((e) => e.id)), plane = generatorPlaneForData(profileData, allProfileSegments);
+  let orderedPath = orderedSplineSequence(pathData, pathSequence), pathPoints = orderedPath.vertices.map((id2) => pathData.vertices[id2].slice());
+  if (pathPoints.length < 2 || orderedPath.edges.length < 1) throw new Error("Sweep path needs at least two vertices");
+  let pathHandles = orderedPath.edges.map((edge) => {
+    let segment = pathData.segments[edge.id];
+    return edge.reversed ? { ha: segment.hb.slice(), hb: segment.ha.slice() } : { ha: segment.ha.slice(), hb: segment.hb.slice() };
+  }), pathTangents = pathPoints.map((point, i) => {
+    let candidates = [], incoming = pathSequence.closed || i > 0 ? pathHandles[(i - 1 + pathHandles.length) % pathHandles.length] : null, outgoing = pathSequence.closed || i < pathHandles.length ? pathHandles[i % pathHandles.length] : null;
+    incoming && candidates.push(new THREE2.Vector3().fromArray(incoming.hb).multiplyScalar(-1)), outgoing && candidates.push(new THREE2.Vector3().fromArray(outgoing.ha));
+    let tangent = new THREE2.Vector3();
+    for (let candidate of candidates) candidate.lengthSq() > 1e-12 && tangent.add(candidate.normalize());
+    return tangent;
+  }), allProfileSegments = contours.flatMap((c) => c.edges.map((e) => e.id)), plane = generatorPlaneForData(profileData, allProfileSegments);
   if (!plane?.planar || plane.collinear) throw new Error("Sweep profile must be planar");
-  let firstDirection = new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(plane.normal.clone().normalize(), firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, plane.u.clone().applyQuaternion(rotation)), data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 5, pathData.approximation?.angle || 5) }), rowVertices = /* @__PURE__ */ new Map(), profileEdges = /* @__PURE__ */ new Map(), railEdges = /* @__PURE__ */ new Map(), rows = pathPoints.length, intervals = pathSequence.closed ? rows : rows - 1;
+  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(plane.normal.clone().normalize(), firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, plane.u.clone().applyQuaternion(rotation), pathTangents), data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 5, pathData.approximation?.angle || 5) }), rowVertices = /* @__PURE__ */ new Map();
   data.patchCells = [], data.planarFills = [];
   let coords = /* @__PURE__ */ new Map();
   for (let contour of contours) for (let vid of contour.vertices) if (!coords.has(vid)) {
     let q = new THREE2.Vector3().fromArray(profileData.vertices[vid]);
     coords.set(vid, [q.dot(plane.u), q.dot(plane.v), q.dot(plane.normal)]);
   }
-  let rv = (vid, row) => {
+  let rv = (vid, row = 0) => {
     let key = vid + "@" + row;
     if (rowVertices.has(key)) return rowVertices.get(key);
     let [x, y, z] = coords.get(vid), f = frames[row], point = f.p.clone().addScaledVector(f.n, x).addScaledVector(f.b, y).addScaledVector(f.t, z).toArray(), id2 = addSplineVertex(data, point);
@@ -5429,23 +5759,21 @@ function buildSweepSplineCage(profileData, pathData) {
     let f = frames[row], v = new THREE2.Vector3().fromArray(handle);
     return f.n.clone().multiplyScalar(v.dot(plane.u)).addScaledVector(f.b, v.dot(plane.v)).addScaledVector(f.t, v.dot(plane.normal)).toArray();
   };
-  for (let row = 0; row < rows; row++) for (let sid of allProfileSegments) {
-    let s = profileData.segments[sid], edge = splineCageEdge(data, rv(s.a, row), rv(s.b, row), transformHandle(s.ha, row), transformHandle(s.hb, row), !1);
-    profileEdges.set(sid + "@" + row, edge);
-  }
-  for (let vid of coords.keys()) for (let i = 0; i < intervals; i++) {
-    let j = (i + 1) % rows, a = rv(vid, i), b = rv(vid, j), chord = splineMath.mul(splineMath.sub(data.vertices[b], data.vertices[a]), 1 / 3), edge = splineCageEdge(data, a, b, chord, splineMath.mul(chord, -1), !1);
-    railEdges.set(vid + "@" + i, edge);
-  }
-  for (let contour of contours) for (let edge of contour.edges) {
-    let s = profileData.segments[edge.id];
-    for (let i = 0; i < intervals; i++) {
-      let j = (i + 1) % rows;
-      data.patchCells.push({ vertices: [rv(s.a, i), rv(s.b, i), rv(s.b, j), rv(s.a, j)], edges: [profileEdges.get(s.id + "@" + i), railEdges.get(s.b + "@" + i), profileEdges.get(s.id + "@" + j), railEdges.get(s.a + "@" + i)] });
+  let profileAt = (contour, row = 0) => {
+    let sequence = addSplineSequence(data, !0), edges = [];
+    for (let edge of contour.edges) {
+      let s = profileData.segments[edge.id], ha = edge.reversed ? s.hb : s.ha, hb = edge.reversed ? s.ha : s.hb, sid = addSplineSegment(data, sequence, rv(edge.from, row), rv(edge.to, row), transformHandle(ha, row), transformHandle(hb, row));
+      data.segments[sid].soft = !!s.soft, edges.push(sid);
     }
+    return edges;
+  };
+  for (let contour of contours) profileAt(contour, 0);
+  let pathVertexMap = /* @__PURE__ */ new Map(), pathVertex = (vid) => (pathVertexMap.has(vid) || pathVertexMap.set(vid, addSplineVertex(data, pathData.vertices[vid].slice())), pathVertexMap.get(vid)), pathOut = addSplineSequence(data, pathSequence.closed);
+  for (let edge of orderedPath.edges) {
+    let segment = pathData.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, pathOut, pathVertex(edge.from), pathVertex(edge.to), ha.slice(), hb.slice());
+    data.segments[sid].soft = !!segment.soft;
   }
-  if (!pathSequence.closed) for (let contour of contours)
-    data.planarFills.push({ id: contour.id + ":start", edges: contour.edges.map((e) => ({ id: profileEdges.get(e.id + "@0"), reversed: !!e.reversed })) }, { id: contour.id + ":end", edges: contour.edges.map((e) => ({ id: profileEdges.get(e.id + "@" + (rows - 1)), reversed: !!e.reversed })) });
+  data.patchCells = [];
   let validation = validateSpline(data);
   if (!validation.ok) throw new Error(validation.errors.join("; "));
   return data;
@@ -5455,7 +5783,7 @@ function updateSplineVisual(h) {
   if (!base || !v) return;
   splineApproximation(h);
   let data = evaluatedSplineData(h), signature = JSON.stringify(data), parent = OBJ.get(h)?.parent, parentType = parent && objParams.get(parent)?.__type, parentIsPatch = parentType === "spline_patch";
-  v.surfaceSignature !== signature && (v.surfaceSignature = signature, v.surface = null, parentType && ["spline_patch", "extrude", "lathe", "sweep"].includes(parentType) && scheduleGeneratorEvaluation(16, [h])), clearSplineGroup(v.group);
+  v.surfaceSignature !== signature && (v.surfaceSignature = signature, v.surface = null, parentType && ["spline_patch", "extrude", "lathe", "sweep"].includes(parentType) && scheduleGeneratorEvaluation(0, [parent])), clearSplineGroup(v.group);
   let parentState = parent && replicaStates.get(parent), warning = parentIsPatch && parentState?.report && !parentState.report.ok, approximated = approximateSpline(data), lineColor = warning ? 16728680 : 4373736;
   for (let q of approximated) {
     if (q.points.length < 2) continue;
@@ -6189,9 +6517,11 @@ function cmdCopyTo(hashes, drop) {
       let clean = (target.parent ? OBJ.get(target.parent).children : rootOrder).filter((c) => !newRoots.includes(c)), at = clean.indexOf(target.hash);
       at < 0 && (at = clean.length), drop.mode === "after" && (at += 1), clean.splice(at, 0, ...newRoots), target.parent ? OBJ.get(drop.target.parent).children = clean : rootOrder = clean;
     }
+    specs.forEach((s) => syncCopiedParametricObject(s.nh));
   }, cmd.undo = function() {
     allNew.forEach((h) => {
       setCopiedSplineUndoState(h, !0);
+      disposeCopiedParametricObject(h);
       let m = pickMeshes.get(h);
       if (m) {
         let idx = contentThrees.indexOf(m);
@@ -6261,10 +6591,11 @@ function cmdDuplicateToRoot(hashes) {
         let nn = OBJ.get(s.nh);
         nm.matrix.copy(localTmp(nn)), nm.updateMatrixWorld(!0);
       }
-    }), newRoots.forEach((rh) => applyNodeMaterial(rh)), rootOrder = rootOrder.filter((c) => !newRoots.includes(c)), rootOrder = [...newRoots, ...rootOrder];
+    }), newRoots.forEach((rh) => applyNodeMaterial(rh)), rootOrder = rootOrder.filter((c) => !newRoots.includes(c)), rootOrder = [...newRoots, ...rootOrder], specs.forEach((s) => syncCopiedParametricObject(s.nh));
   }, cmd.undo = function() {
     allNew.forEach((h) => {
       setCopiedSplineUndoState(h, !0);
+      disposeCopiedParametricObject(h);
       let m = pickMeshes.get(h);
       if (m) {
         let idx = contentThrees.indexOf(m);
@@ -7003,7 +7334,7 @@ var NavPersp = class {
   }
 }, oR = new THREE2.Vector3(), oU = new THREE2.Vector3(), oF = new THREE2.Vector3(), oA = new THREE2.Vector3(), NavOrtho = class {
   constructor(c) {
-    this.cam = c, this.handle = new THREE2.Vector3(0, 0, 0), this.zoom = 1, this.anchor = null, _zoomOf.set(c, 1), this.ray = new THREE2.Raycaster(), this.ray.near = c.near, this.ray.far = c.far, this.ndc = new THREE2.Vector2(), c.updateMatrixWorld();
+    this.cam = c, this.handle = new THREE2.Vector3(0, 0, 0), this.zoom = 10, this.anchor = null, _zoomOf.set(c, 10), this.ray = new THREE2.Raycaster(), this.ray.near = c.near, this.ray.far = c.far, this.ndc = new THREE2.Vector2(), c.updateMatrixWorld();
   }
   _ndc(e, r) {
     this.pointerX = e.clientX, this.pointerY = e.clientY, this.ndc.set((e.clientX - r.x) / r.w * 2 - 1, -((e.clientY - r.y) / r.h) * 2 + 1);
@@ -7262,9 +7593,10 @@ function gpuHoverEdge(cx, cy, cam, r, wire = !1, R = EDIT_HIT_PX) {
   return best ? { h: best.h, mesh: best.mesh, edge: [best.edge.a, best.edge.b, best.edge.keys[0]], keys: best.edge.keys } : null;
 }
 function syncVertexHoverPick() {
-  let live = new Set(pickMeshes.keys());
+  let live = new Set([...pickMeshes.keys()].filter(isVertexEditableMesh));
   for (let [h, rec2] of vertexHoverPick.records) live.has(h) || (vertexHoverPick.scene.remove(rec2.depth, rec2.points), rec2.geo.dispose(), vertexHoverPick.records.delete(h));
   for (let [h, mesh] of pickMeshes) {
+    if (!isVertexEditableMesh(h)) continue;
     let rec2 = vertexHoverPick.records.get(h), p = mesh?.geometry?.attributes?.position;
     if (!p) {
       rec2 && (vertexHoverPick.scene.remove(rec2.depth, rec2.points), rec2.geo.dispose(), vertexHoverPick.records.delete(h));
@@ -7288,7 +7620,7 @@ function renderVisibleVertexCenters(cam, r, area, wire) {
     if (!rec2) continue;
     mesh.updateMatrixWorld(!0), rec2.depth.material = vertexDepthMat, rec2.depth.matrix.copy(mesh.matrixWorld), rec2.points.matrix.copy(mesh.matrixWorld);
     let visible = effectiveVisible(h);
-    if (rec2.depth.visible = visible && !wire, rec2.points.visible = visible && selNodes.has(h), !rec2.points.visible) continue;
+    if (rec2.depth.visible = visible && !wire, rec2.points.visible = visible && selNodes.has(h) && isVertexEditableMesh(h), !rec2.points.visible) continue;
     let groups = logicalVertexGroups(mesh.geometry);
     for (let group of groups) {
       if (id2 >= 16777215) break;
@@ -7723,7 +8055,7 @@ function resolveVertexToolSnap(cx, cy, vi, allowFace = !0) {
   if (eh) return edgeResult(eh);
   if (!allowFace) return null;
   let fh = reliableFaceHit(cx, cy, cam, r, wire), h = fh && meshToHash.get(fh.object);
-  if (!fh || !h || !selNodes.has(h)) return null;
+  if (!fh || !h || !selNodes.has(h) || !isVertexEditableMesh(h)) return null;
   let mesh = fh.object;
   mesh.updateMatrixWorld(!0);
   let g = mesh.geometry, pos = g.attributes.position, idx = g.index, ids = [idx ? idx.getX(fh.faceIndex * 3) : fh.faceIndex * 3, idx ? idx.getX(fh.faceIndex * 3 + 1) : fh.faceIndex * 3 + 1, idx ? idx.getX(fh.faceIndex * 3 + 2) : fh.faceIndex * 3 + 2], worlds = ids.map((i) => new THREE2.Vector3().fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld)), screens = worlds.map((v) => projectPx(v, cam, r)), best = -1, bd = 100;
@@ -8249,7 +8581,7 @@ function updatePolyHover(cx, cy) {
     return;
   }
   let mesh = hit.object;
-  if (!selNodes.has(meshToHash.get(mesh))) {
+  if (!selNodes.has(meshToHash.get(mesh)) || polyElementMode === "vertex" && !isVertexEditableMesh(meshToHash.get(mesh))) {
     clearPolyHover();
     return;
   }
@@ -8346,7 +8678,7 @@ function vertexCenterVisible(mesh, vi, cam, r) {
 }
 function prunePolySelection() {
   let changed = !1;
-  for (let h of polySelection.items.keys()) selNodes.has(h) || (polySelection.items.delete(h), changed = !0);
+  for (let h of polySelection.items.keys()) selNodes.has(h) && (!vertexEditActive || isVertexEditableMesh(h)) || (polySelection.items.delete(h), changed = !0);
   changed && rebuildPolySelection(!1);
 }
 function polyClickPick(cx, cy, mode = "replace") {
@@ -8366,7 +8698,7 @@ function polyClickPick(cx, cy, mode = "replace") {
     let hit2 = reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1);
     if (!hit2) return null;
     let h2 = hit2.h;
-    if (!h2 || !selNodes.has(h2)) return h2;
+    if (!h2 || !selNodes.has(h2) || !isVertexEditableMesh(h2)) return h2;
     polyPivotMatrix = null, mode === "replace" && polySelection.items.clear();
     let set2 = polySelEntry(h2).edges;
     return applyLogicalEdgeSelection(set2, { keys: hit2.keys }, mode), set2.size || polySelection.items.delete(h2), rebuildPolySelection(), h2;
@@ -8844,10 +9176,10 @@ function initViewport(container) {
   let uvEdges = new THREE2.LineSegments(new THREE2.EdgesGeometry(new THREE2.BoxGeometry(1, 1, 1)), new THREE2.LineBasicMaterial({ color: 65493, depthTest: !1, depthWrite: !1, toneMapped: !1 }));
   uvEdges.frustumCulled = !1, uvEdges.renderOrder = RO - 1, uvEdges.visible = !1, uvEdges.matrixAutoUpdate = !1, scene.add(uvEdges), uvFrameLines = uvEdges, cube.matrix.copy(localTmp(gizmo)), cube.updateMatrixWorld(!0);
   let perspCam = new THREE2.PerspectiveCamera(FOV, 1, 1, 1e9);
-  perspCam.position.set(6e3, 4500, 6e3), vpState.perspCam = perspCam;
+  perspCam.position.set(600, 450, 600), vpState.perspCam = perspCam;
   function makeOrtho(dir, up) {
     let c = new THREE2.OrthographicCamera(-1, 1, 1, -1, 1, 1e9);
-    return c.position.copy(dir).multiplyScalar(1e6), c.up.copy(up), c.lookAt(0, 0, 0), c.updateMatrixWorld(), c;
+    return c.position.copy(dir).multiplyScalar(1e4), c.up.copy(up), c.lookAt(0, 0, 0), c.updateMatrixWorld(), c;
   }
   let topCam = makeOrtho(Y, new THREE2.Vector3(0, 0, -1)), frontCam = makeOrtho(Z, Y), rightCam = makeOrtho(X, Y);
   envState.hemi = new THREE2.HemisphereLight(16777215, 5592405, 1), scene.add(envState.hemi);
@@ -9149,6 +9481,14 @@ function doPick(e) {
       return;
     }
     let hash2 = polyClickPick(e.clientX, e.clientY, mode);
+    if (!hash2 && vertexEditActive) {
+      pickNdc.set((e.clientX - r.x) / r.w * 2 - 1, -((e.clientY - r.y) / r.h) * 2 + 1), pickRay.setFromCamera(pickNdc, vpState.views[vi].cam);
+      let objectHash = pickRay.intersectObjects([...pickMeshes.values()], !1).map((hit) => meshToHash.get(hit.object)).find((h) => h && !isVertexEditableMesh(h));
+      if (objectHash) {
+        _vpPick && _vpPick(objectHash, e.shiftKey, ctrl);
+        return;
+      }
+    }
     hash2 && (componentFocus = "poly", placeGizmoForSelection()), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === "replace") && _vpPick(hash2, e.shiftKey, ctrl);
     return;
   }
@@ -9783,7 +10123,7 @@ function selectedSplineNodes() {
   return [...selNodes].filter((h) => isSpline(h) && splineData.has(h));
 }
 function selectedPolygonNodes() {
-  return [...selNodes].filter((h) => pickMeshes.has(h) && !isSpline(h));
+  return [...selNodes].filter(isVertexEditableMesh);
 }
 function splineFocusActive() {
   return splineMode && (componentFocus === "spline" || !polyMode || !polySelection.items.size);
@@ -12881,6 +13221,7 @@ function restorePolyGeometries(s) {
 function selectAllPolyElements() {
   polyPivotMatrix = null, polySelection.items.clear();
   for (let h of selNodes) {
+    if (polyElementMode === "vertex" && !isVertexEditableMesh(h)) continue;
     let mesh = pickMeshes.get(h), g = mesh?.geometry, pos = g?.attributes.position, idx = g?.index;
     if (!pos) continue;
     let s = polySelEntry(h);
@@ -13457,13 +13798,24 @@ function updateBrackets(show = !0) {
       acc[k].min[i] < mn[i] && (mn[i] = acc[k].min[i]), acc[k].max[i] > mx[i] && (mx[i] = acc[k].max[i]);
   setGizmoBounds(mn, mx), show && setSelectionBrackets(mn, mx, !0);
 }
+function syncCopiedParametricObject(h) {
+  let type = objParams.get(h)?.__type;
+  (PARAMETRIC_MESH_TYPES.has(type) || PARAMETRIC_SPLINE_TYPES.has(type)) && OBJ.has(h) && syncParametricObject(h);
+}
+function disposeCopiedParametricObject(h) {
+  if (!PARAMETRIC_MESH_TYPES.has(objParams.get(h)?.__type)) return;
+  let state = replicaStates.get(h);
+  state && disposeReplicaState(h, state);
+  let holder = threeOf.get(h);
+  holder && !holder.isMesh && (holder.parent?.remove(holder), threeOf.delete(h));
+}
 function copyObjParams(map) {
   if (map)
     for (let [old, nh] of map) {
       let op = objParams.get(old);
       if (op) {
         let copy = Object.assign({}, op);
-        copy.__type === "instance" && map.has(copy.source) && (copy.source = map.get(copy.source)), objParams.set(nh, copy), copy.__type === "spline" && splineData.has(old) && installSplineObject(nh, cloneSplineData(splineData.get(old)));
+        copy.__type === "instance" && map.has(copy.source) && (copy.source = map.get(copy.source)), objParams.set(nh, copy), copy.__type === "spline" && splineData.has(old) ? installSplineObject(nh, cloneSplineData(splineData.get(old))) : syncCopiedParametricObject(nh);
       }
       let track = animationTracks.get(old);
       track && animationTracks.set(nh, new Map([...track].map(([f, key]) => [f, cloneAnimKey(key)])));
@@ -13473,7 +13825,7 @@ onTransform(() => {
   bridgeTransform(), updateHUD(), splineFocusActive() || scheduleGeneratorEvaluation(70);
 });
 onViewportPick((hash, shift, mod) => {
-  if (polyMode) {
+  if (polyMode && (!vertexEditActive || !hash || isVertexEditableMesh(hash))) {
     hash || clearPolySelection();
     return;
   }
@@ -15216,7 +15568,6 @@ function installFrameAI() {
 }
 initViewport(document.getElementById("vp"));
 createDefaultMat();
-createTestCube();
 rebuildMatCards();
 draft = Object.assign({ h: 0, s: 0, l: 50, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, { map: null, texBytes: null, texMime: null });
 liveMat = null;
