@@ -3477,7 +3477,7 @@ function createVisibleFacePicker() {
 }
 var UNITS = ["nm", "\xB5m", "mm", "cm", "dm", "m", "km"], UMM = [1e-6, 1e-3, 1, 10, 100, 1e3, 1e6], TYPE_GROUP = 0, TYPE_MESH = 1, TYPE_GEN = 2;
 var TYPE_ENV = 4, BG = 2763306, GRID_COL = 4473924, QUAD_LINE = 1315860, ORTHO_LINE = 8291725, ORTHO_MINOR_OP = 0.12, ORTHO_MAJOR_OP = 0.3, PR = Math.min(devicePixelRatio, 2), FOV = 45, BASE = 2e3, TAP_PX = 6, VIEW_SWITCH_PX = 12, MAJOR_LO = 50;
-var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, DEPTH_RATIO = 1e5, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.1, RO = 400, gizPx = 60, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 82;
+var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, DEPTH_RATIO = 1e5, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.1, RO = 400, gizPx = 60, MOBILE_GIZMO_SCALE = 2, MOBILE_LONG_PRESS_MS = 420, MOBILE_DOUBLE_TAP_MS = 320, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 82;
 var SMALLRING_PX = 10, SMALLRING_OFF_PX = 72, SNAP_PX = 10, EDIT_HIT_PX = 20, TICK_PX = 8, VERTEX_CAP = 4e3, QUANT_BASE_STEP = 1, SNAPVIS_CAP = 4e3;
 var SNAP_HALF = 5, EPS_NEAR = 1e-3, ORIGIN0 = new THREE2.Vector3(0, 0, 0), PERSP_LINES = 11, MIN_COL = 1e-8, CREASE_ANGLE = Math.PI / 4, CREASE_COS = Math.cos(CREASE_ANGLE), clamp = (v, a, b) => Math.max(a, Math.min(b, v)), isFin = (v) => Number.isFinite(v);
 function m3fromM4(m4, a) {
@@ -7441,27 +7441,27 @@ function pwOf(view, r) {
 }
 function applyGizmo(view, r) {
   if (gizmo3D.visible = !1, flatXZ.visible = !1, flatXY.visible = !1, flatYZ.visible = !1, smallRing && (smallRing.visible = !1), sector && (sector.visible = !1), quantRotateRings.forEach((ring) => ring.visible = !1), !gizmoVisible) return { mode3D: !1, orientQuat: IDENT, sx: 1, sy: 1, sz: 1, pw: 1 };
-  let cam = view.cam, mode3D = view.type === "persp" || gizmoLocal, orientQuat = mode3D && gizmoLocal ? gizmoHandleOrient : IDENT, pw = pwOf(view, r), sx2 = 1, sy2 = 1, sz2 = 1;
+  let cam = view.cam, mode3D = view.type === "persp" || gizmoLocal, orientQuat = mode3D && gizmoLocal ? gizmoHandleOrient : IDENT, pw = pwOf(view, r), mobileScale = mobileGizmoScale(), sx2 = 1, sy2 = 1, sz2 = 1;
   if (mode3D) {
     let fv = frozenSignsPerView ? frozenSignsPerView.get(view) : null;
     fv ? (sx2 = fv.sx, sy2 = fv.sy, sz2 = fv.sz) : (_tc2.copy(cam.position).sub(gizmo.pos), _tc2.lengthSq() < 1e-9 ? (cam.getWorldDirection(_tc2), _tc2.negate()) : _tc2.normalize(), _lc.copy(_tc2).applyQuaternion(_iq.copy(orientQuat).invert()), sx2 = _lc.x >= 0 ? 1 : -1, sy2 = _lc.y >= 0 ? 1 : -1, sz2 = _lc.z >= 0 ? 1 : -1);
   }
   let grp = mode3D ? gizmo3D : view.flat === "XZ" ? flatXZ : view.flat === "XY" ? flatXY : flatYZ;
   grp.visible = !0, grp.position.copy(gizmo.pos);
-  let u = gizPx * pw / (mode3D ? EXT3D : EXTFLAT);
+  let u = gizPx * mobileScale * pw / (mode3D ? EXT3D : EXTFLAT);
   if (mode3D ? (grp.quaternion.copy(orientQuat), grp.scale.set(sx2 * u, sy2 * u, sz2 * u)) : (grp.quaternion.copy(IDENT), grp.scale.setScalar(u)), grp.updateMatrixWorld(!0), gizmoVisible && (splineMode || view.type === "persp" || sectorPlaneDiffers(view))) {
     if (smallRing) {
-      let gNdc = _vp.copy(gizmo.pos).project(cam), ndcY = gNdc.y + SMALLRING_OFF_PX / (r.h / 2);
-      _v.set(gNdc.x, ndcY, gNdc.z).unproject(cam), smallRing.position.copy(_v), smallRing.quaternion.copy(cam.quaternion), smallRing.scale.setScalar(SMALLRING_PX * pw), smallRing.visible = !0, smallRing.updateMatrixWorld(!0);
+      let gNdc = _vp.copy(gizmo.pos).project(cam), ndcY = gNdc.y + SMALLRING_OFF_PX * mobileScale / (r.h / 2);
+      _v.set(gNdc.x, ndcY, gNdc.z).unproject(cam), smallRing.position.copy(_v), smallRing.quaternion.copy(cam.quaternion), smallRing.scale.setScalar(SMALLRING_PX * mobileScale * pw), smallRing.visible = !0, smallRing.updateMatrixWorld(!0);
     }
-    sector && (sector.position.copy(gizmo.pos), sector.quaternion.copy(cam.quaternion), sector.scale.setScalar(RING_PX * pw), sector.visible = !0, sector.updateMatrixWorld(!0));
+    sector && (sector.position.copy(gizmo.pos), sector.quaternion.copy(cam.quaternion), sector.scale.setScalar(RING_PX * mobileScale * pw), sector.visible = !0, sector.updateMatrixWorld(!0));
   }
   if (quantOn && gizDrag && gizDrag.mode === "rotate" && vpState.views[gizDrag.view] === view) {
     for (let ring of quantRotateRings)
-      ring.position.copy(gizmo.pos), ring.quaternion.copy(cam.quaternion), ring.scale.setScalar(ring.userData.radiusPx * pw), ring.visible = !0, ring.updateMatrixWorld(!0);
+      ring.position.copy(gizmo.pos), ring.quaternion.copy(cam.quaternion), ring.scale.setScalar(ring.userData.radiusPx * mobileScale * pw), ring.visible = !0, ring.updateMatrixWorld(!0);
     let p = projectPx(gizmo.pos, cam, r), cx = p[0] / vpState.W * 2 - 1, cy = 1 - p[1] / vpState.H * 2;
     for (let ring of quantRotateHudRings) {
-      let rr = ring.userData.radiusPx, a = ring.geometry.attributes.position.array;
+      let rr = ring.userData.radiusPx * mobileScale, a = ring.geometry.attributes.position.array;
       for (let i = 0; i <= 64; i++) {
         let ang = i / 64 * TAU, k = i * 3;
         a[k] = cx + Math.cos(ang) * rr / vpState.W * 2, a[k + 1] = cy + Math.sin(ang) * rr / vpState.H * 2, a[k + 2] = 0;
@@ -9257,13 +9257,145 @@ function initViewport(container) {
     activeView = -1;
   };
   addEventListener("pointercancel", () => {
-    splineBevelTool?.dragging && finishSplineBevelTool(), splineOutlineTool?.dragging && finishSplineOutlineTool(), splinePointerGesture?.direct && finishSplineDirectDrag(splinePointerGesture), splinePointerGesture = null, hideSplineDrawPreview(), cancelNavigation();
+    cancelMobileTouch(), splineBevelTool?.dragging && finishSplineBevelTool(), splineOutlineTool?.dragging && finishSplineOutlineTool(), splinePointerGesture?.direct && finishSplineDirectDrag(splinePointerGesture), splinePointerGesture = null, hideSplineDrawPreview(), cancelNavigation();
   }), dom.addEventListener("lostpointercapture", cancelNavigation), addEventListener("blur", () => {
     let had = gizDrag || hovObj || polyHover.kind;
-    cancelNavigation(), splineBevelTool?.dragging && finishSplineBevelTool(), splineOutlineTool?.dragging && finishSplineOutlineTool(), splinePointerGesture?.direct ? (finishSplineDirectDrag(splinePointerGesture), splinePointerGesture = null) : gizDrag && endGizDrag({}), pivotKeyDown && finishMomentaryPivot(), hideSplineDrawPreview(), clearHover(), clearPolyHover(), had && scheduleRender();
+    cancelMobileTouch(), cancelNavigation(), splineBevelTool?.dragging && finishSplineBevelTool(), splineOutlineTool?.dragging && finishSplineOutlineTool(), splinePointerGesture?.direct ? (finishSplineDirectDrag(splinePointerGesture), splinePointerGesture = null) : gizDrag && endGizDrag({}), pivotKeyDown && finishMomentaryPivot(), hideSplineDrawPreview(), clearHover(), clearPolyHover(), had && scheduleRender();
   }), dom.addEventListener("wheel", onWheel, { passive: !1 }), dom.addEventListener("contextmenu", (e) => e.preventDefault()), new ResizeObserver(computeLayout).observe(container), computeLayout(), render();
 }
 var activeView = -1, lastX = 0, lastY = 0, downX = 0, downY = 0;
+var mobileTouchPointers = /* @__PURE__ */ new Map(), mobileTouchGesture = null, mobileLastTap = null, mobileInputSeen = !1;
+function mobileGizmoScale() {
+  return mobileInputSeen || matchMedia("(pointer: coarse)").matches ? MOBILE_GIZMO_SCALE : 1;
+}
+function mobilePointerEvent(p, buttons = LMB) {
+  return { clientX: p.x, clientY: p.y, buttons, button: buttons ? 0 : -1, pointerId: p.id, pointerType: "touch", altKey: !1, ctrlKey: !1, metaKey: !1, shiftKey: !1, preventDefault() {
+  } };
+}
+function clearMobileLongPress() {
+  mobileTouchGesture?.timer && clearTimeout(mobileTouchGesture.timer), mobileTouchGesture && (mobileTouchGesture.timer = 0);
+}
+function updateMobileMarquee(box, x0, y0, x1, y1) {
+  let left = Math.min(x0, x1), top = Math.min(y0, y1);
+  box.style.left = left + "px", box.style.top = top + "px", box.style.width = Math.abs(x1 - x0) + "px", box.style.height = Math.abs(y1 - y0) + "px";
+}
+function applyMobileMarquee(x0, y0, x1, y1) {
+  if (splineMode || polyMode)
+    splineMode && splineBoxPick(x0, y0, x1, y1, "replace"), polyMode && (polyBoxPick(x0, y0, x1, y1, "replace"), vertexTools.soft.active && recalculateSoftSelection());
+  else {
+    let hs = boxPick(x0, y0, x1, y1);
+    selNodes.clear(), selTags.clear(), hs.forEach((h) => selNodes.add(h)), anchorNode = hs.length ? getObj(hs[0]) : null, lastBracketSig = null, refreshSelClasses();
+  }
+}
+function beginMobilePinch() {
+  let pts = [...mobileTouchPointers.values()];
+  if (pts.length < 2) return !1;
+  let a = pts[0], b = pts[1], x = (a.x + b.x) * 0.5, y = (a.y + b.y) * 0.5, vi = viewAt(x, y);
+  if (vi < 0) vi = a.view;
+  let r = rectFor(vi), view = vpState.views[vi];
+  if (!r || !view) return !1;
+  clearMobileLongPress(), mobileTouchGesture?.box?.remove(), mobileLastTap = null, activeView = -1;
+  if (mobileTouchGesture?.mode === "navigation") vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(a, 0));
+  let p = { id: a.id, x, y };
+  view.ctrl.down(mobilePointerEvent(p, MMB), r), mobileTouchGesture = { mode: "pinch", view: vi, distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), x, y };
+  return !0;
+}
+function mobileTouchDown(e) {
+  if (e.pointerType !== "touch" || e.button !== 0) return !1;
+  mobileInputSeen = !0;
+  if (gizDrag) return e.preventDefault(), !0;
+  let continuesDoubleTap = !mobileTouchPointers.size && mobileLastTap && performance.now() - mobileLastTap.time <= MOBILE_DOUBLE_TAP_MS && Math.hypot(e.clientX - mobileLastTap.x, e.clientY - mobileLastTap.y) <= 24;
+  if (!continuesDoubleTap && !mobileTouchPointers.size && hitGizmo(e.clientX, e.clientY)) return !1;
+  let vi = viewAt(e.clientX, e.clientY);
+  if (vi < 0) return !1;
+  let p = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, view: vi };
+  mobileTouchPointers.set(e.pointerId, p);
+  try {
+    vpState.renderer.domElement.setPointerCapture(e.pointerId);
+  } catch {
+  }
+  if (mobileTouchPointers.size === 1) {
+    mobileLastTap && performance.now() - mobileLastTap.time > MOBILE_DOUBLE_TAP_MS && (mobileLastTap = null);
+    let gesture = mobileTouchGesture = { mode: "pending", pointId: e.pointerId, view: vi, x: p.x, y: p.y, timer: 0, box: null };
+    gesture.timer = setTimeout(() => {
+      let current = mobileTouchPointers.get(gesture.pointId);
+      if (mobileTouchGesture !== gesture || gesture.mode !== "pending" || mobileTouchPointers.size !== 1 || !current || Math.hypot(current.x - gesture.x, current.y - gesture.y) >= TAP_PX) return;
+      let box = document.createElement("div");
+      box.className = "ml-marquee", document.body.appendChild(box), mobileLastTap = null, gesture.mode = "marquee", gesture.timer = 0, gesture.box = box, updateMobileMarquee(box, gesture.x, gesture.y, current.x, current.y);
+    }, MOBILE_LONG_PRESS_MS);
+  } else mobileTouchPointers.size === 2 && beginMobilePinch();
+  return e.preventDefault(), !0;
+}
+function mobileTouchMove(e) {
+  let p = mobileTouchPointers.get(e.pointerId);
+  if (!p) return !1;
+  p.x = e.clientX, p.y = e.clientY;
+  if (mobileTouchPointers.size >= 2 && mobileTouchGesture?.mode !== "pinch" && !beginMobilePinch()) mobileTouchGesture = { mode: "drain" };
+  let gesture = mobileTouchGesture;
+  if (!gesture) return e.preventDefault(), !0;
+  if (gesture.mode === "pinch") {
+    let pts = [...mobileTouchPointers.values()];
+    if (pts.length >= 2) {
+      let a = pts[0], b = pts[1], x = (a.x + b.x) * 0.5, y = (a.y + b.y) * 0.5, distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), scale = clamp(distance / gesture.distance, 0.25, 4), r = rectFor(gesture.view), view = vpState.views[gesture.view];
+      if (r && view) {
+        let center = { id: a.id, x, y }, wheelEvent = mobilePointerEvent(center, 0);
+        wheelEvent.deltaY = -Math.log(scale) / (3e-3 * WHEEL), view.ctrl.wheel(wheelEvent, r), view.ctrl.move(mobilePointerEvent(center, MMB), r, !0, x - gesture.x, y - gesture.y), scheduleRender();
+      }
+      gesture.distance = distance, gesture.x = x, gesture.y = y;
+    }
+  } else if (gesture.mode === "pending") {
+    if (Math.hypot(p.x - gesture.x, p.y - gesture.y) >= TAP_PX) {
+      clearMobileLongPress(), mobileLastTap = null, gesture.mode = "navigation", gesture.lastX = gesture.x, gesture.lastY = gesture.y;
+      let r = rectFor(gesture.view), view = vpState.views[gesture.view], start = { id: p.id, x: gesture.x, y: gesture.y };
+      r && view && (view.ctrl.down(mobilePointerEvent(start), r), view.ctrl.move(mobilePointerEvent(p), r, !0, p.x - gesture.lastX, p.y - gesture.lastY), scheduleRender()), gesture.lastX = p.x, gesture.lastY = p.y;
+    }
+  } else if (gesture.mode === "navigation") {
+    let r = rectFor(gesture.view), view = vpState.views[gesture.view];
+    r && view && (view.ctrl.move(mobilePointerEvent(p), r, !0, p.x - gesture.lastX, p.y - gesture.lastY), scheduleRender()), gesture.lastX = p.x, gesture.lastY = p.y;
+  } else gesture.mode === "marquee" && gesture.box && updateMobileMarquee(gesture.box, gesture.x, gesture.y, p.x, p.y);
+  return e.preventDefault(), !0;
+}
+function mobileTouchUp(e) {
+  let p = mobileTouchPointers.get(e.pointerId);
+  if (!p) return !1;
+  p.x = e.clientX, p.y = e.clientY;
+  let gesture = mobileTouchGesture;
+  mobileTouchPointers.delete(e.pointerId), clearMobileLongPress();
+  if (gesture?.mode === "pinch") {
+    if (mobileTouchPointers.size < 2) {
+      let view = vpState.views[gesture.view];
+      view?.ctrl.up(mobilePointerEvent(p, 0)), mobileTouchGesture = mobileTouchPointers.size ? { mode: "drain" } : null;
+    } else {
+      let pts = [...mobileTouchPointers.values()], a = pts[0], b = pts[1];
+      gesture.distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), gesture.x = (a.x + b.x) * 0.5, gesture.y = (a.y + b.y) * 0.5;
+    }
+  } else if (gesture?.mode === "drain") mobileTouchPointers.size || (mobileTouchGesture = null);
+  else if (gesture?.mode === "pending") {
+    if (Math.hypot(p.x - gesture.x, p.y - gesture.y) < TAP_PX) {
+      let now = performance.now(), doubleTap = mobileLastTap && now - mobileLastTap.time <= MOBILE_DOUBLE_TAP_MS && mobileLastTap.view === gesture.view && Math.hypot(p.x - mobileLastTap.x, p.y - mobileLastTap.y) <= 24;
+      doubleTap ? (mobileLastTap = null, openViewportContextMenu(p.x, p.y)) : (doPick(mobilePointerEvent(p, 0)), mobileLastTap = { time: now, x: p.x, y: p.y, view: gesture.view });
+    }
+    mobileTouchGesture = null;
+  } else if (gesture?.mode === "navigation") {
+    vpState.views[gesture.view]?.ctrl.up(mobilePointerEvent(p, 0)), mobileTouchGesture = null;
+  } else if (gesture?.mode === "marquee") {
+    gesture.box?.remove(), Math.abs(p.x - gesture.x) + Math.abs(p.y - gesture.y) > 3 && applyMobileMarquee(gesture.x, gesture.y, p.x, p.y), mobileTouchGesture = null;
+  }
+  try {
+    vpState.renderer.domElement.releasePointerCapture(e.pointerId);
+  } catch {
+  }
+  return e.preventDefault(), !0;
+}
+function cancelMobileTouch() {
+  if (!mobileTouchGesture && !mobileTouchPointers.size) return;
+  clearMobileLongPress(), mobileTouchGesture?.box?.remove();
+  if (mobileTouchGesture?.mode === "pinch" || mobileTouchGesture?.mode === "navigation") {
+    let p = mobileTouchPointers.values().next().value || { id: -1, x: 0, y: 0 }, view = vpState.views[mobileTouchGesture.view];
+    view?.ctrl.up(mobilePointerEvent(p, 0));
+  }
+  mobileTouchPointers.clear(), mobileTouchGesture = null, activeView = -1;
+}
 function onDown(e) {
   if (blurActive(), splineBevelTool || splineOutlineTool) {
     let tool = splineBevelTool || splineOutlineTool;
@@ -9277,6 +9409,7 @@ function onDown(e) {
     } else splineBevelTool ? cancelSplineBevelTool() : cancelSplineOutlineTool();
     return;
   }
+  if (mobileTouchDown(e)) return;
   let splineDirectTarget = splineMode && e.button === 0 ? splineScreenHit(e.clientX, e.clientY) : null, g = e.button === 0 ? hitGizmo(e.clientX, e.clientY) : null;
   if (g) {
     vertexTools.mode === "loop" && stopVertexModeTool(), activeView = -1, e.preventDefault(), startGizDrag(g, e);
@@ -9317,6 +9450,7 @@ function onDown(e) {
   }
 }
 function onMove(e) {
+  if (mobileTouchMove(e)) return;
   if (splineBevelTool?.dragging) {
     updateSplineBevelTool(e);
     return;
@@ -9356,6 +9490,7 @@ function onMove(e) {
   lastX = e.clientX, lastY = e.clientY, vpState.views[activeView].ctrl.move(e, r, Math.hypot(e.clientX - downX, e.clientY - downY) >= TAP_PX, dx, dy), scheduleRender();
 }
 function onUp(e) {
+  if (mobileTouchUp(e)) return;
   let need = !1;
   if (splineBevelTool?.dragging && e.button === 0) {
     splineBevelTool.dragging = !1, finishSplineBevelTool();
@@ -13955,7 +14090,7 @@ onGizmoDragEnd(() => {
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
   let vi = viewAt(e.clientX, e.clientY);
-  if (vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp")) return;
+  if (e.pointerType === "touch" || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp")) return;
   e.preventDefault();
   let sx2 = e.clientX, sy2 = e.clientY, box = document.createElement("div");
   box.className = "ml-marquee", document.body.appendChild(box);
