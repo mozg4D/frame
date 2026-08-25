@@ -463,10 +463,10 @@ var v3 = (a = [0, 0, 0]) => [+a[0] || 0, +a[1] || 0, +a[2] || 0], add = (a, b) =
 }, lerp = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t], dist = (a, b) => len(sub(a, b)), close = (a, b, e = 1e-7) => dist(a, b) <= e, finite = (a) => Array.isArray(a) && a.length >= 3 && a.slice(0, 3).every(Number.isFinite);
 function normalizeSplineData(data) {
   if (!data || typeof data != "object") throw new Error("invalid spline data");
-  return data.version = Math.max(2, Math.round(+data.version || 0)), data.approximation = { angle: Math.max(1, Math.round(+data.approximation?.angle || 5)) }, data.vertices = data.vertices || {}, data.segments = data.segments || {}, data.sequences = Array.isArray(data.sequences) ? data.sequences : [], data.freeHandles = data.freeHandles || {}, data;
+  return data.version = Math.max(2, Math.round(+data.version || 0)), data.approximation = { angle: Math.max(1, Math.round(+data.approximation?.angle || 10)) }, data.vertices = data.vertices || {}, data.segments = data.segments || {}, data.sequences = Array.isArray(data.sequences) ? data.sequences : [], data.freeHandles = data.freeHandles || {}, data;
 }
-function createSplineData(approximation = { angle: 5 }) {
-  return normalizeSplineData({ version: 2, approximation: { angle: Math.max(1, Math.round(+approximation.angle || 5)) }, next: 1, vertices: {}, segments: {}, sequences: [], freeHandles: {} });
+function createSplineData(approximation = { angle: 10 }) {
+  return normalizeSplineData({ version: 2, approximation: { angle: Math.max(1, Math.round(+approximation.angle || 10)) }, next: 1, vertices: {}, segments: {}, sequences: [], freeHandles: {} });
 }
 function cloneSplineData(data) {
   return normalizeSplineData(JSON.parse(JSON.stringify(data)));
@@ -592,7 +592,7 @@ function cachedAngleSamples(points, angle) {
 function sampleSplineSegment(data, segmentId, approx = data.approximation) {
   let points = segmentPoints(data, segmentId), segment = data.segments[segmentId];
   if (!points || !segment) return [];
-  let angle = Math.max(1, Math.round(+segment.approximation?.angle || +approx?.angle || 5));
+  let angle = Math.max(1, Math.round(+segment.approximation?.angle || +approx?.angle || 10));
   return cachedAngleSamples(points, angle).map((sample) => ({ ...sample, position: sample.position.slice(), exactTangent: sample.exactTangent.slice(), originalSpanID: segmentId, hardOrSoft: sample.t <= 1e-9 || sample.t >= 1 - 1e-9 ? segment.soft ? "soft" : "hard" : "soft" }));
 }
 function approximateSpline(data) {
@@ -1265,21 +1265,69 @@ function explicitPatchCell(data, spec, vertices) {
 function inferProfilePathCells(data) {
   let sequences = data.sequences.filter((q) => q.segments.length).map((sequence) => ({ sequence, ...orderedSplineSequence(data, sequence) }));
   if (sequences.length < 2) return null;
-  let path = sequences.at(-1), profiles = sequences.slice(0, -1);
-  if (!path.edges.length || profiles.some((q) => !q.edges.length)) return null;
-  let controls = profiles.flatMap((q) => q.edges.flatMap((edge) => segmentPoints(data, edge.id) || [])).map((p) => new THREE2.Vector3().fromArray(p)), plane = deterministicSplineWorldPlane(controls);
+  let planar = sequences.map((q) => {
+    let controls = q.edges.flatMap((edge) => segmentPoints(data, edge.id) || []).map((p) => new THREE2.Vector3().fromArray(p)), plane = deterministicSplineWorldPlane(controls);
+    return { ...q, plane, controls };
+  }), planarClosed = planar.filter((q) => q.sequence.closed && q.plane?.planar && !q.plane.collinear), planarOpen = planar.filter((q) => !q.sequence.closed && q.plane?.planar && !q.plane.collinear), sphereLike = planarOpen.length === 1 && planarClosed.length === 1 && planarOpen[0].edges.length >= 2 && planarClosed[0].edges.length > planarOpen[0].edges.length && (() => {
+    let rail = planarClosed[0], axis = rail.plane.normal.clone().normalize(), origin = rail.plane.origin, tolerance = Math.max(1e-7, Math.max(rail.plane.tolerance || 0, planarOpen[0].plane.tolerance || 0) * 2), radial = (vid) => {
+      let point = new THREE2.Vector3().fromArray(data.vertices[vid]).sub(origin), axial = axis.clone().multiplyScalar(point.dot(axis));
+      return point.sub(axial).length();
+    };
+    return [planarOpen[0].vertices[0], planarOpen[0].vertices.at(-1)].every((vid) => radial(vid) <= tolerance);
+  })(), candidates = sphereLike ? planarOpen : planarClosed.length ? planarClosed : planarOpen, groups = [];
+  for (let item of candidates) {
+    let group = groups.find((g) => Math.abs(Math.abs(g[0].plane.normal.dot(item.plane.normal)) - 1) < 1e-5 && Math.abs(item.controls[0].clone().sub(g[0].controls[0]).dot(g[0].plane.normal)) <= Math.max(g[0].plane.tolerance, item.plane.tolerance) * 2);
+    group ? group.push(item) : groups.push([item]);
+  }
+  let reference = groups.sort((a, b) => b.reduce((n, q) => n + q.edges.length, 0) - a.reduce((n, q) => n + q.edges.length, 0))[0] || [];
+  if (!reference.length) return null;
+  let refControls = reference.flatMap((q) => q.controls), plane = deterministicSplineWorldPlane(refControls);
   if (!plane?.planar || plane.collinear) return null;
-  let pathControls = path.edges.flatMap((edge) => segmentPoints(data, edge.id) || []).map((p) => new THREE2.Vector3().fromArray(p)), allPlane = deterministicSplineWorldPlane(controls.concat(pathControls));
-  if (allPlane?.planar) return null;
-  return profiles.map((profile, i) => ({
-    id: `profile-path:${profile.sequence.id}:${path.sequence.id}`,
-    vertices: profile.vertices.slice(),
-    edges: profile.edges.concat(path.edges),
-    sides: [],
-    plane: { planar: !1, normal: plane.normal.toArray?.() || plane.normal },
-    planar: !1,
-    sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !!profile.sequence.closed, pathClosed: !!path.sequence.closed, profileIndex: i }
-  }));
+  let samePlane = (q) => q.plane?.planar && !q.plane.collinear && Math.abs(Math.abs(q.plane.normal.dot(plane.normal)) - 1) < 1e-5 && Math.abs(q.controls[0].clone().sub(plane.origin).dot(plane.normal)) <= Math.max(plane.tolerance, q.plane.tolerance) * 2;
+  let profiles = planar.filter((q) => samePlane(q) && (sphereLike ? !q.sequence.closed : planarClosed.length ? q.sequence.closed : !q.sequence.closed)), rails = planar.filter((q) => !profiles.includes(q));
+  if (!profiles.length || !rails.length) return null;
+  if (rails.length !== 1 && rails.length !== profiles.length) return null;
+  let used = new Set(), chooseRail = (profile, index) => {
+    if (rails.length === 1) return rails[0];
+    let endpoints = new Set([profile.vertices[0], profile.vertices.at(-1)]), shared = rails.filter((rail) => !used.has(rail.sequence.id) && rail.vertices.some((v) => endpoints.has(v)));
+    return shared[0] || rails[index] || null;
+  }, rotationProfileParts = (profile, path) => {
+    if (!profile.sequence.closed || !path.plane?.planar || !profile.plane?.planar) return null;
+    let axis = path.plane.normal.clone().normalize(), tolerance = Math.max(1e-7, Math.max(profile.plane.tolerance || 0, path.plane.tolerance || 0) * 2), evalPath = (t) => {
+      let count = path.edges.length, scaled = Math.max(0, Math.min(count - 1e-12, t * count)), index = Math.min(count - 1, Math.floor(scaled)), local = scaled - index, edge = path.edges[index], controls = segmentPoints(data, edge.id);
+      edge.reversed && controls.reverse();
+      return new THREE2.Vector3().fromArray(cubicPoint(controls, local));
+    }, pathSamples = path.sequence.closed ? [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1] : [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1], a = evalPath(0), m = evalPath(path.sequence.closed ? 0.25 : 0.5), b = evalPath(path.sequence.closed ? 0.5 : 1), ab = m.clone().sub(a), ac = b.clone().sub(a), cross = new THREE2.Vector3().crossVectors(ab, ac), crossLength = cross.length(), axisOrigin = null;
+    if (crossLength <= tolerance * tolerance) return null;
+    let n2 = crossLength * crossLength, offset = cross.clone().cross(ab).multiplyScalar(ac.lengthSq()).add(new THREE2.Vector3().crossVectors(ac, cross).multiplyScalar(ab.lengthSq())).multiplyScalar(1 / (2 * n2));
+    axisOrigin = a.clone().add(offset);
+    let radius = a.distanceTo(axisOrigin), pathScale = Math.max(1, path.plane.scale || radius), circular = radius > tolerance && pathSamples.every((sample) => Math.abs(evalPath(sample).distanceTo(axisOrigin) - radius) <= pathScale * 3e-3);
+    if (!circular || Math.abs(axisOrigin.clone().sub(profile.plane.origin).dot(profile.plane.normal)) > tolerance * 2) return null;
+    let radialDistance = (vid) => {
+      let point = new THREE2.Vector3().fromArray(data.vertices[vid]).sub(axisOrigin), axial = axis.clone().multiplyScalar(point.dot(axis));
+      return point.sub(axial).length();
+    }, hits = profile.vertices.map((vid, index) => ({ vid, index })).filter((item) => radialDistance(item.vid) <= Math.max(1e-7, tolerance));
+    if (hits.length !== 2 || hits[0].index === hits[1].index) return null;
+    let first = hits[0].index, second = hits[1].index, edges = profile.edges, take = (from, to) => {
+      let partEdges = [], index = from;
+      while (index !== to) partEdges.push(edges[index]), index = (index + 1) % edges.length, partEdges.length > edges.length && (partEdges = []);
+      return partEdges;
+    }, firstEdges = take(first, second), secondEdges = take(second, first);
+    if (!firstEdges.length || !secondEdges.length) return null;
+    return [{ vertices: [profile.vertices[first], profile.vertices[second]], edges: firstEdges }, { vertices: [profile.vertices[second], profile.vertices[first]], edges: secondEdges }];
+  }, cells = [];
+  for (let i = 0; i < profiles.length; i++) {
+    let profile = profiles[i], path = chooseRail(profile, i);
+    if (!path?.edges.length) return null;
+    used.add(path.sequence.id);
+    let railCoplanar = path.controls.every((p) => Math.abs(p.clone().sub(plane.origin).dot(plane.normal)) <= Math.max(plane.tolerance, path.plane?.tolerance || 0) * 2);
+    let parts = rotationProfileParts(profile, path), profileParts = parts || [{ vertices: profile.vertices.slice(), edges: profile.edges.slice(), closed: !!profile.sequence.closed }];
+    for (let partIndex = 0; partIndex < profileParts.length; partIndex++) {
+      let part = profileParts[partIndex], profileClosed = parts ? !1 : !!profile.sequence.closed;
+      cells.push({ id: `profile-path:${profile.sequence.id}:${path.sequence.id}:${partIndex}`, vertices: part.vertices.slice(), edges: part.edges.concat(path.edges), sides: [], plane: { planar: !1, normal: plane.normal.toArray?.() || plane.normal }, planar: !1, sweep: { profile: part.edges.slice(), path: path.edges.slice(), profileClosed, pathClosed: !!path.sequence.closed, profileIndex: i, railCoplanar } });
+    }
+  }
+  return cells;
 }
 function inferContourPathCells(data, component) {
   let componentEdges = new Set(component.edges), fillUse = /* @__PURE__ */ new Map();
@@ -2822,8 +2870,8 @@ var translationPatchVector = (bottom, top, left, right) => {
 };
 var cellSurface = (data, cell, version, g1 = null, includeBoundaries = !0) => {
   if (cell.sweep) {
-    let profile = logicalChain(data, cell.sweep.profile), path = logicalChain(data, cell.sweep.path), result = profilePathPredictor(profile.cache, path.cache, cell.sweep.pathClosed), predictor = result.predictor, bottom = logicalSamples(data, profile), pathSamples = logicalSamples(data, path), generated = (side, u) => pathSamples.map((sample, i) => ({ id: `${cell.id}:${side}:${i}`, s: sample.s, xyz: predictor.Eval(u, sample.s) })), left = generated("left", 0), right = cell.sweep.profileClosed ? left.map((sample) => ({ ...sample })) : generated("right", 1), top = cell.sweep.pathClosed ? bottom.map((sample) => ({ ...sample })) : bottom.map((sample, i) => ({ id: `${cell.id}:top:${i}`, s: sample.s, xyz: predictor.Eval(sample.s, 1) })), collapsed = (samples) => samples.length > 1 && samples.every((sample) => len2(sub2(sample.xyz, samples[0].xyz)) < 1e-9), rotationLens = cell.sweep.pathClosed && !cell.sweep.profileClosed && collapsed(left) && collapsed(right), boundaryMap = boundaryMapFor([[profile, (s) => [s, 0]], [path, (s) => [0, s]]]), boundaries = includeBoundaries ? { bottom, top, left, right } : null;
-    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: rotationLens ? { type: "lens", collapsedAxis: "u" } : { type: "quad" }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, [profile, path]) }), boundaries, kind: "quad", algorithm: result.algorithm, hardU: profile.hardKnots || [], hardClosure: !!profile.closureCrease, needsPositionWeld: !cell.sweep.profileClosed && cell.sweep.pathClosed, sweepCap: !cell.sweep.pathClosed && bottom.length >= 3 ? { start: bottom, end: top, group: cell.sweep.path[0] } : null };
+    let profile = logicalChain(data, cell.sweep.profile), path = logicalChain(data, cell.sweep.path), result = profilePathPredictor(profile.cache, path.cache, cell.sweep.pathClosed), predictor = result.predictor, bottom = logicalSamples(data, profile), pathSamples = logicalSamples(data, path), generated = (side, u) => pathSamples.map((sample, i) => ({ id: `${cell.id}:${side}:${i}`, s: sample.s, xyz: predictor.Eval(u, sample.s) })), left = generated("left", 0), right = cell.sweep.profileClosed ? left.map((sample) => ({ ...sample })) : generated("right", 1), top = cell.sweep.pathClosed ? bottom.map((sample) => ({ ...sample })) : bottom.map((sample, i) => ({ id: `${cell.id}:top:${i}`, s: sample.s, xyz: predictor.Eval(sample.s, 1) })), collapsed = (samples) => samples.length > 1 && samples.every((sample) => len2(sub2(sample.xyz, samples[0].xyz)) < 1e-9), rotationalSurface = result.algorithm.includes("rotation"), rotationLens = rotationalSurface && collapsed(left) && collapsed(right), railCoplanar = !!cell.sweep.railCoplanar, boundaryMap = boundaryMapFor([[profile, (s) => [s, 0]], [path, (s) => [0, s]]]), boundaries = includeBoundaries ? { bottom, top, left, right } : null;
+    return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: rotationLens ? { type: "lens", collapsedAxis: "u" } : { type: "quad" }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, [profile, path]) }), boundaries, kind: "quad", algorithm: result.algorithm, hardU: profile.hardKnots || [], hardClosure: !!profile.closureCrease, needsPositionWeld: !cell.sweep.profileClosed && cell.sweep.pathClosed, sweepCap: !cell.sweep.pathClosed && !railCoplanar && !rotationalSurface && bottom.length >= 3 ? { start: bottom, end: top, group: cell.sweep.path[0] } : null };
   }
   let sides = cell.sides || cell.edges.map((edge) => [edge]);
   if (sides.length === 4) {
@@ -3012,7 +3060,7 @@ function buildExtrudeSplineCage(source, offsetVector) {
   let topology = resolveSplineTopology(source), cycles = topology.planarContours.filter((c) => c.edges.length);
   if (!cycles.length) throw new Error("Extrude needs at least one closed planar contour");
   if (cycles.some((c) => !c.plane?.planar)) throw new Error("Extrude profile must be planar");
-  let cage = createSplineData({ angle: source.approximation?.angle || 5 }), vertices = /* @__PURE__ */ new Map(), edgeCopies = [], copyVertex = (id2) => (vertices.has(id2) || vertices.set(id2, addSplineVertex(cage, source.vertices[id2].slice())), vertices.get(id2));
+  let cage = createSplineData({ angle: source.approximation?.angle || 10 }), vertices = /* @__PURE__ */ new Map(), edgeCopies = [], copyVertex = (id2) => (vertices.has(id2) || vertices.set(id2, addSplineVertex(cage, source.vertices[id2].slice())), vertices.get(id2));
   cage.planarFills = [], cage.patchCells = [];
   for (let cycle of cycles) {
     let sequence = addSplineSequence(cage, !0), edges = [];
@@ -3022,8 +3070,10 @@ function buildExtrudeSplineCage(source, offsetVector) {
     }
     edgeCopies.push({ cycle: cycle.id, bottomEdges: edges, topEdges: [], rails: [] });
   }
-  let anchor = cycles[0].vertices[0], start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
-  cage.segments[rail].soft = !0, edgeCopies[0].rails.push(rail);
+  for (let i = 0; i < cycles.length; i++) {
+    let anchor = cycles[i].vertices[0], start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
+    cage.segments[rail].soft = !0, inheritSplineApproximation(source, cycles[i].edges[0]?.id, cage, rail), edgeCopies[i].rails.push(rail);
+  }
   let report = validateSpline(cage);
   if (!report.ok) throw new Error(report.errors.join("; "));
   return { data: cage, sourceTopology: topology, edgeCopies };
@@ -3080,6 +3130,12 @@ var OPERATION = Object.freeze({ union: 0, subtract: 1, intersect: 2 }), copyFloa
   surfaceClip(mesh, points, lines, tolerance = 0, options = {}) {
     let positions = copyFloat32(mesh?.positions), indices = copyUint32(mesh?.indices), queryPoints = copyFloat32(points), lineRanges = copyUint32(lines);
     return positions.length % 3 || indices.length % 3 || queryPoints.length % 3 || lineRanges.length % 2 ? Promise.reject(new Error("Surface clip payload is invalid")) : this.#submit({ cmd: "surfaceClip", positions, indices, points: queryPoints, lines: lineRanges, tolerance: +tolerance || 0, steps: options.steps || 32, refine: options.refine || 16 }, [positions.buffer, indices.buffer, queryPoints.buffer, lineRanges.buffer]);
+  }
+  cancelPending() {
+    if (!this.pending.size) return !1;
+    let worker = this.worker;
+    this.worker = null, worker && (worker.terminate?.(), this.workersTerminated++), this.#rejectAll(new Error("Boolean evaluation superseded"));
+    return !0;
   }
   dispose() {
     let worker = this.worker;
@@ -3610,7 +3666,7 @@ function effectiveVisible(h) {
     c = OBJ.get(h);
   }
   for (; c; ) {
-    if (!c.visible || c.hash !== h && consumesGeneratorChildren(c.hash) && !(selNodes.has(h) && splineData.has(h))) return !1;
+    if (!c.visible || c.hash !== h && consumesGeneratorChildren(c.hash) && !(splineMode && selNodes.has(h) && splineData.has(h))) return !1;
     c = c.parent ? OBJ.get(c.parent) : null;
   }
   return !0;
@@ -3965,7 +4021,7 @@ function creaseGeometry(src) {
 }
 function ensureCreaseOverlay(h, mesh) {
   let line = creaseOverlays.get(h);
-  line ? line.userData.source !== mesh.geometry && (line.geometry.dispose(), line.geometry = creaseGeometry(mesh.geometry)) : (line = new THREE2.LineSegments(creaseGeometry(mesh.geometry), new THREE2.LineBasicMaterial({ color: 5556735, depthTest: !0, depthWrite: !1 })), line.matrixAutoUpdate = !1, line.renderOrder = LAYER_OBJ + 2, line.visible = !1, creaseOverlays.set(h, line)), line.userData.source = mesh.geometry;
+  line ? line.userData.source !== mesh.geometry && (line.geometry.dispose(), line.geometry = creaseGeometry(mesh.geometry)) : (line = new THREE2.LineSegments(creaseGeometry(mesh.geometry), new THREE2.LineBasicMaterial({ color: 8553090, depthTest: !0, depthWrite: !1 })), line.matrixAutoUpdate = !1, line.renderOrder = LAYER_OBJ + 2, line.visible = !1, creaseOverlays.set(h, line)), line.userData.source = mesh.geometry;
   let parent = mesh.parent || vpState.scene;
   return line.parent !== parent && (line.parent?.remove(line), parent.add(line)), line.matrix.copy(mesh.matrix), line.updateMatrixWorld(!0), line;
 }
@@ -4516,7 +4572,8 @@ async function evaluateBooleanNode(h, pass) {
     return;
   }
   let signature = `${p.op}|A:${a.hashes.map((x) => meshStamp(x, rootInv)).join(";")}|B:${b.hashes.map((x) => meshStamp(x, rootInv)).join(";")}`;
-  if (state.signature === signature && (state.ready || state.error)) return;
+  if (state.signature === signature && (state.ready || state.error || state.pending)) return;
+  state.pending && booleanRuntime.cancelPending();
   state.signature = signature;
   let token = (state.booleanToken || 0) + 1;
   state.booleanToken = token, state.pending = !0;
@@ -4923,7 +4980,7 @@ function isVertexEditableMesh(h) {
   return node.type === TYPE_MESH && !PARAMETRIC_MESH_TYPES.has(type);
 }
 function approximationAngle(p) {
-  let a = Number.isFinite(+p?.approximation) ? +p.approximation : Number.isFinite(+p?.subdivs) ? 360 / Math.max(3, +p.subdivs) : 5;
+  let a = Number.isFinite(+p?.approximation) ? +p.approximation : Number.isFinite(+p?.subdivs) ? 360 / Math.max(3, +p.subdivs) : 10;
   return THREE2.MathUtils.clamp(Math.round(a), 1, 180);
 }
 function maxAbsValues(values, floor = 1) {
@@ -5267,7 +5324,7 @@ function splineApproximation(h) {
   let p = objParams.get(h) || {}, d = splineData.get(h);
   if (!d) return null;
   let parametric = PARAMETRIC_SPLINE_TYPES.has(p.__type), value = parametric ? p.approximation : p.angle;
-  return p.angle = THREE2.MathUtils.clamp(Math.round(+value || +d.approximation?.angle || 5), 1, 180), parametric && (p.approximation = p.angle), delete p.interp, delete p.points, d.approximation = { angle: p.angle }, d.approximation;
+  return p.angle = THREE2.MathUtils.clamp(Math.round(+value || +d.approximation?.angle || 10), 1, 180), parametric && (p.approximation = p.angle), delete p.interp, delete p.points, d.approximation = { angle: p.angle }, d.approximation;
 }
 function splineBevelTags(h) {
   return (OBJ.get(h)?.tags || []).filter((t) => t.type === 2);
@@ -5544,7 +5601,7 @@ function weldCompiledMeshPositions(built) {
 }
 function buildSplineSurfaceMeshData(data, options = {}) {
   options = { ...options, preview: options.preview ?? !!gizDrag };
-  let topologyKey = JSON.stringify({ vertices: Object.keys(data.vertices).sort(), segments: Object.values(data.segments).map((s) => [s.id, s.a, s.b]).sort(), sequences: data.sequences.map((q) => [q.id, !!q.closed, q.segments.slice()]) }), geometryKey = JSON.stringify({ vertices: data.vertices, segments: data.segments, sequences: data.sequences }), angle = THREE2.MathUtils.clamp(Math.round(+data.approximation?.angle || 5), 1, 180), samplingKey = JSON.stringify(Object.values(data.segments).map((s) => [s.id, THREE2.MathUtils.clamp(Math.round(+s.approximation?.angle || angle), 1, 180)]).sort()), runtimeKey = options.runtimeKey || topologyKey, state = surfaceBuildVersions.get(runtimeKey);
+  let topologyKey = JSON.stringify({ vertices: Object.keys(data.vertices).sort(), segments: Object.values(data.segments).map((s) => [s.id, s.a, s.b]).sort(), sequences: data.sequences.map((q) => [q.id, !!q.closed, q.segments.slice()]) }), geometryKey = JSON.stringify({ vertices: data.vertices, segments: data.segments, sequences: data.sequences }), angle = THREE2.MathUtils.clamp(Math.round(+data.approximation?.angle || 10), 1, 180), samplingKey = JSON.stringify(Object.values(data.segments).map((s) => [s.id, THREE2.MathUtils.clamp(Math.round(+s.approximation?.angle || angle), 1, 180)]).sort()), runtimeKey = options.runtimeKey || topologyKey, state = surfaceBuildVersions.get(runtimeKey);
   state ? (state.topologyKey !== topologyKey && (state.topologyKey = topologyKey, state.chartVersion++), state.geometryKey !== geometryKey && (state.geometryKey = geometryKey, state.geometryVersion++), state.samplingKey !== samplingKey && (state.samplingKey = samplingKey, state.angle = angle, state.tessellationVersion++)) : (state = { topologyKey, geometryKey, angle, samplingKey, geometryVersion: 1, chartVersion: 1, tessellationVersion: 1 }, surfaceBuildVersions.set(runtimeKey, state), surfaceBuildVersions.size > 128 && surfaceBuildVersions.delete(surfaceBuildVersions.keys().next().value));
   let surfaceStarted = performance.now(), built = buildCompiledSplineSurfaceMesh(data, { ...options, geometryVersion: state.geometryVersion, tessellationVersion: state.tessellationVersion, renderCache: state.renderCache, freezeRenderTopology: !!options.preview && state.topologyKey === topologyKey && state.samplingKey === samplingKey });
   built.renderCache && (state.renderCache = built.renderCache), built.report.surfaceBuilderMilliseconds = performance.now() - surfaceStarted, built.report.surfaceOnly = { boundaryEdges: built.report.boundaryEdges, nonManifoldEdges: built.report.nonManifoldEdges, vertices: built.report.vertices, triangles: built.report.triangles };
@@ -5597,7 +5654,7 @@ function installGeneratorCage(h, state, polylines) {
 function buildExtrudeFilletSplineCage(source, p) {
   let topology = resolveSplineTopology(source), contours = topology.planarContours.filter((c) => c.edges.length && c.plane?.planar);
   if (!contours.length) throw new Error("Extrude profile must contain a closed planar contour");
-  let data = createSplineData({ angle: source.approximation?.angle || 5 }), height = Math.abs(+p.offset || 0);
+  let data = createSplineData({ angle: source.approximation?.angle || 10 }), height = Math.abs(+p.offset || 0);
   if (height <= 1e-9) throw new Error("Extrude offset must be non-zero");
   data.patchCells = [], data.planarFills = [];
   for (let cycle of contours) {
@@ -5628,7 +5685,7 @@ function buildExtrudeFilletSplineCage(source, p) {
       level.vertices = level.curves.map((curve) => addSplineVertex(data, new THREE2.Vector3().fromArray(curve[0]).addScaledVector(normal, level.z).toArray())), level.edges = level.curves.map((curve, i) => {
         let p0 = new THREE2.Vector3().fromArray(curve[0]).addScaledVector(normal, level.z), p1 = new THREE2.Vector3().fromArray(curve[1]).addScaledVector(normal, level.z), p2 = new THREE2.Vector3().fromArray(curve[2]).addScaledVector(normal, level.z), p3 = new THREE2.Vector3().fromArray(curve[3]).addScaledVector(normal, level.z);
         let sid = splineCageEdge(data, level.vertices[i], level.vertices[(i + 1) % level.vertices.length], p1.sub(p0).toArray(), p2.sub(p3).toArray(), !1);
-        return data.segments[sid].approximation = { angle: Math.max(1, Math.round(+source.approximation?.angle || 5)) }, sid;
+        return data.segments[sid].approximation = { angle: Math.max(1, Math.round(+source.approximation?.angle || 10)) }, sid;
       });
     for (let levelIndex = 0; levelIndex + 1 < levels.length; levelIndex++) {
       let a = levels[levelIndex], b = levels[levelIndex + 1], rails = [];
@@ -5757,7 +5814,7 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     return tangent;
   }), allProfileSegments = contours.flatMap((c) => c.edges.map((e) => e.id)), plane = generatorPlaneForData(profileData, allProfileSegments);
   if (!plane?.planar || plane.collinear) throw new Error("Sweep profile must be planar");
-  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(plane.normal.clone().normalize(), firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, plane.u.clone().applyQuaternion(rotation), pathTangents), data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 5, pathData.approximation?.angle || 5) }), rowVertices = /* @__PURE__ */ new Map();
+  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(plane.normal.clone().normalize(), firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, plane.u.clone().applyQuaternion(rotation), pathTangents), data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 10, pathData.approximation?.angle || 10) }), rowVertices = /* @__PURE__ */ new Map();
   data.patchCells = [], data.planarFills = [];
   let coords = /* @__PURE__ */ new Map();
   for (let contour of contours) for (let vid of contour.vertices) if (!coords.has(vid)) {
@@ -5782,10 +5839,12 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     return edges;
   };
   for (let contour of contours) profileAt(contour, 0);
-  let pathVertexMap = /* @__PURE__ */ new Map(), pathVertex = (vid) => (pathVertexMap.has(vid) || pathVertexMap.set(vid, addSplineVertex(data, pathData.vertices[vid].slice())), pathVertexMap.get(vid)), pathOut = addSplineSequence(data, pathSequence.closed);
-  for (let edge of orderedPath.edges) {
-    let segment = pathData.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, pathOut, pathVertex(edge.from), pathVertex(edge.to), ha.slice(), hb.slice());
-    data.segments[sid].soft = !!segment.soft, inheritSplineApproximation(pathData, edge.id, data, sid);
+  for (let contourIndex = 0; contourIndex < contours.length; contourIndex++) {
+    let pathVertexMap = /* @__PURE__ */ new Map(), pathVertex = (vid) => (pathVertexMap.has(vid) || pathVertexMap.set(vid, addSplineVertex(data, pathData.vertices[vid].slice())), pathVertexMap.get(vid)), pathOut = addSplineSequence(data, pathSequence.closed);
+    for (let edge of orderedPath.edges) {
+      let segment = pathData.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, pathOut, pathVertex(edge.from), pathVertex(edge.to), ha.slice(), hb.slice());
+      data.segments[sid].soft = !!segment.soft, inheritSplineApproximation(pathData, edge.id, data, sid);
+    }
   }
   data.patchCells = [];
   let validation = validateSpline(data);
@@ -6265,9 +6324,9 @@ function cmdMakePolygonal(hashes) {
     pickMeshes.delete(newHash), threeOf.delete(newHash), OBJ.delete(newHash), objParams.delete(newHash), animationTracks.delete(newHash), rootOrder = rootOrder.filter((h) => h !== newHash), mesh = null;
   };
   return { result: newHash, redo() {
-    deleteCmd.redo(), create(), polySelection.items.clear(), selTags.clear(), selNodes.clear(), selNodes.add(newHash), lastAttrKey = null, treeChanged(), refreshSelClasses();
+    leaveSplineEdit(), deleteCmd.redo(), create(), polySelection.items.clear(), selTags.clear(), selNodes.clear(), selNodes.add(newHash), lastAttrKey = null, treeChanged(), refreshSelClasses();
   }, undo() {
-    destroy(), deleteCmd.undo(), polySelection.items.clear(), selNodes.clear(), selTags.clear();
+    leaveSplineEdit(), destroy(), deleteCmd.undo(), polySelection.items.clear(), selNodes.clear(), selTags.clear();
     for (let h of oldSel) OBJ.has(h) && selNodes.add(h);
     for (let id2 of oldTags) selTags.add(id2);
     lastAttrKey = null, treeChanged(), refreshSelClasses();
@@ -6276,7 +6335,7 @@ function cmdMakePolygonal(hashes) {
   } };
 }
 function mergedSplineData(hashes, frame) {
-  let first = hashes[0], base = objParams.get(first) || {}, out = createSplineData({ angle: base.angle || 5 }), inv = frame.clone().invert();
+  let first = hashes[0], base = objParams.get(first) || {}, out = createSplineData({ angle: base.angle || 10 }), inv = frame.clone().invert();
   for (let h of hashes) {
     let src = splineData.get(h), wm = splineWorldMatrix(h);
     if (!src) continue;
@@ -6310,7 +6369,7 @@ function mergedSplineData(hashes, frame) {
 function cmdConnectSplines(hashes) {
   let roots = sortByTreeOrder(hashes.filter((h) => OBJ.has(h) && splineData.has(h)));
   if (!roots.length) return null;
-  let first = roots[0], frame = splineWorldMatrix(first).clone(), data = mergedSplineData(roots, frame), sourceParams = objParams.get(first) || {}, params = { __type: "spline", angle: Math.max(1, Math.round(+sourceParams.angle || 5)) }, newHash = genHash(), name = roots.length === 1 && OBJ.get(first)?.name || "Spline", deleteCmd = cmdDelete(roots), oldSel = [...selNodes], oldTags = [...selTags], create = () => {
+  let first = roots[0], frame = splineWorldMatrix(first).clone(), data = mergedSplineData(roots, frame), sourceParams = objParams.get(first) || {}, params = { __type: "spline", angle: Math.max(1, Math.round(+sourceParams.angle || 10)) }, newHash = genHash(), name = roots.length === 1 && OBJ.get(first)?.name || "Spline", deleteCmd = cmdDelete(roots), oldSel = [...selNodes], oldTags = [...selTags], create = () => {
     let n = { hash: newHash, name, type: TYPE_MESH, parent: null, children: [], visible: !0, enabled: !0, enableSlot: !1, tags: [], folded: !1, pos: new THREE2.Vector3(), lin: new THREE2.Matrix4(), pivot: new THREE2.Matrix4() };
     setNodeFromWorld(n, frame), OBJ.set(newHash, n), rootOrder = rootOrder.filter((h) => h !== newHash), rootOrder.unshift(newHash), objParams.set(newHash, { ...params }), installSplineObject(newHash, cloneSplineData(data));
   }, destroy = () => {
@@ -10820,23 +10879,23 @@ function refreshSelClasses() {
 }
 var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   instance: () => ({ source: "" }),
-  spline: () => ({ angle: 5 }),
+  spline: () => ({ angle: 10 }),
   spline_patch: () => ({}),
   extrude: () => ({ offset: 10, startFillet: !1, startType: "flat", startSize: 1, startAngle: 10, endFillet: !1, endType: "flat", endSize: 1, endAngle: 10 }),
-  lathe: () => ({ angle: 360, approximation: 5 }),
+  lathe: () => ({ angle: 360, approximation: 10 }),
   sweep: () => ({}),
   boolean: () => ({ op: "subtract" }),
   symmetry: () => ({ x: !0, y: !1, z: !1 }),
   cloner: () => ({ mode: "radial", count: 5, angle: 360, mx: 3, my: 3, mz: 3, dx: 100, dy: 100, dz: 100 }),
   environment: () => ({ map: !1, hemi: 100, infinite: 0, camera: 100, vAng: 45, hAng: 45 }),
-  cube: () => ({ size: 100, approximation: 5 }),
-  cylinder: () => ({ diameter: 100, height: 100, approximation: 5 }),
-  tube: () => ({ d1: 100, d2: 50, height: 100, approximation: 5 }),
-  sphere: () => ({ diameter: 100, approximation: 5 }),
+  cube: () => ({ size: 100, approximation: 10 }),
+  cylinder: () => ({ diameter: 100, height: 100, approximation: 10 }),
+  tube: () => ({ d1: 100, d2: 50, height: 100, approximation: 10 }),
+  sphere: () => ({ diameter: 100, approximation: 10 }),
   square: () => ({ w: 100, h: 100 }),
-  circle: () => ({ diameter: 100, approximation: 5 }),
+  circle: () => ({ diameter: 100, approximation: 10 }),
   polyhedron: () => ({ faces: 6, diameter: 100 }),
-  text: () => ({ text: "Text", _legacySize: 0, approximation: 5 })
+  text: () => ({ text: "Text", _legacySize: 0, approximation: 10 })
 }, SCHEMA = {
   instance: { f: [], i: [], b: [], e: [], s: "source" },
   spline: { f: ["angle"], i: [], b: [], e: [], s: null },
@@ -11126,10 +11185,6 @@ function renderSweep() {
 function renderBoolean(h) {
   let p = objParams.get(h), n = OBJ.get(h), operands = booleanChildren(n, p);
   attrContent.innerHTML = "";
-  for (let [label, child] of [["A", operands[0]], ["B", operands[1]]]) {
-    let row = attrRow(label), value = document.createElement("span");
-    value.textContent = OBJ.get(child)?.name || "missing", row.appendChild(value);
-  }
   let c1 = attrRow("op");
   attrBtns(c1, ["subtract", "intersect", "union"], () => p.op, (v) => {
     p.op = v;
@@ -11415,6 +11470,18 @@ function renderBevelTag(h, i) {
   let row = attrRow(""), bake = document.createElement("button");
   bake.className = "attr-btn", bake.textContent = "Bake", bake.addEventListener("click", () => bakeSelectedBevelTag(h, i)), row.appendChild(bake);
 }
+function markMultipleAttributes(type, hashes) {
+  let schema = SCHEMA[type], rows = [...attrContent.querySelectorAll(".attr-row")], fields = [...(schema?.f || []), ...(schema?.i || []), ...(schema?.b || []), ...(schema?.e || []).map((x) => x[0]), schema?.s].filter((x) => x && x !== "__type");
+  let labelFor = (field) => String(field).replace(/[A-Z]/g, (x) => " " + x.toLowerCase()).replace(/^_+/, "").trim();
+  for (let field of fields) {
+    let label = labelFor(field), row = rows.find((r) => r.querySelector(".attr-lab")?.textContent.toLowerCase().replace(/\s+/g, " ").includes(label));
+    if (!row) continue;
+    let values = hashes.map((h) => objParams.get(h)?.[field]), multiple = values.some((v) => JSON.stringify(v) !== JSON.stringify(values[0]));
+    if (!multiple) continue;
+    let marker = document.createElement("span");
+    marker.className = "attr-multiple", marker.textContent = "multiple", row.querySelector(".attr-ctrl")?.appendChild(marker);
+  }
+}
 function refreshAttributesPanel() {
   if (attrContent.classList.remove("cloner-matrix"), activeTabId() !== "tabAttributes") return;
   if (splineOutlineTool) {
@@ -11437,19 +11504,19 @@ function refreshAttributesPanel() {
       return;
     }
   }
-  let h = null, type = null;
-  if (selNodes.size === 1) {
-    h = [...selNodes][0];
-    let op = objParams.get(h);
-    op && RENDERERS[op.__type] && (type = op.__type);
+  let h = null, type = null, selectedHashes = [...selNodes];
+  if (selectedHashes.length) {
+    h = selectedHashes[0];
+    let op = objParams.get(h), sameType = selectedHashes.every((x) => objParams.get(x)?.__type === op?.__type);
+    op && sameType && RENDERERS[op.__type] && (type = op.__type);
   }
-  let key = type ? h : "empty";
+  let key = type ? `${type}:${selectedHashes.join(",")}` : "empty";
   if (key !== lastAttrKey) {
     if (lastAttrKey = key, key === "empty") {
       attrContent.innerHTML = "";
       return;
     }
-    RENDERERS[type](h);
+    RENDERERS[type](h), selectedHashes.length > 1 && markMultipleAttributes(type, selectedHashes);
   }
 }
 function envCandidates() {
@@ -11548,7 +11615,7 @@ function cmdParametricToSplinePatch(h) {
     }
   }, createChild = () => {
     let c = { hash: child, name: childName, type: TYPE_MESH, parent: h, children: [], visible: !0, enabled: !0, enableSlot: !1, tags: [], folded: !1, pos: new THREE2.Vector3(), lin: new THREE2.Matrix4(), pivot: new THREE2.Matrix4() };
-    OBJ.set(child, c), n.children = [child], objParams.set(child, { angle: Math.max(1, Math.round(+data.approximation?.angle || 5)), __type: "spline" }), installSplineObject(child, cloneSplineData(data));
+    OBJ.set(child, c), n.children = [child], objParams.set(child, { angle: Math.max(1, Math.round(+data.approximation?.angle || 10)), __type: "spline" }), installSplineObject(child, cloneSplineData(data));
   }, destroyChild = () => {
     OBJ.has(child) && removeRecord({ hash: child }), n.children = [];
   };
@@ -11557,15 +11624,15 @@ function cmdParametricToSplinePatch(h) {
     st && disposeReplicaState(h, st), disposeParametricMesh(h);
     for (let r of records) OBJ.has(r.hash) && removeRecord(r);
     n.type = TYPE_GEN;
-    let hint = beforeParams.__type === "sphere" ? "radial" : beforeParams.__type === "cylinder" ? "cylinder" : beforeParams.__type === "tube" ? "tube" : null;
-    objParams.set(h, { __type: "spline_patch", ...hint ? { normalHint: hint } : {} }), createChild(), syncMeshParents(), scheduleGeneratorEvaluation(0), treeChanged(), refreshSelClasses();
+    leaveSplineEdit(), objParams.set(h, { __type: "spline_patch" }), createChild(), syncMeshParents(), scheduleGeneratorEvaluation(0), treeChanged(), refreshSelClasses();
   }, undo() {
+    leaveSplineEdit();
     let st = replicaStates.get(h);
     st && disposeReplicaState(h, st), destroyChild(), n.type = beforeType, objParams.set(h, { ...beforeParams }), restoreRecords(), PARAMETRIC_MESH_TYPES.has(beforeParams.__type) && syncParametricObject(h), syncMeshParents(), scheduleGeneratorEvaluation(0), treeChanged(), refreshSelClasses();
   } };
 }
 function cmdAddSplineObject(initialData = null, initialName = "spline", options = {}) {
-  let h = genHash(), oldSel = [...selNodes], oldTags = [...selTags], enterDrawing = options.enterDrawing !== !1, data = initialData ? cloneSplineData(initialData) : createSplineData(DEFAULTS.spline()), params = { angle: Math.max(1, Math.round(+data.approximation?.angle || 5)), __type: "spline" };
+  let h = genHash(), oldSel = [...selNodes], oldTags = [...selTags], enterDrawing = options.enterDrawing !== !1, data = initialData ? cloneSplineData(initialData) : createSplineData(DEFAULTS.spline()), params = { angle: Math.max(1, Math.round(+data.approximation?.angle || 10)), __type: "spline" };
   return { result: h, redo() {
     let n = { hash: h, name: String(initialName || "spline"), type: TYPE_MESH, parent: null, children: [], visible: !0, enabled: !0, enableSlot: !1, tags: [], folded: !1, pos: new THREE2.Vector3(), lin: new THREE2.Matrix4(), pivot: new THREE2.Matrix4() };
     OBJ.set(h, n), rootOrder = rootOrder.filter((x) => x !== h), rootOrder.unshift(h), objParams.set(h, { ...params }), installSplineObject(h, cloneSplineData(data)), selNodes.clear(), selTags.clear(), selNodes.add(h), anchorNode = n, treeChanged(), refreshSelClasses(), activateTab("tabAttributes"), enterDrawing ? enterSplineEdit(!0) : splineMode && leaveSplineEdit();
@@ -14239,7 +14306,7 @@ function importedMaterialOptions(material, name) {
   return emissive.getHSL(ehsl), { name: String(material?.name || name || "imported material"), h: hsl.h * 360, s: hsl.s * 100, l: hsl.l * 100, emm: ehsl.l * 100, rough: THREE2.MathUtils.clamp((material?.roughness ?? 0.5) * 100, 0, 100), metal: THREE2.MathUtils.clamp((material?.metalness ?? 0) * 100, 0, 100), opac: THREE2.MathUtils.clamp((1 - (material?.opacity ?? 1)) * 100, 0, 100), bump: 0, map: material?.map?.image || null, texBytes: null, texMime: null, isDefault: !1, mapFrame: defaultMapFrame(), mapPivot: new THREE2.Matrix4() };
 }
 function curveSplineData(curve) {
-  let data = createSplineData({ angle: 5 }), sequence = addSplineSequence(data, !!curve.closed), points = curve.points.map((p) => p.map(Number)).filter((p) => p.length >= 3 && p.every(Number.isFinite)), vertices = points.map((p) => addSplineVertex(data, p)), count = curve.closed ? vertices.length : vertices.length - 1;
+  let data = createSplineData({ angle: 10 }), sequence = addSplineSequence(data, !!curve.closed), points = curve.points.map((p) => p.map(Number)).filter((p) => p.length >= 3 && p.every(Number.isFinite)), vertices = points.map((p) => addSplineVertex(data, p)), count = curve.closed ? vertices.length : vertices.length - 1;
   for (let i = 0; i < count; i++) {
     let a = vertices[i], b = vertices[(i + 1) % vertices.length], chord = splineMath.mul(splineMath.sub(data.vertices[b], data.vertices[a]), 1 / 3);
     addSplineSegment(data, sequence, a, b, chord, splineMath.mul(chord, -1));
@@ -14287,7 +14354,7 @@ function cmdImportExternal(prepared) {
     for (let record of records) {
       let n = { hash: record.h, name: record.name, type: record.type, parent: record.parent, children: records.filter((x) => x.parent === record.h).map((x) => x.h), visible: !0, enabled: !0, enableSlot: !1, tags: record.tags.map(cloneTag), folded: !1, pos: new THREE2.Vector3(), lin: new THREE2.Matrix4(), pivot: new THREE2.Matrix4() };
       if (setNodeFromLocal(n, record.matrix), OBJ.set(record.h, n), record.spline)
-        objParams.set(record.h, { __type: "spline", angle: record.spline.approximation?.angle || 5 }), installSplineObject(record.h, cloneSplineData(record.spline));
+        objParams.set(record.h, { __type: "spline", angle: record.spline.approximation?.angle || 10 }), installSplineObject(record.h, cloneSplineData(record.spline));
       else if (record.geometry) {
         let geometry = record.geometry.clone(), mesh = new THREE2.Mesh(geometry, getThreeMat(record.tags[0]?.ref || defaultMatHash));
         mesh.matrixAutoUpdate = !1, mesh.matrix.copy(localTmp(n)), mesh.renderOrder = LAYER_OBJ, threeOf.set(record.h, mesh), registerPickMesh(record.h, mesh), assignMeshMat(mesh, record.h);
@@ -15273,7 +15340,7 @@ function installFrameAI() {
   }, setSplineApproximationAI = (ref, options = {}, commandOptions = {}) => {
     let h = resolveObjects(ref)[0], p = objParams.get(h);
     if (!p || !splineData.has(h)) throw new Error("spline object not found");
-    let before = { angle: THREE2.MathUtils.clamp(Math.round(+p.angle || 5), 1, 180) }, after = { angle: Number.isFinite(Number(options.angle)) ? THREE2.MathUtils.clamp(Math.round(Number(options.angle)), 1, 180) : before.angle }, apply = (value) => {
+    let before = { angle: THREE2.MathUtils.clamp(Math.round(+p.angle || 10), 1, 180) }, after = { angle: Number.isFinite(Number(options.angle)) ? THREE2.MathUtils.clamp(Math.round(Number(options.angle)), 1, 180) : before.angle }, apply = (value) => {
       p.angle = value.angle, PARAMETRIC_SPLINE_TYPES.has(p.__type) && (p.approximation = value.angle), delete p.interp, delete p.points, splineApproximation(h), updateSplineVisual(h), lastAttrKey = null, refreshAttributesPanel(), scheduleRender();
     };
     return commandOptions.undo === !1 ? apply(after) : runCmd({ redo() {
