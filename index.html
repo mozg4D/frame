@@ -6079,7 +6079,19 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null, mode =
         if (railVertices[row] === railVertices[next]) continue;
         let segment = orderedPath.edges[row % orderedPath.edges.length], controls = segmentPoints(pathData, segment.id);
         segment.reversed && controls.reverse();
-        let f0 = frames[row], f1 = frames[next], f13 = frameAt({ ...f0, controls }, f1, 1 / 3), f23 = frameAt({ ...f0, controls }, f1, 2 / 3), c0 = f0.p.clone().add(offsetAt(f0)).toArray(), c1 = f13.p.clone().add(offsetAt(f13)).toArray(), c2 = f23.p.clone().add(offsetAt(f23)).toArray(), c3 = f1.p.clone().add(offsetAt(f1)).toArray(), sid = addSplineSegment(data, rail, railVertices[row], railVertices[next], add3(c1, mul4(c0, -1)), add3(c2, mul4(c3, -1)));
+        let f0 = frames[row], f1 = frames[next], c0 = f0.p.clone().add(offsetAt(f0)).toArray(), c3 = f1.p.clone().add(offsetAt(f1)).toArray(), c1, c2;
+        if (mode === "parallel") {
+          // Parallel transport is a rigid translation of the authored path.
+          // Preserve its actual Bezier controls; evaluating the path at 1/3
+          // and 2/3 and using those samples as controls flattens curved rails
+          // into a visibly broken approximation.
+          let offset = offsetAt(f0);
+          c1 = new THREE2.Vector3().fromArray(controls[1]).add(offset).toArray(), c2 = new THREE2.Vector3().fromArray(controls[2]).add(offset).toArray();
+        } else {
+          let f13 = frameAt({ ...f0, controls }, f1, 1 / 3), f23 = frameAt({ ...f0, controls }, f1, 2 / 3);
+          c1 = f13.p.clone().add(offsetAt(f13)).toArray(), c2 = f23.p.clone().add(offsetAt(f23)).toArray();
+        }
+        let sid = addSplineSegment(data, rail, railVertices[row], railVertices[next], add3(c1, mul4(c0, -1)), add3(c2, mul4(c3, -1)));
         data.segments[sid].soft = !!pathData.segments[segment.id]?.soft, inheritSplineApproximation(pathData, segment.id, data, sid);
       }
     }
@@ -14247,6 +14259,7 @@ function nodeWorldFromGizmo(h, arr) {
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
+  let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU";
   if (splineFocusActive()) {
     if (editPivot) return;
     if (!gizBeforeSpline || !gizBeforeGizmo) return;
@@ -14261,13 +14274,13 @@ function bridgeTransform() {
     return;
   }
   if (!boundNode) {
-    if (editPivot || !gizBeforeMulti || !gizBeforeGizmo) return;
+    if ((editPivot && !objectScaleDrag) || !gizBeforeMulti || !gizBeforeGizmo) return;
     let delta2 = new THREE2.Matrix4().fromArray(getGizmoWorldArray()).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
     for (let [h, before] of gizBeforeMulti) applyNodeWorld(h, delta2.clone().multiply(new THREE2.Matrix4().fromArray(before)).elements);
     return;
   }
   if (editPivot && boundNode === UV_VIRTUAL) return;
-  if (editPivot) {
+  if (editPivot && !objectScaleDrag) {
     let world = new THREE2.Matrix4().fromArray(getWorldMatrix(boundNode)), gizmoWorld = new THREE2.Matrix4().fromArray(getGizmoWorldArray());
     setNodePivot(boundNode, world.invert().multiply(gizmoWorld).elements.slice());
     return;
@@ -14425,18 +14438,20 @@ onGizmoDragEnd(() => {
     } }), gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, gizBeforeGizmo = null;
     return;
   }
+  let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU";
   if (gizBeforeMulti) {
     let before = gizBeforeMulti, after = new Map([...before.keys()].map((h) => [h, getWorldMatrix(h)]));
-    editPivot || pushCmd({ redo() {
+    if (!editPivot || objectScaleDrag) pushCmd({ redo() {
       for (let [h, m] of after) applyNodeWorld(h, m);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     }, undo() {
       for (let [h, m] of before) applyNodeWorld(h, m);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
-    } }), gizBeforeMulti = null, gizBeforeGizmo = null;
+    } });
+    gizBeforeMulti = null, gizBeforeGizmo = null;
     return;
   }
-  if (boundNode && editPivot && gizBeforeObjPivot) {
+  if (boundNode && editPivot && !objectScaleDrag && gizBeforeObjPivot) {
     let h = boundNode, b = gizBeforeObjPivot.slice(), a = OBJ.get(h)?.pivot.elements.slice();
     a && !mat4Close(b, a) && pushCmd({ redo() {
       setNodePivot(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
