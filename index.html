@@ -9301,7 +9301,10 @@ function startGizDrag(g, e) {
     if (name === "S") {
       let normal = viewDir.clone().negate();
       if (!planeHit(_o, _d, planePoint, normal, _P)) return;
-      let gizHit = _P.clone(), m = cam.matrixWorld.elements, diag = new THREE2.Vector3(m[0] + m[4], m[1] + m[5], m[2] + m[6]).multiplyScalar(0.5);
+      let gizHit = _P.clone(), m = cam.matrixWorld.elements, diag = _P.clone().sub(planePoint);
+      diag.addScaledVector(normal, -diag.dot(normal));
+      if (diag.lengthSq() < 1e-10) diag.set(m[0] + m[4], m[1] + m[5], m[2] + m[6]);
+      diag.normalize();
       lastBracketSig = null, updateBrackets(!1);
       let startExtentU = [gizmoBoundsMax.x - gizmoBoundsMin.x, gizmoBoundsMax.y - gizmoBoundsMin.y, gizmoBoundsMax.z - gizmoBoundsMin.z];
       gizDrag = {
@@ -9313,6 +9316,8 @@ function startGizDrag(g, e) {
         startExtentU,
         scaleRef: Math.max(1e-9, ...startExtentU) * 0.5,
         diag,
+        startX: e.clientX,
+        startY: e.clientY,
         view: g.view,
         r
       };
@@ -9414,7 +9419,12 @@ function doGizDrag(e) {
       let targetColLen = gizDrag.zeroAxis ? rawSize / UV_PROXY_SIZE : gizDrag.startAxisScale * factor, wM = gizmoLocal ? gizmoScaleObjectTo(gizDrag.startWorld, c, targetColLen, gizDrag.startOrient) : gizmoScaleWorld(gizDrag.startWorld, c, factor);
       applyGizmoWorld(wM), emitInfo({ kind: "scaleAxis", mm: rawSize });
     } else if (gizDrag.mode === "scaleU") {
-      let kraw = 1 + _t1.copy(_P).sub(gizDrag.gizHit).dot(gizDrag.diag) / gizDrag.scaleRef;
+      let dragDelta = _t1.copy(_P).sub(gizDrag.gizHit), along = dragDelta.dot(gizDrag.diag);
+      if (Math.abs(along) < 1e-9) {
+        let m = cam.matrixWorld.elements, dx = e.clientX - gizDrag.startX, dy = e.clientY - gizDrag.startY, screenDir = _t2.set(m[0] * dx - m[4] * dy, m[1] * dx - m[5] * dy, m[2] * dx - m[6] * dy);
+        screenDir.lengthSq() > 1e-12 && (screenDir.normalize(), along = dragDelta.dot(screenDir));
+      }
+      let kraw = 1 + along / gizDrag.scaleRef;
       if (quantOn) {
         let base = Math.max(1e-9, ...gizDrag.startExtentU), step = quantStep();
         kraw = Math.round(base * kraw / step) * step / base;
@@ -11432,8 +11442,8 @@ function renderSweep(h) {
   let p = objParams.get(h);
   attrContent.innerHTML = "";
   let c = attrRow("movement");
-  attrBtns(c, ["parallel", "follow tangent"], () => p.mode === "tangent" ? "follow tangent" : "parallel", (value) => {
-    p.mode = value === "follow tangent" ? "tangent" : "parallel", scheduleGeneratorEvaluation(0, [h]);
+  attrBtns(c, ["parallel", "tangent"], () => p.mode === "tangent" ? "tangent" : "parallel", (value) => {
+    p.mode = value === "tangent" ? "tangent" : "parallel", scheduleGeneratorEvaluation(0, [h]);
   }, h, () => renderSweep(h));
 }
 function renderBoolean(h) {
@@ -14126,11 +14136,12 @@ function trySplineWeldAfterDrag() {
   return !d?.vertices[c.target] || !d.vertices[ref.id] ? !1 : (weldSplineVertices(d, c.target, ref.id), splineSelection.vertices.clear(), splineSelection.vertices.add(splineElementKey(ref.object, c.target)), splineSelection.active = { kind: "vertex", object: ref.object, id: c.target }, splineSelection.anchor = { object: ref.object, id: c.target }, !0);
 }
 function snapSplinePivotPreview() {
-  if (!gizDrag || gizDrag.mode !== "move") return;
+  if (!snapOn || !gizDrag || gizDrag.mode !== "move") return;
   let vi = gizDrag.view, r = rectFor(vi), cam = vpState.views[vi]?.cam, wire = viewShading[vi] === 1;
   if (!r || !cam) return;
-  let raw = gizmo.pos.clone(), screen = projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
-  for (let [h, d] of splineData)
+  let raw = gizmo.pos.clone(), screen = Number.isFinite(gizDrag.r?._cx) && Number.isFinite(gizDrag.r?._cy) ? [gizDrag.r._cx, gizDrag.r._cy] : projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
+  for (let [h, source] of splineData) {
+    let d = evaluatedSplineData(h) || source;
     if (!(!OBJ.has(h) || !effectiveVisible(h)))
       for (let p of Object.values(d.vertices)) {
         let world = splineWorldPoint(h, p), ndc = world.clone().project(cam);
@@ -14138,11 +14149,12 @@ function snapSplinePivotPreview() {
         let s = projectPx(world, cam, r), dd = (s[0] - screen[0]) ** 2 + (s[1] - screen[1]) ** 2, wd = world.distanceToSquared(raw);
         (dd < bd - 1e-6 || Math.abs(dd - bd) <= 1e-6 && wd < bwd) && (bd = dd, bwd = wd, best = world);
       }
+  }
   if (snapOn) {
     let poly = nearestPolygonVertex(screen[0], screen[1], vi, SNAP_PX, raw);
     if (poly) {
       let s = projectPx(poly.world, cam, r), dd = (s[0] - screen[0]) ** 2 + (s[1] - screen[1]) ** 2, wd = poly.world.distanceToSquared(raw);
-      (dd < bd - 1e-6 || Math.abs(dd - bd) <= 1e-6 && wd < bwd) && (best = poly.world);
+      (dd < bd - 1e-6 || !best && Math.abs(dd - bd) <= 1e-6 && wd < bwd) && (best = poly.world);
     }
   }
   best && (gizmo.pos.copy(best), syncCube());
@@ -14208,11 +14220,9 @@ function placeGizmoForSelection() {
 }
 function bridgeTransform() {
   if (ignoreBridge) return;
+  editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
   if (splineFocusActive()) {
-    if (editPivot) {
-      snapSplinePivotPreview();
-      return;
-    }
+    if (editPivot) return;
     if (!gizBeforeSpline || !gizBeforeGizmo) return;
     let current = getGizmoWorldArray(), delta2 = new THREE2.Matrix4().fromArray(current).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
     gizBeforeSplinePivot && (splineSelection.pivot = pureSplinePivotMatrix(current)), applySplineTransformSnapshot(gizBeforeSpline, delta2, splineGizModifiers || {});
