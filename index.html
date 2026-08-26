@@ -3942,7 +3942,10 @@ function setNodePivot(h, arr) {
 }
 var _ltmp = new THREE2.Matrix4(), _m = new THREE2.Matrix4(), _pm = new THREE2.Matrix4();
 function localTmp(n) {
-  return _ltmp.copy(n.lin), _ltmp.elements[12] = n.pos.x, _ltmp.elements[13] = n.pos.y, _ltmp.elements[14] = n.pos.z, _ltmp;
+  // `lin` normally has no translation.  A scale around a custom pivot is the
+  // exception: its compensating offset belongs after the user-visible
+  // position, so scaling never rewrites the X/Y/Z coordinates in the HUD.
+  return _ltmp.makeTranslation(n.pos.x, n.pos.y, n.pos.z).multiply(n.lin);
 }
 function setNodeFromLocal(n, m4) {
   n.pos.set(m4.elements[12], m4.elements[13], m4.elements[14]), n.lin.copy(m4), n.lin.elements[12] = 0, n.lin.elements[13] = 0, n.lin.elements[14] = 0;
@@ -5101,6 +5104,33 @@ function applyNodeWorld(h, mw) {
   if (!n) return;
   let world = new THREE2.Matrix4().fromArray(mw);
   setNodeFromWorld(n, world);
+  let t = threeOf.get(h);
+  t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
+}
+function nodeLocalState(h) {
+  let n = OBJ.get(h);
+  return n ? { pos: n.pos.toArray(), lin: n.lin.elements.slice() } : null;
+}
+function nodeLocalStateClose(a, b, eps = 1e-7) {
+  if (!a || !b) return a === b;
+  for (let i = 0; i < 3; i++) if (Math.abs(a.pos[i] - b.pos[i]) > eps) return !1;
+  return mat4Close(a.lin, b.lin, eps);
+}
+function applyNodeLocalState(h, state) {
+  let n = OBJ.get(h);
+  if (!n || !state) return;
+  n.pos.fromArray(state.pos), n.lin.fromArray(state.lin);
+  let t = threeOf.get(h);
+  t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
+}
+function applyNodeWorldKeepingPosition(h, mw) {
+  let n = OBJ.get(h);
+  if (!n) return;
+  let parentWorld = n.parent ? worldMatrix(OBJ.get(n.parent)) : new THREE2.Matrix4(), local = parentWorld.invert().multiply(new THREE2.Matrix4().fromArray(mw));
+  // localTmp() evaluates to T(position) * lin.  Preserve position and put
+  // the pivot-scale compensation into lin, so the actual geometry moves
+  // around the pivot while the object's displayed coordinates stay put.
+  n.lin.copy(new THREE2.Matrix4().makeTranslation(-n.pos.x, -n.pos.y, -n.pos.z).multiply(local));
   let t = threeOf.get(h);
   t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
 }
@@ -13250,7 +13280,7 @@ document.getElementById("dP").onclick = () => setDisp(dispIdx + 1);
 document.getElementById("dM").onclick = () => setDisp(dispIdx - 1);
 document.getElementById("rP").onclick = () => setRscl(rsclIdx + 1);
 document.getElementById("rM").onclick = () => setRscl(rsclIdx - 1);
-var ignoreBridge = !1, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineUndo = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
+var ignoreBridge = !1, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineUndo = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
 function ensureTagFrame(tag) {
   return tag.mapFrame || (tag.mapFrame = defaultMapFrame()), tag.mapPivot || (tag.mapPivot = new THREE2.Matrix4()), tag;
 }
@@ -14246,18 +14276,6 @@ function nodeWorldFromGizmo(h, arr) {
   let out = new THREE2.Matrix4().fromArray(arr), n = OBJ.get(h);
   return n?.pivot && out.multiply(new THREE2.Matrix4().copy(n.pivot).invert()), out;
 }
-function nodeWorldScaleAtObjectOrigin(h, before, gizmoWorld) {
-  let out = new THREE2.Matrix4().fromArray(before), n = OBJ.get(h);
-  if (!n?.pivot) return out;
-  let scaled = new THREE2.Matrix4().fromArray(gizmoWorld).multiply(new THREE2.Matrix4().copy(n.pivot).invert()), dst = out.elements, src = scaled.elements;
-  for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) dst[i] = src[i];
-  return out;
-}
-function nodeWorldScaleByGizmoDeltaAtObjectOrigin(before, gizmoBefore, gizmoAfter) {
-  let out = new THREE2.Matrix4().fromArray(before), delta = new THREE2.Matrix4().fromArray(gizmoAfter).multiply(new THREE2.Matrix4().fromArray(gizmoBefore).invert()), scaled = delta.multiply(new THREE2.Matrix4().fromArray(before)), dst = out.elements, src = scaled.elements;
-  for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) dst[i] = src[i];
-  return out;
-}
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
@@ -14278,7 +14296,10 @@ function bridgeTransform() {
   if (!boundNode) {
     if ((editPivot && !objectScaleDrag) || !gizBeforeMulti || !gizBeforeGizmo) return;
     let current = getGizmoWorldArray(), delta2 = new THREE2.Matrix4().fromArray(current).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
-    for (let [h, before] of gizBeforeMulti) applyNodeWorld(h, objectScaleDrag ? nodeWorldScaleByGizmoDeltaAtObjectOrigin(before, gizBeforeGizmo, current).elements : delta2.clone().multiply(new THREE2.Matrix4().fromArray(before)).elements);
+    for (let [h, before] of gizBeforeMulti) {
+      let target = delta2.clone().multiply(new THREE2.Matrix4().fromArray(before));
+      objectScaleDrag ? applyNodeWorldKeepingPosition(h, target.elements) : applyNodeWorld(h, target.elements);
+    }
     return;
   }
   if (editPivot && boundNode === UV_VIRTUAL) return;
@@ -14288,8 +14309,9 @@ function bridgeTransform() {
     return;
   }
   let gmArr = getGizmoWorldArray();
-  if (objectScaleDrag && gizBeforeObj) {
-    applyNodeWorld(boundNode, nodeWorldScaleAtObjectOrigin(boundNode, gizBeforeObj, gmArr).elements);
+  if (objectScaleDrag && gizBeforeObj && gizBeforeGizmo) {
+    let delta = new THREE2.Matrix4().fromArray(gmArr).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert()), target = delta.multiply(new THREE2.Matrix4().fromArray(gizBeforeObj));
+    applyNodeWorldKeepingPosition(boundNode, target.elements);
     return;
   }
   if (!gizBeforeObj || !gizBeforeGizmo) {
@@ -14390,7 +14412,7 @@ onGizmoDragStart((e) => {
     let nh = cmd.newRoots && cmd.newRoots[0];
     nh && (pushCmd(cmd), selNodes.clear(), selTags.clear(), selNodes.add(nh), anchorNode = getObj(nh), boundNode = nh, lastBracketSig = null, treeChanged(), refreshSelClasses());
   }
-  boundNode ? (gizBeforeObj = getWorldMatrix(boundNode), gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMulti = new Map([...selNodes].map((h) => [h, getWorldMatrix(h)])), gizBeforeGizmo = getGizmoWorldArray());
+  boundNode ? (gizBeforeObj = getWorldMatrix(boundNode), gizBeforeObjState = nodeLocalState(boundNode), gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMulti = new Map([...selNodes].map((h) => [h, getWorldMatrix(h)])), gizBeforeMultiState = new Map([...selNodes].map((h) => [h, nodeLocalState(h)])), gizBeforeGizmo = getGizmoWorldArray());
 });
 onGizmoDragEnd(() => {
   if (uvEdit && uvBeforeFrame) {
@@ -14446,15 +14468,15 @@ onGizmoDragEnd(() => {
   }
   let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU";
   if (gizBeforeMulti) {
-    let before = gizBeforeMulti, after = new Map([...before.keys()].map((h) => [h, getWorldMatrix(h)]));
-    if (!editPivot || objectScaleDrag) pushCmd({ redo() {
-      for (let [h, m] of after) applyNodeWorld(h, m);
+    let before = gizBeforeMulti, after = new Map([...before.keys()].map((h) => [h, getWorldMatrix(h)])), beforeState = gizBeforeMultiState, afterState = new Map([...before.keys()].map((h) => [h, nodeLocalState(h)])), changed = objectScaleDrag ? [...beforeState].some(([h, s]) => !nodeLocalStateClose(s, afterState.get(h))) : [...before].some(([h, m]) => !mat4Close(m, after.get(h)));
+    if ((!editPivot || objectScaleDrag) && changed) pushCmd({ redo() {
+      for (let [h, m] of (objectScaleDrag ? afterState : after)) objectScaleDrag ? applyNodeLocalState(h, m) : applyNodeWorld(h, m);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     }, undo() {
-      for (let [h, m] of before) applyNodeWorld(h, m);
+      for (let [h, m] of (objectScaleDrag ? beforeState : before)) objectScaleDrag ? applyNodeLocalState(h, m) : applyNodeWorld(h, m);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     } });
-    gizBeforeMulti = null, gizBeforeGizmo = null, objectScaleDrag && placeGizmoForSelection();
+    gizBeforeMulti = null, gizBeforeMultiState = null, gizBeforeGizmo = null, objectScaleDrag && placeGizmoForSelection();
     return;
   }
   if (boundNode && editPivot && !objectScaleDrag && gizBeforeObjPivot) {
@@ -14463,23 +14485,23 @@ onGizmoDragEnd(() => {
       setNodePivot(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
     }, undo() {
       setNodePivot(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
-    } }), gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
+    } }), gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     return;
   }
   if (boundNode && gizBeforeObj) {
-    let after = getWorldMatrix(boundNode);
-    if (!mat4Close(gizBeforeObj, after)) {
+    let after = getWorldMatrix(boundNode), beforeState = gizBeforeObjState, afterState = nodeLocalState(boundNode), changed = objectScaleDrag ? !nodeLocalStateClose(beforeState, afterState) : !mat4Close(gizBeforeObj, after);
+    if (changed) {
       let b = gizBeforeObj.slice(), a = after.slice(), h = boundNode;
       pushCmd({ redo() {
-        applyNodeWorld(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
+        objectScaleDrag ? applyNodeLocalState(h, afterState) : applyNodeWorld(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       }, undo() {
-        applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
+        objectScaleDrag ? applyNodeLocalState(h, beforeState) : applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       } });
     }
     let recenterGizmo = objectScaleDrag;
-    gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, recenterGizmo && placeGizmoForSelection();
+    gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, recenterGizmo && placeGizmoForSelection();
   } else
-    gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
+    gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
 });
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
