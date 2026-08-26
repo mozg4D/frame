@@ -3942,10 +3942,7 @@ function setNodePivot(h, arr) {
 }
 var _ltmp = new THREE2.Matrix4(), _m = new THREE2.Matrix4(), _pm = new THREE2.Matrix4();
 function localTmp(n) {
-  // `lin` normally has no translation.  A scale around a custom pivot is the
-  // exception: its compensating offset belongs after the user-visible
-  // position, so scaling never rewrites the X/Y/Z coordinates in the HUD.
-  return _ltmp.makeTranslation(n.pos.x, n.pos.y, n.pos.z).multiply(n.lin);
+  return _ltmp.copy(n.lin), _ltmp.elements[12] = n.pos.x, _ltmp.elements[13] = n.pos.y, _ltmp.elements[14] = n.pos.z, _ltmp;
 }
 function setNodeFromLocal(n, m4) {
   n.pos.set(m4.elements[12], m4.elements[13], m4.elements[14]), n.lin.copy(m4), n.lin.elements[12] = 0, n.lin.elements[13] = 0, n.lin.elements[14] = 0;
@@ -3978,9 +3975,6 @@ function getWorldMatrix(h) {
   }
   let n = OBJ.get(h);
   return n ? worldMatrix(n).elements.slice() : new THREE2.Matrix4().elements.slice();
-}
-function gizmoMatrixForNode(h) {
-  return OBJ.get(h) ? gizmoWorldMatrix(h).elements.slice() : new THREE2.Matrix4().elements.slice();
 }
 function isAncestor(anc, desc) {
   let c = desc;
@@ -5044,13 +5038,20 @@ function expandMeshBounds(mesh, frame, mn, mx) {
     _bbv.fromBufferAttribute(pos, i).applyMatrix4(m), mn.min(_bbv), mx.max(_bbv);
   return pos.count > 0;
 }
+function expandSplineBounds(h, frame, mn, mx) {
+  let data = evaluatedSplineData(h);
+  if (!data) return !1;
+  let wm = splineWorldMatrix(h), matrix = frame ? _bbM.copy(frame).multiply(wm) : wm, any = !1;
+  for (let point of Object.values(data.vertices)) _bbv.fromArray(point).applyMatrix4(matrix), mn.min(_bbv), mx.max(_bbv), any = !0;
+  return any;
+}
 function worldBBoxOfNode(h) {
   let set = /* @__PURE__ */ new Set();
   collectSubtree(h, set);
   let mn = new THREE2.Vector3(1 / 0, 1 / 0, 1 / 0), mx = new THREE2.Vector3(-1 / 0, -1 / 0, -1 / 0), any = !1;
   for (let hh of set) {
     let m = pickMeshes.get(hh);
-    m && m.geometry && (any = expandMeshBounds(m, null, mn, mx) || any);
+    m && m.geometry && (any = expandMeshBounds(m, null, mn, mx) || any), splineData.has(hh) && (any = expandSplineBounds(hh, null, mn, mx) || any);
   }
   return any ? { min: mn, max: mx } : null;
 }
@@ -5062,7 +5063,7 @@ function selectionExtentInPivotAxes(hashes, lin) {
   let any = !1;
   for (let h of set) {
     let mesh = pickMeshes.get(h);
-    mesh && mesh.geometry && (any = expandMeshBounds(mesh, frame, mn, mx) || any);
+    mesh && mesh.geometry && (any = expandMeshBounds(mesh, frame, mn, mx) || any), splineData.has(h) && (any = expandSplineBounds(h, frame, mn, mx) || any);
   }
   return any ? new THREE2.Vector3().subVectors(mx, mn) : null;
 }
@@ -5107,32 +5108,38 @@ function applyNodeWorld(h, mw) {
   let t = threeOf.get(h);
   t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
 }
-function nodeLocalState(h) {
+function rigidFrame(matrixOrArray) {
+  let source = matrixOrArray?.isMatrix4 ? matrixOrArray : new THREE2.Matrix4().fromArray(matrixOrArray), out = new THREE2.Matrix4();
+  return rotMatOfLin(source, out), out.setPosition(source.elements[12], source.elements[13], source.elements[14]), out;
+}
+function nodeFrameWorld(h) {
   let n = OBJ.get(h);
-  return n ? { pos: n.pos.toArray(), lin: n.lin.elements.slice() } : null;
+  return n ? rigidFrame(worldMatrix(n).multiply(n.pivot)) : new THREE2.Matrix4();
 }
-function nodeLocalStateClose(a, b, eps = 1e-7) {
-  if (!a || !b) return a === b;
-  for (let i = 0; i < 3; i++) if (Math.abs(a.pos[i] - b.pos[i]) > eps) return !1;
-  return mat4Close(a.lin, b.lin, eps);
-}
-function applyNodeLocalState(h, state) {
+function nodeFrameLocal(h) {
   let n = OBJ.get(h);
-  if (!n || !state) return;
-  n.pos.fromArray(state.pos), n.lin.fromArray(state.lin);
-  let t = threeOf.get(h);
-  t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
+  return n ? rigidFrame(localTmp(n).clone().multiply(n.pivot)) : new THREE2.Matrix4();
 }
-function applyNodeWorldKeepingPosition(h, mw) {
+function captureNodeTransformState(h) {
+  let n = OBJ.get(h);
+  return n ? { world: getWorldMatrix(h), pivot: n.pivot.elements.slice() } : null;
+}
+function nodeTransformStateClose(a, b) {
+  return !!a && !!b && mat4Close(a.world, b.world) && mat4Close(a.pivot, b.pivot);
+}
+function applyNodeTransformState(h, state) {
+  if (!state || !OBJ.has(h)) return;
+  applyNodeWorld(h, state.world), setNodePivot(h, state.pivot);
+}
+function applyNodeWorldAndFrame(h, objectWorld, frameWorld) {
   let n = OBJ.get(h);
   if (!n) return;
-  let parentWorld = n.parent ? worldMatrix(OBJ.get(n.parent)) : new THREE2.Matrix4(), local = parentWorld.invert().multiply(new THREE2.Matrix4().fromArray(mw));
-  // localTmp() evaluates to T(position) * lin.  Preserve position and put
-  // the pivot-scale compensation into lin, so the actual geometry moves
-  // around the pivot while the object's displayed coordinates stay put.
-  n.lin.copy(new THREE2.Matrix4().makeTranslation(-n.pos.x, -n.pos.y, -n.pos.z).multiply(local));
-  let t = threeOf.get(h);
-  t && (t.matrix.copy(localTmp(n)), t.updateMatrixWorld(!0));
+  // Keep the geometry transform fully affine (including skew).  `pivot`
+  // relates that affine transform to the rigid frame shown by the gizmo and
+  // Coordinate Manager, so scaling never has to decompose/rebuild the matrix.
+  applyNodeWorld(h, objectWorld?.isMatrix4 ? objectWorld.elements : objectWorld);
+  let actualWorld = worldMatrix(n), desiredFrame = rigidFrame(frameWorld);
+  n.pivot.copy(actualWorld.invert().multiply(desiredFrame));
 }
 function setGizmoMatrix(arr) {
   let c = cubeRef.mesh;
@@ -6263,42 +6270,25 @@ function readTransform(mode) {
   if (polyMode && polySelection.items.size) return readPolyTransform(mode);
   let c = cubeRef.mesh, linM4, pos, n = hudNode ? OBJ.get(hudNode) : null;
   if (n) {
-    if (editPivot) {
-      let pivotFrame = new THREE2.Matrix4().copy(gizmo.lin);
-      pivotFrame.setPosition(gizmo.pos);
-      mode !== "world" && pivotFrame.premultiply(worldMatrix(n).invert());
-      linM4 = _LM.copy(pivotFrame), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3().setFromMatrixPosition(pivotFrame);
-    } else if (mode === "world") {
-      let wm = worldMatrix(n);
-      linM4 = _LM.copy(wm), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3(wm.elements[12], wm.elements[13], wm.elements[14]);
-    } else
-      linM4 = _LM.copy(n.lin), pos = n.pos.clone();
+    let frame = mode === "world" ? nodeFrameWorld(hudNode) : nodeFrameLocal(hudNode);
+    linM4 = _LM.copy(frame), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3().setFromMatrixPosition(frame);
   } else if (c && (c.visible || uvEdit || selNodes.size > 1))
     mode === "world" ? (c.updateMatrixWorld(!0), linM4 = _LM.copy(c.matrixWorld), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3().setFromMatrixPosition(c.matrixWorld)) : (linM4 = _LM.copy(gizmo.lin), pos = gizmo.pos.clone());
   else
     return { p: new THREE2.Vector3(), s: new THREE2.Vector3(1, 1, 1), e: new THREE2.Euler() };
-  let rotNode = hudNode ? OBJ.get(hudNode) : null, rotWorld = editPivot ? linM4 : mode === "world" && rotNode ? worldMatrix(rotNode) : linM4;
+  let rotWorld = linM4;
   rotWorld.elements[12] = 0, rotWorld.elements[13] = 0, rotWorld.elements[14] = 0, rotMatOfLin(rotWorld, _RM);
   let e = new THREE2.Euler().setFromRotationMatrix(_RM), s = new THREE2.Vector3();
   if (uvEdit)
     m3fromM4(linM4, _r9), s.set(m3colLen(_r9, 0), m3colLen(_r9, 1), m3colLen(_r9, 2));
-  else if (hudNode && OBJ.get(hudNode))
-    if (mode === "world") {
-      let bb = worldBBoxOfNode(hudNode);
-      if (bb) s.subVectors(bb.max, bb.min);
-      else {
-        m3fromM4(linM4, _r9);
-        let ext = localGeomExtent(hudNode);
-        s.set(m3colLen(_r9, 0) * ext.x, m3colLen(_r9, 1) * ext.y, m3colLen(_r9, 2) * ext.z);
-      }
-    } else {
-      let ext = localGeomExtent(hudNode);
-      m3fromM4(linM4, _r9), s.set(m3colLen(_r9, 0) * ext.x, m3colLen(_r9, 1) * ext.y, m3colLen(_r9, 2) * ext.z);
-    }
+  else if (hudNode && OBJ.get(hudNode)) {
+    let sizeFrame = mode === "world" ? new THREE2.Matrix4() : nodeFrameWorld(hudNode), extent = selectionExtentInPivotAxes([hudNode], sizeFrame);
+    extent ? s.copy(extent) : s.set(0, 0, 0);
+  }
   else
     m3fromM4(linM4, _r9), s.set(m3colLen(_r9, 0), m3colLen(_r9, 1), m3colLen(_r9, 2)).multiply(baseLocalSize);
   if (selNodes.size) {
-    let sizeAxes = mode === "world" ? new THREE2.Matrix4() : linM4, pivotExtent = selectionExtentInPivotAxes(selNodes, sizeAxes);
+    let sizeAxes = mode === "world" ? new THREE2.Matrix4() : hudNode && OBJ.has(hudNode) ? nodeFrameWorld(hudNode) : rigidFrame(getGizmoWorldArray()), pivotExtent = selectionExtentInPivotAxes(selNodes, sizeAxes);
     pivotExtent && s.copy(pivotExtent);
   }
   return { p: pos, s, e };
@@ -6312,30 +6302,21 @@ function applyInput(ch, i, v) {
     applyPolyCoordinateInput(ch, i, v, coordMode);
     return;
   }
-  if (ch === "pos")
-    gizmo.pos.setComponent(i, v);
-  else if (ch === "size") {
-    let base = (uvEdit ? new THREE2.Vector3(UV_PROXY_SIZE, UV_PROXY_SIZE, UV_PROXY_SIZE) : hudNode && OBJ.get(hudNode) ? localGeomExtent(hudNode) : baseLocalSize).getComponent(i), target = base > 1e-9 ? v / base : v;
-    m3fromM4(gizmo.lin, _r9);
-    let cur = m3colLen(_r9, i);
-    if (cur > 1e-9) {
-      let f = target / cur;
-      cur * Math.abs(f) < MIN_COL && (f = MIN_COL / cur), m3scaleCol(_r9, i, f);
-    } else {
-      rotMatOfLin(gizmo.lin, _RM);
-      let re = _RM.elements, size = Math.max(MIN_COL, Math.abs(target));
-      _r9[i] = re[i * 4] * size, _r9[i + 3] = re[i * 4 + 1] * size, _r9[i + 6] = re[i * 4 + 2] * size;
-    }
-    m3toM4(_r9, gizmo.lin);
+  let n = hudNode ? OBJ.get(hudNode) : null, parentWorld = n?.parent ? worldMatrix(OBJ.get(n.parent)) : new THREE2.Matrix4(), frame = n ? coordMode === "world" ? nodeFrameWorld(hudNode) : nodeFrameLocal(hudNode) : rigidFrame(getGizmoWorldArray()), toWorld = (coordinateFrame) => coordMode === "world" || !n ? rigidFrame(coordinateFrame) : rigidFrame(parentWorld.clone().multiply(coordinateFrame));
+  if (ch === "pos") {
+    frame.elements[12 + i] = v;
+    let desired = toWorld(frame);
+    gizmo.pos.setFromMatrixPosition(desired), gizmo.lin.copy(desired), gizmo.lin.elements[12] = 0, gizmo.lin.elements[13] = 0, gizmo.lin.elements[14] = 0;
+  } else if (ch === "size") {
+    let current = Math.max(MIN_COL, readTransform(coordMode).s.getComponent(i)), factor = Math.max(MIN_COL, Math.abs(v)) / current, start = n ? nodeFrameWorld(hudNode) : rigidFrame(getGizmoWorldArray()), comp = i === 0 ? "x" : i === 1 ? "y" : "z", desired = coordMode === "world" ? gizmoScaleWorld(start, comp, factor) : gizmoScaleObjectTo(start, comp, factor, new THREE2.Quaternion().setFromRotationMatrix(start));
+    applyGizmoWorld(desired);
   } else {
-    let deg = v * D2R;
-    rotMatOfLin(gizmo.lin, _RM);
-    let le = gizmo.lin.elements, s0 = Math.hypot(le[0], le[1], le[2]), s1 = Math.hypot(le[4], le[5], le[6]), s2 = Math.hypot(le[8], le[9], le[10]), e = new THREE2.Euler().setFromRotationMatrix(_RM);
-    i === 0 ? e.x = deg : i === 1 ? e.y = deg : e.z = deg, _RM.makeRotationFromEuler(e);
-    let re = _RM.elements, ge = gizmo.lin.elements;
-    ge[0] = re[0] * s0, ge[1] = re[1] * s0, ge[2] = re[2] * s0, ge[3] = 0, ge[4] = re[4] * s1, ge[5] = re[5] * s1, ge[6] = re[6] * s1, ge[7] = 0, ge[8] = re[8] * s2, ge[9] = re[9] * s2, ge[10] = re[10] * s2, ge[11] = 0, ge[12] = 0, ge[13] = 0, ge[14] = 0, ge[15] = 1, rotQuatOfLin(gizmo.lin, gizmoHandleOrient);
+    let e = new THREE2.Euler().setFromRotationMatrix(frame), deg = v * D2R;
+    i === 0 ? e.x = deg : i === 1 ? e.y = deg : e.z = deg;
+    let desiredCoordinate = new THREE2.Matrix4().makeRotationFromEuler(e).setPosition(frame.elements[12], frame.elements[13], frame.elements[14]), desired = toWorld(desiredCoordinate);
+    gizmo.pos.setFromMatrixPosition(desired), gizmo.lin.copy(desired), gizmo.lin.elements[12] = 0, gizmo.lin.elements[13] = 0, gizmo.lin.elements[14] = 0, rotQuatOfLin(gizmo.lin, gizmoHandleOrient);
   }
-  syncCube(), scheduleRender(), emitTransform();
+  syncCube(), scheduleRender(), coordinateBridgeOperation = ch, emitTransform(), coordinateBridgeOperation = null;
 }
 function rescaleRoots(k) {
   for (let h of rootOrder) {
@@ -9372,7 +9353,7 @@ function startGizDrag(g, e) {
       if (!planeHit(_o, _d, planePoint, normal, _P)) return;
       let gizHit = _P.clone();
       lastBracketSig = null, updateBrackets(!1);
-      let startExtentU = [gizmoBoundsMax.x - gizmoBoundsMin.x, gizmoBoundsMax.y - gizmoBoundsMin.y, gizmoBoundsMax.z - gizmoBoundsMin.z];
+      let startExtentU = readTransform(coordMode).s.toArray();
       gizDrag = {
         mode: "scaleU",
         normal,
@@ -9391,7 +9372,7 @@ function startGizDrag(g, e) {
       if (normal.lengthSq() < 1e-6 && normal.copy(viewDir), normal.normalize(), !planeHit(_o, _d, planePoint, normal, _P)) return;
       let gizHit = _P.clone();
       lastBracketSig = null, updateBrackets(!1);
-      let startWorld = new THREE2.Matrix4().copy(localTmp(gizmo)), ci = comp.toLowerCase() === "x" ? 0 : comp.toLowerCase() === "y" ? 1 : 2, e2 = startWorld.elements, startExtent = Math.max(1e-9, boundsExtentAlong(gizmoBoundsMin, gizmoBoundsMax, axisW)), axisScale = Math.hypot(e2[ci * 4], e2[ci * 4 + 1], e2[ci * 4 + 2]), startAxisScale = axisScale || 1, responseExtent = splineFocusActive() ? startExtent * 0.5 : startExtent;
+      let startWorld = new THREE2.Matrix4().copy(localTmp(gizmo)), ci = comp.toLowerCase() === "x" ? 0 : comp.toLowerCase() === "y" ? 1 : 2, e2 = startWorld.elements, startExtent = Math.max(1e-9, readTransform(coordMode).s.getComponent(ci)), axisScale = Math.hypot(e2[ci * 4], e2[ci * 4 + 1], e2[ci * 4 + 2]), startAxisScale = axisScale || 1, responseExtent = startExtent;
       gizDrag = {
         mode: "scale",
         comp,
@@ -9477,7 +9458,7 @@ function doGizDrag(e) {
       let c = gizDrag.comp.toLowerCase(), d = _t1.copy(_P).sub(gizDrag.gizHit).dot(gizDrag.axisW) * gizDrag.scaleSign, factor = (gizDrag.zeroAxis ? d : gizDrag.responseExtent + d) / Math.max(1e-9, gizDrag.responseExtent), rawSize = gizDrag.startExtent * factor;
       if (quantOn) {
         let step = quantStep();
-        rawSize = Math.round(rawSize / step) * step;
+        rawSize = gizDrag.startExtent + Math.round((rawSize - gizDrag.startExtent) / step) * step;
       }
       if (snapOn) {
         let pw = pwOf(view, r);
@@ -9489,8 +9470,12 @@ function doGizDrag(e) {
     } else if (gizDrag.mode === "scaleU") {
       let dragDelta = _t1.copy(_P).sub(gizDrag.gizHit), dx = e.clientX - gizDrag.startX, dy = e.clientY - gizDrag.startY, screenTravel = dx - dy, along = dragDelta.length() * Math.sign(screenTravel);
       let kraw = 1 + along / gizDrag.scaleRef;
-      // Uniform scale is continuous. Quantize and vertex/grid snapping are
-      // reserved for movement and individual-axis scale handles.
+      if (quantOn) {
+        let extent = Math.max(1e-9, ...gizDrag.startExtentU), step = quantStep(), deltaSize = (kraw - 1) * extent;
+        kraw = 1 + Math.round(deltaSize / step) * step / extent;
+      }
+      // Uniform scale deliberately ignores spatial snapping.  Quantize only
+      // discretizes the single scale factor relative to the drag start.
       kraw = Number.isFinite(kraw) ? Math.max(MIN_COL, kraw) : 1, applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: !1 });
     }
     syncCube(), emitTransform(), scheduleRender();
@@ -13280,7 +13265,7 @@ document.getElementById("dP").onclick = () => setDisp(dispIdx + 1);
 document.getElementById("dM").onclick = () => setDisp(dispIdx - 1);
 document.getElementById("rP").onclick = () => setRscl(rsclIdx + 1);
 document.getElementById("rM").onclick = () => setRscl(rsclIdx - 1);
-var ignoreBridge = !1, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineUndo = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
+var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineUndo = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
 function ensureTagFrame(tag) {
   return tag.mapFrame || (tag.mapFrame = defaultMapFrame()), tag.mapPivot || (tag.mapPivot = new THREE2.Matrix4()), tag;
 }
@@ -13669,7 +13654,14 @@ function coordinateSnapshot() {
     let state = { kind: "spline", full, data: splineDataSnapshot(), selection, pivot: splineSelection.pivot && splineSelection.pivot.slice(), gizmo: getGizmoWorldArray(), editPivot: !!editPivot, owners };
     return gizBeforeGizmo = state.gizmo.slice(), gizBeforeSplineSel = state.selection, gizBeforeSplinePivot = state.pivot && state.pivot.slice(), gizBeforeSplineUndo = state.data, gizBeforeSplineFull = state.full, gizBeforeSpline = state.data, splineGizModifiers = { ctrl: !1, shift: !1 }, state;
   }
-  return !polyMode || !polySelection.items.size ? getGizmoWorldArray() : { kind: "poly", geometry: capturePolyGeometries(), selection: capturePolySelectionState(), pivot: polyPivotMatrix && polyPivotMatrix.slice() };
+  if (polyMode && polySelection.items.size) return { kind: "poly", geometry: capturePolyGeometries(), selection: capturePolySelectionState(), pivot: polyPivotMatrix && polyPivotMatrix.slice() };
+  let hashes = boundNode && boundNode !== UV_VIRTUAL ? [boundNode] : [...selNodes], nodes = new Map(hashes.filter((h) => OBJ.has(h)).map((h) => [h, captureNodeTransformState(h)])), state = { kind: "object", nodes, gizmo: getGizmoWorldArray() };
+  if (boundNode && boundNode !== UV_VIRTUAL) {
+    gizBeforeObjState = nodes.get(boundNode), gizBeforeObj = gizBeforeObjState?.world?.slice() || null, gizBeforeGizmo = state.gizmo.slice();
+  } else if (nodes.size) {
+    gizBeforeMultiState = nodes, gizBeforeMulti = new Map([...nodes].map(([h, value]) => [h, value.world.slice()])), gizBeforeGizmo = state.gizmo.slice();
+  }
+  return state;
 }
 function polyCoordStateChanged(a, b) {
   if (a.geometry.size !== b.geometry.size) return !0;
@@ -13707,14 +13699,16 @@ function commitCoordinateSnapshot(before) {
     clearSplineCoordinateBridge(), updateAllSplineVisuals(), placeGizmoForSelection();
     return;
   }
-  if (before?.kind !== "poly") {
-    let after2 = getGizmoWorldArray();
-    if (mat4Close(before, after2)) return;
-    pushCmd({ redo() {
-      applySnap(after2);
+  if (before?.kind === "object") {
+    let after = new Map([...before.nodes.keys()].map((h) => [h, captureNodeTransformState(h)])), changed = [...before.nodes].some(([h, state]) => !nodeTransformStateClose(state, after.get(h)));
+    if (changed) pushCmd({ redo() {
+      for (let [h, state] of after) applyNodeTransformState(h, state);
+      placeGizmoForSelection();
     }, undo() {
-      applySnap(before);
+      for (let [h, state] of before.nodes) applyNodeTransformState(h, state);
+      placeGizmoForSelection();
     } });
+    gizBeforeObj = null, gizBeforeObjState = null, gizBeforeMulti = null, gizBeforeMultiState = null, gizBeforeGizmo = null, placeGizmoForSelection();
     return;
   }
   let logical = capturePolyLogicalSelection();
@@ -13735,7 +13729,12 @@ function commitCoordinateSnapshot(before) {
   } }), placeGizmoForSelection();
 }
 function revertCoordinateSnapshot(before) {
-  before?.kind === "spline" ? (before.editPivot ? splineSelection.pivot = before.pivot && before.pivot.slice() : restoreSplineFullState(before.full, before.selection), clearSplineCoordinateBridge(), setGizmoFromMatrix(before.gizmo), placeGizmoForSelection()) : before?.kind === "poly" ? restorePolyCoordState(before) : applySnap(before);
+  if (before?.kind === "spline") before.editPivot ? splineSelection.pivot = before.pivot && before.pivot.slice() : restoreSplineFullState(before.full, before.selection), clearSplineCoordinateBridge(), setGizmoFromMatrix(before.gizmo), placeGizmoForSelection();
+  else if (before?.kind === "poly") restorePolyCoordState(before);
+  else if (before?.kind === "object") {
+    for (let [h, state] of before.nodes) applyNodeTransformState(h, state);
+    gizBeforeObj = null, gizBeforeObjState = null, gizBeforeMulti = null, gizBeforeMultiState = null, gizBeforeGizmo = null, placeGizmoForSelection();
+  }
 }
 function restorePolyGeometries(s) {
   for (let [h, state] of s) {
@@ -14250,7 +14249,7 @@ function placeGizmoForSelection() {
   }
   if (hs.length === 1) {
     boundNode = hs[0];
-    let gm = gizmoMatrixForNode(hs[0]);
+    let gm = nodeFrameWorld(hs[0]).elements.slice();
     setGizmoFromMatrix(gm);
     let bb = getWorldBBox(hs[0]), p = new THREE2.Vector3(gm[12], gm[13], gm[14]);
     setGizmoBounds(bb ? bb.min : p.toArray(), bb ? bb.max : p.toArray());
@@ -14259,27 +14258,27 @@ function placeGizmoForSelection() {
   boundNode = null;
   let tw = 0, sxw = 0, syw = 0, szw = 0, qx = 0, qy = 0, qz = 0, qw = 0, ref = null;
   for (let h of hs) {
-    let wp = getWorldPos(h);
-    if (!wp) continue;
-    let q2 = new THREE2.Quaternion().setFromRotationMatrix(new THREE2.Matrix4().fromArray(getWorldMatrix(h)));
+    if (!OBJ.has(h)) continue;
+    let frame = nodeFrameWorld(h), fe = frame.elements, wp = [fe[12], fe[13], fe[14]], q2 = new THREE2.Quaternion().setFromRotationMatrix(frame);
     ref || (ref = q2.clone());
     let sign = ref.dot(q2) < 0 ? -1 : 1;
     qx += q2.x * sign, qy += q2.y * sign, qz += q2.z * sign, qw += q2.w * sign, tw++, sxw += wp[0], syw += wp[1], szw += wp[2];
   }
   if (tw <= 0) return;
-  let m = getWorldMatrix(hs[0]).slice();
+  let m = nodeFrameWorld(hs[0]).elements.slice();
   m[12] = sxw / tw, m[13] = syw / tw, m[14] = szw / tw;
-  let q = new THREE2.Quaternion(qx, qy, qz, qw).normalize(), s = new THREE2.Vector3(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
-  new THREE2.Matrix4().compose(new THREE2.Vector3(m[12], m[13], m[14]), q, s).toArray(m), ignoreBridge = !0, setGizmoFromMatrix(m), ignoreBridge = !1;
+  let q = new THREE2.Quaternion(qx, qy, qz, qw).normalize();
+  new THREE2.Matrix4().compose(new THREE2.Vector3(m[12], m[13], m[14]), q, new THREE2.Vector3(1, 1, 1)).toArray(m), ignoreBridge = !0, setGizmoFromMatrix(m), ignoreBridge = !1;
 }
-function nodeWorldFromGizmo(h, arr) {
-  let out = new THREE2.Matrix4().fromArray(arr), n = OBJ.get(h);
-  return n?.pivot && out.multiply(new THREE2.Matrix4().copy(n.pivot).invert()), out;
+function transformedNodeFrame(frame, delta, scaleOnly) {
+  if (!scaleOnly) return rigidFrame(new THREE2.Matrix4().copy(delta).multiply(frame));
+  let out = rigidFrame(frame), p = new THREE2.Vector3().setFromMatrixPosition(frame).applyMatrix4(delta);
+  return out.setPosition(p), out;
 }
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
-  let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU";
+  let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU" || coordinateBridgeOperation === "size";
   if (splineFocusActive()) {
     if (editPivot) return;
     if (!gizBeforeSpline || !gizBeforeGizmo) return;
@@ -14296,30 +14295,27 @@ function bridgeTransform() {
   if (!boundNode) {
     if ((editPivot && !objectScaleDrag) || !gizBeforeMulti || !gizBeforeGizmo) return;
     let current = getGizmoWorldArray(), delta2 = new THREE2.Matrix4().fromArray(current).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
-    for (let [h, before] of gizBeforeMulti) {
-      let target = delta2.clone().multiply(new THREE2.Matrix4().fromArray(before));
-      objectScaleDrag ? applyNodeWorldKeepingPosition(h, target.elements) : applyNodeWorld(h, target.elements);
+    for (let [h, before] of gizBeforeMultiState || []) {
+      if (!before) continue;
+      let object0 = new THREE2.Matrix4().fromArray(before.world), frame0 = rigidFrame(object0.clone().multiply(new THREE2.Matrix4().fromArray(before.pivot))), objectTarget = delta2.clone().multiply(object0), frameTarget = transformedNodeFrame(frame0, delta2, objectScaleDrag);
+      applyNodeWorldAndFrame(h, objectTarget, frameTarget);
     }
     return;
   }
   if (editPivot && boundNode === UV_VIRTUAL) return;
   if (editPivot && !objectScaleDrag) {
     let world = new THREE2.Matrix4().fromArray(getWorldMatrix(boundNode)), gizmoWorld = new THREE2.Matrix4().fromArray(getGizmoWorldArray());
-    setNodePivot(boundNode, world.invert().multiply(gizmoWorld).elements.slice());
+    setNodePivot(boundNode, world.invert().multiply(rigidFrame(gizmoWorld)).elements.slice());
     return;
   }
   let gmArr = getGizmoWorldArray();
-  if (objectScaleDrag && gizBeforeObj && gizBeforeGizmo) {
-    let delta = new THREE2.Matrix4().fromArray(gmArr).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert()), target = delta.multiply(new THREE2.Matrix4().fromArray(gizBeforeObj));
-    applyNodeWorldKeepingPosition(boundNode, target.elements);
+  if (!gizBeforeObjState || !gizBeforeGizmo) {
+    let state = captureNodeTransformState(boundNode), frame0 = nodeFrameWorld(boundNode), current = new THREE2.Matrix4().fromArray(gmArr), delta = current.clone().multiply(frame0.clone().invert()), objectTarget = delta.clone().multiply(new THREE2.Matrix4().fromArray(state.world)), frameTarget = transformedNodeFrame(frame0, delta, objectScaleDrag);
+    applyNodeWorldAndFrame(boundNode, objectTarget, frameTarget);
     return;
   }
-  if (!gizBeforeObj || !gizBeforeGizmo) {
-    applyNodeWorld(boundNode, nodeWorldFromGizmo(boundNode, gmArr).elements);
-    return;
-  }
-  let g0 = new THREE2.Matrix4().fromArray(gizBeforeGizmo), delta = new THREE2.Matrix4().fromArray(gmArr).multiply(g0.invert()), o0 = new THREE2.Matrix4().fromArray(gizBeforeObj);
-  applyNodeWorld(boundNode, delta.multiply(o0).elements.slice());
+  let g0 = new THREE2.Matrix4().fromArray(gizBeforeGizmo), delta = new THREE2.Matrix4().fromArray(gmArr).multiply(g0.invert()), o0 = new THREE2.Matrix4().fromArray(gizBeforeObjState.world), frame0 = rigidFrame(o0.clone().multiply(new THREE2.Matrix4().fromArray(gizBeforeObjState.pivot))), objectTarget = delta.clone().multiply(o0), frameTarget = transformedNodeFrame(frame0, delta, objectScaleDrag);
+  applyNodeWorldAndFrame(boundNode, objectTarget, frameTarget);
 }
 function unionSubtree(h, acc) {
   let bb = getWorldBBox(h);
@@ -14412,7 +14408,7 @@ onGizmoDragStart((e) => {
     let nh = cmd.newRoots && cmd.newRoots[0];
     nh && (pushCmd(cmd), selNodes.clear(), selTags.clear(), selNodes.add(nh), anchorNode = getObj(nh), boundNode = nh, lastBracketSig = null, treeChanged(), refreshSelClasses());
   }
-  boundNode ? (gizBeforeObj = getWorldMatrix(boundNode), gizBeforeObjState = nodeLocalState(boundNode), gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMulti = new Map([...selNodes].map((h) => [h, getWorldMatrix(h)])), gizBeforeMultiState = new Map([...selNodes].map((h) => [h, nodeLocalState(h)])), gizBeforeGizmo = getGizmoWorldArray());
+  boundNode ? (gizBeforeObjState = captureNodeTransformState(boundNode), gizBeforeObj = gizBeforeObjState?.world?.slice() || null, gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMultiState = new Map([...selNodes].map((h) => [h, captureNodeTransformState(h)])), gizBeforeMulti = new Map([...gizBeforeMultiState].map(([h, state]) => [h, state?.world?.slice()])), gizBeforeGizmo = getGizmoWorldArray());
 });
 onGizmoDragEnd(() => {
   if (uvEdit && uvBeforeFrame) {
@@ -14468,12 +14464,12 @@ onGizmoDragEnd(() => {
   }
   let objectScaleDrag = gizDrag?.mode === "scale" || gizDrag?.mode === "scaleU";
   if (gizBeforeMulti) {
-    let before = gizBeforeMulti, after = new Map([...before.keys()].map((h) => [h, getWorldMatrix(h)])), beforeState = gizBeforeMultiState, afterState = new Map([...before.keys()].map((h) => [h, nodeLocalState(h)])), changed = objectScaleDrag ? [...beforeState].some(([h, s]) => !nodeLocalStateClose(s, afterState.get(h))) : [...before].some(([h, m]) => !mat4Close(m, after.get(h)));
+    let beforeState = gizBeforeMultiState, afterState = new Map([...beforeState.keys()].map((h) => [h, captureNodeTransformState(h)])), changed = [...beforeState].some(([h, state]) => !nodeTransformStateClose(state, afterState.get(h)));
     if ((!editPivot || objectScaleDrag) && changed) pushCmd({ redo() {
-      for (let [h, m] of (objectScaleDrag ? afterState : after)) objectScaleDrag ? applyNodeLocalState(h, m) : applyNodeWorld(h, m);
+      for (let [h, state] of afterState) applyNodeTransformState(h, state);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     }, undo() {
-      for (let [h, m] of (objectScaleDrag ? beforeState : before)) objectScaleDrag ? applyNodeLocalState(h, m) : applyNodeWorld(h, m);
+      for (let [h, state] of beforeState) applyNodeTransformState(h, state);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     } });
     gizBeforeMulti = null, gizBeforeMultiState = null, gizBeforeGizmo = null, objectScaleDrag && placeGizmoForSelection();
@@ -14489,13 +14485,13 @@ onGizmoDragEnd(() => {
     return;
   }
   if (boundNode && gizBeforeObj) {
-    let after = getWorldMatrix(boundNode), beforeState = gizBeforeObjState, afterState = nodeLocalState(boundNode), changed = objectScaleDrag ? !nodeLocalStateClose(beforeState, afterState) : !mat4Close(gizBeforeObj, after);
+    let beforeState = gizBeforeObjState, afterState = captureNodeTransformState(boundNode), changed = !nodeTransformStateClose(beforeState, afterState);
     if (changed) {
-      let b = gizBeforeObj.slice(), a = after.slice(), h = boundNode;
+      let h = boundNode;
       pushCmd({ redo() {
-        objectScaleDrag ? applyNodeLocalState(h, afterState) : applyNodeWorld(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
+        applyNodeTransformState(h, afterState), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       }, undo() {
-        objectScaleDrag ? applyNodeLocalState(h, beforeState) : applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
+        applyNodeTransformState(h, beforeState), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       } });
     }
     let recenterGizmo = objectScaleDrag;
@@ -15257,19 +15253,11 @@ function installFrameAI() {
     return rebuildPolySelection(), selection();
   }, setCoordinates = (values) => {
     if (!gizmoVisible) throw new Error("nothing is selected");
-    let pivotObject = editPivot && boundNode && boundNode !== UV_VIRTUAL ? boundNode : null, pivotBefore = pivotObject && OBJ.get(pivotObject)?.pivot.elements.slice() || null, before = coordinateSnapshot(), apply = (ch, v) => {
+    let before = coordinateSnapshot(), apply = (ch, v) => {
       if (Array.isArray(v))
         for (let i = 0; i < 3; i++) Number.isFinite(v[i]) && applyInput(ch, i, v[i]);
     };
-    if (apply("pos", values.position), apply("rot", values.rotation), apply("size", values.size), syncCube(), pivotObject) {
-      bridgeTransform();
-      let pivotAfter = OBJ.get(pivotObject)?.pivot.elements.slice() || null;
-      pivotBefore && pivotAfter && !mat4Close(pivotBefore, pivotAfter) && pushCmd({ redo() {
-        setNodePivot(pivotObject, pivotAfter), placeGizmoForSelection(), scheduleGeneratorEvaluation(0);
-      }, undo() {
-        setNodePivot(pivotObject, pivotBefore), placeGizmoForSelection(), scheduleGeneratorEvaluation(0);
-      } });
-    } else polyMode && editPivot ? (polyPivotMatrix = getGizmoWorldArray().slice(), scheduleRender()) : (bridgeTransform(), commitCoordinateSnapshot(before));
+    apply("pos", values.position), apply("rot", values.rotation), apply("size", values.size), syncCube(), polyMode && editPivot ? (polyPivotMatrix = getGizmoWorldArray().slice(), scheduleRender()) : commitCoordinateSnapshot(before);
     return updateHUD(), scheduleGeneratorEvaluation(0), scheduleRender(), coordinates();
   }, viewRect = (view) => {
     let vi = view ?? (vpState.mode === "single" ? vpState.singleView : 0), r = rectFor(vi);
