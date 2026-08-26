@@ -6015,10 +6015,19 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null, mode =
     return tangent;
   }), allProfileSegments = contours.flatMap((c) => c.edges.map((e) => e.id)), plane = generatorPlaneForData(profileData, allProfileSegments);
   if (!plane?.planar || plane.collinear) throw new Error("Sweep profile must be planar");
-  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), profileNormal = plane.normal.clone().applyQuaternion(profileRotation).normalize(), profileU = plane.u.clone().applyQuaternion(profileRotation).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(profileNormal, firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, profileU.applyQuaternion(rotation), pathTangents);
+  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), profileNormal = plane.normal.clone().applyQuaternion(profileRotation).normalize(), profileU = plane.u.clone().applyQuaternion(profileRotation).normalize(), profileV = plane.v.clone().applyQuaternion(profileRotation).normalize(), frames;
   if (mode === "parallel") {
-    let base = frames[0];
-    frames = frames.map((frame) => ({ p: frame.p, t: base.t.clone(), n: base.n.clone(), b: base.b.clone() }));
+    // Parallel movement is a pure translation of the profile.  Keep the
+    // profile's current world basis exactly as authored; aligning its normal
+    // to the rail tangent here used to make the profile appear rotated or
+    // mirrored as soon as a sweep was created.
+    frames = pathPoints.map((point) => ({ p: new THREE2.Vector3().fromArray(point), t: profileNormal.clone(), n: profileU.clone(), b: profileV.clone() }));
+  } else {
+    // Tangent mode is the only mode that changes orientation.  A rigid
+    // quaternion preserves handedness, so the profile is transported along
+    // the rail without the old sign-flip/mirroring artefact.
+    let rotation = new THREE2.Quaternion().setFromUnitVectors(profileNormal, firstDirection);
+    frames = buildSweepFrames(pathPoints, pathSequence.closed, profileU.applyQuaternion(rotation), pathTangents);
   }
   let data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 10, pathData.approximation?.angle || 10) }), rowVertices = /* @__PURE__ */ new Map();
   data.patchCells = [], data.planarFills = [];
@@ -9157,10 +9166,20 @@ function showSnapVisPlane(vi, u, v, planePoint, center) {
 function hideSnapVis() {
   snapVis && (snapVis.visible = !1), _snapVisActive = !1;
 }
+function snapCandidatePinned(h) {
+  if (selNodes.has(h)) return !0;
+  let node = OBJ.get(h), guard = 0;
+  for (; node?.parent && guard++ < 256; ) {
+    if (selNodes.has(node.parent)) return !0;
+    node = OBJ.get(node.parent);
+  }
+  return !1;
+}
 function snapVertexOnly(pos, vi, proj) {
   let r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect, cam = vpState.views[vi].cam, wire = viewShading[vi] === 1, gp = proj || projectPx(pos, cam, r), bestD = SNAP_PX, best = null;
   for (let [h, mesh] of pickMeshes) {
-    if (!OBJ.has(h) || !effectiveVisible(h)) continue;
+    let pinned = snapCandidatePinned(h);
+    if (!OBJ.has(h) || !effectiveVisible(h) && !pinned) continue;
     let pa = mesh.geometry.attributes.position;
     if (!pa || pa.count > VERTEX_CAP) continue;
     mesh.updateMatrixWorld(!0);
@@ -9168,20 +9187,21 @@ function snapVertexOnly(pos, vi, proj) {
     for (let k = 0; k < pa.count; k++) {
       _v.set(arr[k * 3], arr[k * 3 + 1], arr[k * 3 + 2]).applyMatrix4(mw);
       let ndc = _v.clone().project(cam);
-      if (ndc.z < -1 || ndc.z > 1 || !wire && !exactVertexVisible(_v, ndc, cam)) continue;
+      if (ndc.z < -1 || ndc.z > 1 || !wire && !pinned && !exactVertexVisible(_v, ndc, cam)) continue;
       let p = projectPx(_v, cam, r), d = Math.hypot(p[0] - gp[0], p[1] - gp[1]);
       d < bestD && (bestD = d, best = _v.clone());
     }
   }
   for (let [h, data] of splineData) {
-    if (!OBJ.has(h) || !effectiveVisible(h)) continue;
+    let pinned = snapCandidatePinned(h);
+    if (!OBJ.has(h) || !effectiveVisible(h) && !pinned) continue;
     let vertices = Object.values(data.vertices);
     if (vertices.length > VERTEX_CAP) continue;
     let wm = splineWorldMatrix(h);
     for (let local of vertices) {
       _v.fromArray(local).applyMatrix4(wm);
       let ndc = _v.clone().project(cam);
-      if (ndc.z < -1 || ndc.z > 1 || !wire && !exactVertexVisible(_v, ndc, cam)) continue;
+      if (ndc.z < -1 || ndc.z > 1 || !wire && !pinned && !exactVertexVisible(_v, ndc, cam)) continue;
       let p = projectPx(_v, cam, r), d = Math.hypot(p[0] - gp[0], p[1] - gp[1]);
       d < bestD && (bestD = d, best = _v.clone());
     }
@@ -14142,10 +14162,11 @@ function snapSplinePivotPreview() {
   let raw = gizmo.pos.clone(), screen = Number.isFinite(gizDrag.r?._cx) && Number.isFinite(gizDrag.r?._cy) ? [gizDrag.r._cx, gizDrag.r._cy] : projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
   for (let [h, source] of splineData) {
     let d = evaluatedSplineData(h) || source;
-    if (!(!OBJ.has(h) || !effectiveVisible(h)))
+    let pinned = snapCandidatePinned(h);
+    if (!(!OBJ.has(h) || !effectiveVisible(h) && !pinned))
       for (let p of Object.values(d.vertices)) {
         let world = splineWorldPoint(h, p), ndc = world.clone().project(cam);
-        if (ndc.z < -1 || ndc.z > 1 || !wire && !exactVertexVisible(world, ndc, cam)) continue;
+        if (ndc.z < -1 || ndc.z > 1 || !wire && !pinned && !exactVertexVisible(world, ndc, cam)) continue;
         let s = projectPx(world, cam, r), dd = (s[0] - screen[0]) ** 2 + (s[1] - screen[1]) ** 2, wd = world.distanceToSquared(raw);
         (dd < bd - 1e-6 || Math.abs(dd - bd) <= 1e-6 && wd < bwd) && (bd = dd, bwd = wd, best = world);
       }
