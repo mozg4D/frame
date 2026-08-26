@@ -2932,7 +2932,7 @@ function analyticNormals(vertexEvaluators, compiledById) {
   return { normals, cornerByCell, milliseconds: phaseClock() - started };
 }
 function analyticCornerNormals(indices, triangleSources, analytic, vertexEvaluators = null, compiledById = null) {
-  let out = new Float64Array(indices.length * 3);
+  let out = new Float64Array(indices.length * 3), domainCache = /* @__PURE__ */ new Map();
   for (let at = 0; at < indices.length; at += 3) {
     let cell = triangleSources[at / 3], surface = compiledById?.get(cell)?.surface, uvCandidates = [0, 1, 2].map((k) => {
       let evaluator = vertexEvaluators?.[indices[at + k]], candidates = evaluator?.occurrences?.filter((x) => x.cellId === cell) || [];
@@ -2946,12 +2946,36 @@ function analyticCornerNormals(indices, triangleSources, analytic, vertexEvaluat
       }
       return best || [null, null, null];
     })(), centroid = uvs.every(Boolean) ? [uvs.reduce((sum, uv) => sum + uv[0], 0) / 3, uvs.reduce((sum, uv) => sum + uv[1], 0) / 3] : null;
-    let compiled = compiledById?.get(cell), wrapU = !!(compiled?.hardClosure && uvs.every(Boolean) && Math.max(...uvs.map((uv) => uv[0])) - Math.min(...uvs.map((uv) => uv[0])) > 0.5), wrappedCentroidU = wrapU ? uvs.reduce((sum, uv) => sum + (uv[0] < 0.5 ? uv[0] + 1 : uv[0]), 0) / 3 : null, hardUAt = (uv) => !!uv && ([...(compiled?.hardU || [])].some((x) => Math.abs(uv[0] - x) < 1e-6) || compiled?.hardClosure && (uv[0] < 1e-8 || uv[0] > 1 - 1e-8)), hardVAt = (uv) => !!uv && [...(compiled?.hardV || [])].some((x) => Math.abs(uv[1] - x) < 1e-6);
+    let compiled = compiledById?.get(cell), domain = surface ? domainCache.get(cell) : null;
+    if (surface && !domainCache.has(cell))
+      domain = surface.Domain?.() || null, domainCache.set(cell, domain);
+    let singularNormal = (uv) => {
+      if (!surface || !uv) return null;
+      let candidates = [uv.slice()];
+      if (domain?.type === "lens") {
+        let axis = domain.collapsedAxis === "v" ? 1 : 0, value = uv[axis];
+        if (value <= 1e-8 || value >= 1 - 1e-8) {
+          let q = uv.slice();
+          q[axis] = value <= 1e-8 ? 1e-4 : 1 - 1e-4, candidates.push(q);
+        }
+      }
+      if (centroid) {
+        let q = uv.slice();
+        q[0] += (centroid[0] - q[0]) * 1e-4, q[1] += (centroid[1] - q[1]) * 1e-4, candidates.push(q);
+      }
+      for (let q of candidates) try {
+        let normal = surface.EvalNormal(q);
+        if (normal.every(Number.isFinite) && len2(normal) > 1e-8) return normal;
+      } catch {
+      }
+      return null;
+    }, wrapU = !!(compiled?.hardClosure && uvs.every(Boolean) && Math.max(...uvs.map((uv) => uv[0])) - Math.min(...uvs.map((uv) => uv[0])) > 0.5), wrappedCentroidU = wrapU ? uvs.reduce((sum, uv) => sum + (uv[0] < 0.5 ? uv[0] + 1 : uv[0]), 0) / 3 : null, hardUAt = (uv) => !!uv && ([...(compiled?.hardU || [])].some((x) => Math.abs(uv[0] - x) < 1e-6) || compiled?.hardClosure && (uv[0] < 1e-8 || uv[0] > 1 - 1e-8)), hardVAt = (uv) => !!uv && [...(compiled?.hardV || [])].some((x) => Math.abs(uv[1] - x) < 1e-6);
     for (let k = 0; k < 3; k++) {
       let vertex = indices[at + k], n = analytic.cornerByCell.get(`${vertex}|${cell}`) || [analytic.normals[vertex * 3], analytic.normals[vertex * 3 + 1], analytic.normals[vertex * 3 + 2]];
+      (!n.every(Number.isFinite) || len2(n) < 1e-8) && (n = singularNormal(uvs[k]) || n);
       if (surface && centroid && uvs[k]) try {
         let hardU = hardUAt(uvs[k]), hardV = hardVAt(uvs[k]), baseU = wrapU && uvs[k][0] < 0.5 ? uvs[k][0] + 1 : uvs[k][0], targetU = wrapU ? wrappedCentroidU : centroid[0], uv = [hardU ? Math.max(0, Math.min(1, baseU + (targetU - baseU) * 0.2)) : uvs[k][0], hardV ? uvs[k][1] + (centroid[1] - uvs[k][1]) * 0.2 : uvs[k][1]], oneSided = surface.EvalNormal(uv);
-        oneSided.every(Number.isFinite) && (n = oneSided);
+        oneSided.every(Number.isFinite) && len2(oneSided) > 1e-8 && (n = oneSided);
       } catch {
       }
       out.set(n, (at + k) * 3);
@@ -4218,8 +4242,8 @@ function buildGeneratorRenderGeometry(positions, indices, groups, analyticNormal
     faceAreaNormals[f] = [nx, ny, nz], faceNormals[f] = [nx / len3, ny / len3, nz / len3], valid.push(f);
     let faceCoords = [coord[ia], coord[ib], coord[ic]];
     if (hasCornerNormals) for (let k = 0; k < 3; k++) {
-      let at = (f * 3 + k) * 3, n = [cornerNormals[at], cornerNormals[at + 1], cornerNormals[at + 2]], length = Math.hypot(n[0], n[1], n[2]) || 1;
-      n = [n[0] / length, n[1] / length, n[2] / length], n[0] * faceNormals[f][0] + n[1] * faceNormals[f][1] + n[2] * faceNormals[f][2] < 0 && (n = [-n[0], -n[1], -n[2]]), faceCornerNormals.set(`${f}|${faceCoords[k]}`, n);
+      let at = (f * 3 + k) * 3, n = [cornerNormals[at], cornerNormals[at + 1], cornerNormals[at + 2]], length = Math.hypot(n[0], n[1], n[2]);
+      n = length > 1e-8 ? [n[0] / length, n[1] / length, n[2] / length] : faceNormals[f].slice(), n[0] * faceNormals[f][0] + n[1] * faceNormals[f][1] + n[2] * faceNormals[f][2] < 0 && (n = [-n[0], -n[1], -n[2]]), faceCornerNormals.set(`${f}|${faceCoords[k]}`, n);
     }
     for (let key of new Set(faceCoords)) {
       let list = coordFaces.get(key);
@@ -5584,7 +5608,7 @@ function appendPlanarSplineFills(data, built) {
   built.report.planarFillRegions = fills, built.report.planarFillTriangles = fillTriangles;
 }
 function weldCompiledMeshPositions(built) {
-  let scale = maxAbsValues(built.positions), step = Math.max(1e-10, scale * 1e-9), keyAt = (i) => [0, 1, 2].map((k) => Math.round(built.positions[i * 3 + k] / step)).join(","), keys = /* @__PURE__ */ new Map(), map = [], positions = [];
+  let keyAt = (i) => [0, 1, 2].map((k) => Math.round(built.positions[i * 3 + k] * 1e5)).join(","), keys = /* @__PURE__ */ new Map(), map = [], positions = [];
   for (let i = 0; i < built.positions.length / 3; i++) {
     let key = keyAt(i), q = keys.get(key);
     q == null && (q = positions.length / 3, keys.set(key, q), positions.push(built.positions[i * 3], built.positions[i * 3 + 1], built.positions[i * 3 + 2])), map[i] = q;
