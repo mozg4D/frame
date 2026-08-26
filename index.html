@@ -4976,16 +4976,8 @@ var PARAMETRIC_MESH_TYPES = /* @__PURE__ */ new Set(["cube", "cylinder", "tube",
 function isVertexEditableMesh(h) {
   let node = OBJ.get(h), type = objParams.get(h)?.__type;
   if (!node || splineData.has(h)) return !1;
-  if (type === "spline_patch") return !0;
+  if (type === "spline_patch") return !1;
   return node.type === TYPE_MESH && !PARAMETRIC_MESH_TYPES.has(type);
-}
-function isLockedSplinePatchVertexObject(h) {
-  return polyElementMode === "vertex" && objParams.get(h)?.__type === "spline_patch";
-}
-function hasMovablePolySelection() {
-  if (polyElementMode !== "vertex") return !0;
-  for (let [h, entry] of polySelection.items) if (!isLockedSplinePatchVertexObject(h) && entry.vertices?.size) return !0;
-  return !1;
 }
 function approximationAngle(p) {
   let a = Number.isFinite(+p?.approximation) ? +p.approximation : Number.isFinite(+p?.subdivs) ? 360 / Math.max(3, +p.subdivs) : 10;
@@ -8743,7 +8735,7 @@ function rebuildPolySelection(syncGizmo = !0) {
       }
     }
   }
-  polySelection.face.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(fp, 3)), polySelection.edge.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(ep, 3)), polySelection.vertex.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(vp, 3)), polySelection.face.visible = polyMode && fp.length > 0, polySelection.faceBack.visible = polyMode && fp.length > 0, polySelection.edge.visible = polyMode && ep.length > 0, polySelection.vertex.visible = polyMode && vp.length > 0, vertexTools.soft.active && updateSoftPreview(), syncGizmo && (setGizmoVisible(polyMode ? polySelection.items.size > 0 && hasMovablePolySelection() : selNodes.size > 0), placeGizmoForSelection()), scheduleRender();
+  polySelection.face.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(fp, 3)), polySelection.edge.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(ep, 3)), polySelection.vertex.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(vp, 3)), polySelection.face.visible = polyMode && fp.length > 0, polySelection.faceBack.visible = polyMode && fp.length > 0, polySelection.edge.visible = polyMode && ep.length > 0, polySelection.vertex.visible = polyMode && vp.length > 0, vertexTools.soft.active && updateSoftPreview(), syncGizmo && (setGizmoVisible(polyMode ? polySelection.items.size > 0 : selNodes.size > 0), placeGizmoForSelection()), scheduleRender();
 }
 function clearPolySelection() {
   polyPivotMatrix = null, polySelection.items.clear(), rebuildPolySelection();
@@ -10701,7 +10693,14 @@ function setPolyElementMode(mode) {
       setGizmoVisible(selNodes.size > 0), placeGizmoForSelection(), scheduleRender();
       return;
     }
-    stopVertexModeTool(), disableSoftSelection(!1), vertexEditActive = !0, polyElementMode = "vertex", splineMode = selectedSplineNodes().length > 0, polyMode = selectedPolygonNodes().length > 0, componentFocus = splineMode ? "spline" : "poly", clearSplineHover(), clearPolyHover(), clearSplineSelection(), clearPolySelection();
+    let splines = selectedSplineNodes(), polys = selectedPolygonNodes();
+    if (!splines.length && !polys.length) {
+      stopVertexModeTool(), disableSoftSelection(!1), vertexEditActive = !1, splineMode = !1, polyMode = !1, polyElementMode = "vertex", componentFocus = "poly", clearSplineHover(), clearPolyHover(), clearSplineSelection(), clearPolySelection();
+      for (let button of Object.values(modeButtons)) button.classList.remove("on");
+      setGizmoVisible(selNodes.size > 0), placeGizmoForSelection(), scheduleRender();
+      return;
+    }
+    stopVertexModeTool(), disableSoftSelection(!1), vertexEditActive = !0, polyElementMode = "vertex", splineMode = splines.length > 0, polyMode = polys.length > 0, componentFocus = splineMode ? "spline" : "poly", clearSplineHover(), clearPolyHover(), clearSplineSelection(), clearPolySelection();
     for (let [kind, button] of Object.entries(modeButtons)) button.classList.toggle("on", kind === "vertex");
     setGizmoVisible(!1), updateAllSplineVisuals(), placeGizmoForSelection(), scheduleRender();
     return;
@@ -13254,7 +13253,6 @@ function setPureGizmoFrame(world) {
   rotMatOfLin(m, m), m.setPosition(p), setGizmoFromMatrix(m.elements);
 }
 function applyPolyCoordinateInput(ch, i, v, mode) {
-  if (!hasMovablePolySelection()) return;
   let old = polyFrameMatrix(), desired = old.clone();
   if (ch === "pos")
     if (mode === "world") desired.elements[12 + i] = v;
@@ -13521,7 +13519,6 @@ function deleteSelectedPolyElements() {
 function applyPolyDelta(delta, snap) {
   let p = new THREE2.Vector3();
   for (let [h, rec2] of snap) {
-    if (isLockedSplinePatchVertexObject(h)) continue;
     let mesh = pickMeshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position;
     if (!pos) continue;
     mesh.updateMatrixWorld(!0);
@@ -13975,7 +13972,6 @@ function bridgeTransform() {
     return;
   }
   if (polyMode) {
-    if (!hasMovablePolySelection()) return;
     if (editPivot || !gizBeforePoly || !gizBeforeGizmo) return;
     let delta2 = new THREE2.Matrix4().fromArray(getGizmoWorldArray()).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
     applyPolyDelta(delta2, gizBeforePoly);
@@ -14052,10 +14048,8 @@ onTransform(() => {
   bridgeTransform(), updateHUD(), splineFocusActive() || scheduleGeneratorEvaluation(70);
 });
 onViewportPick((hash, shift, mod) => {
-  if (polyMode && (!vertexEditActive || !hash || isVertexEditableMesh(hash))) {
-    hash || clearPolySelection();
-    return;
-  }
+  if (polyMode && hash && isVertexEditableMesh(hash)) return;
+  if (polyMode) hash ? setPolyElementMode(polyElementMode) : clearPolySelection();
   !shift && !mod && selMats.clear(), shift || mod ? hash && (selNodes.has(hash) ? selNodes.delete(hash) : (selNodes.add(hash), anchorNode = getObj(hash))) : hash ? (selNodes.clear(), selTags.clear(), selNodes.add(hash), anchorNode = getObj(hash)) : (selNodes.clear(), selTags.clear(), anchorNode = null), lastBracketSig = null, refreshSelClasses();
 });
 onGizmoDragStart((e) => {
@@ -14083,7 +14077,6 @@ onGizmoDragStart((e) => {
     return;
   }
   if (polyMode) {
-    if (!hasMovablePolySelection()) return;
     if (gizBeforeGizmo = getGizmoWorldArray(), gizBeforePolyPivot = polyPivotMatrix && polyPivotMatrix.slice(), editPivot) return;
     gizBeforePolyGeom = capturePolyGeometries(), gizBeforePolySel = capturePolySelectionState(), e?.ctrlKey && (polyElementMode === "edge" || polyElementMode === "face") && extrudeSelectedForDrag(), gizBeforePoly = capturePolySelection();
     return;
@@ -14915,6 +14908,7 @@ function installFrameAI() {
     if (!h || !pickMeshes.has(h)) throw new Error("mesh object not found");
     let kind = spec.kind;
     if (kind || (kind = spec.vertices ? "vertex" : spec.edges ? "edge" : spec.faces ? "face" : null), !kind) throw new Error("subobject kind is required");
+    if (!isVertexEditableMesh(h)) throw new Error("object has no editable polygon subobjects");
     setMode(kind), selNodes.has(h) || (selNodes.clear(), selNodes.add(h), refreshSelClasses()), polyPivotMatrix = null, (spec.mode || "replace") === "replace" && polySelection.items.clear();
     let s = polySelEntry(h), mesh = pickMeshes.get(h), g = mesh.geometry;
     if (kind === "vertex")
@@ -15064,7 +15058,6 @@ function installFrameAI() {
     return { tool: vertexToolState(), selection: selection() };
   }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {
     if (!polyMode || !polySelection.items.size) throw new Error("subobject selection is required");
-    if (!hasMovablePolySelection()) return { selection: selection(), topology: [] };
     let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState();
     options.extrude && (polyElementMode === "edge" || polyElementMode === "face") && extrudeSelectedForDrag();
     let snap = capturePolySelection(), frame = polyFrameMatrix(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(options.translate) ? options.translate : [0, 0, 0], rr = Array.isArray(options.rotate) ? options.rotate : [0, 0, 0], ss = Array.isArray(options.scale) ? options.scale : [1, 1, 1], delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(Number.isFinite(+ss[0]) ? +ss[0] : 1, Number.isFinite(+ss[1]) ? +ss[1] : 1, Number.isFinite(+ss[2]) ? +ss[2] : 1)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
