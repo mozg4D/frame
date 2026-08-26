@@ -9275,6 +9275,7 @@ function gizmoScaleObjectTo(src, comp, targetColLen, orientQ) {
 }
 function gizmoScaleU(src, k) {
   let wM = new THREE2.Matrix4().copy(src);
+  k = Number.isFinite(k) ? k : 1;
   for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) wM.elements[i] *= k;
   return floorWmCols(wM, src), wM;
 }
@@ -9463,7 +9464,7 @@ function doGizDrag(e) {
         }
         isFinite(kmin) && (kraw = kmin);
       }
-      kraw = Math.max(MIN_COL, kraw), applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: snapOn });
+      kraw = Number.isFinite(kraw) ? Math.max(MIN_COL, kraw) : 1, applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: snapOn });
     }
     syncCube(), emitTransform(), scheduleRender();
   }
@@ -14242,6 +14243,10 @@ function placeGizmoForSelection() {
   let q = new THREE2.Quaternion(qx, qy, qz, qw).normalize(), s = new THREE2.Vector3(Math.hypot(m[0], m[1], m[2]), Math.hypot(m[4], m[5], m[6]), Math.hypot(m[8], m[9], m[10]));
   new THREE2.Matrix4().compose(new THREE2.Vector3(m[12], m[13], m[14]), q, s).toArray(m), ignoreBridge = !0, setGizmoFromMatrix(m), ignoreBridge = !1;
 }
+function nodeWorldFromGizmo(h, arr) {
+  let out = new THREE2.Matrix4().fromArray(arr), n = OBJ.get(h);
+  return n?.pivot && out.multiply(new THREE2.Matrix4().copy(n.pivot).invert()), out;
+}
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
@@ -14272,7 +14277,7 @@ function bridgeTransform() {
   }
   let gmArr = getGizmoWorldArray();
   if (!gizBeforeObj || !gizBeforeGizmo) {
-    applyNodeWorld(boundNode, gmArr);
+    applyNodeWorld(boundNode, nodeWorldFromGizmo(boundNode, gmArr).elements);
     return;
   }
   let g0 = new THREE2.Matrix4().fromArray(gizBeforeGizmo), delta = new THREE2.Matrix4().fromArray(gmArr).multiply(g0.invert()), o0 = new THREE2.Matrix4().fromArray(gizBeforeObj);
@@ -14427,17 +14432,19 @@ onGizmoDragEnd(() => {
     let before = gizBeforeMulti, after = new Map([...before.keys()].map((h) => [h, getWorldMatrix(h)]));
     editPivot || pushCmd({ redo() {
       for (let [h, m] of after) applyNodeWorld(h, m);
+      placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     }, undo() {
       for (let [h, m] of before) applyNodeWorld(h, m);
+      placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     } }), gizBeforeMulti = null, gizBeforeGizmo = null;
     return;
   }
   if (boundNode && editPivot && gizBeforeObjPivot) {
     let h = boundNode, b = gizBeforeObjPivot.slice(), a = OBJ.get(h)?.pivot.elements.slice();
     a && !mat4Close(b, a) && pushCmd({ redo() {
-      setNodePivot(h, a), placeGizmoForSelection();
+      setNodePivot(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
     }, undo() {
-      setNodePivot(h, b), placeGizmoForSelection();
+      setNodePivot(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
     } }), gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     return;
   }
@@ -14446,9 +14453,9 @@ onGizmoDragEnd(() => {
     if (!mat4Close(gizBeforeObj, after)) {
       let b = gizBeforeObj.slice(), a = after.slice(), h = boundNode;
       pushCmd({ redo() {
-        applyNodeWorld(h, a), setGizmoFromMatrix(a);
+        applyNodeWorld(h, a), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       }, undo() {
-        applyNodeWorld(h, b), setGizmoFromMatrix(b);
+        applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       } });
     }
     gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
