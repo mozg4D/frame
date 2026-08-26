@@ -1262,13 +1262,79 @@ function explicitPatchCell(data, spec, vertices) {
   let edges = sides.flat();
   return { id: "cell:" + cycleKey(vertices) + ":" + sides.map((side) => side.map((x) => x.id).join("+")).join("|"), vertices: vertices.slice(), sides, edges, surfaceControls: Array.isArray(spec.controls) ? spec.controls.map(([key, p]) => [key, p.slice()]) : null, chartDescriptor: spec.chartDescriptor || null, sourceSpec: spec };
 }
+function inferCircularRail(data, item) {
+  if (!item?.edges?.length || !item.plane?.planar || item.plane.collinear) return null;
+  let count = item.edges.length, evalAt = (t) => {
+    let scaled = Math.max(0, Math.min(count - 1e-12, t * count)), index = Math.min(count - 1, Math.floor(scaled)), local = scaled - index, edge = item.edges[index], points = segmentPoints(data, edge.id);
+    if (!points) return null;
+    edge.reversed && points.reverse();
+    return new THREE2.Vector3().fromArray(cubicPoint(points, local));
+  }, samplesT = item.sequence.closed ? [0, 0.125, 0.25, 0.5, 0.75, 0.875] : [0, 0.25, 0.5, 0.75, 1], samples = samplesT.map(evalAt).filter(Boolean);
+  if (samples.length < 3) return null;
+  let a = samples[0], b = samples[Math.floor(samples.length / 2)], c = samples.at(-1), ab = b.clone().sub(a), ac = c.clone().sub(a), n = item.plane.normal.clone().normalize(), cross = new THREE2.Vector3().crossVectors(ab, ac), crossLength = cross.length();
+  if (crossLength <= 1e-12) return null;
+  let n2 = crossLength * crossLength, offset = cross.clone().cross(ab).multiplyScalar(ac.lengthSq()).add(new THREE2.Vector3().crossVectors(ac, cross).multiplyScalar(ab.lengthSq())).multiplyScalar(1 / (2 * n2)), center = a.clone().add(offset), radius = a.distanceTo(center), scale = Math.max(1, radius, ...samples.map((p) => p.distanceTo(center)));
+  if (!Number.isFinite(radius) || radius <= scale * 1e-8 || samples.some((p) => Math.abs(p.distanceTo(center) - radius) > scale * 4e-3)) return null;
+  return { center, radius, axis: n };
+}
+function inferLatheCageCell(data, sequences) {
+  if (sequences.length < 3) return null;
+  let candidates = [];
+  for (let rail of sequences) {
+    let circle = inferCircularRail(data, rail);
+    if (!circle) continue;
+    let profiles = sequences.filter((item) => item !== rail && item.plane?.planar && !item.plane.collinear && Math.abs(item.plane.normal.clone().normalize().dot(circle.axis)) <= 0.15 && Math.abs(item.plane.origin.clone().sub(circle.center).dot(item.plane.normal)) <= Math.max(1, circle.radius) * 5e-3);
+    profiles.length >= 2 && candidates.push({ rail, circle, profiles });
+  }
+  if (!candidates.length) return null;
+  let chosen = candidates.sort((a, b) => Number(b.rail.sequence.closed) - Number(a.rail.sequence.closed) || b.circle.radius - a.circle.radius || b.profiles.reduce((n, q) => n + q.edges.length, 0) - a.profiles.reduce((n, q) => n + q.edges.length, 0))[0], profile = chosen.profiles.slice().sort((a, b) => b.edges.length - a.edges.length || a.sequence.id.localeCompare(b.sequence.id))[0], rail = chosen.rail;
+  return { id: `lathe-cage:${profile.sequence.id}:${rail.sequence.id}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(rail.edges), sides: [], plane: { planar: !1, normal: profile.plane.normal.toArray?.() || profile.plane.normal }, planar: !1, sweep: { profile: profile.edges.slice(), path: rail.edges.slice(), profileClosed: !!profile.sequence.closed, pathClosed: !!rail.sequence.closed, profileIndex: 0, railCoplanar: !1 } };
+}
+function inferExtrudeCageCells(data, sequences) {
+  let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear), open = sequences.filter((item) => !item.sequence.closed);
+  if (!profiles.length || open.length < profiles.length * 2) return null;
+  let used = new Set(), cells = [], distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  for (let profile of profiles) {
+    let vertices = new Set(profile.vertices), rails = open.filter((item) => !used.has(item.sequence.id) && (vertices.has(item.vertices[0]) || vertices.has(item.vertices.at(-1))));
+    if (rails.length !== 2) return null;
+    let oriented = rails.map((rail) => rail.vertices[0] && vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
+    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)))) return null;
+    let vectors = oriented.map((rail) => splineMath.sub(data.vertices[rail.vertices.at(-1)], data.vertices[rail.vertices[0]])), scale = Math.max(1, ...vectors.map((v) => Math.hypot(...v)));
+    if (distance(vectors[0], vectors[1]) > scale * 1e-6 || Math.hypot(...vectors[0]) <= scale * 1e-8) return null;
+    oriented.forEach((rail) => used.add(rail.sequence.id));
+    let offset = vectors[0], normal = profile.plane.normal.clone().normalize(), railCoplanar = Math.abs(offset[0] * normal.x + offset[1] * normal.y + offset[2] * normal.z) <= scale * 1e-6;
+    cells.push({ id: `extrude-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(oriented[0].edges), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), path: oriented[0].edges.slice(), profileClosed: !0, pathClosed: !1, profileIndex: cells.length, railCoplanar } });
+  }
+  return used.size === open.length ? cells : null;
+}
+function inferSweepCageCells(data, sequences) {
+  let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear);
+  if (!profiles.length) return null;
+  let used = new Set(), cells = [];
+  for (let profile of profiles) {
+    let vertices = new Set(profile.vertices), rails = sequences.filter((item) => item !== profile && !used.has(item.sequence.id) && (vertices.has(item.vertices[0]) || vertices.has(item.vertices.at(-1))));
+    if (rails.length !== 2) return null;
+    let oriented = rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
+    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)))) return null;
+    oriented.forEach((rail) => used.add(rail.sequence.id));
+    let path = oriented[0], controls = path.edges.flatMap((edge) => segmentPoints(data, edge.id) || []), normal = profile.plane.normal.clone().normalize(), railCoplanar = controls.every((p) => Math.abs(new THREE2.Vector3().fromArray(p).sub(profile.plane.origin).dot(normal)) <= Math.max(1, profile.plane.scale || 0) * 2e-5);
+    cells.push({ id: `sweep-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(path.edges), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !0, pathClosed: !1, profileIndex: cells.length, railCoplanar } });
+  }
+  return used.size === sequences.length - profiles.length ? cells : null;
+}
 function inferProfilePathCells(data) {
   let sequences = data.sequences.filter((q) => q.segments.length).map((sequence) => ({ sequence, ...orderedSplineSequence(data, sequence) }));
   if (sequences.length < 2) return null;
   let planar = sequences.map((q) => {
     let controls = q.edges.flatMap((edge) => segmentPoints(data, edge.id) || []).map((p) => new THREE2.Vector3().fromArray(p)), plane = deterministicSplineWorldPlane(controls);
     return { ...q, plane, controls };
-  }), planarClosed = planar.filter((q) => q.sequence.closed && q.plane?.planar && !q.plane.collinear), planarOpen = planar.filter((q) => !q.sequence.closed && q.plane?.planar && !q.plane.collinear), sphereLike = planarOpen.length === 1 && planarClosed.length === 1 && planarOpen[0].edges.length >= 2 && planarClosed[0].edges.length > planarOpen[0].edges.length && (() => {
+  }), extrude = inferExtrudeCageCells(data, planar);
+  if (extrude?.length) return extrude;
+  let lathe = inferLatheCageCell(data, planar);
+  if (lathe) return [lathe];
+  let sweep = inferSweepCageCells(data, planar);
+  if (sweep?.length) return sweep;
+  let planarClosed = planar.filter((q) => q.sequence.closed && q.plane?.planar && !q.plane.collinear), planarOpen = planar.filter((q) => !q.sequence.closed && q.plane?.planar && !q.plane.collinear), sphereLike = planarOpen.length === 1 && planarClosed.length === 1 && planarOpen[0].edges.length >= 2 && planarClosed[0].edges.length > planarOpen[0].edges.length && (() => {
     let rail = planarClosed[0], axis = rail.plane.normal.clone().normalize(), origin = rail.plane.origin, tolerance = Math.max(1e-7, Math.max(rail.plane.tolerance || 0, planarOpen[0].plane.tolerance || 0) * 2), radial = (vid) => {
       let point = new THREE2.Vector3().fromArray(data.vertices[vid]).sub(origin), axial = axis.clone().multiplyScalar(point.dot(axis));
       return point.sub(axial).length();
@@ -3095,8 +3161,11 @@ function buildExtrudeSplineCage(source, offsetVector) {
     edgeCopies.push({ cycle: cycle.id, bottomEdges: edges, topEdges: [], rails: [] });
   }
   for (let i = 0; i < cycles.length; i++) {
-    let anchor = cycles[i].vertices[0], start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
-    cage.segments[rail].soft = !0, inheritSplineApproximation(source, cycles[i].edges[0]?.id, cage, rail), edgeCopies[i].rails.push(rail);
+    let cycle = cycles[i], anchors = splineRailAnchors(source, cycle);
+    for (let anchor of anchors) {
+      let start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
+      cage.segments[rail].soft = !0, inheritSplineApproximation(source, cycle.edges[0]?.id, cage, rail), edgeCopies[i].rails.push(rail);
+    }
   }
   let report = validateSpline(cage);
   if (!report.ok) throw new Error(report.errors.join("; "));
@@ -4762,8 +4831,9 @@ function evaluateSplineGeneratorNode(h) {
   }), generatorPivot = n.pivot?.clone() || new THREE2.Matrix4(), signature = JSON.stringify(p) + "|" + sources.map((q) => JSON.stringify(q.data) + "@" + q.rel.elements.map((x) => Number(x.toPrecision(10))).join(",") + "#" + q.pivot.elements.map((x) => Number(x.toPrecision(10))).join(",")).join("|") + "|pivot:" + generatorPivot.elements.map((x) => Number(x.toPrecision(10))).join(",");
   if (type === "sweep" && !resolveSplineTopology(sources[0].data).planarContours.length && resolveSplineTopology(sources[1].data).planarContours.length && sources.reverse(), !(state.signature === signature && (state.ready || state.error) && !(!gizDrag && state.needsFinalBuild))) {
     state.signature = signature;
+    let generated = null;
     try {
-      let buildStarted = performance.now(), generated;
+      let buildStarted = performance.now();
       if (type === "extrude") {
         let sourceTopology = resolveSplineTopology(sources[0].data), first = sourceTopology.planarContours.find((c) => c.plane?.planar);
         if (!first) throw new Error("Extrude profile must contain a closed planar contour");
@@ -4779,6 +4849,7 @@ function evaluateSplineGeneratorNode(h) {
       installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals, built.cornerNormals), installGeneratorCage(h, state, built.cage), state.virtualCage.data = built.cageData;
     } catch (error) {
       state.report = error.report || state.report, setReplicaError(h, state, error.message || String(error));
+      generated?.data && (state.generatedCageData = cloneSplineData(generated.data), installGeneratedSplineCage(h, state, generated.data));
     }
   }
 }
@@ -5314,9 +5385,10 @@ function buildParametricCageObject(h, p) {
     if (!data) throw new Error("primitive spline cage is empty");
     let built = buildSplineSurfaceMeshData(data, { runtimeKey: `primitive:${h}` });
     if (state.report = { ...built.report, generator: p.__type, generatedCage: !0 }, state.topology = built.topology, !built.report.ok || !built.indices.length) throw new Error(built.report.errors?.[0] || "primitive spline cage cannot form a surface");
-    installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals, built.cornerNormals), installGeneratorCage(h, state, approximateSpline(data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) }))), state.virtualCage && (state.virtualCage.data = data);
+    installReplicaResult(h, state, built.positions, built.indices, [getThreeMat(resolveMatHash(h))], [{ start: 0, count: built.indices.length, materialIndex: 0 }], built.normals, built.cornerNormals), installGeneratedSplineCage(h, state, data);
   } catch (error) {
     state.report = state.report || { generator: p.__type, generatedCage: !0 }, setReplicaError(h, state, error.message || String(error));
+    data && (state.generatedCageData = cloneSplineData(data), installGeneratedSplineCage(h, state, data));
   }
 }
 function evaluateParametricMeshNode(h) {
@@ -5675,6 +5747,12 @@ function installGeneratorCage(h, state, polylines) {
   }
   parent.add(group), state.cage = group, state.virtualCage = { polylines: polylines.map((q, i) => ({ id: `cage:${i}`, kind: q.kind || "boundary", closed: !!q.closed, points: q.points.map((p) => p.slice()) })), segments: polylines.length }, group.visible = !1;
 }
+function installGeneratedSplineCage(h, state, data) {
+  if (!data) return null;
+  let polylines = approximateSpline(data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) }));
+  installGeneratorCage(h, state, polylines), state.virtualCage && (state.virtualCage.data = data);
+  return polylines;
+}
 function buildExtrudeFilletSplineCage(source, p) {
   let topology = resolveSplineTopology(source), contours = topology.planarContours.filter((c) => c.edges.length && c.plane?.planar);
   if (!contours.length) throw new Error("Extrude profile must contain a closed planar contour");
@@ -5736,6 +5814,17 @@ function splineCageEdge(data, a, b, ha = [0, 0, 0], hb = [0, 0, 0], soft = !1) {
   let q = addSplineSequence(data, !1), sid = addSplineSegment(data, q, a, b, ha, hb);
   return soft && (data.segments[sid].soft = !0), sid;
 }
+function splineRailAnchors(data, ordered) {
+  let vertices = ordered?.vertices || [];
+  if (vertices.length < 2) return [];
+  if (!ordered.sequence?.closed) return [vertices[0], vertices.at(-1)];
+  let best = [vertices[0], vertices[1]], distance = -1;
+  for (let i = 0; i < vertices.length; i++) for (let j = i + 1; j < vertices.length; j++) {
+    let d = dist(data.vertices[vertices[i]], data.vertices[vertices[j]]);
+    d > distance + 1e-9 && (distance = d, best = [vertices[i], vertices[j]]);
+  }
+  return best;
+}
 function inheritSplineApproximation(source, sourceSegment, target, targetSegment) {
   let angle = source?.segments?.[sourceSegment]?.approximation?.angle ?? source?.approximation?.angle;
   Number.isFinite(+angle) && (target.segments[targetSegment].approximation = { angle: THREE2.MathUtils.clamp(Math.round(+angle), 1, 180) });
@@ -5750,34 +5839,52 @@ function rotateLathePoint(point, theta) {
   let c = Math.cos(theta), s = Math.sin(theta);
   return [c * point[0] + s * point[2], point[1], -s * point[0] + c * point[2]];
 }
+function rotateLatheVector(vector, theta) {
+  return rotateLathePoint(vector, theta);
+}
 function buildLatheSplineCage(source, p, axisMatrix = null) {
   let axis = null;
   axisMatrix && (axis = rigidSplinePivotMatrix(axisMatrix), source = cloneSplineData(source), transformWholeSplineData(source, axis.clone().invert()));
   let degrees = THREE2.MathUtils.clamp(+p.angle || 0, 0, 360);
   if (degrees <= 1e-7) throw new Error("Lathe angle must be greater than zero");
-  let angle = degrees * D2R, full = Math.abs(degrees - 360) < 1e-7, intervals = Math.max(1, Math.ceil(degrees / 90 - 1e-9)), data = createSplineData({ angle: approximationAngle(p) }), sourceSequences = source.sequences.filter((q) => q.segments.length), vertexCopies = /* @__PURE__ */ new Map();
+  let angle = degrees * D2R, full = Math.abs(degrees - 360) < 1e-7, intervals = Math.max(1, Math.ceil(degrees / 90 - 1e-9)), copyCount = full ? intervals : intervals + 1, data = createSplineData({ angle: approximationAngle(p) }), sourceSequences = source.sequences.filter((q) => q.segments.length), vertexCopies = /* @__PURE__ */ new Map(), radiusScale = maxAbsValues(Object.values(source.vertices).flat()), axisTolerance = Math.max(1e-7, radiusScale * 1e-9), isAxisPoint = (point) => Math.hypot(point[0], point[2]) <= axisTolerance;
   if (!sourceSequences.length) throw new Error("Lathe needs a non-empty spline profile");
   data.patchCells = [], data.planarFills = [];
-  let copyVertex = (vid) => (vertexCopies.has(vid) || vertexCopies.set(vid, addSplineVertex(data, source.vertices[vid].slice())), vertexCopies.get(vid)), orderedProfiles = [];
-  for (let sequence of sourceSequences) {
-    let ordered = orderedSplineSequence(source, sequence);
+  let copyVertex = (profileIndex, row, vid) => {
+    let point = source.vertices[vid], shared = isAxisPoint(point), key = `${profileIndex}|${shared ? "axis" : row}|${vid}`;
+    if (vertexCopies.has(key)) return vertexCopies.get(key);
+    let theta = angle * row / intervals, id2 = addSplineVertex(data, rotateLathePoint(point, theta));
+    return vertexCopies.set(key, id2), id2;
+  }, orderedProfiles = [];
+  for (let profileIndex = 0; profileIndex < sourceSequences.length; profileIndex++) {
+    let sequence = sourceSequences[profileIndex], ordered = orderedSplineSequence(source, sequence);
     if (!ordered.edges.length) continue;
-    let q = addSplineSequence(data, !!sequence.closed), edges = [];
-    for (let edge of ordered.edges) {
-      let segment = source.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, q, copyVertex(edge.from), copyVertex(edge.to), ha.slice(), hb.slice());
-      data.segments[sid].soft = !!segment.soft, inheritSplineApproximation(source, edge.id, data, sid), edges.push(sid);
+    let rows = [];
+    for (let row = 0; row < copyCount; row++) {
+      let q = addSplineSequence(data, !!sequence.closed), edges = [], theta = angle * row / intervals;
+      for (let edge of ordered.edges) {
+        let segment = source.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, q, copyVertex(profileIndex, row, edge.from), copyVertex(profileIndex, row, edge.to), rotateLatheVector(ha, theta), rotateLatheVector(hb, theta));
+        data.segments[sid].soft = !!segment.soft, inheritSplineApproximation(source, edge.id, data, sid), edges.push(sid);
+      }
+      rows.push({ q, edges });
     }
-    orderedProfiles.push(ordered);
+    orderedProfiles.push({ profileIndex, ordered, rows });
+    let anchors = splineRailAnchors(source, ordered).filter((vid, index, list) => !isAxisPoint(source.vertices[vid]) && list.indexOf(vid) === index);
+    if (!anchors.length && !sequence.closed) {
+      let interior = ordered.vertices.filter((vid) => !isAxisPoint(source.vertices[vid]));
+      interior.length && anchors.push(interior.reduce((best, vid) => !best || Math.hypot(source.vertices[vid][0], source.vertices[vid][2]) > Math.hypot(source.vertices[best][0], source.vertices[best][2]) ? vid : best, null));
+    }
+    for (let anchor of anchors) {
+      let path = addSplineSequence(data, full), pathVertices = rows.map((_, row) => copyVertex(profileIndex, row, anchor)), point = source.vertices[anchor];
+      for (let j = 0; j < intervals; j++) {
+        let next = full && j + 1 === copyCount ? 0 : j + 1;
+        if (pathVertices[j] === pathVertices[next]) continue;
+        let theta0 = angle * j / intervals, theta1 = angle * (j + 1) / intervals, delta = theta1 - theta0, h = 4 / 3 * Math.tan(delta / 4), pa = rotateLathePoint(point, theta0), pb = rotateLathePoint(point, theta1), sid = addSplineSegment(data, path, pathVertices[j], pathVertices[next], [pa[2] * h, 0, -pa[0] * h], [-pb[2] * h, 0, pb[0] * h]);
+        data.segments[sid].soft = !0, inheritSplineApproximation(source, ordered.edges[0]?.id, data, sid);
+      }
+    }
   }
-  let candidates = orderedProfiles.flatMap((ordered) => ordered.vertices), anchor = candidates.reduce((best, vid) => !best || Math.hypot(source.vertices[vid][0], source.vertices[vid][2]) > Math.hypot(source.vertices[best][0], source.vertices[best][2]) ? vid : best, null), point = anchor && source.vertices[anchor];
-  if (!point || Math.hypot(point[0], point[2]) < 1e-8) throw new Error("Lathe profile needs at least one off-axis point");
-  let path = addSplineSequence(data, full), pathVertices = [copyVertex(anchor)], pathEdges = [];
-  for (let j = 1; j < intervals; j++) pathVertices.push(addSplineVertex(data, rotateLathePoint(point, angle * j / intervals)));
-  full || pathVertices.push(addSplineVertex(data, rotateLathePoint(point, angle)));
-  for (let j = 0; j < intervals; j++) {
-    let a = pathVertices[j], b = full && j + 1 === intervals ? pathVertices[0] : pathVertices[j + 1], theta0 = angle * j / intervals, theta1 = angle * (j + 1) / intervals, delta = theta1 - theta0, h = 4 / 3 * Math.tan(delta / 4), pa = rotateLathePoint(point, theta0), pb = rotateLathePoint(point, theta1), sid = addSplineSegment(data, path, a, b, [pa[2] * h, 0, -pa[0] * h], [-pb[2] * h, 0, pb[0] * h]);
-    data.segments[sid].soft = !0, pathEdges.push(sid);
-  }
+  if (!orderedProfiles.length) throw new Error("Lathe needs a non-empty spline profile");
   let validation = validateSpline(data);
   if (!validation.ok) throw new Error(validation.errors.join("; "));
   return axis && transformWholeSplineData(data, axis), data;
@@ -5862,12 +5969,26 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     }
     return edges;
   };
-  for (let contour of contours) profileAt(contour, 0);
-  for (let contourIndex = 0; contourIndex < contours.length; contourIndex++) {
-    let pathVertexMap = /* @__PURE__ */ new Map(), pathVertex = (vid) => (pathVertexMap.has(vid) || pathVertexMap.set(vid, addSplineVertex(data, pathData.vertices[vid].slice())), pathVertexMap.get(vid)), pathOut = addSplineSequence(data, pathSequence.closed);
-    for (let edge of orderedPath.edges) {
-      let segment = pathData.segments[edge.id], ha = edge.reversed ? segment.hb : segment.ha, hb = edge.reversed ? segment.ha : segment.hb, sid = addSplineSegment(data, pathOut, pathVertex(edge.from), pathVertex(edge.to), ha.slice(), hb.slice());
-      data.segments[sid].soft = !!segment.soft, inheritSplineApproximation(pathData, edge.id, data, sid);
+  for (let contour of contours) {
+    profileAt(contour, 0);
+    let anchors = splineRailAnchors(profileData, contour);
+    for (let anchor of anchors) {
+      let rail = addSplineSequence(data, !!pathSequence.closed), railVertices = pathPoints.map((_, row) => rv(anchor, row)), local = coords.get(anchor), offsetAt = (frame) => frame.n.clone().multiplyScalar(local[0]).addScaledVector(frame.b, local[1]).addScaledVector(frame.t, local[2]), frameAt = (a, b, t) => {
+        let tangent = new THREE2.Vector3().fromArray(cubicDerivative(a.controls, t));
+        tangent.lengthSq() < 1e-12 && tangent.copy(b.t), tangent.normalize();
+        let normal = a.n.clone().multiplyScalar(1 - t).addScaledVector(b.n, t).addScaledVector(tangent, -a.n.clone().multiplyScalar(1 - t).addScaledVector(b.n, t).dot(tangent));
+        normal.lengthSq() < 1e-12 && (normal = a.n.clone().applyQuaternion(new THREE2.Quaternion().setFromUnitVectors(a.t, tangent)).addScaledVector(tangent, -a.n.dot(tangent)));
+        normal.normalize();
+        return { p: new THREE2.Vector3().fromArray(cubicPoint(a.controls, t)), t: tangent, n: normal, b: new THREE2.Vector3().crossVectors(tangent, normal).normalize() };
+      };
+      for (let row = 0; row + 1 < railVertices.length || pathSequence.closed && row < railVertices.length; row++) {
+        let next = pathSequence.closed ? (row + 1) % railVertices.length : row + 1;
+        if (railVertices[row] === railVertices[next]) continue;
+        let segment = orderedPath.edges[row % orderedPath.edges.length], controls = segmentPoints(pathData, segment.id);
+        segment.reversed && controls.reverse();
+        let f0 = frames[row], f1 = frames[next], f13 = frameAt({ ...f0, controls }, f1, 1 / 3), f23 = frameAt({ ...f0, controls }, f1, 2 / 3), c0 = f0.p.clone().add(offsetAt(f0)).toArray(), c1 = f13.p.clone().add(offsetAt(f13)).toArray(), c2 = f23.p.clone().add(offsetAt(f23)).toArray(), c3 = f1.p.clone().add(offsetAt(f1)).toArray(), sid = addSplineSegment(data, rail, railVertices[row], railVertices[next], add3(c1, mul4(c0, -1)), add3(c2, mul4(c3, -1)));
+        data.segments[sid].soft = !!pathData.segments[segment.id]?.soft, inheritSplineApproximation(pathData, segment.id, data, sid);
+      }
     }
   }
   data.patchCells = [];
