@@ -9259,9 +9259,9 @@ function snapMovePlane(pos, vi, u, v, origin) {
 function snapMoveScreen(pos, vi, screenPoint = null, startPos = null) {
   let view = vpState.views[vi], r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect;
   if (!view || !r) return pos.clone();
-  // The visible P handle is offset from the gizmo center.  The snap target is
-  // the vertex under the cursor, while the returned position is the gizmo
-  // center that must land on that vertex.
+  // In Pivot mode the P handle is offset from the gizmo center. Search for a
+  // snap candidate from the center position, never from the mouse position;
+  // otherwise the pivot lands near a vertex while the gizmo center misses it.
   let targetScreen = Array.isArray(screenPoint) ? screenPoint : projectPx(pos, view.cam, r), vpos = snapOn ? snapVertexOnly(pos, vi, targetScreen) : null;
   if (vpos) return vpos.clone();
   if (view.type !== "ortho") return pos.clone();
@@ -9420,8 +9420,11 @@ function doGizDrag(e) {
         }
         let target = gizDrag.startPos.clone().addScaledVector(gizDrag.axisW, s);
         snapOn && (showSnapVisAxis(gizDrag.view, gizDrag.axisW, gizDrag.startPos, target), target = snapMoveAxis(target, gizDrag.view, gizDrag.axisW, gizDrag.startPos)), gizmo.pos.copy(target), syncCube(), emitInfo({ kind: "moveAxis", mm: gizmo.pos.clone().sub(gizDrag.startPos).dot(gizDrag.axisW) });
-      } else if (gizDrag.kind === "screen")
-        gizmo.pos.copy(gizDrag.startPos).add(_t1.copy(_P).sub(gizDrag.gizHit)), (snapOn || quantOn) && gizmo.pos.copy(snapMoveScreen(gizmo.pos, gizDrag.view, [e.clientX, e.clientY], gizDrag.startPos)), syncCube(), emitInfo(null);
+      } else if (gizDrag.kind === "screen") {
+        gizmo.pos.copy(gizDrag.startPos).add(_t1.copy(_P).sub(gizDrag.gizHit));
+        let snapPoint = editPivot ? null : [e.clientX, e.clientY];
+        (snapOn || quantOn) && gizmo.pos.copy(snapMoveScreen(gizmo.pos, gizDrag.view, snapPoint, gizDrag.startPos)), syncCube(), emitInfo(null);
+      }
       else {
         if (gizmo.pos.copy(gizDrag.startPos).add(_t1.copy(_P).sub(gizDrag.gizHit)), quantOn) {
           let st = quantStep(), u = gizDrag.planeU, v = gizDrag.planeV, d = gizmo.pos.clone().sub(gizDrag.startPos);
@@ -14170,9 +14173,9 @@ function trySplineWeldAfterDrag() {
 }
 function snapSplinePivotPreview() {
   if (!snapOn || !gizDrag || gizDrag.mode !== "move") return;
-  let vi = gizDrag.view, r = rectFor(vi), cam = vpState.views[vi]?.cam, wire = viewShading[vi] === 1;
+  let vi = gizDrag.view, r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect, cam = vpState.views[vi]?.cam, wire = viewShading[vi] === 1;
   if (!r || !cam) return;
-  let raw = gizmo.pos.clone(), screen = Number.isFinite(gizDrag.r?._cx) && Number.isFinite(gizDrag.r?._cy) ? [gizDrag.r._cx, gizDrag.r._cy] : projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
+  let raw = gizmo.pos.clone(), screen = projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
   for (let [h, source] of splineData) {
     let d = evaluatedSplineData(h) || source;
     let pinned = snapCandidatePinned(h);
