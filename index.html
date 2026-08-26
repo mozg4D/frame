@@ -6016,17 +6016,21 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     let f = frames[row], v = new THREE2.Vector3().fromArray(handle);
     return f.n.clone().multiplyScalar(v.dot(plane.u)).addScaledVector(f.b, v.dot(plane.v)).addScaledVector(f.t, v.dot(plane.normal)).toArray();
   };
-  let profileAt = (contour, row = 0) => {
-    let sequence = addSplineSequence(data, !0), edges = [];
-    for (let edge of contour.edges) {
+  let profileAt = (contour, row = 0, startVertex = null) => {
+    let sequence = addSplineSequence(data, !0), edges = [], contourEdges = contour.edges;
+    if (startVertex != null) {
+      let startIndex = contourEdges.findIndex((edge) => edge.from === startVertex);
+      startIndex >= 0 && (contourEdges = contourEdges.slice(startIndex).concat(contourEdges.slice(0, startIndex)));
+    }
+    for (let edge of contourEdges) {
       let s = profileData.segments[edge.id], ha = edge.reversed ? s.hb : s.ha, hb = edge.reversed ? s.ha : s.hb, sid = addSplineSegment(data, sequence, rv(edge.from, row), rv(edge.to, row), transformHandle(ha, row), transformHandle(hb, row));
       data.segments[sid].soft = !!s.soft, inheritSplineApproximation(profileData, edge.id, data, sid), edges.push(sid);
     }
     return edges;
   };
   for (let contour of contours) {
-    profileAt(contour, 0);
     let anchors = splineRailAnchors(profileData, contour);
+    profileAt(contour, 0, anchors[0] ?? null);
     for (let anchor of anchors) {
       let rail = addSplineSequence(data, !!pathSequence.closed), railVertices = pathPoints.map((_, row) => rv(anchor, row)), local = coords.get(anchor), offsetAt = (frame) => frame.n.clone().multiplyScalar(local[0]).addScaledVector(frame.b, local[1]).addScaledVector(frame.t, local[2]), frameAt = (a, b, t) => {
         let tangent = new THREE2.Vector3().fromArray(cubicDerivative(a.controls, t));
@@ -6045,9 +6049,8 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
         data.segments[sid].soft = !!pathData.segments[segment.id]?.soft, inheritSplineApproximation(pathData, segment.id, data, sid);
       }
     }
+    !pathSequence.closed && profileAt(contour, pathPoints.length - 1, anchors[0] ?? null);
   }
-  if (!pathSequence.closed)
-    for (let contour of contours) profileAt(contour, pathPoints.length - 1);
   data.patchCells = [];
   let validation = validateSpline(data);
   if (!validation.ok) throw new Error(validation.errors.join("; "));
