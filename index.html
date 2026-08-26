@@ -1292,12 +1292,23 @@ function inferLatheCageCell(data, sequences) {
 }
 function inferExtrudeCageCells(data, sequences) {
   let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear), open = sequences.filter((item) => !item.sequence.closed);
-  if (!profiles.length || open.length < profiles.length * 2) return null;
+  if (profiles.length < 2 || profiles.length % 2 || open.length < 2) return null;
+  let profileByVertex = /* @__PURE__ */ new Map();
+  profiles.forEach((profile, index) => profile.vertices.forEach((vid) => profileByVertex.has(vid) || profileByVertex.set(vid, index)));
+  let groups = /* @__PURE__ */ new Map(), endpointPair = (rail) => {
+    let a = profileByVertex.get(rail.vertices[0]), b = profileByVertex.get(rail.vertices.at(-1));
+    return a == null || b == null || a === b ? null : { key: a < b ? `${a}|${b}` : `${b}|${a}`, a, b };
+  };
+  for (let rail of open) {
+    let pair = endpointPair(rail);
+    if (!pair) continue;
+    let group = groups.get(pair.key);
+    group || groups.set(pair.key, group = { a: Math.min(pair.a, pair.b), b: Math.max(pair.a, pair.b), rails: [] }), group.rails.push(rail);
+  }
+  if (groups.size !== profiles.length / 2 || [...groups.values()].some((group) => group.rails.length !== 2)) return null;
   let used = new Set(), cells = [], distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-  for (let profile of profiles) {
-    let vertices = new Set(profile.vertices), rails = open.filter((item) => !used.has(item.sequence.id) && (vertices.has(item.vertices[0]) || vertices.has(item.vertices.at(-1))));
-    if (rails.length !== 2) return null;
-    let oriented = rails.map((rail) => rail.vertices[0] && vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
+  for (let group of groups.values()) {
+    let profile = profiles[group.a], vertices = new Set(profile.vertices), oriented = group.rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
     if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)))) return null;
     let vectors = oriented.map((rail) => splineMath.sub(data.vertices[rail.vertices.at(-1)], data.vertices[rail.vertices[0]])), scale = Math.max(1, ...vectors.map((v) => Math.hypot(...v)));
     if (distance(vectors[0], vectors[1]) > scale * 1e-6 || Math.hypot(...vectors[0]) <= scale * 1e-8) return null;
@@ -1310,17 +1321,41 @@ function inferExtrudeCageCells(data, sequences) {
 function inferSweepCageCells(data, sequences) {
   let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear);
   if (!profiles.length) return null;
-  let used = new Set(), cells = [];
-  for (let profile of profiles) {
-    let vertices = new Set(profile.vertices), rails = sequences.filter((item) => item !== profile && !used.has(item.sequence.id) && (vertices.has(item.vertices[0]) || vertices.has(item.vertices.at(-1))));
-    if (rails.length !== 2) return null;
-    let oriented = rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
-    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)))) return null;
+  let open = sequences.filter((item) => !item.sequence.closed), closedRails = sequences.filter((item) => item.sequence.closed && !profiles.includes(item)), used = new Set(), cells = [], addCell = (profile, rails, pathClosed) => {
+    let vertices = new Set(profile.vertices), oriented = rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
+    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || !pathClosed && vertices.has(rail.vertices.at(-1)))) return null;
     oriented.forEach((rail) => used.add(rail.sequence.id));
     let path = oriented[0], controls = path.edges.flatMap((edge) => segmentPoints(data, edge.id) || []), normal = profile.plane.normal.clone().normalize(), railCoplanar = controls.every((p) => Math.abs(new THREE2.Vector3().fromArray(p).sub(profile.plane.origin).dot(normal)) <= Math.max(1, profile.plane.scale || 0) * 2e-5);
-    cells.push({ id: `sweep-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(path.edges), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !0, pathClosed: !1, profileIndex: cells.length, railCoplanar } });
+    return { id: `sweep-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(path.edges), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !0, pathClosed, profileIndex: cells.length, railCoplanar } };
+  };
+  if (open.length) {
+    if (open.length !== profiles.length) return null;
+    let profileByVertex = /* @__PURE__ */ new Map();
+    profiles.forEach((profile, index) => profile.vertices.forEach((vid) => profileByVertex.has(vid) || profileByVertex.set(vid, index)));
+    let groups = /* @__PURE__ */ new Map();
+    for (let rail of open) {
+      let a = profileByVertex.get(rail.vertices[0]), b = profileByVertex.get(rail.vertices.at(-1));
+      if (a == null || b == null || a === b) return null;
+      let key = a < b ? `${a}|${b}` : `${b}|${a}`, group = groups.get(key);
+      group || groups.set(key, group = { a: Math.min(a, b), b: Math.max(a, b), rails: [] }), group.rails.push(rail);
+    }
+    if (groups.size !== profiles.length / 2 || [...groups.values()].some((group) => group.rails.length !== 2)) return null;
+    for (let group of groups.values()) {
+      let cell = addCell(profiles[group.a], group.rails, !1);
+      if (!cell) return null;
+      cells.push(cell);
+    }
+    return used.size === open.length ? cells : null;
   }
-  return used.size === sequences.length - profiles.length ? cells : null;
+  if (closedRails.length !== profiles.length * 2) return null;
+  for (let profile of profiles) {
+    let vertices = new Set(profile.vertices), rails = closedRails.filter((item) => !used.has(item.sequence.id) && vertices.has(item.vertices[0]));
+    if (rails.length !== 2) return null;
+    let cell = addCell(profile, rails, !0);
+    if (!cell) return null;
+    cells.push(cell);
+  }
+  return used.size === closedRails.length ? cells : null;
 }
 function inferProfilePathCells(data) {
   let sequences = data.sequences.filter((q) => q.segments.length).map((sequence) => ({ sequence, ...orderedSplineSequence(data, sequence) }));
@@ -3150,7 +3185,7 @@ function buildExtrudeSplineCage(source, offsetVector) {
   let topology = resolveSplineTopology(source), cycles = topology.planarContours.filter((c) => c.edges.length);
   if (!cycles.length) throw new Error("Extrude needs at least one closed planar contour");
   if (cycles.some((c) => !c.plane?.planar)) throw new Error("Extrude profile must be planar");
-  let cage = createSplineData({ angle: source.approximation?.angle || 10 }), vertices = /* @__PURE__ */ new Map(), edgeCopies = [], copyVertex = (id2) => (vertices.has(id2) || vertices.set(id2, addSplineVertex(cage, source.vertices[id2].slice())), vertices.get(id2));
+  let cage = createSplineData({ angle: source.approximation?.angle || 10 }), vertices = /* @__PURE__ */ new Map(), topVertices = /* @__PURE__ */ new Map(), edgeCopies = [], copyVertex = (id2) => (vertices.has(id2) || vertices.set(id2, addSplineVertex(cage, source.vertices[id2].slice())), vertices.get(id2)), topVertex = (id2) => (topVertices.has(id2) || topVertices.set(id2, addSplineVertex(cage, add3(source.vertices[id2], offsetVector))), topVertices.get(id2));
   cage.planarFills = [], cage.patchCells = [];
   for (let cycle of cycles) {
     let sequence = addSplineSequence(cage, !0), edges = [];
@@ -3161,9 +3196,17 @@ function buildExtrudeSplineCage(source, offsetVector) {
     edgeCopies.push({ cycle: cycle.id, bottomEdges: edges, topEdges: [], rails: [] });
   }
   for (let i = 0; i < cycles.length; i++) {
+    let cycle = cycles[i], sequence = addSplineSequence(cage, !0), edges = [];
+    for (let edge of cycle.edges) {
+      let s = source.segments[edge.id], ha = edge.reversed ? s.hb : s.ha, hb = edge.reversed ? s.ha : s.hb, sid = addSplineSegment(cage, sequence, topVertex(edge.from), topVertex(edge.to), ha.slice(), hb.slice());
+      cage.segments[sid].soft = !!s.soft, inheritSplineApproximation(source, edge.id, cage, sid), edges.push(sid);
+    }
+    edgeCopies[i].topEdges = edges;
+  }
+  for (let i = 0; i < cycles.length; i++) {
     let cycle = cycles[i], anchors = splineRailAnchors(source, cycle);
     for (let anchor of anchors) {
-      let start = copyVertex(anchor), end = addSplineVertex(cage, add3(source.vertices[anchor], offsetVector)), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
+      let start = copyVertex(anchor), end = topVertex(anchor), path = addSplineSequence(cage, !1), rail = addSplineSegment(cage, path, start, end, mul4(offsetVector, 1 / 3), mul4(offsetVector, -1 / 3));
       cage.segments[rail].soft = !0, inheritSplineApproximation(source, cycle.edges[0]?.id, cage, rail), edgeCopies[i].rails.push(rail);
     }
   }
@@ -5817,7 +5860,6 @@ function splineCageEdge(data, a, b, ha = [0, 0, 0], hb = [0, 0, 0], soft = !1) {
 function splineRailAnchors(data, ordered) {
   let vertices = ordered?.vertices || [];
   if (vertices.length < 2) return [];
-  if (!ordered.sequence?.closed) return [vertices[0], vertices.at(-1)];
   let best = [vertices[0], vertices[1]], distance = -1;
   for (let i = 0; i < vertices.length; i++) for (let j = i + 1; j < vertices.length; j++) {
     let d = dist(data.vertices[vertices[i]], data.vertices[vertices[j]]);
@@ -5991,6 +6033,8 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
       }
     }
   }
+  if (!pathSequence.closed)
+    for (let contour of contours) profileAt(contour, pathPoints.length - 1);
   data.patchCells = [];
   let validation = validateSpline(data);
   if (!validation.ok) throw new Error(validation.errors.join("; "));
