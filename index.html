@@ -1293,6 +1293,13 @@ function inferLatheCageCell(data, sequences) {
 function inferExtrudeCageCells(data, sequences) {
   let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear), open = sequences.filter((item) => !item.sequence.closed);
   if (profiles.length < 2 || profiles.length % 2 || open.length < 2) return null;
+  let straightRail = (rail) => {
+    let a = data.vertices[rail.vertices[0]], b = data.vertices[rail.vertices.at(-1)];
+    if (!a || !b) return !1;
+    let direction = splineMath.sub(b, a), length = Math.hypot(...direction);
+    if (length <= 1e-8) return !1;
+    return rail.controls.every((point) => Math.hypot(...splineMath.cross(splineMath.sub(point, a), direction)) <= Math.max(1, length) * 1e-6);
+  };
   let profileByVertex = /* @__PURE__ */ new Map();
   profiles.forEach((profile, index) => profile.vertices.forEach((vid) => profileByVertex.has(vid) || profileByVertex.set(vid, index)));
   let groups = /* @__PURE__ */ new Map(), endpointPair = (rail) => {
@@ -1309,7 +1316,7 @@ function inferExtrudeCageCells(data, sequences) {
   let used = new Set(), cells = [], distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
   for (let group of groups.values()) {
     let profile = profiles[group.a], vertices = new Set(profile.vertices), oriented = group.rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
-    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)))) return null;
+    if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || vertices.has(rail.vertices.at(-1)) || !straightRail(rail))) return null;
     let vectors = oriented.map((rail) => splineMath.sub(data.vertices[rail.vertices.at(-1)], data.vertices[rail.vertices[0]])), scale = Math.max(1, ...vectors.map((v) => Math.hypot(...v)));
     if (distance(vectors[0], vectors[1]) > scale * 1e-6 || Math.hypot(...vectors[0]) <= scale * 1e-8) return null;
     oriented.forEach((rail) => used.add(rail.sequence.id));
@@ -1321,12 +1328,12 @@ function inferExtrudeCageCells(data, sequences) {
 function inferSweepCageCells(data, sequences) {
   let profiles = sequences.filter((item) => item.sequence.closed && item.plane?.planar && !item.plane.collinear);
   if (!profiles.length) return null;
-  let open = sequences.filter((item) => !item.sequence.closed), closedRails = sequences.filter((item) => item.sequence.closed && !profiles.includes(item)), used = new Set(), cells = [], addCell = (profile, rails, pathClosed) => {
+  let open = sequences.filter((item) => !item.sequence.closed), closedRails = sequences.filter((item) => item.sequence.closed && !profiles.includes(item)), used = new Set(), cells = [], addCell = (profile, rails, pathClosed, endProfile = null) => {
     let vertices = new Set(profile.vertices), oriented = rails.map((rail) => vertices.has(rail.vertices[0]) ? rail : { ...rail, vertices: rail.vertices.slice().reverse(), edges: reverseLogicalEdges(rail.edges) });
     if (oriented.some((rail) => !vertices.has(rail.vertices[0]) || !pathClosed && vertices.has(rail.vertices.at(-1)))) return null;
     oriented.forEach((rail) => used.add(rail.sequence.id));
     let path = oriented[0], controls = path.edges.flatMap((edge) => segmentPoints(data, edge.id) || []), normal = profile.plane.normal.clone().normalize(), railCoplanar = controls.every((p) => Math.abs(new THREE2.Vector3().fromArray(p).sub(profile.plane.origin).dot(normal)) <= Math.max(1, profile.plane.scale || 0) * 2e-5);
-    return { id: `sweep-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(path.edges), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), path: path.edges.slice(), profileClosed: !0, pathClosed, profileIndex: cells.length, railCoplanar } };
+    return { id: `sweep-cage:${profile.sequence.id}:${oriented.map((rail) => rail.sequence.id).join("+")}`, vertices: profile.vertices.slice(), edges: profile.edges.concat(...oriented.map((rail) => rail.edges)), sides: [], plane: { planar: !1, normal: normal.toArray() }, planar: !1, sweep: { profile: profile.edges.slice(), profile2: endProfile?.edges.slice() || null, path: path.edges.slice(), path2: oriented[1]?.edges.slice() || null, profileClosed: !0, pathClosed, profileIndex: cells.length, railCoplanar } };
   };
   if (open.length) {
     if (open.length !== profiles.length) return null;
@@ -1341,7 +1348,7 @@ function inferSweepCageCells(data, sequences) {
     }
     if (groups.size !== profiles.length / 2 || [...groups.values()].some((group) => group.rails.length !== 2)) return null;
     for (let group of groups.values()) {
-      let cell = addCell(profiles[group.a], group.rails, !1);
+      let cell = addCell(profiles[group.a], group.rails, !1, profiles[group.b]);
       if (!cell) return null;
       cells.push(cell);
     }
@@ -2928,11 +2935,16 @@ var translationPatchVector = (bottom, top, left, right) => {
   if (!samples.every((u) => near(position(u, 1), top.cache.EvalPosition(u), scale * 3e-3))) return null;
   let jet = (u, v) => ({ position: position(u, v), Su: frame(mul2(bottom.cache.EvalTangent(u), bottom.cache.totalLength), v), Sv: mul2(rail.EvalTangent(v), rail.totalLength) });
   return { Eval: (u, v) => jet(u, v).position, EvalJet: jet };
-}, profilePathPredictor = (profile, path, pathClosed = !1) => {
+}, profilePathPredictor = (profile, path, pathClosed = !1, path2 = null, profile2 = null) => {
   let samples = [0, 0.125, 0.25, 0.5, 0.75, 0.875, 1], start = path.EvalPosition(0), finish = path.EvalPosition(1), scale = Math.max(1, profile.totalLength, path.totalLength), tolerance = scale * 2e-5, straight = samples.every((v) => len2(sub2(path.EvalPosition(v), add2(start, mul2(sub2(finish, start), v)))) <= tolerance);
   if (straight && len2(sub2(finish, start)) > tolerance) {
     let jet = (u, v) => ({ position: add2(profile.EvalPosition(u), sub2(path.EvalPosition(v), start)), Su: mul2(profile.EvalTangent(u), profile.totalLength), Sv: mul2(path.EvalTangent(v), path.totalLength) });
     return { predictor: { Eval: (u, v) => jet(u, v).position, EvalJet: jet }, algorithm: "analytic-profile-path-translation" };
+  }
+  let parallelDelta = path2 ? sub2(path2.EvalPosition(0), start) : null, parallelRails = parallelDelta && samples.every((v) => len2(sub2(sub2(path2.EvalPosition(v), path.EvalPosition(v)), parallelDelta)) <= scale * 2e-3), profileDelta = profile2 ? sub2(profile2.EvalPosition(0), profile.EvalPosition(0)) : null, parallelProfile = profileDelta && samples.every((u) => len2(sub2(sub2(profile2.EvalPosition(u), profile.EvalPosition(u)), profileDelta)) <= scale * 2e-3), parallel = parallelRails && (!profile2 || parallelProfile);
+  if (parallel) {
+    let jet = (u, v) => ({ position: add2(path.EvalPosition(v), sub2(profile.EvalPosition(u), start)), Su: mul2(profile.EvalTangent(u), profile.totalLength), Sv: mul2(path.EvalTangent(v), path.totalLength) });
+    return { predictor: { Eval: (u, v) => jet(u, v).position, EvalJet: jet }, algorithm: "analytic-profile-path-parallel" };
   }
   let a = path.EvalPosition(0), m = path.EvalPosition(pathClosed ? 0.25 : 0.5), b = path.EvalPosition(pathClosed ? 0.5 : 1), ab = sub2(m, a), ac = sub2(b, a), axis = unit(cross2(ab, ac)), n2 = dot2(cross2(ab, ac), cross2(ab, ac)), center = null;
   if (n2 > tolerance * tolerance * tolerance * tolerance) {
@@ -2971,7 +2983,7 @@ var translationPatchVector = (bottom, top, left, right) => {
 };
 var cellSurface = (data, cell, version, g1 = null, includeBoundaries = !0) => {
   if (cell.sweep) {
-    let profile = logicalChain(data, cell.sweep.profile), path = logicalChain(data, cell.sweep.path), result = profilePathPredictor(profile.cache, path.cache, cell.sweep.pathClosed), predictor = result.predictor, bottom = logicalSamples(data, profile), pathSamples = logicalSamples(data, path), generated = (side, u) => pathSamples.map((sample, i) => ({ id: `${cell.id}:${side}:${i}`, s: sample.s, xyz: predictor.Eval(u, sample.s) })), left = generated("left", 0), right = cell.sweep.profileClosed ? left.map((sample) => ({ ...sample })) : generated("right", 1), top = cell.sweep.pathClosed ? bottom.map((sample) => ({ ...sample })) : bottom.map((sample, i) => ({ id: `${cell.id}:top:${i}`, s: sample.s, xyz: predictor.Eval(sample.s, 1) })), collapsed = (samples) => samples.length > 1 && samples.every((sample) => len2(sub2(sample.xyz, samples[0].xyz)) < 1e-9), rotationalSurface = result.algorithm.includes("rotation"), rotationLens = rotationalSurface && collapsed(left) && collapsed(right), railCoplanar = !!cell.sweep.railCoplanar, boundaryMap = boundaryMapFor([[profile, (s) => [s, 0]], [path, (s) => [0, s]]]), boundaries = includeBoundaries ? { bottom, top, left, right } : null;
+    let profile = logicalChain(data, cell.sweep.profile), profile2 = cell.sweep.profile2?.length ? logicalChain(data, cell.sweep.profile2) : null, path = logicalChain(data, cell.sweep.path), path2 = cell.sweep.path2?.length ? logicalChain(data, cell.sweep.path2) : null, result = profilePathPredictor(profile.cache, path.cache, cell.sweep.pathClosed, path2?.cache || null, profile2?.cache || null), predictor = result.predictor, bottom = logicalSamples(data, profile), pathSamples = logicalSamples(data, path), generated = (side, u) => pathSamples.map((sample, i) => ({ id: `${cell.id}:${side}:${i}`, s: sample.s, xyz: predictor.Eval(u, sample.s) })), left = generated("left", 0), right = cell.sweep.profileClosed ? left.map((sample) => ({ ...sample })) : generated("right", 1), top = cell.sweep.pathClosed ? bottom.map((sample) => ({ ...sample })) : bottom.map((sample, i) => ({ id: `${cell.id}:top:${i}`, s: sample.s, xyz: predictor.Eval(sample.s, 1) })), collapsed = (samples) => samples.length > 1 && samples.every((sample) => len2(sub2(sample.xyz, samples[0].xyz)) < 1e-9), rotationalSurface = result.algorithm.includes("rotation"), rotationLens = rotationalSurface && collapsed(left) && collapsed(right), railCoplanar = !!cell.sweep.railCoplanar, boundaryMap = boundaryMapFor([[profile, (s) => [s, 0]], [path, (s) => [0, s]]]), boundaries = includeBoundaries ? { bottom, top, left, right } : null;
     return { surface: new CompiledSurfaceCell(cell.id, predictor, { domain: rotationLens ? { type: "lens", collapsedAxis: "u" } : { type: "quad" }, boundaryMap, geometryVersion: version, chartVersion: 1, orientationNormal: cell.plane?.normal, statuses: surfaceStatuses(null, cell, [profile, path]) }), boundaries, kind: "quad", algorithm: result.algorithm, hardU: profile.hardKnots || [], hardClosure: !!profile.closureCrease, needsPositionWeld: !cell.sweep.profileClosed && cell.sweep.pathClosed, sweepCap: !cell.sweep.pathClosed && !railCoplanar && !rotationalSurface && bottom.length >= 3 ? { start: bottom, end: top, group: cell.sweep.path[0] } : null };
   }
   let sides = cell.sides || cell.edges.map((edge) => [edge]);
@@ -4885,7 +4897,7 @@ function evaluateSplineGeneratorNode(h) {
           let offset = new THREE2.Vector3().fromArray(first.plane.normal).normalize().multiplyScalar(+p.offset || 0).toArray();
           generated = buildExtrudeSplineCage(sources[0].data, offset);
         }
-      } else type === "lathe" ? generated = { data: buildLatheSplineCage(sources[0].data, p, generatorPivot), sourceTopology: resolveSplineTopology(sources[0].data) } : generated = { data: buildSweepSplineCage(sources[0].data, sources[1].data, sources[0].pivot), sourceTopology: resolveSplineTopology(sources[0].data) };
+      } else type === "lathe" ? generated = { data: buildLatheSplineCage(sources[0].data, p, generatorPivot), sourceTopology: resolveSplineTopology(sources[0].data) } : generated = { data: buildSweepSplineCage(sources[0].data, sources[1].data, sources[0].pivot, p.mode), sourceTopology: resolveSplineTopology(sources[0].data) };
       state.generatedCageData = cloneSplineData(generated.data);
       let built = compileSplinePatchBackend(generated.data, `generator:${h}`);
       if (built.report = { ...built.report, generator: type, generatedCage: !0, triangleFallback: !1, inputContours: generated.sourceTopology?.planarContours?.length ?? null, buildMilliseconds: performance.now() - buildStarted }, built.cage = approximateSpline(generated.data).map((q) => ({ kind: "boundary", closed: q.closed, points: q.points.map((x) => x.position) })), built.cageData = generated.data, state.report = built.report, state.topology = built.topology || null, !built.report.ok || !built.indices.length) throw new Error(built.report?.errors?.[0] || `${type} result is empty`);
@@ -5980,9 +5992,12 @@ function orderedSplineSequence(data, sequence) {
   sequence.closed && vertices.at(-1) === vertices[0] && vertices.pop();
   return { vertices, edges };
 }
-function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
+function buildSweepSplineCage(profileData, pathData, profilePivot = null, mode = "parallel") {
+  mode = mode === "tangent" ? "tangent" : "parallel";
+  let profileRotation = new THREE2.Quaternion();
   if (profilePivot) {
     let pivot = rigidSplinePivotMatrix(profilePivot);
+    profileRotation.setFromRotationMatrix(pivot);
     profileData = cloneSplineData(profileData), transformWholeSplineData(profileData, pivot.invert());
   }
   let topology = resolveSplineTopology(profileData), contours = topology.planarContours, pathSequence = pathData.sequences.find((q) => q.segments.length);
@@ -6000,7 +6015,12 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     return tangent;
   }), allProfileSegments = contours.flatMap((c) => c.edges.map((e) => e.id)), plane = generatorPlaneForData(profileData, allProfileSegments);
   if (!plane?.planar || plane.collinear) throw new Error("Sweep profile must be planar");
-  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(plane.normal.clone().normalize(), firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, plane.u.clone().applyQuaternion(rotation), pathTangents), data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 10, pathData.approximation?.angle || 10) }), rowVertices = /* @__PURE__ */ new Map();
+  let firstDirection = pathTangents[0].lengthSq() > 1e-12 ? pathTangents[0].clone().normalize() : new THREE2.Vector3().fromArray(pathPoints[1]).sub(new THREE2.Vector3().fromArray(pathPoints[0])).normalize(), profileNormal = plane.normal.clone().applyQuaternion(profileRotation).normalize(), profileU = plane.u.clone().applyQuaternion(profileRotation).normalize(), rotation = new THREE2.Quaternion().setFromUnitVectors(profileNormal, firstDirection), frames = buildSweepFrames(pathPoints, pathSequence.closed, profileU.applyQuaternion(rotation), pathTangents);
+  if (mode === "parallel") {
+    let base = frames[0];
+    frames = frames.map((frame) => ({ p: frame.p, t: base.t.clone(), n: base.n.clone(), b: base.b.clone() }));
+  }
+  let data = createSplineData({ angle: Math.min(profileData.approximation?.angle || 10, pathData.approximation?.angle || 10) }), rowVertices = /* @__PURE__ */ new Map();
   data.patchCells = [], data.planarFills = [];
   let coords = /* @__PURE__ */ new Map();
   for (let contour of contours) for (let vid of contour.vertices) if (!coords.has(vid)) {
@@ -6033,6 +6053,10 @@ function buildSweepSplineCage(profileData, pathData, profilePivot = null) {
     profileAt(contour, 0, anchors[0] ?? null);
     for (let anchor of anchors) {
       let rail = addSplineSequence(data, !!pathSequence.closed), railVertices = pathPoints.map((_, row) => rv(anchor, row)), local = coords.get(anchor), offsetAt = (frame) => frame.n.clone().multiplyScalar(local[0]).addScaledVector(frame.b, local[1]).addScaledVector(frame.t, local[2]), frameAt = (a, b, t) => {
+        if (mode === "parallel") {
+          let base = frames[0];
+          return { p: new THREE2.Vector3().fromArray(cubicPoint(a.controls, t)), t: base.t.clone(), n: base.n.clone(), b: base.b.clone() };
+        }
         let tangent = new THREE2.Vector3().fromArray(cubicDerivative(a.controls, t));
         tangent.lengthSq() < 1e-12 && tangent.copy(b.t), tangent.normalize();
         let normal = a.n.clone().multiplyScalar(1 - t).addScaledVector(b.n, t).addScaledVector(tangent, -a.n.clone().multiplyScalar(1 - t).addScaledVector(b.n, t).dot(tangent));
@@ -11108,7 +11132,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   spline_patch: () => ({}),
   extrude: () => ({ offset: 10, startFillet: !1, startType: "flat", startSize: 1, startAngle: 10, endFillet: !1, endType: "flat", endSize: 1, endAngle: 10 }),
   lathe: () => ({ angle: 360, approximation: 10 }),
-  sweep: () => ({}),
+  sweep: () => ({ mode: "parallel" }),
   boolean: () => ({ op: "subtract" }),
   symmetry: () => ({ x: !0, y: !1, z: !1 }),
   cloner: () => ({ mode: "radial", count: 5, angle: 360, mx: 3, my: 3, mz: 3, dx: 100, dy: 100, dz: 100 }),
@@ -11133,7 +11157,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
     s: null
   },
   lathe: { f: ["angle", "approximation"], i: [], b: [], e: [], s: null },
-  sweep: { f: [], i: [], b: [], e: [], s: null },
+  sweep: { f: [], i: [], b: [], e: [["mode", ["parallel", "tangent"]]], s: null },
   boolean: { f: [], i: [], b: [], e: [["op", ["subtract", "intersect", "union"]]], s: null },
   symmetry: { f: [], i: [], b: ["x", "y", "z"], e: [], s: null },
   cloner: { f: ["angle", "dx", "dy", "dz"], i: ["count", "mx", "my", "mz"], b: [], e: [["mode", ["radial", "matrix"]]], s: null },
@@ -11404,8 +11428,13 @@ function renderLathe(h) {
     p.approximation = v;
   }, O_SPLINE_ANG);
 }
-function renderSweep() {
+function renderSweep(h) {
+  let p = objParams.get(h);
   attrContent.innerHTML = "";
+  let c = attrRow("movement");
+  attrBtns(c, ["parallel", "follow tangent"], () => p.mode === "tangent" ? "follow tangent" : "parallel", (value) => {
+    p.mode = value === "follow tangent" ? "tangent" : "parallel", scheduleGeneratorEvaluation(0, [h]);
+  }, h, () => renderSweep(h));
 }
 function renderBoolean(h) {
   let p = objParams.get(h), n = OBJ.get(h), operands = booleanChildren(n, p);
