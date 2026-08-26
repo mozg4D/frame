@@ -6125,7 +6125,7 @@ function clearSplineHover() {
   let old = splineHover.object;
   splineHover.kind = null, splineHover.object = null, splineHover.id = null, splineHover.side = null, splineHover.point = null, splineHover.pointVisible = !1, splineHover.t = 0, splineHover.view = -1, old && splineVisuals.has(old) && updateSplineVisual(old);
 }
-function splineScreenHit(cx, cy, { editing = splineMode, vertices = !0, handles = !0, segments = !0, radiusSegment = SNAP_PX } = {}) {
+function splineScreenHit(cx, cy, { editing = splineMode, vertices = !0, handles = !0, segments = !0, radiusSegment = SNAP_PX, object = null } = {}) {
   let vi = viewAt(cx, cy), r = rectFor(vi);
   if (vi < 0 || !r) return null;
   let cam = vpState.views[vi].cam;
@@ -6135,7 +6135,7 @@ function splineScreenHit(cx, cy, { editing = splineMode, vertices = !0, handles 
   };
   for (let h of splineData.keys()) {
     let d = evaluatedSplineData(h);
-    if (!OBJ.has(h) || !effectiveVisible(h) || editing && !selNodes.has(h)) continue;
+    if (!OBJ.has(h) || !effectiveVisible(h) || object && h !== object || editing && !selNodes.has(h) || editing && splineSelection.anchor?.object && h !== splineSelection.anchor.object) continue;
     let wm = splineWorldMatrix(h), project = (local) => {
       let w = new THREE2.Vector3().fromArray(local).applyMatrix4(wm), s = projectPx(w, cam, r);
       return [s[0], s[1], w];
@@ -10642,10 +10642,12 @@ function splineSelectHit(hit, mode = "replace") {
   if (mode === "replace" && splineSelectionClearElements(), mode === "invert" && set.has(id2) ? set.delete(id2) : set.add(id2), splineSelection.active = { kind: hit.kind, object: hit.object, id: hit.id, side: hit.side || null }, hit.kind === "vertex") {
     splineSelection.anchor = { object: hit.object, id: hit.id };
     let cam = vpState.views[hit.view]?.cam;
-    cam && hit.world && (splineWorkPlane = { point: hit.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) });
+    cam && hit.world && (splineWorkPlane = { object: hit.object, point: hit.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) });
   } else if (hit.kind === "segment") {
     let s = evaluatedSplineData(hit.object)?.segments[hit.id];
     s && (splineSelection.anchor = { object: hit.object, id: (hit.t || 0) < 0.5 ? s.a : s.b });
+    let cam = vpState.views[hit.view]?.cam;
+    cam && hit.world && (splineWorkPlane = { object: hit.object, point: hit.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) });
   }
   return splineSelection.pivot = null, updateAllSplineVisuals(), placeGizmoForSelection(), hit;
 }
@@ -10687,15 +10689,18 @@ function splinePointOnPlane(cx, cy, vi, object) {
   return world.applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray();
 }
 function splinePlacement(cx, cy, vi, object) {
-  let vh = splineScreenHit(cx, cy, { editing: !1, vertices: !0, handles: !1, segments: !1 });
+  let vh = splineScreenHit(cx, cy, { editing: !1, vertices: !0, handles: !1, segments: !1, object });
   if (vh && vh.d2 <= SNAP_PX * SNAP_PX) {
     let cam = vpState.views[vi].cam;
-    return splineWorkPlane = { point: vh.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: vh.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), vertex: { object: vh.object, id: vh.id }, world: vh.world.clone(), snapped: !0 };
+    return splineWorkPlane = { object, point: vh.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: vh.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), vertex: { object: vh.object, id: vh.id }, world: vh.world.clone(), snapped: !0 };
   }
   let anchor = splineSelection.anchor, d = splineData.get(anchor?.object), reference = anchor && d?.vertices[anchor.id] ? splineWorldPoint(anchor.object, d.vertices[anchor.id]) : null, ph = nearestPolygonVertex(cx, cy, vi, SNAP_PX, reference);
-  if (ph) {
+  if (anchor?.object === object && reference) {
+    let cam = vpState.views[vi]?.cam;
+    if (cam && (!splineWorkPlane || splineWorkPlane.object !== object)) splineWorkPlane = { object, point: reference.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) };
+  } else if (ph) {
     let cam = vpState.views[vi].cam;
-    return splineWorkPlane = { point: ph.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: ph.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), world: ph.world.clone(), snapped: !0, polygon: ph };
+    return splineWorkPlane = { object: null, point: ph.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: ph.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), world: ph.world.clone(), snapped: !0, polygon: ph };
   }
   let local = splinePointOnPlane(cx, cy, vi, object);
   return local && { local, world: splineWorldPoint(object, local), snapped: !1 };
