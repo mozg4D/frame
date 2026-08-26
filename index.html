@@ -9149,6 +9149,19 @@ function snapVertexOnly(pos, vi, proj) {
       d < bestD && (bestD = d, best = _v.clone());
     }
   }
+  for (let [h, data] of splineData) {
+    if (!OBJ.has(h) || !effectiveVisible(h)) continue;
+    let vertices = Object.values(data.vertices);
+    if (vertices.length > VERTEX_CAP) continue;
+    let wm = splineWorldMatrix(h);
+    for (let local of vertices) {
+      _v.fromArray(local).applyMatrix4(wm);
+      let ndc = _v.clone().project(cam);
+      if (ndc.z < -1 || ndc.z > 1 || !wire && !exactVertexVisible(_v, ndc, cam)) continue;
+      let p = projectPx(_v, cam, r), d = Math.hypot(p[0] - gp[0], p[1] - gp[1]);
+      d < bestD && (bestD = d, best = _v.clone());
+    }
+  }
   return best;
 }
 function snapMoveAxis(pos, vi, axisW, startPos) {
