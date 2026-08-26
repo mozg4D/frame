@@ -3740,10 +3740,10 @@ function getSnap() {
   return snapOn;
 }
 function setQuantize(on) {
-  on = !!on, on && snapOn && (snapOn = !1), quantOn = on;
+  quantOn = !!on;
 }
 function setSnap(on) {
-  on = !!on, on && quantOn && (quantOn = !1), snapOn = on;
+  snapOn = !!on;
 }
 function setGizmoVisible(b) {
   gizmoVisible = !!b, scheduleRender();
@@ -6231,21 +6231,23 @@ function readTransform(mode) {
   }
   if (splineFocusActive()) return readSplineTransform(mode);
   if (polyMode && polySelection.items.size) return readPolyTransform(mode);
-  let c = cubeRef.mesh, linM4, pos;
-  if (c && (c.visible || uvEdit || selNodes.size > 1))
+  let c = cubeRef.mesh, linM4, pos, n = hudNode ? OBJ.get(hudNode) : null;
+  if (n) {
+    if (editPivot) {
+      let pivotFrame = new THREE2.Matrix4().copy(gizmo.lin);
+      pivotFrame.setPosition(gizmo.pos);
+      mode !== "world" && pivotFrame.premultiply(worldMatrix(n).invert());
+      linM4 = _LM.copy(pivotFrame), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3().setFromMatrixPosition(pivotFrame);
+    } else if (mode === "world") {
+      let wm = worldMatrix(n);
+      linM4 = _LM.copy(wm), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3(wm.elements[12], wm.elements[13], wm.elements[14]);
+    } else
+      linM4 = _LM.copy(n.lin), pos = n.pos.clone();
+  } else if (c && (c.visible || uvEdit || selNodes.size > 1))
     mode === "world" ? (c.updateMatrixWorld(!0), linM4 = _LM.copy(c.matrixWorld), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3().setFromMatrixPosition(c.matrixWorld)) : (linM4 = _LM.copy(gizmo.lin), pos = gizmo.pos.clone());
-  else {
-    let n = hudNode ? OBJ.get(hudNode) : null;
-    if (n)
-      if (mode === "world") {
-        let wm = worldMatrix(n);
-        linM4 = _LM.copy(wm), linM4.elements[12] = 0, linM4.elements[13] = 0, linM4.elements[14] = 0, pos = new THREE2.Vector3(wm.elements[12], wm.elements[13], wm.elements[14]);
-      } else
-        linM4 = _LM.copy(n.lin), pos = n.pos.clone();
-    else
-      return { p: new THREE2.Vector3(), s: new THREE2.Vector3(1, 1, 1), e: new THREE2.Euler() };
-  }
-  let rotNode = hudNode ? OBJ.get(hudNode) : null, rotWorld = mode === "world" && rotNode ? worldMatrix(rotNode) : linM4;
+  else
+    return { p: new THREE2.Vector3(), s: new THREE2.Vector3(1, 1, 1), e: new THREE2.Euler() };
+  let rotNode = hudNode ? OBJ.get(hudNode) : null, rotWorld = editPivot ? linM4 : mode === "world" && rotNode ? worldMatrix(rotNode) : linM4;
   rotWorld.elements[12] = 0, rotWorld.elements[13] = 0, rotWorld.elements[14] = 0, rotMatOfLin(rotWorld, _RM);
   let e = new THREE2.Euler().setFromRotationMatrix(_RM), s = new THREE2.Vector3();
   if (uvEdit)
@@ -9457,24 +9459,9 @@ function doGizDrag(e) {
     } else if (gizDrag.mode === "scaleU") {
       let dragDelta = _t1.copy(_P).sub(gizDrag.gizHit), dx = e.clientX - gizDrag.startX, dy = e.clientY - gizDrag.startY, screenTravel = dx - dy, along = dragDelta.length() * Math.sign(screenTravel);
       let kraw = 1 + along / gizDrag.scaleRef;
-      if (quantOn) {
-        let base = Math.max(1e-9, ...gizDrag.startExtentU), step = quantStep();
-        kraw = Math.round(base * kraw / step) * step / base;
-      }
-      let pw = pwOf(view, r);
-      if (snapOn) {
-        let kmin = 1 / 0, hasExtent = !1;
-        for (let i = 0; i < 3; i++) {
-          let base = gizDrag.startExtentU[i], ws = base * kraw;
-          if (base <= MIN_COL * 2) continue;
-          hasExtent = !0;
-          ws = snapSizeGrid(ws, pw);
-          let kk = base > 1e-9 ? ws / base : 0;
-          kk < kmin && (kmin = kk);
-        }
-        hasExtent && isFinite(kmin) && (kraw = kmin);
-      }
-      kraw = Number.isFinite(kraw) ? Math.max(MIN_COL, kraw) : 1, applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: snapOn });
+      // Uniform scale is continuous. Quantize and vertex/grid snapping are
+      // reserved for movement and individual-axis scale handles.
+      kraw = Number.isFinite(kraw) ? Math.max(MIN_COL, kraw) : 1, applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: !1 });
     }
     syncCube(), emitTransform(), scheduleRender();
   }
@@ -14266,6 +14253,11 @@ function nodeWorldScaleAtObjectOrigin(h, before, gizmoWorld) {
   for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) dst[i] = src[i];
   return out;
 }
+function nodeWorldScaleByGizmoDeltaAtObjectOrigin(before, gizmoBefore, gizmoAfter) {
+  let out = new THREE2.Matrix4().fromArray(before), delta = new THREE2.Matrix4().fromArray(gizmoAfter).multiply(new THREE2.Matrix4().fromArray(gizmoBefore).invert()), scaled = delta.multiply(new THREE2.Matrix4().fromArray(before)), dst = out.elements, src = scaled.elements;
+  for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) dst[i] = src[i];
+  return out;
+}
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
@@ -14285,8 +14277,8 @@ function bridgeTransform() {
   }
   if (!boundNode) {
     if ((editPivot && !objectScaleDrag) || !gizBeforeMulti || !gizBeforeGizmo) return;
-    let delta2 = new THREE2.Matrix4().fromArray(getGizmoWorldArray()).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
-    for (let [h, before] of gizBeforeMulti) applyNodeWorld(h, delta2.clone().multiply(new THREE2.Matrix4().fromArray(before)).elements);
+    let current = getGizmoWorldArray(), delta2 = new THREE2.Matrix4().fromArray(current).multiply(new THREE2.Matrix4().fromArray(gizBeforeGizmo).invert());
+    for (let [h, before] of gizBeforeMulti) applyNodeWorld(h, objectScaleDrag ? nodeWorldScaleByGizmoDeltaAtObjectOrigin(before, gizBeforeGizmo, current).elements : delta2.clone().multiply(new THREE2.Matrix4().fromArray(before)).elements);
     return;
   }
   if (editPivot && boundNode === UV_VIRTUAL) return;
@@ -14296,7 +14288,7 @@ function bridgeTransform() {
     return;
   }
   let gmArr = getGizmoWorldArray();
-  if (editPivot && objectScaleDrag && gizBeforeObj) {
+  if (objectScaleDrag && gizBeforeObj) {
     applyNodeWorld(boundNode, nodeWorldScaleAtObjectOrigin(boundNode, gizBeforeObj, gmArr).elements);
     return;
   }
@@ -14462,7 +14454,7 @@ onGizmoDragEnd(() => {
       for (let [h, m] of before) applyNodeWorld(h, m);
       placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     } });
-    gizBeforeMulti = null, gizBeforeGizmo = null;
+    gizBeforeMulti = null, gizBeforeGizmo = null, objectScaleDrag && placeGizmoForSelection();
     return;
   }
   if (boundNode && editPivot && !objectScaleDrag && gizBeforeObjPivot) {
@@ -14484,7 +14476,7 @@ onGizmoDragEnd(() => {
         applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       } });
     }
-    let recenterGizmo = editPivot && objectScaleDrag;
+    let recenterGizmo = objectScaleDrag;
     gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, recenterGizmo && placeGizmoForSelection();
   } else
     gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
