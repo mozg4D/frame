@@ -14259,6 +14259,13 @@ function nodeWorldFromGizmo(h, arr) {
   let out = new THREE2.Matrix4().fromArray(arr), n = OBJ.get(h);
   return n?.pivot && out.multiply(new THREE2.Matrix4().copy(n.pivot).invert()), out;
 }
+function nodeWorldScaleAtObjectOrigin(h, before, gizmoWorld) {
+  let out = new THREE2.Matrix4().fromArray(before), n = OBJ.get(h);
+  if (!n?.pivot) return out;
+  let scaled = new THREE2.Matrix4().fromArray(gizmoWorld).multiply(new THREE2.Matrix4().copy(n.pivot).invert()), dst = out.elements, src = scaled.elements;
+  for (let i of [0, 1, 2, 4, 5, 6, 8, 9, 10]) dst[i] = src[i];
+  return out;
+}
 function bridgeTransform() {
   if (ignoreBridge) return;
   editPivot && snapOn && gizDrag?.mode === "move" && snapSplinePivotPreview();
@@ -14289,6 +14296,10 @@ function bridgeTransform() {
     return;
   }
   let gmArr = getGizmoWorldArray();
+  if (editPivot && objectScaleDrag && gizBeforeObj) {
+    applyNodeWorld(boundNode, nodeWorldScaleAtObjectOrigin(boundNode, gizBeforeObj, gmArr).elements);
+    return;
+  }
   if (!gizBeforeObj || !gizBeforeGizmo) {
     applyNodeWorld(boundNode, nodeWorldFromGizmo(boundNode, gmArr).elements);
     return;
@@ -14473,7 +14484,8 @@ onGizmoDragEnd(() => {
         applyNodeWorld(h, b), placeGizmoForSelection(), setGizmoVisible(selNodes.has(h));
       } });
     }
-    gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
+    let recenterGizmo = editPivot && objectScaleDrag;
+    gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, recenterGizmo && placeGizmoForSelection();
   } else
     gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
 });
