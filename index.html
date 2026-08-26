@@ -3767,6 +3767,7 @@ function angleStepPx(linePx) {
 }
 function snapSizeGrid(ws, pw) {
   let mi = Math.pow(10, Math.ceil(Math.log10(MAJOR_LO * pw))) * 0.1, aw = Math.abs(ws), r = Math.round(aw / mi) * mi;
+  aw > MIN_COL && (r = Math.max(mi, r));
   return ws < 0 ? -r : r;
 }
 function snapVisibleStep(pw) {
@@ -9246,10 +9247,10 @@ function snapMovePlane(pos, vi, u, v, origin) {
 function snapMoveScreen(pos, vi, screenPoint = null, startPos = null) {
   let view = vpState.views[vi], r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect;
   if (!view || !r) return pos.clone();
-  // Snapping a screen-plane move is defined by the pivot itself.  The
-  // visible P handle is offset above the gizmo, so using the mouse position
-  // would snap the handle while leaving the pivot away from the target.
-  let pivotScreen = projectPx(pos, view.cam, r), vpos = snapOn ? snapVertexOnly(pos, vi, pivotScreen) : null;
+  // The visible P handle is offset from the gizmo center.  The snap target is
+  // the vertex under the cursor, while the returned position is the gizmo
+  // center that must land on that vertex.
+  let targetScreen = Array.isArray(screenPoint) ? screenPoint : projectPx(pos, view.cam, r), vpos = snapOn ? snapVertexOnly(pos, vi, targetScreen) : null;
   if (vpos) return vpos.clone();
   if (view.type !== "ortho") return pos.clone();
   let u = view.axU.clone().normalize(), v = view.axV.clone().normalize(), n = u.clone().cross(v).normalize(), out = new THREE2.Vector3();
@@ -9325,10 +9326,7 @@ function startGizDrag(g, e) {
     if (name === "S") {
       let normal = viewDir.clone().negate();
       if (!planeHit(_o, _d, planePoint, normal, _P)) return;
-      let gizHit = _P.clone(), m = cam.matrixWorld.elements, diag = _P.clone().sub(planePoint);
-      diag.addScaledVector(normal, -diag.dot(normal));
-      if (diag.lengthSq() < 1e-10) diag.set(m[0] + m[4], m[1] + m[5], m[2] + m[6]);
-      diag.normalize();
+      let gizHit = _P.clone();
       lastBracketSig = null, updateBrackets(!1);
       let startExtentU = [gizmoBoundsMax.x - gizmoBoundsMin.x, gizmoBoundsMax.y - gizmoBoundsMin.y, gizmoBoundsMax.z - gizmoBoundsMin.z];
       gizDrag = {
@@ -9339,7 +9337,6 @@ function startGizDrag(g, e) {
         startWorld: new THREE2.Matrix4().copy(localTmp(gizmo)),
         startExtentU,
         scaleRef: Math.max(1e-9, ...startExtentU) * 0.5,
-        diag,
         startX: e.clientX,
         startY: e.clientY,
         view: g.view,
@@ -9443,11 +9440,7 @@ function doGizDrag(e) {
       let targetColLen = gizDrag.zeroAxis ? rawSize / UV_PROXY_SIZE : gizDrag.startAxisScale * factor, wM = gizmoLocal ? gizmoScaleObjectTo(gizDrag.startWorld, c, targetColLen, gizDrag.startOrient) : gizmoScaleWorld(gizDrag.startWorld, c, factor);
       applyGizmoWorld(wM), emitInfo({ kind: "scaleAxis", mm: rawSize });
     } else if (gizDrag.mode === "scaleU") {
-      let dragDelta = _t1.copy(_P).sub(gizDrag.gizHit), along = dragDelta.dot(gizDrag.diag);
-      if (Math.abs(along) < 1e-9) {
-        let m = cam.matrixWorld.elements, dx = e.clientX - gizDrag.startX, dy = e.clientY - gizDrag.startY, screenDir = _t2.set(m[0] * dx - m[4] * dy, m[1] * dx - m[5] * dy, m[2] * dx - m[6] * dy);
-        screenDir.lengthSq() > 1e-12 && (screenDir.normalize(), along = dragDelta.dot(screenDir));
-      }
+      let dragDelta = _t1.copy(_P).sub(gizDrag.gizHit), dx = e.clientX - gizDrag.startX, dy = e.clientY - gizDrag.startY, screenTravel = dx - dy, along = dragDelta.length() * Math.sign(screenTravel);
       let kraw = 1 + along / gizDrag.scaleRef;
       if (quantOn) {
         let base = Math.max(1e-9, ...gizDrag.startExtentU), step = quantStep();
@@ -9455,14 +9448,16 @@ function doGizDrag(e) {
       }
       let pw = pwOf(view, r);
       if (snapOn) {
-        let kmin = 1 / 0;
+        let kmin = 1 / 0, hasExtent = !1;
         for (let i = 0; i < 3; i++) {
           let base = gizDrag.startExtentU[i], ws = base * kraw;
+          if (base <= MIN_COL * 2) continue;
+          hasExtent = !0;
           ws = snapSizeGrid(ws, pw);
           let kk = base > 1e-9 ? ws / base : 0;
           kk < kmin && (kmin = kk);
         }
-        isFinite(kmin) && (kraw = kmin);
+        hasExtent && isFinite(kmin) && (kraw = kmin);
       }
       kraw = Number.isFinite(kraw) ? Math.max(MIN_COL, kraw) : 1, applyGizmoWorld(gizmoScaleU(gizDrag.startWorld, kraw)), emitInfo({ kind: "scaleU", k: kraw, approx: snapOn });
     }
@@ -10170,7 +10165,9 @@ function afterCmd() {
 }
 var coordMode = "object", editPivot = !1, pivotKeyDown = !1, pivotKeyGesture = !1, pivotKeyOriginal = !1, pivotKeyRestorePending = !1, coordBtn = document.getElementById("coordBtn");
 function setEditPivot(value) {
-  editPivot = !!value, document.getElementById("btnPivot").classList.toggle("on", editPivot), placeGizmoForSelection(), updateHUD(), scheduleRender();
+  editPivot = !!value, document.getElementById("btnPivot").classList.toggle("on", editPivot), placeGizmoForSelection();
+  let hasSelection = !!uvEdit || (vertexEditActive ? splineFocusActive() ? splineSelection.vertices.size + splineSelection.handles.size + splineSelection.segments.size > 0 : polyMode ? polySelection.items.size > 0 : !1 : selNodes.size > 0);
+  setGizmoVisible(hasSelection), updateHUD(), scheduleRender();
 }
 function finishMomentaryPivot(force = !1) {
   if (!pivotKeyDown && !force) return;
@@ -14163,7 +14160,7 @@ function snapSplinePivotPreview() {
   if (!snapOn || !gizDrag || gizDrag.mode !== "move") return;
   let vi = gizDrag.view, r = rectFor(vi), cam = vpState.views[vi]?.cam, wire = viewShading[vi] === 1;
   if (!r || !cam) return;
-  let raw = gizmo.pos.clone(), screen = projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
+  let raw = gizmo.pos.clone(), screen = Number.isFinite(gizDrag.r?._cx) && Number.isFinite(gizDrag.r?._cy) ? [gizDrag.r._cx, gizDrag.r._cy] : projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
   for (let [h, source] of splineData) {
     let d = evaluatedSplineData(h) || source;
     let pinned = snapCandidatePinned(h);
