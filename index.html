@@ -9246,7 +9246,10 @@ function snapMovePlane(pos, vi, u, v, origin) {
 function snapMoveScreen(pos, vi, screenPoint = null, startPos = null) {
   let view = vpState.views[vi], r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect;
   if (!view || !r) return pos.clone();
-  let vpos = snapOn ? snapVertexOnly(pos, vi, screenPoint) : null;
+  // Snapping a screen-plane move is defined by the pivot itself.  The
+  // visible P handle is offset above the gizmo, so using the mouse position
+  // would snap the handle while leaving the pivot away from the target.
+  let pivotScreen = projectPx(pos, view.cam, r), vpos = snapOn ? snapVertexOnly(pos, vi, pivotScreen) : null;
   if (vpos) return vpos.clone();
   if (view.type !== "ortho") return pos.clone();
   let u = view.axU.clone().normalize(), v = view.axV.clone().normalize(), n = u.clone().cross(v).normalize(), out = new THREE2.Vector3();
@@ -14159,7 +14162,7 @@ function snapSplinePivotPreview() {
   if (!snapOn || !gizDrag || gizDrag.mode !== "move") return;
   let vi = gizDrag.view, r = rectFor(vi), cam = vpState.views[vi]?.cam, wire = viewShading[vi] === 1;
   if (!r || !cam) return;
-  let raw = gizmo.pos.clone(), screen = Number.isFinite(gizDrag.r?._cx) && Number.isFinite(gizDrag.r?._cy) ? [gizDrag.r._cx, gizDrag.r._cy] : projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
+  let raw = gizmo.pos.clone(), screen = projectPx(raw, cam, r), best = null, bd = SNAP_PX * SNAP_PX, bwd = 1 / 0;
   for (let [h, source] of splineData) {
     let d = evaluatedSplineData(h) || source;
     let pinned = snapCandidatePinned(h);
@@ -14435,7 +14438,7 @@ onGizmoDragEnd(() => {
       setNodePivot(h, a), placeGizmoForSelection();
     }, undo() {
       setNodePivot(h, b), placeGizmoForSelection();
-    } }), gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
+    } }), gizBeforeObj = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, placeGizmoForSelection(), setGizmoVisible(selNodes.size > 0);
     return;
   }
   if (boundNode && gizBeforeObj) {
