@@ -10693,16 +10693,10 @@ function setPolyElementMode(mode) {
       setGizmoVisible(selNodes.size > 0), placeGizmoForSelection(), scheduleRender();
       return;
     }
-    let splines = selectedSplineNodes(), polys = selectedPolygonNodes();
-    if (!splines.length && !polys.length) {
-      stopVertexModeTool(), disableSoftSelection(!1), vertexEditActive = !1, splineMode = !1, polyMode = !1, polyElementMode = "vertex", componentFocus = "poly", clearSplineHover(), clearPolyHover(), clearSplineSelection(), clearPolySelection();
-      for (let button of Object.values(modeButtons)) button.classList.remove("on");
-      setGizmoVisible(selNodes.size > 0), placeGizmoForSelection(), scheduleRender();
-      return;
-    }
+    let splines = selectedSplineNodes(), polys = selectedPolygonNodes(), hasComponentTargets = splines.length > 0 || polys.length > 0;
     stopVertexModeTool(), disableSoftSelection(!1), vertexEditActive = !0, polyElementMode = "vertex", splineMode = splines.length > 0, polyMode = polys.length > 0, componentFocus = splineMode ? "spline" : "poly", clearSplineHover(), clearPolyHover(), clearSplineSelection(), clearPolySelection();
     for (let [kind, button] of Object.entries(modeButtons)) button.classList.toggle("on", kind === "vertex");
-    setGizmoVisible(!1), updateAllSplineVisuals(), placeGizmoForSelection(), scheduleRender();
+    setGizmoVisible(hasComponentTargets ? !1 : selNodes.size > 0), updateAllSplineVisuals(), placeGizmoForSelection(), scheduleRender();
     return;
   }
   (splineMode || vertexEditActive) && leaveSplineEdit();
@@ -14049,7 +14043,8 @@ onTransform(() => {
 });
 onViewportPick((hash, shift, mod) => {
   if (polyMode && hash && isVertexEditableMesh(hash)) return;
-  if (polyMode) hash ? setPolyElementMode(polyElementMode) : clearPolySelection();
+  if (polyMode && hash && !isVertexEditableMesh(hash)) polyMode = !1, clearPolySelection();
+  else if (polyMode && !hash) clearPolySelection();
   !shift && !mod && selMats.clear(), shift || mod ? hash && (selNodes.has(hash) ? selNodes.delete(hash) : (selNodes.add(hash), anchorNode = getObj(hash))) : hash ? (selNodes.clear(), selTags.clear(), selNodes.add(hash), anchorNode = getObj(hash)) : (selNodes.clear(), selTags.clear(), anchorNode = null), lastBracketSig = null, refreshSelClasses();
 });
 onGizmoDragStart((e) => {
