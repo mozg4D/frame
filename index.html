@@ -9058,6 +9058,7 @@ function hitGizmo(cx, cy) {
   let r = rectFor(vi);
   if (!r) return null;
   let fr = applyGizmo(vpState.views[vi], r), grp = fr.mode3D ? gizmo3D : vpState.views[vi].flat === "XZ" ? flatXZ : vpState.views[vi].flat === "XY" ? flatXY : flatYZ;
+  if (!gizmoVisible || !grp?.visible) return null;
   hNdc.set((cx - r.x) / r.w * 2 - 1, -((cy - r.y) / r.h) * 2 + 1), hRay.setFromCamera(hNdc, vpState.views[vi].cam);
   let cands = grp.children.slice();
   smallRing && smallRing.visible && cands.push(smallRing), sector && sector.visible && cands.push(sector);
