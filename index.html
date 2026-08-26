@@ -5150,7 +5150,15 @@ function createParametricCageData(type, p) {
     let outer = Math.max(0, +p.d1 || 0) * 0.5, inner = Math.min(outer, Math.max(0, +p.d2 || 0) * 0.5);
     data = createRoundPrimitiveCage(outer, inner, p.height, angle);
   }
-  return data && (data.approximation = { angle }), data;
+  if (data) {
+    data.approximation = { angle };
+    // Generated primitive cages must follow the primitive's public
+    // approximation value.  Some analytical profiles (notably the sphere)
+    // are authored with an internal sampling angle; keeping that value as a
+    // per-segment override makes changing the cage angle a no-op.
+    for (let segment of Object.values(data.segments)) segment.approximation = { angle };
+  }
+  return data;
 }
 function addClosedSpline(data, points, handles = null) {
   let q = addSplineSequence(data, !0), vs = points.map((point) => addSplineVertex(data, point));
@@ -5463,7 +5471,12 @@ function splineApproximation(h) {
   let p = objParams.get(h) || {}, d = splineData.get(h);
   if (!d) return null;
   let parametric = PARAMETRIC_SPLINE_TYPES.has(p.__type), value = parametric ? p.approximation : p.angle;
-  return p.angle = THREE2.MathUtils.clamp(Math.round(+value || +d.approximation?.angle || 10), 1, 180), parametric && (p.approximation = p.angle), delete p.interp, delete p.points, d.approximation = { angle: p.angle }, d.approximation;
+  p.angle = THREE2.MathUtils.clamp(Math.round(+value || +d.approximation?.angle || 10), 1, 180), parametric && (p.approximation = p.angle), delete p.interp, delete p.points, d.approximation = { angle: p.angle };
+  // Approximation is a spline-wide setting in the editor.  Generator cages
+  // may carry segment-level values for inheritance, but once the cage is a
+  // spline object those stale overrides must not mask the edited global angle.
+  for (let segment of Object.values(d.segments)) segment.approximation = { angle: p.angle };
+  return d.approximation;
 }
 function splineBevelTags(h) {
   return (OBJ.get(h)?.tags || []).filter((t) => t.type === 2);
