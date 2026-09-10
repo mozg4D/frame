@@ -3959,11 +3959,11 @@ function installReplicaResult(h, state, positions, indices, materials, groups, n
     let built = buildGeneratorRenderGeometry(positions, indices, groups, hasAnalytic ? normals : null, cornerNormals);
     g = built.geometry, state.renderSourceMap = built.source, state.renderNormalSource = built.normalSource, cornerNormals?.length === indices.length * 3 ? normalBackend = "analytic-cell-tangent-collinearity" : hasAnalytic && built.normalSource.some((x) => x >= 0) && (normalBackend = "analytic-EvalBatch+crease-area"), state.mesh.geometry = g, oldShared || old.dispose();
   } else if (liveSurface) {
-    g = new THREE2.BufferGeometry(), g.setAttribute("position", new THREE2.Float32BufferAttribute(positions, 3)), g.setIndex(indices);
+    g = new THREE2.BufferGeometry(), g.setAttribute("position", new THREE2.Float32BufferAttribute(positions, 3)), g.setIndex(new THREE2.Uint32BufferAttribute(indices, 1));
     for (let group of groups) g.addGroup(group.start, group.count, group.materialIndex);
     hasAnalytic ? (g.setAttribute("normal", new THREE2.Float32BufferAttribute(normals, 3)), normalBackend = "analytic-EvalBatch") : g.computeVertexNormals(), g.computeBoundingBox(), g.computeBoundingSphere(), state.renderSourceMap = Uint32Array.from({ length: positions.length / 3 }, (_, i) => i), state.renderNormalSource = hasAnalytic ? Int32Array.from({ length: positions.length / 3 }, (_, i) => i) : null, state.mesh.geometry = g, oldShared || old.dispose();
   } else {
-    g = new THREE2.BufferGeometry(), g.setAttribute("position", new THREE2.Float32BufferAttribute(positions, 3)), g.setIndex(indices);
+    g = new THREE2.BufferGeometry(), g.setAttribute("position", new THREE2.Float32BufferAttribute(positions, 3)), g.setIndex(new THREE2.Uint32BufferAttribute(indices, 1));
     for (let group of groups) g.addGroup(group.start, group.count, group.materialIndex);
     g.computeVertexNormals(), g.computeBoundingBox(), g.computeBoundingSphere(), state.mesh.geometry = g, oldShared || old.dispose(), rebuildCreaseRender(state.mesh), g = state.mesh.geometry, state.renderSourceMap = null;
   }
@@ -5794,7 +5794,7 @@ function updateSplineVisual(h) {
   if (!base || !v) return;
   splineApproximation(h);
   let data = evaluatedSplineData(h), signature = JSON.stringify(data), parent = OBJ.get(h)?.parent, parentType = parent && objParams.get(parent)?.__type;
-  v.surfaceSignature !== signature && (v.surfaceSignature = signature, parentType && ["extrude", "lathe", "sweep"].includes(parentType) && scheduleGeneratorEvaluation(0, [parent])), clearSplineGroup(v.group);
+  v.surfaceSignature !== signature && (v.surfaceSignature = signature, parentType && ["spline_patch", "extrude", "lathe", "sweep"].includes(parentType) && scheduleGeneratorEvaluation(0, [parent])), clearSplineGroup(v.group);
   let approximated = approximateSpline(data), lineColor = 4373736;
   for (let q of approximated) {
     if (q.points.length < 2) continue;
