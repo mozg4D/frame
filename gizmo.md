@@ -52,3 +52,18 @@ splines, generators, instances, nested objects, and skewed objects.
   the whole object.
 - Every completed gizmo or Coordinate Manager operation is one undoable action;
   undo and redo restore both object and pivot transforms exactly.
+
+
+## Surface pipeline
+
+All application JavaScript lives in `index.html`; Three.js 0.162.0 and optional format loaders use the existing CDN import map. The environment texture is embedded.
+
+- `FrameCageCells`: combinatorial shell selection from spline vertices and cubic segments; rejects planar internal cuts with incident curves on both sides. No primitive-type switch.
+- `FrameSurfaceKernel`: mathcode and meshcode from surface_unified_r6e91. Curved cells use its advancing front and cross-tangent interpolation. Planar contours and holes use Three.js triangulation.
+- `buildSplineSurface`: reuses angle-approximated boundary samples; shares node and segment/sample IDs across cells, validates edge incidence, degeneracy and winding, and orients closed surfaces outwards.
+- `cmdParametricToSplinePatch`: Cube/Sphere/Cylinder/Tube become a Spline Patch with one ordinary editable spline child. The parent keeps its identity, transform and tags. Undo restores the primitive.
+- `evaluateSplinePatchNode`: rebuilding is driven by child spline data and its transform. No retained primitive semantics or radial-normal override.
+
+At the default angle, expected cell counts: cube 6, sphere 8, cylinder 6, tube 10 (including two planar annuli). Cylinder has four vertical cage segments; tube has four outer and four inner segments.
+
+Validation: 24 geometry cases across 1/3/10/30/90/180 degrees, plus application DOM tests with real Three.js geometry for conversion, transformed objects, cage edits, Undo/Redo and native scene serialization. WebGL rendering is mocked in these DOM tests; they do not establish visual browser correctness. Cell selection remains combinatorial, not a proof against arbitrary self-intersections. Curved cell sides currently correspond to cubic cage segments; supported curved cells have 2–6 sides.
