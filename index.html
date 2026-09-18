@@ -184,8 +184,8 @@ border:1px solid #3a3a3a;border-radius:4px;font:14px/16px ui-monospace,Menlo,Con
 pointer-events:none;z-index:80;display:none;white-space:nowrap;letter-spacing:.2px}
 #dragInfo.show{display:block}
 #helpDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid #000;border-radius:6px;background:#222;color:#d8d8d8;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:auto}
-#helpDialog::backdrop{background:rgba(0,0,0,.55)}
-.help-card{margin:0}.help-head{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#181818;position:sticky;top:0}.help-head button{border:0;background:transparent;color:#ddd;font:22px/22px sans-serif;cursor:pointer}.help-body{padding:8px 12px 12px;user-select:text}.help-body p{margin:6px 0}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
+#helpDialog::backdrop{background:rgba(0,0,0,.38)}
+.help-card{margin:0}.help-body{padding:10px 12px 12px;user-select:text}.help-body p{margin:6px 0}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
 #obMenu,#vpMenu{max-width:100vw;max-height:100vh;box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
 @media (pointer:coarse){#obMenu .obm-item,#vpMenu .obm-item{padding-top:9px;padding-bottom:9px}}
 @media (max-width:520px){#panel{flex-basis:192px;width:192px}#tabstrip{width:192px}.obj-lib-grid{grid-template-columns:repeat(6,32px)}}
@@ -230,8 +230,8 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
 <div id="vp"></div>
 <div id="panel">
 <div id="filebar">
-<div class="tbtn" id="btnNew"      title="New"></div>
 <div class="tbtn" id="btnOpen"     title="Open (.hash)"></div>
+<div class="tbtn" id="btnRecents"  title="Recent files"></div>
 <div class="tbtn" id="btnSave"     title="Save"></div>
 <div class="tbtn" id="btnSaveAs"   title="Save as…"></div>
 <div class="tbtn" id="btnSaveInc"  title="Save incremental (+1)"></div>
@@ -250,7 +250,6 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
 </div>
 <div class="tabact">
 <div class="tabbtn actbtn" id="tabDelUnused" title="Remove unused / duplicate materials" style="display:none"></div>
-<div class="tabbtn actbtn" id="tabAddNew"    title="Add new" style="display:none"></div>
 </div>
 </div>
 <div id="panels">
@@ -350,9 +349,8 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
 <div id="obMenu"></div>
 <div id="vpMenu"></div>
 <div id="dragInfo"></div>
-<dialog id="helpDialog" aria-labelledby="helpTitle">
-  <form method="dialog" class="help-card">
-    <div class="help-head"><strong id="helpTitle">FRAME Help</strong><button value="close" aria-label="Close">×</button></div>
+<dialog id="helpDialog" aria-label="FRAME Help">
+  <div class="help-card">
     <div class="help-body">
       <p><kbd>Q</kbd> Quantize · <kbd>S</kbd> Snap · <kbd>W</kbd> World/Object · <kbd>P</kbd> Pivot</p>
       <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
@@ -361,7 +359,7 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
       <p>Double tap in a viewport: Quad / Single view. Long press: context menu.</p>
       <p>Touch: hold for a context menu. In Objects Browser, drag a name or row to move it; drop between rows to reorder, on a row to make a child. Scroll with two fingers, or drag empty space / the left indentation. Release outside the tree to cancel.</p>
     </div>
-  </form>
+  </div>
 </dialog>
 <script>
 /* FRAME r48: Extrude bevel reuses high-accuracy Outline fixed-cubic refinement; Tangential Sweep uses constant-parameter moving-frame rail fitting. */
@@ -383,7 +381,6 @@ const ICO_CUBE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fi
 const ICO_SQUARE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="11" height="11" fill="#9a9a9a"/><rect x="16" y="5" width="11" height="11" fill="#606060"/><rect x="5" y="16" width="11" height="11" fill="#606060"/><rect x="16" y="16" width="11" height="11" fill="#9a9a9a"/></svg>`;
 const ICO_PERSON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 13.5A9 9 0 0 1 25.5 13.5"/><line x1="6.5" y1="13.5" x2="6.5" y2="25"/><line x1="25.5" y1="13.5" x2="25.5" y2="25"/><ellipse cx="16" cy="25.5" rx="9.5" ry="2"/><circle cx="16" cy="11" r="2.5" fill="#9a9a9a"/><path d="M12 20.5C11.5 15 13.5 13.5 16 13.5C18.5 13.5 20.5 15 20 20.5Z" fill="#9a9a9a"/></svg>`;
 const ICO_HELP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 12.5A4.5 4.5 0 1 1 18.5 16.5C17 17.2 16 18.2 16 19.8"/><circle cx="16" cy="23" r="1.4" fill="#9a9a9a"/></svg>`;
-const ICO_NEW = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6L19.5 6L25 11.5L25 15.5"/><path d="M19 6.5L19 12L24 12"/><path d="M16 26L8 26L8 6"/><path d="M23 18L23 26" stroke="#c2c2c2" stroke-width="2" stroke-linecap="butt"/><path d="M19 22L27 22" stroke="#c2c2c2" stroke-width="2" stroke-linecap="butt"/></svg>`;
 const ICO_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9d8f80" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 25L9 13.5L27 13.5L25 25Z"/><polyline points="6.5,25 5.5,7.5 12,7.5 13.5,10 23,10 23.5,13.5"/></svg>`;
 const ICO_SAVE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="round"><line x1="11" y1="15" x2="20" y2="15"/><line x1="11" y1="19" x2="20" y2="19"/><line x1="11" y1="23" x2="20" y2="23"/><polyline points="8,5 5,8 5,24.5 8,27 24,27 27,24 27,10 22,5 8,5" stroke="#5a8aff" stroke-width="1" stroke-linecap="round"/><polyline points="18,5 11,5 11,11 21,11 21,5 18,5 18,11" stroke-linecap="round"/></svg>`;
 const ICO_SAVEAS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="11" y1="15" x2="14" y2="15" stroke-linecap="square"/><line x1="11" y1="19" x2="13" y2="19" stroke-linecap="square"/><line x1="11" y1="23" x2="20.5" y2="23" stroke-linecap="square"/><polyline points="18,17.5 17,19 19.5,19 28.5,12.5 27,10.5 18,17.5 19.5,19" stroke="#ffffff" stroke-width="2"/><polyline points="24.5,7.5 22,5 8,5 5,8 5,24.5 8,27 24,27 27,24" stroke="#5a8aff" stroke-width="1"/><polyline points="18,5 11,5 11,11 21,11 21,5 18,5 18,11"/><line x1="27" y1="19" x2="27" y2="24" stroke="#5a8aff" stroke-width="2"/></svg>`;
@@ -398,7 +395,6 @@ const ICO_TAB_MATERIAL_MGR = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0
 const ICO_TAB_TEXTURES = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a544e" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 5.5C25 13.5 16 17.5 18 26.5"/><path d="M10 5.5C4 17 16 15 13 26.5"/><path d="M26.5 18C22.5 18 21.5 22 22.5 26.5"/><path d="M23.5 5.5C23.5 8.5 24.5 10.5 26.5 11.5"/><path d="M5.5 18C8.5 19.5 9.5 23.5 8.5 26.5"/><rect x="4.5" y="4.5" width="23" height="23"/><ellipse cx="14.5" cy="12" rx="1.5" ry="3"/></svg>`;
 const ICO_TAB_OBJECTS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="9" height="9"/><circle cx="22" cy="10" r="4.5" stroke-width="1.2"/><path d="M10 17.5L5.5 26.5L14.5 26.5Z"/><path d="M22 17.5L26.5 22L22 26.5L17.5 22Z" stroke-width="1.2"/></svg>`;
 const ICO_TAB_DELETE_UNUSED = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 9L9.5 24.5C10 25.5 10.5 26 11.5 26L20.5 26C21.5 26 22 25.5 22.5 24.5L22.5 9"/><line x1="7.5" y1="8.5" x2="24.5" y2="8.5"/><path d="M13.5 8L13.5 6.5C13.5 5.5 14.5 4.5 16 4.5C18 4.5 18.5 5.5 18.5 6.5L18.5 8"/><line x1="13" y1="11.5" x2="13" y2="22.5"/><line x1="16" y1="11.5" x2="16" y2="22.5"/><line x1="19" y1="11.5" x2="19" y2="22.5"/></svg>`;
-const ICO_TAB_ADD_NEW = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#808080" stroke-width="2" stroke-linecap="butt" stroke-linejoin="round"><line x1="16" y1="9" x2="16" y2="23"/><line x1="9" y1="16" x2="23" y2="16"/></svg>`;
 const ICO_MODE_VERTEX = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke="#9a9a9a" stroke-width="1.2"/><path d="M7 11L16 16L25 11M16 16L16 26" stroke="#9a9a9a" stroke-width="1.6"/><circle cx="7" cy="11" r="1" fill="#5a8aff"/><circle cx="16" cy="16" r="1.5" fill="#5a8aff"/><circle cx="25" cy="11" r="1" fill="#5a8aff"/><circle cx="16" cy="26" r="1.5" fill="#5a8aff"/><circle cx="16" cy="6.5" r="1" fill="#5a8aff"/><circle cx="8" cy="21.5" r="1.5" fill="#5a8aff"/><circle cx="24" cy="21.5" r="1" fill="#5a8aff"/></svg>`;
 const ICO_MODE_EDGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#43d17a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke="#9a9a9a" stroke-width="1.2"/><path d="M7 11L16 16L25 11"/><line x1="16" y1="16" x2="16" y2="26"/></svg>`;
 const ICO_MODE_FACE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 11L16 7L25 11L16 16Z" fill="#ffd000" fill-opacity="0.5"/><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke-width="1.2"/><path d="M7.5 11L16 16L24.5 11M16 16L16 25" stroke-width="1.6"/></svg>`;
@@ -443,10 +439,10 @@ const ICO_SHADING_SOLIDCAGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="
 
 window.ICONS = {
 ICO_GRID, ICO_MAGNET, ICO_GLOBE, ICO_ARROW, ICO_CUBE, ICO_SQUARE, ICO_PERSON, ICO_HELP,
-ICO_NEW, ICO_OPEN, ICO_SAVE, ICO_SAVEAS, ICO_SAVEINC, ICO_DOWNLOAD, ICO_RECENTS,
+ICO_OPEN, ICO_SAVE, ICO_SAVEAS, ICO_SAVEINC, ICO_DOWNLOAD, ICO_RECENTS,
 ICO_BROWSER_FOLDED, ICO_BROWSER_UNFOLDED,
 ICO_TAB_ATTRIBUTES, ICO_TAB_MATERIALS, ICO_TAB_MATERIAL_MGR, ICO_TAB_TEXTURES, ICO_TAB_OBJECTS,
-ICO_TAB_DELETE_UNUSED, ICO_TAB_ADD_NEW,
+ICO_TAB_DELETE_UNUSED,
 ICO_MODE_VERTEX, ICO_MODE_EDGE, ICO_MODE_FACE, ICO_SYMMETRY, ICO_CLONER, ICO_ENVIRONMENT, ICO_SPLINE,
 ICO_INSTANCE, ICO_EXTRUDE, ICO_LATHE, ICO_SWEEP, ICO_BOOLEAN, ICO_SPLINE_PATCH,
 ICO_TEX_LOAD, ICO_TEX_DELETE, ICO_TREE_PLUS, ICO_TREE_MINUS, ICO_TREE_HIDE, ICO_TREE_SHOW, ICO_TREE_ENABLE,
@@ -3437,66 +3433,74 @@ function splineSurfaceDelta(data,state){
  if(!old||state.surfaceTopologyKey!==topology)return {topology,all:true};
  const equal=(a,b)=>a?.length===b?.length&&a.every((v,i)=>v===b[i]);
  for(const [id,p] of Object.entries(data.vertices))if(!equal(p,old.vertices[id]))changedVertices.add(id);
- for(const [id,e] of Object.entries(data.segments)){const p=old.segments[id];if(!equal(e.ha,p.ha)||!equal(e.hb,p.hb)||JSON.stringify(e.approximation)!==JSON.stringify(p.approximation))changedEdges.add(id);}
- if(data.approximation.angle!==old.approximation.angle)return {topology,all:true};
- const affected=new Set();for(const id of changedVertices)for(const i of state.surfaceDependencies.vertices.get(id)||[])affected.add(i);for(const id of changedEdges)for(const i of state.surfaceDependencies.edges.get(id)||[])affected.add(i);
+ for(const [id,e] of Object.entries(data.segments)){
+   const p=old.segments[id],oldAngle=Math.max(1,+p?.approximation?.angle||+old.approximation?.angle||10),newAngle=Math.max(1,+e.approximation?.angle||+data.approximation?.angle||10);
+   if(!p||!equal(e.ha,p.ha)||!equal(e.hb,p.hb)||oldAngle!==newAngle)changedEdges.add(id);
+ }
+ const affected=new Set(),deps=state.surfaceDependencies;
+ if(deps){for(const id of changedVertices)for(const i of deps.vertices.get(id)||[])affected.add(i);for(const id of changedEdges)for(const i of deps.edges.get(id)||[])affected.add(i);}
  return {topology,affected,changedVertices,changedEdges,geometryChanged:!!(changedVertices.size||changedEdges.size),all:false};
 }
-function indexSplineCells(data,cells){const vertices=new Map(),edges=new Map(),add=(m,k,i)=>{if(!m.has(k))m.set(k,new Set());m.get(k).add(i);};cells.fills.forEach((f,i)=>{for(const r of f.loops.flat()){const id=String(r.edge),e=data.segments[id];add(edges,id,i);add(vertices,e.a,i);add(vertices,e.b,i);}});return {vertices,edges};}
+function indexSplineCells(data,cells){const vertices=new Map(),edges=new Map(),add=(m,k,i)=>{if(!m.has(k))m.set(k,new Set());m.get(k).add(i);};cells.fills.forEach((f,i)=>{for(const r of f.loops.flat()){const id=String(r.edge),e=data.segments[id];if(!e)continue;add(edges,id,i);add(vertices,e.a,i);add(vertices,e.b,i);}});return {vertices,edges};}
+function splineCellPlanarity(data,fill){
+ const points=[];for(const ref of fill.loops?.flat?.()||[]){const e=data.segments[String(ref.edge)],a=e&&data.vertices[e.a],b=e&&data.vertices[e.b];if(!e||!a||!b)return null;points.push(a,[a[0]+e.ha[0],a[1]+e.ha[1],a[2]+e.ha[2]],[b[0]+e.hb[0],b[1]+e.hb[1],b[2]+e.hb[2]],b);}
+ if(points.length<3)return null;const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(const p of points)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],p[k]);hi[k]=Math.max(hi[k],p[k]);}
+ const scale=Math.max(1,hi[0]-lo[0],hi[1]-lo[1],hi[2]-lo[2]),eps=1e-7*scale,p=points[0],sub=(a,b)=>[a[0]-b[0],a[1]-b[1],a[2]-b[2]],len=a=>Math.hypot(a[0],a[1],a[2]),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+ let axis=null,normal=null;for(const q of points){const v=sub(q,p);if(len(v)>eps){axis=v;break;}}if(!axis)return null;for(const q of points){const n=cross(axis,sub(q,p));if(len(n)>eps*len(axis)){const L=len(n);normal=n.map(x=>x/L);break;}}if(!normal)return null;return !points.some(q=>Math.abs(dot(normal,sub(q,p)))>eps);
+}
+function refreshCachedSplineCellPlanarity(data,cells,affected){
+ if(!cells||!affected?.size)return {cells,requiresResolve:false,changed:0};let changed=0,requiresResolve=false,fills=cells.fills.slice();
+ for(const i of affected){const old=fills[i];if(!old)continue;const planar=splineCellPlanarity(data,old);if(planar===null||planar===!!old.planar)continue;const next={...old,planar};fills[i]=next;changed++;const sides=next.loops?.[0]?.length||0;if(!planar&&(next.loops?.length!==1||sides<2||sides>5))requiresResolve=true;}
+ return {cells:changed?{...cells,fills}:cells,requiresResolve,changed};
+}
 async function buildSplineSurfaceAsync(data,state,{preview=false}={}){
- const started=performance.now(),requestedAngle=Math.max(1,+data.approximation?.angle||10),angle=preview?Math.max(requestedAngle,75):requestedAngle,owner=state.surfaceWorkerOwner ||= ++splineWorkerOwnerSerial;
- const delta=splineSurfaceDelta(data,state);let cells=state.surfaceResolverCache,hadCells=!!cells,oldFillTopologyKey=state.surfaceFillTopologyKey||null;
- // Geometry changes may alter planar/non-planar classification, so the cheap
- // resolver is allowed to run again. That is separate from invalidating every
- // expensive SurfaceBuilder cell: if the resolved loop topology is unchanged,
- // only cells incident to changed source vertices/edges are rebuilt.
- // During a pure interactive geometry drag the fill connectivity cannot change
- // unless spline topology/border flags changed (covered by delta.all). Re-running
- // the resolver for every mouse event was the main source of the visible lag on
- // cube/Spline Patch edge drags. Defer that classification refresh until the
- // final-quality build after mouse-up, but rebuild affected SurfaceBuilder cells
- // immediately from the cached connectivity.
- const deferredResolver=preview&&delta.geometryChanged&&!delta.all&&!!cells;
- if(deferredResolver)state.surfaceResolverGeometryDirty=true;
- const mustResolve=delta.all||!cells||(!preview&&(delta.geometryChanged||state.surfaceResolverGeometryDirty));
- if(mustResolve){cells=await splineSurfaceWorkers.run({kind:'resolve',data,previous:state.surfaceResolverCache});state.surfaceResolverGeometryDirty=false;}
+ const started=performance.now(),interactive=!!preview,requestedAngle=Math.max(1,+data.approximation?.angle||10),angle=interactive&&requestedAngle<5?5:requestedAngle,owner=state.surfaceWorkerOwner ||= ++splineWorkerOwnerSerial;
+ const resolverDirtySerial=state.surfaceResolverDirtySerial||0,resolverResolvedSerial=state.surfaceResolverResolvedSerial||0,forceFreshResolve=!!state.surfaceResolverGeometryDirty||resolverDirtySerial>resolverResolvedSerial;
+ const delta=splineSurfaceDelta(data,state);let cells=state.surfaceResolverCache,hadCells=!!cells,oldFillTopologyKey=state.surfaceFillTopologyKey||null,mustResolve=delta.all||!cells||forceFreshResolve,localPlanarityChanges=0;
+ // Cell geometry is local by contract. Pure vertex/handle/quality edits keep the
+ // already resolved combinatorial cells and invalidate only cells that actually
+ // reference the changed source. The only geometry-only reason to invoke the
+ // global resolver is when an existing planar multi-loop / >5-side cell becomes
+ // non-planar and therefore ceases to be a legal local SurfaceBuilder cell.
+ if(!mustResolve&&delta.geometryChanged){const local=refreshCachedSplineCellPlanarity(data,cells,delta.affected);cells=local.cells;localPlanarityChanges=local.changed;mustResolve=local.requiresResolve;}
+ if(mustResolve){
+  // A topology-changing cage gesture (Shift extrusion) must not reuse a shell
+  // choice made while the duplicated cap was still coincident with its source.
+  // Resolve from the current geometry, then acknowledge only the dirty serial
+  // captured by this build so a newer pointer event cannot be cleared by an
+  // older asynchronous resolver pass.
+  cells=await splineSurfaceWorkers.run({kind:'resolve',data,previous:forceFreshResolve?null:state.surfaceResolverCache});
+  state.surfaceResolverResolvedSerial=Math.max(state.surfaceResolverResolvedSerial||0,resolverDirtySerial);
+  state.surfaceResolverGeometryDirty=(state.surfaceResolverDirtySerial||0)>(state.surfaceResolverResolvedSerial||0);
+ }
  const resolved=performance.now();if(state.surfaceDisposed)throw Error('Surface owner disposed');
  cells.fills ||= [];
  const fillTopologyKey=JSON.stringify(cells.fills.map(f=>[f.sides,(f.loops||[]).map(loop=>loop.map(r=>[String(r.edge),!!r.reversed]))]));
  const rebuildAll=delta.all||!hadCells||!oldFillTopologyKey||oldFillTopologyKey!==fillTopologyKey;
  state.surfaceResolverCache=cells;state.surfaceSource=snapshotSplineSurfaceSource(data);state.surfaceTopologyKey=delta.topology;state.surfaceFillTopologyKey=fillTopologyKey;
  if(rebuildAll||!state.surfaceDependencies)state.surfaceDependencies=indexSplineCells(data,cells);
- const previous=state.surfaceCellCache||new Map(),next=new Map(),oldEntries=state.surfaceEntries||[],previewKeys=new Set(oldEntries.filter(e=>e.preview).map(e=>e.key)),entries=[];let rebuilt=0,reused=0;
+ const previous=state.surfaceCellCache||new Map(),next=new Map(),oldEntries=state.surfaceEntries||[],previewKeys=new Set(oldEntries.filter(e=>e.preview).map(e=>e.key)),entries=[];let rebuilt=0,reused=0,coarsePreviewCells=0;
  const canonical=loop=>{let best=null,text=null,reversed=false;for(const rev of [false,true]){const src=rev?loop.slice().reverse().map(r=>({...r,reversed:!r.reversed})):loop;for(let i=0;i<src.length;i++){const candidate=[...src.slice(i),...src.slice(0,i)],key=JSON.stringify(candidate);if(text===null||key<text){text=key;best=candidate;reversed=rev;}}}return {loop:best,reversed};};
- const sampleAt=id=>{if(!preview)return sampleSplineSegment(data,id);const src=data.segments[id],proxy={vertices:data.vertices,segments:{[id]:{...src,approximation:{...(src.approximation||{}),angle}}},approximation:{angle}};return sampleSplineSegment(proxy,id,{angle});};
- let affected=delta.affected||new Set();
- // Re-evaluate dependency incidence against the current resolved cells. This is
- // generic cage logic, not primitive-specific. If a real vertex/edge edit still
- // maps to zero cells, fall back to rebuilding all cells rather than keeping a
- // stale surface until mouse-up.
- if(!rebuildAll&&delta.geometryChanged){
-   const deps=indexSplineCells(data,cells),precise=new Set();state.surfaceDependencies=deps;
-   for(const id of delta.changedVertices||[])for(const i of deps.vertices.get(id)||[])precise.add(i);
-   for(const id of delta.changedEdges||[])for(const i of deps.edges.get(id)||[])precise.add(i);
-   affected=precise.size?precise:new Set(cells.fills.map((_,i)=>i));
- }
+ const rawEdgeAngle=id=>Math.max(1,+data.segments[id]?.approximation?.angle||requestedAngle),workingEdgeAngle=id=>interactive&&rawEdgeAngle(id)<5?5:rawEdgeAngle(id);
+ const workingSegment=id=>{const e=data.segments[id],a=workingEdgeAngle(id),raw=rawEdgeAngle(id);return interactive&&a!==raw?{...e,approximation:{...(e.approximation||{}),angle:a}}:e;};
+ const sampleAt=id=>{const e=workingSegment(id);if(e===data.segments[id])return sampleSplineSegment(data,id);const a=workingEdgeAngle(id),proxy={vertices:data.vertices,segments:{[id]:e},approximation:{angle:a}};return sampleSplineSegment(proxy,id,{angle:a});};
+ let affected=rebuildAll?new Set(cells.fills.map((_,i)=>i)):(delta.affected||new Set());
+ // Re-index against the current cells, but never broaden a zero-cell edit to the
+ // whole surface. A dangling/unfilled cage element has no surface dependency.
+ if(!rebuildAll&&delta.geometryChanged){const deps=indexSplineCells(data,cells),precise=new Set();state.surfaceDependencies=deps;for(const id of delta.changedVertices||[])for(const i of deps.vertices.get(id)||[])precise.add(i);for(const id of delta.changedEdges||[])for(const i of deps.edges.get(id)||[])precise.add(i);affected=precise;}
  const jobs=cells.fills.map((original,i)=>{
   const old=oldEntries[i];
   if(!rebuildAll&&!affected.has(i)&&old&&(!old.preview||preview)){entries[i]=old;next.set(old.key,old.promise);reused++;return old.promise.then(cell=>({...cell,key:old.key,reverse:old.reverse}));}
   const outer=canonical(original.loops[0]),holes=original.loops.slice(1).map(l=>canonical(l).loop).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b))),fill={...original,loops:[outer.loop,...holes]};
-  // During a vertex/edge drag a formerly planar TRI/QUAD/PENT cell can become
-  // non-planar before the deferred resolver runs.  Preview it through the
-  // general SurfaceBuilder instead of forcing stale planar triangulation; this
-  // keeps the fill visible and actually following the moved cage immediately.
-  if(preview&&affected.has(i)&&fill.planar&&fill.loops.length===1&&fill.loops[0].length>=2&&fill.loops[0].length<=5)fill.planar=false;
-  const refs=fill.loops.flat().map(r=>String(r.edge)),key=JSON.stringify([angle,fill.planar,fill.loops,refs.map(id=>{const e=data.segments[id];return [e,data.vertices[e.a],data.vertices[e.b]];})]);
+  const refs=fill.loops.flat().map(r=>String(r.edge)),cellCoarse=interactive&&refs.some(id=>rawEdgeAngle(id)<5);if(cellCoarse)coarsePreviewCells++;
+  const segments=Object.fromEntries(refs.map(id=>[id,workingSegment(id)])),key=JSON.stringify([fill.planar,fill.loops,refs.map(id=>{const e=segments[id];return [e.a,e.b,e.ha,e.hb,!!e.boundary,workingEdgeAngle(id),data.vertices[e.a],data.vertices[e.b]];})]);
   let entry=previous.get(key),isPreview=previewKeys.has(key);
-  if(entry&&isPreview&&!preview)entry=null;
+  if(entry&&isPreview&&!cellCoarse)entry=null;
   if(entry){reused++;}else{
-   rebuilt++;isPreview=preview;
-   const segments=Object.fromEntries(refs.map(id=>{const e=data.segments[id];return [id,preview?{...e,approximation:{...(e.approximation||{}),angle}}:e];})),vertices=Object.fromEntries([...new Set(refs.flatMap(id=>[segments[id].a,segments[id].b]))].map(id=>[id,data.vertices[id]]));
+   rebuilt++;isPreview=cellCoarse;
+   const vertices=Object.fromEntries([...new Set(refs.flatMap(id=>[segments[id].a,segments[id].b]))].map(id=>[id,data.vertices[id]]));
    const samples=Object.fromEntries(refs.map(id=>[id,sampleAt(id)]));
-   entry=splineSurfaceWorkers.run({kind:'cell',owner,ticket:++splineCellSerial,data:{vertices,segments,approximation:{angle}},fill,angle,samples,preview});
+   entry=splineSurfaceWorkers.run({kind:'cell',owner,ticket:++splineCellSerial,data:{vertices,segments,approximation:{angle}},fill,angle,samples,preview:cellCoarse});
   }
   entries[i]={key,promise:entry,preview:isPreview,reverse:outer.reversed};next.set(key,entry);return entry.then(cell=>({...cell,key,reverse:outer.reversed}));
  });
@@ -3504,7 +3508,7 @@ async function buildSplineSurfaceAsync(data,state,{preview=false}={}){
  if(state.surfaceDisposed)throw Error('Surface owner disposed');state.surfaceEntries=entries;
  const result=await splineSurfaceWorkers.run({kind:'assemble',baseGeneration:state.chunkGeneration||0,owner,data:null,cells,tickets:builtCells});
  result.displayCage=data;result.cellCache=next;
- Object.assign(result.report,{resolveMilliseconds:resolved-started,cellMilliseconds:cellsDone-resolved,rebuiltCells:rebuilt,reusedCells:reused,workers:splineSurfaceWorkers.count,requestedAngle,workingAngle:angle,resolverRecomputed:mustResolve,affectedCells:rebuildAll?cells.fills.length:affected.size,localInvalidation:!rebuildAll,buildMilliseconds:performance.now()-started});return result;
+ Object.assign(result.report,{resolveMilliseconds:resolved-started,cellMilliseconds:cellsDone-resolved,rebuiltCells:rebuilt,reusedCells:reused,workers:splineSurfaceWorkers.count,requestedAngle,workingAngle:angle,coarsePreviewCells,localPlanarityChanges,resolverRecomputed:mustResolve,resolverForcedFresh:forceFreshResolve,resolverDirtySerial,resolverResolvedSerial:state.surfaceResolverResolvedSerial||0,affectedCells:rebuildAll?cells.fills.length:affected.size,localInvalidation:!rebuildAll&&!forceFreshResolve,buildMilliseconds:performance.now()-started});return result;
 }
 
 // work/frame-clean/spline-core.js?v=surface-builder-8
@@ -4544,28 +4548,41 @@ function setSplineSoft(data, vertices, soft = !0, activeHandle = null) {
 }
 
 function duplicateSplineSegments(data, segmentIds) {
-  let chosen = new Set(segmentIds.filter((x) => data.segments[x])), vmap = /* @__PURE__ */ new Map(), newSegments = [], newSequences = [], copyVertex = (v) => (vmap.has(v) || vmap.set(v, addSplineVertex(data, data.vertices[v])), vmap.get(v)), copyRun = (run, closed = !1) => {
-    if (!run.length) return;
-    let nq = addSplineSequence(data, closed);
-    newSequences.push(nq);
-    for (let sid of run) {
-      let s = data.segments[sid], ns = addSplineSegment(data, nq, copyVertex(s.a), copyVertex(s.b), s.ha, s.hb);
-      s.soft && (data.segments[ns].soft = !0), s.boundary && (data.segments[ns].boundary = true), newSegments.push(ns);
+  const chosen=new Set(segmentIds.filter(x=>data.segments[x])),vmap=new Map(),smap=new Map(),newSegments=[],newSequences=[];
+  const copyVertex=v=>{
+    if(!vmap.has(v)){
+      const nv=addSplineVertex(data,data.vertices[v]);vmap.set(v,nv);
+      if(data.freeHandles?.[v])data.freeHandles[nv]=JSON.parse(JSON.stringify(data.freeHandles[v]));
+    }
+    return vmap.get(v);
+  };
+  const copySegmentProps=(src,dst)=>{
+    const q=data.segments[dst];
+    if(src.soft!==undefined)q.soft=!!src.soft;
+    if(src.surfaceSoft!==undefined)q.surfaceSoft=!!src.surfaceSoft;
+    if(src.boundary!==undefined)q.boundary=!!src.boundary;
+    if(src.approximation)q.approximation={...src.approximation};
+    if(src.surfaceSoftBackup!==undefined)q.surfaceSoftBackup=JSON.parse(JSON.stringify(src.surfaceSoftBackup));
+  };
+  const copyRun=(run,closed=false)=>{
+    if(!run.length)return;
+    const nq=addSplineSequence(data,closed);newSequences.push(nq);
+    for(const sid of run){
+      const s=data.segments[sid],ns=addSplineSegment(data,nq,copyVertex(s.a),copyVertex(s.b),s.ha,s.hb);
+      copySegmentProps(s,ns);smap.set(sid,ns);newSegments.push(ns);
     }
   };
-  for (let q of data.sequences.slice()) {
-    let runs = [], run = [];
-    for (let sid of q.segments)
-      chosen.has(sid) ? run.push(sid) : run.length && (runs.push(run), run = []);
-    run.length && runs.push(run), q.closed && runs.length > 1 && chosen.has(q.segments[0]) && chosen.has(q.segments.at(-1)) && (runs[0] = runs.at(-1).concat(runs[0]), runs.pop());
-    let all = q.closed && q.segments.length > 0 && q.segments.every((sid) => chosen.has(sid));
-    for (let ids of runs) copyRun(ids, all && ids.length === q.segments.length);
+  const originalSequences=data.sequences.slice();
+  for(const q of originalSequences){
+    let runs=[],run=[];
+    for(const sid of q.segments)chosen.has(sid)?run.push(sid):run.length&&(runs.push(run),run=[]);
+    run.length&&runs.push(run);
+    if(q.closed&&runs.length>1&&chosen.has(q.segments[0])&&chosen.has(q.segments.at(-1))){runs[0]=runs.at(-1).concat(runs[0]);runs.pop();}
+    const all=q.closed&&q.segments.length>0&&q.segments.every(sid=>chosen.has(sid));
+    for(const ids of runs)copyRun(ids,all&&ids.length===q.segments.length);
   }
-  for (let sid of chosen) newSegments.some((ns) => {
-    let s = data.segments[ns], old = data.segments[sid];
-    return s && old && vmap.get(old.a) === s.a && vmap.get(old.b) === s.b;
-  }) || copyRun([sid], !1);
-  return { vertices: [...vmap.values()], segments: newSegments, sequences: newSequences };
+  for(const sid of chosen)if(!smap.has(sid))copyRun([sid],false);
+  return {vertices:[...vmap.values()],segments:newSegments,sequences:newSequences,vertexMap:vmap,segmentMap:smap};
 }
 function transformSplineSelection(data, selection, matrix) {
   let vertices = new Set(selection.vertices || []), handles = selection.handles || [], segments = selection.segments || [];
@@ -4818,7 +4835,7 @@ function planSplineVertexBevels(data,tags){
     if(!adjacency.has(vid))adjacency.set(vid,[]);adjacency.get(vid).push({s,side,other,key});
   }
   const arc=sid=>{if(!tables.has(sid))tables.set(sid,splineBevelArc(segmentPoints(data,sid)));return tables.get(sid);};
-  // A Vertex Bevel is confined to the two segments incident to its source
+  // A Bevel is confined to the two segments incident to its source
   // vertex.  Every logical spline vertex is a hard geometric stop for the
   // setback front.  If the opposite endpoint is itself bevelled, the two fronts
   // grow toward each other and meet; otherwise the untouched endpoint is the
@@ -6762,7 +6779,7 @@ function installSplineChunks(h,state,result){
   root.geometry.dispose();root.userData.splineChunks=new Map();root.isMesh=false;root.boundingBox=new THREE2.Box3();
   Object.defineProperty(root,'geometry',{configurable:true,enumerable:true,get(){return splineAggregateGeometry(this);},set(g){this.userData.splineAggregate=g;}});
   let material=root.material;Object.defineProperty(root,'material',{configurable:true,enumerable:true,get(){return material;},set(value){material=value;for(const c of this.userData.splineChunks.values())c.material=value;}});
-  root.raycast=function(raycaster,hits){for(const c of this.userData.splineChunks.values()){const found=[];c.raycast(raycaster,found);for(const hit of found){hit.splineCellId=c.userData.resolvedCellId??c.userData.cellId;hit.splineChunkIndex=c.userData.cellId;hit.object=this;hit.faceIndex+=c.userData.faceOffset;hits.push(hit);}}};
+  root.raycast=function(raycaster,hits){for(const c of this.userData.splineChunks.values()){const found=[];c.raycast(raycaster,found);for(const hit of found){hit.splineCellId=c.userData.resolvedCellId??c.userData.cellId;hit.splineCellKey=c.userData.resolvedCellKey||null;hit.splineChunkIndex=c.userData.cellId;hit.object=this;hit.faceIndex+=c.userData.faceOffset;hits.push(hit);}}};
  }
  const chunks=root.userData.splineChunks,live=new Set(result.liveIds), removedCells=[...chunks.keys()].some(id=>!live.has(id));
  for(const [id,c] of chunks)if(!live.has(id)){c.geometry.dispose();c.userData.chunkWire.geometry.dispose();c.userData.chunkWire.material.dispose();meshToHash.delete(c);root.remove(c);chunks.delete(id);}
@@ -6778,9 +6795,14 @@ function installSplineChunks(h,state,result){
   // must report the latter or a click can select a different cell.
   const resolvedFill=result.cells?.[patch.id]??state.surfaceResolverCache?.fills?.[patch.id];
   c.userData.resolvedCellId=String(resolvedFill?.id??patch.id);
+  c.userData.resolvedCellKey=resolvedFill?JSON.stringify([...new Set((resolvedFill.loops||[]).flat().map(ref=>String(ref.edge)))].sort()):null;
   const wg=new THREE2.BufferGeometry();wg.setAttribute('position',new THREE2.BufferAttribute(patch.wire,3));let line=c.userData.chunkWire;
   if(line){line.geometry.dispose();line.geometry=wg;}else{line=new THREE2.LineSegments(wg,new THREE2.LineBasicMaterial({color:0,transparent:true,opacity:.4,depthTest:true,depthWrite:false}));biasSplineLineMaterial(line.material);line.userData._wireOverlay=true;line.renderOrder=LAYER_OBJ+1;c.userData.chunkWire=line;c.add(line);}line.visible=false;
  }
+ // Cell IDs are resolver-internal and may be renumbered after topology edits.
+ // Keep every live render chunk bound to the exact current cage-edge set, even
+ // when that chunk did not need a geometry upload in this assembly pass.
+ for(const id of result.liveIds){const c=chunks.get(id),fill=result.cells?.[id]??state.surfaceResolverCache?.fills?.[id];if(!c)continue;c.userData.resolvedCellId=String(fill?.id??id);c.userData.resolvedCellKey=fill?JSON.stringify([...new Set((fill.loops||[]).flat().map(ref=>String(ref.edge)))].sort()):null;}
  if(result.chunks.length||removedCells){root.userData.splineAggregate?.dispose();delete root.userData.splineAggregate;}
  root.boundingBox.makeEmpty();let faceOffset=0,vertices=0;for(const id of result.liveIds){const c=chunks.get(id);c.userData.faceOffset=faceOffset;faceOffset+=c.geometry.index.count/3;vertices+=c.geometry.attributes.position.count;root.boundingBox.union(c.geometry.boundingBox);}
  root.material=getThreeMat(resolveMatHash(h));resolveMatBinding(h).owner&&assignMeshMat(root,h);ensureGeneratorSmoothProgram(state);root.matrix.identity();root.visible=true;state.ready=true;state.error=null;state.sharedGeometry=false;state.rawVertexCount=vertices;state.renderSourceMap=null;state.chunkGeneration=result.chunkGeneration;
@@ -7631,7 +7653,7 @@ function createSphereThreeCircleCage(radius, angle) {
   return data;
 }
 function createParametricCageData(type, p) {
-  let angle = approximationAngle(p), data;
+  let angle = type === "cube" ? 10 : approximationAngle(p), data;
   if (type === "cube")
     data = createSplineQuadClosedData(), scaleSplineCage(data, ...["sizeX", "sizeY", "sizeZ"].map(k => Math.max(0, +(p[k] ?? p.size) || 0) / 1e3));
   else if (type === "sphere")
@@ -8132,13 +8154,16 @@ function evaluateParametricMeshNode(h) {
 function queueParametricMeshObject(h, delay = 70) {
   let p = objParams.get(h);
   if (!p || !PARAMETRIC_MESH_TYPES.has(p.__type)) return;
-  p.approximation = approximationAngle(p), delete p.subdivs, scheduleGeneratorEvaluation(delay, [h]);
+  p.__type === "cube" ? delete p.approximation : p.approximation = approximationAngle(p);
+  delete p.subdivs, scheduleGeneratorEvaluation(delay, [h]);
 }
 function syncParametricObject(h) {
   let p = objParams.get(h), type = p?.__type;
   if (!p || !OBJ.has(h)) return !1;
-  if (PARAMETRIC_MESH_TYPES.has(type))
-    return p.approximation = approximationAngle(p), delete p.subdivs, buildParametricCageObject(h, p), !0;
+  if (PARAMETRIC_MESH_TYPES.has(type)) {
+    type === "cube" ? delete p.approximation : p.approximation = approximationAngle(p);
+    return delete p.subdivs, buildParametricCageObject(h, p), !0;
+  }
   if (PARAMETRIC_SPLINE_TYPES.has(type)) {
     p.approximation = approximationAngle(p), delete p.subdivs;
     let state = replicaStates.get(h);
@@ -8186,7 +8211,7 @@ function evaluatedSplineData(h) {
   let base = splineData.get(h);
   if (!base) return null;
   let tags = splineBevelTags(h);
-  // The overwhelmingly common editable-cage case has no live Vertex Bevel tags.
+  // The overwhelmingly common editable-cage case has no live Bevel tags.
   // Returning the authored cage directly avoids JSON-stringifying and cloning a
   // large Lathe/Sweep cage on every mouse event. Tagged splines keep the exact
   // signature cache below.
@@ -8198,6 +8223,23 @@ function evaluatedSplineData(h) {
 }
 function invalidateEvaluatedSpline(h) {
   evaluatedSplineCache.delete(h);
+}
+// Cell geometry is local, but Shift extrusion changes which cycles belong to
+// the shell. Mark only spline-patch ancestors of the edited cage for a fresh
+// resolver pass. A monotone serial prevents an older async build from clearing
+// dirtiness created by a newer pointer event.
+function markSplineSurfaceResolverDirty(h){
+  let current=h,seen=new Set();
+  while(current&&OBJ.has(current)){
+    const parent=OBJ.get(current)?.parent;if(!parent||seen.has(parent))break;seen.add(parent);
+    if(objParams.get(parent)?.__type==='spline_patch'){
+      const state=ensureReplicaState(parent);
+      state.surfaceResolverGeometryDirty=true;
+      state.surfaceResolverDirtySerial=(state.surfaceResolverDirtySerial||0)+1;
+      state.surfaceSignature=null;
+    }
+    current=parent;
+  }
 }
 function splineHandleKey(segment, side) {
   return segment + ":" + side;
@@ -9156,20 +9198,36 @@ function splineSelectableFaces(data){
 function splinePatchEditObject(h){
   const n=OBJ.get(h);return !!(n?.parent&&objParams.get(n.parent)?.__type==='spline_patch');
 }
-function rebuildSplinePatchFaceSegments(h){
-  if(!splinePatchEditObject(h))return;
+function splineFaceSegmentKey(face){return face?.segments?.length?JSON.stringify([...new Set(face.segments.map(String))].sort()):null;}
+function splineFillSegmentKey(fill){return fill?.loops?.length?JSON.stringify([...new Set(fill.loops.flat().map(ref=>String(ref.edge)))].sort()):null;}
+function rebuildSplineFaceSegments(h){
   const selected=new Set([...splineSelection.faces].map(parseSplineElementKey).filter(r=>r.object===h).map(r=>r.id));
   for(const key of [...splineSelection.segments])if(parseSplineElementKey(key).object===h)splineSelection.segments.delete(key);
-  if(!selected.size)return;const data=evaluatedSplineData(h);if(!data)return;
+  if(!selected.size)return;
+  const data=evaluatedSplineData(h)||splineData.get(h);if(!data)return;
   for(const face of splineSelectableFaces(data))if(selected.has(face.id))for(const sid of face.segments)splineSelection.segments.add(splineElementKey(h,sid));
+}
+function rebuildSplinePatchFaceSegments(h){
+  if(!splinePatchEditObject(h))return;
+  rebuildSplineFaceSegments(h);
 }
 function splinePatchSurfaceFaceHit(cx,cy,vi,h,data){
   const child=OBJ.get(h),parent=child?.parent,state=parent&&replicaStates.get(parent),root=state?.mesh,r=rectFor(vi),cam=vpState.views[vi]?.cam;
   if(!parent||objParams.get(parent)?.__type!=='spline_patch'||!state?.ready||state.error||!root||!r||!cam)return null;
   cam.updateMatrixWorld(true);cam.updateProjectionMatrix();root.updateMatrixWorld(true);pickNdc.set((cx-r.x)/r.w*2-1,-((cy-r.y)/r.h)*2+1);pickRay.setFromCamera(pickNdc,cam);
   const hits=[];root.raycast(pickRay,hits);if(!hits.length)return null;hits.sort((a,b)=>a.distance-b.distance);
-  const faces=splineSelectableFaces(data),byCell=new Map(faces.filter(f=>f.cell).map(f=>[String(f.cell.id),f]));
-  for(const hit of hits){let resolverId=hit.splineCellId;if(!byCell.has(String(resolverId))&&Number.isInteger(hit.splineChunkIndex)){resolverId=state.surfaceResolverCache?.fills?.[hit.splineChunkIndex]?.id??resolverId;}const face=byCell.get(String(resolverId));if(!face)continue;const inv=splineWorldMatrix(h).clone().invert(),local=hit.point.clone().applyMatrix4(inv);return {kind:'face',object:h,id:face.id,face,point:local.toArray(),world:hit.point.clone(),priority:2,area:0,view:vi,distance:hit.distance};}
+  const faces=splineSelectableFaces(data),byCell=new Map(faces.filter(f=>f.cell).map(f=>[String(f.cell.id),f])),byEdges=new Map();
+  for(const face of faces){const key=splineFaceSegmentKey(face);if(key&&!byEdges.has(key))byEdges.set(key,face);}
+  for(const hit of hits){
+    // The rendered chunk is authoritative. Resolver candidate IDs are useful as
+    // a fallback only; after cage topology edits they may be renumbered while
+    // the semantic cell is still exactly identified by its boundary edge set.
+    let key=hit.splineCellKey,fill=Number.isInteger(hit.splineChunkIndex)?state.surfaceResolverCache?.fills?.[hit.splineChunkIndex]:null;
+    key ||= splineFillSegmentKey(fill);
+    let face=key?byEdges.get(key):null;
+    if(!face){let resolverId=hit.splineCellId;if(!byCell.has(String(resolverId))&&fill)resolverId=fill.id??resolverId;face=byCell.get(String(resolverId));}
+    if(!face)continue;const inv=splineWorldMatrix(h).clone().invert(),local=hit.point.clone().applyMatrix4(inv);return {kind:'face',object:h,id:face.id,face,faceKey:splineFaceSegmentKey(face),point:local.toArray(),world:hit.point.clone(),priority:2,area:0,view:vi,distance:hit.distance};
+  }
   return null;
 }
 function splineFaceScreenHit(cx,cy,vi,{editing=true,object=null}={}){
@@ -9238,8 +9296,8 @@ function splineScreenHit(cx, cy, options = {}) {
 }
 function setSplineHover(hit, pointVisible = !1) {
   pointVisible && hit?.kind === "handle" && (hit = null), pointVisible = !!pointVisible && hit?.kind === "segment";
-  let old = splineHover.object;
-  (!hit || old !== hit.object || splineHover.kind !== hit.kind || splineHover.id !== hit.id || splineHover.side !== hit.side || splineHover.pointVisible !== pointVisible || Math.abs((splineHover.t || 0) - (hit.t || 0)) > 1e-3) && (old && splineVisuals.has(old) && (splineHover.kind = null, splineHover.object = null, splineHover.point = null, updateSplineVisual(old)), hit ? (Object.assign(splineHover, hit, { pointVisible }), updateSplineVisual(hit.object)) : clearSplineHover());
+  let old = splineHover.object,oldFaceKey=splineHover.kind==='face'?splineFaceSegmentKey(splineHover.face):null,newFaceKey=hit?.kind==='face'?(hit.faceKey||splineFaceSegmentKey(hit.face)):null;
+  (!hit || old !== hit.object || splineHover.kind !== hit.kind || splineHover.id !== hit.id || splineHover.side !== hit.side || oldFaceKey!==newFaceKey || splineHover.pointVisible !== pointVisible || Math.abs((splineHover.t || 0) - (hit.t || 0)) > 1e-3) && (old && splineVisuals.has(old) && (splineHover.kind = null, splineHover.object = null, splineHover.point = null, updateSplineVisual(old)), hit ? (Object.assign(splineHover, hit, { pointVisible }), updateSplineVisual(hit.object)) : clearSplineHover());
 }
 var bboxHalf = new THREE2.Vector3(), baseLocalSize = new THREE2.Vector3(), bboxHalfMax = 1, _euler = new THREE2.Euler();
 function syncCube() {
@@ -9677,13 +9735,58 @@ async function connectDeleteSelection() {
 }
 function canConnectDelete(hashes) {
   const selected=hashes.filter(h=>OBJ.has(h));if(!selected.length)return false;
-  if(selected.every(canBakeToSplinePatch))return true;
-  return selected.some(h=>evaluatedInputHashes(h).some(q=>evaluatedSurfaceMesh(q)||splineInputData(q)));
+  if(selected.length===1){
+    if(canBakeToSplinePatch(selected[0]))return true;
+    return evaluatedInputHashes(selected[0]).some(q=>evaluatedSurfaceMesh(q)||splineInputData(q));
+  }
+  const groups=selected.map(evaluatedInputHashes);if(groups.some(g=>!g.length))return false;
+  const inputs=[...new Set(groups.flat())];if(!inputs.length)return false;
+  const allSpline=inputs.every(h=>!!splineInputData(h));if(allSpline)return true;
+  const hasCurveOnly=inputs.some(h=>!evaluatedSurfaceMesh(h)&&!!splineInputData(h));
+  if(hasCurveOnly)return false;
+  // Polygon is the last common representation: use it only when every input
+  // is genuinely a surface and no spline/cage representation exists for all.
+  return inputs.every(h=>!!evaluatedSurfaceMesh(h));
+}
+function weldCoincidentSplineData(data,epsilon=1e-4){
+  if(!data)return null;
+  const cell=Math.max(1e-12,epsilon),buckets=new Map(),key=(x,y,z)=>x+','+y+','+z;
+  for(const vid of Object.keys(data.vertices)){
+    const p=data.vertices[vid];if(!p)continue;const ix=Math.floor(p[0]/cell),iy=Math.floor(p[1]/cell),iz=Math.floor(p[2]/cell);let keep=null,best=epsilon;
+    for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(let dz=-1;dz<=1;dz++)for(const candidate of buckets.get(key(ix+dx,iy+dy,iz+dz))||[]){
+      const q=data.vertices[candidate];if(!q)continue;const d=splineMath.dist(p,q);if(d<=best){best=d;keep=candidate;}
+    }
+    if(keep){weldSplineVertices(data,keep,vid);continue;}
+    const k=key(ix,iy,iz),list=buckets.get(k)||[];list.push(vid);buckets.set(k,list);
+  }
+  return cleanupSpline(data);
+}
+function mergedSplineInputData(inputs,frame){
+  const data=replicaSplineCage([...new Set(inputs)],frame.clone().invert(),[new THREE2.Matrix4()]).data;if(!data)return null;
+  weldCoincidentSplineData(data);
+  for(const e of Object.values(data.segments))if(e.approximation?.angle===data.approximation?.angle)delete e.approximation;
+  return data;
+}
+function cmdConnectSplinePatch(hashes,inputs){
+  const selected=new Set(hashes),roots=sortByTreeOrder(hashes.filter(h=>{let p=OBJ.get(h)?.parent;while(p){if(selected.has(p))return false;p=OBJ.get(p)?.parent;}return OBJ.has(h);}));
+  if(!roots.length)return null;
+  const first=OBJ.get(roots[0]),parentId=first.parent||null,index=parentId?OBJ.get(parentId).children.indexOf(first.hash):rootOrder.indexOf(first.hash),frame=worldMatrix(first),data=mergedSplineInputData(inputs,frame);
+  if(!data)return null;
+  const patchHash=genHash(),cageHash=genHash(),name=roots.length===1?(first.name||'Spline Patch'):'Spline Patch',oldSel=[...selNodes],oldTags=[...selTags],deleteOld=cmdDelete(roots),materialRefs=roots.map(h=>resolveMatHash(h)),sameMaterial=materialRefs.every(h=>h===materialRefs[0]),tags=sameMaterial&&materialRefs[0]!==defaultMatHash?[{type:1,ref:materialRefs[0],polys:null,mapFrame:defaultTagMapFrame(roots[0]),mapPivot:new THREE2.Matrix4()}]:[];
+  let deleteNew=null,created=false;
+  const create=()=>{
+    const parent=OBJ.get(parentId),patch={hash:patchHash,name,type:TYPE_GEN,parent:parent?.hash||null,children:[cageHash],visible:true,enabled:true,enableSlot:true,tags:tags.map(cloneTag),folded:false,pos:new THREE2.Vector3(),lin:new THREE2.Matrix4(),pivot:new THREE2.Matrix4()};
+    setNodeFromWorld(patch,frame);OBJ.set(patchHash,patch);const order=parent?parent.children:rootOrder;order.splice(Math.max(0,Math.min(index<0?order.length:index,order.length)),0,patchHash);objParams.set(patchHash,{__type:'spline_patch'});
+    const cage={hash:cageHash,name:name+' cage',type:TYPE_MESH,parent:patchHash,children:[],visible:true,enabled:true,enableSlot:false,tags:[],folded:false,pos:new THREE2.Vector3(),lin:new THREE2.Matrix4(),pivot:new THREE2.Matrix4()};
+    OBJ.set(cageHash,cage);objParams.set(cageHash,{__type:'spline',angle:data.approximation?.angle||10});installSplineObject(cageHash,cloneSplineData(data));syncMeshParents();evaluateSplinePatchNode(patchHash);deleteNew=cmdDelete([patchHash]);created=true;
+  };
+  const selectResult=()=>{clearSplineSelection();clearPolySelection();selNodes.clear();selTags.clear();selNodes.add(patchHash);anchorNode=OBJ.get(patchHash);lastAttrKey=null;treeChanged();refreshSelClasses();};
+  return {result:patchHash,redo(){deleteOld.redo();if(!created)create();else{deleteNew.undo();syncMeshParents();evaluateSplinePatchNode(patchHash);}selectResult();},undo(){deleteNew.redo();deleteOld.undo();clearSplineSelection();clearPolySelection();selNodes.clear();selTags.clear();for(const h of oldSel)if(OBJ.has(h))selNodes.add(h);for(const t of oldTags)selTags.add(t);anchorNode=OBJ.get(oldSel[0])||null;lastAttrKey=null;treeChanged();refreshSelClasses();},dispose(){deleteOld.dispose?.();deleteNew?.dispose?.();}};
 }
 function cmdMakeEditableSpline(hashes,inputs) {
   const selected=new Set(hashes),roots=sortByTreeOrder(hashes.filter(h=>{let p=OBJ.get(h)?.parent;while(p){if(selected.has(p))return false;p=OBJ.get(p)?.parent;}return OBJ.has(h);}));
   if(!roots.length)return null;
-  const first=OBJ.get(roots[0]),parentId=first.parent||null,index=parentId?OBJ.get(parentId).children.indexOf(first.hash):rootOrder.indexOf(first.hash),frame=worldMatrix(first),source=replicaSplineCage([...new Set(inputs)],frame.clone().invert(),[new THREE2.Matrix4()]).data;
+  const first=OBJ.get(roots[0]),parentId=first.parent||null,index=parentId?OBJ.get(parentId).children.indexOf(first.hash):rootOrder.indexOf(first.hash),frame=worldMatrix(first),source=mergedSplineInputData(inputs,frame);
   if(!source)return null;
   for(const e of Object.values(source.segments))if(e.approximation?.angle===source.approximation.angle)delete e.approximation;
   const newHash=genHash(),name=first.name||'Spline',oldSel=[...selNodes],oldTags=[...selTags],deleteCmd=cmdDelete(roots);
@@ -9700,14 +9803,33 @@ function cmdMakeEditableSpline(hashes,inputs) {
 }
 
 function cmdConnectDelete(hashes) {
-  let selected = hashes.filter((h) => OBJ.has(h)), splines = selected.filter((h) => splineData.has(h));
-  if (!selected.length) return null;
-  if(selected.every(canBakeToSplinePatch))return cmdParametricToSplinePatch(selected);
-  const inputs=selected.flatMap(evaluatedInputHashes);
-  if(inputs.length&&inputs.every(h=>(!evaluatedSurfaceMesh(h)||['extrude','lathe','sweep'].includes(objParams.get(h)?.__type))&&!!splineInputData(h))&&inputs.some(h=>!splineData.has(h)))return cmdMakeEditableSpline(selected,inputs);
-  let polygonSources = [];
-  for (let h of selected) collectPolygonalMeshes(h, polygonSources, /* @__PURE__ */ new Set());
-  return polygonSources.length ? cmdMakePolygonal(selected) : splines.length ? cmdConnectSplines(splines) : cmdMakePolygonal(selected);
+  let selected=hashes.filter(h=>OBJ.has(h)),splines=selected.filter(h=>splineData.has(h));
+  if(!selected.length)return null;
+  const groups=selected.map(evaluatedInputHashes);if(groups.some(g=>!g.length))return null;
+  const inputs=[...new Set(groups.flat())];
+  // One object keeps the staged Make Editable route. A parametric surface first
+  // becomes a live Spline Patch; polygonization remains the final fallback.
+  if(selected.length===1){
+    if(canBakeToSplinePatch(selected[0]))return cmdParametricToSplinePatch(selected);
+    if(inputs.length&&inputs.every(h=>(!evaluatedSurfaceMesh(h)||['extrude','lathe','sweep'].includes(objParams.get(h)?.__type))&&!!splineInputData(h))&&inputs.some(h=>!splineData.has(h)))return cmdMakeEditableSpline(selected,inputs);
+    let polygonSources=[];collectPolygonalMeshes(selected[0],polygonSources,new Set());
+    return polygonSources.length?cmdMakePolygonal(selected):splines.length?cmdConnectSplines(splines):null;
+  }
+  // Multi-selection chooses the richest common editable representation.
+  // 1) Every source has spline/cage data. If any source is a surface, merge all
+  //    cages and keep the result as ONE live Spline Patch + ONE editable cage.
+  // 2) Curve-only spline sources merge into one editable spline.
+  // 3) Only when a common spline representation is impossible, and every source
+  //    is already a surface, fall back to one polygon object.
+  const allSpline=inputs.length&&inputs.every(h=>!!splineInputData(h));
+  if(allSpline){
+    const hasSurface=inputs.some(h=>!!evaluatedSurfaceMesh(h));
+    return hasSurface?cmdConnectSplinePatch(selected,inputs):cmdMakeEditableSpline(selected,inputs);
+  }
+  const hasCurveOnly=inputs.some(h=>!evaluatedSurfaceMesh(h)&&!!splineInputData(h));
+  if(hasCurveOnly)return null;
+  if(inputs.length&&inputs.every(h=>!!evaluatedSurfaceMesh(h)))return cmdMakePolygonal(selected);
+  return splines.length?cmdConnectSplines(splines):null;
 }
 function treeOrderFirst(set) {
   let best = null, walk = (h) => {
@@ -12468,7 +12590,7 @@ function startGizDrag(g, e) {
 }
 function doGizDrag(e) {
   let view = vpState.views[gizDrag.view], r = gizDrag.r, cam = view.cam;
-  if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ctrl: !!(e.ctrlKey || e.metaKey) }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
+  if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ...splineGizModifiers, ctrl: !!(e.ctrlKey || e.metaKey) }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
     let gp = projectPx(gizmo.pos, cam, r), ang = Math.atan2(e.clientY - gp[1], e.clientX - gp[0]), delta = ang - gizDrag.sr.lastAng;
     for (; delta > Math.PI; ) delta -= TAU;
     for (; delta < -Math.PI; ) delta += TAU;
@@ -13238,8 +13360,8 @@ document.getElementById("btnLocal").innerHTML = ICONS.ICO_CUBE;
 document.getElementById("btnUV").innerHTML = ICONS.ICO_SQUARE;
 document.getElementById("btnSolo").innerHTML = ICONS.ICO_PERSON;
 document.getElementById("btnHelp").innerHTML = ICONS.ICO_HELP;
-document.getElementById("btnNew").innerHTML = ICONS.ICO_NEW;
 document.getElementById("btnOpen").innerHTML = ICONS.ICO_OPEN;
+document.getElementById("btnRecents").innerHTML = ICONS.ICO_RECENTS;
 document.getElementById("btnShare").innerHTML = '<svg width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="22" cy="9" r="2.5"/><circle cx="10" cy="16" r="2.5"/><circle cx="22" cy="23" r="2.5"/><path d="M12.2 14.7 19.8 10.3M12.2 17.3 19.8 21.7"/></svg>';
 document.getElementById("btnSave").innerHTML = ICONS.ICO_SAVE;
 document.getElementById("btnSaveAs").innerHTML = ICONS.ICO_SAVEAS;
@@ -13261,7 +13383,6 @@ document.getElementById("tabMaterialMgr").innerHTML = ICONS.ICO_TAB_MATERIAL_MGR
 document.getElementById("tabMaterials").innerHTML = ICONS.ICO_TAB_MATERIALS;
 document.getElementById("tabTextures").innerHTML = ICONS.ICO_TAB_TEXTURES;
 document.getElementById("tabDelUnused").innerHTML = ICONS.ICO_TAB_DELETE_UNUSED;
-document.getElementById("tabAddNew").innerHTML = ICONS.ICO_TAB_ADD_NEW;
 document.getElementById("btnLoadTex").innerHTML = ICONS.ICO_TEX_LOAD;
 document.getElementById("btnDelTex").innerHTML = ICONS.ICO_TEX_DELETE;
 document.getElementById("tlPlay").innerHTML = ICONS.ICO_TL_PLAY;
@@ -13330,9 +13451,12 @@ document.getElementById("btnPivot").addEventListener("click", () => setEditPivot
 document.getElementById("btnLocal").addEventListener("click", () => {
   doAutoPivot(), boundNode && (gizBeforeObj = getWorldMatrix(boundNode), gizBeforeGizmo = getGizmoWorldArray());
 });
+const helpDialog=document.getElementById("helpDialog");
 document.getElementById("btnHelp").addEventListener("click", () => {
-  let dialog = document.getElementById("helpDialog");
-  dialog && !dialog.open && dialog.showModal();
+  helpDialog && !helpDialog.open && helpDialog.showModal();
+});
+helpDialog?.addEventListener("click", event => {
+  if(event.target===helpDialog)helpDialog.close();
 });
 var btnQuant = document.getElementById("btnQuant"), btnSnap = document.getElementById("btnSnap");
 function syncQuantSnap() {
@@ -13486,38 +13610,148 @@ function splineTangentTargets(){
   for(const key of splineSelection.segments){const r=parseSplineElementKey(key);ensure(r.object).segments.add(r.id);}
   return objects;
 }
+function splineEdgeSurfaceG1(data,sid,topology=null){
+  const edge=data.segments[sid];if(!edge)return null;
+  topology ||= resolveSplineTopology(data);
+  const occurrences=[];
+  for(const cell of topology.patchCells||[])for(const loop of cell.loops||[]){
+    const n=loop.length;if(n<2)continue;
+    for(let i=0;i<n;i++){
+      const ref=loop[i];if(String(ref.id)!==String(sid))continue;
+      const prev=loop[(i+n-1)%n],next=loop[(i+1)%n];
+      occurrences.push({from:ref.from,to:ref.to,atFrom:prev?.id,atTo:next?.id});
+    }
+  }
+  if(occurrences.length<2)return null;
+  const cp=segmentPoints(data,sid);if(!cp)return null;
+  const groups=[];
+  for(const vid of [edge.a,edge.b]){
+    const neighbourIds=[];
+    for(const o of occurrences){
+      const id=o.from===vid?o.atFrom:o.to===vid?o.atTo:null;
+      if(id&&String(id)!==String(sid)&&!neighbourIds.includes(String(id)))neighbourIds.push(String(id));
+    }
+    if(neighbourIds.length!==2)return null;
+    const t=vid===edge.a?0:1,T=norm(robustCubicTangent(cp,t));if(len(T)<1e-9)return null;
+    const arms=[];
+    for(const id of neighbourIds){
+      const s=data.segments[id];if(!s)return null;
+      const key=s.a===vid?'ha':s.b===vid?'hb':null;if(!key)return null;
+      const other=s.a===vid?s.b:s.a,v=(s[key]||[0,0,0]).slice(),shear=dot(v,T),perp=sub(v,mul(T,shear)),pl=len(perp);
+      const chord=sub(data.vertices[other],data.vertices[vid]),cpj=sub(chord,mul(T,dot(chord,T))),fallback=len(cpj)>1e-9?mul(norm(cpj),len(cpj)/3):[0,0,0];
+      const transverse=pl>1e-9?perp:fallback,L=pl>1e-9?pl:len(fallback);
+      arms.push({sid:id,key,side:key==='ha'?'a':'b',vid,other,shear,transverse,L,chord,chordTransverse:cpj});
+    }
+    if(!(arms[0].L>1e-9&&arms[1].L>1e-9))return null;
+    let a=norm(arms[0].transverse),b=norm(arms[1].transverse),axis=sub(a,b);
+    if(len(axis)<1e-9)axis=len(a)>1e-9?a:mul(b,-1);
+    if(len(axis)<1e-9)return null;axis=norm(axis);if(dot(axis,a)<0)axis=mul(axis,-1);
+    groups.push({vid,T,arms,axis});
+  }
+  return groups;
+}
+function splineEdgeSurfaceIsG1(data,sid,topology=null){
+  const groups=splineEdgeSurfaceG1(data,sid,topology);if(!groups)return null;
+  for(const g of groups){
+    const A=norm(g.arms[0].transverse),B=norm(g.arms[1].transverse);if(len(A)<.5||len(B)<.5)return false;
+    const c=cross(A,B);if(!(dot(A,B)<0&&dot(c,c)<=1e-12))return false;
+  }
+  return true;
+}
+function splineEdgeSurfaceBackup(data,groups){
+  const handles=[],seen=new Set();
+  for(const g of groups)for(const a of g.arms){const k=a.sid+'\u0000'+a.key;if(seen.has(k))continue;seen.add(k);const s=data.segments[a.sid];if(s)handles.push({segment:a.sid,key:a.key,vertex:g.vid,vector:(s[a.key]||[0,0,0]).slice()});}
+  return {version:1,handles};
+}
+function splineEdgeSurfaceBackupHandles(data,backup){
+  if(!backup||backup.version!==1||!Array.isArray(backup.handles)||!backup.handles.length)return null;
+  const out=[];for(const q of backup.handles){const s=data.segments[q.segment],v=q.vector;if(!s||!['ha','hb'].includes(q.key)||!Array.isArray(v)||v.length!==3||!v.every(Number.isFinite))return null;out.push({segment:q.segment,key:q.key,vertex:q.vertex,vector:v.slice()});}return out;
+}
+function splineEdgeNaturalHardVector(data,arm){
+  const s=data.segments[arm.sid],current=s?.[arm.key]||[0,0,0],chord=arm.chord||sub(data.vertices[arm.other],data.vertices[arm.vid]);
+  let direction=norm(chord),L=len(current);if(!(L>1e-9))L=Math.max(len(chord)/3,arm.L||0);if(len(direction)<1e-9)direction=norm(arm.transverse);
+  return len(direction)>1e-9?mul(direction,L):current.slice();
+}
+function splineEdgeForcedBreakVector(data,g,arm){
+  const s=data.segments[arm.sid],current=s?.[arm.key]||[0,0,0],T=norm(g.T),shear=dot(current,T);let p=sub(current,mul(T,shear)),L=len(p);
+  if(!(L>1e-9)){p=arm.chordTransverse||arm.transverse;L=Math.max(len(p),arm.L||0);}if(!(L>1e-9))return current.slice();p=norm(p);
+  let q=norm(cross(T,p));if(len(q)<1e-9)q=splineSoftPerpendicular(T);if(len(q)<1e-9)return current.slice();
+  const a=Math.PI/6,r=add(mul(p,Math.cos(a)),mul(q,Math.sin(a)));return add(mul(T,shear),mul(r,L));
+}
+function splineEdgeSurfaceChanges(h,data,segmentIds,kind){
+  const changes=[],topology=resolveSplineTopology(data),equal=(a,b)=>a.every((x,i)=>Math.abs(x-b[i])<=1e-12*Math.max(1,Math.abs(x),Math.abs(b[i]))),ids=[...new Set(segmentIds)].filter(sid=>data.segments[sid]),infos=new Map(),byVertex=new Map();
+  for(const sid of ids){const groups=splineEdgeSurfaceG1(data,sid,topology);if(!groups)continue;infos.set(sid,groups);for(const g of groups){let list=byVertex.get(g.vid);list||byVertex.set(g.vid,list=[]);list.push({sid,g});}}
+  if(!infos.size)return changes;
+  const handleKey=(sid,key)=>sid+'\u0000'+key,target=new Map(),setTarget=(sid,key,vector)=>target.set(handleKey(sid,key),{sid,key,vector:vector.slice()});
+  if(kind==='soft'){
+    // Store the hard state BEFORE solving the whole multi-edge selection.  All
+    // selected edges in one click therefore share one coherent pre-soft cage.
+    for(const [sid,groups] of infos){const edge=data.segments[sid],backup=splineEdgeSurfaceBackupHandles(data,edge.surfaceSoftBackup)?edge.surfaceSoftBackup:splineEdgeSurfaceBackup(data,groups);changes.push({object:h,segment:sid,side:'edge',vertex:null,vector:null,surfaceSoft:true,surfaceBackup:backup});}
+    for(const [vid,entries] of byVertex){
+      const selectedHere=new Set(entries.map(e=>e.sid));
+      if(selectedHere.size>=2){
+        // Two smooth seams meeting at a cage vertex imply one tangent plane.
+        // Solve the complete local star together.  On a cube this turns the
+        // orthogonal XYZ corner into one regular coplanar 120-degree fan, so
+        // adjacent selected edges cannot fight over the shared third handle.
+        const source=incident(data,vid),list=source.map(q=>({...q,s:{...q.s,ha:q.s.ha.slice(),hb:q.s.hb.slice()}}));
+        splineSoftFan(data,vid,list,null);for(const q of list)setTarget(q.s.id,q.key,q.s[q.key]);
+      }else{
+        const g=entries[0].g,[A,B]=g.arms,va=add(mul(g.T,A.shear),mul(g.axis,A.L)),vb=add(mul(g.T,B.shear),mul(g.axis,-B.L));setTarget(A.sid,A.key,va);setTarget(B.sid,B.key,vb);
+      }
+    }
+  }else{
+    // Hard is the inverse editing operation, not merely a flag. Prefer the
+    // exact pre-Soft handles; if no history exists, fall back to each cage
+    // edge's own chord direction (the natural hard state of a cube).
+    const proposals=new Map(),conflictVertices=new Set(),addProposal=(sid,key,vertex,vector)=>{const k=handleKey(sid,key),list=proposals.get(k)||[];list.push({vertex,vector:vector.slice()});proposals.set(k,list);};
+    for(const [sid,groups] of infos){const edge=data.segments[sid],backup=splineEdgeSurfaceBackupHandles(data,edge.surfaceSoftBackup);if(backup)for(const q of backup)addProposal(q.segment,q.key,q.vertex,q.vector);else for(const g of groups)for(const a of g.arms)addProposal(a.sid,a.key,g.vid,splineEdgeNaturalHardVector(data,a));changes.push({object:h,segment:sid,side:'edge',vertex:null,vector:null,surfaceSoft:false,surfaceBackup:null});}
+    for(const [k,list] of proposals){const first=list[0].vector;if(list.some(q=>!equal(q.vector,first))){for(const q of list)conflictVertices.add(q.vertex);continue;}const [sid,key]=k.split('\u0000');setTarget(sid,key,first);}
+    // Backups from separate editing moments can disagree on a shared cube
+    // corner. In that case do not let command order win: rebuild that star from
+    // its own edge geometry in one deterministic pass.
+    for(const vid of conflictVertices)for(const q of incident(data,vid)){
+      const chord=sub(data.vertices[q.other],data.vertices[vid]),current=q.s[q.key]||[0,0,0],L=len(current)>1e-9?len(current):len(chord)/3,dir=norm(chord);if(len(dir)>1e-9)setTarget(q.s.id,q.key,mul(dir,L));
+    }
+    // Guarantee that "Hard" really is a crease. This fallback is only needed
+    // for an already-G1 cage with no recoverable pre-Soft state (for example an
+    // imported coplanar tangent fan). Normal Soft->Hard editing restores backup.
+    const test=cloneSplineData(data),applyTargets=()=>{for(const q of target.values())if(test.segments[q.sid])test.segments[q.sid][q.key]=q.vector.slice();};applyTargets();
+    for(const [sid] of infos){if(!splineEdgeSurfaceIsG1(test,sid,topology))continue;const groups=splineEdgeSurfaceG1(test,sid,topology);if(!groups)continue;const g=groups[0],arm=g.arms[1],vector=splineEdgeForcedBreakVector(test,g,arm);setTarget(arm.sid,arm.key,vector);if(test.segments[arm.sid])test.segments[arm.sid][arm.key]=vector.slice();}
+  }
+  for(const q of target.values()){const old=data.segments[q.sid]?.[q.key];if(old&&!equal(old,q.vector))changes.push({object:h,segment:q.sid,side:q.key==='ha'?'a':'b',key:q.key,vertex:data.segments[q.sid][q.key==='ha'?'a':'b'],vector:q.vector});}
+  return changes;
+}
 function splineTangentChanges(kind){
   const changes=[],equal=(a,b)=>a.every((x,i)=>Math.abs(x-b[i])<=1e-12*Math.max(1,Math.abs(x),Math.abs(b[i]))),nonzero=v=>Math.hypot(...v)>1e-6;
-  for(const [h,selection]of splineTangentTargets()){
-    const data=evaluatedSplineData(h);if(!data||!isEditableSpline(h))continue;
-    // Edge-domain Equal Tangent Length acts on the selected segment ends as one
-    // set. One non-zero selected handle is enough to define the target length;
-    // zero handles receive a geometric direction instead of disabling the action.
-    if(kind==='equalLength'&&!selection.vertices.size&&selection.segments.size){
-      const ends=[];
-      for(const sid of selection.segments){const e=data.segments[sid];if(!e)continue;ends.push({s:e,side:'a',key:'ha',vertex:e.a,incoming:false},{s:e,side:'b',key:'hb',vertex:e.b,incoming:true});}
-      const live=ends.filter(q=>nonzero(q.s[q.key]));
-      if(live.length){
-        const active=splineSelection.active?.kind==='handle'&&splineSelection.active.object===h?live.find(q=>q.s.id===splineSelection.active.id&&q.side===splineSelection.active.side):null;
-        const target=active?len(active.s[active.key]):live.reduce((sum,q)=>sum+len(q.s[q.key]),0)/live.length;
-        for(const q of ends){
-          const old=q.s[q.key];let dir;
-          if(nonzero(old))dir=splineSoftUnit(old);
-          else{
-            // Prefer the opposite incident handle at this vertex (smooth spline
-            // semantics). If none exists, use the endpoint tangent of this edge.
-            const incidentNonzero=splineIncidentHandles(data,q.vertex).map(x=>splineHandleInfo(data,x.segment,x.side)).find(info=>info&&info.segment!==q.s.id&&nonzero(info.vector));
-            if(incidentNonzero)dir=mul(splineSoftUnit(incidentNonzero.vector),-1);
-            else{const cp=segmentPoints(data,q.s),tangent=robustCubicTangent(cp,q.side==='a'?0:1);dir=q.side==='a'?tangent:mul(tangent,-1);if(!nonzero(dir))dir=splineSoftUnit(sub(data.vertices[q.side==='a'?q.s.b:q.s.a],data.vertices[q.vertex]));}
-          }
-          const vector=mul(dir,target);if(!equal(vector,old))changes.push({object:h,segment:q.s.id,side:q.side,key:q.key,vertex:q.vertex,vector});
-        }
-      }
-      continue;
+  if(kind==='equalTangents'){
+    // Reuse the same selection-domain rules as the two former commands, but
+    // commit one vector: direction comes from Equal Direction and magnitude
+    // from Equal Length.  This keeps single selected segment ends local while
+    // full vertex stars are solved as one tangent family.
+    const direction=splineTangentChanges('equalDirection'),lengths=splineTangentChanges('equalLength'),byKey=new Map(),keyOf=q=>q.object+'\u0000'+q.segment+'\u0000'+q.side;
+    for(const q of direction){const k=keyOf(q),v=byKey.get(k)||{};v.direction=q;byKey.set(k,v);}
+    for(const q of lengths){const k=keyOf(q),v=byKey.get(k)||{};v.length=q;byKey.set(k,v);}
+    for(const pair of byKey.values()){
+      const proto=pair.direction||pair.length,d=evaluatedSplineData(proto.object);if(!d)continue;
+      let base;if(proto.segment.startsWith('free:'))base=d.freeHandles?.[proto.vertex]?.[proto.side]||[0,0,0];
+      else{const seg=d.segments[proto.segment];if(!seg)continue;base=seg[proto.key|| (proto.side==='a'?'ha':'hb')]||[0,0,0];}
+      const dv=pair.direction?.vector||base,lv=pair.length?.vector||base,target=len(lv);let axis=nonzero(dv)?splineSoftUnit(dv):nonzero(lv)?splineSoftUnit(lv):nonzero(base)?splineSoftUnit(base):[0,0,0],vector=target&&nonzero(axis)?mul(axis,target):[0,0,0];
+      if(!equal(vector,base))changes.push({...proto,vector,soft:undefined});
     }
+    return changes;
+  }
+  const tangentTargets=splineTangentTargets();
+  if(kind==='soft'||kind==='hard')for(const [h,selection] of tangentTargets){
+    const data=evaluatedSplineData(h);if(!data||!isEditableSpline(h)||!selection.segments.size)continue;
+    const edgeIds=[...selection.segments].filter(sid=>{const e=data.segments[sid];return e&&!selection.vertices.has(e.a)&&!selection.vertices.has(e.b);});
+    changes.push(...splineEdgeSurfaceChanges(h,data,edgeIds,kind));
+  }
+  for(const [h,selection]of tangentTargets){
+    const data=evaluatedSplineData(h);if(!data||!isEditableSpline(h))continue;
     const stars=new Map(),ensure=vid=>{if(data.vertices[vid]&&!stars.has(vid))stars.set(vid,[]);};
     for(const vid of selection.vertices)ensure(vid);
-    for(const sid of selection.segments){const s=data.segments[sid];if(s){ensure(s.a);ensure(s.b);}}
+    if(kind!=='soft'&&kind!=='hard')for(const sid of selection.segments){const s=data.segments[sid];if(s){ensure(s.a);ensure(s.b);}}
     for(const s of Object.values(data.segments)){
       stars.get(s.a)?.push({s,side:'a',key:'ha',other:s.b,incoming:false});stars.get(s.b)?.push({s,side:'b',key:'hb',other:s.a,incoming:true});
     }
@@ -13537,25 +13771,73 @@ function splineTangentChanges(kind){
         }
         for(const q of list)if(vectors.has(q.s.id))vectors.set(q.s.id,q.s[q.key]);
       }else{
-        const handles=chosen.filter(q=>nonzero(q.s[q.key]));
-        const entries=handles.map(q=>({vector:q.s[q.key],segment:q.s.id,side:q.side,incoming:q.incoming,q}));
-        if(full&&data.freeHandles?.[vid])for(const side of ['in','out']){const vector=data.freeHandles[vid][side]||[0,0,0];if(nonzero(vector))entries.push({vector,segment:'free:'+vid,side,incoming:side==='in'});}
-        if(kind==='equalLength'?entries.length>=1:entries.length>=2){
-          const active=splineSelection.active?.kind==='handle'&&splineSelection.active.object===h?entries.find(e=>e.segment===splineSelection.active.id&&e.side===splineSelection.active.side):null;
-          const first=active||entries[0],axis=splineSoftUnit(first.vector),target=active?len(active.vector):entries.reduce((sum,e)=>sum+len(e.vector),0)/entries.length;
-          equalInfo={first,axis,target};
-          for(const q of chosen){
-            if(kind==='equalLength'){
-              let dir;
+        const entry=q=>({vector:q.s[q.key],segment:q.s.id,side:q.side,incoming:q.incoming,q});
+        const chosenLive=chosen.filter(q=>nonzero(q.s[q.key])).map(entry),sourceLive=source.filter(q=>nonzero(q.s[q.key])).map(entry);
+        const freeLive=[];
+        if(full&&data.freeHandles?.[vid])for(const side of ['in','out']){const vector=data.freeHandles[vid][side]||[0,0,0];if(nonzero(vector))freeLive.push({vector,segment:'free:'+vid,side,incoming:side==='in',q:null});}
+        const activeIn=list=>splineSelection.active?.kind==='handle'&&splineSelection.active.object===h?list.find(e=>e.segment===splineSelection.active.id&&e.side===splineSelection.active.side):null;
+        const fallbackDir=q=>{
+          const cp=segmentPoints(data,q.s),tangent=robustCubicTangent(cp,q.side==='a'?0:1);
+          let dir=q.side==='a'?tangent:mul(tangent,-1);
+          if(!nonzero(dir))dir=splineSoftUnit(sub(data.vertices[q.side==='a'?q.s.b:q.s.a],data.vertices[vid]));
+          return dir;
+        };
+        if(kind==='equalLength'){
+          if(full){
+            const pool=sourceLive.concat(freeLive),active=activeIn(pool);
+            if(pool.length){
+              const first=active||pool[0],axis=splineSoftUnit(first.vector),target=active?len(active.vector):pool.reduce((sum,e)=>sum+len(e.vector),0)/pool.length;
+              equalInfo={first,axis,target};
+              for(const q of chosen){
+                let dir=nonzero(q.s[q.key])?splineSoftUnit(q.s[q.key]):fallbackDir(q);
+                if(!nonzero(dir))dir=axis;
+                vectors.set(q.s.id,mul(dir,target));
+              }
+            }
+          }else if(chosen.length>1&&chosenLive.length){
+            // Several selected ends meet at this vertex: equalize only those
+            // selected handles, leaving unselected branches untouched.
+            const active=activeIn(chosenLive),first=active||chosenLive[0],target=active?len(active.vector):chosenLive.reduce((sum,e)=>sum+len(e.vector),0)/chosenLive.length,axis=splineSoftUnit(first.vector);
+            for(const q of chosen){let dir=nonzero(q.s[q.key])?splineSoftUnit(q.s[q.key]):fallbackDir(q);if(!nonzero(dir))dir=axis;vectors.set(q.s.id,mul(dir,target));}
+          }else if(chosen.length===1){
+            // A selected edge end means "make this tangent equal to the other
+            // tangent at the same point", not "equalize both ends of the edge".
+            const q=chosen[0],refs=sourceLive.filter(e=>e.q!==q);
+            if(refs.length){
+              const ref=activeIn(refs)||refs.reduce((a,b)=>len(a.vector)>=len(b.vector)?a:b),target=len(ref.vector);let dir;
               if(nonzero(q.s[q.key]))dir=splineSoftUnit(q.s[q.key]);
-              else if(source.length===2&&q!==first.q)dir=mul(axis,-1);
-              else dir=axis;
+              else if(source.length===2)dir=mul(splineSoftUnit(ref.vector),-1);
+              else dir=fallbackDir(q);
+              if(!nonzero(dir))dir=splineSoftUnit(ref.vector);
               vectors.set(q.s.id,mul(dir,target));
-            }else if(nonzero(q.s[q.key])){let sign=dot(axis,q.s[q.key])<0?-1:1;if(source.length===2&&q!==first.q)sign=-1;vectors.set(q.s.id,mul(axis,sign*len(q.s[q.key])));}
+            }
+          }
+        }else if(kind==='equalDirection'){
+          if(full||chosenLive.length>1){
+            const pool=full?sourceLive.concat(freeLive):chosenLive,active=activeIn(pool);
+            if(pool.length>=2){
+              const first=active||pool[0],axis=splineSoftUnit(first.vector),target=len(first.vector);equalInfo={first,axis,target};
+              for(const q of chosen)if(nonzero(q.s[q.key])){
+                let sign=dot(axis,q.s[q.key])<0?-1:1;
+                // At an ordinary valence-2 spline point the two geometric
+                // handles must face opposite ways, regardless of sequence order.
+                if(source.length===2&&first.q&&q!==first.q)sign=-1;
+                vectors.set(q.s.id,mul(axis,sign*len(q.s[q.key])));
+              }
+            }
+          }else if(chosen.length===1&&chosenLive.length===1){
+            // Single selected segment: use the neighbouring tangent as the
+            // reference and modify only the selected segment end.
+            const q=chosen[0],refs=sourceLive.filter(e=>e.q!==q);
+            if(refs.length){
+              const ref=refs.reduce((a,b)=>len(a.vector)>=len(b.vector)?a:b),axis=splineSoftUnit(ref.vector),L=len(q.s[q.key]);
+              let sign=source.length===2?-1:(dot(axis,q.s[q.key])<0?-1:1);
+              vectors.set(q.s.id,mul(axis,sign*L));
+            }
           }
         }
       }
-      for(const q of chosen){const vector=vectors.get(q.s.id),flag=kind==='soft'&&!q.s.soft;
+      for(const q of chosen){const vector=vectors.get(q.s.id),flag=kind==='soft'&&!q.s.soft||kind==='hard'&&q.s.soft;
         if(!equal(vector,q.s[q.key])||flag)changes.push({object:h,segment:q.s.id,side:q.side,key:q.key,vertex:vid,vector,soft:kind==='soft'?true:kind==='hard'?false:undefined});
       }
       // Free drawing handles are a different pair, never injected into a cage fan.
@@ -13576,12 +13858,12 @@ function splineTangentChanges(kind){
   return changes;
 }
 function splineTangentCommand(kind){
-  if(!['hard','soft','equalLength','equalDirection'].includes(kind))return false;
+  if(!['hard','soft','equalLength','equalDirection','equalTangents'].includes(kind))return false;
   const changes=splineTangentChanges(kind);if(!changes.length)return false;
   mutateSplineObjects([...new Set(changes.map(q=>q.object))],()=>{
     for(const q of changes){const d=splineData.get(q.object);if(!d)continue;
-      if(q.segment.startsWith('free:')){if(d.freeHandles[q.vertex])d.freeHandles[q.vertex][q.side]=q.vector.slice();}
-      else{const s=d.segments[q.segment];if(s){s[q.key]=q.vector.slice();if(q.soft!==undefined)s.soft=q.soft;}}
+      if(q.segment.startsWith('free:')){if(d.freeHandles[q.vertex]&&q.vector)d.freeHandles[q.vertex][q.side]=q.vector.slice();}
+      else{const s=d.segments[q.segment];if(s){if(q.vector&&q.key)s[q.key]=q.vector.slice();if(q.soft!==undefined)s.soft=q.soft;if(q.surfaceSoft!==undefined)s.surfaceSoft=q.surfaceSoft;if(q.surfaceBackup!==undefined){if(q.surfaceBackup===null)delete s.surfaceSoftBackup;else s.surfaceSoftBackup=JSON.parse(JSON.stringify(q.surfaceBackup));}}}
     }
   });
   return true;
@@ -13884,9 +14166,43 @@ function toggleSplineBorder(){
  const value=refs.some(r=>!splineData.get(r.object).segments[r.id].boundary);
  if(refs.length)mutateSplineObjects([...new Set(refs.map(r=>r.object))],()=>{for(const r of refs)splineData.get(r.object).segments[r.id].boundary=value;});
 }
+function splineSoftHardContext(){
+  const targets=splineTangentTargets(),states=[];
+  for(const [h,selection] of targets){
+    const d=evaluatedSplineData(h);if(!d)continue;let topology=null;
+    for(const sid of selection.segments){topology ||= resolveSplineTopology(d);const state=splineEdgeSurfaceIsG1(d,sid,topology);if(state!==null)states.push(state);}
+    for(const vid of selection.vertices)for(const seg of Object.values(d.segments))if(seg.a===vid||seg.b===vid)states.push(!!seg.soft);
+  }
+  // One action for the whole selection: mixed means Soft. After that every
+  // selected item is Soft, so the next invocation naturally offers Hard.
+  const kind=states.length&&states.every(Boolean)?'hard':'soft';
+  return {kind,label:kind==='hard'?'Hard':'Soft'};
+}
+function canSelectConnectedSpline(){
+  const selectedSegmentDomain=splineSelection.segments.size>0&&!splineSelection.vertices.size&&!splineSelection.handles.size;
+  const activeSegmentDomain=!splineSelection.vertices.size&&!splineSelection.handles.size&&!splineSelection.segments.size&&splineSelection.active?.kind==='segment';
+  if(selectedSegmentDomain||activeSegmentDomain){
+    const seeds=new Map(),addSeed=(h,sid)=>{const d=evaluatedSplineData(h);if(!d?.segments[sid])return;let set=seeds.get(h);set||seeds.set(h,set=new Set());set.add(sid);};
+    for(const key of splineSelection.segments){const r=parseSplineElementKey(key);addSeed(r.object,r.id);}
+    if(!seeds.size&&splineSelection.active?.kind==='segment')addSeed(splineSelection.active.object,splineSelection.active.id);
+    for(const [h,start] of seeds){const d=evaluatedSplineData(h),byVertex=new Map();for(const e of Object.values(d.segments))for(const vid of [e.a,e.b]){let list=byVertex.get(vid);list||byVertex.set(vid,list=[]);list.push(e.id);}
+      const seen=new Set(start),queue=[...start];while(queue.length){const sid=queue.shift(),e=d.segments[sid];if(!e)continue;for(const vid of [e.a,e.b])for(const next of byVertex.get(vid)||[])if(!seen.has(next)){seen.add(next);queue.push(next);}}
+      if([...seen].some(sid=>!start.has(sid)))return true;
+    }
+    return false;
+  }
+  const seeds=new Map(),addVertex=(h,id)=>{const d=evaluatedSplineData(h);if(!d?.vertices[id])return;let set=seeds.get(h);set||seeds.set(h,set=new Set());set.add(id);};
+  for(const key of splineSelection.vertices){const r=parseSplineElementKey(key);addVertex(r.object,r.id);}
+  for(const key of splineSelection.segments){const r=parseSplineElementKey(key),e=evaluatedSplineData(r.object)?.segments[r.id];if(e){addVertex(r.object,e.a);addVertex(r.object,e.b);}}
+  for(const key of splineSelection.handles){const r=parseSplineElementKey(key),q=parseSplineHandleKey(r.id),d=evaluatedSplineData(r.object),info=d&&splineHandleInfo(d,q.segment,q.side);if(info)addVertex(r.object,info.vertex);}
+  if(!seeds.size&&splineSelection.active){const a=splineSelection.active,d=evaluatedSplineData(a.object);if(a.kind==='vertex')addVertex(a.object,a.id);else if(a.kind==='segment'){const e=d?.segments[a.id];if(e){addVertex(a.object,e.a);addVertex(a.object,e.b);}}else{const info=d&&splineHandleInfo(d,a.id,a.side);if(info)addVertex(a.object,info.vertex);}}
+  for(const [h,start] of seeds){const d=evaluatedSplineData(h),adj=new Map(Object.keys(d.vertices).map(id=>[id,new Set()]));for(const e of Object.values(d.segments)){adj.get(e.a)?.add(e.b);adj.get(e.b)?.add(e.a);}const seen=new Set(start),queue=[...start];while(queue.length){const id=queue.shift();for(const next of adj.get(id)||[])if(!seen.has(next)){seen.add(next);queue.push(next);}}if([...seen].some(id=>!start.has(id)))return true;}
+  return false;
+}
 function showSplineContextMenu(x, y) {
   vpMenu.innerHTML = "";
-  let items = [["Toggle border", toggleSplineBorder, !splineSelection.segments.size], ["Outline", () => beginSplineOutline({ interactive: !0 }), !canCreateSplineOutline()], ["Select Connected (W)", selectConnectedSpline, !1], ["Hard", () => splineTangentCommand("hard"), !splineTangentChanges("hard").length], ["Soft", () => splineTangentCommand("soft"), !splineTangentChanges("soft").length], ["Equal Tangent Length", () => splineTangentCommand("equalLength"), !splineTangentChanges("equalLength").length], ["Equal Tangent Direction", () => splineTangentCommand("equalDirection"), !splineTangentChanges("equalDirection").length], ["Vertex Bevel", () => createSplineBevelTag({ interactive: !0 }), !canCreateSplineBevel()]];
+  const tangentState=splineSoftHardContext();
+  let items = [["Bevel", () => createSplineBevelTag({ interactive: !0 }), !canCreateSplineBevel()], ["Outline", () => beginSplineOutline({ interactive: !0 }), !canCreateSplineOutline()], [tangentState.label, () => splineTangentCommand(tangentState.kind), !splineTangentChanges(tangentState.kind).length], ["Equal Tangents", () => splineTangentCommand("equalTangents"), !splineTangentChanges("equalTangents").length], ["Toggle Border", toggleSplineBorder, !splineSelection.segments.size], ["Select Connected (W)", selectConnectedSpline, !canSelectConnectedSpline()]];
   for (let [label, action, disabled] of items) {
     let el = document.createElement("div");
     el.className = "obm-item" + (disabled ? " disabled" : ""), el.textContent = label, disabled || el.addEventListener("click", () => {
@@ -14070,17 +14386,11 @@ function splineSelectHit(hit, mode = "replace") {
     return mode === "replace" && (splineSelectionClearElements(), placeGizmoForSelection(), updateAllSplineVisuals(), updateHUD()), null;
   componentFocus = "spline";
   if(hit.kind==='face'){
-    const face=hit.face||splineSelectableFaces(evaluatedSplineData(hit.object)).find(f=>f.id===hit.id);if(!face)return null;
-    if(splinePatchEditObject(hit.object)){
-      const fkey=splineElementKey(hit.object,face.id),on=splineSelection.faces.has(fkey);
-      if(mode==='replace')splineSelectionClearElements();
-      if(mode==='invert'&&on)splineSelection.faces.delete(fkey);else splineSelection.faces.add(fkey);
-      rebuildSplinePatchFaceSegments(hit.object);
-    }else{
-      const keys=face.segments.map(id=>splineElementKey(hit.object,id)),all=keys.length&&keys.every(k=>splineSelection.segments.has(k));
-      if(mode==='replace')splineSelectionClearElements();
-      if(mode==='invert'&&all)for(const k of keys)splineSelection.segments.delete(k);else for(const k of keys)splineSelection.segments.add(k);
-    }
+    const face=hit.face||splineSelectableFaces(evaluatedSplineData(hit.object)||splineData.get(hit.object)).find(f=>f.id===hit.id);if(!face)return null;
+    const fkey=splineElementKey(hit.object,face.id),on=splineSelection.faces.has(fkey);
+    if(mode==='replace')splineSelectionClearElements();
+    if(mode==='invert'&&on)splineSelection.faces.delete(fkey);else splineSelection.faces.add(fkey);
+    rebuildSplineFaceSegments(hit.object);
     splineSelection.active={kind:'face',object:hit.object,id:face.id};splineSelection.anchor=face.vertices.length?{object:hit.object,id:face.vertices[0]}:null;
     if(hit.world){let cam=vpState.views[hit.view]?.cam;cam&&(splineWorkPlane={object:hit.object,point:hit.world.clone(),normal:cam.getWorldDirection(new THREE2.Vector3())});}
     splineSelection.pivot=null;updateAllSplineVisuals();placeGizmoForSelection();updateHUD();return hit;
@@ -14271,7 +14581,9 @@ function beginSplineDirectDrag(gesture, e) {
   let frame = splineFrameMatrix();
   if (!frame) return !1;
   let owners = splineSelectionOwners();
-  return gesture.fullBefore = captureSplineFullState(owners), gesture.beforeSelection = splineSelectionState(), autoBakeSplineTags(owners), gesture.direct = !0, gesture.before = splineDataSnapshot(), gesture.through = hit.world.clone(), gesture.startCenter = new THREE2.Vector3().setFromMatrixPosition(frame), gesture.mods = { ctrl: gesture.ctrl, shift: gesture.shift }, splineWeldCandidate = null, gizDrag = { mode: "move", kind: "screen", view: gesture.view, r: rectFor(gesture.view), startPos: gesture.startCenter.clone() }, clearSplineHover(), e.preventDefault(), !0;
+  gesture.fullBefore=captureSplineFullState(owners);gesture.beforeSelection=splineSelectionState();autoBakeSplineTags(owners);
+  const extruded=!!gesture.shift&&extrudeSplineSelectionForTransform();
+  return gesture.direct = !0, gesture.extruded=extruded, gesture.before = splineDataSnapshot(), gesture.through = hit.world.clone(), gesture.startCenter = new THREE2.Vector3().setFromMatrixPosition(frame), gesture.mods = { ctrl: gesture.ctrl&&!extruded, shift: gesture.shift, extruded }, splineWeldCandidate = null, gizDrag = { mode: "move", kind: "screen", view: gesture.view, r: rectFor(gesture.view), startPos: gesture.startCenter.clone() }, clearSplineHover(), e.preventDefault(), !0;
 }
 function constrainSplineDirectDelta(gesture, raw) {
   let view = vpState.views[gesture.view], cam = view?.cam;
@@ -14292,7 +14604,7 @@ function constrainSplineDirectDelta(gesture, raw) {
 }
 function moveSplineDirectDrag(gesture, e) {
   if (!gesture.before || !gesture.through) return;
-  gesture.mods = { ctrl: !!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey };
+  gesture.mods = { ctrl: !gesture.extruded&&!!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey, extruded: !!gesture.extruded };
   let raw = splineScreenPlaneDelta(gesture.x, gesture.y, e.clientX, e.clientY, gesture.view, gesture.through), delta = constrainSplineDirectDelta(gesture, raw), matrix = new THREE2.Matrix4().makeTranslation(delta.x, delta.y, delta.z);
   applySplineTransformSnapshot(gesture.before, matrix, gesture.mods);
   const targets=[...gesture.before.keys()];if(targets.length)scheduleGeneratorEvaluation(0,targets);scheduleRender();
@@ -14301,7 +14613,8 @@ function finishSplineDirectDrag(gesture,cancelled=false) {
   if (!gesture.before) return;
   if(cancelled){gizDrag=null;splineWeldCandidate=null;restoreSplineFullState(gesture.fullBefore,gesture.beforeSelection);scheduleRender();return;}
   trySplineWeldAfterDrag();
-  let owners = [...gesture.fullBefore.keys()], before = gesture.fullBefore, after = captureSplineFullState(owners), beforeSel = gesture.beforeSelection, afterSel = splineSelectionState();
+  let owners = [...gesture.fullBefore.keys()];if(gesture.extruded)for(const h of owners)markSplineSurfaceResolverDirty(h);
+  let before = gesture.fullBefore, after = captureSplineFullState(owners), beforeSel = gesture.beforeSelection, afterSel = splineSelectionState();
   (JSON.stringify([...before]) !== JSON.stringify([...after]) || JSON.stringify(beforeSel) !== JSON.stringify(afterSel)) && pushCmd({ redo() {
     restoreSplineFullState(after, afterSel);
   }, undo() {
@@ -14366,11 +14679,10 @@ function splineBoxPick(x0, y0, x1, y1, mode = "replace") {
       for(const [sid,e]of Object.entries(d.segments)){if(!through&&!splineEdgeVisible(h,d,sid,vi))continue;const samples=sampleSplineSegment(d,sid);let hit=false,prev=null;for(const sample of samples){const q=project(sample.position);if(q.ndc.z>=-1&&q.ndc.z<=1){if(inside(q.screen)||prev&&lineHits(prev,q.screen)){hit=true;break;}prev=q.screen;}}if(!hit)continue;const key=splineElementKey(h,sid);mode==='invert'&&splineSelection.segments.has(key)?splineSelection.segments.delete(key):splineSelection.segments.add(key);last={kind:'segment',object:h,id:sid};}
     }else if(polyElementMode==='face'){
       for(const face of splineSelectableFaces(d)){const outer=(face.outlinePoints||face.outer?.points||[]).map(p=>project(p).screen),center=[outer.reduce((a,p)=>a+p[0],0)/Math.max(1,outer.length),outer.reduce((a,p)=>a+p[1],0)/Math.max(1,outer.length)],hit=outer.length>=3&&(inside(center)||outer.some(inside)||splinePointInPolygon2([(box.x0+box.x1)/2,(box.y0+box.y1)/2],outer));if(!hit)continue;
-        if(splinePatchEditObject(h)){const fkey=splineElementKey(h,face.id),on=splineSelection.faces.has(fkey);if(mode==='invert'&&on)splineSelection.faces.delete(fkey);else splineSelection.faces.add(fkey);patchFaceObjects.add(h);last={kind:'face',object:h,id:face.id,face};continue;}
-        const keys=face.segments.map(id=>splineElementKey(h,id)),all=keys.every(k=>splineSelection.segments.has(k));if(mode==='invert'&&all)keys.forEach(k=>splineSelection.segments.delete(k));else keys.forEach(k=>splineSelection.segments.add(k));last={kind:'face',object:h,id:face.id,face};}
+        const fkey=splineElementKey(h,face.id),on=splineSelection.faces.has(fkey);if(mode==='invert'&&on)splineSelection.faces.delete(fkey);else splineSelection.faces.add(fkey);patchFaceObjects.add(h);last={kind:'face',object:h,id:face.id,face};}
     }
   }
-  for(const h of patchFaceObjects)rebuildSplinePatchFaceSegments(h);
+  for(const h of patchFaceObjects)rebuildSplineFaceSegments(h);
   if(last){splineSelection.active={kind:last.kind,object:last.object,id:last.id};if(last.kind==='vertex')splineSelection.anchor={object:last.object,id:last.id};else if(last.kind==='segment'){const e=evaluatedSplineData(last.object)?.segments[last.id];e&&(splineSelection.anchor={object:last.object,id:e.a});}else if(last.face?.vertices?.length)splineSelection.anchor={object:last.object,id:last.face.vertices[0]};}
   splineSelection.pivot=null;componentFocus='spline';updateAllSplineVisuals();placeGizmoForSelection();updateHUD();scheduleRender();
 }
@@ -14601,13 +14913,13 @@ tlInterpBtn.addEventListener("click", () => {
   syncInterp();
 });
 syncInterp();
-var panelEl = document.getElementById("panel"), panelsEl = document.getElementById("panels"), filebarEl = document.getElementById("filebar"), modelbarEl = document.getElementById("modelbar"), obWrapEl = document.getElementById("obWrap"), tabBtns = [...document.querySelectorAll("#tabstrip .tabgrp .tabbtn")], tabDelUnused = document.getElementById("tabDelUnused"), tabAddNew = document.getElementById("tabAddNew"), ADD_NEW = /* @__PURE__ */ new Set(["tabMaterials", "tabObjects", "tabMaterialMgr"]), PANEL_MAP = { tabAttributes: "attributesPanel", tabObjects: "objectsPanel", tabMaterialMgr: "matEditorPanel", tabMaterials: "materialsPanel", tabTextures: "texturesPanel" }, texLoaded = !1;
+var panelEl = document.getElementById("panel"), panelsEl = document.getElementById("panels"), filebarEl = document.getElementById("filebar"), modelbarEl = document.getElementById("modelbar"), obWrapEl = document.getElementById("obWrap"), tabBtns = [...document.querySelectorAll("#tabstrip .tabgrp .tabbtn")], tabDelUnused = document.getElementById("tabDelUnused"), PANEL_MAP = { tabAttributes: "attributesPanel", tabObjects: "objectsPanel", tabMaterialMgr: "matEditorPanel", tabMaterials: "materialsPanel", tabTextures: "texturesPanel" }, texLoaded = !1;
 function activeTabId() {
   let b = tabBtns.find((x) => x.classList.contains("on"));
   return b ? b.id : null;
 }
 function refreshTabActs(id2) {
-  tabDelUnused.style.display = id2 === "tabMaterials" ? "" : "none", tabAddNew.style.display = ADD_NEW.has(id2) ? "" : "none";
+  tabDelUnused.style.display = id2 === "tabMaterials" && materialCleanupPlan().toDelete.size ? "" : "none";
 }
 function activateTab(id2) {
   tabBtns.forEach((x) => x.classList.toggle("on", x.id === id2)), refreshTabActs(id2), document.querySelectorAll(".panel-content").forEach((p) => p.style.display = "none");
@@ -14665,7 +14977,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   symmetry: () => ({ x: !0, y: !1, z: !1 }),
   cloner: () => ({ mode: "radial", count: 5, angle: 360, mx: 3, my: 3, mz: 3, dx: 100, dy: 100, dz: 100 }),
   environment: () => ({ map: !1, hemi: 100, infinite: 0, camera: 100, vAng: 45, hAng: 45 }),
-  cube: () => ({ size: 100, approximation: 10 }),
+  cube: () => ({ size: 100 }),
   cylinder: () => ({ diameter: 100, height: 100, approximation: 10 }),
   tube: () => ({ d1: 100, d2: 50, height: 100, approximation: 10 }),
   sphere: () => ({ diameter: 100, approximation: 10 }),
@@ -14690,7 +15002,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   symmetry: { f: [], i: [], b: ["x", "y", "z"], e: [], s: null },
   cloner: { f: ["angle", "dx", "dy", "dz"], i: ["count", "mx", "my", "mz"], b: [], e: [["mode", ["radial", "matrix"]]], s: null },
   environment: { f: ["hemi", "infinite", "camera", "vAng", "hAng"], i: [], b: ["map"], e: [], s: null },
-  cube: { f: ["size", "approximation", "sizeX", "sizeY", "sizeZ"], i: [], b: [], e: [], s: null },
+  cube: { f: ["size", "sizeX", "sizeY", "sizeZ"], i: [], b: [], e: [], s: null },
   cylinder: { f: ["diameter", "height", "approximation"], i: [], b: [], e: [], s: null },
   tube: { f: ["d1", "d2", "height", "approximation"], i: [], b: [], e: [], s: null },
   sphere: { f: ["diameter", "approximation"], i: [], b: [], e: [], s: null },
@@ -15051,9 +15363,6 @@ function renderCube(h) {
     s(v), syncParametricObject(h);
   } }, o));
   for (let axis of ["X", "Y", "Z"]) R("size " + axis.toLowerCase(), () => p["size" + axis] ?? p.size, v => { p["size" + axis] = v; }, O_SZ);
-  R("angle approximation", () => p.approximation, (v) => {
-    p.approximation = v;
-  }, O_SPLINE_ANG);
 }
 function renderCylinder(h) {
   let p = objParams.get(h);
@@ -15436,7 +15745,7 @@ async function evaluateSplinePatchNode(h){
     // Detaching a cage must invalidate the surface identity. Otherwise putting
     // the exact same cage back produces the same signature and the old cached
     // promise is returned even though its mesh was just disposed.
-    state.signature=null;state.surfaceSignature=null;state.splineGeometrySignature=null;state.surfaceFillTopologyKey=null;state.surfaceTopologyKey=null;state.surfaceResolverCache=null;state.surfaceDependencies=null;state.surfaceSource=null;state.surfaceResolverGeometryDirty=false;state.surfaceEntries=[];state.surfaceCellCache?.clear();
+    state.signature=null;state.surfaceSignature=null;state.splineGeometrySignature=null;state.surfaceFillTopologyKey=null;state.surfaceTopologyKey=null;state.surfaceResolverCache=null;state.surfaceDependencies=null;state.surfaceSource=null;state.surfaceResolverGeometryDirty=false;state.surfaceResolverDirtySerial=0;state.surfaceResolverResolvedSerial=0;state.surfaceEntries=[];state.surfaceCellCache?.clear();
     state.error=null;state.ready=true;state.report={generator:'spline_patch',status:'unresolved',patchCells:0,triangles:0,ignored:true};renderRows();scheduleRender();return;
   }
   syncMeshParents();
@@ -15458,11 +15767,10 @@ async function evaluateSplinePatchNode(h){
 // spline geometry reaches the resolver and workers; report is display-only.
 async function evaluatePureCageSurface(h,data,{generator='spline_patch',report={}}={}){
   const state=ensureReplicaState(h);
-  const geometrySignature=JSON.stringify(data),requestedAngle=Math.max(1,+data.approximation?.angle||10),interactive=!!gizDrag||!!state.paramScrub;
-  // Any interactive spline edit gets a coarse worker build. The previous gate
-  // only enabled preview for angle<4, so normal 10-degree Lathe/Text cages were
-  // rebuilt at full quality on every mouse update.
-  const preview=interactive&&(state.splineGeometrySignature!==geometrySignature||state.surfacePreview)&&state.forceFinalSignature!==geometrySignature;
+  const geometrySignature=JSON.stringify(data),requestedAngle=Math.max(1,+data.approximation?.angle||10),interactive=!!gizDrag||!!state.paramScrub,hasFineEdge=Object.values(data.segments||{}).some(e=>Math.max(1,+e.approximation?.angle||requestedAngle)<5);
+  // Interactive quality is never reduced when the effective cage angle is 5°
+  // or coarser. Only edges finer than 5° are temporarily clamped to 5°.
+  const preview=interactive&&hasFineEdge&&(state.splineGeometrySignature!==geometrySignature||state.surfacePreview)&&state.forceFinalSignature!==geometrySignature;
   if(!preview&&state.surfaceResolverGeometryDirty)state.surfaceSignature=null;
   const signature=JSON.stringify([geometrySignature,preview]);
   if(state.surfaceSignature===signature&&(state.pending||state.ready&&!state.error))return state.surfacePromise;
@@ -15482,10 +15790,15 @@ async function evaluatePureCageSurface(h,data,{generator='spline_patch',report={
     // A completed obsolete build may warm the serialized cache, but must not
     // replace the displayed mesh, angle report or cage of a newer request.
     if(state.surfaceRevision===revision){state.generatedCageData=surface.displayCage||data;installGeneratedSplineCage(h,state,state.generatedCageData);}
-    state.report={...report,...surface.report,generator,generatedCage:true,cageOnly:false,requestedAngle,displayAngle:surface.report.workingAngle||requestedAngle,boundaryAngle:preview?(surface.report.workingAngle||requestedAngle):requestedAngle};state.topology={cells:surface.cells,uv:surface.uv};
+    const coarsePreview=preview&&(surface.report.coarsePreviewCells||0)>0;
+    state.report={...report,...surface.report,generator,generatedCage:true,cageOnly:false,requestedAngle,displayAngle:coarsePreview?(surface.report.workingAngle||requestedAngle):requestedAngle,boundaryAngle:coarsePreview?(surface.report.workingAngle||requestedAngle):requestedAngle};state.topology={cells:surface.cells,uv:surface.uv};
     installSplineChunks(h,state,surface);
-    state.report.qualityStage=preview?'preview':'built';
-    state.ready=true;state.error=null;state.needsFinalBuild=preview;
+    // If no affected cell actually used an angle finer than 5°, the interactive
+    // result is already final-quality. Canonicalize its signature now so mouse-up
+    // does not trigger a second, identical surface pass.
+    if(preview&&!coarsePreview){const exactSignature=JSON.stringify([geometrySignature,false]);state.surfaceSignature=exactSignature;if(generator==='spline_patch')state.signature=exactSignature;state.surfacePreview=false;}
+    state.report.qualityStage=coarsePreview?'preview':'built';
+    state.ready=true;state.error=null;state.needsFinalBuild=coarsePreview;
   }catch(error){if(state.surfaceRevision===revision&&OBJ.has(h)){
     const keepPreview=preview&&!!state.mesh?.userData?.splineChunks?.size;
     if(keepPreview){state.ready=true;state.error=null;state.previewError=error.message||String(error);state.report={...(state.report||{}),generator,previewError:state.previewError,qualityStage:'preview-stale'};renderRows();scheduleRender();}
@@ -15622,6 +15935,7 @@ function treeChanged() {
   // Equal object counts do not imply equal identities (scene load, undo, bake).
   generatorRegistryObjectCount = -1;
   rebuildFlat(), obLayout(), renderRows(), syncEnv(), scheduleGeneratorEvaluation();
+  tabDelUnused && refreshTabActs(activeTabId());
 }
 function obLayout() {
   obClientW = obScroll.clientWidth, obInner.style.width = obClientW + "px", obInner.style.height = flatRows.length * 17 + "px";
@@ -16606,19 +16920,12 @@ function finalizeNewMat(hash, selectAndBind) {
     let m = getMat(hash);
     draft.h = m.h, draft.s = m.s, draft.l = m.l, draft.emm = m.emm, draft.rough = m.rough, draft.metal = m.metal, draft.opac = m.opac, draft.bump = m.bump, draft.map = m.map, draft.texBytes = m.texBytes, draft.texMime = m.texMime, selMats.clear(), selTags.clear(), liveMat = null, refreshMatSel(), document.body.style.setProperty("--h", draft.h), document.body.style.setProperty("--s", draft.s + "%"), document.body.style.setProperty("--l", draft.l + "%"), updateMatPreview(), syncInputs();
   }
+  refreshTabActs(activeTabId());
 }
 function createMatFromDefault() {
   let d = getMat(getDefaultMatHash()), base = d ? { h: d.h, s: d.s, l: d.l, emm: d.emm, rough: d.rough, metal: d.metal, opac: d.opac, bump: d.bump, map: d.map, texBytes: d.texBytes, texMime: d.texMime } : { h: 0, s: 0, l: 50, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 };
   finalizeNewMat(makeMat(Object.assign({ name: nextMatName() }, base)), !0);
 }
-function createMatFromCurrent() {
-  let s = activeMat();
-  finalizeNewMat(makeMat(Object.assign({ name: nextMatName() }, { h: s.h, s: s.s, l: s.l, emm: s.emm, rough: s.rough, metal: s.metal, opac: s.opac, bump: s.bump, map: s.map, texBytes: s.texBytes, texMime: s.texMime })), !1);
-}
-tabAddNew.addEventListener("click", () => {
-  let id2 = activeTabId();
-  id2 === "tabMaterials" ? createMatFromDefault() : id2 === "tabMaterialMgr" ? createMatFromCurrent() : id2 === "tabObjects" && addPlain("object", TYPE_MESH, !1);
-});
 function cmdDeleteMats(hashes) {
   if (hashes = hashes.filter((h) => {
     let m = getMat(h);
@@ -16652,7 +16959,7 @@ function cmdDeleteMats(hashes) {
 function matSignature(m) {
   return [m.h, m.s, m.l, m.emm, m.rough, m.metal, m.opac, m.bump].map((x) => (+x).toFixed(2)).join(",") + "|" + (m.texBytes ? m.texBytes.length + ":" + (m.texMime || "") : "");
 }
-tabDelUnused.addEventListener("click", () => {
+function materialCleanupPlan() {
   let used = /* @__PURE__ */ new Set();
   eachNode((n) => n.tags.forEach((t) => {
     t.ref && used.add(t.ref);
@@ -16672,7 +16979,11 @@ tabDelUnused.addEventListener("click", () => {
   });
   for (let h of getAllMatHashes())
     getMat(h).isDefault || toDelete.has(h) || used.has(h) || toDelete.add(h);
-  if (!toDelete.size) return;
+  return { used, remap, toDelete };
+}
+tabDelUnused.addEventListener("click", () => {
+  let { remap, toDelete } = materialCleanupPlan();
+  if (!toDelete.size) return refreshTabActs(activeTabId());
   let matSnap = [...toDelete].map((h) => ({ h, mat: Object.assign({}, getMat(h)) })), affected = /* @__PURE__ */ new Set();
   eachNode((n) => {
     n.tags.some((t) => toDelete.has(t.ref) || remap.has(t.ref)) && affected.add(n.hash);
@@ -18039,7 +18350,7 @@ function duplicateSplineVerticesForMove(data,vertexIds){
   }
   for(const s of original)if(chosen.has(s.a)&&chosen.has(s.b)){
     const sid=addIndependentSegment(data,vertices.get(s.a),vertices.get(s.b),s.ha,s.hb,!!s.soft),q=data.segments[sid];
-    if(s.boundary!==undefined)q.boundary=s.boundary;if(s.approximation)q.approximation={...s.approximation};segments.set(s.id,sid);
+    if(s.boundary!==undefined)q.boundary=s.boundary;if(s.surfaceSoft!==undefined)q.surfaceSoft=!!s.surfaceSoft;if(s.approximation)q.approximation={...s.approximation};segments.set(s.id,sid);
   }
   for(const [old,copy]of vertices)addIndependentSegment(data,old,copy,[0,0,0],[0,0,0],false);
   return {vertices,segments};
@@ -18053,9 +18364,86 @@ function remapSplineMoveCopySelection(refs,maps){
   }
 }
 
+// Shift-transform extrusion for spline cage edges / fills.
+// Duplicate the selected cage region once, connect source and copy, then let the
+// ordinary transform code move/rotate/scale only the copied region.
+function duplicateSplineCageForExtrude(data,segmentIds,{faceMode=false,boundarySegments=null}={}){
+  const ids=[...new Set(segmentIds)].filter(id=>data.segments[id]);
+  if(!ids.length)return null;
+  const originalBoundary=new Map(ids.map(id=>[id,!!data.segments[id].boundary]));
+  const copy=duplicateSplineSegments(data,ids),degree=new Map(),adj=new Map();
+  const addAdj=(v,sid)=>{degree.set(v,(degree.get(v)||0)+1);let a=adj.get(v);a||adj.set(v,a=[]);a.push(sid);};
+  for(const sid of ids){const s=data.segments[sid];addAdj(s.a,sid);addAdj(s.b,sid);}
+  const edgeClosed=new Map(),seen=new Set();
+  for(const seed of ids)if(!seen.has(seed)){
+    const stack=[seed],edges=[],verts=new Set();
+    while(stack.length){const sid=stack.pop();if(seen.has(sid))continue;seen.add(sid);edges.push(sid);const s=data.segments[sid];for(const v of [s.a,s.b]){verts.add(v);for(const q of adj.get(v)||[])if(!seen.has(q))stack.push(q);}}
+    const localDegree=new Map();for(const sid of edges){const s=data.segments[sid];localDegree.set(s.a,(localDegree.get(s.a)||0)+1);localDegree.set(s.b,(localDegree.get(s.b)||0)+1);}
+    const closed=edges.length>=2&&[...verts].every(v=>localDegree.get(v)===2);for(const sid of edges)edgeClosed.set(sid,closed);
+  }
+  let connectVertices;
+  if(faceMode){
+    const boundary=new Set(boundarySegments||ids);
+    connectVertices=new Set();
+    for(const sid of boundary){const s=data.segments[sid];if(!s)continue;connectVertices.add(s.a);connectVertices.add(s.b);s.boundary=false;const ns=copy.segmentMap.get(sid);if(ns)data.segments[ns].boundary=false;}
+  }else{
+    connectVertices=new Set();
+    for(const sid of ids){const s=data.segments[sid],ns=copy.segmentMap.get(sid);connectVertices.add(s.a);connectVertices.add(s.b);s.boundary=false;if(ns)data.segments[ns].boundary=!edgeClosed.get(sid);}
+  }
+  const connectors=[];
+  for(const old of [...connectVertices].sort()){
+    const nv=copy.vertexMap.get(old);if(!nv)continue;
+    const sid=addIndependentSegment(data,old,nv,[0,0,0],[0,0,0],false);if(!sid)continue;
+    if(!faceMode&&degree.get(old)===1)data.segments[sid].boundary=true;else data.segments[sid].boundary=false;
+    connectors.push(sid);
+  }
+  // In face mode only the outer perimeter changes border state. Internal copied
+  // edges preserve their authored border flag if the region contains several cells.
+  if(faceMode){
+    const boundary=new Set(boundarySegments||ids);
+    for(const sid of ids)if(!boundary.has(sid)){
+      const ns=copy.segmentMap.get(sid);if(ns)data.segments[ns].boundary=originalBoundary.get(sid);
+    }
+  }
+  return {...copy,connectors};
+}
+function selectedSplineFacesForExtrude(h,data){
+  const wanted=new Set([...splineSelection.faces].map(parseSplineElementKey).filter(r=>r.object===h).map(r=>r.id));
+  if(!wanted.size&&splineSelection.active?.kind==='face'&&splineSelection.active.object===h)wanted.add(splineSelection.active.id);
+  const faces=splineSelectableFaces(data);
+  return faces.filter(f=>wanted.has(f.id));
+}
+function extrudeSplineSelectionForTransform(){
+  if(editPivot||!(polyElementMode==='edge'||polyElementMode==='face')||!splineSelection.segments.size)return false;
+  const faceMode=polyElementMode==='face',grouped=new Map();
+  for(const key of splineSelection.segments){const r=parseSplineElementKey(key);let a=grouped.get(r.object);a||grouped.set(r.object,a=[]);a.push(r.id);}
+  const results=new Map();
+  for(const [h,selectedIds] of grouped){
+    const data=splineData.get(h);if(!data)continue;let ids=selectedIds,boundary=null;
+    if(faceMode){
+      const faces=selectedSplineFacesForExtrude(h,data);
+      if(faces.length){
+        const count=new Map();ids=[...new Set(faces.flatMap(f=>f.segments))];
+        for(const f of faces)for(const sid of f.segments)count.set(sid,(count.get(sid)||0)+1);
+        boundary=new Set([...count].filter(([,n])=>n===1).map(([sid])=>sid));
+      }else boundary=new Set(ids);
+    }
+    const q=duplicateSplineCageForExtrude(data,ids,{faceMode,boundarySegments:boundary});if(!q)continue;
+    results.set(h,q);invalidateEvaluatedSpline(h);
+  }
+  if(!results.size)return false;
+  splineSelection.vertices.clear();splineSelection.handles.clear();splineSelection.faces.clear();splineSelection.segments.clear();
+  let first=null,anchor=null;
+  for(const [h,q] of results)for(const sid of q.segments){splineSelection.segments.add(splineElementKey(h,sid));if(!first){first={kind:'segment',object:h,id:sid};const s=splineData.get(h)?.segments[sid];s&&(anchor={object:h,id:s.a});}}
+  splineSelection.active=first;splineSelection.anchor=anchor;
+  updateAllSplineVisuals();placeGizmoForSelection();scheduleRender();
+  return true;
+}
+
 function applySplineTransformSnapshot(states, deltaWorld, mods = {}) {
 
   let changed = !1, refs = splineSelectedRefs();
+  const I=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],topologyMoved=!!mods.extruded&&deltaWorld.elements.some((v,i)=>Math.abs(v-I[i])>1e-12);
   const move=!!(mods.moveOperation||gizDrag?.mode==='move')&&!mods.scaleOperation&&!editPivot&&!uvEdit;
   if(move&&gizDrag?.splineCopyRefs)refs=gizDrag.splineCopyRefs;
   const copying=move&&refs.vertices.length>0&&(mods.ctrl||!!gizDrag?.splineCopyRefs),copyMaps=new Map();
@@ -18126,6 +18514,7 @@ function applySplineTransformSnapshot(states, deltaWorld, mods = {}) {
       finishScaledSplineHandles(d, state, affected, handles, !!mods.ctrl);
     }
     splineData.set(h, d), invalidateEvaluatedSpline(h);
+    if(topologyMoved)markSplineSurfaceResolverDirty(h);
     const largeSegmentEdit=fastRegion&&segments.length&&!vertices.length&&!handles.length&&Object.keys(d.segments).length>180;
     largeSegmentEdit&&updateSplineVisualSegmentsFast(h,d,fastTouched)||updateSplineVisual(h), changed = !0;
   }
@@ -18384,18 +18773,21 @@ onGizmoDragStart((e) => {
   if (splineFocusActive()) {
     splineWeldCandidate = null, gizBeforeGizmo = getGizmoWorldArray(), gizBeforeSplineSel = splineSelectionState(), gizBeforeSplinePivot = splineSelection.pivot && splineSelection.pivot.slice();
     let owners = splineSelectionOwners();
-    if (gizBeforeSplineFull = editPivot ? null : captureSplineFullState(owners), editPivot || autoBakeSplineTags(owners), gizBeforeSplineUndo = splineDataSnapshot(), splineGizModifiers = { ctrl: !!(e?.ctrlKey || e?.metaKey) }, !editPivot && splineGizModifiers.ctrl && !splineSelection.vertices.size && !splineSelection.handles.size && splineSelection.segments.size) {
-      let grouped = /* @__PURE__ */ new Map();
-      for (let key of splineSelection.segments) {
-        let r = parseSplineElementKey(key), a = grouped.get(r.object);
-        a || grouped.set(r.object, a = []), a.push(r.id);
+    if (gizBeforeSplineFull = editPivot ? null : captureSplineFullState(owners), editPivot || autoBakeSplineTags(owners), gizBeforeSplineUndo = splineDataSnapshot(), splineGizModifiers = { ctrl: !!(e?.ctrlKey || e?.metaKey), shift: !!e?.shiftKey }, !editPivot) {
+      if(splineGizModifiers.shift&&extrudeSplineSelectionForTransform())splineGizModifiers.extruded=true;
+      else if(splineGizModifiers.ctrl && !splineSelection.vertices.size && !splineSelection.handles.size && splineSelection.segments.size) {
+        let grouped = /* @__PURE__ */ new Map();
+        for (let key of splineSelection.segments) {
+          let r = parseSplineElementKey(key), a = grouped.get(r.object);
+          a || grouped.set(r.object, a = []), a.push(r.id);
+        }
+        splineSelection.segments.clear();
+        for (let [h, ids] of grouped) {
+          let q = duplicateSplineSegments(splineData.get(h), ids);
+          for (let sid of q.segments) splineSelection.segments.add(splineElementKey(h, sid));
+        }
+        updateAllSplineVisuals();
       }
-      splineSelection.segments.clear();
-      for (let [h, ids] of grouped) {
-        let q = duplicateSplineSegments(splineData.get(h), ids);
-        for (let sid of q.segments) splineSelection.segments.add(splineElementKey(h, sid));
-      }
-      updateAllSplineVisuals();
     }
 
     gizBeforeSpline = splineDataSnapshot();
@@ -18432,13 +18824,18 @@ onGizmoDragEnd((event) => {
     } else if(event?.type==='pointercancel'){
       if(gizBeforeSplineFull)restoreSplineFullState(gizBeforeSplineFull,gizBeforeSplineSel);
     } else {
-      gizBeforeSplinePivot && (splineSelection.pivot = pureSplinePivotMatrix(getGizmoWorldArray())), trySplineWeldAfterDrag();
-      let before = gizBeforeSplineFull, after = captureSplineFullState([...before.keys()]), beforeSel = gizBeforeSplineSel, afterSel = splineSelectionState();
-      (JSON.stringify([...before]) !== JSON.stringify([...after]) || JSON.stringify(beforeSel) !== JSON.stringify(afterSel)) && pushCmd({ redo() {
-        restoreSplineFullState(after, afterSel);
-      }, undo() {
-        restoreSplineFullState(before, beforeSel);
-      } });
+      const transformed=!gizBeforeGizmo||!mat4Close(gizBeforeGizmo,getGizmoWorldArray());
+      if(splineGizModifiers?.extruded&&!transformed)restoreSplineFullState(gizBeforeSplineFull,gizBeforeSplineSel);
+      else{
+        gizBeforeSplinePivot && (splineSelection.pivot = pureSplinePivotMatrix(getGizmoWorldArray())), trySplineWeldAfterDrag();
+        const finalOwners=[...gizBeforeSplineFull.keys()];if(splineGizModifiers?.extruded){for(const h of finalOwners)markSplineSurfaceResolverDirty(h);scheduleGeneratorEvaluation(0,finalOwners);}
+        let before = gizBeforeSplineFull, after = captureSplineFullState(finalOwners), beforeSel = gizBeforeSplineSel, afterSel = splineSelectionState();
+        (JSON.stringify([...before]) !== JSON.stringify([...after]) || JSON.stringify(beforeSel) !== JSON.stringify(afterSel)) && pushCmd({ redo() {
+          restoreSplineFullState(after, afterSel);
+        }, undo() {
+          restoreSplineFullState(before, beforeSel);
+        } });
+      }
     }
     gizBeforeSpline = null, gizBeforeSplineUndo = null, gizBeforeSplineFull = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeGizmo = null, splineGizModifiers = null, splineWeldCandidate = null, updateAllSplineVisuals(), placeGizmoForSelection();
     return;
@@ -18553,7 +18950,7 @@ function restoreAnimationPayload(data) {
 function resetTimeline() {
   pendingAnimation = null, restoreAnimationPayload(null);
 }
-const HASH_PARAM_DEFAULTS = {"instance":{"source":""},"spline":{"angle":10},"spline_patch":{},"extrude":{"offset":10,"startFillet":false,"startType":"flat","startSize":1,"endFillet":false,"endType":"flat","endSize":1},"lathe":{"angle":360},"sweep":{"mode":"parallel"},"boolean":{"op":"subtract"},"symmetry":{"x":true,"y":false,"z":false},"cloner":{"mode":"radial","count":5,"angle":360,"mx":3,"my":3,"mz":3,"dx":100,"dy":100,"dz":100},"environment":{"map":false,"hemi":100,"infinite":0,"camera":100,"vAng":45,"hAng":45},"cube":{"size":100,"approximation":10},"cylinder":{"diameter":100,"height":100,"approximation":10},"tube":{"d1":100,"d2":50,"height":100,"approximation":10},"sphere":{"diameter":100,"approximation":10},"square":{"w":100,"h":100},"circle":{"diameter":100,"approximation":10},"polyhedron":{"faces":6,"diameter":100},"text":{"text":"Text","_legacySize":0,"approximation":10}};
+const HASH_PARAM_DEFAULTS = {"instance":{"source":""},"spline":{"angle":10},"spline_patch":{},"extrude":{"offset":10,"startFillet":false,"startType":"flat","startSize":1,"endFillet":false,"endType":"flat","endSize":1},"lathe":{"angle":360},"sweep":{"mode":"parallel"},"boolean":{"op":"subtract"},"symmetry":{"x":true,"y":false,"z":false},"cloner":{"mode":"radial","count":5,"angle":360,"mx":3,"my":3,"mz":3,"dx":100,"dy":100,"dz":100},"environment":{"map":false,"hemi":100,"infinite":0,"camera":100,"vAng":45,"hAng":45},"cube":{"size":100},"cylinder":{"diameter":100,"height":100,"approximation":10},"tube":{"d1":100,"d2":50,"height":100,"approximation":10},"sphere":{"diameter":100,"approximation":10},"square":{"w":100,"h":100},"circle":{"diameter":100,"approximation":10},"polyhedron":{"faces":6,"diameter":100},"text":{"text":"Text","_legacySize":0,"approximation":10}};
 // Native *.hash: typed arrays addressed by entity XOR property (XOR item for tags).
 function createNativeHashCodec() {
  const K={"Indices":"269869fc5a1ff404a2773005a039cab2","_legacySize":"becca2adac7df6f680dcec321ffd2753","a":"fd40ed68e0638fa0576496ba8aa4bd93","all":"b8a4755d5309d591a5331571e7ec726f","angle":"4e72062bffabf912d54da2a1fce080ce","angleIndices":"d842065e9aeb99603cb63d1b5aa95d8f","animation":"f91d9fec8ff1ffebb4fd669c42787546","approximation":"2e25a16281c8ec2fdae0e9c37b455bad","boolean":"4b5d573586920fde123e38ada0034727","boundary":"b24e8b9683e6bf699993529d21799754","boundaryIndices":"5856f0d8c8bcb860b5036f9d943b65ef","bump":"07b11448a63d0c299cbe7d0bdd956da4","cage":"ab5b13712325871cfab81cde8178480b","camera":"e232a3221094350ce29ff0d8c1a7e26e","closed":"813ba46602e7d137ed301cbf88d057b2","color":"461bdb1d791c2b3af6b4c0048d8fbce1","count":"d5d099aee11304efe60a4ec9e78018e4","cube":"6312a071a9adf4054c43f300a3efb926","current":"484ccb7128ad3630b88735100893892b","d1":"babcbca378c502eaf544807011e0f77f","d2":"a05c4462eeebdfd583c17c98716c1c02","data":"ae575a5515b2918c51c015b97393a261","diameter":"3c048a532f3a2e0ca23b9fc495d0b766","domain":"f1f89fa4124d85c6998cff84f803a3a4","dx":"d8b249c4fbe2b8263f7b47a9eef461af","dy":"e5d5733198e19c99f10f9a51cb9eca85","dz":"737ecb77f105e99e633c8b9cc5d9f66f","edgeAngles":"827749c0459b436783b31a85b5a56d0d","edgeIds":"a61a9c1db8ef3591a51ed9ee09941147","emm":"b8088079788b1227685fdc2e6bb28d94","enableSlot":"c643e1a384e9492b71efc541f2c3d01c","enabled":"4e6f277652a297192ed0b953f142aee0","endAngle":"5e17fc68fffd75b6547f5114b982d52b","endFillet":"6b78fe8c9fe0acf412dcc3c6e075a7e7","endSize":"c9af7a0d046664941d556ec114bc7045","endType":"5b4ee9c53721df9b57731a65c7a04fac","endpoints":"8c8bc16abea2788fd4aaffe8b38d1cef","f32":"111ce51db03707f28cb560c187b004cb","f64":"398b692797800c37a26488dc00e2b48e","faces":"809eb0e624b8258744282665efdbdd50","fatal":"665b06588bddc411bda29fffc94c8fa6","first":"84eb32434d7df273ca14a4003cea55c9","frames":"9e354f083451e7ab3ebf289a56ca07af","freeIds":"f9ca67635a7498a8115069ba77c31b9a","freeIn":"f5b7f5ff539dbfb69b7a7cda3639a08a","freeOut":"9595c53daa381a463780db3d5e67f4ff","getBigInt64":"b4623156aafca1b0b22e2264be82ad1c","getFloat32":"55ec09bba94a82faab61200a16d80917","getFloat64":"f0b3b644a5d92be78e34ec549418101b","getInt16":"22471d2e1e596e401661db6e73c26a97","getInt32":"7ec8513f28bb4dcf6874dabc0a659857","getInt8":"31e2ab1cb53a5b504144d81ab77ad0b5","getUint8":"59b5c6580dcb98f22a6739e6347be287","h":"79a7db92eedf844a02daa8a78a75a82b","hAng":"6b5e5305c5016439767310bc43d0bbcf","ha":"980dbde61541c82d169f37d60f1a8481","haIndices":"5ac777860fd002f8103104c9e282708c","hash":"75a2b7a920974eac8d1824449cfb8e28","hb":"dd944e1215c5661d8354fd940abe0f57","hbIndices":"917373cfbe7bcb8d0b9e1bc8dd54614d","height":"13e6aa58117f935866680c2807bdce08","hemi":"21e243bdd0346bebd2bd2cce48462075","i16":"0fd0bea84124f15c45063a321694acc0","i32":"6d1424c4ef6ed48dc42051baf5be3aad","i64":"2fe3310dc77fb1941c20c7c75961c197","i8":"089cd9a77b3bf43098b69707e1a325cf","id":"991f6895c0c51deb4251a5b42a816ebe","in":"ffa2f6c53e5d44ffb154f1c2be0eac2e","indices":"7191d6b8934c1d0fe9d738501a1cb3ea","infinite":"4083ac1d4569c2070cbe3a1fd0af3b13","interp":"56f5793c858d56251de4756ec218208d","isDefault":"23348548b1d8ffaea3a35b9c3f88b1b2","keys":"f9663fe31a7bcd075c67d994b4da6a38","kind":"c98420b1c829b2afa7e45882fa498f75","l":"cd505e5756dac541f3af89b796707c14","length":"fd067cd13df012451aa9cb247f2c04e4","linear":"428a56eef758ae35796f24106f1c98eb","map":"0f8831354dec5fea12394ff9a7d4b8d8","mapFrame":"7af303388e9b30217e0d3be463b2af31","mapPivot":"ac73f4c4aea3daee60e99a9a2893c1d6","materials":"d53182934907bed9e21581a9c3adc0d1","metal":"bd826fbe292d5ba3968ec776b2ad706c","mode":"dd4d26809ea040aa99d1ffa9b9469713","mx":"ed5f598a9fc25d15812500c45af864ef","my":"0af4062ab2470861dd18679555780380","mz":"169e55ef6886dcc5d9fc3560057ff290","name":"a11b9816f756a800d1fcbc6a5f4a7ff1","next":"734897d8d8e9e7e7b5fdb79d6cd47221","nodes":"e3274d9746192d7f5685b711e815b474","null":"ccd128cc0e9432a25c7cb81f6c3c49a0","offset":"dc288a60d4a7f23af74ff28a2d9f7c86","op":"c19e3308d76ba7b662a9c461be3843d3","opac":"873781817e3335d0bc59b409349e84d0","out":"7734998dc69919e331f9f3d6e8f51621","params":"6a55c2c34e2139dc7ffa49cb5c4e1a72","parent":"cc401e4abe821287039fbd452905dcbd","pivot":"92183d54306d87e3bf39b47626ffe4ee","polys":"5e45126badec4602a1208b9aac46cd21","positions":"dbc9f1fb6ce11c3a310e012c48d1c08e","profile":"eba5707f6e0a5b554d64af1eee219687","radius":"6e19c77e0998789355373731efd866f6","ref":"2018d347007319abc3a9132937ee7f98","rotations":"77e87f5d2912ba069a83903620f38f37","rough":"25e70ddddc84900dd907fa7988354f86","s":"79dcab20b12fe9a8d5095621f894301e","scales":"9b9db04697b86369c053f49cca8ce938","segments":"577ba7679dd92979ed70d3b9394fc59a","selectCount":"1dd07199fef6a459a960c7f8435937b1","selects":"a3049a508ab428d52b0eb54136bd5bf6","sequenceEdges":"06c331d047f8fa6574edcba8bd0010be","sequenceIds":"fa9616ca29ee74421bd4752d6ef34147","sequenceLengths":"e229fbde9d7c667b2d8242d8a8bbb768","sequences":"3c03d1999de38d957cdda252f920f5c5","setBigInt64":"570cbb491eb251e8e8f08f935afa5ed0","setFloat32":"3f4a19494c741c66cc8bec7e9cc7bb91","setFloat64":"26e46248a5379800234fbb8f9bda6099","setInt16":"8c8e7de4aa6f2ca84bed469ce3a805e6","setInt32":"27f814e6bb5fa3b6287a15a37d4583a2","setInt8":"10fcc5c24cc842fdf98249e336ab286b","setUint8":"02c8df54206c77afad76537c1460e86c","shelfA":"7e35e85fbf13f0b159c7a37d2ab8dcef","shelfB":"b47b30ded3ec0678a47cdfc07130a136","size":"1645b83fc6178e8f9f32e3d1367cec00","sizeX":"cc1e7f928d856dc2cad39ad8097dda29","sizeY":"205fe32fde4b51c6483f1cc3c8246970","sizeZ":"b8153914a8ca4550baea389c87f3026f","soft":"3de954c386e303c5b81c3c57487c2c14","softIndices":"7187fbb956702cb2bb0ce6a32c084617","source":"2de7b63c839943c42a9c8b17c0d3765e","startAngle":"cc97ee799b0f69c7aebb14805b04896e","startFillet":"ad6c5ba3841425cafec8a8241912035b","startSize":"afc7d7235e075091de919a925a796033","startType":"62971805dede331f29c50b35c5f4b338","string":"104188b5f990394443c2f35811999ffc","tagCount":"430d563456343881c157858ccef18bc8","tags":"2df02de33672aac7d3c1f2e124e873ad","targets":"89e34a91f329463dbca7fc83033b6e51","texMime":"b089201475c6fb704b77edca1d500310","text":"aa8efb243aeefce8325914518513115a","texture":"47df42d94f310e3250cef0d0ec20462d","total":"6b7c7c27b5a7c91ea9b13ca910ed411c","tracks":"307a689b90eec6feab263ec731799177","transform":"7e3b0b333ffcd3b1a2a0622749802bb5","type":"7f520c9eb59d464e8cb97745b94a0082","u8":"5b38d39a33f9c8e006f08af1ab857e6b","vAng":"bfffdc2244efacdb98b14054e4a32f46","value":"d7114f9268dfd7b8a9572146b261c2eb","vertexIds":"2c48f18e529cb57117393a0930eaa943","vertices":"fbc1047581511fd0e345051f532aee4c","visible":"680b8e663a9b86ba682b181fbb403a16","w":"6b0e47b325bd02e41cc2218a76a4cccd","x":"0860bf2eee47ea6f519047f358539996","y":"ec39f4fd5aa40d6a1220815d6d14b765","z":"f8ba9ada1e88a4d8d51abc1886c5c9f3"};
@@ -18840,7 +19237,7 @@ async function importExternalBlob(blob, name) {
   let file = blob instanceof File ? blob : new File([blob], name);
   return importParsedExternal(await importExternalFile(file), name);
 }
-var FSA = "showOpenFilePicker" in window && "showSaveFilePicker" in window, HASH_TYPES = [{ description: "Hash scene", accept: { "application/x-frame-hash": [".hash"] } }], EXTERNAL_TYPES = [{ description: "glTF / GLB", accept: { "model/gltf+json": [".gltf"], "model/gltf-binary": [".glb"] } }, { description: "OBJ / STL / PLY", accept: { "text/plain": [".obj", ".ply"], "model/stl": [".stl"] } }, { description: "SVG / DXF curves", accept: { "image/svg+xml": [".svg"], "application/dxf": [".dxf"] } }], currentHandle = null, currentName = null, lastFileOperation = { ok: !0, operation: "idle" }, fileInput = document.getElementById("fileInput"), recentsBtn = document.getElementById("btnOpen"), recentsMenu = document.getElementById("recentsMenu");
+var FSA = "showOpenFilePicker" in window && "showSaveFilePicker" in window, HASH_TYPES = [{ description: "Hash scene", accept: { "application/x-frame-hash": [".hash"] } }], EXTERNAL_TYPES = [{ description: "glTF / GLB", accept: { "model/gltf+json": [".gltf"], "model/gltf-binary": [".glb"] } }, { description: "OBJ / STL / PLY", accept: { "text/plain": [".obj", ".ply"], "model/stl": [".stl"] } }, { description: "SVG / DXF curves", accept: { "image/svg+xml": [".svg"], "application/dxf": [".dxf"] } }], currentHandle = null, currentName = null, lastFileOperation = { ok: !0, operation: "idle" }, fileInput = document.getElementById("fileInput"), recentsBtn = document.getElementById("btnRecents"), recentsMenu = document.getElementById("recentsMenu");
 function downloadBlob(blob, name) {
   let a = document.createElement("a");
   a.href = URL.createObjectURL(blob), a.download = name, a.click(), setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
@@ -19071,10 +19468,7 @@ fileInput.onchange = async (e) => {
   }
   fileInput.value = "";
 };
-document.getElementById("btnNew").onclick = doNew;
-recentsBtn.title = "Open (.hash) — hold, right-click or drag down for recent files";
-recentsBtn.style.touchAction = "none";
-recentsBtn.onclick = (e) => { if (openGestureUsed) { e.preventDefault(); return; } doOpen(); };
+document.getElementById("btnOpen").onclick = doOpen;
 document.getElementById("btnShare").onclick = shareScene;
 document.getElementById("btnSave").onclick = doSave;
 document.getElementById("btnSaveAs").onclick = doSaveAs;
@@ -19166,30 +19560,20 @@ function showRecents() {
   let r = recentsBtn.getBoundingClientRect();
   recentsMenu.style.left = r.left + "px", recentsMenu.style.top = r.bottom + "px", recentsMenu.classList.add("show");
 }
-let openPress = null, openGestureUsed = false;
-function cancelOpenPress() { if (openPress) clearTimeout(openPress.timer); openPress = null; }
-function revealOpenRecents() { openGestureUsed = true; showRecents(); }
-recentsBtn.addEventListener("pointerdown", e => {
-  cancelOpenPress(); openGestureUsed = false;
-  if (e.button !== 0) return;
-  openPress = { id: e.pointerId, x: e.clientX, y: e.clientY, timer: setTimeout(revealOpenRecents, 450) };
+recentsBtn.addEventListener("click", (e) => {
+  e.stopPropagation();
+  recentsMenu.classList.contains("show") ? recentsMenu.classList.remove("show") : showRecents();
 });
-recentsBtn.addEventListener("contextmenu", e => { e.preventDefault(); cancelOpenPress(); revealOpenRecents(); });
-addEventListener("pointermove", e => {
-  if (!openPress || e.pointerId !== openPress.id) return;
-  if (e.clientY - openPress.y >= 10) { clearTimeout(openPress.timer); revealOpenRecents(); }
-  else if (Math.abs(e.clientX-openPress.x)>10 || e.clientY-openPress.y < -10) { openGestureUsed=true; cancelOpenPress(); }
+recentsMenu.addEventListener("click", (e) => {
+  let item = e.target.closest(".ritem");
+  if (item?.dataset.name) openRecent(item.dataset.name), recentsMenu.classList.remove("show");
 });
-addEventListener("pointercancel", () => { openGestureUsed=true; cancelOpenPress(); });
-addEventListener("blur", cancelOpenPress);
-addEventListener("pointerup", e => {
-  cancelOpenPress();
-  if (!recentsMenu.classList.contains("show")) return;
-  let item = document.elementFromPoint(e.clientX,e.clientY)?.closest(".ritem");
-  if (item?.dataset.name) { openRecent(item.dataset.name); recentsMenu.classList.remove("show"); }
-  else if (!recentsBtn.contains(e.target) && !recentsMenu.contains(e.target)) recentsMenu.classList.remove("show");
+addEventListener("pointerdown", (e) => {
+  recentsMenu.classList.contains("show") && !recentsBtn.contains(e.target) && !recentsMenu.contains(e.target) && recentsMenu.classList.remove("show");
 });
-addEventListener("keydown", e => { if(e.key === "Escape") { cancelOpenPress(); recentsMenu.classList.remove("show"); } });
+addEventListener("keydown", (e) => {
+  e.key === "Escape" && recentsMenu.classList.remove("show");
+});
 addEventListener("keydown", (e) => {
   let mod = e.ctrlKey || e.metaKey;
   if(uvEdit&&gizDrag&&e.key==="Escape"){e.preventDefault();endGizDrag({type:"pointercancel"});return;}
@@ -19259,7 +19643,7 @@ addEventListener("keydown", (e) => {
     if (e.preventDefault(), splineMode || polyMode) {
       if (splineMode) {
         clearSplineBevelResult();splineSelectionClearElements();
-        for (let h of selNodes) {const d=evaluatedSplineData(h);if(!d)continue;if(polyElementMode==='vertex')for(let vid of Object.keys(d.vertices||{}))splineSelection.vertices.add(splineElementKey(h,vid));else if(polyElementMode==='edge')for(let sid of Object.keys(d.segments||{}))splineSelection.segments.add(splineElementKey(h,sid));else for(const face of splineSelectableFaces(d)){if(splinePatchEditObject(h))splineSelection.faces.add(splineElementKey(h,face.id));for(const sid of face.segments)splineSelection.segments.add(splineElementKey(h,sid));}}
+        for (let h of selNodes) {const d=evaluatedSplineData(h);if(!d)continue;if(polyElementMode==='vertex')for(let vid of Object.keys(d.vertices||{}))splineSelection.vertices.add(splineElementKey(h,vid));else if(polyElementMode==='edge')for(let sid of Object.keys(d.segments||{}))splineSelection.segments.add(splineElementKey(h,sid));else for(const face of splineSelectableFaces(d)){splineSelection.faces.add(splineElementKey(h,face.id));for(const sid of face.segments)splineSelection.segments.add(splineElementKey(h,sid));}}
         componentFocus='spline';updateAllSplineVisuals();
       }
       polyMode && selectAllPolyElements(), placeGizmoForSelection();
@@ -19613,7 +19997,7 @@ function installFrameAI() {
     }
     if (!d) throw new Error("spline object not found");
     let copy = cloneSplineData(d), derived = resolveSplineTopology(d), generatedCells = state2?.topology?.cells;
-    return { object: h, approximation: { ...d.approximation }, vertices: Object.fromEntries(Object.entries(d.vertices).map(([id2, p]) => [id2, { local: p.slice(), world: splineWorldPoint(h, p).toArray() }])), segments: Object.fromEntries(Object.entries(copy.segments).map(([id2, s]) => [id2, { id: id2, a: s.a, b: s.b, ha: s.ha, hb: s.hb, soft: !!s.soft }])), freeHandles: copy.freeHandles || {}, components: derived.components, closedContours: derived.contours.map((c) => ({ id: c.id, vertices: c.vertices, segments: c.edges.map((e) => e.id), planar: c.planar })), patchCells: generatedCells ? generatedCells.map((c) => ({ id: c.id, planar: !!c.planar, sides: c.sides, loops: c.loops })) : derived.patchCells.map((c) => ({ id: c.id, vertices: c.vertices, segments: c.edges.map((e) => e.id) })), warnings: derived.warnings, validation: validateSpline(d), bevelTags: splineBevelTags(h).map(cloneTag) };
+    return { object: h, approximation: { ...d.approximation }, vertices: Object.fromEntries(Object.entries(d.vertices).map(([id2, p]) => [id2, { local: p.slice(), world: splineWorldPoint(h, p).toArray() }])), segments: Object.fromEntries(Object.entries(copy.segments).map(([id2, s]) => [id2, { id: id2, a: s.a, b: s.b, ha: s.ha, hb: s.hb, soft: !!s.soft, surfaceSoft: !!s.surfaceSoft }])), freeHandles: copy.freeHandles || {}, components: derived.components, closedContours: derived.contours.map((c) => ({ id: c.id, vertices: c.vertices, segments: c.edges.map((e) => e.id), planar: c.planar })), patchCells: generatedCells ? generatedCells.map((c) => ({ id: c.id, planar: !!c.planar, sides: c.sides, loops: c.loops })) : derived.patchCells.map((c) => ({ id: c.id, vertices: c.vertices, segments: c.edges.map((e) => e.id) })), warnings: derived.warnings, validation: validateSpline(d), bevelTags: splineBevelTags(h).map(cloneTag) };
   }, splineSurfaceAI = async (ref) => {
     let h = resolveObjects(ref)[0];
     if (!h) throw new Error("object not found");
@@ -19678,7 +20062,7 @@ function installFrameAI() {
     }
     return updateAllSplineVisuals(), placeGizmoForSelection(), selection();
   }, runSplineCommand = (name) => {
-    if (name === "hard" || name === "soft" || name === "equalLength" || name === "equalDirection") splineTangentCommand(name);
+    if (name === "hard" || name === "soft" || name === "equalTangents" || name === "equalLength" || name === "equalDirection") splineTangentCommand(name);
     else if (name === "connected") selectConnectedSpline();
     else if (name === "delete") deleteSelectedSplineElements();
     else throw new Error("unknown spline command");
@@ -19709,8 +20093,9 @@ function installFrameAI() {
     let owners = splineSelectionOwners(), fullBefore = captureSplineFullState(owners), beforeSel = splineSelectionState(), frame = splineFrameMatrix();
     if (!owners.length || !frame) throw new Error("select spline elements first");
     autoBakeSplineTags(owners);
+    const extruded=!!options.shift&&extrudeSplineSelectionForTransform();
     let before = splineDataSnapshot(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(options.translate) ? options.translate : [0, 0, 0], rr = Array.isArray(options.rotate) ? options.rotate : [0, 0, 0], ss = Array.isArray(options.scale) ? options.scale : [1, 1, 1], scale = ss.map((x) => Number.isFinite(+x) ? +x : 1), delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(...scale)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
-    let changed = applySplineTransformSnapshot(before, delta, { ctrl: !!options.ctrl, shift: !!options.shift, weldCoincident: scale.some((x) => Math.abs(x) < 1e-9), scaleOperation: scale.some((x) => Math.abs(x - 1) > 1e-9), moveOperation: !rr.some(x=>+x)&&scale.every(x=>x===1) });
+    let changed = applySplineTransformSnapshot(before, delta, { ctrl: !extruded&&!!options.ctrl, shift: !!options.shift, weldCoincident: scale.some((x) => Math.abs(x) < 1e-9), scaleOperation: scale.some((x) => Math.abs(x - 1) > 1e-9), moveOperation: !rr.some(x=>+x)&&scale.every(x=>x===1) });
     if (!changed) return restoreSplineFullState(fullBefore, beforeSel), { selection: selection(), topology: owners.map(splineTopology) };
     let fullAfter = captureSplineFullState(owners), afterSel = splineSelectionState();
     return pushCmd({ redo() {
@@ -19720,7 +20105,7 @@ function installFrameAI() {
     } }), { selection: selection(), topology: owners.map(splineTopology) };
   }, addSplineBevelAI = (options = {}) => {
     let owners = splineSelectionOwners(), eligibility = splineBevelSelection();
-    if (!createSplineBevelTag(options)) throw new Error("Vertex Bevel requires valence-2 spline vertices: " + JSON.stringify({ domain: eligibility.domain, eligible: Object.fromEntries(eligibility.grouped), active: splineSelection.active }));
+    if (!createSplineBevelTag(options)) throw new Error("Bevel requires valence-2 spline vertices: " + JSON.stringify({ domain: eligibility.domain, eligible: Object.fromEntries(eligibility.grouped), active: splineSelection.active }));
     return { objects: owners, tags: owners.flatMap((h) => splineBevelTags(h).map(cloneTag)), topology: owners.map(splineTopology) };
   }, bakeSplineBevelAI = (ref, index = "last") => {
     let h = resolveObjects(ref)[0], n = OBJ.get(h);
@@ -20247,7 +20632,7 @@ function installFrameAI() {
     outlineSpline: "({distance}) on selected coplanar segments or endpoint pairs; closed: positive expands, negative contracts; open: one-sided ribbon",
     transformSplineElements: "({translate?,rotate?,scale?,ctrl?}); Ctrl makes a single tangent handle independent; zero scale welds coincident selected elements",
     simulateSplineGizmo: "({translate?,rotate?,scale?,mode?,kind?,view?,screenPoint?,ctrl?,constraints?}) real gizmo callback path; screenPoint tests exact white-handle vertex/grid snap",
-    runSplineCommand: "(hard|soft|equalLength|equalDirection|connected|delete)",
+    runSplineCommand: "(hard|soft|equalTangents|connected|delete)",
     splitSplineSegment: "(ref,segment,t)",
     connectDelete: "(refs?)",
     beginSplineComponent: "(ref?)",
@@ -20263,7 +20648,7 @@ function installFrameAI() {
     undo: "()",
     redo: "()"
   };
-  apiDocs.marquee = "({view,x0,y0,x1,y1|u0,v0,u1,v1,mode})", apiDocs.getSplineRenderState = "(ref) -> raw/effective spline visibility, parent generator state and active-view shading", apiDocs.getSplineBevels = "(ref) -> current Vertex Bevel tags for deterministic QA", apiDocs.createSplineFixture += "; kinds also include two-vertex-closed", Object.assign(apiDocs, { createMaterial: "(name,values?) -> ordinary scene material", getObjectMaterial: "(ref) -> resolved/default material and explicit tags", assignMaterial: "(refs,material,{undo?:boolean})", clearMaterialTags: "(refs,{undo?:boolean}) -> reset to inherited/default material" }), Object.assign(apiDocs, { deleteObjects: "(refs) -> undoable hierarchy deletion", resetScene: "() -> New Scene plus deterministic resource statistics", getResourceStats: "() -> history, Three/WebGL, overlay, browser heap and Worker/WASM counters" }), Object.assign(apiDocs, { reparentObjects: "(refs,target,child|before|after) -> undoable hierarchy move preserving world transform", getObjectTransform: "(ref) -> local, world and pivot matrices" }), Object.assign(apiDocs, { createInstance: "(source,name?,transform?) -> shared-buffer Instance", createInstanceCloud: "(source,count,{spacing?,name?}) -> one undoable shared-buffer large-scene fixture", createStressGrid: "(name,evenTriangleCount<=1000000) -> preallocated indexed large mesh", getPerformanceStats: "() -> generator, render, upload and shared-instance counters", resetPerformanceStats: "()" }), Object.assign(apiDocs, { createPrimitive: "(cube|cylinder|tube|sphere,name?,params?,transform?)", createPolygonMesh: "(name,positions,triangleIndices,transform?)", createBoolean: "([A,B],subtract|intersect|union) -> strict ordered binary node", setBooleanOperation: "(ref,operation,{undo?:boolean})", getBoolean: "(ref) -> readiness, ordered operands, manifold mesh, intersection seam and trust/timing diagnostics", setObjectTransform: "(ref,{position?,rotation?,scale?},{undo?:boolean}) local PSR", waitForGenerator: "(ref,timeoutMilliseconds?) -> resolves on ready or explicit error" }), Object.assign(apiDocs, { getFormatCapabilities: "() -> reliable-format matrix, coordinates and memory limits", exportScene: "(gltf|glb|obj|stl|ply|svg|dxf,{binary?,download?,name?})", importSceneData: "(format,text|base64|byteArray,{encoding?,name?}) -> one undoable import", roundTripFormat: "(format) -> export then production parser/import", getLastFileOperation: "()" }), apiDocs.createSplinePrimitive = "(square|circle|polyhedron|text, params?) -> ordinary editable parametric spline object", apiDocs.toSplinePatch = "(ref) -> editable spline cage child under a live Spline Patch; undoable", api.help = (name) => name ? { version: api.version, method: name, signature: apiDocs[name] || null } : { version: api.version, transport: { direct: "window.frameAI.method(...args)", bridge: { command: "#frame-ai-command JSON {method,args}", result: "#frame-ai-result JSON {ok,result|error}", trigger: "input event or #frame-ai-run click" } }, methods: apiDocs }, api.batch = async (requests, options = {}) => {
+  apiDocs.marquee = "({view,x0,y0,x1,y1|u0,v0,u1,v1,mode})", apiDocs.getSplineRenderState = "(ref) -> raw/effective spline visibility, parent generator state and active-view shading", apiDocs.getSplineBevels = "(ref) -> current Bevel tags for deterministic QA", apiDocs.createSplineFixture += "; kinds also include two-vertex-closed", Object.assign(apiDocs, { createMaterial: "(name,values?) -> ordinary scene material", getObjectMaterial: "(ref) -> resolved/default material and explicit tags", assignMaterial: "(refs,material,{undo?:boolean})", clearMaterialTags: "(refs,{undo?:boolean}) -> reset to inherited/default material" }), Object.assign(apiDocs, { deleteObjects: "(refs) -> undoable hierarchy deletion", resetScene: "() -> New Scene plus deterministic resource statistics", getResourceStats: "() -> history, Three/WebGL, overlay, browser heap and Worker/WASM counters" }), Object.assign(apiDocs, { reparentObjects: "(refs,target,child|before|after) -> undoable hierarchy move preserving world transform", getObjectTransform: "(ref) -> local, world and pivot matrices" }), Object.assign(apiDocs, { createInstance: "(source,name?,transform?) -> shared-buffer Instance", createInstanceCloud: "(source,count,{spacing?,name?}) -> one undoable shared-buffer large-scene fixture", createStressGrid: "(name,evenTriangleCount<=1000000) -> preallocated indexed large mesh", getPerformanceStats: "() -> generator, render, upload and shared-instance counters", resetPerformanceStats: "()" }), Object.assign(apiDocs, { createPrimitive: "(cube|cylinder|tube|sphere,name?,params?,transform?)", createPolygonMesh: "(name,positions,triangleIndices,transform?)", createBoolean: "([A,B],subtract|intersect|union) -> strict ordered binary node", setBooleanOperation: "(ref,operation,{undo?:boolean})", getBoolean: "(ref) -> readiness, ordered operands, manifold mesh, intersection seam and trust/timing diagnostics", setObjectTransform: "(ref,{position?,rotation?,scale?},{undo?:boolean}) local PSR", waitForGenerator: "(ref,timeoutMilliseconds?) -> resolves on ready or explicit error" }), Object.assign(apiDocs, { getFormatCapabilities: "() -> reliable-format matrix, coordinates and memory limits", exportScene: "(gltf|glb|obj|stl|ply|svg|dxf,{binary?,download?,name?})", importSceneData: "(format,text|base64|byteArray,{encoding?,name?}) -> one undoable import", roundTripFormat: "(format) -> export then production parser/import", getLastFileOperation: "()" }), apiDocs.createSplinePrimitive = "(square|circle|polyhedron|text, params?) -> ordinary editable parametric spline object", apiDocs.toSplinePatch = "(ref) -> editable spline cage child under a live Spline Patch; undoable", api.help = (name) => name ? { version: api.version, method: name, signature: apiDocs[name] || null } : { version: api.version, transport: { direct: "window.frameAI.method(...args)", bridge: { command: "#frame-ai-command JSON {method,args}", result: "#frame-ai-result JSON {ok,result|error}", trigger: "input event or #frame-ai-run click" } }, methods: apiDocs }, api.batch = async (requests, options = {}) => {
     if (!Array.isArray(requests)) throw new Error("batch expects an array");
     let out = [];
     for (let request of requests) {
