@@ -362,7 +362,7 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
   </div>
 </dialog>
 <script>
-/* FRAME r48: Extrude bevel reuses high-accuracy Outline fixed-cubic refinement; Tangential Sweep uses constant-parameter moving-frame rail fitting. */
+/* FRAME r49: faster quality-preserving Outline fixed-cubic fitting/crossing reuse; Extrude fillets are controlled directly by start/end size. */
 /* Boot diagnostics */
 window.frameBootDiagnostics={errors:[]};
 const frameBootOutput=document.createElement('textarea');
@@ -4117,10 +4117,11 @@ function createFrameOutlineKernel(){
     }
     return {pieces,area:area(loop.p),polyline:loop.p};
   }
+  const crossingFlattenCache=new WeakMap();
   function crossingPieces(loops,tolerance){
-    const E=[],total=loops.reduce((s,l)=>s+l.pieces.length,0);let id=0;
+    const E=[];let id=0;
     for(let li=0;li<loops.length;li++){const loop=loops[li];for(let ci=0;ci<loop.pieces.length;ci++,id++){
-      const f=loop.pieces[ci],p=flatten(f.cp,tolerance);f._id=id;
+      const f=loop.pieces[ci];let cached=crossingFlattenCache.get(f),p;if(cached&&cached.cp===f.cp&&cached.tolerance===tolerance)p=cached.points;else{p=flatten(f.cp,tolerance);crossingFlattenCache.set(f,{cp:f.cp,tolerance,points:p});}f._id=id;
       for(let i=0;i+1<p.length;i++){const a=p[i].p,b=p[i+1].p,d=sub(b,a),l=length(d);if(l<1e-12)continue;E.push({a,b,d,l,loX:Math.min(a[0],b[0]),hiX:Math.max(a[0],b[0]),loY:Math.min(a[1],b[1]),hiY:Math.max(a[1],b[1]),id,li,ci,seg:i});}
     }}
     const bad=new Set(),sort=E.sort((a,b)=>a.loX-b.loX),eps=2e-10;
@@ -4134,12 +4135,14 @@ function createFrameOutlineKernel(){
   }
   function compactInheritedRuns(loops,tolerance,source,mergeTolerance){
     if(!(Number.isFinite(mergeTolerance)&&mergeTolerance>0))return {loops,removed:0};
-    const candidate=loops.map(l=>({...l,pieces:l.pieces.map(f=>({...f,cp:f.cp.map(p=>p.slice()),points:f.points.slice(),sourceRange:f.sourceRange&&f.sourceRange.slice()}))}));let removed=0;
     const sameRange=(a,b)=>a&&b&&Math.abs(a[0]-b[0])<1e-12&&Math.abs(a[1]-b[1])<1e-12;
     // Arrangement can split one authored cubic into several tiny trace runs at a
     // near-tangent touch. They are still one logical outline span. Keep a modest
     // parameter gap allowance, then validate the merged cubic geometrically.
     const compatibleRange=(a,b)=>{if(!a||!b)return false;if(sameRange(a,b))return true;const sa=Math.sign(a[1]-a[0]),sb=Math.sign(b[1]-b[0]);return sa&&sa===sb&&Math.abs(a[1]-b[0])<.08;};
+    let possible=false;outer:for(const l of loops)for(let i=0;i+1<l.pieces.length;i++){const a=l.pieces[i],b=l.pieces[i+1];if(a.source&&a.source===b.source&&source?.get(a.source)&&compatibleRange(a.sourceRange,b.sourceRange)){possible=true;break outer;}}
+    if(!possible)return {loops,removed:0};
+    const candidate=loops.map(l=>({...l,pieces:l.pieces.map(f=>({...f,cp:f.cp.map(p=>p.slice()),points:f.points.slice(),sourceRange:f.sourceRange&&f.sourceRange.slice()}))}));let removed=0;
     for(const l of candidate){const out=[];for(let i=0;i<l.pieces.length;){const f=l.pieces[i];let j=i+1,range=f.sourceRange&&f.sourceRange.slice();while(j<l.pieces.length&&l.pieces[j].source===f.source&&compatibleRange(range,l.pieces[j].sourceRange)){if(!sameRange(range,l.pieces[j].sourceRange))range=[range[0],l.pieces[j].sourceRange[1]];j++;}
         if(j-i>1&&f.source&&source?.get(f.source)&&range){const P=[];for(let k=i;k<j;k++){const pts=l.pieces[k].points;if(!P.length)P.push(...pts);else P.push(...pts.slice(1));}
           const src=source.get(f.source),sign=Math.sign(range[1]-range[0])||1,a=mul(tangent(src.cp,range[0]),sign),b=mul(tangent(src.cp,range[1]),-sign);let fit=null;try{fit=fitRun(P,mergeTolerance,a,b);}catch(_){}
@@ -4240,12 +4243,12 @@ function refinePlanarOffsetFixedCubics(result,distance,sourceData=null){
       if(corner1&&ext1>fitTol){push(Q1,'extension');const n=Math.max(3,Math.min(12,Math.ceil(ext1/Math.max(chord*.04,fitTol*8))));for(let j=1;j<=n;j++)push(add2(Q1,mul2(B,ext1*j/(n+1))),'extension');}
       if(raw.length<4)continue;let total=0,prev=P0;for(const item of raw){total+=dist2(prev,item.Q);item.s=total;prev=item.Q;}total+=dist2(prev,P3);if(!(total>1e-12))continue;const targets=raw.map(item=>({Q:item.Q,t:item.s/total,u:item.s/total,kind:item.kind}));
       const make=(a,b)=>[P0,add2(P0,mul2(A,a)),add2(P3,mul2(B,-b)),P3],cv=(cp,u)=>{const s=1-u,b0=s*s*s,b1=3*s*s*u,b2=3*s*u*u,b3=u*u*u;return add2(add2(mul2(cp[0],b0),mul2(cp[1],b1)),add2(mul2(cp[2],b2),mul2(cp[3],b3)));},cd=(cp,u)=>{const s=1-u;return mul2(add2(add2(mul2(sub2(cp[1],cp[0]),s*s),mul2(sub2(cp[2],cp[1]),2*s*u)),mul2(sub2(cp[3],cp[2]),u*u)),3);},cdd=(cp,u)=>mul2(add2(mul2(add2(sub2(cp[2],mul2(cp[1],2)),cp[0]),1-u),mul2(add2(sub2(cp[3],mul2(cp[2],2)),cp[1]),u)),6),clamp=u=>Math.max(0,Math.min(1,u));
-      const closest=(cp,Q,seed)=>{let u=clamp(seed),best=dist2(cv(cp,u),Q);for(let k=0;k<=20;k++){const q=k/20,d=dist2(cv(cp,q),Q);if(d<best){best=d;u=q;}}for(let it=0;it<12;it++){const C=cv(cp,u),D0=cd(cp,u),DD=cdd(cp,u),R=sub2(C,Q),den=dot2(D0,D0)+dot2(R,DD);if(Math.abs(den)<1e-20)break;const step=dot2(R,D0)/den;if(!Number.isFinite(step))break;let accepted=false;for(let damp=1;damp>=1/128;damp*=.5){const v=clamp(u-step*damp),er=dist2(cv(cp,v),Q);if(er<=best+1e-15){u=v;best=er;accepted=true;break;}}if(!accepted||Math.abs(step)<1e-11)break;}return u;};
+      const closest=(cp,Q,seed,coarse=true)=>{let u=clamp(seed),best=dist2(cv(cp,u),Q);if(coarse)for(let k=0;k<=20;k++){const q=k/20,d=dist2(cv(cp,q),Q);if(d<best){best=d;u=q;}}for(let it=0;it<(coarse?12:4);it++){const C=cv(cp,u),D0=cd(cp,u),DD=cdd(cp,u),R=sub2(C,Q),den=dot2(D0,D0)+dot2(R,DD);if(Math.abs(den)<1e-20)break;const step=dot2(R,D0)/den;if(!Number.isFinite(step))break;let accepted=false;for(let damp=1;damp>=1/128;damp*=.5){const v=clamp(u-step*damp),er=dist2(cv(cp,v),Q);if(er<=best+1e-15){u=v;best=er;accepted=true;break;}}if(!accepted||Math.abs(step)<1e-11)break;}return u;};
       const solve=items=>{let m00=0,m01=0,m11=0,y0=0,y1=0;for(const item of items){const u=item.u,s=1-u,b0=s*s*s,b1=3*s*s*u,b2=3*s*u*u,b3=u*u*u,base=add2(mul2(P0,b0+b1),mul2(P3,b2+b3)),R=sub2(item.Q,base),U=mul2(A,b1),V=mul2(B,-b2),edgeWeight=1+3*Math.pow(Math.abs(.5-item.t)*2,2),w=(item.kind==='extension'?2.25:1)*edgeWeight;m00+=w*dot2(U,U);m01+=w*dot2(U,V);m11+=w*dot2(V,V);y0+=w*dot2(U,R);y1+=w*dot2(V,R);}const det=m00*m11-m01*m01;if(!(det>1e-20))return null;let a=(y0*m11-y1*m01)/det,b=(y1*m00-y0*m01)/det;if(!Number.isFinite(a)||!Number.isFinite(b))return null;const cap=Math.max(chord*16,Math.max(0,ext0)+Math.max(0,ext1)+chord*8,scale*4);return [Math.min(Math.max(0,a),cap),Math.min(Math.max(0,b),cap)];};
-      let old=[dist2(f.cp[0],f.cp[1]),dist2(f.cp[2],f.cp[3])],lengths=solve(targets)||old.slice();for(let pass=0;pass<9;pass++){const cp=make(lengths[0],lengths[1]);for(const item of targets)item.u=closest(cp,item.Q,item.u);let prevU=0,eps=2e-7;for(const item of targets){item.u=Math.max(prevU+eps,Math.min(1-eps,item.u));prevU=item.u;}for(let k=targets.length-2;k>=0;k--)targets[k].u=Math.min(targets[k].u,targets[k+1].u-eps);const next=solve(targets);if(!next)break;lengths=[lengths[0]*.18+next[0]*.82,lengths[1]*.18+next[1]*.82];}
-      const objective=pair=>{const cp=make(pair[0],pair[1]);let max=0,sum=0,n=0,cornerMax=0;for(const item of targets){const u=closest(cp,item.Q,item.u),d=dist2(cv(cp,u),item.Q),w=item.kind==='extension'?1.5:1;max=Math.max(max,d);if(item.kind==='extension')cornerMax=Math.max(cornerMax,d);sum+=w*d*d;n+=w;}return {max,cornerMax,rms:Math.sqrt(sum/Math.max(1,n))};};
+      let old=[dist2(f.cp[0],f.cp[1]),dist2(f.cp[2],f.cp[3])],lengths=solve(targets)||old.slice();for(let pass=0;pass<9;pass++){const cp=make(lengths[0],lengths[1]);for(const item of targets)item.u=closest(cp,item.Q,item.u,pass===0);let prevU=0,eps=2e-7;for(const item of targets){item.u=Math.max(prevU+eps,Math.min(1-eps,item.u));prevU=item.u;}for(let k=targets.length-2;k>=0;k--)targets[k].u=Math.min(targets[k].u,targets[k+1].u-eps);const next=solve(targets);if(!next)break;lengths=[lengths[0]*.18+next[0]*.82,lengths[1]*.18+next[1]*.82];}
+      const objective=(pair,coarse=false)=>{const cp=make(pair[0],pair[1]);let max=0,sum=0,n=0,cornerMax=0;for(const item of targets){const u=closest(cp,item.Q,item.u,coarse),d=dist2(cv(cp,u),item.Q),w=item.kind==='extension'?1.5:1;max=Math.max(max,d);if(item.kind==='extension')cornerMax=Math.max(cornerMax,d);sum+=w*d*d;n+=w;}return {max,cornerMax,rms:Math.sqrt(sum/Math.max(1,n))};};
       let best=lengths.slice(),score=objective(best),step=Math.max(chord*.12,Math.max(best[0],best[1])*.08,fitTol*8);for(let pass=0;pass<12&&step>Math.max(chord*2e-4,fitTol*.5);pass++){let improved=false,bp=best,bs=score;for(const [da,db] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]){const q=[Math.max(0,best[0]+da*step),Math.max(0,best[1]+db*step)],s=objective(q),better=s.max<bs.max-1e-12||Math.abs(s.max-bs.max)<=1e-12&&(s.cornerMax<bs.cornerMax-1e-12||Math.abs(s.cornerMax-bs.cornerMax)<=1e-12&&s.rms<bs.rms);if(better){bp=q;bs=s;improved=true;}}if(improved){best=bp;score=bs;}else step*=.5;}
-      const oldScore=objective(old);maxBefore=Math.max(maxBefore,oldScore.max);const use=score.max<=oldScore.max+1e-12||score.cornerMax<oldScore.cornerMax*.96||score.rms<oldScore.rms*.94?best:old,chosen=objective(use);maxAfter=Math.max(maxAfter,chosen.max);f.cp=[P0,add2(P0,mul2(A,use[0])),add2(P3,mul2(B,-use[1])),P3];refined++;
+      const oldScore=objective(old,true),bestScore=objective(best,true);maxBefore=Math.max(maxBefore,oldScore.max);const use=bestScore.max<=oldScore.max+1e-12||bestScore.cornerMax<oldScore.cornerMax*.96||bestScore.rms<oldScore.rms*.94?best:old,chosen=use===best?bestScore:oldScore;maxAfter=Math.max(maxAfter,chosen.max);f.cp=[P0,add2(P0,mul2(A,use[0])),add2(P3,mul2(B,-use[1])),P3];refined++;
     }
   }
   result.stats&&(result.stats.fixedCubicRefined=(result.stats.fixedCubicRefined||0)+refined,result.stats.fixedCubicSnapped=(result.stats.fixedCubicSnapped||0)+snapped,result.stats.fixedCubicMaxErrorBefore=Math.max(result.stats.fixedCubicMaxErrorBefore||0,maxBefore),result.stats.fixedCubicMaxErrorAfter=Math.max(result.stats.fixedCubicMaxErrorAfter||0,maxAfter));return result;
@@ -4332,16 +4335,16 @@ function applySplineOutline(data,segmentIds,{distance=0,normal=null,tolerance=nu
       let total=0,prev=P0;for(const item of raw){total+=dist(prev,item.Q);item.s=total;prev=item.Q;}total+=dist(prev,P3);if(!(total>1e-12))return null;
       const targets=raw.map(item=>({Q:item.Q,t:item.s/total,u:item.s/total,kind:item.kind}));
       const makeCp=(a,b)=>[P0,add(P0,mul(A,a)),add(P3,mul(B,-b)),P3],cv=(cp,u)=>{const s=1-u,b0=s*s*s,b1=3*s*s*u,b2=3*s*u*u,b3=u*u*u;return add(add(mul(cp[0],b0),mul(cp[1],b1)),add(mul(cp[2],b2),mul(cp[3],b3)));},cd=(cp,u)=>{const s=1-u;return mul(add(add(mul(sub(cp[1],cp[0]),s*s),mul(sub(cp[2],cp[1]),2*s*u)),mul(sub(cp[3],cp[2]),u*u)),3);},cdd=(cp,u)=>mul(add(mul(add(sub(cp[2],mul(cp[1],2)),cp[0]),1-u),mul(add(sub(cp[3],mul(cp[2],2)),cp[1]),u)),6),clamp=u=>Math.max(0,Math.min(1,u));
-      const closest=(cp,Q,seed)=>{let u=clamp(seed),best=dist(cv(cp,u),Q);for(let k=0;k<=18;k++){const q=k/18,d=dist(cv(cp,q),Q);if(d<best){best=d;u=q;}}for(let it=0;it<12;it++){const C=cv(cp,u),D=cd(cp,u),DD=cdd(cp,u),R=sub(C,Q),den=dot(D,D)+dot(R,DD);if(Math.abs(den)<1e-20)break;const step=dot(R,D)/den;if(!Number.isFinite(step))break;let accepted=false;for(let damp=1;damp>=1/128;damp*=.5){const v=clamp(u-step*damp),er=dist(cv(cp,v),Q);if(er<=best+1e-15){u=v;best=er;accepted=true;break;}}if(!accepted||Math.abs(step)<1e-11)break;}return u;};
+      const closest=(cp,Q,seed,coarse=true)=>{let u=clamp(seed),best=dist(cv(cp,u),Q);if(coarse)for(let k=0;k<=18;k++){const q=k/18,d=dist(cv(cp,q),Q);if(d<best){best=d;u=q;}}for(let it=0;it<(coarse?12:4);it++){const C=cv(cp,u),D=cd(cp,u),DD=cdd(cp,u),R=sub(C,Q),den=dot(D,D)+dot(R,DD);if(Math.abs(den)<1e-20)break;const step=dot(R,D)/den;if(!Number.isFinite(step))break;let accepted=false;for(let damp=1;damp>=1/128;damp*=.5){const v=clamp(u-step*damp),er=dist(cv(cp,v),Q);if(er<=best+1e-15){u=v;best=er;accepted=true;break;}}if(!accepted||Math.abs(step)<1e-11)break;}return u;};
       const solve=(items)=>{let m00=0,m01=0,m11=0,y0=0,y1=0;for(const item of items){const u=item.u,s=1-u,b0=s*s*s,b1=3*s*s*u,b2=3*s*u*u,b3=u*u*u,base=add(mul(P0,b0+b1),mul(P3,b2+b3)),R=sub(item.Q,base),U=mul(A,b1),V=mul(B,-b2),edgeWeight=1+3*Math.pow(Math.abs(.5-item.t)*2,2),w=(item.kind==='extension'?2.25:1)*edgeWeight;m00+=w*dot(U,U);m01+=w*dot(U,V);m11+=w*dot(V,V);y0+=w*dot(U,R);y1+=w*dot(V,R);}const det=m00*m11-m01*m01;if(!(det>1e-20))return null;let a=(y0*m11-y1*m01)/det,b=(y1*m00-y0*m01)/det;if(!Number.isFinite(a)||!Number.isFinite(b))return null;a=Math.max(0,a);b=Math.max(0,b);const cap=Math.max(chord*16,ext0+ext1+chord*8,result.prepared.scale*4);return [Math.min(a,cap),Math.min(b,cap)];};
       let lengths=solve(targets)||[len(e.ha),len(e.hb)];if(!(lengths[0]>=0&&lengths[1]>=0))return null;
-      for(let pass=0;pass<9;pass++){const cp=makeCp(lengths[0],lengths[1]);for(const item of targets)item.u=closest(cp,item.Q,item.u);let prevU=0,eps=2e-7;for(const item of targets){item.u=Math.max(prevU+eps,Math.min(1-eps,item.u));prevU=item.u;}for(let k=targets.length-2;k>=0;k--)targets[k].u=Math.min(targets[k].u,targets[k+1].u-eps);const next=solve(targets);if(!next)break;lengths=[lengths[0]*.18+next[0]*.82,lengths[1]*.18+next[1]*.82];}
-      const objective=(pair)=>{const cp=makeCp(pair[0],pair[1]);let max=0,sum=0,n=0,cornerMax=0;for(const item of targets){const u=closest(cp,item.Q,item.u),d=dist(cv(cp,u),item.Q),w=item.kind==='extension'?1.5:1;max=Math.max(max,d);cornerMax=Math.max(cornerMax,item.kind==='extension'?d:0);sum+=w*d*d;n+=w;}return {max,cornerMax,rms:Math.sqrt(sum/Math.max(1,n))};};
+      for(let pass=0;pass<9;pass++){const cp=makeCp(lengths[0],lengths[1]);for(const item of targets)item.u=closest(cp,item.Q,item.u,pass===0);let prevU=0,eps=2e-7;for(const item of targets){item.u=Math.max(prevU+eps,Math.min(1-eps,item.u));prevU=item.u;}for(let k=targets.length-2;k>=0;k--)targets[k].u=Math.min(targets[k].u,targets[k+1].u-eps);const next=solve(targets);if(!next)break;lengths=[lengths[0]*.18+next[0]*.82,lengths[1]*.18+next[1]*.82];}
+      const objective=(pair,coarse=false)=>{const cp=makeCp(pair[0],pair[1]);let max=0,sum=0,n=0,cornerMax=0;for(const item of targets){const u=closest(cp,item.Q,item.u,coarse),d=dist(cv(cp,u),item.Q),w=item.kind==='extension'?1.5:1;max=Math.max(max,d);cornerMax=Math.max(cornerMax,item.kind==='extension'?d:0);sum+=w*d*d;n+=w;}return {max,cornerMax,rms:Math.sqrt(sum/Math.max(1,n))};};
       // Direct 2-D handle search.  Acute corners are sensitive to one handle
       // being only a few percent too long, so use additive steps as well as the
       // old multiplicative search; this remains only two scalar unknowns.
       let best=lengths.slice(),score=objective(best),scaleStep=Math.max(chord*.12,Math.max(best[0],best[1])*.08,fitTol*8);for(let pass=0;pass<12&&scaleStep>Math.max(chord*2e-4,fitTol*.5);pass++){let improved=false,bestCandidate=best,bestScore=score;for(const [da,db] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,-1],[1,-1],[-1,1]]){const q=[Math.max(0,best[0]+da*scaleStep),Math.max(0,best[1]+db*scaleStep)],s=objective(q),better=s.max<bestScore.max-1e-12||Math.abs(s.max-bestScore.max)<=1e-12&&(s.cornerMax<bestScore.cornerMax-1e-12||Math.abs(s.cornerMax-bestScore.cornerMax)<=1e-12&&s.rms<bestScore.rms);if(better){bestCandidate=q;bestScore=s;improved=true;}}if(improved){best=bestCandidate;score=bestScore;}else scaleStep*=.5;}
-      const old=[len(e.ha),len(e.hb)],oldScore=objective(old);return score.max<=oldScore.max+1e-12||score.cornerMax<oldScore.cornerMax*.96||score.rms<oldScore.rms*.94?best:old;};
+      const old=[len(e.ha),len(e.hb)],oldScore=objective(old,true),bestScore=objective(best,true);return bestScore.max<=oldScore.max+1e-12||bestScore.cornerMax<oldScore.cornerMax*.96||bestScore.rms<oldScore.rms*.94?best:old;};
     // At a smooth inherited join the offset vertex itself is known exactly.
     // Snap only those joins; hard/miter/intersection vertices keep the planar
     // arrangement position. This improves accuracy without adding control points.
@@ -7297,7 +7300,7 @@ async function evaluateSplineGeneratorNode(h) {
       if (type === "extrude") {
         let sourceTopology = sources[0].cache.topology||(sources[0].cache.topology=resolveSplineTopology(sources[0].data)), first = sourceTopology.planarContours.find((c) => c.plane?.planar);
         if (!first) throw new Error("Extrude profile must contain a closed planar contour");
-        if (p.startFillet || p.endFillet) generated = buildExtrudeFilletSplineCage(sources[0].data, p);
+        if ((+p.startSize||0)>0 || (+p.endSize||0)>0) generated = buildExtrudeFilletSplineCage(sources[0].data, p);
         else {
           let offset = new THREE2.Vector3().fromArray(first.plane.normal).normalize().multiplyScalar(+p.offset || 0).toArray();
           generated = buildExtrudeSplineCage(sources[0].data, offset);
@@ -8408,7 +8411,7 @@ function buildExtrudeFilletSplineCage(source,p){
   const height=Math.abs(+p.offset||0);if(height<=1e-9)throw Error('Extrude offset must be non-zero');
   const sourceIds=[...new Set(contours.flatMap(c=>c.edges.map(e=>e.id)))],prepared=prepareSplineOutline(source,sourceIds,{normal:contours[0].plane.normal}),K=FrameOutline,plane=prepared.plane;
   const normal=plane.normal.map(x=>x*((+p.offset||0)<0?-1:1)),lift=(q,z)=>plane.origin.map((x,k)=>x+q[0]*plane.u[k]+q[1]*plane.v[k]+z*normal[k]);
-  const start=p.startFillet?Math.min(Math.max(0,+p.startSize||0),height*.5):0,end=p.endFillet?Math.min(Math.max(0,+p.endSize||0),height*.5):0;
+  const start=Math.min(Math.max(0,+p.startSize||0),height*.5),end=Math.min(Math.max(0,+p.endSize||0),height*.5);
   const inside=(q,P)=>{let hit=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const a=P[j],b=P[i];if((a[1]>q[1])!==(b[1]>q[1])&&q[0]<a[0]+(q[1]-a[1])*(b[0]-a[0])/(b[1]-a[1]))hit=!hit;}return hit;};
   const base=prepared.prepared.paths.map((path,ci)=>({curves:path.curves.map(c=>({...c,cp:c.cp.map(prepared.prepared.toWorld)})),chain:prepared.analysis.chains[ci]}));
   const sampled=base.map(l=>l.curves.flatMap(c=>K.flatten(c.cp,prepared.prepared.tol*prepared.prepared.scale).slice(0,-1).map(q=>q.p)));
@@ -14970,7 +14973,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   instance: () => ({ source: "" }),
   spline: () => ({ angle: 10 }),
   spline_patch: () => ({}),
-  extrude: () => ({ offset: 10, startFillet: !1, startType: "flat", startSize: 1, endFillet: !1, endType: "flat", endSize: 1 }),
+  extrude: () => ({ offset: 10, startType: "flat", startSize: 0, endType: "flat", endSize: 0 }),
   lathe: () => ({ angle: 360 }),
   sweep: () => ({ mode: "parallel" }),
   boolean: () => ({ op: "subtract" }),
@@ -14992,7 +14995,7 @@ var objParams = /* @__PURE__ */ new Map(), DEFAULTS = {
   extrude: {
     f: ["offset", "startSize", "endSize"],
     i: [],
-    b: ["startFillet", "endFillet"],
+    b: [],
     e: [["startType", ["flat", "round"]], ["endType", ["flat", "round"]]],
     s: null
   },
@@ -15240,28 +15243,20 @@ function renderExtrude(h) {
   R("offset", () => p.offset, (v) => {
     p.offset = v;
   }, O_OFF);
-  let c3 = attrRow("start fillet");
-  if (attrBtns(c3, ["off", "on"], () => p.startFillet ? "on" : "off", (v) => {
-    p.startFillet = v === "on", scheduleGeneratorEvaluation(0);
-  }, h, () => renderExtrude(h)), p.startFillet) {
-    let t = attrRow("type", !0);
-    attrBtns(t, ["flat", "round"], () => p.startType, (v) => {
-      p.startType = v, scheduleGeneratorEvaluation(0);
-    }, h, () => renderExtrude(h)), R("size", () => p.startSize, (v) => {
-      p.startSize = v;
-    }, O_SZ, !0);
-  }
-  let c4 = attrRow("end fillet");
-  if (attrBtns(c4, ["off", "on"], () => p.endFillet ? "on" : "off", (v) => {
-    p.endFillet = v === "on", scheduleGeneratorEvaluation(0);
-  }, h, () => renderExtrude(h)), p.endFillet) {
-    let t = attrRow("type", !0);
-    attrBtns(t, ["flat", "round"], () => p.endType, (v) => {
-      p.endType = v, scheduleGeneratorEvaluation(0);
-    }, h, () => renderExtrude(h)), R("size", () => p.endSize, (v) => {
-      p.endSize = v;
-    }, O_SZ, !0);
-  }
+  let startType = attrRow("start type");
+  attrBtns(startType, ["flat", "round"], () => p.startType, (v) => {
+    p.startType = v, scheduleGeneratorEvaluation(0);
+  }, h, () => renderExtrude(h));
+  R("start size", () => p.startSize, (v) => {
+    p.startSize = v;
+  }, O_SZ);
+  let endType = attrRow("end type");
+  attrBtns(endType, ["flat", "round"], () => p.endType, (v) => {
+    p.endType = v, scheduleGeneratorEvaluation(0);
+  }, h, () => renderExtrude(h));
+  R("end size", () => p.endSize, (v) => {
+    p.endSize = v;
+  }, O_SZ);
 }
 function renderLathe(h) {
   let p = objParams.get(h);
@@ -18950,7 +18945,7 @@ function restoreAnimationPayload(data) {
 function resetTimeline() {
   pendingAnimation = null, restoreAnimationPayload(null);
 }
-const HASH_PARAM_DEFAULTS = {"instance":{"source":""},"spline":{"angle":10},"spline_patch":{},"extrude":{"offset":10,"startFillet":false,"startType":"flat","startSize":1,"endFillet":false,"endType":"flat","endSize":1},"lathe":{"angle":360},"sweep":{"mode":"parallel"},"boolean":{"op":"subtract"},"symmetry":{"x":true,"y":false,"z":false},"cloner":{"mode":"radial","count":5,"angle":360,"mx":3,"my":3,"mz":3,"dx":100,"dy":100,"dz":100},"environment":{"map":false,"hemi":100,"infinite":0,"camera":100,"vAng":45,"hAng":45},"cube":{"size":100},"cylinder":{"diameter":100,"height":100,"approximation":10},"tube":{"d1":100,"d2":50,"height":100,"approximation":10},"sphere":{"diameter":100,"approximation":10},"square":{"w":100,"h":100},"circle":{"diameter":100,"approximation":10},"polyhedron":{"faces":6,"diameter":100},"text":{"text":"Text","_legacySize":0,"approximation":10}};
+const HASH_PARAM_DEFAULTS = {"instance":{"source":""},"spline":{"angle":10},"spline_patch":{},"extrude":{"offset":10,"startType":"flat","startSize":0,"endType":"flat","endSize":0},"lathe":{"angle":360},"sweep":{"mode":"parallel"},"boolean":{"op":"subtract"},"symmetry":{"x":true,"y":false,"z":false},"cloner":{"mode":"radial","count":5,"angle":360,"mx":3,"my":3,"mz":3,"dx":100,"dy":100,"dz":100},"environment":{"map":false,"hemi":100,"infinite":0,"camera":100,"vAng":45,"hAng":45},"cube":{"size":100},"cylinder":{"diameter":100,"height":100,"approximation":10},"tube":{"d1":100,"d2":50,"height":100,"approximation":10},"sphere":{"diameter":100,"approximation":10},"square":{"w":100,"h":100},"circle":{"diameter":100,"approximation":10},"polyhedron":{"faces":6,"diameter":100},"text":{"text":"Text","_legacySize":0,"approximation":10}};
 // Native *.hash: typed arrays addressed by entity XOR property (XOR item for tags).
 function createNativeHashCodec() {
  const K={"Indices":"269869fc5a1ff404a2773005a039cab2","_legacySize":"becca2adac7df6f680dcec321ffd2753","a":"fd40ed68e0638fa0576496ba8aa4bd93","all":"b8a4755d5309d591a5331571e7ec726f","angle":"4e72062bffabf912d54da2a1fce080ce","angleIndices":"d842065e9aeb99603cb63d1b5aa95d8f","animation":"f91d9fec8ff1ffebb4fd669c42787546","approximation":"2e25a16281c8ec2fdae0e9c37b455bad","boolean":"4b5d573586920fde123e38ada0034727","boundary":"b24e8b9683e6bf699993529d21799754","boundaryIndices":"5856f0d8c8bcb860b5036f9d943b65ef","bump":"07b11448a63d0c299cbe7d0bdd956da4","cage":"ab5b13712325871cfab81cde8178480b","camera":"e232a3221094350ce29ff0d8c1a7e26e","closed":"813ba46602e7d137ed301cbf88d057b2","color":"461bdb1d791c2b3af6b4c0048d8fbce1","count":"d5d099aee11304efe60a4ec9e78018e4","cube":"6312a071a9adf4054c43f300a3efb926","current":"484ccb7128ad3630b88735100893892b","d1":"babcbca378c502eaf544807011e0f77f","d2":"a05c4462eeebdfd583c17c98716c1c02","data":"ae575a5515b2918c51c015b97393a261","diameter":"3c048a532f3a2e0ca23b9fc495d0b766","domain":"f1f89fa4124d85c6998cff84f803a3a4","dx":"d8b249c4fbe2b8263f7b47a9eef461af","dy":"e5d5733198e19c99f10f9a51cb9eca85","dz":"737ecb77f105e99e633c8b9cc5d9f66f","edgeAngles":"827749c0459b436783b31a85b5a56d0d","edgeIds":"a61a9c1db8ef3591a51ed9ee09941147","emm":"b8088079788b1227685fdc2e6bb28d94","enableSlot":"c643e1a384e9492b71efc541f2c3d01c","enabled":"4e6f277652a297192ed0b953f142aee0","endAngle":"5e17fc68fffd75b6547f5114b982d52b","endFillet":"6b78fe8c9fe0acf412dcc3c6e075a7e7","endSize":"c9af7a0d046664941d556ec114bc7045","endType":"5b4ee9c53721df9b57731a65c7a04fac","endpoints":"8c8bc16abea2788fd4aaffe8b38d1cef","f32":"111ce51db03707f28cb560c187b004cb","f64":"398b692797800c37a26488dc00e2b48e","faces":"809eb0e624b8258744282665efdbdd50","fatal":"665b06588bddc411bda29fffc94c8fa6","first":"84eb32434d7df273ca14a4003cea55c9","frames":"9e354f083451e7ab3ebf289a56ca07af","freeIds":"f9ca67635a7498a8115069ba77c31b9a","freeIn":"f5b7f5ff539dbfb69b7a7cda3639a08a","freeOut":"9595c53daa381a463780db3d5e67f4ff","getBigInt64":"b4623156aafca1b0b22e2264be82ad1c","getFloat32":"55ec09bba94a82faab61200a16d80917","getFloat64":"f0b3b644a5d92be78e34ec549418101b","getInt16":"22471d2e1e596e401661db6e73c26a97","getInt32":"7ec8513f28bb4dcf6874dabc0a659857","getInt8":"31e2ab1cb53a5b504144d81ab77ad0b5","getUint8":"59b5c6580dcb98f22a6739e6347be287","h":"79a7db92eedf844a02daa8a78a75a82b","hAng":"6b5e5305c5016439767310bc43d0bbcf","ha":"980dbde61541c82d169f37d60f1a8481","haIndices":"5ac777860fd002f8103104c9e282708c","hash":"75a2b7a920974eac8d1824449cfb8e28","hb":"dd944e1215c5661d8354fd940abe0f57","hbIndices":"917373cfbe7bcb8d0b9e1bc8dd54614d","height":"13e6aa58117f935866680c2807bdce08","hemi":"21e243bdd0346bebd2bd2cce48462075","i16":"0fd0bea84124f15c45063a321694acc0","i32":"6d1424c4ef6ed48dc42051baf5be3aad","i64":"2fe3310dc77fb1941c20c7c75961c197","i8":"089cd9a77b3bf43098b69707e1a325cf","id":"991f6895c0c51deb4251a5b42a816ebe","in":"ffa2f6c53e5d44ffb154f1c2be0eac2e","indices":"7191d6b8934c1d0fe9d738501a1cb3ea","infinite":"4083ac1d4569c2070cbe3a1fd0af3b13","interp":"56f5793c858d56251de4756ec218208d","isDefault":"23348548b1d8ffaea3a35b9c3f88b1b2","keys":"f9663fe31a7bcd075c67d994b4da6a38","kind":"c98420b1c829b2afa7e45882fa498f75","l":"cd505e5756dac541f3af89b796707c14","length":"fd067cd13df012451aa9cb247f2c04e4","linear":"428a56eef758ae35796f24106f1c98eb","map":"0f8831354dec5fea12394ff9a7d4b8d8","mapFrame":"7af303388e9b30217e0d3be463b2af31","mapPivot":"ac73f4c4aea3daee60e99a9a2893c1d6","materials":"d53182934907bed9e21581a9c3adc0d1","metal":"bd826fbe292d5ba3968ec776b2ad706c","mode":"dd4d26809ea040aa99d1ffa9b9469713","mx":"ed5f598a9fc25d15812500c45af864ef","my":"0af4062ab2470861dd18679555780380","mz":"169e55ef6886dcc5d9fc3560057ff290","name":"a11b9816f756a800d1fcbc6a5f4a7ff1","next":"734897d8d8e9e7e7b5fdb79d6cd47221","nodes":"e3274d9746192d7f5685b711e815b474","null":"ccd128cc0e9432a25c7cb81f6c3c49a0","offset":"dc288a60d4a7f23af74ff28a2d9f7c86","op":"c19e3308d76ba7b662a9c461be3843d3","opac":"873781817e3335d0bc59b409349e84d0","out":"7734998dc69919e331f9f3d6e8f51621","params":"6a55c2c34e2139dc7ffa49cb5c4e1a72","parent":"cc401e4abe821287039fbd452905dcbd","pivot":"92183d54306d87e3bf39b47626ffe4ee","polys":"5e45126badec4602a1208b9aac46cd21","positions":"dbc9f1fb6ce11c3a310e012c48d1c08e","profile":"eba5707f6e0a5b554d64af1eee219687","radius":"6e19c77e0998789355373731efd866f6","ref":"2018d347007319abc3a9132937ee7f98","rotations":"77e87f5d2912ba069a83903620f38f37","rough":"25e70ddddc84900dd907fa7988354f86","s":"79dcab20b12fe9a8d5095621f894301e","scales":"9b9db04697b86369c053f49cca8ce938","segments":"577ba7679dd92979ed70d3b9394fc59a","selectCount":"1dd07199fef6a459a960c7f8435937b1","selects":"a3049a508ab428d52b0eb54136bd5bf6","sequenceEdges":"06c331d047f8fa6574edcba8bd0010be","sequenceIds":"fa9616ca29ee74421bd4752d6ef34147","sequenceLengths":"e229fbde9d7c667b2d8242d8a8bbb768","sequences":"3c03d1999de38d957cdda252f920f5c5","setBigInt64":"570cbb491eb251e8e8f08f935afa5ed0","setFloat32":"3f4a19494c741c66cc8bec7e9cc7bb91","setFloat64":"26e46248a5379800234fbb8f9bda6099","setInt16":"8c8e7de4aa6f2ca84bed469ce3a805e6","setInt32":"27f814e6bb5fa3b6287a15a37d4583a2","setInt8":"10fcc5c24cc842fdf98249e336ab286b","setUint8":"02c8df54206c77afad76537c1460e86c","shelfA":"7e35e85fbf13f0b159c7a37d2ab8dcef","shelfB":"b47b30ded3ec0678a47cdfc07130a136","size":"1645b83fc6178e8f9f32e3d1367cec00","sizeX":"cc1e7f928d856dc2cad39ad8097dda29","sizeY":"205fe32fde4b51c6483f1cc3c8246970","sizeZ":"b8153914a8ca4550baea389c87f3026f","soft":"3de954c386e303c5b81c3c57487c2c14","softIndices":"7187fbb956702cb2bb0ce6a32c084617","source":"2de7b63c839943c42a9c8b17c0d3765e","startAngle":"cc97ee799b0f69c7aebb14805b04896e","startFillet":"ad6c5ba3841425cafec8a8241912035b","startSize":"afc7d7235e075091de919a925a796033","startType":"62971805dede331f29c50b35c5f4b338","string":"104188b5f990394443c2f35811999ffc","tagCount":"430d563456343881c157858ccef18bc8","tags":"2df02de33672aac7d3c1f2e124e873ad","targets":"89e34a91f329463dbca7fc83033b6e51","texMime":"b089201475c6fb704b77edca1d500310","text":"aa8efb243aeefce8325914518513115a","texture":"47df42d94f310e3250cef0d0ec20462d","total":"6b7c7c27b5a7c91ea9b13ca910ed411c","tracks":"307a689b90eec6feab263ec731799177","transform":"7e3b0b333ffcd3b1a2a0622749802bb5","type":"7f520c9eb59d464e8cb97745b94a0082","u8":"5b38d39a33f9c8e006f08af1ab857e6b","vAng":"bfffdc2244efacdb98b14054e4a32f46","value":"d7114f9268dfd7b8a9572146b261c2eb","vertexIds":"2c48f18e529cb57117393a0930eaa943","vertices":"fbc1047581511fd0e345051f532aee4c","visible":"680b8e663a9b86ba682b181fbb403a16","w":"6b0e47b325bd02e41cc2218a76a4cccd","x":"0860bf2eee47ea6f519047f358539996","y":"ec39f4fd5aa40d6a1220815d6d14b765","z":"f8ba9ada1e88a4d8d51abc1886c5c9f3"};
@@ -18998,7 +18993,11 @@ function createNativeHashCodec() {
   return w.finish();
  }
  function decode(bytes){const m=reader(bytes),ids=read(m,K.all,4,[]),scene={nodes:[]};if(!ids.length){if(bytes.length)throw Error('Missing all_objects');return scene;}if(new Set(ids).size!==ids.length)throw Error('Duplicate objects');
-  for(const h of ids){const q=getProps(m,h,nodeFields,['transform','pivot']);for(const f of ['visible','enabled','enableSlot'])if(q[f]!==undefined)q[f]=!!q[f];const defs=HASH_PARAM_DEFAULTS[q.kind];if(q.kind&&!defs)throw Error('Unknown object type');if(defs){const fields={...defs,...(q.kind==='cube'?{sizeX:100,sizeY:100,sizeZ:100}:{})},p={};for(const [f,v] of Object.entries(fields)){const a=read(m,key(key(h,'params'),f),f==='source'?4:typeof v==='string'?7:typeof v==='boolean'?0:6);if(a!==undefined)p[f]=f==='source'?a[0]:typeof v==='string'?a:typeof v==='boolean'?!!a[0]:a[0];}if(Object.keys(p).length)q.params=p;}
+  for(const h of ids){const q=getProps(m,h,nodeFields,['transform','pivot']);for(const f of ['visible','enabled','enableSlot'])if(q[f]!==undefined)q[f]=!!q[f];const defs=HASH_PARAM_DEFAULTS[q.kind];if(q.kind&&!defs)throw Error('Unknown object type');if(defs){const fields={...defs,...(q.kind==='cube'?{sizeX:100,sizeY:100,sizeZ:100}:{})},p={};for(const [f,v] of Object.entries(fields)){const a=read(m,key(key(h,'params'),f),f==='source'?4:typeof v==='string'?7:typeof v==='boolean'?0:6);if(a!==undefined)p[f]=f==='source'?a[0]:typeof v==='string'?a:typeof v==='boolean'?!!a[0]:a[0];}
+    // r48 and older stored separate Fillet start/end booleans. Read them only
+    // as migration hints; r49 never writes or exposes these fields.
+    if(q.kind==='extrude')for(const f of ['startFillet','endFillet']){const a=read(m,key(key(h,'params'),f),0);if(a!==undefined)p[f]=!!a[0];}
+    if(Object.keys(p).length)q.params=p;}
    const cage=readCage(m,h);if(cage)q.cage=cage;const positions=read(m,key(h,'positions'),5),indices=read(m,key(h,'indices'),3);if(positions||indices){if(!positions||!indices||positions.length%3||indices.length%3||indices.some(i=>i<0||i>=positions.length/3))throw Error('Invalid mesh');q.geometry={positions,indices};}
    const tags=read(m,key(h,'tagCount'),3,[0])[0];if(tags<0||tags>m.size)throw Error('Invalid tag count');if(tags)q.tags=Array.from({length:tags},(_,i)=>{const b=xor(h,K.tags,slot(i)),t=getProps(m,b,tagFields,['polys','mapFrame','mapPivot']),targets=read(m,key(b,'targets'),7);if(targets!==undefined)t.targets=split(targets);return t;});
    const count=read(m,key(h,'selectCount'),3,[0])[0];if(count<0||count>m.size)throw Error('Invalid selection count');if(count)q.selects=Array.from({length:count},(_,i)=>{const b=xor(h,K.selects,slot(i));return {color:read(m,key(b,'color'),6,[]),polys:read(m,key(b,'polys'),3,[])};});scene.nodes.push([h,q]);
@@ -19053,7 +19052,10 @@ function buildHashSceneSnapshot() {
   const tr=packTR(n),pv=packPivot(n);if(!hashEqual(tr,HASH_IDENTITY))q.transform=tr;if(!hashEqual(pv,HASH_IDENTITY))q.pivot=pv;
   if(!n.visible)q.visible=false;if(!n.enabled)q.enabled=false;if(n.enableSlot)q.enableSlot=true;
   if(n.tags.length){q.tags=n.tags.map(t=>hashTag(t));for(const t of n.tags)if(t.type===1&&t.ref)materials.add(t.ref);}
-  if(p&&SCHEMA[kind]){const sch=SCHEMA[kind],fields=[...sch.f,...sch.i,...sch.b,...sch.e.map(e=>e[0]),...(sch.s?[sch.s]:[])],values={};for(const k of fields)if(p[k]!==undefined)values[k]=p[k];const delta=hashSparse(values,hashParamDefaults(kind,values));if(Object.keys(delta).length)q.params=delta;}
+  if(p&&SCHEMA[kind]){const sch=SCHEMA[kind],fields=[...sch.f,...sch.i,...sch.b,...sch.e.map(e=>e[0]),...(sch.s?[sch.s]:[])],values={};for(const k of fields)if(p[k]!==undefined)values[k]=p[k];const delta=hashSparse(values,hashParamDefaults(kind,values));if(Object.keys(delta).length)q.params=delta;
+   // r49 writes hidden always-on markers plus explicit sizes. This makes the
+   // size-only model unambiguous while old disabled fillets still migrate to 0.
+   if(kind==='extrude')q.params={...(q.params||{}),startFillet:true,endFillet:true,startSize:Math.max(0,+p.startSize||0),endSize:Math.max(0,+p.endSize||0)};}
   if(splineData.has(h)&&!PARAMETRIC_MESH_TYPES.has(kind)&&!PARAMETRIC_SPLINE_TYPES.has(kind))q.cage=hashSpline(splineData.get(h));
   const generated=shareRebuildsGeometry(h)||['extrude','lathe','sweep','boolean','instance','symmetry','cloner'].includes(kind);
   const so=sceneObjects.get(h),g=pickMeshes.get(h)?.geometry||so?.geom;
@@ -19072,7 +19074,10 @@ function buildHashSceneSnapshot() {
 
 function unpackUI(bytes) {
  const scene=NativeHash.decode(bytes),params=new Map();pendingAnimation=scene.animation||null;pendingSplinePayload=[];
- for(const [h,q] of scene.nodes){if(q.kind)params.set(h,{__type:q.kind,...hashParamDefaults(q.kind,q.params),...q.params});if(q.cage)pendingSplinePayload.push([h,hashSpline(q.cage,true)]);}
+ for(const [h,q] of scene.nodes){if(q.kind){const sparse=q.params||{},p={__type:q.kind,...hashParamDefaults(q.kind,sparse),...sparse};
+   if(q.kind==='extrude'){for(const end of ['start','end']){const flag=end+'Fillet',size=end+'Size',hasFlag=Object.prototype.hasOwnProperty.call(sparse,flag),hasSize=Object.prototype.hasOwnProperty.call(sparse,size);
+     if(!hasFlag)p[size]=0;else if(!sparse[flag])p[size]=0;else if(!hasSize)p[size]=1;delete p[flag];}}
+   params.set(h,p);}if(q.cage)pendingSplinePayload.push([h,hashSpline(q.cage,true)]);}
  return params;
 }
 async function fullBlob() { return new Blob([NativeHash.encode(buildHashSceneSnapshot())],{type:'application/octet-stream'}); }
