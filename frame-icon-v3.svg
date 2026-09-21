@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#1c1c1c"/>
+  <defs>
+    <path id="corner" d="M80 76H178V100H100V178H76V80Q76 76 80 76Z"/>
+  </defs>
+  <g fill="#a8bbd4">
+    <use href="#corner"/>
+    <use href="#corner" transform="translate(512 0) scale(-1 1)"/>
+    <use href="#corner" transform="translate(0 512) scale(1 -1)"/>
+    <use href="#corner" transform="translate(512 512) scale(-1 -1)"/>
+  </g>
+</svg>
