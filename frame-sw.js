@@ -1,4 +1,4 @@
-const CACHE_NAME='frame-shell-v5';
+const CACHE_NAME='frame-shell-v15';
 const CORE=['./','./manifest.webmanifest','./frame-icon-v3.svg','./frame-icon-192-v3.png','./frame-icon-512-v3.png'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
