@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<meta name="theme-color" content="#242424"/>
+<meta name="theme-color" content="#121212"/>
 <meta name="application-name" content="Frame"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
 <title>Frame</title>
-<!-- FRAME r82: experimental continuous WebGPU preview during navigation and transforms. -->
+<!-- FRAME r83: depth precision, batched scene loading and polygon wire fallback. -->
 <!-- FRAME r78: primary-hit reuse, opaque any-hit, bounded GPU queue and optional pass timings. -->
 <!-- FRAME r77: explicit WGSL hash grouping; lighting reuse and camera fixes retained. -->
 <!-- FRAME r76: camera navigation, per-view own-camera gizmo exclusion and explicit render failures. -->
@@ -4272,7 +4272,7 @@ function createRenderIntegration(host) {
   }
   let pendingSignature='',motionPixels=160000,motionFrameMs=0;
   function interacting(){const s=host.get();return pointerDown||s.gizDrag||s.scrubActive||s.tlPlaying||performance.now()-lastActivity<120;}
-  function busy() {const s=host.get();return !!(s.generatorTimer||s.generatorActivePasses||[...s.replicaStates.values()].some(q=>q.pending));}
+  function busy() {const s=host.get();return !!(s.nativeSceneLoading||s.generatorTimer||s.generatorActivePasses||[...s.replicaStates.values()].some(q=>q.pending));}
   function schedule(delay=24) {if(!timer)timer=setTimeout(tick,delay);}
   function tick() {
     if(performanceJob)return;
@@ -9397,7 +9397,7 @@ function createVisibleFacePicker() {
 }
 var UNITS = ["nm", "\xB5m", "mm", "cm", "dm", "m", "km"], UMM = [1e-6, 1e-3, 1, 10, 100, 1e3, 1e6], TYPE_GROUP = 0, TYPE_MESH = 1, TYPE_GEN = 2;
 var TYPE_RENDER = 5, BG = 2763306, GRID_COL = 4473924, QUAD_LINE = 1315860, ORTHO_LINE = 8291725, ORTHO_MINOR_OP = 0.12, ORTHO_MAJOR_OP = 0.3, PR = Math.min(devicePixelRatio, 2), FOV = 45, BASE = 2e3, TAP_PX = 6, VIEW_SWITCH_PX = 20, MAJOR_LO = 50;
-var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, DEPTH_RATIO = 1e5, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.35, RO = 400, gizPx = 60, MOBILE_GIZMO_SCALE = 2, MOBILE_LONG_PRESS_MS = 500, MOBILE_TOUCH_SLOP = 10, MOBILE_DOUBLE_TAP_MS = 320, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 82;
+var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.35, RO = 400, gizPx = 60, MOBILE_GIZMO_SCALE = 2, MOBILE_LONG_PRESS_MS = 500, MOBILE_TOUCH_SLOP = 10, MOBILE_DOUBLE_TAP_MS = 320, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 82;
 var SMALLRING_PX = 10, SMALLRING_OFF_PX = 72, FLAT_WORLD_SMALLRING_OFF_PX = 77, FLAT_WORLD_SECTOR_PX = 87, SNAP_PX = 10, EDIT_HIT_PX = 20, TICK_PX = 8, VERTEX_CAP = 4e3, QUANT_BASE_STEP = 1, SNAPVIS_CAP = 4e3;
 var SNAP_HALF = 5, EPS_NEAR = 1e-3, ORIGIN0 = new THREE2.Vector3(0, 0, 0), PERSP_LINES = 11, MIN_COL = 1e-8, CREASE_ANGLE = 46 * Math.PI / 180, CREASE_COS = Math.cos(CREASE_ANGLE), clamp = (v, a, b) => Math.max(a, Math.min(b, v)), isFin = (v) => Number.isFinite(v);
 function m3fromM4(m4, a) {
@@ -9995,17 +9995,30 @@ function setViewShading(vi, mode) {
   vi >= 0 && vi < 4 && (viewShading[vi] = mode, vi===shadingContextView()&&syncShading(), scheduleRender());
 }
 var wireOverlays = /* @__PURE__ */ new Map(), polyPointOverlays = /* @__PURE__ */ new Map(), creaseOverlays = /* @__PURE__ */ new Map();
+const wireTopologyCache=new WeakMap(),libraryGeometrySources=new WeakMap();
+function hasIsoparmCage(h){
+  const state=replicaStates.get(h);
+  return splineData.has(h)||!!(state?.cage&&!state.cageObsolete&&state.virtualCage?.segments>0);
+}
 function liveWireGeometry(src) {
   if(src?.userData.splineWire){const g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(src.userData.splineWire,3));g.userData.sourceGeometry=src;g.userData.preparedSpline=true;return g;}
   let pos = src?.attributes?.position, idx = src?.index;
   if (!pos) return new THREE2.BufferGeometry();
   // Indexed lines share the source vertex buffer instead of expanding each edge
   // to two copied positions. Numeric edge keys also avoid per-edge strings.
-  const count=idx?idx.count:pos.count,indices=new Uint32Array(count*2),seen=new Set(),base=pos.count;
-  let used=0;
-  const add=(a,b)=>{if(a===b)return;if(a>b){const t=a;a=b;b=t;}const key=base<=94906265?a*base+b:a+':'+b;if(!seen.has(key)){seen.add(key);indices[used++]=a;indices[used++]=b;}};
-  for(let i=0;i+2<count;i+=3){const a=idx?idx.getX(i):i,b=idx?idx.getX(i+1):i+1,c=idx?idx.getX(i+2):i+2;add(a,b);add(b,c);add(c,a);}
-  const g=new THREE2.BufferGeometry();g.setAttribute('position',pos);g.setIndex(new THREE2.BufferAttribute(indices.slice(0,used),1));
+  const library=libraryGeometrySources.get(src),template=library&&library.index===idx&&idx.version===0?library.template:null;
+  const cached=wireTopologyCache.get(src),current=cached&&cached.index===idx&&cached.version===(idx?.version||0)&&cached.vertices===pos.count;
+  let edgeIndices=template?.wireIndices||(current?cached.indices:null);
+  if(!edgeIndices){
+    const count=idx?idx.count:pos.count,indices=new Uint32Array(count*2),seen=new Set(),base=pos.count;
+    let used=0;
+    const add=(a,b)=>{if(a===b)return;if(a>b){const t=a;a=b;b=t;}const key=base<=94906265?a*base+b:a+':'+b;if(!seen.has(key)){seen.add(key);indices[used++]=a;indices[used++]=b;}};
+    for(let i=0;i+2<count;i+=3){const a=idx?idx.getX(i):i,b=idx?idx.getX(i+1):i+1,c=idx?idx.getX(i+2):i+2;add(a,b);add(b,c);add(c,a);}
+    edgeIndices=indices.slice(0,used);
+    wireTopologyCache.set(src,{index:idx,version:idx?.version||0,vertices:pos.count,indices:edgeIndices});
+    if(template)template.wireIndices=edgeIndices;
+  }
+  const g=new THREE2.BufferGeometry();g.setAttribute('position',pos);g.setIndex(new THREE2.BufferAttribute(edgeIndices,1));
   g.userData.sourceGeometry=src;g.userData.sourceIndex=idx;g.userData.indexVersion=idx?.version||0;g.userData.positionVersion=pos.version;g.userData.indexedWire=true;
   g.boundingSphere=src.boundingSphere?.clone()||null;return g;
 }
@@ -10020,8 +10033,9 @@ function updateLiveWireGeometry(wire, src) {
 
 function ensureWireOverlays(mode = 2) {
   for (let [h, mesh] of pickMeshes)
-    if (!(!mesh.isMesh || !mesh.geometry || mesh.userData._largeSharedGeometry) && !wireOverlays.has(h) && effectiveVisible(h) && (mode===2 || (!PROCEDURAL_TYPES.has(objParams.get(h)?.__type) && selNodes.has(h) && polyMode && (polyElementMode==='edge'||polyElementMode==='face')))) {
+    if (mesh.isMesh && mesh.geometry && !wireOverlays.has(h) && effectiveVisible(h) && (mode===2 || mode===4&&!hasIsoparmCage(h))) {
       let wg = liveWireGeometry(mesh.geometry), wl = new THREE2.LineSegments(wg, new THREE2.LineBasicMaterial({ color: 0, transparent: !0, opacity: 0.4, depthTest: !0, depthWrite: !1 }));
+      biasSplineLineMaterial(wl.material);
       wl.userData._wireOverlay = !0, wl.matrixAutoUpdate = !1, wl.renderOrder = LAYER_OBJ + 1, wl.visible = !1, mesh.add(wl), wireOverlays.set(h, wl);
     }
 }
@@ -10060,26 +10074,24 @@ function applyShadingMode(mode) {
       }
       continue;
     }
-    // Polygon meshes have no spline cage; do not invent one from sharp mesh edges.
-    let points = ensurePolyPointOverlay(h, mesh), cageOnly = mode === 3, cageOverlay = mode === 4, editing = selected && polyMode;
-    if (cageOnly) {
-      mesh.visible = effectiveVisible(h) && editing && (polyElementMode === "edge" || polyElementMode === "face");
-      let wl = wireOverlays.get(h);
-      wl && (wl.visible = mesh.visible);
-    } else if (cageOverlay) {
-      mesh.visible = effectiveVisible(h);
-      let wl = wireOverlays.get(h);
-      wl && (wl.visible = editing && (polyElementMode === "edge" || polyElementMode === "face"));
-    }
-    points.material.depthTest = mode === 0 || mode === 2 || mode === 4, points.visible = effectiveVisible(h) && editing && polyElementMode === "vertex";
+    // Polygon objects have no isoparms: use the actual triangle wire in both
+    // cage modes. Vertex helpers are only allocated when editing vertices.
+    const editing=selected&&polyMode&&polyElementMode==='vertex';
+    const points=editing?ensurePolyPointOverlay(h,mesh):polyPointOverlays.get(h);
+    if(points){points.material.depthTest=mode===0||mode===2||mode===4;points.visible=effectiveVisible(h)&&editing;}
   }
   for (let [h, state] of replicaStates) {
-    let type = objParams.get(h)?.__type, derivedSurface = ["boolean", "instance", "symmetry", "cloner", "spline_patch", "extrude", "lathe", "sweep", "cube", "cylinder", "tube", "sphere", "capsule", "nut", "washer", "bolt"].includes(type), visible = !!OBJ.get(h)?.enabled && state.ready && effectiveVisible(h);
+    let type = objParams.get(h)?.__type, derivedSurface = ["boolean", "instance", "symmetry", "cloner", "spline_patch", "extrude", "lathe", "sweep", "cube", "cylinder", "tube", "sphere", "capsule", "nut", "washer", "bolt"].includes(type), visible = !!OBJ.get(h)?.enabled && state.ready && effectiveVisible(h), cage=hasIsoparmCage(h);
     if (state.cage && (state.cage.visible = !state.cageObsolete && [3, 4].includes(mode) && visible), state.seam && (state.seam.visible = [3, 4].includes(mode) && visible), state.mesh && derivedSurface) {
-      state.mesh.visible = visible && mode !== 3;
-      if(state.mesh.userData.splineChunks)for(const c of state.mesh.userData.splineChunks.values())c.userData.chunkWire.visible=mode===2&&visible;
+      let polygonChunk=false;
+      if(state.mesh.userData.splineChunks)for(const c of state.mesh.userData.splineChunks.values()){
+        const chunkCage=c.userData.replicaSource?.hasIsoparms??cage;
+        polygonChunk||=!chunkCage;c.visible=visible&&(mode!==3||!chunkCage);
+        c.userData.chunkWire.visible=(mode===2||mode===4&&!chunkCage)&&visible;
+      }
+      state.mesh.visible = visible && (mode !== 3 || !cage || polygonChunk);
       let wl = wireOverlays.get(h);
-      wl && (wl.visible = mode === 2 && visible);
+      wl && (wl.visible = (mode === 2 || mode===4&&!cage) && visible);
     }
   }
 }
@@ -11136,20 +11148,24 @@ function installReplicaCage(h,state,cage) {
 const replicaWireCache = new WeakMap();
 function replicaSourceWire(g) {
   if (g.userData.splineWire) return g.userData.splineWire;
-  const key = [g.attributes.position?.version,g.index?.version].join(':'),cached=replicaWireCache.get(g);
-  if(cached?.key===key)return cached.array;
-  const tmp=liveWireGeometry(g),array=tmp.attributes.position.array;replicaWireCache.set(g,{key,array});tmp.dispose();return array;
+  const position=g.attributes.position,index=g.index,cached=replicaWireCache.get(g);
+  if(cached&&cached.position===position&&cached.index===index&&cached.pv===position.version&&cached.iv===index?.version)return cached.array;
+  // Replica lines are non-indexed. Expand the edge indices, not the original
+  // vertex order (which would connect unrelated vertices of polygon meshes).
+  const tmp=liveWireGeometry(g),p=tmp.attributes.position,ids=tmp.index,array=new Float32Array((ids?.count||p.count)*3);
+  for(let i=0;i<array.length/3;i++){const v=ids?ids.getX(i):i;array[i*3]=p.getX(v);array[i*3+1]=p.getY(v);array[i*3+2]=p.getZ(v);}
+  replicaWireCache.set(g,{position,index,pv:position.version,iv:index?.version,array});tmp.dispose();return array;
 }
 function replicaRenderParts(hashes,anchor,copies,sourceFrames=null) {
   const bases=[],parts=[];
-  function append(mesh,matrix,sourceHash){
-    if(mesh.userData.splineChunks){for(const c of mesh.userData.splineChunks.values())append(c,matrix.clone().multiply(c.matrix),sourceHash);return;}
-    if(mesh.isInstancedMesh){const im=new THREE2.Matrix4(),proxy={geometry:mesh.geometry,material:mesh.material,userData:{}};for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,im);append(proxy,matrix.clone().multiply(im),sourceHash);}return;}
+  function append(mesh,matrix,sourceHash,hasIsoparms){
+    if(mesh.userData.splineChunks){for(const c of mesh.userData.splineChunks.values())append(c,matrix.clone().multiply(c.matrix),sourceHash,c.userData.replicaSource?.hasIsoparms??hasIsoparms);return;}
+    if(mesh.isInstancedMesh){const im=new THREE2.Matrix4(),proxy={geometry:mesh.geometry,material:mesh.material,userData:{}};for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,im);append(proxy,matrix.clone().multiply(im),sourceHash,hasIsoparms);}return;}
     const g=mesh.geometry;if(!g?.attributes.position?.count)return;if(!g.attributes.normal)g.computeVertexNormals();
     const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
-    bases.push({g,mesh,sourceHash,matrix,materials,wire:replicaSourceWire(g),batchKey:g.uuid+'|'+sourceHash+'|'+materials.map(m=>m?.uuid).join(',')});
+    bases.push({g,mesh,sourceHash,matrix,materials,hasIsoparms,wire:replicaSourceWire(g),batchKey:g.uuid+'|'+sourceHash+'|'+materials.map(m=>m?.uuid).join(',')});
   }
-  for(const h of hashes){const mesh=evaluatedSurfaceMesh(h);if(!mesh)continue;mesh.updateWorldMatrix(true,true);append(mesh,replicaMeshMatrix(h,mesh,anchor,sourceFrames),h);}
+  for(const h of hashes){const mesh=evaluatedSurfaceMesh(h);if(!mesh)continue;mesh.updateWorldMatrix(true,true);append(mesh,replicaMeshMatrix(h,mesh,anchor,sourceFrames),h,hasIsoparmCage(h));}
   for(const copy of copies)for(const base of bases){const matrix=replicaPlacedMatrix(copy,base.matrix,sourceFrames?.get(base.sourceHash));parts.push({...base,matrix,flip:matrix.determinant()<0});}
   return parts;
 }
@@ -12687,7 +12703,8 @@ function buildParametricCageObject(h, p) {
   if(isCatalogueFastener(p))return buildCachedFastener(h,p);
   splineData.has(h) && disposeSplineVisual(h, !0);
   let direct = pickMeshes.get(h);
-  direct && threeOf.get(h) === direct && disposeParametricMesh(h), syncMeshParents();
+  if(direct&&threeOf.get(h)===direct)disposeParametricMesh(h);
+  if(!threeOf.has(h))syncMeshParents();
   let state = ensureReplicaState(h), data = createParametricCageData(p.__type, p);
   state.signature = JSON.stringify(p);
   const revision=(state.surfaceRevision||0)+1;state.surfaceRevision=revision;state.pending=true;
@@ -12720,10 +12737,10 @@ function queueParametricMeshObject(h, delay = 70) {
   p.__type === "cube" ? delete p.approximation : p.approximation = approximationAngle(p);
   delete p.subdivs, scheduleGeneratorEvaluation(delay, [h]);
 }
-function syncParametricObject(h) {
+function syncParametricObject(h, deferLibraryParents = false) {
   let p = objParams.get(h), type = p?.__type;
   if (!p || !OBJ.has(h)) return !1;
-  if(LIBRARY_MESH_TYPES.has(type))return syncLibraryObject(h);
+  if(LIBRARY_MESH_TYPES.has(type))return syncLibraryObject(h,!deferLibraryParents);
   if (PARAMETRIC_MESH_TYPES.has(type)) {
     if(isCatalogueFastener(p))normalizeCatalogueParams(p);
     type === "cube" ? delete p.approximation : p.approximation = approximationAngle(p);
@@ -12738,7 +12755,8 @@ function syncParametricObject(h) {
   return !1;
 }
 function syncAllParametricObjects() {
-  for (let h of OBJ.keys()) syncParametricObject(h);
+  for (let h of OBJ.keys()) syncParametricObject(h,true);
+  syncMeshParents();
 }
 function splineApproximation(h, resetSegments = false) {
   let p = objParams.get(h) || {}, d = splineData.get(h);
@@ -14961,11 +14979,13 @@ var vpState = {
   orthoGridObjs: null
 }, _raf = 0, renderPerformance = { frames: 0, totalMilliseconds: 0, lastMilliseconds: 0, maxMilliseconds: 0 };
 function scheduleRender() {
+  if(nativeSceneLoading)return;
   _raf || (_raf = requestAnimationFrame(() => {
     _raf = 0, render();
   }));
 }
 function render() {
+  if(nativeSceneLoading)return;
   frameSyncCamera();frameUpdateCameraHelpers();
   let { renderer, views, singleView, mode, fullRect, quadRects, W, H } = vpState;
   if (!renderer) return;
@@ -14985,39 +15005,47 @@ function render() {
   renderPerformance.frames++, renderPerformance.totalMilliseconds += elapsed, renderPerformance.lastMilliseconds = elapsed, renderPerformance.maxMilliseconds = Math.max(renderPerformance.maxMilliseconds, elapsed);
   frameRenderController?.observe();
 }
-var _cdV = new THREE2.Vector3(), _cdD = new THREE2.Vector3();
+var _cdV = new THREE2.Vector3(), _cdD = new THREE2.Vector3(), _cdEye = new THREE2.Vector3(), _cdBox = new THREE2.Box3();
 function computeSceneDepthRange(cam, view) {
-  cam.getWorldDirection(_cdD);
-  let minD = 1 / 0, maxD = -1 / 0, any = !1, point = (p) => {
-    _cdV.copy(p).sub(cam.position);
-    let d = _cdV.dot(_cdD);
-    d < minD && (minD = d), d > maxD && (maxD = d), any = !0;
-  }, consider = (mw, bb) => {
-    let xs = [bb.min.x, bb.max.x], ys = [bb.min.y, bb.max.y], zs = [bb.min.z, bb.max.z];
-    for (let x of xs) for (let y of ys) for (let z of zs) {
-      _cdV.set(x, y, z).applyMatrix4(mw).sub(cam.position);
-      let d = _cdV.dot(_cdD);
-      d < minD && (minD = d), d > maxD && (maxD = d), any = !0;
+  cam.getWorldDirection(_cdD);cam.getWorldPosition(_cdEye);
+  const perspective=!!cam.isPerspectiveCamera,tan=perspective?Math.tan(cam.getEffectiveFOV()*Math.PI/360):0;
+  // A point inside the view cone has forward depth >= distance * cornerCos.
+  // Distance to a bounding box remains conservative even when that box spans
+  // the eye plane (for example the floor beneath an interior camera).
+  const cornerCos=perspective?1/Math.sqrt(1+tan*tan*(1+cam.aspect*cam.aspect)):1;
+  let minD=Infinity,maxD=-Infinity,nearD=Infinity;
+  const point=p=>{const d=_cdV.copy(p).sub(_cdEye).dot(_cdD);if(!perspective||d>0){minD=Math.min(minD,d);maxD=Math.max(maxD,d);}};
+  const consider=(mw,bb)=>{
+    let lo=Infinity,hi=-Infinity;_cdBox.makeEmpty();
+    for(let i=0;i<8;i++){
+      _cdV.set(i&1?bb.max.x:bb.min.x,i&2?bb.max.y:bb.min.y,i&4?bb.max.z:bb.min.z).applyMatrix4(mw);_cdBox.expandByPoint(_cdV);
+      const d=_cdV.sub(_cdEye).dot(_cdD);lo=Math.min(lo,d);hi=Math.max(hi,d);
     }
+    if(perspective&&hi<=0)return;
+    minD=Math.min(minD,lo);maxD=Math.max(maxD,hi);
+    if(perspective)nearD=Math.min(nearD,Math.max(0,lo,_cdBox.distanceToPoint(_cdEye)*cornerCos));
   };
-  for (let [, mesh] of pickMeshes) {
+  for (let [h, mesh] of pickMeshes) {
+    const state=replicaStates.get(h);
+    if(!effectiveVisible(h)||state&&(!OBJ.get(h)?.enabled||!state.ready))continue;
     let g = mesh.userData.splineChunks ? null : mesh.geometry;
     if(g&&!g.boundingBox)g.computeBoundingBox();
-    let bb = mesh.userData.splineChunks ? mesh.boundingBox : g.boundingBox;
+    let bb = mesh.userData.splineChunks ? mesh.boundingBox : g?.boundingBox;
     !bb || bb.isEmpty() || (mesh.updateWorldMatrix(true,false), consider(mesh.matrixWorld, bb));
   }
-  if (point(gizmo.pos), view && view.type !== "persp") {
-    let gd = -cam.position.dot(_cdD);
-    gd < minD && (minD = gd), gd > maxD && (maxD = gd), any = !0, point(ORIGIN0);
+  // Editor guides may extend the far plane, but must not collapse the scene's
+  // near plane to the grid step or an unselected gizmo left at the origin.
+  if(gizmoVisible&&!frameOwnCameraGizmo(view)){
+    point(gizmo.pos);const d=_cdV.copy(gizmo.pos).sub(_cdEye).dot(_cdD);
+    if(d>0)nearD=Math.min(nearD,d*.5);
+  }
+  if (view && view.type !== "persp") {
+    point(ORIGIN0);
   } else if (view && view.type === "persp" && vpState.perspGrid) {
     let cs = vpState.perspGrid._corners;
-    for (let i = 0; i < 4; i++) {
-      _cdV.copy(cs[i]).sub(cam.position);
-      let d = _cdV.dot(_cdD);
-      d < minD && (minD = d), d > maxD && (maxD = d), any = !0;
-    }
+    for (let i = 0; i < 4; i++)point(cs[i]);
   }
-  return any ? { minD, maxD } : null;
+  return Number.isFinite(maxD)?{minD,maxD,nearD}:null;
 }
 function renderWithSplineEditCages(cam) {
   const lifted=[];
@@ -15057,8 +15085,11 @@ function renderView(view, r, vi) {
     vpState.perspGrid.visible(!0), cam.aspect = r.w / r.h;
     let range = computeSceneDepthRange(cam, view);
     if (range) {
-      let far = Math.max(range.maxD * 1.2, 1), step = vpState.perspGrid.step;
-      cam.far = far, cam.near = Math.max(step * 1e-3, far / DEPTH_RATIO, EPS_NEAR);
+      cam.far=Math.max(range.maxD*1.05,EPS_NEAR*2);
+      // Never push near out to far / a fixed ratio: a distant object must not
+      // clip a close one. Keep a generous margin in front of visible geometry.
+      const closest=Number.isFinite(range.nearD)?range.nearD:Math.max(0,range.minD);
+      cam.near=Math.min(cam.far*.5,Math.max(EPS_NEAR,closest*.5));
     }
     cam.updateProjectionMatrix();
   } else {
@@ -15067,8 +15098,10 @@ function renderView(view, r, vi) {
     cam.left = -hW, cam.right = hW, cam.top = hH, cam.bottom = -hH;
     let range = computeSceneDepthRange(cam, view);
     if (range) {
-      let far = Math.max(range.maxD * 1.2, 1);
-      cam.far = far, cam.near = Math.max(range.minD * 0.5, far / DEPTH_RATIO, EPS_NEAR);
+      // Orthographic depth is linear; fit its visible interval without moving
+      // the camera or deriving near from an unrelated far/near ratio.
+      const margin=Math.max((range.maxD-range.minD)*.05,EPS_NEAR);
+      cam.near=Math.max(0,range.minD-margin);cam.far=Math.max(range.maxD+margin,cam.near+EPS_NEAR);
     }
     cam.updateProjectionMatrix(), view.grid.update(cam, r), view.grid.visible(!0);
   }
@@ -21226,7 +21259,8 @@ function libraryTemplate(p){
  const indices=unpack(d.i16||d.i32,d.i16?Uint16Array:Uint32Array),slots=new Map();
  for(const g of d.groups){let a=slots.get(g.slot);if(!a)slots.set(g.slot,a=[]);for(let at=g.start;at<g.start+g.count;at+=3)a.push(at/3);}
  const built=polygonCreaseData(positions,indices,CREASE_COS);
- const value={key,positions:built.positions,normals:built.normals,indices:built.indices,slots};libraryTemplates.set(key,value);return value;
+ const bounds=new THREE2.BufferGeometry();bounds.setAttribute('position',new THREE2.BufferAttribute(built.positions,3));bounds.computeBoundingBox();bounds.computeBoundingSphere();
+ const value={key,positions:built.positions,normals:built.normals,indices:built.indices,slots,boundingBox:bounds.boundingBox,boundingSphere:bounds.boundingSphere};libraryTemplates.set(key,value);return value;
 }
 function librarySlotMaterial(p,slot){
  if(p.__type==='car')return slot==='paint'?'car.paint.'+(p.colorPreset||'red'):'car.'+slot;
@@ -21244,9 +21278,9 @@ function libraryMeshGeometry(t){
  // changed by disposal or by changing another object's material assignments.
  g.setAttribute('position',new THREE2.BufferAttribute(t.positions.slice(),3));
  g.setAttribute('normal',new THREE2.BufferAttribute(t.normals.slice(),3));
- g.setIndex(new THREE2.BufferAttribute(t.indices.slice(),1));g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);return g;
+ g.setIndex(new THREE2.BufferAttribute(t.indices.slice(),1));g.boundingBox=t.boundingBox.clone();g.boundingSphere=t.boundingSphere.clone();libraryGeometrySources.set(g,{template:t,index:g.index});markPolygonCreaseGeometry(g);return g;
 }
-function syncLibraryObject(h){
+function syncLibraryObject(h,syncParents=true){
  const n=OBJ.get(h),p=objParams.get(h);if(!n||!LIBRARY_MESH_TYPES.has(p?.__type))return false;
  Object.assign(p,{...FRAME_LIBRARY_DEFAULTS[p.__type],...p});
  const t=libraryTemplate(p);let mesh=pickMeshes.get(h),prior=mesh?.userData.libraryParams,oldTemplate=mesh?.userData.libraryKey&&libraryTemplates.get(mesh.userData.libraryKey);
@@ -21277,7 +21311,7 @@ function syncLibraryObject(h){
   mesh=new THREE2.Mesh(libraryMeshGeometry(t),getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;
   threeOf.set(h,mesh);registerPickMesh(h,mesh);contentThrees.push(mesh);for(const child of children)mesh.add(child);
  }
- mesh.userData.libraryKey=t.key;mesh.userData.libraryParams={...p};assignMeshMat(mesh,h);syncMeshParents();
+ mesh.userData.libraryKey=t.key;mesh.userData.libraryParams={...p};assignMeshMat(mesh,h);if(syncParents)syncMeshParents();
  if(['car','tree','human','Sedan','Man','Woman','Bush','Spruce','Oak','Poplar'].includes(n.name))n.name=libraryTitle(p);
  scheduleRender();return true;
 }
@@ -26332,7 +26366,7 @@ function downloadBlob(blob, name) {
   let a = document.createElement("a");
   a.href = URL.createObjectURL(blob), a.download = name, a.click(), setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
 }
-var pendingParams = null, pendingSplinePayload = null, pendingViewport = null, nativeLoadRevision = 0;
+var pendingParams = null, pendingSplinePayload = null, pendingViewport = null, nativeLoadRevision = 0, nativeSceneLoading = null;
 async function prepareNativeScene(bytes){
  if(bytes.byteLength<4*1024*1024||typeof Worker==='undefined')return NativeHash.decode(bytes);
  // Decode and rebuild polygon normals before replacing the live scene. Keep
@@ -26372,7 +26406,22 @@ async function loadNativeBytes(bytes){
  const revision=++nativeLoadRevision;
  const scene=await prepareNativeScene(bytes); // Validate everything before changing the current scene.
  if(revision!==nativeLoadRevision)throw new DOMException('Scene load superseded','AbortError');
- pendingParams=unpackUI(bytes,scene);rebuildFromBytes(bytes,scene);afterLoad();
+ const loading={revision};nativeSceneLoading=loading;
+ const indicator=document.createElement('div');indicator.setAttribute('role','status');indicator.textContent='Loading scene…';
+ indicator.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:#242424b0;color:#ddd;font:14px ui-monospace,monospace;cursor:progress';document.body.append(indicator);
+ try{
+  // Paint the loading state once, then let workers assemble the scene without
+  // hundreds of expensive draws of an incomplete model.
+  await new Promise(resolve=>{const timeout=setTimeout(resolve,50);requestAnimationFrame(()=>{clearTimeout(timeout);setTimeout(resolve,0);});});
+  if(revision!==nativeLoadRevision)throw new DOMException('Scene load superseded','AbortError');
+  pendingParams=unpackUI(bytes,scene);rebuildFromBytes(bytes,scene);afterLoad();
+  const deadline=performance.now()+120000;
+  while(generatorTimer||generatorActivePasses||[...replicaStates.values()].some(s=>s.pending)){
+   await new Promise(resolve=>setTimeout(resolve,12));
+   if(revision!==nativeLoadRevision)throw new DOMException('Scene load superseded','AbortError');
+   if(performance.now()>deadline)throw Error('Scene generators did not finish loading');
+  }
+ }finally{indicator.remove();if(nativeSceneLoading===loading){nativeSceneLoading=null;scheduleRows();scheduleRender();}}
 }
 function afterLoad() {
   if (matUrl.clear(), rebuildMatCards(), liveMat = null, draft = Object.assign({ h: 0, s: 0, l: 50, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, { map: null, texBytes: null, texMime: null, texId: null }), document.body.style.setProperty("--h", draft.h), document.body.style.setProperty("--s", draft.s + "%"), document.body.style.setProperty("--l", draft.l + "%"), document.getElementById("btnDelTex").style.display = "none", document.getElementById("bumpLab").style.display = "none", document.getElementById("inpBump").style.display = "none", syncInputs(), updateMatPreview(), objParams.clear(), pendingParams) {
@@ -27880,7 +27929,7 @@ initViewport(document.getElementById("vp"));
 frameRenderController = createRenderIntegration({
   THREE: THREE2,infiniteLights:frameInfiniteLighting,outputStatus:frameRenderStatus,bindAnimation:(el,h,path)=>frameBindElement(el,()=>[frameDescriptor(h,path)].filter(Boolean)),activeCamera:frameActiveCamera,cameraView:frameRenderCameraView,cameraAttributes:frameCameraAttributes,openOutput:frameOpenOutput,
   getFrame:()=>tlCur,getTotal:()=>tlTotal,setTotal:n=>{tlTotal=n;tlCurOpts.max=n;syncTimelineInputs();},setFrame:f=>{if(f>tlTotal){tlTotal=Math.ceil(f);tlCurOpts.max=tlTotal;}tlCur=Math.floor(f);syncTimelineInputs();frameEvaluateAnimation(f);},stopTimeline,waitForScene:frameWaitForScene,
-  get: () => ({OBJ,MATS,objParams,selNodes,pickMeshes,replicaStates,vpState,envState,gizDrag,scrubActive:_scrubActive,tlPlaying,generatorTimer,generatorActivePasses}),
+  get: () => ({OBJ,MATS,objParams,selNodes,pickMeshes,replicaStates,vpState,envState,gizDrag,scrubActive:_scrubActive,tlPlaying,generatorTimer,generatorActivePasses,nativeSceneLoading}),
   effectiveVisible,consumesGeneratorChildren,attrRow,attrInput,attrBtns,attrContent,paramCommit,addPlain,syncEnv,scheduleRender,invalidateEnvironmentMaterials,
   refreshAttributes: () => {lastAttrKey=null;refreshAttributesPanel();}
 });

@@ -4,9 +4,9 @@
   "id": "./",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#000000",
-  "theme_color": "#242424",
+  "theme_color": "#121212",
   "description": "Frame CAD/CAE workspace",
   "prefer_related_applications": false,
   "icons": [
