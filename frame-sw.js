@@ -1,5 +1,6 @@
-const CACHE_NAME='frame-shell-v15';
-const CORE=['./','./manifest.webmanifest','./frame-icon-v3.svg','./frame-icon-192-v3.png','./frame-icon-512-v3.png'];
+// Frame r73. The application remains a self-contained HTML; these are shell assets only.
+const CACHE_NAME='frame-shell-v21-r74';
+const CORE=['./','./manifest.webmanifest','./frame-icon-v4.svg','./frame-icon-192-v4.png','./frame-icon-512-v4.png','./frame-hash-256-v4.png','./frame-v4.ico'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
 });
@@ -14,15 +15,19 @@ self.addEventListener('fetch',event=>{
   const url=new URL(request.url);if(url.origin!==self.location.origin)return;
   if(request.mode==='navigate'){
     event.respondWith(fetch(request).then(response=>{
-      if(response&&response.ok)caches.open(CACHE_NAME).then(cache=>cache.put('./',response.clone()));
+      if(response?.ok){const copy=response.clone();event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.put('./',copy)));}
       return response;
-    }).catch(()=>caches.match(request).then(hit=>hit||caches.match('./'))));
+    }).catch(async()=>{const cache=await caches.open(CACHE_NAME);return await cache.match(request)||await cache.match('./')||Response.error();}));
     return;
   }
   const relative='./'+url.pathname.slice(new URL(self.registration.scope).pathname.length);
   if(!CORE.includes(relative))return;
-  event.respondWith(caches.match(request).then(hit=>hit||fetch(request).then(response=>{
-    if(response&&response.ok)caches.open(CACHE_NAME).then(cache=>cache.put(request,response.clone()));
-    return response;
-  })));
+  event.respondWith(caches.open(CACHE_NAME).then(async cache=>{
+    // Refresh the manifest so installed-file handlers can receive updates.
+    if(relative==='./manifest.webmanifest'){
+      try{const response=await fetch(request);if(response.ok){event.waitUntil(cache.put(request,response.clone()));return response;}}catch{}
+    }
+    const hit=await cache.match(request);if(hit)return hit;
+    const response=await fetch(request);if(response?.ok)event.waitUntil(cache.put(request,response.clone()));return response;
+  }));
 });
