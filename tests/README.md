@@ -25,9 +25,25 @@ console.table(result.results.map(({name,ok,ms,error})=>({name,ok,ms,error})));
 console.log(result.passed, result.failed);
 ```
 
-`render:true` включает отдельную проверку WebGPU PNG и экспортируемого кадра; без неё запускаются 63 сценария, с ней — 64. Обычно проверка занимает несколько секунд плюс компиляция WebGPU-шейдеров.
+`render:true` включает отдельную проверку WebGPU PNG и экспортируемого кадра; без неё запускаются 64 сценария, с ней — 65. Обычно проверка занимает несколько секунд плюс компиляция WebGPU-шейдеров.
 
-Матрица: 7 единиц; пустая сетка и объект за камерой; 4 камеры; orbit/pan/dolly/look/wheel; 5 примитивов в mm/µm/nm; параметры, rescale, undo/redo; анимация и native roundtrip; 3 Boolean × 2 единицы; 6 генераторов × 5 режимов × single/quad; 7 внешних форматов; очистка ресурсов; материалы; независимость библиотечных буферов; extrude/bevel; регенерация после удаления; компактный осмотр тяжёлого меша; batch и JSON FIFO; обновление HUD.
+Матрица: 7 единиц; пустая сетка, объект за камерой и точность далёкой ортографической камеры; 4 камеры; orbit/pan/dolly/look/wheel; 5 примитивов в mm/µm/nm; параметры, rescale, undo/redo; анимация и native roundtrip; 3 Boolean × 2 единицы; 6 генераторов × 5 режимов × single/quad; 7 внешних форматов; очистка ресурсов; материалы; независимость библиотечных буферов; extrude/bevel; регенерация после удаления; компактный осмотр тяжёлого меша; batch и JSON FIFO; обновление HUD.
+
+## Масштаб светового кэша
+
+`render-scale-regression.js` проверяет 18 сценариев WebGPU: смену отображаемых единиц, rescale mm → µm → nm → mm, перспективную и ортографическую камеры, светящиеся объекты, плотность ячеек света и совпадение PNG, небольшие правки с undo, удаление большого объекта, новую микроскопическую сцену и очистку кэша при интерактивном BVH refit. Также заменяет сцену.
+
+```js
+await new Promise((resolve,reject) => {
+  const s=document.createElement('script');
+  s.src='/tests/render-scale-regression.js';
+  s.onload=resolve; s.onerror=reject; document.head.appendChild(s);
+});
+const scaleResult = await runFrameRenderScaleRegression(frameAI);
+console.table(scaleResult.results.map(({name,ok,ms,error})=>({name,ok,ms,error})));
+```
+
+По умолчанию 256×256 / 16 samples; `{width:768,samples:32}` увеличивает детализацию сравнения. Проверка RGB допускает среднее отклонение менее одного значения из 255 из-за округления FP32 и порядка выполнения GPU. `getRenderState().normalization` возвращает физический масштаб ячеек и смещения лучей в mm.
 
 ## Большая сцена
 

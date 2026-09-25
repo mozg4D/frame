@@ -88,12 +88,15 @@ const png = await frameAI.renderImage({camera:camera.object, width:512, height:5
 
 `getViewportDiagnostics` показывает near/far, диапазон глубины геометрии, draw calls, wire-индексы и ошибки. `navigateView({action:'orbit'|'pan'|'dolly'|'look'|'wheel',...})` использует те же контроллеры, что мышь.
 
+После рендера `getRenderState().normalization` показывает центр, масштаб и размер сцены, минимальную ячейку света и смещение луча в mm. `retained` означает сохранение системы координат кэша при последней сборке. При сильном уменьшении сцены рендер пересчитывает нормализацию и очищает старый световой кэш; обычные небольшие правки сохраняют его стабильность.
+
 `await benchmarkViewport({samples:30,warmup:5})` измеряет завершение CPU+GPU через `gl.finish`; это время работы кадра, не интервал обновления монитора. `{gpu:false}` измеряет отправку команд CPU.
 
 `setPerformanceOptions({libraryBatching:false,surfaceMerging:false})` отключает новые объединения для A/B-проверки. По умолчанию оба включены. Объединение не уменьшает детализацию. Прозрачные/текстурированные библиотечные объекты и редактируемые компоненты сохраняют отдельную отрисовку, когда это требуется для правильного результата.
 
 Единицы теперь сохраняются в `.hash`. Файлы прежней версии открываются. Новые файлы с единицами, отличными от mm, требуют r84 или новее.
 </script>
+<!-- FRAME r85: scale-safe light-cache coordinates and orthographic depth. -->
 <!-- FRAME r84: scale-aware editing/navigation, conservative grid clipping and AI inspection. -->
 <!-- FRAME r83: depth precision, batched scene loading and polygon wire fallback. -->
 <!-- FRAME r78: primary-hit reuse, opaque any-hit, bounded GPU queue and optional pass timings. -->
@@ -2104,7 +2107,11 @@ function sceneWorker() {
       }
       if(Number.isFinite(sceneLo[0])){lo.splice(0,3,...sceneLo);hi.splice(0,3,...sceneHi);}
       const naturalCenter=triangleCount?lo.map((v,k)=>(v+hi[k])*.5):[0,0,0],naturalScale=triangleCount?Math.max(...hi.map((v,k)=>v-lo[k]),1e-8):1;
-      const previous=data.normalization,keep=previous&&triangleCount&&lo.every((v,k)=>(v-previous.center[k])/previous.scale>-.95&&(hi[k]-previous.center[k])/previous.scale<.95);
+      // Keep the cache grid stable during ordinary edits, but not after a large
+      // contraction (rescale, deletion or a new microscopic scene). Retaining a
+      // millimetre scene's domain at micrometre scale magnifies every normalized
+      // ray offset and the minimum light-cache cell in screen pixels.
+      const previous=data.normalization,keep=previous&&triangleCount&&naturalScale>=previous.scale*.25&&lo.every((v,k)=>(v-previous.center[k])/previous.scale>-.95&&(hi[k]-previous.center[k])/previous.scale<.95);
       const center=keep?previous.center:naturalCenter,scale=keep?previous.scale:naturalScale,scale2=scale*scale;
       const meshStates=records.map(r=>({id:r.mesh.surfaceId||1,revision:r.mesh.revision||'',bounds:[...r.recordLo.map((v,k)=>(v-center[k])/scale),...r.recordHi.map((v,k)=>(v-center[k])/scale)]}));
       const lightSignature=JSON.stringify(records.filter(r=>!r.mesh.background&&r.mesh.materialIds.some(i=>emission[i]>0)).map(r=>[r.mesh.surfaceId||1,r.mesh.revision||'']));
@@ -2204,7 +2211,7 @@ function sceneWorker() {
         const power=powers?.[source]||0;if(power>0&&totalPower>0){const probability=power/totalPower;cdf+=probability;lights[lightAt++]=i;lights[lightAt++]=cdf;lights[lightAt++]=probability;lights[lightAt++]=triangles[at+7];triangles[at+15]=probability;}
       }
       if(lightAt)lights[lightAt-3]=1;
-      const result={triangles,bvh,lights,center,scale,meshStates,lightSignature,triangleCount,nodeCount,lightCount,order,faceLayout,referenceCost,refitted,buildMs:performance.now()-started,packMs:packedAt-started,bvhMs:builtAt-packedAt,reorderMs:performance.now()-builtAt};
+      const result={triangles,bvh,lights,center,scale,naturalScale,normalizationRetained:!!keep,meshStates,lightSignature,triangleCount,nodeCount,lightCount,order,faceLayout,referenceCost,refitted,buildMs:performance.now()-started,packMs:packedAt-started,bvhMs:builtAt-packedAt,reorderMs:performance.now()-builtAt};
       self.postMessage(result,[triangles.buffer,bvh.buffer,lights.buffer,order.buffer,faceLayout.buffer]);
     }catch(error){self.postMessage({error:error.message||String(error)});}
   };
@@ -3898,6 +3905,7 @@ class FrameRenderer {
       if(previousScene.lightSignature!==result.lightSignature)this.resetLighting('emissive geometry/material');
     }
     this.scene=result;this.stats.triangles=result.triangleCount;this.stats.emitters=result.lightCount;this.stats.buildMs=result.buildMs;this.stats.bvhMs=result.bvhMs;this.stats.bvhRefitted=!!result.refitted;if(result.refitted)this.stats.sceneRefits=(this.stats.sceneRefits||0)+1;
+    this.stats.normalization={centerMillimetres:result.center.slice(),scaleMillimetres:result.scale,extentMillimetres:result.naturalScale,retained:result.normalizationRetained,minLightCellMillimetres:result.scale/65536,rayEpsilonMillimetres:result.scale*0.000002};
     // Geometry changes do not invalidate unchanged image layers and their mipmaps.
     for(const resource of this.sceneResources)if(resource!==this.materialTexture)resource.destroy();this.sceneResources=this.materialTexture?[this.materialTexture]:[];
     this.nodes=this.buffer(result.bvh);this.sceneResources.push(this.nodes);
@@ -15238,7 +15246,9 @@ function renderView(view, r, vi) {
     if (range) {
       // Orthographic depth is linear; fit its visible interval without moving
       // the camera or deriving near from an unrelated far/near ratio.
-      const epsilon=frameNavigationNear(cam,view),margin=Math.max((range.maxD-range.minD)*.05,epsilon);
+      // At a distant camera, a tiny scene-space epsilon can round away and
+      // make near === far. Keep the projection invertible for picking/export.
+      const epsilon=frameNavigationNear(cam,view),precisionMargin=Math.max(Math.abs(range.minD),Math.abs(range.maxD))*Number.EPSILON*16,margin=Math.max((range.maxD-range.minD)*.05,epsilon,precisionMargin);
       cam.near=range.minD-margin;cam.far=Math.max(range.maxD+margin,cam.near+epsilon);
     }
     cam.updateProjectionMatrix(), view.grid.update(cam, r), view.grid.visible(!0);
