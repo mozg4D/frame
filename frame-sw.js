@@ -1,5 +1,5 @@
-// Frame r85. The application remains a self-contained HTML; these are shell assets only.
-const CACHE_NAME='frame-shell-v26-r85';
+// Frame r92. The application remains a self-contained HTML; these are shell assets only.
+const CACHE_NAME='frame-shell-v30-r92';
 const CORE=['./','./manifest.webmanifest','./frame-icon-v4.svg','./frame-icon-192-v4.png','./frame-icon-512-v4.png','./frame-hash-256-v4.png','./frame-v4.ico','./frame-icon-maskable-512.png'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE_NAME).then(cache=>cache.addAll(CORE)).then(()=>self.skipWaiting()));
