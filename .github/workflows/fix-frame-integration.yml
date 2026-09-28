@@ -1,0 +1,114 @@
+name: Fix Frame integration regressions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/fix-frame-integration.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply surgical fixes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("index.html")
+          s = p.read_text(encoding="utf-8").replace("\r\n","\n")
+
+          def rep(old, new, label):
+              global s
+              n = s.count(old)
+              if n != 1:
+                  raise SystemExit(f"{label}: expected once, got {n}")
+              s = s.replace(old, new)
+
+          rep(
+              "  placePopupMenu(obMenu, x, y, animation);",
+              "  placePopupMenu(obMenu, x, y);",
+              "context menu undefined animation"
+          )
+
+          rep(
+              "      await frameWaitForScene();if(token!==s.token)return;\n"
+              "      const f=framePrinterFrame(h),p={...objParams.get(h),width:f.width,height:f.height,depth:f.depth},layers=createFramePrintCore(null).validate(p),sources=framePrinterSources(),inv=f.frame.clone().invert(),meshes=[];",
+              "      s.status='Waiting for scene…';framePrinterStatus(h);await frameWaitForScene();if(token!==s.token)return;\n"
+              "      s.status='Collecting geometry…';framePrinterStatus(h);const f=framePrinterFrame(h),p={...objParams.get(h),width:f.width,height:f.height,depth:f.depth},layers=createFramePrintCore(null).validate(p),sources=framePrinterSources(),inv=f.frame.clone().invert(),meshes=[];\n"
+              "      if(!sources.length)throw Error('No visible evaluated geometry to slice.');",
+              "printer stage/source guard"
+          )
+
+          rep(
+              "      if(token!==s.token)return;if(framePrinterSignature(h)!==s.signature)throw Error('Scene changed — slice again');\n"
+              "      const source=document.getElementById('frame-clipper-source').textContent+'\\n'+createFramePrintCore.toString()+'\\n('+framePrintWorkerMain.toString()+')();';",
+              "      if(token!==s.token)return;if(!meshes.length)throw Error('No triangle geometry to slice.');if(framePrinterSignature(h)!==s.signature)throw Error('Scene changed — slice again');\n"
+              "      s.status='Preparing slicer…';framePrinterStatus(h);const source=document.getElementById('frame-clipper-source').textContent+'\\n'+createFramePrintCore.toString()+'\\n('+framePrintWorkerMain.toString()+')();';",
+              "printer mesh guard/stage"
+          )
+
+          rep(
+              "            const op=objParams.get(h),lastPrinted=s.layerCounts.findLastIndex(n=>n>0)+1,displayLimit=Math.max(1,lastPrinted);s.lastPrintedLayer=lastPrinted;total.lastPrintedLayer=lastPrinted;op.startLayer=Math.max(1,Math.min(op.startLayer,displayLimit));op.endLayer=Math.max(op.startLayer,Math.min(op.endLayer,displayLimit));op.layerPosition=s.layerCounts[op.endLayer-1]||0;",
+              "            const op=objParams.get(h),lastPrinted=s.layerCounts.findLastIndex(n=>n>0)+1,displayLimit=Math.max(1,lastPrinted);s.lastPrintedLayer=lastPrinted;total.lastPrintedLayer=lastPrinted;op.startLayer=1;op.endLayer=displayLimit;op.layerPosition=s.layerCounts[op.endLayer-1]||0;",
+              "show full sliced range"
+          )
+
+          required = [
+              "placePopupMenu(obMenu, x, y);",
+              "s.status='Waiting for scene…'",
+              "s.status='Collecting geometry…'",
+              "s.status='Preparing slicer…'",
+              "op.startLayer=1;op.endLayer=displayLimit",
+              "/* BEGIN FRAME_PRINT_CORE",
+              "// BEGIN FRAME MORPH r86"
+          ]
+          for needle in required:
+              if needle not in s:
+                  raise SystemExit("missing after patch: " + needle)
+
+          if "placePopupMenu(obMenu, x, y, animation)" in s:
+              raise SystemExit("old context menu bug remains")
+
+          p.write_text(s, encoding="utf-8", newline="\n")
+          PY
+
+      - name: Parse inline scripts
+        shell: bash
+        run: |
+          node --experimental-vm-modules <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const html = fs.readFileSync('index.html','utf8');
+          const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+          let m, i = 0, checked = 0, skipped = 0;
+          while ((m = re.exec(html))) {
+            i++;
+            const attrs = m[1], code = m[2];
+            const type = (attrs.match(/\btype\s*=\s*["']([^"']+)["']/i)||[])[1]?.toLowerCase() || "";
+            if (/\bsrc\s*=/.test(attrs) || ["importmap","text/plain","text/markdown"].includes(type)) { skipped++; continue; }
+            if (type === "module") new vm.SourceTextModule(code, {identifier:"inline-"+i+".mjs"});
+            else new vm.Script(code, {filename:"inline-"+i+".js"});
+            checked++;
+          }
+          console.log({checked, skipped});
+          NODE
+
+      - name: Commit fixes and remove workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/fix-frame-integration.yml
+          git add index.html .github/workflows/fix-frame-integration.yml
+          git diff --cached --check
+          git commit -m "Fix context menu and slicer integration regressions"
+          git push origin HEAD:main
