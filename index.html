@@ -19577,8 +19577,9 @@ async function framePrinterSlice(h){
   return new Promise((resolve,reject)=>{s.reject=reject;
     const fail=error=>{if(token!==s.token)return;s.reject=null;framePrinterCancel(h);framePrinterClearPaths(s);s.signature=null;s.error=error.message;s.status=error.message;framePrinterStatus(h);reject(error);};
     (async()=>{
-      await frameWaitForScene();if(token!==s.token)return;
-      const f=framePrinterFrame(h),p={...objParams.get(h),width:f.width,height:f.height,depth:f.depth},layers=createFramePrintCore(null).validate(p),sources=framePrinterSources(),inv=f.frame.clone().invert(),meshes=[];
+      s.status='Waiting for scene…';framePrinterStatus(h);await frameWaitForScene();if(token!==s.token)return;
+      s.status='Collecting geometry…';framePrinterStatus(h);const f=framePrinterFrame(h),p={...objParams.get(h),width:f.width,height:f.height,depth:f.depth},layers=createFramePrintCore(null).validate(p),sources=framePrinterSources(),inv=f.frame.clone().invert(),meshes=[];
+      if(!sources.length)throw Error('No visible evaluated geometry to slice.');
       s.signature=framePrinterSignature(h);s.layerCounts=new Uint32Array(layers);
       let bytes=0;
       for(const q of sources){
@@ -19590,8 +19591,8 @@ async function framePrinterSlice(h){
         for(let start=0;start<indexCount;start+=196608){if(token!==s.token)return;const end=Math.min(indexCount,start+196608);if(index)indices.set(index.array.subarray(startIndex+start,startIndex+end),start);else for(let i=start;i<end;i++)indices[i]=startIndex+i;await new Promise(r=>setTimeout(r,0));}
         meshes.push({positions,indices,matrix:inv.clone().multiply(q.matrix).elements,group:q.group});
       }
-      if(token!==s.token)return;if(framePrinterSignature(h)!==s.signature)throw Error('Scene changed — slice again');
-      const source=document.getElementById('frame-clipper-source').textContent+'\n'+createFramePrintCore.toString()+'\n('+framePrintWorkerMain.toString()+')();';s.url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
+      if(token!==s.token)return;if(!meshes.length)throw Error('No triangle geometry to slice.');if(framePrinterSignature(h)!==s.signature)throw Error('Scene changed — slice again');
+      s.status='Preparing slicer…';framePrinterStatus(h);const source=document.getElementById('frame-clipper-source').textContent+'\n'+createFramePrintCore.toString()+'\n('+framePrintWorkerMain.toString()+')();';s.url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
       const maxWorkers=Math.max(1,(navigator.hardwareConcurrency||2)-1);
       const make=()=>{const w=new Worker(s.url,{name:'frame-3d-print'});s.workers.add(w);w.onerror=e=>fail(Error(e.message||'Slicing worker failed'));return w;};
       const prepare=make();prepare.onmessage=({data:r})=>{
@@ -19604,7 +19605,7 @@ async function framePrinterSlice(h){
           if(v.kind==='progress'){progress[i]=v.done;s.status='Slicing '+Math.floor(progress.reduce((a,b)=>a+b,0)/r.layers*100)+'%';framePrinterStatus(h);}
           if(v.kind==='done'){for(const key of ['segments','contours','activeVisits','openContours','branchVertices','duplicates','degenerate','repaired','travels','travelLength','shortSegmentsMerged','smallContoursSkipped','roundedCorners','cornerExceptions','shortSegmentsRemaining','travelSaved','filteredPaths','filteredPathLength','singleNecks','doubleNecks'])total[key]+=v.stats[key];w.terminate();s.workers.delete(w);if(++done===r.parts.length){
             if(framePrinterSignature(h)!==s.signature)throw Error('Scene changed — slice again');s.busy=false;s.reject=null;URL.revokeObjectURL(s.url);s.url=null;framePrinterBuildTravels(s,objParams.get(h));total.milliseconds=performance.now()-started;total.bytes=s.bytes;s.stats=total;
-            const op=objParams.get(h),lastPrinted=s.layerCounts.findLastIndex(n=>n>0)+1,displayLimit=Math.max(1,lastPrinted);s.lastPrintedLayer=lastPrinted;total.lastPrintedLayer=lastPrinted;op.startLayer=Math.max(1,Math.min(op.startLayer,displayLimit));op.endLayer=Math.max(op.startLayer,Math.min(op.endLayer,displayLimit));op.layerPosition=s.layerCounts[op.endLayer-1]||0;
+            const op=objParams.get(h),lastPrinted=s.layerCounts.findLastIndex(n=>n>0)+1,displayLimit=Math.max(1,lastPrinted);s.lastPrintedLayer=lastPrinted;total.lastPrintedLayer=lastPrinted;op.startLayer=1;op.endLayer=displayLimit;op.layerPosition=s.layerCounts[op.endLayer-1]||0;
             s.status=total.segments.toLocaleString('en-US')+' segments · '+(total.milliseconds/1000).toFixed(2)+' s · '+total.workers+' workers'+(total.openContours?' · '+total.openContours+' open contours skipped':'')+(total.smallContoursSkipped?' · '+total.smallContoursSkipped+' small contours skipped':'');
             if(!total.segments)s.status='No printable perimeters'+(total.openContours?' · open contours skipped':'')+(total.smallContoursSkipped?' · '+total.smallContoursSkipped+' unprintable contours':'');
             framePrinterRange(h);scheduleRender();lastAttrKey=null;refreshAttributesPanel();framePrinterStatus(h);resolve(framePrinterState(h));
@@ -33729,7 +33730,7 @@ function showMenu(x, y, items) {
       it.disabled || (hideMenu(), it.fn());
     };if(it.id)d.dataset.action=it.id;obMenu.appendChild(d);
   }
-  placePopupMenu(obMenu, x, y, animation);
+  placePopupMenu(obMenu, x, y);
 }
 addEventListener("pointerdown", (e) => {
   obMenu.contains(e.target) || hideMenu();
