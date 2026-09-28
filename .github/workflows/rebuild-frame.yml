@@ -1,0 +1,249 @@
+name: Rebuild Frame from stable core
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/rebuild-frame.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build stable core plus Morph and 3D Printer
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          from bisect import bisect_left
+
+          BASE = "bee6b9de52f25bead6b318c045bc16b017b86a64"
+          SOURCE = "9ae9605c76c8e6a8a3be3a4d2005350795960cec"
+
+          def git_show(spec):
+              return subprocess.check_output(["git", "show", spec]).decode("utf-8").replace("\r\n", "\n")
+
+          A = git_show(BASE + ":index.html").split("\n")
+          B = git_show(SOURCE + ":index.html").split("\n")
+
+          def make_hunks(a, b):
+              def unique_pos(lines):
+                  pos = {}
+                  for i, s in enumerate(lines):
+                      pos[s] = i if s not in pos else -1
+                  return pos
+              ua, ub = unique_pos(a), unique_pos(b)
+              pairs = sorted((ia, ub[s]) for s, ia in ua.items() if ia >= 0 and ub.get(s, -1) >= 0)
+
+              tails = []
+              tails_idx = []
+              prev = [-1] * len(pairs)
+              for i, (_, v) in enumerate(pairs):
+                  at = bisect_left(tails, v)
+                  if at:
+                      prev[i] = tails_idx[at - 1]
+                  if at == len(tails):
+                      tails.append(v)
+                      tails_idx.append(i)
+                  else:
+                      tails[at] = v
+                      tails_idx[at] = i
+
+              lis = []
+              k = tails_idx[-1]
+              while k >= 0:
+                  lis.append(pairs[k])
+                  k = prev[k]
+              lis.reverse()
+
+              anchors = [(-1, -1), *lis, (len(a), len(b))]
+              raw = []
+              pa = pb = -1
+              for ca, cb in anchors[1:]:
+                  a0, a1, b0, b1 = pa + 1, ca, pb + 1, cb
+                  if (a1 > a0 or b1 > b0) and "\n".join(a[a0:a1]) != "\n".join(b[b0:b1]):
+                      raw.append([a0, a1, b0, b1])
+                  pa, pb = ca, cb
+
+              out = []
+              for h in raw:
+                  if out and h[0] - out[-1][1] <= 3 and h[2] - out[-1][3] <= 3:
+                      out[-1][1], out[-1][3] = h[1], h[3]
+                  else:
+                      out.append(h[:])
+              return out
+
+          H = make_hunks(A, B)
+          assert len(H) == 288, ("unexpected diff shape", len(H))
+
+          edits = []
+          whole = [
+              2,3,7,8,9,12,39,48,50,51,54,55,56,57,
+              78,79,80,81,82,83,84,85,86,90,97,98,100,131,142,143,
+              151,152,153,154,155,157,160,161,162,165,166,
+              172,173,174,175,192,193,195,197,198,217,218,220,
+              239,242,245,248,251,253,254,255,256,257,269,275,
+              280,282,284,285,286
+          ]
+          for idx in whole:
+              a0, a1, b0, b1 = H[idx - 1]
+              edits.append([a0, a1, B[b0:b1], "H" + str(idx)])
+
+          # H4: only Modules/Printer CSS. Do not import the unrelated global font override.
+          a0, a1, b0, b1 = H[3]
+          css = [x for x in B[b0:b1] if x.startswith("#tabModules") or x.startswith("#btn3DPrinting") or x.startswith(".attr-lab.printer-status")]
+          assert len(css) == 4
+          edits.append([a0, a1, css, "H4 printer CSS"])
+
+          # H37 is mixed with an older renderer. Insert only the explicitly delimited print kernel/module.
+          ps = next(i for i, x in enumerate(B) if "/* BEGIN FRAME_PRINT_CORE" in x)
+          pe = next(i for i, x in enumerate(B[ps+1:], ps+1) if x.startswith("var UNITS = "))
+          assert any("/* END FRAME_PRINT_CORE */" in x for x in B[ps:pe])
+          assert any("const TYPE_PRINTER=8" in x for x in B[ps:pe])
+          edits.append([H[36][1], H[36][1], ["", *B[ps:pe], ""], "print core/module"])
+
+          # H49: preserve bee6 wire generation and add only Morph-instance batching.
+          a0, a1, _, _ = H[48]
+          out = A[a0:a1]
+          needle = "  function append(mesh,matrix,sourceHash,hasIsoparms){"
+          at = out.index(needle)
+          out.insert(at + 1, "    if(mesh.userData.splineChunks&&frameMorphTag(sourceHash)&&!mesh.userData.replicaBatches){const geometry=splineAggregateGeometry(mesh),proxy={geometry,material:mesh.userData.splineAggregateMaterials,userData:{}};append(proxy,matrix,sourceHash,hasIsoparms);return;}")
+          edits.append([a0, a1, out, "H49 Morph instance hook"])
+
+          # H93: retain output-sandbox protection from bee6.
+          a0, a1, _, _ = H[92]
+          out = A[a0:a1]
+          out.append("  framePrinterUpdate();")
+          edits.append([a0, a1, out, "H93 printer update"])
+
+          # H94: retain bee6 depth engine, add only printer fast path + bounds.
+          a0, a1, _, _ = H[93]
+          out = A[a0:a1]
+          at = next(i for i, x in enumerate(out) if "function computeSceneDepthRange(cam,view){" in x)
+          out.insert(at + 1, "  const printer=framePrinterDepthRange(cam);if(printer)return printer;")
+          at = next(i for i, x in enumerate(out) if "for(const [h,visual]of splineVisuals)" in x)
+          out.insert(at, "  for(const [h,s]of framePrinters)if(s.root.visible){const bb=getWorldBBox(h);if(bb)consider(new THREE2.Matrix4(),new THREE2.Box3(new THREE2.Vector3().fromArray(bb.min),new THREE2.Vector3().fromArray(bb.max)));}")
+          edits.append([a0, a1, out, "H94 printer depth"])
+
+          # H95: preserve bee6 updateMatrixWorld; change only draw wrappers.
+          a0, a1, _, _ = H[94]
+          out = A[a0:a1]
+          at = next(i for i, x in enumerate(out) if "withSurfaceBatches(cam,()=>withLibraryBatches" in x)
+          out[at] = "    if(framePrinterPreviewActive)vpState.renderer.render(vpState.scene,cam);else withSurfaceBatches(cam,()=>withMorphCrowdBatches(cam,()=>withLibraryBatches(cam,()=>withFastenerBatches(cam,()=>vpState.renderer.render(vpState.scene,cam)))));"
+          edits.append([a0, a1, out, "H95 printer/Morph render wrappers"])
+
+          # H158: retain bee6 output worker/workspace; only make the printer helper line pickable.
+          a0, a1, _, _ = H[157]
+          out = A[a0:a1]
+          at = next(i for i, x in enumerate(out) if "for(const [h,line] of [...frameCameraHelpers,...frameServiceHelpers]" in x)
+          out[at] = out[at].replace(
+              "[...frameCameraHelpers,...frameServiceHelpers]",
+              "[...frameCameraHelpers,...frameServiceHelpers,...[...framePrinters].map(([h,s])=>[h,s.line])]"
+          )
+          edits.append([a0, a1, out, "H158 printer helper picking"])
+
+          # H288 is heavily mixed. Insert only the explicitly marked Morph module.
+          ms = next(i for i, x in enumerate(B) if "// BEGIN FRAME MORPH r86" in x)
+          me = next(i for i, x in enumerate(B[ms+1:], ms+1) if "// END FRAME MORPH r86" in x)
+          edits.append([H[287][0], H[287][0], ["", *B[ms:me+1], ""], "Morph module"])
+
+          # Base-coordinate edits must not overlap.
+          ordered = sorted(edits, key=lambda e: (e[0], e[1]))
+          for x, y in zip(ordered, ordered[1:]):
+              if y[0] < x[1] and x[0] != x[1] and y[0] != y[1]:
+                  raise RuntimeError("overlapping edits: " + x[3] + " / " + y[3])
+
+          C = A[:]
+          for s, e, lines, name in sorted(edits, key=lambda q: (q[0], q[1]), reverse=True):
+              C[s:e] = lines
+          candidate = "\n".join(C)
+
+          # Printer navigation needs camera, while bee6's setViewportPickRay must remain.
+          old = "setViewportPickRay(this.ray,this.ndc, this.cam), navigationPick(this.ray)"
+          assert candidate.count(old) == 2
+          candidate = candidate.replace(old, "setViewportPickRay(this.ray,this.ndc, this.cam), navigationPick(this.ray,this.cam)")
+
+          required_once = [
+              "/* BEGIN FRAME_PRINT_CORE",
+              "/* END FRAME_PRINT_CORE */",
+              "const TYPE_PRINTER=8",
+              "function framePrinterInitialize()",
+              "framePrinterInitialize();",
+              "// BEGIN FRAME MORPH r86",
+              "// END FRAME MORPH r86",
+              "function frameOutputWorkerMain()",
+              "async function frameCreateOutputWorkspace",
+              "if(window.frameOutputSandbox)window.frameOutputBridge",
+              'id="tabModules"',
+              'id="btn3DPrinting"',
+              "function frameMorphApply("
+          ]
+          for s in required_once:
+              assert candidate.count(s) == 1, (s, candidate.count(s))
+
+          # Critical bee6 invariants that the accidental main had lost.
+          assert candidate.count("if(nativeSceneLoading||window.frameOutputSandbox)return;") >= 2
+          assert candidate.count("setViewportPickRay(") >= 2
+          assert "async function frameCreateOutputWorkspace(scene,job)" in candidate
+          assert "framePrinterRender(()=>renderWithSplineEditCages(cam),cam)" in candidate
+          assert "framePrinterNavigationPick(ray,cam)" in candidate
+          assert "frameMorphInterceptSpline(" in candidate
+          assert "frameMorphInterceptPoly(" in candidate
+          assert 'tabModules:"modulesPanel"' in candidate
+          assert candidate.rstrip().endswith("</html>")
+
+          with open("index.html", "w", encoding="utf-8", newline="\n") as f:
+              f.write(candidate)
+
+          print("candidate chars:", len(candidate))
+          print("candidate lines:", candidate.count("\n") + 1)
+          print("transplanted edits:", len(edits))
+          print("stable output worker/workspace preserved")
+          print("stable viewport ray helper preserved")
+          PY
+
+      - name: Parse every executable inline script
+        shell: bash
+        run: |
+          node --experimental-vm-modules <<'NODE'
+          const fs = require('fs');
+          const vm = require('vm');
+          const html = fs.readFileSync('index.html','utf8');
+          const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+          let m, i = 0, checked = 0, skipped = 0;
+          while ((m = re.exec(html))) {
+            i++;
+            const attrs = m[1];
+            const code = m[2];
+            const type = (attrs.match(/\btype\s*=\s*["']([^"']+)["']/i)||[])[1]?.toLowerCase() || "";
+            if (/\bsrc\s*=/.test(attrs) || ["importmap","text/plain","text/markdown"].includes(type)) {
+              skipped++;
+              continue;
+            }
+            if (type === "module") new vm.SourceTextModule(code, {identifier: "inline-" + i + ".mjs"});
+            else new vm.Script(code, {filename: "inline-" + i + ".js"});
+            checked++;
+          }
+          console.log({checked, skipped});
+          NODE
+
+      - name: Commit rebuilt Frame and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm .github/workflows/rebuild-frame.yml
+          git add index.html .github/workflows/rebuild-frame.yml
+          echo "Final changes:"
+          git status --short
+          git diff --cached --check
+          git commit -m "Restore stable core and transplant Morph/3D printing"
+          git push origin HEAD:main
