@@ -12,7 +12,7 @@
 <title>Frame</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
-# Frame AI API 5.2
+# Frame AI API 5.3
 
 Frame рассчитан на работу агента через `window.frameAI`; человеку остаются визуальная проверка и правки. Эти инструкции встроены в `index.html`: `frameAI.getInstructions()` либо `document.getElementById("frame-ai-instructions").textContent`. Доступные методы и сигнатуры: `frameAI.help()`, один метод: `frameAI.help('renderImage')`.
 
@@ -157,6 +157,7 @@ One-quad beads retain dark edge shading, and solid travels use depth testing. Ov
 <!-- FRAME r62: stable mesh/UV hash round-trip; versioned car, tree and posed human collections; shared texture payloads. -->
 <style>
 /* UI */
+body,body *,body *::before,body *::after{font-size:14px!important}
 #tabModules{color:#b5c2bf}
 #btn3DPrinting{padding:0;margin:0;border:0;background:transparent;color:#b5c2bf;font:inherit;box-sizing:border-box}
 #btn3DPrinting:hover{background:#3a3a3a}
@@ -258,7 +259,7 @@ font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf;cursor:defaul
 .ob-tagbox{flex:0 1 auto;overflow:hidden;height:17px;display:flex;align-items:center}
 .ob-tags{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end}
 .ob-tag{flex:0 0 16px;width:16px;height:16px;margin-left:1px;background-size:cover;background-position:center;cursor:pointer;border-radius:50%;overflow:hidden}
-.ob-tag.bevel-tag{color:#fff;font:700 10px/16px ui-monospace,Menlo,Consolas,monospace;text-align:center;border-radius:3px}
+.ob-tag.bevel-tag{color:#fff;font:700 14px/16px ui-monospace,Menlo,Consolas,monospace;text-align:center;border-radius:3px}
 .ob-tag.sel,.ob-tag.sel:hover{outline:1px solid #fff;outline-offset:-1px}
 .ob-tag:hover{outline:1px solid #888;outline-offset:-1px}
 .ob-rightgroup{flex:0 0 auto;display:flex;align-items:center}
@@ -417,7 +418,7 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
 .frame-output-status{flex:1;min-width:100px;overflow-wrap:anywhere;}.frame-output-range{display:flex;gap:6px;}.frame-output-range[hidden]{display:none;}.frame-output-range input{width:64px;min-width:0;}
 .frame-output-media{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:#111;}
 .frame-output-media canvas,.frame-output-media video{max-width:100%;max-height:100%;object-fit:contain;}.frame-output-media .frame-output-actual{max-width:none;max-height:none;flex-shrink:0;}
-.frame-output-media [hidden],.frame-output-bar [hidden]{display:none!important;}.frame-output-close{font-size:20px;min-width:26px;}
+.frame-output-media [hidden],.frame-output-bar [hidden]{display:none!important;}.frame-output-close{font-size:14px;min-width:26px;}
 
 
 /* r70: native-size icons and embedded, borderless animation view. */
@@ -13875,12 +13876,12 @@ function assembleChunkedCells(data,cells,input,previous){
     if(touched.has(a.A))join(node(a.ci,ea[2]),node(b.ci,a.A===b.A?eb[2]:eb[3]));if(touched.has(a.B))join(node(a.ci,ea[3]),node(b.ci,a.B===b.B?eb[3]:eb[2]));
   }
   shadingStats.milliseconds=performance.now()-seamStarted;
-  // A smooth seam is one shading vertex.  Align every contributing analytic
-  // normal to the same hemisphere before averaging; otherwise one accidentally
-  // inverted cell can cancel its neighbour and create the dark spikes/bands
-  // that are especially visible with an environment map.
-  const sums=new Float64Array(parent.length*3),sumRef=new Float64Array(parent.length*3),sumHave=new Uint8Array(parent.length);
-  for(let i=0;i<parent.length;i++){const ref=normalRefs[i],c=parts[ref.ci],n=c.render.normalSums,rid=root(i),at=rid*3,src=ref.local*3,sign=c.reverse?-1:1;let nx=n[src]*sign,ny=n[src+1]*sign,nz=n[src+2]*sign;if(sumHave[rid]){if(nx*sumRef[at]+ny*sumRef[at+1]+nz*sumRef[at+2]<0){nx=-nx;ny=-ny;nz=-nz;}}else{sumHave[rid]=1;sumRef[at]=nx;sumRef[at+1]=ny;sumRef[at+2]=nz;}sums[at]+=nx;sums[at+1]+=ny;sums[at+2]+=nz;}
+  // Winding is already reconciled for the entire connected surface above.
+  // Sum oriented face areas without independently flipping them: two coarse
+  // chords of a smooth join can legitimately have obtuse normals (e.g. at
+  // AngleMax 180). Hemisphere alignment would invert one side of that join.
+  const sums=new Float64Array(parent.length*3);
+  for(let i=0;i<parent.length;i++){const ref=normalRefs[i],c=parts[ref.ci],n=c.render.normalSums,rid=root(i),at=rid*3,src=ref.local*3,sign=c.reverse?-1:1;let nx=n[src]*sign,ny=n[src+1]*sign,nz=n[src+2]*sign;sums[at]+=nx;sums[at+1]+=ny;sums[at+2]+=nz;}
   for(let i=0;i<parent.length;i++){const {ci,local}=normalRefs[i],at=root(i)*3,L=Math.hypot(sums[at],sums[at+1],sums[at+2])||1;if(!overrides.has(ci))overrides.set(ci,new Map());overrides.get(ci).set(local,[Math.fround(sums[at]/L),Math.fround(sums[at+1]/L),Math.fround(sums[at+2]/L)]);}
   let normalCells=0;
   for(let ci=0;ci<parts.length;ci++){
@@ -13940,7 +13941,7 @@ function assembleCachedCells(data,cells,input){
   const seamStarted=performance.now();
   for(const refs of seams.values()){const a=refs[0];for(const v of [a.A,a.B]){wire[wireAt++]=positions[v*3];wire[wireAt++]=positions[v*3+1];wire[wireAt++]=positions[v*3+2];}if(refs.length!==2)continue;const b=refs[1],ea=a.edge,eb=b.edge;if(!splineSeamSmooth(a,b,parts,edgeContinuity,shadingStats))continue;join(node(a.ci,ea[2]),node(b.ci,a.A===b.A?eb[2]:eb[3]));join(node(a.ci,ea[3]),node(b.ci,a.B===b.B?eb[3]:eb[2]));}
   shadingStats.milliseconds=performance.now()-seamStarted;
-  const sums=new Float64Array(parent.length*3),sumRef=new Float64Array(parent.length*3),sumHave=new Uint8Array(parent.length);for(let i=0;i<parent.length;i++){const ref=normalRefs[i],c=parts[ref.ci],n=c.render.normalSums,rid=root(i),at=rid*3,src=ref.local*3,sign=c.reverse?-1:1;let nx=n[src]*sign,ny=n[src+1]*sign,nz=n[src+2]*sign;if(sumHave[rid]){if(nx*sumRef[at]+ny*sumRef[at+1]+nz*sumRef[at+2]<0){nx=-nx;ny=-ny;nz=-nz;}}else{sumHave[rid]=1;sumRef[at]=nx;sumRef[at+1]=ny;sumRef[at+2]=nz;}sums[at]+=nx;sums[at+1]+=ny;sums[at+2]+=nz;}
+  const sums=new Float64Array(parent.length*3);for(let i=0;i<parent.length;i++){const ref=normalRefs[i],c=parts[ref.ci],n=c.render.normalSums,rid=root(i),at=rid*3,src=ref.local*3,sign=c.reverse?-1:1;let nx=n[src]*sign,ny=n[src+1]*sign,nz=n[src+2]*sign;sums[at]+=nx;sums[at+1]+=ny;sums[at+2]+=nz;}
   for(let i=0;i<parent.length;i++){const at=root(i)*3,target=normalRefs[i].global*3,L=Math.hypot(sums[at],sums[at+1],sums[at+2])||1;for(let k=0;k<3;k++)outN[target+k]=sums[at+k]/L;}
   const nodeCount=parts.reduce((n,c)=>n+c.render.bvhChildren.length/4,0)+parts.length-1,bvhBounds=new Float64Array(nodeCount*6),bvhChildren=new Int32Array(nodeCount*4),bvhOrder=new Uint32Array(indexCount/3);let allocated=0;
   function combine(start,end){const node=allocated++;
@@ -19616,7 +19617,7 @@ async function framePrinterSlice(h){
     })().catch(fail);
   });
 }
-function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,busy:!!s?.busy,status:s?.status||'Ready to slice',params:{...p},lastPrintedLayer:s?.lastPrintedLayer??null,maximumDisplayLayer:framePrinterLayerLimit(h),minimumSegmentLength:p.lineWidth,shortSegmentPolicy:"preserve exterior surface; inner simplification within 3%",isolatedMinimumSegmentLength:2*p.lineWidth,stats:s?.stats?{...s.stats}:null,test:s?.testReport||null,testing:!!s?.testJob,travels:s?.travelStats||null,travelDepthTest:s?.travelMesh?.material.depthTest??null,overhang:{angle:p?.overhangAngle??45,visible:!!s?.overhang?.group.visible||!!(s?.paths.visible&&s.chunks.length&&(p?.overhangAngle??45)<90),method:s?.chunks.length?"solid-support":"surface",sourceMeshes:s?.overhang?.group.children.length||0},travelStyle:s?.travelMesh?(s.travelMesh.material.isLineDashedMaterial?'dashed':'solid'):null,visibleTravels:(s?.travelMesh?.geometry.drawRange.count||0)/2,beadFlatWidthRatio:.82,gpuCacheBytes:framePrintGPU.bytes,gpuBudgetBytes:framePrintGPU.budget,grid:s?.grid||null,lastPick:s?.lastPick||null,gpuUploads:framePrintGPU.uploads,bytesPerSegment:16,quadsPerSegment:1,trianglesPerSegment:2,maximumDeviation:.03*p.lineWidth,widthRange:[.69*p.lineWidth,1.41*p.lineWidth],layerSegments:s?.layerCounts[Math.max(0,p.endLayer-1)]||0,drawCalls:s?.chunks.filter(q=>q.mesh.visible).length||0,visibleSegments:s?.chunks.reduce((n,q)=>n+q.mesh.geometry.instanceCount,0)||0};}
+function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,busy:!!s?.busy,status:s?.status||'Ready to slice',params:{...p},previewVisible:!!s?.paths.visible,lastPrintedLayer:s?.lastPrintedLayer??null,maximumDisplayLayer:framePrinterLayerLimit(h),minimumSegmentLength:p.lineWidth,shortSegmentPolicy:"preserve exterior surface; inner simplification within 3%",isolatedMinimumSegmentLength:2*p.lineWidth,stats:s?.stats?{...s.stats}:null,test:s?.testReport||null,testing:!!s?.testJob,travels:s?.travelStats||null,travelDepthTest:s?.travelMesh?.material.depthTest??null,overhang:{angle:p?.overhangAngle??45,visible:!!s?.overhang?.group.visible||!!(s?.paths.visible&&s.chunks.length&&(p?.overhangAngle??45)<90),method:s?.chunks.length?"solid-support":"surface",sourceMeshes:s?.overhang?.group.children.length||0},travelStyle:s?.travelMesh?(s.travelMesh.material.isLineDashedMaterial?'dashed':'solid'):null,visibleTravels:(s?.travelMesh?.geometry.drawRange.count||0)/2,beadFlatWidthRatio:.82,gpuCacheBytes:framePrintGPU.bytes,gpuBudgetBytes:framePrintGPU.budget,grid:s?.grid||null,lastPick:s?.lastPick||null,gpuUploads:framePrintGPU.uploads,bytesPerSegment:16,quadsPerSegment:1,trianglesPerSegment:2,maximumDeviation:.03*p.lineWidth,widthRange:[.69*p.lineWidth,1.41*p.lineWidth],layerSegments:s?.layerCounts[Math.max(0,p.endLayer-1)]||0,drawCalls:s?.chunks.filter(q=>q.mesh.visible).length||0,visibleSegments:s?.chunks.reduce((n,q)=>n+q.mesh.geometry.instanceCount,0)||0};}
 // Classify the nearest visible source surface in a separate depth buffer.
 // Invisible/cavity faces still write depth, so red cannot show through them.
 // Geometric derivatives face the viewing ray and never use STL normals.
@@ -19829,6 +19830,11 @@ function splinePatchCageVisible(h, mode) {
   if (![3, 4].includes(mode) || !splineData.has(h) || !visibleWithoutGeneratorConsumption(h)) return !1;
   let parent = OBJ.get(OBJ.get(h)?.parent), state = parent && replicaStates.get(parent.hash);
   return !!(parent?.enabled && objParams.get(parent.hash)?.__type === "spline_patch" && state?.ready);
+}
+function splinePatchDisplaysSourceCage(h,mode){
+  const children=OBJ.get(h)?.children||[];
+  return objParams.get(h)?.__type==='spline_patch'&&children.length>0&&children.every(child=>splineData.has(child)&&
+    (splinePatchCageVisible(child,mode)||isSplineEditTarget(child)));
 }
 function getMat(h) {
   return MATS.get(h);
@@ -20389,13 +20395,20 @@ function refreshWireOverlay(mesh) {
   const old=wl.geometry,next=liveWireGeometry(mesh.geometry);
   if(!!next.userData.triangleWire!==!!wl.isMesh){const replacement=next.userData.triangleWire?new THREE2.Mesh(next,polygonWireMaterial()):new THREE2.LineSegments(next,biasSplineLineMaterial(new THREE2.LineBasicMaterial({color:0,transparent:true,opacity:.4,depthTest:true,depthWrite:false})));replacement.userData._wireOverlay=true;replacement.matrixAutoUpdate=false;replacement.renderOrder=wl.renderOrder;replacement.visible=wl.visible;wl.parent?.remove(wl);wl.material.dispose();mesh.add(replacement);replacement.updateWorldMatrix(true,false,true);wireOverlays.set(h,replacement);}else wl.geometry=next;old.dispose();
 }
+const SURFACE_OVERLAY_DEPTH_FACTOR=1;
+function setSurfaceShading(material,wire,solidWire){
+  material.wireframe=wire;material.depthTest=true;material.depthWrite=solidWire||!material.transparent;
+  // A line and its surface rasterize at different sample positions. At steep
+  // angles a constant line bias is insufficient: move the fill back by its
+  // screen-space depth slope, while keeping ordinary occlusion between objects.
+  material.polygonOffset=solidWire;
+  material.polygonOffsetFactor=SURFACE_OVERLAY_DEPTH_FACTOR;material.polygonOffsetUnits=1;
+}
 function applyShadingMode(mode) {
   let wire = mode === 1 || mode === 3, solidWire = mode === 2 || mode === 4;
-  for (let t of threeMats.values())
-    t.wireframe = wire, t.depthTest = !0, t.depthWrite = solidWire || !t.transparent;
-  for (let m of selectMats)
-    m.wireframe = wire, m.depthTest = !0, m.depthWrite = solidWire || !m.transparent;
-  for (const node of OBJ.values()) for (const tag of node.tags) for (const m of tag._threeMats?.values() || []) { m.wireframe=wire; m.depthTest=true; m.depthWrite=solidWire||!m.transparent; }
+  for (let t of threeMats.values())setSurfaceShading(t,wire,solidWire);
+  for (let m of selectMats)setSurfaceShading(m,wire,solidWire);
+  for (const node of OBJ.values()) for (const tag of node.tags) for (const m of tag._threeMats?.values() || [])setSurfaceShading(m,wire,solidWire);
   if (solidWire) {
     ensureWireOverlays(mode);
     for (let [, o] of wireOverlays) o.visible = !0;
@@ -20420,7 +20433,7 @@ function applyShadingMode(mode) {
   }
   for (let [h, state] of replicaStates) {
     let type = objParams.get(h)?.__type, derivedSurface = ["boolean", "instance", "symmetry", "cloner", "spline_patch", "extrude", "lathe", "sweep", "cube", "cylinder", "tube", "sphere", "capsule", "nut", "washer", "bolt"].includes(type), visible = !!OBJ.get(h)?.enabled && state.ready && effectiveVisible(h), cage=hasIsoparmCage(h);
-    if (state.cage && (state.cage.visible = !state.cageObsolete && [3, 4].includes(mode) && visible), state.seam && (state.seam.visible = [3, 4].includes(mode) && visible), state.mesh && derivedSurface) {
+    if (state.cage && (state.cage.visible = [3, 4].includes(mode) && visible && !state.cageObsolete && !splinePatchDisplaysSourceCage(h,mode)), state.seam && (state.seam.visible = [3, 4].includes(mode) && visible), state.mesh && derivedSurface) {
       let polygonChunk=false;
       if(state.mesh.userData.splineChunks)for(const c of state.mesh.userData.splineChunks.values()){
         const chunkCage=c.userData.replicaSource?.hasIsoparms??cage;
@@ -23313,15 +23326,17 @@ function beginSplineVisualUpdate(group){const previous=splineVisualReuse;const b
 function endSplineVisualUpdate(){const context=splineVisualReuse;splineVisualReuse=context.previous;for(const list of context.byKey.values())for(const o of list){context.group.remove(o);o.geometry?.dispose();o.material?.dispose();}}
 function reuseSplineVisual(key,points,colors){
   const o=splineVisualReuse?.byKey.get(key)?.pop();if(!o)return null;
+  o.userData.splineControlTopmost=false;
   const g=o.geometry;let position=g.getAttribute('position');
   if(position.count!==points.length){const next=new THREE2.BufferGeometry();o.geometry=next;g.dispose();position=new THREE2.BufferAttribute(new Float32Array(points.length*3),3);next.setAttribute('position',position);}
   for(let i=0;i<points.length;i++)position.setXYZ(i,points[i][0],points[i][1],points[i][2]);position.needsUpdate=true;
   if(colors){let attr=o.geometry.getAttribute('color');if(!attr||attr.count!==colors.length)o.geometry.setAttribute('color',attr=new THREE2.BufferAttribute(new Float32Array(colors.length*3),3));for(let i=0;i<colors.length;i++)attr.setXYZ(i,...colors[i]);attr.needsUpdate=true;}
   return o;
 }
+const SPLINE_LINE_DEPTH_BIAS=0.000002;
 function biasSplineLineMaterial(material){
  const compile=material.onBeforeCompile,key=material.customProgramCacheKey();
- material.onBeforeCompile=(shader,renderer)=>{compile.call(material,shader,renderer);shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position.z -= 0.000002 * gl_Position.w;');};
+ material.onBeforeCompile=(shader,renderer)=>{compile.call(material,shader,renderer);shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\n gl_Position.z -= '+SPLINE_LINE_DEPTH_BIAS+' * gl_Position.w;');};
  material.customProgramCacheKey=()=>key+'|frame-line-depth-bias-v2';return material;
 }
 function lineObject(points, colors, closed, materialOpts = {}) {
@@ -23336,7 +23351,7 @@ function pointsObject(points, color, size, depthTest = !1, order = LAYER_BRACKET
   const key=JSON.stringify(['points',color,size,depthTest,order]),reused=reuseSplineVisual(key,points,null);if(reused)return reused;
   let g = new THREE2.BufferGeometry();
   g.setAttribute("position", new THREE2.Float32BufferAttribute(points.flat(), 3));
-  let o = new THREE2.Points(g, new THREE2.PointsMaterial({ color, size, sizeAttenuation: !1, depthTest, depthWrite: !1 }));
+  let o = new THREE2.Points(g, new THREE2.PointsMaterial({ color, size, sizeAttenuation: !1, depthTest, depthWrite: !1, transparent: !0 }));
   return o.userData.splineVisualKey=key, o.frustumCulled = !1, o.renderOrder = order, o;
 }
 function generatorPlaneForData(data, ids) {
@@ -23352,7 +23367,7 @@ function installGeneratorCage(h, state, polylines) {
 
   let parent = threeOf.get(h);
   if (!parent || !polylines.length) return;
-  let group = state.cage || new THREE2.Group();
+  let group = state.cage || new THREE2.Group(), wasVisible = state.cage?.visible ?? false;
   beginSplineVisualUpdate(group);try{
   group.matrixAutoUpdate = !1, group.matrix.identity(), group.renderOrder = LAYER_OBJ + 2, group.userData._virtualSplineCage = !0;
   // Independent strips of the same color share a draw call. Keep the original
@@ -23370,7 +23385,7 @@ function installGeneratorCage(h, state, polylines) {
     line.frustumCulled=true;line.geometry.computeBoundingSphere();group.add(line);
   }
   }finally{endSplineVisualUpdate();}
-  parent.add(group), state.cage = group, state.virtualCage = { polylines: polylines.map((q, i) => ({ id: `cage:${i}`, kind: q.kind || "boundary", closed: !!q.closed, points: q.points.map((p) => p.slice()) })), segments: polylines.length }, group.visible = !1;
+  parent.add(group), state.cage = group, state.virtualCage = { polylines: polylines.map((q, i) => ({ id: `cage:${i}`, kind: q.kind || "boundary", closed: !!q.closed, points: q.points.map((p) => p.slice()) })), segments: polylines.length }, group.visible = wasVisible;
 }
 // Group display spans by Border state; selected/hover overlays keep priority.
 function splineCageDisplayLines(data){
@@ -24013,7 +24028,8 @@ function updateSplineVisualSegmentsFast(h,data,touched){
   }
   // Mark the source dirty without serializing the complete cage. Worker work is
   // deliberately throttled during a drag; release schedules the final build.
-  v.surfaceSignature='interactive:'+ ++splineInteractiveVisualRevision;
+  v.surfaceSignature='interactive:'+ ++splineInteractiveVisualRevision;v.highlightData=data;
+  const parent=OBJ.get(h)?.parent,state=replicaStates.get(parent);if(state&&objParams.get(parent)?.__type==='spline_patch')state.cageObsolete=true;
   scheduleGeneratorEvaluation(0,[h]);scheduleRender();return hits>0;
 }
 function resetSplineTransformRegion(target,base,vertices,segments,handles){
@@ -24027,32 +24043,50 @@ function resetSplineTransformRegion(target,base,vertices,segments,handles){
   }
   return touched;
 }
+// During pose playback the editable cage and its isoparms share the same
+// current control data. Do not leave the previous worker pose as ghost lines.
+function refreshAnimatedSplinePatchCage(h) {
+  const parent=OBJ.get(h)?.parent,state=replicaStates.get(parent),node=OBJ.get(parent);
+  if(!(frameAnimationApplying||(frameMorphApplying&&gizDrag))||objParams.get(parent)?.__type!=='spline_patch'||node?.children.length!==1||!state?.cage)return;
+  const data=transformWholeSplineData(cloneSplineData(evaluatedSplineData(h)),localTmp(OBJ.get(h)).clone());
+  const signature=JSON.stringify(data);
+  if(state.liveCageSignature===signature)return;
+  state.liveCageSignature=signature;
+  installGeneratedSplineCage(parent,state,data);state.cageObsolete=true;state.liveCageRevision=(state.liveCageRevision||0)+1;
+}
+function splineControlOverlay(o){
+  o.userData.splineControlTopmost=true;o.material.depthTest=false;return o;
+}
+function splineSelectedVertexOnTop(h,id){
+  return splineMode&&selNodes.has(h)&&(polyElementMode==='vertex'||splineDrawing)&&splineSelection.vertices.has(splineElementKey(h,id));
+}
 function updateSplineVisual(h) {
   let base = splineData.get(h), v = splineVisuals.get(h);
   if (!base || !v) return;
   framePreparePathCapture(h);
   splineApproximation(h);
   let data = evaluatedSplineData(h), signature = JSON.stringify(data), parent = OBJ.get(h)?.parent, parentType = parent && objParams.get(parent)?.__type;
-  if(v.surfaceSignature!==signature&&parentType==='spline_patch'){const state=replicaStates.get(parent);if(state){state.cageObsolete=true;if(state.cage)state.cage.visible=false;}}
+  if(v.surfaceSignature!==signature&&parentType==='spline_patch'){const state=replicaStates.get(parent);if(state){state.cageObsolete=true;}}
   v.surfaceSignature !== signature && (v.surfaceSignature = signature, scheduleGeneratorEvaluation(gizDrag?0:(edgeBevelTool?.dragging||splineBevelTool?.dragging||splineOutlineTool?.dragging)?24:0, [h]));
   v.group.renderOrder=LAYER_BRACKET+20;v.highlights=[];v.highlightData=data;
   beginSplineVisualUpdate(v.group);try{
   for (const q of splineCageDisplayLines(data)) {
     if(q.points.length<2)continue;
     const points=q.closed?q.points.concat([q.points[0]]):q.points;
-    const line=lineObject(points,null,false,{color:data.motionFrames?0xd29cff:q.kind==='border'?0x749caa:5943759,depthTest:!isSplineEditTarget(h),order:LAYER_OBJ+1});line.userData.splineBaseSegments=q.segments||[];line.userData.splineBaseSequence=q.sequence||null;v.group.add(line);
+    const line=lineObject(points,null,false,{color:data.motionFrames?0xd29cff:q.kind==='border'?0x749caa:5943759,depthTest:true,order:LAYER_OBJ+1});
+    line.userData.splineBaseSegments=q.segments||[];line.userData.splineBaseSequence=q.sequence||null;v.group.add(line);
   }
   if(data.motionFrames){const dots=[];for(const sid of Object.keys(data.segments)){const points=sampleSplineSegment(data,sid);for(let i=0;i<points.length-1;i++)dots.push(points[i].position);}const last=framePathNodes(h).at(-1);if(last)dots.push(data.vertices[last.id]);if(dots.length)v.group.add(pointsObject(dots,0xd29cff,3,true));}
   if (splineMode && selNodes.has(h)) {
     if(polyElementMode==='vertex'||splineDrawing){
     let all = Object.entries(data.vertices).map(([id2, p]) => ({ id: id2, p })), selected = all.filter((x) => splineSelection.vertices.has(splineElementKey(h, x.id))).map((x) => x.p), plain = all.filter((x) => !splineSelection.vertices.has(splineElementKey(h, x.id))).map((x) => x.p);
-    plain.length && v.group.add(pointsObject(plain, 11061212, 7, !1)), selected.length && v.group.add(pointsObject(selected, 16761856, 10, !1));
+    plain.length && v.group.add(pointsObject(plain, 11061212, 7, !1)), selected.length && v.group.add(splineControlOverlay(pointsObject(selected, 16761856, 10, !1)));
     }
     let hp = [], hl = [];
     for (const q of splineVisibleHandles(h,data)){
       const p=data.vertices[q.vertex];if(p){hl.push(p,q.position);hp.push(q.position);}
     }
-    hl.length && v.group.add(lineObject(hl, null, !1, { segments: !0, color: 7307920, depthTest: !1, opacity: 0.9, order: LAYER_BRACKET + 3 })), hp.length && v.group.add(pointsObject(hp, 5888255, 8, !1, LAYER_BRACKET + 5));
+    hl.length && v.group.add(splineControlOverlay(lineObject(hl, null, !1, { segments: !0, color: 7307920, depthTest: !1, opacity: 0.9, order: LAYER_BRACKET + 3 }))), hp.length && v.group.add(splineControlOverlay(pointsObject(hp, 5888255, 8, !1, LAYER_BRACKET + 5)));
     let selectedHp = [];
     for (let key of splineSelection.handles) {
       let r = parseSplineElementKey(key);
@@ -24060,7 +24094,7 @@ function updateSplineVisual(h) {
       let q = parseSplineHandleKey(r.id), info = splineHandleInfo(data, q.segment, q.side);
       info && selectedHp.push(splineMath.add(data.vertices[info.vertex], info.vector));
     }
-    selectedHp.length && v.group.add(pointsObject(selectedHp, 16761856, 10, !1, LAYER_BRACKET + 6));
+    selectedHp.length && v.group.add(splineControlOverlay(pointsObject(selectedHp, 16761856, 10, !1, LAYER_BRACKET + 6)));
     for (let key of splineSelection.segments) {
       let ref = parseSplineElementKey(key);
       if (ref.object !== h) continue;
@@ -24072,8 +24106,9 @@ function updateSplineVisual(h) {
     if (splineHover.kind === "segment") {
       let samples = sampleSplineSegment(data, splineHover.id).map((x) => x.position);
       if(samples.length>1){const line=lineObject(samples,null,false,{color:0x8affab,depthTest:false,opacity:1,order:LAYER_BRACKET+41});v.group.add(line);v.highlights.push({line,id:splineHover.id,hover:true});} if(splineHover.pointVisible){const line=pointsObject([splineHover.point],7536517,9,false,LAYER_BRACKET+42);v.group.add(line);v.highlights.push({line,id:splineHover.id,hover:true});}
-    } else if(splineHover.kind==='face'&&splineHover.face){for(const sid of splineHover.face.segments){let samples=sampleSplineSegment(data,sid).map(x=>x.position);if(samples.length>1){const line=lineObject(samples,null,false,{color:0x8affab,depthTest:false,opacity:1,order:LAYER_BRACKET+41});v.group.add(line);v.highlights.push({line,id:sid,hover:true});}}} else v.group.add(pointsObject([splineHover.point], splineHover.kind === "vertex" ? 16731391 : 7536517, 12, !1, LAYER_BRACKET + 8));
+    } else if(splineHover.kind==='face'&&splineHover.face){for(const sid of splineHover.face.segments){let samples=sampleSplineSegment(data,sid).map(x=>x.position);if(samples.length>1){const line=lineObject(samples,null,false,{color:0x8affab,depthTest:false,opacity:1,order:LAYER_BRACKET+41});v.group.add(line);v.highlights.push({line,id:sid,hover:true});}}} else {const o=pointsObject([splineHover.point], splineHover.kind === "vertex" ? 16731391 : 7536517, 12, !1, LAYER_BRACKET + 8);if(splineHover.kind==='handle'||splineSelectedVertexOnTop(h,splineHover.id))splineControlOverlay(o);v.group.add(o);}
   }finally{endSplineVisualUpdate();}
+  refreshAnimatedSplinePatchCage(h);
   if(base.motionFrames&&!frameMotionSyncing&&!frameAnimationApplying)frameEvaluateAnimation(tlCur);
   scheduleRender();
 }
@@ -24107,23 +24142,77 @@ function clearSplineHover() {
   splineHover.kind = null, splineHover.object = null, splineHover.id = null, splineHover.side = null, splineHover.point = null, splineHover.pointVisible = !1, splineHover.t = 0, splineHover.view = -1, old && splineVisuals.has(old) && updateSplineVisual(old);
 }
 function updateSplineHighlightVisibility(vi){
- const through=splineSelectionThrough(vi);
- for(const [h,v]of splineVisuals){
-   const depth=!through&&!frameIsMotionPath(h);
-   // All edit helpers use the same surface depth as the viewport. Keeping
-   // partially visible segments is delegated to the GPU, without CPU ray scans.
-   for(const o of v.group.children)if(o.material){o.material.depthTest=depth;o.material.depthWrite=false;o.material.transparent=true;}
-   for(const q of v.highlights||[])q.line.visible=!q.hover||splineHover.view===vi;
- }
+  const through=splineSelectionThrough(vi);
+  for(const [h,v] of splineVisuals){
+    // Let the GPU clip every line fragment against the surface. Do not reject
+    // an entire segment because its endpoints happen to be hidden.
+    for(const o of v.group.children)if(o.material)o.material.depthTest=!through&&!o.userData.splineControlTopmost;
+    for(const q of v.highlights||[])q.line.visible=!q.hover||splineHover.view===vi;
+  }
 }
-
+// Test the same small screen-space footprint used by the visible marker. This
+// retains silhouette points without allowing through-selection behind a face.
+function splinePointVisible(h,p,vi,radius=0,topmost=false){
+  if(frameIsMotionPath(h)||splineSelectionThrough(vi))return true;
+  const cam=vpState.views[vi]?.cam,r=rectFor(vi);if(!cam||!r||!p)return false;
+  const w=new THREE2.Vector3().fromArray(p).applyMatrix4(splineWorldMatrix(h)),ndc=w.clone().project(cam);
+  if(ndc.z < -1 || ndc.z > 1)return false;
+  if(topmost||exactVertexVisible(w,ndc,cam))return true;
+  if(radius)for(const [x,y] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){
+    const q=ndc.clone();q.x+=x*radius*2/r.w;q.y+=y*radius*2/r.h;
+    if(exactVertexVisible(q.clone().unproject(cam),q,cam))return true;
+  }
+  return false;
+}
 function selectionThroughShading(vi){const mode=viewShading[vi];return mode===1||mode===3;}
 function splineSelectionThrough(vi){return selectionThroughShading(vi);}
 function isSplineEditTarget(h,editing=splineMode){return editing&&OBJ.has(h)&&selNodes.has(h)&&isEditableSpline(h);}
 function splineEdgeVisible(h,data,sid,vi){
- if(frameIsMotionPath(h)||splineSelectionThrough(vi))return true;const e=data.segments[sid],cam=vpState.views[vi]?.cam;if(!e||!cam)return false;
- const cp=segmentPoints(data,sid),points=[.2,.5,.8].map(t=>cubicPoint(cp,t)),wm=splineWorldMatrix(h);
- return points.some(p=>{const w=new THREE2.Vector3().fromArray(p).applyMatrix4(wm);return exactVertexVisible(w,w.clone().project(cam),cam);});
+  if(frameIsMotionPath(h)||splineSelectionThrough(vi))return true;
+  const e=data?.segments[sid];if(!e)return false;
+  return [data.vertices[e.a],data.vertices[e.b],...sampleSplineSegment(data,sid).map(q=>q.position)].some(p=>splinePointVisible(h,p,vi));
+}
+// Picking uses the same small depth bias as the line shader. The rest of the
+// cage has no CPU visibility pass; this is only evaluated at a pick location.
+function splineLinePointVisible(h,p,vi){
+  if(frameIsMotionPath(h)||splineSelectionThrough(vi))return true;
+  const cam=vpState.views[vi]?.cam;if(!cam||!p)return false;
+  const ndc=splineWorldPoint(h,p).project(cam);ndc.z-=SPLINE_LINE_DEPTH_BIAS;
+  if(ndc.z < -1 || ndc.z > 1)return false;
+  if(exactVertexVisible(ndc.clone().unproject(cam),ndc,cam))return true;
+  if(![2,4].includes(viewShading[vi]))return false;
+  // Match the fill's slope offset with a one-device-pixel cross footprint.
+  // It covers grazing surface contacts without allowing distant back edges.
+  const r=rectFor(vi),pixel=SURFACE_OVERLAY_DEPTH_FACTOR/vpState.renderer.getPixelRatio();
+  for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const q=ndc.clone();q.x+=dx*pixel*2/r.w;q.y+=dy*pixel*2/r.h;
+    if(exactVertexVisible(q.clone().unproject(cam),q,cam))return true;
+  }
+  return false;
+}
+// A marquee checks only the enclosed screen interval, at pixel spacing. This
+// also finds an exposed middle when both control vertices are occluded. It
+// runs when selection is committed, never in the rendering loop.
+function splineLineIntervalVisible(h,a,b,pa,pb,clip,vi){
+  if(frameIsMotionPath(h)||splineSelectionThrough(vi))return true;
+  const cam=vpState.views[vi].cam,w0=cam.isPerspectiveCamera?-pa.world.clone().applyMatrix4(cam.matrixWorldInverse).z:1,w1=cam.isPerspectiveCamera?-pb.world.clone().applyMatrix4(cam.matrixWorldInverse).z:1;
+  const visible=t=>{const f=t*w0/((1-t)*w1+t*w0||1);return splineLinePointVisible(h,a.map((v,k)=>v+(b[k]-v)*f),vi);};
+  const [lo,hi]=clip;if(visible((lo+hi)/2)||visible(lo)||visible(hi))return true;
+  const steps=Math.ceil(Math.max(Math.abs(pb.screen[0]-pa.screen[0]),Math.abs(pb.screen[1]-pa.screen[1]))*(hi-lo));
+  for(let i=1;i<steps;i++)if(visible(lo+(hi-lo)*i/steps))return true;
+  return false;
+}
+// Hit the displayed approximation, even when AngleMax reduces a curve to a
+// single chord. Retain its native parameter for subsequent editing commands.
+function closestSplineDisplayPoint(data,sid,project,x,y){
+  const samples=sampleSplineSegment(data,sid);let best=null;
+  for(let i=1;i<samples.length;i++){
+    const a=samples[i-1],b=samples[i],pa=project(a.position),pb=project(b.position),dx=pb[0]-pa[0],dy=pb[1]-pa[1],len2=dx*dx+dy*dy;
+    const u=len2?Math.max(0,Math.min(1,((x-pa[0])*dx+(y-pa[1])*dy)/len2)):0,screen=[pa[0]+dx*u,pa[1]+dy*u],d2=(screen[0]-x)**2+(screen[1]-y)**2;
+    const w0=pa[2]||1,w1=pb[2]||1,f=u*w0/((1-u)*w1+u*w0||1);
+    if(!best||d2<best.d2)best={d2,screen,t:a.t+(b.t-a.t)*f,position:a.position.map((v,k)=>v+(b.position[k]-v)*f)};
+  }
+  return best;
 }
 function splineContourPolyline(data,contour){
   const out=[];
@@ -24164,7 +24253,7 @@ function rebuildSplineFaceSegments(h){
 }
 function splinePatchSurfaceFaceHit(cx,cy,vi,h,data){
   const child=OBJ.get(h),parent=child?.parent,state=parent&&replicaStates.get(parent),root=state?.mesh,r=rectFor(vi),cam=vpState.views[vi]?.cam;
-  if(!parent||objParams.get(parent)?.__type!=='spline_patch'||!state?.ready||state.error||!root||!r||!cam)return null;
+  if(!parent||objParams.get(parent)?.__type!=='spline_patch'||!OBJ.get(parent)?.enabled||!effectiveVisible(parent)||!state?.ready||state.error||!root||!r||!cam)return null;
   cam.updateMatrixWorld(true);cam.updateProjectionMatrix();root.updateMatrixWorld(true);pickNdc.set((cx-r.x)/r.w*2-1,-((cy-r.y)/r.h)*2+1);setViewportPickRay(pickRay,pickNdc,cam);
   const hits=[];root.raycast(pickRay,hits);if(!hits.length)return null;hits.sort((a,b)=>a.distance-b.distance);
   const faces=splineSelectableFaces(data),byCell=new Map(faces.filter(f=>f.cell).map(f=>[String(f.cell.id),f])),byEdges=new Map();
@@ -24177,7 +24266,7 @@ function splinePatchSurfaceFaceHit(cx,cy,vi,h,data){
     key ||= splineFillSegmentKey(fill);
     let face=key?byEdges.get(key):null;
     if(!face){let resolverId=hit.splineCellId;if(!byCell.has(String(resolverId))&&fill)resolverId=fill.id??resolverId;face=byCell.get(String(resolverId));}
-    if(!face)continue;const inv=splineWorldMatrix(h).clone().invert(),local=hit.point.clone().applyMatrix4(inv);return {kind:'face',object:h,id:face.id,face,faceKey:splineFaceSegmentKey(face),point:local.toArray(),world:hit.point.clone(),priority:2,area:0,view:vi,distance:hit.distance};
+    if(!face||!splineSelectionThrough(vi)&&!exactVertexVisible(hit.point,hit.point.clone().project(cam),cam))continue;const inv=splineWorldMatrix(h).clone().invert(),local=hit.point.clone().applyMatrix4(inv);return {kind:'face',object:h,id:face.id,face,faceKey:splineFaceSegmentKey(face),point:local.toArray(),world:hit.point.clone(),priority:2,area:0,view:vi,distance:hit.distance};
   }
   return null;
 }
@@ -24189,7 +24278,7 @@ function splineFaceScreenHit(cx,cy,vi,{editing=true,object=null}={}){
   if(best)return best;
   const area2=poly=>Math.abs(splinePolygonArea2(poly));
   for(const h of splineData.keys()){if(!OBJ.has(h)||!effectiveVisible(h)||object&&h!==object||editing&&!selNodes.has(h))continue;const data=evaluatedSplineData(h),wm=splineWorldMatrix(h),project=p=>{const w=new THREE2.Vector3().fromArray(p).applyMatrix4(wm),s=projectPx(w,cam,r);return [s[0],s[1],w];};
-    for(const face of splineSelectableFaces(data)){const points=face.outlinePoints||face.outer?.points||[],outer=points.map(p=>project(p)),poly=outer.map(p=>[p[0],p[1]]);if(poly.length<3||!splinePointInPolygon2([cx,cy],poly))continue;let inHole=false;for(const hole of face.holePoints||face.holes?.map(h=>h.points)||[]){const hp=hole.map(p=>project(p)).map(p=>[p[0],p[1]]);if(hp.length>=3&&splinePointInPolygon2([cx,cy],hp)){inHole=true;break;}}if(inHole)continue;const a=area2(poly),center=face.vertices.map(id=>data.vertices[id]).filter(Boolean).reduce((v,p)=>v.add(new THREE2.Vector3().fromArray(p)),new THREE2.Vector3()).multiplyScalar(1/Math.max(1,face.vertices.length)).applyMatrix4(wm);if(!best||a<best.area)best={kind:'face',object:h,id:face.id,face,point:center.clone().applyMatrix4(wm.clone().invert()).toArray(),world:center,priority:2,area:a,view:vi};}
+    for(const face of splineSelectableFaces(data)){if(!splineSelectionThrough(vi)&&(!face.segments.some(sid=>splineEdgeVisible(h,data,sid,vi))||splinePatchEditObject(h)&&replicaStates.get(OBJ.get(h)?.parent)?.ready&&OBJ.get(OBJ.get(h)?.parent)?.enabled&&effectiveVisible(OBJ.get(h)?.parent)))continue;const points=face.outlinePoints||face.outer?.points||[],outer=points.map(p=>project(p)),poly=outer.map(p=>[p[0],p[1]]);if(poly.length<3||!splinePointInPolygon2([cx,cy],poly))continue;let inHole=false;for(const hole of face.holePoints||face.holes?.map(h=>h.points)||[]){const hp=hole.map(p=>project(p)).map(p=>[p[0],p[1]]);if(hp.length>=3&&splinePointInPolygon2([cx,cy],hp)){inHole=true;break;}}if(inHole)continue;const a=area2(poly),center=face.vertices.map(id=>data.vertices[id]).filter(Boolean).reduce((v,p)=>v.add(new THREE2.Vector3().fromArray(p)),new THREE2.Vector3()).multiplyScalar(1/Math.max(1,face.vertices.length)).applyMatrix4(wm);if(!best||a<best.area)best={kind:'face',object:h,id:face.id,face,point:center.clone().applyMatrix4(wm.clone().invert()).toArray(),world:center,priority:2,area:a,view:vi};}
   }return best;
 }
 
@@ -24211,8 +24300,8 @@ function splineScreenHit(cx, cy, options = {}) {
   for (let h of splineData.keys()) {
     if(frameIsMotionPath(h)&&!effectiveVisible(h))continue;
     let d = evaluatedSplineData(h), editTarget = isSplineEditTarget(h,editing);
-    // Selected editable cages remain accessible through surfaces and hidden
-    // generator ancestors. The drawing anchor only constrains drawing.
+    // Lift the selected source from consumed generator ancestors, while still
+    // respecting surface occlusion. The drawing anchor only constrains drawing.
     if (!OBJ.has(h) || (!effectiveVisible(h) && !editTarget) || object && h !== object || editing && !selNodes.has(h) || drawing && splineSelection.anchor?.object && h !== splineSelection.anchor.object) continue;
     let wm = splineWorldMatrix(h), project = (local) => {
       let w = new THREE2.Vector3().fromArray(local).applyMatrix4(wm), s = projectPx(w, cam, r);
@@ -24220,21 +24309,20 @@ function splineScreenHit(cx, cy, options = {}) {
     };
     if (vertices) for (let [vid, p] of Object.entries(d.vertices)) {
       let s = project(p), d2 = (s[0] - cx) ** 2 + (s[1] - cy) ** 2;
-      d2>EDIT_HIT_PX*EDIT_HIT_PX || (!through&&!frameIsMotionPath(h)&&!exactVertexVisible(s[2],s[2].clone().project(cam),cam)) || consider({ kind: "vertex", object: h, id: vid, point: p.slice(), world: s[2], priority: 0 }, d2, EDIT_HIT_PX);
+      d2>EDIT_HIT_PX*EDIT_HIT_PX || !splinePointVisible(h,p,vi,splineSelection.vertices.has(splineElementKey(h,vid))?4.5:3,splineSelectedVertexOnTop(h,vid)) || consider({ kind: "vertex", object: h, id: vid, point: p.slice(), world: s[2], priority: 0 }, d2, EDIT_HIT_PX);
     }
     if (handles && editing) for (let q of splineVisibleHandles(h,d)) {
         let s = project(q.position), d2 = (s[0] - cx) ** 2 + (s[1] - cy) ** 2;
-        if(through||frameIsMotionPath(h)||exactVertexVisible(s[2],s[2].clone().project(cam),cam))consider({ kind: "handle", object: h, id: q.segment, side: q.side, free: !!q.free, point: q.position.slice(), world: s[2], priority: 1 }, d2, EDIT_HIT_PX);
+        if(splinePointVisible(h,q.position,vi,3,true))consider({ kind: "handle", object: h, id: q.segment, side: q.side, free: !!q.free, point: q.position.slice(), world: s[2], priority: 1 }, d2, EDIT_HIT_PX);
       }
     if (segments&&!(faceMode&&splinePatchEditObject(h))) for (let sid of Object.keys(d.segments)) {
-      let q = closestSplinePoint(d, sid, (p) => {
+      let q = (d.motionFrames?closestSplinePoint:closestSplineDisplayPoint)(d, sid, (p) => {
         let s = project(p);
-        return [s[0], s[1]];
+        return [s[0], s[1], cam.isPerspectiveCamera?-s[2].clone().applyMatrix4(cam.matrixWorldInverse).z:1];
       }, cx, cy);
       if (q && q.d2<=radiusSegment*radiusSegment) {
-        if(!through&&!splineEdgeVisible(h,d,sid,vi))continue;
         let w = new THREE2.Vector3().fromArray(q.position).applyMatrix4(wm);
-        if(through||frameIsMotionPath(h)||exactVertexVisible(w,w.clone().project(cam),cam))consider({ kind: "segment", object: h, id: sid, point: q.position.slice(), world: w, t: q.t, priority: 2 }, q.d2, radiusSegment);
+        if(splineLinePointVisible(h,q.position,vi))consider({ kind: "segment", object: h, id: sid, point: q.position.slice(), world: w, t: q.t, priority: 2 }, q.d2, radiusSegment);
       }
     }
   }
@@ -25415,7 +25503,39 @@ function computeSceneDepthRange(cam,view){
   }
   for(const [h,s]of framePrinters)if(s.root.visible){const bb=getWorldBBox(h);if(bb)consider(new THREE2.Matrix4(),new THREE2.Box3(new THREE2.Vector3().fromArray(bb.min),new THREE2.Vector3().fromArray(bb.max)));}
   for(const [h,visual]of splineVisuals){if(pickMeshes.has(h)||!effectiveVisible(h)||frameIsMotionPath(h))continue;const box=getWorldBBox(h);if(box)consider(new THREE2.Matrix4(),new THREE2.Box3(new THREE2.Vector3().fromArray(box.min),new THREE2.Vector3().fromArray(box.max)));}
-  if(gizmoVisible&&!frameOwnCameraGizmo(view)){const d=-_cdV.copy(gizmo.pos).applyMatrix4(cam.matrixWorldInverse).z;if(!persp||d>0){const margin=Math.max(Math.abs(d)*.2,frameNavigationNear(cam,view));minD=Math.min(minD,d-margin);maxD=Math.max(maxD,d+margin);}}
+  const point=p=>{const d=-_cdV.copy(p).applyMatrix4(cam.matrixWorldInverse).z;if(!persp||d>0){minD=Math.min(minD,d);maxD=Math.max(maxD,d);}};
+  // Tangents extend beyond the curve/surface bounds. Fit the controls actually
+  // shown in orthographic edit views too, including cages lifted from a hidden
+  // generator parent. Read current data so dragging does not wait for a rebuild.
+  if (!persp && splineMode) {
+    const world = new THREE2.Vector3();
+    for (const h of selNodes) {
+      if (!isSplineEditTarget(h) || frameIsMotionPath(h) && !effectiveVisible(h)) continue;
+      const data = evaluatedSplineData(h), matrix = splineWorldMatrix(h);
+      if (!data) continue;
+      const localPoint = p => { if (p) point(world.fromArray(p).applyMatrix4(matrix)); };
+      if (polyElementMode === 'vertex' || splineDrawing)
+        for (const p of Object.values(data.vertices)) localPoint(p);
+      for (const handle of splineVisibleHandles(h, data)) {
+        localPoint(data.vertices[handle.vertex]);
+        localPoint(handle.position);
+      }
+      for (const key of splineSelection.handles) {
+        const ref = parseSplineElementKey(key);
+        if (ref.object !== h) continue;
+        const token = parseSplineHandleKey(ref.id), handle = splineHandleInfo(data, token.segment, token.side);
+        if (handle) localPoint(splineMath.add(data.vertices[handle.vertex], handle.vector));
+      }
+    }
+    for (const preview of [splineDrawPreview, splineTangentPreview]) {
+      if (!preview?.visible) continue;
+      preview.updateWorldMatrix(true, false);
+      const positions = preview.geometry?.attributes.position;
+      if (positions) for (let i = 0; i < positions.count; i++)
+        point(world.fromBufferAttribute(positions, i).applyMatrix4(preview.matrixWorld));
+    }
+  }
+  if(gizmoVisible&&!frameOwnCameraGizmo(view)){const d=-_cdV.copy(gizmo.pos).applyMatrix4(cam.matrixWorldInverse).z;if(!persp||d>0){const margin=Math.max(persp?Math.abs(d)*.2:BASE/view_ctrl_zoom(cam)*.25,frameNavigationNear(cam,view));minD=Math.min(minD,d-margin);maxD=Math.max(maxD,d+margin);}}
   // The grid is an editor guide, drawn before surfaces with its own clip clamp.
   // It cannot force a tiny scene near plane or disappear when near is tightened.
   if(!Number.isFinite(maxD)){const extent=persp?cam.position.distanceTo(view.ctrl.handle):BASE/view_ctrl_zoom(cam);return {minD:persp?extent*.01:-extent*10,maxD:extent*10,nearD:extent*.01,geometryCount:0};}
@@ -26004,7 +26124,7 @@ function exactVertexVisible(world,ndc,cam,ignoreObjects=null){
   for(const [dx,dy]of [[0,0],[-1e-9,-1e-9],[-1e-9,1e-9],[1e-9,-1e-9],[1e-9,1e-9]]){
     visibilityNdc.set(ndc.x+dx,ndc.y+dy);setViewportPickRay(visibilityRaycaster,visibilityNdc,cam);
     const ray=visibilityRaycaster.ray,maxDistance=world.distanceTo(ray.origin),tolerance=Math.max(1e-12,maxDistance*1e-7);
-    for(const [h,mesh]of pickMeshes)if(!ignoreObjects?.has(h)&&effectiveVisible(h)&&meshOccludesVertex(mesh,ray,maxDistance,tolerance))return false;
+    for(const [h,mesh]of pickMeshes){const state=replicaStates.get(h);if(!ignoreObjects?.has(h)&&effectiveVisible(h)&&(!state||state.ready&&OBJ.get(h)?.enabled)&&meshOccludesVertex(mesh,ray,maxDistance,tolerance))return false;}
   }return true;
 }
 
@@ -27264,9 +27384,16 @@ function hitGizmo(cx, cy) {
   return { view: vi, object: best.object, fr, r };
 }
 function updateHover(cx, cy, mods = {}) {
-  let g = hitGizmo(cx, cy), splineHit = !g && splineMode ? splineScreenHit(cx, cy) : null, obj = g ? g.object : null;
-  obj !== hovObj && (clearHover(), obj && (hovObj = obj, hovObj.material.opacity = 1)), !obj && splineHit ? (clearPolyHover(), setSplineHover(splineHit, !!(mods.ctrlKey || mods.metaKey))) : obj ? (clearPolyHover(), clearSplineHover()) : (clearSplineHover(), polyMode ? updatePolyHover(cx, cy) : clearPolyHover()), scheduleRender();
+  const signature=()=>[polyHover.kind,polyHover.view,...(polyHover.kind==='face'?polyHover.facePos:polyHover.kind==='edge'?polyHover.edgePos:polyHover.kind==='vertex'?polyHover.vertexPos:[])].join(',');
+  const before=signature(),old=hovObj;
+  let g=hitGizmo(cx,cy),splineHit=!g&&splineMode?splineScreenHit(cx,cy):null,obj=g?g.object:null;
+  if(obj!==hovObj){clearHover();if(obj){hovObj=obj;hovObj.material.opacity=1;}}
+  if(!obj&&splineHit){clearPolyHover();setSplineHover(splineHit,!!(mods.ctrlKey||mods.metaKey));}
+  else if(obj){clearPolyHover();clearSplineHover();}
+  else{clearSplineHover();if(polyMode)updatePolyHover(cx,cy);else clearPolyHover();}
+  if(old!==hovObj||before!==signature())scheduleRender();
 }
+
 var gizDrag = null, _o = new THREE2.Vector3(), _d = new THREE2.Vector3(), _P = new THREE2.Vector3(), _t1 = new THREE2.Vector3(), _t2 = new THREE2.Vector3(), _cr = new THREE2.Vector3(), _dq = new THREE2.Quaternion();
 function planeHit(origin, dir, point, normal, out) {
   let den = dir.dot(normal);
@@ -27337,6 +27464,16 @@ function* splineSnapCages() {
   yield* splineData;
   for(const [h,state] of replicaStates)if(!splineData.has(h)&&objParams.get(h)?.__type!=='spline_patch'&&state.virtualCage?.data)yield [h,state.virtualCage.data];
 }
+// Orthographic vertex snaps change the two visible coordinates only. Keep the
+// reference depth in world space so transformed objects use the same rule.
+function vertexSnapInView(target, reference, vi) {
+  const out = target.clone(), cam = vpState.views[vi]?.cam;
+  if (cam?.isOrthographicCamera) {
+    const normal = cam.getWorldDirection(new THREE2.Vector3());
+    out.addScaledVector(normal, reference.clone().sub(out).dot(normal));
+  }
+  return out;
+}
 function snapVertexOnly(pos,vi,proj){
  if(!snapOn)return null;
  const r=(vpState.mode==='single'?vpState.fullRect:rectFor(vi))||vpState.fullRect,cam=vpState.views[vi]?.cam;
@@ -27376,7 +27513,7 @@ function snapVertexOnly(pos,vi,proj){
   const wm=splineWorldMatrix(h),skip=ignoreSpline.get(h);
   for(const [id,local]of vertices)if(!skip?.has(id))consider(world.fromArray(local).applyMatrix4(wm),pinned);
  }
- return best;
+ return best ? vertexSnapInView(best, pos, vi) : null;
 }
 function snapMoveAxis(pos, vi, axisW, startPos) {
   let view = vpState.views[vi], r = (vpState.mode === "single" ? vpState.fullRect : rectFor(vi)) || vpState.fullRect, cam = view.cam, gp = projectPx(pos, cam, r), best = null, bestD = SNAP_PX + 1, vpos = snapVertexOnly(pos, vi, gp);
@@ -29622,30 +29759,50 @@ function splineDrawWorldWithModifiers(world, vi, screenPoint = null, origin = nu
   if (quantOn) return splineDrawQuantizeWorld(world, vi, origin);
   return snapMoveScreen(world, vi, screenPoint, origin);
 }
-function splinePointOnPlane(cx, cy, vi, object) {
+function splinePointOnPlane(cx, cy, vi, object, applyModifiers = true) {
   let r = rectFor(vi), cam = vpState.views[vi]?.cam;
   if (!r || !cam) return null;
   cam.updateMatrixWorld(!0), cam.updateProjectionMatrix(), pickNdc.set((cx - r.x) / r.w * 2 - 1, -((cy - r.y) / r.h) * 2 + 1), setViewportPickRay(pickRay,pickNdc, cam);
   let point, normal;
   splineWorkPlane ? (point = splineWorkPlane.point, normal = splineWorkPlane.normal) : cam.isPerspectiveCamera ? (point = new THREE2.Vector3(0, 0, 0), normal = new THREE2.Vector3(0, 1, 0)) : (normal = cam.getWorldDirection(new THREE2.Vector3()), point = splineSelection.anchor ? splineWorldPoint(splineSelection.anchor.object, splineData.get(splineSelection.anchor.object)?.vertices[splineSelection.anchor.id] || [0, 0, 0]) : new THREE2.Vector3());
+  // A stored work plane can come from another viewport. In an orthographic
+  // view keep its depth but orient the drawing plane to the current camera.
+  if (cam.isOrthographicCamera) normal = cam.getWorldDirection(new THREE2.Vector3());
   let plane = new THREE2.Plane().setFromNormalAndCoplanarPoint(normal, point), world = new THREE2.Vector3();
   if (!pickRay.ray.intersectPlane(plane, world)) return null;
-  world = splineDrawWorldWithModifiers(world, vi, [cx, cy], splineWorkPlane?.point || null);
+  if (applyModifiers) world = splineDrawWorldWithModifiers(world, vi, [cx, cy], splineWorkPlane?.point || null);
   return world.applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray();
 }
 function splinePlacement(cx, cy, vi, object) {
+  const cam = vpState.views[vi]?.cam;
+  if (cam?.isOrthographicCamera) {
+    const anchor = splineSelection.anchor, data = splineData.get(anchor?.object);
+    if (anchor?.object === object && data?.vertices[anchor.id]) {
+      splineWorkPlane = { object, point: splineWorldPoint(object, data.vertices[anchor.id]), normal: cam.getWorldDirection(new THREE2.Vector3()) };
+    }
+    const local = splinePointOnPlane(cx, cy, vi, object, false);
+    if (!local) return null;
+    const reference = splineWorldPoint(object, local);
+    const hit = splineScreenHit(cx, cy, { editing: false, vertices: true, handles: false, segments: false, object });
+    const vertexHit = hit && hit.d2 <= SNAP_PX * SNAP_PX;
+    const world = vertexHit ? vertexSnapInView(hit.world, reference, vi) : splineDrawWorldWithModifiers(reference, vi, [cx, cy], splineWorkPlane?.point || null);
+    // Screen overlap is not topological coincidence: reuse only a 3D match.
+    const vertex = vertexHit && world.distanceToSquared(hit.world) <= 1e-12 ? { object: hit.object, id: hit.id } : null;
+    splineWorkPlane = { object, point: world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) };
+    return { local: world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), world, vertex, snapped: !!vertexHit || world.distanceToSquared(reference) > 1e-12 };
+  }
   let vh = splineScreenHit(cx, cy, { editing: !1, vertices: !0, handles: !1, segments: !1, object });
   if (vh && vh.d2 <= SNAP_PX * SNAP_PX) {
     let cam = vpState.views[vi].cam;
-    return splineWorkPlane = { object, point: vh.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: vh.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), vertex: { object: vh.object, id: vh.id }, world: vh.world.clone(), snapped: !0 };
+    return splineWorkPlane = { object, point: vh.world.clone(), normal: cam.isPerspectiveCamera ? new THREE2.Vector3(0,1,0) : cam.getWorldDirection(new THREE2.Vector3()) }, { local: vh.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), vertex: { object: vh.object, id: vh.id }, world: vh.world.clone(), snapped: !0 };
   }
   let anchor = splineSelection.anchor, d = splineData.get(anchor?.object), reference = anchor && d?.vertices[anchor.id] ? splineWorldPoint(anchor.object, d.vertices[anchor.id]) : null, ph = nearestPolygonVertex(cx, cy, vi, SNAP_PX, reference);
   if (anchor?.object === object && reference) {
     let cam = vpState.views[vi]?.cam;
-    if (cam && (!splineWorkPlane || splineWorkPlane.object !== object)) splineWorkPlane = { object, point: reference.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) };
+    if (cam && (!splineWorkPlane || splineWorkPlane.object !== object)) splineWorkPlane = { object, point: reference.clone(), normal: cam.isPerspectiveCamera ? new THREE2.Vector3(0,1,0) : cam.getWorldDirection(new THREE2.Vector3()) };
   } else if (ph) {
     let cam = vpState.views[vi].cam;
-    return splineWorkPlane = { object: null, point: ph.world.clone(), normal: cam.getWorldDirection(new THREE2.Vector3()) }, { local: ph.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), world: ph.world.clone(), snapped: !0, polygon: ph };
+    return splineWorkPlane = { object: null, point: ph.world.clone(), normal: cam.isPerspectiveCamera ? new THREE2.Vector3(0,1,0) : cam.getWorldDirection(new THREE2.Vector3()) }, { local: ph.world.clone().applyMatrix4(splineWorldMatrix(object).clone().invert()).toArray(), world: ph.world.clone(), snapped: !0, polygon: ph };
   }
   let local = splinePointOnPlane(cx, cy, vi, object);
   return local && { local, world: splineWorldPoint(object, local), snapped: !1 };
@@ -29703,7 +29860,7 @@ function splineScreenPlaneDelta(x0, y0, x1, y1, vi, through) {
   let r = rectFor(vi), cam = vpState.views[vi]?.cam;
   if (!r || !cam || !through) return new THREE2.Vector3();
   cam.updateMatrixWorld(!0);
-  let normal = cam.getWorldDirection(new THREE2.Vector3()), plane = new THREE2.Plane().setFromNormalAndCoplanarPoint(normal, through), at = (x, y) => {
+  let normal = cam.isPerspectiveCamera ? new THREE2.Vector3(0,1,0) : cam.getWorldDirection(new THREE2.Vector3()), plane = new THREE2.Plane().setFromNormalAndCoplanarPoint(normal, through), at = (x, y) => {
     let ndc = new THREE2.Vector2((x - r.x) / r.w * 2 - 1, -((y - r.y) / r.h) * 2 + 1), ray = new THREE2.Raycaster();
     return setViewportPickRay(ray,ndc, cam), ray.ray.intersectPlane(plane, new THREE2.Vector3());
   }, a = at(x0, y0), b = at(x1, y1), d = a && b ? b.sub(a) : new THREE2.Vector3();
@@ -29840,17 +29997,26 @@ function splineBoxPick(x0, y0, x1, y1, mode = "replace") {
   if (vi < 0 || !r || !cam) return;
   cam.updateMatrixWorld(true);cam.updateProjectionMatrix();
   const box={x0:Math.min(x0,x1),x1:Math.max(x0,x1),y0:Math.min(y0,y1),y1:Math.max(y0,y1)},through=splineSelectionThrough(vi),inside=(p)=>p[0]>=box.x0&&p[0]<=box.x1&&p[1]>=box.y0&&p[1]<=box.y1;
-  const lineHits=(a,b)=>{if(inside(a)||inside(b))return true;let xA=a[0],yA=a[1],xB=b[0],yB=b[1],dx=xB-xA,dy=yB-yA,t0=0,t1=1;for(const [p,q]of [[-dx,xA-box.x0],[dx,box.x1-xA],[-dy,yA-box.y0],[dy,box.y1-yA]]){if(Math.abs(p)<1e-12){if(q<0)return false;continue;}const t=q/p;if(p<0){if(t>t1)return false;t0=Math.max(t0,t);}else{if(t<t0)return false;t1=Math.min(t1,t);}}return t0<=t1;};
+  const clipLine=(a,b)=>{let t0=0,t1=1,dx=b[0]-a[0],dy=b[1]-a[1];for(const [p,q]of [[-dx,a[0]-box.x0],[dx,box.x1-a[0]],[-dy,a[1]-box.y0],[dy,box.y1-a[1]]]){if(Math.abs(p)<1e-12){if(q<0)return null;continue;}const t=q/p;if(p<0){if(t>t1)return null;t0=Math.max(t0,t);}else{if(t<t0)return null;t1=Math.min(t1,t);}}return [t0,t1];};
+  const shownSelectedVertices=new Set(splineSelection.vertices);
   mode === "replace" && splineSelectionClearElements();let last=null;const patchFaceObjects=new Set();
   for (let h of selNodes) {
     const d=evaluatedSplineData(h);if(!d||!effectiveVisible(h)&&!isSplineEditTarget(h))continue;
     const wm=splineWorldMatrix(h),project=(p)=>{const world=new THREE2.Vector3().fromArray(p).applyMatrix4(wm),ndc=world.clone().project(cam),screen=projectPx(world,cam,r);return {world,ndc,screen};};
     if(polyElementMode==='vertex'){
-      for(const [vid,p]of Object.entries(d.vertices)){const q=project(p);if(q.ndc.z < -1 || q.ndc.z > 1 || !inside(q.screen))continue;const key=splineElementKey(h,vid);mode==='invert'&&splineSelection.vertices.has(key)?splineSelection.vertices.delete(key):splineSelection.vertices.add(key);last={kind:'vertex',object:h,id:vid};}
+      for(const [vid,p]of Object.entries(d.vertices)){const q=project(p);if(q.ndc.z < -1 || q.ndc.z > 1 || !inside(q.screen)||!splinePointVisible(h,p,vi,shownSelectedVertices.has(splineElementKey(h,vid))?4.5:3,shownSelectedVertices.has(splineElementKey(h,vid))))continue;const key=splineElementKey(h,vid);mode==='invert'&&splineSelection.vertices.has(key)?splineSelection.vertices.delete(key):splineSelection.vertices.add(key);last={kind:'vertex',object:h,id:vid};}
     }else if(polyElementMode==='edge'){
-      for(const sid of Object.keys(d.segments)){if(!through&&!splineEdgeVisible(h,d,sid,vi))continue;const samples=sampleSplineSegment(d,sid);let hit=false,prev=null;for(const sample of samples){const q=project(sample.position);if(q.ndc.z>=-1&&q.ndc.z<=1){if(inside(q.screen)||prev&&lineHits(prev,q.screen)){hit=true;break;}prev=q.screen;}}if(!hit)continue;const key=splineElementKey(h,sid);mode==='invert'&&splineSelection.segments.has(key)?splineSelection.segments.delete(key):splineSelection.segments.add(key);last={kind:'segment',object:h,id:sid};}
+      for(const sid of Object.keys(d.segments)){
+        const samples=sampleSplineSegment(d,sid);let hit=false;
+        for(let i=1;i<samples.length;i++){
+          const a=samples[i-1].position,b=samples[i].position,pa=project(a),pb=project(b),clip=clipLine(pa.screen,pb.screen);
+          if(!clip||!splineLineIntervalVisible(h,a,b,pa,pb,clip,vi))continue;
+          hit=true;break;
+        }
+        if(!hit)continue;const key=splineElementKey(h,sid);mode==='invert'&&splineSelection.segments.has(key)?splineSelection.segments.delete(key):splineSelection.segments.add(key);last={kind:'segment',object:h,id:sid};
+      }
     }else if(polyElementMode==='face'){
-      for(const face of splineSelectableFaces(d)){const outer=(face.outlinePoints||face.outer?.points||[]).map(p=>project(p).screen),center=[outer.reduce((a,p)=>a+p[0],0)/Math.max(1,outer.length),outer.reduce((a,p)=>a+p[1],0)/Math.max(1,outer.length)],hit=outer.length>=3&&(inside(center)||outer.some(inside)||splinePointInPolygon2([(box.x0+box.x1)/2,(box.y0+box.y1)/2],outer));if(!hit)continue;
+      for(const face of splineSelectableFaces(d)){const outer=(face.outlinePoints||face.outer?.points||[]).map(p=>project(p).screen),center=[outer.reduce((a,p)=>a+p[0],0)/Math.max(1,outer.length),outer.reduce((a,p)=>a+p[1],0)/Math.max(1,outer.length)],hit=outer.length>=3&&(inside(center)||outer.some(inside)||splinePointInPolygon2([(box.x0+box.x1)/2,(box.y0+box.y1)/2],outer));if(!hit||!through&&!face.segments.some(sid=>splineEdgeVisible(h,d,sid,vi)))continue;
         const fkey=splineElementKey(h,face.id),on=splineSelection.faces.has(fkey);if(mode==='invert'&&on)splineSelection.faces.delete(fkey);else splineSelection.faces.add(fkey);patchFaceObjects.add(h);last={kind:'face',object:h,id:face.id,face};}
     }
   }
@@ -30272,7 +30438,7 @@ function frameBindControl(el,o,ctrl=el?.closest('.attr-ctrl')){
 }
 function frameBindChoice(ctrl,h,get,sync){
   const descriptors=frameProbeParameter(h,get),resolve=()=>descriptors,label=ctrl.parentElement?.querySelector('.attr-lab');if(label){const list=label._frameAnimationResolvers||(label._frameAnimationResolvers=[]);list.push(resolve);frameBindElement(label,()=>list.flatMap(f=>f()),true);}
-  frameBindElement(ctrl,resolve,null,sync);
+  frameBindElement(ctrl,resolve,null,()=>{sync?.();const ids=frameAttributeTargets(h);if(frameAttributeMixed(descriptors,ids)){ctrl.title='multiple';for(const b of ctrl.querySelectorAll('.attr-btn,.attr-cycle')){b.classList.remove('on');b.setAttribute('aria-pressed','mixed');if(b.classList.contains('attr-cycle'))b.textContent='multiple';}}else if(ctrl.title==='multiple')ctrl.title='';});
 }
 function frameRefreshAnimationUI(){
   if(frameAnimationUIQueued)return;frameAnimationUIQueued=true;queueMicrotask(()=>{frameAnimationUIQueued=false;
@@ -32106,6 +32272,7 @@ function restoreObjectParameters(h, snapshot) {
   if(p.__type==='render'){syncEnv();frameRenderController?.observe();}
 }
 function paramCommit(h, before, after) {
+  if(frameAttributeCommitBatch(before))return;
   diffP2(before, after) && pushCmd({generatorTargets:[h],
     redo() {
       restoreObjectParameters(h,after), lastAttrKey=null, refreshAttributesPanel(), scheduleGeneratorEvaluation(0,[h]);
@@ -32129,15 +32296,15 @@ function attrBoolean(ctrl, get, set) {
   b.addEventListener('click',()=>{set(!get());sync();});sync();ctrl.appendChild(b);return b;
 }
 function attrBtns(ctrl, items, get, set, h, onChange) {
-  frameBindChoice(ctrl,h,get,()=>{const value=get();for(const b of ctrl.querySelectorAll('.attr-btn')){if(b._frameSyncBoolean)b._frameSyncBoolean();else if(items.includes(b.textContent))b.classList.toggle('on',b.textContent===value);}});
+  frameBindChoice(ctrl,h,get,()=>{const value=get();for(const b of ctrl.querySelectorAll('.attr-btn')){if(b._frameSyncBoolean)b._frameSyncBoolean();else if(items.includes(b.dataset.choice ?? b.textContent))b.classList.toggle('on',(b.dataset.choice ?? b.textContent)===value);}});
   if(items.length===2&&items.includes('on')&&items.includes('off'))return attrBoolean(ctrl,()=>get()==='on',value=>{
-    const before=cloneP(objParams.get(h));set(value?'on':'off');onChange&&onChange();paramCommit(h,before,cloneP(objParams.get(h)));
+    const before=frameAttributeSnapshot(h,frameProbeParameter(h,get),true);set(value?'on':'off');onChange&&onChange();paramCommit(h,before,cloneP(objParams.get(h)));
   });
   items.forEach((it) => {
     let b = document.createElement("button");
-    b.className = "attr-btn" + (get() === it ? " on" : ""), b.textContent = it, b.addEventListener("click", () => {
-      let before = cloneP(objParams.get(h));
-      set(it), ctrl.querySelectorAll(".attr-btn").forEach((x) => x.classList.toggle("on", x.textContent === it)), onChange && onChange(), paramCommit(h, before, cloneP(objParams.get(h)));
+    b.className = "attr-btn" + (get() === it ? " on" : ""), b.dataset.choice = it, b.textContent = it, b.addEventListener("click", () => {
+      let before = frameAttributeSnapshot(h,frameProbeParameter(h,get),true);
+      set(it), ctrl.querySelectorAll(".attr-btn").forEach((x) => x.classList.toggle("on", (x.dataset.choice ?? x.textContent) === it)), onChange && onChange(), paramCommit(h, before, cloneP(objParams.get(h)));
     }), ctrl.appendChild(b);
   });
 }
@@ -32148,11 +32315,11 @@ function attrCycle(ctrl,o){
   const values=()=>{const a=typeof o.items==='function'?o.items():o.items;return Array.isArray(a)&&a.length?a:[];};
   const label=v=>o.format?o.format(v):String(v??'');
   const sync=()=>{const a=values(),v=o.get();b.textContent=label(v);b.title='wheel / drag / ↑↓\n'+a.map(label).join(' · ');};
-  const applyIndex=(index,before,final=false)=>{const a=values();if(!a.length)return;const i=Math.max(0,Math.min(a.length-1,index)),v=a[i];if(v===o.get())return;o.set(v);sync();o.change?.(v);if(final&&before){paramCommit(o.h,before,cloneP(objParams.get(o.h)));o.final?.(v);}};
-  const step=delta=>{const a=values();if(!a.length)return;let i=a.indexOf(o.get());i<0&&(i=0);const before=cloneP(objParams.get(o.h));applyIndex(i+delta,before,true);};
+  const applyIndex=(index,before,final=false)=>{const a=values();if(!a.length)return;const i=Math.max(0,Math.min(a.length-1,index)),v=a[i];if(v===o.get()){if(final&&before)paramCommit(o.h,before,cloneP(objParams.get(o.h)));return;}o.set(v);sync();o.change?.(v);if(final&&before){paramCommit(o.h,before,cloneP(objParams.get(o.h)));o.final?.(v);}};
+  const step=delta=>{const a=values();if(!a.length)return;let i=a.indexOf(o.get());i<0&&(i=0);const before=frameAttributeSnapshot(o.h,frameProbeParameter(o.h,o.get),true);applyIndex(i+delta,before,true);};
   b.addEventListener('wheel',e=>{if(e.ctrlKey)return;e.preventDefault();step(e.deltaY<0?1:-1);},{passive:false});
   b.addEventListener('keydown',e=>{if(e.key==='ArrowUp'||e.key==='ArrowRight'){e.preventDefault();step(1);}else if(e.key==='ArrowDown'||e.key==='ArrowLeft'){e.preventDefault();step(-1);}});
-  b.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();b.focus();const a=values(),i=Math.max(0,a.indexOf(o.get()));drag={id:e.pointerId,y:e.clientY,index:i,before:cloneP(objParams.get(o.h)),slot:0};b.setPointerCapture(e.pointerId);});
+  b.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();b.focus();const a=values(),i=Math.max(0,a.indexOf(o.get()));drag={id:e.pointerId,y:e.clientY,index:i,before:frameAttributeSnapshot(o.h,frameProbeParameter(o.h,o.get),true),slot:0};b.setPointerCapture(e.pointerId);});
   b.addEventListener('pointermove',e=>{if(!drag||drag.id!==e.pointerId)return;const q=Math.trunc((drag.y-e.clientY)/10);if(q===drag.slot)return;drag.slot=q;applyIndex(drag.index+q,null,false);});
   const finish=e=>{if(!drag||drag.id!==e.pointerId)return;const before=drag.before;drag=null;try{b.releasePointerCapture(e.pointerId);}catch{}paramCommit(o.h,before,cloneP(objParams.get(o.h)));o.final?.(o.get());sync();};
   b.addEventListener('pointerup',finish);b.addEventListener('pointercancel',finish);sync();return b;
@@ -32161,8 +32328,8 @@ function attrToggles(ctrl, items, isOn, toggle, h, onChange) {
   frameBindChoice(ctrl,h,()=>items.map(isOn),()=>{for(const b of ctrl.querySelectorAll('.attr-btn'))b.classList.toggle('on',!!isOn(b.textContent));});
   items.forEach((it) => {
     let b = document.createElement("button");
-    b.className = "attr-btn" + (isOn(it) ? " on" : ""), b.textContent = it, b.addEventListener("click", () => {
-      let before = cloneP(objParams.get(h));
+    b.className = "attr-btn" + (isOn(it) ? " on" : ""), b.dataset.choice = it, b.textContent = it, b.addEventListener("click", () => {
+      let before = frameAttributeSnapshot(h,frameProbeParameter(h,()=>items.map(isOn)),true);
       toggle(it), b.classList.toggle("on"), onChange && onChange(), paramCommit(h, before, cloneP(objParams.get(h)));
     }), ctrl.appendChild(b);
   });
@@ -32245,6 +32412,7 @@ function numericDisplayText(v,prec=null){
 }
 function setNumericInputDisplay(el,v,prec=null,force=false){
   if(!force&&(document.activeElement===el||_scrubActive===el))return;
+  if(el._frameMultiple?.()){clearNumericInputText(el);el.value='';el.placeholder='multiple';return;}el.placeholder='';
   if(el._frameManualNumericText!=null&&numericValuesMatch(v,el._frameManualNumericValue)){el.value=el._frameManualNumericText;return;}
   clearNumericInputText(el);el.value=numericDisplayText(v,prec);
 }
@@ -32261,6 +32429,8 @@ function makeScrubInput(inp, o) {
     o={...o,animation,get:()=>get()/unit,set:v=>set(v*unit)};
     inp.dataset.unit=UNITS[dispIdx];inp.title='Length ('+UNITS[dispIdx]+')';
   }
+  const multiDescriptors=frameControlDescriptors(o),multiTargets=o.h?frameAttributeTargets(o.h):[];
+  if(o.multiple)inp._frameMultiple=o.multiple;else if(multiTargets.length>1)inp._frameMultiple=()=>frameAttributeMixed(multiDescriptors,multiTargets);
   frameBindControl(inp,o);
   const min=o.min??-Infinity,max=o.max??Infinity;
   let isInt = !!o.int, hasPrec = o.prec != null, P10 = hasPrec ? Math.pow(10, o.prec) : 0, clampv = (v) => Math.max(min, Math.min(max, v)), roundPrec = (v) => Math.round(v * P10) / P10, fullFmt = (v) => numericDisplayText(isInt?Math.round(v):v,hasPrec?o.prec:null), scrubFmt = (v, step) => {
@@ -32283,15 +32453,16 @@ function makeScrubInput(inp, o) {
     return s;
   }
   function getBefore() {
-    return o.h ? cloneP(objParams.get(o.h)) : o.snap ? o.snap() : null;
+    return o.h ? frameAttributeSnapshot(o.h,multiDescriptors) : o.snap ? o.snap() : null;
   }
   function doCommit(before2) {
     before2 != null && (o.h ? paramCommit(o.h, before2, cloneP(objParams.get(o.h))) : o.commit && o.commit(before2));
   }
   function doRevert(before2) {
-    before2 != null && (o.h ? (restoreObjectParameters(o.h, before2), refreshAttributesPanel()) : o.revert && o.revert(before2));
+    before2 != null && (o.h ? (frameAttributeRestoreBatch(before2)||(restoreObjectParameters(o.h, before2), refreshAttributesPanel())) : o.revert && o.revert(before2));
   }
-  let before = null, cancelling = false, scrubbing = !1, moved = !1, pid = null, accum = 0, crossingStep = 1, PX = 6;
+  let before = null, cancelling = false, scrubbing = !1, moved = !1, pid = null, accum = 0, crossingStep = 1, rangeValue = 0, PX = 6;
+  const originalSet=o.set;o={...o,set:v=>{originalSet(v);if(before)frameAttributePropagate(before,true);}};
   function localEnd(flag) {
     const snapshot=before,wasScrubbing=scrubbing;before=null;
     if(_scrubActive===inp)_scrubActive=null;
@@ -32306,7 +32477,7 @@ function makeScrubInput(inp, o) {
   setNumericInputDisplay(inp,o.get(),hasPrec?o.prec:null,true), inp.addEventListener("focus", () => {
     scrubbing || beginSession();
   }), inp.addEventListener("pointerdown", (e) => {
-    beginSession(), moved = !1, scrubbing = !1, accum = 0, crossingStep = stepFor(o.get()), pid = e.pointerId;
+    beginSession(), moved = !1, scrubbing = !1, accum = 0, crossingStep = stepFor(o.get()), rangeValue = o.get(), pid = e.pointerId;
   }), inp.addEventListener("pointermove", (e) => {
     if (pid !== e.pointerId) return;
     if (!moved) {
@@ -32322,6 +32493,14 @@ function makeScrubInput(inp, o) {
       }
       document.body.style.cursor = "nesw-resize";
     }
+    if(o.scrubRange){
+      // One available range per 1500 pixels, retaining sub-integer motion.
+      // Keyboard and wheel increments continue to use the regular fixed step.
+      const [lo,hi]=o.scrubRange(),span=hi-lo;if(!(span>0))return;
+      rangeValue=Math.max(lo,Math.min(hi,rangeValue+(e.movementX-e.movementY)*span/1500));
+      const v=isInt?Math.round(rangeValue):rangeValue;
+      if(v!==o.get()){clearNumericInputText(inp);o.set(v);inp.value=fullFmt(o.get());}return;
+    }
     accum += e.movementX - e.movementY;
     let step = stepFor(o.get()), q = Math.trunc(accum / PX);
     if (q !== 0) {
@@ -32334,7 +32513,7 @@ function makeScrubInput(inp, o) {
         v=clampv(v+direction*step);
         v=isInt?Math.round(v):hasPrec?roundPrec(v):Number(v.toPrecision(12));
       }
-      clearNumericInputText(inp);o.set(v);inp.value=scrubFmt(v,step);
+      clearNumericInputText(inp);o.set(v);inp.value=scrubFmt(o.get(),step);
     }
   });
   let endScrub = () => {
@@ -32364,7 +32543,13 @@ function makeScrubInput(inp, o) {
       v===null || o.set(clampv(v));
     }
   }), inp.addEventListener("keydown", (e) => {
-    e.stopPropagation(), e.key === "Enter" ? (e.preventDefault(), inp.blur()) : e.key === "Escape" && (e.preventDefault(), cancelling = true, localEnd(!1), clearNumericInputText(inp), inp.value = fullFmt(o.get()), scrubbing = !1, document.body.style.cursor = "", inp.blur(), cancelling = false);
+    if(e.key==='ArrowUp'||e.key==='ArrowDown'){
+      e.preventDefault();e.stopPropagation();beginSession();
+      const parsed=numericTextValue(inp.value),current=parsed===null?o.get():parsed,step=o.keyStep??o.stepFixed??(isInt?1:stepFor(current));
+      let v=clampv(current+(e.key==='ArrowUp'?step:-step));v=isInt?Math.round(v):hasPrec?roundPrec(v):Number(v.toPrecision(12));
+      clearNumericInputText(inp);o.set(v);inp.value=fullFmt(o.get());return;
+    }
+    e.stopPropagation(), e.key === "Enter" ? (e.preventDefault(), inp.blur()) : e.key === "Escape" && (e.preventDefault(), cancelling = true, localEnd(!1), clearNumericInputText(inp), setNumericInputDisplay(inp,o.get(),hasPrec?o.prec:null,true), scrubbing = !1, document.body.style.cursor = "", inp.blur(), cancelling = false);
   }), inp.addEventListener("blur", () => {
     if (scrubbing || cancelling) return;
     let raw = inp.value.trim(), parsed=numericTextValue(raw), v=parsed;
@@ -32375,7 +32560,7 @@ function makeScrubInput(inp, o) {
     if (e.ctrlKey) return;
     e.preventDefault(), beginSession();
     let dir = e.deltaY < 0 ? 1 : -1, step = stepFor(o.get()), v = clampv(o.get() + dir * step);
-    isInt ? v = Math.round(v) : hasPrec ? v = roundPrec(v) : v = Math.round(v / step) * step, clearNumericInputText(inp), o.set(v), inp.value = scrubFmt(v, step);
+    isInt ? v = Math.round(v) : hasPrec ? v = roundPrec(v) : v = Math.round(v / step) * step, clearNumericInputText(inp), o.set(v), inp.value = scrubFmt(o.get(), step);
   }, { passive: !1 });
 }
 function attrInput(ctrl, o) {
@@ -32391,29 +32576,32 @@ function attrInputs3(ctrl, o) {
 function attrTextarea(h, get, set) {
   let ta = document.createElement("textarea");
   ta.className = "attr-ta", ta.value = get(), ta.spellcheck = !1, ta.autocomplete = "off";
+  const ds=frameProbeParameter(h,get),targets=frameAttributeTargets(h);ta._frameMultiple=()=>frameAttributeMixed(ds,targets);if(ta._frameMultiple()){ta.value='';ta.placeholder='multiple';}
   let before = null;
   ta.addEventListener("focus", () => {
-    before === null && (before = cloneP(objParams.get(h)));
+    before === null && (before = frameAttributeSnapshot(h,ds));
   }), ta.addEventListener("input", () => {
-    set(ta.value);
+    set(ta.value);if(before)frameAttributePropagate(before,true);
   }), ta.addEventListener("keydown", (e) => {
     if (e.stopPropagation(), e.key === "Escape") {
       e.preventDefault();
       let p = objParams.get(h);
-      before && Object.assign(p, before), syncParametricObject(h), ta.value = get(), before = null, ta.blur();
+      before && (frameAttributeRestoreBatch(before)||Object.assign(p, before)), syncParametricObject(h), ta.value = get(), before = null, ta.blur();
     }
   }), ta.addEventListener("blur", () => {
     before && (paramCommit(h, before, cloneP(objParams.get(h))), before = null);
   }), attrContent.appendChild(ta);
   const label=document.createElement('span');label.className='attr-lab';label.textContent='text';attrContent.insertBefore(label,ta);
-  const descriptors=frameProbeParameter(h,get);frameBindElement(label,()=>descriptors,true);frameBindElement(ta,()=>descriptors,null,()=>{if(document.activeElement!==ta)ta.value=get();});
+  const descriptors=frameProbeParameter(h,get);frameBindElement(label,()=>descriptors,true);frameBindElement(ta,()=>descriptors,null,()=>{if(document.activeElement!==ta){const mixed=ta._frameMultiple();ta.value=mixed?'':get();ta.placeholder=mixed?'multiple':'';}});
 }
 function renderSplineApproximation(h) {
   if(!splineData.has(h))return;
+  const selected=frameAttributeTargets(h).filter(id=>splineData.has(id)),targets=[...new Set(selected.flatMap(splineApproximationTargets))];
   attrInput(attrRow("angle approximation"), {
     animation:()=>[frameDescriptor(h,'spline:angle',{min:1,max:180})],get:()=>splineData.get(h).approximation.angle,
-    set:v=>setSplineApproximationAngle(h,v),
-    snap:()=>captureSplineApproximationEdit(h),
+    multiple:()=>selected.some(id=>splineData.get(id).approximation.angle!==splineData.get(h).approximation.angle),
+    set:v=>{for(const id of selected)setSplineApproximationAngle(id,v);},
+    snap:()=>targets.map(id=>[id,captureSplineApproximation(id)]),
     commit:before=>commitSplineApproximation(before),
     revert:before=>restoreSplineApproximationEdit(before),
     ...O_SPLINE_ANG
@@ -32762,18 +32950,58 @@ function renderBevelTag(h, i) {
   }, snap: () => cloneTag(tag), commit: (before) => commitBevelTag(h, i, before), revert: (before) => replaceBevelTag(h, i, before), ...O_SZ });
 }
 
-function markMultipleAttributes(type, hashes) {
-  let schema = SCHEMA[type], rows = [...attrContent.querySelectorAll(".attr-row")], fields = [...(schema?.f || []), ...(schema?.i || []), ...(schema?.b || []), ...(schema?.e || []).map((x) => x[0]), schema?.s].filter((x) => x && x !== "__type");
-  let labelFor = (field) => String(field).replace(/[A-Z]/g, (x) => " " + x.toLowerCase()).replace(/^_+/, "").trim();
-  for (let field of fields) {
-    let label = labelFor(field), row = rows.find((r) => r.querySelector(".attr-lab")?.textContent.toLowerCase().replace(/\s+/g, " ").includes(label));
-    if (!row) continue;
-    let values = hashes.map((h) => objParams.get(h)?.[field]), multiple = values.some((v) => JSON.stringify(v) !== JSON.stringify(values[0]));
-    if (!multiple) continue;
-    let marker = document.createElement("span");
-    marker.className = "attr-multiple", marker.textContent = "multiple", row.querySelector(".attr-ctrl")?.appendChild(marker);
+// Attribute controls bind to actual parameter paths, never translated labels.
+// A mixed numeric field uses its existing input and one grouped undo snapshot.
+const frameAttributeBatches=new WeakMap();
+function frameAttributeTargets(h){
+  const type=objParams.get(h)?.__type,ids=[...selNodes];
+  return !selTags.size&&ids.length>1&&ids.includes(h)&&ids.every(id=>objParams.get(id)?.__type===type)?ids:[h];
+}
+function frameAttributeSnapshot(h,descriptors=[],force=false){
+  const before=cloneP(objParams.get(h)),ids=frameAttributeTargets(h);
+  if(ids.length>1){const fields=descriptors.filter(d=>d.path.startsWith('param:')).map(d=>d.path.slice(6));frameAttributeBatches.set(before,{h,ids,before:new Map(ids.map(id=>[id,id===h?before:cloneP(objParams.get(id))])),fields,forced:new Set(force&&fields.length===1?fields:[])});}
+  return before;
+}
+function frameAttributePropagate(before,touched=false){
+  const batch=frameAttributeBatches.get(before);if(!batch)return;
+  if(touched)for(const key of batch.fields)batch.forced.add(key);
+  const source=objParams.get(batch.h);let keys=new Set([...Object.keys(before),...Object.keys(source)].filter(k=>k!=='__type'&&before[k]!==source[k]));for(const k of batch.forced)keys.add(k);
+  // Each object keeps its own dependent values and applies its own bounds.
+  // For example, increasing one capsule's cylinder must not copy its total
+  // height over another capsule whose total height was already sufficient.
+  if(batch.fields.length===1&&keys.has(batch.fields[0]))keys=new Set(batch.fields);
+  for(const id of batch.ids){if(id===batch.h||!OBJ.has(id))continue;const next=cloneP(objParams.get(id));
+    if(next.__type==='printer'&&keys.size===1){const key=[...keys][0];if(next[key]!==source[key])framePrinterSetField(id,key,source[key]);continue;}
+    for(const key of keys){if(Object.hasOwn(source,key))next[key]=source[key];else delete next[key];}
+    if(next.__type==='capsule'&&(keys.has('cylinderHeight')||keys.has('totalHeight')))next.totalHeight=Math.max(next.cylinderHeight||0,next.totalHeight||0);
+    if(diffP2(objParams.get(id),next))restoreObjectParameters(id,next);
+  }
+  if(keys.size){scheduleGeneratorEvaluation(0,batch.ids);framePrinterUpdate();scheduleRender();}
+}
+function frameAttributeRestoreBatch(before){
+  const batch=frameAttributeBatches.get(before);if(!batch)return false;
+  for(const [id,p] of batch.before)if(OBJ.has(id))restoreObjectParameters(id,p);scheduleGeneratorEvaluation(0,batch.ids);framePrinterUpdate();lastAttrKey=null;refreshAttributesPanel();scheduleRender();return true;
+}
+function frameAttributeCommitBatch(before){
+  const batch=frameAttributeBatches.get(before);if(!batch)return false;
+  frameAttributePropagate(before);const after=new Map(batch.ids.filter(id=>OBJ.has(id)).map(id=>[id,cloneP(objParams.get(id))]));
+  const restore=map=>{for(const [id,p] of map)if(OBJ.has(id))restoreObjectParameters(id,p);scheduleGeneratorEvaluation(0,batch.ids);framePrinterUpdate();lastAttrKey=null;refreshAttributesPanel();scheduleRender();};
+  if([...after].some(([id,p])=>diffP2(batch.before.get(id),p)))pushCmd({generatorTargets:batch.ids,undo(){restore(batch.before);},redo(){restore(after);}});
+  lastAttrKey=null;refreshAttributesPanel();return true;
+}
+function frameAttributeMixed(descriptors,ids){
+  return ids.length>1&&descriptors.some(d=>{const first=frameReadAttribute(ids[0],d.path);return ids.slice(1).some(id=>JSON.stringify(frameReadAttribute(id,d.path))!==JSON.stringify(first));});
+}
+function markMultipleAttributes(type,hashes){
+  // Numeric/textarea controls already own their placeholder. For choices,
+  // clear the misleading active choice while preserving the original layout.
+  for(const ctrl of attrContent.querySelectorAll('.attr-ctrl')){
+    const ds=ctrl._frameAnimationBinding?.resolve?.()||[];
+    if(!frameAttributeMixed(ds,hashes))continue;ctrl.title='multiple';
+    for(const b of ctrl.querySelectorAll('.attr-btn,.attr-cycle')){b.classList.remove('on');b.setAttribute('aria-pressed','mixed');if(b.classList.contains('attr-cycle'))b.textContent='multiple';}
   }
 }
+
 function refreshAttributesPanel() {
   if(frameSelectionDeferred)return;
   attrContent.classList.toggle("cloner-matrix",selNodes.size===1&&objParams.get([...selNodes][0])?.__type==="cloner");
@@ -33464,7 +33692,7 @@ async function evaluatePureCageSurface(h,data,{generator='spline_patch',report={
   if(state.surfaceSignature===signature&&(state.pending||state.ready&&!state.error))return state.surfacePromise;
   if(typeof splinePointDebug!=='undefined'&&splinePointDebug?.h===h)clearSplinePointDebug();
   state.surfaceSignature=signature;if(generator==='spline_patch')state.signature=signature;state.splineGeometrySignature=geometrySignature;state.surfacePreview=preview;state.pending=true;clearTimeout(state.previewTimer);
-  const revision=(state.surfaceRevision||0)+1;state.surfaceRevision=revision;
+  const revision=(state.surfaceRevision||0)+1,liveCageRevision=state.liveCageRevision||0;state.surfaceRevision=revision;
   // Final quality is scheduled by gizmo release / Lathe scrub release. Do not
   // start a full build while the pointer is still moving.
   const preceding=state.surfacePromise;
@@ -33475,6 +33703,7 @@ async function evaluatePureCageSurface(h,data,{generator='spline_patch',report={
     const surface=await buildSplineSurfaceAsync(data,state,{preview});
     state.surfaceCellCache=surface.cellCache;
     if(state.surfaceDisposed||state.surfaceRevision!==revision||!OBJ.has(h))return;
+    if((state.liveCageRevision||0)!==liveCageRevision){state.surfaceSignature=null;state.signature=null;scheduleGeneratorEvaluation(0,[h]);return;}
     // A completed obsolete build may warm the serialized cache, but must not
     // replace the displayed mesh, angle report or cage of a newer request.
     if(state.surfaceRevision===revision){state.generatedCageData=surface.displayCage||data;installGeneratedSplineCage(h,state,state.generatedCageData);}
@@ -34466,7 +34695,8 @@ function scrubInput(el, field, sens, min=-Infinity, max=Infinity) {
     act && commitParams(before), act = !1, moved = !1, pid = null, before = null;
   };
   el.addEventListener("pointerup", end), el.addEventListener("pointercancel", end), el.addEventListener("keydown", (e) => {
-    e.key === "Enter" && el.blur();
+    if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();const before2=snapP(activeMat()),step=Math.max(.1,Math.pow(10,Math.floor(Math.log10(Math.max(1,Math.abs(activeMat()[field]))))-1));const v=Math.max(min,Math.min(max,Number((activeMat()[field]+(e.key==='ArrowUp'?step:-step)).toPrecision(12))));clearNumericInputText(el);setField(field,v);applyMat();setNumericInputDisplay(el,v,1,true);commitParams(before2);}
+    else if(e.key==='Enter')el.blur();
   }), el.addEventListener("change", () => {
     let before2 = snapP(activeMat()), raw=el.value.trim(), parsed=numericTextValue(raw), v=parsed;
     if (v===null) {clearNumericInputText(el);syncInputs(true);return;}
@@ -35999,6 +36229,7 @@ function deleteSelectedPolyElements() {
 }
 let wholePolygonDrag=null;
 function startWholePolygonDrag(e){
+  if([...polySelection.items.keys()].some(h=>frameMorphTag(h)))return false;
   if(gizDrag?.mode!=='move'||e?.ctrlKey||e?.metaKey||e?.shiftKey||vertexTools.soft.active||!polySelection.items.size)return false;
   const records=new Map();
   for(const [h,s]of polySelection.items){const mesh=pickMeshes.get(h);if(!wholePolygonSelected(h)||OBJ.get(h)?.children.length||s.edges.size||s.vertices.size)return false;
@@ -36037,7 +36268,7 @@ function applyPolyDelta(delta, snap) {
     if(frameMorphInterceptPoly(h,rec2,delta,mesh))continue;
     let inv = mesh.matrixWorld.clone().invert(), base = new THREE2.Vector3(), moved = new THREE2.Vector3();
     rec2.ids.forEach((i, k) => {
-      base.set(rec2.values[k * 3], rec2.values[k * 3 + 1], rec2.values[k * 3 + 2]), moved.copy(base).applyMatrix4(mesh.matrixWorld).applyMatrix4(delta).applyMatrix4(inv), p.copy(base).lerp(moved, rec2.weights ? rec2.weights[k] : 1), pos.setXYZ(i, p.x, p.y, p.z);
+      base.set(rec2.values[k * 3], rec2.values[k * 3 + 1], rec2.values[k * 3 + 2]), moved.copy(base).applyMatrix4(mesh.matrixWorld).applyMatrix4(delta).applyMatrix4(inv), p.copy(base).lerp(moved, rec2.weights ? rec2.weights[k] : 1), pos.setXYZ(i, p.x, p.y, p.z);pos.addUpdateRange(i*3,3);
     }), pos.needsUpdate = !0, updatePolygonDragNormals(mesh), refreshWireOverlay(mesh);
     frameMorphModelChanged(h);
   }
@@ -36338,7 +36569,13 @@ function snapSplineVertexPreview(data, h, vid) {
       (d < bd - 1e-6 || Math.abs(d - bd) <= 1e-6 && wd < bwd) && (bd = d, bwd = wd, best = { kind: "polygon", object: poly.object, id: poly.vertex, p: null, w: poly.world.clone(), rawWorldDistance: Math.sqrt(wd) });
     }
   }
-  best && (data.vertices[vid] = best.w.clone().applyMatrix4(splineWorldMatrix(h).clone().invert()).toArray(), splineWeldCandidate = { sourceObject: h, source: vid, targetObject: best.object, target: best.id, rawWorldDistance: best.rawWorldDistance, screenDistance: Math.sqrt(bd) }, best.kind === "spline" && Object.assign(splineHover, { kind: "vertex", object: best.object, id: best.id, side: null, point: best.p.slice(), world: best.w, t: 0, view: vi, d2: bd }));
+  if (best) {
+    const snapped = vertexSnapInView(best.w, world, vi);
+    data.vertices[vid] = snapped.clone().applyMatrix4(splineWorldMatrix(h).clone().invert()).toArray();
+    if (best.kind === "spline" && snapped.distanceToSquared(best.w) <= 1e-12)
+      splineWeldCandidate = { sourceObject: h, source: vid, targetObject: best.object, target: best.id, rawWorldDistance: best.rawWorldDistance, screenDistance: Math.sqrt(bd) };
+    if (best.kind === "spline") Object.assign(splineHover, { kind: "vertex", object: best.object, id: best.id, side: null, point: best.p.slice(), world: best.w, t: 0, view: vi, d2: bd });
+  }
 }
 function remapSplineSelectionAfterWeld(h, remap, d) {
   let mapKey = (key) => {
@@ -36523,7 +36760,7 @@ function applySplineTransformSnapshot(states, deltaWorld, mods = {}) {
         if (info) {
           let old = info.vector.slice(), oldLen = splineMath.len(old), moved = transformVector(info), newLen = splineMath.len(moved);
           let ownSnap=false;
-          if(gizDrag?.view>=0){const rect=rectFor(gizDrag.view),cam=vpState.views[gizDrag.view]?.cam;if(rect&&cam){const a=projectPx(splineWorldPoint(h,splineMath.add(d.vertices[info.vertex],moved)),cam,rect),b=projectPx(splineWorldPoint(h,d.vertices[info.vertex]),cam,rect);ownSnap=Math.hypot(a[0]-b[0],a[1]-b[1])<=SNAP_PX;}}
+          if(gizDrag?.view>=0){const rect=rectFor(gizDrag.view),cam=vpState.views[gizDrag.view]?.cam;if(rect&&cam){const a=projectPx(splineWorldPoint(h,splineMath.add(d.vertices[info.vertex],moved)),cam,rect),b=projectPx(splineWorldPoint(h,d.vertices[info.vertex]),cam,rect);ownSnap=Math.hypot(a[0]-b[0],a[1]-b[1])<=SNAP_PX&&(!cam.isOrthographicCamera||Math.abs(splineWorldPoint(h,splineMath.add(d.vertices[info.vertex],moved)).sub(splineWorldPoint(h,d.vertices[info.vertex])).dot(cam.getWorldDirection(new THREE2.Vector3())))<=Math.max(1e-12,newLen*1e-7));}}
           if(ownSnap||newLen<1e-6){moved=[0,0,0];newLen=0;if(ownSnap)for(const other of splineAllHandleInfos(d,info.vertex))splineSetHandleVector(d,other,[0,0,0]);}
 
           if (!(mods.ctrl||mods.shift)&&!ownSnap) {
@@ -36538,14 +36775,7 @@ function applySplineTransformSnapshot(states, deltaWorld, mods = {}) {
               }
             }
           }
-          if (splineSetHandleVector(d, info, moved), gizDrag?.view >= 0) {
-            let r = rectFor(gizDrag.view), cam = vpState.views[gizDrag.view]?.cam;
-            if (r && cam) {
-              let hp = splineWorldPoint(h, splineMath.add(d.vertices[info.vertex], info.vector)), vp = splineWorldPoint(h, d.vertices[info.vertex]), a = projectPx(hp, cam, r), b = projectPx(vp, cam, r);
-              if ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 <= SNAP_PX * SNAP_PX)
-                splineSetHandleVector(d, info, [0, 0, 0]);
-            }
-          }
+          splineSetHandleVector(d, info, moved);
         }
       } else for (let token of handles) {
         let info = splineHandleInfo(d, token.segment, token.side);
@@ -36621,7 +36851,7 @@ function snapSplinePivotPreview() {
       (dd < bd - 1e-6 || !best && Math.abs(dd - bd) <= 1e-6 && wd < bwd) && (best = poly.world);
     }
   }
-  best && (gizmo.pos.copy(best), syncCube());
+  best && (gizmo.pos.copy(vertexSnapInView(best, raw, vi)), syncCube());
 }
 function placeGizmoForSelection() {
   if(uvMode&&!uvEdit){boundNode=null;setGizmoVisible(false);return;}
@@ -39019,7 +39249,7 @@ function installFrameAI() {
     finishEdgeBevel(){return finishEdgeBevel();},cancelEdgeBevel(){return cancelEdgeBevel();}
   });
   Object.assign(apiDocs,{bevelEdges:'({size?,radius?,round?,segments?,interactive?}) on selected mesh/cage edges',updateEdgeBevel:'({size?,round?,segments?}) preview or edit the last bevel',getEdgeBevelState:'() -> current size, rounding, collision limit and objects',finishEdgeBevel:'() -> commit preview as one undo step',cancelEdgeBevel:'() -> restore geometry, parameters and selection'});
-  api.version='5.2';
+  api.version='5.3';
   Object.assign(apiDocs,{
     getInstructions:'() -> embedded agent workflow, units, batch examples, rendering and performance guide (Markdown)',
     inspectScene:'({query?,type?,offset?:0,limit?:50,bounds?:false}) -> compact paginated objects without mesh buffers or full generator reports',
@@ -39886,7 +40116,8 @@ function frameMorphPolygonMap(h, tag = frameMorphTag(h), g = pickMeshes.get(h)?.
   }
   const cached=frameMorphPolygonMaps.get(g);
   if(cached?.corners===tag.polygonCorners&&cached.index===g.index&&cached.version===(g.index?.version??0))return cached.map;
-  const map=[];
+  // Local crease edits retain the original shared vertices alongside new corners.
+  const map=[...(tag.reference.polygonMap||[])];
   for(let i=0;i<count;i++)map[g.index?g.index.getX(i):i]=tag.polygonCorners[i];
   frameMorphPolygonMaps.set(g,{corners:tag.polygonCorners,index:g.index,version:g.index?.version??0,map});
   return map;
@@ -40378,7 +40609,7 @@ function frameMorphInterceptPoly(h, rec, delta, mesh) {
       .invert()
       .multiply(delta)
       .multiply(mesh.matrixWorld),
-    targets = rec.ids.map((id, k) => ({
+    targets = Array.from(rec.ids, (id, k) => ({
       id: polygonMap[id] || "p" + id,
       position: new THREE2.Vector3()
         .fromArray(rec.values, k * 3)
@@ -40541,9 +40772,9 @@ function frameMorphAPI(api) {
       if(options.verifyGeometry){
         const source=OBJ.get(h)?.children?.[0],data=source&&splineData.has(source)?transformWholeSplineData(cloneSplineData(evaluatedSplineData(source)),localTmp(OBJ.get(source)).clone()):null;
         let error=0,vertices=0,skipped=0;const point=new Float64Array(3);
-        if(data)for(const c of chunks){const g=c.geometry,uv=g.userData.previewUV,refs=g.userData.previewEdges;if(!uv||!refs){skipped++;continue;}
-          const edges=refs.map(r=>{const cp=segmentPoints(data,r.edge);return r.reversed?cp.reverse():cp;}),prepared=SurfaceBuilder.prepare({edges,angleMax:Math.max(1,+data.approximation.angle||10),preview:true}),a=g.attributes.position.array;
-          for(let i=0;i<uv.length/2;i++){prepared.surface.evaluateInto(uv[2*i],uv[2*i+1],point);error=Math.max(error,Math.hypot(point[0]-a[3*i],point[1]-a[3*i+1],point[2]-a[3*i+2]));vertices++;}
+        if(data)for(const c of chunks){const g=c.geometry,uv=g.userData.previewUV,refs=g.userData.previewEdges;if((!uv&&!g.userData.previewBindings)||!refs){skipped++;continue;}
+          const edges=uv?refs.map(r=>{const cp=segmentPoints(data,r.edge);return r.reversed?cp.reverse():cp;}):null,prepared=uv?SurfaceBuilder.prepare({edges,angleMax:Math.max(1,+data.approximation.angle||10),preview:true}):null,a=g.attributes.position.array,curveCache=new Map();
+          for(let i=0;i<g.attributes.position.count;i++){const binding=g.userData.previewBindings?.[i];let expected=point;if(binding?.vertex)expected=data.vertices[binding.vertex];else if(binding?.edge){let cp=curveCache.get(binding.edge);if(!cp){cp=segmentPoints(data,binding.edge);curveCache.set(binding.edge,cp);}expected=cp&&cubicPoint(cp,binding.t);}else if(prepared)prepared.surface.evaluateInto(uv[2*i],uv[2*i+1],point);else continue;if(!expected?.every(Number.isFinite))continue;error=Math.max(error,Math.hypot(expected[0]-a[3*i],expected[1]-a[3*i+1],expected[2]-a[3*i+2]));vertices++;}
         }
         result.geometry={maxError:error,vertices,skippedCells:skipped,liveUpdates:s?.livePreviewUpdates||0,liveMilliseconds:s?.livePreviewMilliseconds||0};
       }
