@@ -9755,10 +9755,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   const layerY=(p,n)=>n===1?p.initialLayerHeight/2:p.initialLayerHeight+(n-1.5)*p.layerHeight;
   const layerCount=p=>Math.max(1,1+Math.floor((p.height-p.initialLayerHeight)/p.layerHeight+1e-9));
   const area=p=>C.Clipper.Area(p);
-  function clean(path){
+  function clean(path,tolerance=.1){
     const out=[];for(const q of path){const a=out[out.length-1];if(!a||a.X!==q.X||a.Y!==q.Y)out.push(q);}
     if(out.length>1&&out[0].X===out[out.length-1].X&&out[0].Y===out[out.length-1].Y)out.pop();
-    return out.length<3?[]:C.Clipper.CleanPolygon(out,.1);
+    return out.length<3?[]:C.Clipper.CleanPolygon(out,tolerance);
   }
   function boolean(paths,clips,operation,fill=C.PolyFillType.pftNonZero){
     if(!paths.length)return [];
@@ -9777,7 +9777,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }return inside;
   }
   function normalize(paths){
-    const rings=paths.map(clean).filter(p=>p.length>2&&Math.abs(area(p))>.1).sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
+    const rings=paths.map(path=>clean(path)).filter(p=>p.length>2&&Math.abs(area(p))>.1).sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
     const depths=[];
     for(let i=0;i<rings.length;i++){
       let parent=-1;for(let j=i-1;j>=0;j--)if(contains(rings[j],rings[i])){parent=j;break;}
@@ -9795,10 +9795,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
     if(!material.length)return {paths:[],material:[],offsetCalls:0};
     // The single negative offset contracts exteriors and expands holes into material.
-    // Square joins are straight truncated corners: no round tessellation or unbounded miters.
-    const offset=new C.ClipperOffset(2,.25);offset.AddPaths(material,C.JoinType.jtSquare,C.EndType.etClosedPolygon);
+    // Round joins approximate the Euclidean inset; renderer segments retain flat endcaps.
+    // Remove only integer-rounding noise before computing normals (0.001% of line width).
+    // Preserve every contour, including any too small to clean without collapsing it.
+    const numericTolerance=Math.max(.1,p.lineWidth*SCALE*.00001);
+    const working=material.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;});
+    const offset=new C.ClipperOffset(2,p.lineWidth*SCALE*.002);offset.AddPaths(working,C.JoinType.jtRound,C.EndType.etClosedPolygon);
     const result=[];offset.Execute(result,-p.lineWidth*SCALE/2);
-    const paths=result.map(clean).filter(path=>path.length>2&&Math.abs(area(path))>.1).map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
+    const simple=boolean(result,null,C.ClipType.ctUnion);
+    const paths=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1).map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
     return {paths:paths.filter(path=>path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q[0]-r[0],q[1]-r[1]);},0)+1e-9>=(p.minPathLength||0)),material,offsetCalls:1};
   }
   function insetContours(groups,p){
@@ -9851,7 +9856,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-1',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-2',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17473,7 +17478,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-1',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-2',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
