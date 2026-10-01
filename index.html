@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r129</title>
+<title>Frame r130</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9958,18 +9958,28 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function pathEdges(paths){return paths.flatMap((path,ring)=>path.map((a,i)=>({a,b:path[(i+1)%path.length],ring,i,n:path.length,live:true})));}
   function overlapSummary(paths,width,baseline,needed){
+    const arcs=paths.map(path=>{const prefix=[0];for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];prefix.push(prefix[i]+Math.hypot(b.X-a.X,b.Y-a.Y));}return prefix;});
+    const remote=(e,f,polygon)=>{if(e.ring!==f.ring)return true;const prefix=arcs[e.ring],total=prefix[prefix.length-1],where=(edge,q)=>{const x=edge.b.X-edge.a.X,y=edge.b.Y-edge.a.Y,t=Math.max(0,Math.min(1,((q.X-edge.a.X)*x+(q.Y-edge.a.Y)*y)/(x*x+y*y)));return prefix[edge.i]+t*(prefix[edge.i+1]-prefix[edge.i]);},distances=polygon.map(q=>where(e,q)-where(f,q)),low=Math.min(...distances),high=Math.max(...distances);let separation=Math.max(...distances.map(d=>Math.min(Math.abs(d),total-Math.abs(d))));if(low<=total/2&&high>=total/2||low<=-total/2&&high>=-total/2)separation=total/2;return separation>width*2;};
     const active=new Set();if(needed)for(const pair of needed.values())for(const ring of pair.rings)active.add(ring);
     const edges=pathEdges(paths).filter(e=>!needed||active.has(e.ring)),index=segmentIndex(edges),quads=edges.map(e=>beadRectangle(e.a,e.b,width)),pairs=new Map(),bad=new Set(),cell=width*2,noise=width*width*1e-10;
     for(let i=0;i<edges.length;i++){const e=edges[i];for(const j of index.query(e.a,e.b,width)){if(j<=i)continue;const f=edges[j];if(e.ring===f.ring&&(Math.abs(e.i-f.i)===1||Math.abs(e.i-f.i)===e.n-1))continue;
       const pairKey=Math.min(e.ring,f.ring)+':'+Math.max(e.ring,f.ring);if(needed&&!needed.has(pairKey))continue;
       if(crosses(e.a,e.b,f.a,f.b)){bad.add(e.ring);bad.add(f.ring);}
       const polygon=quadIntersection(quads[i],quads[j]),value=polygon.length>=3?Math.abs(area(polygon)):0;if(value<=noise)continue;
-      const key=pairKey;let pair=pairs.get(key);if(!pair)pairs.set(key,pair={area:0,regions:new Set(),rings:[e.ring,f.ring]});pair.area+=value;
-      const x=Math.floor(polygon.reduce((s,q)=>s+q.X,0)/polygon.length/cell),y=Math.floor(polygon.reduce((s,q)=>s+q.Y,0)/polygon.length/cell);pair.regions.add(x+','+y);
+      const key=pairKey;let pair=pairs.get(key);if(!pair)pairs.set(key,pair={area:0,remoteArea:0,regions:new Set(),remoteRegions:new Set(),remotePolygons:[],remoteKeys:new Set(),rings:[e.ring,f.ring]});pair.area+=value;
+      const x=Math.floor(polygon.reduce((s,q)=>s+q.X,0)/polygon.length/cell),y=Math.floor(polygon.reduce((s,q)=>s+q.Y,0)/polygon.length/cell);pair.regions.add(x+','+y);if(remote(e,f,polygon)){const edgeKey=edge=>edge.a.X+','+edge.a.Y+','+edge.b.X+','+edge.b.Y,left=edgeKey(e),right=edgeKey(f),key=left<right?left+'|'+right:right+'|'+left;pair.remoteArea+=value;pair.remoteRegions.add(x+','+y);pair.remoteKeys.add(key);pair.remotePolygons.push({key,polygon});}
       if(baseline){const old=baseline.get(key);let present=false;if(old)for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(old.regions.has((x+dx)+','+(y+dy)))present=true;if(!present){bad.add(e.ring);bad.add(f.ring);}}
     }}
     if(baseline)for(const [key,pair] of pairs)if(pair.area>(baseline.get(key)?.area||0)+noise){for(const ring of pair.rings)bad.add(ring);}
     return {pairs,bad};
+  }
+  function remoteFootprintGrowth(pair,old,width){
+    // Equal original edge pairs have equal flat-cap footprints, regardless of seam.
+    // Only changed intersections need a polygon difference against the old union.
+    const integer=items=>items.map(item=>item.polygon.map(q=>({X:Math.round(q.X),Y:Math.round(q.Y)}))).filter(path=>path.length>2&&Math.abs(area(path))>.1),added=integer(pair.remotePolygons.filter(item=>!old?.remoteKeys.has(item.key)));
+    if(!added.length)return false;
+    const original=integer(old?.remotePolygons||[]);if(!original.length)return true;
+    return Math.abs(boolean(added,original,C.ClipType.ctDifference).reduce((sum,path)=>sum+area(path),0))>width*width*1e-10;
   }
   function circleRefit(path,width,guard){
     if(path.length<12)return null;const a=path[0],b=path[Math.floor(path.length/3)],c=path[Math.floor(path.length*2/3)],bx=b.X-a.X,by=b.Y-a.Y,cx=c.X-a.X,cy=c.Y-a.Y,det=2*(bx*cy-by*cx);if(Math.abs(det)<1)return null;
@@ -9980,7 +9990,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const angle=Math.atan2(a.Y-center.Y,a.X-center.X),sign=Math.sign(area(path)),r=radius+budget;
     return Array.from({length:n},(_,i)=>({X:Math.round(center.X+r*Math.cos(angle+sign*2*Math.PI*i/n)),Y:Math.round(center.Y+r*Math.sin(angle+sign*2*Math.PI*i/n))}));
   }
-  function roundTurnRefit(path,boundary,boundaryIndex,width,guard){
+  function roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked){
     const radius=width/2,radial=guard+4,key=p=>p.X+','+p.Y,n=path.length;
     const centers=path.map((a,i)=>{const b=path[(i+1)%n];if(Math.hypot(b.X-a.X,b.Y-a.Y)>width*.2)return null;const seen=new Set();for(const id of boundaryIndex.query(a,a,radius+radial))for(const c of [boundary[id].a,boundary[id].b]){if(seen.has(key(c)))continue;seen.add(key(c));if(Math.abs(Math.hypot(a.X-c.X,a.Y-c.Y)-radius)>radial||Math.abs(Math.hypot(b.X-c.X,b.Y-c.Y)-radius)>radial)continue;const angle=Math.atan2((a.X-c.X)*(b.Y-c.Y)-(a.Y-c.Y)*(b.X-c.X),(a.X-c.X)*(b.X-c.X)+(a.Y-c.Y)*(b.Y-c.Y));if(Math.abs(angle)>1e-5&&Math.abs(angle)<.4)return {c,angle,key:key(c)};}return null;});
     const matches=(a,b)=>a&&b&&a.key===b.key&&Math.sign(a.angle)===Math.sign(b.angle);let start=0;while(start<n&&(centers[start]||centers[(start+n-1)%n]))start++;if(start===n)return {path,chords:[]};
@@ -9988,17 +9998,17 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const limit=2*Math.acos(radius/(radius+width*.048-guard)),pieces=Math.ceil(Math.abs(angle)/limit)+1,last=(first+count)%n;let candidate=null;
       if(arc&&count>pieces&&count>=5&&Math.abs(angle)>=Math.PI/3&&Math.abs(angle)<=Math.PI+1e-5&&pieces<=5){const a=path[first],b=path[last],theta=Math.atan2(a.Y-arc.c.Y,a.X-arc.c.X),step=angle/(pieces-1),r=radius/Math.cos(step/2);candidate=Array.from({length:pieces+1},(_,i)=>i===0?a:i===pieces?b:{X:Math.round(arc.c.X+r*Math.cos(theta+step*(i-.5))),Y:Math.round(arc.c.Y+r*Math.sin(theta+step*(i-.5)))});
         const before=(first+n-1)%n,after=(last+1)%n,tangent=(a,b,c)=>Math.abs((b.X-a.X)*(c.Y-b.Y)-(b.Y-a.Y)*(c.X-b.X))<=Math.max(Math.hypot(b.X-a.X,b.Y-a.Y),Math.hypot(c.X-b.X,c.Y-b.Y))*8;
-        if(cursor>0&&cursor+count<n&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){candidate[0]=path[before];candidate[pieces]=path[after];first=before;count+=2;cursor--;output.pop();}
+        if(cursor>0&&cursor+count<n&&!locked.has(path[first])&&!locked.has(path[last])&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){candidate[0]=path[before];candidate[pieces]=path[after];first=before;count+=2;cursor--;output.pop();}
         if(n-count+pieces<3)candidate=null;
       }
       if(candidate){output.push(...candidate.slice(0,-1));for(let i=0;i<pieces;i++)chords.push([candidate[i],candidate[i+1]]);}else for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
     }return {path:output,chords};
   }
-  function balanceShortMoves(path,width,certify){
+  function balanceShortMoves(path,width,certify,locked){
     const n=path.length;if(n<=3)return path;const previous=Array.from({length:n},(_,i)=>(i+n-1)%n),next=Array.from({length:n},(_,i)=>(i+1)%n),live=new Uint8Array(n).fill(1),queue=[];let remaining=n;
     const short=i=>Math.min(Math.hypot(path[i].X-path[previous[i]].X,path[i].Y-path[previous[i]].Y),Math.hypot(path[next[i]].X-path[i].X,path[next[i]].Y-path[i].Y))<width*.1;
-    for(let i=0;i<n;i++)if(short(i))queue.push(i);
-    for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||!short(i))continue;const a=previous[i],b=next[i];if(!certify(path[a],path[b]))continue;live[i]=0;next[a]=b;previous[b]=a;remaining--;queue.push(a,b);}
+    for(let i=0;i<n;i++)if(!locked.has(path[i])&&short(i))queue.push(i);
+    for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||locked.has(path[i])||!short(i))continue;const a=previous[i],b=next[i];if(!certify(path[a],path[b]))continue;live[i]=0;next[a]=b;previous[b]=a;remaining--;queue.push(a,b);}
     const result=path.filter((_,i)=>live[i]);return Math.sign(area(result))===Math.sign(area(path))?result:path;
   }
   function simplifyInset(paths,material,p,inputVertices,metrics){
@@ -10006,30 +10016,37 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.04-guard,turnTolerance=width*.05-guard;if(tolerance<=0)return paths;
     const boundary=pathEdges(material),boundaryIndex=materialIndex(material,boundary),certify=(a,b,allowed=tolerance)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed);
     const proposed=paths.map(path=>{
-      const circle=circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
-      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard);path=refit.chords.every(([a,b])=>certify(a,b,turnTolerance))?refit.path:path;
+      // Classify the ORIGINAL inset edges once. Long means length >= line width.
+      // Lock both endpoints: later refitting, simplification and micro-move balancing
+      // may only alter the short runs between these exact, unchanged vertices.
+      const locked=new Set();for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];if(Math.hypot(b.X-a.X,b.Y-a.Y)>=width){locked.add(a);locked.add(b);}}
+      if(locked.size===path.length)return path;
+      const circle=locked.size?null:circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
+      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked);path=refit.chords.every(([a,b])=>certify(a,b,turnTolerance))?refit.path:path;
+      if(locked.size){const first=path.findIndex(q=>locked.has(q));path=path.slice(first).concat(path.slice(0,first));}
       const n=path.length,origin=path[0];let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
       // Bound smooth tangent rotation too: a few overly sharp chords can look faceted
       // despite meeting the distance budget. Sharp corners and refitted tight turns stay intact.
       const curvature=[0];for(let i=0;i<n;i++){const a=path[(i+n-1)%n],b=path[i],c=path[(i+1)%n],x=b.X-a.X,y=b.Y-a.Y,dx=c.X-b.X,dy=c.Y-b.Y,turn=Math.abs(Math.atan2(x*dy-y*dx,x*dx+y*dy));curvature.push(curvature[i]+(turn<Math.PI/9?turn:0));}
-      const stack=[[anchor,n],[0,anchor]],out=[];
+      const boundaries=path.flatMap((q,i)=>locked.has(q)?[i]:[]),stack=boundaries.length?boundaries.map((first,i)=>[first,boundaries[i+1]??n]).reverse():[[anchor,n],[0,anchor]],out=[];
       while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
         if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI*14/180&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
-      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b)=>certify(a,b,turnTolerance)):path;
+      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b)=>certify(a,b,turnTolerance),locked):path;
     });
     if(proposed.every((p,i)=>p===paths[i]))return paths;
-    let result=proposed,mixedFallback=false;
+    let result=proposed;
     for(let pass=0;pass<3;pass++){
       const summary=overlapSummary(result,width),baseline=overlapSummary(paths,width,null,summary.pairs).pairs,failed=summary.bad;
-      for(const [key,pair] of summary.pairs){const old=baseline.get(key);if(pair.area>(old?.area||0)+width*width*1e-10)for(const ring of pair.rings)failed.add(ring);
-        for(const region of pair.regions){const [x,y]=region.split(',').map(Number);let present=false;if(old)for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(old.regions.has((x+dx)+','+(y+dy)))present=true;if(!present)for(const ring of pair.rings)failed.add(ring);}
+      for(const [key,pair] of summary.pairs){const old=baseline.get(key);if(pair.area>(old?.area||0)+width*width*1e-10||pair.remoteArea>(old?.remoteArea||0)+width*width*1e-10||remoteFootprintGrowth(pair,old,width))for(const ring of pair.rings)failed.add(ring);
+        for(const field of ['regions','remoteRegions'])for(const region of pair[field]){const [x,y]=region.split(',').map(Number);let present=false;if(old)for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(old[field].has((x+dx)+','+(y+dy)))present=true;if(!present)for(const ring of pair.rings)failed.add(ring);}
       }
       for(let i=0;i<paths.length;i++)for(let j=0;j<paths.length;j++)if(i!==j&&C.Clipper.PointInPolygon(paths[i][0],paths[j])!==C.Clipper.PointInPolygon(result[i][0],result[j])){failed.add(i);failed.add(j);}
-      if(!failed.size){if(!mixedFallback&&result.some((path,i)=>path===paths[i]&&proposed[i]!==paths[i])){metrics.legacyFallbacks++;const legacy=legacySimplifyInset(paths,material,p,inputVertices,{localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0});result=result.map((path,i)=>path===paths[i]&&proposed[i]!==paths[i]?legacy[i]:path);mixedFallback=true;continue;}return result;}
+      if(!failed.size)return result;
       let changed=false;result=result.map((path,i)=>{if(failed.has(i)&&path!==paths[i]){changed=true;metrics.optimizationFallbacks++;return paths[i];}return path;});if(!changed)break;
     }
-    metrics.legacyFallbacks++;
-    return legacySimplifyInset(paths,material,p,inputVertices,{localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0});
+    // A rejected short-run proposal restores the original contour. Never use the
+    // old global fallback, which could alter long edges while fixing another run.
+    return paths;
   }
 
   // Separated material components cannot interact within the bead/certificate radius.
@@ -10112,7 +10129,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.04,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.04,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     let batch=[];
     for(let layer=1;layer<=prepared.count;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
@@ -10121,7 +10138,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-7',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-8',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17852,7 +17869,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-7',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-8',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
