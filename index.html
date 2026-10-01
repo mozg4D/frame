@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r127</title>
+<title>Frame r128</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9971,7 +9971,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     if(path.length<12)return null;const a=path[0],b=path[Math.floor(path.length/3)],c=path[Math.floor(path.length*2/3)],bx=b.X-a.X,by=b.Y-a.Y,cx=c.X-a.X,cy=c.Y-a.Y,det=2*(bx*cy-by*cx);if(Math.abs(det)<1)return null;
     const bb=bx*bx+by*by,cc=cx*cx+cy*cy,center={X:a.X+(cy*bb-by*cc)/det,Y:a.Y+(bx*cc-cx*bb)/det};let low=Infinity,high=0,sum=0;
     for(const p of path){const r=Math.hypot(p.X-center.X,p.Y-center.Y);low=Math.min(low,r);high=Math.max(high,r);sum+=r;}
-    const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.046-guard-residual;if(budget<=0)return null;
+    const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.036-guard-residual;if(budget<=0)return null;
     const n=Math.max(3,Math.ceil(Math.PI/Math.acos(Math.max(-1,(radius-budget)/(radius+budget)))));if(n>=path.length)return null;
     const angle=Math.atan2(a.Y-center.Y,a.X-center.X),sign=Math.sign(area(path)),r=radius+budget;
     return Array.from({length:n},(_,i)=>({X:Math.round(center.X+r*Math.cos(angle+sign*2*Math.PI*i/n)),Y:Math.round(center.Y+r*Math.sin(angle+sign*2*Math.PI*i/n))}));
@@ -9990,18 +9990,28 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(candidate){output.push(...candidate.slice(0,-1));for(let i=0;i<pieces;i++)chords.push([candidate[i],candidate[i+1]]);}else for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
     }return {path:output,chords};
   }
+  function balanceShortMoves(path,width,certify){
+    const n=path.length;if(n<=3)return path;const previous=Array.from({length:n},(_,i)=>(i+n-1)%n),next=Array.from({length:n},(_,i)=>(i+1)%n),live=new Uint8Array(n).fill(1),queue=[];let remaining=n;
+    const short=i=>Math.min(Math.hypot(path[i].X-path[previous[i]].X,path[i].Y-path[previous[i]].Y),Math.hypot(path[next[i]].X-path[i].X,path[next[i]].Y-path[i].Y))<width*.1;
+    for(let i=0;i<n;i++)if(short(i))queue.push(i);
+    for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||!short(i))continue;const a=previous[i],b=next[i];if(!certify(path[a],path[b]))continue;live[i]=0;next[a]=b;previous[b]=a;remaining--;queue.push(a,b);}
+    const result=path.filter((_,i)=>live[i]);return Math.sign(area(result))===Math.sign(area(path))?result:path;
+  }
   function simplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
-    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.05-guard;if(tolerance<=0)return paths;
-    const boundary=pathEdges(material),boundaryIndex=segmentIndex(boundary),certify=(a,b)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,tolerance);
+    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.04-guard,turnTolerance=width*.05-guard;if(tolerance<=0)return paths;
+    const boundary=pathEdges(material),boundaryIndex=segmentIndex(boundary),certify=(a,b,allowed=tolerance)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed);
     const proposed=paths.map(path=>{
       const circle=circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
-      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard);path=refit.chords.every(([a,b])=>certify(a,b))?refit.path:path;
+      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard);path=refit.chords.every(([a,b])=>certify(a,b,turnTolerance))?refit.path:path;
       const n=path.length,origin=path[0];let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
+      // Bound smooth tangent rotation too: a few overly sharp chords can look faceted
+      // despite meeting the distance budget. Sharp corners and refitted tight turns stay intact.
+      const curvature=[0];for(let i=0;i<n;i++){const a=path[(i+n-1)%n],b=path[i],c=path[(i+1)%n],x=b.X-a.X,y=b.Y-a.Y,dx=c.X-b.X,dy=c.Y-b.Y,turn=Math.abs(Math.atan2(x*dy-y*dx,x*dx+y*dy));curvature.push(curvature[i]+(turn<Math.PI/9?turn:0));}
       const stack=[[anchor,n],[0,anchor]],out=[];
       while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
-        if(maximum<=tolerance*tolerance&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
-      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?out:path;
+        if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI/10&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
+      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b)=>certify(a,b,turnTolerance)):path;
     });
     if(proposed.every((p,i)=>p===paths[i]))return paths;
     let result=proposed,mixedFallback=false;
@@ -10089,7 +10099,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.04,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     let batch=[];
     for(let layer=1;layer<=prepared.count;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
@@ -10098,7 +10108,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-5',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-6',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17829,7 +17839,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-5',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-6',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
