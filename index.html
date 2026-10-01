@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r132</title>
+<title>Frame r133</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9985,9 +9985,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     if(path.length<12)return null;const a=path[0],b=path[Math.floor(path.length/3)],c=path[Math.floor(path.length*2/3)],bx=b.X-a.X,by=b.Y-a.Y,cx=c.X-a.X,cy=c.Y-a.Y,det=2*(bx*cy-by*cx);if(Math.abs(det)<1)return null;
     const bb=bx*bx+by*by,cc=cx*cx+cy*cy,center={X:a.X+(cy*bb-by*cc)/det,Y:a.Y+(bx*cc-cx*bb)/det};let low=Infinity,high=0,sum=0;
     for(const p of path){const r=Math.hypot(p.X-center.X,p.Y-center.Y);low=Math.min(low,r);high=Math.max(high,r);sum+=r;}
-    const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.036-guard-residual;if(budget<=0)return null;
-    const n=Math.max(3,Math.ceil(Math.PI/Math.acos(Math.max(-1,(radius-budget)/(radius+budget)))));if(n>=path.length)return null;
-    const angle=Math.atan2(a.Y-center.Y,a.X-center.X),sign=Math.sign(area(path)),r=radius+budget;
+    const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.026-guard-residual;if(budget<=0)return null;
+    // Axis-aligned fourfold sampling keeps the phase stable across nearby layers.
+    // Balance vertex and midpoint error instead of spending the full budget at vertices.
+    const n=Math.max(4,4*Math.ceil(Math.PI/Math.acos(Math.max(-1,(radius-budget)/(radius+budget)))/4));if(n>=path.length)return null;
+    const angle=0,sign=Math.sign(area(path)),r=2*radius/(1+Math.cos(Math.PI/n));
     return Array.from({length:n},(_,i)=>({X:Math.round(center.X+r*Math.cos(angle+sign*2*Math.PI*i/n)),Y:Math.round(center.Y+r*Math.sin(angle+sign*2*Math.PI*i/n))}));
   }
   function roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked){
@@ -10001,19 +10003,22 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         if(cursor>0&&cursor+count<n&&!locked.has(path[first])&&!locked.has(path[last])&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){candidate[0]=path[before];candidate[pieces]=path[after];first=before;count+=2;cursor--;output.pop();}
         if(n-count+pieces<3)candidate=null;
       }
-      if(candidate){output.push(...candidate.slice(0,-1));for(let i=0;i<pieces;i++)chords.push([candidate[i],candidate[i+1]]);}else for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
+      if(candidate){output.push(...candidate.slice(0,-1));for(let i=0;i<pieces;i++)chords.push([candidate[i],candidate[i+1],arc.key]);}else for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
     }return {path:output,chords};
   }
-  function balanceShortMoves(path,width,certify,locked){
+  function balanceShortMoves(path,width,certify,locked,turnChords=[]){
     const n=path.length;if(n<=3)return path;const previous=Array.from({length:n},(_,i)=>(i+n-1)%n),next=Array.from({length:n},(_,i)=>(i+1)%n),live=new Uint8Array(n).fill(1),queue=[];let remaining=n;
+    // The 5% exception belongs only to a previously certified half-width turn.
+    // A merge across a turn/smooth boundary always receives the smooth 3% budget.
+    const turns=new Map(turnChords.map(([a,b,key])=>[a,{b,key}])),edgeTurn=path.map((a,i)=>{const q=turns.get(a);return q?.b===path[(i+1)%n]?q.key:null;});
     const short=i=>Math.min(Math.hypot(path[i].X-path[previous[i]].X,path[i].Y-path[previous[i]].Y),Math.hypot(path[next[i]].X-path[i].X,path[next[i]].Y-path[i].Y))<width*.1;
     for(let i=0;i<n;i++)if(!locked.has(path[i])&&short(i))queue.push(i);
-    for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||locked.has(path[i])||!short(i))continue;const a=previous[i],b=next[i];if(!certify(path[a],path[b]))continue;live[i]=0;next[a]=b;previous[b]=a;remaining--;queue.push(a,b);}
+    for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||locked.has(path[i])||!short(i))continue;const a=previous[i],b=next[i],turn=edgeTurn[a]&&edgeTurn[a]===edgeTurn[i]?edgeTurn[a]:null;if(!certify(path[a],path[b],!!turn))continue;live[i]=0;next[a]=b;previous[b]=a;edgeTurn[a]=turn;remaining--;queue.push(a,b);}
     const result=path.filter((_,i)=>live[i]);return Math.sign(area(result))===Math.sign(area(path))?result:path;
   }
   function simplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
-    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.04-guard,turnTolerance=width*.05-guard;if(tolerance<=0)return paths;
+    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.03-guard,turnTolerance=width*.05-guard;if(tolerance<=0)return paths;
     const boundary=pathEdges(material),boundaryIndex=materialIndex(material,boundary),certify=(a,b,allowed=tolerance)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed);
     const proposed=paths.map(path=>{
       // Classify the ORIGINAL inset edges once. Long means length >= line width.
@@ -10022,7 +10027,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const locked=new Set();for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];if(Math.hypot(b.X-a.X,b.Y-a.Y)>=width){locked.add(a);locked.add(b);}}
       if(locked.size===path.length)return path;
       const circle=locked.size?null:circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
-      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked);path=refit.chords.every(([a,b])=>certify(a,b,turnTolerance))?refit.path:path;
+      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked),accepted=refit.chords.every(([a,b])=>certify(a,b,turnTolerance)),turnChords=accepted?refit.chords:[];path=accepted?refit.path:path;
       if(locked.size){const first=path.findIndex(q=>locked.has(q));path=path.slice(first).concat(path.slice(0,first));}
       const n=path.length,origin=path[0];let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
       // Bound smooth tangent rotation too: a few overly sharp chords can look faceted
@@ -10030,8 +10035,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const curvature=[0];for(let i=0;i<n;i++){const a=path[(i+n-1)%n],b=path[i],c=path[(i+1)%n],x=b.X-a.X,y=b.Y-a.Y,dx=c.X-b.X,dy=c.Y-b.Y,turn=Math.abs(Math.atan2(x*dy-y*dx,x*dx+y*dy));curvature.push(curvature[i]+(turn<Math.PI/9?turn:0));}
       const boundaries=path.flatMap((q,i)=>locked.has(q)?[i]:[]),stack=boundaries.length?boundaries.map((first,i)=>[first,boundaries[i+1]??n]).reverse():[[anchor,n],[0,anchor]],out=[];
       while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
-        if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI*14/180&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
-      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b)=>certify(a,b,turnTolerance),locked):path;
+        if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI*12/180&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
+      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b,turn)=>certify(a,b,turn?turnTolerance:tolerance),locked,turnChords):path;
     });
     if(proposed.every((p,i)=>p===paths[i]))return paths;
     let result=proposed;
@@ -10131,7 +10136,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false,dedicatedWorker=false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.04,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.03,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     // A dedicated worker is cancelled by its page owner via terminate(). It
     // needs neither host timer yields nor visits beyond the last active plane.
     // Direct API callers retain the original cooperative scheduling contract.
@@ -17729,7 +17734,7 @@ function framePrinterDebugMesh(h,s,q){
 function framePrinterAttributes(h){
   const p=objParams.get(h),s=framePrinterEnsure(h);attrContent.innerHTML='';
   const b=document.createElement('button');b.className='attr-btn';b.dataset.printerSlice=h;b.textContent='Slice';b.onclick=()=>{if(s.busy)s.cancel?.();else framePrinterSlice(h).catch(error=>{s.status=error.message;framePrinterStatus(h);});};const action=attrRow('');action.appendChild(b);
-  const display=document.createElement('button');display.className='attr-btn';display.dataset.printerDisplay=h;display.textContent='Lines–Dots';display.title='Show thin centerlines and true segment endpoints';display.onclick=()=>framePrinterSetDisplayMode(h,s.displayMode==='lines-dots'?'solid':'lines-dots');action.appendChild(display);
+  const display=document.createElement('button');display.className='attr-btn';display.dataset.printerDisplay=h;display.textContent='Lines–Dots';display.title='Show thin centerlines and true segment endpoints';display.onclick=()=>framePrinterSetDisplayMode(h,s.displayMode==='lines-dots'?'solid':'lines-dots');
   const status=action.previousElementSibling;status.classList.add('printer-status');status.dataset.printerStatus=h;status.setAttribute('role','status');
   const R=(label,key,options={})=>{const input=attrInput(attrRow(label),{h,get:()=>p[key],set:v=>framePrinterSetField(h,key,v),...options});input.setAttribute('aria-label',label);input.dataset.printerField=key;input.dataset.printerObject=h;return input;};
   const layerRange=()=>[1,framePrinterLayerLimit(h)];
@@ -17739,6 +17744,7 @@ function framePrinterAttributes(h){
   R('Line width','lineWidth',{min:.0001,stepFixed:.1});R('Layer height','layerHeight',{min:.0001,stepFixed:.1});R('Initial layer height','initialLayerHeight',{min:.0001,stepFixed:.1});
   const perimeter=R('Perimeters','perimeters',{int:true,min:1,max:1,stepFixed:1});perimeter.readOnly=true;perimeter.title='Exactly one inward perimeter';
   R('Min path length','minPathLength',{min:0,stepFixed:.1}).title='Minimum total length of a closed perimeter, in millimetres';
+  attrRow('').appendChild(display);
   framePrinterStatus(h);if(panelsEl.clientHeight<340&&typeof obWrapH==='number'){obWrapH-=340-panelsEl.clientHeight;relayoutStrip();}
 }
 const framePrinterCount=(s,layer)=>(s.layers.get(layer)||[]).reduce((n,p)=>n+p.length,0);
