@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r126</title>
+<title>Frame r127</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9909,7 +9909,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     });
   }
 
-  function simplifyInset(paths,material,p,inputVertices,metrics){
+  function legacySimplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;
     // Reserve interpolation/Clipper rounding and worst-case accumulated .1-unit cleanup.
     let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
@@ -9949,6 +9949,76 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return optimized;
   }
 
+  function quadIntersection(a,b){
+    let polygon=a;for(let i=0;i<4&&polygon.length;i++){const p=b[i],q=b[(i+1)%4],next=[],side=t=>(q.X-p.X)*(t.Y-p.Y)-(q.Y-p.Y)*(t.X-p.X);for(let j=0;j<polygon.length;j++){const x=polygon[j],y=polygon[(j+1)%polygon.length],u=side(x),v=side(y);if(u>=0)next.push(x);if((u>=0)!==(v>=0)){const t=u/(u-v);next.push({X:x.X+t*(y.X-x.X),Y:x.Y+t*(y.Y-x.Y)});}}polygon=next;}return polygon;
+  }
+  function pathEdges(paths){return paths.flatMap((path,ring)=>path.map((a,i)=>({a,b:path[(i+1)%path.length],ring,i,n:path.length,live:true})));}
+  function overlapSummary(paths,width,baseline,needed){
+    const active=new Set();if(needed)for(const pair of needed.values())for(const ring of pair.rings)active.add(ring);
+    const edges=pathEdges(paths).filter(e=>!needed||active.has(e.ring)),index=segmentIndex(edges),quads=edges.map(e=>beadRectangle(e.a,e.b,width)),pairs=new Map(),bad=new Set(),cell=width*2,noise=width*width*1e-10;
+    for(let i=0;i<edges.length;i++){const e=edges[i];for(const j of index.query(e.a,e.b,width)){if(j<=i)continue;const f=edges[j];if(e.ring===f.ring&&(Math.abs(e.i-f.i)===1||Math.abs(e.i-f.i)===e.n-1))continue;
+      const pairKey=Math.min(e.ring,f.ring)+':'+Math.max(e.ring,f.ring);if(needed&&!needed.has(pairKey))continue;
+      if(crosses(e.a,e.b,f.a,f.b)){bad.add(e.ring);bad.add(f.ring);}
+      const polygon=quadIntersection(quads[i],quads[j]),value=polygon.length>=3?Math.abs(area(polygon)):0;if(value<=noise)continue;
+      const key=pairKey;let pair=pairs.get(key);if(!pair)pairs.set(key,pair={area:0,regions:new Set(),rings:[e.ring,f.ring]});pair.area+=value;
+      const x=Math.floor(polygon.reduce((s,q)=>s+q.X,0)/polygon.length/cell),y=Math.floor(polygon.reduce((s,q)=>s+q.Y,0)/polygon.length/cell);pair.regions.add(x+','+y);
+      if(baseline){const old=baseline.get(key);let present=false;if(old)for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(old.regions.has((x+dx)+','+(y+dy)))present=true;if(!present){bad.add(e.ring);bad.add(f.ring);}}
+    }}
+    if(baseline)for(const [key,pair] of pairs)if(pair.area>(baseline.get(key)?.area||0)+noise){for(const ring of pair.rings)bad.add(ring);}
+    return {pairs,bad};
+  }
+  function circleRefit(path,width,guard){
+    if(path.length<12)return null;const a=path[0],b=path[Math.floor(path.length/3)],c=path[Math.floor(path.length*2/3)],bx=b.X-a.X,by=b.Y-a.Y,cx=c.X-a.X,cy=c.Y-a.Y,det=2*(bx*cy-by*cx);if(Math.abs(det)<1)return null;
+    const bb=bx*bx+by*by,cc=cx*cx+cy*cy,center={X:a.X+(cy*bb-by*cc)/det,Y:a.Y+(bx*cc-cx*bb)/det};let low=Infinity,high=0,sum=0;
+    for(const p of path){const r=Math.hypot(p.X-center.X,p.Y-center.Y);low=Math.min(low,r);high=Math.max(high,r);sum+=r;}
+    const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.046-guard-residual;if(budget<=0)return null;
+    const n=Math.max(3,Math.ceil(Math.PI/Math.acos(Math.max(-1,(radius-budget)/(radius+budget)))));if(n>=path.length)return null;
+    const angle=Math.atan2(a.Y-center.Y,a.X-center.X),sign=Math.sign(area(path)),r=radius+budget;
+    return Array.from({length:n},(_,i)=>({X:Math.round(center.X+r*Math.cos(angle+sign*2*Math.PI*i/n)),Y:Math.round(center.Y+r*Math.sin(angle+sign*2*Math.PI*i/n))}));
+  }
+  function roundTurnRefit(path,boundary,boundaryIndex,width,guard){
+    const radius=width/2,radial=guard+4,key=p=>p.X+','+p.Y,n=path.length;
+    const centers=path.map((a,i)=>{const b=path[(i+1)%n];if(Math.hypot(b.X-a.X,b.Y-a.Y)>width*.2)return null;const seen=new Set();for(const id of boundaryIndex.query(a,a,radius+radial))for(const c of [boundary[id].a,boundary[id].b]){if(seen.has(key(c)))continue;seen.add(key(c));if(Math.abs(Math.hypot(a.X-c.X,a.Y-c.Y)-radius)>radial||Math.abs(Math.hypot(b.X-c.X,b.Y-c.Y)-radius)>radial)continue;const angle=Math.atan2((a.X-c.X)*(b.Y-c.Y)-(a.Y-c.Y)*(b.X-c.X),(a.X-c.X)*(b.X-c.X)+(a.Y-c.Y)*(b.Y-c.Y));if(Math.abs(angle)>1e-5&&Math.abs(angle)<.4)return {c,angle,key:key(c)};}return null;});
+    const matches=(a,b)=>a&&b&&a.key===b.key&&Math.sign(a.angle)===Math.sign(b.angle);let start=0;while(start<n&&(centers[start]||centers[(start+n-1)%n]))start++;if(start===n)return {path,chords:[]};
+    const output=[],chords=[];for(let cursor=0;cursor<n;){let first=(start+cursor)%n;const arc=centers[first];let count=1,angle=arc?.angle||0;if(arc)while(cursor+count<n&&matches(arc,centers[(first+count)%n]))angle+=centers[(first+count++)%n].angle;
+      const limit=2*Math.acos(radius/(radius+width*.048-guard)),pieces=Math.ceil(Math.abs(angle)/limit)+1,last=(first+count)%n;let candidate=null;
+      if(arc&&count>pieces&&count>=5&&Math.abs(angle)>=Math.PI/3&&Math.abs(angle)<=Math.PI+1e-5&&pieces<=5){const a=path[first],b=path[last],theta=Math.atan2(a.Y-arc.c.Y,a.X-arc.c.X),step=angle/(pieces-1),r=radius/Math.cos(step/2);candidate=Array.from({length:pieces+1},(_,i)=>i===0?a:i===pieces?b:{X:Math.round(arc.c.X+r*Math.cos(theta+step*(i-.5))),Y:Math.round(arc.c.Y+r*Math.sin(theta+step*(i-.5)))});
+        const before=(first+n-1)%n,after=(last+1)%n,tangent=(a,b,c)=>Math.abs((b.X-a.X)*(c.Y-b.Y)-(b.Y-a.Y)*(c.X-b.X))<=Math.max(Math.hypot(b.X-a.X,b.Y-a.Y),Math.hypot(c.X-b.X,c.Y-b.Y))*8;
+        if(cursor>0&&cursor+count<n&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){candidate[0]=path[before];candidate[pieces]=path[after];first=before;count+=2;cursor--;output.pop();}
+        if(n-count+pieces<3)candidate=null;
+      }
+      if(candidate){output.push(...candidate.slice(0,-1));for(let i=0;i<pieces;i++)chords.push([candidate[i],candidate[i+1]]);}else for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
+    }return {path:output,chords};
+  }
+  function simplifyInset(paths,material,p,inputVertices,metrics){
+    const width=p.lineWidth*SCALE,radius=width/2;let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
+    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.05-guard;if(tolerance<=0)return paths;
+    const boundary=pathEdges(material),boundaryIndex=segmentIndex(boundary),certify=(a,b)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,tolerance);
+    const proposed=paths.map(path=>{
+      const circle=circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
+      const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard);path=refit.chords.every(([a,b])=>certify(a,b))?refit.path:path;
+      const n=path.length,origin=path[0];let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
+      const stack=[[anchor,n],[0,anchor]],out=[];
+      while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
+        if(maximum<=tolerance*tolerance&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
+      return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?out:path;
+    });
+    if(proposed.every((p,i)=>p===paths[i]))return paths;
+    let result=proposed,mixedFallback=false;
+    for(let pass=0;pass<3;pass++){
+      const summary=overlapSummary(result,width),baseline=overlapSummary(paths,width,null,summary.pairs).pairs,failed=summary.bad;
+      for(const [key,pair] of summary.pairs){const old=baseline.get(key);if(pair.area>(old?.area||0)+width*width*1e-10)for(const ring of pair.rings)failed.add(ring);
+        for(const region of pair.regions){const [x,y]=region.split(',').map(Number);let present=false;if(old)for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)if(old.regions.has((x+dx)+','+(y+dy)))present=true;if(!present)for(const ring of pair.rings)failed.add(ring);}
+      }
+      for(let i=0;i<paths.length;i++)for(let j=0;j<paths.length;j++)if(i!==j&&C.Clipper.PointInPolygon(paths[i][0],paths[j])!==C.Clipper.PointInPolygon(result[i][0],result[j])){failed.add(i);failed.add(j);}
+      if(!failed.size){if(!mixedFallback&&result.some((path,i)=>path===paths[i]&&proposed[i]!==paths[i])){metrics.legacyFallbacks++;const legacy=legacySimplifyInset(paths,material,p,inputVertices,{localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0});result=result.map((path,i)=>path===paths[i]&&proposed[i]!==paths[i]?legacy[i]:path);mixedFallback=true;continue;}return result;}
+      let changed=false;result=result.map((path,i)=>{if(failed.has(i)&&path!==paths[i]){changed=true;metrics.optimizationFallbacks++;return paths[i];}return path;});if(!changed)break;
+    }
+    metrics.legacyFallbacks++;
+    return legacySimplifyInset(paths,material,p,inputVertices,{localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0});
+  }
+
+  const insetCache=new Map();let insetCacheBytes=0;
   function insetGroups(groups,p){
     if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
     let material=boolean(groups.flatMap(normalize),null,C.ClipType.ctUnion);
@@ -9957,6 +10027,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);
     }
     if(!material.length)return {paths:[],material:[],offsetCalls:0};
+    const inputVertices=groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0);
+    // Exact bounded cache for repeated cross-sections (extrusions and unchanged layers).
+    const cacheKey=p.lineWidth+'|'+(p.minPathLength||0)+'|'+inputVertices+'|'+material.map(path=>path.map(q=>q.X+','+q.Y).join(';')).join('/');
+    if(insetCache.has(cacheKey)){const result=insetCache.get(cacheKey);insetCache.delete(cacheKey);insetCache.set(cacheKey,result);return {...result,cacheHit:1};}
     // The single negative offset contracts exteriors and expands holes into material.
     // Round joins approximate the Euclidean inset; renderer segments retain flat endcaps.
     // Remove only integer-rounding noise before computing normals (0.001% of line width).
@@ -9967,10 +10041,12 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const result=[];offset.Execute(result,-p.lineWidth*SCALE/2);
     const simple=boolean(result,null,C.ClipType.ctUnion);
     const original=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1&&path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q.X-r.X,q.Y-r.Y)/SCALE;},0)+1e-9>=(p.minPathLength||0));
-    const metrics={localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0};
-    const reduced=simplifyInset(original,material,p,groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0),metrics);
+    const metrics={refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    const reduced=simplifyInset(original,material,p,inputVertices,metrics);
     const paths=reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
-    return {paths,material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
+    const value={paths,material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
+    if(cacheKey.length<=1000000){insetCache.set(cacheKey,value);insetCacheBytes+=cacheKey.length;while(insetCache.size>32||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCache.delete(key);}}
+    return value;
   }
   function insetContours(groups,p){
     return insetGroups(groups.map(paths=>paths.map(path=>path.map(q=>({X:Math.round(q[0]*SCALE),Y:Math.round(q[1]*SCALE)})))),p).paths;
@@ -10013,16 +10089,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.03,localRoundTurnToleranceFraction:.042,localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     let batch=[];
     for(let layer=1;layer<=prepared.count;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
       for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
-      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;for(const name of ['localRoundTurns','localRoundTurnsRejected','localRoundTurnSegmentsBefore','localRoundTurnSegmentsAfter'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
+      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.cacheHits+=result.cacheHit||0;for(const name of ['refittedCircles','optimizationFallbacks','legacyFallbacks'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-4',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-5',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17493,7 +17569,7 @@ function framePrinterSources(ignoreVisibility=false){
   return out;
 }
 function framePrinterClear(s){
-  for(const q of s.chunks||[]){q.mesh.geometry.dispose();q.mesh.material.dispose();q.mesh.removeFromParent();}
+  for(const q of s.chunks||[]){q.mesh.geometry.dispose();q.mesh.material.dispose();q.mesh.removeFromParent();if(q.debug){q.debug.geometry.dispose();q.debug.material.dispose();q.debug.removeFromParent();}}
   s.chunks=[];s.layers=new Map();s.stats=null;s.lastLayer=null;s.sliceParams=null;
 }
 function framePrinterDispose(h){const s=framePrinters.get(h);if(!s)return;s.cancel?.();s.root.removeFromParent();s.root.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material))m.dispose();});framePrinters.delete(h);}
@@ -17533,6 +17609,7 @@ function framePrinterDepthRange(cam){
 function framePrinterStatus(h){
   const s=framePrinters.get(h);if(!s)return;
   const b=document.querySelector('[data-printer-slice="'+h+'"]');if(b){b.textContent=s.busy?'Cancel':'Slice';b.disabled=false;b.title=s.busy?'Cancel slicing':'Generate one inward perimeter';}
+  const mode=document.querySelector('[data-printer-display="'+h+'"]');if(mode){mode.textContent=s.displayMode==='lines-dots'?'Solid strips':'Lines–Dots';mode.setAttribute('aria-pressed',String(s.displayMode==='lines-dots'));}
   const el=document.querySelector('[data-printer-status="'+h+'"]');if(el){el.hidden=false;el.textContent=s.status;el.title=el.textContent;}
 }
 function framePrinterLayerLimit(h,p=objParams.get(h)){
@@ -17572,9 +17649,39 @@ function framePrinterSetField(h,key,value){
   for(const k of ['startLayer','endLayer','layerPosition']){const input=attrContent.querySelector('[data-printer-field="'+k+'"]');if(input)setNumericInputDisplay(input,p[k],0);}
   framePrinterRange(h);framePrinterStatus(h);scheduleRender();
 }
+function framePrinterSetDisplayMode(h,mode){
+  const s=framePrinterEnsure(h);s.displayMode=mode==='lines-dots'?'lines-dots':'solid';
+  if(s.displayMode==='lines-dots')for(const q of s.chunks)if(!q.debug)framePrinterDebugMesh(h,s,q);
+  framePrinterRange(h);framePrinterStatus(h);scheduleRender();return framePrinterState(h);
+}
+function framePrinterDebugMesh(h,s,q){
+  const source=q.mesh.geometry,g=new THREE2.InstancedBufferGeometry();g.setAttribute('position',source.attributes.position);g.setIndex(source.index);
+  for(const key of ['segmentStart','segmentEnd','segmentMeta'])g.setAttribute(key,source.attributes[key]);g.instanceCount=q.count;
+  const shared=q.mesh.material.uniforms,m=new THREE2.ShaderMaterial({transparent:true,depthWrite:true,side:THREE2.DoubleSide,uniforms:{firstLayer:shared.firstLayer,lastLayer:shared.lastLayer,layerPosition:shared.layerPosition,viewport:{value:new THREE2.Vector4()},pixelRatio:{value:PR}},vertexShader:`
+    attribute vec3 segmentStart;attribute vec3 segmentEnd;attribute vec3 segmentMeta;
+    uniform float firstLayer;uniform float lastLayer;uniform float layerPosition;uniform vec4 viewport;uniform float pixelRatio;
+    varying vec4 endpointPixels;varying float pointRadius;varying float strokeRadius;
+    void main(){
+      if(segmentMeta.x<firstLayer||segmentMeta.x>lastLayer||(segmentMeta.x==lastLayer&&segmentMeta.y>=layerPosition)){gl_Position=vec4(2.,2.,2.,1.);return;}
+      vec4 a=projectionMatrix*modelViewMatrix*vec4(segmentStart,1.),b=projectionMatrix*modelViewMatrix*vec4(segmentEnd,1.);
+      vec2 x=viewport.xy+(a.xy/a.w*.5+.5)*viewport.zw,y=viewport.xy+(b.xy/b.w*.5+.5)*viewport.zw,d=y-x;
+      d=length(d)>1e-6?normalize(d):vec2(1.,0.);vec2 normal=vec2(-d.y,d.x);
+      pointRadius=2.7*pixelRatio;strokeRadius=.65*pixelRatio;endpointPixels=vec4(x,y);
+      gl_Position=mix(a,b,position.x);gl_Position.xy+=(d*(position.x*2.-1.)+normal*position.y)*(pointRadius+pixelRatio)/viewport.zw*2.*gl_Position.w;
+    }`,fragmentShader:`
+    varying vec4 endpointPixels;varying float pointRadius;varying float strokeRadius;
+    void main(){vec2 a=endpointPixels.xy,b=endpointPixels.zw,p=gl_FragCoord.xy,d=b-a;float t=clamp(dot(p-a,d)/max(dot(d,d),1e-8),0.,1.);
+      float stroke=length(p-a-t*d),dotDistance=min(length(p-a),length(p-b));float alpha=max(1.-smoothstep(strokeRadius-.5,strokeRadius+.5,stroke),1.-smoothstep(pointRadius-.5,pointRadius+.5,dotDistance));
+      if(alpha<=0.)discard;vec3 color=dotDistance<=pointRadius?vec3(1.,.76,.36):vec3(.55,.85,.9);gl_FragColor=vec4(color,alpha);
+      #include <tonemapping_fragment>
+      #include <colorspace_fragment>
+    }`});
+  q.debug=new THREE2.Mesh(g,m);q.debug.frustumCulled=false;q.debug.userData.framePrinter=h;q.debug.onBeforeRender=renderer=>{renderer.getCurrentViewport(m.uniforms.viewport.value);m.uniforms.pixelRatio.value=renderer.getPixelRatio();};s.paths.add(q.debug);
+}
 function framePrinterAttributes(h){
   const p=objParams.get(h),s=framePrinterEnsure(h);attrContent.innerHTML='';
   const b=document.createElement('button');b.className='attr-btn';b.dataset.printerSlice=h;b.textContent='Slice';b.onclick=()=>{if(s.busy)s.cancel?.();else framePrinterSlice(h).catch(error=>{s.status=error.message;framePrinterStatus(h);});};const action=attrRow('');action.appendChild(b);
+  const display=document.createElement('button');display.className='attr-btn';display.dataset.printerDisplay=h;display.textContent='Lines–Dots';display.title='Show thin centerlines and true segment endpoints';display.onclick=()=>framePrinterSetDisplayMode(h,s.displayMode==='lines-dots'?'solid':'lines-dots');action.appendChild(display);
   const status=action.previousElementSibling;status.classList.add('printer-status');status.dataset.printerStatus=h;status.setAttribute('role','status');
   const R=(label,key,options={})=>{const input=attrInput(attrRow(label),{h,get:()=>p[key],set:v=>framePrinterSetField(h,key,v),...options});input.setAttribute('aria-label',label);input.dataset.printerField=key;input.dataset.printerObject=h;return input;};
   const layerRange=()=>[1,framePrinterLayerLimit(h)];
@@ -17596,7 +17703,7 @@ function framePrinterRange(h){
   for(const key of ['startLayer','endLayer','layerPosition']){const input=attrContent.querySelector('[data-printer-field="'+key+'"][data-printer-object="'+h+'"]');if(input){input.max=key==='layerPosition'?framePrinterCount(s,p.endLayer):limit;if(document.activeElement!==input)setNumericInputDisplay(input,p[key],0);}}
   let visible=0;for(const [layer,paths] of s.layers){const count=paths.reduce((n,path)=>n+path.length,0);if(layer>=p.startLayer&&layer<=p.endLayer)visible+=layer===p.endLayer?Math.min(count,p.layerPosition):count;}
   s.visibleSegments=s.root.visible?visible:0;
-  for(const q of s.chunks){const u=q.mesh.material.uniforms;u.firstLayer.value=p.startLayer;u.lastLayer.value=p.endLayer;u.layerPosition.value=p.layerPosition;q.mesh.visible=q.maxLayer>=p.startLayer&&q.minLayer<=p.endLayer;}
+  for(const q of s.chunks){const u=q.mesh.material.uniforms;u.firstLayer.value=p.startLayer;u.lastLayer.value=p.endLayer;u.layerPosition.value=p.layerPosition;const inRange=q.maxLayer>=p.startLayer&&q.minLayer<=p.endLayer;q.mesh.visible=inRange&&s.displayMode!=='lines-dots';if(q.debug)q.debug.visible=inRange&&s.displayMode==='lines-dots';}
 }
 function framePrinterBuildDisplay(h){
   const s=framePrinters.get(h),p=objParams.get(h);let records=[];
@@ -17628,7 +17735,7 @@ function framePrinterBuildDisplay(h){
     const mesh=new THREE2.Mesh(g,m);mesh.frustumCulled=false;mesh.userData.framePrinter=h;mesh.onBeforeRender=renderer=>{m.uniforms.pixelHeight.value=renderer.getDrawingBufferSize(new THREE2.Vector2()).y;};s.paths.add(mesh);s.chunks.push({mesh,minLayer,maxLayer,count:n,pick:framePrinterPickIndex(starts,ends,meta)});records=[];
   };
   for(const [layer,paths] of s.layers){let index=0;const y=framePrinterLayerY(p,layer);for(const path of paths)for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];records.push([a[0],a[1],b[0],b[1],y,layer,index++]);if(records.length===16384)flush();}}
-  flush();framePrinterRange(h);scheduleRender();
+  flush();if(s.displayMode==='lines-dots')for(const q of s.chunks)framePrinterDebugMesh(h,s,q);framePrinterRange(h);scheduleRender();
 }
 // Bounds index over segment endpoints; camera-dependent ribbon extents are applied at query time.
 function framePrinterPickIndex(starts,ends,meta){
@@ -17655,7 +17762,7 @@ function framePrinterNavigationHit(ray,cam,maxDistance=Infinity){
     if(!s.root.visible||!s.paths.visible||!effectiveVisible(h)||!framePrinterEnabled(h))continue;
     for(const q of s.chunks){
       const mesh=q.mesh,u=mesh.material.uniforms,index=q.pick;
-      if(!mesh.visible||!mesh.material.visible||!cam.layers.test(mesh.layers)||!index?.nodes.length)continue;
+      if((!mesh.visible&&!q.debug?.visible)||!mesh.material.visible||!cam.layers.test(mesh.layers)||!index?.nodes.length)continue;
       mesh.updateWorldMatrix(true,false);if(Math.abs(mesh.matrixWorld.determinant())<1e-20)continue;
       inverse.copy(mesh.matrixWorld).invert();localRay.copy(ray.ray).applyMatrix4(inverse);mv.multiplyMatrices(cam.matrixWorldInverse,mesh.matrixWorld);
       const g=mesh.geometry,starts=g.attributes.segmentStart.array,ends=g.attributes.segmentEnd.array,meta=g.attributes.segmentMeta.array,width=u.lineWidth.value;
@@ -17685,6 +17792,12 @@ function framePrinterNavigationHit(ray,cam,maxDistance=Infinity){
         for(let j=node.first;j<node.last;j++){
           const segment=index.order[j],i=segment*3,layer=meta[i];if(layer<u.firstLayer.value||layer>u.lastLayer.value||layer===u.lastLayer.value&&meta[i+1]>=u.layerPosition.value)continue;
           a.fromArray(starts,i);b.fromArray(ends,i);const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<1e-15)continue;
+          if(s.displayMode==='lines-dots'){
+            a.applyMatrix4(mesh.matrixWorld);b.applyMatrix4(mesh.matrixWorld);ray.ray.distanceSqToSegment(a,b,probe,world);
+            const viewport=q.debug.material.uniforms.viewport.value,ratio=q.debug.material.uniforms.pixelRatio.value,mouse=probe.clone().project(cam),screenDistance=v=>{const p=v.clone().project(cam);return Math.hypot((p.x-mouse.x)*viewport.z*.5,(p.y-mouse.y)*viewport.w*.5);};
+            let target=null;if(screenDistance(world)<=.8*ratio)target=world.clone();for(const endpoint of [a,b])if(screenDistance(endpoint)<=2.9*ratio&&(!target||endpoint.distanceTo(ray.ray.origin)<target.distanceTo(ray.ray.origin)))target=endpoint.clone();
+            if(target){const distance=target.distanceTo(ray.ray.origin);probe.copy(target).project(cam);if(distance>=ray.near&&distance<=ray.far&&distance<=maxDistance&&probe.z>=-1&&probe.z<=1){maxDistance=distance;best={point:target,distance,object:h,segment};}}continue;
+          }
           const normal=new THREE2.Vector3(-dz/length,0,dx/length),offsetA=vertex(normal,a,i),offsetB=vertex(normal,b,i);
           c.copy(a).add(offsetA);d.copy(b).add(offsetB);a.sub(offsetA);b.sub(offsetB);
           for(const triangle of [[a,b,c],[c,b,d]]){
@@ -17716,7 +17829,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-4',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-5',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
@@ -17727,7 +17840,7 @@ async function framePrinterSlice(h){
     });
   }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}
 }
-function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,busy:!!s?.busy,status:s?.status||'Ready',slicingAvailable:true,params:{...p},maximumDisplayLayer:framePrinterLayerLimit(h),stats:s?.stats||null,test:null,testing:false,visibleSegments:s?.visibleSegments||0,grid:s?.grid||null};}
+function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,displayMode:s?.displayMode||'solid',busy:!!s?.busy,status:s?.status||'Ready',slicingAvailable:true,params:{...p},maximumDisplayLayer:framePrinterLayerLimit(h),stats:s?.stats||null,test:null,testing:false,visibleSegments:s?.visibleSegments||0,grid:s?.grid||null};}
 function framePrinterGetLayer(h,layer,details=false){
   if(!frameIsPrinter(h)||!Number.isInteger(layer)||layer<1)throw Error('Invalid layer');const p=objParams.get(h),paths=framePrinters.get(h)?.layers.get(layer)||[],y=framePrinterLayerY(p,layer),height=layer===1?p.initialLayerHeight:p.layerHeight,segments=[],links=[];
   for(const path of paths)for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length],prev=path[(i+path.length-1)%path.length],after=path[(i+2)%path.length];segments.push([a[0],a[1],b[0],b[1],y,p.lineWidth,height,layer,p.lineWidth]);links.push([prev[0],prev[1],after[0],after[1],0]);}
