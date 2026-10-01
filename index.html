@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r134</title>
+<title>Frame r135</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -17968,6 +17968,18 @@ function framePrinterNavigationHit(ray,cam,maxDistance=Infinity){
 }
 function framePrinterPreviewVisible(){return [...framePrinters].some(([h,s])=>selNodes.has(h)&&s.paths.visible&&s.chunks.length&&s.root.visible);}
 
+const framePrinterPositionAccessors=['getX','getY','getZ'].map(key=>({key,value:THREE2.BufferAttribute.prototype[key]}));
+function framePrinterSnapshotPositions(a){
+  // Only plain storage/metadata and original accessor methods can bypass getters.
+  const raw=Object.getOwnPropertyDescriptor(a,'array')?.value,count=Object.getOwnPropertyDescriptor(a,'count')?.value;
+  if(Object.getOwnPropertyDescriptor(a,'itemSize')?.value===3&&Object.getOwnPropertyDescriptor(a,'normalized')?.value===false&&ArrayBuffer.isView(raw)&&
+    !Object.hasOwn(raw,'length')&&!Object.hasOwn(raw,'buffer')&&!Object.hasOwn(raw,'byteLength')&&count*3===raw.length&&raw.buffer instanceof ArrayBuffer){
+    const proto=Object.getPrototypeOf(raw),Type=proto===Float32Array.prototype?Float32Array:proto===Float64Array.prototype?Float64Array:null;
+    if(Type&&raw.byteLength===count*3*Type.BYTES_PER_ELEMENT&&framePrinterPositionAccessors.every(({key,value})=>{let owner=a,descriptor;while(owner&&!(descriptor=Object.getOwnPropertyDescriptor(owner,key)))owner=Object.getPrototypeOf(owner);return descriptor?.value===value;}))return new Type(raw);
+  }
+  const positions=new Float64Array(a.count*3);for(let i=0;i<a.count;i++){positions[i*3]=a.getX(i);positions[i*3+1]=a.getY(i);positions[i*3+2]=a.getZ(i);}return positions;
+}
+
 function frameSlicerTask(source,meshes,params,signal,onProgress,onOwner){
   return new Promise((resolve,reject)=>{
     const workers=[],ports=[],leases=new Map(),readyWaiters=new Set();let url=null,owner=null,ownerLease=null,finished=false;
@@ -18001,7 +18013,7 @@ async function framePrinterSlice(h){
   const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
   const check=()=>{if(cancelled||!OBJ.has(h))throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});if(['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))throw Error('Settings changed · slice again');};
   try{await window.frameAI.waitForIdle();check();s.status='Waiting for slicer.';framePrinterStatus(h);turn=await frameComputeBudget.acquireSliceTurn(controller.signal);check();s.status='Preparing geometry.';framePrinterStatus(h);
-    const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=new Float64Array(a.count*3);for(let i=0;i<a.count;i++){positions[i*3]=a.getX(i);positions[i*3+1]=a.getY(i);positions[i*3+2]=a.getZ(i);}return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
+    const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=framePrinterSnapshotPositions(a);return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
     if(!meshes.length)throw Error('No visible mesh geometry to slice.');
     const layers=new Map(),started=performance.now();
     const source=document.getElementById('frame-single-slicer-worker-source').textContent,stats=await frameSlicerTask(source,meshes,{...p,width:f.width,height:f.height,depth:f.depth},controller.signal,data=>{for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);},worker=>{s.worker=worker;});check();
