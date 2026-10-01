@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r128</title>
+<title>Frame r129</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9816,6 +9816,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const stack=roots.slice();while(stack.length){const n=stack.pop();if(n.x>X||n.X<x||n.y>Y||n.Y<y)continue;if(n.ids)for(const i of n.ids)add(i);else stack.push(n.left,n.right);}for(const i of pending)add(i);return out;
     }};
   }
+  function materialIndex(material,boundary){
+    const index=segmentIndex(boundary),rings=material.map(path=>{let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity;for(const q of path){x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);}return {path,x,y,X,Y,sign:Math.sign(area(path))};});
+    index.contains=point=>{let winding=0;for(const ring of rings)if(point.X>=ring.x&&point.X<=ring.X&&point.Y>=ring.y&&point.Y<=ring.Y&&C.Clipper.PointInPolygon(point,ring.path)!==0)winding+=ring.sign;return winding!==0;};return index;
+  }
   // Exact parameter intervals where a chord lies in the radius-R capsule of an edge.
   // Their union certifies the upper distance bound over the WHOLE chord, including caps.
   function capsuleIntervals(a,b,c,d,R,out){
@@ -9833,7 +9837,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     intervals.sort((a,b)=>a[0]-b[0]);let covered=0;
     for(const [lo,hi] of intervals){if(hi<covered)continue;if(lo>covered+1e-12)return false;covered=Math.max(covered,hi);if(covered>=1-1e-12)break;}
     if(covered<1-1e-12)return false;
-    const middle={X:(a.X+b.X)/2,Y:(a.Y+b.Y)/2};let winding=0;for(const path of material)if(C.Clipper.PointInPolygon(middle,path)!==0)winding+=Math.sign(area(path));return winding!==0;
+    const middle={X:(a.X+b.X)/2,Y:(a.Y+b.Y)/2};if(index.contains)return index.contains(middle);let winding=0;for(const path of material)if(C.Clipper.PointInPolygon(middle,path)!==0)winding+=Math.sign(area(path));return winding!==0;
   }
   function beadRectangle(a,b,width){const L=Math.hypot(b.X-a.X,b.Y-a.Y);if(!L)return [];const x=-(b.Y-a.Y)*width/(2*L),y=(b.X-a.X)*width/(2*L),q=(p,s)=>({X:Math.round(p.X+s*x),Y:Math.round(p.Y+s*y)});return [q(a,-1),q(b,-1),q(b,1),q(a,1)];}
   const intersectionArea=(paths,clips)=>Math.abs(boolean(paths,clips,C.ClipType.ctIntersection).reduce((n,path)=>n+area(path),0));
@@ -9915,7 +9919,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.03-guard;
     if(tolerance<=0)return paths;
-    const boundary=[];for(const path of material)for(let i=0;i<path.length;i++)boundary.push({a:path[i],b:path[(i+1)%path.length]});const boundaryIndex=segmentIndex(boundary);
+    const boundary=[];for(const path of material)for(let i=0;i<path.length;i++)boundary.push({a:path[i],b:path[(i+1)%path.length]});const boundaryIndex=materialIndex(material,boundary);
     const original=paths;paths=simplifyRoundTurns(paths,material,boundary,boundaryIndex,width,guard,metrics);
     const edges=[],edgeIds=paths.map((path,ring)=>path.map((a,i)=>{const id=edges.length;edges.push({a,b:path[(i+1)%path.length],ring,live:true});return id;})),index=segmentIndex(edges);
     const optimized=paths.map((path,ring)=>{
@@ -10000,7 +10004,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   function simplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.04-guard,turnTolerance=width*.05-guard;if(tolerance<=0)return paths;
-    const boundary=pathEdges(material),boundaryIndex=segmentIndex(boundary),certify=(a,b,allowed=tolerance)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed);
+    const boundary=pathEdges(material),boundaryIndex=materialIndex(material,boundary),certify=(a,b,allowed=tolerance)=>surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed);
     const proposed=paths.map(path=>{
       const circle=circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))){metrics.refittedCircles++;return circle;}
       const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard);path=refit.chords.every(([a,b])=>certify(a,b,turnTolerance))?refit.path:path;
@@ -10010,7 +10014,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const curvature=[0];for(let i=0;i<n;i++){const a=path[(i+n-1)%n],b=path[i],c=path[(i+1)%n],x=b.X-a.X,y=b.Y-a.Y,dx=c.X-b.X,dy=c.Y-b.Y,turn=Math.abs(Math.atan2(x*dy-y*dx,x*dx+y*dy));curvature.push(curvature[i]+(turn<Math.PI/9?turn:0));}
       const stack=[[anchor,n],[0,anchor]],out=[];
       while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
-        if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI/10&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
+        if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI*14/180&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
       return out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b)=>certify(a,b,turnTolerance)):path;
     });
     if(proposed.every((p,i)=>p===paths[i]))return paths;
@@ -10028,23 +10032,27 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return legacySimplifyInset(paths,material,p,inputVertices,{localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0});
   }
 
+  // Separated material components cannot interact within the bead/certificate radius.
+  // Cache their exact integer boundaries independently: a changing object no longer
+  // invalidates every unchanged extrusion in the same layer. No approximate keys.
+  function independentComponents(paths,width){
+    const boxes=paths.map(path=>{let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity;for(const q of path){x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);}return {x,y,X,Y};}),parent=paths.map((_,i)=>i);
+    const root=i=>parent[i]===i?i:parent[i]=root(parent[i]);
+    for(let i=0;i<paths.length;i++)for(let j=0;j<i;j++){const a=boxes[i],b=boxes[j];if(a.x<=b.X+width*2&&a.X>=b.x-width*2&&a.y<=b.Y+width*2&&a.Y>=b.y-width*2)parent[root(i)]=root(j);}
+    const groups=new Map();paths.forEach((path,i)=>{const id=root(i);if(!groups.has(id))groups.set(id,[]);groups.get(id).push(path);});return [...groups.values()];
+  }
+  function exactSectionKey(material,p){
+    return p.lineWidth+'|'+(p.minPathLength||0)+'|'+p.width+'|'+p.depth+'|'+material.map(path=>{let first=0;for(let i=1;i<path.length;i++)if(path[i].X<path[first].X||path[i].X===path[first].X&&path[i].Y<path[first].Y)first=i;return path.map((_,i)=>{const q=path[(first+i)%path.length];return q.X+','+q.Y;}).join(';');}).sort().join('/');
+  }
   const insetCache=new Map();let insetCacheBytes=0;
-  function insetGroups(groups,p){
-    if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
-    let material=boolean(groups.flatMap(normalize),null,C.ClipType.ctUnion);
-    if(p.width!=null&&p.depth!=null){
-      const x=Math.round(p.width*SCALE/2),z=Math.round(p.depth*SCALE/2);
-      material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);
-    }
+  function insetComponent(material,p,inputVertices){
+    const cacheKey=exactSectionKey(material,p),cached=insetCache.get(cacheKey);
+    // Reuse only a result certified with at least the current rounding reserve.
+    if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(cacheKey);insetCache.set(cacheKey,cached);return {...cached.value,offsetCalls:0,cacheHit:1};}
+    // Each normalized ring is already simple; only interacting rings need another union.
+    if(material.length>1)material=boolean(material,null,C.ClipType.ctUnion);
+    if(p.width!=null&&p.depth!=null){const x=Math.round(p.width*SCALE/2),z=Math.round(p.depth*SCALE/2);if(material.some(path=>path.some(q=>q.X< -x||q.X>x||q.Y< -z||q.Y>z)))material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);}
     if(!material.length)return {paths:[],material:[],offsetCalls:0};
-    const inputVertices=groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0);
-    // Exact bounded cache for repeated cross-sections (extrusions and unchanged layers).
-    const cacheKey=p.lineWidth+'|'+(p.minPathLength||0)+'|'+inputVertices+'|'+material.map(path=>path.map(q=>q.X+','+q.Y).join(';')).join('/');
-    if(insetCache.has(cacheKey)){const result=insetCache.get(cacheKey);insetCache.delete(cacheKey);insetCache.set(cacheKey,result);return {...result,cacheHit:1};}
-    // The single negative offset contracts exteriors and expands holes into material.
-    // Round joins approximate the Euclidean inset; renderer segments retain flat endcaps.
-    // Remove only integer-rounding noise before computing normals (0.001% of line width).
-    // Preserve every contour, including any too small to clean without collapsing it.
     const numericTolerance=Math.max(.1,p.lineWidth*SCALE*.00001);
     const working=material.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;});
     const offset=new C.ClipperOffset(2,p.lineWidth*SCALE*.002);offset.AddPaths(working,C.JoinType.jtRound,C.EndType.etClosedPolygon);
@@ -10053,9 +10061,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const original=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1&&path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q.X-r.X,q.Y-r.Y)/SCALE;},0)+1e-9>=(p.minPathLength||0));
     const metrics={refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     const reduced=simplifyInset(original,material,p,inputVertices,metrics);
-    const paths=reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
-    const value={paths,material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
-    if(cacheKey.length<=1000000){insetCache.set(cacheKey,value);insetCacheBytes+=cacheKey.length;while(insetCache.size>32||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCache.delete(key);}}
+    const value={paths:reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE])),material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
+    if(cacheKey.length<=1000000){if(cached)insetCacheBytes-=cacheKey.length;insetCache.set(cacheKey,{value,inputVertices});insetCacheBytes+=cacheKey.length;while(insetCache.size>128||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCache.delete(key);}}
+    return value;
+  }
+  function insetGroups(groups,p){
+    if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
+    const normalized=groups.flatMap(normalize),inputVertices=groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0),value={paths:[],material:[],offsetCalls:0,cacheHit:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,segmentsBeforeSimplification:0};
+    for(const component of independentComponents(normalized,p.lineWidth*SCALE)){const result=insetComponent(component,p,inputVertices);value.paths.push(...result.paths);value.material.push(...result.material);for(const name of ['offsetCalls','cacheHit','refittedCircles','optimizationFallbacks','legacyFallbacks','segmentsBeforeSimplification'])value[name]+=result[name]||0;}
     return value;
   }
   function insetContours(groups,p){
@@ -10108,7 +10121,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-6',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-7',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17839,7 +17852,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-6',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-7',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
