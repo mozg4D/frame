@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r133</title>
+<title>Frame r134</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -10067,14 +10067,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return p.lineWidth+'|'+(p.minPathLength||0)+'|'+p.width+'|'+p.depth+'|'+material.map(path=>{let first=0;for(let i=1;i<path.length;i++)if(path[i].X<path[first].X||path[i].X===path[first].X&&path[i].Y<path[first].Y)first=i;return path.map((_,i)=>{const q=path[(first+i)%path.length];return q.X+','+q.Y;}).join(';');}).sort().join('/');
   }
   const insetCache=new Map();let insetCacheBytes=0;
-  function insetComponent(material,p,inputVertices){
-    const cacheKey=exactSectionKey(material,p),cached=insetCache.get(cacheKey);
-    // Reuse only a result certified with at least the current rounding reserve.
-    if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(cacheKey);insetCache.set(cacheKey,cached);return {...cached.value,offsetCalls:0,cacheHit:1};}
+  function prepareInsetMaterial(material,p){
     // Each normalized ring is already simple; only interacting rings need another union.
     if(material.length>1)material=boolean(material,null,C.ClipType.ctUnion);
     if(p.width!=null&&p.depth!=null){const x=Math.round(p.width*SCALE/2),z=Math.round(p.depth*SCALE/2);if(material.some(path=>path.some(q=>q.X< -x||q.X>x||q.Y< -z||q.Y>z)))material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);}
-    if(!material.length)return {paths:[],material:[],offsetCalls:0};
+    return material;
+  }
+  function calculateInsetMaterial(material,p,inputVertices){
     const numericTolerance=Math.max(.1,p.lineWidth*SCALE*.00001);
     const working=material.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;});
     const offset=new C.ClipperOffset(2,p.lineWidth*SCALE*.002);offset.AddPaths(working,C.JoinType.jtRound,C.EndType.etClosedPolygon);
@@ -10084,8 +10083,32 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const metrics={refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
     const reduced=simplifyInset(original,material,p,inputVertices,metrics);
     const value={paths:reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE])),material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
+    return value;
+  }
+  function insetComponent(material,p,inputVertices){
+    const cacheKey=exactSectionKey(material,p),cached=insetCache.get(cacheKey);
+    // Reuse only a result certified with at least the current rounding reserve.
+    if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(cacheKey);insetCache.set(cacheKey,cached);return {...cached.value,offsetCalls:0,cacheHit:1};}
+    material=prepareInsetMaterial(material,p);
+    if(!material.length)return {paths:[],material:[],offsetCalls:0};
+    const value=calculateInsetMaterial(material,p,inputVertices);
     if(cacheKey.length<=1000000){if(cached)insetCacheBytes-=cacheKey.length;insetCache.set(cacheKey,{value,inputVertices});insetCacheBytes+=cacheKey.length;while(insetCache.size>128||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCache.delete(key);}}
     return value;
+  }
+  // Reservations follow the original layer/component order, including pending hits.
+  function reserveInset(key,inputVertices){
+    const cached=key==null?null:insetCache.get(key);
+    if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(key);insetCache.set(key,cached);return {hit:true,promise:cached.promise||Promise.resolve(cached.value)};}
+    const entry={inputVertices,value:null};let complete;
+    entry.promise=new Promise(resolve=>{complete=value=>{entry.value=value;resolve(value);};});
+    if(key!=null){if(cached)insetCacheBytes-=key.length;insetCache.set(key,entry);insetCacheBytes+=key.length;while(insetCache.size>128||insetCacheBytes>8000000){const first=insetCache.keys().next().value;insetCacheBytes-=first.length;insetCache.delete(first);}}
+    return {hit:false,promise:entry.promise,complete};
+  }
+  function describeContours(groups,p){
+    if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
+    const normalized=groups.flatMap(normalize),inputVertices=groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0);
+    const parts=independentComponents(normalized,p.lineWidth*SCALE).map(component=>{const key=exactSectionKey(component,p);return {key:key.length<=1000000?key:null,material:prepareInsetMaterial(component,p)};});
+    return {parts,inputVertices};
   }
   function insetGroups(groups,p){
     if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
@@ -10126,17 +10149,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       }
     }return {count,triangles,starts,ends};
   }
-  function section(active,prepared,p,layer){
+  function contours(active,prepared,p,layer){
     const y=layerY(p,layer),groups=new Map();
     for(const id of active){const chunk=prepared.triangles.chunks[Math.floor(id/4096)],q=chunk.q,slot=id%4096,at=slot*9,group=chunk.groups[slot],hits=[];
       for(let j=0;j<3;j++){const a=at+j*3,b=at+((j+1)%3)*3,ay=q[a+1],by=q[b+1];if(!((ay<=y&&by>y)||(by<=y&&ay>y)))continue;const t=(y-ay)/(by-ay);hits.push({X:Math.round((q[a]+(q[b]-q[a])*t)*SCALE),Y:Math.round((q[a+2]+(q[b+2]-q[a+2])*t)*SCALE)});}
       if(hits.length===2){if(!groups.has(group))groups.set(group,[]);groups.get(group).push(hits);}
     }
     const paths=[];for(const [group,segments] of groups)paths.push(stitch(segments,layer,group));
-    return insetGroups(paths,p);
+    return paths;
   }
+  function section(active,prepared,p,layer){return insetGroups(contours(active,prepared,p,layer),p);}
+  function sliceStats(prepared){return {layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.03,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};}
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false,dedicatedWorker=false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.03,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    const prepared=prepare(meshes,p),active=new Set(),stats=sliceStats(prepared);
     // A dedicated worker is cancelled by its page owner via terminate(). It
     // needs neither host timer yields nor visits beyond the last active plane.
     // Direct API callers retain the original cooperative scheduling contract.
@@ -10151,13 +10176,62 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(layer%32===0||layer===lastLayer){emit({layers:batch,progress:layer===lastLayer?1:layer/prepared.count,stats:{...stats}});batch=[];if(!dedicatedWorker)await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-8',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-8',describeContours,calculateInsetMaterial,reserveInset,sliceStats,contours,insetGroups,layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
 
+// Whole layers retain the same global rounding reserve and material topology.
+const frameSlicerPipeline={pool:null,grants:new Map()};
+function frameContourSize(groups){let points=0,counts=1+groups.length;for(const paths of groups){counts+=paths.length;for(const path of paths)points+=path.length;}return {points,counts,bytes:points*16+counts*4};}
+function framePackContours(groups,size){const coords=new Float64Array(size.points*2),meta=new Uint32Array(size.counts);let c=0,m=0;meta[m++]=groups.length;for(const paths of groups){meta[m++]=paths.length;for(const path of paths){meta[m++]=path.length;for(const q of path){coords[c++]=q.X;coords[c++]=q.Y;}}}return {coords,meta};}
+function frameUnpackContours({coords,meta}){const groups=[];let c=0,m=1;for(let g=0;g<meta[0];g++){const paths=[],n=meta[m++];for(let i=0;i<n;i++){const path=[],count=meta[m++];for(let j=0;j<count;j++)path.push({X:coords[c++],Y:coords[c++]});paths.push(path);}groups.push(paths);}return groups;}
+async function frameSlicePipeline(meshes,p,options,emit){
+  const api=FrameSingleSlicer,prepared=api.prepare(meshes,p),stats=api.sliceStats(prepared),active=new Set(),maxBytes=64*1024*1024;
+  let last=0,slots=null,jobs=0,bytes=0,transferred=0,peakJobs=0,serial=0,batch=[],failure,cursor=0;const waiters=[],outlineSamples=[],order=[];
+  for(const layer of prepared.ends.keys())last=Math.max(last,Math.min(prepared.count,layer-1));
+  const wake=()=>{for(const resolve of waiters.splice(0))resolve();};
+  const add=(layer,values)=>{const paths=[];for(const value of values){stats.offsetCalls+=value.offsetCalls||0;stats.cacheHits+=value.cacheHit||0;for(const key of ['refittedCircles','optimizationFallbacks','legacyFallbacks','segmentsBeforeSimplification'])stats[key]+=value[key]||0;paths.push(...value.paths);}if(paths.length){stats.nonemptyLayers++;stats.paths+=paths.length;stats.segments+=paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths});}};
+  const fail=error=>{failure=error;for(const q of frameSlicerPipeline.grants.values())q.reject(error);frameSlicerPipeline.grants.clear();wake();};
+  async function grant(token){await new Promise((resolve,reject)=>{frameSlicerPipeline.grants.set(token,{resolve,reject});self.postMessage({type:'outlineAcquire',token});});if(failure)throw failure;}
+  function planReady(){while(cursor<order.length&&order[cursor].description){const job=order[cursor++],{parts,inputVertices}=job.description;job.description=null;
+    const plans=job.plans=parts.map(part=>part.empty?{hit:false,promise:Promise.resolve({paths:[],offsetCalls:0})}:api.reserveInset(part.key,inputVertices)),indices=[];
+    plans.forEach((plan,i)=>{if(plan.complete)indices.push(i);});
+    if(indices.length){const token=++serial;grant(token).then(()=>job.slot.port.postMessage({phase:'calculate',token,layer:job.layer,indices,params:p,inputVertices})).catch(fail);}else job.slot.port.postMessage({phase:'clear',layer:job.layer});
+    Promise.all(plans.map(plan=>plan.promise.then(value=>plan.hit?{...value,offsetCalls:0,cacheHit:1}:value))).then(values=>{add(job.layer,values);job.plans=null;job.slot.busy=false;job.slot.job=null;jobs--;bytes-=job.bytes;wake();}).catch(fail);
+  }}
+  async function pool(){const ports=await new Promise(resolve=>{frameSlicerPipeline.pool=resolve;self.postMessage({type:'outlinePool',count:options.outlines});});slots=ports.map(port=>({port,busy:false,job:null}));
+    for(const slot of slots){slot.port.onmessage=({data})=>{self.postMessage({type:'outlineRelease',token:data.token});if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}const job=slot.job;
+      if(data.phase==='normalized'){job.description=data.description;planReady();}else if(data.phase==='calculated'){for(const result of data.results)job.plans[result.index].complete(result.value);}
+    };slot.port.start();}
+  }
+  async function drain(){while(jobs){await new Promise(resolve=>waiters.push(resolve));if(failure)throw failure;}}
+  if(!last)emit({layers:[],progress:1,stats:{...stats}});
+  for(let layer=1;layer<=last;layer++){
+    if(failure)throw failure;for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
+    if(active.size){const groups=api.contours(active,prepared,p,layer),size=frameContourSize(groups);
+      if(!slots||size.bytes>maxBytes){if(slots)await drain();const started=performance.now(),value=api.insetGroups(groups,p);add(layer,[value]);if(!slots){outlineSamples.push(performance.now()-started);if(outlineSamples.length>2)outlineSamples.shift();}
+        if(!slots&&outlineSamples.length===2&&options.outlines&&last-layer>=8&&outlineSamples.every(ms=>ms>=8))await pool();
+      }else{
+        while(jobs===slots.length||bytes+size.bytes>maxBytes){await new Promise(resolve=>waiters.push(resolve));if(failure)throw failure;}
+        const slot=slots.find(q=>!q.busy),packed=framePackContours(groups,size),token=++serial,job={slot,layer,bytes:size.bytes,description:null,plans:null};slot.busy=true;slot.job=job;order.push(job);jobs++;bytes+=size.bytes;peakJobs=Math.max(peakJobs,jobs);transferred+=size.bytes;
+        await grant(token);slot.port.postMessage({...packed,phase:'normalize',token,layer,params:p},[packed.coords.buffer,packed.meta.buffer]);
+      }
+    }
+    if(layer%32===0&&layer!==last){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];}
+  }
+  await drain();stats.outlineWorkers=slots?.length||0;stats.maxOutlineJobs=peakJobs;stats.contourTransferBytes=transferred;
+  if(last)emit({layers:batch,progress:1,stats:{...stats}});return stats;
+}
 self.onmessage=async({data})=>{
-  try{const stats=await FrameSingleSlicer.slice(data.meshes,data.params,result=>self.postMessage({type:'progress',...result}),()=>false,true);self.postMessage({type:'complete',stats});}
+  if(data.type==='outlinePool'){const ready=frameSlicerPipeline.pool;frameSlicerPipeline.pool=null;ready?.(data.ports);return;}
+  if(data.type==='outlineGrant'){const q=frameSlicerPipeline.grants.get(data.token);frameSlicerPipeline.grants.delete(data.token);q?.resolve();return;}
+  if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null;port.onmessage=({data:job})=>{try{
+    if(job.phase==='normalize'){description=FrameSingleSlicer.describeContours(frameUnpackContours(job),job.params);layer=job.layer;port.postMessage({phase:'normalized',token:job.token,layer,description:{inputVertices:description.inputVertices,parts:description.parts.map(part=>({key:part.key,empty:!part.material.length}))}});}
+    else if(job.phase==='calculate'){if(layer!==job.layer)throw Error('Outline layer mismatch.');const results=job.indices.map(index=>({index,value:FrameSingleSlicer.calculateInsetMaterial(description.parts[index].material,job.params,job.inputVertices)}));description=null;port.postMessage({phase:'calculated',token:job.token,layer,results});}
+    else if(job.phase==='clear')description=null;
+  }catch(error){port.postMessage({token:job.token,error:error.message,code:error.code});}};port.start();self.postMessage({type:'outlineReady'});return;}
+  try{const stats=data.pipeline?await frameSlicePipeline(data.meshes,data.params,data.pipeline,result=>self.postMessage({type:'progress',...result})):await FrameSingleSlicer.slice(data.meshes,data.params,result=>self.postMessage({type:'progress',...result}),()=>false,true);self.postMessage({type:'complete',stats});}
   catch(error){self.postMessage({type:'error',message:error.message,code:error.code||'FRAME_SLICE_FAILED'});}
 };
 
@@ -14678,9 +14752,27 @@ return {Vector2,ShapeUtils};
 }
 
 const surfaceBuilderCoreSource=document.getElementById("surface-builder-core").textContent;
+const frameComputeBudget=(()=>{
+  const threads=navigator.hardwareConcurrency||2,count=Math.max(1,threads-1),interactiveLimit=Math.max(1,Math.min(count,Math.floor(threads/2))),queues={surface:[],slicer:[]},turns=[];
+  let active=0,scopes=0,next='surface',peak=0,interactivePeak=0,turnBusy=false;const running={surface:0,slicer:0};
+  const cancelled=()=>Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}),limit=()=>scopes?interactiveLimit:count;
+  function pump(){while(active<limit()&&(queues.surface.length||queues.slicer.length)){
+    const other=next==='surface'?'slicer':'surface',share=Math.ceil(limit()/2),eligible=kind=>queues[kind].length&&(!queues[kind==='surface'?'slicer':'surface'].length||running[kind]<share);
+    const kind=eligible(next)?next:other,job=queues[kind].shift();next=kind==='surface'?'slicer':'surface';job.signal?.removeEventListener('abort',job.abort);
+    if(job.signal?.aborted){job.reject(cancelled());continue;}active++;running[kind]++;peak=Math.max(peak,active);if(scopes)interactivePeak=Math.max(interactivePeak,active);let live=true;
+    job.resolve(()=>{if(!live)return;live=false;active--;running[kind]--;queueMicrotask(pump);});
+  }}
+  function acquire(kind,signal){return new Promise((resolve,reject)=>{
+    if(signal?.aborted){reject(cancelled());return;}const job={resolve,reject,signal};job.abort=()=>{const at=queues[kind].indexOf(job);if(at>=0){queues[kind].splice(at,1);reject(cancelled());queueMicrotask(pump);}};signal?.addEventListener('abort',job.abort,{once:true});queues[kind].push(job);queueMicrotask(pump);
+  });}
+  function pumpTurn(){if(turnBusy||!turns.length)return;const job=turns.shift();job.signal?.removeEventListener('abort',job.abort);if(job.signal?.aborted){job.reject(cancelled());queueMicrotask(pumpTurn);return;}turnBusy=true;let live=true;job.resolve(()=>{if(!live)return;live=false;turnBusy=false;queueMicrotask(pumpTurn);});}
+  function acquireSliceTurn(signal){return new Promise((resolve,reject)=>{if(signal?.aborted){reject(cancelled());return;}const job={resolve,reject,signal};job.abort=()=>{const at=turns.indexOf(job);if(at>=0){turns.splice(at,1);reject(cancelled());queueMicrotask(pumpTurn);}};signal?.addEventListener('abort',job.abort,{once:true});turns.push(job);queueMicrotask(pumpTurn);});}
+  return {count,interactiveLimit,acquire,acquireSliceTurn,enterSlice(){if(!scopes)interactivePeak=active;scopes++;let live=true;return()=>{if(!live)return;live=false;scopes--;queueMicrotask(pump);};},inspect:()=>({limit:limit(),count,interactiveLimit,active,running:{...running},queued:{surface:queues.surface.length,slicer:queues.slicer.length,slices:turns.length},scopes,turnBusy,peak,interactivePeak})};
+})();
+
 const splineSurfaceWorkers=(()=>{
-  const count=Math.max(1,(navigator.hardwareConcurrency||2)-1),slots=[],queue=[];let serial=0,url=null;
-  function start(){if(url)return;
+  const count=Math.max(1,(navigator.hardwareConcurrency||2)-1),slots=[],queue=[];let serial=0,url=null,startup=null;
+  function start(){if(startup)return startup;
     const source=`${surfaceBuilderCoreSource}
       const SurfaceBuilder=globalThis.SurfaceBuilder;
       const THREE2=(${createSplinePlanarTools.toString()})();
@@ -14707,14 +14799,20 @@ const splineSurfaceWorkers=(()=>{
         }
         const transfer=[];if(value.chunks)for(const c of value.chunks)for(const a of Object.values(c))if(ArrayBuffer.isView(a))transfer.push(a.buffer);if(value.positions)transfer.push(value.positions.buffer);if(value.indices)transfer.push(value.indices.buffer);if(ArrayBuffer.isView(value.uv))transfer.push(value.uv.buffer);if(value.render)for(const a of Object.values(value.render))if(ArrayBuffer.isView(a))transfer.push(a.buffer);
         self.postMessage({id:m.id,value},transfer);
-      }catch(error){self.postMessage({id:m.id,error:error.message||String(error)});}};`;
+      }catch(error){self.postMessage({id:m.id,error:error.message||String(error)});}};self.postMessage({bootReady:true});`;
     url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));
-    for(let i=0;i<count;i++){
-      const worker=new Worker(url,{name:'spline-cell-'+i}),slot={worker,job:null};slots.push(slot);
-      worker.onmessage=({data:m})=>{const job=slot.job;slot.job=null;if(job){m.error?job.reject(Error(m.error)):job.resolve(m.value?.ticket?{...m.value,workerIndex:i}:m.value);}pump();};
-      worker.onerror=event=>{const error=Error(event.message||'Spline worker failed');slot.failed=true;slot.job?.reject(error);slot.job=null;if(slot===slots[0]){for(const s of slots){s.failed=true;s.job?.reject(error);s.job=null;s.worker.terminate();}while(queue.length)queue.shift().reject(error);}pump();};
-    }
-    for(let i=1;i<slots.length;i++){const channel=new MessageChannel();slots[0].worker.postMessage({kind:'connect',coordinator:true,port:channel.port1},[channel.port1]);slots[i].worker.postMessage({kind:'connect',port:channel.port2},[channel.port2]);}
+    for(let i=0;i<count;i++)slots.push({worker:null,job:null,failed:false,booted:false});
+    const failPool=error=>{for(const slot of slots){slot.failed=true;slot.bootRelease?.();slot.bootReject?.(error);slot.bootReject=null;slot.job?.lease?.();slot.job?.reject(error);slot.job=null;slot.worker?.terminate();}while(queue.length)queue.shift().reject(error);};
+    startup=Promise.all(slots.map(async(slot,i)=>{
+      const release=await frameComputeBudget.acquire('surface');if(slot.failed){release();throw Error('Spline coordinator unavailable');}
+      await new Promise((resolve,reject)=>{slot.bootRelease=release;slot.bootReject=reject;try{
+        const worker=slot.worker=new Worker(url,{name:'spline-cell-'+i});
+        worker.onmessage=({data:m})=>{if(m.bootReady){slot.booted=true;slot.bootRelease?.();slot.bootRelease=null;slot.bootReject=null;resolve();return;}const job=slot.job;slot.job=null;if(job){job.lease?.();m.error?job.reject(Error(m.error)):job.resolve(m.value?.ticket?{...m.value,workerIndex:i}:m.value);}pump();};
+        worker.onerror=event=>{const error=Error(event.message||'Spline worker failed');if(!slot.booted||slot===slots[0])failPool(error);else{slot.failed=true;slot.job?.lease?.();slot.job?.reject(error);slot.job=null;}pump();};
+      }catch(error){release();slot.bootRelease=null;slot.bootReject=null;reject(error);}});
+    })).then(()=>{
+      for(let i=1;i<slots.length;i++){const channel=new MessageChannel();slots[0].worker.postMessage({kind:'connect',coordinator:true,port:channel.port1},[channel.port1]);slots[i].worker.postMessage({kind:'connect',port:channel.port2},[channel.port2]);}pump();
+    }).catch(error=>{failPool(error);throw error;});return startup;
   }
   function pump(){for(let i=0;i<slots.length;i++){
     const slot=slots[i];if(slot.failed||slot.job)continue;
@@ -14724,9 +14822,10 @@ const splineSurfaceWorkers=(()=>{
     // rather than silently losing one core to an idle coordinator.
     let at=i===0?queue.findIndex(job=>job.message.kind!=='cell'):queue.findIndex(job=>job.message.kind==='cell');
     if(i===0&&at<0)at=queue.findIndex(job=>job.message.kind==='cell');
-    if(at<0)continue;const job=queue.splice(at,1)[0];slot.job=job;slot.worker.postMessage({...job.message,id:++serial});
+    if(at<0)continue;const job=queue.splice(at,1)[0];slot.job=job;
+    frameComputeBudget.acquire('surface').then(release=>{if(slot.failed||slot.job!==job){release();return;}job.lease=release;try{slot.worker.postMessage({...job.message,id:++serial});}catch(error){release();slot.job=null;job.reject(error);pump();}});
   }}
-  const run=message=>new Promise((resolve,reject)=>{start();if(slots[0]?.failed){reject(Error("Spline coordinator unavailable"));return;}queue.push({message,resolve,reject});pump();});
+  const run=message=>new Promise((resolve,reject)=>{start().then(()=>{if(slots[0]?.failed){reject(Error("Spline coordinator unavailable"));return;}queue.push({message,resolve,reject});pump();}).catch(reject);});
   return {count,run,release:owner=>{if(owner)run({kind:'release',owner}).catch(()=>{});}};
 })();
 let splineWorkerOwnerSerial=0,splineCellSerial=0;
@@ -17869,30 +17968,48 @@ function framePrinterNavigationHit(ray,cam,maxDistance=Infinity){
 }
 function framePrinterPreviewVisible(){return [...framePrinters].some(([h,s])=>selNodes.has(h)&&s.paths.visible&&s.chunks.length&&s.root.visible);}
 
+function frameSlicerTask(source,meshes,params,signal,onProgress,onOwner){
+  return new Promise((resolve,reject)=>{
+    const workers=[],ports=[],leases=new Map(),readyWaiters=new Set();let url=null,owner=null,ownerLease=null,finished=false;
+    const finish=(error,stats)=>{if(finished)return;finished=true;signal.removeEventListener('abort',abort);for(const w of workers)w.terminate();for(const port of ports)port.close();if(url)URL.revokeObjectURL(url);for(const fail of readyWaiters)fail(error||Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}));readyWaiters.clear();for(const release of leases.values())release();leases.clear();ownerLease?.();onOwner(null);error?reject(error):resolve(stats);};
+    const abort=()=>finish(Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}));signal.addEventListener('abort',abort,{once:true});
+    async function startPool(count){const ownerPorts=[];await Promise.all(Array.from({length:count},async(_,i)=>{
+      const release=await frameComputeBudget.acquire('slicer',signal);if(finished){release();return;}const token='startup-'+i;leases.set(token,release);
+      await new Promise((ready,fail)=>{readyWaiters.add(fail);const channel=new MessageChannel();ports.push(channel.port1,channel.port2);ownerPorts[i]=channel.port1;let child;
+        try{child=new Worker(url,{name:'frame-slicer-outline-'+i});workers.push(child);child.onerror=e=>{fail(Error(e.message||'Outline worker failed.'));finish(Error(e.message||'Outline worker failed.'));};child.onmessage=({data})=>{if(finished)return;if(data.type==='outlineReady'){readyWaiters.delete(fail);leases.get(token)?.();leases.delete(token);ready();}};child.postMessage({type:'outlineStart',port:channel.port2},[channel.port2]);}catch(error){readyWaiters.delete(fail);fail(error);}
+      });
+    }));if(!finished)owner.postMessage({type:'outlinePool',ports:ownerPorts},ownerPorts);}
+    (async()=>{ownerLease=await frameComputeBudget.acquire('slicer',signal);if(finished){ownerLease();return;}
+      url=URL.createObjectURL(new Blob([source],{type:'application/javascript'}));owner=new Worker(url,{name:'frame-slicer-owner'});workers.push(owner);onOwner(owner);
+      owner.onerror=e=>finish(Error(e.message||'Slicer worker failed.'));
+      owner.onmessage=({data})=>{if(finished)return;
+        if(data.type==='outlinePool'){startPool(data.count).catch(error=>finish(error));return;}
+        if(data.type==='outlineAcquire'){frameComputeBudget.acquire('slicer',signal).then(release=>{if(finished){release();return;}leases.set(data.token,release);try{owner.postMessage({type:'outlineGrant',token:data.token});}catch(error){finish(error);}}).catch(error=>finish(error));return;}
+        if(data.type==='outlineRelease'){leases.get(data.token)?.();leases.delete(data.token);return;}
+        if(data.type==='error')return finish(Object.assign(Error(data.message),{code:data.code}));if(data.type==='complete')return finish(null,data.stats);try{onProgress(data);}catch(error){finish(error);}
+      };
+      const triangles=meshes.reduce((n,q)=>n+(q.indices?.length||q.positions.length/3)/3,0),estimate=meshes.reduce((n,q)=>n+q.positions.byteLength*2+(q.indices?.byteLength||0),0)+triangles*80,memory=(navigator.deviceMemory||4)*1024**3;
+      const memorySlots=Math.max(0,Math.floor((memory*.4-estimate)/(128*1024*1024))),outlines=triangles>=50000?Math.max(0,Math.min(7,frameComputeBudget.interactiveLimit-1,memorySlots)):0;
+      owner.postMessage({meshes,params,pipeline:{outlines}},meshes.flatMap(q=>[q.positions.buffer,...(q.indices?[q.indices.buffer]:[])]));
+    })().catch(error=>finish(error));if(signal.aborted)abort();
+  });
+}
+
 async function framePrinterSlice(h){
   if(!frameIsPrinter(h))throw Error('Select a 3D Printer.');const s=framePrinterEnsure(h);if(s.busy)throw Error('Slicing is already running.');
-  const p={...objParams.get(h),perimeters:1};framePrinterValidateSettings(h,p);s.busy=true;s.status='Preparing geometry…';let cancelled=false;s.cancel=()=>{cancelled=true;s.status='Cancelling…';framePrinterStatus(h);};framePrinterStatus(h);
-  try{await window.frameAI.waitForIdle();if(cancelled||!OBJ.has(h))throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=new Float64Array(a.count*3);for(let i=0;i<a.count;i++){positions[i*3]=a.getX(i);positions[i*3+1]=a.getY(i);positions[i*3+2]=a.getZ(i);}return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
+  const p={...objParams.get(h),perimeters:1};framePrinterValidateSettings(h,p);s.busy=true;s.status='Preparing geometry.';
+  const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
+  const check=()=>{if(cancelled||!OBJ.has(h))throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});if(['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))throw Error('Settings changed · slice again');};
+  try{await window.frameAI.waitForIdle();check();s.status='Waiting for slicer.';framePrinterStatus(h);turn=await frameComputeBudget.acquireSliceTurn(controller.signal);check();s.status='Preparing geometry.';framePrinterStatus(h);
+    const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=new Float64Array(a.count*3);for(let i=0;i<a.count;i++){positions[i*3]=a.getX(i);positions[i*3+1]=a.getY(i);positions[i*3+2]=a.getZ(i);}return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
     if(!meshes.length)throw Error('No visible mesh geometry to slice.');
     const layers=new Map(),started=performance.now();
-    return await new Promise((resolve,reject)=>{
-      const workerSource=document.getElementById('frame-single-slicer-worker-source').textContent;
-      const workerUrl=URL.createObjectURL(new Blob([workerSource],{type:'application/javascript'}));let worker;
-      try{worker=new Worker(workerUrl);}catch(error){URL.revokeObjectURL(workerUrl);throw error;}
-      s.worker=worker;let finished=false;
-      const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
-        if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
-        framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-8',flatCaps:true};
-        const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
-        framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
-      };
-      s.cancel=()=>finish(Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}));
-      worker.onerror=event=>finish(Error(event.message||'Slicer worker failed.'));
-      worker.onmessage=({data})=>{if(finished)return;if(data.type==='error')return finish(Object.assign(Error(data.message),{code:data.code}));if(data.type==='complete')return finish(null,data.stats);for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);};
-      const transfers=meshes.flatMap(q=>[q.positions.buffer,...(q.indices?[q.indices.buffer]:[])]);try{worker.postMessage({meshes,params:{...p,width:f.width,height:f.height,depth:f.depth}},transfers);}catch(error){finish(error);}
-    });
-  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}
+    const source=document.getElementById('frame-single-slicer-worker-source').textContent,stats=await frameSlicerTask(source,meshes,{...p,width:f.width,height:f.height,depth:f.depth},controller.signal,data=>{for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);},worker=>{s.worker=worker;});check();
+    s.busy=false;s.cancel=null;framePrinterClear(s);s.layers=new Map([...layers].sort((a,b)=>a[0]-b[0]));s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
+    s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-8',flatCaps:true,computeBudgetLimit:frameComputeBudget.interactiveLimit};
+    const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
+    framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);return framePrinterState(h);
+  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}finally{controller.abort();turn?.();endScope();}
 }
 function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,displayMode:s?.displayMode||'solid',busy:!!s?.busy,status:s?.status||'Ready',slicingAvailable:true,params:{...p},maximumDisplayLayer:framePrinterLayerLimit(h),stats:s?.stats||null,test:null,testing:false,visibleSegments:s?.visibleSegments||0,grid:s?.grid||null};}
 function framePrinterGetLayer(h,layer,details=false){
