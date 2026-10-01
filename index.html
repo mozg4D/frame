@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r125</title>
+<title>Frame r126</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9837,13 +9837,86 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function beadRectangle(a,b,width){const L=Math.hypot(b.X-a.X,b.Y-a.Y);if(!L)return [];const x=-(b.Y-a.Y)*width/(2*L),y=(b.X-a.X)*width/(2*L),q=(p,s)=>({X:Math.round(p.X+s*x),Y:Math.round(p.Y+s*y)});return [q(a,-1),q(b,-1),q(b,1),q(a,1)];}
   const intersectionArea=(paths,clips)=>Math.abs(boolean(paths,clips,C.ClipType.ctIntersection).reduce((n,path)=>n+area(path),0));
-  function simplifyInset(paths,material,p,inputVertices){
+  // Only genuine round joins of the single inset may use the local 4.2% budget.
+  // Tangent end segments prevent added overlap with the entering/leaving straight.
+  // A semicircle needs five segments (4.12% maximum error); ordinary curves stay at 3%.
+  function simplifyRoundTurns(paths,material,boundary,boundaryIndex,width,guard,metrics){
+    const radius=width/2,tolerance=width*.042-guard,radial=guard+4;
+    if(tolerance<=0)return paths;
+    const same=(a,b)=>a.X===b.X&&a.Y===b.Y,key=q=>q.X+','+q.Y;
+    const edges=[],ids=paths.map((path,ring)=>path.map((a,i)=>{const id=edges.length;edges.push({a,b:path[(i+1)%path.length],ring,live:true});return id;})),index=segmentIndex(edges);
+    function quadOverlap(subject,clip){
+      let polygon=subject;for(let i=0;i<clip.length&&polygon.length;i++){
+        const a=clip[i],b=clip[(i+1)%clip.length],next=[],side=p=>(b.X-a.X)*(p.Y-a.Y)-(b.Y-a.Y)*(p.X-a.X);
+        for(let j=0;j<polygon.length;j++){const p=polygon[j],q=polygon[(j+1)%polygon.length],u=side(p),v=side(q);if(u>=0)next.push(p);if((u>=0)!==(v>=0)){const t=u/(u-v);next.push({X:p.X+t*(q.X-p.X),Y:p.Y+t*(q.Y-p.Y)});}}polygon=next;
+      }return polygon.length>=3?Math.abs(area(polygon)):0;
+    }
+    const pairArea=quads=>{let total=0;for(let i=0;i<quads.length;i++)for(let j=i+2;j<quads.length;j++)total+=quadOverlap(quads[i],quads[j]);return total;};
+    return paths.map((path,ring)=>{
+      const n=path.length,centers=path.map((a,i)=>{
+        const b=path[(i+1)%n];if(Math.hypot(b.X-a.X,b.Y-a.Y)>width*.2)return null;
+        const seen=new Set();for(const id of boundaryIndex.query(a,a,radius+radial))for(const c of [boundary[id].a,boundary[id].b]){
+          if(seen.has(key(c)))continue;seen.add(key(c));
+          if(Math.abs(Math.hypot(a.X-c.X,a.Y-c.Y)-radius)>radial||Math.abs(Math.hypot(b.X-c.X,b.Y-c.Y)-radius)>radial)continue;
+          const angle=Math.atan2((a.X-c.X)*(b.Y-c.Y)-(a.Y-c.Y)*(b.X-c.X),(a.X-c.X)*(b.X-c.X)+(a.Y-c.Y)*(b.Y-c.Y));
+          if(Math.abs(angle)>1e-5&&Math.abs(angle)<.4)return {c,angle,key:key(c)};
+        }return null;
+      });
+      const matches=(a,b)=>a&&b&&a.key===b.key&&Math.sign(a.angle)===Math.sign(b.angle);
+      let start=0;while(start<n&&(centers[start]||centers[(start+n-1)%n]))start++;
+      if(start===n)return path; // A whole circle is not a localized turn.
+      const output=[];let changed=false,currentArea=area(path);
+      for(let cursor=0;cursor<n;){
+        let first=(start+cursor)%n;const arc=centers[first];let count=1,angle=arc?.angle||0;
+        if(arc)while(cursor+count<n&&matches(arc,centers[(first+count)%n]))angle+=centers[(first+count++)%n].angle;
+        const pieces=Math.ceil(Math.abs(angle)/(Math.PI/4))+1,last=(first+count)%n;
+        let candidate=null;
+        if(arc&&count>pieces&&count>=5&&Math.abs(angle)>=Math.PI/3&&Math.abs(angle)<=Math.PI+1e-5&&pieces<=5){
+          const a=path[first],b=path[last],theta=Math.atan2(a.Y-arc.c.Y,a.X-arc.c.X),step=angle/(pieces-1),vertexRadius=radius/Math.cos(step/2);
+          candidate=Array.from({length:pieces+1},(_,i)=>i===0?a:i===pieces?b:{X:Math.round(arc.c.X+vertexRadius*Math.cos(theta+step*(i-.5))),Y:Math.round(arc.c.Y+vertexRadius*Math.sin(theta+step*(i-.5)))});
+          if(n-count+pieces<3||candidate.slice(0,-1).some((q,i)=>!surfaceChord(q,candidate[i+1],material,boundary,boundaryIndex,radius,tolerance)))candidate=null;
+        }
+        if(candidate){
+          // Merge tangent end pieces with their unchanged straight neighbours atomically.
+          // Leaving artificial collinear endpoints would misclassify an ordinary join as nonadjacent overlap.
+          const before=(first+n-1)%n,after=(last+1)%n;
+          const tangent=(a,b,c)=>Math.abs((b.X-a.X)*(c.Y-b.Y)-(b.Y-a.Y)*(c.X-b.X))<=Math.max(Math.hypot(b.X-a.X,b.Y-a.Y),Math.hypot(c.X-b.X,c.Y-b.Y))*8;
+          if(cursor>0&&cursor+count<n&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){
+            candidate[0]=path[before];candidate[pieces]=path[after];first=before;count+=2;cursor--;output.pop();
+          }
+          const removed=new Set(Array.from({length:count},(_,i)=>ids[ring][(first+i)%n])),others=new Set();
+          for(let i=0;i<pieces;i++)for(const id of index.query(candidate[i],candidate[i+1],width+tolerance))if(!removed.has(id))others.add(id);
+          const old=Array.from({length:count},(_,i)=>beadRectangle(path[(first+i)%n],path[(first+i+1)%n],width)),next=candidate.slice(0,-1).map((a,i)=>beadRectangle(a,candidate[i+1],width));
+          let removedArea=0,newArea=0;for(let i=0;i<count;i++){const a=path[(first+i)%n],b=path[(first+i+1)%n];removedArea+=a.X*b.Y-a.Y*b.X;}for(let i=0;i<pieces;i++){const a=candidate[i],b=candidate[i+1];newArea+=a.X*b.Y-a.Y*b.X;}
+          const nextArea=currentArea+(newArea-removedArea)/2;let safe=n-count+pieces>=3&&Math.sign(nextArea)===Math.sign(currentArea)&&pairArea(next)<=pairArea(old)+width*width*1e-10&&candidate.slice(0,-1).every((q,i)=>surfaceChord(q,candidate[i+1],material,boundary,boundaryIndex,radius,tolerance));
+          for(let i=0;i<pieces&&safe;i++)for(let j=i+2;j<pieces;j++)if(crosses(candidate[i],candidate[i+1],candidate[j],candidate[j+1]))safe=false;
+          for(const id of others){if(!safe)break;const e=edges[id],other=beadRectangle(e.a,e.b,width);let oldQuads=old,newQuads=next;
+            for(let i=0;i<pieces;i++){const a=candidate[i],b=candidate[i+1];if(!same(e.a,a)&&!same(e.b,a)&&!same(e.a,b)&&!same(e.b,b)&&crosses(a,b,e.a,e.b)){safe=false;break;}}
+            if(e.ring===ring&&(same(e.a,candidate[0])||same(e.b,candidate[0]))){oldQuads=oldQuads.slice(1);newQuads=newQuads.slice(1);}
+            if(e.ring===ring&&(same(e.a,candidate[pieces])||same(e.b,candidate[pieces]))){oldQuads=oldQuads.slice(0,-1);newQuads=newQuads.slice(0,-1);}
+            const before=oldQuads.reduce((sum,q)=>sum+quadOverlap(q,other),0),after=newQuads.reduce((sum,q)=>sum+quadOverlap(q,other),0);
+            if(after>before+width*width*1e-10)safe=false;
+            if(safe&&after>0&&intersectionArea(newQuads,[other])>intersectionArea(oldQuads,[other]))safe=false;
+          }
+          if(safe){
+            for(const id of removed)edges[id].live=false;for(let i=0;i<pieces;i++)index.add({a:candidate[i],b:candidate[i+1],ring,live:true});
+            output.push(...candidate.slice(0,-1));changed=true;currentArea=nextArea;metrics.localRoundTurns++;metrics.localRoundTurnSegmentsBefore+=count;metrics.localRoundTurnSegmentsAfter+=pieces;
+          }else {metrics.localRoundTurnsRejected++;candidate=null;}
+        }
+        if(!candidate)for(let i=0;i<count;i++)output.push(path[(first+i)%n]);cursor+=count;
+      }
+      if(changed)return output;return path;
+    });
+  }
+
+  function simplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;
     // Reserve interpolation/Clipper rounding and worst-case accumulated .1-unit cleanup.
     let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.03-guard;
     if(tolerance<=0)return paths;
     const boundary=[];for(const path of material)for(let i=0;i<path.length;i++)boundary.push({a:path[i],b:path[(i+1)%path.length]});const boundaryIndex=segmentIndex(boundary);
+    const original=paths;paths=simplifyRoundTurns(paths,material,boundary,boundaryIndex,width,guard,metrics);
     const edges=[],edgeIds=paths.map((path,ring)=>path.map((a,i)=>{const id=edges.length;edges.push({a,b:path[(i+1)%path.length],ring,live:true});return id;})),index=segmentIndex(edges);
     const optimized=paths.map((path,ring)=>{
       const n=path.length,origin=path[0],cross=(a,b)=>(a.X-origin.X)*(b.Y-origin.Y)-(a.Y-origin.Y)*(b.X-origin.X),prefix=[0];for(let i=0;i<n;i++)prefix.push(prefix[i]+cross(path[i],path[(i+1)%n]));let area2=prefix[n],remaining=n;
@@ -9872,7 +9945,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       }return result;
     });
     // Check every containment relationship, including tiny nested contours and the seam.
-    for(let i=0;i<paths.length;i++)for(let j=0;j<paths.length;j++)if(i!==j&&C.Clipper.PointInPolygon(paths[i][0],paths[j])!==C.Clipper.PointInPolygon(optimized[i][0],optimized[j]))return paths;
+    for(let i=0;i<original.length;i++)for(let j=0;j<original.length;j++)if(i!==j&&C.Clipper.PointInPolygon(original[i][0],original[j])!==C.Clipper.PointInPolygon(optimized[i][0],optimized[j])){metrics.localRoundTurns=metrics.localRoundTurnSegmentsBefore=metrics.localRoundTurnSegmentsAfter=0;return original;}
     return optimized;
   }
 
@@ -9894,9 +9967,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const result=[];offset.Execute(result,-p.lineWidth*SCALE/2);
     const simple=boolean(result,null,C.ClipType.ctUnion);
     const original=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1&&path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q.X-r.X,q.Y-r.Y)/SCALE;},0)+1e-9>=(p.minPathLength||0));
-    const reduced=simplifyInset(original,material,p,groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0));
+    const metrics={localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0};
+    const reduced=simplifyInset(original,material,p,groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0),metrics);
     const paths=reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
-    return {paths,material,offsetCalls:1,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
+    return {paths,material,offsetCalls:1,...metrics,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
   }
   function insetContours(groups,p){
     return insetGroups(groups.map(paths=>paths.map(path=>path.map(q=>({X:Math.round(q[0]*SCALE),Y:Math.round(q[1]*SCALE)})))),p).paths;
@@ -9939,16 +10013,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.03};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.03,localRoundTurnToleranceFraction:.042,localRoundTurns:0,localRoundTurnsRejected:0,localRoundTurnSegmentsBefore:0,localRoundTurnSegmentsAfter:0};
     let batch=[];
     for(let layer=1;layer<=prepared.count;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
       for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
-      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
+      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;for(const name of ['localRoundTurns','localRoundTurnsRejected','localRoundTurnSegmentsBefore','localRoundTurnSegmentsAfter'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-3',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-4',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17642,7 +17716,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-3',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-4',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
