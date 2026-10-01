@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r131</title>
+<title>Frame r132</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -10130,14 +10130,20 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const paths=[];for(const [group,segments] of groups)paths.push(stitch(segments,layer,group));
     return insetGroups(paths,p);
   }
-  async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
+  async function slice(meshes,p,emit=()=>{},cancelled=()=>false,dedicatedWorker=false){
     const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.05,smoothToleranceFraction:.04,shortSegmentThresholdFraction:1,preserveLongSegments:true,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0};
+    // A dedicated worker is cancelled by its page owner via terminate(). It
+    // needs neither host timer yields nor visits beyond the last active plane.
+    // Direct API callers retain the original cooperative scheduling contract.
+    let lastLayer=prepared.count;
+    if(dedicatedWorker){lastLayer=0;for(const layer of prepared.ends.keys())lastLayer=Math.max(lastLayer,Math.min(prepared.count,layer-1));}
     let batch=[];
-    for(let layer=1;layer<=prepared.count;layer++){
+    if(!lastLayer)emit({layers:batch,progress:1,stats:{...stats}});
+    for(let layer=1;layer<=lastLayer;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
       for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
       if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.cacheHits+=result.cacheHit||0;for(const name of ['refittedCircles','optimizationFallbacks','legacyFallbacks'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
-      if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
+      if(layer%32===0||layer===lastLayer){emit({layers:batch,progress:layer===lastLayer?1:layer/prepared.count,stats:{...stats}});batch=[];if(!dedicatedWorker)await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
   const api={version:'single-inset-8',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
@@ -10146,7 +10152,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 
 self.onmessage=async({data})=>{
-  try{const stats=await FrameSingleSlicer.slice(data.meshes,data.params,result=>self.postMessage({type:'progress',...result}));self.postMessage({type:'complete',stats});}
+  try{const stats=await FrameSingleSlicer.slice(data.meshes,data.params,result=>self.postMessage({type:'progress',...result}),()=>false,true);self.postMessage({type:'complete',stats});}
   catch(error){self.postMessage({type:'error',message:error.message,code:error.code||'FRAME_SLICE_FAILED'});}
 };
 
@@ -17877,7 +17883,7 @@ async function framePrinterSlice(h){
       };
       s.cancel=()=>finish(Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}));
       worker.onerror=event=>finish(Error(event.message||'Slicer worker failed.'));
-      worker.onmessage=({data})=>{if(data.type==='error')return finish(Object.assign(Error(data.message),{code:data.code}));if(data.type==='complete')return finish(null,data.stats);for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);};
+      worker.onmessage=({data})=>{if(finished)return;if(data.type==='error')return finish(Object.assign(Error(data.message),{code:data.code}));if(data.type==='complete')return finish(null,data.stats);for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);};
       const transfers=meshes.flatMap(q=>[q.positions.buffer,...(q.indices?[q.indices.buffer]:[])]);try{worker.postMessage({meshes,params:{...p,width:f.width,height:f.height,depth:f.depth}},transfers);}catch(error){finish(error);}
     });
   }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}
