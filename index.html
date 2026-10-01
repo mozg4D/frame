@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r123</title>
+<title>Frame r124</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -17459,11 +17459,83 @@ function framePrinterBuildDisplay(h){
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
       }`});
-    const mesh=new THREE2.Mesh(g,m);mesh.frustumCulled=false;mesh.userData.framePrinter=h;mesh.onBeforeRender=renderer=>{m.uniforms.pixelHeight.value=renderer.getDrawingBufferSize(new THREE2.Vector2()).y;};s.paths.add(mesh);s.chunks.push({mesh,minLayer,maxLayer,count:n});records=[];
+    const mesh=new THREE2.Mesh(g,m);mesh.frustumCulled=false;mesh.userData.framePrinter=h;mesh.onBeforeRender=renderer=>{m.uniforms.pixelHeight.value=renderer.getDrawingBufferSize(new THREE2.Vector2()).y;};s.paths.add(mesh);s.chunks.push({mesh,minLayer,maxLayer,count:n,pick:framePrinterPickIndex(starts,ends,meta)});records=[];
   };
   for(const [layer,paths] of s.layers){let index=0;const y=framePrinterLayerY(p,layer);for(const path of paths)for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];records.push([a[0],a[1],b[0],b[1],y,layer,index++]);if(records.length===16384)flush();}}
   flush();framePrinterRange(h);scheduleRender();
 }
+// Bounds index over segment endpoints; camera-dependent ribbon extents are applied at query time.
+function framePrinterPickIndex(starts,ends,meta){
+  const order=new Uint32Array(starts.length/3);let minHeight=Infinity,maxHeight=0;for(let i=0;i<order.length;i++){order[i]=i;minHeight=Math.min(minHeight,meta[i*3+2]);maxHeight=Math.max(maxHeight,meta[i*3+2]);}
+  const nodes=[];
+  const build=(first,last,depth)=>{
+    const node={first,last,min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity],lo:Infinity,hi:-Infinity,left:-1,right:-1,axis:0};
+    const id=nodes.length;nodes.push(node);
+    for(let j=first;j<last;j++){const i=order[j]*3;for(let k=0;k<3;k++){node.min[k]=Math.min(node.min[k],starts[i+k],ends[i+k]);node.max[k]=Math.max(node.max[k],starts[i+k],ends[i+k]);}node.lo=Math.min(node.lo,meta[i]);node.hi=Math.max(node.hi,meta[i]);}
+    if(last-first<=32||depth>=32)return id;
+    const extent=node.max.map((v,k)=>v-node.min[k]);node.axis=extent.indexOf(Math.max(...extent));const axis=node.axis,split=(node.min[axis]+node.max[axis])*.5;let middle=first;
+    for(let j=first;j<last;j++){const i=order[j]*3;if((starts[i+axis]+ends[i+axis])*.5<split){const swap=order[middle];order[middle++]=order[j];order[j]=swap;}}
+    if(middle===first||middle===last)middle=(first+last)>>>1;
+    node.left=build(first,middle,depth+1);node.right=build(middle,last,depth+1);return id;
+  };
+  if(order.length)build(0,order.length,0);return {order,nodes,minHeight,maxHeight};
+}
+function framePrinterNavigationHit(ray,cam,maxDistance=Infinity){
+  let best=null;
+  const inverse=new THREE2.Matrix4(),mv=new THREE2.Matrix4(),localRay=new THREE2.Ray(),box=new THREE2.Box3(),probe=new THREE2.Vector3(),point=new THREE2.Vector3(),world=new THREE2.Vector3();
+  const a=new THREE2.Vector3(),b=new THREE2.Vector3(),c=new THREE2.Vector3(),d=new THREE2.Vector3(),eye=new THREE2.Vector3(),horizontal=new THREE2.Vector3(),vertical=new THREE2.Vector3(),axis=new THREE2.Vector3(),side=new THREE2.Vector3(),sight=new THREE2.Vector3();
+  const xColumn=new THREE2.Vector3(),zColumn=new THREE2.Vector3(),planeNormal=new THREE2.Vector3();
+  for(const [h,s] of framePrinters){
+    if(!s.root.visible||!s.paths.visible||!effectiveVisible(h)||!framePrinterEnabled(h))continue;
+    for(const q of s.chunks){
+      const mesh=q.mesh,u=mesh.material.uniforms,index=q.pick;
+      if(!mesh.visible||!mesh.material.visible||!cam.layers.test(mesh.layers)||!index?.nodes.length)continue;
+      mesh.updateWorldMatrix(true,false);if(Math.abs(mesh.matrixWorld.determinant())<1e-20)continue;
+      inverse.copy(mesh.matrixWorld).invert();localRay.copy(ray.ray).applyMatrix4(inverse);mv.multiplyMatrices(cam.matrixWorldInverse,mesh.matrixWorld);
+      const g=mesh.geometry,starts=g.attributes.segmentStart.array,ends=g.attributes.segmentEnd.array,meta=g.attributes.segmentMeta.array,width=u.lineWidth.value;
+      const {minHeight,maxHeight}=index;
+      const bounds=index.nodes[0];let depth=.001;
+      for(let i=0;i<8;i++){eye.set(i&1?bounds.max[0]:bounds.min[0],i&2?bounds.max[1]:bounds.min[1],i&4?bounds.max[2]:bounds.min[2]).applyMatrix4(mv);depth=Math.max(depth,-eye.z);}
+      vertical.setFromMatrixColumn(mv,1).normalize();xColumn.setFromMatrixColumn(mv,0);zColumn.setFromMatrixColumn(mv,2);planeNormal.crossVectors(xColumn,zColumn).normalize();
+      const cosine=Math.abs(vertical.dot(planeNormal)),correlation=Math.sqrt(Math.max(0,1-cosine*cosine));
+      const minRadius=Math.max(1e-8,Math.min(width,minHeight)*.5*Math.sqrt(Math.max(0,1-correlation)));
+      const pixel=2*(cam.isOrthographicCamera?1:depth)/(cam.projectionMatrix.elements[5]*u.pixelHeight.value),expand=Math.max(1,pixel*.55/minRadius);
+      const margin=[width*.5*expand,maxHeight*.5*expand,width*.5*expand],stack=[0];
+      const vertex=(offset,end,i)=>{
+        eye.copy(end).applyMatrix4(mv);
+        horizontal.set(mv.elements[0]*offset.x+mv.elements[8]*offset.z,mv.elements[1]*offset.x+mv.elements[9]*offset.z,mv.elements[2]*offset.x+mv.elements[10]*offset.z).normalize();
+        axis.crossVectors(vertical,horizontal);if(cam.isOrthographicCamera)sight.set(0,0,1);else sight.copy(eye).negate().normalize();
+        side.crossVectors(axis,sight);if(side.length()>1e-5)side.normalize();else side.copy(horizontal);
+        const nh=side.dot(horizontal),nv=side.dot(vertical),height=meta[i+2],radius=Math.max(1e-8,Math.hypot(nh*width,nv*height)*.5);
+        const localPixel=2*(cam.isOrthographicCamera?1:Math.max(.001,-eye.z))/(cam.projectionMatrix.elements[5]*u.pixelHeight.value),scale=Math.max(1,localPixel*.55/radius);
+        return offset.clone().multiplyScalar(nh*width*width/(4*radius)*scale).addScaledVector(new THREE2.Vector3(0,1,0),nv*height*height/(4*radius)*scale);
+      };
+      while(stack.length){
+        const node=index.nodes[stack.pop()];if(node.hi<u.firstLayer.value||node.lo>u.lastLayer.value)continue;
+        box.min.set(node.min[0]-margin[0],node.min[1]-margin[1],node.min[2]-margin[2]);box.max.set(node.max[0]+margin[0],node.max[1]+margin[1],node.max[2]+margin[2]);
+        if(!localRay.intersectBox(box,probe))continue;
+        if(!box.containsPoint(localRay.origin)&&probe.clone().applyMatrix4(mesh.matrixWorld).distanceTo(ray.ray.origin)>maxDistance)continue;
+        if(node.left>=0){const forward=localRay.direction.getComponent(node.axis)>=0;stack.push(forward?node.right:node.left,forward?node.left:node.right);continue;}
+        for(let j=node.first;j<node.last;j++){
+          const segment=index.order[j],i=segment*3,layer=meta[i];if(layer<u.firstLayer.value||layer>u.lastLayer.value||layer===u.lastLayer.value&&meta[i+1]>=u.layerPosition.value)continue;
+          a.fromArray(starts,i);b.fromArray(ends,i);const dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);if(length<1e-15)continue;
+          const normal=new THREE2.Vector3(-dz/length,0,dx/length),offsetA=vertex(normal,a,i),offsetB=vertex(normal,b,i);
+          c.copy(a).add(offsetA);d.copy(b).add(offsetB);a.sub(offsetA);b.sub(offsetB);
+          for(const triangle of [[a,b,c],[c,b,d]]){
+            if(!localRay.intersectTriangle(...triangle,false,point))continue;
+            world.copy(point).applyMatrix4(mesh.matrixWorld);const distance=world.distanceTo(ray.ray.origin);
+            if(distance<ray.near||distance>ray.far||distance>maxDistance)continue;
+            probe.copy(world).project(cam);if(probe.z< -1||probe.z>1)continue;
+            maxDistance=distance;best={point:world.clone(),distance,object:h,segment};
+          }
+        }
+      }
+    }
+  }
+  return best;
+}
+function framePrinterPreviewVisible(){return [...framePrinters].some(([h,s])=>selNodes.has(h)&&s.paths.visible&&s.chunks.length&&s.root.visible);}
+
 async function framePrinterSlice(h){
   if(!frameIsPrinter(h))throw Error('Select a 3D Printer.');const s=framePrinterEnsure(h);if(s.busy)throw Error('Slicing is already running.');
   const p={...objParams.get(h),perimeters:1};framePrinterValidateSettings(h,p);s.busy=true;s.status='Preparing geometry…';let cancelled=false;s.cancel=()=>{cancelled=true;s.status='Cancelling…';framePrinterStatus(h);};framePrinterStatus(h);
@@ -17497,7 +17569,7 @@ function framePrinterGetLayer(h,layer,details=false){
 }
 let framePrinterPreviewActive=false;
 function framePrinterRender(draw,cam){
-  const preview=[...framePrinters].some(([h,s])=>selNodes.has(h)&&s.paths.visible&&s.chunks.length&&s.root.visible),saved=new Map();
+  const preview=framePrinterPreviewVisible(),saved=new Map();
   const before=framePrinterPreviewActive;
   try{if(preview){for(const q of framePrinterSources()){if(saved.has(q.mesh))continue;saved.set(q.mesh,q.mesh.layers.mask);q.mesh.layers.mask=0;}framePrinterPreviewActive=true;}draw();}
   finally{for(const [mesh,mask] of saved)mesh.layers.mask=mask;framePrinterPreviewActive=before;}
@@ -23554,12 +23626,16 @@ function setEnvLighting(p){
   if(!vpState.scene)return;envState.inf?.removeFromParent();envState.infTarget?.removeFromParent();frameUpdateInfiniteLights();frameRenderController?.syncPreview(p);scheduleRender();
 }
 var pR = new THREE2.Vector3(), pU = new THREE2.Vector3(), pV = new THREE2.Vector3(), pRayD = new THREE2.Vector3(), pA = new THREE2.Vector3(), pB = new THREE2.Vector3(), pqY = new THREE2.Quaternion(), pqR = new THREE2.Quaternion(), pdq = new THREE2.Quaternion();
-function navigationPick(ray,cam) {
-  for (let hit of ray.intersectObjects(visiblePickMeshes(), !1)) {
-    let h = meshToHash.get(hit.object);
-    if (h && effectiveVisible(h)) return hit.point.clone();
+function navigationPick(ray,cam,splineHit=null) {
+  const hidden=framePrinterPreviewVisible()?new Set(framePrinterSources().map(q=>q.h)):null;
+  if(hidden?.has(splineHit?.object))splineHit=null;
+  let surface=null;
+  for(const hit of ray.intersectObjects(visiblePickMeshes().filter(mesh=>!hidden?.has(meshToHash.get(mesh))),false)){
+    const h=meshToHash.get(hit.object);if(h&&effectiveVisible(h)){surface=hit;break;}
   }
-  return null;
+  const path=framePrinterNavigationHit(ray,cam,surface?.distance??Infinity);
+  if(path&&(!splineHit||path.distance<=splineHit.world.distanceTo(ray.ray.origin)))return path.point;
+  return splineHit?splineHit.world.clone():surface?surface.point.clone():null;
 }
 var NavPersp = class {
   constructor(c) {
@@ -23574,7 +23650,7 @@ var NavPersp = class {
   }
   _pick() {
     let s = splineScreenHit(this.pointerX, this.pointerY, { editing: !1, vertices: !0, handles: !1, segments: !0 });
-    return s ? s.world.clone() : (this.ray.near=this.cam.near,this.ray.far=this.cam.far,this.ray.setFromCamera(this.ndc, this.cam), navigationPick(this.ray,this.cam));
+    this.ray.near=this.cam.near;this.ray.far=this.cam.far;this.ray.setFromCamera(this.ndc,this.cam);return navigationPick(this.ray,this.cam,s);
   }
   _plane() {
     this._axes(), pRayD.set(this.ndc.x, this.ndc.y, 0.5).unproject(this.cam).sub(this.cam.position).normalize();
@@ -23646,7 +23722,7 @@ var NavPersp = class {
   }
   _pick() {
     let s = splineScreenHit(this.pointerX, this.pointerY, { editing: !1, vertices: !0, handles: !1, segments: !0 });
-    return s ? s.world.clone() : (this.ray.near=this.cam.near,this.ray.far=this.cam.far,this.ray.setFromCamera(this.ndc, this.cam), navigationPick(this.ray,this.cam));
+    this.ray.near=this.cam.near;this.ray.far=this.cam.far;this.ray.setFromCamera(this.ndc,this.cam);return navigationPick(this.ray,this.cam,s);
   }
   _plane(r) {
     this._axes();
