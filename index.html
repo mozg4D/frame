@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r124</title>
+<title>Frame r125</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9786,6 +9786,96 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
     return boolean(rings,null,C.ClipType.ctUnion);
   }
+  // Simplification is certified against the material boundary, not a second error budget
+  // around the already approximated offset. Width sets accuracy only, never segment length.
+  function pointDistance2(p,a,b){const x=b.X-a.X,y=b.Y-a.Y,d=x*x+y*y,t=d?Math.max(0,Math.min(1,((p.X-a.X)*x+(p.Y-a.Y)*y)/d)):0;return (p.X-a.X-t*x)**2+(p.Y-a.Y-t*y)**2;}
+  function orient(a,b,c){
+    const x=b.X-a.X,y=b.Y-a.Y,u=c.X-a.X,v=c.Y-a.Y,z=x*v-y*u;
+    if(Math.abs(z)>8*Number.EPSILON*(Math.abs(x*v)+Math.abs(y*u)))return Math.sign(z);
+    const exact=(BigInt(b.X)-BigInt(a.X))*(BigInt(c.Y)-BigInt(a.Y))-(BigInt(b.Y)-BigInt(a.Y))*(BigInt(c.X)-BigInt(a.X));return exact>0n?1:exact<0n?-1:0;
+  }
+  function crosses(a,b,c,d){
+    const on=(p,q,r)=>r.X>=Math.min(p.X,q.X)&&r.X<=Math.max(p.X,q.X)&&r.Y>=Math.min(p.Y,q.Y)&&r.Y<=Math.max(p.Y,q.Y);
+    const u=orient(a,b,c),v=orient(a,b,d),x=orient(c,d,a),y=orient(c,d,b);
+    return u*v<0&&x*y<0||!u&&on(a,b,c)||!v&&on(a,b,d)||!x&&on(c,d,a)||!y&&on(c,d,b);
+  }
+  function segmentDistance2(a,b,c,d){return crosses(a,b,c,d)?0:Math.min(pointDistance2(a,c,d),pointDistance2(b,c,d),pointDistance2(c,a,b),pointDistance2(d,a,b));}
+  function segmentIndex(entries){
+    const roots=[],pending=[];
+    const tree=ids=>{
+      let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity;for(const i of ids){const e=entries[i];x=Math.min(x,e.a.X,e.b.X);y=Math.min(y,e.a.Y,e.b.Y);X=Math.max(X,e.a.X,e.b.X);Y=Math.max(Y,e.a.Y,e.b.Y);}
+      const node={x,y,X,Y};if(ids.length<=16){node.ids=ids;return node;}
+      const axis=X-x>=Y-y?'X':'Y',split=axis==='X'?(x+X)/2:(y+Y)/2,left=[],right=[];
+      for(const i of ids)(((entries[i].a[axis]+entries[i].b[axis])/2<split)?left:right).push(i);
+      if(!left.length||!right.length){const middle=ids.length>>>1;node.left=tree(ids.slice(0,middle));node.right=tree(ids.slice(middle));}else{node.left=tree(left);node.right=tree(right);}return node;
+    };
+    if(entries.length)roots.push(tree(entries.map((e,i)=>i)));
+    return {add(e){entries.push(e);pending.push(entries.length-1);if(pending.length===256){roots.push(tree(pending.splice(0)));}},query(a,b,margin){
+      const x=Math.min(a.X,b.X)-margin,y=Math.min(a.Y,b.Y)-margin,X=Math.max(a.X,b.X)+margin,Y=Math.max(a.Y,b.Y)+margin,out=[];
+      const add=i=>{const e=entries[i];if(e.live!==false&&Math.min(e.a.X,e.b.X)<=X&&Math.max(e.a.X,e.b.X)>=x&&Math.min(e.a.Y,e.b.Y)<=Y&&Math.max(e.a.Y,e.b.Y)>=y)out.push(i);};
+      const stack=roots.slice();while(stack.length){const n=stack.pop();if(n.x>X||n.X<x||n.y>Y||n.Y<y)continue;if(n.ids)for(const i of n.ids)add(i);else stack.push(n.left,n.right);}for(const i of pending)add(i);return out;
+    }};
+  }
+  // Exact parameter intervals where a chord lies in the radius-R capsule of an edge.
+  // Their union certifies the upper distance bound over the WHOLE chord, including caps.
+  function capsuleIntervals(a,b,c,d,R,out){
+    const dx=b.X-a.X,dy=b.Y-a.Y,length2=dx*dx+dy*dy;
+    const circle=p=>{const t=((p.X-a.X)*dx+(p.Y-a.Y)*dy)/length2,x=a.X+t*dx-p.X,y=a.Y+t*dy-p.Y,r=R*R-x*x-y*y;if(r<0)return;const dt=Math.sqrt(r/length2);out.push([Math.max(0,t-dt),Math.min(1,t+dt)]);};
+    circle(c);circle(d);const ex=d.X-c.X,ey=d.Y-c.Y,L=Math.hypot(ex,ey);if(!L)return;
+    let lo=0,hi=1;
+    const slab=(value,slope,min,max)=>{if(!slope)return value>=min&&value<=max;let u=(min-value)/slope,v=(max-value)/slope;if(u>v)[u,v]=[v,u];lo=Math.max(lo,u);hi=Math.min(hi,v);return lo<=hi;};
+    if(slab(((a.X-c.X)*ex+(a.Y-c.Y)*ey)/L,(dx*ex+dy*ey)/L,0,L)&&slab(((a.X-c.X)*-ey+(a.Y-c.Y)*ex)/L,(-dx*ey+dy*ex)/L,-R,R))out.push([lo,hi]);
+  }
+  function surfaceChord(a,b,material,boundary,index,radius,tolerance){
+    if(a.X===b.X&&a.Y===b.Y)return false;
+    const intervals=[],lower2=(radius-tolerance)**2,upper=radius+tolerance;
+    for(const id of index.query(a,b,upper)){const e=boundary[id];if(segmentDistance2(a,b,e.a,e.b)<lower2)return false;capsuleIntervals(a,b,e.a,e.b,upper,intervals);}
+    intervals.sort((a,b)=>a[0]-b[0]);let covered=0;
+    for(const [lo,hi] of intervals){if(hi<covered)continue;if(lo>covered+1e-12)return false;covered=Math.max(covered,hi);if(covered>=1-1e-12)break;}
+    if(covered<1-1e-12)return false;
+    const middle={X:(a.X+b.X)/2,Y:(a.Y+b.Y)/2};let winding=0;for(const path of material)if(C.Clipper.PointInPolygon(middle,path)!==0)winding+=Math.sign(area(path));return winding!==0;
+  }
+  function beadRectangle(a,b,width){const L=Math.hypot(b.X-a.X,b.Y-a.Y);if(!L)return [];const x=-(b.Y-a.Y)*width/(2*L),y=(b.X-a.X)*width/(2*L),q=(p,s)=>({X:Math.round(p.X+s*x),Y:Math.round(p.Y+s*y)});return [q(a,-1),q(b,-1),q(b,1),q(a,1)];}
+  const intersectionArea=(paths,clips)=>Math.abs(boolean(paths,clips,C.ClipType.ctIntersection).reduce((n,path)=>n+area(path),0));
+  function simplifyInset(paths,material,p,inputVertices){
+    const width=p.lineWidth*SCALE,radius=width/2;
+    // Reserve interpolation/Clipper rounding and worst-case accumulated .1-unit cleanup.
+    let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
+    const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.03-guard;
+    if(tolerance<=0)return paths;
+    const boundary=[];for(const path of material)for(let i=0;i<path.length;i++)boundary.push({a:path[i],b:path[(i+1)%path.length]});const boundaryIndex=segmentIndex(boundary);
+    const edges=[],edgeIds=paths.map((path,ring)=>path.map((a,i)=>{const id=edges.length;edges.push({a,b:path[(i+1)%path.length],ring,live:true});return id;})),index=segmentIndex(edges);
+    const optimized=paths.map((path,ring)=>{
+      const n=path.length,origin=path[0],cross=(a,b)=>(a.X-origin.X)*(b.Y-origin.Y)-(a.Y-origin.Y)*(b.X-origin.X),prefix=[0];for(let i=0;i<n;i++)prefix.push(prefix[i]+cross(path[i],path[(i+1)%n]));let area2=prefix[n],remaining=n;
+      let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
+      const result=[],stack=[[anchor,n],[0,anchor]],same=(a,b)=>a.X===b.X&&a.Y===b.Y;
+      const safe=(first,last)=>{
+        const a=path[first],b=path[last%n],nextArea=area2-(prefix[last]-prefix[first])+cross(a,b);
+        if(remaining-(last-first)+1<3||Math.sign(nextArea)!==Math.sign(area2)||!surfaceChord(a,b,material,boundary,boundaryIndex,radius,tolerance))return false;
+        const removed=new Set(edgeIds[ring].slice(first,last)),others=[];
+        for(const id of index.query(a,b,width+tolerance)){
+          if(removed.has(id))continue;const e=edges[id];if(e.ring===ring&&(same(e.a,a)||same(e.b,a)||same(e.a,b)||same(e.b,b)))continue;
+          if(crosses(a,b,e.a,e.b))return false;others.push(e);
+        }
+        const bead=beadRectangle(a,b,width);let previous=null,otherBeads=[];
+        for(const e of others){const other=beadRectangle(e.a,e.b,width),overlap=intersectionArea([bead],[other]);if(!overlap)continue;
+          if(!previous){const quads=[];for(let i=first;i<last;i++)quads.push(beadRectangle(path[i],path[(i+1)%n],width));previous=boolean(quads,null,C.ClipType.ctUnion);}
+          if(overlap>intersectionArea(previous,[other]))return false;otherBeads.push(other);
+        }
+        if(otherBeads.length>1){const union=boolean(otherBeads,null,C.ClipType.ctUnion);if(intersectionArea([bead],union)>intersectionArea(previous,union))return false;}
+        for(const id of removed)edges[id].live=false;index.add({a,b,ring,live:true});remaining-=last-first-1;area2=nextArea;return true;
+      };
+      while(stack.length){const [first,last]=stack.pop();if(last-first<=1){result.push(path[first]);continue;}
+        const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;
+        for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
+        if(maximum<=tolerance*tolerance&&safe(first,last))result.push(a);else{if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}
+      }return result;
+    });
+    // Check every containment relationship, including tiny nested contours and the seam.
+    for(let i=0;i<paths.length;i++)for(let j=0;j<paths.length;j++)if(i!==j&&C.Clipper.PointInPolygon(paths[i][0],paths[j])!==C.Clipper.PointInPolygon(optimized[i][0],optimized[j]))return paths;
+    return optimized;
+  }
+
   function insetGroups(groups,p){
     if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
     let material=boolean(groups.flatMap(normalize),null,C.ClipType.ctUnion);
@@ -9803,8 +9893,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const offset=new C.ClipperOffset(2,p.lineWidth*SCALE*.002);offset.AddPaths(working,C.JoinType.jtRound,C.EndType.etClosedPolygon);
     const result=[];offset.Execute(result,-p.lineWidth*SCALE/2);
     const simple=boolean(result,null,C.ClipType.ctUnion);
-    const paths=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1).map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
-    return {paths:paths.filter(path=>path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q[0]-r[0],q[1]-r[1]);},0)+1e-9>=(p.minPathLength||0)),material,offsetCalls:1};
+    const original=simple.map(path=>{const compact=clean(path,numericTolerance);return compact.length>=3?compact:path;}).filter(path=>path.length>2&&Math.abs(area(path))>.1&&path.reduce((n,q,i)=>{const r=path[(i+1)%path.length];return n+Math.hypot(q.X-r.X,q.Y-r.Y)/SCALE;},0)+1e-9>=(p.minPathLength||0));
+    const reduced=simplifyInset(original,material,p,groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0));
+    const paths=reduced.map(path=>path.map(q=>[q.X/SCALE,q.Y/SCALE]));
+    return {paths,material,offsetCalls:1,segmentsBeforeSimplification:original.reduce((n,path)=>n+path.length,0)};
   }
   function insetContours(groups,p){
     return insetGroups(groups.map(paths=>paths.map(path=>path.map(q=>({X:Math.round(q[0]*SCALE),Y:Math.round(q[1]*SCALE)})))),p).paths;
@@ -9847,16 +9939,16 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(paths,p);
   }
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false){
-    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1};
+    const prepared=prepare(meshes,p),active=new Set(),stats={layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:1,segmentsBeforeSimplification:0,toleranceFraction:.03};
     let batch=[];
     for(let layer=1;layer<=prepared.count;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
       for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
-      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
+      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;if(result.paths.length){stats.nonemptyLayers++;stats.paths+=result.paths.length;stats.segments+=result.paths.reduce((n,path)=>n+path.length,0);batch.push({layer,paths:result.paths});}}
       if(layer%32===0||layer===prepared.count){emit({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];await new Promise(resolve=>setTimeout(resolve,0));}
     }return stats;
   }
-  const api={version:'single-inset-2',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'single-inset-3',layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -17550,7 +17642,7 @@ async function framePrinterSlice(h){
       const finish=(error,stats)=>{if(finished)return;if(!error&&['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))error=Error('Settings changed · slice again');finished=true;worker.terminate();URL.revokeObjectURL(workerUrl);s.worker=null;s.cancel=null;s.busy=false;
         if(error){s.status=error.message;framePrinterStatus(h);reject(error);return;}
         framePrinterClear(s);s.layers=layers;s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-2',flatCaps:true};
+        s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-3',flatCaps:true};
         const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
         framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);resolve(framePrinterState(h));
       };
