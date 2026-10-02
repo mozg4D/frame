@@ -53,15 +53,14 @@
     <main>
       <h1>Task queue</h1>
       <p class="intro">What is being worked on, what comes next, and what is still being discussed. Priorities can change as the work reveals new constraints. Frame development is oriented toward AI-driven modeling, with people refining the result.</p>
-      <p class="updated">Updated <time datetime="2026-10-02T15:25:20Z">2 October 2026, 15:25 UTC</time></p>
+      <p class="updated">Updated <time datetime="2026-10-02T16:00:23Z">2 October 2026, 16:00 UTC</time></p>
       <div class="grid">
         <section aria-labelledby="current">
           <div class="section-head"><h2 id="current">Current work</h2><span class="tag active">In progress</span></div>
-          <p class="note">The remaining investigations are still open.</p>
+          <p class="note">Priority: first-perimeter micro junction quality and the overhang criterion.</p>
           <ul>
-            <li><h3>Remaining micro edges</h3><p>Investigate redundant micro movements while retaining the existing original-reference error limits, sharp-feature protection, and intersection and overlap guards.</p></li>
+            <li><h3>First-perimeter micro junctions</h3><p>Improve redundant micro junctions using the original unsimplified arc as the reference. Retain the existing full error limits, sharp-feature protection, and intersection and overlap guards.</p></li>
             <li><h3>Support-needed overhang highlight</h3><p>Highlight only exposed, unsupported areas with overhangs above 45&deg;. The criterion awaits clarification; highlighting is not implemented and no supports are generated.</p></li>
-            <li><h3>AI API workflow audit</h3><p>Continue AI-driven modeling checks from command discovery through state, validation, asynchronous completion, geometry verification, repair, undo, and saving. Investigate exports that include consumed Boolean operands, and verify saved geometry matches the visible, generated model. Keep changes essential, tested, and compatible with existing callers.</p></li>
           </ul>
         </section>
         <section aria-labelledby="next">
@@ -70,6 +69,7 @@
           <ul>
             <li><h3>Clean up the section before offsetting</h3><p>Investigate outline-aware cleanup of the model section while retaining holes, thin features, and meaningful corners.</p></li>
             <li><h3>Compare an alternative offset approach</h3><p>Explore an alternative outline calculation and compare its geometry and cost with the current approach. A replacement is not yet promised.</p></li>
+            <li><h3>AI API workflow audit</h3><p>Lower priority after first-perimeter quality and the overhang criterion: verify actual modeling, geometry, repair, undo, and saving end to end. Investigate mismatches between enabled raw geometry, viewport visibility, and printer visibility. Keep additions essential, tested, and compatible.</p></li>
             <li><h3>Lower-priority improvements</h3><p>Broaden tests of functions and their combinations, then pursue speed and code-size improvements where measurements support them.</p></li>
           </ul>
         </section>
@@ -86,6 +86,7 @@
         <section aria-labelledby="completed">
           <div class="section-head"><h2 id="completed">Recently completed</h2><span class="tag">Released</span></div>
           <ul>
+            <li><h3><span class="version">r148</span> · Generated-model export</h3><p>External geometry exports exclude consumed operand meshes and disabled cached generator results. Existing export behavior for raw polygon meshes and authored splines is preserved. Native .hash saves still preserve the editable construction graph.</p></li>
             <li><h3><span class="version">r147</span> · AI API job control and help</h3><p>Made existing job status and cancellation available while an operation is running, with responses matched by request ID. Model-changing commands remain ordered. Improved printer type validation and restored help for essential existing commands.</p></li>
             <li><h3><span class="version">r146</span> · Save, input, and preview controls</h3><p>Added separate base-name and type choices for eight existing Save formats, with matching extensions and file contents. Improved touch and mouse number entry.</p><p>First successful Slice defaults the finish layer to each printer's actual maximum; later slices preserve the chosen limit within the available range. Corrected SplinePatch source visibility and Original Lines–Dots with true original inset points.</p><p>Improved ordinary PWA reopening during updates and task-queue navigation.</p></li>
             <li><h3><span class="version">r145</span> · First-perimeter quality</h3><p>Added error-minimizing micro-point placement with cumulative original-reference guards, corrected long-line deviations, and an Original polyline comparison beside the display control. Added this public task queue.</p></li>
