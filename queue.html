@@ -53,7 +53,7 @@
     <main>
       <h1>Task queue</h1>
       <p class="intro">What is being worked on, what comes next, and what is still being discussed. Priorities can change as the work reveals new constraints. Frame development is oriented toward AI-driven modeling, with people refining the result.</p>
-      <p class="updated">Updated <time datetime="2026-10-02T16:00:23Z">2 October 2026, 16:00 UTC</time></p>
+      <p class="updated">Updated <time datetime="2026-10-02T16:34:27Z">2 October 2026, 16:34 UTC</time></p>
       <div class="grid">
         <section aria-labelledby="current">
           <div class="section-head"><h2 id="current">Current work</h2><span class="tag active">In progress</span></div>
@@ -86,6 +86,7 @@
         <section aria-labelledby="completed">
           <div class="section-head"><h2 id="completed">Recently completed</h2><span class="tag">Released</span></div>
           <ul>
+            <li><h3><span class="version">r149</span> · Guarded micro junction cleanup</h3><p>Removed 64 additional redundant micro segments from the reference geometry while keeping the retained neighboring endpoint fixed. Each removal checks full affected segments against the immutable original arc with an error limit of 3% of nominal line width. Existing sharp-feature, crossing, and remote footprint overlap guards remain.</p><p>Ordinary app updates keep slicing available offline.</p></li>
             <li><h3><span class="version">r148</span> · Generated-model export</h3><p>External geometry exports exclude consumed operand meshes and disabled cached generator results. Existing export behavior for raw polygon meshes and authored splines is preserved. Native .hash saves still preserve the editable construction graph.</p></li>
             <li><h3><span class="version">r147</span> · AI API job control and help</h3><p>Made existing job status and cancellation available while an operation is running, with responses matched by request ID. Model-changing commands remain ordered. Improved printer type validation and restored help for essential existing commands.</p></li>
             <li><h3><span class="version">r146</span> · Save, input, and preview controls</h3><p>Added separate base-name and type choices for eight existing Save formats, with matching extensions and file contents. Improved touch and mouse number entry.</p><p>First successful Slice defaults the finish layer to each printer's actual maximum; later slices preserve the chosen limit within the available range. Corrected SplinePatch source visibility and Original Lines–Dots with true original inset points.</p><p>Improved ordinary PWA reopening during updates and task-queue navigation.</p></li>
