@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r137</title>
+<title>Frame r138</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -18034,7 +18034,7 @@ function frameSlicerTask(source,meshes,params,signal,onProgress,onOwner){
 async function framePrinterSlice(h){
   if(!frameIsPrinter(h))throw Error('Select a 3D Printer.');const s=framePrinterEnsure(h);if(s.busy)throw Error('Slicing is already running.');
   const p={...objParams.get(h),perimeters:1};framePrinterValidateSettings(h,p);s.busy=true;s.status='Preparing geometry.';
-  const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
+  const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false,displayed=false;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
   const check=()=>{if(cancelled||!OBJ.has(h))throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});if(['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))throw Error('Settings changed · slice again');};
   try{await window.frameAI.waitForIdle();check();s.status='Waiting for slicer.';framePrinterStatus(h);turn=await frameComputeBudget.acquireSliceTurn(controller.signal);check();s.status='Preparing geometry.';framePrinterStatus(h);
     const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=framePrinterSnapshotPositions(a);return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
@@ -18044,8 +18044,12 @@ async function framePrinterSlice(h){
     s.busy=false;s.cancel=null;framePrinterClear(s);s.layers=new Map([...layers].sort((a,b)=>a[0]-b[0]));s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
     s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-8',flatCaps:true,computeBudgetLimit:frameComputeBudget.interactiveLimit};
     const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
-    framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);return framePrinterState(h);
-  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}finally{controller.abort();turn?.();endScope();}
+    framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);displayed=true;return framePrinterState(h);
+  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}finally{controller.abort();turn?.();if(displayed){
+    // Keep the shared CPU reservation through the first display frames without delaying the API result.
+    let first=null,second=null;const finish=()=>{clearTimeout(timer);if(first!=null)cancelAnimationFrame(first);if(second!=null)cancelAnimationFrame(second);endScope();};
+    const timer=setTimeout(finish,50);first=requestAnimationFrame(()=>{first=null;second=requestAnimationFrame(()=>{second=null;finish();});});
+  }else endScope();}
 }
 function framePrinterState(h){const s=framePrinters.get(h),p=objParams.get(h);return {object:h,displayMode:s?.displayMode||'solid',busy:!!s?.busy,status:s?.status||'Ready',slicingAvailable:true,params:{...p},maximumDisplayLayer:framePrinterLayerLimit(h),stats:s?.stats||null,test:null,testing:false,visibleSegments:s?.visibleSegments||0,grid:s?.grid||null};}
 function framePrinterGetLayer(h,layer,details=false){
