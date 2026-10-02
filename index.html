@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r139</title>
+<title>Frame r140</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -17891,8 +17891,8 @@ function framePrinterRange(h){
   s.visibleSegments=s.root.visible?visible:0;
   for(const q of s.chunks){const u=q.mesh.material.uniforms;u.firstLayer.value=p.startLayer;u.lastLayer.value=p.endLayer;u.layerPosition.value=p.layerPosition;const inRange=q.maxLayer>=p.startLayer&&q.minLayer<=p.endLayer;q.mesh.visible=inRange&&s.displayMode!=='lines-dots';if(q.debug)q.debug.visible=inRange&&s.displayMode==='lines-dots';}
 }
-function framePrinterBuildDisplay(h){
-  const s=framePrinters.get(h),p=objParams.get(h);const chunkSize=16384;let count=0,startBuffer=null,endBuffer=null,metaBuffer=null,minChunkLayer=Infinity,maxChunkLayer=-Infinity;
+async function framePrinterBuildDisplay(h,staging,check){
+  const s=staging||framePrinters.get(h),p=staging?.params||objParams.get(h);const chunkSize=16384;let count=0,startBuffer=null,endBuffer=null,metaBuffer=null,minChunkLayer=Infinity,maxChunkLayer=-Infinity;
   const flush=()=>{if(!count)return;const n=count,starts=n===chunkSize?startBuffer:startBuffer.slice(0,n*3),ends=n===chunkSize?endBuffer:endBuffer.slice(0,n*3),meta=n===chunkSize?metaBuffer:metaBuffer.slice(0,n*3),minLayer=minChunkLayer,maxLayer=maxChunkLayer;
     const g=new THREE2.InstancedBufferGeometry();g.setAttribute('position',new THREE2.Float32BufferAttribute([0,-1,0,1,-1,0,0,1,0,1,1,0],3));g.setIndex([0,1,2,2,1,3]);g.setAttribute('segmentStart',new THREE2.InstancedBufferAttribute(starts,3));g.setAttribute('segmentEnd',new THREE2.InstancedBufferAttribute(ends,3));g.setAttribute('segmentMeta',new THREE2.InstancedBufferAttribute(meta,3));g.instanceCount=n;
     const m=new THREE2.ShaderMaterial({side:THREE2.DoubleSide,transparent:true,depthWrite:true,alphaToCoverage:true,uniforms:{lineWidth:{value:p.lineWidth},firstLayer:{value:p.startLayer},lastLayer:{value:p.endLayer},layerPosition:{value:p.layerPosition},pixelHeight:{value:720}},vertexShader:`
@@ -17920,8 +17920,8 @@ function framePrinterBuildDisplay(h){
     const mesh=new THREE2.Mesh(g,m);mesh.frustumCulled=false;mesh.userData.framePrinter=h;mesh.onBeforeRender=renderer=>{m.uniforms.pixelHeight.value=renderer.getDrawingBufferSize(new THREE2.Vector2()).y;};s.paths.add(mesh);s.chunks.push({mesh,minLayer,maxLayer,count:n,pick:framePrinterPickIndex(starts,ends,meta)});count=0;startBuffer=endBuffer=metaBuffer=null;minChunkLayer=Infinity;maxChunkLayer=-Infinity;
   };
   for(const [layer,paths] of s.layers){let index=0;const y=framePrinterLayerY(p,layer);for(const path of paths)for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];if(!count){startBuffer=new Float32Array(chunkSize*3);endBuffer=new Float32Array(chunkSize*3);metaBuffer=new Float32Array(chunkSize*3);}const at=count*3;
-    startBuffer[at]=a[0];startBuffer[at+1]=y;startBuffer[at+2]=a[1];endBuffer[at]=b[0];endBuffer[at+1]=y;endBuffer[at+2]=b[1];metaBuffer[at]=layer;metaBuffer[at+1]=index++;metaBuffer[at+2]=layer===1?p.initialLayerHeight:p.layerHeight;minChunkLayer=Math.min(minChunkLayer,layer);maxChunkLayer=Math.max(maxChunkLayer,layer);if(++count===chunkSize)flush();}}
-  flush();if(s.displayMode==='lines-dots')for(const q of s.chunks)framePrinterDebugMesh(h,s,q);framePrinterRange(h);scheduleRender();
+    startBuffer[at]=a[0];startBuffer[at+1]=y;startBuffer[at+2]=a[1];endBuffer[at]=b[0];endBuffer[at+1]=y;endBuffer[at+2]=b[1];metaBuffer[at]=layer;metaBuffer[at+1]=index++;metaBuffer[at+2]=layer===1?p.initialLayerHeight:p.layerHeight;minChunkLayer=Math.min(minChunkLayer,layer);maxChunkLayer=Math.max(maxChunkLayer,layer);if(++count===chunkSize){flush();if(check){check();await (globalThis.scheduler?.yield?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,0)));check();}}}}
+  flush();if(staging)s.displayMode=framePrinters.get(h)?.displayMode;if(s.displayMode==='lines-dots')for(const q of s.chunks)framePrinterDebugMesh(h,s,q);if(!staging){framePrinterRange(h);scheduleRender();}
 }
 // Bounds index over segment endpoints; camera-dependent ribbon extents are applied at query time.
 function framePrinterPickIndex(starts,ends,meta){
@@ -18047,18 +18047,20 @@ function frameSlicerTask(source,meshes,params,signal,onProgress,onOwner){
 async function framePrinterSlice(h){
   if(!frameIsPrinter(h))throw Error('Select a 3D Printer.');const s=framePrinterEnsure(h);if(s.busy)throw Error('Slicing is already running.');
   const p={...objParams.get(h),perimeters:1};framePrinterValidateSettings(h,p);s.busy=true;s.status='Preparing geometry.';
-  const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false,displayed=false;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
+  const controller=new AbortController(),endScope=frameComputeBudget.enterSlice();let turn=null,cancelled=false,displayed=false,displayStage=null;s.cancel=()=>{cancelled=true;controller.abort();s.status='Cancelling.';framePrinterStatus(h);};framePrinterStatus(h);
   const check=()=>{if(cancelled||!OBJ.has(h))throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});if(['lineWidth','layerHeight','initialLayerHeight','minPathLength'].some(k=>objParams.get(h)?.[k]!==p[k]))throw Error('Settings changed · slice again');};
   try{await window.frameAI.waitForIdle();check();s.status='Waiting for slicer.';framePrinterStatus(h);turn=await frameComputeBudget.acquireSliceTurn(controller.signal);check();s.status='Preparing geometry.';framePrinterStatus(h);
     const f=framePrinterFrame(h),inverse=f.frame.clone().invert(),sources=framePrinterSources(),meshes=sources.map(q=>{const a=q.geometry.attributes.position,positions=framePrinterSnapshotPositions(a);return {positions,indices:q.geometry.index?new Uint32Array(q.geometry.index.array):null,matrix:inverse.clone().multiply(q.matrix).elements,group:q.group};});
     if(!meshes.length)throw Error('No visible mesh geometry to slice.');
     const layers=new Map(),started=performance.now();
     const source=document.getElementById('frame-single-slicer-worker-source').textContent,stats=await frameSlicerTask(source,meshes,{...p,width:f.width,height:f.height,depth:f.depth},controller.signal,data=>{for(const q of data.layers||[])layers.set(q.layer,q.paths);s.status='Slicing '+Math.round(data.progress*100)+'%';framePrinterStatus(h);},worker=>{s.worker=worker;});check();
-    s.busy=false;s.cancel=null;framePrinterClear(s);s.layers=new Map([...layers].sort((a,b)=>a[0]-b[0]));s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
-    s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:performance.now()-started,kernel:'single-inset-8',flatCaps:true,computeBudgetLimit:frameComputeBudget.interactiveLimit};
+    const outlineFinished=performance.now();displayStage={layers:new Map([...layers].sort((a,b)=>a[0]-b[0])),params:p,chunks:[],paths:new THREE2.Group(),displayMode:s.displayMode};
+    s.status='Preparing preview.';framePrinterStatus(h);await framePrinterBuildDisplay(h,displayStage,check);check();
+    s.busy=false;s.cancel=null;framePrinterClear(s);s.layers=displayStage.layers;s.chunks=displayStage.chunks;displayStage.chunks=[];while(displayStage.paths.children.length)s.paths.add(displayStage.paths.children[0]);s.lastLayer=0;for(const layer of layers.keys())s.lastLayer=Math.max(s.lastLayer,layer);s.sliceParams={...p};
+    s.stats={...stats,volumeLayers:stats.layers,layers:s.lastLayer,milliseconds:outlineFinished-started,kernel:'single-inset-8',flatCaps:true,computeBudgetLimit:frameComputeBudget.interactiveLimit};
     const settings=objParams.get(h);framePrinterRange(h);settings.layerPosition=framePrinterCount(s,settings.endLayer);s.status=stats.segments?stats.nonemptyLayers+' layers · '+stats.segments+' segments':'No printable perimeter at this line width';
-    framePrinterUpdate();framePrinterBuildDisplay(h);if(selNodes.has(h))framePrinterAttributes(h);displayed=true;return framePrinterState(h);
-  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}finally{controller.abort();turn?.();if(displayed){
+    framePrinterUpdate();scheduleRender();if(selNodes.has(h))framePrinterAttributes(h);displayed=true;return framePrinterState(h);
+  }catch(error){s.busy=false;s.cancel=null;s.status=error.message;framePrinterStatus(h);throw error;}finally{if(displayStage){displayStage.paths.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material))m.dispose();});displayStage.paths.clear();}controller.abort();turn?.();if(displayed){
     // Keep the shared CPU reservation through the first display frames without delaying the API result.
     let first=null,second=null;const finish=()=>{clearTimeout(timer);if(first!=null)cancelAnimationFrame(first);if(second!=null)cancelAnimationFrame(second);endScope();};
     const timer=setTimeout(finish,50);first=requestAnimationFrame(()=>{first=null;second=requestAnimationFrame(()=>{second=null;finish();});});
