@@ -1,0 +1,21 @@
+# Frame
+
+A 3D modeling workspace in your browser: build with splines and polygons, assemble scenes, and inspect print layers.
+
+**[Launch Frame](https://mozg4d.github.io/frame/)**
+
+![Frame workspace showing a workshop campus, landscaping, vehicles, and the Objects Browser](docs/frame-screenshot.jpg)
+
+*An actual Frame scene with 1,000 objects and approximately five million triangles.*
+
+- Edit spline cages and polygon meshes; use parametric primitives, surface generators, and Boolean operations.
+- Organize object hierarchies, shared instances, materials, and animation.
+- Save native `.hash` scenes and exchange geometry through glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
+- Slice a fixed-width inward perimeter and inspect layers with solid or Lines–Dots previews.
+- Work with desktop or touch controls; install the PWA and reopen cached application resources offline.
+
+## License
+
+Frame’s original code and project materials are proprietary. © 2026 FRAME copyright holders. All rights reserved; see the [Frame license](licenses/FRAME.txt) for permitted uses. The official hosted application is free to use.
+
+Third-party components remain under their own licenses and copyright notices; see [licenses/](licenses/). For embedding or integration, contact [mozg4d@gmail.com](mailto:mozg4d@gmail.com).
