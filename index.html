@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r140</title>
+<title>Frame r141</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -166,7 +166,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#2a2a2a}
 body{--h:0;--s:0%;--l:80%;font:14px/16px ui-monospace,Menlo,Consolas,monospace;user-select:none;-webkit-user-select:none}
 #app{position:fixed;inset:0;display:flex;flex-direction:row}
 #vp{position:relative;flex:1 1 auto;min-width:0;height:100%}
-#vp canvas{display:block;touch-action:none;cursor:default;-webkit-touch-callout:none}
+#vp canvas{display:block;touch-action:pinch-zoom;cursor:default;-webkit-touch-callout:none}
 #panel{flex:0 0 256px;width:256px;height:100%;background:#1c1c1c;position:relative;
 padding:0;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
 #panel::-webkit-scrollbar{display:none;width:0;height:0}
@@ -224,7 +224,7 @@ border-radius:5px;text-align:right;-moz-appearance:textfield;user-select:text;-w
 #btnBrowser{margin-left:auto}
 #tabstrip{flex:0 0 36px;width:256px;height:36px;background:#000;
 display:flex;align-items:stretch;justify-content:space-between;
-cursor:ns-resize;user-select:none;touch-action:none;z-index:20}
+cursor:ns-resize;user-select:none;touch-action:pinch-zoom;z-index:20}
 .tabgrp,.tabact{display:flex;align-items:flex-start;padding-top:4px}
 .tabbtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;
 background:#000;border-radius:6px 6px 0 0;cursor:pointer}
@@ -235,7 +235,7 @@ background:#000;border-radius:6px 6px 0 0;cursor:pointer}
 .actbtn:hover{background:#2e2e2e}
 #obWrap{flex:0 0 auto;position:relative;overflow:hidden;background:#222}
 #obWrap.ob-dragging, #obWrap.ob-dragging *{cursor:var(--ob-cur)!important}
-#obScroll{position:absolute;inset:0;overflow:auto;user-select:none;scrollbar-width:none;touch-action:none;overscroll-behavior:contain;-webkit-touch-callout:none}
+#obScroll{position:absolute;inset:0;overflow:auto;user-select:none;scrollbar-width:none;touch-action:pinch-zoom;overscroll-behavior:contain;-webkit-touch-callout:none}
 #obScroll::-webkit-scrollbar{width:0;height:0}
 #obInner{position:relative;width:100%}
 .ob-row{position:absolute;left:0;height:17px;display:flex;align-items:center;white-space:nowrap;
@@ -315,7 +315,7 @@ background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000
 .mat-card input{width:55px;background:transparent;border:0;color:#aaa;font:14px/16px ui-monospace,Menlo,Consolas,monospace;
 padding:0;text-align:center;outline:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;margin:3px auto 0}
 .mat-card input:focus{background:#111;color:#fff;cursor:text}
-#texScroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;touch-action:none;scrollbar-width:none}
+#texScroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;touch-action:pinch-zoom;scrollbar-width:none}
 #texScroll::-webkit-scrollbar{width:0;height:0}
 #texGrid{display:block;padding:0;align-content:start}
 .tex-grid-group{display:grid;grid-template-columns:repeat(auto-fill,64px);grid-auto-rows:64px;gap:0;padding:0;align-content:start;width:100%}
@@ -424,7 +424,7 @@ user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrol
 /* r70: native-size icons and embedded, borderless animation view. */
 #timeline{height:30px;gap:0;padding-left:2px}.tl-btn{width:28px;height:28px;flex:0 0 28px;margin:0}.tl-btn svg{width:28px;height:28px}.tl-inp{min-width:28px}.tl-frame{display:none}
 #frame-views{flex:1 1 auto;min-width:0;height:100%;display:flex;flex-direction:column}#frame-views>#vp{height:auto;min-height:90px;flex:1 1 auto;width:100%}
-#frame-curves{position:relative;flex:0 0 auto;width:100%;background:#202020;outline:none}#frame-curves-divider{height:1px;background:#000;position:relative;cursor:ns-resize;z-index:15}#frame-curves-divider::after{content:'';position:absolute;left:0;right:0;top:-3px;bottom:-3px}#frame-curves-canvas{width:100%;height:calc(100% - 1px);display:block;touch-action:none;outline:none}
+#frame-curves{position:relative;flex:0 0 auto;width:100%;background:#202020;outline:none}#frame-curves-divider{height:1px;background:#000;position:relative;cursor:ns-resize;z-index:15}#frame-curves-divider::after{content:'';position:absolute;left:0;right:0;top:-3px;bottom:-3px}#frame-curves-canvas{width:100%;height:calc(100% - 1px);display:block;touch-action:pinch-zoom;outline:none}
 .frame-object-animated:not(.sel){background:#29252d}.frame-object-animated:not(.sel):hover{background:#302b35}
 .frame-curve-numeric{display:flex;align-items:center;gap:12px;padding:4px 10px;color:#ccc}.frame-curve-numeric input{min-width:85px;width:105px;background:#111;color:#ddd;border:0;border-radius:3px;font:14px ui-monospace,Consolas,monospace;padding:3px}
 #frame-render-progress{font:14px/19px ui-monospace,Consolas,monospace;color:#aaa;min-height:19px;white-space:normal;overflow-wrap:anywhere;margin-top:3px}
@@ -591,7 +591,8 @@ THE SOFTWARE.
       <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
       <p>Open supports native HASH, glTF/GLB, OBJ, STL, PLY, SVG and the documented DXF subset. Save As chooses a format; right-click Download exports interchange files.</p>
       <p>Native HASH is the lossless format for editable splines, generators, hierarchy, materials and animation.</p>
-      <p>Double tap in a viewport: Quad / Single view. Long press: context menu.</p>
+      <p>Viewport touch: drag one finger to select a rectangle; drag two to orbit, pinch to zoom the camera, or drag three to pan. Double tap: Quad / Single view. Long press: context menu.</p>
+      <p>Pinch with a finger in the right panel to zoom the page. To switch from an active viewport gesture to page zoom, lift your fingers and start a new pinch.</p>
       <p>Touch: hold for a context menu. In Objects Browser, drag a name or row to move it; drop between rows to reorder, on a row to make a child. Scroll with two fingers, or drag empty space / the left indentation. Release outside the tree to cancel.</p>
     <p>Morph modes: Solve adjusts morph values when dragging points; Edit opens pose keys on a separate 0–100 timeline; Modelling disables deformation and edits the reference. Set keys with the animation toolbar. Curves show the selected point's X/Y/Z; drag their tangent handles to adjust motion.</p>
     </div>
@@ -26305,6 +26306,7 @@ function initViewport(container) {
 }
 var activeView = -1, lastX = 0, lastY = 0, downX = 0, downY = 0;
 var mobileTouchPointers = /* @__PURE__ */ new Map(), mobileTouchGesture = null, mobileLastTap = null, mobileInputSeen = !1, mobileIgnoredPointers = new Set();
+var frameTouchContacts = new Map(), frameNativePinch = false;
 // Pointer handlers already perform touch taps. Consume only that gesture's
 // compatibility click; a fresh pointerdown immediately permits the next tap.
 var mobileClickGuard = null;
@@ -26312,6 +26314,50 @@ function suppressMobileClick(e) {
   mobileClickGuard = { id: e.pointerId, x: e.clientX, y: e.clientY, until: performance.now() + 800 };
 }
 addEventListener("pointerdown", () => { mobileClickGuard = null; }, true);
+// Keep native page pinch available from either region. Pointer cancellation
+// does not itself disable browser zoom; only all-viewport multi-touch does.
+function frameTouchInPanel(x,y){return !!document.elementFromPoint(x,y)?.closest('#panel');}
+function frameBeginPagePinch(){
+  if(frameNativePinch)return;
+  frameNativePinch=true;cancelMobileTouch();cancelObTouch();
+  if(splinePointerGesture?.direct)finishSplineDirectDrag(splinePointerGesture,true);
+  splinePointerGesture=null;
+  if(gizDrag)endGizDrag({});
+  if(edgeBevelTool?.dragging)cancelEdgeBevel();
+  if(splineBevelTool?.dragging)cancelSplineBevelTool();
+  if(splineOutlineTool?.dragging)cancelSplineOutlineTool();
+  activeView=-1;hideSplineDrawPreview();scheduleRender();
+  // End captured panel scrubs even when the contacts do not move far enough
+  // for Chrome to emit its native pointercancel. Keep this gesture drained.
+  for(const p of [...frameTouchContacts.values()]){
+    let owner=p.target;for(let q=p.target;q;q=q.parentElement)if(q.hasPointerCapture?.(p.id)){owner=q;break;}
+    owner?.dispatchEvent(new PointerEvent('pointercancel',{bubbles:true,pointerId:p.id,pointerType:'touch',clientX:p.x,clientY:p.y}));
+    try{owner?.releasePointerCapture(p.id);}catch{}
+  }
+}
+function frameRouteTouch(e){
+  if(e.pointerType!=='touch')return;
+  if(e.type==='pointerdown')frameTouchContacts.set(e.pointerId,{id:e.pointerId,x:e.clientX,y:e.clientY,panel:frameTouchInPanel(e.clientX,e.clientY),tree:!!e.target.closest?.('#obScroll'),target:e.target});
+  else if(e.type==='pointermove'){
+    const p=frameTouchContacts.get(e.pointerId);if(p){p.x=e.clientX;p.y=e.clientY;p.panel=frameTouchInPanel(p.x,p.y);}
+  }
+  if(frameTouchContacts.size>=2&&[...frameTouchContacts.values()].some(p=>p.panel)&&![...frameTouchContacts.values()].every(p=>p.tree&&p.panel))frameBeginPagePinch();
+  if(e.type==='pointerup'||e.type==='pointercancel')frameTouchContacts.delete(e.pointerId);
+  if(frameNativePinch&&e.type!=='pointercancel')e.stopImmediatePropagation();
+}
+for(const type of ['pointerdown','pointermove','pointerup','pointercancel'])addEventListener(type,frameRouteTouch,{capture:true,passive:false});
+function frameRouteNativeTouch(e){
+  const points=[...e.touches];
+  if(points.length>=2&&points.some(p=>frameTouchInPanel(p.clientX,p.clientY))&&!points.every(p=>p.target.closest?.('#obScroll')&&frameTouchInPanel(p.clientX,p.clientY)))frameBeginPagePinch();
+  if(!frameNativePinch&&points.length>=2&&points.every(p=>p.target===vpState.renderer?.domElement||p.target.closest?.('#frame-curves-canvas'))&&e.cancelable)e.preventDefault();
+}
+for(const type of ['touchstart','touchmove'])addEventListener(type,frameRouteNativeTouch,{capture:true,passive:false});
+addEventListener('touchend',e=>{if(!e.touches.length){frameTouchContacts.clear();frameNativePinch=false;}},{capture:true,passive:true});
+function frameResetTouchRouting(){frameTouchContacts.clear();frameNativePinch=false;cancelMobileTouch();cancelObTouch();}
+addEventListener('touchcancel',frameResetTouchRouting,{capture:true,passive:true});
+addEventListener('blur',frameResetTouchRouting);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)frameResetTouchRouting();});
+
 for (const type of ["click", "dblclick"]) addEventListener(type, e => {
   const g = mobileClickGuard;
   if (!g || performance.now() > g.until || e.detail === 0) return;
@@ -26330,134 +26376,124 @@ function mobilePointerEvent(p, buttons = LMB) {
 function clearMobileLongPress() {
   mobileTouchGesture?.timer && clearTimeout(mobileTouchGesture.timer), mobileTouchGesture && (mobileTouchGesture.timer = 0);
 }
-function beginMobilePinch() {
-  let pts = [...mobileTouchPointers.values()];
-  if (pts.length < 2) return !1;
-  let a = pts[0], b = pts[1], x = (a.x + b.x) * 0.5, y = (a.y + b.y) * 0.5, vi = viewAt(x, y);
-  if (vi < 0) vi = a.view;
-  let r = rectFor(vi), view = vpState.views[vi];
-  if (!r || !view) return !1;
-  clearMobileLongPress(), mobileLastTap = null, activeView = -1;
-  if (mobileTouchGesture?.mode === "navigation") vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(a, 0));
-  let p = { id: a.id, x, y };
-  view.ctrl.down(mobilePointerEvent(p, MMB), r), mobileTouchGesture = { mode: "pinch", view: vi, distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), x, y };
-  return !0;
+function mobileMarqueeBounds(gesture,p){
+  const r=rectFor(gesture.view);if(!r)return null;
+  const x=clamp(p.x,r.x,r.x+r.w),y=clamp(p.y,r.y,r.y+r.h);
+  return {x0:Math.min(gesture.x,x),y0:Math.min(gesture.y,y),x1:Math.max(gesture.x,x),y1:Math.max(gesture.y,y)};
 }
-function mobileTouchDown(e) {
-  if (e.pointerType !== "touch" || e.button !== 0) return !1;
-  mobileInputSeen = !0;
-  if (gizDrag) { mobileIgnoredPointers.add(e.pointerId); return e.preventDefault(), true; }
-  let continuesDoubleTap = !mobileTouchPointers.size && mobileLastTap && performance.now() - mobileLastTap.time <= MOBILE_DOUBLE_TAP_MS && Math.hypot(e.clientX - mobileLastTap.x, e.clientY - mobileLastTap.y) <= 24;
-  const pendingGizmo = !continuesDoubleTap && !mobileTouchPointers.size ? hitGizmo(e.clientX, e.clientY) : null;
-  let vi = viewAt(e.clientX, e.clientY);
-  if (vi < 0) return !1;
-  let p = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, view: vi };
-  mobileTouchPointers.set(e.pointerId, p);
-  try {
-    vpState.renderer.domElement.setPointerCapture(e.pointerId);
-  } catch {
+function mobileMarqueeMove(gesture,p){
+  const q=mobileMarqueeBounds(gesture,p);if(!q)return;
+  if(!gesture.box){gesture.box=document.createElement('div');gesture.box.className='ml-marquee vp-marquee';document.body.appendChild(gesture.box);}
+  Object.assign(gesture.box.style,{left:q.x0+'px',top:q.y0+'px',width:(q.x1-q.x0)+'px',height:(q.y1-q.y0)+'px'});
+}
+function mobileMarqueePick(gesture,p){
+  const q=mobileMarqueeBounds(gesture,p);if(!q)return;
+  if(splineMode||polyMode){
+    splineMode&&splineBoxPick(q.x0,q.y0,q.x1,q.y1,'replace');
+    polyMode&&(polyBoxPick(q.x0,q.y0,q.x1,q.y1,'replace'),vertexTools.soft.active&&recalculateSoftSelection());
+  }else{
+    const hs=boxPick(q.x0,q.y0,q.x1,q.y1);
+    selNodes.clear();selTags.clear();hs.forEach(h=>selNodes.add(h));anchorNode=hs.length?getObj(hs[0]):null;lastBracketSig=null;refreshSelClasses();
   }
-  if (mobileTouchPointers.size === 1) {
-    mobileLastTap && performance.now() - mobileLastTap.time > MOBILE_DOUBLE_TAP_MS && (mobileLastTap = null);
-    let gesture = mobileTouchGesture = { mode: "pending", pointId: e.pointerId, view: vi, x: p.x, y: p.y, timer: 0, gizmo: pendingGizmo };
-    gesture.timer = setTimeout(() => {
-      let current = mobileTouchPointers.get(gesture.pointId);
-      if (mobileTouchGesture !== gesture || gesture.mode !== "pending" || mobileTouchPointers.size !== 1 || !current || Math.hypot(current.x - gesture.x, current.y - gesture.y) >= MOBILE_TOUCH_SLOP) return;
-      mobileLastTap = null; gesture.mode = "menu"; gesture.timer = 0;
-      suppressMobileClick({ pointerId: gesture.pointId, clientX: current.x, clientY: current.y });
-      openViewportContextMenu(current.x, current.y);
-    }, MOBILE_LONG_PRESS_MS);
-  } else mobileTouchPointers.size === 2 && beginMobilePinch();
-  return e.preventDefault(), !0;
 }
-function mobileTouchMove(e) {
-  if (mobileIgnoredPointers.has(e.pointerId)) return e.preventDefault(), true;
-  let p = mobileTouchPointers.get(e.pointerId);
-  if (!p) return !1;
-  p.x = e.clientX, p.y = e.clientY;
-  if (mobileTouchPointers.size >= 2 && mobileTouchGesture?.mode !== "pinch" && !beginMobilePinch()) mobileTouchGesture = { mode: "drain" };
-  let gesture = mobileTouchGesture;
-  if (!gesture) return e.preventDefault(), !0;
-  if (gesture.mode === "pinch") {
-    let pts = [...mobileTouchPointers.values()];
-    if (pts.length >= 2) {
-      let a = pts[0], b = pts[1], x = (a.x + b.x) * 0.5, y = (a.y + b.y) * 0.5, distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), scale = clamp(distance / gesture.distance, 0.25, 4), r = rectFor(gesture.view), view = vpState.views[gesture.view];
-      if (r && view) {
-        let center = { id: a.id, x, y }, wheelEvent = mobilePointerEvent(center, 0);
-        wheelEvent.deltaY = -Math.log(scale) / (3e-3 * WHEEL), view.ctrl.wheel(wheelEvent, r), view.ctrl.move(mobilePointerEvent(center, MMB), r, !0, x - gesture.x, y - gesture.y), scheduleRender();
+function mobileFinishEdit(gesture,cancelled=false){
+  gesture?.box?.remove();
+  if(gesture?.mode==='spline'){finishSplineDirectDrag(gesture.directGesture,cancelled);splinePointerGesture=null;}
+  else if(gesture?.mode==='gizmo'&&gizDrag)endGizDrag({});
+}
+function beginMobilePinch(){
+  const pts=[...mobileTouchPointers.values()];if(pts.length<2)return false;
+  const a=pts[0],b=pts[1],x=(a.x+b.x)*.5,y=(a.y+b.y)*.5;
+  // Stay in the view where the first contact began, even across Quad seams.
+  const vi=mobileTouchGesture?.view??a.view,r=rectFor(vi),view=vpState.views[vi];if(!r||!view)return false;
+  clearMobileLongPress();mobileLastTap=null;mobileFinishEdit(mobileTouchGesture,true);activeView=-1;
+  const buttons=view.type==='persp'&&pts.length===2?LMB:MMB;
+  view.ctrl.down(mobilePointerEvent({id:a.id,x,y},buttons),r);
+  mobileTouchGesture={mode:'pinch',view:vi,buttons,distance:Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)),x,y};return true;
+}
+function mobileTouchDown(e){
+  if(e.pointerType!=='touch'||e.button!==0)return false;
+  mobileInputSeen=true;if(frameNativePinch)return true;
+  if(gizDrag&&!mobileTouchGesture){mobileIgnoredPointers.add(e.pointerId);return e.preventDefault(),true;}
+  const continuesDoubleTap=!mobileTouchPointers.size&&mobileLastTap&&performance.now()-mobileLastTap.time<=MOBILE_DOUBLE_TAP_MS&&Math.hypot(e.clientX-mobileLastTap.x,e.clientY-mobileLastTap.y)<=24;
+  const vi=viewAt(e.clientX,e.clientY);if(vi<0)return false;
+  const hit=!continuesDoubleTap&&!mobileTouchPointers.size&&splineMode?splineScreenHit(e.clientX,e.clientY):null;
+  const directHit=hit&&(hit.kind==='handle'||hit.kind==='vertex'&&(frameIsMotionPath(hit.object)||vpState.views[vi].type==='ortho'))?hit:null;
+  const pendingGizmo=!continuesDoubleTap&&!mobileTouchPointers.size&&!directHit?hitGizmo(e.clientX,e.clientY):null;
+  const p={id:e.pointerId,x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY,view:vi};mobileTouchPointers.set(e.pointerId,p);
+  try{vpState.renderer.domElement.setPointerCapture(e.pointerId);}catch{}
+  if(mobileTouchPointers.size===1){
+    if(mobileLastTap&&performance.now()-mobileLastTap.time>MOBILE_DOUBLE_TAP_MS)mobileLastTap=null;
+    const gesture=mobileTouchGesture={mode:'pending',pointId:e.pointerId,view:vi,x:p.x,y:p.y,timer:0,gizmo:pendingGizmo,directHit};
+    gesture.timer=setTimeout(()=>{
+      const current=mobileTouchPointers.get(gesture.pointId);
+      if(mobileTouchGesture!==gesture||gesture.mode!=='pending'||mobileTouchPointers.size!==1||!current||Math.hypot(current.x-gesture.x,current.y-gesture.y)>=MOBILE_TOUCH_SLOP)return;
+      mobileLastTap=null;gesture.mode='menu';gesture.timer=0;suppressMobileClick({pointerId:gesture.pointId,clientX:current.x,clientY:current.y});openViewportContextMenu(current.x,current.y);
+    },MOBILE_LONG_PRESS_MS);
+  }else beginMobilePinch();
+  return e.preventDefault(),true;
+}
+function mobileTouchMove(e){
+  if(mobileIgnoredPointers.has(e.pointerId))return e.preventDefault(),true;
+  const p=mobileTouchPointers.get(e.pointerId);if(!p)return false;p.x=e.clientX;p.y=e.clientY;
+  if(mobileTouchPointers.size>=2&&mobileTouchGesture?.mode!=='pinch'&&!beginMobilePinch())mobileTouchGesture={mode:'drain'};
+  const gesture=mobileTouchGesture;if(!gesture)return e.preventDefault(),true;
+  if(gesture.mode==='pinch'){
+    const pts=[...mobileTouchPointers.values()];if(pts.length>=2){
+      const a=pts[0],b=pts[1],x=(a.x+b.x)*.5,y=(a.y+b.y)*.5,distance=Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)),scale=clamp(distance/gesture.distance,.25,4),r=rectFor(gesture.view),view=vpState.views[gesture.view];
+      if(r&&view){const center={id:a.id,x,y},wheelEvent=mobilePointerEvent(center,0);wheelEvent.deltaY=-Math.log(scale)/(3e-3*WHEEL);view.ctrl.wheel(wheelEvent,r);view.ctrl.move(mobilePointerEvent(center,gesture.buttons),r,true,x-gesture.x,y-gesture.y);scheduleRender();}
+      gesture.distance=distance;gesture.x=x;gesture.y=y;
+    }
+  }else if(gesture.mode==='pending'){
+    if(Math.hypot(p.x-gesture.x,p.y-gesture.y)>=MOBILE_TOUCH_SLOP){
+      clearMobileLongPress();mobileLastTap=null;
+      if(gesture.directHit){
+        const direct=gesture.directGesture={x:gesture.x,y:gesture.y,view:gesture.view,hit:gesture.directHit,ctrl:false,shift:false,direct:false};
+        if(beginSplineDirectDrag(direct,mobilePointerEvent(p))){gesture.mode='spline';splinePointerGesture=direct;moveSplineDirectDrag(direct,mobilePointerEvent(p));return e.preventDefault(),true;}
       }
-      gesture.distance = distance, gesture.x = x, gesture.y = y;
+      if(gesture.gizmo){gesture.mode='gizmo';activeView=-1;if(vertexTools.mode==='loop')stopVertexModeTool();startGizDrag(gesture.gizmo,mobilePointerEvent({id:p.id,x:gesture.x,y:gesture.y}));doGizDrag(mobilePointerEvent(p));}
+      else{gesture.mode='marquee';activeView=-1;mobileMarqueeMove(gesture,p);}
     }
-  } else if (gesture.mode === "pending") {
-    if (Math.hypot(p.x - gesture.x, p.y - gesture.y) >= MOBILE_TOUCH_SLOP) {
-      clearMobileLongPress(); mobileLastTap = null;
-      if (gesture.gizmo) {
-        gesture.mode = "gizmo"; activeView = -1;
-        if (vertexTools.mode === "loop") stopVertexModeTool();
-        startGizDrag(gesture.gizmo, mobilePointerEvent({ id: p.id, x: gesture.x, y: gesture.y }));
-        doGizDrag(mobilePointerEvent(p));
-        return e.preventDefault(), true;
-      }
-      gesture.mode = "navigation"; gesture.lastX = gesture.x; gesture.lastY = gesture.y;
-      let r = rectFor(gesture.view), view = vpState.views[gesture.view], start = { id: p.id, x: gesture.x, y: gesture.y };
-      r && view && (view.ctrl.down(mobilePointerEvent(start), r), view.ctrl.move(mobilePointerEvent(p), r, !0, p.x - gesture.lastX, p.y - gesture.lastY), scheduleRender()), gesture.lastX = p.x, gesture.lastY = p.y;
-    }
-  } else if (gesture.mode === "navigation") {
-    let r = rectFor(gesture.view), view = vpState.views[gesture.view];
-    r && view && (view.ctrl.move(mobilePointerEvent(p), r, !0, p.x - gesture.lastX, p.y - gesture.lastY), scheduleRender()), gesture.lastX = p.x, gesture.lastY = p.y;
-  } else if (gesture.mode === "gizmo" && gizDrag) doGizDrag(mobilePointerEvent(p));
-  return e.preventDefault(), !0;
+  }else if(gesture.mode==='marquee')mobileMarqueeMove(gesture,p);
+  else if(gesture.mode==='gizmo'&&gizDrag)doGizDrag(mobilePointerEvent(p));
+  else if(gesture.mode==='spline')moveSplineDirectDrag(gesture.directGesture,mobilePointerEvent(p));
+  return e.preventDefault(),true;
 }
-function mobileTouchUp(e) {
-  if (mobileIgnoredPointers.delete(e.pointerId)) return e.preventDefault(), true;
-  let p = mobileTouchPointers.get(e.pointerId);
-  if (!p) return !1;
-  p.x = e.clientX, p.y = e.clientY;
-  let gesture = mobileTouchGesture;
-  mobileTouchPointers.delete(e.pointerId), clearMobileLongPress();
-  if (gesture?.mode === "pinch") {
-    if (mobileTouchPointers.size < 2) {
-      let view = vpState.views[gesture.view];
-      view?.ctrl.up(mobilePointerEvent(p, 0)), mobileTouchGesture = mobileTouchPointers.size ? { mode: "drain" } : null;
-    } else {
-      let pts = [...mobileTouchPointers.values()], a = pts[0], b = pts[1];
-      gesture.distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), gesture.x = (a.x + b.x) * 0.5, gesture.y = (a.y + b.y) * 0.5;
-    }
-  } else if (gesture?.mode === "drain") mobileTouchPointers.size || (mobileTouchGesture = null);
-  else if (gesture?.mode === "pending") {
-    if (Math.hypot(p.x - gesture.x, p.y - gesture.y) < MOBILE_TOUCH_SLOP) {
-      let now = performance.now(), doubleTap = mobileLastTap && now - mobileLastTap.time <= MOBILE_DOUBLE_TAP_MS && mobileLastTap.view === gesture.view && Math.hypot(p.x - mobileLastTap.x, p.y - mobileLastTap.y) <= 24;
-      doubleTap ? (mobileLastTap = null, toggleViewportLayout(gesture.view)) : (doPick(mobilePointerEvent(p, 0)), mobileLastTap = { time: now, x: p.x, y: p.y, view: gesture.view });
-    }
-    mobileTouchGesture = null;
-  } else if (gesture?.mode === "navigation") {
-    vpState.views[gesture.view]?.ctrl.up(mobilePointerEvent(p, 0)), mobileTouchGesture = null;
-  } else if (gesture?.mode === "gizmo") {
-    if (gizDrag) endGizDrag(e);
-    mobileTouchGesture = null; scheduleRender();
-  } else if (gesture?.mode === "menu") mobileTouchGesture = null;
-  suppressMobileClick(e);
-  try {
-    vpState.renderer.domElement.releasePointerCapture(e.pointerId);
-  } catch {
-  }
-  return e.preventDefault(), !0;
+function mobileTouchUp(e){
+  if(mobileIgnoredPointers.delete(e.pointerId))return e.preventDefault(),true;
+  const p=mobileTouchPointers.get(e.pointerId);if(!p)return false;p.x=e.clientX;p.y=e.clientY;
+  const gesture=mobileTouchGesture;mobileTouchPointers.delete(e.pointerId);clearMobileLongPress();
+  if(gesture?.mode==='pinch'){
+    if(mobileTouchPointers.size<2){vpState.views[gesture.view]?.ctrl.up(mobilePointerEvent(p,0));mobileTouchGesture=mobileTouchPointers.size?{mode:'drain'}:null;}
+    else{mobileTouchGesture={...gesture};beginMobilePinch();}
+  }else if(gesture?.mode==='drain'){if(!mobileTouchPointers.size)mobileTouchGesture=null;}
+  else if(gesture?.mode==='pending'){
+    if(Math.hypot(p.x-gesture.x,p.y-gesture.y)<MOBILE_TOUCH_SLOP){
+      const now=performance.now(),doubleTap=mobileLastTap&&now-mobileLastTap.time<=MOBILE_DOUBLE_TAP_MS&&mobileLastTap.view===gesture.view&&Math.hypot(p.x-mobileLastTap.x,p.y-mobileLastTap.y)<=24;
+      if(doubleTap){mobileLastTap=null;toggleViewportLayout(gesture.view);}else{doPick(mobilePointerEvent(p,0));mobileLastTap={time:now,x:p.x,y:p.y,view:gesture.view};}
+    }mobileTouchGesture=null;
+  }else if(gesture?.mode==='marquee'){gesture.box?.remove();mobileMarqueePick(gesture,p);mobileTouchGesture=null;}
+  else if(gesture?.mode==='gizmo'||gesture?.mode==='spline'){mobileFinishEdit(gesture);mobileTouchGesture=null;scheduleRender();}
+  else if(gesture?.mode==='menu')mobileTouchGesture=null;
+  suppressMobileClick(e);try{vpState.renderer.domElement.releasePointerCapture(e.pointerId);}catch{}
+  return e.preventDefault(),true;
 }
-function cancelMobileTouch() {
-  mobileLastTap = null;
-  mobileIgnoredPointers.clear();
-  if (!mobileTouchGesture && !mobileTouchPointers.size) return;
-  clearMobileLongPress();
-  if (mobileTouchGesture?.mode === "gizmo" && gizDrag) endGizDrag({});
-  if (mobileTouchGesture?.mode === "pinch" || mobileTouchGesture?.mode === "navigation") {
-    let p = mobileTouchPointers.values().next().value || { id: -1, x: 0, y: 0 }, view = vpState.views[mobileTouchGesture.view];
-    view?.ctrl.up(mobilePointerEvent(p, 0));
-  }
-  const ids = [...mobileTouchPointers.keys()];
-  mobileTouchPointers.clear(); mobileTouchGesture = null; activeView = -1;
-  for (const id of ids) try { vpState.renderer.domElement.releasePointerCapture(id); } catch {}
+function cancelMobileTouch(){
+  mobileLastTap=null;mobileIgnoredPointers.clear();if(!mobileTouchGesture&&!mobileTouchPointers.size)return;
+  clearMobileLongPress();mobileFinishEdit(mobileTouchGesture,true);
+  if(mobileTouchGesture?.mode==='pinch'){const p=mobileTouchPointers.values().next().value||{id:-1,x:0,y:0};vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(p,0));}
+  const ids=[...mobileTouchPointers.keys()];mobileTouchPointers.clear();mobileTouchGesture=null;activeView=-1;
+  for(const id of ids)try{vpState.renderer.domElement.releasePointerCapture(id);}catch{}
 }
+
 function onDown(e) {
+  if(e.pointerType==="touch"&&frameNativePinch)return;
+  if(e.pointerType==='touch'&&frameTouchContacts.size>1&&(edgeBevelTool||splineBevelTool||splineOutlineTool||splinePointerGesture)){
+    if(edgeBevelTool)cancelEdgeBevel();if(splineBevelTool)cancelSplineBevelTool();if(splineOutlineTool)cancelSplineOutlineTool();
+    if(splinePointerGesture?.direct&&mobileTouchGesture?.mode!=='spline')finishSplineDirectDrag(splinePointerGesture,true);splinePointerGesture=null;
+    const first=[...frameTouchContacts.values()].find(p=>p.id!==e.pointerId),vi=first?viewAt(first.x,first.y):-1;
+    if(first&&vi>=0&&!mobileTouchPointers.has(first.id)){mobileTouchPointers.set(first.id,{...first,view:vi,startX:first.x,startY:first.y});mobileTouchGesture={mode:'drain',view:vi};try{vpState.renderer.domElement.setPointerCapture(first.id);}catch{}}
+  }
   if(splineBevelResult&&!splineBevelTool)clearSplineBevelResult();
   if(splineOutlineResult&&!splineOutlineTool)clearSplineOutlineResult();
   const actionView=viewAt(e.clientX,e.clientY);actionView>=0&&noteViewportAction(actionView);
@@ -32322,7 +32358,7 @@ addEventListener('pointerup', e => endObTouch(e), {capture:true, passive:false})
 addEventListener('pointercancel', e => endObTouch(e, true), {capture:true, passive:false});
 obScroll.addEventListener('lostpointercapture', e => { if (obTouchPoints.has(e.pointerId)) cancelObTouch(); });
 addEventListener('blur', cancelObTouch);
-addEventListener('keydown', e => { if (e.key === 'Escape') { cancelObTouch(); hideMenu(); hideVertexContextMenu(); } });
+addEventListener('keydown', e => { if (e.key === 'Escape') { cancelObTouch(); cancelMobileTouch(); hideMenu(); hideVertexContextMenu(); } });
 document.addEventListener('visibilitychange', () => { if (document.hidden) { cancelObTouch(); cancelMobileTouch(); } });
 addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') return;
