@@ -1,0 +1,7 @@
+# Content-addressed assets must retain the bytes named by their SHA-256.
+/modules/** -text
+/models/** -text
+/textures/** -text
+/.gitattributes text eol=lf
+/index.html text eol=lf
+/frame-sw.js text eol=lf
