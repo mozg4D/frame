@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r138</title>
+<title>Frame r139</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -9776,6 +9776,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       }
     }return inside;
   }
+
+  // Provenance stays private to this worker; unclassified material uses the original union.
+  const normalizedOrigins=new WeakMap();
+  function materialUnionRedundant(material){
+    if(material.length!==2)return false;const origin=normalizedOrigins.get(material[0]);if(!origin||normalizedOrigins.get(material[1])!==origin)return false;
+    const boxes=[];for(const path of material){let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity,size=0;for(const q of path){if(!Number.isSafeInteger(q.X)||!Number.isSafeInteger(q.Y)||Object.is(q.X,-0)||Object.is(q.Y,-0)||Math.abs(q.X)>1e9||Math.abs(q.Y)>1e9)return false;x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);size=Math.max(size,Math.abs(q.X),Math.abs(q.Y));}const signed=area(path);if(Math.abs(signed)<=path.length*size*size*Number.EPSILON*32)return false;boxes.push({x,y,X,Y,signed});}
+    if((boxes[0].signed>0)===(boxes[1].signed>0))return false;const index=boxes[0].signed>0?0:1,outer=material[index],a=boxes[index],inner=material[1-index],b=boxes[1-index];
+    if(!(a.x<b.x&&a.y<b.y&&a.X>b.X&&a.Y>b.Y))return false;
+    // Reject any outer edge whose bounds touch the inner box. The entire inner box
+    // then lies in one connected face; one strict interior point certifies nesting.
+    for(let i=0;i<outer.length;i++){const p=outer[i],q=outer[(i+1)%outer.length];if(Math.min(p.X,q.X)<=b.X&&Math.max(p.X,q.X)>=b.x&&Math.min(p.Y,q.Y)<=b.Y&&Math.max(p.Y,q.Y)>=b.y)return false;}
+    return C.Clipper.PointInPolygon(inner[0],outer)===1;
+  }
   function normalize(paths){
     const rings=paths.map(path=>clean(path)).filter(p=>p.length>2&&Math.abs(area(p))>.1).sort((a,b)=>Math.abs(area(b))-Math.abs(area(a)));
     const depths=[];
@@ -9784,7 +9797,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       depths[i]=parent<0?0:depths[parent]+1;
       if((area(rings[i])>0)!==(depths[i]%2===0))rings[i].reverse();
     }
-    return boolean(rings,null,C.ClipType.ctUnion);
+    const normalized=boolean(rings,null,C.ClipType.ctUnion);if(normalized.length>1){const origin={};for(const path of normalized)normalizedOrigins.set(path,origin);}return normalized;
   }
   // Simplification is certified against the material boundary, not a second error budget
   // around the already approximated offset. Width sets accuracy only, never segment length.
@@ -10069,7 +10082,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   const insetCache=new Map();let insetCacheBytes=0;
   function prepareInsetMaterial(material,p){
     // Each normalized ring is already simple; only interacting rings need another union.
-    if(material.length>1)material=boolean(material,null,C.ClipType.ctUnion);
+    if(material.length>1&&!materialUnionRedundant(material))material=boolean(material,null,C.ClipType.ctUnion);
     if(p.width!=null&&p.depth!=null){const x=Math.round(p.width*SCALE/2),z=Math.round(p.depth*SCALE/2);if(material.some(path=>path.some(q=>q.X< -x||q.X>x||q.Y< -z||q.Y>z)))material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);}
     return material;
   }
