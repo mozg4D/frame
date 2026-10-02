@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Frame's current work, next investigations, design discussions, and recent releases.">
+  <meta name="color-scheme" content="dark light">
+  <title>Frame · Task queue</title>
+  <style>
+    :root { color-scheme: dark; --bg:#141619; --panel:#1d2024; --text:#edf0f3; --muted:#b6bec8; --line:#3c434d; --accent:#92caff; --active:#aee3ca; --idea:#dbc7fa; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:17px/1.6 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:var(--accent); text-underline-offset:3px; }
+    a:hover { text-decoration-thickness:2px; }
+    a:focus-visible { outline:3px solid var(--accent); outline-offset:5px; border-radius:2px; }
+    .wrap { width:min(1100px,100%); margin:auto; padding:32px 24px 40px; }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; padding-bottom:24px; border-bottom:1px solid var(--line); }
+    .brand { font-size:18px; font-weight:700; color:var(--text); text-decoration:none; letter-spacing:.03em; }
+    nav { display:flex; gap:10px 20px; flex-wrap:wrap; font-size:14px; }
+    h1 { margin:30px 0 8px; font-size:clamp(30px,5vw,44px); line-height:1.15; letter-spacing:-.035em; }
+    .intro { max-width:760px; margin:0 0 16px; color:var(--muted); }
+    .updated { margin:0 0 30px; color:var(--muted); font-size:14px; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; align-items:start; }
+    section { padding:24px; background:var(--panel); border:1px solid var(--line); border-radius:12px; min-width:0; }
+    .section-head { display:flex; gap:12px; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
+    h2 { margin:0; font-size:23px; line-height:1.3; letter-spacing:-.02em; }
+    .tag { display:inline-block; font-size:14px; line-height:1.4; padding:3px 8px; border:1px solid currentColor; border-radius:6px; color:var(--muted); }
+    .active { color:var(--active); }
+    .idea { color:var(--idea); }
+    .note { margin:0 0 18px; font-size:15px; color:var(--muted); }
+    ul { margin:0; padding:0; list-style:none; }
+    li + li { border-top:1px solid var(--line); margin-top:18px; padding-top:18px; }
+    h3 { margin:0 0 5px; font-size:17px; line-height:1.45; }
+    p { margin:0; }
+    li p { color:var(--muted); font-size:16px; }
+    .version { color:var(--accent); font-variant-numeric:tabular-nums; }
+    footer { margin-top:28px; padding-top:20px; border-top:1px solid var(--line); color:var(--muted); font-size:14px; }
+    @media (max-width:720px) { .grid { grid-template-columns:1fr; } .wrap { padding:20px 16px 32px; } section { padding:20px; } .updated { margin-bottom:22px; } }
+    @media (prefers-color-scheme:light) { :root { color-scheme:light; --bg:#f4f5f7; --panel:#fff; --text:#18202a; --muted:#505d6c; --line:#d2d8df; --accent:#145e9f; --active:#176746; --idea:#70429d; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <a class="brand" href="./">FRAME</a>
+      <nav aria-label="Project links">
+        <a href="./">Open Frame</a>
+        <a href="https://github.com/mozg4D/frame#readme">README</a>
+        <a href="https://github.com/mozg4D/frame">GitHub</a>
+      </nav>
+    </header>
+    <main>
+      <h1>Task queue</h1>
+      <p class="intro">What is being worked on, what comes next, and what is still being discussed. Priorities can change as the work reveals new constraints.</p>
+      <p class="updated">Updated <time datetime="2026-10-02T14:30:47Z">2 October 2026, 14:30 UTC</time></p>
+      <div class="grid">
+        <section aria-labelledby="current">
+          <div class="section-head"><h2 id="current">Current work</h2><span class="tag active">In progress</span></div>
+          <p class="note">Save File choices and mobile number entry are under development. First-perimeter improvements are released in r145.</p>
+          <ul>
+            <li><h3>Save filename and format choice</h3><p>Give each existing supported format its own row and enter the base filename separately. Ensure the applied extension and saved file contents match the selected format. Native browser format-picker limitations are under investigation; no new formats are planned for this task.</p></li>
+            <li><h3>Mobile number entry</h3><p>The first tap into a numeric field selects the whole number for quick replacement. Preserve drag and scrub gestures and intentional editing.</p></li>
+          </ul>
+        </section>
+        <section aria-labelledby="next">
+          <div class="section-head"><h2 id="next">Next</h2><span class="tag">Investigations</span></div>
+          <p class="note">Directions to evaluate after the current perimeter work; scope and order may change.</p>
+          <ul>
+            <li><h3>Clean up the section before offsetting</h3><p>Investigate outline-aware cleanup of the model section while retaining holes, thin features, and meaningful corners.</p></li>
+            <li><h3>Compare an alternative offset approach</h3><p>Explore an alternative outline calculation and compare its geometry and cost with the current approach. A replacement is not yet promised.</p></li>
+            <li><h3>Lower-priority improvements</h3><p>Broaden tests of functions and their combinations, then pursue speed and code-size improvements where measurements support them.</p></li>
+          </ul>
+        </section>
+        <section aria-labelledby="discussion">
+          <div class="section-head"><h2 id="discussion">Decisions &amp; discussion</h2><span class="tag idea">Future proposals</span></div>
+          <p class="note">The behaviors below need design and testing. They are not implemented in the current slicer.</p>
+          <ul>
+            <li><h3>Nominal width first</h3><p>Plan paths around nominal bead width, with variable widths considered for exceptional situations rather than as the default.</p></li>
+            <li><h3>Acute corners and residual gaps</h3><p>Work out routes for corners below 45°, tiny remaining gaps, and the extrusion transitions needed to enter and leave those regions.</p></li>
+            <li><h3>Boolean reliability</h3><p>Known Boolean issues remain under investigation. Diagnostic findings are not shipped fixes.</p></li>
+          </ul>
+        </section>
+        <section aria-labelledby="completed">
+          <div class="section-head"><h2 id="completed">Recently completed</h2><span class="tag">Released</span></div>
+          <ul>
+            <li><h3><span class="version">r145</span> · First-perimeter quality</h3><p>Added error-minimizing micro-point placement with cumulative original-reference guards, corrected long-line deviations, and an Original polyline comparison beside the display control. Added this public task queue.</p></li>
+            <li><h3><span class="version">r144</span> · Repository cleanup</h3><p>Cleaned up GitHub project files and added a README with an actual Frame scene.</p></li>
+            <li><h3><span class="version">r143</span> · Modular assets</h3><p>Split application resources into modular assets and improved startup speed.</p></li>
+            <li><h3><span class="version">r142</span> · Mobile gestures</h3><p>Improved touch gestures for working in Frame on mobile devices.</p></li>
+          </ul>
+        </section>
+      </div>
+    </main>
+    <footer>Active work and future proposals are listed separately. Completed items correspond to released Frame versions.</footer>
+  </div>
+</body>
+</html>

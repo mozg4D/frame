@@ -2,7 +2,7 @@
 
 A 3D modeling workspace in your browser: build with splines and polygons, assemble scenes, and inspect print layers.
 
-**[Launch Frame](https://mozg4d.github.io/frame/)**
+**[Launch Frame](https://mozg4d.github.io/frame/)** · [Task queue](https://mozg4d.github.io/frame/queue.html)
 
 ![Frame workspace showing a workshop campus, landscaping, vehicles, and the Objects Browser](docs/frame-screenshot.jpg)
 
