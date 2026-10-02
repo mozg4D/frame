@@ -10,7 +10,7 @@
 <link rel="manifest" href="./manifest.webmanifest"/>
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
 <link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
-<title>Frame r141</title>
+<title>Frame r142</title>
 <!-- Agent guide: readable from this HTML or frameAI.getInstructions(); no external files required. -->
 <script id="frame-ai-instructions" type="text/markdown">
 # Frame AI API 5.3
@@ -591,7 +591,7 @@ THE SOFTWARE.
       <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
       <p>Open supports native HASH, glTF/GLB, OBJ, STL, PLY, SVG and the documented DXF subset. Save As chooses a format; right-click Download exports interchange files.</p>
       <p>Native HASH is the lossless format for editable splines, generators, hierarchy, materials and animation.</p>
-      <p>Viewport touch: drag one finger to select a rectangle; drag two to orbit, pinch to zoom the camera, or drag three to pan. Double tap: Quad / Single view. Long press: context menu.</p>
+      <p>Viewport touch: drag one finger to orbit; drag two to pan, or pinch to zoom the camera. Hold then drag to select a rectangle. Hold without dragging and release for the context menu. Double tap: Quad / Single view.</p>
       <p>Pinch with a finger in the right panel to zoom the page. To switch from an active viewport gesture to page zoom, lift your fingers and start a new pinch.</p>
       <p>Touch: hold for a context menu. In Objects Browser, drag a name or row to move it; drop between rows to reorder, on a row to make a child. Scroll with two fingers, or drag empty space / the left indentation. Release outside the tree to cancel.</p>
     <p>Morph modes: Solve adjusts morph values when dragging points; Edit opens pose keys on a separate 0–100 timeline; Modelling disables deformation and edits the reference. Set keys with the animation toolbar. Curves show the selected point's X/Y/Z; drag their tangent handles to adjust motion.</p>
@@ -26407,7 +26407,8 @@ function beginMobilePinch(){
   // Stay in the view where the first contact began, even across Quad seams.
   const vi=mobileTouchGesture?.view??a.view,r=rectFor(vi),view=vpState.views[vi];if(!r||!view)return false;
   clearMobileLongPress();mobileLastTap=null;mobileFinishEdit(mobileTouchGesture,true);activeView=-1;
-  const buttons=view.type==='persp'&&pts.length===2?LMB:MMB;
+  if(mobileTouchGesture?.mode==='navigation')vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(a,0));
+  const buttons=MMB;
   view.ctrl.down(mobilePointerEvent({id:a.id,x,y},buttons),r);
   mobileTouchGesture={mode:'pinch',view:vi,buttons,distance:Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)),x,y};return true;
 }
@@ -26428,7 +26429,8 @@ function mobileTouchDown(e){
     gesture.timer=setTimeout(()=>{
       const current=mobileTouchPointers.get(gesture.pointId);
       if(mobileTouchGesture!==gesture||gesture.mode!=='pending'||mobileTouchPointers.size!==1||!current||Math.hypot(current.x-gesture.x,current.y-gesture.y)>=MOBILE_TOUCH_SLOP)return;
-      mobileLastTap=null;gesture.mode='menu';gesture.timer=0;suppressMobileClick({pointerId:gesture.pointId,clientX:current.x,clientY:current.y});openViewportContextMenu(current.x,current.y);
+      // Wait for release so holding then dragging never flashes the menu.
+      mobileLastTap=null;gesture.mode='held';gesture.timer=0;
     },MOBILE_LONG_PRESS_MS);
   }else beginMobilePinch();
   return e.preventDefault(),true;
@@ -26452,8 +26454,19 @@ function mobileTouchMove(e){
         if(beginSplineDirectDrag(direct,mobilePointerEvent(p))){gesture.mode='spline';splinePointerGesture=direct;moveSplineDirectDrag(direct,mobilePointerEvent(p));return e.preventDefault(),true;}
       }
       if(gesture.gizmo){gesture.mode='gizmo';activeView=-1;if(vertexTools.mode==='loop')stopVertexModeTool();startGizDrag(gesture.gizmo,mobilePointerEvent({id:p.id,x:gesture.x,y:gesture.y}));doGizDrag(mobilePointerEvent(p));}
-      else{gesture.mode='marquee';activeView=-1;mobileMarqueeMove(gesture,p);}
+      else{
+        gesture.mode='navigation';gesture.lastX=gesture.x;gesture.lastY=gesture.y;
+        const r=rectFor(gesture.view),view=vpState.views[gesture.view],start={id:p.id,x:gesture.x,y:gesture.y};
+        if(r&&view){view.ctrl.down(mobilePointerEvent(start),r);view.ctrl.move(mobilePointerEvent(p),r,true,p.x-gesture.lastX,p.y-gesture.lastY);scheduleRender();}
+        gesture.lastX=p.x;gesture.lastY=p.y;
+      }
     }
+  }else if(gesture.mode==='held'){
+    if(Math.hypot(p.x-gesture.x,p.y-gesture.y)>=MOBILE_TOUCH_SLOP){gesture.mode='marquee';activeView=-1;mobileMarqueeMove(gesture,p);}
+  }else if(gesture.mode==='navigation'){
+    const r=rectFor(gesture.view),view=vpState.views[gesture.view];
+    if(r&&view){view.ctrl.move(mobilePointerEvent(p),r,true,p.x-gesture.lastX,p.y-gesture.lastY);scheduleRender();}
+    gesture.lastX=p.x;gesture.lastY=p.y;
   }else if(gesture.mode==='marquee')mobileMarqueeMove(gesture,p);
   else if(gesture.mode==='gizmo'&&gizDrag)doGizDrag(mobilePointerEvent(p));
   else if(gesture.mode==='spline')moveSplineDirectDrag(gesture.directGesture,mobilePointerEvent(p));
@@ -26472,16 +26485,19 @@ function mobileTouchUp(e){
       const now=performance.now(),doubleTap=mobileLastTap&&now-mobileLastTap.time<=MOBILE_DOUBLE_TAP_MS&&mobileLastTap.view===gesture.view&&Math.hypot(p.x-mobileLastTap.x,p.y-mobileLastTap.y)<=24;
       if(doubleTap){mobileLastTap=null;toggleViewportLayout(gesture.view);}else{doPick(mobilePointerEvent(p,0));mobileLastTap={time:now,x:p.x,y:p.y,view:gesture.view};}
     }mobileTouchGesture=null;
+  }else if(gesture?.mode==='held'){
+    mobileTouchGesture=null;openViewportContextMenu(p.x,p.y);
+  }else if(gesture?.mode==='navigation'){
+    vpState.views[gesture.view]?.ctrl.up(mobilePointerEvent(p,0));mobileTouchGesture=null;
   }else if(gesture?.mode==='marquee'){gesture.box?.remove();mobileMarqueePick(gesture,p);mobileTouchGesture=null;}
   else if(gesture?.mode==='gizmo'||gesture?.mode==='spline'){mobileFinishEdit(gesture);mobileTouchGesture=null;scheduleRender();}
-  else if(gesture?.mode==='menu')mobileTouchGesture=null;
   suppressMobileClick(e);try{vpState.renderer.domElement.releasePointerCapture(e.pointerId);}catch{}
   return e.preventDefault(),true;
 }
 function cancelMobileTouch(){
   mobileLastTap=null;mobileIgnoredPointers.clear();if(!mobileTouchGesture&&!mobileTouchPointers.size)return;
   clearMobileLongPress();mobileFinishEdit(mobileTouchGesture,true);
-  if(mobileTouchGesture?.mode==='pinch'){const p=mobileTouchPointers.values().next().value||{id:-1,x:0,y:0};vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(p,0));}
+  if(mobileTouchGesture?.mode==='pinch'||mobileTouchGesture?.mode==='navigation'){const p=mobileTouchPointers.values().next().value||{id:-1,x:0,y:0};vpState.views[mobileTouchGesture.view]?.ctrl.up(mobilePointerEvent(p,0));}
   const ids=[...mobileTouchPointers.keys()];mobileTouchPointers.clear();mobileTouchGesture=null;activeView=-1;
   for(const id of ids)try{vpState.renderer.domElement.releasePointerCapture(id);}catch{}
 }
