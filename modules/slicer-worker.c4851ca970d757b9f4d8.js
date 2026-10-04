@@ -7654,7 +7654,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const result=[];if(!c.Execute(operation,result,fill,C.PolyFillType.pftNonZero))throw Error('Polygon operation failed.');
     return result.filter(p=>p.length>2&&Math.abs(area(p))>.1);
   }
-  // Containment is tested on vertices and edge midpoints, never a concave polygon's centroid.
+   
   function contains(outer,inner){
     let inside=false;for(let i=0;i<inner.length;i++){
       const a=inner[i],b=inner[(i+1)%inner.length];
@@ -7664,15 +7664,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }return inside;
   }
 
-  // Provenance stays private to this worker; unclassified material uses the original union.
+   
   const normalizedOrigins=new WeakMap();
   function materialUnionRedundant(material){
     if(material.length!==2)return false;const origin=normalizedOrigins.get(material[0]);if(!origin||normalizedOrigins.get(material[1])!==origin)return false;
     const boxes=[];for(const path of material){let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity,size=0;for(const q of path){if(!Number.isSafeInteger(q.X)||!Number.isSafeInteger(q.Y)||Object.is(q.X,-0)||Object.is(q.Y,-0)||Math.abs(q.X)>1e9||Math.abs(q.Y)>1e9)return false;x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);size=Math.max(size,Math.abs(q.X),Math.abs(q.Y));}const signed=area(path);if(Math.abs(signed)<=path.length*size*size*Number.EPSILON*32)return false;boxes.push({x,y,X,Y,signed});}
     if((boxes[0].signed>0)===(boxes[1].signed>0))return false;const index=boxes[0].signed>0?0:1,outer=material[index],a=boxes[index],inner=material[1-index],b=boxes[1-index];
     if(!(a.x<b.x&&a.y<b.y&&a.X>b.X&&a.Y>b.Y))return false;
-    // Reject any outer edge whose bounds touch the inner box. The entire inner box
-    // then lies in one connected face; one strict interior point certifies nesting.
+     
+     
     for(let i=0;i<outer.length;i++){const p=outer[i],q=outer[(i+1)%outer.length];if(Math.min(p.X,q.X)<=b.X&&Math.max(p.X,q.X)>=b.x&&Math.min(p.Y,q.Y)<=b.Y&&Math.max(p.Y,q.Y)>=b.y)return false;}
     return C.Clipper.PointInPolygon(inner[0],outer)===1;
   }
@@ -7686,8 +7686,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     }
     const normalized=boolean(rings,null,C.ClipType.ctUnion);if(normalized.length>1){const origin={};for(const path of normalized)normalizedOrigins.set(path,origin);}return normalized;
   }
-  // Simplification is certified against the material boundary, not a second error budget
-  // around the already approximated offset. Width sets accuracy only, never segment length.
+   
+   
   function pointDistance2(p,a,b){const x=b.X-a.X,y=b.Y-a.Y,d=x*x+y*y,t=d?Math.max(0,Math.min(1,((p.X-a.X)*x+(p.Y-a.Y)*y)/d)):0;return (p.X-a.X-t*x)**2+(p.Y-a.Y-t*y)**2;}
   function orient(a,b,c){
     const x=b.X-a.X,y=b.Y-a.Y,u=c.X-a.X,v=c.Y-a.Y,z=x*v-y*u;
@@ -7720,8 +7720,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const index=segmentIndex(boundary),rings=material.map(path=>{let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity;for(const q of path){x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);}return {path,x,y,X,Y,sign:Math.sign(area(path))};});
     index.contains=point=>{let winding=0;for(const ring of rings)if(point.X>=ring.x&&point.X<=ring.X&&point.Y>=ring.y&&point.Y<=ring.Y&&C.Clipper.PointInPolygon(point,ring.path)!==0)winding+=ring.sign;return winding!==0;};return index;
   }
-  // Exact parameter intervals where a chord lies in the radius-R capsule of an edge.
-  // Their union certifies the upper distance bound over the WHOLE chord, including caps.
+   
+   
   function capsuleIntervals(a,b,c,d,R,out){
     const dx=b.X-a.X,dy=b.Y-a.Y,length2=dx*dx+dy*dy;
     const circle=p=>{const t=((p.X-a.X)*dx+(p.Y-a.Y)*dy)/length2,x=a.X+t*dx-p.X,y=a.Y+t*dy-p.Y,r=R*R-x*x-y*y;if(r<0)return;const dt=Math.sqrt(r/length2);out.push([Math.max(0,t-dt),Math.min(1,t+dt)]);};
@@ -7741,7 +7741,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function beadRectangle(a,b,width){const L=Math.hypot(b.X-a.X,b.Y-a.Y);if(!L)return [];const x=-(b.Y-a.Y)*width/(2*L),y=(b.X-a.X)*width/(2*L),q=(p,s)=>({X:Math.round(p.X+s*x),Y:Math.round(p.Y+s*y)});return [q(a,-1),q(b,-1),q(b,1),q(a,1)];}
   const intersectionArea=(paths,clips)=>Math.abs(boolean(paths,clips,C.ClipType.ctIntersection).reduce((n,path)=>n+area(path),0));
-  // Legacy turn proposals receive the same 2% limit; production uses the pipeline below.
+   
   function simplifyRoundTurns(paths,material,boundary,boundaryIndex,width,guard,metrics){
     const radius=width/2,tolerance=width*.02-guard,radial=guard+4;
     if(tolerance<=0)return paths;
@@ -7766,7 +7766,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       });
       const matches=(a,b)=>a&&b&&a.key===b.key&&Math.sign(a.angle)===Math.sign(b.angle);
       let start=0;while(start<n&&(centers[start]||centers[(start+n-1)%n]))start++;
-      if(start===n)return path; // A whole circle is not a localized turn.
+      if(start===n)return path;  
       const output=[];let changed=false,currentArea=area(path);
       for(let cursor=0;cursor<n;){
         let first=(start+cursor)%n;const arc=centers[first];let count=1,angle=arc?.angle||0;
@@ -7779,8 +7779,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
           if(n-count+pieces<3||candidate.slice(0,-1).some((q,i)=>!surfaceChord(q,candidate[i+1],material,boundary,boundaryIndex,radius,tolerance)))candidate=null;
         }
         if(candidate){
-          // Merge tangent end pieces with their unchanged straight neighbours atomically.
-          // Leaving artificial collinear endpoints would misclassify an ordinary join as nonadjacent overlap.
+           
+           
           const before=(first+n-1)%n,after=(last+1)%n;
           const tangent=(a,b,c)=>Math.abs((b.X-a.X)*(c.Y-b.Y)-(b.Y-a.Y)*(c.X-b.X))<=Math.max(Math.hypot(b.X-a.X,b.Y-a.Y),Math.hypot(c.X-b.X,c.Y-b.Y))*8;
           if(cursor>0&&cursor+count<n&&!centers[before]&&!centers[last]&&!centers[(before+n-1)%n]&&!centers[after]&&tangent(path[before],candidate[0],candidate[1])&&tangent(candidate[pieces-1],candidate[pieces],path[after])){
@@ -7813,7 +7813,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
   function legacySimplifyInset(paths,material,p,inputVertices,metrics){
     const width=p.lineWidth*SCALE,radius=width/2;
-    // Reserve interpolation/Clipper rounding and worst-case accumulated .1-unit cleanup.
+     
     let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.02-guard;
     if(tolerance<=0)return paths;
@@ -7846,7 +7846,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         if(maximum<=tolerance*tolerance&&safe(first,last))result.push(a);else{if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}
       }return result;
     });
-    // Check every containment relationship, including tiny nested contours and the seam.
+     
     for(let i=0;i<original.length;i++)for(let j=0;j<original.length;j++)if(i!==j&&C.Clipper.PointInPolygon(original[i][0],original[j])!==C.Clipper.PointInPolygon(optimized[i][0],optimized[j])){metrics.localRoundTurns=metrics.localRoundTurnSegmentsBefore=metrics.localRoundTurnSegmentsAfter=0;return original;}
     return optimized;
   }
@@ -7872,8 +7872,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return {pairs,bad};
   }
   function remoteFootprintGrowth(pair,old,width){
-    // Equal original edge pairs have equal flat-cap footprints, regardless of seam.
-    // Only changed intersections need a polygon difference against the old union.
+     
+     
     const integer=items=>items.map(item=>item.polygon.map(q=>({X:Math.round(q.X),Y:Math.round(q.Y)}))).filter(path=>path.length>2&&Math.abs(area(path))>.1),added=integer(pair.remotePolygons.filter(item=>!old?.remoteKeys.has(item.key)));
     if(!added.length)return false;
     const original=integer(old?.remotePolygons||[]);if(!original.length)return true;
@@ -7884,8 +7884,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const bb=bx*bx+by*by,cc=cx*cx+cy*cy,center={X:a.X+(cy*bb-by*cc)/det,Y:a.Y+(bx*cc-cx*bb)/det};let low=Infinity,high=0,sum=0;
     for(const p of path){const r=Math.hypot(p.X-center.X,p.Y-center.Y);low=Math.min(low,r);high=Math.max(high,r);sum+=r;}
     const radius=sum/path.length,residual=high-low;if(residual>width*.003||radius<=0)return null;const budget=width*.018-guard-residual;if(budget<=0)return null;
-    // Axis-aligned fourfold sampling keeps the phase stable across nearby layers.
-    // Balance vertex and midpoint error instead of spending the full budget at vertices.
+     
+     
     const n=Math.max(4,4*Math.ceil(Math.PI/Math.acos(Math.max(-1,(radius-budget)/(radius+budget)))/4));if(n>=path.length)return null;
     const angle=0,sign=Math.sign(area(path)),r=2*radius/(1+Math.cos(Math.PI/n));
     return Array.from({length:n},(_,i)=>({X:Math.round(center.X+r*Math.cos(angle+sign*2*Math.PI*i/n)),Y:Math.round(center.Y+r*Math.sin(angle+sign*2*Math.PI*i/n))}));
@@ -7906,14 +7906,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function balanceShortMoves(path,width,certify,locked,turnChords=[]){
     const n=path.length;if(n<=3)return path;const previous=Array.from({length:n},(_,i)=>(i+n-1)%n),next=Array.from({length:n},(_,i)=>(i+1)%n),live=new Uint8Array(n).fill(1),queue=[];let remaining=n;
-    // Tight turns and smooth transitions share the same cumulative 2% budget.
+     
     const turns=new Map(turnChords.map(([a,b,key])=>[a,{b,key}])),edgeTurn=path.map((a,i)=>{const q=turns.get(a);return q?.b===path[(i+1)%n]?q.key:null;});
     const short=i=>Math.min(Math.hypot(path[i].X-path[previous[i]].X,path[i].Y-path[previous[i]].Y),Math.hypot(path[next[i]].X-path[i].X,path[next[i]].Y-path[i].Y))<width*.1;
     for(let i=0;i<n;i++)if(!locked.has(path[i])&&short(i))queue.push(i);
     for(let cursor=0;cursor<queue.length&&cursor<n*4&&remaining>3;cursor++){const i=queue[cursor];if(!live[i]||locked.has(path[i])||!short(i))continue;const a=previous[i],b=next[i],turn=edgeTurn[a]&&edgeTurn[a]===edgeTurn[i]?edgeTurn[a]:null;if(!certify(path[a],path[b],!!turn))continue;if(turn)turnChords.push([path[a],path[b],turn]);live[i]=0;next[a]=b;previous[b]=a;edgeTurn[a]=turn;remaining--;queue.push(a,b);}
     const result=path.filter((_,i)=>live[i]);return Math.sign(area(result))===Math.sign(area(path))?result:path;
   }
-  // Exact continuous coverage by reference-segment capsules; never certify only vertices.
+   
   function referenceChord(a,b,edges,index,tolerance){
     const intervals=[];for(const id of index.query(a,b,tolerance)){const e=edges[id];capsuleIntervals(a,b,e.a,e.b,tolerance,intervals);}
     intervals.sort((a,b)=>a[0]-b[0]);let covered=0;for(const [lo,hi] of intervals){if(hi<covered)continue;if(lo>covered+1e-12)return false;covered=Math.max(covered,hi);if(covered>=1-1e-12)return true;}return false;
@@ -7923,8 +7923,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     paths.forEach((path,i)=>{for(const q of path){coords[at++]=q.X/SCALE;coords[at++]=q.Y/SCALE;}ends[i]=at/2;});return {coords,ends};
   }
 
-  // Merge only a tiny smooth transition. Candidates minimize the worst continuous
-  // displacement from the immutable inset, including both adjoining long segments.
+   
+   
   function minimizeMicroMoves(original,width,tolerance,certify,metrics,provenance){
     const n=original.length;if(n<4||!original.some((a,i)=>Math.hypot(a.X-original[(i+1)%n].X,a.Y-original[(i+1)%n].Y)<width*.03))return original;
     const p=original.slice(),previous=Array.from({length:n},(_,i)=>(i+n-1)%n),next=Array.from({length:n},(_,i)=>(i+1)%n),live=new Uint8Array(n).fill(1),lo=Array.from({length:n},(_,i)=>i),hi=lo.slice(),mass=new Uint32Array(n).fill(1),sumX=p.map(q=>q.X),sumY=p.map(q=>q.Y);
@@ -7932,15 +7932,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     for(let cursor=0;cursor<queue.length&&cursor<n*6&&remaining>3;cursor++){
       const i=queue[cursor];if(!live[i])continue;const j=next[i],length=Math.hypot(p[i].X-p[j].X,p[i].Y-p[j].Y);if(length>=width*.03)continue;
       const a=previous[i],b=next[j],ux=p[i].X-p[a].X,uy=p[i].Y-p[a].Y,vx=p[b].X-p[j].X,vy=p[b].Y-p[j].Y;
-      // Preserve real corners and tips: the incoming/outgoing tangents must agree.
+       
       if(Math.abs(Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy))>=Math.PI/9)continue;
       const refs=[];let k=lo[a],end=hi[b];for(let count=0;k!==end&&count<64;count++,k=(k+1)%n)refs.push({a:original[k],b:original[(k+1)%n]});if(k!==end||refs.length<3)continue;
       const before=[byId[a],byId[i],byId[j]],excluded=new Set(before),ids=new Set([...index.query(p[a],p[i],width*1.1),...index.query(p[j],p[b],width*1.1)]),neighbors=[];
       for(const id of ids){const e=entries[id];if(!excluded.has(e))neighbors.push({e});}
       const score=point=>{
-        // A connected source arc stays within the maximum of its vertex-to-chord
-        // distances and the two matched endpoint distances, in BOTH directions.
-        // Split only within this merged cluster's immutable original membership.
+         
+         
+         
         const vertices=[refs[0].a,...refs.map(e=>e.b)],left=[],right=[];let maximum=0;
         for(let z=0;z<vertices.length;z++){maximum=Math.max(maximum,pointDistance2(vertices[z],p[a],point));left[z]=maximum;}
         maximum=0;for(let z=vertices.length-1;z>=0;z--){maximum=Math.max(maximum,pointDistance2(vertices[z],point,p[b]));right[z]=maximum;}
@@ -7953,7 +7953,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         if(!after.every(e=>certify(e.a,e.b,tolerance)))return Infinity;
         return candidateCost;
       };
-      // Original-member sums seed the search; they are not the optimization criterion.
+       
       const mean={X:Math.round((sumX[i]+sumX[j])/(mass[i]+mass[j])),Y:Math.round((sumY[i]+sumY[j])/(mass[i]+mass[j]))},points=[mean,...[0,.25,.5,.75,1].map(t=>({X:Math.round(p[i].X+t*(p[j].X-p[i].X)),Y:Math.round(p[i].Y+t*(p[j].Y-p[i].Y))}))],det=ux*vy-uy*vx;
       if(Math.abs(det)>1){const t=((p[j].X-p[a].X)*vy-(p[j].Y-p[a].Y)*vx)/det,q={X:Math.round(p[a].X+t*ux),Y:Math.round(p[a].Y+t*uy)};if(Math.hypot(q.X-p[i].X,q.Y-p[i].Y)<tolerance*2&&Math.hypot(q.X-p[j].X,q.Y-p[j].Y)<tolerance*2)points.push(q);}
       let best=null,cost=Infinity;for(const q of points){const value=score(q);if(value<cost){cost=value;best=q;}}if(!best)continue;
@@ -7965,8 +7965,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function intervalsCover(intervals){intervals.sort((a,b)=>a[0]-b[0]);let covered=0;for(const [lo,hi]of intervals){if(hi<covered)continue;if(lo>covered+1e-12)return false;covered=Math.max(covered,hi);if(covered>=1-1e-12)return true;}return false;}
 
-  // Source addresses refer to the same immutable unsimplified inset.
-  // A synthetic point gets an address only inside the source interval that created it.
+   
+   
   function createOutlineProvenance(original){
     const n=original.length,tags=new WeakMap();let originalIdentity=null;const mod=x=>(x%n+n)%n;
     const anchor=q=>{const t=tags.get(q);if(t!==undefined)return t;if(!originalIdentity){originalIdentity=new WeakMap();for(let i=0;i<n;i++)if(!originalIdentity.has(original[i]))originalIdentity.set(original[i],i);}const i=originalIdentity.get(q);return i===undefined?null:i;};
@@ -7978,9 +7978,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       tagRefit(points){const s=anchor(points[0]),last=anchor(points[points.length-1]);if(s===null||last===null)return false;const e=s+mod(last-s);if(e-s<1e-8)return false;let previous=s;const pending=[];for(let i=1;i<points.length-1;i++){const q=closest(points[i],previous+1e-8,e-1e-8);if(!q)return false;pending.push([points[i],mod(q.address)]);previous=q.address;}for(const [q,t]of pending)tags.set(q,t);return true;}
     };
   }
-  // Current point-removal phase certifies the trajectory only. Bead footprint
-  // and extrusion overlap are intentionally deferred; they do not reject chords.
-  // New contacts and crossings are checked with exact integer orientation.
+   
+   
+   
   function trajectoryQualityFailures(paths,originals){
     const failed=new Set(),edges=pathEdges(paths),index=segmentIndex(edges),same=(a,b)=>a.X===b.X&&a.Y===b.Y;
     const edgeKey=e=>e.a.X+','+e.a.Y+'|'+e.b.X+','+e.b.Y;
@@ -8024,29 +8024,29 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       const reference=pathEdges([original]),referenceIndex=segmentIndex(reference);
       const certify=(a,b,allowed=tolerance)=>{if(Math.hypot(a.X-b.X,a.Y-b.Y)>=width)allowed=Math.min(allowed,tolerance);return surfaceChord(a,b,material,boundary,boundaryIndex,radius,allowed)&&referenceChord(a,b,reference,referenceIndex,allowed);};
       let provenance=null;const getProvenance=()=>{if(!provenance){provenance=createOutlineProvenance(original);provenance.certify=certify;provenanceContexts[ring]=provenance;}return provenance;};
-      // Recognize an already smooth circle before searching hundreds of redundant points.
+       
       const circleFirst=original.some((a,i)=>Math.hypot(a.X-original[(i+1)%original.length].X,a.Y-original[(i+1)%original.length].Y)>=width)?null:circleRefit(original,width,guard);
       const reverseFits=path=>{const edges=pathEdges([path]),index=segmentIndex(edges);return reference.every(e=>referenceChord(e.a,e.b,edges,index,tolerance));};
       if(circleFirst&&circleFirst.every((a,i)=>certify(a,circleFirst[(i+1)%circleFirst.length]))&&reverseFits(circleFirst)){metrics.refittedCircles++;microRetries[ring]=()=>minimizeMicroMoves(original,width,tolerance,certify,metrics,getProvenance());return circleFirst;}
       let path=minimizeMicroMoves(original,width,tolerance,certify,metrics,getProvenance());const microPath=path;microPaths[ring]=path;
 
-      // Keep stable long runs during RDP, after certified micro endpoint placement.
-      // Lock both endpoints: later refitting, simplification and micro-move balancing
-      // alter short runs here; the final micro pass can move endpoints within the immutable 2% reference budget.
+       
+       
+       
       const locked=new Set();for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];if(Math.hypot(b.X-a.X,b.Y-a.Y)>=width){locked.add(a);locked.add(b);}}
       if(locked.size===path.length)return path;
       const circle=locked.size?null:circleRefit(path,width,guard);if(circle&&circle.every((a,i)=>certify(a,circle[(i+1)%circle.length]))&&reverseFits(circle)){metrics.refittedCircles++;return circle;}
       const refit=roundTurnRefit(path,boundary,boundaryIndex,width,guard,locked,provenance),accepted=refit.chords.every(([a,b])=>certify(a,b,turnTolerance)),turnChords=accepted?refit.chords:[];path=accepted?refit.path:path;
       if(locked.size){const first=path.findIndex(q=>locked.has(q));path=path.slice(first).concat(path.slice(0,first));}
       const n=path.length,origin=path[0];let anchor=1;for(let i=2;i<n;i++)if((path[i].X-origin.X)**2+(path[i].Y-origin.Y)**2>(path[anchor].X-origin.X)**2+(path[anchor].Y-origin.Y)**2)anchor=i;
-      // Bound smooth tangent rotation too: a few overly sharp chords can look faceted
-      // despite meeting the distance budget. Sharp corners and refitted tight turns stay intact.
+       
+       
       const curvature=[0];for(let i=0;i<n;i++){const a=path[(i+n-1)%n],b=path[i],c=path[(i+1)%n],x=b.X-a.X,y=b.Y-a.Y,dx=c.X-b.X,dy=c.Y-b.Y,turn=Math.abs(Math.atan2(x*dy-y*dx,x*dx+y*dy));curvature.push(curvature[i]+(turn<Math.PI/9?turn:0));}
       const boundaries=path.flatMap((q,i)=>locked.has(q)?[i]:[]),stack=boundaries.length?boundaries.map((first,i)=>[first,boundaries[i+1]??n]).reverse():[[anchor,n],[0,anchor]],out=[];
       while(stack.length){const [first,last]=stack.pop();if(last-first<=1){out.push(path[first]);continue;}const a=path[first],b=path[last%n];let maximum=-1,split=(first+last)>>>1;for(let i=first+1;i<last;i++){const d=pointDistance2(path[i],a,b);if(d>maximum){maximum=d;split=i;}}
         if(maximum<=tolerance*tolerance&&curvature[last]-curvature[first+1]<=Math.PI*12/180&&certify(a,b))out.push(a);else {if(maximum<=0)split=(first+last)>>>1;stack.push([split,last],[first,split]);}}
       let result=out.length>=3&&Math.sign(area(out))===Math.sign(area(path))?balanceShortMoves(out,width,(a,b,turn)=>certify(a,b,turn?turnTolerance:tolerance),locked,turnChords):path;
-      // Every chord, including tight turns and long segments, uses the same 2% budget.
+       
       const key=(a,b)=>a.X+','+a.Y+'|'+b.X+','+b.Y,turns=new Set(turnChords.map(([a,b])=>key(a,b))),edges=pathEdges([result]),index=segmentIndex(edges);
       for(const e of edges)e.allowed=Math.hypot(e.a.X-e.b.X,e.a.Y-e.b.Y)<width&&turns.has(key(e.a,e.b))?turnTolerance:tolerance;
       if(edges.some(e=>!referenceChord(e.a,e.b,reference,referenceIndex,e.allowed)))return microPath;
@@ -8060,15 +8060,15 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(!failed.size)return cleanup(result);
       let changed=false;result=result.map((path,i)=>{if(failed.has(i)&&path!==paths[i]){changed=true;metrics.optimizationFallbacks++;if(microRetries[i]){microPaths[i]=microRetries[i]();microRetries[i]=null;}return path!==microPaths[i]?microPaths[i]:paths[i];}return path;});if(!changed)break;
     }
-    // A rejected short-run proposal restores the original contour. Never use the
-    // old global fallback, which could alter long edges while fixing another run.
+     
+     
     return cleanup(paths);
   }
 
 
-  // This final gate runs after every proposal, fallback and post-RDP cleanup.
-  // Reference addresses remain the immutable ORIGINAL ring; stages never reset the budget.
-  // Restore the whole component if a ring fails, preserving its original interactions.
+   
+   
+   
   function simplifyInset(paths,material,p,inputVertices,metrics){
     const result=proposeTwoPercentInset(paths,material,p,inputVertices,metrics);
     if(result===paths)return paths;
@@ -8095,9 +8095,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return result;
   }
 
-  // Separated material components cannot interact within the bead/certificate radius.
-  // Cache their exact integer boundaries independently: a changing object no longer
-  // invalidates every unchanged extrusion in the same layer. No approximate keys.
+   
+   
+   
   function independentComponents(paths,width){
     const boxes=paths.map(path=>{let x=Infinity,y=Infinity,X=-Infinity,Y=-Infinity;for(const q of path){x=Math.min(x,q.X);y=Math.min(y,q.Y);X=Math.max(X,q.X);Y=Math.max(Y,q.Y);}return {x,y,X,Y};}),parent=paths.map((_,i)=>i);
     const root=i=>parent[i]===i?i:parent[i]=root(parent[i]);
@@ -8107,9 +8107,14 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   function exactSectionKey(material,p){
     return perimeterCount(p)+'|'+p.lineWidth+'|'+(p.minPathLength||0)+'|'+p.width+'|'+p.depth+'|'+material.map(path=>{let first=0;for(let i=1;i<path.length;i++)if(path[i].X<path[first].X||path[i].X===path[first].X&&path[i].Y<path[first].Y)first=i;return path.map((_,i)=>{const q=path[(first+i)%path.length];return q.X+','+q.Y;}).join(';');}).sort().join('/');
   }
-  const insetCache=new Map();let insetCacheBytes=0;
+  const insetCache=new Map();let insetCacheBytes=0,insetCacheValueBytes=0,insetCacheValuePeak=0;
+  const insetCacheValueLimit=134217728;
+  function insetCacheAccount(entry,value){const bytes=frameLayerPacketBytes(value,insetCacheValueLimit);if(bytes>insetCacheValueLimit||insetCacheValueBytes-(entry.valueBytes||0)+bytes>insetCacheValueLimit)throw Object.assign(Error('Canonical inset cache exceeds the slice memory budget.'),{code:'FRAME_SLICE_RESOURCE_LIMIT'});insetCacheValueBytes+=bytes-(entry.valueBytes||0);entry.valueBytes=bytes;insetCacheValuePeak=Math.max(insetCacheValuePeak,insetCacheValueBytes);}
+  function insetCacheRelease(entry){insetCacheValueBytes-=entry?.valueBytes||0;}
+  function insetCacheMemory(){return {estimatedValueBytes:insetCacheValueBytes,estimatedValuePeakBytes:insetCacheValuePeak,valueLimitBytes:insetCacheValueLimit,entries:insetCache.size,keyUTF16Bytes:insetCacheBytes*2};}
+
   function prepareInsetMaterial(material,p){
-    // Each normalized ring is already simple; only interacting rings need another union.
+     
     if(material.length>1&&!materialUnionRedundant(material))material=boolean(material,null,C.ClipType.ctUnion);
     if(p.width!=null&&p.depth!=null){const x=Math.round(p.width*SCALE/2),z=Math.round(p.depth*SCALE/2);if(material.some(path=>path.some(q=>q.X< -x||q.X>x||q.Y< -z||q.Y>z)))material=boolean(material,[[{X:-x,Y:-z},{X:x,Y:-z},{X:x,Y:z},{X:-x,Y:z}]],C.ClipType.ctIntersection);}
     return material;
@@ -8139,9 +8144,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(paths.length)value.actualPerimeters=depth+1;
       value.segmentsBeforeSimplification+=original.reduce((n,path)=>n+path.length,0);
       for(const name of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves'])value[name]+=metrics[name]||0;
-      // Erosion is monotone. Once raw material disappears, deeper nominal
-      // levels cannot invent a new component. Filtering short paths alone
-      // does not establish disappearance and therefore does not end the loop.
+       
+       
+       
       if(!raw.length){value.materialDisappearanceDepth=depth;break;}
     }
     value.reference={inset:firstInset||packReferencePaths([]),section,levelInsets:value.perimeterLevels.map(level=>({depth:level.depth,inset:level.reference.inset}))};
@@ -8149,21 +8154,21 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
   function insetComponent(material,p,inputVertices){
     const cacheKey=exactSectionKey(material,p),cached=insetCache.get(cacheKey);
-    // Reuse only a result certified with at least the current rounding reserve.
+     
     if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(cacheKey);insetCache.set(cacheKey,cached);frameAdaptivePreparedTouch(cached.value);return {...cached.value,offsetCalls:0,cacheHit:1};}
     material=prepareInsetMaterial(material,p);
     if(!material.length)return {paths:[],material:[],offsetCalls:0};
     const value=calculateInsetMaterial(material,p,inputVertices);frameAdaptivePreparedTrack(value);
-    if(cacheKey.length<=1000000){if(cached){insetCacheBytes-=cacheKey.length;frameAdaptivePreparedForget(cached.value);}insetCache.set(cacheKey,{value,inputVertices});insetCacheBytes+=cacheKey.length;while(insetCache.size>128||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;frameAdaptivePreparedForget(insetCache.get(key)?.value);insetCache.delete(key);}}
+    if(cacheKey.length<=1000000){if(cached){insetCacheBytes-=cacheKey.length;insetCacheRelease(cached);frameAdaptivePreparedForget(cached.value);}const entry={value,inputVertices};insetCacheAccount(entry,value);insetCache.set(cacheKey,entry);insetCacheBytes+=cacheKey.length;while(insetCache.size>128||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCacheRelease(insetCache.get(key));frameAdaptivePreparedForget(insetCache.get(key)?.value);insetCache.delete(key);}}
     return value;
   }
-  // Reservations follow the original layer/component order, including pending hits.
+   
   function reserveInset(key,inputVertices){
     const cached=key==null?null:insetCache.get(key);
     if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(key);insetCache.set(key,cached);frameAdaptivePreparedTouch(cached.value);return {hit:true,promise:cached.promise||Promise.resolve(cached.value)};}
     const entry={inputVertices,value:null};let complete;
-    entry.promise=new Promise(resolve=>{complete=value=>{entry.value=value;if(key!=null&&insetCache.get(key)===entry)frameAdaptivePreparedTrack(value);resolve(value);};});
-    if(key!=null){if(cached){insetCacheBytes-=key.length;frameAdaptivePreparedForget(cached.value);}insetCache.set(key,entry);insetCacheBytes+=key.length;while(insetCache.size>128||insetCacheBytes>8000000){const first=insetCache.keys().next().value;insetCacheBytes-=first.length;frameAdaptivePreparedForget(insetCache.get(first)?.value);insetCache.delete(first);}}
+    entry.promise=new Promise(resolve=>{complete=value=>{if(key!=null&&insetCache.get(key)===entry){insetCacheAccount(entry,value);frameAdaptivePreparedTrack(value);}entry.value=value;resolve(value);};});
+    if(key!=null){if(cached){insetCacheBytes-=key.length;insetCacheRelease(cached);frameAdaptivePreparedForget(cached.value);}insetCache.set(key,entry);insetCacheBytes+=key.length;while(insetCache.size>128||insetCacheBytes>8000000){const first=insetCache.keys().next().value;insetCacheBytes-=first.length;insetCacheRelease(insetCache.get(first));frameAdaptivePreparedForget(insetCache.get(first)?.value);insetCache.delete(first);}}
     return {hit:false,promise:entry.promise,complete};
   }
   function describeContours(groups,p){
@@ -8182,7 +8187,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return insetGroups(groups.map(paths=>paths.map(path=>path.map(q=>({X:Math.round(q[0]*SCALE),Y:Math.round(q[1]*SCALE)})))),p).paths;
   }
   function stitch(segments,layer,group,numericPoints){
-    // Only contours' own integer records opt in; the original graph remains the fallback.
+     
     const fallback=()=>{
     const edges=[],seen=new Set(),nodes=new Map();
     const key=q=>q.X+','+q.Y;
@@ -8215,13 +8220,13 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
   }
 
   function prepare(meshes,p){
-    // Pack retained triangle coordinates without a per-face object/number array.
-    // Chunk allocation is bounded; IDs, Float64 precision and event order stay exact.
-    const count=layerCount(p),triangles={length:0,chunks:[]},starts=new Map(),ends=new Map(),q=new Array(9),chunkSize=4096;
+     
+     
+    const contourRetrySources=[];const count=layerCount(p),triangles={length:0,chunks:[]},starts=new Map(),ends=new Map(),q=new Array(9),chunkSize=4096;
     const lower=y=>{let lo=1,hi=count+1;while(lo<hi){const mid=(lo+hi)>>>1;if(layerY(p,mid)<y)lo=mid+1;else hi=mid;}return lo;};
     const angleWarnings=frameCreateAngleWarnings(p,count,lower);
     const put=(map,k,id)=>{if(!map.has(k))map.set(k,[]);map.get(k).push(id);};
-    for(const mesh of meshes){const src=mesh.positions,ix=mesh.indices,m=mesh.matrix,xyz=new Float64Array(src.length);
+    for(const mesh of meshes){const retryFirst=triangles.length,retryOrdinal=contourRetrySources.length;const src=mesh.positions,ix=mesh.indices,m=mesh.matrix,xyz=new Float64Array(src.length);
       for(let i=0;i<src.length;i+=3){const x=src[i],y=src[i+1],z=src[i+2];xyz[i]=m[0]*x+m[4]*y+m[8]*z+m[12];xyz[i+1]=m[1]*x+m[5]*y+m[9]*z+m[13];xyz[i+2]=m[2]*x+m[6]*y+m[10]*z+m[14];}
       const n=Math.floor((ix?.length||xyz.length/3)/3);for(let t=0;t<n;t++){
         for(let j=0;j<3;j++){const a=(ix?ix[t*3+j]:t*3+j)*3;q[j*3]=xyz[a];q[j*3+1]=xyz[a+1];q[j*3+2]=xyz[a+2];}
@@ -8230,24 +8235,200 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
         const first=lower(low),last=lower(high);if(first>count||last<=1||first===last)continue;
         const id=triangles.length++,slot=id%chunkSize;if(!slot)triangles.chunks.push({q:new Float64Array(chunkSize*9),groups:new Array(chunkSize),...(angleWarnings?{angles:new Float32Array(chunkSize),orientation:new Int8Array(chunkSize)}:{})});const chunk=triangles.chunks[Math.floor(id/chunkSize)];chunk.q.set(q,slot*9);chunk.groups[slot]=mesh.group;if(angleWarnings){const normal=angleWarnings.angle(q,m);chunk.angles[slot]=normal.angle;chunk.orientation[slot]=normal.orientation;}put(starts,first,id);put(ends,last,id);
       }
-    }angleWarnings?.finish(triangles);return {count,triangles,starts,ends,angleWarnings,perimeterCount:perimeterCount(p)};
+      contourRetrySources.push({mesh,first:retryFirst,last:triangles.length,ordinal:retryOrdinal});
+    }angleWarnings?.finish(triangles);return {count,triangles,starts,ends,angleWarnings,contourRetrySources,perimeterCount:perimeterCount(p)};
   }
+  function frameContourExactRetry(active,prepared,p,layer,group,y,SCALE){
+  const MAX_ACTIVE=8192,MAX_SOURCE_FACES=8192,MAX_SEGMENTS=256,MAX_PAIRS=32640;
+  const reject=reason=>({supported:false,reason});
+  if(!active||active.size>MAX_ACTIVE||!Number.isFinite(y)||!Number.isSafeInteger(SCALE)||SCALE<=0)return reject('retry-input-or-active-budget');
+  const view=new DataView(new ArrayBuffer(8)),edges=new Map(),segments=[];
+  function dyadic(x){
+    if(!Number.isFinite(x))throw Error('nonfinite');
+    view.setFloat64(0,x,false);const hi=view.getUint32(0,false),lo=view.getUint32(4,false),exp=(hi>>>20)&2047;
+    let n=(BigInt(hi&1048575)<<32n)|BigInt(lo);if(exp)n|=1n<<52n;if(hi>>>31)n=-n;
+    return{n,e:exp?exp-1023-52:-1074};
+  }
+  function aligned(values){const q=values.map(dyadic),e=Math.min(...q.map(q=>q.e));return{v:q.map(q=>q.n<<BigInt(q.e-e)),e};}
+  function gcd(a,b){a=a<0n?-a:a;while(b){const r=a%b;a=b;b=r;}return a;}
+  function rational(n,d){if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};}
+  function coordinate(a,b,k){
+    const X=aligned([a[k],b[k]]),Y=aligned([a[1],b[1],y]);let n=X.v[0]*(Y.v[1]-Y.v[2])+X.v[1]*(Y.v[2]-Y.v[0]),d=Y.v[1]-Y.v[0];
+    if(X.e>=0)n<<=BigInt(X.e);else d<<=BigInt(-X.e);return rational(n,d);
+  }
+  function roundGrid(r){const n=2n*r.n*BigInt(SCALE)+r.d,d=2n*r.d;let q=n/d;if(n<0n&&n%d)q--;const v=Number(q);if(!Number.isSafeInteger(v))throw Error('unsafe-grid');return v;}
+  const vertex=q=>q.map(v=>String(v)).join(','),oldHit=(a,b)=>{const t=(y-a[1])/(b[1]-a[1]);return{X:Math.round((a[0]+(b[0]-a[0])*t)*SCALE),Y:Math.round((a[2]+(b[2]-a[2])*t)*SCALE)};};
+  try{
+     
+     
+     
+    if(!Array.isArray(prepared.contourRetrySources))return reject('missing-original-index-provenance');
+    const original=new Map();let sourceFaces=0,sourceEdges=0,sourceMeshes=0,retainedSourceBufferBytes=0;
+    const count=prepared.count,lower=value=>{let lo=1,hi=count+1;while(lo<hi){const mid=(lo+hi)>>>1,plane=mid===1?p.initialLayerHeight/2:p.initialLayerHeight+(mid-1.5)*p.layerHeight;if(plane<value)lo=mid+1;else hi=mid;}return lo;};
+    for(const entry of prepared.contourRetrySources){
+      if(![...active].some(id=>id>=entry.first&&id<entry.last&&prepared.triangles.chunks[Math.floor(id/4096)].groups[id%4096]===group))continue;
+      const mesh=entry.mesh,src=mesh?.positions,ix=mesh?.indices,m=mesh?.matrix;
+      if(!src||!ix||ix.length%3||!m||m.length!==16||mesh.group!==group)return reject('missing-indexed-original-source');
+      const faces=ix.length/3;if(sourceFaces+faces>MAX_SOURCE_FACES)return reject('original-face-budget');sourceFaces+=faces;sourceMeshes++;retainedSourceBufferBytes+=(src.byteLength||src.length*8)+(ix.byteLength||ix.length*4);
+      const topology=new Map(),links=new Map(),coordinates=new Map(),indexCoords=new Map();let retained=entry.first;
+      function originalVertex(index){
+        if(!Number.isSafeInteger(index)||index<0||index*3+2>=src.length)throw Error('invalid-source-index');let q=indexCoords.get(index);if(q)return q;
+        const a=index*3,x=src[a],Y=src[a+1],z=src[a+2];q=[m[0]*x+m[4]*Y+m[8]*z+m[12],m[1]*x+m[5]*Y+m[9]*z+m[13],m[2]*x+m[6]*Y+m[10]*z+m[14]];
+        if(q.some(v=>!Number.isFinite(v)||Math.abs(v)*SCALE>1e14))throw Error('invalid-source-coordinate');const key=vertex(q),previous=coordinates.get(key);
+        if(previous!==undefined&&previous!==index)throw Error('coincident-original-indexes');coordinates.set(key,index);indexCoords.set(index,q);return q;
+      }
+      for(let face=0;face<faces;face++){
+        const indexes=[ix[face*3],ix[face*3+1],ix[face*3+2]],q=indexes.map(originalVertex);if(new Set(indexes).size!==3)return reject('degenerate-original-indexed-face');
+        const u=q[1].map((v,k)=>v-q[0][k]),v=q[2].map((v,k)=>v-q[0][k]);if(!Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]))return reject('degenerate-original-geometric-face');
+        for(let j=0;j<3;j++){const at=indexes[j],a=indexes[(j+1)%3],b=indexes[(j+2)%3];if(!links.has(at))links.set(at,new Map());const link=links.get(at);for(const[A,B]of[[a,b],[b,a]]){if(!link.has(A))link.set(A,new Set());link.get(A).add(B);}}
+        for(let j=0;j<3;j++){const a=indexes[j],b=indexes[(j+1)%3],key=Math.min(a,b)+','+Math.max(a,b),edge=topology.get(key)||{count:0,sign:0};edge.count++;edge.sign+=a<b?1:-1;if(edge.count>2)return reject('nonmanifold-original-mesh-edge');topology.set(key,edge);}
+        const low=Math.min(...q.map(q=>q[1])),high=Math.max(...q.map(q=>q[1]));if(high-low<1e-12)continue;const first=lower(low),last=lower(high);if(first>count||last<=1||first===last)continue;
+        if(retained>=entry.last)return reject('original-prepared-range-mismatch');
+        if(active.has(retained)){
+          const chunk=prepared.triangles.chunks[Math.floor(retained/4096)],at=retained%4096*9;
+          if(chunk.groups[retained%4096]!==group||q.some((v,j)=>v.some((value,k)=>value!==chunk.q[at+j*3+k])))return reject('original-prepared-coordinate-mismatch');
+          original.set(retained,{ordinal:entry.ordinal,indexes});
+        }
+        retained++;
+      }
+      if(retained!==entry.last)return reject('original-prepared-range-mismatch');
+      if([...topology.values()].some(q=>q.count!==2||q.sign!==0))return reject('open-or-unoriented-original-mesh');sourceEdges+=topology.size;
+      for(const link of links.values()){if([...link.values()].some(q=>q.size!==2))return reject('nonmanifold-original-vertex-link');const seen=new Set(),queue=[link.keys().next().value];while(queue.length){const at=queue.pop();if(seen.has(at))continue;seen.add(at);for(const q of link.get(at))if(!seen.has(q))queue.push(q);}if(seen.size!==link.size)return reject('nonmanifold-original-vertex-link');}
+    }
+    let scanned=0,changedIncidences=0,maxGridDisplacement=0;
+    for(const id of active){
+      scanned++;const chunk=prepared.triangles.chunks[Math.floor(id/4096)],slot=id%4096;if(!chunk||chunk.groups[slot]!==group)continue;
+      const at=slot*9,q=chunk.q,hits=[],provenance=original.get(id);if(!provenance)return reject('missing-original-face-provenance');
+      for(let j=0;j<3;j++){
+        const k=at+j*3,K=at+((j+1)%3)*3,a=[q[k],q[k+1],q[k+2]],b=[q[K],q[K+1],q[K+2]];
+        if(a[1]===y||b[1]===y)return reject('plane-through-original-vertex');
+        if(!((a[1]<y&&b[1]>y)||(b[1]<y&&a[1]>y)))continue;
+        const A=provenance.indexes[j],B=provenance.indexes[(j+1)%3],key=provenance.ordinal+'|'+Math.min(A,B)+','+Math.max(A,B),sign=A<B?1:-1;
+        let edge=edges.get(key);
+        if(!edge){const lower=a[1]<b[1]?a:b,upper=a[1]<b[1]?b:a,x=coordinate(lower,upper,0),z=coordinate(lower,upper,2);edge={key,a:lower,b:upper,x,z,point:{X:roundGrid(x),Y:roundGrid(z)},faces:[],sign:0};edges.set(key,edge);}
+        if(edge.faces.includes(id))return reject('repeated-original-edge-in-face');edge.faces.push(id);edge.sign+=sign;if(edge.faces.length>2)return reject('nonmanifold-crossing-edge');
+        const old=oldHit(a,b),delta=Math.max(Math.abs(old.X-edge.point.X),Math.abs(old.Y-edge.point.Y));if(delta>1)return reject('exceeds-single-grid-rounding-difference');
+        (edge.originalHits||(edge.originalHits=[])).push(old);if(delta)changedIncidences++;maxGridDisplacement=Math.max(maxGridDisplacement,delta);hits.push(edge);
+      }
+      if(hits.length!==2)return reject('non-two-crossing-face');
+      if(hits[0]===hits[1])return reject('duplicate-crossing-edge');
+      if(segments.length>=MAX_SEGMENTS)return reject('segment-budget');segments.push({nodes:hits,id});
+    }
+    if(!segments.length||!changedIncidences)return reject('no-directed-rounding-disagreement');
+    for(const edge of edges.values())if(edge.faces.length!==2||edge.sign!==0)return reject('unpaired-or-unoriented-crossing-edge');
+    const disagreementEdges=[...edges.values()].filter(e=>e.originalHits[0].X!==e.originalHits[1].X||e.originalHits[0].Y!==e.originalHits[1].Y).length;
+    if(!disagreementEdges)return reject('no-directed-rounding-disagreement');
+     
+     
+    const gridNodes=new Map(),adjacency=new Map();
+    for(const edge of edges.values()){
+      const key=edge.point.X+','+edge.point.Y;if(gridNodes.has(key))return reject('distinct-source-edges-share-grid-node');gridNodes.set(key,edge);
+    }
+    for(let i=0;i<segments.length;i++)for(const edge of segments[i].nodes){if(!adjacency.has(edge))adjacency.set(edge,[]);adjacency.get(edge).push(i);}
+    for(const ids of adjacency.values())if(ids.length!==2)return reject('non-two-degree-exact-section-node');
+    const seen=new Set(),cycles=[];
+    for(let i=0;i<segments.length;i++){
+      if(seen.has(i))continue;let at=segments[i].nodes[0],start=at,id=i,length=0;
+      do{if(seen.has(id))return reject('premature-section-cycle');seen.add(id);length++;const pair=segments[id].nodes;at=pair[0]===at?pair[1]:pair[0];if(at===start)break;id=adjacency.get(at).find(q=>!seen.has(q));if(id===undefined)return reject('open-exact-section-cycle');}while(length<=segments.length);
+      if(at!==start||length<3)return reject('degenerate-exact-section-cycle');cycles.push(length);
+    }
+    const diff=(a,b)=>({n:a.n*b.d-b.n*a.d,d:a.d*b.d});
+    const orient=(a,b,c)=>{const x=diff(b.x,a.x),z=diff(b.z,a.z),X=diff(c.x,a.x),Z=diff(c.z,a.z),n=x.n*Z.n*z.d*X.d-z.n*X.n*x.d*Z.d;return n<0n?-1:n>0n?1:0;};
+    const cmp=(a,b)=>{const n=a.n*b.d-b.n*a.d;return n<0n?-1:n>0n?1:0;};
+    const between=(a,b,c)=>cmp(c,a)*cmp(c,b)<=0;
+    const on=(a,b,c)=>between(a.x,b.x,c.x)&&between(a.z,b.z,c.z);
+    const intersect=(a,b,c,d)=>{const abC=orient(a,b,c),abD=orient(a,b,d),cdA=orient(c,d,a),cdB=orient(c,d,b);return abC*abD<0&&cdA*cdB<0||!abC&&on(a,b,c)||!abD&&on(a,b,d)||!cdA&&on(c,d,a)||!cdB&&on(c,d,b);};
+    const integerPoint=q=>({x:{n:BigInt(q.point.X),d:1n},z:{n:BigInt(q.point.Y),d:1n}});
+    let pairs=0;
+    for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++){
+      if(++pairs>MAX_PAIRS)return reject('pair-budget');const[a,b]=segments[i].nodes,[c,d]=segments[j].nodes,shared=[a,b].filter(q=>q===c||q===d);
+      if(shared.length>1)return reject('duplicate-exact-section-segment');
+      if(shared.length===1){
+        const s=shared[0],u=a===s?b:a,v=c===s?d:c;
+        const S=integerPoint(s),U=integerPoint(u),V=integerPoint(v);
+        if(!orient(s,u,v)&&(on(s,u,v)||on(s,v,u))||!orient(S,U,V)&&(on(S,U,V)||on(S,V,U)))return reject('overlapping-adjacent-section-segments');
+        continue;
+      }
+      if(intersect(a,b,c,d)||intersect(integerPoint(a),integerPoint(b),integerPoint(c),integerPoint(d)))return reject('nonlocal-section-contact-or-crossing');
+    }
+    return{supported:true,segments:segments.map(q=>q.nodes.map(n=>n.point)),records:segments.map(q=>({id:q.id,hits:q.nodes.map(n=>n.point)})),certificate:{method:'failed-section-exact-binary-rational-grid',wholeIndexedMeshEdgeIncidenceCertified:true,wholeIndexedMeshVertexLinksCertified:true,geometricSelfIntersectionCheckedAtThisSectionOnly:true,sourceMeshes,sourceFaces,sourceEdges,retainedSourceBufferBytes,exactCrossingEdges:edges.size,oppositeIncidences:edges.size*2,cycles,trianglesScanned:scanned,sectionSegments:segments.length,changedIncidences,disagreementEdges,maxGridDisplacement,sourceCoordinatesReplaced:false,sourceVerticesWelded:false,toleranceExpanded:false,pairsChecked:pairs,budgets:{active:MAX_ACTIVE,sourceFaces:MAX_SOURCE_FACES,segments:MAX_SEGMENTS,pairs:MAX_PAIRS}}};
+  }catch(error){return reject('exact-retry-arithmetic-or-record-error');}
+}
+function frameContourOriginValidate(origin,positions,indices,checkIndexIdentity=true){
+  if(origin?.version!==1||!(origin.positions instanceof Float32Array)||!(origin.indices instanceof Uint32Array)||!positions||!indices||!origin.positions.length||!origin.indices.length||origin.positions.length%3||origin.indices.length%3||origin.indices.length!==indices.length||origin.indices.length/3>8192||origin.positions.length/3>24576)return false;
+  const p=origin.positions,ix=origin.indices;if(p.some(q=>!Number.isFinite(q)))return false;
+  if(checkIndexIdentity&&(!(origin.renderIndices instanceof Uint32Array)||origin.renderIndices.length!==indices.length||origin.renderIndices.some((v,i)=>v!==indices[i])))return false;
+  for(let i=0;i<ix.length;i++){const a=ix[i],b=indices[i];if(!Number.isSafeInteger(a)||a<0||a*3+2>=p.length||!Number.isSafeInteger(b)||b<0||b*3+2>=positions.length)return false;for(let k=0;k<3;k++)if(p[a*3+k]!==positions[b*3+k])return false;}
+  return true;
+}
+function frameContourOriginRetry(active,prepared,p,layer,group,y,SCALE){
+  if(!prepared.contourRetrySources)return{supported:false,reason:'missing-original-source-provenance'};
+  for(const id of active){const chunk=prepared.triangles.chunks[Math.floor(id/4096)];if(chunk?.groups[id%4096]!==group)return{supported:false,reason:'uncertified-cross-source-group-contact'};}
+  const entries=[];let faces=0,originsUsed=0;
+  for(const entry of prepared.contourRetrySources){
+    const mesh=entry.mesh,origin=mesh.contourOrigin;
+    if(!origin){entries.push(entry);continue;}
+    if(!frameContourOriginValidate(origin,mesh.positions,mesh.indices)||faces+origin.indices.length/3>8192)return{supported:false,reason:'invalid-bounded-original-corner-provenance'};
+    faces+=origin.indices.length/3;originsUsed++;entries.push({...entry,mesh:{...mesh,positions:origin.positions,indices:origin.indices}});
+  }
+  const result=frameContourExactRetry(active,{...prepared,contourRetrySources:entries},p,layer,group,y,SCALE);
+  if(result.supported)result.certificate={...result.certificate,...(originsUsed?{originalCornerProvenanceVersion:1,originalCornerProvenanceSources:originsUsed,currentRenderIndexSequenceCertified:true}:{}),currentPreparedCoordinatesPreserved:true,singleActiveSourceGroupCertified:true};return result;
+}
   function contours(active,prepared,p,layer){
     prepared.angleWarnings?.begin(layer);const y=layerY(p,layer),groups=new Map();
     for(const id of active){const chunk=prepared.triangles.chunks[Math.floor(id/4096)],q=chunk.q,slot=id%4096,at=slot*9,group=chunk.groups[slot],hits=[];
       for(let j=0;j<3;j++){const a=at+j*3,b=at+((j+1)%3)*3,ay=q[a+1],by=q[b+1];if(!((ay<=y&&by>y)||(by<=y&&ay>y)))continue;const t=(y-ay)/(by-ay);hits.push({X:Math.round((q[a]+(q[b]-q[a])*t)*SCALE),Y:Math.round((q[a+2]+(q[b+2]-q[a+2])*t)*SCALE)});}
-      if(hits.length===2){prepared.angleWarnings?.addEdge(hits,chunk,slot,layer);if(!groups.has(group))groups.set(group,[]);groups.get(group).push(hits);}
+      if(hits.length===2){prepared.angleWarnings?.addEdge(hits,chunk,slot,layer,id);if(!groups.has(group))groups.set(group,[]);groups.get(group).push(hits);}
     }
-    const paths=[];for(const [group,segments] of groups)paths.push(stitch(segments,layer,group,true));
+    const paths=[],retried=new Map();let attempts=0,firstOriginalError=null;
+    for(const [group,segments] of groups){
+      try{paths.push(stitch(segments,layer,group,true));}
+      catch(originalError){
+        if(originalError?.code!=='FRAME_OPEN_CONTOUR')throw originalError;
+        firstOriginalError=firstOriginalError||originalError;
+        let restored=null,retry=null;
+        if(++attempts<=4){
+          retry=frameContourOriginRetry(active,prepared,p,layer,group,y,SCALE);
+          if(retry.supported){try{restored=stitch(retry.segments,layer,group,true);}catch(error){if(error?.code!=='FRAME_OPEN_CONTOUR')throw error;restored=null;}}
+        }
+        if(restored){paths.push(restored);for(const record of retry.records)retried.set(record.id,record.hits);}
+        else{
+          const recovered=frameRecoverSectionComponents(segments);
+          if(recovered.stats.invalidSegments)throw Object.assign(Error('Invalid section coordinates.'),{code:'FRAME_CONTOUR_INTEGRITY'});
+          paths.push(recovered.paths);
+          if(!prepared.contourRecoveryLayers)prepared.contourRecoveryLayers=new Map();
+          let annotation=prepared.contourRecoveryLayers.get(layer);
+          const firstRecoveryGroup=!annotation;
+          if(!annotation){annotation={status:'best-effort-original-section-cycles',layer,groups:[],sourceEndpointsUnchanged:true,openFragmentsPrinted:false,topologyCertified:false,physicalPrintabilityCertified:false};prepared.contourRecoveryLayers.set(layer,annotation);}
+          const record={group,originalRetryReason:retry?.reason||'bounded-original-retry-attempts',stats:recovered.stats,pathRecords:recovered.pathRecords.slice(0,32),diagnostics:recovered.diagnostics,originalEndpointsUnchanged:true};
+          const recordBytes=JSON.stringify(record).length*2;
+          annotation.estimatedRetainedBytes=annotation.estimatedRetainedBytes||512;
+          if(annotation.groups.length<32&&annotation.estimatedRetainedBytes+recordBytes<=32768){annotation.groups.push(record);annotation.estimatedRetainedBytes+=recordBytes;}
+          else annotation.truncatedGroups=(annotation.truncatedGroups||0)+1;
+          const stats=prepared.contourRecoveryStats;
+          if(stats){stats.contourRecoveryGroups=(stats.contourRecoveryGroups||0)+1;stats.contourRecoveredCycles=(stats.contourRecoveredCycles||0)+recovered.paths.length;stats.contourUnresolvedEdges=(stats.contourUnresolvedEdges||0)+recovered.stats.unresolvedEdges;if(firstRecoveryGroup)stats.contourRecoveryLayerCount=(stats.contourRecoveryLayerCount||0)+1;}
+        }
+      }
+    }
+    if(retried.size&&prepared.angleWarnings){
+       
+       
+      prepared.angleWarnings.restart(layer);
+      for(const id of active){const chunk=prepared.triangles.chunks[Math.floor(id/4096)],q=chunk.q,slot=id%4096,at=slot*9;let hits=retried.get(id);
+        if(!hits){hits=[];for(let j=0;j<3;j++){const a=at+j*3,b=at+((j+1)%3)*3,ay=q[a+1],by=q[b+1];if(!((ay<=y&&by>y)||(by<=y&&ay>y)))continue;const t=(y-ay)/(by-ay);hits.push({X:Math.round((q[a]+(q[b]-q[a])*t)*SCALE),Y:Math.round((q[a+2]+(q[b+2]-q[a+2])*t)*SCALE)});}}
+        if(hits.length===2)prepared.angleWarnings.addEdge(hits,chunk,slot,layer,id);
+      }
+    }
     return paths;
   }
   function section(active,prepared,p,layer){return insetGroups(contours(active,prepared,p,layer),p);}
-  function sliceStats(prepared){return {angleWarningComplete:prepared.angleWarnings?.complete??false,angleWarningFaces:prepared.angleWarnings?.faces??0,layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:0,requestedPerimeters:prepared.perimeterCount??1,segmentsBeforeSimplification:0,toleranceFraction:.02,smoothToleranceFraction:.02,shortSegmentThresholdFraction:1,preserveLongSegments:false,endpointToleranceFraction:.02,trajectoryQualityOnly:true,printedFootprintChecked:false,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0};}
+  function sliceStats(prepared){const stats={angleWarningComplete:prepared.angleWarnings?.complete??false,angleWarningFaces:prepared.angleWarnings?.faces??0,layers:prepared.count,nonemptyLayers:0,paths:0,segments:0,triangles:prepared.triangles.length,offsetCalls:0,perimeters:0,requestedPerimeters:prepared.perimeterCount??1,segmentsBeforeSimplification:0,toleranceFraction:.02,smoothToleranceFraction:.02,shortSegmentThresholdFraction:1,preserveLongSegments:false,endpointToleranceFraction:.02,trajectoryQualityOnly:true,printedFootprintChecked:false,cacheHits:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0};prepared.contourRecoveryStats=stats;return stats;}
   async function slice(meshes,p,emit=()=>{},cancelled=()=>false,dedicatedWorker=false){
+    p={...p,spiralGeometry:p.angleWarnings===true&&(p.perimeters??1)>=2,spiralSourceAngleEvidence:p.angleWarnings===true&&(p.perimeters??1)>=2};
     emit=frameReferenceWriter(emit,p.printClockwiseSign,p.lineWidth);const prepared=prepare(meshes,p),active=new Set(),stats=sliceStats(prepared);
-    // A dedicated worker is cancelled by its page owner via terminate(). It
-    // needs neither host timer yields nor visits beyond the last active plane.
-    // Direct API callers retain the original cooperative scheduling contract.
+     
+     
+     
     let lastLayer=prepared.count;
     if(dedicatedWorker){lastLayer=0;for(const layer of prepared.ends.keys())lastLayer=Math.max(lastLayer,Math.min(prepared.count,layer-1));}
     let batch=[];
@@ -8255,18 +8436,18 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     for(let layer=1;layer<=lastLayer;layer++){
       if(cancelled())throw Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'});
       for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);
-      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.perimeters=Math.max(stats.perimeters,result.actualPerimeters||0);stats.cacheHits+=result.cacheHit||0;for(const name of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;const output=frameAdaptiveLayer(result.paths,result.references,p,stats,result.componentPathGroups);if(p.angleWarnings)emit.record(layer,output.paths,result.references,prepared.angleWarnings?.take(layer),output);if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);batch.push({layer,...output,references:result.references});}}
+      if(active.size){const result=section(active,prepared,p,layer);stats.offsetCalls+=result.offsetCalls;stats.perimeters=Math.max(stats.perimeters,result.actualPerimeters||0);stats.cacheHits+=result.cacheHit||0;for(const name of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves'])stats[name]+=result[name]||0;stats.segmentsBeforeSimplification+=result.segmentsBeforeSimplification||0;let output=frameAdaptiveLayer(result.paths,result.references,p,stats,result.componentPathGroups);const source=prepared.angleWarnings?.take(layer);if(p.angleWarnings)output=emit.record(layer,output.paths,result.references,source,output)||output;output=frameSpiralOwnerDropCandidates(output);const topologyRecovery=prepared.contourRecoveryLayers?.get(layer);if(topologyRecovery){prepared.contourRecoveryLayers.delete(layer);output={...output,topologyRecovery};if(!output.paths.length)batch.push({layer,...output,references:[]});}if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);batch.push({layer,...output,references:result.references});}}
       if(layer%32===0||layer===lastLayer){emit({layers:batch,progress:layer===lastLayer?1:layer/prepared.count,stats:{...stats}});batch=[];if(!dedicatedWorker)await new Promise(resolve=>setTimeout(resolve,0));}
     }stats.angleWarningComplete=prepared.angleWarnings?.complete??false;stats.angleWarningBandWork=prepared.angleWarnings?.bandWork??0;stats.angleWarningPrepareMS=prepared.angleWarnings?.prepareMS??0;return {...stats,...emit.counts()};
   }
-  const api={version:'counted-original-insets-1',describeContours,calculateInsetMaterial,reserveInset,sliceStats,contours,insetGroups,layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={version:'counted-original-insets-1',describeContours,calculateInsetMaterial,reserveInset,insetCacheMemory,sliceStats,contours,insetGroups,layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
 
-// Source inclination follows the existing section pass. The index associates
-// retained boundary intervals with fixed-offset/cleaned print segments. It does
-// not certify deposited support, bridges or continuous variable-width coverage.
+ 
+ 
+ 
 function frameAngleBox(a,b,pad=0){return[Math.min(a[0],b[0])-pad,Math.min(a[1],b[1])-pad,Math.max(a[0],b[0])+pad,Math.max(a[1],b[1])+pad];}
 function frameAngleIndex(entries){const build=items=>{if(!items.length)return null;const box=[Infinity,Infinity,-Infinity,-Infinity];for(const q of items){const b=q.box;box[0]=Math.min(box[0],b[0]);box[1]=Math.min(box[1],b[1]);box[2]=Math.max(box[2],b[2]);box[3]=Math.max(box[3],b[3]);}if(items.length<=8)return{box,items};const axis=box[2]-box[0]>=box[3]-box[1]?0:1;items.sort((a,b)=>a.box[axis]+a.box[axis+2]-b.box[axis]-b.box[axis+2]);const n=items.length>>1;return{box,left:build(items.slice(0,n)),right:build(items.slice(n))};};return build(entries.slice());}
 function frameAngleQuery(root,box,visit){if(!root||root.box[0]>box[2]||root.box[2]<box[0]||root.box[1]>box[3]||root.box[3]<box[1])return;if(root.items){for(const q of root.items)if(q.box[0]<=box[2]&&q.box[2]>=box[0]&&q.box[1]<=box[3]&&q.box[3]>=box[1])visit(q);}else{frameAngleQuery(root.left,box,visit);frameAngleQuery(root.right,box,visit);}}
@@ -8275,8 +8456,19 @@ function frameAngleInterpolate(a,b,t){return[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])
 function frameAnglePointDistance(p,a,b){const dx=b[0]-a[0],dy=b[1]-a[1],D=dx*dx+dy*dy,t=D?Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/D)):0,q=frameAngleInterpolate(a,b,t);return{distance:Math.hypot(p[0]-q[0],p[1]-q[1]),point:q,t};}
 function frameAngleSegmentPair(a,b,c,d){const ax=a[0],ay=a[1],bx=b[0],by=b[1],cx=c[0],cy=c[1],dx=d[0],dy=d[1],ux=bx-ax,uy=by-ay,vx=dx-cx,vy=dy-cy,U=ux*ux+uy*uy,V=vx*vx+vy*vy;let best=Infinity,tx=ax,ty=ay,sx=cx,sy=cy;const put=(x,y,X,Y)=>{const q=(x-X)*(x-X)+(y-Y)*(y-Y);if(q<best){best=q;tx=x;ty=y;sx=X;sy=Y;}};for(let k=0;k<2;k++){const x=k?bx:ax,y=k?by:ay,t=V?Math.max(0,Math.min(1,((x-cx)*vx+(y-cy)*vy)/V)):0;put(x,y,cx+t*vx,cy+t*vy);const X=k?dx:cx,Y=k?dy:cy,z=U?Math.max(0,Math.min(1,((X-ax)*ux+(Y-ay)*uy)/U)):0;put(ax+z*ux,ay+z*uy,X,Y);}const D=ux*vy-uy*vx;if(Math.abs(D)>1e-30){const px=cx-ax,py=cy-ay,t=(px*vy-py*vx)/D,z=(px*uy-py*ux)/D;if(t>=0&&t<=1&&z>=0&&z<=1)put(ax+t*ux,ay+t*uy,ax+t*ux,ay+t*uy);}return{distance:Math.sqrt(best),target:[tx,ty],source:[sx,sy]};}
 function frameAnglePhysicalNormal(q,orientation=1){const x=q[3]-q[0],y=q[4]-q[1],z=q[5]-q[2],u=q[6]-q[0],v=q[7]-q[1],w=q[8]-q[2];return[(y*w-z*v)*orientation,(z*u-x*w)*orientation,(x*v-y*u)*orientation];}
-function frameCreateAngleWarnings(p,count,lower){
- if(!p.angleWarnings)return null;const planes=new Set(),capMeshes=[],layers=new Map(),vertexCaps=new Map(),capLayers=new Set(),untracedCaps=new Map(),capTrees=new Map(),tol=Math.max(2e-6,p.lineWidth*1e-9),S=1000000;let current=null,capFaces=0,sourceEdges=0,prepareMS=0;
+function frameSpiralCreateFaceIncidence(layer,{maxFaces=8192,maxEstimatedBytes=524288}={}){
+ let capacity=0,count=0,coords,angles,faces,groupIds,complete=true,reason=null,groupBytes=0,peakAllocatedColumnBytes=0;const groups=[],byGroup=new Map();
+ const abort=why=>{complete=false;reason=reason||why;};
+ if(!Number.isInteger(maxFaces)||maxFaces<1||maxFaces>8192||!Number.isInteger(maxEstimatedBytes)||maxEstimatedBytes<44||maxEstimatedBytes>524288)abort('invalid-bounded-incidence-options');
+ const nextCapacity=()=>Math.min(maxFaces,Math.max(16,capacity*2));
+ const grow=next=>{peakAllocatedColumnBytes=Math.max(peakAllocatedColumnBytes,(capacity+next)*44);const make=(Ctor,n,old)=>{const q=new Ctor(n);if(old)q.set(old);return q;};coords=make(Float64Array,next*4,coords);angles=make(Float32Array,next,angles);faces=make(Uint32Array,next,faces);groupIds=make(Uint32Array,next,groupIds);capacity=next;};
+ return{
+  add(hits,angle,face,group){if(!complete)return;if(!Number.isFinite(angle)||angle<0||angle>90||!Number.isSafeInteger(face)||face<0||face>4294967295){abort('invalid-actual-face-inclination-or-id');return;}if(!['string','number'].includes(typeof group)||typeof group==='number'&&!Number.isFinite(group)){abort('unaddressable-source-group');return;}if(count>=maxFaces){abort('bounded-source-face-incidence-count');return;}if(!Array.isArray(hits)||hits.length<2||hits.slice(0,2).some(q=>!Number.isSafeInteger(q?.X)||!Number.isSafeInteger(q?.Y))){abort('invalid-original-section-grid-point');return;}const key=typeof group+':'+String(group);let id=byGroup.get(key);const extra=id==null?key.length*2+16:0,next=count===capacity?nextCapacity():capacity;if(next*44+groupBytes+extra>maxEstimatedBytes){abort('bounded-source-face-incidence-bytes');return;}if(id==null){id=groups.length;groups.push(key);byGroup.set(key,id);groupBytes+=extra;}if(count===capacity)grow(next);for(let i=0;i<2;i++){const q=hits[i];coords[count*4+i*2]=q.X;coords[count*4+i*2+1]=q.Y;}angles[count]=angle;faces[count]=face;groupIds[count]=id;count++;},
+  finish(){peakAllocatedColumnBytes=Math.max(peakAllocatedColumnBytes,(capacity+count)*44);return{method:'actual-section-triangle-inclination',layer,complete,reason,zeroFaceAnglesIncluded:true,gridScale:1000000,binding:{},count,coords:(coords||new Float64Array()).slice(0,count*4),angles:(angles||new Float32Array()).slice(0,count),faceIds:(faces||new Uint32Array()).slice(0,count),groupIds:(groupIds||new Uint32Array()).slice(0,count),groups,maxFaces,maxEstimatedBytes,estimatedRetainedBytes:count*44+groupBytes,estimatedPeakColumnBytes:peakAllocatedColumnBytes,estimateExcludesJSObjectOverhead:true};}
+ };
+}
+function frameCreateAngleWarnings(p,count,lower,state){
+ if(!p.angleWarnings)return null;const planes=state?.planes||new Set(),capMeshes=[],layers=new Map(),vertexCaps=state?.vertexCaps||new Map(),capLayers=state?.capLayers||new Set(),untracedCaps=state?.untracedCaps||new Map(),capTrees=state?.capTrees||new Map(),tol=Math.max(2e-6,p.lineWidth*1e-9),S=1000000;let current=null,capFaces=state?.capFaces||0,sourceEdges=0,prepareMS=state?.prepareMS||0;
  const yKey=y=>Math.round(y*S),pointKey=(x,y,z)=>Math.round(x*S)+','+Math.round(y*S)+','+Math.round(z*S),vertexKey=(group,key)=>String(group)+'|'+key;
  function observeCap(q,mesh,triangle){const low=Math.min(q[1],q[4],q[7]),high=Math.max(q[1],q[4],q[7]);if(high-low>1e-12||high<=1e-6||low>p.height)return;const m=mesh.matrix,det=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]),n=frameAnglePhysicalNormal(q,det<0?-1:1);if(!n[1])return;let record=capMeshes.at(-1);if(record?.mesh!==mesh){record={mesh,ids:[],length:0,orientation:det<0?-1:1};capMeshes.push(record);}const slot=record.length++%4096;if(!slot)record.ids.push(new Uint32Array(4096));record.ids.at(-1)[slot]=triangle;if(n[1]<0)planes.add(yKey(low));capFaces++;}
  function finish(triangles){const t=performance.now(),candidate=new Set();if(!planes.size){capMeshes.length=0;prepareMS+=performance.now()-t;return;}for(let id=0;id<triangles.length;id++){const q=triangles.chunks[Math.floor(id/4096)].q,at=(id%4096)*9;for(let j=0;j<3;j++){const k=at+j*3;if(planes.has(yKey(q[k+1])))candidate.add(pointKey(q[k],q[k+1],q[k+2]));}}
@@ -8289,20 +8481,20 @@ function frameCreateAngleWarnings(p,count,lower){
   for(const edges of vertexCaps.values())for(const e of edges){const key=e.group+'|'+e.layer;if(!capTrees.has(key))capTrees.set(key,new Set());capTrees.get(key).add(e);}for(const[key,edges]of capTrees)capTrees.set(key,frameAngleIndex([...edges]));
   capMeshes.length=0;prepareMS+=performance.now()-t;
  }
- function begin(layer){current={layer,edges:[],supports:[],caps:capLayers.has(layer)};layers.set(layer,current);}
- function addEdge(hits,chunk,slot,layer){const a=[hits[0].X/S,hits[0].Y/S],b=[hits[1].X/S,hits[1].Y/S],angle=chunk.angles?.[slot]||0;if(angle>0){current.edges.push({a,b,angle,box:frameAngleBox(a,b,tol)});sourceEdges++;}if(!current.caps)return;const at=slot*9,q=chunk.q.subarray(at,at+9),n=frameAnglePhysicalNormal(q,chunk.orientation[slot]),N=Math.hypot(n[0],n[2]);if(!N)return;const out=[n[0]/N,n[2]/N],low=Math.min(q[1],q[4],q[7]),high=Math.max(q[1],q[4],q[7]);if(angle===0)current.supports.push({a,b,low,high,out,box:frameAngleBox(a,b,tol)});const seen=new Set(),group=chunk.groups[slot],unknownY=untracedCaps.get(String(group)+'|'+layer);if(unknownY!=null&&Math.abs(low-unknownY)<=tol&&high>unknownY+tol){current.edges.push({a,b,angle:-1,capY:unknownY,out,box:frameAngleBox(a,b,tol)});sourceEdges++;}const adjacent=new Set();for(let j=0;j<3;j++){const point=[q[j*3],q[j*3+2]];frameAngleQuery(capTrees.get(String(group)+'|'+layer),frameAngleBox(point,point,tol),e=>{if(Math.abs(q[j*3+1]-e.y)<=tol&&frameAnglePointDistance(point,e.a,e.b).distance<=tol)adjacent.add(e);});}for(const e of adjacent){if(seen.has(e)||e.layer!==layer||low<e.y-tol||high<=e.y+tol||out[0]*e.out[0]+out[1]*e.out[1]<.999999)continue;seen.add(e);const dx=e.b[0]-e.a[0],dy=e.b[1]-e.a[1],D=dx*dx+dy*dy,t0=((a[0]-e.a[0])*dx+(a[1]-e.a[1])*dy)/D,t1=((b[0]-e.a[0])*dx+(b[1]-e.a[1])*dy)/D;if(Math.abs(t1-t0)<1e-20)continue;for(const[lo,hi]of e.unknown?[[0,1]]:e.intervals){const s0=(lo-t0)/(t1-t0),s1=(hi-t0)/(t1-t0),first=Math.max(0,Math.min(s0,s1)),last=Math.min(1,Math.max(s0,s1));if(last<=first)continue;const A=frameAngleInterpolate(a,b,first),B=frameAngleInterpolate(a,b,last);current.edges.push({a:A,b:B,angle:e.unknown?-1:90,capY:e.y,out,box:frameAngleBox(A,B,tol)});sourceEdges++;}}}
- function take(layer){const q=layers.get(layer);layers.delete(layer);return q||{layer,edges:[],supports:[]};}
- return{observeCap,finish,begin,addEdge,take,angle(q,m){const d=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]),n=frameAnglePhysicalNormal(q,d<0?-1:1),L=Math.hypot(...n);return{angle:L?Math.asin(Math.max(0,Math.min(1,-n[1]/L)))*180/Math.PI:0,orientation:d<0?-1:1};},get complete(){return true;},get faces(){return capFaces;},get bandWork(){return sourceEdges;},get prepareMS(){return prepareMS;}};
+ function begin(layer){current={layer,edges:[],supports:[],caps:capLayers.has(layer)};if(p.spiralSourceAngleEvidence)current.spiralFaceIncidence=frameSpiralCreateFaceIncidence(layer);else current.continuousFaceCollector=frameSpiralCreateFaceIncidence(layer);layers.set(layer,current);}
+ function addEdge(hits,chunk,slot,layer,faceId){const a=[hits[0].X/S,hits[0].Y/S],b=[hits[1].X/S,hits[1].Y/S],angle=chunk.angles?.[slot]||0;current.spiralFaceIncidence?.add(hits,chunk.angles?.[slot],faceId,chunk.groups[slot]);current.continuousFaceCollector?.add(hits,chunk.angles?.[slot],faceId,chunk.groups[slot]);if(angle>0){current.edges.push({a,b,angle,box:frameAngleBox(a,b,tol)});sourceEdges++;}if(!current.caps)return;const at=slot*9,q=chunk.q.subarray(at,at+9),n=frameAnglePhysicalNormal(q,chunk.orientation[slot]),N=Math.hypot(n[0],n[2]);if(!N)return;const out=[n[0]/N,n[2]/N],low=Math.min(q[1],q[4],q[7]),high=Math.max(q[1],q[4],q[7]);if(angle===0)current.supports.push({a,b,low,high,out,box:frameAngleBox(a,b,tol)});const seen=new Set(),group=chunk.groups[slot],unknownY=untracedCaps.get(String(group)+'|'+layer);if(unknownY!=null&&Math.abs(low-unknownY)<=tol&&high>unknownY+tol){current.edges.push({a,b,angle:-1,capY:unknownY,out,box:frameAngleBox(a,b,tol)});sourceEdges++;}const adjacent=new Set();for(let j=0;j<3;j++){const point=[q[j*3],q[j*3+2]];frameAngleQuery(capTrees.get(String(group)+'|'+layer),frameAngleBox(point,point,tol),e=>{if(Math.abs(q[j*3+1]-e.y)<=tol&&frameAnglePointDistance(point,e.a,e.b).distance<=tol)adjacent.add(e);});}for(const e of adjacent){if(seen.has(e)||e.layer!==layer||low<e.y-tol||high<=e.y+tol||out[0]*e.out[0]+out[1]*e.out[1]<.999999)continue;seen.add(e);const dx=e.b[0]-e.a[0],dy=e.b[1]-e.a[1],D=dx*dx+dy*dy,t0=((a[0]-e.a[0])*dx+(a[1]-e.a[1])*dy)/D,t1=((b[0]-e.a[0])*dx+(b[1]-e.a[1])*dy)/D;if(Math.abs(t1-t0)<1e-20)continue;for(const[lo,hi]of e.unknown?[[0,1]]:e.intervals){const s0=(lo-t0)/(t1-t0),s1=(hi-t0)/(t1-t0),first=Math.max(0,Math.min(s0,s1)),last=Math.min(1,Math.max(s0,s1));if(last<=first)continue;const A=frameAngleInterpolate(a,b,first),B=frameAngleInterpolate(a,b,last);current.edges.push({a:A,b:B,angle:e.unknown?-1:90,capY:e.y,out,box:frameAngleBox(A,B,tol)});sourceEdges++;}}}
+ function take(layer){const q=layers.get(layer);layers.delete(layer);if(q?.spiralFaceIncidence){q.faceIncidence=q.spiralFaceIncidence.finish();delete q.spiralFaceIncidence;}if(q?.continuousFaceCollector){q.continuousFaceIncidence=q.continuousFaceCollector.finish();delete q.continuousFaceCollector;}return q||{layer,edges:[],supports:[]};}
+ return{snapshot:()=>({planes,vertexCaps,capLayers,untracedCaps,capTrees,capFaces,prepareMS}),observeCap,finish,begin,restart(layer){sourceEdges-=layers.get(layer)?.edges.length||0;begin(layer);},addEdge,take,angle(q,m){const d=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]),n=frameAnglePhysicalNormal(q,d<0?-1:1),L=Math.hypot(...n);return{angle:L?Math.asin(Math.max(0,Math.min(1,-n[1]/L)))*180/Math.PI:0,orientation:d<0?-1:1};},get complete(){return true;},get faces(){return capFaces;},get bandWork(){return sourceEdges;},get prepareMS(){return prepareMS;}};
 }
 function frameAngleSectionGeometry(section,cache,tol){let value=cache.get(section);if(value)return value;const edges=[];let from=0;for(const end of section.ends){for(let i=from;i<end;i++){const j=i+1===end?from:i+1,a=[section.coords[i*2],section.coords[i*2+1]],b=[section.coords[j*2],section.coords[j*2+1]],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(L)edges.push({a,b,out:[dy/L,-dx/L],box:frameAngleBox(a,b,tol),id:edges.length});}from=end;}value={edges,root:frameAngleIndex(edges)};cache.set(section,value);return value;}
 function frameAngleAnnotateSource(paths,references,source,width,metrics,cache,twoSided=false,pathClosed){const start=performance.now(),tol=Math.max(2e-6,width*1e-9),R=width*(.5+.022)+tol,values=new Float32Array(paths.reduce((n,p,i)=>n+p.length-(pathClosed?.[i]===false?1:0),0));metrics.segments+=values.length;metrics.sourceEdges+=(source.edges||[]).length;if(!source.edges?.length){metrics.milliseconds+=performance.now()-start;return values;}const geometries=references.map(r=>frameAngleSectionGeometry(r.section,cache,tol)),fields=[],supportRoot=frameAngleIndex(source.supports||[]);
  for(const f of source.edges){let spans=[[0,1]];if(f.capY!=null)frameAngleQuery(supportRoot,f.box,e=>{if(!(e.low<f.capY-tol&&e.high>f.capY+tol)||e.out[0]*f.out[0]+e.out[1]*f.out[1]<.999999)return;const cut=frameAngleOverlap(f.a,f.b,e.a,e.b,tol);if(!cut)return;const next=[];for(const[a,b]of spans){if(cut[1]<=a||cut[0]>=b)next.push([a,b]);else{if(cut[0]>a)next.push([a,cut[0]]);if(cut[1]<b)next.push([cut[1],b]);}}spans=next;});for(const[lo,hi]of spans){const a=frameAngleInterpolate(f.a,f.b,lo),b=frameAngleInterpolate(f.a,f.b,hi),box=frameAngleBox(a,b,tol);for(const g of geometries)frameAngleQuery(g.root,box,e=>{metrics.queries++;const interval=frameAngleOverlap(e.a,e.b,a,b,tol);if(!interval)return;const A=frameAngleInterpolate(e.a,e.b,interval[0]),B=frameAngleInterpolate(e.a,e.b,interval[1]);fields.push({a:A,b:B,out:e.out,angle:f.angle,box:frameAngleBox(A,B,R)});});}}
- const root=frameAngleIndex(fields);let at=0;for(let pathIndex=0;pathIndex<paths.length;pathIndex++){const path=paths[pathIndex];for(let i=0;i<path.length-(pathClosed?.[pathIndex]===false?1:0);i++){const a=path[i],b=path[(i+1)%path.length],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(!L){at++;continue;}const out=[dy/L,-dx/L],box=frameAngleBox(a,b);let angle=0,uncertain=false;frameAngleQuery(root,box,e=>{metrics.queries++;if(!twoSided&&out[0]*e.out[0]+out[1]*e.out[1]<-1e-6)return;const pair=frameAngleSegmentPair(a,b,e.a,e.b);if(pair.distance>R||!twoSided&&(pair.source[0]-pair.target[0])*out[0]+(pair.source[1]-pair.target[1])*out[1]<-tol)return;if(e.angle<0)uncertain=true;else angle=Math.max(angle,e.angle);});if(uncertain&&angle<90){values[at++]=-1;metrics.unknown++;}else values[at++]=angle;}}metrics.milliseconds+=performance.now()-start;return values;}
+ const root=frameAngleIndex(fields);let at=0;for(let pathIndex=0;pathIndex<paths.length;pathIndex++){const path=paths[pathIndex],sourceTwoSided=Array.isArray(twoSided)?twoSided[pathIndex]===true:twoSided;for(let i=0;i<path.length-(pathClosed?.[pathIndex]===false?1:0);i++){const a=path[i],b=path[(i+1)%path.length],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(!L){at++;continue;}const out=[dy/L,-dx/L],box=frameAngleBox(a,b);let angle=0,uncertain=false;frameAngleQuery(root,box,e=>{metrics.queries++;if(!sourceTwoSided&&out[0]*e.out[0]+out[1]*e.out[1]<-1e-6)return;const pair=frameAngleSegmentPair(a,b,e.a,e.b);if(pair.distance>R||!sourceTwoSided&&(pair.source[0]-pair.target[0])*out[0]+(pair.source[1]-pair.target[1])*out[1]<-tol)return;if(e.angle<0)uncertain=true;else angle=Math.max(angle,e.angle);});if(uncertain&&angle<90){values[at++]=-1;metrics.unknown++;}else values[at++]=angle;}}metrics.milliseconds+=performance.now()-start;return values;}
 
-// Share each immutable reference once across repeated layers, instead of copying it per cache hit.
-// Final print output only: XZ positive area is clockwise from above the +Y bed.
-// A reflected printer frame changes the required local sign. Polygon/hole
-// winding used by section, offset and topology routines is never changed here.
+ 
+ 
+ 
+ 
 const framePrintFloatBits=new DataView(new ArrayBuffer(8));
 function framePrintDyadic(value){
   if(!Number.isFinite(value))throw Error('Non-finite final print coordinate.');
@@ -8337,8 +8529,8 @@ function frameClockwisePrintLoop(path,{closed=true,clockwiseSign=1,edgeMetadata=
 
 const frameAdaptiveCorrespondence=(()=>{
 const pointInMaterial=frameAdaptiveInside;
-// QA analytic source-normal correspondence. Original vertices/edges remain
-// immutable. An auxiliary triangulation route is never a partner authority.
+ 
+ 
 
 const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]],cross=(a,b)=>a[0]*b[1]-a[1]*b[0],dot=(a,b)=>a[0]*b[0]+a[1]*b[1],len=a=>Math.hypot(...a),lerp=(a,b,t)=>a.map((v,k)=>v+(b[k]-v)*t),area=r=>{const o=r[0];return r.reduce((s,p,i)=>s+cross(sub(p,o),sub(r[(i+1)%r.length],o)),0)/2;},edgeKey=(r,e)=>r+':'+e;
 function buildSourceCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=8*W,maxEdges=4000,maxCandidateTests=1000000,maxEvents=200000,minimumRouteAspect=2,includeEndpointIncidences=true,boundCandidates=true}={}){
@@ -8348,9 +8540,9 @@ function buildSourceCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=8*W,max
  const tol=Math.max(2e-6,W*1e-9),ringsInfo=rings.map((r,i)=>{const A=area(r);if(!A)throw Error('Zero source ring area');const depth=rings.filter((q,j)=>j!==i&&Math.abs(area(q))>Math.abs(A)&&pointInMaterial(r[0],[q])).length;return{ring:i,depth,orientation:Math.sign(A)*(depth%2?-1:1)};}),edges=[],byKey=new Map();let candidateTests=0,eventTests=0;
  for(let ring=0;ring<rings.length;ring++)for(let edge=0;edge<rings[ring].length;edge++){const a=rings[ring][edge],b=rings[ring][(edge+1)%rings[ring].length],d=sub(b,a),L=len(d);if(!L)return fallback('zero-length-source-edge');const sign=ringsInfo[ring].orientation,q={ring,edge,a,b,d,L,n:[-d[1]/L*sign,d[0]/L*sign],spans:[]};edges.push(q);byKey.set(edgeKey(ring,edge),q);}
  function cuts(e,u){const p=lerp(e.a,e.b,u),hits=[],parallel=[];for(const f of edges){const D=cross(e.n,f.d),delta=sub(f.a,p);if(Math.abs(D)<=32*Number.EPSILON*f.L){if(Math.abs(cross(delta,e.n))<=tol)parallel.push({ring:f.ring,edge:f.edge});continue;}const t=cross(delta,f.d)/D,v=cross(delta,e.n)/D;if(v>=-1e-10&&v<=1+1e-10)hits.push({t,ring:f.ring,edge:f.edge,u:v,point:p.map((x,k)=>x+e.n[k]*t)});}hits.sort((a,b)=>a.t-b.t||a.ring-b.ring||a.edge-b.edge);const clusters=[];for(const h of hits){let c=clusters.at(-1);if(!c||Math.abs(h.t-c.firstT)>tol){c={firstT:h.t,lastT:h.t,hits:[]};clusters.push(c);}c.lastT=h.t;c.hits.push(h);}return{point:p,clusters,parallel};}
- // Use exact dyadic integer coordinates for interval combinatorics. In
- // particular, a shared target vertex creates one event, independently of
- // rotation; no tiny floating no-hit interval is welded or discarded.
+  
+  
+  
  const data=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};data.setFloat64(0,v,false);const b=data.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;return{n,e:E?E-1075:-1074};},values=rings.flat().map(p=>p.map(dyadic)),minimum=Math.min(...values.flat().filter(q=>q.n).map(q=>q.e)),integers=values.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-minimum):0n)),IC=(a,b)=>a[0]*b[1]-a[1]*b[0],IS=(a,b)=>[a[0]-b[0],a[1]-b[1]];
  let atVertex=0;for(let ring=0;ring<rings.length;ring++){const points=integers.slice(atVertex,atVertex+rings[ring].length);atVertex+=points.length;for(let edge=0;edge<points.length;edge++){const e=byKey.get(edgeKey(ring,edge));e.IA=points[edge];e.ID=IS(points[(edge+1)%points.length],e.IA);const sign=BigInt(ringsInfo[ring].orientation);e.IN=[-e.ID[1]*sign,e.ID[0]*sign];}}
  const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},compare=(a,b)=>{const v=a.n*b.d-b.n*a.d;return v<0n?-1:v>0n?1:0;},value=r=>Number(r.n)/Number(r.d),rk=r=>r.n+'/'+r.d,zero=R(0n),one=R(1n),midpoint=(a,b)=>R(a.n*b.d+b.n*a.d,2n*a.d*b.d);
@@ -8361,7 +8553,7 @@ function buildSourceCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=8*W,max
    lower(V,DV,0n);lower(-V,-DV,-D);if(empty||compare(lo,hi)>=0)continue;
    if(T===0n&&DT===0n){anchorOverlaps.push({lo,hi,target:f});events.push(lo,hi);continue;}
    lower(T,DT,0n);if(empty||compare(lo,hi)>=0)continue;
-   // Normal length changes the gap magnitude, never candidate order.
+    
    const c={target:f,T,DT,V,DV,D,lo,hi,v0:value(R(V,D)),dv:value(R(DV,D))};c.t0=cross(sub(f.a,e.a),f.d)/cross(e.n,f.d);c.dt=-cross(e.d,f.d)/cross(e.n,f.d);candidates.push(c);events.push(lo,hi);
   }
   for(let i=0;i<candidates.length;i++)for(let j=0;j<i;j++){if(++eventTests>maxEvents)return fallback('bounded-analytic-event-work');const a=candidates[i],b=candidates[j],d=a.DT*b.D-b.DT*a.D;if(!d)continue;const u=R(b.T*a.D-a.T*b.D,d),lo=compare(a.lo,b.lo)>0?a.lo:b.lo,hi=compare(a.hi,b.hi)<0?a.hi:b.hi;if(compare(u,lo)>0&&compare(u,hi)<0)events.push(u);}
@@ -8371,7 +8563,7 @@ function buildSourceCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=8*W,max
    e.spans.push(s);
   }
  }
- // Adjacent qualifying source intervals define banks without any triangle IDs.
+  
  const banks=[];for(let ring=0;ring<rings.length;ring++){const chain=edges.filter(e=>e.ring===ring).flatMap(e=>e.spans),runs=[];let run=[];const adjacent=(a,b)=>{if(!a||!b)return false;const A=byKey.get(edgeKey(a.ring,a.edge)),B=byKey.get(edgeKey(b.ring,b.edge));return(a.edge===b.edge?a.u1===b.u0:a.u1===1&&b.u0===0&&(a.edge+1)%rings[ring].length===b.edge)&&dot(A.d,B.d)/(A.L*B.L)>=.5;};for(const s of chain){if(s.qualified){if(run.length&&!adjacent(run.at(-1),s)){runs.push(run);run=[];}run.push(s);}else if(run.length){runs.push(run);run=[];}}if(run.length)runs.push(run);if(runs.length>1&&adjacent(runs.at(-1).at(-1),runs[0][0])){runs[0]=runs.pop().concat(runs[0]);}for(const spans of runs){const b={id:banks.length,ring,closed:adjacent(spans.at(-1),spans[0]),spans,length:0};for(const s of spans){s.bank=b.id;s.bankS0=b.length;b.length+=byKey.get(edgeKey(s.ring,s.edge)).L*(s.u1-s.u0);s.bankS1=b.length;}b.length=b.length;banks.push(b);}}
  const qualified=edges.flatMap(e=>e.spans).filter(s=>s.qualified),reserved=edges.flatMap(e=>e.spans).filter(s=>!s.qualified);
  const readR=s=>{const [n,d]=s.split('/');return R(BigInt(n),BigInt(d));};
@@ -8385,9 +8577,9 @@ function buildSourceCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=8*W,max
  return{status:'analytic-source-correspondence',source,cpuOriginalInset:original,fallbackOffset:structuredClone(original),banks,routes,sourceIntervals:edges.flatMap(e=>e.spans),reservedSourceIntervals:reserved,endpointIncidences,sourceEdgeCount:N,candidateTests,eventTests,sourcePreserved:true,analyticOpenIntervals:true,continuousPairCertified:false,vertexAndTerminalPlacementCertified:false,placementCertified:false,coverageCertified:false,physicalPrintValidated:false,productionReady:false};
 }
 
-// Closed bank maps certified on exact rational points on ORIGINAL source edges.
-// Corner normal fans establish ordered target intervals; sampled normals,
-// approximate collinear deletion and nearest-neighbour pairing are not used.
+ 
+ 
+ 
 function qualifyContinuousClosedPairs(atlas,{maxPredicateTests=3000000,certifyMaterialCells=true}={}){
  const source=structuredClone(atlas.source),cpuOriginalInset=structuredClone(atlas.cpuOriginalInset),fallbackOffset=structuredClone(atlas.fallbackOffset),bits=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};bits.setFloat64(0,v,false);const b=bits.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;return{n,e:E?E-1075:-1074};},ds=source.map(r=>r.map(p=>p.map(dyadic))),nz=ds.flat(2).filter(q=>q.n),exponent=nz.length?Math.min(...nz.map(q=>q.e)):0,I=ds.map(r=>r.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-exponent):0n)));
  const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},sign=n=>n<0n?-1:n>0n?1:0,read=s=>{const[n,d]=s.split('/');return R(BigInt(n),BigInt(d));},key=a=>a.n+'/'+a.d,value=a=>Number(a.n)/Number(a.d),neg=a=>({n:-a.n,d:a.d}),add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),sub=(a,b)=>add(a,neg(b)),mul=(a,b)=>R(a.n*b.n,a.d*b.d),div=(a,b)=>R(a.n*b.d,a.d*b.n),compare=(a,b)=>sign(a.n*b.d-b.n*a.d),floor=a=>{const q=a.n/a.d;return a.n<0n&&a.n%a.d?q-1n:q;},ceil=a=>{const q=a.n/a.d;return a.n>0n&&a.n%a.d?q+1n:q;},zero=R(0n),one=R(1n),half=R(1n,2n),P=I.map(r=>r.map(p=>p.map(v=>R(v)))),equal=(a,b)=>!compare(a[0],b[0])&&!compare(a[1],b[1]),homogeneousCache=new WeakMap(),homogeneous=p=>{let h=homogeneousCache.get(p);if(!h){const g=gcd(p[0].d,p[1].d);h={X:p[0].n*(p[1].d/g),Y:p[1].n*(p[0].d/g),D:p[0].d*(p[1].d/g)};homogeneousCache.set(p,h);}return h;},orient=(a,b,c)=>{const A=homogeneous(a),B=homogeneous(b),C=homogeneous(c),x=B.X*A.D-A.X*B.D,y=B.Y*A.D-A.Y*B.D,u=C.X*A.D-A.X*C.D,v=C.Y*A.D-A.Y*C.D;return sign(x*v-y*u);},on=(a,b,p)=>!orient(a,b,p)&&p.every((v,k)=>compare(v,compare(a[k],b[k])<0?a[k]:b[k])>=0&&compare(v,compare(a[k],b[k])>0?a[k]:b[k])<=0),cross=(a,b)=>sub(mul(a[0],b[1]),mul(a[1],b[0])),area2=r=>r.reduce((s,p,i)=>add(s,cross(p,r[(i+1)%r.length])),zero),abs=a=>a.n<0n?neg(a):a;
@@ -8415,8 +8607,8 @@ function qualifyContinuousClosedPairs(atlas,{maxPredicateTests=3000000,certifyMa
 
 
 
-// Production-candidate extraction adapter. Independent footprint gates remain
-// REQUIRED. False cell/coverage/physical certificate flags are intentional.
+ 
+ 
 function extractClosedBankIntervals({rings,cpuOriginalInset=[],W=1,...limits}={}){
  const analytic=buildSourceCorrespondence({rings,cpuOriginalInset,W,...limits,includeEndpointIncidences:false});
  if(analytic.status!=='analytic-source-correspondence')return{...analytic,qualified:[],unresolved:[{reason:analytic.reason,cpuFallbackRequired:true}],endpointCutClustersMaterialized:false};
@@ -8425,7 +8617,7 @@ function extractClosedBankIntervals({rings,cpuOriginalInset=[],W=1,...limits}={}
 }
 
 
-// Open original-bank correspondence. Terminals and deposition remain reserved.
+ 
 function qualifyOpenBankPairs(atlas,{maxPredicateTests=3000000,certifyMaterialCells=true,maxOutputSpans=12000,requireRepresentableEndpoints=true}={}){
  const source=structuredClone(atlas.source),cpuOriginalInset=structuredClone(atlas.cpuOriginalInset),fallbackOffset=structuredClone(atlas.fallbackOffset),bits=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};bits.setFloat64(0,v,false);const b=bits.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;return{n,e:E?E-1075:-1074};},ds=source.map(r=>r.map(p=>p.map(dyadic))),nz=ds.flat(2).filter(q=>q.n),exponent=nz.length?Math.min(...nz.map(q=>q.e)):0,I=ds.map(r=>r.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-exponent):0n)));
  const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},sign=n=>n<0n?-1:n>0n?1:0,read=s=>{const[n,d]=s.split('/');return R(BigInt(n),BigInt(d));},key=a=>a.n+'/'+a.d,value=a=>Number(a.n)/Number(a.d),neg=a=>({n:-a.n,d:a.d}),add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),sub=(a,b)=>add(a,neg(b)),mul=(a,b)=>R(a.n*b.n,a.d*b.d),div=(a,b)=>R(a.n*b.d,a.d*b.n),compare=(a,b)=>sign(a.n*b.d-b.n*a.d),floor=a=>{const q=a.n/a.d;return a.n<0n&&a.n%a.d?q-1n:q;},ceil=a=>{const q=a.n/a.d;return a.n>0n&&a.n%a.d?q+1n:q;},zero=R(0n),one=R(1n),half=R(1n,2n),P=I.map(r=>r.map(p=>p.map(v=>R(v)))),equal=(a,b)=>!compare(a[0],b[0])&&!compare(a[1],b[1]),homogeneousCache=new WeakMap(),homogeneous=p=>{let h=homogeneousCache.get(p);if(!h){const g=gcd(p[0].d,p[1].d);h={X:p[0].n*(p[1].d/g),Y:p[1].n*(p[0].d/g),D:p[0].d*(p[1].d/g)};homogeneousCache.set(p,h);}return h;},orient=(a,b,c)=>{const A=homogeneous(a),B=homogeneous(b),C=homogeneous(c),x=B.X*A.D-A.X*B.D,y=B.Y*A.D-A.Y*B.D,u=C.X*A.D-A.X*C.D,v=C.Y*A.D-A.Y*C.D;return sign(x*v-y*u);},on=(a,b,p)=>!orient(a,b,p)&&p.every((v,k)=>compare(v,compare(a[k],b[k])<0?a[k]:b[k])>=0&&compare(v,compare(a[k],b[k])>0?a[k]:b[k])<=0),cross=(a,b)=>sub(mul(a[0],b[1]),mul(a[1],b[0])),area2=r=>r.reduce((s,p,i)=>add(s,cross(p,r[(i+1)%r.length])),zero),abs=a=>a.n<0n?neg(a):a;
@@ -8468,17 +8660,35 @@ function buildOpenCorrespondence({rings,cpuOriginalInset=[],W=1,maxGap=3*W,inclu
 
 const extract=extractClosedBankIntervals;extract.open=buildOpenCorrespondence;return extract;
 })();
-// Bounded adaptive placement for one closed channel with parallel convex banks.
-// Source section/inset buffers remain immutable. Unsupported topology uses the
-// ordinary fixed-width result. Flat command ribbons do not certify plastic flow.
+ 
+ 
+ 
+function frameAdaptiveAttachedResidual(beads,bead,gap,W){
+ const e=64*Number.EPSILON*Math.max(W,gap),g=gap/W;
+ return g>1.6&&g<2&&beads.length===2&&bead===beads[1]&&bead.attachedResidual===true&&!bead.thinNominalException&&Math.abs(beads[0].width-W)<=e&&Math.abs(beads[0].distance-W/2)<=e&&Math.abs(bead.width-(gap-W))<=e&&Math.abs(bead.distance-(gap-W/2))<=e;
+}
+function frameAdaptiveResidualStraightStrip(rings,W,count,legacy){
+ if(rings.length!==1||rings[0].length<4||rings[0].length>256)return null;const ring=rings[0];if(ring.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v))))return null;
+ let corners=ring.map((_,i)=>i);
+ if(ring.length>4){
+  const data=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};data.setFloat64(0,v,false);const bits=data.getBigUint64(0,false),E=Number((bits>>52n)&2047n);let n=bits&4503599627370495n;if(E)n|=4503599627370496n;if(bits>>63n)n=-n;return{n,e:E?E-1075:-1074};},values=ring.map(p=>p.map(dyadic)),nonzero=values.flat().filter(q=>q.n),exponent=Math.min(...nonzero.map(q=>q.e)),I=values.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-exponent):0n)),vectors=I.map((p,i)=>I[(i+1)%I.length].map((v,k)=>v-p[k])),cross=(a,b)=>a[0]*b[1]-a[1]*b[0],dot=(a,b)=>a[0]*b[0]+a[1]*b[1];
+  if(vectors.some(v=>!dot(v,v)))return null;corners=[];
+  for(let i=0;i<I.length;i++){const before=vectors[(i+I.length-1)%I.length],after=vectors[i];if(cross(before,after))corners.push(i);else if(dot(before,after)<=0n)return null;}
+  if(corners.length!==4)return null;const side=corners.map((at,i)=>I[corners[(i+1)%4]].map((v,k)=>v-I[at][k]));if(side.some((v,i)=>dot(v,side[(i+1)%4])!==0n)||cross(side[0],side[2])||cross(side[1],side[3]))return null;
+ }
+ const q=legacy([corners.map(i=>ring[i])],W,count);if(!q||!(q.gap>1.6*W&&q.gap<2*W)||q.paths.length!==2)return null;
+ const first=q.pathEdgeMetadata[0][0].sourceEdge,chains=corners.map((at,i)=>{const edges=[];let j=at;while(j!==corners[(i+1)%4]){edges.push(j);j=(j+1)%ring.length;}return edges;}),sourceSide=chains[first],oppositeSide=chains[(first+2)%4],capSides=[chains[(first+1)%4],chains[(first+3)%4]],ids=edges=>edges.map(edge=>({ring:0,edge,u0:0,u1:1,exactU0:'0/1',exactU1:'1/1'})),ownership=[ids([...sourceSide,...capSides.flat()]),ids(oppositeSide)],contexts=ring.map((a,edge)=>({ring:0,edge,sourceStart:a.slice(),sourceEnd:ring[(edge+1)%ring.length].slice()}));
+ for(let bead=0;bead<2;bead++)for(const e of q.pathEdgeMetadata[bead])Object.assign(e,{sourceRing:0,sourceEdge:sourceSide[0],targetEdge:oppositeSide[0],sourceBoundaryEndpoints:ring.map(p=>p.slice()),sourceIntervals:ownership[bead],originalSourceBoundaryContexts:contexts,sourceBoundaryOwnershipComplete:true,sourceGeometryUnchanged:true,sourceOwnershipPolicy:'source-side bank and original flat caps owned by first nominal track; opposite-side bank owned by attached residual',sourceSupportingEdgeIds:[...sourceSide,...oppositeSide],sourceFlatCapEdgeIds:capSides.flat(),originalCollinearEdgesRetained:true,originalEdgeCount:ring.length,attachedResidual:bead===1,...(bead===1?{residualFeedWidthMM:q.gap-W,residualDisplayWidthMM:q.gap-W,nominalNozzleRadius:W/2,residualAxisDistanceFromSourceBankMM:q.gap-W/2,oppositeSourceBoundaryGapMM:(2*W-q.gap)/2,intentionalLocalTrackOverlapMM:(2*W-q.gap)/2,thinNominalException:false}:{})});
+ q.allocationPolicy='first nominal W plus attached shifted residual gap-minus-W';q.originalBoundaryEdgeIds=[{ring:0,edges:ring.map((_,edge)=>edge)}];q.sourceBoundaryOwnershipComplete=true;q.originalSourceBoundaryIntervals=ownership.flat();q.sourceGeometryUnchanged=true;q.originalCollinearEdgesRetained=true;q.intentionalLocalTrackOverlapMM=(2*W-q.gap)/2;q.oppositeSourceBoundaryGapMM=(2*W-q.gap)/2;q.coverageCertified=false;q.physicalPrintValidated=false;return q;
+}
 function frameAdaptiveAllocation(gap,W){
   let g=gap/W;const e=8*Number.EPSILON*Math.max(1,g);for(const value of[.6,1,1.6,2,2.8])if(Math.abs(g-value)<=e){g=value;break;}let widths,positions;
   if(g<.6||g>2.8)return null;
   if(g<1){widths=[1];positions=[g/2];}
   else if(g<=1.6){widths=[g];positions=[g/2];}
-  else if(g<2){widths=[1,1];positions=[.5,g-.5];}
+  else if(g<2){widths=[1,g-1];positions=[.5,g-.5];}
   else{widths=[g/2,g/2];positions=[g/4,3*g/4];}
-  return widths.map((width,i)=>({width:width*W,distance:positions[i]*W,thinNominalException:g<1}));
+  return widths.map((width,i)=>({width:width*W,distance:positions[i]*W,thinNominalException:g<1,...(g>1.6&&g<2&&i===1?{attachedResidual:true,residualPolicy:'shifted-gap-minus-W-with-nominal-nozzle'}:{})}));
 }
 function frameAdaptiveArea(r){const o=r[0];let a=0;for(let i=0;i<r.length;i++){const p=r[i],q=r[(i+1)%r.length];a+=(p[0]-o[0])*(q[1]-o[1])-(p[1]-o[1])*(q[0]-o[0]);}return a/2;}
 function frameAdaptiveDistance(p,a,b){const x=b[0]-a[0],y=b[1]-a[1],L=x*x+y*y,t=L?Math.max(0,Math.min(1,((p[0]-a[0])*x+(p[1]-a[1])*y)/L)):0;return Math.hypot(p[0]-a[0]-t*x,p[1]-a[1]-t*y);}
@@ -8501,20 +8711,20 @@ function frameAdaptiveAnnulus(rings,W){
   const paths=[],pathVertexMetadata=[],pathEdgeMetadata=[];
   for(let bead=0;bead<beads.length;bead++){
     const q=beads[bead],t=sourceIsOuter?q.distance/gap:1-q.distance/gap,path=spans.map(s=>s.sourceStart.map((v,k)=>v+(s.targetStart[k]-v)*t));
-    // Distance to both complete banks bounds each entire axis segment; this
-    // covers vertex neighbourhoods, not merely midpoint normal samples.
+     
+     
     let clearance=Infinity;for(let i=0;i<n;i++)for(const bank of rings)for(let j=0;j<bank.length;j++)clearance=Math.min(clearance,frameAdaptiveSegmentDistance(path[i],path[(i+1)%n],bank[j],bank[(j+1)%bank.length]));
     if(clearance<=tol||path.some((p,i)=>!frameAdaptiveInside([(p[0]+path[(i+1)%n][0])/2,(p[1]+path[(i+1)%n][1])/2],rings)))return fail('axis-outside-original-material');
     if(!q.thinNominalException&&clearance+tol*4<Math.max(W,q.width)/2)return fail('whole-segment-boundary-clearance');
     for(let i=0;i<n;i++)for(let j=0;j<i;j++){if(j===i-1||i===n-1&&j===0)continue;if(frameAdaptiveSegmentDistance(path[i],path[(i+1)%n],path[j],path[(j+1)%n])<=tol)return fail('axis-crossing-or-contact');}
-    paths.push(path);pathVertexMetadata.push(path.map(()=>({feedWidth:q.width,displayWidth:q.width,nozzleRadius:W/2,thinNominalException:q.thinNominalException})));
-    pathEdgeMetadata.push(path.map((_,i)=>({role:'adaptive-closed-channel',bead,sourceIntervals:[spans[i].source,spans[i].target],sourceEndpoints:[spans[i].sourceStart,spans[i].sourceEnd],targetEndpoints:[spans[i].targetStart,spans[i].targetEnd],wholeSegmentClearance:clearance,boundaryToleranceMM:tol*4,nozzleBoundaryContained:!q.thinNominalException,sourceAndTargetVertexEventsPreserved:true})));
+    paths.push(path);pathVertexMetadata.push(path.map(()=>({feedWidth:q.width,displayWidth:q.width,nozzleRadius:W/2,thinNominalException:q.thinNominalException,...(q.attachedResidual?{attachedResidual:true,residualPolicy:q.residualPolicy,nominalNozzleRadius:W/2}:{})})));
+    pathEdgeMetadata.push(path.map((_,i)=>({role:'adaptive-closed-channel',bead,...(q.attachedResidual?{attachedResidual:true,residualPolicy:q.residualPolicy,residualFeedWidthMM:q.width,residualDisplayWidthMM:q.width,nominalNozzleRadius:W/2,residualAxisDistanceFromSourceBankMM:q.distance,oppositeSourceBoundaryGapMM:(2*W-gap)/2,intentionalLocalTrackOverlapMM:(2*W-gap)/2}:{}),sourceIntervals:[spans[i].source,spans[i].target],sourceEndpoints:[spans[i].sourceStart,spans[i].sourceEnd],targetEndpoints:[spans[i].targetStart,spans[i].targetEnd],wholeSegmentClearance:clearance,boundaryToleranceMM:tol*4,nozzleBoundaryContained:!q.thinNominalException,sourceAndTargetVertexEventsPreserved:true})));
   }
   return{status:'adaptive-closed-channel',gap,paths,pathVertexMetadata,pathEdgeMetadata,thinNominalException:beads.some(b=>b.thinNominalException),boundaryCorrespondence:'ordered-original-source-intervals',sourceIntervalsPreserved:true,coverageCertified:false};
 }
 function frameAdaptiveInside(p,rings){let inside=false;for(const ring of rings)for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[j],b=ring[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;}
-// Original banks and exact event provenance remain immutable. Only the new
-// midpoint trajectory may coalesce numeric micro-moves within its own bound.
+ 
+ 
 function frameAdaptiveOpenClipInterval(id,t0,t1){
   const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},read=s=>{const[n,d]=s.split('/');return R(BigInt(n),BigInt(d));},add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),sub=(a,b)=>R(a.n*b.d-b.n*a.d,a.d*b.d),mul=(a,b)=>R(a.n*b.n,a.d*b.d),value=a=>Number(a.n)/Number(a.d),key=a=>a.n+'/'+a.d;
   const exact=v=>{if(!v)return R(0n);const data=new DataView(new ArrayBuffer(8));data.setFloat64(0,v,false);const b=data.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));},a=read(id.exactU0),b=read(id.exactU1),at=t=>add(a,mul(sub(b,a),exact(t))),u0=at(t0),u1=at(t1);
@@ -8538,8 +8748,8 @@ function frameAdaptiveOpenAxisIntersects(a,b,c,d){
 function frameAdaptiveOpenRibbonWithin(a,b,w0,w1,rings,tol){
   const dx=b[0]-a[0],dz=b[1]-a[1],L=Math.hypot(dx,dz);if(!L)return false;const n=[-dz/L,dx/L],q=[a.map((v,k)=>v+n[k]*w0/2),b.map((v,k)=>v+n[k]*w1/2),b.map((v,k)=>v-n[k]*w1/2),a.map((v,k)=>v-n[k]*w0/2)],sign=Math.sign(frameAdaptiveArea(q));if(!sign)return false;
   const near=p=>frameAdaptiveInside(p,rings)||rings.some(r=>r.some((a,i)=>frameAdaptiveDistance(p,a,r[(i+1)%r.length])<=tol));if(q.some(p=>!near(p)))return false;
-  // A material boundary entering the eroded ribbon proves that some ribbon
-  // interior lies outside material, even when its four corners happen to fit.
+   
+   
   for(const ring of rings)for(let j=0;j<ring.length;j++){const A=ring[j],B=ring[(j+1)%ring.length];let lo=0,hi=1,empty=false;
     for(let i=0;i<4;i++){const p=q[i],v=q[(i+1)%4],length=Math.hypot(v[0]-p[0],v[1]-p[1]),f0=sign*frameAdaptiveCross(p,v,A)/length,f1=sign*frameAdaptiveCross(p,v,B)/length,d=f1-f0;if(!d){if(f0<=tol){empty=true;break;}}else{const t=(tol-f0)/d;if(d>0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}if(lo>=hi){empty=true;break;}}
     if(!empty&&hi-lo>32*Number.EPSILON)return false;
@@ -8565,6 +8775,90 @@ function frameAdaptiveOpenClearanceProfile(rings,pair,W){
   }
   return{available,events,work:()=>({clearancePredicateTests:tests,clearanceEvents:eventCount,maximumPredicateTests:limit,maximumEvents}),sourceBankEdgeIds:banks.map(e=>({ring:e.ring,edge:e.edge})),measurement:'twice-complete-finite-source-bank-distance',sourceGeometryUnchanged:true};
 }
+function frameAdaptiveOpenRibbonFit(path,vertices,edgeMetadata,rings,W,tol,within){
+  const sourceEdges=rings.reduce((n,r)=>n+r.length,0),maximumChecks=16384,maximumEdgeWork=4000000,original=vertices.map(q=>q.displayWidth),limits=original.slice(),constraints=[],thin=edgeMetadata.map(e=>e.originalSourceEvents.some(q=>q.thinNominalException));let checks=0,changedEdges=0;
+  const fits=(edge,w0,w1)=>{if(++checks>maximumChecks||checks*sourceEdges*12>maximumEdgeWork)throw Error('bounded-open-ribbon-width-constraints');return within(path[edge],path[edge+1],w0,w1,rings,tol);};
+  try{
+    for(let i=0;i<path.length-1;i++){
+      if(thin[i]||fits(i,original[i],original[i+1]))continue;
+      if(original[i]<W||original[i+1]<W||!fits(i,W,W))return{status:'fixed-fallback',reason:'nominal-open-ribbon-does-not-fit-original-material',witness:{edge:i,from:path[i],to:path[i+1],width0:W,width1:W},checks,sourceEdges};
+      let lo=0,hi=1;for(let iteration=0;iteration<48;iteration++){const m=(lo+hi)/2,w0=W+(original[i]-W)*m,w1=W+(original[i+1]-W)*m;if(fits(i,w0,w1))lo=m;else hi=m;}
+       
+       
+      const alpha=Math.max(0,lo-64*Number.EPSILON),w0=W+(original[i]-W)*alpha,w1=W+(original[i+1]-W)*alpha;
+      limits[i]=Math.min(limits[i],w0);limits[i+1]=Math.min(limits[i+1],w1);constraints.push({edge:i,requestedWidthStartMM:original[i],requestedWidthEndMM:original[i+1],certifiedLimitStartMM:w0,certifiedLimitEndMM:w1,scaleAboveNominal:alpha,iterations:48,boundaryToleranceMM:tol,completeOriginalSourceEdges:sourceEdges,axisUnchanged:true,originalSourceIntervalsUnchanged:true});changedEdges++;
+    }
+    if(!changedEdges)return{status:'unchanged',checks,sourceEdges};
+     
+     
+    for(let i=0;i<path.length-1;i++)if(!thin[i]&&!fits(i,limits[i],limits[i+1]))return{status:'fixed-fallback',reason:'combined-open-ribbon-width-constraint-failed',witness:{edge:i,width0:limits[i],width1:limits[i+1]},checks,sourceEdges};
+    let maximumReduction=0,changedVertices=0;for(let i=0;i<vertices.length;i++)if(limits[i]<original[i]){const reduction=original[i]-limits[i];maximumReduction=Math.max(maximumReduction,reduction);changedVertices++;vertices[i].feedWidth=vertices[i].displayWidth=limits[i];vertices[i].unconstrainedDisplayWidthMM=original[i];vertices[i].wholeRibbonWidthReductionMM=reduction;vertices[i].wholeRibbonWidthConstraint='complete-immutable-source-flat-trapezoid';}
+    for(const q of constraints)edgeMetadata[q.edge].wholeRibbonWidthConstraint={...q,finalWidthStartMM:limits[q.edge],finalWidthEndMM:limits[q.edge+1]};
+    return{status:'constrained',changedEdges,changedVertices,maximumWidthReductionMM:maximumReduction,checks,estimatedSourceEdgeWork:checks*sourceEdges*12,maximumChecks,maximumEdgeWork,sourceEdges,axisUnchanged:true,sourceGeometryUnchanged:true,allOriginalSourceIntervalsRetained:true,nominalWidthMinimumMM:W,coverageCertified:false,physicalPrintValidated:false};
+  }catch(error){if(error.message==='bounded-open-ribbon-width-constraints')return{status:'fixed-fallback',reason:error.message,checks,sourceEdges,maximumChecks,maximumEdgeWork};throw error;}
+}
+function frameAdaptiveTerminalCorridorBuild(body,rings,W,pair,tol,within,segmentDistance,inside,axisIntersects){
+ const fail=(reason,witness)=>({status:'unsupported',reason,witness});
+ if(body.status!=='adaptive-open-channel'||body.flatTerminalExtension||rings.length!==1||rings[0].length>256||body.paths.length!==1||body.pathClosed?.[0]!==false||body.paths[0].length<2||body.paths[0].length>1025||!pair?.twoRemainingEndChainsOwned)return fail('requires-bounded-unextended-verified-open-body');
+ const ring=rings[0],path=body.paths[0],vertices=body.pathVertexMetadata[0],edges=body.pathEdgeMetadata[0],sub=(a,b)=>a.map((v,k)=>v-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],length=p=>Math.hypot(...p),gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const r=a%b;a=b;b=r;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),mul=(a,b)=>R(a.n*b.n,a.d*b.d),neg=a=>({n:-a.n,d:a.d}),minus=(a,b)=>add(a,neg(b)),cmp=(a,b)=>{const d=a.n*b.d-b.n*a.d;return d<0n?-1:d>0n?1:0;},read=s=>{const[n,d]=s.split('/').map(BigInt);return R(n,d);},key=q=>q.n+'/'+q.d,value=q=>Number(q.n)/Number(q.d),dyadic=v=>{if(!v)return R(0n);const d=new DataView(new ArrayBuffer(8));d.setFloat64(0,v,false);const b=d.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));},zero=R(0n),one=R(1n),half=R(1n,2n),roundoff=128*Number.EPSILON*Math.max(W,...ring.flat().map(Math.abs));
+ const used=new Map();for(const e of edges)for(const id of e.sourceIntervals||[]){if(id.ring!==0||!Number.isInteger(id.edge)||id.edge<0||id.edge>=ring.length)return fail('invalid-body-source');let a=read(id.exactU0),b=read(id.exactU1);if(cmp(a,b)>0)[a,b]=[b,a];if(cmp(a,zero)<0||cmp(b,one)>0||cmp(a,b)>=0)return fail('invalid-body-source');if(!used.has(id.edge))used.set(id.edge,[]);used.get(id.edge).push([a,b]);}
+ const remaining=[],point=(edge,t)=>ring[edge].map((v,k)=>v+(ring[(edge+1)%ring.length][k]-v)*value(t)),reserve=(edge,a,b)=>{if(cmp(a,b)<0)remaining.push({ring:0,edge,u0:value(a),u1:value(b),exactU0:key(a),exactU1:key(b),sourceStart:point(edge,a),sourceEnd:point(edge,b)});};
+ for(let edge=0;edge<ring.length;edge++){let at=zero;for(const[a,b]of(used.get(edge)||[]).sort((a,b)=>cmp(a[0],b[0]))){if(cmp(a,at)<0)return fail('body-source-overlap');reserve(edge,at,a);at=b;}reserve(edge,at,one);}
+ const adjacent=(a,b)=>a.edge===b.edge?a.exactU1===b.exactU0:a.exactU1==='1/1'&&b.exactU0==='0/1'&&(a.edge+1)%ring.length===b.edge,runs=[];let run=[];for(const q of remaining){if(run.length&&!adjacent(run.at(-1),q)){runs.push(run);run=[];}run.push(q);}if(run.length)runs.push(run);if(runs.length>1&&adjacent(runs.at(-1).at(-1),runs[0][0]))runs[0]=runs.pop().concat(runs[0]);if(runs.length!==2)return fail('remaining-boundary-not-two-terminal-chains');
+ const bankIDs=new Set(pair.spans.flatMap(s=>[s.source,s.target]).map(s=>s.edge)),quad=(a,b,w0,w1)=>{const d=sub(b,a),L=length(d),n=[-d[1]/L,d[0]/L];return[a.map((v,k)=>v+n[k]*w0/2),b.map((v,k)=>v+n[k]*w1/2),b.map((v,k)=>v-n[k]*w1/2),a.map((v,k)=>v-n[k]*w0/2)];},overlap=(A,B)=>{for(const q of[A,B])for(let i=0;i<q.length;i++){const d=sub(q[(i+1)%q.length],q[i]),n=[-d[1],d[0]],a=A.map(p=>dot(p,n)),b=B.map(p=>dot(p,n));if(Math.min(Math.max(...a),Math.max(...b))-Math.max(Math.min(...a),Math.min(...b))<=roundoff*length(n))return false;}return true;},join=(a,b,c,w)=>{const x=sub(b,a),y=sub(c,b),D=dot(x,y),product=length(x)*length(y);if(D<.95*product)return null;const tangent=Math.abs(x[0]*y[1]-x[1]*y[0])/D,upper=w*w/8*tangent;return upper<=.5*W*W?{turnDegrees:Math.atan(tangent)*180/Math.PI,overlapAreaUpperMM2:upper}:null;},terminals=[];
+ for(const name of['start','end']){
+  const chain=pair.remainingBoundaryChains.find(q=>q.endstation===name),candidates=[...new Set(chain.intervals.filter(q=>!bankIDs.has(q.edge)).map(q=>q.edge))];if(candidates.length!==1)return fail('multiple-immutable-cap-edges-require-support-plane',{name,candidates});
+  const capEdge=candidates[0],owned=runs.find(r=>r.some(q=>q.edge===capEdge&&q.exactU0==='0/1'&&q.exactU1==='1/1'));if(!owned)return fail('original-cap-not-wholly-owned');const capIntervals=owned.filter(q=>q.edge===capEdge),steerIntervals=owned.filter(q=>q.edge!==capEdge);if(!steerIntervals.length)return fail('steering-has-no-original-terminal-bank-interval');
+  const A=ring[capEdge],B=ring[(capEdge+1)%ring.length],capLength=length(sub(B,A)),P=A.map((v,k)=>mul(add(dyadic(v),dyadic(B[k])),half)),p=P.map(value),v=B.map((x,k)=>minus(dyadic(x),dyadic(A[k]))),N=[neg(v[1]),v[0]],old=name==='start'?path[0]:path.at(-1),oldVertex=name==='start'?vertices[0]:vertices.at(-1),thin=capLength<W-roundoff;if(capLength<.6*W-roundoff||capLength>1.6*W+roundoff||P.some((q,k)=>cmp(q,dyadic(p[k]))))return fail('exact-original-cap-midpoint-unavailable',{name,capLength});if(thin&&Math.abs(oldVertex.displayWidth-W)>roundoff)return fail('thin-corridor-body-width-not-nominal');
+  const local=new Set(owned.map(q=>q.edge)),corridorBodySourceIntervals=[];let travelled=0;for(let step=0;step<edges.length;step++){const index=name==='start'?step:edges.length-1-step,L=length(sub(path[index+1],path[index]));if(travelled+L>W)break;for(const id of edges[index].sourceIntervals){local.add(id.edge);corridorBodySourceIntervals.push(id);}travelled+=L;}
+  if([...local].some(edge=>[ring[edge],ring[(edge+1)%ring.length]].some(q=>length(sub(q,p))>3*W)))return fail('corridor-bank-provenance-is-not-local',{name});const connected=new Set([capEdge]);for(let repeat=0;repeat<ring.length;repeat++)for(const edge of local)if(connected.has((edge+ring.length-1)%ring.length)||connected.has((edge+1)%ring.length))connected.add(edge);if(connected.size!==local.size)return fail('corridor-source-banks-not-originally-contiguous',{name});
+  let found;for(const factor of[.5,.25,.125,.0625])for(const sign of[1,-1]){const Q=P.map((q,k)=>add(q,mul(N[k],dyadic(factor*sign)))),s=Q.map(value),normalLength=length(sub(s,p));if(Q.some((q,k)=>cmp(q,dyadic(s[k])))||normalLength<.125*W||normalLength>.375*W||!inside(s,rings))continue;const forward=sub(old,p),normal=sub(s,p);if(dot(normal,forward)<=0||dot(sub(old,s),normal)<=0)continue;const a=name==='start'?p:old,b=s,c=name==='start'?old:p,w0=name==='start'?W:oldVertex.displayWidth,w1=W,w2=name==='start'?oldVertex.displayWidth:W,newRibbons=[quad(a,b,w0,w1),quad(b,c,w1,w2)],core=thin?.6*W:W;
+   if(!within(a,b,thin?core:w0,thin?core:w1,rings,tol*4)||!within(b,c,thin?core:w1,thin?core:w2,rings,tol*4))continue;let minNozzle=Infinity,minForeign=Infinity;for(let edge=0;edge<ring.length;edge++){if(edge===capEdge)continue;const d=Math.min(segmentDistance(a,b,ring[edge],ring[(edge+1)%ring.length]),segmentDistance(b,c,ring[edge],ring[(edge+1)%ring.length]));minNozzle=Math.min(minNozzle,d);if(!local.has(edge))minForeign=Math.min(minForeign,d);}if(minNozzle+tol*4<(thin?.3:.5)*W||minForeign+tol*4<W/2)continue;
+   const internalJoin=join(a,b,c,Math.max(w0,w1,w2)),bodyJoin=name==='start'?join(s,old,path[1],Math.max(W,oldVertex.displayWidth)):join(path.at(-2),old,s,Math.max(W,oldVertex.displayWidth));if(!internalJoin||!bodyJoin)continue;let remote=false;for(let part=0;part<2;part++){const U=part===0?a:b,V=part===0?b:c;for(let i=0;i<path.length-1;i++){const adjacentBody=name==='start'?part===1&&i===0:part===0&&i===path.length-2;if(adjacentBody)continue;if(axisIntersects(U,V,path[i],path[i+1])||overlap(newRibbons[part],quad(path[i],path[i+1],vertices[i].displayWidth,vertices[i+1].displayWidth))){remote=true;break;}}}if(remote)continue;
+   found={name,capEdge,capEndpoints:[A,B],point:p,station:s,join:old.slice(),capParameterExact:'1/2',projectionEndpointRepresentable:true,capNormalExact:true,normalLengthMM:normalLength,steeringLengthMM:length(sub(s,old)),widthAtCapMM:W,widthAtStationMM:W,widthAtBodyMM:oldVertex.displayWidth,thinNominalException:thin,localCorridorBankIds:[...local].sort((a,b)=>a-b),corridorBodySourceIntervals,capSourceIntervals:capIntervals,steerSourceIntervals:steerIntervals,allTerminalSourceIntervals:owned,minSourceSideNozzleClearanceMM:minNozzle,minForeignBankNozzleClearanceMM:minForeign,internalJoin,bodyJoin,ribbons:newRibbons,terminalNozzleDiskContained:false,coverageCertified:false,physicalPrintValidated:false};break;
+  }if(!found)return fail('no-contained-exact-terminal-steering-corridor',{name});terminals.push(found);
+ }
+ for(const a of terminals[0].ribbons)for(const b of terminals[1].ribbons)if(overlap(a,b))return fail('opposite-terminal-corridors-overlap');
+ const vertex=(t,cap)=>({feedWidth:W,displayWidth:W,nozzleRadius:W/2,thinNominalException:t.thinNominalException,flatTerminalOnOriginalCap:cap,terminalCorridorStation:!cap,originalFlatCapEdge:{ring:0,edge:t.capEdge},terminalNozzleDiskContained:false}),metadata=(t,cap)=>({role:cap?'adaptive-open-terminal-corridor-cap':'adaptive-open-terminal-corridor-steer',sourceIntervals:cap?t.capSourceIntervals:t.steerSourceIntervals,sourceGeometryUnchanged:true,originalFlatCapEdge:{ring:0,edge:t.capEdge},originalFlatCapEndpoints:t.capEndpoints.map(p=>p.slice()),exactFiniteCapParameter:'1/2',projectionEndpointRepresentable:true,capNormalExact:cap,bodyAxisAndSourceIntervalsUnchanged:true,sourceBoundaryOwnershipComplete:true,flatTerminalOnOriginalCap:cap,terminalNozzleDiskContained:false,thinNominalException:t.thinNominalException,thinExceptionAuthority:t.thinNominalException?'contained-original-source-.6W-central-ribbon-plus-at-most-.2W-transverse-expansion':null,thinTransverseDistanceUpperMM:t.thinNominalException?.2*W:0,localCorridorOriginalPairedBankIds:t.localCorridorBankIds,localCorridorBodySourceIntervals:t.corridorBodySourceIntervals,corridorProvenanceAuthority:'immutable-terminal-chain-plus-at-most-W-checked-body-provenance-original-boundary-contiguous-within-3W',minSourceSideNozzleClearanceMM:t.minSourceSideNozzleClearanceMM,minForeignBankNozzleClearanceMM:t.minForeignBankNozzleClearanceMM,internalJoin:t.internalJoin,bodyJoin:t.bodyJoin,boundaryToleranceMM:tol*4,nominalNozzleRadius:W/2,axisErrorBudgetMM:0}),bounds=r=>[Math.min(...r.map(p=>p[0])),Math.min(...r.map(p=>p[1])),Math.max(...r.map(p=>p[0])),Math.max(...r.map(p=>p[1]))],start=terminals[0],end=terminals[1];
+ const placed={...body,paths:[[start.point,start.station,...path,end.station,end.point]],pathVertexMetadata:[[vertex(start,true),vertex(start,false),...vertices,vertex(end,false),vertex(end,true)]],pathEdgeMetadata:[[metadata(start,true),metadata(start,false),...edges,metadata(end,false),metadata(end,true)]],terminalPolicy:'flat-output-on-exact-original-cap-midpoint-with-contained-steering-corridor',sourceBoundaryOwnershipComplete:true,flatTerminalExtension:{construction:'bounded-source-terminal-steering-corridor',addedPrefixPoints:2,addedSuffixPoints:2,originalTerminalPolicy:body.terminalPolicy,verifiedBodyPoints:path.length,verifiedBodyEdges:edges.length,allVerifiedBodyAxisPointsUnchanged:true,allVerifiedBodyWidthsAndSourceIntervalsUnchanged:true,caps:terminals.flatMap(t=>t.ribbons.map((r,part)=>({name:t.name+'-'+part,ribbonBounds:bounds(r),terminalNozzleDiskContained:false}))),coverageCertified:false,physicalPrintValidated:false},coverageCertified:false,physicalPrintValidated:false};
+ return{status:'supported',value:placed,body,terminals,sourceBoundaryOwnershipComplete:true,allVerifiedBodyAxisPointsUnchanged:true,allVerifiedBodyWidthsAndSourceIntervalsUnchanged:true,coverageCertified:false,physicalPrintValidated:false};
+}
+function frameAdaptiveFlatTerminalBuild(body,rings,W,pair,tol,within=frameAdaptiveOpenRibbonWithin,segmentDistance=frameAdaptiveSegmentDistance,inside=frameAdaptiveInside,axisIntersects=frameAdaptiveOpenAxisIntersects){
+ const fail=(reason,witness)=>({status:'unsupported',reason,witness}),path=body.paths?.[0],vertices=body.pathVertexMetadata?.[0],edges=body.pathEdgeMetadata?.[0];
+ if(body.status!=='adaptive-open-channel'||rings.length!==1||!path||path.length<2||path.length>1025||body.paths.length!==1||body.pathClosed?.[0]!==false||!pair.twoRemainingEndChainsOwned||pair.remainingBoundaryChains.length!==2)return fail('requires-one-verified-open-body');
+ const ring=rings[0];if(ring.length>256)return fail('bounded-flat-terminal-source');
+ const bankIDs=new Set(pair.spans.flatMap(s=>[s.source,s.target]).map(s=>s.ring+':'+s.edge)),sub=(a,b)=>a.map((x,k)=>x-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],length=p=>Math.hypot(...p),roundoff=128*Number.EPSILON*Math.max(W,...ring.flat().map(Math.abs));
+ const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},read=s=>{const[n,d]=s.split('/');return R(BigInt(n),BigInt(d));},key=q=>q.n+'/'+q.d,value=q=>Number(q.n)/Number(q.d),cmp=(a,b)=>{const q=a.n*b.d-b.n*a.d;return q<0n?-1:q>0n?1:0;},zero=R(0n),one=R(1n);
+ const add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),neg=a=>({n:-a.n,d:a.d}),subtract=(a,b)=>add(a,neg(b)),multiply=(a,b)=>R(a.n*b.n,a.d*b.d),divide=(a,b)=>R(a.n*b.d,a.d*b.n),dyadic=v=>{if(!v)return zero;const data=new DataView(new ArrayBuffer(8));data.setFloat64(0,v,false);const bits=data.getBigUint64(0,false),E=Number((bits>>52n)&2047n);let n=bits&4503599627370495n;if(E)n|=4503599627370496n;if(bits>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));},exactDot=(a,b)=>add(multiply(a[0],b[0]),multiply(a[1],b[1]));
+ const used=new Map();for(const e of edges)for(const id of e.sourceIntervals||[]){if(id.ring!==0||!Number.isInteger(id.edge)||id.edge<0||id.edge>=ring.length)return fail('invalid-verified-body-source-interval');let a=read(id.exactU0),b=read(id.exactU1);if(cmp(a,b)>0)[a,b]=[b,a];if(cmp(a,zero)<0||cmp(b,one)>0||cmp(a,b)>=0)return fail('invalid-verified-body-source-interval');if(!used.has(id.edge))used.set(id.edge,[]);used.get(id.edge).push([a,b]);}
+ const remaining=[],point=(edge,t)=>ring[edge].map((x,k)=>x+(ring[(edge+1)%ring.length][k]-x)*value(t)),reserve=(edge,a,b)=>{if(cmp(a,b)<0)remaining.push({ring:0,edge,u0:value(a),u1:value(b),exactU0:key(a),exactU1:key(b),sourceStart:point(edge,a),sourceEnd:point(edge,b)});};
+ for(let edge=0;edge<ring.length;edge++){const ranges=(used.get(edge)||[]).sort((a,b)=>cmp(a[0],b[0]));let cursor=zero;for(const[a,b]of ranges){if(cmp(a,cursor)<0)return fail('verified-body-source-interval-overlap',{edge});reserve(edge,cursor,a);cursor=b;}reserve(edge,cursor,one);}
+ const adjacent=(a,b)=>a.edge===b.edge?a.exactU1===b.exactU0:a.exactU1==='1/1'&&b.exactU0==='0/1'&&(a.edge+1)%ring.length===b.edge,runs=[];let run=[];for(const q of remaining){if(run.length&&!adjacent(run.at(-1),q)){runs.push(run);run=[];}run.push(q);}if(run.length)runs.push(run);if(runs.length>1&&adjacent(runs.at(-1).at(-1),runs[0][0]))runs[0]=runs.pop().concat(runs[0]);if(runs.length!==2)return fail('remaining-source-is-not-two-terminal-chains',{chains:runs.length});
+ const quad=(a,b,w0,w1)=>{const d=sub(b,a),L=length(d),n=[-d[1]/L,d[0]/L];return[a.map((x,k)=>x+n[k]*w0/2),b.map((x,k)=>x+n[k]*w1/2),b.map((x,k)=>x-n[k]*w1/2),a.map((x,k)=>x-n[k]*w0/2)];},overlap=(A,B)=>{for(const q of[A,B])for(let i=0;i<q.length;i++){const d=sub(q[(i+1)%q.length],q[i]),L=length(d),n=[-d[1]/L,d[0]/L],a=A.map(p=>dot(p,n)),b=B.map(p=>dot(p,n));if(Math.min(Math.max(...a),Math.max(...b))-Math.max(Math.min(...a),Math.min(...b))<=roundoff)return false;}return true;},caps=[];
+ for(const name of['start','end']){const original=pair.remainingBoundaryChains.find(q=>q.endstation===name),candidate=[...new Set(original.intervals.filter(id=>!bankIDs.has(id.ring+':'+id.edge)).map(id=>id.edge))];if(candidate.length!==1)return fail('terminal-does-not-have-one-immutable-flat-cap',{name,candidate});const capEdge=candidate[0],owned=runs.find(r=>r.some(id=>id.edge===capEdge&&id.exactU0==='0/1'&&id.exactU1==='1/1'));if(!owned)return fail('original-flat-cap-is-not-wholly-owned',{name,capEdge});const capA=ring[capEdge],capB=ring[(capEdge+1)%ring.length],v=sub(capB,capA),capLength=length(v),join=name==='start'?path[0]:path.at(-1),joinVertex=name==='start'?vertices[0]:vertices.at(-1),u=dot(sub(join,capA),v)/dot(v,v);if(!(u>0&&u<1)||capLength<.6*W-roundoff||capLength>1.6*W+roundoff)return fail('finite-flat-cap-projection-unavailable',{name,capLength,u});const A=capA.map(dyadic),B=capB.map(dyadic),J=join.map(dyadic),V=B.map((q,k)=>subtract(q,A[k])),U=divide(exactDot(J.map((q,k)=>subtract(q,A[k])),V),exactDot(V,V)),P=A.map((q,k)=>add(q,multiply(V[k],U))),p=P.map(value),L=length(sub(join,p));if(P.some((q,k)=>!Number.isFinite(p[k])||cmp(q,dyadic(p[k]))))return fail('exact-flat-cap-projection-not-representable',{name,capEdge,exactParameter:key(U)});if(!(L>tol&&L<=W+tol*4)||Math.abs(dot(sub(join,p),v))>roundoff*capLength)return fail('flat-cap-normal-extension-outside-bounded-range',{name,L});if(owned.some(id=>[id.sourceStart,id.sourceEnd].some(q=>length(sub(q,join))>3*W)))return fail('remote-unowned-terminal-source',{name});
+  const a=name==='start'?p:join,b=name==='start'?join:p,middle=a.map((x,k)=>(x+b[k])/2),thin=capLength<W-roundoff,local=new Set(owned.filter(q=>q.edge!==capEdge).map(q=>q.edge));if(!inside(middle,rings))return fail('terminal-axis-outside-original-material',{name});let clearance=Infinity,foreignClearance=Infinity;for(let edge=0;edge<ring.length;edge++){if(edge===capEdge)continue;const d=segmentDistance(a,b,ring[edge],ring[(edge+1)%ring.length]);clearance=Math.min(clearance,d);if(!local.has(edge))foreignClearance=Math.min(foreignClearance,d);}
+  if(clearance+tol*4<(thin?.3:.5)*W||foreignClearance+tol*4<W/2)return fail('flat-terminal-side-bank-nozzle-clearance',{name,thin,clearance,foreignClearance});let capWidth;
+  if(thin){if(Math.abs(joinVertex.displayWidth-W)>roundoff||!within(a,b,.6*W,.6*W,rings,tol*4))return fail('thin-flat-terminal-central-ribbon-does-not-fit',{name});capWidth=W;}else{const available=Math.min(...ring.map((q,edge)=>edge===capEdge?Infinity:2*segmentDistance(p,p,q,ring[(edge+1)%ring.length]))),maximum=Math.min(joinVertex.displayWidth,2*capLength*Math.min(u,1-u),available);if(maximum+roundoff<W)return fail('flat-terminal-nominal-ribbon-does-not-fit',{name,maximum});const fits=w=>within(a,b,name==='start'?w:joinVertex.displayWidth,name==='start'?joinVertex.displayWidth:w,rings,tol*4);if(!fits(W))return fail('flat-terminal-ribbon-with-preserved-body-width-does-not-fit',{name,joinWidth:joinVertex.displayWidth});if(fits(maximum))capWidth=maximum;else{let lo=W,hi=maximum;for(let i=0;i<48;i++){const m=(lo+hi)/2;if(fits(m))lo=m;else hi=m;}capWidth=lo;}}
+  const w0=name==='start'?capWidth:joinVertex.displayWidth,w1=name==='start'?joinVertex.displayWidth:capWidth,ribbon=quad(a,b,w0,w1),forward=sub(b,a),bodyForward=name==='start'?sub(path[1],path[0]):sub(path.at(-1),path.at(-2)),D=dot(forward,bodyForward),product=length(forward)*length(bodyForward);if(D<.95*product)return fail('flat-terminal-local-join-turn-is-not-bounded',{name});const tangent=Math.abs(forward[0]*bodyForward[1]-forward[1]*bodyForward[0])/D,localJoinOverlapAreaUpperMM2=Math.max(w0,w1)**2/8*tangent;if(localJoinOverlapAreaUpperMM2>.5*W*W)return fail('flat-terminal-local-overlap-budget',{name,localJoinOverlapAreaUpperMM2});for(let i=0;i<path.length-1;i++){const adjacentEdge=name==='start'?i===0:i===path.length-2;if(adjacentEdge)continue;if(axisIntersects(a,b,path[i],path[i+1]))return fail('flat-terminal-axis-contacts-remote-body',{name,edge:i});if(overlap(ribbon,quad(path[i],path[i+1],vertices[i].displayWidth,vertices[i+1].displayWidth)))return fail('flat-terminal-ribbon-overlaps-remote-body',{name,edge:i});}
+  caps.push({name,point:p,join:join.slice(),capEdge,capEndpoints:[capA.slice(),capB.slice()],capLength,finiteCapParameter:value(U),exactFiniteCapParameter:key(U),projectionEndpointRepresentable:true,capNormalExact:true,lengthMM:L,widthAtCapMM:capWidth,widthAtBodyMM:joinVertex.displayWidth,thinNominalException:thin,localJoinTurnDegrees:Math.atan(tangent)*180/Math.PI,localAdjacentRibbonOverlapAreaUpperMM2:localJoinOverlapAreaUpperMM2,transverseNozzleClearance:clearance,foreignBankNozzleClearance:foreignClearance,sourceIntervals:owned,nominalNozzleRadius:W/2,terminalNozzleDiskContained:false,flatRibbonTerminalContained:!thin,thinTransverseDistanceUpperMM:thin?.2*W:0,ribbon,ribbonBounds:[Math.min(...ribbon.map(p=>p[0])),Math.min(...ribbon.map(p=>p[1])),Math.max(...ribbon.map(p=>p[0])),Math.max(...ribbon.map(p=>p[1]))]});
+ }
+ if(overlap(caps[0].ribbon,caps[1].ribbon)||axisIntersects(caps[0].point,caps[0].join,caps[1].point,caps[1].join))return fail('new-terminal-regions-cross-or-overlap');
+ const capVertex=q=>({feedWidth:q.widthAtCapMM,displayWidth:q.widthAtCapMM,nozzleRadius:W/2,thinNominalException:q.thinNominalException,flatTerminalOnOriginalCap:true,originalFlatCapEdge:{ring:0,edge:q.capEdge},terminalNozzleDiskContained:false}),capMetadata=q=>({role:'adaptive-open-flat-terminal',sourceIntervals:q.sourceIntervals,sourceGeometryUnchanged:true,originalFlatCapEdge:{ring:0,edge:q.capEdge},originalFlatCapEndpoints:q.capEndpoints,finiteCapParameter:q.finiteCapParameter,exactFiniteCapParameter:q.exactFiniteCapParameter,projectionEndpointRepresentable:true,capNormalExact:true,bodyAxisAndSourceIntervalsUnchanged:true,sourceBoundaryOwnershipComplete:true,flatTerminalOnOriginalCap:true,terminalNozzleDiskContained:false,flatRibbonTerminalContained:q.flatRibbonTerminalContained,thinNominalException:q.thinNominalException,thinExceptionAuthority:q.thinNominalException?'contained-original-source-.6W-central-ribbon-plus-at-most-.2W-transverse-expansion':null,thinTransverseDistanceUpperMM:q.thinTransverseDistanceUpperMM,transverseNozzleClearance:q.transverseNozzleClearance,foreignBankNozzleClearance:q.foreignBankNozzleClearance,boundaryToleranceMM:tol*4,nominalNozzleRadius:W/2,axisErrorBudgetMM:0,localJoinTurnDegrees:q.localJoinTurnDegrees,localAdjacentRibbonOverlapAreaUpperMM2:q.localAdjacentRibbonOverlapAreaUpperMM2});
+ const extended={...body,paths:[[caps[0].point,...path,caps[1].point]],pathVertexMetadata:[[capVertex(caps[0]),...vertices,capVertex(caps[1])]],pathEdgeMetadata:[[capMetadata(caps[0]),...edges,capMetadata(caps[1])]],terminalPolicy:'flat-output-on-original-cap-normal-segment',sourceBoundaryOwnershipComplete:true,flatTerminalExtension:{caps,originalTerminalPolicy:body.terminalPolicy,verifiedBodyPoints:path.length,verifiedBodyEdges:edges.length,allVerifiedBodyAxisPointsUnchanged:true,allVerifiedBodySourceIntervalsUnchanged:true,coverageCertified:false,physicalPrintValidated:false},coverageCertified:false,physicalPrintValidated:false};return{status:'supported',value:extended};
+}
+function frameAdaptiveTerminalNeighborIndex(groups){
+ const index={status:'complete',bounds:[],coordinatesScanned:0,maximumCoordinates:131072,boxChecks:0,maximumBoxChecks:131072};
+ for(const group of groups){const section=group.reference?.section;if(!section?.coords||section.coords.length<6){index.status='incomplete';return index;}if(index.coordinatesScanned+section.coords.length>index.maximumCoordinates){index.status='bounded-context';return index;}const bounds=[Infinity,Infinity,-Infinity,-Infinity];for(let at=0;at<section.coords.length;at+=2){const x=section.coords[at],y=section.coords[at+1];if(!Number.isFinite(x)||!Number.isFinite(y)){index.status='incomplete';return index;}bounds[0]=Math.min(bounds[0],x);bounds[1]=Math.min(bounds[1],y);bounds[2]=Math.max(bounds[2],x);bounds[3]=Math.max(bounds[3],y);}index.coordinatesScanned+=section.coords.length;index.bounds.push(bounds);}
+ return index;
+}
+function frameAdaptiveTerminalNeighborSafe(q,context,componentIndex,W){
+ if(!q.flatTerminalExtension)return true;const index=Array.isArray(context)?frameAdaptiveTerminalNeighborIndex(context):context;if(index.status!=='complete')return false;
+ for(let i=0;i<index.bounds.length;i++){if(i===componentIndex)continue;if(++index.boxChecks>index.maximumBoxChecks)return false;const bounds=index.bounds[i];for(const cap of q.flatTerminalExtension.caps){const b=cap.ribbonBounds;if(b[0]<=bounds[2]+W&&b[2]>=bounds[0]-W&&b[1]<=bounds[3]+W&&b[3]>=bounds[1]-W)return false;}}
+ return true;
+}
+function frameAdaptiveTerminalUnextend(q){
+ if(!q.flatTerminalExtension)return q;const result={...q,paths:[q.paths[0].slice(q.flatTerminalExtension.addedPrefixPoints||1,-(q.flatTerminalExtension.addedSuffixPoints||1))],pathVertexMetadata:[q.pathVertexMetadata[0].slice(q.flatTerminalExtension.addedPrefixPoints||1,-(q.flatTerminalExtension.addedSuffixPoints||1))],pathEdgeMetadata:[q.pathEdgeMetadata[0].slice(q.flatTerminalExtension.addedPrefixPoints||1,-(q.flatTerminalExtension.addedSuffixPoints||1))],terminalPolicy:q.flatTerminalExtension.originalTerminalPolicy};delete result.flatTerminalExtension;delete result.sourceBoundaryOwnershipComplete;return result;
+}
 function frameAdaptiveOpenPlacement(rings,W){try{return frameAdaptiveOpenPlacementWithClearance(rings,W);}catch(error){if(error.message.startsWith('bounded-open-clearance')||error.message==='zero-original-clearance-bank')return{status:'fixed-fallback',reason:error.message,sourceGeometryUnchanged:true};throw error;}}
 function frameAdaptiveOpenPlacementWithClearance(rings,W){
   const tol=Math.max(2e-6,W*1e-8),fail=(reason,witness)=>({status:'fixed-fallback',reason,witness});if(rings.length!==1)return fail('requires-one-simple-open-channel');if(rings[0].length>256)return fail('bounded-source-bank-work');
@@ -8582,12 +8876,12 @@ function frameAdaptiveOpenPlacementWithClearance(rings,W){
       points.push(b);vertices.push(vb);edges.push({sourceIntervals:[frameAdaptiveOpenClipInterval(s.source,t0,t1),frameAdaptiveOpenClipInterval(s.target,t0,t1)],analyticAuthority:s.analyticAuthority,originalSourceIntervalEvent:s.order,axisParameterStart:t0,axisParameterEnd:t1,targetGapStart:gap0,targetGapEnd:gap1,thinNominalException:thin,...(clearance?{availableNozzleGapStart:available0.gap,availableNozzleGapEnd:available1.gap,thinExceptionAuthority:thin?'complete-original-finite-bank-gap-below-W':null,originalClearanceBankIds:clearance.sourceBankEdgeIds,clearanceEvents:sourceClearanceEvents.filter(e=>e.t>=t0&&e.t<=t1)}:{}),terminalAxisTrim:index===begin.index&&t0===begin.t||index===finish.index&&t1===finish.t,sourceGeometryUnchanged:true});
     }
   }
-  const output=frameAdaptiveOpenCoalesce(points,vertices,edges,W),path=output.path,metadata=output.vertices,n=path.length-1;
+  const output=frameAdaptiveOpenCoalesce(points,vertices,edges,W),path=output.path,metadata=output.vertices,n=path.length-1;let ribbonFit={status:'unchanged'};
   for(let i=0;i<n;i++){const a=path[i],b=path[i+1],thin=output.edges[i].originalSourceEvents.some(e=>e.thinNominalException),middle=[(a[0]+b[0])/2,(a[1]+b[1])/2];if(!frameAdaptiveInside(middle,rings))return fail('open-axis-outside-original-material');for(const ring of rings)for(let j=0;j<ring.length;j++)if(frameAdaptiveSegmentDistance(a,b,ring[j],ring[(j+1)%ring.length])<=tol)return fail('whole-open-axis-contacts-original-material-boundary');for(const cap of[startCaps,endCaps])for(const[c,d]of cap)if(frameAdaptiveSegmentDistance(a,b,c,d)+tol*4<W/2)return fail('whole-open-axis-terminal-nozzle-clearance');
-    if(!thin){for(const ring of rings)for(let j=0;j<ring.length;j++)if(frameAdaptiveSegmentDistance(a,b,ring[j],ring[(j+1)%ring.length])+tol*4<W/2)return fail('whole-open-axis-nozzle-clearance');if(!frameAdaptiveOpenRibbonWithin(a,b,metadata[i].displayWidth,metadata[i+1].displayWidth,rings,tol*4))return fail('whole-open-variable-ribbon-outside-original-material',{edge:i,from:a,to:b,width0:metadata[i].displayWidth,width1:metadata[i+1].displayWidth});}
+    if(!thin){for(const ring of rings)for(let j=0;j<ring.length;j++)if(frameAdaptiveSegmentDistance(a,b,ring[j],ring[(j+1)%ring.length])+tol*4<W/2)return fail('whole-open-axis-nozzle-clearance');if(!frameAdaptiveOpenRibbonWithin(a,b,metadata[i].displayWidth,metadata[i+1].displayWidth,rings,tol*4)){if(!clearance||ribbonFit.status!=='unchanged')return fail('whole-open-variable-ribbon-outside-original-material',{edge:i,from:a,to:b,width0:metadata[i].displayWidth,width1:metadata[i+1].displayWidth});ribbonFit=frameAdaptiveOpenRibbonFit(path,metadata,output.edges,rings,W,tol*4,frameAdaptiveOpenRibbonWithin);if(ribbonFit.status==='fixed-fallback')return fail(ribbonFit.reason,ribbonFit.witness);if(ribbonFit.status==='constrained'){i=-1;continue;}return fail('whole-open-variable-ribbon-outside-original-material',{edge:i,from:a,to:b,width0:metadata[i].displayWidth,width1:metadata[i+1].displayWidth});}}
     for(let j=0;j<i-1;j++)if(frameAdaptiveOpenAxisIntersects(a,b,path[j],path[j+1]))return fail('open-axis-crossing-or-contact');output.edges[i].boundaryToleranceMM=tol*4;output.edges[i].nominalNozzleRadius=W/2;output.edges[i].thinNominalException=thin;
   }
-  return{status:'adaptive-open-channel',gap:minimum,maximumGap:maximum,paths:[path],pathClosed:[false],pathVertexMetadata:[metadata],pathEdgeMetadata:[output.edges],thinNominalException:vertices.some(q=>q.thinNominalException),uniformGap:uniform,originalIntervalEvents:spans.length,terminalPolicy:'flat-output-with-original-cap-nozzle-clearance',terminalNozzleRadius:W/2,terminalSourceChains:chains,reservedReverseNormalCoverage:pair.reverseCoverageWitness,axisErrorBudgetMM:W*1e-5,coverageCertified:false,physicalPrintValidated:false,...(clearance?{clearanceProfile:clearance.measurement,clearanceWork:clearance.work(),originalClearanceBankIds:clearance.sourceBankEdgeIds}:{})};
+  const placed={status:'adaptive-open-channel',gap:minimum,maximumGap:maximum,paths:[path],pathClosed:[false],pathVertexMetadata:[metadata],pathEdgeMetadata:[output.edges],thinNominalException:vertices.some(q=>q.thinNominalException),uniformGap:uniform,originalIntervalEvents:spans.length,terminalPolicy:'flat-output-with-original-cap-nozzle-clearance',terminalNozzleRadius:W/2,terminalSourceChains:chains,reservedReverseNormalCoverage:pair.reverseCoverageWitness,axisErrorBudgetMM:W*1e-5,coverageCertified:false,physicalPrintValidated:false,...(clearance?{clearanceProfile:clearance.measurement,clearanceWork:clearance.work(),originalClearanceBankIds:clearance.sourceBankEdgeIds,...(ribbonFit.status==='constrained'?{wholeRibbonWidthFit:ribbonFit}:{})}:{})};const terminal=frameAdaptiveFlatTerminalBuild(placed,rings,W,pair,tol);if(terminal.status==='supported')return terminal.value;const corridor=frameAdaptiveTerminalCorridorBuild(placed,rings,W,pair,tol,frameAdaptiveOpenRibbonWithin,frameAdaptiveSegmentDistance,frameAdaptiveInside,frameAdaptiveOpenAxisIntersects);return corridor.status==='supported'?corridor.value:placed;
 }
 function frameAdaptiveOrthogonalJunction(rings,W,count=1){
  const fail=(reason,witness)=>({status:'fixed-fallback',reason,witness,coverageCertified:false,physicalPrintValidated:false});
@@ -8598,8 +8892,8 @@ function frameAdaptiveOrthogonalJunction(rings,W,count=1){
  const dist=(p,a,b)=>{const d=sub(b,a),L=dot(d,d),t=L?Math.max(0,Math.min(1,dot(sub(p,a),d)/L)):0;return Math.hypot(p[0]-a[0]-d[0]*t,p[1]-a[1]-d[1]*t);};
  const area=r=>r.reduce((s,p,i)=>s+cross(r[0],p,r[(i+1)%r.length]),0)/2;
  const inside=p=>{let odd=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[j],b=ring[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])odd=!odd;}return odd;};
- // Exact dyadic signs keep contacts, collinear backtracking, and tiny original
- // features distinct. Projection grouping is only a floating roundoff bound.
+  
+  
  const data=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};data.setFloat64(0,v,false);const b=data.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;return{n,e:E?E-1075:-1074};};
  const exactIntersect=(a,b,c,d)=>{const ds=[a,b,c,d].map(p=>p.map(dyadic)),nz=ds.flat().filter(q=>q.n),ex=nz.length?Math.min(...nz.map(q=>q.e)):0,I=ds.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-ex):0n));const o=(p,q,r)=>{const n=(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]);return n<0n?-1:n>0n?1:0;},on=(p,q,r)=>!o(p,q,r)&&r.every((v,k)=>v>=(p[k]<q[k]?p[k]:q[k])&&v<=(p[k]>q[k]?p[k]:q[k]));const[A,B,C,D]=I,A1=o(A,B,C),A2=o(A,B,D),B1=o(C,D,A),B2=o(C,D,B);return A1*A2<0&&B1*B2<0||!A1&&on(A,B,C)||!A2&&on(A,B,D)||!B1&&on(C,D,A)||!B2&&on(C,D,B);};
  let longest=0,maximumLength=0;for(let i=0;i<ring.length;i++){const L=Math.hypot(...sub(ring[(i+1)%ring.length],ring[i]));if(!L)return fail('zero-original-junction-edge',{edge:i});if(L>maximumLength){longest=i;maximumLength=L;}}
@@ -8608,8 +8902,8 @@ function frameAdaptiveOrthogonalJunction(rings,W,count=1){
  const origin=ring[longest],delta=sub(ring[(longest+1)%ring.length],origin),u=delta.map(v=>v/maximumLength),v=[-u[1],u[0]],local=ring.map(p=>{const d=sub(p,origin);return[dot(d,u),dot(d,v)];}),extent=Math.max(W,...local.flat().map(Math.abs));
  if(extent/W>1e7)return fail('bounded-junction-coordinate-condition');
  const roundoff=128*Number.EPSILON*extent,tol=Math.max(2e-6,W*1e-8),trim=0,fromLocal=p=>[origin[0]+p[0]*u[0]+p[1]*v[0],origin[1]+p[0]*u[1]+p[1]*v[1]];
- // Pure collinear subdivisions do not introduce new support planes. They are
- // retained below as separate original edge intervals and terminal incidents.
+  
+  
  const supportCorners=local.filter((p,i)=>{const a=sub(p,local[(i+local.length-1)%local.length]),b=sub(local[(i+1)%local.length],p);return(Math.abs(a[0])>Math.abs(a[1]))!==(Math.abs(b[0])>Math.abs(b[1]));});
  const cuts=k=>{const values=supportCorners.map(p=>p[k]).sort((a,b)=>a-b),q=[];for(const x of values){if(q.length&&Math.abs(x-q.at(-1))<=roundoff)continue;q.push(x);}return q;};
  const X=cuts(0),Y=cuts(1);if(X.length<3||X.length>4||Y.length<3||Y.length>4)return fail('not-bounded-orthogonal-star-cut-count',{xCuts:X.length,yCuts:Y.length});
@@ -8628,8 +8922,8 @@ function frameAdaptiveOrthogonalJunction(rings,W,count=1){
  if(main>0)specs.push({owner:'lower-branch',localAxis:[[centerX,Y[0]+trim],[centerX,centerY-mainWidth/2]],gap:stemGap,width:stemWidth,thin:stemThin,caps:[]});
  if(main<Y.length-2)specs.push({owner:'upper-branch',localAxis:[[centerX,centerY+mainWidth/2],[centerX,Y.at(-1)-trim]],gap:stemGap,width:stemWidth,thin:stemThin,caps:[]});
  for(const s of specs){const d=sub(s.localAxis[1],s.localAxis[0]);if(s.owner==='through-bank'?d[0]<=tol*8:d[1]<=tol*8)return fail('original-junction-arm-too-short-for-flat-terminal',{owner:s.owner});}
- // Every original edge is owned once, including collinear subdivisions. Cap
- // coordinates and intervals retain original edge identities verbatim.
+  
+  
  const sourceIntervals=[];for(let edge=0;edge<ring.length;edge++){
   const A=index[edge],B=index[(edge+1)%ring.length],horizontal=A[1]===B[1],middle=local[edge].map((q,k)=>(q+local[(edge+1)%ring.length][k])/2);let owner,role;
   if(horizontal){if(A[1]===0&&main>0){owner='lower-branch';role='original-terminal-cap';}else if(A[1]===Y.length-1&&main<Y.length-2){owner='upper-branch';role='original-terminal-cap';}else if(A[1]===main||A[1]===main+1){owner='through-bank';role='original-source-bank';}}
@@ -8651,8 +8945,8 @@ function frameAdaptiveOrthogonalJunction(rings,W,count=1){
   pathEdgeMetadata.push([{role:'adaptive-orthogonal-junction',junctionArm:spec.owner,beadDepth:0,sourceIntervals:sourceIntervals.filter(q=>q.owner===spec.owner).map(q=>structuredClone(q)),wholeRegionSourceIntervals:structuredClone(sourceIntervals),sourceBoundaryOwnershipComplete:true,allOriginalSourceIntervalsRetained:true,sourceGeometryUnchanged:true,wholeSegmentClearance:clearance,transverseNozzleClearance:sideClearance,terminalNozzleClearance:capClearance,terminalNozzleDiskContained:false,flatTerminalOnOriginalCap:true,nominalNozzleRadius:W/2,boundaryToleranceMM:tol*4,thinNominalException:spec.thin,nozzleBoundaryContained:false,transverseNozzleBoundaryContained:!spec.thin,ribbonBoundaryContained:!spec.thin,junctionAxisPartition:'through-bank-with-detached-flat-branches',junctionOverlapAreaUpperMM2:overlapNumericUpper,junctionNominalOverlapAreaMM2:0,coverageCertified:false,physicalPrintValidated:false}]);
   terminalSourceChains.push(...spec.caps.map(q=>({owner:spec.owner,intervals:[structuredClone(q)],sourceStart:q.sourceStart,sourceEnd:q.sourceEnd,coordinates:[q.sourceStart,q.sourceEnd],originalBoundaryUnchanged:true,placementReserved:false,terminalPolicy:'flat-output-on-original-cap'})));
  }
- // Whole candidate ribbons are mutually disjoint by a separating-axis test,
- // stronger than a positive net-area argument. No branch is silently removed.
+  
+  
  const interiorOverlap=(A,B)=>{for(const poly of[A,B])for(let i=0;i<poly.length;i++){const d=sub(poly[(i+1)%poly.length],poly[i]),L=Math.hypot(...d),n=[-d[1]/L,d[0]/L],a=A.map(p=>dot(p,n)),b=B.map(p=>dot(p,n));if(Math.min(Math.max(...a),Math.max(...b))-Math.max(Math.min(...a),Math.min(...b))<=roundoff)return false;}return true;};
  for(let i=0;i<paths.length;i++)for(let j=0;j<i;j++){if(exactIntersect(...paths[i],...paths[j]))return fail('junction-axis-crossing-or-contact',{arms:[j,i]});if(interiorOverlap(ribbons[i],ribbons[j]))return fail('new-junction-ribbon-overlap',{arms:[j,i]});}
  return{status:'adaptive-orthogonal-junction',gap:Math.min(mainGap,stemGap),maximumGap:Math.max(mainGap,stemGap),uniformGap:Math.abs(mainGap-stemGap)<=roundoff,paths,pathClosed:paths.map(()=>false),pathVertexMetadata,pathEdgeMetadata,pathDepth:paths.map(()=>0),actualPerimeters:1,requestedPerimeters:count,thinNominalException:specs.some(s=>s.thin),terminalPolicy:'flat-output-on-original-cap',terminalSourceChains,originalIntervalEvents:sourceIntervals.length,sourceBoundaryOwnershipComplete:true,originalSourceIntervals:sourceIntervals,junctionArms:sideCount,junctionMaterialCells:cells.filter(c=>c.occupied).map(c=>({...c,owner:c.y===main?'through-bank':c.y<main?'lower-branch':'upper-branch'})),junctionCellPartitionCertified:false,minimumWholeAxisClearance:minimumClearance,junctionOverlapAreaUpperMM2:overlapNumericUpper,junctionNominalOverlapAreaMM2:0,coverageCertified:false,physicalPrintValidated:false};
@@ -8682,18 +8976,231 @@ function frameAdaptiveFlatTaper(rings,W,count=1,makeClearance=frameAdaptiveOpenC
  return{status:'adaptive-flat-source-taper',gap:Math.min(g0,g1),maximumGap:Math.max(g0,g1),uniformGap:false,paths,pathClosed:[false],pathVertexMetadata:[vertices],pathEdgeMetadata:[edges],pathDepth:[0],actualPerimeters:1,requestedPerimeters:count,originalIntervalEvents:4,sourceBoundaryOwnershipComplete:true,terminalPolicy:'flat-output-on-original-cap',terminalSourceChains:[capStart,capEnd].map((q,i)=>({endstation:i?'end':'start',intervals:[q],sourceStart:q.sourceStart,sourceEnd:q.sourceEnd,coordinates:[q.sourceStart,q.sourceEnd],originalBoundaryUnchanged:true,placementReserved:false})),thinNominalException:edges.some(e=>e.thinNominalException),clearanceProfile:clearance.measurement,clearanceWork:clearance.work(),coverageCertified:false,physicalPrintValidated:false};
 }
 
-function frameAdaptivePlacement(rings,W,count=1){const straight=frameAdaptiveStraightStrip(rings,W,count);if(straight)return straight;const flatTaper=frameAdaptiveFlatTaper(rings,W,count);if(flatTaper)return flatTaper;if(rings.length===1&&rings[0].length>=8){const junction=frameAdaptiveOrthogonalJunction(rings,W,count);if(junction.status.startsWith('adaptive-'))return junction;}if(rings.length===2){const convex=frameAdaptiveConvexAnnulus(rings,W,count,frameAdaptiveDepthAllocation);if(convex.status.startsWith('adaptive-')||convex.reason==='varying-convex-annulus-gap')return convex;}return rings.length===1?(frameAdaptiveOpenPrecheck(rings,W)||frameAdaptiveOpenPlacement(rings,W)):frameAdaptiveAnnulus(rings,W);}
+function frameAdaptiveVariableResidualTaper(rings,W,count=1){
+ const fail=(reason,extra={})=>({status:'fixed-fallback',reason,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false,...extra});
+ if(rings.length!==1||rings[0].length<4||rings[0].length>256||!(W>0)||!Number.isFinite(W)||!Number.isInteger(count)||count<1||count>64)return null;
+ const originalRing=rings[0],sub=(a,b)=>a.map((v,k)=>v-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],length=v=>Math.hypot(...v),cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
+ if(originalRing.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v))))return null;
+ let corners=originalRing.map((_,i)=>i);
+ if(originalRing.length>4){
+  const bits=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(!v)return{n:0n,e:0};bits.setFloat64(0,v,false);const b=bits.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;return{n,e:E?E-1075:-1074};},values=originalRing.map(p=>p.map(dyadic)),nonzero=values.flat().filter(q=>q.n);if(!nonzero.length)return fail('zero-original-source');const exponent=Math.min(...nonzero.map(q=>q.e)),I=values.map(p=>p.map(q=>q.n?q.n<<BigInt(q.e-exponent):0n)),vectors=I.map((p,i)=>I[(i+1)%I.length].map((v,k)=>v-p[k])),integerCross=(a,b)=>a[0]*b[1]-a[1]*b[0],integerDot=(a,b)=>a[0]*b[0]+a[1]*b[1];corners=[];
+  if(vectors.some(v=>!integerDot(v,v)))return fail('zero-original-source-edge');for(let i=0;i<I.length;i++){const a=vectors[(i+I.length-1)%I.length],b=vectors[i];if(integerCross(a,b))corners.push(i);else if(integerDot(a,b)<=0n)return fail('reversed-original-collinear-source');}if(corners.length!==4)return null;
+ }
+ const ring=corners.map(i=>originalRing[i]),chains=corners.map((at,i)=>{const ids=[];let e=at;while(e!==corners[(i+1)%4]){ids.push(e);e=(e+1)%originalRing.length;}return ids;});
+ const vec=ring.map((a,i)=>sub(ring[(i+1)%4],a)),len=vec.map(length),extent=Math.max(W,...ring.flat().map(Math.abs),...len),roundoff=256*Number.EPSILON*extent;
+ if(len.some(v=>v<=roundoff))return fail('zero-or-unresolved-original-source-edge');
+ const sign=Math.sign(cross(vec[0],vec[1]));if(!sign||vec.some((v,i)=>sign*cross(v,vec[(i+1)%4])<=roundoff*len[i]))return fail('nonconvex-or-contact-source');
+ const bankPair=len[0]+len[2]>len[1]+len[3]?[0,2]:[1,3],caps=[(bankPair[0]+1)%4,(bankPair[0]+3)%4];
+ if(Math.min(...bankPair.map(i=>len[i]))<=W||Math.max(...caps.map(i=>len[i]))>=Math.min(...bankPair.map(i=>len[i])))return null;
+ if(Math.abs(cross(vec[caps[0]],vec[caps[1]]))>roundoff*(len[caps[0]]+len[caps[1]]))return fail('original-caps-not-parallel');
+ if(Math.abs(len[bankPair[0]]-len[bankPair[1]])<=roundoff*4)return fail('ambiguous-symmetric-first-bank');
+ const first=len[bankPair[0]]>len[bankPair[1]]?bankPair[0]:bankPair[1],opposite=(first+2)%4;
+ let A=ring[first],B=ring[(first+1)%4],C=ring[(first+3)%4],D=ring[(first+2)%4],startCap=(first+3)%4,endCap=(first+1)%4;
+ if(length(sub(C,A))>length(sub(D,B))){[A,B]=[B,A];[C,D]=[D,C];[startCap,endCap]=[endCap,startCap];}
+ const Y=sub(C,A),g0=length(Y),ey=Y.map(v=>v/g0),m0=A.map((v,k)=>(v+C[k])/2),m1=B.map((v,k)=>(v+D[k])/2),between=sub(m1,m0),longitudinal=between.map((v,k)=>v-ey[k]*dot(between,ey)),L=length(longitudinal),ex=longitudinal.map(v=>v/L);
+ if(!(L>W)||Math.abs(dot(sub(D,B),ex))>roundoff*4)return fail('unresolved-original-cap-frame');
+ const local=p=>{const d=sub(p,A);return[dot(d,ex),dot(d,ey)];},world=p=>A.map((v,k)=>v+ex[k]*p[0]+ey[k]*p[1]),b=local(B),d=local(D),s=b[1]/L,h=(d[1]-g0)/L,ns=Math.hypot(1,s),nh=Math.hypot(1,h),slope=h-s,r=W/2;
+ if(Math.abs(b[0]-L)>roundoff*4||Math.abs(d[0]-L)>roundoff*4||Math.abs(slope)*L<=roundoff*4)return null;
+ const target=t=>C.map((v,k)=>v+(D[k]-v)*t),sourceVector=sub(B,A),sourceLength2=dot(sourceVector,sourceVector),projection=t=>dot(sub(target(t),A),sourceVector)/sourceLength2;
+ const bankGap=t=>{const p=target(t),u=Math.max(0,Math.min(1,projection(t)));return length(sub(p,A.map((v,k)=>v+sourceVector[k]*u)));};
+ const data=new DataView(new ArrayBuffer(8)),gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},exact=t=>{if(t===0)return'0/1';if(t===1)return'1/1';data.setFloat64(0,t,false);const bits=data.getBigUint64(0,false),E=Number((bits>>52n)&2047n);let n=bits&4503599627370495n;if(E)n|=4503599627370496n;if(bits>>63n)n=-n;const e=E?E-1075:-1074;let z=1n;if(e<0)z<<=BigInt(-e);else n<<=BigInt(e);const q=gcd(n,z);return n/q+'/'+z/q;};
+ const events=[{t:0,exactT:'0/1',kind:'original-target-bank-start'},{t:1,exactT:'1/1',kind:'original-target-bank-end'}],p0=projection(0),pd=projection(1)-p0,firstId=corners[first],oppositeId=corners[opposite];
+ const add=(t,kind,extra={})=>{if(t>0&&t<1&&Number.isFinite(t))events.push({t,exactT:exact(t),kind,sourceRing:0,sourceEdge:firstId,targetEdge:oppositeId,...extra});};
+ const bankParameter=(p,start,finish)=>dot(sub(p,start),sub(finish,start))/dot(sub(finish,start),sub(finish,start));
+ for(const edge of chains[opposite])add(bankParameter(originalRing[edge],C,D),'immutable-original-target-bank-vertex',{originalSourceEdge:edge});
+ for(const edge of chains[first])if(pd)add((bankParameter(originalRing[edge],A,B)-p0)/pd,'immutable-original-first-bank-vertex',{originalSourceEdge:edge});
+ for(const u of[0,1])if(pd)add((u-p0)/pd,'original-finite-source-feature',{sourceFeature:u?'end':'start'});
+ const featureCuts=[0,1,...events.map(e=>e.t)].sort((a,b)=>a-b);
+ for(let i=1;i<featureCuts.length;i++){
+  const lo=featureCuts[i-1],hi=featureCuts[i],mid=(lo+hi)/2,feature=projection(mid);
+  for(const threshold of[1.6*W,2*W]){
+   if(feature>=0&&feature<=1){const t=(threshold*ns-g0)/(slope*L);if(t>lo&&t<hi)add(t,'immutable-source-allocation-threshold',{thresholdMM:threshold,sourceFeature:'finite-bank-line'});}
+   else{const endpoint=feature<0?A:B,v=sub(D,C),q=sub(C,endpoint),aa=dot(v,v),bb=2*dot(q,v),cc=dot(q,q)-threshold*threshold,disc=bb*bb-4*aa*cc,critical=-bb/(2*aa);if(critical>lo&&critical<hi&&!events.some(e=>e.kind==='original-finite-distance-extremum'&&e.t===critical))add(critical,'original-finite-distance-extremum');if(disc>=0)for(const t of[(-bb-Math.sqrt(disc))/(2*aa),(-bb+Math.sqrt(disc))/(2*aa)])if(t>lo&&t<hi)add(t,'immutable-source-allocation-threshold',{thresholdMM:threshold,sourceFeature:feature<0?'finite-bank-start':'finite-bank-end'});}
+  }
+ }
+ events.sort((a,b)=>a.t-b.t||a.kind.localeCompare(b.kind));
+ const eventWitness={originalSourceEvents:events,sourceBank:{ring:0,edge:firstId,edges:chains[first],start:A.slice(),end:B.slice()},oppositeBank:{ring:0,edge:oppositeId,edges:chains[opposite],start:C.slice(),end:D.slice()},originalBankGapEndpointsMM:[bankGap(0),bankGap(1)]};
+ const gaps=events.map(e=>bankGap(e.t)),minGap=Math.min(...gaps),maxGap=Math.max(...gaps);
+ if(events.some(e=>e.kind==='immutable-source-allocation-threshold')||minGap<=1.6*W||maxGap>=2*W)return fail('varying-residual-allocation-transition-unproved',{...eventWitness,transitionPolicy:'preserve complete source; no invented one-track-to-two-track junction'});
+  
+  
+ let x0=Math.max(r*Math.abs(s)/ns,r*Math.abs(h)/nh),x1=L-x0;
+ const qShift=-r*h/nh,footShift=s*g0/(ns*ns),footSlope=1+s*slope/(ns*ns);
+ const restrict=(alpha,beta)=>{if(!alpha){if(beta<0||beta>L)x1=-1;return;}const a=-beta/alpha,b=(L-beta)/alpha;x0=Math.max(x0,Math.min(a,b));x1=Math.min(x1,Math.max(a,b));};
+ restrict(1,r*s/ns);restrict(1,qShift);restrict(footSlope,footSlope*qShift+footShift);
+ if(x1-x0<=roundoff*8)return fail('no-finite-original-bank-body-interval',eventWitness);
+ const bodyGap=x=>(g0+slope*(x+qShift))/ns,width=x=>bodyGap(x)-W;
+ if(!(width(x0)>.6*W&&width(x1)<W)||!(Math.min(bodyGap(x0),bodyGap(x1))>1.6*W&&Math.max(bodyGap(x0),bodyGap(x1))<2*W))return fail('residual-body-policy-outside-open-thresholds',eventWitness);
+ const xs=[x0,x1];for(const e of events){const x=e.t*L-qShift;if(x>x0+roundoff*8&&x<x1-roundoff*8)xs.push(x);}xs.sort((a,b)=>a-b);for(let i=xs.length-1;i>0;i--)if(xs[i]-xs[i-1]<=roundoff*8)xs.splice(i,1);
+ const axes=[x=>world([x,s*x+r*ns]),x=>world([x,g0+h*x-r*nh])],paths=axes.map(f=>xs.map(f)),contexts=originalRing.map((a,edge)=>({ring:0,edge,sourceStart:a.slice(),sourceEnd:originalRing[(edge+1)%originalRing.length].slice()})),capsIds=[...chains[startCap],...chains[endCap]],sourceSupportingEdgeIds=[...chains[first],...chains[opposite]],pathVertexMetadata=[],pathEdgeMetadata=[];
+ const ownedBankIntervals=(bank,t0,t1)=>{const start=bank===first?A:C,finish=bank===first?B:D,owned=[];for(const edge of chains[bank]){const a=bankParameter(originalRing[edge],start,finish),b=bankParameter(originalRing[(edge+1)%originalRing.length],start,finish),lo=Math.max(t0,Math.min(a,b)),hi=Math.min(t1,Math.max(a,b));if(!(hi>lo))continue;const u=x=>x===a?0:x===b?1:(x-a)/(b-a),u0=u(lo),u1=u(hi);owned.push({ring:0,edge,u0,u1,exactU0:exact(u0),exactU1:exact(u1),sourceGeometryUnchanged:true});}return owned;};
+ const originalCap=edge=>({ring:0,edge,u0:0,u1:1,exactU0:'0/1',exactU1:'1/1',sourceGeometryUnchanged:true});
+ for(let bead=0;bead<2;bead++){
+  pathVertexMetadata.push(xs.map(x=>({feedWidth:bead?width(x):W,displayWidth:bead?width(x):W,nozzleRadius:r,nominalNozzleRadius:r,targetGap:bodyGap(x),thinNominalException:false,...(bead?{attachedResidual:true,residualPolicy:'variable-original-finite-bank-gap-minus-W-with-nominal-nozzle',oppositeSourceBoundaryGapMM:(2*W-bodyGap(x))/2,residualFeedWidthMM:width(x),residualDisplayWidthMM:width(x)}:{})})));
+  const edges=[];for(let i=1;i<xs.length;i++){
+   const p=paths[bead][i-1],q=paths[bead][i],w0=pathVertexMetadata[bead][i-1].displayWidth,w1=pathVertexMetadata[bead][i].displayWidth;
+   let clearance=Infinity;for(const edge of[...chains[first],...chains[opposite]])clearance=Math.min(clearance,frameAdaptiveSegmentDistance(p,q,originalRing[edge],originalRing[(edge+1)%originalRing.length]));
+   if(clearance+roundoff*8<r||!frameAdaptiveInside(p.map((v,k)=>(v+q[k])/2),rings))return fail('whole-finite-bank-nozzle-clearance-failed',{...eventWitness,witness:{bead,edge:i-1,from:p,to:q,clearanceMM:clearance}});
+   if(!frameAdaptiveOpenRibbonWithin(p,q,w0,w1,rings,roundoff*8))return fail('whole-variable-residual-flat-ribbon-outside-source',{...eventWitness,witness:{bead,edge:i-1,from:p,to:q,width0:w0,width1:w1}});
+   const bankEdge=bead?opposite:first,parameter=x=>bead?(x+qShift)/L:(x+r*s/ns)/L,t0=i===1?0:parameter(xs[i-1]),t1=i===xs.length-1?1:parameter(xs[i]),intervals=[...ownedBankIntervals(bankEdge,t0,t1),...(!bead&&i===1?chains[startCap].map(originalCap):[]),...(!bead&&i===xs.length-1?chains[endCap].map(originalCap):[])];
+   edges.push({role:bead?'adaptive-variable-attached-residual-taper':'adaptive-variable-nominal-taper',beadDepth:0,attachedResidual:!!bead,thinNominalException:false,sourceRing:0,sourceEdge:firstId,targetEdge:oppositeId,sourceIntervals:intervals,sourceFlatCapEdgeIds:capsIds,sourceSupportingEdgeIds,sourceFirstBankEdgeIds:chains[first],sourceOppositeBankEdgeIds:chains[opposite],originalSourceBoundaryContexts:contexts,sourceGeometryUnchanged:true,sourceBoundaryOwnershipComplete:true,allOriginalSourceIntervalsRetained:true,originalCollinearEdgesRetained:true,originalEdgeCount:originalRing.length,exactIntervalCorrespondence:false,sourceAxisConstruction:'immutable-original-straight-bank-inward-W-over-2-offset',transverseNozzleClearance:clearance,nominalNozzleRadius:r,terminalNozzleDiskContained:false,flatRibbonTerminalContained:true,flatTerminalOnOriginalCap:false,terminalSourceUnderfillExplicit:true,originalSourceEvents:events,axisParameterStart:xs[i-1]/L,axisParameterEnd:xs[i]/L,targetGapStart:bodyGap(xs[i-1]),targetGapEnd:bodyGap(xs[i]),boundaryToleranceMM:roundoff*8,coverageCertified:false,physicalPrintValidated:false});
+  }pathEdgeMetadata.push(edges);
+ }
+ if(frameAdaptiveSegmentDistance(paths[0][0],paths[0].at(-1),paths[1][0],paths[1].at(-1))<=roundoff*8)return fail('original-bank-offset-axes-contact',eventWitness);
+ return{status:'adaptive-variable-attached-residual-taper',gap:minGap,maximumGap:maxGap,uniformGap:false,paths,pathClosed:[false,false],pathVertexMetadata,pathEdgeMetadata,pathDepth:[0,0],actualPerimeters:1,requestedPerimeters:count,thinNominalException:false,sourceGeometryUnchanged:true,sourceBoundaryOwnershipComplete:true,originalSourceBoundaryIntervals:pathEdgeMetadata.flatMap(es=>es.flatMap(e=>e.sourceIntervals)),originalSourceEvents:events,allocationPolicy:'first nominal W plus variable attached source-gap-minus-W residual',gapDefinition:'perpendicular distance from original opposite bank to complete finite first source bank',terminalPolicy:'conservative-flat-body-ribbons-before-original-caps',terminalUnderfillLongitudinalMM:{start:x0,end:L-x1},nominalNozzleRadius:r,coverageCertified:false,physicalPrintValidated:false};
+}
+
+function frameAdaptiveThresholdRampTransition(rings,W,count=1){
+ const fail=(reason,extra={})=>({status:'fixed-fallback',reason,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false,...extra}),diagnostic=frameAdaptiveVariableResidualTaper(rings,W,count);
+ if(!diagnostic||diagnostic.reason!=='varying-residual-allocation-transition-unproved')return null;
+ const events=diagnostic.originalSourceEvents,thresholds=events.filter(e=>e.kind==='immutable-source-allocation-threshold'),lower=thresholds.filter(e=>e.thresholdMM===1.6*W),upper=thresholds.filter(e=>e.thresholdMM===2*W);
+ if(lower.length!==1||upper.length!==1||lower[0].sourceFeature!=='finite-bank-line'||upper[0].sourceFeature!=='finite-bank-line'||!(lower[0].t<upper[0].t))return fail('unsupported-finite-source-threshold-profile',{originalSourceEvents:events});
+ const ring=rings[0],A=diagnostic.sourceBank.start,B=diagnostic.sourceBank.end,C=diagnostic.oppositeBank.start,D=diagnostic.oppositeBank.end,firstIds=diagnostic.sourceBank.edges,oppositeIds=diagnostic.oppositeBank.edges,supportIds=[...firstIds,...oppositeIds],capsIds=ring.map((_,i)=>i).filter(i=>!supportIds.includes(i)),sub=(a,b)=>a.map((v,k)=>v-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],L=v=>Math.hypot(...v),vec1=sub(B,A),vec2=sub(D,C),unit1=vec1.map(v=>v/L(vec1)),unit2=vec2.map(v=>v/L(vec2)),raw1=[-unit1[1],unit1[0]],raw2=[-unit2[1],unit2[0]],n1=raw1.map(v=>v*Math.sign(dot(raw1,sub(C,A)))),n2=raw2.map(v=>v*Math.sign(dot(raw2,sub(A,C)))),r=W/2,t16=lower[0].t,t2=upper[0].t,extent=Math.max(W,L(vec1),L(vec2),...ring.flat().map(Math.abs)),roundoff=256*Number.EPSILON*extent,tol=roundoff*8;
+ const parameter=(p,a,b)=>dot(sub(p,a),sub(b,a))/dot(sub(b,a),sub(b,a)),Q=t=>C.map((v,k)=>v+vec2[k]*t),u=t=>parameter(Q(t),A,B),F=t=>A.map((v,k)=>v+vec1[k]*u(t)),G=t=>t===t16?1.6*W:t===t2?2*W:dot(sub(Q(t),F(t)),n1),mid=t=>F(t).map((v,k)=>(v+Q(t)[k])/2),nominalWidth=t=>t<=t2?W:G(t)/2,secondWidth=t=>t<t2?G(t)-W:G(t)/2,firstAxis=t=>F(t).map((v,k)=>v+n1[k]*nominalWidth(t)/2),secondAxis=t=>Q(t).map((v,k)=>v+n2[k]*(t<t2?r:nominalWidth(t)/2));
+ const gapStart=frameAdaptiveDistance(Q(0),A,B),gapEnd=frameAdaptiveDistance(Q(1),A,B);if(!(gapStart>=W&&gapStart<1.6*W&&gapEnd>2*W&&gapEnd<=2.8*W)||u(1)>1+roundoff||u(t16)<0||u(t16)>1)return fail('threshold-source-endpoints-outside-bounded-policy',{originalSourceEvents:events});
+  
+  
+ const ud=u(1)-u(0);if(!(ud>0))return fail('reversed-original-bank-correspondence');let tStart=Math.max(0,-u(0)/ud);if(tStart>=t16)return fail('no-original-single-bead-stem');
+ const ey=sub(C,A).map(v=>v/L(sub(C,A))),rawEx=[ey[1],-ey[0]],ex=rawEx.map(v=>v*Math.sign(dot(rawEx,vec1))),capLength=dot(vec1,ex),X=p=>dot(sub(p,A),ex),widthStem=t=>2*Math.min(frameAdaptiveDistance(mid(t),A,B),frameAdaptiveDistance(mid(t),C,D));
+ const m0=mid(tStart),m1=mid(t16),vStem=sub(m1,m0),stemLength=L(vStem),nStem=[-vStem[1]/stemLength,vStem[0]/stemLength],stemNX=Math.abs(dot(nStem,ex)),linear=(fn,a,b)=>{const v0=fn(a),v1=fn(b);return{a:v0-(v1-v0)*a/(b-a),b:(v1-v0)/(b-a)};},mx=linear(t=>X(mid(t)),tStart,t16),mw=linear(widthStem,tStart,t16),capDerivative=mx.b-stemNX*mw.b/2;
+ if(!(capDerivative>0))return fail('unresolved-single-stem-flat-cap');tStart=Math.max(tStart,(-mx.a+stemNX*mw.a/2)/capDerivative);if(tStart>=t16)return fail('single-stem-cap-consumes-threshold');if(widthStem(tStart)<W)return fail('single-stem-width-below-independent-nominal-minimum');
+ const wideAxis=(t,bead)=>{const g=dot(sub(Q(t),F(t)),n1),base=bead?Q(t):F(t),normal=bead?n2:n1;return base.map((v,k)=>v+normal[k]*g/4);},wideG=linear(t=>dot(sub(Q(t),F(t)),n1)/2,t2,1),wideX=[0,1].map(bead=>linear(t=>X(wideAxis(t,bead)),t2,1));
+ if(wideX.some(p=>!(p.b>0)))return fail('unresolved-wide-cap-axis-order');
+ const bodyCapNormals=[0,1].map(bead=>{const d=sub(wideAxis(1,bead),wideAxis(t2,bead)),ell=L(d);return Math.abs(dot([-d[1]/ell,d[0]/ell],ex));}),tEnd=wideX.map((p,i)=>Math.min(1,(capLength-p.a-bodyCapNormals[i]*wideG.a/2-tol)/(p.b+bodyCapNormals[i]*wideG.b/2)));
+ if(tEnd.some(t=>!(t>t2&&t<=1)))return fail('wide-cap-cannot-follow-source2W-event',{originalSourceEvents:events});
+ const data=new DataView(new ArrayBuffer(8)),gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;},exact=t=>{if(t===0)return'0/1';if(t===1)return'1/1';data.setFloat64(0,t,false);const bits=data.getBigUint64(0,false),E=Number((bits>>52n)&2047n);let n=bits&4503599627370495n;if(E)n|=4503599627370496n;if(bits>>63n)n=-n;const e=E?E-1075:-1074;let z=1n;if(e<0)z<<=BigInt(-e);else n<<=BigInt(e);const q=gcd(n,z);return n/q+'/'+z/q;};
+ const contexts=ring.map((a,edge)=>({ring:0,edge,sourceStart:a.slice(),sourceEnd:ring[(edge+1)%ring.length].slice()})),owned=(ids,start,end,lo,hi)=>{const result=[];for(const edge of ids){const a=parameter(ring[edge],start,end),b=parameter(ring[(edge+1)%ring.length],start,end),lower=Math.max(Math.min(lo,hi),Math.min(a,b)),upper=Math.min(Math.max(lo,hi),Math.max(a,b));if(!(upper>lower))continue;const fraction=t=>t===a?0:t===b?1:(t-a)/(b-a),from=lo<=hi?lower:upper,to=lo<=hi?upper:lower,u0=fraction(from),u1=fraction(to);result.push({ring:0,edge,u0,u1,exactU0:exact(u0),exactU1:exact(u1),sourceGeometryUnchanged:true});}return result;},cap=(edge)=>({ring:0,edge,u0:0,u1:1,exactU0:'0/1',exactU1:'1/1',sourceGeometryUnchanged:true}),startCapIds=capsIds.filter(e=>frameAdaptiveDistance(ring[e],A,C)<=tol&&frameAdaptiveDistance(ring[(e+1)%ring.length],A,C)<=tol),endCapIds=capsIds.filter(e=>!startCapIds.includes(e));
+ if(!startCapIds.length||!endCapIds.length)return fail('unresolved-original-terminal-cap-ownership');
+ const P=mid(t16),branch={kind:'original1point6W-source-allocation-junction',originalEvent:lower[0],point:P.slice(),sourcePoint:F(t16),oppositePoint:Q(t16),sourceGeometryUnchanged:true,exactStoredPointReuse:true,notGlobalWelding:true,coverageCertified:false,physicalPrintValidated:false},paths=[[],[],[]],vertices=[[],[],[]],edges=[[],[],[]];
+ const vm=(width,t,role)=>({feedWidth:width,displayWidth:width,nozzleRadius:r,nominalNozzleRadius:r,targetGap:G(t),thinNominalException:false,attachedResidual:role==='attached-residual',residualPolicy:role==='attached-residual'?'original-source-gap-minus-W-with-nominal-nozzle':null,sourceAllocationRole:role});
+ const anchorIntervals=()=>[...firstIds,...oppositeIds].map(edge=>{const source=firstIds.includes(edge)?F(t16):Q(t16),a=ring[edge],b=ring[(edge+1)%ring.length],q=parameter(source,a,b);return q>=0&&q<=1?{ring:0,edge,u0:q,u1:q,exactU0:exact(q),exactU1:exact(q),sourceGeometryUnchanged:true,sourceAnchorOnly:true}:null;}).filter(Boolean);
+ const append=(path,p,vertex,metadata)=>{if(!paths[path].length){paths[path].push(p);vertices[path].push(vertex);return;}const a=paths[path].at(-1),w0=vertices[path].at(-1).displayWidth;if(L(sub(p,a))<=tol)throw Error('zero-derived-threshold-segment');let clearance=Infinity;for(const id of supportIds)clearance=Math.min(clearance,frameAdaptiveSegmentDistance(a,p,ring[id],ring[(id+1)%ring.length]));if(clearance+tol<r)throw Error('whole-threshold-bank-nozzle-clearance');if(metadata.physicalTerminalCapNozzleContained)for(const id of capsIds)if(frameAdaptiveSegmentDistance(a,p,ring[id],ring[(id+1)%ring.length])+tol<r)throw Error('whole-threshold-wide-cap-nozzle-clearance');if(!frameAdaptiveOpenRibbonWithin(a,p,w0,vertex.displayWidth,rings,tol))throw Error('whole-threshold-flat-ribbon-outside-original-material');paths[path].push(p);vertices[path].push(vertex);edges[path].push({beadDepth:0,sourceRing:0,sourceEdge:diagnostic.sourceBank.edge,targetEdge:diagnostic.oppositeBank.edge,sourceSupportingEdgeIds:supportIds,sourceFirstBankEdgeIds:firstIds,sourceOppositeBankEdgeIds:oppositeIds,sourceFlatCapEdgeIds:capsIds,originalSourceBoundaryContexts:contexts,originalSourceEvents:events,sourceGeometryUnchanged:true,sourceBoundaryOwnershipComplete:true,allOriginalSourceIntervalsRetained:true,exactIntervalCorrespondence:false,nominalNozzleRadius:r,transverseNozzleClearance:clearance,boundaryToleranceMM:tol,thinNominalException:false,terminalNozzleDiskContained:false,coverageCertified:false,physicalPrintValidated:false,...metadata});};
+ const cuts=(lo,hi)=>[lo,hi,...events.map(e=>e.t).filter(t=>t>lo&&t<hi)].sort((a,b)=>a-b).filter((t,i,a)=>!i||t-a[i-1]>tol/L(vec2));
+  
+  
+ const E=p=>dot(sub(p,A),ey),XP=X(P),EP=E(P),angleStation=axis=>{const x=linear(t=>X(axis(t)),t16,t2),y=linear(t=>E(axis(t)),t16,t2),sign=Math.sign(E(axis(t16))-EP),den=x.b-sign*y.b;return den>0?(XP+sign*(y.a-EP)-x.a)/den:NaN;},tFirst=angleStation(firstAxis),tSecond=angleStation(secondAxis);
+ if(!(tFirst>t16&&tFirst<t2&&tSecond>t16&&tSecond<t2))return fail('no-finite-source45degree-threshold-station',{originalSourceEvents:events});
+ const firstPortEnd=firstAxis(tFirst),secondPortEnd=secondAxis(tSecond),portPoint=(t,end,tJoin)=>P.map((v,k)=>v+(end[k]-v)*(t-t16)/(tJoin-t16)),derivedEvents=[{kind:'original-source45degree-threshold-departure',t:tFirst,exactT:exact(tFirst),sourceCell:[lower[0].exactT,upper[0].exactT],sourceBankRole:'first-nominal',angleDegrees:45},{kind:'original-source45degree-threshold-return',t:tSecond,exactT:exact(tSecond),sourceCell:[lower[0].exactT,upper[0].exactT],sourceBankRole:'attached-residual',angleDegrees:45}];
+ const firstBodyEnd=firstAxis(tEnd[0]),secondBodyEnd=secondAxis(tEnd[1]),firstTerminal=firstBodyEnd.map((v,k)=>v+ex[k]*(capLength-X(firstBodyEnd))),secondTerminal=secondBodyEnd.map((v,k)=>v+ex[k]*(capLength-X(secondBodyEnd))),firstHasCap=L(sub(firstTerminal,firstBodyEnd))>tol,secondHasCap=L(sub(secondTerminal,secondBodyEnd))>tol,firstCapHalf=owned(endCapIds,B,D,0,.5),secondCapHalf=owned(endCapIds,B,D,.5,1);
+ try{
+  const stem=cuts(tStart,t16);for(let i=0;i<stem.length;i++){const t=stem[i],prev=i?stem[i-1]:t,intervals=i?[...owned(firstIds,A,B,i===1?0:u(prev),u(t)),...owned(oppositeIds,C,D,i===1?0:prev,t),...(i===1?startCapIds.map(cap):[])]:[];append(0,t===t16?P:mid(t),vm(widthStem(t),t,'single-source-bead'),{role:'adaptive-threshold-single-stem',sourceIntervals:intervals,originalSourceParameterStart:prev,originalSourceParameterEnd:t,flatTerminalOnOriginalCap:false,terminalSourceUnderfillExplicit:i===1,sourceJunction:i===stem.length-1?branch:null});}
+   
+   
+   
+  const portLength=L(sub(firstPortEnd,P)),rampLength=.005*W;
+  if(!(portLength>2*rampLength+tol))throw Error('attached-threshold-ramp-consumes-port');
+  const rampFraction=rampLength/portLength,tNarrow=t16+(tFirst-t16)*rampFraction,tNominal=t16+(tFirst-t16)*(1-rampFraction),attachedMiddleWidth=.6*W,startWidth=vertices[0].at(-1).feedWidth;
+  derivedEvents.push(...[[tNarrow,'attached-continuation-width-ramp-end'],[tNominal,'attached-continuation-nominal-ramp-start']].map(([t,kind])=>({kind,t,exactT:exact(t),sourceCell:[lower[0].exactT,upper[0].exactT],sourceBankRole:'first-nominal-attached-junction',sourceGeometryUnchanged:true})));
+  const portWidth=t=>t<=tNarrow?startWidth+(attachedMiddleWidth-startWidth)*(t-t16)/(tNarrow-t16):t<tNominal?attachedMiddleWidth:attachedMiddleWidth+(W-attachedMiddleWidth)*(t-tNominal)/(tFirst-tNominal);
+  append(1,P,vm(startWidth,t16,'first-nominal-attached-continuation'),{});
+  const departure=[...cuts(t16,tFirst),tNarrow,tNominal].sort((a,b)=>a-b).filter((t,i,a)=>!i||t-a[i-1]>tol/L(vec2));
+  for(let i=1;i<departure.length;i++){const t=departure[i],prev=departure[i-1];append(1,t===tFirst?firstPortEnd:portPoint(t,firstPortEnd,tFirst),vm(t===tFirst?W:portWidth(t),t,'first-nominal-attached-continuation'),{role:'adaptive-threshold-first45-attached-width-ramp-junction-port',sourceIntervals:owned(firstIds,A,B,u(prev),u(t)),sourceJunction:branch,originalSourceParameterStart:prev,originalSourceParameterEnd:t,qualifiedLocalJunction:true,derivedSourceJunctionEvents:derivedEvents,sourceCellAngleDegrees:45,attachedContinuation:true,independentStart:false,continuationFromPath:0,minimumAttachedWidthMM:attachedMiddleWidth,attachedRampLengthMM:rampLength,sourceBankRole:'first-nominal'});}
+  const first=cuts(tFirst,tEnd[0]);for(let i=1;i<first.length;i++){const t=first[i],prev=first[i-1];append(1,firstAxis(t),vm(nominalWidth(t),t,'first-nominal'),{role:'adaptive-threshold-first-nominal',sourceIntervals:[...owned(firstIds,A,B,u(prev),i===first.length-1&&!firstHasCap?1:u(t)),...(i===first.length-1&&!firstHasCap?firstCapHalf:[])],originalSourceParameterStart:prev,originalSourceParameterEnd:t,firstWidthPolicy:t<=t2?'W':'source-gap-over-2',sourceAllocationEvent:t===t2?upper[0]:null});}
+  if(firstHasCap)append(1,firstTerminal,vm(nominalWidth(tEnd[0]),tEnd[0],'first-nominal'),{role:'adaptive-threshold-first-original-flat-cap-port',sourceIntervals:[...owned(firstIds,A,B,u(tEnd[0]),1),...firstCapHalf],originalSourceParameterStart:tEnd[0],originalSourceParameterEnd:1,sourceAxisConstruction:'finite-original-cap-normal-projection',flatTerminalOnOriginalCap:true,terminalNozzleDiskContained:false,nominalNozzleSideBanksContained:true,derivedSourceJunctionEvents:derivedEvents});
+  append(2,secondTerminal,vm(secondWidth(tEnd[1]),tEnd[1],'second-nominal'),{});
+  if(secondHasCap)append(2,secondBodyEnd,vm(secondWidth(tEnd[1]),tEnd[1],'second-nominal'),{role:'adaptive-threshold-second-original-flat-cap-port',sourceIntervals:[...owned(oppositeIds,C,D,1,tEnd[1]),...secondCapHalf],originalSourceParameterStart:1,originalSourceParameterEnd:tEnd[1],sourceAxisConstruction:'finite-original-cap-normal-projection',flatTerminalOnOriginalCap:true,terminalNozzleDiskContained:false,nominalNozzleSideBanksContained:true,derivedSourceJunctionEvents:derivedEvents});
+  const second=cuts(tSecond,tEnd[1]).reverse();for(let i=1;i<second.length;i++){const t=second[i],prev=second[i-1],residual=t<t2;append(2,secondAxis(t),vm(secondWidth(t),t,residual?'attached-residual':'second-nominal'),{role:prev<=t2?'adaptive-threshold-attached-residual':'adaptive-threshold-second-nominal',sourceIntervals:[...owned(oppositeIds,C,D,i===1&&!secondHasCap?1:prev,t),...(i===1&&!secondHasCap?secondCapHalf:[])],originalSourceParameterStart:prev,originalSourceParameterEnd:t,secondWidthPolicy:prev<=t2?'source-gap-minus-W':'source-gap-over-2',attachedResidual:prev<=t2,sourceAllocationEvent:t===t2?upper[0]:null});}
+  const arrival=cuts(t16,tSecond).reverse();for(let i=1;i<arrival.length;i++){const t=arrival[i],prev=arrival[i-1];append(2,t===t16?P:portPoint(t,secondPortEnd,tSecond),vm(secondWidth(t),t,'attached-residual'),{role:'adaptive-threshold-residual45-junction-port',sourceIntervals:owned(oppositeIds,C,D,prev,t),sourceJunction:branch,originalSourceParameterStart:prev,originalSourceParameterEnd:t,qualifiedLocalJunction:true,attachedResidual:true,derivedSourceJunctionEvents:derivedEvents,sourceCellAngleDegrees:45});}
+
+ }catch(error){return fail(error.message,{originalSourceEvents:events,sourceJunction:branch});}
+  
+  
+ const segments=paths.flatMap((path,p)=>path.slice(1).map((b,i)=>({a:path[i],b,p,i}))),equal=(a,b)=>a[0]===b[0]&&a[1]===b[1],cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
+ for(let i=0;i<segments.length;i++)for(let j=i+1;j<segments.length;j++){const a=segments[i],b=segments[j];if(a.p===b.p&&Math.abs(a.i-b.i)===1)continue;const d=sub(a.b,a.a),e=sub(b.b,b.a),den=cross(d,e),sourceContact=[a.a,a.b].some(p=>equal(p,P))&&[b.a,b.b].some(p=>equal(p,P));if(sourceContact){const da=sub(equal(a.a,P)?a.b:a.a,P),db=sub(equal(b.a,P)?b.b:b.a,P);if(!cross(da,db)&&dot(da,db)>0)return fail('overlapping-threshold-source-contact',{segments:[a,b],originalSourceEvents:events});continue;}if(den){const t=cross(sub(b.a,a.a),e)/den,u=cross(sub(b.a,a.a),d)/den;if(t>0&&t<1&&u>0&&u<1)return fail('proper-threshold-axis-crossing',{segments:[a,b],originalSourceEvents:events});}if(frameAdaptiveSegmentDistance(a.a,a.b,b.a,b.b)<=tol)return fail('remote-threshold-axis-contact',{segments:[a,b],originalSourceEvents:events});}
+  
+  
+  
+ let capReach=0;for(let p=0;p<paths.length;p++)for(let i=0;i<edges[p].length;i++){if(!edges[p][i].flatTerminalOnOriginalCap)continue;const a=paths[p][i],b=paths[p][i+1],d=sub(b,a),ell=L(d),normal=[-d[1]/ell,d[0]/ell],wa=vertices[p][i].feedWidth,wb=vertices[p][i+1].feedWidth;for(const point of[a.map((v,k)=>v+normal[k]*wa/2),a.map((v,k)=>v-normal[k]*wa/2),b.map((v,k)=>v+normal[k]*wb/2),b.map((v,k)=>v-normal[k]*wb/2)])capReach=Math.max(capReach,dot(sub(B,point),ex));}
+ if(!(capReach<=.02*W))return fail('finite-original-terminal-cell-exceeds-bounded-depth');
+ const firstPlane=B.map((v,k)=>v-vec1[k]*capReach/dot(vec1,ex)),secondPlane=D.map((v,k)=>v-vec2[k]*capReach/dot(vec2,ex)),sourceTerminalCell={capStart:B.slice(),capEnd:D.slice(),inwardNormal:ex.map(v=>-v),maximumDepthMM:capReach,maximumPermittedDepthMM:.02*W,originalEndCapEdgeIds:endCapIds,sourceCell:[firstPlane,secondPlane,D.slice(),B.slice()],allCompleteTerminalRibbonCornersIncluded:true,overlapChargeExemption:false};
+  
+  
+  
+ const sourceAllocationEventCells=[];for(const originalEvent of events.filter(e=>e.t>t16&&e.t<=t2&&(e.t===t2||e.kind==='immutable-original-target-bank-vertex'||e.kind==='immutable-original-first-bank-vertex'))){const eventT=originalEvent.t,Q2=Q(eventT),F2=F(eventT),station=p=>dot(sub(p,Q2),unit2);let eventLo=Math.min(0,station(F2)),eventHi=Math.max(0,station(F2));
+  for(let p=0;p<paths.length;p++)for(let i=0;i<edges[p].length;i++){const meta=edges[p][i],a=paths[p][i],b=paths[p][i+1],d=sub(b,a),ell=L(d),normal=[-d[1]/ell,d[0]/ell];for(const[j,t]of[[i,meta.originalSourceParameterStart],[i+1,meta.originalSourceParameterEnd]]){if(t!==eventT)continue;const point=paths[p][j],width=vertices[p][j].feedWidth;for(const sign of[-1,1]){const s=station(point.map((v,k)=>v+sign*normal[k]*width/2));eventLo=Math.min(eventLo,s);eventHi=Math.max(eventHi,s);}}}
+  if(Math.max(Math.abs(eventLo),Math.abs(eventHi))>.02*W)return fail('finite-original-source-event-cell-exceeds-bounded-depth');
+  const eventFirst=s=>A.map((v,k)=>v+vec1[k]*(dot(sub(Q2,A),unit2)+s)/dot(vec1,unit2)),eventSecond=s=>Q2.map((v,k)=>v+unit2[k]*s);sourceAllocationEventCells.push({originalEvent,sourceParameter:eventT,sourceCell:[eventFirst(eventLo),eventFirst(eventHi),eventSecond(eventHi),eventSecond(eventLo)],longitudinalBoundsMM:[eventLo,eventHi],maximumPermittedLongitudinalReachMM:.02*W,allCompleteIncidentRibbonEndSectionsIncluded:true,overlapChargeExemption:false});}
+  
+ const joinedPaths=[paths[0].concat(paths[1].slice(1)),paths[2]],joinedVertices=[vertices[0].concat(vertices[1].slice(1)),vertices[2]],joinedEdges=[edges[0].concat(edges[1]),edges[2]];
+ return{status:'adaptive-original-threshold-attached-ramp-transition',gap:gapStart,maximumGap:gapEnd,uniformGap:false,paths:joinedPaths,pathClosed:[false,false],pathVertexMetadata:joinedVertices,pathEdgeMetadata:joinedEdges,pathDepth:[0,0],actualPerimeters:1,requestedPerimeters:count,sourceGeometryUnchanged:true,sourceBoundaryOwnershipComplete:true,thinNominalException:false,originalSourceEvents:events,originalSourceBoundaryIntervals:edges.flatMap(es=>es.flatMap(e=>e.sourceIntervals)),sourceJunction:branch,derivedSourceJunctionEvents:derivedEvents,sourceTerminalCell,sourceAllocationEventCells,pathIndependentStart:[true,true],continuityPolicy:'one actual stem-to-attached-ramp-to-first-rail route with exact source endpoint and actual feed-width continuity; explicit wide-cap travel to a nominal independent return',attachedWidthRamp:{minimumFeedWidthMM:.6*W,rampLengthMM:.005*W,independentSubWidthStart:false,originalBodyRibbonsUnchanged:true,sharedSourceEventAsSinglePath:true},explicitSourceTravels:[{from:firstTerminal,to:secondTerminal,reason:'cumulative seam budget forbids an unproved wide-cap closure'}],sourceQualifiedJunctionContactsOnly:true,allocationPolicy:'single source bead below1.6W; nominalW plus attached gap-W residual until2W; two nominalgap-over-2 thereafter',terminalPolicy:'flat original-wide-cap-normal deposition terminals; sidebank nozzle contained, terminal nozzle disks explicitly uncontained; narrow stem finite-source underfill retained',coverageCertified:false,physicalPrintValidated:false};
+}
+
+function frameAdaptiveThresholdRampSourceProof(q,rings,W){
+ const fail=reason=>({passed:false,reason});if(!rings||rings.length!==1||rings[0].length<4||rings[0].length>256||!(W>0))return fail('bounded-original-threshold-source');
+ const ring=rings[0],n=q.paths?.reduce((sum,p)=>sum+Math.max(0,p.length-1),0)||0;if(n*(n-1)/2>4096)return fail('bounded-original-threshold-proof-work');if(!n||q.paths.length>3||q.pathEdgeMetadata?.length!==q.paths.length||q.pathVertexMetadata?.length!==q.paths.length)return fail('incomplete-original-threshold-path-shape');
+ const extent=Math.max(W,...ring.flat().map(Math.abs)),tol=2048*Number.EPSILON*extent;if(tol/W>1e-7)return fail('bounded-original-threshold-floating-uncertainty');
+ const d=frameAdaptiveVariableResidualTaper(rings,W,q.requestedPerimeters);if(d?.reason!=='varying-residual-allocation-transition-unproved')return fail('unqualified-original-threshold-profile');const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b),events=d.originalSourceEvents,support=[...d.sourceBank.edges,...d.oppositeBank.edges],caps=ring.map((_,i)=>i).filter(i=>!support.includes(i)),contexts=ring.map((a,i)=>({ring:0,edge:i,sourceStart:a,sourceEnd:ring[(i+1)%ring.length]}));if(!equal(q.originalSourceEvents,events))return fail('wrong-original-threshold-events');
+ const fractions=new DataView(new ArrayBuffer(8)),gcd=(a,b)=>{while(b){const t=a%b;a=b;b=t;}return a;},exact=x=>{if(x===0)return'0/1';if(x===1)return'1/1';fractions.setFloat64(0,x,false);const b=fractions.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;const e=E?E-1075:-1074;let den=1n;if(e<0)den<<=BigInt(-e);else n<<=BigInt(e);const g=gcd(n,den);return n/g+'/'+den/g;},owned=Array.from({length:ring.length},()=>[]),allIntervals=[];
+ let minClearance=Infinity,segments=0;
+ for(let p=0;p<q.paths.length;p++){const path=q.paths[p],v=q.pathVertexMetadata[p],edges=q.pathEdgeMetadata[p];if(!Array.isArray(path)||q.pathClosed?.[p]!==false||path.length<2||v?.length!==path.length||edges?.length!==path.length-1||v[0].feedWidth<W)return fail('invalid-independent-threshold-path');
+  for(let i=0;i<edges.length;i++){const a=path[i],b=path[i+1],m=edges[i];if(!a.every(Number.isFinite)||!b.every(Number.isFinite)||Math.hypot(a[0]-b[0],a[1]-b[1])<=tol)return fail('zero-or-invalid-threshold-axis');if(m.sourceRing!==0||m.sourceGeometryUnchanged!==true||m.sourceBoundaryOwnershipComplete!==true||m.allOriginalSourceIntervalsRetained!==true||!equal(m.sourceFirstBankEdgeIds,d.sourceBank.edges)||!equal(m.sourceOppositeBankEdgeIds,d.oppositeBank.edges)||!equal(m.sourceSupportingEdgeIds,support)||!equal(m.sourceFlatCapEdgeIds,caps)||!equal(m.originalSourceBoundaryContexts,contexts)||!equal(m.originalSourceEvents,events))return fail('wrong-original-threshold-bank-ownership');
+   for(const vertex of[v[i],v[i+1]])if(!(vertex.feedWidth>0)||vertex.feedWidth!==vertex.displayWidth||vertex.nozzleRadius!==W/2||vertex.thinNominalException!==false)return fail('invalid-threshold-width-nozzle-role');let clearance=Infinity;for(const edge of support)clearance=Math.min(clearance,frameAdaptiveSegmentDistance(a,b,ring[edge],ring[(edge+1)%ring.length]));if(clearance+tol<W/2)return fail('whole-original-threshold-finite-bank-nozzle-failure');minClearance=Math.min(minClearance,clearance);if(!frameAdaptiveOpenRibbonWithin(a,b,v[i].feedWidth,v[i+1].feedWidth,rings,tol))return fail('whole-original-threshold-ribbon-boundary-escape');
+   if(!Array.isArray(m.sourceIntervals)||!m.sourceIntervals.length)return fail('missing-original-threshold-interval-ownership');for(const s of m.sourceIntervals){if(s.ring!==0||!Number.isInteger(s.edge)||s.edge<0||s.edge>=ring.length||!Number.isFinite(s.u0)||!Number.isFinite(s.u1)||Math.min(s.u0,s.u1)<0||Math.max(s.u0,s.u1)>1||s.sourceGeometryUnchanged!==true||s.exactU0!==exact(s.u0)||s.exactU1!==exact(s.u1))return fail('invalid-exact-original-threshold-interval');allIntervals.push(s);if(s.u0!==s.u1)owned[s.edge].push([Math.min(s.u0,s.u1),Math.max(s.u0,s.u1)]);}segments++;
+  }
+ }
+ if(!equal(allIntervals,q.originalSourceBoundaryIntervals))return fail('original-threshold-interval-summary-mismatch');for(const list of owned){list.sort((a,b)=>a[0]-b[0]);if(!list.length||list[0][0]!==0||list.at(-1)[1]!==1)return fail('unowned-original-threshold-source-edge');for(let i=1;i<list.length;i++)if(list[i-1][1]!==list[i][0])return fail('original-threshold-interval-gap-or-overlap');}
+
+  
+  
+ const sub=(a,b)=>a.map((v,k)=>v-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],cross=(a,b)=>a[0]*b[1]-a[1]*b[0],sign=Math.sign(ring.reduce((sum,a,i)=>sum+cross(a,ring[(i+1)%ring.length]),0)),pointInMaterial=p=>p.length===2&&p.every(Number.isFinite)&&ring.every((a,i)=>{const d=sub(ring[(i+1)%ring.length],a);return sign*cross(d,sub(p,a))>=-tol*Math.hypot(...d);});
+ const cap=q.sourceTerminalCell;if(!cap||cap.sourceCell?.length!==4||!cap.allCompleteTerminalRibbonCornersIncluded||cap.overlapChargeExemption!==false||cap.maximumPermittedDepthMM!==.02*W||!(cap.maximumDepthMM>=0&&cap.maximumDepthMM<=.02*W)||!cap.originalEndCapEdgeIds?.length||cap.originalEndCapEdgeIds.some(id=>!caps.includes(id)))return fail('invalid-finite-original-threshold-cap-cell');const capVector=sub(cap.capEnd,cap.capStart),capLength=Math.hypot(...capVector),unit=capVector.map(v=>v/capLength),normal=cap.inwardNormal;if(!(capLength>0)||normal?.length!==2||!normal.every(Number.isFinite)||Math.abs(Math.hypot(...normal)-1)>tol/W||Math.abs(dot(normal,unit))>tol/W||!pointInMaterial(cap.capStart)||!pointInMaterial(cap.capEnd))return fail('invalid-finite-original-threshold-cap-authority');
+ let maximumDepth=0;for(const id of cap.originalEndCapEdgeIds)for(const point of[ring[id],ring[(id+1)%ring.length]]){const v=sub(point,cap.capStart),along=dot(v,unit);if(Math.abs(dot(v,normal))>tol||along< -tol||along>capLength+tol)return fail('nonoriginal-threshold-cap-edge');}for(const p of cap.sourceCell){if(!pointInMaterial(p))return fail('original-threshold-cap-cell-boundary-escape');const v=sub(p,cap.capStart),along=dot(v,unit),depth=dot(v,normal);if(along< -tol||along>capLength+tol||depth< -tol||depth>cap.maximumDepthMM+tol)return fail('invalid-finite-original-threshold-cap-depth');maximumDepth=Math.max(maximumDepth,depth);}if(Math.abs(maximumDepth-cap.maximumDepthMM)>tol)return fail('wrong-finite-original-threshold-cap-depth');
+ const originalFirstStart=d.sourceBank.start,originalFirstEnd=d.sourceBank.end,originalOppositeStart=d.oppositeBank.start,originalOppositeEnd=d.oppositeBank.end,firstVector=sub(originalFirstEnd,originalFirstStart),secondVector=sub(originalOppositeEnd,originalOppositeStart),ex=normal.map(v=>-v),near=(a,b)=>a.every((v,k)=>Math.abs(v-b[k])<=tol);if(!near(cap.capStart,originalFirstEnd)||!near(cap.capEnd,originalOppositeEnd))return fail('wrong-original-threshold-cap-endpoints');let actualCapReach=0,terminalSegments=0;for(let p=0;p<q.paths.length;p++)for(let i=0;i<q.pathEdgeMetadata[p].length;i++){if(!q.pathEdgeMetadata[p][i].flatTerminalOnOriginalCap)continue;terminalSegments++;const a=q.paths[p][i],b=q.paths[p][i+1],v=sub(b,a),length=Math.hypot(...v),n=[-v[1]/length,v[0]/length];for(const[j,point]of[[i,a],[i+1,b]])for(const side of[-1,1])actualCapReach=Math.max(actualCapReach,dot(sub(originalFirstEnd,point.map((x,k)=>x+side*n[k]*q.pathVertexMetadata[p][j].feedWidth/2)),ex));}if(terminalSegments!==2||Math.abs(actualCapReach-cap.maximumDepthMM)>tol)return fail('forged-original-threshold-cap-corner-depth');const expectedCapCell=[originalFirstEnd.map((v,k)=>v-firstVector[k]*actualCapReach/dot(firstVector,ex)),originalOppositeEnd.map((v,k)=>v-secondVector[k]*actualCapReach/dot(secondVector,ex)),originalOppositeEnd,originalFirstEnd];if(!cap.sourceCell.every((point,i)=>near(point,expectedCapCell[i])))return fail('forged-original-threshold-cap-source-cell');
+ const oppositeVector=secondVector,oppositeLength=Math.hypot(...oppositeVector),longitudinalUnit=oppositeVector.map(v=>v/oppositeLength);if(!q.sourceAllocationEventCells?.length||q.sourceAllocationEventCells.length>256)return fail('missing-finite-original-threshold-event-cell');for(const cell of q.sourceAllocationEventCells){const event=events.find(e=>equal(e,cell.originalEvent)&&e.t===cell.sourceParameter);if(!event||cell.sourceCell?.length!==4||cell.maximumPermittedLongitudinalReachMM!==.02*W||cell.overlapChargeExemption!==false||!cell.allCompleteIncidentRibbonEndSectionsIncluded||cell.longitudinalBoundsMM?.length!==2||cell.longitudinalBoundsMM.some(v=>!Number.isFinite(v)||Math.abs(v)>.02*W))return fail('invalid-finite-original-threshold-event-authority');const origin=d.oppositeBank.start.map((v,k)=>v+oppositeVector[k]*cell.sourceParameter);let lo=Infinity,hi=-Infinity;for(const p of cell.sourceCell){if(!pointInMaterial(p))return fail('original-threshold-event-cell-boundary-escape');const along=dot(sub(p,origin),longitudinalUnit);lo=Math.min(lo,along);hi=Math.max(hi,along);}if(Math.abs(lo-cell.longitudinalBoundsMM[0])>tol||Math.abs(hi-cell.longitudinalBoundsMM[1])>tol)return fail('wrong-finite-original-threshold-event-bounds');const u=dot(sub(origin,originalFirstStart),firstVector)/dot(firstVector,firstVector),firstAnchor=originalFirstStart.map((v,k)=>v+firstVector[k]*u),station=point=>dot(sub(point,origin),longitudinalUnit);let actualLo=Math.min(0,station(firstAnchor)),actualHi=Math.max(0,station(firstAnchor));for(let p=0;p<q.paths.length;p++)for(let i=0;i<q.pathEdgeMetadata[p].length;i++){const m=q.pathEdgeMetadata[p][i],a=q.paths[p][i],b=q.paths[p][i+1],v=sub(b,a),length=Math.hypot(...v),normal=[-v[1]/length,v[0]/length];for(const[j,t]of[[i,m.originalSourceParameterStart],[i+1,m.originalSourceParameterEnd]])if(t===event.t)for(const side of[-1,1]){const value=station(q.paths[p][j].map((x,k)=>x+side*normal[k]*q.pathVertexMetadata[p][j].feedWidth/2));actualLo=Math.min(actualLo,value);actualHi=Math.max(actualHi,value);}}if(Math.abs(actualLo-lo)>tol||Math.abs(actualHi-hi)>tol)return fail('forged-original-threshold-event-corner-bounds');const firstAt=s=>originalFirstStart.map((v,k)=>v+firstVector[k]*(dot(sub(origin,originalFirstStart),longitudinalUnit)+s)/dot(firstVector,longitudinalUnit)),secondAt=s=>origin.map((v,k)=>v+longitudinalUnit[k]*s),expectedCell=[firstAt(actualLo),firstAt(actualHi),secondAt(actualHi),secondAt(actualLo)];if(!cell.sourceCell.every((point,i)=>near(point,expectedCell[i])))return fail('forged-original-threshold-event-source-cell');}
+ return{passed:true,completeOriginalSource:true,completeFiniteBankNozzleClearance:true,completeDepositedRibbonWithinOriginalMaterial:true,exactOriginalIntervalOwnership:true,minimumNozzleSideBankClearanceMM:minClearance,segments};
+}
+
+function frameAdaptiveThresholdRampSeamLedger(q,W,maxPairs=4096){
+ const fail=reason=>({passed:false,reason,ceilingNormalizedAreaW2:.5}),S=1e8,origin=q.sourceJunction?.point;
+ if(!(W>0)||!origin||!q.paths?.length||q.paths.length>3)return fail('missing-threshold-seam-ledger-source');
+ const n=q.paths.reduce((sum,p)=>sum+Math.max(0,p.length-1),0);if(n*(n-1)/2>maxPairs)return fail('bounded-threshold-all-pair-work');
+ const contexts=q.pathEdgeMetadata?.flat().find(m=>m.originalSourceBoundaryContexts)?.originalSourceBoundaryContexts;if(!contexts||contexts.length>256)return fail('bounded-threshold-canonical-source');
+ const ordered=contexts.slice().sort((a,b)=>a.edge-b.edge),ring=ordered.map(m=>m.sourceStart);if(!ordered.every((m,i)=>m.ring===0&&m.edge===i&&m.sourceEnd.every((v,k)=>v===ring[(i+1)%ring.length][k])))return fail('nonoriginal-threshold-canonical-source');
+ const originalProof=frameAdaptiveThresholdRampSourceProof(q,[ring],W);if(!originalProof.passed)return fail(originalProof.reason);
+ const diagnostic=frameAdaptiveVariableResidualTaper([ring],W,q.requestedPerimeters);if(diagnostic?.reason!=='varying-residual-allocation-transition-unproved')return fail('unqualified-threshold-source-policy');
+ const events=diagnostic.originalSourceEvents,low=events.find(e=>e.kind==='immutable-source-allocation-threshold'&&e.thresholdMM===1.6*W),high=events.find(e=>e.kind==='immutable-source-allocation-threshold'&&e.thresholdMM===2*W);if(!low||!high)return fail('missing-original-allocation-events');
+ const sub=(a,b)=>a.map((v,k)=>v-b[k]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],A=diagnostic.sourceBank.start,B=diagnostic.sourceBank.end,C=diagnostic.oppositeBank.start,D=diagnostic.oppositeBank.end,v1=sub(B,A),v2=sub(D,C),normal=(v,toward)=>{const len=Math.hypot(...v),r=[-v[1]/len,v[0]/len],sign=Math.sign(dot(r,toward));return r.map(v=>v*sign);},N=normal(v1,sub(C,A)),M=normal(v2,sub(A,C)),eps=128*Number.EPSILON*Math.max(W,...[A,B,C,D].flat().map(Math.abs));
+ const at=t=>{const opposite=C.map((v,k)=>v+v2[k]*t),u=dot(sub(opposite,A),v1)/dot(v1,v1),first=A.map((v,k)=>v+v1[k]*u),g=t===low.t?1.6*W:t===high.t?2*W:dot(sub(opposite,first),N);return{F:first,Q:opposite,first:first.map((v,k)=>v+N[k]*W/2),residual:opposite.map((v,k)=>v+M[k]*W/2),width:g-W};};
+ const canonical=r=>{const first=r.role==='adaptive-threshold-first-nominal';if(!first&&r.role!=='adaptive-threshold-attached-residual')return false;const ts=[r.meta.originalSourceParameterStart,r.meta.originalSourceParameterEnd];if(ts.some(t=>!Number.isFinite(t)||t<low.t||t>high.t))return false;for(let i=0;i<2;i++){const value=at(ts[i]),p=first?value.first:value.residual,w=first?W:value.width;if(![r.a,r.b][i].every((x,k)=>Math.abs(x-p[k])<=eps)||Math.abs(r.widths[i]-w)>eps)return false;}return true;};
+  
+  
+  
+ const nominalCanonical=r=>{const first=r.role==='adaptive-threshold-first-nominal',second=r.role==='adaptive-threshold-second-nominal';if(!first&&!second)return false;const ts=[r.meta.originalSourceParameterStart,r.meta.originalSourceParameterEnd];if(ts.some(t=>!Number.isFinite(t)||t<high.t||t>1))return false;for(let i=0;i<2;i++){const value=at(ts[i]),g=dot(sub(value.Q,value.F),N),width=ts[i]===high.t?W:g/2,base=first?value.F:value.Q,normal=first?N:M,point=base.map((x,k)=>x+normal[k]*width/2);if(![r.a,r.b][i].every((x,k)=>Math.abs(x-point[k])<=eps)||Math.abs(r.widths[i]-width)>eps)return false;}return true;};
+ const ints=r=>r.map(p=>({X:Math.round((p[0]-origin[0])*S),Y:Math.round((p[1]-origin[1])*S)})),intersection=(subject,clip)=>{const c=new ClipperLib.Clipper(),out=[];c.AddPaths(subject,ClipperLib.PolyType.ptSubject,true);c.AddPaths(clip,ClipperLib.PolyType.ptClip,true);c.Execute(ClipperLib.ClipType.ctIntersection,out,ClipperLib.PolyFillType.pftNonZero,ClipperLib.PolyFillType.pftNonZero);return out;},area=ps=>Math.abs(ps.reduce((sum,p)=>sum+ClipperLib.Clipper.Area(p),0))/(S*S),perimeter=ps=>ps.reduce((sum,p)=>sum+p.reduce((v,a,i)=>v+Math.hypot(a.X-p[(i+1)%p.length].X,a.Y-p[(i+1)%p.length].Y)/S,0),0);
+ const ribbons=[];for(let p=0;p<q.paths.length;p++)for(let i=1;i<q.paths[p].length;i++){const a=q.paths[p][i-1],b=q.paths[p][i],d=sub(b,a),length=Math.hypot(...d),widths=[q.pathVertexMetadata[p][i-1].feedWidth,q.pathVertexMetadata[p][i].feedWidth],meta=q.pathEdgeMetadata[p][i-1];if(!(length>0&&widths.every(w=>Number.isFinite(w)&&w>0)))return fail('invalid-threshold-ramp-ribbon');const normal=[-d[1]/length,d[0]/length],polygon=[a.map((v,k)=>v+normal[k]*widths[0]/2),b.map((v,k)=>v+normal[k]*widths[1]/2),b.map((v,k)=>v-normal[k]*widths[1]/2),a.map((v,k)=>v-normal[k]*widths[0]/2)];if(polygon.some(point=>point.some((v,k)=>!Number.isFinite(v)||Math.abs(v-origin[k])*S>1e14)))return fail('threshold-seam-integer-range');const r={path:p,edge:i-1,a,b,widths,role:meta.role,meta,polygon:ints(polygon)};r.canonical=canonical(r);r.nominalCanonical=nominalCanonical(r);ribbons.push(r);}
+ const withinCell=(points,cell,error)=>{const cross=(a,b)=>a[0]*b[1]-a[1]*b[0],orientation=Math.sign(cell.reduce((sum,p,i)=>sum+cross(p,cell[(i+1)%cell.length]),0));return orientation&&points.every(p=>cell.every((a,i)=>{const d=sub(cell[(i+1)%cell.length],a);return orientation*cross(d,sub(p,a))>=-error*Math.hypot(...d);}));};
+ let charge=0,exempt=0,reserve=0,work=0,exemptPairs=0,localTerminalPairs=0,localAllocationEventPairs=0,correspondingNominalPairs=0,remotePairs=0;for(let i=0;i<ribbons.length;i++)for(let j=i+1;j<ribbons.length;j++){const a=ribbons[i],b=ribbons[j],all=intersection([a.polygon],[b.polygon]),allArea=area(all);work++;let allowedArea=0;
+  if(a.canonical&&b.canonical&&a.role!==b.role){const bounds=r=>[r.meta.originalSourceParameterStart,r.meta.originalSourceParameterEnd].sort((x,y)=>x-y),as=bounds(a),bs=bounds(b),lo=Math.max(as[0],bs[0],low.t),hi=Math.min(as[1],bs[1],high.t);if(hi>lo){const l=at(lo),h=at(hi),cell=ints([l.F,h.F,h.Q,l.Q]);allowedArea=area(intersection(all,[cell]));exemptPairs++;}}
+  const error=2/S+512*Number.EPSILON*Math.max(W,...[a.a,a.b,b.a,b.b].flat().map((v,k)=>Math.abs(v-origin[k%2])));
+  if(allArea>0){const points=all.flat().map(p=>[p.X/S+origin[0],p.Y/S+origin[1]]),bounds=r=>[r.meta.originalSourceParameterStart,r.meta.originalSourceParameterEnd].sort((x,y)=>x-y),as=bounds(a),bs=bounds(b),lo=Math.max(as[0],bs[0]),hi=Math.min(as[1],bs[1]),l=at(lo),h=at(hi),adjacent=a.path===b.path&&Math.abs(a.edge-b.edge)===1,corresponding=((a.canonical&&b.canonical&&lo>=low.t&&hi<=high.t)||(a.nominalCanonical&&b.nominalCanonical&&lo>=high.t&&hi<=1))&&a.role!==b.role&&hi>lo&&withinCell(points,[l.F,h.F,h.Q,l.Q],error),junction=points.every(p=>Math.hypot(p[0]-origin[0],p[1]-origin[1])<=.8*W+error),cap=q.sourceTerminalCell,terminal=(a.meta.flatTerminalOnOriginalCap||b.meta.flatTerminalOnOriginalCap)&&cap?.allCompleteTerminalRibbonCornersIncluded&&cap.maximumDepthMM<=.02*W&&withinCell(points,cap.sourceCell,error),event=(q.sourceAllocationEventCells||[]).some(e=>events.some(original=>original.exactT===e.originalEvent.exactT&&original.t===e.sourceParameter&&original.t>low.t&&original.t<=high.t&&(original.t===high.t||original.kind==='immutable-original-target-bank-vertex'||original.kind==='immutable-original-first-bank-vertex'))&&e.allCompleteIncidentRibbonEndSectionsIncluded&&e.maximumPermittedLongitudinalReachMM===.02*W&&e.longitudinalBoundsMM.every(x=>Math.abs(x)<=.02*W)&&[a,b].every(r=>[r.meta.originalSourceParameterStart,r.meta.originalSourceParameterEnd].includes(e.sourceParameter))&&withinCell(points,e.sourceCell,error));if(!adjacent&&!corresponding&&!junction&&!terminal&&!event)remotePairs++;if(corresponding&&a.nominalCanonical&&b.nominalCanonical)correspondingNominalPairs++;if(terminal&&!adjacent&&!corresponding&&!junction)localTerminalPairs++;if(event&&!adjacent&&!corresponding&&!junction&&!terminal)localAllocationEventPairs++;}
+  charge+=Math.max(0,allArea-allowedArea);exempt+=allowedArea;reserve+=(perimeter([a.polygon,b.polygon])+4*W)*error*2+64*error*error;
+ }
+ const upper=(charge+reserve)/(W*W);return{passed:upper<=.5&&remotePairs===0,reason:remotePairs?'remote-threshold-printed-footprint-overlap':upper<=.5?'strict-source-interval-pair-ledger-within-budget':'cumulative-threshold-seam-budget-exceeded',chargedAreaMM2:charge,exemptCanonicalOngoingResidualAreaMM2:exempt,representationReserveMM2:reserve,chargedNormalizedAreaW2:charge/(W*W),chargedNormalizedAreaW2Upper:upper,equivalentPhysicalLengthMM:(charge+reserve)/W,ceilingNormalizedAreaW2:.5,ceilingEquivalentPhysicalLengthMM:.5*W,pairWork:work,exemptPairs,remotePrintedFootprintOverlapPairs:remotePairs,localTerminalPairsFullyCharged:localTerminalPairs,localOriginalAllocationEventPairsFullyCharged:localAllocationEventPairs,correspondingNominalAllocationPairsFullyCharged:correspondingNominalPairs,originalSourceProof:originalProof,oldFixedFootprintComparisonRequired:false,baseline:'Only unchanged canonical first-W and gap-W residual ribbons, and only their positive common original source cell strictly inside1.6W..2W. All stem, cap, connector, adjacency, event turn and other pair deposition counts.',coverageCertified:false,physicalPrintValidated:false};
+}
+
+function frameAdaptiveThresholdQualifiedRampTransition(rings,W,count=1){const candidate=frameAdaptiveThresholdRampTransition(rings,W,count);if(!candidate||!candidate.status.startsWith('adaptive-'))return null;const seam=frameAdaptiveThresholdRampSeamLedger(candidate,W);return seam.passed?{...candidate,addedSeamLedger:seam}:null;}
+function frameAdaptiveThresholdRampNeighborSafe(q,index,componentIndex,W){
+ if(q.status!=='adaptive-original-threshold-attached-ramp-transition')return true;if(index.status!=='complete')return false;
+  
+  
+  
+ const bounds=[Infinity,Infinity,-Infinity,-Infinity];for(let p=0;p<q.paths.length;p++)for(let i=0;i<q.paths[p].length;i++){const a=q.paths[p][i],r=Math.max(W/2,q.pathVertexMetadata[p][i].feedWidth/2);bounds[0]=Math.min(bounds[0],a[0]-r);bounds[1]=Math.min(bounds[1],a[1]-r);bounds[2]=Math.max(bounds[2],a[0]+r);bounds[3]=Math.max(bounds[3],a[1]+r);}
+ for(let i=0;i<index.bounds.length;i++){if(i===componentIndex)continue;if(++index.boxChecks>index.maximumBoxChecks)return false;const b=index.bounds[i];if(bounds[0]<=b[2]+W&&bounds[2]>=b[0]-W&&bounds[1]<=b[3]+W&&bounds[3]>=b[1]-W)return false;}return true;
+}
+function frameAdaptivePlacement(rings,W,count=1){const previous=frameAdaptivePlacementBeforeThresholdRamp(rings,W,count);if(previous.status.startsWith('adaptive-'))return previous;return frameAdaptiveThresholdQualifiedRampTransition(rings,W,count)||previous;}
+function frameAdaptivePlacementBeforeThresholdRamp(rings,W,count=1){const previous=frameAdaptivePlacementBeforeVariableResidual(rings,W,count);if(previous.status.startsWith('adaptive-'))return previous;const candidate=frameAdaptiveVariableResidualTaper(rings,W,count);return candidate&&candidate.status.startsWith('adaptive-')?candidate:previous;}
+function frameAdaptivePlacementBeforeVariableResidual(rings,W,count=1){const straight=frameAdaptiveStraightStrip(rings,W,count);if(straight)return straight;const flatTaper=frameAdaptiveFlatTaper(rings,W,count);if(flatTaper)return flatTaper;if(rings.length===1&&rings[0].length>=8){const junction=frameAdaptiveOrthogonalJunction(rings,W,count);if(junction.status.startsWith('adaptive-'))return junction;}if(rings.length===2){const convex=frameAdaptiveConvexAnnulus(rings,W,count,frameAdaptiveDepthAllocation);if(convex.status.startsWith('adaptive-')||convex.reason==='varying-convex-annulus-gap')return convex;}return rings.length===1?(frameAdaptiveOpenPrecheck(rings,W)||frameAdaptiveOpenPlacement(rings,W)):frameAdaptiveAnnulus(rings,W);}
 
 function frameAdaptiveOpenPrecheck(rings,W){
   if(rings.length!==1)return null;const ring=rings[0],tol=Math.max(2e-6,W*1e-8);
-  // A convex region wider than the permitted single bead in every direction
-  // cannot be an open two-bank strip. This rejects broad solids before the
-  // exact source-event solver; it never edits or removes their material.
+   
+   
+   
   let sign=0,convex=true;
   for(let i=0;i<ring.length;i++){const c=frameAdaptiveCross(ring[i],ring[(i+1)%ring.length],ring[(i+2)%ring.length]);if(Math.abs(c)<=W*W*1e-12)continue;if(sign&&Math.sign(c)!==sign){convex=false;break;}sign=Math.sign(c);}
   if(convex&&sign){let minimum=Infinity;for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],length=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!length)continue;let maximum=0;for(const q of ring)maximum=Math.max(maximum,Math.abs(frameAdaptiveCross(a,b,q))/length);minimum=Math.min(minimum,maximum);}if(minimum>1.6*W+tol*4)return{status:'fixed-fallback',reason:'convex-region-exceeds-single-bead-width',witness:{minimumCaliperWidthMM:minimum,maximumOpenWidthMM:1.6*W}};}
-  // An interior disk larger than every allowable single-bead half width is
-  // another bounded rejection witness for this whole-component strip gate.
+   
+   
   let A=0,x=0,y=0;const origin=ring[0];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],cross=(a[0]-origin[0])*(b[1]-origin[1])-(b[0]-origin[0])*(a[1]-origin[1]);A+=cross;x+=(a[0]+b[0]-2*origin[0])*cross;y+=(a[1]+b[1]-2*origin[1])*cross;}
   if(A){const center=[origin[0]+x/(3*A),origin[1]+y/(3*A)];if(frameAdaptiveInside(center,rings)){let radius=Infinity;for(let i=0;i<ring.length;i++)radius=Math.min(radius,frameAdaptiveDistance(center,ring[i],ring[(i+1)%ring.length]));if(radius>.8*W+tol*4)return{status:'fixed-fallback',reason:'interior-region-exceeds-single-bead-width',witness:{center,interiorDiskRadiusMM:radius,maximumOpenHalfWidthMM:.8*W}};}}
   return null;
@@ -8709,29 +9216,29 @@ function frameAdaptiveConvexAnnulus(rings,W,count=1,allocator){
   const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),area=r=>{const o=r[0];return r.reduce((s,p,i)=>s+(p[0]-o[0])*(r[(i+1)%r.length][1]-o[1])-(p[1]-o[1])*(r[(i+1)%r.length][0]-o[0]),0)/2;},dot=(a,b)=>a[0]*b[0]+a[1]*b[1],distance=(p,a,b)=>{const x=b[0]-a[0],y=b[1]-a[1],L=x*x+y*y,t=L?Math.max(0,Math.min(1,((p[0]-a[0])*x+(p[1]-a[1])*y)/L)):0;return Math.hypot(p[0]-a[0]-t*x,p[1]-a[1]-t*y);},segmentDistance=(a,b,c,d)=>{tick();const x=b[0]-a[0],y=b[1]-a[1],u=d[0]-c[0],v=d[1]-c[1],D=x*v-y*u;if(D){const dx=c[0]-a[0],dy=c[1]-a[1],s=(dx*v-dy*u)/D,t=(dx*y-dy*x)/D;if(s>=0&&s<=1&&t>=0&&t<=1)return 0;}return Math.min(distance(a,c,d),distance(b,c,d),distance(c,a,b),distance(d,a,b));},inside=(p,rs)=>{let odd=false;for(const r of rs)for(let i=0,j=r.length-1;i<r.length;j=i++){const a=r[j],b=r[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])odd=!odd;}return odd;};
   const areas=rings.map(area),outerIndex=Math.abs(areas[0])>Math.abs(areas[1])?0:1,innerIndex=1-outerIndex,outer=rings[outerIndex],inner=rings[innerIndex];if(areas.some(a=>!a))return fail('zero-area-original-annulus-ring');
   const planes=rings.map((r,ring)=>r.map((a,edge)=>{const b=r[(edge+1)%r.length],L=Math.hypot(b[0]-a[0],b[1]-a[1]);if(!L)throw Error('zero-original-annulus-edge');const s=Math.sign(areas[ring]),n=[s*(a[1]-b[1])/L,s*(b[0]-a[0])/L];return{ring,edge,n,h:dot(n,a),a,b};}));
-  // Tiny grid kinks may be nonconvex. They are never welded: construction uses
-  // their original planes, and complete original-boundary guards follow.
+   
+   
   let convexDeficit=0;for(let ring=0;ring<2;ring++)for(const plane of planes[ring])for(const p of rings[ring]){tick();convexDeficit=Math.max(convexDeficit,plane.h-dot(plane.n,p));}
-  // A short rounded subdivision edge can amplify a micrometre kink when its
-  // infinite line is extrapolated. Bound the actual original-bank deviation
-  // from its convex envelope, rather than that extrapolation. This envelope
-  // only qualifies the input; every ORIGINAL plane still constructs the axis.
+   
+   
+   
+   
   let envelopeDeficit=0;for(const ring of rings){const sorted=ring.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]),chain=points=>{const h=[];for(const p of points){while(h.length>1&&cross(h.at(-2),h.at(-1),p)<=0)h.pop();h.push(p);}return h;},lo=chain(sorted),hi=chain(sorted.slice().reverse()),hull=[...lo.slice(0,-1),...hi.slice(0,-1)];if(hull.length<3)return fail('degenerate-original-annulus-bank');for(const p of ring){let d=Infinity;for(let i=0;i<hull.length;i++){tick();d=Math.min(d,distance(p,hull[i],hull[(i+1)%hull.length]));}envelopeDeficit=Math.max(envelopeDeficit,d);}}if(envelopeDeficit>sourceTol)return fail('nonconvex-original-annulus-bank',{maximumConvexEnvelopeDeficitMM:envelopeDeficit,allowedNumericDeficitMM:sourceTol});
   const boundaries=planes.flat();for(let i=0;i<boundaries.length;i++)for(let j=0;j<i;j++){const a=boundaries[i],b=boundaries[j],r=rings[a.ring],adjacent=a.ring===b.ring&&((a.edge+1)%r.length===b.edge||(b.edge+1)%r.length===a.edge);if(adjacent)continue;if(Math.max(a.a[0],a.b[0])<Math.min(b.a[0],b.b[0])-tol||Math.max(b.a[0],b.b[0])<Math.min(a.a[0],a.b[0])-tol||Math.max(a.a[1],a.b[1])<Math.min(b.a[1],b.b[1])-tol||Math.max(b.a[1],b.b[1])<Math.min(a.a[1],a.b[1])-tol)continue;if(segmentDistance(a.a,a.b,b.a,b.b)<=tol)return fail('original-annulus-boundary-contact',{first:{ring:a.ring,edge:a.edge},second:{ring:b.ring,edge:b.edge}});}
   if(inner.some(p=>!inside(p,[outer])))return fail('original-annulus-rings-not-nested');
   const gaps=planes[outerIndex].map(plane=>{let s=Infinity;for(const p of inner){tick();s=Math.min(s,dot(plane.n,p)-plane.h);}return s;}),gap=Math.min(...gaps),maximumGap=Math.max(...gaps),uniformBound=Math.max(16e-6,W*4e-5);
   if(gap<=sourceTol)return fail('original-annulus-banks-contact');if(maximumGap-gap>uniformBound)return fail('varying-convex-annulus-gap',{minimumGap:gap,maximumGap,uniformBoundMM:uniformBound});
-  const defaultAllocation=(gap,W,count)=>{const g=gap/W,e=8*Number.EPSILON*Math.max(1,g);let widths,positions;if(g<.6)return null;if(g<1){widths=[1];positions=[g/2];}else if(g<=1.6){widths=[g];positions=[g/2];}else if(g<2){widths=[1,1];positions=[.5,g-.5];}else if(g<=2.8){widths=[g/2,g/2];positions=[g/4,3*g/4];}else{const n=Math.floor(g);if(n>2*count)return null;const r=g-n;widths=Array(n).fill(1);if(r<=.6+e)widths[n-1]+=r;else{widths[n-2]+=r/2;widths[n-1]+=r/2;}let at=0;positions=widths.map(w=>{const p=at+w/2;at+=w;return p;});}return widths.map((w,i)=>({width:w*W,distance:positions[i]*W,thinNominalException:g<1,depth:Math.min(i,widths.length-1-i)})).sort((a,b)=>a.depth-b.depth||a.distance-b.distance);};
+  const defaultAllocation=(gap,W,count)=>{const g=gap/W,e=8*Number.EPSILON*Math.max(1,g);let widths,positions;if(g<.6)return null;if(g<1){widths=[1];positions=[g/2];}else if(g<=1.6){widths=[g];positions=[g/2];}else if(g<2){widths=[1,g-1];positions=[.5,g-.5];}else if(g<=2.8){widths=[g/2,g/2];positions=[g/4,3*g/4];}else{const n=Math.floor(g);if(n>2*count)return null;const r=g-n;widths=Array(n).fill(1);if(r<=.6+e)widths[n-1]+=r;else{widths[n-2]+=r/2;widths[n-1]+=r/2;}let at=0;positions=widths.map(w=>{const p=at+w/2;at+=w;return p;});}return widths.map((w,i)=>({width:w*W,distance:positions[i]*W,thinNominalException:g<1,...(g>1.6&&g<2&&i===1?{attachedResidual:true,residualPolicy:'shifted-gap-minus-W-with-nominal-nozzle'}:{}),depth:Math.min(i,widths.length-1-i)})).sort((a,b)=>a.depth-b.depth||a.distance-b.distance);};
   let beads=(allocator||defaultAllocation)(gap,W,count),policy='local-width-allocation';
   if(!beads&&gap>2.8*W){beads=[];policy='count-limited-boundary-prefix';for(let depth=0;depth<count&&(2*depth+1)*W<gap;depth++){beads.push({width:W,distance:(depth+.5)*W,depth,thinNominalException:false},{width:W,distance:gap-(depth+.5)*W,depth,thinNominalException:false});}}
-  if(!beads?.length||beads.some(b=>!Number.isFinite(b.width)||b.width<W||b.width>1.6*W+tol||!(b.distance>0&&b.distance<gap)||b.depth>=count))return fail('convex-annulus-allocation-unavailable');
+  if(!beads?.length||beads.some(b=>!Number.isFinite(b.width)||b.width<W&&!frameAdaptiveAttachedResidual(beads,b,gap,W)||b.width>1.6*W+tol||!(b.distance>0&&b.distance<gap)||b.depth>=count))return fail('convex-annulus-allocation-unavailable');
   const bbox=[Math.min(...outer.map(p=>p[0])),Math.min(...outer.map(p=>p[1])),Math.max(...outer.map(p=>p[0])),Math.max(...outer.map(p=>p[1]))];
   function axis(distanceMM){let poly=[{p:[bbox[0],bbox[1]],incoming:null},{p:[bbox[2],bbox[1]],incoming:null},{p:[bbox[2],bbox[3]],incoming:null},{p:[bbox[0],bbox[3]],incoming:null}],collapsed=0;for(const plane of planes[outerIndex]){const next=[];for(let i=0;i<poly.length;i++){tick();const a=poly[i],b=poly[(i+1)%poly.length],fa=dot(plane.n,a.p)-plane.h-distanceMM,fb=dot(plane.n,b.p)-plane.h-distanceMM,A=fa>=0,B=fb>=0,cut=()=>{const t=fa/(fa-fb);return a.p.map((v,k)=>v+(b.p[k]-v)*t);};if(A&&B)next.push({p:b.p,incoming:b.incoming});else if(A&&!B)next.push({p:cut(),incoming:b.incoming});else if(!A&&B){next.push({p:cut(),incoming:plane});next.push({p:b.p,incoming:b.incoming});}}poly=[];for(const v of next){if(poly.length&&v.p[0]===poly.at(-1).p[0]&&v.p[1]===poly.at(-1).p[1]){collapsed++;continue;}poly.push(v);}if(poly.length>1&&poly[0].p[0]===poly.at(-1).p[0]&&poly[0].p[1]===poly.at(-1).p[1]){poly[0].incoming=poly.pop().incoming;collapsed++;}if(poly.length<3)return null;}if(poly.some(v=>!v.incoming))return null;return{path:poly.map(v=>v.p),edgePlanes:poly.map((_,i)=>poly[(i+1)%poly.length].incoming),collapsed};}
   function ribbonWithin(a,b,width){const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy);if(!L)return false;const n=[-dy/L,dx/L],q=[a.map((v,k)=>v+n[k]*width/2),b.map((v,k)=>v+n[k]*width/2),b.map((v,k)=>v-n[k]*width/2),a.map((v,k)=>v-n[k]*width/2)],s=Math.sign(area(q));if(!s)return false;const near=p=>inside(p,rings)||boundaries.some(e=>distance(p,e.a,e.b)<=sourceTol);if(q.some(p=>!near(p)))return false;for(const edge of boundaries){tick();let lo=0,hi=1,empty=false;for(let i=0;i<4;i++){const A=q[i],B=q[(i+1)%4],len=Math.hypot(B[0]-A[0],B[1]-A[1]),f0=s*cross(A,B,edge.a)/len,f1=s*cross(A,B,edge.b)/len,d=f1-f0;if(!d){if(f0<=sourceTol){empty=true;break;}}else{const t=(sourceTol-f0)/d;if(d>0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}if(lo>=hi){empty=true;break;}}if(!empty&&hi-lo>32*Number.EPSILON)return false;}return true;}
   const paths=[],pathVertexMetadata=[],pathEdgeMetadata=[],pathDepth=[],sourceBefore=JSON.stringify(rings);let numericAxisEventsCollapsed=0;
   for(let bead=0;bead<beads.length;bead++){const allocation=beads[bead],built=axis(allocation.distance);if(!built)return fail('convex-annulus-axis-disappeared',{bead,distanceMM:allocation.distance});const path=built.path,metadata=[];numericAxisEventsCollapsed+=built.collapsed;
-   for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];let clearance=Infinity;for(const edge of boundaries)clearance=Math.min(clearance,segmentDistance(a,b,edge.a,edge.b));if(clearance<=tol||!inside([(a[0]+b[0])/2,(a[1]+b[1])/2],rings))return fail('convex-annulus-axis-outside-original-material',{bead,edge:i,clearance});if(!allocation.thinNominalException&&clearance+sourceTol<Math.max(W,allocation.width)/2)return fail('convex-annulus-whole-nozzle-clearance',{bead,edge:i,clearance,required:Math.max(W,allocation.width)/2});if(!allocation.thinNominalException&&!ribbonWithin(a,b,allocation.width))return fail('convex-annulus-whole-ribbon-containment',{bead,edge:i});const plane=built.edgePlanes[i];metadata.push({role:'adaptive-convex-annulus',bead,beadDepth:allocation.depth,sourceBoundaryRole:'immutable-annulus-material',sourceBoundaryAuthority:'both-complete-original-rings',outerSupportingEdge:{ring:plane.ring,edge:plane.edge},outerSupportingEdgeEndpoints:[plane.a.slice(),plane.b.slice()],originalEdgeHalfplaneOffsetMM:allocation.distance,sourceGeometryUnchanged:true,exactIntervalCorrespondence:false,individualHolePartnerResolved:false,wholeSegmentClearance:clearance,boundaryToleranceMM:sourceTol,nozzleBoundaryContained:!allocation.thinNominalException,ribbonBoundaryContained:!allocation.thinNominalException,thinNominalException:!!allocation.thinNominalException});}
-   paths.push(path);pathDepth.push(allocation.depth);pathEdgeMetadata.push(metadata);pathVertexMetadata.push(path.map(()=>({feedWidth:allocation.width,displayWidth:allocation.width,nozzleRadius:W/2,thinNominalException:!!allocation.thinNominalException})));
+   for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length];let clearance=Infinity;for(const edge of boundaries)clearance=Math.min(clearance,segmentDistance(a,b,edge.a,edge.b));if(clearance<=tol||!inside([(a[0]+b[0])/2,(a[1]+b[1])/2],rings))return fail('convex-annulus-axis-outside-original-material',{bead,edge:i,clearance});if(!allocation.thinNominalException&&clearance+sourceTol<Math.max(W,allocation.width)/2)return fail('convex-annulus-whole-nozzle-clearance',{bead,edge:i,clearance,required:Math.max(W,allocation.width)/2});if(!allocation.thinNominalException&&!ribbonWithin(a,b,allocation.width))return fail('convex-annulus-whole-ribbon-containment',{bead,edge:i});const plane=built.edgePlanes[i];metadata.push({role:'adaptive-convex-annulus',bead,...(allocation.attachedResidual?{attachedResidual:true,residualPolicy:allocation.residualPolicy,residualFeedWidthMM:allocation.width,residualDisplayWidthMM:allocation.width,nominalNozzleRadius:W/2,residualAxisDistanceFromSourceBankMM:allocation.distance,oppositeSourceBoundaryGapMM:(2*W-gap)/2,intentionalLocalTrackOverlapMM:(2*W-gap)/2}:{}),beadDepth:allocation.depth,sourceBoundaryRole:'immutable-annulus-material',sourceBoundaryAuthority:'both-complete-original-rings',outerSupportingEdge:{ring:plane.ring,edge:plane.edge},outerSupportingEdgeEndpoints:[plane.a.slice(),plane.b.slice()],originalEdgeHalfplaneOffsetMM:allocation.distance,sourceGeometryUnchanged:true,exactIntervalCorrespondence:false,individualHolePartnerResolved:false,wholeSegmentClearance:clearance,boundaryToleranceMM:sourceTol,nozzleBoundaryContained:!allocation.thinNominalException,ribbonBoundaryContained:!allocation.thinNominalException,thinNominalException:!!allocation.thinNominalException});}
+   paths.push(path);pathDepth.push(allocation.depth);pathEdgeMetadata.push(metadata);pathVertexMetadata.push(path.map(()=>({feedWidth:allocation.width,displayWidth:allocation.width,nozzleRadius:W/2,thinNominalException:!!allocation.thinNominalException,...(allocation.attachedResidual?{attachedResidual:true,residualPolicy:allocation.residualPolicy,nominalNozzleRadius:W/2}:{})})));
   }
   if(JSON.stringify(rings)!==sourceBefore)return fail('original-annulus-source-mutated');
   return{status:'adaptive-convex-annulus',gap,maximumGap,uniformGap:true,uniformGapToleranceMM:uniformBound,convexHalfplaneDeficitMM:convexDeficit,convexEnvelopeSourceDeviationMM:envelopeDeficit,paths,pathClosed:paths.map(()=>true),pathVertexMetadata,pathEdgeMetadata,pathDepth,actualPerimeters:Math.max(...pathDepth)+1,allocationPolicy:policy,thinNominalException:beads.some(b=>b.thinNominalException),sourceGeometryUnchanged:true,sourceBoundaryAuthority:'both-complete-original-rings',originalBoundaryEdgeIds:rings.map((r,ring)=>({ring,edges:r.map((_,edge)=>edge)})),exactIntervalCorrespondence:false,individualHolePartnerResolved:false,numericAxisEventsCollapsed,coverageCertified:false,physicalPrintValidated:false,work};
@@ -8742,14 +9249,15 @@ function frameAdaptiveDepthAllocation(gap,W,count){
   if(!beads&&g>2.8){const n=Math.floor(g);if(n>2*count)return null;const r=g-n,widths=Array(n).fill(1);if(r<=.6+eps)widths[n-1]+=r;else{widths[n-2]+=r/2;widths[n-1]+=r/2;}let at=0;beads=widths.map(width=>{const q={width:width*W,distance:(at+width/2)*W,thinNominalException:false};at+=width;return q;});}
   if(!beads)return null;return beads.map((q,i)=>({...q,depth:Math.min(i,beads.length-1-i),sourceBoundaryRole:i<=beads.length/2?'outer':'opposing-boundary'})).sort((a,b)=>a.depth-b.depth||a.distance-b.distance);
 }
-function frameAdaptiveStraightStrip(rings,W,count){
+function frameAdaptiveStraightStrip(rings,W,count){const residual=frameAdaptiveResidualStraightStrip(rings,W,count,frameAdaptiveStraightStripOriginal);return residual||frameAdaptiveStraightStripOriginal(rings,W,count);}
+function frameAdaptiveStraightStripOriginal(rings,W,count){
   if(rings.length!==1||rings[0].length!==4)return null;const ring=rings[0],tol=Math.max(2e-6,W*1e-8);let first=0;for(let i=1;i<4;i++)if(Math.hypot(...ring[i].map((v,k)=>v-ring[(i+1)%4][k]))>Math.hypot(...ring[first].map((v,k)=>v-ring[(first+1)%4][k])))first=i;
   const [a,b,c,d]=Array.from({length:4},(_,i)=>ring[(first+i)%4]),L=Math.hypot(b[0]-a[0],b[1]-a[1]),u=[(b[0]-a[0])/L,(b[1]-a[1])/L],signed=(c[0]-b[0])*(-u[1])+(c[1]-b[1])*u[0],g=Math.abs(signed),normal=signed>0?[-u[1],u[0]]:[u[1],-u[0]];
   if(L<=W||g>L||Math.abs((c[0]-b[0])*u[0]+(c[1]-b[1])*u[1])>tol||Math.hypot(d[0]-(a[0]+normal[0]*g),d[1]-(a[1]+normal[1]*g))>tol)return null;
   const beads=frameAdaptiveDepthAllocation(g,W,count);if(!beads)return null;const trim=0;
   const paths=[],pathVertexMetadata=[],pathEdgeMetadata=[],pathDepth=[];
   for(const bead of beads){const p=[a[0]+normal[0]*bead.distance+u[0]*trim,a[1]+normal[1]*bead.distance+u[1]*trim],q=[b[0]+normal[0]*bead.distance-u[0]*trim,b[1]+normal[1]*bead.distance-u[1]*trim];let clearance=Infinity;for(let i=0;i<4;i++)clearance=Math.min(clearance,frameAdaptiveSegmentDistance(p,q,ring[i],ring[(i+1)%4]));const midpoint=p.map((value,k)=>(value+q[k])/2),sideClearance=Math.min(frameAdaptiveSegmentDistance(p,q,a,b),frameAdaptiveSegmentDistance(p,q,c,d));if(!frameAdaptiveInside(midpoint,rings)||!bead.thinNominalException&&sideClearance+tol*4<W/2)return null;if(!bead.thinNominalException&&!frameAdaptiveOpenRibbonWithin(p,q,bead.width,bead.width,rings,tol*4))return null;
-    paths.push([p,q]);pathDepth.push(bead.depth);pathVertexMetadata.push([p,q].map(()=>({feedWidth:bead.width,displayWidth:bead.width,nozzleRadius:W/2,thinNominalException:bead.thinNominalException})));pathEdgeMetadata.push([{role:'adaptive-straight-channel',beadDepth:bead.depth,sourceRing:0,sourceEdge:first,targetEdge:(first+2)%4,sourceGeometryUnchanged:true,sourceBoundaryEndpoints:[a,b,c,d],wholeSegmentClearance:clearance,boundaryToleranceMM:tol*4,terminalNozzleClearance:trim,transverseNozzleClearance:sideClearance,terminalNozzleDiskContained:false,flatTerminalOnOriginalCap:true,flatRibbonTerminalContained:!bead.thinNominalException,thinNominalException:bead.thinNominalException}]);
+    paths.push([p,q]);pathDepth.push(bead.depth);pathVertexMetadata.push([p,q].map(()=>({feedWidth:bead.width,displayWidth:bead.width,nozzleRadius:W/2,thinNominalException:bead.thinNominalException,...(bead.attachedResidual?{attachedResidual:true,residualPolicy:bead.residualPolicy,nominalNozzleRadius:W/2}:{})})));pathEdgeMetadata.push([{role:'adaptive-straight-channel',beadDepth:bead.depth,sourceRing:0,sourceEdge:first,targetEdge:(first+2)%4,sourceGeometryUnchanged:true,sourceBoundaryEndpoints:[a,b,c,d],wholeSegmentClearance:clearance,boundaryToleranceMM:tol*4,terminalNozzleClearance:trim,transverseNozzleClearance:sideClearance,terminalNozzleDiskContained:false,flatTerminalOnOriginalCap:true,flatRibbonTerminalContained:!bead.thinNominalException,thinNominalException:bead.thinNominalException}]);
   }
   return{status:'adaptive-straight-channel',gap:g,maximumGap:g,uniformGap:true,paths,pathClosed:paths.map(()=>false),pathVertexMetadata,pathEdgeMetadata,pathDepth,actualPerimeters:Math.max(...pathDepth)+1,thinNominalException:beads.some(q=>q.thinNominalException),terminalPolicy:'flat-output-on-original-cap',coverageCertified:false,physicalPrintValidated:false};
 }
@@ -8773,13 +9281,433 @@ function frameAdaptiveSplitGroups(groups){
 }
 
 function frameAdaptivePreparedSize(value){const known=new Set(),buffers=new Set();let bytes=0;function visit(q){if(q==null)return;if(typeof q==='number'){bytes+=8;return;}if(typeof q==='boolean'){bytes++;return;}if(typeof q==='string'){bytes+=q.length*2;return;}if(typeof q!=='object'||known.has(q))return;known.add(q);bytes+=32;if(ArrayBuffer.isView(q)){if(!buffers.has(q.buffer)){buffers.add(q.buffer);bytes+=q.buffer.byteLength;}return;}if(q instanceof ArrayBuffer){if(!buffers.has(q)){buffers.add(q);bytes+=q.byteLength;}return;}for(const[k,v]of Object.entries(q)){bytes+=k.length*2;visit(v);}}visit(value);return bytes;}
+function frameResolveNominalSpiralLineage({sourceRings,levels,componentId='component',W=1,maxWork=1000000}){
+ let work=0;const unresolved=(reason,witness)=>({status:'unresolved-source-lineage',reason,witness,work,levels:[],sourceGeometryUnchanged:true});
+ const tick=()=>{if(++work>maxWork)throw Error('bounded-nominal-lineage-work');},eps=Math.max(W*1e-10,1e-10),cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+ const area=r=>{const a=r[0];return r.reduce((s,p,i)=>s+cross(a,p,r[(i+1)%r.length]),0)/2;};
+ const inside=(p,r)=>{let odd=false;for(let i=0,j=r.length-1;i<r.length;j=i++){tick();const a=r[j],b=r[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])odd=!odd;}return odd;};
+ const contact=(a,b,c,d)=>{tick();if(Math.max(a[0],b[0])+eps<Math.min(c[0],d[0])||Math.max(c[0],d[0])+eps<Math.min(a[0],b[0])||Math.max(a[1],b[1])+eps<Math.min(c[1],d[1])||Math.max(c[1],d[1])+eps<Math.min(a[1],b[1]))return false;const q=[cross(a,b,c),cross(a,b,d),cross(c,d,a),cross(c,d,b)],len=Math.max(Math.hypot(b[0]-a[0],b[1]-a[1]),Math.hypot(d[0]-c[0],d[1]-c[1]),eps),tol=eps*len;return (q[0]<=tol&&q[1]>=-tol||q[1]<=tol&&q[0]>=-tol)&&(q[2]<=tol&&q[3]>=-tol||q[3]<=tol&&q[2]>=-tol);};
+ const touches=(a,b)=>a.some((p,i)=>b.some((q,j)=>contact(p,a[(i+1)%a.length],q,b[(j+1)%b.length])));
+ const contained=(a,b)=>!touches(a,b)&&a.every(p=>inside(p,b));
+ const unpack=p=>{if(!p?.coords||!p.ends)return null;const paths=[];let start=0;for(const end of p.ends){const r=[];for(let i=start;i<end;i++)r.push([p.coords[2*i],p.coords[2*i+1]]);paths.push(r);start=end;}return paths;};
+ try{
+  if(!(Number.isFinite(W)&&W>0)||!Array.isArray(sourceRings)||!sourceRings.length||!Array.isArray(levels))return unresolved('invalid-nominal-lineage-input');
+  if(sourceRings.reduce((n,r)=>n+r.length,0)>2048||levels.length>64)return unresolved('bounded-nominal-lineage-domain');
+  const valid=r=>Array.isArray(r)&&r.length>=3&&r.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))&&area(r)!==0;
+  if(sourceRings.some(r=>!valid(r)))return unresolved('invalid-original-source-ring');
+  for(let i=0;i<sourceRings.length;i++){
+   const r=sourceRings[i];for(let a=0;a<r.length;a++)for(let b=0;b<a;b++)if(a!==b+1&&!(a===r.length-1&&b===0)&&contact(r[a],r[(a+1)%r.length],r[b],r[(b+1)%r.length]))return unresolved('original-source-self-contact',{ring:i,firstEdge:a,secondEdge:b});
+   for(let j=0;j<i;j++)if(touches(r,sourceRings[j]))return unresolved('original-source-boundary-contact',{rings:[j,i]});
+  }
+  const areas=sourceRings.map(area),largest=areas.reduce((a,v,i)=>Math.abs(v)>Math.abs(areas[a])?i:a,0),outerSign=Math.sign(areas[largest]),source=sourceRings.map((r,ring)=>({ring,points:r,role:Math.sign(areas[ring])===outerSign?'outer':'hole',area:Math.abs(areas[ring]),parent:null}));
+  for(const boundary of source){const containers=source.filter(r=>r!==boundary&&r.area>boundary.area&&contained(boundary.points,r.points)).sort((a,b)=>a.area-b.area);boundary.parent=containers[0]?.ring??null;if(boundary.role==='hole'&&(boundary.parent==null||source[boundary.parent].role!=='outer'))return unresolved('source-hole-has-no-unique-material-parent',{ring:boundary.ring});if(boundary.role==='outer'&&boundary.parent!=null&&source[boundary.parent].role!=='hole')return unresolved('same-sign-original-source-nesting',{ring:boundary.ring,parent:boundary.parent});}
+  const output=[];let previous=[];
+  for(let index=0;index<levels.length;index++){
+   const level=levels[index],depth=level.depth;if(depth!==index)return unresolved('nonconsecutive-independent-nominal-depth',{depth,index});
+   const refs=unpack(level.reference?.inset);if(!refs||refs.length!==(level.paths||[]).length||refs.length!==(level.pathMetadata||[]).length)return unresolved('missing-independent-level-reference',{depth});
+   if(refs.some(r=>!valid(r)))return unresolved('invalid-independent-level-reference',{depth});
+   const current=[];
+   for(let pathIndex=0;pathIndex<refs.length;pathIndex++){
+    const reference=refs[pathIndex],metadata=level.pathMetadata[pathIndex],role=metadata.boundaryRole,id=String(componentId)+'/depth-'+depth+'/path-'+pathIndex;
+    if(!['outer','hole'].includes(role)||metadata.depth!==depth||metadata.levelPath!==pathIndex)return unresolved('inconsistent-nominal-role-reference',{depth,pathIndex});
+     
+     
+    let owners;if(role==='outer'){owners=source.filter(r=>r.role==='outer'&&contained(reference,r.points)&&!source.some(h=>h.role==='hole'&&h.parent===r.ring&&contained(reference,h.points))).sort((a,b)=>a.area-b.area);if(owners.length>1)owners=owners.filter(r=>r.area===owners[0].area);}
+    else owners=source.filter(r=>r.role==='hole'&&contained(r.points,reference));
+    if(owners.length!==1){current.push({id,pathIndex,depth,status:'unresolved-source-family',reason:owners.length?'merged-original-source-banks':'no-complete-original-source-bank',sourceRingIds:owners.map(q=>q.ring),points:level.paths[pathIndex],reference});continue;}
+    const owner=owners[0],familyId=String(componentId)+'/source-ring-'+owner.ring+'/'+role,
+     familyParents=previous.filter(q=>q.lineage?.resolved&&q.lineage.familyId===familyId&&q.depth===depth-1),parents=familyParents.filter(q=>role==='outer'?contained(reference,q.reference):contained(q.reference,reference));
+    if(depth&&parents.length!==1){current.push({id,pathIndex,depth,status:'unresolved-source-level-parent',reason:parents.length?'ambiguous-original-level-parent':'missing-original-level-parent',sourceRingIds:[owner.ring],points:level.paths[pathIndex],reference});continue;}
+    const lineage={resolved:true,componentId,sourceRingId:owner.ring,sourceBoundaryRole:role,familyId,depth,parentPathId:depth?parents[0].id:null,authority:'complete-original-source-rings-and-independent-nominal-level-reference',sourceCoordinatesUnchanged:true,individualSourceBoundaryResolved:true,parentDeterminedByCompleteContainment:true,nearestContourPairing:false,originalReference:{depth,levelPath:pathIndex,offsetDistanceMM:level.offsetDistanceMM},originalSourceEdgeIds:owner.points.map((_,edge)=>edge)};
+    current.push({id,pathIndex,depth,status:'resolved-nominal-source-family',lineage,points:level.paths[pathIndex],reference,orderMetadata:{...metadata,lineage,individualSourceBoundaryResolved:true}});
+   }
+   output.push({depth,paths:current});previous=current;
+  }
+  const all=output.flatMap(l=>l.paths),resolved=all.filter(q=>q.lineage?.resolved).length;
+  return{status:resolved===all.length?'resolved-nominal-source-lineage':'partially-resolved-nominal-source-lineage',levels:output,resolvedPaths:resolved,unresolvedPaths:all.length-resolved,sourceGeometryUnchanged:true,work,coverageCertified:false,physicalPrintValidated:false};
+ }catch(error){return unresolved(error.message);}
+}
+function frameCertifySpiralConnector(input){
+  const {fromLoop,toLoop,loops,sourceRings,W=1,clockwiseSign=1,
+    fromEdge=0,fromT=0,toEdge,toT,connectorWidthStart=W,
+    connectorWidthEnd=connectorWidthStart,overlapUsedW=0,maxWork=250000}=input;
+  let work=0;const fail=(reason,witness)=>({status:'spiral-break',reason,witness,work,
+    originalGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false});
+  const tick=()=>{if(++work>maxWork)throw Error('bounded-spiral-certificate-work');};
+  const sub=(a,b)=>[a[0]-b[0],a[1]-b[1]],dot=(a,b)=>a[0]*b[0]+a[1]*b[1],
+    cross=(a,b)=>a[0]*b[1]-a[1]*b[0],length=a=>Math.hypot(...a),
+    lerp=(a,b,t)=>a.map((x,i)=>x+(b[i]-x)*t),distance=(a,b)=>length(sub(a,b));
+  const eps=W*1e-10,areaEps=W*W*1e-12;
+  const area=p=>{if(p.length<3)return 0;const a=p[0];return p.reduce((s,q,i)=>s+cross(sub(q,a),sub(p[(i+1)%p.length],a)),0)/2;};
+  const pointSegment=(p,a,b)=>{const d=sub(b,a),L=dot(d,d),t=L?Math.max(0,Math.min(1,dot(sub(p,a),d)/L)):0;return distance(p,lerp(a,b,t));};
+  const hit=(a,b,c,d)=>{const u=sub(b,a),v=sub(d,c),D=cross(u,v),delta=sub(c,a);if(Math.abs(D)<=eps*Math.max(length(u),length(v),eps)){if(Math.abs(cross(delta,u))>eps*Math.max(length(u),eps))return null;const L=dot(u,u);if(!L)return null;const t0=dot(delta,u)/L,t1=dot(sub(d,a),u)/L;return Math.max(0,Math.min(t0,t1))<=Math.min(1,Math.max(t0,t1))+1e-12?{collinear:true}:null;}const s=cross(delta,v)/D,t=cross(delta,u)/D;return s>=-1e-12&&s<=1+1e-12&&t>=-1e-12&&t<=1+1e-12?{s,t,point:lerp(a,b,s)}:null;};
+  const segmentDistance=(a,b,c,d)=>hit(a,b,c,d)?0:Math.min(pointSegment(a,c,d),pointSegment(b,c,d),pointSegment(c,a,b),pointSegment(d,a,b));
+  const inside=(p,rings)=>{let odd=false;for(const r of rings)for(let i=0,j=r.length-1;i<r.length;j=i++){tick();const a=r[j],b=r[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])odd=!odd;}return odd;};
+  const ribbon=(a,b,w0,w1)=>{const d=sub(b,a),L=length(d);if(!L)throw Error('zero-spiral-or-reference-edge');const n=[-d[1]/L,d[0]/L];return[a.map((v,k)=>v+n[k]*w0/2),a.map((v,k)=>v-n[k]*w0/2),b.map((v,k)=>v-n[k]*w1/2),b.map((v,k)=>v+n[k]*w1/2)];};
+  const clip=(subject,boundary)=>{let out=subject.slice();const s=Math.sign(area(boundary));for(let i=0;i<boundary.length&&out.length;i++){const a=boundary[i],b=boundary[(i+1)%boundary.length],edge=sub(b,a),next=[];for(let j=0;j<out.length;j++){tick();const u=out[j],v=out[(j+1)%out.length],fu=s*cross(edge,sub(u,a)),fv=s*cross(edge,sub(v,a)),U=fu>=0,V=fv>=0;if(U&&V)next.push(v);else if(U&&!V)next.push(lerp(u,v,fu/(fu-fv)));else if(!U&&V){next.push(lerp(u,v,fu/(fu-fv)));next.push(v);}}out=next;}return out;};
+  const role=l=>l.lineage?.sourceBoundaryRole;
+  const edge=(l,i)=>[l.points[i],l.points[(i+1)%l.points.length]];
+  const width=(l,i)=>l.vertexMetadata?.[i]?.feedWidth??l.feedWidth??W;
+  const same=(a,b)=>distance(a,b)<=eps;
+  try{
+    if(!(Number.isFinite(W)&&W>0)||![1,-1].includes(clockwiseSign)||!Number.isFinite(overlapUsedW)||overlapUsedW<0||overlapUsedW>.5)return fail('invalid-spiral-settings');
+    if(!fromLoop||!toLoop||!Array.isArray(loops)||!Array.isArray(sourceRings))return fail('missing-spiral-input');
+    if(!loops.includes(fromLoop)||!loops.includes(toLoop)||new Set(loops.map(l=>l.id)).size!==loops.length)return fail('unowned-or-duplicate-spiral-path-id');
+    for(const l of loops){if(!Array.isArray(l.points)||l.points.length<3||l.points.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v))))return fail('invalid-spiral-loop',{id:l.id});if(Math.sign(area(l.points))!==clockwiseSign)return fail('loop-not-clockwise-in-printer-frame',{id:l.id});if(l.points.some((_,i)=>!Number.isFinite(width(l,i))||width(l,i)<.6*W-eps||width(l,i)>1.6*W+eps))return fail('unsupported-original-loop-width',{id:l.id});if(width(l,0)<W-eps&&!l.establishedContinuation)return fail('independent-sub-W-loop-start',{id:l.id});}
+    if(sourceRings.some(r=>r.length<3||r.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v)))))return fail('invalid-original-material');
+    if(![connectorWidthStart,connectorWidthEnd].every(w=>Number.isFinite(w)&&w>=.6*W-eps&&w<=1.6*W+eps))return fail('unsupported-spiral-flow-width');
+    const A=fromLoop.lineage,B=toLoop.lineage;
+    if(!A?.resolved||!B?.resolved||typeof A.familyId!=='string'||A.familyId!==B.familyId||A.componentId!==B.componentId||A.sourceRingId!==B.sourceRingId||role(fromLoop)!==role(toLoop)||!['outer','hole'].includes(role(fromLoop)))return fail('unresolved-or-different-source-family');
+    if(toLoop.depth!==fromLoop.depth+1||B.parentPathId!==fromLoop.id)return fail('missing-immediate-source-level-parent');
+    if(!Number.isInteger(A.sourceRingId)||!sourceRings[A.sourceRingId])return fail('invalid-family-source-ring');
+    if(!Number.isInteger(fromEdge)||fromEdge<0||fromEdge>=fromLoop.points.length||!Number.isInteger(toEdge)||toEdge<0||toEdge>=toLoop.points.length||![fromT,toT].every(t=>Number.isFinite(t)&&t>=0&&t<=1))return fail('invalid-spiral-source-address');
+    const [a,b]=edge(fromLoop,fromEdge),[c,d]=edge(toLoop,toEdge),from=lerp(a,b,fromT),to=lerp(c,d,toT),delta=sub(to,from),L=length(delta),tangent=sub(b,a),Lt=length(tangent);
+    if(L<=eps||Lt<=eps)return fail('degenerate-spiral-connector');
+    const normalSign=(role(fromLoop)==='hole'?-1:1)*clockwiseSign,
+      inward=[-tangent[1]/Lt*normalSign,tangent[0]/Lt*normalSign],
+      along=dot(delta,tangent)/Lt,across=dot(delta,inward);
+    if(along<=eps||across<=eps||Math.abs(along-across)>Math.max(eps,L*1e-10))return fail('requires-inward45-degree-connector',{along,across});
+     
+     
+     
+    for(const[l,i,t]of[[fromLoop,fromEdge,fromT],[toLoop,toEdge,toT]]){
+      if(t>1e-12&&t<1-1e-12&&distance(...edge(l,i))>=W-eps&&l.protectLongEdges!==false)return fail('protected-long-edge-split',{id:l.id,edge:i});
+      if(l.preserveSeam!==false&&(i!==0||Math.abs(t)>1e-12))return fail('protected-original-seam',{id:l.id,edge:i,t});
+    }
+    if(!inside(lerp(from,to,.5),sourceRings))return fail('connector-outside-original-material');
+    let clearance=Infinity;for(let ring=0;ring<sourceRings.length;ring++)for(let i=0;i<sourceRings[ring].length;i++){tick();const r=sourceRings[ring];clearance=Math.min(clearance,segmentDistance(from,to,r[i],r[(i+1)%r.length]));}
+    if(clearance+eps<W/2)return fail('whole-connector-nominal-nozzle-clearance',{clearance,required:W/2});
+    const connectorRibbon=ribbon(from,to,connectorWidthStart,connectorWidthEnd),charges=[],remote=[],arcStations=new Map();
+    const sourceEdges=sourceRings.flatMap((r,ring)=>r.map((a,i)=>({ring,edge:i,a,b:r[(i+1)%r.length]})));
+    for(const corner of connectorRibbon)if(!inside(corner,sourceRings)&&!sourceEdges.some(e=>pointSegment(corner,e.a,e.b)<=eps))return fail('whole-connector-flat-ribbon-outside-original-material',{corner});
+    const ribbonSign=Math.sign(area(connectorRibbon));
+    for(const e of sourceEdges){let lo=0,hi=1,empty=false;for(let i=0;i<connectorRibbon.length;i++){tick();const a=connectorRibbon[i],b=connectorRibbon[(i+1)%connectorRibbon.length],v=sub(b,a),L=length(v),f0=ribbonSign*cross(v,sub(e.a,a))/L,f1=ribbonSign*cross(v,sub(e.b,a))/L,d=f1-f0;if(!d){if(f0<=eps){empty=true;break;}}else{const t=(eps-f0)/d;if(d>0)lo=Math.max(lo,t);else hi=Math.min(hi,t);}if(lo>=hi){empty=true;break;}}if(!empty&&hi-lo>1e-12)return fail('original-boundary-in-connector-flat-ribbon',{ring:e.ring,edge:e.edge});}
+    for(const l of[fromLoop,toLoop]){const stations=[0];for(let i=0;i<l.points.length;i++)stations.push(stations.at(-1)+distance(...edge(l,i)));arcStations.set(l.id,stations);}
+    for(const l of loops)for(let i=0;i<l.points.length;i++){
+      tick();const [u,v]=edge(l,i),intersection=hit(from,to,u,v),endpointOwned=l.id===fromLoop.id&&intersection&&!intersection.collinear&&same(intersection.point,from)||l.id===toLoop.id&&intersection&&!intersection.collinear&&same(intersection.point,to);
+      if(intersection&&!endpointOwned)return fail('new-axis-crossing-or-remote-contact',{pathId:l.id,edge:i,intersection});
+      const footprint=clip(connectorRibbon,ribbon(u,v,width(l,i),width(l,(i+1)%l.points.length))),overlapArea=Math.abs(area(footprint));
+      if(overlapArea<=areaEps)continue;
+      const address=l.id===fromLoop.id?{edge:fromEdge,t:fromT,point:from}:l.id===toLoop.id?{edge:toEdge,t:toT,point:to}:null;
+       
+       
+       
+       
+      let owned=false;if(address){const s=arcStations.get(l.id),total=s.at(-1),at=s[address.edge]+address.t*(s[address.edge+1]-s[address.edge]),arcDistance=s[i]<=at&&at<=s[i+1]?0:Math.min(...[s[i],s[i+1]].map(q=>Math.min(Math.abs(q-at),total-Math.abs(q-at))));owned=arcDistance<=2*W+eps;}
+      const q={pathId:l.id,edge:i,role:l.id===fromLoop.id?'departure':l.id===toLoop.id?'arrival':'remote',overlapAreaMM2:overlapArea,equivalentW:overlapArea/(W*W),footprint};
+      if(!owned)remote.push(q);else charges.push(q);
+    }
+    if(remote.length)return fail('new-remote-printed-footprint-overlap',{remote});
+    const added=charges.reduce((s,q)=>s+q.equivalentW,0),total=overlapUsedW+added;
+    if(total>.5+1e-10)return fail('shared-two-ended-overlap-budget',{departureW:charges.filter(q=>q.role==='departure').reduce((s,q)=>s+q.equivalentW,0),arrivalW:charges.filter(q=>q.role==='arrival').reduce((s,q)=>s+q.equivalentW,0),addedEquivalentW:added,previousEquivalentW:overlapUsedW,totalEquivalentW:total,limitEquivalentW:.5,charges});
+     
+     
+     
+     
+    const widthAt=(l,i,t)=>width(l,i)+(width(l,(i+1)%l.points.length)-width(l,i))*t,
+      needsEdgeWidths=Math.abs(widthAt(fromLoop,fromEdge,fromT)-connectorWidthStart)>eps||Math.abs(widthAt(toLoop,toEdge,toT)-connectorWidthEnd)>eps;
+    return{status:needsEdgeWidths?'certified-command-only':'certified-spiral-connector',from,to,
+      angleDegrees:45,lengthMM:L,nominalNozzleRadiusMM:W/2,wholeSourceClearanceMM:clearance,
+      feedEquivalentWidthStart:connectorWidthStart,feedEquivalentWidthEnd:connectorWidthEnd,
+      displayWidthStart:connectorWidthStart,displayWidthEnd:connectorWidthEnd,
+      fromPathId:fromLoop.id,toPathId:toLoop.id,sourceFamily:{...A},
+      sourceAddresses:{from:{edge:fromEdge,t:fromT},to:{edge:toEdge,t:toT}},
+      twoEndedOverlapCharges:charges,addedOverlapEquivalentW:added,totalOverlapEquivalentW:total,
+      remainingTerminalOverlapEquivalentW:Math.max(0,.5-total),needsEdgeWidthOverrides:needsEdgeWidths,
+      originalGeometryUnchanged:true,originalIntervalCorrespondencePreserved:true,
+      newAxisCrossings:false,newRemotePrintedFootprintOverlap:false,
+      coverageCertified:false,physicalPrintValidated:false,work};
+  }catch(error){return fail(error.message);}
+}
+function framePlanSpiralConnections({loops,sourceRings,W=1,clockwiseSign=1,candidates=[]}){
+   
+   
+  const pending=loops.slice().sort((a,b)=>a.depth-b.depth||a.id.localeCompare(b.id)),operations=[],events=[],routes=[];
+  let current=null,used=0,route=[],continuing=false;
+  while(pending.length){
+    const l=pending.shift();
+    if(current&&current.id!==l.id&&!continuing){events.push({kind:'explicit-travel',fromPathId:current.id,toPathId:l.id,from:current.points[0].slice(),to:l.points[0].slice()});}
+    continuing=false;
+    route.push(l.id);operations.push({kind:'original-loop',pathId:l.id,depth:l.depth,points:l.points,closed:true,feedWidth:l.feedWidth,vertexMetadata:l.vertexMetadata,edgeMetadata:l.edgeMetadata,orderMetadata:l.orderMetadata,originalSeamPreserved:true});
+    current=l;
+    const sameFamily=pending.filter(q=>q.lineage?.resolved&&l.lineage?.resolved&&q.lineage.familyId===l.lineage.familyId&&q.depth===l.depth+1&&q.lineage.parentPathId===l.id);
+    if(!sameFamily.length){routes.push({pathIds:route,closed:route.length===1,overlapEquivalentW:used});route=[];used=0;continue;}
+    const target=sameFamily[0];
+    if(sameFamily.length!==1){events.push({kind:'spiral-break',fromPathId:l.id,reason:'ambiguous-source-level-children'});}
+    else if(pending.some(q=>q.depth<=l.depth)){events.push({kind:'spiral-break',fromPathId:l.id,toPathId:target.id,reason:'all-source-boundaries-before-inward'});}
+    else{
+      const trials=candidates.filter(q=>q.fromPathId===l.id&&q.toPathId===target.id),results=trials.map(q=>frameCertifySpiralConnector({...q,fromLoop:l,toLoop:target,loops,sourceRings,W,clockwiseSign,overlapUsedW:used})),accepted=results.find(q=>q.status==='certified-spiral-connector'&&q.sourceAddresses.from.edge===0&&q.sourceAddresses.from.t===0&&q.sourceAddresses.to.edge===0&&q.sourceAddresses.to.t===0);
+      if(accepted){operations.push({kind:'spiral-connector',...accepted});events.push({kind:'spiral-connection',fromPathId:l.id,toPathId:target.id});used=accepted.totalOverlapEquivalentW;pending.splice(pending.indexOf(target),1);pending.unshift(target);continuing=true;continue;}
+      events.push({kind:'spiral-break',fromPathId:l.id,toPathId:target.id,reason:results.length?results[0].reason||(results[0].needsEdgeWidthOverrides?'edge-width-contract-extension-required':'source-seam-readdressing-not-certified'):'missing-certified-source-address-candidate',candidates:results});
+    }
+    routes.push({pathIds:route,closed:route.length===1,overlapEquivalentW:used});route=[];used=0;
+  }
+  return{status:operations.some(q=>q.kind==='spiral-connector')?'certified-spiral-subset':'explicit-travel-only',operations,events,routes,
+    source:sourceRings,baseLoops:loops,originalGeometryUnchanged:true,wholeMaterialCoverageCertified:false,physicalPrintValidated:false};
+}
+function frameSpiralOperationsToPaths(plan,{W=1}={}){
+  const result={paths:[],pathClosed:[],pathVertexMetadata:[],pathEdgeMetadata:[],pathOrderMetadata:[]};
+  const byId=new Map(plan.operations.filter(q=>q.kind==='original-loop').map(q=>[q.pathId,q]));
+  for(const route of plan.routes){
+    if(route.pathIds.length===1){const q=byId.get(route.pathIds[0]);result.paths.push(q.points);result.pathClosed.push(true);result.pathVertexMetadata.push(q.vertexMetadata??((q.feedWidth??W)!==W?q.points.map(()=>({feedWidth:q.feedWidth,displayWidth:q.feedWidth,nozzleRadius:W/2})):null));result.pathEdgeMetadata.push(q.edgeMetadata??null);result.pathOrderMetadata.push(q.orderMetadata??{depth:q.depth,role:'original-loop',pathIds:route.pathIds,originalSeamPreserved:true});continue;}
+    const points=[],vertices=[],edges=[];let previous=null;
+    for(const id of route.pathIds){const q=byId.get(id),n=q.points.length;
+      if(previous){const c=plan.operations.find(q=>q.kind==='spiral-connector'&&q.fromPathId===previous.pathId&&q.toPathId===id);if(!c||c.status!=='certified-spiral-connector'||c.needsEdgeWidthOverrides||c.sourceAddresses.from.edge!==0||c.sourceAddresses.from.t!==0||c.sourceAddresses.to.edge!==0||c.sourceAddresses.to.t!==0)throw Error('Uncertified spiral operation cannot enter the path API.');
+        edges.push({role:'spiral-connector',sourceFamily:c.sourceFamily,sourceAddresses:c.sourceAddresses,fromPathId:c.fromPathId,toPathId:c.toPathId,angleDegrees:45,overlapEquivalentW:c.addedOverlapEquivalentW,originalDepthFrom:previous.depth,originalDepthTo:q.depth,coverageCertified:false,physicalPrintValidated:false});points.push(q.points[0]);vertices.push(q.vertexMetadata?.[0]??{feedWidth:q.feedWidth??W,displayWidth:q.feedWidth??W,nozzleRadius:W/2});
+      }else{points.push(q.points[0]);vertices.push(q.vertexMetadata?.[0]??{feedWidth:q.feedWidth??W,displayWidth:q.feedWidth??W,nozzleRadius:W/2});}
+      for(let i=0;i<n;i++){edges.push({...q.edgeMetadata?.[i],role:q.edgeMetadata?.[i]?.role??'original-loop',originalPathId:id,originalEdge:i,originalDepth:q.depth,originalIntervalPreserved:true});points.push(q.points[(i+1)%n]);vertices.push(q.vertexMetadata?.[(i+1)%n]??{feedWidth:q.feedWidth??W,displayWidth:q.feedWidth??W,nozzleRadius:W/2});}previous=q;
+    }
+    if(edges.length!==points.length-1)throw Error('Spiral path edge contract mismatch.');
+    result.paths.push(points);result.pathClosed.push(false);result.pathVertexMetadata.push(vertices);result.pathEdgeMetadata.push(edges);result.pathOrderMetadata.push({depth:byId.get(route.pathIds[0]).depth,role:'certified-inward-spiral',pathIds:route.pathIds,containsDepths:route.pathIds.map(id=>byId.get(id).depth),originalSeamsPreserved:true,cumulativeOverlapEquivalentW:route.overlapEquivalentW});
+  }
+  result.spiral={status:plan.status,events:plan.events,wholeMaterialCoverageCertified:false,physicalPrintValidated:false};return result;
+}
+function frameBuildWidthContinuousSpiralJoin(input){
+ const {fromLoop,toLoop,loops,sourceRings,W=1,clockwiseSign=1,fromEdge,fromT,toEdge,toT,
+   rampLengthMM=.005*W,previousOverlapEquivalentW=0,terminalReserveEquivalentW=0,
+   printedPathIds=[]}=input;
+ const fail=(reason,witness)=>({status:'spiral-break',reason,witness,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false});
+ try{
+  if(!Number.isFinite(rampLengthMM)||rampLengthMM<=0||!Number.isFinite(previousOverlapEquivalentW)||previousOverlapEquivalentW<0||!Number.isFinite(terminalReserveEquivalentW)||terminalReserveEquivalentW<0)return fail('invalid-width-continuous-join-settings');
+  const eps=W*1e-10,width=(l,i)=>l.vertexMetadata?.[i]?.feedWidth??l.feedWidth??W;
+  if(loops.some(l=>l.points.some((_,i)=>Math.abs(width(l,i)-W)>eps)))return fail('subset-requires-unchanged-nominal-W-boundary-beads');
+  if(fromT!==0&&fromT!==1&&input.sourceSeamReaddressing!==true)return fail('departure-must-be-an-original-vertex');
+  const parentSeamIndex=fromT===1?(fromEdge+1)%fromLoop.points.length:fromEdge,childSeamIndex=toT===0?toEdge:toT===1?(toEdge+1)%toLoop.points.length:null;
+  if(input.sourceSeamReaddressing!==true&&(parentSeamIndex!==0||childSeamIndex!==0))return fail('protected-original-seam-phase');if(input.sourceSeamReaddressing===true&&(childSeamIndex===null||fromLoop.protectLongEdges!==false||toLoop.protectLongEdges!==false))return fail('explicit-original-interval-readdressing-required');
+  if(loops.some(l=>l!==fromLoop&&l!==toLoop&&l.depth<=fromLoop.depth&&!printedPathIds.includes(l.id)))return fail('all-source-boundaries-before-inward');
+   
+   
+  const a={...fromLoop,preserveSeam:false},b={...toLoop,preserveSeam:false},owned=loops.map(l=>l===fromLoop?a:l===toLoop?b:l),lower=frameCertifySpiralConnector({...input,fromLoop:a,toLoop:b,loops:owned,connectorWidthStart:.6*W,connectorWidthEnd:.6*W,overlapUsedW:0});
+  if(!['certified-spiral-connector','certified-command-only'].includes(lower.status))return fail(lower.reason,lower.witness);
+  const from=lower.from,to=lower.to,L=lower.lengthMM;if(2*rampLengthMM>=L)return fail('connector-has-no-minimum-width-body');
+  const lerp=(a,b,t)=>a.map((v,k)=>v+(b[k]-v)*t),points=[from,lerp(from,to,rampLengthMM/L),lerp(from,to,1-rampLengthMM/L),to],widths=[W,.6*W,.6*W,W],segments=points.slice(1).map((b,i)=>({from:points[i],to:b,feedWidthStart:widths[i],feedWidthEnd:widths[i+1],role:'width-continuous45-degree-connector',sourceFamily:lower.sourceFamily,sourceAddresses:lower.sourceAddresses}));
+  const area=p=>{if(p.length<3)return 0;const o=p[0];return p.reduce((s,a,i)=>s+(a[0]-o[0])*(p[(i+1)%p.length][1]-o[1])-(a[1]-o[1])*(p[(i+1)%p.length][0]-o[0]),0)/2;},cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+  const quad=(a,b,w0,w1)=>{const x=b[0]-a[0],y=b[1]-a[1],len=Math.hypot(x,y),n=[-y/len,x/len];return[a.map((v,k)=>v+n[k]*w0/2),b.map((v,k)=>v+n[k]*w1/2),b.map((v,k)=>v-n[k]*w1/2),a.map((v,k)=>v-n[k]*w0/2)];};
+  let work=0;const tick=()=>{if(++work>250000)throw Error('bounded-width-continuous-join-work');};
+  const clip=(subject,boundary)=>{let out=subject.slice(),sign=Math.sign(area(boundary));for(let i=0;i<boundary.length&&out.length;i++){const a=boundary[i],b=boundary[(i+1)%boundary.length],next=[];for(let j=0;j<out.length;j++){tick();const u=out[j],v=out[(j+1)%out.length],fu=sign*cross(a,b,u),fv=sign*cross(a,b,v),U=fu>=0,V=fv>=0;if(U&&V)next.push(v);else if(U&&!V)next.push(lerp(u,v,fu/(fu-fv)));else if(!U&&V){next.push(lerp(u,v,fu/(fu-fv)));next.push(v);}}out=next;}return out;};
+  const charges=[],remote=[],stations=new Map();
+  for(const l of[fromLoop,toLoop]){const s=[0];for(let i=0;i<l.points.length;i++)s.push(s.at(-1)+Math.hypot(l.points[(i+1)%l.points.length][0]-l.points[i][0],l.points[(i+1)%l.points.length][1]-l.points[i][1]));stations.set(l.id,s);}
+  for(let segment=0;segment<segments.length;segment++){const s=segments[segment],footprint=quad(s.from,s.to,s.feedWidthStart,s.feedWidthEnd);
+   for(const l of loops)for(let edge=0;edge<l.points.length;edge++){const q=quad(l.points[edge],l.points[(edge+1)%l.points.length],W,W),intersection=clip(footprint,q),overlap=Math.abs(area(intersection));if(overlap<=W*W*1e-12)continue;
+    const address=l.id===fromLoop.id?{edge:fromEdge,t:fromT}:l.id===toLoop.id?{edge:toEdge,t:toT}:null;let local=false;
+    if(address){const st=stations.get(l.id),total=st.at(-1),at=st[address.edge]+address.t*(st[address.edge+1]-st[address.edge]),distance=st[edge]<=at&&at<=st[edge+1]?0:Math.min(...[st[edge],st[edge+1]].map(x=>Math.min(Math.abs(x-at),total-Math.abs(x-at))));local=distance<=2*W+eps;}
+    const charge={segment,pathId:l.id,edge,role:l.id===fromLoop.id?'departure':l.id===toLoop.id?'arrival':'remote',areaMM2:overlap,equivalentW:overlap/(W*W),intersection};if(local)charges.push(charge);else remote.push(charge);
+   }
+  }
+  if(remote.length)return fail('width-ramp-new-remote-printed-footprint-overlap',{remote});
+   
+   
+   
+  const connectorCharge=charges.reduce((s,q)=>s+q.equivalentW,0),total=previousOverlapEquivalentW+terminalReserveEquivalentW+connectorCharge;
+  if(total>.5+1e-10)return fail('shared-width-profile-overlap-budget',{connectorCharge,previousOverlapEquivalentW,terminalReserveEquivalentW,total,limit:.5});
+  const rotate=(l,e,t)=>{const n=l.points.length,start=lerp(l.points[e],l.points[(e+1)%n],t),route=[start],refs=[];const push=(a,b,edge,t0,t1)=>{if(a[0]===b[0]&&a[1]===b[1])return;route.push(b);refs.push({...l.edgeMetadata?.[edge],role:l.edgeMetadata?.[edge]?.role??'original-nominal-boundary',originalPathId:l.id,originalEdge:edge,originalDepth:l.depth,sourceIntervalParameterStart:t0,sourceIntervalParameterEnd:t1,originalEndpointsPreserved:true});};push(start,l.points[(e+1)%n],e,t,1);for(let k=1;k<n;k++){const i=(e+k)%n;push(l.points[i],l.points[(i+1)%n],i,0,1);}push(l.points[e],start,e,0,t);return{points:route,edges:refs};};
+  const parentRoute=rotate(fromLoop,fromEdge,fromT),childRoute=rotate(toLoop,toEdge,toT),path=parentRoute.points.slice(),vertexMetadata=path.map(()=>({feedWidth:W,displayWidth:W,nozzleRadius:W/2})),edgeMetadata=parentRoute.edges.slice();
+  for(let i=1;i<points.length;i++){path.push(points[i]);vertexMetadata.push({feedWidth:widths[i],displayWidth:widths[i],nozzleRadius:W/2});edgeMetadata.push({...segments[i-1],angleDegrees:45,originalDepthFrom:fromLoop.depth,originalDepthTo:toLoop.depth,sourceGeometryUnchanged:true});}
+  for(let i=1;i<childRoute.points.length;i++){path.push(childRoute.points[i]);vertexMetadata.push({feedWidth:W,displayWidth:W,nozzleRadius:W/2});edgeMetadata.push(childRoute.edges[i-1]);}
+  if(edgeMetadata.length!==path.length-1)return fail('joined-open-path-contract');
+  return{status:'width-continuous-source-family-spiral',path,closed:false,pathVertexMetadata:vertexMetadata,pathEdgeMetadata:edgeMetadata,connectorPoints:points,connectorWidths:widths,segments,
+   sourceFamily:lower.sourceFamily,sourceAddresses:lower.sourceAddresses,angleDegrees:45,wholeSourceClearanceMM:lower.wholeSourceClearanceMM,nozzleRadius:W/2,
+   charges,departureEquivalentW:charges.filter(q=>q.role==='departure').reduce((s,q)=>s+q.equivalentW,0),arrivalEquivalentW:charges.filter(q=>q.role==='arrival').reduce((s,q)=>s+q.equivalentW,0),connectorOverlapEquivalentW:connectorCharge,cumulativeOverlapEquivalentW:total,
+   remainingTerminalBudgetEquivalentW:.5-total,terminalOverrunEmitted:false,terminalReserveEquivalentW,originalBoundaryWidthsUnchanged:true,originalCoordinatesUnchanged:true,originalLongEndpointsPreserved:true,originalAxisDeviationMM:0,
+   originalParentSeamReaddressed:parentSeamIndex!==0,originalChildSeamReaddressed:childSeamIndex!==0,minPathLengthPolicyRequired:true,sourceGeometryUnchanged:true,newAxisCrossings:false,newRemotePrintedFootprintOverlap:false,coverageCertified:false,physicalPrintValidated:false,work:work+lower.work};
+ }catch(error){return fail(error.message);}
+}
+function framePlanWidthContinuousSpiralRoutes({loops,sourceRings,W=1,clockwiseSign=1,rampLengthMM=.005*W,terminalReserveEquivalentW=0,maxWork=1000000}){
+ const fail=reason=>({status:'unchanged-route-fallback',reason,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false});
+ try{
+  if(!Array.isArray(loops)||!loops.length||!Array.isArray(sourceRings)||!(Number.isFinite(W)&&W>0)||![1,-1].includes(clockwiseSign)||!(Number.isFinite(terminalReserveEquivalentW)&&terminalReserveEquivalentW>=0&&terminalReserveEquivalentW<=.5)||!(Number.isFinite(maxWork)&&maxWork>=0))return fail('invalid-route-input');
+  if(loops.length>512||loops.reduce((n,l)=>n+(l.points?.length||0),0)>4096)return fail('bounded-route-domain');
+  if(new Set(loops.map(l=>l.id)).size!==loops.length||loops.some(l=>!l.id||!Number.isInteger(l.depth)||l.depth<0||!Array.isArray(l.points)||l.points.length<3))return fail('invalid-route-identity-or-closed-loop');
+  const sorted=loops.map((loop,index)=>({loop,index})).sort((a,b)=>a.loop.depth-b.loop.depth||a.index-b.index),pending=new Set(loops.map(l=>l.id)),printed=new Set(),routes=[],events=[],travels=[];let work=0,lastPoint=null;
+  const originalRoute=l=>({path:l.points.concat([l.points[0]]),closed:false,pathVertexMetadata:l.points.concat([l.points[0]]).map((_,i)=>({...l.vertexMetadata?.[i%l.points.length],feedWidth:l.vertexMetadata?.[i%l.points.length]?.feedWidth??l.feedWidth??W,displayWidth:l.vertexMetadata?.[i%l.points.length]?.displayWidth??l.feedWidth??W,nozzleRadius:W/2})),pathEdgeMetadata:l.points.map((_,i)=>({...l.edgeMetadata?.[i],role:l.edgeMetadata?.[i]?.role??'original-nominal-boundary',originalPathId:l.id,originalDepth:l.depth,originalEdge:i,sourceIntervalParameterStart:0,sourceIntervalParameterEnd:1,originalEndpointsPreserved:true})),loopIds:[l.id],connectorOverlapEquivalentW:0,cumulativeOverlapEquivalentW:terminalReserveEquivalentW,independentStart:true});
+  const same=(a,b)=>a[0]===b[0]&&a[1]===b[1];
+  for(const {loop:start}of sorted){
+   if(!pending.has(start.id))continue;
+   let current=start,route=originalRoute(start),joined=false;pending.delete(current.id);
+   for(;;){
+    const children=sorted.map(q=>q.loop).filter(l=>pending.has(l.id)&&l.depth===current.depth+1&&l.lineage?.resolved&&l.lineage.parentPathId===current.id&&l.lineage.familyId===current.lineage?.familyId);
+    if(!children.length){events.push({kind:'spiral-break',fromLoop:current.id,reason:'no-explicit-immediate-family-child'});printed.add(current.id);break;}
+    if(joined){events.push({kind:'spiral-break',fromLoop:current.id,toLoops:children.map(l=>l.id),reason:'verified-subset-one-connector-per-continuous-route'});printed.add(current.id);break;}
+    if(children.length!==1){events.push({kind:'spiral-break',fromLoop:current.id,reason:'split-family-children-require-explicit-travel',toLoops:children.map(l=>l.id)});printed.add(current.id);break;}
+    const child=children[0],certificate=frameBuildWidthContinuousSpiralJoin({loops,sourceRings,W,clockwiseSign,fromLoop:current,toLoop:child,fromEdge:current.points.length-1,fromT:1,toEdge:0,toT:0,rampLengthMM,previousOverlapEquivalentW:route.connectorOverlapEquivalentW,terminalReserveEquivalentW,printedPathIds:[...printed]});
+    work+=certificate.work||0;if(work>maxWork)return fail('bounded-route-work');
+    if(certificate.status!=='width-continuous-source-family-spiral'){events.push({kind:'spiral-break',fromLoop:current.id,toLoop:child.id,reason:certificate.reason,witness:certificate.witness});printed.add(current.id);break;}
+    route={...certificate,loopIds:[current.id,child.id],independentStart:true};joined=true;
+    events.push({kind:'spiral-connection',fromLoop:current.id,toLoop:child.id,sourceFamily:certificate.sourceFamily,sourceAddresses:certificate.sourceAddresses,angleDegrees:45,departureEquivalentW:certificate.departureEquivalentW,arrivalEquivalentW:certificate.arrivalEquivalentW,connectorOverlapEquivalentW:certificate.connectorOverlapEquivalentW,cumulativeOverlapEquivalentW:certificate.cumulativeOverlapEquivalentW});printed.add(current.id);pending.delete(child.id);current=child;
+   }
+   if(route.cumulativeOverlapEquivalentW>.5+1e-10)return fail('shared-route-overlap-budget');
+   if(lastPoint&&!same(lastPoint,route.path[0]))travels.push({kind:'travel',from:lastPoint,to:route.path[0],feedWidthStart:0,feedWidthEnd:0,beforeRoute:routes.length,reason:'explicit-continuity-break-or-boundaries-before-inward'});
+   route.status=joined?'width-continuous-source-family-spiral':'original-nominal-boundary-with-travel';if(!joined){route.path.pop();route.pathVertexMetadata.pop();}route.closed=!joined;route.terminalReserveEquivalentW=terminalReserveEquivalentW;route.terminalOverrunEmitted=false;route.sourceGeometryUnchanged=true;routes.push(route);lastPoint=route.closed?route.path[0]:route.path.at(-1);
+  }
+  if(pending.size)return fail('unconsumed-original-path');
+  return{status:'planned-width-continuous-source-family-routes',routes,travels,events,printClockwiseSign:clockwiseSign,allOriginalPathsPrintedExactlyOnce:true,allOriginalBoundaryDepthsScheduledBeforeDeeper:true,verifiedSubsetMaximumConnectorsPerRoute:1,sourceGeometryUnchanged:true,terminalOverrunEmitted:false,terminalReserveEquivalentW,coverageCertified:false,physicalPrintValidated:false,work};
+ }catch(e){return fail(e.message);}
+}
+function frameSpiralRoutesToLayer(plan,{loops,references=[]}={}){
+ if(plan?.status!=='planned-width-continuous-source-family-routes'||!Array.isArray(loops))throw Error('A certified route plan and original final loop records are required.');
+ const byId=new Map(loops.map(l=>[l.id,l])),paths=[],pathClosed=[],pathVertexMetadata=[],pathEdgeMetadata=[],pathOrderMetadata=[],segmentIndex=[];let segment=0;
+ for(let pathIndex=0;pathIndex<plan.routes.length;pathIndex++){
+  const r=plan.routes[pathIndex],original=r.loopIds.map(id=>byId.get(id));if(original.some(l=>!l))throw Error('Missing original final loop.');
+  const joined=r.loopIds.length>1;if(joined&&r.status!=='width-continuous-source-family-spiral')throw Error('Uncertified joined path.');
+  const points=joined?r.path:original[0].points,closed=!joined,vertices=joined?r.pathVertexMetadata:original[0].vertexMetadata??null,edges=joined?r.pathEdgeMetadata:original[0].edgeMetadata??null,n=points.length-(closed?0:1);
+  if(joined&&(vertices?.length!==points.length||edges?.length!==n))throw Error('Joined path metadata contract.');
+  paths.push(points);pathClosed.push(closed);pathVertexMetadata.push(vertices);pathEdgeMetadata.push(edges);
+  pathOrderMetadata.push(joined?{...original[0].orderMetadata,role:'source-family-spiral',depth:Math.min(...original.map(l=>l.depth)),maximumDepth:Math.max(...original.map(l=>l.depth)),originalPathIds:r.loopIds.slice(),sourceFamily:r.sourceFamily,sourceAddresses:r.sourceAddresses,originalSeamsPreserved:true,sourceGeometryUnchanged:true,connectorOverlapEquivalentW:r.connectorOverlapEquivalentW,cumulativeOverlapEquivalentW:r.cumulativeOverlapEquivalentW,terminalOverrunEmitted:false}:original[0].orderMetadata??null);
+  for(let edge=0;edge<n;edge++){
+   const e=edges?.[edge],connector=e?.role==='width-continuous45-degree-connector';
+   segmentIndex.push({segment:segment++,path:pathIndex,edge,closed,from:points[edge],to:points[(edge+1)%points.length],originalPathId:joined?e?.originalPathId:original[0].id,originalEdge:joined?e?.originalEdge:edge,originalDepth:joined?e?.originalDepth:original[0].depth,role:connector?'spiral-connector':e?.role??'original-nominal-boundary',sourceFamily:connector?e.sourceFamily:undefined,sourceAddresses:connector?e.sourceAddresses:undefined,sourceAngle:connector?undefined:e?.sourceAngle,sourceAngleAssociationRequired:connector,nozzleRadius:vertices?.[edge]?.nozzleRadius??null,feedWidthStart:vertices?.[edge]?.feedWidth??original[0].feedWidth??null,feedWidthEnd:vertices?.[(edge+1)%points.length]?.feedWidth??original.at(-1).feedWidth??null});
+  }
+ }
+ return{status:'certified-geometry-layer-adapter',paths,pathClosed,pathVertexMetadata,pathEdgeMetadata,pathOrderMetadata,references,segments:segment,segmentIndex,explicitTravels:plan.travels,spiral:{connections:plan.events.filter(e=>e.kind==='spiral-connection').length,events:plan.events,verifiedSubsetMaximumConnectorsPerRoute:1,originalSeamsPreserved:true,sourceGeometryUnchanged:true,terminalOverrunEmitted:false,coverageCertified:false,physicalPrintValidated:false},sourceAngleAssociationRequired:segmentIndex.some(s=>s.sourceAngleAssociationRequired)};
+}
+function frameAppendCertifiedSpiralTerminal({certificate,toLoop,loops,sourceRings,W=1,terminalLengthMM=.001*W,maxWork=250000}){
+ const fail=(reason,witness)=>({status:'terminal-break',reason,witness,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false});
+ let work=0;const tick=()=>{if(++work>maxWork)throw Error('bounded-terminal-work');};
+ try{
+  if(certificate?.status!=='width-continuous-source-family-spiral'||certificate.closed!==false||certificate.terminalOverrunEmitted!==false||certificate.terminalReserveEquivalentW!==0||!Array.isArray(certificate.segments)||certificate.segments.length!==3)return fail('verified-zero-reserve-spiral-certificate-required');
+  if(!(Number.isFinite(W)&&W>0&&Number.isFinite(terminalLengthMM)&&terminalLengthMM>0&&Number.isFinite(maxWork)&&maxWork>=0)||!toLoop?.lineage?.resolved||toLoop.lineage.familyId!==certificate.sourceFamily?.familyId||!Array.isArray(loops)||!loops.includes(toLoop)||!Array.isArray(sourceRings))return fail('invalid-source-family-terminal');
+  if(loops.length>512||loops.reduce((n,l)=>n+(l.points?.length||0),0)>4096||sourceRings.reduce((n,r)=>n+r.length,0)>2048)return fail('bounded-terminal-domain');
+  const eps=W*1e-10,width=(l,i)=>l.vertexMetadata?.[i]?.feedWidth??l.feedWidth??W;if(loops.some(l=>l.points.some((_,i)=>Math.abs(width(l,i)-W)>eps)))return fail('terminal-subset-requires-unchanged-W-original-beads');
+  const a=toLoop.points[0],b=toLoop.points[1],length=Math.hypot(b[0]-a[0],b[1]-a[1]),same=(a,b)=>a[0]===b[0]&&a[1]===b[1];
+  if(!(terminalLengthMM<length)||!same(certificate.path.at(-1),a)||certificate.pathVertexMetadata.at(-1).feedWidth!==W)return fail('terminal-must-start-at-preserved-seam-and-remain-in-first-original-edge');
+  const originalTail=certificate.pathEdgeMetadata.slice(-toLoop.points.length),originalChildRoute=certificate.path.slice(-toLoop.points.length-1);if(originalTail.some((e,i)=>e.originalPathId!==toLoop.id||e.originalEdge!==i||e.sourceIntervalParameterStart!==0||e.sourceIntervalParameterEnd!==1)||originalChildRoute.some((p,i)=>!same(p,toLoop.points[i%toLoop.points.length])))return fail('terminal-original-child-tail-provenance');
+  const end=a.map((v,k)=>v+(b[k]-v)*terminalLengthMM/length),cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),lerp=(a,b,t)=>a.map((v,k)=>v+(b[k]-v)*t),area=p=>{if(p.length<3)return 0;const o=p[0];return p.reduce((s,a,i)=>s+cross(o,a,p[(i+1)%p.length]),0)/2;};
+  const pointDistance=(p,a,b)=>{const x=b[0]-a[0],y=b[1]-a[1],L=x*x+y*y,t=L?Math.max(0,Math.min(1,((p[0]-a[0])*x+(p[1]-a[1])*y)/L)):0;return Math.hypot(p[0]-a[0]-t*x,p[1]-a[1]-t*y);},inside=p=>{let odd=false;for(const r of sourceRings)for(let i=0,j=r.length-1;i<r.length;j=i++){tick();const a=r[j],b=r[i];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1])+a[0])odd=!odd;}return odd;};
+  if(!inside(lerp(a,end,.5)))return fail('terminal-outside-complete-original-source');
+  let clearance=Infinity;for(const r of sourceRings)for(let i=0;i<r.length;i++){tick();const c=r[i],d=r[(i+1)%r.length];if(cross(a,end,c)*cross(a,end,d)<0&&cross(c,d,a)*cross(c,d,end)<0)return fail('terminal-crosses-original-source-boundary');clearance=Math.min(clearance,pointDistance(a,c,d),pointDistance(end,c,d),pointDistance(c,a,end),pointDistance(d,a,end));}
+  if(clearance<W/2-eps)return fail('terminal-whole-segment-nominal-nozzle-clearance',{clearance,required:W/2});
+  const quad=(a,b,w0=W,w1=W)=>{const x=b[0]-a[0],y=b[1]-a[1],L=Math.hypot(x,y),n=[-y/L,x/L];return[a.map((v,k)=>v+n[k]*w0/2),b.map((v,k)=>v+n[k]*w1/2),b.map((v,k)=>v-n[k]*w1/2),a.map((v,k)=>v-n[k]*w0/2)];},clip=(subject,boundary)=>{let out=subject.slice(),sign=Math.sign(area(boundary));for(let i=0;i<boundary.length&&out.length;i++){const a=boundary[i],b=boundary[(i+1)%boundary.length],next=[];for(let j=0;j<out.length;j++){tick();const u=out[j],v=out[(j+1)%out.length],fu=sign*cross(a,b,u),fv=sign*cross(a,b,v),U=fu>=0,V=fv>=0;if(U&&V)next.push(v);else if(U&&!V)next.push(lerp(u,v,fu/(fu-fv)));else if(!U&&V){next.push(lerp(u,v,fu/(fu-fv)));next.push(v);}}out=next;}return out;};
+  const footprint=quad(a,end),originalRibbon=quad(a,b),footprintArea=Math.abs(area(footprint)),subsetArea=Math.abs(area(clip(footprint,originalRibbon))),axisDeviation=Math.abs(cross(a,b,end))/length;
+  if(axisDeviation>eps||footprintArea-subsetArea>W*W*1e-12)return fail('terminal-must-be-full-ribbon-subset-of-the-same-original-axis-and-width',{axisDeviation,footprintArea,subsetArea});
+   
+   
+   
+   
+   
+  const charges=[];for(const l of loops)for(let edge=0;edge<l.points.length;edge++){const polygon=clip(footprint,quad(l.points[edge],l.points[(edge+1)%l.points.length])),overlap=Math.abs(area(polygon));if(overlap<=W*W*1e-12)continue;charges.push({role:'terminal',pathId:l.id,edge,areaMM2:overlap,equivalentW:overlap/(W*W),intersection:polygon,positionPreexistedInOriginalFirstRibbon:true,addedPrintMultiplicity:true,otherOriginalPath:l.id!==toLoop.id});}
+  const originalEdgeTerminalCharge=charges.reduce((s,c)=>s+c.equivalentW,0);for(let segment=0;segment<certificate.segments.length;segment++){const s=certificate.segments[segment],polygon=clip(footprint,quad(s.from,s.to,s.feedWidthStart,s.feedWidthEnd)),overlap=Math.abs(area(polygon));if(overlap<=W*W*1e-12)continue;charges.push({role:'terminal',pathId:'new-connector-profile',segment,areaMM2:overlap,equivalentW:overlap/(W*W),intersection:polygon,positionPreexistedInOriginalFirstRibbon:true,addedPrintMultiplicity:true,newConnectorProfile:true});}
+  const terminalCharge=charges.reduce((s,c)=>s+c.equivalentW,0),total=certificate.cumulativeOverlapEquivalentW+terminalCharge;if(total>.5+eps)return fail('shared-terminal-and-both-ended-connector-budget',{terminalCharge,previous:certificate.cumulativeOverlapEquivalentW,total,limit:.5});
+  return{...certificate,path:certificate.path.concat([end]),pathVertexMetadata:certificate.pathVertexMetadata.concat([{feedWidth:W,displayWidth:W,nozzleRadius:W/2}]),pathEdgeMetadata:certificate.pathEdgeMetadata.concat([{...toLoop.edgeMetadata?.[0],role:'budgeted-original-axis-terminal-overlap',originalPathId:toLoop.id,originalEdge:0,originalDepth:toLoop.depth,sourceIntervalParameterStart:0,sourceIntervalParameterEnd:terminalLengthMM/length,originalEndpointsPreserved:true,sourceGeometryUnchanged:true,terminalOverlapBudgeted:true,positionPreexistedInOriginalFirstRibbon:true,addedPrintMultiplicity:true}]),charges:certificate.charges.concat(charges),terminalCharges:charges,terminalLengthMM,terminalOverlapEquivalentW:terminalCharge,terminalAgainstOriginalEdgesEquivalentW:originalEdgeTerminalCharge,terminalAgainstNewConnectorEquivalentW:terminalCharge-originalEdgeTerminalCharge,terminalWholeSourceClearanceMM:clearance,cumulativeOverlapEquivalentW:total,remainingTerminalBudgetEquivalentW:.5-total,terminalOverrunEmitted:true,terminalReserveEquivalentW:0,terminalAxisSubsetOfExistingFirstOriginalEdge:true,terminalRibbonSubsetOfExistingFirstOriginalRibbon:true,terminalPositionPreexistedInOriginalFirstRibbon:true,addedTerminalPrintMultiplicity:true,preexistingRemoteRepeatCharges:charges.filter(c=>c.otherOriginalPath),newConnectorRepeatCharges:charges.filter(c=>c.newConnectorProfile),newAxisCrossings:false,newRemotePrintedFootprintOverlap:false,work:certificate.work+work};
+ }catch(error){return fail(error.message);}
+}
+function frameBuildSpiralLayerGeometry(input){
+ const {terminalLengthMM=0}=input;if(!(Number.isFinite(terminalLengthMM)&&terminalLengthMM>=0))return{status:'unchanged-route-fallback',reason:'invalid-optional-terminal-length'};
+ if(input.loops?.some(l=>l.closed===false||l.pathClosed===false))return{status:'unchanged-route-fallback',reason:'verified-subset-requires-every-original-path-closed',sourceGeometryUnchanged:true};
+ const plan=framePlanWidthContinuousSpiralRoutes(input);if(plan.status!=='planned-width-continuous-source-family-routes')return plan;
+ if(terminalLengthMM>0)for(let i=0;i<plan.routes.length;i++){
+  const r=plan.routes[i];if(r.status!=='width-continuous-source-family-spiral')continue;
+  const child=input.loops.find(l=>l.id===r.loopIds.at(-1)),t=frameAppendCertifiedSpiralTerminal({...input,certificate:r,toLoop:child,terminalLengthMM});
+  if(t.status==='width-continuous-source-family-spiral'){plan.routes[i]=t;plan.work+=t.work-r.work;plan.events.push({kind:'terminal-overlap',pathIds:t.loopIds,originalPathId:child.id,sourceEdge:0,sourceIntervalParameterStart:0,sourceIntervalParameterEnd:t.pathEdgeMetadata.at(-1).sourceIntervalParameterEnd,terminalLengthMM:t.terminalLengthMM,terminalOverlapEquivalentW:t.terminalOverlapEquivalentW,cumulativeOverlapEquivalentW:t.cumulativeOverlapEquivalentW,positionPreexistedInOriginalFirstRibbon:true,addedPrintMultiplicity:true});}
+  else plan.events.push({kind:'terminal-overlap-break',pathIds:r.loopIds,reason:t.reason,witness:t.witness});
+ }
+  
+  
+ plan.travels=[];for(let i=1;i<plan.routes.length;i++){const a=plan.routes[i-1],b=plan.routes[i],from=a.closed?a.path[0]:a.path.at(-1),to=b.path[0];if(from[0]!==to[0]||from[1]!==to[1])plan.travels.push({kind:'travel',from,to,feedWidthStart:0,feedWidthEnd:0,beforeRoute:i,reason:'explicit-continuity-break-or-boundaries-before-inward'});}
+ const out=frameSpiralRoutesToLayer(plan,input);for(let i=0;i<out.paths.length;i++)if(plan.routes[i].terminalOverrunEmitted){const r=plan.routes[i];out.pathOrderMetadata[i]={...out.pathOrderMetadata[i],terminalOverrunEmitted:true,terminalLengthMM:r.terminalLengthMM,terminalOverlapEquivalentW:r.terminalOverlapEquivalentW,cumulativeOverlapEquivalentW:r.cumulativeOverlapEquivalentW,terminalPositionPreexistedInOriginalFirstRibbon:true,addedTerminalPrintMultiplicity:true};}
+ for(const segment of out.segmentIndex)if(segment.role==='budgeted-original-axis-terminal-overlap'){segment.sourceAngleAssociationRequired=true;segment.inheritedOriginalSourceAngle=segment.sourceAngle;segment.positionPreexistedInOriginalFirstRibbon=true;segment.addedPrintMultiplicity=true;}
+ out.sourceAngleAssociationRequired=out.segmentIndex.some(s=>s.sourceAngleAssociationRequired);out.spiral.terminalOverrunEmitted=plan.routes.some(r=>r.terminalOverrunEmitted);out.spiral.terminalCommands=plan.events.filter(e=>e.kind==='terminal-overlap');out.productionIntegrationComplete=false;out.geometryGateComplete=true;out.originalPathDepthMaximum=Math.max(...input.loops.map(l=>l.depth));out.originalPrimaryBoundaryLoopsPrintedExactlyOnce=true;out.plan=plan;return out;
+}
+function frameSpiralGeometryWithoutAngles(value) {
+  const seen = new Set();
+  function visit(q) {
+    if (!q || typeof q !== 'object' || seen.has(q) || ArrayBuffer.isView(q)) return;
+    seen.add(q);
+    for (const key of Object.keys(q)) {
+      if (key.startsWith('sourceAngle') || key === 'inheritedOriginalSourceAngle' || key === 'currentIncidenceBinding' || key === 'preparedSourceFaceIds') delete q[key];
+      else visit(q[key]);
+    }
+  }
+  visit(value); return value;
+}
+function frameSpiralPrepareFixedNominalTemplates(value, p, group, adaptiveValue, groupCount) {
+   
+   
+  const count = p.perimeters ?? 1, W = p.lineWidth;
+  if (p.spiralGeometry !== true || count < 2 || !Number.isFinite(W) || W <= 0 || groupCount !== 1 || group.sourceRingIds || adaptiveValue?.status !== 'fixed-fallback') return null;
+  const section = value.reference?.section;
+  if (!section?.coords || section.ends?.length !== 1 || section.coords.length / 2 > 256 || section.ends[0] * 2 !== section.coords.length) return null;
+  if (group.reference?.section !== section || value.paths?.length !== 2 || group.paths !== value.paths || value.pathMetadata?.length !== 2) return null;
+  if (value.pathMetadata[0]?.depth !== 0 || value.pathMetadata[1]?.depth !== 1 || value.pathMetadata.some(m => m.boundaryRole !== 'outer' || m.levelPath !== 0)) return null;
+  if (value.paths.some(path => path.length < 3) || value.paths.reduce((n, path) => n + path.length, 0) > 256) return null;
+  if (typeof frameSpiralPrepareAngleBanks !== 'function') return null;
+  const orientations = [], eps = W * 1e-10;
+  for (const sign of [1, -1]) {
+    const paths = value.paths.map(path => frameClockwisePrintLoop(path, {clockwiseSign: sign}).path);
+    const parent = paths[0], child = paths[1], a = parent.at(-1), b = parent[0], to = child[0];
+    const tangent = [b[0] - a[0], b[1] - a[1]], delta = [to[0] - b[0], to[1] - b[1]];
+    const Lt = Math.hypot(...tangent), L = Math.hypot(...delta);
+    if (!(Lt > eps && L > eps)) continue;
+    const along = (delta[0] * tangent[0] + delta[1] * tangent[1]) / Lt;
+    const across = (delta[0] * -tangent[1] + delta[1] * tangent[0]) * sign / Lt;
+     
+    if (along <= eps || across <= eps || Math.abs(along - across) > Math.max(eps, L * 1e-10)) continue;
+    orientations.push({sign, paths});
+  }
+  if (!orientations.length) return null;
+  const sourceRings = frameAdaptiveUnpack(section);
+  const lineage = frameResolveNominalSpiralLineage({sourceRings, levels: value.perimeterLevels, componentId: 'strict-original-component', W});
+  if (lineage.status !== 'resolved-nominal-source-lineage') return null;
+  const original = lineage.levels.flatMap(level => level.paths);
+  if (original.length !== 2 || !original.every(loop => loop.lineage?.resolved) || original[1].lineage.parentPathId !== original[0].id) return null;
+  const bankPlan = frameSpiralPrepareAngleBanks(section, {maxEdges: 256});
+  if (bankPlan.status !== 'complete-immutable-source-angle-bank-plan') return null;
+  const bySign = {};
+  for (const {sign, paths} of orientations) {
+    const loops = original.map((loop, i) => ({...loop, points: paths[i], closed: true, feedWidth: W,
+      orderMetadata: {componentIndex: 0, ...value.pathMetadata[i], depth: value.pathMetadata[i].depth,
+        boundaryRole: value.pathMetadata[i].boundaryRole, sourceComponent: undefined, sourceRingIds: undefined,
+        requestedPerimeters: count, role: 'nominal-perimeter-fallback', fallbackReason: adaptiveValue.reason}}));
+    const output = frameBuildSpiralLayerGeometry({loops, sourceRings, W, clockwiseSign: sign,
+      rampLengthMM: .005 * W, terminalLengthMM: .001 * W, references: [value.reference]});
+    if (output.spiral?.connections !== 1 || output.spiral.terminalOverrunEmitted !== true || output.paths?.length !== 1 || output.pathClosed?.[0] !== false) continue;
+    const route = output.plan.routes[0];
+    const template = frameSpiralGeometryWithoutAngles({status: output.status,
+      paths: output.paths, pathClosed: output.pathClosed, pathVertexMetadata: output.pathVertexMetadata,
+      pathEdgeMetadata: output.pathEdgeMetadata, pathOrderMetadata: output.pathOrderMetadata,
+      references: output.references, segments: output.segments, segmentIndex: output.segmentIndex,
+      explicitTravels: output.explicitTravels, spiral: output.spiral,
+      geometryGateComplete: true, originalPathDepthMaximum: output.originalPathDepthMaximum,
+      originalPrimaryBoundaryLoopsPrintedExactlyOnce: true,
+      completeOverlapLedger: {departureEquivalentW: route.departureEquivalentW, arrivalEquivalentW: route.arrivalEquivalentW,
+        terminalAgainstOriginalEdgesEquivalentW: route.terminalAgainstOriginalEdgesEquivalentW,
+        terminalAgainstNewConnectorEquivalentW: route.terminalAgainstNewConnectorEquivalentW,
+        terminalOverlapEquivalentW: route.terminalOverlapEquivalentW,
+        cumulativeOverlapEquivalentW: route.cumulativeOverlapEquivalentW,
+        limitEquivalentW: .5, everyOriginalEdgeAndNewConnectorProfileCharged: true},
+      sourceNozzleGuard: {nominalNozzleRadiusMM: W / 2, connectorWholeSourceClearanceMM: route.wholeSourceClearanceMM,
+        terminalWholeSourceClearanceMM: route.terminalWholeSourceClearanceMM,
+        newAxisCrossings: false, newRemotePrintedFootprintPositions: false}});
+    bySign[String(sign)] = {id: 'strict-original-component/count-' + count + '/sign-' + sign,
+      template, bankPlan, family: {...original[0].lineage}, printClockwiseSign: sign,
+      requestedPerimeters: count, actualPerimeters: value.actualPerimeters,
+      originalLoops: loops.map((loop, originalPathIndex) => ({id: loop.id, points: loop.points, depth: loop.depth, originalPathIndex})),
+      originalSegmentMap: template.pathEdgeMetadata.map(row => row.map(e => e.originalPathId ? {
+        originalPathId: e.originalPathId, originalEdge: e.originalEdge, originalDepth: e.originalDepth,
+        sourceIntervalParameterStart: e.sourceIntervalParameterStart, sourceIntervalParameterEnd: e.sourceIntervalParameterEnd,
+        terminal: e.role === 'budgeted-original-axis-terminal-overlap'} : null)),
+      geometryOnly: true, sourceCoordinatesUnchanged: true};
+  }
+  return Object.keys(bySign).length ? {count, lineWidth: W, bySign} : null;
+}
+function frameSpiralCollectFixedLayerCandidates(result, groups, p) {
+   
+  if (p.spiralGeometry !== true || (p.perimeters ?? 1) < 2 || groups.length !== 1 || result.adaptive?.status !== 'fixed-fallback' || result.paths.length !== 2) return null;
+  const group = groups[0], prepared = group.adaptivePreparedRegion, orientation = p.printClockwiseSign ?? 1;
+  if (group.sourceRingIds || !prepared || prepared.section !== group.reference?.section || prepared.spiralTemplates?.count !== (p.perimeters ?? 1) || prepared.spiralTemplates.lineWidth !== p.lineWidth) return null;
+  const candidate = prepared.spiralTemplates.bySign[String(orientation)];
+  if (!candidate || candidate.printClockwiseSign !== orientation || candidate.originalLoops.length !== 2) return null;
+  for (let i = 0; i < 2; i++) {
+    if (result.pathClosed[i] !== true || result.pathVertexMetadata[i] !== null || result.pathEdgeMetadata[i] !== null || result.pathOrderMetadata[i]?.role !== 'nominal-perimeter-fallback' || result.pathOrderMetadata[i].depth !== i || result.pathOrderMetadata[i].levelPath !== 0 || result.paths[i] !== group.paths[i]) return null;
+  }
+  return [{...candidate, fallbackPathIndices: [0, 1]}];
+}
 function frameAdaptivePrepareInsetValue(value,p){
  const started=performance.now(),key=p.lineWidth+'|'+(p.perimeters??1),base={paths:value.paths,pathMetadata:value.pathMetadata,perimeterLevels:value.perimeterLevels,reference:value.reference,requestedPerimeters:value.requestedPerimeters,actualPerimeters:value.actualPerimeters},groups=frameAdaptiveSplitGroups([base]);
  if(groups.length>64)return value;
- const regions=groups.map(group=>{const t=performance.now(),section=group.reference?.section;let q;try{q=section?frameAdaptivePlacement(frameAdaptiveUnpack(section),p.lineWidth,p.perimeters??1):{status:'fixed-fallback',reason:'missing-original-component-material'};}catch(error){q={status:'fixed-fallback',reason:'unresolved-source-correspondence'};}return{paths:group.paths,pathMetadata:group.pathMetadata,section,sourceRingIds:group.sourceRingIds,value:q,milliseconds:performance.now()-t};});
+ const regions=groups.map(group=>{const t=performance.now(),section=group.reference?.section;let q;try{q=section?frameAdaptivePlacement(frameAdaptiveUnpack(section),p.lineWidth,p.perimeters??1):{status:'fixed-fallback',reason:'missing-original-component-material'};}catch(error){q={status:'fixed-fallback',reason:'unresolved-source-correspondence'};}const continuousNeckTemplate=frameContinuousPrepareInsetTemplate(group,q,p);q.acuteTemplates=frameAcutePrepareTemplates(group,p,q);const spiralTemplates=frameSpiralPrepareStrictNominalTemplates(value,p,group,q,groups.length);return{paths:group.paths,pathMetadata:group.pathMetadata,section,sourceRingIds:group.sourceRingIds,value:q,...(spiralTemplates?{spiralTemplates}:{}),...(continuousNeckTemplate?{continuousNeckTemplate}:{}),milliseconds:performance.now()-t};});
  const prepared={key,sourceSection:value.reference.section,regions,milliseconds:performance.now()-started};prepared.bytes=frameAdaptivePreparedSize(prepared);
- // Do not grow the message for unexpectedly large source/provenance outputs.
- // Owner retains its exact published qualification path in this case.
+  
+  
  if(prepared.bytes<=1024*1024)value.adaptivePrepared=prepared;
  return value;
 }
@@ -8797,16 +9725,462 @@ function frameAdaptivePreparedCacheStats(){return{estimatedRetainedBytes:frameAd
 
 const frameAdaptiveSectionCache=new WeakMap();
 function frameAdaptiveUnpack(section){const rings=[];let start=0;for(const end of section.ends){const ring=[];for(let i=start;i<end;i++)ring.push([section.coords[2*i],section.coords[2*i+1]]);rings.push(ring);start=end;}return rings;}
+function frameAdaptiveThinNeckAugmentation(rings,paths,W,minPathLength,pair,distance,within,axisIntersects){
+ const fail=(reason,witness)=>({status:'unsupported',reason,witness,coverageCertified:false,physicalPrintValidated:false});
+ if(rings.length!==1||rings[0].length!==12||!pair||pair.spans.length!==1||!pair.runtimeEndpointsRepresentable||pair.remainingBoundaryChains.length!==2||paths.length<2||paths.length>6)return fail('requires-bounded-single-original-neck-and-two-nominal-lobes');
+ let count=0;for(const path of paths){if(path.length<3)return fail('requires-original-closed-lobe-paths');count+=path.length;}if(count>512)return fail('bounded-existing-neck-footprint-work');
+ if(typeof axisIntersects!=='function'||!Number.isFinite(W)||W<=0||!Number.isFinite(minPathLength)||minPathLength<0||rings[0].some(p=>p.length!==2||p.some(v=>!Number.isFinite(v)))||paths.some(path=>path.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v)))))return fail('invalid-finite-neck-input');
+ const ring=rings[0],span=pair.spans[0],origin=span.midBankStart,end=span.midBankEnd,axis=end.map((v,k)=>v-origin[k]),coord=axis[0]===0?1:axis[1]===0?0:-1;
+ if(coord<0)return fail('requires-exact-orthogonal-neck-axis');const normal=1-coord,sign=Math.sign(axis[coord]),L=Math.abs(axis[coord]),gap=span.normalGapStart;
+ if(!(W>0&&L>=2*W&&gap>=.6*W&&gap<W&&span.normalGapEnd===gap))return fail('outside-existing-original-thin-neck-protocol',{gap,L});
+ const sourceIds=[span.source,span.target];if(sourceIds.some(s=>s.ring!==0||!['0/1','1/1'].includes(s.exactU0)||!['0/1','1/1'].includes(s.exactU1)||s.exactU0===s.exactU1))return fail('requires-complete-immutable-neck-bank-edges');
+ for(const id of sourceIds){const a=ring[id.edge],b=ring[(id.edge+1)%ring.length];if(a[normal]!==b[normal]||Math.min(a[coord],b[coord])!==Math.min(origin[coord],end[coord])||Math.max(a[coord],b[coord])!==Math.max(origin[coord],end[coord]))return fail('source-neck-bank-does-not-own-complete-finite-rectangle');}
+ const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),neg=a=>({n:-a.n,d:a.d}),sub=(a,b)=>add(a,neg(b)),mul=(a,b)=>R(a.n*b.n,a.d*b.d),div=(a,b)=>R(a.n*b.d,a.d*b.n),cmp=(a,b)=>{const x=a.n*b.d-b.n*a.d;return x<0n?-1:x>0n?1:0;},number=a=>Number(a.n)/Number(a.d),key=a=>a.n+'/'+a.d;
+ const bits=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(v===0)return R(0n);bits.setFloat64(0,v,false);const b=bits.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));},next=(v,dir)=>{if(v===0)return dir>0?Number.MIN_VALUE:-Number.MIN_VALUE;bits.setFloat64(0,v,false);let b=bits.getBigUint64(0,false);b+=(v>0)===(dir>0)?1n:-1n;bits.setBigUint64(0,b,false);return bits.getFloat64(0,false);},roundDirected=(x,dir)=>{let v=number(x);for(let i=0;i<8&&cmp(dyadic(v),x)*dir<0;i++)v=next(v,dir);if(cmp(dyadic(v),x)*dir<0)throw Error('bounded-directed-neck-cap-rounding');return v;};
+ const O=origin.map(dyadic),zero=R(0n),one=R(1n),half=R(1n,2n),S=R(BigInt(sign)),length=dyadic(L),radius=mul(dyadic(W),half),low=neg(radius);
+ const bankNormals=sourceIds.map(s=>dyadic(ring[s.edge][normal]));if(cmp(O[normal],mul(add(...bankNormals),half)))return fail('unrepresentable-exact-neck-midpoint');
+ const local=p=>[mul(sub(dyadic(p[coord]),O[coord]),S),sub(dyadic(p[normal]),O[normal])];
+ function clip(poly,k,bound,keepGreater){const out=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],ia=cmp(a[k],bound)*(keepGreater?1:-1)>=0,ib=cmp(b[k],bound)*(keepGreater?1:-1)>=0;if(ia)out.push(a);if(ia!==ib){const t=div(sub(bound,a[k]),sub(b[k],a[k]));const p=a.map((v,j)=>add(v,mul(sub(b[j],v),t)));p[k]=bound;out.push(p);}}return out;}
+ const twiceArea=poly=>{let v=zero;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];v=add(v,sub(mul(a[0],b[1]),mul(a[1],b[0])));}return v.n<0?neg(v):v;};
+ const clipped=poly=>clip(clip(clip(clip(poly,0,zero,true),0,length,false),1,low,true),1,radius,false);
+ let left=zero,right=length;const oldRibbons=[],contacts=[];
+ for(let p=0;p<paths.length;p++){
+  const path=paths[p],x=path.map(v=>local(v)[0]);const lo=x.reduce((a,b)=>cmp(a,b)<0?a:b),hi=x.reduce((a,b)=>cmp(a,b)>0?a:b),middle=mul(length,half),side=cmp(hi,middle)<0?'start':cmp(lo,middle)>0?'end':null;if(!side)return fail('existing-path-crosses-original-neck-middle');
+  for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length],d=b.map((v,k)=>v-a[k]),l=Math.hypot(...d);if(!l||!Number.isFinite(l))return fail('zero-or-unbounded-original-lobe-segment');const n=[-d[1]/l,d[0]/l],r=[a.map((v,k)=>v+n[k]*W/2),b.map((v,k)=>v+n[k]*W/2),b.map((v,k)=>v-n[k]*W/2),a.map((v,k)=>v-n[k]*W/2)].map(local),q=clipped(r);oldRibbons.push({path:p,edge:i,poly:r,from:a,to:b});if(q.length&&twiceArea(q).n){const bound=q.map(p=>p[0]).reduce((a,b)=>cmp(a,b)*(side==='start'?1:-1)>0?a:b);if(side==='start'&&cmp(bound,left)>0)left=bound;if(side==='end'&&cmp(bound,right)<0)right=bound;contacts.push({path:p,edge:i,side,boundExact:key(bound)});}}
+ }
+ if(!contacts.some(c=>c.side==='start')||!contacts.some(c=>c.side==='end')||cmp(left,right)>=0)return fail('no-positive-neck-gap-between-original-flat-footprints');
+ const A=origin.slice(),B=origin.slice();A[coord]=roundDirected(add(O[coord],mul(left,S)),sign);B[coord]=roundDirected(add(O[coord],mul(right,S)),-sign);const a=local(A)[0],b=local(B)[0],routeLength=Math.abs(B[coord]-A[coord]);
+ if(routeLength<W||routeLength<minPathLength)return fail('neck-route-shorter-than-independent-start-or-min-path',{routeLength});
+ const newRibbon=[[a,low],[b,low],[b,radius],[a,radius]],pairLedger=[];let total=zero;
+ for(const r of oldRibbons){if(axisIntersects(A,B,r.from,r.to))return fail('new-neck-axis-crosses-or-contacts-existing-loop-axis');const intersection=clip(clip(clip(clip(r.poly,0,a,true),0,b,false),1,low,true),1,radius,false),overlap=twiceArea(intersection);total=add(total,overlap);pairLedger.push({oldPath:r.path,oldEdge:r.edge,exactAreaMM2:key(mul(overlap,half)),areaMM2:number(mul(overlap,half)),newPathEdge:0});}
+ if(cmp(mul(total,half),mul(dyadic(W*W),half))>0)return fail('neck-new-old-total-overlap-exceeds-existing-half-W2-budget');
+ if(total.n)return fail('neck-route-not-clipped-to-disjoint-original-flat-footprints',{areaMM2:number(mul(total,half))});
+ const bankIds=new Set(sourceIds.map(s=>s.edge)),localEdges=new Set(sourceIds.flatMap(s=>[s.edge,(s.edge+ring.length-1)%ring.length,(s.edge+1)%ring.length]));
+ for(const edge of localEdges){if(bankIds.has(edge))continue;const ends=[ring[edge],ring[(edge+1)%ring.length]],shared=ends.find(p=>sourceIds.some(s=>[ring[s.edge],ring[(s.edge+1)%ring.length]].some(v=>v[0]===p[0]&&v[1]===p[1])));if(!shared)return fail('unowned-neck-continuation-bank');const other=ends[0]===shared?ends[1]:ends[0],P=local(shared),Q=local(other),fromStart=cmp(P[0],zero)===0,fromEnd=cmp(P[0],length)===0,away=fromStart?cmp(Q[0],zero)<0:fromEnd?cmp(Q[0],length)>0:false,sameSide=P[1].n*Q[1].n>0n,normalAway=cmp(P[1].n<0?neg(P[1]):P[1],Q[1].n<0?neg(Q[1]):Q[1])<=0;if(!away||!sameSide||!normalAway)return fail('original-neck-continuation-bank-can-return-toward-route');}
+ let physical=Infinity,foreign=Infinity;
+ for(let edge=0;edge<ring.length;edge++){const clear=distance(A,B,ring[edge],ring[(edge+1)%ring.length]);physical=Math.min(physical,clear);if(!localEdges.has(edge))foreign=Math.min(foreign,clear);}if(physical<.3*W||foreign<W/2)return fail('foreign-or-local-original-material-obstructs-existing-thin-neck-policy',{physical,foreign});
+ if(!within(A,B,.6*W,.6*W,rings,0))return fail('original-source-does-not-contain-whole-existing-thin-core');
+ const sourceIntervals=[],reservedBankIntervals=[],bankPartition=[];
+ for(const id of sourceIds){const start=ring[id.edge],finish=ring[(id.edge+1)%ring.length],at=p=>div(sub(dyadic(p[coord]),dyadic(start[coord])),sub(dyadic(finish[coord]),dyadic(start[coord])));let u0=at(A),u1=at(B);const lo=cmp(u0,u1)<0?u0:u1,hi=cmp(u0,u1)<0?u1:u0;if(cmp(lo,zero)<=0||cmp(hi,one)>=0)return fail('clipped-neck-bank-events-not-strictly-finite');const part=(u,v,owner)=>({ring:0,edge:id.edge,u0:number(u),u1:number(v),exactU0:key(u),exactU1:key(v),owner,sourceStart:start.map((x,k)=>k===coord?number(add(dyadic(x),mul(sub(dyadic(finish[k]),dyadic(x)),u))):x),sourceEnd:start.map((x,k)=>k===coord?number(add(dyadic(x),mul(sub(dyadic(finish[k]),dyadic(x)),v))):x)}),owned=part(u0,u1,'independent-nominal-W-thin-neck-route');sourceIntervals.push(owned);const parts=[part(zero,lo,'original-nominal-lobe-neck-transition-reserved'),part(lo,hi,'independent-nominal-W-thin-neck-route'),part(hi,one,'original-nominal-lobe-neck-transition-reserved')];reservedBankIntervals.push(parts[0],parts[2]);bankPartition.push({ring:0,edge:id.edge,completeExact0to1Partition:true,parts});}
+ const bounds=[Math.min(A[0],B[0])-(coord===1?W/2:0),Math.min(A[1],B[1])-(coord===0?W/2:0),Math.max(A[0],B[0])+(coord===1?W/2:0),Math.max(A[1],B[1])+(coord===0?W/2:0)];
+ const metadata={role:'adaptive-original-thin-neck-augmentation',sourceIntervals,originalSourceBankIds:sourceIds.map(s=>({ring:0,edge:s.edge})),reservedOriginalNeckBankIntervals:reservedBankIntervals,completeOriginalNeckBankPartition:bankPartition,sourceGeometryUnchanged:true,originalNominalPathsUnchanged:true,neckIntervalOwnershipComplete:true,componentBoundaryOwnershipCertified:false,coverageCertified:false,physicalPrintValidated:false,thinNominalException:true,thinExceptionAuthority:'existing-original-.6W-to-W-thin-neck-with-nominal-W-independent-start',independentStart:true,minimumIndependentStartWidthMM:W,nominalNozzleRadius:W/2,minimumPhysicalSourceClearanceMM:physical,nominalNozzleContained:false,nominalRibbonContained:false,thinTransverseExpansionEachSideMM:(W-gap)/2,localOriginalNeckContinuationBankIds:[...localEdges],continuationBanksMonotoneAwayFromFiniteNeck:true,originalThinCoreWidthMM:.6*W,originalThinCoreContained:true,foreignOriginalBankNozzleClearanceMM:foreign,flatEndsClippedAgainstOriginalPrintedRibbonFootprints:true,originalFlatFootprintClipEvents:contacts,totalNewOldOverlapAreaMM2:0,exactNewOldAreaSumMM2:'0/1',newOldPairLedger:pairLedger,existingLocalOverlapBudgetMM2:.5*W*W,allNewOldPairsCharged:pairLedger.length,originalGapMM:gap,axisErrorBudgetMM:0};
+ return{status:'supported',path:[A,B],pathClosed:false,pathVertexMetadata:[0,1].map(()=>({feedWidth:W,displayWidth:W,nozzleRadius:W/2,thinNominalException:true,independentStart:true,nominalNozzleContained:false})),pathEdgeMetadata:[metadata],ribbonBounds:bounds,neckBankPartition:bankPartition,sourceCellParameters:[{exactT0:'0/1',exactT1:key(div(a,length)),owner:'original-nominal-lobe-neck-transition-reserved'},{exactT0:key(div(a,length)),exactT1:key(div(b,length)),owner:'independent-nominal-W-thin-neck-route'},{exactT0:key(div(b,length)),exactT1:'1/1',owner:'original-nominal-lobe-neck-transition-reserved'}],pairLedger,physicalNozzleSourceClearanceMM:physical,nominalNozzleContained:false,foreignOriginalBankNozzleClearanceMM:foreign,originalGapMM:gap,routeLengthMM:routeLength,thinNominalException:true,coverageCertified:false,physicalPrintValidated:false};
+}
+function frameAdaptiveCurvedThinNeckAugmentation(rings,paths,W,minPathLength,pair,distance,within,axisIntersects){
+ const fail=(reason,witness)=>({status:'unsupported',reason,witness,coverageCertified:false,physicalPrintValidated:false});
+ if(rings.length!==1||rings[0].length<16||rings[0].length>128||paths.length<2||paths.length>6)return fail('requires-bounded-single-monotone-curved-neck-and-original-lobes');
+ let count=0;for(const path of paths){if(path.length<3)return fail('requires-original-closed-lobe-paths');count+=path.length;}if(count>512)return fail('bounded-existing-neck-footprint-work');
+ if(typeof axisIntersects!=='function'||!Number.isFinite(W)||W<=0||!Number.isFinite(minPathLength)||minPathLength<0||rings[0].some(p=>p.length!==2||p.some(v=>!Number.isFinite(v)))||paths.some(path=>path.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v)))))return fail('invalid-finite-neck-input');
+ const ring=rings[0];let frame;
+ for(const coord of[0,1]){
+  const normal=1-coord,lo=Math.min(...ring.map(p=>p[coord])),hi=Math.max(...ring.map(p=>p[coord])),caps=[];
+  for(let edge=0;edge<ring.length;edge++){const a=ring[edge],b=ring[(edge+1)%ring.length];if(a[coord]===b[coord]&&(a[coord]===lo||a[coord]===hi))caps.push(edge);}
+  if(caps.length!==2||ring[caps[0]][coord]===ring[caps[1]][coord])continue;
+  const chains=caps.map((e,k)=>{const ids=[];let at=(e+1)%ring.length;for(let step=0;step<ring.length&&at!==caps[1-k];step++,at=(at+1)%ring.length)ids.push(at);return ids;});
+  if(chains.some(ids=>ids.length<2||ids.some(e=>ring[e][coord]===ring[(e+1)%ring.length][coord])))continue;
+  if(chains.some(ids=>{const sign=Math.sign(ring[(ids[0]+1)%ring.length][coord]-ring[ids[0]][coord]);return ids.some(e=>Math.sign(ring[(e+1)%ring.length][coord]-ring[e][coord])!==sign);} ))continue;
+  const points=chains.map(ids=>[...ids.map(e=>ring[e]),ring[(ids.at(-1)+1)%ring.length]]),mins=points.map(ps=>Math.min(...ps.map(p=>p[normal]))),maxs=points.map(ps=>Math.max(...ps.map(p=>p[normal]))),upper=mins[0]>maxs[1]?0:mins[1]>maxs[0]?1:-1;
+  if(upper<0)continue;const lower=1-upper,U=points[upper].filter(p=>p[normal]===mins[upper]),D=points[lower].filter(p=>p[normal]===maxs[lower]);
+  if(U.length!==1||D.length!==1||U[0][coord]!==D[0][coord])continue;const middle=U[0][coord],gap=U[0][normal]-D[0][normal];
+  if(!(gap>=.6*W&&gap<W&&middle>lo+W&&middle<hi-W))continue;
+  if(chains.some((ids,k)=>ids.some(e=>{const a=ring[e],b=ring[(e+1)%ring.length],side=Math.sign((a[coord]+b[coord])/2-middle),delta=b[normal]-a[normal],dx=b[coord]-a[coord];return side===0||delta/dx*side*(k===upper?1:-1)<0;})))continue;
+  const origin=[0,0],end=[0,0];origin[coord]=lo;end[coord]=hi;origin[normal]=end[normal]=(U[0][normal]+D[0][normal])/2;
+  frame={coord,normal,origin,end,chains,upper,lower,middle,gap,caps};break;
+ }
+ if(!frame)return fail('requires-unique-original-orthogonal-monotone-curved-bottleneck');
+ const {coord,normal,origin,end,chains,upper,lower,middle,gap,caps}=frame,sign=1,L=end[coord]-origin[coord],sourceIds=chains.flat().map(edge=>({ring:0,edge}));
+ const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t;}return a;},R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};},add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d),neg=a=>({n:-a.n,d:a.d}),sub=(a,b)=>add(a,neg(b)),mul=(a,b)=>R(a.n*b.n,a.d*b.d),div=(a,b)=>R(a.n*b.d,a.d*b.n),cmp=(a,b)=>{const x=a.n*b.d-b.n*a.d;return x<0n?-1:x>0n?1:0;},number=a=>Number(a.n)/Number(a.d),key=a=>a.n+'/'+a.d;
+ const bits=new DataView(new ArrayBuffer(8)),dyadic=v=>{if(v===0)return R(0n);bits.setFloat64(0,v,false);const b=bits.getBigUint64(0,false),E=Number((b>>52n)&2047n);let n=b&4503599627370495n;if(E)n|=4503599627370496n;if(b>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));},next=(v,dir)=>{if(v===0)return dir>0?Number.MIN_VALUE:-Number.MIN_VALUE;bits.setFloat64(0,v,false);let b=bits.getBigUint64(0,false);b+=(v>0)===(dir>0)?1n:-1n;bits.setBigUint64(0,b,false);return bits.getFloat64(0,false);},roundDirected=(x,dir)=>{let v=number(x);for(let i=0;i<8&&cmp(dyadic(v),x)*dir<0;i++)v=next(v,dir);if(cmp(dyadic(v),x)*dir<0)throw Error('bounded-directed-neck-cap-rounding');return v;};
+ const O=origin.map(dyadic),zero=R(0n),one=R(1n),half=R(1n,2n),S=R(BigInt(sign)),length=dyadic(L),radius=mul(dyadic(W),half),low=neg(radius);
+
+ const local=p=>[mul(sub(dyadic(p[coord]),O[coord]),S),sub(dyadic(p[normal]),O[normal])];
+ function clip(poly,k,bound,keepGreater){const out=[];for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length],ia=cmp(a[k],bound)*(keepGreater?1:-1)>=0,ib=cmp(b[k],bound)*(keepGreater?1:-1)>=0;if(ia)out.push(a);if(ia!==ib){const t=div(sub(bound,a[k]),sub(b[k],a[k]));const p=a.map((v,j)=>add(v,mul(sub(b[j],v),t)));p[k]=bound;out.push(p);}}return out;}
+ const twiceArea=poly=>{let v=zero;for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];v=add(v,sub(mul(a[0],b[1]),mul(a[1],b[0])));}return v.n<0?neg(v):v;};
+ const clipped=poly=>clip(clip(clip(clip(poly,0,zero,true),0,length,false),1,low,true),1,radius,false);
+ let left=zero,right=length;const oldRibbons=[],contacts=[];
+ for(let p=0;p<paths.length;p++){
+  const path=paths[p],x=path.map(v=>local(v)[0]);const lo=x.reduce((a,b)=>cmp(a,b)<0?a:b),hi=x.reduce((a,b)=>cmp(a,b)>0?a:b),middle=mul(length,half),side=cmp(hi,middle)<0?'start':cmp(lo,middle)>0?'end':null;if(!side)return fail('existing-path-crosses-original-neck-middle');
+  for(let i=0;i<path.length;i++){const a=path[i],b=path[(i+1)%path.length],d=b.map((v,k)=>v-a[k]),l=Math.hypot(...d);if(!l||!Number.isFinite(l))return fail('zero-or-unbounded-original-lobe-segment');const n=[-d[1]/l,d[0]/l],r=[a.map((v,k)=>v+n[k]*W/2),b.map((v,k)=>v+n[k]*W/2),b.map((v,k)=>v-n[k]*W/2),a.map((v,k)=>v-n[k]*W/2)].map(local),q=clipped(r);oldRibbons.push({path:p,edge:i,poly:r,from:a,to:b});if(q.length&&twiceArea(q).n){const bound=q.map(p=>p[0]).reduce((a,b)=>cmp(a,b)*(side==='start'?1:-1)>0?a:b);if(side==='start'&&cmp(bound,left)>0)left=bound;if(side==='end'&&cmp(bound,right)<0)right=bound;contacts.push({path:p,edge:i,side,boundExact:key(bound)});}}
+ }
+ if(!contacts.some(c=>c.side==='start')||!contacts.some(c=>c.side==='end')||cmp(left,right)>=0)return fail('no-positive-neck-gap-between-original-flat-footprints');
+ const A=origin.slice(),B=origin.slice();A[coord]=roundDirected(add(O[coord],mul(left,S)),sign);B[coord]=roundDirected(add(O[coord],mul(right,S)),-sign);const a=local(A)[0],b=local(B)[0],routeLength=Math.abs(B[coord]-A[coord]);
+ if(routeLength<W||routeLength<minPathLength)return fail('neck-route-shorter-than-independent-start-or-min-path',{routeLength});
+ const newRibbon=[[a,low],[b,low],[b,radius],[a,radius]],pairLedger=[];let total=zero;
+ for(const r of oldRibbons){if(axisIntersects(A,B,r.from,r.to))return fail('new-neck-axis-crosses-or-contacts-existing-loop-axis');const intersection=clip(clip(clip(clip(r.poly,0,a,true),0,b,false),1,low,true),1,radius,false),overlap=twiceArea(intersection);total=add(total,overlap);pairLedger.push({oldPath:r.path,oldEdge:r.edge,exactAreaMM2:key(mul(overlap,half)),areaMM2:number(mul(overlap,half)),newPathEdge:0});}
+ if(cmp(mul(total,half),mul(dyadic(W*W),half))>0)return fail('neck-new-old-total-overlap-exceeds-existing-half-W2-budget');
+ if(total.n)return fail('neck-route-not-clipped-to-disjoint-original-flat-footprints',{areaMM2:number(mul(total,half))});
+ const localEdges=new Set(sourceIds.map(s=>s.edge));
+ let physical=Infinity,foreign=Infinity;
+ for(let edge=0;edge<ring.length;edge++){const clear=distance(A,B,ring[edge],ring[(edge+1)%ring.length]);physical=Math.min(physical,clear);if(!localEdges.has(edge))foreign=Math.min(foreign,clear);}if(physical<.3*W||foreign<W/2)return fail('foreign-or-local-original-material-obstructs-existing-thin-neck-policy',{physical,foreign});
+ if(!within(A,B,.6*W,.6*W,rings,0))return fail('original-source-does-not-contain-whole-existing-thin-core');
+ const activeEdges=new Set(),sourceIntervals=[],reservedBankIntervals=[],bankPartition=[],sourceCells=[];
+ const spanLo=dyadic(A[coord]),spanHi=dyadic(B[coord]);
+ function eventAt(edge,x){const start=ring[edge],finish=ring[(edge+1)%ring.length],u=div(sub(x,dyadic(start[coord])),sub(dyadic(finish[coord]),dyadic(start[coord])));return{u,y:add(dyadic(start[normal]),mul(sub(dyadic(finish[normal]),dyadic(start[normal])),u))};}
+ for(const id of sourceIds){
+  const start=ring[id.edge],finish=ring[(id.edge+1)%ring.length],x0=dyadic(Math.min(start[coord],finish[coord])),x1=dyadic(Math.max(start[coord],finish[coord])),xlo=cmp(spanLo,x0)>0?spanLo:x0,xhi=cmp(spanHi,x1)<0?spanHi:x1,part=(u,v,owner)=>({ring:0,edge:id.edge,u0:number(u),u1:number(v),exactU0:key(u),exactU1:key(v),owner,immutableSourceStart:start.slice(),immutableSourceEnd:finish.slice()});
+  if(cmp(xlo,xhi)>=0){const reserved=part(zero,one,'unchanged-original-source-reserved');reservedBankIntervals.push(reserved);bankPartition.push({ring:0,edge:id.edge,completeExact0to1Partition:true,parts:[reserved]});continue;}
+  activeEdges.add(id.edge);const u0=eventAt(id.edge,xlo).u,u1=eventAt(id.edge,xhi).u,lo=cmp(u0,u1)<0?u0:u1,hi=cmp(u0,u1)<0?u1:u0,parts=[];if(cmp(lo,zero)>0)parts.push(part(zero,lo,'unchanged-original-source-reserved'));const owned=part(lo,hi,'independent-nominal-W-curved-neck-corridor');parts.push(owned);sourceIntervals.push(owned);if(cmp(hi,one)<0)parts.push(part(hi,one,'unchanged-original-source-reserved'));reservedBankIntervals.push(...parts.filter(p=>p.owner==='unchanged-original-source-reserved'));bankPartition.push({ring:0,edge:id.edge,completeExact0to1Partition:true,parts});
+ }
+ const stations=[A[coord],B[coord],...ring.filter(p=>p[coord]>A[coord]&&p[coord]<B[coord]).map(p=>p[coord])].sort((a,b)=>a-b).filter((x,i,all)=>!i||x!==all[i-1]);let maximumGap=0,minimumGap=Infinity;
+ for(let k=1;k<stations.length;k++){
+  const x0=dyadic(stations[k-1]),x1=dyadic(stations[k]),find=chain=>chain.find(e=>cmp(dyadic(Math.min(ring[e][coord],ring[(e+1)%ring.length][coord])),x0)<=0&&cmp(dyadic(Math.max(ring[e][coord],ring[(e+1)%ring.length][coord])),x1)>=0),up=find(chains[upper]),down=find(chains[lower]);if(up===undefined||down===undefined)return fail('unowned-curved-source-cell');
+  const gaps=[x0,x1].map(x=>sub(eventAt(up,x).y,eventAt(down,x).y));if(gaps.some(g=>cmp(g,dyadic(.6*W))<0||cmp(g,dyadic(W))>=0))return fail('curved-route-cell-outside-existing-.6W-to-W-thin-authority',{gaps:gaps.map(number)});
+  minimumGap=Math.min(minimumGap,...gaps.map(number));maximumGap=Math.max(maximumGap,...gaps.map(number));sourceCells.push({exactX0:key(x0),exactX1:key(x1),x0:stations[k-1],x1:stations[k],upperOriginalEdge:up,lowerOriginalEdge:down,upperExactU:[key(eventAt(up,x0).u),key(eventAt(up,x1).u)],lowerExactU:[key(eventAt(down,x0).u),key(eventAt(down,x1).u)],sourceGapStartMM:number(gaps[0]),sourceGapEndMM:number(gaps[1]),owner:'independent-nominal-W-curved-neck-corridor',sourceGeometryUnchanged:true});
+ }
+ const bounds=[Math.min(A[0],B[0])-(coord===1?W/2:0),Math.min(A[1],B[1])-(coord===0?W/2:0),Math.max(A[0],B[0])+(coord===1?W/2:0),Math.max(A[1],B[1])+(coord===0?W/2:0)];
+ const metadata={role:'adaptive-original-curved-thin-neck-augmentation',sourceIntervals,originalSourceBankIds:sourceIds.map(s=>({ring:0,edge:s.edge})),reservedOriginalNeckBankIntervals:reservedBankIntervals,completeOriginalNeckBankPartition:bankPartition,sourceGeometryUnchanged:true,sourceBankIdScope:'immutable-current-component-original-section-ring',sourceRingCount:1,sourceVertexCount:ring.length,originalCurvedSourceCellScope:'finite-added-route-axis-range',originalNominalPathsUnchanged:true,neckIntervalOwnershipComplete:true,componentBoundaryOwnershipCertified:false,coverageCertified:false,physicalPrintValidated:false,thinNominalException:true,thinExceptionAuthority:'existing-original-.6W-to-W-thin-neck-with-nominal-W-independent-start',independentStart:true,minimumIndependentStartWidthMM:W,nominalNozzleRadius:W/2,minimumPhysicalSourceClearanceMM:physical,nominalNozzleContained:false,nominalRibbonContained:false,thinTransverseExpansionEachSideMM:(W-gap)/2,localOriginalNeckContinuationBankIds:[...localEdges],continuationBanksMonotoneAwayFromFiniteNeck:true,immutableCurvedBankChains:true,originalThinCoreWidthMM:.6*W,originalThinCoreContained:true,foreignOriginalBankNozzleClearanceMM:foreign,flatEndsClippedAgainstOriginalPrintedRibbonFootprints:true,originalFlatFootprintClipEvents:contacts,totalNewOldOverlapAreaMM2:0,exactNewOldAreaSumMM2:'0/1',newOldPairLedger:pairLedger,existingLocalOverlapBudgetMM2:.5*W*W,allNewOldPairsCharged:pairLedger.length,originalGapMM:gap,minimumSourceCellGapMM:minimumGap,maximumSourceCellGapMM:maximumGap,completeOriginalCurvedSourceCells:sourceCells,axisErrorBudgetMM:0,sourceAxisIsConservativeCoreCorridor:true,sourceMidpointExactClaim:false};
+ return{status:'supported',path:[A,B],pathClosed:false,pathVertexMetadata:[0,1].map(()=>({feedWidth:W,displayWidth:W,nozzleRadius:W/2,thinNominalException:true,independentStart:true,nominalNozzleContained:false})),pathEdgeMetadata:[metadata],ribbonBounds:bounds,neckBankPartition:bankPartition,sourceCells,sourceCellParameters:[{exactT0:'0/1',exactT1:key(div(a,length)),owner:'original-nominal-lobe-neck-transition-reserved'},{exactT0:key(div(a,length)),exactT1:key(div(b,length)),owner:'independent-nominal-W-thin-neck-route'},{exactT0:key(div(b,length)),exactT1:'1/1',owner:'original-nominal-lobe-neck-transition-reserved'}],pairLedger,physicalNozzleSourceClearanceMM:physical,nominalNozzleContained:false,foreignOriginalBankNozzleClearanceMM:foreign,originalGapMM:gap,routeLengthMM:routeLength,thinNominalException:true,coverageCertified:false,physicalPrintValidated:false};
+}
+const frameContinuousTipRoute=(function(){
+const frameContinuousNozzleInheritance=(function(){
+ const rawR=(function(){ 
+ 
+const bits=new DataView(new ArrayBuffer(8));
+function gcd(a,b){a=a<0n?-a:a;b=b<0n?-b:b;while(b)[a,b]=[b,a%b];return a;}
+function rat(n,d=1n){if(d===0n)throw Error('zero denominator');if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};}
+function exact(x){if(!Number.isFinite(x))throw Error('nonfinite');if(!x)return rat(0n);bits.setFloat64(0,x,false);const v=bits.getBigUint64(0,false),E=Number((v>>52n)&2047n);let n=v&4503599627370495n;if(E)n|=4503599627370496n;if(v>>63n)n=-n;const e=E?E-1075:-1074;return e<0?rat(n,1n<<BigInt(-e)):rat(n<<BigInt(e));}
+const add=(a,b)=>rat(a.n*b.d+b.n*a.d,a.d*b.d),sub=(a,b)=>rat(a.n*b.d-b.n*a.d,a.d*b.d),mul=(a,b)=>rat(a.n*b.n,a.d*b.d),div=(a,b)=>rat(a.n*b.d,a.d*b.n),num=a=>Number(a.n)/Number(a.d),str=a=>a.n+'/'+a.d,zero=a=>a.n===0n,vectorSub=(a,b)=>a.map((v,i)=>sub(v,b[i])),dot=(a,b)=>a.reduce((s,v,i)=>add(s,mul(v,b[i])),rat(0n));
+function cross(a,b){return[sub(mul(a[1],b[2]),mul(a[2],b[1])),sub(mul(a[2],b[0]),mul(a[0],b[2])),sub(mul(a[0],b[1]),mul(a[1],b[0]))];}
+function planeVolume(p){return dot(vectorSub(p[3],p[0]),cross(vectorSub(p[1],p[0]),vectorSub(p[2],p[0])));}
+function affine(m,p){return[0,1,2].map(i=>[0,1,2].reduce((s,j)=>add(s,mul(m[i+j*4],p[j])),m[i+12]));}
+function hit(a,b,Y){const t=div(sub(Y,a[1]),sub(b[1],a[1]));return[0,2].map(k=>add(a[k],mul(sub(b[k],a[k]),t)));}
+function floor(n,d){let q=n/d;if(n<0n&&n%d)q--;return q;}
+function grid(a,S=1000000n){return Number(floor(2n*a.n*S+a.d,2n*a.d));}
+function cross2(a,b,c){const u=vectorSub(b,a),v=vectorSub(c,a);return sub(mul(u[0],v[1]),mul(u[1],v[0]));}
+return {rat,exact,add,sub,mul,div,num,str,zero,vectorSub,dot,cross,planeVolume,affine,hit,grid,cross2};})();let arithmeticSteps=0,qa176WitnessTrace=null,qa176PairWitnessMemo=null;
+ const R={};for(const [name,fn] of Object.entries(rawR))R[name]=function(...args){if(++arithmeticSteps>200000)throw Error('bounded-nozzle-proof-arithmetic-work');const result=fn(...args);if(result&&typeof result==='object'&&typeof result.n==='bigint'&&(result.n.toString(2).length>8192||result.d.toString(2).length>8192))throw Error('bounded-nozzle-proof-rational-size');if(name==='num'&&!Number.isFinite(result))throw Error('nonfinite-nozzle-proof-rational-conversion');if(qa176WitnessTrace)qa176WitnessTrace.push([name,result]);return result;};
+ const H=(function(){const cmp=(a,b)=>{const d=a.n*b.d-b.n*a.d;return d<0n?-1:d>0n?1:0;},Q=R.exact,Z=R.rat(0n),ONE=R.rat(1n),HALF=R.rat(1n,2n),mix=(a,b,u)=>R.add(a,R.mul(R.sub(b,a),u)),length=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);
+function finiteSourceProfile(rings,W=1){
+ const fail=reason=>({status:'unsupported',reason,physicalPrintValidated:false,coverageCertified:false});
+ if(!Array.isArray(rings)||rings.length!==1||rings[0].length<12||rings[0].length>128)return fail('bounded-single-original-ring-required');
+ if(!Number.isFinite(W)||W<=0||rings[0].some(p=>!Array.isArray(p)||p.length!==2||p.some(x=>!Number.isFinite(x))))return fail('invalid-finite-original-source');
+ const ring=rings[0];let frame;
+ for(const coord of[0,1]){const normal=1-coord,lo=Math.min(...ring.map(p=>p[coord])),hi=Math.max(...ring.map(p=>p[coord])),caps=[];for(let e=0;e<ring.length;e++){const a=ring[e],b=ring[(e+1)%ring.length];if(a[coord]===b[coord]&&(a[coord]===lo||a[coord]===hi))caps.push(e);}if(caps.length!==2||ring[caps[0]][coord]===ring[caps[1]][coord])continue;
+  const chains=caps.map((e,k)=>{const ids=[];for(let a=(e+1)%ring.length,n=0;a!==caps[1-k]&&n<ring.length;a=(a+1)%ring.length,n++)ids.push(a);return ids;});
+  if(chains.some(es=>!es.length||es.some(e=>ring[e][coord]===ring[(e+1)%ring.length][coord])))continue;if(chains.some(es=>{const sign=Math.sign(ring[(es[0]+1)%ring.length][coord]-ring[es[0]][coord]);return es.some(e=>Math.sign(ring[(e+1)%ring.length][coord]-ring[e][coord])!==sign);}))continue;
+  const ends=chains.map(es=>[ring[es[0]][normal],ring[(es.at(-1)+1)%ring.length][normal]]),upper=ends[0].every((x,i)=>x>ends[1][i])?0:ends[1].every((x,i)=>x>ends[0][i])?1:-1;if(upper<0)continue;frame={coord,normal,lo,hi,caps,chains,upper,lower:1-upper};break;
+ }
+ if(!frame)return fail('original-orthogonal-X-monotone-two-bank-scope');
+ const {coord,normal,lo,hi,caps,chains,upper,lower}=frame,thresholdW=Q(W),threshold16=R.mul(Q(W),R.rat(8n,5n));
+ const stations=[...new Set(ring.map(p=>p[coord]))].sort((a,b)=>a-b),cells=[];
+ const uAt=(edge,x)=>R.div(R.sub(x,Q(ring[edge][coord])),R.sub(Q(ring[(edge+1)%ring.length][coord]),Q(ring[edge][coord]))),normalAt=(edge,x)=>mix(Q(ring[edge][normal]),Q(ring[(edge+1)%ring.length][normal]),uAt(edge,x));
+ const supportAt=(edge,x)=>({ring:0,edge,exactU:R.str(uAt(edge,x)),immutableSourceStart:ring[edge].slice(),immutableSourceEnd:ring[(edge+1)%ring.length].slice()});
+ function pointAt(cell,x){const high=normalAt(cell.upperOriginalEdge,x),low=normalAt(cell.lowerOriginalEdge,x),gap=R.sub(high,low),center=R.mul(R.add(high,low),HALF),p=[0,0];p[coord]=R.num(x);p[normal]=R.num(center);return{point:p,x:R.num(x),exactX:R.str(x),gapMM:R.num(gap),exactGap:R.str(gap),exactCenterNormal:R.str(center),upperOriginalSupport:supportAt(cell.upperOriginalEdge,x),lowerOriginalSupport:supportAt(cell.lowerOriginalEdge,x)};}
+ for(let i=1;i<stations.length;i++){const x0=Q(stations[i-1]),x1=Q(stations[i]),find=es=>es.find(e=>Math.min(ring[e][coord],ring[(e+1)%ring.length][coord])<=stations[i-1]&&Math.max(ring[e][coord],ring[(e+1)%ring.length][coord])>=stations[i]),up=find(chains[upper]),down=find(chains[lower]);if(up===undefined||down===undefined)return fail('missing-finite-original-bank-incidence');const cell={index:cells.length,x0:stations[i-1],x1:stations[i],exactX0:R.str(x0),exactX1:R.str(x1),upperOriginalEdge:up,lowerOriginalEdge:down};cell.start=pointAt(cell,x0);cell.end=pointAt(cell,x1);if(cell.start.gapMM<=0||cell.end.gapMM<=0)return fail('source-contact-or-negative-gap');cells.push(cell);}
+ const events=[];for(const cell of cells){events.push({...cell.start,cell:cell.index,kind:'original-source-station',originalVertexIds:ring.flatMap((p,id)=>p[coord]===cell.x0?[id]:[])});for(const[threshold,name]of[[thresholdW,'W'],[threshold16,'1.6W']]){const a=R.sub(normalAt(cell.upperOriginalEdge,Q(cell.x0)),normalAt(cell.lowerOriginalEdge,Q(cell.x0))),b=R.sub(normalAt(cell.upperOriginalEdge,Q(cell.x1)),normalAt(cell.lowerOriginalEdge,Q(cell.x1)));if(cmp(a,b)===0)continue;const u=R.div(R.sub(threshold,a),R.sub(b,a));if(cmp(u,Z)>=0&&cmp(u,ONE)<=0){const x=mix(Q(cell.x0),Q(cell.x1),u);events.push({...pointAt(cell,x),cell:cell.index,kind:'original-finite-bank-width-event',threshold:name,exactThresholdMM:R.str(threshold),increasing:cmp(b,a)>0});}}}const last=cells.at(-1);events.push({...last.end,cell:last.index,kind:'original-source-station',originalVertexIds:ring.flatMap((p,id)=>p[coord]===last.x1?[id]:[])});events.sort((a,b)=>a.x-b.x||a.kind.localeCompare(b.kind));
+ const points=[];for(const e of events){let p=points.at(-1);if(!p||p.exactX!==e.exactX){p={...e,events:[]};points.push(p);}p.events.push(e);}let s=0;for(let i=0;i<points.length;i++){if(i)s+=length(points[i-1].point,points[i].point);points[i].s=s;}
+ const thresholdEvents=events.filter(e=>e.threshold==='1.6W'),unique16=[...new Map(thresholdEvents.map(e=>[e.exactX,e])).values()],enter=unique16.find(e=>!e.increasing),exit=[...unique16].reverse().find(e=>e.increasing);if(!enter||!exit||enter.x>=exit.x)return fail('requires-finite-original-1.6W-entry-and-exit');
+ const enterStation=points.find(p=>p.exactX===enter.exactX),exitStation=points.find(p=>p.exactX===exit.exactX),minimum=Math.min(...points.filter(p=>p.x>=enter.x&&p.x<=exit.x).map(p=>p.gapMM));if(!(minimum>.6*W&&minimum<1.6*W))return fail('accepted-neck-classification-is-strict-.6W-to-1.6W');
+ return{status:'finite-original-neck-profile',W,coord,normal,sourceGeometryUnchanged:true,sourceRingCount:1,sourceVertexCount:ring.length,originalBankChains:chains.map(c=>c.slice()),originalCapEdges:caps.slice(),originalSourceRings:rings.map(r=>r.map(p=>p.slice())),sourceCells:cells,events,stations:points,entry:enterStation,exit:exitStation,minimumTransverseGapMM:minimum,thresholdDefinition:'exact rational8/5 times the immutable Float64 W; event is solved on ORIGINAL finite-bank cells',gapDefinition:'original finite-bank separation on orthogonal source station; distinct from physical disk clearance at inclined banks',axisDefinition:'original paired-bank midpoint chord in each immutable source cell; geometric containment must be proved separately',physicalPrintValidated:false,coverageCertified:false};
+}
+return {finiteSourceProfile};})();
+ const K=(function(){const Z=R.rat(0n),ONE=R.rat(1n),Q=R.exact,cmp=(a,b)=>{const n=a.n*b.d-b.n*a.d;return n<0n?-1:n>0n?1:0;},mix=(a,b,u)=>R.add(a,R.mul(R.sub(b,a),u)),parse=s=>{const[n,d]=s.split('/').map(BigInt);return R.rat(n,d);},square=a=>R.mul(a,a);
+function qa176PointSegmentWitnessCompute(p,a,b){const v=R.vectorSub(b,a),d=R.dot(v,v),t=d.n?R.div(R.dot(R.vectorSub(p,a),v),d):Z,u=cmp(t,Z)<=0?Z:cmp(t,ONE)>=0?ONE:t,q=a.map((x,k)=>mix(x,b[k],u));return{distanceSquared:R.dot(R.vectorSub(p,q),R.vectorSub(p,q)),point:q,exactU:u};}
+function pointSegmentWitness(p,a,b){
+ if(!qa176PairWitnessMemo)return qa176PointSegmentWitnessCompute(p,a,b);
+ const cached=qa176PairWitnessMemo.find(q=>q.p===p&&q.a===a&&q.b===b);
+ if(cached){for(const[name,result]of cached.trace){if(++arithmeticSteps>200000)throw Error('bounded-nozzle-proof-arithmetic-work');if(result&&typeof result==='object'&&typeof result.n==='bigint'&&(result.n.toString(2).length>8192||result.d.toString(2).length>8192))throw Error('bounded-nozzle-proof-rational-size');if(name==='num'&&!Number.isFinite(result))throw Error('nonfinite-nozzle-proof-rational-conversion');}return cached.witness;}
+ const previousTrace=qa176WitnessTrace;qa176WitnessTrace=[];
+ try{const witness=qa176PointSegmentWitnessCompute(p,a,b);qa176PairWitnessMemo.push({p,a,b,witness,trace:qa176WitnessTrace});return witness;}finally{qa176WitnessTrace=previousTrace;}
+}
+function qa176CheckedClosestFinitePair(a,b,c,d){
+ const previousMemo=qa176PairWitnessMemo;qa176PairWitnessMemo=[];
+ try{const distance=segmentDistanceSquared(a,b,c,d);return distance.n?{hit:closestFinitePair(a,b,c,d)}:{axisTouches:true};}finally{qa176PairWitnessMemo=previousMemo;}
+}
+function pointSegmentDistanceSquared(p,a,b){return pointSegmentWitness(p,a,b).distanceSquared;}
+function segmentDistanceSquared(a,b,c,d){const cross=R.cross2,orient=(a,b,p)=>cmp(cross(a,b,p),Z),on=(p,a,b)=>!orient(a,b,p)&&p.every((x,k)=>cmp(x,cmp(a[k],b[k])<0?a[k]:b[k])>=0&&cmp(x,cmp(a[k],b[k])>0?a[k]:b[k])<=0),o=[orient(a,b,c),orient(a,b,d),orient(c,d,a),orient(c,d,b)];if(o[0]*o[1]<0&&o[2]*o[3]<0||on(c,a,b)||on(d,a,b)||on(a,c,d)||on(b,c,d))return Z;const q=[pointSegmentDistanceSquared(a,c,d),pointSegmentDistanceSquared(b,c,d),pointSegmentDistanceSquared(c,a,b),pointSegmentDistanceSquared(d,a,b)];return q.reduce((x,y)=>cmp(x,y)<0?x:y);}
+function connectorSourceCells(profile,a,b){
+ const fail=reason=>({status:'unsupported',reason,physicalPrintValidated:false,coverageCertified:false});
+ if(profile.status!=='finite-original-neck-profile'||!Array.isArray(a)||!Array.isArray(b)||a.length!==2||b.length!==2||[...a,...b].some(v=>!Number.isFinite(v)))return fail('finite-source-profile-and-connector-required');
+ const {coord,W,originalSourceRings:rings}=profile,aq=a.map(Q),bq=b.map(Q),delta=R.sub(bq[coord],aq[coord]);if(!delta.n)return fail('connector-must-be-strictly-source-station-monotone');
+ const cuts=[{u:Z,kind:'immutable-connector-start'},{u:ONE,kind:'immutable-connector-end'}];
+ for(const e of profile.events){const u=R.div(R.sub(parse(e.exactX),aq[coord]),delta);if(cmp(u,Z)>0&&cmp(u,ONE)<0)cuts.push({u,kind:e.kind,threshold:e.threshold,sourceEvent:e});}
+ cuts.sort((x,y)=>cmp(x.u,y.u));const unique=[];for(const q of cuts){if(unique.length&&cmp(unique.at(-1).u,q.u)===0)unique.at(-1).events.push(q);else unique.push({...q,events:[q]});}
+ const at=u=>aq.map((x,k)=>mix(x,bq[k],u)),radius2=square(R.div(Q(W),R.rat(2n))),pieces=[];
+ function support(edge,p){const r=rings[0],start=r[edge],end=r[(edge+1)%r.length],u=R.div(R.sub(p[coord],Q(start[coord])),R.sub(Q(end[coord]),Q(start[coord]))),normal=mix(Q(start[1-coord]),Q(end[1-coord]),u);return{ring:0,edge,exactU:R.str(u),normal,immutableSourceStart:start.slice(),immutableSourceEnd:end.slice()};}
+ for(let i=1;i<unique.length;i++){
+  const u0=unique[i-1].u,u1=unique[i].u,p=at(u0),q=at(u1),middle=mix(p[coord],q[coord],R.rat(1n,2n)),cell=profile.sourceCells.find(c=>cmp(middle,parse(c.exactX0))>=0&&cmp(middle,parse(c.exactX1))<=0);if(!cell)return fail('connector-outside-complete-original-source-station-range');
+  const up=[support(cell.upperOriginalEdge,p),support(cell.upperOriginalEdge,q)],down=[support(cell.lowerOriginalEdge,p),support(cell.lowerOriginalEdge,q)],gaps=up.map((s,k)=>R.sub(s.normal,down[k].normal)),minimum=gaps.reduce((x,y)=>cmp(x,y)<0?x:y),maximum=gaps.reduce((x,y)=>cmp(x,y)>0?x:y),thin=cmp(maximum,Q(W))<=0&&cmp(minimum,Q(W))<0&&cmp(minimum,R.mul(Q(W),R.rat(3n,5n)))>=0;
+  let distance,closest;for(let ring=0;ring<rings.length;ring++)for(let e=0;e<rings[ring].length;e++){const d=segmentDistanceSquared(p,q,rings[ring][e].map(Q),rings[ring][(e+1)%rings[ring].length].map(Q));if(!distance||cmp(d,distance)<0){distance=d;closest={ring,edge:e};}}
+  const contained=cmp(distance,radius2)>=0,intervals=[up,down].map(ss=>({ring:0,edge:ss[0].edge,exactU0:ss[0].exactU,exactU1:ss[1].exactU,originalDirectedIntervalIncreasing:cmp(parse(ss[0].exactU),parse(ss[1].exactU))<=0,immutableSourceStart:ss[0].immutableSourceStart,immutableSourceEnd:ss[0].immutableSourceEnd}));
+  pieces.push({piece:pieces.length,sourceCell:cell.index,connectorExactU0:R.str(u0),connectorExactU1:R.str(u1),exactAxisFrom:p.map(R.str),exactAxisTo:q.map(R.str),axisFromMM:p.map(R.num),axisToMM:q.map(R.num),sourceIntervals:intervals,sourceGapStartMM:R.num(gaps[0]),sourceGapEndMM:R.num(gaps[1]),sourceGapStartExact:R.str(gaps[0]),sourceGapEndExact:R.str(gaps[1]),axisStationThinRangeOnly:thin,thinNominalAuthorityNotCertifiedFromAxisGap:true,feedWidthStart:W,feedWidthEnd:W,displayWidthStart:W,displayWidthEnd:W,nominalNozzleRadius:W/2,physicalClearanceSquaredExact:R.str(distance),physicalClearanceMM:Math.sqrt(R.num(distance)),physicalNozzleContained:contained,closestOriginalBoundary:closest,sourceWidthLabel:contained?'nominal-nozzle-contained':thin?'axis-station-thin-label-only':'wide-axis-station-needs-finite-feature-audit',sourceEventStart:unique[i-1].events.map(e=>({kind:e.kind,threshold:e.threshold})),sourceEventEnd:unique[i].events.map(e=>({kind:e.kind,threshold:e.threshold}))});
+ }
+ return{status:'finite-original-connector-partition-derived',immutableConnector:[a.slice(),b.slice()],sourceCorners:rings[0].length,sourceCornerCoordinatesUntouched:true,geometrySplitOrRounded:false,pieces,completePartition:unique[0].u.n===0n&&cmp(unique.at(-1).u,ONE)===0,fullNominalNozzleContained:pieces.every(p=>p.physicalNozzleContained),allAxisStationWidthLabelsSatisfied:pieces.every(p=>p.physicalNozzleContained||p.axisStationThinRangeOnly),thinNominalAuthorityRequiresActualSourceFeatureAudit:true,coverageCertified:false,physicalPrintValidated:false,productionReady:false};
+}
+function closestFinitePair(a,b,c,d){const candidates=[];for(const p of[a,b]){const q=pointSegmentWitness(p,c,d);candidates.push({distanceSquared:q.distanceSquared,axisPoint:p,bankPoint:q.point,bankU:q.exactU});}for(const p of[c,d]){const q=pointSegmentWitness(p,a,b);candidates.push({distanceSquared:q.distanceSquared,axisPoint:q.point,bankPoint:p,axisU:q.exactU});}return candidates.reduce((a,b)=>cmp(a.distanceSquared,b.distanceSquared)<=0?a:b);}
+function sourceBankContactAudit(profile,a,b,oldAxes=[],retainedTip,oldClosed){
+ if(profile.status!=='finite-original-neck-profile'||!Array.isArray(oldAxes)||oldAxes.length>20||oldAxes.reduce((n,p)=>n+p.length,0)>256||!Array.isArray(a)||!Array.isArray(b)||a.length!==2||b.length!==2||[...a,...b].some(v=>!Number.isFinite(v))||a.every((x,k)=>x===b[k]))return{status:'unsupported',reason:'bounded-original-axis-and-source-context-required',productionReady:false};
+ const {coord,W,originalSourceRings:rings}=profile,aq=a.map(Q),bq=b.map(Q),v=R.vectorSub(bq,aq),length2=R.dot(v,v),qa175Radius=R.div(Q(W),R.rat(2n)),r2=square(qa175Radius),records=[];
+ const capTests=[];for(const edge of profile.originalCapEdges){const squared=segmentDistanceSquared(aq,bq,rings[0][edge].map(Q),rings[0][(edge+1)%rings[0].length].map(Q));capTests.push({ring:0,edge,exactDistanceSquared:R.str(squared),nozzleContained:cmp(squared,r2)>=0});if(cmp(squared,r2)<0)return{status:'unsupported',reason:'original-source-cap-nozzle-contact-not-audited',capTests,productionReady:false};}
+ const qa175Min=(a,b)=>cmp(a,b)<0?a:b,qa175Max=(a,b)=>cmp(a,b)>0?a:b;
+ const qa175AxisBox=[rawR.sub(qa175Min(aq[0],bq[0]),qa175Radius),rawR.sub(qa175Min(aq[1],bq[1]),qa175Radius),rawR.add(qa175Max(aq[0],bq[0]),qa175Radius),rawR.add(qa175Max(aq[1],bq[1]),qa175Radius)],qa175BankBoxes=new Map();
+ const qa175BankOutside=edge=>{let box=qa175BankBoxes.get(edge);if(!box){const p=rings[0][edge].map(rawR.exact),q=rings[0][(edge+1)%rings[0].length].map(rawR.exact);box=[qa175Min(p[0],q[0]),qa175Min(p[1],q[1]),qa175Max(p[0],q[0]),qa175Max(p[1],q[1])];qa175BankBoxes.set(edge,box);}return cmp(box[2],qa175AxisBox[0])<0||cmp(box[0],qa175AxisBox[2])>0||cmp(box[3],qa175AxisBox[1])<0||cmp(box[1],qa175AxisBox[3])>0;};
+ for(const cell of profile.sourceCells){if(qa175BankOutside(cell.upperOriginalEdge)&&qa175BankOutside(cell.lowerOriginalEdge))continue;const at=(edge,x)=>{const r=rings[0],p=r[edge].map(Q),q=r[(edge+1)%r.length].map(Q),u=R.div(R.sub(x,p[coord]),R.sub(q[coord],p[coord]));return{point:p.map((v,k)=>mix(v,q[k],u)),u};},gap=x=>R.sub(at(cell.upperOriginalEdge,x).point[1-coord],at(cell.lowerOriginalEdge,x).point[1-coord]),cutCandidates=[parse(cell.exactX0),...profile.events.filter(e=>e.cell===cell.index&&e.threshold).map(e=>parse(e.exactX)),parse(cell.exactX1)];
+  for(const edge of[cell.upperOriginalEdge,cell.lowerOriginalEdge]){const projections=[parse(cell.exactX0),parse(cell.exactX1)].map(x=>R.div(R.dot(R.vectorSub(at(edge,x).point,aq),v),length2));if(cmp(projections[0],projections[1])!==0)for(const threshold of[Z,ONE]){const u=R.div(R.sub(threshold,projections[0]),R.sub(projections[1],projections[0]));if(cmp(u,Z)>0&&cmp(u,ONE)<0)cutCandidates.push(mix(parse(cell.exactX0),parse(cell.exactX1),u));}}
+  const cuts=cutCandidates.sort(cmp).filter((x,i,a)=>!i||cmp(x,a[i-1]));
+  for(let i=1;i<cuts.length;i++)for(const edge of[cell.upperOriginalEdge,cell.lowerOriginalEdge]){const start=at(edge,cuts[i-1]),end=at(edge,cuts[i]);const qa176Pair=qa176CheckedClosestFinitePair(aq,bq,start.point,end.point);if(qa176Pair.axisTouches)return{status:'unsupported',reason:'connector-axis-touches-original-boundary',ring:0,edge,sourceCell:cell.index,physicalNozzleContained:false,productionReady:false};const hit=qa176Pair.hit;if(cmp(hit.distanceSquared,r2)>=0)continue;let oldDistance;for(let oldPath=0;oldPath<oldAxes.length;oldPath++)for(let e=0;e<(oldClosed[oldPath]?oldAxes[oldPath].length:oldAxes[oldPath].length-1);e++){const path=oldAxes[oldPath];const d=pointSegmentDistanceSquared(hit.bankPoint,path[e].map(Q),path[(e+1)%path.length].map(Q));if(!oldDistance||cmp(d,oldDistance)<0)oldDistance=d;}const tipDistance=retainedTip?pointSegmentDistanceSquared(hit.bankPoint,retainedTip.map(Q),retainedTip.map(Q)):undefined,sourceGap=gap(hit.bankPoint[coord]),g0=gap(cuts[i-1]),g1=gap(cuts[i]),wholeThin=cmp(g0,Q(W))<=0&&cmp(g1,Q(W))<=0&&(cmp(g0,Q(W))<0||cmp(g1,Q(W))<0);
+   const projections=[start.point,end.point].map(p=>R.div(R.dot(R.vectorSub(p,aq),v),length2)),endpoint=projections.every(u=>cmp(u,Z)<=0)?aq:projections.every(u=>cmp(u,ONE)>=0)?bq:undefined,preserved=endpoint&&oldAxes.some(p=>p.some(q=>q.map(Q).every((x,k)=>cmp(x,endpoint[k])===0)));let dominance;
+   if(!wholeThin&&!preserved&&(cmp(g0,Q(W))===0||cmp(g1,Q(W))===0)){
+    const eventAtStart=cmp(g0,Q(W))===0,event=eventAtStart?start.point:end.point,other=eventAtStart?end.point:start.point,eventX=event[coord],direction=cmp(other[coord],eventX),length=R.div(Q(W),R.rat(256n)),candidate=R.add(eventX,R.mul(length,R.rat(BigInt(direction)))),windowX=direction>0?(cmp(candidate,other[coord])<0?candidate:other[coord]):(cmp(candidate,other[coord])>0?candidate:other[coord]),window=at(edge,windowX).point,outsideDistance=segmentDistanceSquared(aq,bq,window,other);
+    let old;for(let path=0;path<oldAxes.length;path++)for(let e=0;e<(oldClosed[path]?oldAxes[path].length:oldAxes[path].length-1);e++){const p=oldAxes[path][e].map(Q),q=oldAxes[path][(e+1)%oldAxes[path].length].map(Q),w=pointSegmentWitness(event,p,q);if(!old||cmp(w.distanceSquared,old.distanceSquared)<0)old={...w,path,edge:e,axisStart:p,axisEnd:q};}
+    if(old){const ends=[event,window].map(p=>({oldDistanceSquared:pointSegmentDistanceSquared(p,old.point,old.point),newDistanceSquared:pointSegmentDistanceSquared(p,aq,bq)})),fits=cmp(outsideDistance,r2)>=0&&ends.every(p=>cmp(p.oldDistanceSquared,p.newDistanceSquared)<=0);dominance={certified:fits,authority:'the difference of squared distance to a fixed retained old-axis point and to the new finite segment is convex along the bank; endpoint upper bounds prove whole-window dominance; exact minimum clearance excludes all new disk contacts outside that window',windowLengthReferenceExact:R.str(length),exactSourceWindow:[event,window].map(p=>p.map(R.str)),originalRetainedAxisPoint:{path:old.path,edge:old.edge,exactU:R.str(old.exactU),pointExact:old.point.map(R.str),axisStartExact:old.axisStart.map(R.str),axisEndExact:old.axisEnd.map(R.str)},outsideWindowMinimumNewDistanceSquaredExact:R.str(outsideDistance),nominalRadiusSquaredExact:R.str(r2),windowEndpointInequalities:ends.map(p=>({oldSquaredExact:R.str(p.oldDistanceSquared),newSquaredExact:R.str(p.newDistanceSquared),oldLeNew:cmp(p.oldDistanceSquared,p.newDistanceSquared)<=0}))};}
+   }
+   records.push({ring:0,edge,sourceCell:cell.index,exactU0:R.str(start.u),exactU1:R.str(end.u),sourceGapRangeMM:[R.num(g0),R.num(g1)],bankIntervalEntirelyAtOrBelowW:wholeThin,closestBankPointExact:hit.bankPoint.map(R.str),closestAxisPointExact:hit.axisPoint.map(R.str),closestBankPointMM:hit.bankPoint.map(R.num),closestAxisPointMM:hit.axisPoint.map(R.num),gapAtClosestOriginalBankPointMM:R.num(sourceGap),sourceGapAtClosestOriginalBankPointExact:R.str(sourceGap),physicalClearanceSquaredExact:R.str(hit.distanceSquared),physicalClearanceMM:Math.sqrt(R.num(hit.distanceSquared)),nozzleContainsThisFiniteBankInterval:false,oldNominalNozzleClearanceAtSameSourcePointMM:oldDistance&&Math.sqrt(R.num(oldDistance)),retainedTipDistanceAtSameSourcePointMM:tipDistance&&Math.sqrt(R.num(tipDistance)),newNozzleClearanceIsLessThanOldAtSameBankPoint:oldDistance?cmp(hit.distanceSquared,oldDistance)<0:undefined,finiteBankToConnectorUnclampedExactProjectionRange:projections.map(R.str),entireFiniteBankIntervalClosestIsOneRetainedEndpoint:!!preserved,retainedClosestEndpointExact:endpoint&&endpoint.map(R.str),wholeContactOldAxisDominanceCertificate:dominance,allWideBankNozzleContactsInheritedFromOriginalAxisCapsules:!!preserved||dominance?.certified===true,sourceFeatureThinNominalAuthorityNotInferredFromAxisGap:true});
+  }
+ }
+ return{status:'finite-original-bank-nozzle-contact-witnesses',records,allOriginalCapsIndependentlyChecked:capTests,allTouchedSourceBankIntervalsAtOrBelowW:records.every(p=>p.bankIntervalEntirelyAtOrBelowW),allWideBankNozzleContactsExactlyInheritedFromRetainedEndpointDisks:records.filter(p=>!p.bankIntervalEntirelyAtOrBelowW).every(p=>p.entireFiniteBankIntervalClosestIsOneRetainedEndpoint),allWideBankNozzleContactsExactlyInheritedFromOriginalAxisCapsules:records.filter(p=>!p.bankIntervalEntirelyAtOrBelowW).every(p=>p.allWideBankNozzleContactsInheritedFromOriginalAxisCapsules),physicalNozzleContained:!records.length,existingThinAuthorityNotBroadened:true,productionReady:false};
+}
+return {connectorSourceCells,pointSegmentDistanceSquared,segmentDistanceSquared,sourceBankContactAudit};})();
+ return function frameCheckOriginalNozzleInheritance(sourceRings,connector,oldPaths,W,oldClosed,originalPathIndices){
+  arithmeticSteps=0;const fail=reason=>({status:'unsupported',passed:false,reason,arithmeticSteps,physicalPrintValidated:false,coverageCertified:false});
+  try{
+   if(!Array.isArray(sourceRings)||sourceRings.length!==1||sourceRings[0].length<12||sourceRings[0].length>128||!Array.isArray(connector)||connector.length!==2||!Array.isArray(oldPaths)||oldPaths.length>20||oldPaths.reduce((n,p)=>n+p.length,0)>256)return fail('bounded-original-nozzle-context-required');
+   if(!Array.isArray(oldClosed)||oldClosed.length!==oldPaths.length||oldClosed.some(v=>typeof v!=='boolean')||oldPaths.some(p=>!Array.isArray(p)||p.length<2)||!Array.isArray(originalPathIndices)||originalPathIndices.length!==oldPaths.length||originalPathIndices.some(v=>!Number.isSafeInteger(v)||v<0)||new Set(originalPathIndices).size!==originalPathIndices.length)return fail('explicit-original-axis-closure-and-index-map-required');
+   const profile=H.finiteSourceProfile(sourceRings,W);if(profile.status!=='finite-original-neck-profile')return fail(profile.reason);
+   const audit=K.sourceBankContactAudit(profile,connector[0],connector[1],oldPaths,undefined,oldClosed);if(audit.status!=='finite-original-bank-nozzle-contact-witnesses')return fail(audit.reason);
+   const wide=audit.records.filter(p=>!p.bankIntervalEntirelyAtOrBelowW),passed=audit.allWideBankNozzleContactsExactlyInheritedFromOriginalAxisCapsules;
+   for(const record of wide){const point=record.wholeContactOldAxisDominanceCertificate?.originalRetainedAxisPoint;if(point){point.originalLocalPathIndex=point.path;point.originalPathIndex=originalPathIndices[point.path];point.path=point.originalPathIndex;}}
+   return {status:passed?'original-wide-nozzle-contact-inheritance-certified':'unsupported',passed,reason:passed?null:'new-wide-source-nozzle-contact-not-inherited',authority:'exact finite ORIGINAL source-bank intervals; new wide-bank nominal disk contacts are dominated by unchanged same-component original axis capsules; thin authority is separate',arithmeticSteps,sourceVertexCount:profile.sourceVertexCount,originalAxisPathCount:oldPaths.length,originalAxisPointCount:oldPaths.reduce((n,p)=>n+p.length,0),originalAxisPathIndices:originalPathIndices.slice(),originalAxisClosureExplicit:true,noSyntheticOpenClosingEdges:true,allOriginalCapsIndependentlyChecked:audit.allOriginalCapsIndependentlyChecked,wideBankContactCount:wide.length,allWideBankNozzleContactsExactlyInheritedFromOriginalAxisCapsules:passed,wideBankContactCertificates:wide.map(p=>({ring:p.ring,edge:p.edge,sourceCell:p.sourceCell,exactU0:p.exactU0,exactU1:p.exactU1,sourceGapRangeMM:p.sourceGapRangeMM,entireFiniteBankIntervalClosestIsOneRetainedEndpoint:p.entireFiniteBankIntervalClosestIsOneRetainedEndpoint,finiteBankToConnectorUnclampedExactProjectionRange:p.finiteBankToConnectorUnclampedExactProjectionRange,retainedClosestEndpointExact:p.retainedClosestEndpointExact,wholeContactOldAxisDominanceCertificate:p.wholeContactOldAxisDominanceCertificate})),fullNominalNozzleContained:audit.physicalNozzleContained,sourceCoreContainmentMustBeCheckedSeparately:true,newPrintedWideSourceFootprintMustBeCheckedSeparately:true,foreignOrProtectedMaterialMustBeCheckedSeparately:true,oldWidthsMustBeNominalW:true,noThinAuthorityBroadened:true,physicalPrintValidated:false,coverageCertified:false};
+  }catch(e){return fail(e.message);}
+ };
+})();
+frameContinuousNozzleInheritance.check=frameContinuousNozzleInheritance;
+const gcd=(a,b)=>{a=a<0n?-a:a;b=b<0n?-b:b;while(b){const t=a%b;a=b;b=t;}return a;};
+const R=(n,d=1n)=>{if(d<0n){n=-n;d=-d;}const g=gcd(n,d);return{n:n/g,d:d/g};};
+const add=(a,b)=>R(a.n*b.d+b.n*a.d,a.d*b.d);
+const sub=(a,b)=>R(a.n*b.d-b.n*a.d,a.d*b.d);
+const mul=(a,b)=>R(a.n*b.n,a.d*b.d);
+const div=(a,b)=>R(a.n*b.d,a.d*b.n);
+const number=r=>{if(!r.n)return 0;const sign=r.n<0n?-1:1,n=r.n<0n?-r.n:r.n,ns=Math.max(0,n.toString(2).length-53),ds=Math.max(0,r.d.toString(2).length-53),exponent=ns-ds;return sign*(Number(n>>BigInt(ns))/Number(r.d>>BigInt(ds)))*2**Math.min(exponent,1023)*2**Math.max(exponent-1023,0);};
+const key=r=>r.n+'/'+r.d;
+const cmp=(a,b)=>{const v=a.n*b.d-b.n*a.d;return v<0n?-1:v>0n?1:0;};
+function dyadic(v){if(!Number.isFinite(v))throw Error('nonfinite-coordinate');if(v===0)return R(0n);const b=new DataView(new ArrayBuffer(8));b.setFloat64(0,v,false);const x=b.getBigUint64(0,false),E=Number((x>>52n)&2047n);let n=x&4503599627370495n;if(E)n|=4503599627370496n;if(x>>63n)n=-n;const e=E?E-1075:-1074;return e<0?R(n,1n<<BigInt(-e)):R(n<<BigInt(e));}
+function exactAxisContact(a,b,p,q){
+ const values=[...a,...b,...p,...q].map(dyadic),D=values.reduce((d,r)=>d>r.d?d:r.d,1n),v=values.map(r=>r.n*(D/r.d)),u=[v[2]-v[0],v[3]-v[1]],z=[v[6]-v[4],v[7]-v[5]],delta=[v[4]-v[0],v[5]-v[1]],cross=(a,b)=>a[0]*b[1]-a[1]*b[0];let den=cross(u,z),t=cross(delta,z),s=cross(delta,u);
+ if(den){if(den<0n){den=-den;t=-t;s=-s;}return t>0n&&t<den&&s>=0n&&s<=den?{kind:'strict-interior-axis-contact',exactConnectorT:key(R(t,den)),exactOriginalU:key(R(s,den))}:null;}
+ if(cross(delta,u)!==0n)return null;const dot=(a,b)=>a[0]*b[0]+a[1]*b[1],L=dot(u,u);if(!L)return{kind:'zero-connector'};const x=dot(delta,u),y=dot([v[6]-v[0],v[7]-v[1]],u),lo=x<y?x:y,hi=x>y?x:y,begin=lo>0n?lo:0n,end=hi<L?hi:L;return end>begin?{kind:'positive-collinear-axis-repeat',exactT0:key(R(begin,L)),exactT1:key(R(end,L))}:null;
+}
+function exactConvexPairArea(subject,boundary,{maxWork=4096,maxRationalBits=8192}={}){
+ let work=0;const tick=v=>{if(++work>maxWork)throw Error('bounded-exact-pair-work');if(v&&(v.n.toString(2).length>maxRationalBits||v.d.toString(2).length>maxRationalBits))throw Error('bounded-exact-rational-size');return v;},zero=R(0n),one=R(1n),half=R(1n,2n),cross=(a,b,c)=>tick(sub(mul(sub(b[0],a[0]),sub(c[1],a[1])),mul(sub(b[1],a[1]),sub(c[0],a[0]))));
+ const signedArea=poly=>{if(poly.length<3)return zero;const o=poly[0];let a=zero;for(let i=0;i<poly.length;i++)a=tick(add(a,cross(o,poly[i],poly[(i+1)%poly.length])));return mul(a,half);};
+ const rational=v=>typeof v==='number'?dyadic(v):R(v.n,v.d);let out=subject.map(p=>p.map(rational)),clip=boundary.map(p=>p.map(rational)),sign=cmp(signedArea(clip),zero);if(!sign)throw Error('degenerate-exact-clip-boundary');
+ for(let i=0;i<clip.length&&out.length;i++){
+  const a=clip[i],b=clip[(i+1)%clip.length],next=[];
+  for(let j=0;j<out.length;j++){const u=out[j],v=out[(j+1)%out.length],fu=cross(a,b,u),fv=cross(a,b,v),insideU=cmp(fu,zero)*sign>=0,insideV=cmp(fv,zero)*sign>=0;if(insideU)next.push(u);if(insideU!==insideV){const t=tick(div(fu,sub(fu,fv)));next.push(u.map((x,k)=>tick(add(x,mul(sub(v[k],x),t)))));}}
+  out=next;
+ }
+ let area=signedArea(out);if(area.n<0n)area=R(-area.n,area.d);return{area,work,polygon:out};
+}
+function exactConvexDifference(subject,boundary,{maxWork=4096,maxRationalBits=8192}={}){
+ const zero=R(0n),half=R(1n,2n),rational=v=>typeof v==='number'?dyadic(v):R(v.n,v.d);let work=0;const tick=v=>{if(++work>maxWork)throw Error('bounded-exact-difference-work');if(v&&(v.n.toString(2).length>maxRationalBits||v.d.toString(2).length>maxRationalBits))throw Error('bounded-exact-difference-rational-size');return v;},cross=(a,b,p)=>tick(sub(mul(sub(b[0],a[0]),sub(p[1],a[1])),mul(sub(b[1],a[1]),sub(p[0],a[0])))),signed=poly=>{let s=zero;if(poly.length<3)return s;const o=poly[0];for(let i=0;i<poly.length;i++)s=tick(add(s,cross(o,poly[i],poly[(i+1)%poly.length])));return mul(s,half);};
+ const halfPlane=(poly,a,b,sign)=>{const out=[];for(let i=0;i<poly.length;i++){const p=poly[i],q=poly[(i+1)%poly.length],dp=cross(a,b,p),dq=cross(a,b,q),insideP=cmp(dp,zero)*sign>=0,insideQ=cmp(dq,zero)*sign>=0;if(insideP)out.push(p);if(insideP!==insideQ){const u=tick(div(dp,sub(dp,dq)));out.push(p.map((v,k)=>tick(add(v,mul(sub(q[k],v),u)))));}}return out;};
+ const clip=boundary.map(p=>p.map(rational)),sign=cmp(signed(clip),zero);if(!sign)throw Error('degenerate-exact-difference-boundary');let remaining=subject.map(p=>p.map(rational));const polygons=[];let area=zero;for(let e=0;e<clip.length&&remaining.length;e++){const a=clip[e],b=clip[(e+1)%clip.length],outside=halfPlane(remaining,a,b,-sign);let A=signed(outside);if(A.n<0n)A=R(-A.n,A.d);if(A.n){polygons.push(outside);area=add(area,A);}remaining=halfPlane(remaining,a,b,sign);}return{polygons,area,work};
+}
+function exactSourceFootprintScope(quad,frame,cells,W,originalQuads=[]){
+ const zero=R(0n),one=R(1n),half=R(1n,2n),width=dyadic(W),minimum=mul(dyadic(.6),width),parse=s=>{const[n,d]=s.split('/').map(BigInt);return R(n,d);},abs=q=>q.n<0n?R(-q.n,q.d):q,{coord,normal}=frame,normalLo=dyadic(Math.min(...quad.map(p=>p[normal]))),normalHi=dyadic(Math.max(...quad.map(p=>p[normal]))),point=(x,y)=>coord===0?[x,y]:[y,x],at=(bank,x)=>{const A=bank.sourceStart,B=bank.sourceEnd,u=div(sub(x,dyadic(A[coord])),sub(dyadic(B[coord]),dyadic(A[coord])));return{u,value:add(dyadic(A[normal]),mul(sub(dyadic(B[normal]),dyadic(A[normal])),u))};},pieces=[];let totalSpill=zero,wideSpill=zero,newWideSpill=zero,work=0;const oldMasks=originalQuads.map(q=>({quad:q,bounds:rationalBounds(q)}));
+ for(const cell of cells.cells){
+  const start=dyadic(cell.stationStart),end=dyadic(cell.stationEnd),gap=x=>abs(sub(at(cell.banks[0],x).value,at(cell.banks[1],x).value)),g0=gap(start),g1=gap(end);if(cmp(g0,minimum)<0||cmp(g1,minimum)<0)throw Error('exact-source-cell-under-point6W');const events=[start,end];if((cmp(g0,width)<0&&cmp(g1,width)>0)||(cmp(g0,width)>0&&cmp(g1,width)<0)){events.splice(1,0,add(start,mul(sub(end,start),div(sub(width,g0),sub(g1,g0)))));}
+  for(let i=1;i<events.length;i++){
+   const a=events[i-1],b=events[i],m=mul(add(a,b),half),thin=cmp(gap(m),width)<0,banks=cell.banks.map(bank=>({bank,a:at(bank,a),b:at(bank,b),mid:at(bank,m).value})).sort((u,v)=>cmp(u.mid,v.mid)),strip=[point(a,normalLo),point(b,normalLo),point(b,normalHi),point(a,normalHi)],inStrip=exactConvexPairArea(quad,strip),material=[point(a,banks[0].a.value),point(b,banks[0].b.value),point(b,banks[1].b.value),point(a,banks[1].a.value)],within=exactConvexPairArea(inStrip.polygon,material),outside=sub(inStrip.area,within.area);if(outside.n<0n)throw Error('invalid-exact-source-area-partition');work+=inStrip.work+within.work;let newOutside=outside,comparedMasks=0;if(!thin){wideSpill=add(wideSpill,outside);if(outside.n){const cut=exactConvexDifference(inStrip.polygon,material);work+=cut.work;let residual=cut.polygons;for(const old of oldMasks){if(!residual.length)break;const next=[];for(const polygon of residual){work+=8;if(rationalBoxesDisjoint(rationalBounds(polygon),old.bounds)){next.push(polygon);continue;}const result=exactConvexDifference(polygon,old.quad);work+=result.work;next.push(...result.polygons);comparedMasks++;}residual=next;if(residual.length>1024||work>50000)throw Error('bounded-source-footprint-inheritance-work');}newOutside=zero;for(const polygon of residual){const q=exactConvexPairArea(polygon,polygon);work+=q.work;newOutside=add(newOutside,q.area);}}newWideSpill=add(newWideSpill,newOutside);}if(work>50000)throw Error('bounded-source-footprint-work');totalSpill=add(totalSpill,outside);pieces.push({exactStationStart:key(a),exactStationEnd:key(b),stationStart:number(a),stationEnd:number(b),exactGapStart:key(gap(a)),exactGapEnd:key(gap(b)),localThinNominalWException:thin,nominalFlatRibbonAreaMM2:key(inStrip.area),nominalFlatRibbonOutsideOriginalAreaMM2:key(outside),newWideFlatRibbonOutsideOriginalAndOriginalPrintedRibbonsAreaMM2:thin?null:key(newOutside),originalFlatRibbonMasksCompared:comparedMasks,originalBankIntervals:banks.map(v=>({ring:0,edge:v.bank.edge,exactU0:key(v.a.u),exactU1:key(v.b.u)}))});
+  }
+ }
+ return{accepted:newWideSpill.n===0n,authority:'outside-original flat footprint in wide original-bank cells must be a subset of unchanged original flat-ribbon union; only exact local original paired-bank cells below W permit added thin spill',exactNominalFlatRibbonOutsideAreaMM2:key(totalSpill),exactWideCellFlatRibbonOutsideAreaMM2:key(wideSpill),exactNewWideCellFlatRibbonOutsideOriginalAndOriginalPrintedRibbonsAreaMM2:key(newWideSpill),allNewWideSpillInheritedFromUnchangedOriginalFlatRibbons:newWideSpill.n===0n,oldPrimaryRibbonMaskCount:originalQuads.length,originalPositionsUnchanged:true,repeatMultiplicityStillChargedByCompleteSeamLedger:true,minimumSourceGapMM:.6*W,fullNominalNozzleContainmentClaim:false,allOriginalVertexStationEventsRetained:true,pieces,exactWork:work};
+}
+function primitives(c,W){
+ const C=c.ClipperLib,S=1e8,int=p=>p.map(([x,y])=>({X:Math.round(x*S),Y:Math.round(y*S)})),area=rs=>{let t=0n;for(const r of rs)for(let i=0;i<r.length;i++){const a=r[i],b=r[(i+1)%r.length];t+=BigInt(a.X)*BigInt(b.Y)-BigInt(a.Y)*BigInt(b.X);}return Number(t<0n?-t:t)/(2*S*S);};
+ function boolean(A,B,type){if(!A.length)return[];const q=new C.Clipper(),out=[];q.StrictlySimple=true;q.AddPaths(A,C.PolyType.ptSubject,true);if(B.length)q.AddPaths(B,C.PolyType.ptClip,true);q.Execute(type,out,C.PolyFillType.pftNonZero,C.PolyFillType.pftNonZero);return out;}
+ function quad(a,b,w=W){const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),n=[-dy/L,dx/L];if(!L)throw Error('zero-ribbon');return[a.map((v,k)=>v+n[k]*w/2),b.map((v,k)=>v+n[k]*w/2),b.map((v,k)=>v-n[k]*w/2),a.map((v,k)=>v-n[k]*w/2)];}
+ return{C,S,int,area,boolean,quad,overlapExact:(a,b)=>exactConvexPairArea(a,b),overlap:(a,b)=>number(exactConvexPairArea(a,b).area),gridOverlap:(a,b)=>area(boolean([int(a)],[int(b)],C.ClipType.ctIntersection)),outside:(p,rings)=>area(boolean([int(p)],rings.map(int),C.ClipType.ctDifference))};
+}
+function monotoneBanks(rings,coord){
+ if(rings.length!==1||rings[0].length<4||rings[0].length>128)return null;const ring=rings[0],lo=Math.min(...ring.map(p=>p[coord])),hi=Math.max(...ring.map(p=>p[coord])),caps=[];for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];if(a[coord]===b[coord]&&(a[coord]===lo||a[coord]===hi))caps.push(i);}if(caps.length!==2||ring[caps[0]][coord]===ring[caps[1]][coord])return null;
+ const chains=caps.map((e,k)=>{const ids=[];for(let i=(e+1)%ring.length,n=0;i!==caps[1-k]&&n<ring.length;i=(i+1)%ring.length,n++)ids.push(i);return ids;});
+ for(const ids of chains){if(!ids.length)return null;const sign=Math.sign(ring[(ids[0]+1)%ring.length][coord]-ring[ids[0]][coord]);if(!sign||ids.some(i=>Math.sign(ring[(i+1)%ring.length][coord]-ring[i][coord])!==sign))return null;}
+ return{coord,normal:1-coord,caps,chains,ring,lo,hi};
+}
+function sourceCells(frame,axis,W,quad){
+ const{ring,coord,normal,chains}=frame,bounds=quad.flatMap(p=>p[coord]),lo=Math.min(...bounds),hi=Math.max(...bounds);if(!(lo>frame.lo&&hi<frame.hi))return null;
+ const stations=[...new Set([lo,hi,...ring.map(p=>p[coord]).filter(x=>x>lo&&x<hi)])].sort((a,b)=>a-b),cells=[],intervals=[],localEdges=new Set();
+ for(let i=1;i<stations.length;i++){
+  const a=stations[i-1],b=stations[i],m=(a+b)/2,owners=chains.map(ids=>ids.filter(e=>m>Math.min(ring[e][coord],ring[(e+1)%ring.length][coord])&&m<Math.max(ring[e][coord],ring[(e+1)%ring.length][coord])));if(owners.some(v=>v.length!==1))return null;
+  const banks=owners.map(([edge])=>{const A=ring[edge],B=ring[(edge+1)%ring.length],parameter=x=>div(sub(dyadic(x),dyadic(A[coord])),sub(dyadic(B[coord]),dyadic(A[coord]))),u=parameter(a),v=parameter(b),u0=number(u),u1=number(v),at=x=>A[normal]+(B[normal]-A[normal])*(x-A[coord])/(B[coord]-A[coord]);localEdges.add(edge);const q={ring:0,edge,u0,u1,exactU0:key(u),exactU1:key(v),sourceStart:A,sourceEnd:B,stationStart:a,stationEnd:b,sourceNormalStart:at(a),sourceNormalEnd:at(b),originalCoordinateEventsPreserved:true};intervals.push(q);return q;});
+  const gap0=Math.abs(banks[0].sourceNormalStart-banks[1].sourceNormalStart),gap1=Math.abs(banks[0].sourceNormalEnd-banks[1].sourceNormalEnd);if(!(gap0>=.6*W&&gap1>=.6*W))return null;cells.push({stationStart:a,stationEnd:b,banks,axisNormalCoordinate:axis[0][normal],gapStart:gap0,gapEnd:gap1});
+ }
+ return{status:'complete-finite-monotone-original-bank-cells',cells,sourceIntervals:intervals,localOriginalBankEdgeIds:[...localEdges],wholeOriginalBankChains:chains,sourceCaps:frame.caps,allOriginalVertexStationEventsRetained:true,nearestSourcePairing:false};
+}
+function sumAreasFits(areas,W){try{if(!Array.isArray(areas)||areas.length>10000||!Number.isFinite(W)||W<=0)throw Error('bounded-area-sum-input');let total=R(0n);for(const s of areas){if(typeof s!=='string'||s.length>6000||!/^\d+\/[1-9]\d*$/.test(s))throw Error('invalid-exact-area-string');const[n,d]=s.split('/').map(BigInt),q=R(n,d);total=add(total,q);if(total.n.toString(2).length>8192||total.d.toString(2).length>8192)throw Error('bounded-area-sum-rational-size');}const limit=mul(mul(dyadic(W),dyadic(W)),R(1n,2n));return{fits:cmp(total,limit)<=0,exactTotalAreaMM2:key(total),exactLimitAreaMM2:key(limit),totalAreaMM2:number(total),limitAreaMM2:number(limit),rationalAreaCount:areas.length};}catch(error){return{fits:false,reason:error.message};}}
+const same=(a,b)=>a[0]===b[0]&&a[1]===b[1];const distance=(a,b)=>Math.hypot(b[0]-a[0],b[1]-a[1]);const bounds=p=>[Math.min(...p.map(q=>q[0])),Math.min(...p.map(q=>q[1])),Math.max(...p.map(q=>q[0])),Math.max(...p.map(q=>q[1]))];const boxesDisjoint=(a,b)=>a[0]>b[2]||b[0]>a[2]||a[1]>b[3]||b[1]>a[3];const rationalBounds=p=>{const q=p.map(v=>v.map(x=>typeof x==='number'?dyadic(x):x)),min=vs=>vs.reduce((a,b)=>cmp(a,b)<0?a:b),max=vs=>vs.reduce((a,b)=>cmp(a,b)>0?a:b);return[min(q.map(v=>v[0])),min(q.map(v=>v[1])),max(q.map(v=>v[0])),max(q.map(v=>v[1]))];};const rationalBoxesDisjoint=(a,b)=>cmp(a[0],b[2])>0||cmp(b[0],a[2])>0||cmp(a[1],b[3])>0||cmp(b[1],a[3])>0;
+function buildContinuousTipRoute(input,c){
+ const{layer,sourceRings,W=1,clockwiseSign=1,originalPathIndices=layer.paths.map((_,i)=>i),leftVertex,rightVertex,remotePrintedSegments=[],foreignSourceRings=[]}=input;
+ const fail=(reason,witness)=>({status:'continuous-tip-route-break',reason,witness,originalGeometryUnchanged:true,productionReady:false});
+ try{
+  if(!(Number.isFinite(W)&&W>0)||![1,-1].includes(clockwiseSign)||layer.paths.length!==3||originalPathIndices.length!==3||layer.paths.reduce((s,p)=>s+p.length,0)>512||remotePrintedSegments.length>10000||foreignSourceRings.reduce((s,p)=>s+p.length,0)>20000)return fail('bounded-tip-input-domain');
+  if(layer.paths.some(p=>p.some(q=>q.length!==2||q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6))))return fail('invalid-coordinate');
+  if(!Array.isArray(sourceRings)||sourceRings.length!==1||sourceRings[0].length>128||sourceRings.concat(foreignSourceRings).some(p=>!Array.isArray(p)||p.some(q=>!Array.isArray(q)||q.length!==2||q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6))))return fail('invalid-or-unbounded-original-source-coordinate');
+  const open=layer.pathClosed.flatMap((v,i)=>v?[]:[i]),closed=layer.pathClosed.flatMap((v,i)=>v?[i]:[]);if(open.length!==1||closed.length!==2||layer.paths[open[0]].length!==2||layer.pathOrderMetadata.some(q=>q.depth!==0))return fail('requires-two-primary-original-cycles-and-one-finite-neck');
+  if(layer.pathVertexMetadata.some((v,i)=>(v||layer.paths[i].map(()=>null)).some(q=>q&&((q.feedWidth??W)!==W||(q.displayWidth??W)!==W))))return fail('requires-existing-nominal-W-edges');
+  const neck=layer.paths[open[0]],coord=neck[0][0]===neck[1][0]?1:neck[0][1]===neck[1][1]?0:-1;if(coord<0)return fail('requires-existing-exact-orthogonal-neck');const sign=Math.sign(neck[1][coord]-neck[0][coord]),mid=(neck[0][coord]+neck[1][coord])/2;
+  const left=closed.find(i=>Math.max(...layer.paths[i].map(p=>p[coord]*sign))<mid*sign),right=closed.find(i=>Math.min(...layer.paths[i].map(p=>p[coord]*sign))>mid*sign);if(left==null||right==null||left===right)return fail('original-lobes-do-not-own-distinct-neck-ends');
+  const L=layer.paths[left],Rr=layer.paths[right],li=leftVertex??L.reduce((a,p,i)=>distance(p,neck[0])<distance(L[a],neck[0])?i:a,0),ri=rightVertex??Rr.reduce((a,p,i)=>distance(p,neck[1])<distance(Rr[a],neck[1])?i:a,0);if(!Number.isInteger(li)||li<0||li>=L.length||!Number.isInteger(ri)||ri<0||ri>=Rr.length)return fail('invalid-original-vertex-address');
+  const areaSign=p=>{const o=p[0];return Math.sign(p.reduce((s,a,i)=>{const b=p[(i+1)%p.length];return s+(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]);},0));};if(areaSign(L)!==clockwiseSign||areaSign(Rr)!==clockwiseSign)return fail('original-cycle-not-CW-in-current-printer-view');
+  const frame=monotoneBanks(sourceRings,coord);if(!frame)return fail('requires-complete-original-monotone-neck-source');
+  const connectors=[[L[li],neck[0]],[neck[1],Rr[ri]]];if(connectors.some(q=>distance(...q)>W||distance(...q)===0))return fail('bounded-local-connector-length');
+  const p=primitives(c,W),original=layer.paths.flatMap((path,i)=>path.slice(0,path.length-(layer.pathClosed[i]?0:1)).map((a,e)=>({path:i,edge:e,a,b:path[(e+1)%path.length],quad:p.quad(a,path[(e+1)%path.length])}))),ledger=[],guards=[];
+  const remote=remotePrintedSegments.map(q=>{const width=Math.max(q.width??W,q.widthStart??q.width??W,q.widthEnd??q.width??W);if(!Number.isFinite(width)||width<=0||width>1e6||[q.a,q.b].some(v=>!Array.isArray(v)||v.length!==2||v.some(x=>!Number.isFinite(x)||Math.abs(x)>1e6))||same(q.a,q.b))throw Error('invalid-remote-footprint');const quad=p.quad(q.a,q.b,width);return{...q,remote:true,width,quad,bounds:bounds(quad)};});let totalExact=R(0n),totalWork=0;const remoteCertificate={inputSegmentCount:remote.length,pairCount:0,strictDisjointAABBPairCount:0,exactZeroPairCount:0,allRemoteFlagsForcedTrue:true,endpointMaximumDisplayWidthBound:true};
+  for(let i=0;i<2;i++){
+   const[a,b]=connectors[i],quad=p.quad(a,b),cells=sourceCells(frame,connectors[i],W,quad);if(!cells)return fail('incomplete-original-connector-bank-cell-ownership',{connector:i});
+   const footprintScope=exactSourceFootprintScope(quad,frame,cells,W,original.map(q=>q.quad));if(!footprintScope.accepted)return fail('new-wide-source-flat-footprint-spill',{connector:i,footprintScope});
+   const nozzleInheritance=frameContinuousNozzleInheritance.check(sourceRings,[a,b],layer.paths,W,layer.pathClosed,originalPathIndices);if(!nozzleInheritance.passed)return fail('new-wide-source-nozzle-contact-not-inherited',{connector:i,nozzleInheritance});
+   if(!c.frameAdaptiveOpenRibbonWithin(a,b,.6*W,.6*W,sourceRings,0))return fail('minimum-core-outside-original-source',{connector:i});
+   const physical=Math.min(...frame.ring.map((v,e)=>c.frameAdaptiveSegmentDistance(a,b,v,frame.ring[(e+1)%frame.ring.length]))),foreign=Math.min(Infinity,...frame.ring.flatMap((v,e)=>cells.localOriginalBankEdgeIds.includes(e)?[]:[c.frameAdaptiveSegmentDistance(a,b,v,frame.ring[(e+1)%frame.ring.length])]),...foreignSourceRings.flatMap(r=>r.map((v,e)=>c.frameAdaptiveSegmentDistance(a,b,v,r[(e+1)%r.length]))));
+   if(physical<.3*W||foreign<W/2)return fail('local-or-foreign-nozzle-source-guard',{connector:i,physical,foreign});
+   const localPairWorkStart=totalWork;for(const old of original.concat(remote)){if(old.remote){remoteCertificate.pairCount++;if(boxesDisjoint(bounds(quad),old.bounds)){remoteCertificate.strictDisjointAABBPairCount++;continue;}}const contact=exactAxisContact(a,b,old.a,old.b);if(contact)return fail('new-nonowned-axis-contact',{connector:i,oldPath:old.path,oldEdge:old.edge,contact});const pair=p.overlapExact(quad,old.quad),area=pair.area;totalWork+=pair.work;if(totalWork>250000)return fail('bounded-whole-route-exact-ledger-work');totalExact=add(totalExact,area);if(old.remote){if(area.n)return fail('new-remote-print-footprint-overlap',{connector:i,oldPath:old.path,oldEdge:old.edge,exactAreaMM2:key(area)});remoteCertificate.exactZeroPairCount++;}else ledger.push({connector:i,oldPath:old.path,oldEdge:old.edge,remote:false,exactAreaMM2:key(area),areaMM2:number(area)});}
+   if(input.localGeometryReuseCapture)input.localGeometryReuseCapture.connectorPairWork[i]=totalWork-localPairWorkStart;
+   guards.push({connector:i,sourceBankCells:cells,sourceFootprintScope:footprintScope,sourceNozzleInheritance:nozzleInheritance,minimumPhysicalSourceClearanceMM:physical,minimumForeignSourceClearanceMM:foreign,corePoint6WContained:true,nominalNozzleContained:physical>=W/2,nominalRibbonContained:c.frameAdaptiveOpenRibbonWithin(a,b,W,W,sourceRings,0),thinNominalException:physical<W/2,thinAuthority:'existing-original-.6W-to-W-neck-local-bank-only-with-nominal-W-continuation; added wide flat footprint and wide nozzle excursion beyond unchanged original footprints forbidden',sourceIntervals:cells.sourceIntervals,originalSourceBankIds:cells.localOriginalBankEdgeIds.map(edge=>({ring:0,edge})),currentSourceAngleAssociationRequired:true});
+  }
+  const newPair=p.overlapExact(p.quad(...connectors[0]),p.quad(...connectors[1]));totalExact=add(totalExact,newPair.area);totalWork+=newPair.work;const newNew=number(newPair.area),total=number(totalExact),limit=mul(mul(dyadic(W),dyadic(W)),R(1n,2n));if(cmp(totalExact,limit)>0)return fail('full-route-added-overlap-budget',{totalAreaMM2:total,exactTotalAreaMM2:key(totalExact),limitAreaMM2:number(limit),exactLimitAreaMM2:key(limit),ledger,newNewAreaMM2:newNew,exactNewNewAreaMM2:key(newPair.area),leftVertex:li,rightVertex:ri});
+  const points=[],vertices=[],edges=[],originalMap=[];
+  const pushStart=(point,vm)=>{points.push(point);vertices.push(vm);},vm=(path,vertex)=>({...layer.pathVertexMetadata[path]?.[vertex],feedWidth:W,displayWidth:W,nozzleRadius:W/2});
+  function append(point,vertex,edge){points.push(point);vertices.push(vertex);edges.push(edge);}
+  function cycle(path,start){const ring=layer.paths[path];if(!points.length)pushStart(ring[start],vm(path,start));else if(!same(points.at(-1),ring[start]))throw Error('disconnected-cycle-input');for(let n=0;n<ring.length;n++){const e=(start+n)%ring.length,j=(e+1)%ring.length,metadata={role:'original-interval',originalPathIndex:originalPathIndices[path],originalEdge:e,originalDepth:layer.pathOrderMetadata[path].depth,exactU0:'0/1',exactU1:'1/1',originalMetadata:structuredClone(layer.pathEdgeMetadata[path]?.[e]??null),originalWidthAndAxisUnchanged:true,originalCWDirectionUnchanged:true};originalMap.push({...metadata,newEdge:edges.length});append(ring[j],vm(path,j),metadata);}}
+  cycle(left,li);append(neck[0],vm(open[0],0),{role:'new-connector',sourceIntervals:guards[0].sourceIntervals,sourceBankCells:guards[0].sourceBankCells,sourceAngleAssociationRequired:true,sourceAnglePolicy:'two-sided-current-original-bank-face-evidence',geometryGuard:guards[0],feedWidthStart:W,feedWidthEnd:W,notAnInwardSpiral:true});
+  const neckMetadata={role:'original-interval',originalPathIndex:originalPathIndices[open[0]],originalEdge:0,originalDepth:0,exactU0:'0/1',exactU1:'1/1',originalMetadata:structuredClone(layer.pathEdgeMetadata[open[0]]?.[0]??null),originalWidthAndAxisUnchanged:true,retainedOriginalThinNeckTwoSidedAngle:true};originalMap.push({...neckMetadata,newEdge:edges.length});append(neck[1],vm(open[0],1),neckMetadata);
+  append(Rr[ri],vm(right,ri),{role:'new-connector',sourceIntervals:guards[1].sourceIntervals,sourceBankCells:guards[1].sourceBankCells,sourceAngleAssociationRequired:true,sourceAnglePolicy:'two-sided-current-original-bank-face-evidence',geometryGuard:guards[1],feedWidthStart:W,feedWidthEnd:W,notAnInwardSpiral:true});cycle(right,ri);
+  const exactLedger={authority:'Float64 emitted flat-ribbon corners interpreted as exact dyadic coordinates; convex halfplane clipping and rational sum',sameComponentPrimaryNewOldPairs:ledger,newNewAreaMM2:newNew,exactNewNewAreaMM2:key(newPair.area),exactAddedAreaMM2:key(totalExact),exactLimitAreaMM2:key(limit),remoteZeroCertificate:remoteCertificate,oldOldBaselineCancelsByExactOriginalCyclesOnce:true};
+  return{status:'geometry-qualified-original-CW-tip-neck-tip-route',paths:[points],pathClosed:[false],pathVertexMetadata:[vertices],pathEdgeMetadata:[edges],pathOrderMetadata:[{role:'continuous-original-primary-lobes-via-neck',depth:0,independentStart:true,originalLoopCount:2,originalAxisAndCycleDirectionPreserved:true,legalOriginalVertexRephase:true,cumulativeAddedOverlapAreaMM2:total,exactCumulativeAddedOverlapAreaMM2:key(totalExact),continuousTipLedger:exactLedger,requestedPerimeters:layer.pathOrderMetadata[0].requestedPerimeters}],originalMap,sourceGuards:guards,addedAllNewOldAndNewNewAreaMM2:total,exactTotalAreaMM2:key(totalExact),exactAddedAllNewOldAndNewNewAreaMM2:key(totalExact),exactLimitAreaMM2:key(limit),newNewAreaMM2:newNew,exactNewNewAreaMM2:key(newPair.area),completeNewOldLedger:ledger,remoteZeroCertificate:remoteCertificate,exactPairWork:totalWork,originalStarts:[{originalPathIndex:originalPathIndices[left],originalVertex:li},{originalPathIndex:originalPathIndices[right],originalVertex:ri}],originalCyclesExactlyOnce:true,independentStartWidthMM:W,constantWContinuousJoin:true,fullWLongFeatureProfileComplete:false,currentLayerSourceAngleAssociationRequired:true,productionReady:false,geometryOnlyCacheSafe:true};
+ }catch(error){return fail(error.message);}
+}
+function prepareLocal(input,c){
+ const capture={connectorPairWork:[]},result=buildContinuousTipRoute({...input,remotePrintedSegments:[],foreignSourceRings:[],localGeometryReuseCapture:capture},c);
+ if(result.status!=='geometry-qualified-original-CW-tip-neck-tip-route'||capture.connectorPairWork.length!==2)return null;
+ return{result,connectorPairWork:capture.connectorPairWork,newNewPairWork:result.exactPairWork-capture.connectorPairWork.reduce((n,q)=>n+q,0)};
+}
+function bindPrepared(prepared,input,c,onReuse){
+ const fail=(reason,witness)=>({status:'continuous-tip-route-break',reason,witness,originalGeometryUnchanged:true,productionReady:false});
+ try{
+  const{layer,sourceRings,W,clockwiseSign,originalPathIndices,remotePrintedSegments=[],foreignSourceRings=[]}=input;
+  if(remotePrintedSegments.length>10000||foreignSourceRings.reduce((n,p)=>n+p.length,0)>20000||sourceRings.concat(foreignSourceRings).some(p=>!Array.isArray(p)||p.some(q=>!Array.isArray(q)||q.length!==2||q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6))))return buildContinuousTipRoute(input,c);
+  const result=structuredClone(prepared.result),edges=result.pathEdgeMetadata?.[0],points=result.paths?.[0],connectorEdges=edges?.flatMap((e,i)=>e.role==='new-connector'?[i]:[]),guards=result.sourceGuards;
+  if(result.status!=='geometry-qualified-original-CW-tip-neck-tip-route'||!points||!edges||edges.length!==points.length-1||connectorEdges?.length!==2||guards?.length!==2||prepared.connectorPairWork?.length!==2||prepared.connectorPairWork.some(v=>!Number.isSafeInteger(v)||v<0)||!Number.isSafeInteger(prepared.newNewPairWork)||prepared.newNewPairWork<0)return buildContinuousTipRoute(input,c);
+  const open=layer.pathClosed.flatMap((q,i)=>q?[]:[i]),closed=layer.pathClosed.flatMap((q,i)=>q?[i]:[]);if(open.length!==1||closed.length!==2||layer.paths[open[0]].length!==2)return buildContinuousTipRoute(input,c);
+  const neck=layer.paths[open[0]],coord=neck[0][0]===neck[1][0]?1:neck[0][1]===neck[1][1]?0:-1,sign=coord<0?0:Math.sign(neck[1][coord]-neck[0][coord]),middle=coord<0?0:(neck[0][coord]+neck[1][coord])/2,left=closed.find(i=>Math.max(...layer.paths[i].map(p=>p[coord]*sign))<middle*sign),right=closed.find(i=>Math.min(...layer.paths[i].map(p=>p[coord]*sign))>middle*sign);
+  if(coord<0||left==null||right==null||left===right)return buildContinuousTipRoute(input,c);
+  const nearest=(path,tip)=>path.reduce((at,p,i)=>distance(p,tip)<distance(path[at],tip)?i:at,0),L=layer.paths[left],Rr=layer.paths[right],li=nearest(L,neck[0]),ri=nearest(Rr,neck[1]);
+  if(!same(points[connectorEdges[0]],L[li])||!same(points[connectorEdges[0]+1],neck[0])||!same(points[connectorEdges[1]],neck[1])||!same(points[connectorEdges[1]+1],Rr[ri]))return buildContinuousTipRoute(input,c);
+  if(onReuse)onReuse();
+  const p=primitives(c,W),remote=remotePrintedSegments.map(q=>{const width=Math.max(q.width??W,q.widthStart??q.width??W,q.widthEnd??q.width??W);if(!Number.isFinite(width)||width<=0||width>1e6||[q.a,q.b].some(v=>!Array.isArray(v)||v.length!==2||v.some(x=>!Number.isFinite(x)||Math.abs(x)>1e6))||same(q.a,q.b))throw Error('invalid-remote-footprint');const quad=p.quad(q.a,q.b,width);return{...q,remote:true,width,quad,bounds:bounds(quad)};}),certificate={inputSegmentCount:remote.length,pairCount:0,strictDisjointAABBPairCount:0,exactZeroPairCount:0,allRemoteFlagsForcedTrue:true,endpointMaximumDisplayWidthBound:true};
+  let totalWork=0;
+  for(let i=0;i<2;i++){
+   const edge=connectorEdges[i],a=points[edge],b=points[edge+1],quad=p.quad(a,b),guard=guards[i],physical=guard.minimumPhysicalSourceClearanceMM,foreign=Math.min(guard.minimumForeignSourceClearanceMM,...foreignSourceRings.flatMap(r=>r.map((v,e)=>c.frameAdaptiveSegmentDistance(a,b,v,r[(e+1)%r.length]))));
+   if(physical<.3*W||foreign<W/2)return fail('local-or-foreign-nozzle-source-guard',{connector:i,physical,foreign});
+   guard.minimumForeignSourceClearanceMM=foreign;
+   totalWork+=prepared.connectorPairWork[i];if(totalWork>250000)return fail('bounded-whole-route-exact-ledger-work');
+   for(const old of remote){certificate.pairCount++;if(boxesDisjoint(bounds(quad),old.bounds)){certificate.strictDisjointAABBPairCount++;continue;}const contact=exactAxisContact(a,b,old.a,old.b);if(contact)return fail('new-nonowned-axis-contact',{connector:i,oldPath:old.path,oldEdge:old.edge,contact});const pair=p.overlapExact(quad,old.quad);totalWork+=pair.work;if(totalWork>250000)return fail('bounded-whole-route-exact-ledger-work');if(pair.area.n)return fail('new-remote-print-footprint-overlap',{connector:i,oldPath:old.path,oldEdge:old.edge,exactAreaMM2:key(pair.area)});certificate.exactZeroPairCount++;}
+  }
+  const vertices=Array.from({length:points.length},()=>null),vm=(path,vertex)=>({...layer.pathVertexMetadata[path]?.[vertex],feedWidth:W,displayWidth:W,nozzleRadius:W/2});
+  for(let e=0;e<edges.length;e++)if(edges[e].role==='original-interval'){
+   const metadata=edges[e],local=metadata.originalPathIndex,j=metadata.originalEdge,source=layer.paths[local],next=(j+1)%source?.length;
+   if(!source||!Number.isSafeInteger(j)||j<0||j>=source.length-(layer.pathClosed[local]?0:1)||!same(points[e],source[j])||!same(points[e+1],source[next]))return buildContinuousTipRoute(input,c);
+   vertices[e]=vm(local,j);vertices[e+1]=vm(local,next);metadata.originalMetadata=structuredClone(layer.pathEdgeMetadata[local]?.[j]??null);metadata.originalPathIndex=originalPathIndices[local];
+  }
+  if(vertices.some(q=>q===null))return buildContinuousTipRoute(input,c);
+  result.pathVertexMetadata=[vertices];
+  for(const mapping of result.originalMap){const local=mapping.originalPathIndex;mapping.originalMetadata=structuredClone(layer.pathEdgeMetadata[local]?.[mapping.originalEdge]??null);mapping.originalPathIndex=originalPathIndices[local];}
+  for(const start of result.originalStarts)start.originalPathIndex=originalPathIndices[start.originalPathIndex];
+  for(const guard of guards){const proof=guard.sourceNozzleInheritance;proof.originalAxisPathIndices=originalPathIndices.slice();for(const record of proof.wideBankContactCertificates||[]){const point=record.wholeContactOldAxisDominanceCertificate?.originalRetainedAxisPoint;if(point){point.path=originalPathIndices[point.originalLocalPathIndex];point.originalPathIndex=point.path;}}}
+  result.pathOrderMetadata[0].requestedPerimeters=layer.pathOrderMetadata[0].requestedPerimeters;result.remoteZeroCertificate=certificate;result.pathOrderMetadata[0].continuousTipLedger.remoteZeroCertificate=certificate;result.exactPairWork=totalWork+prepared.newNewPairWork;
+  return result;
+ }catch(error){return fail(error.message);}
+}
+buildContinuousTipRoute.prepareLocal=prepareLocal;
+buildContinuousTipRoute.bindPrepared=bindPrepared;
+
+buildContinuousTipRoute.sumAreasFits=sumAreasFits;
+return buildContinuousTipRoute;
+})();
+function frameContinuousLocalGeometryKey(sourceRings,layer,W,clockwiseSign){
+ if(!Number.isFinite(W)||W<=0||![1,-1].includes(clockwiseSign)||sourceRings?.length!==1||sourceRings[0].length>128||layer?.paths?.length!==3||layer.paths.reduce((n,p)=>n+p.length,0)>512||layer.pathClosed?.length!==3)return null;
+ if(layer.pathOrderMetadata?.length!==3||layer.pathOrderMetadata.some(q=>q.depth!==0)||layer.pathVertexMetadata?.length!==3||layer.pathVertexMetadata.some((row,i)=>(row||layer.paths[i].map(()=>null)).some(q=>q&&((q.feedWidth??W)!==W||(q.displayWidth??W)!==W))))return null;
+ const bits=new DataView(new ArrayBuffer(8)),number=v=>{if(!Number.isFinite(v)||Math.abs(v)>1e6)throw Error('invalid-local-template-coordinate');bits.setFloat64(0,v,false);return bits.getUint32(0,false).toString(16).padStart(8,'0')+bits.getUint32(4,false).toString(16).padStart(8,'0');},points=table=>table.map(p=>{if(!Array.isArray(p)||p.length!==2)throw Error('invalid-local-template-point');return p.map(number).join('');}).join(',');
+ try{return[1,number(W),clockwiseSign,points(sourceRings[0]),layer.paths.map(points).join(';'),layer.pathClosed.map(q=>q?'1':'0').join(''),layer.pathOrderMetadata.map(q=>q.requestedPerimeters??1).join(',')].join('|');}catch(error){return null;}
+}
+function frameContinuousPrepareInsetTemplate(group,q,p){
+ const W=p.lineWidth,count=p.perimeters??1,section=group.reference?.section,selected=group.paths;
+ if(p.angleWarnings!==true||!section||q.status?.startsWith('adaptive-')||!['remote-unowned-boundary-at-open-end','open-channel-outside-single-bead-width-range'].includes(q.reason)||section.ends.length!==1||!Array.isArray(selected)||selected.length<2||selected.length>6)return null;
+ try{
+  const sourceRings=frameAdaptiveUnpack(section),primary=selected.map((_,i)=>i).filter(i=>(group.pathMetadata?.[i]?.depth??0)===0);if(primary.length!==2)return null;
+  let neck;
+  if(section.coords.length===24&&q.reason==='remote-unowned-boundary-at-open-end'){
+   const pairs=frameAdaptiveCorrespondence.open({rings:sourceRings,W,maxGap:3*W,maxEdges:24,maxCandidateTests:4096,maxEvents:4096,maxOutputSpans:64,certifyMaterialCells:false,boundCandidates:false});
+   neck=frameAdaptiveThinNeckAugmentation(sourceRings,selected,W,p.minPathLength||0,pairs.qualified.length===1?pairs.qualified[0]:null,frameAdaptiveSegmentDistance,frameAdaptiveOpenRibbonWithin,frameAdaptiveOpenAxisIntersects);
+  }else if(section.coords.length>=32&&section.coords.length<=256)neck=frameAdaptiveCurvedThinNeckAugmentation(sourceRings,selected,W,p.minPathLength||0,null,frameAdaptiveSegmentDistance,frameAdaptiveOpenRibbonWithin,frameAdaptiveOpenAxisIntersects);
+  if(neck?.status!=='supported')return null;
+  const sign=p.printClockwiseSign??1,paths=primary.map(i=>frameClockwisePrintLoop(selected[i],{clockwiseSign:sign}).path),layer={paths:[...paths,neck.path],pathClosed:[true,true,false],pathVertexMetadata:[null,null,neck.pathVertexMetadata],pathEdgeMetadata:[null,null,neck.pathEdgeMetadata],pathOrderMetadata:[...primary.map(i=>({...group.pathMetadata?.[i],requestedPerimeters:count})),{depth:0,requestedPerimeters:count}]},key=frameContinuousLocalGeometryKey(sourceRings,layer,W,sign);
+  if(!key)return null;
+  const prepared=frameContinuousTipRoute.prepareLocal({layer,sourceRings,W,clockwiseSign:sign,originalPathIndices:[0,1,2]},{ClipperLib,frameAdaptiveOpenRibbonWithin,frameAdaptiveSegmentDistance});if(!prepared)return null;
+  for(const row of prepared.result.pathEdgeMetadata)for(const edge of row)if(edge.role==='original-interval')edge.originalMetadata=null;
+  for(const edge of prepared.result.originalMap)edge.originalMetadata=null;
+  prepared.result.pathVertexMetadata=null;
+  return{status:'prepared-immutable-local-neck-geometry',key,W,clockwiseSign:sign,requestedPerimeters:count,...prepared,geometryOnly:true,currentForeignAndRemoteEvidenceRequired:true,currentSourceAngleEvidenceRequired:true};
+ }catch(error){return null;}
+}
+function frameContinuousUsePreparedGeometry(prepared,input,c,metrics){
+ if(input.leftVertex!=null||input.rightVertex!=null||!Array.isArray(input.originalPathIndices)||input.originalPathIndices.length!==3||input.originalPathIndices.some(q=>!Number.isSafeInteger(q)||q<0)||new Set(input.originalPathIndices).size!==3)return frameContinuousTipRoute(input,c);
+ const key=frameContinuousLocalGeometryKey(input.sourceRings,input.layer,input.W,input.clockwiseSign),valid=prepared?.status==='prepared-immutable-local-neck-geometry'&&key!==null&&prepared.key===key&&prepared.W===input.W&&prepared.clockwiseSign===input.clockwiseSign&&prepared.geometryOnly===true&&prepared.currentForeignAndRemoteEvidenceRequired===true&&prepared.currentSourceAngleEvidenceRequired===true;
+ if(!valid)return frameContinuousTipRoute(input,c);
+ return frameContinuousTipRoute.bindPrepared(prepared,input,c,()=>{if(metrics)metrics.continuousNeckPreparedGeometryUses=(metrics.continuousNeckPreparedGeometryUses||0)+1;});
+}
+
+function frameContinuousNeckOwnerFinalize(layer,output,references,source,originalAngles,finalOriginalPaths,clockwiseSign,W,metrics,geometryCache){
+ const {continuousNeckCandidates,...clean}=output||{},fallback=()=>({output:clean,angleValues:originalAngles,accepted:0});
+ if(output?.spiral||!continuousNeckCandidates?.length||source?.layer!==layer||!(source.faceIncidence||source.continuousFaceIncidence)?.complete||continuousNeckCandidates.length>64||output.paths.reduce((n,p,i)=>n+p.length-(output.pathClosed?.[i]===false?1:0),0)>10000||references.reduce((n,r)=>n+(r.section?.coords?.length||0)/2,0)>20000)return fallback();
+ try{
+  const offsets=[];let at=0;for(let i=0;i<output.paths.length;i++){offsets.push(at);at+=output.paths[i].length-(output.pathClosed?.[i]===false?1:0);}if(at!==originalAngles.length)return fallback();
+  const normalized=output.paths.map((p,i)=>frameClockwisePrintLoop(p,{clockwiseSign,closed:output.pathClosed?.[i]!==false,edgeMetadata:output.pathEdgeMetadata?.[i],vertexMetadata:output.pathVertexMetadata?.[i]})),replacements=new Map(),removed=new Set(),allNewSegments=[],exactAddedAreas=[];let accepted=0,added=0,work=0,fullLayerLedger=null;
+  const allSourceRings=references.flatMap(r=>frameAdaptiveUnpack(r.section)),continuousSource={...source,faceIncidence:source.faceIncidence||source.continuousFaceIncidence},fraction=s=>{const[n,d]=s.split('/').map(BigInt);return{n,d};},compare=(a,b)=>{const x=a.n*b.d-b.n*a.d;return x<0n?-1:x>0n?1:0;};
+  const sameRing=(a,b)=>{if(a.length!==b.length)return false;for(let start=0;start<b.length;start++)if(a[0][0]===b[start][0]&&a[0][1]===b[start][1])for(const direction of[1,-1]){let same=true;for(let i=0;i<a.length;i++){const p=b[(start+direction*i+b.length)%b.length];if(a[i][0]!==p[0]||a[i][1]!==p[1]){same=false;break;}}if(same)return true;}return false;};
+  for(const candidate of continuousNeckCandidates){
+   const componentIndex=candidate.componentIndex,ids=output.paths.map((_,i)=>i).filter(i=>output.pathOrderMetadata[i].componentIndex===componentIndex),primary=ids.filter(i=>output.pathOrderMetadata[i].depth===0),sourceRings=frameAdaptiveUnpack(candidate.section);
+   if(primary.length!==3||primary.some(i=>removed.has(i))||sourceRings.length!==1)continue;
+   const local=Object.fromEntries(['paths','pathClosed','pathOrderMetadata','pathVertexMetadata','pathEdgeMetadata'].map(key=>[key,primary.map(i=>key==='paths'?normalized[i].path:key==='pathEdgeMetadata'?normalized[i].edgeMetadata:key==='pathVertexMetadata'?normalized[i].vertexMetadata:output[key][i])])),foreignSourceRings=allSourceRings.filter(r=>!sourceRings.some(q=>sameRing(r,q))),remotePrintedSegments=[];
+   for(let i=0;i<output.paths.length;i++)if(!primary.includes(i)){const p=finalOriginalPaths[i],vm=normalized[i].vertexMetadata;for(let e=0;e<p.length-(output.pathClosed?.[i]===false?1:0);e++){const j=(e+1)%p.length;remotePrintedSegments.push({a:p[e],b:p[j],path:i,edge:e,remote:true,width:Math.max(W,vm?.[e]?.displayWidth??W,vm?.[j]?.displayWidth??W)});}}
+   remotePrintedSegments.push(...allNewSegments);
+   const q=frameContinuousUsePreparedGeometry(candidate.preparedLocal,{layer:local,sourceRings,originalPathIndices:primary,W,clockwiseSign,remotePrintedSegments,foreignSourceRings},{ClipperLib,frameAdaptiveOpenRibbonWithin,frameAdaptiveSegmentDistance},metrics);
+   work++;if(q.status!=='geometry-qualified-original-CW-tip-neck-tip-route')continue;
+   const cumulative=frameContinuousTipRoute.sumAreasFits([...exactAddedAreas,q.exactTotalAreaMM2],W);if(!cumulative.fits)continue;
+   const connectorEdges=q.pathEdgeMetadata[0].flatMap((e,i)=>e.role==='new-connector'?[i]:[]),connectors=connectorEdges.map(i=>[q.paths[0][i],q.paths[0][i+1]]);if(connectors.length!==2)continue;
+   const proofStart=performance.now(),plan=frameSpiralPrepareAngleBanks(candidate.section,{maxEdges:128}),family={resolved:true,sourceRingId:0,originalSourceEdgeIds:plan.banks?.map(b=>b.edge),componentId:componentIndex,familyId:'original-neck-continuation',sourceBoundaryRole:'complete-original-component-ring'},proof=frameSpiralAssociateAngleFamily(plan,continuousSource,family);metrics.queries+=proof.work;metrics.milliseconds+=performance.now()-proofStart;if(proof.status!=='associated-conservative-original-bank-inclination')continue;
+   const angles=new Float32Array(2),connectorEvidence=[];let complete=true;
+   for(let k=0;k<2;k++){const edge=q.pathEdgeMetadata[0][connectorEdges[k]],cells=[];let maximum=0;if(!edge.sourceIntervals?.length){complete=false;break;}for(const interval of edge.sourceIntervals){let lo=fraction(interval.exactU0),hi=fraction(interval.exactU1);if(compare(lo,hi)>0)[lo,hi]=[hi,lo];if(compare(lo,hi)>=0||lo.n<0n||hi.n>hi.d){complete=false;break;}const matched=proof.sourceIntervals.filter(p=>p.ring===interval.ring&&p.edge===interval.edge&&compare(fraction(p.exactU0),hi)<0&&compare(fraction(p.exactU1),lo)>0);if(!matched.length){complete=false;break;}for(const cell of matched){maximum=Math.max(maximum,cell.sourceAngle);const a=fraction(cell.exactU0),b=fraction(cell.exactU1),clippedLo=compare(a,lo)>0?a:lo,clippedHi=compare(b,hi)<0?b:hi;cells.push({...cell,exactU0:clippedLo.n+'/'+clippedLo.d,exactU1:clippedHi.n+'/'+clippedHi.d,u0:Number(clippedLo.n)/Number(clippedLo.d),u1:Number(clippedHi.n)/Number(clippedHi.d),preparedOriginalFaceInterval:{exactU0:cell.exactU0,exactU1:cell.exactU1},intervalScope:'finite-connector-ownership-intersection-with-current-face-evidence'});}}if(!complete)break;angles[k]=maximum;connectorEvidence.push({method:'maximum-actual-face-inclination-over-finite-original-connector-bank-cells',currentSourceLayer:layer,sourceIntervals:cells,completeOriginalBankProof:true,actualZeroInclinationsRetained:true,preparedFaceIdScope:'current-retained-prepared-triangle-group-and-layer',nearestPairing:false});}
+   if(!complete||connectorEvidence.length!==2||Array.from(angles).some(a=>!Number.isFinite(a)||a<0))continue;
+   const joinedAngles=new Float32Array(q.paths[0].length-1);let fresh=0,valid=true;
+   for(let e=0;e<joinedAngles.length;e++){const metadata=q.pathEdgeMetadata[0][e];if(metadata.role==='original-interval'){const i=metadata.originalPathIndex,j=metadata.originalEdge;if(!primary.includes(i)||!Number.isInteger(j)||j<0||j>=finalOriginalPaths[i].length-(output.pathClosed?.[i]===false?1:0)){valid=false;break;}joinedAngles[e]=originalAngles[offsets[i]+j];metadata.originalPathAddressScope='current-original-layer-before-continuous-join-final-CW-order';metadata.originalSourceTraversalReversed=normalized[i].reversed;}else if(metadata.role==='new-connector'){joinedAngles[e]=angles[fresh];metadata.currentSourceAngleProof=connectorEvidence[fresh++];metadata.sourceAngleAssociationComplete=true;metadata.currentSourceLayer=layer;metadata.sourceAngle=joinedAngles[e];}else{valid=false;break;}}
+   if(!valid||fresh!==2)continue;
+   const first=Math.min(...primary),base=output.pathOrderMetadata[first],order={...base,...q.pathOrderMetadata[0],componentIndex,currentSourceLayer:layer,originalStarts:q.originalStarts,originalComponentMetadata:structuredClone(output.adaptive.components.find(c=>c.componentIndex===componentIndex)),originalPathLineage:primary.map(i=>({originalPathIndex:i,addressScope:'current-original-layer-before-continuous-join-final-CW-order',pathOrderMetadata:structuredClone(output.pathOrderMetadata[i]),pathVertexMetadata:structuredClone(normalized[i].vertexMetadata??null),pathEdgeMetadataWasNull:normalized[i].edgeMetadata==null,sourceTraversalReversed:normalized[i].reversed,originalClosed:output.pathClosed[i]})),newSeamBudgetScope:'whole-layer-added-pairs',sourceGeometryUnchanged:true,sourceAngleAssociationComplete:true,coverageCertified:false,physicalPrintValidated:false};
+   replacements.set(first,{paths:q.paths[0],pathClosed:false,pathVertexMetadata:q.pathVertexMetadata[0],pathEdgeMetadata:q.pathEdgeMetadata[0],pathOrderMetadata:order,angles:joinedAngles});for(const i of primary)removed.add(i);for(let j=0;j<connectors.length;j++)allNewSegments.push({a:connectors[j][0],b:connectors[j][1],remote:true,width:W,path:first,edge:connectorEdges[j],componentIndex});accepted++;exactAddedAreas.push(q.exactTotalAreaMM2);fullLayerLedger=cumulative;added=cumulative.totalAreaMM2;
+  }
+  if(!accepted)return fallback();
+  const result={...clean,paths:[],pathClosed:[],pathVertexMetadata:[],pathEdgeMetadata:[],pathOrderMetadata:[]},parts=[];
+  for(let i=0;i<output.paths.length;i++){const replacement=replacements.get(i);if(replacement){for(const key of['paths','pathClosed','pathVertexMetadata','pathEdgeMetadata','pathOrderMetadata'])result[key].push(replacement[key]);parts.push(replacement.angles);}else if(!removed.has(i)){for(const key of['paths','pathClosed','pathVertexMetadata','pathEdgeMetadata','pathOrderMetadata'])result[key].push(output[key]?.[i]??(key==='pathClosed'?true:null));const n=output.paths[i].length-(output.pathClosed?.[i]===false?1:0);parts.push(originalAngles.subarray(offsets[i],offsets[i]+n));}}
+  const angles=new Float32Array(parts.reduce((n,p)=>n+p.length,0));at=0;for(const part of parts){angles.set(part,at);at+=part.length;}
+  const changedComponents=new Set([...replacements.values()].map(q=>q.pathOrderMetadata.componentIndex));result.adaptive={...clean.adaptive,components:clean.adaptive.components.map(q=>changedComponents.has(q.componentIndex)?{...q,status:'adaptive-original-continuous-neck-route',paths:q.paths-2,originalNominalPathsRetained:false,originalNominalAxesRetained:true,originalClosedCyclesRetainedInsideContinuousPath:true,independentStartsReducedBy:2,neckRouteIndependentStart:false,continuityConnectors:2,fullWLongFeatureProfileComplete:false}:q)};
+  result.continuity={status:'constant-W-original-primary-cycles-via-neck',connections:accepted*2,components:accepted,originalAxesAndCWEdgesPreserved:true,legalOriginalVertexRephase:true,independentStartWidthMM:W,newSeamBudgetMM2:fullLayerLedger.limitAreaMM2,exactNewSeamBudgetMM2:fullLayerLedger.exactLimitAreaMM2,newSeamBudgetScope:'whole-layer-added-pairs',addedOverlapAreaMM2:added,exactAddedOverlapAreaMM2:fullLayerLedger.exactTotalAreaMM2,fullWLongFeatureProfileComplete:false,sourceGeometryUnchanged:true,sourceAngleAssociationComplete:true,coverageCertified:false,physicalPrintValidated:false};
+  metrics.segments+=2*accepted;metrics.continuousNeckComponents=(metrics.continuousNeckComponents||0)+accepted;metrics.continuousNeckConnectorSegments=(metrics.continuousNeckConnectorSegments||0)+2*accepted;metrics.continuousNeckGeometryAttempts=(metrics.continuousNeckGeometryAttempts||0)+work;
+  return{output:result,angleValues:angles,accepted};
+ }catch(error){return fallback();}
+}
 function frameAdaptiveLayer(paths,references,p,stats,groups){
   const result={paths:[],pathClosed:[],pathVertexMetadata:[],pathEdgeMetadata:[],pathOrderMetadata:[]},components=[];
   groups=frameAdaptiveSplitGroups(groups||[{paths,reference:references[0],requestedPerimeters:p.perimeters??1}]);
-  let adapted=0,thin=false;
+  let adapted=0,thin=false,terminalNeighbors=null;
   for(let componentIndex=0;componentIndex<groups.length;componentIndex++){
     const group=groups[componentIndex],section=group.reference?.section,count=p.perimeters??1,key=p.lineWidth+'|'+count;
     let cached=section&&frameAdaptiveSectionCache.get(section),q=cached?.key===key?cached.value:null;
     if(q)stats.adaptiveCacheHits=(stats.adaptiveCacheHits||0)+1;
     else if(group.adaptivePreparedRegion?.key===key){const prepared=group.adaptivePreparedRegion;q=prepared.value;stats.adaptivePreparedRegions=(stats.adaptivePreparedRegions||0)+1;stats.adaptiveWorkerPlacementMS=(stats.adaptiveWorkerPlacementMS||0)+prepared.milliseconds;stats.adaptivePreparedPeakBytes=Math.max(stats.adaptivePreparedPeakBytes||0,prepared.bytes);if(section)frameAdaptiveCacheSet(section,{key,value:q});}
     else{const start=performance.now();try{q=section?frameAdaptivePlacement(frameAdaptiveUnpack(section),p.lineWidth,count):{status:'fixed-fallback',reason:'missing-original-component-material'};}catch(error){q={status:'fixed-fallback',reason:'unresolved-source-correspondence'};}stats.adaptivePlacementMS=(stats.adaptivePlacementMS||0)+performance.now()-start;if(section)frameAdaptiveCacheSet(section,{key,value:q});}
+    if(!Object.hasOwn(q,'acuteTemplates'))q.acuteTemplates=frameAcutePrepareTemplates(group,p,q);if(q.acuteTemplates)(result.acuteCandidates??=[]).push({componentIndex,section,templates:q.acuteTemplates});if(q.flatTerminalExtension){if(!terminalNeighbors){const began=performance.now();terminalNeighbors=frameAdaptiveTerminalNeighborIndex(groups);stats.adaptiveTerminalNeighborIndexes=(stats.adaptiveTerminalNeighborIndexes||0)+1;stats.adaptiveTerminalNeighborCoordinatesScanned=(stats.adaptiveTerminalNeighborCoordinatesScanned||0)+terminalNeighbors.coordinatesScanned;stats.adaptiveTerminalNeighborIndexMS=(stats.adaptiveTerminalNeighborIndexMS||0)+performance.now()-began;}const before=terminalNeighbors.boxChecks;if(!frameAdaptiveTerminalNeighborSafe(q,terminalNeighbors,componentIndex,p.lineWidth)){q=frameAdaptiveTerminalUnextend(q);stats.adaptiveTerminalNeighborRejectedComponents=(stats.adaptiveTerminalNeighborRejectedComponents||0)+1;}stats.adaptiveTerminalNeighborBoxChecks=(stats.adaptiveTerminalNeighborBoxChecks||0)+terminalNeighbors.boxChecks-before;}
+    if(q.status==='adaptive-original-threshold-attached-ramp-transition'){if(!terminalNeighbors){terminalNeighbors=frameAdaptiveTerminalNeighborIndex(groups);stats.adaptiveThresholdNeighborCoordinatesScanned=(stats.adaptiveThresholdNeighborCoordinatesScanned||0)+terminalNeighbors.coordinatesScanned;}if(!frameAdaptiveThresholdRampNeighborSafe(q,terminalNeighbors,componentIndex,p.lineWidth)){q=section?frameAdaptivePlacementBeforeThresholdRamp(frameAdaptiveUnpack(section),p.lineWidth,count):{status:'fixed-fallback',reason:'missing-original-component-material'};stats.adaptiveThresholdNeighborRejectedComponents=(stats.adaptiveThresholdNeighborRejectedComponents||0)+1;}}
     let accepted=q.status.startsWith('adaptive-');
     if(accepted&&q.paths.some((path,index)=>path.slice(0,path.length-(q.pathClosed?.[index]===false?1:0)).reduce((L,a,i)=>L+Math.hypot(a[0]-path[(i+1)%path.length][0],a[1]-path[(i+1)%path.length][1]),0)<p.minPathLength)){q={status:'fixed-fallback',reason:'minimum-path-length'};accepted=false;}
     const selected=accepted?q.paths:group.paths||[];
@@ -8819,40 +10193,254 @@ function frameAdaptiveLayer(paths,references,p,stats,groups){
     }
     if(accepted){adapted++;thin ||=!!q.thinNominalException;}
     components.push({componentIndex,status:q.status,reason:q.reason,witness:q.witness,paths:selected.length,requestedPerimeters:count,actualPerimeters:accepted?q.actualPerimeters??1:group.actualPerimeters||0,gap:q.gap,maximumGap:q.maximumGap,uniformGap:q.uniformGap,originalIntervalEvents:q.originalIntervalEvents,terminalPolicy:q.terminalPolicy,terminalSourceChains:q.terminalSourceChains,axisErrorBudgetMM:q.axisErrorBudgetMM,thinNominalException:!!q.thinNominalException});
+    if(!accepted&&(q.reason==='remote-unowned-boundary-at-open-end'||q.reason==='open-channel-outside-single-bead-width-range')&&section?.coords?.length>=32&&section?.coords?.length<=256&&section?.ends?.length===1&&selected.length>=2&&selected.length<=6){
+      let neck;try{const rings=frameAdaptiveUnpack(section);neck=frameAdaptiveCurvedThinNeckAugmentation(rings,selected,p.lineWidth,p.minPathLength||0,null,frameAdaptiveSegmentDistance,frameAdaptiveOpenRibbonWithin,frameAdaptiveOpenAxisIntersects);}catch(error){neck={status:'unsupported',reason:'bounded-neck-proof-unresolved'};}
+      stats.adaptiveCurvedNeckAttempts=(stats.adaptiveCurvedNeckAttempts||0)+1;
+      if(neck.status==='supported'){
+        if(!terminalNeighbors){terminalNeighbors=frameAdaptiveTerminalNeighborIndex(groups);stats.adaptiveCurvedNeckNeighborCoordinatesScanned=(stats.adaptiveCurvedNeckNeighborCoordinatesScanned||0)+terminalNeighbors.coordinatesScanned;}
+        const checks=terminalNeighbors.boxChecks,scope={flatTerminalExtension:{caps:[{ribbonBounds:neck.ribbonBounds}]}};
+        if(frameAdaptiveTerminalNeighborSafe(scope,terminalNeighbors,componentIndex,p.lineWidth)){
+          result.paths.push(neck.path);result.pathClosed.push(false);result.pathVertexMetadata.push(neck.pathVertexMetadata);result.pathEdgeMetadata.push(neck.pathEdgeMetadata.map(e=>({...e,componentIndex,requestedPerimeters:count})));
+          result.pathOrderMetadata.push({componentIndex,depth:0,boundaryRole:'paired-original-curved-thin-neck',sourceComponent:group.sourceComponent,sourceRingIds:group.sourceRingIds,requestedPerimeters:count,role:'adaptive-original-curved-thin-neck-augmentation',independentStart:true});
+          if(p.angleWarnings===true)(result.continuousNeckCandidates??=[]).push({componentIndex,section,role:'adaptive-original-curved-thin-neck-augmentation',preparedLocal:group.adaptivePreparedRegion?.continuousNeckTemplate});
+          const component=components.at(-1);component.originalPlacementStatus=component.status;component.status='adaptive-original-curved-thin-neck-augmentation';component.paths++;component.neckRoutes=1;component.thinNominalException=true;component.originalNominalPathsRetained=true;component.nominalNozzleContained=false;component.minimumPhysicalNeckClearanceMM=neck.physicalNozzleSourceClearanceMM;component.coverageCertified=false;component.physicalPrintValidated=false;adapted++;thin=true;stats.adaptiveCurvedNeckRoutes=(stats.adaptiveCurvedNeckRoutes||0)+1;
+        }else stats.adaptiveCurvedNeckNeighborRejected=(stats.adaptiveCurvedNeckNeighborRejected||0)+1;
+        stats.adaptiveCurvedNeckNeighborBoxChecks=(stats.adaptiveCurvedNeckNeighborBoxChecks||0)+terminalNeighbors.boxChecks-checks;
+      }else stats.adaptiveCurvedNeckProofRejected=(stats.adaptiveCurvedNeckProofRejected||0)+1;
+    }
+    if(!accepted&&q.reason==='remote-unowned-boundary-at-open-end'&&section?.coords?.length===24&&section?.ends?.length===1&&selected.length>=2&&selected.length<=6){
+      let neck;try{const rings=frameAdaptiveUnpack(section),pairs=frameAdaptiveCorrespondence.open({rings,W:p.lineWidth,maxGap:3*p.lineWidth,maxEdges:24,maxCandidateTests:4096,maxEvents:4096,maxOutputSpans:64,certifyMaterialCells:false,boundCandidates:false});neck=frameAdaptiveThinNeckAugmentation(rings,selected,p.lineWidth,p.minPathLength||0,pairs.qualified.length===1?pairs.qualified[0]:null,frameAdaptiveSegmentDistance,frameAdaptiveOpenRibbonWithin,frameAdaptiveOpenAxisIntersects);}catch(error){neck={status:'unsupported',reason:'bounded-neck-proof-unresolved'};}
+      stats.adaptiveNeckAttempts=(stats.adaptiveNeckAttempts||0)+1;
+      if(neck.status==='supported'){
+        if(!terminalNeighbors){terminalNeighbors=frameAdaptiveTerminalNeighborIndex(groups);stats.adaptiveNeckNeighborCoordinatesScanned=(stats.adaptiveNeckNeighborCoordinatesScanned||0)+terminalNeighbors.coordinatesScanned;}
+        const checks=terminalNeighbors.boxChecks,scope={flatTerminalExtension:{caps:[{ribbonBounds:neck.ribbonBounds}]}};
+        if(frameAdaptiveTerminalNeighborSafe(scope,terminalNeighbors,componentIndex,p.lineWidth)){
+          result.paths.push(neck.path);result.pathClosed.push(false);result.pathVertexMetadata.push(neck.pathVertexMetadata);result.pathEdgeMetadata.push(neck.pathEdgeMetadata.map(e=>({...e,componentIndex,requestedPerimeters:count})));
+          result.pathOrderMetadata.push({componentIndex,depth:0,boundaryRole:'paired-original-thin-neck',sourceComponent:group.sourceComponent,sourceRingIds:group.sourceRingIds,requestedPerimeters:count,role:'adaptive-original-thin-neck-augmentation',independentStart:true});
+          if(p.angleWarnings===true)(result.continuousNeckCandidates??=[]).push({componentIndex,section,role:'adaptive-original-thin-neck-augmentation',preparedLocal:group.adaptivePreparedRegion?.continuousNeckTemplate});
+          const component=components.at(-1);component.originalPlacementStatus=component.status;component.status='adaptive-original-thin-neck-augmentation';component.paths++;component.neckRoutes=1;component.thinNominalException=true;component.originalNominalPathsRetained=true;component.nominalNozzleContained=false;component.minimumPhysicalNeckClearanceMM=neck.physicalNozzleSourceClearanceMM;component.coverageCertified=false;component.physicalPrintValidated=false;adapted++;thin=true;stats.adaptiveNeckRoutes=(stats.adaptiveNeckRoutes||0)+1;
+        }else stats.adaptiveNeckNeighborRejected=(stats.adaptiveNeckNeighborRejected||0)+1;
+        stats.adaptiveNeckNeighborBoxChecks=(stats.adaptiveNeckNeighborBoxChecks||0)+terminalNeighbors.boxChecks-checks;
+      }else stats.adaptiveNeckProofRejected=(stats.adaptiveNeckProofRejected||0)+1;
+    }
   }
   stats.adaptiveCheckedLayers=(stats.adaptiveCheckedLayers||0)+1;stats.adaptiveComponents=(stats.adaptiveComponents||0)+adapted;stats.adaptiveFallbackComponents=(stats.adaptiveFallbackComponents||0)+groups.length-adapted;
   if(adapted)stats.adaptiveLayers=(stats.adaptiveLayers||0)+1;else stats.adaptiveFallbackLayers=(stats.adaptiveFallbackLayers||0)+1;
   stats.adaptiveThinLayers=(stats.adaptiveThinLayers||0)+(thin?1:0);
-  // Every original outer/hole boundary is scheduled before deeper paths.
+   
   const order=result.paths.map((_,i)=>i).sort((a,b)=>result.pathOrderMetadata[a].depth-result.pathOrderMetadata[b].depth);
   for(const key of ['paths','pathClosed','pathVertexMetadata','pathEdgeMetadata','pathOrderMetadata'])result[key]=order.map(i=>result[key][i]);
   const cacheStats=frameAdaptivePreparedCacheStats();stats.adaptiveCacheEstimatedRetainedBytes=cacheStats.estimatedRetainedBytes;stats.adaptiveCacheEstimatedPeakBytes=cacheStats.estimatedPeakBytes;stats.adaptiveCachePreparedEvictions=cacheStats.preparedEvictions;stats.adaptiveCacheOwnerEvictions=cacheStats.ownerEvictions;
   result.adaptive={status:adapted?'adaptive-components':'fixed-fallback',components,adaptedComponents:adapted,fallbackComponents:groups.length-adapted,requestedPerimeters:p.perimeters??1,coverageCertified:false,physicalPrintValidated:false,thinNominalException:thin};
+  const spiralCandidates=frameSpiralCollectStrictLayerCandidates(result,groups,p);if(spiralCandidates)result.spiralCandidates=spiralCandidates;
   return result;
 }
 
+function frameSpiralAngleGcd(a,b){a=a<0n?-a:a;b=b<0n?-b:b;while(b){const q=a%b;a=b;b=q;}return a;}
+function frameSpiralAngleLine(a,b){let x=BigInt(b[0])-BigInt(a[0]),y=BigInt(b[1])-BigInt(a[1]),g=frameSpiralAngleGcd(x,y);if(!g)return null;x/=g;y/=g;if(x<0n||x===0n&&y<0n){x=-x;y=-y;}return x+','+y+','+(x*BigInt(a[1])-y*BigInt(a[0]));}
+function frameSpiralPrepareAngleBanks(section,{maxEdges=2048}={}){
+ const fail=(reason,witness)=>({status:'source-angle-bank-plan-unknown',reason,witness});if(!Number.isInteger(maxEdges)||maxEdges<1||maxEdges>2048)return fail('invalid-bounded-bank-options');if(!section?.coords||!section.ends)return fail('missing-immutable-original-section');if(section.coords.length/2>maxEdges)return fail('bounded-original-bank-count');
+ const banks=[];let start=0,ring=0;for(const end of section.ends){if(!Number.isInteger(end)||end<=start||end*2>section.coords.length)return fail('invalid-original-ring-range',{ring,end});for(let i=start;i<end;i++){const j=i+1===end?start:i+1,a=[section.coords[2*i],section.coords[2*i+1]],b=[section.coords[2*j],section.coords[2*j+1]],grid=p=>p.map(x=>Math.round(x*1000000)),A=grid(a),B=grid(b);if([...A,...B].some(x=>!Number.isSafeInteger(x))||a.some((x,k)=>A[k]/1000000!==x)||b.some((x,k)=>B[k]/1000000!==x))return fail('original-bank-not-exact-production-grid',{ring,edge:i-start,a,b});const line=frameSpiralAngleLine(A,B);if(!line)return fail('zero-length-original-bank',{ring,edge:i-start});banks.push({ring,edge:i-start,a,b,A,B,line});}start=end;ring++;}if(start*2!==section.coords.length)return fail('unowned-original-coordinate-tail');return{status:'complete-immutable-source-angle-bank-plan',gridScale:1000000,rings:ring,banks,originalCoordinatesUnchanged:true,containsNoLayerOrFaceAngles:true,cacheScope:'immutable-component-section-geometry-only'};
+}
+function frameSpiralAssociateAngleFamily(plan,source,family,{maxWork=250000,maxCells=8192,maxProofEstimatedBytes=262144}={}){
+ let work=0;const fail=(reason,witness)=>({status:'source-angle-unknown',reason,witness,work,sourceAngle:-1,sourceLayer:source?.layer,coverageCertified:false,physicalPrintValidated:false});
+ try{
+  if(!Number.isInteger(maxWork)||maxWork<1||maxWork>250000||!Number.isInteger(maxCells)||maxCells<1||maxCells>8192||!Number.isInteger(maxProofEstimatedBytes)||maxProofEstimatedBytes<1024||maxProofEstimatedBytes>262144)return fail('invalid-bounded-association-options');
+  if(plan?.status!=='complete-immutable-source-angle-bank-plan'||!family?.resolved||!Number.isInteger(family.sourceRingId))return fail('unresolved-complete-original-source-family');
+  if(!Number.isInteger(source?.layer)||source.layer<1)return fail('invalid-current-source-layer');
+  const incidence=source?.faceIncidence;if(!incidence?.complete||!incidence.binding||incidence.method!=='actual-section-triangle-inclination'||!incidence.zeroFaceAnglesIncluded||incidence.gridScale!==plan.gridScale||incidence.layer!==source.layer)return fail(incidence?.reason||'missing-complete-current-layer-face-incidence');
+  if(source.caps||(source.edges||[]).some(q=>q.angle<0||q.capY!=null))return fail('source-cap-event-requires-separate-complete-association');
+  const ringBanks=plan.banks.filter(q=>q.ring===family.sourceRingId),ids=family.originalSourceEdgeIds;if(!ringBanks.length||!Array.isArray(ids)||ids.length!==ringBanks.length||ids.some((id,i)=>id!==ringBanks[i].edge))return fail('incomplete-original-source-bank-ownership');
+  const{count,coords,angles,faceIds,groupIds,groups}=incidence;if(!Number.isInteger(count)||count<0||count>8192||coords?.length!==count*4||angles?.length!==count||faceIds?.length!==count||groupIds?.length!==count||!Array.isArray(groups))return fail('incomplete-face-incidence-columns');
+  const tick=()=>{if(++work>maxWork)throw Error('bounded-source-angle-incidence-work');},lines=new Map();for(let i=0;i<count;i++){tick();const a=[coords[4*i],coords[4*i+1]],b=[coords[4*i+2],coords[4*i+3]],angle=angles[i],group=groups[groupIds[i]];if([...a,...b].some(x=>!Number.isSafeInteger(x))||!Number.isFinite(angle)||angle<0||angle>90||!Number.isInteger(groupIds[i])||typeof group!=='string'||!Number.isSafeInteger(faceIds[i])||faceIds[i]<0||faceIds[i]>4294967295)return fail('invalid-current-source-face-evidence',{index:i});const line=frameSpiralAngleLine(a,b);if(!line)continue;if(!lines.has(line))lines.set(line,[]);lines.get(line).push({a,b,angle,group,face:faceIds[i]});}
+  const rational=(n,d)=>{if(d<0n){n=-n;d=-d;}const g=frameSpiralAngleGcd(n,d);return{n:n/g,d:d/g};},compare=(a,b)=>a.n*b.d-b.n*a.d,lo={n:0n,d:1n},hi={n:1n,d:1n},key=q=>q.n+'/'+q.d,number=q=>Number(q.n)/Number(q.d),cells=[];let maximum=0,estimatedProofJSONUpperBytes=4096;
+  for(const bank of ringBanks){tick();const dx=BigInt(bank.B[0])-BigInt(bank.A[0]),dy=BigInt(bank.B[1])-BigInt(bank.A[1]),D=dx*dx+dy*dy,at=p=>rational((BigInt(p[0])-BigInt(bank.A[0]))*dx+(BigInt(p[1])-BigInt(bank.A[1]))*dy,D),overlaps=[],cuts=new Map([['0/1',lo],['1/1',hi]]);for(const face of lines.get(bank.line)||[]){tick();let a=at(face.a),b=at(face.b);if(compare(a,b)>0)[a,b]=[b,a];if(compare(a,lo)<0)a=lo;if(compare(b,hi)>0)b=hi;if(compare(a,b)>=0)continue;overlaps.push({...face,lo:a,hi:b});cuts.set(key(a),a);cuts.set(key(b),b);}const ordered=[...cuts.values()].sort((a,b)=>compare(a,b)<0?-1:compare(a,b)>0?1:0);
+   for(let i=1;i<ordered.length;i++){tick();const a=ordered[i-1],b=ordered[i],covered=[];for(const q of overlaps){tick();if(compare(q.lo,a)<=0&&compare(q.hi,b)>=0)covered.push(q);}if(!covered.length)return fail('uncovered-original-bank-interval',{ring:bank.ring,edge:bank.edge,u0:key(a),u1:key(b)});const owners=[...new Set(covered.map(q=>q.group))],values=[...new Set(covered.map(q=>q.angle))];if(owners.length!==1)return fail('multiple-source-groups-contact-original-bank',{ring:bank.ring,edge:bank.edge,u0:key(a),u1:key(b),owners});if(values.length!==1)return fail('conflicting-source-face-inclinations',{ring:bank.ring,edge:bank.edge,u0:key(a),u1:key(b),angles:values});const u0=number(a),u1=number(b);if(!(u1>u0))return fail('unrepresentable-original-face-interval',{ring:bank.ring,edge:bank.edge,u0:key(a),u1:key(b)});if(cells.length>=maxCells)return fail('bounded-original-face-interval-cells');const cell={ring:bank.ring,edge:bank.edge,u0,u1,exactU0:key(a),exactU1:key(b),sourceAngle:values[0],sourceGroup:owners[0],preparedSourceFaceIds:[...new Set(covered.map(q=>q.face))]};estimatedProofJSONUpperBytes+=JSON.stringify(cell).length*3+4;if(estimatedProofJSONUpperBytes>maxProofEstimatedBytes)return fail('bounded-original-face-proof-bytes');maximum=Math.max(maximum,values[0]);cells.push(cell);}
+  }
+  if(new Set(cells.map(q=>q.sourceGroup)).size!==1)return fail('multiple-source-groups-own-complete-original-family-bank');
+  return{status:'associated-conservative-original-bank-inclination',method:'maximum-actual-face-inclination-over-complete-original-family-bank',sourceAngle:maximum,sourceLayer:source.layer,currentIncidenceBinding:incidence.binding,sourceFamily:{componentId:family.componentId,familyId:family.familyId,sourceRingId:family.sourceRingId,sourceBoundaryRole:family.sourceBoundaryRole},sourceIntervals:cells,originalSourceBankComplete:true,actualZeroInclinationsRetained:true,nearestPairing:false,planarConnectorAngleUsed:false,cacheScope:'actual-current-layer-face-incidence-only',mustReassociateForEveryLayer:true,work,estimatedProofJSONUpperBytes,estimateExcludesJSObjectOverhead:true,coverageCertified:false,physicalPrintValidated:false};
+ }catch(error){return fail(error.message);}
+}
+function frameSpiralApplySourceAngleAssociation(layer,proof,currentSource){
+ const fail=(reason,witness)=>({status:'spiral-source-angle-unknown',reason,witness,sourceAngleAssociationRequired:true});if(proof?.status!=='associated-conservative-original-bank-inclination')return fail(proof?.reason||'complete-original-bank-angle-proof-required',proof?.witness);
+ if(!currentSource?.faceIncidence?.complete||proof.currentIncidenceBinding!==currentSource.faceIncidence.binding||proof.sourceLayer!==currentSource.layer||currentSource.faceIncidence.layer!==currentSource.layer||layer?.layer!=null&&layer.layer!==currentSource.layer)return fail('stale-or-unbound-current-layer-face-incidence');
+ if(!Array.isArray(layer?.paths)||!Array.isArray(layer.pathEdgeMetadata))return fail('spiral-layer-metadata-required');const metadata=[],values=[];let connectors=0,terminals=0;const publicProof={...proof};delete publicProof.currentIncidenceBinding;
+ for(let p=0;p<layer.paths.length;p++){const n=layer.paths[p].length-(layer.pathClosed?.[p]===false?1:0),original=layer.pathEdgeMetadata[p];if(!Array.isArray(original)||original.length!==n)return fail('spiral-segment-angle-shape',{path:p,n});const row=[];for(let edge=0;edge<n;edge++){const q=original[edge],connector=q.role==='width-continuous45-degree-connector',terminal=q.role==='budgeted-original-axis-terminal-overlap';let angle=q.sourceAngle;if(connector){if(q.sourceFamily?.familyId!==proof.sourceFamily.familyId)return fail('connector-original-family-proof-mismatch',{path:p,edge});angle=proof.sourceAngle;connectors++;}else if(terminal){if(!q.originalPathId||!Number.isInteger(q.originalEdge)||q.sourceIntervalParameterStart!==0||!(q.sourceIntervalParameterEnd>0&&q.sourceIntervalParameterEnd<1)||q.originalEndpointsPreserved!==true||q.sourceGeometryUnchanged!==true||q.positionPreexistedInOriginalFirstRibbon!==true||q.terminalOverlapBudgeted!==true)return fail('terminal-not-certified-original-edge-subset',{path:p,edge});terminals++;}if(!Number.isFinite(angle)||angle<0||angle>90)return fail('unknown-original-or-new-segment-inclination',{path:p,edge,angle});values.push(angle);row.push(connector?{...q,sourceAngle:angle,sourceAngleAssociationRequired:false,sourceAngleAssociation:publicProof}:terminal?{...q,sourceAngleAssociationRequired:false,sourceAngleAssociation:{method:'same-immutable-original-axis-edge-source-angle-subset',sourceLayer:proof.sourceLayer,originalPathId:q.originalPathId,originalEdge:q.originalEdge,u0:q.sourceIntervalParameterStart,u1:q.sourceIntervalParameterEnd,sourceAngle:angle,originalSourceBankComplete:true}}:q);}metadata.push(row);}
+ const segmentIndex=layer.segmentIndex?.map(q=>{const e=metadata[q.path]?.[q.edge];return e?{...q,sourceAngle:e.sourceAngle,sourceAngleAssociationRequired:false,sourceAngleAssociation:e.sourceAngleAssociation}:q;});
+ return{status:'associated-spiral-source-angle-layer',layer:{...layer,pathEdgeMetadata:metadata,...(segmentIndex?{segmentIndex}:{}),sourceAngleAssociationRequired:false},angleValues:new Float32Array(values),connectors,terminals,sourceAngleAssociationComplete:true,coverageCertified:false,physicalPrintValidated:false};
+}
+function frameSpiralOwnerDropCandidates(output){if(!output||!Object.hasOwn(output,'spiralCandidates')&&!Object.hasOwn(output,'continuousNeckCandidates'))return output;const{spiralCandidates,continuousNeckCandidates,...clean}=output;return clean;}
+function frameSpiralFixedOwnerFinalize(layer,output,references,source,originalAngles,finalOriginalPaths,clockwiseSign){
+ const clean=frameSpiralOwnerDropCandidates(output),fallback=(reason,witness,work=0)=>({output:clean,angleValues:originalAngles,accepted:false,attempted:!!output?.spiralCandidates?.length,reason,witness,work});
+ try{
+  const candidates=output?.spiralCandidates;if(!candidates?.length)return fallback();
+  if(candidates.length!==1||output.paths.length!==2||output.pathClosed?.some(q=>q===false)||references.length!==1)return fallback('bounded-single-complete-component-two-closed-paths');
+  if(!source||source.layer!==layer)return fallback('missing-or-stale-current-layer-source');
+  const candidate=candidates[0],template=candidate.template,loops=candidate.originalLoops,indices=candidate.fallbackPathIndices,plan=candidate.bankPlan,section=references[0].section;
+  if(template?.status!=='certified-geometry-layer-adapter'||template.geometryGateComplete!==true||template.spiral?.connections!==1||template.paths?.length!==1||template.pathClosed?.[0]!==false||template.pathVertexMetadata?.[0]?.length!==template.paths[0].length||template.pathEdgeMetadata?.[0]?.length!==template.paths[0].length-1)return fallback('unqualified-cached-spiral-geometry');
+  if(!Array.isArray(loops)||loops.length!==2||!Array.isArray(indices)||indices.length!==2||indices.some(q=>!Number.isInteger(q)||q<0||q>=2)||new Set(indices).size!==2||new Set(loops.map(q=>q.id)).size!==2)return fallback('missing-complete-original-loop-map');
+  if(!section?.coords||!section.ends||plan?.status!=='complete-immutable-source-angle-bank-plan'||plan.banks.length!==section.coords.length/2||plan.rings!==section.ends.length||plan.banks.length>2048)return fallback('cached-bank-plan-original-section-mismatch');
+  let at=0,bank=0,ring=0;for(const end of section.ends){if(!Number.isInteger(end)||end<=at||end*2>section.coords.length)return fallback('invalid-current-original-section-range');for(let i=at;i<end;i++){const j=i+1===end?at:i+1,q=plan.banks[bank++];if(q.ring!==ring||q.edge!==i-at||q.a[0]!==section.coords[2*i]||q.a[1]!==section.coords[2*i+1]||q.b[0]!==section.coords[2*j]||q.b[1]!==section.coords[2*j+1])return fallback('cached-bank-plan-original-section-mismatch',{ring,edge:i-at});}at=end;ring++;}
+  const same=(a,b)=>a?.length===2&&b?.length===2&&a[0]===b[0]&&a[1]===b[1],offsets=[0,output.paths[0].length],byId=new Map();let vertices=0;
+  if(originalAngles.length!==output.paths.reduce((n,p)=>n+p.length,0))return fallback('original-source-angle-count-mismatch');
+  for(let i=0;i<loops.length;i++){const loop=loops[i],index=indices[i],points=finalOriginalPaths[index];vertices+=points?.length||0;if(vertices>2048)return fallback('bounded-original-loop-mapping');if(!loop.id||!Array.isArray(loop.points)||points?.length!==loop.points.length||points.some((q,j)=>!same(q,loop.points[j])))return fallback('cached-final-clockwise-original-loop-mismatch',{originalPathId:loop.id,path:index,clockwiseSign});byId.set(loop.id,{points,angles:originalAngles.subarray(offsets[index],offsets[index]+points.length),counts:new Uint8Array(points.length),index});}
+  const proof=frameSpiralAssociateAngleFamily(plan,source,candidate.family);if(proof.status!=='associated-conservative-original-bank-inclination')return fallback(proof.reason,proof.witness,proof.work);
+  let connectorCount=0,terminalCount=0;const edges=template.pathEdgeMetadata.map((row,path)=>row.map((q,edge)=>{if(q.role==='width-continuous45-degree-connector'){connectorCount++;return{...q,sourceAngle:undefined};}const original=byId.get(q.originalPathId);if(!original||!Number.isInteger(q.originalEdge)||q.originalEdge<0||q.originalEdge>=original.points.length)throw Error('unresolved-current-original-edge-angle-map');const terminal=q.role==='budgeted-original-axis-terminal-overlap';if(terminal){terminalCount++;if(q.originalEdge!==0)throw Error('terminal-original-first-edge-required');}else{const a=template.paths[path][edge],b=template.paths[path][edge+1],A=original.points[q.originalEdge],B=original.points[(q.originalEdge+1)%original.points.length];if(!same(a,A)||!same(b,B)||++original.counts[q.originalEdge]!==1)throw Error('cached-original-segment-map-geometry-mismatch');}return{...q,sourceAngle:original.angles[q.originalEdge]};}));
+  if(connectorCount!==3||terminalCount>1||[...byId.values()].some(q=>q.counts.some(n=>n!==1)))return fallback('incomplete-original-segment-map',undefined,proof.work);
+  const currentView={...template,layer,pathEdgeMetadata:edges},associated=frameSpiralApplySourceAngleAssociation(currentView,proof,source);if(associated.status!=='associated-spiral-source-angle-layer')return fallback(associated.reason,associated.witness,proof.work);
+  const selected=associated.layer,result={...clean,paths:selected.paths,pathClosed:selected.pathClosed,pathVertexMetadata:selected.pathVertexMetadata,pathEdgeMetadata:selected.pathEdgeMetadata,pathOrderMetadata:selected.pathOrderMetadata.map(q=>({...clean.pathOrderMetadata[indices[0]],...q,currentSourceLayer:layer})),spiral:{connections:1,originalSeamsPreserved:true,sourceGeometryUnchanged:true,sourceAngleAssociationComplete:true,sourceAngleMethod:proof.method,sourceLayer:layer,terminalOverrunEmitted:!!selected.spiral.terminalOverrunEmitted,cumulativeOverlapEquivalentW:selected.pathOrderMetadata[0]?.cumulativeOverlapEquivalentW,coverageCertified:false,physicalPrintValidated:false}};
+  return{output:result,angleValues:associated.angleValues,accepted:true,attempted:true,work:proof.work,connectors:associated.connectors,terminals:associated.terminals,sourceAngle:proof.sourceAngle,sourceIncidenceRetainedBytesEstimate:source.faceIncidence.estimatedRetainedBytes,sourceProofJSONUpperBytesEstimate:proof.estimatedProofJSONUpperBytes};
+ }catch(error){return fallback(error.message);}
+}
 function frameReferenceWriter(emit,clockwiseSign=1,lineWidth=1){
   if(clockwiseSign!==1&&clockwiseSign!==-1)throw Error('Invalid printer frame orientation.');
   const known=new WeakMap(),geometryCache=new Map(),metrics={unknown:0,queries:0,segments:0,sourceEdges:0,milliseconds:0};let serial=0,bytes=0;
   const direction=()=>({printDirection:'clockwise-from-above-bed',printClockwiseSign:clockwiseSign});
-  const write=packet=>{const referenceDefs=[],layers=packet.layers.map(({references=[],paths=[],pathClosed,pathEdgeMetadata,pathVertexMetadata,...q})=>{
+  const write=packet=>{const referenceDefs=[],layers=packet.layers.map(({references=[],paths=[],pathClosed,pathEdgeMetadata,pathVertexMetadata,spiralCandidates,continuousNeckCandidates,acuteCandidates,...q})=>{
     const ordered=paths.map((p,i)=>frameClockwisePrintLoop(p,{clockwiseSign,closed:pathClosed?.[i]!==false,edgeMetadata:pathEdgeMetadata?.[i],vertexMetadata:pathVertexMetadata?.[i]}));
     const finalPaths=ordered.map(r=>r.path);return {...q,paths:finalPaths,...(pathClosed?{pathClosed}:{}),...(pathEdgeMetadata?{pathEdgeMetadata:ordered.map(r=>r.edgeMetadata),pathEdgeTraversalReversed:ordered.map(r=>r.reversed)}:{}),...(pathVertexMetadata?{pathVertexMetadata:ordered.map(r=>r.vertexMetadata)}:{}),referenceIds:references.map(value=>{let id=known.get(value);if(id)return id;id=++serial;known.set(value,id);referenceDefs.push({id,value});const buffers=new Set([value.inset,value.section,...(value.levelInsets||[]).map(q=>q.inset)]);for(const path of buffers)bytes+=path.coords.byteLength+path.ends.byteLength;return id;})};
   });emit({...packet,layers,referenceDefs,stats:{...packet.stats,originalReferenceCount:serial,originalReferenceBytes:bytes,angleWarningAssociationComplete:metrics.unknown===0,angleWarningUnknownSegments:metrics.unknown,angleWarningAssociationWork:metrics.queries,angleWarningAssociationMS:metrics.milliseconds,...direction()}});};
-  write.record=(layer,paths,references,source,output)=>{if(!paths.length)return;const current=new Set(references.map(r=>r.section));for(const key of geometryCache.keys())if(!current.has(key))geometryCache.delete(key);const adaptive=output?.adaptive?.status?.startsWith('adaptive-'),width=adaptive?Math.max(lineWidth,...output.pathVertexMetadata.filter(Boolean).flatMap(v=>v.map(q=>q.displayWidth))):lineWidth,raw=frameAngleAnnotateSource(paths,references,source||{edges:[],supports:[]},width,metrics,geometryCache,adaptive,output?.pathClosed),angleValues=new Float32Array(raw.length);let at=0;for(let i=0;i<paths.length;i++){const path=paths[i],closed=output?.pathClosed?.[i]!==false,n=path.length-(closed?0:1),ordered=frameClockwisePrintLoop(path,{clockwiseSign,closed,edgeMetadata:raw.subarray(at,at+n)}).edgeMetadata;angleValues.set(ordered,at);at+=n;}emit({layers:[],angleValuesList:[{layer,angleValues}]});};write.counts=()=>({originalReferenceCount:serial,originalReferenceBytes:bytes,angleWarningAssociationComplete:metrics.unknown===0,angleWarningUnknownSegments:metrics.unknown,angleWarningAssociationWork:metrics.queries,angleWarningAssociationMS:metrics.milliseconds,angleWarningSourceEdges:metrics.sourceEdges,angleWarningMethod:'source-boundary-inclination',...direction()});return write;
+  write.record=(layer,paths,references,source,output)=>{
+    if(!paths.length)return frameSpiralOwnerDropCandidates(output);const current=new Set(references.map(r=>r.section));for(const key of geometryCache.keys())if(!current.has(key))geometryCache.delete(key);
+    const adaptive=output?.adaptive?.status?.startsWith('adaptive-'),width=adaptive?Math.max(lineWidth,...output.pathVertexMetadata.filter(Boolean).flatMap(v=>v.map(q=>q.displayWidth))):lineWidth,neckComponents=output?.adaptive?.components?.filter(q=>q.status==='adaptive-original-thin-neck-augmentation'||q.status==='adaptive-original-curved-thin-neck-augmentation').length||0,priorAdaptive=neckComponents?(output.adaptive.adaptedComponents-neckComponents)>0:adaptive,twoSidedPolicy=neckComponents?output.pathOrderMetadata.map(q=>q.role==='adaptive-original-thin-neck-augmentation'||q.role==='adaptive-original-curved-thin-neck-augmentation'||priorAdaptive):adaptive,raw=frameAngleAnnotateSource(paths,references,source||{edges:[],supports:[]},width,metrics,geometryCache,twoSidedPolicy,output?.pathClosed),angleValues=new Float32Array(raw.length),finalOriginalPaths=[];let at=0;
+    for(let i=0;i<paths.length;i++){const path=paths[i],closed=output?.pathClosed?.[i]!==false,n=path.length-(closed?0:1),ordered=frameClockwisePrintLoop(path,{clockwiseSign,closed,edgeMetadata:raw.subarray(at,at+n)});finalOriginalPaths.push(ordered.path);angleValues.set(ordered.edgeMetadata,at);at+=n;}
+    const started=performance.now(),selected=frameSpiralOwnerFinalize(layer,output,references,source,angleValues,finalOriginalPaths,clockwiseSign);if(selected.attempted){metrics.spiralSourceAngleAttempts=(metrics.spiralSourceAngleAttempts||0)+1;metrics.spiralSourceAngleAssociationMS=(metrics.spiralSourceAngleAssociationMS||0)+performance.now()-started;metrics.spiralSourceAngleAssociationWork=(metrics.spiralSourceAngleAssociationWork||0)+selected.work;if(selected.accepted){metrics.spiralSourceAngleAcceptedLayers=(metrics.spiralSourceAngleAcceptedLayers||0)+1;metrics.spiralSourceAngleConnectorSegments=(metrics.spiralSourceAngleConnectorSegments||0)+selected.connectors;metrics.spiralSourceAngleTerminalSegments=(metrics.spiralSourceAngleTerminalSegments||0)+selected.terminals;metrics.spiralSourceIncidenceEstimatedPeakBytes=Math.max(metrics.spiralSourceIncidenceEstimatedPeakBytes||0,selected.sourceIncidenceRetainedBytesEstimate||0);metrics.spiralSourceProofEstimatedPeakBytes=Math.max(metrics.spiralSourceProofEstimatedPeakBytes||0,selected.sourceProofJSONUpperBytesEstimate||0);metrics.segments+=selected.angleValues.length-angleValues.length;}else{metrics.spiralSourceAngleFallbackLayers=(metrics.spiralSourceAngleFallbackLayers||0)+1;metrics.spiralSourceAngleLastFallbackReason=selected.reason;}}
+    const continuousInput=output.continuousNeckCandidates?{...selected.output,continuousNeckCandidates:output.continuousNeckCandidates}:selected.output,continuous=frameContinuousNeckOwnerFinalize(layer,continuousInput,references,source,selected.angleValues,finalOriginalPaths,clockwiseSign,lineWidth,metrics,geometryCache);const acute=frameAcuteOwnerFinalize(layer,continuous.output,references,source,continuous.angleValues,clockwiseSign,lineWidth);metrics.segments+=acute.angleValues.length-continuous.angleValues.length;emit({layers:[],angleValuesList:[{layer,angleValues:acute.angleValues}]});return acute.output;
+  };
+   
+  write.warningDelta=()=>({...metrics});
+  write.mergeWarningCounts=delta=>{
+    if(!delta||typeof delta!=='object'||Array.isArray(delta))throw Error('Invalid layer warning delta.');
+    const sum=['unknown','queries','segments','sourceEdges','milliseconds','spiralSourceAngleAttempts','spiralSourceAngleAssociationMS','spiralSourceAngleAssociationWork','spiralSourceAngleAcceptedLayers','spiralSourceAngleConnectorSegments','spiralSourceAngleTerminalSegments','spiralSourceAngleFallbackLayers','continuousNeckComponents','continuousNeckConnectorSegments','continuousNeckGeometryAttempts','continuousNeckPreparedGeometryUses'],peak=['spiralSourceIncidenceEstimatedPeakBytes','spiralSourceProofEstimatedPeakBytes'],last='spiralSourceAngleLastFallbackReason';
+    for(const [key,value] of Object.entries(delta)){
+      if(sum.includes(key)||peak.includes(key)){if(typeof value!=='number'||!Number.isFinite(value)||value<0)throw Error('Invalid layer warning metric '+key);}
+      else if(key===last){if(value!==undefined&&typeof value!=='string')throw Error('Invalid layer warning fallback reason.');}
+      else throw Error('Unknown layer warning metric '+key);
+    }
+    for(const key of sum)if(Object.hasOwn(delta,key))metrics[key]=(metrics[key]||0)+delta[key];
+    for(const key of peak)if(Object.hasOwn(delta,key))metrics[key]=Math.max(metrics[key]||0,delta[key]);
+    if(Object.hasOwn(delta,last)&&delta[last]!==undefined)metrics[last]=delta[last];
+  };
+write.counts=()=>({originalReferenceCount:serial,originalReferenceBytes:bytes,angleWarningAssociationComplete:metrics.unknown===0,angleWarningUnknownSegments:metrics.unknown,angleWarningAssociationWork:metrics.queries,angleWarningAssociationMS:metrics.milliseconds,angleWarningSourceEdges:metrics.sourceEdges,angleWarningMethod:'source-boundary-inclination',...(metrics.spiralSourceAngleAttempts?{spiralSourceAngleAttempts:metrics.spiralSourceAngleAttempts,spiralSourceAngleAcceptedLayers:metrics.spiralSourceAngleAcceptedLayers||0,spiralSourceAngleFallbackLayers:metrics.spiralSourceAngleFallbackLayers||0,spiralSourceAngleConnectorSegments:metrics.spiralSourceAngleConnectorSegments||0,spiralSourceAngleTerminalSegments:metrics.spiralSourceAngleTerminalSegments||0,spiralSourceAngleAssociationWork:metrics.spiralSourceAngleAssociationWork||0,spiralSourceAngleAssociationMS:metrics.spiralSourceAngleAssociationMS||0,spiralSourceIncidenceEstimatedPeakBytes:metrics.spiralSourceIncidenceEstimatedPeakBytes||0,spiralSourceProofEstimatedPeakBytes:metrics.spiralSourceProofEstimatedPeakBytes||0,spiralSourceAngleLastFallbackReason:metrics.spiralSourceAngleLastFallbackReason}:{}),...(metrics.continuousNeckComponents?{continuousNeckComponents:metrics.continuousNeckComponents,continuousNeckConnectorSegments:metrics.continuousNeckConnectorSegments,continuousNeckGeometryAttempts:metrics.continuousNeckGeometryAttempts,...(metrics.continuousNeckPreparedGeometryUses?{continuousNeckPreparedGeometryUses:metrics.continuousNeckPreparedGeometryUses}:{})}:{}),...direction()});return write;
 }
 
-// Whole layers retain the same global rounding reserve and material topology.
+function frameRecoverSectionComponents(segments,options={}){
+ const maxComponentEdges=options.maxComponentEdges??4096,maxPairChecks=options.maxPairChecks??1000000,maxDiagnosticEdges=options.maxDiagnosticEdges??128,maxPathRecordEdges=options.maxPathRecordEdges??128,maxDiagnosticRecords=options.maxDiagnosticRecords??32;
+ let diagnosticEdgesLeft=maxDiagnosticEdges,pathRecordEdgesLeft=maxPathRecordEdges,unresolvedComponents=0,unresolvedEdges=0,diagnosticRecordsTruncated=0,pathRecordEdgesTruncated=0;
+ const nodes=[],edges=[],byPoint=new Map(),byEdge=new Map(),diagnostics=[],paths=[],pathRecords=[];
+ let droppedZeroLength=0,duplicateSegments=0,invalidSegments=0,pairChecks=0;
+ const pointId=q=>{const key=q.X+','+q.Y;let id=byPoint.get(key);if(id===undefined){id=nodes.length;byPoint.set(key,id);nodes.push({point:q,edges:[]});}return id;};
+ for(let source=0;source<segments.length;source++){
+  const [a,b]=segments[source]||[];
+  if(![a?.X,a?.Y,b?.X,b?.Y].every(Number.isSafeInteger)){invalidSegments++;continue;}
+  if(a.X===b.X&&a.Y===b.Y){droppedZeroLength++;continue;}
+  const x=pointId(a),y=pointId(b),key=Math.min(x,y)+':'+Math.max(x,y),previous=byEdge.get(key);
+  if(previous!==undefined){edges[previous].sources.push(source);duplicateSegments++;continue;}
+  const id=edges.length;edges.push({a:x,b:y,sources:[source]});byEdge.set(key,id);nodes[x].edges.push(id);nodes[y].edges.push(id);
+ }
+ const other=(id,v)=>edges[id].a===v?edges[id].b:edges[id].a;
+ const components=[],visited=new Uint8Array(nodes.length);
+ for(let start=0;start<nodes.length;start++)if(!visited[start]){
+  const queue=[start],vertices=[],ids=new Set();visited[start]=1;
+  for(let at=0;at<queue.length;at++){const v=queue[at];vertices.push(v);for(const id of nodes[v].edges){ids.add(id);const next=other(id,v);if(!visited[next]){visited[next]=1;queue.push(next);}}}
+  components.push({vertices,ids:Array.from(ids).sort((a,b)=>a-b)});
+ }
+ const area2=vs=>{let area=0n;for(let i=0;i<vs.length;i++){const a=nodes[vs[i]].point,b=nodes[vs[(i+1)%vs.length]].point;area+=BigInt(a.X)*BigInt(b.Y)-BigInt(a.Y)*BigInt(b.X);}return area;};
+ const addPath=(vs,ids,role)=>{if(vs.length<3||area2(vs)===0n)return false;paths.push(vs.map(v=>nodes[v].point));const retained=ids.slice(0,pathRecordEdgesLeft);pathRecordEdgesLeft-=retained.length;pathRecordEdgesTruncated+=ids.length-retained.length;pathRecords.push({role,firstOriginalEdge:ids.reduce((a,b)=>Math.min(a,b),Infinity),originalEdgeCount:ids.length,originalEdges:retained,sourceSegmentIndices:retained.map(id=>edges[id].sources.slice(0,4)),recordTruncated:retained.length<ids.length,exactOriginalEndpoints:true});return true;};
+ const originalCycle=(ids,role)=>{
+  const allowed=new Set(ids),first=ids[0],start=edges[first].a,vs=[];let v=start,id=first;const used=new Set();
+  do{vs.push(v);used.add(id);v=other(id,v);if(v===start)break;id=nodes[v].edges.find(q=>allowed.has(q)&&!used.has(q));if(id===undefined)return false;}while(vs.length<=ids.length);
+  return v===start&&used.size===ids.length&&addPath(vs,Array.from(used),role);
+ };
+ const diagnostic=(component,reason,unresolved,rejectionReasons=[])=>{unresolvedComponents++;unresolvedEdges+=unresolved.length;if(diagnostics.length>=maxDiagnosticRecords){diagnosticRecordsTruncated++;return;}const retained=unresolved.slice(0,diagnosticEdgesLeft);diagnosticEdgesLeft-=retained.length;diagnostics.push({reason,rejectionReasons,componentFirstOriginalEdge:component.ids[0],originalEdgeCount:component.ids.length,unresolvedEdgeCount:unresolved.length,originalEdges:retained.map(id=>({id,sourceSegmentIndices:edges[id].sources.slice(0,4),a:nodes[edges[id].a].point,b:nodes[edges[id].b].point})),diagnosticTruncated:unresolved.length>retained.length,closedMaterialCertified:false,openFragmentsPrinted:false});};
+ const orient=(a,b,c)=>(BigInt(b.X)-BigInt(a.X))*(BigInt(c.Y)-BigInt(a.Y))-(BigInt(b.Y)-BigInt(a.Y))*(BigInt(c.X)-BigInt(a.X));
+ const between=(x,a,b)=>x>=Math.min(a,b)&&x<=Math.max(a,b);
+ const on=(a,b,c)=>orient(a,b,c)===0n&&between(c.X,a.X,b.X)&&between(c.Y,a.Y,b.Y);
+ const crossing=(i,j)=>{
+  const e=edges[i],f=edges[j];if(e.a===f.a||e.a===f.b||e.b===f.a||e.b===f.b)return false;
+  const a=nodes[e.a].point,b=nodes[e.b].point,c=nodes[f.a].point,d=nodes[f.b].point;
+  if(Math.max(a.X,b.X)<Math.min(c.X,d.X)||Math.max(c.X,d.X)<Math.min(a.X,b.X)||Math.max(a.Y,b.Y)<Math.min(c.Y,d.Y)||Math.max(c.Y,d.Y)<Math.min(a.Y,b.Y))return false;
+  const ac=orient(a,b,c),ad=orient(a,b,d),ca=orient(c,d,a),cb=orient(c,d,b);
+  return ((ac<0n&&ad>0n||ac>0n&&ad<0n)&&(ca<0n&&cb>0n||ca>0n&&cb<0n))||on(a,b,c)||on(a,b,d)||on(c,d,a)||on(c,d,b);
+ };
+ let retainedOriginalCycles=0,recoveredFaceCycles=0;
+ for(const component of components){
+  if(component.vertices.every(v=>nodes[v].edges.length===2)){if(originalCycle(component.ids,'unchanged-original-degree-two-cycle'))retainedOriginalCycles++;else diagnostic(component,'degenerate-original-cycle',component.ids);continue;}
+  if(component.ids.length>maxComponentEdges){diagnostic(component,'bounded-nonmanifold-component-edges',component.ids);continue;}
+   
+  const discovery=new Map(),low=new Map(),bridges=new Set();let clock=0;
+  for(const root of component.vertices)if(!discovery.has(root)){
+   const stack=[{v:root,parent:-1,parentEdge:-1,at:0}];discovery.set(root,clock);low.set(root,clock++);
+   while(stack.length){const frame=stack[stack.length-1],v=frame.v;if(frame.at<nodes[v].edges.length){const id=nodes[v].edges[frame.at++];if(id===frame.parentEdge)continue;const next=other(id,v);if(!discovery.has(next)){discovery.set(next,clock);low.set(next,clock++);stack.push({v:next,parent:v,parentEdge:id,at:0});}else low.set(v,Math.min(low.get(v),discovery.get(next)));}else{stack.pop();if(frame.parent>=0){low.set(frame.parent,Math.min(low.get(frame.parent),low.get(v)));if(low.get(v)>discovery.get(frame.parent))bridges.add(frame.parentEdge);}}}
+  }
+  const closedEdges=component.ids.filter(id=>!bridges.has(id)),adj=new Map();for(const id of closedEdges)for(const v of [edges[id].a,edges[id].b]){if(!adj.has(v))adj.set(v,[]);adj.get(v).push(id);}
+  const cycleSeen=new Set(),unresolved=new Set(bridges),rejectionReasons=new Set();let recovered=0;
+  for(const [start] of adj)if(!cycleSeen.has(start)){
+   const queue=[start],vs=[],ids=new Set();cycleSeen.add(start);
+   for(let at=0;at<queue.length;at++){const v=queue[at];vs.push(v);for(const id of adj.get(v)){ids.add(id);const next=other(id,v);if(!cycleSeen.has(next)){cycleSeen.add(next);queue.push(next);}}}
+   const block=Array.from(ids).sort((a,b)=>a-b);
+   if(vs.every(v=>adj.get(v).length===2)){if(originalCycle(block,'original-cycle-after-bridge-removal')){retainedOriginalCycles++;recovered++;}else block.forEach(id=>unresolved.add(id));continue;}
+   let reject=null;for(let i=0;i<block.length&&!reject;i++)for(let j=i+1;j<block.length;j++){if(++pairChecks>maxPairChecks){reject='bounded-planar-incidence-work';break;}if(crossing(block[i],block[j])){reject='unresolved-original-edge-crossing-or-contact';break;}}
+   if(reject){block.forEach(id=>unresolved.add(id));rejectionReasons.add(reject);continue;}
+    
+   const outgoing=new Map(),half=id=>{const e=edges[id>>1];return id&1?[e.b,e.a]:[e.a,e.b];};
+   for(const id of block)for(const h of [id*2,id*2+1]){const [a]=half(h);if(!outgoing.has(a))outgoing.set(a,[]);outgoing.get(a).push(h);}
+   const direction=h=>{const [a,b]=half(h),p=nodes[a].point,q=nodes[b].point;return[BigInt(q.X)-BigInt(p.X),BigInt(q.Y)-BigInt(p.Y)];};
+   const upper=([x,y])=>y>0n||y===0n&&x>=0n?0:1;
+   for(const list of outgoing.values())list.sort((a,b)=>{const u=direction(a),v=direction(b),side=upper(u)-upper(v);if(side)return side;const cross=u[0]*v[1]-u[1]*v[0];return cross>0n?-1:cross<0n?1:a-b;});
+   const used=new Set(),faceEdges=new Set();
+   for(const id of block)for(const first of [id*2,id*2+1])if(!used.has(first)){
+    const face=[],route=[],local=new Set();let h=first,closed=false;
+    for(let step=0;step<=block.length*2;step++){if(local.has(h)){closed=h===first;break;}local.add(h);used.add(h);const [a,b]=half(h);face.push(a);route.push(h>>1);const list=outgoing.get(b),at=list.indexOf(h^1);h=list[(at+list.length-1)%list.length];}
+    if(closed&&new Set(face).size===face.length&&area2(face)>0n&&addPath(face,route,'bounded-original-edge-planar-face')){route.forEach(e=>faceEdges.add(e));recoveredFaceCycles++;recovered++;}
+   }
+   for(const id of block)if(!faceEdges.has(id))unresolved.add(id);
+  }
+  if(unresolved.size||!recovered)diagnostic(component,unresolved.size?'unclosed-original-fragments':'no-closed-material-face',Array.from(unresolved).sort((a,b)=>a-b),Array.from(rejectionReasons));
+ }
+ const order=pathRecords.map((_,i)=>i).sort((a,b)=>pathRecords[a].firstOriginalEdge-pathRecords[b].firstOriginalEdge);
+ return{paths:order.map(i=>paths[i]),pathRecords:order.map(i=>pathRecords[i]),diagnostics,stats:{sourceSegments:segments.length,uniqueEdges:edges.length,components:components.length,retainedOriginalCycles,recoveredFaceCycles,unresolvedComponents,unresolvedEdges,diagnosticRecordsTruncated,pathRecordEdgesTruncated,droppedZeroLength,duplicateSegments,invalidSegments,pairChecks},topologyCertified:false,physicalPrintabilityCertified:false,originalEndpointsUnchanged:true};
+}
+
+ 
+function frameR180FinalizeLayerJob(job){
+  const validId=value=>Number.isSafeInteger(value)&&value>=0||typeof value==='string'&&value.length>0&&value.length<=128;
+  if(!job||!validId(job.runId)||!Number.isSafeInteger(job.jobId)||job.jobId<0||!Number.isSafeInteger(job.layer)||job.layer<1||!job.params||!Array.isArray(job.values))throw Object.assign(Error('Invalid layer finalization job.'),{code:'FRAME_LAYER_JOB_INVALID'});
+  if(job.sourceSnapshot&&job.sourceSnapshot.layer!==job.layer)throw Object.assign(Error('Stale layer source snapshot.'),{code:'FRAME_LAYER_SOURCE_STALE'});
+  const started=performance.now(),startedEpochMS=(performance.timeOrigin??Date.now()-started)+started;
+  const p={...job.params,spiralGeometry:job.params.angleWarnings===true&&(job.params.perimeters??1)>=2,spiralSourceAngleEvidence:job.params.angleWarnings===true&&(job.params.perimeters??1)>=2};
+  const paths=[],references=[],componentPathGroups=[],statsDelta={};
+   
+   
+  for(const value of job.values){
+    if(!value||!Array.isArray(value.paths))throw Object.assign(Error('Invalid canonical layer inset value.'),{code:'FRAME_LAYER_VALUE_INVALID'});
+    componentPathGroups.push(...(value.componentPathGroups||[{paths:value.paths,pathMetadata:value.pathMetadata,perimeterLevels:value.perimeterLevels,reference:value.reference,adaptivePrepared:value.adaptivePrepared,requestedPerimeters:value.requestedPerimeters,actualPerimeters:value.actualPerimeters}]));
+    paths.push(...value.paths);if(value.reference)references.push(value.reference);else references.push(...value.references||[]);
+  }
+  let angleValues;
+   
+  const writer=frameReferenceWriter(packet=>{for(const item of packet.angleValuesList||[]){if(item.layer!==job.layer||angleValues!==undefined)throw Error('Unexpected layer angle packet.');angleValues=item.angleValues;}},p.printClockwiseSign,p.lineWidth);
+  let output=frameAdaptiveLayer(paths,references,p,statsDelta,componentPathGroups);
+  if(p.angleWarnings)output=writer.record(job.layer,output.paths,references,job.sourceSnapshot,output)||output;
+  output=frameSpiralOwnerDropCandidates(output);
+  const finished=performance.now();
+  return{runId:job.runId,jobId:job.jobId,layer:job.layer,output,angleValues,statsDelta,warningDelta:writer.warningDelta(),cacheDiagnostics:frameAdaptivePreparedCacheStats(),timing:{startedEpochMS,finishedEpochMS:startedEpochMS+finished-started,wallMS:finished-started}};
+}
+self.frameR180FinalizeLayerJob=frameR180FinalizeLayerJob;
+
+ 
 const frameSlicerPipeline={pool:null,grants:new Map()};
 function frameContourSize(groups){let points=0,counts=1+groups.length;for(const paths of groups){counts+=paths.length;for(const path of paths)points+=path.length;}return {points,counts,bytes:points*16+counts*4};}
 function framePackContours(groups,size){const coords=new Float64Array(size.points*2),meta=new Uint32Array(size.counts);let c=0,m=0;meta[m++]=groups.length;for(const paths of groups){meta[m++]=paths.length;for(const path of paths){meta[m++]=path.length;for(const q of path){coords[c++]=q.X;coords[c++]=q.Y;}}}return {coords,meta};}
 function frameUnpackContours({coords,meta}){const groups=[];let c=0,m=1;for(let g=0;g<meta[0];g++){const paths=[],n=meta[m++];for(let i=0;i<n;i++){const path=[],count=meta[m++];for(let j=0;j<count;j++)path.push({X:coords[c++],Y:coords[c++]});paths.push(path);}groups.push(paths);}return groups;}
 async function frameSlicePipeline(meshes,p,options,emit){
+  if(Object.hasOwn(options,'finalizers'))return frameSliceFinalized(meshes,p,options,emit);
+  p={...p,spiralGeometry:p.angleWarnings===true&&(p.perimeters??1)>=2,spiralSourceAngleEvidence:p.angleWarnings===true&&(p.perimeters??1)>=2};
   emit=frameReferenceWriter(emit,p.printClockwiseSign,p.lineWidth);const api=FrameSingleSlicer,prepared=api.prepare(meshes,p),stats=api.sliceStats(prepared),active=new Set(),maxBytes=64*1024*1024;
   let last=0,slots=null,jobs=0,bytes=0,transferred=0,peakJobs=0,serial=0,batch=[],failure,cursor=0;const waiters=[],outlineSamples=[],order=[];
   for(const layer of prepared.ends.keys())last=Math.max(last,Math.min(prepared.count,layer-1));
   const wake=()=>{for(const resolve of waiters.splice(0))resolve();};
-  const add=(layer,values)=>{const paths=[],references=[],componentPathGroups=[];for(const value of values){stats.offsetCalls+=value.offsetCalls||0;stats.perimeters=Math.max(stats.perimeters,value.actualPerimeters||0);stats.cacheHits+=value.cacheHit||0;for(const key of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])stats[key]+=value[key]||0;componentPathGroups.push(...(value.componentPathGroups||[{paths:value.paths,pathMetadata:value.pathMetadata,perimeterLevels:value.perimeterLevels,reference:value.reference,adaptivePrepared:value.adaptivePrepared,requestedPerimeters:value.requestedPerimeters,actualPerimeters:value.actualPerimeters}]));paths.push(...value.paths);if(value.reference)references.push(value.reference);else references.push(...value.references||[]);}const output=frameAdaptiveLayer(paths,references,p,stats,componentPathGroups);if(p.angleWarnings)emit.record(layer,output.paths,references,prepared.angleWarnings?.take(layer),output);if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);batch.push({layer,...output,references});}};
+  const add=(layer,values)=>{const paths=[],references=[],componentPathGroups=[];for(const value of values){stats.offsetCalls+=value.offsetCalls||0;stats.perimeters=Math.max(stats.perimeters,value.actualPerimeters||0);stats.cacheHits+=value.cacheHit||0;for(const key of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])stats[key]+=value[key]||0;componentPathGroups.push(...(value.componentPathGroups||[{paths:value.paths,pathMetadata:value.pathMetadata,perimeterLevels:value.perimeterLevels,reference:value.reference,adaptivePrepared:value.adaptivePrepared,requestedPerimeters:value.requestedPerimeters,actualPerimeters:value.actualPerimeters}]));paths.push(...value.paths);if(value.reference)references.push(value.reference);else references.push(...value.references||[]);}let output=frameAdaptiveLayer(paths,references,p,stats,componentPathGroups);const source=prepared.angleWarnings?.take(layer);if(p.angleWarnings)output=emit.record(layer,output.paths,references,source,output)||output;output=frameSpiralOwnerDropCandidates(output);const topologyRecovery=prepared.contourRecoveryLayers?.get(layer);if(topologyRecovery){prepared.contourRecoveryLayers.delete(layer);output={...output,topologyRecovery};if(!output.paths.length)batch.push({layer,...output,references:[]});}if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);batch.push({layer,...output,references});}};
   const fail=error=>{failure=error;for(const q of frameSlicerPipeline.grants.values())q.reject(error);frameSlicerPipeline.grants.clear();wake();};
   async function grant(token){await new Promise((resolve,reject)=>{frameSlicerPipeline.grants.set(token,{resolve,reject});self.postMessage({type:'outlineAcquire',token});});if(failure)throw failure;}
   function planReady(){while(cursor<order.length&&order[cursor].description){const job=order[cursor++],{parts,inputVertices}=job.description;job.description=null;
@@ -8884,7 +10472,167 @@ async function frameSlicePipeline(meshes,p,options,emit){
   await drain();stats.angleWarningComplete=prepared.angleWarnings?.complete??false;stats.angleWarningBandWork=prepared.angleWarnings?.bandWork??0;stats.angleWarningPrepareMS=prepared.angleWarnings?.prepareMS??0;stats.outlineWorkers=slots?.length||0;stats.maxOutlineJobs=peakJobs;stats.contourTransferBytes=transferred;
   if(last)emit({layers:batch,progress:1,stats:{...stats}});return {...stats,...emit.counts()};
 }
+function frameLayerPacketBytes(value,limit=4194304){
+  const seen=new Set(),buffers=new Set(),stack=[value];let bytes=0,nodes=0;
+  while(stack.length){const q=stack.pop();if(++nodes>Math.min(4000000,Math.max(200000,limit/8)))return limit+1;
+    if(q===null||q===undefined){bytes+=8;}else if(typeof q==='string'){bytes+=32+q.length*2;}else if(typeof q==='bigint'){bytes+=32+q.toString().length*2;}else if(typeof q!=='object'){bytes+=16;}else if(!seen.has(q)){
+      seen.add(q);bytes+=96;
+      if(ArrayBuffer.isView(q)){if(!buffers.has(q.buffer)){buffers.add(q.buffer);bytes+=q.buffer.byteLength;}}
+      else if(q instanceof Map){bytes+=q.size*64;for(const [key,value]of q)stack.push(key,value);}
+      else if(q instanceof Set){bytes+=q.size*32;for(const value of q)stack.push(value);}
+      else if(Object.prototype.toString.call(q)==='[object ArrayBuffer]'||Object.prototype.toString.call(q)==='[object SharedArrayBuffer]'){if(!buffers.has(q)){buffers.add(q);bytes+=q.byteLength;}}
+      else if(Array.isArray(q)){bytes+=q.length*16;if(bytes>limit)return limit+1;for(const k of Object.keys(q))stack.push(q[k]);}
+      else{for(const k of Object.keys(q)){bytes+=48+k.length*2;if(bytes>limit)return limit+1;stack.push(q[k]);}}
+    }
+    if(bytes>limit)return limit+1;
+  }return bytes;
+}
+function framePreparedGeometry(prepared){
+  const groups=[],groupIds=new Map(),triangles={length:prepared.triangles.length,chunks:prepared.triangles.chunks.map(chunk=>{const packedGroups=new Uint32Array(chunk.groups.length);for(let i=0;i<chunk.groups.length;i++){const group=chunk.groups[i];if(!groupIds.has(group)){groupIds.set(group,groups.length);groups.push(group);}packedGroups[i]=groupIds.get(group);}const{groups:unused,...value}=chunk;return{...value,packedGroups};})},pack=map=>new Map([...map].map(([layer,ids])=>[layer,Uint32Array.from(ids)]));
+  return{count:prepared.count,triangles,groups,starts:pack(prepared.starts),ends:pack(prepared.ends),contourRetrySources:prepared.contourRetrySources,perimeterCount:prepared.perimeterCount,warningState:prepared.angleWarnings?.snapshot()};
+}
+function frameRestorePrepared(value,p){
+  const lower=y=>{let lo=1,hi=value.count+1;while(lo<hi){const mid=(lo+hi)>>>1;if(FrameSingleSlicer.layerY(p,mid)<y)lo=mid+1;else hi=mid;}return lo;};
+  const triangles={length:value.triangles.length,chunks:value.triangles.chunks.map(chunk=>{const{packedGroups,...q}=chunk;return{...q,groups:Array.from(packedGroups,id=>value.groups[id])};})};
+  return{...value,triangles,angleWarnings:frameCreateAngleWarnings(p,value.count,lower,value.warningState)};
+}
+function frameSectionCursor(prepared){
+  const events=[...new Set([...prepared.starts.keys(),...prepared.ends.keys()])].sort((a,b)=>a-b),active=new Set();let cursor=0,last=0;
+  return layer=>{if(layer<=last)throw Object.assign(Error('Section order mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'});while(cursor<events.length&&events[cursor]<=layer){const event=events[cursor++];for(const id of prepared.ends.get(event)||[])active.delete(id);for(const id of prepared.starts.get(event)||[])active.add(id);}last=layer;return active;};
+}
+function frameSectionLayer(prepared,active,p,layer,describe=true,retainGroups=false){
+  const started=performance.now(),startedEpochMS=performance.timeOrigin+started,before=prepared.angleWarnings?.bandWork||0,sectionStats={};prepared.contourRecoveryStats=sectionStats;
+  const groups=FrameSingleSlicer.contours(active,prepared,p,layer),sourceSnapshot=prepared.angleWarnings?.take(layer),recovery=prepared.contourRecoveryLayers?.get(layer);prepared.contourRecoveryLayers?.delete(layer);
+  const contourMS=performance.now()-started,description=describe?FrameSingleSlicer.describeContours(groups,p):undefined;
+  return{description,...(retainGroups||!describe?{groups}:{}),sourceSnapshot,recovery,sectionStats,bandWork:(prepared.angleWarnings?.bandWork||0)-before,timing:{startedEpochMS,finishedEpochMS:performance.timeOrigin+performance.now(),wallMS:performance.now()-started,contourMS}};
+}
+
+async function frameSliceFinalized(meshes,p,options,send){
+  p={...p,spiralGeometry:p.angleWarnings===true&&(p.perimeters??1)>=2,spiralSourceAngleEvidence:p.angleWarnings===true&&(p.perimeters??1)>=2};
+  const api=FrameSingleSlicer,prepared=api.prepare(meshes,p),stats=api.sliceStats(prepared),writer=frameReferenceWriter(send,p.printClockwiseSign,p.lineWidth),active=new Set(),maxJobBytes=4194304,maxRetained=268435456,maxOutput=67108864,runId=options.runId;
+  const physicalKeys=new Set(['adaptiveCacheHits','adaptiveCacheEstimatedRetainedBytes','adaptiveCacheEstimatedPeakBytes','adaptivePreparedRegions','adaptivePreparedPeakBytes','adaptiveWorkerPlacementMS','adaptiveCachePreparedEvictions','adaptiveCacheOwnerEvictions']);
+  const diagnostics={requestedWorkers:options.finalizers||0,admission:options.admission,workers:0,ownerJobs:0,helperJobs:0,oversizedOwnerJobs:0,peakInputEstimate:0,peakOutputReservation:0,peakResultEstimate:0,jobLimitBytes:maxJobBytes,retainedLimitBytes:maxRetained,outputLimitBytes:maxOutput,physicalCaches:[],ownerPhysical:{},timings:[],preparationTimings:[]};
+  const sections={workers:0,helperLayers:0,ownerLayers:0,oversizedOwnerLayers:0,preparedEstimateBytes:0,preparedCopiesEstimateBytes:0,preparedAggregateLimitBytes:0,mode:'owner',reason:'pool-not-needed',timings:[],ownerMS:0,bandWork:0};stats.sectionDiagnostics=sections;
+  let last=0,cursor=0,serial=0,inputBytes=0,reserved=0,resultBytes=0,batch=[],slots=null,failure,nextSection=0,sectionEnabled=false;const order=[],wakeups=[],sectionEntries=new Map(),activeLayers=[];
+  for(const layer of prepared.ends.keys())last=Math.max(last,Math.min(prepared.count,layer-1));
+  let occupancy=0;for(let layer=1;layer<=last;layer++){occupancy-=(prepared.ends.get(layer)||[]).length;occupancy+=(prepared.starts.get(layer)||[]).length;if(occupancy)activeLayers.push(layer);}
+  const wake=()=>{for(const resolve of wakeups.splice(0))resolve();},wait=async()=>{await new Promise(resolve=>wakeups.push(resolve));if(failure)throw failure;};
+  const fail=error=>{failure=error;for(const q of frameSlicerPipeline.grants.values())q.reject(error);frameSlicerPipeline.grants.clear();wake();};
+  const references=values=>values.flatMap(q=>q.reference?[q.reference]:q.references||[]);
+  function combine(values){const value={paths:[],pathMetadata:[],componentPathGroups:[],references:[],material:[],requestedPerimeters:p.perimeters??1,actualPerimeters:0,offsetCalls:0,cacheHit:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0,segmentsBeforeSimplification:0};for(const result of values){const componentIndex=value.componentPathGroups.length;value.componentPathGroups.push({componentIndex,paths:result.paths,pathMetadata:result.pathMetadata||[],perimeterLevels:result.perimeterLevels||[],reference:result.reference,adaptivePrepared:result.adaptivePrepared,material:result.material,requestedPerimeters:result.requestedPerimeters??(p.perimeters??1),actualPerimeters:result.actualPerimeters||0});value.paths.push(...result.paths);value.pathMetadata.push(...(result.pathMetadata||[]).map(m=>({...m,componentIndex})));value.actualPerimeters=Math.max(value.actualPerimeters,result.actualPerimeters||0);if(result.reference)value.references.push(result.reference);value.material.push(...result.material);for(const name of ['offsetCalls','cacheHit','refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])value[name]+=result[name]||0;}return value;}
+  function commit(entry){
+    let result=entry.result;
+    if(result.ownerFallback){entry.worker=undefined;result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;}
+    for(const value of entry.job.values){stats.offsetCalls+=value.offsetCalls||0;stats.perimeters=Math.max(stats.perimeters,value.actualPerimeters||0);stats.cacheHits+=value.cacheHit||0;for(const k of ['refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])stats[k]+=value[k]||0;}
+    for(const [k,v]of Object.entries(entry.sectionStats||{}))stats[k]=(stats[k]||0)+v;
+    const physical={};for(const [k,v]of Object.entries(result.statsDelta)){if(physicalKeys.has(k)){physical[k]=v;continue;}if(typeof v!=='number'||!Number.isFinite(v))throw Error('Invalid finalization counter.');if(k.includes('Peak')||k.includes('Max'))stats[k]=Math.max(stats[k]||0,v);else stats[k]=(stats[k]||0)+v;}
+    if(entry.worker===undefined)diagnostics.ownerPhysical={...result.cacheDiagnostics,...physical};else diagnostics.physicalCaches[entry.worker]={...result.cacheDiagnostics,...physical};
+    writer.mergeWarningCounts(result.warningDelta);
+    if(result.angleValues)send({layers:[],angleValuesList:[{layer:entry.layer,angleValues:result.angleValues}]});
+    const output=entry.recovery?{...result.output,topologyRecovery:entry.recovery}:result.output;
+    if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);}
+    if(output.paths.length||entry.recovery)batch.push({layer:entry.layer,...output,references:references(entry.job.values)});
+    inputBytes-=entry.bytes;reserved-=entry.reservation;resultBytes-=entry.resultBytes||0;entry.job=null;entry.result=null;
+  }
+  function drainReady(){while(cursor<order.length&&order[cursor].result){const entry=order[cursor++];commit(entry);if(entry.layer%32===0){writer({layers:batch,progress:entry.layer/prepared.count,stats:{...stats}});batch=[];}}if(cursor>64){order.splice(0,cursor);cursor=0;}}
+  async function drain(){while(order.length>cursor){drainReady();if(order.length>cursor)await wait();}}
+  async function grant(token){await new Promise((resolve,reject)=>{frameSlicerPipeline.grants.set(token,{resolve,reject});self.postMessage({type:'layerAcquire',token,runId});});if(failure)throw failure;}
+  function entryFor(layer){const jobId=++serial;return{layer,job:{phase:'finalize',token:jobId,runId,jobId,layer,params:p,values:null},bytes:0,reservation:0,result:null};}
+  function reserve(entry){entry.bytes=maxJobBytes*4;entry.reservation=maxJobBytes;inputBytes+=entry.bytes;reserved+=entry.reservation;order.push(entry);diagnostics.peakInputEstimate=Math.max(diagnostics.peakInputEstimate,inputBytes);diagnostics.peakOutputReservation=Math.max(diagnostics.peakOutputReservation,reserved);}
+  function sectionOwner(layer,describe){const result=frameSectionLayer(prepared,active,p,layer,describe,true);sections.ownerLayers++;sections.ownerMS+=result.timing.wallMS;sections.bandWork+=result.bandWork;return result;}
+  async function pool(after,measuredLayerMS){
+    const shortPreparation=prepared.triangles.length>50000&&last-after<=128&&measuredLayerMS*(last-after)<1000;
+    const minimumBytes=prepared.triangles.chunks.reduce((bytes,chunk)=>bytes+chunk.q.byteLength+chunk.groups.length*16+(chunk.angles?.byteLength||0)+(chunk.orientation?.byteLength||0),0);
+    let geometry=shortPreparation||minimumBytes>67108864?null:framePreparedGeometry(prepared),estimate=geometry?frameLayerPacketBytes(geometry,67108864)+prepared.triangles.chunks.reduce((bytes,chunk)=>bytes+chunk.groups.length*16,0):shortPreparation?0:minimumBytes;sections.preparedEstimateBytes=estimate;
+    const memory=options.admission?.deviceMemoryBytes||4*1024**3,aggregate=Math.max(0,memory*.4-(options.admission?.sourceEstimateBytes||0)-maxRetained-maxOutput-134217728);
+    sections.preparedAggregateLimitBytes=aggregate;
+    const count=Math.min(options.finalizers,Math.max(0,Math.floor(aggregate/(134217728+estimate))));
+    sectionEnabled=!shortPreparation&&estimate<=67108864&&count>0;sections.reason=sectionEnabled?'admitted':shortPreparation?'startup-amortization':estimate>67108864?'prepared-geometry-limit':'prepared-memory-limit';
+    if(!count){options={...options,finalizers:0};return;}const finalizers=count;
+    const ports=await new Promise(resolve=>{frameSlicerPipeline.pool=resolve;self.postMessage({type:'layerPool',count:finalizers,runId});});slots=ports.map((port,index)=>({port,index,busy:false,entry:null}));diagnostics.workers=slots.length;
+    for(const slot of slots){slot.port.onmessage=({data})=>{try{if(data.phase!=='prepared-part')self.postMessage({type:'layerRelease',token:data.token,runId});if(data.runId!==runId){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}
+      if(data.phase==='geometry'){slot.geometryReady?.();slot.geometryReady=null;return;}
+      const entry=slot.entry;if(!entry||data.jobId!==entry.job.jobId||data.layer!==entry.layer){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}
+      const size=frameLayerPacketBytes(data,maxJobBytes);if(size>maxJobBytes){fail(Error('Layer output admission failed.'));return;}
+      if(data.phase==='sectioned'){entry.section=data;sections.helperLayers++;if(data.timing&&sections.timings.length<128)sections.timings.push({worker:slot.index,layer:data.layer,...data.timing});wake();return;}
+      if(data.phase==='prepared-part'||data.phase==='prepared'&&data.ownerFallback){entry.preparedBytes=(entry.preparedBytes||0)+size;if(entry.preparedBytes>8388608)throw Object.assign(Error('Prepared reply retention exceeds the slice memory budget.'),{code:'FRAME_SLICE_RESOURCE_LIMIT'});diagnostics.peakPreparedReplyEstimate=Math.max(diagnostics.peakPreparedReplyEstimate||0,entry.preparedBytes);}
+      if(data.phase==='prepared-part'){entry.preparedParts||=new Set();for(const result of data.results||[]){if(!Number.isSafeInteger(result.index)||!entry.plans?.[result.index]?.complete||entry.preparedParts.has(result.index))throw Object.assign(Error('Invalid prepared component.'),{code:'FRAME_LAYER_VALUE_INVALID'});entry.preparedParts.add(result.index);entry.plans[result.index].complete(result.value);}return;}
+      if(data.phase==='prepared'){
+        if(data.timing&&diagnostics.preparationTimings.length<128)diagnostics.preparationTimings.push({worker:slot.index,layer:data.layer,...data.timing});
+        if(data.ownerFallback){entry.forceOwner=true;entry.preparedParts||=new Set();for(const result of data.results||[]){if(!Number.isSafeInteger(result.index)||!entry.plans?.[result.index]?.complete||entry.preparedParts.has(result.index))throw Object.assign(Error('Invalid prepared component.'),{code:'FRAME_LAYER_VALUE_INVALID'});entry.preparedParts.add(result.index);entry.plans[result.index].complete(result.value);}diagnostics.partialPreparationJobs=(diagnostics.partialPreparationJobs||0)+1;diagnostics.reusedPreparationParts=(diagnostics.reusedPreparationParts||0)+entry.preparedParts.size;for(const [index,part]of entry.description.parts.entries())if(entry.plans[index].complete&&!entry.preparedParts.has(index))entry.plans[index].complete(api.calculateInsetMaterial(part.material,p,entry.description.inputVertices));entry.preparedParts=null;}
+        else for(const result of data.results)entry.plans[result.index].complete(result.value);
+        return;
+      }
+      slot.busy=false;slot.entry=null;entry.worker=slot.index;entry.result=data;entry.resultBytes=size;resultBytes+=size;diagnostics.helperJobs++;diagnostics.peakResultEstimate=Math.max(diagnostics.peakResultEstimate,resultBytes);if(data.cacheDiagnostics)diagnostics.physicalCaches[slot.index]={...data.cacheDiagnostics};
+      if(data.timing&&diagnostics.timings.length<128)diagnostics.timings.push({worker:slot.index,layer:data.layer,...data.timing});wake();}catch(error){fail(error);}};slot.port.start();}
+    if(sectionEnabled){sections.workers=slots.length;sections.mode='persistent-prepared-clone';sections.preparedCopiesEstimateBytes=estimate*slots.length;
+      await Promise.all(slots.map(async slot=>{const token=++serial;const ready=new Promise(resolve=>slot.geometryReady=resolve);await grant(token);slot.port.postMessage({phase:'geometry',token,runId,prepared:geometry,params:p});await Promise.race([ready,new Promise((resolve,reject)=>{const check=()=>{if(failure)reject(failure);else if(!slot.geometryReady)resolve();else wakeups.push(check);};wakeups.push(check);})]);}));
+      while(nextSection<activeLayers.length&&activeLayers[nextSection]<=after)nextSection++;
+    }geometry=null;
+  }
+  async function fillSections(){
+    while(nextSection<activeLayers.length&&slots.some(q=>!q.busy)&&inputBytes+maxJobBytes*4<=maxRetained&&reserved+maxJobBytes<=maxOutput){
+      const entry=entryFor(activeLayers[nextSection++]),slot=slots.find(q=>!q.busy);slot.busy=true;slot.entry=entry;entry.slot=slot;reserve(entry);sectionEntries.set(entry.layer,entry);await grant(entry.job.token);slot.port.postMessage({...entry.job,phase:'section'});
+    }
+  }
+  async function finalize(entry,description,slot){
+    const job=entry.job;entry.description=description;entry.plans=description.parts.map(part=>!part.material.length?{hit:false,promise:Promise.resolve({paths:[],material:[],offsetCalls:0})}:api.reserveInset(part.key,description.inputVertices));
+    const prepareJob={phase:'prepare',token:++serial,runId,jobId:job.jobId,layer:entry.layer,params:p,inputVertices:description.inputVertices,parts:description.parts.map((part,index)=>({index,material:part.material})).filter(part=>entry.plans[part.index].complete)};
+    Promise.all(entry.plans.map(plan=>plan.promise.then(value=>plan.hit?{...value,offsetCalls:0,cacheHit:1}:value))).then(async values=>{job.values=[combine(values)];entry.description=null;entry.plans=null;if(entry.forceOwner||frameLayerPacketBytes(job,maxJobBytes)>maxJobBytes){entry.result=frameR180FinalizeLayerJob(job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;slot.busy=false;slot.entry=null;wake();}else{job.token=++serial;await grant(job.token);slot.port.postMessage(job);}}).catch(fail);
+    if(prepareJob.parts.length){if(frameLayerPacketBytes(prepareJob,maxJobBytes)>maxJobBytes){entry.forceOwner=true;for(const part of prepareJob.parts)entry.plans[part.index].complete(api.calculateInsetMaterial(part.material,p,description.inputVertices));}else{await grant(prepareJob.token);slot.port.postMessage(prepareJob);}}
+  }
+  if(!last)writer({layers:[],progress:1,stats:{...stats}});
+  for(let layer=1;layer<=last;layer++){
+    if(failure)throw failure;for(const id of prepared.ends.get(layer)||[])active.delete(id);for(const id of prepared.starts.get(layer)||[])active.add(id);if(!active.size)continue;
+    if(slots&&sectionEnabled){
+      let entry;while(!(entry=sectionEntries.get(layer))){drainReady();await fillSections();entry=sectionEntries.get(layer);if(!entry)await wait();}
+      while(!entry.section)await wait();let result=entry.section;entry.section=null;sectionEntries.delete(layer);
+      if(result.ownerFallback){sections.oversizedOwnerLayers++;result=sectionOwner(layer,true);}else sections.bandWork+=result.bandWork;
+      entry.recovery=result.recovery;entry.sectionStats=result.sectionStats;entry.job.sourceSnapshot=result.sourceSnapshot;
+      await finalize(entry,result.description,entry.slot);drainReady();await fillSections();
+    }else{
+      const started=performance.now(),section=sectionOwner(layer,!!slots),entry=entryFor(layer);entry.recovery=section.recovery;entry.sectionStats=section.sectionStats;entry.job.sourceSnapshot=section.sourceSnapshot;
+      if(!slots){entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}
+      else{
+        const size=frameLayerPacketBytes({description:section.description,sourceSnapshot:section.sourceSnapshot},maxJobBytes);
+        if(size>maxJobBytes){await drain();entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}
+        while(!slots.some(q=>!q.busy)||inputBytes+maxJobBytes*4>maxRetained||reserved+maxJobBytes>maxOutput){drainReady();if(slots.some(q=>!q.busy)&&inputBytes+maxJobBytes*4<=maxRetained&&reserved+maxJobBytes<=maxOutput)break;await wait();}
+        const slot=slots.find(q=>!q.busy);slot.busy=true;slot.entry=entry;reserve(entry);await finalize(entry,section.description,slot);drainReady();
+      }
+    }
+    if(layer%32===0&&!order.slice(cursor).length){writer({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];}
+  }
+  await drain();diagnostics.canonicalCache=api.insetCacheMemory();stats.angleWarningComplete=prepared.angleWarnings?.complete??false;stats.angleWarningBandWork=sections.bandWork;stats.angleWarningPrepareMS=prepared.angleWarnings?.prepareMS??0;stats.finalizerDiagnostics=diagnostics;
+  if(last)writer({layers:batch,progress:1,stats:{...stats}});return{...stats,...writer.counts()};
+}
+
 self.onmessage=async({data})=>{
+  if(data.type==='layerStart'){
+    const port=data.port,runId=data.runId;let lastJobId=-1,preparedJobId=-1,closed=false,sectionPrepared=null,sectionActive=null;
+    if(!port||typeof port.postMessage!=='function')throw Error('Missing layer finalizer port.');
+    port.onmessage=({data:job})=>{
+      if(closed)return;
+      if(job?.phase==='close'){closed=true;port.close();return;}
+      if(job?.phase==='geometry'){try{if(job.runId!==runId||sectionPrepared)throw Object.assign(Error('Prepared geometry generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'});sectionPrepared=frameRestorePrepared(job.prepared,job.params);sectionActive=frameSectionCursor(sectionPrepared);port.postMessage({phase:'geometry',token:job.token,runId});}catch(error){port.postMessage({phase:'geometry',token:job.token,runId,error:error.message,code:error.code});}return;}
+      if(job?.phase==='section'){try{if(job.runId!==runId||!sectionPrepared||job.jobId<=lastJobId)throw Object.assign(Error('Stale section job.'),{code:'FRAME_LAYER_GENERATION_STALE'});const result=frameSectionLayer(sectionPrepared,sectionActive(job.layer),job.params,job.layer);port.postMessage(frameLayerPacketBytes(result)>4194304?{phase:'sectioned',token:job.token,runId,jobId:job.jobId,layer:job.layer,ownerFallback:true,timing:result.timing}:{phase:'sectioned',token:job.token,runId,jobId:job.jobId,layer:job.layer,...result});}catch(error){port.postMessage({phase:'sectioned',token:job.token,runId,jobId:job.jobId,layer:job.layer,error:error.message,code:error.code});}return;}
+      if(job?.phase==='prepare'){try{if(job.runId!==runId||!Number.isSafeInteger(job.jobId)||job.jobId<=lastJobId)throw Object.assign(Error('Stale inset job.'),{code:'FRAME_LAYER_GENERATION_STALE'});lastJobId=job.jobId;preparedJobId=job.jobId;const started=performance.now(),startedEpochMS=performance.timeOrigin+started;const results=job.parts.map(part=>({index:part.index,value:FrameSingleSlicer.calculateInsetMaterial(part.material,job.params,job.inputVertices)})),result={phase:'prepared',token:job.token,runId:job.runId,jobId:job.jobId,layer:job.layer,results,timing:{startedEpochMS,finishedEpochMS:performance.timeOrigin+performance.now(),wallMS:performance.now()-started}};if(frameLayerPacketBytes(result)>4194304){
+          const envelope={token:job.token,runId:job.runId,jobId:job.jobId,layer:job.layer,ownerFallback:true,timing:result.timing},chunks=[];let values=[],bytes=frameLayerPacketBytes({...envelope,phase:'prepared',results:[]}),retained=bytes;
+          for(const value of results){const size=frameLayerPacketBytes(value)+16;if(size+2048>4194304||retained+size+2048>8388608)continue;if(bytes+size+2048>4194304){chunks.push(values);values=[];bytes=2048;retained+=2048;}values.push(value);bytes+=size;retained+=size;}
+          chunks.push(values);for(let i=0;i<chunks.length;i++){const packet={...envelope,phase:i===chunks.length-1?'prepared':'prepared-part',results:chunks[i]};if(frameLayerPacketBytes(packet)>4194304)throw Object.assign(Error('Prepared result admission failed.'),{code:'FRAME_SLICE_RESOURCE_LIMIT'});port.postMessage(packet);}
+        }else port.postMessage(result);}catch(error){port.postMessage({phase:'prepared',token:job.token,runId:job.runId,jobId:job.jobId,layer:job.layer,error:error.message,code:error.code});}return;}
+      if(job?.phase!=='finalize')return;
+      try{
+        if(job.runId!==runId||!Number.isSafeInteger(job.jobId)||job.jobId<=lastJobId&&job.jobId!==preparedJobId)throw Object.assign(Error('Stale or repeated layer job.'),{code:'FRAME_LAYER_GENERATION_STALE'});
+        lastJobId=job.jobId;preparedJobId=-1;
+        const result=frameR180FinalizeLayerJob(job);if(frameLayerPacketBytes(result)>4194304){port.postMessage({phase:'finalized',token:job.token,runId:job.runId,jobId:job.jobId,layer:job.layer,ownerFallback:true,cacheDiagnostics:result.cacheDiagnostics,timing:result.timing});return;}const transfer=result.angleValues?[result.angleValues.buffer]:[];
+        port.postMessage({phase:'finalized',token:job.token,...result},transfer);
+      }catch(error){port.postMessage({phase:'finalized',token:job.token,runId:job.runId,jobId:job.jobId,layer:job.layer,error:error.message,code:error.code||'FRAME_LAYER_FINALIZE_FAILED'});}
+    };
+    port.start();self.postMessage({type:'layerReady',runId});return;
+  }
+
+  if(data.type==='layerPool'){const ready=frameSlicerPipeline.pool;frameSlicerPipeline.pool=null;ready?.(data.ports);return;}
+  if(data.type==='layerGrant'){const q=frameSlicerPipeline.grants.get(data.token);frameSlicerPipeline.grants.delete(data.token);q?.resolve();return;}
   if(data.type==='outlinePool'){const ready=frameSlicerPipeline.pool;frameSlicerPipeline.pool=null;ready?.(data.ports);return;}
   if(data.type==='outlineGrant'){const q=frameSlicerPipeline.grants.get(data.token);frameSlicerPipeline.grants.delete(data.token);q?.resolve();return;}
   if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null;port.onmessage=({data:job})=>{try{
@@ -8896,3 +10644,186 @@ self.onmessage=async({data})=>{
   catch(error){self.postMessage({type:'error',message:error.message,code:error.code||'FRAME_SLICE_FAILED'});}
 };
 
+
+function frameSpiralPrepareReseatedNominalTemplates(value,p,group,adaptiveValue,groupCount){
+ const W=p.lineWidth,count=p.perimeters??1,section=value.reference?.section;
+ if(p.spiralGeometry!==true||count<2||!(W>0)||groupCount!==1||group.sourceRingIds||adaptiveValue?.status!=='fixed-fallback'||section?.ends?.length!==1||section.coords.length>128||section.ends[0]*2!==section.coords.length||group.reference?.section!==section||group.paths!==value.paths||value.paths?.length<2||value.paths.length>8||value.pathMetadata?.length!==value.paths.length||value.pathMetadata.some((q,i)=>q.depth!==i||q.boundaryRole!=='outer'||q.levelPath!==0)||value.paths.some(q=>q.length<3)||value.paths.reduce((n,q)=>n+q.length,0)>128||value.paths.slice(0,2).reduce((n,q)=>n+q.length,0)>64)return null;
+ const sourceRings=frameAdaptiveUnpack(section),lineage=frameResolveNominalSpiralLineage({sourceRings,levels:value.perimeterLevels,componentId:'reseated-original-component',W,maxWork:100000});
+ if(lineage.status!=='resolved-nominal-source-lineage')return null;
+ const original=lineage.levels.flatMap(q=>q.paths).slice(0,2);
+ if(original.length!==2||!original.every(q=>q.lineage?.resolved)||original[1].lineage.parentPathId!==original[0].id)return null;
+ const bankPlan=frameSpiralPrepareAngleBanks(section,{maxEdges:64});if(bankPlan.status!=='complete-immutable-source-angle-bank-plan')return null;
+ const bySign={};
+ for(const sign of[1,-1]){
+  const loops=original.map((q,i)=>({...q,points:frameClockwisePrintLoop(q.points,{clockwiseSign:sign}).path,closed:true,feedWidth:W,protectLongEdges:false,orderMetadata:{...value.pathMetadata[i],requestedPerimeters:count,role:'nominal-perimeter-fallback',fallbackReason:adaptiveValue.reason}})),parent=loops[0],child=loops[1],trials=[];
+  for(let toEdge=0;toEdge<child.points.length;toEdge++)for(let fromEdge=0;fromEdge<parent.points.length;fromEdge++){
+   const a=parent.points[fromEdge],b=parent.points[(fromEdge+1)%parent.points.length],v=b.map((x,k)=>x-a[k]),L=Math.hypot(...v),d=child.points[toEdge].map((x,k)=>x-a[k]);if(!(L>0))continue;
+   const along=(d[0]*v[0]+d[1]*v[1])/L,across=(-d[0]*v[1]+d[1]*v[0])*sign/L,t=(along-across)/L;
+   if(across<W*.25||across>W*2||t<=1e-10||t>=1-1e-10)continue;
+   trials.push({fromEdge,fromT:t,toEdge,toT:0,length:across*Math.SQRT2});
+  }
+  trials.sort((a,b)=>a.length-b.length||a.fromEdge-b.fromEdge||a.toEdge-b.toEdge);
+  let certificate;for(const address of trials.slice(0,8)){
+   const q=frameBuildWidthContinuousSpiralJoin({loops,fromLoop:parent,toLoop:child,sourceRings,W,clockwiseSign:sign,...address,sourceSeamReaddressing:true});
+   if(q.status==='width-continuous-source-family-spiral'){certificate=q;break;}
+  }
+  if(!certificate)continue;
+  const q=certificate,template={status:'certified-geometry-layer-adapter',geometryGateComplete:true,paths:[q.path],pathClosed:[false],pathVertexMetadata:[q.pathVertexMetadata],pathEdgeMetadata:[q.pathEdgeMetadata],pathOrderMetadata:[{role:'source-family-spiral',depth:0,maximumDepth:1,originalPathIds:loops.map(l=>l.id),sourceFamily:q.sourceFamily,sourceAddresses:q.sourceAddresses,originalSeamsPreserved:false,originalBoundaryAxesPreserved:true,sourceGeometryUnchanged:true,connectorOverlapEquivalentW:q.connectorOverlapEquivalentW,cumulativeOverlapEquivalentW:q.cumulativeOverlapEquivalentW,terminalOverrunEmitted:false}],spiral:{connections:1,originalSeamsPreserved:false,sourceGeometryUnchanged:true,terminalOverrunEmitted:false},completeOverlapLedger:{cumulativeOverlapEquivalentW:q.cumulativeOverlapEquivalentW,departureEquivalentW:q.departureEquivalentW,arrivalEquivalentW:q.arrivalEquivalentW,limitEquivalentW:.5,everyOriginalEdgeAndNewConnectorProfileCharged:true},sourceNozzleGuard:{nominalNozzleRadiusMM:W/2,connectorWholeSourceClearanceMM:q.wholeSourceClearanceMM,newAxisCrossings:false,newRemotePrintedFootprintPositions:false}};
+  bySign[String(sign)]={id:'reseated-original-component/count-'+count+'/sign-'+sign,reseated:true,template:frameSpiralGeometryWithoutAngles(template),bankPlan,family:{...parent.lineage},printClockwiseSign:sign,requestedPerimeters:count,actualPerimeters:value.actualPerimeters,originalLoops:loops.map((l,originalPathIndex)=>({id:l.id,points:l.points,depth:l.depth,originalPathIndex})),sourceSection:section,geometryOnly:true,sourceCoordinatesUnchanged:true};
+ }
+ return Object.keys(bySign).length?{count,lineWidth:W,bySign}:null;
+}
+function frameSpiralSourceRequiresAcuteBreak(section){
+ if(!section?.coords||!section?.ends)return false;
+ const rings=frameAdaptiveUnpack(section),bits=new DataView(new ArrayBuffer(8)),one=1n<<52n,mask=one-1n,exact=v=>{bits.setFloat64(0,v,false);const q=bits.getBigUint64(0,false),e=Number((q>>52n)&2047n),n=(q&mask)+(e?one:0n);return{n:(q>>63n)?-n:n,e:e?e-1075:-1074};};
+ for(const ring of rings){if(ring.length<3||ring.length>2048||ring.some(p=>p.some(v=>!Number.isFinite(v))))return true;const raw=ring.map(p=>p.map(exact)),exponents=raw.flat().filter(q=>q.n!==0n).map(q=>q.e);if(!exponents.length)continue;const scale=Math.min(...exponents),points=raw.map(p=>p.map(q=>q.n===0n?0n:q.n<<BigInt(q.e-scale)));let area=0n;for(let i=0;i<points.length;i++)area+=points[i][0]*points[(i+1)%points.length][1]-points[i][1]*points[(i+1)%points.length][0];const sign=area<0n?-1n:1n;for(let i=0;i<points.length;i++){const p=points[i],a=points[(i+points.length-1)%points.length].map((v,k)=>v-p[k]),b=points[(i+1)%points.length].map((v,k)=>v-p[k]),dot=a[0]*b[0]+a[1]*b[1],cross=a[0]*b[1]-a[1]*b[0],absolute=cross<0n?-cross:cross;if(dot>0n&&absolute<dot&&cross*sign<0n)return true;}}
+ return false;
+}
+function frameSpiralPrepareStrictNominalTemplates(...args){const p=args[1],section=args[0]?.reference?.section;if(p.spiralGeometry!==true||(p.perimeters??1)<2||args[4]!==1||args[2]?.sourceRingIds||args[3]?.status!=='fixed-fallback'||section?.ends?.length!==1||section.coords.length>512)return null;if(frameSpiralSourceRequiresAcuteBreak(args[0]?.reference?.section))return null;return frameSpiralPrepareFixedNominalTemplates(...args)||frameSpiralPrepareReseatedNominalTemplates(...args);}
+function frameSpiralCollectStrictLayerCandidates(result,groups,p){
+ const fixed=frameSpiralCollectFixedLayerCandidates(result,groups,p);if(fixed)return fixed;
+ if(p.spiralGeometry!==true||(p.perimeters??1)<2||result.paths.length>512||result.paths.reduce((n,q)=>n+q.length,0)>10000)return null;
+ if(result.pathEdgeMetadata.some(row=>row?.some(e=>!['adaptive-straight-channel','adaptive-flat-source-taper','adaptive-convex-annulus'].includes(e.role)&&!(['adaptive-original-thin-neck-augmentation','adaptive-original-curved-thin-neck-augmentation'].includes(e.role)&&e.totalNewOldOverlapAreaMM2===0&&e.exactNewOldAreaSumMM2==='0/1'))))return null;
+ const sign=p.printClockwiseSign??1,candidates=[];
+ for(let componentIndex=0;componentIndex<groups.length;componentIndex++){
+  const group=groups[componentIndex],prepared=group.adaptivePreparedRegion,candidate=prepared?.spiralTemplates?.bySign[String(sign)];
+  if(!candidate?.reseated||group.sourceRingIds||prepared.section!==group.reference?.section||prepared.spiralTemplates.count!==(p.perimeters??1)||prepared.spiralTemplates.lineWidth!==p.lineWidth)continue;
+  const allIndices=result.paths.map((_,i)=>i).filter(i=>result.pathOrderMetadata[i].componentIndex===componentIndex);
+  if(allIndices.length<2||allIndices.length>8||allIndices.some((index,i)=>result.paths[index]!==group.paths[i]||result.pathClosed[index]!==true||result.pathVertexMetadata[index]!==null||result.pathEdgeMetadata[index]!==null||result.pathOrderMetadata[index].role!=='nominal-perimeter-fallback'||result.pathOrderMetadata[index].depth!==i||result.pathOrderMetadata[index].levelPath!==0))continue;const indices=allIndices.slice(0,2);
+  const length=candidate.originalLoops.reduce((n,l)=>n+l.points.reduce((s,a,i)=>s+Math.hypot(a[0]-l.points[(i+1)%l.points.length][0],a[1]-l.points[(i+1)%l.points.length][1]),0),0);
+  candidates.push({...candidate,componentIndex,fallbackPathIndices:indices,originalLengthMM:length});
+ }
+ candidates.sort((a,b)=>b.originalLengthMM-a.originalLengthMM||a.componentIndex-b.componentIndex);return candidates.length?candidates.slice(0,8):null;
+}
+function frameSpiralReseatedNeighborSafe(candidate,output,references,W){
+ const ignored=new Set(candidate.fallbackPathIndices),edges=candidate.template.pathEdgeMetadata[0],points=candidate.template.paths[0],profile=candidate.template.pathVertexMetadata[0];
+ if(references.reduce((n,r)=>n+(r.section?.coords?.length||0)/2,0)>20000||output.paths.reduce((n,p)=>n+p.length,0)>10000)return false;
+ let work=0,scanned=0;
+ const near=(a,b,p,q,radius)=>{const extent=Math.max(W,...a.map(Math.abs),...b.map(Math.abs),...p.map(Math.abs),...q.map(Math.abs)),outward=64*Number.EPSILON*extent,r=radius+outward;return !(Math.min(a[0],b[0])-r>Math.max(p[0],q[0])||Math.min(p[0],q[0])>Math.max(a[0],b[0])+r||Math.min(a[1],b[1])-r>Math.max(p[1],q[1])||Math.min(p[1],q[1])>Math.max(a[1],b[1])+r);};
+ for(let edge=0;edge<edges.length;edge++){
+  if(edges[edge].role!=='width-continuous45-degree-connector')continue;const a=points[edge],b=points[edge+1],quad=frameSpiralFlatRibbon(a,b,profile[edge].displayWidth,profile[edge+1].displayWidth);
+  for(const reference of references){if(reference.section===candidate.sourceSection)continue;for(const ring of frameAdaptiveUnpack(reference.section))for(let i=0;i<ring.length;i++){if(++scanned>100000)return false;const p=ring[i],q=ring[(i+1)%ring.length];if(!near(a,b,p,q,W/2))continue;if(++work>20000)return false;if(frameAdaptiveSegmentDistance(a,b,p,q)<W/2)return false;}}
+  for(let path=0;path<output.paths.length;path++){
+   if(ignored.has(path))continue;const row=output.paths[path],vertices=output.pathVertexMetadata[path],n=row.length-(output.pathClosed[path]===false?1:0);
+   for(let i=0;i<n;i++){if(++scanned>100000)return false;const next=(i+1)%row.length,p=row[i],q=row[next],w0=vertices?.[i]?.displayWidth??W,w1=vertices?.[next]?.displayWidth??W,width=Math.max(w0,w1);if(!near(a,b,p,q,W/2+width/2))continue;if(++work>20000)return false;if(frameAdaptiveOpenAxisIntersects(a,b,p,q))return false;if(frameAdaptiveSegmentDistance(a,b,p,q)<W/2+width/2&&!frameSpiralRibbonsDisjoint(quad,frameSpiralFlatRibbon(p,q,w0,w1)))return false;}
+  }
+ }
+ return true;
+}
+function frameSpiralOwnerFinalize(layer,output,references,source,originalAngles,finalOriginalPaths,clockwiseSign){
+ if(!output?.spiralCandidates?.some(q=>q.reseated))return frameSpiralFixedOwnerFinalize(...arguments);
+ const clean=frameSpiralOwnerDropCandidates(output),fallback=(reason,work=0)=>({output:clean,angleValues:originalAngles,accepted:false,attempted:true,reason,work});
+ if(source?.layer!==layer||!source.faceIncidence?.complete)return fallback('missing-or-incomplete-current-source');
+ const offsets=[];let count=0;for(let i=0;i<output.paths.length;i++){offsets.push(count);count+=output.paths[i].length-(output.pathClosed[i]===false?1:0);}if(count!==originalAngles.length)return fallback('original-source-angle-count-mismatch');
+ let totalWork=0;
+ for(const candidate of output.spiralCandidates){try{
+  const W=candidate.template.sourceNozzleGuard.nominalNozzleRadiusMM*2,indices=candidate.fallbackPathIndices,loops=candidate.originalLoops,template=candidate.template,section=candidate.sourceSection;
+  if(candidate.printClockwiseSign!==clockwiseSign||indices.length!==2||new Set(indices).size!==2||loops.length!==2||template.pathClosed[0]!==false||template.pathVertexMetadata[0].length!==template.paths[0].length||template.pathEdgeMetadata[0].length!==template.paths[0].length-1||template.completeOverlapLedger.cumulativeOverlapEquivalentW>.5)continue;
+  const same=(a,b)=>a?.length===2&&b?.length===2&&a[0]===b[0]&&a[1]===b[1],byId=new Map();let valid=true;
+  for(let i=0;i<2;i++){const loop=loops[i],index=indices[i],points=finalOriginalPaths[index];if(!points||points.length!==loop.points.length||points.some((q,j)=>!same(q,loop.points[j]))){valid=false;break;}byId.set(loop.id,{points,angles:originalAngles.subarray(offsets[index],offsets[index]+points.length),intervals:points.map(()=>[])});}if(!valid)continue;
+  const plan=candidate.bankPlan;let at=0,bank=0,ring=0;for(const end of section.ends){for(let i=at;i<end;i++){const j=i+1===end?at:i+1,q=plan.banks[bank++];if(!q||q.ring!==ring||q.edge!==i-at||!same(q.a,[section.coords[2*i],section.coords[2*i+1]])||!same(q.b,[section.coords[2*j],section.coords[2*j+1]]))valid=false;}at=end;ring++;}if(!valid||bank!==plan.banks.length||at*2!==section.coords.length)continue;
+  if(!frameSpiralReseatedNeighborSafe(candidate,output,references,W))continue;
+  const proof=frameSpiralAssociateAngleFamily(plan,source,candidate.family);totalWork+=proof.work||0;if(proof.status!=='associated-conservative-original-bank-inclination')continue;
+  const metadata=template.pathEdgeMetadata[0].map((q,edge)=>{
+   if(q.role==='width-continuous45-degree-connector')return{...q,sourceAngle:proof.sourceAngle,sourceAngleAssociationRequired:false,sourceAngleAssociation:{...proof,currentIncidenceBinding:undefined}};
+   const old=byId.get(q.originalPathId),i=q.originalEdge,u=q.sourceIntervalParameterStart,v=q.sourceIntervalParameterEnd;if(!old||!Number.isInteger(i)||!old.points[i]||!Number.isFinite(u)||!Number.isFinite(v)||u<0||v>1||u>=v)throw Error('invalid-reseated-original-interval');
+   const A=old.points[i],B=old.points[(i+1)%old.points.length],point=t=>t===0?A:t===1?B:A.map((x,k)=>x+(B[k]-x)*t);if(!same(template.paths[0][edge],point(u))||!same(template.paths[0][edge+1],point(v)))throw Error('reseated-original-interval-geometry-mismatch');old.intervals[i].push([u,v]);return{...q,sourceAngle:old.angles[i]};
+  });
+  for(const old of byId.values())for(const parts of old.intervals){parts.sort((a,b)=>a[0]-b[0]);let u=0;for(const part of parts){if(part[0]!==u)throw Error('reseated-original-interval-overlap-or-gap');u=part[1];}if(u!==1)throw Error('incomplete-reseated-original-boundary');}
+  const result={...clean,paths:[],pathClosed:[],pathVertexMetadata:[],pathEdgeMetadata:[],pathOrderMetadata:[]},angleParts=[],skip=new Set(indices),before=[],after=[];
+  for(let i=0;i<output.paths.length;i++)if(!skip.has(i))(output.pathOrderMetadata[i].depth===0?before:after).push(i);
+  const append=i=>{const q=frameClockwisePrintLoop(output.paths[i],{clockwiseSign,closed:output.pathClosed[i]!==false,edgeMetadata:output.pathEdgeMetadata[i],vertexMetadata:output.pathVertexMetadata[i]});result.paths.push(q.path);result.pathClosed.push(output.pathClosed[i]);result.pathVertexMetadata.push(q.vertexMetadata??null);result.pathEdgeMetadata.push(q.edgeMetadata??null);result.pathOrderMetadata.push(output.pathOrderMetadata[i]);const n=output.paths[i].length-(output.pathClosed[i]===false?1:0);angleParts.push(originalAngles.subarray(offsets[i],offsets[i]+n));};
+  for(const i of before)append(i);
+  result.paths.push(template.paths[0]);result.pathClosed.push(false);result.pathVertexMetadata.push(template.pathVertexMetadata[0]);result.pathEdgeMetadata.push(metadata);result.pathOrderMetadata.push({...output.pathOrderMetadata[indices[0]],...template.pathOrderMetadata[0],currentSourceLayer:layer});angleParts.push(new Float32Array(metadata.map(q=>q.sourceAngle)));
+  for(const i of after)append(i);
+  const angles=new Float32Array(angleParts.reduce((n,q)=>n+q.length,0));let start=0;for(const q of angleParts){angles.set(q,start);start+=q.length;}
+  result.spiral={connections:1,originalSeamsPreserved:false,originalBoundaryAxesPreserved:true,allOriginalBoundaryIntervalsPrintedExactlyOnce:true,allPrimaryBoundariesBeforeInward:true,sourceGeometryUnchanged:true,sourceAngleAssociationComplete:true,sourceAngleMethod:proof.method,sourceLayer:layer,cumulativeOverlapEquivalentW:template.completeOverlapLedger.cumulativeOverlapEquivalentW,wholeLayerNewSeamBudgetEquivalentW:.5,wholeLayerNewSeamBudgetCoupled:true,terminalOverrunEmitted:false,coverageCertified:false,physicalPrintValidated:false};
+  return{output:result,angleValues:angles,accepted:true,attempted:true,work:totalWork,connectors:3,terminals:0,sourceIncidenceRetainedBytesEstimate:source.faceIncidence.estimatedRetainedBytes,sourceProofJSONUpperBytesEstimate:proof.estimatedProofJSONUpperBytes};
+ }catch(error){}}
+ return fallback('no-qualified-reseated-route-in-current-layer',totalWork);
+}
+
+function frameSpiralFlatRibbon(a,b,w0,w1){const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),n=[-dy/length,dx/length];if(!(length>0)||![w0,w1].every(w=>Number.isFinite(w)&&w>0))throw Error('invalid-spiral-neighbor-ribbon');return[a.map((v,k)=>v+n[k]*w0/2),b.map((v,k)=>v+n[k]*w1/2),b.map((v,k)=>v-n[k]*w1/2),a.map((v,k)=>v-n[k]*w0/2)];}
+function frameSpiralRibbonsDisjoint(a,b){
+ if(a.length!==4||b.length!==4||[...a,...b].some(p=>p.length!==2||p.some(v=>!Number.isFinite(v))))return false;
+ const bits=new DataView(new ArrayBuffer(8)),one=1n<<52n,mask=one-1n,exact=v=>{bits.setFloat64(0,v,false);const q=bits.getBigUint64(0,false),e=Number((q>>52n)&2047n),n=(q&mask)+(e?one:0n);return{n:(q>>63n)?-n:n,e:e?e-1075:-1074};},raw=[a,b].map(r=>r.map(p=>p.map(exact))),exponents=raw.flat(2).filter(q=>q.n!==0n).map(q=>q.e);if(!exponents.length)return false;const scale=Math.min(...exponents),points=raw.map(r=>r.map(p=>p.map(q=>q.n===0n?0n:q.n<<BigInt(q.e-scale)))),cross=(p,q,r)=>(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]),sign=q=>q<0n?-1:q>0n?1:0;
+ for(const[first,second]of[[points[0],points[1]],[points[1],points[0]]]){let area=0n;for(let i=0;i<4;i++)area+=cross([0n,0n],first[i],first[(i+1)%4]);const s=sign(area);if(!s)return false;for(let i=0;i<4;i++)if(second.every(p=>sign(cross(first[i],first[(i+1)%4],p))*s<=0))return true;}return false;
+}
+
+const frameAcuteMotionCache=new Map();
+function frameAcuteExact(values){
+ const bits=new DataView(new ArrayBuffer(8)),raw=values.map(v=>{bits.setFloat64(0,v,false);const q=bits.getBigUint64(0,false),e=Number(q>>52n&2047n),n=(q&4503599627370495n)+(e?4503599627370496n:0n);return{n:q>>63n?-n:n,e:e?e-1075:-1074};}),scale=Math.min(...raw.filter(q=>q.n!==0n).map(q=>q.e));return raw.map(q=>q.n===0n?0n:q.n<<BigInt(q.e-scale));
+}
+function frameAcuteCorners(ring){
+ if(ring.length<3||ring.length>128||ring.some(p=>p.length!==2||p.some(v=>!Number.isFinite(v))))return[];
+ const q=frameAcuteExact(ring.flat()),p=ring.map((_,i)=>q.slice(i*2,i*2+2));let area=0n;for(let i=0;i<p.length;i++)area+=p[i][0]*p[(i+1)%p.length][1]-p[i][1]*p[(i+1)%p.length][0];const sign=area<0n?-1n:1n,out=[];
+ for(let i=0;i<p.length;i++){const a=p[(i+p.length-1)%p.length].map((x,k)=>x-p[i][k]),b=p[(i+1)%p.length].map((x,k)=>x-p[i][k]),dot=a[0]*b[0]+a[1]*b[1],cross=a[0]*b[1]-a[1]*b[0],absolute=cross<0n?-cross:cross;if(dot>0n&&absolute<dot&&cross*sign<0n)out.push({vertex:i,dot,cross:absolute});}return out;
+}
+function frameAcuteMotion(corner){
+ let a=corner.dot,b=corner.cross;while(b){const q=a%b;a=b;b=q;}const dot=corner.dot/a,cross=corner.cross/a,key=cross+'/'+dot;
+ let value=frameAcuteMotionCache.get(key);if(value){frameAcuteMotionCache.delete(key);frameAcuteMotionCache.set(key,value);return value;}
+ const shift=Math.max(0,Math.max(dot.toString(2).length,cross.toString(2).length)-500),theta=Math.atan2(Number(cross>>BigInt(shift)),Number(dot>>BigInt(shift))),s=Math.sin(theta/2),c=Math.cos(theta/2);
+ value={key,s,c,peak:1.6,expansion:1,contraction:.3/s,thin:.2/s,stop:.3/s,press:1,restart:1,feedRestart:.6,feedPress:.1,normalizedByW:true,containsNoBoundaryOrLayerAcceptance:true};frameAcuteMotionCache.set(key,value);while(frameAcuteMotionCache.size>64)frameAcuteMotionCache.delete(frameAcuteMotionCache.keys().next().value);return value;
+}
+function frameAcuteHalfplaneSafe(point,ring,radius){
+ const q=frameAcuteExact([...ring.flat(),...point,radius]),p=ring.map((_,i)=>q.slice(i*2,i*2+2)),P=q.slice(ring.length*2,ring.length*2+2),r=q.at(-1);let area=0n;for(let i=0;i<p.length;i++)area+=p[i][0]*p[(i+1)%p.length][1]-p[i][1]*p[(i+1)%p.length][0];const sign=area<0n?-1n:1n;
+ for(let i=0;i<p.length;i++){const A=p[i],B=p[(i+1)%p.length],x=B[0]-A[0],y=B[1]-A[1],d=(x*(P[1]-A[1])-y*(P[0]-A[0]))*sign;if(d<0n||d*d<r*r*(x*x+y*y))return false;}return true;
+}
+function frameAcuteReseat(point,ring,radius,toward){
+ const sign=Math.sign(frameAdaptiveArea(ring));let p=point.slice();for(let attempt=0;attempt<16;attempt++){if(frameAcuteHalfplaneSafe(p,ring,radius))return p;let move=0;for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),distance=sign*(dx*(p[1]-a[1])-dy*(p[0]-a[0]))/L,gain=sign*(dx*toward[1]-dy*toward[0])/L;if(distance<=radius){if(!(gain>0))return null;move=Math.max(move,(radius-distance)/gain);}}
+  const step=Math.max(move,Math.max(1,...p.map(Math.abs))*Number.EPSILON*4);p=p.map((v,k)=>v+toward[k]*step);
+ }return null;
+}
+function frameAcuteCenterAtGap(expected,ring,radius,axis){
+ const sign=Math.sign(frameAdaptiveArea(ring)),banks=ring.map((a,i)=>{const b=ring[(i+1)%ring.length],dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy),n=[-sign*dy/L,sign*dx/L];return{a,b,n,c:n[0]*a[0]+n[1]*a[1]+radius,gain:n[0]*axis[0]+n[1]*axis[1],side:n[0]*axis[1]-n[1]*axis[0]};}).filter(q=>q.gain>0),candidates=[];
+ for(const a of banks)for(const b of banks){if(a.side*b.side>=0)continue;const D=a.n[0]*b.n[1]-a.n[1]*b.n[0];if(!D)continue;const point=[(a.c*b.n[1]-a.n[1]*b.c)/D,(a.n[0]*b.c-a.c*b.n[0])/D],finite=q=>{const dx=q.b[0]-q.a[0],dy=q.b[1]-q.a[1],t=((point[0]-q.a[0])*dx+(point[1]-q.a[1])*dy)/(dx*dx+dy*dy);return t>=0&&t<=1;};if(!finite(a)||!finite(b))continue;const safe=frameAcuteReseat(point,ring,radius,axis);if(safe)candidates.push(safe);}
+ candidates.sort((a,b)=>Math.hypot(...a.map((v,k)=>v-expected[k]))-Math.hypot(...b.map((v,k)=>v-expected[k])));return candidates[0]||null;
+}
+function frameAcutePrepareTemplates(group,p,placement){
+ if(p.angleWarnings!==true||placement.status!=='fixed-fallback'||group.sourceRingIds||group.reference?.section?.ends?.length!==1)return null;
+ const section=group.reference.section,ring=frameAdaptiveUnpack(section)[0],corners=frameAcuteCorners(ring);if(corners.length!==1)return null;
+ const corner=corners[0],motion=frameAcuteMotion(corner),T=ring[corner.vertex],unit=q=>{const L=Math.hypot(...q);return q.map(v=>v/L);},a=unit(ring[(corner.vertex+ring.length-1)%ring.length].map((v,k)=>v-T[k])),b=unit(ring[(corner.vertex+1)%ring.length].map((v,k)=>v-T[k])),axis=unit(a.map((v,k)=>v+b[k])),W=p.lineWidth,sign=p.printClockwiseSign??1,templates=[];
+ if(!(W>0)||!Number.isFinite(motion.s)||motion.s<=0)return null;
+ for(let pathIndex=0;pathIndex<(group.paths||[]).length;pathIndex++){
+  const metadata=group.pathMetadata?.[pathIndex],depth=metadata?.depth;if(metadata?.boundaryRole!=='outer'||metadata.levelPath!==0||!Number.isInteger(depth)||depth<0)continue;
+  const ordered=frameClockwisePrintLoop(group.paths[pathIndex],{clockwiseSign:sign,closed:true}),old=ordered.path,acute=frameAcuteCorners(old);if(acute.length!==1)continue;
+  const tip=acute[0].vertex,V=old[tip],incoming=(tip+old.length-1)%old.length,outgoing=(tip+1)%old.length,ui=unit(old[incoming].map((v,k)=>v-V[k])),uo=unit(old[outgoing].map((v,k)=>v-V[k])),available=Math.min(Math.hypot(...old[incoming].map((v,k)=>v-V[k])),Math.hypot(...old[outgoing].map((v,k)=>v-V[k])))/W-.5,required=peak=>{const h=(peak-1)/2;return h*motion.c/motion.s+Math.sqrt(1-h*h);};if(available<required(1))continue;
+  const fit=peakRatio=>{
+   const virtual=T.map((v,k)=>v+axis[k]*depth*W/motion.s),at=gap=>virtual.map((v,k)=>v+axis[k]*gap*W/(2*motion.s)),peak=frameAcuteCenterAtGap(at(peakRatio),ring,(depth+peakRatio/2)*W,axis),narrow=frameAcuteCenterAtGap(at(1),ring,(depth+.5)*W,axis),stop=frameAcuteCenterAtGap(at(.6),ring,(depth+.3)*W,axis),offsetVertex=narrow||at(1),along=required(peakRatio),A0=offsetVertex.map((v,k)=>v+ui[k]*along*W),Q0=offsetVertex.map((v,k)=>v+uo[k]*along*W),A=frameAcuteReseat(A0,ring,W/2,axis),Q=frameAcuteReseat(Q0,ring,W/2,axis);
+   if(A&&peak){const L=Math.hypot(...A.map((v,k)=>v-peak[k]));if(L<W){const projection=A.reduce((n,v,k)=>n+(v-peak[k])*ui[k],0)/L,step=(W-L)/projection+Math.max(...A.map(Math.abs))*Number.EPSILON*8,moved=frameAcuteReseat(A.map((v,k)=>v+ui[k]*step),ring,W/2,axis);if(moved)A.splice(0,2,...moved);}}
+   if(!peak||!narrow||!stop||!A||!Q||Math.hypot(...A.map((v,k)=>v-peak[k]))<W||Math.hypot(...old[incoming].map((v,k)=>v-A[k]))<.5*W||Math.hypot(...old[outgoing].map((v,k)=>v-Q[k]))<.5*W)return null;
+   return{peakRatio,peak,narrow,stop,A,Q};
+  };
+  let fitted=fit(1.6);if(!fitted){let lo=1,hi=1.6;fitted=fit(lo);if(!fitted)continue;for(let i=0;i<48;i++){const mid=(lo+hi)/2,trial=fit(mid);if(trial){lo=mid;fitted=trial;}else hi=mid;}}
+  const {peakRatio,peak,narrow,stop,A,Q}=fitted;
+  const center=old.reduce((q,v)=>q.map((x,k)=>x+v[k]/old.length),[0,0]),points=[Q],edges=[],vertices=[{displayWidth:W,feedWidth:W,nozzleRadius:W/2}],append=(point,role,f0=W,f1=f0,display0=f0,display1=f1,extra={})=>{const from=points.at(-1);if(from[0]===point[0]&&from[1]===point[1])return;edges.push({role,feedWidthStart:f0,feedWidthEnd:f1,displayWidthStart:display0,displayWidthEnd:display1,extruding:f0>0||f1>0,nozzleRadius:W/2,...extra});points.push(point);vertices.push({displayWidth:display1,feedWidth:f1,nozzleRadius:W/2});};
+  let valid=true;for(let i=outgoing;i!==tip;i=(i+1)%old.length){const dir=unit(center.map((v,k)=>v-old[i][k])),point=frameAcuteReseat(old[i],ring,W/2,dir);if(!point){valid=false;break;}append(point,'acute-retained-clockwise-bank',W,W,W,W,{originalEdge:(i+old.length-1)%old.length,originalAxisReconstructedFromImmutableBanks:true});}if(!valid)continue;
+  append(A,'acute-retained-clockwise-bank',W,W,W,W,{originalEdge:incoming});append(peak,'acute-expansion',W,peakRatio*W,W,peakRatio*W);append(narrow,'acute-wedge-contraction',peakRatio*W,W,peakRatio*W,W);append(stop,'acute-thin-tip-feed',W,W,W,W,{thinNominalException:true,physicalNozzleRadiusUnchanged:true,minimumVirtualBankGapMM:.6*W});
+  const route=[stop,narrow,peak,A];let remaining=W,returnIndex=0;for(let i=1;i<route.length;i++){const from=points.at(-1),to=route[i],L=Math.hypot(...to.map((v,k)=>v-from[k]));if(remaining>=L){append(to,'acute-press-retrace',.1*W,.1*W,W,W,{thinNominalException:i===1,explicitPressException:true});remaining-=L;returnIndex=i;if(!remaining)break;}else{const point=from.map((v,k)=>v+(to[k]-v)*remaining/L);append(point,'acute-press-retrace',.1*W,.1*W,W,W,{explicitPressException:true,thinNominalException:i===1});remaining=0;returnIndex=i-1;break;}}
+  if(remaining>0)continue;for(let i=returnIndex+1;i<route.length;i++)append(route[i],'acute-no-feed-return',0,0,0,0,{retracesPriorDepositedAxis:true,thinNominalException:i===1});
+  const restart=frameAcuteReseat(A.map((v,k)=>v+ui[k]*.5*W),ring,W/2,axis);if(!restart)continue;append(restart,'acute-overlap-restart',.6*W,W,.6*W,W,{overlapsPriorIncomingBank:true,nominalNozzleEdgeInsideOriginalBoundary:true});
+  if(!frameAcuteHalfplaneSafe(peak,ring,peakRatio*W/2)||!frameAcuteHalfplaneSafe(narrow,ring,.5*W)||!frameAcuteHalfplaneSafe(stop,ring,.3*W))continue;
+  const box=[Math.min(...points.map(q=>q[0]))-.8*W,Math.min(...points.map(q=>q[1]))-.8*W,Math.max(...points.map(q=>q[0]))+.8*W,Math.max(...points.map(q=>q[1]))+.8*W];
+  templates.push({pathIndex,oldPath:old,originalTraversalReversed:ordered.reversed,points,edges,vertices,depth,peakRatio,sourceCorner:corner.vertex,sourceBankEdges:[(corner.vertex+ring.length-1)%ring.length,corner.vertex],motion:{...motion},box,sourceGeometryUnchanged:true,geometryQualified:true,geometryOnlyCacheSafe:true,expansionTravelMM:Math.hypot(...peak.map((v,k)=>v-A[k])),pressTravelMM:edges.reduce((n,e,i)=>n+(e.role==='acute-press-retrace'?Math.hypot(...points[i+1].map((v,k)=>v-points[i][k])):0),0),restartOverlapTravelMM:Math.hypot(...restart.map((v,k)=>v-A[k])),minimumVirtualBankGapMM:.6*W,physicalNozzleRadiusMM:W/2,thinNominalException:depth===0,independentStartWidthMM:W});
+ }return templates.length?templates:null;
+}
+function frameAcuteTemplateValid(template,W){
+ if(!template?.geometryQualified||template.physicalNozzleRadiusMM!==W/2||template.independentStartWidthMM!==W||!Number.isFinite(template.peakRatio)||template.peakRatio<1||template.peakRatio>1.6||!Array.isArray(template.points)||template.points.length>1024||template.points.some(p=>!Array.isArray(p)||p.length!==2||p.some(v=>!Number.isFinite(v)))||template.edges?.length!==template.points.length-1)return false;
+ const phases=['acute-retained-clockwise-bank','acute-expansion','acute-wedge-contraction','acute-thin-tip-feed','acute-press-retrace','acute-no-feed-return','acute-overlap-restart'];let prior=0,expansion=0,thin=0,press=0,returning=0,restart=0;
+ for(const edge of template.edges){const phase=phases.indexOf(edge.role);if(phase<prior||phase<0||edge.nozzleRadius!==W/2)return false;prior=phase;const f=phase===0?[W,W]:phase===1?[W,template.peakRatio*W]:phase===2?[template.peakRatio*W,W]:phase===3?[W,W]:phase===4?[.1*W,.1*W]:phase===5?[0,0]:[.6*W,W],display=phase===4?[W,W]:f;if(edge.feedWidthStart!==f[0]||edge.feedWidthEnd!==f[1]||edge.displayWidthStart!==display[0]||edge.displayWidthEnd!==display[1]||edge.extruding!==(phase!==5))return false;expansion+=phase===1?1:0;thin+=phase===3?1:0;press+=phase===4?1:0;returning+=phase===5?1:0;restart+=phase===6?1:0;}
+ return expansion===1&&thin===1&&press>0&&returning>0&&restart===1&&template.edges[0].role===phases[0]&&template.edges.at(-1).role===phases[6];
+}
+function frameAcuteOwnerFinalize(layer,output,references,source,originalAngles,clockwiseSign,W){
+ const {acuteCandidates,...clean}=output||{},fallback=()=>({output:clean,angleValues:originalAngles,accepted:0});if(!acuteCandidates?.length||source?.layer!==layer||!(source.faceIncidence||source.continuousFaceIncidence)?.complete)return fallback();
+ const result={...clean,paths:[],pathClosed:[],pathVertexMetadata:[],pathEdgeMetadata:[],pathOrderMetadata:[]},replacements=new Map(),currentSource={...source,faceIncidence:source.faceIncidence||source.continuousFaceIncidence},allRings=references.flatMap(r=>frameAdaptiveUnpack(r.section));let accepted=0;
+ for(const candidate of acuteCandidates){
+  const own=frameAdaptiveUnpack(candidate.section)[0],same=r=>r.length===own.length&&r.every((p,i)=>p.every((v,k)=>v===own[i][k])),foreign=allRings.filter(r=>!same(r)),plan=frameSpiralPrepareAngleBanks(candidate.section,{maxEdges:128}),proof=frameSpiralAssociateAngleFamily(plan,currentSource,{resolved:true,sourceRingId:0,originalSourceEdgeIds:plan.banks?.map(b=>b.edge),componentId:candidate.componentIndex,familyId:'acute-motion',sourceBoundaryRole:'immutable-component-material'});if(proof.status!=='associated-conservative-original-bank-inclination')continue;
+  const ids=output.pathOrderMetadata.flatMap((m,i)=>m.componentIndex===candidate.componentIndex?[i]:[]);
+  for(const template of candidate.templates){if(!frameAcuteTemplateValid(template,W))continue;const index=ids.find(i=>output.pathOrderMetadata[i].depth===template.depth&&output.pathOrderMetadata[i].levelPath===0&&output.pathClosed[i]!==false),ordered=index==null?null:frameClockwisePrintLoop(output.paths[index],{clockwiseSign,closed:true});if(!ordered||ordered.path.length!==template.oldPath.length||ordered.path.some((p,i)=>p.some((v,k)=>v!==template.oldPath[i][k])))continue;
+   let safe=true;for(const ring of foreign){const box=[Math.min(...ring.map(p=>p[0])),Math.min(...ring.map(p=>p[1])),Math.max(...ring.map(p=>p[0])),Math.max(...ring.map(p=>p[1]))];if(template.box[0]>box[2]||template.box[2]<box[0]||template.box[1]>box[3]||template.box[3]<box[1])continue;for(let i=0;i<template.edges.length&&safe;i++){if(!template.edges[i].extruding)continue;const a=template.points[i],b=template.points[i+1],r=Math.max(W/2,template.edges[i].displayWidthStart/2,template.edges[i].displayWidthEnd/2);if(frameAdaptiveInside(a,[ring])||frameAdaptiveInside(b,[ring]))safe=false;for(let j=0;j<ring.length&&safe;j++)if(frameAdaptiveSegmentDistance(a,b,ring[j],ring[(j+1)%ring.length])<r)safe=false;}}if(!safe)continue;
+   const publicProof={...proof};delete publicProof.currentIncidenceBinding;const edgeMetadata=template.edges.map(e=>({...e,componentIndex:candidate.componentIndex,currentSourceLayer:layer,sourceAngle:proof.sourceAngle,sourceAngleAssociationComplete:true,sourceAngleMethod:proof.method,sourceGeometryUnchanged:true}));
+   replacements.set(index,{paths:template.points,pathClosed:false,pathVertexMetadata:template.vertices,pathEdgeMetadata:edgeMetadata,pathOrderMetadata:{...output.pathOrderMetadata[index],role:'acute-tip-press-retrace-break',acuteProtocol:{motionKey:template.motion.key,normalizedByW:true,geometryReusedFromPreparedComponent:true,currentSourceLayer:layer,sourceAngleAssociation:publicProof,sourceCorner:template.sourceCorner,sourceBankEdges:template.sourceBankEdges,peakFeedEquivalentWidthMM:template.peakRatio*W,expansionTravelMM:template.expansionTravelMM,pressTravelMM:template.pressTravelMM,pressFeedEquivalentWidthMM:.1*W,returnHasNoFeed:true,restartFeedEquivalentWidthMM:.6*W,restartOverlapTravelMM:template.restartOverlapTravelMM,minimumVirtualBankGapMM:.6*W,physicalNozzleRadiusMM:W/2,independentStartWidthMM:W,breakAfterReturnAndOverlap:true,sourceGeometryUnchanged:true,coverageCertified:false,physicalPrintValidated:false}},angles:new Float32Array(edgeMetadata.map(e=>e.sourceAngle))});accepted++;
+  }
+ }
+ if(!accepted)return fallback();const parts=[];let at=0;for(let i=0;i<output.paths.length;i++){const n=output.paths[i].length-(output.pathClosed?.[i]===false?1:0),replacement=replacements.get(i);for(const key of['paths','pathClosed','pathVertexMetadata','pathEdgeMetadata','pathOrderMetadata'])result[key].push(replacement?replacement[key]:output[key]?.[i]??(key==='pathClosed'?true:null));parts.push(replacement?replacement.angles:originalAngles.subarray(at,at+n));at+=n;}const angles=new Float32Array(parts.reduce((n,q)=>n+q.length,0));at=0;for(const part of parts){angles.set(part,at);at+=part.length;}result.acute={paths:accepted,currentSourceLayer:layer,sourceGeometryUnchanged:true,containsNoInterCycleConnector:true};return{output:result,angleValues:angles,accepted};
+}

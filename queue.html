@@ -53,7 +53,7 @@
     <main>
       <h1>Task queue</h1>
       <p class="intro">What is being worked on, what comes next, and what is still being discussed. Priorities can change as the work reveals new constraints. Frame development is oriented toward AI-driven modeling, with people refining the result. The current site is a development build; the public product release follows completion and testing of the slicer and practical print workflow.</p>
-      <p class="updated">Updated <time datetime="2026-10-04T15:56:46.549Z">4 October 2026</time></p>
+      <p class="updated">Updated <time datetime="2026-10-04T21:22:11.660Z">4 October 2026</time></p>
       <div class="grid">
         <section aria-labelledby="current">
           <div class="section-head"><h2 id="current">Current work</h2><span class="tag active">In progress</span></div>
@@ -81,7 +81,7 @@
           <ul>
             <li><h3>Performance across Frame</h3><p>Compare full-flow elapsed time, peak memory, and correctness before and after changes throughout Frame. Report material slowdowns and avoid blanket expensive passes.</p></li>
             <li><h3>Nominal width first</h3><p>Plan paths around nominal bead width, with variable widths considered for exceptional situations rather than as the default.</p></li>
-            <li><h3>Acute corners and residual gaps</h3><p>Work out routes for corners below 45°, tiny remaining gaps, and the extrusion transitions needed to enter and leave those regions.</p></li>
+            <li><h3>Acute corners and residual gaps</h3><p>Broaden qualified routes for corners below 45°, tiny remaining gaps, and the extrusion transitions needed to enter and leave those regions.</p></li>
             <li><h3>Flat ends and corner extrusion</h3><p>Evaluate end caps and corner extrusion separately from centerline cleanup accuracy.</p></li>
             <li><h3>Boolean reliability and cost</h3><p>Compare correctness, full-engine elapsed time, and peak memory before and after on identical representative scenes, using repeatable runs. Prioritize faster broad-phase screening and local repair. Report material slowdowns and avoid blanket expensive passes. These investigations have not shipped fixes.</p></li>
           </ul>
@@ -89,6 +89,7 @@
         <section aria-labelledby="completed">
           <div class="section-head"><h2 id="completed">Recently completed</h2><span class="tag">Released</span></div>
           <ul>
+            <li><h3><span class="version">r186</span> &ndash; Acute-tip press and retrace</h3><p>The saved first-layer 30-degree acute model now expands, contracts, presses and returns without feed before a contained overlap and required break at counts 1, 2, 3 and 7. Commands and rendered bead widths agree. Prepared neck geometry avoids repeated qualification work; 54 superseded historical modules are removed while prior PWA and lazy assets remain available. See <a href="documents/R186_ACUTE_PROTOCOL.md">verification, scope and limits</a>.</p></li>
             <li><h3><span class="version">r185</span> &ndash; Acute source breaks</h3><p>Source corners below 45 degrees require a trajectory break and no longer qualify for an inward spiral connector. Ordinary acute perimeters retain their nominal width; connector-only width changes are removed. See <a href="documents/R185_ACUTE_BREAKS.md">verification and remaining acute-tip work</a>.</p></li>
             <li><h3><span class="version">r184</span> &ndash; First-layer inward spirals</h3><p>Qualified outside perimeter families print one certified clockwise inward spiral on the real saved scene's first layer at counts 2, 3 and 7. All seven prior spiral layers remain. Exact source, nozzle, angle and cumulative seam guards are retained. W-long neck transitions remain in QA. See <a href="documents/R184_FIRST_LAYER_SPIRALS.md">evidence and limits</a>.</p></li>
             <li><h3><span class="version">r183</span> &ndash; Reseat inward spiral starts</h3><p>Qualified two-level outside perimeters can choose a new seam and print as one clockwise inward spiral. Seven real saved-zoo layers now emit longer continuous routes while preserving every original boundary interval, current source angle and the cumulative overlap limit. Unsupported geometry keeps its established paths. General multi-junction spirals and transitions over one nominal width remain unfinished. See <a href="documents/R183_PERIMETER_SPIRALS.md">evidence and limits</a>.</p></li>
