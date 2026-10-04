@@ -1,0 +1,14 @@
+ 
+const manifest=JSON.parse(document.getElementById('frame-assets').textContent);
+const pending=new Map(),blobs=new Map();
+let errorPanel=null;
+function entry(id){const a=manifest.assets[id];if(!a)throw Error('Resource is unavailable: '+id);return a;}
+function url(id){return new URL(entry(id).path,document.baseURI).href;}
+function memo(key,read){if(pending.has(key))return pending.get(key);const p=Promise.resolve().then(read);pending.set(key,p);p.catch(()=>{if(pending.get(key)===p)pending.delete(key);});return p;}
+async function bytes(id){return memo('bytes:'+id,async()=>{const a=entry(id),response=await fetch(url(id));if(!response.ok)throw Error('Resource could not load: '+id);const b=await response.arrayBuffer();if(b.byteLength!==a.bytes)throw Error('Incomplete resource: '+id);const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',b))].map(x=>x.toString(16).padStart(2,'0')).join('');if(digest!==a.sha256)throw Error('Resource version mismatch: '+id);return b;});}
+function text(id){return memo('text:'+id,async()=>new TextDecoder().decode(await bytes(id)));}
+function json(id){return memo('json:'+id,async()=>{const b=await bytes(id),raw=entry(id).encoding==='gzip'?await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(b);return JSON.parse(raw);});}
+function blobURL(id,type='application/octet-stream'){return memo('blob:'+id,async()=>{const u=URL.createObjectURL(new Blob([await bytes(id)],{type}));blobs.set(id,u);return u;});}
+function report(error,retry,label='Resource could not load.'){if(!errorPanel){errorPanel=document.createElement('div');errorPanel.id='frame-resource-error';errorPanel.setAttribute('role','alert');errorPanel.style.cssText='position:fixed;left:12px;bottom:12px;max-width:360px;padding:12px;background:#242424;color:#eee;border:1px solid #888;z-index:100001;font:13px sans-serif';document.body.append(errorPanel);}errorPanel.replaceChildren();const message=document.createElement('div');message.textContent=label;message.title=error?.message||String(error);errorPanel.append(message);if(retry){const b=document.createElement('button');b.textContent='Retry';b.style.marginTop='8px';b.onclick=()=>{errorPanel?.remove();errorPanel=null;Promise.resolve().then(retry).catch(e=>report(e,retry,label));};errorPanel.append(b);}const close=document.createElement('button');close.textContent='Close';close.style.marginLeft='8px';close.onclick=()=>{errorPanel?.remove();errorPanel=null;};errorPanel.append(close);}
+async function critical(){const ids=Object.keys(manifest.assets).filter(id=>entry(id).critical);let next=0;await Promise.all(Array.from({length:Math.min(4,ids.length)},async()=>{while(next<ids.length)await bytes(ids[next++]);}));}
+export const frameAssets=Object.freeze({manifest,entry,url,bytes,text,json,blobURL,worker:id=>blobURL(id,'text/javascript'),report,critical});
