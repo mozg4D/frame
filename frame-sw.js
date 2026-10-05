@@ -30,7 +30,7 @@ self.addEventListener('fetch',event=>{
    const current=await cache.match(ROOT);if(current)return current;try{const downloaded=await downloadHTML();await cache.put(ROOT,downloaded.response.clone());return downloaded.response;}catch{return Response.error();}
   }));event.waitUntil(queue.then(()=>checkUpdate()));return;
  }
- const hash=url.pathname.match(/\.(?<hash>[a-f0-9]{20})\.(?:js|webp|json\.gz|hash\.gz)$/)?.groups.hash;
+ const hash=url.pathname.match(/\.(?<hash>[a-f0-9]{20})\.(?:js|webp|json\.gz|hash(?:\.gz)?)$/)?.groups.hash;
  if(hash){event.respondWith((async()=>{const cache=await caches.open(ASSET_CACHE),hit=await cache.match(url.href);if(hit)return hit;try{const response=await fetch(request);if(!response.ok)return response;await verified(response,hash);await cache.put(url.href,response.clone());return response;}catch{return Response.error();}})());return;}
  if(!CORE.some(path=>url.pathname===new URL(path,ROOT).pathname))return;
  event.respondWith((async()=>{const cache=await caches.open(CACHE_NAME),hit=await cache.match(url.href);if(url.pathname===new URL('manifest.webmanifest',ROOT).pathname){try{const response=await fetch(request);if(response.ok){await cache.put(url.href,response.clone());return response;}}catch{}}return hit||fetch(request);})());
