@@ -1,5 +1,5 @@
 import * as THREE2 from "three";
-import {frameAssets} from "frame-assets";
+const frameAssets=globalThis.frameAssets;
 export function createFramePrinterModule(host){
 const TYPE_PRINTER=8,framePrinters=new Map();
 const FRAME_PRINTER_DEFAULTS={startLayer:1,endLayer:3332,layerPosition:0,lineWidth:1,layerHeight:.3,initialLayerHeight:.6,perimeters:1,overhangAngle:45,minPathLength:3,finishLayerInitialized:false};

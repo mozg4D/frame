@@ -14,6 +14,10 @@ A 3D modeling workspace in your browser: build with splines and polygons, assemb
 - Slice a fixed-width inward perimeter and inspect layers with solid or Lines–Dots previews.
 - Work with desktop or touch controls; install the PWA and reopen cached application resources offline.
 
+## Native viewport
+
+The normal entry uses WebGPU with a shared device for display, selection, printer preview and camera output. Fresh capability checks run on startup and recovery; unsupported configurations show an error and Retry. No compatibility fallback is provided. See [r220 validation and limits](documents/R220_NATIVE_VIEWPORT.md) and [native sources](native-source/).
+
 ## License
 
 Frame’s original code and project materials are proprietary. © 2026 FRAME copyright holders. All rights reserved; see the [Frame license](licenses/FRAME.txt) for permitted uses. The official hosted application is free to use.

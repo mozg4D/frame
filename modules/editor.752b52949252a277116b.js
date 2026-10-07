@@ -5,7 +5,11 @@
  
  
 import * as THREE2 from "three";
-import {frameAssets} from "frame-assets";
+const frameAssets=globalThis.frameAssets;
+import * as frameNative from "frame-native";
+// Engineering activation remains explicit until material/picking parity is verified.
+const FRAME_NATIVE_VIEWPORT_REQUESTED=true;
+const frameNativeCubicCapabilities=FRAME_NATIVE_VIEWPORT_REQUESTED?new frameNative.FrameCubicWindowCapabilities({THREE:THREE2,experimentalMSAA:true,measureTextureLOD:options=>frameNative.measureFrameCubicMipCapability({...options,sampleCount:4,experimentalMSAA:true,acquireTexture:image=>{const material={map:image};return {texture:acquireSharedThreeTexture(material,image),release:()=>releaseSharedThreeTexture(material)};},installFrameProjection})}):null;
 import {createFramePrinterModule} from "frame-printer";
  
 const FRAME_DEFAULT_ENV_IMAGE=frameAssets.url('default-environment');
@@ -1739,7 +1743,7 @@ class FrameRenderer {
     this.runtime={optimize:true,queueDepth:2,profileGPU:false};this.renderBatchSize=16384;this.giBatchSize=16384;
     this.canvas=document.createElement('canvas');this.canvas.id='frame-render-canvas';this.canvas.setAttribute('aria-label','Rendered perspective');
     this.canvas.style.cssText='position:absolute;pointer-events:none;display:none;z-index:4;';container.appendChild(this.canvas);
-    this.onLost=()=>{};this.resources=[];this.sceneResources=[];this.imageResources=[];
+    this.onLost=()=>{};this.resources=[];this.sceneResources=[];this.imageResources=[];this.disposed=false;this.gpuLease=null;this.initResources=null;this.initAttempt=null;
     this.cache=null;this.cacheSlots=0;this.cacheFrame=0;this.pendingDirty=new Uint32Array(16);this.hardInvalidation=true;this.lightingKey=null;this.cacheResetReason="initial";this.cacheStatsTotals=new Float64Array(16);this.cacheStatsLast=new Uint32Array(16);
   }
   optimized(){return this.options?.optimize!==false;}
@@ -1773,26 +1777,47 @@ class FrameRenderer {
       'No reduction of SPP, resolution, bounce count, material accuracy or denoising has been introduced.']};
   }
 
+  _releaseCameraAttempt(attempt) {
+    if(!attempt)return;attempt.cancelled=true;
+    const current=this.initAttempt===attempt;
+    const resources=current?[...attempt.resources,...this.resources,...this.sceneResources,...this.imageResources,this.envTexture,this.cache]:attempt.resources;
+    for(const resource of new Set(resources))if(resource&&!attempt.freed.has(resource)){attempt.freed.add(resource);resource.destroy();}
+    if(attempt.profiler&&!attempt.profilerDestroyed){attempt.profilerDestroyed=true;attempt.profiler.destroy();}
+    if(attempt.errorListener)attempt.device?.removeEventListener('uncapturederror',attempt.errorListener);
+    attempt.lease?.release();
+    if(!current)return;
+    attempt.context?.unconfigure?.();this.initAttempt=null;this.initializing=null;this.gpuLease=null;this.device=null;
+    for(const key of ['layout','compute','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue','previewBlit','previewSampler','uniform','exposure','sampler','envSampler','indirect','context','profiler'])this[key]=null;
+    this.resources=[];this.sceneResources=[];this.imageResources=[];this.initResources=null;this.envTexture=null;this.cache=null;this.cacheSlots=0;
+    this.sceneKey=null;this.environmentKey=null;this.imageDependencies=null;this.materialTexture=null;this.materialTextureCache=null;
+  }
   async init() {
-    if(this.device&&this.compute&&this.display)return;
+    if(this.disposed)throw Error('Camera renderer disposed');
+    if(this.device&&this.compute&&this.display&&this.gpuLease?.isCurrent())return;
     if(this.initializing)return this.initializing;
-    this.initializing=(async()=>{
-      if(!navigator.gpu)throw Error(globalThis.isSecureContext===false?'WebGPU is unavailable in this context. Open FRAME on HTTPS or localhost.':'WebGPU is unavailable. Enable browser graphics acceleration and check WebGPU support in Chrome or Edge.');
-      const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});if(!adapter)throw Error('No WebGPU adapter is available.');
-      const maxStorage=Math.min(adapter.limits.maxStorageBufferBindingSize,1024*1024*1024);
-      this.device=await adapter.requestDevice({requiredFeatures:adapter.features.has('timestamp-query')?['timestamp-query']:[],requiredLimits:{maxStorageBufferBindingSize:maxStorage,maxBufferSize:Math.max(maxStorage,adapter.limits.maxBufferSize>1073741824?1073741824:adapter.limits.maxBufferSize),maxStorageBuffersPerShaderStage:8}});
-      const device=this.device,info=adapter.info||{};this.profiler?.destroy();this.profiler=new FrameGPUProfiler(device);this.stats.adapter={vendor:info.vendor||'',architecture:info.architecture||'',device:info.device||'',description:info.description||''};
-      device.addEventListener('uncapturederror',e=>{if(this.device===device)this.fail(e.error);});
-      device.lost.then(info=>{if(this.device!==device)return;this.profiler?.destroy();this.hasImage=false;this.lastImage=null;this.device=null;this.initializing=null;this.compute=null;this.display=null;this.sceneKey=null;this.environmentKey=null;this.progress=null;this.cache=null;this.cacheSlots=0;this.imageDependencies=null;this.resetLighting("device lost");this.fail(Error(info.message||'GPU device lost'));this.onLost(info);});
-      this.context=this.canvas.getContext('webgpu');if(!this.context)throw Error('Cannot create the WebGPU canvas context.');this.context.configure({device,format:'rgba8unorm',alphaMode:'opaque',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_DST});
+    const attempt={resources:[],freed:new Set(),cancelled:false,lease:null,device:null,profiler:null};this.initAttempt=attempt;
+    const check=()=>{if(this.disposed||this.initAttempt!==attempt||attempt.cancelled||!attempt.lease?.isCurrent())throw new DOMException('Camera initialization superseded','AbortError');};
+    const operation=(async()=>{
+      const lease=await frameNative.frameGpuBroker.acquire('camera-pathtracer');attempt.lease=lease;attempt.device=lease.device;check();
+      const device=lease.device,info=lease.adapter.info||{},state={device,gpuLease:lease};
+      attempt.profiler=new FrameGPUProfiler(device);state.profiler=attempt.profiler;
+      attempt.errorListener=e=>{if(this.initAttempt===attempt&&!attempt.cancelled)this.fail(e.error);};
+      device.addEventListener('uncapturederror',attempt.errorListener);state.deviceErrorListener=attempt.errorListener;
+      device.lost.then(info=>{
+        const current=this.initAttempt===attempt;this._releaseCameraAttempt(attempt);if(!current||this.disposed)return;
+        this.hasImage=false;this.lastImage=null;this.progress=null;this.resetLighting('device lost');this.fail(Error(info.message||'GPU device lost'));
+        try{this.onLost(info);}catch(error){console.error('FRAME camera loss observer:',error);}
+      });
+      state.context=attempt.context=this.canvas.getContext('webgpu');if(!state.context)throw Error('Cannot create the WebGPU canvas context.');
+      state.context.configure({device,format:'rgba8unorm',alphaMode:'opaque',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_DST});
       const shader=device.createShaderModule({code:renderShader,label:'FRAME lighting'}),display=device.createShaderModule({code:displayShader,label:'FRAME display'}),reconstruction=device.createShaderModule({code:reconstructShader,label:'FRAME variance reconstruction'}),localExposure=device.createShaderModule({code:localExposureShader,label:'FRAME local exposure'});
-      const compilation=await Promise.all([shader,display,reconstruction,localExposure].map(module=>module.getCompilationInfo()));
+      const compilation=await Promise.all([shader,display,reconstruction,localExposure].map(module=>module.getCompilationInfo()));check();
       for(const info of compilation){const errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>`${e.lineNum}:${e.linePos} ${e.message}`).join('\n'));}
       const storage=(binding,readOnly=true)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:readOnly?'read-only-storage':'storage'}});
-      this.layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},storage(1),storage(2),storage(3),storage(4),storage(5,false),storage(6,false),storage(7,false),{binding:8,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}},{binding:9,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:10,visibility:GPUShaderStage.COMPUTE,texture:{}},storage(11,false),{binding:12,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}}]});
-      const layout=device.createPipelineLayout({bindGroupLayouts:[this.layout]});
-       
-      [this.compute,this.meter,this.selectPixels,this.reconstruct,this.localExposure,this.display,this.invalidateIrradiance,this.preparePrimary,this.requestIrradiance,this.claimIrradiance,this.updateIrradiance,this.gatherIrradiance,this.traceDiffuseFallback,this.prepareIndirect,this.buildProbeQueue]=await Promise.all([
+      state.layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},storage(1),storage(2),storage(3),storage(4),storage(5,false),storage(6,false),storage(7,false),{binding:8,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}},{binding:9,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:10,visibility:GPUShaderStage.COMPUTE,texture:{}},storage(11,false),{binding:12,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}}]});
+      const layout=device.createPipelineLayout({bindGroupLayouts:[state.layout]});
+      const names=['compute','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'];
+      const pipelines=await Promise.all([
         device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'integrate'}}),
         device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'meter'}}),
         device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'selectPixels'}}),
@@ -1800,22 +1825,31 @@ class FrameRenderer {
         device.createComputePipelineAsync({layout:'auto',compute:{module:localExposure,entryPoint:'localExposure'}}),
         device.createRenderPipelineAsync({layout:'auto',vertex:{module:display,entryPoint:'vertexMain'},fragment:{module:display,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}}),
         ...['invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'].map(entryPoint=>device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint}}))
-      ]);
+      ]);check();names.forEach((name,i)=>state[name]=pipelines[i]);
       const blit=device.createShaderModule({code:previewBlitShader,label:'FRAME preview presentation'});
-      const blitInfo=await blit.getCompilationInfo();if(blitInfo.messages.some(m=>m.type==='error'))throw Error(blitInfo.messages.map(m=>m.message).join('\n'));
-      this.previewBlit=await device.createRenderPipelineAsync({layout:'auto',vertex:{module:blit,entryPoint:'vertexMain'},fragment:{module:blit,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});
-      this.previewSampler=device.createSampler({minFilter:'linear',magFilter:'linear'});
-      this.uniform=this.buffer(new Float32Array(200),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-      this.exposure=this.buffer(new Float32Array([1,0,0,0,0,0,0,0,0,0,0,0]));
-      this.sampler=device.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear',mipmapFilter:'linear'});
-      this.envSampler=device.createSampler({addressModeU:'repeat',addressModeV:'clamp-to-edge',magFilter:'linear',minFilter:'linear'});
-      this.indirect=this.buffer(new Uint32Array(12),GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST);this.resources=[this.uniform,this.exposure,this.indirect];
-    })();
-    try{await this.initializing;}catch(error){const failed=this.device;this.device=null;failed?.destroy();this.initializing=null;this.compute=null;this.display=null;throw error;}
+      const blitInfo=await blit.getCompilationInfo();check();if(blitInfo.messages.some(m=>m.type==='error'))throw Error(blitInfo.messages.map(m=>m.message).join('\n'));
+      state.previewBlit=await device.createRenderPipelineAsync({layout:'auto',vertex:{module:blit,entryPoint:'vertexMain'},fragment:{module:blit,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});check();
+      const buffer=(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC)=>{
+        check();const size=Math.max(16,(data.byteLength+3)&~3);if(size>device.limits.maxBufferSize||(usage&GPUBufferUsage.STORAGE)&&size>device.limits.maxStorageBufferBindingSize)throw Error('This scene exceeds the GPU buffer limit.');
+        const b=device.createBuffer({size,usage,mappedAtCreation:true});attempt.resources.push(b);
+        try{new Uint8Array(b.getMappedRange()).set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));b.unmap();return b;}
+        catch(error){attempt.freed.add(b);b.destroy();throw error;}
+      };
+      state.previewSampler=device.createSampler({minFilter:'linear',magFilter:'linear'});
+      state.uniform=buffer(new Float32Array(200),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+      state.exposure=buffer(new Float32Array([1,0,0,0,0,0,0,0,0,0,0,0]));
+      state.sampler=device.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear',mipmapFilter:'linear'});
+      state.envSampler=device.createSampler({addressModeU:'repeat',addressModeV:'clamp-to-edge',magFilter:'linear',minFilter:'linear'});
+      state.indirect=buffer(new Uint32Array(12),GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST);check();
+      state.resources=[state.uniform,state.exposure,state.indirect];Object.assign(this,state);
+      this.stats.adapter={vendor:info.vendor||'',architecture:info.architecture||'',device:info.device||'',description:info.description||''};
+    })();this.initializing=operation;
+    try{await operation;}catch(error){this._releaseCameraAttempt(attempt);throw error;}finally{if(this.initializing===operation)this.initializing=null;}
   }
+
   buffer(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC) {
     const size=Math.max(16,(data.byteLength+3)&~3);if(size>this.device.limits.maxBufferSize||(usage&GPUBufferUsage.STORAGE)&&size>this.device.limits.maxStorageBufferBindingSize)throw Error('This scene exceeds the GPU buffer limit.');
-    const buffer=this.device.createBuffer({size,usage,mappedAtCreation:true});new Uint8Array(buffer.getMappedRange()).set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));buffer.unmap();return buffer;
+    const buffer=this.device.createBuffer({size,usage,mappedAtCreation:true});this.initResources?.push(buffer);try{new Uint8Array(buffer.getMappedRange()).set(new Uint8Array(data.buffer,data.byteOffset,data.byteLength));buffer.unmap();return buffer;}catch(error){buffer.destroy();throw error;}
   }
   fail(error) {
     const message=error?.message||String(error);
@@ -2206,7 +2240,7 @@ class FrameRenderer {
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Could not encode the rendered image.');
     const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);return {width,height,bytes:blob.size};
   }
-  dispose() {this.stop(true);this.profiler?.destroy();for(const r of [...this.resources,...this.sceneResources,...this.imageResources,this.envTexture,this.cache])r?.destroy();this.canvas.remove();this.device?.destroy();}
+  dispose() {if(this.disposed)return;this.disposed=true;this.stop(true);this._releaseCameraAttempt(this.initAttempt);this.initializing=null;this.canvas.remove();}
 }
 
 
@@ -2536,11 +2570,15 @@ function createRenderIntegration(host) {
     const requested=p?.envMode||'default',mode=requested==='image'?'image':'default',key=mode==='image'?(p?.envImage||FRAME_DEFAULT_ENV_IMAGE):'default';
     const {vpState,envState}=host.get();if(!vpState.renderer)return;
     if(envState.inf)envState.inf.color.fromArray(temperatureRGB(p?.temperature??6500));
-    if(key===previewKey){vpState.scene.environment=previewRT?.texture||null;return;}
+    if(key===previewKey){vpState.scene.environment=vpState.renderer.isFrameNativeViewportRenderer?envState.nativeEnvironmentSource:previewRT?.texture||null;return;}
     previewKey=key;const request=++previewRequest;
     try{
       const image=mode==='image'?await imageEnvironment(p?.envImage||FRAME_DEFAULT_ENV_IMAGE):studioEnvironment(256,128);
       if(request!==previewRequest)return;
+      if(vpState.renderer.isFrameNativeViewportRenderer){
+        envState.nativeEnvironmentSource={image:{data:image.data,width:image.width,height:image.height},colorSpace:THREE.LinearSRGBColorSpace,flipY:true,minFilter:THREE.NearestFilter,magFilter:THREE.NearestFilter,version:request};
+        vpState.scene.environment=envState.nativeEnvironmentSource;host.invalidateEnvironmentMaterials();host.scheduleRender();return;
+      }
       const texture=new THREE.DataTexture(image.data,image.width,image.height,THREE.RGBAFormat,THREE.FloatType);texture.mapping=THREE.EquirectangularReflectionMapping;texture.flipY=true;texture.needsUpdate=true;
       const generator=new THREE.PMREMGenerator(vpState.renderer),target=generator.fromEquirectangular(texture);texture.dispose();generator.dispose();previewRT?.dispose();previewRT=target;vpState.scene.environment=target.texture;host.invalidateEnvironmentMaterials();host.scheduleRender();
     }catch(error){previewKey='';console.warn('Environment image:',error);}
@@ -7237,9 +7275,303 @@ async function extendedImport(buffer,format,manager){
   }
 }
 
-async function importExternalFile(file, companions=[]) {
+// STL preparation stays off the UI thread and uses the shared compute budget.
+const frameSTLJobs = new Set(), frameSTLPrepared = new WeakSet(), frameSTLPickTrees = new WeakMap(), frameSTLWireTopologies = new WeakMap();
+// Acceleration data is derived, immutable and kept out of serialized userData.
+function frameBindSTLPickTree(geometry, tree) {
+  if (!tree) return;
+  const position = geometry.attributes.position, index = geometry.index;
+  frameSTLPickTrees.set(geometry, { tree, position, index, positions: position.array, indices: index.array, pv: position.version, iv: index.version });
+}
+function frameSTLPickTree(geometry) {
+  const entry = frameSTLPickTrees.get(geometry);
+  if (!entry) return null;
+  const position = geometry.attributes.position, index = geometry.index;
+  if (entry.position === position && entry.index === index && entry.positions === position?.array && entry.indices === index?.array && entry.pv === position?.version && entry.iv === index?.version) return entry.tree;
+  frameSTLPickTrees.delete(geometry);
+  return null;
+}
+// Wire connectivity depends on the index, not on positions or normals.
+// Only the import worker and its trusted, byte-exact geometry clones bind it.
+function frameBindSTLWireIndices(geometry, edges) {
+  if (!edges) return;
+  const index = geometry.index, position = geometry.attributes.position;
+  frameSTLWireTopologies.set(geometry, { edges, index, array: index.array, version: index.version, vertices: position.count });
+}
+function frameSTLWireIndices(geometry) {
+  const entry = frameSTLWireTopologies.get(geometry);
+  if (!entry) return null;
+  const index = geometry.index;
+  if (entry.index === index && entry.array === index?.array && entry.version === index?.version && entry.vertices === geometry.attributes.position?.count) return entry.edges;
+  frameSTLWireTopologies.delete(geometry);
+  return null;
+}
+function frameImportAbortError() { return new DOMException('Import cancelled', 'AbortError'); }
+function frameImportPaint(signal) {
+  return new Promise((resolve, reject) => {
+    let first = 0, second = 0, timer = 0, settled = false;
+    const finish = error => {
+      if (settled) return; settled = true;
+      cancelAnimationFrame(first); cancelAnimationFrame(second); clearTimeout(timer);
+      document.removeEventListener('visibilitychange', visibility);
+      signal?.removeEventListener('abort', abort);
+      error ? reject(error) : resolve();
+    };
+    const abort = () => finish(signal.reason || frameImportAbortError());
+    const visibility = () => { if (document.visibilityState === 'hidden') timer = setTimeout(() => finish(), 0); };
+    signal?.addEventListener('abort', abort, { once: true });
+    document.addEventListener('visibilitychange', visibility);
+    if (signal?.aborted) { abort(); return; }
+    if (document.visibilityState === 'hidden') visibility();
+    else first = requestAnimationFrame(() => { second = requestAnimationFrame(() => finish()); });
+  });
+}
+// Keep the existing drawing stage until the submitted WebGL work is complete.
+// A zero-timeout poll yields between checks and never blocks the JavaScript thread.
+async function frameImportViewportPaint() {
+  await frameImportPaint();
+  if (document.visibilityState === 'hidden') return false;
+  const renderer=vpState.renderer;
+  if(renderer?.isFrameNativeViewportRenderer){const completed=await renderer.whenFrameReady();return vpState.renderer===renderer&&document.visibilityState!=='hidden'&&completed.status==='presentable';}
+  let gl = null, sync = null;
+  try {
+    gl = vpState.renderer?.getContext?.();
+    if (!gl || gl.isContextLost() || typeof gl.fenceSync !== 'function') return false;
+    sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    if (!sync) return false;
+    gl.flush();
+    while (document.visibilityState !== 'hidden' && !gl.isContextLost() && vpState.renderer?.getContext?.() === gl) {
+      const status = gl.clientWaitSync(sync, 0, 0);
+      if (status === gl.ALREADY_SIGNALED || status === gl.CONDITION_SATISFIED) return true;
+      if (status !== gl.TIMEOUT_EXPIRED) return false;
+      await frameImportPaint();
+    }
+  } catch {
+    // Retain the previous paint-yield fallback when sync objects are unavailable.
+  } finally {
+    if (sync) try { gl.deleteSync(sync); } catch {}
+  }
+  return false;
+}
+function frameCreateImportActivity(name) {
+  const controller = new AbortController(), panel = document.createElement('div');
+  panel.dataset.frameImportProgress = '';
+  panel.setAttribute('role', 'status'); panel.setAttribute('aria-live', 'polite');
+  panel.style.cssText = 'color:#eee;font:12px ui-monospace,monospace;line-height:1.4;overflow-wrap:anywhere;pointer-events:none';
+  let host = document.getElementById('frame-import-progress');
+  if (!host) {
+    host = document.createElement('div'); host.id = 'frame-import-progress';
+    host.style.cssText = 'position:fixed;left:12px;top:12px;z-index:100000;display:grid;gap:2px;max-width:calc(100vw - 24px);pointer-events:none';
+    document.body.append(host);
+  }
+  host.append(panel);
+  let committed = false;
+  const key = e => { if (e.key === 'Escape' && !committed) { e.preventDefault(); e.stopImmediatePropagation(); activity.cancel(); } };
+  const activity = {
+    signal: controller.signal,
+    check() { if (controller.signal.aborted) throw controller.signal.reason || frameImportAbortError(); },
+    update(label, loaded, total, unit = '') {
+      panel.textContent = name + ' · ' + label;
+      if (Number.isFinite(loaded) && Number.isFinite(total) && total > 0 && loaded >= 0 && loaded <= total) {
+        panel.textContent += ' · ' + loaded.toLocaleString() + ' / ' + total.toLocaleString() + (unit ? ' ' + unit : '');
+      }
+    },
+    async paint() { await frameImportPaint(controller.signal); this.check(); },
+    cancel() {
+      if (committed || controller.signal.aborted) return;
+      controller.abort(frameImportAbortError());
+      activity.update('Cancelling import');
+    },
+    commit() { this.check(); committed = true; removeEventListener('keydown', key, true); frameSTLJobs.delete(activity); },
+    finish() { removeEventListener('keydown', key, true); frameSTLJobs.delete(activity); panel.remove(); if (!host.children.length) host.remove(); }
+  };
+  addEventListener('keydown', key, true);
+  frameSTLJobs.add(activity); activity.update('Opening file');
+  return activity;
+}
+function frameCancelSTLImports() { for (const job of [...frameSTLJobs]) job.cancel(); }
+function frameReadImportBuffer(file, signal, report) {
+  if (!file || !Number.isFinite(file.size)) return Promise.reject(Error('Import requires a File'));
+  if (file.size <= 0) return Promise.reject(Error('Import file is empty'));
+  if (file.size > FORMAT_LIMITS.maxImportBytes) return Promise.reject(Error(`Import file exceeds ${FORMAT_LIMITS.maxImportBytes} byte limit`));
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) { reject(signal.reason || frameImportAbortError()); return; }
+    const reader = new FileReader();
+    const cleanup = () => { signal?.removeEventListener('abort', abort); reader.onload = reader.onerror = reader.onabort = reader.onprogress = null; };
+    const abort = () => { if (reader.readyState === FileReader.LOADING) reader.abort(); else { cleanup(); reject(signal.reason || frameImportAbortError()); } };
+    reader.onload = () => { const result = reader.result; cleanup(); resolve(result); };
+    reader.onerror = () => { const error = reader.error; cleanup(); reject(error || Error('File could not be read')); };
+    reader.onabort = () => { cleanup(); reject(signal?.reason || frameImportAbortError()); };
+    reader.onprogress = e => report?.('Reading file', e.lengthComputable ? e.loaded : undefined, e.lengthComputable ? e.total : undefined, 'bytes');
+    signal?.addEventListener('abort', abort, { once: true });
+    report?.('Reading file', 0, file.size, 'bytes');
+    if (signal?.aborted) { abort(); return; }
+    try { reader.readAsArrayBuffer(file); } catch (error) { cleanup(); reject(error); }
+  });
+}
+function frameParseSTLPositions(buffer, report = () => {}) {
+  const binary = buffer.byteLength >= 84 && 84 + new DataView(buffer).getUint32(80, true) * 50 === buffer.byteLength;
+  let text = null, facets = 0;
+  if (!binary) {
+    const prefix = new TextDecoder().decode(buffer.slice(0, Math.min(buffer.byteLength, 256)));
+    if (!/^\s*solid\b/i.test(prefix) || new Uint8Array(buffer, 0, Math.min(buffer.byteLength, 256)).includes(0))
+      throw Error('binary STL length does not match triangle count');
+    report('Validating ASCII STL');
+    text = new TextDecoder().decode(buffer);
+    const tokenRE = /\b(?:facet|endfacet|vertex|endloop|endsolid)\b/gi;
+    let token, vertices = 0, ends = 0, loops = 0, closed = false;
+    while ((token = tokenRE.exec(text))) {
+      switch (token[0].toLowerCase()) {
+        case 'facet': facets++; break; case 'vertex': vertices++; break;
+        case 'endfacet': ends++; break; case 'endloop': loops++; break; case 'endsolid': closed = true; break;
+      }
+    }
+    if (!facets || vertices !== facets * 3 || ends !== facets || loops !== facets || !closed) throw Error('truncated or malformed ASCII STL');
+  }
+  let lastReport = -Infinity;
+  const progress = (done, total) => {
+    const now = performance.now();
+    if (done === 0 || done === total || now - lastReport >= 40) { report('Parsing STL', done, total, 'triangles'); lastReport = now; }
+  };
+  if (binary) {
+    const dv = new DataView(buffer), count = dv.getUint32(80, true);
+    if (!count) throw Error('empty STL');
+    const positions = new Float32Array(count * 9); progress(0, count);
+    for (let face = 0; face < count; face++) {
+      for (let j = 0; j < 9; j++) {
+        const value = dv.getFloat32(84 + face * 50 + 12 + j * 4, true);
+        if (!Number.isFinite(value)) throw Error('STL contains a non-finite vertex');
+        positions[face * 9 + j] = value;
+      }
+      if ((face & 4095) === 4095) progress(face + 1, count);
+    }
+    progress(count, count); return positions;
+  }
+  const positions = new Float32Array(facets * 9), faceRE = /\bfacet\s+normal\s+([\s\S]*?)\bendfacet\b/gi, number = '[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?';
+  const vertexRE = new RegExp('\\bvertex\\s+(' + number + ')\\s+(' + number + ')\\s+(' + number + ')', 'gi');
+  let face, total = 0, at = 0; progress(0, facets);
+  while ((face = faceRE.exec(text))) {
+    let match, vertices = 0; vertexRE.lastIndex = 0;
+    if (!/\bouter\s+loop\b/i.test(face[1]) || !/\bendloop\b/i.test(face[1])) throw Error('malformed ASCII STL loop');
+    while ((match = vertexRE.exec(face[1]))) {
+      vertices++;
+      for (let k = 1; k <= 3; k++) {
+        const value = Math.fround(Number(match[k]));
+        if (!Number.isFinite(value)) throw Error('STL contains a non-finite vertex');
+        positions[at++] = value;
+      }
+    }
+    if (vertices !== 3) throw Error('ASCII STL facet must have three vertices');
+    total++; if ((total & 4095) === 0) progress(total, facets);
+  }
+  if (!total) throw Error('STL contains no triangles');
+  // Match the parser's accepted facets, including files with unused text records.
+  progress(total, facets); return at === positions.length ? positions : positions.slice(0, at);
+}
+function frameSTLGeometryBounds(positions) {
+  const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < positions.length; i += 3) for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], positions[i + k]); max[k] = Math.max(max[k], positions[i + k]); }
+  const center = min.map((v, k) => (v + max[k]) * 0.5); let radiusSq = 0;
+  for (let i = 0; i < positions.length; i += 3) {
+    const x = center[0] - positions[i], y = center[1] - positions[i + 1], z = center[2] - positions[i + 2];
+    radiusSq = Math.max(radiusSq, x * x + y * y + z * z);
+  }
+  return { min, max, center, radius: Math.sqrt(radiusSq) };
+}
+function frameSTLWorkerMain() {
+  self.onmessage = ({ data }) => {
+    try {
+      const report = (stage, loaded, total, unit) => self.postMessage({ stage, loaded, total, unit });
+      const source = frameParseSTLPositions(data.buffer, report), indices = Uint32Array.from({ length: source.length / 3 }, (_, i) => i);
+      // Conventional STL Z-up -> Frame Y-up, a proper rotation using only an
+      // exact Float32 component permutation and sign change, before topology.
+      for (let i = 0; i < source.length; i += 3) {
+        const y = source[i + 1], z = source[i + 2];
+        source[i + 1] = z; source[i + 2] = -y;
+      }
+      report('Preparing mesh topology');
+      const prepared = polygonCreaseData(source, indices, data.creaseCos, null, 1, false, true);
+      report('Preparing render geometry');
+      // Keep the preparation and installation passes in their original order.
+      const installed = polygonCreaseData(prepared.positions, prepared.indices, data.creaseCos, null, 1, false, true);
+      const origin = installed.indices.length / 3 <= 8192 && prepared.positions.length <= 73728 ? { version: 1, positions: prepared.positions, indices: prepared.indices } : null;
+      const result = { positions: installed.positions, normals: installed.normals, indices: installed.indices, origin, bounds: frameSTLGeometryBounds(installed.positions), vertices: source.length / 3, triangles: source.length / 9 };
+      if (installed.indices.length >= 30000) {
+        report('Preparing object picking');
+        result.pickTree = prepareSplineBVH(installed.positions, installed.indices);
+        report('Preparing wireframe');
+        result.wireIndices = frameWireIndices({ count: installed.positions.length / 3 }, { count: installed.indices.length, getX: i => installed.indices[i] });
+      }
+      const transfer = [result.positions.buffer, result.normals.buffer, result.indices.buffer];
+      if (result.pickTree) transfer.push(result.pickTree.bvhBounds.buffer, result.pickTree.bvhChildren.buffer, result.pickTree.bvhOrder.buffer);
+      if (result.wireIndices) transfer.push(result.wireIndices.buffer);
+      if (origin) transfer.push(origin.positions.buffer, origin.indices.buffer);
+      self.postMessage({ result }, transfer);
+    } catch (error) { self.postMessage({ error: error?.message || String(error) }); }
+  };
+}
+async function framePrepareSTLWorker(buffer, activity) {
+  const signal = activity?.signal;
+  activity?.update('Waiting for geometry worker');
+  const release = await frameComputeBudget.acquire('native', signal);
+  let worker, url;
+  try {
+    activity?.check();
+    const source = [frameParseSTLPositions, frameSTLGeometryBounds, polygonCreaseData, prepareSplineBVH, frameWireIndices].map(fn => fn.toString()).join('\n') + '\n(' + frameSTLWorkerMain.toString() + ')();';
+    url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
+    return await new Promise((resolve, reject) => {
+      let settled = false;
+      const finish = (error, value) => { if (settled) return; settled = true; signal?.removeEventListener('abort', abort); error ? reject(error) : resolve(value); };
+      const abort = () => { worker?.terminate(); finish(signal.reason || frameImportAbortError()); };
+      signal?.addEventListener('abort', abort, { once: true });
+      try {
+        if (signal?.aborted) { abort(); return; }
+        worker = new Worker(url, { name: 'stl-import' });
+        worker.onerror = e => finish(Error(e.message || 'STL worker failed'));
+        worker.onmessageerror = () => finish(Error('STL worker returned an unreadable result'));
+        worker.onmessage = ({ data }) => {
+          if (data.error) finish(Error('STL: ' + data.error));
+          else if (data.result) finish(null, data.result);
+          else if (data.stage) activity?.update(data.stage, data.loaded, data.total, data.unit);
+        };
+        worker.postMessage({ buffer, creaseCos: CREASE_COS }, [buffer]);
+      } catch (error) { finish(error); }
+    });
+  } finally { worker?.terminate(); if (url) URL.revokeObjectURL(url); release(); }
+}
+function frameClonePreparedSTLGeometry(source) {
+  if (!frameSTLPrepared.has(source) || !polygonCreaseGeometryCurrent(source)) return null;
+  const geometry = source.clone(), origin = frameContourOrigins.get(source);
+  markPolygonCreaseGeometry(geometry); frameSTLPrepared.add(geometry);
+  frameBindSTLPickTree(geometry, frameSTLPickTree(source));
+  frameBindSTLWireIndices(geometry, frameSTLWireIndices(source));
+  if (origin) frameContourOrigins.bind(geometry, origin);
+  return geometry;
+}
+async function frameLoadSTL(file, activity) {
+  const buffer = await frameReadImportBuffer(file, activity?.signal, (...args) => activity?.update(...args));
+  const bytes = buffer.byteLength, prepared = await framePrepareSTLWorker(buffer, activity);
+  activity?.check(); activity?.update('Preparing materials');
+  if (activity) await activity.paint();
+  const geometry = new THREE.BufferGeometry(), b = prepared.bounds;
+  geometry.setAttribute('position', new THREE.BufferAttribute(prepared.positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(prepared.normals, 3));
+  geometry.setIndex(new THREE.BufferAttribute(prepared.indices, 1));
+  geometry.boundingBox = new THREE.Box3(new THREE.Vector3(...b.min), new THREE.Vector3(...b.max));
+  geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(...b.center), b.radius);
+  markPolygonCreaseGeometry(geometry); frameSTLPrepared.add(geometry);
+  frameBindSTLPickTree(geometry, prepared.pickTree);
+  frameBindSTLWireIndices(geometry, prepared.wireIndices);
+  if (prepared.origin) frameContourOrigins.bind(geometry, prepared.origin, true);
+  const root = new THREE.Group();
+  root.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 12108234, side: THREE.DoubleSide, name: 'STL material' })));
+  return { format: 'stl', root, curves: [], warnings: ['STL contains tessellated geometry only; hierarchy, materials and units are not encoded. Conventional Z-up coordinates are converted to Frame Y-up.'], diagnostics: { meshes: 1, vertices: prepared.vertices, triangles: prepared.triangles }, bytes };
+}
+
+async function importExternalFile(file, companions=[], activity=null) {
   let format = extOf(file?.name);
   if (!SUPPORTED_IMPORT_FORMATS.includes(format)) throw new Error(`Unsupported import format .${format || "?"}`);
+  if (format === "stl") return frameLoadSTL(file, activity);
   let buffer = await fileBuffer(file), warnings = [], root = null, curves = [];
   const resources=importResources(file,companions),manager=resources.manager;
   try {
@@ -7276,36 +7608,6 @@ async function importExternalFile(file, companions=[]) {
     } catch (error) {
       fail(format, error.message || "parse failed");
     }
-  } else if (format === "stl") {
-    const binary = buffer.byteLength >= 84 && 84 + new DataView(buffer).getUint32(80,true)*50 === buffer.byteLength;
-    if(!binary){
-      const prefix = new TextDecoder().decode(buffer.slice(0,Math.min(buffer.byteLength,256)));
-      if(!/^\s*solid\b/i.test(prefix) || new Uint8Array(buffer,0,Math.min(buffer.byteLength,256)).includes(0))
-        fail(format,"binary STL length does not match triangle count");
-      const text = new TextDecoder().decode(buffer), tokens=text.match(/\b(?:facet|endfacet|vertex|endloop|endsolid)\b/gi)||[];
-      let facets=0,vertices=0,ends=0,loops=0,closed=false;
-      for(const token of tokens){switch(token.toLowerCase()){case 'facet':facets++;break;case 'vertex':vertices++;break;case 'endfacet':ends++;break;case 'endloop':loops++;break;case 'endsolid':closed=true;break;}}
-      if(!facets||vertices!==facets*3||ends!==facets||loops!==facets||!closed)fail(format,"truncated or malformed ASCII STL");
-    }
-    let geometry;
-    try {
-      let positions;
-      if(binary){
-        const dv=new DataView(buffer),count=dv.getUint32(80,true);if(!count)throw Error('empty STL');positions=new Float32Array(count*9);
-        for(let face=0;face<count;face++)for(let j=0;j<9;j++){const value=dv.getFloat32(84+face*50+12+j*4,true);if(!Number.isFinite(value))throw Error('STL contains a non-finite vertex');positions[face*9+j]=value;}
-      }else{
-        const text=new TextDecoder().decode(buffer),values=[],faceRE=/\bfacet\s+normal\s+([\s\S]*?)\bendfacet\b/gi,number='[+-]?(?:\\d+\\.?\\d*|\\.\\d+)(?:e[+-]?\\d+)?';
-        const vertexRE=new RegExp('\\bvertex\\s+('+number+')\\s+('+number+')\\s+('+number+')','gi');let face,total=0;
-        while((face=faceRE.exec(text))){let match,vertices=0;vertexRE.lastIndex=0;
-          if(!/\bouter\s+loop\b/i.test(face[1])||!/\bendloop\b/i.test(face[1]))throw Error('malformed ASCII STL loop');
-          while((match=vertexRE.exec(face[1]))){vertices++;for(let k=1;k<=3;k++){const value=Math.fround(Number(match[k]));if(!Number.isFinite(value))throw Error('STL contains a non-finite vertex');values.push(value);}}
-          if(vertices!==3)throw Error('ASCII STL facet must have three vertices');total++;
-        }
-        if(!total)throw Error('STL contains no triangles');positions=new Float32Array(values);
-      }
-      geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.computeVertexNormals();geometry.computeBoundingBox();geometry.computeBoundingSphere();
-    } catch (error) { fail(format,error.message||'parse failed'); }
-    root = new THREE.Group(), root.add(new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color: 12108234, side: THREE.DoubleSide, name: "STL material" }))), warnings.push("STL contains tessellated geometry only; hierarchy, materials, units and up axis are not encoded");
   } else if (format === "ply") {
     let header = new TextDecoder().decode(buffer.slice(0, Math.min(buffer.byteLength, 65536))), end = header.search(/^end_header\s*$/m);
     (!header.startsWith("ply") || end < 0) && fail(format, "missing PLY header/end_header");
@@ -7408,7 +7710,13 @@ async function exportExternalScene({ root, curves = [] }, format, options = {}) 
     data = new OBJExporter().parse(root), mime = "text/plain", attachments = [{ name: "scene.mtl", blob: new Blob([mtlText(root)], { type: "text/plain" }) }], warnings.push("OBJ is tessellated and transform-flattened; hierarchy/instances are represented as named objects. MTL is a companion file.");
   } else if (format === "stl") {
     let { STLExporter } = await import("three/addons/exporters/STLExporter.js");
-    data = new STLExporter().parse(root, { binary: options.binary !== !1 }), mime = options.binary === !1 ? "model/stl" : "application/octet-stream", warnings.push("STL exports tessellated triangles only; names, hierarchy, materials, normals/UV and units metadata are unavailable. Coordinates remain millimetres.");
+    // Export a private hierarchy with the exact inverse axis permutation.
+    // Geometry buffers and the authored hierarchy remain untouched.
+    root.updateMatrixWorld(true);
+    const stlRoot = root.clone(true); stlRoot.matrixAutoUpdate = false;
+    stlRoot.matrix.copy(root.matrixWorld).premultiply(new THREE.Matrix4().set(1,0,0,0, 0,0,-1,0, 0,1,0,0, 0,0,0,1));
+    stlRoot.updateMatrixWorld(true);
+    data = new STLExporter().parse(stlRoot, { binary: options.binary !== !1 }), mime = options.binary === !1 ? "model/stl" : "application/octet-stream", warnings.push("STL exports tessellated triangles only; names, hierarchy, materials, normals/UV and units metadata are unavailable. Coordinates remain millimetres and use conventional Z-up.");
   } else if (format === "ply") {
     let { PLYExporter } = await import("three/addons/exporters/PLYExporter.js");
     data = await loaderResult((ok, bad) => new PLYExporter().parse(root, ok, bad, { binary: options.binary !== !1, excludeAttributes: options.excludeAttributes || [] }), format), mime = options.binary === !1 ? "text/plain" : "application/octet-stream", warnings.push("PLY exports a flattened element list; hierarchy, instances and transforms are baked.");
@@ -7424,8 +7732,9 @@ function pointSegmentDistanceSq(px2, py2, ax, ay, bx, by) {
 }
 function createVisibleFacePicker() {
   let target = null;
-  return function({ renderer, pickMeshes: pickMeshes2, meshToHash: meshToHash2, selectedHashes, rect, box, camera }) {
+  function* steps({ renderer, pickMeshes: pickMeshes2, meshToHash: meshToHash2, selectedHashes, rect, box, camera }, cooperative=false) {
     let scene = new THREE2.Scene(), ids = /* @__PURE__ */ new Map(), nextId = 1;
+    try {
     for (let [h2, mesh] of pickMeshes2) {
       if (!mesh.visible || !mesh.geometry?.attributes.position) continue;
       mesh.updateMatrixWorld(!0);
@@ -7433,6 +7742,7 @@ function createVisibleFacePicker() {
       if (clone.matrixAutoUpdate = !1, clone.matrix.copy(mesh.matrixWorld), selectedHashes.has(h2)) {
         let src = mesh.geometry, pos = src.attributes.position, idx = src.index, tris = idx ? idx.count / 3 : pos.count / 3, np = new Float32Array(tris * 9), nc = new Float32Array(tris * 9);
         for (let fi = 0; fi < tris; fi++) {
+          if((fi&1023)===1023)yield;
           let id2 = nextId++, rgb = [(id2 & 255) / 255, (id2 >> 8 & 255) / 255, (id2 >> 16 & 255) / 255];
           ids.set(id2, { h: h2, fi });
           for (let j = 0; j < 3; j++) {
@@ -7449,15 +7759,19 @@ function createVisibleFacePicker() {
     let bx0 = Math.max(0, Math.floor(box.x0 - rect.x)), bx1 = Math.min(rect.w, Math.ceil(box.x1 - rect.x)), by0 = Math.max(0, Math.floor(box.y0 - rect.y)), by1 = Math.min(rect.h, Math.ceil(box.y1 - rect.y)), bw = Math.max(1, bx1 - bx0), bh = Math.max(1, by1 - by0), scale = Math.max(1, Math.min(4, Math.sqrt(4e6 / (bw * bh)))), w = Math.max(1, Math.ceil(bw * scale)), h = Math.max(1, Math.ceil(bh * scale));
     (!target || target.width !== w || target.height !== h) && (target?.dispose(), target = new THREE2.WebGLRenderTarget(w, h, { depthBuffer: !0 }));
     let oldProjection = camera.projectionMatrix.clone(), oldProjectionInverse = camera.projectionMatrixInverse.clone(), oldView = camera.view ? { ...camera.view } : null;
-    camera.setViewOffset(rect.w, rect.h, bx0, by0, bw, bh);
-    let old = renderer.getRenderTarget();
-    renderer.setRenderTarget(target), renderer.setScissorTest(!1), renderer.setViewport(0, 0, w, h), renderer.setClearColor(0, 0), renderer.clear(!0, !0, !0), renderer.render(scene, camera);
-    let pixels = new Uint8Array(w * h * 4);
-    renderer.readRenderTargetPixels(target, 0, 0, w, h, pixels), renderer.setRenderTarget(old), camera.view = oldView, camera.projectionMatrix.copy(oldProjection), camera.projectionMatrixInverse.copy(oldProjectionInverse), scene.traverse((o) => {
-      o.geometry && o.userData.idGeometry && o.geometry.dispose(), o.material?.dispose();
-    });
+    const old = renderer.getRenderTarget(), pixels = new Uint8Array(w * h * 4);let pending;
+    try {
+      camera.setViewOffset(rect.w, rect.h, bx0, by0, bw, bh);
+      renderer.setRenderTarget(target), renderer.setScissorTest(!1), renderer.setViewport(0, 0, w, h), renderer.setClearColor(0, 0), renderer.clear(!0, !0, !0), renderer.render(scene, camera);
+      if(cooperative)pending=renderer.readRenderTargetPixelsAsync(target,0,0,w,h,pixels);
+      else renderer.readRenderTargetPixels(target,0,0,w,h,pixels);
+    } finally {
+      renderer.setRenderTarget(old);camera.view=oldView;camera.projectionMatrix.copy(oldProjection);camera.projectionMatrixInverse.copy(oldProjectionInverse);
+    }
+    if(pending)yield pending;
     let out = /* @__PURE__ */ new Map();
     for (let i = 0; i < pixels.length; i += 4) {
+      if((i&65535)===65532)yield;
       let rec2 = ids.get(pixels[i] | pixels[i + 1] << 8 | pixels[i + 2] << 16);
       if (rec2) {
         let faces = out.get(rec2.h);
@@ -7465,8 +7779,11 @@ function createVisibleFacePicker() {
       }
     }
     return out;
-  };
+    } finally {scene.traverse(o=>{if(o.geometry&&o.userData.idGeometry)o.geometry.dispose();o.material?.dispose();});}
+  }
+  const pick=options=>frameDrainSelectionWork(steps(options,false));pick.steps=steps;return pick;
 }
+
 
  
 const {TYPE_PRINTER,framePrinters,FRAME_PRINTER_DEFAULTS,framePrinterLayerY,frameIsPrinter,framePrinterEnabled,framePrinterFrame,framePrinterNoSkew,framePrinterSources,framePrinterClear,framePrinterDispose,framePrinterEnsure,framePrinterUpdate,framePrinterTransformsChanged,framePrinterGrid,framePrinterDepthRange,framePrinterStatus,framePrinterLayerLimit,framePrinterValidateSettings,framePrinterSetField,framePrinterSetDisplayMode,framePrinterDebugMesh,framePrinterAttributes,framePrinterCount,framePrinterRange,framePrinterBuildDisplay,framePrinterPickIndex,framePrinterNavigationHit,framePrinterPreviewVisible,framePrinterPositionAccessors,framePrinterSnapshotPositions,frameSlicerTask,framePrinterSlice,framePrinterState,framePrinterGetLayer,framePrinterPreviewActive,framePrinterRender,framePrinterInitialize}=createFramePrinterModule({get frameContourOriginSnapshot(){return g=>frameContourOrigins.get(g);},get objParams(){return objParams;},get OBJ(){return OBJ;},get worldMatrix(){return worldMatrix;},get rigidFrame(){return rigidFrame;},get consumesGeneratorChildren(){return consumesGeneratorChildren;},get pickMeshes(){return pickMeshes;},get derivedState(){return derivedState;},get vpState(){return vpState;},get viewShading(){return viewShading;},get effectiveVisible(){return effectiveVisible;},get selNodes(){return selNodes;},get attrContent(){return attrContent;},get setNumericInputDisplay(){return setNumericInputDisplay;},get scheduleRender(){return scheduleRender;},get PR(){return PR;},get attrRow(){return attrRow;},get attrInput(){return attrInput;},get panelsEl(){return panelsEl;},get obWrapH(){return obWrapH;},set obWrapH(value){obWrapH=value;},get relayoutStrip(){return relayoutStrip;},get frameComputeBudget(){return frameComputeBudget;},get activateTab(){return activateTab;},get addPlain(){return addPlain;},get setObjField(){return setObjField;},get treeChanged(){return treeChanged;}});
@@ -8117,21 +8434,21 @@ function liveWireGeometry(src) {
    
    
   const library=libraryGeometrySources.get(src),template=library&&library.index===idx&&idx.version===0?library.template:null;
-  const cached=wireTopologyCache.get(src),current=cached&&cached.index===idx&&cached.version===(idx?.version||0)&&cached.vertices===pos.count;
-  let edgeIndices=template?.wireIndices||(current?cached.indices:null);
+  const cached=wireTopologyCache.get(src),current=cached&&cached.index===idx&&cached.array===idx?.array&&cached.version===(idx?.version||0)&&cached.vertices===pos.count;
+  let edgeIndices=template?.wireIndices||frameSTLWireIndices(src)||(current?cached.indices:null);
   if(!edgeIndices){
     edgeIndices=frameWireIndices(pos,idx);
-    wireTopologyCache.set(src,{index:idx,version:idx?.version||0,vertices:pos.count,indices:edgeIndices});
+    wireTopologyCache.set(src,{index:idx,array:idx?.array,version:idx?.version||0,vertices:pos.count,indices:edgeIndices});
     if(template)template.wireIndices=edgeIndices;
   }
   const g=new THREE2.BufferGeometry();g.setAttribute('position',frameWirePosition(pos));g.setIndex(new THREE2.BufferAttribute(edgeIndices,1));
-  g.userData.sourcePosition=pos;g.userData.sourceGeometry=src;g.userData.sourceIndex=idx;g.userData.indexVersion=idx?.version||0;g.userData.positionVersion=pos.version??pos.data?.version??0;g.userData.indexedWire=true;
+  g.userData.sourcePosition=pos;g.userData.sourceGeometry=src;g.userData.sourceIndex=idx;g.userData.sourceIndexArray=idx?.array;g.userData.indexVersion=idx?.version||0;g.userData.positionVersion=pos.version??pos.data?.version??0;g.userData.indexedWire=true;
   g.boundingSphere=src.boundingSphere?.clone()||null;return g;
 }
 function updateLiveWireGeometry(wire, src) {
   if(wire?.geometry?.userData.preparedSpline&&wire.geometry.userData.sourceGeometry===src){const a=wire.geometry.attributes.position;if(a.array!==src.userData.splineWire)return false;const v=src.attributes.position?.version||0;if(wire.geometry.userData.positionVersion!==v){a.needsUpdate=true;wire.geometry.boundingSphere=null;wire.geometry.userData.positionVersion=v;}return true;}
   const g=wire?.geometry,pos=src?.attributes.position;
-  if(!g?.userData.indexedWire||g.userData.sourceGeometry!==src||g.userData.sourceIndex!==src.index||g.userData.indexVersion!==(src.index?.version||0)||!pos)return false;
+  if(!g?.userData.indexedWire||g.userData.sourceGeometry!==src||g.userData.sourceIndex!==src.index||g.userData.sourceIndexArray!==src.index?.array||g.userData.indexVersion!==(src.index?.version||0)||!pos)return false;
   if(g.userData.sourcePosition!==pos||g.attributes.position.count!==pos.count)return false;
   const version=pos.version??pos.data?.version??0;
   if(g.userData.positionVersion!==version){
@@ -8143,7 +8460,8 @@ function updateLiveWireGeometry(wire, src) {
 
 function ensureWireOverlays(mode = 2) {
   for (let [h, mesh] of pickMeshes)
-    if (mesh.isMesh && mesh.geometry && !wireOverlays.has(h) && effectiveVisible(h) && (mode===2 || mode===4&&!hasIsoparmCage(h))) {
+    if (mesh.isMesh && mesh.geometry && effectiveVisible(h) && (mode===2 || mode===4&&!hasIsoparmCage(h))) {
+      if (wireOverlays.has(h)) { refreshWireOverlay(mesh); continue; }
       let wg = liveWireGeometry(mesh.geometry), wl = new THREE2.LineSegments(wg, new THREE2.LineBasicMaterial({ color: 0, transparent: !0, opacity: 0.4, depthTest: !0, depthWrite: !1 }));
       biasSplineLineMaterial(wl.material);
       wl.userData._wireOverlay = !0, wl.matrixAutoUpdate = !1, wl.renderOrder = LAYER_OBJ + 1, wl.visible = !1, mesh.add(wl), wireOverlays.set(h, wl);
@@ -9150,6 +9468,9 @@ function replicaAggregate(root){
 function installReplicaBatches(h,state,parts){
   const started=performance.now(),root=state.mesh,grouped=new Map();
   for(const part of parts){const key=part.batchKey+'|'+part.flip;let list=grouped.get(key);if(!list)grouped.set(key,list=[]);list.push(part);}
+  const identityGeneration=(state.replicaIdentityGeneration||0)+1;state.replicaIdentityGeneration=identityGeneration;
+  const partIdentities=new WeakMap(),seenIdentities=new Set(),duplicateIdentities=new Set();
+  for(const part of parts)if(part.componentMapped){const id=JSON.stringify([part.sourceHash,part.occurrencePath.map((step,i)=>[i===0?h:step.ownerHash,step.kind,step.id])]);partIdentities.set(part,id);if(seenIdentities.has(id))duplicateIdentities.add(id);seenIdentities.add(id);}
   if(!root.userData.replicaBatches){disposeSplineChunks(state);root.geometry.dispose();const wire=wireOverlays.get(h);if(wire){wire.removeFromParent();wire.geometry.dispose();wire.material.dispose();wireOverlays.delete(h);}
     root.userData.splineChunks=new Map();root.userData.replicaBatches=true;root.boundingBox=new THREE2.Box3();root.isMesh=false;root.matrix.identity();
     Object.defineProperty(root,'geometry',{configurable:true,enumerable:true,get(){return replicaAggregate(this);},set(g){this.userData.splineAggregate=g;}});
@@ -9169,6 +9490,23 @@ function installReplicaBatches(h,state,parts){
     batch.geometry.userData={...first.g.userData};batch.geometry.setIndex(first.g.index);batch.geometry.boundingBox=first.g.boundingBox?.clone()||null;batch.geometry.boundingSphere=first.g.boundingSphere?.clone()||null;
     if(batch.userData.chunkWire.geometry.attributes.position.array!==first.wire){const wire=batch.userData.chunkWire;wire.geometry.dispose();wire.material.dispose();wire.removeFromParent();batch.userData.chunkWire=replicaInstancedLine(first.wire,batch.instanceMatrix);batch.add(batch.userData.chunkWire);}
     batch.userData.cellId=cellId++;batch.userData.replicaSource=first;batch.count=list.length;batch.userData.chunkWire.geometry.instanceCount=list.length;
+  const occurrences=list.map((part,localInstance)=>{
+    const occurrencePath=Object.freeze(part.occurrencePath.map((step,i)=>Object.freeze({...step,ownerHash:i===0?h:step.ownerHash})));
+    const duplicate=duplicateIdentities.has(partIdentities.get(part)),mapped=part.componentMapped===true&&!duplicate;
+    const row={localInstance,sourceObjectId:part.sourceHash,sourceGeometry:part.sourceGeometry,vertexIds:part.vertexIds,faceIds:part.faceIds,componentMapped:mapped,identityReason:duplicate?'Duplicate occurrence path':part.identityReason??null,occurrencePath,instanceId:mapped?JSON.stringify(occurrencePath.map(step=>[step.ownerHash,step.kind,step.id])):null,generation:identityGeneration};
+    row.isCurrent=()=>state.replicaIdentityGeneration===identityGeneration&&root.userData.splineChunks.get(key)===batch&&batch.userData.replicaOccurrences===occurrences&&batch.count===occurrences.length&&occurrences[localInstance]===row&&part.sourceCurrent();
+    return Object.freeze(row);
+  });
+  batch.userData.replicaOccurrences=Object.freeze(occurrences);
+  const unique=new Set(),complete=occurrences.every(row=>{
+    const id=JSON.stringify([row.instanceId,row.sourceObjectId]);
+    if(!row.componentMapped||!row.sourceGeometry||row.sourceGeometry!==first.sourceGeometry||row.vertexIds!==first.vertexIds||row.faceIds!==first.faceIds||unique.has(id))return false;
+    unique.add(id);return true;
+  });
+  batch.userData.replicaIdentity=complete?Object.freeze({objectId:h,batchId:JSON.stringify([h,key]),sourceGeometry:first.sourceGeometry,vertexIds:first.vertexIds,faceIds:first.faceIds,instances:Object.freeze(occurrences.map(row=>Object.freeze({instanceId:row.instanceId,sourceObjectId:row.sourceObjectId}))),isCurrent:()=>state.replicaIdentityGeneration===identityGeneration&&batch.userData.replicaIdentity===identity&&occurrences.every(row=>row.isCurrent())}):null;
+  const identity=batch.userData.replicaIdentity;
+  batch.userData.replicaIdentityError=complete?null:occurrences.find(row=>!row.componentMapped)?.identityReason||'Duplicate occurrence path or incompatible authored maps';
+    
      
      
     for(let i=0;i<list.length;i++){tmp.multiplyMatrices(batch.matrix,list[i].matrix);batch.setMatrixAt(i,tmp);const g=list[i].g;if(!g.boundingBox)g.computeBoundingBox();root.boundingBox.union(box.copy(g.boundingBox).applyMatrix4(list[i].matrix));}
@@ -9283,17 +9621,45 @@ function replicaSourceWire(g) {
   replicaWireCache.set(g,{position,index,pv:position.version,iv:index?.version,array});tmp.dispose();return array;
 }
 function replicaRenderParts(hashes,anchor,copies,sourceFrames=null) {
-  const bases=[],parts=[];
-  function append(mesh,matrix,sourceHash,hasIsoparms){
-    if(mesh.userData.splineChunks&&frameMorphTag(sourceHash)&&!mesh.userData.replicaBatches){const geometry=splineAggregateGeometry(mesh),proxy={geometry,material:mesh.userData.splineAggregateMaterials,userData:{}};append(proxy,matrix,sourceHash,hasIsoparms);return;}
-    if(mesh.userData.splineChunks){for(const c of mesh.userData.splineChunks.values())append(c,matrix.clone().multiply(c.matrix),sourceHash,c.userData.replicaSource?.hasIsoparms??hasIsoparms);return;}
-    if(mesh.isInstancedMesh){const im=new THREE2.Matrix4(),proxy={geometry:mesh.geometry,material:mesh.material,userData:{}};for(let i=0;i<mesh.count;i++){mesh.getMatrixAt(i,im);append(proxy,matrix.clone().multiply(im),sourceHash,hasIsoparms);}return;}
+  const bases=[],parts=[],sourceStamps=new WeakMap();
+  // Null maps mean exact raw IDs of this canonical leaf geometry, without
+  // allocating an identity array for every source vertex during regeneration.
+  function sourceIdentity(mesh,sourceHash,componentMapped=true,reason=null,path=[]){
+    const g=mesh.geometry;let stamp=sourceStamps.get(mesh);
+    if(!stamp){
+      const attrs=[g.attributes.position,g.index],states=attrs.map(a=>a?[a,a.array??a.data?.array,a.version??a.data?.version,a.count,a.itemSize,a.normalized,a.data,a.offset,a.data?.stride]:null);
+      const same=(a,s)=>!s?!a:!!a&&[a,a.array??a.data?.array,a.version??a.data?.version,a.count,a.itemSize,a.normalized,a.data,a.offset,a.data?.stride].every((v,i)=>Object.is(v,s[i]));
+      stamp=()=>mesh.geometry===g&&same(g.attributes.position,states[0])&&same(g.index,states[1]);sourceStamps.set(mesh,stamp);
+    }
+    return {sourceHash,sourceGeometry:g,vertexIds:null,faceIds:null,componentMapped,identityReason:reason,occurrencePath:path,sourceCurrent:()=>stamp()&&(!componentMapped||evaluatedSurfaceMesh(sourceHash)===mesh)};
+  }
+  function append(mesh,matrix,placementSourceHash,hasIsoparms,inherited=null){
+    if(mesh.userData.splineChunks&&frameMorphTag(placementSourceHash)&&!mesh.userData.replicaBatches){const geometry=splineAggregateGeometry(mesh),proxy={geometry,material:mesh.userData.splineAggregateMaterials,userData:{}};append(proxy,matrix,placementSourceHash,hasIsoparms,sourceIdentity(proxy,placementSourceHash,false,'Generated aggregate has no authored raw-ID map'));return;}
+    if(mesh.userData.splineChunks){for(const c of mesh.userData.splineChunks.values())append(c,matrix.clone().multiply(c.matrix),placementSourceHash,c.userData.replicaSource?.hasIsoparms??hasIsoparms,mesh.userData.replicaBatches?null:sourceIdentity(c,placementSourceHash,false,'Generated chunk has no authored raw-ID map',[{ownerHash:placementSourceHash,kind:'draw',id:c.uuid}]));return;}
+    if(mesh.isInstancedMesh){
+      const im=new THREE2.Matrix4(),proxy={geometry:mesh.geometry,material:mesh.material,userData:{}},occurrences=mesh.userData.replicaOccurrences,binding=mesh.userData.replicaIdentity;
+      for(let i=0;i<mesh.count;i++){
+        const candidate=occurrences?.length===mesh.count?occurrences[i]:null,row=candidate?.localInstance===i&&Array.isArray(candidate.occurrencePath)&&typeof candidate.isCurrent==='function'?candidate:null;
+        const identity=row?{sourceHash:row.sourceObjectId,sourceGeometry:row.sourceGeometry,vertexIds:row.vertexIds,faceIds:row.faceIds,componentMapped:!!binding&&row.componentMapped,identityReason:binding?row.identityReason:mesh.userData.replicaIdentityError??'Source batch has no authored occurrence binding',occurrencePath:row.occurrencePath,sourceCurrent:()=>mesh.userData.replicaIdentity===binding&&mesh.userData.replicaOccurrences===occurrences&&occurrences[i]===row&&row.isCurrent()}:sourceIdentity(mesh,placementSourceHash,false,'Source instance has no authored occurrence binding',[...(inherited?.occurrencePath??[]),{ownerHash:placementSourceHash,kind:'unbound-instance',id:mesh.uuid+':'+i}]);
+        mesh.getMatrixAt(i,im);append(proxy,matrix.clone().multiply(im),placementSourceHash,hasIsoparms,identity);
+      }
+      return;
+    }
     const g=mesh.geometry;if(!g?.attributes.position?.count)return;if(!g.attributes.normal)g.computeVertexNormals();
+    const identity=inherited??sourceIdentity(mesh,placementSourceHash),sourceHash=identity.sourceHash;
     const materials=Array.isArray(mesh.material)?mesh.material:[mesh.material];
-    bases.push({g,mesh,sourceHash,matrix,materials,hasIsoparms,wire:replicaSourceWire(g),batchKey:g.uuid+'|'+sourceHash+'|'+materials.map(m=>m?.uuid).join(',')});
+    bases.push({g,mesh,sourceHash,placementSourceHash,matrix,materials,hasIsoparms,wire:replicaSourceWire(g),batchKey:g.uuid+'|'+sourceHash+'|'+materials.map(m=>m?.uuid).join(','),...identity});
   }
   for(const h of hashes){const mesh=evaluatedSurfaceMesh(h);if(!mesh)continue;mesh.updateWorldMatrix(true,true);append(mesh,replicaMeshMatrix(h,mesh,anchor,sourceFrames),h,hasIsoparmCage(h));}
-  for(const copy of copies)for(const base of bases){const matrix=replicaPlacedMatrix(copy,base.matrix,sourceFrames?.get(base.sourceHash));parts.push({...base,matrix,flip:matrix.determinant()<0});}
+  for(let ci=0;ci<copies.length;ci++){
+    const copy=copies[ci],copyId=copy._replicaIndex??ci;
+    for(const base of bases){
+      // Placement uses the original input owner, independently of leaf identity.
+      const matrix=replicaPlacedMatrix(copy,base.matrix,sourceFrames?.get(base.placementSourceHash));
+      const validCopy=Number.isSafeInteger(copyId)&&copyId>=0;
+      parts.push({...base,matrix,flip:matrix.determinant()<0,componentMapped:base.componentMapped&&validCopy,identityReason:validCopy?base.identityReason:'Invalid replica copy identity',occurrencePath:[{ownerHash:null,kind:'copy',id:copyId},...base.occurrencePath]});
+    }
+  }
   return parts;
 }
 function installReplicaParts(h,state,parts) {
@@ -9544,10 +9910,10 @@ const objectPickInverse=new THREE2.Matrix4(),objectPickRay=new THREE2.Ray(),obje
 function geometryPickBVH(g){
  const p=g?.attributes.position,index=g?.index;if(!p||p.isInterleavedBufferAttribute||!index)return null;
  let cache=objectPickBVHs.get(g);
- if(!cache||cache.position!==p||cache.index!==index||cache.pv!==p.version||cache.iv!==index.version){
-  const started=performance.now(),prepared=g.userData.splineBVH;
+ if(!cache||cache.position!==p||cache.index!==index||cache.pa!==p.array||cache.ia!==index.array||cache.pv!==p.version||cache.iv!==index.version){
+  const started=performance.now(),prepared=g.userData.splineBVH||frameSTLPickTree(g);
   const tree=prepared&&(!cache||cache.prepared!==prepared)?prepared:prepareSplineBVH(p.array,index.array);
-  cache={position:p,index,pv:p.version,iv:index.version,prepared,...tree};objectPickBVHs.set(g,cache);
+  cache={position:p,index,pa:p.array,ia:index.array,pv:p.version,iv:index.version,prepared,...tree};objectPickBVHs.set(g,cache);
   phasePerformance.bvhBuilds++;phasePerformance.bvhMilliseconds+=performance.now()-started;phasePerformance.bvhBackend='packed';
  }
  return cache;
@@ -13002,6 +13368,7 @@ function rebuildFromBytes(bytes,scene=NativeHash.decode(bytes)) {
  for(const [h,n] of OBJ){if(n.parent)OBJ.get(n.parent).children.push(h);else rootOrder.push(h);}const branches=[...OBJ.values()].filter(n=>n.children.length);treeAllFolded=!!branches.length&&branches.every(n=>n.folded);treeFoldSnapshot=treeAllFolded?new Map(branches.map(n=>[n.hash,false])):null;setBrowserIcon();buildSceneFromObjects();
 }
 function clearScene() {
+  frameCancelSTLImports();
   if(typeof frameMorphEditing!=="undefined"&&frameMorphEditing)frameMorphEndPoseEdit({undo:false});
   disposeSurfaceBatches();
   disposeLibraryBatches();
@@ -13245,6 +13612,7 @@ var vpState = {
   orthoGridObjs: null
 }, _raf = 0, renderPerformance = { frames: 0, totalMilliseconds: 0, lastMilliseconds: 0, maxMilliseconds: 0 };
 function scheduleRender() {
+  if(vpState.renderer)frameWarmNativeTopology();
   if(nativeSceneLoading)return;
   _raf || (_raf = requestAnimationFrame(() => {
     _raf = 0, render();
@@ -13255,7 +13623,10 @@ function render() {
   framePrinterUpdate();
   frameSyncCamera();frameUpdateCameraHelpers();
   let { renderer, views, singleView, mode, fullRect, quadRects, W, H } = vpState;
-  if (!renderer) return;
+  if (!renderer || renderer.isFrameNativeViewportRenderer && !renderer.ready) return;
+  const native=renderer.isFrameNativeViewportRenderer,bridge=renderer.bridge,generation=renderer.generation,reportRevision=vpState.nativeViewportReportRevision||0;
+  try {
+  if(native)renderer.beginFrame();
   let renderStarted = performance.now();vpState.scene.updateMatrixWorld(true);renderer.info.reset();
   quantRotateHudRings.forEach((ring) => ring.visible = !1);
   for (let [h, t] of threeOf)
@@ -13271,6 +13642,17 @@ function render() {
   let elapsed = performance.now() - renderStarted;
   renderPerformance.frames++, renderPerformance.totalMilliseconds += elapsed, renderPerformance.lastMilliseconds = elapsed, renderPerformance.maxMilliseconds = Math.max(renderPerformance.maxMilliseconds, elapsed);
   frameRenderController?.observe();
+  if(native){
+    const frame=renderer.endFrame();
+    const sameFrame=()=>vpState.renderer===renderer&&renderer.lastFrame===frame&&renderer.bridge===bridge&&renderer.generation===generation&&!renderer.disposed&&(vpState.nativeViewportReportRevision||0)===reportRevision;
+    frame.then(result=>{if(sameFrame()&&renderer.ready&&bridge?.lease.isCurrent()&&result.status==='presentable')frameNativeViewportReport(null);},error=>{
+      if(!sameFrame())return;
+      if(error.name==='AbortError'&&renderer.ready&&bridge?.lease.isCurrent()){scheduleRender();return;}
+      frameNativeViewportReport(error);
+    });
+  }
+  if(brackets.fading&&(mode==="single"?[views[singleView]]:views).some(frameSelectionBracketVisible))scheduleRender();
+  }catch(error){if(!native)throw error;renderer.failFrame(error);frameNativeViewportReport(error);}
 }
 var _cdV = new THREE2.Vector3(), _cdD = new THREE2.Vector3(), _cdEye = new THREE2.Vector3(), _cdBox = new THREE2.Box3();
 function computeSceneDepthRange(cam, view) {
@@ -13379,6 +13761,7 @@ function renderWithSplineEditCages(cam) {
 function renderView(view, r, vi) {
   if (!r) return;
   let { renderer } = vpState, cam = view.cam;
+  if(renderer.isFrameNativeViewportRenderer)renderer.shadingMode=['solid','wire','solid+wire','spline-cage','solid+spline-cage'][viewShading[vi]||0];
   for (let [h, t] of threeOf) t.visible = effectiveVisible(h) || splinePatchCageVisible(h, viewShading[vi]);
   renderer.setViewport(r.x, vpState.H - r.y - r.h, r.w, r.h), renderer.setScissor(r.x, vpState.H - r.y - r.h, r.w, r.h), vpState.orthoGridObjs.forEach((g) => g.visible(!1));
   let polyInThisView = polyHover.view === vi;
@@ -13772,7 +14155,10 @@ function applyGizmo(view, r) {
     if (smallRing) {
       const flatWorld=view.type!=="persp"&&!gizmoLocal,offPx=flatWorld?FLAT_WORLD_SMALLRING_OFF_PX:SMALLRING_OFF_PX;
       let gNdc = _vp.copy(gizmo.pos).project(cam), ndcY = gNdc.y + offPx * mobileScale / (r.h / 2);
-      _v.set(gNdc.x, ndcY, gNdc.z).unproject(cam), smallRing.position.copy(_v), smallRing.quaternion.copy(cam.quaternion), smallRing.scale.setScalar(SMALLRING_PX * mobileScale * pw), smallRing.visible = !0, smallRing.updateMatrixWorld(!0);
+      if([gNdc.x,ndcY,gNdc.z].every(Number.isFinite)){
+        _v.set(gNdc.x, ndcY, gNdc.z).unproject(cam);
+        if([_v.x,_v.y,_v.z].every(Number.isFinite))smallRing.position.copy(_v), smallRing.quaternion.copy(cam.quaternion), smallRing.scale.setScalar(SMALLRING_PX * mobileScale * pw), smallRing.visible = !0, smallRing.updateMatrixWorld(!0);
+      }
     }
     sector && (sector.position.copy(gizmo.pos), sector.quaternion.copy(cam.quaternion), sector.scale.setScalar((view.type!=="persp"&&!gizmoLocal?FLAT_WORLD_SECTOR_PX:RING_PX) * mobileScale * pw), sector.visible = !0, sector.updateMatrixWorld(!0));
   }
@@ -13808,15 +14194,18 @@ function axisFromFr(fr, w) {
   let s = w === "X" ? fr.sx : w === "Y" ? fr.sy : fr.sz, b = w === "X" ? BX : w === "Y" ? BY : BZ;
   return _av.copy(b).applyQuaternion(fr.orientQuat).multiplyScalar(s).clone();
 }
-function drawBrackets(view,r){
+function frameSelectionBracketVisible(view){
   const pathEdit=[...selNodes].some(frameIsMotionPath)&&(splineSelection.handles.size>0||splineSelection.vertices.size>0);
   const ownCamera=selNodes.size===1&&selNodes.has(frameActiveCamera())&&vpState.views.indexOf(view)===frameCameraView;
-  const B=brackets;if(!B.line||!B.visible||!B.has||pathEdit||ownCamera||frameAnimationBracketHidden||componentModeArmed||frameCurves?.editing){if(B.line)B.line.visible=false;return;}
+  const B=brackets;return !!(B.line&&B.visible&&B.has&&!pathEdit&&!ownCamera&&!frameAnimationBracketHidden&&!componentModeArmed&&!frameCurves?.editing);
+}
+function drawBrackets(view,r){
+  const B=brackets;if(!frameSelectionBracketVisible(view)){if(B.line)B.line.visible=false;return;}
   const mn=B.min,mx=B.max,C=[[mn.x,mn.y,mn.z],[mx.x,mn.y,mn.z],[mx.x,mx.y,mn.z],[mn.x,mx.y,mn.z],[mn.x,mn.y,mx.z],[mx.x,mn.y,mx.z],[mx.x,mx.y,mx.z],[mn.x,mx.y,mx.z]],E=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];let i=0;
   for(const [a,b] of E){for(const v of C[a])B.pos[i++]=v;for(const v of C[b])B.pos[i++]=v;}B.geo.attributes.position.needsUpdate=true;B.geo.setDrawRange(0,24);B.line.material.opacity=B.opacity;B.line.visible=true;
 }
 function fadeTick() {
-  brackets.fading && (render(), brackets.fading && requestAnimationFrame(fadeTick));
+  if(brackets.fading)scheduleRender();
 }
 var hovObj = null, hRay = new THREE2.Raycaster(), hNdc = new THREE2.Vector2(), vertexDepthMat = new THREE2.MeshBasicMaterial({ colorWrite: !1, depthWrite: !0, depthTest: !0, side: THREE2.FrontSide }), edgePickMat = new THREE2.ShaderMaterial({ depthTest: !0, depthWrite: !1, toneMapped: !1, uniforms: { res: { value: new THREE2.Vector2(1, 1) }, width: { value: 64 } }, vertexShader: "attribute vec3 other; attribute float side; attribute vec3 color; varying vec3 vColor; uniform vec2 res;uniform float width;void main(){vec4 a=projectionMatrix*modelViewMatrix*vec4(position,1.);vec4 b=projectionMatrix*modelViewMatrix*vec4(other,1.);vec2 delta=(b.xy/b.w-a.xy/a.w)*res;vec2 d=length(delta)>1e-6?normalize(delta):vec2(1.,0.);vec2 n=vec2(-d.y,d.x);a.xy+=n*side*width/res*a.w;vColor=color;gl_Position=a;}", fragmentShader: "varying vec3 vColor;void main(){gl_FragColor=vec4(vColor,1.);}" }), edgeHoverPick = { scene: new THREE2.Scene(), records: /* @__PURE__ */ new Map(), ids: /* @__PURE__ */ new Map(), target: null, pixels: new Uint8Array(0) };
  
@@ -13890,6 +14279,7 @@ function renderEdgeIds(cam, r, wire, width, box = null) {
   return renderer.setRenderTarget(edgeHoverPick.target), renderer.setClearColor(0, 0), renderer.clear(!0, !0, !0), renderer.render(edgeHoverPick.scene, cam), box && (cam.view = oldView, cam.projectionMatrix.copy(oldProjection), cam.projectionMatrixInverse.copy(oldProjectionInverse)), { renderer, old, w, h, bx0, by0, bw, bh, scale, cropped: !!box };
 }
 function gpuHoverEdge(cx, cy, cam, r, wire = !1, R = EDIT_HIT_PX) {
+  if(vpState.renderer?.isFrameNativeViewportRenderer)return frameNativeEdgeRequest(cx,cy,cam,r,R);
   let pass = renderEdgeIds(cam, r, wire, 3);
   if (!pass) return null;
   let { renderer, old, w, h } = pass, x = Math.round(cx - r.x), y = Math.round(cy - r.y), x0 = Math.max(0, x - R), y0 = Math.max(0, y - R), rw = Math.min(w, x + R + 1) - x0, rh = Math.min(h, y + R + 1) - y0, n = rw * rh * 4;
@@ -13919,6 +14309,19 @@ function logicalVertexGroups(geometry) {
   }
   let groupOf = new Array(pos.count);
   for (let group of groups) for (let vi of group) groupOf[vi] = group;
+  return vertexGroupCache.set(geometry, groups), vertexGroupOfCache.set(geometry, groupOf), groups;
+}
+function* frameLogicalVertexGroupsWork(geometry) {
+  let groups = vertexGroupCache.get(geometry);
+  if (groups) return groups;
+  let pos = geometry.attributes.position, byPosition = /* @__PURE__ */ new Map();
+  groups = [];
+  for (let i = 0; i < pos.count; i++) {
+    let key = `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`, group = byPosition.get(key);
+    group || (group = [], byPosition.set(key, group), groups.push(group)), group.push(i);if((i&1023)===1023)yield;
+  }
+  let groupOf = new Array(pos.count);
+  let work=0;for (let group of groups) for (let vi of group){groupOf[vi] = group;if((++work&1023)===0)yield;}
   return vertexGroupCache.set(geometry, groups), vertexGroupOfCache.set(geometry, groupOf), groups;
 }
 function logicalVertexGroup(geometry, vi) {
@@ -14111,12 +14514,28 @@ function logicalEdges(geometry) {
   }
   return logicalEdgeCache.set(geometry, edges), edges;
 }
-function faceAdjacency(geometry) {
+function* frameLogicalEdgesWork(geometry) {
+  let edges = logicalEdgeCache.get(geometry);
+  if (edges) return edges;
+  let pos = geometry.attributes.position, index = geometry.index, triangles = index ? index.count / 3 : pos.count / 3, byPosition = /* @__PURE__ */ new Map();
+  edges = [];let work=0;
+  let positionKey = (i) => `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
+  for (let fi = 0; fi < triangles; fi++) for (let j = 0; j < 3; j++) {
+    let a = index ? index.getX(fi * 3 + j) : fi * 3 + j, b = index ? index.getX(fi * 3 + (j + 1) % 3) : fi * 3 + (j + 1) % 3, ka = positionKey(a), kb = positionKey(b), logicalKey = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`, edge = byPosition.get(logicalKey);
+    edge || (edge = { a, b, keys: [] }, byPosition.set(logicalKey, edge), edges.push(edge));
+    let key = polyEdgeKey(a, b);
+    edge.keys.includes(key) || edge.keys.push(key);if((++work&1023)===0)yield;
+  }
+  return logicalEdgeCache.set(geometry, edges), edges;
+}
+function faceAdjacency(geometry){return frameDrainSelectionWork(frameFaceAdjacencyWork(geometry));}
+function* frameFaceAdjacencyWork(geometry) {
   let adjacency = faceAdjacencyCache.get(geometry);
   if (adjacency) return adjacency;
   let pos = geometry.attributes.position, index = geometry.index, faces = index ? index.count / 3 : pos.count / 3, byEdge = /* @__PURE__ */ new Map(), key = (i) => `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
-  adjacency = Array.from({ length: faces }, () => []);
+  adjacency = new Array(faces);for(let i=0;i<faces;i++){adjacency[i]=[];if((i&2047)===2047)yield;}
   for (let fi = 0; fi < faces; fi++) {
+    if((fi&511)===511)yield;
     let ids = [index ? index.getX(fi * 3) : fi * 3, index ? index.getX(fi * 3 + 1) : fi * 3 + 1, index ? index.getX(fi * 3 + 2) : fi * 3 + 2];
     for (let j = 0; j < 3; j++) {
       let a = key(ids[j]), b = key(ids[(j + 1) % 3]), edge = a < b ? a + "|" + b : b + "|" + a, list = byEdge.get(edge);
@@ -14128,20 +14547,187 @@ function faceAdjacency(geometry) {
   }
   return faceAdjacencyCache.set(geometry, adjacency), adjacency;
 }
-function expandVisibleFaceSeeds(mesh, seeds, cam, r, box) {
-  let g = mesh.geometry, pos = g.attributes.position, index = g.index, faces = index ? index.count / 3 : pos.count / 3, adjacency = faceAdjacency(g), candidate = new Uint8Array(faces), facing = new Int8Array(faces), a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3(), ab = new THREE2.Vector3(), ac = new THREE2.Vector3(), center = new THREE2.Vector3(), view = new THREE2.Vector3();
+function expandVisibleFaceSeeds(mesh,seeds,cam,r,box){return frameDrainSelectionWork(frameExpandVisibleFaceWork(mesh,seeds,cam,r,box));}
+function* frameExpandVisibleFaceWork(mesh, seeds, cam, r, box) {
+  let g = mesh.geometry, pos = g.attributes.position, index = g.index, faces = index ? index.count / 3 : pos.count / 3, adjacency = yield* frameFaceAdjacencyWork(g), candidate = new Uint8Array(faces), facing = new Int8Array(faces), a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3(), ab = new THREE2.Vector3(), ac = new THREE2.Vector3(), center = new THREE2.Vector3(), view = new THREE2.Vector3();
   mesh.updateMatrixWorld(!0);
   for (let fi = 0; fi < faces; fi++) {
+    if((fi&1023)===1023)yield;
     let ia = index ? index.getX(fi * 3) : fi * 3, ib = index ? index.getX(fi * 3 + 1) : fi * 3 + 1, ic = index ? index.getX(fi * 3 + 2) : fi * 3 + 2;
     a.fromBufferAttribute(pos, ia).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, ib).applyMatrix4(mesh.matrixWorld), c.fromBufferAttribute(pos, ic).applyMatrix4(mesh.matrixWorld), robustTriRect(projectPx(a, cam, r), projectPx(b, cam, r), projectPx(c, cam, r), box) && (candidate[fi] = 1, center.copy(a).add(b).add(c).multiplyScalar(1 / 3), view.copy(cam.position).sub(center), facing[fi] = ab.subVectors(b, a).cross(ac.subVectors(c, a)).dot(view) >= 0 ? 1 : -1);
   }
   let positive = 0, negative = 0;
-  for (let fi of seeds) candidate[fi] && (facing[fi] > 0 ? positive++ : negative++);
+  let workCount=0;for (let fi of seeds){candidate[fi] && (facing[fi] > 0 ? positive++ : negative++);if((++workCount&1023)===0)yield;}
   let side = positive >= negative ? 1 : -1, out = /* @__PURE__ */ new Set(), queue = [];
-  for (let fi of seeds) candidate[fi] && facing[fi] === side && (out.add(fi), queue.push(fi));
-  for (let qi = 0; qi < queue.length; qi++) for (let next of adjacency[queue[qi]]) candidate[next] && facing[next] === side && !out.has(next) && (out.add(next), queue.push(next));
+  for (let fi of seeds){candidate[fi] && facing[fi] === side && (out.add(fi), queue.push(fi));if((++workCount&1023)===0)yield;}
+  for (let qi = 0; qi < queue.length; qi++){if((qi&1023)===1023)yield;for (let next of adjacency[queue[qi]]) candidate[next] && facing[next] === side && !out.has(next) && (out.add(next), queue.push(next));}
   return out;
 }
+var frameNativePickerLane=null,frameNativePickerOwner=null,frameNativePickerAdapter=null,frameNativePickerCapture=null;
+var frameNativeHoverIntent=0,frameNativeExternalSelection=0,frameNativeClickCommit=false,frameNativeClickQueue=Promise.resolve(),frameNativeOwnerSignature=null;
+function frameNativePickerError(error){if(error?.name!=='AbortError')frameNativeViewportReport(error);}
+function frameAfterPicker(value,commit){return value?.then?value.then(commit):commit(value);}
+// Pick authoring drawables without reading a generated root's lazy aggregate.
+function frameNativePickerDrawables(){
+  const out=[];
+  for(const [h,root]of pickMeshes){
+    const seen=new Set();
+    const visit=(mesh,path)=>{
+      if(!mesh||seen.has(mesh))return;seen.add(mesh);
+      const chunks=mesh.userData?.splineChunks;
+      if(chunks){for(const [key,child]of chunks)visit(child,path.concat(String(key)));return;}
+      if(mesh.isMesh||mesh.isInstancedMesh){
+        const geometry=mesh.geometry;
+        if(geometry?.attributes?.position?.count)out.push({h,root,mesh,geometry,path});
+        return;
+      }
+      for(const child of mesh.children??[])visit(child,path.concat(child.uuid??String(child.id)));
+    };
+    visit(root,[]);
+  }
+  return out;
+}
+const frameNativeRibbonHistory=new WeakMap();let frameNativeRibbonSerial=0;
+function frameNativePickerRibbonOrder(mesh,geometry){
+  let row=frameNativeRibbonHistory.get(mesh);
+  if(!row||row.geometry!==geometry){row={geometry,order:++frameNativeRibbonSerial};frameNativeRibbonHistory.set(mesh,row);}
+  return row.order;
+}
+function frameNativePickerSourceGuard(){
+  const roots=[...pickMeshes],sources=frameNativePickerDrawables().map(q=>{
+    const {mesh,geometry:g}=q,attributes=Object.entries(g.attributes).map(([key,a])=>({key,a,version:a.version,array:a.array,count:a.count})),i=g.index;
+    const im=mesh.instanceMatrix,ic=mesh.instanceColor,identity=mesh.userData?.replicaIdentity;
+    return {...q,attributes,i,iv:i?.version,ia:i?.array,indexCount:i?.count,matrix:mesh.matrixWorld.elements.slice(),count:mesh.count,
+      im,imVersion:im?.version,imArray:im?.array,imCount:im?.count,ic,icVersion:ic?.version,icArray:ic?.array,icCount:ic?.count,
+      drawRange:[g.drawRange.start,g.drawRange.count],groups:JSON.stringify(g.groups),identity,occurrences:mesh.userData?.replicaOccurrences,visible:effectiveVisible(q.h)};
+  });
+  const same=(a,b)=>a.length===b.length&&a.every((x,i)=>Object.is(x,b[i]));
+  return ()=>{
+    if(roots.length!==pickMeshes.size||!roots.every(([h,root])=>pickMeshes.get(h)===root))return false;
+    const now=frameNativePickerDrawables();
+    return now.length===sources.length&&sources.every((q,k)=>{
+      const n=now[k],m=q.mesh,g=q.geometry;
+      return n.h===q.h&&n.root===q.root&&n.mesh===m&&n.geometry===g&&same(n.path,q.path)&&
+        q.attributes.length===Object.keys(g.attributes).length&&q.attributes.every(a=>g.attributes[a.key]===a.a&&a.a.version===a.version&&a.a.array===a.array&&a.a.count===a.count)&&
+        g.index===q.i&&q.i?.version===q.iv&&q.i?.array===q.ia&&q.i?.count===q.indexCount&&same(q.matrix,m.matrixWorld.elements)&&m.count===q.count&&
+        m.instanceMatrix===q.im&&q.im?.version===q.imVersion&&q.im?.array===q.imArray&&q.im?.count===q.imCount&&
+        m.instanceColor===q.ic&&q.ic?.version===q.icVersion&&q.ic?.array===q.icArray&&q.ic?.count===q.icCount&&
+        same(q.drawRange,[g.drawRange.start,g.drawRange.count])&&q.groups===JSON.stringify(g.groups)&&
+        m.userData?.replicaIdentity===q.identity&&m.userData?.replicaOccurrences===q.occurrences&&(!q.identity?.isCurrent||q.identity.isCurrent())&&q.visible===effectiveVisible(q.h);
+    });
+  };
+}
+function frameNativeMarqueeSourceGuard(vi){
+  const context=frameNativePickerGuard(vi,'marquee'),items=polySelection.items,coordinate=coordMode,exact=polyExactEdgeVertices,uv=uvEdit,soft=vertexTools.soft.active;
+  return ()=>context()&&items===polySelection.items&&coordinate===coordMode&&exact===polyExactEdgeVertices&&uv===uvEdit&&soft===vertexTools.soft.active&&componentModeArmed&&polyFocusActive()&&!splineFocusActive();
+}
+
+function frameNativePickerGuard(vi,kind){
+  const renderer=vpState.renderer,bridge=renderer.bridge,view=vpState.views[vi],cam=view.cam,rect={...rectFor(vi)},mode=vpState.mode,single=vpState.singleView,shading=viewShading[vi];
+  const state=[sceneStateToken,sceneMutationSequence,frameAnimationRevision,frameEvaluatedTime,componentModeArmed,polyMode,polyElementMode,vertexTools.mode,frameNativeExternalSelection];
+  const revision=framePolySelectionRevision,owners=[...selNodes],camera=[...cam.matrixWorld.elements,...cam.matrixWorldInverse.elements,...cam.projectionMatrix.elements],pose=[...cam.position.toArray(),...cam.quaternion.toArray(),cam.zoom,cam.near,cam.far];
+  const sourcesCurrent=frameNativePickerSourceGuard();
+  const same=(a,b)=>a.length===b.length&&a.every((x,i)=>Object.is(x,b[i]));
+  return ()=>vpState.renderer===renderer&&renderer.ready&&renderer.bridge===bridge&&bridge.lease.isCurrent()&&view===vpState.views[vi]&&cam===view.cam&&mode===vpState.mode&&single===vpState.singleView&&shading===viewShading[vi]&&['x','y','w','h'].every(k=>Object.is(rect[k],rectFor(vi)?.[k]))&&same(state,[sceneStateToken,sceneMutationSequence,frameAnimationRevision,frameEvaluatedTime,componentModeArmed,polyMode,polyElementMode,vertexTools.mode,frameNativeExternalSelection])&&(['click','queued-click'].includes(kind)||revision===framePolySelectionRevision)&&(kind==='queued-click'||owners.length===selNodes.size&&owners.every(h=>selNodes.has(h)))&&same(camera,[...cam.matrixWorld.elements,...cam.matrixWorldInverse.elements,...cam.projectionMatrix.elements])&&same(pose,[...cam.position.toArray(),...cam.quaternion.toArray(),cam.zoom,cam.near,cam.far])&&sourcesCurrent();
+}
+function frameNativeCapturePickerView({renderer,scene,camera,captured}){
+  const request=frameNativePickerCapture;if(!request||scene!==vpState.scene||camera!==vpState.views[request.vi].cam)return;
+  const {vi,kind}=request,r=rectFor(vi),ratio=renderer.getPixelRatio(),width=renderer.domElement.width,height=renderer.domElement.height;
+  const coords=frameNative.pickerCoordinates({canvasRect:renderer.domElement.getBoundingClientRect(),viewRect:r,pixelRatio:ratio,width,height});
+  const surfaces=[],sources=[],meshes=new Map(),engine=renderer.nativeEngine;
+  // Authoring depth preserves the legacy raw geometry policy independently
+  // of temporary colour materials; the adapter supplies edge bias and drawRange.
+  for(const {h,root,mesh,geometry}of frameNativePickerDrawables()){
+    const ribbonOrder=frameNativePickerRibbonOrder(mesh,geometry);
+    if(!effectiveVisible(h))continue;
+    mesh.updateMatrixWorld(true);
+    const snapshot=frameNative.captureNativePickerGeometry(mesh,{geometryCache:engine.geometryCache,instanceCache:engine.instanceCache});
+    surfaces.push(snapshot);
+    if(selNodes.has(h)&&isVertexEditableMesh(h)){
+      if(mesh!==root||mesh.isInstancedMesh||geometry.isInstancedBufferGeometry)throw Error('Explicit authored occurrence IDs required for this selectable native instance');
+      sources.push({snapshot,geometry,ribbonOrder,identity:{objectId:h,batchId:h,instances:[{instanceId:0,sourceObjectId:h}]}});meshes.set(h,mesh);
+    }
+  }
+  const contextCurrent=frameNativePickerGuard(vi,request.domain?'marquee':kind),isCurrent=()=>contextCurrent()&&(!request.guard||request.guard()),view={...captured.camera};
+  const packet=frameNative.captureNativePickerView(renderer,{...coords,surfaces,sources,camera:view,selectionDomain:request.domain??'face',edgeQuery:!request.domain,through:selectionThroughShading(vi),isCurrent,topologyForGeometry:geometry=>frameGetNativeTopologyCache().get(geometry)});
+  request.captured={...packet,meshes,point:coords.point(request.cx,request.cy),rectangle:request.box&&coords.rectangle(request.box),radius:request.radius*ratio,isCurrent};
+}
+function frameNativeEdgeRequest(...args){return frameNativePickerRequest(...args);}
+function frameNativePickerRequest(cx,cy,cam,r,radius,kind='hover',extra={}){
+  const renderer=vpState.renderer;if(!renderer?.ready) return Promise.reject(new DOMException('Native viewport is not ready','AbortError'));
+  const vi=vpState.views.findIndex(v=>v.cam===cam);if(vi<0||!r)return Promise.reject(new DOMException('Native view is unavailable','AbortError'));
+  if(frameNativePickerOwner!==renderer.bridge){
+    const old=frameNativePickerLane;old?.dispose().catch(frameNativePickerError);frameNativePickerAdapter?.then(p=>p.dispose()).catch(frameNativePickerError);
+    frameNativePickerOwner=renderer.bridge;frameNativePickerAdapter=frameNative.FrameNativePickers.forRenderer(renderer);
+    frameNativePickerLane=new frameNative.NativePickerLane({capture:intent=>{
+      const request={...intent,captured:null};frameNativePickerCapture=request;
+      try{render();if(!request.captured)throw vpState.nativeViewportError||Error('Native view capture did not complete');return request.captured;}
+      finally{frameNativePickerCapture=null;}
+    },run:async(captured,intent,control)=>{
+      let session;try{const adapter=await frameNativePickerAdapter;if(!control.isCurrent())throw new DOMException('Native input changed','AbortError');session=await adapter.prepare({...captured,signal:control.signal});
+        if(intent.domain){const rows=await session.marquee(captured.rectangle,control);if(!control.isCurrent()||!session.dataCurrent())throw new DOMException('Native marquee readback changed','AbortError');return rows;}
+        const edge=await session.pickEdgeNear(captured.point,{radius:captured.radius,...control});if(!control.isCurrent()||!session.dataCurrent())throw new DOMException('Native picker readback changed','AbortError');
+        return edge?{...edge,h:edge.objectId,mesh:captured.meshes.get(edge.objectId),edge:[...edge.rawEdge,edge.keys[0]],isCurrent:control.isCurrent}:null;
+      }finally{await session?.dispose();}
+    }});
+  }
+  return frameNativePickerLane.request({...extra,cx,cy,vi,radius,kind},{kind});
+}
+// GPU visibility is on demand. Publication and overlay preparation stay atomic.
+function frameNativeComponentMarquee(x0,y0,x1,y1,mode='replace',viewIndex=null){
+  frameCancelPolySelectionWork();
+  if(!['replace','add','invert'].includes(mode))return Promise.reject(Error('Unknown component marquee mode'));
+  const vi=Number.isInteger(viewIndex)?viewIndex:viewAt((x0+x1)*.5,(y0+y1)*.5),r=rectFor(vi);
+  if(vi<0||!r)return Promise.reject(new DOMException('Native marquee view unavailable','AbortError'));
+  if(!polyFocusActive()||splineFocusActive()||uvEdit)return Promise.reject(Error('Native polygon marquee needs the authored polygon view'));
+  const cam=vpState.views[vi].cam,domain=polyElementMode,box={x0:Math.min(x0,x1),x1:Math.max(x0,x1),y0:Math.min(y0,y1),y1:Math.max(y0,y1)};
+  cam.updateMatrixWorld();cam.updateProjectionMatrix();
+  const sourceCurrent=frameNativeMarqueeSourceGuard(vi),controller=new AbortController();let closed=false;
+  const valid=()=>!closed&&!controller.signal.aborted&&sourceCurrent();
+  const cleanup=()=>{removeEventListener('pointerdown',cancel,true);removeEventListener('pointercancel',cancel,true);removeEventListener('wheel',cancel,true);removeEventListener('keydown',key,true);removeEventListener('blur',cancel);removeEventListener('resize',cancel);if(framePolySelectionJob===job)framePolySelectionJob=null;};
+  const cancel=()=>{closed=true;controller.abort();cleanup();};
+  const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();}cancel();};
+  const job={cancel,promise:null};framePolySelectionJob=job;
+  addEventListener('pointerdown',cancel,true);addEventListener('pointercancel',cancel,true);addEventListener('wheel',cancel,{capture:true,passive:true});addEventListener('keydown',key,true);addEventListener('blur',cancel);addEventListener('resize',cancel);
+  job.promise=(async()=>{
+    try{
+      const rows=await frameNativePickerRequest((x0+x1)*.5,(y0+y1)*.5,cam,r,0,'click',{domain,box,guard:valid});
+      if(!valid())throw new DOMException('Native marquee changed before preparation','AbortError');
+      const result=await frameNative.drainCooperatively((function*(){
+        const items=mode==='replace'?new Map():yield* frameCopyPolySelection(polySelection.items);let work=0;
+        for(const row of rows){
+          if(row.instanceId!==0||row.sourceObjectId!==row.objectId)throw Error('Explicit authored occurrence selection is required');
+          const h=row.objectId;if(!selNodes.has(h)||!pickMeshes.has(h))throw new DOMException('Native marquee owner changed','AbortError');
+          let item=items.get(h);if(!item)items.set(h,item={vertices:new Set(),edges:new Set(),faces:new Set()});
+          if(domain==='edge'){
+            const keys=new Set(row.keys),edges=yield* frameLogicalEdgesWork(pickMeshes.get(h).geometry);
+            for(const edge of edges){if(edge.keys.some(k=>keys.has(k)))applyLogicalEdgeSelection(item.edges,edge,mode);if((++work&1023)===0)yield;}
+          }else{
+            const selected=item[domain==='vertex'?'vertices':'faces'];
+            for(const id of row.ids){mode==='invert'&&selected.has(id)?selected.delete(id):selected.add(id);if((++work&1023)===0)yield;}
+          }
+          if(!item.vertices.size&&!item.edges.size&&!item.faces.size)items.delete(h);
+        }
+        const buffers=yield* framePolySelectionBuffers(items),measurements=yield* framePolySelectionMeasurements(items);return {items,buffers,measurements};
+      })(),{signal:controller.signal,isCurrent:valid});
+      if(!valid())throw new DOMException('Native marquee changed before publication','AbortError');
+      frameApplyPreparedPolySelection(result);return rows;
+    }finally{closed=true;cleanup();}
+  })();job.promise.catch(frameNativePickerError);return job.promise;
+}
+
+function framePreviewResult(operation){operation?.catch?.(frameNativePickerError);return operation;}
+function frameNativeCommitClick(commit){const prior=frameNativeClickCommit;frameNativeClickCommit=true;try{return commit();}finally{frameNativeClickCommit=prior;}}
+function frameNativeQueueClick(event,run){
+  const immutable={};for(const key of ['clientX','clientY','button','buttons','pointerId','shiftKey','ctrlKey','metaKey','altKey','detail','defaultPrevented'])immutable[key]=event[key];
+  const vi=Number.isInteger(event.view)?event.view:vpState.views.findIndex((_view,i)=>{const r=rectFor(i);return r&&event.clientX>=r.x&&event.clientX<r.x+r.w&&event.clientY>=r.y&&event.clientY<r.y+r.h;});
+  // Capture event-time camera/layout/shading/source/lease state, including
+  // synchronous vertex/face/air clicks queued behind an asynchronous edge read.
+  const current=vi>=0?frameNativePickerGuard(vi,'queued-click'):()=>false;
+  const operation=frameNativeClickQueue.then(()=>{if(!current())throw new DOMException('Click context changed','AbortError');return run(immutable,current);});
+  frameNativeClickQueue=operation.catch(frameNativePickerError);return operation;
+}
+
 function reliableHoverEdge(cx, cy, cam, r, wire = !1, radius = EDIT_HIT_PX) {
    
    
@@ -14151,7 +14737,7 @@ function reliableHoverEdge(cx, cy, cam, r, wire = !1, radius = EDIT_HIT_PX) {
 function reliableMarqueeEdges(box, cam, r, wire = !1) {
    
    
-  let vertices = wireMarqueeVertices(box, cam, r), out = /* @__PURE__ */ new Map();
+  let vertices = reliableMarqueeVertices(box, cam, r, wire), out = /* @__PURE__ */ new Map();
   for (let [h, selected] of vertices) {
     let mesh = pickMeshes.get(h);
     if (!mesh) continue;
@@ -14324,8 +14910,9 @@ function vertexLoopFromEdge(hit, cx, cy, cam, r) {
   }
   return [...back.nodes.reverse().slice(0, -1), ...forward.nodes];
 }
-function updateLoopPreview(cx, cy, vi) {
-  let r = rectFor(vi), cam = vpState.views[vi].cam, hit = reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1, EDIT_HIT_PX);
+function updateLoopPreview(cx, cy, vi,preparedNative=null) {
+  let r = rectFor(vi), cam = vpState.views[vi].cam, hit = preparedNative?preparedNative.hit:reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1, EDIT_HIT_PX);
+  if(hit?.then)return framePreviewResult(hit.then(hit=>{if(hit&&!hit.isCurrent())throw new DOMException('Loop intent changed','AbortError');updateLoopPreview(cx,cy,vi,{hit});scheduleRender();}));
   if (vertexTools.view = vi, !hit) {
     vertexTools.loop = null, setToolGeometry(vertexTools.loopPreview, []), setToolGeometry(vertexTools.linePreview, []), setToolGeometry(vertexTools.snapEdge, []);
     return;
@@ -14379,7 +14966,7 @@ function activateLoopSelection() {
 function stopVertexModeTool() {
   leaveVertexTool();
 }
-function resolveVertexToolSnap(cx, cy, vi, allowFace = !0) {
+function resolveVertexToolSnap(cx, cy, vi, allowFace = !0,preparedNative=null,kind="hover") {
   let r = rectFor(vi), cam = vpState.views[vi].cam, wire = viewShading[vi] === 1, vertexThrough = selectionThroughShading(vi);
   if (!r) return null;
   let vh = reliableHoverVertex(cx, cy, cam, r, vertexThrough, 10), p = new THREE2.Vector3();
@@ -14393,7 +14980,8 @@ function resolveVertexToolSnap(cx, cy, vi, allowFace = !0) {
     eh2.mesh.updateMatrixWorld(!0), a.fromBufferAttribute(pos2, eh2.edge[0]).applyMatrix4(eh2.mesh.matrixWorld), b.fromBufferAttribute(pos2, eh2.edge[1]).applyMatrix4(eh2.mesh.matrixWorld);
     let A = projectPx(a, cam, r), B = projectPx(b, cam, r), dx = B[0] - A[0], dy = B[1] - A[1], screenT = THREE2.MathUtils.clamp(((cx - A[0]) * dx + (cy - A[1]) * dy) / (dx * dx + dy * dy || 1), 0, 1), ca = new THREE2.Vector4(a.x, a.y, a.z, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix), cb = new THREE2.Vector4(b.x, b.y, b.z, 1).applyMatrix4(cam.matrixWorldInverse).applyMatrix4(cam.projectionMatrix), den = (1 - screenT) * cb.w + screenT * ca.w, t = Math.abs(den) > 1e-12 ? screenT * ca.w / den : screenT;
     return { type: "edge", h: eh2.h, mesh: eh2.mesh, edge: eh2.edge, keys: eh2.keys, world: a.clone().lerp(b, t), screen: [A[0] + dx * screenT, A[1] + dy * screenT] };
-  }, eh = reliableHoverEdge(cx, cy, cam, r, wire, 10);
+  }, eh = preparedNative?preparedNative.hit:vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(cx,cy,cam,r,10,kind):reliableHoverEdge(cx, cy, cam, r, wire, 10);
+  if(eh?.then)return eh.then(hit=>resolveVertexToolSnap(cx,cy,vi,allowFace,{hit},kind));
   if (eh) return edgeResult(eh);
   if (!allowFace) return null;
   let fh = reliableFaceHit(cx, cy, cam, r, wire), h = fh && meshToHash.get(fh.object);
@@ -14427,20 +15015,19 @@ function screenPointOnWorkPlane(cx, cy, vi) {
   let center = gizmoVisible ? gizmo.pos.clone() : new THREE2.Vector3(), normal = cam.getWorldDirection(new THREE2.Vector3()), plane = new THREE2.Plane().setFromNormalAndCoplanarPoint(normal, center), world = new THREE2.Vector3();
   return pickRay.ray.intersectPlane(plane, world) || pickRay.ray.at(Math.max(1e3, cam.position.distanceTo(center)), world);
 }
-function lineCutPointAt(cx, cy, vi) {
-  let snap = resolveVertexToolSnap(cx, cy, vi, !0);
-  if (snap) return snap;
-  let world = screenPointOnWorkPlane(cx, cy, vi);
-  return world ? { type: "air", h: null, mesh: null, world, screen: [cx, cy] } : null;
+function lineCutPointAt(cx, cy, vi,kind='hover') {
+  return frameAfterPicker(resolveVertexToolSnap(cx,cy,vi,true,null,kind),snap=>{
+    if(snap)return snap;const world=screenPointOnWorkPlane(cx,cy,vi);return world?{type:'air',h:null,mesh:null,world,screen:[cx,cy]}:null;
+  });
 }
 function updateAddPointPreview(cx, cy, vi) {
   vertexTools.view = vi;
-  let snap = resolveVertexToolSnap(cx, cy, vi, !0);
-  showVertexToolSnap(snap), vpState.renderer?.domElement && (vpState.renderer.domElement.style.cursor = "");
+  return framePreviewResult(frameAfterPicker(resolveVertexToolSnap(cx,cy,vi,true),snap=>{showVertexToolSnap(snap);if(vpState.renderer?.domElement)vpState.renderer.domElement.style.cursor='';scheduleRender();}));
 }
-function updateLineCutPreview(cx, cy, vi) {
+function updateLineCutPreview(cx, cy, vi,preparedNative=null) {
   vertexTools.view = vi;
-  let point = lineCutPointAt(cx, cy, vi);
+  let point = preparedNative?preparedNative.point:lineCutPointAt(cx,cy,vi);
+  if(point?.then)return framePreviewResult(point.then(point=>{updateLineCutPreview(cx,cy,vi,{point});scheduleRender();}));
   showVertexToolSnap(point && point.type !== "air" ? point : null);
   let pts = vertexTools.line.map((x) => x.world.clone());
   point && pts.push(point.world.clone());
@@ -14512,8 +15099,9 @@ function commitGeometryEdit(hashes, beforeGeom, beforeSel) {
     restorePolyGeometries(beforeGeom), restorePolySelectionState(beforeSel);
   } }), rebuildPolySelection(!0), scheduleGeneratorEvaluation();
 }
-function addPointAt(cx, cy, vi) {
-  let snap = resolveVertexToolSnap(cx, cy, vi, !0);
+function addPointAt(cx, cy, vi,preparedNative=null) {
+  let snap=preparedNative?preparedNative.snap:resolveVertexToolSnap(cx,cy,vi,true,null,'click');
+  if(snap?.then)return snap.then(snap=>frameNativeCommitClick(()=>addPointAt(cx,cy,vi,{snap})));
   if (!snap || snap.type === "vertex") return;
   let mesh = snap.mesh, h = snap.h, beforeGeom = capturePolyGeometries([h]), beforeSel = capturePolySelectionState(), logicalSel = capturePolyLogicalSelection(), tris = meshTriangles(mesh), inv = mesh.matrixWorld.clone().invert(), local = snap.world.clone().applyMatrix4(inv), key = (p) => `${p.x.toFixed(5)},${p.y.toFixed(5)},${p.z.toFixed(5)}`, out = [];
   if (snap.type === "face")
@@ -14550,9 +15138,8 @@ function addPointAt(cx, cy, vi) {
   }
   installEditedGeometry(mesh, makeGeometryFromTriangles(out, !!mesh.geometry.attributes.uv)), restorePolyLogicalSelection(logicalSel), commitGeometryEdit([h], beforeGeom, beforeSel);
 }
-function addPointToolClick(cx, cy, vi) {
-  let snap = resolveVertexToolSnap(cx, cy, vi, !0);
-  return snap ? (snap.type !== "vertex" && addPointAt(cx, cy, vi), !0) : !1;
+function addPointToolClick(cx,cy,vi){
+  return frameAfterPicker(resolveVertexToolSnap(cx,cy,vi,true,null,'click'),snap=>frameNativeCommitClick(()=>snap?(snap.type!=='vertex'&&addPointAt(cx,cy,vi,{snap}),true):false));
 }
 function barycentric2DFrom3D(p, a, b, c) {
   let v0 = b.clone().sub(a), v1 = c.clone().sub(a), v2 = p.clone().sub(a), d00 = v0.dot(v0), d01 = v0.dot(v1), d11 = v1.dot(v1), d20 = v2.dot(v0), d21 = v2.dot(v1), den = d00 * d11 - d01 * d01 || 1, v = (d11 * d20 - d01 * d21) / den, w = (d00 * d21 - d01 * d20) / den;
@@ -14725,9 +15312,8 @@ function applyLineCut() {
   }
   changed && (restorePolyLogicalSelection(logicalSel), commitGeometryEdit(hashes, beforeGeom, beforeSel));
 }
-function lineCutAddPoint(cx, cy, vi) {
-  let point = lineCutPointAt(cx, cy, vi);
-  return point ? (vertexTools.view = vi, vertexTools.line.push(point), updateLineCutPreview(point.screen[0], point.screen[1], vi), !0) : !1;
+function lineCutAddPoint(cx,cy,vi){
+  return frameAfterPicker(lineCutPointAt(cx,cy,vi,'click'),point=>frameNativeCommitClick(()=>point?(vertexTools.view=vi,vertexTools.line.push(point),updateLineCutPreview(point.screen[0],point.screen[1],vi,{point}),true):false));
 }
 function activateLineCut() {
   polyMode && (leaveVertexTool(), vertexTools.mode = "lineCut", vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, activateTab("tabAttributes"), refreshAttributesPanel());
@@ -14894,11 +15480,13 @@ function applyLogicalEdgeSelection(set, edge, mode) {
 function clearHover() {
   hovObj && (hovObj.material.opacity = 0.5, hovObj = null);
 }
-function clearPolyHover() {
+function clearPolyHover(keepNativeRequest=false) {
+  if(!keepNativeRequest&&vpState.renderer?.isFrameNativeViewportRenderer){frameNativeHoverIntent++;frameNativePickerLane?.invalidateHover();}
   polyHover.kind = null, polyHover.view = -1, polyHover.face && (polyHover.face.visible = !1), polyHover.faceBack && (polyHover.faceBack.visible = !1), polyHover.edge && (polyHover.edge.visible = !1), polyHover.vertex && (polyHover.vertex.visible = !1);
 }
 var pointSegDistSq = pointSegmentDistanceSq, _ph0 = new THREE2.Vector3(), _ph1 = new THREE2.Vector3(), _ph2 = new THREE2.Vector3();
-function updatePolyHover(cx, cy) {
+function updatePolyHover(cx, cy,preparedNative=null) {
+  const nativeIntent=preparedNative?.intent??++frameNativeHoverIntent;
   if (!polyMode) {
     clearPolyHover();
     return;
@@ -14941,8 +15529,9 @@ function updatePolyHover(cx, cy) {
     return;
   }
   if (polyElementMode === "edge") {
-    let hit2 = reliableHoverEdge(cx, cy, vpState.views[vi].cam, r, viewShading[vi] === 1);
-    if (clearPolyHover(), !hit2) return;
+    let hit2 = preparedNative?preparedNative.hit:reliableHoverEdge(cx, cy, vpState.views[vi].cam, r, viewShading[vi] === 1);
+    if(hit2?.then)return hit2.then(hit=>{if(nativeIntent!==frameNativeHoverIntent||hit&&!hit.isCurrent())throw new DOMException('Pointer intent changed','AbortError');updatePolyHover(cx,cy,{hit,intent:nativeIntent});scheduleRender();}).catch(frameNativePickerError);
+    if (clearPolyHover(true), !hit2) return;
     let p = hit2.mesh.geometry.attributes.position, q2 = polyHover.edgePos;
     hit2.mesh.updateMatrixWorld(!0), _ph0.fromBufferAttribute(p, hit2.edge[0]).applyMatrix4(hit2.mesh.matrixWorld), _ph1.fromBufferAttribute(p, hit2.edge[1]).applyMatrix4(hit2.mesh.matrixWorld), q2.set([_ph0.x, _ph0.y, _ph0.z, _ph1.x, _ph1.y, _ph1.z]), polyHover.edge.geometry.attributes.position.needsUpdate = !0, polyHover.view = vi, polyHover.kind = "edge";
     return;
@@ -15016,25 +15605,38 @@ function polyEdgeKey(a, b) {
   return a < b ? a + ":" + b : b + ":" + a;
 }
 function rebuildPolySelection(syncGizmo = !0) {
-  let fp = [], ep = [], vp = [], a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3();
-  for (let [h, s] of polySelection.items) {
+  frameConnectedSelectionComplete=null;
+  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;
+  frameInstallPolySelectionBuffers(frameDrainSelectionWork(framePolySelectionBuffers(polySelection.items)),syncGizmo);
+}
+function* framePolySelectionBuffers(items) {
+  let workCount=0;
+  let nf=0,ne=0,nv=0;
+  for(const [h,s] of items)if(selNodes.has(h)&&pickMeshes.get(h)?.geometry?.attributes.position){nf+=s.faces.size*9;ne+=s.edges.size*6;nv+=s.vertices.size*3;}
+  const fp=new Float32Array(nf),ep=new Float32Array(ne),vp=new Float32Array(nv);let fiOut=0,eiOut=0,viOut=0;
+  let a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3();
+  for (let [h, s] of items) {
     if (!selNodes.has(h)) continue;
     let mesh = pickMeshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position, idx = g && g.index;
     if (pos) {
       mesh.updateMatrixWorld(!0);
-      for (let i of s.vertices)
-        a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), vp.push(a.x, a.y, a.z);
+      for (let i of s.vertices){
+        a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), vp[viOut++]=a.x, vp[viOut++]=a.y, vp[viOut++]=a.z;if((++workCount&1023)===0)yield;
+      }
       for (let key of s.edges) {
         let [i, j] = key.split(":").map(Number);
-        a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, j).applyMatrix4(mesh.matrixWorld), ep.push(a.x, a.y, a.z, b.x, b.y, b.z);
+        a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, j).applyMatrix4(mesh.matrixWorld), ep[eiOut++]=a.x, ep[eiOut++]=a.y, ep[eiOut++]=a.z, ep[eiOut++]=b.x, ep[eiOut++]=b.y, ep[eiOut++]=b.z;if((++workCount&1023)===0)yield;
       }
       for (let fi of s.faces) {
         let ia = idx ? idx.getX(fi * 3) : fi * 3, ib = idx ? idx.getX(fi * 3 + 1) : fi * 3 + 1, ic = idx ? idx.getX(fi * 3 + 2) : fi * 3 + 2;
-        a.fromBufferAttribute(pos, ia).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, ib).applyMatrix4(mesh.matrixWorld), c.fromBufferAttribute(pos, ic).applyMatrix4(mesh.matrixWorld), fp.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+        a.fromBufferAttribute(pos, ia).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, ib).applyMatrix4(mesh.matrixWorld), c.fromBufferAttribute(pos, ic).applyMatrix4(mesh.matrixWorld), fp[fiOut++]=a.x, fp[fiOut++]=a.y, fp[fiOut++]=a.z, fp[fiOut++]=b.x, fp[fiOut++]=b.y, fp[fiOut++]=b.z, fp[fiOut++]=c.x, fp[fiOut++]=c.y, fp[fiOut++]=c.z;if((++workCount&1023)===0)yield;
       }
     }
   }
-  polySelection.face.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(fp, 3)), polySelection.edge.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(ep, 3)), polySelection.vertex.geometry.setAttribute("position", new THREE2.Float32BufferAttribute(vp, 3)), polySelection.face.visible = polyMode && fp.length > 0, polySelection.faceBack.visible = polyMode && fp.length > 0, polySelection.edge.visible = polyMode && ep.length > 0, polySelection.vertex.visible = polyMode && vp.length > 0, vertexTools.soft.active && updateSoftPreview(), syncGizmo && (setGizmoVisible(polyMode ? polySelection.items.size > 0 : selNodes.size > 0), placeGizmoForSelection(), updateHUD()), scheduleRender();
+  return {fp,ep,vp};
+}
+function frameInstallPolySelectionBuffers({fp,ep,vp},syncGizmo=true,measurements=null){
+  polySelection.face.geometry.setAttribute("position", new THREE2.BufferAttribute(fp, 3)), polySelection.edge.geometry.setAttribute("position", new THREE2.BufferAttribute(ep, 3)), polySelection.vertex.geometry.setAttribute("position", new THREE2.BufferAttribute(vp, 3)), polySelection.face.visible = polyMode && fp.length > 0, polySelection.faceBack.visible = polyMode && fp.length > 0, polySelection.edge.visible = polyMode && ep.length > 0, polySelection.vertex.visible = polyMode && vp.length > 0, vertexTools.soft.active && updateSoftPreview(), syncGizmo && (setGizmoVisible(polyMode ? polySelection.items.size > 0 : selNodes.size > 0), placeGizmoForSelection(measurements), updateHUD(measurements?readPolyTransform(coordMode,measurements):null)), scheduleRender();
 }
 function clearPolySelection() {
   polyPivotMatrix = null, polySelection.items.clear(), rebuildPolySelection();
@@ -15053,7 +15655,7 @@ function prunePolySelection() {
   for (let h of polySelection.items.keys()) selNodes.has(h) && isVertexEditableMesh(h) || (polySelection.items.delete(h), changed = !0);
   changed && rebuildPolySelection(!1);
 }
-function polyClickPick(cx, cy, mode = "replace") {
+function polyClickPick(cx, cy, mode = "replace",preparedNative=null) {
   if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}
   let vi = viewAt(cx, cy), r = rectFor(vi);
   if (vi < 0 || !r) return null;
@@ -15065,16 +15667,17 @@ function polyClickPick(cx, cy, mode = "replace") {
     if (!h2 || !selNodes.has(h2)) return h2;
     polyPivotMatrix = null, mode === "replace" && polySelection.items.clear();
     let set2 = polySelEntry(h2).vertices, all = hit2.vertices, on = all.some((v) => set2.has(v));
-    return mode === "invert" ? all.forEach((v) => on ? set2.delete(v) : set2.add(v)) : all.forEach((v) => set2.add(v)), rebuildPolySelection(), h2;
+    return mode === "invert" ? all.forEach((v) => on ? set2.delete(v) : set2.add(v)) : all.forEach((v) => set2.add(v)), rebuildPolySelection(), frameRecordNativeComponentClick(h2,all.slice(),cx,cy), h2;
   }
   if (polyElementMode === "edge") {
-    let hit2 = reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1);
+    let hit2 = preparedNative?preparedNative.hit:vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(cx,cy,cam,r,EDIT_HIT_PX,'click'):reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1);
+    if(hit2?.then)return hit2.then(hit=>frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit})));
     if (!hit2) return null;
     let h2 = hit2.h;
     if (!h2 || !selNodes.has(h2) || !isVertexEditableMesh(h2)) return h2;
     polyPivotMatrix = null, mode === "replace" && polySelection.items.clear();
     let set2 = polySelEntry(h2).edges;
-    return applyLogicalEdgeSelection(set2, { keys: hit2.keys }, mode), set2.size || polySelection.items.delete(h2), rebuildPolySelection(), h2;
+    return applyLogicalEdgeSelection(set2, { keys: hit2.keys }, mode), set2.size || polySelection.items.delete(h2), rebuildPolySelection(), frameRecordNativeComponentClick(h2,hit2.keys.slice(),cx,cy), h2;
   }
   let hit = reliableFaceHit(cx, cy, cam, r, viewShading[vi] === 1);
   if (!hit || hit.faceIndex == null) return null;
@@ -15094,9 +15697,10 @@ function polyClickPick(cx, cy, mode = "replace") {
     let all = coincidentVertexIds(mesh, ids[viMin]), on = all.some((v) => set.has(v));
     mode === "invert" ? all.forEach((v) => on ? set.delete(v) : set.add(v)) : all.forEach((v) => set.add(v));
   } else mode === "invert" && set.has(value) ? set.delete(value) : set.add(value);
-  return !s.vertices.size && !s.edges.size && !s.faces.size && polySelection.items.delete(h), rebuildPolySelection(), h;
+  return !s.vertices.size && !s.edges.size && !s.faces.size && polySelection.items.delete(h), rebuildPolySelection(), frameRecordNativeComponentClick(h,[value],cx,cy), h;
 }
 function polyBoxPick(x0, y0, x1, y1, mode = "replace") {
+  frameCancelPolySelectionWork();
   if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}
   let vi = viewAt((x0 + x1) * 0.5, (y0 + y1) * 0.5), r = rectFor(vi);
   if (vi < 0 || !r) return;
@@ -15115,7 +15719,7 @@ function polyBoxPick(x0, y0, x1, y1, mode = "replace") {
     return;
   }
   if (polyElementMode === "edge") {
-    let hits = reliableMarqueeEdges(box, cam, r, viewShading[vi] === 1);
+    let hits = reliableMarqueeEdges(box, cam, r, selectionThroughShading(vi));
     for (let [h, edges] of hits) {
       let s = polySelEntry(h).edges;
       for (let edge of edges) applyLogicalEdgeSelection(s, edge, mode);
@@ -15125,33 +15729,256 @@ function polyBoxPick(x0, y0, x1, y1, mode = "replace") {
     return;
   }
   const polygonHashes=new Set([...selNodes].filter(isVertexEditableMesh));
-  if (visibleFaces = viewShading[vi] !== 1 ? pickVisiblePolyFaces({ renderer: vpState.renderer, pickMeshes, meshToHash, selectedHashes: polygonHashes, rect: r, box, camera: cam }) : null, visibleFaces) for (let h of polygonHashes) {
-    let mesh = pickMeshes.get(h), seeds = visibleFaces.get(h);
-    mesh && seeds?.size && visibleFaces.set(h, expandVisibleFaceSeeds(mesh, seeds, cam, r, box));
-  }
-  for (let h of polygonHashes) {
-    let mesh = pickMeshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position, idx = g && g.index;
-    if (!pos) continue;
-    mesh.updateMatrixWorld(!0);
-    let tris = idx ? idx.count / 3 : pos.count / 3, hits = { vertices: /* @__PURE__ */ new Set(), edges: /* @__PURE__ */ new Set(), faces: /* @__PURE__ */ new Set() };
-    for (let fi = 0; fi < tris; fi++) {
-      if (visibleFaces && !visibleFaces.get(h)?.has(fi)) continue;
-      let ia = idx ? idx.getX(fi * 3) : fi * 3, ib = idx ? idx.getX(fi * 3 + 1) : fi * 3 + 1, ic = idx ? idx.getX(fi * 3 + 2) : fi * 3 + 2;
-      w0.fromBufferAttribute(pos, ia).applyMatrix4(mesh.matrixWorld), w1.fromBufferAttribute(pos, ib).applyMatrix4(mesh.matrixWorld), w2.fromBufferAttribute(pos, ic).applyMatrix4(mesh.matrixWorld);
-      let p0 = projectPx(w0, cam, r), p1 = projectPx(w1, cam, r), p2 = projectPx(w2, cam, r), ids = [ia, ib, ic], hitVert = [polyRectHas(p0[0], p0[1], box), polyRectHas(p1[0], p1[1], box), polyRectHas(p2[0], p2[1], box)], hitEdge = [robustSegRect(p0, p1, box), robustSegRect(p1, p2, box), robustSegRect(p2, p0, box)], hitFace = robustTriRect(p0, p1, p2, box);
-      if (polyElementMode === "vertex")
-        for (let i = 0; i < 3; i++) hitVert[i] && (viewShading[vi] === 1 || vertexCenterVisible(mesh, ids[i], cam, r)) && hits.vertices.add(ids[i]);
-      else if (polyElementMode === "edge")
-        for (let i = 0; i < 3; i++) hitEdge[i] && hits.edges.add(polyEdgeKey(ids[i], ids[(i + 1) % 3]));
-      else hitFace && hits.faces.add(fi);
-    }
-    let s = polySelEntry(h), key = polyElementMode === "vertex" ? "vertices" : polyElementMode === "edge" ? "edges" : "faces";
-    for (let value of hits[key])
-      mode === "invert" && s[key].has(value) ? s[key].delete(value) : s[key].add(value);
-    !s.vertices.size && !s.edges.size && !s.faces.size && polySelection.items.delete(h);
-  }
+  frameDrainSelectionWork(frameBoxFaceWork(polygonHashes,cam,r,box,vi,mode,polySelection.items));
   rebuildPolySelection();
 }
+// Selection work is shared by the synchronous API and the cooperative desktop
+// path. Yields change scheduling only, never intersection tests or ordering.
+function frameDrainSelectionWork(work){let step;do{step=work.next();}while(!step.done);return step.value;}
+function* frameCopyPolySelection(items){
+  const out=new Map();let n=0;
+  for(const [h,s] of items){const q={vertices:new Set(),edges:new Set(),faces:new Set()};out.set(h,q);
+    for(const name of ['vertices','edges','faces'])for(const id of s[name]){q[name].add(id);if((++n&1023)===0)yield;}
+  }
+  return out;
+}
+function* frameBoxFaceWork(polygonHashes,cam,r,box,vi,mode,items,cooperative=false){
+  const vertices=selectionThroughShading(vi)?yield* frameWireMarqueeVerticesWork(box,cam,r):yield* frameVisibleMarqueeVerticesWork(box,cam,r);let n=0;
+  for(const h of polygonHashes){
+    const mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index,inside=vertices.get(h);if(!pos||!inside)continue;
+    const tris=idx?idx.count/3:pos.count/3,hits=new Set();
+    for(let fi=0;fi<tris;fi++){
+      if((++n&1023)===0)yield;
+      const ia=idx?idx.getX(fi*3):fi*3,ib=idx?idx.getX(fi*3+1):fi*3+1,ic=idx?idx.getX(fi*3+2):fi*3+2;
+      if(inside.has(ia)&&inside.has(ib)&&inside.has(ic))hits.add(fi);
+    }
+    let selected=items.get(h);if(!selected)items.set(h,selected={vertices:new Set(),edges:new Set(),faces:new Set()});
+    for(const id of hits){mode==='invert'&&selected.faces.has(id)?selected.faces.delete(id):selected.faces.add(id);if((++n&1023)===0)yield;}
+    if(!selected.vertices.size&&!selected.edges.size&&!selected.faces.size)items.delete(h);
+  }
+  return items;
+}
+// The result stays private until the selection's source guard admits it. Reuse
+// the exact logical vertex order and Float64 operations of the synchronous UI;
+// do not measure only face corners or rounded overlay positions.
+function* framePolySelectionMeasurements(items,exact=polyExactEdgeVertices){
+  if(!['vertex','edge','face'].includes(polyElementMode)||!polyFocusActive()||splineFocusActive()||uvEdit||vertexTools.soft.active||!items.size)return null;
+  const field=polyElementMode==='vertex'?'vertices':polyElementMode==='edge'?'edges':'faces';
+  for(const [h,s] of items)if(exact?.has(h)||['vertices','edges','faces'].some(key=>key!==field&&s[key].size))return null;
+  const selected=new Map(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false,work=0;
+  for(const [h] of items){
+    const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;
+    mesh.updateMatrixWorld(true);
+    const ids=yield* framePolySelectedVertexIdsWork(h,items,exact);selected.set(h,ids);
+    for(const i of ids){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld);mn.min(p);mx.max(p);any=true;if((++work&1023)===0)yield;}
+  }
+  if(!any)return null;
+  let h=null;for(const key of items.keys())if(pickMeshes.has(key)){h=key;break;}h??=selNodes.values().next().value||null;
+  let frame;
+  if(coordMode==='world')frame=new THREE2.Matrix4();
+  else{const owner=pureWorldFrame(h);frame=(yield* frameFaceSelectionBasisWork(h,owner,items))||(yield* frameEdgeSelectionBasisWork(h,owner,items))||owner;}
+  frame.setPosition(mn.clone().add(mx).multiplyScalar(.5));
+  const inv=frame.clone().invert(),lo=new THREE2.Vector3(Infinity,Infinity,Infinity),hi=new THREE2.Vector3(-Infinity,-Infinity,-Infinity);
+  for(const [h,ids] of selected){
+    const mesh=pickMeshes.get(h),pos=mesh.geometry.attributes.position;mesh.updateMatrixWorld(true);
+    for(const i of ids){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);lo.min(p);hi.max(p);if((++work&1023)===0)yield;}
+  }
+  return {bounds:{min:mn,max:mx},frame,extent:hi.sub(lo)};
+}
+
+function frameSelectionSourceGuard(vi){
+  const view=vpState.views[vi],cam=view.cam,rect=rectFor(vi),rkeys=['x','y','w','h'];
+  const camera=cam.matrixWorld.elements.slice(),inverse=cam.matrixWorldInverse.elements.slice(),projection=cam.projectionMatrix.elements.slice();
+  const pose=[...cam.position.toArray(),...cam.quaternion.toArray(),...cam.scale.toArray(),cam.zoom,cam.near,cam.far];
+  const owners=[...selNodes],items=polySelection.items,revision=framePolySelectionRevision;
+  const token=sceneStateToken,mutation=sceneMutationSequence,animation=frameAnimationRevision,time=frameEvaluatedTime;
+  const elementMode=polyElementMode,mode=vpState.mode,single=vpState.singleView,shading=viewShading[vi],soft=vertexTools.soft.active,coordinate=coordMode,exact=polyExactEdgeVertices,uv=uvEdit;
+  // Include nonselected meshes: they remain occluders for the ID pass.
+  const sources=[];
+  for(const [h,mesh] of pickMeshes){mesh.updateMatrixWorld(true);const g=mesh.geometry,p=g?.attributes.position,i=g?.index;
+    sources.push({h,mesh,g,p,i,pv:p?.version,iv:i?.version,pa:p?.array,ia:i?.array,pc:p?.count,ic:i?.count,visible:mesh.visible,matrix:mesh.matrixWorld.elements.slice()});}
+  const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
+  return ()=>coordinate===coordMode&&exact===polyExactEdgeVertices&&uv===uvEdit&&revision===framePolySelectionRevision&&items===polySelection.items&&token===sceneStateToken&&mutation===sceneMutationSequence&&animation===frameAnimationRevision&&Object.is(time,frameEvaluatedTime)&&componentModeArmed&&polyFocusActive()&&!splineFocusActive()&&polyElementMode===elementMode&&mode===vpState.mode&&single===vpState.singleView&&view===vpState.views[vi]&&cam===view.cam&&shading===viewShading[vi]&&soft===vertexTools.soft.active&&equal(camera,cam.matrixWorld.elements)&&equal(inverse,cam.matrixWorldInverse.elements)&&equal(pose,[...cam.position.toArray(),...cam.quaternion.toArray(),...cam.scale.toArray(),cam.zoom,cam.near,cam.far])&&equal(projection,cam.projectionMatrix.elements)&&rkeys.every(k=>Object.is(rect[k],rectFor(vi)?.[k]))&&owners.length===selNodes.size&&owners.every(h=>selNodes.has(h))&&sources.length===pickMeshes.size&&sources.every(q=>pickMeshes.get(q.h)===q.mesh&&q.mesh.geometry===q.g&&q.g?.attributes.position===q.p&&q.g?.index===q.i&&q.p?.version===q.pv&&q.i?.version===q.iv&&q.p?.array===q.pa&&q.i?.array===q.ia&&q.p?.count===q.pc&&q.i?.count===q.ic&&q.mesh.visible===q.visible&&equal(q.matrix,q.mesh.matrixWorld.elements));
+}
+// Match the existing through-marquee projection and raw logical-vertex order.
+// Work remains private; the desktop source guard controls final publication.
+function* frameWireMarqueeVerticesWork(box,cam,r){
+  const out=new Map(),world=new THREE2.Vector3(),ndc=new THREE2.Vector3();let work=0;
+  for(const h of selNodes){
+    const mesh=pickMeshes.get(h),pos=isVertexEditableMesh(h)?mesh?.geometry?.attributes?.position:null;
+    if(!mesh||!pos||!isVertexEditableMesh(h)||!effectiveVisible(h))continue;
+    mesh.updateMatrixWorld(true);const hit=new Set();
+    const groups=yield* frameLogicalVertexGroupsWork(mesh.geometry);
+    for(const group of groups){
+      if((++work&255)===0)yield;
+      world.fromBufferAttribute(pos,group[0]).applyMatrix4(mesh.matrixWorld);ndc.copy(world).project(cam);
+      if(ndc.z < -1 || ndc.z > 1)continue;
+      const sx=(ndc.x*.5+.5)*r.w+r.x,sy=(-ndc.y*.5+.5)*r.h+r.y;
+      if(sx>=box.x0&&sx<=box.x1&&sy>=box.y0&&sy<=box.y1)for(const v of group){hit.add(v);if((++work&1023)===0)yield;}
+    }
+    hit.size&&out.set(h,hit);
+  }
+  return out;
+}
+// Preserve the existing visible-only predicate, including other scene occluders.
+// Yield after each visibility query; no partial selection escapes this generator.
+function* frameVisibleMarqueeVerticesWork(box,cam,r){
+  const out=new Map(),world=new THREE2.Vector3(),ndc=new THREE2.Vector3();let work=0;
+  for(const h of selNodes){
+    const mesh=pickMeshes.get(h),pos=isVertexEditableMesh(h)?mesh?.geometry?.attributes?.position:null;
+    if(!mesh||!pos||!isVertexEditableMesh(h)||!effectiveVisible(h))continue;
+    mesh.updateMatrixWorld(true);const hit=new Set();
+    const groups=yield* frameLogicalVertexGroupsWork(mesh.geometry);
+    for(const group of groups){
+      if((++work&255)===0)yield;
+      world.fromBufferAttribute(pos,group[0]).applyMatrix4(mesh.matrixWorld);ndc.copy(world).project(cam);
+      if(ndc.z < -1 || ndc.z > 1)continue;
+      const sx=(ndc.x*.5+.5)*r.w+r.x,sy=(-ndc.y*.5+.5)*r.h+r.y;
+      if(sx>=box.x0&&sx<=box.x1&&sy>=box.y0&&sy<=box.y1){
+        const visible=exactVertexVisible(world,ndc,cam);yield;
+        if(visible)for(const v of group){hit.add(v);if((++work&1023)===0)yield;}
+      }
+    }
+    hit.size&&out.set(h,hit);
+  }
+  return out;
+}
+function frameVisibleVertexOcclusionGuard(){
+  const sources=[...pickMeshes].map(([h,mesh])=>{const state=replicaStates.get(h);return {h,mesh,visible:effectiveVisible(h),state,ready:state?.ready,enabled:OBJ.get(h)?.enabled};});
+  return ()=>sources.length===pickMeshes.size&&sources.every(q=>pickMeshes.get(q.h)===q.mesh&&effectiveVisible(q.h)===q.visible&&replicaStates.get(q.h)===q.state&&q.state?.ready===q.ready&&OBJ.get(q.h)?.enabled===q.enabled&&(!q.visible||!q.mesh.isInstancedMesh&&!q.mesh.userData.splineChunks));
+}
+function* frameMarqueeEdgesWork(box,cam,r,through=true){
+  const vertices=through?yield* frameWireMarqueeVerticesWork(box,cam,r):yield* frameVisibleMarqueeVerticesWork(box,cam,r),out=new Map();let work=0;
+  for(const [h,selected] of vertices){
+    const mesh=pickMeshes.get(h);if(!mesh)continue;
+    const edges=[],logical=yield* frameLogicalEdgesWork(mesh.geometry);
+    for(const edge of logical){selected.has(edge.a)&&selected.has(edge.b)&&edges.push(edge);if((++work&1023)===0)yield;}
+    edges.length&&out.set(h,edges);
+  }
+  return out;
+}
+function* frameBoxComponentWork(cam,r,box,mode,items,domain,through=true){
+  const entry=h=>{let s=items.get(h);if(!s)items.set(h,s={vertices:new Set(),edges:new Set(),faces:new Set()});return s;};let work=0;
+  if(domain==='vertex'){
+    const hits=through?yield* frameWireMarqueeVerticesWork(box,cam,r):yield* frameVisibleMarqueeVerticesWork(box,cam,r);
+    for(const [h,vs] of hits){const s=entry(h).vertices;for(const v of vs){mode==='invert'&&s.has(v)?s.delete(v):s.add(v);if((++work&1023)===0)yield;}}
+  }else{
+    const hits=yield* frameMarqueeEdgesWork(box,cam,r,through);
+    for(const [h,edges] of hits){const s=entry(h).edges;for(const edge of edges){
+      let on=false;for(const key of edge.keys){if(s.has(key))on=true;if((++work&1023)===0)yield;}
+      for(const key of edge.keys){mode==='invert'&&on?s.delete(key):s.add(key);if((++work&1023)===0)yield;}
+    }if(!s.size&&!entry(h).vertices.size&&!entry(h).faces.size)items.delete(h);}
+  }
+  return items;
+}
+function frameCooperativeComponentMarquee(vi,mode){
+  if(!['vertex','edge','face'].includes(polyElementMode)||!polyFocusActive()||splineFocusActive()||uvEdit||vertexTools.soft.active||polyExactEdgeVertices)return false;
+  if(!selectionThroughShading(vi)){
+    // Dynamic chunk/instance occluders keep their original synchronous path.
+    for(const [h,mesh] of pickMeshes)if(effectiveVisible(h)&&(mesh.isInstancedMesh||mesh.userData.splineChunks))return false;
+  }
+  if(mode!=='replace'){
+    const field=polyElementMode==='vertex'?'vertices':polyElementMode==='edge'?'edges':'faces';
+    for(const s of polySelection.items.values())if(['vertices','edges','faces'].some(k=>k!==field&&s[k].size))return false;
+  }
+  return true;
+}
+
+var framePolySelectionJob=null;
+function frameCancelPolySelectionWork(){framePolySelectionJob?.cancel();}
+function frameDesktopPolyBoxPick(x0,y0,x1,y1,mode='replace'){
+  if(vpState.renderer?.isFrameNativeViewportRenderer)return frameNativeComponentMarquee(x0,y0,x1,y1,mode);
+  frameCancelPolySelectionWork();
+  const vi=viewAt((x0+x1)*.5,(y0+y1)*.5),r=rectFor(vi);if(vi<0||!r)return;
+  const domain=polyElementMode,eligible=frameCooperativeComponentMarquee(vi,mode),component=eligible&&domain!=='face';let faces=0;
+  if(eligible&&polyFocusActive()&&!splineFocusActive())for(const h of selNodes)if(isVertexEditableMesh(h)){const g=pickMeshes.get(h)?.geometry;faces+=(g?.index?.count??g?.attributes.position?.count??0)/3;}
+  if(faces<50000){polyBoxPick(x0,y0,x1,y1,mode);if(vertexTools.soft.active)recalculateSoftSelection();return;}
+  const cam=vpState.views[vi].cam;cam.updateMatrixWorld();cam.updateProjectionMatrix();
+  const box={x0:Math.min(x0,x1),x1:Math.max(x0,x1),y0:Math.min(y0,y1),y1:Math.max(y0,y1)};
+  const polygonHashes=new Set([...selNodes].filter(isVertexEditableMesh)),sourceValid=frameSelectionSourceGuard(vi);
+  const through=selectionThroughShading(vi),occlusionValid=!through?frameVisibleVertexOcclusionGuard():null;
+  const valid=()=>sourceValid()&&(!occlusionValid||occlusionValid());
+  frameRunPolySelectionWork(label=>(function*(){
+    const items=mode==='replace'?new Map():yield* frameCopyPolySelection(polySelection.items);
+    if(component)yield* frameBoxComponentWork(cam,r,box,mode,items,domain,through);
+    else yield* frameBoxFaceWork(polygonHashes,cam,r,box,vi,mode,items,true);
+    label.textContent='Preparing selection…';yield;
+    const buffers=yield* framePolySelectionBuffers(items),measurements=yield* framePolySelectionMeasurements(items);return {items,buffers,measurements};
+  })(),valid,domain==='vertex'?'Selecting vertices…':domain==='edge'?'Selecting edges…':'Selecting polygons…');
+}
+
+function frameApplyPreparedPolySelection(result){
+  frameConnectedSelectionComplete=null;
+  if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}
+  polyPivotMatrix=null;
+  if(result.connected){polyExactEdgeVertices=null;polyExtrudedFaces=null;}
+  polySelection.items.clear();for(const [h,s] of result.items)polySelection.items.set(h,s);
+  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);
+  if(vertexTools.soft.active)recalculateSoftSelection();
+  if(result.connected)frameRememberConnectedSelection();
+}
+// Queue a new browser task between bounded selection batches, not a microtask.
+// Keep the timer fallback for environments without usable MessageChannel ports.
+function frameSelectionTaskQueue(callback) {
+  let channel=null,timer=0,pending=false,closed=false;
+  const release=()=>{
+    if(!channel)return;
+    const current=channel;channel=null;current.port1.onmessage=null;
+    try{current.port1.close();}catch{}
+    try{current.port2.close();}catch{}
+  };
+  const run=()=>{if(closed||!pending)return;pending=false;timer=0;callback();};
+  try{channel=new MessageChannel();channel.port1.onmessage=run;}catch{release();}
+  return {
+    post(){
+      if(closed||pending)return;pending=true;
+      if(channel){try{channel.port2.postMessage(0);return;}catch{release();}}
+      timer=setTimeout(run,0);
+    },
+    close(){closed=true;pending=false;clearTimeout(timer);timer=0;release();}
+  };
+}
+function frameRunPolySelectionWork(createWork,valid,text='Selecting polygons…'){
+  const status=document.createElement('div');status.dataset.frameSelectionProgress='';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+  status.style.cssText='position:fixed;left:12px;top:12px;z-index:10020;color:#ddd;font:12px ui-monospace,monospace;display:flex;align-items:center;gap:8px;max-width:calc(100vw - 24px)';
+  const label=document.createElement('span');label.textContent=text;status.appendChild(label);
+  const work=createWork(label);
+  let closed=false;
+  const tasks=frameSelectionTaskQueue(()=>next());
+  const cleanup=()=>{tasks.close();status.remove();removeEventListener('pointerdown',cancel,true);removeEventListener('pointercancel',cancel,true);removeEventListener('wheel',cancel,true);removeEventListener('keydown',key,true);removeEventListener('blur',cancel);removeEventListener('resize',cancel);if(framePolySelectionJob===job)framePolySelectionJob=null;};
+  const cancel=()=>{if(closed)return;closed=true;try{work.return();}finally{cleanup();}};
+  const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();}cancel();};
+  const job={cancel};framePolySelectionJob=job;
+  addEventListener('pointerdown',cancel,true);addEventListener('pointercancel',cancel,true);addEventListener('wheel',cancel,{capture:true,passive:true});addEventListener('keydown',key,true);addEventListener('blur',cancel);addEventListener('resize',cancel);
+  const fail=error=>{
+    cancel();cleanup();console.error('Polygon selection failed',error);
+    status.removeAttribute('data-frame-selection-progress');status.setAttribute('role','alert');label.textContent='Selection failed: '+(error?.message||String(error));const close=document.createElement('button');close.textContent='Close';close.style.cssText='font:inherit;cursor:pointer';close.onclick=()=>status.remove();status.appendChild(close);document.body.appendChild(status);
+  };
+  const next=()=>{
+    if(closed)return;if(!valid()){cancel();return;}
+    try{
+      const until=performance.now()+6;let step;
+      do{
+        step=work.next();
+        if(step.done){
+          if(!valid()){cancel();return;}
+          closed=true;
+          try {
+          frameApplyPreparedPolySelection(step.value);
+          } finally {cleanup();}
+          return;
+        }
+        if(step.value&&typeof step.value.then==='function'){
+          step.value.then(()=>{if(!closed)tasks.post();},error=>{if(!closed)fail(error);});return;
+        }
+      }while(performance.now()<until);
+      tasks.post();
+    }catch(error){fail(error);}
+  };
+  // Selection runs silently and yields through the existing browser task queue.
+  tasks.post();
+}
+
 function hitGizmo(cx, cy) {
   let vi = viewAt(cx, cy);
   if (vi < 0) return null;
@@ -15606,9 +16433,21 @@ async function benchmarkAntialiasAI(samples=20){
  }
  return {three:THREE2.REVISION,width:canvas.width,height:canvas.height,method:"CPU + GPU completion (gl.finish), warmed independent contexts",results};
 }
-function initViewport(container) {
+function frameNativeViewportReport(error){
+  vpState.nativeViewportReportRevision=(vpState.nativeViewportReportRevision||0)+1;
+  vpState.nativeViewportError=error||null;
+  let status=document.getElementById('frame-native-viewport-status');
+  if(!error){status?.remove();return;}
+  if(!status){status=document.createElement('div');status.id='frame-native-viewport-status';status.style.cssText='position:fixed;left:12px;top:12px;z-index:100000;color:#eee;background:#222c;font:12px ui-monospace,monospace;padding:6px;max-width:calc(100vw - 24px)';document.body.append(status);}
+  status.replaceChildren();const label=document.createElement('span');label.textContent='Viewport: '+(error.message||String(error));status.append(label);
+  const renderer=vpState.renderer;
+  if(!renderer){const retry=document.createElement('button');retry.textContent='Retry';retry.style.marginLeft='8px';retry.onclick=()=>location.reload();status.append(retry);}
+  if(renderer?.isFrameNativeViewportRenderer&&!renderer.ready){const retry=document.createElement('button');retry.textContent='Retry';retry.style.marginLeft='8px';retry.onclick=async()=>{retry.disabled=true;const reportRevision=vpState.nativeViewportReportRevision;let generation=renderer.generation;try{const operation=renderer.retry();generation=renderer.generation;await operation;if(vpState.renderer!==renderer||renderer.generation!==generation||renderer.disposed||!renderer.ready||!renderer.bridge?.lease.isCurrent()||vpState.nativeViewportReportRevision!==reportRevision)return;frameNativeViewportReport(null);syncEnv();scheduleRender();}catch(e){if(vpState.renderer===renderer&&renderer.generation===generation&&vpState.nativeViewportReportRevision===reportRevision)frameNativeViewportReport(e);}};status.append(retry);}
+}
+async function initViewport(container) {
   vpState.container = container;
-  let renderer = new THREE2.WebGLRenderer({ antialias: true, alpha: true });
+  let renderer;
+  try{renderer=await frameNative.FrameWebGPUViewportRenderer.create({renderDomain:'gl-window',cubicCapabilityResolver:(owner,control)=>frameNativeCubicCapabilities.resolve(owner,control),onError:frameNativeViewportReport,onCapture:frameNativeCapturePickerView});}catch(error){frameNativeViewportReport(error);throw error;}
   renderer.setPixelRatio(PR), renderer.info.autoReset = false, renderer.autoClear = !1, container.appendChild(renderer.domElement), vpState.renderer = renderer;
   renderer.domElement.style.cssText='position:relative;z-index:5';
   let scene = new THREE2.Scene();
@@ -15701,6 +16540,7 @@ function initViewport(container) {
   let overlayLines = new THREE2.LineSegments(overlayGeo, new THREE2.LineBasicMaterial({ color: QUAD_LINE, depthTest: !1, depthWrite: !1, transparent: !0, opacity: 1 }));
   overlayLines.frustumCulled = !1, overlayScene.add(overlayLines), vpState.overlayScene = overlayScene, vpState.overlayCam = overlayCam, vpState.overlayGeo = overlayGeo;
   let dom = renderer.domElement;
+  frameBindNativeDoubleClick(dom);
   dom.addEventListener("pointerdown", onDown), addEventListener("pointermove", onMove), addEventListener("pointerup", onUp);
   let cancelNavigation = () => {
     for (let view of vpState.views)
@@ -16012,6 +16852,10 @@ function onMove(e) {
     lastX = e.clientX, lastY = e.clientY, Math.hypot(e.clientX - downX, e.clientY - downY) >= TAP_PX ? (vpState.views[activeView].ctrl.move(e, r2, !0, dx2, dy2), scheduleRender()) : vertexTools.mode === "lineCut" ? updateLineCutPreview(e.clientX, e.clientY, activeView) : vertexTools.mode === "closeHole" ? updateCloseHolePreview(e.clientX, e.clientY, activeView) : updateAddPointPreview(e.clientX, e.clientY, activeView);
     return;
   }
+  // A DOM-only marquee does not move the camera. Do not queue identical 3D
+  // frames for its pointer moves; they can delay both feedback and menus.
+  if(frameCancelViewportMarquee&&e.buttons===LMB){lastX=e.clientX;lastY=e.clientY;return;}
+  if(frameCancelViewportMarquee&&(e.buttons&(RMB|MMB)))frameCancelViewportMarquee();
   if (activeView < 0) {
     if (polyMode && polyElementMode === "vertex" && !vertexTools.mode && (e.ctrlKey || e.metaKey)) {
       let vi = viewAt(e.clientX, e.clientY);
@@ -16070,19 +16914,19 @@ function onUp(e) {
       let r = rectFor(vi);
       r && vpState.views[vi].ctrl.up(e, r);
     }
-    let ok = !tap || lineCutAddPoint(e.clientX, e.clientY, vi);
+    let ok = !tap || (vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameAfterPicker(lineCutAddPoint(event.clientX,event.clientY,vi),value=>{if(!value)finishLineCut();scheduleRender();return value;})):lineCutAddPoint(e.clientX,e.clientY,vi));
     activeView = -1;
     try {
       vpState.renderer.domElement.releasePointerCapture(e.pointerId);
     } catch {
     }
-    ok || finishLineCut();
+    if(ok?.then)ok.catch(frameNativePickerError);else ok||finishLineCut();
     return;
   }
   if (polyMode && polyElementMode === "face" && vertexTools.mode === "closeHole" && e.button === 0 && activeView >= 0) {
     let vi = activeView;
     if (Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX)
-      updateCloseHolePreview(e.clientX, e.clientY, vi), closeHoveredHole() || leaveVertexTool(!1);
+      vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameNativeCommitClick(()=>{updateCloseHolePreview(event.clientX,event.clientY,vi);closeHoveredHole()||leaveVertexTool(false);})).catch(frameNativePickerError):(updateCloseHolePreview(e.clientX,e.clientY,vi),closeHoveredHole()||leaveVertexTool(false));
     else {
       let r = rectFor(vi);
       r && vpState.views[vi].ctrl.up(e, r);
@@ -16100,13 +16944,14 @@ function onUp(e) {
       let r = rectFor(vi);
       r && vpState.views[vi].ctrl.up(e, r);
     }
-    let ok = !tap || addPointToolClick(e.clientX, e.clientY, vi);
+    const finish=value=>{value?updateAddPointPreview(vpLastX,vpLastY,vi):leaveVertexTool(false);scheduleRender();return value;};
+    let ok = !tap || (vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameAfterPicker(addPointToolClick(event.clientX,event.clientY,vi),finish)):addPointToolClick(e.clientX,e.clientY,vi));
     activeView = -1;
     try {
       vpState.renderer.domElement.releasePointerCapture(e.pointerId);
     } catch {
     }
-    ok ? updateAddPointPreview(e.clientX, e.clientY, vi) : leaveVertexTool(!1);
+    if(ok?.then)ok.catch(frameNativePickerError);else finish(ok);
     return;
   }
   if (gizDrag)
@@ -16142,7 +16987,13 @@ function componentObjectFallbackPick(cx,cy,shift,ctrl){
   updateAllSplineVisuals();placeGizmoForSelection();setGizmoVisible(selNodes.size>0);updateHUD();scheduleRender();
   return true;
 }
-function doPick(e) {
+function doPick(e,preparedNative=null) {
+  if(vpState.renderer?.isFrameNativeViewportRenderer&&!preparedNative)return frameNativeQueueClick(e,async(event,current)=>{
+    const vi=viewAt(event.clientX,event.clientY),r=rectFor(vi);let hit=null;
+    if(polyMode&&vi>=0&&r&&(polyElementMode==='edge'||vertexTools.mode==='loop'))hit=await frameNativeEdgeRequest(event.clientX,event.clientY,vpState.views[vi].cam,r,EDIT_HIT_PX,'click');
+    if(!current()||hit&&!hit.isCurrent())throw new DOMException('Click context changed before commit','AbortError');
+    return frameNativeCommitClick(()=>doPick(event,{hit}));
+  });
   const cameraHit=frameCameraScreenHit(e.clientX,e.clientY);if(cameraHit){_vpPick?.(cameraHit,e.shiftKey,e.ctrlKey||e.metaKey);return;}
   let vi = viewAt(e.clientX, e.clientY);
   if (vi < 0) {
@@ -16167,14 +17018,14 @@ function doPick(e) {
   if (polyMode) {
     let mode = ctrl ? "invert" : e.shiftKey ? "add" : "replace";
     if ((polyElementMode === "vertex" || polyElementMode === "edge") && vertexTools.mode === "loop") {
-      updateLoopPreview(e.clientX, e.clientY, vi), vertexTools.loop ? applyLoopSelection(mode) : leaveVertexTool(!1);
+      updateLoopPreview(e.clientX, e.clientY, vi,preparedNative), vertexTools.loop ? applyLoopSelection(mode) : leaveVertexTool(!1);
       return;
     }
     if (polyElementMode === "vertex" && ctrl && !vertexTools.mode && !reliableHoverVertex(e.clientX, e.clientY, vpState.views[vi].cam, r, selectionThroughShading(vi))) {
-      componentFocus = "poly", addPointAt(e.clientX, e.clientY, vi), placeGizmoForSelection();
-      return;
+      componentFocus = "poly";
+      return frameAfterPicker(addPointAt(e.clientX,e.clientY,vi),()=>placeGizmoForSelection());
     }
-    let hash2 = polyClickPick(e.clientX, e.clientY, mode);
+    let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);
     if(hash2&&!selNodes.has(hash2)){
       _vpPick&&_vpPick(hash2,e.shiftKey,ctrl);componentFocus='object';placeGizmoForSelection();setGizmoVisible(selNodes.size>0);updateHUD();scheduleRender();return;
     }
@@ -16306,7 +17157,10 @@ function onWheel(e) {
   if (vi < 0) return;
   noteViewportAction(vi);
   let r = rectFor(vi);
-  vi >= 0 && vpState.views[vi].type !== "persp" && (lastOrthoView = vi), r && (vpState.views[vi].ctrl.wheel(e, r), scheduleRender());
+  if (!r) return;
+  hideViewportNavigationMenus();
+  vpState.views[vi].type !== "persp" && (lastOrthoView = vi);
+  vpState.views[vi].ctrl.wheel(e, r); scheduleRender();
 }
 var ICONS = window.ICONS, R2D_UI = 180 / Math.PI, clamp_ui = (v, a, b) => Math.max(a, Math.min(b, v));
 document.getElementById("btnQuant").innerHTML = ICONS.ICO_GRID;
@@ -16500,8 +17354,13 @@ var polyMode = !1, polyElementMode = "face", vertexEditActive = !1, componentMod
 function hideVertexContextMenu() {
   vpMenu.classList.remove("show");
 }
+function hideViewportNavigationMenus() {
+  hideVertexContextMenu();
+  if (obMenu?.dataset.frameMenuOrigin === 'viewport') hideMenu();
+}
+vpMenu.addEventListener('wheel', onWheel, { passive: false });
 function placePopupMenu(menu,x,y,animation=true){
-  if(menu===vpMenu||menu===obMenu){if(animation)frameAppendAnimationMenu(menu,frameCurrentDescriptors());menu.style.display='';}
+  if(menu===vpMenu||menu===obMenu){if(animation)frameAppendAnimationMenu(menu);menu.style.display='';}
   const background=menu.querySelector('[data-action="render-background"]');if(background){background.remove();menu.insertBefore(background,menu.querySelector('[data-action="add-morph-tag"]')||menu.children[Math.max(0,menu.children.length-2)]||null);}
   menu.style.visibility='hidden';menu.style.left='0px';menu.style.top='0px';menu.classList.add('show');const r=menu.getBoundingClientRect(),left=x+r.width<=innerWidth?x:x-r.width,top=y+r.height<=innerHeight?y:y-r.height;menu.style.left=Math.max(0,Math.min(left,innerWidth-r.width))+'px';menu.style.top=Math.max(0,Math.min(top,innerHeight-r.height))+'px';menu.style.visibility='';
 }
@@ -16515,6 +17374,7 @@ function showVertexContextMenu(x, y) {
       hideVertexContextMenu(), action();
     }), vpMenu.appendChild(el);
   }
+  frameAppendPolyConnectedMenu();
   placePopupMenu(vpMenu, x, y);
 }
 function showEdgeContextMenu(x, y) {
@@ -16527,6 +17387,7 @@ function showEdgeContextMenu(x, y) {
       hideVertexContextMenu(), action();
     }), vpMenu.appendChild(el);
   }
+  frameAppendPolyConnectedMenu();
   placePopupMenu(vpMenu, x, y);
 }
 function showFaceContextMenu(x, y) {
@@ -16539,6 +17400,7 @@ function showFaceContextMenu(x, y) {
       hideVertexContextMenu(), action();
     }), vpMenu.appendChild(el);
   }
+  frameAppendPolyConnectedMenu();
   placePopupMenu(vpMenu, x, y);
 }
 function openViewportContextMenu(x, y) {
@@ -16552,7 +17414,7 @@ function openViewportContextMenu(x, y) {
     return;
   }
   const h = pickHashAt(x, y) || [...selNodes][0];
-  if (h) openObjectsContextMenu({ hash: h, clientX: x, clientY: y });
+  if (h) { openObjectsContextMenu({ hash: h, clientX: x, clientY: y }); obMenu.dataset.frameMenuOrigin = "viewport"; }
 }
 function syncSplineFreeTangents(d, vertices, kind) {
   for (let vid of vertices) {
@@ -17282,7 +18144,7 @@ function canSelectConnectedSpline(){
 function showSplineContextMenu(x, y) {
   vpMenu.innerHTML = "";
   const tangentState=splineSoftHardContext();
-  let items = [["Bevel", () => splineSelection.segments.size?startEdgeBevelFromMenu():createSplineBevelTag({ interactive: !0 }), !canCreateSplineBevel()], ["Outline", () => beginSplineOutline({ interactive: !0 }), !canCreateSplineOutline()], [tangentState.label, () => splineTangentCommand(tangentState.kind), !splineTangentChanges(tangentState.kind).length], ["Equal Tangents", () => splineTangentCommand("equalTangents"), !splineTangentChanges("equalTangents").length], ["Toggle Border", toggleSplineBorder, !splineSelection.segments.size], ["Select Connected (W)", selectConnectedSpline, !canSelectConnectedSpline()]];
+  let items = [["Bevel", () => splineSelection.segments.size?startEdgeBevelFromMenu():createSplineBevelTag({ interactive: !0 }), !canCreateSplineBevel()], ["Outline", () => beginSplineOutline({ interactive: !0 }), !canCreateSplineOutline()], [tangentState.label, () => splineTangentCommand(tangentState.kind), !splineTangentChanges(tangentState.kind).length], ["Equal Tangents", () => splineTangentCommand("equalTangents"), !splineTangentChanges("equalTangents").length], ["Toggle Border", toggleSplineBorder, !splineSelection.segments.size], ["Select Connected (U)", selectConnectedSpline, !canSelectConnectedSpline()]];
   for (let [label, action, disabled] of items) {
     let el = document.createElement("div");
     el.className = "obm-item" + (disabled ? " disabled" : ""), el.textContent = label, disabled || el.addEventListener("click", () => {
@@ -18113,13 +18975,14 @@ function frameDeleteAttributeKeys(descriptors=frameCurrentDescriptors(),frame=tl
     if(d.axes)for(const a of d.axes)frameDeleteAxisKey(t,frame,a);else t.keys.delete(frame);delete t._frames;if(!t.keys.size)frameChannels.get(d.h)?.delete(d.path);if(d.path==='position')frameSyncMotionPath(d.h);
   }});
 }
-function frameCurrentDescriptors(){
-  if(frameChannelSelection.length)return frameChannelSelection.map(d=>frameDescriptor(d.h,d.path,d)).filter(Boolean);
-  const morphs=[];for(const h of selNodes){const owner=frameMorphOwner(h),t=frameMorphTag(owner);if(t&&(t.enable||[...selTags].some(id=>parseTagId(id)?.h===owner)))for(const m of t.morphs)morphs.push(frameDescriptor(owner,'morph:'+m.id,{min:m.min,max:m.max}));}if(morphs.length)return morphs;
-  const points=frameSelectedPointDescriptors();if(points.length)return points;
+function frameCurrentDescriptorSource(forMenu=false){
+  if(frameChannelSelection.length)return frameFixedDescriptorSource(frameChannelSelection.map(d=>frameDescriptor(d.h,d.path,d)).filter(Boolean));
+  const morphs=[];for(const h of selNodes){const owner=frameMorphOwner(h),t=frameMorphTag(owner);if(t&&(t.enable||[...selTags].some(id=>parseTagId(id)?.h===owner)))for(const m of t.morphs)morphs.push(frameDescriptor(owner,'morph:'+m.id,{min:m.min,max:m.max}));}if(morphs.length)return frameFixedDescriptorSource(morphs);
+  const points=frameSelectedPointDescriptorSource(forMenu);if(points.size||points.hasAny)return points;
   const out=[];for(const h of selNodes){const owner=frameMotionOwner(h)||h;for(const path of FRAME_TRANSFORM_FIELDS){if(frameIsTarget(owner)&&path!=='position')continue;const d=frameDescriptor(owner,path);if(d)out.push(d);}}
-  return out;
+  return frameFixedDescriptorSource(out);
 }
+function frameCurrentDescriptors(){return frameCurrentDescriptorSource().all();}
 function frameJumpKey(dir){
   const frames=new Set();if(frameChannelSelection.length){for(const d of frameChannelSelection)for(const f of frameTrackFrames(d.h,d.path))frames.add(f);}
   else{const owners=frameSelectedAnimationOwners();for(const h of owners)for(const [path,t] of frameChannels.get(h)||[])for(const f of frameTrackFrames(h,path,t))frames.add(f);}
@@ -18472,14 +19335,73 @@ function frameBezierNumber(a,b,c,d,u){const v=1-u;return v*v*v*a+3*v*v*u*b+3*v*u
 
 
 
-function frameSelectedPointDescriptors(){
-  const out=[];if(!componentModeArmed)return out;
+// A menu owns a compact snapshot of the selected point IDs. Materialize all
+// descriptors only for an action that needs them, not merely to paint the menu.
+// Opening an unanimated face menu needs eligibility, not millions of corner
+// descriptors. A guarded lazy source expires on edits or selection changes;
+// action execution materializes the same full source as the synchronous path.
+function frameUntrackedFaceMenuSource(){
+  if(!componentModeArmed||!polyFocusActive()||splineFocusActive()||polyElementMode!=='face'||!polySelection.items.size)return null;
+  const records=[],owners=[...selNodes],tags=[...selTags],items=polySelection.items,revision=framePolySelectionRevision;
+  const mutation=sceneMutationSequence,token=sceneStateToken,animation=frameAnimationRevision,time=frameEvaluatedTime;
+  for(const [h,selection] of items){
+    const mesh=pickMeshes.get(h),geometry=mesh?.geometry,position=geometry?.attributes.position,index=geometry?.index;
+    if(!position||!selection.faces.size||selection.vertices.size||selection.edges.size||polyExactEdgeVertices?.has(h))return null;
+    for(const [path] of frameChannels.get(h)||[])if(path.startsWith('vertex:'))return null;
+    const first=selection.faces.values().next().value,count=index?.count??position.count;
+    if(!Number.isInteger(first)||first<0||first*3+2>=count||!frameDescriptor(h,'vertex:'+first*3))return null;
+    records.push({h,mesh,geometry,position,index,pv:position.version,iv:index?.version,selection,size:selection.faces.size});
+  }
+  const valid=()=>!frameChannelSelection.length&&tags.length===selTags.size&&tags.every(t=>selTags.has(t))&&revision===framePolySelectionRevision&&items===polySelection.items&&token===sceneStateToken&&mutation===sceneMutationSequence&&animation===frameAnimationRevision&&Object.is(time,frameEvaluatedTime)&&componentModeArmed&&polyFocusActive()&&!splineFocusActive()&&polyElementMode==='face'&&owners.length===selNodes.size&&owners.every(h=>selNodes.has(h))&&records.every(q=>pickMeshes.get(q.h)===q.mesh&&q.mesh.geometry===q.geometry&&q.geometry.attributes.position===q.position&&q.geometry.index===q.index&&q.position.version===q.pv&&q.index?.version===q.iv&&items.get(q.h)===q.selection&&q.selection.faces.size===q.size);
+  return {hasAny:true,valid,tracked:()=>[],all:()=>valid()?frameSelectedPointDescriptorSource().all():[]};
+}
+function frameFixedDescriptorSource(descriptors){
+  return {size:descriptors.length,all:()=>descriptors,tracked:(keysOnly=false)=>descriptors.filter(d=>{const t=frameGetTrack(d.h,d.path);return !!t&&(!keysOnly||t.keys.size>0);})};
+}
+function frameSelectedPointDescriptorSource(forMenu=false){
+  if(forMenu){const source=frameUntrackedFaceMenuSource();if(source)return source;}
+  if(!componentModeArmed)return frameFixedDescriptorSource([]);
   if(splineFocusActive()){
+    const out=[];
     for(const token of splineSelection.vertices){const {object:h,id}=parseSplineElementKey(token);if(frameIsMotionPath(h))continue;out.push(frameDescriptor(h,'point:'+id));const d=splineData.get(h);for(const [sid,s] of Object.entries(d?.segments||{}))if(s.a===id||s.b===id)out.push(frameDescriptor(h,'handle:'+sid+':'+(s.a===id?'ha':'hb')));for(const side of ['in','out'])if(d?.freeHandles?.[id]?.[side])out.push(frameDescriptor(h,'handle:free:'+id+':'+side));}
     for(const token of splineSelection.handles){const q=parseSplineElementKey(token);if(frameIsMotionPath(q.object))continue;const t=parseSplineHandleKey(q.id);out.push(frameDescriptor(q.object,'handle:'+t.segment+':'+(t.segment.startsWith('free:')?t.side:t.side==='a'?'ha':'hb')));}
-  }else if(polyFocusActive())for(const h of polySelection.items.keys()){const mesh=pickMeshes.get(h);if(!mesh)continue;const rawIds=new Set();for(const id of polySelectedVertexIds(h))for(const raw of coincidentVertexIds(mesh,id))rawIds.add(raw);const g=mesh.geometry,count=g.index?.count??g.attributes.position.count;for(let corner=0;corner<count;corner++)if(rawIds.has(g.index?g.index.getX(corner):corner))out.push(frameDescriptor(h,'vertex:'+corner));}
-  const seen=new Set();return out.filter(d=>{if(!d)return false;const key=d.h+'|'+d.path;if(seen.has(key))return false;seen.add(key);return true;});
+    const seen=new Set();return frameFixedDescriptorSource(out.filter(d=>{if(!d)return false;const key=d.h+'|'+d.path;if(seen.has(key))return false;seen.add(key);return true;}));
+  }
+  const entries=[];let size=0;
+  if(polyFocusActive())for(const h of polySelection.items.keys()){
+    const mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position;if(!pos)continue;
+    const rawIds=new Uint8Array(pos.count);logicalVertexGroups(g);const groupOf=vertexGroupOfCache.get(g);
+    for(const id of polySelectedVertexIds(h)){
+      if(rawIds[id])continue;
+      for(const raw of groupOf?.[id]||[id])rawIds[raw]=1;
+    }
+    const count=g.index?.count??pos.count,corners=new Uint32Array(count);let n=0;
+    for(let corner=0;corner<count;corner++)if(rawIds[g.index?g.index.getX(corner):corner])corners[n++]=corner;
+    if(!n)continue;
+    // Every in-range mesh corner has the same descriptor schema. Snapshot that
+    // schema now, so a later menu action retains the selection at menu opening.
+    const template=frameDescriptor(h,'vertex:'+corners[0]);if(!template)continue;
+    entries.push({h,corners:corners.subarray(0,n),template});size+=n;
+  }
+  const descriptor=(entry,corner)=>({...entry.template,path:'vertex:'+corner});
+  return {size,all:()=>{
+    const out=new Array(size);let n=0;for(const entry of entries)for(const corner of entry.corners)out[n++]=descriptor(entry,corner);return out;
+  },tracked:(keysOnly=false)=>{
+    const out=[];
+    for(const entry of entries){
+      const hits=[];
+      for(const [path,t] of frameChannels.get(entry.h)||[]){
+        if(keysOnly&&!t.keys.size||!path.startsWith('vertex:'))continue;
+        const corner=Number(path.slice(7));if(!Number.isInteger(corner)||corner<0||path!=='vertex:'+corner)continue;
+        let lo=0,hi=entry.corners.length;while(lo<hi){const mid=lo+Math.floor((hi-lo)/2);entry.corners[mid]<corner?lo=mid+1:hi=mid;}
+        if(entry.corners[lo]===corner)hits.push(corner);
+      }
+      hits.sort((a,b)=>a-b);for(const corner of hits)out.push(descriptor(entry,corner));
+    }
+    return out;
+  }};
 }
+function frameSelectedPointDescriptors(){return frameSelectedPointDescriptorSource().all();}
 
 function frameHierarchyDepth(h){let depth=0;const seen=new Set();for(let n=OBJ.get(h);n&&!seen.has(n.hash);n=OBJ.get(n.parent)){seen.add(n.hash);depth++;}return depth;}
 
@@ -18488,13 +19410,24 @@ function frameObjectAnimated(h){
   return !!OBJ.get(h)?.tags.some(t=>t.ref&&frameChannels.get(t.ref)?.size);
 }
 
-function frameAppendAnimationMenu(menu,ds=frameCurrentDescriptors()){
-  const item=(text,fn)=>{const b=document.createElement('div');b.className='obm-item';b.textContent=text;b.onclick=()=>{menu.classList.remove('show');menu.style.display=menu===vpMenu||menu===obMenu?'':'none';fn();};menu.appendChild(b);};
-  if(ds.length){item('Set key',()=>frameAddAttributeKeys(ds));if(ds.some(d=>frameTrackFrames(d.h,d.path).includes(tlCur)))item('Delete key',()=>frameDeleteAttributeKeys(ds));if(ds.some(d=>frameGetTrack(d.h,d.path)?.keys.size))item('Remove animation',()=>frameRemoveAttributeAnimation(ds));}
-  if(!frameCurves?.open)item('Show curves',()=>{if(ds.some(d=>frameGetTrack(d.h,d.path)))frameChannelSelection=ds.filter(d=>frameGetTrack(d.h,d.path));frameShowCurves(true);});
+function frameWatchMenuSource(menu,source){
+  menu._frameDescriptorSource=source;
+  if(!source.valid)return;
+  const tick=()=>{
+    if(menu._frameDescriptorSource!==source||!menu.classList.contains('show'))return;
+    if(!source.valid()){menu.classList.remove('show');menu.style.display=menu===vpMenu||menu===obMenu?'':'none';return;}
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }
-
-
+function frameAppendAnimationMenu(menu,ds=null){
+  const source=ds===null?frameCurrentDescriptorSource(true):frameFixedDescriptorSource(ds),tracked=source.tracked();let descriptors=null;
+  frameWatchMenuSource(menu,source);
+  const all=()=>descriptors??(descriptors=source.all());
+  const item=(text,fn)=>{const b=document.createElement('div');b.className='obm-item';b.textContent=text;b.onclick=()=>{menu.classList.remove('show');menu.style.display=menu===vpMenu||menu===obMenu?'':'none';fn();};menu.appendChild(b);};
+  if(source.size||source.hasAny){item('Set key',()=>frameAddAttributeKeys(all()));if(tracked.some(d=>frameTrackFrames(d.h,d.path).includes(tlCur)))item('Delete key',()=>frameDeleteAttributeKeys(all()));if(tracked.some(d=>frameGetTrack(d.h,d.path)?.keys.size))item('Remove animation',()=>frameRemoveAttributeAnimation(all()));}
+  if(!frameCurves?.open)item('Show curves',()=>{if(tracked.length)frameChannelSelection=tracked;frameShowCurves(true);});
+}
 
 function frameNearestEuler(value,reference){
   if(!reference)return value.slice();const variants=[value,[value[0]+180,180-value[1],value[2]+180]].map(v=>v.map((x,i)=>x+360*Math.round((reference[i]-x)/360)));
@@ -18956,7 +19889,8 @@ function frameCurvesStartResize(e){
 
 function frameCurvesCandidates(){
   if(frameChannelSelection.length)return frameChannelSelection.filter(d=>frameGetTrack(d.h,d.path)?.keys.size).map(d=>({h:d.h,path:d.path,...(d.axes?{axes:d.axes.slice()}:{})}));
-  const points=frameSelectedPointDescriptors().filter(d=>frameGetTrack(d.h,d.path)?.keys.size);if(points.length)return points.map(d=>({h:d.h,path:d.path,...(d.axes?{axes:d.axes.slice()}:{})}));
+  const hasPointTracks=[...frameChannels.values()].some(tracks=>[...tracks].some(([path,t])=>t.keys.size&&frameIsPLAPath(path)));
+  const points=hasPointTracks?frameSelectedPointDescriptorSource().tracked(true):[];if(points.length)return points.map(d=>({h:d.h,path:d.path,...(d.axes?{axes:d.axes.slice()}:{})}));
   return [...new Set([...selNodes].map(h=>frameMotionOwner(h)||h))].flatMap(h=>[...(frameChannels.get(h)||[])].filter(([,t])=>t.keys.size).map(([path])=>({h,path})));
 }
 function frameCurvesChooseContext(descriptors=null){
@@ -19629,6 +20563,7 @@ function setLiveMat(hash) {
 }
 function refreshSelClasses() {
   frameMorphRetainEditSelection();
+  const nativeOwners=JSON.stringify([...selNodes].sort());if(nativeOwners!==frameNativeOwnerSignature){if(!frameNativeClickCommit)frameNativeExternalSelection++;frameNativeOwnerSignature=nativeOwners;}
   frameSelectionChanged();
   let selectionStarted = performance.now();
   vertexEditActive ? syncVertexEditTargets(anchorNode?.hash || null) : componentModeArmed ? syncArmedComponentTargets(anchorNode?.hash || null) : prunePolySelection();
@@ -21591,10 +22526,12 @@ function blurActive() {
   a?.blur && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT" || a.isContentEditable) && a.blur();
 }
 var obMenu = document.getElementById("obMenu");
+obMenu.addEventListener('wheel', e => { if (obMenu.dataset.frameMenuOrigin === 'viewport') onWheel(e); }, { passive: false });
 function hideMenu() {
   obMenu.classList.remove("show");
 }
 function showMenu(x, y, items, animation = true) {
+  delete obMenu.dataset.frameMenuOrigin;
   obMenu.innerHTML = "";
   for (let it of items) {
     let d = document.createElement("div");
@@ -23003,8 +23940,8 @@ function dispValue(m, T) {
 function toMM(m, v) {
   return m.ch === "rot" ? v : v * UMM[dispIdx];
 }
-function updateHUD() {
-  let T = readTransform(coordMode), a = document.activeElement, set = (el, m) => {
+function updateHUD(transform=null) {
+  let T = transform||readTransform(coordMode), a = document.activeElement, set = (el, m) => {
     if(el===a||el===_scrubActive)return;const v=dispValue(m,T);el._frameSetDisplay?el._frameSetDisplay(v):setNumericInputDisplay(el,v,null);
   };
   set(px, META.get(px)), set(py, META.get(py)), set(pz, META.get(pz)), set(sx, META.get(sx)), set(sy, META.get(sy)), set(sz, META.get(sz)), set(rx, META.get(rx)), set(ry, META.get(ry)), set(rz, META.get(rz));
@@ -23074,8 +24011,9 @@ function frameScaleNavigation(k){
 function setRscl(i) {
   let ni = clamp_ui(Math.round(i), 0, UNITS.length - 1);if(!Number.isFinite(ni))throw Error('Invalid rescale unit');
   if (ni === rsclIdx) return;
-  const previous=rsclIdx,k=UMM[ni]/UMM[previous],apply=(ratio,index)=>{frameScaleNavigation(ratio);rescaleRoots(ratio);rsclIdx=index;rV.textContent=UNITS[index];scheduleRender();};
-  runCmd({redo:()=>apply(k,ni),undo:()=>apply(1/k,previous)});
+  const previous=rsclIdx,k=UMM[ni]/UMM[previous],apply=(ratio,index)=>{rescaleRoots(ratio);rsclIdx=index;rV.textContent=UNITS[index];scheduleRender();};
+  const cameraBefore=frameActiveCamera();
+  runCmd({redo:()=>{if(frameActiveCamera())frameLeaveCamera(true);apply(k,ni);},undo:()=>{apply(1/k,previous);if(cameraBefore&&frameIsCamera(cameraBefore))frameSetCamera(cameraBefore,false);}});
 }
 document.getElementById("dP").onclick = () => setDisp(dispIdx + 1);
 document.getElementById("dM").onclick = () => setDisp(dispIdx - 1);
@@ -23220,17 +24158,38 @@ function setGizmoFromMatrix(arr) {
   ignoreBridge = !0, setGizmoMatrix(arr), ignoreBridge = !1;
 }
 function polySelectedVertexIds(h) {
-  let s = polySelection.items.get(h), mesh = pickMeshes.get(h), g = mesh && mesh.geometry, idx = g && g.index, out = /* @__PURE__ */ new Set();
-  if (!s || !g) return out;
-  if (polyExactEdgeVertices?.has(h)) return new Set(polyExactEdgeVertices.get(h));
-  for (let i of s.vertices) out.add(i);
-  for (let key of s.edges) {
-    let [a, b] = key.split(":").map(Number);
-    coincidentVertexIds(mesh, a).forEach((v) => out.add(v)), coincidentVertexIds(mesh, b).forEach((v) => out.add(v));
-  }
-  for (let fi of s.faces) for (let j = 0; j < 3; j++) coincidentVertexIds(mesh, idx ? idx.getX(fi * 3 + j) : fi * 3 + j).forEach((v) => out.add(v));
+  const s=polySelection.items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();
+  if(!s||!g)return out;
+  if(polyExactEdgeVertices?.has(h))return new Set(polyExactEdgeVertices.get(h));
+  for(const i of s.vertices)out.add(i);
+  if(!s.edges.size&&!s.faces.size)return out;
+  logicalVertexGroups(g);const groupOf=vertexGroupOfCache.get(g),expanded=new Set(),idx=g.index;
+  const addGroup=i=>{const group=groupOf?.[i];if(!group){out.add(i);return;}if(expanded.has(group))return;expanded.add(group);for(const v of group)out.add(v);};
+  for(const key of s.edges){const [a,b]=key.split(':').map(Number);addGroup(a);addGroup(b);}
+  for(const fi of s.faces)for(let j=0;j<3;j++)addGroup(idx?idx.getX(fi*3+j):fi*3+j);
   return out;
 }
+
+function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices) {
+  const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();let work=0;
+  if(!s||!g)return out;
+  if(exact?.has(h)){for(const i of exact.get(h)){out.add(i);if((++work&1023)===0)yield;}return out;}
+  for(const i of s.vertices){out.add(i);if((++work&1023)===0)yield;}
+  if(!s.edges.size&&!s.faces.size)return out;
+  yield* frameLogicalVertexGroupsWork(g);const groupOf=vertexGroupOfCache.get(g),expanded=new Set(),idx=g.index;
+  const takeGroup=i=>{const group=groupOf?.[i];if(!group){out.add(i);return null;}if(expanded.has(group))return null;expanded.add(group);return group;};
+  for(const key of s.edges){
+    const [a,b]=key.split(':').map(Number);
+    for(const i of [a,b]){const group=takeGroup(i);if(group)for(const v of group){out.add(v);if((++work&1023)===0)yield;}}
+    if((++work&1023)===0)yield;
+  }
+  for(const fi of s.faces){
+    for(let j=0;j<3;j++){const group=takeGroup(idx?idx.getX(fi*3+j):fi*3+j);if(group)for(const v of group){out.add(v);if((++work&1023)===0)yield;}}
+    if((++work&1023)===0)yield;
+  }
+  return out;
+}
+
 function extrudeSelectedEdgesForDrag() {
   let exact = /* @__PURE__ */ new Map(), oriented = /* @__PURE__ */ new Map(), changed = !1;
   for (let [h, s] of polySelection.items) {
@@ -23323,11 +24282,13 @@ function polyWorldPoints() {
   return out;
 }
 function polyExtentInFrame(frame) {
-  let inv = frame.clone().invert(), mn = new THREE2.Vector3(1 / 0, 1 / 0, 1 / 0), mx = new THREE2.Vector3(-1 / 0, -1 / 0, -1 / 0), any = !1;
-  for (let p of polyWorldPoints())
-    p.applyMatrix4(inv), mn.min(p), mx.max(p), any = !0;
-  return any ? mx.sub(mn) : new THREE2.Vector3();
+  const inv=frame.clone().invert(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false;
+  for(const [h] of polySelection.items){const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;mesh.updateMatrixWorld(true);
+    for(const i of polySelectedVertexIds(h)){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);mn.min(p);mx.max(p);any=true;}
+  }
+  return any?mx.sub(mn):new THREE2.Vector3();
 }
+
 function basisFromNormal(normal, ownerRot) {
   let z = normal.clone().normalize(), oe = ownerRot.elements, candidates = [new THREE2.Vector3(oe[0], oe[1], oe[2]), new THREE2.Vector3(oe[4], oe[5], oe[6]), new THREE2.Vector3(oe[8], oe[9], oe[10])], x = null, best = -1;
   for (let a of candidates) {
@@ -23338,26 +24299,39 @@ function basisFromNormal(normal, ownerRot) {
   let y = z.clone().cross(x).normalize();
   return x.copy(y).cross(z).normalize(), new THREE2.Matrix4().makeBasis(x, y, z);
 }
-function faceSelectionBasis(h, ownerRot) {
-  if (polyElementMode !== "face" || polySelection.items.size !== 1) return null;
-  let s = polySelection.items.get(h), mesh = pickMeshes.get(h), g = mesh?.geometry, pos = g?.attributes.position, idx = g?.index;
-  if (!s?.faces.size || !pos) return null;
-  mesh.updateMatrixWorld(!0);
-  let a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3(), ab = new THREE2.Vector3(), ac = new THREE2.Vector3(), normal = new THREE2.Vector3(), points = [], refNormal = null, refPoint = null;
-  for (let fi of s.faces) {
-    let ids = [idx ? idx.getX(fi * 3) : fi * 3, idx ? idx.getX(fi * 3 + 1) : fi * 3 + 1, idx ? idx.getX(fi * 3 + 2) : fi * 3 + 2];
-    if (a.fromBufferAttribute(pos, ids[0]).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, ids[1]).applyMatrix4(mesh.matrixWorld), c.fromBufferAttribute(pos, ids[2]).applyMatrix4(mesh.matrixWorld), normal.copy(ab.subVectors(b, a)).cross(ac.subVectors(c, a)), normal.lengthSq() < 1e-16) return null;
-    if (normal.normalize(), !refNormal)
-      refNormal = normal.clone(), refPoint = a.clone();
-    else if (normal.dot(refNormal) < 0 && normal.negate(), normal.dot(refNormal) < 0.9999) return null;
-    points.push(a.clone(), b.clone(), c.clone());
+function faceSelectionBasis(h,ownerRot) {
+  if(polyElementMode!=='face'||polySelection.items.size!==1)return null;
+  const s=polySelection.items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;
+  if(!s?.faces.size||!pos)return null;mesh.updateMatrixWorld(true);
+  const a=new THREE2.Vector3(),b=new THREE2.Vector3(),c=new THREE2.Vector3(),ab=new THREE2.Vector3(),ac=new THREE2.Vector3(),normal=new THREE2.Vector3(),delta=new THREE2.Vector3();let refNormal=null,refPoint=null,span=0,deviation=0;
+  for(const fi of s.faces){
+    const ia=idx?idx.getX(fi*3):fi*3,ib=idx?idx.getX(fi*3+1):fi*3+1,ic=idx?idx.getX(fi*3+2):fi*3+2;
+    a.fromBufferAttribute(pos,ia).applyMatrix4(mesh.matrixWorld);b.fromBufferAttribute(pos,ib).applyMatrix4(mesh.matrixWorld);c.fromBufferAttribute(pos,ic).applyMatrix4(mesh.matrixWorld);
+    normal.copy(ab.subVectors(b,a)).cross(ac.subVectors(c,a));if(normal.lengthSq()<1e-16)return null;normal.normalize();
+    if(!refNormal){refNormal=normal.clone();refPoint=a.clone();}else{if(normal.dot(refNormal)<0)normal.negate();if(normal.dot(refNormal)<.9999)return null;}
+    for(const point of [a,b,c]){span=Math.max(span,point.distanceTo(refPoint));const distance=Math.abs(delta.copy(point).sub(refPoint).dot(refNormal));if(distance>deviation)deviation=distance;}
   }
-  let span = 0;
-  for (let p of points) span = Math.max(span, p.distanceTo(refPoint));
-  let tol = Math.max(1e-5, span * 1e-5);
-  for (let p of points) if (Math.abs(p.clone().sub(refPoint).dot(refNormal)) > tol) return null;
-  return basisFromNormal(refNormal, ownerRot);
+  if(deviation>Math.max(1e-5,span*1e-5))return null;
+  return basisFromNormal(refNormal,ownerRot);
 }
+
+function* frameFaceSelectionBasisWork(h,ownerRot,items=polySelection.items) {
+  if(polyElementMode!=='face'||items.size!==1)return null;
+  const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;
+  if(!s?.faces.size||!pos)return null;mesh.updateMatrixWorld(true);
+  const a=new THREE2.Vector3(),b=new THREE2.Vector3(),c=new THREE2.Vector3(),ab=new THREE2.Vector3(),ac=new THREE2.Vector3(),normal=new THREE2.Vector3(),delta=new THREE2.Vector3();let refNormal=null,refPoint=null,span=0,deviation=0,work=0;
+  for(const fi of s.faces){
+    if((++work&1023)===0)yield;
+    const ia=idx?idx.getX(fi*3):fi*3,ib=idx?idx.getX(fi*3+1):fi*3+1,ic=idx?idx.getX(fi*3+2):fi*3+2;
+    a.fromBufferAttribute(pos,ia).applyMatrix4(mesh.matrixWorld);b.fromBufferAttribute(pos,ib).applyMatrix4(mesh.matrixWorld);c.fromBufferAttribute(pos,ic).applyMatrix4(mesh.matrixWorld);
+    normal.copy(ab.subVectors(b,a)).cross(ac.subVectors(c,a));if(normal.lengthSq()<1e-16)return null;normal.normalize();
+    if(!refNormal){refNormal=normal.clone();refPoint=a.clone();}else{if(normal.dot(refNormal)<0)normal.negate();if(normal.dot(refNormal)<.9999)return null;}
+    for(const point of [a,b,c]){span=Math.max(span,point.distanceTo(refPoint));const distance=Math.abs(delta.copy(point).sub(refPoint).dot(refNormal));if(distance>deviation)deviation=distance;}
+  }
+  if(deviation>Math.max(1e-5,span*1e-5))return null;
+  return basisFromNormal(refNormal,ownerRot);
+}
+
 function edgeSelectionBasis(h, ownerRot) {
   if (polyElementMode !== "edge" || polySelection.items.size !== 1) return null;
   let s = polySelection.items.get(h), mesh = pickMeshes.get(h), pos = mesh?.geometry?.attributes.position;
@@ -23388,13 +24362,50 @@ function edgeSelectionBasis(h, ownerRot) {
   let z = refDir.clone().cross(y).normalize();
   return y = z.clone().cross(refDir).normalize(), new THREE2.Matrix4().makeBasis(refDir, y, z);
 }
+function* frameEdgeSelectionBasisWork(h,ownerRot,items=polySelection.items) {
+  if (polyElementMode !== "edge" || items.size !== 1) return null;
+  let s = items.get(h), mesh = pickMeshes.get(h), pos = mesh?.geometry?.attributes.position;
+  if (!s?.edges.size || !pos) return null;
+  mesh.updateMatrixWorld(!0);
+  const chosen=[];let work=0;
+  for(const edge of yield* frameLogicalEdgesWork(mesh.geometry)){
+    let take=false;for(const key of edge.keys){if(s.edges.has(key)){take=true;break;}if((++work&1023)===0)yield;}
+    if(take)chosen.push(edge);if((++work&1023)===0)yield;
+  }
+  if (!chosen.length) return null;
+  let a = new THREE2.Vector3(), b = new THREE2.Vector3(), dir = new THREE2.Vector3(), points = [], refDir = null, refPoint = null;
+  for (let edge of chosen){
+    if((++work&1023)===0)yield;
+    if (a.fromBufferAttribute(pos, edge.a).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, edge.b).applyMatrix4(mesh.matrixWorld), dir.subVectors(b, a), !(dir.lengthSq() < 1e-16)) {
+      if (dir.normalize(), !refDir)
+        refDir = dir.clone(), refPoint = a.clone();
+      else if (dir.dot(refDir) < 0 && dir.negate(), dir.dot(refDir) < 0.9999) return null;
+      points.push(a.clone(), b.clone());
+    }
+  }
+  if (!refDir) return null;
+  let oe = ownerRot.elements, ownerX = new THREE2.Vector3(oe[0], oe[1], oe[2]);
+  refDir.dot(ownerX) < 0 && refDir.negate();
+  let span = 0;
+  for (let p of points){span = Math.max(span, p.distanceTo(refPoint));if((++work&1023)===0)yield;}
+  let tol = Math.max(1e-5, span * 1e-5);
+  for (let p of points) {
+    let d = p.clone().sub(refPoint), along = refDir.clone().multiplyScalar(d.dot(refDir));
+    if (d.sub(along).length() > tol) return null;
+    if((++work&1023)===0)yield;
+  }
+  let ownerY = new THREE2.Vector3(oe[4], oe[5], oe[6]), ownerZ = new THREE2.Vector3(oe[8], oe[9], oe[10]), y = ownerY.addScaledVector(refDir, -ownerY.dot(refDir));
+  y.lengthSq() < 1e-10 && (y = ownerZ.addScaledVector(refDir, -ownerZ.dot(refDir))), y.normalize();
+  let z = refDir.clone().cross(y).normalize();
+  return y = z.clone().cross(refDir).normalize(), new THREE2.Matrix4().makeBasis(refDir, y, z);
+}
 function polyAutoBasis() {
   if (coordMode === "world") return new THREE2.Matrix4();
   let h = polyOwnerHash(), owner = pureWorldFrame(h);
   return faceSelectionBasis(h, owner) || edgeSelectionBasis(h, owner) || owner;
 }
-function polyFrameMatrix() {
-  let bb = polySelectionBounds();
+function polyFrameMatrix(bounds=null) {
+  let bb = bounds||polySelectionBounds();
   if (!bb) return new THREE2.Matrix4();
   let p = polyPivotMatrix ? new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(polyPivotMatrix)) : bb.min.clone().add(bb.max).multiplyScalar(0.5), basis;
   return polyPivotMatrix && coordMode === "object" ? (basis = new THREE2.Matrix4().fromArray(polyPivotMatrix), rotMatOfLin(basis, basis), basis.setPosition(0, 0, 0)) : basis = polyAutoBasis(), basis.setPosition(p), basis;
@@ -23402,10 +24413,10 @@ function polyFrameMatrix() {
 function polyCoordReference(mode) {
   return mode === "world" ? new THREE2.Matrix4() : pureWorldFrame(polyOwnerHash());
 }
-function readPolyTransform(mode) {
-  let world = polyFrameMatrix(), ref = polyCoordReference(mode), local = ref.clone().invert().multiply(world), lin = local.clone();
+function readPolyTransform(mode,measurements=null) {
+  let world = measurements?measurements.frame:polyFrameMatrix(), ref = polyCoordReference(mode), local = ref.clone().invert().multiply(world), lin = local.clone();
   lin.elements[12] = lin.elements[13] = lin.elements[14] = 0, rotMatOfLin(lin, _RM);
-  let e = new THREE2.Euler().setFromRotationMatrix(_RM), p = new THREE2.Vector3().setFromMatrixPosition(local), s = polyExtentInFrame(world);
+  let e = new THREE2.Euler().setFromRotationMatrix(_RM), p = new THREE2.Vector3().setFromMatrixPosition(local), s = measurements?measurements.extent:polyExtentInFrame(world);
   return { p, s, e };
 }
 function setPureGizmoFrame(world) {
@@ -23659,6 +24670,137 @@ function restorePolyGeometries(s) {
   }
   rebuildPolySelection(!1), scheduleRender();
 }
+// Connected topology is prepared by the shared-budget native topology Worker.
+function frameConnectedDomainField(domain=polyElementMode){return domain==='vertex'?'vertices':domain==='edge'?'edges':'faces';}
+var frameConnectedSelectionComplete=null;
+function frameRememberConnectedSelection(){
+  const revision=framePolySelectionRevision,items=polySelection.items,mode=polyElementMode,owners=[...selNodes];
+  const token=sceneStateToken,mutation=sceneMutationSequence,sources=[];
+  for(const [h,s] of items){const mesh=pickMeshes.get(h),g=mesh?.geometry,p=g?.attributes.position,i=g?.index;sources.push({h,s,mesh,g,p,i,pv:p?.version,iv:i?.version,pa:p?.array,ia:i?.array,n:p?.count,nf:i?.count});}
+  // O(objects) check when reopening a large menu; no topology/descriptor build.
+  frameConnectedSelectionComplete=()=>revision===framePolySelectionRevision&&items===polySelection.items&&mode===polyElementMode&&token===sceneStateToken&&mutation===sceneMutationSequence&&owners.length===selNodes.size&&owners.every(h=>selNodes.has(h))&&sources.length===items.size&&sources.every(q=>items.get(q.h)===q.s&&pickMeshes.get(q.h)===q.mesh&&q.mesh?.geometry===q.g&&q.g?.attributes.position===q.p&&q.g?.index===q.i&&q.p?.version===q.pv&&q.i?.version===q.iv&&q.p?.array===q.pa&&q.i?.array===q.ia&&q.p?.count===q.n&&q.i?.count===q.nf);
+}
+function canSelectConnectedPoly(){
+  if(!polyFocusActive()||frameConnectedSelectionComplete?.())return false;
+  const field=frameConnectedDomainField();
+  for(const [h,s] of polySelection.items){
+    if(!selNodes.has(h)||!isVertexEditableMesh(h)||!s[field].size)continue;
+    const g=pickMeshes.get(h)?.geometry,p=g?.attributes.position;if(!p)continue;
+    if(polyElementMode==='vertex'&&s.vertices.size>=p.count)continue;
+    if(polyElementMode==='face'&&s.faces.size>=Math.floor((g.index?.count??p.count)/3))continue;
+    return true;
+  }
+  return false;
+}
+// Runtime adapter: topology-only work is independent of camera and visibility.
+// This shares Frame's existing heavy-work budget and does not start GPU visibility.
+var frameNativeTopologyCache=null,frameNativeTopologyTimer=null,frameNativeWarmKey=null,frameNativeLastClick=null;
+function frameGetNativeTopologyCache(){
+  if(!frameNativeTopologyCache)frameNativeTopologyCache=new frameNative.TopologyCache({
+    workerFactory:frameNative.createTopologyWorker,
+    acquireLease:async({signal})=>({release:await frameComputeBudget.acquire('native',signal)}),
+    scheduleIdle:fn=>typeof requestIdleCallback==='function'?requestIdleCallback(fn,{timeout:1500}):setTimeout(fn,120),
+    cancelIdle:id=>typeof cancelIdleCallback==='function'?cancelIdleCallback(id):clearTimeout(id)
+  });
+  return frameNativeTopologyCache;
+}
+function frameWarmNativeTopology(){
+  // O(1) key comparison in the render scheduler. Camera movement cannot cause a build.
+  const key=[sceneStateToken,sceneMutationSequence,framePolySelectionRevision,polyElementMode,componentModeArmed].join('|');
+  if(key===frameNativeWarmKey)return;frameNativeWarmKey=key;
+  if(frameNativeTopologyTimer!==null)return;
+  const run=()=>{
+    frameNativeTopologyTimer=null;if(!polyFocusActive())return;
+    const cache=frameGetNativeTopologyCache(),owners=selNodes.values();
+    const next=()=>{
+      if(!polyFocusActive())return;
+      const start=performance.now();let q;
+      while(!(q=owners.next()).done){const h=q.value,m=pickMeshes.get(h);
+        // Never access aggregate geometry getters on a cloner/instance root.
+        if(isVertexEditableMesh(h)&&m?.isMesh&&!m.userData?.splineChunks&&m.geometry?.attributes.position)
+          cache.warm(m.geometry).catch(error=>{if(error.name!=='AbortError')console.warn('Topology preparation',error.message);});
+        if(performance.now()-start>=2){frameNativeTopologyTimer=setTimeout(()=>{frameNativeTopologyTimer=null;next();},60);return;}
+      }
+    };next();
+  };
+  frameNativeTopologyTimer=setTimeout(run,120);
+}
+function frameNativeConnectedGuard(){
+  const revision=framePolySelectionRevision,domain=polyElementMode,items=polySelection.items,owners=[...selNodes];
+  const coord=coordMode,local=gizmoLocal,soft=vertexTools.soft.active,exact=polyExactEdgeVertices;
+  const sources=[];
+  for(const h of owners){const m=pickMeshes.get(h);if(!isVertexEditableMesh(h)||!m?.isMesh||m.userData?.splineChunks)continue;
+    m.updateMatrixWorld(true);const geometry=m.geometry,stamp=frameNative.topologyStamp(geometry),world=Array.from(m.matrixWorld.elements);
+    sources.push({h,m,geometry,stamp,world});
+  }
+  return ()=>revision===framePolySelectionRevision&&domain===polyElementMode&&items===polySelection.items&&coord===coordMode&&local===gizmoLocal&&soft===vertexTools.soft.active&&exact===polyExactEdgeVertices&&owners.length===selNodes.size&&owners.every(h=>selNodes.has(h))&&
+    sources.every(q=>{if(pickMeshes.get(q.h)!==q.m||q.m.geometry!==q.geometry||!q.stamp.isCurrent())return false;q.m.updateWorldMatrix(true,false);return q.m.matrixWorld.elements.every((v,i)=>Object.is(v,q.world[i]));});
+}
+async function framePrepareNativeConnected({domain,clicked=null,mode='add'},control){
+  const {signal,isCurrent,yieldTask}=control;
+  const drain=work=>frameNative.drainCooperatively(work,{signal,isCurrent,yieldTask});
+  const items=clicked&&mode==='replace'?new Map():await drain(frameCopyPolySelection(polySelection.items));
+  const field=frameConnectedDomainField(domain),cache=frameGetNativeTopologyCache();
+  const sources=clicked?[[clicked.h,new Set(clicked.ids)]]:[...items].filter(([h,s])=>selNodes.has(h)&&isVertexEditableMesh(h)&&s[field].size).map(([h,s])=>[h,s[field]]);
+  for(const [h,seeds]of sources){
+    if(signal.aborted||!isCurrent())throw new DOMException('Connected selection changed','AbortError');
+    const mesh=pickMeshes.get(h);if(!mesh?.isMesh||mesh.userData?.splineChunks)throw Error('Make the object polygonal before component Connected');
+    const expanded=await frameNative.expandConnectedRaw(cache,mesh.geometry,domain,seeds,{signal,isCurrent,yieldTask});
+    let s=items.get(h);if(!s)items.set(h,s={vertices:new Set(),edges:new Set(),faces:new Set()});
+    if(clicked){
+      const set=s[field];let work=0;for(const id of expanded){if(mode==='invert'&&set.has(id))set.delete(id);else set.add(id);if((++work&2047)===0){await yieldTask();if(signal.aborted||!isCurrent())throw new DOMException('Connected selection changed','AbortError');}}
+    }else s[field]=expanded;
+    if(!s.vertices.size&&!s.edges.size&&!s.faces.size)items.delete(h);
+  }
+  // Keep the existing editing/undo/gizmo representation, but prepare it cooperatively.
+  const buffers=await drain(framePolySelectionBuffers(items)),measurements=await drain(framePolySelectionMeasurements(items,null));
+  return {items,buffers,measurements,connected:!clicked||mode!=='invert'};
+}
+function frameStartNativeConnected(options){
+  frameCancelPolySelectionWork();
+  const controller=new AbortController(),tasks=frameNative.createYieldQueue(),valid=frameNativeConnectedGuard();
+  const job={kind:'connected',cancel:()=>controller.abort(),promise:null};framePolySelectionJob=job;
+  const key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();job.cancel();}};
+  addEventListener('keydown',key,true);
+  job.promise=framePrepareNativeConnected(options,{signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&valid(),yieldTask:()=>tasks.yield()}).then(result=>{
+    if(controller.signal.aborted||!valid())return false;if(options.nativeOwned)frameNativeCommitClick(()=>frameApplyPreparedPolySelection(result));else frameApplyPreparedPolySelection(result);return true;
+  }).catch(error=>{if(error.name!=='AbortError'){console.error('Connected selection failed',error);frameNativeSelectionError(error);}return false;}).finally(()=>{
+    tasks.dispose();removeEventListener('keydown',key,true);if(framePolySelectionJob===job)framePolySelectionJob=null;
+  });
+  return true;
+}
+function frameNativeSelectionError(error){
+  const old=document.querySelector('[data-frame-selection-error]');old?.remove();const el=document.createElement('div');el.dataset.frameSelectionError='';el.setAttribute('role','alert');
+  el.textContent='Selection: '+(error.message||String(error));el.style.cssText='position:absolute;left:8px;top:8px;z-index:10020;font:14px sans-serif;color:#eee;background:#242424;padding:3px 6px;max-width:80%;pointer-events:none';
+  vpState.container.appendChild(el);setTimeout(()=>el.remove(),8000);
+}
+function selectConnectedPoly(){
+  if(!canSelectConnectedPoly())return false;
+  return frameStartNativeConnected({domain:polyElementMode});
+}
+function frameBindNativeDoubleClick(dom){
+  const click=(h,ids,cx,cy)=>{const mesh=pickMeshes.get(h);frameNativeLastClick={h,ids,domain:polyElementMode,cx,cy,at:performance.now(),geometry:mesh?.geometry,revision:framePolySelectionRevision};};
+  frameRecordNativeComponentClick=click;
+  const dbl=e=>{
+    if(vpState.renderer?.isFrameNativeViewportRenderer&&!e.frameNativeDrained){frameNativeQueueClick(e,(event)=>dbl({...event,frameNativeDrained:true})).catch(frameNativePickerError);return;}
+    if(e.button!==0||e.defaultPrevented||!polyFocusActive()||gizDrag||splinePointerGesture)return;
+    const hit=frameNativeLastClick,box=dom.getBoundingClientRect(),cx=e.clientX-box.left,cy=e.clientY-box.top;
+    if(!hit||performance.now()-hit.at>1000||hit.domain!==polyElementMode||Math.hypot(hit.cx-cx,hit.cy-cy)>6||hit.revision!==framePolySelectionRevision||pickMeshes.get(hit.h)?.geometry!==hit.geometry)return;
+    frameStartNativeConnected({domain:hit.domain,clicked:hit,nativeOwned:e.frameNativeDrained===true,mode:e.ctrlKey||e.metaKey?'invert':e.shiftKey?'add':'replace'});if(e.frameNativeDrained)return framePolySelectionJob?.promise;
+  };
+  dom.addEventListener('dblclick',dbl);
+  addEventListener('pagehide',e=>{frameCancelPolySelectionWork();clearTimeout(frameNativeTopologyTimer);frameNativeTopologyTimer=null;if(!e.persisted){dom.removeEventListener('dblclick',dbl);frameNativeTopologyCache?.dispose();frameNativePickerLane?.dispose().catch(()=>{});frameNativePickerAdapter?.then(p=>p.dispose()).catch(()=>{});if(vpState.renderer?.isFrameNativeViewportRenderer)vpState.renderer.dispose().catch(()=>{});}});
+}
+var frameRecordNativeComponentClick=()=>{};
+
+function frameAppendPolyConnectedMenu(){
+  const disabled=!canSelectConnectedPoly(),el=document.createElement('div');
+  el.className='obm-item'+(disabled?' disabled':'');el.textContent='Select Connected (U)';
+  el.setAttribute('aria-disabled',String(disabled));el.dataset.action='select-connected';
+  if(!disabled)el.addEventListener('click',()=>{hideVertexContextMenu();selectConnectedPoly();});
+  vpMenu.appendChild(el);
+}
+
 function selectAllPolyElements() {
   polyPivotMatrix = null, polySelection.items.clear();
   for (let h of selNodes) {
@@ -23673,7 +24815,7 @@ function selectAllPolyElements() {
       for (let fi = 0; fi < faces; fi++) s.faces.add(fi);
     }
   }
-  rebuildPolySelection();
+  rebuildPolySelection();frameRememberConnectedSelection();
 }
 function triangleMaterialIndex(g, fi) {
   let offset = fi * 3;
@@ -24337,7 +25479,7 @@ function snapSplinePivotPreview() {
   }
   best && (gizmo.pos.copy(vertexSnapInView(best, raw, vi)), syncCube());
 }
-function placeGizmoForSelection() {
+function placeGizmoForSelection(measurements=null) {
   if(uvMode&&!uvEdit){boundNode=null;setGizmoVisible(false);return;}
   let hs = [...selNodes];
   if (uvEdit) {
@@ -24366,9 +25508,9 @@ function placeGizmoForSelection() {
     return;
   }
   if (polyFocusActive()) {
-    let bb = polySelectionBounds();
+    let bb = measurements?measurements.bounds:polySelectionBounds();
     if (boundNode = null, !bb) return;
-    let m2 = polyFrameMatrix();
+    let m2 = measurements?measurements.frame:polyFrameMatrix(bb);
     setGizmoFromMatrix(m2.elements), setGizmoBounds(bb.min, bb.max);
     return;
   }
@@ -24669,29 +25811,37 @@ onGizmoDragEnd((event) => {
   } else
     gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
 });
+var frameCancelViewportMarquee=null;
+var framePolySelectionRevision=0;
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
   let vi = viewAt(e.clientX, e.clientY);
   if (e.pointerType === "touch" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp")) return;
   e.preventDefault();
+  frameCancelViewportMarquee?.();
   let sx2 = e.clientX, sy2 = e.clientY, box = document.createElement("div");
   box.className = "ml-marquee vp-marquee", document.body.appendChild(box);
+  const pointer=e.pointerId;
+  const cleanup=()=>{removeEventListener('pointermove',move);removeEventListener('pointerup',up);removeEventListener('pointercancel',cancel);removeEventListener('keydown',escape,true);removeEventListener('blur',cancel);box.remove();if(frameCancelViewportMarquee===cleanup)frameCancelViewportMarquee=null;};
+  const cancel=ev=>{if(ev?.pointerId!==undefined&&ev.pointerId!==pointer)return;cleanup();};
+  const escape=ev=>{if(ev.key==='Escape'){ev.preventDefault();cleanup();}};
   let move = (ev) => {
+    if(ev.pointerId!==pointer)return;
     let x0 = Math.min(sx2, ev.clientX), y0 = Math.min(sy2, ev.clientY), x1 = Math.max(sx2, ev.clientX), y1 = Math.max(sy2, ev.clientY);
     box.style.left = x0 + "px", box.style.top = y0 + "px", box.style.width = x1 - x0 + "px", box.style.height = y1 - y0 + "px";
   }, up = (ev) => {
-    removeEventListener("pointermove", move), removeEventListener("pointerup", up), box.remove();
+    if(ev.pointerId!==pointer)return;cleanup();
     let x0 = Math.min(sx2, ev.clientX), y0 = Math.min(sy2, ev.clientY), x1 = Math.max(sx2, ev.clientX), y1 = Math.max(sy2, ev.clientY);
     if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)
       if (splineMode || polyMode) {
         let mode = ev.ctrlKey || ev.metaKey ? "invert" : ev.shiftKey ? "add" : "replace";
-        splineMode && splineBoxPick(x0, y0, x1, y1, mode), polyMode && (polyBoxPick(x0, y0, x1, y1, mode), vertexTools.soft.active && recalculateSoftSelection());
+        splineMode && splineBoxPick(x0, y0, x1, y1, mode), polyMode && frameDesktopPolyBoxPick(x0,y0,x1,y1,mode)?.catch?.(frameNativePickerError);
       } else {
         let hs = boxPick(x0, y0, x1, y1);
         selNodes.clear(), selTags.clear(), hs.forEach((h) => selNodes.add(h)), anchorNode = hs.length ? getObj(hs[0]) : null, lastBracketSig = null, refreshSelClasses();
       }
   };
-  addEventListener("pointermove", move), addEventListener("pointerup", up);
+  frameCancelViewportMarquee=cleanup;addEventListener("pointermove",move),addEventListener("pointerup",up);addEventListener("pointercancel",cancel);addEventListener("keydown",escape,true);addEventListener("blur",cancel);
 });
 function animationPayload(){return frameAnimationPayload();}
 function restoreAnimationPayload(data,options){frameRestoreAnimationPayload(data,options);}
@@ -25181,14 +26331,14 @@ function prepareExternalImport(parsed, fileName) {
     if (!object || object.isCamera || object.isLight) return;
     object.updateMatrix?.();
     const partIds=new Set(object.userData?.frameMaterialParts||[]),parts=(object.children||[]).filter(c=>partIds.has(c.uuid)),merged=parts.length?mergedImportMaterialParts(parts):null,children=(object.children||[]).filter(c=>!partIds.has(c.uuid));
-    let h = genHash(), geometry = merged?.geometry || (object.isMesh && object.geometry?.attributes?.position ? packedImportGeometry(object.geometry) : null), tags = [];
+    let h = genHash(), geometry = merged?.geometry || (object.isMesh && object.geometry?.attributes?.position ? (frameClonePreparedSTLGeometry(object.geometry) || packedImportGeometry(object.geometry)) : null), tags = [];
     if (geometry) {
        
        
        
        
       const preparedMesh={geometry};
-      normalizeCreaseTopology(preparedMesh,false,{preserveFaces:true});geometry=preparedMesh.geometry;
+      if (!frameSTLPrepared.has(geometry)) normalizeCreaseTopology(preparedMesh,false,{preserveFaces:true});geometry=preparedMesh.geometry;
       let mats = (merged?.materials || (Array.isArray(object.material) ? object.material : [object.material])).filter(Boolean);
       if (mats.length <= 1 && mats[0]) tags.push({ type: 1, ref: materialHash(mats[0]), polys: null, mapFrame: defaultMapFrame(), mapPivot: new THREE2.Matrix4() });
       else if (mats.length) for (let group of geometry.groups) {
@@ -25236,7 +26386,7 @@ function cmdImportExternal(prepared) {
       if (setNodeFromLocal(n, record.matrix), OBJ.set(record.h, n), record.spline)
         objParams.set(record.h, { __type: "spline", angle: record.spline.approximation?.angle || 10 }), installSplineObject(record.h, cloneSplineData(record.spline));
       else if (record.geometry) {
-        let geometry = record.geometry.clone(), mesh = new THREE2.Mesh(geometry, getThreeMat(record.tags[0]?.ref || defaultMatHash));
+        let geometry = frameClonePreparedSTLGeometry(record.geometry) || record.geometry.clone(), mesh = new THREE2.Mesh(geometry, getThreeMat(record.tags[0]?.ref || defaultMatHash));
         mesh.matrixAutoUpdate = !1, mesh.matrix.copy(localTmp(n)), mesh.renderOrder = LAYER_OBJ, threeOf.set(record.h, mesh), registerPickMesh(record.h, mesh), assignMeshMat(mesh, record.h);
       } else {
         let object = new THREE2.Object3D();
@@ -25349,13 +26499,28 @@ function projectSVGCurves(curves){
   let u=new THREE2.Vector3(1,0,0).addScaledVector(normal,-normal.x);if(u.lengthSq()<1e-8)u.set(0,0,1).addScaledVector(normal,-normal.z);u.normalize();const v=normal.clone().cross(u).normalize();
   return records.map(({curve,points})=>({...curve,points:points.map(p=>[p.dot(u),p.dot(v),0])}));
 }
-async function importParsedExternal(parsed, fileName) {
+async function importParsedExternal(parsed, fileName, activity=null) {
   let prepared = prepareExternalImport(parsed, fileName);
+  if (activity) {
+    try { activity.update('Preparing viewport'); await activity.paint(); activity.commit(); }
+    catch (error) { for (const record of prepared.records) if (record.geometry) { frameContourOrigins.drop(record.geometry); record.geometry.dispose(); } throw error; }
+  }
   return runCmd(cmdImportExternal(prepared)), { format: parsed.format, bytes: parsed.bytes, objects: prepared.records.length, materials: prepared.materialRecords.length, warnings: parsed.warnings, diagnostics: parsed.diagnostics, root: prepared.topHash };
 }
 async function importExternalBlob(blob, name, companions=[]) {
   let file = blob instanceof File ? blob : new File([blob], name);
-  return importParsedExternal(await importExternalFile(file,companions), name);
+  if (extOf(file.name) !== 'stl') return importParsedExternal(await importExternalFile(file,companions), name);
+  const activity = frameCreateImportActivity(file.name); let parsed;
+  try {
+    await activity.paint();
+    parsed = await importExternalFile(file, companions, activity);
+    const result = await importParsedExternal(parsed, name, activity);
+    activity.update('Drawing viewport'); await frameImportViewportPaint();
+    return result;
+  } finally {
+    activity.finish();
+    parsed?.root?.traverse(object => { if (object.geometry) { frameContourOrigins.drop(object.geometry); object.geometry.dispose(); } if (object.material) for (const material of (Array.isArray(object.material) ? object.material : [object.material])) material.dispose(); });
+  }
 }
 var FSA = "showOpenFilePicker" in window && "showSaveFilePicker" in window, HASH_TYPES = [{ description: "Hash scene", accept: { "application/x-frame-hash": [".hash"] } }], EXTERNAL_TYPES = [{ description: "glTF / GLB", accept: { "model/gltf+json": [".gltf"], "model/gltf-binary": [".glb"] } }, { description: "OBJ / STL / PLY", accept: { "text/plain": [".obj", ".ply"], "model/stl": [".stl"] } }, { description: "SVG / DXF curves", accept: { "image/svg+xml": [".svg"], "application/dxf": [".dxf"] } }], OPEN_SCENE_EXTENSIONS = [".hash", ...SUPPORTED_IMPORT_FORMATS.map((x) => "." + x)], OPEN_COMPANION_EXTENSIONS = [".bin", ".mtl", ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tga", ".dds", ".ktx2"], OPEN_ALL_EXTENSIONS = [...new Set([...OPEN_SCENE_EXTENSIONS, ...OPEN_COMPANION_EXTENSIONS])], OPEN_ALL_TYPES = [{ description: "All supported formats", accept: { "application/octet-stream": OPEN_ALL_EXTENSIONS } }], currentHandle = null, currentName = null, lastFileOperation = { ok: !0, operation: "idle" }, fileInput = document.getElementById("fileInput"), recentsBtn = document.getElementById("btnRecents"), recentsMenu = document.getElementById("recentsMenu");
 fileInput.accept = OPEN_ALL_EXTENSIONS.join(",");
@@ -25458,6 +26623,7 @@ async function prepareNativeScene(bytes){
  finally{worker?.terminate();URL.revokeObjectURL(url);release();}
 }
 async function loadNativeBytes(bytes){
+ frameCancelSTLImports();
  const revision=++nativeLoadRevision;
  nativeSceneLoading?.indicator?.remove();const loading={revision,indicator:null};nativeSceneLoading=loading;
  const indicator=document.createElement('div');indicator.setAttribute('role','status');indicator.textContent='Loading scene…';
@@ -25699,7 +26865,7 @@ function doNew() {
 fileInput.accept=OPEN_ALL_EXTENSIONS.join(',');
 let fileImportQueue=Promise.resolve();
 function importFileList(files){
-  const list=Array.from(files||[]),companions=new Set(['bin','mtl','png','jpg','jpeg','webp','bmp','gif','tga','dds','ktx2']);const task=async()=>{if(list.some(file=>extensionOf(file.name)==='hash')&&!confirmUnsavedSceneReplacement())return {results:[],errors:[],cancelled:true};const results=[],errors=[];for(const file of list){if(companions.has(extensionOf(file.name)))continue;try{results.push(await loadFromFile(file,list));}catch(error){errors.push(file.name+': '+(error.message||String(error)));}}if(errors.length)reportFileError(Error(errors.join('\n')),'import');return {results,errors};};
+  const list=Array.from(files||[]),companions=new Set(['bin','mtl','png','jpg','jpeg','webp','bmp','gif','tga','dds','ktx2']);const task=async()=>{if(list.some(file=>extensionOf(file.name)==='hash')&&!confirmUnsavedSceneReplacement())return {results:[],errors:[],cancelled:true};const results=[],errors=[];let cancelled=false;for(const file of list){if(companions.has(extensionOf(file.name)))continue;try{results.push(await loadFromFile(file,list));}catch(error){if(error?.name==='AbortError'){cancelled=true;break;}errors.push(file.name+': '+(error.message||String(error)));}}if(errors.length)reportFileError(Error(errors.join('\n')),'import');return {results,errors,cancelled};};
   fileImportQueue=fileImportQueue.then(task,task);return fileImportQueue;
 }
 const isFileDrag=e=>Array.from(e.dataTransfer?.types||[]).includes('Files');
@@ -25906,12 +27072,18 @@ addEventListener("keydown", (e) => {
       e.preventDefault(); if(!e.repeat)connectDeleteSelection();
       return;
     }
-    if (e.code === "KeyW") {
-      if (blurActive(), splineFocusActive()) {
-        selectConnectedSpline(), hideVertexContextMenu();
+    if (e.code === "KeyU" && !e.altKey && !e.isComposing) {
+      if (splineFocusActive()) {
+        e.preventDefault();if(!e.repeat){blurActive();selectConnectedSpline();hideVertexContextMenu();}
         return;
       }
-      setCoordMode(coordMode === "world" ? "object" : "world"), updateHUD();
+      if (polyFocusActive()) {
+        e.preventDefault();if(!e.repeat){blurActive();selectConnectedPoly();hideVertexContextMenu();}
+        return;
+      }
+    }
+    if (e.code === "KeyW" && !e.altKey && !e.isComposing) {
+      e.preventDefault();if(!e.repeat){blurActive();setCoordMode(coordMode === "world" ? "object" : "world");updateHUD();}
       return;
     }
     if (e.code === "KeyS") {
@@ -26113,7 +27285,9 @@ function installFrameAI() {
   }, marquee = (options) => {
     if (!polyMode && !splineMode) throw new Error("enable a subobject mode first");
     let vr = viewRect(options.view), x0 = Number.isFinite(options.x0) ? options.x0 : vr.x + (options.u0 || 0) * vr.width, y0 = Number.isFinite(options.y0) ? options.y0 : vr.y + (options.v0 || 0) * vr.height, x1 = Number.isFinite(options.x1) ? options.x1 : vr.x + (options.u1 ?? 1) * vr.width, y1 = Number.isFinite(options.y1) ? options.y1 : vr.y + (options.v1 ?? 1) * vr.height, t = performance.now(), mode = options.mode || "replace";
-    return splineMode && splineBoxPick(x0, y0, x1, y1, mode), polyMode && polyBoxPick(x0, y0, x1, y1, mode), { milliseconds: performance.now() - t, box: { x0, y0, x1, y1 }, selection: selection() };
+    splineMode&&splineBoxPick(x0,y0,x1,y1,mode);
+    const operation=polyMode?(vpState.renderer?.isFrameNativeViewportRenderer?frameNativeComponentMarquee(x0,y0,x1,y1,mode,vr.view):polyBoxPick(x0,y0,x1,y1,mode)):null;
+    return frameAfterPicker(operation,()=>({milliseconds:performance.now()-t,box:{x0,y0,x1,y1},selection:selection()}));
   }, vertexToolState = () => ({ mode: vertexTools.mode, visibleOnly: vertexTools.visibleOnly, soft: vertexTools.soft.active, radius: vertexTools.soft.radius, view: vertexTools.view, linePoints: vertexTools.line.map((p) => ({ type: p.type, h: p.h, screen: p.screen.slice() })), loopVertices: vertexTools.loop?.nodes.length || 0, hole: vertexTools.hole ? { object: vertexTools.hole.h, edges: vertexTools.hole.loop.ids.length } : null, snap: vertexTools.snap ? { type: vertexTools.snap.type, h: vertexTools.snap.h, screen: vertexTools.snap.screen.slice() } : null }), runVertexTool = (name, options = {}) => {
     if (!polyMode || polyElementMode !== "vertex") throw new Error("vertex mode is required");
     if (name === "addPoint") activateAddPoint();
@@ -26126,12 +27300,12 @@ function installFrameAI() {
     else throw new Error("unknown vertex tool");
     return typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), vertexToolState();
   }, vertexToolMove = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "addPoint") updateAddPointPreview(options.x, options.y, vi);
-    else if (vertexTools.mode === "lineCut") updateLineCutPreview(options.x, options.y, vi);
-    else if (vertexTools.mode === "loop") updateLoopPreview(options.x, options.y, vi);
+    const vi=options.view??0;let operation;
+    if (vertexTools.mode==="addPoint") operation=updateAddPointPreview(options.x,options.y,vi);
+    else if (vertexTools.mode==="lineCut") operation=updateLineCutPreview(options.x,options.y,vi);
+    else if (vertexTools.mode==="loop") operation=updateLoopPreview(options.x,options.y,vi);
     else throw new Error("no previewable vertex tool is active");
-    return vertexToolState();
+    return frameAfterPicker(operation,()=>vertexToolState());
   }, setAIView = (layout = "single", view = 0) => {
     if (!["single", "quad"].includes(layout)) throw new Error("layout must be single or quad");
     if (!Number.isInteger(view) || view < 0 || view > 3) throw new Error("view must be 0..3");
@@ -26139,17 +27313,16 @@ function installFrameAI() {
     noteViewportAction(view);
     return vpState.mode = layout, vpState.singleView = view, scheduleRender(), state().views;
   }, vertexToolClick = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "addPoint")
-      addPointToolClick(options.x, options.y, vi) || leaveVertexTool(!1);
-    else if (vertexTools.mode === "lineCut")
-      lineCutAddPoint(options.x, options.y, vi) || finishLineCut();
-    else if (vertexTools.mode === "loop")
-      updateLoopPreview(options.x, options.y, vi), vertexTools.loop ? applyLoopSelection(options.mode || "replace") : leaveVertexTool(!1);
-    else if (vertexTools.mode === "soft")
-      polyClickPick(options.x, options.y, options.mode || "replace") ? recalculateSoftSelection() : leaveVertexTool(!1);
-    else throw new Error("no clickable vertex tool is active");
-    return { tool: vertexToolState(), selection: selection() };
+    const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
+    const run=current=>{let operation;
+      if (vertexTools.mode==="addPoint") operation=frameAfterPicker(addPointToolClick(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");leaveVertexTool(false);}});
+      else if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
+      else if (vertexTools.mode==="loop") operation=frameAfterPicker(vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(x,y,vpState.views[vi].cam,rectFor(vi),EDIT_HIT_PX,"click"):reliableHoverEdge(x,y,vpState.views[vi].cam,rectFor(vi),viewShading[vi]===1),hit=>{if(!current())throw new DOMException("Tool context changed","AbortError");frameNativeCommitClick(()=>{updateLoopPreview(x,y,vi,{hit});vertexTools.loop?applyLoopSelection(mode):leaveVertexTool(false);});});
+      else if (vertexTools.mode==="soft") operation=frameAfterPicker(polyClickPick(x,y,mode),ok=>{ok?recalculateSoftSelection():(current()?leaveVertexTool(false):(()=>{throw new DOMException("Tool context changed","AbortError");})());});
+      else throw new Error("no clickable vertex tool is active");
+      return frameAfterPicker(operation,()=>({tool:vertexToolState(),selection:selection()}));
+    };
+    return vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({clientX:x,clientY:y,view:vi},(_event,current)=>run(current)):run(()=>true);
   }, setVertexToolOptions = (options) => (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), Number.isFinite(options.radius) && (vertexTools.soft.radius = Math.max(0, options.radius), vertexTools.soft.active && recalculateSoftSelection()), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), runFaceTool = (name, options = {}) => {
     if (!polyMode || polyElementMode !== "face") throw new Error("face mode is required");
     if (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), name === "lineCut") activateLineCut();
@@ -26159,19 +27332,20 @@ function installFrameAI() {
     else throw new Error("unknown face tool");
     return vertexToolState();
   }, faceToolMove = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "lineCut") updateLineCutPreview(options.x, options.y, vi);
-    else if (vertexTools.mode === "closeHole") updateCloseHolePreview(options.x, options.y, vi);
+    const vi=options.view??0;let operation;
+    if (vertexTools.mode==="lineCut") operation=updateLineCutPreview(options.x,options.y,vi);
+    else if (vertexTools.mode==="closeHole") operation=updateCloseHolePreview(options.x,options.y,vi);
     else throw new Error("no previewable face tool is active");
-    return vertexToolState();
+    return frameAfterPicker(operation,()=>vertexToolState());
   }, faceToolClick = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "lineCut")
-      lineCutAddPoint(options.x, options.y, vi) || finishLineCut();
-    else if (vertexTools.mode === "closeHole")
-      updateCloseHolePreview(options.x, options.y, vi), closeHoveredHole() || leaveVertexTool(!1);
-    else throw new Error("no clickable face tool is active");
-    return { tool: vertexToolState(), selection: selection() };
+    const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
+    const run=current=>{let operation;
+      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
+      else if (vertexTools.mode==="closeHole") (updateCloseHolePreview(x,y,vi),closeHoveredHole()||leaveVertexTool(false));
+      else throw new Error("no clickable face tool is active");
+      return frameAfterPicker(operation,()=>({tool:vertexToolState(),selection:selection()}));
+    };
+    return vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({clientX:x,clientY:y,view:vi},(_event,current)=>run(current)):run(()=>true);
   }, runEdgeTool = (name, options = {}) => {
     if (!polyMode || polyElementMode !== "edge") throw new Error("edge mode is required");
     if (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), name === "lineCut") activateLineCut();
@@ -26182,19 +27356,20 @@ function installFrameAI() {
     else throw new Error("unknown edge tool");
     return vertexToolState();
   }, edgeToolMove = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "lineCut") updateLineCutPreview(options.x, options.y, vi);
-    else if (vertexTools.mode === "loop") updateLoopPreview(options.x, options.y, vi);
+    const vi=options.view??0;let operation;
+    if (vertexTools.mode==="lineCut") operation=updateLineCutPreview(options.x,options.y,vi);
+    else if (vertexTools.mode==="loop") operation=updateLoopPreview(options.x,options.y,vi);
     else throw new Error("no previewable edge tool is active");
-    return vertexToolState();
+    return frameAfterPicker(operation,()=>vertexToolState());
   }, edgeToolClick = (options) => {
-    let vi = options.view ?? 0;
-    if (vertexTools.mode === "lineCut")
-      lineCutAddPoint(options.x, options.y, vi) || finishLineCut();
-    else if (vertexTools.mode === "loop")
-      updateLoopPreview(options.x, options.y, vi), vertexTools.loop ? applyLoopSelection(options.mode || "replace") : leaveVertexTool(!1);
-    else throw new Error("no clickable edge tool is active");
-    return { tool: vertexToolState(), selection: selection() };
+    const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
+    const run=current=>{let operation;
+      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
+      else if (vertexTools.mode==="loop") operation=frameAfterPicker(vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(x,y,vpState.views[vi].cam,rectFor(vi),EDIT_HIT_PX,"click"):reliableHoverEdge(x,y,vpState.views[vi].cam,rectFor(vi),viewShading[vi]===1),hit=>{if(!current())throw new DOMException("Tool context changed","AbortError");frameNativeCommitClick(()=>{updateLoopPreview(x,y,vi,{hit});vertexTools.loop?applyLoopSelection(mode):leaveVertexTool(false);});});
+      else throw new Error("no clickable edge tool is active");
+      return frameAfterPicker(operation,()=>({tool:vertexToolState(),selection:selection()}));
+    };
+    return vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({clientX:x,clientY:y,view:vi},(_event,current)=>run(current)):run(()=>true);
   }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {
     if (!polyMode || !polySelection.items.size) throw new Error("subobject selection is required");
     let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState();
@@ -26210,7 +27385,7 @@ function installFrameAI() {
       restorePolyGeometries(afterGeom), restorePolySelectionState(afterSel);
     }, undo() {
       restorePolyGeometries(beforeGeom), restorePolySelectionState(beforeSel);
-    } }), { selection: selection(), topology: hashes.map((h) => meshTopology(h)) };
+    } }), scheduleGeneratorEvaluation(0, hashes), { selection: selection(), topology: hashes.map((h) => meshTopology(h)) };
   }, meshTopology = (ref) => {
     let h = resolveObjects(ref)[0], mesh = pickMeshes.get(h);
     if (!mesh) throw new Error("mesh object not found");
@@ -26754,12 +27929,15 @@ function installFrameAI() {
     });
   }, waitForIdleAI = (timeoutMilliseconds = 3e4) => {
     let started = performance.now();
-    const busy=()=>nativeSceneLoading||frameLibraryLoadState().pending||generatorTimer||generatorActivePasses||[...replicaStates.values()].some(state=>state.pending);
+    const busy=()=>framePolySelectionJob||nativeSceneLoading||frameLibraryLoadState().pending||generatorTimer||generatorActivePasses||[...replicaStates.values()].some(state=>state.pending);
     return new Promise((resolve, reject2) => {
       let poll = () => {
         const assetState=frameLibraryLoadState();if(assetState.error){reject2(assetState.error);return;}
         if (!busy()) {
-          scheduleRender();requestAnimationFrame(() => {const s=frameLibraryLoadState();s.error?reject2(s.error):busy()?poll():resolve(performanceStatsAI());});
+          scheduleRender();requestAnimationFrame(async() => {try{
+            const renderer=vpState.renderer;if(renderer?.isFrameNativeViewportRenderer)await renderer.whenFrameReady();
+            const s=frameLibraryLoadState();s.error?reject2(s.error):busy()?poll():resolve(performanceStatsAI());
+          }catch(error){reject2(error);}});
           return;
         }
         if (performance.now() - started > timeoutMilliseconds) {
@@ -26865,6 +28043,7 @@ function installFrameAI() {
     return splineBevelTags(h).map(cloneTag);
   }, api.getSplineRenderState = splineRenderStateAI;
    
+  api.selectConnected=async()=>{if(splineFocusActive())selectConnectedSpline();else if(polyFocusActive())selectConnectedPoly();await waitForIdleAI();return selection();};
   api.getInstructions=()=>document.getElementById('frame-ai-instructions').textContent.trim();
   const requireObject=ref=>{const ids=resolveObjects(ref);if(ids.length!==1)throw Error(ids.length?'Ambiguous object reference; use a hash':'Object not found');return ids[0];};
   const requirePrinter=ref=>{const h=requireObject(ref);if(!frameIsPrinter(h))throw Error('3D Printer object not found');return h;};
@@ -26924,14 +28103,14 @@ function installFrameAI() {
       return api.getObjectParameters(h);
     },
     getViewportDiagnostics(){
-      return {units:api.getUnits(),layout:vpState.mode,views:vpState.views.map((v,index)=>({index,active:!!rectFor(index),near:v.cam.near,far:v.cam.far,depthRatio:v.cam.far/Math.max(1e-30,v.cam.near),range:computeSceneDepthRange(v.cam,v),position:v.cam.position.toArray(),target:v.ctrl.handle.toArray(),zoom:v.cam.isOrthographicCamera?view_ctrl_zoom(v.cam):null,shading:viewShading[index]})),renderer:{...vpState.renderer.info.render,memory:{...vpState.renderer.info.memory}},wire:{overlays:wireOverlays.size,indices:[...wireOverlays.values()].reduce((n,o)=>n+(o.geometry.index?.count||0),0)},errors:window.frameBootDiagnostics.errors.slice(-20)};
+      return {units:api.getUnits(),layout:vpState.mode,views:vpState.views.map((v,index)=>({index,active:!!rectFor(index),near:v.cam.near,far:v.cam.far,depthRatio:v.cam.far/Math.max(1e-30,v.cam.near),range:computeSceneDepthRange(v.cam,v),position:v.cam.position.toArray(),target:v.ctrl.handle.toArray(),zoom:v.cam.isOrthographicCamera?view_ctrl_zoom(v.cam):null,shading:viewShading[index]})),renderer:{backend:vpState.renderer.isFrameNativeViewportRenderer?'webgpu':'webgl',ready:vpState.renderer.isFrameNativeViewportRenderer?vpState.renderer.ready:true,error:vpState.nativeViewportError?.message||null,...vpState.renderer.info.render,memory:{...vpState.renderer.info.memory}},wire:{overlays:wireOverlays.size,indices:[...wireOverlays.values()].reduce((n,o)=>n+(o.geometry.index?.count||0),0)},errors:window.frameBootDiagnostics.errors.slice(-20)};
     },
     async benchmarkViewport(options={}){
       const samples=options.samples??30,warmup=options.warmup??5;if(!Number.isInteger(samples)||samples<1||samples>300||!Number.isInteger(warmup)||warmup<0||warmup>30)throw Error('Invalid benchmark sample count');
-      const old=tlPlaying;if(old)setTimelinePlaying(false);const times=[],gl=vpState.renderer.getContext();
-      try{await waitForIdleAI();for(let i=-warmup;i<samples;i++){await new Promise(requestAnimationFrame);const start=performance.now();render();if(options.gpu!==false)gl.finish();if(i>=0)times.push(performance.now()-start);}}
+      const old=tlPlaying;if(old)setTimelinePlaying(false);const times=[],renderer=vpState.renderer,native=renderer.isFrameNativeViewportRenderer,gl=native?null:renderer.getContext();
+      try{await waitForIdleAI();for(let i=-warmup;i<samples;i++){await new Promise(requestAnimationFrame);const start=performance.now();render();if(options.gpu!==false){if(native)await renderer.whenFrameReady();else gl.finish();}if(i>=0)times.push(performance.now()-start);}}
       finally{if(old)setTimelinePlaying(true);}
-      times.sort((a,b)=>a-b);return {samples,method:options.gpu===false?'CPU submission':'CPU + GPU completion (gl.finish)',medianMs:times[Math.floor(times.length/2)],p95Ms:times[Math.min(times.length-1,Math.ceil(times.length*.95)-1)],meanMs:times.reduce((a,b)=>a+b,0)/times.length,diagnostics:api.getViewportDiagnostics()};
+      times.sort((a,b)=>a-b);return {samples,method:options.gpu===false?'CPU submission':native?'CPU + native GPU queue completion':'CPU + GPU completion (gl.finish)',medianMs:times[Math.floor(times.length/2)],p95Ms:times[Math.min(times.length-1,Math.ceil(times.length*.95)-1)],meanMs:times.reduce((a,b)=>a+b,0)/times.length,diagnostics:api.getViewportDiagnostics()};
     },
     navigateView(options={}){
       const vi=options.view??(vpState.mode==='single'?vpState.singleView:0),view=vpState.views[vi],r=rectFor(vi);if(!view||!r)throw Error('View is not visible');
@@ -26987,6 +28166,7 @@ function installFrameAI() {
     transformSplineElements: "({translate?,rotate?,scale?,ctrl?,shift?}); Ctrl or Shift makes a single tangent handle independent; zero scale welds coincident selected elements",
     simulateSplineGizmo: "({translate?,rotate?,scale?,mode?,kind?,view?,screenPoint?,ctrl?,shift?,constraints?}) real gizmo callback path; screenPoint tests exact white-handle vertex/grid snap",
     runSplineCommand: "(hard|soft|equalTangents|connected|delete)",
+    selectConnected: "() => Promise; expand active mesh/spline component selection",
     splitSplineSegment: "(ref,segment,t)",
     connectDelete: "(refs?)",
     beginSplineComponent: "(ref?)",
@@ -27008,7 +28188,7 @@ function installFrameAI() {
       cam.updateMatrixWorld(true);cam.updateProjectionMatrix();
       const x=Number.isFinite(options.x)?options.x:r.x+(options.u??.5)*r.w,y=Number.isFinite(options.y)?options.y:r.y+(options.v??.5)*r.h;
       const hit=reliableHoverEdge(x,y,cam,r,viewShading[vr.view]===1,options.radius??EDIT_HIT_PX);
-      return hit?{object:hit.h,keys:hit.keys.slice(),vertices:hit.edge.slice(0,2)}:null;
+      return frameAfterPicker(hit,hit=>hit?{object:hit.h,keys:hit.keys.slice(),vertices:hit.edge.slice(0,2)}:null);
     },
     bevelEdges(options={}){if(!beginEdgeBevel(options))throw Error('Bevel: select polygon or cage edges');return api.getEdgeBevelState();},
     getEdgeBevelState(){const s=edgeBevelTool||edgeBevelResult;return s?{active:!!edgeBevelTool,size:s.requested,round:s.round,segments:s.segments,limit:s.limit,error:s.error,objects:s.items.map(i=>i.h)}:null;},
@@ -27136,7 +28316,7 @@ function installFrameAI() {
 }
 framePrinterInitialize();
 await initializeFrameLibrary();
-initViewport(document.getElementById("vp"));
+await initViewport(document.getElementById("vp"));
 frameRenderController = createRenderIntegration({
   THREE: THREE2,infiniteLights:frameInfiniteLighting,outputStatus:frameRenderStatus,bindAnimation:(el,h,path)=>frameBindElement(el,()=>[frameDescriptor(h,path)].filter(Boolean)),activeCamera:frameActiveCamera,cameraView:frameRenderCameraView,cameraAttributes:frameCameraAttributes,openOutput:frameOpenOutput,
   getFrame:()=>tlCur,getTotal:()=>tlTotal,setTotal:n=>{tlTotal=n;tlCurOpts.max=n;syncTimelineInputs();},setFrame:f=>{if(f>tlTotal){tlTotal=Math.ceil(f);tlCurOpts.max=tlTotal;}tlCur=Math.floor(f);syncTimelineInputs();frameEvaluateAnimation(f);},stopTimeline,waitForScene:frameWaitForScene,

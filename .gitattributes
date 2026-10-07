@@ -5,3 +5,4 @@
 /.gitattributes text eol=lf
 /index.html text eol=lf
 /frame-sw.js text eol=lf
+/native-source/** -text

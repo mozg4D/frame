@@ -2555,6 +2555,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 		return e.Delta.Y === 0;
 	};
 
+	// Four bounded integral operands have products representable exactly in a
+	// Number. Keep the original wide-integer path for every other input.
+	function frameClipperProductsEqual(a, b, c, d)
+	{
+		if (Number.isInteger(a) && Number.isInteger(b) && Number.isInteger(c) && Number.isInteger(d) &&
+			Math.abs(a) <= 67108863 && Math.abs(b) <= 67108863 && Math.abs(c) <= 67108863 && Math.abs(d) <= 67108863)
+		{
+			ClipperLib.biginteger_used = 1;
+			return a * b === c * d;
+		}
+		return Int128.op_Equality(Int128.Int128Mul(a, b), Int128.Int128Mul(c, d));
+	}
+
 	ClipperLib.ClipperBase.prototype.PointIsVertex = function (pt, pp)
 	{
 		var pp2 = pp;
@@ -2574,8 +2587,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 				((pt.X === linePt2.X) && (pt.Y === linePt2.Y)) ||
 				(((pt.X > linePt1.X) === (pt.X < linePt2.X)) &&
 					((pt.Y > linePt1.Y) === (pt.Y < linePt2.Y)) &&
-					(Int128.op_Equality(Int128.Int128Mul((pt.X - linePt1.X), (linePt2.Y - linePt1.Y)),
-						Int128.Int128Mul((linePt2.X - linePt1.X), (pt.Y - linePt1.Y)))));
+					(frameClipperProductsEqual((pt.X - linePt1.X), (linePt2.Y - linePt1.Y), (linePt2.X - linePt1.X), (pt.Y - linePt1.Y))));
 		else
 			return ((pt.X === linePt1.X) && (pt.Y === linePt1.Y)) || ((pt.X === linePt2.X) && (pt.Y === linePt2.Y)) || (((pt.X > linePt1.X) === (pt.X < linePt2.X)) && ((pt.Y > linePt1.Y) === (pt.Y < linePt2.Y)) && ((pt.X - linePt1.X) * (linePt2.Y - linePt1.Y) === (linePt2.X - linePt1.X) * (pt.Y - linePt1.Y)));
 	};
@@ -2605,7 +2617,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			e2 = a[1];
 			UseFullRange = a[2];
 			if (UseFullRange)
-				return Int128.op_Equality(Int128.Int128Mul(e1.Delta.Y, e2.Delta.X), Int128.Int128Mul(e1.Delta.X, e2.Delta.Y));
+				return frameClipperProductsEqual(e1.Delta.Y, e2.Delta.X, e1.Delta.X, e2.Delta.Y);
 			else
 				return ClipperLib.Cast_Int64((e1.Delta.Y) * (e2.Delta.X)) === ClipperLib.Cast_Int64((e1.Delta.X) * (e2.Delta.Y));
 		}
@@ -2616,7 +2628,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			pt3 = a[2];
 			UseFullRange = a[3];
 			if (UseFullRange)
-				return Int128.op_Equality(Int128.Int128Mul(pt1.Y - pt2.Y, pt2.X - pt3.X), Int128.Int128Mul(pt1.X - pt2.X, pt2.Y - pt3.Y));
+				return frameClipperProductsEqual(pt1.Y - pt2.Y, pt2.X - pt3.X, pt1.X - pt2.X, pt2.Y - pt3.Y);
 			else
 				return ClipperLib.Cast_Int64((pt1.Y - pt2.Y) * (pt2.X - pt3.X)) - ClipperLib.Cast_Int64((pt1.X - pt2.X) * (pt2.Y - pt3.Y)) === 0;
 		}
@@ -2628,7 +2640,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 			pt4 = a[3];
 			UseFullRange = a[4];
 			if (UseFullRange)
-				return Int128.op_Equality(Int128.Int128Mul(pt1.Y - pt2.Y, pt3.X - pt4.X), Int128.Int128Mul(pt1.X - pt2.X, pt3.Y - pt4.Y));
+				return frameClipperProductsEqual(pt1.Y - pt2.Y, pt3.X - pt4.X, pt1.X - pt2.X, pt3.Y - pt4.Y);
 			else
 				return ClipperLib.Cast_Int64((pt1.Y - pt2.Y) * (pt3.X - pt4.X)) - ClipperLib.Cast_Int64((pt1.X - pt2.X) * (pt3.Y - pt4.Y)) === 0;
 		}
@@ -2637,7 +2649,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 	ClipperLib.ClipperBase.SlopesEqual3 = function (e1, e2, UseFullRange)
 	{
 		if (UseFullRange)
-			return Int128.op_Equality(Int128.Int128Mul(e1.Delta.Y, e2.Delta.X), Int128.Int128Mul(e1.Delta.X, e2.Delta.Y));
+			return frameClipperProductsEqual(e1.Delta.Y, e2.Delta.X, e1.Delta.X, e2.Delta.Y);
 		else
 			return ClipperLib.Cast_Int64((e1.Delta.Y) * (e2.Delta.X)) === ClipperLib.Cast_Int64((e1.Delta.X) * (e2.Delta.Y));
 	};
@@ -2645,7 +2657,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 	ClipperLib.ClipperBase.SlopesEqual4 = function (pt1, pt2, pt3, UseFullRange)
 	{
 		if (UseFullRange)
-			return Int128.op_Equality(Int128.Int128Mul(pt1.Y - pt2.Y, pt2.X - pt3.X), Int128.Int128Mul(pt1.X - pt2.X, pt2.Y - pt3.Y));
+			return frameClipperProductsEqual(pt1.Y - pt2.Y, pt2.X - pt3.X, pt1.X - pt2.X, pt2.Y - pt3.Y);
 		else
 			return ClipperLib.Cast_Int64((pt1.Y - pt2.Y) * (pt2.X - pt3.X)) - ClipperLib.Cast_Int64((pt1.X - pt2.X) * (pt2.Y - pt3.Y)) === 0;
 	};
@@ -2653,7 +2665,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 	ClipperLib.ClipperBase.SlopesEqual5 = function (pt1, pt2, pt3, pt4, UseFullRange)
 	{
 		if (UseFullRange)
-			return Int128.op_Equality(Int128.Int128Mul(pt1.Y - pt2.Y, pt3.X - pt4.X), Int128.Int128Mul(pt1.X - pt2.X, pt3.Y - pt4.Y));
+			return frameClipperProductsEqual(pt1.Y - pt2.Y, pt3.X - pt4.X, pt1.X - pt2.X, pt3.Y - pt4.Y);
 		else
 			return ClipperLib.Cast_Int64((pt1.Y - pt2.Y) * (pt3.X - pt4.X)) - ClipperLib.Cast_Int64((pt1.X - pt2.X) * (pt3.Y - pt4.Y)) === 0;
 	};
@@ -8150,7 +8162,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(!raw.length){value.materialDisappearanceDepth=depth;break;}
     }
     value.reference={inset:firstInset||packReferencePaths([]),section,levelInsets:value.perimeterLevels.map(level=>({depth:level.depth,inset:level.reference.inset}))};
-    return frameAdaptivePrepareInsetValue(frameHoleClearanceInsetValue(value,p),p);
+    return frameAdaptivePrepareInsetValue(frameGeneralHoleClearanceInsetValue(frameHoleClearanceInsetValue(value,p),p),p);
   }
   function insetComponent(material,p,inputVertices){
     const cacheKey=exactSectionKey(material,p),cached=insetCache.get(cacheKey);
@@ -11154,4 +11166,90 @@ function frameConstrainedTravelFinalize(layer,output,references,angleValues,W,cl
  if(output?.paths?.length<=2||!output?.pathOrderMetadata?.some(m=>m?.holeNozzleClearance?.travelOrderingReferenceAxis))return finish(actual);
  const retained=frameConstrainedTravelGeometryFinalize(layer,output,references,angleValues,W,clockwiseSign,true),length=q=>q.output.paths.slice(1).reduce((L,path,i)=>{const previous=q.output.paths[i],from=q.output.pathClosed?.[i]===false?previous.at(-1):previous[0];return L+Math.hypot(path[0][0]-from[0],path[0][1]-from[1]);},0);
  return finish(length(retained)<length(actual)?retained:actual);
+}
+
+function frameGeneralHoleClearanceInsetValue(value,p){
+ const W=p.lineWidth,R=W/2,section=value.reference?.section;
+ if(!(Number.isFinite(W)&&W>0)||!section||section.ends.length<2||section.ends.length>3||section.coords.length>768||!Array.isArray(value.paths)||value.paths.length>64||value.pathMetadata?.length!==value.paths.length||value.pathMetadata.some(m=>m?.holeNozzleClearance))return value;
+ const rings=frameAdaptiveUnpack(section),originals=value.paths,holes=[];let work=0;
+ const step=()=>{if(++work>524288)throw Error('bounded-hole-clearance-work');};
+ const integerRings=rs=>{const q=frameAcuteExact(rs.flat(2));let at=0;return rs.map(r=>r.map(()=>[q[at++],q[at++]]));};
+ const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+ const area=r=>r.reduce((s,a,i)=>s+a[0]*r[(i+1)%r.length][1]-a[1]*r[(i+1)%r.length][0],0n);
+ const sign=x=>x<0n?-1n:x>0n?1n:0n;
+ const convex=r=>{const s=sign(area(r));return s&&r.every((a,i)=>cross(a,r[(i+1)%r.length],r[(i+2)%r.length])*s>0n)?s:0n;};
+ const inConvex=(p,r,s,strict=false)=>r.every((a,i)=>{step();const q=cross(a,r[(i+1)%r.length],p)*s;return strict?q>0n:q>=0n;});
+ const on=(p,a,b)=>cross(a,b,p)===0n&&p[0]>=(a[0]<b[0]?a[0]:b[0])&&p[0]<=(a[0]>b[0]?a[0]:b[0])&&p[1]>=(a[1]<b[1]?a[1]:b[1])&&p[1]<=(a[1]>b[1]?a[1]:b[1]);
+ const touch=(a,b,c,d)=>{step();const x=sign(cross(a,b,c)),y=sign(cross(a,b,d)),u=sign(cross(c,d,a)),v=sign(cross(c,d,b));return x*y<0n&&u*v<0n||on(a,c,d)||on(b,c,d)||on(c,a,b)||on(d,a,b);};
+ const inside=(p,r)=>{let winding=0;for(let i=0;i<r.length;i++){step();const a=r[i],b=r[(i+1)%r.length];if(on(p,a,b))return 0;if(a[1]<=p[1]&&b[1]>p[1]&&cross(a,b,p)>0n)winding++;else if(a[1]>p[1]&&b[1]<=p[1]&&cross(a,b,p)<0n)winding--;}return winding?1:-1;};
+ const simple=r=>r.every((a,i)=>{const b=r[(i+1)%r.length];if(a[0]===b[0]&&a[1]===b[1])return false;for(let j=0;j<i;j++)if(i!==j+1&&!(i===r.length-1&&j===0)&&touch(a,b,r[j],r[(j+1)%r.length]))return false;return true;});
+ try{
+  if(rings.some(r=>r.length<3||r.some(q=>q.length!==2||q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6)))||originals.some(r=>r.length<3||r.some(q=>q.length!==2||q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6)))||originals.reduce((n,r)=>n+r.length,0)>4096)return value;
+  const ints=integerRings(rings),areas=ints.map(area),outside=areas.reduce((a,v,i)=>(v<0n?-v:v)>(areas[a]<0n?-areas[a]:areas[a])?i:a,0),outer=ints[outside],outerSign=convex(outer);
+  if(!outerSign||outer.length>32||!simple(outer))return value;
+  for(let i=0;i<rings.length;i++)if(i!==outside){if(!simple(ints[i])||!ints[i].every(q=>inConvex(q,outer,outerSign,true)))return value;holes.push(i);}
+  for(let i=0;i<holes.length;i++)for(let j=0;j<i;j++){const a=ints[holes[i]],b=ints[holes[j]];if(inside(a[0],b)>=0||inside(b[0],a)>=0||a.some((p,k)=>b.some((q,l)=>touch(p,a[(k+1)%a.length],q,b[(l+1)%b.length]))))return value;}
+  const primary=value.pathMetadata.flatMap((m,i)=>m.depth===0&&m.boundaryRole==='hole'&&m.offsetDistanceMM===R?[i]:[]);
+  if(primary.length!==holes.length)return value;
+  const plans=[];
+  for(const index of primary){
+   const original=originals[index];if(original.length<8||original.length>128)return value;
+   const packed=integerRings([...rings,original]),axis=packed.at(-1),axisSign=convex(axis);if(!axisSign||!simple(axis))return value;
+   const owners=holes.filter(i=>packed[i].every(q=>inConvex(q,axis,axisSign,true)));if(owners.length!==1||plans.some(q=>q.hole===owners[0]))return value;
+   if(!axis.every(q=>inConvex(q,packed[outside],outerSign,true)))return value;
+   plans.push({index,hole:owners[0],original,sign:Number(axisSign)});
+  }
+  const exactSafe=path=>{
+   for(let i=0;i<path.length;i++)for(const ring of rings){work+=ring.length;if(work>524288)throw Error('bounded-hole-clearance-work');if(!frameThroughNeckExactClearance(path[i],path[(i+1)%path.length],ring,W).passed)return false;}
+   const ribbons=path.map((a,i)=>frameSpiralFlatRibbon(a,path[(i+1)%path.length],W,W)),packed=integerRings([...rings,...ribbons]),out=packed[outside];
+   for(let i=rings.length;i<packed.length;i++){const quad=packed[i],s=convex(quad);if(!s||!quad.every(q=>inConvex(q,out,outerSign)))return false;
+    for(const h of holes){const hole=packed[h];if(!quad.some((a,j)=>hole.every(q=>{step();return cross(a,quad[(j+1)%quad.length],q)*s<=0n;})))return false;}
+   }
+   return true;
+  };
+  const distance=(q,a,b)=>{const x=b[0]-a[0],y=b[1]-a[1],L=x*x+y*y,t=Math.max(0,Math.min(1,((q[0]-a[0])*x+(q[1]-a[1])*y)/L));return Math.hypot(q[0]-a[0]-t*x,q[1]-a[1]-t*y);};
+  const changed=[];
+  for(const plan of plans){
+   const {original,hole,index,sign:s}=plan,n=original.length;if(exactSafe(original))continue;
+   const source=rings[hole],supports=original.map((a,i)=>{const b=original[(i+1)%n],x=b[0]-a[0],y=b[1]-a[1],L=Math.hypot(x,y),normal=[s*y/L,-s*x/L];let height=-Infinity;for(const p of source){step();height=Math.max(height,normal[0]*(p[0]-a[0])+normal[1]*(p[1]-a[1]));}return{normal,point:a,shift:Math.max(0,height+R)};});
+   const precision=Number.EPSILON*Math.max(W,...original.flat().map(Math.abs))*16;let accepted=null;
+   for(let attempt=0;attempt<6&&!accepted;attempt++){
+    const padding=attempt?precision*2**(attempt-1):0,path=[];
+    for(let i=0;i<n;i++){const a=supports[(i+n-1)%n],b=supports[i],o=original[i],det=a.normal[0]*b.normal[1]-a.normal[1]*b.normal[0];if(Math.abs(det)<1e-8)return value;
+     const u=a.shift+padding+a.normal[0]*(a.point[0]-o[0])+a.normal[1]*(a.point[1]-o[1]),v=b.shift+padding+b.normal[0]*(b.point[0]-o[0])+b.normal[1]*(b.point[1]-o[1]);path.push([o[0]+(u*b.normal[1]-v*a.normal[1])/det,o[1]+(a.normal[0]*v-b.normal[0]*u)/det]);
+    }
+    if(path.some(q=>q.some(v=>!Number.isFinite(v)||Math.abs(v)>1e6)))continue;
+    const [oldInt,newInt]=integerRings([original,path]),newSign=convex(newInt);if(newSign!==BigInt(s)||!simple(newInt)||!oldInt.every(q=>inConvex(q,newInt,newSign)))continue;
+    // For nested convex polygons K subset L, L is contained in K plus a disk
+    // of radius delta iff every vertex of L is. Convexity then bounds both
+    // complete boundaries, including finite edge caps, by the same delta.
+    const deviationBound=.019999*W;
+    const within=path.every(q=>original.some((a,i)=>{step();return frameAcuteSegmentsWithin(q,q,a,original[(i+1)%n],deviationBound);}));
+    const pairedDeviation=Math.max(...path.map((q,i)=>Math.hypot(q[0]-original[i][0],q[1]-original[i][1])));
+    if(!within||!exactSafe(path))continue;
+    const deviation=Math.max(...path.map(q=>Math.min(...original.map((a,i)=>distance(q,a,original[(i+1)%n])))),...original.map(q=>Math.min(...path.map((a,i)=>distance(q,a,path[(i+1)%n])))));
+    accepted={path,certifiedAxisDeviationUpperBoundMM:deviationBound,maximumAxisDeviationMM:deviation,maximumCorrespondingVertexDisplacementMM:pairedDeviation};
+   }
+   if(!accepted)return value;
+   changed.push({...plan,...accepted});
+  }
+  if(!changed.length)return value;
+  // All replacements commit together; unsupported/split/merged/narrow families
+  // return the original object with every reference and nominal level untouched.
+  // A corrected primary loop must not intersect another nominal deposited
+  // ribbon. Fixed source clearance alone does not prove neighbor separation.
+  const resulting=originals.slice();for(const q of changed)resulting[q.index]=q.path;
+  const boxes=q=>[Math.min(...q.map(v=>v[0])),Math.min(...q.map(v=>v[1])),Math.max(...q.map(v=>v[0])),Math.max(...q.map(v=>v[1]))];
+  const ribbons=resulting.map(path=>path.map((a,i)=>{const points=frameSpiralFlatRibbon(a,path[(i+1)%path.length],W,W);return{points,box:boxes(points)};}));
+  const intersectBox=(a,b)=>a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
+  for(const replacement of changed)for(const a of ribbons[replacement.index])for(let j=0;j<ribbons.length;j++)if(j!==replacement.index)for(const b of ribbons[j]){
+   step();if(!intersectBox(a.box,b.box))continue;
+   const [aa,bb]=integerRings([a.points,b.points]),sa=convex(aa),sb=convex(bb);if(!sa||!sb)return value;
+   const separated=(left,right,s)=>left.some((q,i)=>right.every(p=>{step();return cross(q,left[(i+1)%left.length],p)*s<=0n;}));
+   if(!separated(aa,bb,sa)&&!separated(bb,aa,sb))return value;
+  }
+  const paths=originals.slice(),metadata=value.pathMetadata.slice();
+  for(const q of changed){paths[q.index]=q.path;metadata[q.index]={...metadata[q.index],holeNozzleClearance:{status:'exact-nominal-clearance',family:'bounded-convex-axis-around-simple-finite-hole',sourceRing:q.hole,nozzleRadiusMM:R,nominalWidthMM:W,maximumAxisDeviationMM:q.maximumAxisDeviationMM,certifiedAxisDeviationUpperBoundMM:q.certifiedAxisDeviationUpperBoundMM,maximumCorrespondingVertexDisplacementMM:q.maximumCorrespondingVertexDisplacementMM,sourceDimensionsPreserved:true,finiteSourceCapsChecked:true,flatNominalRibbonsChecked:true,otherNominalPathsDisjoint:true,travelOrderingReferenceAxis:q.original}};}
+  return{...value,paths,pathMetadata:metadata};
+ }catch{return value;}
 }

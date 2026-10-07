@@ -4152,11 +4152,11 @@ function WebGLGeometries( gl, attributes, info, bindingStates ) {
 
 		delete geometries[ geometry.id ];
 
-		const attribute = wireframeAttributes.get( geometry );
+		const record = wireframeAttributes.get( geometry );
 
-		if ( attribute ) {
+		if ( record ) {
 
-			attributes.remove( attribute );
+			attributes.remove( record.attribute );
 			wireframeAttributes.delete( geometry );
 
 		}
@@ -4205,96 +4205,53 @@ function WebGLGeometries( gl, attributes, info, bindingStates ) {
 
 	function updateWireframeAttribute( geometry ) {
 
-		const indices = [];
-
 		const geometryIndex = geometry.index;
 		const geometryPosition = geometry.attributes.position;
-		let version = 0;
+		if ( geometryPosition === undefined ) return;
 
-		if ( geometryPosition === undefined ) {
+		// Expand each triangle in its original order; do not weld or deduplicate edges.
+		const array = geometryIndex !== null ? geometryIndex.array : geometryPosition.array;
+		const triangles = geometryIndex !== null ? Math.ceil( array.length / 3 ) : Math.max( 0, Math.ceil( ( array.length / 3 - 1 ) / 3 ) );
+		const Index = geometryPosition.count >= 65535 ? Uint32Array : Uint16Array;
+		const indices = new Index( triangles * 6 );
+		for ( let t = 0, j = 0; t < triangles; t ++ ) {
 
-			return;
-
-		}
-
-		if ( geometryIndex !== null ) {
-
-			const array = geometryIndex.array;
-			version = geometryIndex.version;
-
-			for ( let i = 0, l = array.length; i < l; i += 3 ) {
-
-				const a = array[ i + 0 ];
-				const b = array[ i + 1 ];
-				const c = array[ i + 2 ];
-
-				indices.push( a, b, b, c, c, a );
-
-			}
-
-		} else {
-
-			const array = geometryPosition.array;
-			version = geometryPosition.version;
-
-			for ( let i = 0, l = ( array.length / 3 ) - 1; i < l; i += 3 ) {
-
-				const a = i + 0;
-				const b = i + 1;
-				const c = i + 2;
-
-				indices.push( a, b, b, c, c, a );
-
-			}
+			const i = t * 3;
+			const a = geometryIndex !== null ? array[ i ] : i;
+			const b = geometryIndex !== null ? array[ i + 1 ] : i + 1;
+			const c = geometryIndex !== null ? array[ i + 2 ] : i + 2;
+			indices[ j ++ ] = a; indices[ j ++ ] = b;
+			indices[ j ++ ] = b; indices[ j ++ ] = c;
+			indices[ j ++ ] = c; indices[ j ++ ] = a;
 
 		}
 
-		// check whether a 32 bit or 16 bit buffer is required to store the indices
-		// account for PRIMITIVE_RESTART_FIXED_INDEX, #24565
-		const attribute = new ( geometryPosition.count >= 65535 ? Uint32BufferAttribute : Uint16BufferAttribute )( indices, 1 );
-		attribute.version = version;
-
-		// Updating index buffer in VAO now. See WebGLBindingStates
-
-		//
-
-		const previousAttribute = wireframeAttributes.get( geometry );
-
-		if ( previousAttribute ) attributes.remove( previousAttribute );
-
-		//
-
-		wireframeAttributes.set( geometry, attribute );
+		// BufferAttribute keeps the final typed array; no second array copy is needed.
+		const attribute = new BufferAttribute( indices, 1 );
+		attribute.version = geometryIndex !== null ? geometryIndex.version : geometryPosition.version;
+		const previous = wireframeAttributes.get( geometry );
+		if ( previous ) attributes.remove( previous.attribute );
+		wireframeAttributes.set( geometry, {
+			attribute, index: geometryIndex, array: geometryIndex?.array,
+			version: geometryIndex?.version, indexLength: geometryIndex?.array.length,
+			positionCount: geometryPosition.count, positionLength: geometryPosition.array?.length
+		} );
 
 	}
 
 	function getWireframeAttribute( geometry ) {
 
-		const currentAttribute = wireframeAttributes.get( geometry );
-
-		if ( currentAttribute ) {
-
-			const geometryIndex = geometry.index;
-
-			if ( geometryIndex !== null ) {
-
-				// if the attribute is obsolete, create a new one
-
-				if ( currentAttribute.version < geometryIndex.version ) {
-
-					updateWireframeAttribute( geometry );
-
-				}
-
-			}
-
-		} else {
+		const record = wireframeAttributes.get( geometry );
+		const index = geometry.index, position = geometry.attributes.position;
+		if ( ! record || record.index !== index || record.array !== index?.array ||
+			record.version !== index?.version || record.indexLength !== index?.array.length ||
+			record.positionCount !== position?.count || index === null && record.positionLength !== position?.array.length ) {
 
 			updateWireframeAttribute( geometry );
 
 		}
 
-		return wireframeAttributes.get( geometry );
+		return wireframeAttributes.get( geometry )?.attribute;
 
 	}
 
