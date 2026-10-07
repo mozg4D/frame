@@ -16,7 +16,7 @@ A 3D modeling workspace in your browser: build with splines and polygons, assemb
 
 ## Native viewport
 
-The normal entry uses WebGPU with a shared device for display, selection, printer preview and camera output. Fresh capability checks run on startup and recovery; unsupported configurations show an error and Retry. No compatibility fallback is provided. See [r220 validation and limits](documents/R220_NATIVE_VIEWPORT.md) and [native sources](native-source/).
+The normal entry uses WebGPU with a shared device for display, selection, printer preview and camera output. Fresh capability checks run on startup and recovery; unsupported configurations show an error and Retry. No compatibility fallback is provided. See [r220 validation and limits](documents/R220_NATIVE_VIEWPORT.md) and [native sources](native-source/). The [r221 printer frame correction](documents/R221_PRINTER_OCCLUSION.md) keeps the frame visible over farther surfaces and hidden behind nearer ones.
 
 ## License
 
