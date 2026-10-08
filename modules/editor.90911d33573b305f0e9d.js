@@ -15624,7 +15624,10 @@ function* framePolySelectionBuffers(items) {
         a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), vp[viOut++]=a.x, vp[viOut++]=a.y, vp[viOut++]=a.z;if((++workCount&1023)===0)yield;
       }
       for (let key of s.edges) {
-        let [i, j] = key.split(":").map(Number);
+        let i,j;
+        const separator=typeof key==='string'?key.indexOf(':'):-1;
+        if(separator>=0&&key.indexOf(':',separator+1)<0){i=Number(key.slice(0,separator));j=Number(key.slice(separator+1));}
+        else [i,j]=key.split(':').map(Number);
         a.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, j).applyMatrix4(mesh.matrixWorld), ep[eiOut++]=a.x, ep[eiOut++]=a.y, ep[eiOut++]=a.z, ep[eiOut++]=b.x, ep[eiOut++]=b.y, ep[eiOut++]=b.z;if((++workCount&1023)===0)yield;
       }
       for (let fi of s.faces) {
@@ -19792,9 +19795,9 @@ function frameIsPLAPath(path){return /^(point|handle|vertex):/.test(path);}
 function frameMeshConnectivity(g,force=false){
   if(!g?.attributes.position)return null;
   if(!force&&g.userData.framePLAConnectivity)return g.userData.framePLAConnectivity;
-  const p=g.attributes.position,idx=g.index,count=idx?.count??p.count,canonical=new Map(),out=[];
+  const p=g.attributes.position,idx=g.index,count=idx?.count??p.count,canonical=new Map(),out=[],parts=['','',''];
    
-  for(let i=0;i<count;i++){const j=idx?idx.getX(i):i,key=[p.getX(j),p.getY(j),p.getZ(j)].map(v=>v.toFixed(7)).join(',');if(!canonical.has(key))canonical.set(key,canonical.size);out.push(canonical.get(key));}
+  for(let i=0;i<count;i++){const j=idx?idx.getX(i):i,x=p.getX(j),y=p.getY(j),z=p.getZ(j);let key;if(typeof x==='number'&&typeof y==='number'&&typeof z==='number'){parts[0]=x.toFixed(7);parts[1]=y.toFixed(7);parts[2]=z.toFixed(7);key=parts.join(',');}else key=[x,y,z].map(v=>v.toFixed(7)).join(',');let id=canonical.get(key);if(id===undefined){id=canonical.size;canonical.set(key,id);}out.push(id);}
   let h=2166136261;for(const n of out){h^=n;h=Math.imul(h,16777619);}const signature='mesh:'+count+':'+canonical.size+':'+(h>>>0);
   g.userData.framePLAConnectivity=signature;return signature;
 }
@@ -24046,7 +24049,7 @@ document.getElementById("dP").onclick = () => setDisp(dispIdx + 1);
 document.getElementById("dM").onclick = () => setDisp(dispIdx - 1);
 document.getElementById("rP").onclick = () => setRscl(rsclIdx + 1);
 document.getElementById("rM").onclick = () => setRscl(rsclIdx - 1);
-var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
+var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySoft = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;
 function ensureTagFrame(tag) {
   return tag.mapFrame || (tag.mapFrame = defaultMapFrame()), tag.mapPivot || (tag.mapPivot = new THREE2.Matrix4()), tag;
 }
@@ -24219,8 +24222,11 @@ function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyE
   yield* frameLogicalVertexGroupsWork(g);const groupOf=vertexGroupOfCache.get(g),expanded=new Set(),idx=g.index;
   const takeGroup=i=>{const group=groupOf?.[i];if(!group){out.add(i);return null;}if(expanded.has(group))return null;expanded.add(group);return group;};
   for(const key of s.edges){
-    const [a,b]=key.split(':').map(Number);
-    for(const i of [a,b]){const group=takeGroup(i);if(group)for(const v of group){out.add(v);if((++work&1023)===0)yield;}}
+    let a=0,b=0,split=-1,valid=typeof key==='string'&&key.length<=21;
+    if(valid){for(let k=0;k<key.length;k++){const c=key.charCodeAt(k);if(c===58&&split<0&&k>0&&k<key.length-1){split=k;continue;}if(c<48||c>57){valid=false;break;}if(split<0)a=a*10+c-48;else b=b*10+c-48;}valid=valid&&split>0&&split<=10&&key.length-split-1<=10;}
+    if(!valid)[a,b]=key.split(':').map(Number);
+    let group=takeGroup(a);if(group)for(const v of group){out.add(v);if((++work&1023)===0)yield;}
+    group=takeGroup(b);if(group)for(const v of group){out.add(v);if((++work&1023)===0)yield;}
     if((++work&1023)===0)yield;
   }
   for(const fi of s.faces){
@@ -24658,6 +24664,50 @@ function updatePolygonDragNormals(mesh,rec=null){
   n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);
 }
 
+function frameCapturePolygonDragSoft(){
+  const soft=vertexTools.soft;
+  if(!soft.active)return null;
+  const weights=new Map();
+  for(const h of polySelection.items.keys()){
+    const row=soft.weights.get(h);weights.set(h,row?row.slice():null);
+  }
+  return {radius:soft.radius,weights};
+}
+function frameBindPolygonDragSoft(state){
+  if(!state)return;
+  state.sources=new Map();
+  for(const h of state.weights.keys()){
+    const mesh=pickMeshes.get(h),g=mesh?.geometry,p=g?.attributes.position,index=g?.index;
+    state.sources.set(h,{mesh,g,p,array:p?.array??p?.data?.array,count:p?.count,size:p?.itemSize,normalized:p?.normalized,getX:p?.getX,getY:p?.getY,getZ:p?.getZ,offset:p?.offset,stride:p?.data?.stride,index,indexArray:index?.array,indexVersion:index?.version,indexCount:index?.count,indexSize:index?.itemSize,indexNormalized:index?.normalized,indexGetX:index?.getX,indexValues:index?.array?.slice()});
+  }
+}
+function frameCurrentPolygonDragSoft(state){
+  if(!state)return null;
+  const current=new Set();
+  for(const [h,q] of state.sources||[]){
+    const mesh=pickMeshes.get(h),g=mesh?.geometry,p=g?.attributes.position,index=g?.index;
+    if(mesh!==q.mesh||g!==q.g||p!==q.p||(p?.array??p?.data?.array)!==q.array||p?.count!==q.count||p?.itemSize!==q.size||p?.normalized!==q.normalized||p?.getX!==q.getX||p?.getY!==q.getY||p?.getZ!==q.getZ||p?.offset!==q.offset||p?.data?.stride!==q.stride||index!==q.index||index?.array!==q.indexArray||index?.version!==q.indexVersion||index?.count!==q.indexCount||index?.itemSize!==q.indexSize||index?.normalized!==q.indexNormalized||index?.getX!==q.indexGetX)continue;
+    let same=true;
+    if(q.indexValues){if(index.array.length!==q.indexValues.length)same=false;else for(let i=0;i<q.indexValues.length;i++)if(!Object.is(index.array[i],q.indexValues[i])){same=false;break;}}
+    if(same)current.add(h);
+  }
+  return current;
+}
+function frameRestorePolygonDragSoft(state,current){
+  const soft=vertexTools.soft;
+  if(!soft.active)return;
+  // A changed radius or newly enabled tool must use the current parameters.
+  if(!state){recalculateSoftSelection();return;}
+  for(const [h,row] of state.weights){
+    if(!pickMeshes.has(h)){soft.weights.delete(h);continue;}
+    if(!current?.has(h))continue;
+    if(!Object.is(state.radius,soft.radius)){
+      const mesh=pickMeshes.get(h),seeds=selectedSoftSeeds(h);
+      if(seeds.size)soft.weights.set(h,surfaceWeights(mesh,seeds,soft.radius));else soft.weights.delete(h);
+    }else if(row)soft.weights.set(h,row.slice());else soft.weights.delete(h);
+  }
+  soft.hoverSig=null;updateSoftPreview();
+}
 function capturePolySelection() {
   for(const h of polySelection.items.keys())preparePolygonDragTopology(pickMeshes.get(h));
   let out = /* @__PURE__ */ new Map();
@@ -24921,7 +24971,7 @@ async function framePrepareNativeConnected({domain,clicked=null,mode='add'},cont
     const mesh=pickMeshes.get(h);if(!mesh?.isMesh||mesh.userData?.splineChunks)throw Error('Make the object polygonal before component Connected');
     const expanded=await frameNative.expandConnectedRaw(cache,mesh.geometry,domain,seeds,{signal,isCurrent,yieldTask});
     let s=items.get(h);if(!s)items.set(h,s={vertices:new Set(),edges:new Set(),faces:new Set()});
-    if(clicked){
+    if(clicked&&mode!=='replace'){
       const set=s[field];let work=0;for(const id of expanded){if(mode==='invert'&&set.has(id))set.delete(id);else set.add(id);if((++work&2047)===0){await yieldTask();if(signal.aborted||!isCurrent())throw new DOMException('Connected selection changed','AbortError');}}
     }else s[field]=expanded;
     if(!s.vertices.size&&!s.edges.size&&!s.faces.size)items.delete(h);
@@ -25880,7 +25930,7 @@ onGizmoDragStart((e) => {
   }
   if (polyFocusActive()) {
     if (gizBeforeGizmo = getGizmoWorldArray(), gizBeforePolyPivot = polyPivotMatrix && polyPivotMatrix.slice(), editPivot) return;
-    gizBeforePolyGeom = capturePolyGeometries(), gizBeforePolySel = capturePolySelectionState(), ((e?.ctrlKey||e?.metaKey)&&polyElementMode==="face"?duplicateSelectedFacesForDrag():e?.ctrlKey&&polyElementMode==="edge"&&extrudeSelectedForDrag()), gizBeforePoly = capturePolySelection();
+    gizBeforePolyGeom = capturePolyGeometries(), gizBeforePolySel = capturePolySelectionState(), gizBeforePolySoft = frameCapturePolygonDragSoft(), ((e?.ctrlKey||e?.metaKey)&&polyElementMode==="face"?duplicateSelectedFacesForDrag():e?.ctrlKey&&polyElementMode==="edge"&&extrudeSelectedForDrag()), gizBeforePoly = capturePolySelection();frameBindPolygonDragSoft(gizBeforePolySoft);
     return;
   }
   if (e && e.ctrlKey && boundNode) {
@@ -25892,6 +25942,7 @@ onGizmoDragStart((e) => {
   boundNode ? (gizBeforeObjState = captureNodeTransformState(boundNode), gizBeforeObj = gizBeforeObjState?.world?.slice() || null, gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMultiState = new Map([...selNodes].map((h) => [h, captureNodeTransformState(h)])), gizBeforeMulti = new Map([...gizBeforeMultiState].map(([h, state]) => [h, state?.world?.slice()])), gizBeforeGizmo = getGizmoWorldArray());
 });
 onGizmoDragEnd((event) => {
+  const beforeSoft=gizBeforePolySoft;gizBeforePolySoft=null;
   if(uvBeforeFrame){
     const before=uvBeforeFrame;uvBeforeFrame=null;
     if(event?.type==='pointercancel')restoreUvProjection(before);else commitUvProjection(before);
@@ -25928,7 +25979,7 @@ onGizmoDragEnd((event) => {
   }
   if(polyFocusActive()&&!editPivot&&(event?.type==='pointercancel'||gizBeforeGizmo&&getGizmoWorldArray().every((v,i)=>v===gizBeforeGizmo[i]))){
     const beforeGeom=gizBeforePolyGeom,beforeSel=gizBeforePolySel;polyPivotMatrix=gizBeforePolyPivot&&gizBeforePolyPivot.slice();polyExactEdgeVertices=null;polyExtrudedFaces=null;
-    if(beforeGeom)restorePolyGeometries(beforeGeom);if(beforeSel)restorePolySelectionState(beforeSel);
+    const softCurrent=frameCurrentPolygonDragSoft(beforeSoft);if(beforeGeom)restorePolyGeometries(beforeGeom);if(beforeSel)restorePolySelectionState(beforeSel);frameRestorePolygonDragSoft(beforeSoft,softCurrent);
     gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;placeGizmoForSelection();return;
   }
   if (polyFocusActive() && editPivot) {

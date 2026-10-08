@@ -84,9 +84,12 @@ export function pickerCoordinates({canvasRect,viewRect,pixelRatio=1,width,height
 export function* edgePickerTablesWork(topology,{batch=4096}={}){
  const {edges,group,vertexCount}=topology;if(!(edges instanceof Uint32Array)||edges.length%2||!(group instanceof Uint32Array)||group.length!==vertexCount)fail('Exact topology raw edges/groups required');
  const lookup=new Map(),groups=[];let work=0;
+ // n*n-1 stays below 2^53; out-of-range or noninteger legacy values keep string keys.
+ const numericPairs=Number.isSafeInteger(vertexCount)&&vertexCount>0&&vertexCount<=94906265;
  for(let e=0;e<edges.length/2;e++){
   const a=edges[e*2],b=edges[e*2+1];if(a>=vertexCount||b>=vertexCount)fail('Edge raw ID outside source');
-  const ga=group[a],gb=group[b],key=Math.min(ga,gb)+':'+Math.max(ga,gb),rawKey=Math.min(a,b)+':'+Math.max(a,b);
+  const ga=group[a],gb=group[b],lo=Math.min(ga,gb),hi=Math.max(ga,gb);
+  const key=numericPairs&&Number.isInteger(lo)&&Number.isInteger(hi)&&lo>=0&&lo<vertexCount&&hi>=0&&hi<vertexCount?lo*vertexCount+hi:lo+':'+hi,rawKey=Math.min(a,b)+':'+Math.max(a,b);
   let q=lookup.get(key);if(!q){q={a,b,rawEdgeIds:[],keys:[]};lookup.set(key,q);groups.push(q);}
   q.rawEdgeIds.push(e);q.keys.push(rawKey);if(++work%batch===0)yield;
  }
