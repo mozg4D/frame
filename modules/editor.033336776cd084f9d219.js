@@ -7790,8 +7790,8 @@ const {TYPE_PRINTER,framePrinters,FRAME_PRINTER_DEFAULTS,framePrinterLayerY,fram
 
 var UNITS = ["nm", "\xB5m", "mm", "cm", "dm", "m", "km"], UMM = [1e-6, 1e-3, 1, 10, 100, 1e3, 1e6], TYPE_GROUP = 0, TYPE_MESH = 1, TYPE_GEN = 2;
 var TYPE_RENDER = 5, BG = 2763306, GRID_COL = 4473924, QUAD_LINE = 1315860, ORTHO_LINE = 8291725, ORTHO_MINOR_OP = 0.12, ORTHO_MAJOR_OP = 0.3, PR = Math.min(devicePixelRatio, 2), FOV = 45, BASE = 2e3, TAP_PX = 6, VIEW_SWITCH_PX = 20, MAJOR_LO = 50;
-var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.35, RO = 400, gizPx = 60, MOBILE_GIZMO_SCALE = 2, MOBILE_LONG_PRESS_MS = 500, MOBILE_TOUCH_SLOP = 10, MOBILE_DOUBLE_TAP_MS = 320, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 82;
-var SMALLRING_PX = 10, SMALLRING_OFF_PX = 72, FLAT_WORLD_SMALLRING_OFF_PX = 77, FLAT_WORLD_SECTOR_PX = 87, SNAP_PX = 10, EDIT_HIT_PX = 20, TICK_PX = 8, VERTEX_CAP = 4e3, QUANT_BASE_STEP = 1, SNAPVIS_CAP = 4e3;
+var ORTHO_MAJOR_LO = 140, SNAP_GRID_PX = 10, LMB = 1, RMB = 2, MMB = 4, TAU = Math.PI * 2, WUP = new THREE2.Vector3(0, 1, 0), ROT = 1.5, LOOK = 0.6, PAN = 1, DOLLY = 3, WHEEL = 1, MINR = 1e-4, MAXR = 1e9, MINZ = 1e-4, MAXZ = 1e9, EXT3D = 10, EXTFLAT = 3.35, RO = 400, gizPx = 75, MOBILE_GIZMO_SCALE = 2, MOBILE_LONG_PRESS_MS = 500, MOBILE_TOUCH_SLOP = 10, MOBILE_DOUBLE_TAP_MS = 320, LAYER_OBJ = 1, LAYER_BRACKET = 300, LAYER_SNAPVIS = 350, IDENT = new THREE2.Quaternion(), BX = new THREE2.Vector3(1, 0, 0), BY = new THREE2.Vector3(0, 1, 0), BZ = new THREE2.Vector3(0, 0, 1), D2R = Math.PI / 180, R2D = 180 / Math.PI, BRACKET_FADE_MS = 220, RING_PX = 102.5;
+var SMALLRING_PX = 10, SMALLRING_OFF_PX = 90, FLAT_WORLD_SMALLRING_OFF_PX = 96.25, FLAT_WORLD_SECTOR_PX = 108.75, SNAP_PX = 10, EDIT_HIT_PX = 20, TICK_PX = 8, VERTEX_CAP = 4e3, QUANT_BASE_STEP = 1, SNAPVIS_CAP = 4e3;
 var SNAP_HALF = 5, EPS_NEAR = 1e-3, ORIGIN0 = new THREE2.Vector3(0, 0, 0), PERSP_LINES = 11, MIN_COL = 1e-8, CREASE_ANGLE = 46 * Math.PI / 180, CREASE_COS = Math.cos(CREASE_ANGLE), clamp = (v, a, b) => Math.max(a, Math.min(b, v)), isFin = (v) => Number.isFinite(v);
 function m3fromM4(m4, a) {
   let e = m4.elements;
@@ -7862,10 +7862,6 @@ function quantStep() {
     }
   }
   return QUANT_BASE_STEP*frameUnitScale();
-}
-function angleStepPx(linePx) {
-  let R = RING_PX;
-  return linePx < R ? 10 * D2R : linePx < 2 * R ? 5 * D2R : linePx < 4 * R ? 1 * D2R : 0.5 * D2R;
 }
 function snapSizeGrid(ws, pw) {
   let mi = Math.pow(10, Math.ceil(Math.log10(MAJOR_LO * pw))) * 0.1, aw = Math.abs(ws), r = Math.round(aw / mi) * mi;
@@ -13628,7 +13624,6 @@ function render() {
   try {
   if(native)renderer.beginFrame();
   let renderStarted = performance.now();vpState.scene.updateMatrixWorld(true);renderer.info.reset();
-  quantRotateHudRings.forEach((ring) => ring.visible = !1);
   for (let [h, t] of threeOf)
     t.visible = effectiveVisible(h);
   for (let [h, state] of replicaStates) state.mesh && (state.mesh.visible = !!(OBJ.get(h)?.enabled && state.ready && effectiveVisible(h)));
@@ -13808,7 +13803,7 @@ function renderView(view, r, vi) {
 function frameRenderEditorOverlay(cam) {
   const {scene,renderer}=vpState,allowed=new Set(),saved=[],background=scene.background;
   const allow=o=>o?.traverse?.(q=>allowed.add(q));
-  [gizmo3D,flatXZ,flatXY,flatYZ,smallRing,sector,snapVis,uvFrameLines,brackets.line,...quantRotateRings,
+  [gizmo3D,flatXZ,flatXY,flatYZ,smallRing,sector,snapVis,uvFrameLines,brackets.line,
     ...frameCameraHelpers.values(),...frameServiceHelpers.values()].forEach(allow);
   for(const collection of [polyHover,polySelection,vertexTools])for(const o of Object.values(collection))if(o?.isObject3D)allow(o);
   if(componentModeArmed)for(const h of selNodes)allow(splineVisuals.get(h)?.group);
@@ -14088,7 +14083,7 @@ function Mm(geo, color, side) {
   let m = new THREE2.Mesh(geo, new THREE2.MeshBasicMaterial({ color, side, depthTest: !1, transparent: !0, opacity: 0.5 }));
   return m.frustumCulled = !1, m;
 }
-var gX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [2, 0, 0, 2, 2, 0, 7, 2, 0, 7, 0, 0, 2, 0, 0, 7, 0, 0, 2, 0, 2, 7, 0, 2]), gY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 2, 0, 2, 2, 0, 2, 7, 0, 0, 7, 0, 0, 2, 0, 0, 7, 0, 0, 2, 2, 0, 7, 2]), gZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 2, 0, 2, 2, 0, 2, 7, 0, 0, 7, 0, 0, 2, 0, 0, 7, 2, 0, 2, 2, 0, 7]), gXY = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [2, 2, 0, 7, 2, 0, 6.8, 3.3, 0, 6.3, 4.5, 0, 5.5, 5.5, 0, 4.5, 6.3, 0, 3.3, 6.8, 0, 2, 7, 0]), gXZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [2, 0, 2, 2, 0, 7, 3.3, 0, 6.8, 4.5, 0, 6.3, 5.5, 0, 5.5, 6.3, 0, 4.5, 6.8, 0, 3.3, 7, 0, 2]), gYZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [0, 2, 2, 0, 7, 2, 0, 6.8, 3.3, 0, 6.3, 4.5, 0, 5.5, 5.5, 0, 4.5, 6.3, 0, 3.3, 6.8, 0, 2, 7]), gSX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [7, 0, 0, 7, 2, 0, 10, 2, 0, 10, 0, 0, 7, 0, 0, 10, 0, 0, 7, 0, 2, 10, 0, 2]), gSY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 7, 0, 2, 7, 0, 2, 10, 0, 0, 10, 0, 0, 7, 0, 0, 10, 0, 0, 7, 2, 0, 10, 2]), gSZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 7, 0, 2, 7, 0, 2, 10, 0, 0, 10, 0, 0, 7, 0, 0, 10, 2, 0, 7, 2, 0, 10]), gRX = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [0, 2, 7, 0, 2, 10, 0, 3.3, 6.8, 0, 4, 9.7, 0, 4.5, 6.3, 0, 5.9, 8.8, 0, 5.5, 5.5, 0, 7.5, 7.5, 0, 6.3, 4.5, 0, 8.8, 5.9, 0, 6.8, 3.3, 0, 9.7, 4, 0, 7, 2, 0, 10, 2]), gRY = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [2, 0, 7, 2, 0, 10, 3.3, 0, 6.8, 4, 0, 9.7, 4.5, 0, 6.3, 5.9, 0, 8.8, 5.5, 0, 5.5, 7.5, 0, 7.5, 6.3, 0, 4.5, 8.8, 0, 5.9, 6.8, 0, 3.3, 9.7, 0, 4, 7, 0, 2, 10, 0, 2]), gRZ = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [2, 7, 0, 2, 10, 0, 3.3, 6.8, 0, 4, 9.7, 0, 4.5, 6.3, 0, 5.9, 8.8, 0, 5.5, 5.5, 0, 7.5, 7.5, 0, 6.3, 4.5, 0, 8.8, 5.9, 0, 6.8, 3.3, 0, 9.7, 4, 0, 7, 2, 0, 10, 2, 0]), gS = GB([0, 1, 4, 0, 1, 5, 0, 2, 5, 0, 2, 6, 0, 3, 4, 0, 3, 6], [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 2, 2, 2, 0, 0, 2, 2]), gSR = GB([0, 1, 3, 1, 3, 2], [0.8, -0.15, 0, 1, -0.2, 0, 1, 0.2, 0, 0.8, 0.15, 0]), fXZ_S = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 0, 0, 0, -1, 1, 0, -1, 1, 0, 0]), fXZ_X = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [1, 0, 0, 1, 0, -1, 2.1, 0, -1, 2.1, 0, 0]), fXZ_Z = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, -1, 0, 0, -2.1, 1, 0, -2.1, 1, 0, -1]), fXZ_SX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [2.1, 0, 0, 2.1, 0, -1, 3.1, 0, -1, 3.1, 0, 0]), fXZ_SZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, -2.1, 0, 0, -3.1, 1, 0, -3.1, 1, 0, -2.1]), fXZ_XZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [1, 0, -1, 1, 0, -2.1, 1.35, 0, -2.05, 1.65, 0, -1.9, 1.9, 0, -1.65, 2.05, 0, -1.35, 2.1, 0, -1]), fXZ_RY = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [1, 0, -2.1, 1.35, 0, -2.05, 1.65, 0, -1.9, 1.9, 0, -1.65, 2.05, 0, -1.35, 2.1, 0, -1, 1, 0, -3.1, 1.5, 0, -3.05, 2, 0, -2.85, 2.5, 0, -2.5, 2.85, 0, -2, 3.05, 0, -1.5, 3.1, 0, -1]), fXY_S = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0]), fXY_X = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [1, 0, 0, 1, 1, 0, 2.1, 1, 0, 2.1, 0, 0]), fXY_Y = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 1, 0, 0, 2.1, 0, 1, 2.1, 0, 1, 1, 0]), fXY_SX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [2.1, 0, 0, 2.1, 1, 0, 3.1, 1, 0, 3.1, 0, 0]), fXY_SY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 2.1, 0, 0, 3.1, 0, 1, 3.1, 0, 1, 2.1, 0]), fXY_XY = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [1, 1, 0, 1, 2.1, 0, 1.35, 2.05, 0, 1.65, 1.9, 0, 1.9, 1.65, 0, 2.05, 1.35, 0, 2.1, 1, 0]), fXY_RZ = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [1, 2.1, 0, 1.35, 2.05, 0, 1.65, 1.9, 0, 1.9, 1.65, 0, 2.05, 1.35, 0, 2.1, 1, 0, 1, 3.1, 0, 1.5, 3.05, 0, 2, 2.85, 0, 2.5, 2.5, 0, 2.85, 2, 0, 3.05, 1.5, 0, 3.1, 1, 0]), fYZ_S = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 0, 0, 1, 0, 0, 1, -1, 0, 0, -1]), fYZ_Z = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, -1, 0, 1, -1, 0, 1, -2.1, 0, 0, -2.1]), fYZ_Y = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 1, 0, 0, 2.1, 0, 0, 2.1, -1, 0, 1, -1]), fYZ_SY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 2.1, 0, 0, 3.1, 0, 0, 3.1, -1, 0, 2.1, -1]), fYZ_SZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, -2.1, 0, 1, -2.1, 0, 1, -3.1, 0, 0, -3.1]), fYZ_YZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [0, 1, -1, 0, 2.1, -1, 0, 2.05, -1.35, 0, 1.9, -1.65, 0, 1.65, -1.9, 0, 1.35, -2.05, 0, 1, -2.1]), fYZ_RX = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [0, 2.1, -1, 0, 2.05, -1.35, 0, 1.9, -1.65, 0, 1.65, -1.9, 0, 1.35, -2.05, 0, 1, -2.1, 0, 3.1, -1, 0, 3.05, -1.5, 0, 2.85, -2, 0, 2.5, -2.5, 0, 2, -2.85, 0, 1.5, -3.05, 0, 1, -3.1]), DS = THREE2.DoubleSide, BS = THREE2.BackSide;
+var gX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [2, 0, 0, 2, 2, 0, 7, 2, 0, 7, 0, 0, 2, 0, 0, 7, 0, 0, 2, 0, 2, 7, 0, 2]), gY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 2, 0, 2, 2, 0, 2, 7, 0, 0, 7, 0, 0, 2, 0, 0, 7, 0, 0, 2, 2, 0, 7, 2]), gZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 2, 0, 2, 2, 0, 2, 7, 0, 0, 7, 0, 0, 2, 0, 0, 7, 2, 0, 2, 2, 0, 7]), gXY = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [2, 2, 0, 7, 2, 0, 6.8, 3.3, 0, 6.3, 4.5, 0, 5.5, 5.5, 0, 4.5, 6.3, 0, 3.3, 6.8, 0, 2, 7, 0]), gXZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [2, 0, 2, 2, 0, 7, 3.3, 0, 6.8, 4.5, 0, 6.3, 5.5, 0, 5.5, 6.3, 0, 4.5, 6.8, 0, 3.3, 7, 0, 2]), gYZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6, 0, 6, 7], [0, 2, 2, 0, 7, 2, 0, 6.8, 3.3, 0, 6.3, 4.5, 0, 5.5, 5.5, 0, 4.5, 6.3, 0, 3.3, 6.8, 0, 2, 7]), gSX = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [7, 0, 0, 7, 2, 0, 10, 2, 0, 10, 0, 0, 7, 0, 0, 10, 0, 0, 7, 0, 2, 10, 0, 2]), gSY = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 7, 0, 2, 7, 0, 2, 10, 0, 0, 10, 0, 0, 7, 0, 0, 10, 0, 0, 7, 2, 0, 10, 2]), gSZ = GB([0, 1, 2, 0, 2, 3, 4, 5, 7, 4, 7, 6], [0, 0, 7, 0, 2, 7, 0, 2, 10, 0, 0, 10, 0, 0, 7, 0, 0, 10, 2, 0, 7, 2, 0, 10]), gRX = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [0, 2, 7, 0, 2, 10, 0, 3.3, 6.8, 0, 4, 9.7, 0, 4.5, 6.3, 0, 5.9, 8.8, 0, 5.5, 5.5, 0, 7.5, 7.5, 0, 6.3, 4.5, 0, 8.8, 5.9, 0, 6.8, 3.3, 0, 9.7, 4, 0, 7, 2, 0, 10, 2]), gRY = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [2, 0, 7, 2, 0, 10, 3.3, 0, 6.8, 4, 0, 9.7, 4.5, 0, 6.3, 5.9, 0, 8.8, 5.5, 0, 5.5, 7.5, 0, 7.5, 6.3, 0, 4.5, 8.8, 0, 5.9, 6.8, 0, 3.3, 9.7, 0, 4, 7, 0, 2, 10, 0, 2]), gRZ = GB([0, 1, 2, 1, 2, 3, 3, 2, 4, 3, 4, 5, 5, 4, 6, 5, 6, 7, 7, 6, 8, 7, 8, 9, 9, 8, 10, 9, 10, 11, 11, 10, 12, 11, 12, 13], [2, 7, 0, 2, 10, 0, 3.3, 6.8, 0, 4, 9.7, 0, 4.5, 6.3, 0, 5.9, 8.8, 0, 5.5, 5.5, 0, 7.5, 7.5, 0, 6.3, 4.5, 0, 8.8, 5.9, 0, 6.8, 3.3, 0, 9.7, 4, 0, 7, 2, 0, 10, 2, 0]), gS = GB([0, 1, 4, 0, 1, 5, 0, 2, 5, 0, 2, 6, 0, 3, 4, 0, 3, 6], [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2, 2, 0, 2, 2, 2, 0, 0, 2, 2]), gSR = GB([0, 1, 3, 1, 3, 2], [0.8, -0.15, 0, 1, -0.2, 0, 1, 0.2, 0, 0.8, 0.15, 0]), fXZ_S = GB([0, 1, 2, 0, 2, 3], [0, 0, 0, 0, 0, -1, 1, 0, -1, 1, 0, 0]), fXZ_X = GB([0, 1, 2, 0, 2, 3], [1, 0, 0, 1, 0, -1, 2.1, 0, -1, 2.1, 0, 0]), fXZ_Z = GB([0, 1, 2, 0, 2, 3], [0, 0, -1, 0, 0, -2.1, 1, 0, -2.1, 1, 0, -1]), fXZ_SX = GB([0, 1, 2, 0, 2, 3], [2.1, 0, 0, 2.1, 0, -1, 3.1, 0, -1, 3.1, 0, 0]), fXZ_SZ = GB([0, 1, 2, 0, 2, 3], [0, 0, -2.1, 0, 0, -3.1, 1, 0, -3.1, 1, 0, -2.1]), fXZ_XZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [1, 0, -1, 1, 0, -2.1, 1.35, 0, -2.05, 1.65, 0, -1.9, 1.9, 0, -1.65, 2.05, 0, -1.35, 2.1, 0, -1]), fXZ_RY = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [1, 0, -2.1, 1.35, 0, -2.05, 1.65, 0, -1.9, 1.9, 0, -1.65, 2.05, 0, -1.35, 2.1, 0, -1, 1, 0, -3.1, 1.5, 0, -3.05, 2, 0, -2.85, 2.5, 0, -2.5, 2.85, 0, -2, 3.05, 0, -1.5, 3.1, 0, -1]), fXY_S = GB([0, 1, 2, 0, 2, 3], [0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0]), fXY_X = GB([0, 1, 2, 0, 2, 3], [1, 0, 0, 1, 1, 0, 2.1, 1, 0, 2.1, 0, 0]), fXY_Y = GB([0, 1, 2, 0, 2, 3], [0, 1, 0, 0, 2.1, 0, 1, 2.1, 0, 1, 1, 0]), fXY_SX = GB([0, 1, 2, 0, 2, 3], [2.1, 0, 0, 2.1, 1, 0, 3.1, 1, 0, 3.1, 0, 0]), fXY_SY = GB([0, 1, 2, 0, 2, 3], [0, 2.1, 0, 0, 3.1, 0, 1, 3.1, 0, 1, 2.1, 0]), fXY_XY = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [1, 1, 0, 1, 2.1, 0, 1.35, 2.05, 0, 1.65, 1.9, 0, 1.9, 1.65, 0, 2.05, 1.35, 0, 2.1, 1, 0]), fXY_RZ = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [1, 2.1, 0, 1.35, 2.05, 0, 1.65, 1.9, 0, 1.9, 1.65, 0, 2.05, 1.35, 0, 2.1, 1, 0, 1, 3.1, 0, 1.5, 3.05, 0, 2, 2.85, 0, 2.5, 2.5, 0, 2.85, 2, 0, 3.05, 1.5, 0, 3.1, 1, 0]), fYZ_S = GB([0, 1, 2, 0, 2, 3], [0, 0, 0, 0, 1, 0, 0, 1, -1, 0, 0, -1]), fYZ_Z = GB([0, 1, 2, 0, 2, 3], [0, 0, -1, 0, 1, -1, 0, 1, -2.1, 0, 0, -2.1]), fYZ_Y = GB([0, 1, 2, 0, 2, 3], [0, 1, 0, 0, 2.1, 0, 0, 2.1, -1, 0, 1, -1]), fYZ_SY = GB([0, 1, 2, 0, 2, 3], [0, 2.1, 0, 0, 3.1, 0, 0, 3.1, -1, 0, 2.1, -1]), fYZ_SZ = GB([0, 1, 2, 0, 2, 3], [0, 0, -2.1, 0, 1, -2.1, 0, 1, -3.1, 0, 0, -3.1]), fYZ_YZ = GB([0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 5, 0, 5, 6], [0, 1, -1, 0, 2.1, -1, 0, 2.05, -1.35, 0, 1.9, -1.65, 0, 1.65, -1.9, 0, 1.35, -2.05, 0, 1, -2.1]), fYZ_RX = GB([0, 6, 1, 6, 7, 1, 1, 7, 2, 2, 7, 8, 2, 8, 9, 2, 9, 3, 3, 9, 10, 3, 10, 4, 4, 10, 11, 4, 11, 12, 4, 12, 5], [0, 2.1, -1, 0, 2.05, -1.35, 0, 1.9, -1.65, 0, 1.65, -1.9, 0, 1.35, -2.05, 0, 1, -2.1, 0, 3.1, -1, 0, 3.05, -1.5, 0, 2.85, -2, 0, 2.5, -2.5, 0, 2, -2.85, 0, 1.5, -3.05, 0, 1, -3.1]), DS = THREE2.DoubleSide, BS = THREE2.BackSide;
  
  
  
@@ -14112,7 +14107,7 @@ function buildGroup(spec, side) {
     m.name = s[2], m.userData.order = i, m.renderOrder = RO + i, grp.add(m);
   }), vpState.scene.add(grp), grp;
 }
-var gizmo3D, flatXZ, flatXY, flatYZ, smallRing = null, sector = null, hudLine = null, hudLineGeo = null, snapVis = null, uvFrameLines = null, quantRotateRings = [], quantRotateHudRings = [], _snapVisActive = !1, _tc = new THREE2.Vector3(), _tc2 = new THREE2.Vector3(), _lc = new THREE2.Vector3(), _iq = new THREE2.Quaternion(), _v = new THREE2.Vector3(), _av = new THREE2.Vector3(), _vp = new THREE2.Vector3(), _gq = new THREE2.Quaternion();
+var gizmo3D, flatXZ, flatXY, flatYZ, smallRing = null, sector = null, hudLine = null, hudLineGeo = null, snapVis = null, uvFrameLines = null, _snapVisActive = !1, _tc = new THREE2.Vector3(), _tc2 = new THREE2.Vector3(), _lc = new THREE2.Vector3(), _iq = new THREE2.Quaternion(), _v = new THREE2.Vector3(), _av = new THREE2.Vector3(), _vp = new THREE2.Vector3(), _gq = new THREE2.Quaternion();
 function gizmoOrientQuat() {
   return rotQuatOfLin(gizmo.lin, _gq), _gq;
 }
@@ -14142,7 +14137,7 @@ function frameOwnCameraGizmo(view) {
   return !!h&&selNodes.size===1&&selNodes.has(h)&&vpState.views[frameCameraView]===view;
 }
 function applyGizmo(view, r) {
-  if (gizmo3D.visible = !1, flatXZ.visible = !1, flatXY.visible = !1, flatYZ.visible = !1, smallRing && (smallRing.visible = !1), sector && (sector.visible = !1), quantRotateRings.forEach((ring) => ring.visible = !1), !gizmoVisible || frameOwnCameraGizmo(view)) return { mode3D: !1, orientQuat: IDENT, sx: 1, sy: 1, sz: 1, pw: 1 };
+  if (gizmo3D.visible = !1, flatXZ.visible = !1, flatXY.visible = !1, flatYZ.visible = !1, smallRing && (smallRing.visible = !1), sector && (sector.visible = !1), !gizmoVisible || frameOwnCameraGizmo(view)) return { mode3D: !1, orientQuat: IDENT, sx: 1, sy: 1, sz: 1, pw: 1 };
   let cam = view.cam, mode3D = view.type === "persp" || gizmoLocal, orientQuat = mode3D && gizmoLocal ? gizmoHandleOrient : IDENT, pw = pwOf(view, r), mobileScale = mobileGizmoScale(), sx2 = 1, sy2 = 1, sz2 = 1;
   if (mode3D) {
     let fv = frozenSignsPerView ? frozenSignsPerView.get(view) : null;
@@ -14161,19 +14156,6 @@ function applyGizmo(view, r) {
       }
     }
     sector && (sector.position.copy(gizmo.pos), sector.quaternion.copy(cam.quaternion), sector.scale.setScalar((view.type!=="persp"&&!gizmoLocal?FLAT_WORLD_SECTOR_PX:RING_PX) * mobileScale * pw), sector.visible = !0, sector.updateMatrixWorld(!0));
-  }
-  if (quantOn && gizDrag && gizDrag.mode === "rotate" && vpState.views[gizDrag.view] === view) {
-    for (let ring of quantRotateRings)
-      ring.position.copy(gizmo.pos), ring.quaternion.copy(cam.quaternion), ring.scale.setScalar(ring.userData.radiusPx * mobileScale * pw), ring.visible = !0, ring.updateMatrixWorld(!0);
-    let p = projectPx(gizmo.pos, cam, r), cx = p[0] / vpState.W * 2 - 1, cy = 1 - p[1] / vpState.H * 2;
-    for (let ring of quantRotateHudRings) {
-      let rr = ring.userData.radiusPx * mobileScale, a = ring.geometry.attributes.position.array;
-      for (let i = 0; i <= 64; i++) {
-        let ang = i / 64 * TAU, k = i * 3;
-        a[k] = cx + Math.cos(ang) * rr / vpState.W * 2, a[k + 1] = cy + Math.sin(ang) * rr / vpState.H * 2, a[k + 2] = 0;
-      }
-      ring.geometry.attributes.position.needsUpdate = !0, ring.visible = !0;
-    }
   }
   return { mode3D, orientQuat, sx: sx2, sy: sy2, sz: sz2, pw };
 }
@@ -16381,10 +16363,6 @@ function doGizDrag(e) {
       }
     else if (gizDrag.mode === "rotate") {
       let C = gizmo.pos, angP = Math.atan2(gizDrag.pY.dot(_t1.copy(C).sub(_P)), gizDrag.pX.dot(_t2.copy(C).sub(_P))), angH = Math.atan2(gizDrag.pY.dot(_t1.copy(C).sub(gizDrag.gizHit)), gizDrag.pX.dot(_t2.copy(C).sub(gizDrag.gizHit))), raw = (angP - angH) * gizDrag.sign;
-      if (quantOn) {
-        let cp2 = projectPx(C, cam, r), pp = projectPx(_P, cam, r), linePx = Math.hypot(pp[0] - cp2[0], pp[1] - cp2[1]), step = angleStepPx(linePx);
-        raw = Math.round(raw / step) * step;
-      }
       _dq.setFromAxisAngle(gizDrag.vR, raw), gizmo.lin.copy(new THREE2.Matrix4().makeRotationFromQuaternion(_dq).multiply(gizDrag.startLin)), gizmoHandleOrient.copy(gizmoOrientQuat());
       let cp = projectPx(C, cam, r);
       setHudLine(cp[0], cp[1], e.clientX, e.clientY), syncCube(), emitInfo({ kind: "rot", deg: raw * R2D });
@@ -16513,15 +16491,6 @@ async function initViewport(container) {
     { type: "ortho", cam: frontCam, ctrl: new NavOrtho(frontCam), grid: frontGrid, flat: "XY", axU: X, axV: Y },
     { type: "ortho", cam: rightCam, ctrl: new NavOrtho(rightCam), grid: rightGrid, flat: "YZ", axU: Z, axV: Y }
   ], gizmo3D = buildGroup([[gX, 16716049, "X"], [gY, 43520, "Y"], [gZ, 4607, "Z"], [gXY, 13412864, "XY"], [gXZ, 8917384, "XZ"], [gYZ, 43656, "YZ"], [gSX, 16755370, "SX"], [gSY, 11206570, "SY"], [gSZ, 11184895, "SZ"], [gRX, 16716049, "RX"], [gRY, 1157649, "RY"], [gRZ, 1123071, "RZ"], [gS, 16777215, "S"]], DS), flatXZ = buildGroup([[fXZ_S, 16777215, "S"], [fXZ_X, 16716049, "X"], [fXZ_Z, 4607, "Z"], [fXZ_SX, 16755370, "SX"], [fXZ_SZ, 11184895, "SZ"], [fXZ_XZ, 8917384, "XZ"], [fXZ_RY, 1157649, "RY"]], BS), flatXY = buildGroup([[fXY_S, 16777215, "S"], [fXY_X, 16716049, "X"], [fXY_Y, 43520, "Y"], [fXY_SX, 16755370, "SX"], [fXY_SY, 11206570, "SY"], [fXY_XY, 13412864, "XY"], [fXY_RZ, 1123071, "RZ"]], BS), flatYZ = buildGroup([[fYZ_S, 16777215, "S"], [fYZ_Y, 43520, "Y"], [fYZ_Z, 4607, "Z"], [fYZ_SY, 11206570, "SY"], [fYZ_SZ, 11184895, "SZ"], [fYZ_YZ, 43656, "YZ"], [fYZ_RX, 16716049, "RX"]], BS), smallRing = buildSmallSquare();
-  for (let radiusPx of [RING_PX, RING_PX * 2, RING_PX * 4]) {
-    let pts = [];
-    for (let i = 0; i < 64; i++) {
-      let a = i / 64 * TAU;
-      pts.push(Math.cos(a), Math.sin(a), 0);
-    }
-    let ring = new THREE2.LineLoop(new THREE2.BufferGeometry().setFromPoints(pts.map((p) => new THREE2.Vector3(p[0], p[1], p[2]))), new THREE2.LineBasicMaterial({ color: 16777215, depthTest: !1, depthWrite: !1, toneMapped: !1 }));
-    ring.userData.radiusPx = radiusPx, ring.frustumCulled = !1, ring.renderOrder = 9999, ring.visible = !1, vpState.scene.add(ring), quantRotateRings.push(ring);
-  }
   sector = new THREE2.Mesh(gSR, new THREE2.MeshBasicMaterial({ color: 16777215, side: THREE2.DoubleSide, depthTest: !1, transparent: !0, opacity: 0.55 })), sector.frustumCulled = !1, sector.name = "SR", sector.renderOrder = RO + 55, sector.visible = !1, vpState.scene.add(sector);
   let svGeo = new THREE2.BufferGeometry();
   svGeo.setAttribute("position", new THREE2.BufferAttribute(new Float32Array(SNAPVIS_CAP * 3), 3).setUsage(THREE2.DynamicDrawUsage)), snapVis = new THREE2.LineSegments(svGeo, new THREE2.LineBasicMaterial({ color: 8947848, transparent: !0, opacity: 0.3, depthWrite: !1, depthTest: !1 })), snapVis.frustumCulled = !1, snapVis.renderOrder = LAYER_SNAPVIS, snapVis.visible = !1, scene.add(snapVis);
@@ -16558,12 +16527,6 @@ async function initViewport(container) {
   vertexTools.snapVertex = vtPoint(), vertexTools.snapEdge = vtLine(63231), vertexTools.linePreview = new THREE2.Line(new THREE2.BufferGeometry(), new THREE2.LineBasicMaterial({ color: 63231, depthTest: !1, depthWrite: !1 })), vertexTools.linePreview.frustumCulled = !1, vertexTools.linePreview.renderOrder = LAYER_BRACKET + 7, vertexTools.linePreview.visible = !1, scene.add(vertexTools.linePreview), splineDrawPreview = new THREE2.Line(new THREE2.BufferGeometry(), new THREE2.LineBasicMaterial({ color: 7536517, depthTest: !1, depthWrite: !1 })), splineDrawPreview.frustumCulled = !1, splineDrawPreview.renderOrder = LAYER_BRACKET + 9, splineDrawPreview.visible = !1, scene.add(splineDrawPreview), splineTangentPreview = new THREE2.Line(new THREE2.BufferGeometry(), new THREE2.LineBasicMaterial({ color: 5888255, depthTest: !1, depthWrite: !1 })), splineTangentPreview.frustumCulled = !1, splineTangentPreview.renderOrder = LAYER_BRACKET + 10, splineTangentPreview.visible = !1, scene.add(splineTangentPreview), vertexTools.loopPreview = vtPoint(), vertexTools.loopPreview.material.color.setHex(16754688), vertexTools.softPreview = new THREE2.Points(new THREE2.BufferGeometry(), new THREE2.PointsMaterial({ size: 8, sizeAttenuation: !1, vertexColors: !0, depthTest: !0, depthWrite: !1 })), vertexTools.softPreview.frustumCulled = !1, vertexTools.softPreview.renderOrder = LAYER_BRACKET + 6, vertexTools.softPreview.visible = !1, scene.add(vertexTools.softPreview);
   let hudScene = new THREE2.Scene(), hudCam = new THREE2.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   hudLineGeo = new THREE2.BufferGeometry(), hudLineGeo.setAttribute("position", new THREE2.BufferAttribute(new Float32Array(6), 3)), hudLine = new THREE2.Line(hudLineGeo, new THREE2.LineBasicMaterial({ color: 16777215, depthTest: !1, depthWrite: !1, transparent: !0, opacity: 0.9 })), hudLine.frustumCulled = !1, hudLine.visible = !1, hudScene.add(hudLine);
-  for (let radiusPx of [RING_PX, RING_PX * 2, RING_PX * 4]) {
-    let g = new THREE2.BufferGeometry();
-    g.setAttribute("position", new THREE2.BufferAttribute(new Float32Array(195), 3).setUsage(THREE2.DynamicDrawUsage));
-    let ring = new THREE2.LineLoop(g, new THREE2.LineBasicMaterial({ color: ORTHO_LINE, transparent: !0, opacity: ORTHO_MINOR_OP, depthTest: !1, depthWrite: !1, toneMapped: !1 }));
-    ring.userData.radiusPx = radiusPx, ring.frustumCulled = !1, ring.renderOrder = 9999, ring.visible = !1, hudScene.add(ring), quantRotateHudRings.push(ring);
-  }
   vpState.hudScene = hudScene, vpState.hudCam = hudCam;
   let overlayScene = new THREE2.Scene(), overlayCam = new THREE2.OrthographicCamera(-1, 1, 1, -1, 0, 1), overlayGeo = new THREE2.BufferGeometry();
   overlayGeo.setAttribute("position", new THREE2.BufferAttribute(new Float32Array(12), 3));
@@ -24929,20 +24892,30 @@ function frameGetNativeTopologyCache(){
   return frameNativeTopologyCache;
 }
 function frameWarmNativeTopology(){
+  // Warm selected native object-mode meshes only after interactive work is quiet.
+  // Topology remains local-geometry-only; every build still uses the existing cache.
+  const canWarm=()=>polyFocusActive()||(!componentModeArmed&&selNodes.size>0&&vpState.renderer?.isFrameNativeViewportRenderer===true&&!nativeSceneLoading&&!gizDrag&&!splinePointerGesture);
+  if(!canWarm()){frameNativeWarmKey=null;return;}
   // O(1) key comparison in the render scheduler. Camera movement cannot cause a build.
-  const key=[sceneStateToken,sceneMutationSequence,framePolySelectionRevision,polyElementMode,componentModeArmed].join('|');
+  const key=[sceneStateToken,sceneMutationSequence,framePolySelectionRevision,polyElementMode,componentModeArmed,frameNativeExternalSelection].join('|');
   if(key===frameNativeWarmKey)return;frameNativeWarmKey=key;
   if(frameNativeTopologyTimer!==null)return;
   const run=()=>{
-    frameNativeTopologyTimer=null;if(!polyFocusActive())return;
+    frameNativeTopologyTimer=null;if(!canWarm()){frameNativeWarmKey=null;return;}
     const cache=frameGetNativeTopologyCache(),owners=selNodes.values();
     const next=()=>{
-      if(!polyFocusActive())return;
+      if(!canWarm()){frameNativeWarmKey=null;return;}
       const start=performance.now();let q;
       while(!(q=owners.next()).done){const h=q.value,m=pickMeshes.get(h);
         // Never access aggregate geometry getters on a cloner/instance root.
+        if(polyFocusActive()){
         if(isVertexEditableMesh(h)&&m?.isMesh&&!m.userData?.splineChunks&&m.geometry?.attributes.position)
           cache.warm(m.geometry).catch(error=>{if(error.name!=='AbortError')console.warn('Topology preparation',error.message);});
+        }else if(selNodes.has(h)&&isVertexEditableMesh(h)&&m?.isMesh&&!m.userData?.splineChunks){
+          const geometry=m.geometry;
+          if(canWarm()&&selNodes.has(h)&&pickMeshes.get(h)===m&&geometry?.attributes.position?.itemSize===3)
+            cache.warm(geometry).catch(error=>{if(error.name!=='AbortError')console.warn('Topology preparation',error.message);});
+        }
         if(performance.now()-start>=2){frameNativeTopologyTimer=setTimeout(()=>{frameNativeTopologyTimer=null;next();},60);return;}
       }
     };next();
