@@ -6,6 +6,7 @@ import {rectangleParams} from './gpu-selection.mjs';
 import {decodeMarqueeWork} from './native-engine.mjs';
 import {FrameRibbonPicker,RIBBON_WGSL} from './picker-ribbon.mjs';
 import {FramePickerDepth,pickerGeometryPacket} from './picker-depth.mjs';
+import {FrameGpuCornerVisibility} from './native-corner.mjs';
 import {drainCooperatively} from './topology-islands.mjs';
 import {stampAttribute,attributeCurrent,DisplayGeometryCache,DisplayInstanceCache,captureDisplayObject,captureMaterial} from './display-packets.mjs';
 import {textureState,textureStateCurrent} from './texture-policy.mjs';
@@ -115,14 +116,19 @@ export class FrameNativePickers {
   try{p.depthOwner=await FramePickerDepth.create(host,{display});p.ribbon=await FrameRibbonPicker.create(host);p.compilation=p.ribbon.compilation;if(host.state!=='ready')throw abort('Native selection device unavailable');return p;}
   catch(e){p.depthOwner?.dispose();p.disposed=true;throw e;}
  }
- constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;}
+ constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;this.cornerVisibility=null;this.cornerOpening=null;}
+ async cornerOwner(){
+  if(this.disposed)throw abort('Native picker adapter disposed');if(this.cornerVisibility)return this.cornerVisibility;
+  if(!this.cornerOpening)this.cornerOpening=FrameGpuCornerVisibility.create(this.host).then(owner=>{if(this.disposed){owner.dispose();throw abort('Native picker adapter disposed during corner initialization');}this.cornerVisibility=owner;return owner;}).finally(()=>{this.cornerOpening=null;});
+  return await this.cornerOpening;
+ }
  async prepare(options){
   assertAdapterRenderDomain(this.host,this.renderDomain);assertAdapterRenderDomain(this.depthOwner,this.renderDomain);assertAdapterRenderDomain(this.ribbon,this.renderDomain);if(this.disposed||this.opening||this.sessions.size||this.host.jobs.size)fail('Close the previous native picker operation first');
   const captured={...options,sources:(options.sources??[]).map(b=>({...b,geometry:b.geometry??b.snapshot.packets[0].geometry.source,identity:copyIdentity(b.identity)}))};
   const opening=NativePickerSession.create(this,captured);this.opening=opening;
   try{const s=await opening;if(this.disposed){await s.dispose();throw abort('Picker disposed during preparation');}this.sessions.add(s);return s;}finally{if(this.opening===opening)this.opening=null;}
  }
- async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.depthOwner?.dispose();}
+ async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await this.cornerOpening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.cornerVisibility?.dispose();this.depthOwner?.dispose();}
 }
 
 export class NativePickerSession {
@@ -197,9 +203,11 @@ export class NativePickerSession {
   const domain=this.selectionDomain;
   const normalized=rectangleParams(Array.from(rectangle),this.viewport,this.width,this.height,this.depthTolerance).rectangle;
   return this._run(async(valid,signal)=>{
-   if(!this.targets.length)return [];const depth=await this._depth(this.faceDepthPolicy),output=[];if(!valid())throw abort('Face source stale after depth preparation');
+   if(!this.targets.length)return [];const exactCorner=!this.through&&this.faceDepthPolicy==='geometry';if(exactCorner&&this.depthTolerance!==0)fail('Exact corner geometry requires zero depth tolerance');
+   const corner=exactCorner?await this.adapter.cornerOwner():null,depth=corner?null:await this._depth(this.faceDepthPolicy),output=[];if(!valid())throw abort('Face source stale after visibility preparation');
+   const occluderPackets=corner?this.occluders.map(snapshot=>pickerGeometryPacket(snapshot,this.camera)):null;
    for(const t of this.targets){
-    const job=this.host.select(t.p,depth,{rectangle:normalized,through:this.through,depthTolerance:this.depthTolerance,isCurrent:valid,signal});
+    const job=corner?corner.select(t.p,{packet:t.pickPacket,occluderPackets,representatives:t.topology.selection.representatives,rectangle:normalized,viewport:this.viewport,width:this.width,height:this.height,isCurrent:valid,signal}):this.host.select(t.p,depth,{rectangle:normalized,through:this.through,depthTolerance:this.depthTolerance,isCurrent:valid,signal});
     try{const mask=await job.read(),decoded=await drainCooperatively(decodeMarqueeWork(mask,t.topology,domain),{signal,isCurrent:valid,yieldTask:this.yieldTask});
      for(const row of decoded.instances){const identity=t.identity.instances[row.instance],map=domain==='vertex'?t.identity.vertexIds:domain==='face'?t.identity.faceIds:null,ids=map?Uint32Array.from(row.ids,i=>map[i]):row.ids,keys=[];
       if(domain==='edge')for(const i of row.ids){const a=t.topology.edges[i*2],b=t.topology.edges[i*2+1],u=t.identity.vertexIds?.[a]??a,v=t.identity.vertexIds?.[b]??b;keys.push(Math.min(u,v)+':'+Math.max(u,v));}

@@ -13526,7 +13526,7 @@ function normalizeCreaseTopology(mesh, needRemap = true, {preserveFaces = true} 
     let key='';for(const [,a] of extras){key+='|';for(let c=0;c<a.itemSize;c++)key+=a.getComponent(v,c)+',';}
     let id=seamKeys.get(key);if(id===undefined){id=seamKeys.size;seamKeys.set(key,id);}seamIds[v]=id;
   }
-  const originalPositions=packedGeometryAttribute(pos),originBefore=frameContourOrigins.get(g);
+  const originalPositions=(pos.array??pos.data?.array) instanceof Float64Array?framePolygonAttributeArray(pos):packedGeometryAttribute(pos),originBefore=frameContourOrigins.get(g);
   const captureIndices=preserveFaces&&faces<=8192&&originalPositions.length<=73728;
   const packedIndex=index&&!index.isInterleavedBufferAttribute&&!index.normalized&&index.array instanceof Uint32Array&&index.array.length===count;
   const originalIndices=index?(packedIndex&&!captureIndices?index.array:Uint32Array.from({length:count},(_,i)=>index.getX(i))):null;
@@ -13534,12 +13534,12 @@ function normalizeCreaseTopology(mesh, needRemap = true, {preserveFaces = true} 
   const ng=new THREE2.BufferGeometry();ng.userData={...g.userData};
    
   for(const key of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners'])delete ng.userData[key];
-  ng.setAttribute('position',new THREE2.BufferAttribute(built.positions,3));ng.setAttribute('normal',new THREE2.BufferAttribute(built.normals,3));ng.setIndex(new THREE2.BufferAttribute(built.indices,1));
+  if((pos.array??pos.data?.array) instanceof Float64Array){const exact=new Float64Array(built.source.length*3);for(let v=0;v<built.source.length;v++)for(let c=0;c<3;c++)exact[v*3+c]=originalPositions[built.source[v]*3+c];ng.setAttribute('position',new THREE2.BufferAttribute(exact,3));}else ng.setAttribute('position',new THREE2.BufferAttribute(built.positions,3));ng.setAttribute('normal',new THREE2.BufferAttribute(built.normals,3));ng.setIndex(new THREE2.BufferAttribute(built.indices,1));
   if(preserveFaces&&faces>0&&faces<=8192&&originalPositions.length<=73728&&originalIndices&&built.keptFaces.length===faces&&built.keptFaces.every((f,i)=>f===i))frameContourOrigins.bind(ng,originBefore||{version:1,positions:originalPositions,indices:originalIndices},true);
   for(const [name,a] of extras){
-    const values=new Float32Array(built.source.length*a.itemSize);
-    for(let v=0;v<built.source.length;v++)for(let c=0;c<a.itemSize;c++)values[v*a.itemSize+c]=a.getComponent(built.source[v],c);
-    ng.setAttribute(name,new THREE2.BufferAttribute(values,a.itemSize));
+    const raw=framePolygonAttributeArray(a),values=new raw.constructor(built.source.length*a.itemSize);
+    for(let v=0;v<built.source.length;v++)for(let c=0;c<a.itemSize;c++)values[v*a.itemSize+c]=raw[built.source[v]*a.itemSize+c];
+    ng.setAttribute(name,new THREE2.BufferAttribute(values,a.itemSize,a.normalized));
   }
   if(preserveFaces){for(const q of g.groups)ng.addGroup(q.start,q.count,q.materialIndex);ng.setDrawRange(g.drawRange.start,g.drawRange.count);}
   else for(let f=0;f<built.keptFaces.length;f++){const mat=triangleMaterialIndex(g,built.keptFaces[f]),last=ng.groups.at(-1);if(last?.materialIndex===mat)last.count+=3;else ng.addGroup(f*3,3,mat);}
@@ -13555,8 +13555,8 @@ function initCreaseRender(mesh) {
   delete mesh.userData?._nativePrepared;
   if(!polygonCreaseGeometryCurrent(mesh.geometry))normalizeCreaseTopology(mesh,false);
 }
-function rebuildCreaseRender(mesh) {
-  return normalizeCreaseTopology(mesh);
+function rebuildCreaseRender(mesh, needRemap = true) {
+  return normalizeCreaseTopology(mesh, needRemap);
 }
 
 function buildSceneFromObjects() {
@@ -16215,7 +16215,18 @@ function applyGizmoWorld(wM) {
   let c = cubeRef.mesh;
   c.matrix.copy(wM), c.matrixAutoUpdate = !1, c.updateMatrixWorld(!0);
 }
+function framePolygonCopyDragAllowed(e) {
+  if(!polyFocusActive()||editPivot||uvEdit||polyElementMode!=="face"||!(e?.ctrlKey||e?.metaKey))return true;
+  for(const h of polySelection.items.keys()){
+    const tag=frameMorphTag(h);
+    if(tag?.domain==="polygon"&&!tag.modelling){
+      alert("Face copying changes topology. Switch Morph to Modelling first.");return false;
+    }
+  }
+  return true;
+}
 function startGizDrag(g, e) {
+  if(!framePolygonCopyDragAllowed(e))return;
   let view = vpState.views[g.view], fr = g.fr, r = g.r, name = g.object.name;
   r._cx = e.clientX, r._cy = e.clientY;
   let cam = view.cam;
@@ -16317,6 +16328,21 @@ function startGizDrag(g, e) {
   }
   pivotKeyDown && (pivotKeyGesture = !0), _gizStart && _gizStart(e), emitInfo(null);
 }
+var framePolygonGizmoMoveRAF=0,framePolygonGizmoMoveEvent=null;
+function frameClearPolygonGizmoMove() {
+  if(framePolygonGizmoMoveRAF)cancelAnimationFrame(framePolygonGizmoMoveRAF);
+  framePolygonGizmoMoveRAF=0;framePolygonGizmoMoveEvent=null;
+}
+function frameFlushPolygonGizmoMove(event=null) {
+  const pending=framePolygonGizmoMoveEvent;frameClearPolygonGizmoMove();
+  if(!gizDrag||event?.type==='pointercancel')return;
+  const last=event&&Number.isFinite(event.clientX)&&Number.isFinite(event.clientY)?event:pending;
+  if(last&&(pending||last.clientX!==gizDrag.r?._cx||last.clientY!==gizDrag.r?._cy))doGizDrag(last);
+}
+function frameQueuePolygonGizmoMove(event) {
+  framePolygonGizmoMoveEvent=event;
+  if(!framePolygonGizmoMoveRAF)framePolygonGizmoMoveRAF=requestAnimationFrame(()=>frameFlushPolygonGizmoMove());
+}
 function doGizDrag(e) {
   let view = vpState.views[gizDrag.view], r = gizDrag.r, cam = view.cam;
   if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ...splineGizModifiers, ctrl: !!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
@@ -16388,6 +16414,7 @@ function doGizDrag(e) {
   }
 }
 function endGizDrag(e) {
+  if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();
   const uvDrag=!!uvEdit,splineTargets=gizBeforeSpline?[...gizBeforeSpline.keys()]:null;
   _gizEnd && _gizEnd(e), hideHudLine(), hideSnapVis(), gizDrag = null; if(!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;
   try {
@@ -16837,7 +16864,7 @@ function onMove(e) {
     return;
   }
   if (gizDrag && !splinePointerGesture?.direct) {
-    doGizDrag(e);
+    if(polyFocusActive()&&!editPivot&&!uvEdit)frameQueuePolygonGizmoMove(e);else doGizDrag(e);
     return;
   }
   if (splinePointerGesture) {
@@ -24157,7 +24184,20 @@ function mat4Close(a, b) {
 function setGizmoFromMatrix(arr) {
   ignoreBridge = !0, setGizmoMatrix(arr), ignoreBridge = !1;
 }
+function framePolygonDragSetMatches(set,values) {
+  if(!set||set.size!==values.length)return false;let i=0;for(const value of set)if(value!==values[i++])return false;return true;
+}
+function framePolygonDragSelectedIDs(h) {
+  if(!gizDrag||editPivot)return null;
+  const rec=gizBeforePoly?.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,s=polySelection.items.get(h);
+  if(!rec?.selectedIds||g!==rec.selectionGeometry||g?.attributes.position!==rec.selectionPosition||g?.index!==rec.selectionIndex||g?.index?.array!==rec.selectionIndexArray||g?.index?.version!==rec.selectionIndexVersion||s!==rec.selectionEntry||vertexGroupCache.get(g)!==rec.selectionGroups||vertexGroupOfCache.get(g)!==rec.selectionGroupOf||polyExactEdgeVertices?.get(h)!==rec.selectionExact)return null;
+  if(!framePolygonDragSetMatches(s.vertices,rec.selectionVertices)||!framePolygonDragSetMatches(s.edges,rec.selectionEdges)||!framePolygonDragSetMatches(s.faces,rec.selectionFaces))return null;
+  if(rec.selectionExact&&!framePolygonDragSetMatches(rec.selectionExact,rec.selectionExactValues))return null;
+  if(g.index&&!rec.selectionExact)for(let k=0;k<rec.selectionFaces.length;k++)for(let j=0;j<3;j++)if(g.index.getX(rec.selectionFaces[k]*3+j)!==rec.selectionFaceIndices[k*3+j])return null;
+  return rec.selectedIds;
+}
 function polySelectedVertexIds(h) {
+  const dragging=framePolygonDragSelectedIDs(h);if(dragging)return dragging;
   const s=polySelection.items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();
   if(!s||!g)return out;
   if(polyExactEdgeVertices?.has(h))return new Set(polyExactEdgeVertices.get(h));
@@ -24237,6 +24277,33 @@ function extrudeSelectedFacesForDrag() {
     replaceEditedGeometry(mesh,makeGeometryFromTriangles(out, !!g.attributes.uv)), s.vertices.clear(), s.edges.clear(), s.faces = new Set(topFaces), exact.set(h, ids), changed = !0;
   }
   return changed && (polyExactEdgeVertices = exact, polyExtrudedFaces = null, rebuildPolySelection(!0)), changed;
+}
+function duplicateSelectedFacesForDrag() {
+  const exact=new Map();let changed=false;
+  for(const [h,s] of polySelection.items){
+    const mesh=pickMeshes.get(h),g=mesh?.geometry,p=g?.attributes.position,index=g?.index,count=index?.count??p?.count;
+    if(!p||!s.faces.size)continue;
+    const faces=[...s.faces].filter(f=>Number.isInteger(f)&&f>=0&&f*3+2<count);
+    if(!faces.length)continue;
+    const copied=new Map(),sourceVertices=[];for(const f of faces)for(let k=0;k<3;k++){const v=index?index.getX(f*3+k):f*3+k;if(!copied.has(v)){copied.set(v,p.count+copied.size);sourceVertices.push(v);}}
+    const ng=new THREE2.BufferGeometry();ng.userData={...g.userData};
+    for(const key of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners','framePLAConnectivity'])delete ng.userData[key];
+    for(const [name,a] of Object.entries(g.attributes)){
+      const old=framePolygonAttributeArray(a),out=new old.constructor((a.count+sourceVertices.length)*a.itemSize);out.set(old);
+      for(let j=0;j<sourceVertices.length;j++)for(let c=0;c<a.itemSize;c++)out[(a.count+j)*a.itemSize+c]=old[sourceVertices[j]*a.itemSize+c];
+      ng.setAttribute(name,new THREE2.BufferAttribute(out,a.itemSize,a.normalized));
+    }
+    const ix=new Uint32Array(count+faces.length*3);for(let i=0;i<count;i++)ix[i]=index?index.getX(i):i;
+    const selectedFaces=new Set(),selectedVertices=new Set();let offset=count;
+    for(const f of faces){selectedFaces.add(offset/3);for(let k=0;k<3;k++){const v=copied.get(index?index.getX(f*3+k):f*3+k);ix[offset++]=v;selectedVertices.add(v);}}
+    ng.setIndex(new THREE2.BufferAttribute(ix,1));for(const q of g.groups)ng.addGroup(q.start,q.count,q.materialIndex);
+    if(!g.groups.length)ng.addGroup(0,count,0);
+    for(let j=0;j<faces.length;j++){const mat=triangleMaterialIndex(g,faces[j]),start=count+j*3,last=ng.groups.at(-1);if(last?.materialIndex===mat&&last.start+last.count===start)last.count+=3;else ng.addGroup(start,3,mat);}
+    ng.userData._faceSources=Array.from({length:count/3},(_,i)=>i).concat(faces);ng.setDrawRange(g.drawRange.start,g.drawRange.count===Infinity?Infinity:g.drawRange.count+faces.length*3);
+    ng.computeBoundingBox();ng.computeBoundingSphere();replaceEditedGeometry(mesh,ng);
+    s.vertices.clear();s.edges.clear();s.faces=selectedFaces;exact.set(h,selectedVertices);changed=true;
+  }
+  if(changed){polyExactEdgeVertices=exact;polyExtrudedFaces=null;rebuildPolySelection(true);}return changed;
 }
 function extrudeSelectedForDrag() {
   return polyElementMode === "edge" ? extrudeSelectedEdgesForDrag() : polyElementMode === "face" ? extrudeSelectedFacesForDrag() : !1;
@@ -24469,21 +24536,119 @@ function preparePolygonDragTopology(mesh){
   let independent=pos.count===index.count;
   if(independent)for(let i=0;i<index.count;i++)if(index.getX(i)!==i){independent=false;break;}
   if(independent){g.userData._polygonDragCorners=true;return;}
-  const h=meshToHash.get(mesh),selected=polySelection.items.get(h),remap=new Map(),ng=g.toNonIndexed();
+  const h=meshToHash.get(mesh),selected=polySelection.items.get(h),oldSoft=vertexTools.soft.weights.get(h),remap=new Map(),ng=g.toNonIndexed();
   ng.setIndex(new THREE2.BufferAttribute(Uint32Array.from({length:index.count},(_,i)=>i),1));
   ng.userData={...g.userData,_polygonDragCorners:true};
   for(const key of ['splineBVH','splineWire','splineWireSource','_faceSources'])delete ng.userData[key];
   ng.setDrawRange(g.drawRange.start,g.drawRange.count);
-  for(let i=0;i<index.count;i++){const v=index.getX(i);let set=remap.get(v);if(!set)remap.set(v,set=new Set());set.add(i);}
+  if(selected?.vertices.size||polyExactEdgeVertices?.has(h)||oldSoft)for(let i=0;i<index.count;i++){const v=index.getX(i);let set=remap.get(v);if(!set)remap.set(v,set=new Set());set.add(i);}
   const mapped=ids=>{const out=new Set();for(const v of ids||[])for(const to of remap.get(v)||[])out.add(to);return out;};
   if(selected){
     selected.vertices=mapped(selected.vertices);
-    const out=new Set();for(let f=0;f<index.count;f+=3)for(let k=0;k<3;k++){const i=f+k,j=f+(k+1)%3;if(selected.edges.has(polyEdgeKey(index.getX(i),index.getX(j))))out.add(polyEdgeKey(i,j));}selected.edges=out;
+    const out=new Set();if(selected.edges.size)for(let f=0;f<index.count;f+=3)for(let k=0;k<3;k++){const i=f+k,j=f+(k+1)%3;if(selected.edges.has(polyEdgeKey(index.getX(i),index.getX(j))))out.add(polyEdgeKey(i,j));}selected.edges=out;
   }
   if(polyExactEdgeVertices?.has(h))polyExactEdgeVertices.set(h,mapped(polyExactEdgeVertices.get(h)));
-  const oldSoft=vertexTools.soft.weights.get(h);replaceEditedGeometry(mesh,ng);remapSoftAfterTopology(h,oldSoft,remap);
+  replaceEditedGeometry(mesh,ng);remapSoftAfterTopology(h,oldSoft,remap);
 }
-function updatePolygonDragNormals(mesh){
+function framePolygonHash(x,y,z=0) {
+  let h=Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791);
+  h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);return (h^(h>>>16))>>>0;
+}
+function framePolygonWeldBits(value,bits,w) {
+  if(value===0)return 0;
+  if(Math.abs(value)>=1)return bits;
+  let rounded=w.smallCoordinates.get(value);
+  if(rounded===undefined){w.one[0]=Number(value.toFixed(7));rounded=w.oneBits[0];w.smallCoordinates.set(value,rounded);}
+  return rounded;
+}
+function framePolygonNormalWorkspace(rec,vertices,count) {
+  let w=rec._creaseWorkspace;
+  if(w?.vertices===vertices&&w.count===count)return w;
+  let rawSize=16,edgeSize=16;while(rawSize<vertices*2)rawSize*=2;while(edgeSize<count*2)edgeSize*=2;
+  w={vertices,count,epoch:0,rawMask:rawSize-1,edgeMask:edgeSize-1,
+    rawStamp:new Uint32Array(rawSize),rawFirst:new Uint32Array(rawSize),
+    edgeStamp:new Uint32Array(edgeSize),edgeA:new Uint32Array(edgeSize),edgeB:new Uint32Array(edgeSize),edgeHead:new Int32Array(edgeSize),
+    coords:new Uint32Array(vertices),indices:new Uint32Array(count),parent:new Int32Array(count),previous:new Int32Array(count),next:new Int32Array(count),valid:new Uint8Array(count/3),area:new Float64Array(count),inv:new Float64Array(count/3),sums:new Float64Array(count*3),
+    normalStamp:new Uint32Array(count),normal:new Float32Array(count*3),quantized:new Uint32Array(vertices*3),last:new Float32Array(vertices*3),smallCoordinates:new Map(),one:new Float32Array(1)};
+  w.oneBits=new Uint32Array(w.one.buffer);
+  rec._creaseWorkspace=w;return w;
+}
+function frameFastPolygonDragNormals(mesh,rec) {
+  if(!rec||!polygonShadingAllowed(mesh))return false;
+  const g=mesh.geometry,pos=g.attributes.position,index=g.index,count=index?.count??pos.count;
+  if(!count||count%3||pos.itemSize!==3||index&&(index.isInterleavedBufferAttribute||index.normalized||index.itemSize!==1||index.array.length!==count))return false;
+  const positions=packedGeometryAttribute(pos),ids=index?index.array:null,w=framePolygonNormalWorkspace(rec,pos.count,count),bits=new Uint32Array(positions.buffer,positions.byteOffset,positions.length);
+  let epoch=(w.epoch+1)>>>0;if(!epoch){w.rawStamp.fill(0);w.edgeStamp.fill(0);w.normalStamp.fill(0);epoch=1;}w.epoch=epoch;
+  const {rawStamp,rawFirst,rawMask,edgeStamp,edgeA,edgeB,edgeHead,edgeMask,coords,indices,parent,previous,next,valid,area,inv,sums,normalStamp,normal,quantized,last}=w;
+  let topologySame=!!w.topologyReady;
+  w.smallCoordinates.clear();sums.fill(0);let coordinateCount=0;
+  // Float32 spacing at |value|>=1 exceeds 1e-7: distinct values cannot share
+  // toFixed(7), and narrowing its decimal back to Float32 returns that value.
+  // Below 1, decimal steps exceed Float32 spacing, so narrowed decimal values
+  // form an injective key. Keep signed rounded zero distinct from exact zero.
+  // This replaces string triples, while preserving the current weld rule.
+  for(let v=0;v<pos.count;v++){
+    const o=v*3,x=positions[o],y=positions[o+1],z=positions[o+2];
+    if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)){w.topologyReady=false;return false;}
+    const xb=w.coordinatesReady&&last[o]===x?quantized[o]:framePolygonWeldBits(x,bits[o],w),yb=w.coordinatesReady&&last[o+1]===y?quantized[o+1]:framePolygonWeldBits(y,bits[o+1],w),zb=w.coordinatesReady&&last[o+2]===z?quantized[o+2]:framePolygonWeldBits(z,bits[o+2],w);
+    quantized[o]=xb;quantized[o+1]=yb;quantized[o+2]=zb;last[o]=x;last[o+1]=y;last[o+2]=z;
+    let slot=framePolygonHash(xb,yb,zb)&rawMask,id;
+    while(rawStamp[slot]===epoch){const p=rawFirst[slot]*3;
+      if(quantized[p]===xb&&quantized[p+1]===yb&&quantized[p+2]===zb){id=coords[p/3];break;}slot=(slot+1)&rawMask;
+    }
+    if(id===undefined){id=coordinateCount++;rawStamp[slot]=epoch;rawFirst[slot]=v;}
+    if(coords[v]!==id)topologySame=false;coords[v]=id;
+  }
+  w.coordinatesReady=true;
+  for(let i=0;i<count;i++){const v=ids?ids[i]:i;if(indices[i]!==v)topologySame=false;indices[i]=v;parent[i]=i;}
+  // A current coordinate equivalence and index comparison is required before
+  // reusing adjacency. Include every face here; current degenerate faces are
+  // filtered below, so degeneracy changes do not freeze the smoothing graph.
+  if(!topologySame){
+    for(let i=0;i<count;i++){
+      const j=Math.floor(i/3)*3+(i%3+1)%3,ca=coords[indices[i]],cb=coords[indices[j]];
+      if(ca===cb){previous[i]=next[i]=-1;continue;}
+      const lo=Math.min(ca,cb),hi=Math.max(ca,cb);let slot=framePolygonHash(lo,hi)&edgeMask;
+      while(edgeStamp[slot]===epoch&&(edgeA[slot]!==lo||edgeB[slot]!==hi))slot=(slot+1)&edgeMask;
+      previous[i]=next[i]=edgeStamp[slot]===epoch?edgeHead[slot]:-1;
+      edgeStamp[slot]=epoch;edgeA[slot]=lo;edgeB[slot]=hi;edgeHead[slot]=i;
+    }
+    w.topologyReady=true;
+  }
+  const root=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;},join=(a,b)=>{a=root(a);b=root(b);if(a!==b)parent[b]=a;},threshold=CREASE_COS-1e-7;
+  for(let f=0;f<count/3;f++){
+    const at=f*3,a=(ids?ids[at]:at)*3,b=(ids?ids[at+1]:at+1)*3,c=(ids?ids[at+2]:at+2)*3,ax=positions[a],ay=positions[a+1],az=positions[a+2],bx=positions[b]-ax,by=positions[b+1]-ay,bz=positions[b+2]-az,cx=positions[c]-ax,cy=positions[c+1]-ay,cz=positions[c+2]-az;
+    const nx=by*cz-bz*cy,ny=bz*cx-bx*cz,nz=bx*cy-by*cx,length=Math.hypot(nx,ny,nz);
+    area[at]=area[at+1]=area[at+2]=0;inv[f]=0;valid[f]=length>0?1:0;if(!valid[f])continue;
+    area[at]=nx;area[at+1]=ny;area[at+2]=nz;inv[f]=1/length;
+    for(let k=0;k<3;k++){
+      const i=at+k,j=at+(k+1)%3,ca=coords[ids?ids[i]:i],cb=coords[ids?ids[j]:j];if(ca===cb)continue;
+      for(let e=previous[i];e!==-1;e=next[e]){
+        const other=Math.floor(e/3),o=other*3;
+        if(!valid[other])continue;
+        if((nx*area[o]+ny*area[o+1]+nz*area[o+2])*inv[f]*inv[other]<threshold)continue;
+        const end=o+(e%3+1)%3;
+        if(coords[ids?ids[e]:e]===ca){join(i,e);join(j,end);}else{join(i,end);join(j,e);}
+      }
+    }
+  }
+  // Preserve the original parent updates and area accumulation operation order.
+  for(let f=0;f<count/3;f++)if(inv[f])for(let k=0;k<3;k++){const at=f*3,r=root(at+k)*3;parent[at+k]=r/3;sums[r]+=area[at];sums[r+1]+=area[at+1];sums[r+2]+=area[at+2];}
+  let n=g.attributes.normal;if(!n||n.count!==pos.count){n=new THREE2.BufferAttribute(new Float32Array(pos.count*3),3);g.setAttribute('normal',n);}
+  for(let f=0;f<count/3;f++)for(let k=0;k<3;k++){
+    const i=f*3+k,comp=parent[i],r=comp*3;
+    if(normalStamp[comp]!==epoch){normalStamp[comp]=epoch;const l=Math.hypot(sums[r],sums[r+1],sums[r+2]);
+      normal[r]=normal[r+1]=normal[r+2]=0;
+      if(l>0){normal[r]=sums[r]/l;normal[r+1]=sums[r+1]/l;normal[r+2]=sums[r+2]/l;}
+      else if(inv[f]){normal[r]=area[f*3]*inv[f];normal[r+1]=area[f*3+1]*inv[f];normal[r+2]=area[f*3+2]*inv[f];}
+      else normal[r+1]=1;
+    }
+    n.setXYZ(index?index.getX(i):i,normal[r],normal[r+1],normal[r+2]);
+  }
+  n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);return true;
+}
+function updatePolygonDragNormals(mesh,rec=null){
+  if(frameFastPolygonDragNormals(mesh,rec))return;
   if(!polygonShadingAllowed(mesh))return;
   const g=mesh.geometry,pos=g.attributes.position,index=g.index,count=index?.count??pos.count;
   if(!count)return;
@@ -24497,12 +24662,15 @@ function capturePolySelection() {
   for(const h of polySelection.items.keys())preparePolygonDragTopology(pickMeshes.get(h));
   let out = /* @__PURE__ */ new Map();
   for (let [h] of polySelection.items) {
-    let mesh = pickMeshes.get(h), pos = mesh && mesh.geometry && mesh.geometry.attributes.position, soft = vertexTools.soft.active && polyElementMode === "vertex" ? vertexTools.soft.weights.get(h) : null, ids = soft && soft.length === pos?.count ? [...Array(pos.count).keys()].filter((i) => soft[i] > 0) : [...polySelectedVertexIds(h)];
+    const selectedIds=polySelectedVertexIds(h);
+    let mesh = pickMeshes.get(h), pos = mesh && mesh.geometry && mesh.geometry.attributes.position, soft = vertexTools.soft.active && polyElementMode === "vertex" ? vertexTools.soft.weights.get(h) : null, ids = soft && soft.length === pos?.count ? [...Array(pos.count).keys()].filter((i) => soft[i] > 0) : [...selectedIds];
     if (!pos || !ids.length) continue;
-    let values = new Float32Array(ids.length * 3), weights = soft ? new Float32Array(ids.map((i) => soft[i])) : null;
+    const selectionFaces=[...polySelection.items.get(h).faces],selectionFaceIndices=new Float64Array(selectionFaces.length*3);
+    if(mesh.geometry.index)for(let k=0;k<selectionFaces.length;k++)for(let j=0;j<3;j++)selectionFaceIndices[k*3+j]=mesh.geometry.index.getX(selectionFaces[k]*3+j);
+    let values = new Float64Array(ids.length * 3), weights = soft ? new Float32Array(ids.map((i) => soft[i])) : null;
     ids.forEach((i, k) => {
       values[k * 3] = pos.getX(i), values[k * 3 + 1] = pos.getY(i), values[k * 3 + 2] = pos.getZ(i);
-    }), out.set(h, { ids, values, weights });
+    }), out.set(h, { ids, values, weights, selectedIds,selectionGeometry:mesh.geometry,selectionPosition:pos,selectionIndex:mesh.geometry.index,selectionIndexArray:mesh.geometry.index?.array,selectionIndexVersion:mesh.geometry.index?.version,selectionEntry:polySelection.items.get(h),selectionGroups:vertexGroupCache.get(mesh.geometry),selectionGroupOf:vertexGroupOfCache.get(mesh.geometry),selectionExact:polyExactEdgeVertices?.get(h),selectionExactValues:[...(polyExactEdgeVertices?.get(h)||[])],selectionVertices:[...polySelection.items.get(h).vertices],selectionEdges:[...polySelection.items.get(h).edges],selectionFaces,selectionFaceIndices });
   }
   return out;
 }
@@ -24536,13 +24704,19 @@ function restorePolyLogicalSelection(state) {
     let mesh = pickMeshes.get(h), geometry = mesh?.geometry, pos = geometry?.attributes.position;
     if (!pos) continue;
     let entry = { vertices: /* @__PURE__ */ new Set(), edges: /* @__PURE__ */ new Set(), faces: new Set(s.faces) }, key = (i) => `${Math.round(pos.getX(i) * 1e5)},${Math.round(pos.getY(i) * 1e5)},${Math.round(pos.getZ(i) * 1e5)}`;
-    for (let group of logicalVertexGroups(geometry)) s.vertices.has(key(group[0])) && group.forEach((i) => entry.vertices.add(i));
-    for (let edge of logicalEdges(geometry)) {
+    if (s.vertices.size) for (let group of logicalVertexGroups(geometry)) s.vertices.has(key(group[0])) && group.forEach((i) => entry.vertices.add(i));
+    if (s.edges.size) for (let edge of logicalEdges(geometry)) {
       let ka = key(edge.a), kb = key(edge.b), logicalKey = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
       s.edges.has(logicalKey) && edge.keys.forEach((k) => entry.edges.add(k));
     }
     (entry.vertices.size || entry.edges.size || entry.faces.size) && polySelection.items.set(h, entry);
   }
+}
+function framePolygonAttributeArray(a) {
+  const source=a.isInterleavedBufferAttribute?a.data.array:a.array;
+  const out=new source.constructor(a.count*a.itemSize);
+  for(let i=0;i<a.count;i++)for(let c=0;c<a.itemSize;c++)out[i*a.itemSize+c]=source[a.isInterleavedBufferAttribute?i*a.data.stride+a.offset+c:i*a.itemSize+c];
+  return out;
 }
 function capturePolyGeometries(hashes = polySelection.items.keys()) {
   let out = /* @__PURE__ */ new Map();
@@ -24552,9 +24726,9 @@ function capturePolyGeometries(hashes = polySelection.items.keys()) {
     let attrs = {};
     for (let name of Object.keys(g.attributes)) {
       let a = g.attributes[name];
-      a && (attrs[name] = { array: packedGeometryAttribute(a).slice(), itemSize: a.itemSize, normalized: false });
+      a && (attrs[name] = { array: framePolygonAttributeArray(a), itemSize: a.itemSize, normalized: a.normalized });
     }
-    out.set(h, { creaseCos:polygonCreaseGeometryCurrent(g)?CREASE_COS:null, tags:OBJ.get(h)?.tags.map(cloneTag)||[], attrs, index: g.index ? g.index.array.slice() : null, groups: g.groups.map((x) => ({ ...x })) });
+    out.set(h, { creaseCos:polygonCreaseGeometryCurrent(g)?CREASE_COS:null, origin:frameContourOrigins.get(g), userData:{...g.userData}, drawRange:{...g.drawRange}, tags:OBJ.get(h)?.tags.map(cloneTag)||[], attrs, index: g.index ? g.index.array.slice() : null, groups: g.groups.map((x) => ({ ...x })) });
   }
   return out;
 }
@@ -24628,7 +24802,7 @@ function commitCoordinateSnapshot(before) {
   }
   let logical = capturePolyLogicalSelection();
   for (let h of polySelection.items.keys()) {
-    let oldSoft = vertexTools.soft.weights.get(h), remap = rebuildCreaseRender(pickMeshes.get(h));
+    let oldSoft = vertexTools.soft.weights.get(h), remap = rebuildCreaseRender(pickMeshes.get(h), vertexTools.soft.active && !!oldSoft);
     remapSoftAfterTopology(h, oldSoft, remap);
   }
   restorePolyLogicalSelection(logical), rebuildPolySelection(!1);
@@ -24657,11 +24831,11 @@ function restorePolyGeometries(s) {
   for (let [h, state] of s) {
     let m = pickMeshes.get(h);
     if (!m) continue;
-    let g = new THREE2.BufferGeometry();
+    let g = new THREE2.BufferGeometry();g.userData={...state.userData};if(state.drawRange)g.setDrawRange(state.drawRange.start,state.drawRange.count);
     for (let [name, a] of Object.entries(state.attrs)) g.setAttribute(name, new THREE2.BufferAttribute(a.array.slice(), a.itemSize, a.normalized));
     state.index && g.setIndex(new THREE2.BufferAttribute(state.index.slice(), 1));
     for (let x of state.groups) g.addGroup(x.start, x.count, x.materialIndex);
-    g.computeBoundingBox();
+    g.computeBoundingBox();g.computeBoundingSphere();if(state.origin)frameContourOrigins.bind(g,state.origin);
     let old = m.geometry;
     m.geometry = g, old.dispose();
     if(state.creaseCos===CREASE_COS)markPolygonCreaseGeometry(g);
@@ -24782,10 +24956,10 @@ function frameBindNativeDoubleClick(dom){
   const click=(h,ids,cx,cy)=>{const mesh=pickMeshes.get(h);frameNativeLastClick={h,ids,domain:polyElementMode,cx,cy,at:performance.now(),geometry:mesh?.geometry,revision:framePolySelectionRevision};};
   frameRecordNativeComponentClick=click;
   const dbl=e=>{
-    if(vpState.renderer?.isFrameNativeViewportRenderer&&!e.frameNativeDrained){frameNativeQueueClick(e,(event)=>dbl({...event,frameNativeDrained:true})).catch(frameNativePickerError);return;}
+    if(vpState.renderer?.isFrameNativeViewportRenderer&&!e.frameNativeDrained){const at=performance.now();frameNativeQueueClick(e,(event)=>dbl({...event,frameNativeDrained:true,frameNativeDoubleClickAt:at})).catch(frameNativePickerError);return;}
     if(e.button!==0||e.defaultPrevented||!polyFocusActive()||gizDrag||splinePointerGesture)return;
-    const hit=frameNativeLastClick,box=dom.getBoundingClientRect(),cx=e.clientX-box.left,cy=e.clientY-box.top;
-    if(!hit||performance.now()-hit.at>1000||hit.domain!==polyElementMode||Math.hypot(hit.cx-cx,hit.cy-cy)>6||hit.revision!==framePolySelectionRevision||pickMeshes.get(hit.h)?.geometry!==hit.geometry)return;
+    const hit=frameNativeLastClick,cx=e.clientX,cy=e.clientY;
+    if(!hit||(e.frameNativeDoubleClickAt??performance.now())-hit.at>1000||hit.domain!==polyElementMode||Math.hypot(hit.cx-cx,hit.cy-cy)>6||hit.revision!==framePolySelectionRevision||pickMeshes.get(hit.h)?.geometry!==hit.geometry)return;
     frameStartNativeConnected({domain:hit.domain,clicked:hit,nativeOwned:e.frameNativeDrained===true,mode:e.ctrlKey||e.metaKey?'invert':e.shiftKey?'add':'replace'});if(e.frameNativeDrained)return framePolySelectionJob?.promise;
   };
   dom.addEventListener('dblclick',dbl);
@@ -24886,7 +25060,7 @@ function applyPolyDelta(delta, snap) {
     let inv = mesh.matrixWorld.clone().invert(), base = new THREE2.Vector3(), moved = new THREE2.Vector3();
     rec2.ids.forEach((i, k) => {
       base.set(rec2.values[k * 3], rec2.values[k * 3 + 1], rec2.values[k * 3 + 2]), moved.copy(base).applyMatrix4(mesh.matrixWorld).applyMatrix4(delta).applyMatrix4(inv), p.copy(base).lerp(moved, rec2.weights ? rec2.weights[k] : 1), pos.setXYZ(i, p.x, p.y, p.z);
-    }), pos.needsUpdate = !0, updatePolygonDragNormals(mesh), refreshWireOverlay(mesh);
+    }), pos.needsUpdate = !0, updatePolygonDragNormals(mesh,rec2), refreshWireOverlay(mesh);
     frameMorphModelChanged(h);
   }
   vertexTools.soft.active && updateSoftPreview(), rebuildPolySelection(!1);
@@ -25706,7 +25880,7 @@ onGizmoDragStart((e) => {
   }
   if (polyFocusActive()) {
     if (gizBeforeGizmo = getGizmoWorldArray(), gizBeforePolyPivot = polyPivotMatrix && polyPivotMatrix.slice(), editPivot) return;
-    gizBeforePolyGeom = capturePolyGeometries(), gizBeforePolySel = capturePolySelectionState(), e?.ctrlKey && (polyElementMode === "edge" || polyElementMode === "face") && extrudeSelectedForDrag(), gizBeforePoly = capturePolySelection();
+    gizBeforePolyGeom = capturePolyGeometries(), gizBeforePolySel = capturePolySelectionState(), ((e?.ctrlKey||e?.metaKey)&&polyElementMode==="face"?duplicateSelectedFacesForDrag():e?.ctrlKey&&polyElementMode==="edge"&&extrudeSelectedForDrag()), gizBeforePoly = capturePolySelection();
     return;
   }
   if (e && e.ctrlKey && boundNode) {
@@ -25752,6 +25926,11 @@ onGizmoDragEnd((event) => {
     gizBeforeSpline = null, gizBeforeSplineFull = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeGizmo = null, splineGizModifiers = null, splineWeldCandidate = null, updateAllSplineVisuals(), placeGizmoForSelection();
     return;
   }
+  if(polyFocusActive()&&!editPivot&&(event?.type==='pointercancel'||gizBeforeGizmo&&getGizmoWorldArray().every((v,i)=>v===gizBeforeGizmo[i]))){
+    const beforeGeom=gizBeforePolyGeom,beforeSel=gizBeforePolySel;polyPivotMatrix=gizBeforePolyPivot&&gizBeforePolyPivot.slice();polyExactEdgeVertices=null;polyExtrudedFaces=null;
+    if(beforeGeom)restorePolyGeometries(beforeGeom);if(beforeSel)restorePolySelectionState(beforeSel);
+    gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;placeGizmoForSelection();return;
+  }
   if (polyFocusActive() && editPivot) {
     polyPivotMatrix = getGizmoWorldArray().slice(), gizBeforePolyPivot = null, gizBeforeGizmo = null, scheduleRender();
     return;
@@ -25762,7 +25941,7 @@ onGizmoDragEnd((event) => {
     let logicalSel = capturePolyLogicalSelection(), hadCustomPivot = !!polyPivotMatrix, draggedPivot = getGizmoWorldArray().slice();
     polyExactEdgeVertices = null;
     for (let h of polySelection.items.keys()) {
-      let oldSoft = vertexTools.soft.weights.get(h), remap = rebuildCreaseRender(pickMeshes.get(h));
+      let oldSoft = vertexTools.soft.weights.get(h), remap = rebuildCreaseRender(pickMeshes.get(h), vertexTools.soft.active && !!oldSoft);
       remapSoftAfterTopology(h, oldSoft, remap);
     }
     restorePolyLogicalSelection(logicalSel), hadCustomPivot && (polyPivotMatrix = draggedPivot);
@@ -25816,7 +25995,7 @@ var framePolySelectionRevision=0;
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
   let vi = viewAt(e.clientX, e.clientY);
-  if (e.pointerType === "touch" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp")) return;
+  if (e.pointerType === "touch" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp" && !polyMode)) return;
   e.preventDefault();
   frameCancelViewportMarquee?.();
   let sx2 = e.clientX, sy2 = e.clientY, box = document.createElement("div");
@@ -28103,7 +28282,7 @@ function installFrameAI() {
       return api.getObjectParameters(h);
     },
     getViewportDiagnostics(){
-      return {units:api.getUnits(),layout:vpState.mode,views:vpState.views.map((v,index)=>({index,active:!!rectFor(index),near:v.cam.near,far:v.cam.far,depthRatio:v.cam.far/Math.max(1e-30,v.cam.near),range:computeSceneDepthRange(v.cam,v),position:v.cam.position.toArray(),target:v.ctrl.handle.toArray(),zoom:v.cam.isOrthographicCamera?view_ctrl_zoom(v.cam):null,shading:viewShading[index]})),renderer:{backend:vpState.renderer.isFrameNativeViewportRenderer?'webgpu':'webgl',ready:vpState.renderer.isFrameNativeViewportRenderer?vpState.renderer.ready:true,error:vpState.nativeViewportError?.message||null,...vpState.renderer.info.render,memory:{...vpState.renderer.info.memory}},wire:{overlays:wireOverlays.size,indices:[...wireOverlays.values()].reduce((n,o)=>n+(o.geometry.index?.count||0),0)},errors:window.frameBootDiagnostics.errors.slice(-20)};
+      return {units:api.getUnits(),layout:vpState.mode,views:vpState.views.map((v,index)=>({index,active:!!rectFor(index),near:v.cam.near,far:v.cam.far,depthRatio:v.cam.far/Math.max(1e-30,v.cam.near),range:computeSceneDepthRange(v.cam,v),position:v.cam.position.toArray(),target:v.ctrl.handle.toArray(),zoom:v.cam.isOrthographicCamera?view_ctrl_zoom(v.cam):null,shading:viewShading[index]})),renderer:{backend:vpState.renderer.isFrameNativeViewportRenderer?'webgpu':'webgl',ready:vpState.renderer.isFrameNativeViewportRenderer?vpState.renderer.ready:true,error:vpState.nativeViewportError?.message||null,...vpState.renderer.info?.render,memory:{...vpState.renderer.info?.memory}},wire:{overlays:wireOverlays.size,indices:[...wireOverlays.values()].reduce((n,o)=>n+(o.geometry.index?.count||0),0)},errors:window.frameBootDiagnostics.errors.slice(-20)};
     },
     async benchmarkViewport(options={}){
       const samples=options.samples??30,warmup=options.warmup??5;if(!Number.isInteger(samples)||samples<1||samples>300||!Number.isInteger(warmup)||warmup<0||warmup>30)throw Error('Invalid benchmark sample count');

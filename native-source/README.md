@@ -1,9 +1,9 @@
 # Native rendering sources
 
-These are the exact canonical28 source modules and deterministic AST bundler for the addressed native runtime. No private performance variants or browser test imports are present.
+These are the exact canonical 31 source modules and deterministic AST bundler for the addressed r222 native runtime. No private performance variants or browser test imports are present.
 
-With a development-only TypeScript installation available, run `node native-source/bundle-native.mjs <output-outside-repository>`. `FRAME_TYPESCRIPT` may point to the installed TypeScript entry. Expected result:401302 bytes, SHA25650cf866dca7c5fbec7f3b7b0a32b3054d39933f30c56cf6f2bd6b0b0857c30b1. TypeScript is not a browser dependency.
+With a development-only TypeScript installation available, run `node native-source/bundle-native.mjs <output-outside-repository>`. `FRAME_TYPESCRIPT` may point to the installed TypeScript entry. Expected result: 435992 bytes, SHA256 29e96e091a1f485ceb06627d86509c5a39a6fe18cbc2418124c04dd710472559. TypeScript is not a browser dependency.
 
-The verified engineering ZIP contains the complete CPU/source/hardware oracles, receipts and package tools. See documents/R220_NATIVE_VIEWPORT.md.
+The verified engineering ZIP contains CPU/source/hardware oracles, retained failure receipts and package tools. See [r222 changes and limits](../documents/R222_EDITING_AND_SELECTION.md), [r221 printer correction](../documents/R221_PRINTER_OCCLUSION.md), and [r220 native validation](../documents/R220_NATIVE_VIEWPORT.md).
 
-Only gpu-display.mjs opaque/transparent phase ordering changes in r221; all native shaders and the28-module ABI remain unchanged. See ../documents/R221_PRINTER_OCCLUSION.md.
+The exact-corner worker refines native numeric inputs with exact dyadic predicates. GPU admission and aggregation remain native. Raw authoring occlusion is all-triangle DoubleSide; this does not claim display-alpha/stencil parity. The one-scene cache has explicit source/vertex/triangle retention budgets; per-query GPU buffers are fresh. Heavy interaction and cold selection still have substantial latency, documented in the release evidence.

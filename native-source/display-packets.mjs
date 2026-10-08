@@ -24,17 +24,23 @@ export class DisplayGeometryCache {
     if(!p||p.itemSize!==3)fail('Display positions must be xyz');
     for(const a of [n,u,c])if(a&&a.count!==p.count)fail('Display attribute count mismatch');
     const attrs=[p,n,u,c,ix],old=this.rows.get(g);if(old&&attrs.every((a,i)=>attributeCurrent(a,old.stamps[i])))return old;
-    const positions=new Float32Array(p.count*3),extras=new Float32Array(p.count*9);
-    for(let i=0;i<p.count;i++){
-      positions.set([p.getX(i),p.getY(i),p.getZ(i)],i*3);
-      extras.set(n?[n.getX(i),n.getY(i),n.getZ(i)]:[0,0,1],i*9);
-      extras.set(u?[u.getX(i),u.getY(i)]:[0,0],i*9+3);
-      extras.set(c?[c.getX(i),c.getY(i),c.getZ(i),c.itemSize===4?c.getW(i):1]:[1,1,1,1],i*9+5);
+    const sameCount=old?.vertexCount===p.count;
+    const positions=sameCount&&attributeCurrent(p,old.stamps[0])?old.positions:new Float32Array(p.count*3);
+    const extras=sameCount&&[n,u,c].every((a,i)=>attributeCurrent(a,old.stamps[i+1]))?old.extras:new Float32Array(p.count*9);
+    const fillPositions=positions!==old?.positions,fillExtras=extras!==old?.extras;
+    if(fillPositions||fillExtras)for(let i=0;i<p.count;i++){
+      if(fillPositions){const at=i*3;positions[at]=p.getX(i);positions[at+1]=p.getY(i);positions[at+2]=p.getZ(i);}
+      if(fillExtras){const at=i*9;
+        extras[at]=n?n.getX(i):0;extras[at+1]=n?n.getY(i):0;extras[at+2]=n?n.getZ(i):1;
+        extras[at+3]=u?u.getX(i):0;extras[at+4]=u?u.getY(i):0;
+        extras[at+5]=c?c.getX(i):1;extras[at+6]=c?c.getY(i):1;extras[at+7]=c?c.getZ(i):1;extras[at+8]=c&&c.itemSize===4?c.getW(i):1;
+      }
     }
-    let indices=null;
-    if(ix){if(ix.itemSize!==1)fail('Scalar index required');let max=0;for(let i=0;i<ix.count;i++){const v=ix.getX(i);if(!Number.isSafeInteger(v)||v<0||v>=p.count)fail('Display index out of bounds');max=Math.max(max,v);}indices=max<=65535?new Uint16Array(ix.count):new Uint32Array(ix.count);for(let i=0;i<ix.count;i++)indices[i]=ix.getX(i);}
-    if(!positions.every(Number.isFinite)||!extras.every(Number.isFinite))fail('Nonfinite/Float32-overflow display attribute');
-    const row={source:g,positions,extras,indices,vertexCount:p.count,hasNormals:!!n,hasUV:!!u,hasColors:!!c,stamps:attrs.map(stampAttribute),lineIndices:new Map()};
+    const sameIndices=!!sameCount&&attributeCurrent(ix,old.stamps[4]);let indices=sameIndices?old.indices:null;
+    if(ix&&!sameIndices){if(ix.itemSize!==1)fail('Scalar index required');let max=0;for(let i=0;i<ix.count;i++){const v=ix.getX(i);if(!Number.isSafeInteger(v)||v<0||v>=p.count)fail('Display index out of bounds');max=Math.max(max,v);}indices=max<=65535?new Uint16Array(ix.count):new Uint32Array(ix.count);for(let i=0;i<ix.count;i++)indices[i]=ix.getX(i);}
+    for(let i=0;i<positions.length;i++)if(!Number.isFinite(positions[i]))fail('Nonfinite/Float32-overflow display attribute');
+    for(let i=0;i<extras.length;i++)if(!Number.isFinite(extras[i]))fail('Nonfinite/Float32-overflow display attribute');
+    const row={source:g,positions,extras,indices,vertexCount:p.count,hasNormals:!!n,hasUV:!!u,hasColors:!!c,stamps:attrs.map(stampAttribute),lineIndices:sameIndices?old.lineIndices:new Map()};
     row.isCurrent=()=>[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index].every((a,i)=>attributeCurrent(a,row.stamps[i]));
     this.rows.set(g,row);return row;
   }

@@ -1696,17 +1696,23 @@ const read=(a,i,j)=>a?j===0?a.getX(i):j===1?a.getY(i):j===2?a.getZ(i):a.getW(i):
     if(!p||p.itemSize!==3)fail('Display positions must be xyz');
     for(const a of [n,u,c])if(a&&a.count!==p.count)fail('Display attribute count mismatch');
     const attrs=[p,n,u,c,ix],old=this.rows.get(g);if(old&&attrs.every((a,i)=>attributeCurrent(a,old.stamps[i])))return old;
-    const positions=new Float32Array(p.count*3),extras=new Float32Array(p.count*9);
-    for(let i=0;i<p.count;i++){
-      positions.set([p.getX(i),p.getY(i),p.getZ(i)],i*3);
-      extras.set(n?[n.getX(i),n.getY(i),n.getZ(i)]:[0,0,1],i*9);
-      extras.set(u?[u.getX(i),u.getY(i)]:[0,0],i*9+3);
-      extras.set(c?[c.getX(i),c.getY(i),c.getZ(i),c.itemSize===4?c.getW(i):1]:[1,1,1,1],i*9+5);
+    const sameCount=old?.vertexCount===p.count;
+    const positions=sameCount&&attributeCurrent(p,old.stamps[0])?old.positions:new Float32Array(p.count*3);
+    const extras=sameCount&&[n,u,c].every((a,i)=>attributeCurrent(a,old.stamps[i+1]))?old.extras:new Float32Array(p.count*9);
+    const fillPositions=positions!==old?.positions,fillExtras=extras!==old?.extras;
+    if(fillPositions||fillExtras)for(let i=0;i<p.count;i++){
+      if(fillPositions){const at=i*3;positions[at]=p.getX(i);positions[at+1]=p.getY(i);positions[at+2]=p.getZ(i);}
+      if(fillExtras){const at=i*9;
+        extras[at]=n?n.getX(i):0;extras[at+1]=n?n.getY(i):0;extras[at+2]=n?n.getZ(i):1;
+        extras[at+3]=u?u.getX(i):0;extras[at+4]=u?u.getY(i):0;
+        extras[at+5]=c?c.getX(i):1;extras[at+6]=c?c.getY(i):1;extras[at+7]=c?c.getZ(i):1;extras[at+8]=c&&c.itemSize===4?c.getW(i):1;
+      }
     }
-    let indices=null;
-    if(ix){if(ix.itemSize!==1)fail('Scalar index required');let max=0;for(let i=0;i<ix.count;i++){const v=ix.getX(i);if(!Number.isSafeInteger(v)||v<0||v>=p.count)fail('Display index out of bounds');max=Math.max(max,v);}indices=max<=65535?new Uint16Array(ix.count):new Uint32Array(ix.count);for(let i=0;i<ix.count;i++)indices[i]=ix.getX(i);}
-    if(!positions.every(Number.isFinite)||!extras.every(Number.isFinite))fail('Nonfinite/Float32-overflow display attribute');
-    const row={source:g,positions,extras,indices,vertexCount:p.count,hasNormals:!!n,hasUV:!!u,hasColors:!!c,stamps:attrs.map(stampAttribute),lineIndices:new Map()};
+    const sameIndices=!!sameCount&&attributeCurrent(ix,old.stamps[4]);let indices=sameIndices?old.indices:null;
+    if(ix&&!sameIndices){if(ix.itemSize!==1)fail('Scalar index required');let max=0;for(let i=0;i<ix.count;i++){const v=ix.getX(i);if(!Number.isSafeInteger(v)||v<0||v>=p.count)fail('Display index out of bounds');max=Math.max(max,v);}indices=max<=65535?new Uint16Array(ix.count):new Uint32Array(ix.count);for(let i=0;i<ix.count;i++)indices[i]=ix.getX(i);}
+    for(let i=0;i<positions.length;i++)if(!Number.isFinite(positions[i]))fail('Nonfinite/Float32-overflow display attribute');
+    for(let i=0;i<extras.length;i++)if(!Number.isFinite(extras[i]))fail('Nonfinite/Float32-overflow display attribute');
+    const row={source:g,positions,extras,indices,vertexCount:p.count,hasNormals:!!n,hasUV:!!u,hasColors:!!c,stamps:attrs.map(stampAttribute),lineIndices:sameIndices?old.lineIndices:new Map()};
     row.isCurrent=()=>[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index].every((a,i)=>attributeCurrent(a,row.stamps[i]));
     this.rows.set(g,row);return row;
   }
@@ -2790,6 +2796,225 @@ if (typeof self !== 'undefined' && typeof WorkerGlobalScope !== 'undefined' && s
 return {installTopologyWorker};
 };
 __nativeModules["topology-worker.mjs"]=__nativeFactories["topology-worker.mjs"](__nativeModules);
+__nativeFactories["exact-corner.mjs"]=function(__imports){
+/** Exact point visibility for native binary32 geometry/matrix inputs.
+ * Linear transforms are evaluated as exact dyadics before final clip rounding.
+ * All predicates use exact numbers, not sampled depth or an epsilon.
+ * This is a proposed raw-geometry policy; display alpha/stencil are not modeled.
+ */
+const bits = new DataView(new ArrayBuffer(4));
+const fail = m => { throw Error(m); };
+ function f32Bits(v) { bits.setFloat32(0, v, true); return bits.getUint32(0, true); }
+function floatBits(u) { bits.setUint32(0, u, true); return bits.getFloat32(0, true); }
+ function nextF32(v, up = true) {
+  if (Number.isNaN(v)) fail('NaN bound');
+  if (v === (up ? Infinity : -Infinity)) return v;
+  if (v === 0) return floatBits(up ? 1 : 0x80000001);
+  let u = f32Bits(v); u = (u + ((v > 0) === up ? 1 : -1)) >>> 0;
+  return floatBits(u);
+}
+function dyadic(v) {
+  if (!Number.isFinite(v) || Math.fround(v) !== v) fail('Finite binary32 clip coordinate required');
+  const u = f32Bits(v), e = (u >>> 23) & 255, f = u & 0x7fffff;
+  return { n: BigInt(e ? f | 0x800000 : f) * (u >>> 31 ? -1n : 1n), e: e ? e - 150 : -149 };
+}
+function integers(values) {
+  const d = values.map(dyadic), e = Math.min(...d.filter(x => x.n !== 0n).map(x => x.e), 0);
+  return d.map(x => x.n << BigInt(x.e - e));
+}
+const exactVector=q=>q?.v?q:{v:integers(q),e:Math.min(...q.map(dyadic).filter(x=>x.n!==0n).map(x=>x.e),0)};
+function commonVectors(points){
+  const v=points.map(exactVector),e=Math.min(...v.map(p=>p.e));
+  if(v.every(p=>p.e===e))return v.map(p=>p.v);
+  return v.map(p=>p.v.map(n=>n<<BigInt(p.e-e)));
+}
+const component=(q,i)=>q?.v?q.v[i]:q[i];
+const validClip=q=>{
+ const [x,y,z,w]=q?.v??q;
+ return w>0&&x>=-w&&x<=w&&y>=-w&&y<=w&&z>=0&&z<=w;
+};
+/** Exact mathematical mat4(binary32) * position(binary32). Source Float64
+ * authoring arrays are neither converted nor mutated by this module. The packet
+ * has already crossed the existing native Float32 upload boundary.
+ */
+ function exactProjectPacket(packet){
+ const values=[...packet.positions,...packet.clipMatrices,1],cache=new Map(),d=values.map(v=>{let x=cache.get(v);if(x===undefined){x=dyadic(v);cache.set(v,x);}return x;});let e=0;for(const x of d)if(x.n!==0n)e=Math.min(e,x.e);
+ const shifted=new Map(),ints=d.map(x=>{let n=shifted.get(x);if(n===undefined){n=x.n<<BigInt(x.e-e);shifted.set(x,n);}return n;}),vc=packet.positions.length/3,ic=packet.clipMatrices.length/16,unit=ints.at(-1),out=[];
+ for(let instance=0;instance<ic;instance++)for(let vertex=0;vertex<vc;vertex++){
+  const at=vertex*3,m=packet.positions.length+instance*16,v=[];
+  for(let row=0;row<4;row++)v.push(ints[m+row]*ints[at]+ints[m+4+row]*ints[at+1]+ints[m+8+row]*ints[at+2]+ints[m+12+row]*unit);
+  out.push({v,e:e*2});
+ }return out;
+}
+const det = (a,b,c) => a[0]*(b[1]*c[3]-b[3]*c[1]) - a[1]*(b[0]*c[3]-b[3]*c[0]) + a[3]*(b[0]*c[1]-b[1]*c[0]);
+const same = (a,b) => a.every((v,i) => v === b[i]);
+const sign = n => n < 0n ? -1 : n > 0n ? 1 : 0;
+/** Triangle covers the exact query ray AND intersects it in [near,corner).
+ * Cramer's rule in homogeneous x,y,w avoids perspective division and clipping
+ * interpolation. Nonnegative homogeneous barycentrics prove triangle membership.
+ * Boundaries are closed: a true foreground edge blocks; exact contact does not.
+ */
+ function exactOccludes(q,a,b,c) {
+  if (!validClip(q)) return false;
+  // Exact equal dyadic tuples prove contact regardless of source identity.
+  if(q?.v&&[a,b,c].some(p=>p?.v&&p.e===q.e&&p.v.every((n,i)=>n===q.v[i])))return false;
+  // Only exact numeric vertex equality, never same object / welded proximity.
+  const [Q,A,B,C]=commonVectors([q,a,b,c]);
+  if ([A,B,C].some(p=>Q.every((n,i)=>n===p[i]))) return false;
+  const D=det(A,B,C), s=sign(D); if (!s) return false;
+  const ea=det(Q,B,C);if(sign(ea)&&sign(ea)!==s)return false;
+  const eb=det(A,Q,C);if(sign(eb)&&sign(eb)!==s)return false;
+  const ec=det(A,B,Q);if(sign(ec)&&sign(ec)!==s)return false;
+  const N=ea*A[2]+eb*B[2]+ec*C[2];
+  if (sign(N) && sign(N) !== s) return false; // hit before the near plane
+  return sign(N-D*Q[2]) === -s; // strictly in front; no bias
+}
+function compareRatio(bound,numerator,denominator) {
+  const [b,n,d,unit]=integers([bound,numerator,denominator,1]);
+  return sign(b*d-n*unit);
+}
+/** Outward binary32 bounds, checked by integer cross multiplication. */
+ function ratioBounds(n,d) {
+  if(typeof n==='bigint'){
+    if(!(d>0n))fail('Positive exact clip w required');
+    if(n<=-d)return [-1,-1];if(n>=d)return [1,1];
+    let lo=Math.fround(Number(n)/Number(d)),hi=lo;
+    const cmp=b=>{const t=dyadic(b);return sign(t.e>=0?(t.n*d<<BigInt(t.e))-n:t.n*d-(n<<BigInt(-t.e)));};
+    while(cmp(lo)>0)lo=nextF32(lo,false);while(cmp(hi)<0)hi=nextF32(hi,true);return [lo,hi];
+  }
+  if (!(d > 0) || !Number.isFinite(n)) fail('Positive finite clip w required');
+  if (n <= -d) return [-1,-1]; if (n >= d) return [1,1];
+  let lo=Math.fround(n/d), hi=lo;
+  while (compareRatio(lo,n,d)>0) lo=nextF32(lo,false);
+  while (compareRatio(hi,n,d)<0) hi=nextF32(hi,true);
+  return [lo,hi];
+}
+ function pointBounds(q) {
+  if (!validClip(q)) return null;
+  const x=ratioBounds(component(q,0),component(q,3)),y=ratioBounds(component(q,1),component(q,3));return [x[0],y[0],x[1],y[1]];
+}
+function triangleBounds(a,b,c,projectionBounds) {
+  // A near/eye-plane crossing may project outside the finite vertex bounds.
+  if ([a,b,c].some(p=>!(component(p,3)>0))) return [-1,-1,1,1];
+  const bounds=[a,b,c].map(p=>{
+    let b=projectionBounds.get(p);
+    if(b===undefined){
+      const x=ratioBounds(component(p,0),component(p,3)),y=ratioBounds(component(p,1),component(p,3));
+      b=[x[0],y[0],x[1],y[1]];projectionBounds.set(p,b);
+    }
+    return b;
+  });
+  return [Math.min(bounds[0][0],bounds[1][0],bounds[2][0]),Math.min(bounds[0][1],bounds[1][1],bounds[2][1]),Math.max(bounds[0][2],bounds[1][2],bounds[2][2]),Math.max(bounds[0][3],bounds[1][3],bounds[2][3])];
+}
+ const overlap=(a,b)=>a[0]<=b[2]&&a[2]>=b[0]&&a[1]<=b[3]&&a[3]>=b[1];
+/** WGSL may flush subnormal operands. GPU broadphase bounds must remain
+ * conservative even then; this changes candidates only, never acceptance. */
+ function gpuBounds(b) {
+  const minNormal=2**-126;
+  return b.map((v,i)=>v!==0&&Math.abs(v)<minNormal?(i<2?-minNormal:minNormal):v);
+}
+ const clipAt=(clips,i)=>Array.isArray(clips)?clips[i]:Array.from(clips.subarray(i*4,i*4+4));
+/** Stackless preorder BVH. Bounds/meta GPU arrays share the CPU reference tree. */
+ function buildCornerScene(captures,{leafSize=8}={}) {
+  if(!Number.isInteger(leafSize)||leafSize<1)fail('Positive BVH leaf size required');
+  const clips=[],triangles=[],bounds=[],projectionBounds=new WeakMap();let base=0;
+  for(const {packet,clips:given} of captures){
+    const captured=given??exactProjectPacket(packet);
+    const vc=packet.positions.length/3,ic=packet.clipMatrices.length/16;
+    if(Array.isArray(captured)?captured.length!==vc*ic:!(captured instanceof Float32Array)||captured.length!==vc*ic*4||Array.from(captured).some(v=>!Number.isFinite(v)))fail('Native clip capture mismatch/nonfinite');
+    clips.push(captured);
+    const index=packet.indices,total=index?.length??vc;
+    // Raw authoring policy includes ALL triangles, independently of display ranges.
+    if(total%3)fail('Complete raw triangles required');
+    for(let instance=0;instance<ic;instance++)for(let j=0;j<total;j+=3){
+      const t=[0,1,2].map(k=>base+instance*vc+(index?index[j+k]:j+k));
+      triangles.push(t);bounds.push(triangleBounds(...t.map(i=>clipAt(captured,i-base)),projectionBounds));
+    }
+    base+=vc*ic;
+  }
+  const vertices=[];for(const c of clips)for(let i=0;i<(Array.isArray(c)?c.length:c.length/4);i++)vertices.push(clipAt(c,i));
+  const order=[],nodes=[];
+  function build(ids){
+    const ni=nodes.length,b=[Infinity,Infinity,-Infinity,-Infinity];
+    for(const id of ids){const t=bounds[id];b[0]=Math.min(b[0],t[0]);b[1]=Math.min(b[1],t[1]);b[2]=Math.max(b[2],t[2]);b[3]=Math.max(b[3],t[3]);}
+    const node={bounds:b,first:0,count:0,escape:0};nodes.push(node);
+    if(ids.length<=leafSize){node.first=order.length;node.count=ids.length;order.push(...ids);}
+    else{const axis=b[2]-b[0]>=b[3]-b[1]?0:1;ids.sort((a,c)=>(bounds[a][axis]+bounds[a][axis+2])-(bounds[c][axis]+bounds[c][axis+2])||a-c);const m=ids.length>>1;build(ids.slice(0,m));build(ids.slice(m));}
+    node.escape=nodes.length;return ni;
+  }
+  if(triangles.length)build(triangles.map((_,i)=>i));
+  const nodeBounds=new Float32Array(nodes.length*4),nodeMeta=new Uint32Array(nodes.length*4),triangleBoundsArray=new Float32Array(bounds.length*4);
+  nodes.forEach((n,i)=>{nodeBounds.set(gpuBounds(n.bounds),i*4);nodeMeta.set([n.first,n.count,n.escape,0],i*4);});bounds.forEach((b,i)=>triangleBoundsArray.set(gpuBounds(b),i*4));
+  return {vertices,triangles,bounds,nodes,order:Uint32Array.from(order),nodeBounds,nodeMeta,triangleBounds:triangleBoundsArray};
+}
+ function* candidates(scene,point) {
+  if(!point)return;let n=0;
+  while(n<scene.nodes.length){const node=scene.nodes[n];if(!overlap(node.bounds,point)){n=node.escape;continue;}
+    if(node.count)for(let j=node.first;j<node.first+node.count;j++){const id=scene.order[j];if(overlap(scene.bounds[id],point))yield id;}
+    n++;
+  }
+}
+ function cornerVisible(scene,q,stats={}) {
+  const point=pointBounds(q);if(!point)return false;
+  for(const id of candidates(scene,point)){stats.tests=(stats.tests??0)+1;const t=scene.triangles[id];if(exactOccludes(q,...t.map(i=>clipAt(scene.vertices,i))))return false;}
+  return true;
+}
+ function allCornerElements(vertices,elements,vertexCount,instanceCount) {
+  const count=elements?elements.offsets.length-1:0,result=new Uint32Array(count*instanceCount);
+  for(let instance=0;instance<instanceCount;instance++)for(let e=0;e<count;e++){
+    const begin=elements.offsets[e],end=elements.offsets[e+1];let yes=end>begin;
+    for(let j=begin;j<end;j++)if(!vertices[instance*vertexCount+elements.indices[j]]){yes=false;break;}
+    result[instance*count+e]=yes?1:0;
+  }
+  return result;
+}
+
+return {f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements};
+};
+__nativeModules["exact-corner.mjs"]=__nativeFactories["exact-corner.mjs"](__nativeModules);
+__nativeFactories["corner-worker.mjs"]=function(__imports){
+const {buildCornerScene,clipAt,exactOccludes,pointBounds,gpuBounds,exactProjectPacket}=__imports["exact-corner.mjs"];
+ function installCornerVisibilityWorker(port){
+let scene=null,query=null;
+/** Separate worker keeps sorting and exact arithmetic off the input thread.
+ * Captures are private transferred copies; original authored data is untouched. */
+port.onmessage=({data:m})=>{
+  try {
+    if(m.kind==='build'){
+      scene=buildCornerScene(m.captures);
+      const raw=exactProjectPacket(m.targetPacket),vc=m.targetPacket.positions.length/3,logical=m.representatives?.length??vc,count=vc?raw.length/vc*logical:0,points=new Float32Array(count*4);query=[];
+      for(let i=0;i<count;i++){const q=raw[Math.floor(i/logical)*vc+(m.representatives?m.representatives[i%logical]:i%logical)];query.push(q);const b=pointBounds(q);points.set(b?gpuBounds(b):[1,1,-1,-1],i*4);}
+      const {nodeBounds,nodeMeta,order,triangleBounds}=scene;
+      port.postMessage({id:m.id,result:{nodeBounds,nodeMeta,order,triangleBounds,points,nodeCount:scene.nodes.length,triangleCount:scene.triangles.length}},[nodeBounds.buffer,nodeMeta.buffer,order.buffer,triangleBounds.buffer,points.buffer]);
+    }else if(m.kind==='refine'){
+      if(!scene)throw Error('Corner scene not prepared');
+      const {admitted,vertexCount,instanceCount,offsets,candidates}=m;
+      if(query.length!==vertexCount*instanceCount||admitted.length!==vertexCount*instanceCount||offsets.length!==admitted.length+1||offsets.at(-1)!==candidates.length)throw Error('Corner refinement packet mismatch');
+      const vertices=admitted;let tests=0,contactVertices=0;
+      for(let i=0;i<vertices.length;i++){
+        if(!vertices[i])continue;
+        const q=query[i];
+        if(!pointBounds(q)){vertices[i]=0;continue;}
+        for(let j=offsets[i];j<offsets[i+1];j++){
+          const id=candidates[j],tri=scene.triangles[id];if(!tri)throw Error('Invalid GPU candidate ID');
+          const a=clipAt(scene.vertices,tri[0]),b=clipAt(scene.vertices,tri[1]),c=clipAt(scene.vertices,tri[2]);tests++;
+          if([a,b,c].some(p=>p.e===q.e&&p.v.every((v,k)=>v===q.v[k])))contactVertices++;
+          if(exactOccludes(q,a,b,c)){vertices[i]=0;break;}
+        }
+      }
+      port.postMessage({id:m.id,result:{vertices,tests,contactVertices}},[vertices.buffer]);
+    }else if(m.kind==='clear'){scene=null;query=null;port.postMessage({id:m.id,result:true});}
+    else throw Error('Unknown corner worker operation');
+  }catch(e){port.postMessage({id:m.id,error:String(e?.stack??e)});}
+};
+
+return ()=>{scene=null;query=null;port.onmessage=null;};
+}
+if(typeof self!=='undefined'&&typeof document==='undefined'&&typeof self.postMessage==='function')installCornerVisibilityWorker(self);
+
+return {installCornerVisibilityWorker};
+};
+__nativeModules["corner-worker.mjs"]=__nativeFactories["corner-worker.mjs"](__nativeModules);
 __nativeFactories["connected-selection.mjs"]=function(__imports){
 /** Converts the cached topology result into Frame's existing selection contract.
  * The authored model is never transferred; edge keys stay numeric inside topology,
@@ -3081,6 +3306,189 @@ const fail=m=>{throw Error(m);};
 return {PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth};
 };
 __nativeModules["picker-depth.mjs"]=__nativeFactories["picker-depth.mjs"](__nativeModules);
+__nativeFactories["native-corner.mjs"]=function(__imports){
+/** PRIVATE PROPOSAL: native clip/admission and BVH candidate stages, exact
+ * worker refinement, then the existing native ALL-corner element stage.
+ * No texture-depth comparison, arbitrary bias, or old-renderer fallback.
+ * Browser shader compilation/raster acceptance are explicitly NOT RUN here.
+ */
+const {dispatchShape,rectangleParams,validatePacket}=__imports["gpu-selection.mjs"];
+const {assertRenderDomain}=__imports["render-domain.mjs"];
+ const CORNER_CLIP_WGSL=`
+struct Params { counts:vec4u }
+@group(0) @binding(0) var<storage,read> positions:array<f32>;
+@group(0) @binding(1) var<storage,read> matrices:array<mat4x4<f32>>;
+@group(0) @binding(2) var<storage,read_write> clips:array<vec4f>;
+@group(0) @binding(3) var<uniform> params:Params;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) tid:vec3u){
+ if(params.counts.z==0u||params.counts.w==0u){return;}if(tid.y>(params.counts.z-1u)/params.counts.w){return;}
+ let base=tid.y*params.counts.w;if(tid.x>=params.counts.z-base){return;}let id=base+tid.x;
+ let v=id%params.counts.x;let i=id/params.counts.x;let p=v*3u;
+ clips[id]=matrices[i]*vec4f(positions[p],positions[p+1u],positions[p+2u],1.0);
+}`;
+ const CORNER_ADMISSION_WGSL=`
+struct Params {viewport:vec4f,rectangle:vec4f,counts:vec4u,options:vec4u}
+@group(0) @binding(0) var<storage,read> clips:array<vec4f>;
+@group(0) @binding(1) var<storage,read> representatives:array<u32>;
+@group(0) @binding(2) var<storage,read_write> mask:array<u32>;
+@group(0) @binding(3) var<uniform> params:Params;
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) tid:vec3u){
+ if(params.counts.z==0u||params.counts.w==0u){return;}if(tid.y>(params.counts.z-1u)/params.counts.w){return;}
+ let base=tid.y*params.counts.w;if(tid.x>=params.counts.z-base){return;}let id=base+tid.x;mask[id]=0u;
+ let instance=id/params.counts.x;var v=id%params.counts.x;
+ if(params.options.x!=0u){v=representatives[v];}let c=clips[instance*params.options.y+v];
+ if(!(c.w>0.0)){return;}let n=c.xyz/c.w;
+ if(!(all(n.xy>=vec2f(-1.0))&&all(n.xy<=vec2f(1.0))&&n.z>=0.0&&n.z<=1.0)){return;}
+ let s=params.viewport.xy+vec2f(n.x*0.5+0.5,0.5-n.y*0.5)*params.viewport.zw;
+ if(!(all(s>=params.rectangle.xy)&&all(s<=params.rectangle.zw))){return;}
+ if(!(all(s>=params.viewport.xy)&&all(s<params.viewport.xy+params.viewport.zw))){return;}
+ mask[id]=1u;
+}`;
+ const CORNER_CANDIDATES_WGSL=`
+struct Params {counts:vec4u} // nodes, queries, dispatch row width, emit
+@group(0) @binding(0) var<storage,read> nodeBounds:array<vec4f>;
+@group(0) @binding(1) var<storage,read> nodeMeta:array<vec4u>;
+@group(0) @binding(2) var<storage,read> order:array<u32>;
+@group(0) @binding(3) var<storage,read> triangleBounds:array<vec4f>;
+@group(0) @binding(4) var<storage,read> points:array<vec4f>;
+@group(0) @binding(5) var<storage,read_write> resultCounts:array<u32>;
+@group(0) @binding(6) var<storage,read> offsets:array<u32>;
+@group(0) @binding(7) var<storage,read_write> resultIds:array<u32>;
+@group(0) @binding(8) var<uniform> params:Params;
+fn overlaps(a:vec4f,b:vec4f)->bool{return a.x<=b.z&&a.z>=b.x&&a.y<=b.w&&a.w>=b.y;}
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) tid:vec3u){
+ if(params.counts.y==0u||params.counts.z==0u){return;}if(tid.y>(params.counts.y-1u)/params.counts.z){return;}
+ let base=tid.y*params.counts.z;if(tid.x>=params.counts.y-base){return;}let id=base+tid.x;
+ let q=points[id];var count=0u;var n=0u;
+ if(q.x<=q.z&&q.y<=q.w){
+  loop{if(n>=params.counts.x){break;}let m=nodeMeta[n];
+   if(!overlaps(nodeBounds[n],q)){n=m.z;continue;}
+   for(var j=m.x;j<m.x+m.y;j++){let t=order[j];if(overlaps(triangleBounds[t],q)){
+    if(params.counts.w!=0u){resultIds[offsets[id]+count]=t;}count++;
+   }}n++;
+  }
+ }resultCounts[id]=count;
+}`;
+const fail=m=>{throw Error(m);},abort=m=>new DOMException(m,'AbortError');
+ const CORNER_SCENE_CACHE_LIMITS=Object.freeze({sourceBytes:16*1024*1024,vertices:150000,triangles:250000});
+const copyCornerPacket=c=>({positions:c.positions.slice(),clipMatrices:c.clipMatrices.slice(),indices:c.indices?.slice()??null});
+function cornerArrayEqual(a,b){
+ if(a==null||b==null)return a==null&&b==null;
+ if(a.constructor!==b.constructor||a.byteLength!==b.byteLength)return false;
+ const x=new Uint8Array(a.buffer,a.byteOffset,a.byteLength),y=new Uint8Array(b.buffer,b.byteOffset,b.byteLength);
+ for(let i=0;i<x.length;i++)if(x[i]!==y[i])return false;return true;
+}
+const cornerPacketEqual=(a,b)=>cornerArrayEqual(a.positions,b.positions)&&cornerArrayEqual(a.clipMatrices,b.clipMatrices)&&cornerArrayEqual(a.indices,b.indices);
+const cornerSceneMatches=(key,target,occluders,reps)=>key.occluders.length===occluders.length&&cornerPacketEqual(key.target,target)&&cornerArrayEqual(key.representatives,reps)&&key.occluders.every((p,i)=>cornerPacketEqual(p,occluders[i]));
+function cornerCacheBudget(target,occluders,reps){
+ let bytes=reps?.byteLength??0,vertices=0,triangles=0;
+ for(const p of [target,...occluders])bytes+=p.positions.byteLength+p.clipMatrices.byteLength+(p.indices?.byteLength??0);
+ // Count target projection as well as scene clips; worker retains both.
+ for(const p of [target,...occluders]){const vc=p.positions.length/3,ic=p.clipMatrices.length/16;vertices+=vc*ic;triangles+=(p.indices?.length??vc)/3*ic;}
+ return {bytes,vertices,triangles,cacheable:bytes<=CORNER_SCENE_CACHE_LIMITS.sourceBytes&&vertices<=CORNER_SCENE_CACHE_LIMITS.vertices&&triangles<=CORNER_SCENE_CACHE_LIMITS.triangles};
+}
+function cornerWorkerFactory(){
+ if(typeof createCornerVisibilityWorker==='function')return createCornerVisibilityWorker();
+ return new Worker(new URL('./corner-worker.mjs',import.meta.url),{type:'module'});
+}
+class ExactWorker {
+ constructor(factory){this.worker=factory();this.serial=0;this.pending=new Map();
+  this.worker.onmessage=({data:m})=>{const p=this.pending.get(m.id);if(!p)return;this.pending.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.result);};
+  this.worker.onerror=e=>this.dispose(Error(e.message??'Corner worker failed'));
+ }
+ call(kind,data={},transfer=[]){if(!this.worker)return Promise.reject(abort('Corner worker disposed'));const id=++this.serial;return new Promise((resolve,reject)=>{this.pending.set(id,{resolve,reject});try{this.worker.postMessage({id,kind,...data},transfer);}catch(e){this.pending.delete(id);reject(e);}});}
+ dispose(error=abort('Corner worker disposed')){this.worker?.terminate();this.worker=null;for(const p of this.pending.values())p.reject(error);this.pending.clear();}
+}
+ class FrameGpuCornerVisibility {
+ static async create(host,options={}){const p=new FrameGpuCornerVisibility(host,options);try{await p._init();return p;}catch(e){p.dispose();throw e;}}
+ constructor(host,{workerFactory=cornerWorkerFactory}={}){assertRenderDomain(host.renderDomain);if(host.state!=='ready')fail('Ready shared native host required');this.host=host;this.device=host.device;this.renderDomain=host.renderDomain;this.workerFactory=workerFactory;this.worker=null;this.sceneCache=null;this.sceneCacheStats={hits:0,builds:0};this.disposed=false;this.jobs=new Set();this.compilation=[];}
+ _worker(){if(this.disposed)throw abort('Native corner owner disposed');if(!this.worker?.worker)this.worker=new ExactWorker(this.workerFactory);return this.worker;}
+ async _init(){const d=this.device;d.pushErrorScope('validation');let error;
+  try{for(const [name,code]of [['clip',CORNER_CLIP_WGSL],['admission',CORNER_ADMISSION_WGSL],['candidates',CORNER_CANDIDATES_WGSL]]){
+   const module=d.createShaderModule({label:'Frame corner '+name,code}),info=await module.getCompilationInfo();
+   this.compilation.push({name,messages:Array.from(info.messages,m=>({type:m.type,message:m.message,line:m.lineNum,column:m.linePos}))});
+   if(info.messages.some(m=>m.type==='error'))fail('Corner WGSL '+name+' compilation failed');
+   this[name+'Pipeline']=await d.createComputePipelineAsync({label:'Frame corner '+name,layout:'auto',compute:{module,entryPoint:'main'}});
+  }}catch(e){error=e;}const validation=await d.popErrorScope();if(error)throw error;if(validation)fail(validation.message);
+  if(this.disposed||this.host.state!=='ready')throw abort('Native owner changed during corner initialization');
+ }
+ /** Same read()/dispose() contract as host.select. No query runs per frame.
+  * Bounded correctness prototype: scene BVH is rebuilt per select; session-level
+  * reuse/batching and measured large-scene costs remain integration work.
+  */
+ select(p,{packet,occluderPackets,representatives=null,rectangle,viewport,width,height,isCurrent=()=>true,signal=null}={}){
+  const h=this.host;if(this.disposed||h.state!=='ready'||p?.owner!==h||p.released)fail('Ready native corner target required');
+  if(h.jobs.size||this.jobs.size)fail('Coalesce native corner queries');
+  const opts=rectangleParams(Array.from(rectangle),Array.from(viewport),width,height),epoch=h.epoch;
+  if(packet.positions.length/3!==p.sourceVertexCount||packet.clipMatrices.length/16!==p.instanceCount)fail('Corner target packet mismatch');
+  if(representatives&&(!(representatives instanceof Uint32Array)||representatives.length!==p.vertexCount||Array.from(representatives).some(i=>i>=p.sourceVertexCount)))fail('Invalid logical representatives');
+  if(p.hasRepresentatives!==!!representatives)fail('Prepared logical representative policy mismatch');
+  let cancelled=false,freed=false,promise=null;const owned=[],worker=this._worker();
+  const valid=()=>!freed&&!cancelled&&!signal?.aborted&&!this.disposed&&h.state==='ready'&&h.epoch===epoch&&!p.released&&isCurrent();
+  const check=()=>{if(!valid())throw abort('Native corner query became stale');};
+  const add=b=>(owned.push(b),b),storage=(data,label,minBytes=4)=>add(h._storage(data,label,minBytes)),uniform=(data,label)=>add(h._buffer(data,GPUBufferUsage.UNIFORM,label));
+  const output=(size,label,minBytes=4)=>{size=Math.max(minBytes,size);if(size>this.device.limits.maxStorageBufferBindingSize||size>this.device.limits.maxBufferSize)fail('Corner buffer exceeds native binding limit; explicit batching required');return add(this.device.createBuffer({label,size,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}));};
+  const read=async(buffer,bytes)=>{check();if(!bytes)return new ArrayBuffer(0);const staging=add(this.device.createBuffer({label:'Frame corner readback',size:bytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST}));
+   const enc=this.device.createCommandEncoder();enc.copyBufferToBuffer(buffer,0,staging,0,bytes);this.device.queue.submit([enc.finish()]);await staging.mapAsync(GPUMapMode.READ);
+   try{check();return staging.getMappedRange().slice(0,bytes);}finally{staging.unmap();}
+  };
+  const dispatch=(pipeline,resources,count)=>{const shape=dispatchShape(count,this.device.limits.maxComputeWorkgroupsPerDimension),bind=this.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:resources.map((buffer,binding)=>({binding,resource:{buffer}}))}),enc=this.device.createCommandEncoder(),pass=enc.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,bind);if(count)pass.dispatchWorkgroups(shape.x,shape.y);pass.end();this.device.queue.submit([enc.finish()]);};
+  const cleanup=async()=>{if(freed)return;if(this.sceneCache?.worker!==worker)await worker.call('clear').catch(()=>{});await this.device.queue.onSubmittedWorkDone().catch(()=>{});if(freed)return;freed=true;signal?.removeEventListener('abort',onAbort);for(const b of owned)b.destroy();h.jobs.delete(job);this.jobs.delete(job);};
+  const job={cancel:()=>{if(cancelled||freed)return;cancelled=true;this.sceneCache=null;worker.dispose(abort('Native corner query cancelled'));if(this.worker===worker)this.worker=null;},read:()=>promise??=(async()=>{let result;try{result=await run();}finally{await cleanup();}if(cancelled||signal?.aborted||this.disposed||h.state!=='ready'||h.epoch!==epoch||p.released||!isCurrent())throw abort('Native corner result became stale before delivery');return result;})(),dispose:async()=>{job.cancel();if(promise)await promise.catch(()=>{});else await cleanup();}};
+  const onAbort=()=>job.cancel();signal?.addEventListener('abort',onAbort,{once:true});h.jobs.add(job);this.jobs.add(job);
+  const capture=async(source,prepared=null)=>{const info=validatePacket(source),shape=dispatchShape(info.occurrenceCount,this.device.limits.maxComputeWorkgroupsPerDimension),buffer=output(info.occurrenceCount*16,'Frame native corner clips',16);
+   const pos=prepared?.positions??storage(source.positions,'Frame corner source positions'),mat=prepared?.matrices??storage(source.clipMatrices,'Frame corner source clip matrices'),params=uniform(new Uint32Array([info.vertexCount,info.instanceCount,info.occurrenceCount,shape.rowWidth]),'Frame corner clip parameters');
+   dispatch(this.clipPipeline,[pos,mat,buffer,params],info.occurrenceCount);check();return {buffer,packet:source};
+  };
+  const run=async()=>{
+   check();for(const source of occluderPackets)validatePacket(source);
+   const target=await capture(packet,p),count=p.occurrenceCount,shape=dispatchShape(count,this.device.limits.maxComputeWorkgroupsPerDimension),maskBuffer=output(count*4,'Frame admitted corner mask');
+   const header=new ArrayBuffer(64);new Float32Array(header).set([...opts.viewport,...opts.rectangle]);new Uint32Array(header).set([p.vertexCount,p.instanceCount,count,shape.rowWidth,representatives?1:0,p.sourceVertexCount,0,0],8);
+   const admissionParams=uniform(new Uint8Array(header),'Frame native corner rectangle'),reps=representatives?storage(representatives,'Frame logical corner representatives'):p.representatives;
+   dispatch(this.admissionPipeline,[target.buffer,reps,maskBuffer,admissionParams],count);const admitted=new Uint32Array(await read(maskBuffer,count*4));check();
+   // At most one bounded worker scene. Match private byte snapshots, including
+   // in-place mutations, matrix bits, surface order, indices and representatives.
+   const retained=this.sceneCache;let scene;
+   if(retained?.worker===worker&&cornerSceneMatches(retained.key,packet,occluderPackets,representatives)){
+    scene=retained.scene;this.sceneCacheStats.hits++;
+   }else{
+    this.sceneCache=null;
+    if(retained?.worker===worker){await worker.call('clear');check();}
+    const budget=cornerCacheBudget(packet,occluderPackets,representatives);
+    const key=budget.cacheable?{target:copyCornerPacket(packet),occluders:occluderPackets.map(copyCornerPacket),representatives:representatives?.slice()??null}:null;
+    // Transferred worker copies remain separate from the retained comparison key.
+    const workCaptures=occluderPackets.map(c=>({packet:copyCornerPacket(c)})),targetPacket=copyCornerPacket(packet),workerReps=representatives?.slice()??null;
+    const transferPacket=c=>[c.positions.buffer,c.clipMatrices.buffer,...(c.indices?[c.indices.buffer]:[])];
+    const transfers=[...workCaptures.flatMap(c=>transferPacket(c.packet)),...transferPacket(targetPacket),...(workerReps?[workerReps.buffer]:[])];
+    scene=await worker.call('build',{captures:workCaptures,targetPacket,representatives:workerReps},transfers);check();this.sceneCacheStats.builds++;
+    if(key)this.sceneCache={worker,key,scene,budget};
+   }
+   // Rectangle admission is query-local. Never erase a retained full-scene point.
+   const points=scene.points.slice();for(let i=0;i<count;i++)if(!admitted[i])points.set([1,1,-1,-1],i*4);
+   const nb=storage(scene.nodeBounds,'Frame corner BVH bounds',16),nm=storage(scene.nodeMeta,'Frame corner BVH metadata',16),order=storage(scene.order,'Frame corner triangle order'),tb=storage(scene.triangleBounds,'Frame corner triangle bounds',16),qb=storage(points,'Frame exact corner bounds',16),countsBuffer=output(count*4,'Frame corner candidate counts'),dummy=storage(new Uint32Array(count+1),'Frame empty candidate offsets'),empty=output(4,'Frame empty candidate IDs');
+   const cp=uniform(new Uint32Array([scene.nodeCount,count,shape.rowWidth,0]),'Frame corner count parameters');dispatch(this.candidatesPipeline,[nb,nm,order,tb,qb,countsBuffer,dummy,empty,cp],count);
+   const counts=new Uint32Array(await read(countsBuffer,count*4)),offsets=new Uint32Array(count+1);let total=0;
+   for(let i=0;i<count;i++){total+=counts[i];if(total>0xffffffff||total*4>this.device.limits.maxStorageBufferBindingSize)fail('Corner candidates exceed native buffer limit; explicit batching required');offsets[i+1]=total;}
+   const offsetsBuffer=storage(offsets,'Frame candidate offsets'),idsBuffer=output(total*4,'Frame native corner candidate IDs'),wp=uniform(new Uint32Array([scene.nodeCount,count,shape.rowWidth,1]),'Frame corner emit parameters');
+   dispatch(this.candidatesPipeline,[nb,nm,order,tb,qb,countsBuffer,offsetsBuffer,idsBuffer,wp],count);const candidateIds=new Uint32Array(await read(idsBuffer,total*4));check();
+   const refined=await worker.call('refine',{admitted,vertexCount:p.vertexCount,instanceCount:p.instanceCount,offsets,candidates:candidateIds},[admitted.buffer,offsets.buffer,candidateIds.buffer]);check();
+   this.device.queue.writeBuffer(maskBuffer,0,refined.vertices);
+   const ecount=p.elementCount*p.instanceCount,elementBuffer=output(ecount*4,'Frame exact all-corner elements');
+   if(ecount){const es=dispatchShape(ecount,this.device.limits.maxComputeWorkgroupsPerDimension),ep=uniform(new Uint32Array([p.vertexCount,p.elementCount,ecount,es.rowWidth]),'Frame existing all-corner parameters');dispatch(h.elementPipeline,[maskBuffer,p.offsets,p.elements,elementBuffer,ep],ecount);}
+   const elements=new Uint32Array(await read(elementBuffer,ecount*4));check();
+   check();return {vertices:refined.vertices,elements,epoch,instanceCount:p.instanceCount,vertexCount:p.vertexCount,elementCount:p.elementCount,cornerEvidence:{candidateCount:total,tests:refined.tests,contactVertices:refined.contactVertices}};
+  };
+  return job;
+ }
+ dispose(){if(this.disposed)return;this.disposed=true;this.sceneCache=null;for(const job of this.jobs){job.cancel();job.dispose();}this.worker?.dispose();this.worker=null;}
+}
+
+return {CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility};
+};
+__nativeModules["native-corner.mjs"]=__nativeFactories["native-corner.mjs"](__nativeModules);
 __nativeFactories["native-pickers.mjs"]=function(__imports){
 /** On-demand native face-marquee / nearest-edge adapters. No WebGL fallback.
  * Caller captures semantic model snapshots synchronously, before awaiting preparation.
@@ -3090,6 +3498,7 @@ const {rectangleParams}=__imports["gpu-selection.mjs"];
 const {decodeMarqueeWork}=__imports["native-engine.mjs"];
 const {FrameRibbonPicker,RIBBON_WGSL}=__imports["picker-ribbon.mjs"];
 const {FramePickerDepth,pickerGeometryPacket}=__imports["picker-depth.mjs"];
+const {FrameGpuCornerVisibility}=__imports["native-corner.mjs"];
 const {drainCooperatively}=__imports["topology-islands.mjs"];
 const {stampAttribute,attributeCurrent,DisplayGeometryCache,DisplayInstanceCache,captureDisplayObject,captureMaterial}=__imports["display-packets.mjs"];
 const {textureState,textureStateCurrent}=__imports["texture-policy.mjs"];
@@ -3199,14 +3608,19 @@ function captureIdentity(identity,packet,topology,object){
   try{p.depthOwner=await FramePickerDepth.create(host,{display});p.ribbon=await FrameRibbonPicker.create(host);p.compilation=p.ribbon.compilation;if(host.state!=='ready')throw abort('Native selection device unavailable');return p;}
   catch(e){p.depthOwner?.dispose();p.disposed=true;throw e;}
  }
- constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;}
+ constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;this.cornerVisibility=null;this.cornerOpening=null;}
+ async cornerOwner(){
+  if(this.disposed)throw abort('Native picker adapter disposed');if(this.cornerVisibility)return this.cornerVisibility;
+  if(!this.cornerOpening)this.cornerOpening=FrameGpuCornerVisibility.create(this.host).then(owner=>{if(this.disposed){owner.dispose();throw abort('Native picker adapter disposed during corner initialization');}this.cornerVisibility=owner;return owner;}).finally(()=>{this.cornerOpening=null;});
+  return await this.cornerOpening;
+ }
  async prepare(options){
   assertAdapterRenderDomain(this.host,this.renderDomain);assertAdapterRenderDomain(this.depthOwner,this.renderDomain);assertAdapterRenderDomain(this.ribbon,this.renderDomain);if(this.disposed||this.opening||this.sessions.size||this.host.jobs.size)fail('Close the previous native picker operation first');
   const captured={...options,sources:(options.sources??[]).map(b=>({...b,geometry:b.geometry??b.snapshot.packets[0].geometry.source,identity:copyIdentity(b.identity)}))};
   const opening=NativePickerSession.create(this,captured);this.opening=opening;
   try{const s=await opening;if(this.disposed){await s.dispose();throw abort('Picker disposed during preparation');}this.sessions.add(s);return s;}finally{if(this.opening===opening)this.opening=null;}
  }
- async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.depthOwner?.dispose();}
+ async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await this.cornerOpening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.cornerVisibility?.dispose();this.depthOwner?.dispose();}
 }
 
  class NativePickerSession {
@@ -3281,9 +3695,11 @@ function captureIdentity(identity,packet,topology,object){
   const domain=this.selectionDomain;
   const normalized=rectangleParams(Array.from(rectangle),this.viewport,this.width,this.height,this.depthTolerance).rectangle;
   return this._run(async(valid,signal)=>{
-   if(!this.targets.length)return [];const depth=await this._depth(this.faceDepthPolicy),output=[];if(!valid())throw abort('Face source stale after depth preparation');
+   if(!this.targets.length)return [];const exactCorner=!this.through&&this.faceDepthPolicy==='geometry';if(exactCorner&&this.depthTolerance!==0)fail('Exact corner geometry requires zero depth tolerance');
+   const corner=exactCorner?await this.adapter.cornerOwner():null,depth=corner?null:await this._depth(this.faceDepthPolicy),output=[];if(!valid())throw abort('Face source stale after visibility preparation');
+   const occluderPackets=corner?this.occluders.map(snapshot=>pickerGeometryPacket(snapshot,this.camera)):null;
    for(const t of this.targets){
-    const job=this.host.select(t.p,depth,{rectangle:normalized,through:this.through,depthTolerance:this.depthTolerance,isCurrent:valid,signal});
+    const job=corner?corner.select(t.p,{packet:t.pickPacket,occluderPackets,representatives:t.topology.selection.representatives,rectangle:normalized,viewport:this.viewport,width:this.width,height:this.height,isCurrent:valid,signal}):this.host.select(t.p,depth,{rectangle:normalized,through:this.through,depthTolerance:this.depthTolerance,isCurrent:valid,signal});
     try{const mask=await job.read(),decoded=await drainCooperatively(decodeMarqueeWork(mask,t.topology,domain),{signal,isCurrent:valid,yieldTask:this.yieldTask});
      for(const row of decoded.instances){const identity=t.identity.instances[row.instance],map=domain==='vertex'?t.identity.vertexIds:domain==='face'?t.identity.faceIds:null,ids=map?Uint32Array.from(row.ids,i=>map[i]):row.ids,keys=[];
       if(domain==='edge')for(const i of row.ids){const a=t.topology.edges[i*2],b=t.topology.edges[i*2+1],u=t.identity.vertexIds?.[a]??a,v=t.identity.vertexIds?.[b]??b;keys.push(Math.min(u,v)+':'+Math.max(u,v));}
@@ -3735,5 +4151,14 @@ function createTopologyWorker(){
  worker.terminate=()=>{if(closed)return;closed=true;try{terminate();}finally{URL.revokeObjectURL(url);}};
  return worker;
 }
-const {GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability}=Object.assign({},...Object.values(__nativeModules));
-export {createTopologyWorker,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability};
+
+function createCornerVisibilityWorker(){
+ const source='const __m={};\n__m["exact-corner.mjs"]=('+__nativeFactories['exact-corner.mjs'].toString()+')(__m);\n('+__nativeFactories['corner-worker.mjs'].toString()+')(__m);';
+ const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));let worker;
+ try{worker=new Worker(url);}catch(error){URL.revokeObjectURL(url);throw error;}
+ const terminate=worker.terminate.bind(worker);let closed=false;
+ worker.terminate=()=>{if(closed)return;closed=true;try{terminate();}finally{URL.revokeObjectURL(url);}};
+ return worker;
+}
+const {GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability}=Object.assign({},...Object.values(__nativeModules));
+export {createTopologyWorker,createCornerVisibilityWorker,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability};
