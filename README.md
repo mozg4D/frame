@@ -23,3 +23,5 @@ The normal entry uses WebGPU with a shared device for display, selection, printe
 Frame’s original code and project materials are proprietary. © 2026 FRAME copyright holders. All rights reserved; see the [Frame license](licenses/FRAME.txt) for permitted uses. The official hosted application is free to use.
 
 Third-party components remain under their own licenses and copyright notices; see [licenses/](licenses/). For embedding or integration, contact [mozg4d@gmail.com](mailto:mozg4d@gmail.com).
+
+The [r226 explicit rotation Quantize correction](documents/R226_EXPLICIT_ROTATION_QUANTIZE.md) restores enabled angular increments while keeping disabled rotation continuous and the obsolete 0.5 degree band removed. Heavy component latency remains open.

@@ -16328,6 +16328,11 @@ function frameQueuePolygonGizmoMove(event) {
   framePolygonGizmoMoveEvent=event;
   if(!framePolygonGizmoMoveRAF)framePolygonGizmoMoveRAF=requestAnimationFrame(()=>frameFlushPolygonGizmoMove());
 }
+function frameExplicitRotationStep(linePx) {
+  // Explicit Quantize retains the historical coarse/fine distance bands.
+  // The removed 0.5-degree band stays removed; Quantize OFF is continuous.
+  return (linePx < RING_PX ? 10 : linePx < 2 * RING_PX ? 5 : 1) * D2R;
+}
 function doGizDrag(e) {
   let view = vpState.views[gizDrag.view], r = gizDrag.r, cam = view.cam;
   if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ...splineGizModifiers, ctrl: !!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
@@ -16336,6 +16341,7 @@ function doGizDrag(e) {
     for (; delta < -Math.PI; ) delta += TAU;
     gizDrag.sr.lastAng = ang, gizDrag.sr.total += delta;
     let raw = gizDrag.sr.total;
+    if (quantOn) { const step = frameExplicitRotationStep(Math.hypot(e.clientX-gp[0], e.clientY-gp[1])); raw = Math.round(raw / step) * step; }
     _dq.setFromAxisAngle(gizDrag.sr.screenAxis, raw), gizmo.lin.copy(new THREE2.Matrix4().makeRotationFromQuaternion(_dq).multiply(gizDrag.sr.startLin)), gizmoHandleOrient.copy(gizmoOrientQuat()), setHudLine(gp[0], gp[1], e.clientX, e.clientY), syncCube(), emitInfo({ kind: "rot", deg: raw * R2D }), emitTransform(), scheduleRender();
     return;
   }
@@ -16363,6 +16369,10 @@ function doGizDrag(e) {
       }
     else if (gizDrag.mode === "rotate") {
       let C = gizmo.pos, angP = Math.atan2(gizDrag.pY.dot(_t1.copy(C).sub(_P)), gizDrag.pX.dot(_t2.copy(C).sub(_P))), angH = Math.atan2(gizDrag.pY.dot(_t1.copy(C).sub(gizDrag.gizHit)), gizDrag.pX.dot(_t2.copy(C).sub(gizDrag.gizHit))), raw = (angP - angH) * gizDrag.sign;
+      if (quantOn) {
+        const cp2 = projectPx(C, cam, r), pp = projectPx(_P, cam, r), step = frameExplicitRotationStep(Math.hypot(pp[0]-cp2[0], pp[1]-cp2[1]));
+        raw = Math.round(raw / step) * step;
+      }
       _dq.setFromAxisAngle(gizDrag.vR, raw), gizmo.lin.copy(new THREE2.Matrix4().makeRotationFromQuaternion(_dq).multiply(gizDrag.startLin)), gizmoHandleOrient.copy(gizmoOrientQuat());
       let cp = projectPx(C, cam, r);
       setHudLine(cp[0], cp[1], e.clientX, e.clientY), syncCube(), emitInfo({ kind: "rot", deg: raw * R2D });
