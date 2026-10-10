@@ -1,6 +1,6 @@
 {
-  "name": "frame-independent-slicer-checkpoint17",
-  "version": "0.0.0-checkpoint17",
+  "name": "frame-independent-slicer-checkpoint19",
+  "version": "0.0.0-checkpoint19",
   "private": true,
   "description": "Unintegrated synthetic geometry checkpoint; physical extrusion and printing remain unvalidated.",
   "scripts": {

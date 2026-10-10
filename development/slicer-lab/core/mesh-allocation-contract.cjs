@@ -5,7 +5,7 @@ const {createRectangleAllocationCore}=require('./rectangle-allocation-contract.c
 const {createAnnulusCore}=require('./annulus-route.cjs');
 const {auditPhysicalPrintLoop}=require('./physical-path-direction.cjs');
 function coreRevision(){const h=crypto.createHash('sha256');for(const name of fs.readdirSync(__dirname).filter(n=>/\.(cjs|js)$/.test(n)).sort()){h.update(name);h.update(fs.readFileSync(path.join(__dirname,name)));}return h.digest('hex');}
-function jobValue(job){if(!job||!Number.isFinite(job.z)||!(job.W>0)||!Number.isFinite(job.W)||!Number.isInteger(job.count)||job.count<1||job.count>64||!['flat-banks','continuous-1.7-return','continuous-1.7-turn-seam','continuous-annulus'].includes(job.mode??'flat-banks'))throw Error('invalid allocation mesh job');return{z:job.z,W:job.W,count:job.count,mode:job.mode??'flat-banks'};}
+function jobValue(job){if(!job||!Number.isFinite(job.z)||!(job.W>0)||!Number.isFinite(job.W)||!Number.isInteger(job.count)||job.count<1||job.count>64||!['flat-banks','continuous-1.7-return','continuous-1.7-turn-seam','continuous-annulus','T-body-diagnostic','T-caps-diagnostic','T-terminal-portals-diagnostic','T-branch-portals-diagnostic','T-combined-portals-diagnostic'].includes(job.mode??'flat-banks'))throw Error('invalid allocation mesh job');return{z:job.z,W:job.W,count:job.count,mode:job.mode??'flat-banks'};}
 function bind(section,commands){return commands.map((q,index)=>({command:index,depth:q.depth,
  originalIntervals:q.sourceIntervals.map(cell=>{
   const u=[cell.exactU0,cell.exactU1].map(R.parse),faces=section.edgeFaces[cell.ring]?.[cell.edge];
@@ -19,8 +19,16 @@ function bind(section,commands){return commands.map((q,index)=>({command:index,d
  }),meshSignature:section.meshSignature,sourceGeneration:section.sourceGeneration,currentPlane:section.z,ownerVerifiedAgainstTriangles:true}));}
 function createMeshAllocationCore(){
  const core=createRectangleAllocationCore(),kernelRevision=coreRevision();
- let annulus;
+ let annulus,Tbody,Tportal;
  function evaluate(section,job,signal){
+  if(job.mode.startsWith('T-')){
+   if(section.rings.length!==1||!section.closedComponentsQualified||section.conversionExactUpperBound!=='0/1')
+    return{status:'unsupported-allocation-class',reasons:['one qualified exact physical T source section required'],sourcePreserved:true,availableSourceRings:section.rings};
+   try{if(job.mode.includes('-portals-'))return(Tportal??=require('./T-open-portals.cjs').createTOpenPortalCore()).generate({source:section.rings[0],W:job.W,count:job.count,
+    terminal:job.mode!=='T-branch-portals-diagnostic',branch:job.mode!=='T-terminal-portals-diagnostic',signal});
+    return (Tbody??=require('./T-fill-candidate.cjs').createTBodyCandidateCore()).generate({source:section.rings[0],W:job.W,count:job.count,caps:job.mode==='T-caps-diagnostic',signal});}
+   catch(e){if(signal?.aborted)throw e;return{status:'unsupported-allocation-class',reasons:[e.message],sourcePreserved:true,availableSourceRings:section.rings};}
+  }
   if(job.mode==='continuous-annulus'){
    if(!section.closedComponentsQualified||section.conversionExactUpperBound!=='0/1')
     return{status:'unsupported-allocation-class',reasons:['qualified exact Float64 original physical annulus section required'],sourcePreserved:true,availableSourceRings:section.rings};
