@@ -12556,7 +12556,7 @@ function doAutoPivot() {
       d > bestD2 && (bestD2 = d, best2 = p.clone());
     }
     let lp = best2.applyMatrix4(inv);
-    map.mapPivot.makeTranslation(lp.x, lp.y, lp.z), placeGizmoForSelection();
+    map.mapPivot.makeTranslation(lp.x, lp.y, lp.z), placeGizmoForSelection(), updateHUD();
     return;
   }
   let ownBB = getWorldBBox(hudNode);
@@ -12569,7 +12569,7 @@ function doAutoPivot() {
   }
   if (!best) return;
   let winv = worldMatrix(n).clone().invert(), localPivot = best.clone().applyMatrix4(winv);
-  n.pivot.makeTranslation(localPivot.x, localPivot.y, localPivot.z), gizmo.pos.copy(best), syncCube(), scheduleRender();
+  n.pivot.makeTranslation(localPivot.x, localPivot.y, localPivot.z), gizmo.pos.copy(best), syncCube(), updateHUD(), scheduleRender();
 }
 function snapNode(h) {
   let n = OBJ.get(h);
@@ -26035,7 +26035,7 @@ var framePolySelectionRevision=0;
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
   let vi = viewAt(e.clientX, e.clientY);
-  if (e.pointerType === "touch" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp" && !polyMode)) return;
+  if (e.pointerType === "touch" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === "lineCut" || vertexTools.mode === "closeHole" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === "persp")) return;
   e.preventDefault();
   frameCancelViewportMarquee?.();
   let sx2 = e.clientX, sy2 = e.clientY, box = document.createElement("div");

@@ -1,5 +1,6 @@
 /** Frame GPU interaction contracts: latest-only marquee and topology-only double click. */
 import {topologyStamp, captureTopology, connectedMaskWork, drainCooperatively} from './topology-islands.mjs';
+import {createYieldQueue} from './connected-selection.mjs';
 const abort = message => new DOMException(message, 'AbortError');
 /** No worker/CPU packing is started until request() or an explicit background warm(). */
 export class LatestSelection {
@@ -47,8 +48,10 @@ export function physicalRectangle(rectangle, canvasRect, physicalSize, viewport)
  * acquireLease/release are supplied by Frame's existing shared heavy-work scheduler.
  */
 export class TopologyCache {
-  constructor({workerFactory, acquireLease = async () => ({release(){}}), yieldTask = () => new Promise(r => setTimeout(r, 0)), scheduleIdle = fn => setTimeout(fn, 60), cancelIdle = clearTimeout} = {}) {
+  constructor({workerFactory, acquireLease = async () => ({release(){}}), yieldTask = null, scheduleIdle = fn => setTimeout(fn, 60), cancelIdle = clearTimeout} = {}) {
     if (typeof workerFactory !== 'function') throw Error('A real worker factory is required');
+    this.yieldQueue = yieldTask === null ? createYieldQueue() : null;
+    yieldTask ??= () => this.yieldQueue.yield();
     Object.assign(this, {workerFactory, acquireLease, yieldTask, scheduleIdle, cancelIdle});
     this.entries = new WeakMap(); this.queue = []; this.active = null; this.disposed = false; this.serial = 0; this.timer = null;
   }
@@ -97,7 +100,7 @@ export class TopologyCache {
     finally { worker?.terminate();lease?.release();if(this.active===job)this.active=null; if(!this.disposed&&this.queue.length)this.timer=this.scheduleIdle(()=>{this.timer=null;this._pump();}); }
   }
   invalidate(geometry) { const e=this.entries.get(geometry);if(!e)return;e.controller.abort();if(e.state==='queued')e.reject(abort('Topology invalidated'));this.entries.delete(geometry); }
-  dispose(){this.disposed=true;if(this.timer!==null)this.cancelIdle(this.timer);this.timer=null;this.active?.controller.abort();for(const e of this.queue){e.controller.abort();e.reject(abort('Topology cache disposed'));}this.queue=[];this.entries=new WeakMap();}
+  dispose(){this.disposed=true;if(this.timer!==null)this.cancelIdle(this.timer);this.timer=null;this.active?.controller.abort();for(const e of this.queue){e.controller.abort();e.reject(abort('Topology cache disposed'));}this.queue=[];this.entries=new WeakMap();this.yieldQueue?.dispose();}
 }
 /** Double-click ONLY; no interception/delay of the editor's existing first click. */
 export function bindConnectedDoubleClick(element, {hitTest, expand, onError = () => {}}) {

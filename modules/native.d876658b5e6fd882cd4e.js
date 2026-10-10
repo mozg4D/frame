@@ -2234,8 +2234,46 @@ function* csrFromLabels(labels, componentCount, batch) {
   for (let i = 0; i < labels.length; i++) { members[cursor[labels[i]]++] = i; if ((i + 1) % batch === 0) yield; }
   return {offsets, members};
 }
+// Exact worker-local numeric tables. IDs retain first encounter order.
+class topologyPackedPairTable {
+  constructor(pairs=false,capacity=8){const n=2**Math.ceil(Math.log2(Math.max(8,capacity)));this.slots=new Uint32Array(n*2);this.keys=new Float64Array(n);this.values=pairs?null:new Uint32Array(n);this.pairs=pairs?new Uint32Array(n*2):null;this.size=0;this.fresh=false;}
+  hash(key){return(Math.imul(key,73856093)^Math.imul(Math.floor(key/4294967296),19349663))>>>0;}
+  grow(){const slots=new Uint32Array(this.slots.length*2),keys=new Float64Array(this.keys.length*2);keys.set(this.keys);if(this.values){const a=new Uint32Array(this.values.length*2);a.set(this.values);this.values=a;}if(this.pairs){const a=new Uint32Array(this.pairs.length*2);a.set(this.pairs);this.pairs=a;}for(let id=0;id<this.size;id++){let s=this.hash(keys[id])&(slots.length-1);while(slots[s])s=(s+1)&(slots.length-1);slots[s]=id+1;}this.slots=slots;this.keys=keys;}
+  find(key){let s=this.hash(key)&(this.slots.length-1);while(this.slots[s]){const id=this.slots[s]-1;if(this.keys[id]===key)return id;s=(s+1)&(this.slots.length-1);}return-1;}
+  intern(key,value){if((this.size+1)*2>this.slots.length)this.grow();let s=this.hash(key)&(this.slots.length-1);while(this.slots[s]){const id=this.slots[s]-1;if(this.keys[id]===key){this.fresh=false;return id;}s=(s+1)&(this.slots.length-1);}const id=this.size++;this.slots[s]=id+1;this.keys[id]=key;if(this.values)this.values[id]=value;this.fresh=true;return id;}
+  clear(){this.slots=this.keys=this.values=this.pairs=null;}
+}
+class topologyPackedEdgeTable extends topologyPackedPairTable {
+  constructor(capacity){super(false,capacity);const n=this.keys.length;this.rawIds=new Uint32Array(n);this.rawKeys=new Float64Array(n);this.rawPairs=new Uint32Array(n*2);this.rawCount=0;}
+  grow(){super.grow();const n=this.keys.length;for(const name of ['rawIds','rawKeys','rawPairs']){const old=this[name],a=new old.constructor(name==='rawPairs'?n*2:n);a.set(old);this[name]=a;}}
+  edge(id,key,a,b){if(this.rawIds[id])return;const e=this.rawCount++;this.rawIds[id]=e+1;this.rawKeys[e]=key;this.rawPairs[e*2]=Math.min(a,b);this.rawPairs[e*2+1]=Math.max(a,b);}
+  clear(){super.clear();this.rawIds=this.rawKeys=this.rawPairs=null;}
+}
+function* topologyPackedSortedEdges(table,batch){
+  const n=table.rawCount,keys=table.rawKeys,counts=new Uint32Array(65536);let order=new Uint32Array(n),scratch=new Uint32Array(n);
+  for(let i=0;i<n;i++){order[i]=i;if((i+1)%batch===0)yield;}
+  // Exact integer pair keys have at most 52 bits. Four stable 16-bit passes
+  // retain the original unique-key order, including values above Uint32 range.
+  for(let pass=0;pass<4;pass++){
+    counts.fill(0);const digit=k=>pass===0?(k>>>0)&65535:pass===1?k>>>16:pass===2?Math.floor(k/4294967296)&65535:Math.floor(k/281474976710656);
+    for(let i=0;i<n;i++){counts[digit(keys[order[i]])]++;if((i+1)%batch===0)yield;}
+    let sum=0;for(let d=0;d<counts.length;d++){const c=counts[d];counts[d]=sum;sum+=c;if((d+1)%batch===0)yield;}
+    for(let i=0;i<n;i++){const id=order[i];scratch[counts[digit(keys[id])]++]=id;if((i+1)%batch===0)yield;}
+    const swap=order;order=scratch;scratch=swap;
+  }
+  const sortedEdgeKeys=new Float64Array(n);for(let i=0;i<n;i++){sortedEdgeKeys[i]=keys[order[i]];if((i+1)%batch===0)yield;}
+  return{sortedEdgeKeys,edgeOrder:order};
+}
+class topologyPackedTripleTable {
+  constructor(){this.slots=new Uint32Array(16);this.keys=new Float64Array(24);this.representatives=new Uint32Array(8);this.size=0;}
+  hash(x,y,z){return(Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791))>>>0;}
+  grow(){const slots=new Uint32Array(this.slots.length*2),keys=new Float64Array(this.keys.length*2),reps=new Uint32Array(this.representatives.length*2);keys.set(this.keys);reps.set(this.representatives);for(let id=0;id<this.size;id++){const o=id*3;let s=this.hash(keys[o],keys[o+1],keys[o+2])&(slots.length-1);while(slots[s])s=(s+1)&(slots.length-1);slots[s]=id+1;}this.slots=slots;this.keys=keys;this.representatives=reps;}
+  intern(x,y,z,vertex){if((this.size+1)*2>this.slots.length)this.grow();let s=this.hash(x,y,z)&(this.slots.length-1);while(this.slots[s]){const id=this.slots[s]-1,o=id*3;if(this.keys[o]===x&&this.keys[o+1]===y&&this.keys[o+2]===z)return this.representatives[id];s=(s+1)&(this.slots.length-1);}const id=this.size++,o=id*3;this.slots[s]=id+1;this.keys[o]=x;this.keys[o+1]=y;this.keys[o+2]=z;this.representatives[id]=vertex;return vertex;}
+  clear(){this.slots=this.keys=this.representatives=null;}
+}
+
 /** Generator so BOTH the worker and tests execute identical bounded units. */
- function* buildTopologyWork({positions, indices = null}, {batch = 2048} = {}) {
+ function* buildTopologyWork({positions, indices = null}, {batch = 2048, packedTables = false} = {}) {
   if (!(positions instanceof Float64Array || positions instanceof Float32Array) || positions.length % 3) throw Error('Packed floating xyz required');
   if (indices !== null && !(indices instanceof Uint32Array || indices instanceof Uint16Array)) throw Error('Unsigned index required');
   if (!Number.isSafeInteger(batch) || batch < 1) throw Error('Invalid topology batch');
@@ -2244,21 +2282,42 @@ function* csrFromLabels(labels, componentCount, batch) {
   // n*n < 2^52, so raw/logical pair keys below are exact integers, not hash guesses.
   const pair = (a, b) => Math.min(a, b) * n + Math.max(a, b);
   const group = new Uint32Array(n), vp = new Uint32Array(n), vr = new Uint8Array(n);
-  const fp = new Uint32Array(nf), fr = new Uint8Array(nf), aliases = new Map();
+  const fp = new Uint32Array(nf), fr = new Uint8Array(nf);
+  let aliases = new Map(), triples = packedTables ? new topologyPackedTripleTable() : null;
   for (let i = 0; i < n; i++) {
     const x = positions[3 * i], y = positions[3 * i + 1], z = positions[3 * i + 2];
     if (![x, y, z].every(Number.isFinite)) throw Error('Nonfinite topology coordinate');
-    const key = `${Math.round(x * 1e5)},${Math.round(y * 1e5)},${Math.round(z * 1e5)}`;
-    let g = aliases.get(key); if (g === undefined) { g = i; aliases.set(key, i); }
+    const qx=Math.round(x*1e5),qy=Math.round(y*1e5),qz=Math.round(z*1e5);
+    let g;
+    if(triples && Number.isSafeInteger(qx) && Number.isSafeInteger(qy) && Number.isSafeInteger(qz)) g=triples.intern(qx,qy,qz,i);
+    else {
+      // Preserve the original Number-to-string rule for finite coordinates whose
+      // quantized values exceed exact integer range (including overflow).
+      if(triples){for(let k=0;k<triples.size;k++){const o=k*3;aliases.set(`${triples.keys[o]},${triples.keys[o+1]},${triples.keys[o+2]}`,triples.representatives[k]);if((k+1)%batch===0)yield;}triples.clear();triples=null;}
+      const key=`${qx},${qy},${qz}`;g=aliases.get(key);if(g===undefined){g=i;aliases.set(key,i);}
+    }
     group[i] = g; vp[i] = i;
     if ((i + 1) % batch === 0) yield;
   }
-  aliases.clear();
+  aliases.clear();triples?.clear();triples=null;
   for (let i = 0; i < nf; i++) { fp[i] = i; if ((i + 1) % batch === 0) yield; }
   if (indices) for (let i = 0; i < indices.length; i++) { if (indices[i] >= n) throw Error('Index outside topology positions'); if ((i + 1) % batch === 0) yield; }
   const root = (p, i) => { while (p[i] !== i) { p[i] = p[p[i]]; i = p[i]; } return i; };
   const join = (p, r, a, b) => { a = root(p, a); b = root(p, b); if (a === b) return; if (r[a] < r[b]) p[a] = b; else { p[b] = a; if (r[a] === r[b]) r[a]++; } };
-  const incident = new Map(), edgeIds = new Map(), edgeList = [];
+  const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[];
+  if(packedTables){
+    const faceBatch=Math.max(1,Math.floor(batch/3));
+    for(let f=0;f<nf;f++){
+      const o=f*3,a=indices?indices[o]:o,b=indices?indices[o+1]:o+1,c=indices?indices[o+2]:o+2,ga=group[a],gb=group[b],gc=group[c];
+      join(vp,vr,ga,gb);join(vp,vr,gb,gc);
+      for(let j=0;j<3;j++){
+        const ra=j===0?a:j===1?b:c,rb=j===0?b:j===1?c:a,la=j===0?ga:j===1?gb:gc,lb=j===0?gb:j===1?gc:ga;
+        const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldFace=edgeIds.values[owner];if(oldFace)join(fp,fr,f,oldFace-1);else edgeIds.values[owner]=f+1;
+        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);edgeIds.edge(edge,rawKey,ra,rb);
+      }
+      if((f+1)%faceBatch===0)yield;
+    }
+  }else{
   for (let f = 0; f < nf; f++) {
     const raw = [0, 1, 2].map(j => indices ? indices[f * 3 + j] : f * 3 + j), logical = raw.map(v => group[v]);
     join(vp, vr, logical[0], logical[1]); join(vp, vr, logical[1], logical[2]);
@@ -2270,19 +2329,26 @@ function* csrFromLabels(labels, componentCount, batch) {
     }
     if ((f + 1) % Math.max(1, Math.floor(batch / 3)) === 0) yield;
   }
-  incident.clear();
+  }
+  incident?.clear();
   const vertexLabels = new Uint32Array(n), faceLabels = new Uint32Array(nf), vRoots = new Map(), fRoots = new Map();
   const compact = (map, key) => { let v = map.get(key); if (v === undefined) { v = map.size; map.set(key, v); } return v; };
   for (let i = 0; i < n; i++) { vertexLabels[i] = compact(vRoots, root(vp, group[i])); if ((i + 1) % batch === 0) yield; }
   for (let i = 0; i < nf; i++) { faceLabels[i] = compact(fRoots, root(fp, i)); if ((i + 1) % batch === 0) yield; }
-  const edges = Uint32Array.from(edgeList), edgeLabels = new Uint32Array(edges.length / 2);
+  const edges = packedTables?edgeIds.rawPairs.slice(0,edgeIds.rawCount*2):Uint32Array.from(edgeList), edgeLabels = new Uint32Array(edges.length / 2);
   for (let i = 0; i < edgeLabels.length; i++) { edgeLabels[i] = vertexLabels[edges[i * 2]]; if ((i + 1) % batch === 0) yield; }
-  const edgeLookup = new Float64Array(edgeLabels.length), edgeOrder = new Uint32Array(edgeLabels.length);
+  let edgeOrder,sortedEdgeKeys;
+  if(packedTables){
+    ({sortedEdgeKeys,edgeOrder}=yield* topologyPackedSortedEdges(edgeIds,batch));
+    edgeIds.clear();
+  }else{
+  const edgeLookup = new Float64Array(edgeLabels.length);edgeOrder=new Uint32Array(edgeLabels.length);
   for (let i=0;i<edgeLabels.length;i++) { edgeLookup[i]=pair(edges[i*2],edges[i*2+1]);edgeOrder[i]=i;if((i+1)%batch===0)yield; }
   // Native typed-array sort runs inside the background worker, not a UI pointer handler.
   edgeOrder.sort((a,b)=>edgeLookup[a]-edgeLookup[b]);
-  const sortedEdgeKeys=new Float64Array(edgeLabels.length);
+  sortedEdgeKeys=new Float64Array(edgeLabels.length);
   for(let i=0;i<edgeLabels.length;i++){sortedEdgeKeys[i]=edgeLookup[edgeOrder[i]];if((i+1)%batch===0)yield;}
+  }
   const vertices = yield* csrFromLabels(vertexLabels, vRoots.size, batch);
   const faces = yield* csrFromLabels(faceLabels, fRoots.size, batch);
   const edgeComponents = yield* csrFromLabels(edgeLabels, vRoots.size, batch);
@@ -2340,9 +2406,79 @@ function* csrFromLabels(labels, componentCount, batch) {
 return {topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively};
 };
 __nativeModules["topology-islands.mjs"]=__nativeFactories["topology-islands.mjs"](__nativeModules);
+__nativeFactories["connected-selection.mjs"]=function(__imports){
+/** Converts the cached topology result into Frame's existing selection contract.
+ * The authored model is never transferred; edge keys stay numeric inside topology,
+ * and are materialised as the existing ':' keys only at the editing boundary.
+ */
+const {connectedMaskWork,edgeIdFromRaw,drainCooperatively}=__imports["topology-islands.mjs"];
+const abort = () => new DOMException('Connected source changed', 'AbortError');
+ function* connectedRawWork(topology, domain, source, {batch = 2048} = {}) {
+  if (!['vertex', 'edge', 'face'].includes(domain)) throw Error('Unknown component domain');
+  const seeds = []; let count = 0;
+  for (const raw of source) {
+    if (domain === 'edge') {
+      if (typeof raw === 'string') {
+        const parts = raw.split(':');
+        if (parts.length === 2) { const id = edgeIdFromRaw(topology, Number(parts[0]), Number(parts[1])); if (id >= 0) seeds.push(id); }
+      }
+    } else if (Number.isInteger(raw)) seeds.push(raw);
+    if (++count % batch === 0) yield;
+  }
+  const connected = yield* connectedMaskWork(topology, domain, seeds, {batch});
+  const output = new Set(); count = 0;
+  for (const id of connected.ids) {
+    output.add(domain === 'edge' ? topology.edges[id * 2] + ':' + topology.edges[id * 2 + 1] : id);
+    if (++count % batch === 0) yield;
+  }
+  return output;
+}
+ async function expandConnectedRaw(cache, geometry, domain, source, {signal, isCurrent = () => true, yieldTask} = {}) {
+  if (signal?.aborted || !isCurrent()) throw abort();
+  // Cache ownership is independent of any one foreground query. Escape cancels
+  // the query, not a topology build still useful to a later double-click.
+  const build = cache.get(geometry);
+  const ready = await abortable(build, signal);
+  const current = () => ready.isCurrent() && isCurrent();
+  if (!current()) throw abort();
+  return drainCooperatively(connectedRawWork(ready.topology, domain, source), {signal, isCurrent: current, yieldTask});
+}
+ function abortable(promise, signal) {
+  if (!signal) return promise;
+  if (signal.aborted) return Promise.reject(abort());
+  return new Promise((resolve, reject) => {
+    const cancel = () => { cleanup(); reject(abort()); };
+    const cleanup = () => signal.removeEventListener('abort', cancel);
+    signal.addEventListener('abort', cancel, {once: true});
+    Promise.resolve(promise).then(x => { cleanup(); resolve(x); }, e => { cleanup(); reject(e); });
+  });
+}
+/** A task scheduler with no nested-timer 4 ms clamp; never an unbounded microtask chain. */
+ function createYieldQueue() {
+  let channel = null, timer = null, closed = false, pending = [];
+  const tick = () => { timer = null; const jobs = pending; pending = []; for (const done of jobs) done(); };
+  const closePorts = () => { const c = channel; channel = null; if (!c) return; c.port1.onmessage = null; try { c.port1.close(); } catch {} try { c.port2.close(); } catch {} };
+  try { channel = new MessageChannel(); channel.port1.onmessage = tick; } catch { closePorts(); }
+  return {
+    yield() {
+      if (closed) return Promise.reject(new DOMException('Task queue disposed', 'AbortError'));
+      return new Promise(resolve => {
+        pending.push(resolve); if (pending.length !== 1) return;
+        if (channel) { try { channel.port2.postMessage(0); return; } catch { closePorts(); } }
+        timer = setTimeout(tick, 0);
+      });
+    },
+    dispose() { if (closed) return; closed = true; clearTimeout(timer); closePorts(); tick(); },
+  };
+}
+
+return {connectedRawWork,expandConnectedRaw,abortable,createYieldQueue};
+};
+__nativeModules["connected-selection.mjs"]=__nativeFactories["connected-selection.mjs"](__nativeModules);
 __nativeFactories["interaction-controller.mjs"]=function(__imports){
 /** Frame GPU interaction contracts: latest-only marquee and topology-only double click. */
 const {topologyStamp,captureTopology,connectedMaskWork,drainCooperatively}=__imports["topology-islands.mjs"];
+const {createYieldQueue}=__imports["connected-selection.mjs"];
 const abort = message => new DOMException(message, 'AbortError');
 /** No worker/CPU packing is started until request() or an explicit background warm(). */
  class LatestSelection {
@@ -2390,8 +2526,10 @@ const abort = message => new DOMException(message, 'AbortError');
  * acquireLease/release are supplied by Frame's existing shared heavy-work scheduler.
  */
  class TopologyCache {
-  constructor({workerFactory, acquireLease = async () => ({release(){}}), yieldTask = () => new Promise(r => setTimeout(r, 0)), scheduleIdle = fn => setTimeout(fn, 60), cancelIdle = clearTimeout} = {}) {
+  constructor({workerFactory, acquireLease = async () => ({release(){}}), yieldTask = null, scheduleIdle = fn => setTimeout(fn, 60), cancelIdle = clearTimeout} = {}) {
     if (typeof workerFactory !== 'function') throw Error('A real worker factory is required');
+    this.yieldQueue = yieldTask === null ? createYieldQueue() : null;
+    yieldTask ??= () => this.yieldQueue.yield();
     Object.assign(this, {workerFactory, acquireLease, yieldTask, scheduleIdle, cancelIdle});
     this.entries = new WeakMap(); this.queue = []; this.active = null; this.disposed = false; this.serial = 0; this.timer = null;
   }
@@ -2440,7 +2578,7 @@ const abort = message => new DOMException(message, 'AbortError');
     finally { worker?.terminate();lease?.release();if(this.active===job)this.active=null; if(!this.disposed&&this.queue.length)this.timer=this.scheduleIdle(()=>{this.timer=null;this._pump();}); }
   }
   invalidate(geometry) { const e=this.entries.get(geometry);if(!e)return;e.controller.abort();if(e.state==='queued')e.reject(abort('Topology invalidated'));this.entries.delete(geometry); }
-  dispose(){this.disposed=true;if(this.timer!==null)this.cancelIdle(this.timer);this.timer=null;this.active?.controller.abort();for(const e of this.queue){e.controller.abort();e.reject(abort('Topology cache disposed'));}this.queue=[];this.entries=new WeakMap();}
+  dispose(){this.disposed=true;if(this.timer!==null)this.cancelIdle(this.timer);this.timer=null;this.active?.controller.abort();for(const e of this.queue){e.controller.abort();e.reject(abort('Topology cache disposed'));}this.queue=[];this.entries=new WeakMap();this.yieldQueue?.dispose();}
 }
 /** Double-click ONLY; no interception/delay of the editor's existing first click. */
  function bindConnectedDoubleClick(element, {hitTest, expand, onError = () => {}}) {
@@ -2858,6 +2996,7 @@ __nativeModules["viewport-host.mjs"]=__nativeFactories["viewport-host.mjs"](__na
 __nativeFactories["topology-worker.mjs"]=function(__imports){
 /** One low-priority worker, one current topology job. No frame/camera state enters it. */
 const {buildTopologyWork,connectedMaskWork,drainCooperatively,topologyTransfer}=__imports["topology-islands.mjs"];
+const {createYieldQueue}=__imports["connected-selection.mjs"];
  function installTopologyWorker(port) {
   let active = null, cache = null;
   const send = (data, transfer = []) => port.postMessage(data, transfer);
@@ -2866,20 +3005,21 @@ const {buildTopologyWork,connectedMaskWork,drainCooperatively,topologyTransfer}=
     if (m.type === 'clear') { active?.controller.abort(); cache = null; return; }
     if (!['build', 'connected'].includes(m.type)) return;
     active?.controller.abort(); const job = {id: m.id, controller: new AbortController()}; active = job;
+    const tasks=createYieldQueue();
     try {
       if (m.type === 'build') {
-        const value = await drainCooperatively(buildTopologyWork(m.input), {signal: job.controller.signal, sliceMs: 3});
+        const value = await drainCooperatively(buildTopologyWork(m.input,{packedTables:true}), {signal: job.controller.signal, sliceMs: 3, yieldTask:()=>tasks.yield()});
         if (active !== job) return;
         cache = {key: m.key, topology: value};
         // Return labels once. Main owns them thereafter; no hidden second copy in this worker.
         send({type: 'built', id: m.id, key: m.key, result: value}, topologyTransfer(value)); cache = null;
       } else {
         if (!m.topology) throw Error('Transferred topology is required for standalone connected query');
-        const result = await drainCooperatively(connectedMaskWork(m.topology, m.domain, m.seeds), {signal: job.controller.signal});
+        const result = await drainCooperatively(connectedMaskWork(m.topology, m.domain, m.seeds), {signal: job.controller.signal,yieldTask:()=>tasks.yield()});
         if (active === job) send({type: 'connected', id: m.id, result}, [result.ids.buffer, result.components.buffer]);
       }
     } catch (e) { send({type: e.name === 'AbortError' ? 'cancelled' : 'error', id: m.id, name: e.name, message: e.message}); }
-    finally { if (active === job) active = null; }
+    finally { tasks.dispose();if (active === job) active = null; }
   };
   return () => { active?.controller.abort(); cache = null; port.onmessage = null; };
 }
@@ -3152,75 +3292,6 @@ if(typeof self!=='undefined'&&typeof document==='undefined'&&typeof self.postMes
 return {installCornerVisibilityWorker};
 };
 __nativeModules["corner-worker.mjs"]=__nativeFactories["corner-worker.mjs"](__nativeModules);
-__nativeFactories["connected-selection.mjs"]=function(__imports){
-/** Converts the cached topology result into Frame's existing selection contract.
- * The authored model is never transferred; edge keys stay numeric inside topology,
- * and are materialised as the existing ':' keys only at the editing boundary.
- */
-const {connectedMaskWork,edgeIdFromRaw,drainCooperatively}=__imports["topology-islands.mjs"];
-const abort = () => new DOMException('Connected source changed', 'AbortError');
- function* connectedRawWork(topology, domain, source, {batch = 2048} = {}) {
-  if (!['vertex', 'edge', 'face'].includes(domain)) throw Error('Unknown component domain');
-  const seeds = []; let count = 0;
-  for (const raw of source) {
-    if (domain === 'edge') {
-      if (typeof raw === 'string') {
-        const parts = raw.split(':');
-        if (parts.length === 2) { const id = edgeIdFromRaw(topology, Number(parts[0]), Number(parts[1])); if (id >= 0) seeds.push(id); }
-      }
-    } else if (Number.isInteger(raw)) seeds.push(raw);
-    if (++count % batch === 0) yield;
-  }
-  const connected = yield* connectedMaskWork(topology, domain, seeds, {batch});
-  const output = new Set(); count = 0;
-  for (const id of connected.ids) {
-    output.add(domain === 'edge' ? topology.edges[id * 2] + ':' + topology.edges[id * 2 + 1] : id);
-    if (++count % batch === 0) yield;
-  }
-  return output;
-}
- async function expandConnectedRaw(cache, geometry, domain, source, {signal, isCurrent = () => true, yieldTask} = {}) {
-  if (signal?.aborted || !isCurrent()) throw abort();
-  // Cache ownership is independent of any one foreground query. Escape cancels
-  // the query, not a topology build still useful to a later double-click.
-  const build = cache.get(geometry);
-  const ready = await abortable(build, signal);
-  const current = () => ready.isCurrent() && isCurrent();
-  if (!current()) throw abort();
-  return drainCooperatively(connectedRawWork(ready.topology, domain, source), {signal, isCurrent: current, yieldTask});
-}
- function abortable(promise, signal) {
-  if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(abort());
-  return new Promise((resolve, reject) => {
-    const cancel = () => { cleanup(); reject(abort()); };
-    const cleanup = () => signal.removeEventListener('abort', cancel);
-    signal.addEventListener('abort', cancel, {once: true});
-    Promise.resolve(promise).then(x => { cleanup(); resolve(x); }, e => { cleanup(); reject(e); });
-  });
-}
-/** A task scheduler with no nested-timer 4 ms clamp; never an unbounded microtask chain. */
- function createYieldQueue() {
-  let channel = null, timer = null, closed = false, pending = [];
-  const tick = () => { timer = null; const jobs = pending; pending = []; for (const done of jobs) done(); };
-  const closePorts = () => { const c = channel; channel = null; if (!c) return; c.port1.onmessage = null; try { c.port1.close(); } catch {} try { c.port2.close(); } catch {} };
-  try { channel = new MessageChannel(); channel.port1.onmessage = tick; } catch { closePorts(); }
-  return {
-    yield() {
-      if (closed) return Promise.reject(new DOMException('Task queue disposed', 'AbortError'));
-      return new Promise(resolve => {
-        pending.push(resolve); if (pending.length !== 1) return;
-        if (channel) { try { channel.port2.postMessage(0); return; } catch { closePorts(); } }
-        timer = setTimeout(tick, 0);
-      });
-    },
-    dispose() { if (closed) return; closed = true; clearTimeout(timer); closePorts(); tick(); },
-  };
-}
-
-return {connectedRawWork,expandConnectedRaw,abortable,createYieldQueue};
-};
-__nativeModules["connected-selection.mjs"]=__nativeFactories["connected-selection.mjs"](__nativeModules);
 __nativeFactories["picker-ribbon.mjs"]=function(__imports){
 /** Native reproduction of the old edge-ID ribbon, then its CPU seen-ID ranking.
  * No centreline-only visibility test, raycaster, peeling, or authored mutation.
@@ -4890,7 +4961,7 @@ return {measureFrameCubicMipCapability};
 __nativeModules["gpu-cubic-mip-calibration.mjs"]=__nativeFactories["gpu-cubic-mip-calibration.mjs"](__nativeModules);
 
 function createTopologyWorker(){
- const source='const __m={};\n__m["topology-islands.mjs"]=('+__nativeFactories['topology-islands.mjs'].toString()+')(__m);\n('+__nativeFactories['topology-worker.mjs'].toString()+')(__m);';
+ const source='const __m={};\n__m["topology-islands.mjs"]=('+__nativeFactories['topology-islands.mjs'].toString()+')(__m);\n__m["connected-selection.mjs"]=('+__nativeFactories['connected-selection.mjs'].toString()+')(__m);\n('+__nativeFactories['topology-worker.mjs'].toString()+')(__m);';
  const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));let worker;
  try{worker=new Worker(url);}catch(error){URL.revokeObjectURL(url);throw error;}
  const terminate=worker.terminate.bind(worker);let closed=false;
@@ -4906,5 +4977,5 @@ function createCornerVisibilityWorker(){
  worker.terminate=()=>{if(closed)return;closed=true;try{terminate();}finally{URL.revokeObjectURL(url);}};
  return worker;
 }
-const {GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability}=Object.assign({},...Object.values(__nativeModules));
-export {createTopologyWorker,createCornerVisibilityWorker,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability};
+const {GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability}=Object.assign({},...Object.values(__nativeModules));
+export {createTopologyWorker,createCornerVisibilityWorker,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability};
