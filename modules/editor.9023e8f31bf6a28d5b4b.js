@@ -13382,7 +13382,7 @@ function buildRenderMesh(obj) {
     const legacy=!obj.geom.normals,color=obj.selects?.[0]?.color||[.7,.7,.7],mesh=new THREE2.Mesh(g,legacy?new THREE2.MeshBasicMaterial({color:new THREE2.Color(...color),side:THREE2.DoubleSide}):getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;
     if(legacy&&obj.selects?.length)mesh.userData._selectMat=true;delete obj.geom.prepared;return mesh;
   }
-  if(obj.geom.normals){const d=obj.geom,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(d.positions.slice(),3));g.setIndex(new THREE2.BufferAttribute(d.indices.slice(),1));for(const [k,a,size] of [['uv',d.uv,2],['uv1',d.uv1,2],['color',d.colors,d.colorSize||3]])if(a)g.setAttribute(k,new THREE2.BufferAttribute(a.slice(),size));g.computeBoundingBox();g.computeBoundingSphere();const mesh=new THREE2.Mesh(g,getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;return mesh;}
+  if(obj.geom.normals){const d=obj.geom,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(d.positions.slice(),3));g.setIndex(new THREE2.BufferAttribute(d.indices.slice(),1));g.setAttribute('normal',new THREE2.BufferAttribute(d.normals.slice(),3));markPolygonCreaseGeometry(g);for(const [k,a,size] of [['uv',d.uv,2],['uv1',d.uv1,2],['color',d.colors,d.colorSize||3]])if(a)g.setAttribute(k,new THREE2.BufferAttribute(a.slice(),size));g.computeBoundingBox();g.computeBoundingSphere();const mesh=new THREE2.Mesh(g,getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;return mesh;}
   let g = new THREE2.BufferGeometry();
   g.setAttribute("position", new THREE2.BufferAttribute(obj.geom.positions.slice(), 3)), g.setIndex(new THREE2.BufferAttribute(obj.geom.indices.slice(), 1)), g.computeVertexNormals(), g.computeBoundingBox();
   {
@@ -15624,6 +15624,7 @@ function* framePolySelectionBuffers(items) {
 }
 function frameInstallPolySelectionBuffers({fp,ep,vp},syncGizmo=true,measurements=null){
   polySelection.face.geometry.setAttribute("position", new THREE2.BufferAttribute(fp, 3)), polySelection.edge.geometry.setAttribute("position", new THREE2.BufferAttribute(ep, 3)), polySelection.vertex.geometry.setAttribute("position", new THREE2.BufferAttribute(vp, 3)), polySelection.face.visible = polyMode && fp.length > 0, polySelection.faceBack.visible = polyMode && fp.length > 0, polySelection.edge.visible = polyMode && ep.length > 0, polySelection.vertex.visible = polyMode && vp.length > 0, vertexTools.soft.active && updateSoftPreview(), syncGizmo && (setGizmoVisible(polyMode ? polySelection.items.size > 0 : selNodes.size > 0), placeGizmoForSelection(measurements), updateHUD(measurements?readPolyTransform(coordMode,measurements):null)), scheduleRender();
+  frameRigidSchedulePrepare();
 }
 function clearPolySelection() {
   polyPivotMatrix = null, polySelection.items.clear(), rebuildPolySelection();
@@ -17283,21 +17284,23 @@ function pushCmd(c) {
   c && (frameAutoKeyCommand(c), frameValidateTopologyCommand(c), registerSceneCommandState(c), undoStack.push(c), trimCommandStack(undoStack), clearCommandStack(redoStack));
 }
 function undo() {
+  frameRigidBeforeHistory();
   if(edgeBevelTool){cancelEdgeBevel();return;}edgeBevelResult=null;
-  let c = undoStack.pop();
+  let c = undoStack.at(-1);
   if(!c)return;
   const populated=[...splineData].filter(([h,d])=>OBJ.has(h)&&objParams.get(h)?.__type==='spline'&&hasSplineSegments(d)).map(([h])=>h);
   c.undo();restoreSceneCommandState(c,'before');
   const empty=populated.filter(h=>OBJ.has(h)&&!OBJ.get(h).children.length&&!hasSplineSegments(splineData.get(h)));
   if(empty.length){c.emptySplineSelection=[...selNodes];c.emptySplineUndo=cmdDelete(empty);c.emptySplineUndo.redo();if(splineDrawing&&empty.some(h=>selNodes.has(h))){splineLastVertex=null;finishSplineDrawing();}for(const h of empty)selNodes.delete(h);if(empty.includes(anchorNode?.hash))anchorNode=null;pruneSplineSelection();refreshSelClasses();}
-  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();
+  undoStack.pop();redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();
 }
 function redo() {
+  frameRigidBeforeHistory();
   if(edgeBevelTool)cancelEdgeBevel();edgeBevelResult=null;
-  let c = redoStack.pop();
+  let c = redoStack.at(-1);
   if(!c)return;
   if(c.emptySplineUndo){c.emptySplineUndo.undo();c.emptySplineUndo.dispose?.();selNodes.clear();for(const h of c.emptySplineSelection||[])if(OBJ.has(h))selNodes.add(h);anchorNode=OBJ.get([...selNodes][0])||null;delete c.emptySplineUndo;delete c.emptySplineSelection;refreshSelClasses();}
-  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();
+  c.redo();restoreSceneCommandState(c,'after');redoStack.pop();undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();
 }
 function afterCmd(c) {
   frameIndexMotionPaths();frameSyncCamera();frameUpdateCameraHelpers();frameRefreshAnimationUI();
@@ -20882,6 +20885,7 @@ function validateLibraryScene(scene){
 }
  
 function packedGeometryAttribute(a){
+  const rigid=typeof frameNative!=='undefined'?frameNative.captureRigidAuthoringAttribute(a):null;if(rigid)return rigid;
  if(!a)return null;
  if(!a.isInterleavedBufferAttribute&&!a.normalized&&a.array instanceof Float32Array&&a.array.length===a.count*a.itemSize)return a.array;
  const out=new Float32Array(a.count*a.itemSize);for(let i=0;i<a.count;i++)for(let c=0;c<a.itemSize;c++)out[i*a.itemSize+c]=a.getComponent?a.getComponent(i,c):a[['getX','getY','getZ','getW'][c]](i);return out;
@@ -24186,6 +24190,7 @@ function framePolygonDragSelectedIDs(h) {
   return rec.selectedIds;
 }
 function polySelectedVertexIds(h) {
+  const rigid=frameRigidSelectedIDs(h);if(rigid)return rigid;
   const dragging=framePolygonDragSelectedIDs(h);if(dragging)return dragging;
   const s=polySelection.items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();
   if(!s||!g)return out;
@@ -24200,6 +24205,7 @@ function polySelectedVertexIds(h) {
 }
 
 function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices) {
+  const rigid=items===polySelection.items&&!exact?.has(h)?frameRigidSelectedIDs(h):null;if(rigid)return new Set(rigid);
   const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();let work=0;
   if(!s||!g)return out;
   if(exact?.has(h)){for(const i of exact.get(h)){out.add(i);if((++work&1023)===0)yield;}return out;}
@@ -24341,6 +24347,7 @@ function polyWorldPoints() {
   return out;
 }
 function polyExtentInFrame(frame) {
+  const rigid=frameRigidExtent(frame);if(rigid)return rigid;
   const inv=frame.clone().invert(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false;
   for(const [h] of polySelection.items){const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;mesh.updateMatrixWorld(true);
     for(const i of polySelectedVertexIds(h)){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);mn.min(p);mx.max(p);any=true;}
@@ -24507,6 +24514,7 @@ function applyPolyCoordinateInput(ch, i, v, mode) {
   ch === "size" && (rotMatOfLin(old, finalFrame), finalFrame.setPosition(old.elements[12], old.elements[13], old.elements[14])), polyPivotMatrix = finalFrame.elements.slice(), setPureGizmoFrame(finalFrame), updateHUD();
 }
 function polySelectionBounds() {
+  const rigid=frameRigidBounds();if(rigid)return rigid;
   let mn = new THREE2.Vector3(1 / 0, 1 / 0, 1 / 0), mx = new THREE2.Vector3(-1 / 0, -1 / 0, -1 / 0), p = new THREE2.Vector3(), any = !1;
   for (let [h] of polySelection.items) {
     let mesh = pickMeshes.get(h), pos = mesh && mesh.geometry && mesh.geometry.attributes.position;
@@ -24749,6 +24757,7 @@ function restorePolyLogicalSelection(state) {
   }
 }
 function framePolygonAttributeArray(a) {
+  const rigid=typeof frameNative!=='undefined'?frameNative.captureRigidAuthoringAttribute(a):null;if(rigid)return rigid;
   const source=a.isInterleavedBufferAttribute?a.data.array:a.array;
   const out=new source.constructor(a.count*a.itemSize);
   for(let i=0;i<a.count;i++)for(let c=0;c<a.itemSize;c++)out[i*a.itemSize+c]=source[a.isInterleavedBufferAttribute?i*a.data.stride+a.offset+c:i*a.itemSize+c];
@@ -25097,6 +25106,7 @@ function deleteSelectedPolyElements() {
   } });
 }
 function applyPolyDelta(delta, snap) {
+  if(frameRigidApplyDelta(delta))return;
   let p = new THREE2.Vector3();
   for (let [h, rec2] of snap) {
     let mesh = pickMeshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position;
@@ -25896,7 +25906,135 @@ onViewportPick((hash, shift, mod) => {
   clearPolySelection();clearSplineSelection();
   !shift && !mod && selMats.clear(), shift || mod ? hash && (selNodes.has(hash) ? selNodes.delete(hash) : (selNodes.add(hash), anchorNode = getObj(hash))) : hash ? (selNodes.clear(), selTags.clear(), selNodes.add(hash), anchorNode = getObj(hash)) : (selNodes.clear(), selTags.clear(), anchorNode = null), lastBracketSig = null, refreshSelClasses();
 });
+var frameRigidPrepared=null,frameRigidInput=null,frameRigidExecuting=null,frameRigidQueue=[],frameRigidDraining=false,frameRigidFallthrough=false,frameRigidInstalling=false;
+var frameRigidNotes={prepared:0,starts:0,moves:0,commits:0,cancels:0,queuedStarts:0,fallbacks:0,undo:0,redo:0,errors:[],phases:[]};
+function frameRigidBasic(){if(!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1||vertexTools.soft.active||uvEdit||editPivot||frameChannels.size||!vpState.renderer?.nativeEngine)return null;const[h,entry]=polySelection.items.entries().next().value,mesh=pickMeshes.get(h),node=OBJ.get(h),g=mesh?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;if(!node||!mesh?.isMesh||mesh.isInstancedMesh||g?.isInstancedBufferGeometry||mesh.userData.splineChunks||!entry.faces.size||entry.vertices.size||entry.edges.size||frameMorphTag(h)||!p||!n||!index||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||p.normalized||n.normalized||p.itemSize!==3||n.itemSize!==3||n.count!==p.count||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||!(index.array instanceof Uint32Array||index.array instanceof Uint16Array))return null;return{h,entry,mesh,node,g,p,n,index};}
+function frameRigidSource(t){return !!t&&!t.disposed&&frameRigidOwnerCurrent(t)&&OBJ.get(t.h)===t.node&&pickMeshes.get(t.h)===t.mesh&&t.mesh.geometry===t.g&&t.g.attributes.position===t.p&&t.g.attributes.normal===t.n&&t.g.index===t.index&&t.p.array===t.pa&&t.n.array===t.na&&t.index.array===t.ia&&t.p.version===t.pv&&t.n.version===t.nv&&t.index.version===t.iv;}
+function frameRigidSelection(t,membership=false){const a=polySelection.items.get(t?.h);if(t?.aliasSafe===false||!frameRigidSource(t)||a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||polySelection.items.size!==1||polyElementMode!=='face'||!polyFocusActive()||framePolySelectionRevision!==t.selectionRevision||a.faces.size!==t.faceIDs.length||a.vertices.size||a.edges.size||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const id of t.faceIDs)if(!a.faces.has(id))return false;return true;}
+function frameRigidUniformWorld(m){const e=m.elements,x=Math.hypot(e[0],e[1],e[2]),y=Math.hypot(e[4],e[5],e[6]),z=Math.hypot(e[8],e[9],e[10]),tol=Math.max(x,y,z)*1e-9;return x>1e-12&&Math.abs(x-y)<tol&&Math.abs(x-z)<tol&&Math.abs(e[0]*e[4]+e[1]*e[5]+e[2]*e[6])<x*x*1e-9&&Math.abs(e[0]*e[8]+e[1]*e[9]+e[2]*e[10])<x*x*1e-9&&Math.abs(e[4]*e[8]+e[5]*e[9]+e[6]*e[10])<x*x*1e-9;}
+function frameRigidDispose(t){if(!t||t.disposed)return;t.disposed=true;t.gpu?.dispose();if(t.adapter){t.adapter.positionView=t.adapter.normalView=null;frameNative.unregisterRigidGpuGeometry(t.g,t.adapter);}t.engine?.geometryCache.rows.delete(t.g);}
+function frameRigidSchedulePrepare(){
+ if(frameRigidInstalling||frameRigidFallthrough)return null;const basic=frameRigidBasic();if(!basic){if(!frameRigidQueue.length){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return null;}
+ const old=frameRigidPrepared;if(old&&frameRigidSelection(old,true))return old;if(frameRigidQueue.length)return old;
+ frameRigidDispose(old);const t=frameRigidPrepared={...basic,...frameRigidOwnerSnapshot(),pa:basic.p.array,na:basic.n.array,ia:basic.index.array,pv:basic.p.version,nv:basic.n.version,iv:basic.index.version,faces:basic.entry.faces,vertices:basic.entry.vertices,edges:basic.entry.edges,faceIDs:Uint32Array.from(basic.entry.faces),selectionSets:frameRigidSetSnapshots([basic.entry.faces,basic.entry.vertices,basic.entry.edges]),selectionRevision:framePolySelectionRevision,status:'preparing',disposed:false};const started=performance.now();
+ t.promise=(async()=>{const cached=await frameGetNativeTopologyCache().get(t.g);if(!frameRigidSelection(t,true)||!cached.isCurrent())throw new DOMException('Rigid selection changed','AbortError');const tasks=frameNative.createYieldQueue();let gate;try{const work=frameNative.rigidIslandEligibilityWork(cached.topology,t.ia,t.faces);for(;;){const step=work.next();if(step.done){gate=step.value;break;}await tasks.yield();if(!frameRigidSelection(t,false))throw new DOMException('Rigid selection changed','AbortError');}}finally{tasks.dispose();}if(!frameRigidSelection(t,true))throw new DOMException('Rigid eligibility stale','AbortError');t.gate=gate;if(!gate.eligible){t.status='ineligible';return false;}t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.idSet=new Set(t.ids);t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;t.originalPositions=t.pa.slice();t.originalNormals=t.na.slice();let indexSeed=frameRigidIndexSeeds.get(t.g);if(!indexSeed||indexSeed.array!==t.ia||indexSeed.version!==t.iv){indexSeed={array:t.ia,version:t.iv,values:t.ia.slice()};frameRigidIndexSeeds.set(t.g,indexSeed);}t.indexSeed=indexSeed.values;const aliases=frameNative.createYieldQueue();try{const work=frameRigidBuildAliasGuard(t);for(;;){const step=work.next();if(step.done){if(!step.value){t.eligible=false;t.gate={eligible:false,reason:t.aliasGuardFailure??'alias-validation-memory-budget'};t.status='ineligible';return false;}break;}await aliases.yield();if(!frameRigidSelection(t))throw new DOMException('Rigid alias preparation stale','AbortError');}}finally{aliases.dispose();}t.aliasSafe=frameRigidAliasSafe(t);if(!t.aliasSafe)throw new DOMException('Rigid alias eligibility stale','AbortError');
+ frameRigidExactBounds(t);t.numeric=t.engine.geometryCache.capture(t.g);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);const gpu=await frameNative.GpuRigidIslandPreview.create({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t)});if(!frameRigidSelection(t,true)){gpu.dispose();throw new DOMException('Rigid preparation stale','AbortError');}t.gpu=gpu;t.status='ready';frameRigidNotes.prepared++;frameRigidNotes.phases.push({name:'selection-ready',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length,historySourceBytes:t.originalPositions.byteLength+t.originalNormals.byteLength+t.indexSeed.byteLength,aliasGuardBytes:t.aliasGuard.bytes});return true;
+ })().catch(e=>{t.status=e.name==='AbortError'?'cancelled':'failed';t.error=e;frameRigidDispose(t);if(e.name!=='AbortError')frameRigidNotes.errors.push(String(e));return false;});return t;
+}
+function frameRigidSelectedIDs(h){const t=frameRigidPrepared;return t?.h===h&&t.eligible&&frameRigidSelection(t)?t.idSet:null;}
+function frameRigidBounds(){const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;if(!t?.bounds||!frameRigidSelection(t))return null;t.mesh.updateMatrixWorld(true);if(!t.boundsWorld?.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;return{min:t.bounds.min.clone(),max:t.bounds.max.clone()};}
+function frameRigidExtent(frame){const b=frameRigidBounds();if(!b)return null;const e=frame.elements;if([0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12))return null;return b.max.sub(b.min);}
+function frameRigidStart(e){
+ if(frameRigidFallthrough)return false;const pending=frameRigidQueue.length>0;if(pending&&!frameRigidTransactionCurrent(frameRigidQueue.at(-1))){frameRigidAbortAll('source-or-selection-changed');}
+ const waiting=frameRigidQueue.length>0,basic=frameRigidBasic();if(!basic&&!waiting)return false;let t=waiting?frameRigidQueue.at(-1).t:frameRigidSchedulePrepare();
+ const rigid=!!basic&&coordMode==='world'&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!rigid||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;
+ const source=frameRigidTransactionSnapshot(t);if(!source)return false;const before=getGizmoWorldArray().slice();let abortResolve;const abortPromise=new Promise(r=>abortResolve=r),s={t,source,kind:rigid&&frameRigidUniformWorld(source.world)?'gpu':'cpu',event:e,drag:gizDrag,gizmo:before,afterGizmo:before.slice(),beforePivot:polyPivotMatrix?.slice()??null,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),revision:0,ready:false,released:false,cancel:false,discarded:false,overlays:null,abortPromise,abortResolve};frameRigidQueue.push(s);frameRigidInput=s;frameRigidInstallInput(s);frameRigidNotes.starts++;if(frameRigidQueue.length>1)frameRigidNotes.queuedStarts++;frameRigidDrain();return true;
+}
+function frameRigidActivate(s){const t=s.t,ids=t.ids;s.beforeValues=new Float32Array(ids.length*3);s.beforeNormals=new Float32Array(ids.length*3);for(let k=0;k<ids.length;k++){const at=ids[k]*3;for(let j=0;j<3;j++){s.beforeValues[k*3+j]=t.pa[at+j];s.beforeNormals[k*3+j]=t.na[at+j];}}s.overlays=[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex].map(o=>({o,matrix:o.matrix.clone(),auto:o.matrixAutoUpdate}));s.normalMatrix=new THREE2.Matrix3();s.point=new THREE2.Vector3();s.moved=new THREE2.Vector3();s.normalPoint=new THREE2.Vector3();s.cachedSlot=-1;s.cachedRevision=-1;s.cachedNormalSlot=-1;s.cachedNormalRevision=-1;
+ t.adapter.positionView=(i,c)=>{const k=t.slot[i]-1;if(k<0)return t.pa[i*3+c];if(s.cachedSlot!==i||s.cachedRevision!==s.revision){s.point.fromArray(s.beforeValues,k*3);s.moved.copy(s.point).applyMatrix4(s.world).applyMatrix4(s.delta).applyMatrix4(s.inverse);s.point.lerp(s.moved,1);s.cachedXYZ=[Math.fround(s.point.x),Math.fround(s.point.y),Math.fround(s.point.z)];s.cachedSlot=i;s.cachedRevision=s.revision;}return s.cachedXYZ[c];};
+ t.adapter.normalView=(i,c)=>{const k=t.slot[i]-1;if(k<0)return t.na[i*3+c];if(s.cachedNormalSlot!==i||s.cachedNormalRevision!==s.revision){s.normalPoint.fromArray(s.beforeNormals,k*3);if(s.rotated)s.normalPoint.applyNormalMatrix(s.normalMatrix);s.cachedNormal=[Math.fround(s.normalPoint.x),Math.fround(s.normalPoint.y),Math.fround(s.normalPoint.z)];s.cachedNormalSlot=i;s.cachedNormalRevision=s.revision;}return s.cachedNormal[c];};s.ready=true;
+}
+function frameRigidSubmit(s){if(!s.ready||s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('source-changed-during-preview');return;}const t=s.t,local=s.inverse.clone().multiply(s.delta).multiply(s.world),e=local.elements;s.rotated=[0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12);s.normalMatrix.getNormalMatrix(local);s.revision++;t.adapter.revision++;const revision=s.revision;for(const{o,matrix}of s.overlays){o.matrixAutoUpdate=false;o.matrix.copy(s.delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}s.last=t.gpu.submit({matrix:local.elements,world:s.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s)&&s.revision===revision});s.last.then(result=>{if(result.status!=='ready'||s.revision!==revision||s.cancel||s.discarded||!frameRigidTransactionCurrent(s))return;t.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};t.boundsWorld=s.world.clone();updateHUD();scheduleRender();}).catch(e=>{if(e.name!=='AbortError')frameRigidNotes.errors.push(String(e));});scheduleRender();}
+function frameRigidApplyDelta(delta){const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-during-input');return true;}s.delta.copy(delta);s.afterGizmo=getGizmoWorldArray().slice();frameRigidNotes.moves++;if(s.ready&&frameRigidExecuting===s)frameRigidSubmit(s);return true;}
+function frameRigidFinish(e){const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;s.released=true;s.cancel=!!s.cancel||e?.type==='pointercancel'||s.gizmo.every((v,i)=>v===getGizmoWorldArray()[i]);s.releaseEvent=e;frameRigidInput=null;frameRigidClearInput();if(s.cancel)s.abortResolve(false);if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-before-release');return true;}frameRigidDrain();return true;}
+function frameRigidApplySparse(t,positions,normals,historyExpected=null,onWrite=null){const current=pickMeshes.get(t.h),g=current?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;if(current!==t.mesh||OBJ.get(t.h)!==t.node||!p||!n||!index||p.itemSize!==3||n.itemSize!==3||p.count!==t.p.count||n.count!==p.count||index.count!==t.indexSeed.length||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||positions.length!==t.ids.length*3||normals.length!==positions.length)throw new DOMException('Rigid authoring owner/layout changed','AbortError');
+ if(historyExpected){for(let k=0;k<t.indexSeed.length;k++)if(index.array[k]!==t.indexSeed[k])throw new DOMException('Rigid history topology changed','AbortError');for(let id=0;id<p.count;id++){const k=t.slot[id]-1;for(let j=0;j<3;j++){const at=id*3+j,wantedP=k>=0?historyExpected.positions[k*3+j]:t.originalPositions[at],wantedN=k>=0?historyExpected.normals[k*3+j]:t.originalNormals[at];if(p.array[at]!==wantedP||n.array[at]!==wantedN)throw new DOMException('Rigid history content changed','AbortError');}}}else if(!frameRigidSource(t))throw new DOMException('Rigid commit source changed','AbortError');
+ const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}
+function frameRigidExactBounds(t){t.mesh.updateMatrixWorld(true);const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();for(const i of t.ids){p.fromArray(t.pa,i*3).applyMatrix4(t.mesh.matrixWorld);min.min(p);max.max(p);}t.bounds={min,max};t.boundsWorld=t.mesh.matrixWorld.clone();}
+function frameRigidRefreshSelection(t,pivot=null){polyPivotMatrix=pivot;frameRigidInstalling=true;try{for(const o of [polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;}if(frameRigidSelection(t))frameRigidExactBounds(t);frameInstallPolySelectionBuffers(frameDrainSelectionWork(framePolySelectionBuffers(polySelection.items)),true);}finally{frameRigidInstalling=false;}updateHUD();scheduleRender();}
+function frameRigidCommit(s){const t=s.t,started=performance.now();if(!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Rigid transaction stale before commit','AbortError');s.revision++;
+ const afterValues=new Float32Array(t.ids.length*3),afterNormals=new Float32Array(t.ids.length*3),base=new THREE2.Vector3(),moved=new THREE2.Vector3(),normal=new THREE2.Vector3(),local=s.inverse.clone().multiply(s.delta).multiply(s.world),normalMatrix=new THREE2.Matrix3().getNormalMatrix(local),e=local.elements,rotated=[0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12);
+ for(let k=0;k<t.ids.length;k++){base.fromArray(s.beforeValues,k*3);moved.copy(base).applyMatrix4(s.world).applyMatrix4(s.delta).applyMatrix4(s.inverse);base.lerp(moved,1);afterValues[k*3]=base.x;afterValues[k*3+1]=base.y;afterValues[k*3+2]=base.z;normal.fromArray(s.beforeNormals,k*3);if(rotated)normal.applyNormalMatrix(normalMatrix);afterNormals[k*3]=normal.x;afterNormals[k*3+1]=normal.y;afterNormals[k*3+2]=normal.z;}
+ if(!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Rigid transaction stale before write','AbortError');const afterPivot=s.beforePivot?s.afterGizmo.slice():null,history={undo:undoStack.slice(),redo:redoStack.slice(),token:sceneStateToken,sequence:sceneMutationSequence,started:sceneWorkStartedAt};let wrote=false;
+ const apply=(values,normals,pivot,expected)=>{frameRigidBeforeHistory();const m=pickMeshes.get(t.h),g=m?.geometry,p=g?.attributes.position,n=g?.attributes.normal,beforePivot=polyPivotMatrix?.slice()??null;let wrote=false;try{frameRigidApplySparse(t,values,normals,expected,()=>wrote=true);frameRigidRefreshSelection(t,pivot);}catch(error){if(wrote&&m===t.mesh&&m.geometry===g&&g.attributes.position===p&&g.attributes.normal===n){for(let k=0;k<t.ids.length;k++)for(let j=0;j<3;j++){p.array[t.ids[k]*3+j]=expected.positions[k*3+j];n.array[t.ids[k]*3+j]=expected.normals[k*3+j];}p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=g.boundingSphere=null;frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;t.engine?.geometryCache.rows.delete(g);frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);polyPivotMatrix=beforePivot;try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}throw error;}};const command={redo(){frameRigidNotes.redo++;apply(afterValues,afterNormals,afterPivot,{positions:s.beforeValues,normals:s.beforeNormals});},undo(){frameRigidNotes.undo++;apply(s.beforeValues,s.beforeNormals,s.beforePivot,{positions:afterValues,normals:afterNormals});}};
+ try{t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,afterValues,afterNormals,null,()=>wrote=true);frameRigidRefreshSelection(t,afterPivot);pushCmd(command);s.committed=true;frameRigidNotes.commits++;frameRigidNotes.phases.push({name:'authoring-commit-and-overlay',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length});}
+ catch(error){if(wrote&&t.mesh.geometry===t.g&&t.g.attributes.position===t.p&&t.g.attributes.normal===t.n&&t.p.array===t.pa&&t.n.array===t.na){frameRigidRestoreAuthoring(t,s.beforeValues,s.beforeNormals);polyPivotMatrix=s.beforePivot;frameRigidRestoreOverlays(s);frameRigidExactBounds(t);try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}undoStack.splice(0,undoStack.length,...history.undo);redoStack.splice(0,redoStack.length,...history.redo);sceneStateToken=history.token;sceneMutationSequence=history.sequence;sceneWorkStartedAt=history.started;throw error;}
+}
+async function frameRigidFallback(s){if(s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s))throw new DOMException('CPU fallback source changed','AbortError');frameRigidNotes.fallbacks++;if(frameRigidInput===s){frameRigidInput=null;frameRigidClearInput();}frameRigidFallthrough=true;const uiDrag=gizDrag,savedSpace=coordMode;try{frameRigidDispose(s.t);if(frameRigidPrepared===s.t)frameRigidPrepared=null;coordMode=s.coordinateSpace;setGizmoFromMatrix(s.gizmo);gizDrag=s.drag;_gizStart?.(s.event);setGizmoFromMatrix(s.afterGizmo);bridgeTransform();if(s.released)await _gizEnd?.(s.releaseEvent);else frameRigidCpuSession=s;}finally{gizDrag=uiDrag;coordMode=savedSpace;frameRigidFallthrough=false;}}
+async function frameRigidDrain(){if(frameRigidDraining)return;frameRigidDraining=true;try{while(frameRigidQueue.length){const s=frameRigidQueue[0];frameRigidExecuting=s;let remove=false;try{
+ if(s.discarded||s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-queued-transaction');remove=true;continue;}
+ if(!s.ready){const ok=s.kind==='cpu'||s.t.status==='fallback'?false:await Promise.race([s.t.promise,s.abortPromise]);if(frameRigidQueue[0]!==s||s.discarded){remove=true;continue;}if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-after-preparation');remove=true;continue;}if(!ok){if(s.kind==='cpu'||['ineligible','failed','fallback'].includes(s.t.status)){await frameRigidFallback(s);if(s.released)frameRigidRebaseQueued(s);remove=true;continue;}frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidSelection(s.t)){frameRigidAbortAll('selection-changed-after-preparation');remove=true;continue;}frameRigidActivate(s);s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld.clone()}:null;frameRigidSubmit(s);}
+ if(!s.released)return;if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}frameRigidCommit(s);frameRigidRebaseQueued(s);remove=true;
+ }catch(e){s.cancel=true;if(e.name!=='AbortError'){frameRigidNotes.errors.push(String(e));console.error('Rigid island transaction failed',e);}frameRigidAbortAll('transaction-failed');remove=true;}finally{if(remove&&frameRigidQueue[0]===s)frameRigidQueue.shift();if(remove&&frameRigidExecuting===s)frameRigidExecuting=null;}}
+ }finally{frameRigidDraining=false;if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}}
+
+
+var frameRigidEpoch=new WeakMap(),frameRigidIndexSeeds=new WeakMap(),frameRigidCpuSession=null;
+function frameRigidOwnerSnapshot(){const renderer=vpState.renderer,engine=renderer?.nativeEngine,owner=engine?.owner;return{renderer,engine,owner,device:owner?.device,pool:owner?.pool,ownerGeneration:owner?.generation,bridge:renderer?.bridge,lease:renderer?.bridge?.lease,leaseGeneration:renderer?.bridge?.lease?.generation};}
+function frameRigidOwnerCurrent(t){return vpState.renderer===t.renderer&&t.renderer?.nativeEngine===t.engine&&!t.engine?.disposed&&t.engine?.owner===t.owner&&t.owner?.state==='ready'&&t.owner.device===t.device&&t.engine.device===t.device&&t.owner.pool===t.pool&&!t.pool?.disposed&&t.owner.generation===t.ownerGeneration&&t.renderer.bridge===t.bridge&&!t.bridge?.disposed&&t.bridge.engine===t.engine&&t.bridge.device===t.device&&t.bridge.lease===t.lease&&t.lease?.owner===t.owner&&t.lease.device===t.device&&t.lease.generation===t.leaseGeneration&&t.lease.isCurrent();}
+function frameRigidTransactionSnapshot(t){if(!t||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh)return null;const g=t.mesh.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index,a=polySelection.items.get(t.h);if(!p||!n||!index||!a||polySelection.items.size!==1||polyElementMode!=='face'||!polyFocusActive())return null;t.mesh.updateMatrixWorld(true);return{h:t.h,node:t.node,mesh:t.mesh,g,p,n,index,pa:p.array,na:n.array,ia:index.array,pv:p.version,nv:n.version,iv:index.version,...frameRigidOwnerSnapshot(),world:t.mesh.matrixWorld.clone(),entry:a,faces:a.faces,vertices:a.vertices,edges:a.edges,faceIDs:Uint32Array.from(a.faces),vertexIDs:Uint32Array.from(a.vertices),edgeIDs:Uint32Array.from(a.edges),selectionSets:frameRigidSetSnapshots([a.faces,a.vertices,a.edges]),selectionRevision:framePolySelectionRevision,animationRevision:frameAnimationRevision,softActive:vertexTools.soft.active,uvMode,uvEdit,editPivot,hasMorph:!!frameMorphTag(t.h),channelCount:frameChannels.size,pivot:polyPivotMatrix?.slice()??null,epoch:frameRigidEpoch.get(g)??0};}
+function frameRigidTransactionCurrent(s,membership=false){const t=s?.source;if(!t||s.discarded||!frameRigidOwnerCurrent(t)||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh||t.mesh.geometry!==t.g||t.g.attributes.position!==t.p||t.g.attributes.normal!==t.n||t.g.index!==t.index||t.p.array!==t.pa||t.n.array!==t.na||t.index.array!==t.ia||t.p.version!==t.pv||t.n.version!==t.nv||t.index.version!==t.iv||(frameRigidEpoch.get(t.g)??0)!==t.epoch||frameAnimationRevision!==t.animationRevision||vertexTools.soft.active!==t.softActive||uvMode!==t.uvMode||uvEdit!==t.uvEdit||editPivot!==t.editPivot||!!frameMorphTag(t.h)!==t.hasMorph||frameChannels.size!==t.channelCount||!!polyPivotMatrix!==!!t.pivot||t.pivot&&!t.pivot.every((v,i)=>v===polyPivotMatrix[i])||framePolySelectionRevision!==t.selectionRevision||!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1)return false;const a=polySelection.items.get(t.h);if(a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||a.faces.size!==t.faceIDs.length||a.vertices.size!==t.vertexIDs.length||a.edges.size!==t.edgeIDs.length||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const [ids,set]of[[t.faceIDs,a.faces],[t.vertexIDs,a.vertices],[t.edgeIDs,a.edges]])for(const id of ids)if(!set.has(id))return false;t.mesh.updateMatrixWorld(true);return t.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]);}
+function frameRigidClearInput(){gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;gizBeforePolySoft=null;polyExactEdgeVertices=null;}
+function frameRigidInstallInput(s){gizBeforeGizmo=s.gizmo;gizBeforePoly=new Map([[s.t.h,{ids:s.t.ids??[],_rigidPreview:true}]]);gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=s.beforePivot;}
+function frameRigidRestoreOverlays(s){for(const{o,matrix,auto}of s.overlays??[]){o.matrix.copy(matrix);o.matrixAutoUpdate=auto;o.matrixWorldNeedsUpdate=true;}}
+function frameRigidRestoreAuthoring(t,positions,normals){for(let k=0;k<t.ids.length;k++){const id=t.ids[k];for(let j=0;j<3;j++){t.pa[id*3+j]=positions[k*3+j];t.na[id*3+j]=normals[k*3+j];t.numeric.positions[id*3+j]=positions[k*3+j];t.numeric.extras[id*9+j]=normals[k*3+j];}}t.aliasSafe=frameRigidAliasSafe(t,positions);t.p.needsUpdate=true;t.n.needsUpdate=true;t.pv=t.p.version;t.nv=t.n.version;t.g.boundingBox=t.g.boundingSphere=null;frameRigidEpoch.set(t.g,(frameRigidEpoch.get(t.g)??0)+1);frameNative.touchRigidGpuGeometry(t.adapter);try{t.gpu.writeAuthoringRanges(t.ranges);}catch(e){frameRigidNotes.errors.push(String(e));}frameGetNativeTopologyCache().invalidate(t.g);objectPickBVHs.delete(t.g);frameSTLPickTrees.delete(t.g);}
+function frameRigidCancelSession(s){if(s.discarded)return;s.cancel=true;s.revision++;s.abortResolve(false);const t=s.t;if(s.ready&&frameRigidTransactionCurrent(s)){t.adapter.positionView=t.adapter.normalView=null;t.adapter.revision++;t.gpu.writeAuthoringRanges(t.ranges);frameRigidRestoreOverlays(s);if(s.beforeBounds){t.bounds={min:s.beforeBounds.min,max:s.beforeBounds.max};t.boundsWorld=s.beforeBounds.world;}polyPivotMatrix=s.beforePivot;}if(!frameRigidInput)setGizmoFromMatrix(s.gizmo);frameRigidNotes.cancels++;scheduleRender();updateHUD();}
+function frameRigidAbortAll(reason){const owned=frameRigidInput||frameRigidExecuting,queue=frameRigidQueue.splice(0),prepared=frameRigidPrepared,keep=reason==='undo-or-redo'&&prepared?.status==='ready'&&owned?.t===prepared&&owned.ready&&frameRigidTransactionCurrent(owned)&&frameRigidSelection(prepared);if(keep)frameRigidCancelSession(owned);for(const s of queue){s.cancel=true;s.discarded=true;s.reason=reason;s.revision++;s.abortResolve(false);frameRigidRestoreOverlays(s);if(!keep||s.t!==prepared)frameRigidDispose(s.t);}if(!keep){frameRigidDispose(prepared);frameRigidPrepared=null;}frameRigidInput=null;frameRigidExecuting=null;frameRigidClearInput();if(owned){if(gizDrag===owned.drag){gizDrag=null;frameClearPolygonGizmoMove();frozenSignsPerView=null;try{vpState.renderer.domElement.releasePointerCapture(owned.event.pointerId);}catch{}}if(OBJ.get(owned.t.h)===owned.t.node)setGizmoFromMatrix(owned.gizmo);}frameRigidNotes.cancels+=queue.length-(keep?1:0);scheduleRender();}
+function frameRigidBeforeHistory(){
+ if(frameRigidQueue.length||frameRigidInput)frameRigidAbortAll('undo-or-redo');
+ const cpu=frameRigidCpuSession;frameRigidCpuSession=null;if(cpu){cpu.cancel=true;cpu.discarded=true;}
+ if(gizDrag&&(gizDrag._frameAuthoringContext?.component||polyFocusActive()||splineFocusActive()||uvEdit)){const pointerId=gizDrag._frameAuthoringPointerId??gizDrag._frameDeferredStart?.pointerId??cpu?.event?.pointerId;frameRigidFallthrough=true;try{frameRigidCancelStockDrag(pointerId);}finally{frameRigidFallthrough=false;frameRigidClearInput();gizDrag=null;frameClearPolygonGizmoMove();frozenSignsPerView=null;try{vpState.renderer.domElement.releasePointerCapture(pointerId);}catch{}frameRigidNotes.cancels++;hideHudLine();hideSnapVis();scheduleRender();}}
+}
+function frameRigidRebaseQueued(completed){for(const s of frameRigidQueue){if(s===completed||s.ready||s.discarded)continue;if(s.t.h!==completed.t.h||OBJ.get(s.t.h)!==s.t.node||pickMeshes.get(s.t.h)!==s.t.mesh){s.cancel=true;continue;}const a=polySelection.items.get(s.t.h);if(!a||a.faces.size!==s.source.faceIDs.length||s.source.faceIDs.some(id=>!a.faces.has(id))||a.vertices.size!==s.source.vertexIDs.length||s.source.vertexIDs.some(id=>!a.vertices.has(id))||a.edges.size!==s.source.edgeIDs.length||s.source.edgeIDs.some(id=>!a.edges.has(id))){s.cancel=true;continue;}if(completed.kind==='cpu'||s.t.aliasSafe===false||!frameRigidSource(s.t)){const m=s.t.mesh,g=m.geometry,p=g.attributes.position,n=g.attributes.normal,index=g.index;s.t={h:s.t.h,node:s.t.node,mesh:m,g,p,n,index,status:'fallback',promise:Promise.resolve(false)};s.kind='cpu';}s.source=frameRigidTransactionSnapshot(s.t);if(!s.source)s.cancel=true;}if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}
+function frameRigidStockEndDone(){if(frameRigidFallthrough||!frameRigidCpuSession)return;const s=frameRigidCpuSession;frameRigidCpuSession=null;s.released=true;frameRigidRebaseQueued(s);frameRigidDrain();}
+
+var frameRigidSetVersions=new WeakMap();
+function frameRigidSetVersion(set){
+ if(!(set instanceof Set))throw new DOMException('Native selection Set required','AbortError');const old=frameRigidSetVersions.get(set);if(old){if(set.add!==old.add||set.delete!==old.delete||set.clear!==old.clear)throw new DOMException('Selection mutation methods changed','AbortError');return old;}
+ if(set.add!==Set.prototype.add||set.delete!==Set.prototype.delete||set.clear!==Set.prototype.clear)throw new DOMException('Untracked selection mutation methods','AbortError');const row={set,version:0n};
+ row.add=function(value){const before=Set.prototype.has.call(this,value),result=Set.prototype.add.call(this,value);if(this===set&&!before)row.version++;return result;};
+ row.delete=function(value){const result=Set.prototype.delete.call(this,value);if(this===set&&result)row.version++;return result;};
+ row.clear=function(){const before=this.size,result=Set.prototype.clear.call(this);if(this===set&&before)row.version++;return result;};
+ for(const name of ['add','delete','clear'])Object.defineProperty(set,name,{value:row[name],writable:true,configurable:true,enumerable:false});frameRigidSetVersions.set(set,row);return row;
+}
+function frameRigidSetSnapshots(sets){return sets.map(set=>{const row=frameRigidSetVersion(set);return{row,version:row.version};});}
+function frameRigidSetSnapshotsCurrent(snapshots){return !!snapshots&&snapshots.every(({row,version})=>row.version===version&&row.set.add===row.add&&row.set.delete===row.delete&&row.set.clear===row.clear);}
+
+var frameRigidCancellingStock=false;
+function frameRigidCaptureDragContext(event){
+ if(!gizDrag)return;gizDrag._frameAuthoringPointerId=event?.pointerId;
+ gizDrag._frameAuthoringContext={component:polyFocusActive()||splineFocusActive()||!!uvEdit,polyMode,splineMode,componentFocus,polyElementMode,editPivot,uvMode,uvEdit,coordMode,softActive:vertexTools.soft.active,animationRevision:frameAnimationRevision,channelCount:frameChannels.size};
+}
+function frameRigidStockContextChanged(drag){const c=drag?._frameAuthoringContext;return !!c?.component&&(polyMode!==c.polyMode||splineMode!==c.splineMode||componentFocus!==c.componentFocus||polyElementMode!==c.polyElementMode||editPivot!==c.editPivot||uvMode!==c.uvMode||uvEdit!==c.uvEdit||vertexTools.soft.active!==c.softActive||frameAnimationRevision!==c.animationRevision||frameChannels.size!==c.channelCount);}
+function frameRigidCancelStockDrag(pointerId){
+ const c=gizDrag?._frameAuthoringContext,current={polyMode,splineMode,componentFocus,polyElementMode,editPivot,uvMode,uvEdit,coordMode};
+ const wasCancelling=frameRigidCancellingStock;frameRigidCancellingStock=true;
+ try{if(c){polyMode=c.polyMode;splineMode=c.splineMode;componentFocus=c.componentFocus;polyElementMode=c.polyElementMode;editPivot=c.editPivot;uvMode=c.uvMode;uvEdit=c.uvEdit;coordMode=c.coordMode;}endGizDrag({type:'pointercancel',pointerId});}
+ finally{({polyMode,splineMode,componentFocus,polyElementMode,editPivot,uvMode,uvEdit,coordMode}=current);frameRigidCancellingStock=wasCancelling;placeGizmoForSelection();updateHUD();scheduleRender();}
+}
+function frameRigidEndChangedStockContext(event){
+ if(frameRigidCancellingStock||frameRigidFallthrough||!frameRigidStockContextChanged(gizDrag))return false;
+ frameRigidCancelStockDrag(event?.pointerId??gizDrag._frameAuthoringPointerId);frameRigidStockEndDone();return true;
+}
+
+// frameRigidNativePreserveAuthoredGeometry
+
+
+// Pin the exact selected equivalence partition as well as the unselected keys.
+// Reuse is conservative: any merge or split invalidates the prepared topology.
+function* frameRigidBuildAliasGuard(t){
+ const count=t.p.count-t.ids.length,n=t.ids.length,capacity=2**Math.ceil(Math.log2(Math.max(8,count*2))),selectedCapacity=2**Math.ceil(Math.log2(Math.max(8,n*2))),bytes=capacity*4+count*3*8+selectedCapacity*4+n*(3*8+4+4);if(bytes>67108864)return false;
+ const slots=new Uint32Array(capacity),keys=new Float64Array(count*3),mask=capacity-1;let size=0;
+ const hashBits=new DataView(new ArrayBuffer(8));
+ const hashNumber=v=>{if(v===0)return 0;hashBits.setFloat64(0,v,true);let h=hashBits.getUint32(0,true)^hashBits.getUint32(4,true);h=Math.imul(h^(h>>>16),0x7feb352d);h=Math.imul(h^(h>>>15),0x846ca68b);return h^(h>>>16);};
+ const hash=(x,y,z)=>(Math.imul(hashNumber(x),73856093)^Math.imul(hashNumber(y),19349663)^Math.imul(hashNumber(z),83492791))>>>0;
+ const find=(x,y,z)=>{let at=hash(x,y,z)&mask,probes=0;while(slots[at]){if(++probes>128)return true;const id=slots[at]-1,k=id*3;if(keys[k]===x&&keys[k+1]===y&&keys[k+2]===z)return true;at=(at+1)&mask;}return false;};
+ for(let id=0;id<t.p.count;id++){if(!t.slot[id]){const k=id*3,x=Math.round(t.pa[k]*1e5),y=Math.round(t.pa[k+1]*1e5),z=Math.round(t.pa[k+2]*1e5);let at=hash(x,y,z)&mask,found=false,probes=0;while(slots[at]){if(++probes>128){t.aliasGuardFailure='alias-validation-probe-budget';return false;}const old=(slots[at]-1)*3;if(keys[old]===x&&keys[old+1]===y&&keys[old+2]===z){found=true;break;}at=(at+1)&mask;}if(!found){const o=size*3;keys[o]=x;keys[o+1]=y;keys[o+2]=z;slots[at]=++size;}}if((id+1)%4096===0)yield;}
+ const selected={slots:new Uint32Array(selectedCapacity),keys:new Float64Array(n*3),groups:new Uint32Array(n),reps:new Uint32Array(n),mask:selectedCapacity-1,size:0};
+ for(let k=0;k<n;k++){const p=t.ids[k]*3,x=Math.round(t.pa[p]*1e5),y=Math.round(t.pa[p+1]*1e5),z=Math.round(t.pa[p+2]*1e5);let at=hash(x,y,z)&selected.mask,group=-1,probes=0;while(selected.slots[at]){if(++probes>128){t.aliasGuardFailure='alias-validation-probe-budget';return false;}const old=selected.slots[at]-1,o=old*3;if(selected.keys[o]===x&&selected.keys[o+1]===y&&selected.keys[o+2]===z){group=old;break;}at=(at+1)&selected.mask;}if(group<0){group=selected.size++;const o=group*3;selected.keys[o]=x;selected.keys[o+1]=y;selected.keys[o+2]=z;selected.reps[group]=k;selected.slots[at]=group+1;}selected.groups[k]=group;if((k+1)%4096===0)yield;}
+ t.aliasGuard={bytes,find,entries:size,hash,selected};return true;
+}
+function frameRigidAliasSafe(t,values=null){
+ const guard=t.aliasGuard;if(!guard)return false;const s=guard.selected,a=values??t.pa;s.slots.fill(0);
+ for(let group=0;group<s.size;group++){const k=s.reps[group],at=values?k*3:t.ids[k]*3,x=Math.round(a[at]*1e5),y=Math.round(a[at+1]*1e5),z=Math.round(a[at+2]*1e5);if(guard.find(x,y,z))return false;let slot=guard.hash(x,y,z)&s.mask,probes=0;while(s.slots[slot]){if(++probes>128)return false;const old=(s.slots[slot]-1)*3;if(s.keys[old]===x&&s.keys[old+1]===y&&s.keys[old+2]===z)return false;slot=(slot+1)&s.mask;}const o=group*3;s.keys[o]=x;s.keys[o+1]=y;s.keys[o+2]=z;s.slots[slot]=group+1;}
+ for(let k=0;k<t.ids.length;k++){const at=values?k*3:t.ids[k]*3,o=s.groups[k]*3;if(Math.round(a[at]*1e5)!==s.keys[o]||Math.round(a[at+1]*1e5)!==s.keys[o+1]||Math.round(a[at+2]*1e5)!==s.keys[o+2])return false;}return true;
+}
+// Builder marker: generated native worker must carry its geometry snapshot helper.
+function frameRigidNativeWorkerClosureComplete(){}
+
 onGizmoDragStart((e) => {
+  frameRigidCaptureDragContext(e);
+  if(frameRigidStart(e))return;
   if (uvEdit) {
     boundNode = UV_VIRTUAL; uvBeforeFrame=uvProjectionSnapshot();gizBeforeObj=null;gizBeforeObjState=null;gizBeforeGizmo=getGizmoWorldArray();
     return;
@@ -25938,6 +26076,9 @@ onGizmoDragStart((e) => {
   boundNode ? (gizBeforeObjState = captureNodeTransformState(boundNode), gizBeforeObj = gizBeforeObjState?.world?.slice() || null, gizBeforeObjPivot = editPivot && OBJ.get(boundNode)?.pivot.elements.slice() || null, gizBeforeGizmo = getGizmoWorldArray()) : selNodes.size > 1 && (gizBeforeMultiState = new Map([...selNodes].map((h) => [h, captureNodeTransformState(h)])), gizBeforeMulti = new Map([...gizBeforeMultiState].map(([h, state]) => [h, state?.world?.slice()])), gizBeforeGizmo = getGizmoWorldArray());
 });
 onGizmoDragEnd((event) => {
+  if(frameRigidFinish(event))return;
+  try{
+  if(frameRigidEndChangedStockContext(event))return;
   const beforeSoft=gizBeforePolySoft;gizBeforePolySoft=null;
   if(uvBeforeFrame){
     const before=uvBeforeFrame;uvBeforeFrame=null;
@@ -26036,6 +26177,8 @@ onGizmoDragEnd((event) => {
     gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, recenterGizmo && placeGizmoForSelection();
   } else
     gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null;
+
+  }finally{frameRigidStockEndDone();}
 });
 var frameCancelViewportMarquee=null;
 var framePolySelectionRevision=0;
@@ -26820,6 +26963,7 @@ async function prepareNativeScene(bytes){
  const createNativeHashCodec=${createNativeHashCodec.toString()};
  const polygonCreaseData=${polygonCreaseData.toString()};
  const packedGeometryAttribute=${packedGeometryAttribute.toString()};
+ const framePolygonAttributeArray=${framePolygonAttributeArray.toString()};
  const polygonShadingAllowed=${polygonShadingAllowed.toString()};
  const normalizeCreaseTopology=${normalizeCreaseTopology.toString()};
  ${frameContourOriginValidate.toString()}
@@ -26831,11 +26975,11 @@ async function prepareNativeScene(bytes){
   const scene=await createNativeHashCodec().decodeContainer(bytes);
   for(const [,q] of scene.nodes){
    if(!q.geometry||!q.geometry.indices.length||q.selects?.length>1)continue;
-   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();
+   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));if(data.normals)g.setAttribute('normal',new THREE2.BufferAttribute(data.normals,3));g.computeBoundingBox();
    for(const [key,a,size] of [['uv',data.uv,2],['uv1',data.uv1,2],['color',data.colors,data.colorSize||3]])if(a)g.setAttribute(key,new THREE2.BufferAttribute(a,size));
    if(!data.normals&&!data.uv){const p=g.attributes.position,bb=g.boundingBox,dx=Math.max(1e-9,bb.max.x-bb.min.x),dz=Math.max(1e-9,bb.max.z-bb.min.z),uv=new Float32Array(p.count*2);
     for(let i=0;i<p.count;i++){uv[i*2]=(p.getX(i)-bb.min.x)/dx;uv[i*2+1]=(p.getZ(i)-bb.min.z)/dz;}g.setAttribute('uv',new THREE2.BufferAttribute(uv,2));}
-   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;
+   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};if(!data.normals)normalizeCreaseTopology(mesh,false);const out=mesh.geometry;
    data.prepared={positions:out.attributes.position.array,normals:out.attributes.normal.array,indices:out.index.array,groups:out.groups,creaseCos:CREASE_COS};const origin=frameContourOrigins.get(out);if(data.contourOrigin&&origin)data.contourOrigin=origin;else delete data.contourOrigin;
    for(const [field,key] of [['uv','uv'],['uv1','uv1'],['colors','color']])if(out.attributes[key])data.prepared[field]=out.attributes[key].array;
    if(out.attributes.color)data.prepared.colorSize=out.attributes.color.itemSize;

@@ -1,0 +1,50 @@
+{
+  "schema": "frame-current-editor-source-files-v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 1964,
+      "sha256": "c3b90e43dd9281f8ea4dc9dc64e87364a7040d33cea76248ccab913dbed8abb5"
+    },
+    {
+      "path": "base-extraction.json",
+      "bytes": 3466,
+      "sha256": "ee7e04a123b2965684787e228a9f9c192b075cd5de92970e57af3c549a76c8fd"
+    },
+    {
+      "path": "build-manifest.json",
+      "bytes": 431,
+      "sha256": "d30ba75ee230b2e057442afec3e8b82ad203d71e06db2b89f7f4dc211b03e831"
+    },
+    {
+      "path": "rebuild.mjs",
+      "bytes": 8690,
+      "sha256": "0b7a9d083cbdde64d86ece8d99ead1e2a4425a19a7c2cafb1116efd87c3f9a87"
+    },
+    {
+      "path": "rigid-component-preview.mjs",
+      "bytes": 36647,
+      "sha256": "b898dcf9c61a2b54db68398583976044f90e6fd8cd0b0a509f41af9b9528da0d"
+    },
+    {
+      "path": "tests/alias-guards.mjs",
+      "bytes": 4116,
+      "sha256": "7fdc331a1d6d38d199645a50225d16a85b12ace03923879ce241c793ce90cff3"
+    },
+    {
+      "path": "tests/guards.mjs",
+      "bytes": 8584,
+      "sha256": "70fece86bac70218af2347c90e7fa6e067333302712b76f8c7bf3675bcdbc96a"
+    },
+    {
+      "path": "tests/hash-loader.mjs",
+      "bytes": 4513,
+      "sha256": "0d008b0459b45c27f3be8a86473c081707fe7afb16f46701c352fb880558d7e4"
+    },
+    {
+      "path": "tests/lifecycle.mjs",
+      "bytes": 22963,
+      "sha256": "159942b1f65fda06fa2cb7367a49ee7f3bc6a9eb3b20c4b1ec5fce40e6793678"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "frame-current-editor-source-v1",
+  "version": "r232-rigid-component-preview",
+  "productionEditor": "modules/editor.9023e8f31bf6a28d5b4b.js",
+  "productionSHA256": "9023e8f31bf6a28d5b4bde858b53741f235e810dc9d3de431352d3c1e7aba0ff",
+  "productionBytes": 2639935,
+  "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
+  "baseExtraction": "base-extraction.json",
+  "typescript": "5.9.3"
+}

@@ -1,0 +1,133 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "9023e8f31bf6a28d5b4bde858b53741f235e810dc9d3de431352d3c1e7aba0ff",
+  "afterSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
+  "beforeBytes": 2639935,
+  "afterBytes": 2602100,
+  "operations": [
+    {
+      "startLine": 13384,
+      "deleteLines": 1,
+      "insert": [
+        "  if(obj.geom.normals){const d=obj.geom,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(d.positions.slice(),3));g.setIndex(new THREE2.BufferAttribute(d.indices.slice(),1));for(const [k,a,size] of [['uv',d.uv,2],['uv1',d.uv1,2],['color',d.colors,d.colorSize||3]])if(a)g.setAttribute(k,new THREE2.BufferAttribute(a.slice(),size));g.computeBoundingBox();g.computeBoundingSphere();const mesh=new THREE2.Mesh(g,getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;return mesh;}\n"
+      ]
+    },
+    {
+      "startLine": 15626,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 17286,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 17288,
+      "deleteLines": 1,
+      "insert": [
+        "  let c = undoStack.pop();\n"
+      ]
+    },
+    {
+      "startLine": 17294,
+      "deleteLines": 1,
+      "insert": [
+        "  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
+      ]
+    },
+    {
+      "startLine": 17297,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 17299,
+      "deleteLines": 1,
+      "insert": [
+        "  let c = redoStack.pop();\n"
+      ]
+    },
+    {
+      "startLine": 17302,
+      "deleteLines": 1,
+      "insert": [
+        "  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
+      ]
+    },
+    {
+      "startLine": 20887,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24192,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24207,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24349,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24516,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24759,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 25108,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 25908,
+      "deleteLines": 126,
+      "insert": []
+    },
+    {
+      "startLine": 26035,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 26078,
+      "deleteLines": 3,
+      "insert": []
+    },
+    {
+      "startLine": 26179,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 26965,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 26977,
+      "deleteLines": 1,
+      "insert": [
+        "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
+      ]
+    },
+    {
+      "startLine": 26981,
+      "deleteLines": 1,
+      "insert": [
+        "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"
+      ]
+    }
+  ]
+}

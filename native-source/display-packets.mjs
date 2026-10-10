@@ -1,3 +1,4 @@
+import {captureRigidGpuGeometry} from './gpu-island-preview.mjs';
 /** Native display snapshots of actual Frame/Three data. No second editable scene graph. */
 import {IDENTITY,multiply4,webgpuProjection} from './gpu-selection.mjs';
 import {assertCubicMapSubset} from './gpu-cubic-map.mjs';
@@ -20,6 +21,7 @@ const read=(a,i,j)=>a?j===0?a.getX(i):j===1?a.getY(i):j===2?a.getZ(i):a.getW(i):
 export class DisplayGeometryCache {
   constructor(){this.rows=new WeakMap();}
   capture(g){
+    const rigid=captureRigidGpuGeometry(g);if(rigid)return rigid;
     const p=g.attributes.position,n=g.attributes.normal,u=g.attributes.uv,c=g.attributes.color,ix=g.index;
     if(!p||p.itemSize!==3)fail('Display positions must be xyz');
     for(const a of [n,u,c])if(a&&a.count!==p.count)fail('Display attribute count mismatch');

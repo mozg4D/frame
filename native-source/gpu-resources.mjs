@@ -1,9 +1,11 @@
+import {rigidGpuBufferUsage} from './gpu-island-preview.mjs';
 /** One device and immutable upload pool shared by native display, picking and compute. */
 export class GpuBufferPool {
   constructor(device) { this.device=device;this.entries=new Map();this.bytes=0;this.disposed=false; }
   borrow(data,usage,label='Frame shared buffer',minBytes=4) {
     if(this.disposed)throw Error('GPU pool disposed');
     if(!ArrayBuffer.isView(data)||data instanceof DataView)throw Error('Typed source view required');
+    usage=rigidGpuBufferUsage(data,usage);
     const size=Math.max(minBytes,4,Math.ceil(data.byteLength/4)*4);
     if(size>this.device.limits.maxBufferSize || ((usage&GPUBufferUsage.STORAGE)&&size>this.device.limits.maxStorageBufferBindingSize))throw Error(`${label}: buffer limit; explicit batching required`);
     let variants=this.entries.get(data);if(!variants){variants=new Map();this.entries.set(data,variants);}
