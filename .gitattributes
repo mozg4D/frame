@@ -8,3 +8,4 @@
 /native-source/** -text
 # Development reconstruction deltas and checksums also require exact bytes.
 /development/** -text
+/editor-source/** -text

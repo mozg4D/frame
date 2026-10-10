@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "9023e8f31bf6a28d5b4bde858b53741f235e810dc9d3de431352d3c1e7aba0ff",
+  "beforeSHA256": "327a5cd2d878844c49ca80bbd9a5e8f23390f6c06f3290bac01675bcf64efbd6",
   "afterSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
-  "beforeBytes": 2639935,
+  "beforeBytes": 2643821,
   "afterBytes": 2602100,
   "operations": [
     {
@@ -92,38 +92,38 @@
     },
     {
       "startLine": 25908,
-      "deleteLines": 126,
+      "deleteLines": 165,
       "insert": []
     },
     {
-      "startLine": 26035,
+      "startLine": 26074,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26078,
+      "startLine": 26117,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 26179,
+      "startLine": 26218,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26965,
+      "startLine": 27004,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26977,
+      "startLine": 27016,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 26981,
+      "startLine": 27020,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"

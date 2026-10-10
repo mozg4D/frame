@@ -3,18 +3,18 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 1964,
-      "sha256": "c3b90e43dd9281f8ea4dc9dc64e87364a7040d33cea76248ccab913dbed8abb5"
+      "bytes": 2240,
+      "sha256": "819b3d3113f8e7005101d4765bc96e9222543c561d169677a5222a1c0969664c"
     },
     {
       "path": "base-extraction.json",
       "bytes": 3466,
-      "sha256": "ee7e04a123b2965684787e228a9f9c192b075cd5de92970e57af3c549a76c8fd"
+      "sha256": "6ebf173159d9df2b1cfa90b71d29c0b97996ab4c96a41a9bf604d310c938ab02"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 431,
-      "sha256": "d30ba75ee230b2e057442afec3e8b82ad203d71e06db2b89f7f4dc211b03e831"
+      "bytes": 420,
+      "sha256": "b6be9a9589502a3648b1ff5c3e9399579b3c92cee5d32c14f1616693113f129f"
     },
     {
       "path": "rebuild.mjs",
@@ -23,13 +23,13 @@
     },
     {
       "path": "rigid-component-preview.mjs",
-      "bytes": 36647,
-      "sha256": "b898dcf9c61a2b54db68398583976044f90e6fd8cd0b0a509f41af9b9528da0d"
+      "bytes": 40533,
+      "sha256": "9e8fc50a14681e21259cd03a2acb6d894fe0927711a6b2c68618b052c9cfd259"
     },
     {
       "path": "tests/alias-guards.mjs",
-      "bytes": 4116,
-      "sha256": "7fdc331a1d6d38d199645a50225d16a85b12ace03923879ce241c793ce90cff3"
+      "bytes": 4210,
+      "sha256": "8f4681ea023448ea4267f1499f9fcb1de1a809a641c04fa7b42d88755b2fa4be"
     },
     {
       "path": "tests/guards.mjs",
@@ -43,8 +43,13 @@
     },
     {
       "path": "tests/lifecycle.mjs",
-      "bytes": 22963,
-      "sha256": "159942b1f65fda06fa2cb7367a49ee7f3bc6a9eb3b20c4b1ec5fce40e6793678"
+      "bytes": 27537,
+      "sha256": "f7a9329bdc97ec2c185f8d20a9dc0b857d19b4e72f21124220451bf26996965d"
+    },
+    {
+      "path": "tests/stable-face-proof.mjs",
+      "bytes": 4551,
+      "sha256": "53a5a83344801e691fe813d39df83a9262813d5c31fd92ad70f2d73ed57382d6"
     }
   ]
 }

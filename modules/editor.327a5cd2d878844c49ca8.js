@@ -25927,7 +25927,7 @@ function frameRigidExtent(frame){const b=frameRigidBounds();if(!b)return null;co
 function frameRigidStart(e){
  if(frameRigidFallthrough)return false;const pending=frameRigidQueue.length>0;if(pending&&!frameRigidTransactionCurrent(frameRigidQueue.at(-1))){frameRigidAbortAll('source-or-selection-changed');}
  const waiting=frameRigidQueue.length>0,basic=frameRigidBasic();if(!basic&&!waiting)return false;let t=waiting?frameRigidQueue.at(-1).t:frameRigidSchedulePrepare();
- const rigid=!!basic&&coordMode==='world'&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!rigid||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;
+ const rigid=!!basic&&(coordMode==='world'||gizDrag?.mode==='move')&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!rigid||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;
  const source=frameRigidTransactionSnapshot(t);if(!source)return false;const before=getGizmoWorldArray().slice();let abortResolve;const abortPromise=new Promise(r=>abortResolve=r),s={t,source,kind:rigid&&frameRigidUniformWorld(source.world)?'gpu':'cpu',event:e,drag:gizDrag,gizmo:before,afterGizmo:before.slice(),beforePivot:polyPivotMatrix?.slice()??null,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),revision:0,ready:false,released:false,cancel:false,discarded:false,overlays:null,abortPromise,abortResolve};frameRigidQueue.push(s);frameRigidInput=s;frameRigidInstallInput(s);frameRigidNotes.starts++;if(frameRigidQueue.length>1)frameRigidNotes.queuedStarts++;frameRigidDrain();return true;
 }
 function frameRigidActivate(s){const t=s.t,ids=t.ids;s.beforeValues=new Float32Array(ids.length*3);s.beforeNormals=new Float32Array(ids.length*3);for(let k=0;k<ids.length;k++){const at=ids[k]*3;for(let j=0;j<3;j++){s.beforeValues[k*3+j]=t.pa[at+j];s.beforeNormals[k*3+j]=t.na[at+j];}}s.overlays=[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex].map(o=>({o,matrix:o.matrix.clone(),auto:o.matrixAutoUpdate}));s.normalMatrix=new THREE2.Matrix3();s.point=new THREE2.Vector3();s.moved=new THREE2.Vector3();s.normalPoint=new THREE2.Vector3();s.cachedSlot=-1;s.cachedRevision=-1;s.cachedNormalSlot=-1;s.cachedNormalRevision=-1;
@@ -26022,13 +26022,52 @@ function* frameRigidBuildAliasGuard(t){
  for(let id=0;id<t.p.count;id++){if(!t.slot[id]){const k=id*3,x=Math.round(t.pa[k]*1e5),y=Math.round(t.pa[k+1]*1e5),z=Math.round(t.pa[k+2]*1e5);let at=hash(x,y,z)&mask,found=false,probes=0;while(slots[at]){if(++probes>128){t.aliasGuardFailure='alias-validation-probe-budget';return false;}const old=(slots[at]-1)*3;if(keys[old]===x&&keys[old+1]===y&&keys[old+2]===z){found=true;break;}at=(at+1)&mask;}if(!found){const o=size*3;keys[o]=x;keys[o+1]=y;keys[o+2]=z;slots[at]=++size;}}if((id+1)%4096===0)yield;}
  const selected={slots:new Uint32Array(selectedCapacity),keys:new Float64Array(n*3),groups:new Uint32Array(n),reps:new Uint32Array(n),mask:selectedCapacity-1,size:0};
  for(let k=0;k<n;k++){const p=t.ids[k]*3,x=Math.round(t.pa[p]*1e5),y=Math.round(t.pa[p+1]*1e5),z=Math.round(t.pa[p+2]*1e5);let at=hash(x,y,z)&selected.mask,group=-1,probes=0;while(selected.slots[at]){if(++probes>128){t.aliasGuardFailure='alias-validation-probe-budget';return false;}const old=selected.slots[at]-1,o=old*3;if(selected.keys[o]===x&&selected.keys[o+1]===y&&selected.keys[o+2]===z){group=old;break;}at=(at+1)&selected.mask;}if(group<0){group=selected.size++;const o=group*3;selected.keys[o]=x;selected.keys[o+1]=y;selected.keys[o+2]=z;selected.reps[group]=k;selected.slots[at]=group+1;}selected.groups[k]=group;if((k+1)%4096===0)yield;}
- t.aliasGuard={bytes,find,entries:size,hash,selected};return true;
+ t.aliasGuard={bytes,find,entries:size,hash,selected};t.stableFaceComponent=yield* frameRigidStableFaceComponentWork(t);return true;
 }
 function frameRigidAliasSafe(t,values=null){
- const guard=t.aliasGuard;if(!guard)return false;const s=guard.selected,a=values??t.pa;s.slots.fill(0);
+ const guard=t.aliasGuard;if(!guard)return false;const s=guard.selected,a=values??t.pa;if(t.stableFaceComponent){for(let k=0;k<t.ids.length;k++){const at=values?k*3:t.ids[k]*3,x=a[at],y=a[at+1],z=a[at+2];if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)||guard.find(Math.round(x*1e5),Math.round(y*1e5),Math.round(z*1e5)))return false;}return true;}s.slots.fill(0);
  for(let group=0;group<s.size;group++){const k=s.reps[group],at=values?k*3:t.ids[k]*3,x=Math.round(a[at]*1e5),y=Math.round(a[at+1]*1e5),z=Math.round(a[at+2]*1e5);if(guard.find(x,y,z))return false;let slot=guard.hash(x,y,z)&s.mask,probes=0;while(s.slots[slot]){if(++probes>128)return false;const old=(s.slots[slot]-1)*3;if(s.keys[old]===x&&s.keys[old+1]===y&&s.keys[old+2]===z)return false;slot=(slot+1)&s.mask;}const o=group*3;s.keys[o]=x;s.keys[o+1]=y;s.keys[o+2]=z;s.slots[slot]=group+1;}
  for(let k=0;k<t.ids.length;k++){const at=values?k*3:t.ids[k]*3,o=s.groups[k]*3;if(Math.round(a[at]*1e5)!==s.keys[o]||Math.round(a[at+1]*1e5)!==s.keys[o+1]||Math.round(a[at+2]*1e5)!==s.keys[o+2])return false;}return true;
 }
+// Reuse a full face-island binding across internal quantization-cell changes only
+// when exact source EDGE pairs already connect every selected
+// face, and every bound vertex occurs in those faces. Equal source Float32 points
+// follow the same ordered affine arithmetic and stay equal after rounding. Raw
+// index connectivity stays intact. The unchanged outside-alias guard still
+// rejects contacts with every unselected vertex, including unused vertices.
+function* frameRigidStableFaceComponentWork(t){
+ const n=t.ids.length,nf=t.faceIDs.length,capacity=2**Math.ceil(Math.log2(Math.max(8,n*2))),edgeCapacity=2**Math.ceil(Math.log2(Math.max(8,nf*6))),bytes=capacity*4+n*(12+4+1+1)+edgeCapacity*4+nf*(3*12+4+1);
+ if(!n||!nf||n>94906265||bytes>33554432||(t.aliasGuard?.bytes??0)+bytes>67108864)return false;
+ const slots=new Uint32Array(capacity),keys=new Float32Array(n*3),parent=new Uint32Array(n),rank=new Uint8Array(n),used=new Uint8Array(n),mask=capacity-1,bits=new Float32Array(1),word=new Uint32Array(bits.buffer);
+ const number=v=>{if(v===0)return 0;bits[0]=v;let h=word[0];h=Math.imul(h^(h>>>16),0x7feb352d);h=Math.imul(h^(h>>>15),0x846ca68b);return h^(h>>>16);};
+ const hash=(x,y,z)=>(Math.imul(number(x),73856093)^Math.imul(number(y),19349663)^Math.imul(number(z),83492791))>>>0;
+ const root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+ const join=(a,b)=>{a=root(a);b=root(b);if(a===b)return;if(rank[a]<rank[b])parent[a]=b;else{parent[b]=a;if(rank[a]===rank[b])rank[a]++;}};
+ for(let k=0;k<n;k++){
+  parent[k]=k;const at=t.ids[k]*3,x=t.pa[at],y=t.pa[at+1],z=t.pa[at+2];if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))return false;
+  keys[k*3]=x;keys[k*3+1]=y;keys[k*3+2]=z;let s=hash(x,y,z)&mask,probes=0;
+  while(slots[s]){if(++probes>128)return false;const old=slots[s]-1,o=old*3;if(keys[o]===x&&keys[o+1]===y&&keys[o+2]===z){join(k,old);break;}s=(s+1)&mask;}
+  if(!slots[s])slots[s]=k+1;if((k+1)%4096===0)yield;
+ }
+ const faceParent=new Uint32Array(nf),faceRank=new Uint8Array(nf),edgeSlots=new Uint32Array(edgeCapacity),edgeKeys=new Float64Array(nf*3),edgeFaces=new Uint32Array(nf*3),edgeMask=edgeCapacity-1;let edgeCount=0;
+ const faceRoot=i=>{while(faceParent[i]!==i){faceParent[i]=faceParent[faceParent[i]];i=faceParent[i];}return i;};
+ const faceJoin=(a,b)=>{a=faceRoot(a);b=faceRoot(b);if(a===b)return;if(faceRank[a]<faceRank[b])faceParent[a]=b;else{faceParent[b]=a;if(faceRank[a]===faceRank[b])faceRank[a]++;}};
+ for(let k=0;k<nf;k++){faceParent[k]=k;if((k+1)%4096===0)yield;}
+ for(let k=0;k<nf;k++){
+  const f=t.faceIDs[k],a=t.slot[t.ia[f*3]]-1,b=t.slot[t.ia[f*3+1]]-1,c=t.slot[t.ia[f*3+2]]-1;if(![a,b,c].every(q=>Number.isInteger(q)&&q>=0&&q<n))return false;
+  used[a]=used[b]=used[c]=1;const A=root(a),B=root(b),C=root(c);
+  for(let j=0;j<3;j++){
+   const u=j===0?A:j===1?B:C,v=j===0?B:j===1?C:A,key=Math.min(u,v)*n+Math.max(u,v);let s=(Math.imul(key>>>0,73856093)^Math.imul(Math.floor(key/4294967296),19349663))&edgeMask,probes=0;
+   while(edgeSlots[s]){if(++probes>128)return false;const old=edgeSlots[s]-1;if(edgeKeys[old]===key){faceJoin(k,edgeFaces[old]);break;}s=(s+1)&edgeMask;}
+   if(!edgeSlots[s]){const e=edgeCount++;edgeKeys[e]=key;edgeFaces[e]=k;edgeSlots[s]=e+1;}
+  }
+  if((k+1)%4096===0)yield;
+ }
+ for(let k=0;k<n;k++){if(!used[k])return false;if((k+1)%4096===0)yield;}
+ const owner=faceRoot(0);for(let k=0;k<nf;k++){if(faceRoot(k)!==owner)return false;if((k+1)%4096===0)yield;}
+ t.stableFaceProofBytes=bytes;return true;
+}
+
 // Builder marker: generated native worker must carry its geometry snapshot helper.
 function frameRigidNativeWorkerClosureComplete(){}
 

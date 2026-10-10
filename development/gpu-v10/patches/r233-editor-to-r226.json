@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "9023e8f31bf6a28d5b4bde858b53741f235e810dc9d3de431352d3c1e7aba0ff",
+  "beforeSHA256": "327a5cd2d878844c49ca80bbd9a5e8f23390f6c06f3290bac01675bcf64efbd6",
   "afterSHA256": "2fbd0f5a8cefe96ff28eb3c2aae136292f052478b6268f2c0b515b5b78909f23",
-  "beforeBytes": 2639935,
+  "beforeBytes": 2643821,
   "afterBytes": 2600154,
   "operations": [
     {
@@ -147,45 +147,45 @@
     },
     {
       "startLine": 25908,
-      "deleteLines": 126,
+      "deleteLines": 165,
       "insert": []
     },
     {
-      "startLine": 26035,
+      "startLine": 26074,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26078,
+      "startLine": 26117,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 26179,
+      "startLine": 26218,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26187,
+      "startLine": 26226,
       "deleteLines": 1,
       "insert": [
         "  if (e.pointerType === \"touch\" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === \"lineCut\" || vertexTools.mode === \"closeHole\" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === \"persp\" && !polyMode)) return;\n"
       ]
     },
     {
-      "startLine": 26965,
+      "startLine": 27004,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26977,
+      "startLine": 27016,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 26981,
+      "startLine": 27020,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"
