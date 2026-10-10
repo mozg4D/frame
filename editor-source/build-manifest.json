@@ -1,11 +1,12 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r234-wire-marquee-sw",
-  "productionEditor": "modules/editor.67e397a01e9ed1dbff7d.js",
-  "productionSHA256": "67e397a01e9ed1dbff7d8e4651138554de10a0db62a8a79d4949a9d91112df6d",
-  "productionBytes": 2644198,
+  "version": "r235-background-selection",
+  "productionEditor": "modules/editor.e333dd2896489bc928cf.js",
+  "productionSHA256": "e333dd2896489bc928cf9e984bbbda42a5ec4e9dd5992622dc03805199a3682a",
+  "productionBytes": 2652531,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
-  "editorIntegration": "wire-marquee-integration.json"
+  "editorIntegration": "wire-marquee-integration.json",
+  "derivedIntegration": "derived-selection-integration.json"
 }

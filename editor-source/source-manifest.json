@@ -3,33 +3,43 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 2684,
-      "sha256": "4584652fcaec4cd1491f958ce1f698a42bfee345e2fb363d0a5eaee0fa9f7f4e"
+      "bytes": 3054,
+      "sha256": "c6f0511f0235575816e403e0f42a6e578ce8428eeb751c762ca91220811ca55d"
     },
     {
       "path": "base-extraction.json",
-      "bytes": 4861,
-      "sha256": "386e54314640da6f4166d0faa9534e58083cd2d1756b45b202378e62de191302"
+      "bytes": 7924,
+      "sha256": "63a4f1d2bdfab168acd90388b02a2b85b2272dcfeaaead2bde8f55de965de0e2"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 479,
-      "sha256": "a3d31a5ce3dd25846cf09fa7ab315f412958bbe1440c6f1eea514ec0f0aa9d92"
+      "bytes": 546,
+      "sha256": "31117195181ddff2d09c6353eda2bfb83a80cac2c45f8088831464781c46d9f0"
+    },
+    {
+      "path": "derived-selection-integration.json",
+      "bytes": 6387,
+      "sha256": "5b96f2eb5982941f6c477d7c03d0edf11bfb8a7ccacc15c0475046b1ba650d30"
     },
     {
       "path": "rebuild.mjs",
-      "bytes": 9267,
-      "sha256": "f042bbb5cb3e516cfad175419055442fdb1e26bc308212af7681db74e4942bf8"
+      "bytes": 10071,
+      "sha256": "727f2b81e6c9fce14152145127050ff5486a7c62863e5bf91c91db8d5ac27c73"
     },
     {
       "path": "rigid-component-preview.mjs",
-      "bytes": 40705,
-      "sha256": "d496b9c7551b5a2e7c03a2fc505062f9761dd64c4c8cd19faff020959cbcd764"
+      "bytes": 48589,
+      "sha256": "6a085f461459564036f5b3f56c36a455a674bfead15f1c67715fd328cb771904"
     },
     {
       "path": "tests/alias-guards.mjs",
       "bytes": 4210,
       "sha256": "8f4681ea023448ea4267f1499f9fcb1de1a809a641c04fa7b42d88755b2fa4be"
+    },
+    {
+      "path": "tests/derived-lifecycle.mjs",
+      "bytes": 25237,
+      "sha256": "52088679ff343c99fe75ede8ba86bfdd65f841dca306aeebf541aac20bdde05f"
     },
     {
       "path": "tests/guards.mjs",
@@ -43,8 +53,8 @@
     },
     {
       "path": "tests/lifecycle.mjs",
-      "bytes": 27635,
-      "sha256": "7cbe4fcea1f3f730ccbcf4615cac37e0ebf016bd551e009004f20e5a408f0b3b"
+      "bytes": 28518,
+      "sha256": "a4b336ae483e288490b9988bbb25ad4f05b0d5f7931476f8b106978d41c09a38"
     },
     {
       "path": "tests/service-worker.mjs",

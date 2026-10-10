@@ -1,0 +1,175 @@
+{
+  "schema": "frame-current-function-deltas-v1",
+  "functions": [
+    {
+      "name": "framePolySelectionBuffers",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "6023c922cf58272120e10f6a1f67718485410bf92645ac1e14f0410a02ce1876",
+      "afterSHA256": "40029e7582d2eaa930cc6a7bc90715576b423c96f458509f780e210e81752cfb",
+      "beforeBytes": 2021,
+      "afterBytes": 2031,
+      "operations": [
+        {
+          "startLine": 0,
+          "deleteLines": 1,
+          "insert": [
+            "function* framePolySelectionBuffers(items,meshes=pickMeshes) {\n"
+          ]
+        },
+        {
+          "startLine": 3,
+          "deleteLines": 1,
+          "insert": [
+            "  for(const [h,s] of items)if(selNodes.has(h)&&meshes.get(h)?.geometry?.attributes.position){nf+=s.faces.size*9;ne+=s.edges.size*6;nv+=s.vertices.size*3;}\n"
+          ]
+        },
+        {
+          "startLine": 8,
+          "deleteLines": 1,
+          "insert": [
+            "    let mesh = meshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position, idx = g && g.index;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "framePolySelectedVertexIdsWork",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "725a49d2568951cf3d3d224dbf21fe0455a4cd9955992eec3992c0e5f219de16",
+      "afterSHA256": "0bb6b1d17009dd146d433c642bb7420793b290345496f03e126e568b64ce7d3f",
+      "beforeBytes": 1679,
+      "afterBytes": 1748,
+      "operations": [
+        {
+          "startLine": 0,
+          "deleteLines": 3,
+          "insert": [
+            "function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices,meshes=pickMeshes,rigidIDs=null) {\n",
+            "  const rigid=rigidIDs?.get(h)??(meshes===pickMeshes&&items===polySelection.items&&!exact?.has(h)?frameRigidSelectedIDs(h):null);if(rigid)return new Set(rigid);\n",
+            "  const s=items.get(h),mesh=meshes.get(h),g=mesh?.geometry,out=new Set();let work=0;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "frameFaceSelectionBasisWork",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "441ac87b8ec7566d8ab3586bc8b4e18a4e7adb56c878b3c86722977211d7eb4f",
+      "afterSHA256": "6e7b9e189e5a16b4b65584ac6d10571585f99439770bba846fabb809d5a93fea",
+      "beforeBytes": 1473,
+      "afterBytes": 1487,
+      "operations": [
+        {
+          "startLine": 0,
+          "deleteLines": 1,
+          "insert": [
+            "function* frameFaceSelectionBasisWork(h,ownerRot,items=polySelection.items,meshes=pickMeshes) {\n"
+          ]
+        },
+        {
+          "startLine": 2,
+          "deleteLines": 1,
+          "insert": [
+            "  const s=items.get(h),mesh=meshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "frameEdgeSelectionBasisWork",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "55910e1bcc446a563e4f10f33ed7806ea70c58877a8d9e9677f45ca36bcb02c1",
+      "afterSHA256": "f6b8fc83d2c9da4a1faba17d6cb1a3e11e798a30f93c68a2b2eb39c165c7e867",
+      "beforeBytes": 2152,
+      "afterBytes": 2166,
+      "operations": [
+        {
+          "startLine": 0,
+          "deleteLines": 1,
+          "insert": [
+            "function* frameEdgeSelectionBasisWork(h,ownerRot,items=polySelection.items,meshes=pickMeshes) {\n"
+          ]
+        },
+        {
+          "startLine": 2,
+          "deleteLines": 1,
+          "insert": [
+            "  let s = items.get(h), mesh = meshes.get(h), pos = mesh?.geometry?.attributes.position;\n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "framePolySelectionMeasurements",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "7ccf47919c20d3d597e5b2429d6d29251a9e2c34e192e0f6904fb3b9ae2ade75",
+      "afterSHA256": "abca8cb1e2db925848c3788fe7a4b46239838192e255bb94f8652b68d64ad062",
+      "beforeBytes": 1929,
+      "afterBytes": 2213,
+      "operations": [
+        {
+          "startLine": 0,
+          "deleteLines": 1,
+          "insert": [
+            "function* framePolySelectionMeasurements(items,exact=polyExactEdgeVertices,meshes=pickMeshes,pivot=null,rigidIDs=null){\n"
+          ]
+        },
+        {
+          "startLine": 6,
+          "deleteLines": 1,
+          "insert": [
+            "    const mesh=meshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;\n"
+          ]
+        },
+        {
+          "startLine": 8,
+          "deleteLines": 1,
+          "insert": [
+            "    const ids=yield* framePolySelectedVertexIdsWork(h,items,exact,meshes,rigidIDs);selected.set(h,ids);\n"
+          ]
+        },
+        {
+          "startLine": 12,
+          "deleteLines": 1,
+          "insert": [
+            "  let h=null;for(const key of items.keys())if(meshes.has(key)){h=key;break;}h??=selNodes.values().next().value||null;\n"
+          ]
+        },
+        {
+          "startLine": 14,
+          "deleteLines": 3,
+          "insert": [
+            "  if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}\n",
+            "  else if(coordMode==='world')frame=new THREE2.Matrix4();\n",
+            "  else{const owner=pureWorldFrame(h);frame=(yield* frameFaceSelectionBasisWork(h,owner,items,meshes))||(yield* frameEdgeSelectionBasisWork(h,owner,items,meshes))||owner;}\n",
+            "  frame.setPosition(pivot?new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(pivot)):mn.clone().add(mx).multiplyScalar(.5));\n"
+          ]
+        },
+        {
+          "startLine": 19,
+          "deleteLines": 1,
+          "insert": [
+            "    const mesh=meshes.get(h),pos=mesh.geometry.attributes.position;mesh.updateMatrixWorld(true);\n"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "startGizDrag",
+      "schema": "frame-exact-line-delta-v1",
+      "beforeSHA256": "5a185a7554d96ec50e8e62a850cbbc2562f61f6a64fbceaa16c8826b5aa390af",
+      "afterSHA256": "283bf6c212437ea259e65d1603e793af790e31313956d9eaa55392a25fe4023a",
+      "beforeBytes": 4724,
+      "afterBytes": 4782,
+      "operations": [
+        {
+          "startLine": 1,
+          "deleteLines": 0,
+          "insert": [
+            " frameRigidGestureGeneration++;frameRigidCancelDerived();\n"
+          ]
+        }
+      ]
+    }
+  ]
+}
