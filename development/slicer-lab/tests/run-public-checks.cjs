@@ -25,7 +25,7 @@ for (const line of fs.readFileSync('SHA256SUMS', 'utf8').trim().split('\n')) {
   integrityFilesChecked++;
 }
 let syntaxFilesChecked = 0;
-for (const dir of ['core', 'tests', 'scripts']) for (const file of fs.readdirSync(dir).filter(f => /\.(cjs|js)$/.test(f)).sort()) {
+for (const dir of ['core', 'tests', 'scripts', 'experiments', 'tools']) for (const file of fs.readdirSync(dir).filter(f => /\.(cjs|js)$/.test(f)).sort()) {
   const name = path.join(dir, file);
   const p = spawnSync(process.execPath, ['--check', name], { encoding: 'utf8' });
   if (p.status !== 0) throw Error('Syntax check failed: ' + name + '\n' + p.stderr);
@@ -54,6 +54,18 @@ const tests = [
   ['return-turn-seam-light.cjs'],
   ['corner-fan-light.cjs'],
   ['helper-transport.cjs'],
+  ['T-exact-cells-guards.cjs'],
+  ['T-raw-rational-string-guard.cjs'],
+  ['T-runtime-boundary-light.cjs'],
+  ['T-public-contract-light.cjs'],
+  ['T-shared-exact-ledger-light.cjs'],
+  ['T-local-atlas-trust-light.cjs'],
+  ['T-local-material-atlas-light.cjs'],
+  ['T-lean-checkpoint-clean.cjs'],
+  ['T-local-atlas-worker-light.cjs'],
+  ['T-local-atlas-size-scaling.cjs'],
+  ['T-source-width-necessity-light.cjs'],
+  ['T-direct-lap-link-light.cjs'],
 ];
 for (const [name, ...args] of tests) {
   const start = performance.now();
@@ -72,7 +84,9 @@ const report = {
   tests: results, elapsedMS: performance.now() - started,
   scope: 'Synthetic CPU and Node worker protocol checks for an unintegrated development checkpoint.',
   syntheticOwnerAcceptedLayers: results.some(r => r.test === 'annulus-mesh-light.cjs' && r.status === 'PASS') ? 3 : 0,
-  newCompleteTLayersAccepted: 0, wholeTPrescribedRouteResolved: false,
+  newCompleteTLayersAccepted: results.some(r => r.test === 'T-local-atlas-worker-light.cjs' && r.status === 'PASS') ? 3 : 0,
+  narrowOrthogonalSevenWTRouteTested: results.some(r => r.test === 'T-local-atlas-worker-light.cjs' && r.status === 'PASS'),
+  generalTRouteResolved: false, maximumContinuityEstablished: false,
   roundedExterior90MaterialTargetTested: results.some(r => r.test === 'T-rounded-prescribed-light.cjs' && r.status === 'PASS'),
   commandedConvexPolygonMultiplicityTested: results.some(r => r.test === 'deposition-multiplicity.cjs' && r.status === 'PASS'),
   admissibleSpiralsAccepted: 0, physicalVolumeOrExtrusionMultiplicityValidated: false,

@@ -1,8 +1,8 @@
 {
-  "name": "frame-independent-slicer-checkpoint19",
-  "version": "0.0.0-checkpoint19",
+  "name": "frame-independent-slicer-atlas",
+  "version": "0.0.0-t-atlas",
   "private": true,
-  "description": "Unintegrated synthetic geometry checkpoint; physical extrusion and printing remain unvalidated.",
+  "description": "Independent bounded annulus and T geometry checks; no production or physical-print validation.",
   "scripts": {
     "test": "node tests/run-public-checks.cjs"
   },

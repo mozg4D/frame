@@ -3,3 +3,4 @@ node_modules/
 /core/upstream-worker.js
 /core/candidate-worker.js
 /core/optimized-worker.js
+/fixtures/T-local-material-generated-unreviewed.json

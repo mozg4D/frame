@@ -1,50 +1,54 @@
-# Independent slicer, checkpoint 19
+# Independent slicer development
 
-Development source only. Three synthetic convex-annulus layers pass the prototype owner's computational checks. This is not physical-print acceptance or production integration. Admissible spirals: 0. No live Frame worker or separate browser application is installed here.
+Self-contained computational geometry and Node worker tests for bounded annulus and T routes. This directory does not install a browser application or replace a production Frame worker. Physical extrusion, deposited volume, printing and production integration remain unvalidated. Accepted spirals: 0.
 
 ## Run from a Frame checkout
 
-Node.js 20 or newer is required. No package installation or network access is needed.
+Node.js 20 or newer; no package installation or network access:
 
 ```sh
 cd development/slicer-lab
-node tests/run-public-checks.cjs
+npm test
 ```
 
-`npm test` runs the same suite. It reconstructs the pinned workers, checks source integrity and JavaScript syntax, then runs twenty-two test stages: reconstruction guards, contour baseline/regression, accuracy and exact predicates, checkpoint compatibility, annulus geometry and owned-worker transport, physical direction, transition rejection, ordered provenance, seam/corner diagnostics, T-body and cap candidates, exact commanded-polygon multiplicity, input-rejection guards, rounded material boundaries, open-portal provenance, and serial/helper/cancel equivalence. Failures return a nonzero exit status. Generated logs remain in ignored `evidence/`.
+The 34 sequential stages reconstruct pinned workers, check source hashes and syntax, and run synthetic geometry, provenance, owner/JSON, cancellation and regression controls. Failures exit nonzero. Logs and generated test outputs stay in ignored `evidence/`.
 
-The checkout must contain `modules/slicer-worker.e120c24f46831ec5c53d.js`, SHA-256 `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. `worker-deltas.json` stores readable source edits and expected hashes for the three original worker snapshots. `scripts/prepare-workers.cjs` reconstructs them into ignored `core/` paths after validating every source/edit/output hash, refusing to overwrite changed generated files. Production files are only read.
+The checkout must contain `modules/slicer-worker.e120c24f46831ec5c53d.js`, SHA-256 `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. `worker-deltas.json` and `scripts/prepare-workers.cjs` reconstruct three hash-guarded development snapshots into ignored `core/` paths. Production files are only read; changed generated files are never silently overwritten. `SHA256SUMS` covers tracked sources and the worker-delta manifest, which contains the expected generated hashes.
 
-`SHA256SUMS` covers tracked sources, including worker deltas and their expected generated hashes. Generated workers are intentionally absent from that manifest. After intentional source edits, regenerate checksums for the new checkpoint.
+## Verified bounded routes
 
-## Verified synthetic scope
+### Convex annulus
 
-- One narrowly qualified class: a near-uniform, strictly convex, exactly homothetic two-bank annulus, one requested perimeter, exact physical Float64 section, and existing work limits. Acceptance was tested on 128-edge fixtures at W = 0.5, 1, and 2; it does not cover arbitrary annuli or variable-width walls.
-- Each tested layer selects 130 contiguous print commands, one external start, no internal restarts or travels, and no retained-worker fallback.
-- The all-point original-material-to-feed distance bound is approximately 0.015625094W; the cumulative computational bound is at most 0.015626354W. This is geometric approximation to the unchanged complete original partition, not exact set equality or a deposition-volume certificate.
-- Actual print laps have negative signed area in physical right-handed XY, Z up, viewed from +Z. Known-square, worker/JSON/owner tests check that direction without an axis reflection. Transition planning uses the same sign.
-- Ordered provenance preserves original edge/face identities, reverses directed interval order and endpoints, and keeps clipped canonical parameters consistent. Tests cover subdivided and reversed source rings, final owner JSON, and a deliberately corrupted interval order.
+Three synthetic 128-edge, exactly homothetic two-bank annulus layers at W = 0.5, 1 and 2 select 130 contiguous commands each: one external start, no internal restart/travel and no retained-worker fallback. The cumulative computational bound is at most 0.015626354W. This does not extend to arbitrary annuli, holes or variable-width walls.
 
-## Limits that remain
+Print laps are clockwise in physical right-handed XY, Z up, viewed from +Z. Known-square, worker/JSON/owner and ordered provenance tests cover direction, original edge/face identity, winding reversal, tessellation and corrupted interval rejection.
 
-The closure length is at most 0.5W. Approximately 0.499999523W² is the *additional closure charge* under the existing unchanged-ribbon ledger. For the tested W = 1 annulus, exact convex-ribbon union accounting gives commanded repeated area D = sum(ribbon areas) - union area approximately 1.285577422W², including approximately 0.785577899W² before the closure. Pairwise intersection sum P equals D for that fixture because its positive-area triple coverage is zero. Generally P and D differ; the triple-retrace negative test has D = 2W² and P = 3W². The closure ledger, D and P are different quantities. This certifies commanded two-dimensional polygon accounting only. No claim is made that nominal overlap is physically harmless; physical extrusion multiplicity, deposited volume and over-extrusion remain unvalidated. Internal restart overlap remains outside the accepted toolpath contract.
+### Orthogonal seven-W T
 
-Multi-level transition tests retain the W-long width-phase and shared W²/2 limits. Actual generated transitions remain rejected for substantive geometry/overlap reasons; the synthetic bottom-bank connector test does not establish an accepted spiral or global maximal continuity.
+The isolated owner route generates fresh commands for each source, recompiles actual ribbons/rounds/bevels/triangles, verifies its complete proposal and replays only its own immutable buffer. Three new contours at W = 1, 0.5 and 2 select 701 commands, five paths and four non-extruding travels each. Three clockwise outside-in laps precede two central paths. No first-contour cache or retained-worker fallback supplies acceptance.
 
-T-shaped finite perimeter routes still do not certify full material allocation. A new source-derived T-body candidate covers the central cell missed by the finite perimeter construction, using only nominal W commands. For the tested 329W² T, its 14 commands leave 10.5W² of original CAD material uncovered and have D = 0. Adding three diagnostic caps leaves 1.5W² uncovered and raises D to 9W²; the cap overlap fails the unchanged joint budget. Both cases remain rejected by the mesh owner, with no selected commands or execution. They establish no new accepted full T layer or spiral.
+Supported inputs have one closed orthogonal T, exact seven-W bar and stem widths, exact vertical source triangles, right-angle rotations, source-separated local domains (left stem coordinate >10.25W, right arm >5.75W, height >12.25W), and representable guarded finite geometry. Reversed winding and collinear tessellation retain actual finite triangle provenance. Common decimal dimensions may fail the exact-width gate; these bounds do not prove smaller or other T classes impossible.
 
-## Rounded T material and open portals
+P is independently prescribed from original C: only the square-minus-quarterdisk regions of six exterior half-W corner squares are excluded. No other source material is removed. An all-point local certificate transfers the reviewed rigid regions; exact rectangle-union sweeps cover the remaining arbitrary-length straight regions. Actual feed is separately contained in C and P, and every fixed W/2 nozzle capsule remains inside C with zero exterior tolerance. Total directed construction error is below 0.02W (below 0.019600991463W in the included size controls).
 
-The exterior 90-degree material target is independently constructed from the original T and the usual fixed-width round nozzle rule: six disjoint inward W/2 squares retain their quarter disks. Only each square-minus-quarter-disk region is excluded; original material elsewhere is unchanged. The total excluded area is 1.5(1 - pi/4)W². Rational bounds enclose pi and all analytic boundary arcs. The material-boundary approximation is below 0.003862W in the tested cases, but contains no print commands and is not a complete feed or centreline certificate.
+Every width phase is at least W in planned and emitted coordinates; widths remain within 0.6–1.6W. Five entire initial constant-W runs have exactly zero foreign prior overlap. The four coupled final-event charges are approximately 0.5, 0.5, 0.5 and 0.491951029474 W². Each includes both owners, event self-pairs, late contacts, ribbons, rounds and bevels, without credit for removed overlap. Commands, turns and both owners of every charged area bind original finite source intervals and actual triangle normals.
 
-For the diagnostic body-plus-cap construction, the remaining material required by this rounded target is still approximately 1.178097245W². The target, original-CAD difference, and numerical construction error are separately accounted. The 2%W limit measures numerical deviation against the prescribed reference; it does not silently authorize arbitrary CAD loss. Body-only candidate construction remains distinct from a complete prescribed route.
+Width necessity is conditional on this source-first bank/root allocation; other layouts remain open. Two constructed direct links reducing the route to three paths fail the unchanged coupled budgets at about 1.76777 and 2.12132 W². This bounded connector search does not establish maximum continuity. Further valid connector allocations and longer continuous paths remain improvement objectives; no global optimality or impossibility theorem is claimed.
 
-Source-owned open portals retain the original body target and directed original-edge/triangle provenance. Tested terminal and branch coupons are continuous and satisfy their local joint bounds; the combined coupon fails the unchanged W²/2 bound. Complete outputs still have 13 or 14 separate components and remain unselected. Local fixed-placement overlap and fixed-Y channel arguments do not establish impossibility for general two-dimensional routes. No internal restart overlap or variable-width shortcut is introduced.
+Size tests extend arms/stem by factors 10, 100 and 1000 while keeping channels seven-W wide. They do not establish performance for wider channels, arbitrary branches or dense meshes. The budget/dispatcher fixture implements the existing Frame adapter contract with one owned test worker; it is not the production scheduling service.
 
-Input checks reject concave, self-crossing and non-2D polygons, malformed work budgets, oversized rational coordinates and invalid T boundary order. Tests preserve valid reversed/subdivided input, check nonzero construction error near the 2%W limit, and reject forged targets and owner proposals.
+## Compact synthetic certificate
 
-Rectangle full-material allocation, the unselected 113-start corner coupon, variable/multiple-hole annuli, nonzero section-conversion error, general topology beyond the existing budget, and admissible spirals remain unresolved or unsupported. Native UI, production scheduling, G-code and physical printing are not validated by this suite. Historical full-model results are not current checkpoint evidence.
+`fixtures/T-local-material-certified-projection-v1.json` is a necessary 397,082-byte input, not a cached execution result. Its SHA-256 is `c03704f2bbce5f1e97b448b270270cd2863563d189c70c7295ffd44f3d7b0375`. Exact consumed-field equivalence to the independently reviewed full synthetic proof was checked. The loader pins both this projection and its original proof provenance. Current commands, events, phases, triangles and provenance are generated afresh. No historical owner receipt is needed by the public suite.
 
-Original Frame and third-party license notices retain their terms. No historical reports, user models, screenshots, dependency caches or duplicate full workers are included.
+For optional provenance reproduction, run `node tests/T-material-projection-equivalence.cjs /path/to/original-synthetic-proof.json` with the separately retained original proof. `node tools/project-T-material-certificate.cjs --generate` instead performs a full synthetic proof from current sources and writes an ignored, **unreviewed** projection. This expensive optional generation mode is not part of the short suite and has not been run for this checkpoint. A new digest needs independent review; it never updates the accepted pin automatically.
 
-Reconstructed core SHA-256: `9ea9e79aebe55061e637b1e137f9836406b6119d0946ce7b622db6aa14db757f` (sorted core JS/CJS basenames followed by exact bytes).
+## Remaining limits
+
+Use the mesh-owner route for source/face provenance authority. `qualifyTFast` is a geometric helper, not a standalone verifier of arbitrary caller-supplied emitted provenance.
+
+The annulus closure charge, total commanded repeated area and pairwise intersection sum are different quantities. For the W = 1 fixture, the additional closure charge is about 0.499999523W², while repeated area is about 1.285577422W². Positive-area triple coverage makes pairwise sums differ from repeated area in general. These are two-dimensional polygon calculations, not physical deposition or flow certificates. Internal restart overlap remains outside the accepted toolpath contract.
+
+Earlier T-body/cap/open-portal constructions remain useful rejected controls; their results do not describe the newer bounded T route. General adaptive-width necessity, arbitrary decimal geometry, Y/X and other branch classes, inclined walls, arbitrary rotations, rectangle full-material allocation and admissible spirals remain unresolved or unsupported. Historical full-model results are not current acceptance evidence. No current complete real-model baseline, production integration, G-code or physical printing is certified.
+
+Original Frame and third-party license notices retain their terms. No user geometry, screenshots, historical reports, dependency caches or duplicate full workers are included. Reconstructed core fingerprint: `9ea9e79aebe55061e637b1e137f9836406b6119d0946ce7b622db6aa14db757f` (sorted JS/CJS basenames followed by exact bytes).

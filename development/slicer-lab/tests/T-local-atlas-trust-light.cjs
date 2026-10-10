@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('fs'),assert=require('assert/strict'),{createTLocalMaterialAtlas}=require('../experiments/T-local-material-atlas.cjs'),{createTRedistributedCentralCourses}=require('../experiments/T-redistributed-central-courses.cjs'),{compileTExecution}=require('../experiments/T-runtime-commands.cjs'),{qualifyTFast}=require('../experiments/T-fast-qualification.cjs'),{hash}=require('../core/mesh-section.cjs');
+const bytes=fs.readFileSync('fixtures/T-local-material-certified-projection-v1.json'),atlas=createTLocalMaterialAtlas(bytes),source=[[0,0],[36,0],[36,7],[21,7],[21,28],[14,28],[14,7],[0,7]],g=createTRedistributedCentralCourses(),a=g.generate({source,runtimeOnly:true}),r=compileTExecution(a);let checks=0;
+const bad=Buffer.from(bytes);bad[100]^=1;assert.throws(()=>createTLocalMaterialAtlas(bad),/reviewed unit/);checks++;
+assert.throws(()=>atlas.qualify(source,a,structuredClone(r)),/unowned/);checks++;
+const q=structuredClone(a);q.plan.body.rows[0].exactFrom[0]='1/1';assert.throws(()=>atlas.qualify(source,q,compileTExecution(q)),/independent source body/);checks++;
+const p=structuredClone(a);p.plan.rounded.corners[0].exactRadius='1/4';assert.throws(()=>qualifyTFast(source,p,compileTExecution(p),atlas),/independent source P/);checks++;
+const changed=structuredClone(a);changed.commands[0].widthStart+=.125;assert.throws(()=>atlas.qualify(source,changed,r),/changed allocation/);checks++;
+const hacked=structuredClone(compileTExecution(a));hacked.cells[0].polygon[0][0]+=.125;hacked.bufferSignature=hash({commands:hacked.commands,cells:hacked.cells,triangles:hacked.triangles,execution:hacked.execution});assert.throws(()=>atlas.qualify(source,a,hacked),/changed T runtime/);checks++;
+const narrow=[[0,0],[30,0],[30,7],[15,7],[15,24],[8,24],[8,7],[0,7]],n=g.generate({source:narrow,runtimeOnly:true}),nr=compileTExecution(n);assert.throws(()=>atlas.qualify(narrow,n,nr),/separated local T source domains/);checks++;
+const out={passed:true,checks,templateBytesPinned:true,sourceBodyAndPRecomputed:true,ownedFullRuntimeAndAllocationRequired:true,overlappingLocalDomainsRejected:true};fs.writeFileSync('evidence/T-local-atlas-trust-light.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out));

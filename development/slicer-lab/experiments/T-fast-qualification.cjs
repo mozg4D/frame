@@ -1,0 +1,35 @@
+'use strict';
+// Fresh bounded source checks and ONE exact all-final event/startup ledger.
+// Local material transfer is separate from strict C/P containment and nozzle.
+const R=require('../core/rational.cjs'),A=require('../core/accuracy-contract.cjs'),{load}=require('../core/adapter.cjs'),{hull,subtract,intersectConvexCells}=require('../core/trajectory-union-accuracy.cjs'),{frame}=require('./T-local-material-atlas.cjs'),{sharedExactLedger}=require('./T-shared-exact-ledger.cjs');
+const P=p=>p.map(R.parse),bounds=p=>[0,1].map(k=>p.reduce((s,q)=>A.min(s,q[k]),p[0][k])).concat([0,1].map(k=>p.reduce((s,q)=>A.max(s,q[k]),p[0][k]))),inside=(a,b)=>[0,1].every(k=>R.cmp(a[k],b[k])>=0&&R.cmp(a[k+2],b[k+2])<=0),touch=(a,b)=>[0,1].every(k=>R.cmp(a[k+2],b[k])>=0&&R.cmp(b[k+2],a[k])>=0),rect=b=>[[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]],half=R.rat(1n,2n);
+function qualifyTFast(source,a,r,atlas,{signal}={}){
+ if(signal?.aborted)throw Error('fast T cancelled');require('./T-runtime-commands.cjs').assertOwnedTExecution(r,a);const {hash}=require('../core/mesh-section.cjs'),expected=require('./T-redistributed-central-courses.cjs').planTRedistributedCentralCourses(source,a.W,a.count,{},false),program=p=>({commands:p.commands,events:p.events,phases:p.phases,courses:p.courses,joins:p.joins});
+ if(hash(program(a.plan))!==hash(program(expected))||a.commands.length!==expected.commands.length||a.commands.some((q,i)=>q.role!==expected.commands[i].role||q.phase!==expected.commands[i].phase||hash([q.exactFrom,q.exactTo,q.exactWidthStart,q.exactWidthEnd])!==hash([expected.commands[i].exactFrom,expected.commands[i].exactTo,expected.commands[i].exactWidthStart,expected.commands[i].exactWidthEnd])))throw Error('changed source command/event/phase partition');
+ if(hash(a.plan.rounded)!==hash(require('../core/T-rounded-prescribed-plan.cjs').planTRoundedMaterial(source,a.W,a.count)))throw Error('changed independent source P');
+ const material=atlas.qualify(source,a,r),f=frame(a),C=[[R.zero,R.zero,f.x3,R.rat(7n)],[f.x1,R.zero,f.x2,f.yt]],convexC=C.map(b=>hull(rect(b))),budget={work:0,maxWork:1000000},c=load('optimized-worker.js').context;
+ const corners=a.plan.rounded.corners.map(q=>({poly:hull(q.exactSquare.map(P)),box:bounds(q.exactSquare.map(P)),centre:P(q.exactCentre),r2:R.mul(R.parse(q.exactRadius),R.parse(q.exactRadius))}));
+ let nozzleFast=0,nozzleExact=0,feedFast=0,feedExact=0,quarterDiskChecks=0;const containment=[];
+ for(let i=0;i<r.commands.length;i++){if(signal?.aborted)throw Error('fast T cancelled');const q=r.commands[i],b=bounds([q.from,q.to].map(p=>f.relative(p.map(R.exact)))),capsule=b.map((v,k)=>R.add(v,k<2?R.sub(R.zero,half):half));
+  let nozzle=C.some(p=>inside(capsule,p));if(nozzle)nozzleFast++;else{nozzleExact++;nozzle=c.frameThroughNeckExactClearance(q.from,q.to,source,r.W).passed;}containment.push({command:i,nozzle});
+ }
+ let wholeFeed=true,wholeP=true;
+ for(const cell of r.cells){if(signal?.aborted)throw Error('fast T cancelled');const poly=hull(cell.polygon.map(p=>p.map(R.exact))),box=bounds(poly),localBox=bounds(poly.map(f.relative));let feed=C.some(b=>inside(localBox,b));
+  if(feed)feedFast++;else{feedExact++;let remainder=[hull(poly.map(f.relative))];for(const p of convexC)remainder=remainder.flatMap(q=>subtract(q,p,budget));feed=remainder.length===0;}wholeFeed&&=feed;
+  for(const corner of corners)if(touch(box,corner.box)){const overlap=intersectConvexCells(poly,corner.poly,budget);quarterDiskChecks++;if(overlap.some(p=>{const d=R.vec(p,corner.centre);return R.cmp(R.dot(d,d),corner.r2)>0;}))wholeP=false;}
+ }
+ const eventIds=a.plan.events.map(e=>e.eventCommands??Array.from({length:e.commandTo-e.commandFrom},(_,i)=>e.commandFrom+i)),descriptors=eventIds.map(ids=>({eventCellIds:r.cells.map((q,i)=>ids.includes(q.command)?i:-1).filter(i=>i>=0)})),startRows=[];
+ for(const course of a.plan.courses){const start=course.startCommand,first=r.commands[start];let end=start;while(end<course.endCommand&&r.commands[end].widthStart===r.W&&r.commands[end].widthEnd===r.W)end++;
+  const priorCellIds=[],initialCellIds=[];r.cells.forEach((q,i)=>{if(q.command<start)priorCellIds.push(i);else if(q.command<end&&(q.kind==='ribbon'||q.command+1<end))initialCellIds.push(i);});
+  const d=R.vec(first.to.map(R.exact),first.from.map(R.exact));startRows.push({component:course.component,firstCommand:start,constantWRunEndCommand:end,firstSegmentLengthAtLeastW:R.cmp(R.dot(d,d),R.mul(f.w,f.w))>=0,wholeInitialConstantWRunChecked:true,priorCells:priorCellIds.length,initialCells:initialCellIds.length});descriptors.push({mode:'foreign-only',priorCellIds,initialCellIds});
+ }
+ const ledger=sharedExactLedger(r.cells.map(q=>q.polygon),r.W,descriptors,{signal}),eventEvidence=a.plan.events.map((e,i)=>({...e,eventCommandIds:eventIds[i],allFinalBanksIncluded:true,charge:ledger.events[i],eventPassed:ledger.events[i].passed,
+  areaLineage:ledger.events[i].areas.map(q=>({...q,firstOwner:r.cells[q.first],secondOwner:r.cells[q.second]}))})),starts=startRows.map((q,i)=>({...q,exactForeignOverlapMM2:ledger.events[eventIds.length+i].exactChargeUpperBoundMM2,strictPriorFeedDisjoint:ledger.events[eventIds.length+i].passed,nominalNozzleStartContained:containment[q.firstCommand].nozzle}));
+ const phases=a.plan.phases.map(q=>{const cmds=a.commands.filter(p=>p.phase===q.id);if(!cmds.length)throw Error('empty source width phase');const d=R.vec(P(cmds.at(-1).exactTo),P(cmds[0].exactFrom)),planned=A.max(A.abs(d[0]),A.abs(d[1])),actual=R.vec(cmds.at(-1).to.map(R.exact),cmds[0].from.map(R.exact)),finite=A.max(A.abs(actual[0]),A.abs(actual[1]));return{id:q.id,sourceLengthLowerMM:R.str(planned),actualLengthLowerMM:R.str(finite),passed:R.cmp(planned,f.w)>=0&&R.cmp(finite,f.w)>=0};});
+ const protocolOrder=r.execution.filter(q=>q.kind==='start-course').length===a.plan.courses.length&&r.execution.filter(q=>q.kind==='stop-course').length===a.plan.courses.length&&r.execution.filter(q=>q.kind==='travel').length===a.plan.courses.length-1&&r.execution.at(-1)?.kind==='finish-layer',
+  passed=material.passed&&wholeFeed&&wholeP&&containment.every(q=>q.nozzle)&&eventEvidence.every(q=>q.eventPassed)&&starts.every(q=>q.firstSegmentLengthAtLeastW&&q.strictPriorFeedDisjoint&&q.nominalNozzleStartContained)&&phases.every(q=>q.passed)&&protocolOrder;
+ return{passed,material,eventEvidence,startStopProtocol:{passed:passed&&protocolOrder,starts,containment,protocolOrder,wholeFixedNominalNozzleCapsulesAndFlatFeedsChecked:true,wholeInitialRunsStrictlyDisjoint:starts.every(q=>q.strictPriorFeedDisjoint),internalRestartOverlapAuthorized:false},
+  wholeNominalNozzleAndFeedContained:wholeFeed&&containment.every(q=>q.nozzle),wholeActualFeedContainedInOriginalP:wholeP,sourceWidthPhases:phases,
+  profile:{nozzleFast,nozzleExact,feedFast,feedExact,quarterDiskChecks,exactSourceClipWork:budget.work,sharedLedgerWork:ledger.sharedExactWork,sharedLedgerPairs:ledger.sharedCandidatePairs},productionCreatesPool:false,physicalFlowOrVolumeCertified:false};
+}
+module.exports={qualifyTFast};
