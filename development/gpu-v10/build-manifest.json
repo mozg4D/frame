@@ -699,13 +699,13 @@
     "index.html": [
       {
         "path": "index.html",
-        "patch": "patches/r228-shell-to-r226.json"
+        "patch": "patches/r229-shell-to-r226.json"
       }
     ],
     "native-source/gpu-cubic-mip-calibration.mjs": [
       {
         "path": "native-source/gpu-cubic-mip-calibration.mjs",
-        "patch": "patches/r228-gpu-cubic-mip-calibration-to-r226.json"
+        "patch": "patches/r229-gpu-cubic-mip-calibration-to-r226.json"
       }
     ],
     "native-source/gpu-display.mjs": [
@@ -727,5 +727,5 @@
       }
     ]
   },
-  "supportedProductionVersion": "r228-measured-mip-generation"
+  "supportedProductionVersion": "r229-calibration-session"
 }

@@ -4081,51 +4081,276 @@ __nativeFactories["gpu-cubic-mip-calibration.mjs"]=function(__imports){
  */
 const {CUBIC_MAP_WGSL,CUBIC_GL_COARSE_WGSL,CUBIC_GL_WINDOW_WGSL,CUBIC_COMPILE_SOURCE,cubicGLWindowMipWGSL}=__imports["gpu-cubic-map.mjs"];
 const {FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_CALIBRATION_SIZES,frameMipGenerationWGSL,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt}=__imports["gpu-mipmap.mjs"];
-const sha=async text=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text))),v=>v.toString(16).padStart(2,'0')).join('');
-function textureFactory(T,hooks){if(typeof hooks?.acquireTexture!=='function')throw Error('Actual editor pooled texture acquire closure required');const records=new Map(),acquire=(material,image)=>{hooks.guard();const record=hooks.acquireTexture(image);if(!record?.texture?.isTexture||typeof record.release!=='function'){record?.release?.();throw Error('Actual editor factory callback must return {texture,release}');}records.set(record.texture,record);return record.texture;};acquire.release=texture=>{const record=records.get(texture);if(record){records.delete(texture);record.release();}};return acquire;}
-function projectionHooks(hooks){if(typeof hooks?.installFrameProjection!=='function')throw Error('Actual editor projection install closure required');return {installFrameProjection(material){hooks.installFrameProjection(material);if(material.customProgramCacheKey?.()!=='frame-cubic-projection-r14'||String(material.onBeforeCompile).replace(/\r\n/g,'\n').trim()!==CUBIC_COMPILE_SOURCE)throw Error('Actual editor projection hook differs from reviewed r14 source');}};}
-function reflectedViewport(viewport,height){return [viewport[0],height-viewport[1]-viewport[3],viewport[2],viewport[3]];}
-function mipPattern(width,height,{alpha=false}={}){const bytes=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)for(let x=0;x<width;x++)bytes.set([(x*29+y*17+(x*y%7)*23)%256,(x*11+y*47+((x+y)%3)*61)%256,(x*67+y*13+(x*y%5)*37)%256,alpha?[0,128,255][(x+2*y)%3]:255],(y*width+x)*4);return bytes;}
-function imageCanvas(width,height,bytes){const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes),width,height),0,0);return canvas;}
-function mipSizes(width,height){const sizes=[[width,height]];while(width>1||height>1){width=Math.max(1,Math.floor(width/2));height=Math.max(1,Math.floor(height/2));sizes.push([width,height]);}return sizes;}
-function srgbByte(value){value/=255;return value<=.04045?value/12.92:((value+.055)/1.055)**2.4;}
-function compareBytes(native,three,width,height){
- let maxEncodedByte=0,maxDecodedAbsolute=0,worst=null,worstDecoded=null,differentBytes=0;
- for(let i=0;i<native.length;i++){
-  const encoded=Math.abs(native[i]-three[i]),decoded=Math.abs(i%4===3?native[i]/255-three[i]/255:srgbByte(native[i])-srgbByte(three[i]));
-  if(encoded)differentBytes++;
-  const pixel={x:Math.floor(i/4)%width,y:Math.floor(i/4/width),channel:i%4,native:native[i],three:three[i]};
-  if(encoded>maxEncodedByte){maxEncodedByte=encoded;worst=pixel;}
-  if(decoded>maxDecodedAbsolute){maxDecodedAbsolute=decoded;worstDecoded={...pixel,absolute:decoded};}
- }
- return{width,height,maxEncodedByte,maxDecodedAbsolute,differentBytes,exactEncodedMatch:differentBytes===0,worst,worstDecoded};
+const sha = async (text) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))), v => v.toString(16).padStart(2, '0')).join('');
+function textureFactory(T, hooks) { if (typeof hooks?.acquireTexture !== 'function')
+    throw Error('Actual editor pooled texture acquire closure required'); const records = new Map(), acquire = (material, image) => { hooks.guard(); const record = hooks.acquireTexture(image); if (!record?.texture?.isTexture || typeof record.release !== 'function') {
+    record?.release?.();
+    throw Error('Actual editor factory callback must return {texture,release}');
+} records.set(record.texture, record); return record.texture; }; acquire.release = texture => { const record = records.get(texture); if (record) {
+    records.delete(texture);
+    record.release();
+} }; return acquire; }
+function projectionHooks(hooks) { if (typeof hooks?.installFrameProjection !== 'function')
+    throw Error('Actual editor projection install closure required'); return { installFrameProjection(material) { hooks.installFrameProjection(material); if (material.customProgramCacheKey?.() !== 'frame-cubic-projection-r14' || String(material.onBeforeCompile).replace(/\r\n/g, '\n').trim() !== CUBIC_COMPILE_SOURCE)
+        throw Error('Actual editor projection hook differs from reviewed r14 source'); } }; }
+function reflectedViewport(viewport, height) { return [viewport[0], height - viewport[1] - viewport[3], viewport[2], viewport[3]]; }
+function mipPattern(width, height, { alpha = false } = {}) { const bytes = new Uint8ClampedArray(width * height * 4); for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++)
+        bytes.set([(x * 29 + y * 17 + (x * y % 7) * 23) % 256, (x * 11 + y * 47 + ((x + y) % 3) * 61) % 256, (x * 67 + y * 13 + (x * y % 5) * 37) % 256, alpha ? [0, 128, 255][(x + 2 * y) % 3] : 255], (y * width + x) * 4); return bytes; }
+function imageCanvas(width, height, bytes) { const canvas = document.createElement('canvas'); canvas.width = width; canvas.height = height; canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes), width, height), 0, 0); return canvas; }
+function mipSizes(width, height) { const sizes = [[width, height]]; while (width > 1 || height > 1) {
+    width = Math.max(1, Math.floor(width / 2));
+    height = Math.max(1, Math.floor(height / 2));
+    sizes.push([width, height]);
+} return sizes; }
+function srgbByte(value) { value /= 255; return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4; }
+function compareBytes(native, three, width, height) {
+    let maxEncodedByte = 0, maxDecodedAbsolute = 0, worst = null, worstDecoded = null, differentBytes = 0;
+    for (let i = 0; i < native.length; i++) {
+        const encoded = Math.abs(native[i] - three[i]), decoded = Math.abs(i % 4 === 3 ? native[i] / 255 - three[i] / 255 : srgbByte(native[i]) - srgbByte(three[i]));
+        if (encoded)
+            differentBytes++;
+        const pixel = { x: Math.floor(i / 4) % width, y: Math.floor(i / 4 / width), channel: i % 4, native: native[i], three: three[i] };
+        if (encoded > maxEncodedByte) {
+            maxEncodedByte = encoded;
+            worst = pixel;
+        }
+        if (decoded > maxDecodedAbsolute) {
+            maxDecodedAbsolute = decoded;
+            worstDecoded = { ...pixel, absolute: decoded };
+        }
+    }
+    return { width, height, maxEncodedByte, maxDecodedAbsolute, differentBytes, exactEncodedMatch: differentBytes === 0, worst, worstDecoded };
 }
-async function nativeMipSetup(d,profile,guard){return createFrameMipGenerator(d,{profile,formats:['rgba8unorm-srgb'],guard});}
-function generateNativeMips(d,texture,levels,setup){generateFrameMipChain(d,texture,'rgba8unorm-srgb',levels,setup);}
+async function nativeMipSetup(d, profile, guard) { return createFrameMipGenerator(d, { profile, formats: ['rgba8unorm-srgb'], guard }); }
+function generateNativeMips(d, texture, levels, setup) { generateFrameMipChain(d, texture, 'rgba8unorm-srgb', levels, setup); }
+
+/** Resources live only inside one exact owner/device/generation calibration.
+ * Each logical probe keeps its own sequential error scope. No cross-owner,
+ * process-persistent oracle or receipt is cached.
+ */
+function createCubicCalibrationSession(sharedDevice, T, hooks) {
+    const device = sharedDevice.device, generation = sharedDevice.generation;
+    const gpu = new Set(), glResources = new Set(), materials = new Map(), images = new Map(), setups = new Map(), pipelines = new Map(), nativeImages = new Map(), targets = new Map(), glMipChains = new Map();
+    const acquire = textureFactory(T, hooks);
+    let renderer = null, disposed = false;
+    const guard = () => {
+        hooks.guard();
+        if (disposed || sharedDevice.device !== device || !Object.is(sharedDevice.generation, generation))
+            throw Error('Cubic calibration session owner/generation is stale');
+    };
+    return {
+        owner: sharedDevice, device, generation, acquire, guard, glMipChains, materials,
+        renderer() {
+            guard();
+            if (!renderer) renderer = new T.WebGLRenderer({canvas: document.createElement('canvas'), antialias: false});
+            return renderer;
+        },
+        retainGL(value) { guard(); glResources.add(value); return value; },
+        retainGPU(value) { guard(); gpu.add(value); return value; },
+        image(width, height, alpha = false) {
+            guard(); const key = [width, height, alpha].join(':');
+            if (!images.has(key)) {
+                const image = imageCanvas(width, height, mipPattern(width, height, {alpha}));
+                const texture = acquire({map: image}, image);
+                images.set(key, {image, texture});
+            }
+            return images.get(key);
+        },
+        async mipSetup(profile) {
+            guard();
+            if (!setups.has(profile)) {
+                const setup = await nativeMipSetup(device, profile, guard); guard(); setups.set(profile, setup);
+            }
+            return setups.get(profile);
+        },
+        async nativeImage(width, height, alpha, profile) {
+            guard(); const key = [width, height, alpha, profile].join(':');
+            if (!nativeImages.has(key)) {
+                const {image, texture} = this.image(width, height, alpha), levels = mipSizes(width, height).length;
+                const setup = await this.mipSetup(profile); guard();
+                const native = this.retainGPU(device.createTexture({size: [width, height], format: 'rgba8unorm-srgb', mipLevelCount: levels, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC}));
+                device.queue.copyExternalImageToTexture({source: image, flipY: !!texture.flipY}, {texture: native, colorSpace: 'srgb', premultipliedAlpha: false}, [width, height]);
+                generateNativeMips(device, native, levels, setup);
+                nativeImages.set(key, native);
+            }
+            return nativeImages.get(key);
+        },
+        async pipeline(code, vertexLayouts, format, sampleCount) {
+            guard(); const key = JSON.stringify([code, vertexLayouts, format, sampleCount]);
+            if (!pipelines.has(key)) {
+                const layout = device.createBindGroupLayout({entries: [{binding: 0, visibility: GPUShaderStage.FRAGMENT, buffer: {type: 'uniform', minBindingSize: 256}}, {binding: 1, visibility: GPUShaderStage.FRAGMENT, sampler: {}}, {binding: 2, visibility: GPUShaderStage.FRAGMENT, texture: {sampleType: 'float'}}]});
+                const module = device.createShaderModule({code}), info = await module.getCompilationInfo(); guard();
+                if (info.messages.some(m => m.type === 'error')) throw Error(info.messages.map(m => m.message).join('\n'));
+                const pipeline = await device.createRenderPipelineAsync({layout: device.createPipelineLayout({bindGroupLayouts: [layout]}), vertex: {module, entryPoint: 'cubicVertex', buffers: vertexLayouts}, fragment: {module, entryPoint: 'cubicPixel', targets: [{format}]}, multisample: {count: sampleCount}});
+                guard(); pipelines.set(key, {layout, pipeline});
+            }
+            return pipelines.get(key);
+        },
+        target(width, height, format, sampleCount) {
+            guard(); const key = [width, height, format, sampleCount].join(':');
+            if (!targets.has(key)) {
+                const byteOutput = format === 'rgba8unorm';
+                const gl = this.retainGL(new T.WebGLRenderTarget(width, height, {type: byteOutput ? T.UnsignedByteType : T.FloatType, format: T.RGBAFormat, depthBuffer: false, samples: sampleCount === 4 ? 4 : 0}));
+                gl.texture.colorSpace = T.LinearSRGBColorSpace;
+                const native = this.retainGPU(device.createTexture({size: [width, height], format, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC}));
+                const msaa = sampleCount === 4 ? this.retainGPU(device.createTexture({size: [width, height], format, sampleCount: 4, usage: GPUTextureUsage.RENDER_ATTACHMENT})) : null;
+                targets.set(key, {gl, native, msaa});
+            }
+            return targets.get(key);
+        },
+        async dispose() {
+            if (disposed) return;
+            disposed = true;
+            try { if (gpu.size) await device.queue.onSubmittedWorkDone(); }
+            finally {
+                for (const value of gpu) value.destroy();
+                for (const value of materials.values()) value.dispose();
+                for (const value of glResources) value.dispose();
+                for (const {texture} of images.values()) acquire.release(texture);
+                renderer?.dispose(); renderer?.forceContextLoss();
+                gpu.clear(); glResources.clear(); materials.clear(); images.clear(); setups.clear(); pipelines.clear(); nativeImages.clear(); targets.clear(); glMipChains.clear();
+            }
+        }
+    };
+}
+
 /** Native mip bytes compared to the actual Three-generated GL mip attachments.
  * .008 remains the full sampled/material tolerance. Byte equality is reported
  * separately; no byte threshold is substituted for the requested pixel test.
  */
-async function runNativeFrameMipChain({sharedDevice,THREE:T,frameHooks,mipGenerationProfile,sizes=FRAME_MIP_CALIBRATION_SIZES,tolerance=.008,captureBytes=false}={}){
- if(!sharedDevice?.device||!T?.WebGLRenderer)throw Error('Existing native owner and bundled Three required');if(tolerance!==.008)throw Error('Unchanged .008 tolerance required');
- const d=sharedDevice.device,result={pass:false,diagnosticComplete:false,nativeGPU:true,cpuOnly:false,mipGenerationProfile,ownerGeneration:sharedDevice.generation,tolerance,scope:'Actual Frame Texture(canvas) defaults and Three/native generated RGBA8-sRGB mip bytes. No implicitLOD, bump, lighting or full material acceptance.',factoryContract:'actual-editor-callback',cases:[],errors:[]};let acquire,renderer,texture,nativeTexture,fbo,read,scopeOpen=false;const uncaptured=e=>result.errors.push(String(e.error));d.addEventListener('uncapturederror',uncaptured);
- try{acquire=textureFactory(T,frameHooks);d.pushErrorScope('validation');scopeOpen=true;const setup=await nativeMipSetup(d,mipGenerationProfile,frameHooks.guard);result.mipShaderSHA256=setup.shaderSHA256;renderer=new T.WebGLRenderer({canvas:document.createElement('canvas'),antialias:false});const gl=renderer.getContext();result.glVersion=gl.getParameter(gl.VERSION);fbo=gl.createFramebuffer();
-  for(const [width,height]of sizes){result.active={phase:'source-texture',width,height,level:null};if(!Number.isInteger(width)||!Number.isInteger(height)||width<1||height<1)throw Error('Integer mip image dimensions >=1 required');const image=imageCanvas(width,height,mipPattern(width,height)),material={map:image};texture=acquire(material,image);const before={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};const rows=[],caseRow={width,height,defaultTexture:before,levels:rows,mipByteExact:false,decodedTexelControlPass:false,diagnosticComplete:false};result.cases.push(caseRow);if(before.minFilter!==1008||before.magFilter!==1006||before.generateMipmaps!==true||before.anisotropy!==1||before.colorSpace!=='srgb')throw Error('Actual Frame defaults changed');result.active.phase='gl-upload';renderer.initTexture(texture);const sizes_=mipSizes(width,height),levels=sizes_.length;nativeTexture=d.createTexture({size:[width,height],format:'rgba8unorm-srgb',mipLevelCount:levels,usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});d.queue.copyExternalImageToTexture({source:image,flipY:!!texture.flipY},{texture:nativeTexture,colorSpace:'srgb',premultipliedAlpha:false},[width,height]);result.active.phase='native-generation';generateNativeMips(d,nativeTexture,levels,setup);
-   for(let level=0;level<levels;level++){result.active={phase:'gl-read',width,height,level};const [mw,mh]=sizes_[level],three=new Uint8Array(mw*mh*4);gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,renderer.properties.get(texture).__webglTexture,level);const status=gl.checkFramebufferStatus(gl.FRAMEBUFFER);if(status!==gl.FRAMEBUFFER_COMPLETE){result.glFramebufferStatus=status;throw Error('GL mip attachment incomplete at '+level+': '+status);}gl.readPixels(0,0,mw,mh,gl.RGBA,gl.UNSIGNED_BYTE,three);const ge=gl.getError();if(ge){result.glError={code:ge,width,height,level};throw Error('GL mip read error '+ge+' level '+level);}const bytesPerRow=Math.ceil(mw*4/256)*256;result.active.phase='native-read';read=d.createBuffer({size:bytesPerRow*mh,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});const encoder=d.createCommandEncoder();encoder.copyTextureToBuffer({texture:nativeTexture,mipLevel:level},{buffer:read,bytesPerRow},[mw,mh]);d.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);const mapped=new Uint8Array(read.getMappedRange()),native=new Uint8Array(mw*mh*4);for(let y=0;y<mh;y++)native.set(mapped.subarray(y*bytesPerRow,y*bytesPerRow+mw*4),y*mw*4);read.unmap();read.destroy();read=null;rows.push({level,...compareBytes(native,three,mw,mh),...(captureBytes?{nativeBytes:Array.from(native),threeBytes:Array.from(three)}:{})});}
-   const after={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};if(JSON.stringify(after)!==JSON.stringify(before))throw Error('Source texture state mutated by diagnostic');Object.assign(caseRow,{mipByteExact:rows.every(v=>v.exactEncodedMatch),decodedTexelControlPass:rows.every(v=>v.maxDecodedAbsolute<=tolerance),diagnosticComplete:true});nativeTexture.destroy();nativeTexture=null;acquire.release(texture);texture=null;gl.bindFramebuffer(gl.FRAMEBUFFER,null);renderer.resetState();
-  }const validation=await d.popErrorScope();scopeOpen=false;if(validation)throw Error(validation.message);if(result.errors.length)throw Error('Uncaptured mip errors');result.diagnosticComplete=true;result.baseUploadExact=result.cases.every(v=>v.levels[0].exactEncodedMatch);result.mipByteExact=result.cases.every(v=>v.mipByteExact);result.pass=result.baseUploadExact&&result.cases.every(v=>v.decodedTexelControlPass);result.failures=[];
- for(const c of result.cases)for(const level of c.levels){
-  if(level.level===0&&!level.exactEncodedMatch)result.failures.push({kind:'base-upload-byte-mismatch',width:c.width,height:c.height,...level});
-  else if(level.level>0&&level.maxDecodedAbsolute>tolerance)result.failures.push({kind:'decoded-mip-mismatch',width:c.width,height:c.height,...level});
- }
- result.firstFailure=result.failures[0]??null;
- if(!result.pass)result.reason=!result.baseUploadExact?'Native/actual Three base upload bytes differ; exact base match is required':'Native/actual Three mip texels differ beyond unchanged .008 decoded control tolerance';
- }catch(error){result.reason=String(error);result.stack=error.stack;}finally{if(scopeOpen){const error=await d.popErrorScope();if(error)result.errors.push(error.message);}await d.queue.onSubmittedWorkDone().catch(()=>{});read?.destroy();nativeTexture?.destroy();acquire?.release(texture);if(fbo&&renderer)renderer.getContext().deleteFramebuffer(fbo);renderer?.dispose();renderer?.forceContextLoss();d.removeEventListener('uncapturederror',uncaptured);}return result;
+async function runNativeFrameMipChain({ sharedDevice, THREE: T, frameHooks, mipGenerationProfile, sizes = FRAME_MIP_CALIBRATION_SIZES, tolerance = .008, captureBytes = false } = {}) {
+    if (!sharedDevice?.device || !T?.WebGLRenderer)
+        throw Error('Existing native owner and bundled Three required');
+    if (tolerance !== .008)
+        throw Error('Unchanged .008 tolerance required');
+    const d = sharedDevice.device, result = { pass: false, diagnosticComplete: false, nativeGPU: true, cpuOnly: false, mipGenerationProfile, ownerGeneration: sharedDevice.generation, tolerance, scope: 'Actual Frame Texture(canvas) defaults and Three/native generated RGBA8-sRGB mip bytes. No implicitLOD, bump, lighting or full material acceptance.', factoryContract: 'actual-editor-callback', cases: [], errors: [] };
+    const ownsSession = !frameHooks.session, session = frameHooks.session ?? createCubicCalibrationSession(sharedDevice, T, frameHooks);
+    if (session.owner !== sharedDevice || session.device !== sharedDevice.device || !Object.is(session.generation, sharedDevice.generation)) throw Error('Cubic calibration session belongs to another owner/device/generation');
+    session.guard();
+    let acquire, renderer, texture, nativeTexture, fbo, read, scopeOpen = false;
+    const uncaptured = e => result.errors.push(String(e.error));
+    d.addEventListener('uncapturederror', uncaptured);
+    try {
+        acquire = session.acquire;
+        d.pushErrorScope('validation');
+        scopeOpen = true;
+        const setup = await session.mipSetup(mipGenerationProfile);
+        result.mipShaderSHA256 = setup.shaderSHA256;
+        renderer = session.renderer();
+        const gl = renderer.getContext();
+        result.glVersion = gl.getParameter(gl.VERSION);
+        fbo = gl.createFramebuffer();
+        const copies = []; let stagingSize = 0;
+        for (const [width, height] of sizes) {
+            result.active = { phase: 'source-texture', width, height, level: null };
+            if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1)
+                throw Error('Integer mip image dimensions >=1 required');
+            const {image, texture: sourceTexture} = session.image(width, height);
+            texture = sourceTexture;
+            const before = { minFilter: texture.minFilter, magFilter: texture.magFilter, generateMipmaps: texture.generateMipmaps, anisotropy: texture.anisotropy, flipY: texture.flipY, colorSpace: texture.colorSpace, version: texture.version };
+            const rows = [], caseRow = { width, height, defaultTexture: before, levels: rows, mipByteExact: false, decodedTexelControlPass: false, diagnosticComplete: false };
+            result.cases.push(caseRow);
+            if (before.minFilter !== 1008 || before.magFilter !== 1006 || before.generateMipmaps !== true || before.anisotropy !== 1 || before.colorSpace !== 'srgb')
+                throw Error('Actual Frame defaults changed');
+            result.active.phase = 'gl-upload';
+            renderer.initTexture(texture);
+            const sizes_ = mipSizes(width, height), levels = sizes_.length;
+            nativeTexture = await session.nativeImage(width, height, false, mipGenerationProfile);
+            session.guard();
+            const oracleKey = width + ':' + height, cachedOracle = session.glMipChains.get(oracleKey), oracle = [];
+            for (let level = 0; level < levels; level++) {
+                result.active = { phase: 'gl-read', width, height, level };
+                const [mw, mh] = sizes_[level], three = cachedOracle?.[level] ?? new Uint8Array(mw * mh * 4);
+                if (!cachedOracle) {
+                gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+                gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, renderer.properties.get(texture).__webglTexture, level);
+                const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+                if (status !== gl.FRAMEBUFFER_COMPLETE) {
+                    result.glFramebufferStatus = status;
+                    throw Error('GL mip attachment incomplete at ' + level + ': ' + status);
+                }
+                gl.readPixels(0, 0, mw, mh, gl.RGBA, gl.UNSIGNED_BYTE, three);
+                const ge = gl.getError();
+                if (ge) {
+                    result.glError = { code: ge, width, height, level };
+                    throw Error('GL mip read error ' + ge + ' level ' + level);
+                }
+                }
+                oracle.push(three);
+                const bytesPerRow = Math.ceil(mw * 4 / 256) * 256;
+                copies.push({texture: nativeTexture, level, mw, mh, bytesPerRow, offset: stagingSize, three, rows, caseRow});
+                stagingSize += bytesPerRow * mh;
+            }
+            const after = { minFilter: texture.minFilter, magFilter: texture.magFilter, generateMipmaps: texture.generateMipmaps, anisotropy: texture.anisotropy, flipY: texture.flipY, colorSpace: texture.colorSpace, version: texture.version };
+            if (JSON.stringify(after) !== JSON.stringify(before))
+                throw Error('Source texture state mutated by diagnostic');
+            if (!cachedOracle) session.glMipChains.set(oracleKey, oracle);
+            nativeTexture = null;
+            texture = null;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+            renderer.resetState();
+        }
+        read = d.createBuffer({size: stagingSize, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ});
+        const encoder = d.createCommandEncoder();
+        for (const c of copies) encoder.copyTextureToBuffer({texture: c.texture, mipLevel: c.level}, {buffer: read, offset: c.offset, bytesPerRow: c.bytesPerRow}, [c.mw, c.mh]);
+        d.queue.submit([encoder.finish()]);
+        result.active.phase = 'native-read';
+        await read.mapAsync(GPUMapMode.READ); session.guard();
+        const mapped = new Uint8Array(read.getMappedRange());
+        for (const c of copies) {
+            const native = new Uint8Array(c.mw * c.mh * 4);
+            for (let y = 0; y < c.mh; y++) native.set(mapped.subarray(c.offset + y * c.bytesPerRow, c.offset + y * c.bytesPerRow + c.mw * 4), y * c.mw * 4);
+            c.rows.push({level: c.level, ...compareBytes(native, c.three, c.mw, c.mh), ...(captureBytes ? {nativeBytes: Array.from(native), threeBytes: Array.from(c.three)} : {})});
+        }
+        read.unmap(); read.destroy(); read = null;
+        for (const c of result.cases) Object.assign(c, {mipByteExact: c.levels.every(v => v.exactEncodedMatch), decodedTexelControlPass: c.levels.every(v => v.maxDecodedAbsolute <= tolerance), diagnosticComplete: true});
+        const validation = await d.popErrorScope();
+        scopeOpen = false;
+        session.guard();
+        if (validation)
+            throw Error(validation.message);
+        if (result.errors.length)
+            throw Error('Uncaptured mip errors');
+        result.diagnosticComplete = true;
+        result.baseUploadExact = result.cases.every(v => v.levels[0].exactEncodedMatch);
+        result.mipByteExact = result.cases.every(v => v.mipByteExact);
+        result.pass = result.baseUploadExact && result.cases.every(v => v.decodedTexelControlPass);
+        result.failures = [];
+        for (const c of result.cases)
+            for (const level of c.levels) {
+                if (level.level === 0 && !level.exactEncodedMatch)
+                    result.failures.push({ kind: 'base-upload-byte-mismatch', width: c.width, height: c.height, ...level });
+                else if (level.level > 0 && level.maxDecodedAbsolute > tolerance)
+                    result.failures.push({ kind: 'decoded-mip-mismatch', width: c.width, height: c.height, ...level });
+            }
+        result.firstFailure = result.failures[0] ?? null;
+        if (!result.pass)
+            result.reason = !result.baseUploadExact ? 'Native/actual Three base upload bytes differ; exact base match is required' : 'Native/actual Three mip texels differ beyond unchanged .008 decoded control tolerance';
+    }
+    catch (error) {
+        result.reason = String(error);
+        result.stack = error.stack;
+    }
+    finally {
+        if (scopeOpen) {
+            const error = await d.popErrorScope();
+            if (error)
+                result.errors.push(error.message);
+        }
+        await d.queue.onSubmittedWorkDone().catch(() => { });
+        read?.destroy();
+        
+        if (fbo && renderer)
+            renderer.getContext().deleteFramebuffer(fbo);
+        if (ownsSession) await session.dispose();
+        d.removeEventListener('uncapturederror', uncaptured);
+    }
+    return result;
 }
-
 /** Profiles enumerate sampler footprints independently of scalar dFdx proof. */
-const GL_LOD_PROFILES=['fine','coarse-bottom-left','coarse-bottom-right','coarse-top-left','coarse-top-right'];
-const RECONSTRUCT_GLSL=`
+const GL_LOD_PROFILES = ['fine', 'coarse-bottom-left', 'coarse-bottom-right', 'coarse-top-left', 'coarse-top-right'];
+const RECONSTRUCT_GLSL = `
 struct Affine {vec3 q; float r; vec3 dx; vec3 dy; float rx; float ry;};
 vec3 at(Affine a,vec2 delta){return (a.q+a.dx*delta.x+a.dy*delta.y)/(a.r+a.rx*delta.x+a.ry*delta.y);}
 vec4 probeTexture(vec3 p,vec3 gx,vec3 gy){return textureGrad(map,p.xy,gx.xy,gy.xy);}
@@ -4135,21 +4360,107 @@ vec4 probeTexture(vec3 p,vec3 gx,vec3 gy){return textureGrad(map,p.xy,gx.xy,gy.x
  * mip textures, actual factory, perspective and crop. This learns GL sampler
  * semantics without assuming that dFdx(height) and texture implicitLOD agree.
  */
-async function runGLImplicitLODProfiles({THREE:T,frameHooks,width=33,height=31,textureSize=64,uvScales=[.5,2,5,12],geometries=['orthographic','perspective'],viewports=null,tolerance=.008,capturePixels=false}={}){
- if(!T?.WebGLRenderer)throw Error('Bundled Three WebGL oracle required');if(tolerance!==.008)throw Error('Unchanged .008 tolerance required');const result={pass:false,diagnosticComplete:false,nativeGPU:false,actualWebGL:true,tolerance,width,height,factoryContract:'actual-editor-callback',scope:'Exact r14 implicit texture2D versus explicit reconstructed GL textureGrad footprints with ordinary Frame-generated sRGB mip textures. This receipt classifies GL implicitLOD only; it cannot activate the native helper.',cases:[],errors:[]};let acquire,renderer,target,geometry,texture,material;
- try{acquire=textureFactory(T,frameHooks);const legacy=projectionHooks(frameHooks);renderer=new T.WebGLRenderer({canvas:document.createElement('canvas'),antialias:false});renderer.setSize(width,height);renderer.outputColorSpace=T.LinearSRGBColorSpace;renderer.toneMapping=T.NoToneMapping;renderer.setClearColor(0,0);renderer.debug.onShaderError=(gl,program,vs,fs)=>{throw Error('ImplicitLOD GL shader: '+JSON.stringify({programLog:gl.getProgramInfoLog(program),vertexLog:gl.getShaderInfoLog(vs),fragmentLog:gl.getShaderInfoLog(fs),vertexSource:gl.getShaderSource(vs),fragmentSource:gl.getShaderSource(fs)}));};target=new T.WebGLRenderTarget(width,height,{type:T.FloatType,format:T.RGBAFormat,depthBuffer:false});target.texture.colorSpace=T.LinearSRGBColorSpace;const image=imageCanvas(textureSize,textureSize,mipPattern(textureSize,textureSize));texture=acquire({map:image},image);result.defaultTexture={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace};geometry=new T.PlaneGeometry(2,2);const clip=new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*2),2),positions=Array.from(geometry.attributes.position.array);for(let i=0;i<clip.count;i++)clip.setXY(i,positions[i*3],positions[i*3+1]);geometry.setAttribute('clipProbe',clip);const mesh=new T.Mesh(geometry,null);mesh.frustumCulled=false;const scene=new T.Scene();scene.add(mesh);const camera=new T.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=1;
-  let currentViewport=[0,0,width,height];const render=()=>{mesh.material=material;renderer.setRenderTarget(target);renderer.setViewport(...currentViewport);renderer.render(scene,camera);const bytes=new Float32Array(width*height*4);renderer.readRenderTargetPixels(target,0,0,width,height,bytes);const ge=renderer.getContext().getError();if(ge)throw Error('GL implicitLOD render/read error '+ge);return bytes;};
-  for(const geometryMode of geometries)for(const uvScale of uvScales)for(const viewport of viewports??[[0,0,width,height],[3,5,width-7,height-9]]){
-   if(!['orthographic','perspective'].includes(geometryMode)||!Number.isFinite(uvScale)||uvScale<=0)throw Error('Reviewed geometry and positive UV scale required');const perspective=geometryMode==='perspective';for(let i=0;i<clip.count;i++){const x=clip.getX(i),y=clip.getY(i),w=perspective?1/(1+.31*x+.27*y):1;geometry.attributes.position.setXYZ(i,x*w,y*w,.13*(x-y)*w);geometry.attributes.normal.setXYZ(i,0,0,1);}geometry.attributes.position.needsUpdate=true;geometry.attributes.normal.needsUpdate=true;currentViewport=viewport;
-   const frame=new T.Matrix4().makeScale(1/uvScale,1/uvScale,1/uvScale),vs='#include <common>\nattribute vec2 clipProbe;void main(){\n#include <beginnormal_vertex>\n#include <begin_vertex>\nfloat cw='+(perspective?'1.0/(1.0+.31*clipProbe.x+.27*clipProbe.y)':'1.0')+';gl_Position=vec4(clipProbe*cw,0.0,cw);}',fs='precision highp float;\n#include <common>\n#include <map_pars_fragment>\nvoid main(){vec4 diffuseColor=vec4(1.0);\n#include <map_fragment>\ngl_FragColor=diffuseColor;}';
-   material=new T.ShaderMaterial({defines:{USE_MAP:''},uniforms:{map:{value:texture}},vertexShader:vs,fragmentShader:fs,depthTest:false,depthWrite:false,toneMapped:false});material.map=texture;material.userData.frameRef=frame;material.userData.frameBump=0;legacy.installFrameProjection(material);const implicit=render();material.dispose();material=null;const scores=[];
-   for(const profile of GL_LOD_PROFILES){const r=profile==='fine'?null:profile.includes('bottom')?0:1,c=profile==='fine'?null:profile.endsWith('left')?0:1;const dx=profile==='fine'?'mix(lr-ll,ur-ul,step(1.0,fract(floor(gl_FragCoord.y)*.5)*2.0))':r?'ur-ul':'lr-ll',dy=profile==='fine'?'mix(ul-ll,ur-lr,step(1.0,fract(floor(gl_FragCoord.x)*.5)*2.0))':c?'ur-lr':'ul-ll';const fragment='precision highp float;varying vec3 vFrameLocalPos;uniform mat4 frameMapInv;\n#include <map_pars_fragment>\n'+RECONSTRUCT_GLSL+'void main(){float rw=gl_FragCoord.w;vec3 q=vFrameLocalPos*rw;Affine a=Affine(q,rw,dFdx(q),dFdy(q),dFdx(rw),dFdy(rw));vec2 delta=2.0*floor(floor(gl_FragCoord.xy)*.5)+.5-gl_FragCoord.xy;vec3 ll=(frameMapInv*vec4(at(a,delta),1.0)).xyz,lr=(frameMapInv*vec4(at(a,delta+vec2(1,0)),1.0)).xyz,ul=(frameMapInv*vec4(at(a,delta+vec2(0,1)),1.0)).xyz,ur=(frameMapInv*vec4(at(a,delta+vec2(1,1)),1.0)).xyz;vec3 p=(frameMapInv*vec4(vFrameLocalPos,1.0)).xyz;gl_FragColor=probeTexture(p,'+dx+','+dy+');}';material=new T.ShaderMaterial({defines:{USE_MAP:''},uniforms:{map:{value:texture},frameMapInv:{value:frame.clone().invert()}},vertexShader:'varying vec3 vFrameLocalPos;\n'+vs.replace('#include <begin_vertex>','#include <begin_vertex>\nvFrameLocalPos=transformed;'),fragmentShader:fragment,depthTest:false,depthWrite:false,toneMapped:false});const explicit=render();let maxAbsolute=0,worst=null;for(let i=0;i<explicit.length;i++){const error=Math.abs(explicit[i]-implicit[i]);if(!Number.isFinite(error))throw Error('Nonfinite implicitLOD pixel');if(error>maxAbsolute){maxAbsolute=error;worst={x:Math.floor(i/4)%width,glY:Math.floor(i/4/width),channel:i%4,implicit:implicit[i],explicit:explicit[i]};}}scores.push({profile,maxAbsolute,worst,...(capturePixels?{implicit:Array.from(implicit),explicit:Array.from(explicit)}:{})});material.dispose();material=null;}
-   scores.sort((a,b)=>a.maxAbsolute-b.maxAbsolute);result.cases.push({geometryMode,uvScale,viewport,scores});
-  }result.diagnosticComplete=true;result.compatibleProfiles=GL_LOD_PROFILES.filter(profile=>result.cases.every(c=>c.scores.find(s=>s.profile===profile).maxAbsolute<=tolerance));result.profileMaxima=GL_LOD_PROFILES.map(profile=>({profile,maxAbsolute:Math.max(...result.cases.map(c=>c.scores.find(s=>s.profile===profile).maxAbsolute))})).sort((a,b)=>a.maxAbsolute-b.maxAbsolute);result.pass=result.compatibleProfiles.length>0;result.uniqueProfile=result.compatibleProfiles.length===1?result.compatibleProfiles[0]:null;if(!result.pass)result.reason='No enumerated footprint profile matches actual GL implicitLOD within .008';
- }catch(error){result.reason=String(error);result.stack=error.stack;}finally{material?.dispose();acquire?.release(texture);geometry?.dispose();target?.dispose();renderer?.dispose();renderer?.forceContextLoss();}return result;
+async function runGLImplicitLODProfiles({ THREE: T, frameHooks, width = 33, height = 31, textureSize = 64, uvScales = [.5, 2, 5, 12], geometries = ['orthographic', 'perspective'], viewports = null, tolerance = .008, capturePixels = false } = {}) {
+    if (!T?.WebGLRenderer)
+        throw Error('Bundled Three WebGL oracle required');
+    if (tolerance !== .008)
+        throw Error('Unchanged .008 tolerance required');
+    const result = { pass: false, diagnosticComplete: false, nativeGPU: false, actualWebGL: true, tolerance, width, height, factoryContract: 'actual-editor-callback', scope: 'Exact r14 implicit texture2D versus explicit reconstructed GL textureGrad footprints with ordinary Frame-generated sRGB mip textures. This receipt classifies GL implicitLOD only; it cannot activate the native helper.', cases: [], errors: [] };
+    const ownsSession = !frameHooks.session, session = frameHooks.session ?? createCubicCalibrationSession({device: null, generation: null}, T, frameHooks);
+    let acquire, renderer, target, geometry, texture, material;
+    try {
+        acquire = session.acquire;
+        const legacy = projectionHooks(frameHooks);
+        renderer = session.renderer();
+        renderer.setSize(width, height);
+        renderer.outputColorSpace = T.LinearSRGBColorSpace;
+        renderer.toneMapping = T.NoToneMapping;
+        renderer.setClearColor(0, 0);
+        renderer.debug.onShaderError = (gl, program, vs, fs) => { throw Error('ImplicitLOD GL shader: ' + JSON.stringify({ programLog: gl.getProgramInfoLog(program), vertexLog: gl.getShaderInfoLog(vs), fragmentLog: gl.getShaderInfoLog(fs), vertexSource: gl.getShaderSource(vs), fragmentSource: gl.getShaderSource(fs) })); };
+        target = session.retainGL(new T.WebGLRenderTarget(width, height, { type: T.FloatType, format: T.RGBAFormat, depthBuffer: false }));
+        target.texture.colorSpace = T.LinearSRGBColorSpace;
+        const {image, texture: sourceTexture} = session.image(textureSize, textureSize);
+        texture = sourceTexture;
+        result.defaultTexture = { minFilter: texture.minFilter, magFilter: texture.magFilter, generateMipmaps: texture.generateMipmaps, anisotropy: texture.anisotropy, flipY: texture.flipY, colorSpace: texture.colorSpace };
+        geometry = session.retainGL(new T.PlaneGeometry(2, 2));
+        const clip = new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2), positions = Array.from(geometry.attributes.position.array);
+        for (let i = 0; i < clip.count; i++)
+            clip.setXY(i, positions[i * 3], positions[i * 3 + 1]);
+        geometry.setAttribute('clipProbe', clip);
+        const mesh = new T.Mesh(geometry, null);
+        mesh.frustumCulled = false;
+        const scene = new T.Scene();
+        scene.add(mesh);
+        const camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+        camera.position.z = 1;
+        let currentViewport = [0, 0, width, height];
+        const render = () => { mesh.material = material; renderer.setRenderTarget(target); renderer.setViewport(...currentViewport); renderer.render(scene, camera); const bytes = new Float32Array(width * height * 4); renderer.readRenderTargetPixels(target, 0, 0, width, height, bytes); const ge = renderer.getContext().getError(); if (ge)
+            throw Error('GL implicitLOD render/read error ' + ge); return bytes; };
+        for (const geometryMode of geometries)
+            for (const uvScale of uvScales)
+                for (const viewport of viewports ?? [[0, 0, width, height], [3, 5, width - 7, height - 9]]) {
+                    if (!['orthographic', 'perspective'].includes(geometryMode) || !Number.isFinite(uvScale) || uvScale <= 0)
+                        throw Error('Reviewed geometry and positive UV scale required');
+                    const perspective = geometryMode === 'perspective';
+                    for (let i = 0; i < clip.count; i++) {
+                        const x = clip.getX(i), y = clip.getY(i), w = perspective ? 1 / (1 + .31 * x + .27 * y) : 1;
+                        geometry.attributes.position.setXYZ(i, x * w, y * w, .13 * (x - y) * w);
+                        geometry.attributes.normal.setXYZ(i, 0, 0, 1);
+                    }
+                    geometry.attributes.position.needsUpdate = true;
+                    geometry.attributes.normal.needsUpdate = true;
+                    currentViewport = viewport;
+                    const frame = new T.Matrix4().makeScale(1 / uvScale, 1 / uvScale, 1 / uvScale), vs = '#include <common>\nattribute vec2 clipProbe;void main(){\n#include <beginnormal_vertex>\n#include <begin_vertex>\nfloat cw=' + (perspective ? '1.0/(1.0+.31*clipProbe.x+.27*clipProbe.y)' : '1.0') + ';gl_Position=vec4(clipProbe*cw,0.0,cw);}', fs = 'precision highp float;\n#include <common>\n#include <map_pars_fragment>\nvoid main(){vec4 diffuseColor=vec4(1.0);\n#include <map_fragment>\ngl_FragColor=diffuseColor;}';
+                    material = new T.ShaderMaterial({ defines: { USE_MAP: '' }, uniforms: { map: { value: texture } }, vertexShader: vs, fragmentShader: fs, depthTest: false, depthWrite: false, toneMapped: false });
+                    material.map = texture;
+                    material.userData.frameRef = frame;
+                    material.userData.frameBump = 0;
+                    session.retainGL(material);
+                    legacy.installFrameProjection(material);
+                    const implicit = render();
+                    material = null;
+                    const scores = [];
+                    for (const profile of GL_LOD_PROFILES) {
+                        const r = profile === 'fine' ? null : profile.includes('bottom') ? 0 : 1, c = profile === 'fine' ? null : profile.endsWith('left') ? 0 : 1;
+                        const dx = profile === 'fine' ? 'mix(lr-ll,ur-ul,step(1.0,fract(floor(gl_FragCoord.y)*.5)*2.0))' : r ? 'ur-ul' : 'lr-ll', dy = profile === 'fine' ? 'mix(ul-ll,ur-lr,step(1.0,fract(floor(gl_FragCoord.x)*.5)*2.0))' : c ? 'ur-lr' : 'ul-ll';
+                        const fragment = 'precision highp float;varying vec3 vFrameLocalPos;uniform mat4 frameMapInv;\n#include <map_pars_fragment>\n' + RECONSTRUCT_GLSL + 'void main(){float rw=gl_FragCoord.w;vec3 q=vFrameLocalPos*rw;Affine a=Affine(q,rw,dFdx(q),dFdy(q),dFdx(rw),dFdy(rw));vec2 delta=2.0*floor(floor(gl_FragCoord.xy)*.5)+.5-gl_FragCoord.xy;vec3 ll=(frameMapInv*vec4(at(a,delta),1.0)).xyz,lr=(frameMapInv*vec4(at(a,delta+vec2(1,0)),1.0)).xyz,ul=(frameMapInv*vec4(at(a,delta+vec2(0,1)),1.0)).xyz,ur=(frameMapInv*vec4(at(a,delta+vec2(1,1)),1.0)).xyz;vec3 p=(frameMapInv*vec4(vFrameLocalPos,1.0)).xyz;gl_FragColor=probeTexture(p,' + dx + ',' + dy + ');}';
+                        material = new T.ShaderMaterial({ defines: { USE_MAP: '' }, uniforms: { map: { value: texture }, frameMapInv: { value: frame.clone().invert() } }, vertexShader: 'varying vec3 vFrameLocalPos;\n' + vs.replace('#include <begin_vertex>', '#include <begin_vertex>\nvFrameLocalPos=transformed;'), fragmentShader: fragment, depthTest: false, depthWrite: false, toneMapped: false });
+                        session.retainGL(material);
+                        const explicit = render();
+                        let maxAbsolute = 0, worst = null;
+                        for (let i = 0; i < explicit.length; i++) {
+                            const error = Math.abs(explicit[i] - implicit[i]);
+                            if (!Number.isFinite(error))
+                                throw Error('Nonfinite implicitLOD pixel');
+                            if (error > maxAbsolute) {
+                                maxAbsolute = error;
+                                worst = { x: Math.floor(i / 4) % width, glY: Math.floor(i / 4 / width), channel: i % 4, implicit: implicit[i], explicit: explicit[i] };
+                            }
+                        }
+                        scores.push({ profile, maxAbsolute, worst, ...(capturePixels ? { implicit: Array.from(implicit), explicit: Array.from(explicit) } : {}) });
+                        material = null;
+                    }
+                    scores.sort((a, b) => a.maxAbsolute - b.maxAbsolute);
+                    result.cases.push({ geometryMode, uvScale, viewport, scores });
+                }
+        result.diagnosticComplete = true;
+        result.compatibleProfiles = GL_LOD_PROFILES.filter(profile => result.cases.every(c => c.scores.find(s => s.profile === profile).maxAbsolute <= tolerance));
+        result.profileMaxima = GL_LOD_PROFILES.map(profile => ({ profile, maxAbsolute: Math.max(...result.cases.map(c => c.scores.find(s => s.profile === profile).maxAbsolute)) })).sort((a, b) => a.maxAbsolute - b.maxAbsolute);
+        result.pass = result.compatibleProfiles.length > 0;
+        result.uniqueProfile = result.compatibleProfiles.length === 1 ? result.compatibleProfiles[0] : null;
+        if (!result.pass)
+            result.reason = 'No enumerated footprint profile matches actual GL implicitLOD within .008';
+    }
+    catch (error) {
+        result.reason = String(error);
+        result.stack = error.stack;
+    }
+    finally {
+        if (ownsSession) await session.dispose();
+    }
+    return result;
 }
-
-const NATIVE_BASE=/*wgsl*/`
+const NATIVE_BASE = /*wgsl*/ `
 struct CubicProbe {mapInverse:mat4x4f,mapNormal:mat4x4f,localNormal:vec4f,viewNormal:vec4f,parameters:vec4f,base:vec4f,viewMatrix:mat4x4f}
 @group(0) @binding(0) var<uniform> cubic:CubicProbe;
 @group(0) @binding(1) var cubicSampler:sampler;
@@ -4166,56 +4477,114 @@ struct CubicVertex {@builtin(position)position:vec4f,@location(0)local:vec3f,@lo
  if(cubic.parameters.y>1.5){return vec4f(frameCubicWorldNormal(viewNormal,cubic.viewMatrix)*0.5+vec3f(0.5),1.0);}
  if(cubic.parameters.y>0.5){return vec4f(viewNormal*0.5+vec3f(0.5),1.0);}return color;
 }`;
-async function runNativeCubicMipThree({sharedDevice,THREE:T,frameHooks,mipWGSL,implicitLODProfile,mipGenerationProfile,width=33,height=31,diagnosticOddHeight=true,tolerance=.008,alphaTest=.2,collectFailures=true,derivativeMode='gl-window-reconstruct',geometryMode='perspective',geometryLayout='matched',nativeRasterY='gl-window-candidate',sampleCount=1,experimentalMSAA=false,viewport=[0,0,width,height],calibration=null,modes=[0,1,2],caseFilter=null,capturePixels=false,textureSize=64,uvScale=1,localScale=1,alphaPattern=true}={}){
- frameMipGenerationWGSL(mipGenerationProfile);
- const NATIVE='diagnostic(off, derivative_uniformity);\n'+CUBIC_MAP_WGSL+NATIVE_BASE;
- if(tolerance!==.008||derivativeMode!=='gl-window-reconstruct'||nativeRasterY!=='gl-window-candidate'||geometryLayout!=='matched')throw Error('Unchanged .008 matched reflected mip candidate required');
- if(typeof mipWGSL!=='string'||!mipWGSL.includes('textureSampleGrad')||mipWGSL.includes('textureSampleLevel')||!['fine','coarse-bottom-left','coarse-bottom-right','coarse-top-left','coarse-top-right'].includes(implicitLODProfile))throw Error('Explicit measured-profile mip helper WGSL required');
- if(sampleCount===4&&experimentalMSAA!==true)throw Error('MSAA4 requires explicit experimental integration approval');
- if(!Number.isInteger(textureSize)||textureSize<1||!Number.isFinite(uvScale)||uvScale<=0||!Number.isFinite(localScale)||localScale<=0)throw Error('Bounded texture size/positive UV and local scales required');
- if(!calibration?.diagnosticComplete||calibration.nativeGPU!==true||!calibration.affineControlPass||!calibration.classificationsPass||calibration.errors?.length||calibration.cases?.filter(c=>c.field==='cross').some(c=>c.glClassification?.[0]?.profile!=='coarse-bottom-left'))throw Error('Measured native scalar derivative profile required');
-
- if(!sharedDevice?.device||!T?.WebGLRenderer)throw Error('Shared native owner and bundled Three required');
- if(!Number.isInteger(width)||!Number.isInteger(height)||width<2||height<2||(!diagnosticOddHeight&&height%2))throw Error('Even-height control target required; request diagnosticOddHeight for an odd-height probe');
- if(!Number.isFinite(alphaTest)||alphaTest<0||alphaTest>1)throw Error('Bounded alphaTest required');
- if(!['default','fine','coarse','gl-coarse-reconstruct','gl-window-reconstruct'].includes(derivativeMode))throw Error('Explicit derivative diagnostic required');
- if(!['orthographic','perspective'].includes(geometryMode))throw Error('Reviewed geometry probe mode required');
- if(!['matched','legacy-oversized'].includes(geometryLayout)||geometryMode==='perspective'&&geometryLayout!=='matched')throw Error('Explicit geometry layout required; oversized negative is orthographic only');
- if(!['top-origin','gl-window-control','gl-window-candidate'].includes(nativeRasterY))throw Error('Explicit native raster-Y control required');
- if(nativeRasterY==='gl-window-control'&&(geometryMode!=='orthographic'||geometryLayout!=='matched'||derivativeMode!=='default'||viewport.join(',')!==[0,0,width,height].join(',')))throw Error('GL-window origin control is limited to matched full-target orthographic zero-bump diagnostics');
- if(![1,4].includes(sampleCount)||sampleCount===4&&nativeRasterY!=='gl-window-candidate')throw Error('MSAA4 requires explicit isolated GL-window candidate');
- if(nativeRasterY==='gl-window-candidate'&&(geometryLayout!=='matched'||!['gl-window-reconstruct','gl-coarse-reconstruct'].includes(derivativeMode)))throw Error('Explicit GL-window derivative candidate required');
- if(derivativeMode==='gl-window-reconstruct'&&nativeRasterY!=='gl-window-candidate')throw Error('GL-window gradient requires reflected raster coordinates');
- if(!Array.isArray(modes)||!modes.length||modes.some(v=>!Number.isInteger(v)||v<0||v>5)||new Set(modes).size!==modes.length||caseFilter!==null&&typeof caseFilter!=='function')throw Error('Explicit probe modes/case filter required');
- if(sampleCount===4&&modes.some(v=>v>2))throw Error('RGBA8 MSAA candidate supports bounded color/normal modes only');
- if(viewport.length!==4||viewport.some(v=>!Number.isInteger(v))||viewport[0]<0||viewport[1]<0||viewport[2]<2||viewport[3]<2||viewport[0]+viewport[2]>width||viewport[1]+viewport[3]>height)throw Error('Integer viewport must fit full target');
- const reflected=nativeRasterY!=='top-origin',byteOutput=sampleCount===4,format=byteOutput?'rgba8unorm':'rgba32float',d=sharedDevice.device,result={pass:false,nativeGPU:true,mipGenerationProfile,width,height,viewport,geometryMode,geometryLayout,nativeRasterY,sampleCount,format,experimentalOnly:nativeRasterY==='gl-window-candidate',productionSampleCount4Gate:'REMAINS_REJECTED',modes,alphaTest,tolerance,collectFailures,derivativeMode,failures:[],derivativePairing:height%2?'ODD_HEIGHT_DIAGNOSTIC':'EVEN_HEIGHT_ORIGIN_CONTROL',scope:'PRIVATE actual current source-pinned r14 hook, ordinary untouched Frame default generated-mip texture, matched Float32 topology, reflected explicit-Grad bump candidate. No full lighting, production activation or selection-depth certification.',cases:[],errors:[]};
- let acquire,renderer,geometry,material,glTarget,texture,nativeTexture,nativeTarget,nativeMsaa,uniform,read,vertexBuffer,scopeOpen=false;
- const uncaptured=e=>result.errors.push(String(e.error));d.addEventListener('uncapturederror',uncaptured);
- try{
-  const legacy=projectionHooks(frameHooks);acquire=textureFactory(T,frameHooks);
-  d.pushErrorScope('validation');scopeOpen=true;
-  renderer=new T.WebGLRenderer({canvas:document.createElement('canvas'),antialias:false});renderer.setSize(width,height);renderer.toneMapping=T.NoToneMapping;renderer.outputColorSpace=T.LinearSRGBColorSpace;renderer.setClearColor(0,0);
-  renderer.debug.onShaderError=(gl,program,vs,fs)=>{throw Error('Cubic oracle shader: '+gl.getShaderInfoLog(fs));};
-  if(byteOutput){const gl=renderer.getContext(),supported=Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER,gl.RGBA8,gl.SAMPLES));if(!supported.includes(4))throw Error('Actual GL RGBA8 4x MSAA unsupported');result.glSupportedSamples=supported;}
-  glTarget=new T.WebGLRenderTarget(width,height,{type:byteOutput?T.UnsignedByteType:T.FloatType,format:T.RGBAFormat,depthBuffer:false,samples:sampleCount===4?4:0});glTarget.texture.colorSpace=T.LinearSRGBColorSpace;
-  const scene=new T.Scene(),camera=new T.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=1;camera.rotation.set(.2,.3,-.1);camera.scale.set(2,1,1);geometry=new T.PlaneGeometry(2,2);const screenPositions=Array.from(geometry.attributes.position.array),clipProbe=new T.BufferAttribute(new Float32Array(geometry.attributes.position.count*2),2);for(let i=0;i<clipProbe.count;i++)clipProbe.setXY(i,screenPositions[i*3],screenPositions[i*3+1]);geometry.setAttribute('clipProbe',clipProbe);const quad=new T.Mesh(geometry,null);quad.frustumCulled=false;scene.add(quad);
-  const image=imageCanvas(textureSize,textureSize,mipPattern(textureSize,textureSize,{alpha:alphaPattern}));texture=acquire({map:image},image);
-  const sourceBefore={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};
-  if(sourceBefore.minFilter!==1008||sourceBefore.magFilter!==1006||sourceBefore.generateMipmaps!==true||sourceBefore.anisotropy!==1)throw Error('Actual Frame default texture semantics changed');
-  result.defaultTexture=sourceBefore;result.textureSize=textureSize;result.uvScale=uvScale;result.localScale=localScale;result.alphaPattern=alphaPattern;result.implicitLODProfile=implicitLODProfile;result.factoryContract='actual-editor-callback';
-  const mipLevelCount=1+Math.floor(Math.log2(textureSize));nativeTexture=d.createTexture({size:[textureSize,textureSize],format:'rgba8unorm-srgb',mipLevelCount,usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT});d.queue.copyExternalImageToTexture({source:image,flipY:!!texture.flipY},{texture:nativeTexture,colorSpace:'srgb',premultipliedAlpha:false},[textureSize,textureSize]);const mipSetup=await nativeMipSetup(d,mipGenerationProfile,frameHooks.guard);result.mipGenerationShaderSHA256=mipSetup.shaderSHA256;generateNativeMips(d,nativeTexture,mipLevelCount,mipSetup);
-  const layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform',minBindingSize:256}},{binding:1,visibility:GPUShaderStage.FRAGMENT,sampler:{}},{binding:2,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float'}}]});
-  let code=derivativeMode==='fine'||derivativeMode==='coarse'?NATIVE.replace('dpdx(height)','dpdx'+(derivativeMode==='fine'?'Fine':'Coarse')+'(height)').replace('dpdy(height)','dpdy'+(derivativeMode==='fine'?'Fine':'Coarse')+'(height)'):NATIVE;
-  const usesVertexBuffer=geometryMode==='perspective'||geometryLayout==='matched',localNormal=usesVertexBuffer?'v.localNormal':'cubic.localNormal.xyz';
-  // Nearest repeat seams magnify tiny interpolation differences. The GL oracle
-  // uses two PlaneGeometry triangles; use its exact Float32 vertices/index order
-  // for orthographic as well as perspective. Keep the oversized triangle solely
-  // as an explicit, independently sampled negative diagnostic.
-  if(usesVertexBuffer)code=code.replace(/@vertex fn cubicVertex[^\n]+/, '@vertex fn cubicVertex(@location(0)position_:vec3f,@location(1)normal_:vec3f,@location(2)clipProbe:vec2f)->CubicVertex {let clipW='+(geometryMode==='perspective'?'1.0/(1.0+0.1*clipProbe.x+0.2*clipProbe.y)':'1.0')+';return CubicVertex(vec4f(clipProbe*clipW,0.0,clipW),position_,normal_);}').replace('vec4f(cubic.localNormal.xyz,0.0)','vec4f(v.localNormal,0.0)');
-  if(reflected)code=code.replace('vec4f(clipProbe*clipW,0.0,clipW)','vec4f(vec2f(clipProbe.x,-clipProbe.y)*clipW,0.0,clipW)');
-  if(['gl-coarse-reconstruct','gl-window-reconstruct'].includes(derivativeMode)){
-   const corrected=/*wgsl*/`@fragment fn cubicPixel(v:CubicVertex)->@location(0)vec4f {
+async function runNativeCubicMipThree({ sharedDevice, THREE: T, frameHooks, mipWGSL, implicitLODProfile, mipGenerationProfile, width = 33, height = 31, diagnosticOddHeight = true, tolerance = .008, alphaTest = .2, collectFailures = true, derivativeMode = 'gl-window-reconstruct', geometryMode = 'perspective', geometryLayout = 'matched', nativeRasterY = 'gl-window-candidate', sampleCount = 1, experimentalMSAA = false, viewport = [0, 0, width, height], calibration = null, modes = [0, 1, 2], caseFilter = null, capturePixels = false, textureSize = 64, uvScale = 1, localScale = 1, alphaPattern = true } = {}) {
+    frameMipGenerationWGSL(mipGenerationProfile);
+    const NATIVE = 'diagnostic(off, derivative_uniformity);\n' + CUBIC_MAP_WGSL + NATIVE_BASE;
+    if (tolerance !== .008 || derivativeMode !== 'gl-window-reconstruct' || nativeRasterY !== 'gl-window-candidate' || geometryLayout !== 'matched')
+        throw Error('Unchanged .008 matched reflected mip candidate required');
+    if (typeof mipWGSL !== 'string' || !mipWGSL.includes('textureSampleGrad') || mipWGSL.includes('textureSampleLevel') || !['fine', 'coarse-bottom-left', 'coarse-bottom-right', 'coarse-top-left', 'coarse-top-right'].includes(implicitLODProfile))
+        throw Error('Explicit measured-profile mip helper WGSL required');
+    if (sampleCount === 4 && experimentalMSAA !== true)
+        throw Error('MSAA4 requires explicit experimental integration approval');
+    if (!Number.isInteger(textureSize) || textureSize < 1 || !Number.isFinite(uvScale) || uvScale <= 0 || !Number.isFinite(localScale) || localScale <= 0)
+        throw Error('Bounded texture size/positive UV and local scales required');
+    if (!calibration?.diagnosticComplete || calibration.nativeGPU !== true || !calibration.affineControlPass || !calibration.classificationsPass || calibration.errors?.length || calibration.cases?.filter(c => c.field === 'cross').some(c => c.glClassification?.[0]?.profile !== 'coarse-bottom-left'))
+        throw Error('Measured native scalar derivative profile required');
+    if (!sharedDevice?.device || !T?.WebGLRenderer)
+        throw Error('Shared native owner and bundled Three required');
+    if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2 || (!diagnosticOddHeight && height % 2))
+        throw Error('Even-height control target required; request diagnosticOddHeight for an odd-height probe');
+    if (!Number.isFinite(alphaTest) || alphaTest < 0 || alphaTest > 1)
+        throw Error('Bounded alphaTest required');
+    if (!['default', 'fine', 'coarse', 'gl-coarse-reconstruct', 'gl-window-reconstruct'].includes(derivativeMode))
+        throw Error('Explicit derivative diagnostic required');
+    if (!['orthographic', 'perspective'].includes(geometryMode))
+        throw Error('Reviewed geometry probe mode required');
+    if (!['matched', 'legacy-oversized'].includes(geometryLayout) || geometryMode === 'perspective' && geometryLayout !== 'matched')
+        throw Error('Explicit geometry layout required; oversized negative is orthographic only');
+    if (!['top-origin', 'gl-window-control', 'gl-window-candidate'].includes(nativeRasterY))
+        throw Error('Explicit native raster-Y control required');
+    if (nativeRasterY === 'gl-window-control' && (geometryMode !== 'orthographic' || geometryLayout !== 'matched' || derivativeMode !== 'default' || viewport.join(',') !== [0, 0, width, height].join(',')))
+        throw Error('GL-window origin control is limited to matched full-target orthographic zero-bump diagnostics');
+    if (![1, 4].includes(sampleCount) || sampleCount === 4 && nativeRasterY !== 'gl-window-candidate')
+        throw Error('MSAA4 requires explicit isolated GL-window candidate');
+    if (nativeRasterY === 'gl-window-candidate' && (geometryLayout !== 'matched' || !['gl-window-reconstruct', 'gl-coarse-reconstruct'].includes(derivativeMode)))
+        throw Error('Explicit GL-window derivative candidate required');
+    if (derivativeMode === 'gl-window-reconstruct' && nativeRasterY !== 'gl-window-candidate')
+        throw Error('GL-window gradient requires reflected raster coordinates');
+    if (!Array.isArray(modes) || !modes.length || modes.some(v => !Number.isInteger(v) || v < 0 || v > 5) || new Set(modes).size !== modes.length || caseFilter !== null && typeof caseFilter !== 'function')
+        throw Error('Explicit probe modes/case filter required');
+    if (sampleCount === 4 && modes.some(v => v > 2))
+        throw Error('RGBA8 MSAA candidate supports bounded color/normal modes only');
+    if (viewport.length !== 4 || viewport.some(v => !Number.isInteger(v)) || viewport[0] < 0 || viewport[1] < 0 || viewport[2] < 2 || viewport[3] < 2 || viewport[0] + viewport[2] > width || viewport[1] + viewport[3] > height)
+        throw Error('Integer viewport must fit full target');
+    const reflected = nativeRasterY !== 'top-origin', byteOutput = sampleCount === 4, format = byteOutput ? 'rgba8unorm' : 'rgba32float', d = sharedDevice.device, result = { pass: false, nativeGPU: true, mipGenerationProfile, width, height, viewport, geometryMode, geometryLayout, nativeRasterY, sampleCount, format, experimentalOnly: nativeRasterY === 'gl-window-candidate', productionSampleCount4Gate: 'REMAINS_REJECTED', modes, alphaTest, tolerance, collectFailures, derivativeMode, failures: [], derivativePairing: height % 2 ? 'ODD_HEIGHT_DIAGNOSTIC' : 'EVEN_HEIGHT_ORIGIN_CONTROL', scope: 'PRIVATE actual current source-pinned r14 hook, ordinary untouched Frame default generated-mip texture, matched Float32 topology, reflected explicit-Grad bump candidate. No full lighting, production activation or selection-depth certification.', cases: [], errors: [] };
+    const ownsSession = !frameHooks.session, session = frameHooks.session ?? createCubicCalibrationSession(sharedDevice, T, frameHooks);
+    if (session.owner !== sharedDevice || session.device !== sharedDevice.device || !Object.is(session.generation, sharedDevice.generation)) throw Error('Cubic calibration session belongs to another owner/device/generation');
+    session.guard();
+    let acquire, renderer, geometry, material, glTarget, texture, nativeTexture, nativeTarget, nativeMsaa, uniform, read, vertexBuffer, scopeOpen = false;
+    const caseBuffers = [], pending = [];
+    const uncaptured = e => result.errors.push(String(e.error));
+    d.addEventListener('uncapturederror', uncaptured);
+    try {
+        const legacy = projectionHooks(frameHooks);
+        acquire = session.acquire;
+        d.pushErrorScope('validation');
+        scopeOpen = true;
+        renderer = session.renderer();
+        renderer.setSize(width, height);
+        renderer.toneMapping = T.NoToneMapping;
+        renderer.outputColorSpace = T.LinearSRGBColorSpace;
+        renderer.setClearColor(0, 0);
+        renderer.debug.onShaderError = (gl, program, vs, fs) => { throw Error('Cubic oracle shader: ' + gl.getShaderInfoLog(fs)); };
+        if (byteOutput) {
+            const gl = renderer.getContext(), supported = Array.from(gl.getInternalformatParameter(gl.RENDERBUFFER, gl.RGBA8, gl.SAMPLES));
+            if (!supported.includes(4))
+                throw Error('Actual GL RGBA8 4x MSAA unsupported');
+            result.glSupportedSamples = supported;
+        }
+        const targets = session.target(width, height, format, sampleCount);
+        glTarget = targets.gl; nativeTarget = targets.native; nativeMsaa = targets.msaa;
+        const scene = new T.Scene(), camera = new T.OrthographicCamera(-1, 1, 1, -1, .1, 10);
+        camera.position.z = 1;
+        camera.rotation.set(.2, .3, -.1);
+        camera.scale.set(2, 1, 1);
+        geometry = session.retainGL(new T.PlaneGeometry(2, 2));
+        const screenPositions = Array.from(geometry.attributes.position.array), clipProbe = new T.BufferAttribute(new Float32Array(geometry.attributes.position.count * 2), 2);
+        for (let i = 0; i < clipProbe.count; i++)
+            clipProbe.setXY(i, screenPositions[i * 3], screenPositions[i * 3 + 1]);
+        geometry.setAttribute('clipProbe', clipProbe);
+        const quad = new T.Mesh(geometry, null);
+        quad.frustumCulled = false;
+        scene.add(quad);
+        const {image, texture: sourceTexture} = session.image(textureSize, textureSize, alphaPattern);
+        texture = sourceTexture;
+        const sourceBefore = { minFilter: texture.minFilter, magFilter: texture.magFilter, generateMipmaps: texture.generateMipmaps, anisotropy: texture.anisotropy, flipY: texture.flipY, colorSpace: texture.colorSpace, version: texture.version };
+        if (sourceBefore.minFilter !== 1008 || sourceBefore.magFilter !== 1006 || sourceBefore.generateMipmaps !== true || sourceBefore.anisotropy !== 1)
+            throw Error('Actual Frame default texture semantics changed');
+        result.defaultTexture = sourceBefore;
+        result.textureSize = textureSize;
+        result.uvScale = uvScale;
+        result.localScale = localScale;
+        result.alphaPattern = alphaPattern;
+        result.implicitLODProfile = implicitLODProfile;
+        result.factoryContract = 'actual-editor-callback';
+        const mipLevelCount = 1 + Math.floor(Math.log2(textureSize));
+        nativeTexture = await session.nativeImage(textureSize, textureSize, alphaPattern, mipGenerationProfile); session.guard();
+        const mipSetup = await session.mipSetup(mipGenerationProfile); session.guard();
+        result.mipGenerationShaderSHA256 = mipSetup.shaderSHA256;
+        let code = derivativeMode === 'fine' || derivativeMode === 'coarse' ? NATIVE.replace('dpdx(height)', 'dpdx' + (derivativeMode === 'fine' ? 'Fine' : 'Coarse') + '(height)').replace('dpdy(height)', 'dpdy' + (derivativeMode === 'fine' ? 'Fine' : 'Coarse') + '(height)') : NATIVE;
+        const usesVertexBuffer = geometryMode === 'perspective' || geometryLayout === 'matched', localNormal = usesVertexBuffer ? 'v.localNormal' : 'cubic.localNormal.xyz';
+        // Nearest repeat seams magnify tiny interpolation differences. The GL oracle
+        // uses two PlaneGeometry triangles; use its exact Float32 vertices/index order
+        // for orthographic as well as perspective. Keep the oversized triangle solely
+        // as an explicit, independently sampled negative diagnostic.
+        if (usesVertexBuffer)
+            code = code.replace(/@vertex fn cubicVertex[^\n]+/, '@vertex fn cubicVertex(@location(0)position_:vec3f,@location(1)normal_:vec3f,@location(2)clipProbe:vec2f)->CubicVertex {let clipW=' + (geometryMode === 'perspective' ? '1.0/(1.0+0.1*clipProbe.x+0.2*clipProbe.y)' : '1.0') + ';return CubicVertex(vec4f(clipProbe*clipW,0.0,clipW),position_,normal_);}').replace('vec4f(cubic.localNormal.xyz,0.0)', 'vec4f(v.localNormal,0.0)');
+        if (reflected)
+            code = code.replace('vec4f(clipProbe*clipW,0.0,clipW)', 'vec4f(vec2f(clipProbe.x,-clipProbe.y)*clipW,0.0,clipW)');
+        if (['gl-coarse-reconstruct', 'gl-window-reconstruct'].includes(derivativeMode)) {
+            const corrected = /*wgsl*/ `@fragment fn cubicPixel(v:CubicVertex)->@location(0)vec4f {
  let p=(cubic.mapInverse*vec4f(v.local,1.0)).xyz;let n=normalize((cubic.mapNormal*vec4f(${localNormal},0.0)).xyz);let sampled=frameCubicTexture(cubicTexture,cubicSampler,p,n);let color=cubic.base*sampled;
  var gradient=vec3f(0.0);if(cubic.parameters.z>0.5&&abs(cubic.parameters.x)>0.000001){gradient=frameCubicGradientGLCoarse(cubicTexture,cubicSampler,v.local,${localNormal},v.position,cubic.mapInverse,cubic.mapNormal,${height}.0);}
  let viewNormal=frameCubicBumpViewGradient(normalize(cubic.viewNormal.xyz),gradient,cubic.parameters.x,cubic.parameters.z>0.5);
@@ -4223,108 +4592,297 @@ async function runNativeCubicMipThree({sharedDevice,THREE:T,frameHooks,mipWGSL,i
  if(cubic.parameters.y>1.5){return vec4f(frameCubicWorldNormal(viewNormal,cubic.viewMatrix)*0.5+vec3f(0.5),1.0);}
  if(cubic.parameters.y>0.5){return vec4f(viewNormal*0.5+vec3f(0.5),1.0);}return color;
 }`;
-   code=code.replace(/@fragment fn cubicPixel[\s\S]*?\n}/,corrected)+mipWGSL;
-  }
-  code=code.replace('if(color.a<cubic.parameters.w){discard;}', 'if(cubic.parameters.y>4.5){return sampled;}if(cubic.parameters.y>3.5){return vec4f(p,1.0);}if(cubic.parameters.y>2.5){return vec4f(v.local,1.0);}\n if(color.a<cubic.parameters.w){discard;}');
-  const module=d.createShaderModule({code}),info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.map(m=>m.message).join('\n'));
-  const vertexLayouts=usesVertexBuffer?[{arrayStride:32,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},{shaderLocation:2,offset:24,format:'float32x2'}]}]:[];
-  const pipeline=await d.createRenderPipelineAsync({layout:d.createPipelineLayout({bindGroupLayouts:[layout]}),vertex:{module,entryPoint:'cubicVertex',buffers:vertexLayouts},fragment:{module,entryPoint:'cubicPixel',targets:[{format}]},multisample:{count:sampleCount}});
-  if(usesVertexBuffer)vertexBuffer=d.createBuffer({size:192,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});
-  nativeTarget=d.createTexture({size:[width,height],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});if(sampleCount===4)nativeMsaa=d.createTexture({size:[width,height],format,sampleCount:4,usage:GPUTextureUsage.RENDER_ATTACHMENT});uniform=d.createBuffer({size:256,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});const bytesPerRow=Math.ceil(width*(byteOutput?4:16)/256)*256,scalarStride=bytesPerRow/(byteOutput?1:4),scale=byteOutput?255:1;read=d.createBuffer({size:bytesPerRow*height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-  const frames=[{name:'identity',value:new T.Matrix4()},{name:'rotated-reflected-scaled',value:new T.Matrix4().compose(new T.Vector3(.2,-.4,.3),new T.Quaternion().setFromEuler(new T.Euler(.3,.4,-.2)),new T.Vector3(2,.5,-1.3))}],normals=[[1,0,0],[0,1,0],[0,0,1],[1,2,-3]];let maxAbsolute=0;
-  for(const filter of ['linear-mipmap-linear']){
-   // Only validates the known sampler/GL derivative prerequisites. The test-only
-   // MSAA candidate does not change or satisfy the production sampleCount4 gate.
-   // This is a hardware comparison, not a capability gate; no synthetic receipt is accepted.
-   const sampler=d.createSampler({addressModeU:'repeat',addressModeV:'repeat',minFilter:'linear',magFilter:'linear',mipmapFilter:'linear',lodMinClamp:0,lodMaxClamp:mipLevelCount-1,maxAnisotropy:1}),bind=d.createBindGroup({layout,entries:[{binding:0,resource:{buffer:uniform}},{binding:1,resource:sampler},{binding:2,resource:nativeTexture.createView()}]});
-   for(const frame of frames)for(const rawNormal of normals)for(const bump of [0,5e-7,.25,-.5])for(const mode of modes){
-    if(caseFilter&&!caseFilter({filter,frame:frame.name,rawNormal,bump,mode}))continue;
-    if(nativeRasterY==='gl-window-control'&&bump!==0)throw Error('Reflected raster-Y is a zero-bump diagnostic, not a production derivative correction');
-    // The shader template contains the original include slots. The exact
-    // installed editor hook performs all map/bump replacements on compilation.
-    const viewNormal=new T.Vector3(...rawNormal).normalize(),base=[.8,.7,.3,.6];
-    const vertexShader='#include <common>\nattribute vec2 clipProbe;\nvoid main(){\n#include <beginnormal_vertex>\n#include <begin_vertex>\n'+(geometryMode==='perspective'?'float clipW=1.0/(1.0+0.1*clipProbe.x+0.2*clipProbe.y);gl_Position=vec4(clipProbe*clipW,0.0,clipW);':'gl_Position=vec4(clipProbe.xy,0.0,1.0);')+'}';
-    material=new T.ShaderMaterial({defines:{USE_MAP:''},uniforms:{map:{value:texture},baseProbe:{value:new T.Vector4(...base)},viewNormalProbe:{value:viewNormal},alphaProbe:{value:alphaTest},modeProbe:{value:mode}},vertexShader,fragmentShader:'precision highp float;\n#include <common>\n#include <map_pars_fragment>\nuniform vec4 baseProbe;uniform vec3 viewNormalProbe;uniform float alphaProbe;uniform int modeProbe;\nvoid main(){vec4 diffuseColor=baseProbe;\n#include <map_fragment>\nif(modeProbe==3){gl_FragColor=vec4(vFrameLocalPos,1.0);return;}if(modeProbe==4){gl_FragColor=vec4(frameP,1.0);return;}if(modeProbe==5){gl_FragColor=frameTexture(frameP,frameN);return;}\nif(diffuseColor.a<alphaProbe)discard;vec3 normal=normalize(viewNormalProbe);\n#include <normal_fragment_maps>\nif(modeProbe==2)normal=inverseTransformDirection(normal,viewMatrix);\ngl_FragColor=modeProbe==0?diffuseColor:vec4(normal*.5+.5,1.0);}',depthTest:false,depthWrite:false,toneMapped:false});
-    material.map=texture;material.userData.frameRef=frame.value.clone().multiply(new T.Matrix4().makeScale(1/uvScale,1/uvScale,1/uvScale));material.userData.frameBump=bump;legacy.installFrameProjection(material);quad.material=material;
-    const normalAttribute=geometry.attributes.normal,positionAttribute=geometry.attributes.position;for(let i=0;i<normalAttribute.count;i++){const x=screenPositions[i*3],y=screenPositions[i*3+1],clipW=geometryMode==='perspective'?1/(1+.1*x+.2*y):1;positionAttribute.setXYZ(i,x*clipW*localScale,y*clipW*localScale,0);normalAttribute.setXYZ(i,...rawNormal.map((v,c)=>geometryMode==='perspective'?(v+[.2*x,.3*y,.1*(x+y)][c])*clipW:v));}positionAttribute.needsUpdate=true;normalAttribute.needsUpdate=true;
-    if(vertexBuffer){const vertices=new Float32Array(48);for(let i=0;i<6;i++){const index=geometry.index.array[i];vertices.set(positionAttribute.array.subarray(index*3,index*3+3),i*8);vertices.set(normalAttribute.array.subarray(index*3,index*3+3),i*8+3);vertices.set(clipProbe.array.subarray(index*2,index*2+2),i*8+6);}d.queue.writeBuffer(vertexBuffer,0,vertices);}
-    renderer.setRenderTarget(glTarget);renderer.setViewport(viewport[0],height-viewport[1]-viewport[3],viewport[2],viewport[3]);renderer.render(scene,camera);const glPixels=byteOutput?new Uint8Array(width*height*4):new Float32Array(width*height*4);renderer.readRenderTargetPixels(glTarget,0,0,width,height,glPixels);const glError=renderer.getContext().getError();if(glError)throw Error('GL render/resolve/read error '+glError);
-    const packed=new Float32Array(64);packed.set(material._frameUniforms.frameMapInv.value.elements);const m=material._frameUniforms.frameMapNormal.value.elements;packed.set([m[0],m[1],m[2],0,m[3],m[4],m[5],0,m[6],m[7],m[8],0,0,0,0,1],16);packed.set(rawNormal,32);packed.set(viewNormal.toArray(),36);packed.set([bump,mode,1,alphaTest],40);packed.set(base,44);packed.set(camera.matrixWorldInverse.elements,48);d.queue.writeBuffer(uniform,0,packed);
-    const encoder=d.createCommandEncoder(),pass=encoder.beginRenderPass({colorAttachments:[{view:(nativeMsaa??nativeTarget).createView(),...(nativeMsaa?{resolveTarget:nativeTarget.createView()}:{}),loadOp:'clear',storeOp:nativeMsaa?'discard':'store',clearValue:{r:0,g:0,b:0,a:0}}]}),physicalViewport=reflected?reflectedViewport(viewport,height):viewport;pass.setViewport(...physicalViewport,0,1);pass.setPipeline(pipeline);pass.setBindGroup(0,bind);if(vertexBuffer)pass.setVertexBuffer(0,vertexBuffer);pass.draw(vertexBuffer?6:3);pass.end();encoder.copyTextureToBuffer({texture:nativeTarget},{buffer:read,bytesPerRow},[width,height]);d.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);const nativeBytes=read.getMappedRange(),nativeRows=byteOutput?new Uint8Array(nativeBytes):new Float32Array(nativeBytes);let rowMax=0,worst=null;
-    for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-     const nativeY=reflected?height-1-y:y,nativeOffset=nativeY*scalarStride+x*4,glOffset=((height-1-y)*width+x)*4;
-     for(let c=0;c<4;c++){const a=nativeRows[nativeOffset+c]/scale,b=glPixels[glOffset+c]/scale,error=Math.abs(a-b);if(!Number.isFinite(error))throw Error('Nonfinite cubic pixel');if(error>rowMax){rowMax=error;worst={x,y,channel:c,native:a,three:b};}}
+            code = code.replace(/@fragment fn cubicPixel[\s\S]*?\n}/, corrected) + mipWGSL;
+        }
+        code = code.replace('if(color.a<cubic.parameters.w){discard;}', 'if(cubic.parameters.y>4.5){return sampled;}if(cubic.parameters.y>3.5){return vec4f(p,1.0);}if(cubic.parameters.y>2.5){return vec4f(v.local,1.0);}\n if(color.a<cubic.parameters.w){discard;}');
+        const vertexLayouts = usesVertexBuffer ? [{arrayStride: 32, attributes: [{shaderLocation: 0, offset: 0, format: 'float32x3'}, {shaderLocation: 1, offset: 12, format: 'float32x3'}, {shaderLocation: 2, offset: 24, format: 'float32x2'}]}] : [];
+        const {layout, pipeline} = await session.pipeline(code, vertexLayouts, format, sampleCount); session.guard();
+        const bytesPerRow = Math.ceil(width * (byteOutput ? 4 : 16) / 256) * 256, scalarStride = bytesPerRow / (byteOutput ? 1 : 4), scale = byteOutput ? 255 : 1;
+        const frames = [{ name: 'identity', value: new T.Matrix4() }, { name: 'rotated-reflected-scaled', value: new T.Matrix4().compose(new T.Vector3(.2, -.4, .3), new T.Quaternion().setFromEuler(new T.Euler(.3, .4, -.2)), new T.Vector3(2, .5, -1.3)) }], normals = [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 2, -3]];
+        let maxAbsolute = 0;
+        for (const filter of ['linear-mipmap-linear']) {
+            // Only validates the known sampler/GL derivative prerequisites. The test-only
+            // MSAA candidate does not change or satisfy the production sampleCount4 gate.
+            // This is a hardware comparison, not a capability gate; no synthetic receipt is accepted.
+                        for (const frame of frames)
+                for (const rawNormal of normals)
+                    for (const bump of [0, 5e-7, .25, -.5])
+                        for (const mode of modes) {
+                            if (caseFilter && !caseFilter({ filter, frame: frame.name, rawNormal, bump, mode }))
+                                continue;
+                            if (nativeRasterY === 'gl-window-control' && bump !== 0)
+                                throw Error('Reflected raster-Y is a zero-bump diagnostic, not a production derivative correction');
+                            // The shader template contains the original include slots. The exact
+                            // installed editor hook performs all map/bump replacements on compilation.
+                            const viewNormal = new T.Vector3(...rawNormal).normalize(), base = [.8, .7, .3, .6];
+                            const vertexShader = '#include <common>\nattribute vec2 clipProbe;\nvoid main(){\n#include <beginnormal_vertex>\n#include <begin_vertex>\n' + (geometryMode === 'perspective' ? 'float clipW=1.0/(1.0+0.1*clipProbe.x+0.2*clipProbe.y);gl_Position=vec4(clipProbe*clipW,0.0,clipW);' : 'gl_Position=vec4(clipProbe.xy,0.0,1.0);') + '}';
+                            const materialKey = JSON.stringify([textureSize, alphaPattern, uvScale, localScale, alphaTest, geometryMode, frame.name, rawNormal, bump, mode]);
+                            material = session.materials.get(materialKey);
+                            if (!material) {
+                            material = new T.ShaderMaterial({ defines: { USE_MAP: '' }, uniforms: { map: { value: texture }, baseProbe: { value: new T.Vector4(...base) }, viewNormalProbe: { value: viewNormal }, alphaProbe: { value: alphaTest }, modeProbe: { value: mode } }, vertexShader, fragmentShader: 'precision highp float;\n#include <common>\n#include <map_pars_fragment>\nuniform vec4 baseProbe;uniform vec3 viewNormalProbe;uniform float alphaProbe;uniform int modeProbe;\nvoid main(){vec4 diffuseColor=baseProbe;\n#include <map_fragment>\nif(modeProbe==3){gl_FragColor=vec4(vFrameLocalPos,1.0);return;}if(modeProbe==4){gl_FragColor=vec4(frameP,1.0);return;}if(modeProbe==5){gl_FragColor=frameTexture(frameP,frameN);return;}\nif(diffuseColor.a<alphaProbe)discard;vec3 normal=normalize(viewNormalProbe);\n#include <normal_fragment_maps>\nif(modeProbe==2)normal=inverseTransformDirection(normal,viewMatrix);\ngl_FragColor=modeProbe==0?diffuseColor:vec4(normal*.5+.5,1.0);}', depthTest: false, depthWrite: false, toneMapped: false });
+                            material.map = texture;
+                            material.userData.frameRef = frame.value.clone().multiply(new T.Matrix4().makeScale(1 / uvScale, 1 / uvScale, 1 / uvScale));
+                            material.userData.frameBump = bump;
+                            session.materials.set(materialKey, material);
+                            legacy.installFrameProjection(material);
+                            }
+                            quad.material = material;
+                            const normalAttribute = geometry.attributes.normal, positionAttribute = geometry.attributes.position;
+                            for (let i = 0; i < normalAttribute.count; i++) {
+                                const x = screenPositions[i * 3], y = screenPositions[i * 3 + 1], clipW = geometryMode === 'perspective' ? 1 / (1 + .1 * x + .2 * y) : 1;
+                                positionAttribute.setXYZ(i, x * clipW * localScale, y * clipW * localScale, 0);
+                                normalAttribute.setXYZ(i, ...rawNormal.map((v, c) => geometryMode === 'perspective' ? (v + [.2 * x, .3 * y, .1 * (x + y)][c]) * clipW : v));
+                            }
+                            positionAttribute.needsUpdate = true;
+                            normalAttribute.needsUpdate = true;
+                            if (usesVertexBuffer) {
+                                vertexBuffer = d.createBuffer({size: 192, usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST});
+                                caseBuffers.push(vertexBuffer);
+                                const vertices = new Float32Array(48);
+                                for (let i = 0; i < 6; i++) {
+                                    const index = geometry.index.array[i];
+                                    vertices.set(positionAttribute.array.subarray(index * 3, index * 3 + 3), i * 8);
+                                    vertices.set(normalAttribute.array.subarray(index * 3, index * 3 + 3), i * 8 + 3);
+                                    vertices.set(clipProbe.array.subarray(index * 2, index * 2 + 2), i * 8 + 6);
+                                }
+                                d.queue.writeBuffer(vertexBuffer, 0, vertices);
+                            }
+                            renderer.setRenderTarget(glTarget);
+                            renderer.setViewport(viewport[0], height - viewport[1] - viewport[3], viewport[2], viewport[3]);
+                            renderer.render(scene, camera);
+                            const glPixels = byteOutput ? new Uint8Array(width * height * 4) : new Float32Array(width * height * 4);
+                            renderer.readRenderTargetPixels(glTarget, 0, 0, width, height, glPixels);
+                            const glError = renderer.getContext().getError();
+                            if (glError)
+                                throw Error('GL render/resolve/read error ' + glError);
+                            const packed = new Float32Array(64);
+                            packed.set(material._frameUniforms.frameMapInv.value.elements);
+                            const m = material._frameUniforms.frameMapNormal.value.elements;
+                            packed.set([m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, 0, 0, 0, 1], 16);
+                            packed.set(rawNormal, 32);
+                            packed.set(viewNormal.toArray(), 36);
+                            packed.set([bump, mode, 1, alphaTest], 40);
+                            packed.set(base, 44);
+                            packed.set(camera.matrixWorldInverse.elements, 48);
+                            pending.push({filter, frame, rawNormal, bump, mode, glPixels, packed, vertexBuffer});
+                            material = null;
+                        }
+        }
+        if (!pending.length) throw Error('Cubic controls must contain measured cases');
+        read = d.createBuffer({size: bytesPerRow * height * pending.length, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ});
+        const encoder = d.createCommandEncoder();
+        for (let index = 0; index < pending.length; index++) {
+            const c = pending[index];
+            uniform = d.createBuffer({size: 256, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST}); caseBuffers.push(uniform);
+            d.queue.writeBuffer(uniform, 0, c.packed);
+            const sampler = d.createSampler({addressModeU: 'repeat', addressModeV: 'repeat', minFilter: 'linear', magFilter: 'linear', mipmapFilter: 'linear', lodMinClamp: 0, lodMaxClamp: mipLevelCount - 1, maxAnisotropy: 1});
+            const bind = d.createBindGroup({layout, entries: [{binding: 0, resource: {buffer: uniform}}, {binding: 1, resource: sampler}, {binding: 2, resource: nativeTexture.createView()}]});
+            const pass = encoder.beginRenderPass({colorAttachments: [{view: (nativeMsaa ?? nativeTarget).createView(), ...(nativeMsaa ? {resolveTarget: nativeTarget.createView()} : {}), loadOp: 'clear', storeOp: nativeMsaa ? 'discard' : 'store', clearValue: {r: 0, g: 0, b: 0, a: 0}}]});
+            pass.setViewport(...(reflected ? reflectedViewport(viewport, height) : viewport), 0, 1); pass.setPipeline(pipeline); pass.setBindGroup(0, bind);
+            if (c.vertexBuffer) pass.setVertexBuffer(0, c.vertexBuffer); pass.draw(c.vertexBuffer ? 6 : 3); pass.end();
+            encoder.copyTextureToBuffer({texture: nativeTarget}, {buffer: read, offset: index * bytesPerRow * height, bytesPerRow}, [width, height]);
+        }
+        d.queue.submit([encoder.finish()]);
+        await read.mapAsync(GPUMapMode.READ); session.guard();
+        const nativeBytes = read.getMappedRange();
+        for (let index = 0; index < pending.length; index++) {
+            const {filter, frame, rawNormal, bump, mode, glPixels} = pending[index];
+            const offset = index * bytesPerRow * height, nativeRows = byteOutput ? new Uint8Array(nativeBytes, offset, bytesPerRow * height) : new Float32Array(nativeBytes, offset, bytesPerRow * height / 4);
+                            let rowMax = 0, worst = null;
+                            for (let y = 0; y < height; y++)
+                                for (let x = 0; x < width; x++) {
+                                    const nativeY = reflected ? height - 1 - y : y, nativeOffset = nativeY * scalarStride + x * 4, glOffset = ((height - 1 - y) * width + x) * 4;
+                                    for (let c = 0; c < 4; c++) {
+                                        const a = nativeRows[nativeOffset + c] / scale, b = glPixels[glOffset + c] / scale, error = Math.abs(a - b);
+                                        if (!Number.isFinite(error))
+                                            throw Error('Nonfinite cubic pixel');
+                                        if (error > rowMax) {
+                                            rowMax = error;
+                                            worst = { x, y, channel: c, native: a, three: b };
+                                        }
+                                    }
+                                }
+                            let captured = null;
+                            if (capturePixels) {
+                                const native = [], three = [];
+                                for (let y = 0; y < height; y++)
+                                    for (let x = 0; x < width; x++) {
+                                        const nativeY = reflected ? height - 1 - y : y, no = nativeY * scalarStride + x * 4, go = ((height - 1 - y) * width + x) * 4;
+                                        for (let c = 0; c < 4; c++) {
+                                            native.push(nativeRows[no + c] / scale);
+                                            three.push(glPixels[go + c] / scale);
+                                        }
+                                    }
+                                captured = { native, three, origin: 'top-left' };
+                            }
+                            maxAbsolute = Math.max(maxAbsolute, rowMax);
+                            result.cases.push({ filter, frame: frame.name, rawNormal, bump, mode, maxAbsolute: rowMax, worst, ...(captured ? { pixels: captured } : {}) });
+                            material = null;
+                            if (rowMax > tolerance) {
+                                result.failures.push(result.cases.at(-1));
+                                if (!collectFailures)
+                                    throw Error('Cubic ' + filter + ' ' + frame.name + ' normal ' + rawNormal + ' bump ' + bump + ' mode ' + mode + ' error ' + rowMax + ' > ' + tolerance);
+                            }
+        }
+        read.unmap();
+        const sourceAfter = { minFilter: texture.minFilter, magFilter: texture.magFilter, generateMipmaps: texture.generateMipmaps, anisotropy: texture.anisotropy, flipY: texture.flipY, colorSpace: texture.colorSpace, version: texture.version };
+        if (JSON.stringify(sourceBefore) !== JSON.stringify(sourceAfter))
+            throw Error('Source texture state mutated');
+        result.sourceTextureUnchanged = true;
+        result.comparisons = result.cases.length;
+        result.pixelComparisons = result.cases.length * width * height;
+        result.maxAbsolute = maxAbsolute;
+        result.tolerance = tolerance;
+        const validation = await d.popErrorScope();
+        scopeOpen = false;
+        session.guard();
+        if (validation)
+            throw Error(validation.message);
+        if (result.errors.length)
+            throw Error('Uncaptured cubic comparison errors');
+        result.pass = result.failures.length === 0;
+        if (!result.pass)
+            result.reason = result.failures.length + ' cubic comparisons exceed the unchanged tolerance';
     }
-    let captured=null;if(capturePixels){const native=[],three=[];for(let y=0;y<height;y++)for(let x=0;x<width;x++){const nativeY=reflected?height-1-y:y,no=nativeY*scalarStride+x*4,go=((height-1-y)*width+x)*4;for(let c=0;c<4;c++){native.push(nativeRows[no+c]/scale);three.push(glPixels[go+c]/scale);}}captured={native,three,origin:'top-left'};}
-    read.unmap();maxAbsolute=Math.max(maxAbsolute,rowMax);result.cases.push({filter,frame:frame.name,rawNormal,bump,mode,maxAbsolute:rowMax,worst,...(captured?{pixels:captured}:{})});material.dispose();material=null;
-    if(rowMax>tolerance){result.failures.push(result.cases.at(-1));if(!collectFailures)throw Error('Cubic '+filter+' '+frame.name+' normal '+rawNormal+' bump '+bump+' mode '+mode+' error '+rowMax+' > '+tolerance);}
-   }
-  }
-  const sourceAfter={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};if(JSON.stringify(sourceBefore)!==JSON.stringify(sourceAfter))throw Error('Source texture state mutated');result.sourceTextureUnchanged=true;result.comparisons=result.cases.length;result.pixelComparisons=result.cases.length*width*height;result.maxAbsolute=maxAbsolute;result.tolerance=tolerance;
-  const validation=await d.popErrorScope();scopeOpen=false;if(validation)throw Error(validation.message);if(result.errors.length)throw Error('Uncaptured cubic comparison errors');result.pass=result.failures.length===0;if(!result.pass)result.reason=result.failures.length+' cubic comparisons exceed the unchanged tolerance';
- }catch(error){result.reason=String(error);result.stack=error.stack;}
- finally{if(scopeOpen){const error=await d.popErrorScope();if(error)result.errors.push(error.message);}await d.queue.onSubmittedWorkDone().catch(()=>{});vertexBuffer?.destroy();read?.destroy();uniform?.destroy();nativeMsaa?.destroy();nativeTarget?.destroy();nativeTexture?.destroy();material?.dispose();acquire?.release(texture);geometry?.dispose();glTarget?.dispose();renderer?.dispose();renderer?.forceContextLoss();d.removeEventListener('uncapturederror',uncaptured);}
- return result;
+    catch (error) {
+        result.reason = String(error);
+        result.stack = error.stack;
+    }
+    finally {
+        if (scopeOpen) {
+            const error = await d.popErrorScope();
+            if (error)
+                result.errors.push(error.message);
+        }
+        await d.queue.onSubmittedWorkDone().catch(() => { });
+        for (const buffer of caseBuffers) buffer.destroy();
+        read?.destroy();
+        if (ownsSession) await session.dispose();
+        d.removeEventListener('uncapturederror', uncaptured);
+    }
+    return result;
 }
-
 /** PRIVATE hardware-result composition only. It performs no calibration and
  * cannot turn CPU/source evidence into a hardware result. Owner freshness is
  * intentionally the caller's responsibility; do not serialize device owners.
  */
-function createCubicMipReceipt({mipChain,implicitLOD,cubicRuns,implicitLODProfile,mipGenerationSelection}={}){
- const selection=assertFrameMipGenerationReceipt(mipGenerationSelection);if(mipChain?.mipGenerationProfile!==selection.profile||mipChain.mipShaderSHA256!==selection.shaderSHA256)throw Error('Selected mip-chain/profile/shader mismatch');
- const reason=[];if(mipChain?.nativeGPU!==true||mipChain.diagnosticComplete!==true||mipChain.pass!==true||mipChain.baseUploadExact!==true||mipChain.tolerance!==.008||mipChain.errors?.length)reason.push('Actual native/Three mip-chain controls must pass');
- if(implicitLOD?.actualWebGL!==true||implicitLOD.diagnosticComplete!==true||implicitLOD.pass!==true||implicitLOD.tolerance!==.008||implicitLOD.errors?.length||!implicitLOD.compatibleProfiles?.includes(implicitLODProfile))reason.push('Chosen footprint must match independently measured actual GL implicitLOD');
- if(!Array.isArray(cubicRuns)||!cubicRuns.length||cubicRuns.some(r=>r.nativeGPU!==true||r.pass!==true||r.tolerance!==.008||r.sourceTextureUnchanged!==true||r.implicitLODProfile!==implicitLODProfile||r.mipGenerationProfile!==selection.profile||r.mipGenerationShaderSHA256!==selection.shaderSHA256||r.defaultTexture?.minFilter!==1008||r.defaultTexture?.magFilter!==1006||r.defaultTexture?.generateMipmaps!==true||r.defaultTexture?.anisotropy!==1||r.errors?.length||!r.cases?.length))reason.push('Fresh native source-hook cubic mip/color/bump runs must pass');
- const rows=cubicRuns??[],color=rows.some(r=>r.cases?.some(c=>c.mode===0&&c.bump===0)),bump=rows.some(r=>r.cases?.some(c=>[1,2].includes(c.mode)&&Math.abs(c.bump)>1e-6)),sampleCounts=[...new Set(rows.map(r=>r.sampleCount))].sort();if(!color||!bump||!sampleCounts.includes(1))reason.push('Zero-bump color and active view bump controls at 1x are required');
- const npot=rows.filter(r=>r.textureSize===31),validNpot=npot.length>=4&&npot.every(r=>r.nativeGPU===true&&r.pass===true&&r.tolerance===.008&&r.alphaPattern===true&&r.sourceTextureUnchanged===true&&r.factoryContract==='actual-editor-callback'&&r.mipGenerationProfile===selection.profile&&r.mipGenerationShaderSHA256===selection.shaderSHA256&&Array.isArray(r.errors)&&r.errors.length===0&&r.cases?.length>=5&&r.cases.every(c=>Number.isFinite(c.maxAbsolute)&&c.maxAbsolute<=.008));
- const npotColorControlPass=validNpot&&npot.every(r=>r.cases.some(c=>c.mode===0&&c.bump===0)),npotBumpControlPass=validNpot&&npot.every(r=>r.cases.some(c=>[1,2].includes(c.mode)&&Math.abs(c.bump)>1e-6));
- if(!npotColorControlPass||!npotBumpControlPass)reason.push('Actual selected-generator NPOT source-hook color and active bump controls required');if(reason.length)throw Error(reason.join('; '));return {kind:'frame-cubic-mip-window-v1',npotColorControlPass,npotBumpControlPass,mipGenerationProfile:selection.profile,mipGenerationShaderSHA256:selection.shaderSHA256,mipGenerationSelection:selection,nativeGPU:true,actualWebGL:true,diagnosticComplete:true,mipChainControlPass:true,colorControlPass:true,bumpControlPass:true,implicitLODProfilePass:true,implicitLODProfile,tolerance:.008,errors:[],sampleCounts,sourceFilters:[{minFilter:1008,magFilter:1006}],factoryContract:'actual-editor-callback',observedMipBytesExact:mipChain.mipByteExact===true,comparisons:rows.reduce((s,r)=>s+r.cases.length,0),maxAbsolute:Math.max(...rows.map(r=>r.maxAbsolute)),scope:'Ordinary untouched Frame default min1008/mag1006 generated-mip/sRGB matching-filter anisotropy1 source-hook texture/color/view-bump subset. No full lighting/production or selection acceptance.',controls:rows.map(r=>({width:r.width,height:r.height,viewport:r.viewport,sampleCount:r.sampleCount,geometryMode:r.geometryMode,textureSize:r.textureSize,uvScale:r.uvScale,localScale:r.localScale,alphaTest:r.alphaTest,alphaPattern:r.alphaPattern,comparisons:r.cases.length,maxAbsolute:r.maxAbsolute}))};
+function createCubicMipReceipt({ mipChain, implicitLOD, cubicRuns, implicitLODProfile, mipGenerationSelection } = {}) {
+    const selection = assertFrameMipGenerationReceipt(mipGenerationSelection);
+    if (mipChain?.mipGenerationProfile !== selection.profile || mipChain.mipShaderSHA256 !== selection.shaderSHA256)
+        throw Error('Selected mip-chain/profile/shader mismatch');
+    const reason = [];
+    if (mipChain?.nativeGPU !== true || mipChain.diagnosticComplete !== true || mipChain.pass !== true || mipChain.baseUploadExact !== true || mipChain.tolerance !== .008 || mipChain.errors?.length)
+        reason.push('Actual native/Three mip-chain controls must pass');
+    if (implicitLOD?.actualWebGL !== true || implicitLOD.diagnosticComplete !== true || implicitLOD.pass !== true || implicitLOD.tolerance !== .008 || implicitLOD.errors?.length || !implicitLOD.compatibleProfiles?.includes(implicitLODProfile))
+        reason.push('Chosen footprint must match independently measured actual GL implicitLOD');
+    if (!Array.isArray(cubicRuns) || !cubicRuns.length || cubicRuns.some(r => r.nativeGPU !== true || r.pass !== true || r.tolerance !== .008 || r.sourceTextureUnchanged !== true || r.implicitLODProfile !== implicitLODProfile || r.mipGenerationProfile !== selection.profile || r.mipGenerationShaderSHA256 !== selection.shaderSHA256 || r.defaultTexture?.minFilter !== 1008 || r.defaultTexture?.magFilter !== 1006 || r.defaultTexture?.generateMipmaps !== true || r.defaultTexture?.anisotropy !== 1 || r.errors?.length || !r.cases?.length))
+        reason.push('Fresh native source-hook cubic mip/color/bump runs must pass');
+    const rows = cubicRuns ?? [], color = rows.some(r => r.cases?.some(c => c.mode === 0 && c.bump === 0)), bump = rows.some(r => r.cases?.some(c => [1, 2].includes(c.mode) && Math.abs(c.bump) > 1e-6)), sampleCounts = [...new Set(rows.map(r => r.sampleCount))].sort();
+    if (!color || !bump || !sampleCounts.includes(1))
+        reason.push('Zero-bump color and active view bump controls at 1x are required');
+    const npot = rows.filter(r => r.textureSize === 31), validNpot = npot.length >= 4 && npot.every(r => r.nativeGPU === true && r.pass === true && r.tolerance === .008 && r.alphaPattern === true && r.sourceTextureUnchanged === true && r.factoryContract === 'actual-editor-callback' && r.mipGenerationProfile === selection.profile && r.mipGenerationShaderSHA256 === selection.shaderSHA256 && Array.isArray(r.errors) && r.errors.length === 0 && r.cases?.length >= 5 && r.cases.every(c => Number.isFinite(c.maxAbsolute) && c.maxAbsolute <= .008));
+    const npotColorControlPass = validNpot && npot.every(r => r.cases.some(c => c.mode === 0 && c.bump === 0)), npotBumpControlPass = validNpot && npot.every(r => r.cases.some(c => [1, 2].includes(c.mode) && Math.abs(c.bump) > 1e-6));
+    if (!npotColorControlPass || !npotBumpControlPass)
+        reason.push('Actual selected-generator NPOT source-hook color and active bump controls required');
+    if (reason.length)
+        throw Error(reason.join('; '));
+    return { kind: 'frame-cubic-mip-window-v1', npotColorControlPass, npotBumpControlPass, mipGenerationProfile: selection.profile, mipGenerationShaderSHA256: selection.shaderSHA256, mipGenerationSelection: selection, nativeGPU: true, actualWebGL: true, diagnosticComplete: true, mipChainControlPass: true, colorControlPass: true, bumpControlPass: true, implicitLODProfilePass: true, implicitLODProfile, tolerance: .008, errors: [], sampleCounts, sourceFilters: [{ minFilter: 1008, magFilter: 1006 }], factoryContract: 'actual-editor-callback', observedMipBytesExact: mipChain.mipByteExact === true, comparisons: rows.reduce((s, r) => s + r.cases.length, 0), maxAbsolute: Math.max(...rows.map(r => r.maxAbsolute)), scope: 'Ordinary untouched Frame default min1008/mag1006 generated-mip/sRGB matching-filter anisotropy1 source-hook texture/color/view-bump subset. No full lighting/production or selection acceptance.', controls: rows.map(r => ({ width: r.width, height: r.height, viewport: r.viewport, sampleCount: r.sampleCount, geometryMode: r.geometryMode, textureSize: r.textureSize, uvScale: r.uvScale, localScale: r.localScale, alphaTest: r.alphaTest, alphaPattern: r.alphaPattern, comparisons: r.cases.length, maxAbsolute: r.maxAbsolute })) };
 }
-
-
 /** acquireTexture(image) returns {texture,release} from actual editor functions,
  * preserving the source pooled material identity through its release closure.
  * Root owns device/loss-generation freshness and repeats this on new-device
  * Retry. Sample4 is measured only after explicit experimentalMSAA approval.
  */
-function frameCubicMipFailure(mipChain){
- const levels=[];
- for(const c of mipChain?.cases??[])for(const level of c.levels??[])levels.push({size:[c.width,c.height],...level});
- const first=mipChain?.firstFailure??levels.find(v=>v.level===0&&!v.exactEncodedMatch)??levels.find(v=>v.maxDecodedAbsolute>.008)??null;
- const active=mipChain?.active??null;
- const details={kind:'frame-cubic-mip-failure-v1',phase:'mip-chain',mipChain};
- const location=first?first.size??[first.width,first.height]:active?[active.width,active.height]:null;
- const summary=[mipChain?.baseUploadExact===false?'baseUploadExact=false':mipChain?.baseUploadExact===true?'baseUploadExact=true':'baseUploadExact=unmeasured',location?.every(Number.isFinite)?'size='+location.join('x'):null,first?.level!==undefined?'level='+first.level:active?.level!==null&&active?.level!==undefined?'level='+active.level:null,Number.isFinite(first?.maxDecodedAbsolute)?'maxDecoded='+first.maxDecodedAbsolute:null,mipChain?.glError?'GL error='+mipChain.glError.code:null,mipChain?.glFramebufferStatus?'GL framebuffer='+mipChain.glFramebufferStatus:null].filter(Boolean).join(', ');
- const error=new Error('Fresh Frame mip-chain calibration failed: '+(mipChain?.reason??'Unknown mip failure')+(summary?' ['+summary+']':''));
- error.frameCubicCalibration=details;
- return error;
+function frameCubicMipFailure(mipChain) {
+    const levels = [];
+    for (const c of mipChain?.cases ?? [])
+        for (const level of c.levels ?? [])
+            levels.push({ size: [c.width, c.height], ...level });
+    const first = mipChain?.firstFailure ?? levels.find(v => v.level === 0 && !v.exactEncodedMatch) ?? levels.find(v => v.maxDecodedAbsolute > .008) ?? null;
+    const active = mipChain?.active ?? null;
+    const details = { kind: 'frame-cubic-mip-failure-v1', phase: 'mip-chain', mipChain };
+    const location = first ? first.size ?? [first.width, first.height] : active ? [active.width, active.height] : null;
+    const summary = [mipChain?.baseUploadExact === false ? 'baseUploadExact=false' : mipChain?.baseUploadExact === true ? 'baseUploadExact=true' : 'baseUploadExact=unmeasured', location?.every(Number.isFinite) ? 'size=' + location.join('x') : null, first?.level !== undefined ? 'level=' + first.level : active?.level !== null && active?.level !== undefined ? 'level=' + active.level : null, Number.isFinite(first?.maxDecodedAbsolute) ? 'maxDecoded=' + first.maxDecodedAbsolute : null, mipChain?.glError ? 'GL error=' + mipChain.glError.code : null, mipChain?.glFramebufferStatus ? 'GL framebuffer=' + mipChain.glFramebufferStatus : null].filter(Boolean).join(', ');
+    const error = new Error('Fresh Frame mip-chain calibration failed: ' + (mipChain?.reason ?? 'Unknown mip failure') + (summary ? ' [' + summary + ']' : ''));
+    error.frameCubicCalibration = details;
+    return error;
 }
- async function measureFrameCubicMipCapability({sharedDevice,THREE:T,acquireTexture,installFrameProjection,isCurrent,calibration,sampleCount=1,experimentalMSAA=false,onProgress=()=>{}}={}){
- if(!sharedDevice?.device||!T?.WebGLRenderer)throw Error('Existing native owner and bundled Three required for mip calibration');
- if(typeof isCurrent!=='function'||!Number.isSafeInteger(sharedDevice.generation)||sharedDevice.generation<1)throw Error('Actual GPU owner generation and freshness closure required');
- const device=sharedDevice.device,generation=sharedDevice.generation,guard=()=>{if(isCurrent()!==true||sharedDevice.device!==device||!Object.is(sharedDevice.generation,generation))throw Error('Cubic mip calibration owner/generation is stale');};
- const frameHooks={acquireTexture,installFrameProjection,guard};guard();textureFactory(T,frameHooks);projectionHooks(frameHooks);
- if(![1,4].includes(sampleCount)||sampleCount===4&&experimentalMSAA!==true)throw Error('1x or explicitly approved experimental 4x required');
- const attempts=[];guard();onProgress('mip-generation-profile');
- for(const mipGenerationProfile of FRAME_MIP_GENERATION_PROFILES){
-  guard();const measured=await runNativeFrameMipChain({sharedDevice,THREE:T,frameHooks,mipGenerationProfile,sizes:FRAME_MIP_CALIBRATION_SIZES,tolerance:.008});guard();attempts.push(measured);
-  try{assertFrameMipGenerationAttempt(measured);}catch(error){throw frameCubicMipFailure({...measured,reason:String(error)+': '+(measured.reason??''),mipGenerationAttempts:attempts});}
- }
- let selection;try{selection=await selectFrameMipGeneration(attempts,generation);}catch(error){throw frameCubicMipFailure({...attempts.at(-1),reason:String(error),mipGenerationAttempts:attempts});}guard();
- const mipGenerationProfile=selection.profile,mipChain=attempts.find(r=>r.mipGenerationProfile===mipGenerationProfile);
- const failure=(phase,result,runs=[])=>{const error=new Error('Fresh Frame '+phase+' calibration failed: '+(result?.reason??'Unchanged control failed'));error.frameCubicCalibration={kind:'frame-cubic-calibration-failure-v2',phase,mipGenerationProfile,mipGenerationSelection:selection,mipChain,result,completedRuns:runs};return error;};
- guard();onProgress('implicitLOD');const implicitLOD=await runGLImplicitLODProfiles({THREE:T,frameHooks,width:17,height:15,textureSize:64,uvScales:[.5,2,5],geometries:['perspective'],tolerance:.008});guard();if(!implicitLOD.pass)throw failure('implicitLOD',implicitLOD);
- const best=implicitLOD.profileMaxima?.[0];if(!best||!Number.isFinite(best.maxAbsolute)||best.maxAbsolute>.008)throw failure('implicitLOD',implicitLOD);
- const implicitLODProfile=best.profile,mipWGSL=cubicGLWindowMipWGSL(CUBIC_GL_WINDOW_WGSL,implicitLODProfile),runs=[];
- const caseFilter=({frame,rawNormal,bump,mode})=>frame==='identity'&&rawNormal.join(',')==='0,0,1'&&bump===0&&mode===0||frame==='rotated-reflected-scaled'&&rawNormal.join(',')==='1,2,-3'&&[.25,-.5].includes(bump)&&[1,2].includes(mode);
- guard();onProgress('native-color-bump');
- for(const samples of sampleCount===4?[1,4]:[1])for(const textureSize of [64,31])for(const uvScale of [.5,5])for(const viewport of [[0,0,17,15],[1,3,15,11]]){
-  guard();const result=await runNativeCubicMipThree({sharedDevice,THREE:T,frameHooks,mipWGSL,implicitLODProfile,mipGenerationProfile,calibration,width:17,height:15,diagnosticOddHeight:true,viewport,geometryMode:'perspective',sampleCount:samples,experimentalMSAA:samples===4,textureSize,uvScale,alphaPattern:true,alphaTest:.2,modes:[0,1,2],caseFilter,tolerance:.008});guard();if(!result.pass)throw failure('native-color-bump',result,runs);runs.push(result);
- }
- guard();const receipt=createCubicMipReceipt({mipChain,implicitLOD,cubicRuns:runs,implicitLODProfile,mipGenerationSelection:selection});
- receipt.runtimeCalibration=true;receipt.offline=true;receipt.networkFetches=0;receipt.testImports=0;receipt.oracle='actual editor factory/release/install closures; exact r14 compile source verified';receipt.profileMaxima=implicitLOD.profileMaxima;
- receipt.scope='Fresh owner-run generator selection, actual Frame default POT+NPOT mip/color/view-bump and GL implicitLOD controls. Owner/generation freshness enforced; broad lighting/material/selection acceptance remains separate.';return receipt;
+ async function measureFrameCubicMipCapability({ sharedDevice, THREE: T, acquireTexture, installFrameProjection, isCurrent, calibration, sampleCount = 1, experimentalMSAA = false, onProgress = () => { } } = {}) {
+    if (!sharedDevice?.device || !T?.WebGLRenderer)
+        throw Error('Existing native owner and bundled Three required for mip calibration');
+    if (typeof isCurrent !== 'function' || !Number.isSafeInteger(sharedDevice.generation) || sharedDevice.generation < 1)
+        throw Error('Actual GPU owner generation and freshness closure required');
+    const device = sharedDevice.device, generation = sharedDevice.generation, guard = () => { if (isCurrent() !== true || sharedDevice.device !== device || !Object.is(sharedDevice.generation, generation))
+        throw Error('Cubic mip calibration owner/generation is stale'); };
+    const frameHooks = { acquireTexture, installFrameProjection, guard };
+    guard();
+    textureFactory(T, frameHooks);
+    projectionHooks(frameHooks);
+    if (![1, 4].includes(sampleCount) || sampleCount === 4 && experimentalMSAA !== true)
+        throw Error('1x or explicitly approved experimental 4x required');
+    const session = createCubicCalibrationSession(sharedDevice, T, frameHooks);
+    frameHooks.session = session;
+    try {
+    const attempts = [];
+    guard();
+    onProgress('mip-generation-profile');
+    for (const mipGenerationProfile of FRAME_MIP_GENERATION_PROFILES) {
+        guard();
+        const measured = await runNativeFrameMipChain({ sharedDevice, THREE: T, frameHooks, mipGenerationProfile, sizes: FRAME_MIP_CALIBRATION_SIZES, tolerance: .008 });
+        guard();
+        attempts.push(measured);
+        try {
+            assertFrameMipGenerationAttempt(measured);
+        }
+        catch (error) {
+            throw frameCubicMipFailure({ ...measured, reason: String(error) + ': ' + (measured.reason ?? ''), mipGenerationAttempts: attempts });
+        }
+    }
+    let selection;
+    try {
+        selection = await selectFrameMipGeneration(attempts, generation);
+    }
+    catch (error) {
+        throw frameCubicMipFailure({ ...attempts.at(-1), reason: String(error), mipGenerationAttempts: attempts });
+    }
+    guard();
+    const mipGenerationProfile = selection.profile, mipChain = attempts.find(r => r.mipGenerationProfile === mipGenerationProfile);
+    const failure = (phase, result, runs = []) => { const error = new Error('Fresh Frame ' + phase + ' calibration failed: ' + (result?.reason ?? 'Unchanged control failed')); error.frameCubicCalibration = { kind: 'frame-cubic-calibration-failure-v2', phase, mipGenerationProfile, mipGenerationSelection: selection, mipChain, result, completedRuns: runs }; return error; };
+    guard();
+    onProgress('implicitLOD');
+    const implicitLOD = await runGLImplicitLODProfiles({ THREE: T, frameHooks, width: 17, height: 15, textureSize: 64, uvScales: [.5, 2, 5], geometries: ['perspective'], tolerance: .008 });
+    guard();
+    if (!implicitLOD.pass)
+        throw failure('implicitLOD', implicitLOD);
+    const best = implicitLOD.profileMaxima?.[0];
+    if (!best || !Number.isFinite(best.maxAbsolute) || best.maxAbsolute > .008)
+        throw failure('implicitLOD', implicitLOD);
+    const implicitLODProfile = best.profile, mipWGSL = cubicGLWindowMipWGSL(CUBIC_GL_WINDOW_WGSL, implicitLODProfile), runs = [];
+    const caseFilter = ({ frame, rawNormal, bump, mode }) => frame === 'identity' && rawNormal.join(',') === '0,0,1' && bump === 0 && mode === 0 || frame === 'rotated-reflected-scaled' && rawNormal.join(',') === '1,2,-3' && [.25, -.5].includes(bump) && [1, 2].includes(mode);
+    guard();
+    onProgress('native-color-bump');
+    for (const samples of sampleCount === 4 ? [1, 4] : [1])
+        for (const textureSize of [64, 31])
+            for (const uvScale of [.5, 5])
+                for (const viewport of [[0, 0, 17, 15], [1, 3, 15, 11]]) {
+                    guard();
+                    const result = await runNativeCubicMipThree({ sharedDevice, THREE: T, frameHooks, mipWGSL, implicitLODProfile, mipGenerationProfile, calibration, width: 17, height: 15, diagnosticOddHeight: true, viewport, geometryMode: 'perspective', sampleCount: samples, experimentalMSAA: samples === 4, textureSize, uvScale, alphaPattern: true, alphaTest: .2, modes: [0, 1, 2], caseFilter, tolerance: .008 });
+                    guard();
+                    if (!result.pass)
+                        throw failure('native-color-bump', result, runs);
+                    runs.push(result);
+                }
+    guard();
+    const receipt = createCubicMipReceipt({ mipChain, implicitLOD, cubicRuns: runs, implicitLODProfile, mipGenerationSelection: selection });
+    receipt.runtimeCalibration = true;
+    receipt.offline = true;
+    receipt.networkFetches = 0;
+    receipt.testImports = 0;
+    receipt.oracle = 'actual editor factory/release/install closures; exact r14 compile source verified';
+    receipt.profileMaxima = implicitLOD.profileMaxima;
+    receipt.scope = 'Fresh owner-run generator selection, actual Frame default POT+NPOT mip/color/view-bump and GL implicitLOD controls. Owner/generation freshness enforced; broad lighting/material/selection acceptance remains separate.';
+    return receipt;
+    } finally { await session.dispose(); guard(); }
 }
 
 return {measureFrameCubicMipCapability};
