@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 2653,
-      "sha256": "1fc2b435801c8175e67c6755e66409584b09f94943da2ef76eaef392257854f2"
+      "bytes": 3048,
+      "sha256": "cde579eece8e1743dfe1adca17244ddb63f9cce3c75c62e71fb60625cc763ed8"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 24027,
-      "sha256": "c2817c3fc5f0bfc38252d0f56c2e6ed9ff889302ca30197e42f4af5a651f2b82"
+      "bytes": 24661,
+      "sha256": "b2f132f2f3e45af3f4c9b78dd0e514a07fce9cbede92567a481b7984706fbcd1"
     },
     {
       "path": "native-overrides/authoring-mesh.mjs",
@@ -87,14 +87,29 @@
       "sha256": "ec9b553cf959bdc766ac43a5d0e7da8e94ac93fea35f295e26865749170f96a3"
     },
     {
+      "path": "patches/r227-diagnostics-editor-to-r226.json",
+      "bytes": 768,
+      "sha256": "769542949cc3231569591f77fa98c1c1dad584e8cad65460e9918f29208ebe28"
+    },
+    {
+      "path": "patches/r227-diagnostics-mip-source-to-r226.json",
+      "bytes": 5252,
+      "sha256": "0ed0bcdf25e57be06cb50a342e35058dbbcdc9887b9b7b1464234bc04c2718c9"
+    },
+    {
+      "path": "patches/r227-diagnostics-shell-to-r226.json",
+      "bytes": 13602,
+      "sha256": "6bf73f7184d5c4f5c8d904715346426cd19ced962228a77cb6d421fc018277d9"
+    },
+    {
       "path": "patches/shell-from-r226.json",
       "bytes": 13470,
       "sha256": "8a7e1bceef59d1995fb71e49113a8283b88c52eb663c0bc83d02dde0e1d6269c"
     },
     {
       "path": "rebuild.py",
-      "bytes": 3108,
-      "sha256": "19284b9fef4c90ecc51febb3d45da52ba032203598616ec70766e0c7cc35a683"
+      "bytes": 4126,
+      "sha256": "e317ae64508db4fca573dd91c6c644a99188e1e84c3ea56866bfa5b12b884c10"
     },
     {
       "path": "tests/authoring-contracts.mjs",

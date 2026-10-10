@@ -1,0 +1,38 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "c6e36426f0ff9573ac7a5919048ad34dcd7c8f92004f75f05b374ac1abe1f509",
+  "afterSHA256": "53bdc45531bdbc326765414c774073bd8cbcbce624a3d93fcd6394b4c2446acb",
+  "beforeBytes": 49053,
+  "afterBytes": 46676,
+  "operations": [
+    {
+      "startLine": 14,
+      "deleteLines": 11,
+      "insert": [
+        "function compareBytes(native,three,width,height){let maxEncodedByte=0,maxDecodedAbsolute=0,worst=null,differentBytes=0;for(let i=0;i<native.length;i++){const encoded=Math.abs(native[i]-three[i]),decoded=Math.abs(i%4===3?native[i]/255-three[i]/255:srgbByte(native[i])-srgbByte(three[i]));if(encoded)differentBytes++;if(encoded>maxEncodedByte){maxEncodedByte=encoded;worst={x:Math.floor(i/4)%width,y:Math.floor(i/4/width),channel:i%4,native:native[i],three:three[i]};}maxDecodedAbsolute=Math.max(maxDecodedAbsolute,decoded);}return {width,height,maxEncodedByte,maxDecodedAbsolute,differentBytes,exactEncodedMatch:differentBytes===0,worst};}\n"
+      ]
+    },
+    {
+      "startLine": 35,
+      "deleteLines": 10,
+      "insert": [
+        "  for(const [width,height]of sizes){if(!Number.isInteger(width)||!Number.isInteger(height)||width<2||height<2)throw Error('Integer mip image dimensions >=2 required');const image=imageCanvas(width,height,mipPattern(width,height)),material={map:image};texture=acquire(material,image);const before={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};if(before.minFilter!==1008||before.magFilter!==1006||before.generateMipmaps!==true||before.anisotropy!==1||before.colorSpace!=='srgb')throw Error('Actual Frame defaults changed');renderer.initTexture(texture);const sizes_=mipSizes(width,height),levels=sizes_.length;nativeTexture=d.createTexture({size:[width,height],format:'rgba8unorm-srgb',mipLevelCount:levels,usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC});d.queue.copyExternalImageToTexture({source:image,flipY:!!texture.flipY},{texture:nativeTexture,colorSpace:'srgb',premultipliedAlpha:false},[width,height]);generateNativeMips(d,nativeTexture,levels,setup);const rows=[];\n",
+        "   for(let level=0;level<levels;level++){const [mw,mh]=sizes_[level],three=new Uint8Array(mw*mh*4);gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,renderer.properties.get(texture).__webglTexture,level);const status=gl.checkFramebufferStatus(gl.FRAMEBUFFER);if(status!==gl.FRAMEBUFFER_COMPLETE)throw Error('GL mip attachment incomplete at '+level+': '+status);gl.readPixels(0,0,mw,mh,gl.RGBA,gl.UNSIGNED_BYTE,three);const ge=gl.getError();if(ge)throw Error('GL mip read error '+ge+' level '+level);const bytesPerRow=Math.ceil(mw*4/256)*256;read=d.createBuffer({size:bytesPerRow*mh,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});const encoder=d.createCommandEncoder();encoder.copyTextureToBuffer({texture:nativeTexture,mipLevel:level},{buffer:read,bytesPerRow},[mw,mh]);d.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);const mapped=new Uint8Array(read.getMappedRange()),native=new Uint8Array(mw*mh*4);for(let y=0;y<mh;y++)native.set(mapped.subarray(y*bytesPerRow,y*bytesPerRow+mw*4),y*mw*4);read.unmap();read.destroy();read=null;rows.push({level,...compareBytes(native,three,mw,mh),...(captureBytes?{nativeBytes:Array.from(native),threeBytes:Array.from(three)}:{})});}\n",
+        "   const after={minFilter:texture.minFilter,magFilter:texture.magFilter,generateMipmaps:texture.generateMipmaps,anisotropy:texture.anisotropy,flipY:texture.flipY,colorSpace:texture.colorSpace,version:texture.version};if(JSON.stringify(after)!==JSON.stringify(before))throw Error('Source texture state mutated by diagnostic');result.cases.push({width,height,defaultTexture:before,levels:rows,mipByteExact:rows.every(v=>v.exactEncodedMatch),decodedTexelControlPass:rows.every(v=>v.maxDecodedAbsolute<=tolerance)});nativeTexture.destroy();nativeTexture=null;acquire.release(texture);texture=null;gl.bindFramebuffer(gl.FRAMEBUFFER,null);renderer.resetState();\n",
+        "  }const validation=await d.popErrorScope();scopeOpen=false;if(validation)throw Error(validation.message);if(result.errors.length)throw Error('Uncaptured mip errors');result.diagnosticComplete=true;result.baseUploadExact=result.cases.every(v=>v.levels[0].exactEncodedMatch);result.mipByteExact=result.cases.every(v=>v.mipByteExact);result.pass=result.baseUploadExact&&result.cases.every(v=>v.decodedTexelControlPass);if(!result.pass)result.reason='Native/actual Three mip texels differ beyond unchanged .008 decoded control tolerance';\n"
+      ]
+    },
+    {
+      "startLine": 209,
+      "deleteLines": 12,
+      "insert": []
+    },
+    {
+      "startLine": 224,
+      "deleteLines": 1,
+      "insert": [
+        " guard();onProgress('mip-chain');const mipChain=await runNativeFrameMipChain({sharedDevice,THREE:T,frameHooks,sizes:[[32,32],[31,19]],tolerance:.008});guard();if(!mipChain.pass)throw Error('Fresh Frame mip-chain calibration failed: '+mipChain.reason);\n"
+      ]
+    }
+  ]
+}
