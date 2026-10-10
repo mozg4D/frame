@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "3d61882137e3ae94d4194e8dfa4f5a9b2c30948c4a0c063a4f1f0d7efd52a2a3",
+  "beforeSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "afterSHA256": "2fbd0f5a8cefe96ff28eb3c2aae136292f052478b6268f2c0b515b5b78909f23",
-  "beforeBytes": 2601587,
+  "beforeBytes": 2602100,
   "afterBytes": 2600154,
   "operations": [
     {
@@ -20,19 +20,48 @@
       ]
     },
     {
-      "startLine": 16458,
+      "startLine": 13974,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 13989,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 16315,
+      "deleteLines": 3,
+      "insert": [
+        "  pivotKeyDown && (pivotKeyGesture = !0), _gizStart && _gizStart(e), emitInfo(null);\n"
+      ]
+    },
+    {
+      "startLine": 16340,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 16415,
+      "deleteLines": 2,
+      "insert": [
+        "  _gizEnd && _gizEnd(e), hideHudLine(), hideSnapVis(), gizDrag = null; if(!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;\n"
+      ]
+    },
+    {
+      "startLine": 16465,
       "deleteLines": 1,
       "insert": [
         "  if(!status){status=document.createElement('div');status.id='frame-native-viewport-status';status.style.cssText='position:fixed;left:12px;top:12px;z-index:100000;color:#eee;background:#222c;font:12px ui-monospace,monospace;padding:6px;max-width:calc(100vw - 24px)';document.body.append(status);}\n"
       ]
     },
     {
-      "startLine": 16460,
+      "startLine": 16467,
       "deleteLines": 6,
       "insert": []
     },
     {
-      "startLine": 26037,
+      "startLine": 26044,
       "deleteLines": 1,
       "insert": [
         "  if (e.pointerType === \"touch\" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === \"lineCut\" || vertexTools.mode === \"closeHole\" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === \"persp\" && !polyMode)) return;\n"

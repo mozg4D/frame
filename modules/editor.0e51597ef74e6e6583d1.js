@@ -13972,6 +13972,7 @@ var NavPersp = class {
     C.copy(Q).addScaledVector(pA.copy(oC).sub(Q), rf), H.copy(Q).addScaledVector(pB.copy(oH).sub(Q), rf);
   }
   down(e, r) {
+    this._frameLMBDragStarted=false;
     this.zoomAnchor = null, this.cam.updateMatrixWorld(), this._ndc(e, r);
     let b = e.buttons;
     if (b & RMB && !(b & LMB))
@@ -13986,6 +13987,7 @@ var NavPersp = class {
   }
   move(e, r, canPan, dx, dy) {
     let b = e.buttons, C = this.cam.position, H = this.handle;
+    if((b&LMB)&&!(b&RMB)){if(!canPan&&!this._frameLMBDragStarted)return;this._frameLMBDragStarted=true;}
     if (this.cam.updateMatrixWorld(), this._ndc(e, r), this._axes(), b & LMB && b & RMB)
       this._dq(dx, dy, LOOK, r.h), pA.copy(H).sub(C).applyQuaternion(pdq), H.copy(C).add(pA), this.cam.quaternion.premultiply(pdq);
     else if (b & LMB && !(b & RMB))
@@ -16311,7 +16313,9 @@ function startGizDrag(g, e) {
     vpState.renderer.domElement.setPointerCapture(e.pointerId);
   } catch {
   }
-  pivotKeyDown && (pivotKeyGesture = !0), _gizStart && _gizStart(e), emitInfo(null);
+  pivotKeyDown && (pivotKeyGesture = !0);
+  if(polyFocusActive()&&!editPivot&&!uvEdit&&gizDrag)gizDrag._frameDeferredStart=e;else if(_gizStart)_gizStart(e);
+  emitInfo(null);
 }
 var framePolygonGizmoMoveRAF=0,framePolygonGizmoMoveEvent=null;
 function frameClearPolygonGizmoMove() {
@@ -16334,6 +16338,8 @@ function frameExplicitRotationStep(linePx) {
   return (linePx < RING_PX ? 10 : linePx < 2 * RING_PX ? 5 : 1) * D2R;
 }
 function doGizDrag(e) {
+  const deferred=gizDrag?._frameDeferredStart;
+  if(deferred){if(Math.hypot(e.clientX-deferred.clientX,e.clientY-deferred.clientY)<TAP_PX)return;delete gizDrag._frameDeferredStart;if(_gizStart)_gizStart(deferred);}
   let view = vpState.views[gizDrag.view], r = gizDrag.r, cam = view.cam;
   if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ...splineGizModifiers, ctrl: !!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
     let gp = projectPx(gizmo.pos, cam, r), ang = Math.atan2(e.clientY - gp[1], e.clientX - gp[0]), delta = ang - gizDrag.sr.lastAng;
@@ -16407,7 +16413,8 @@ function doGizDrag(e) {
 function endGizDrag(e) {
   if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();
   const uvDrag=!!uvEdit,splineTargets=gizBeforeSpline?[...gizBeforeSpline.keys()]:null;
-  _gizEnd && _gizEnd(e), hideHudLine(), hideSnapVis(), gizDrag = null; if(!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;
+  const deferred=!!gizDrag?._frameDeferredStart;
+  if(!deferred&&_gizEnd)_gizEnd(e);hideHudLine();hideSnapVis();gizDrag=null; if(!deferred&&!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;
   try {
     vpState.renderer.domElement.releasePointerCapture(e.pointerId);
   } catch {

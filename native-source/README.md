@@ -1,6 +1,6 @@
 # Native viewport sources
 
-The 32 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by the r230 Connected/CM/navigation application:
+The 32 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle introduced by r230 Connected/CM/navigation and retained unchanged by r231:
 
 `modules/native.d876658b5e6fd882cd4e.js`
 
