@@ -15,8 +15,8 @@ const coreFiles = fs.readdirSync('core').filter(f => /\.(cjs|js)$/.test(f)).sort
 const kernel = crypto.createHash('sha256');
 for (const name of coreFiles) { kernel.update(name); kernel.update(fs.readFileSync(path.join('core', name))); }
 const kernelRevision = kernel.digest('hex');
-const expectedRevision = 'fa5f3f388e125af9d16ad471fc2c3b25990c6ed6fdef2868503de61157798d9d';
-if (kernelRevision !== expectedRevision) throw Error('Checkpoint 13 core revision mismatch');
+const expectedRevision = 'c7ecdadcb9ca2fd67e019a2955fa81425fd0cc9bb2de4028b9a797226c979f7d';
+if (kernelRevision !== expectedRevision) throw Error('Checkpoint 17 core revision mismatch');
 let integrityFilesChecked = 0;
 for (const line of fs.readFileSync('SHA256SUMS', 'utf8').trim().split('\n')) {
   const match = /^([0-9a-f]{64})  (.+)$/.exec(line);
@@ -39,6 +39,11 @@ const tests = [
   ['candidate-synthetic.cjs'],
   ['exact-sat.cjs'],
   ['checkpoint13-sanity.cjs'],
+  ['annulus-light.cjs'],
+  ['annulus-mesh-light.cjs'],
+  ['physical-clockwise.cjs'],
+  ['route-transition-ordinary.cjs'],
+  ['route-ordered-provenance.cjs'],
   ['return-turn-seam-light.cjs'],
   ['corner-fan-light.cjs'],
   ['helper-transport.cjs'],
@@ -59,7 +64,8 @@ const report = {
   node: process.version, kernelRevision, integrityFilesChecked, syntaxFilesChecked,
   tests: results, elapsedMS: performance.now() - started,
   scope: 'Synthetic CPU and Node worker protocol checks for an unintegrated development checkpoint.',
-  fullLayersAccepted: 0, admissibleSpiralsAccepted: 0,
+  syntheticOwnerAcceptedLayers: results.some(r => r.test === 'annulus-mesh-light.cjs' && r.status === 'PASS') ? 3 : 0,
+  admissibleSpiralsAccepted: 0, physicalVolumeOrExtrusionMultiplicityValidated: false,
   productionIntegrationTested: false, physicalPrintingTested: false,
 };
 fs.writeFileSync('evidence/public-checks.json', JSON.stringify(report, null, 2) + '\n');

@@ -5,7 +5,7 @@ const R=require('./rational.cjs'), A=require('./accuracy-contract.cjs');
 const {canonicalRing}=require('./contour-core.cjs');
 const {sourceCells,proveFeedInsideSource}=require('./exact-source-feed.cjs');
 const {diagnoseExactTopology}=require('./section-topology.cjs');
-const {mapInterval}=require('./provenance.cjs');
+const {mapInterval,reverseDirectedIntervals}=require('./provenance.cjs');
 function sourceIntervals(source,normalized,markers,i,j) {
   const a=markers[i],b=markers[j],n=normalized.ring.length;
   if(a.cornerId===b.cornerId) {
@@ -105,8 +105,7 @@ function buildOrthogonalLevel(source,W,depth,c,signal) {
   let directedPoints=points;
   if(sign<0) {
     directedPoints=points.slice().reverse();
-    intervals=points.map((_,i)=>intervals[(points.length-2-i+points.length)%points.length]
-      .slice().reverse().map(q=>({...q,u0:q.u1,u1:q.u0,exactU0:q.exactU1,exactU1:q.exactU0})));
+    intervals=points.map((_,i)=>reverseDirectedIntervals(intervals[(points.length-2-i+points.length)%points.length]));
   }
   return {points:directedPoints,sourceIntervals:intervals,depth,accuracy,
     requiredCells:reference.map((p,i)=>c.frameThroughNeckRibbon(p,reference[(i+1)%reference.length],W,W)),

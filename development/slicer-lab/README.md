@@ -1,6 +1,6 @@
-# Independent slicer, checkpoint 13
+# Independent slicer, checkpoint 17
 
-Unintegrated development source. **Accepted complete layers: 0. Accepted admissible spirals: 0.** These files do not replace the live Frame worker or provide a separate browser application.
+Development source only. Three synthetic convex-annulus layers pass the prototype owner's computational checks. This is not physical-print acceptance or production integration. Admissible spirals: 0. No live Frame worker or separate browser application is installed here.
 
 ## Run from a Frame checkout
 
@@ -11,20 +11,28 @@ cd development/slicer-lab
 node tests/run-public-checks.cjs
 ```
 
-`npm test` runs the same checks. The runner first reconstructs three exact checkpoint workers under ignored `core/` paths, then checks source integrity, syntax, reconstruction guards, contour regression, accuracy bounds, synthetic geometry and exact SAT, mesh/JSON/owner verification, rejected return-turn seam, local corner fan, and serial/helper/cancel worker equivalence. Generated logs stay in ignored `evidence/`. Failure returns a nonzero exit status.
+`npm test` runs the same suite. It reconstructs the pinned workers, checks source integrity and JavaScript syntax, then runs fifteen test stages: reconstruction guards, contour baseline/regression, accuracy and exact predicates, checkpoint compatibility, annulus geometry and owned-worker transport, physical direction, transition rejection, ordered provenance, seam/corner diagnostics, and serial/helper/cancel equivalence. Failures return a nonzero exit status. Generated logs remain in ignored `evidence/`.
 
-The checkout must contain `modules/slicer-worker.e120c24f46831ec5c53d.js`, whose complete SHA-256 is `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. It is the byte-exact upstream checkpoint worker. No duplicate full workers are stored here: `worker-deltas.json` retains readable, byte-offset edits for candidate and optimized workers, plus expected sizes and SHA-256 values for all three generated files. The builder validates the pinned source, every edit, and every reconstructed hash before writing. It refuses to overwrite a changed generated file. Production files are only read.
+The checkout must contain `modules/slicer-worker.e120c24f46831ec5c53d.js`, SHA-256 `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. `worker-deltas.json` stores readable source edits and expected hashes for the three original worker snapshots. `scripts/prepare-workers.cjs` reconstructs them into ignored `core/` paths after validating every source/edit/output hash, refusing to overwrite changed generated files. Production files are only read.
 
-`SHA256SUMS` covers tracked sources, including the delta file and its expected generated hashes. Generated worker paths are deliberately absent from that manifest. Run `node scripts/prepare-workers.cjs` to reconstruct them separately. After intentional source edits, regenerate checksums for the new checkpoint.
+`SHA256SUMS` covers tracked sources, including worker deltas and their expected generated hashes. Generated workers are intentionally absent from that manifest. After intentional source edits, regenerate checksums for the new checkpoint.
 
-## Contents and limits
+## Verified synthetic scope
 
-All 51 original core files are preserved exactly: 48 tracked modules and three byte-identical reconstructed workers. The public test set includes nine synthetic checks, a reconstruction check, their runner, and required helpers. Original Frame and third-party license notices retain their terms. Historical diagnostics, illustrations, reports, receipts, user models, screenshots, dependencies, and caches are omitted.
+- One narrowly qualified class: a near-uniform, strictly convex, exactly homothetic two-bank annulus, one requested perimeter, exact physical Float64 section, and existing work limits. Acceptance was tested on 128-edge fixtures at W = 0.5, 1, and 2; it does not cover arbitrary annuli or variable-width walls.
+- Each tested layer selects 130 contiguous print commands, one external start, no internal restarts or travels, and no retained-worker fallback.
+- The all-point original-material-to-feed distance bound is approximately 0.015625094W; the cumulative computational bound is at most 0.015626354W. This is geometric approximation to the unchanged complete original partition, not exact set equality or a deposition-volume certificate.
+- Actual print laps have negative signed area in physical right-handed XY, Z up, viewed from +Z. Known-square, worker/JSON/owner tests check that direction without an axis reflection. Transition planning uses the same sign.
+- Ordered provenance preserves original edge/face identities, reverses directed interval order and endpoints, and keeps clipped canonical parameters consistent. Tests cover subdivided and reversed source rings, final owner JSON, and a deliberately corrupted interval order.
 
-The T-shaped test selects 42 commands for one finite perimeter, but does not certify a complete layer. Flat 3.4W allocation remains rejected for missing original material. The alternate 1.7W seam remains rejected at about 1.70552628 W² joint charge, above the 0.5 W² limit; the default seam remains rejected at 0.575 W².
+## Limits that remain
 
-The corner fan is an unselected local coupon with 113 unqualified starts and an analytic computational bound of about 0.01887944494305048 W. Continuity, overlap/order, whole-route width necessity, complete material allocation, and corner mesh-face ownership remain unresolved. Internal restart overlap remains outside the accepted toolpath contract.
+The closure length is at most 0.5W. Approximately 0.499999523W² is the *additional closure charge* under the existing unchanged-ribbon ledger. Total pairwise geometric overlap is approximately 1.285577422W², including approximately 0.785577899W² of prescribed nominal corner overlap. These are different quantities. No claim is made that nominal overlap is physically harmless; extrusion multiplicity, deposited volume and over-extrusion remain unvalidated. Internal restart overlap remains outside the accepted toolpath contract.
 
-These checks do not establish browser/UI/GPU acceptance, production integration, general thin/acute/branching support, or physical print validity. Historical full-model results are not fresh checkpoint 13 evidence.
+Multi-level transition tests retain the W-long width-phase and shared W²/2 limits. Actual generated transitions remain rejected for substantive geometry/overlap reasons; the synthetic bottom-bank connector test does not establish an accepted spiral or global maximal continuity.
 
-Reconstructed core revision SHA-256: `fa5f3f388e125af9d16ad471fc2c3b25990c6ed6fdef2868503de61157798d9d` (sorted core JS/CJS basenames followed by exact file bytes).
+T-shaped cases certify finite perimeter routes, not full material allocation. Rectangle full-material allocation, the unselected 113-start corner coupon, variable/multiple-hole annuli, nonzero section-conversion error, general topology beyond the existing budget, and admissible spirals remain unresolved or unsupported. Native UI, production scheduling, G-code and physical printing are not validated by this suite. Historical full-model results are not current checkpoint evidence.
+
+Original Frame and third-party license notices retain their terms. No historical reports, user models, screenshots, dependency caches or duplicate full workers are included.
+
+Reconstructed core SHA-256: `c7ecdadcb9ca2fd67e019a2955fa81425fd0cc9bb2de4028b9a797226c979f7d` (sorted core JS/CJS basenames followed by exact bytes).

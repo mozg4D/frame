@@ -1,5 +1,12 @@
 'use strict';
 const R=require('./rational.cjs');
+function reverseDirectedIntervals(intervals){return intervals.slice().reverse().map(q=>{
+ const reversed={...structuredClone(q),u0:q.u1,u1:q.u0,exactU0:q.exactU1,exactU1:q.exactU0};
+ if(q.canonicalExactU0!==undefined&&q.canonicalExactU1!==undefined){
+  reversed.canonicalExactU0=q.canonicalExactU1;reversed.canonicalExactU1=q.canonicalExactU0;
+ }
+ return reversed;
+});}
 function edgeProjection(original,canonical,chain){const a=canonical.map(R.exact),d=R.vec(original.end.map(R.exact),a),length2=R.dot(d,d);if(R.cmp(length2,R.zero)<=0)throw Error('zero canonical edge');return chain.map(edge=>{const p=original.ring[edge],q=original.ring[(edge+1)%original.ring.length];const t=x=>R.div(R.dot(R.vec(x.map(R.exact),a),d),length2);return{edge,t0:t(p),t1:t(q),sourceStart:p.slice(),sourceEnd:q.slice()};});}
 function mapInterval(normalized,originalRings,id,incidence){if(!Number.isInteger(id.ring)||!Number.isInteger(id.edge)||!normalized[id.ring]?.sourceEdgeChains[id.edge])throw Error('unresolved canonical edge');const n=normalized[id.ring],r=originalRings[id.ring],a=n.ring[id.edge],b=n.ring[(id.edge+1)%n.ring.length],chain=n.sourceEdgeChains[id.edge];const edges=edgeProjection({ring:r,end:b},a,chain);let prior=R.zero;for(const e of edges){if(R.cmp(e.t0,prior)!==0||R.cmp(e.t1,e.t0)<=0)throw Error('nonmonotone original ownership');prior=e.t1;}if(R.cmp(prior,R.one)!==0)throw Error('incomplete original ownership');
 const u0=id.exactU0?R.parse(id.exactU0):R.exact(id.u0??0),u1=id.exactU1?R.parse(id.exactU1):R.exact(id.u1??1);if([u0,u1].some(u=>R.cmp(u,R.zero)<0||R.cmp(u,R.one)>0))throw Error('out-of-range canonical interval');const reverse=R.cmp(u1,u0)<0,lo=reverse?u1:u0,hi=reverse?u0:u1,result=[];
@@ -7,4 +14,4 @@ for(const e of edges){let left=R.cmp(lo,e.t0)>0?lo:e.t0,right=R.cmp(hi,e.t1)<0?h
 if(reverse)result.reverse();if(!result.length)throw Error('empty ownership partition');return result;}
 function collectMappings(geometry,normalized,rings,incidence){const mappings=[];function walk(x,pointer){if(!x||typeof x!=='object')return;if(Number.isInteger(x.ring)&&Number.isInteger(x.edge)){mappings.push({pointer,canonicalInterval:{ring:x.ring,edge:x.edge,u0:x.u0??0,u1:x.u1??1,exactU0:x.exactU0,exactU1:x.exactU1},originalIntervals:mapInterval(normalized,rings,x,incidence)});return;}if(Number.isInteger(x.sourceRing)&&Number.isInteger(x.sourceEdge))for(const key of ['sourceEdge','targetEdge'])if(Number.isInteger(x[key]))mappings.push({pointer:pointer+'/'+key,canonicalInterval:{ring:x.sourceRing,edge:x[key]},originalIntervals:mapInterval(normalized,rings,{ring:x.sourceRing,edge:x[key]},incidence)});for(const[k,v]of Object.entries(x))walk(v,pointer+'/'+k);}
 walk(geometry.pathEdgeMetadata,'/pathEdgeMetadata');walk(geometry.terminalSourceChains,'/terminalSourceChains');return{mappings,allMappedFacesComplete:mappings.length>0&&mappings.every(m=>m.originalIntervals.every(q=>q.faceIncidenceComplete)),ownerAccepted:false,metadataCoordinateSpace:'canonicalSource; originalIntervals refer to immutable source rings'};}
-module.exports={mapInterval,collectMappings};
+module.exports={mapInterval,collectMappings,reverseDirectedIntervals};

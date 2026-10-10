@@ -1,8 +1,8 @@
 {
-  "name": "frame-independent-slicer-checkpoint13",
-  "version": "0.0.0-checkpoint13",
+  "name": "frame-independent-slicer-checkpoint17",
+  "version": "0.0.0-checkpoint17",
   "private": true,
-  "description": "Unintegrated development checkpoint. No accepted complete layers or spirals.",
+  "description": "Unintegrated synthetic geometry checkpoint; physical extrusion and printing remain unvalidated.",
   "scripts": {
     "test": "node tests/run-public-checks.cjs"
   },

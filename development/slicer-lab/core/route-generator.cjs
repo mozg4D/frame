@@ -3,6 +3,8 @@ const R=require('./rational.cjs'),A=require('./accuracy-contract.cjs');
 const {load}=require('./adapter.cjs'),{buildOrthogonalLevel}=require('./orthogonal-level-plan.cjs');
 const {auditRouteGeometry}=require('./route-geometry-contract.cjs');
 const {exactContained,exactOnDirectedInterval}=require('./neck-owned-seam-charge.cjs');
+const {auditPhysicalPrintRoutes}=require('./physical-path-direction.cjs');
+const {reverseDirectedIntervals}=require('./provenance.cjs');
 function clippedOwnership(source,from,to,intervals) {
   return intervals.flatMap(q=>{
     if(q.role!=='finite-original-offset-bank')return [structuredClone(q)];
@@ -12,7 +14,14 @@ function clippedOwnership(source,from,to,intervals) {
     const lo=A.max(A.min(u,v),A.min(oldA,oldB)),hi=A.min(A.max(u,v),A.max(oldA,oldB));
     if(R.cmp(lo,hi)>0)return [];
     const x=R.cmp(u,v)<=0?lo:hi,y=R.cmp(u,v)<=0?hi:lo;
-    return [{...structuredClone(q),u0:R.number(x),u1:R.number(y),exactU0:R.str(x),exactU1:R.str(y)}];
+    const clipped={...structuredClone(q),u0:R.number(x),u1:R.number(y),exactU0:R.str(x),exactU1:R.str(y)};
+    if(q.canonicalExactU0!==undefined&&q.canonicalExactU1!==undefined){
+      const c0=R.parse(q.canonicalExactU0),c1=R.parse(q.canonicalExactU1);
+      const canonicalAt=t=>R.cmp(oldA,oldB)===0?c0:
+        R.add(c0,R.mul(R.div(R.sub(t,oldA),R.sub(oldB,oldA)),R.sub(c1,c0)));
+      clipped.canonicalExactU0=R.str(canonicalAt(x));clipped.canonicalExactU1=R.str(canonicalAt(y));
+    }
+    return [clipped];
   });
 }
 function createRouteGenerator() {
@@ -41,6 +50,11 @@ function createRouteGenerator() {
       if(signal?.aborted)throw Error('route generation cancelled');
       const depth=level.depth;
       let loop=level.points.slice(),ownership=level.sourceIntervals.slice();
+      // Source offset proof uses positive left-oriented bank polygons. Actual
+      // physical Z-up XY printing must traverse the same geometry clockwise.
+      const ids=[0,...loop.slice(1).map((_,i)=>loop.length-1-i)],oldLoop=loop,oldOwnership=ownership;
+      loop=ids.map(i=>oldLoop[i]);
+      ownership=ids.map((_,i)=>reverseDirectedIntervals(oldOwnership[ids[(i+1)%ids.length]]));
       const candidates=loop.map((a,i)=>({a,b:loop[(i+1)%loop.length],i})).filter(({a,b})=>
         (a[0]===b[0]||a[1]===b[1])&&Math.hypot(b[0]-a[0],b[1]-a[1])>=W);
       candidates.sort((a,b)=>a.a[1]-b.a[1]||a.a[0]-b.a[0]||a.b[1]-b.b[1]||a.b[0]-b.b[0]);
@@ -102,8 +116,7 @@ function createRouteGenerator() {
       {name:'all emitted feed corner representations including closures',verified:true,exactUpperBound:R.str(emittedReserve)}
     ]),wholeTrajectoryDeviationCertified:false,scope:'entire finite perimeter command plan; complete material allocation and continuous circle feed remain separate'};
     if(!finiteCommandPlanAccuracy.accepted)reasons.push('complete finite command plan accuracy unresolved');
-    const clockwise=paths.every(p=>p.points.slice(0,-2).reduce((sum,a,i,loop)=>
-      R.add(sum,R.cross(a.map(R.exact),loop[(i+1)%loop.length].map(R.exact))),R.zero).n>0n);
+    const physicalDirection=auditPhysicalPrintRoutes(commands),clockwise=physicalDirection.clockwise;
     const outsideIn=paths.every((p,i)=>p.depth===i);
     if(!clockwise||!outsideIn)reasons.push('directed clockwise or outside-in schedule unresolved');
     const innerAccuracy={accepted:true,totalExactUpperBoundMM:R.str(levelBound),
@@ -123,6 +136,7 @@ function createRouteGenerator() {
       finiteCommandPlanAccuracy,requestedPerimeters:count,actualPerimeters:levels.length,
       levelPlans:levels.map(({points,sourceIntervals,requiredCells,...proof})=>proof),
       clockwiseTraversalCertified:clockwise,outsideInDepthSchedulingCertified:outsideIn,
+      physicalDirection,
       clockwiseAndOutsideIn:clockwise&&outsideIn,closureOverlapMM:.5*W,
       transitionMode:'explicit travel for uncertified connectors',
       supportedClass:'wide simple x-monotone orthogonal source with topology-preserving requested offsets',

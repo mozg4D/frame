@@ -5,6 +5,7 @@ const fs=require('fs'),path=require('path'),crypto=require('crypto');
 const R=require('./rational.cjs'),A=require('./accuracy-contract.cjs');
 const {sectionMesh,verifySection,hash}=require('./mesh-section.cjs');
 const {createRouteGenerator}=require('./route-generator.cjs');
+const {auditPhysicalPrintRoutes}=require('./physical-path-direction.cjs');
 function revision() {
   const h=crypto.createHash('sha256');
   for(const name of fs.readdirSync(__dirname).filter(n=>/\.(cjs|js)$/.test(n)).sort()) {
@@ -82,13 +83,15 @@ function createMeshRouteCore() {
     ]),wholeTrajectoryDeviationCertified:false,scope:'complete requested finite perimeter plan; not complete material allocation'}:
       {accepted:false,wholeTrajectoryDeviationCertified:false,reason:physicalReference?
         route.reasons?.[0]:'exact physical orthogonal source reference required'};
-    const accepted=supported&&section.closedComponentsQualified&&accuracy.accepted&&
+    const physicalDirection=supported?auditPhysicalPrintRoutes(route.commands):{clockwise:false};
+    const accepted=supported&&physicalDirection.clockwise&&section.closedComponentsQualified&&accuracy.accepted&&
       sourceAngleEvidence.length===route.commands.length&&sourceAngleEvidence.length>0;
     return {kind:'owner-verified-independent-mesh-route',kernelRevision,
       job:structuredClone(proposal.job),sourceGeneration:mesh.generation,sourceVerified:true,
       finitePerimeterRouteAccepted:accepted,commandProducer:accepted?'independent-route-generator':'unsupported',
       newGeneratorCommandsSelected:accepted,retainedWorkerOutputUsedAsReference:false,
       commands:accepted?route.commands:[],execution:accepted?route.execution:[],
+      physicalDirection,selectedCoordinateSpace:'physical-mm-right-handed-XY-Z-up; no axis reflection',
       sourceAngleEvidence,sourceFaceAngleBindingCertified:accepted,accuracy,
       completeFinitePerimeterPlanCertified:accepted,
       finitePlanCoverageCertified:accepted&&route.geometry.coverage.requiredCellsCovered,
