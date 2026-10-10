@@ -1,0 +1,8 @@
+'use strict';
+const R=require('./rational.cjs'),{channelReference,exactCanonicalRing}=require('./channel-reference.cjs'),{proveSourceNormalization}=require('./accuracy-contract.cjs');
+function physicalChannelReference(section,output,W){try{return{...channelReference(section.exactRings.map(exactCanonicalRing),output.geometry,W),sourceReferenceKind:'exact physical four-bank section',physicalBankApproximationUpperBoundMM:0};}catch(initial){
+ if(section.exactRings.length!==1||output.canonicalSource.length!==1||output.canonicalSource[0].length!==4)throw initial;const chains=output.sourceEdgeChains[0],anchors=chains.map(ids=>section.exactRings[0][ids[0]]),normalized=[{ring:anchors,sourceEdgeChains:chains}],bankProof=proveSourceNormalization(section.exactRings,normalized),ref=channelReference([anchors],output.geometry,W);
+ for(const e of ref.sourceCapEdges){const a=anchors[e].map(R.parse),b=anchors[(e+1)%4].map(R.parse),d=R.vec(b,a);for(const id of chains[e])for(const k of[id,(id+1)%section.exactRings[0].length])if(R.cross(d,R.vec(section.exactRings[0][k].map(R.parse),a)).n)throw Error('physical-channel-cap-not-exactly-straight');}
+ return{...ref,sourceReferenceKind:'exact physical caps plus independently bounded original finite bank chains',exactConstructionUpperBound:R.str(R.add(R.parse(ref.exactConstructionUpperBound),R.parse(bankProof.exactUpperBound))),physicalBankApproximationUpperBoundMM:bankProof.upperBoundMM,physicalBankProof:bankProof,proof:ref.proof+'; full per-bank Hausdorff correspondence; distance-to-a-set is 1-Lipschitz, so original-bank feed-radius error is bounded by the independently proved bank deviation; exact original caps preserve the source axis'};
+}}
+module.exports={physicalChannelReference};

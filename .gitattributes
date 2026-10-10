@@ -6,3 +6,5 @@
 /index.html text eol=lf
 /frame-sw.js text eol=lf
 /native-source/** -text
+# Development reconstruction deltas and checksums also require exact bytes.
+/development/** -text

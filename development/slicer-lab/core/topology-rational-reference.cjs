@@ -1,0 +1,6 @@
+'use strict';
+const R=require('./rational.cjs');
+function topologySignature(rings){const P=rings.map(r=>r.map(p=>p.map(R.exact))),sign=x=>R.cmp(x,R.zero),cross=(a,b,c)=>R.cross(R.vec(b,a),R.vec(c,a)),on=(p,a,b)=>!sign(cross(a,b,p))&&sign(R.dot(R.vec(p,a),R.vec(p,b)))<=0,touch=(a,b,c,d)=>{const x=sign(cross(a,b,c)),y=sign(cross(a,b,d)),u=sign(cross(c,d,a)),v=sign(cross(c,d,b));return x*y<0&&u*v<0||on(a,c,d)||on(b,c,d)||on(c,a,b)||on(d,a,b);};let work=0;const relations=[];
+for(let r=0;r<P.length;r++)for(let s=0;s<=r;s++){let contact=false;for(let i=0;i<P[r].length&&!contact;i++)for(let j=0;j<P[s].length&&!contact;j++){if(r===s&&(i===j||i===(j+1)%P[r].length||j===(i+1)%P[r].length))continue;if(++work>262144)throw Error('source-topology-work-budget');if(touch(P[r][i],P[r][(i+1)%P[r].length],P[s][j],P[s][(j+1)%P[s].length]))contact=true;}if(contact)throw Error('source-topology-contact-requires-diagnosis');if(r!==s){const inside=(p,ring)=>{let w=0;for(let i=0;i<ring.length;i++){const a=ring[i],b=ring[(i+1)%ring.length];if(R.cmp(a[1],p[1])<=0&&R.cmp(b[1],p[1])>0&&sign(cross(a,b,p))>0)w++;else if(R.cmp(a[1],p[1])>0&&R.cmp(b[1],p[1])<=0&&sign(cross(a,b,p))<0)w--;}return !!w;};relations.push([r,s,inside(P[r][0],P[s]),inside(P[s][0],P[r])]);}}
+return JSON.stringify(relations);}
+module.exports={topologySignature};

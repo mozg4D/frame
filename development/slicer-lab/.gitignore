@@ -1,0 +1,5 @@
+evidence/
+node_modules/
+/core/upstream-worker.js
+/core/candidate-worker.js
+/core/optimized-worker.js

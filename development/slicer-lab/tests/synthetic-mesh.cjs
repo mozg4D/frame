@@ -1,0 +1,3 @@
+'use strict';
+function acutePrism({W=1,height=3,length=32}={}){const ring=[[0,0],[length,-length/4],[length,length/4]].map(p=>p.map(v=>v*W)),positions=new Float64Array([...ring.flatMap(p=>[p[0],0,p[1]]),...ring.flatMap(p=>[p[0],height,p[1]])]),indices=new Uint32Array([0,2,1,3,4,5,0,1,4,0,4,3,1,2,5,1,5,4,2,0,3,2,3,5]),matrix=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];return{meshes:[{positions,indices,matrix,group:'synthetic-acute-prism'}],params:{__type:'printer',lineWidth:W,layerHeight:.3*W,initialLayerHeight:.6*W,perimeters:7,angleWarnings:true,printClockwiseSign:1,width:40*W,height,depth:40*W,overhangAngle:45,minPathLength:3}};}
+module.exports={acutePrism};

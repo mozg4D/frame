@@ -1,0 +1,105 @@
+{
+  "schema": "frame-gpu-v10-source-v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2653,
+      "sha256": "1fc2b435801c8175e67c6755e66409584b09f94943da2ef76eaef392257854f2"
+    },
+    {
+      "path": "build-manifest.json",
+      "bytes": 24027,
+      "sha256": "c2817c3fc5f0bfc38252d0f56c2e6ed9ff889302ca30197e42f4af5a651f2b82"
+    },
+    {
+      "path": "native-overrides/authoring-mesh.mjs",
+      "bytes": 9425,
+      "sha256": "5819e6cfe427a171bc734f945ce369c4c1689868dbbf9bab968db4a74d9011b3"
+    },
+    {
+      "path": "native-overrides/bundle-native.mjs",
+      "bytes": 5940,
+      "sha256": "e147bfd13c226ec39aa5fad38ca85d506d26826eef84da15ebbaff35a39967f8"
+    },
+    {
+      "path": "native-overrides/corner-worker.mjs",
+      "bytes": 7397,
+      "sha256": "7575bf55c61a212d5514385da5861e85d2bb4038ce56a359ec4d862d819afde4"
+    },
+    {
+      "path": "native-overrides/display-packets.mjs",
+      "bytes": 34527,
+      "sha256": "fe25d7dfbeb9b88c02a1b568fcd041c11012a013330472f6fb97e4862a4a1a41"
+    },
+    {
+      "path": "native-overrides/exact-corner.mjs",
+      "bytes": 18393,
+      "sha256": "bd590f65afa8cef55321ab841b53f006d8e852261cc630ce81c0b8b35ec0faf4"
+    },
+    {
+      "path": "native-overrides/gpu-mutable-storage.mjs",
+      "bytes": 18550,
+      "sha256": "4c6edd46189941cd2c1e636ace8b7833f3d236bad6a1895b139e45395878b3bb"
+    },
+    {
+      "path": "native-overrides/gpu-resources.mjs",
+      "bytes": 6138,
+      "sha256": "f8fcdb24ec438833431068fa3944d9d8c696492336e72dbd195f090312861c00"
+    },
+    {
+      "path": "native-overrides/idle-derived-worker.mjs",
+      "bytes": 3113,
+      "sha256": "4bf494c6805755d116ba2b668afe5f252cc83f85e0ea98bbcdb39b59898c4fda"
+    },
+    {
+      "path": "native-overrides/idle-derived.mjs",
+      "bytes": 6295,
+      "sha256": "d8bda6ece1020ef0bfb9d8a99c0bda46d99c77826fa7aca766edde15fe1c8a4f"
+    },
+    {
+      "path": "native-overrides/interaction-controller.mjs",
+      "bytes": 10719,
+      "sha256": "81b4b9d7a19affb07af6c8a86b0225c6c72e7664e1e929553889f42714d8e5c2"
+    },
+    {
+      "path": "native-overrides/scene-packets.mjs",
+      "bytes": 9048,
+      "sha256": "01ad669dd55e19c0f1271f2f54ec6a9c8fe7ffc4dc28b555edfa14f5d2fe8671"
+    },
+    {
+      "path": "native-overrides/topology-islands.mjs",
+      "bytes": 20015,
+      "sha256": "9bdfc80bb9d6f06012bb5a4bc647050ef4d3eea1a508cb26f1e1800a573e263e"
+    },
+    {
+      "path": "native-overrides/topology-worker.mjs",
+      "bytes": 2172,
+      "sha256": "a32292762e010249b381614164c5c56d156eebac6f011b5e3bba65d9564d34c8"
+    },
+    {
+      "path": "native-overrides/viewport-renderer.mjs",
+      "bytes": 16270,
+      "sha256": "5a8e6b844a7a3c0571ea806de6491e55ed4f063ddd05c7775998ee785f857d34"
+    },
+    {
+      "path": "patches/editor-from-r226.json",
+      "bytes": 180627,
+      "sha256": "ec9b553cf959bdc766ac43a5d0e7da8e94ac93fea35f295e26865749170f96a3"
+    },
+    {
+      "path": "patches/shell-from-r226.json",
+      "bytes": 13470,
+      "sha256": "8a7e1bceef59d1995fb71e49113a8283b88c52eb663c0bc83d02dde0e1d6269c"
+    },
+    {
+      "path": "rebuild.py",
+      "bytes": 3108,
+      "sha256": "19284b9fef4c90ecc51febb3d45da52ba032203598616ec70766e0c7cc35a683"
+    },
+    {
+      "path": "tests/authoring-contracts.mjs",
+      "bytes": 3696,
+      "sha256": "71ffdefa3dd225446da6368950100a56c2dc993fb7c45c975a838e97a9025627"
+    }
+  ]
+}

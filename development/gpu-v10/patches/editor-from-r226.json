@@ -1,0 +1,1983 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "2fbd0f5a8cefe96ff28eb3c2aae136292f052478b6268f2c0b515b5b78909f23",
+  "afterSHA256": "93cd5fd0901cb855b6471fd4978209f42061ebc04d8ce7aca543e71d4ba4a459",
+  "beforeBytes": 2600154,
+  "afterBytes": 2746066,
+  "operations": [
+    {
+      "startLine": 7,
+      "deleteLines": 0,
+      "insert": [
+        "// PRIVATE scalar-coordinate classification proposal. No attribute/header probes.\n",
+        "// Capture the stock primitive formatter before any optional application hooks.\n",
+        "const framePolygonCoordinateNumberPrototype = Number.prototype;\n",
+        "const framePolygonCoordinateToFixed = Number.prototype.toFixed;\n",
+        "const framePolygonCoordinateDescriptor = Object.getOwnPropertyDescriptor;\n",
+        "const framePolygonCoordinateApply = Reflect.apply;\n",
+        "const framePolygonCoordinateTypedSet = Object.getPrototypeOf(Uint32Array.prototype).set;\n",
+        "const framePolygonCoordinateArrayPrototype = Float32Array.prototype;\n",
+        "const framePolygonCoordinateBufferGetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Float32Array.prototype), 'buffer').get;\n",
+        "function framePolygonScalarCoordinates(immutablePrimitiveSource=false) {\n",
+        "  const w={smallCoordinates:new Map(),one:new Float32Array(1)};\n",
+        "  w.oneBits=new Uint32Array(w.one.buffer);\n",
+        "  let table=new Uint32Array(16),keys=new Uint32Array(24),values=new Float32Array(24),coordinateCount=0,legacy=null;\n",
+        "  const parts=['','',''];\n",
+        "  const grow=()=>{\n",
+        "    const next=new Uint32Array(table.length*2),mask=next.length-1;\n",
+        "    for(let id=0;id<coordinateCount;id++){const o=id*3;let slot=framePolygonHash(keys[o],keys[o+1],keys[o+2])&mask;while(next[slot])slot=(slot+1)&mask;next[slot]=id+1;}\n",
+        "    const expanded=new Uint32Array(next.length*3/2);framePolygonCoordinateApply(framePolygonCoordinateTypedSet,expanded,[keys]);keys=expanded;\n",
+        "    const representatives=new Float32Array(expanded.length);framePolygonCoordinateApply(framePolygonCoordinateTypedSet,representatives,[values]);values=representatives;table=next;\n",
+        "  };\n",
+        "  const materialize=()=>{\n",
+        "    legacy=new Map();\n",
+        "    for(let id=0;id<coordinateCount;id++){\n",
+        "      const o=id*3;\n",
+        "      for(let c=0;c<3;c++)parts[c]=framePolygonCoordinateApply(framePolygonCoordinateToFixed,values[o+c],[7]);\n",
+        "      legacy.set(parts.join(','),id);\n",
+        "    }\n",
+        "    // The numeric table is not retained after the one-way scalar fallback.\n",
+        "    table=keys=values=null;w.smallCoordinates.clear();\n",
+        "  };\n",
+        "  const classify=(x,y,z)=>{\n",
+        "    const formatter=legacy||immutablePrimitiveSource?null:framePolygonCoordinateDescriptor(framePolygonCoordinateNumberPrototype,'toFixed');\n",
+        "    if(legacy||!immutablePrimitiveSource&&(!formatter||formatter.value!==framePolygonCoordinateToFixed)||\n",
+        "       typeof x!=='number'||typeof y!=='number'||typeof z!=='number'||\n",
+        "       !Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)||\n",
+        "       Math.fround(x)!==x||Math.fround(y)!==y||Math.fround(z)!==z){\n",
+        "      if(!legacy)materialize();\n",
+        "      let key;\n",
+        "      if(typeof x==='number'&&typeof y==='number'&&typeof z==='number'){\n",
+        "        parts[0]=x.toFixed(7);parts[1]=y.toFixed(7);parts[2]=z.toFixed(7);key=parts.join(',');\n",
+        "      }else key=[x,y,z].map(v=>v.toFixed(7)).join(',');\n",
+        "      let id=legacy.get(key);if(id===undefined){id=coordinateCount++;legacy.set(key,id);}return id;\n",
+        "    }\n",
+        "    w.one[0]=x;const xb=framePolygonWeldBits(x,w.oneBits[0],w);\n",
+        "    w.one[0]=y;const yb=framePolygonWeldBits(y,w.oneBits[0],w);\n",
+        "    w.one[0]=z;const zb=framePolygonWeldBits(z,w.oneBits[0],w);\n",
+        "    if((coordinateCount+1)*2>table.length)grow();\n",
+        "    let slot=framePolygonHash(xb,yb,zb)&(table.length-1),id;\n",
+        "    while(table[slot]){const candidate=table[slot]-1,o=candidate*3;if(keys[o]===xb&&keys[o+1]===yb&&keys[o+2]===zb){id=candidate;break;}slot=(slot+1)&(table.length-1);}\n",
+        "    if(id===undefined){id=coordinateCount++;const o=id*3;keys[o]=xb;keys[o+1]=yb;keys[o+2]=zb;values[o]=x;values[o+1]=y;values[o+2]=z;table[slot]=id+1;}\n",
+        "    return id;\n",
+        "  };\n",
+        "  return {classify,size:()=>coordinateCount,legacy:()=>!!legacy};\n",
+        "}\n",
+        "function framePolygonPlainFloat32Coordinates(positions,vertexCount) {\n",
+        "  // ArrayBuffer.isView rejects Proxy wrappers without touching their traps.\n",
+        "  // Do not read caller .array/.buffer/.byteOffset/header accessors.\n",
+        "  if(!ArrayBuffer.isView(positions)||Object.getPrototypeOf(positions)!==framePolygonCoordinateArrayPrototype)return null;\n",
+        "  const buffer=framePolygonCoordinateApply(framePolygonCoordinateBufferGetter,positions,[]);\n",
+        "  if(typeof SharedArrayBuffer!=='undefined'&&buffer instanceof SharedArrayBuffer)return null;\n",
+        "  // A custom primitive formatter can mutate later source coordinates during the\n",
+        "  // original template evaluation. Retain that complete original loop instead.\n",
+        "  const formatter=framePolygonCoordinateDescriptor(framePolygonCoordinateNumberPrototype,'toFixed');\n",
+        "  if(!formatter||formatter.value!==framePolygonCoordinateToFixed)return null;\n",
+        "  const classes=framePolygonScalarCoordinates(true),coords=new Uint32Array(vertexCount);\n",
+        "  for(let v=0;v<vertexCount;v++){const o=v*3;coords[v]=classes.classify(positions[o],positions[o+1],positions[o+2]);}\n",
+        "  return {coords,coordCount:classes.size()};\n",
+        "}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 11,
+      "deleteLines": 0,
+      "insert": [
+        "globalThis.__frameRawAuthoringDiagnostics=()=>frameRawDiagnostics();\n",
+        "globalThis.__frameGpuAuthoringDiagnostics=()=>frameGpuDiagnostics();\n"
+      ]
+    },
+    {
+      "startLine": 7480,
+      "deleteLines": 0,
+      "insert": [
+        "// Private STL-only candidate. Callers pass the parser's finite Float32 positions.\n",
+        "// The global polygonCreaseData remains the unmodified semantic oracle.\n",
+        "function frameSTLCreaseCoordinates(positions) {\n",
+        "  if (!(positions instanceof Float32Array) || positions.length % 3) throw Error('STL crease requires packed Float32 positions');\n",
+        "  const count=positions.length/3,coords=new Uint32Array(count),bits=new Uint32Array(positions.buffer,positions.byteOffset,positions.length),w={smallCoordinates:new Map(),one:new Float32Array(1)};\n",
+        "  w.oneBits=new Uint32Array(w.one.buffer);\n",
+        "  let table=new Uint32Array(16),keys=new Uint32Array(24),coordinateCount=0;\n",
+        "  const grow=()=>{\n",
+        "    const next=new Uint32Array(table.length*2),mask=next.length-1;\n",
+        "    for(let id=0;id<coordinateCount;id++){const o=id*3;let slot=framePolygonHash(keys[o],keys[o+1],keys[o+2])&mask;while(next[slot])slot=(slot+1)&mask;next[slot]=id+1;}\n",
+        "    const expanded=new Uint32Array(next.length*3/2);expanded.set(keys);keys=expanded;table=next;\n",
+        "  };\n",
+        "  for(let v=0;v<count;v++){\n",
+        "    const o=v*3,x=positions[o],y=positions[o+1],z=positions[o+2];\n",
+        "    if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))throw Error('STL contains a non-finite vertex');\n",
+        "    const xb=framePolygonWeldBits(x,bits[o],w),yb=framePolygonWeldBits(y,bits[o+1],w),zb=framePolygonWeldBits(z,bits[o+2],w);\n",
+        "    if((coordinateCount+1)*2>table.length)grow();\n",
+        "    let slot=framePolygonHash(xb,yb,zb)&(table.length-1),id;\n",
+        "    while(table[slot]){const candidate=table[slot]-1,p=candidate*3;if(keys[p]===xb&&keys[p+1]===yb&&keys[p+2]===zb){id=candidate;break;}slot=(slot+1)&(table.length-1);}\n",
+        "    if(id===undefined){id=coordinateCount++;const p=id*3;keys[p]=xb;keys[p+1]=yb;keys[p+2]=zb;table[slot]=id+1;}\n",
+        "    coords[v]=id;\n",
+        "  }\n",
+        "  return {coords,coordCount:coordinateCount};\n",
+        "}\n",
+        "function frameSTLCreaseData(positions, index, creaseCos, seamIds = null, seamCount = 1, needRemap = false, preserveFaces = true) {\n",
+        "  const vertexCount=positions.length/3,count=index?index.length:vertexCount,faces=Math.floor(count/3);\n",
+        "  const {coords,coordCount}=frameSTLCreaseCoordinates(positions);\n",
+        "  const ids=index||Uint32Array.from({length:count},(_,i)=>i),parent=new Int32Array(count),next=new Int32Array(count),area=new Float64Array(faces*3),invLength=new Float64Array(faces);\n",
+        "  let edgeA=new Uint32Array(2048),edgeB=new Uint32Array(2048),edgeHeads=new Uint32Array(2048),edgeCount=0;\n",
+        "  const edgeHash=(a,b)=>{let h=Math.imul(a,0x9e3779b1)^Math.imul(b,0x85ebca6b);h^=h>>>16;return h>>>0;};\n",
+        "  const growEdges=()=>{const A=new Uint32Array(edgeA.length*2),B=new Uint32Array(A.length),H=new Uint32Array(A.length),mask=A.length-1;for(let i=0;i<edgeHeads.length;i++)if(edgeHeads[i]){let s=edgeHash(edgeA[i],edgeB[i])&mask;while(H[s])s=(s+1)&mask;A[s]=edgeA[i];B[s]=edgeB[i];H[s]=edgeHeads[i];}edgeA=A;edgeB=B;edgeHeads=H;};\n",
+        "  next.fill(-1);for(let i=0;i<count;i++)parent[i]=i;\n",
+        "  const root=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};\n",
+        "  const join=(a,b)=>{a=root(a);b=root(b);if(a!==b)parent[b]=a;};\n",
+        "\n",
+        "   \n",
+        "  const threshold=creaseCos-1e-7;\n",
+        "  for(let f=0;f<faces;f++){\n",
+        "    const at=f*3,a=ids[at]*3,b=ids[at+1]*3,c=ids[at+2]*3,ax=positions[a],ay=positions[a+1],az=positions[a+2],bx=positions[b]-ax,by=positions[b+1]-ay,bz=positions[b+2]-az,cx=positions[c]-ax,cy=positions[c+1]-ay,cz=positions[c+2]-az;\n",
+        "    const nx=by*cz-bz*cy,ny=bz*cx-bx*cz,nz=bx*cy-by*cx,length=Math.hypot(nx,ny,nz);\n",
+        "    if(!(length>(preserveFaces?0:1e-8)))continue;\n",
+        "    area[at]=nx;area[at+1]=ny;area[at+2]=nz;invLength[f]=1/length;\n",
+        "    for(let k=0;k<3;k++){\n",
+        "      const i=at+k,j=at+(k+1)%3,ca=coords[ids[i]],cb=coords[ids[j]];if(ca===cb)continue;\n",
+        "      if((edgeCount+1)*4>edgeHeads.length*3)growEdges();\n",
+        "      const ea=Math.min(ca,cb),eb=Math.max(ca,cb);let edge=edgeHash(ea,eb)&(edgeHeads.length-1);\n",
+        "      while(edgeHeads[edge]&&(edgeA[edge]!==ea||edgeB[edge]!==eb))edge=(edge+1)&(edgeHeads.length-1);\n",
+        "      const head=edgeHeads[edge]?edgeHeads[edge]-1:undefined;\n",
+        "      for(let e=head??-1;e!==-1;e=next[e]){\n",
+        "        const other=Math.floor(e/3),o=other*3;\n",
+        "        if((nx*area[o]+ny*area[o+1]+nz*area[o+2])*invLength[f]*invLength[other]<threshold)continue;\n",
+        "        const end=o+(e%3+1)%3;\n",
+        "        if(coords[ids[e]]===ca){join(i,e);join(j,end);}else{join(i,end);join(j,e);}\n",
+        "      }\n",
+        "      next[i]=head??-1;if(!edgeHeads[edge]){edgeA[edge]=ea;edgeB[edge]=eb;edgeCount++;}edgeHeads[edge]=i+1;\n",
+        "    }\n",
+        "  }\n",
+        "  edgeA=edgeB=edgeHeads=null;\n",
+        "  const sums=new Float64Array(count*3);\n",
+        "  for(let f=0;f<faces;f++)if(invLength[f])for(let k=0;k<3;k++){const at=f*3,r=root(at+k)*3;parent[at+k]=r/3;sums[r]+=area[at];sums[r+1]+=area[at+1];sums[r+2]+=area[at+2];}\n",
+        "  const outP=new Float32Array(count*3),outN=new Float32Array(count*3),outI=new Uint32Array(count),source=new Uint32Array(count),denseMap=!seamIds&&seamCount===1,map=denseMap?new Uint32Array(count):new Map(),remap=needRemap?new Map():null,keptFaces=[];\n",
+        "  let vertices=0,used=0;\n",
+        "  for(let f=0;f<faces;f++)if(invLength[f]||preserveFaces){\n",
+        "    keptFaces.push(f);\n",
+        "    for(let k=0;k<3;k++){\n",
+        "      const i=f*3+k,v=ids[i],comp=parent[i],mapKey=comp*seamCount+(seamIds?seamIds[v]:0);let oi=denseMap?(map[comp]?map[comp]-1:undefined):map.get(mapKey);\n",
+        "      if(oi===undefined){\n",
+        "        oi=vertices++;if(denseMap)map[comp]=oi+1;else map.set(mapKey,oi);const o=oi*3,r=comp*3,l=Math.hypot(sums[r],sums[r+1],sums[r+2]);source[oi]=v;\n",
+        "        outP[o]=positions[v*3];outP[o+1]=positions[v*3+1];outP[o+2]=positions[v*3+2];\n",
+        "        if(l>0){outN[o]=sums[r]/l;outN[o+1]=sums[r+1]/l;outN[o+2]=sums[r+2]/l;}\n",
+        "        else if(invLength[f]){outN[o]=area[f*3]*invLength[f];outN[o+1]=area[f*3+1]*invLength[f];outN[o+2]=area[f*3+2]*invLength[f];}\n",
+        "        else outN[o+1]=1;\n",
+        "      }\n",
+        "      if(remap){let set=remap.get(v);if(!set)remap.set(v,set=new Set());set.add(oi);}outI[used++]=oi;\n",
+        "    }\n",
+        "  }\n",
+        "  return {positions:outP.slice(0,vertices*3),normals:outN.slice(0,vertices*3),indices:outI.slice(0,used),source:source.slice(0,vertices),keptFaces,remap};\n",
+        "}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 7491,
+      "deleteLines": 0,
+      "insert": [
+        "      if(data.fastAuthoring!==false){\n",
+        "        report('Preparing first native mesh');const normals=new Float32Array(source.length);for(let o=0;o<source.length;o+=9){const ax=source[o+3]-source[o],ay=source[o+4]-source[o+1],az=source[o+5]-source[o+2],bx=source[o+6]-source[o],by=source[o+7]-source[o+1],bz=source[o+8]-source[o+2];let x=ay*bz-az*by,y=az*bx-ax*bz,z=ax*by-ay*bx,len=Math.hypot(x,y,z);if(len){x/=len;y/=len;z/=len;}for(let j=0;j<3;j++)normals.set([x,y,z],o+j*3);}\n",
+        "        const authoringPositions=source.slice(),result={positions:source,authoringPositions,normals,indices,bounds:frameSTLGeometryBounds(source),vertices:source.length/3,triangles:source.length/9,fastAuthoring:true};self.postMessage({result},[source.buffer,authoringPositions.buffer,normals.buffer,indices.buffer]);return;\n",
+        "      }\n"
+      ]
+    },
+    {
+      "startLine": 7492,
+      "deleteLines": 1,
+      "insert": [
+        "      const prepared = frameSTLCreaseData(source, indices, data.creaseCos, null, 1, false, true);\n"
+      ]
+    },
+    {
+      "startLine": 7495,
+      "deleteLines": 1,
+      "insert": [
+        "      const installed = frameSTLCreaseData(prepared.positions, prepared.indices, data.creaseCos, null, 1, false, true);\n"
+      ]
+    },
+    {
+      "startLine": 7498,
+      "deleteLines": 1,
+      "insert": [
+        "      if (!data.deferPostprocess && installed.indices.length >= 30000) {\n"
+      ]
+    },
+    {
+      "startLine": 7512,
+      "deleteLines": 1,
+      "insert": [
+        "async function framePrepareSTLCoordinator(buffer, activity, deferPostprocess) {\n"
+      ]
+    },
+    {
+      "startLine": 7519,
+      "deleteLines": 1,
+      "insert": [
+        "    const source = [frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCreaseData, frameSTLCreaseCoordinates, framePolygonHash, framePolygonWeldBits, prepareSplineBVH, frameWireIndices].map(fn => fn.toString()).join('\\n') + '\\n(' + frameSTLWorkerMain.toString() + ')();';\n"
+      ]
+    },
+    {
+      "startLine": 7536,
+      "deleteLines": 1,
+      "insert": [
+        "        worker.postMessage({ buffer, creaseCos: CREASE_COS, deferPostprocess }, [buffer]);\n"
+      ]
+    },
+    {
+      "startLine": 7541,
+      "deleteLines": 1,
+      "insert": [
+        "// Additional transferred index copies are bounded across concurrent imports.\n",
+        "let frameSTLPostprocessCopyBytes=0;\n",
+        "const FRAME_STL_POSTPROCESS_COPY_LIMIT=64*1024*1024;\n",
+        "function frameSTLPostprocessWorkerMain() {\n",
+        "  self.onmessage=({data:m})=>{\n",
+        "    try{\n",
+        "      const index=m.indices;\n",
+        "      if(!(index instanceof Uint32Array)||index.length%3||m.id!==1)throw Error('Invalid STL postprocess request');\n",
+        "      const hasPositions=m.kind==='BVH'||m.kind==='combined';\n",
+        "      const count=hasPositions?m.positions?.length/3:m.pointCount;\n",
+        "      if(!Number.isSafeInteger(count)||count<0||count>0xffffffff)throw Error('Invalid STL postprocess point count');\n",
+        "      if(hasPositions&&!(m.positions instanceof Float32Array))throw Error('Invalid STL postprocess positions');\n",
+        "      for(const v of index)if(v>=count)throw Error('Invalid STL postprocess index');\n",
+        "      if(hasPositions){\n",
+        "        const tree=prepareSplineBVH(m.positions,index);\n",
+        "        const result={positions:m.positions,indices:index,tree},transfer=[m.positions.buffer,index.buffer,tree.bvhBounds.buffer,tree.bvhChildren.buffer,tree.bvhOrder.buffer];\n",
+        "        if(m.kind==='combined'){result.wire=frameWireIndices({count},{count:index.length,getX:i=>index[i]});transfer.push(result.wire.buffer);}\n",
+        "        self.postMessage({id:m.id,kind:m.kind,result},transfer);\n",
+        "      }else if(m.kind==='wire'){\n",
+        "        const wire=frameWireIndices({count},{count:index.length,getX:i=>index[i]});\n",
+        "        self.postMessage({id:m.id,kind:m.kind,result:{wire}},[wire.buffer]);\n",
+        "      }else throw Error('Unknown STL postprocess request');\n",
+        "    }catch(error){self.postMessage({id:m.id,kind:m.kind,error:error?.message||String(error)});}\n",
+        "  };\n",
+        "}\n",
+        "async function frameSTLPostprocessTask(kind,packet,transfer,signal) {\n",
+        "  const release=await frameComputeBudget.acquire('native',signal);let worker,url;\n",
+        "  try{\n",
+        "    if(signal?.aborted)throw signal.reason||frameImportAbortError();\n",
+        "    const source=[prepareSplineBVH,frameWireIndices].map(fn=>fn.toString()).join('\\n')+'\\n('+frameSTLPostprocessWorkerMain.toString()+')();';\n",
+        "    url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));\n",
+        "    return await new Promise((resolve,reject)=>{\n",
+        "      let settled=false;\n",
+        "      const finish=(error,value)=>{if(settled)return;settled=true;signal?.removeEventListener('abort',abort);error?reject(error):resolve(value);};\n",
+        "      const abort=()=>{worker?.terminate();finish(signal.reason||frameImportAbortError());};\n",
+        "      signal?.addEventListener('abort',abort,{once:true});\n",
+        "      try{\n",
+        "        if(signal?.aborted){abort();return;}\n",
+        "        worker=new Worker(url,{name:'stl-'+kind});\n",
+        "        worker.onerror=e=>finish(Error(e.message||'STL postprocess worker failed'));\n",
+        "        worker.onmessageerror=()=>finish(Error('STL postprocess worker returned unreadable data'));\n",
+        "        worker.onmessage=({data})=>{\n",
+        "          if(data.id!==1||data.kind!==kind){finish(Error('STL postprocess worker returned unexpected request'));return;}\n",
+        "          if(data.error)finish(Error('STL: '+data.error));else if(data.result)finish(null,data.result);else finish(Error('STL postprocess worker returned no result'));\n",
+        "        };\n",
+        "        worker.postMessage({id:1,kind,...packet},transfer);\n",
+        "      }catch(error){finish(error);}\n",
+        "    });\n",
+        "  }finally{worker?.terminate();if(url)URL.revokeObjectURL(url);release();}\n",
+        "}\n",
+        "async function framePrepareSTLWorker(buffer,activity) {\n",
+        "  const parallel=frameComputeBudget.count>=2,prepared=await framePrepareSTLCoordinator(buffer,activity,parallel);\n",
+        "  activity?.check();\n",
+        "  if(prepared.fastAuthoring||!parallel||prepared.indices.length<30000)return prepared;\n",
+        "  const external=activity?.signal,controller=new AbortController(),signal=controller.signal;\n",
+        "  const abort=()=>controller.abort(external.reason||frameImportAbortError());external?.addEventListener('abort',abort,{once:true});\n",
+        "  if(external?.aborted)abort();\n",
+        "  const jobs=[];let copyBytes=0;\n",
+        "  try{\n",
+        "    if(signal.aborted)throw signal.reason||frameImportAbortError();\n",
+        "    const positionWords=prepared.positions.length,indexWords=prepared.indices.length,pointCount=positionWords/3;\n",
+        "    activity?.update('Preparing object picking');\n",
+        "    let bvh,wire;\n",
+        "    const bytes=prepared.indices.byteLength;\n",
+        "    if(bytes>FRAME_STL_POSTPROCESS_COPY_LIMIT-frameSTLPostprocessCopyBytes){\n",
+        "      // Oversized or concurrent-copy pressure retains serial BVH then wire in\n",
+        "      // one leased helper and transfers the originals without any index copy.\n",
+        "      jobs.push(frameSTLPostprocessTask('combined',{positions:prepared.positions,indices:prepared.indices},[prepared.positions.buffer,prepared.indices.buffer],signal));\n",
+        "      bvh=await jobs[0];wire=bvh;\n",
+        "    }else{\n",
+        "      copyBytes=bytes;frameSTLPostprocessCopyBytes+=bytes;\n",
+        "      const wireInput=new Uint32Array(indexWords);wireInput.set(prepared.indices);\n",
+        "      jobs.push(frameSTLPostprocessTask('BVH',{positions:prepared.positions,indices:prepared.indices},[prepared.positions.buffer,prepared.indices.buffer],signal));\n",
+        "      activity?.update('Preparing wireframe');\n",
+        "      jobs.push(frameSTLPostprocessTask('wire',{pointCount,indices:wireInput},[wireInput.buffer],signal));\n",
+        "      [bvh,wire]=await Promise.all(jobs);\n",
+        "    }\n",
+        "    if(signal.aborted)throw signal.reason||frameImportAbortError();activity?.check();\n",
+        "    const t=bvh.tree,Wire=pointCount<65536?Uint16Array:Uint32Array;\n",
+        "    if(!(bvh.positions instanceof Float32Array)||bvh.positions.length!==positionWords||!(bvh.indices instanceof Uint32Array)||bvh.indices.length!==indexWords||!(t?.bvhBounds instanceof Float64Array)||!(t?.bvhChildren instanceof Int32Array)||!(t?.bvhOrder instanceof Uint32Array)||t.bvhBounds.length/6!==t.bvhChildren.length/4||t.bvhOrder.length!==indexWords/3||!(wire.wire instanceof Wire)||wire.wire.length%2)throw Error('Invalid STL postprocess result');\n",
+        "    prepared.positions=bvh.positions;prepared.indices=bvh.indices;prepared.pickTree=t;prepared.wireIndices=wire.wire;return prepared;\n",
+        "  }catch(error){controller.abort(error);await Promise.allSettled(jobs);throw error;}\n",
+        "  finally{frameSTLPostprocessCopyBytes-=copyBytes;external?.removeEventListener('abort',abort);}\n",
+        "}\n",
+        "function frameClonePreparedSTLGeometry(source) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:frameClonePreparedSTLGeometry',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 7543,
+      "deleteLines": 1,
+      "insert": [
+        "  const geometry = source.clone(), origin = frameContourOrigins.get(source);if(_frameDiagEnabled)frameIndexedPolygonNote('prepared-clone',geometry,{sourceOwned:frameIndexedPolygonSources.has(source),cloneOwned:frameIndexedPolygonSources.has(geometry)});\n",
+        "  if(source.userData._frameAuthoringRaw){geometry.userData._frameAuthoringRaw=true;geometry.userData._polygonDragCorners=true;frameRawPendingSource.set(geometry,frameRawPendingSource.get(source));}\n"
+      ]
+    },
+    {
+      "startLine": 7545,
+      "deleteLines": 0,
+      "insert": [
+        "  if(typeof frameRegisterIndexedPolygonClone==='function')frameRegisterIndexedPolygonClone(source,geometry);\n"
+      ]
+    },
+    {
+      "startLine": 7549,
+      "deleteLines": 2,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:frameClonePreparedSTLGeometry',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n",
+        "async function frameLoadSTL(file, activity) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:frameLoadSTL',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 7561,
+      "deleteLines": 1,
+      "insert": [
+        "  markPolygonCreaseGeometry(geometry); frameSTLPrepared.add(geometry);if(prepared.fastAuthoring){geometry.userData._frameAuthoringRaw=true;geometry.userData._polygonDragCorners=true;frameRawPendingSource.set(geometry,prepared.authoringPositions);frameRawNotes.firstFrames++;frameRawTrace('raw-parsed',{vertices:prepared.vertices});}else{if(typeof frameRegisterIndexedPolygonSource==='function')frameRegisterIndexedPolygonSource(geometry);frameMarkBoundaryCanonical(geometry);}\n"
+      ]
+    },
+    {
+      "startLine": 7568,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:frameLoadSTL',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 8441,
+      "deleteLines": 1,
+      "insert": [
+        "  g.boundingSphere=src.boundingSphere?.clone()||null;if(typeof frameNative!=='undefined'&&typeof frameNative.registerOwnedPositionGeometry==='function'&&typeof frameIndexedPolygonSourceCurrent==='function'&&frameIndexedPolygonSourceCurrent(src)&&(frameSTLWireIndices(src)===edgeIndices||current&&cached.indices===edgeIndices))frameNative.registerOwnedPositionGeometry(g,frameIndexedPolygonGetX,frameIndexedPolygonGetY,frameIndexedPolygonGetZ,true,src);return g;\n"
+      ]
+    },
+    {
+      "startLine": 8471,
+      "deleteLines": 1,
+      "insert": [
+        "function refreshWireOverlay(mesh) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:refreshWireOverlay',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 8476,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:refreshWireOverlay',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 9905,
+      "deleteLines": 1,
+      "insert": [
+        "// Refit privately prepared face-order trees. Every leaf is bounded from ALL of\n",
+        "// its current triangles; parent bounds are exact unions. Old frames stay intact.\n",
+        "const objectPickMeshBVHs=new WeakMap();\n",
+        "function frameRefitPickBVH(tree,positions,indices){\n",
+        " const order=tree?.bvhOrder,children=tree?.bvhChildren;\n",
+        " if(!(order instanceof Uint32Array)||!(children instanceof Int32Array)||indices.length%3||order.length!==indices.length/3||children.length%4||!children.length)return null;\n",
+        " const bounds=new Float64Array(children.length/4*6);\n",
+        " for(let node=children.length/4-1;node>=0;node--){\n",
+        "  const at=node*4,to=node*6,left=children[at],right=children[at+1];\n",
+        "  if(left>=0){\n",
+        "   if(left<=node||right<=node||left>=children.length/4||right>=children.length/4)return null;\n",
+        "   for(let k=0;k<3;k++){bounds[to+k]=Math.min(bounds[left*6+k],bounds[right*6+k]);bounds[to+k+3]=Math.max(bounds[left*6+k+3],bounds[right*6+k+3]);}\n",
+        "  }else{\n",
+        "   const start=children[at+2],end=children[at+3];if(start<0||end>order.length||start>=end)return null;\n",
+        "   let x=Infinity,y=Infinity,z=Infinity,X=-Infinity,Y=-Infinity,Z=-Infinity;\n",
+        "   for(let j=start;j<end;j++){const face=order[j];if(face>=order.length)return null;for(let k=0;k<3;k++){const v=indices[face*3+k]*3;if(v<0||v+2>=positions.length)return null;const a=positions[v],b=positions[v+1],c=positions[v+2];if(!Number.isFinite(a)||!Number.isFinite(b)||!Number.isFinite(c))return null;x=Math.min(x,a);y=Math.min(y,b);z=Math.min(z,c);X=Math.max(X,a);Y=Math.max(Y,b);Z=Math.max(Z,c);}}\n",
+        "   bounds[to]=x;bounds[to+1]=y;bounds[to+2]=z;bounds[to+3]=X;bounds[to+4]=Y;bounds[to+5]=Z;\n",
+        "  }\n",
+        " }\n",
+        " return{bvhBounds:bounds,bvhChildren:children,bvhOrder:order};\n",
+        "}\n",
+        "function geometryPickBVH(g,mesh=null){\n"
+      ]
+    },
+    {
+      "startLine": 9909,
+      "deleteLines": 4,
+      "insert": [
+        "  const started=performance.now(),stockPrepared=frameSTLPickTree(g),prepared=g.userData.splineBVH||stockPrepared;\n",
+        "  const prior=cache??(mesh&&objectPickMeshBVHs.get(mesh));\n",
+        "  const freshlyPrepared=prepared&&(!cache||cache.prepared!==prepared);\n",
+        "  const refitted=!freshlyPrepared&&prior?.refittable?frameRefitPickBVH(prior,p.array,index.array):null;\n",
+        "  const tree=freshlyPrepared?prepared:refitted??prepareSplineBVH(p.array,index.array);\n",
+        "  cache={position:p,index,pa:p.array,ia:index.array,pv:p.version,iv:index.version,prepared,refittable:!freshlyPrepared||prepared===stockPrepared,...tree};objectPickBVHs.set(g,cache);\n",
+        "  phasePerformance.bvhBuilds++;phasePerformance.bvhMilliseconds+=performance.now()-started;phasePerformance.bvhBackend=refitted?'packed-refit':'packed';\n"
+      ]
+    },
+    {
+      "startLine": 9914,
+      "deleteLines": 0,
+      "insert": [
+        " if(mesh&&cache.refittable)objectPickMeshBVHs.set(mesh,cache);\n"
+      ]
+    },
+    {
+      "startLine": 9921,
+      "deleteLines": 1,
+      "insert": [
+        " const cache=geometryPickBVH(g,this);\n"
+      ]
+    },
+    {
+      "startLine": 9935,
+      "deleteLines": 1,
+      "insert": [
+        "   if(!point)continue;const world=point.clone().applyMatrix4(this.matrixWorld),d=world.distanceTo(raycaster.ray.origin);if(d<raycaster.near||d>distance||best&&d===distance&&f>best.faceIndex)continue;\n"
+      ]
+    },
+    {
+      "startLine": 9946,
+      "deleteLines": 0,
+      "insert": [
+        "  if(mesh.geometry?.userData._frameAuthoringRaw&&!frameRawCurrent(mesh.geometry))frameAttachRawAuthoring(mesh.geometry,frameRawPendingSource.get(mesh.geometry));\n"
+      ]
+    },
+    {
+      "startLine": 9948,
+      "deleteLines": 0,
+      "insert": [
+        "  if(mesh.raycast===acceleratedObjectRaycast&&frameSTLPickTree(mesh.geometry))geometryPickBVH(mesh.geometry,mesh);\n"
+      ]
+    },
+    {
+      "startLine": 10075,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameColdPolygonRelease&&!frameColdPolygonRelease.committing)return;\n"
+      ]
+    },
+    {
+      "startLine": 12558,
+      "deleteLines": 1,
+      "insert": [
+        "    map.mapPivot.makeTranslation(lp.x, lp.y, lp.z), placeGizmoForSelection(), updateHUD();\n"
+      ]
+    },
+    {
+      "startLine": 12571,
+      "deleteLines": 1,
+      "insert": [
+        "  n.pivot.makeTranslation(localPivot.x, localPivot.y, localPivot.z), gizmo.pos.copy(best), syncCube(), scheduleRender(), updateHUD();\n"
+      ]
+    },
+    {
+      "startLine": 12639,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameColdPolygonRelease&&!frameColdPolygonRelease.committing)frameCancelColdPolygonRelease(frameColdPolygonRelease);\n"
+      ]
+    },
+    {
+      "startLine": 13188,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameColdPolygonRelease&&!frameColdPolygonRelease.committing)frameCancelColdPolygonRelease(frameColdPolygonRelease);\n"
+      ]
+    },
+    {
+      "startLine": 13244,
+      "deleteLines": 1,
+      "insert": [
+        "        nm.children.slice().forEach((child) => nm.remove(child)), nm.geometry = src.geometry ? src.geometry.clone() : nm.geometry, src.geometry&&nm.geometry!==src.geometry&&frameRegisterIndexedPolygonClone(src.geometry,nm.geometry), src.userData._selectMat ? (nm.material = Array.isArray(src.material) ? src.material.map((mm) => mm.clone()) : src.material ? src.material.clone() : nm.material, nm.userData._selectMat = !0) : nm.material = null, nm.matrixAutoUpdate = !1, nm.renderOrder = LAYER_OBJ, vpState.scene.add(nm), contentThrees.push(nm), registerPickMesh(s.nh, nm), threeOf.set(s.nh, nm);\n"
+      ]
+    },
+    {
+      "startLine": 13445,
+      "deleteLines": 1,
+      "insert": [
+        "function polygonCreaseData(positions, index, creaseCos, seamIds = null, seamCount = 1, needRemap = false, preserveFaces = true) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:polygonCreaseData',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 13447,
+      "deleteLines": 4,
+      "insert": [
+        "  const numeric=framePolygonPlainFloat32Coordinates(positions,vertexCount);\n",
+        "  let coords,coordCount;\n",
+        "  if(numeric){coords=numeric.coords;coordCount=numeric.coordCount;}else{\n",
+        "    coords=new Uint32Array(vertexCount);const coordIds=new Map();\n",
+        "    for(let v=0;v<vertexCount;v++){\n",
+        "        const o=v*3,key=`${positions[o].toFixed(7)},${positions[o+1].toFixed(7)},${positions[o+2].toFixed(7)}`;\n",
+        "        let id=coordIds.get(key);if(id===undefined){id=coordIds.size;coordIds.set(key,id);}coords[v]=id;\n",
+        "    }\n",
+        "    coordCount=coordIds.size;coordIds.clear();\n"
+      ]
+    },
+    {
+      "startLine": 13452,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 13497,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:polygonCreaseData',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 13514,
+      "deleteLines": 1,
+      "insert": [
+        "function normalizeCreaseTopology(mesh, needRemap = true, {preserveFaces = true} = {}) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:normalizeCreaseTopology',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 13547,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:normalizeCreaseTopology',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 13553,
+      "deleteLines": 1,
+      "insert": [
+        "function rebuildCreaseRender(mesh, needRemap = true) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:rebuildCreaseRender',undefined,{phase:_frameDiagPhase});try{\n",
+        "  if(frameFinalizeBoundaryPolygonRegion(mesh,needRemap))return;\n",
+        "  if(typeof frameFinalizeIndexedPolygonRegion==='function'&&frameFinalizeIndexedPolygonRegion(mesh,needRemap))return;\n"
+      ]
+    },
+    {
+      "startLine": 13555,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonDiagnostics.stampOwner(meshToHash.get(mesh));if(_frameDiagEnabled)frameIndexedPolygonNote('ms:rebuildCreaseRender',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 14282,
+      "deleteLines": 1,
+      "insert": [
+        "function logicalVertexGroups(geometry) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:logicalVertexGroups',undefined,{phase:_frameDiagPhase});try{\n",
+        "  const raw=frameRawGroupView(geometry);if(raw)return raw.groups;\n"
+      ]
+    },
+    {
+      "startLine": 14285,
+      "deleteLines": 0,
+      "insert": [
+        "  if(typeof frameIndexedPolygonGroups==='function'){const fast=frameIndexedPolygonGroups(geometry);if(fast)return fast;}\n"
+      ]
+    },
+    {
+      "startLine": 14294,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:logicalVertexGroups',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 14296,
+      "deleteLines": 7,
+      "insert": [
+        "  let groups=vertexGroupCache.get(geometry);\n",
+        "  if(groups)return groups;\n",
+        "  const pos=geometry.attributes.position,groupOf=new Array(pos.count);\n",
+        "  groups=[];let slots=new Uint32Array(16),keys=new Float64Array(24),byPosition=null;\n",
+        "  const hash=(x,y,z)=>{\n",
+        "    let h=Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791);\n",
+        "    if(Math.abs(x)>4294967295)h^=Math.imul(Math.floor(x/4294967296),2654435761);\n",
+        "    if(Math.abs(y)>4294967295)h^=Math.imul(Math.floor(y/4294967296),2246822519);\n",
+        "    if(Math.abs(z)>4294967295)h^=Math.imul(Math.floor(z/4294967296),3266489917);\n",
+        "    h^=h>>>16;return h>>>0;\n",
+        "  };\n",
+        "  function* grow(){\n",
+        "    const next=new Uint32Array(slots.length*2),expanded=new Float64Array(keys.length*2);expanded.set(keys);\n",
+        "    for(let id=0;id<groups.length;id++){\n",
+        "      const o=id*3;let s=hash(keys[o],keys[o+1],keys[o+2])&(next.length-1);while(next[s])s=(s+1)&(next.length-1);next[s]=id+1;\n",
+        "      if((id&1023)===1023)yield;\n",
+        "    }\n",
+        "    slots=next;keys=expanded;\n"
+      ]
+    },
+    {
+      "startLine": 14304,
+      "deleteLines": 3,
+      "insert": [
+        "  for(let i=0;i<pos.count;i++){\n",
+        "    const x=Math.round(pos.getX(i)*1e5),y=Math.round(pos.getY(i)*1e5),z=Math.round(pos.getZ(i)*1e5);let group;\n",
+        "    if(slots&&Number.isSafeInteger(x)&&Number.isSafeInteger(y)&&Number.isSafeInteger(z)){\n",
+        "      if((groups.length+1)*2>slots.length)yield* grow();\n",
+        "      let s=hash(x,y,z)&(slots.length-1),id;\n",
+        "      while(slots[s]){const candidate=slots[s]-1,o=candidate*3;if(keys[o]===x&&keys[o+1]===y&&keys[o+2]===z){id=candidate;break;}s=(s+1)&(slots.length-1);}\n",
+        "      if(id===undefined){id=groups.length;const o=id*3;keys[o]=x;keys[o+1]=y;keys[o+2]=z;slots[s]=id+1;groups.push([]);}\n",
+        "      group=groups[id];\n",
+        "    }else{\n",
+        "      if(slots){\n",
+        "        byPosition=new Map();for(let id=0;id<groups.length;id++){const o=id*3;byPosition.set(`${keys[o]},${keys[o+1]},${keys[o+2]}`,groups[id]);if((id&1023)===1023)yield;}\n",
+        "        slots=keys=null;\n",
+        "      }\n",
+        "      const key=`${x},${y},${z}`;group=byPosition.get(key);if(!group){group=[];byPosition.set(key,group);groups.push(group);}\n",
+        "    }\n",
+        "    group.push(i);groupOf[i]=group;if((i&1023)===1023)yield;\n",
+        "  }\n",
+        "  vertexGroupCache.set(geometry,groups);vertexGroupOfCache.set(geometry,groupOf);return groups;\n"
+      ]
+    },
+    {
+      "startLine": 14648,
+      "deleteLines": 1,
+      "insert": [
+        "      const tasks=frameNative.createYieldQueue();let session;try{const adapter=await frameNativePickerAdapter;if(!control.isCurrent())throw new DOMException('Native input changed','AbortError');session=await adapter.prepare({...captured,signal:control.signal,yieldTask:()=>tasks.yield()});\n"
+      ]
+    },
+    {
+      "startLine": 14652,
+      "deleteLines": 1,
+      "insert": [
+        "      }finally{try{await session?.dispose();}finally{tasks.dispose();}}\n"
+      ]
+    },
+    {
+      "startLine": 14666,
+      "deleteLines": 1,
+      "insert": [
+        "  const sourceCurrent=frameNativeMarqueeSourceGuard(vi),controller=new AbortController(),tasks=frameNative.createYieldQueue();let closed=false;\n"
+      ]
+    },
+    {
+      "startLine": 14668,
+      "deleteLines": 1,
+      "insert": [
+        "  const cleanup=()=>{removeEventListener('pointerdown',cancel,true);removeEventListener('pointercancel',cancel,true);removeEventListener('wheel',cancel,true);removeEventListener('keydown',key,true);removeEventListener('blur',cancel);removeEventListener('resize',cancel);if(framePolySelectionJob===job)framePolySelectionJob=null;tasks.dispose();};\n"
+      ]
+    },
+    {
+      "startLine": 14693,
+      "deleteLines": 1,
+      "insert": [
+        "      })(),{signal:controller.signal,isCurrent:valid,yieldTask:()=>tasks.yield()});\n"
+      ]
+    },
+    {
+      "startLine": 15588,
+      "deleteLines": 1,
+      "insert": [
+        "function rebuildPolySelection(syncGizmo = !0) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:rebuildPolySelection',undefined,{phase:_frameDiagPhase});try{\n",
+        "  if(syncGizmo)for(const row of frameRawTracked)row.selection=null;\n"
+      ]
+    },
+    {
+      "startLine": 15592,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:rebuildPolySelection',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 15624,
+      "deleteLines": 0,
+      "insert": [
+        "  if(typeof frameNative!=='undefined'&&typeof frameNative.registerOwnedPositionGeometry==='function')for(const o of [polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex])frameNative.registerOwnedPositionGeometry(o.geometry,THREE2.BufferAttribute.prototype.getX,THREE2.BufferAttribute.prototype.getY,THREE2.BufferAttribute.prototype.getZ);\n",
+        "\n",
+        "  frameGpuPrepareSelection();\n"
+      ]
+    },
+    {
+      "startLine": 16213,
+      "deleteLines": 1,
+      "insert": [
+        " if(frameColdPolygonRelease)return;\n",
+        "  const deferPolygon=polyFocusActive()&&!splineFocusActive()&&!editPivot&&!uvEdit&&e.pointerType!==\"touch\";\n",
+        "  if(!deferPolygon&&!framePolygonCopyDragAllowed(e))return;\n"
+      ]
+    },
+    {
+      "startLine": 16313,
+      "deleteLines": 1,
+      "insert": [
+        "  if(deferPolygon){\n",
+        "    const down={clientX:e.clientX,clientY:e.clientY,pointerId:e.pointerId,pointerType:e.pointerType,button:e.button,buttons:e.buttons,altKey:!!e.altKey,ctrlKey:!!e.ctrlKey,metaKey:!!e.metaKey,shiftKey:!!e.shiftKey};\n",
+        "    gizDrag.framePolygonPending={event:down,valid:frameSelectionSourceGuard(g.view),denied:false};\n",
+        "  }else pivotKeyDown && (pivotKeyGesture = !0), _gizStart && _gizStart(e);\n",
+        "  emitInfo(null);\n",
+        "}\n",
+        "function frameActivatePolygonGizmoDrag(e) {\n",
+        "  const pending=gizDrag?.framePolygonPending;\n",
+        "  if(!pending)return !!gizDrag;\n",
+        "  const down=pending.event;\n",
+        "  if(pending.denied||e?.pointerId!==down.pointerId||!Number.isFinite(e.clientX)||!Number.isFinite(e.clientY)||e.clientX===down.clientX&&e.clientY===down.clientY)return false;\n",
+        "  if(!pending.valid()||!framePolygonCopyDragAllowed(down)){pending.denied=true;return false;}\n",
+        "  gizDrag.framePolygonPending=null;\n",
+        "  _gizStart&&_gizStart(down);\n",
+        "  return true;\n"
+      ]
+    },
+    {
+      "startLine": 16407,
+      "deleteLines": 1,
+      "insert": [
+        "  const pending=!!gizDrag?.framePolygonPending;\n",
+        "  if(!pending&&polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();\n"
+      ]
+    },
+    {
+      "startLine": 16409,
+      "deleteLines": 1,
+      "insert": [
+        "  !pending && _gizEnd && _gizEnd(e), hideHudLine(), hideSnapVis(), gizDrag = null; if(!pending&&!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;\n"
+      ]
+    },
+    {
+      "startLine": 16467,
+      "deleteLines": 1,
+      "insert": [
+        "  try{renderer=await frameNative.FrameWebGPUViewportRenderer.create({renderDomain:'gl-window',quadTopology:'strip',basicSpecialization:'unmapped-basic-v1',standardSpecialization:'unmapped-standard-projection-v1',cubicCapabilityResolver:(owner,control)=>frameNativeCubicCapabilities.resolve(owner,control),onError:frameNativeViewportReport,onCapture:frameNativeCapturePickerView});}catch(error){frameNativeViewportReport(error);throw error;}\n"
+      ]
+    },
+    {
+      "startLine": 16842,
+      "deleteLines": 0,
+      "insert": [
+        "    if(!frameActivatePolygonGizmoDrag(e))return;\n"
+      ]
+    },
+    {
+      "startLine": 16958,
+      "deleteLines": 0,
+      "insert": [
+        "  }\n",
+        "  if(gizDrag?.framePolygonPending){\n",
+        "    const pending=gizDrag.framePolygonPending,down=pending.event;\n",
+        "    if(e.pointerId!==down.pointerId)return;\n",
+        "    if(!frameActivatePolygonGizmoDrag(e)){\n",
+        "      const tap=!pending.denied&&e.type!==\"pointercancel\"&&e.button===0&&!e.altKey&&!e.buttons&&e.clientX===down.clientX&&e.clientY===down.clientY;\n",
+        "      endGizDrag(e);activeView=-1;\n",
+        "      if(tap)doPick(e);\n",
+        "      return;\n",
+        "    }\n"
+      ]
+    },
+    {
+      "startLine": 17272,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameColdPolygonRelease){if(!frameColdPolygonRelease.committing)frameCancelColdPolygonRelease(frameColdPolygonRelease);return;}\n"
+      ]
+    },
+    {
+      "startLine": 17282,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameColdPolygonRelease)return;\n"
+      ]
+    },
+    {
+      "startLine": 19767,
+      "deleteLines": 1,
+      "insert": [
+        "function frameMeshConnectivity(g,force=false){const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:frameMeshConnectivity',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 19769,
+      "deleteLines": 0,
+      "insert": [
+        "  if(typeof frameIndexedPolygonConnectivity==='function'){const fast=frameIndexedPolygonConnectivity(g,force);if(fast!==null)return fast;}\n"
+      ]
+    },
+    {
+      "startLine": 19770,
+      "deleteLines": 1,
+      "insert": [
+        "  const p=g.attributes.position,idx=g.index,count=idx?.count??p.count,canonical=framePolygonScalarCoordinates(),out=[];\n"
+      ]
+    },
+    {
+      "startLine": 19772,
+      "deleteLines": 2,
+      "insert": [
+        "  for(let i=0;i<count;i++){const j=idx?idx.getX(i):i,x=p.getX(j),y=p.getY(j),z=p.getZ(j);out.push(canonical.classify(x,y,z));}\n",
+        "  let h=2166136261;for(const n of out){h^=n;h=Math.imul(h,16777619);}const signature='mesh:'+count+':'+canonical.size()+':'+(h>>>0);\n"
+      ]
+    },
+    {
+      "startLine": 19775,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:frameMeshConnectivity',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 24175,
+      "deleteLines": 0,
+      "insert": [
+        "  const raw=frameRawSelectedIDs(h);if(raw)return raw;\n"
+      ]
+    },
+    {
+      "startLine": 24176,
+      "deleteLines": 0,
+      "insert": [
+        "  const closed=frameClosedPolygonOrderedIDs(h);if(closed)return closed;\n",
+        "  const small=frameSmallPolygonMeasurementIDs(h);if(small)return small;\n"
+      ]
+    },
+    {
+      "startLine": 24191,
+      "deleteLines": 0,
+      "insert": [
+        "  const raw=yield* frameRawSelectedIDsWork(h,items);if(raw)return raw;\n",
+        "  const closed=frameClosedPolygonOrderedIDs(h,items,exact);if(closed){for(const v of closed)if((++work&1023)===0)yield;return closed;}\n"
+      ]
+    },
+    {
+      "startLine": 24330,
+      "deleteLines": 0,
+      "insert": [
+        "  const gpu=frameGpuCachedExtent(frame);if(gpu)return gpu;\n"
+      ]
+    },
+    {
+      "startLine": 24332,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const i of (frameClosedPolygonMeasurementIDs(h)||polySelectedVertexIds(h))){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);mn.min(p);mx.max(p);any=true;}\n"
+      ]
+    },
+    {
+      "startLine": 24496,
+      "deleteLines": 0,
+      "insert": [
+        "  const gpu=frameGpuCachedSelectionBounds();if(gpu)return{min:gpu.min.clone(),max:gpu.max.clone()};\n"
+      ]
+    },
+    {
+      "startLine": 24501,
+      "deleteLines": 1,
+      "insert": [
+        "      for (let i of (frameClosedPolygonMeasurementIDs(h)||polySelectedVertexIds(h)))\n"
+      ]
+    },
+    {
+      "startLine": 24510,
+      "deleteLines": 1,
+      "insert": [
+        "// Scoped exact normals for closed, owned STL components. No render proxy.\n",
+        "const frameIndexedPolygonDiagnostics=globalThis.__frameIndexedQA={phases:{},events:[],inspect(h){const m=pickMeshes.get(h),g=m?.geometry;return g?{registered:frameIndexedPolygonSources.has(g),current:!!frameIndexedPolygonSourceCurrent(g),creaseCurrent:polygonCreaseGeometryCurrent(g),vertices:g.attributes.position.count,faces:g.index.count/3,attributeTypes:Object.fromEntries(Object.entries(g.attributes).map(([n,a])=>[n,a.constructor.name])),mode:polyElementMode,soft:vertexTools.soft.active,selectedFaces:polySelection.items.get(h)?.faces.size}:null;}};\n",
+        "const frameDiagGeometryIds=new WeakMap(),frameDiagGeometryPoses=new WeakMap(),frameDiagOwners=new Map();let frameDiagNextGeometryId=0;\n",
+        "Object.assign(frameIndexedPolygonDiagnostics,{poseProbe:false,poses:[],inputs:[],resetPoses(h){this.poses=[];this.inputs=[];frameDiagOwners.set(h,0);this.stampOwner(h,0);},stampOwner(h,revision=frameDiagOwners.get(h)??0){const g=pickMeshes.get(h)?.geometry;if(!g)return;let id=frameDiagGeometryIds.get(g);if(!id)frameDiagGeometryIds.set(g,id=++frameDiagNextGeometryId);const stamp={owner:h,id,revision,pv:g.attributes.position.version,nv:g.attributes.normal?.version,iv:g.index?.version,vertices:g.attributes.position.count,indices:g.index?.count};frameDiagGeometryPoses.set(g,stamp);return stamp;},geometryStamp(g){return frameDiagGeometryPoses.get(g);},afterDelta(delta,snap,started){for(const [h]of snap){const mesh=pickMeshes.get(h);if(!mesh)continue;const revision=(frameDiagOwners.get(h)??0)+1;frameDiagOwners.set(h,revision);const stamp=this.stampOwner(h,revision),entry={phase:globalThis.__orderQA?.stage,revision,started,completed:performance.now(),pointerSeq:globalThis.__orderQA?.pointer?.seq,pointerReceived:globalThis.__orderQA?.pointer?.received,delta:delta.elements.slice(),world:mesh.matrixWorld.elements.slice(),startGizmo:gizBeforeGizmo?.slice(),stamp};this.inputs.push(entry);if(this.poseProbe){const g=mesh.geometry;this.poses.push({entry,positions:g.attributes.position.array.slice(),normals:g.attributes.normal.array.slice(),indices:g.index.array.slice()});}}},async summarizePoses(){const hash=async a=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',a)),x=>x.toString(16).padStart(2,'0')).join(''),out=[];for(const p of this.poses){const a=new Uint32Array(p.positions.buffer),n=new Uint32Array(p.normals.buffer),positions=new Uint32Array(p.indices.length*3),normals=new Uint32Array(positions.length);for(let c=0;c<p.indices.length;c++)for(let k=0;k<3;k++){positions[c*3+k]=a[p.indices[c]*3+k];normals[c*3+k]=n[p.indices[c]*3+k];}out.push({...p.entry,cornerPositionSHA256:await hash(positions),cornerNormalSHA256:await hash(normals)});}return out;}});\n",
+        "function frameIndexedPolygonNote(reason,g,detail={}){const phase=detail.phase??globalThis.__orderQA?.stage??'boot',row=frameIndexedPolygonDiagnostics.phases[phase]??={counts:{},ms:{}};row.counts[reason]=(row.counts[reason]??0)+1;if(detail.elapsed!==undefined)row.ms[reason]=(row.ms[reason]??0)+detail.elapsed;if(!reason.startsWith('call:')&&!reason.startsWith('ms:')&&frameIndexedPolygonDiagnostics.events.length<200)frameIndexedPolygonDiagnostics.events.push({phase,reason,vertices:g?.attributes?.position?.count,faces:g?.index?.count/3,...detail});}\n",
+        "// This cache accelerates only bounds/extents, never Connected or edit topology.\n",
+        "// Derived point-animation signatures are calculated when consumed, with source\n",
+        "// and attribute versions. A completed component gesture never certifies old IDs.\n",
+        "const frameIndexedPolygonSignatures=new WeakMap();\n",
+        "function frameInvalidateIndexedPolygonSignature(g){\n",
+        " frameIndexedPolygonSignatures.delete(g);delete g.userData.framePLAConnectivity;\n",
+        "}\n",
+        "function frameClosedPolygonMeasurementRow(h,items=polySelection.items,exact=polyExactEdgeVertices){\n",
+        " const mesh=pickMeshes.get(h),g=mesh?.geometry,s=items.get(h),r=g&&frameIndexedPolygonMeasurements.get(g);\n",
+        " if(!r||!s||s.vertices.size||s.edges.size||exact?.has(h)||vertexTools.soft.active||frameIndexedPolygonSourceCurrent(g)!==r.source||r.source.p.version!==r.pv||r.source.i.version!==r.iv||!framePolygonDragSetMatches(s.faces,r.faces))return null;\n",
+        " for(let k=0;k<r.faces.length;k++)for(let j=0;j<3;j++)if(r.source.ia[r.faces[k]*3+j]!==r.indices[k*3+j])return null;\n",
+        " return r;\n",
+        "}\n",
+        "function frameClosedPolygonOrderedIDs(h,items=polySelection.items,exact=polyExactEdgeVertices){\n",
+        " const r=frameClosedPolygonMeasurementRow(h,items,exact);if(!r)return null;\n",
+        " const faces=items.get(h).faces;let matching=!!r.orderedIDs&&faces.size===r.orderedFaces.length,k=0;if(matching)for(const f of faces)if(f!==r.orderedFaces[k++]){matching=false;break;}\n",
+        " if(!matching){\n",
+        "  // Reclassify the current selected vertices. Internal five-decimal groups may\n",
+        "  // merge/split after a Float32 rigid pose; cached old group IDs are not reused.\n",
+        "  const vertices=[...r.ids],n=vertices.length,size=2**Math.ceil(Math.log2(Math.max(16,n*2))),slots=new Int32Array(size),keys=new Float64Array(n*3),coords=new Uint32Array(n),rawGroups=new Uint32Array(r.source.pc),counts=new Uint32Array(n);slots.fill(-1);let groups=0;\n",
+        "  for(let v=0;v<n;v++){const at=vertices[v]*3,o=v*3,x=Math.round(r.source.pa[at]*1e5),y=Math.round(r.source.pa[at+1]*1e5),z=Math.round(r.source.pa[at+2]*1e5);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(y)||!Number.isSafeInteger(z))return null;let slot=framePolygonHash(x,y,z)&(size-1),id;\n",
+        "   while(slots[slot]!==-1){const other=slots[slot],q=other*3;if(keys[q]===x&&keys[q+1]===y&&keys[q+2]===z){id=coords[other];break;}slot=(slot+1)&(size-1);}\n",
+        "   if(id===undefined){id=groups++;slots[slot]=v;keys[o]=x;keys[o+1]=y;keys[o+2]=z;}coords[v]=id;rawGroups[vertices[v]]=id+1;counts[id]++;\n",
+        "  }\n",
+        "  const offsets=new Uint32Array(groups+1);for(let k=0;k<groups;k++)offsets[k+1]=offsets[k]+counts[k];const cursors=offsets.slice(0,groups),members=new Uint32Array(n);for(let v=0;v<n;v++)members[cursors[coords[v]]++]=vertices[v];\n",
+        "  const expanded=new Uint8Array(groups),ordered=[];\n",
+        "  for(const f of faces)for(let k=0;k<3;k++){const id=rawGroups[r.source.ia[f*3+k]]-1;if(id<0)return null;if(expanded[id])continue;expanded[id]=1;for(let j=offsets[id];j<offsets[id+1];j++)ordered.push(members[j]);}\n",
+        "  if(ordered.length!==n)return null;r.orderedIDs=ordered;r.orderedFaces=[...faces];\n",
+        " }\n",
+        " return new Set(r.orderedIDs);\n",
+        "}\n",
+        "\n",
+        "// Only current face selection expansion for coordinates/bounds. Connected and\n",
+        "// edit topology keep their independent current-geometry classifiers.\n",
+        "const frameSmallPolygonMeasurements=new WeakMap();\n",
+        "function frameSmallPolygonMeasurementIDs(h){\n",
+        " const mesh=pickMeshes.get(h),g=mesh?.geometry,s=g&&frameIndexedPolygonSourceCurrent(g),selected=polySelection.items.get(h);\n",
+        " if(!s||!selected||selected.vertices.size||selected.edges.size||!selected.faces.size||selected.faces.size>4096||polyExactEdgeVertices?.has(h)||vertexTools.soft.active)return null;\n",
+        " const faces=[...selected.faces],old=frameSmallPolygonMeasurements.get(g);\n",
+        " if(old&&old.s===s&&old.pv===s.p.version&&old.iv===s.i.version&&old.faces.length===faces.length&&old.faces.every((f,k)=>f===faces[k]))return new Set(old.ids);\n",
+        " const capacity=2**Math.ceil(Math.log2(Math.max(16,faces.length*6))),slots=new Int32Array(capacity),keys=[],groups=[];slots.fill(-1);\n",
+        " const lookup=(x,y,z,create)=>{let slot=framePolygonHash(x,y,z)&(capacity-1);while(slots[slot]!==-1){const id=slots[slot],key=keys[id];if(key[0]===x&&key[1]===y&&key[2]===z)return id;slot=(slot+1)&(capacity-1);}if(!create)return -1;const id=keys.length;slots[slot]=id;keys.push([x,y,z]);groups.push([]);return id;};\n",
+        " for(const face of faces){if(!Number.isInteger(face)||face<0||face>=s.ic/3)return null;for(let k=0;k<3;k++){const at=s.ia[face*3+k]*3,x=Math.round(s.pa[at]*1e5),y=Math.round(s.pa[at+1]*1e5),z=Math.round(s.pa[at+2]*1e5);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(y)||!Number.isSafeInteger(z))return null;lookup(x,y,z,true);}}\n",
+        " for(let v=0;v<s.pc;v++){const at=v*3,x=Math.round(s.pa[at]*1e5),y=Math.round(s.pa[at+1]*1e5),z=Math.round(s.pa[at+2]*1e5);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(y)||!Number.isSafeInteger(z))return null;const id=lookup(x,y,z,false);if(id>=0)groups[id].push(v);}\n",
+        " const ids=groups.flat();frameSmallPolygonMeasurements.set(g,{s,pv:s.p.version,iv:s.i.version,faces,ids});return new Set(ids);\n",
+        "}\n",
+        "\n",
+        "const frameIndexedPolygonGroupTables=new WeakMap(),frameIndexedPolygonMeasurements=new WeakMap();\n",
+        "function frameCaptureClosedPolygonMeasurements(mesh,rec){\n",
+        " const r=rec?._indexedPolygonRegion,s=r?.source,t=r?.selectionClassifier,g=mesh?.geometry;\n",
+        " if(!r?.stable||r.hybrid||!t||g!==r.g||frameIndexedPolygonSourceCurrent(g)!==s||s.p.version!==r.pv||s.i.version!==r.iv||t.p!==s.p||t.pa!==s.pa||(t.pv!==r.initialPositionVersion&&(!r.classifierWitness||r.classifierWitness.classifier!==t||r.classifierWitness.pv!==r.initialPositionVersion||r.classifierWitness.mask!==r.selectedRaw))||framePolygonCoordinateDescriptor(Math,'imul')?.value!==t.imul)return false;\n",
+        " // The admitted initial groups are entirely selected or entirely stationary.\n",
+        " // Stationary positions must still equal that initial classifier's coordinates.\n",
+        " const bits=new Uint32Array(s.pa.buffer,s.pa.byteOffset,s.pa.length);\n",
+        " for(let v=0;v<s.pc;v++)if(!r.selectedRaw[v])for(let k=0;k<3;k++){const o=v*3+k;if(bits[o]!==r.baselinePosition[o])return false;}\n",
+        " for(const v of r.vertices){const o=v*3,x=Math.round(s.pa[o]*1e5),y=Math.round(s.pa[o+1]*1e5),z=Math.round(s.pa[o+2]*1e5);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(y)||!Number.isSafeInteger(z))return false;let slot=framePolygonHash(x,y,z)&(t.slots.length-1);while(t.slots[slot]!==-1){const id=t.slots[slot],at=id*3;if(t.keys[at]===x&&t.keys[at+1]===y&&t.keys[at+2]===z){if(!r.selectedRaw[id])return false;break;}slot=(slot+1)&(t.slots.length-1);}}\n",
+        " for(let k=0;k<rec.selectionFaces.length;k++)for(let j=0;j<3;j++)if(s.ia[rec.selectionFaces[k]*3+j]!==rec.selectionFaceIndices[k*3+j])return false;\n",
+        " frameIndexedPolygonMeasurements.set(g,{source:s,pv:s.p.version,iv:s.i.version,faces:rec.selectionFaces.slice(),indices:rec.selectionFaceIndices.slice(),ids:new Set(r.vertices),mask:r.selectedRaw,classifier:t,outsideClassifier:{slots:r.slots,quantized:r.quantized,q:r.q}});return true;\n",
+        "}\n",
+        "function frameClosedPolygonMeasurementIDs(h){return frameClosedPolygonMeasurementRow(h)?.ids??null;}\n",
+        "\n",
+        "const frameIndexedPolygonSources = new WeakMap();\n",
+        "const frameIndexedPolygonCandidates = new WeakMap();\n",
+        "const frameIndexedPolygonSnapshots = new WeakSet();\n",
+        "const frameIndexedPolygonAttributePrototype = THREE2.BufferAttribute.prototype;\n",
+        "const frameIndexedPolygonGeometryPrototype = THREE2.BufferGeometry.prototype;\n",
+        "const frameIndexedPolygonGeometryClone = THREE2.BufferGeometry.prototype.clone;\n",
+        "const frameIndexedPolygonGeometryCopy = THREE2.BufferGeometry.prototype.copy;\n",
+        "const frameIndexedPolygonAttributeClone = THREE2.BufferAttribute.prototype.clone;\n",
+        "const frameIndexedPolygonAttributeCopy = THREE2.BufferAttribute.prototype.copy;\n",
+        "const frameIndexedPolygonPrototypeOf = Object.getPrototypeOf;\n",
+        "const frameIndexedPolygonOwnKeys = Object.keys;\n",
+        "const frameIndexedPolygonGetX = THREE2.BufferAttribute.prototype.getX;\n",
+        "const frameIndexedPolygonGetY = THREE2.BufferAttribute.prototype.getY;\n",
+        "const frameIndexedPolygonGetZ = THREE2.BufferAttribute.prototype.getZ;\n",
+        "const frameIndexedPolygonSetXYZ = THREE2.BufferAttribute.prototype.setXYZ;\n",
+        "const frameIndexedPolygonHypot = Math.hypot;\n",
+        "const frameIndexedPolygonRound = Math.round;\n",
+        "const frameIndexedPolygonAbs = Math.abs;\n",
+        "function frameIndexedPolygonWeldBits(v,bits,w) {\n",
+        "  if(v===0)return 0;if(frameIndexedPolygonAbs(v)>=1)return bits;\n",
+        "  // For finite Float32 below1, multiplication by10^7 has at most41 significant\n",
+        "  // bits and is exact in Float64. Decimal toFixed7 rounds ties away from zero.\n",
+        "  // Division gives the same correctly rounded rational as decimal parsing.\n",
+        "  // Keep negative rounded zero, while exact signed zero uses the rule above.\n",
+        "  const n=frameIndexedPolygonRound(frameIndexedPolygonAbs(v)*1e7)/1e7;\n",
+        "  w.one[0]=v<0?-n:n;return w.oneBits[0];\n",
+        "}\n",
+        "function frameIndexedPolygonCoordinates(positions,count) {\n",
+        "  const size=2**Math.ceil(Math.log2(Math.max(16,count*2))),slots=new Int32Array(size),keys=new Uint32Array(count*3),coords=new Uint32Array(count),bits=new Uint32Array(positions.buffer,positions.byteOffset,positions.length),w={one:new Float32Array(1)};w.oneBits=new Uint32Array(w.one.buffer);slots.fill(-1);let coordCount=0;\n",
+        "  for(let v=0;v<count;v++){const o=v*3,x=positions[o],y=positions[o+1],z=positions[o+2];if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z))return null;const xb=frameIndexedPolygonWeldBits(x,bits[o],w),yb=frameIndexedPolygonWeldBits(y,bits[o+1],w),zb=frameIndexedPolygonWeldBits(z,bits[o+2],w);let slot=framePolygonHash(xb,yb,zb)&(size-1),id;\n",
+        "    while(slots[slot]!==-1){const r=slots[slot],p=r*3;if(keys[p]===xb&&keys[p+1]===yb&&keys[p+2]===zb){id=coords[r];break;}slot=(slot+1)&(size-1);}\n",
+        "    if(id===undefined){id=coordCount++;slots[slot]=v;keys[o]=xb;keys[o+1]=yb;keys[o+2]=zb;}coords[v]=id;\n",
+        "  }return{coords,coordCount,slots,keys,w};\n",
+        "}\n",
+        "function frameRegisterIndexedPolygonSource(g) {\n",
+        "  frameIndexedPolygonNote('register',g);\n",
+        "  const p=g.attributes.position,n=g.attributes.normal,i=g.index;\n",
+        "  if(!p||!n||!i||p.array.constructor!==Float32Array||n.array.constructor!==Float32Array||i.array.constructor!==Uint32Array)return;\n",
+        "  frameIndexedPolygonSources.set(g,{attributes:g.attributes,morphAttributes:g.morphAttributes,groups:g.groups,p,n,i,pa:p.array,na:n.array,ia:i.array,pc:p.count,nc:n.count,ic:i.count});\n",
+        "  if(typeof frameNative!=='undefined'&&typeof frameNative.registerOwnedDisplayGeometry==='function')frameNative.registerOwnedDisplayGeometry(g,frameIndexedPolygonGetX,frameIndexedPolygonGetY,frameIndexedPolygonGetZ);\n",
+        "}\n",
+        "function frameIndexedPolygonMethodCurrent(object,prototype,name,expected) {\n",
+        "  const own=framePolygonCoordinateDescriptor(object,name);if(own)return 'value'in own&&own.value===expected;\n",
+        "  const inherited=framePolygonCoordinateDescriptor(prototype,name);return !!inherited&&'value'in inherited&&inherited.value===expected;\n",
+        "}\n",
+        "function frameIndexedPolygonSourceCurrent(g) {\n",
+        "  const s=frameIndexedPolygonSources.get(g);if(!s){frameIndexedPolygonNote('source-not-owned',g);return null;}\n",
+        "  const data=(o,k,v)=>{const d=framePolygonCoordinateDescriptor(o,k);return !!d&&'value'in d&&d.value===v;};\n",
+        "  const groups=framePolygonCoordinateDescriptor(g,'groups');\n",
+        "  // Material assignment clears groups by replacing the empty array. It leaves\n",
+        "  // geometry/index attributes untouched. Require the same empty-group meaning,\n",
+        "  // rather than the identity of that disposable presentation-only array.\n",
+        "  if(frameIndexedPolygonPrototypeOf(g)!==frameIndexedPolygonGeometryPrototype||!data(g,'attributes',s.attributes)||!data(g,'index',s.i)||!data(g,'morphAttributes',s.morphAttributes)||!groups||!('value'in groups)||frameIndexedPolygonPrototypeOf(groups.value)!==Array.prototype||groups.value.length||!data(s.attributes,'position',s.p)||!data(s.attributes,'normal',s.n)||frameIndexedPolygonOwnKeys(s.attributes).length!==2){frameIndexedPolygonNote('source-reject-line-7',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "  if(framePolygonCoordinateDescriptor(Math,'hypot')?.value!==frameIndexedPolygonHypot||framePolygonCoordinateDescriptor(Math,'round')?.value!==frameIndexedPolygonRound||framePolygonCoordinateDescriptor(Math,'abs')?.value!==frameIndexedPolygonAbs||framePolygonCoordinateDescriptor(framePolygonCoordinateNumberPrototype,'toFixed')?.value!==framePolygonCoordinateToFixed){frameIndexedPolygonNote('source-reject-line-8',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "  for(const [a,array,count,size] of [[s.p,s.pa,s.pc,3],[s.n,s.na,s.nc,3],[s.i,s.ia,s.ic,1]]){\n",
+        "    if(frameIndexedPolygonPrototypeOf(a)!==frameIndexedPolygonAttributePrototype||!data(a,'array',array)||!data(a,'count',count)||!data(a,'itemSize',size)||!data(a,'normalized',false)){frameIndexedPolygonNote('source-reject-line-10',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "    for(const [name,method]of [['getX',frameIndexedPolygonGetX],['getY',frameIndexedPolygonGetY],['getZ',frameIndexedPolygonGetZ],['setXYZ',frameIndexedPolygonSetXYZ]])if(!frameIndexedPolygonMethodCurrent(a,frameIndexedPolygonAttributePrototype,name,method)){frameIndexedPolygonNote('source-reject-line-11',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "    if(typeof SharedArrayBuffer!=='undefined'&&array.buffer instanceof SharedArrayBuffer||array.length!==count*size){frameIndexedPolygonNote('source-reject-line-12',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "  }\n",
+        "  if(s.pc!==s.nc||s.ic%3||frameIndexedPolygonOwnKeys(s.morphAttributes).length||new Set([s.pa.buffer,s.na.buffer,s.ia.buffer]).size!==3){frameIndexedPolygonNote('source-reject-line-14',g,{groupReferenceSame:g.groups===s.groups,groups:g.groups.length,attributesSame:g.attributes===s.attributes,indexSame:g.index===s.i});return null;}\n",
+        "  return s;\n",
+        "}\n",
+        "function frameRegisterIndexedPolygonClone(source,clone) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:frameRegisterIndexedPolygonClone',undefined,{phase:_frameDiagPhase});try{\n",
+        "  const s=frameIndexedPolygonSourceCurrent(source);if(!s)return false;\n",
+        "  for(const [object,prototype,name,method]of [[source,frameIndexedPolygonGeometryPrototype,'clone',frameIndexedPolygonGeometryClone],[source,frameIndexedPolygonGeometryPrototype,'constructor',THREE2.BufferGeometry],[frameIndexedPolygonGeometryPrototype,frameIndexedPolygonGeometryPrototype,'copy',frameIndexedPolygonGeometryCopy]])if(!frameIndexedPolygonMethodCurrent(object,prototype,name,method))return false;\n",
+        "  for(const a of [s.p,s.n,s.i])for(const [name,method]of [['clone',frameIndexedPolygonAttributeClone],['copy',frameIndexedPolygonAttributeCopy],['constructor',THREE2.BufferAttribute]])if(!frameIndexedPolygonMethodCurrent(a,frameIndexedPolygonAttributePrototype,name,method))return false;\n",
+        "  for(const a of [s.pa,s.na,s.ia]){const constructor=a===s.ia?Uint32Array:Float32Array;if(frameIndexedPolygonPrototypeOf(a)!==constructor.prototype||!frameIndexedPolygonMethodCurrent(a,constructor.prototype,'constructor',constructor))return false;}\n",
+        "  // The admitted path above proves the stock Three factory ran. Verify that its\n",
+        "  // output is an independent exact copy before granting the private capability.\n",
+        "  frameRegisterIndexedPolygonSource(clone);const c=frameIndexedPolygonSourceCurrent(clone);\n",
+        "  const reject=()=>{frameIndexedPolygonSources.delete(clone);return false;};\n",
+        "  if(!c||c.pc!==s.pc||c.ic!==s.ic)return reject();\n",
+        "  const originals=[s.pa,s.na,s.ia],copies=[c.pa,c.na,c.ia];if(new Set(copies.map(a=>a.buffer)).size!==3)return reject();\n",
+        "  for(let k=0;k<3;k++){const a=copies[k];if(originals.some(b=>a.buffer===b.buffer)||a.length!==originals[k].length)return reject();const x=new Uint32Array(a.buffer,a.byteOffset,a.length),y=new Uint32Array(originals[k].buffer,originals[k].byteOffset,originals[k].length);for(let i=0;i<x.length;i++)if(x[i]!==y[i])return reject();}\n",
+        "  if(polygonCreaseGeometryCurrent(source)){markPolygonCreaseGeometry(clone);if(frameSTLPrepared.has(source))frameSTLPrepared.add(clone);}\n",
+        "  if(frameBoundaryCanonicalCurrent(source))frameMarkBoundaryCanonical(clone);\n",
+        "  return true;\n",
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:frameRegisterIndexedPolygonClone',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n",
+        "function frameIndexedPolygonGroups(g) {\n",
+        "  const s=frameIndexedPolygonSourceCurrent(g);if(!s)return null;\n",
+        "  const length=2**Math.ceil(Math.log2(Math.max(16,s.pc*2))),slots=new Int32Array(length),keys=new Float64Array(s.pc*3),groups=[],groupOf=new Array(s.pc);slots.fill(-1);\n",
+        "  for(let v=0;v<s.pc;v++){const at=v*3,x=Math.round(s.pa[at]*1e5),y=Math.round(s.pa[at+1]*1e5),z=Math.round(s.pa[at+2]*1e5);if(!Number.isSafeInteger(x)||!Number.isSafeInteger(y)||!Number.isSafeInteger(z))return null;keys[at]=x;keys[at+1]=y;keys[at+2]=z;let slot=framePolygonHash(x,y,z)&(length-1),group;\n",
+        "    while(slots[slot]!==-1){const other=slots[slot],o=other*3;if(keys[o]===x&&keys[o+1]===y&&keys[o+2]===z){group=groupOf[other];break;}slot=(slot+1)&(length-1);}\n",
+        "    if(!group){group=[];groups.push(group);slots[slot]=v;}group.push(v);groupOf[v]=group;\n",
+        "  }\n",
+        "  frameIndexedPolygonGroupTables.set(g,{p:s.p,pa:s.pa,pv:s.p.version,slots,keys,imul:framePolygonCoordinateDescriptor(Math,'imul')?.value});\n",
+        "  vertexGroupCache.set(g,groups);vertexGroupOfCache.set(g,groupOf);return groups;\n",
+        "}\n",
+        "function frameIndexedPolygonConnectivity(g,force=false) {\n",
+        "  const s=frameIndexedPolygonSourceCurrent(g);if(!s)return null;\n",
+        "  const cached=frameIndexedPolygonSignatures.get(g);if(!force&&cached?.source===s&&cached.pv===s.p.version&&cached.iv===s.i.version&&cached.imul===framePolygonCoordinateDescriptor(Math,'imul')?.value)return cached.value;\n",
+        "  const classified=frameIndexedPolygonCoordinates(s.pa,s.pc);if(!classified)return null;\n",
+        "  const first=new Int32Array(classified.coordCount);first.fill(-1);let count=0,hash=2166136261;\n",
+        "  for(let c=0;c<s.ic;c++){const key=classified.coords[s.ia[c]];let id=first[key];if(id===-1)first[key]=id=count++;hash^=id;hash=Math.imul(hash,16777619);}\n",
+        "  const value='mesh:'+s.ic+':'+count+':'+(hash>>>0);frameIndexedPolygonSignatures.set(g,{source:s,pv:s.p.version,iv:s.i.version,imul:framePolygonCoordinateDescriptor(Math,'imul')?.value,value});return g.userData.framePLAConnectivity=value;\n",
+        "}\n",
+        "function frameTryIndexedPolygonTopology(mesh) {\n",
+        "  const g=mesh?.geometry,s=frameIndexedPolygonSourceCurrent(g),h=mesh&&meshToHash.get(mesh),selected=h&&polySelection.items.get(h);\n",
+        "  if(!s){frameIndexedPolygonNote('admission-source-rejected',g);return false;}\n",
+        "  if(!s||!polygonCreaseGeometryCurrent(g)||polyElementMode!=='face'||vertexTools.soft.active||!selected?.faces.size||selected.vertices.size||selected.edges.size||polyExactEdgeVertices?.has(h)||frameMorphTag(h)||frameMorphEditing){frameIndexedPolygonNote('admission-policy-rejected',g,{mode:polyElementMode,soft:vertexTools.soft.active,creaseCurrent:polygonCreaseGeometryCurrent(g),faces:selected?.faces.size,vertices:selected?.vertices.size,edges:selected?.edges.size,exactEdge:polyExactEdgeVertices?.has(h),morphEditing:!!frameMorphEditing});return false;}\n",
+        "  for(const [other,m]of pickMeshes)if(other!==h&&(m.geometry?.attributes.position?.array===s.pa||m.geometry?.attributes.normal?.array===s.na))return false;\n",
+        "  const witness=frameClosedPolygonMeasurementRow(h);if(witness){const faceMask=new Uint8Array(s.ic/3);for(const f of selected.faces)faceMask[f]=1;frameIndexedPolygonCandidates.set(g,{source:s,faceMask,selectedRaw:witness.mask,measurementWitness:witness});frameIndexedPolygonNote('admitted-repeat',g,{selectedFaces:selected.faces.size});return true;}\n",
+        "  const faceMask=new Uint8Array(s.ic/3),selectedRaw=new Uint8Array(s.pc);\n",
+        "  // Exact small current selection can reject an open boundary before building\n",
+        "  // every logical group. Successful closed admission retains its full proof.\n",
+        "  const small=frameSmallPolygonMeasurementIDs(h);if(small){for(const v of small)selectedRaw[v]=1;for(const f of selected.faces){if(!Number.isInteger(f)||f<0||f>=faceMask.length)return false;faceMask[f]=1;}for(let f=0;f<faceMask.length;f++)if(!faceMask[f])for(let k=0;k<3;k++)if(selectedRaw[s.ia[f*3+k]]){frameIndexedPolygonNote('admission-boundary-rejected',g,{outOfRange:false});return false;}}\n",
+        "  logicalVertexGroups(g);const groups=vertexGroupOfCache.get(g);\n",
+        "  for(const f of selected.faces){if(!Number.isInteger(f)||f<0||f>=faceMask.length)return false;faceMask[f]=1;for(let k=0;k<3;k++)for(const v of groups[s.ia[f*3+k]])selectedRaw[v]=1;}\n",
+        "  const seen=new Uint8Array(s.pc);let next=0;\n",
+        "  for(let f=0;f<faceMask.length;f++)for(let k=0;k<3;k++){\n",
+        "    const v=s.ia[f*3+k];if(v>=s.pc||!faceMask[f]&&selectedRaw[v]){frameIndexedPolygonNote('admission-boundary-rejected',g,{outOfRange:v>=s.pc});return false;}\n",
+        "    if(!seen[v]){seen[v]=1;if(v!==next++){frameIndexedPolygonNote('admission-noncanonical-rejected',g);return false;}}\n",
+        "  }\n",
+        "  if(next!==s.pc){frameIndexedPolygonNote('admission-unused-rejected',g);return false;}\n",
+        "  frameIndexedPolygonCandidates.set(g,{source:s,faceMask,selectedRaw});frameIndexedPolygonNote('admitted',g,{selectedFaces:selected.faces.size});return true;\n",
+        "}\n",
+        "function frameCreateIndexedPolygonRegion(mesh,rec) {\n",
+        "  const g=mesh.geometry,c=frameIndexedPolygonCandidates.get(g);frameIndexedPolygonCandidates.delete(g);\n",
+        "  if(!c)return null;const {source:s,faceMask,selectedRaw}=c,old=gizBeforePolyGeom?.get(meshToHash.get(mesh));\n",
+        "  if(!old||old.creaseCos!==CREASE_COS||!old.attrs.position||!old.attrs.normal||!old.index)return null;\n",
+        "  const rawToLocal=new Int32Array(s.pc);rawToLocal.fill(-1);const vertices=[];\n",
+        "  for(let v=0;v<s.pc;v++)if(selectedRaw[v]){rawToLocal[v]=vertices.length;vertices.push(v);}\n",
+        "  const indices=new Uint32Array(faceMask.reduce((n,x)=>n+x,0)*3);let at=0;\n",
+        "  for(let f=0;f<faceMask.length;f++)if(faceMask[f])for(let k=0;k<3;k++)indices[at++]=rawToLocal[s.ia[f*3+k]];\n",
+        "  const geometry=new THREE2.BufferGeometry(),pa=new Float32Array(vertices.length*3);\n",
+        "  for(let v=0;v<vertices.length;v++)for(let k=0;k<3;k++)pa[v*3+k]=s.pa[vertices[v]*3+k];\n",
+        "  geometry.setAttribute('position',new THREE2.BufferAttribute(pa,3));geometry.setAttribute('normal',new THREE2.BufferAttribute(new Float32Array(pa.length),3));geometry.setIndex(new THREE2.BufferAttribute(indices,1));\n",
+        "  const submesh=new THREE2.Mesh(geometry,mesh.material),nested={_indexedPolygonNested:true};\n",
+        "  const witness=c.measurementWitness;let slots,quantized,q;\n",
+        "  if(witness){({slots,quantized,q}=witness.outsideClassifier);}else{\n",
+        "  const outsideSize=2**Math.ceil(Math.log2(Math.max(16,s.pc*2)));slots=new Int32Array(outsideSize);slots.fill(-1);\n",
+        "  quantized=new Uint32Array(s.pc*3);q={smallCoordinates:new Map(),one:new Float32Array(1)};q.oneBits=new Uint32Array(q.one.buffer);\n",
+        "  const bits=new Uint32Array(s.pa.buffer,s.pa.byteOffset,s.pa.length),key=(v)=>{const o=v*3;for(let k=0;k<3;k++){if(!Number.isFinite(s.pa[o+k]))return false;quantized[o+k]=frameIndexedPolygonWeldBits(s.pa[o+k],bits[o+k],q);}return true;};\n",
+        "  for(let v=0;v<s.pc;v++)if(!selectedRaw[v]){\n",
+        "    if(!key(v))return null;const o=v*3;let slot=framePolygonHash(quantized[o],quantized[o+1],quantized[o+2])&(slots.length-1);\n",
+        "    while(slots[slot]!==-1){const u=slots[slot]*3;if(quantized[u]===quantized[o]&&quantized[u+1]===quantized[o+1]&&quantized[u+2]===quantized[o+2])break;slot=(slot+1)&(slots.length-1);}slots[slot]=v;\n",
+        "  }\n",
+        "  q.smallCoordinates.clear();\n",
+        "  }\n",
+        "  const rigidNormals=new Float32Array(vertices.length*3);for(let v=0;v<vertices.length;v++)for(let k=0;k<3;k++)rigidNormals[v*3+k]=s.na[vertices[v]*3+k];\n",
+        "  return {g,source:s,canonicalAtBirth:frameBoundaryCanonicalCurrent(g)===s,selectionClassifier:witness?.classifier??frameIndexedPolygonGroupTables.get(g),classifierWitness:witness,initialPositionVersion:s.p.version,faceMask,selectedRaw,vertices,geometry,submesh,nested,slots,quantized,q,rigidNormals,baselinePosition:new Uint32Array(old.attrs.position.array.buffer,old.attrs.position.array.byteOffset,old.attrs.position.array.length),baselineNormal:new Uint32Array(old.attrs.normal.array.buffer,old.attrs.normal.array.byteOffset,old.attrs.normal.array.length),baselineIndex:old.index,pv:s.p.version,nv:s.n.version,iv:s.i.version,stable:false};\n",
+        "}\n",
+        "// Expand only the selected component when its current normal fans split/merge.\n",
+        "// Every selected corner keeps its original Float64 gesture value. The stationary\n",
+        "// part retains its separate imported vertices and never enters the normal solver.\n",
+        "function frameExpandIndexedPolygonRegion(mesh,rec) {\n",
+        "  const r=rec._indexedPolygonRegion,s=r.source,localIndex=r.geometry.index.array,count=localIndex.length;\n",
+        "  const outside=s.pc-r.vertices.length,positions=new Float32Array((outside+count)*3),normals=new Float32Array(positions.length),indices=new Uint32Array(s.ic),oldToNew=new Int32Array(s.pc);oldToNew.fill(-1);\n",
+        "  let v=0;for(let i=0;i<s.pc;i++)if(!r.selectedRaw[i]){oldToNew[i]=v;for(let k=0;k<3;k++){positions[v*3+k]=s.pa[i*3+k];normals[v*3+k]=s.na[i*3+k];}v++;}\n",
+        "  const where=new Int32Array(s.pc);where.fill(-1);rec.ids.forEach((i,k)=>where[i]=k);\n",
+        "  const values=new Float64Array(count*3),localP=new Float32Array(count*3),w=r.nested._creaseWorkspace;\n",
+        "  for(let c=0;c<count;c++){const raw=r.vertices[localIndex[c]],at=(outside+c)*3,k=where[raw],root=w.parent[c]*3;for(let j=0;j<3;j++){localP[c*3+j]=positions[at+j]=s.pa[raw*3+j];normals[at+j]=w.normal[root+j];values[c*3+j]=rec.values[k*3+j];}}\n",
+        "  let corner=0;for(let f=0;f<r.faceMask.length;f++)for(let k=0;k<3;k++){const c=f*3+k;indices[c]=r.faceMask[f]?outside+corner++:oldToNew[s.ia[c]];}\n",
+        "  const g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(positions,3));g.setAttribute('normal',new THREE2.BufferAttribute(normals,3));g.setIndex(new THREE2.BufferAttribute(indices,1));g.userData={...r.g.userData};for(const k of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners'])delete g.userData[k];g.setDrawRange(r.g.drawRange.start,r.g.drawRange.count);g.groups=r.g.groups.map(q=>({...q}));g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);frameRegisterIndexedPolygonSource(g);replaceEditedGeometry(mesh,g);\n",
+        "  r.geometry.dispose();r.geometry=new THREE2.BufferGeometry();r.geometry.setAttribute('position',new THREE2.BufferAttribute(localP,3));r.geometry.setAttribute('normal',new THREE2.BufferAttribute(normals.slice(outside*3),3));r.geometry.setIndex(new THREE2.BufferAttribute(Uint32Array.from({length:count},(_,i)=>i),1));r.submesh.geometry=r.geometry;r.nested={_indexedPolygonNested:true};\n",
+        "  r.g=g;r.source=frameIndexedPolygonSourceCurrent(g);r.vertices=Array.from({length:count},(_,i)=>outside+i);r.selectedRaw=new Uint8Array(outside+count);r.selectedRaw.fill(1,outside);r.hybrid=true;\n",
+        "  r.baselinePosition=new Uint32Array(positions.slice().buffer);r.baselineNormal=new Uint32Array(normals.slice().buffer);r.baselineIndex=indices.slice();r.pv=g.attributes.position.version;r.nv=g.attributes.normal.version;r.iv=g.index.version;\n",
+        "  rec.ids=r.vertices.slice();rec.values=values;rec.selectedIds=new Set(rec.ids);rec.selectionGeometry=g;rec.selectionPosition=g.attributes.position;rec.selectionIndex=g.index;rec.selectionIndexArray=g.index.array;rec.selectionIndexVersion=g.index.version;logicalVertexGroups(g);rec.selectionGroups=vertexGroupCache.get(g);rec.selectionGroupOf=vertexGroupOfCache.get(g);for(let f=0;f<rec.selectionFaces.length;f++)for(let k=0;k<3;k++)rec.selectionFaceIndices[f*3+k]=indices[rec.selectionFaces[f]*3+k];\n",
+        "  // Rebuild the stationary collision table with the new compact outside IDs.\n",
+        "  r.slots.fill(-1);r.quantized=new Uint32Array(positions.length);const bits=new Uint32Array(positions.buffer),q=r.q;q.smallCoordinates.clear();\n",
+        "  for(let i=0;i<outside;i++){const at=i*3;for(let k=0;k<3;k++)r.quantized[at+k]=frameIndexedPolygonWeldBits(positions[at+k],bits[at+k],q);let slot=framePolygonHash(r.quantized[at],r.quantized[at+1],r.quantized[at+2])&(r.slots.length-1);while(r.slots[slot]!==-1){const o=r.slots[slot]*3;if(r.quantized[o]===r.quantized[at]&&r.quantized[o+1]===r.quantized[at+1]&&r.quantized[o+2]===r.quantized[at+2])break;slot=(slot+1)&(r.slots.length-1);}r.slots[slot]=i;}\n",
+        "  q.smallCoordinates.clear();frameFastPolygonDragNormals(r.submesh,r.nested);const computed=r.geometry.attributes.normal.array;for(let i=0;i<count;i++)for(let k=0;k<3;k++)normals[(outside+i)*3+k]=computed[i*3+k];g.attributes.normal.needsUpdate=true;markPolygonCreaseGeometry(g);r.nv=g.attributes.normal.version;r.stable=false;\n",
+        "}\n",
+        "function frameFallbackIndexedPolygonRegion(mesh,rec) {\n",
+        "  const r=rec._indexedPolygonRegion;if(!r)return;rec._indexedPolygonRegion=null;\n",
+        "  const previous=mesh.geometry,index=previous.index.array,oldIds=rec.ids,values=rec.values,where=new Int32Array(previous.attributes.position.count);where.fill(-1);oldIds.forEach((v,k)=>where[v]=k);\n",
+        "  frameIndexedPolygonSources.delete(previous);preparePolygonDragTopology(mesh);\n",
+        "  const g=mesh.geometry;if(g===previous)return;\n",
+        "  const ids=[],v=[];for(let i=0;i<index.length;i++){const k=where[index[i]];if(k>=0){ids.push(i);v.push(values[k*3],values[k*3+1],values[k*3+2]);}}\n",
+        "  logicalVertexGroups(g);rec.ids=ids;rec.values=new Float64Array(v);rec.selectedIds=new Set(ids);rec.selectionGeometry=g;rec.selectionPosition=g.attributes.position;rec.selectionIndex=g.index;rec.selectionIndexArray=g.index.array;rec.selectionIndexVersion=g.index.version;rec.selectionGroups=vertexGroupCache.get(g);rec.selectionGroupOf=vertexGroupOfCache.get(g);\n",
+        "  for(let k=0;k<rec.selectionFaces.length;k++)for(let j=0;j<3;j++)rec.selectionFaceIndices[k*3+j]=g.index.getX(rec.selectionFaces[k]*3+j);\n",
+        "  r.geometry.dispose();\n",
+        "}\n",
+        "function framePrepareIndexedPolygonPose(mesh,rec) {\n",
+        "  const r=rec?._indexedPolygonRegion;if(!r)return;\n",
+        "  if(mesh.geometry!==r.g||frameIndexedPolygonSourceCurrent(r.g)!==r.source||r.source.p.version!==r.pv||r.source.n.version!==r.nv||r.source.i.version!==r.iv)frameFallbackIndexedPolygonRegion(mesh,rec);\n",
+        "}\n",
+        "// Rigid transforms preserve the existing normal fans and their 46-degree seams.\n",
+        "// Re-solving tiny Float32 triangles after baking a rotation changes their angles\n",
+        "// through cancellation. Use the actual local transform, so a world rotation of\n",
+        "// a nonuniformly scaled/sheared object continues through the exact solver.\n",
+        "function framePrepareIndexedPolygonDelta(mesh,rec,delta,inverse) {\n",
+        "  const r=rec?._indexedPolygonRegion;if(!r)return;\n",
+        "  r.rigidMatrix=null;r.rigidStable=false;if(r.hybrid||rec.weights)return;\n",
+        "  const a=inverse.clone().multiply(delta).multiply(mesh.matrixWorld),m=a.elements;\n",
+        "  if(!m.every(Number.isFinite)||Math.abs(m[3])+Math.abs(m[7])+Math.abs(m[11])+Math.abs(m[15]-1)>1e-12)return;\n",
+        "  const dot=(i,j)=>m[i]*m[j]+m[i+1]*m[j+1]+m[i+2]*m[j+2];\n",
+        "  if(Math.max(Math.abs(dot(0,0)-1),Math.abs(dot(4,4)-1),Math.abs(dot(8,8)-1),Math.abs(dot(0,4)),Math.abs(dot(0,8)),Math.abs(dot(4,8)))>1e-10||a.determinant()<0)return;\n",
+        "  r.rigidMatrix=a;\n",
+        "}\n",
+        "function framePartialIndexedPolygonNormals(mesh,rec) {\n",
+        "  frameIndexedPolygonNote('partial-normal-call',mesh?.geometry,{hasRegion:!!rec?._indexedPolygonRegion,nested:!!rec?._indexedPolygonNested});\n",
+        "  const r=rec?._indexedPolygonRegion;if(!r||rec._indexedPolygonNested)return false;\n",
+        "  const s=r.source,g=mesh.geometry,pa=s.pa,na=s.na;\n",
+        "  let valid=g===r.g&&frameIndexedPolygonSourceCurrent(g)===s&&s.p.version===r.pv+1&&s.n.version===r.nv&&s.i.version===r.iv;\n",
+        "  const pbits=new Uint32Array(pa.buffer,pa.byteOffset,pa.length),nbits=new Uint32Array(na.buffer,na.byteOffset,na.length);\n",
+        "  if(valid)for(let i=0;i<s.ic;i++)if(s.ia[i]!==r.baselineIndex[i]){valid=false;break;}\n",
+        "  if(valid)for(let v=0;v<s.pc;v++)if(!r.selectedRaw[v])for(let k=0;k<3;k++){const i=v*3+k;if(pbits[i]!==r.baselinePosition[i]||nbits[i]!==r.baselineNormal[i]){valid=false;break;}}\n",
+        "  const q=r.q;q.smallCoordinates.clear();\n",
+        "  if(valid)for(let v=0;v<r.vertices.length;v++){\n",
+        "    const o=r.vertices[v]*3,xb=frameIndexedPolygonWeldBits(pa[o],pbits[o],q),yb=frameIndexedPolygonWeldBits(pa[o+1],pbits[o+1],q),zb=frameIndexedPolygonWeldBits(pa[o+2],pbits[o+2],q);let slot=framePolygonHash(xb,yb,zb)&(r.slots.length-1);\n",
+        "    while(r.slots[slot]!==-1){const p=r.slots[slot]*3;if(r.quantized[p]===xb&&r.quantized[p+1]===yb&&r.quantized[p+2]===zb){valid=false;break;}slot=(slot+1)&(r.slots.length-1);}if(!valid)break;\n",
+        "    for(let k=0;k<3;k++)r.geometry.attributes.position.array[v*3+k]=pa[o+k];\n",
+        "  }\n",
+        "  if(valid&&r.rigidMatrix&&!r.hybrid){\n",
+        "    const m=r.rigidMatrix.elements,base=r.rigidNormals,translation=m[0]===1&&m[5]===1&&m[10]===1&&m[1]===0&&m[2]===0&&m[4]===0&&m[6]===0&&m[8]===0&&m[9]===0;\n",
+        "    for(let v=0;v<r.vertices.length;v++){const at=v*3,o=r.vertices[v]*3,x=base[at],y=base[at+1],z=base[at+2];if(translation){na[o]=x;na[o+1]=y;na[o+2]=z;continue;}const nx=m[0]*x+m[4]*y+m[8]*z,ny=m[1]*x+m[5]*y+m[9]*z,nz=m[2]*x+m[6]*y+m[10]*z,l=Math.hypot(nx,ny,nz);na[o]=l?nx/l:0;na[o+1]=l?ny/l:0;na[o+2]=l?nz/l:0;}\n",
+        "    s.n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);r.pv=s.p.version;r.nv=s.n.version;r.stable=true;r.rigidStable=true;return true;\n",
+        "  }\n",
+        "  if(valid)valid=frameFastPolygonDragNormals(r.submesh,r.nested);\n",
+        "  if(valid&&!r.hybrid){\n",
+        "    const w=r.nested._creaseWorkspace,byVertex=new Int32Array(r.vertices.length),byRoot=new Int32Array(r.geometry.index.count);byVertex.fill(-1);byRoot.fill(-1);\n",
+        "    let partitionChanged=false;for(let i=0;i<r.geometry.index.count;i++){const v=r.geometry.index.array[i],root=w.parent[i];if(byVertex[v]!==-1&&byVertex[v]!==root||byRoot[root]!==-1&&byRoot[root]!==v){partitionChanged=true;break;}byVertex[v]=root;byRoot[root]=v;}\n",
+        "    if(partitionChanged){frameIndexedPolygonNote('partial-fan-change',g);frameExpandIndexedPolygonRegion(mesh,rec);rec._indexedPolygonRegion.stable=true;return true;}\n",
+        "  }\n",
+        "  if(!valid){frameIndexedPolygonNote('partial-fallback',g);frameFallbackIndexedPolygonRegion(mesh,rec);return false;}\n",
+        "  const normals=r.geometry.attributes.normal.array;\n",
+        "  for(let v=0;v<r.vertices.length;v++){const o=r.vertices[v]*3,n=v*3;na[o]=normals[n];na[o+1]=normals[n+1];na[o+2]=normals[n+2];}\n",
+        "  s.n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);r.pv=s.p.version;r.nv=s.n.version;r.stable=true;return true;\n",
+        "}\n",
+        "function frameFinalizeIndexedPolygonRegion(mesh,needRemap) {\n",
+        "  const r=gizBeforePoly?.get(meshToHash.get(mesh))?._indexedPolygonRegion;\n",
+        "  if(needRemap||!r?.stable||mesh.geometry!==r.g||frameIndexedPolygonSourceCurrent(r.g)!==r.source||r.source.p.version!==r.pv||r.source.n.version!==r.nv||r.source.i.version!==r.iv)return false;\n",
+        "  if(!r.hybrid)frameCaptureClosedPolygonMeasurements(mesh,gizBeforePoly.get(meshToHash.get(mesh)));\n",
+        "  if(r.hybrid){\n",
+        "    // The full legacy normal solver is already represented by the selected\n",
+        "    // corner roots plus unchanged stationary vertices. Restore the exact final\n",
+        "    // first-corner ordering without recomputing1.57M faces or joining hard seams.\n",
+        "    const s=r.source,w=r.nested._creaseWorkspace,map=new Map(),positions=new Float32Array(s.pa.length),normals=new Float32Array(s.na.length),indices=new Uint32Array(s.ic);let corner=0,count=0;\n",
+        "    for(let f=0;f<r.faceMask.length;f++)for(let k=0;k<3;k++){const at=f*3+k,old=s.ia[at],key=r.faceMask[f]?-w.parent[corner++]-1:old+1;let v=map.get(key);if(v===undefined){v=count++;map.set(key,v);for(let j=0;j<3;j++){positions[v*3+j]=s.pa[old*3+j];normals[v*3+j]=s.na[old*3+j];}}indices[at]=v;}\n",
+        "    const g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(positions.slice(0,count*3),3));g.setAttribute('normal',new THREE2.BufferAttribute(normals.slice(0,count*3),3));g.setIndex(new THREE2.BufferAttribute(indices,1));g.userData={...r.g.userData};g.groups=r.g.groups.map(q=>({...q}));g.setDrawRange(r.g.drawRange.start,r.g.drawRange.count);g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);frameRegisterIndexedPolygonSource(g);replaceEditedGeometry(mesh,g);r.g=g;\n",
+        "  }\n",
+        "  else frameInvalidateIndexedPolygonSignature(r.g);\n",
+        "  if(frameTranslationCanonicalProof(r)){frameMarkBoundaryCanonical(r.g);frameIndexedPolygonNote('translation-canonical-certified',r.g);}\n",
+        "  frameScheduleClosedBaseline(r);\n",
+        "  // Legacy release creates a new geometry, so its logical caches start empty.\n",
+        "  // The stable indexed path must provide the same post-gesture cache lifetime.\n",
+        "  frameIndexedPolygonGroupTables.delete(r.g);vertexGroupCache.delete(r.g);vertexGroupOfCache.delete(r.g);logicalEdgeCache.delete(r.g);\n",
+        "  for(const k of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners'])delete r.g.userData[k];\n",
+        "  r.geometry.dispose();return true;\n",
+        "}\n",
+        "\n",
+        "// Exact affected normal-domain solver with private versioned source admission.\r\n",
+        "// Input data is cloned; the full existing crease solver is injected unchanged.\r\n",
+        "function framePrepareBoundaryFan({positions,index,selectedIds,crease,cos,canonicalBaseline=null,coordinateTable=null,stationaryCollision=null,immutableSource=false}){\r\n",
+        " if(!(positions instanceof Float32Array)||!(index instanceof Uint32Array)||positions.length%3||index.length%3)throw Error('Plain indexed Float32 input required');\r\n",
+        " const baseP=immutableSource?positions:positions.slice(),baseI=immutableSource?index:index.slice(),pc=positions.length/3,fc=index.length/3,movedMask=new Uint8Array(pc),coords=immutableSource&&coordinateTable?coordinateTable.coords:new Uint32Array(pc),classes=new Map();\r\n",
+        " const key=(p,at)=>p[at].toFixed(7)+','+p[at+1].toFixed(7)+','+p[at+2].toFixed(7);\r\n",
+        " if(coordinateTable){if(coordinateTable.coords.length!==pc)throw Error('Coordinate table shape');if(coords!==coordinateTable.coords)coords.set(coordinateTable.coords);}\r\n",
+        " else for(let v=0;v<pc;v++){const at=v*3;if(!Number.isFinite(baseP[at])||!Number.isFinite(baseP[at+1])||!Number.isFinite(baseP[at+2]))throw Error('Finite positions required');const k=key(baseP,at);let id=classes.get(k);if(id===undefined){id=classes.size;classes.set(k,id);}coords[v]=id;}\r\n",
+        " const classCount=coordinateTable?coordinateTable.coordCount:classes.size;\r\n",
+        " const movedClasses=new Uint8Array(classCount);for(const v of selectedIds){if(!Number.isInteger(v)||v<0||v>=pc)throw Error('Selected vertex range');movedClasses[coords[v]]=1;}\r\n",
+        " let movedVertices=0;for(let v=0;v<pc;v++){movedMask[v]=movedClasses[coords[v]];movedVertices+=movedMask[v];}\r\n",
+        " const targetClasses=new Uint8Array(classCount);let touchedFaces=0;\r\n",
+        " for(let f=0;f<fc;f++){const at=f*3,a=baseI[at],b=baseI[at+1],c=baseI[at+2];if(a>=pc||b>=pc||c>=pc)throw Error('Index range');if(movedMask[a]||movedMask[b]||movedMask[c]){touchedFaces++;targetClasses[coords[a]]=targetClasses[coords[b]]=targetClasses[coords[c]]=1;}}\r\n",
+        " const targetMask=new Uint8Array(pc);let targetVertices=0;for(let v=0;v<pc;v++){targetMask[v]=targetClasses[coords[v]];targetVertices+=targetMask[v];}\r\n",
+        " const localFace=new Int32Array(fc),regionRaw=new Uint8Array(pc);localFace.fill(-1);const faces=[];\r\n",
+        " for(let f=0;f<fc;f++){const at=f*3;if(targetMask[baseI[at]]||targetMask[baseI[at+1]]||targetMask[baseI[at+2]]){localFace[f]=faces.length;faces.push(f);for(let k=0;k<3;k++)regionRaw[baseI[at+k]]=1;}}\r\n",
+        " const rawToLocal=new Int32Array(pc);rawToLocal.fill(-1);const vertices=[];for(let v=0;v<pc;v++)if(regionRaw[v]){rawToLocal[v]=vertices.length;vertices.push(v);}\r\n",
+        " const localIndex=new Uint32Array(faces.length*3);for(let i=0;i<faces.length;i++)for(let k=0;k<3;k++)localIndex[i*3+k]=rawToLocal[baseI[faces[i]*3+k]];\r\n",
+        " const outsideKeys=new Set();if(!stationaryCollision)for(let v=0;v<pc;v++)if(!movedMask[v])outsideKeys.add(key(baseP,v*3));\r\n",
+        " // The canonical baseline may differ from imported normals for other inputs.\r\n",
+        " // Keeping its complete output makes this CPU prototype match global editor\r\n",
+        " // semantics even for such inputs. The browser cold preparation cost is open.\r\n",
+        " let baseline=canonicalBaseline??crease(baseP,baseI,cos),baselinePC=baseline.positions.length/3;\r\n",
+        " if(faces.length>8192||vertices.length>32768)return null;\n",
+        " const localP=new Float32Array(vertices.length*3);let map=new Int32Array(baselinePC+localIndex.length);\r\n",
+        " const statistics={vertices:pc,faces:fc,movedVertices,touchedFaces,targetVertices,regionFaces:faces.length,regionVertices:vertices.length,providedCanonicalBaseline:!!canonicalBaseline,numericCoordinateTable:!!coordinateTable,canonicalBaselineExactPositions:baseline.positions.length===baseP.length&&true};\r\n",
+        " function applyLocal(current){\r\n",
+        "  if(!(current instanceof Float32Array)||current.length!==baseP.length)throw Error('Current position shape');\r\n",
+        "  for(let v=0;v<pc;v++)if(movedMask[v]){\r\n",
+        "   const at=v*3;if(!Number.isFinite(current[at])||!Number.isFinite(current[at+1])||!Number.isFinite(current[at+2]))return{fast:false,reason:'nonfinite selected coordinate'};\r\n",
+        "   if(stationaryCollision?stationaryCollision(current,at,movedMask):outsideKeys.has(key(current,at)))return{...crease(current,baseI,cos),fast:false,reason:'selected/stationary weld collision'};\r\n",
+        "  }\r\n",
+        "  for(let v=0;v<vertices.length;v++)for(let k=0;k<3;k++)localP[v*3+k]=current[vertices[v]*3+k];\r\n",
+        "  return{fast:true,local:crease(localP,localIndex,cos)};\n",
+        " }\n",
+        " function apply(current){const result=applyLocal(current);if(!result.fast)return result;const local=result.local,limit=baselinePC+local.positions.length/3,outP=new Float32Array(limit*3),outN=new Float32Array(limit*3),outI=new Uint32Array(baseI.length),sourceRaw=new Uint32Array(limit);map.fill(-1);let used=0;\r\n",
+        "  for(let f=0;f<fc;f++)for(let k=0;k<3;k++){\r\n",
+        "   const corner=f*3+k,raw=baseI[corner],affected=targetMask[raw]!==0,li=affected?local.indices[localFace[f]*3+k]:-1,id=affected?baselinePC+li:baseline.indices[corner];let to=map[id];\r\n",
+        "   if(to===-1){\r\n",
+        "    to=used++;map[id]=to;const at=to*3,from=(affected?li:id)*3,p=affected?local.positions:baseline.positions,n=affected?local.normals:baseline.normals;\r\n",
+        "    outP[at]=p[from];outP[at+1]=p[from+1];outP[at+2]=p[from+2];outN[at]=n[from];outN[at+1]=n[from+1];outN[at+2]=n[from+2];sourceRaw[to]=affected?vertices[local.source[li]]:baseline.source[id];\r\n",
+        "   }\r\n",
+        "   outI[corner]=to;\r\n",
+        "  }\r\n",
+        "  return{positions:outP.slice(0,used*3),normals:outN.slice(0,used*3),indices:outI,sourceRaw:sourceRaw.slice(0,used),canonicalMap:map,targetMask,regionFaces:faces,fast:true};\r\n",
+        " }\r\n",
+        " function adoptCanonicalBaseline(b){\n",
+        "  const n=b?.positions?.length/3;if(!(b?.positions instanceof Float32Array)||!(b?.normals instanceof Float32Array)||b.normals.length!==b.positions.length||!(b?.indices instanceof Uint32Array)||b.indices.length!==baseI.length||!(b?.source instanceof Uint32Array)||b.source.length!==n)return false;\n",
+        "  const pWords=new Uint32Array(b.positions.buffer,b.positions.byteOffset,b.positions.length),oldWords=new Uint32Array(baseP.buffer,baseP.byteOffset,baseP.length);\n",
+        "  for(let v=0;v<n;v++){const raw=b.source[v];if(raw>=pc)return false;for(let k=0;k<3;k++)if(pWords[v*3+k]!==oldWords[raw*3+k]||!Number.isFinite(b.normals[v*3+k]))return false;}\n",
+        "  for(const index of b.indices)if(index>=n)return false;\n",
+        "  baseline=b;baselinePC=n;map=new Int32Array(baselinePC+localIndex.length);return true;\n",
+        " }\n",
+        " return{apply,applyLocal,adoptCanonicalBaseline,statistics,movedMask,targetMask,faces,localFace,vertices,baseP,baseI};\r\n",
+        "}\r\n",
+        "\n",
+        "// This capability is private, versioned and never read from geometry.userData.\n",
+        "// Both stock STL passes use the same seven-decimal normal solver. Its final\n",
+        "// first-corner layout is idempotent. Selection/Connected still use five decimals.\n",
+        "const frameTranslationSame=Object.is,frameTranslationFixed=Number.prototype.toFixed,frameTranslationHypot=Math.hypot;\n",
+        "function frameTranslationCanonicalProof(r){\n",
+        " if(!r?.canonicalAtBirth||!r.stable||!r.rigidStable||r.hybrid||!r.rigidMatrix||framePolygonCoordinateDescriptor(Object,'is')?.value!==frameTranslationSame||framePolygonCoordinateDescriptor(Number.prototype,'toFixed')?.value!==frameTranslationFixed||framePolygonCoordinateDescriptor(Math,'hypot')?.value!==frameTranslationHypot)return false;\n",
+        " const m=r.rigidMatrix.elements;if(m.length!==16||m[0]!==1||m[5]!==1||m[10]!==1||m[15]!==1||m[1]!==0||m[2]!==0||m[3]!==0||m[4]!==0||m[6]!==0||m[7]!==0||m[8]!==0||m[9]!==0||m[11]!==0)return false;\n",
+        " const s=r.source,p=s.pa,before=new Float32Array(r.baselinePosition.buffer,r.baselinePosition.byteOffset,r.baselinePosition.length),bits=new Uint32Array(p.buffer,p.byteOffset,p.length),nBits=new Uint32Array(s.na.buffer,s.na.byteOffset,s.na.length);\n",
+        " if(before.length!==p.length||nBits.length!==r.baselineNormal.length||s.ia.length!==r.baselineIndex.length||!r.vertices.length)return false;\n",
+        " for(let i=0;i<s.ia.length;i++)if(s.ia[i]!==r.baselineIndex[i])return false;\n",
+        " for(let i=0;i<nBits.length;i++)if(nBits[i]!==r.baselineNormal[i])return false;\n",
+        " const first=r.vertices[0]*3,shift=[p[first]-before[first],p[first+1]-before[first+1],p[first+2]-before[first+2]];\n",
+        " for(const v of r.vertices)for(let k=0;k<3;k++){\n",
+        "  const at=v*3+k,a=before[at],b=p[at],d=b-a;if(!Number.isFinite(d)||d!==shift[k])return false;\n",
+        "  if(d===0){if(!frameTranslationSame(a,b))return false;continue;}\n",
+        "  // Changed coordinates are in an injective seven-decimal F32 domain.\n",
+        "  if(!(a>=1||a<=-1)||!(b>=1||b<=-1))return false;\n",
+        "  // Each F32 subtraction is exactly representable in F64 (24+29 bits).\n",
+        "  const ea=(r.baselinePosition[at]>>>23)&255,eb=(bits[at]>>>23)&255;if(ea-eb>29||eb-ea>29)return false;\n",
+        " }\n",
+        " // Compare the precise edge subtraction words consumed by the old solver.\n",
+        " // Equal vectors give identical areas, joins and normal sums in face order.\n",
+        " for(let f=0;f<r.faceMask.length;f++)if(r.faceMask[f])for(let j=1;j<3;j++)for(let k=0;k<3;k++){\n",
+        "  const a=s.ia[f*3]*3+k,b=s.ia[f*3+j]*3+k;if(!frameTranslationSame(before[b]-before[a],p[b]-p[a]))return false;\n",
+        " }\n",
+        " // The admitted last rigid pose already checked unchanged stationary data,\n",
+        " // original indices and absence of selected/stationary seven-decimal aliases.\n",
+        " return true;\n",
+        "}\n",
+        "\n",
+        "// Worker-only kernel. The caller must privately certify that the stationary\n",
+        "// normal fans remain the prior global canonical result. No authoring write.\n",
+        "function frameClosedCanonicalBaseline({positions,normals,indices,faceMask,selectedRaw,collisionCertified=false},crease,cos){\n",
+        " if(!(positions instanceof Float32Array)||!(normals instanceof Float32Array)||!(indices instanceof Uint32Array)||!(faceMask instanceof Uint8Array)||!(selectedRaw instanceof Uint8Array)||positions.length%3||normals.length!==positions.length||indices.length%3||faceMask.length!==indices.length/3||selectedRaw.length!==positions.length/3)throw Error('Closed baseline array layout');\n",
+        " const pc=selectedRaw.length,fc=faceMask.length;\n",
+        " if(!collisionCertified){const coordinates=frameSTLCreaseCoordinates(positions),selectedClass=new Uint8Array(coordinates.coordCount);\n",
+        " for(let v=0;v<pc;v++)if(selectedRaw[v])selectedClass[coordinates.coords[v]]=1;\n",
+        " for(let v=0;v<pc;v++)if(!selectedRaw[v]&&selectedClass[coordinates.coords[v]])return{fast:false,reason:'Selected/stationary normal class collision'};\n",
+        " }\n",
+        " const toLocal=new Int32Array(pc),vertices=[];toLocal.fill(-1);for(let v=0;v<pc;v++)if(selectedRaw[v]){toLocal[v]=vertices.length;vertices.push(v);}\n",
+        " const localFace=new Int32Array(fc);localFace.fill(-1);let nf=0;for(let f=0;f<fc;f++)if(faceMask[f])localFace[f]=nf++;\n",
+        " const p=new Float32Array(vertices.length*3),ix=new Uint32Array(nf*3);for(let v=0;v<vertices.length;v++)for(let k=0;k<3;k++)p[v*3+k]=positions[vertices[v]*3+k];\n",
+        " for(let f=0;f<fc;f++)for(let k=0;k<3;k++){const raw=indices[f*3+k];if(raw>=pc)throw Error('Closed baseline index range');if(!!selectedRaw[raw]!==!!faceMask[f])return{fast:false,reason:'Open face boundary'};if(faceMask[f])ix[localFace[f]*3+k]=toLocal[raw];}\n",
+        " const local=crease(p,ix,cos),localPC=local.positions.length/3,map=new Int32Array(pc+localPC);map.fill(-1);const outP=new Float32Array((pc+localPC)*3),outN=new Float32Array(outP.length),outI=new Uint32Array(indices.length),source=new Uint32Array(pc+localPC);let used=0;\n",
+        " for(let f=0;f<fc;f++)for(let k=0;k<3;k++){const c=f*3+k,raw=indices[c],li=faceMask[f]?local.indices[localFace[f]*3+k]:-1,id=li>=0?pc+li:raw;let to=map[id];if(to===-1){to=used++;map[id]=to;const from=li>=0?li:raw,pa=li>=0?local.positions:positions,na=li>=0?local.normals:normals;for(let j=0;j<3;j++){outP[to*3+j]=pa[from*3+j];outN[to*3+j]=na[from*3+j];}source[to]=li>=0?vertices[local.source[li]]:raw;}outI[c]=to;}\n",
+        " return{fast:true,positions:outP.slice(0,used*3),normals:outN.slice(0,used*3),indices:outI,source:source.slice(0,used),selectedVertices:vertices.length,selectedFaces:nf};\n",
+        "}\n",
+        "\n",
+        "// Private derived data. A worker never writes the authored geometry.\n",
+        "const frameClosedBaselines=new WeakMap();\n",
+        "let frameClosedBaselineJob=null;\n",
+        "const frameClosedBaselineInputLimit=64*1024*1024,frameClosedBaselineResultLimit=192*1024*1024;\n",
+        "function frameClosedBaselineCurrent(g){\n",
+        " const c=frameClosedBaselines.get(g),s=frameIndexedPolygonSourceCurrent(g);\n",
+        " if(!c||s!==c.s||s.p.version!==c.pv||s.n.version!==c.nv||s.i.version!==c.iv||!polygonCreaseGeometryCurrent(g)||framePolygonCoordinateDescriptor(Math,'imul')?.value!==c.imul)return null;\n",
+        " return c;\n",
+        "}\n",
+        "// Only the private, unchanged source of an accepted closed rigid pose can\n",
+        "// preview a small boundary edit while its exact canonical baseline is pending.\n",
+        "const frameClosedPendingSnapshots=new WeakMap();\n",
+        "var frameColdPolygonRelease=null;\n",
+        "function frameClosedBaselinePendingCurrent(g){\n",
+        " const job=frameClosedBaselineJob,s=frameIndexedPolygonSourceCurrent(g);\n",
+        " return job&&job.g===g&&job.s===s&&job.previewEligible&&s.p.version===job.pv&&s.n.version===job.nv&&s.i.version===job.iv&&polygonCreaseGeometryCurrent(g)&&framePolygonCoordinateDescriptor(Math,'imul')?.value===job.imul&&frameClosedRigidSeparationCurrent(job.region,s.pa)?job:null;\n",
+        "}\n",
+        "function frameRememberClosedPendingSnapshot(g,state){\n",
+        " const job=frameClosedBaselinePendingCurrent(g);if(job)frameClosedPendingSnapshots.set(state,{g,s:job.s,pv:job.pv,nv:job.nv,iv:job.iv,job});\n",
+        "}\n",
+        "function frameClosedPendingSnapshotCurrent(g,state){\n",
+        " const c=frameClosedPendingSnapshots.get(state),s=frameIndexedPolygonSourceCurrent(g);\n",
+        " return !!c&&c.g===g&&c.s===s&&s.p.version===c.pv&&s.n.version===c.nv&&s.i.version===c.iv&&polygonCreaseGeometryCurrent(g);\n",
+        "}\n",
+        "function frameBeginColdPolygonRelease(event){\n",
+        " if(event?.type==='pointercancel'||!polyFocusActive()||editPivot||!gizBeforePoly)return null;\n",
+        " const records=gizBeforePoly,regions=[...records.values()].map(rec=>rec._boundaryPolygonRegion).filter(r=>r?.pendingJob);\n",
+        " if(!regions.length)return null;\n",
+        " const token={records,before:gizBeforePolyGeom,beforeGizmo:gizBeforeGizmo,regions,ready:Promise.all(regions.map(r=>r.pendingJob.promise))};\n",
+        " token.valid=()=>frameColdPolygonRelease===token&&gizBeforePoly===records&&gizBeforeGizmo===token.beforeGizmo&&polyFocusActive()&&!editPivot&&[...records].every(([h,rec])=>{const mesh=pickMeshes.get(h);return !!mesh&&(!rec._boundaryPolygonRegion||frameBoundarySelectionCurrent(mesh,rec,rec._boundaryPolygonRegion));});\n",
+        " frameColdPolygonRelease=token;return token;\n",
+        "}\n",
+        "function frameCancelColdPolygonRelease(token){\n",
+        " if(frameColdPolygonRelease!==token)return;\n",
+        " frameColdPolygonRelease=null;token.cancelled=true;\n",
+        " if(gizBeforePoly!==token.records)return;\n",
+        " // Selection may change while a release awaits its worker. Restore only the\n",
+        " // privately tracked current preview; never overwrite a replaced/edited source.\n",
+        " const restore=new Map();\n",
+        " for(const [h,rec]of token.records){\n",
+        "  const mesh=pickMeshes.get(h),r=rec._boundaryPolygonRegion,s=mesh&&frameIndexedPolygonSourceCurrent(mesh.geometry);\n",
+        "  if(r&&mesh.geometry===r.g&&s===r.s&&s?.p.version===r.pv&&s?.n.version===r.nv&&s?.i.version===r.iv&&token.before?.has(h))restore.set(h,token.before.get(h));\n",
+        " }\n",
+        " if(restore.size)restorePolyGeometries(restore);\n",
+        " polyPivotMatrix=gizBeforePolyPivot&&gizBeforePolyPivot.slice();polyExactEdgeVertices=null;polyExtrudedFaces=null;\n",
+        " gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforePolySoft=null;gizBeforeGizmo=null;\n",
+        " rebuildPolySelection(true);placeGizmoForSelection();updateHUD();scheduleRender();\n",
+        "}\n",
+        "function frameAdoptColdPolygonBaselines(token){\n",
+        " for(const r of token.regions){\n",
+        "  const current=frameClosedBaselineCurrent(r.pendingGeometry),baseline=current?.baseline;\n",
+        "  const rec=[...token.records.values()].find(rec=>rec._boundaryPolygonRegion===r);\n",
+        "  if(baseline&&r.fan.adoptCanonicalBaseline(baseline)){r.baselineEdges=baseline.wire;r.pendingJob=null;frameIndexedPolygonNote('cold-boundary-canonical-adopted',r.g,{vertices:baseline.positions.length/3});}\n",
+        "  else if(rec){rec._boundaryPolygonRegion=null;frameIndexedPolygonNote('cold-boundary-release-fallback',r.g);}\n",
+        " }\n",
+        "}\n",
+        "\n",
+        "function frameBoundaryPreparedSource(g){return frameBoundaryCanonicalCurrent(g)||frameClosedBaselineCurrent(g)?.s||frameClosedBaselinePendingCurrent(g)?.s||null;}\n",
+        "function frameClosedBaselineSameWords(a,b){\n",
+        " if(a.constructor!==b.constructor||a.length!==b.length)return false;\n",
+        " const x=new Uint32Array(a.buffer,a.byteOffset,a.length),y=new Uint32Array(b.buffer,b.byteOffset,b.length);\n",
+        " for(let i=0;i<x.length;i++)if(x[i]!==y[i])return false;return true;\n",
+        "}\n",
+        "// Caller privately proves a closed selected island, unchanged stationary\n",
+        "// canonical fans, and the current stock wire of the unchanged source indices.\n",
+        "// Rebuild selected edges; monotonically remap and merge unchanged outside edges.\n",
+        "function frameClosedBaselinePartitionWire(b,faceMask,selectedRaw,baselineWire){\n",
+        " const pc=b.positions.length/3,source=b.source,oldPC=selectedRaw.length;\n",
+        " if(!(baselineWire instanceof Uint32Array)||baselineWire.length%2||!(source instanceof Uint32Array)||source.length!==pc||b.indices.length!==faceMask.length*3||b.indices.length<100000||pc>94906265)return null;\n",
+        " const outside=new Int32Array(oldPC);outside.fill(-1);\n",
+        " for(let v=0;v<pc;v++){const raw=source[v];if(raw>=oldPC)return null;if(!selectedRaw[raw]){if(outside[raw]>=0)return null;outside[raw]=v;}}\n",
+        " let faceCount=0;for(const selected of faceMask)if(selected)faceCount++;\n",
+        " const keys=new Float64Array(faceCount*3);let used=0;\n",
+        " for(let f=0;f<faceMask.length;f++)if(faceMask[f])for(let k=0;k<3;k++){const a=b.indices[f*3+k],c=b.indices[f*3+(k+1)%3];if(a>=pc||c>=pc||!selectedRaw[source[a]]||!selectedRaw[source[c]])return null;if(a!==c)keys[used++]=a<c?a*pc+c:c*pc+a;}\n",
+        " const local=keys.subarray(0,used);local.sort();const Index=pc<65536?Uint16Array:Uint32Array,out=new Index(baselineWire.length+local.length*2);let li=0,at=0,previous=-1,lastOutside=-1;\n",
+        " const emit=key=>{if(key===previous)return;previous=key;const a=Math.floor(key/pc);out[at++]=a;out[at++]=key-a*pc;};\n",
+        " for(let j=0;j<baselineWire.length;j+=2){const rawA=baselineWire[j],rawB=baselineWire[j+1];if(rawA>=oldPC||rawB>=oldPC)return null;const sa=!!selectedRaw[rawA],sb=!!selectedRaw[rawB];if(sa!==sb)return null;if(sa)continue;const a=outside[rawA],c=outside[rawB];if(a<0||c<0||a>=c)return null;const key=a*pc+c;if(key<=lastOutside)return null;lastOutside=key;while(li<local.length&&local[li]<key)emit(local[li++]);emit(key);while(li<local.length&&local[li]===key)li++;}\n",
+        " while(li<local.length)emit(local[li++]);return out.slice(0,at);\n",
+        "}\n",
+        "\n",
+        "function frameClosedBaselineWorkerMain(){\n",
+        " self.onmessage=({data:m})=>{try{\n",
+        "  if(m.id!==1)throw Error('Invalid closed baseline request');\n",
+        "  const start=performance.now(),r=m.partition?frameClosedCanonicalBaseline(m,frameSTLCreaseData,m.cos):frameSTLCreaseData(m.positions,m.indices,m.cos);const creaseMS=performance.now()-start,wireStart=performance.now();\n",
+        "  if(m.partition&&!r.fast)throw Error(r.reason);\n",
+        "  const merged=m.partition&&m.baselineWire?frameClosedBaselinePartitionWire(r,m.faceMask,m.selectedRaw,m.baselineWire):null,wire=merged??frameWireIndices({count:r.positions.length/3},{count:r.indices.length,getX:i=>r.indices[i]}),result={positions:r.positions,normals:r.normals,indices:r.indices,source:r.source,wire},timings={creaseMS,wireMS:performance.now()-wireStart,partitionWire:!!merged,collisionCertified:m.collisionCertified===true};\n",
+        "  self.postMessage({id:1,result,timings,input:{positions:m.positions,normals:m.normals,indices:m.indices}},[...Object.values(result),m.positions,m.normals,m.indices].map(a=>a.buffer));\n",
+        " }catch(e){self.postMessage({id:1,error:e?.message||String(e)});}};\n",
+        "}\n",
+        "async function frameClosedBaselineTask(packet,signal){\n",
+        " const release=await frameComputeBudget.acquire('native',signal);let worker,url;\n",
+        " try{\n",
+        "  if(signal.aborted)throw signal.reason;\n",
+        "  const source=[framePolygonHash,framePolygonWeldBits,frameSTLCreaseCoordinates,frameSTLCreaseData,frameClosedCanonicalBaseline,frameWireIndices,frameClosedBaselinePartitionWire].map(f=>f.toString()).join('\\n')+'\\n('+frameClosedBaselineWorkerMain.toString()+')();';\n",
+        "  url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));\n",
+        "  return await new Promise((resolve,reject)=>{\n",
+        "   let done=false;const finish=(e,r)=>{if(done)return;done=true;signal.removeEventListener('abort',abort);e?reject(e):resolve(r);},abort=()=>{worker?.terminate();finish(signal.reason||Error('Closed baseline cancelled'));};\n",
+        "   signal.addEventListener('abort',abort,{once:true});\n",
+        "   try{if(signal.aborted){abort();return;}worker=new Worker(url,{name:'closed-canonical-baseline'});worker.onerror=e=>finish(Error(e.message||'Closed baseline worker failed'));worker.onmessageerror=()=>finish(Error('Closed baseline worker message'));\n",
+        "    worker.onmessage=({data})=>{if(data.id!==1||data.error||!data.result||!data.input)finish(Error(data.error||'Closed baseline worker response'));else finish(null,data);};\n",
+        "    worker.postMessage({id:1,...packet},[packet.positions.buffer,packet.normals.buffer,packet.indices.buffer,packet.faceMask.buffer,packet.selectedRaw.buffer,...(packet.baselineWire?[packet.baselineWire.buffer]:[])]);\n",
+        "   }catch(e){finish(e);}\n",
+        "  });\n",
+        " }finally{worker?.terminate();if(url)URL.revokeObjectURL(url);release();}\n",
+        "}\n",
+        "// A private accepted rigid pose already tested every moved seven-decimal class\n",
+        "// against its immutable stationary classifier. Reuse that proof only while the\n",
+        "// selected Float32 words still equal the private local pose captured by it.\n",
+        "function frameClosedRigidSeparationCurrent(r,positions){\n",
+        " const p=r?.geometry?.attributes?.position?.array;\n",
+        " if(!r?.rigidStable||r.hybrid||!(p instanceof Float32Array)||p.length!==r.vertices.length*3||!(positions instanceof Float32Array)||framePolygonCoordinateDescriptor(Number.prototype,'toFixed')?.value!==frameTranslationFixed)return false;\n",
+        " const actual=new Uint32Array(positions.buffer,positions.byteOffset,positions.length),proved=new Uint32Array(p.buffer,p.byteOffset,p.length);\n",
+        " for(let v=0;v<r.vertices.length;v++){const raw=r.vertices[v];if(!Number.isInteger(raw)||raw<0||raw*3+2>=actual.length)return false;for(let k=0;k<3;k++)if(actual[raw*3+k]!==proved[v*3+k])return false;}\n",
+        " return true;\n",
+        "}\n",
+        "\n",
+        "function frameScheduleClosedBaseline(r){\n",
+        " if(frameClosedBaselineJob){clearTimeout(frameClosedBaselineJob.start);frameClosedBaselineJob.controller.abort(Error('Superseded closed baseline'));frameClosedBaselineJob.resolve?.(null);frameClosedBaselineJob=null;}\n",
+        " const s=frameIndexedPolygonSourceCurrent(r.g);\n",
+        " if(!s||!r.stable||r.hybrid||r.source!==s||s.p.version!==r.pv||s.n.version!==r.nv||s.i.version!==r.iv||frameBoundaryCanonicalCurrent(r.g)||!polygonCreaseGeometryCurrent(r.g))return;\n",
+        " const cached=wireTopologyCache.get(r.g),baselineWire=frameSTLWireIndices(r.g)||(cached&&cached.index===s.i&&cached.array===s.ia&&cached.version===s.i.version&&cached.vertices===s.pc?cached.indices:null);\n",
+        " const bytes=s.pa.byteLength+s.na.byteLength+s.ia.byteLength+r.faceMask.byteLength+r.selectedRaw.byteLength+(baselineWire?.byteLength??0);if(bytes>frameClosedBaselineInputLimit)return;\n",
+        " const job={region:r,previewEligible:!!r.canonicalAtBirth&&r.rigidStable&&!r.hybrid&&frameClosedRigidSeparationCurrent(r,s.pa),g:r.g,s,pv:s.p.version,nv:s.n.version,iv:s.i.version,imul:framePolygonCoordinateDescriptor(Math,'imul')?.value,controller:new AbortController()},current=()=>frameClosedBaselineJob===job&&frameIndexedPolygonSourceCurrent(job.g)===s&&s.p.version===job.pv&&s.n.version===job.nv&&s.i.version===job.iv&&polygonCreaseGeometryCurrent(job.g)&&framePolygonCoordinateDescriptor(Math,'imul')?.value===job.imul;\n",
+        " job.promise=new Promise(resolve=>job.resolve=resolve);\n",
+        " frameClosedBaselineJob=job;job.start=setTimeout(async()=>{\n",
+        "  if(!current()){if(frameClosedBaselineJob===job)frameClosedBaselineJob=null;job.resolve(null);return;}\n",
+        "  let timer;try{\n",
+        "   const positions=s.pa.slice(),normals=s.na.slice(),indices=s.ia.slice(),faceMask=r.faceMask.slice(),selectedRaw=r.selectedRaw.slice();\n",
+        "   let partition=!!r.canonicalAtBirth&&r.rigidStable&&frameClosedBaselineSameWords(indices,r.baselineIndex);\n",
+        "   if(partition){const p=new Uint32Array(positions.buffer),n=new Uint32Array(normals.buffer);for(let v=0;v<s.pc&&partition;v++)if(!selectedRaw[v])for(let k=0;k<3;k++)if(p[v*3+k]!==r.baselinePosition[v*3+k]||n[v*3+k]!==r.baselineNormal[v*3+k]){partition=false;break;}}\n",
+        "   timer=setTimeout(()=>job.controller.abort(Error('Closed baseline timeout')),15000);\n",
+        "   const reply=await frameClosedBaselineTask({positions,normals,indices,faceMask,selectedRaw,partition,collisionCertified:partition&&frameClosedRigidSeparationCurrent(r,positions),baselineWire:partition&&baselineWire instanceof Uint32Array?baselineWire.slice():null,cos:CREASE_COS},job.controller.signal);\n",
+        "   if(!current()||job.controller.signal.aborted||!frameClosedBaselineSameWords(s.pa,reply.input.positions)||!frameClosedBaselineSameWords(s.na,reply.input.normals)||!frameClosedBaselineSameWords(s.ia,reply.input.indices))return;\n",
+        "   const b=reply.result,pc=b.positions?.length/3,Wire=pc<65536?Uint16Array:Uint32Array;\n",
+        "   if(!(b.positions instanceof Float32Array)||!(b.normals instanceof Float32Array)||b.normals.length!==b.positions.length||!Number.isSafeInteger(pc)||!(b.indices instanceof Uint32Array)||b.indices.length!==s.ic||!(b.source instanceof Uint32Array)||b.source.length!==pc||!(b.wire instanceof Wire)||b.wire.length%2||Object.values(b).reduce((n,a)=>n+a.byteLength,0)>frameClosedBaselineResultLimit)throw Error('Closed baseline layout');\n",
+        "   for(let v=0;v<pc;v++){if(b.source[v]>=s.pc)throw Error('Closed baseline source range');for(let k=0;k<3;k++)if(!Object.is(b.positions[v*3+k],s.pa[b.source[v]*3+k])||!Number.isFinite(b.normals[v*3+k]))throw Error('Closed baseline vertex');}\n",
+        "   for(const v of b.indices)if(v>=pc)throw Error('Closed baseline index range');for(const v of b.wire)if(v>=pc)throw Error('Closed baseline wire range');\n",
+        "   frameClosedBaselines.set(job.g,{s,pv:job.pv,nv:job.nv,iv:job.iv,imul:job.imul,baseline:b});frameIndexedPolygonNote('closed-baseline-ready',job.g,{partition,vertices:pc,bytes:Object.values(b).reduce((n,a)=>n+a.byteLength,0),workerStages:reply.timings});\n",
+        "  }catch(e){if(!job.controller.signal.aborted)frameIndexedPolygonNote('closed-baseline-rejected',job.g,{reason:String(e)});}\n",
+        "  finally{job.resolve(frameClosedBaselineCurrent(job.g));clearTimeout(timer);if(frameClosedBaselineJob===job)frameClosedBaselineJob=null;}\n",
+        " },0);\n",
+        "}\n",
+        "\n",
+        "function frameCreateBoundaryProposalWorkingData(fan,baseline){return frameCreateBoundaryAppendWorkingData(fan,baseline.normals,baseline)??frameCreateBoundaryLegacyProposalWorkingData(fan,baseline);}\n",
+        "function frameCreateBoundaryLegacyProposalWorkingData(fan,baseline){\n",
+        " const pc=baseline.positions.length/3,target=new Uint8Array(pc),map=new Int32Array(pc);map.fill(-1);let affected=0;\n",
+        " for(let c=0;c<fan.baseI.length;c++)if(fan.targetMask[fan.baseI[c]]){target[baseline.indices[c]]=1;affected++;}\n",
+        " let outside=0;for(let v=0;v<pc;v++)if(!target[v])map[v]=outside++;\n",
+        " const positions=new Float32Array((outside+affected)*3),normals=new Float32Array(positions.length),indices=new Uint32Array(fan.baseI.length),sourceRaw=new Uint32Array(outside+affected),localCorners=new Uint32Array(affected),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];\n",
+        " for(let v=0;v<pc;v++)if(map[v]>=0){const at=map[v]*3;sourceRaw[map[v]]=baseline.source[v];for(let k=0;k<3;k++){const p=baseline.positions[v*3+k];positions[at+k]=p;normals[at+k]=baseline.normals[v*3+k];min[k]=Math.min(min[k],p);max[k]=Math.max(max[k],p);}}\n",
+        " let next=outside;for(let f=0;f<fan.baseI.length/3;f++)for(let k=0;k<3;k++){const c=f*3+k,raw=fan.baseI[c],base=baseline.indices[c];if(fan.targetMask[raw]){const v=next++;indices[c]=v;sourceRaw[v]=raw;localCorners[v-outside]=fan.localFace[f]*3+k;for(let j=0;j<3;j++){positions[v*3+j]=fan.baseP[raw*3+j];normals[v*3+j]=baseline.normals[base*3+j];}}else indices[c]=map[base];}\n",
+        " return{positions,normals,indices,sourceRaw,localCorners,outside,min,max,canonicalMap:map,targetMask:fan.targetMask,regionFaces:fan.faces};\n",
+        "}\n",
+        "\n",
+        "// Keep derived noncanonical baselines distinct from authored canonical snapshots.\n",
+        "const frameClosedBaselineSnapshots=new WeakMap();\n",
+        "function frameRememberClosedBaselineSnapshot(g,state){const c=frameClosedBaselineCurrent(g);if(c)frameClosedBaselineSnapshots.set(state,{baseline:c.baseline,imul:c.imul});else frameRememberClosedPendingSnapshot(g,state);}\n",
+        "function frameRestoreClosedBaselineSnapshot(g,state){\n",
+        " const c=frameClosedBaselineSnapshots.get(state),s=frameIndexedPolygonSourceCurrent(g);\n",
+        " if(!c||!s||!polygonCreaseGeometryCurrent(g)||framePolygonCoordinateDescriptor(Math,'imul')?.value!==c.imul||!state.attrs?.position?.array||!state.attrs?.normal?.array||!state.index||!frameClosedBaselineSameWords(s.pa,state.attrs.position.array)||!frameClosedBaselineSameWords(s.na,state.attrs.normal.array)||!frameClosedBaselineSameWords(s.ia,state.index))return false;\n",
+        " frameClosedBaselines.set(g,{s,pv:s.p.version,nv:s.n.version,iv:s.i.version,imul:c.imul,baseline:c.baseline});return true;\n",
+        "}\n",
+        "\n",
+        "const frameBoundaryCanonical=new WeakMap(),frameBoundarySnapshots=new WeakSet(),frameBoundaryCandidates=new WeakMap();\n",
+        "function frameMarkBoundaryCanonical(g){const s=frameIndexedPolygonSourceCurrent(g);if(s&&polygonCreaseGeometryCurrent(g))frameBoundaryCanonical.set(g,{s,pv:s.p.version,nv:s.n.version,iv:s.i.version});}\n",
+        "function frameBoundaryCanonicalCurrent(g){const c=frameBoundaryCanonical.get(g),s=frameIndexedPolygonSourceCurrent(g);return c&&s===c.s&&polygonCreaseGeometryCurrent(g)&&s.p.version===c.pv&&s.n.version===c.nv&&s.i.version===c.iv?s:null;}\n",
+        "function frameTryBoundaryPolygonTopology(mesh){\n",
+        " const g=mesh?.geometry,s=frameBoundaryPreparedSource(g),h=mesh&&meshToHash.get(mesh),sel=h&&polySelection.items.get(h);\n",
+        " if(!s||polyElementMode!=='face'||vertexTools.soft.active||!sel?.faces.size||sel.faces.size>4096||sel.vertices.size||sel.edges.size||polyExactEdgeVertices?.has(h)||frameMorphTag(h)||frameMorphEditing)return false;\n",
+        " for(const [other,m]of pickMeshes)if(other!==h&&(m.geometry?.attributes.position?.array===s.pa||m.geometry?.attributes.normal?.array===s.na))return false;\n",
+        " frameBoundaryCandidates.set(g,{s,pv:s.p.version,nv:s.n.version,iv:s.i.version});return true;\n",
+        "}\n",
+        "function frameCreateBoundaryPolygonRegion(mesh,rec){\n",
+        " const g=mesh.geometry,c=frameBoundaryCandidates.get(g);frameBoundaryCandidates.delete(g);const s=frameBoundaryPreparedSource(g),old=gizBeforePolyGeom?.get(meshToHash.get(mesh));\n",
+        " if(!c||s!==c.s||c.pv!==s.p.version||c.nv!==s.n.version||c.iv!==s.i.version||!old||!(frameBoundarySnapshots.has(old)||frameClosedBaselineSnapshots.has(old)||frameClosedPendingSnapshotCurrent(g,old))||old.creaseCos!==CREASE_COS)return null;\n",
+        " const positions=old.attrs.position.array,index=old.index,normal=old.attrs.normal.array,prepared=frameClosedBaselineCurrent(g),baseline=prepared?.baseline;\n",
+        " const t=frameIndexedPolygonCoordinates(positions,s.pc);if(!t)return null;\n",
+        " const identity=new Uint32Array(s.pc);for(let v=0;v<s.pc;v++)identity[v]=v;\n",
+        " const stationaryCollision=(p,at,mask)=>{const bits=new Uint32Array(p.buffer,p.byteOffset,p.length),q0=frameIndexedPolygonWeldBits(p[at],bits[at],t.w),q1=frameIndexedPolygonWeldBits(p[at+1],bits[at+1],t.w),q2=frameIndexedPolygonWeldBits(p[at+2],bits[at+2],t.w);let slot=framePolygonHash(q0,q1,q2)&(t.slots.length-1);while(t.slots[slot]!==-1){const v=t.slots[slot],o=v*3;if(t.keys[o]===q0&&t.keys[o+1]===q1&&t.keys[o+2]===q2)return !mask[v];slot=(slot+1)&(t.slots.length-1);}return false;};\n",
+        " const fan=framePrepareBoundaryFan({positions,index,selectedIds:rec.ids,crease:polygonCreaseData,cos:CREASE_COS,coordinateTable:t,stationaryCollision,immutableSource:true,canonicalBaseline:baseline??{positions,normals:normal,indices:index,source:identity}});\n",
+        " if(!fan)return null;\n",
+        " // The seven-decimal normal domain must not add a vertex outside the existing\n",
+        " // five-decimal selection. This also protects decimal tie boundary inputs.\n",
+        " const selected=new Uint8Array(s.pc);for(const v of rec.ids)selected[v]=1;for(let v=0;v<s.pc;v++)if(fan.movedMask[v]!==selected[v])return null;\n",
+        " frameIndexedPolygonNote('boundary-admitted',g,fan.statistics);\n",
+        " const cached=wireTopologyCache.get(g),baselineEdges=baseline?.wire||frameSTLWireIndices(g)||(cached&&cached.index===s.i&&cached.array===s.ia&&cached.version===s.i.version&&cached.vertices===s.pc?cached.indices:null);\n",
+        " const hybrid=frameCreateBoundaryWorkingGeometry(fan,normal,baseline);\n",
+        " return{g,s,fan,coordinateTable:t,baselineEdges,hybrid,pendingJob:baseline?null:frameClosedBaselinePendingCurrent(g),pendingGeometry:g,imul:framePolygonCoordinateDescriptor(Math,'imul')?.value,current:fan.baseP.slice(),pv:s.p.version,nv:s.n.version,iv:s.i.version,stable:false};\n",
+        "}\n",
+        "function frameBoundarySelectionCurrent(mesh,rec,r){\n",
+        " const s=r.working?frameIndexedPolygonSourceCurrent(mesh.geometry):frameBoundaryPreparedSource(mesh.geometry),h=meshToHash.get(mesh),sel=polySelection.items.get(h);\n",
+        " if(framePolygonCoordinateDescriptor(Math,'imul')?.value!==r.imul||mesh.geometry!==r.g||s!==r.s||s?.p.version!==r.pv||s?.n.version!==r.nv||s?.i.version!==r.iv||polyElementMode!=='face'||vertexTools.soft.active||sel!==rec.selectionEntry||sel?.faces.size!==rec.selectionFaces.length||sel.vertices.size||sel.edges.size||polyExactEdgeVertices?.has(h)||frameMorphTag(h)||frameMorphEditing)return false;\n",
+        " let k=0;for(const f of sel.faces)if(f!==rec.selectionFaces[k++])return false;\n",
+        " for(const [other,m]of pickMeshes)if(other!==h&&(m.geometry?.attributes.position?.array===s.pa||m.geometry?.attributes.normal?.array===s.na))return false;\n",
+        " return true;\n",
+        "}\n",
+        "function frameBoundaryFallback(mesh,rec){rec._boundaryPolygonRegion=null;frameBoundaryCanonical.delete(mesh.geometry);rec._indexedPolygonRegion={geometry:{dispose(){}}};frameFallbackIndexedPolygonRegion(mesh,rec);}\n",
+        "// Keep stationary render IDs unchanged. Append only the small affected normal\n",
+        "// domain, so preparation does not remap every corner of the whole object.\n",
+        "function frameCreateBoundaryAppendWorkingData(fan,normal,baseline=null){\n",
+        " const baseP=baseline?.positions??fan.baseP,baseN=baseline?.normals??normal,baseI=baseline?.indices??fan.baseI,pc=baseP.length/3;\n",
+        " if(!(baseP instanceof Float32Array)||!(baseN instanceof Float32Array)||baseN.length!==baseP.length||!(baseI instanceof Uint32Array)||baseI.length!==fan.baseI.length||fan.faces.length>8192)return null;\n",
+        " const corners=[],first=new Map();\n",
+        " for(const f of fan.faces)for(let k=0;k<3;k++){\n",
+        "  const at=f*3+k,raw=fan.baseI[at];if(!fan.targetMask[raw])continue;\n",
+        "  const v=baseI[at],local=fan.localFace[f]*3+k;if(v>=pc||local<0)return null;\n",
+        "  corners.push(at);if(!first.has(v))first.set(v,local);\n",
+        " }\n",
+        " if(!corners.length)return null;\n",
+        " const count=pc+corners.length,positions=new Float32Array(count*3),normals=new Float32Array(count*3),indices=baseI.slice(),sourceRaw=new Uint32Array(count),localCorners=new Uint32Array(corners.length),map=new Int32Array(pc),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];\n",
+        " positions.set(baseP);normals.set(baseN);if(baseline?.source)sourceRaw.set(baseline.source);else for(let v=0;v<pc;v++)sourceRaw[v]=v;\n",
+        " for(let v=0;v<pc;v++){\n",
+        "  if(first.has(v)){map[v]=-1;continue;}map[v]=v;\n",
+        "  for(let k=0;k<3;k++){const p=baseP[v*3+k];min[k]=Math.min(min[k],p);max[k]=Math.max(max[k],p);}\n",
+        " }\n",
+        " let next=pc;for(const at of corners){const raw=fan.baseI[at],base=baseI[at],v=next++;indices[at]=v;sourceRaw[v]=raw;localCorners[v-pc]=fan.localFace[Math.floor(at/3)]*3+at%3;for(let k=0;k<3;k++){positions[v*3+k]=fan.baseP[raw*3+k];normals[v*3+k]=baseN[base*3+k];}}\n",
+        " return{positions,normals,indices,sourceRaw,localCorners,outside:pc,min,max,canonicalMap:map,targetMask:fan.targetMask,regionFaces:fan.faces,unusedTargetRows:Uint32Array.from(first.keys()),unusedTargetCorners:Uint32Array.from(first.values())};\n",
+        "}\n",
+        "function frameUpdateBoundaryUnusedTargets(h,fan,local){\n",
+        " if(!h.unusedTargetRows)return;\n",
+        " // Unreferenced old target rows must coincide with drawn local corners as well:\n",
+        " // stock bounds, selection grouping and a conservative fallback see all rows.\n",
+        " for(let k=0;k<h.unusedTargetRows.length;k++){\n",
+        "  const v=h.unusedTargetRows[k],li=local.indices[h.unusedTargetCorners[k]];\n",
+        "  h.sourceRaw[v]=fan.vertices[local.source[li]];\n",
+        "  for(let c=0;c<3;c++){h.positions[v*3+c]=local.positions[li*3+c];h.normals[v*3+c]=local.normals[li*3+c];}\n",
+        " }\n",
+        "}\n",
+        "\n",
+        "function frameCreateBoundaryWorkingData(fan,normal){return frameCreateBoundaryAppendWorkingData(fan,normal)??frameCreateBoundaryLegacyWorkingData(fan,normal);}\n",
+        "function frameCreateBoundaryLegacyWorkingData(fan,normal){\n",
+        " const pc=fan.baseP.length/3,map=new Int32Array(pc);map.fill(-1);let outside=0,affected=0;for(let v=0;v<pc;v++)if(!fan.targetMask[v])map[v]=outside++;for(const v of fan.baseI)if(fan.targetMask[v])affected++;\n",
+        " const positions=new Float32Array((outside+affected)*3),normals=new Float32Array(positions.length),indices=new Uint32Array(fan.baseI.length),sourceRaw=new Uint32Array(outside+affected),localCorners=new Uint32Array(affected),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];\n",
+        " for(let v=0;v<pc;v++)if(map[v]>=0){const at=map[v]*3;sourceRaw[map[v]]=v;for(let c=0;c<3;c++){const value=fan.baseP[v*3+c];positions[at+c]=value;normals[at+c]=normal[v*3+c];min[c]=Math.min(min[c],value);max[c]=Math.max(max[c],value);}}\n",
+        " let next=outside;for(let f=0;f<fan.baseI.length/3;f++)for(let k=0;k<3;k++){const at=f*3+k,raw=fan.baseI[at];if(fan.targetMask[raw]){const v=next++;indices[at]=v;sourceRaw[v]=raw;localCorners[v-outside]=fan.localFace[f]*3+k;for(let c=0;c<3;c++){positions[v*3+c]=fan.baseP[raw*3+c];normals[v*3+c]=normal[raw*3+c];}}else indices[at]=map[raw];}\n",
+        " return{positions,normals,indices,sourceRaw,localCorners,outside,min,max,canonicalMap:map,targetMask:fan.targetMask,regionFaces:fan.faces};\n",
+        "}\n",
+        "function frameCreateBoundaryWorkingGeometry(fan,normal,baseline=null){const data=baseline?frameCreateBoundaryProposalWorkingData(fan,baseline):frameCreateBoundaryWorkingData(fan,normal),g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setAttribute('normal',new THREE2.BufferAttribute(data.normals,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));return{...data,g};}\n",
+        "function frameUpdateBoundaryWorkingData(h,fan,local){\n",
+        " frameUpdateBoundaryUnusedTargets(h,fan,local);\n",
+        " const min=h.min.slice(),max=h.max.slice();for(let k=0;k<h.localCorners.length;k++){const li=local.indices[h.localCorners[k]],at=(h.outside+k)*3;h.sourceRaw[h.outside+k]=fan.vertices[local.source[li]];for(let c=0;c<3;c++){const value=local.positions[li*3+c];h.positions[at+c]=value;h.normals[at+c]=local.normals[li*3+c];min[c]=Math.min(min[c],value);max[c]=Math.max(max[c],value);}}\n",
+        " return{min,max};\n",
+        "}\n",
+        "function frameUpdateBoundarySelection(mesh,rec,r,sourceRaw){\n",
+        " const g=mesh.geometry,ids=[],values=[];for(let v=0;v<sourceRaw.length;v++){const from=sourceRaw[v];if(r.fan.movedMask[from]){ids.push(v);values.push(r.fan.baseP[from*3],r.fan.baseP[from*3+1],r.fan.baseP[from*3+2]);}}\n",
+        " rec.ids=ids;rec.values=new Float64Array(values);rec.selectedIds=new Set(ids);rec.selectionGeometry=g;rec.selectionPosition=g.attributes.position;rec.selectionIndex=g.index;rec.selectionIndexArray=g.index.array;rec.selectionIndexVersion=g.index.version;rec.selectionGroups=undefined;rec.selectionGroupOf=undefined;for(let k=0;k<rec.selectionFaces.length;k++)for(let j=0;j<3;j++)rec.selectionFaceIndices[k*3+j]=g.index.getX(rec.selectionFaces[k]*3+j);\n",
+        "}\n",
+        "\n",
+        "function frameApplyBoundaryPolygonDelta(mesh,rec,delta){\n",
+        " const r=rec._boundaryPolygonRegion;if(!r)return false;if(!frameBoundarySelectionCurrent(mesh,rec,r)){frameBoundaryFallback(mesh,rec);return false;}\n",
+        " mesh.updateMatrixWorld(true);const inv=mesh.matrixWorld.clone().invert(),p=new THREE2.Vector3(),current=r.current;for(let v=0;v<r.fan.movedMask.length;v++)if(r.fan.movedMask[v]){const at=v*3;p.fromArray(r.fan.baseP,at).applyMatrix4(mesh.matrixWorld).applyMatrix4(delta).applyMatrix4(inv);current[at]=p.x;current[at+1]=p.y;current[at+2]=p.z;}\n",
+        " const result=r.fan.applyLocal(current);if(!result.fast){frameIndexedPolygonNote('boundary-fallback',mesh.geometry,{reason:result.reason});frameBoundaryFallback(mesh,rec);return false;}\n",
+        " const hybrid=r.hybrid,g=hybrid.g,bounds=frameUpdateBoundaryWorkingData(hybrid,r.fan,result.local);g.attributes.position.needsUpdate=true;g.attributes.normal.needsUpdate=true;g.boundingBox=new THREE2.Box3(new THREE2.Vector3(...bounds.min),new THREE2.Vector3(...bounds.max));g.boundingSphere=new THREE2.Sphere(g.boundingBox.getCenter(new THREE2.Vector3()),g.boundingBox.getSize(new THREE2.Vector3()).length()/2);\n",
+        " vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);frameIndexedPolygonGroupTables.delete(g);frameInvalidateIndexedPolygonSignature(g);markPolygonCreaseGeometry(g);\n",
+        " if(!r.working){g.userData={...mesh.geometry.userData};for(const key of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners','framePLAConnectivity'])delete g.userData[key];g.setDrawRange(mesh.geometry.drawRange.start,mesh.geometry.drawRange.count);frameRegisterIndexedPolygonSource(g);const edges=frameBoundaryWireIndices(r,hybrid);if(edges)frameBindSTLWireIndices(g,edges);frameReplaceBoundaryGeometry(mesh,g);r.working=true;}else refreshWireOverlay(mesh);\n",
+        " r.g=g;r.s=frameIndexedPolygonSourceCurrent(g);r.pv=r.s.p.version;r.nv=r.s.n.version;r.iv=r.s.i.version;r.stable=true;frameUpdateBoundarySelection(mesh,rec,r,hybrid.sourceRaw);return true;\n",
+        "}\n",
+        "\n",
+        "// Wire edges are pairs of raw render-vertex IDs, not logical weld classes.\n",
+        "// Outside IDs retain first-corner order, so their remap is monotone. Only edges\n",
+        "// incident on the affected normal domain need rebuilding; merge exact sorted\n",
+        "// pairs to match frameWireIndices for the full current mesh.\n",
+        "function frameBoundaryWireIndices(r,built){\n",
+        " if(r.fan.baseI.length<100000)return null;\n",
+        " const old=r.baselineEdges;if(!old||!(old instanceof Uint32Array)||old.length%2)return null;\n",
+        " const pc=built.positions.length/3;if(pc>94906265)return null;\n",
+        " const map=built.canonicalMap,mask=built.targetMask,keys=new Float64Array(built.regionFaces.length*3);let used=0;\n",
+        " for(const f of built.regionFaces)for(let k=0;k<3;k++){const at=f*3,ra=r.fan.baseI[at+k],rb=r.fan.baseI[at+(k+1)%3];if(!mask[ra]&&!mask[rb])continue;const a=built.indices[at+k],b=built.indices[at+(k+1)%3];if(a!==b)keys[used++]=a<b?a*pc+b:b*pc+a;}\n",
+        " const local=keys.subarray(0,used);local.sort();const Index=pc<65536?Uint16Array:Uint32Array,out=new Index(old.length+local.length*2);let li=0,at=0,previous=-1,previousOutside=-1;\n",
+        " const emit=key=>{if(key===previous)return;previous=key;const a=Math.floor(key/pc);out[at++]=a;out[at++]=key-a*pc;};\n",
+        " for(let i=0;i<old.length;i+=2){const a=map[old[i]],b=map[old[i+1]];if(a<0||b<0)continue;if(a>=b)return null;const key=a*pc+b;if(key<=previousOutside)return null;previousOutside=key;while(li<local.length&&local[li]<key)emit(local[li++]);emit(key);while(li<local.length&&local[li]===key)li++;}\n",
+        " while(li<local.length)emit(local[li++]);return out.slice(0,at);\n",
+        "}\n",
+        "\n",
+        "function frameBoundaryConnectivity(r,built,g){\n",
+        " const s=frameIndexedPolygonSourceCurrent(g),t=r.coordinateTable,moved=[],where=new Int32Array(r.fan.movedMask.length);where.fill(-1);\n",
+        " for(let v=0;v<r.fan.movedMask.length;v++)if(r.fan.movedMask[v]){where[v]=moved.length;moved.push(v);}\n",
+        " const current=new Float32Array(moved.length*3);for(let v=0;v<built.sourceRaw.length;v++){const k=where[built.sourceRaw[v]];if(k>=0)for(let c=0;c<3;c++)current[k*3+c]=built.positions[v*3+c];}\n",
+        " const changed=frameIndexedPolygonCoordinates(current,moved.length);if(!changed)return frameMeshConnectivity(g,true);\n",
+        " const first=new Int32Array(t.coordCount+changed.coordCount);first.fill(-1);let count=0,hash=2166136261;\n",
+        " for(let corner=0;corner<built.indices.length;corner++){const raw=built.sourceRaw[built.indices[corner]],k=where[raw],key=k>=0?t.coordCount+changed.coords[k]:t.coords[raw];let id=first[key];if(id===-1)first[key]=id=count++;hash^=id;hash=Math.imul(hash,16777619);}\n",
+        " const value='mesh:'+s.ic+':'+count+':'+(hash>>>0);frameIndexedPolygonSignatures.set(g,{source:s,pv:s.p.version,iv:s.i.version,imul:framePolygonCoordinateDescriptor(Math,'imul')?.value,value});return g.userData.framePLAConnectivity=value;\n",
+        "}\n",
+        "function frameReplaceBoundaryGeometry(mesh,g){\n",
+        " // The versioned current signature above replaces replaceEditedGeometry's\n",
+        " // eager whole-coordinate classification; all presentation work stays stock.\n",
+        " remapEditedMaterialFaces(mesh,g);const old=mesh.geometry;mesh.geometry=g;old.dispose();const h=meshToHash.get(mesh);if(h)assignMeshMat(mesh,h);const points=polyPointOverlays.get(h);if(points)points.geometry=g;refreshWireOverlay(mesh);\n",
+        "}\n",
+        "\n",
+        "function frameFinalizeBoundaryPolygonRegion(mesh,needRemap){\n",
+        " const rec=gizBeforePoly?.get(meshToHash.get(mesh)),r=rec?._boundaryPolygonRegion;if(needRemap||!r?.stable||r.pendingJob||!frameBoundarySelectionCurrent(mesh,rec,r))return false;\n",
+        " const built=r.fan.apply(r.current);if(!built.fast)return false;const old=mesh.geometry,g=new THREE2.BufferGeometry();g.userData={...old.userData};for(const key of ['splineBVH','splineWire','splineWireSource','_polygonDragCorners','framePLAConnectivity'])delete g.userData[key];g.setDrawRange(old.drawRange.start,old.drawRange.count);g.setAttribute('position',new THREE2.BufferAttribute(built.positions,3));g.setAttribute('normal',new THREE2.BufferAttribute(built.normals,3));g.setIndex(new THREE2.BufferAttribute(built.indices,1));markPolygonCreaseGeometry(g);frameRegisterIndexedPolygonSource(g);frameMarkBoundaryCanonical(g);frameSTLPrepared.add(g);const edges=frameBoundaryWireIndices(r,built);if(edges)frameBindSTLWireIndices(g,edges);frameBoundaryConnectivity(r,built,g);frameReplaceBoundaryGeometry(mesh,g);r.g=g;r.s=frameBoundaryCanonicalCurrent(g);r.pv=r.s.p.version;r.nv=r.s.n.version;r.iv=r.s.i.version;r.working=false;frameUpdateBoundarySelection(mesh,rec,r,built.sourceRaw);return true;\n",
+        "}\n",
+        "\n",
+        "function preparePolygonDragTopology(mesh){const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:preparePolygonDragTopology',undefined,{phase:_frameDiagPhase});try{\n",
+        "  if(frameRawCurrent(mesh.geometry))return;\n",
+        "  if(typeof frameTryIndexedPolygonTopology==='function'&&frameTryIndexedPolygonTopology(mesh))return;\n",
+        "  if(frameTryBoundaryPolygonTopology(mesh))return;\n"
+      ]
+    },
+    {
+      "startLine": 24530,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:preparePolygonDragTopology',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 24554,
+      "deleteLines": 1,
+      "insert": [
+        "function frameFastPolygonDragNormals(mesh,rec) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:frameFastPolygonDragNormals',undefined,{phase:_frameDiagPhase});try{\n",
+        "  if(typeof framePartialIndexedPolygonNormals==='function'&&framePartialIndexedPolygonNormals(mesh,rec))return true;\n"
+      ]
+    },
+    {
+      "startLine": 24627,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:frameFastPolygonDragNormals',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 24629,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameRawNormals(mesh,rec))return;\n"
+      ]
+    },
+    {
+      "startLine": 24683,
+      "deleteLines": 1,
+      "insert": [
+        "function capturePolySelection() {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:capturePolySelection',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 24696,
+      "deleteLines": 0,
+      "insert": [
+        "    frameRawCapture(mesh.geometry,out.get(h));\n",
+        "    if(frameBoundaryCandidates.has(mesh.geometry)){const rec=out.get(h);rec._boundaryPolygonRegion=frameCreateBoundaryPolygonRegion(mesh,rec);if(!rec._boundaryPolygonRegion){rec._indexedPolygonRegion={geometry:{dispose(){}}};frameFallbackIndexedPolygonRegion(mesh,rec);}}\n",
+        "    if(typeof frameCreateIndexedPolygonRegion==='function'){const rec=out.get(h),wasIndexed=frameIndexedPolygonCandidates.has(mesh.geometry);rec._indexedPolygonRegion=frameCreateIndexedPolygonRegion(mesh,rec);if(wasIndexed&&!rec._indexedPolygonRegion){rec._indexedPolygonRegion={geometry:{dispose(){}}};frameFallbackIndexedPolygonRegion(mesh,rec);}}\n"
+      ]
+    },
+    {
+      "startLine": 24698,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:capturePolySelection',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 24738,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameRawTracked.size)for(const row of frameRawTracked)if(row.pose?.head&&(row.geometry.attributes.position===a||row.geometry.attributes.normal===a)){const out=new a.array.constructor(a.count*3);for(let i=0;i<a.count;i++){out[i*3]=a.getX(i);out[i*3+1]=a.getY(i);out[i*3+2]=a.getZ(i);}return out;}\n"
+      ]
+    },
+    {
+      "startLine": 24754,
+      "deleteLines": 0,
+      "insert": [
+        "    frameRawSnapshot(g,out.get(h));\n",
+        "    if(typeof frameIndexedPolygonSnapshots!=='undefined'&&frameIndexedPolygonSourceCurrent(g))frameIndexedPolygonSnapshots.add(out.get(h));\n",
+        "    if(frameBoundaryCanonicalCurrent(g))frameBoundarySnapshots.add(out.get(h));\n",
+        "    frameRememberClosedBaselineSnapshot(g,out.get(h));\n"
+      ]
+    },
+    {
+      "startLine": 24862,
+      "deleteLines": 1,
+      "insert": [
+        "    if(typeof frameIndexedPolygonSnapshots!=='undefined'&&frameIndexedPolygonSnapshots.has(state))frameRegisterIndexedPolygonSource(g);\n",
+        "    m.geometry = g;frameRawRestore(g,state);old.dispose();\n"
+      ]
+    },
+    {
+      "startLine": 24864,
+      "deleteLines": 0,
+      "insert": [
+        "    if(frameBoundarySnapshots.has(state))frameMarkBoundaryCanonical(g);\n",
+        "    frameRestoreClosedBaselineSnapshot(g,state);\n"
+      ]
+    },
+    {
+      "startLine": 24894,
+      "deleteLines": 0,
+      "insert": [
+        "// Private vertical slice: explicit raw STL IDs and quiet derived graph.\n",
+        "// Render positions are a distinct mutable compatibility view. Authoring base and\n",
+        "// dirty pages never alias them; the remaining GPU-pose/history migration is open.\n",
+        "const frameRawAuthoring=new WeakMap(),frameRawAuthoringOwners=new WeakMap(),frameRawPendingSource=new WeakMap(),frameRawIdentityRows=new Map();\n",
+        "let frameRawCoordinator=null,frameRawQuietTimer=null,frameRawLastInput=0,frameRawForegroundRelease=null;\n",
+        "const frameRawPointers=new Set();\n",
+        "const frameRawNotes={firstFrames:0,published:0,cancelled:0,maxCreditMS:0,maxCaptureMS:null,errors:[],workerMessages:0,lifecycle:[]};\n",
+        "function frameRawTrace(type,extra={}){const a=frameRawNotes.lifecycle;a.push({at:performance.now(),type,...extra});if(a.length>64)a.shift();}\n",
+        "function frameRawGetCoordinator(){\n",
+        "  if(frameRawCoordinator)return frameRawCoordinator;\n",
+        "  frameRawCoordinator=new frameNative.IdleDerivedCoordinator({workerFactory:frameNative.createIdleDerivedWorker,\n",
+        "    scheduleIdle:fn=>requestIdleCallback(fn),cancelIdle:cancelIdleCallback,\n",
+        "    isIdle:()=>document.visibilityState==='visible'&&!frameRawPointers.size&&!nativeSceneLoading&&!gizDrag&&!splinePointerGesture&&performance.now()-frameRawLastInput>=400,\n",
+        "    onError:e=>{frameRawNotes.errors.push(String(e));console.warn('Quiet derived graph',e.message);},\n",
+        "    onEvent:e=>{frameRawTrace(e.type,{owner:e.tag?.objectIdentity,revision:e.tag?.geometryRevision,reason:e.reason,workMS:e.workMs});if(e.type==='capture-turn')frameRawNotes.maxCaptureMS=Math.max(frameRawNotes.maxCaptureMS??0,e.workMs??0);else{frameRawNotes.workerMessages++;frameRawNotes.maxCreditMS=Math.max(frameRawNotes.maxCreditMS,e.workMs??0);}if(e.type==='cancelled')frameRawNotes.cancelled++;if(e.type==='published'){frameRawNotes.published++;const row=frameRawIdentityRows.get(e.tag.objectIdentity);if(row&&row.owner.graph)frameGetNativeTopologyCache().installReady(row.geometry,row.owner.graph.topology,{isCurrent:()=>row.owner.current()&&!!row.owner.graph&&row.owner.geometryRevision===e.tag.geometryRevision});}}\n",
+        "  });return frameRawCoordinator;\n",
+        "}\n",
+        "const frameRawTracked=new Set();\n",
+        "function frameRawActivity(){\n",
+        "  frameRawLastInput=performance.now();clearTimeout(frameRawQuietTimer);\n",
+        "  // Monotonic foreground guard is checked at every capture/credit/publication.\n",
+        "  // No input-scoped nested lease can remain held after a delayed timer.\n",
+        "  if(frameRawCoordinator?.timer!==null&&frameRawCoordinator?.timer!==undefined){cancelIdleCallback(frameRawCoordinator.timer);frameRawCoordinator.timer=null;}\n",
+        "  frameRawQuietTimer=setTimeout(()=>{frameRawQuietTimer=null;frameRawTrace('input-quiet');frameRawCoordinator?.notifyIdle();},420);\n",
+        "}\n",
+        "\n",
+        "addEventListener('visibilitychange',()=>{frameRawTrace('visibility',{state:document.visibilityState});frameRawActivity();});\n",
+        "for(const type of ['pointerdown','pointermove','pointerup','pointercancel','wheel','keydown'])addEventListener(type,event=>{if(type==='pointerdown')frameRawPointers.add(event.pointerId);if(type==='pointerup'||type==='pointercancel')frameRawPointers.delete(event.pointerId);frameRawActivity();},{capture:true,passive:true});\n",
+        "addEventListener('blur',()=>{frameRawPointers.clear();frameRawActivity();},{capture:true});\n",
+        "function frameAttachRawAuthoring(g,base=null,saved=null){\n",
+        "  const p=g.attributes.position,index=g.index;if(!p||p.itemSize!==3||p.count%3||index?.count!==p.count)return null;\n",
+        "  let row=saved?.row,owner=row?.owner;if(row&&owner?.live&&owner.vertexCount===p.count){row.geometry=g;owner.pages=saved.pages;owner.invalidate();}\n",
+        "  else{row={geometry:g,owner:null,selection:null,groups:null};owner=new frameNative.AuthoringMesh({positions:base??p.array.slice(),indices:index.array,sceneEpoch:sceneStateToken,isSourceCurrent:()=>row.geometry.attributes.position?.array===row.positionArray&&row.geometry.attributes.position?.version===row.positionVersion});row.owner=owner;frameRawTracked.add(row);frameRawAuthoringOwners.set(owner,row);frameRawIdentityRows.set(owner.identity,row);}\n",
+        "  row.positionArray=p.array;row.positionVersion=p.version;row.selection=null;row.groups=null;frameRawAuthoring.set(g,row);g.userData._frameAuthoringRaw=true;g.userData._polygonDragCorners=true;\n",
+        "  frameNative.registerOwnedDisplayGeometry(g,THREE2.BufferAttribute.prototype.getX,THREE2.BufferAttribute.prototype.getY,THREE2.BufferAttribute.prototype.getZ);\n",
+        "  g.addEventListener('dispose',()=>{if(row.geometry!==g)return;owner.dispose();frameRawTracked.delete(row);frameRawIdentityRows.delete(owner.identity);frameRawCoordinator?.invalidate(owner,{requeue:false});});\n",
+        "  frameGpuAttachRaw(row);\n",
+        "  frameRawTrace('attach',{owner:owner.identity,vertices:p.count,revision:owner.geometryRevision});frameRawGetCoordinator().request(owner);frameRawActivity();return row;\n",
+        "}\n",
+        "function frameRawCurrent(g){const row=frameRawAuthoring.get(g);return row?.owner.current()?row:null;}\n",
+        "function frameRawGroupView(g){\n",
+        "  const row=frameRawCurrent(g);if(!row)return null;if(row.groups?.graph===row.owner.graph)return row.groups;\n",
+        "  const graph=row.owner.graph?.topology,n=row.owner.vertexCount,cache=new Map();\n",
+        "  const group=i=>{if(!graph)return Uint32Array.of(i);const key=graph.selection.vertexGroups[i];let value=cache.get(key);if(!value){const csr=graph.selection.vertexAliases;value=csr.members.subarray(csr.offsets[key],csr.offsets[key+1]);cache.set(key,value);}return value;};\n",
+        "  const view=(length,get)=>new Proxy([],{get:(target,key)=>key==='length'?length:typeof key==='string'&&/^(0|[1-9][0-9]*)$/.test(key)?Number(key)<length?get(Number(key)):undefined:Reflect.get(target,key),has:(target,key)=>typeof key==='string'&&/^(0|[1-9][0-9]*)$/.test(key)?Number(key)<length:Reflect.has(target,key)});\n",
+        "  const groupOf=view(n,group),groups=view(graph?.selection.representatives.length??n,i=>group(graph?graph.selection.representatives[i]:i));row.groups={graph:row.owner.graph,groupOf,groups};vertexGroupOfCache.set(g,groupOf);vertexGroupCache.set(g,groups);return row.groups;\n",
+        "}\n",
+        "function* frameRawSelectedIDsWork(h,items=polySelection.items){\n",
+        "  const g=pickMeshes.get(h)?.geometry,row=frameRawCurrent(g),s=items.get(h);if(!row||!s)return null;\n",
+        "  if(row.selection?.entry===s&&row.selection.vertices===s.vertices&&row.selection.edges===s.edges&&row.selection.faces===s.faces)return row.selection.ids;\n",
+        "  // Capture the available alias graph once. Publishing a later graph never changes\n",
+        "  // the issued selection, measurement, or subsequent gesture using these IDs.\n",
+        "  const ids=new Set(),idx=g.index,groups=frameRawGroupView(g),expanded=new Set();let work=0;\n",
+        "  for(const v of s.vertices){ids.add(v);if((++work&1023)===0)yield;}\n",
+        "  function* add(i){const group=groups.groupOf[i];if(expanded.has(group))return;expanded.add(group);for(const v of group){ids.add(v);if((++work&1023)===0)yield;}}\n",
+        "  for(const key of s.edges){const[a,b]=key.split(':').map(Number);yield* add(a);yield* add(b);if((++work&1023)===0)yield;}\n",
+        "  for(const f of s.faces){for(let j=0;j<3;j++)yield* add(idx.getX(f*3+j));if((++work&1023)===0)yield;}\n",
+        "  row.selection={entry:s,vertices:s.vertices,edges:s.edges,faces:s.faces,ids};return ids;\n",
+        "}\n",
+        "function frameRawSelectedIDs(h){return frameDrainSelectionWork(frameRawSelectedIDsWork(h));}\n",
+        "\n",
+        "function frameRawCapture(g,rec){const row=frameRawCurrent(g);if(!row)return false;rec._rawAuthoring={row,operation:row.owner.beginOperation(),ids:Uint32Array.from(rec.ids,i=>i+1)};return true;}\n",
+        "function frameRawNormals(mesh,rec){\n",
+        "  const row=frameRawAuthoring.get(mesh.geometry);if(!row||!rec?._rawAuthoring)return false;\n",
+        "  const g=mesh.geometry,p=g.attributes.position,n=g.attributes.normal,faces=new Set();for(const id of rec.ids)faces.add(Math.floor(id/3));\n",
+        "  for(const f of faces){const a=f*9,v=p.array,ax=v[a+3]-v[a],ay=v[a+4]-v[a+1],az=v[a+5]-v[a+2],bx=v[a+6]-v[a],by=v[a+7]-v[a+1],bz=v[a+8]-v[a+2];let x=ay*bz-az*by,y=az*bx-ax*bz,z=ax*by-ay*bx,len=Math.hypot(x,y,z);if(len){x/=len;y/=len;z/=len;}for(let j=0;j<3;j++)n.setXYZ(f*3+j,x,y,z);}\n",
+        "  n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);\n",
+        "  row.positionVersion=p.version;const work=row.owner.prepareTransform(rec._rawAuthoring.ids,(_,id)=>{const k=(id-1)*3;return[p.array[k],p.array[k+1],p.array[k+2]];},{batch:512});let step;do{step=work.next();}while(!step.done);row.owner.commit(step.value);rec._rawAuthoring.operation.revision=row.owner.geometryRevision;\n",
+        "  row.groups=null;vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);frameGetNativeTopologyCache().invalidate(g);frameRawGetCoordinator().invalidate(row.owner);return true;\n",
+        "}\n",
+        "function frameRawSnapshot(g,state){const row=frameRawCurrent(g);if(row)state.rawAuthoring={row,pages:row.owner.pages};}\n",
+        "function frameRawRestore(g,state){if(state.rawAuthoring)frameAttachRawAuthoring(g,null,state.rawAuthoring);else if(g.userData._frameAuthoringRaw)frameAttachRawAuthoring(g);}\n",
+        "function frameRawFinishDrag(event){\n",
+        "  const records=gizBeforePoly;if(!records?.size||[...records.values()].some(r=>!r._rawAuthoring)||editPivot||uvEdit)return false;\n",
+        "  const before=gizBeforePolyGeom,beforeSel=gizBeforePolySel,beforePivot=gizBeforePolyPivot&&gizBeforePolyPivot.slice(),same=gizBeforeGizmo&&getGizmoWorldArray().every((v,i)=>v===gizBeforeGizmo[i]);\n",
+        "  for(const rec of records.values()){const r=rec._rawAuthoring;if(r.row.owner.operations.has(r.operation))r.row.owner.endOperation(r.operation);}\n",
+        "  if(event?.type==='pointercancel'||same){if(before)restorePolyGeometries(before);if(beforeSel)restorePolySelectionState(beforeSel);polyPivotMatrix=beforePivot;}\n",
+        "  else{const after=capturePolyGeometries(),afterSel=capturePolySelectionState(),afterPivot=polyPivotMatrix&&getGizmoWorldArray().slice();pushCmd({redo(){polyPivotMatrix=afterPivot;restorePolyGeometries(after);restorePolySelectionState(afterSel);},undo(){polyPivotMatrix=beforePivot;restorePolyGeometries(before);restorePolySelectionState(beforeSel);}});}\n",
+        "  for(const rec of records.values())frameRawGetCoordinator().invalidate(rec._rawAuthoring.row.owner);\n",
+        "  gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;gizBeforePolySoft=null;polyExactEdgeVertices=null;rebuildPolySelection(false);placeGizmoForSelection();updateHUD();return true;\n",
+        "}\n",
+        "function frameRawDiagnostics(){const c=frameRawCoordinator;return{...frameRawNotes,visibility:document.visibilityState,nativeSceneLoading:!!nativeSceneLoading,gesture:!!gizDrag||!!splinePointerGesture,heldPointers:frameRawPointers.size,inputAgeMS:performance.now()-frameRawLastInput,coordinator:c?{foreground:c.foreground,pending:c.pending.size,scheduled:c.timer!==null,active:c.active?{owner:c.active.tag.objectIdentity,phase:c.active.phase,awaiting:c.active.awaiting,positionOffset:c.active.positionOffset,indexOffset:c.active.indexOffset}:null}:null,owners:[...frameRawTracked].slice(0,16).map(r=>({identity:r.owner.identity,current:r.owner.current(),actualPositionVersion:r.geometry.attributes.position.version,expectedPositionVersion:r.positionVersion,vertexCount:r.owner.vertexCount,faceCount:r.owner.faceCount,geometryRevision:r.owner.geometryRevision,graphRevision:r.owner.graphRevision,graphReady:!!r.owner.graph,dirtyPages:r.owner.pages.size,operations:r.owner.operations.size}))};}\n",
+        "\n",
+        "let frameGpuPrepared=null,frameGpuActive=null;\n",
+        "const frameGpuNotes={prepared:0,gestures:0,moves:0,undo:0,redo:0,bounds:0,errors:[],cpuVertexWrites:0,fullSnapshots:0};\n",
+        "function frameGpuAttachRaw(row){\n",
+        " const g=row.geometry,owner=row.owner,baseCoordinate=row.originalCoordinate??owner.coordinate.bind(owner),baseCapture=row.originalCapture??owner.captureRange.bind(owner);\n",
+        " row.originalCoordinate=baseCoordinate;row.originalCapture=baseCapture;\n",
+        " row.pose=new frameNative.AuthoringPoseStore({positions:owner.positions,coordinate:baseCoordinate,isCurrent:()=>row.owner.current()&&row.geometry===g});\n",
+        " owner.coordinate=(slot,axis)=>row.pose.coordinate(slot,axis);owner.captureRange=(offset,length)=>{if(!row.pose.head)return baseCapture(offset,length);if(length>16384||offset<0||length<0||offset+length>owner.positions.length)throw Error('Invalid bounded pose capture');const out=new owner.positions.constructor(length);for(let k=0;k<length;k++){const at=offset+k;out[k]=owner.coordinate(Math.floor(at/3),at%3);}return out;};\n",
+        " frameNative.registerMutableGpuGeometry(g,{isCurrent:()=>row.owner.current()&&row.geometry===g,revision:()=>row.pose.revision});\n",
+        "}\n",
+        "function frameGpuSelectionCurrent(t){return !!t&&pickMeshes.get(t.h)===t.mesh&&t.mesh.geometry===t.row.geometry&&frameRawCurrent(t.mesh.geometry)===t.row&&polySelection.items.size===1&&polySelection.items.get(t.h)===t.entry&&t.row.selection===t.selection&&(t===frameGpuActive||t.head===t.row.pose.head);}\n",
+        "function frameGpuPrepareSelection(renew=false){\n",
+        " if(frameGpuActive||!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1||vertexTools.soft.active||uvEdit||editPivot||!vpState.renderer?.nativeEngine)return;\n",
+        " const[h,entry]=polySelection.items.entries().next().value,mesh=pickMeshes.get(h),row=mesh&&frameRawCurrent(mesh.geometry);if(!row?.pose||!entry.faces.size||entry.edges.size||entry.vertices.size||frameMorphTag(h))return;\n",
+        " const selected=frameRawSelectedIDs(h);if(!selected?.size)return;const selection=row.selection;\n",
+        " if(!renew&&frameGpuPrepared?.row===row&&frameGpuPrepared.selection===selection&&frameGpuSelectionCurrent(frameGpuPrepared))return;\n",
+        " const old=frameGpuPrepared;if(old&&!old.retained)old.gpu?.dispose();const t=frameGpuPrepared={h,entry,mesh,row,selection,head:row.pose.head,ready:false,retained:false};\n",
+        " const ids=Uint32Array.from(selected).sort(),numeric=vpState.renderer.nativeEngine.geometryCache.capture(mesh.geometry),engine=vpState.renderer.nativeEngine;t.ids=ids;\n",
+        " t.promise=frameNative.GpuIslandPose.create({device:engine.owner.device,pool:engine.owner.pool,positions:numeric.positions,extras:numeric.extras,ids,isCurrent:()=>row.owner.current()&&row.geometry===mesh.geometry}).then(async gpu=>{t.gpu=gpu;if(frameGpuPrepared!==t||!frameGpuSelectionCurrent(t)){if(!t.retained)gpu.dispose();return false;}mesh.updateMatrixWorld(true);const identity=new THREE2.Matrix4(),basis=coordMode==='world'?identity:polyFrameMatrix().invert(),result=await gpu.submit({matrix:identity.elements,world:mesh.matrixWorld.elements,basis:basis.elements,isCurrent:()=>frameGpuPrepared===t&&frameGpuSelectionCurrent(t)});if(result.status!=='ready'||frameGpuPrepared!==t||!frameGpuSelectionCurrent(t)){if(!t.retained)gpu.dispose();return false;}t.basis=basis;frameGpuAdoptBounds(t,result);t.ready=true;frameGpuNotes.prepared++;return true;}).catch(e=>{if(e.name!=='AbortError'){frameGpuNotes.errors.push(String(e));console.warn('Private GPU component preparation',e);}return false;});\n",
+        "}\n",
+        "function frameGpuStartDrag(e){\n",
+        " const t=frameGpuPrepared;if(!t?.ready||!frameGpuSelectionCurrent(t)||e?.ctrlKey||e?.metaKey||e?.shiftKey||uvEdit||editPivot||vertexTools.soft.active||coordMode!=='world'||!['move','rotate'].includes(gizDrag?.mode))return false;\n",
+        " const initialBounds=polySelectionBounds(),initialExtent=polyExtentInFrame(polyFrameMatrix(initialBounds));\n",
+        " const mesh=t.mesh;mesh.updateMatrixWorld(true);frameNative.installMutableGpuCoordinates(mesh.geometry,(slot,axis)=>t.row.owner.coordinate(slot,axis));\n",
+        " t.retained=true;const op=t.row.pose.begin(t.ids),lease=t.row.owner.beginOperation();\n",
+        " const state=frameGpuActive={...t,op,lease,beforeHead:op.before,world:mesh.matrixWorld.clone(),inverse:mesh.matrixWorld.clone().invert(),gizmo:getGizmoWorldArray(),beforePivot:polyPivotMatrix?.slice()??null,beforeSel:capturePolySelectionState(),delta:new THREE2.Matrix4(),bounds:initialBounds,extent:initialExtent,initialBounds,initialExtent,overlays:[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex].map(o=>({o,matrix:o.matrix.clone(),auto:o.matrixAutoUpdate}))};\n",
+        " // The overlay source was captured at selection time. During this affine gesture\n",
+        " // its tiny matrix changes; no face-sized world buffer is rebuilt per pointer.\n",
+        " gizBeforeGizmo=state.gizmo;gizBeforePoly=new Map([[t.h,{ids:t.ids,_gpuAuthoring:true}]]);gizBeforePolyGeom=null;gizBeforePolySel=state.beforeSel;gizBeforePolyPivot=state.beforePivot;frameGpuNotes.gestures++;return true;\n",
+        "}\n",
+        "function frameGpuBasisInverse(){const world=new THREE2.Matrix4().fromArray(getGizmoWorldArray());return world.invert();}\n",
+        "function frameGpuApplyDelta(delta){\n",
+        " const s=frameGpuActive;if(!s)return false;if(!frameGpuSelectionCurrent(s))throw Error('GPU gesture selection changed');\n",
+        " s.delta=delta.clone();const command=s.row.pose.prepare(s.op,{world:s.world.elements,delta:delta.elements,inverse:s.inverse.elements});s.row.pose.apply(s.op,command);s.row.owner.invalidate();s.lease.revision=s.row.owner.geometryRevision;frameGetNativeTopologyCache().invalidate(s.mesh.geometry);frameRawGetCoordinator().invalidate(s.row.owner);\n",
+        " const local=s.inverse.clone().multiply(delta).multiply(s.world),basis=frameGpuBasisInverse();s.basis=basis.clone();const revision=s.row.pose.revision;\n",
+        " for(const{o,matrix}of s.overlays){o.matrixAutoUpdate=false;o.matrix.copy(delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}\n",
+        " s.last=s.gpu.submit({matrix:local.elements,world:s.world.elements,basis:basis.elements,isCurrent:()=>s.row.pose.revision===revision});\n",
+        " s.last.then(result=>{if(result.status!=='ready'||s.row.pose.revision!==revision)return;frameGpuAdoptBounds(s,result);updateHUD();scheduleRender();}).catch(e=>{if(e.name!=='AbortError'){frameGpuNotes.errors.push(String(e));console.warn('Private GPU component transform',e);}});\n",
+        " frameGpuNotes.moves++;scheduleRender();return true;\n",
+        "}\n",
+        "function frameGpuAdoptBounds(s,result){s.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};s.extent=coordMode==='world'?s.bounds.max.clone().sub(s.bounds.min):new THREE2.Vector3().fromArray(result.basisMax).sub(new THREE2.Vector3().fromArray(result.basisMin));s.row.gpuSelectionBounds={entry:s.entry,selection:s.selection,bounds:s.bounds,extent:s.extent,basis:s.basis,head:s.row.pose.head};frameGpuNotes.bounds++;}\n",
+        "function frameGpuCachedSelectionBounds(){const s=frameGpuActive??frameGpuPrepared;if(!frameGpuSelectionCurrent(s))return null;const b=s.row.gpuSelectionBounds;if(b&&b.entry===s.entry&&b.selection===s.selection)return b.bounds;return frameGpuActive?.bounds??null;}\n",
+        "function frameGpuCachedExtent(frame){const s=frameGpuActive??frameGpuPrepared;if(!frameGpuSelectionCurrent(s))return null;const b=s.row.gpuSelectionBounds;if(b?.extent&&b.selection===s.selection)return b.extent.clone();return frameGpuActive?(frameGpuActive.extent?.clone()??new THREE2.Vector3()):null;}\n",
+        "function frameGpuFinishDrag(event){\n",
+        " const s=frameGpuActive;if(!s)return false;const identity=new THREE2.Matrix4(),changed=!s.gizmo.every((v,i)=>v===getGizmoWorldArray()[i]),cancel=event?.type==='pointercancel'||!changed;\n",
+        " const afterHead=s.row.pose.head,afterPivot=polyPivotMatrix&&getGizmoWorldArray().slice(),afterGizmo=getGizmoWorldArray(),afterDelta=s.delta.clone(),afterBounds=s.row.gpuSelectionBounds;\n",
+        " const restore=(head,delta,pivot,gizmo,bounds)=>{const oldPrepared=frameGpuPrepared;frameGpuPrepared=null;if(oldPrepared){oldPrepared.ready=false;if(!oldPrepared.retained)oldPrepared.gpu?.dispose();}s.row.pose.restore(head);s.row.owner.invalidate();s.row.groups=null;frameRawGetCoordinator().invalidate(s.row.owner);frameGetNativeTopologyCache().invalidate(s.mesh.geometry);polyPivotMatrix=pivot;s.delta=delta.clone();s.basis=new THREE2.Matrix4().fromArray(gizmo).invert();const revision=s.row.pose.revision;s.last=s.gpu.submit({matrix:s.inverse.clone().multiply(delta).multiply(s.world).elements,world:s.world.elements,basis:s.basis.elements,isCurrent:()=>s.row.pose.revision===revision});for(const{o,matrix}of s.overlays){o.matrixAutoUpdate=false;o.matrix.copy(delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}s.row.gpuSelectionBounds=bounds&&{...bounds,head};s.last.then(r=>{if(r.status==='ready'&&s.row.pose.revision===revision){frameGpuAdoptBounds(s,r);frameGpuPrepareSelection(true);placeGizmoForSelection();updateHUD();scheduleRender();}}).catch(e=>{if(e.name!=='AbortError')frameGpuNotes.errors.push(String(e));});setGizmoFromMatrix(gizmo);updateHUD();scheduleRender();};\n",
+        " s.row.pose.finish(s.op);s.row.owner.endOperation(s.lease);\n",
+        " if(cancel)restore(s.beforeHead,identity,s.beforePivot,s.gizmo,null);else{const beforeBounds={entry:s.entry,selection:s.selection,bounds:s.initialBounds,extent:s.initialExtent,basis:s.basis,head:s.beforeHead};pushCmd({redo(){frameGpuNotes.redo++;restore(afterHead,afterDelta,afterPivot,afterGizmo,afterBounds);},undo(){frameGpuNotes.undo++;restore(s.beforeHead,identity,s.beforePivot,s.gizmo,beforeBounds);}});}\n",
+        " if(s.row.gpuSelectionBounds?.selection!==s.selection)s.row.gpuSelectionBounds={entry:s.entry,selection:s.selection,bounds:s.bounds,extent:s.extent,basis:s.basis,head:s.row.pose.head};\n",
+        " frameGpuActive=null;gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;gizBeforePolySoft=null;polyExactEdgeVertices=null;frameGpuPrepared=null;\n",
+        " // Renew the frozen source for the next gesture, preserving prior GPU baselines\n",
+        " // owned by history. Both release and the next action avoid a full vertex bake.\n",
+        " frameGpuPrepareSelection(true);updateHUD();scheduleRender();return true;\n",
+        "}\n",
+        "function frameGpuDiagnostics(){return{...frameGpuNotes,active:!!frameGpuActive,prepared:frameGpuPrepared?{ready:frameGpuPrepared.ready,selectedVertices:frameGpuPrepared.ids?.length,owner:frameGpuPrepared.row.owner.identity}:null,owners:[...frameRawTracked].filter(r=>r.pose).map(r=>({identity:r.owner.identity,poseRevision:r.pose.revision,hasPose:!!r.pose.head,rawArrayUnchanged:r.positionArray===r.geometry.attributes.position.array}))};}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 24922,
+      "deleteLines": 1,
+      "insert": [
+        "          (frameRawCurrent(m.geometry)?(frameRawGetCoordinator().notifyIdle(),Promise.resolve()):cache.warm(m.geometry)).catch(error=>{if(error.name!=='AbortError')console.warn('Topology preparation',error.message);});\n"
+      ]
+    },
+    {
+      "startLine": 24926,
+      "deleteLines": 1,
+      "insert": [
+        "            (frameRawCurrent(geometry)?(frameRawGetCoordinator().notifyIdle(),Promise.resolve()):cache.warm(geometry)).catch(error=>{if(error.name!=='AbortError')console.warn('Topology preparation',error.message);});\n"
+      ]
+    },
+    {
+      "startLine": 24949,
+      "deleteLines": 1,
+      "insert": [
+        "  const field=frameConnectedDomainField(domain),cache=frameGetNativeTopologyCache();let allComplete=true;\n"
+      ]
+    },
+    {
+      "startLine": 24954,
+      "deleteLines": 1,
+      "insert": [
+        "    const raw=frameRawCurrent(mesh.geometry),graph=raw?.owner.graph?.topology;\n",
+        "    let expanded;if(raw){if(graph)expanded=await drain(frameNative.connectedRawWork(graph,domain,seeds));else{expanded=new Set(seeds);allComplete=false;}}else expanded=await frameNative.expandConnectedRaw(cache,mesh.geometry,domain,seeds,{signal,isCurrent,yieldTask});\n"
+      ]
+    },
+    {
+      "startLine": 24963,
+      "deleteLines": 1,
+      "insert": [
+        "  return {items,buffers,measurements,connected:allComplete&&(!clicked||mode!=='invert')};\n"
+      ]
+    },
+    {
+      "startLine": 25085,
+      "deleteLines": 1,
+      "insert": [
+        "function applyPolyDelta(delta, snap) {const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:applyPolyDelta',undefined,{phase:_frameDiagPhase});try{\n",
+        "  if(frameGpuApplyDelta(delta))return;\n"
+      ]
+    },
+    {
+      "startLine": 25090,
+      "deleteLines": 0,
+      "insert": [
+        "    if(frameApplyBoundaryPolygonDelta(mesh,rec2,delta)){frameMorphModelChanged(h);continue;}\n",
+        "    if(typeof framePrepareIndexedPolygonPose==='function')framePrepareIndexedPolygonPose(mesh,rec2);g=mesh.geometry;pos=g.attributes.position;\n"
+      ]
+    },
+    {
+      "startLine": 25093,
+      "deleteLines": 0,
+      "insert": [
+        "    if(typeof framePrepareIndexedPolygonDelta==='function')framePrepareIndexedPolygonDelta(mesh,rec2,delta,inv);\n"
+      ]
+    },
+    {
+      "startLine": 25099,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonDiagnostics.afterDelta(delta,snap,_frameDiagStart);if(_frameDiagEnabled)frameIndexedPolygonNote('ms:applyPolyDelta',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 25756,
+      "deleteLines": 0,
+      "insert": [
+        " if(frameColdPolygonRelease)return;\n"
+      ]
+    },
+    {
+      "startLine": 25868,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameGpuActive)return;\n"
+      ]
+    },
+    {
+      "startLine": 25886,
+      "deleteLines": 0,
+      "insert": [
+        " if(frameColdPolygonRelease)return;\n",
+        " if(frameGpuStartDrag(e))return;\n"
+      ]
+    },
+    {
+      "startLine": 25926,
+      "deleteLines": 1,
+      "insert": [
+        "onGizmoDragEnd(async (event) => {\n",
+        " if(frameGpuFinishDrag(event))return;\n",
+        " if(frameRawFinishDrag(event))return;\n",
+        " if(frameColdPolygonRelease){if(event?.type==='pointercancel')frameCancelColdPolygonRelease(frameColdPolygonRelease);return;}\n",
+        " const cold=frameBeginColdPolygonRelease(event);\n",
+        " try{\n",
+        "  if(cold){await cold.ready;if(!cold.valid()){frameCancelColdPolygonRelease(cold);return;}frameAdoptColdPolygonBaselines(cold);cold.committing=true;}\n"
+      ]
+    },
+    {
+      "startLine": 26024,
+      "deleteLines": 1,
+      "insert": [
+        "    gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null\n",
+        " }finally{if(cold&&frameColdPolygonRelease===cold)frameColdPolygonRelease=null;}\n"
+      ]
+    },
+    {
+      "startLine": 26031,
+      "deleteLines": 1,
+      "insert": [
+        "  if (e.pointerType === \"touch\" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === \"lineCut\" || vertexTools.mode === \"closeHole\" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === \"persp\")) return;\n"
+      ]
+    },
+    {
+      "startLine": 26798,
+      "deleteLines": 1,
+      "insert": [
+        "async function prepareNativeScene(bytes){const _frameDiagEnabled=typeof frameIndexedPolygonNote==='function',_frameDiagPhase=_frameDiagEnabled?(globalThis.__orderQA?.stage??'boot'):null,_frameDiagStart=_frameDiagEnabled?performance.now():0;if(_frameDiagEnabled)frameIndexedPolygonNote('call:prepareNativeScene',undefined,{phase:_frameDiagPhase});try{\n"
+      ]
+    },
+    {
+      "startLine": 26807,
+      "deleteLines": 0,
+      "insert": [
+        "// PRIVATE scalar-coordinate classification proposal. No attribute/header probes.\n",
+        "// Capture the stock primitive formatter before any optional application hooks.\n",
+        "const framePolygonCoordinateNumberPrototype = Number.prototype;\n",
+        "const framePolygonCoordinateToFixed = Number.prototype.toFixed;\n",
+        "const framePolygonCoordinateDescriptor = Object.getOwnPropertyDescriptor;\n",
+        "const framePolygonCoordinateApply = Reflect.apply;\n",
+        "const framePolygonCoordinateTypedSet = Object.getPrototypeOf(Uint32Array.prototype).set;\n",
+        "const framePolygonCoordinateArrayPrototype = Float32Array.prototype;\n",
+        "const framePolygonCoordinateBufferGetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(Float32Array.prototype), 'buffer').get;\n",
+        "\n",
+        " const framePolygonHash=${framePolygonHash.toString()};\n",
+        " const framePolygonWeldBits=${framePolygonWeldBits.toString()};\n",
+        " const framePolygonScalarCoordinates=${framePolygonScalarCoordinates.toString()};\n",
+        " const framePolygonPlainFloat32Coordinates=${framePolygonPlainFloat32Coordinates.toString()};\n"
+      ]
+    },
+    {
+      "startLine": 26808,
+      "deleteLines": 0,
+      "insert": [
+        " const framePolygonAttributeArray=${framePolygonAttributeArray.toString()};\n"
+      ]
+    },
+    {
+      "startLine": 26836,
+      "deleteLines": 1,
+      "insert": [
+        "}finally{if(_frameDiagEnabled)frameIndexedPolygonNote('ms:prepareNativeScene',undefined,{phase:_frameDiagPhase,elapsed:performance.now()-_frameDiagStart});}}\n"
+      ]
+    },
+    {
+      "startLine": 27195,
+      "deleteLines": 0,
+      "insert": [
+        "  if(e.key==='Escape'&&frameColdPolygonRelease){e.preventDefault();frameCancelColdPolygonRelease(frameColdPolygonRelease);return;}\n",
+        "  if(e.key==='Escape'&&gizDrag&&polyFocusActive()&&!editPivot){e.preventDefault();endGizDrag({type:'pointercancel'});return;}\n"
+      ]
+    },
+    {
+      "startLine": 28144,
+      "deleteLines": 1,
+      "insert": [
+        "    const busy=()=>frameColdPolygonRelease||framePolySelectionJob||nativeSceneLoading||frameLibraryLoadState().pending||generatorTimer||generatorActivePasses||[...replicaStates.values()].some(state=>state.pending);\n"
+      ]
+    }
+  ]
+}

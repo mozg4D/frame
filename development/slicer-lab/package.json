@@ -1,0 +1,13 @@
+{
+  "name": "frame-independent-slicer-checkpoint13",
+  "version": "0.0.0-checkpoint13",
+  "private": true,
+  "description": "Unintegrated development checkpoint. No accepted complete layers or spirals.",
+  "scripts": {
+    "test": "node tests/run-public-checks.cjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "SEE LICENSE IN FRAME.txt"
+}

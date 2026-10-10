@@ -1,0 +1,10 @@
+'use strict';
+const vm=require('vm'),{load}=require('./adapter.cjs');
+function createRestartSearch(options={}){const c=load().context;let text=c.frameAcuteRestartGeometry.toString().replace('function frameAcuteRestartGeometry(points,edges,ring,W){','function boundedRestart(points,edges,ring,W,endRatio){').replace('let from=at(.6*W),to=at(W);const endWidth=W','let from=at(.6*W),to=at(endRatio*W);const endWidth=endRatio*W');if(options.allRetainedBankPairs===true)text=text.replace('if(!(gain>0)||!side)continue;','').replace('if(a.side*b.side>=0)continue;','');vm.runInContext(text,c);
+return{search(points,edges,ring,W){if(!(W>0)||!Number.isFinite(W))throw Error('invalid nominal width');const nominal=options.allRetainedBankPairs===true?c.boundedRestart(points,edges,ring,W,1):c.frameAcuteRestartGeometry(points,edges,ring,W);if(nominal)return{plan:nominal,status:'nominal-restart',tested:1,ownerAccepted:false};let tested=1,valid=null,ratio=null; // Search finite supported continuation, never a new independent sub-W start.
+// Failure is not assumed monotone: explore independent grid seeds before refinement.
+for(let i=63;i>=1;i--){const r=.6+.4*i/64;const p=c.boundedRestart(points,edges,ring,W,r);tested++;if(p&&(!ratio||r>ratio)){valid=p;ratio=r;}}
+if(!valid)return{plan:null,status:'unresolved-no-qualified-bounded-restart',tested,globalImpossibilityProved:false,ownerAccepted:false};let lo=ratio,hi=Math.min(1,ratio+.4/64);for(let i=0;i<48;i++){const mid=(lo+hi)/2;if(mid===lo||mid===hi)break;const p=c.boundedRestart(points,edges,ring,W,mid);tested++;if(p){lo=mid;valid=p;}else hi=mid;}
+return{plan:valid,status:'bounded-finite-supported-restart',tested,maximumAcceptedEndWidthMM:valid.endWidth,upperRejectedEndWidthMM:hi*W,noIndependentSubWStart:true,sourcePredicatesUnchanged:true,ownerAccepted:false,searchCompleteOverAllDirections:false};},validatePlan(points,edges,ring,W,plan){if(!plan||!(plan.endWidth>.6*W&&plan.endWidth<=W))return false;const exact=c.boundedRestart(points,edges,ring,W,plan.endWidth/W);return exact&&JSON.stringify(exact)===JSON.stringify(plan);}};}
+module.exports={createRestartSearch};
+
