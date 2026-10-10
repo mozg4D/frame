@@ -1,0 +1,37 @@
+{
+  "schema": "frame-current-editor-integration-v1",
+  "functions": [
+    {
+      "name": "updateLiveWireGeometry",
+      "beforeSHA256": "eb538524654c1ebb0e82531872d3b59df93b7e628bf0e66280eb52126ba7ac6f",
+      "code": "function updateLiveWireGeometry(wire, src) {\n  if(wire?.geometry?.userData.preparedSpline&&wire.geometry.userData.sourceGeometry===src){const a=wire.geometry.attributes.position;if(a.array!==src.userData.splineWire)return false;const v=src.attributes.position?.version||0;if(wire.geometry.userData.positionVersion!==v){a.needsUpdate=true;wire.geometry.boundingSphere=null;wire.geometry.userData.positionVersion=v;}return true;}\n  const g=wire?.geometry,pos=src?.attributes.position;\n  if(!g?.userData.indexedWire||g.userData.sourceGeometry!==src||g.userData.sourceIndex!==src.index||g.userData.sourceIndexArray!==src.index?.array||g.userData.indexVersion!==(src.index?.version||0)||!pos)return false;\n  if(g.userData.sourcePosition!==pos||g.attributes.position.count!==pos.count)return false;\n  const version=pos.version??pos.data?.version??0;\n  if(g.userData.positionVersion!==version){\n    if(pos.isInterleavedBufferAttribute)g.attributes.position.array.set(packedGeometryAttribute(pos));\n    if(g.attributes.position!==pos)g.attributes.position.needsUpdate=true;g.boundingSphere=null;g.userData.positionVersion=version;\n  }\n  return true;\n}"
+    },
+    {
+      "name": "frameWirePosition",
+      "beforeSHA256": "1385c68360fbfa855b292b1038e4333fcefed33c294ef9a32d59d9e056be1b59",
+      "code": "function frameWirePosition(pos){\n   \n   \n  return pos.isInterleavedBufferAttribute?new THREE2.BufferAttribute(packedGeometryAttribute(pos),3):pos;\n}"
+    }
+  ],
+  "replacements": [
+    [
+      "function onDown(e) {",
+      "function onDown(e) {\n  frameViewportMarqueeDragged=false;"
+    ],
+    [
+      "var frameCancelViewportMarquee=null;",
+      "var frameCancelViewportMarquee=null;\nvar frameViewportMarqueeDragged=false;"
+    ],
+    [
+      "    box.style.left = x0 + \"px\", box.style.top = y0 + \"px\", box.style.width = x1 - x0 + \"px\", box.style.height = y1 - y0 + \"px\";",
+      "    if(Math.hypot(ev.clientX-sx2,ev.clientY-sy2)>=TAP_PX)frameViewportMarqueeDragged=true;\n    box.style.left = x0 + \"px\", box.style.top = y0 + \"px\", box.style.width = x1 - x0 + \"px\", box.style.height = y1 - y0 + \"px\";"
+    ],
+    [
+      "    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)",
+      "    if (frameViewportMarqueeDragged||Math.hypot(ev.clientX-sx2,ev.clientY-sy2)>=TAP_PX)"
+    ],
+    [
+      "e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e)",
+      "e.button === 0 && !e.altKey && !frameViewportMarqueeDragged && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e)"
+    ]
+  ]
+}

@@ -1,10 +1,24 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "327a5cd2d878844c49ca80bbd9a5e8f23390f6c06f3290bac01675bcf64efbd6",
+  "beforeSHA256": "67e397a01e9ed1dbff7d8e4651138554de10a0db62a8a79d4949a9d91112df6d",
   "afterSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
-  "beforeBytes": 2643821,
+  "beforeBytes": 2644198,
   "afterBytes": 2602100,
   "operations": [
+    {
+      "startLine": 8419,
+      "deleteLines": 1,
+      "insert": [
+        "  return pos.isInterleavedBufferAttribute?new THREE2.BufferAttribute(packedGeometryAttribute(pos),3):new THREE2.BufferAttribute(pos.array,pos.itemSize,pos.normalized);\n"
+      ]
+    },
+    {
+      "startLine": 8451,
+      "deleteLines": 1,
+      "insert": [
+        "    g.attributes.position.needsUpdate=true;g.boundingSphere=null;g.userData.positionVersion=version;\n"
+      ]
+    },
     {
       "startLine": 13384,
       "deleteLines": 1,
@@ -18,112 +32,141 @@
       "insert": []
     },
     {
-      "startLine": 17286,
+      "startLine": 16780,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17288,
+      "startLine": 16982,
+      "deleteLines": 1,
+      "insert": [
+        "    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);\n"
+      ]
+    },
+    {
+      "startLine": 17287,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 17289,
       "deleteLines": 1,
       "insert": [
         "  let c = undoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17294,
+      "startLine": 17295,
       "deleteLines": 1,
       "insert": [
         "  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17297,
+      "startLine": 17298,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17299,
+      "startLine": 17300,
       "deleteLines": 1,
       "insert": [
         "  let c = redoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17302,
+      "startLine": 17303,
       "deleteLines": 1,
       "insert": [
         "  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 20887,
+      "startLine": 20888,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24192,
+      "startLine": 24193,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24207,
+      "startLine": 24208,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24349,
+      "startLine": 24350,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24516,
+      "startLine": 24517,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24759,
+      "startLine": 24760,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 25108,
+      "startLine": 25109,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 25908,
+      "startLine": 25909,
       "deleteLines": 165,
       "insert": []
     },
     {
-      "startLine": 26074,
+      "startLine": 26075,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26117,
+      "startLine": 26118,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 26218,
+      "startLine": 26219,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 27004,
+      "startLine": 26223,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27016,
+      "startLine": 26240,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 26245,
+      "deleteLines": 1,
+      "insert": [
+        "    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)\n"
+      ]
+    },
+    {
+      "startLine": 27007,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 27019,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 27020,
+      "startLine": 27023,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"

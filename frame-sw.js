@@ -1,11 +1,13 @@
-const CACHE_NAME='frame-shell-launch-v4',ASSET_CACHE='frame-assets-v1',DOCUMENT_CACHE='frame-documents-v1';
+// This generation owns its launch shell and pending stage. Older workers retain v4.
+const LEGACY_CACHE_NAME='frame-shell-launch-v4';
+const CACHE_NAME='frame-shell-launch-v5',ASSET_CACHE='frame-assets-v1',DOCUMENT_CACHE='frame-documents-v1';
 const ROOT=self.registration.scope,PENDING=new URL('__frame_pending_html__',ROOT).href;
 const CORE=['manifest.webmanifest','frame-icon-v4.svg','frame-icon-192-v4.png','frame-icon-512-v4.png','frame-hash-256-v4.png','frame-v4.ico','frame-icon-maskable-512.png'];
 const DOWNLOAD_TIMEOUT=20000;
 let queue=Promise.resolve(),checking=null,lastCheck=0;
 function serial(task){const result=queue.then(task);queue=result.catch(()=>{});return result;}
 function isLaunchURL(value){const url=new URL(value);return url.pathname===new URL(ROOT).pathname||url.pathname===new URL('index.html',ROOT).pathname;}
-function assetHash(url){return url.pathname.match(/\.([a-f0-9]{20})\.(?:js|webp|json\.gz|hash(?:\.gz)?)$/)?.[1];}
+function assetHash(url){return url.pathname.match(/\.([a-f0-9]{20,64})\.(?:js|webp|json\.gz|hash(?:\.gz)?)$/)?.[1];}
 function assetManifest(html){
   const match=html.match(/<script id="frame-assets" type="application\/json">([\s\S]*?)<\/script>/);
   if(!match)throw Error('Incomplete Frame manifest');
@@ -66,9 +68,9 @@ async function downloadHTML(){
   await prepareAssets(result.manifest);
   return result;
 }
-function checkUpdate(){
+function checkUpdate(force=false){
   if(checking)return checking;
-  if(lastCheck&&Date.now()-lastCheck<60000)return Promise.resolve(false);
+  if(!force&&lastCheck&&Date.now()-lastCheck<60000)return Promise.resolve(false);
   checking=(async()=>{
     const downloaded=await downloadHTML();
     await serial(async()=>{
@@ -79,6 +81,40 @@ function checkUpdate(){
     lastCheck=Date.now();return true;
   })().catch(()=>false).finally(()=>{checking=null;});
   return checking;
+}
+async function cachedAssetsVerified(manifest,deadline){
+  const cache=await caches.open(ASSET_CACHE),unique=new Map();
+  for(const a of Object.values(manifest.assets))unique.set(new URL(a.path,ROOT).href,a);
+  const entries=[...unique];let next=0;
+  await Promise.all(Array.from({length:Math.min(4,entries.length)},async()=>{
+    while(next<entries.length){
+      if(Date.now()>=deadline)throw Error('Frame navigation deadline');
+      const [url,a]=entries[next++],hit=await cache.match(url);
+      if(!hit)throw Error('Frame pending resource is not cached');
+      await verified(hit,a.sha256,a.bytes);
+      if(Date.now()>=deadline)throw Error('Frame navigation deadline');
+    }
+  }));
+}
+async function promoteCachedPending(deadline){
+  const cache=await caches.open(CACHE_NAME),pending=await cache.match(PENDING);
+  if(!pending||Date.now()>=deadline)return false;
+  const html=await pending.clone().text();
+  await cachedAssetsVerified(launchManifest(html),deadline);
+  return serial(async()=>{
+    if(Date.now()>=deadline)return false;
+    const current=await cache.match(PENDING);
+    if(!current||await current.text()!==html||Date.now()>=deadline)return false;
+    await cache.put(ROOT,pending);await cache.delete(PENDING);return true;
+  });
+}
+async function navigationUpdateBoundary(refresh,deadline){
+  let timer;
+  try{await Promise.race([
+    (async()=>{await refresh;try{await promoteCachedPending(deadline);}catch{}})(),
+    new Promise(resolve=>{timer=setTimeout(resolve,Math.max(0,deadline-Date.now()));})
+  ]);}
+  finally{clearTimeout(timer);}
 }
 self.addEventListener('install',event=>{
   event.waitUntil((async()=>{
@@ -106,19 +142,18 @@ self.addEventListener('fetch',event=>{
     })());return;
   }
   if(request.mode==='navigate'){
-    const result=serial(async()=>{
-      const cache=await caches.open(CACHE_NAME),pending=await cache.match(PENDING);
-      if(pending){
-        try{
-          await prepareAssets(launchManifest(await pending.clone().text()));
-          await cache.put(ROOT,pending);await cache.delete(PENDING);
-        }catch{}
-      }
-      const current=await cache.match(ROOT);if(current)return current;
-      try{const downloaded=await downloadHTML();await cache.put(ROOT,downloaded.response.clone());return downloaded.response;}
+    const deadline=Date.now()+2000,refresh=checkUpdate(true);
+    const result=(async()=>{
+      const cache=await caches.open(CACHE_NAME);
+      // Legacy cache is read-only fallback; an older worker cannot write this generation.
+      const fallback=await cache.match(ROOT)||await(await caches.open(LEGACY_CACHE_NAME)).match(ROOT);
+      // Downloads, full cache verification and serial promotion share one deadline.
+      await navigationUpdateBoundary(refresh,deadline);
+      const current=await cache.match(ROOT);if(current)return current;if(fallback)return fallback;
+      try{const downloaded=await downloadHTML();await serial(()=>cache.put(ROOT,downloaded.response.clone()));return downloaded.response;}
       catch{return Response.error();}
-    });
-    event.respondWith(result);event.waitUntil(result.then(()=>checkUpdate()));return;
+    })();
+    event.respondWith(result);event.waitUntil(Promise.all([refresh,result.catch(()=>{})]));return;
   }
   const hash=assetHash(url);
   if(hash){

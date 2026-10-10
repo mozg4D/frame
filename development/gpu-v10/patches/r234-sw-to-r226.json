@@ -1,0 +1,66 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "a301807c4842bc83db5d1c8c2a8fdf63cbc179f6329f5af2f5f710020b7da697",
+  "afterSHA256": "8bafa52495e29fee76e9e2bc92e27109ce2c734e6b3737cbdb4a57226f6c3f27",
+  "beforeBytes": 9849,
+  "afterBytes": 7922,
+  "operations": [
+    {
+      "startLine": 0,
+      "deleteLines": 3,
+      "insert": [
+        "const CACHE_NAME='frame-shell-launch-v4',ASSET_CACHE='frame-assets-v1',DOCUMENT_CACHE='frame-documents-v1';\n"
+      ]
+    },
+    {
+      "startLine": 9,
+      "deleteLines": 1,
+      "insert": [
+        "function assetHash(url){return url.pathname.match(/\\.([a-f0-9]{20})\\.(?:js|webp|json\\.gz|hash(?:\\.gz)?)$/)?.[1];}\n"
+      ]
+    },
+    {
+      "startLine": 70,
+      "deleteLines": 1,
+      "insert": [
+        "function checkUpdate(){\n"
+      ]
+    },
+    {
+      "startLine": 72,
+      "deleteLines": 1,
+      "insert": [
+        "  if(lastCheck&&Date.now()-lastCheck<60000)return Promise.resolve(false);\n"
+      ]
+    },
+    {
+      "startLine": 83,
+      "deleteLines": 34,
+      "insert": []
+    },
+    {
+      "startLine": 144,
+      "deleteLines": 9,
+      "insert": [
+        "    const result=serial(async()=>{\n",
+        "      const cache=await caches.open(CACHE_NAME),pending=await cache.match(PENDING);\n",
+        "      if(pending){\n",
+        "        try{\n",
+        "          await prepareAssets(launchManifest(await pending.clone().text()));\n",
+        "          await cache.put(ROOT,pending);await cache.delete(PENDING);\n",
+        "        }catch{}\n",
+        "      }\n",
+        "      const current=await cache.match(ROOT);if(current)return current;\n",
+        "      try{const downloaded=await downloadHTML();await cache.put(ROOT,downloaded.response.clone());return downloaded.response;}\n"
+      ]
+    },
+    {
+      "startLine": 154,
+      "deleteLines": 2,
+      "insert": [
+        "    });\n",
+        "    event.respondWith(result);event.waitUntil(result.then(()=>checkUpdate()));return;\n"
+      ]
+    }
+  ]
+}

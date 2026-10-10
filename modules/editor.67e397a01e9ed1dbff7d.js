@@ -8417,7 +8417,7 @@ function frameWireIndices(pos,idx){
 function frameWirePosition(pos){
    
    
-  return pos.isInterleavedBufferAttribute?new THREE2.BufferAttribute(packedGeometryAttribute(pos),3):new THREE2.BufferAttribute(pos.array,pos.itemSize,pos.normalized);
+  return pos.isInterleavedBufferAttribute?new THREE2.BufferAttribute(packedGeometryAttribute(pos),3):pos;
 }
 function hasIsoparmCage(h){
   const state=replicaStates.get(h);
@@ -8449,7 +8449,7 @@ function updateLiveWireGeometry(wire, src) {
   const version=pos.version??pos.data?.version??0;
   if(g.userData.positionVersion!==version){
     if(pos.isInterleavedBufferAttribute)g.attributes.position.array.set(packedGeometryAttribute(pos));
-    g.attributes.position.needsUpdate=true;g.boundingSphere=null;g.userData.positionVersion=version;
+    if(g.attributes.position!==pos)g.attributes.position.needsUpdate=true;g.boundingSphere=null;g.userData.positionVersion=version;
   }
   return true;
 }
@@ -16778,6 +16778,7 @@ function cancelMobileTouch(){
 }
 
 function onDown(e) {
+  frameViewportMarqueeDragged=false;
   if(e.pointerType==="touch"&&frameNativePinch)return;
   if(e.pointerType==='touch'&&frameTouchContacts.size>1&&(edgeBevelTool||splineBevelTool||splineOutlineTool||splinePointerGesture)){
     if(edgeBevelTool)cancelEdgeBevel();if(splineBevelTool)cancelSplineBevelTool();if(splineOutlineTool)cancelSplineOutlineTool();
@@ -16979,7 +16980,7 @@ function onUp(e) {
       let r = rectFor(vi);
       r && vpState.views[vi].ctrl.up(e, r);
     }
-    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);
+    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && !frameViewportMarqueeDragged && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);
   }
   if (!e.buttons) {
     activeView = -1;
@@ -25939,14 +25940,14 @@ function frameRigidApplyDelta(delta){const s=frameRigidInput;if(!s||frameRigidFa
 function frameRigidFinish(e){const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;s.released=true;s.cancel=!!s.cancel||e?.type==='pointercancel'||s.gizmo.every((v,i)=>v===getGizmoWorldArray()[i]);s.releaseEvent=e;frameRigidInput=null;frameRigidClearInput();if(s.cancel)s.abortResolve(false);if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-before-release');return true;}frameRigidDrain();return true;}
 function frameRigidApplySparse(t,positions,normals,historyExpected=null,onWrite=null){const current=pickMeshes.get(t.h),g=current?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;if(current!==t.mesh||OBJ.get(t.h)!==t.node||!p||!n||!index||p.itemSize!==3||n.itemSize!==3||p.count!==t.p.count||n.count!==p.count||index.count!==t.indexSeed.length||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||positions.length!==t.ids.length*3||normals.length!==positions.length)throw new DOMException('Rigid authoring owner/layout changed','AbortError');
  if(historyExpected){for(let k=0;k<t.indexSeed.length;k++)if(index.array[k]!==t.indexSeed[k])throw new DOMException('Rigid history topology changed','AbortError');for(let id=0;id<p.count;id++){const k=t.slot[id]-1;for(let j=0;j<3;j++){const at=id*3+j,wantedP=k>=0?historyExpected.positions[k*3+j]:t.originalPositions[at],wantedN=k>=0?historyExpected.normals[k*3+j]:t.originalNormals[at];if(p.array[at]!==wantedP||n.array[at]!==wantedN)throw new DOMException('Rigid history content changed','AbortError');}}}else if(!frameRigidSource(t))throw new DOMException('Rigid commit source changed','AbortError');
- const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}
+ const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}
 function frameRigidExactBounds(t){t.mesh.updateMatrixWorld(true);const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();for(const i of t.ids){p.fromArray(t.pa,i*3).applyMatrix4(t.mesh.matrixWorld);min.min(p);max.max(p);}t.bounds={min,max};t.boundsWorld=t.mesh.matrixWorld.clone();}
 function frameRigidRefreshSelection(t,pivot=null){polyPivotMatrix=pivot;frameRigidInstalling=true;try{for(const o of [polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;}if(frameRigidSelection(t))frameRigidExactBounds(t);frameInstallPolySelectionBuffers(frameDrainSelectionWork(framePolySelectionBuffers(polySelection.items)),true);}finally{frameRigidInstalling=false;}updateHUD();scheduleRender();}
 function frameRigidCommit(s){const t=s.t,started=performance.now();if(!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Rigid transaction stale before commit','AbortError');s.revision++;
  const afterValues=new Float32Array(t.ids.length*3),afterNormals=new Float32Array(t.ids.length*3),base=new THREE2.Vector3(),moved=new THREE2.Vector3(),normal=new THREE2.Vector3(),local=s.inverse.clone().multiply(s.delta).multiply(s.world),normalMatrix=new THREE2.Matrix3().getNormalMatrix(local),e=local.elements,rotated=[0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12);
  for(let k=0;k<t.ids.length;k++){base.fromArray(s.beforeValues,k*3);moved.copy(base).applyMatrix4(s.world).applyMatrix4(s.delta).applyMatrix4(s.inverse);base.lerp(moved,1);afterValues[k*3]=base.x;afterValues[k*3+1]=base.y;afterValues[k*3+2]=base.z;normal.fromArray(s.beforeNormals,k*3);if(rotated)normal.applyNormalMatrix(normalMatrix);afterNormals[k*3]=normal.x;afterNormals[k*3+1]=normal.y;afterNormals[k*3+2]=normal.z;}
  if(!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Rigid transaction stale before write','AbortError');const afterPivot=s.beforePivot?s.afterGizmo.slice():null,history={undo:undoStack.slice(),redo:redoStack.slice(),token:sceneStateToken,sequence:sceneMutationSequence,started:sceneWorkStartedAt};let wrote=false;
- const apply=(values,normals,pivot,expected)=>{frameRigidBeforeHistory();const m=pickMeshes.get(t.h),g=m?.geometry,p=g?.attributes.position,n=g?.attributes.normal,beforePivot=polyPivotMatrix?.slice()??null;let wrote=false;try{frameRigidApplySparse(t,values,normals,expected,()=>wrote=true);frameRigidRefreshSelection(t,pivot);}catch(error){if(wrote&&m===t.mesh&&m.geometry===g&&g.attributes.position===p&&g.attributes.normal===n){for(let k=0;k<t.ids.length;k++)for(let j=0;j<3;j++){p.array[t.ids[k]*3+j]=expected.positions[k*3+j];n.array[t.ids[k]*3+j]=expected.normals[k*3+j];}p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=g.boundingSphere=null;frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;t.engine?.geometryCache.rows.delete(g);frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);polyPivotMatrix=beforePivot;try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}throw error;}};const command={redo(){frameRigidNotes.redo++;apply(afterValues,afterNormals,afterPivot,{positions:s.beforeValues,normals:s.beforeNormals});},undo(){frameRigidNotes.undo++;apply(s.beforeValues,s.beforeNormals,s.beforePivot,{positions:afterValues,normals:afterNormals});}};
+ const apply=(values,normals,pivot,expected)=>{frameRigidBeforeHistory();const m=pickMeshes.get(t.h),g=m?.geometry,p=g?.attributes.position,n=g?.attributes.normal,beforePivot=polyPivotMatrix?.slice()??null;let wrote=false;try{frameRigidApplySparse(t,values,normals,expected,()=>wrote=true);frameRigidRefreshSelection(t,pivot);}catch(error){if(wrote&&m===t.mesh&&m.geometry===g&&g.attributes.position===p&&g.attributes.normal===n){for(let k=0;k<t.ids.length;k++)for(let j=0;j<3;j++){p.array[t.ids[k]*3+j]=expected.positions[k*3+j];n.array[t.ids[k]*3+j]=expected.normals[k*3+j];}p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=g.boundingSphere=null;frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;t.engine?.geometryCache.rows.delete(g);frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);polyPivotMatrix=beforePivot;try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}throw error;}};const command={redo(){frameRigidNotes.redo++;apply(afterValues,afterNormals,afterPivot,{positions:s.beforeValues,normals:s.beforeNormals});},undo(){frameRigidNotes.undo++;apply(s.beforeValues,s.beforeNormals,s.beforePivot,{positions:afterValues,normals:afterNormals});}};
  try{t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,afterValues,afterNormals,null,()=>wrote=true);frameRigidRefreshSelection(t,afterPivot);pushCmd(command);s.committed=true;frameRigidNotes.commits++;frameRigidNotes.phases.push({name:'authoring-commit-and-overlay',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length});}
  catch(error){if(wrote&&t.mesh.geometry===t.g&&t.g.attributes.position===t.p&&t.g.attributes.normal===t.n&&t.p.array===t.pa&&t.n.array===t.na){frameRigidRestoreAuthoring(t,s.beforeValues,s.beforeNormals);polyPivotMatrix=s.beforePivot;frameRigidRestoreOverlays(s);frameRigidExactBounds(t);try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}undoStack.splice(0,undoStack.length,...history.undo);redoStack.splice(0,redoStack.length,...history.redo);sceneStateToken=history.token;sceneMutationSequence=history.sequence;sceneWorkStartedAt=history.started;throw error;}
 }
@@ -26220,6 +26221,7 @@ onGizmoDragEnd((event) => {
   }finally{frameRigidStockEndDone();}
 });
 var frameCancelViewportMarquee=null;
+var frameViewportMarqueeDragged=false;
 var framePolySelectionRevision=0;
 var vpEl = document.getElementById("vp");
 vpEl.addEventListener("pointerdown", (e) => {
@@ -26236,11 +26238,12 @@ vpEl.addEventListener("pointerdown", (e) => {
   let move = (ev) => {
     if(ev.pointerId!==pointer)return;
     let x0 = Math.min(sx2, ev.clientX), y0 = Math.min(sy2, ev.clientY), x1 = Math.max(sx2, ev.clientX), y1 = Math.max(sy2, ev.clientY);
+    if(Math.hypot(ev.clientX-sx2,ev.clientY-sy2)>=TAP_PX)frameViewportMarqueeDragged=true;
     box.style.left = x0 + "px", box.style.top = y0 + "px", box.style.width = x1 - x0 + "px", box.style.height = y1 - y0 + "px";
   }, up = (ev) => {
     if(ev.pointerId!==pointer)return;cleanup();
     let x0 = Math.min(sx2, ev.clientX), y0 = Math.min(sy2, ev.clientY), x1 = Math.max(sx2, ev.clientX), y1 = Math.max(sy2, ev.clientY);
-    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)
+    if (frameViewportMarqueeDragged||Math.hypot(ev.clientX-sx2,ev.clientY-sy2)>=TAP_PX)
       if (splineMode || polyMode) {
         let mode = ev.ctrlKey || ev.metaKey ? "invert" : ev.shiftKey ? "add" : "replace";
         splineMode && splineBoxPick(x0, y0, x1, y1, mode), polyMode && frameDesktopPolyBoxPick(x0,y0,x1,y1,mode)?.catch?.(frameNativePickerError);

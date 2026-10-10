@@ -3,28 +3,28 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 2240,
-      "sha256": "819b3d3113f8e7005101d4765bc96e9222543c561d169677a5222a1c0969664c"
+      "bytes": 2684,
+      "sha256": "4584652fcaec4cd1491f958ce1f698a42bfee345e2fb363d0a5eaee0fa9f7f4e"
     },
     {
       "path": "base-extraction.json",
-      "bytes": 3466,
-      "sha256": "6ebf173159d9df2b1cfa90b71d29c0b97996ab4c96a41a9bf604d310c938ab02"
+      "bytes": 4861,
+      "sha256": "386e54314640da6f4166d0faa9534e58083cd2d1756b45b202378e62de191302"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 420,
-      "sha256": "b6be9a9589502a3648b1ff5c3e9399579b3c92cee5d32c14f1616693113f129f"
+      "bytes": 479,
+      "sha256": "a3d31a5ce3dd25846cf09fa7ab315f412958bbe1440c6f1eea514ec0f0aa9d92"
     },
     {
       "path": "rebuild.mjs",
-      "bytes": 8690,
-      "sha256": "0b7a9d083cbdde64d86ece8d99ead1e2a4425a19a7c2cafb1116efd87c3f9a87"
+      "bytes": 9267,
+      "sha256": "f042bbb5cb3e516cfad175419055442fdb1e26bc308212af7681db74e4942bf8"
     },
     {
       "path": "rigid-component-preview.mjs",
-      "bytes": 40533,
-      "sha256": "9e8fc50a14681e21259cd03a2acb6d894fe0927711a6b2c68618b052c9cfd259"
+      "bytes": 40705,
+      "sha256": "d496b9c7551b5a2e7c03a2fc505062f9761dd64c4c8cd19faff020959cbcd764"
     },
     {
       "path": "tests/alias-guards.mjs",
@@ -43,13 +43,28 @@
     },
     {
       "path": "tests/lifecycle.mjs",
-      "bytes": 27537,
-      "sha256": "f7a9329bdc97ec2c185f8d20a9dc0b857d19b4e72f21124220451bf26996965d"
+      "bytes": 27635,
+      "sha256": "7cbe4fcea1f3f730ccbcf4615cac37e0ebf016bd551e009004f20e5a408f0b3b"
+    },
+    {
+      "path": "tests/service-worker.mjs",
+      "bytes": 6700,
+      "sha256": "02ef2c3aa049baecbd9300b2e23976a4d5297d123470dbb5572c5c753cf29e50"
     },
     {
       "path": "tests/stable-face-proof.mjs",
       "bytes": 4551,
       "sha256": "53a5a83344801e691fe813d39df83a9262813d5c31fd92ad70f2d73ed57382d6"
+    },
+    {
+      "path": "tests/wire-gestures.mjs",
+      "bytes": 6858,
+      "sha256": "0c805b1041c2f15fc1d4ec688df79fe63ac0c2ce5dd39e5e5759aa0fcceeb49b"
+    },
+    {
+      "path": "wire-marquee-integration.json",
+      "bytes": 2839,
+      "sha256": "349a4443ea21306213776e024afdc9a00bca6870cebc1cc1594650181b52ee75"
     }
   ]
 }
