@@ -1,3 +1,4 @@
+import {FRAME_MIP_BILINEAR_WGSL,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationReceipt} from './gpu-mipmap.mjs';
 /** Native WebGPU colour/line/point backend. Shares device + immutable geometry uploads. */
 import {GpuBufferPool,LatestFrameQueue} from './gpu-resources.mjs';
 import {textureState,textureStateCurrent,texturePolicy} from './texture-policy.mjs';
@@ -233,18 +234,7 @@ export function packDirectionalLights(view){
   }
   return checkedFinite(f,'Directional light storage');
 }
-export const MIPMAP_WGSL=/*wgsl*/`
-struct MipVertex { @builtin(position) position:vec4f, @location(0) uv:vec2f }
-@group(0) @binding(0) var mipSampler:sampler;
-@group(0) @binding(1) var sourceMip:texture_2d<f32>;
-@vertex fn mipVertex(@builtin(vertex_index) id:u32)->MipVertex {
- let uv=vec2f(f32((id<<1u)&2u),f32(id&2u));var out:MipVertex;
- out.position=vec4f(uv*2.0-1.0,0.0,1.0);out.uv=vec2f(uv.x,1.0-uv.y);return out;
-}
-@fragment fn mipFragment(input:MipVertex)->@location(0) vec4f {
- return textureSampleLevel(sourceMip,mipSampler,input.uv,0.0);
-}
-`;
+export const MIPMAP_WGSL=FRAME_MIP_BILINEAR_WGSL;
 export class FrameGpuDisplay {
   static async create(rawDevice,{resourcePool=null,format='bgra8unorm',sampleCount=1,onError=()=>{},renderDomain='canonical',cubicWindowCapability=null,quadTopology='list',basicSpecialization='disabled',standardSpecialization='disabled'}={}){
     const display=new FrameGpuDisplay(rawDevice,{resourcePool,format,sampleCount,onError,renderDomain,cubicWindowCapability,quadTopology,basicSpecialization,standardSpecialization});try{await display.init();return display;}catch(e){await display.dispose();throw e;}
@@ -297,26 +287,25 @@ export class FrameGpuDisplay {
   _buffer(data,usage,label,minBytes=4){return this.pool.borrow(data,usage,label,minBytes);}
 
   async _initMipmaps(){
-    const d=this.device;this.mipModule=d.createShaderModule({label:'Frame native mipmaps',code:MIPMAP_WGSL});
-    const info=await this.mipModule.getCompilationInfo(),problem=shaderError(info);if(problem)throw Error(problem);
-    this.mipLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'filtering'}},{binding:1,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float',viewDimension:'2d'}}]});
-    this.mipSampler=d.createSampler({minFilter:'linear',magFilter:'linear',mipmapFilter:'nearest',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});
-    this.mipPipelines=new Map();const layout=d.createPipelineLayout({bindGroupLayouts:[this.mipLayout]});
-    for(const format of ['rgba8unorm','rgba8unorm-srgb']){
-      this.mipPipelines.set(format,await d.createRenderPipelineAsync({label:'Frame mipmap '+format,layout,
-        vertex:{module:this.mipModule,entryPoint:'mipVertex'},fragment:{module:this.mipModule,entryPoint:'mipFragment',targets:[{format}]},primitive:{topology:'triangle-list'}}));
-    }
+    const profile=this._mipGenerationProfile(),guard=()=>this._mipGenerationProfile();
+    this.mipSetup=await createFrameMipGenerator(this.device,{profile,guard});
+    const receipt=this.cubicWindowCapability?.textureLODCalibration?.mipGenerationSelection;
+    if(receipt&&this.mipSetup.shaderSHA256!==receipt.shaderSHA256)throw Error('Measured mip generation shader/profile mismatch');
+    Object.defineProperty(this,'mipGenerationProfile',{value:profile,enumerable:true});
+    this.mipModule=this.mipSetup.module;this.mipLayout=this.mipSetup.layout;this.mipSampler=this.mipSetup.sampler;this.mipPipelines=this.mipSetup.pipelines;
+  }
+  _mipGenerationProfile(){
+    const cap=this.cubicWindowCapability,calibration=cap?.textureLODCalibration;
+    if(!calibration){if(this.renderDomain==='gl-window')throw Error('Fresh measured mip generation capability required');return 'bilinear-center-v1';}
+    const receipt=assertFrameMipGenerationReceipt(calibration.mipGenerationSelection);
+    if(cap.device!==this.device||typeof cap.isCurrent!=='function'||!cap.isCurrent()||!Object.is(cap.ownerGeneration,receipt.ownerGeneration))throw new DOMException('Mip generation capability is stale or belongs to another device','AbortError');
+    if(calibration.mipGenerationProfile!==receipt.profile||calibration.mipGenerationShaderSHA256!==receipt.shaderSHA256)throw Error('Mip generation capability profile/shader mismatch');
+    return receipt.profile;
   }
   _generateMipmaps(texture,format,levels){
-    const d=this.device,pipeline=this.mipPipelines.get(format);if(!pipeline)throw Error('Mipmap pipeline was not prepared');
-    const encoder=d.createCommandEncoder({label:'Frame mip chain'});
-    for(let level=1;level<levels;level++){
-      const source=texture.createView({baseMipLevel:level-1,mipLevelCount:1}),target=texture.createView({baseMipLevel:level,mipLevelCount:1});
-      const bind=d.createBindGroup({layout:this.mipLayout,entries:[{binding:0,resource:this.mipSampler},{binding:1,resource:source}]});
-      const pass=encoder.beginRenderPass({label:'Frame mip '+level,colorAttachments:[{view:target,loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:0}}]});
-      pass.setPipeline(pipeline);pass.setBindGroup(0,bind);pass.draw(3);pass.end();
-    }
-    d.queue.submit([encoder.finish()]);
+    const profile=this._mipGenerationProfile(),receipt=this.cubicWindowCapability?.textureLODCalibration?.mipGenerationSelection;
+    if(this.mipSetup?.profile!==profile||receipt&&this.mipSetup.shaderSHA256!==receipt.shaderSHA256)throw Error('Prepared mip generator differs from measured profile');
+    generateFrameMipChain(this.device,texture,format,levels,this.mipSetup);
   }
   _makeTexture(source){
     const image=source.image??source.source?.data;if(!image)throw Error('Texture image is not loaded');

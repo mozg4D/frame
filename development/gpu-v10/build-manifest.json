@@ -699,15 +699,33 @@
     "index.html": [
       {
         "path": "index.html",
-        "patch": "patches/r227-diagnostics-shell-to-r226.json"
+        "patch": "patches/r228-shell-to-r226.json"
       }
     ],
     "native-source/gpu-cubic-mip-calibration.mjs": [
       {
         "path": "native-source/gpu-cubic-mip-calibration.mjs",
-        "patch": "patches/r227-diagnostics-mip-source-to-r226.json"
+        "patch": "patches/r228-gpu-cubic-mip-calibration-to-r226.json"
+      }
+    ],
+    "native-source/gpu-display.mjs": [
+      {
+        "path": "native-source/gpu-display.mjs",
+        "patch": "patches/r228-gpu-display-to-r226.json"
+      }
+    ],
+    "native-source/gpu-cubic-map.mjs": [
+      {
+        "path": "native-source/gpu-cubic-map.mjs",
+        "patch": "patches/r228-gpu-cubic-map-to-r226.json"
+      }
+    ],
+    "native-source/cubic-capabilities.mjs": [
+      {
+        "path": "native-source/cubic-capabilities.mjs",
+        "patch": "patches/r228-cubic-capabilities-to-r226.json"
       }
     ]
   },
-  "supportedProductionVersion": "r227-mobile-mip-diagnostics"
+  "supportedProductionVersion": "r228-measured-mip-generation"
 }

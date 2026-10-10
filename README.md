@@ -8,9 +8,9 @@ A browser-based 3D workspace for spline and polygon modeling, scene assembly, an
 
 ## Current application
 
-The hosted application is **r227**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
+The hosted application is **r228**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
 
-The viewport requires a supported WebGPU configuration. Startup checks capabilities and offers Retry if initialization fails. Mip-calibration failures expose a copyable diagnostic report; r227 does not claim to fix the mobile startup failure. Cached application resources can be reopened offline through the PWA.
+The viewport requires a supported WebGPU configuration. Startup checks capabilities and offers Retry if initialization fails. Mip generation is selected through fresh numerical checks for each GPU generation, including odd-sized textures. Calibration failures expose a copyable diagnostic report. r228 still requires verification on the affected Redmi device. Cached application resources can be reopened offline through the PWA.
 
 The slicer generates perimeter paths with guarded adaptive handling and Solid or Lines–Dots layer previews. Broader adaptive coverage and the practical print workflow remain unfinished. Heavy component editing and cold selection still need performance work.
 

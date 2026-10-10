@@ -1,0 +1,16 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "661e8e2890df9105d50ae579446bdfa375694fedc89adbe70f48b3ce572fa482",
+  "afterSHA256": "94b815d4f6d757b790330cf3716f7a6ab2027698548c3efa83fed992e6aa3ab3",
+  "beforeBytes": 4642,
+  "afterBytes": 4474,
+  "operations": [
+    {
+      "startLine": 34,
+      "deleteLines": 1,
+      "insert": [
+        "     if(textureLODCalibration)assertCubicWindowMipDerivativeCapability({calibration,textureLODCalibration,canvasHeight:8,sampleCount:this.experimentalMSAA?4:1,experimentalMSAA:this.experimentalMSAA,texturePolicy:{width:2,height:2,mipLevelCount:2,sampler:{minFilter:'linear',magFilter:'linear',mipmapFilter:'linear',lodMinClamp:0,lodMaxClamp:1,maxAnisotropy:1}},sourceTexture:{minFilter:1008,magFilter:1006,generateMipmaps:true,anisotropy:1,mipmaps:[]}});\n"
+      ]
+    }
+  ]
+}

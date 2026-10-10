@@ -1,8 +1,8 @@
 # Native viewport sources
 
-The 31 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by the current r227 application:
+The 32 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by the current r228 application:
 
-`modules/native.c2fefd46247a4f3d178c.js`
+`modules/native.c8d821f1cd358ff0a32e.js`
 
 ## Rebuild
 
@@ -12,7 +12,9 @@ From the repository root, write the bundle to a temporary file outside the check
 
     node native-source/bundle-native.mjs /absolute/path/outside/frame/native.js
 
-Expected output: 442,024 bytes, SHA256 `c2fefd46247a4f3d178c09016863e4a1fb99ad7d0cc1ad5ff464c2de105b2314`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
+Expected output: 454,556 bytes, SHA256 `c8d821f1cd358ff0a32edb8b4ee0306094f7e4c9bd7ceb50acee03561f474664`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
+
+Mip generation is selected by fresh native/actual GL controls for the current GPU owner generation. Production and calibration share gpu-mipmap.mjs; the baseline bilinear profile is preferred when it passes. The measured area profile integrates odd-dimension footprints in linear RGB and writes each mip to an sRGB8 target. The .008 control tolerance, exact base uploads, default source texture settings, implicit LOD and POT/NPOT color/bump gates remain enforced. Loss/Retry repeats calibration for the new device generation.
 
 ## Boundaries
 

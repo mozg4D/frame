@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 3048,
-      "sha256": "cde579eece8e1743dfe1adca17244ddb63f9cce3c75c62e71fb60625cc763ed8"
+      "bytes": 3192,
+      "sha256": "2634661b1a748d0c07cb4c633fe9b88c20eb10145981f3b18712971b019ae8e6"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 24661,
-      "sha256": "b2f132f2f3e45af3f4c9b78dd0e514a07fce9cbede92567a481b7984706fbcd1"
+      "bytes": 25184,
+      "sha256": "903f1cf1b23bea3572fdaaff40f0945cb085fbc4a5e0d9d79cdab1ab772c5263"
     },
     {
       "path": "native-overrides/authoring-mesh.mjs",
@@ -92,14 +92,29 @@
       "sha256": "769542949cc3231569591f77fa98c1c1dad584e8cad65460e9918f29208ebe28"
     },
     {
-      "path": "patches/r227-diagnostics-mip-source-to-r226.json",
-      "bytes": 5252,
-      "sha256": "0ed0bcdf25e57be06cb50a342e35058dbbcdc9887b9b7b1464234bc04c2718c9"
+      "path": "patches/r228-cubic-capabilities-to-r226.json",
+      "bytes": 835,
+      "sha256": "066b7171411c77c1aa8d88c33c4bb60c83ae0eb6935639c8fa7e86c567187750"
     },
     {
-      "path": "patches/r227-diagnostics-shell-to-r226.json",
+      "path": "patches/r228-gpu-cubic-map-to-r226.json",
+      "bytes": 714,
+      "sha256": "5d6c3822b37b85e13342ab1d985f075c0eee5a499bc3b5c9604aa8588fb7b168"
+    },
+    {
+      "path": "patches/r228-gpu-cubic-mip-calibration-to-r226.json",
+      "bytes": 15102,
+      "sha256": "d99f16867abf8774ea4a7a99f2a39a0efd1cf2e76ce244f9fef65bbc15723c6b"
+    },
+    {
+      "path": "patches/r228-gpu-display-to-r226.json",
+      "bytes": 3599,
+      "sha256": "a4829d1808e9dacb12f731ba17029127716d9b200145e30289a1c7df2d6010c0"
+    },
+    {
+      "path": "patches/r228-shell-to-r226.json",
       "bytes": 13602,
-      "sha256": "6bf73f7184d5c4f5c8d904715346426cd19ced962228a77cb6d421fc018277d9"
+      "sha256": "88b47dd406a2a0e6a046912431a91fa9b9a35fa91a7990a433790f4a5e4c4f56"
     },
     {
       "path": "patches/shell-from-r226.json",

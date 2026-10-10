@@ -1,0 +1,64 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "86b416ab57ad0bb4b0d0b167c46d10c619c099983d040d8fc2a5349b73ab299d",
+  "afterSHA256": "ed876cd300d72dc8093da7189e166151b19978040520808cf4c8159b56bb8406",
+  "beforeBytes": 44997,
+  "afterBytes": 45455,
+  "operations": [
+    {
+      "startLine": 0,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 236,
+      "deleteLines": 1,
+      "insert": [
+        "export const MIPMAP_WGSL=/*wgsl*/`\r\n",
+        "struct MipVertex { @builtin(position) position:vec4f, @location(0) uv:vec2f }\r\n",
+        "@group(0) @binding(0) var mipSampler:sampler;\r\n",
+        "@group(0) @binding(1) var sourceMip:texture_2d<f32>;\r\n",
+        "@vertex fn mipVertex(@builtin(vertex_index) id:u32)->MipVertex {\r\n",
+        " let uv=vec2f(f32((id<<1u)&2u),f32(id&2u));var out:MipVertex;\r\n",
+        " out.position=vec4f(uv*2.0-1.0,0.0,1.0);out.uv=vec2f(uv.x,1.0-uv.y);return out;\r\n",
+        "}\r\n",
+        "@fragment fn mipFragment(input:MipVertex)->@location(0) vec4f {\r\n",
+        " return textureSampleLevel(sourceMip,mipSampler,input.uv,0.0);\r\n",
+        "}\r\n",
+        "`;\r\n"
+      ]
+    },
+    {
+      "startLine": 288,
+      "deleteLines": 15,
+      "insert": [
+        "  async _initMipmaps(){\r\n",
+        "    const d=this.device;this.mipModule=d.createShaderModule({label:'Frame native mipmaps',code:MIPMAP_WGSL});\r\n",
+        "    const info=await this.mipModule.getCompilationInfo(),problem=shaderError(info);if(problem)throw Error(problem);\r\n",
+        "    this.mipLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'filtering'}},{binding:1,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float',viewDimension:'2d'}}]});\r\n",
+        "    this.mipSampler=d.createSampler({minFilter:'linear',magFilter:'linear',mipmapFilter:'nearest',addressModeU:'clamp-to-edge',addressModeV:'clamp-to-edge'});\r\n",
+        "    this.mipPipelines=new Map();const layout=d.createPipelineLayout({bindGroupLayouts:[this.mipLayout]});\r\n",
+        "    for(const format of ['rgba8unorm','rgba8unorm-srgb']){\r\n",
+        "      this.mipPipelines.set(format,await d.createRenderPipelineAsync({label:'Frame mipmap '+format,layout,\r\n",
+        "        vertex:{module:this.mipModule,entryPoint:'mipVertex'},fragment:{module:this.mipModule,entryPoint:'mipFragment',targets:[{format}]},primitive:{topology:'triangle-list'}}));\r\n",
+        "    }\r\n"
+      ]
+    },
+    {
+      "startLine": 304,
+      "deleteLines": 4,
+      "insert": [
+        "  _generateMipmaps(texture,format,levels){\r\n",
+        "    const d=this.device,pipeline=this.mipPipelines.get(format);if(!pipeline)throw Error('Mipmap pipeline was not prepared');\r\n",
+        "    const encoder=d.createCommandEncoder({label:'Frame mip chain'});\r\n",
+        "    for(let level=1;level<levels;level++){\r\n",
+        "      const source=texture.createView({baseMipLevel:level-1,mipLevelCount:1}),target=texture.createView({baseMipLevel:level,mipLevelCount:1});\r\n",
+        "      const bind=d.createBindGroup({layout:this.mipLayout,entries:[{binding:0,resource:this.mipSampler},{binding:1,resource:source}]});\r\n",
+        "      const pass=encoder.beginRenderPass({label:'Frame mip '+level,colorAttachments:[{view:target,loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:0}}]});\r\n",
+        "      pass.setPipeline(pipeline);pass.setBindGroup(0,bind);pass.draw(3);pass.end();\r\n",
+        "    }\r\n",
+        "    d.queue.submit([encoder.finish()]);\r\n"
+      ]
+    }
+  ]
+}

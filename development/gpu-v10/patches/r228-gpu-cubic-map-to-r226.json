@@ -1,0 +1,21 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "36f4ef83485c88edbb864a26447d5a4c575bb174ae5e79ffb7b2ad38c6b26923",
+  "afterSHA256": "facf0be5b353910733b44ba43e2552b340f7fb1f0648acc21967ae2045ddaca1",
+  "beforeBytes": 25616,
+  "afterBytes": 24935,
+  "operations": [
+    {
+      "startLine": 0,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 204,
+      "deleteLines": 2,
+      "insert": [
+        " return {profile:'coarse-bottom-left',implicitLODProfile:receipt.implicitLODProfile,canvasHeight,sampleCount,coreWGSL:true,mipLevelCount:levels,renderDomain:'gl-window',experimentalOnly:true,textureSubset:'generated-mips-matching-filters-anisotropy1'};\n"
+      ]
+    }
+  ]
+}
