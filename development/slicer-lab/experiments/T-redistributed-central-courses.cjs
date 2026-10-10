@@ -13,7 +13,8 @@ const unit=p=>p.map(q=>R.rat(q.n===0n?0n:q.n>0n?1n:-1n));
 const ratioRoots=new Map();
 function ratioRoot(axis,long){const dx=R.dot(axis,long),q=R.div(R.dot(axis,axis),R.mul(dx,dx)),key=R.str(q);if(ratioRoots.has(key))return ratioRoots.get(key);const lower=A.sqrtBounds(q)[0];if(ratioRoots.size<4096)ratioRoots.set(key,lower);return lower;}
 function ceilNumber(q){let n=R.number(q);const d=new DataView(new ArrayBuffer(8));for(let i=0;i<8&&R.cmp(R.exact(n),q)<0;i++){d.setFloat64(0,n,false);d.setBigUint64(0,d.getBigUint64(0,false)+1n,false);n=d.getFloat64(0,false);}if(!Number.isFinite(n)||R.cmp(R.exact(n),q)<0)throw Error('working-width representation');return n;}
-function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSourceTiles=true){
+function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSourceTiles=true,generalOddEqual=false){
+ if(typeof generalOddEqual!=='boolean')throw Error('explicit general odd T construction policy required');
  const defaults={barLow:.8,barPeak:1.06,stemWidth:.7,stemStop:4,barLead:1/256};
  if(!policy||typeof policy!=='object'||Array.isArray(policy)||Object.keys(policy).some(k=>!(k in defaults)))throw Error('unknown central source policy');
  const central={...defaults,...policy};if(Object.values(central).some(v=>!Number.isFinite(v))||central.barLow<.6||central.barLow>1||central.barPeak<1||central.barPeak>1.3||central.stemWidth<.6||central.stemWidth>1||central.stemStop<3.7||central.stemStop>4.1||central.barLead<0||central.barLead>.01)throw Error('bounded central source policy required');
@@ -23,6 +24,8 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
   u=unit(R.vec(B,L)),v=unit(R.vec(TL,SL)),barOrigin=add(add(L,scale(u,R.sub(R.zero,h))),scale(v,R.sub(R.zero,h))),
   stemOrigin=add(SL,scale(u,R.sub(R.zero,h))),barWidth=R.add(R.dot(R.vec(B,L),u),w),barHeight=R.mul(w,R.rat(BigInt(bars.length))),
   stemWidth=R.mul(w,R.rat(BigInt(stems.length))),stemHeight=R.add(R.dot(R.vec(TL,SL),v),h),root=A.sqrtBounds(R.rat(2n)),peak=R.mul(w,root[1]);
+ const lapCount=generalOddEqual?(bars.length-1)/2:3,lastDepth=lapCount-1;
+ if(generalOddEqual&&(bars.length!==stems.length||bars.length<5||bars.length>11||!Number.isInteger(lapCount)))throw Error('experimental equal odd five-to-eleven-W T required');
  if(bars.length%2!==1||stems.length%2!==1||R.cmp(barWidth,R.add(barHeight,R.mul(w,R.rat(2n))))<=0||
   [R.dot(R.vec(stemOrigin,barOrigin),u),R.sub(barWidth,R.add(R.dot(R.vec(stemOrigin,barOrigin),u),stemWidth))].some(q=>R.cmp(q,R.add(R.div(barHeight,R.rat(2n)),w))<=0)||
   R.cmp(stemHeight,R.add(R.div(stemWidth,R.rat(2n)),w))<=0)throw Error('bounded odd T with long bar arms and stem required');
@@ -42,11 +45,11 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
    sourceIntervals:role.startsWith('stem-')&&role!=='stem-cap'?[]:owner(edge,a,b,'original-finite-'+role),phase});};
 
  function redistributeLower(a,b,w0,w1,role,depth,edge,phase){
-  if(phase||depth!==2||role!=='bar-lower'||R.cmp(w0,w)!==0||R.cmp(w1,w)!==0)return false;
+  if(phase||depth!==lastDepth||role!=='bar-lower'||R.cmp(w0,w)!==0||R.cmp(w1,w)!==0)return false;
   const middle=R.add(R.dot(R.vec(stemOrigin,barOrigin),u),R.div(stemWidth,R.rat(2n))),xA=R.dot(R.vec(a,barOrigin),u),xB=R.dot(R.vec(b,barOrigin),u),
    xs=[2,1,0,-1,-2].map(k=>R.add(middle,R.mul(w,R.rat(BigInt(k)))));
   if(R.cmp(xA,xs[0])<=0||R.cmp(xB,xs[4])>=0)return false;
-  const atWidth=(x,width)=>at(barOrigin,x,R.add(R.mul(w,R.rat(2n)),R.div(width,R.rat(2n)))),
+  const atWidth=(x,width)=>at(barOrigin,x,R.add(R.mul(w,R.rat(BigInt(lastDepth))),R.div(width,R.rat(2n)))),
    barWidths=[w,R.mul(w,R.exact(central.barLow)),R.mul(w,R.exact(central.barPeak)),R.mul(w,R.exact(central.barLow)),w],
    widths=barWidths.map(q=>R.sub(R.mul(w,R.rat(3n,2n)),R.div(q,R.rat(2n)))),N=20;
   push(a,atWidth(xs[0],w),w,w,role,depth,edge);
@@ -56,7 +59,7 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
    phases.push({id,kind:'source-complementary-lower-bank-profile',exactLengthLowerMM:R.str(w),minimumLengthW:true,exactWidthStart:R.str(widths[i]),exactWidthEnd:R.str(widths[i+1]),samples:N,
     necessity:'the unchanged mandatory source slab between y=2W and the straight central bead lower front; complement fixed before emission, no source target removed'});
    const begin=commands.length;for(let j=1;j<=N;j++)push(pts[j-1],pts[j],exactWidths[j-1],exactWidths[j],role,depth,edge,id);
-   for(let j=begin;j<commands.length;j++){commands[j].flatFrontBlend=true;commands[j].flatFront={exactInward:scale(v,R.rat(-1n)).map(R.str),exactOffset:R.str(R.dot(at(barOrigin,R.zero,R.mul(w,R.rat(2n))),scale(v,R.rat(-1n))))};}
+   for(let j=begin;j<commands.length;j++){commands[j].flatFrontBlend=true;commands[j].flatFront={exactInward:scale(v,R.rat(-1n)).map(R.str),exactOffset:R.str(R.dot(at(barOrigin,R.zero,R.mul(w,R.rat(BigInt(lastDepth)))),scale(v,R.rat(-1n))))};}
   }
   push(atWidth(xs[4],w),b,w,w,role,depth,edge);return true;
  }
@@ -111,7 +114,7 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
    originalCanonicalVertex:c.canonicalVertex,adaptive,independentRequiredCornerCell:required,independentOriginalNominalPivot:referencePivot.map(R.str),rule:adaptive?'needed interior source corner cell with W-long width phases; original cell retained under flat-front redistribution':'confirmed original exterior nominal-W round join, radius W/2'});
  }
 
- if(bars.length!==7||stems.length!==7)throw Error('connected T currently requires seven nominal W rows on both branches');
+ if(!generalOddEqual&&(bars.length!==7||stems.length!==7))throw Error('connected T currently requires seven nominal W rows on both branches');
  const oldAt=(x,y)=>at(barOrigin,x,y),outerVertices=[barOrigin,add(barOrigin,scale(v,barHeight)),add(stemOrigin,scale(v,stemHeight)),
   add(add(stemOrigin,scale(u,stemWidth)),scale(v,stemHeight)),add(add(barOrigin,scale(u,barWidth)),scale(v,barHeight)),add(barOrigin,scale(u,barWidth))],
   sourceRootLeft=stemOrigin,sourceRootRight=add(stemOrigin,scale(u,stemWidth));
@@ -144,12 +147,12 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
   if(!same(A,B)){if(role==='bar-upper')topStroke(A,B,w,w,role,depth,null);else push(A,B,w,w,role,depth,edge);}
   if(last){if(R.cmp(p1,flatPeak)>0)stroke(B,b,w,p1,role,depth,edge);else flatStroke(B,b,w,p1,role,depth,edge,n1,F1);}
  }
- for(let depth=0;depth<3;depth++){
+ for(let depth=0;depth<lapCount;depth++){
   const d=R.mul(w,R.rat(BigInt(depth))),o=R.add(d,h),x0=o,x1=R.sub(barWidth,o),y0=o,y1=R.sub(barHeight,o),xl=R.add(R.dot(R.vec(stemOrigin,barOrigin),u),o),xr=R.sub(R.add(R.dot(R.vec(stemOrigin,barOrigin),u),stemWidth),o),yt=R.sub(R.add(barHeight,stemHeight),o),
    old=[oldAt(x0,y0),oldAt(x0,y1),oldAt(xl,y1),oldAt(xl,yt),oldAt(xr,yt),oldAt(xr,y1),oldAt(x1,y1),oldAt(x1,y0)],
    bases=[[scale(u,R.rat(-1n)),scale(v,R.rat(-1n))],[scale(u,R.rat(-1n)),v],[u,scale(v,R.rat(-1n))],[scale(u,R.rat(-1n)),v],[u,v],[scale(u,R.rat(-1n)),scale(v,R.rat(-1n))],[u,v],[u,scale(v,R.rat(-1n))]],
    vertices=[outerVertices[0],outerVertices[1],sourceRootLeft,outerVertices[2],outerVertices[3],sourceRootRight,outerVertices[4],outerVertices[5]],
-   flat=depth===2,widths=old.map((_,i)=>i===2||i===5||flat?flatPeak:depth?peak:w),
+   flat=depth===lastDepth,widths=old.map((_,i)=>i===2||i===5||flat?flatPeak:depth?peak:w),
    heads=old.map((p,i)=>i===2||i===5||flat?add(p,scale(add(...bases[i]),R.div(R.sub(flatPeak,w),R.rat(2n)))):p),
    seam=oldAt(R.add(x0,R.mul(w,R.rat(6n))),y0),begin=commands.length,reach=R.mul(w,R.rat(BigInt(depth+1)));
   originalNominalSkeleton.push(...old.map((a,i)=>({from:a.map(R.str),to:old[(i+1)%8].map(R.str)})));
@@ -184,7 +187,7 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
   component++;
  }
 
- const d=R.mul(w,R.rat(3n)),barY=R.add(d,h),barA=oldAt(R.sub(barWidth,d),barY),barB=oldAt(d,barY),barBegin=commands.length,
+ const d=R.mul(w,R.rat(BigInt(lapCount))),barY=R.add(d,h),barA=oldAt(R.sub(barWidth,d),barY),barB=oldAt(d,barY),barBegin=commands.length,
   middle=R.add(R.dot(R.vec(stemOrigin,barOrigin),u),R.div(stemWidth,R.rat(2n))),lowWidth=R.mul(w,R.exact(central.barLow)),centrePeak=R.mul(w,R.exact(central.barPeak)),bottomLevel=d,N=20;
  function centreAt(x,width){return oldAt(x,barY);}
  function centrePhase(x0,x1,w0,w1){const points=[],desired=[],inward=scale(v,R.rat(-1n)),front=R.dot(oldAt(R.zero,bottomLevel),inward);
@@ -194,24 +197,24 @@ function planTRedistributedCentralCourses(source,W=1,count=7,policy={},buildSour
    id='width-'+phases.length;
   phases.push({id,kind:'source-prescribed-central-flat-bottom-profile',exactLengthLowerMM:R.str(w),minimumLengthW:true,exactWidthStart:R.str(w0),exactWidthEnd:R.str(w1),samples:N,
    necessity:'source joint free span is only .75W at the old concave radius minimum; central W phases and the .8W stem interface require a source-planned medial peak, not an independent overlap restart'});
-  const first=commands.length;for(let j=1;j<=N;j++)push(points[j-1],points[j],widths[j-1],widths[j],'bar-central-adaptive',3,bottom,id);
+  const first=commands.length;for(let j=1;j<=N;j++)push(points[j-1],points[j],widths[j-1],widths[j],'bar-central-adaptive',lapCount,bottom,id);
   // The central axis is straight; variable-width ribbons share exact normal cross-sections. No phase bevel or independent cap is emitted.
  }
  const xs=[2,1,0,-1,-2].map(k=>R.add(middle,R.mul(w,R.add(R.rat(BigInt(k)),R.exact(central.barLead)))));
- push(barA,centreAt(xs[0],w),w,w,'bar-central-start',3,bottom);
+ push(barA,centreAt(xs[0],w),w,w,'bar-central-start',lapCount,bottom);
  for(let i=0;i<4;i++)centrePhase(xs[i],xs[i+1],[w,lowWidth,centrePeak,lowWidth][i],[lowWidth,centrePeak,lowWidth,w][i]);
- push(centreAt(xs[4],w),barB,w,w,'bar-central-stop',3,bottom);
+ push(centreAt(xs[4],w),barB,w,w,'bar-central-stop',lapCount,bottom);
  originalNominalSkeleton.push({from:barA.map(R.str),to:barB.map(R.str)});
- courses.push({component,depth:3,startCommand:barBegin,endCommand:commands.length,closed:false,start:barA.map(R.str),end:barB.map(R.str),terminalOverrunMM:0});component++;
- const stemA=oldAt(middle,R.sub(R.add(barHeight,stemHeight),d)),stemB=oldAt(middle,R.mul(w,R.exact(central.stemStop))),stemBegin=commands.length,stemNarrow=R.mul(w,R.exact(central.stemWidth)),
-  phaseStart=oldAt(middle,R.mul(w,R.rat(345n,64n))),phaseEnd=oldAt(middle,R.mul(w,R.rat(281n,64n))),stemSources=cornerSources(sourceRootLeft,R.mul(w,R.rat(4n))).concat(cornerSources(sourceRootRight,R.mul(w,R.rat(4n))));
- function stemPush(a,b,w0,w1,role,phase=null){const index=commands.length;push(a,b,w0,w1,role,3,leftStem,phase);assignStemOwnership(index,leftStem,stemSources,rightStem);}
+ courses.push({component,depth:lapCount,startCommand:barBegin,endCommand:commands.length,closed:false,start:barA.map(R.str),end:barB.map(R.str),terminalOverrunMM:0});component++;
+ const offset=R.rat(BigInt(lapCount-3)),stemA=oldAt(middle,R.sub(R.add(barHeight,stemHeight),d)),stemB=oldAt(middle,R.mul(w,R.add(R.exact(central.stemStop),offset))),stemBegin=commands.length,stemNarrow=R.mul(w,R.exact(central.stemWidth)),
+  phaseStart=oldAt(middle,R.mul(w,R.add(R.rat(345n,64n),offset))),phaseEnd=oldAt(middle,R.mul(w,R.add(R.rat(281n,64n),offset))),stemSources=cornerSources(sourceRootLeft,R.mul(w,R.rat(BigInt(lapCount+1)))).concat(cornerSources(sourceRootRight,R.mul(w,R.rat(BigInt(lapCount+1)))));
+ function stemPush(a,b,w0,w1,role,phase=null){const index=commands.length;push(a,b,w0,w1,role,lapCount,leftStem,phase);assignStemOwnership(index,leftStem,stemSources,rightStem);}
  stemPush(stemA,phaseStart,w,w,'stem-central-start');const id='width-'+phases.length;
  phases.push({id,kind:'source-central-stem-contraction',exactLengthMM:R.str(w),exactWidthStart:R.str(w),exactWidthEnd:R.str(stemNarrow),minimumLengthW:true,
   necessity:'the prescribed neighbouring root fronts leave less than W of free transverse material; contraction starts only after the disjoint W start'});
  stemPush(phaseStart,phaseEnd,w,stemNarrow,'stem-central-contraction',id);stemPush(phaseEnd,stemB,stemNarrow,stemNarrow,'stem-central-joint-stop');
  originalNominalSkeleton.push({from:stemA.map(R.str),to:oldAt(middle,R.add(d,w)).map(R.str)});
- courses.push({component,depth:3,startCommand:stemBegin,endCommand:commands.length,closed:false,start:stemA.map(R.str),end:stemB.map(R.str),terminalOverrunMM:0});component++;
+ courses.push({component,depth:lapCount,startCommand:stemBegin,endCommand:commands.length,closed:false,start:stemA.map(R.str),end:stemB.map(R.str),terminalOverrunMM:0});component++;
  events.push({kind:'coupled-source-central-T-allocation',eventCommands:Array.from({length:commands.length-barBegin},(_,i)=>barBegin+i),commandFrom:barBegin,commandTo:commands.length,
   limitExactMM2:R.str(R.mul(w,h)),scope:'all central bar/stem ribbons, phase bevels, both terminal contacts and all final older/widened T banks; one shared ceiling'});
  const originalRequiredTiles=[];
@@ -238,9 +241,9 @@ function proveRequiredMaterial(plan,all,e,signal){
   proof:'complete convex source-cell subtraction against full emitted polygon union expanded by rational L1 diamond inside Euclidean error disk; exterior disks independently bounded by complete analytic sag reserve',
   fullPhysicalFlowValidated:false}};
 }
-function createTRedistributedCentralCourses(){const c=load('optimized-worker.js').context;return{generate({source,W=1,count=7,signal,includeMultiplicity=false,includeExactMissingArea=false,onStage,onProfile,eventOnly=false,runtimeOnly=false,sharedLedger=false,centralPolicy={}}){
+function createTRedistributedCentralCourses(){const c=load('optimized-worker.js').context;return{generate({source,W=1,count=7,signal,includeMultiplicity=false,includeExactMissingArea=false,onStage,onProfile,eventOnly=false,runtimeOnly=false,sharedLedger=false,centralPolicy={},generalOddEqual=false}){
  let profileTime=performance.now();const mark=name=>{const now=performance.now();onProfile?.({name,ms:now-profileTime});profileTime=now;};
- if(signal?.aborted)throw Error('reopened T cancelled');const plan=planTRedistributedCentralCourses(source,W,count,centralPolicy,!runtimeOnly),w=R.exact(W),commands=plan.commands.map(q=>({...q,kind:'print',from:P(q.exactFrom).map(R.number),to:P(q.exactTo).map(R.number),widthStart:ceilNumber(R.parse(q.exactWidthStart)),widthEnd:ceilNumber(R.parse(q.exactWidthEnd))}));mark('source plan and finite command conversion');
+ if(signal?.aborted)throw Error('reopened T cancelled');const plan=planTRedistributedCentralCourses(source,W,count,centralPolicy,!runtimeOnly,generalOddEqual),w=R.exact(W),commands=plan.commands.map(q=>({...q,kind:'print',from:P(q.exactFrom).map(R.number),to:P(q.exactTo).map(R.number),widthStart:ceilNumber(R.parse(q.exactWidthStart)),widthEnd:ceilNumber(R.parse(q.exactWidthEnd))}));mark('source plan and finite command conversion');
  // Correct finite width representation, not the restart predicate. Incident
  // cells share one vertex width and must obey the independent plane exactly.
  const vertices=new Map(),bits=new DataView(new ArrayBuffer(8)),down=x=>{if(!x)return-Number.MIN_VALUE;bits.setFloat64(0,x,false);bits.setBigUint64(0,bits.getBigUint64(0,false)+(x>0?-1n:1n),false);return bits.getFloat64(0,false);},floor=q=>{let n=R.number(q);for(let i=0;i<8&&R.cmp(R.exact(n),q)>0;i++)n=down(n);if(!Number.isFinite(n)||R.cmp(R.exact(n),q)>0)throw Error('finite directed width bound required');return n;};

@@ -1,6 +1,6 @@
 {
-  "name": "frame-independent-slicer-atlas",
-  "version": "0.0.0-t-atlas",
+  "name": "frame-independent-slicer-decimal",
+  "version": "0.0.0-t-decimal",
   "private": true,
   "description": "Independent bounded annulus and T geometry checks; no production or physical-print validation.",
   "scripts": {

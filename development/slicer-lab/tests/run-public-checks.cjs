@@ -66,6 +66,15 @@ const tests = [
   ['T-local-atlas-size-scaling.cjs'],
   ['T-source-width-necessity-light.cjs'],
   ['T-direct-lap-link-light.cjs'],
+  ['T-provenance-public-light.cjs'],
+  ['T-local-exact-cache-light.cjs'],
+  ['T-local-exact-cache-new-source.cjs'],
+  ['T-general-perimeter-count-light.cjs'],
+  ['T-decimal-public-guards-light.cjs'],
+  ['T-decimal-widths-light.cjs'],
+  ['T-decimal-clean.cjs'],
+  ['T-decimal-worker-light.cjs'],
+  ['T-review-blockers-light.cjs'],
 ];
 for (const [name, ...args] of tests) {
   const start = performance.now();
@@ -86,6 +95,8 @@ const report = {
   syntheticOwnerAcceptedLayers: results.some(r => r.test === 'annulus-mesh-light.cjs' && r.status === 'PASS') ? 3 : 0,
   newCompleteTLayersAccepted: results.some(r => r.test === 'T-local-atlas-worker-light.cjs' && r.status === 'PASS') ? 3 : 0,
   narrowOrthogonalSevenWTRouteTested: results.some(r => r.test === 'T-local-atlas-worker-light.cjs' && r.status === 'PASS'),
+  decimalSevenWMeshOwnerLayersAccepted: results.some(r => r.test === 'T-decimal-worker-light.cjs' && r.status === 'PASS') ? 2 : 0,
+  generalOddCountCoverageAccepted: false,
   generalTRouteResolved: false, maximumContinuityEstablished: false,
   roundedExterior90MaterialTargetTested: results.some(r => r.test === 'T-rounded-prescribed-light.cjs' && r.status === 'PASS'),
   commandedConvexPolygonMultiplicityTested: results.some(r => r.test === 'deposition-multiplicity.cjs' && r.status === 'PASS'),
