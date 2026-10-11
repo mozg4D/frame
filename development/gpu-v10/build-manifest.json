@@ -699,6 +699,10 @@
     "index.html": [
       {
         "path": "index.html",
+        "patch": "patches/r242-shell-to-r226.json"
+      },
+      {
+        "path": "index.html",
         "patch": "patches/r241-shell-to-r226.json"
       }
     ],
@@ -734,7 +738,7 @@
     ],
     "modules/slicer-worker.e120c24f46831ec5c53d.js": [
       {
-        "path": "modules/slicer-worker.024140cd3fba17edf705.js",
+        "path": "modules/slicer-worker.069c5667bb5be698ada0.js",
         "patch": "../../slicer-source/extract-r239-worker.json"
       }
     ],

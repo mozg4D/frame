@@ -1,95 +1,195 @@
 {
-  "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "024140cd3fba17edf705801e383a378b49722bfa574aa84a754637abb74f46d5",
-  "afterSHA256": "e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475",
-  "beforeBytes": 869014,
+  "beforeBytes": 876753,
+  "beforeSHA256": "069c5667bb5be698ada0f3fc49535b17fbd7750ee3f9e768643dd90619dc5340",
   "afterBytes": 866023,
+  "afterSHA256": "e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475",
   "operations": [
     {
-      "startLine": 10465,
+      "startLine": 7995,
+      "deleteLines": 27,
+      "insert": [
+        "  function trajectoryQualityFailures(paths,originals){\n"
+      ]
+    },
+    {
+      "startLine": 8024,
+      "deleteLines": 2,
+      "insert": [
+        "    const unchanged=originals.map(p=>new Set(pathEdges([p]).map(edgeKey)));\n"
+      ]
+    },
+    {
+      "startLine": 8034,
+      "deleteLines": 1,
+      "insert": [
+        "    for(let i=0;i<originals.length;i++){if(paths[i].length<3||Math.sign(area(paths[i]))!==Math.sign(area(originals[i])))failed.add(i);for(let j=0;j<originals.length;j++)if(i!==j&&C.Clipper.PointInPolygon(originals[i][0],originals[j])!==C.Clipper.PointInPolygon(paths[i][0],paths[j])){failed.add(i);failed.add(j);}}\n"
+      ]
+    },
+    {
+      "startLine": 8038,
+      "deleteLines": 1,
+      "insert": [
+        "  function oneSidedPostRdpCleanup(paths,originals,contexts,width,tolerance,metrics){\n"
+      ]
+    },
+    {
+      "startLine": 8042,
+      "deleteLines": 1,
+      "insert": [
+        "    const globalFits=(proposal,baseline)=>trajectoryQualityFailures(proposal,baseline).size===0;\n"
+      ]
+    },
+    {
+      "startLine": 8044,
+      "deleteLines": 1,
+      "insert": [
+        "    while(remainingBudget-->0){let selected=null;for(let ring=0;ring<current.length&&!selected;ring++){const path=current[ring],ctx=contexts[ring];if(!ctx||path.length<=3)continue;for(let i=0;i<path.length&&!selected;i++){const n=path.length,j=(i+1)%n,a=(i+n-1)%n,b=(j+1)%n,A=path[a],I=path[i],J=path[j],B=path[b];if(Math.hypot(I.X-J.X,I.Y-J.Y)>=width)continue;const ux=I.X-A.X,uy=I.Y-A.Y,vx=B.X-J.X,vy=B.Y-J.Y;if(Math.abs(Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy))>=Math.PI/9){reject('sharp');continue;}\n"
+      ]
+    },
+    {
+      "startLine": 8046,
+      "deleteLines": 1,
+      "insert": [
+        "          const edges=pathEdges(current),after={a:start,b:end};let local=true;\n"
+      ]
+    },
+    {
+      "startLine": 8057,
+      "deleteLines": 1,
+      "insert": [
+        "  function proposeTwoPercentInset(paths,material,p,inputVertices,metrics){\n"
+      ]
+    },
+    {
+      "startLine": 8094,
+      "deleteLines": 1,
+      "insert": [
+        "    const cleanup=value=>oneSidedPostRdpCleanup(value,paths,provenanceContexts,width,tolerance,metrics);if(proposed.every((p,i)=>p===paths[i]))return cleanup(paths);\n"
+      ]
+    },
+    {
+      "startLine": 8097,
+      "deleteLines": 1,
+      "insert": [
+        "      const failed=trajectoryQualityFailures(result,paths);\n"
+      ]
+    },
+    {
+      "startLine": 8111,
+      "deleteLines": 2,
+      "insert": [
+        "    const result=proposeTwoPercentInset(paths,material,p,inputVertices,metrics);\n"
+      ]
+    },
+    {
+      "startLine": 8121,
+      "deleteLines": 1,
+      "insert": [
+        "    if(tolerance<=0||result.length!==paths.length||trajectoryQualityFailures(result,paths).size)return reject();\n"
+      ]
+    },
+    {
+      "startLine": 8135,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 8224,
+      "deleteLines": 16,
+      "insert": []
+    },
+    {
+      "startLine": 8499,
+      "deleteLines": 1,
+      "insert": [
+        "  const api={version:'counted-original-insets-1',describeContours,calculateInsetMaterial,reserveInset,insetCacheMemory,sliceStats,contours,insetGroups,layerY,layerCount,insetContours,prepare,section,slice,SCALE};\n"
+      ]
+    },
+    {
+      "startLine": 10510,
       "deleteLines": 1,
       "insert": [
         "    for(const slot of slots){slot.port.onmessage=({data})=>{self.postMessage({type:'outlineRelease',token:data.token});if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}const job=slot.job;\n"
       ]
     },
     {
-      "startLine": 10522,
+      "startLine": 10567,
       "deleteLines": 19,
       "insert": []
     },
     {
-      "startLine": 10542,
+      "startLine": 10587,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 10551,
+      "startLine": 10596,
       "deleteLines": 2,
       "insert": [
         "  const wake=()=>{for(const resolve of wakeups.splice(0))resolve();},wait=async()=>{await new Promise(resolve=>wakeups.push(resolve));if(failure)throw failure;};\n"
       ]
     },
     {
-      "startLine": 10568,
+      "startLine": 10613,
       "deleteLines": 1,
       "insert": [
         "    inputBytes-=entry.bytes;reserved-=entry.reservation;resultBytes-=entry.resultBytes||0;entry.job=null;entry.result=null;\n"
       ]
     },
     {
-      "startLine": 10575,
+      "startLine": 10620,
       "deleteLines": 1,
       "insert": [
         "  function sectionOwner(layer,describe){const result=frameSectionLayer(prepared,active,p,layer,describe,true);sections.ownerLayers++;sections.ownerMS+=result.timing.wallMS;sections.bandWork+=result.bandWork;return result;}\n"
       ]
     },
     {
-      "startLine": 10586,
+      "startLine": 10631,
       "deleteLines": 1,
       "insert": [
         "    for(const slot of slots){slot.port.onmessage=({data})=>{try{if(data.phase!=='prepared-part')self.postMessage({type:'layerRelease',token:data.token,runId});if(data.runId!==runId){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}\n"
       ]
     },
     {
-      "startLine": 10612,
+      "startLine": 10657,
       "deleteLines": 1,
       "insert": [
         "    const job=entry.job;entry.description=description;entry.plans=description.parts.map(part=>!part.material.length?{hit:false,promise:Promise.resolve({paths:[],material:[],offsetCalls:0})}:api.reserveInset(part.key,description.inputVertices));\n"
       ]
     },
     {
-      "startLine": 10628,
+      "startLine": 10673,
       "deleteLines": 1,
       "insert": [
         "      if(!slots){entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}\n"
       ]
     },
     {
-      "startLine": 10631,
+      "startLine": 10676,
       "deleteLines": 1,
       "insert": [
         "        if(size>maxJobBytes){await drain();entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}\n"
       ]
     },
     {
-      "startLine": 10639,
+      "startLine": 10684,
       "deleteLines": 2,
       "insert": [
         "  if(last)writer({layers:batch,progress:1,stats:{...stats}});return{...stats,...writer.counts()};\n"
       ]
     },
     {
-      "startLine": 10643,
+      "startLine": 10688,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 10649,
+      "startLine": 10694,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 10675,
+      "startLine": 10720,
       "deleteLines": 1,
       "insert": [
         "  if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null;port.onmessage=({data:job})=>{try{\n"

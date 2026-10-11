@@ -2,14 +2,9 @@
   "schema": "frame-gpu-v10-source-v1",
   "files": [
     {
-      "path": "README.md",
-      "bytes": 3321,
-      "sha256": "ad94939ba6f04074a0acc808cf3c9c3a257aefd6dc6d852fa3f5fe3a3adc4117"
-    },
-    {
       "path": "build-manifest.json",
-      "bytes": 26040,
-      "sha256": "8bff3ae2956b291675a515db7b72212c0c8697cbbba6956c7f0dd89a07886d05"
+      "bytes": 26138,
+      "sha256": "46027895f1eadc2ed21071d1edeea3e8908c7c12e1927bddeb7df1633288c807"
     },
     {
       "path": "native-overrides/authoring-mesh.mjs",
@@ -132,9 +127,19 @@
       "sha256": "ca11b15db0e08164257a58bc3c9b6d15c52d9209b1e03bfcb358598fb3a09532"
     },
     {
+      "path": "patches/r242-shell-to-r226.json",
+      "bytes": 13561,
+      "sha256": "4bd318da14dba5a0b7304e7282dcde2f3fbc05317f1019b44c4175a92470cf53"
+    },
+    {
       "path": "patches/shell-from-r226.json",
       "bytes": 13470,
       "sha256": "8a7e1bceef59d1995fb71e49113a8283b88c52eb663c0bc83d02dde0e1d6269c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3321,
+      "sha256": "ad94939ba6f04074a0acc808cf3c9c3a257aefd6dc6d852fa3f5fe3a3adc4117"
     },
     {
       "path": "rebuild.py",

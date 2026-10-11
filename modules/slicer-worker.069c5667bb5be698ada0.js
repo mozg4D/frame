@@ -7993,10 +7993,37 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
    
    
    
-  function trajectoryQualityFailures(paths,originals){
+    // Numeric diagnostics persist; cached baseline data belongs to one invocation.
+  const BASELINE_TOPOLOGY_CACHE_LIMITS=Object.freeze({edgeRings:64,edgeKeys:8192,edgeCodeUnits:524288,areas:64,pairs:256});
+  const baselineTopologyFactoryContexts=new WeakSet();
+  const baselineTopologyLedger={contexts:0,closedContexts:0,activeContexts:0,edgeKeys:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},areas:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},pip:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},peaks:{edgeRings:0,edgeKeys:0,edgeCodeUnits:0,areas:0,pairs:0}};
+  function baselineTopologyCacheDiagnostics(){return structuredClone(baselineTopologyLedger);}
+  function createBaselineTopologyContext(originals,limits=BASELINE_TOPOLOGY_CACHE_LIMITS){
+    const bounds={...limits};for(const name of Object.keys(BASELINE_TOPOLOGY_CACHE_LIMITS))if(!Number.isSafeInteger(bounds[name])||bounds[name]<0||bounds[name]>BASELINE_TOPOLOGY_CACHE_LIMITS[name])throw RangeError('Invalid bounded baseline topology retention limit');
+    const keys=new Map(),areas=new Map(),pairs=new Map(),stats={edgeKeys:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},areas:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},pip:{hits:0,misses:0,evictions:0,bypasses:0,errors:0},peaks:{edgeRings:0,edgeKeys:0,edgeCodeUnits:0,areas:0,pairs:0}};let keyCount=0,codeUnits=0;
+    baselineTopologyLedger.contexts++;baselineTopologyLedger.activeContexts++;
+    const peak=()=>{const values={edgeRings:keys.size,edgeKeys:keyCount,edgeCodeUnits:codeUnits,areas:areas.size,pairs:pairs.size};for(const name of Object.keys(values))stats.peaks[name]=Math.max(stats.peaks[name],values[name]);};
+    const compute=(kind,fn)=>{stats[kind].misses++;try{return fn();}catch(e){stats[kind].errors++;throw e;}};
+    const memo=(store,key,capacity,kind,fn)=>{if(store.has(key)){stats[kind].hits++;return store.get(key);}const value=compute(kind,fn);if(!capacity){stats[kind].bypasses++;return value;}if(store.size>=capacity){store.delete(store.keys().next().value);stats[kind].evictions++;}store.set(key,value);peak();return value;};
+    const context={originals,active:true,
+      edgeKeys(i){if(!context.active)throw Error('Released baseline topology context');if(keys.has(i)){stats.edgeKeys.hits++;return keys.get(i).value;}const value=compute('edgeKeys',()=>new Set(pathEdges([originals[i]]).map(e=>e.a.X+','+e.a.Y+'|'+e.b.X+','+e.b.Y)));
+        if(!bounds.edgeRings||value.size>bounds.edgeKeys){stats.edgeKeys.bypasses++;return value;}
+        let units=0;for(const key of value)units+=key.length;if(units>bounds.edgeCodeUnits){stats.edgeKeys.bypasses++;return value;}
+        while(keys.size>=bounds.edgeRings||keyCount+value.size>bounds.edgeKeys||codeUnits+units>bounds.edgeCodeUnits){const oldest=keys.keys().next().value,entry=keys.get(oldest);keys.delete(oldest);keyCount-=entry.value.size;codeUnits-=entry.units;stats.edgeKeys.evictions++;}
+        keys.set(i,{value,units});keyCount+=value.size;codeUnits+=units;peak();return value;
+      },
+      originalArea(i){if(!context.active)throw Error('Released baseline topology context');return memo(areas,i,bounds.areas,'areas',()=>area(originals[i]));},
+      originalPIP(i,j){if(!context.active)throw Error('Released baseline topology context');if(i===j){stats.pip.bypasses++;return compute('pip',()=>C.Clipper.PointInPolygon(originals[i][0],originals[j]));}return memo(pairs,i+','+j,bounds.pairs,'pip',()=>C.Clipper.PointInPolygon(originals[i][0],originals[j]));},
+      snapshot(){return {...structuredClone(stats),active:context.active,retained:{edgeRings:keys.size,edgeKeys:keyCount,edgeCodeUnits:codeUnits,areas:areas.size,pairs:pairs.size},limits:{...bounds}};},
+      release(){if(!context.active)return;baselineTopologyFactoryContexts.delete(context);context.active=false;context.originals=null;originals=null;keys.clear();areas.clear();pairs.clear();keyCount=codeUnits=0;baselineTopologyLedger.closedContexts++;baselineTopologyLedger.activeContexts--;for(const kind of ['edgeKeys','areas','pip'])for(const name of Object.keys(stats[kind]))baselineTopologyLedger[kind][name]+=stats[kind][name];for(const name of Object.keys(stats.peaks))baselineTopologyLedger.peaks[name]=Math.max(baselineTopologyLedger.peaks[name],stats.peaks[name]);}
+    };baselineTopologyFactoryContexts.add(context);return context;
+  }
+
+  function trajectoryQualityFailures(paths,originals,topology=null){
     const failed=new Set(),edges=pathEdges(paths),index=segmentIndex(edges),same=(a,b)=>a.X===b.X&&a.Y===b.Y;
     const edgeKey=e=>e.a.X+','+e.a.Y+'|'+e.b.X+','+e.b.Y;
-    const unchanged=originals.map(p=>new Set(pathEdges([p]).map(edgeKey)));
+    const topologyActive=baselineTopologyFactoryContexts.has(topology)&&topology.active&&topology.originals===originals;
+    const unchanged=originals.map((p,i)=>topologyActive?topology.edgeKeys(i):new Set(pathEdges([p]).map(edgeKey)));
     for(let i=0;i<edges.length;i++){const e=edges[i];if(same(e.a,e.b)){failed.add(e.ring);continue;}for(const j of index.query(e.a,e.b,0)){if(j<=i)continue;const f=edges[j];
       if(unchanged[e.ring]?.has(edgeKey(e))&&unchanged[f.ring]?.has(edgeKey(f)))continue;
       const adjacent=e.ring===f.ring&&(Math.abs(e.i-f.i)===1||Math.abs(e.i-f.i)===e.n-1);
@@ -8005,19 +8032,19 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       if(crosses(e.a,e.b,f.a,f.b)){failed.add(e.ring);failed.add(f.ring);}
     }}
     if(paths.length!==originals.length){for(let i=0;i<originals.length;i++)failed.add(i);return failed;}
-    for(let i=0;i<originals.length;i++){if(paths[i].length<3||Math.sign(area(paths[i]))!==Math.sign(area(originals[i])))failed.add(i);for(let j=0;j<originals.length;j++)if(i!==j&&C.Clipper.PointInPolygon(originals[i][0],originals[j])!==C.Clipper.PointInPolygon(paths[i][0],paths[j])){failed.add(i);failed.add(j);}}
+    for(let i=0;i<originals.length;i++){if(paths[i].length<3||Math.sign(area(paths[i]))!==Math.sign(topologyActive?topology.originalArea(i):area(originals[i])))failed.add(i);for(let j=0;j<originals.length;j++)if(i!==j&&(topologyActive?topology.originalPIP(i,j):C.Clipper.PointInPolygon(originals[i][0],originals[j]))!==C.Clipper.PointInPolygon(paths[i][0],paths[j])){failed.add(i);failed.add(j);}}
     return failed;
   }
 
-  function oneSidedPostRdpCleanup(paths,originals,contexts,width,tolerance,metrics){
+  function oneSidedPostRdpCleanup(paths,originals,contexts,width,tolerance,metrics,getTopology=null){
     const tiny=path=>path.some((a,i)=>Math.hypot(a.X-path[(i+1)%path.length].X,a.Y-path[(i+1)%path.length].Y)<width);
     if(!paths.some(tiny))return paths;
     const reject=()=>false,same=(a,b)=>a.X===b.X&&a.Y===b.Y,adjacent=(e,f)=>same(e.a,f.a)||same(e.a,f.b)||same(e.b,f.a)||same(e.b,f.b),noise=width*width*1e-10;
-    const globalFits=(proposal,baseline)=>trajectoryQualityFailures(proposal,baseline).size===0;
+    const globalFits=(proposal,baseline)=>trajectoryQualityFailures(proposal,baseline,getTopology?getTopology():null).size===0;
     let current=paths,remainingBudget=paths.reduce((n,p)=>n+p.length,0)*2;
-    while(remainingBudget-->0){let selected=null;for(let ring=0;ring<current.length&&!selected;ring++){const path=current[ring],ctx=contexts[ring];if(!ctx||path.length<=3)continue;for(let i=0;i<path.length&&!selected;i++){const n=path.length,j=(i+1)%n,a=(i+n-1)%n,b=(j+1)%n,A=path[a],I=path[i],J=path[j],B=path[b];if(Math.hypot(I.X-J.X,I.Y-J.Y)>=width)continue;const ux=I.X-A.X,uy=I.Y-A.Y,vx=B.X-J.X,vy=B.Y-J.Y;if(Math.abs(Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy))>=Math.PI/9){reject('sharp');continue;}
+    while(remainingBudget-->0){let selected=null,currentEdges=null;for(let ring=0;ring<current.length&&!selected;ring++){const path=current[ring],ctx=contexts[ring];if(!ctx||path.length<=3)continue;for(let i=0;i<path.length&&!selected;i++){const n=path.length,j=(i+1)%n,a=(i+n-1)%n,b=(j+1)%n,A=path[a],I=path[i],J=path[j],B=path[b];if(Math.hypot(I.X-J.X,I.Y-J.Y)>=width)continue;const ux=I.X-A.X,uy=I.Y-A.Y,vx=B.X-J.X,vy=B.Y-J.Y;if(Math.abs(Math.atan2(ux*vy-uy*vx,ux*vx+uy*vy))>=Math.PI/9){reject('sharp');continue;}
         const options=[];for(const [remove,start,end,oldIds]of [[j,I,B,[i,j]],[i,A,J,[a,i]]]){const source=ctx.trace(start,end);if(!source){reject('source-address-or-64-edge-bound');continue;}const vs=source.vertices,bound=Math.sqrt(Math.max(...vs.map(q=>pointDistance2(q,start,end)),(start.X-vs[0].X)**2+(start.Y-vs[0].Y)**2,(end.X-vs[vs.length-1].X)**2+(end.Y-vs[vs.length-1].Y)**2));if(bound>tolerance){reject('ordered-original-bound');continue;}if(!referenceChord(start,end,source.edges,segmentIndex(source.edges),tolerance)||!source.edges.every(e=>{const intervals=[];capsuleIntervals(e.a,e.b,start,end,tolerance,intervals);return intervalsCover(intervals);})){reject('continuous-original-coverage');continue;}if(!ctx.certify(start,end,tolerance)){reject('material-or-original');continue;}
-          const edges=pathEdges(current),after={a:start,b:end};let local=true;
+          const edges=currentEdges||(currentEdges=pathEdges(current)),after={a:start,b:end};let local=true;
           for(const e of edges){if(e.ring===ring&&oldIds.includes(e.i))continue;if(!adjacent(after,e)&&crosses(start,end,e.a,e.b)){local=false;break;}}
           if(!local){reject('axis-intersection');continue;}const next=path.filter((q,k)=>k!==remove);if(Math.sign(area(next))!==Math.sign(area(path))){reject('orientation');continue;}const proposal=current.map((p,k)=>k===ring?next:p);if(!globalFits(proposal,originals)){reject('trajectory-intersection-or-topology');continue;}options.push({proposal,ring,remove,start,end,bound,source,unchangedEdge:remove===j?[A,I]:[J,B]});
         }
@@ -8028,7 +8055,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     return current;
   }
 
-  function proposeTwoPercentInset(paths,material,p,inputVertices,metrics){
+  function proposeTwoPercentInset(paths,material,p,inputVertices,metrics,getTopology=null){
     const width=p.lineWidth*SCALE,radius=(p.nominalInsetDistanceMM??p.lineWidth/2)*SCALE;let coordinate=0;for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
     const guard=16+inputVertices*.1+coordinate*Number.EPSILON*128,tolerance=width*.02-guard,turnTolerance=tolerance;if(tolerance<=0)return paths;
     const boundary=pathEdges(material),boundaryIndex=materialIndex(material,boundary);
@@ -8065,10 +8092,10 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       for(const e of reference){const intervals=[];for(const id of index.query(e.a,e.b,turnTolerance)){const q=edges[id];capsuleIntervals(e.a,e.b,q.a,q.b,q.allowed,intervals);}intervals.sort((a,b)=>a[0]-b[0]);let covered=0;for(const [lo,hi]of intervals){if(hi<covered)continue;if(lo>covered+1e-12)break;covered=Math.max(covered,hi);if(covered>=1-1e-12)break;}if(covered<1-1e-12)return microPath;}
       return result;
     });
-    const cleanup=value=>oneSidedPostRdpCleanup(value,paths,provenanceContexts,width,tolerance,metrics);if(proposed.every((p,i)=>p===paths[i]))return cleanup(paths);
+    const cleanup=value=>oneSidedPostRdpCleanup(value,paths,provenanceContexts,width,tolerance,metrics,getTopology);if(proposed.every((p,i)=>p===paths[i]))return cleanup(paths);
     let result=proposed;
     for(let pass=0;pass<3;pass++){
-      const failed=trajectoryQualityFailures(result,paths);
+      const failed=trajectoryQualityFailures(result,paths,getTopology?getTopology():null);
       if(!failed.size)return cleanup(result);
       let changed=false;result=result.map((path,i)=>{if(failed.has(i)&&path!==paths[i]){changed=true;metrics.optimizationFallbacks++;if(microRetries[i]){microPaths[i]=microRetries[i]();microRetries[i]=null;}return path!==microPaths[i]?microPaths[i]:paths[i];}return path;});if(!changed)break;
     }
@@ -8082,7 +8109,8 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
    
    
   function simplifyInset(paths,material,p,inputVertices,metrics){
-    const result=proposeTwoPercentInset(paths,material,p,inputVertices,metrics);
+    let baselineTopology=null;const getBaselineTopology=()=>baselineTopology||(baselineTopology=createBaselineTopologyContext(paths));try{
+    const result=proposeTwoPercentInset(paths,material,p,inputVertices,metrics,getBaselineTopology);
     if(result===paths)return paths;
     const width=p.lineWidth*SCALE;let coordinate=0;
     for(const path of material)for(const q of path)coordinate=Math.max(coordinate,Math.abs(q.X),Math.abs(q.Y));
@@ -8091,7 +8119,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     const same=(a,b)=>a.X===b.X&&a.Y===b.Y;
     const key=e=>e.a.X+','+e.a.Y+'|'+e.b.X+','+e.b.Y;
     const reject=()=>{metrics.optimizationFallbacks=(metrics.optimizationFallbacks||0)+1;return paths;};
-    if(tolerance<=0||result.length!==paths.length||trajectoryQualityFailures(result,paths).size)return reject();
+    if(tolerance<=0||result.length!==paths.length||trajectoryQualityFailures(result,paths,getBaselineTopology()).size)return reject();
     for(let ring=0;ring<paths.length;ring++){
       const original=paths[ring],actual=result[ring];
       if(actual===original)continue;
@@ -8105,6 +8133,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
       for(const e of reference){if(actualKeys.has(key(e)))continue;if(!referenceChord(e.a,e.b,edges,index,tolerance))return reject();}
     }
     return result;
+  }finally{baselineTopology?.release();}
   }
 
    
@@ -8193,6 +8222,22 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
     if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
     const normalized=groups.flatMap(normalize),inputVertices=groups.reduce((n,paths)=>n+paths.reduce((n,path)=>n+path.length,0),0),value={paths:[],pathMetadata:[],componentPathGroups:[],references:[],material:[],requestedPerimeters:perimeterCount(p),actualPerimeters:0,offsetCalls:0,cacheHit:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0,segmentsBeforeSimplification:0};
     for(const component of independentComponents(normalized,p.lineWidth*SCALE)){const result=insetComponent(component,p,inputVertices);const componentIndex=value.componentPathGroups.length;value.componentPathGroups.push({componentIndex,paths:result.paths,pathMetadata:result.pathMetadata||[],perimeterLevels:result.perimeterLevels||[],reference:result.reference,adaptivePrepared:result.adaptivePrepared,material:result.material,requestedPerimeters:result.requestedPerimeters??perimeterCount(p),actualPerimeters:result.actualPerimeters||0});value.paths.push(...result.paths);value.pathMetadata.push(...(result.pathMetadata||[]).map(m=>({...m,componentIndex})));value.actualPerimeters=Math.max(value.actualPerimeters,result.actualPerimeters||0);if(result.reference)value.references.push(result.reference);value.material.push(...result.material);for(const name of ['offsetCalls','cacheHit','refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])value[name]+=result[name]||0;}
+    return value;
+  }
+  function insetPreparedComponent(part,p,inputVertices){let material=part.material;
+    const cacheKey=part.key,cached=cacheKey===null?undefined:insetCache.get(cacheKey);
+     
+    if(cached&&cached.inputVertices>=inputVertices){insetCache.delete(cacheKey);insetCache.set(cacheKey,cached);frameAdaptivePreparedTouch(cached.value);return {...cached.value,offsetCalls:0,cacheHit:1};}
+    // Material and its pre-preparation key already belong to the immutable description.
+    if(!material.length)return {paths:[],material:[],offsetCalls:0};
+    const value=calculateInsetMaterial(material,p,inputVertices);frameAdaptivePreparedTrack(value);
+    if(cacheKey!==null){if(cached){insetCacheBytes-=cacheKey.length;insetCacheRelease(cached);frameAdaptivePreparedForget(cached.value);}const entry={value,inputVertices};insetCacheAccount(entry,value);insetCache.set(cacheKey,entry);insetCacheBytes+=cacheKey.length;while(insetCache.size>128||insetCacheBytes>8000000){const key=insetCache.keys().next().value;insetCacheBytes-=key.length;insetCacheRelease(insetCache.get(key));frameAdaptivePreparedForget(insetCache.get(key)?.value);insetCache.delete(key);}}
+    return value;
+  }
+  function insetDescription(description,p){
+    if(!Number.isFinite(p.lineWidth)||p.lineWidth<=0)throw Error('Line width must be positive.');
+    const inputVertices=description.inputVertices,value={paths:[],pathMetadata:[],componentPathGroups:[],references:[],material:[],requestedPerimeters:perimeterCount(p),actualPerimeters:0,offsetCalls:0,cacheHit:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0,segmentsBeforeSimplification:0};
+    for(const part of description.parts){const result=insetPreparedComponent(part,p,inputVertices);const componentIndex=value.componentPathGroups.length;value.componentPathGroups.push({componentIndex,paths:result.paths,pathMetadata:result.pathMetadata||[],perimeterLevels:result.perimeterLevels||[],reference:result.reference,adaptivePrepared:result.adaptivePrepared,material:result.material,requestedPerimeters:result.requestedPerimeters??perimeterCount(p),actualPerimeters:result.actualPerimeters||0});value.paths.push(...result.paths);value.pathMetadata.push(...(result.pathMetadata||[]).map(m=>({...m,componentIndex})));value.actualPerimeters=Math.max(value.actualPerimeters,result.actualPerimeters||0);if(result.reference)value.references.push(result.reference);value.material.push(...result.material);for(const name of ['offsetCalls','cacheHit','refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])value[name]+=result[name]||0;}
     return value;
   }
   function insetContours(groups,p){
@@ -8452,7 +8497,7 @@ function frameContourOriginRetry(active,prepared,p,layer,group,y,SCALE){
       if(layer%32===0||layer===lastLayer){emit({layers:batch,progress:layer===lastLayer?1:layer/prepared.count,stats:{...stats}});batch=[];if(!dedicatedWorker)await new Promise(resolve=>setTimeout(resolve,0));}
     }stats.angleWarningComplete=prepared.angleWarnings?.complete??false;stats.angleWarningBandWork=prepared.angleWarnings?.bandWork??0;stats.angleWarningPrepareMS=prepared.angleWarnings?.prepareMS??0;return {...stats,...emit.counts()};
   }
-  const api={version:'counted-original-insets-1',describeContours,calculateInsetMaterial,reserveInset,insetCacheMemory,sliceStats,contours,insetGroups,layerY,layerCount,insetContours,prepare,section,slice,SCALE};
+  const api={baselineTopologyCacheDiagnostics,version:'counted-original-insets-1',describeContours,calculateInsetMaterial,reserveInset,insetCacheMemory,sliceStats,contours,insetGroups,insetDescription,layerY,layerCount,insetContours,prepare,section,slice,SCALE};
   if(typeof module==='object'&&module.exports)module.exports=api;else root.FrameSingleSlicer=api;
 })(typeof self!=='undefined'?self:globalThis);
 
@@ -10629,7 +10674,7 @@ async function frameSliceFinalized(meshes,p,options,send){
       if(!slots){status.mark('building-paths',layer);entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}
       else{
         const size=frameLayerPacketBytes({description:section.description,sourceSnapshot:section.sourceSnapshot},maxJobBytes);
-        if(size>maxJobBytes){await drain();status.mark('building-paths',layer);entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}
+        if(size>maxJobBytes){await drain();status.mark('building-paths',layer);entry.job.values=[api.insetDescription(section.description,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}
         while(!slots.some(q=>!q.busy)||inputBytes+maxJobBytes*4>maxRetained||reserved+maxJobBytes>maxOutput){drainReady();if(slots.some(q=>!q.busy)&&inputBytes+maxJobBytes*4<=maxRetained&&reserved+maxJobBytes<=maxOutput)break;await wait();}
         const slot=slots.find(q=>!q.busy);slot.busy=true;slot.entry=entry;reserve(entry);await finalize(entry,section.description,slot);drainReady();
       }

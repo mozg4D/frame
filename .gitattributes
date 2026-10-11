@@ -10,3 +10,4 @@
 /development/** -text
 /editor-source/** -text
 /slicer-source/** -text
+/production-manifest.json text eol=lf

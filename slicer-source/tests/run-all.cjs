@@ -19,4 +19,5 @@ for(const [name,sentinel,expected] of suites){
  rows.push({name,checks:row.checks,passed:true});
 }
 assert.equal(checks,90);
-console.log(JSON.stringify({passed:true,completionSentinel:'FRAME_PORTABLE_SLICER_SUITE_COMPLETED',checks,retainedReviewChecks:86,additionalBudgetEventTargetRoutes:4,rows,realSceneRun:false,browserRerun:false,filesWritten:false}));
+const cacheResult=cp.spawnSync(process.execPath,[path.join(__dirname,'cache/run-review.cjs')],{cwd:__dirname,encoding:'utf8',timeout:60000,maxBuffer:2097152});requireCompletion(cacheResult,'current cache composition','FRAME_P123_SHIPPING_REVIEW_COMPLETED');const cacheRow=JSON.parse(cacheResult.stdout.trim());assert.equal(cacheRow.checks,309);checks+=cacheRow.checks;rows.push({name:'cache/run-review.cjs',checks:309,passed:true});assert.equal(checks,399);
+console.log(JSON.stringify({passed:true,completionSentinel:'FRAME_PORTABLE_SLICER_SUITE_COMPLETED',checks,retainedReviewChecks:86,currentCacheCompositionChecks:309,additionalBudgetEventTargetRoutes:4,rows,realSceneRun:false,browserRerun:false,filesWrittenInsideCheckout:false,externalCacheReportsWritten:true}));

@@ -1,0 +1,35 @@
+{
+  "P1": {
+    "libraryID": "libfile_cd7f77a2929481918c52439edf9012d4",
+    "version": 0,
+    "archiveSHA256": "2ac330651ed35f537235ae7e9da8e54f4e5101766702fab86802cf897b77a396",
+    "clearedP0SHA256": "c2f24b02bdc6e3baadaebb5e6f8d044e236f1ead0d89a907fef0225c4c94db4b",
+    "clearedP1SHA256": "ec3beb75e215bb03ad9d222984d5c06a4358b18fe481db72d532fe4e56e6e7b3",
+    "clearedP1ReconstructionExact": true,
+    "reviewTag": null,
+    "tagNote": "P1 clearance relayed by parent and retained prefix handoff; no named review tag in local P1 receipt"
+  },
+  "P2": {
+    "libraryID": "libfile_d7f49fa39ce08191beb67d83da43b66c",
+    "version": 1,
+    "archiveSHA256": "2212b686a7c27d577db302d4e10884aa2c70454cf6e89eb4389891b128f2cf8e",
+    "reviewTag": "independent-p2-profile-v1-20261011",
+    "rawP2SHA256": "7311c12021763734f8e8817f3dba6ad50c94dfcb0e5ba0a8682ff0eb3a7d92ea",
+    "providedChecks": 250,
+    "independentChecks": 152
+  },
+  "P3": {
+    "libraryID": "libfile_369382bebe18819199bfeeda83c5e4f2",
+    "version": 1,
+    "archiveSHA256": "97b8b7666d30f2dcb302e8864509166d4575f56e6c28a005f9943e6d10d0bc25",
+    "reviewTag": "independent-p3-auth-v1-20261011",
+    "rawP2P3SHA256": "207473b53fa714dd4743344e8c513bf3be21455ce2d3add92f4693afeb473df1",
+    "templateSHA256": "334b74f6dbb1d0e25b99a383641cf981da5e2c7c40f47dc90fa3141e35743493",
+    "providedChecks": 672,
+    "priorIndependentChecks": 294,
+    "additionalIndependentChecks": 28
+  },
+  "sourceExtractionUTC": "2026-10-11T18:07:31.879Z",
+  "shippingCompositionCleared": true,
+  "shippingReviewTag": "independent-p123-shipping-v1-20261011"
+}

@@ -1,12 +1,12 @@
 {
   "schema": "frame-current-slicer-source-v1",
-  "version": "r240-slicer-progress",
-  "baseCommit": "4d40fdc3c764081f17b7b5d649444881c6e88b82",
+  "version": "r242-slicer-cache",
+  "baseCommit": "a1c4602a3c345d1c248e61d94881c2a04bfe9527",
   "modules": {
     "worker": {
-      "path": "modules/slicer-worker.024140cd3fba17edf705.js",
-      "bytes": 869014,
-      "sha256": "024140cd3fba17edf705801e383a378b49722bfa574aa84a754637abb74f46d5",
+      "path": "modules/slicer-worker.069c5667bb5be698ada0.js",
+      "bytes": 876753,
+      "sha256": "069c5667bb5be698ada0f3fc49535b17fbd7750ee3f9e768643dd90619dc5340",
       "basePath": "modules/slicer-worker.e120c24f46831ec5c53d.js",
       "baseBytes": 866023,
       "baseSHA256": "e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475",
@@ -21,5 +21,7 @@
       "baseSHA256": "23dc2471227dc3d445229f027c5fb02be759d45f1985d876ace8f3fd259b4872",
       "extraction": "extract-r239-printer.json"
     }
-  }
+  },
+  "cacheBuild": "build-cache.cjs",
+  "shippingSourceReviewTag": "independent-p123-shipping-v1-20261011"
 }

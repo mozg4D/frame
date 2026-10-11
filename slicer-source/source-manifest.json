@@ -1,15 +1,16 @@
 {
   "schema": "frame-source-manifest-v1",
+  "version": "r242-slicer-cache",
   "files": [
     {
-      "path": "README.md",
-      "bytes": 2744,
-      "sha256": "2c7f605dc0e3c6c3dae7c4efa8e2b7f697977ef325da1743cdafc40ff38134e1"
+      "path": "build-cache.cjs",
+      "bytes": 7372,
+      "sha256": "dfdfd8bcc790c66d1d5c6dec018f946b00eb426ede5ee00c7e6fa1cee2a32403"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 997,
-      "sha256": "4d074b72db2d75bb0b3116e64f6e9601fae01f867d597f2096731a22a4c71738"
+      "bytes": 1099,
+      "sha256": "a2112d6960175d3fe7811edbffb9bc3ef86d8faa3c2c6c95b3f7b893700e60f0"
     },
     {
       "path": "build-progress-only.cjs",
@@ -32,14 +33,19 @@
       "sha256": "f42c6dbcdc7081d067cf574398e8755d2a3fedf8e4b24ce96651f35d867fefc0"
     },
     {
+      "path": "cache-template.js",
+      "bytes": 4335,
+      "sha256": "334b74f6dbb1d0e25b99a383641cf981da5e2c7c40f47dc90fa3141e35743493"
+    },
+    {
       "path": "extract-r239-printer.json",
       "bytes": 6058,
       "sha256": "184f6f6befe3ae4f6784221dd643a8aaf1978611370b15420797b4d150efa1cf"
     },
     {
       "path": "extract-r239-worker.json",
-      "bytes": 3707,
-      "sha256": "5afb334b21101c81888469a73dd49c4a01ce10b98df76c76960ec8f755098cd0"
+      "bytes": 7044,
+      "sha256": "1d6ea8add2c091baf87e2deb9182452e342835dcdab77906ae51cdac31eb32c9"
     },
     {
       "path": "progress-status-reporter.js",
@@ -47,14 +53,79 @@
       "sha256": "ef0f84784971574ecfe06042390934c9d2cf17d76b59b39d7b0d5e019c79c85f"
     },
     {
-      "path": "rebuild.cjs",
-      "bytes": 2565,
-      "sha256": "827be688f0751bc9dd4809327ecb464b5a68285967648c5f6542d2c6964b4116"
+      "path": "README.md",
+      "bytes": 4354,
+      "sha256": "dd92735cdbed018d1ed668479d025d790bbad058a713939fcd5b5f561c1dc681"
     },
     {
-      "path": "tests/README.md",
-      "bytes": 2014,
-      "sha256": "5adad6f3b70565e1dc27b47026dafe08bb8f63fc70b19d90effeb28bd386750e"
+      "path": "rebuild.cjs",
+      "bytes": 2723,
+      "sha256": "1b8c23aa39c6f53e7cbdd386cac1367a96c16686c7725a440e2374de34686bda"
+    },
+    {
+      "path": "tests/cache/build.cjs",
+      "bytes": 994,
+      "sha256": "dbfa0b283e9858972f8a773e51c4bbcdb82dca5cbaf09ec63ca3be763e6ffc4a"
+    },
+    {
+      "path": "tests/cache/exact-layer-comparison.cjs",
+      "bytes": 9970,
+      "sha256": "cc5a1f01dcfdd4cbf3a50967082390249f7cbe554b61405388adde7f6eaf4a8c"
+    },
+    {
+      "path": "tests/cache/prior-clearances.json",
+      "bytes": 1600,
+      "sha256": "77d43dc0972f41eb7ba5f39b43daa957f6885eb9174938b016b37ee672fe4fcd"
+    },
+    {
+      "path": "tests/cache/run-review.cjs",
+      "bytes": 1558,
+      "sha256": "ec5b143a71c5f9da52137580b6264393c1b34be54484b1767370fba98c0e0101"
+    },
+    {
+      "path": "tests/cache/test-authenticity.cjs",
+      "bytes": 2777,
+      "sha256": "b53985d2e4a78b8b09a0abcbe49015953ee1f79035532c128e8fdec389f41958"
+    },
+    {
+      "path": "tests/cache/test-composition.cjs",
+      "bytes": 4923,
+      "sha256": "02120b4cc508db43b0167ea3b1e0cc1a31356bee08556824e51b78d3c14c9793"
+    },
+    {
+      "path": "tests/cache/test-context.cjs",
+      "bytes": 12141,
+      "sha256": "cf2f0833caf297e3782679a6f8e51b6586f929cf2a74f7c3351515df85301813"
+    },
+    {
+      "path": "tests/cache/test-quality.cjs",
+      "bytes": 4273,
+      "sha256": "c46d4ef623a5d9570328ab3cf11ee59f110175a53f7ea228639ab4ed57f1a808"
+    },
+    {
+      "path": "tests/cache/test-reservation.cjs",
+      "bytes": 1328,
+      "sha256": "27c94c3bd796d39fe0438097be926766028ccaa5b31b988635891851dde67e1d"
+    },
+    {
+      "path": "tests/cache/test-route.cjs",
+      "bytes": 6618,
+      "sha256": "a88bcb352cb64b19727cca97610dc4990c788c9ba10fafb9b0e56ca9fbff91fe"
+    },
+    {
+      "path": "tests/cache/test-source.cjs",
+      "bytes": 5166,
+      "sha256": "b31d71dcd9880c4b6042b87bc005e84fc4949408b31834c89f19a50815c6604a"
+    },
+    {
+      "path": "tests/cache/test-support.cjs",
+      "bytes": 3577,
+      "sha256": "a089928902a4f6c3c748c9af7fec1ee26aff0dfa79a9465ae8bf509412ea2616"
+    },
+    {
+      "path": "tests/cache/virtual-task.cjs",
+      "bytes": 12460,
+      "sha256": "e28beaadaa34294996dafe3794e55a34a1e94f4de94fd386703c5a981a083376"
     },
     {
       "path": "tests/exact-layer-comparison.cjs",
@@ -67,9 +138,14 @@
       "sha256": "5313c5a3ee4b929272841c32d89552e333a960427970137fbc6ae507029754f6"
     },
     {
+      "path": "tests/README.md",
+      "bytes": 2014,
+      "sha256": "5adad6f3b70565e1dc27b47026dafe08bb8f63fc70b19d90effeb28bd386750e"
+    },
+    {
       "path": "tests/run-all.cjs",
-      "bytes": 1450,
-      "sha256": "b488b31b35d2b13a9e144918038ef6b65f0a8c956b2dd3c48e0d47b6c89cb108"
+      "bytes": 1989,
+      "sha256": "20453062d907eceb9574c23660cb8a13b832c488c0e2889ac80ea64ee247c15d"
     },
     {
       "path": "tests/run-checked-child.cjs",

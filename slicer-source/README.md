@@ -1,6 +1,6 @@
 # Current slicer source
 
-The shipped printer and slicer-worker modules contain the complete source. Small hash-checked extraction deltas recover their unchanged r239 integration base. Four pure build steps apply status reporting and transport-error handling, then verify the exact r240 module bytes. Intermediate comparison variants are generated in memory; full historical workers are not duplicated.
+The shipped printer and slicer-worker modules contain the complete source. Small hash-checked extraction deltas recover their unchanged r239 integration base. Four pure build steps apply status reporting and transport-error handling. A final pure cache step rebuilds the independently cleared r242 worker exactly; the printer stays byte-identical. No historical runtime bundle is duplicated. Intermediate comparison variants are generated in memory; full historical workers are not duplicated.
 
 Node.js 20+; no installation or network access:
 
@@ -22,3 +22,27 @@ No production timeout or independent worker pool is added. Geometry algorithms, 
 Portable tests resolve the actual current modules and their exact baseline through `rebuild.cjs`. They use small synthetic geometry, actual task/worker source over controlled transports, exact output comparison, and lifecycle controls. Their test watchdogs are not production deadlines. Browser and private-model acceptance remain separate; no private model, browser harness, receipt or duplicated runtime bundle is included.
 
 The same extraction deltas restore the pinned worker used by the independent slicer lab and both module inputs used by GPU v10 reconstruction. Keep this directory with the checkout for those builds.
+
+## r242 cache scope
+
+The oversized-description owner branch reuses its already-prepared immutable
+description after the existing drain. Micro-move cleanup retains one current
+edge array only within a scan iteration. Original topology proof operands are
+cached only within one simplify invocation, with factory authentication, fixed
+caps and finally-release. Candidate operands remain fresh. The existing shared
+worker budget, admission limits, geometry rules and packet envelopes are unchanged.
+
+The aggregate requires 90 retained progress/transport controls and 309 current
+cache composition controls. The latter resolve and compare the actual loaded
+worker, include exact output/provenance/alias/cache-accounting differentials,
+saturation, fault, cancellation and restart controls, and write reports outside
+the checkout. These source/VM controls do not establish application speed.
+
+Native browser complete, cancel/restart and error/restart coupon routes passed.
+The normal UI completed three exact detailed layers and cancelled/restarted from
+its initial preparing state before native dispatch. A separate polling invocation
+missed the short native packet and completed normally; it is not cancellation
+evidence. Native in-task cancellation belongs to the separate native route.
+The tiny coupon does not establish production speed, full model equivalence,
+adaptive generator coverage or physical-print acceptance. Component responsiveness
+work and dormant partial ports are not included.
