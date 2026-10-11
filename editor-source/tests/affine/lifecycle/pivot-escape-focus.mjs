@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {makeFixture,geometrySnapshot,unchanged,T,assert,vm,extract,source,sourceHash} from './v4j-pivot-support.mjs';
-assert(['58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014','c79b431a5885a0412d036d60b6253393297f33f085db1804a9167825646f0d71'].includes(sourceHash),'pinned source');
+assert(['5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff','c79b431a5885a0412d036d60b6253393297f33f085db1804a9167825646f0d71'].includes(sourceHash),'pinned source');
 const report={sourceHash,scope:'Exact-source focused CM Escape then blur, synthetic input propagation only',passes:[],failures:[]};
 export function setup({space='world',pivot=null,world=null,unit=1}={}){
  const f=makeFixture({space,pivot,world,shared:true}),{c}=f,dl=new Map(),wl=new Map();

@@ -34,11 +34,65 @@ function frameSTLCoordinateClasses(positions) {
   return{coords,count,...stats,tableCapacity:capacity};
 }
 
+// Private STL edge table with exact full-key matching, bounded typed capacity,
+// and stock Map fallback. Optional constructor overrides support contract tests.
+function frameSTLEdgeHash(a, b) {
+  let h = Math.imul(a, 0x9e3779b1) ^ Math.imul(b, 0x85ebca6b);
+  h ^= h >>> 16; h = Math.imul(h, 0x7feb352d); h ^= h >>> 15;
+  return (h ^ (h >>> 16)) >>> 0;
+}
+class frameSTLEdgeTable {
+  constructor(coordCount, options = {}) {
+    this.coordCount=coordCount; this.capacity=options.initialCapacity??16;
+    this.maxCapacity=options.maxCapacity??4194304; this.hash=options.hash??frameSTLEdgeHash;
+    if(this.capacity<2||(this.capacity&(this.capacity-1))||this.maxCapacity<this.capacity||(this.maxCapacity&(this.maxCapacity-1)))throw Error('power-of-two capacities required');
+    this.count=0; this.map=null; this.stats={grows:0,probes:0,maxProbe:0,fallbacks:0,maxCapacity:this.capacity,entries:0};
+    try {this.a=new Uint32Array(this.capacity);this.b=new Uint32Array(this.capacity);this.h=new Uint32Array(this.capacity);}
+    catch(error){if(!(error instanceof RangeError))throw error;this.a=this.b=this.h=null;this.map=new Map();this.stats.fallbacks++;}
+  }
+  key(a,b) { return this.coordCount<=94906265?a*this.coordCount+b:a+':'+b; }
+  seek(a,b) {
+    let slot=this.hash(a,b)&(this.capacity-1), probes=0;
+    while(this.h[slot]&&(this.a[slot]!==a||this.b[slot]!==b)) { slot=(slot+1)&(this.capacity-1); probes++; }
+    this.stats.probes+=probes; this.stats.maxProbe=Math.max(this.stats.maxProbe,probes);
+    return slot;
+  }
+  fallback() {
+    const map=new Map();
+    for(let i=0;i<this.capacity;i++)if(this.h[i])map.set(this.key(this.a[i],this.b[i]),this.h[i]-1);
+    this.map=map; this.a=this.b=this.h=null; this.stats.fallbacks++;
+  }
+  grow() {
+    if(this.capacity>=this.maxCapacity){this.fallback();return;}
+    const oldA=this.a,oldB=this.b,oldH=this.h,capacity=this.capacity*2;
+    // Allocate before changing the table; no partially published array set.
+    let a,b,h;
+    try {a=new Uint32Array(capacity);b=new Uint32Array(capacity);h=new Uint32Array(capacity);}
+    catch(error){if(!(error instanceof RangeError))throw error;this.fallback();return;}
+    this.capacity=capacity;this.a=a;this.b=b;this.h=h;this.stats.grows++;this.stats.maxCapacity=capacity;
+    for(let i=0;i<oldH.length;i++)if(oldH[i]){const slot=this.seek(oldA[i],oldB[i]);a[slot]=oldA[i];b[slot]=oldB[i];h[slot]=oldH[i];}
+  }
+  locate(a,b) {
+    if(a>b){const t=a;a=b;b=t;}
+    if(this.map)return this.key(a,b);
+    let slot=this.seek(a,b);
+    if(!this.h[slot]){
+      if((this.count+1)*10>this.capacity*7){this.grow();if(this.map)return this.key(a,b);slot=this.seek(a,b);}
+      this.a[slot]=a;this.b[slot]=b;this.count++;this.stats.entries=this.count;
+    }
+    return slot;
+  }
+  head(slot) {return this.map?this.map.get(slot):this.h[slot]-1;}
+  set(slot,corner) {if(!Number.isInteger(corner)||corner<0||corner>0x7fffffff)throw RangeError('corner exceeds existing signed Int32 index domain');if(this.map){this.map.set(slot,corner);this.stats.entries=this.map.size;}else this.h[slot]=corner+1;}
+  clear() {if(this.map)this.map.clear();this.a=this.b=this.h=null;}
+}
+
+function frameSTLEdgeCapacity(faces) {let c=16;const estimate=Math.min(4194304,Math.ceil(faces*15/7));while(c<estimate)c*=2;return c;}
 function frameSTLCreaseData(positions, index, creaseCos, seamIds = null, seamCount = 1, needRemap = false, preserveFaces = true) {
   if(seamIds!==null||seamCount!==1||needRemap!==false||preserveFaces!==true)throw Error("STL-only crease arguments required");
   const vertexCount=positions.length/3,count=index?index.length:vertexCount,faces=Math.floor(count/3);
   const coordinateClasses=frameSTLCoordinateClasses(positions),coords=coordinateClasses.coords,coordCount=coordinateClasses.count;
-  const ids=index||Uint32Array.from({length:count},(_,i)=>i),parent=new Int32Array(count),next=new Int32Array(count),area=new Float64Array(faces*3),invLength=new Float64Array(faces),edges=new Map();
+  const ids=index||Uint32Array.from({length:count},(_,i)=>i),parent=new Int32Array(count),next=new Int32Array(count),area=new Float64Array(faces*3),invLength=new Float64Array(faces),edges=new frameSTLEdgeTable(coordCount,{initialCapacity:frameSTLEdgeCapacity(faces)});
   next.fill(-1);for(let i=0;i<count;i++)parent[i]=i;
   const root=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
   const join=(a,b)=>{a=root(a);b=root(b);if(a!==b)parent[b]=a;};
@@ -52,7 +106,7 @@ function frameSTLCreaseData(positions, index, creaseCos, seamIds = null, seamCou
     area[at]=nx;area[at+1]=ny;area[at+2]=nz;invLength[f]=1/length;
     for(let k=0;k<3;k++){
       const i=at+k,j=at+(k+1)%3,ca=coords[ids[i]],cb=coords[ids[j]];if(ca===cb)continue;
-      const edge=key(ca,cb),head=edges.get(edge);
+      const edge=edges.locate(ca,cb),head=edges.head(edge);
       for(let e=head??-1;e!==-1;e=next[e]){
         const other=Math.floor(e/3),o=other*3;
         if((nx*area[o]+ny*area[o+1]+nz*area[o+2])*invLength[f]*invLength[other]<threshold)continue;

@@ -19,11 +19,12 @@ export const helper=fs.readFileSync(path.join(editorSource,manifest.stlHelper),'
 JSON.parse(fs.readFileSync(path.join(editorSource,manifest.stlIntegration),'utf8'));
 const provenance=JSON.parse(fs.readFileSync(path.join(own,'fixtures/provenance.json'),'utf8'));
 for(const [file,expected]of Object.entries(provenance.fixtures))assert.equal(sha(fs.readFileSync(path.join(own,file))),expected,'Frozen oracle modified: '+file);
+assert.equal(sha(editor),provenance.reviewedEditorSHA256,'Independently reviewed editor');
 assert.equal(sha(helper),provenance.privateHelperSHA256,'Reviewed private helper bytes');
 assert.equal(editor.split(helper).length-1,1,'Helper must appear exactly once verbatim');
-const names=['frameSTLCoordinateHash','frameSTLScalarKey','frameSTLCoordinateClasses','frameSTLCreaseData'];
+const names=['frameSTLCoordinateHash','frameSTLScalarKey','frameSTLCoordinateClasses','frameSTLEdgeHash','frameSTLEdgeTable','frameSTLEdgeCapacity','frameSTLCreaseData'];
 export const helpers=Function(helper+'\nreturn {'+names.join(',')+'};')();
-for(const name of names){assert.equal(typeof helpers[name],'function');assert.equal(editor.split('function '+name+'(').length-1,1,'Private declaration count '+name);}
+for(const name of names){assert.equal(typeof helpers[name],'function');assert.equal(editor.split((name==='frameSTLEdgeTable'?'class ':'function ')+name+(name==='frameSTLEdgeTable'?' {':'(')).length-1,1,'Private declaration count '+name);}
 const frozenBody=fs.readFileSync(path.join(own,'fixtures/stock-worker-body.txt'),'utf8').trim();
 const expectedBody=frozenBody.replaceAll('polygonCreaseData(','frameSTLCreaseData(');
 const start=editor.indexOf('function frameSTLWorkerMain()'),end=editor.indexOf('\nasync function framePrepareSTLWorker',start);
@@ -34,7 +35,7 @@ const cStart=editor.indexOf('async function framePrepareSTLWorker('),cEnd=editor
 assert(cStart>=0&&cEnd>cStart,'Actual STL coordinator boundaries');
 export const coordinator=editor.slice(cStart,cEnd).trim();
 const before='[frameParseSTLPositions, frameSTLGeometryBounds, polygonCreaseData, prepareSplineBVH, frameWireIndices]';
-const after='[frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCoordinateHash, frameSTLScalarKey, frameSTLCoordinateClasses, frameSTLCreaseData, prepareSplineBVH, frameWireIndices]';
+const after='[frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCoordinateHash, frameSTLScalarKey, frameSTLCoordinateClasses, frameSTLEdgeHash, frameSTLEdgeTable, frameSTLEdgeCapacity, frameSTLCreaseData, prepareSplineBVH, frameWireIndices]';
 assert.equal(coordinator.split(after).length-1,1,'Exact private dependency list');
 assert.equal(editor.split(after).length-1,1);
 const inserted=helper+'\n'+body;
@@ -45,3 +46,8 @@ for(const name of names)assert(!reverse.includes(name),'Private name already exi
 for(const [name,fn]of Object.entries(stock))assert(reverse.includes(fn.toString()),'Frozen stock function must match baseline: '+name);
 assert.equal(editor.split('frameSTLCoordinateHash').length-1,helper.split('frameSTLCoordinateHash').length-1+1,'Hash only binds inside helper and serialized dependency list');
 export const sourceResult={pass:true,editorSHA256:sha(editor),privateHelperSHA256:sha(helper),wholeEditorReverseExact:true,privateHashBindingVerified:true,stockGlobalUnchanged:true,actualSourceUnnormalized:true};
+
+for(const [name,hash]of Object.entries(provenance.unchangedCoordinateFunctions))assert.equal(sha(helpers[name].toString()),hash,'Unchanged r237 coordinate function '+name);
+const preEdge=helpers.frameSTLCreaseData.toString().replace('edges=new frameSTLEdgeTable(coordCount,{initialCapacity:frameSTLEdgeCapacity(faces)});','edges=new Map();').replace('const edge=edges.locate(ca,cb),head=edges.head(edge);','const edge=key(ca,cb),head=edges.get(edge);');
+assert.equal(sha(preEdge),provenance.preEdgeCreaseSHA256,'Only two allowed lookup changes inside crease body');
+export const preEdgeHelper=helper.replace(helpers.frameSTLCreaseData.toString(),preEdge);

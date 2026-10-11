@@ -1,9 +1,9 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r237-stl-import",
-  "productionEditor": "modules/editor.58183ac11616b64a5e67.js",
-  "productionSHA256": "58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014",
-  "productionBytes": 2725741,
+  "version": "r238-stl-edge",
+  "productionEditor": "modules/editor.5aadcdee1557675d4b6f.js",
+  "productionSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
+  "productionBytes": 2729163,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",

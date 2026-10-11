@@ -9,7 +9,7 @@ export const projectRoot = new URL('../../../', testRoot);
 export const editorSourceRoot = new URL('../../', testRoot);
 export const buildManifest = JSON.parse(fs.readFileSync(new URL('build-manifest.json', editorSourceRoot), 'utf8'));
 const pins = {
-  editor: '58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014',
+  editor: '5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff',
   native: '4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463',
   helper: '48cc27ad8d9025f81d190225ec3a1940dede02f8d8f12684b5246e53523d929f',
   known: '82c9bc56798024f49d50158f9d7ad290c64055783de938344b9dc74a28e1c979',

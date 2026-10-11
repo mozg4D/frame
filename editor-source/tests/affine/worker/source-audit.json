@@ -2,7 +2,7 @@
   "candidateHashes": {
     "candidate/native-affine-ui-v2b.mjs": "4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463",
     "candidate/frame-affine-known-v2.mjs": "82c9bc56798024f49d50158f9d7ad290c64055783de938344b9dc74a28e1c979",
-    "candidate/editor-affine-ui-v2c.mjs": "58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014",
+    "candidate/editor-affine-ui-v2c.mjs": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
     "candidate/frame-affine-helper-v2b.mjs": "48cc27ad8d9025f81d190225ec3a1940dede02f8d8f12684b5246e53523d929f",
     "candidate/native-source/affine-corner-worker.mjs": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1",
     "candidate/native-source/affine-stock-proof.mjs": "45f000c23e5122b841af1216f7339f48979ba0bccf7036dbb6cd3f8df45a02d0",

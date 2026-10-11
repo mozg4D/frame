@@ -1,9 +1,9 @@
 {
   "schema": "frame-exact-line-delta-v1",
   "beforeSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
-  "afterSHA256": "494f4238013e0595a0a7cb39c5607241cfe6dc1b5a1475a807d8f920fec68440",
+  "afterSHA256": "c412237af2471ca6b5e16f1df509c8e14f1eb2725c56ad399360a95c9498abf2",
   "beforeBytes": 2719528,
-  "afterBytes": 2719632,
+  "afterBytes": 2719691,
   "operations": [
     {
       "startLine": 7480,
@@ -30,7 +30,7 @@
       "startLine": 7519,
       "deleteLines": 1,
       "insert": [
-        "    const source = [frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCoordinateHash, frameSTLScalarKey, frameSTLCoordinateClasses, frameSTLCreaseData, prepareSplineBVH, frameWireIndices].map(fn => fn.toString()).join('\\n') + '\\n(' + frameSTLWorkerMain.toString() + ')();';\n"
+        "    const source = [frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCoordinateHash, frameSTLScalarKey, frameSTLCoordinateClasses, frameSTLEdgeHash, frameSTLEdgeTable, frameSTLEdgeCapacity, frameSTLCreaseData, prepareSplineBVH, frameWireIndices].map(fn => fn.toString()).join('\\n') + '\\n(' + frameSTLWorkerMain.toString() + ')();';\n"
       ]
     }
   ]

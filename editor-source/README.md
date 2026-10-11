@@ -1,6 +1,6 @@
 # Current editor source
 
-This directory reconstructs the r237 STL-import and affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta. A subsequent STL-only helper and integration delta replace the two import crease calls and their serialized worker dependencies.
+This directory reconstructs the r238 STL-import and affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta. A subsequent STL-only helper and integration delta replace the two import crease calls and their serialized worker dependencies.
 
 Rebuild requirements: Node 20+ and TypeScript 5.9.3. The affine test suite requires Node 24+. Set `FRAME_TYPESCRIPT` to its `lib/typescript.js` path when needed.
 
@@ -14,7 +14,7 @@ Eligible indexed whole-island Move, Rotate and Scale in World/Object coordinates
 
 Source, device, owner, material, selection and gesture identities guard asynchronous work. Publication, cancellation, Save and Undo/Redo retain exact authored geometry and coordinate-manager/pivot behavior. Worker and display resources have explicit ownership and retirement. Plain wire remains tied to the current raw position view. Native `.hash` loading preserves saved normals and indices. The general GPU v10 importer/pose store remains separate development work.
 
-STL import uses Float32-specific coordinate classes with guarded stock-format fallback near decimal boundaries. Both ordered crease passes, parser, axis conversion, bounds, picking, wire, transfer, cancellation and installation remain in their original order. The component stock crease function is unchanged. Postprocessing remains serial.
+STL import uses Float32-specific coordinate classes with guarded stock-format fallback near decimal boundaries. Both ordered crease passes, parser, axis conversion, bounds, picking, wire, transfer, cancellation and installation remain in their original order. The component stock crease function is unchanged. The private STL edge table retains full-key equality and encounter order. Typed capacity is capped at 4,194,304 slots (48 MiB of live table arrays), with exact stock Map fallback at the cap or on typed allocation failure. This is a table limit, not a bound on total import memory. Postprocessing remains serial.
 
 ## Portable checks
 

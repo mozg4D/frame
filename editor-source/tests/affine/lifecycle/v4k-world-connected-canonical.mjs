@@ -5,7 +5,7 @@ import * as THREE2 from '../fixtures/three-core.mjs';
 const native=await import(reviewURL('../candidate/native-affine-ui-v2b.mjs',import.meta.url));
 import{stockCompactOracle}from'../worker/stock-oracle.mjs';import{selectedFaceOracle}from'../worker/selected-face-oracle.mjs';
 const editor=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');
-assert.equal(createHash('sha256').update(editor).digest('hex'),'58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014');
+assert.equal(createHash('sha256').update(editor).digest('hex'),'5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff');
 const independent=fs.readFileSync(reviewURL('./v4j-world-commit-oracle.mjs',import.meta.url),'utf8');
 const boilerplate=fs.readFileSync(reviewURL('./rigid-move-empty-undo-control.mjs',import.meta.url),'utf8');
 const setup=independent.slice(independent.indexOf('const start=editor.indexOf('),independent.indexOf('const report='));

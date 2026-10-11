@@ -11,7 +11,7 @@ export const sourcePath=process.env.FRAME_PIVOT_EDITOR || reviewURL('../candidat
 export const source=fs.readFileSync(sourcePath,'utf8');
 export const sourceHash=createHash('sha256').update(source).digest('hex');
 export const exactV4jHash='91f70101b10b0a714bd673d982dfa236e04d23635cec641bedaa1e2ea0218ae7';
-const expectedCurrentHash='58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014';
+const expectedCurrentHash='5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff';
 if(!process.env.FRAME_PIVOT_EDITOR)assert.equal(sourceHash,expectedCurrentHash);
 
 export function extract(name){

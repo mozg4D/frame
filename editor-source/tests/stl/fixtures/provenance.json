@@ -1,12 +1,18 @@
 {
   "baselineEditorSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
-  "reviewedEditorSHA256": "58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014",
+  "reviewedEditorSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
   "donorCandidateSHA256": "48d65be016495fea26995ee5ac596e3475db7342e96c1c77070b62fd971e9965",
-  "privateHelperSHA256": "e81dda84936ac8a3b8b33b8c6accb9a85eb5aba6b5f516c49f0f531ea15c258a",
+  "privateHelperSHA256": "242096fbe092108ab3b7b3bc20a1cf3f193c2c8abb653f20ef009dd6d2aa3673",
   "fixtures": {
     "fixtures/independent-coordinate-proof.mjs": "30b1b027624dafd1c22ddde1a398ee6cf9c958ff7b60595e2a47cb24193bd061",
     "fixtures/stock-stl-oracle.mjs": "7c72de945ddfdddbfcbeeb8b9c1c6da5d81a567986fb8a18a669644fd60aa64c",
     "fixtures/stock-worker-body.txt": "5b11f2e922ac919e9282e3184849edcf1eca6f08583b2243f3df0b1c9a216c94"
   },
-  "normalization": "Only strip export declarations and rename framePolygonHash to frameSTLCoordinateHash in the four-function private helper. No production-source normalization is used by these tests."
+  "normalization": "No production-source normalization. Exact embedded seven-declaration helper and actual serialized worker closure are checked. The only two edge-lookup substitutions are reversed in-memory and hashed against the frozen r237 crease function.",
+  "preEdgeCreaseSHA256": "b582aba676c27a5093a2e9f9dbb3bd8b7ef90172b9c7a17f8053ec66b28491a0",
+  "unchangedCoordinateFunctions": {
+    "frameSTLCoordinateHash": "1b93a758df3e5c769469b058f83c789b77a34f47efcd28538649dbb47f5e02c5",
+    "frameSTLScalarKey": "a120191816fd55717f4608d42cf491ee005b28b8906ab8461f4cfc16a2a36693",
+    "frameSTLCoordinateClasses": "32c4f05b57b5f7d035970b0415ef03de28fd7eac2696f7d4cc1583c8defe02c1"
+  }
 }
