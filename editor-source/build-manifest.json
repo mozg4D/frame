@@ -1,9 +1,9 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r238-stl-edge",
-  "productionEditor": "modules/editor.5aadcdee1557675d4b6f.js",
-  "productionSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
-  "productionBytes": 2729163,
+  "version": "r239-stl-postprocess",
+  "productionEditor": "modules/editor.df08be98af28f6898ae0.js",
+  "productionSHA256": "df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17",
+  "productionBytes": 2735498,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
@@ -17,5 +17,7 @@
   "affineIntegration": "affine-integration.json",
   "threeCore": "modules/frame-three-core.9edde002b066a9a05676.js",
   "stlHelper": "stl-import-helper.mjs",
-  "stlIntegration": "stl-integration.json"
+  "stlIntegration": "stl-integration.json",
+  "stlPostprocessHelper": "stl-postprocess.mjs",
+  "stlPostprocessIntegration": "stl-postprocess-integration.json"
 }

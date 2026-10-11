@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "880cb48ec6bd9d43240df0fd06e6ee3983fde828065add4ddb2d5c1928e1a145",
+  "beforeSHA256": "da091bab6c16c58c352d5a929e7801e4afd8f664903dde484ed53e120ac651ca",
   "afterSHA256": "735788e559b4e17dda0fc5bc7a6e53c1d2605f35f1748e0ac32b3a257dc14721",
-  "beforeBytes": 103155,
+  "beforeBytes": 103162,
   "afterBytes": 103177,
   "operations": [
     {

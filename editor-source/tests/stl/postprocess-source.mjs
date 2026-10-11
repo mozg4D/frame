@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+import {editor,prePostEditor,helpers,body,coordinator,actualBody,actualCoordinator,postRuntime,postFunctions} from './source-loader.mjs';
+import * as stock from './fixtures/stock-stl-oracle.mjs';
+export const sha=x=>createHash('sha256').update(x).digest('hex');
+export const hashArray=x=>sha(new Uint8Array(x.buffer,x.byteOffset,x.byteLength));
+export const source=prePostEditor;
+const functions={...Object.fromEntries(Object.entries(stock).map(([n,f])=>[n,f.toString()])),...Object.fromEntries(Object.entries(helpers).map(([n,f])=>[n,f.toString()])),frameSTLWorkerMain:body,framePrepareSTLWorker:coordinator};
+export const fn=name=>{assert(functions[name],'Missing actual dependency '+name);assert(prePostEditor.includes(functions[name]),'Exact dependency in published r238 '+name);return functions[name];};
+export const postSpec={baselineEditorSHA256:sha(prePostEditor),candidateEditorSHA256:sha(editor),edits:[{name:'frameSTLWorkerMain',before:body,after:actualBody},{name:'framePrepareSTLWorker',before:coordinator,after:actualCoordinator+'\n'+postRuntime}]};
+for(const edit of postSpec.edits)assert.equal(editor.split(edit.after).length,2,'Actual final edit binding '+edit.name);
+const dependencies=actualCoordinator.match(/const source\s*=\s*\[([^\]]+)\]\.map/)[1].split(',').map(s=>s.trim());
+const prefix=dependencies.map(fn).join('\n');
+const expectedBlobs=new Set([prefix+'\n('+actualBody+')();',prefix+'\n('+body+')();',[stock.prepareSplineBVH,stock.frameWireIndices].map(f=>f.toString()).join('\n')+'\n('+postFunctions.frameSTLPostprocessWorkerMain.toString()+')();']);
+export const verifyBlob=code=>assert(expectedBlobs.has(code),'Exact final/reference serialized dependency closure');
+export const budgetSource=prePostEditor.slice(prePostEditor.indexOf('const frameComputeBudget=(()=>{'),prePostEditor.indexOf('\nconst splineSurfaceWorkers=',prePostEditor.indexOf('const frameComputeBudget=(()=>{'))).trim();
+assert(editor.includes(budgetSource),'Shared budget factory unchanged');
+export const createBudget=count=>Function('navigator',budgetSource+';return frameComputeBudget;')({hardwareConcurrency:count+1});

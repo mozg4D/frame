@@ -1,6 +1,6 @@
 {
   "baselineEditorSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
-  "reviewedEditorSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
+  "reviewedEditorSHA256": "df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17",
   "donorCandidateSHA256": "48d65be016495fea26995ee5ac596e3475db7342e96c1c77070b62fd971e9965",
   "privateHelperSHA256": "242096fbe092108ab3b7b3bc20a1cf3f193c2c8abb653f20ef009dd6d2aa3673",
   "fixtures": {
@@ -14,5 +14,7 @@
     "frameSTLCoordinateHash": "1b93a758df3e5c769469b058f83c789b77a34f47efcd28538649dbb47f5e02c5",
     "frameSTLScalarKey": "a120191816fd55717f4608d42cf491ee005b28b8906ab8461f4cfc16a2a36693",
     "frameSTLCoordinateClasses": "32c4f05b57b5f7d035970b0415ef03de28fd7eac2696f7d4cc1583c8defe02c1"
-  }
+  },
+  "prePostEditorSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
+  "postRuntimeSHA256": "d58572698090cd8026cb67311530a228ae45625eed160e2b2fe076b8e6104ae4"
 }

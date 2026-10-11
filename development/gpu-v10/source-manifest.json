@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 3158,
-      "sha256": "d594c3f8b009ed70968a8594a67013e8ad15e8dea7bc9df3c746e9b49ee79ee6"
+      "bytes": 3165,
+      "sha256": "47476351596fc8e29abc9dd8e4c124352a7eaa5bc56e46491378e508b660a4db"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 25280,
-      "sha256": "398024f5856986c881adddcc88479108dccf1942d0708199031c8766c0c0d039"
+      "bytes": 25287,
+      "sha256": "34fe46382aede7ce4d0ea9a593d63c0f2cbd485775e2bb95cb78962357804306"
     },
     {
       "path": "native-overrides/authoring-mesh.mjs",
@@ -112,14 +112,14 @@
       "sha256": "fe3fbb1c7370e303e2f592a00e9c28cd547496084e59b13a5d8a7e31ce73a51c"
     },
     {
-      "path": "patches/r238-editor-to-r226.json",
-      "bytes": 15012,
-      "sha256": "9a69e8d63b634f7b2db5977ce71cf37a79b5ea0e09ffcf90363eb58d025fcb6d"
+      "path": "patches/r239-editor-to-r226.json",
+      "bytes": 15571,
+      "sha256": "10e42be662d103279a180e623ae47fb53844ce2396367294125f351c8176d309"
     },
     {
-      "path": "patches/r238-shell-to-r226.json",
+      "path": "patches/r239-shell-to-r226.json",
       "bytes": 13602,
-      "sha256": "44ae4285d23671cf5a3f94830b4bca7332f2b6b0f70a1b2c10ec849fe1d23c9d"
+      "sha256": "f40afc409a32187a2937a648b4eba065af252a723c85db0100056006da105e9f"
     },
     {
       "path": "patches/shell-from-r226.json",

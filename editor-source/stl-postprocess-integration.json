@@ -1,0 +1,37 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff",
+  "afterSHA256": "85c56fed4bed2621fb0114fc6dd9a90ce688401dfb5b264bcbc755aee1f28889",
+  "beforeBytes": 2729163,
+  "afterBytes": 2729266,
+  "operations": [
+    {
+      "startLine": 7637,
+      "deleteLines": 1,
+      "insert": [
+        "      if (!data.deferPostprocess && installed.indices.length >= 30000) {\n"
+      ]
+    },
+    {
+      "startLine": 7651,
+      "deleteLines": 1,
+      "insert": [
+        "async function framePrepareSTLCoordinator(buffer, activity, deferPostprocess) {\n"
+      ]
+    },
+    {
+      "startLine": 7675,
+      "deleteLines": 1,
+      "insert": [
+        "        worker.postMessage({ buffer, creaseCos: CREASE_COS, deferPostprocess }, [buffer]);\n"
+      ]
+    },
+    {
+      "startLine": 7680,
+      "deleteLines": 0,
+      "insert": [
+        "/* FRAME_CURRENT_STL_POSTPROCESS */\n"
+      ]
+    }
+  ]
+}

@@ -692,14 +692,14 @@
   "repositoryInputAdapters": {
     "modules/editor.2fbd0f5a8cefe96ff28e.js": [
       {
-        "path": "modules/editor.5aadcdee1557675d4b6f.js",
-        "patch": "patches/r238-editor-to-r226.json"
+        "path": "modules/editor.df08be98af28f6898ae0.js",
+        "patch": "patches/r239-editor-to-r226.json"
       }
     ],
     "index.html": [
       {
         "path": "index.html",
-        "patch": "patches/r238-shell-to-r226.json"
+        "patch": "patches/r239-shell-to-r226.json"
       }
     ],
     "native-source/gpu-cubic-mip-calibration.mjs": [
@@ -733,5 +733,5 @@
       }
     ]
   },
-  "supportedProductionVersion": "r238-stl-edge"
+  "supportedProductionVersion": "r239-stl-postprocess"
 }

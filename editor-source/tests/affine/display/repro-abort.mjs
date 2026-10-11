@@ -1,7 +1,7 @@
 import {reviewURL} from '../source-paths.mjs';
 import {verifyCandidate} from './verify-candidate.mjs';verifyCandidate();
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import{createHash}from'node:crypto';
-const source=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');assert.equal(createHash('sha256').update(source).digest('hex'),'5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff');
+const source=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');assert.equal(createHash('sha256').update(source).digest('hex'),'df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17');
 function extract(name){const at=source.indexOf('function '+name+'(');assert(at>=0);const lines=source.slice(at).split('\n');for(let i=1;i<1000;i++){const f=lines.slice(0,i).join('\n');try{new vm.Script('('+f+')');return f;}catch{}}throw Error(name);}
 let terminated=0,disposed=0,workerResolved=false;const worker={postMessage(){},terminate(){terminated++;}};const t={h:'h',node:{},gpu:{dispose(){disposed++;}}},r=t.affine={live:true,t,revision:0,localIndex:Uint32Array.of(0,1,2),gpu:{dispose(){disposed++;}},display:{dispose(){disposed++;}}};const s={t,r,beforeValues:new Float32Array(9),affineID:1,ready:true,affine:true,revision:1,gizmo:[],abortResolve(){}};r.active=s;
 const c=vm.createContext({frameAffineNotes:{errors:[]},DOMException,DOMException,frameNative:{createAffineCornerWorker:()=>worker},frameRigidInput:s,frameRigidExecuting:s,frameRigidQueue:[s],frameRigidPrepared:t,frameRigidClearInput(){},frameRigidRestoreOverlays(){},OBJ:new Map([['h',t.node]]),setGizmoFromMatrix(){},gizDrag:null,frameRigidNotes:{cancels:0},scheduleRender(){}});

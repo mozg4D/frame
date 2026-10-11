@@ -3,7 +3,7 @@ import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:asser
 import * as THREE2 from '../fixtures/three-core.mjs';
 const root=reviewURL('../',import.meta.url),editor=fs.readFileSync(reviewURL('candidate/editor-affine-ui-v2c.mjs',root),'utf8'),stockPins=JSON.parse(fs.readFileSync(reviewURL('../fixtures/stock-routing-pins.json',import.meta.url),'utf8'));
 assert.equal(stockPins.sourceSHA256,'c79b431a5885a0412d036d60b6253393297f33f085db1804a9167825646f0d71');
-assert.equal(createHash('sha256').update(editor).digest('hex'),'5aadcdee1557675d4b6f2b42a8d4dcd2a283f0a60407bb57e6e2e8e2881676ff');
+assert.equal(createHash('sha256').update(editor).digest('hex'),'df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17');
 function section(a,b,s=editor){let i=s.indexOf(a),j=s.indexOf(b,i+a.length);assert(i>=0&&j>i,a);return s.slice(i,j);}
 const marker='function frameRigidNativeWorkerClosureComplete(){}',source=editor.slice(editor.indexOf('var frameRigidPrepared='),editor.indexOf(marker)+marker.length),boiler=fs.readFileSync(reviewURL('lifecycle/legacy-rigid-baseline.mjs',root),'utf8');
 const setup=section('function env()',"await test('Replaced Set",boiler)+section('function installStock(', 'function committed(',boiler);
