@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import {setup} from './pivot-escape-focus.mjs';
 import {geometrySnapshot,unchanged,desiredFrame,near,T,assert,sourceHash} from './v4j-pivot-support.mjs';
-assert.equal(sourceHash,'c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62');
+assert.equal(sourceHash,'58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014');
 const report={sourceHash,scope:'Exact-source non-unit CM same-display, changed-value, scrub return, and API complete same-value controls; no application or GPU claims',passes:[],failures:[]};
 const custom=new T.Matrix4().makeRotationFromEuler(new T.Euler(.22,.16,-.35)).setPosition(9.123456789012345,4.876543219876543,-3.234567890123456);
 // Opposite mouse deltas are a numeric return only for the position fixtures here.

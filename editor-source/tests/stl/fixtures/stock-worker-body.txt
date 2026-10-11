@@ -1,0 +1,32 @@
+function frameSTLWorkerMain() {
+  self.onmessage = ({ data }) => {
+    try {
+      const report = (stage, loaded, total, unit) => self.postMessage({ stage, loaded, total, unit });
+      const source = frameParseSTLPositions(data.buffer, report), indices = Uint32Array.from({ length: source.length / 3 }, (_, i) => i);
+      // Conventional STL Z-up -> Frame Y-up, a proper rotation using only an
+      // exact Float32 component permutation and sign change, before topology.
+      for (let i = 0; i < source.length; i += 3) {
+        const y = source[i + 1], z = source[i + 2];
+        source[i + 1] = z; source[i + 2] = -y;
+      }
+      report('Preparing mesh topology');
+      const prepared = polygonCreaseData(source, indices, data.creaseCos, null, 1, false, true);
+      report('Preparing render geometry');
+      // Keep the preparation and installation passes in their original order.
+      const installed = polygonCreaseData(prepared.positions, prepared.indices, data.creaseCos, null, 1, false, true);
+      const origin = installed.indices.length / 3 <= 8192 && prepared.positions.length <= 73728 ? { version: 1, positions: prepared.positions, indices: prepared.indices } : null;
+      const result = { positions: installed.positions, normals: installed.normals, indices: installed.indices, origin, bounds: frameSTLGeometryBounds(installed.positions), vertices: source.length / 3, triangles: source.length / 9 };
+      if (installed.indices.length >= 30000) {
+        report('Preparing object picking');
+        result.pickTree = prepareSplineBVH(installed.positions, installed.indices);
+        report('Preparing wireframe');
+        result.wireIndices = frameWireIndices({ count: installed.positions.length / 3 }, { count: installed.indices.length, getX: i => installed.indices[i] });
+      }
+      const transfer = [result.positions.buffer, result.normals.buffer, result.indices.buffer];
+      if (result.pickTree) transfer.push(result.pickTree.bvhBounds.buffer, result.pickTree.bvhChildren.buffer, result.pickTree.bvhOrder.buffer);
+      if (result.wireIndices) transfer.push(result.wireIndices.buffer);
+      if (origin) transfer.push(origin.positions.buffer, origin.indices.buffer);
+      self.postMessage({ result }, transfer);
+    } catch (error) { self.postMessage({ error: error?.message || String(error) }); }
+  };
+}

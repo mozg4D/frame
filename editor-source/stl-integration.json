@@ -1,0 +1,37 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
+  "afterSHA256": "494f4238013e0595a0a7cb39c5607241cfe6dc1b5a1475a807d8f920fec68440",
+  "beforeBytes": 2719528,
+  "afterBytes": 2719632,
+  "operations": [
+    {
+      "startLine": 7480,
+      "deleteLines": 0,
+      "insert": [
+        "/* FRAME_CURRENT_STL_HELPER */\n"
+      ]
+    },
+    {
+      "startLine": 7492,
+      "deleteLines": 1,
+      "insert": [
+        "      const prepared = frameSTLCreaseData(source, indices, data.creaseCos, null, 1, false, true);\n"
+      ]
+    },
+    {
+      "startLine": 7495,
+      "deleteLines": 1,
+      "insert": [
+        "      const installed = frameSTLCreaseData(prepared.positions, prepared.indices, data.creaseCos, null, 1, false, true);\n"
+      ]
+    },
+    {
+      "startLine": 7519,
+      "deleteLines": 1,
+      "insert": [
+        "    const source = [frameParseSTLPositions, frameSTLGeometryBounds, frameSTLCoordinateHash, frameSTLScalarKey, frameSTLCoordinateClasses, frameSTLCreaseData, prepareSplineBVH, frameWireIndices].map(fn => fn.toString()).join('\\n') + '\\n(' + frameSTLWorkerMain.toString() + ')();';\n"
+      ]
+    }
+  ]
+}

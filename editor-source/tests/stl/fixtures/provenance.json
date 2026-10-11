@@ -1,0 +1,12 @@
+{
+  "baselineEditorSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
+  "reviewedEditorSHA256": "58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014",
+  "donorCandidateSHA256": "48d65be016495fea26995ee5ac596e3475db7342e96c1c77070b62fd971e9965",
+  "privateHelperSHA256": "e81dda84936ac8a3b8b33b8c6accb9a85eb5aba6b5f516c49f0f531ea15c258a",
+  "fixtures": {
+    "fixtures/independent-coordinate-proof.mjs": "30b1b027624dafd1c22ddde1a398ee6cf9c958ff7b60595e2a47cb24193bd061",
+    "fixtures/stock-stl-oracle.mjs": "7c72de945ddfdddbfcbeeb8b9c1c6da5d81a567986fb8a18a669644fd60aa64c",
+    "fixtures/stock-worker-body.txt": "5b11f2e922ac919e9282e3184849edcf1eca6f08583b2243f3df0b1c9a216c94"
+  },
+  "normalization": "Only strip export declarations and rename framePolygonHash to frameSTLCoordinateHash in the four-function private helper. No production-source normalization is used by these tests."
+}

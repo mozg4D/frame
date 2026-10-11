@@ -2,7 +2,7 @@ import {reviewURL} from '../source-paths.mjs';
 import {verifyCandidate} from './verify-candidate.mjs';verifyCandidate();
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
 const source=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');
-assert.equal(createHash('sha256').update(source).digest('hex'),'c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62');
+assert.equal(createHash('sha256').update(source).digest('hex'),'58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014');
 function extract(name){const at=source.indexOf('function '+name+'(');assert(at>=0);const lines=source.slice(at).split('\n');for(let i=1;i<1000;i++){const f=lines.slice(0,i).join('\n');try{new vm.Script('('+f+')');return f;}catch{}}throw Error(name);}
 const root='../candidate/native-source/';
 const {GpuRigidIslandPreview}=await import(reviewURL(root+'gpu-island-preview.mjs',import.meta.url));

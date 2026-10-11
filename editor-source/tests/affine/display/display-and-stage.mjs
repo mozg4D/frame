@@ -3,7 +3,7 @@ import {verifyCandidate} from './verify-candidate.mjs';verifyCandidate();
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import{createHash}from'node:crypto';
 import * as THREE from '../fixtures/three-core.mjs';
 const {captureDisplayObject,captureDisplayScene,DisplayGeometryCache,registerAffineDisplayOverride}=await import(reviewURL('../candidate/native-source/display-packets.mjs',import.meta.url));
-const path=reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),source=fs.readFileSync(path,'utf8'),sha=createHash('sha256').update(source).digest('hex');assert.equal(sha,'c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62');
+const path=reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),source=fs.readFileSync(path,'utf8'),sha=createHash('sha256').update(source).digest('hex');assert.equal(sha,'58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014');
 function extract(name){const at=source.indexOf('function '+name+'(');assert(at>=0);const lines=source.slice(at).split('\n');for(let i=1;i<1000;i++){const f=lines.slice(0,i).join('\n');try{new vm.Script('('+f+')');return f;}catch{}}throw Error(name);}
 const passes=[];
 for(const multi of[false,true])for(const wireframe of[false,true]){

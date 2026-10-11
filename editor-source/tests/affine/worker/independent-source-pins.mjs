@@ -3,7 +3,7 @@ import fs from 'node:fs';import assert from 'node:assert/strict';import{createHa
 const pins={
  './stock-oracle.mjs':'d4cb223df32788c6990b3033d69481e58a3333015fb8eb9fd2ec5c8177e171a5',
  './selected-face-oracle.mjs':'666729639f6a4cc8e96b430ad1c14c1d219fc94a52495f2c7b682430f6ef93bd',
- '../candidate/editor-affine-ui-v2c.mjs':'c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62',
+ '../candidate/editor-affine-ui-v2c.mjs':'58183ac11616b64a5e67f3dde8294a7a127d26ab4efab0f1301eb2b3fdb41014',
  '../candidate/frame-affine-helper-v2b.mjs':'48cc27ad8d9025f81d190225ec3a1940dede02f8d8f12684b5246e53523d929f',
  '../candidate/native-affine-ui-v2b.mjs':'4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463',
  '../candidate/native-source/affine-corner-worker.mjs':'d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1',
