@@ -1,0 +1,382 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "e333dd2896489bc928cf9e984bbbda42a5ec4e9dd5992622dc03805199a3682a",
+  "afterSHA256": "8355bfa221ca1e5069332fab587a16cac8e69a15dc2930701cb65e033c8f14b8",
+  "beforeBytes": 2652531,
+  "afterBytes": 2658288,
+  "operations": [
+    {
+      "startLine": 12575,
+      "deleteLines": 1,
+      "insert": [
+        "  return frameAffineAttachOwnerSnapshot({\n"
+      ]
+    },
+    {
+      "startLine": 12589,
+      "deleteLines": 1,
+      "insert": [
+        "  },h);\n"
+      ]
+    },
+    {
+      "startLine": 12592,
+      "deleteLines": 1,
+      "insert": [
+        "  let n = OBJ.get(s.h);frameAffineRestoreOwnerSnapshot(s,n);\n"
+      ]
+    },
+    {
+      "startLine": 12639,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 12751,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 13105,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 13188,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 13366,
+      "deleteLines": 0,
+      "insert": [
+        "frameRigidAbortAll('scene-clear');frameAffinePruneStages({clear:true});\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15086,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15278,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15388,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15397,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 16217,
+      "deleteLines": 1,
+      "insert": [
+        " frameRigidGestureGeneration++;frameRigidCancelDerived();frameAffineCancelPublication();\n"
+      ]
+    },
+    {
+      "startLine": 17282,
+      "deleteLines": 0,
+      "insert": [
+        "if(c&&!c.renderOnly)frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17308,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffinePruneStages();frameAffinePruneBindings();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17868,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 20903,
+      "deleteLines": 1,
+      "insert": [
+        " if(!g?.attributes?.position)return null;const affine=frameAffineSaveSnapshot(g);if(affine)return affine;\n"
+      ]
+    },
+    {
+      "startLine": 21205,
+      "deleteLines": 1,
+      "insert": [
+        "document.addEventListener(\"keydown\", (e) => {if(e.key===\"Escape\"&&polyCoordinatePivotEdit?.kind===\"poly-pivot\"&&_scrubSession&&_scrubSession.inp!==e.target&&!_scrubSession.inp.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();_scrubSession.end(!1);return;}_endSessionOutside(e.target);}, !0);\n"
+      ]
+    },
+    {
+      "startLine": 21296,
+      "deleteLines": 0,
+      "insert": [
+        "    if(!flag&&wasScrubbing){scrubbing=!1;moved=!1;pid=null;document.body.style.cursor=\"\";}\n"
+      ]
+    },
+    {
+      "startLine": 24044,
+      "deleteLines": 1,
+      "insert": [
+        "var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySoft = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, polyCoordinatePivotEdit = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;\n"
+      ]
+    },
+    {
+      "startLine": 24495,
+      "deleteLines": 0,
+      "insert": [
+        "  if(editPivot){\n",
+        "    if(ch === \"size\"){updateHUD();return;}\n",
+        "    const unchanged=(value,original,channel)=>{\n",
+        "      const unit=channel === \"pos\" ? UMM[dispIdx] : 1;\n",
+        "      return numericValuesMatch(value,original)||Number(value.toPrecision(12))===Number(original.toPrecision(12))||numericValuesMatch(value/unit,Number(numericDisplayText(original/unit)));\n",
+        "    }, edit=polyCoordinatePivotEdit;\n",
+        "    if(edit&&edit.coordinateSpace===mode&&edit.owner===polyOwnerHash()&&edit.items===polySelection.items){\n",
+        "      edit.inputs[ch+':'+i]={ch,i,value:v};\n",
+        "      if(Object.values(edit.inputs).every(input=>unchanged(input.value,edit.values[input.ch][input.i],input.ch))){\n",
+        "        polyPivotMatrix=edit.pivot?.slice()??null;setGizmoFromMatrix(edit.gizmo);placeGizmoForSelection();updateHUD();return;\n",
+        "      }\n",
+        "    }\n",
+        "    const current=readPolyTransform(mode), value=ch === \"pos\" ? current.p.getComponent(i) : [current.e.x,current.e.y,current.e.z][i]*(180/Math.PI);\n",
+        "    if(unchanged(v,value,ch)){updateHUD();return;}\n",
+        "  }\n"
+      ]
+    },
+    {
+      "startLine": 24513,
+      "deleteLines": 2,
+      "insert": [
+        "  if(!editPivot){let delta = desired.clone().multiply(old.clone().invert()), snap = capturePolySelection();applyPolyDelta(delta, snap);}\n"
+      ]
+    },
+    {
+      "startLine": 24769,
+      "deleteLines": 0,
+      "insert": [
+        "hashes=[...hashes];frameAffineEnsureAuthoring(hashes);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 24783,
+      "deleteLines": 0,
+      "insert": [
+        "frameAffineEnsureAuthoring();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 24789,
+      "deleteLines": 0,
+      "insert": [
+        "  }\n",
+        "  if (polyFocusActive() && polySelection.items.size && editPivot) {\n",
+        "    const value=readPolyTransform(coordMode), state={kind:'poly-pivot',pivot:polyPivotMatrix?.slice()??null,gizmo:getGizmoWorldArray().slice(),editPivot:true,coordinateSpace:coordMode,owner:polyOwnerHash(),items:polySelection.items,values:{pos:value.p.toArray(),rot:[value.e.x,value.e.y,value.e.z].map(v=>v*(180/Math.PI))},inputs:Object.create(null)};\n",
+        "    polyCoordinatePivotEdit=state;return state;\n"
+      ]
+    },
+    {
+      "startLine": 24815,
+      "deleteLines": 0,
+      "insert": [
+        "  if(before?.kind==='poly-pivot'){\n",
+        "    if(polyCoordinatePivotEdit===before)polyCoordinatePivotEdit=null;\n",
+        "    const previous=before.pivot?.slice()??null,after=polyPivotMatrix?.slice()??getGizmoWorldArray().slice();\n",
+        "    const apply=pivot=>{polyPivotMatrix=pivot?.slice()??null;placeGizmoForSelection();updateHUD();scheduleRender();};\n",
+        "    if(mat4Close(previous??before.gizmo,after))apply(previous);\n",
+        "    else{pushCmd({redo(){apply(after);},undo(){apply(previous);}});placeGizmoForSelection();updateHUD();scheduleRender();}\n",
+        "    return;\n",
+        "  }\n"
+      ]
+    },
+    {
+      "startLine": 24868,
+      "deleteLines": 0,
+      "insert": [
+        "  if(before?.kind==='poly-pivot'){\n",
+        "    if(polyCoordinatePivotEdit===before)polyCoordinatePivotEdit=null;\n",
+        "    polyPivotMatrix=before.pivot?.slice()??null;\n",
+        "    setGizmoFromMatrix(before.gizmo);placeGizmoForSelection();updateHUD();scheduleRender();return;\n",
+        "  }\n"
+      ]
+    },
+    {
+      "startLine": 25913,
+      "deleteLines": 0,
+      "insert": [
+        "/* FRAME_CURRENT_AFFINE_HELPER */\n",
+        "/* FRAME_CURRENT_AFFINE_KNOWN */\n"
+      ]
+    },
+    {
+      "startLine": 25917,
+      "deleteLines": 1,
+      "insert": [
+        "function frameRigidDispose(t){\n",
+        " if(!t||t.disposed)return;t.disposed=true;frameAffineCleanup(()=>frameAffineDispose(t));frameAffineCleanup(()=>t.gpu?.dispose());\n",
+        " if(t.adapter){t.adapter.positionView=t.adapter.normalView=null;frameAffineCleanup(()=>frameNative.unregisterRigidGpuGeometry(t.g,t.adapter));}\n",
+        " frameAffineCleanup(()=>t.engine?.geometryCache.rows.delete(t.g));\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 25919,
+      "deleteLines": 1,
+      "insert": [
+        " frameAffinePruneBindings();if(frameRigidInstalling||frameRigidFallthrough)return null;const basic=frameRigidBasic();if(!basic){if(!frameRigidQueue.length){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return null;}\n"
+      ]
+    },
+    {
+      "startLine": 25922,
+      "deleteLines": 2,
+      "insert": [
+        " if(frameAffineEligible(t))frameAffinePrepareEarly(t);t.promise=(async()=>{await frameAffineYield();if(!frameRigidSelection(t,true))throw new DOMException('Rigid preparation owner changed','AbortError');const mapped=frameAffineKnownGate(t);let gate=mapped;if(!mapped){const cached=await frameGetNativeTopologyCache().get(t.g);if(!frameRigidSelection(t,true)||!cached.isCurrent())throw new DOMException('Rigid selection changed','AbortError');const tasks=frameNative.createYieldQueue();try{const work=frameNative.rigidIslandEligibilityWork(cached.topology,t.ia,t.faces);for(;;){const step=work.next();if(step.done){gate=step.value;break;}await tasks.yield();if(!frameRigidSelection(t,false))throw new DOMException('Rigid selection changed','AbortError');}}finally{tasks.dispose();}}if(!frameRigidSelection(t,true))throw new DOMException('Rigid eligibility stale','AbortError');t.gate=gate;if(!gate.eligible){t.status='ineligible';return false;}t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.idSet=new Set(t.ids);t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;t.originalPositions=t.pa.slice();t.originalNormals=t.na.slice();let indexSeed=frameRigidIndexSeeds.get(t.g);if(!indexSeed||indexSeed.array!==t.ia||indexSeed.version!==t.iv){indexSeed={array:t.ia,version:t.iv,values:t.ia.slice()};frameRigidIndexSeeds.set(t.g,indexSeed);}t.indexSeed=indexSeed.values;if(mapped){t.aliasGuard=mapped.aliasGuard;t.stableFaceComponent=true;t.stableFaceProofBytes=0;}else{const aliases=frameNative.createYieldQueue();try{const work=frameRigidBuildAliasGuard(t);for(;;){const step=work.next();if(step.done){if(!step.value){t.eligible=false;t.gate={eligible:false,reason:t.aliasGuardFailure??'alias-validation-memory-budget'};t.status='ineligible';return false;}break;}await aliases.yield();if(!frameRigidSelection(t))throw new DOMException('Rigid alias preparation stale','AbortError');}}finally{aliases.dispose();}}t.aliasSafe=frameRigidAliasSafe(t);if(!t.aliasSafe)throw new DOMException('Rigid alias eligibility stale','AbortError');\n",
+        " frameRigidExactBounds(t);t.numeric=mapped?await frameAffineKnownNumeric(t):t.engine.geometryCache.capture(t.g);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);const gpu=await frameNative.GpuRigidIslandPreview.create({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t)});if(!frameRigidSelection(t,true)){gpu.dispose();throw new DOMException('Rigid preparation stale','AbortError');}t.gpu=gpu;t.status='ready';frameRigidNotes.prepared++;frameRigidNotes.phases.push({name:'selection-ready',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length,historySourceBytes:t.originalPositions.byteLength+t.originalNormals.byteLength+t.indexSeed.byteLength,aliasGuardBytes:t.aliasGuard.bytes});return true;\n"
+      ]
+    },
+    {
+      "startLine": 25926,
+      "deleteLines": 1,
+      "insert": [
+        "function frameRigidSelectedIDs(h){const t=frameRigidPrepared;return t?.h===h&&t.eligible&&frameRigidSelection(t)?t.idSet:frameRigidSource(t)?null:frameAffineKnownIDs(h);}\n"
+      ]
+    },
+    {
+      "startLine": 25932,
+      "deleteLines": 2,
+      "insert": [
+        " const affine=!!basic&&frameAffineEligible(t)&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&(['move','rotate','screenRotate','scale','scaleU'].includes(gizDrag?.mode)||frameAffineStages.get(t.h)&&!frameAffineStages.get(t.h).snapshot);const rigid=!!basic&&(coordMode==='world'||gizDrag?.mode==='move')&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!(rigid||affine)||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;\n",
+        " const source=frameRigidTransactionSnapshot(t);if(!source)return false;const before=getGizmoWorldArray().slice();let abortResolve;const abortPromise=new Promise(r=>abortResolve=r),s={t,source,affine,kind:affine?'affine':'cpu',event:e,drag:gizDrag,gizmo:before,afterGizmo:before.slice(),beforePivot:polyPivotMatrix?.slice()??null,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),revision:0,ready:false,released:false,cancel:false,discarded:false,overlays:null,abortPromise,abortResolve};frameRigidQueue.push(s);frameRigidInput=s;if(s.affine)frameAffineAwaitPreview(s);else if(t.affine){frameAffineDispose(t);t.affine=null;}frameRigidInstallInput(s);frameRigidNotes.starts++;if(frameRigidQueue.length>1)frameRigidNotes.queuedStarts++;frameRigidDrain();return true;\n"
+      ]
+    },
+    {
+      "startLine": 25939,
+      "deleteLines": 2,
+      "insert": [
+        "function frameRigidSubmit(s){if(!s.ready||s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('source-changed-during-preview');return;}if(s.affine){frameAffineSubmit(s);return;}const t=s.t,local=s.inverse.clone().multiply(s.delta).multiply(s.world),e=local.elements;s.rotated=[0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12);s.normalMatrix.getNormalMatrix(local);s.revision++;t.adapter.revision++;const revision=s.revision;for(const{o,matrix}of s.overlays){o.matrixAutoUpdate=false;o.matrix.copy(s.delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}s.last=t.gpu.submit({matrix:local.elements,world:s.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s)&&s.revision===revision});s.last.then(result=>{if(result.status!=='ready'||s.revision!==revision||s.cancel||s.discarded||!frameRigidTransactionCurrent(s))return;t.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};t.boundsWorld=s.world.clone();updateHUD();scheduleRender();}).catch(e=>{if(e.name!=='AbortError')frameRigidNotes.errors.push(String(e));});scheduleRender();}\n",
+        "function frameRigidApplyDelta(delta){const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-during-input');return true;}s.delta.copy(delta);s.afterGizmo=getGizmoWorldArray().slice();frameRigidNotes.moves++;if(s.previewReady)frameAffineSubmit(s);else if(s.ready&&frameRigidExecuting===s)frameRigidSubmit(s);return true;}\n"
+      ]
+    },
+    {
+      "startLine": 25944,
+      "deleteLines": 1,
+      "insert": [
+        " const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameAffineTouchBinding(t);frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}\n"
+      ]
+    },
+    {
+      "startLine": 26014,
+      "deleteLines": 3,
+      "insert": [
+        " if(!s.ready){const ok=s.kind==='cpu'||s.t.status==='fallback'?false:await Promise.race([s.t.promise,s.abortPromise]);if(frameRigidQueue[0]!==s||s.discarded){remove=true;continue;}if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-after-preparation');remove=true;continue;}if(!ok){if(s.kind==='cpu'||['ineligible','failed','fallback'].includes(s.t.status)){await frameRigidFallback(s);if(s.released)frameRigidRebaseQueued(s);remove=true;continue;}frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidSelection(s.t)){frameRigidAbortAll('selection-changed-after-preparation');remove=true;continue;}if(s.affine)await frameAffinePrepare(s.t);if(s.cancel||s.discarded||!frameRigidTransactionCurrent(s))continue;const previewOverlays=s.previewReady?s.overlays:null;frameRigidActivate(s);if(previewOverlays)s.overlays=previewOverlays;if(s.affine)frameAffineActivate(s);if(!s.boundsCaptured)s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld.clone()}:null;frameRigidSubmit(s);}\n",
+        " if(!s.released)return;if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(s.affine)await frameAffineCommit(s);else frameRigidCommit(s);frameRigidRebaseQueued(s);remove=true;\n",
+        " }catch(e){s.cancel=true;if(e.name!=='AbortError'){frameRigidNotes.errors.push(String(e));console.error('Rigid island transaction failed',e);}frameRigidAbortAll('transaction-failed');remove=true;}finally{if(remove&&frameRigidQueue[0]===s)frameRigidQueue.shift();if(remove&&frameRigidExecuting===s)frameRigidExecuting=null;}if(remove&&frameRigidQueue.length)await frameAffineYield();}\n"
+      ]
+    },
+    {
+      "startLine": 26028,
+      "deleteLines": 3,
+      "insert": [
+        "function frameRigidRestoreAuthoring(t,positions,normals){for(let k=0;k<t.ids.length;k++){const id=t.ids[k];for(let j=0;j<3;j++){t.pa[id*3+j]=positions[k*3+j];t.na[id*3+j]=normals[k*3+j];t.numeric.positions[id*3+j]=positions[k*3+j];t.numeric.extras[id*9+j]=normals[k*3+j];}}t.aliasSafe=frameRigidAliasSafe(t,positions);t.p.needsUpdate=true;t.n.needsUpdate=true;t.pv=t.p.version;t.nv=t.n.version;t.g.boundingBox=t.g.boundingSphere=null;frameRigidEpoch.set(t.g,(frameRigidEpoch.get(t.g)??0)+1);frameAffineTouchBinding(t);frameNative.touchRigidGpuGeometry(t.adapter);try{t.gpu.writeAuthoringRanges(t.ranges);}catch(e){frameRigidNotes.errors.push(String(e));}frameGetNativeTopologyCache().invalidate(t.g);objectPickBVHs.delete(t.g);frameSTLPickTrees.delete(t.g);}\n",
+        "function frameRigidCancelSession(s){if(s.discarded)return;s.cancel=true;s.revision++;s.abortResolve(false);if(s.affine)frameAffineCancelSession(s);const t=s.t;if(s.ready&&frameRigidTransactionCurrent(s)){t.adapter.positionView=t.adapter.normalView=null;t.adapter.revision++;t.gpu.writeAuthoringRanges(t.ranges);frameRigidRestoreOverlays(s);if(s.beforeBounds){t.bounds={min:s.beforeBounds.min,max:s.beforeBounds.max};t.boundsWorld=s.beforeBounds.world;}else if(s.boundsCaptured){t.bounds=t.boundsWorld=null;}polyPivotMatrix=s.beforePivot;}if(!frameRigidInput)setGizmoFromMatrix(s.gizmo);frameRigidNotes.cancels++;scheduleRender();updateHUD();}\n",
+        "function frameRigidAbortAll(reason){\n",
+        " const owned=frameRigidInput||frameRigidExecuting,prepared=frameRigidPrepared,sessions=new Set([...frameRigidQueue,frameRigidInput,frameRigidExecuting,prepared?.affine?.active].filter(Boolean));let keep=false;\n",
+        " try{keep=reason==='undo-or-redo'&&prepared?.status==='ready'&&owned?.t===prepared&&owned.ready&&frameRigidTransactionCurrent(owned)&&frameRigidSelection(prepared);}catch{}\n",
+        " frameAffineAbortAll(reason);\n",
+        " frameRigidQueue.splice(0);frameRigidInput=frameRigidExecuting=null;if(!keep)frameRigidPrepared=null;\n",
+        " for(const s of sessions){s.cancel=true;s.discarded=!keep||s!==owned;s.reason=reason;s.revision++;frameAffineCleanup(()=>s.closeWorker?.());frameAffineCleanup(()=>s.abortResolve?.(false));frameAffineCleanup(()=>frameRigidRestoreOverlays(s));if(!keep||s.t!==prepared)frameRigidDispose(s.t);}\n",
+        " if(keep){frameAffineCleanup(()=>frameRigidCancelSession(owned));owned.discarded=true;}else frameRigidDispose(prepared);if(!keep&&typeof frameAffinePruneBindings==='function')frameAffinePruneBindings({clear:true});\n",
+        " frameAffineCleanup(()=>frameRigidClearInput());\n",
+        " if(owned){if(gizDrag===owned.drag){gizDrag=null;frameAffineCleanup(()=>frameClearPolygonGizmoMove());frozenSignsPerView=null;frameAffineCleanup(()=>vpState.renderer.domElement.releasePointerCapture(owned.event.pointerId));}if(OBJ.get(owned.t.h)===owned.t.node)frameAffineCleanup(()=>setGizmoFromMatrix(owned.gizmo));}\n",
+        " frameRigidNotes.cancels+=sessions.size-(keep?1:0);frameAffineCleanup(()=>scheduleRender());\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 26032,
+      "deleteLines": 1,
+      "insert": [
+        " frameRigidCancelDerived();frameAffineCancelPublication();\n"
+      ]
+    },
+    {
+      "startLine": 26135,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameRigidStart(e))return;frameAffineEnsureAuthoring();\n"
+      ]
+    },
+    {
+      "startLine": 26653,
+      "deleteLines": 0,
+      "insert": [
+        "if(!frameAffineSavingBoundary)frameAffineEnsureAuthoring();else if(!frameAffineBoundaryCurrent(frameAffineSavingBoundary))throw new DOMException('Affine Save boundary changed','AbortError');\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26768,
+      "deleteLines": 1,
+      "insert": [
+        "   await frameAffineWaitForSave(signal);nativeSaveCheck(signal);job.capturing=true;const savedToken=sceneStateToken,mutation=nativeSaveMutation,snapshot=await nativeSaveCopy(buildHashSceneSnapshot(),signal);job.capturing=false;frameAffineSaving=null;frameAffineSavingBoundary=null;\n"
+      ]
+    },
+    {
+      "startLine": 26771,
+      "deleteLines": 1,
+      "insert": [
+        "  finally{job.capturing=false;options.signal?.removeEventListener('abort',abort);status.remove();if(nativeSceneSave===job)nativeSceneSave=null;frameAffineSaving=null;frameAffineSavingBoundary=null;}\n"
+      ]
+    },
+    {
+      "startLine": 27721,
+      "deleteLines": 1,
+      "insert": [
+        "    apply(\"pos\", values.position), apply(\"rot\", values.rotation), apply(\"size\", values.size), syncCube(), commitCoordinateSnapshot(before);\n"
+      ]
+    },
+    {
+      "startLine": 31984,
+      "deleteLines": 0,
+      "insert": [
+        "\n"
+      ]
+    }
+  ]
+}

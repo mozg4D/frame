@@ -1,0 +1,14 @@
+import {reviewURL} from '../source-paths.mjs';
+import './independent-source-pins.mjs';
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+import * as T from '../fixtures/three-core.mjs';import {stockCompactOracle} from './stock-oracle.mjs';import{selectedFaceOracle}from'./selected-face-oracle.mjs';
+const helper=fs.readFileSync(reviewURL('../candidate/frame-affine-helper-v2b.mjs',import.meta.url),'utf8'),cos=Math.cos(46*Math.PI/180),I=new T.Matrix4(),D=new T.Matrix4().makeTranslation(.25,.125,.25),rows=[];
+function diff(a,b){if(a.length!==b.length)return{actual:a.length,expected:b.length};let n=0;const x=new Uint32Array(a.buffer,a.byteOffset,a.byteLength/4),y=new Uint32Array(b.buffer,b.byteOffset,b.byteLength/4);for(let k=0;k<x.length;k++)n+=x[k]!==y[k];return n;}
+for(const count of [65532,65535])for(const Index of [Uint16Array,Uint32Array]){
+ const positions=new Float32Array(count*3),normals=new Float32Array(count*3),indices=Index.from({length:count},(_,i)=>i);for(let f=0;f<count/3;f++){positions.set([f*4,0,0,f*4+1,0,0,f*4,1,0],f*9);normals.set([0,0,1,0,0,1,0,0,1],f*9);}
+ const sourcePositions=positions.slice(),sourceIndices=indices.slice(),raw={attrs:{position:{array:positions,itemSize:3},normal:{array:normals,itemSize:3}},index:indices,groups:[],drawRange:{start:0,count:Infinity},userData:{},aliasStable:true},stage={logicalVersion:1,historyRecipe:{raw,faces:Uint32Array.of(0),world:I.elements.slice(),delta:D.elements.slice(),inverse:I.elements.slice(),aliasGuard:{}}};
+ const c=vm.createContext({THREE2:T,Float32Array,Float64Array,Uint32Array,Uint16Array,Int32Array,Uint8Array,Map,Set,WeakMap,WeakRef,Array,Number,Math,DOMException,CREASE_COS:cos,polygonCreaseData:stockCompactOracle,stage});vm.runInContext(helper,c);const actual=vm.runInContext('frameAffineCanonicalNow(stage)',c),expected=selectedFaceOracle(positions,indices,[0],I,D,cos),differences={positions:diff(actual.attrs.position.array,expected.positions),normals:diff(actual.attrs.normal.array,expected.normals),indices:diff(actual.index,expected.indices)};
+ const corrupt=Index===Uint16Array&&count===65535;assert.deepEqual(differences,{positions:0,normals:0,indices:0});assert.equal(diff(positions,sourcePositions),0);assert.deepEqual(indices,sourceIndices);
+ rows.push({rawVertexCount:count,indexType:Index.name,firstAppendedSelectedIDs:[count,count+1,count+2],storedIDsInRecipe:[count,count+1,count+2].map(x=>Index.of(x)[0]),differences,selectedResultPositions:Array.from(actual.attrs.position.array.subarray(0,9)),expectedSelectedPositions:Array.from(expected.positions.subarray(0,9)),originalRawUnchanged:true});
+}
+console.log(JSON.stringify({reproduced:true,scope:'Actual helper CanonicalNow recipe and stock snapshot with unchanged independent selected-face oracle; no GPU/browser assertions',rows},null,2));

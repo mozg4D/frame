@@ -1,0 +1,41 @@
+{
+  "sourceSHA256": "c79b431a5885a0412d036d60b6253393297f33f085db1804a9167825646f0d71",
+  "sections": [
+    {
+      "start": "function applyPolyDelta(",
+      "end": "function splineSelectedRefs(",
+      "bytes": 965,
+      "sha256": "5aeff9f10dcfc3a52e7108d74d5839c18180fa850bc3feda69e21b48aca90850"
+    },
+    {
+      "start": "function bridgeTransform()",
+      "end": "onTransform(() => {",
+      "bytes": 6946,
+      "sha256": "7623e7650bae3489ab658cec1ca16724edc331f020098ef38da57fb3c379f520"
+    },
+    {
+      "start": "function preparePolygonDragTopology(",
+      "end": "function coordinateSnapshot(",
+      "bytes": 17307,
+      "sha256": "62eb72fc16e9b1e5c1f29f2bed1bb8930637d9251a1910923c13d6f5b29046ad"
+    },
+    {
+      "start": "function restorePolyGeometries(",
+      "end": "// Connected topology",
+      "bytes": 1054,
+      "sha256": "4b98b843996f8f8466be98cef7fc1159310e43282e11e53565cb19a79ee4a918"
+    },
+    {
+      "start": "function polygonCreaseData(",
+      "end": "function buildSceneFromObjects(",
+      "bytes": 8161,
+      "sha256": "6bafd1869896fe3da1b2f4bdc2dcc5beb87ee3d1cb16eb8fd7c7848e2b6d8628"
+    },
+    {
+      "start": "onGizmoDragStart((e) => {",
+      "end": "var frameCancelViewportMarquee=null;",
+      "bytes": 10183,
+      "sha256": "d4f1177e9112c2ecee28a06e3eb3641bd72312567c0db2da5b3fa2e27b0a9d2d"
+    }
+  ]
+}

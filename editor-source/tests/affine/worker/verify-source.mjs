@@ -1,0 +1,7 @@
+import {reviewURL} from '../source-paths.mjs';
+import fs from 'node:fs';import assert from 'node:assert/strict';import{createHash}from'node:crypto';
+const root=reviewURL('../',import.meta.url),audit=JSON.parse(fs.readFileSync(reviewURL('./source-audit.json',import.meta.url))),sha=p=>createHash('sha256').update(fs.readFileSync(reviewURL(p,root))).digest('hex');
+for(const [file,expected]of Object.entries(audit.candidateHashes))assert.equal(sha(file),expected,file);
+for(const[file,entry]of Object.entries(audit.fixtures))assert.equal(sha('fixtures/'+file),entry.sha256,file);
+const editor=fs.readFileSync(reviewURL('candidate/editor-affine-ui-v2c.mjs',root),'utf8'),helper=fs.readFileSync(reviewURL('candidate/frame-affine-helper-v2b.mjs',root),'utf8'),native=fs.readFileSync(reviewURL('candidate/native-affine-ui-v2b.mjs',root),'utf8');assert(editor.includes(helper));assert(helper.includes("kind:'canonical-prepare'"));assert(helper.includes("readOnly:true,final:false"));assert(native.includes('if(!m.preserveProof)proof='));assert(native.includes('VersionedAffineCanonicalBase'));assert(!helper.includes('snapshot.cornerPositionsUnchanged!==true'));
+console.log(JSON.stringify({passed:true,authoritativeCandidateHashesVerified:Object.keys(audit.candidateHashes).length,fixtureHashesVerified:Object.keys(audit.fixtures).length,helperByteEmbedded:true,canonicalReadOnlySavePresent:true,integratedVersionedChain:true},null,2));

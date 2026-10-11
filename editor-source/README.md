@@ -1,29 +1,30 @@
 # Current editor source
 
-This is the r235 rigid component preview implementation and deterministic editor integration. The shipped editor remains the complete application source. A small hash-checked extraction delta restores the pinned integration base from that file, avoiding another bundled editor copy.
+This directory reconstructs the r236 affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta.
 
-Requirements: Node 20+ and TypeScript 5.9.3. Set `FRAME_TYPESCRIPT` to its `lib/typescript.js` path when needed.
+Rebuild requirements: Node 20+ and TypeScript 5.9.3. The affine test suite requires Node 24+. Set `FRAME_TYPESCRIPT` to its `lib/typescript.js` path when needed.
 
     node editor-source/rebuild.mjs /absolute/path/outside/frame/editor.mjs
 
-The output path must be new and outside the checkout. Unchanged sources reproduce 2,652,531 bytes, SHA256 `e333dd2896489bc928cf9e984bbbda42a5ec4e9dd5992622dc03805199a3682a`. Native source has its own [rebuild instructions](../native-source/). The command does not update the asset manifest or deploy.
+The output must be new and outside the checkout. `build-manifest.json` pins the production editor/native paths, byte lengths and hashes. Unchanged sources reproduce the editor byte-for-byte; mismatches fail before output. Native source has separate [rebuild instructions](../native-source/). These commands do not deploy.
 
 ## Scope
 
-The fast path covers eligible indexed whole-island World Move/Rotate and Object-coordinate Move. It commits exact CPU arrays and sparse history, pins owner/source/context/selection state, and rejects outside contacts. Exact shared-edge connectivity permits reuse across internal quantization changes only when every bound raw vertex occurs in the selected faces; otherwise strict alias partition checks remain. Object Rotate, Scale, nonuniform-owner and other unsupported paths keep stock CPU behavior. Live bounds use GPU Float32 arithmetic; committed coordinates use the authoring result. Derived selection buffers and measurements run cooperatively after the committed history entry, with frozen committed views and guarded publication. New gestures and history cancel stale work. Undo/Redo restores overlay attributes, bounds, gizmo and Coordinate Manager frame synchronously. Sparse authoring commits and tight bounds still require synchronous release work. The general GPU v10 importer and pose store remain separate development work.
+Eligible indexed whole-island Move, Rotate and Scale in World/Object coordinates use owner-bound canonical affine work. Ordered authored coordinates, crease normals and topology follow the stock calculation, including cases that require the full stock path. Unsupported selections, extra vertex attributes, UV edits, soft selections and other unsupported contexts retain CPU behavior. The fast eligibility limit is 524,288 selected faces and 128 contiguous face runs. Actual latency depends on preparation, worker publication and selection size; no frame-rate guarantee is implied.
 
-Plain wire shares the live position attribute, including the active GPU preview. Sparse geometry writes clear position-dependent topology caches. Marquee and tap use one latched 6-pixel threshold. The service worker verifies full asset hashes, updates at navigation boundaries and retains older caches for fallback; it never reloads an open scene.
+Source, device, owner, material, selection and gesture identities guard asynchronous work. Publication, cancellation, Save and Undo/Redo retain exact authored geometry and coordinate-manager/pivot behavior. Worker and display resources have explicit ownership and retirement. Plain wire remains tied to the current raw position view. Native `.hash` loading preserves saved normals and indices. The general GPU v10 importer/pose store remains separate development work.
 
 ## Portable checks
 
+    node editor-source/tests/affine/run-review.mjs
     node editor-source/tests/alias-guards.mjs
     node editor-source/tests/stable-face-proof.mjs
     node editor-source/tests/guards.mjs
-    node editor-source/tests/lifecycle.mjs
-    node editor-source/tests/derived-lifecycle.mjs
     node editor-source/tests/hash-loader.mjs
     node editor-source/tests/wire-gestures.mjs
     node editor-source/tests/service-worker.mjs
     node native-source/tests/rigid-resource-lifetime.mjs
 
-These synthetic CPU/source checks cover exact alias rules, source/context guards, ordered cancellation and exception-safe history, generated legacy loader dependencies, saved normal/index preservation and GPU API resource cleanup with mocks. They do not claim browser, device or full-workflow acceptance. No private fixtures, browser scripts, receipts, historical snapshots or dependencies are bundled.
+The affine aggregate uses current manifest-resolved runtime and source files, the existing Three core module and small synthetic oracles. It retains the prior 69 lifecycle controls, with retired direct-GPU units identified separately, and adds active canonical affine, stock arithmetic, publication, cancellation, resource, Save, history and pivot contracts. Retired rigid-derived job tests are superseded by the active affine publication boundaries; their old 31-control count is not claimed for this implementation.
+
+These are CPU/source and mocked GPU checks, not browser, physical-input or device acceptance. No private fixtures, browser probes, receipts, historical candidate bundles or installed dependencies are included.

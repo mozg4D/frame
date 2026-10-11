@@ -23,11 +23,11 @@ function rigidStructure(e){const g=e.geometry;return e.live&&e.isCurrent()&&g.at
  function rigidGeometryPreviewActive(g){const e=rigidGeometries.get(g);return !!e&&rigidStructure(e)&&!!e.positionView;}
  function touchRigidGpuGeometry(e){if(!e.live)throw new DOMException('Rigid source disposed','AbortError');e.pv=e.p.version;e.nv=e.n.version;e.iv=e.ix.version;e.revision++;}
  function unregisterRigidGpuGeometry(g,expected=null){const e=rigidGeometries.get(g);if(!e||expected&&e!==expected)return false;e.live=false;e.revision++;e.positionView=e.normalView=null;if(e.wrappers){for(const [a,o]of [[e.p,e.original.p],[e.n,e.original.n]]){a.getX=o[0];a.getY=o[1];a.getZ=o[2];a.getComponent=o[3];a.clone=o[4];}}rigidGeometries.delete(g);rigidAttributes.delete(e.p);rigidAttributes.delete(e.n);return true;}
- function captureRigidGpuGeometry(g){
+ function captureRigidGpuGeometry(g,cacheRow=null){
  const own=rigidGeometries.get(g),alias=rigidAttributes.get(g?.attributes?.position),e=own??alias?.entry;if(!e||!rigidStructure(e))return null;
  const primary=e.geometry===g,revision=e.revision,old=e.rows.get(g);if(old?.rigidRevision===revision&&old.isCurrent())return old;
  let extras=e.numeric.extras,indices=e.numeric.indices;
- if(!primary){if(g.attributes.position!==e.p||Object.keys(g.attributes).length!==1||g.index?.itemSize!==1)return null;indices=g.index.array;if(!(indices instanceof Uint32Array||indices instanceof Uint16Array))throw Error('Rigid alias index must be unsigned');let a=e.aliases.get(g);if(!a||a.index!==g.index||a.version!==g.index.version){for(const id of indices)if(id>=e.p.count)throw Error('Rigid alias source ID out of range');extras=new Float32Array(e.p.count*9);for(let i=0;i<e.p.count;i++){const at=i*9;extras[at+2]=extras[at+5]=extras[at+6]=extras[at+7]=extras[at+8]=1;}a={index:g.index,version:g.index.version,extras};e.aliases.set(g,a);}extras=a.extras;}
+ if(!primary){if(g.attributes.position!==e.p||Object.keys(g.attributes).length!==1||g.index?.itemSize!==1)return null;indices=g.index.array;if(!(indices instanceof Uint32Array||indices instanceof Uint16Array))throw Error('Rigid alias index must be unsigned');let a=e.aliases.get(g);if(!a||a.index!==g.index||a.version!==g.index.version){const cached=cacheRow&&cacheRow.positions===e.numeric.positions&&cacheRow.indices===indices&&cacheRow.vertexCount===e.p.count&&!cacheRow.hasNormals&&!cacheRow.hasUV&&!cacheRow.hasColors&&cacheRow.extras instanceof Float32Array&&cacheRow.extras.length===e.p.count*9&&cacheRow.isCurrent();if(cached)extras=cacheRow.extras;else{for(const id of indices)if(id>=e.p.count)throw Error('Rigid alias source ID out of range');extras=new Float32Array(e.p.count*9);for(let i=0;i<e.p.count;i++){const at=i*9;extras[at+2]=extras[at+5]=extras[at+6]=extras[at+7]=extras[at+8]=1;}}a={index:g.index,version:g.index.version,extras};e.aliases.set(g,a);}extras=a.extras;}
  const ix=g.index,iv=g.index?.version,row={...e.numeric,source:g,positions:e.numeric.positions,extras,indices,hasNormals:primary,lineIndices:old?.lineIndices??new Map(),rigidEntry:e,rigidRevision:revision};
  row.isCurrent=()=>rigidStructure(e)&&e.revision===revision&&g.attributes.position===e.p&&g.index===ix&&g.index?.version===iv;e.rows.set(g,row);return row;
 }
@@ -1865,7 +1865,7 @@ const read=(a,i,j)=>a?j===0?a.getX(i):j===1?a.getY(i):j===2?a.getZ(i):a.getW(i):
  class DisplayGeometryCache {
   constructor(){this.rows=new WeakMap();}
   capture(g){
-    const rigid=captureRigidGpuGeometry(g);if(rigid)return rigid;
+    const rigid=captureRigidGpuGeometry(g,this.rows.get(g));if(rigid)return rigid;
     const p=g.attributes.position,n=g.attributes.normal,u=g.attributes.uv,c=g.attributes.color,ix=g.index;
     if(!p||p.itemSize!==3)fail('Display positions must be xyz');
     for(const a of [n,u,c])if(a&&a.count!==p.count)fail('Display attribute count mismatch');
@@ -2011,7 +2011,33 @@ function materialStamp(m) {
     ...['normalMap','bumpMap','displacementMap','roughnessMap','metalnessMap','emissiveMap','alphaMap','lightMap','aoMap','envMap','transmission','clearcoat','sheen','iridescence','anisotropy'].map(k=>m?.[k]),
     ...(texture?.matrix?.elements??[]),...(u?.frameMapInv?.value?.elements??[]),...(u?.frameMapNormal?.value?.elements??[]),u?.frameBump?.value];
 }
- function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null}={}){
+
+const affineDisplayOverrides=new WeakMap();
+/** One authoring object. Only triangle display packets receive the exact corner view. */
+ function registerAffineDisplayOverride(object,{selectedGeometry,fullGeometry=()=>null,faceSlots,isCurrent=()=>true}={}){
+ if(!object?.isMesh||!(faceSlots instanceof Int32Array)||typeof selectedGeometry!=='function')throw Error('Explicit mesh corner packet adapter required');
+ const prior=affineDisplayOverrides.get(object);prior?.dispose();const cache=new Map(),token={live:true,dispose(){this.live=false;if(affineDisplayOverrides.get(object)===this)affineDisplayOverrides.delete(object);cache.clear();}};
+ token.capture=options=>{
+  if(!token.live||!isCurrent())return null;
+  const base=captureDisplayObject(object,{...options,affineOverride:false}),selected=selectedGeometry(),full=fullGeometry();if(!selected?.isCurrent?.()||full&&!full.isCurrent?.())return null;
+  const packets=[];
+  for(const packet of base.packets){if(packet.kind!=='triangles'){packets.push(packet);continue;}
+   if(full){packets.push({...packet,geometry:full});continue;}
+   const start=packet.start,end=start+packet.count,geometry=packet.geometry,source=geometry.indices;
+   if(faceSlots.length*3!==(source?.length??geometry.vertexCount))throw Error('Affine face order/layout changed');
+   const key=start+':'+end;let row=cache.get(key);
+   if(!row||row.source!==source){const runs=[];for(let at=start;at<end;at+=3){const slot=faceSlots[at/3];if(slot<0||slot*3>selected.vertexCount)throw Error('Affine selected corner slot out of bounds');const inside=slot>0,offset=inside?(slot-1)*3:at,last=runs.at(-1);if(last&&last.inside===inside&&last.start+last.count===offset)last.count+=3;else runs.push({inside,start:offset,count:3});}
+    row={source,runs,vertexCount:selected.vertexCount};cache.set(key,row);
+   }
+   if(row.vertexCount!==selected.vertexCount)throw Error('Affine corner display layout changed');for(const run of row.runs)packets.push({...packet,start:run.start,count:run.count,geometry:run.inside?selected:geometry});
+  }
+  return{packets,isCurrent:()=>token.live&&affineDisplayOverrides.get(object)===token&&isCurrent()&&base.isCurrent()&&selected.isCurrent()&&(!full||full.isCurrent())};
+ };
+ affineDisplayOverrides.set(object,token);return token;
+}
+
+ function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null,affineOverride=true}={}){
+  if(affineOverride){const token=affineDisplayOverrides.get(object);if(token){const custom=token.capture({geometryCache,instanceCache,strict,camera});if(custom)return custom;}}
   // Deliberately reject non-renderable roots before touching their lazy geometry getter.
   if(!object || !(object.isMesh||object.isLine||object.isPoints||object.isSprite))fail('Only actual drawables can be captured');
   if(object.isSprite&&(!object.material?.isSpriteMaterial||Array.isArray(object.material)||object.material.wireframe))fail('Sprite requires a native SpriteMaterial adapter');
@@ -2091,7 +2117,7 @@ function materialStamp(m) {
  throw Error('Unsupported fog type');
 }
 
-return {stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog};
+return {stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,registerAffineDisplayOverride,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog};
 };
 __nativeModules["display-packets.mjs"]=__nativeFactories["display-packets.mjs"](__nativeModules);
 __nativeFactories["gpu-printer.mjs"]=function(__imports){
@@ -5041,6 +5067,307 @@ function frameCubicMipFailure(mipChain) {
 return {measureFrameCubicMipCapability};
 };
 __nativeModules["gpu-cubic-mip-calibration.mjs"]=__nativeFactories["gpu-cubic-mip-calibration.mjs"](__nativeModules);
+__nativeFactories["affine-corner-worker.mjs"]=function(__imports){
+// Exact production crease routines extracted from the frozen r233 editor.
+const CREASE_COS=Math.cos(46*Math.PI/180);
+class WorkerAttribute{constructor(array,itemSize){this.array=array;this.itemSize=itemSize;this.count=array.length/itemSize;}setXYZ(i,x,y,z){const at=i*3;this.array[at]=x;this.array[at+1]=y;this.array[at+2]=z;}getX(i){return this.array[i*this.itemSize];}getY(i){return this.array[i*this.itemSize+1];}getZ(i){return this.array[i*this.itemSize+2];}}
+const THREE2={BufferAttribute:WorkerAttribute},polygonShadingAllowed=()=>true,packedGeometryAttribute=a=>a.array,markPolygonCreaseGeometry=()=>{};
+function framePolygonHash(x,y,z=0) {
+  let h=Math.imul(x,73856093)^Math.imul(y,19349663)^Math.imul(z,83492791);
+  h^=h>>>16;h=Math.imul(h,0x7feb352d);h^=h>>>15;h=Math.imul(h,0x846ca68b);return (h^(h>>>16))>>>0;
+}
+
+function framePolygonWeldBits(value,bits,w) {
+  if(value===0)return 0;
+  if(Math.abs(value)>=1)return bits;
+  let rounded=w.smallCoordinates.get(value);
+  if(rounded===undefined){w.one[0]=Number(value.toFixed(7));rounded=w.oneBits[0];w.smallCoordinates.set(value,rounded);}
+  return rounded;
+}
+
+function framePolygonNormalWorkspace(rec,vertices,count) {
+  let w=rec._creaseWorkspace;
+  if(w?.vertices===vertices&&w.count===count)return w;
+  let rawSize=16,edgeSize=16;while(rawSize<vertices*2)rawSize*=2;while(edgeSize<count*2)edgeSize*=2;
+  w={vertices,count,epoch:0,rawMask:rawSize-1,edgeMask:edgeSize-1,
+    rawStamp:new Uint32Array(rawSize),rawFirst:new Uint32Array(rawSize),
+    edgeStamp:new Uint32Array(edgeSize),edgeA:new Uint32Array(edgeSize),edgeB:new Uint32Array(edgeSize),edgeHead:new Int32Array(edgeSize),
+    coords:new Uint32Array(vertices),indices:new Uint32Array(count),parent:new Int32Array(count),previous:new Int32Array(count),next:new Int32Array(count),valid:new Uint8Array(count/3),area:new Float64Array(count),inv:new Float64Array(count/3),sums:new Float64Array(count*3),
+    normalStamp:new Uint32Array(count),normal:new Float32Array(count*3),quantized:new Uint32Array(vertices*3),last:new Float32Array(vertices*3),smallCoordinates:new Map(),one:new Float32Array(1)};
+  w.oneBits=new Uint32Array(w.one.buffer);
+  rec._creaseWorkspace=w;return w;
+}
+
+function frameFastPolygonDragNormals(mesh,rec) {
+  if(!rec||!polygonShadingAllowed(mesh))return false;
+  const g=mesh.geometry,pos=g.attributes.position,index=g.index,count=index?.count??pos.count;
+  if(!count||count%3||pos.itemSize!==3||index&&(index.isInterleavedBufferAttribute||index.normalized||index.itemSize!==1||index.array.length!==count))return false;
+  const positions=packedGeometryAttribute(pos),ids=index?index.array:null,w=framePolygonNormalWorkspace(rec,pos.count,count),bits=new Uint32Array(positions.buffer,positions.byteOffset,positions.length);
+  let epoch=(w.epoch+1)>>>0;if(!epoch){w.rawStamp.fill(0);w.edgeStamp.fill(0);w.normalStamp.fill(0);epoch=1;}w.epoch=epoch;
+  const {rawStamp,rawFirst,rawMask,edgeStamp,edgeA,edgeB,edgeHead,edgeMask,coords,indices,parent,previous,next,valid,area,inv,sums,normalStamp,normal,quantized,last}=w;
+  let topologySame=!!w.topologyReady;
+  w.smallCoordinates.clear();sums.fill(0);let coordinateCount=0;
+  // Float32 spacing at |value|>=1 exceeds 1e-7: distinct values cannot share
+  // toFixed(7), and narrowing its decimal back to Float32 returns that value.
+  // Below 1, decimal steps exceed Float32 spacing, so narrowed decimal values
+  // form an injective key. Keep signed rounded zero distinct from exact zero.
+  // This replaces string triples, while preserving the current weld rule.
+  for(let v=0;v<pos.count;v++){
+    const o=v*3,x=positions[o],y=positions[o+1],z=positions[o+2];
+    if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)){w.topologyReady=false;return false;}
+    const xb=w.coordinatesReady&&last[o]===x?quantized[o]:framePolygonWeldBits(x,bits[o],w),yb=w.coordinatesReady&&last[o+1]===y?quantized[o+1]:framePolygonWeldBits(y,bits[o+1],w),zb=w.coordinatesReady&&last[o+2]===z?quantized[o+2]:framePolygonWeldBits(z,bits[o+2],w);
+    quantized[o]=xb;quantized[o+1]=yb;quantized[o+2]=zb;last[o]=x;last[o+1]=y;last[o+2]=z;
+    let slot=framePolygonHash(xb,yb,zb)&rawMask,id;
+    while(rawStamp[slot]===epoch){const p=rawFirst[slot]*3;
+      if(quantized[p]===xb&&quantized[p+1]===yb&&quantized[p+2]===zb){id=coords[p/3];break;}slot=(slot+1)&rawMask;
+    }
+    if(id===undefined){id=coordinateCount++;rawStamp[slot]=epoch;rawFirst[slot]=v;}
+    if(coords[v]!==id)topologySame=false;coords[v]=id;
+  }
+  w.coordinatesReady=true;
+  for(let i=0;i<count;i++){const v=ids?ids[i]:i;if(indices[i]!==v)topologySame=false;indices[i]=v;parent[i]=i;}
+  // A current coordinate equivalence and index comparison is required before
+  // reusing adjacency. Include every face here; current degenerate faces are
+  // filtered below, so degeneracy changes do not freeze the smoothing graph.
+  if(!topologySame){
+    for(let i=0;i<count;i++){
+      const j=Math.floor(i/3)*3+(i%3+1)%3,ca=coords[indices[i]],cb=coords[indices[j]];
+      if(ca===cb){previous[i]=next[i]=-1;continue;}
+      const lo=Math.min(ca,cb),hi=Math.max(ca,cb);let slot=framePolygonHash(lo,hi)&edgeMask;
+      while(edgeStamp[slot]===epoch&&(edgeA[slot]!==lo||edgeB[slot]!==hi))slot=(slot+1)&edgeMask;
+      previous[i]=next[i]=edgeStamp[slot]===epoch?edgeHead[slot]:-1;
+      edgeStamp[slot]=epoch;edgeA[slot]=lo;edgeB[slot]=hi;edgeHead[slot]=i;
+    }
+    w.topologyReady=true;
+  }
+  const root=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;},join=(a,b)=>{a=root(a);b=root(b);if(a!==b)parent[b]=a;},threshold=CREASE_COS-1e-7;
+  for(let f=0;f<count/3;f++){
+    const at=f*3,a=(ids?ids[at]:at)*3,b=(ids?ids[at+1]:at+1)*3,c=(ids?ids[at+2]:at+2)*3,ax=positions[a],ay=positions[a+1],az=positions[a+2],bx=positions[b]-ax,by=positions[b+1]-ay,bz=positions[b+2]-az,cx=positions[c]-ax,cy=positions[c+1]-ay,cz=positions[c+2]-az;
+    const nx=by*cz-bz*cy,ny=bz*cx-bx*cz,nz=bx*cy-by*cx,length=Math.hypot(nx,ny,nz);
+    area[at]=area[at+1]=area[at+2]=0;inv[f]=0;valid[f]=length>0?1:0;if(!valid[f])continue;
+    area[at]=nx;area[at+1]=ny;area[at+2]=nz;inv[f]=1/length;
+    for(let k=0;k<3;k++){
+      const i=at+k,j=at+(k+1)%3,ca=coords[ids?ids[i]:i],cb=coords[ids?ids[j]:j];if(ca===cb)continue;
+      for(let e=previous[i];e!==-1;e=next[e]){
+        const other=Math.floor(e/3),o=other*3;
+        if(!valid[other])continue;
+        if((nx*area[o]+ny*area[o+1]+nz*area[o+2])*inv[f]*inv[other]<threshold)continue;
+        const end=o+(e%3+1)%3;
+        if(coords[ids?ids[e]:e]===ca){join(i,e);join(j,end);}else{join(i,end);join(j,e);}
+      }
+    }
+  }
+  // Preserve the original parent updates and area accumulation operation order.
+  for(let f=0;f<count/3;f++)if(inv[f])for(let k=0;k<3;k++){const at=f*3,r=root(at+k)*3;parent[at+k]=r/3;sums[r]+=area[at];sums[r+1]+=area[at+1];sums[r+2]+=area[at+2];}
+  let n=g.attributes.normal;if(!n||n.count!==pos.count){n=new THREE2.BufferAttribute(new Float32Array(pos.count*3),3);g.setAttribute('normal',n);}
+  for(let f=0;f<count/3;f++)for(let k=0;k<3;k++){
+    const i=f*3+k,comp=parent[i],r=comp*3;
+    if(normalStamp[comp]!==epoch){normalStamp[comp]=epoch;const l=Math.hypot(sums[r],sums[r+1],sums[r+2]);
+      normal[r]=normal[r+1]=normal[r+2]=0;
+      if(l>0){normal[r]=sums[r]/l;normal[r+1]=sums[r+1]/l;normal[r+2]=sums[r+2]/l;}
+      else if(inv[f]){normal[r]=area[f*3]*inv[f];normal[r+1]=area[f*3+1]*inv[f];normal[r+2]=area[f*3+2]*inv[f];}
+      else normal[r+1]=1;
+    }
+    n.setXYZ(index?index.getX(i):i,normal[r],normal[r+1],normal[r+2]);
+  }
+  n.needsUpdate=true;g.computeBoundingBox();g.computeBoundingSphere();markPolygonCreaseGeometry(g);return true;
+}
+
+function polygonCreaseData(positions, index, creaseCos, seamIds = null, seamCount = 1, needRemap = false, preserveFaces = true) {
+  const vertexCount=positions.length/3,count=index?index.length:vertexCount,faces=Math.floor(count/3);
+  const coords=new Uint32Array(vertexCount),coordIds=new Map();
+  for(let v=0;v<vertexCount;v++){
+    const o=v*3,key=`${positions[o].toFixed(7)},${positions[o+1].toFixed(7)},${positions[o+2].toFixed(7)}`;
+    let id=coordIds.get(key);if(id===undefined){id=coordIds.size;coordIds.set(key,id);}coords[v]=id;
+  }
+  const coordCount=coordIds.size;coordIds.clear();
+  const ids=index||Uint32Array.from({length:count},(_,i)=>i),parent=new Int32Array(count),next=new Int32Array(count),area=new Float64Array(faces*3),invLength=new Float64Array(faces),edges=new Map();
+  next.fill(-1);for(let i=0;i<count;i++)parent[i]=i;
+  const root=x=>{while(parent[x]!==x){parent[x]=parent[parent[x]];x=parent[x];}return x;};
+  const join=(a,b)=>{a=root(a);b=root(b);if(a!==b)parent[b]=a;};
+  const key=(a,b)=>{if(a>b){const t=a;a=b;b=t;}return coordCount<=94906265?a*coordCount+b:a+':'+b;};
+   
+  const threshold=creaseCos-1e-7;
+  for(let f=0;f<faces;f++){
+    const at=f*3,a=ids[at]*3,b=ids[at+1]*3,c=ids[at+2]*3,ax=positions[a],ay=positions[a+1],az=positions[a+2],bx=positions[b]-ax,by=positions[b+1]-ay,bz=positions[b+2]-az,cx=positions[c]-ax,cy=positions[c+1]-ay,cz=positions[c+2]-az;
+    const nx=by*cz-bz*cy,ny=bz*cx-bx*cz,nz=bx*cy-by*cx,length=Math.hypot(nx,ny,nz);
+    if(!(length>(preserveFaces?0:1e-8)))continue;
+    area[at]=nx;area[at+1]=ny;area[at+2]=nz;invLength[f]=1/length;
+    for(let k=0;k<3;k++){
+      const i=at+k,j=at+(k+1)%3,ca=coords[ids[i]],cb=coords[ids[j]];if(ca===cb)continue;
+      const edge=key(ca,cb),head=edges.get(edge);
+      for(let e=head??-1;e!==-1;e=next[e]){
+        const other=Math.floor(e/3),o=other*3;
+        if((nx*area[o]+ny*area[o+1]+nz*area[o+2])*invLength[f]*invLength[other]<threshold)continue;
+        const end=o+(e%3+1)%3;
+        if(coords[ids[e]]===ca){join(i,e);join(j,end);}else{join(i,end);join(j,e);}
+      }
+      next[i]=head??-1;edges.set(edge,i);
+    }
+  }
+  edges.clear();
+  const sums=new Float64Array(count*3);
+  for(let f=0;f<faces;f++)if(invLength[f])for(let k=0;k<3;k++){const at=f*3,r=root(at+k)*3;parent[at+k]=r/3;sums[r]+=area[at];sums[r+1]+=area[at+1];sums[r+2]+=area[at+2];}
+  const outP=new Float32Array(count*3),outN=new Float32Array(count*3),outI=new Uint32Array(count),source=new Uint32Array(count),map=new Map(),remap=needRemap?new Map():null,keptFaces=[];
+  let vertices=0,used=0;
+  for(let f=0;f<faces;f++)if(invLength[f]||preserveFaces){
+    keptFaces.push(f);
+    for(let k=0;k<3;k++){
+      const i=f*3+k,v=ids[i],comp=parent[i],mapKey=comp*seamCount+(seamIds?seamIds[v]:0);let oi=map.get(mapKey);
+      if(oi===undefined){
+        oi=vertices++;map.set(mapKey,oi);const o=oi*3,r=comp*3,l=Math.hypot(sums[r],sums[r+1],sums[r+2]);source[oi]=v;
+        outP[o]=positions[v*3];outP[o+1]=positions[v*3+1];outP[o+2]=positions[v*3+2];
+        if(l>0){outN[o]=sums[r]/l;outN[o+1]=sums[r+1]/l;outN[o+2]=sums[r+2]/l;}
+        else if(invLength[f]){outN[o]=area[f*3]*invLength[f];outN[o+1]=area[f*3+1]*invLength[f];outN[o+2]=area[f*3+2]*invLength[f];}
+        else outN[o+1]=1;
+      }
+      if(remap){let set=remap.get(v);if(!set)remap.set(v,set=new Set());set.add(oi);}outI[used++]=oi;
+    }
+  }
+  return {positions:outP.slice(0,vertices*3),normals:outN.slice(0,vertices*3),indices:outI.slice(0,used),source:source.slice(0,vertices),keptFaces,remap};
+}
+
+function finiteMatrix(value,label){if(!value||value.length!==16||!Array.from(value).every(Number.isFinite))throw Error(label+' matrix required');return Float64Array.from(value);}
+ function orderedAffinePositions(source,world,delta,inverse){
+ if(!(source instanceof Float32Array)||source.length%3)throw Error('Float32 ordered source required');const w=finiteMatrix(world,'world'),d=finiteMatrix(delta,'delta'),r=finiteMatrix(inverse,'inverse'),out=new Float32Array(source.length);
+ for(let i=0;i<source.length;i+=3){const bx=source[i],by=source[i+1],bz=source[i+2];if(![bx,by,bz].every(Number.isFinite))throw Error('Nonfinite ordered source');let x=bx,y=by,z=bz;
+  for(const e of[w,d,r]){const v=1/(e[3]*x+e[7]*y+e[11]*z+e[15]),a=(e[0]*x+e[4]*y+e[8]*z+e[12])*v,b=(e[1]*x+e[5]*y+e[9]*z+e[13])*v,c=(e[2]*x+e[6]*y+e[10]*z+e[14])*v;x=a;y=b;z=c;}
+  out[i]=bx+(x-bx)*1;out[i+1]=by+(y-by)*1;out[i+2]=bz+(z-bz)*1;if(!Number.isFinite(out[i])||!Number.isFinite(out[i+1])||!Number.isFinite(out[i+2]))throw Error('Nonfinite affine result');
+ }return out;
+}
+ class AffineCornerWorkspace{
+ constructor(source,indices){if(!(source instanceof Float32Array)||source.length%3||!(indices instanceof Uint32Array)||indices.length%3||!indices.length)throw Error('Indexed component source required');for(const id of indices)if(id>=source.length/3)throw Error('Corner source index out of range');if(indices.length>1572864)throw Error('Affine selected-corner budget');this.source=source.slice();this.indices=indices.slice();this.corners=new Float32Array(indices.length*3);this.normals=new Float32Array(this.corners.length);this.position=new WorkerAttribute(this.corners,3);this.normal=new WorkerAttribute(this.normals,3);this.geometry={attributes:{position:this.position,normal:this.normal},index:null,setAttribute:(name,a)=>this.geometry.attributes[name]=a,computeBoundingBox(){},computeBoundingSphere(){}};this.mesh={geometry:this.geometry};this.record={};this.last=null;}
+ rebase(source){if(!(source instanceof Float32Array)||source.length!==this.source.length)throw Error('Affine rebase layout changed');this.source.set(source);}
+ compute(world,delta,inverse){const began=performance.now(),positions=orderedAffinePositions(this.source,world,delta,inverse),positionMs=performance.now()-began;for(let k=0;k<this.indices.length;k++){const from=this.indices[k]*3,at=k*3;this.corners[at]=positions[from];this.corners[at+1]=positions[from+1];this.corners[at+2]=positions[from+2];}const normalsBegin=performance.now();if(!frameFastPolygonDragNormals(this.mesh,this.record))throw Error('Exact crease normal workspace declined');this.last=positions.slice();return{positions,cornerPositions:this.corners.slice(),cornerNormals:this.normals.slice(),timings:{positionMs,normalMs:performance.now()-normalsBegin,totalMs:performance.now()-began},normalPolicy:'stock-rounded-corner-weld-and-crease; no authored inverse-transpose approximation'};}
+ compact(){if(!this.last)throw Error('Affine pose required');return polygonCreaseData(this.last,this.indices,CREASE_COS,null,1,false,true);}
+}
+ function installAffineWorker(scope){let state=null,gesture=0;scope.onmessage=({data:m})=>{try{if(m.kind==='prepare'){state=new AffineCornerWorkspace(m.source,m.indices);scope.postMessage({kind:'prepared',id:m.id,vertices:state.source.length/3,faces:state.indices.length/3});return;}if(!state)throw Error('Affine prepare required');if(m.kind==='begin'){state.rebase(m.source);gesture=m.gesture;scope.postMessage({kind:'began',id:m.id,gesture});return;}if(m.kind==='pose'){if(m.gesture!==gesture)throw Error('Affine gesture changed');const q=state.compute(m.world,m.delta,m.inverse);scope.postMessage({kind:'posed',id:m.id,gesture,revision:m.revision,...q},[q.positions.buffer,q.cornerPositions.buffer,q.cornerNormals.buffer]);return;}if(m.kind==='compact'){if(m.gesture!==gesture)throw Error('Affine gesture changed');const q=state.compact();scope.postMessage({kind:'compacted',id:m.id,gesture,...q},[q.positions.buffer,q.normals.buffer,q.indices.buffer,q.source.buffer]);return;}throw Error('Unknown affine operation');}catch(e){scope.postMessage({kind:'error',id:m.id,error:String(e)});}};}
+ const stockCreaseReference=polygonCreaseData;
+
+return {orderedAffinePositions,AffineCornerWorkspace,installAffineWorker,stockCreaseReference};
+};
+__nativeModules["affine-corner-worker.mjs"]=__nativeFactories["affine-corner-worker.mjs"](__nativeModules);
+__nativeFactories["affine-stock-proof.mjs"]=function(__imports){
+/** Hash the exact stock decimal weld key. Hash collisions conservatively request whole-stock work. */
+ function stockWeldHash(x,y,z){const key=x.toFixed(7)+','+y.toFixed(7)+','+z.toFixed(7);let a=2166136261,b=2246822519;for(let i=0;i<key.length;i++){const c=key.charCodeAt(i);a=Math.imul(a^c,16777619)>>>0;b=Math.imul(b^c,3266489917)>>>0;}return(BigInt(a)<<32n)|BigInt(b);}
+ function stockWeldIntersects(positions,hashes){if(!(hashes instanceof BigUint64Array))return true;for(let i=0;i<positions.length;i+=3){const key=stockWeldHash(positions[i],positions[i+1],positions[i+2]);let a=0,b=hashes.length;while(a<b){const m=(a+b)>>>1;if(hashes[m]<key)a=m+1;else b=m;}if(a<hashes.length&&hashes[a]===key)return true;}return false;}
+ function proveAffineOutside(source,normals,indices,faceSlots,stock){
+ const n=source.length/3,selected=new Uint8Array(stock.positions.length/3),outside=new Uint8Array(n),forward=new Int32Array(n),reverse=new Int32Array(stock.positions.length/3);forward.fill(-1);reverse.fill(-1);
+ const pbits=new Uint32Array(source.buffer,source.byteOffset,source.length),nbits=new Uint32Array(normals.buffer,normals.byteOffset,normals.length),outP=new Uint32Array(stock.positions.buffer,stock.positions.byteOffset,stock.positions.length),outN=new Uint32Array(stock.normals.buffer,stock.normals.byteOffset,stock.normals.length);let canonical=true,exclusive=true,cornerPositionsUnchanged=true;
+ for(let at=0;at<indices.length;at++)for(let c=0;c<3;c++)if(pbits[indices[at]*3+c]!==outP[stock.indices[at]*3+c])cornerPositionsUnchanged=false;
+ for(let f=0;f<indices.length/3;f++)if(faceSlots[f])for(let c=0;c<3;c++)selected[stock.indices[f*3+c]]=1;
+ for(let f=0;f<indices.length/3;f++){if(faceSlots[f])continue;for(let c=0;c<3;c++){const at=f*3+c,old=indices[at],next=stock.indices[at];outside[old]=1;if(selected[next])exclusive=false;if(forward[old]>=0&&forward[old]!==next||reverse[next]>=0&&reverse[next]!==old)canonical=false;forward[old]=next;reverse[next]=old;for(let j=0;j<3;j++)if(pbits[old*3+j]!==outP[next*3+j]||nbits[old*3+j]!==outN[next*3+j])canonical=false;}}
+ let count=0;for(const bit of outside)count+=bit;const hashes=new BigUint64Array(count);let used=0;for(let id=0;id<n;id++)if(outside[id])hashes[used++]=stockWeldHash(source[id*3],source[id*3+1],source[id*3+2]);hashes.sort();let unique=0;for(let k=0;k<hashes.length;k++)if(!k||hashes[k]!==hashes[k-1])hashes[unique++]=hashes[k];
+ return{outsideCanonical:canonical&&exclusive,selectedExclusive:exclusive,cornerPositionsUnchanged,outsideHashes:hashes.slice(0,unique)};
+}
+
+return {stockWeldHash,stockWeldIntersects,proveAffineOutside};
+};
+__nativeModules["affine-stock-proof.mjs"]=__nativeFactories["affine-stock-proof.mjs"](__nativeModules);
+__nativeFactories["affine-versioned-base.mjs"]=function(__imports){
+const {orderedAffinePositions,AffineCornerWorkspace,stockCreaseReference}=__imports["affine-corner-worker.mjs"];
+const {proveAffineOutside,stockWeldIntersects}=__imports["affine-stock-proof.mjs"];
+/** Worker-owned canonical basis. Selected faces stay in original global face order.
+ * Each next pose transforms the preceding stock result, including changed weld
+ * representatives and raw vertex layout. Main-thread provisional arrays are not
+ * an exact basis. Published arrays are separately owned, so transfer cannot detach
+ * the basis used by the next pose. */
+ class VersionedAffineCanonicalBase{
+ constructor({positions,normals,indices,faceIDs,version=0,ownerVersion=1,creaseCos=Math.cos(46*Math.PI/180)}){
+  if(!(positions instanceof Float32Array)||!(normals instanceof Float32Array)||!(indices instanceof Uint32Array)||positions.length!==normals.length||positions.length%3||indices.length%3||!Number.isSafeInteger(version)||!Number.isSafeInteger(ownerVersion))throw Error('Canonical indexed Float32 basis required');
+  this.positions=positions.slice();this.normals=normals.slice();this.indices=indices.slice();this.faceIDs=Uint32Array.from(faceIDs).sort();this.version=version;this.ownerVersion=ownerVersion;this.creaseCos=creaseCos;this.proof=null;this.lastComputed=null;this.retired=false;
+  let last=-1;this.faceSlots=new Int32Array(indices.length/3);for(let k=0;k<this.faceIDs.length;k++){const f=this.faceIDs[k];if(f<=last||f>=this.faceSlots.length)throw Error('Unique selected face ordinals required');this.faceSlots[f]=k+1;last=f;}
+  if(!this.faceIDs.length)throw Error('Selected face ordinals required');this._selection();
+ }
+ _selection(){const ids=Uint32Array.from(new Set(Array.from(this.faceIDs).flatMap(f=>Array.from(this.indices.subarray(f*3,f*3+3))))).sort(),slot=new Int32Array(this.positions.length/3),values=new Float32Array(ids.length*3),local=new Uint32Array(this.faceIDs.length*3);for(let k=0;k<ids.length;k++){if(ids[k]>=slot.length)throw Error('Canonical selected vertex out of range');slot[ids[k]]=k+1;values.set(this.positions.subarray(ids[k]*3,ids[k]*3+3),k*3);}for(let k=0;k<this.faceIDs.length;k++)for(let c=0;c<3;c++)local[k*3+c]=slot[this.indices[this.faceIDs[k]*3+c]]-1;let exclusive=true;for(let f=0;f<this.faceSlots.length&&exclusive;f++)if(!this.faceSlots[f])for(let c=0;c<3;c++)if(slot[this.indices[f*3+c]]){exclusive=false;break;}this.selectedIDs=ids;this.selectedSource=values;this.localIndices=local;this.inputSelectedExclusive=exclusive;}
+ _check(baseVersion,ownerVersion){if(this.retired||baseVersion!==this.version||ownerVersion!==this.ownerVersion)throw new DOMException('Canonical affine version changed','AbortError');}
+ compute({baseVersion=this.version,ownerVersion=this.ownerVersion,world,delta,inverse,updateProof=false}){
+  this._check(baseVersion,ownerVersion);const ws=new AffineCornerWorkspace(this.selectedSource,this.localIndices),q=ws.compute(world,delta,inverse),contact=!this.inputSelectedExclusive||!this.proof?.outsideCanonical||stockWeldIntersects(q.positions,this.proof.outsideHashes);let stock,checked;
+  if(contact){const n=this.positions.length/3,full=new Float32Array(this.positions.length+q.positions.length),normals=new Float32Array(full.length),indices=this.indices.slice();full.set(this.positions);full.set(q.positions,this.positions.length);normals.set(this.normals);for(let k=0;k<this.selectedIDs.length;k++)normals.set(this.normals.subarray(this.selectedIDs[k]*3,this.selectedIDs[k]*3+3),(n+k)*3);for(let k=0;k<this.faceIDs.length;k++)for(let c=0;c<3;c++)indices[this.faceIDs[k]*3+c]=n+this.localIndices[k*3+c];stock=stockCreaseReference(full,indices,this.creaseCos);checked=proveAffineOutside(full,normals,indices,this.faceSlots,stock);if(updateProof&&this.inputSelectedExclusive&&!this.proof?.outsideCanonical)this.proof={outsideCanonical:checked.outsideCanonical,selectedExclusive:checked.selectedExclusive,outsideHashes:checked.outsideHashes.slice()};}
+  else{stock=this._merge(ws.compact());checked={outsideCanonical:true,selectedExclusive:true,outsideHashes:this.proof.outsideHashes,cornerPositionsUnchanged:null};}
+  const corners=new Float32Array(this.faceIDs.length*9),cornerNormals=new Float32Array(corners.length);for(let k=0;k<this.faceIDs.length;k++)for(let c=0;c<3;c++){const id=stock.indices[this.faceIDs[k]*3+c]*3,at=(k*3+c)*3;corners.set(stock.positions.subarray(id,id+3),at);cornerNormals.set(stock.normals.subarray(id,id+3),at);}
+  return this.lastComputed={baseVersion,version:baseVersion+1,ownerVersion,positions:stock.positions,normals:stock.normals,indices:stock.indices,cornerPositions:corners,cornerNormals,selectedRawPositions:q.positions,selectedIDs:this.selectedIDs.slice(),proof:checked,wholeStock:contact};
+ }
+ _merge(compact){const count=this.positions.length/3+compact.positions.length/3,positions=new Float32Array(count*3),normals=new Float32Array(count*3),indices=new Uint32Array(this.indices.length),outside=new Int32Array(this.positions.length/3),inside=new Int32Array(compact.positions.length/3);outside.fill(-1);inside.fill(-1);let used=0;for(let f=0;f<this.faceSlots.length;f++)for(let c=0;c<3;c++){const at=f*3+c,slot=this.faceSlots[f]-1,selected=slot>=0,old=selected?compact.indices[slot*3+c]:this.indices[at],map=selected?inside:outside;let id=map[old];if(id<0){map[old]=id=used++;positions.set((selected?compact.positions:this.positions).subarray(old*3,old*3+3),id*3);normals.set((selected?compact.normals:this.normals).subarray(old*3,old*3+3),id*3);}indices[at]=id;}return{positions:positions.slice(0,used*3),normals:normals.slice(0,used*3),indices};}
+ commit(result){this._check(result.baseVersion,result.ownerVersion);if(result!==this.lastComputed||result.version!==this.version+1)throw Error('Canonical affine owned result/version required');this.positions=result.positions.slice();this.normals=result.normals.slice();this.indices=result.indices.slice();this.proof={outsideCanonical:result.proof.outsideCanonical,selectedExclusive:result.proof.selectedExclusive,outsideHashes:result.proof.outsideHashes?.slice()};this.version=result.version;this.lastComputed=null;this._selection();return this.version;}
+ retire(){this.retired=true;this.ownerVersion++;this.positions=this.normals=this.indices=this.selectedSource=this.selectedIDs=this.localIndices=this.faceSlots=this.proof=this.lastComputed=null;}
+}
+
+return {VersionedAffineCanonicalBase};
+};
+__nativeModules["affine-versioned-base.mjs"]=__nativeFactories["affine-versioned-base.mjs"](__nativeModules);
+__nativeFactories["affine-stock-worker.mjs"]=function(__imports){
+const {installAffineWorker,stockCreaseReference}=__imports["affine-corner-worker.mjs"];
+const {stockWeldIntersects,proveAffineOutside}=__imports["affine-stock-proof.mjs"];
+const {VersionedAffineCanonicalBase}=__imports["affine-versioned-base.mjs"];
+/** Add whole-object exact Stock work without changing the verified corner arithmetic. */
+ function installAffineStockWorker(scope){
+ let proof=null,canonical=null,canonicalGesture=null;const facade={postMessage:(q,transfers)=>{if(q.kind==='posed')q.needsWhole=!proof?.outsideCanonical||stockWeldIntersects(q.positions,proof.outsideHashes);scope.postMessage(q,transfers);}};installAffineWorker(facade);
+ scope.onmessage=event=>{const m=event.data;
+  if(m.kind.startsWith('canonical-')){try{
+   if(m.kind==='canonical-prepare'){canonical?.retire();canonical=new VersionedAffineCanonicalBase(m);canonicalGesture=null;scope.postMessage({id:m.id,kind:'canonical-prepared',version:canonical.version,ownerVersion:canonical.ownerVersion});return;}
+   if(!canonical)throw Error('Owned canonical affine basis required');canonical._check(m.baseVersion,m.ownerVersion);
+   if(m.kind==='canonical-begin'){canonicalGesture=m.gesture;scope.postMessage({id:m.id,kind:'canonical-began',gesture:m.gesture,baseVersion:canonical.version,ownerVersion:canonical.ownerVersion});return;}
+   if(m.kind!=='canonical-pose'||canonicalGesture!==m.gesture)throw Error('Canonical affine gesture changed');
+   const start=performance.now(),q=canonical.compute({...m,updateProof:!m.readOnly}),committed=m.final===true&&!m.readOnly;
+   if(committed){canonical.commit(q);canonicalGesture=null;}
+   const hashes=q.proof.outsideHashes?.slice(),reply={id:m.id,kind:'canonical-posed',gesture:m.gesture,revision:m.revision,baseVersion:q.baseVersion,version:committed?q.version:q.baseVersion,ownerVersion:q.ownerVersion,committed,positions:q.selectedRawPositions,selectedIDs:q.selectedIDs,cornerPositions:q.cornerPositions,cornerNormals:q.cornerNormals,rawPositions:q.positions,rawNormals:q.normals,rawIndices:q.indices,outsideCanonical:q.proof.outsideCanonical,selectedExclusive:q.proof.selectedExclusive,cornerPositionsUnchanged:q.proof.cornerPositionsUnchanged!==false,outsideHashes:hashes,needsWhole:q.wholeStock,timings:{totalMs:performance.now()-start}};
+   scope.postMessage(reply,[reply.positions.buffer,reply.selectedIDs.buffer,reply.cornerPositions.buffer,reply.cornerNormals.buffer,reply.rawPositions.buffer,reply.rawNormals.buffer,reply.rawIndices.buffer,...(hashes?[hashes.buffer]:[])]);return;
+  }catch(error){scope.postMessage({id:m.id,kind:'error',error:String(error)});return;}}
+  if(m.kind!=='whole'){if(m.kind==='prepare')proof=m.outsideCanonical?{outsideCanonical:true,outsideHashes:m.outsideHashes}:null;facade.onmessage(event);return;}
+  try{const started=performance.now(),q=stockCreaseReference(m.positions,m.indices,m.creaseCos),ms=performance.now()-started,checked=proveAffineOutside(m.positions,m.normals,m.indices,m.faceSlots,q);if(!m.preserveProof)proof={outsideCanonical:checked.outsideCanonical,outsideHashes:checked.outsideHashes.slice()};scope.postMessage({id:m.id,kind:'whole-stock',revision:m.revision,gesture:m.gesture,positions:q.positions,normals:q.normals,indices:q.indices,stockMs:ms,...checked},[q.positions.buffer,q.normals.buffer,q.indices.buffer,checked.outsideHashes.buffer]);}
+  catch(error){scope.postMessage({id:m.id,kind:'error',error:String(error)});}
+ };
+}
+
+return {installAffineStockWorker};
+};
+__nativeModules["affine-stock-worker.mjs"]=__nativeFactories["affine-stock-worker.mjs"](__nativeModules);
+__nativeFactories["gpu-affine-preview.mjs"]=function(__imports){
+const {admitRigidGpuArray}=__imports["gpu-island-preview.mjs"];
+const fail=m=>{throw Error(m);};
+const finiteMatrix=m=>{if(!m||m.length!==16||!Array.from(m).every(Number.isFinite))fail("Finite matrix4 required");return Float64Array.from(m);};
+const POSE_WGSL="\nstruct Params{matrix:mat4x4f,world:mat4x4f,basis:mat4x4f,normal:mat4x4f,counts:vec4u}\n@group(0) @binding(0) var<storage,read> ids:array<u32>;\n@group(0) @binding(1) var<storage,read_write> positions:array<f32>;\n@group(0) @binding(2) var<storage,read_write> base:array<f32>;\n@group(0) @binding(3) var<storage,read_write> extras:array<f32>;\n@group(0) @binding(4) var<uniform> params:Params;\n@group(0) @binding(5) var<storage,read> selected:array<u32>;\n@compute @workgroup_size(256) fn gather(@builtin(global_invocation_id)t:vec3u){let k=t.x+t.y*params.counts.w;if(k>=params.counts.x){return;}let a=ids[k]*3u;let n=ids[k]*9u;for(var j=0u;j<3u;j++){base[k*6u+j]=positions[a+j];base[k*6u+3u+j]=extras[n+j];}}\n@compute @workgroup_size(256) fn pose(@builtin(global_invocation_id)t:vec3u){let k=t.x+t.y*params.counts.w;if(k>=params.counts.x){return;}let a=k*6u;let p=params.matrix*vec4f(base[a],base[a+1u],base[a+2u],1.);let b=ids[k]*3u;positions[b]=p.x/p.w;positions[b+1u]=p.y/p.w;positions[b+2u]=p.z/p.w;}\n@compute @workgroup_size(256) fn normals(@builtin(global_invocation_id)t:vec3u){let k=t.x+t.y*params.counts.w;if(k>=params.counts.x){return;}let a=k*6u+3u;let p=(params.normal*vec4f(base[a],base[a+1u],base[a+2u],0.)).xyz;var n=p;if(dot(p,p)>0.){n=normalize(p);}let b=ids[k]*9u;extras[b]=n.x;extras[b+1u]=n.y;extras[b+2u]=n.z;}\n\n@compute @workgroup_size(256) fn restore(@builtin(global_invocation_id)t:vec3u){let k=t.x+t.y*params.counts.w;if(k>=params.counts.x){return;}let p=ids[k]*3u;let n=ids[k]*9u;for(var j=0u;j<3u;j++){positions[p+j]=base[k*6u+j];extras[n+j]=base[k*6u+3u+j];}}\n";
+const BOUNDS_WGSL=`
+struct Params{matrix:mat4x4f,world:mat4x4f,basis:mat4x4f,normal:mat4x4f,counts:vec4u}
+struct Bound{mn:vec4f,mx:vec4f,bn:vec4f,bx:vec4f}
+@group(0) @binding(0) var<storage,read> positions:array<f32>;
+@group(0) @binding(1) var<storage,read> ids:array<u32>;
+@group(0) @binding(2) var<storage,read_write> bounds:array<Bound>;
+@group(0) @binding(3) var<uniform> params:Params;
+var<workgroup> lo:array<vec3f,256>;var<workgroup> hi:array<vec3f,256>;var<workgroup> bl:array<vec3f,256>;var<workgroup> bh:array<vec3f,256>;
+@compute @workgroup_size(256) fn reduce(@builtin(local_invocation_id)t:vec3u,@builtin(workgroup_id)g:vec3u){let group=g.x+g.y*params.counts.z;let k=group*256u+t.x;var mn=vec3f(3.402823e38);var mx=vec3f(-3.402823e38);var bn=mn;var bx=mx;if(k<params.counts.x){let a=ids[k]*3u;let p=params.world*vec4f(positions[a],positions[a+1u],positions[a+2u],1.);let q=params.basis*p;mn=p.xyz/p.w;mx=mn;bn=q.xyz/q.w;bx=bn;}lo[t.x]=mn;hi[t.x]=mx;bl[t.x]=bn;bh[t.x]=bx;workgroupBarrier();for(var stride=128u;stride>0u;stride/=2u){if(t.x<stride){lo[t.x]=min(lo[t.x],lo[t.x+stride]);hi[t.x]=max(hi[t.x],hi[t.x+stride]);bl[t.x]=min(bl[t.x],bl[t.x+stride]);bh[t.x]=max(bh[t.x],bh[t.x+stride]);}workgroupBarrier();}if(t.x==0u&&group<params.counts.y){bounds[group]=Bound(vec4f(lo[0],0.),vec4f(hi[0],0.),vec4f(bl[0],0.),vec4f(bh[0],0.));}}
+@compute @workgroup_size(1) fn finish(){var v=bounds[0];for(var k=1u;k<params.counts.y;k++){v.mn=min(v.mn,bounds[k].mn);v.mx=max(v.mx,bounds[k].mx);v.bn=min(v.bn,bounds[k].bn);v.bx=max(v.bx,bounds[k].bx);}bounds[params.counts.y]=v;}
+`;
+const affinePosePipelineCache=new WeakMap();
+ class GpuAffineCornerPreview{
+ static async create({device,pool,positions,extras,ids,isCurrent=()=>true}={}){const self=new GpuAffineCornerPreview({device,pool,positions,extras,ids,isCurrent});try{await self.initialize();return self;}catch(e){self.dispose();throw e;}}
+ constructor({device,pool,positions,extras,ids,isCurrent}){if(pool?.device!==device||!device?.queue)fail('Same-device shared GPU pool required');if(!(positions instanceof Float32Array)||positions.length%3||!(extras instanceof Float32Array)||extras.length!==positions.length*3)fail('Indexed Float32 position/normal layout required');if(!(ids instanceof Uint32Array)||!ids.length)fail('Uint32 selected raw slots required');let previous=-1;for(const id of ids){if(id<=previous||id>=positions.length/3)fail('Unique ascending in-range slots required');previous=id;}this.device=device;this.pool=pool;this.isCurrent=isCurrent;this.ids=ids.slice();this.faces=this.ids;this.version=0;this.disposed=false;this.borrowed=[];admitRigidGpuArray(positions);admitRigidGpuArray(extras);this.cpuPositions=positions;this.cpuExtras=extras;this.base=null;try{this.position=this.borrow(positions,128,'Frame mutable authoring display/pick positions');this.normal=this.borrow(extras,128,'Frame mutable facet normals');this.id=this.borrow(this.ids,128,'Frozen raw component slots');this.face=this.borrow(this.faces,128,'Touched raw faces');this.base=device.createBuffer({label:'Frozen GPU gesture source',size:Math.max(4,ids.length*24),usage:128|4|8});this.gathered=false;this.last=null;this.pending=new Set();this.stats={submissions:0,uniformBytes:0,selectedVertices:ids.length,selectedNormals:this.ids.length};}catch(error){for(const row of this.borrowed)this.pool.release(row);this.borrowed=[];this.base?.destroy();this.disposed=true;throw error;}}
+ borrow(data,usage,label){const row=this.pool.borrow(data,usage,label);this.borrowed.push(row);return row.buffer;}
+ _check(){if(this.disposed||!this.isCurrent())throw new DOMException('GPU pose owner changed','AbortError');}
+ async initialize(){this._check();const cached=affinePosePipelineCache.get(this.device);if(cached){const built=await cached;Object.assign(this,built);this._check();return;}let resolve,reject;const pending=new Promise((a,b)=>{resolve=a;reject=b;});pending.catch(()=>{});affinePosePipelineCache.set(this.device,pending);try{const d=this.device;const module=d.createShaderModule({label:'Frame island GPU transform',code:POSE_WGSL}),bounds=d.createShaderModule({label:'Frame tight selected bounds',code:BOUNDS_WGSL});for(const m of [module,bounds]){const info=await m.getCompilationInfo();if(info.messages.some(x=>x.type==='error'))fail(info.messages.filter(x=>x.type==='error').map(x=>x.message).join('\n'));}this.layout=d.createBindGroupLayout({entries:[0,1,2,3,4,5].map(binding=>({binding,visibility:4,buffer:{type:binding===4?'uniform':binding===0||binding===5?'read-only-storage':'storage'}}))});const layout=d.createPipelineLayout({bindGroupLayouts:[this.layout]});this.pipelines={};for(const entryPoint of ['gather','pose','normals','restore'])this.pipelines[entryPoint]=await d.createComputePipelineAsync({layout,compute:{module,entryPoint}});this.boundsLayout=d.createBindGroupLayout({entries:[0,1,2,3].map(binding=>({binding,visibility:4,buffer:{type:binding===3?'uniform':binding===2?'storage':'read-only-storage'}}))});const bl=d.createPipelineLayout({bindGroupLayouts:[this.boundsLayout]});for(const entryPoint of ['reduce','finish'])this.pipelines[entryPoint]=await d.createComputePipelineAsync({layout:bl,compute:{module:bounds,entryPoint}});this._check();resolve({layout:this.layout,boundsLayout:this.boundsLayout,pipelines:this.pipelines});}catch(e){affinePosePipelineCache.delete(this.device);reject(e);throw e;}}
+ _params(matrix,world,basis,count,faces,groups,rowWidth,normal=matrix){const values=new Float32Array(68);values.set(finiteMatrix(matrix),0);values.set(finiteMatrix(world),16);values.set(finiteMatrix(basis),32);values.set(finiteMatrix(normal),48);if(!values.every(Number.isFinite))fail('Float32 matrix overflow');new Uint32Array(values.buffer).set([count,faces,groups,rowWidth],64);const row=this.pool.borrow(values,64,'Immutable GPU pose uniforms');this.stats.uniformBytes+=values.byteLength;return row;}
+ submit({matrix,world,basis,normalMatrix=null,isCurrent=()=>true}={}){this._check();if(this.authoringTransaction)throw new DOMException('Affine authoring transaction owns GPU buffers','AbortError');if(!isCurrent())throw new DOMException('Stale pose request','AbortError');const d=this.device,groups=Math.ceil(this.ids.length/256),max=d.limits.maxComputeWorkgroupsPerDimension,cols=Math.min(max,groups),rows=Math.ceil(groups/cols);if(rows>max)fail('Pose dispatch limit');const version=++this.version;let uniform,bu,bound,read,submitted=false;
+ try{uniform=this._params(matrix,world,basis,this.ids.length,this.faces.length,groups,cols*256,normalMatrix??matrix);bu=this._params(matrix,world,basis,this.ids.length,groups,cols,cols*256,normalMatrix??matrix);bound=d.createBuffer({size:(groups+1)*64,usage:128|4|8,label:'Tight vertex reduction'});read=d.createBuffer({size:64,usage:1|8,label:'Tight bounds readback'});const bind=d.createBindGroup({layout:this.layout,entries:[this.id,this.position,this.base,this.normal,uniform.buffer,this.face].map((buffer,binding)=>({binding,resource:{buffer}}))}),bb=d.createBindGroup({layout:this.boundsLayout,entries:[this.position,this.id,bound,bu.buffer].map((buffer,binding)=>({binding,resource:{buffer}}))}),e=d.createCommandEncoder({label:'Frame island pose command'}),p=e.beginComputePass();p.setBindGroup(0,bind);if(!this.gathered){p.setPipeline(this.pipelines.gather);p.dispatchWorkgroups(cols,rows);}p.setPipeline(this.pipelines.pose);p.dispatchWorkgroups(cols,rows);p.setPipeline(this.pipelines.normals);const fg=Math.ceil(this.faces.length/256);p.dispatchWorkgroups(Math.min(cols,fg),Math.ceil(fg/cols));p.end();const b=e.beginComputePass();b.setBindGroup(0,bb);b.setPipeline(this.pipelines.reduce);b.dispatchWorkgroups(cols,rows);b.setPipeline(this.pipelines.finish);b.dispatchWorkgroups(1);b.end();e.copyBufferToBuffer(bound,groups*64,read,0,64);this._check();if(!isCurrent())throw new DOMException('Pose superseded before submit','AbortError');d.queue.submit([e.finish()]);submitted=true;this.gathered=true;this.stats.submissions++;
+ const completion=Promise.resolve().then(async()=>{try{await read.mapAsync(1);const values=new Float32Array(read.getMappedRange()).slice();read.unmap();this._check();if(!isCurrent()||this.version!==version)return{status:'superseded',version};return{status:'ready',version,min:Array.from(values.subarray(0,3)),max:Array.from(values.subarray(4,7)),basisMin:Array.from(values.subarray(8,11)),basisMax:Array.from(values.subarray(12,15))};}finally{bound.destroy();read.destroy();this.pool.release(uniform);this.pool.release(bu);this.pending.delete(completion);}});this.pending.add(completion);this.last=completion;return completion;
+ }catch(e){if(!submitted){bound?.destroy();read?.destroy();if(uniform)this.pool.release(uniform);if(bu)this.pool.release(bu);}throw e;}}
+ restoreFrozenSource(){this._check();if(this.authoringTransaction)throw new DOMException('Affine authoring transaction owns GPU buffers','AbortError');this.version++;if(!this.gathered)return Promise.resolve({status:'unchanged'});const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],groups=Math.ceil(this.ids.length/256),cols=Math.min(this.device.limits.maxComputeWorkgroupsPerDimension,groups),rows=Math.ceil(groups/cols);let uniform,submitted=false;try{uniform=this._params(identity,identity,identity,this.ids.length,this.faces.length,groups,cols*256);const bind=this.device.createBindGroup({layout:this.layout,entries:[this.id,this.position,this.base,this.normal,uniform.buffer,this.face].map((buffer,binding)=>({binding,resource:{buffer}}))}),encoder=this.device.createCommandEncoder(),pass=encoder.beginComputePass();pass.setBindGroup(0,bind);pass.setPipeline(this.pipelines.restore);pass.dispatchWorkgroups(cols,rows);pass.end();this._check();this.device.queue.submit([encoder.finish()]);submitted=true;return Promise.resolve().then(()=>this.device.queue.onSubmittedWorkDone()).then(()=>({status:'restored'})).finally(()=>this.pool.release(uniform));}catch(error){if(uniform&&!submitted)this.pool.release(uniform);throw error;}}
+ beginAuthoringTransaction(){
+  this._check();if(this.authoringTransaction)throw Error('Affine GPU authoring transaction already open');const self=this,d=this.device,priorGathered=this.gathered,copies=[];let submitted=false,closed=false;
+  const retire=()=>{for(const row of copies)row.backup.destroy();};
+  const finish=()=>{closed=true;if(self.authoringTransaction===transaction)self.authoringTransaction=null;Promise.resolve().then(()=>d.queue.onSubmittedWorkDone()).then(retire,retire);};
+  const transaction={commit(){if(!closed)finish();},rollback(){if(closed)return;try{self._check();const encoder=d.createCommandEncoder({label:'Affine Bind exact GPU rollback'});for(const row of copies)encoder.copyBufferToBuffer(row.backup,0,row.target,0,row.target.size);d.queue.submit([encoder.finish()]);self.gathered=priorGathered;self.version++;}finally{finish();}}};
+  try{for(const target of[this.position,this.normal])copies.push({target,backup:d.createBuffer({label:'Affine Bind GPU checkpoint',size:target.size,usage:4|8})});const encoder=d.createCommandEncoder({label:'Affine Bind GPU checkpoint'});for(const row of copies)encoder.copyBufferToBuffer(row.target,0,row.backup,0,row.target.size);d.queue.submit([encoder.finish()]);submitted=true;this.authoringTransaction=transaction;return transaction;}
+  catch(error){if(submitted)finish();else retire();throw error;}
+ }
+ writeAuthoringRanges(ranges){this._check();for(const [start,count]of ranges){if(!Number.isInteger(start)||!Number.isInteger(count)||start<0||count<1||start+count>this.cpuPositions.length/3)throw Error("Invalid exact authoring range");this.device.queue.writeBuffer(this.position,start*12,this.cpuPositions.subarray(start*3,(start+count)*3));this.device.queue.writeBuffer(this.normal,start*36,this.cpuExtras.subarray(start*9,(start+count)*9));}this.gathered=false;}
+ async readPositions(){this._check();const bytes=this.position.size,read=this.device.createBuffer({size:bytes,usage:1|8});try{const e=this.device.createCommandEncoder();e.copyBufferToBuffer(this.position,0,read,0,bytes);this.device.queue.submit([e.finish()]);await read.mapAsync(1);const values=new Float32Array(read.getMappedRange()).slice();read.unmap();return values;}finally{read.destroy();}}
+ dispose(){if(this.disposed)return;this.authoringTransaction?.commit();this.disposed=true;this.version++;const retire=()=>{for(const row of this.borrowed)this.pool.release(row);this.borrowed=[];this.base.destroy();};this.device.queue.onSubmittedWorkDone().then(retire,retire);}
+}
+
+return {GpuAffineCornerPreview};
+};
+__nativeModules["gpu-affine-preview.mjs"]=__nativeFactories["gpu-affine-preview.mjs"](__nativeModules);
 
 function createTopologyWorker(){
  const source='const __m={};\n__m["topology-islands.mjs"]=('+__nativeFactories['topology-islands.mjs'].toString()+')(__m);\n__m["connected-selection.mjs"]=('+__nativeFactories['connected-selection.mjs'].toString()+')(__m);\n('+__nativeFactories['topology-worker.mjs'].toString()+')(__m);';
@@ -5059,5 +5386,7 @@ function createCornerVisibilityWorker(){
  worker.terminate=()=>{if(closed)return;closed=true;try{terminate();}finally{URL.revokeObjectURL(url);}};
  return worker;
 }
-const {admitRigidGpuArray,rigidGpuBufferUsage,registerRigidGpuGeometry,installRigidGpuAttributeViews,captureRigidAuthoringAttribute,rigidGeometryPreviewActive,touchRigidGpuGeometry,unregisterRigidGpuGeometry,captureRigidGpuGeometry,rigidIslandEligibilityWork,GpuRigidIslandPreview,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability}=Object.assign({},...Object.values(__nativeModules));
-export {createTopologyWorker,createCornerVisibilityWorker,admitRigidGpuArray,rigidGpuBufferUsage,registerRigidGpuGeometry,installRigidGpuAttributeViews,captureRigidAuthoringAttribute,rigidGeometryPreviewActive,touchRigidGpuGeometry,unregisterRigidGpuGeometry,captureRigidGpuGeometry,rigidIslandEligibilityWork,GpuRigidIslandPreview,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability};
+
+function createAffineCornerWorker(){const source='const __m={};__m["affine-corner-worker.mjs"]=('+__nativeFactories['affine-corner-worker.mjs'].toString()+')({});__m["affine-stock-proof.mjs"]=('+__nativeFactories['affine-stock-proof.mjs'].toString()+')({});__m["affine-versioned-base.mjs"]=('+__nativeFactories['affine-versioned-base.mjs'].toString()+')(__m);const api=('+__nativeFactories['affine-stock-worker.mjs'].toString()+')(__m);api.installAffineStockWorker(self);';const url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));let worker;try{worker=new Worker(url);}catch(error){URL.revokeObjectURL(url);throw error;}const terminate=worker.terminate.bind(worker);let closed=false;worker.terminate=()=>{if(closed)return;closed=true;try{terminate();}finally{URL.revokeObjectURL(url);}};return worker;}
+const {admitRigidGpuArray,rigidGpuBufferUsage,registerRigidGpuGeometry,installRigidGpuAttributeViews,captureRigidAuthoringAttribute,rigidGeometryPreviewActive,touchRigidGpuGeometry,unregisterRigidGpuGeometry,captureRigidGpuGeometry,rigidIslandEligibilityWork,GpuRigidIslandPreview,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,registerAffineDisplayOverride,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability,orderedAffinePositions,AffineCornerWorkspace,installAffineWorker,stockCreaseReference,stockWeldHash,stockWeldIntersects,proveAffineOutside,VersionedAffineCanonicalBase,installAffineStockWorker,GpuAffineCornerPreview}=Object.assign({},...Object.values(__nativeModules));
+export {createTopologyWorker,createCornerVisibilityWorker,createAffineCornerWorker,admitRigidGpuArray,rigidGpuBufferUsage,registerRigidGpuGeometry,installRigidGpuAttributeViews,captureRigidAuthoringAttribute,rigidGeometryPreviewActive,touchRigidGpuGeometry,unregisterRigidGpuGeometry,captureRigidGpuGeometry,rigidIslandEligibilityWork,GpuRigidIslandPreview,GpuBufferPool,FrameGpuDevice,LatestFrameQueue,FrameDeviceBroker,frameGpuBroker,FRAME_MIP_GENERATION_PROFILES,FRAME_MIP_GENERATION_SHADER_SHA256,FRAME_MIP_CALIBRATION_SIZES,FRAME_MIP_BILINEAR_WGSL,FRAME_MIP_AREA_WGSL,frameMipGenerationWGSL,frameMipGenerationShaderSHA256,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationAttempt,selectFrameMipGeneration,assertFrameMipGenerationReceipt,textureState,textureStateCurrent,texturePolicy,mipSizes,PHYSICAL_THREE_SHA256,PHYSICAL_DFG_LAYOUT_ENTRY,assertStandardCoverage,decodeHalf,sampleStandardDfg,physicalSchlick,physicalSmith,physicalDistribution,standardMaterialState,physicalMultiscattering,standardDirectCPU,standardIndirectDiffuseCPU,standardIBLCPU,PHYSICAL_MATH_WGSL,PHYSICAL_WGSL,createPhysicalDfg,DFG_HALF_WORDS,environmentLayout,roughnessToMip,environmentSourceStamp,captureLinearHDR,environmentRotation,packEnvironmentView,ENVIRONMENT_CUBEUV_WGSL,ENVIRONMENT_WGSL,ENVIRONMENT_GENERATE_WGSL,FrameGpuEnvironment,frameCubicWeights,frameCubicCoordinates,frameCubicBumpView,assertCubicCamera,frameCubicWorldNormal,assertCubicMapSubset,CUBIC_MAP_WGSL,CUBIC_COMPILE_SOURCE,CUBIC_EDITOR_SHA256,CUBIC_INSTALL_SHA256,CUBIC_UPDATE_SHA256,assertCubicDerivativeCapability,frameCubicQuadCenters,frameCubicReconstructAt,frameCubicBumpViewGradient,CUBIC_GL_COARSE_WGSL,assertCubicWindowDerivativeCapability,frameCubicGLWindowCenters,CUBIC_GL_WINDOW_WGSL,FRAME_CUBIC_MIP_RECEIPT_KIND,FRAME_CUBIC_MIP_PROFILES,cubicGLWindowMipWGSL,assertCubicWindowMipDerivativeCapability,frameCubicMipFootprints,assertRenderDomain,renderDomainRect,renderDomainPixel,renderDomainPoint,renderDomainFrontFace,renderDomainClip,assertAdapterRenderDomain,renderDomainWGSL,PRESENTATION_WGSL,FrameGpuPresentation,SCENE_WGSL,DISPLAY_WGSL,CLEAR_WGSL,displayShader,basicSpecializationFeatures,standardSpecializationFeatures,basicDisplayShader,standardDisplayShader,displayPolicyOptions,quadShader,packDraw,packView,packDirectionalLights,MIPMAP_WGSL,FrameGpuDisplay,DEPTH_WGSL,VERTEX_WGSL,ELEMENT_WGSL,selectionDepthShader,selectionVertexShader,dispatchShape,IDENTITY,multiply4,webgpuProjection,validatePacket,validateElements,rectangleParams,FrameGpuSelection,frameOrigin,relativeWorldMatrix,relativeViewMatrix,relativeInstances,relativeDisplayPacket,relativeDisplaySnapshot,relativeClipMatrices,stampAttribute,attributeCurrent,normalMatrix4,DisplayGeometryCache,captureInstances,DisplayInstanceCache,captureSpriteInstances,captureMaterial,lineIndices,registerAffineDisplayOverride,captureDisplayObject,captureDisplayScene,captureLighting,cameraPacket,captureFog,PRINTER_WGSL,printerShader,REVIEWED_PRINTER_SHADERS,PrinterGeometryCache,capturePrinterObject,packPrinter,FrameGpuPrinter,topologyStamp,captureTopology,buildTopologyWork,topologyTransfer,connectedMaskWork,edgeIdFromRaw,drainCooperatively,connectedRawWork,expandConnectedRaw,abortable,createYieldQueue,LatestSelection,physicalRectangle,TopologyCache,bindConnectedDoubleClick,connectedFromCache,selectionPacketFromDisplay,decodeMarqueeWork,NativeMarquee,FrameNativeEngine,physicalViewport,FrameViewportBridge,FrameWebGPUViewportRenderer,installTopologyWorker,f32Bits,nextF32,exactProjectPacket,exactOccludes,ratioBounds,pointBounds,overlap,gpuBounds,clipAt,buildCornerScene,candidates,cornerVisible,allCornerElements,installCornerVisibilityWorker,RIBBON_WGSL,ribbonShader,ribbonRegion,rankRibbonIds,FrameRibbonPicker,PICKER_DEPTH_WGSL,pickerDepthShader,DEPTH_COMPARE,displayDepthPolicy,pickerGeometryPacket,FramePickerDepth,CORNER_CLIP_WGSL,CORNER_ADMISSION_WGSL,CORNER_CANDIDATES_WGSL,CORNER_SCENE_CACHE_LIMITS,FrameGpuCornerVisibility,EDGE_PICK_WGSL,captureNativePickerGeometry,nativePickerHost,captureNativePickerView,pickerCoordinates,edgePickerTablesWork,FrameNativePickers,NativePickerSession,createNativeVisibleFacePicker,LatestNativePickerRequest,NativePickerLane,DERIVATIVE_FIELDS,derivativePredictions,classifyDerivativePixels,measureFrameCubicDerivativeProfile,FrameCubicWindowCapabilities,measureFrameCubicMipCapability,orderedAffinePositions,AffineCornerWorkspace,installAffineWorker,stockCreaseReference,stockWeldHash,stockWeldIntersects,proveAffineOutside,VersionedAffineCanonicalBase,installAffineStockWorker,GpuAffineCornerPreview};

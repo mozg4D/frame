@@ -1,12 +1,19 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r235-background-selection",
-  "productionEditor": "modules/editor.e333dd2896489bc928cf.js",
-  "productionSHA256": "e333dd2896489bc928cf9e984bbbda42a5ec4e9dd5992622dc03805199a3682a",
-  "productionBytes": 2652531,
+  "version": "r236-affine-islands",
+  "productionEditor": "modules/editor.c4de74f9df821135188d.js",
+  "productionSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
+  "productionBytes": 2719528,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
   "editorIntegration": "wire-marquee-integration.json",
-  "derivedIntegration": "derived-selection-integration.json"
+  "derivedIntegration": "derived-selection-integration.json",
+  "productionNative": "modules/native.4ab552e1b39abbd2b4ba.js",
+  "nativeSHA256": "4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463",
+  "nativeBytes": 546206,
+  "affineHelper": "affine-component-preview.mjs",
+  "affineKnown": "affine-known-geometry.mjs",
+  "affineIntegration": "affine-integration.json",
+  "threeCore": "modules/frame-three-core.9edde002b066a9a05676.js"
 }

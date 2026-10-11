@@ -1,0 +1,37 @@
+{
+  "sourceFilename": "editor.9023e8f31bf6a28d5b4b.js",
+  "sourceSha256": "9023e8f31bf6a28d5b4bde858b53741f235e810dc9d3de431352d3c1e7aba0ff",
+  "sourceRole": "Frozen actual production editor oracle already used in affine review; independently extracted unchanged functions, not worker export.",
+  "fixtureFilename": "stock-editor-functions.js",
+  "fixtureSha256": "73a9f2d193646e5a2b4eb882a314541c411d3e19f2692e56264915eb9bdef648",
+  "functions": [
+    {
+      "name": "polygonCreaseData",
+      "sha256": "5105fbd3a3f98b216113d5d790e0d5b1bb702e9c292e0fc200116b520b9ff2ca"
+    },
+    {
+      "name": "framePolygonHash",
+      "sha256": "41c5526217825ac5f1984241db48c277df700dfcb8ca2285cbc74c3ffe5cb989"
+    },
+    {
+      "name": "framePolygonWeldBits",
+      "sha256": "50904196737d0007c15a5f61369af2241502ed9e10f1ad9c99c9ea46dcb67813"
+    },
+    {
+      "name": "framePolygonNormalWorkspace",
+      "sha256": "0a970f5c897ee4451bac74c2bdd0a03efa57fbe5b5f38ef8ee612ba7ae4fe0c3"
+    },
+    {
+      "name": "frameFastPolygonDragNormals",
+      "sha256": "0b6f1919b52d0a0e502ed1d2baf0cd52d61e3f69be83fb251b3fc196ff901da6"
+    },
+    {
+      "name": "updatePolygonDragNormals",
+      "sha256": "9cfbedbe6b19bb2d52454a4d7132a991122092d543388a25291169bbb6341933"
+    },
+    {
+      "name": "applyPolyDelta",
+      "sha256": "cd2de1894e6fd8d9b25ef56a04b596bf5785e9d82614e5c5175c56627c95f9b6"
+    }
+  ]
+}

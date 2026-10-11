@@ -1,7 +1,8 @@
+import {currentRigidSource} from './current-rigid-source.mjs';
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
 import {buildTopologyWork} from '../../native-source/topology-islands.mjs';
 import {rigidIslandEligibilityWork} from '../../native-source/gpu-island-preview.mjs';
-const ctx=vm.createContext({Float32Array,Float64Array,Uint32Array,Uint8Array,Int32Array,DataView,ArrayBuffer,Set,Map,WeakMap,Number,Math});vm.runInContext(fs.readFileSync(new URL('../rigid-component-preview.mjs',import.meta.url),'utf8'),ctx);
+const ctx=vm.createContext({Float32Array,Float64Array,Uint32Array,Uint8Array,Int32Array,DataView,ArrayBuffer,Set,Map,WeakMap,Number,Math});vm.runInContext(currentRigidSource,ctx);
 const finish=g=>{let q;do{q=g.next();}while(!q.done);return q.value;};
 const make=(positions,indices,faces)=>{const pa=new Float32Array(positions),ia=new Uint32Array(indices),top=finish(buildTopologyWork({positions:pa,indices:ia},{packedTables:true})),gate=finish(rigidIslandEligibilityWork(top,ia,new Set(faces)));assert(gate.eligible,JSON.stringify(gate));const t={p:{count:pa.length/3},pa,ia,ids:gate.ids,faceIDs:new Uint32Array(faces),slot:new Int32Array(pa.length/3)};for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;assert(finish(ctx.frameRigidBuildAliasGuard(t)));return t;};
 const cases=[];

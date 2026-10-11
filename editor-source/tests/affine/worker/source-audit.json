@@ -1,0 +1,31 @@
+{
+  "candidateHashes": {
+    "candidate/native-affine-ui-v2b.mjs": "4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463",
+    "candidate/frame-affine-known-v2.mjs": "82c9bc56798024f49d50158f9d7ad290c64055783de938344b9dc74a28e1c979",
+    "candidate/editor-affine-ui-v2c.mjs": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
+    "candidate/frame-affine-helper-v2b.mjs": "48cc27ad8d9025f81d190225ec3a1940dede02f8d8f12684b5246e53523d929f",
+    "candidate/native-source/affine-corner-worker.mjs": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1",
+    "candidate/native-source/affine-stock-proof.mjs": "45f000c23e5122b841af1216f7339f48979ba0bccf7036dbb6cd3f8df45a02d0",
+    "candidate/native-source/affine-stock-worker.mjs": "9448ff98f4025b4971022ef4c9b6c50ddfca02eda250033620eba21ca02b85ba",
+    "candidate/native-source/affine-versioned-base.mjs": "827c7b589da8353b12f964cf1a53aabf48ddf2288720e2cafda6fd7a81071782"
+  },
+  "fixtures": {
+    "three-core.mjs": {
+      "sha256": "9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6",
+      "unchangedFromIndependentV2c": true,
+      "homeFixtureUnchanged": true
+    },
+    "stock-editor-provenance.json": {
+      "sha256": "5f1dccf35b9ecc4e9fb0e757e70709bde0adb60ae0a799e1503f4fa5869ae1e9",
+      "unchangedFromIndependentV2c": true,
+      "homeFixtureUnchanged": true
+    },
+    "stock-editor-functions.js": {
+      "sha256": "73a9f2d193646e5a2b4eb882a314541c411d3e19f2692e56264915eb9bdef648",
+      "unchangedFromIndependentV2c": true,
+      "homeFixtureUnchanged": true,
+      "restoredFromPreviousIndependentReview": false,
+      "omittedFromHOMEArchive": false
+    }
+  }
+}

@@ -1,0 +1,21 @@
+import {reviewURL} from '../source-paths.mjs';
+import {verifyCandidate} from './verify-candidate.mjs';verifyCandidate();
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import {createHash} from 'node:crypto';
+const source=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');
+assert.equal(createHash('sha256').update(source).digest('hex'),'c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62');
+function extract(name){const at=source.indexOf('function '+name+'(');assert(at>=0);const lines=source.slice(at).split('\n');for(let i=1;i<1000;i++){const f=lines.slice(0,i).join('\n');try{new vm.Script('('+f+')');return f;}catch{}}throw Error(name);}
+const root='../candidate/native-source/';
+const {GpuRigidIslandPreview}=await import(reviewURL(root+'gpu-island-preview.mjs',import.meta.url));
+const writes=[];const device={queue:{writeBuffer(buffer,offset,values){writes.push({buffer:buffer.name,offset,values:Array.from(values)});}}};
+const before=Float32Array.of(0,0,0,1,0,0,0,1,0),exact=Float32Array.of(10,0,0,11,0,0,10,1,0),normals=new Float32Array(9).fill(1);
+const t={device,ids:Uint32Array.of(0,1,2),ranges:[[0,3]],pa:before.slice(),numeric:{positions:before.slice(),extras:new Float32Array(27)},adapter:{revision:0}};t.gpu={position:{name:'raw-wire-picker'},normal:{name:'raw-normal'},cpuPositions:t.numeric.positions,cpuExtras:t.numeric.extras,device,_check(){},writeAuthoringRanges:GpuRigidIslandPreview.prototype.writeAuthoringRanges};
+const r={live:true,revision:0,numeric:{positions:before.slice(),extras:new Float32Array(27)},localIndex:Uint32Array.of(0,1,2),gpu:{position:{name:'corners'},normal:{name:'corner-normal'},writeAuthoringRanges(){}}};
+let closed=0;const s={r,t,affine:true,ready:true,cancel:false,discarded:false,affineRevision:1,affineID:1,revision:1,beforeRaw:{attrs:{position:{array:before.slice()},normal:{array:normals.slice()}}},beforeValues:before.slice(),beforeNormals:normals,closeWorker(){closed++;},abortResolve(){},gizmo:[],beforePivot:null};r.active=s;
+const c=vm.createContext({DOMException,frameRigidSource:()=>true,frameRigidTransactionCurrent:()=>true,frameRigidRestoreOverlays(){},frameAffineNotes:{exactPoses:0,phases:[]},frameRigidNotes:{cancels:0},frameRigidInput:null,setGizmoFromMatrix(){},scheduleRender(){},updateHUD(){}});
+for(const name of ['frameAffinePosePublish','frameAffineRestoreRawDisplay','frameAffineCleanup','frameAffineCancelSession','frameRigidCancelSession'])vm.runInContext(extract(name),c);
+assert(c.frameAffinePosePublish(s,{revision:1,positions:exact,cornerPositions:exact,cornerNormals:normals,timings:{}}));
+c.frameRigidCancelSession(s);
+assert.deepEqual(Array.from(t.pa),Array.from(before));
+const finalRaw=writes.filter(w=>w.buffer==='raw-wire-picker').at(-1).values;
+assert.deepEqual(finalRaw,Array.from(before));assert.notDeepEqual(finalRaw,Array.from(exact));assert.equal(closed,1);
+console.log(JSON.stringify({reproduced:false,safeguardPass:true,editorSha256:createHash('sha256').update(source).digest('hex'),case:'Cancel after exact publication restores raw wire/picker positions',authoringUnchanged:Array.from(t.pa),expectedRaw:Array.from(before),actualRaw:finalRaw,adapterPositionView:t.adapter.positionView,workerClosed:closed},null,2));

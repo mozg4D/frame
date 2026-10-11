@@ -1,8 +1,8 @@
 # Native viewport sources
 
-The 33 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by r232 rigid component preview:
+The 38 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by r236 affine component processing:
 
-`modules/native.971568c756454593010d.js`
+`modules/native.4ab552e1b39abbd2b4ba.js`
 
 ## Rebuild
 
@@ -12,7 +12,7 @@ From the repository root, write the bundle to a temporary file outside the check
 
     node native-source/bundle-native.mjs /absolute/path/outside/frame/native.js
 
-Expected output: 498,823 bytes, SHA256 `971568c756454593010d3afe51a9beaa0a2b811de43d6596f5e7096367afa0b9`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
+Expected output: 546,206 bytes, SHA256 `4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
 
 Mip generation is selected by fresh native/actual GL controls for the current GPU owner generation. Production and calibration share gpu-mipmap.mjs; the baseline bilinear profile is preferred when it passes. The measured area profile integrates odd-dimension footprints in linear RGB and writes each mip to an sRGB8 target. The .008 control tolerance, exact base uploads, default source texture settings, implicit LOD and POT/NPOT color/bump gates remain enforced. Loss/Retry repeats calibration for the new device generation.
 
@@ -36,3 +36,5 @@ Run from the repository root with Node 20 or newer:
 The tests compare all 21 output arrays from the unchanged legacy generator with packed tables, exercise real Node workers and superseding cancellation, and check owned queue/lease cleanup. They use synthetic geometry, write no result files and make no browser or hardware acceptance claim.
 
 The current rigid preview adapter is `gpu-island-preview.mjs`. It shares display/pick storage, checks ownership and retires temporary resources on failures. Its editor transactions and portable checks are in [editor-source/](../editor-source/). CPU authoring arrays remain authoritative at release.
+
+The affine modules preserve stock ordered Float32 coordinates and crease topology in owner-bound worker snapshots. Full-stock fallback handles topology/normal cases outside the compact proof. Display overrides preserve face order and material ownership; raw position views, geometry registrations and worker leases have explicit cleanup. See the portable affine contracts under `editor-source/tests/affine/`. These checks do not establish hardware timing or general frame-rate guarantees.

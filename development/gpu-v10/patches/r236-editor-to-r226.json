@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "e333dd2896489bc928cf9e984bbbda42a5ec4e9dd5992622dc03805199a3682a",
+  "beforeSHA256": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
   "afterSHA256": "2fbd0f5a8cefe96ff28eb3c2aae136292f052478b6268f2c0b515b5b78909f23",
-  "beforeBytes": 2652531,
+  "beforeBytes": 2719528,
   "afterBytes": 2600154,
   "operations": [
     {
@@ -34,78 +34,144 @@
       ]
     },
     {
-      "startLine": 13384,
+      "startLine": 12575,
+      "deleteLines": 1,
+      "insert": [
+        "  return {\n"
+      ]
+    },
+    {
+      "startLine": 12589,
+      "deleteLines": 1,
+      "insert": [
+        "  };\n"
+      ]
+    },
+    {
+      "startLine": 12592,
+      "deleteLines": 1,
+      "insert": [
+        "  let n = OBJ.get(s.h);\n"
+      ]
+    },
+    {
+      "startLine": 12639,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 12753,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 13109,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 13194,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 13374,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 13394,
       "deleteLines": 1,
       "insert": [
         "  if(obj.geom.normals){const d=obj.geom,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(d.positions.slice(),3));g.setIndex(new THREE2.BufferAttribute(d.indices.slice(),1));for(const [k,a,size] of [['uv',d.uv,2],['uv1',d.uv1,2],['color',d.colors,d.colorSize||3]])if(a)g.setAttribute(k,new THREE2.BufferAttribute(a.slice(),size));g.computeBoundingBox();g.computeBoundingSphere();const mesh=new THREE2.Mesh(g,getThreeMat(defaultMatHash));mesh.matrixAutoUpdate=false;mesh.renderOrder=LAYER_OBJ;return mesh;}\n"
       ]
     },
     {
-      "startLine": 13974,
+      "startLine": 13984,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 13989,
+      "startLine": 13999,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 15595,
+      "startLine": 15096,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 15290,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 15402,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 15413,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 15613,
       "deleteLines": 1,
       "insert": [
         "function* framePolySelectionBuffers(items) {\n"
       ]
     },
     {
-      "startLine": 15598,
+      "startLine": 15616,
       "deleteLines": 1,
       "insert": [
         "  for(const [h,s] of items)if(selNodes.has(h)&&pickMeshes.get(h)?.geometry?.attributes.position){nf+=s.faces.size*9;ne+=s.edges.size*6;nv+=s.vertices.size*3;}\n"
       ]
     },
     {
-      "startLine": 15603,
+      "startLine": 15621,
       "deleteLines": 1,
       "insert": [
         "    let mesh = pickMeshes.get(h), g = mesh && mesh.geometry, pos = g && g.attributes.position, idx = g && g.index;\n"
       ]
     },
     {
-      "startLine": 15626,
+      "startLine": 15644,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 15751,
+      "startLine": 15769,
       "deleteLines": 1,
       "insert": [
         "function* framePolySelectionMeasurements(items,exact=polyExactEdgeVertices){\n"
       ]
     },
     {
-      "startLine": 15757,
+      "startLine": 15775,
       "deleteLines": 1,
       "insert": [
         "    const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;\n"
       ]
     },
     {
-      "startLine": 15759,
+      "startLine": 15777,
       "deleteLines": 1,
       "insert": [
         "    const ids=yield* framePolySelectedVertexIdsWork(h,items,exact);selected.set(h,ids);\n"
       ]
     },
     {
-      "startLine": 15763,
+      "startLine": 15781,
       "deleteLines": 1,
       "insert": [
         "  let h=null;for(const key of items.keys())if(pickMeshes.has(key)){h=key;break;}h??=selNodes.values().next().value||null;\n"
       ]
     },
     {
-      "startLine": 15765,
+      "startLine": 15783,
       "deleteLines": 4,
       "insert": [
         "  if(coordMode==='world')frame=new THREE2.Matrix4();\n",
@@ -114,110 +180,151 @@
       ]
     },
     {
-      "startLine": 15771,
+      "startLine": 15789,
       "deleteLines": 1,
       "insert": [
         "    const mesh=pickMeshes.get(h),pos=mesh.geometry.attributes.position;mesh.updateMatrixWorld(true);\n"
       ]
     },
     {
-      "startLine": 16217,
+      "startLine": 16235,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 16318,
+      "startLine": 16336,
       "deleteLines": 3,
       "insert": [
         "  pivotKeyDown && (pivotKeyGesture = !0), _gizStart && _gizStart(e), emitInfo(null);\n"
       ]
     },
     {
-      "startLine": 16343,
+      "startLine": 16361,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 16418,
+      "startLine": 16436,
       "deleteLines": 2,
       "insert": [
         "  _gizEnd && _gizEnd(e), hideHudLine(), hideSnapVis(), gizDrag = null; if(!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;\n"
       ]
     },
     {
-      "startLine": 16468,
+      "startLine": 16486,
       "deleteLines": 1,
       "insert": [
         "  if(!status){status=document.createElement('div');status.id='frame-native-viewport-status';status.style.cssText='position:fixed;left:12px;top:12px;z-index:100000;color:#eee;background:#222c;font:12px ui-monospace,monospace;padding:6px;max-width:calc(100vw - 24px)';document.body.append(status);}\n"
       ]
     },
     {
-      "startLine": 16470,
+      "startLine": 16488,
       "deleteLines": 6,
       "insert": []
     },
     {
-      "startLine": 16782,
+      "startLine": 16800,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 16984,
+      "startLine": 17002,
       "deleteLines": 1,
       "insert": [
         "    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);\n"
       ]
     },
     {
-      "startLine": 17289,
+      "startLine": 17300,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 17309,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17291,
+      "startLine": 17311,
       "deleteLines": 1,
       "insert": [
         "  let c = undoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17297,
+      "startLine": 17317,
       "deleteLines": 1,
       "insert": [
         "  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17300,
+      "startLine": 17320,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17302,
+      "startLine": 17322,
       "deleteLines": 1,
       "insert": [
         "  let c = redoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17305,
+      "startLine": 17325,
       "deleteLines": 1,
       "insert": [
         "  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 20890,
+      "startLine": 17328,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 17890,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 20914,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24195,
+      "startLine": 20927,
+      "deleteLines": 1,
+      "insert": [
+        " if(!g?.attributes?.position)return null;\n"
+      ]
+    },
+    {
+      "startLine": 21229,
+      "deleteLines": 1,
+      "insert": [
+        "document.addEventListener(\"keydown\", (e) => _endSessionOutside(e.target), !0);\n"
+      ]
+    },
+    {
+      "startLine": 21320,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24209,
+      "startLine": 24069,
+      "deleteLines": 1,
+      "insert": [
+        "var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySoft = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;\n"
+      ]
+    },
+    {
+      "startLine": 24220,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24234,
       "deleteLines": 3,
       "insert": [
         "function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices) {\n",
@@ -225,115 +332,184 @@
       ]
     },
     {
-      "startLine": 24352,
+      "startLine": 24377,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24386,
+      "startLine": 24411,
       "deleteLines": 1,
       "insert": [
         "function* frameFaceSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24388,
+      "startLine": 24413,
       "deleteLines": 1,
       "insert": [
         "  const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;\n"
       ]
     },
     {
-      "startLine": 24433,
+      "startLine": 24458,
       "deleteLines": 1,
       "insert": [
         "function* frameEdgeSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24435,
+      "startLine": 24460,
       "deleteLines": 1,
       "insert": [
         "  let s = items.get(h), mesh = pickMeshes.get(h), pos = mesh?.geometry?.attributes.position;\n"
       ]
     },
     {
-      "startLine": 24519,
+      "startLine": 24520,
+      "deleteLines": 15,
+      "insert": []
+    },
+    {
+      "startLine": 24553,
+      "deleteLines": 1,
+      "insert": [
+        "  let delta = desired.clone().multiply(old.clone().invert()), snap = capturePolySelection();\n",
+        "  applyPolyDelta(delta, snap);\n"
+      ]
+    },
+    {
+      "startLine": 24558,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24762,
+      "startLine": 24801,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 25111,
-      "deleteLines": 1,
-      "insert": []
-    },
-    {
-      "startLine": 25911,
-      "deleteLines": 222,
-      "insert": []
-    },
-    {
-      "startLine": 26134,
+      "startLine": 24808,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26177,
+      "startLine": 24824,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 24832,
+      "deleteLines": 4,
+      "insert": []
+    },
+    {
+      "startLine": 24862,
+      "deleteLines": 8,
+      "insert": []
+    },
+    {
+      "startLine": 24923,
+      "deleteLines": 5,
+      "insert": []
+    },
+    {
+      "startLine": 25171,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 25971,
+      "deleteLines": 640,
+      "insert": []
+    },
+    {
+      "startLine": 26612,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 26655,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 26278,
+      "startLine": 26756,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26282,
+      "startLine": 26760,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26287,
+      "startLine": 26765,
       "deleteLines": 1,
       "insert": [
         "  if (e.pointerType === \"touch\" || edgeBevelTool || splineBevelTool || splineOutlineTool || vertexTools.mode === \"lineCut\" || vertexTools.mode === \"closeHole\" || splinePointerGesture || splineDrawing || getGizDragMode() || e.button !== 0 || !e.altKey && (!vpState.views[vi] || vpState.views[vi].type === \"persp\" && !polyMode)) return;\n"
       ]
     },
     {
-      "startLine": 26299,
+      "startLine": 26777,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26304,
+      "startLine": 26782,
       "deleteLines": 1,
       "insert": [
         "    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)\n"
       ]
     },
     {
-      "startLine": 27066,
+      "startLine": 27131,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 27248,
+      "deleteLines": 1,
+      "insert": [
+        "   job.capturing=true;const savedToken=sceneStateToken,mutation=nativeSaveMutation,snapshot=await nativeSaveCopy(buildHashSceneSnapshot(),signal);job.capturing=false;\n"
+      ]
+    },
+    {
+      "startLine": 27251,
+      "deleteLines": 1,
+      "insert": [
+        "  finally{job.capturing=false;options.signal?.removeEventListener('abort',abort);status.remove();if(nativeSceneSave===job)nativeSceneSave=null;}\n"
+      ]
+    },
+    {
+      "startLine": 27546,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27078,
+      "startLine": 27558,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 27082,
+      "startLine": 27562,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"
       ]
+    },
+    {
+      "startLine": 28201,
+      "deleteLines": 1,
+      "insert": [
+        "    apply(\"pos\", values.position), apply(\"rot\", values.rotation), apply(\"size\", values.size), syncCube(), polyMode && editPivot ? (polyPivotMatrix = getGizmoWorldArray().slice(), scheduleRender()) : commitCoordinateSnapshot(before);\n"
+      ]
+    },
+    {
+      "startLine": 32464,
+      "deleteLines": 1,
+      "insert": []
     }
   ]
 }

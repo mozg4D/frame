@@ -3,18 +3,33 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 3054,
-      "sha256": "c6f0511f0235575816e403e0f42a6e578ce8428eeb751c762ca91220811ca55d"
+      "bytes": 3155,
+      "sha256": "9ee57d28a4c54843d6015ef695e7056f449d5487e76d25c5c5866f2152be5fb7"
+    },
+    {
+      "path": "affine-component-preview.mjs",
+      "bytes": 59188,
+      "sha256": "48cc27ad8d9025f81d190225ec3a1940dede02f8d8f12684b5246e53523d929f"
+    },
+    {
+      "path": "affine-integration.json",
+      "bytes": 23240,
+      "sha256": "c4267aef0044ca5af3894d52bdc09aceb127c306ff9eaa39584b3edbfce124e4"
+    },
+    {
+      "path": "affine-known-geometry.mjs",
+      "bytes": 2117,
+      "sha256": "82c9bc56798024f49d50158f9d7ad290c64055783de938344b9dc74a28e1c979"
     },
     {
       "path": "base-extraction.json",
-      "bytes": 7924,
-      "sha256": "63a4f1d2bdfab168acd90388b02a2b85b2272dcfeaaead2bde8f55de965de0e2"
+      "bytes": 12126,
+      "sha256": "31057ad8ea1c1e07aed7255d795e138c361b3591ea276e52292d6f1ac1ba9976"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 546,
-      "sha256": "31117195181ddff2d09c6353eda2bfb83a80cac2c45f8088831464781c46d9f0"
+      "bytes": 928,
+      "sha256": "a86b0909d682f50740fc2b45ec695f5038a08cc4a440a67d9eb1e64450280bcd"
     },
     {
       "path": "derived-selection-integration.json",
@@ -23,8 +38,8 @@
     },
     {
       "path": "rebuild.mjs",
-      "bytes": 10071,
-      "sha256": "727f2b81e6c9fce14152145127050ff5486a7c62863e5bf91c91db8d5ac27c73"
+      "bytes": 11050,
+      "sha256": "56c2484dfd5da9ea36e85c0c900f94def73dd3fbbc6a6ff01d1cb924f4152677"
     },
     {
       "path": "rigid-component-preview.mjs",
@@ -32,29 +47,514 @@
       "sha256": "6a085f461459564036f5b3f56c36a455a674bfead15f1c67715fd328cb771904"
     },
     {
-      "path": "tests/alias-guards.mjs",
-      "bytes": 4210,
-      "sha256": "8f4681ea023448ea4267f1499f9fcb1de1a809a641c04fa7b42d88755b2fa4be"
+      "path": "tests/affine/README.md",
+      "bytes": 2196,
+      "sha256": "b1e72433d68bbd34167939ea8112c9144e680ae2f195b5b8373c0684acce2334"
     },
     {
-      "path": "tests/derived-lifecycle.mjs",
-      "bytes": 25237,
-      "sha256": "52088679ff343c99fe75ede8ba86bfdd65f841dca306aeebf541aac20bdde05f"
+      "path": "tests/affine/display/abort-cleanup-fault-matrix.mjs",
+      "bytes": 7141,
+      "sha256": "929ddc50f42e0b5985d18f2b14c6c8d1c18a282c44cc09159f9d9b088aff49f7"
+    },
+    {
+      "path": "tests/affine/display/abort-stale-owner-negative.mjs",
+      "bytes": 5753,
+      "sha256": "c5a018ed6ebc8cefd61f55861608a8c85f2104b0a6cd0ec83edb74df5338671b"
+    },
+    {
+      "path": "tests/affine/display/cancel-baseline-matrix.mjs",
+      "bytes": 6803,
+      "sha256": "d8bd1fc8de9713863dc72ab4be9e20b463b1d809dc19ec5b03e2cf7c9ff82006"
+    },
+    {
+      "path": "tests/affine/display/candidate-hashes.json",
+      "bytes": 635,
+      "sha256": "8982f263904bbe4422824071daebb81566ddd86c5395b631429d2fa2fbabad22"
+    },
+    {
+      "path": "tests/affine/display/display-and-stage.mjs",
+      "bytes": 5791,
+      "sha256": "748a5cf03011a10985ea95aa40aada70a199c43843e41ad88e264dbeb6be7c47"
+    },
+    {
+      "path": "tests/affine/display/early-binding-lifetime.mjs",
+      "bytes": 3421,
+      "sha256": "ddeaeff5ca687a1493bc0170d93335c4890fbf27b1767a10fef7d780cc3cf167"
+    },
+    {
+      "path": "tests/affine/display/early-cancel-overlays.mjs",
+      "bytes": 2109,
+      "sha256": "2e94c12f014e824a8e86d993bb7a2306ed2751d16cdf54d15a54f4b8c8c42d2f"
+    },
+    {
+      "path": "tests/affine/display/early-queued-native-gestures.mjs",
+      "bytes": 2622,
+      "sha256": "71ef7d52485a06740e43a3985ec4f3bbb9e41a818d57b1749d302ee789dfab39"
+    },
+    {
+      "path": "tests/affine/display/frozen-gpu-repeated-gestures.mjs",
+      "bytes": 5635,
+      "sha256": "ab7b551afbb573dfb06c13ad97b18f1779c09f58960c2d6aa2d0fc17979ee72b"
+    },
+    {
+      "path": "tests/affine/display/frozen-gpu-restore-controls.mjs",
+      "bytes": 3605,
+      "sha256": "0d399dd5368182f0afa64c065f2f7629a53549932c649072f42169b1e55ce965"
+    },
+    {
+      "path": "tests/affine/display/full-outside-cancel-control.mjs",
+      "bytes": 5253,
+      "sha256": "732407c3a93d6747a2ee5d0502387fd806b798a6f6c67613179393866f29108f"
+    },
+    {
+      "path": "tests/affine/display/global-publish-owner-race-negative.mjs",
+      "bytes": 4269,
+      "sha256": "af2c33dfa3698f6aba142adddb83e6690665769b9fd686711cdbded35e218a02"
+    },
+    {
+      "path": "tests/affine/display/gpu-lifetime.mjs",
+      "bytes": 3285,
+      "sha256": "3e97f24673f3c90c5574eea5d3c03298b938bcb69aaef5e79ecb664831b53323"
+    },
+    {
+      "path": "tests/affine/display/held-publish-controls.mjs",
+      "bytes": 2101,
+      "sha256": "7a53eae6fce9d9f5a47e6b679cd8bf7c81703575d8de636f16ac99821c737ff4"
+    },
+    {
+      "path": "tests/affine/display/native-bind-transaction.mjs",
+      "bytes": 5524,
+      "sha256": "813f2c4710529bd6c470cf6197f21fb6a2e8c9b7f5756415054b66a53776f60d"
+    },
+    {
+      "path": "tests/affine/display/native-queue-lifetime.mjs",
+      "bytes": 2627,
+      "sha256": "fe349044bca4ff63b53fe552efa4bddf4cfdc3bcd579e55686f643f239531fe4"
+    },
+    {
+      "path": "tests/affine/display/persistent-worker-lease-controls.mjs",
+      "bytes": 4688,
+      "sha256": "16668065e69d667669e6595bcf771ff90a1b2b2514509f8f738aa442a8460741"
+    },
+    {
+      "path": "tests/affine/display/publish-guards.mjs",
+      "bytes": 3195,
+      "sha256": "1c3e229e4a31e4d9eab283258a6c526d9d142b34a99ac85b65020af600af9f0b"
+    },
+    {
+      "path": "tests/affine/display/queue-interpreter.mjs",
+      "bytes": 3019,
+      "sha256": "a2a2c4115b71824d1ac4519b5edd2683d546a14dab566bd2ee88a88c8831f4ea"
+    },
+    {
+      "path": "tests/affine/display/repro-abort.mjs",
+      "bytes": 2737,
+      "sha256": "3962ee0445568f472a851408af5efbe898d05cde55c301f161158752b8f3f714"
+    },
+    {
+      "path": "tests/affine/display/repro-cancel.mjs",
+      "bytes": 3311,
+      "sha256": "52d8f39b4d4573ef66699f2a1efe075513112a13230dc34709a95dfb35c51b6b"
+    },
+    {
+      "path": "tests/affine/display/repro-full-cancel.mjs",
+      "bytes": 5069,
+      "sha256": "a4b4e3cb85159363eac2c040f2d2de48b6a7b82e3573fbc9a11d7ca210a6de06"
+    },
+    {
+      "path": "tests/affine/display/retained-bind-native-cache.mjs",
+      "bytes": 5442,
+      "sha256": "bec308ced811722f93a95e0245b9722919c1c4e4d467a6b336d3603ff33d4d0a"
+    },
+    {
+      "path": "tests/affine/display/support.mjs",
+      "bytes": 12020,
+      "sha256": "bf4891016c7c27c84b7bec794068150d7783e1b2f110035baa84dab45e033ca5"
+    },
+    {
+      "path": "tests/affine/display/v4f-native-packed-cache-guards.mjs",
+      "bytes": 6563,
+      "sha256": "db963e61ded9fc2841286eb45846b770c3230fa334c7e35c6a25519c86ed4c95"
+    },
+    {
+      "path": "tests/affine/display/v4f-preinstalled-packed-bind-controls.mjs",
+      "bytes": 9031,
+      "sha256": "906605dbf326ab7c6b398b2387c030d56dd77a0277bc480f54f899e442bcd989"
+    },
+    {
+      "path": "tests/affine/display/v4f-supplied-packed-alias-controls.mjs",
+      "bytes": 3485,
+      "sha256": "47a4613933f3f67b99c71f4bd1dc8b797e9dd64f92c75c8f1b9a207ab3af0ee0"
+    },
+    {
+      "path": "tests/affine/display/verify-candidate.mjs",
+      "bytes": 527,
+      "sha256": "8b74e52f6520a10696febe65de01b899b5f703d0b40c298613f9bd2f5525bb0b"
+    },
+    {
+      "path": "tests/affine/display/worker-source-hashes.json",
+      "bytes": 393,
+      "sha256": "71013b25bee826fb6487b9620d6b33043da8f3cc62fb9a42134ca1dc691b5a23"
+    },
+    {
+      "path": "tests/affine/entrypoints.json",
+      "bytes": 6417,
+      "sha256": "41c9f30ae2e10311802db9eee066f1fb75c852669fd7497bd0c0b879b214dac7"
+    },
+    {
+      "path": "tests/affine/fixtures/stock-editor-functions.js",
+      "bytes": 12338,
+      "sha256": "73a9f2d193646e5a2b4eb882a314541c411d3e19f2692e56264915eb9bdef648"
+    },
+    {
+      "path": "tests/affine/fixtures/stock-editor-provenance.json",
+      "bytes": 1397,
+      "sha256": "5f1dccf35b9ecc4e9fb0e757e70709bde0adb60ae0a799e1503f4fa5869ae1e9"
+    },
+    {
+      "path": "tests/affine/fixtures/stock-routing-pins.json",
+      "bytes": 1360,
+      "sha256": "b683e93e64e03509d8bd1849b172304f92a3616ac1c940f04e949cfa88982c6f"
+    },
+    {
+      "path": "tests/affine/fixtures/three-core.mjs",
+      "bytes": 210,
+      "sha256": "75cbf8a876158a17eba402983e6524155a86019d44323da095cfbe1d21e61650"
+    },
+    {
+      "path": "tests/affine/lifecycle/atomic-fixed-control.mjs",
+      "bytes": 11758,
+      "sha256": "e3ca4d7d233b4b8f69bf9de53a804ead04162c70681b6ea663821bdad0a5d319"
+    },
+    {
+      "path": "tests/affine/lifecycle/canonical-index-controls.mjs",
+      "bytes": 2012,
+      "sha256": "f9620e6d518b3b562ada313671d8c9cf8e8c868baf5da2b98c346fdd4f7c5395"
+    },
+    {
+      "path": "tests/affine/lifecycle/early-cancel-bounds-pump-controls.mjs",
+      "bytes": 14511,
+      "sha256": "f3a1901fcbc72e815640b630a472cedfa1943b410cc95c8e5c8cc1a00b929714"
+    },
+    {
+      "path": "tests/affine/lifecycle/early-cancel-bounds.mjs",
+      "bytes": 1591,
+      "sha256": "925618b245b28c178de232d3f185b87281b0b4e0b4039ae21afc82e7cb944198"
+    },
+    {
+      "path": "tests/affine/lifecycle/early-ready-cancel-bounds.mjs",
+      "bytes": 1862,
+      "sha256": "10be3584098890f427b244f09182897c421fd1c39d68bb130354b08a99d001e3"
+    },
+    {
+      "path": "tests/affine/lifecycle/failed-worker-save-negative.mjs",
+      "bytes": 13437,
+      "sha256": "afccabe361d41b3c59f522b8176be277b49c4bb140b108d9edcccdaeb13ea3f9"
+    },
+    {
+      "path": "tests/affine/lifecycle/held-ui-release-chain.mjs",
+      "bytes": 14638,
+      "sha256": "68f790b359202cf07590b409d5a41d6c9dc22b44f1728f5939b1d2625c1f178f"
+    },
+    {
+      "path": "tests/affine/lifecycle/history-atomic-negative.mjs",
+      "bytes": 12206,
+      "sha256": "4fa062ab37929be61f054a22ab455e0536238246947dae897765cda8be2978a6"
+    },
+    {
+      "path": "tests/affine/lifecycle/history-fault-matrix.mjs",
+      "bytes": 13718,
+      "sha256": "e43f1190b5fae392545fb84b929a3bd380d6240e06bb681c012d0a575e877847"
+    },
+    {
+      "path": "tests/affine/lifecycle/history-recipe-controls.mjs",
+      "bytes": 14138,
+      "sha256": "60904c1ef5c29c70d854207c186fc03756898a92403d480da4fc57f40d283d33"
+    },
+    {
+      "path": "tests/affine/lifecycle/kept-worker-bind-fault-control.mjs",
+      "bytes": 11652,
+      "sha256": "23f951daf1a439e81c13b79ba6a1de2ac2b688a1ee563f3d83212da7fdd508a7"
+    },
+    {
+      "path": "tests/affine/lifecycle/legacy-rigid-baseline.mjs",
+      "bytes": 28224,
+      "sha256": "dc21c7365febc53efee4c7df1dbb41ea459773ba59b09f8f8d922baec7d9d4a1"
+    },
+    {
+      "path": "tests/affine/lifecycle/lifecycle-fixed-controls.mjs",
+      "bytes": 5344,
+      "sha256": "6301ee7e5371a7d8c1b2779d4be3b6a03ef7a48753b844af78f3d5e14a7ef6fb"
+    },
+    {
+      "path": "tests/affine/lifecycle/nonblocking-release-control.mjs",
+      "bytes": 12162,
+      "sha256": "675e078d4df319b823b786d1d03acfd6335eb9cc3a257a6c30666a391c45a887"
+    },
+    {
+      "path": "tests/affine/lifecycle/pending-undo-redo-negative.mjs",
+      "bytes": 12900,
+      "sha256": "072dbf837fdb05d16d1146c3b12c5f2207630c0a306228e3f429ce4f91698057"
+    },
+    {
+      "path": "tests/affine/lifecycle/persistent-binding-early-controls.mjs",
+      "bytes": 16314,
+      "sha256": "bf8bbe6afe729fabe0fc3d2babb4ab4be0fc093416a735b858b1c5941c81bc74"
+    },
+    {
+      "path": "tests/affine/lifecycle/pivot-escape-focus.mjs",
+      "bytes": 5068,
+      "sha256": "12a833b2d69d8cd4417bdf4ec11bfd4d2e3734c5346278d8307fdfc684a35580"
+    },
+    {
+      "path": "tests/affine/lifecycle/pivot-nonunit-controls.mjs",
+      "bytes": 4077,
+      "sha256": "2dbe8bae872e75ca3d30d3a4b630291d5892921da7d32ff23465fce0c50c3c38"
+    },
+    {
+      "path": "tests/affine/lifecycle/released-commit-save-boundary.mjs",
+      "bytes": 17458,
+      "sha256": "c210a586c1b2a3629f61c9180707e782e0adc80f4eedada089268a5ce0a9df41"
+    },
+    {
+      "path": "tests/affine/lifecycle/rigid-move-empty-undo-control.mjs",
+      "bytes": 11987,
+      "sha256": "e29a21b0890e94a6e1f18f076edc4d97be82e54b0ef4c7bb46b99701395e95ed"
+    },
+    {
+      "path": "tests/affine/lifecycle/stock-routing-connected.mjs",
+      "bytes": 12387,
+      "sha256": "fe1cc6fe7f07661b4900a21cf3cd2c85e29abf9230909cf6d8018712da708270"
+    },
+    {
+      "path": "tests/affine/lifecycle/undo-rigid-keep-negative.mjs",
+      "bytes": 12417,
+      "sha256": "06a89b4db09f67fdb629450063c060ead9d6398e2f100cf9bb209f53504ece1e"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4f-bind-seed-guard-controls.mjs",
+      "bytes": 6861,
+      "sha256": "4c5b2fa07eedeeb1d2cb3a8e8338d36ae7fe374ed98ef8f66e7338023b6539fe"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4f-commit-yield-controls.mjs",
+      "bytes": 3350,
+      "sha256": "b8a6830e023e52ab31d15dc3a538816f2aa059788b14fe5e0e06bfadb8f8b0e4"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4f-publication-yield-guards.mjs",
+      "bytes": 9358,
+      "sha256": "a666c8ff350bcb0fc6136772e436e421e3b35822273ea6cf2651ed3703b50f80"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4f-save-pending-release-negative.mjs",
+      "bytes": 5181,
+      "sha256": "178c21fdf8d47c6657e9d6bc49f498ea094f2996d5a922a1bbdbd177eed31539"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4i-independent-boundary-races.mjs",
+      "bytes": 9335,
+      "sha256": "268290980131a3b448ddd523871c1f207c30f3f5dc6442c3c1e930eb72a0731e"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4j-pivot-support.mjs",
+      "bytes": 10048,
+      "sha256": "bee1d644549a4acea7d7b775900685d945b4360acbb5d3fe17b5a3a3284b7ce4"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4j-save-timer-controls.mjs",
+      "bytes": 3554,
+      "sha256": "f282de5fe9a5598d5b0eea831d98389032b6fce5769b6d91a03730b50041f2c6"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4j-world-commit-oracle.mjs",
+      "bytes": 8159,
+      "sha256": "bd83b771841b5af7b004435b1e6266ffc865a98ca1ecb68295578304ce551a2a"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4k-pivot-acceptance.mjs",
+      "bytes": 7135,
+      "sha256": "c0685c3a03a2f460c4162afb79939a3bced079373e4b6d25458e339c5513b39d"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4k-pivot-matrix.mjs",
+      "bytes": 4649,
+      "sha256": "83df43a4738e3c63d472e3b4df7059ba5883e72ba118fdcee2de92a8370e35a9"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4k-pivot-noop-boundaries.mjs",
+      "bytes": 7642,
+      "sha256": "6c087b573663009b9d5fea124076fcc13d7b066d19c8f9b70d08fcbd634b2cf0"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4k-world-canonical.mjs",
+      "bytes": 5789,
+      "sha256": "847399e2418a59fe85d12ef5990092f8b86dda9d40d44f4b95ed23a182a2f353"
+    },
+    {
+      "path": "tests/affine/lifecycle/v4k-world-connected-canonical.mjs",
+      "bytes": 8874,
+      "sha256": "850a4b947f9013e48ba2d216699c8800d1a8dea2bd490e41dbb5d8134bf8201c"
+    },
+    {
+      "path": "tests/affine/run-review.mjs",
+      "bytes": 1421,
+      "sha256": "4f67907395895c5b41c766d1293e6254a19e23ed08b9de14b5a5b35ada41ae33"
+    },
+    {
+      "path": "tests/affine/source-paths.mjs",
+      "bytes": 3530,
+      "sha256": "29d5107cf36107ea84a915543f410383bd6b68b6569529f180717d8ace909834"
+    },
+    {
+      "path": "tests/affine/verify-source.mjs",
+      "bytes": 925,
+      "sha256": "5f8692d4e2271838ef44acb6372c089ffa9b0ae463294b1fecf3a0f3f675ae1e"
+    },
+    {
+      "path": "tests/affine/worker/active-save-arithmetic.mjs",
+      "bytes": 3529,
+      "sha256": "95714b374a4157b33e156b6b66175ba6bbaef96a399b9aac3403b0f5feecc5b7"
+    },
+    {
+      "path": "tests/affine/worker/arithmetic-controls.mjs",
+      "bytes": 3346,
+      "sha256": "fce3a252cd77b35315c7e9d7341a2183c9b5dd712f1ac992f87417025dc8480d"
+    },
+    {
+      "path": "tests/affine/worker/binding-owner-controls.mjs",
+      "bytes": 15118,
+      "sha256": "d60c41416d1c606bc96f8cd91793df46d08be0697170bfb01b1c9125ca60c152"
+    },
+    {
+      "path": "tests/affine/worker/blob-connected-regressions.mjs",
+      "bytes": 3578,
+      "sha256": "c5a1852b52bd60d4dbb82c278656fa3140158342bbb3dfefc3574f45f98560a1"
+    },
+    {
+      "path": "tests/affine/worker/blob-save-proof-rebinding.mjs",
+      "bytes": 2784,
+      "sha256": "0aa125eb0e3f95eb896e47b3cf3fef8e92cf161f51a4ecc2e2bafafa97b1608d"
+    },
+    {
+      "path": "tests/affine/worker/bundled-arithmetic-controls.mjs",
+      "bytes": 3332,
+      "sha256": "f80924c1a88d1d5c63fcbf50b186dd82846e11e83db7da9c7ce9478d0c392300"
+    },
+    {
+      "path": "tests/affine/worker/connected-regressions.mjs",
+      "bytes": 3573,
+      "sha256": "0290ef56e6e8182550ec4f5421bd1d04ffb65f993ab2fe9b5f06dc6f4c229a3b"
+    },
+    {
+      "path": "tests/affine/worker/connected-support-blob.mjs",
+      "bytes": 6153,
+      "sha256": "470ee0d461ea96cc9152357d963128fedb44f6c20b10730d142d38be7c36502e"
+    },
+    {
+      "path": "tests/affine/worker/connected-support.mjs",
+      "bytes": 5777,
+      "sha256": "3dc0cc21d9381afa82b8c98b8132a8b61173b4521e79c19bf7da0555f39bc8de"
+    },
+    {
+      "path": "tests/affine/worker/independent-cancel-lease.mjs",
+      "bytes": 1951,
+      "sha256": "31e9154452b4b94f077da21286a6168b839971590923dac080265ac0f4ead210"
+    },
+    {
+      "path": "tests/affine/worker/independent-chain-protocol.mjs",
+      "bytes": 7170,
+      "sha256": "86a2fe022594fdf804a62963dbfd25e9de115d588484a8e48560509f447f24e9"
+    },
+    {
+      "path": "tests/affine/worker/independent-source-pins.mjs",
+      "bytes": 1692,
+      "sha256": "7281d9f7533481354a68018865ba0090fa4991920e67dfa3a2f33e2784024aec"
+    },
+    {
+      "path": "tests/affine/worker/negative-proof-mutation.mjs",
+      "bytes": 3615,
+      "sha256": "1dc9d73a1f342d9179d3f3511917a7dd7af775a71d7228b170c1194e9903cc7c"
+    },
+    {
+      "path": "tests/affine/worker/proof-isolation-controls.mjs",
+      "bytes": 1751,
+      "sha256": "ac59fb7a995680910ac9a72ab2d699de7f2ca4a14675ceeaa08845bef56ba1ed"
+    },
+    {
+      "path": "tests/affine/worker/repair-retained-worker-negative.mjs",
+      "bytes": 24058,
+      "sha256": "0b9d9777a9f72d0936e3b2b0adc09dfa62b102e3deb729e387e330068a4e9310"
+    },
+    {
+      "path": "tests/affine/worker/retained-bind-chain-controls.mjs",
+      "bytes": 17036,
+      "sha256": "58f086afd430755b165f97aefae523a75ced472014fc5dbb46ec0df7c59621d5"
+    },
+    {
+      "path": "tests/affine/worker/save-proof-rebinding.mjs",
+      "bytes": 2779,
+      "sha256": "30d550e34cac91bcaac47467c57bcdf7c7299b38b56d4bcc47890c813714c541"
+    },
+    {
+      "path": "tests/affine/worker/selected-face-oracle.mjs",
+      "bytes": 791,
+      "sha256": "666729639f6a4cc8e96b430ad1c14c1d219fc94a52495f2c7b682430f6ef93bd"
+    },
+    {
+      "path": "tests/affine/worker/source-audit.json",
+      "bytes": 1685,
+      "sha256": "46186a0b88dbf0944df7b6771a342e4ea3e72b411d1e458846087f61521097db"
+    },
+    {
+      "path": "tests/affine/worker/stock-oracle.mjs",
+      "bytes": 2504,
+      "sha256": "d4cb223df32788c6990b3033d69481e58a3333015fb8eb9fd2ec5c8177e171a5"
+    },
+    {
+      "path": "tests/affine/worker/uint16-canonical-control.mjs",
+      "bytes": 671,
+      "sha256": "e5ff63c55ea2130a18e9d64ee68015530f3b5eda23433ee02317bd9d101d6ca0"
+    },
+    {
+      "path": "tests/affine/worker/uint16-canonical-prepare-control.mjs",
+      "bytes": 3193,
+      "sha256": "ff324669ed64b9240eaa4fdb9b807d7f5b05486b1cdc0b695c97fe59beed3cdb"
+    },
+    {
+      "path": "tests/affine/worker/uint16-history-wrap-control.mjs",
+      "bytes": 2845,
+      "sha256": "e90dc17f71f2824f6a0105c104ed300f7403fb7cfc909b12b0291e786721f80a"
+    },
+    {
+      "path": "tests/affine/worker/verify-source.mjs",
+      "bytes": 1431,
+      "sha256": "ce1f9c49f304255df76c3133bf47c7197552ae0805d8f49f2d1dba6cae00c772"
+    },
+    {
+      "path": "tests/affine/worker/version-chain-controls.mjs",
+      "bytes": 3306,
+      "sha256": "d4801296834eab5d5cbd7e3451d3a909a1376320bdc3523d98ad35f94a4d617b"
+    },
+    {
+      "path": "tests/alias-guards.mjs",
+      "bytes": 4210,
+      "sha256": "df227750b0b781698a314807ed28cd59b3cd63e94f5acd5bdc715a4d1f7c423f"
+    },
+    {
+      "path": "tests/current-rigid-source.mjs",
+      "bytes": 700,
+      "sha256": "56cd78c785b51716695c003594ae6baab6ea62f9ebbed0facfd79f8a2eed5225"
     },
     {
       "path": "tests/guards.mjs",
       "bytes": 8584,
-      "sha256": "70fece86bac70218af2347c90e7fa6e067333302712b76f8c7bf3675bcdbc96a"
+      "sha256": "367d398590a1d5915a2b387065e89286dc1edbd6ef644ebd03e2267d227ed485"
     },
     {
       "path": "tests/hash-loader.mjs",
       "bytes": 4513,
       "sha256": "0d008b0459b45c27f3be8a86473c081707fe7afb16f46701c352fb880558d7e4"
-    },
-    {
-      "path": "tests/lifecycle.mjs",
-      "bytes": 28518,
-      "sha256": "a4b336ae483e288490b9988bbb25ad4f05b0d5f7931476f8b106978d41c09a38"
     },
     {
       "path": "tests/service-worker.mjs",
@@ -64,7 +564,7 @@
     {
       "path": "tests/stable-face-proof.mjs",
       "bytes": 4551,
-      "sha256": "53a5a83344801e691fe813d39df83a9262813d5c31fd92ad70f2d73ed57382d6"
+      "sha256": "ef677cd449f771b8d7e305386078dd1c3e87860bc6475f7fa2e26e7e2bdb7ce6"
     },
     {
       "path": "tests/wire-gestures.mjs",

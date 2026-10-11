@@ -1,0 +1,309 @@
+[
+  {
+    "file": "lifecycle/legacy-rigid-baseline.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/held-ui-release-chain.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/undo-rigid-keep-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/nonblocking-release-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/lifecycle-fixed-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/atomic-fixed-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/pending-undo-redo-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/history-atomic-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/history-recipe-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/history-fault-matrix.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/failed-worker-save-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/independent-chain-protocol.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/independent-cancel-lease.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/uint16-canonical-prepare-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/uint16-history-wrap-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/version-chain-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/verify-source.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/connected-regressions.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/save-proof-rebinding.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/arithmetic-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/blob-connected-regressions.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/blob-save-proof-rebinding.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/bundled-arithmetic-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/proof-isolation-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/active-save-arithmetic.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/negative-proof-mutation.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/global-publish-owner-race-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/abort-cleanup-fault-matrix.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/frozen-gpu-repeated-gestures.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/persistent-worker-lease-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/frozen-gpu-restore-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/gpu-lifetime.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/display-and-stage.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/publish-guards.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/native-queue-lifetime.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/repro-cancel.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/repro-full-cancel.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/repro-abort.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/full-outside-cancel-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/cancel-baseline-matrix.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/abort-stale-owner-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/persistent-binding-early-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/canonical-index-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/rigid-move-empty-undo-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/uint16-canonical-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/held-publish-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/kept-worker-bind-fault-control.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/early-cancel-bounds.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/early-ready-cancel-bounds.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/early-cancel-overlays.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/early-queued-native-gestures.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/retained-bind-native-cache.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/early-binding-lifetime.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/binding-owner-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/retained-bind-chain-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "worker/repair-retained-worker-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/early-cancel-bounds-pump-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/native-bind-transaction.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/released-commit-save-boundary.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4i-independent-boundary-races.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4j-save-timer-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4f-commit-yield-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4f-save-pending-release-negative.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4f-publication-yield-guards.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4f-bind-seed-guard-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/v4f-supplied-packed-alias-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/v4f-preinstalled-packed-bind-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "display/v4f-native-packed-cache-guards.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4k-pivot-acceptance.mjs",
+    "args": [
+      "--acceptance"
+    ],
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4k-pivot-matrix.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4k-world-canonical.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4k-world-connected-canonical.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/v4k-pivot-noop-boundaries.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/pivot-escape-focus.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/pivot-nonunit-controls.mjs",
+    "expectedExit": 0
+  },
+  {
+    "file": "lifecycle/stock-routing-connected.mjs",
+    "expectedExit": 0
+  }
+]

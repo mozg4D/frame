@@ -1,0 +1,8 @@
+{
+  "editor-affine-ui-v2c.mjs": "c4de74f9df821135188d4fe441a1b71271bf8ad6116ad3c3af30e180de213b62",
+  "native-source/gpu-affine-preview.mjs": "e2da1ab6d3600681656624682a44010c8ee95885f61b5bd84c1fa2ac1ec1f81e",
+  "native-source/gpu-island-preview.mjs": "dc9be973a4cfd7c146a1483a370d52c195df32e1ba9880d1d742262ae45ce1e1",
+  "native-source/gpu-resources.mjs": "2e307df9faf402a8fb57089e780778ead77099db2f78fa9626730eb2f2da49ee",
+  "native-source/display-packets.mjs": "1c6fb9f4078a4c84be715d1588b48545739b24e850a787578941abfa3bcbcede",
+  "native-source/gpu-display.mjs": "86b416ab57ad0bb4b0d0b167c46d10c619c099983d040d8fc2a5349b73ab299d"
+}

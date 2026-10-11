@@ -21,7 +21,7 @@ const read=(a,i,j)=>a?j===0?a.getX(i):j===1?a.getY(i):j===2?a.getZ(i):a.getW(i):
 export class DisplayGeometryCache {
   constructor(){this.rows=new WeakMap();}
   capture(g){
-    const rigid=captureRigidGpuGeometry(g);if(rigid)return rigid;
+    const rigid=captureRigidGpuGeometry(g,this.rows.get(g));if(rigid)return rigid;
     const p=g.attributes.position,n=g.attributes.normal,u=g.attributes.uv,c=g.attributes.color,ix=g.index;
     if(!p||p.itemSize!==3)fail('Display positions must be xyz');
     for(const a of [n,u,c])if(a&&a.count!==p.count)fail('Display attribute count mismatch');
@@ -167,7 +167,33 @@ function materialStamp(m) {
     ...['normalMap','bumpMap','displacementMap','roughnessMap','metalnessMap','emissiveMap','alphaMap','lightMap','aoMap','envMap','transmission','clearcoat','sheen','iridescence','anisotropy'].map(k=>m?.[k]),
     ...(texture?.matrix?.elements??[]),...(u?.frameMapInv?.value?.elements??[]),...(u?.frameMapNormal?.value?.elements??[]),u?.frameBump?.value];
 }
-export function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null}={}){
+
+const affineDisplayOverrides=new WeakMap();
+/** One authoring object. Only triangle display packets receive the exact corner view. */
+export function registerAffineDisplayOverride(object,{selectedGeometry,fullGeometry=()=>null,faceSlots,isCurrent=()=>true}={}){
+ if(!object?.isMesh||!(faceSlots instanceof Int32Array)||typeof selectedGeometry!=='function')throw Error('Explicit mesh corner packet adapter required');
+ const prior=affineDisplayOverrides.get(object);prior?.dispose();const cache=new Map(),token={live:true,dispose(){this.live=false;if(affineDisplayOverrides.get(object)===this)affineDisplayOverrides.delete(object);cache.clear();}};
+ token.capture=options=>{
+  if(!token.live||!isCurrent())return null;
+  const base=captureDisplayObject(object,{...options,affineOverride:false}),selected=selectedGeometry(),full=fullGeometry();if(!selected?.isCurrent?.()||full&&!full.isCurrent?.())return null;
+  const packets=[];
+  for(const packet of base.packets){if(packet.kind!=='triangles'){packets.push(packet);continue;}
+   if(full){packets.push({...packet,geometry:full});continue;}
+   const start=packet.start,end=start+packet.count,geometry=packet.geometry,source=geometry.indices;
+   if(faceSlots.length*3!==(source?.length??geometry.vertexCount))throw Error('Affine face order/layout changed');
+   const key=start+':'+end;let row=cache.get(key);
+   if(!row||row.source!==source){const runs=[];for(let at=start;at<end;at+=3){const slot=faceSlots[at/3];if(slot<0||slot*3>selected.vertexCount)throw Error('Affine selected corner slot out of bounds');const inside=slot>0,offset=inside?(slot-1)*3:at,last=runs.at(-1);if(last&&last.inside===inside&&last.start+last.count===offset)last.count+=3;else runs.push({inside,start:offset,count:3});}
+    row={source,runs,vertexCount:selected.vertexCount};cache.set(key,row);
+   }
+   if(row.vertexCount!==selected.vertexCount)throw Error('Affine corner display layout changed');for(const run of row.runs)packets.push({...packet,start:run.start,count:run.count,geometry:run.inside?selected:geometry});
+  }
+  return{packets,isCurrent:()=>token.live&&affineDisplayOverrides.get(object)===token&&isCurrent()&&base.isCurrent()&&selected.isCurrent()&&(!full||full.isCurrent())};
+ };
+ affineDisplayOverrides.set(object,token);return token;
+}
+
+export function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null,affineOverride=true}={}){
+  if(affineOverride){const token=affineDisplayOverrides.get(object);if(token){const custom=token.capture({geometryCache,instanceCache,strict,camera});if(custom)return custom;}}
   // Deliberately reject non-renderable roots before touching their lazy geometry getter.
   if(!object || !(object.isMesh||object.isLine||object.isPoints||object.isSprite))fail('Only actual drawables can be captured');
   if(object.isSprite&&(!object.material?.isSpriteMaterial||Array.isArray(object.material)||object.material.wireframe))fail('Sprite requires a native SpriteMaterial adapter');

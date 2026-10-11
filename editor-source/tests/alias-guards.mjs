@@ -1,6 +1,7 @@
+import {currentRigidSource} from './current-rigid-source.mjs';
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import{buildTopologyWork}from '../../native-source/topology-islands.mjs';
 import {rigidIslandEligibilityWork} from '../../native-source/gpu-island-preview.mjs';
-const ctx={Set,Map,WeakMap,Uint32Array,Float64Array,console,performance};vm.createContext(ctx);vm.runInContext(fs.readFileSync(new URL('../rigid-component-preview.mjs',import.meta.url),'utf8'),ctx);
+const ctx={Set,Map,WeakMap,Uint32Array,Float64Array,console,performance};vm.createContext(ctx);vm.runInContext(currentRigidSource,ctx);
 const drain=w=>{let s,yields=0,longest=0,start=performance.now();do{s=w.next();longest=Math.max(longest,performance.now()-start);start=performance.now();if(!s.done)yields++;}while(!s.done);return{value:s.value,yields,longest};};
 const build=(pa,ids)=>{const slot=new Int32Array(pa.length/3);ids.forEach((id,k)=>slot[id]=k+1);const t={pa,p:{count:pa.length/3},ids:new Uint32Array(ids),slot,faceIDs:new Uint32Array(),ia:new Uint32Array()};assert(drain(ctx.frameRigidBuildAliasGuard(t)).value);return t;};
 const out={cpuOnly:true,pass:[],findings:[],cost:[]};

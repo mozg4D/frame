@@ -1,0 +1,12 @@
+/** Hash the exact stock decimal weld key. Hash collisions conservatively request whole-stock work. */
+export function stockWeldHash(x,y,z){const key=x.toFixed(7)+','+y.toFixed(7)+','+z.toFixed(7);let a=2166136261,b=2246822519;for(let i=0;i<key.length;i++){const c=key.charCodeAt(i);a=Math.imul(a^c,16777619)>>>0;b=Math.imul(b^c,3266489917)>>>0;}return(BigInt(a)<<32n)|BigInt(b);}
+export function stockWeldIntersects(positions,hashes){if(!(hashes instanceof BigUint64Array))return true;for(let i=0;i<positions.length;i+=3){const key=stockWeldHash(positions[i],positions[i+1],positions[i+2]);let a=0,b=hashes.length;while(a<b){const m=(a+b)>>>1;if(hashes[m]<key)a=m+1;else b=m;}if(a<hashes.length&&hashes[a]===key)return true;}return false;}
+export function proveAffineOutside(source,normals,indices,faceSlots,stock){
+ const n=source.length/3,selected=new Uint8Array(stock.positions.length/3),outside=new Uint8Array(n),forward=new Int32Array(n),reverse=new Int32Array(stock.positions.length/3);forward.fill(-1);reverse.fill(-1);
+ const pbits=new Uint32Array(source.buffer,source.byteOffset,source.length),nbits=new Uint32Array(normals.buffer,normals.byteOffset,normals.length),outP=new Uint32Array(stock.positions.buffer,stock.positions.byteOffset,stock.positions.length),outN=new Uint32Array(stock.normals.buffer,stock.normals.byteOffset,stock.normals.length);let canonical=true,exclusive=true,cornerPositionsUnchanged=true;
+ for(let at=0;at<indices.length;at++)for(let c=0;c<3;c++)if(pbits[indices[at]*3+c]!==outP[stock.indices[at]*3+c])cornerPositionsUnchanged=false;
+ for(let f=0;f<indices.length/3;f++)if(faceSlots[f])for(let c=0;c<3;c++)selected[stock.indices[f*3+c]]=1;
+ for(let f=0;f<indices.length/3;f++){if(faceSlots[f])continue;for(let c=0;c<3;c++){const at=f*3+c,old=indices[at],next=stock.indices[at];outside[old]=1;if(selected[next])exclusive=false;if(forward[old]>=0&&forward[old]!==next||reverse[next]>=0&&reverse[next]!==old)canonical=false;forward[old]=next;reverse[next]=old;for(let j=0;j<3;j++)if(pbits[old*3+j]!==outP[next*3+j]||nbits[old*3+j]!==outN[next*3+j])canonical=false;}}
+ let count=0;for(const bit of outside)count+=bit;const hashes=new BigUint64Array(count);let used=0;for(let id=0;id<n;id++)if(outside[id])hashes[used++]=stockWeldHash(source[id*3],source[id*3+1],source[id*3+2]);hashes.sort();let unique=0;for(let k=0;k<hashes.length;k++)if(!k||hashes[k]!==hashes[k-1])hashes[unique++]=hashes[k];
+ return{outsideCanonical:canonical&&exclusive,selectedExclusive:exclusive,cornerPositionsUnchanged,outsideHashes:hashes.slice(0,unique)};
+}
