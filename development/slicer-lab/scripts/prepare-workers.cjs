@@ -8,6 +8,14 @@ const hash = b => crypto.createHash('sha256').update(b).digest('hex');
 const names = ['upstream-worker.js', 'candidate-worker.js', 'optimized-worker.js'];
 const runtimePath = 'modules/slicer-worker.e120c24f46831ec5c53d.js';
 
+function readUpstream(root = path.resolve(__dirname, '..')) {
+  const sourcePath = path.resolve(root, '../..', runtimePath);
+  if (fs.existsSync(sourcePath)) return fs.readFileSync(sourcePath);
+  const adapter = path.resolve(root, '../../slicer-source/rebuild.cjs');
+  if (!fs.existsSync(adapter)) throw Error('Pinned runtime module is missing. Keep slicer-source when using the current Frame checkout.');
+  return Buffer.from(require(adapter).readBaseline('worker'), 'utf8');
+}
+
 function prepareWorkers(root = path.resolve(__dirname, '..')) {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'worker-deltas.json'), 'utf8'));
   if (manifest.schema !== 1 || manifest.upstream?.repositoryPath !== runtimePath ||
@@ -15,11 +23,7 @@ function prepareWorkers(root = path.resolve(__dirname, '..')) {
       manifest.workers.some((entry, i) => entry.file !== names[i])) {
     throw Error('Invalid worker delta manifest');
   }
-  const sourcePath = path.resolve(root, '../..', runtimePath);
-  if (!fs.existsSync(sourcePath)) {
-    throw Error('Pinned runtime module is missing. Run from a Frame checkout containing ' + runtimePath);
-  }
-  const source = fs.readFileSync(sourcePath);
+  const source = readUpstream(root);
   if (source.length !== manifest.upstream.bytes || hash(source) !== manifest.upstream.sha256) {
     throw Error('Pinned runtime module checksum mismatch');
   }
@@ -62,4 +66,4 @@ function prepareWorkers(root = path.resolve(__dirname, '..')) {
 if (require.main === module) {
   for (const output of prepareWorkers()) console.log(output.sha256 + '  core/' + output.file);
 }
-module.exports = { prepareWorkers };
+module.exports = { prepareWorkers, readUpstream };

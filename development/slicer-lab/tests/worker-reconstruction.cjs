@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
-const { prepareWorkers } = require('../scripts/prepare-workers.cjs');
+const { prepareWorkers, readUpstream } = require('../scripts/prepare-workers.cjs');
 const root = path.resolve(__dirname, '..');
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'frame-worker-reconstruction-'));
 const target = path.join(temp, 'development', 'slicer-lab');
@@ -21,7 +21,7 @@ try {
   fs.writeFileSync(targetSource, 'wrong source');
   assert.throws(() => prepareWorkers(target), /checksum mismatch/); checks++;
   assert(!fs.existsSync(path.join(target, 'core'))); checks++;
-  fs.copyFileSync(path.resolve(root, '../..', manifest.upstream.repositoryPath), targetSource);
+  fs.writeFileSync(targetSource, readUpstream(root));
   const results = prepareWorkers(target);
   assert.equal(results.length, 3); checks++;
   for (const entry of manifest.workers) {

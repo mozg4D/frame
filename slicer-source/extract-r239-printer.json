@@ -1,0 +1,97 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "23e68964365d7a8641680328e8e714632166c5ef5e55f23a4a04e0c1211f72f7",
+  "afterSHA256": "23dc2471227dc3d445229f027c5fb02be759d45f1985d876ace8f3fd259b4872",
+  "beforeBytes": 95977,
+  "afterBytes": 93473,
+  "operations": [
+    {
+      "startLine": 320,
+      "deleteLines": 10,
+      "insert": []
+    },
+    {
+      "startLine": 336,
+      "deleteLines": 1,
+      "insert": [
+        "  const el=document.querySelector('[data-printer-status=\"'+h+'\"]');if(el){el.hidden=false;el.textContent=s.busy?framePrinterProgressPercent(s.sliceProgress)+'%':'';el.title=el.textContent;}\n"
+      ]
+    },
+    {
+      "startLine": 626,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 628,
+      "deleteLines": 14,
+      "insert": [
+        "    const finish=(error,stats)=>{if(finished)return;finished=true;signal.removeEventListener('abort',abort);for(const w of workers)w.terminate();for(const port of ports)port.close();if(url)URL.revokeObjectURL(url);for(const fail of readyWaiters)fail(error||Object.assign(Error('Slicing cancelled.'),{code:'FRAME_SLICE_CANCELLED'}));readyWaiters.clear();for(const release of leases.values())release();leases.clear();ownerLease?.();onOwner(null);error?reject(error):resolve(stats);};\n"
+      ]
+    },
+    {
+      "startLine": 644,
+      "deleteLines": 1,
+      "insert": [
+        "      const release=await host.frameComputeBudget.acquire('slicer',signal);if(finished){release();return;}const token='startup-'+i;leases.set(token,release);\n"
+      ]
+    },
+    {
+      "startLine": 646,
+      "deleteLines": 1,
+      "insert": [
+        "        try{child=new Worker(url,{name:'frame-slicer-'+(kind==='layer'?'finalizer':'outline')+'-'+i});workers.push(child);child.onerror=e=>{fail(Error(e.message||'Outline worker failed.'));finish(Error(e.message||'Outline worker failed.'));};child.onmessage=({data})=>{if(finished)return;if(data.type===(kind==='layer'?'layerReady':'outlineReady')){readyWaiters.delete(fail);leases.get(token)?.();leases.delete(token);ready();}};child.postMessage({type:kind==='layer'?'layerStart':'outlineStart',runId,port:channel.port2},[channel.port2]);}catch(error){readyWaiters.delete(fail);fail(error);}\n"
+      ]
+    },
+    {
+      "startLine": 649,
+      "deleteLines": 1,
+      "insert": [
+        "    (async()=>{ownerLease=await host.frameComputeBudget.acquire('slicer',signal);if(finished){ownerLease();return;}\n"
+      ]
+    },
+    {
+      "startLine": 651,
+      "deleteLines": 2,
+      "insert": [
+        "      owner.onerror=e=>finish(Error(e.message||'Slicer worker failed.'));\n"
+      ]
+    },
+    {
+      "startLine": 656,
+      "deleteLines": 1,
+      "insert": [
+        "        if(data.type==='outlineAcquire'||data.type==='layerAcquire'){host.frameComputeBudget.acquire('slicer',signal).then(release=>{if(finished){release();return;}leases.set(data.token,release);try{owner.postMessage({type:data.type==='layerAcquire'?'layerGrant':'outlineGrant',runId:data.runId,token:data.token});}catch(error){finish(error);}}).catch(error=>finish(error));return;}\n"
+      ]
+    },
+    {
+      "startLine": 669,
+      "deleteLines": 2,
+      "insert": [
+        "  const p={...host.objParams.get(h)};framePrinterValidateSettings(h,p);s.busy=true;s.sliceProgress=0;s.status='Preparing geometry.';\n"
+      ]
+    },
+    {
+      "startLine": 673,
+      "deleteLines": 1,
+      "insert": [
+        "  try{await window.frameAI.waitForIdle();s.sourceSnapshot=framePrinterSourceSnapshot();sourceGeneration=s.sourceGeneration||0;check();s.status='Waiting for slicer.';framePrinterStatus(h);turn=await host.frameComputeBudget.acquireSliceTurn(controller.signal);check();s.status='Preparing geometry.';framePrinterStatus(h);\n"
+      ]
+    },
+    {
+      "startLine": 677,
+      "deleteLines": 2,
+      "insert": [
+        "    const source=await frameAssets.text('slicer-worker');document.getElementById('frame-single-slicer-worker-source').textContent=source;check();const stats=await frameSlicerTask(source,meshes,{...p,width:f.width,height:f.height,depth:f.depth,printClockwiseSign:f.frame.determinant()<0?-1:1,angleWarnings:true},controller.signal,data=>{check();for(const q of data.angleValuesList||[])angleValues.set(q.layer,q.angleValues);for(const q of data.referenceDefs||[])referenceDefs.set(q.id,q.value);for(const q of data.layers||[]){layers.set(q.layer,q.paths);if(q.topologyRecovery)topologyRecovery.set(q.layer,q.topologyRecovery);if(q.pathVertexMetadata)pathMetadata.set(q.layer,{vertices:q.pathVertexMetadata,edges:q.pathEdgeMetadata,reversed:q.pathEdgeTraversalReversed,closed:q.pathClosed,order:q.pathOrderMetadata});if(q.adaptive)adaptiveLayers.set(q.layer,q.adaptive);if(q.angleValues)angleValues.set(q.layer,q.angleValues);layerReferenceIds.set(q.layer,q.referenceIds||[]);}if(Number.isFinite(data.progress))s.sliceProgress=Math.max(framePrinterProgressPercent(s.sliceProgress),framePrinterProgressPercent(Math.max(0,Math.min(1,data.progress))*100));s.status='Slicing '+framePrinterProgressPercent(s.sliceProgress)+'%';framePrinterStatus(h);},worker=>{s.worker=worker;});check();\n",
+        "    const outlineFinished=performance.now();displayStage={layers:new Map([...layers].sort((a,b)=>a[0]-b[0])),pathMetadata,adaptiveLayers,params:p,chunks:[],paths:new THREE2.Group(),displayMode:s.displayMode,referenceDefs,layerReferenceIds,originalChunks:[]};\n"
+      ]
+    },
+    {
+      "startLine": 684,
+      "deleteLines": 1,
+      "insert": [
+        "  }catch(error){s.busy=false;s.cancel=null;if((s.sourceGeneration||0)!==sourceGeneration)error=Object.assign(Error('Model changed - slice again'),{code:'FRAME_SLICE_STALE'});if(s.transformGeneration!==generation)error=framePrinterChangedError(s);s.status=error.message;framePrinterStatus(h);throw error;}finally{if(displayStage){displayStage.paths.traverse(o=>{o.geometry?.dispose();if(o.material)for(const m of [].concat(o.material))m.dispose();});displayStage.paths.clear();}controller.abort();turn?.();if(displayed){\n"
+      ]
+    }
+  ]
+}

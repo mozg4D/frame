@@ -10463,7 +10463,7 @@ async function frameSlicePipeline(meshes,p,options,emit){
     Promise.all(plans.map(plan=>plan.promise.then(value=>plan.hit?{...value,offsetCalls:0,cacheHit:1}:value))).then(values=>{add(job.layer,values);job.plans=null;job.slot.busy=false;job.slot.job=null;jobs--;bytes-=job.bytes;wake();}).catch(fail);
   }}
   async function pool(){const ports=await new Promise(resolve=>{frameSlicerPipeline.pool=resolve;self.postMessage({type:'outlinePool',count:options.outlines});});slots=ports.map(port=>({port,busy:false,job:null}));
-    for(const slot of slots){slot.port.onmessage=({data})=>{self.postMessage({type:'outlineRelease',token:data.token});if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}const job=slot.job;
+    for(const slot of slots){slot.port.onmessageerror=()=>fail(Object.assign(Error('Outline reply could not be decoded.'),{code:'FRAME_SLICE_MESSAGE_ERROR'}));slot.port.onmessage=({data})=>{self.postMessage({type:'outlineRelease',token:data.token});if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}const job=slot.job;
       if(data.phase==='normalized'){job.description=data.description;planReady();}else if(data.phase==='calculated'){for(const result of data.results)job.plans[result.index].complete(result.value);}
     };slot.port.start();}
   }
@@ -10520,7 +10520,27 @@ function frameSectionLayer(prepared,active,p,layer,describe=true,retainGroups=fa
   return{description,...(retainGroups||!describe?{groups}:{}),sourceSnapshot,recovery,sectionStats,bandWork:(prepared.angleWarnings?.bandWork||0)-before,timing:{startedEpochMS,finishedEpochMS:performance.timeOrigin+performance.now(),wallMS:performance.now()-started,contourMS}};
 }
 
+// Constant-size telemetry. Occupancy is source intersection, not printable-path count.
+function frameSliceStatusReporter(send,runId){
+  const started=performance.now(),publishedStages=new Set();let last=-Infinity,closed=false,timer=null;
+  const state={stage:'preparing',layer:null,completedOccupiedLayers:0,totalOccupiedLayers:null,nonemptyLayers:0,volumeLayers:null,lastOccupiedLayer:null,lastCommittedElapsedMS:null};
+  function close(){if(closed)return;closed=true;if(timer!==null){clearInterval(timer);timer=null;}}
+  function flush(force=false,notification='heartbeat'){const now=performance.now();if(closed||!force&&now-last<500)return;last=now;try{send({type:'sliceStatus',runId,...state,notification,elapsedMS:now-started});publishedStages.add(state.stage);}catch(error){close();throw error;}}
+  // Initial send happens before timer allocation; a failed send cannot leak a timer.
+  flush(false,'stage');timer=setInterval(()=>flush(),500);
+  return{
+    // Force only the first occurrence of each stage: at most four extra packets/run.
+    // Repeated layer/stage changes retain the 500 ms throttle and latest state.
+    mark(stage,layer=null,publish=true){state.stage=stage;state.layer=layer;if(publish)flush(!publishedStages.has(stage),'stage');},
+    total(occupied,volume,lastLayer){state.totalOccupiedLayers=occupied;state.volumeLayers=volume;state.lastOccupiedLayer=lastLayer;},
+    commit(layer,nonempty){state.completedOccupiedLayers++;state.nonemptyLayers=nonempty;state.layer=layer;state.lastCommittedElapsedMS=performance.now()-started;},
+    finish(){state.stage='geometry-complete';flush(true,'completion');},
+    close
+  };
+}
+
 async function frameSliceFinalized(meshes,p,options,send){
+  let status;try{status=frameSliceStatusReporter(send,options.runId);
   p={...p,spiralGeometry:p.angleWarnings===true&&(p.perimeters??1)>=2,spiralSourceAngleEvidence:p.angleWarnings===true&&(p.perimeters??1)>=2};
   const api=FrameSingleSlicer,prepared=api.prepare(meshes,p),stats=api.sliceStats(prepared),writer=frameReferenceWriter(send,p.printClockwiseSign,p.lineWidth),active=new Set(),maxJobBytes=4194304,maxRetained=268435456,maxOutput=67108864,runId=options.runId;
   const physicalKeys=new Set(['adaptiveCacheHits','adaptiveCacheEstimatedRetainedBytes','adaptiveCacheEstimatedPeakBytes','adaptivePreparedRegions','adaptivePreparedPeakBytes','adaptiveWorkerPlacementMS','adaptiveCachePreparedEvictions','adaptiveCacheOwnerEvictions']);
@@ -10529,7 +10549,8 @@ async function frameSliceFinalized(meshes,p,options,send){
   let last=0,cursor=0,serial=0,inputBytes=0,reserved=0,resultBytes=0,batch=[],slots=null,failure,nextSection=0,sectionEnabled=false;const order=[],wakeups=[],sectionEntries=new Map(),activeLayers=[];
   for(const layer of prepared.ends.keys())last=Math.max(last,Math.min(prepared.count,layer-1));
   let occupancy=0;for(let layer=1;layer<=last;layer++){occupancy-=(prepared.ends.get(layer)||[]).length;occupancy+=(prepared.starts.get(layer)||[]).length;if(occupancy)activeLayers.push(layer);}
-  const wake=()=>{for(const resolve of wakeups.splice(0))resolve();},wait=async()=>{await new Promise(resolve=>wakeups.push(resolve));if(failure)throw failure;};
+  status.total(activeLayers.length,prepared.count,last);
+  const wake=()=>{for(const resolve of wakeups.splice(0))resolve();},wait=async()=>{status.mark('waiting-workers');await new Promise(resolve=>wakeups.push(resolve));if(failure)throw failure;};
   const fail=error=>{failure=error;for(const q of frameSlicerPipeline.grants.values())q.reject(error);frameSlicerPipeline.grants.clear();wake();};
   const references=values=>values.flatMap(q=>q.reference?[q.reference]:q.references||[]);
   function combine(values){const value={paths:[],pathMetadata:[],componentPathGroups:[],references:[],material:[],requestedPerimeters:p.perimeters??1,actualPerimeters:0,offsetCalls:0,cacheHit:0,refittedCircles:0,optimizationFallbacks:0,legacyFallbacks:0,mergedMicroMoves:0,postRdpRemovedMicroMoves:0,segmentsBeforeSimplification:0};for(const result of values){const componentIndex=value.componentPathGroups.length;value.componentPathGroups.push({componentIndex,paths:result.paths,pathMetadata:result.pathMetadata||[],perimeterLevels:result.perimeterLevels||[],reference:result.reference,adaptivePrepared:result.adaptivePrepared,material:result.material,requestedPerimeters:result.requestedPerimeters??(p.perimeters??1),actualPerimeters:result.actualPerimeters||0});value.paths.push(...result.paths);value.pathMetadata.push(...(result.pathMetadata||[]).map(m=>({...m,componentIndex})));value.actualPerimeters=Math.max(value.actualPerimeters,result.actualPerimeters||0);if(result.reference)value.references.push(result.reference);value.material.push(...result.material);for(const name of ['offsetCalls','cacheHit','refittedCircles','optimizationFallbacks','legacyFallbacks','mergedMicroMoves','postRdpRemovedMicroMoves','segmentsBeforeSimplification'])value[name]+=result[name]||0;}return value;}
@@ -10545,14 +10566,14 @@ async function frameSliceFinalized(meshes,p,options,send){
     const output=entry.recovery?{...result.output,topologyRecovery:entry.recovery}:result.output;
     if(output.paths.length){stats.nonemptyLayers++;stats.paths+=output.paths.length;stats.segments+=output.paths.reduce((n,path,i)=>n+path.length-(output.pathClosed?.[i]===false?1:0),0);}
     if(output.paths.length||entry.recovery)batch.push({layer:entry.layer,...output,references:references(entry.job.values)});
-    inputBytes-=entry.bytes;reserved-=entry.reservation;resultBytes-=entry.resultBytes||0;entry.job=null;entry.result=null;
+    status.commit(entry.layer,stats.nonemptyLayers);inputBytes-=entry.bytes;reserved-=entry.reservation;resultBytes-=entry.resultBytes||0;entry.job=null;entry.result=null;
   }
   function drainReady(){while(cursor<order.length&&order[cursor].result){const entry=order[cursor++];commit(entry);if(entry.layer%32===0){writer({layers:batch,progress:entry.layer/prepared.count,stats:{...stats}});batch=[];}}if(cursor>64){order.splice(0,cursor);cursor=0;}}
   async function drain(){while(order.length>cursor){drainReady();if(order.length>cursor)await wait();}}
   async function grant(token){await new Promise((resolve,reject)=>{frameSlicerPipeline.grants.set(token,{resolve,reject});self.postMessage({type:'layerAcquire',token,runId});});if(failure)throw failure;}
   function entryFor(layer){const jobId=++serial;return{layer,job:{phase:'finalize',token:jobId,runId,jobId,layer,params:p,values:null},bytes:0,reservation:0,result:null};}
   function reserve(entry){entry.bytes=maxJobBytes*4;entry.reservation=maxJobBytes;inputBytes+=entry.bytes;reserved+=entry.reservation;order.push(entry);diagnostics.peakInputEstimate=Math.max(diagnostics.peakInputEstimate,inputBytes);diagnostics.peakOutputReservation=Math.max(diagnostics.peakOutputReservation,reserved);}
-  function sectionOwner(layer,describe){const result=frameSectionLayer(prepared,active,p,layer,describe,true);sections.ownerLayers++;sections.ownerMS+=result.timing.wallMS;sections.bandWork+=result.bandWork;return result;}
+  function sectionOwner(layer,describe){status.mark('section',layer);const result=frameSectionLayer(prepared,active,p,layer,describe,true);sections.ownerLayers++;sections.ownerMS+=result.timing.wallMS;sections.bandWork+=result.bandWork;return result;}
   async function pool(after,measuredLayerMS){
     const shortPreparation=prepared.triangles.length>50000&&last-after<=128&&measuredLayerMS*(last-after)<1000;
     const minimumBytes=prepared.triangles.chunks.reduce((bytes,chunk)=>bytes+chunk.q.byteLength+chunk.groups.length*16+(chunk.angles?.byteLength||0)+(chunk.orientation?.byteLength||0),0);
@@ -10563,7 +10584,7 @@ async function frameSliceFinalized(meshes,p,options,send){
     sectionEnabled=!shortPreparation&&estimate<=67108864&&count>0;sections.reason=sectionEnabled?'admitted':shortPreparation?'startup-amortization':estimate>67108864?'prepared-geometry-limit':'prepared-memory-limit';
     if(!count){options={...options,finalizers:0};return;}const finalizers=count;
     const ports=await new Promise(resolve=>{frameSlicerPipeline.pool=resolve;self.postMessage({type:'layerPool',count:finalizers,runId});});slots=ports.map((port,index)=>({port,index,busy:false,entry:null}));diagnostics.workers=slots.length;
-    for(const slot of slots){slot.port.onmessage=({data})=>{try{if(data.phase!=='prepared-part')self.postMessage({type:'layerRelease',token:data.token,runId});if(data.runId!==runId){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}
+    for(const slot of slots){slot.port.onmessageerror=()=>fail(Object.assign(Error('Layer reply could not be decoded.'),{code:'FRAME_SLICE_MESSAGE_ERROR'}));slot.port.onmessage=({data})=>{try{if(data.phase!=='prepared-part')self.postMessage({type:'layerRelease',token:data.token,runId});if(data.runId!==runId){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}
       if(data.phase==='geometry'){slot.geometryReady?.();slot.geometryReady=null;return;}
       const entry=slot.entry;if(!entry||data.jobId!==entry.job.jobId||data.layer!==entry.layer){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}
       const size=frameLayerPacketBytes(data,maxJobBytes);if(size>maxJobBytes){fail(Error('Layer output admission failed.'));return;}
@@ -10589,7 +10610,7 @@ async function frameSliceFinalized(meshes,p,options,send){
     }
   }
   async function finalize(entry,description,slot){
-    const job=entry.job;entry.description=description;entry.plans=description.parts.map(part=>!part.material.length?{hit:false,promise:Promise.resolve({paths:[],material:[],offsetCalls:0})}:api.reserveInset(part.key,description.inputVertices));
+    status.mark('building-paths',entry.layer);const job=entry.job;entry.description=description;entry.plans=description.parts.map(part=>!part.material.length?{hit:false,promise:Promise.resolve({paths:[],material:[],offsetCalls:0})}:api.reserveInset(part.key,description.inputVertices));
     const prepareJob={phase:'prepare',token:++serial,runId,jobId:job.jobId,layer:entry.layer,params:p,inputVertices:description.inputVertices,parts:description.parts.map((part,index)=>({index,material:part.material})).filter(part=>entry.plans[part.index].complete)};
     Promise.all(entry.plans.map(plan=>plan.promise.then(value=>plan.hit?{...value,offsetCalls:0,cacheHit:1}:value))).then(async values=>{job.values=[combine(values)];entry.description=null;entry.plans=null;if(entry.forceOwner||frameLayerPacketBytes(job,maxJobBytes)>maxJobBytes){entry.result=frameR180FinalizeLayerJob(job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;slot.busy=false;slot.entry=null;wake();}else{job.token=++serial;await grant(job.token);slot.port.postMessage(job);}}).catch(fail);
     if(prepareJob.parts.length){if(frameLayerPacketBytes(prepareJob,maxJobBytes)>maxJobBytes){entry.forceOwner=true;for(const part of prepareJob.parts)entry.plans[part.index].complete(api.calculateInsetMaterial(part.material,p,description.inputVertices));}else{await grant(prepareJob.token);slot.port.postMessage(prepareJob);}}
@@ -10605,10 +10626,10 @@ async function frameSliceFinalized(meshes,p,options,send){
       await finalize(entry,result.description,entry.slot);drainReady();await fillSections();
     }else{
       const started=performance.now(),section=sectionOwner(layer,!!slots),entry=entryFor(layer);entry.recovery=section.recovery;entry.sectionStats=section.sectionStats;entry.job.sourceSnapshot=section.sourceSnapshot;
-      if(!slots){entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}
+      if(!slots){status.mark('building-paths',layer);entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}
       else{
         const size=frameLayerPacketBytes({description:section.description,sourceSnapshot:section.sourceSnapshot},maxJobBytes);
-        if(size>maxJobBytes){await drain();entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}
+        if(size>maxJobBytes){await drain();status.mark('building-paths',layer);entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}
         while(!slots.some(q=>!q.busy)||inputBytes+maxJobBytes*4>maxRetained||reserved+maxJobBytes>maxOutput){drainReady();if(slots.some(q=>!q.busy)&&inputBytes+maxJobBytes*4<=maxRetained&&reserved+maxJobBytes<=maxOutput)break;await wait();}
         const slot=slots.find(q=>!q.busy);slot.busy=true;slot.entry=entry;reserve(entry);await finalize(entry,section.description,slot);drainReady();
       }
@@ -10616,13 +10637,17 @@ async function frameSliceFinalized(meshes,p,options,send){
     if(layer%32===0&&!order.slice(cursor).length){writer({layers:batch,progress:layer/prepared.count,stats:{...stats}});batch=[];}
   }
   await drain();diagnostics.canonicalCache=api.insetCacheMemory();stats.angleWarningComplete=prepared.angleWarnings?.complete??false;stats.angleWarningBandWork=sections.bandWork;stats.angleWarningPrepareMS=prepared.angleWarnings?.prepareMS??0;stats.finalizerDiagnostics=diagnostics;
-  if(last)writer({layers:batch,progress:1,stats:{...stats}});return{...stats,...writer.counts()};
+  if(last)writer({layers:batch,progress:1,stats:{...stats}});status.finish();return{...stats,...writer.counts()};
+  }finally{status?.close();}
 }
 
+// A Worker is owned by one Frame task; undecodable control packets cannot supply a runId.
+self.onmessageerror=()=>{self.postMessage({type:'error',message:'Slicer worker control message could not be decoded.',code:'FRAME_SLICE_MESSAGE_ERROR'});};
 self.onmessage=async({data})=>{
   if(data.type==='layerStart'){
     const port=data.port,runId=data.runId;let lastJobId=-1,preparedJobId=-1,closed=false,sectionPrepared=null,sectionActive=null;
     if(!port||typeof port.postMessage!=='function')throw Error('Missing layer finalizer port.');
+    port.onmessageerror=()=>{if(closed)return;closed=true;try{port.close();}finally{self.postMessage({type:'error',runId,message:'Layer job could not be decoded.',code:'FRAME_SLICE_MESSAGE_ERROR'});}};
     port.onmessage=({data:job})=>{
       if(closed)return;
       if(job?.phase==='close'){closed=true;port.close();return;}
@@ -10648,7 +10673,7 @@ self.onmessage=async({data})=>{
   if(data.type==='layerGrant'){const q=frameSlicerPipeline.grants.get(data.token);frameSlicerPipeline.grants.delete(data.token);q?.resolve();return;}
   if(data.type==='outlinePool'){const ready=frameSlicerPipeline.pool;frameSlicerPipeline.pool=null;ready?.(data.ports);return;}
   if(data.type==='outlineGrant'){const q=frameSlicerPipeline.grants.get(data.token);frameSlicerPipeline.grants.delete(data.token);q?.resolve();return;}
-  if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null;port.onmessage=({data:job})=>{try{
+  if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null,closed=false;port.onmessageerror=()=>{if(closed)return;closed=true;try{port.close();}finally{self.postMessage({type:'error',runId:data.runId,message:'Outline job could not be decoded.',code:'FRAME_SLICE_MESSAGE_ERROR'});}};port.onmessage=({data:job})=>{if(closed)return;try{
     if(job.phase==='normalize'){description=FrameSingleSlicer.describeContours(frameUnpackContours(job),job.params);layer=job.layer;port.postMessage({phase:'normalized',token:job.token,layer,description:{inputVertices:description.inputVertices,parts:description.parts.map(part=>({key:part.key,empty:!part.material.length}))}});}
     else if(job.phase==='calculate'){if(layer!==job.layer)throw Error('Outline layer mismatch.');const results=job.indices.map(index=>({index,value:FrameSingleSlicer.calculateInsetMaterial(description.parts[index].material,job.params,job.inputVertices)}));description=null;port.postMessage({phase:'calculated',token:job.token,layer,results});}
     else if(job.phase==='clear')description=null;

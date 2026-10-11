@@ -1,0 +1,99 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "024140cd3fba17edf705801e383a378b49722bfa574aa84a754637abb74f46d5",
+  "afterSHA256": "e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475",
+  "beforeBytes": 869014,
+  "afterBytes": 866023,
+  "operations": [
+    {
+      "startLine": 10465,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const slot of slots){slot.port.onmessage=({data})=>{self.postMessage({type:'outlineRelease',token:data.token});if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}const job=slot.job;\n"
+      ]
+    },
+    {
+      "startLine": 10522,
+      "deleteLines": 19,
+      "insert": []
+    },
+    {
+      "startLine": 10542,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 10551,
+      "deleteLines": 2,
+      "insert": [
+        "  const wake=()=>{for(const resolve of wakeups.splice(0))resolve();},wait=async()=>{await new Promise(resolve=>wakeups.push(resolve));if(failure)throw failure;};\n"
+      ]
+    },
+    {
+      "startLine": 10568,
+      "deleteLines": 1,
+      "insert": [
+        "    inputBytes-=entry.bytes;reserved-=entry.reservation;resultBytes-=entry.resultBytes||0;entry.job=null;entry.result=null;\n"
+      ]
+    },
+    {
+      "startLine": 10575,
+      "deleteLines": 1,
+      "insert": [
+        "  function sectionOwner(layer,describe){const result=frameSectionLayer(prepared,active,p,layer,describe,true);sections.ownerLayers++;sections.ownerMS+=result.timing.wallMS;sections.bandWork+=result.bandWork;return result;}\n"
+      ]
+    },
+    {
+      "startLine": 10586,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const slot of slots){slot.port.onmessage=({data})=>{try{if(data.phase!=='prepared-part')self.postMessage({type:'layerRelease',token:data.token,runId});if(data.runId!==runId){fail(Object.assign(Error('Layer result generation mismatch.'),{code:'FRAME_LAYER_GENERATION_STALE'}));return;}if(data.error){fail(Object.assign(Error(data.error),{code:data.code}));return;}\n"
+      ]
+    },
+    {
+      "startLine": 10612,
+      "deleteLines": 1,
+      "insert": [
+        "    const job=entry.job;entry.description=description;entry.plans=description.parts.map(part=>!part.material.length?{hit:false,promise:Promise.resolve({paths:[],material:[],offsetCalls:0})}:api.reserveInset(part.key,description.inputVertices));\n"
+      ]
+    },
+    {
+      "startLine": 10628,
+      "deleteLines": 1,
+      "insert": [
+        "      if(!slots){entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;commit(entry);const measured=performance.now()-started;if(options.finalizers&&last-layer>=2&&measured>=4)await pool(layer,section.timing.wallMS);}\n"
+      ]
+    },
+    {
+      "startLine": 10631,
+      "deleteLines": 1,
+      "insert": [
+        "        if(size>maxJobBytes){await drain();entry.job.values=[api.insetGroups(section.groups,p)];entry.result=frameR180FinalizeLayerJob(entry.job);diagnostics.ownerJobs++;diagnostics.oversizedOwnerJobs++;commit(entry);continue;}\n"
+      ]
+    },
+    {
+      "startLine": 10639,
+      "deleteLines": 2,
+      "insert": [
+        "  if(last)writer({layers:batch,progress:1,stats:{...stats}});return{...stats,...writer.counts()};\n"
+      ]
+    },
+    {
+      "startLine": 10643,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 10649,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 10675,
+      "deleteLines": 1,
+      "insert": [
+        "  if(data.type==='outlineStart'){const port=data.port;let description=null,layer=null;port.onmessage=({data:job})=>{try{\n"
+      ]
+    }
+  ]
+}

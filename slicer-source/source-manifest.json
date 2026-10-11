@@ -1,0 +1,120 @@
+{
+  "schema": "frame-source-manifest-v1",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2744,
+      "sha256": "2c7f605dc0e3c6c3dae7c4efa8e2b7f697977ef325da1743cdafc40ff38134e1"
+    },
+    {
+      "path": "build-manifest.json",
+      "bytes": 997,
+      "sha256": "4d074b72db2d75bb0b3116e64f6e9601fae01f867d597f2096731a22a4c71738"
+    },
+    {
+      "path": "build-progress-only.cjs",
+      "bytes": 5368,
+      "sha256": "9f3e3b16508e36fe2d97a6675ee2548fe48e0caf81e0a7770af2fcf73ff613c7"
+    },
+    {
+      "path": "build-transport-errors.cjs",
+      "bytes": 5499,
+      "sha256": "144e185f8f6a3b216b219394d83c89c00896ae7000e9abb62d6199ac99f43cfd"
+    },
+    {
+      "path": "build-worker-control-listeners.cjs",
+      "bytes": 835,
+      "sha256": "3ca9cf63e16ad111d9a892538c8dae33757a29fe0656bec714035727555ee85a"
+    },
+    {
+      "path": "build-worker-global-errors.cjs",
+      "bytes": 1310,
+      "sha256": "f42c6dbcdc7081d067cf574398e8755d2a3fedf8e4b24ce96651f35d867fefc0"
+    },
+    {
+      "path": "extract-r239-printer.json",
+      "bytes": 6058,
+      "sha256": "184f6f6befe3ae4f6784221dd643a8aaf1978611370b15420797b4d150efa1cf"
+    },
+    {
+      "path": "extract-r239-worker.json",
+      "bytes": 3707,
+      "sha256": "5afb334b21101c81888469a73dd49c4a01ce10b98df76c76960ec8f755098cd0"
+    },
+    {
+      "path": "progress-status-reporter.js",
+      "bytes": 1649,
+      "sha256": "ef0f84784971574ecfe06042390934c9d2cf17d76b59b39d7b0d5e019c79c85f"
+    },
+    {
+      "path": "rebuild.cjs",
+      "bytes": 2565,
+      "sha256": "827be688f0751bc9dd4809327ecb464b5a68285967648c5f6542d2c6964b4116"
+    },
+    {
+      "path": "tests/README.md",
+      "bytes": 2014,
+      "sha256": "5adad6f3b70565e1dc27b47026dafe08bb8f63fc70b19d90effeb28bd386750e"
+    },
+    {
+      "path": "tests/exact-layer-comparison.cjs",
+      "bytes": 9970,
+      "sha256": "cc5a1f01dcfdd4cbf3a50967082390249f7cbe554b61405388adde7f6eaf4a8c"
+    },
+    {
+      "path": "tests/fixtures/progress-status-reporter-pre-first-stage.js",
+      "bytes": 1241,
+      "sha256": "5313c5a3ee4b929272841c32d89552e333a960427970137fbc6ae507029754f6"
+    },
+    {
+      "path": "tests/run-all.cjs",
+      "bytes": 1450,
+      "sha256": "b488b31b35d2b13a9e144918038ef6b65f0a8c956b2dd3c48e0d47b6c89cb108"
+    },
+    {
+      "path": "tests/run-checked-child.cjs",
+      "bytes": 580,
+      "sha256": "8064e36c2392fa6ffeefbc4d6845c81251787f5637708242abe8165bb438ebc1"
+    },
+    {
+      "path": "tests/test-eventtarget-budget.cjs",
+      "bytes": 5846,
+      "sha256": "99f0f68f81a813c6ac5e75a524eb6ba127fe4a29043b00c487a2d385ffa35a93"
+    },
+    {
+      "path": "tests/test-first-stage.cjs",
+      "bytes": 4143,
+      "sha256": "e1aa7c463b68486df1773c3269535b2759da959d32cda27ddf692ddfdbef7fea"
+    },
+    {
+      "path": "tests/test-r235-light.cjs",
+      "bytes": 10302,
+      "sha256": "20cfb60ba638da7f1c4ddb5d43a7672c7a719786422ace8174e804d0e8a3a252"
+    },
+    {
+      "path": "tests/test-transport-errors.cjs",
+      "bytes": 5955,
+      "sha256": "e828f2f21e8e7ff24a3365a665c4e5cfa2aa4b718bbdfce350445d1fc1206938"
+    },
+    {
+      "path": "tests/test-transport-only.cjs",
+      "bytes": 2375,
+      "sha256": "37cbdd18ea1a01a2897b48806e3b58768337f7053e573d607e6614798dafda31"
+    },
+    {
+      "path": "tests/test-worker-control-listeners.cjs",
+      "bytes": 2356,
+      "sha256": "cb3b6669e1c6e2d950d88fe13eaa83f8b2922ec76ea9992fdf6423efb990f314"
+    },
+    {
+      "path": "tests/test-worker-global-errors.cjs",
+      "bytes": 3130,
+      "sha256": "b234ac5b9aea7ef3e3cd857ea9afc98ced3456663b836e63298d04d4d498f6c6"
+    },
+    {
+      "path": "tests/virtual-frame-task.cjs",
+      "bytes": 11878,
+      "sha256": "16c0debccd34b39bf757f5c3ce3a468b1c0647d507f3223e1ffd9329566fb0b1"
+    }
+  ]
+}

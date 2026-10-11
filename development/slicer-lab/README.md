@@ -13,7 +13,7 @@ npm test
 
 The 43 sequential stages reconstruct pinned workers, check source hashes and syntax, and run synthetic geometry, provenance, owner/JSON, cancellation and regression controls. Failures exit nonzero. Logs and generated test outputs stay in ignored `evidence/`.
 
-The checkout must contain `modules/slicer-worker.e120c24f46831ec5c53d.js`, SHA-256 `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. `worker-deltas.json` and `scripts/prepare-workers.cjs` reconstruct three hash-guarded development snapshots into ignored `core/` paths. Production files are only read; changed generated files are never silently overwritten. `SHA256SUMS` covers tracked sources and the worker-delta manifest, which contains the expected generated hashes.
+The pinned reconstruction input is `modules/slicer-worker.e120c24f46831ec5c53d.js`, SHA-256 `e120c24f46831ec5c53de96d5704b4942fef99771e3fe19268aa4915fba40475`. On r240, `slicer-source/rebuild.cjs` restores these exact bytes in memory from the current production worker; the old runtime bundle is not duplicated. `worker-deltas.json` and `scripts/prepare-workers.cjs` reconstruct three hash-guarded development snapshots into ignored `core/` paths. Production files are only read; changed generated files are never silently overwritten. `SHA256SUMS` covers tracked sources and the worker-delta manifest, which contains the expected generated hashes.
 
 ## Verified bounded routes
 

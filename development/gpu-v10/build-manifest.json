@@ -699,7 +699,7 @@
     "index.html": [
       {
         "path": "index.html",
-        "patch": "patches/r239-shell-to-r226.json"
+        "patch": "patches/r240-shell-to-r226.json"
       }
     ],
     "native-source/gpu-cubic-mip-calibration.mjs": [
@@ -731,7 +731,19 @@
         "path": "frame-sw.js",
         "patch": "patches/r234-sw-to-r226.json"
       }
+    ],
+    "modules/slicer-worker.e120c24f46831ec5c53d.js": [
+      {
+        "path": "modules/slicer-worker.024140cd3fba17edf705.js",
+        "patch": "../../slicer-source/extract-r239-worker.json"
+      }
+    ],
+    "modules/printer.23dc2471227dc3d44522.js": [
+      {
+        "path": "modules/printer.23e68964365d7a864168.js",
+        "patch": "../../slicer-source/extract-r239-printer.json"
+      }
     ]
   },
-  "supportedProductionVersion": "r239-stl-postprocess"
+  "supportedProductionVersion": "r240-slicer-progress"
 }
