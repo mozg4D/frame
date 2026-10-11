@@ -11,7 +11,7 @@ import { stockCompactOracle } from './stock-oracle.mjs';
 import { selectedFaceOracle } from './selected-face-oracle.mjs';
 const cos=Math.cos(46*Math.PI/180),I=new T.Matrix4(),rows=[],sources=new Set();
 const sha=b=>createHash('sha256').update(b).digest('hex');
-assert.equal(sha(fs.readFileSync(reviewURL('../candidate/native-affine-ui-v2b.mjs',import.meta.url))),'4ab552e1b39abbd2b4bab7ebfdb8f6f9ae6245c862bcdd8e687a25e20e0b9463');
+assert.equal(sha(fs.readFileSync(reviewURL('../candidate/native-affine-ui-v2b.mjs',import.meta.url))),'2e5af192ec3642b662cb54e98483b224dc6f124a68709ad0d0cfdc76b0fb0c85');
 class ActualBlobWorker {
  constructor(url){this.closed=false;this.ready=resolveObjectURL(url).text().then(source=>{sources.add(sha(source));this.node=new NodeWorker("const{parentPort}=require('node:worker_threads');globalThis.self=globalThis;self.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',data=>self.onmessage({data}));\n"+source,{eval:true});this.node.on('message',data=>this.onmessage?.({data}));this.node.on('error',error=>this.onerror?.(error));});}
  postMessage(m,t=[]){this.ready.then(()=>this.node.postMessage(m,t));}

@@ -1,3 +1,4 @@
+import {installCurrentEdgeContext} from '../fixtures/current-edge-context.mjs';
 import {reviewURL} from '../source-paths.mjs';
 // Review-only exact-source harness. No product file is changed.
 import fs from 'node:fs';
@@ -11,7 +12,7 @@ export const sourcePath=process.env.FRAME_PIVOT_EDITOR || reviewURL('../candidat
 export const source=fs.readFileSync(sourcePath,'utf8');
 export const sourceHash=createHash('sha256').update(source).digest('hex');
 export const exactV4jHash='91f70101b10b0a714bd673d982dfa236e04d23635cec641bedaa1e2ea0218ae7';
-const expectedCurrentHash='df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17';
+const expectedCurrentHash='4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b';
 if(!process.env.FRAME_PIVOT_EDITOR)assert.equal(sourceHash,expectedCurrentHash);
 
 export function extract(name){
@@ -67,7 +68,7 @@ export function makeFixture({space='world',editPivot=true,shared=false,pivot=nul
   c.readTransform=()=>c.readPolyTransform(c.coordMode);
   c.coordinates=()=>{const q=c.readTransform();return{position:q.p.toArray(),rotation:[q.e.x,q.e.y,q.e.z].map(v=>v*180/Math.PI),size:q.s.toArray()};};
   c.updateHUD=()=>{log.hud++;c.lastHUD=c.coordinates();};
-  vm.createContext(c);for(const name of loadNames)vm.runInContext(extract(name),c);vm.runInContext(apiSource(),c);
+  vm.createContext(c);installCurrentEdgeContext(c);for(const name of loadNames)vm.runInContext(extract(name),c);vm.runInContext(apiSource(),c);
   for(const [name,key]of [['preparePolygonDragTopology','prepare'],['applyPolyDelta','delta'],['updatePolygonDragNormals','normal']]){const original=c[name];c[name]=(...args)=>{log[key]++;return original(...args);};}
   c.placeGizmoForSelection();
   return {c,mesh,node,log};

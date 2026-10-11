@@ -1,0 +1,86 @@
+[
+  {
+    "label": "private native edge CM preparation declarations",
+    "oldText": "function polyClickPick(cx, cy, mode = \"replace\",preparedNative=null) {",
+    "newStart": 1444850,
+    "newEnd": 1460366,
+    "newSHA256": "081005564c574281d76f0d98491c8af72478ea949f9e3b019b2278b301879143"
+  },
+  {
+    "label": "native accepted edge click uses private cooperative preparation",
+    "oldText": "if(hit2?.then)return hit2.then(hit=>frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit})));",
+    "newStart": 1461488,
+    "newEnd": 1461798,
+    "newSHA256": "49e487b167c67392bcba93e5b830c6fc2d4eb261266c4507b2842708bc86d3af"
+  },
+  {
+    "label": "doPick waits and resumes with scalar hash; never selects the preparation Promise",
+    "oldText": "let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);",
+    "newStart": 1559514,
+    "newEnd": 1559932,
+    "newSHA256": "de1c5710398056e1ce760fb9be7b3c8aea2398c84e965f5371f6aba492d40ecf"
+  },
+  {
+    "label": "resume uses exact already prepared CM measurements",
+    "oldText": "hash2 && (componentFocus = \"poly\", placeGizmoForSelection()), vertexTools.soft.active",
+    "newStart": 1560688,
+    "newEnd": 1560811,
+    "newSHA256": "337649bc948d8ecd9c799015d1f95cf2635947addf39470cc3ae1f1a22bf773c"
+  },
+  {
+    "label": "ordinary selection rebuild invalidates the one CM receipt",
+    "oldText": "function rebuildPolySelection(syncGizmo = !0) {\n  frameConnectedSelectionComplete=null;",
+    "newStart": 1440737,
+    "newEnd": 1440847,
+    "newSHA256": "652409ac35057c656c33ee450d7dea96e936e9920744af30cfc3d8c938c605b4"
+  },
+  {
+    "label": "record exact selection measurements only after atomic publication",
+    "oldText": "framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);",
+    "newStart": 1479789,
+    "newEnd": 1479984,
+    "newSHA256": "37e4a2812b159a15d7d4fefbb90f910926ed7701314613a851efff0e3f043756"
+  },
+  {
+    "label": "reuse current exact bounds through cloned values after rigid precedence",
+    "oldText": "function polySelectionBounds() {\n  const rigid=frameRigidBounds();if(rigid)return rigid;",
+    "newStart": 2159409,
+    "newEnd": 2159626,
+    "newSHA256": "8940ba503ed25c7ce026b70dde3537aa1c263dc1665486ab022bb9792f9eb4ad"
+  },
+  {
+    "label": "reuse exact frame only for its matching bounds/pivot/source",
+    "oldText": "function polyFrameMatrix(bounds=null) {\n  let bb =",
+    "newStart": 2155523,
+    "newEnd": 2155793,
+    "newSHA256": "457f6f95180ffe33af1f93a0541e4f2a38012dd62287d2fe3f4a66736dc1d263"
+  },
+  {
+    "label": "reuse exact extent only in its matching numerical frame after rigid precedence",
+    "oldText": "function polyExtentInFrame(frame) {\n  const rigid=frameRigidExtent(frame);if(rigid)return rigid;",
+    "newStart": 2147161,
+    "newEnd": 2147415,
+    "newSHA256": "30df50f2b33f3df706747170a6d68992f0865e3a5b53ba9e91b9c300c0661782"
+  },
+  {
+    "label": "reuse exact authored selected aliases; return a fresh Set",
+    "oldText": "const dragging=framePolygonDragSelectedIDs(h);if(dragging)return dragging;\n  const s=",
+    "newStart": 2135884,
+    "newEnd": 2136090,
+    "newSHA256": "2454c7998d3fb81c4cfc1707d35e09313f7f29ddb478da3d46cc6f2d9d448258"
+  },
+  {
+    "label": "capture publication-time source/picker/selection receipt guard before preparation Promise resolves",
+    "oldText": "});if(preparedState)preparedState.measurements=measurements;return h;",
+    "newStart": 1456171,
+    "newEnd": 1456486,
+    "newSHA256": "ff3fa4265db3168b147ec5eacb55d042e9233687eadecbd8a87de37c424941f0"
+  },
+  {
+    "label": "reject stale scalar continuation before doPick/gizmo/object callbacks",
+    "oldText": "if(hash2?.then)return hash2.then(hash=>frameNativeCommitClick(()=>doPick(e,{...preparedNative,edgeSelectionComplete:true,hash,edgeMeasurements:edgeState.measurements??null})));",
+    "newStart": 1560059,
+    "newEnd": 1560401,
+    "newSHA256": "6348286bc9f18fd04b7da3f7d89c425513e2a565ba21a37f41d687ee133730bd"
+  }
+]

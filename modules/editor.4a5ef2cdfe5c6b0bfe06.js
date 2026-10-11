@@ -15836,7 +15836,7 @@ function polyEdgeKey(a, b) {
   return a < b ? a + ":" + b : b + ":" + a;
 }
 function rebuildPolySelection(syncGizmo = !0) {
-  frameConnectedSelectionComplete=null;
+  frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;
   framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;
   frameInstallPolySelectionBuffers(frameDrainSelectionWork(framePolySelectionBuffers(polySelection.items)),syncGizmo);
 }
@@ -15890,6 +15890,178 @@ function prunePolySelection() {
   for (let h of polySelection.items.keys()) selNodes.has(h) && isVertexEditableMesh(h) || (polySelection.items.delete(h), changed = !0);
   changed && rebuildPolySelection(!1);
 }
+// Prepare authored edge selection and exact gizmo/CM measurements privately.
+// Reuse the existing topology aliases; avoid materializing every logical edge.
+var frameNativeEdgeCM=null;
+function frameCurrentNativeEdgeCM(){
+ const q=frameNativeEdgeCM;if(!q)return null;if(!q.current()){frameNativeEdgeCM=null;return null;}return q;
+}
+function frameRememberNativeEdgeCM(result){
+ frameNativeEdgeCM=null;const m=result.nativeEdgeCM?result.measurements:null;if(!m?.selectedIDs)return;
+ const revision=framePolySelectionRevision,items=polySelection.items,coordinate=coordMode,pivot=polyPivotMatrix,exact=polyExactEdgeVertices,mode=polyElementMode,poly=polyMode,focus=componentFocus,tool=vertexTools.mode,armed=componentModeArmed,soft=vertexTools.soft.active,uv=uvEdit,owners=[...selNodes];
+ const token=sceneStateToken,mutation=sceneMutationSequence,animation=frameAnimationRevision,time=frameEvaluatedTime,rows=[],ids=new Map();let values=0;
+ const ordered=(set,array)=>{if(!set)return false;const size=set.size??set.length;if(size!==undefined&&size!==array.length)return false;let i=0;for(const v of set)if(i>=array.length||!Object.is(v,array[i++]))return false;return i===array.length;};
+ const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Object.is(v,b[i]));
+ const layout=a=>a&&[a.itemSize,a.normalized,a.data,a.offset,a.data?.stride];
+ for(const [h,s]of items){
+  const mesh=pickMeshes.get(h),g=mesh?.geometry,p=g?.attributes.position,index=g?.index;if(!p)continue;mesh.updateMatrixWorld(true);
+  const exactSet=exact?.get(h),selectedSet=m.selectedIDs.get(h)??new Set();values+=s.vertices.size+s.edges.size+s.faces.size+(selectedSet.size??selectedSet.length)+(exactSet?.size??exactSet?.length??0);
+  // This is a count bound on one selection receipt, not an allocator/heap cap.
+  if(values>250000)return;
+  const snapshots={};for(const key of ['vertices','edges','faces'])snapshots[key]=[...s[key]];
+  const exactValues=exactSet?[...exactSet]:null,selected=[...selectedSet];ids.set(h,selected);rows.push({h,s,snapshots,exactSet,exactValues,mesh,g,p,index,pa:p.array??p.data?.array,ia:index?.array??index?.data?.array,pv:p.version??p.data?.version,iv:index?.version??index?.data?.version,pc:p.count,ic:index?.count,pl:layout(p),il:layout(index),matrix:mesh.matrixWorld.elements.slice()});
+ }
+ const keys=[...items.keys()];
+ const current=()=>revision===framePolySelectionRevision&&items===polySelection.items&&coordinate===coordMode&&pivot===polyPivotMatrix&&exact===polyExactEdgeVertices&&mode===polyElementMode&&poly===polyMode&&focus===componentFocus&&tool===vertexTools.mode&&armed===componentModeArmed&&soft===vertexTools.soft.active&&uv===uvEdit&&polyFocusActive()&&!splineFocusActive()&&token===sceneStateToken&&mutation===sceneMutationSequence&&animation===frameAnimationRevision&&Object.is(time,frameEvaluatedTime)&&ordered(selNodes,owners)&&ordered(items.keys(),keys)&&rows.every(r=>{
+  r.mesh.updateMatrixWorld(true);return pickMeshes.get(r.h)===r.mesh&&r.mesh.geometry===r.g&&r.g.attributes.position===r.p&&r.g.index===r.index&&(r.p.array??r.p.data?.array)===r.pa&&(r.index?.array??r.index?.data?.array)===r.ia&&(r.p.version??r.p.data?.version)===r.pv&&(r.index?.version??r.index?.data?.version)===r.iv&&r.p.count===r.pc&&r.index?.count===r.ic&&equal(layout(r.p),r.pl)&&(!r.il||equal(layout(r.index),r.il))&&equal(r.matrix,r.mesh.matrixWorld.elements)&&items.get(r.h)===r.s&&['vertices','edges','faces'].every(k=>ordered(r.s[k],r.snapshots[k]))&&exact?.get(r.h)===r.exactSet&&(!r.exactValues||ordered(r.exactSet,r.exactValues));
+ });
+ // Keep numerical values private; callers receive clones, never this receipt.
+ frameNativeEdgeCM={current,bounds:{min:m.bounds.min.clone(),max:m.bounds.max.clone()},frame:m.frame.clone(),extent:m.extent.clone(),selectedIDs:ids};
+}
+function* frameSelectedLogicalEdgeRepresentativesWork(geometry,topology,selected){
+ const pos=geometry.attributes.position,index=geometry.index,n=pos.count,group=topology.group,corners=topology.edgeFirstCorners,count=index?index.count:pos.count;
+ if(topology.vertexCount!==n||!(group instanceof Uint32Array)||group.length!==n||!(corners instanceof Uint32Array)||corners.length!==topology.edges.length/2)throw Error('Exact native authored edge-corner metadata required');
+ const byCorner=new Map();let work=0;
+ for(const key of selected){
+  const [x,y]=key.split(':').map(Number);
+  // Legacy logicalEdges().filter matches only the canonical authored raw key.
+  if(Number.isSafeInteger(x)&&x>=0&&x<n&&Number.isSafeInteger(y)&&y>=0&&y<n&&polyEdgeKey(x,y)===key){
+   const edge=frameNative.edgeIdFromRaw(topology,x,y);
+   if(edge>=0){
+    const corner=corners[edge],j=corner%3,f=corner-j;if(f+2>=count)throw Error('Authored edge corner outside source');
+    const a=index?index.getX(corner):corner,b=index?index.getX(f+(j+1)%3):f+(j+1)%3;
+    if(!Number.isInteger(a)||a<0||a>=n||!Number.isInteger(b)||b<0||b>=n||Math.min(group[a],group[b])!==Math.min(group[x],group[y])||Math.max(group[a],group[b])!==Math.max(group[x],group[y]))throw Error('Authored edge corner logical source mismatch');
+    if(!byCorner.has(corner))byCorner.set(corner,{a,b,corner});
+   }
+  }
+  if((++work&1023)===0)yield;
+ }
+ let ordered=[];for(const edge of byCorner.values()){ordered.push(edge);if((++work&1023)===0)yield;}
+ // Cooperative stable merge order: preserve authored discovery order without
+ // an unbounded synchronous Array.sort on a large selected edge set.
+ let scratch=new Array(ordered.length);
+ for(let width=1;width<ordered.length;width*=2){
+  for(let start=0;start<ordered.length;start+=width*2){
+   const mid=Math.min(start+width,ordered.length),end=Math.min(start+width*2,ordered.length);let a=start,b=mid,out=start;
+   while(a<mid||b<end){scratch[out++]=b>=end||a<mid&&ordered[a].corner<=ordered[b].corner?ordered[a++]:ordered[b++];if((++work&1023)===0)yield;}
+  }
+  const swap=ordered;ordered=scratch;scratch=swap;
+ }
+ return ordered;
+}
+function* frameNativeEdgeSelectedVertexIdsWork(h,items,ready,exact=polyExactEdgeVertices){
+ const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();let work=0;
+ if(!s||!g)return out;
+ if(exact?.has(h)){for(const i of exact.get(h)){out.add(i);if((++work&1023)===0)yield;}return out;}
+ for(const i of s.vertices){out.add(i);if((++work&1023)===0)yield;}
+ if(!s.edges.size&&!s.faces.size)return out;
+ const topology=ready.get(h)?.topology,selection=topology?.selection,labels=selection?.vertexGroups,aliases=selection?.vertexAliases,idx=g.index,expanded=new Set();
+ if(!selection||topology.vertexCount!==g.attributes.position.count||!(labels instanceof Uint32Array)||!aliases)throw Error('Exact native CM aliases required');
+ function* addGroup(i){
+  const logical=labels[i];if(logical===undefined){out.add(i);return;}if(expanded.has(logical))return;expanded.add(logical);
+  for(let k=aliases.offsets[logical];k<aliases.offsets[logical+1];k++){out.add(aliases.members[k]);if((++work&1023)===0)yield;}
+ }
+ for(const key of s.edges){const [a,b]=key.split(':').map(Number);yield* addGroup(a);yield* addGroup(b);if((++work&1023)===0)yield;}
+ for(const fi of s.faces){for(let j=0;j<3;j++)yield* addGroup(idx?idx.getX(fi*3+j):fi*3+j);if((++work&1023)===0)yield;}
+ return out;
+}
+function frameAwaitEdgeClickTopology(geometry,signal){
+ if(signal.aborted)return Promise.reject(new DOMException('Edge CM preparation cancelled','AbortError'));
+ const pending=frameGetNativeTopologyCache().get(geometry);
+ return new Promise((resolve,reject)=>{
+  let settled=false;const finish=(fn,value)=>{if(settled)return;settled=true;signal.removeEventListener('abort',cancel);fn(value);},cancel=()=>finish(reject,new DOMException('Edge CM preparation cancelled','AbortError'));
+  signal.addEventListener('abort',cancel,{once:true});if(signal.aborted)cancel();
+  Promise.resolve(pending).then(value=>finish(resolve,value),error=>finish(reject,error));
+ });
+}
+async function framePrepareNativeEdgeClick(hit,cx,cy,mode,vi,preparedState=null){
+ if(!hit)return null;const h=hit.h;
+ if(!h||!selNodes.has(h)||!isVertexEditableMesh(h))return h;
+ // Soft/UV/spline paths retain their established editing behavior.
+ if(!componentModeArmed||!polyFocusActive()||splineFocusActive()||uvEdit||vertexTools.soft.active)return frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit,legacyCommit:true}));
+ if(!['replace','add','invert'].includes(mode))throw Error('Unknown native edge selection mode');
+ frameCancelPolySelectionWork();const controller=new AbortController(),tasks=frameNative.createYieldQueue(),sourceCurrent=frameSelectionSourceGuard(vi),coordinate=coordMode,exact=polyExactEdgeVertices,pivot=polyPivotMatrix,ready=new Map();let closed=false;
+ const valid=()=>!closed&&!controller.signal.aborted&&coordinate===coordMode&&exact===polyExactEdgeVertices&&pivot===polyPivotMatrix&&sourceCurrent()&&(!hit.isCurrent||hit.isCurrent())&&[...ready.values()].every(r=>r.isCurrent());
+ const cancel=()=>controller.abort(),key=e=>{if(e.key==='Escape'){e.preventDefault();e.stopImmediatePropagation();cancel();}else checkAfterInput();};
+ const checkAfterInput=()=>queueMicrotask(()=>{if(!closed&&!valid())cancel();});
+ const events=['pointerdown','pointermove','pointerup','pointercancel','wheel'];
+ const cleanup=()=>{for(const type of events)removeEventListener(type,checkAfterInput,true);removeEventListener('keydown',key,true);removeEventListener('blur',cancel);removeEventListener('resize',cancel);tasks.dispose();if(framePolySelectionJob===job)framePolySelectionJob=null;};
+ const job={kind:'native-edge-click',cancel,promise:null};framePolySelectionJob=job;
+ for(const type of events)addEventListener(type,checkAfterInput,{capture:true,passive:true});addEventListener('keydown',key,true);addEventListener('blur',cancel);addEventListener('resize',cancel);
+ const drain=work=>frameNative.drainCooperatively(work,{signal:controller.signal,isCurrent:valid,yieldTask:()=>tasks.yield()});
+ job.promise=(async()=>{
+  try{
+   if(!valid())throw new DOMException('Native edge selection source changed','AbortError');
+   const items=mode==='replace'?new Map():await drain(frameCopyPolySelection(polySelection.items));
+   let item=items.get(h);if(!item)items.set(h,item={vertices:new Set(),edges:new Set(),faces:new Set()});
+   await drain((function*(){let on=false,work=0;for(const k of hit.keys){if(item.edges.has(k))on=true;if((++work&1023)===0)yield;}for(const k of hit.keys){mode==='invert'&&on?item.edges.delete(k):item.edges.add(k);if((++work&1023)===0)yield;}})());
+   // Preserve the existing edge-click removal rule, including mixed selections.
+   if(!item.edges.size)items.delete(h);
+   for(const [owner]of items){const geometry=pickMeshes.get(owner)?.geometry;if(!geometry?.attributes.position)continue;const r=await frameAwaitEdgeClickTopology(geometry,controller.signal);ready.set(owner,r);if(!valid())throw new DOMException('Native CM topology source changed','AbortError');}
+   const buffers=await drain(framePolySelectionBuffers(items)),measurements=await drain(frameNativeEdgeClickMeasurementsWork(items,ready,exact));
+   if(!valid())throw new DOMException('Native edge selection changed before publication','AbortError');
+   frameNativeCommitClick(()=>{frameApplyPreparedPolySelection({items,buffers,measurements,nativeEdgeCM:true});frameRecordNativeComponentClick(h,hit.keys.slice(),cx,cy);});if(preparedState){const post=frameSelectionSourceGuard(vi),picker=frameNativePickerGuard(vi,'click'),receipt=frameNativeEdgeCM,postPivot=polyPivotMatrix;preparedState.measurements=measurements;preparedState.resumeCurrent=()=>postPivot===polyPivotMatrix&&post()&&picker()&&(!receipt||receipt.current());}return h;
+  }finally{closed=true;cleanup();}
+ })();return await job.promise;
+}
+
+function* frameNativeEdgeSelectionBasisWork(h,ownerRot,items,ready,meshes=pickMeshes) {
+  if (polyElementMode !== "edge" || items.size !== 1) return null;
+  let s = items.get(h), mesh = meshes.get(h), pos = mesh?.geometry?.attributes.position;
+  if (!s?.edges.size || !pos) return null;
+  mesh.updateMatrixWorld(!0);
+  const chosen=yield* frameSelectedLogicalEdgeRepresentativesWork(mesh.geometry,ready.get(h).topology,s.edges);let work=0;
+  if (!chosen.length) return null;
+  let a = new THREE2.Vector3(), b = new THREE2.Vector3(), dir = new THREE2.Vector3(), points = [], refDir = null, refPoint = null;
+  for (let edge of chosen){
+    if((++work&1023)===0)yield;
+    if (a.fromBufferAttribute(pos, edge.a).applyMatrix4(mesh.matrixWorld), b.fromBufferAttribute(pos, edge.b).applyMatrix4(mesh.matrixWorld), dir.subVectors(b, a), !(dir.lengthSq() < 1e-16)) {
+      if (dir.normalize(), !refDir)
+        refDir = dir.clone(), refPoint = a.clone();
+      else if (dir.dot(refDir) < 0 && dir.negate(), dir.dot(refDir) < 0.9999) return null;
+      points.push(a.clone(), b.clone());
+    }
+  }
+  if (!refDir) return null;
+  let oe = ownerRot.elements, ownerX = new THREE2.Vector3(oe[0], oe[1], oe[2]);
+  refDir.dot(ownerX) < 0 && refDir.negate();
+  let span = 0;
+  for (let p of points){span = Math.max(span, p.distanceTo(refPoint));if((++work&1023)===0)yield;}
+  let tol = Math.max(1e-5, span * 1e-5);
+  for (let p of points) {
+    let d = p.clone().sub(refPoint), along = refDir.clone().multiplyScalar(d.dot(refDir));
+    if (d.sub(along).length() > tol) return null;
+    if((++work&1023)===0)yield;
+  }
+  let ownerY = new THREE2.Vector3(oe[4], oe[5], oe[6]), ownerZ = new THREE2.Vector3(oe[8], oe[9], oe[10]), y = ownerY.addScaledVector(refDir, -ownerY.dot(refDir));
+  y.lengthSq() < 1e-10 && (y = ownerZ.addScaledVector(refDir, -ownerZ.dot(refDir))), y.normalize();
+  let z = refDir.clone().cross(y).normalize();
+  return y = z.clone().cross(refDir).normalize(), new THREE2.Matrix4().makeBasis(refDir, y, z);
+}
+function* frameNativeEdgeClickMeasurementsWork(items,ready,exact=polyExactEdgeVertices,meshes=pickMeshes,pivot=null){
+  if(polyElementMode!=='edge'||!polyFocusActive()||splineFocusActive()||uvEdit||vertexTools.soft.active||!items.size)return null;
+  const selected=new Map(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false,work=0;
+  for(const [h] of items){
+    const mesh=meshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;
+    mesh.updateMatrixWorld(true);
+    const ids=yield* frameNativeEdgeSelectedVertexIdsWork(h,items,ready,exact);selected.set(h,ids);
+    for(const i of ids){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld);mn.min(p);mx.max(p);any=true;if((++work&1023)===0)yield;}
+  }
+  if(!any)return null;
+  let h=null;for(const key of items.keys())if(meshes.has(key)){h=key;break;}h??=selNodes.values().next().value||null;
+  let frame;
+  if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}
+  else if(coordMode==='world')frame=new THREE2.Matrix4();
+  else{const owner=pureWorldFrame(h);frame=(yield* frameFaceSelectionBasisWork(h,owner,items,meshes))||(yield* frameNativeEdgeSelectionBasisWork(h,owner,items,ready,meshes))||owner;}
+  frame.setPosition(pivot?new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(pivot)):mn.clone().add(mx).multiplyScalar(.5));
+  const inv=frame.clone().invert(),lo=new THREE2.Vector3(Infinity,Infinity,Infinity),hi=new THREE2.Vector3(-Infinity,-Infinity,-Infinity);
+  for(const [h,ids] of selected){
+    const mesh=meshes.get(h),pos=mesh.geometry.attributes.position;mesh.updateMatrixWorld(true);
+    for(const i of ids){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);lo.min(p);hi.max(p);if((++work&1023)===0)yield;}
+  }
+  return {bounds:{min:mn,max:mx},frame,extent:hi.sub(lo),selectedIDs:selected};
+}
+
 function polyClickPick(cx, cy, mode = "replace",preparedNative=null) {
   if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}
   let vi = viewAt(cx, cy), r = rectFor(vi);
@@ -15906,7 +16078,8 @@ function polyClickPick(cx, cy, mode = "replace",preparedNative=null) {
   }
   if (polyElementMode === "edge") {
     let hit2 = preparedNative?preparedNative.hit:vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(cx,cy,cam,r,EDIT_HIT_PX,'click'):reliableHoverEdge(cx, cy, cam, r, viewShading[vi] === 1);
-    if(hit2?.then)return hit2.then(hit=>frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit})));
+    if(hit2?.then)return hit2.then(hit=>framePrepareNativeEdgeClick(hit,cx,cy,mode,vi,preparedNative?.edgeSelectionState));
+    if(preparedNative&&!preparedNative.legacyCommit&&vpState.renderer?.isFrameNativeViewportRenderer)return framePrepareNativeEdgeClick(hit2,cx,cy,mode,vi,preparedNative.edgeSelectionState);
     if (!hit2) return null;
     let h2 = hit2.h;
     if (!h2 || !selNodes.has(h2) || !isVertexEditableMesh(h2)) return h2;
@@ -16149,7 +16322,7 @@ function frameApplyPreparedPolySelection(result){
   polyPivotMatrix=null;
   if(result.connected){polyExactEdgeVertices=null;polyExtrudedFaces=null;}
   polySelection.items.clear();for(const [h,s] of result.items)polySelection.items.set(h,s);
-  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);
+  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameRememberNativeEdgeCM(result);frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);
   if(vertexTools.soft.active)recalculateSoftSelection();
   if(result.connected)frameRememberConnectedSelection();
 }
@@ -17292,7 +17465,9 @@ function doPick(e,preparedNative=null) {
       componentFocus = "poly";
       return frameAfterPicker(addPointAt(e.clientX,e.clientY,vi),()=>placeGizmoForSelection());
     }
-    let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);
+    const edgeState=preparedNative?.edgeSelectionState??{};
+    let hash2=preparedNative?.edgeSelectionComplete?preparedNative.hash:polyClickPick(e.clientX,e.clientY,mode,preparedNative?{...preparedNative,edgeSelectionState:edgeState}:null);
+    if(hash2?.then)return hash2.then(hash=>{if(edgeState.resumeCurrent&&!edgeState.resumeCurrent())throw new DOMException('Native edge click context changed after selection publication','AbortError');return frameNativeCommitClick(()=>doPick(e,{...preparedNative,edgeSelectionComplete:true,hash,edgeMeasurements:edgeState.measurements??null}));});
     if(hash2&&!selNodes.has(hash2)){
       _vpPick&&_vpPick(hash2,e.shiftKey,ctrl);componentFocus='object';placeGizmoForSelection();setGizmoVisible(selNodes.size>0);updateHUD();scheduleRender();return;
     }
@@ -17305,7 +17480,7 @@ function doPick(e,preparedNative=null) {
         return;
       }
     }
-    hash2 && (componentFocus = "poly", placeGizmoForSelection()), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === "replace") && _vpPick(hash2, e.shiftKey, ctrl);
+    hash2 && (componentFocus = "poly", placeGizmoForSelection(preparedNative?.edgeMeasurements??null)), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === "replace") && _vpPick(hash2, e.shiftKey, ctrl);
     return;
   }
   let objectSplineHit = splineScreenHit(e.clientX, e.clientY, { editing: !1, vertices: !0, handles: !1, segments: !0 });
@@ -24449,6 +24624,7 @@ function framePolygonDragSelectedIDs(h) {
 function polySelectedVertexIds(h) {
   const rigid=frameRigidSelectedIDs(h);if(rigid)return rigid;
   const dragging=framePolygonDragSelectedIDs(h);if(dragging)return dragging;
+  const prepared=frameCurrentNativeEdgeCM();if(prepared?.selectedIDs.has(h))return new Set(prepared.selectedIDs.get(h));
   const s=polySelection.items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,out=new Set();
   if(!s||!g)return out;
   if(polyExactEdgeVertices?.has(h))return new Set(polyExactEdgeVertices.get(h));
@@ -24605,6 +24781,7 @@ function polyWorldPoints() {
 }
 function polyExtentInFrame(frame) {
   const rigid=frameRigidExtent(frame);if(rigid)return rigid;
+  const prepared=frameCurrentNativeEdgeCM();if(prepared&&frame.elements.every((v,i)=>Object.is(v,prepared.frame.elements[i])))return prepared.extent.clone();
   const inv=frame.clone().invert(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false;
   for(const [h] of polySelection.items){const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;mesh.updateMatrixWorld(true);
     for(const i of polySelectedVertexIds(h)){p.fromBufferAttribute(pos,i).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);mn.min(p);mx.max(p);any=true;}
@@ -24728,6 +24905,7 @@ function polyAutoBasis() {
   return faceSelectionBasis(h, owner) || edgeSelectionBasis(h, owner) || owner;
 }
 function polyFrameMatrix(bounds=null) {
+  const prepared=frameCurrentNativeEdgeCM();if(prepared&&(!bounds||["x","y","z"].every(k=>Object.is(bounds.min[k],prepared.bounds.min[k])&&Object.is(bounds.max[k],prepared.bounds.max[k]))))return prepared.frame.clone();
   let bb = bounds||polySelectionBounds();
   if (!bb) return new THREE2.Matrix4();
   let p = polyPivotMatrix ? new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(polyPivotMatrix)) : bb.min.clone().add(bb.max).multiplyScalar(0.5), basis;
@@ -24786,6 +24964,7 @@ function applyPolyCoordinateInput(ch, i, v, mode) {
 }
 function polySelectionBounds() {
   const rigid=frameRigidBounds();if(rigid)return rigid;
+  const prepared=frameCurrentNativeEdgeCM();if(prepared)return{min:prepared.bounds.min.clone(),max:prepared.bounds.max.clone()};
   let mn = new THREE2.Vector3(1 / 0, 1 / 0, 1 / 0), mx = new THREE2.Vector3(-1 / 0, -1 / 0, -1 / 0), p = new THREE2.Vector3(), any = !1;
   for (let [h] of polySelection.items) {
     let mesh = pickMeshes.get(h), pos = mesh && mesh.geometry && mesh.geometry.attributes.position;

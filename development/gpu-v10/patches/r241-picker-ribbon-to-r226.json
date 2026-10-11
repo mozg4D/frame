@@ -1,0 +1,37 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "62b8c764c3ecae124ea1288e1a7e05fddb484de9683123879458dbd41783e4e8",
+  "afterSHA256": "e7a3f59637adf7e726e205dc76b69646ddd1acf13f8150ed1df2292395440fa8",
+  "beforeBytes": 11580,
+  "afterBytes": 11525,
+  "operations": [
+    {
+      "startLine": 64,
+      "deleteLines": 1,
+      "insert": [
+        "  const occurrence=id-target.ribbonBase-1,edge=occurrence%target.tables.groups.length,instance=Math.floor(occurrence/target.tables.groups.length),raw=target.tables.groups[edge],packet=target.pickPacket;\n"
+      ]
+    },
+    {
+      "startLine": 92,
+      "deleteLines": 1,
+      "insert": [
+        "  let base=0;for(const t of targets){t.ribbonBase=base;t.ribbonCount=t.tables.groups.length*t.p.instanceCount;base+=t.ribbonCount;if(!Number.isSafeInteger(base)||base>0xfffffffe)fail('Explicit ribbon batching required for Uint32 occurrence IDs');}\n"
+      ]
+    },
+    {
+      "startLine": 105,
+      "deleteLines": 1,
+      "insert": [
+        "   for(const t of order){if(!t.ribbonCount)continue;const header=new ArrayBuffer(64),f=new Float32Array(header),u=new Uint32Array(header);f.set(depth.viewport);f.set(region,4);f.set([width,through?1:0,tolerance,0],8);u.set([t.tables.groups.length,t.ribbonBase,0,0],12);\n"
+      ]
+    },
+    {
+      "startLine": 108,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const range of t.p.instanceRanges){if(!range.count)continue;pass.setPipeline(this.pipelines.get(range.frontFace));pass.draw(6,t.tables.groups.length*range.count,0,t.tables.groups.length*range.start);}\n"
+      ]
+    }
+  ]
+}

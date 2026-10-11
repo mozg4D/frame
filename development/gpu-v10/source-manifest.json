@@ -3,13 +3,13 @@
   "files": [
     {
       "path": "README.md",
-      "bytes": 3309,
-      "sha256": "a8f60b29b77eaadc98e2d5a1d7943f5e698ed7fb018d38eb3a2668d105b1be2b"
+      "bytes": 3321,
+      "sha256": "ad94939ba6f04074a0acc808cf3c9c3a257aefd6dc6d852fa3f5fe3a3adc4117"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 25690,
-      "sha256": "2c10a340deda6b5366b7bd6434f2a7a8a6269909fb5949e964ce19c304638d00"
+      "bytes": 26040,
+      "sha256": "8bff3ae2956b291675a515db7b72212c0c8697cbbba6956c7f0dd89a07886d05"
     },
     {
       "path": "native-overrides/authoring-mesh.mjs",
@@ -112,14 +112,24 @@
       "sha256": "fe3fbb1c7370e303e2f592a00e9c28cd547496084e59b13a5d8a7e31ce73a51c"
     },
     {
-      "path": "patches/r239-editor-to-r226.json",
-      "bytes": 15571,
-      "sha256": "10e42be662d103279a180e623ae47fb53844ce2396367294125f351c8176d309"
+      "path": "patches/r241-editor-to-r226.json",
+      "bytes": 16939,
+      "sha256": "cbc2c1116dbf1e5fee4c36d4db2234df6bb5b7d6dcf65ce32bf91bf55b905fe2"
     },
     {
-      "path": "patches/r240-shell-to-r226.json",
+      "path": "patches/r241-native-pickers-to-r226.json",
+      "bytes": 1652,
+      "sha256": "967bf868bf5780b212f3ede3595a766be30206710def141d1f1fe41a8a8e2ddf"
+    },
+    {
+      "path": "patches/r241-picker-ribbon-to-r226.json",
+      "bytes": 1608,
+      "sha256": "20472047864f0ccb6ddea59fbf41a43e20fb21fcd5edd7adc530781c7525b8fe"
+    },
+    {
+      "path": "patches/r241-shell-to-r226.json",
       "bytes": 13602,
-      "sha256": "47b512cb84f2d57e37fe44447c4e9bbf1b43489611e66dcb7066bc6d64fc8184"
+      "sha256": "ca11b15db0e08164257a58bc3c9b6d15c52d9209b1e03bfcb358598fb3a09532"
     },
     {
       "path": "patches/shell-from-r226.json",

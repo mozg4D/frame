@@ -1,3 +1,4 @@
+import {installCurrentEdgeContext} from '../fixtures/current-edge-context.mjs';
 import {reviewURL} from '../source-paths.mjs';
 // Independent tests of exact changed V4i functions; no product mutations.
 import {verifySource} from '../verify-source.mjs'; verifySource();
@@ -28,7 +29,7 @@ const fixtureSource=supplied.slice(supplied.indexOf('function env()'),supplied.i
 assert(fixtureSource.length>10000);
 const closureStart=editor.indexOf('var frameRigidPrepared='),closureEndMarker='function frameRigidNativeWorkerClosureComplete(){}';
 const closure=editor.slice(closureStart,editor.indexOf(closureEndMarker,closureStart)+closureEndMarker.length);
-const fixture=new Function('vm','assert','THREE2','stockCreaseReference','editor','source',fixtureSource+'\nreturn{bigEnv,heldRelease,settle,bits,pause};')(vm,assert,THREE2,stockCreaseReference,editor,closure);
+const fixture=new Function('installCurrentEdgeContext','vm','assert','THREE2','stockCreaseReference','editor','source',fixtureSource+'\nreturn{bigEnv,heldRelease,settle,bits,pause};')(installCurrentEdgeContext,vm,assert,THREE2,stockCreaseReference,editor,closure);
 async function deadline(p){let timer;try{return await Promise.race([p,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('Save did not settle after history cancellation')),1000))]);}finally{clearTimeout(timer);}}
 for(const history of ['undo','redo'])await test(`actual ${history} cancels held released commit and Save finishes without reopening its gate`,async()=>{const{c,t}=fixture.bigEnv(),{s,open}=fixture.heldRelease(c,t),controller=new AbortController();let saved=false,historyCalls=0;const command={undo(){historyCalls++;},redo(){historyCalls++;}};c[history==='undo'?'undoStack':'redoStack'].push(command);const p=c.frameAffineWaitForSave(controller.signal).then(()=>saved=true);try{await fixture.pause();assert.equal(saved,false);c[history]();await deadline(p);assert.equal(saved,true);assert.equal(historyCalls,1);assert(s.cancel&&s.discarded);assert.equal(s.committed,undefined);assert.equal(vm.runInContext('frameRigidDraining',c),true,'underlying held yield has not reopened');assert.equal(c.frameAffineBoundary().released.length,0);assert.equal(c[history==='undo'?'redoStack':'undoStack'].at(-1),command);assert.deepEqual(fixture.bits(t.mesh.geometry.attributes.position.array),fixture.bits(s.beforeRaw.attrs.position.array));assert.deepEqual(fixture.bits(t.mesh.geometry.attributes.normal.array),fixture.bits(s.beforeRaw.attrs.normal.array));open();await fixture.settle(c);assert.equal(s.committed,undefined);assert.equal(c[history==='undo'?'redoStack':'undoStack'].at(-1),command);}finally{open();controller.abort();await p.catch(()=>{});await fixture.settle(c);}});
 

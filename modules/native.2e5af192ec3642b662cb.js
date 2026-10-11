@@ -2412,7 +2412,7 @@ class topologyPackedTripleTable {
   if (indices) for (let i = 0; i < indices.length; i++) { if (indices[i] >= n) throw Error('Index outside topology positions'); if ((i + 1) % batch === 0) yield; }
   const root = (p, i) => { while (p[i] !== i) { p[i] = p[p[i]]; i = p[i]; } return i; };
   const join = (p, r, a, b) => { a = root(p, a); b = root(p, b); if (a === b) return; if (r[a] < r[b]) p[a] = b; else { p[b] = a; if (r[a] === r[b]) r[a]++; } };
-  const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[];
+  const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[],edgeFirstCornerStorage=new Uint32Array(nf*3);
   if(packedTables){
     const faceBatch=Math.max(1,Math.floor(batch/3));
     for(let f=0;f<nf;f++){
@@ -2420,8 +2420,8 @@ class topologyPackedTripleTable {
       join(vp,vr,ga,gb);join(vp,vr,gb,gc);
       for(let j=0;j<3;j++){
         const ra=j===0?a:j===1?b:c,rb=j===0?b:j===1?c:a,la=j===0?ga:j===1?gb:gc,lb=j===0?gb:j===1?gc:ga;
-        const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldFace=edgeIds.values[owner];if(oldFace)join(fp,fr,f,oldFace-1);else edgeIds.values[owner]=f+1;
-        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);edgeIds.edge(edge,rawKey,ra,rb);
+        const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldCorner=edgeIds.values[owner];if(oldCorner)join(fp,fr,f,Math.floor((oldCorner-1)/3));else edgeIds.values[owner]=o+j+1;
+        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);if(!edgeIds.rawIds[edge])edgeFirstCornerStorage[edgeIds.rawCount]=edgeIds.values[owner]-1;edgeIds.edge(edge,rawKey,ra,rb);
       }
       if((f+1)%faceBatch===0)yield;
     }
@@ -2430,10 +2430,10 @@ class topologyPackedTripleTable {
     const raw = [0, 1, 2].map(j => indices ? indices[f * 3 + j] : f * 3 + j), logical = raw.map(v => group[v]);
     join(vp, vr, logical[0], logical[1]); join(vp, vr, logical[1], logical[2]);
     for (let j = 0; j < 3; j++) {
-      const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldFace = incident.get(logicalKey);
-      if (oldFace === undefined) incident.set(logicalKey, f); else join(fp, fr, f, oldFace);
+      const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldCorner = incident.get(logicalKey);
+      if (oldCorner === undefined) incident.set(logicalKey, f * 3 + j); else join(fp, fr, f, Math.floor(oldCorner / 3));
       const key = pair(raw[j], raw[k]);
-      if (!edgeIds.has(key)) { edgeIds.set(key, edgeList.length / 2); edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }
+      if (!edgeIds.has(key)) { const edgeId = edgeList.length / 2; edgeIds.set(key, edgeId); edgeFirstCornerStorage[edgeId] = oldCorner ?? f * 3 + j; edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }
     }
     if ((f + 1) % Math.max(1, Math.floor(batch / 3)) === 0) yield;
   }
@@ -2469,7 +2469,7 @@ class topologyPackedTripleTable {
   const vertexAliases=yield* csrFromLabels(vertexGroups,representatives.length,batch);
   const selection={representatives,vertexGroups,vertexAliases,faces:{offsets:faceOffsets,indices:faceCorners},edges:{offsets:edgeOffsets,indices:edgeCorners}};
   return {selection,vertexCount: n, faceCount: nf, edgeCount: edgeLabels.length, vertexComponentCount: vRoots.size, faceComponentCount: fRoots.size,
-    group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents};
+    group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents, edgeFirstCorners: edgeFirstCornerStorage.slice(0, edgeLabels.length)};
 }
  function topologyTransfer(result) {
   const buffers=new Set();const visit=x=>{if(ArrayBuffer.isView(x)){buffers.add(x.buffer);return;}if(x&&typeof x==='object')for(const v of Object.values(x))visit(v);};visit(result);return [...buffers];
@@ -3465,7 +3465,7 @@ const abort=m=>new DOMException(m,'AbortError');
  for(let y=region[3]-1;y>=0;y--)for(let x=0;x<region[2];x++,scan++){
   const id=pixels[y*region[2]+x];if(!id||seen.has(id))continue;seen.add(id);
   let lo=0,hi=lookup.length-1,target;while(lo<=hi){const mid=Math.floor((lo+hi)/2),q=lookup[mid];if(id<=q.ribbonBase)hi=mid-1;else if(id>q.ribbonBase+q.ribbonCount)lo=mid+1;else{target=q;break;}}if(!target)fail('Native ribbon ID outside immutable occurrence table');
-  const occurrence=id-target.ribbonBase-1,edge=occurrence%target.tables.groups.length,instance=Math.floor(occurrence/target.tables.groups.length),raw=target.tables.groups[edge],packet=target.pickPacket;
+  const occurrence=id-target.ribbonBase-1,edge=occurrence%(target.tables.pairs.length/2),instance=Math.floor(occurrence/(target.tables.pairs.length/2)),raw={a:target.tables.pairs[edge*2],b:target.tables.pairs[edge*2+1]},packet=target.pickPacket;
   const matrix=packet.clipMatrices.subarray(instance*16,instance*16+16),a=project(packet.positions,matrix,raw.a),b=project(packet.positions,matrix,raw.b);
   const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy,t=length>1e-9?Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length)):0;
   const screen=[a[0]+t*dx,a[1]+t*dy],distanceSquared=(point[0]-screen[0])**2+(point[1]-screen[1])**2;
@@ -3493,7 +3493,7 @@ const abort=m=>new DOMException(m,'AbortError');
  async pick(targets,depth,point,{radius,width=3,through=false,tolerance=0,signal,isCurrent,rankingViewport=depth.viewport}={}){
   assertAdapterRenderDomain(depth,this.renderDomain);const h=this.host,d=h.device,region=ribbonRegion(depth.viewport,point,radius),[x,y,w,hh]=region;if(!w||!hh)return null;
   if(h.jobs.size)fail('One pending native selection/ribbon per shared host');
-  let base=0;for(const t of targets){t.ribbonBase=base;t.ribbonCount=t.tables.groups.length*t.p.instanceCount;base+=t.ribbonCount;if(!Number.isSafeInteger(base)||base>0xfffffffe)fail('Explicit ribbon batching required for Uint32 occurrence IDs');}
+  let base=0;for(const t of targets){t.ribbonBase=base;t.ribbonCount=(t.tables.pairs.length/2)*t.p.instanceCount;base+=t.ribbonCount;if(!Number.isSafeInteger(base)||base>0xfffffffe)fail('Explicit ribbon batching required for Uint32 occurrence IDs');}
   if(!base)return null;const row=Math.ceil(w*4/256)*256,size=row*hh;if(size>d.limits.maxBufferSize)fail('Ribbon ROI readback exceeds buffer limits');
   const buffers=[],textures=[];let cancelled=false,freed=false,readPromise=null,submitted=false;
   const valid=()=>!freed&&!cancelled&&!signal?.aborted&&h.state==='ready'&&!depth.disposed&&depth.epoch===h.epoch&&isCurrent();
@@ -3506,10 +3506,10 @@ const abort=m=>new DOMException(m,'AbortError');
    // Legacy clones share material/renderOrder and use Three's opaque z/id sort.
    // The owner may supply the existing clone's creation order for equal-z history.
    const order=targets.slice().sort((a,b)=>{const A=a.pickPacket.clipMatrices,B=b.pickPacket.clipMatrices,az=A[14]/A[15],bz=B[14]/B[15];return (Number.isFinite(az)&&Number.isFinite(bz)?az-bz:0)||a.ribbonOrder-b.ribbonOrder;});
-   for(const t of order){if(!t.ribbonCount)continue;const header=new ArrayBuffer(64),f=new Float32Array(header),u=new Uint32Array(header);f.set(depth.viewport);f.set(region,4);f.set([width,through?1:0,tolerance,0],8);u.set([t.tables.groups.length,t.ribbonBase,0,0],12);
+   for(const t of order){if(!t.ribbonCount)continue;const header=new ArrayBuffer(64),f=new Float32Array(header),u=new Uint32Array(header);f.set(depth.viewport);f.set(region,4);f.set([width,through?1:0,tolerance,0],8);u.set([(t.tables.pairs.length/2),t.ribbonBase,0,0],12);
     const params=h._buffer(new Uint8Array(header),GPUBufferUsage.UNIFORM,'Frame inclusive ribbon parameters');buffers.push(params);
     const bind=d.createBindGroup({layout:this.layout,entries:[{binding:0,resource:{buffer:t.p.positions}},{binding:1,resource:{buffer:t.p.matrices}},{binding:2,resource:{buffer:t.edgeBuffer}},{binding:3,resource:{buffer:params}},{binding:4,resource:depth.texture.createView()}]});pass.setBindGroup(0,bind);
-    for(const range of t.p.instanceRanges){if(!range.count)continue;pass.setPipeline(this.pipelines.get(range.frontFace));pass.draw(6,t.tables.groups.length*range.count,0,t.tables.groups.length*range.start);}
+    for(const range of t.p.instanceRanges){if(!range.count)continue;pass.setPipeline(this.pipelines.get(range.frontFace));pass.draw(6,(t.tables.pairs.length/2)*range.count,0,(t.tables.pairs.length/2)*range.start);}
    }pass.end();d.queue.submit([encoder.finish()]);submitted=true;
    const read=d.createBuffer({label:'Frame asynchronous pointer ribbon readback',size,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});buffers.push(read);
    const copy=d.createCommandEncoder({label:'Frame requested inclusive ribbon pixels'});copy.copyTextureToBuffer({texture},{buffer:read,bytesPerRow:row,rowsPerImage:hh},[w,hh]);d.queue.submit([copy.finish()]);
@@ -3919,6 +3919,81 @@ function captureIdentity(identity,packet,topology,object){
  return {objectId,batchId,instances,vertexIds,faceIds,isCurrent:current};
 }
 
+// One adapter retains only its most recent topology, with weak source identity.
+// The budget counts all additional retained typed-array bytes; build workspace
+// and the session's existing GPU buffers have their original separate lifetime.
+const NATIVE_EDGE_TABLE_CACHE_BYTES=64*1024*1024;
+function validateEdgeTableTopology(topology){
+ const {edges,group,vertexCount}=topology;
+ if(!(edges instanceof Uint32Array)||edges.length%2||!(group instanceof Uint32Array)||group.length!==vertexCount)fail('Exact topology raw edges/groups required');
+ return {edges,group,vertexCount};
+}
+function edgeTableSourceMatches(topology,source){
+ if(topology.vertexCount!==source.vertexCount||topology.edges!==source.edgesRef.deref()||topology.group!==source.groupRef.deref())return false;
+ const edges=topology.edges,group=topology.group;
+ if(edges.length!==source.edges.length||group.length!==source.group.length)return false;
+ // No await: a complete comparison is coherent against main-thread mutations.
+ for(let i=0;i<edges.length;i++)if(edges[i]!==source.edges[i])return false;
+ for(let i=0;i<group.length;i++)if(group[i]!==source.group[i])return false;
+ return true;
+}
+function* compactEdgePickerTablesWork(source,{batch=4096}={}){
+ const {edges,group,vertexCount}=source,n=edges.length/2,lookup=new Map(),ordinal=new Uint32Array(n),counts=new Uint32Array(n),pairStorage=new Uint32Array(n*2);
+ const numericPairs=Number.isSafeInteger(vertexCount)&&vertexCount>0&&vertexCount<=94906265;
+ let groupCount=0,work=0;
+ for(let e=0;e<n;e++){
+  const a=edges[e*2],b=edges[e*2+1];if(a>=vertexCount||b>=vertexCount)fail('Edge raw ID outside source');
+  const ga=group[a],gb=group[b],lo=Math.min(ga,gb),hi=Math.max(ga,gb);
+  const key=numericPairs&&Number.isInteger(lo)&&Number.isInteger(hi)&&lo>=0&&lo<vertexCount&&hi>=0&&hi<vertexCount?lo*vertexCount+hi:lo+':'+hi;
+  let q=lookup.get(key);if(q===undefined){q=groupCount++;lookup.set(key,q);pairStorage[q*2]=a;pairStorage[q*2+1]=b;}
+  ordinal[e]=q;counts[q]++;if(++work%batch===0)yield;
+ }
+ const offsets=new Uint32Array(groupCount+1);
+ for(let i=0;i<groupCount;i++){offsets[i+1]=offsets[i]+counts[i];counts[i]=0;if(++work%batch===0)yield;}
+ const rawEdgeIds=new Uint32Array(n);
+ for(let e=0;e<n;e++){const q=ordinal[e];rawEdgeIds[offsets[q]+counts[q]++]=e;if(++work%batch===0)yield;}
+ return Object.freeze({pairs:pairStorage.slice(0,groupCount*2),offsets,rawEdgeIds,sourceEdges:edges});
+}
+function materializeEdgePickerGroup(tables,groupId){
+ if(!tables.offsets)return tables.groups[groupId];
+ const start=tables.offsets[groupId],end=tables.offsets[groupId+1],rawEdgeIds=[],keys=[];
+ for(let i=start;i<end;i++){const e=tables.rawEdgeIds[i],a=tables.sourceEdges[e*2],b=tables.sourceEdges[e*2+1];rawEdgeIds.push(e);keys.push(Math.min(a,b)+':'+Math.max(a,b));}
+ return {a:tables.pairs[groupId*2],b:tables.pairs[groupId*2+1],rawEdgeIds,keys};
+}
+class NativeEdgeTableCache {
+ #entry=null;#disposed=false;#building=false;
+ constructor({maxBytes=NATIVE_EDGE_TABLE_CACHE_BYTES}={}){
+  if(!Number.isSafeInteger(maxBytes)||maxBytes<0||maxBytes>NATIVE_EDGE_TABLE_CACHE_BYTES)fail('Invalid native edge table cache budget');
+  Object.defineProperty(this,'maxBytes',{value:maxBytes,enumerable:true});this.stats={hits:0,builds:0,invalidations:0,uncached:0};
+ }
+ get retainedBytes(){return this.#entry?.bytes??0;}
+ async get(topology,{signal,isCurrent=()=>true,yieldTask}={}){
+  const current=()=>!this.#disposed&&!signal?.aborted&&isCurrent();
+  if(!current())throw abort('Edge table source is stale');
+  if(this.#building)fail('Coalesce native edge table preparation');
+  const {edges,group,vertexCount}=validateEdgeTableTopology(topology),entry=this.#entry;
+  if(entry?.topologyRef.deref()===topology&&edgeTableSourceMatches(topology,entry.source)){
+   if(!current())throw abort('Edge table source changed before reuse');this.stats.hits++;return entry.tables;
+  }
+  if(entry)this.stats.invalidations++;this.#entry=null;this.#building=true;
+  try{
+   // Private snapshots also make the cooperatively built table internally
+   // consistent if a caller mutates the topology while preparation yields.
+   const source={edges:edges.slice(),group:group.slice(),vertexCount,edgesRef:new WeakRef(edges),groupRef:new WeakRef(group)};
+   const tables=await drainCooperatively(compactEdgePickerTablesWork(source),{signal,isCurrent:current,yieldTask});
+   if(!current()||!edgeTableSourceMatches(topology,source))throw abort('Edge table source changed during preparation');
+   this.stats.builds++;
+   const bytes=tables.pairs.byteLength+tables.offsets.byteLength+tables.rawEdgeIds.byteLength+source.edges.byteLength+source.group.byteLength;
+   // Shared backing stores can change on another thread during comparison;
+   // they get a private query table, but never a retained cache entry.
+   if(bytes<=this.maxBytes&&edges.buffer instanceof ArrayBuffer&&group.buffer instanceof ArrayBuffer)this.#entry={topologyRef:new WeakRef(topology),source,tables,bytes};
+   else this.stats.uncached++;
+   return tables;
+  }finally{this.#building=false;}
+ }
+ dispose(){this.#disposed=true;this.#entry=null;}
+}
+
  class FrameNativePickers {
  static async forRenderer(renderer){const owner=nativePickerHost(renderer),p=await FrameNativePickers.create(owner.host,{display:owner.engine.display});if(!owner.isCurrent()){await p.dispose();throw abort('Native viewport owner changed during picker initialization');}return p;}
  static async create(host,{display=null}={}){
@@ -3927,7 +4002,7 @@ function captureIdentity(identity,packet,topology,object){
   try{p.depthOwner=await FramePickerDepth.create(host,{display});p.ribbon=await FrameRibbonPicker.create(host);p.compilation=p.ribbon.compilation;if(host.state!=='ready')throw abort('Native selection device unavailable');return p;}
   catch(e){p.depthOwner?.dispose();p.disposed=true;throw e;}
  }
- constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;this.cornerVisibility=null;this.cornerOpening=null;}
+ constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;this.cornerVisibility=null;this.cornerOpening=null;this.edgeTableCache=new NativeEdgeTableCache();}
  async cornerOwner(){
   if(this.disposed)throw abort('Native picker adapter disposed');if(this.cornerVisibility)return this.cornerVisibility;
   if(!this.cornerOpening)this.cornerOpening=FrameGpuCornerVisibility.create(this.host).then(owner=>{if(this.disposed){owner.dispose();throw abort('Native picker adapter disposed during corner initialization');}this.cornerVisibility=owner;return owner;}).finally(()=>{this.cornerOpening=null;});
@@ -3939,7 +4014,7 @@ function captureIdentity(identity,packet,topology,object){
   const opening=NativePickerSession.create(this,captured);this.opening=opening;
   try{const s=await opening;if(this.disposed){await s.dispose();throw abort('Picker disposed during preparation');}this.sessions.add(s);return s;}finally{if(this.opening===opening)this.opening=null;}
  }
- async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await this.cornerOpening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.cornerVisibility?.dispose();this.depthOwner?.dispose();}
+ async dispose(){if(this.disposed)return;this.disposed=true;this.edgeTableCache.dispose();await this.opening?.catch(()=>{});await this.cornerOpening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.cornerVisibility?.dispose();this.depthOwner?.dispose();}
 }
 
  class NativePickerSession {
@@ -3969,7 +4044,7 @@ function captureIdentity(identity,packet,topology,object){
     if(topology.vertexCount!==packet.positions.length/3)fail('Topology/source vertex count mismatch');
     const identity=captureIdentity(binding.identity,packet,topology,object),key=JSON.stringify([identity.objectId,identity.batchId]);
     if(s.bindingKeys.has(key))fail('Duplicate source object/batch identity');s.bindingKeys.add(key);s.guards.push(ready.isCurrent,identity.isCurrent);
-    const tables=edgeQuery?await drainCooperatively(edgePickerTablesWork(topology),{signal,isCurrent:()=>s.dataCurrent(),yieldTask}):null;
+    const tables=edgeQuery?await adapter.edgeTableCache.get(topology,{signal,isCurrent:()=>s.dataCurrent(),yieldTask}):null;
     const ribbonOrder=binding.ribbonOrder??s.targets.length;if(!Number.isSafeInteger(ribbonOrder)||ribbonOrder<0)fail('Stable ribbon draw order required');
     const elements=selectionDomain==='edge'?topology.selection.edges:selectionDomain==='face'?topology.selection.faces:null;
     const p=s.host.prepare(packet,elements,{representatives:topology.selection.representatives});
@@ -4037,7 +4112,7 @@ function captureIdentity(identity,packet,topology,object){
    const grid=this.ribbonGrid,queryPoint=grid?pointer.map((v,i)=>(v-grid.origin[i])/grid.pixelRatio):pointer,queryRadius=grid?radius/grid.pixelRatio:radius;
    const q=await this.adapter.ribbon.pick(this.targets,depth,queryPoint,{radius:queryRadius,width:grid?this.ribbonWidth/grid.pixelRatio:this.ribbonWidth,through:this.through,tolerance:this.depthTolerance,signal,isCurrent:valid,rankingViewport:grid?.rankingViewport??depth.viewport});if(!q)return null;
    if(grid){q.distanceSquared*=grid.pixelRatio*grid.pixelRatio;q.screen=q.screen.map((v,i)=>grid.origin[i]+v*grid.pixelRatio);}
-   const t=q.target,localInstance=Math.floor(q.occurrence/t.tables.groups.length),edgeId=q.occurrence%t.tables.groups.length,edge=t.tables.groups[edgeId],identity=t.identity.instances[localInstance],v=t.identity.vertexIds;
+   const t=q.target,localInstance=Math.floor(q.occurrence/(t.tables.pairs.length/2)),edgeId=q.occurrence%(t.tables.pairs.length/2),edge=materializeEdgePickerGroup(t.tables,edgeId),identity=t.identity.instances[localInstance],v=t.identity.vertexIds;
    const keys=edge.keys.map(k=>{const [a,b]=k.split(':').map(Number),u=v?v[a]:a,z=v?v[b]:b;return Math.min(u,z)+':'+Math.max(u,z);});
    return {objectId:t.identity.objectId,batchId:t.identity.batchId,...identity,mesh:t.object,domain:'edge',edgeId,rawEdge:[edge.a,edge.b],edge:[v?v[edge.a]:edge.a,v?v[edge.b]:edge.b,keys[0]],keys,rawEdgeIds:edge.rawEdgeIds.slice(),distanceSquared:q.distanceSquared,depth:q.depth,t:q.t,interpolationClamped:q.interpolationClamped,screen:q.screen,isCurrent:()=>this.dataCurrent()};
   },{signal,isCurrent});

@@ -1,6 +1,6 @@
 # Current editor source
 
-This directory reconstructs the r239 STL-import and affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta. Subsequent STL-only helpers and compact integration deltas bind the exact crease and edge calculations, then the postprocess coordinator.
+This directory reconstructs the r241 edge-selection, STL-import and affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta. Subsequent STL-only helpers and compact integration deltas bind the exact crease and edge calculations, then the postprocess coordinator. The edge-selection helper, exact CM math and final checked delta complete the current source. A small reverse delta also supports pinned pre-edge regression oracles without duplicating the editor.
 
 Rebuild requirements: Node 20+ and TypeScript 5.9.3. The affine test suite requires Node 24+. Set `FRAME_TYPESCRIPT` to its `lib/typescript.js` path when needed.
 
@@ -16,8 +16,12 @@ Source, device, owner, material, selection and gesture identities guard asynchro
 
 STL import uses Float32-specific coordinate classes with guarded stock-format fallback near decimal boundaries. Both ordered crease passes, parser, axis conversion, bounds, picking, wire, transfer, cancellation and installation remain in their original order. The component stock crease function is unchanged. The private STL edge table retains full-key equality and encounter order. Typed capacity is capped at 4,194,304 slots (48 MiB of live table arrays), with exact stock Map fallback at the cap or on typed allocation failure. This is a table limit, not a bound on total import memory. When the compute budget has at least two slots, larger imports release the coordinator lease before independent BVH and wire jobs. Both crease passes remain serial and unchanged. Additional transferred index copies reserve a shared 64 MiB budget; copy pressure uses one combined BVH-then-wire worker. Small meshes and single-slot budgets retain the original serial path. Helper results, cancellation, leases and object-URL cleanup are guarded; the copy reservation does not bound total import memory.
 
+Native accepted edge clicks prepare exact authored aliases and CM/gizmo measurements cooperatively. Current source, owner, selection, pivot and interaction guards protect publication and its later click continuation. This reduces redundant edge preparation; partial-face and very large selections can still be slow. Solid-picker changes are not part of this release.
+
 ## Portable checks
 
+    node editor-source/tests/edge-selection/run-review.mjs
+    node editor-source/tests/edge-cache/run-review.mjs
     node editor-source/tests/stl/run-review.mjs
     node editor-source/tests/affine/run-review.mjs
     node editor-source/tests/alias-guards.mjs

@@ -1,0 +1,27 @@
+[
+  {
+    "label": "one typed metadata workspace",
+    "oldText": "const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[];",
+    "newText": "const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[],edgeFirstCornerStorage=new Uint32Array(nf*3);"
+  },
+  {
+    "label": "packed worker path preserves earliest authored corner and same DSU face",
+    "oldText": "const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldFace=edgeIds.values[owner];if(oldFace)join(fp,fr,f,oldFace-1);else edgeIds.values[owner]=f+1;\n        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);edgeIds.edge(edge,rawKey,ra,rb);",
+    "newText": "const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldCorner=edgeIds.values[owner];if(oldCorner)join(fp,fr,f,Math.floor((oldCorner-1)/3));else edgeIds.values[owner]=o+j+1;\n        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);if(!edgeIds.rawIds[edge])edgeFirstCornerStorage[edgeIds.rawCount]=edgeIds.values[owner]-1;edgeIds.edge(edge,rawKey,ra,rb);"
+  },
+  {
+    "label": "existing incident map preserves earliest authored corner, DSU joins same face",
+    "oldText": "const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldFace = incident.get(logicalKey);\n      if (oldFace === undefined) incident.set(logicalKey, f); else join(fp, fr, f, oldFace);",
+    "newText": "const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldCorner = incident.get(logicalKey);\n      if (oldCorner === undefined) incident.set(logicalKey, f * 3 + j); else join(fp, fr, f, Math.floor(oldCorner / 3));"
+  },
+  {
+    "label": "first logical corner for each authored raw edge",
+    "oldText": "if (!edgeIds.has(key)) { edgeIds.set(key, edgeList.length / 2); edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }",
+    "newText": "if (!edgeIds.has(key)) { const edgeId = edgeList.length / 2; edgeIds.set(key, edgeId); edgeFirstCornerStorage[edgeId] = oldCorner ?? f * 3 + j; edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }"
+  },
+  {
+    "label": "transfer exact-size metadata through existing recursive topologyTransfer",
+    "oldText": "group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents};",
+    "newText": "group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents, edgeFirstCorners: edgeFirstCornerStorage.slice(0, edgeLabels.length)};"
+  }
+]

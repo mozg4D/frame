@@ -62,7 +62,7 @@ export function rankRibbonIds(pixels,region,targets,viewport,point,radius){
  for(let y=region[3]-1;y>=0;y--)for(let x=0;x<region[2];x++,scan++){
   const id=pixels[y*region[2]+x];if(!id||seen.has(id))continue;seen.add(id);
   let lo=0,hi=lookup.length-1,target;while(lo<=hi){const mid=Math.floor((lo+hi)/2),q=lookup[mid];if(id<=q.ribbonBase)hi=mid-1;else if(id>q.ribbonBase+q.ribbonCount)lo=mid+1;else{target=q;break;}}if(!target)fail('Native ribbon ID outside immutable occurrence table');
-  const occurrence=id-target.ribbonBase-1,edge=occurrence%target.tables.groups.length,instance=Math.floor(occurrence/target.tables.groups.length),raw=target.tables.groups[edge],packet=target.pickPacket;
+  const occurrence=id-target.ribbonBase-1,edge=occurrence%(target.tables.pairs.length/2),instance=Math.floor(occurrence/(target.tables.pairs.length/2)),raw={a:target.tables.pairs[edge*2],b:target.tables.pairs[edge*2+1]},packet=target.pickPacket;
   const matrix=packet.clipMatrices.subarray(instance*16,instance*16+16),a=project(packet.positions,matrix,raw.a),b=project(packet.positions,matrix,raw.b);
   const dx=b[0]-a[0],dy=b[1]-a[1],length=dx*dx+dy*dy,t=length>1e-9?Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length)):0;
   const screen=[a[0]+t*dx,a[1]+t*dy],distanceSquared=(point[0]-screen[0])**2+(point[1]-screen[1])**2;
@@ -90,7 +90,7 @@ export class FrameRibbonPicker {
  async pick(targets,depth,point,{radius,width=3,through=false,tolerance=0,signal,isCurrent,rankingViewport=depth.viewport}={}){
   assertAdapterRenderDomain(depth,this.renderDomain);const h=this.host,d=h.device,region=ribbonRegion(depth.viewport,point,radius),[x,y,w,hh]=region;if(!w||!hh)return null;
   if(h.jobs.size)fail('One pending native selection/ribbon per shared host');
-  let base=0;for(const t of targets){t.ribbonBase=base;t.ribbonCount=t.tables.groups.length*t.p.instanceCount;base+=t.ribbonCount;if(!Number.isSafeInteger(base)||base>0xfffffffe)fail('Explicit ribbon batching required for Uint32 occurrence IDs');}
+  let base=0;for(const t of targets){t.ribbonBase=base;t.ribbonCount=(t.tables.pairs.length/2)*t.p.instanceCount;base+=t.ribbonCount;if(!Number.isSafeInteger(base)||base>0xfffffffe)fail('Explicit ribbon batching required for Uint32 occurrence IDs');}
   if(!base)return null;const row=Math.ceil(w*4/256)*256,size=row*hh;if(size>d.limits.maxBufferSize)fail('Ribbon ROI readback exceeds buffer limits');
   const buffers=[],textures=[];let cancelled=false,freed=false,readPromise=null,submitted=false;
   const valid=()=>!freed&&!cancelled&&!signal?.aborted&&h.state==='ready'&&!depth.disposed&&depth.epoch===h.epoch&&isCurrent();
@@ -103,10 +103,10 @@ export class FrameRibbonPicker {
    // Legacy clones share material/renderOrder and use Three's opaque z/id sort.
    // The owner may supply the existing clone's creation order for equal-z history.
    const order=targets.slice().sort((a,b)=>{const A=a.pickPacket.clipMatrices,B=b.pickPacket.clipMatrices,az=A[14]/A[15],bz=B[14]/B[15];return (Number.isFinite(az)&&Number.isFinite(bz)?az-bz:0)||a.ribbonOrder-b.ribbonOrder;});
-   for(const t of order){if(!t.ribbonCount)continue;const header=new ArrayBuffer(64),f=new Float32Array(header),u=new Uint32Array(header);f.set(depth.viewport);f.set(region,4);f.set([width,through?1:0,tolerance,0],8);u.set([t.tables.groups.length,t.ribbonBase,0,0],12);
+   for(const t of order){if(!t.ribbonCount)continue;const header=new ArrayBuffer(64),f=new Float32Array(header),u=new Uint32Array(header);f.set(depth.viewport);f.set(region,4);f.set([width,through?1:0,tolerance,0],8);u.set([(t.tables.pairs.length/2),t.ribbonBase,0,0],12);
     const params=h._buffer(new Uint8Array(header),GPUBufferUsage.UNIFORM,'Frame inclusive ribbon parameters');buffers.push(params);
     const bind=d.createBindGroup({layout:this.layout,entries:[{binding:0,resource:{buffer:t.p.positions}},{binding:1,resource:{buffer:t.p.matrices}},{binding:2,resource:{buffer:t.edgeBuffer}},{binding:3,resource:{buffer:params}},{binding:4,resource:depth.texture.createView()}]});pass.setBindGroup(0,bind);
-    for(const range of t.p.instanceRanges){if(!range.count)continue;pass.setPipeline(this.pipelines.get(range.frontFace));pass.draw(6,t.tables.groups.length*range.count,0,t.tables.groups.length*range.start);}
+    for(const range of t.p.instanceRanges){if(!range.count)continue;pass.setPipeline(this.pipelines.get(range.frontFace));pass.draw(6,(t.tables.pairs.length/2)*range.count,0,(t.tables.pairs.length/2)*range.start);}
    }pass.end();d.queue.submit([encoder.finish()]);submitted=true;
    const read=d.createBuffer({label:'Frame asynchronous pointer ribbon readback',size,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});buffers.push(read);
    const copy=d.createCommandEncoder({label:'Frame requested inclusive ribbon pixels'});copy.copyTextureToBuffer({texture},{buffer:read,bytesPerRow:row,rowsPerImage:hh},[w,hh]);d.queue.submit([copy.finish()]);

@@ -1,8 +1,8 @@
 {
   "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17",
+  "beforeSHA256": "4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b",
   "afterSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
-  "beforeBytes": 2735498,
+  "beforeBytes": 2752641,
   "afterBytes": 2602100,
   "operations": [
     {
@@ -145,6 +145,13 @@
       "insert": []
     },
     {
+      "startLine": 15838,
+      "deleteLines": 1,
+      "insert": [
+        "  frameConnectedSelectionComplete=null;\n"
+      ]
+    },
+    {
       "startLine": 15842,
       "deleteLines": 1,
       "insert": [
@@ -171,35 +178,47 @@
       "insert": []
     },
     {
-      "startLine": 15998,
+      "startLine": 15892,
+      "deleteLines": 172,
+      "insert": []
+    },
+    {
+      "startLine": 16080,
+      "deleteLines": 2,
+      "insert": [
+        "    if(hit2?.then)return hit2.then(hit=>frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit})));\n"
+      ]
+    },
+    {
+      "startLine": 16171,
       "deleteLines": 1,
       "insert": [
         "function* framePolySelectionMeasurements(items,exact=polyExactEdgeVertices){\n"
       ]
     },
     {
-      "startLine": 16004,
+      "startLine": 16177,
       "deleteLines": 1,
       "insert": [
         "    const mesh=pickMeshes.get(h),pos=mesh?.geometry?.attributes.position;if(!pos)continue;\n"
       ]
     },
     {
-      "startLine": 16006,
+      "startLine": 16179,
       "deleteLines": 1,
       "insert": [
         "    const ids=yield* framePolySelectedVertexIdsWork(h,items,exact);selected.set(h,ids);\n"
       ]
     },
     {
-      "startLine": 16010,
+      "startLine": 16183,
       "deleteLines": 1,
       "insert": [
         "  let h=null;for(const key of items.keys())if(pickMeshes.has(key)){h=key;break;}h??=selNodes.values().next().value||null;\n"
       ]
     },
     {
-      "startLine": 16012,
+      "startLine": 16185,
       "deleteLines": 4,
       "insert": [
         "  if(coordMode==='world')frame=new THREE2.Matrix4();\n",
@@ -208,120 +227,146 @@
       ]
     },
     {
-      "startLine": 16018,
+      "startLine": 16191,
       "deleteLines": 1,
       "insert": [
         "    const mesh=pickMeshes.get(h),pos=mesh.geometry.attributes.position;mesh.updateMatrixWorld(true);\n"
       ]
     },
     {
-      "startLine": 16464,
+      "startLine": 16324,
+      "deleteLines": 1,
+      "insert": [
+        "  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);\n"
+      ]
+    },
+    {
+      "startLine": 16637,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17029,
+      "startLine": 17202,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17231,
+      "startLine": 17404,
       "deleteLines": 1,
       "insert": [
         "    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);\n"
       ]
     },
     {
-      "startLine": 17529,
+      "startLine": 17467,
+      "deleteLines": 3,
+      "insert": [
+        "    let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);\n"
+      ]
+    },
+    {
+      "startLine": 17482,
+      "deleteLines": 1,
+      "insert": [
+        "    hash2 && (componentFocus = \"poly\", placeGizmoForSelection()), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === \"replace\") && _vpPick(hash2, e.shiftKey, ctrl);\n"
+      ]
+    },
+    {
+      "startLine": 17704,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 17538,
+      "startLine": 17713,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17540,
+      "startLine": 17715,
       "deleteLines": 1,
       "insert": [
         "  let c = undoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17546,
+      "startLine": 17721,
       "deleteLines": 1,
       "insert": [
         "  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17549,
+      "startLine": 17724,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17551,
+      "startLine": 17726,
       "deleteLines": 1,
       "insert": [
         "  let c = redoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17554,
+      "startLine": 17729,
       "deleteLines": 1,
       "insert": [
         "  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17557,
+      "startLine": 17732,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 18119,
+      "startLine": 18294,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 21143,
+      "startLine": 21318,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 21156,
+      "startLine": 21331,
       "deleteLines": 1,
       "insert": [
         " if(!g?.attributes?.position)return null;\n"
       ]
     },
     {
-      "startLine": 21458,
+      "startLine": 21633,
       "deleteLines": 1,
       "insert": [
         "document.addEventListener(\"keydown\", (e) => _endSessionOutside(e.target), !0);\n"
       ]
     },
     {
-      "startLine": 21549,
+      "startLine": 21724,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24298,
+      "startLine": 24473,
       "deleteLines": 1,
       "insert": [
         "var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySoft = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;\n"
       ]
     },
     {
-      "startLine": 24449,
+      "startLine": 24624,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24463,
+      "startLine": 24626,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24639,
       "deleteLines": 3,
       "insert": [
         "function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices) {\n",
@@ -329,45 +374,50 @@
       ]
     },
     {
-      "startLine": 24606,
-      "deleteLines": 1,
+      "startLine": 24782,
+      "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 24640,
+      "startLine": 24817,
       "deleteLines": 1,
       "insert": [
         "function* frameFaceSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24642,
+      "startLine": 24819,
       "deleteLines": 1,
       "insert": [
         "  const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;\n"
       ]
     },
     {
-      "startLine": 24687,
+      "startLine": 24864,
       "deleteLines": 1,
       "insert": [
         "function* frameEdgeSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24689,
+      "startLine": 24866,
       "deleteLines": 1,
       "insert": [
         "  let s = items.get(h), mesh = pickMeshes.get(h), pos = mesh?.geometry?.attributes.position;\n"
       ]
     },
     {
-      "startLine": 24749,
+      "startLine": 24907,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24927,
       "deleteLines": 15,
       "insert": []
     },
     {
-      "startLine": 24782,
+      "startLine": 24960,
       "deleteLines": 1,
       "insert": [
         "  let delta = desired.clone().multiply(old.clone().invert()), snap = capturePolySelection();\n",
@@ -375,129 +425,129 @@
       ]
     },
     {
-      "startLine": 24787,
-      "deleteLines": 1,
-      "insert": []
-    },
-    {
-      "startLine": 25030,
-      "deleteLines": 1,
-      "insert": []
-    },
-    {
-      "startLine": 25037,
+      "startLine": 24965,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 25053,
+      "startLine": 25209,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 25216,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 25061,
+      "startLine": 25232,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 25240,
       "deleteLines": 4,
       "insert": []
     },
     {
-      "startLine": 25091,
+      "startLine": 25270,
       "deleteLines": 8,
       "insert": []
     },
     {
-      "startLine": 25152,
+      "startLine": 25331,
       "deleteLines": 5,
       "insert": []
     },
     {
-      "startLine": 25400,
+      "startLine": 25579,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26200,
+      "startLine": 26379,
       "deleteLines": 640,
       "insert": []
     },
     {
-      "startLine": 26841,
+      "startLine": 27020,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26884,
+      "startLine": 27063,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 26985,
+      "startLine": 27164,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 26989,
+      "startLine": 27168,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27006,
+      "startLine": 27185,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27011,
+      "startLine": 27190,
       "deleteLines": 1,
       "insert": [
         "    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)\n"
       ]
     },
     {
-      "startLine": 27360,
+      "startLine": 27539,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 27477,
+      "startLine": 27656,
       "deleteLines": 1,
       "insert": [
         "   job.capturing=true;const savedToken=sceneStateToken,mutation=nativeSaveMutation,snapshot=await nativeSaveCopy(buildHashSceneSnapshot(),signal);job.capturing=false;\n"
       ]
     },
     {
-      "startLine": 27480,
+      "startLine": 27659,
       "deleteLines": 1,
       "insert": [
         "  finally{job.capturing=false;options.signal?.removeEventListener('abort',abort);status.remove();if(nativeSceneSave===job)nativeSceneSave=null;}\n"
       ]
     },
     {
-      "startLine": 27775,
+      "startLine": 27954,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27787,
+      "startLine": 27966,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 27791,
+      "startLine": 27970,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"
       ]
     },
     {
-      "startLine": 28430,
+      "startLine": 28609,
       "deleteLines": 1,
       "insert": [
         "    apply(\"pos\", values.position), apply(\"rot\", values.rotation), apply(\"size\", values.size), syncCube(), polyMode && editPivot ? (polyPivotMatrix = getGizmoWorldArray().slice(), scheduleRender()) : commitCoordinateSnapshot(before);\n"
       ]
     },
     {
-      "startLine": 32693,
+      "startLine": 32872,
       "deleteLines": 1,
       "insert": []
     }

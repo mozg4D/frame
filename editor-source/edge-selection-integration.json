@@ -1,0 +1,83 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17",
+  "afterSHA256": "cf764f185b3b01938fa7ea1db0d0551ceaa8afbb2384c2c29929e77ca3eea1c4",
+  "beforeBytes": 2735498,
+  "afterBytes": 2737031,
+  "operations": [
+    {
+      "startLine": 15838,
+      "deleteLines": 1,
+      "insert": [
+        "  frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;\n"
+      ]
+    },
+    {
+      "startLine": 15892,
+      "deleteLines": 0,
+      "insert": [
+        "/* FRAME_CURRENT_EDGE_SELECTION_HELPER */\n",
+        "/* FRAME_CURRENT_EDGE_SELECTION_MATH */\n"
+      ]
+    },
+    {
+      "startLine": 15908,
+      "deleteLines": 1,
+      "insert": [
+        "    if(hit2?.then)return hit2.then(hit=>framePrepareNativeEdgeClick(hit,cx,cy,mode,vi,preparedNative?.edgeSelectionState));\n",
+        "    if(preparedNative&&!preparedNative.legacyCommit&&vpState.renderer?.isFrameNativeViewportRenderer)return framePrepareNativeEdgeClick(hit2,cx,cy,mode,vi,preparedNative.edgeSelectionState);\n"
+      ]
+    },
+    {
+      "startLine": 16151,
+      "deleteLines": 1,
+      "insert": [
+        "  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameRememberNativeEdgeCM(result);frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);\n"
+      ]
+    },
+    {
+      "startLine": 17294,
+      "deleteLines": 1,
+      "insert": [
+        "    const edgeState=preparedNative?.edgeSelectionState??{};\n",
+        "    let hash2=preparedNative?.edgeSelectionComplete?preparedNative.hash:polyClickPick(e.clientX,e.clientY,mode,preparedNative?{...preparedNative,edgeSelectionState:edgeState}:null);\n",
+        "    if(hash2?.then)return hash2.then(hash=>{if(edgeState.resumeCurrent&&!edgeState.resumeCurrent())throw new DOMException('Native edge click context changed after selection publication','AbortError');return frameNativeCommitClick(()=>doPick(e,{...preparedNative,edgeSelectionComplete:true,hash,edgeMeasurements:edgeState.measurements??null}));});\n"
+      ]
+    },
+    {
+      "startLine": 17307,
+      "deleteLines": 1,
+      "insert": [
+        "    hash2 && (componentFocus = \"poly\", placeGizmoForSelection(preparedNative?.edgeMeasurements??null)), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === \"replace\") && _vpPick(hash2, e.shiftKey, ctrl);\n"
+      ]
+    },
+    {
+      "startLine": 24451,
+      "deleteLines": 0,
+      "insert": [
+        "  const prepared=frameCurrentNativeEdgeCM();if(prepared?.selectedIDs.has(h))return new Set(prepared.selectedIDs.get(h));\n"
+      ]
+    },
+    {
+      "startLine": 24607,
+      "deleteLines": 0,
+      "insert": [
+        "  const prepared=frameCurrentNativeEdgeCM();if(prepared&&frame.elements.every((v,i)=>Object.is(v,prepared.frame.elements[i])))return prepared.extent.clone();\n"
+      ]
+    },
+    {
+      "startLine": 24730,
+      "deleteLines": 0,
+      "insert": [
+        "  const prepared=frameCurrentNativeEdgeCM();if(prepared&&(!bounds||[\"x\",\"y\",\"z\"].every(k=>Object.is(bounds.min[k],prepared.bounds.min[k])&&Object.is(bounds.max[k],prepared.bounds.max[k]))))return prepared.frame.clone();\n"
+      ]
+    },
+    {
+      "startLine": 24788,
+      "deleteLines": 0,
+      "insert": [
+        "  const prepared=frameCurrentNativeEdgeCM();if(prepared)return{min:prepared.bounds.min.clone(),max:prepared.bounds.max.clone()};\n"
+      ]
+    }
+  ]
+}

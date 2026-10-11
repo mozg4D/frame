@@ -40,3 +40,5 @@ mocked renderer/resource/queue adapters. Worker controls include actual generate
 Blob scripts executed by Node worker threads. Passing proves only those source
 contracts. It is not browser end-to-end, physical GPU, visual, timing, or performance
 acceptance.
+
+Current r241 fixture adaptation: isolated affine/stock-CM contexts also load the exact manifest-selected edge helper and math declarations, starting with the production null receipt. Existing assertions and numerical oracles are unchanged. Active edge receipt behavior has separate edge-selection and edge-cache suites.

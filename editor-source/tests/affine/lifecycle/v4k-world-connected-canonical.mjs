@@ -1,3 +1,4 @@
+import {installCurrentEdgeContext} from '../fixtures/current-edge-context.mjs';
 import {reviewURL} from '../source-paths.mjs';
 // Independent connected source control. Rendering/GPU resources are mock adapters; editor control flow, Blob worker, Stock oracle, Save, and history code are exact.
 import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';import{createHash}from'node:crypto';import{Worker as NodeWorker}from'node:worker_threads';import{resolveObjectURL}from'node:buffer';
@@ -5,14 +6,14 @@ import * as THREE2 from '../fixtures/three-core.mjs';
 const native=await import(reviewURL('../candidate/native-affine-ui-v2b.mjs',import.meta.url));
 import{stockCompactOracle}from'../worker/stock-oracle.mjs';import{selectedFaceOracle}from'../worker/selected-face-oracle.mjs';
 const editor=fs.readFileSync(reviewURL('../candidate/editor-affine-ui-v2c.mjs',import.meta.url),'utf8');
-assert.equal(createHash('sha256').update(editor).digest('hex'),'df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17');
+assert.equal(createHash('sha256').update(editor).digest('hex'),'4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b');
 const independent=fs.readFileSync(reviewURL('./v4j-world-commit-oracle.mjs',import.meta.url),'utf8');
 const boilerplate=fs.readFileSync(reviewURL('./rigid-move-empty-undo-control.mjs',import.meta.url),'utf8');
 const setup=independent.slice(independent.indexOf('const start=editor.indexOf('),independent.indexOf('const report='));
 const caseText=independent.slice(independent.indexOf('const cases='),independent.indexOf('for(const[name,W,D,custom]of cases)'));
-const {fixture,cases,worlds}=new Function('fs','vm','assert','THREE2','stockCompactOracle','editor','suppliedText',setup.replace("fs.readFileSync(reviewURL('./rigid-move-empty-undo-control.mjs',import.meta.url),'utf8')",'suppliedText')+caseText+'\nreturn{fixture,cases,worlds};')(fs,vm,assert,THREE2,stockCompactOracle,editor,boilerplate);
+const {fixture,cases,worlds}=new Function('installCurrentEdgeContext','fs','vm','assert','THREE2','stockCompactOracle','editor','suppliedText',setup.replace("fs.readFileSync(reviewURL('./rigid-move-empty-undo-control.mjs',import.meta.url),'utf8')",'suppliedText')+caseText+'\nreturn{fixture,cases,worlds};')(installCurrentEdgeContext,fs,vm,assert,THREE2,stockCompactOracle,editor,boilerplate);
 const start=editor.indexOf('var frameRigidPrepared='),marker='function frameRigidNativeWorkerClosureComplete(){}',source=editor.slice(start,editor.indexOf(marker,start)+marker.length);
-const {installMath}=new Function('vm','THREE2','stockCreaseReference','source','editor','assert',boilerplate.slice(boilerplate.indexOf('function env()'),boilerplate.indexOf("await test('Ctrl"))+'\nreturn{installMath};')(vm,THREE2,stockCompactOracle,source,editor,assert);
+const {installMath}=new Function('installCurrentEdgeContext','vm','THREE2','stockCreaseReference','source','editor','assert',boilerplate.slice(boilerplate.indexOf('function env()'),boilerplate.indexOf("await test('Ctrl"))+'\nreturn{installMath};')(installCurrentEdgeContext,vm,THREE2,stockCompactOracle,source,editor,assert);
 class ActualBlobWorker{constructor(url){this.closed=false;this.ready=resolveObjectURL(url).text().then(source=>{if(this.closed)return;this.node=new NodeWorker("const{parentPort}=require('node:worker_threads');globalThis.self=globalThis;self.postMessage=(m,t)=>parentPort.postMessage(m,t);parentPort.on('message',data=>self.onmessage({data}));\n"+source,{eval:true});this.node.on('message',data=>this.onmessage?.({data}));this.node.on('error',e=>this.onerror?.(e));});}postMessage(m,t=[]){this.ready.then(()=>{if(!this.closed)this.node.postMessage(m,t);});}terminate(){this.closed=true;return this.node?.terminate();}}
 globalThis.Worker=ActualBlobWorker;
 const words=a=>Array.from(new Uint32Array(a.buffer,a.byteOffset,a.byteLength/4));

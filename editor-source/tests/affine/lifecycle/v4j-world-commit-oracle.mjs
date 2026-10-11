@@ -1,3 +1,4 @@
+import {installCurrentEdgeContext} from '../fixtures/current-edge-context.mjs';
 import {reviewURL} from '../source-paths.mjs';
 // Narrow read-only V4j source controls. UI/GPU effects are mocked; math and authoring functions are exact.
 import fs from 'node:fs';
@@ -13,7 +14,7 @@ const start=editor.indexOf('var frameRigidPrepared='),marker='function frameRigi
 // Only the existing environment boilerplate is shared, not its assertions or expected results.
 const supplied=fs.readFileSync(reviewURL('./rigid-move-empty-undo-control.mjs',import.meta.url),'utf8');
 const setup=supplied.slice(supplied.indexOf('function env()'),supplied.indexOf('async function test('));
-const {env}=new Function('vm','THREE2','stockCreaseReference','source',setup+'\nreturn {env};')(vm,THREE2,stockCompactOracle,source);
+const {env}=new Function('installCurrentEdgeContext','vm','THREE2','stockCreaseReference','source',setup+'\nreturn {env};')(installCurrentEdgeContext,vm,THREE2,stockCompactOracle,source);
 const cos=Math.cos(46*Math.PI/180),I=new THREE2.Matrix4();
 const bits=a=>Array.from(new Uint32Array(a.buffer,a.byteOffset,a.byteLength/4));
 const dif=(a,b)=>({lengthA:a.length,lengthB:b.length,wordDiff:bits(a).reduce((n,x,i)=>n+(x!==bits(b)[i]),0)+Math.max(0,b.length-a.length)});

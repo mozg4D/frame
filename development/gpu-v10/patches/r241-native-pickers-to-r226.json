@@ -1,0 +1,42 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "41719f9e27e26a28512cde9f2ce2576704430878f7a10740b51efc0b6fcbd214",
+  "afterSHA256": "ece1137f7d987732a5e50931b1f2d9a2af62402e1bf574c96fb686c64fbb9e86",
+  "beforeBytes": 36371,
+  "afterBytes": 31177,
+  "operations": [
+    {
+      "startLine": 113,
+      "deleteLines": 75,
+      "insert": []
+    },
+    {
+      "startLine": 196,
+      "deleteLines": 1,
+      "insert": [
+        " constructor(host){Object.defineProperty(this,'renderDomain',{value:assertRenderDomain(host.renderDomain??'canonical'),enumerable:true});this.host=host;this.sessions=new Set();this.disposed=false;this.opening=null;this.cornerVisibility=null;this.cornerOpening=null;}\r\n"
+      ]
+    },
+    {
+      "startLine": 208,
+      "deleteLines": 1,
+      "insert": [
+        " async dispose(){if(this.disposed)return;this.disposed=true;await this.opening?.catch(()=>{});await this.cornerOpening?.catch(()=>{});await Promise.all([...this.sessions].map(s=>s.dispose()));this.cornerVisibility?.dispose();this.depthOwner?.dispose();}\r\n"
+      ]
+    },
+    {
+      "startLine": 238,
+      "deleteLines": 1,
+      "insert": [
+        "    const tables=edgeQuery?await drainCooperatively(edgePickerTablesWork(topology),{signal,isCurrent:()=>s.dataCurrent(),yieldTask}):null;\r\n"
+      ]
+    },
+    {
+      "startLine": 306,
+      "deleteLines": 1,
+      "insert": [
+        "   const t=q.target,localInstance=Math.floor(q.occurrence/t.tables.groups.length),edgeId=q.occurrence%t.tables.groups.length,edge=t.tables.groups[edgeId],identity=t.identity.instances[localInstance],v=t.identity.vertexIds;\r\n"
+      ]
+    }
+  ]
+}

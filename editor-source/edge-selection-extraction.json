@@ -1,0 +1,69 @@
+{
+  "schema": "frame-exact-line-delta-v1",
+  "beforeSHA256": "4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b",
+  "afterSHA256": "df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17",
+  "beforeBytes": 2752641,
+  "afterBytes": 2735498,
+  "operations": [
+    {
+      "startLine": 15838,
+      "deleteLines": 1,
+      "insert": [
+        "  frameConnectedSelectionComplete=null;\n"
+      ]
+    },
+    {
+      "startLine": 15892,
+      "deleteLines": 172,
+      "insert": []
+    },
+    {
+      "startLine": 16080,
+      "deleteLines": 2,
+      "insert": [
+        "    if(hit2?.then)return hit2.then(hit=>frameNativeCommitClick(()=>polyClickPick(cx,cy,mode,{hit})));\n"
+      ]
+    },
+    {
+      "startLine": 16324,
+      "deleteLines": 1,
+      "insert": [
+        "  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);\n"
+      ]
+    },
+    {
+      "startLine": 17467,
+      "deleteLines": 3,
+      "insert": [
+        "    let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);\n"
+      ]
+    },
+    {
+      "startLine": 17482,
+      "deleteLines": 1,
+      "insert": [
+        "    hash2 && (componentFocus = \"poly\", placeGizmoForSelection()), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === \"replace\") && _vpPick(hash2, e.shiftKey, ctrl);\n"
+      ]
+    },
+    {
+      "startLine": 24626,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24783,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24907,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 24966,
+      "deleteLines": 1,
+      "insert": []
+    }
+  ]
+}

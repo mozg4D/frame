@@ -1,0 +1,37 @@
+[
+  {
+    "label": "one typed metadata workspace",
+    "oldText": "const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[];",
+    "newStart": 251900,
+    "newEnd": 252087,
+    "newSHA256": "70c399270ecd16fcc1a85154c82af496c9db6181a15ad1aa42a280b75394a2f0"
+  },
+  {
+    "label": "packed worker path preserves earliest authored corner and same DSU face",
+    "oldText": "const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldFace=edgeIds.values[owner];if(oldFace)join(fp,fr,f,oldFace-1);else edgeIds.values[owner]=f+1;\n        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);edgeIds.edge(edge,rawKey,ra,rb);",
+    "newStart": 252504,
+    "newEnd": 252900,
+    "newSHA256": "a2a8234685a554766a2c682a46b7c30bf26ea86539ad5edf564324f4e31ae7ba"
+  },
+  {
+    "label": "existing incident map preserves earliest authored corner, DSU joins same face",
+    "oldText": "const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldFace = incident.get(logicalKey);\n      if (oldFace === undefined) incident.set(logicalKey, f); else join(fp, fr, f, oldFace);",
+    "newStart": 253225,
+    "newEnd": 253449,
+    "newSHA256": "539b9f0934749fbb1dfd3463bf38a09149b70433f7a1bae08aa74bcf95282c63"
+  },
+  {
+    "label": "first logical corner for each authored raw edge",
+    "oldText": "if (!edgeIds.has(key)) { edgeIds.set(key, edgeList.length / 2); edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }",
+    "newStart": 253496,
+    "newEnd": 253708,
+    "newSHA256": "8f743ecaba31557edbdba64fc11dcf77242554e7c526f586c8275dc3d951d86e"
+  },
+  {
+    "label": "transfer exact-size metadata through existing recursive topologyTransfer",
+    "oldText": "group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents};",
+    "newStart": 256842,
+    "newEnd": 257024,
+    "newSHA256": "3ef6fd8810d0e0c520fb724caa7076b098e2e26b54128548b2818a9cd438563b"
+  }
+]

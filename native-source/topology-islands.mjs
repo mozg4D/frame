@@ -119,7 +119,7 @@ export function* buildTopologyWork({positions, indices = null}, {batch = 2048, p
   if (indices) for (let i = 0; i < indices.length; i++) { if (indices[i] >= n) throw Error('Index outside topology positions'); if ((i + 1) % batch === 0) yield; }
   const root = (p, i) => { while (p[i] !== i) { p[i] = p[p[i]]; i = p[i]; } return i; };
   const join = (p, r, a, b) => { a = root(p, a); b = root(p, b); if (a === b) return; if (r[a] < r[b]) p[a] = b; else { p[b] = a; if (r[a] === r[b]) r[a]++; } };
-  const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[];
+  const incident=packedTables?null:new Map(),edgeIds=packedTables?new topologyPackedEdgeTable(Math.min(3*nf,3*n,4194304)):new Map(),edgeList=[],edgeFirstCornerStorage=new Uint32Array(nf*3);
   if(packedTables){
     const faceBatch=Math.max(1,Math.floor(batch/3));
     for(let f=0;f<nf;f++){
@@ -127,8 +127,8 @@ export function* buildTopologyWork({positions, indices = null}, {batch = 2048, p
       join(vp,vr,ga,gb);join(vp,vr,gb,gc);
       for(let j=0;j<3;j++){
         const ra=j===0?a:j===1?b:c,rb=j===0?b:j===1?c:a,la=j===0?ga:j===1?gb:gc,lb=j===0?gb:j===1?gc:ga;
-        const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldFace=edgeIds.values[owner];if(oldFace)join(fp,fr,f,oldFace-1);else edgeIds.values[owner]=f+1;
-        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);edgeIds.edge(edge,rawKey,ra,rb);
+        const logicalKey=pair(la,lb),rawKey=pair(ra,rb),owner=edgeIds.intern(logicalKey,0),oldCorner=edgeIds.values[owner];if(oldCorner)join(fp,fr,f,Math.floor((oldCorner-1)/3));else edgeIds.values[owner]=o+j+1;
+        const edge=logicalKey===rawKey?owner:edgeIds.intern(rawKey,0);if(!edgeIds.rawIds[edge])edgeFirstCornerStorage[edgeIds.rawCount]=edgeIds.values[owner]-1;edgeIds.edge(edge,rawKey,ra,rb);
       }
       if((f+1)%faceBatch===0)yield;
     }
@@ -137,10 +137,10 @@ export function* buildTopologyWork({positions, indices = null}, {batch = 2048, p
     const raw = [0, 1, 2].map(j => indices ? indices[f * 3 + j] : f * 3 + j), logical = raw.map(v => group[v]);
     join(vp, vr, logical[0], logical[1]); join(vp, vr, logical[1], logical[2]);
     for (let j = 0; j < 3; j++) {
-      const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldFace = incident.get(logicalKey);
-      if (oldFace === undefined) incident.set(logicalKey, f); else join(fp, fr, f, oldFace);
+      const k = (j + 1) % 3, logicalKey = pair(logical[j], logical[k]), oldCorner = incident.get(logicalKey);
+      if (oldCorner === undefined) incident.set(logicalKey, f * 3 + j); else join(fp, fr, f, Math.floor(oldCorner / 3));
       const key = pair(raw[j], raw[k]);
-      if (!edgeIds.has(key)) { edgeIds.set(key, edgeList.length / 2); edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }
+      if (!edgeIds.has(key)) { const edgeId = edgeList.length / 2; edgeIds.set(key, edgeId); edgeFirstCornerStorage[edgeId] = oldCorner ?? f * 3 + j; edgeList.push(Math.min(raw[j], raw[k]), Math.max(raw[j], raw[k])); }
     }
     if ((f + 1) % Math.max(1, Math.floor(batch / 3)) === 0) yield;
   }
@@ -176,7 +176,7 @@ export function* buildTopologyWork({positions, indices = null}, {batch = 2048, p
   const vertexAliases=yield* csrFromLabels(vertexGroups,representatives.length,batch);
   const selection={representatives,vertexGroups,vertexAliases,faces:{offsets:faceOffsets,indices:faceCorners},edges:{offsets:edgeOffsets,indices:edgeCorners}};
   return {selection,vertexCount: n, faceCount: nf, edgeCount: edgeLabels.length, vertexComponentCount: vRoots.size, faceComponentCount: fRoots.size,
-    group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents};
+    group, vertexLabels, faceLabels, edgeLabels, edges, sortedEdgeKeys, edgeOrder, vertices, faces, edgeComponents, edgeFirstCorners: edgeFirstCornerStorage.slice(0, edgeLabels.length)};
 }
 export function topologyTransfer(result) {
   const buffers=new Set();const visit=x=>{if(ArrayBuffer.isView(x)){buffers.add(x.buffer);return;}if(x&&typeof x==='object')for(const v of Object.values(x))visit(v);};visit(result);return [...buffers];

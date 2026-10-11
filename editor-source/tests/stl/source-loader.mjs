@@ -18,10 +18,17 @@ assert.equal(Buffer.byteLength(editor),manifest.productionBytes,'Manifest-select
 export const helper=fs.readFileSync(path.join(editorSource,manifest.stlHelper),'utf8');
 JSON.parse(fs.readFileSync(path.join(editorSource,manifest.stlIntegration),'utf8'));
 for(const field of ['stlPostprocessHelper','stlPostprocessIntegration'])assert.equal(typeof manifest[field],'string','Missing build manifest '+field);
+// Undo only the later edge-selection stage for the frozen STL whole-editor oracle.
+const edgeExtraction=JSON.parse(fs.readFileSync(path.join(editorSource,manifest.edgeSelectionExtraction),'utf8'));
+assert.equal(sha(editor),edgeExtraction.beforeSHA256);assert.equal(Buffer.byteLength(editor),edgeExtraction.beforeBytes);
+const edgeLines=editor.match(/[^\n]*\n|[^\n]+$/g)||[];
+for(const operation of [...edgeExtraction.operations].reverse())edgeLines.splice(operation.startLine,operation.deleteLines,...operation.insert);
+const stlEditor=edgeLines.join('');assert.equal(sha(stlEditor),edgeExtraction.afterSHA256);assert.equal(Buffer.byteLength(stlEditor),edgeExtraction.afterBytes);
+assert.equal(sha(stlEditor),'df08be98af28f6898ae0bd76b1f99de09009b23ca0676c0afaadd25ca5afaf17');
 export const postRuntime=fs.readFileSync(path.join(editorSource,manifest.stlPostprocessHelper),'utf8');
 const postIntegration=JSON.parse(fs.readFileSync(path.join(editorSource,manifest.stlPostprocessIntegration),'utf8'));
 const once=(s,a,b)=>{assert.equal(s.split(a).length,2,'Unique postprocess reverse anchor');return s.replace(a,b);};
-let reverted=once(editor,postRuntime+'\n','');
+let reverted=once(stlEditor,postRuntime+'\n','');
 for(const [a,b]of [
  ['async function framePrepareSTLCoordinator(buffer, activity, deferPostprocess) {','async function framePrepareSTLWorker(buffer, activity) {'],
  ['worker.postMessage({ buffer, creaseCos: CREASE_COS, deferPostprocess }, [buffer]);','worker.postMessage({ buffer, creaseCos: CREASE_COS }, [buffer]);'],
@@ -32,7 +39,7 @@ assert.equal(sha(prePostEditor),postIntegration.beforeSHA256);assert.equal(Buffe
 const lines=prePostEditor.match(/[^\n]*\n|[^\n]+$/g)||[];
 for(const operation of [...postIntegration.operations].reverse())lines.splice(operation.startLine,operation.deleteLines,...operation.insert);
 const tokenized=lines.join('');assert.equal(sha(tokenized),postIntegration.afterSHA256);assert.equal(Buffer.byteLength(tokenized),postIntegration.afterBytes);
-assert.equal(once(tokenized,'/* FRAME_CURRENT_STL_POSTPROCESS */',postRuntime),editor,'Exact manifest integration reproduces actual editor');
+assert.equal(once(tokenized,'/* FRAME_CURRENT_STL_POSTPROCESS */',postRuntime),stlEditor,'Exact manifest integration reproduces pinned STL stage');
 const provenance=JSON.parse(fs.readFileSync(path.join(own,'fixtures/provenance.json'),'utf8'));
 for(const [file,expected]of Object.entries(provenance.fixtures))assert.equal(sha(fs.readFileSync(path.join(own,file))),expected,'Frozen oracle modified: '+file);
 assert.equal(sha(editor),provenance.reviewedEditorSHA256,'Independently reviewed editor');

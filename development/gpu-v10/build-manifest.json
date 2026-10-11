@@ -692,14 +692,14 @@
   "repositoryInputAdapters": {
     "modules/editor.2fbd0f5a8cefe96ff28e.js": [
       {
-        "path": "modules/editor.df08be98af28f6898ae0.js",
-        "patch": "patches/r239-editor-to-r226.json"
+        "path": "modules/editor.4a5ef2cdfe5c6b0bfe06.js",
+        "patch": "patches/r241-editor-to-r226.json"
       }
     ],
     "index.html": [
       {
         "path": "index.html",
-        "patch": "patches/r240-shell-to-r226.json"
+        "patch": "patches/r241-shell-to-r226.json"
       }
     ],
     "native-source/gpu-cubic-mip-calibration.mjs": [
@@ -743,7 +743,19 @@
         "path": "modules/printer.23e68964365d7a864168.js",
         "patch": "../../slicer-source/extract-r239-printer.json"
       }
+    ],
+    "native-source/native-pickers.mjs": [
+      {
+        "path": "native-source/native-pickers.mjs",
+        "patch": "patches/r241-native-pickers-to-r226.json"
+      }
+    ],
+    "native-source/picker-ribbon.mjs": [
+      {
+        "path": "native-source/picker-ribbon.mjs",
+        "patch": "patches/r241-picker-ribbon-to-r226.json"
+      }
     ]
   },
-  "supportedProductionVersion": "r240-slicer-progress"
+  "supportedProductionVersion": "r241-edge-selection"
 }
