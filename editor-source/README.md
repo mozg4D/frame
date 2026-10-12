@@ -1,4 +1,4 @@
-This source reconstruction is updated for r243. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+This source reconstruction is updated for r244. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
 
 # Current editor source
 
@@ -37,3 +37,12 @@ Native accepted edge clicks prepare exact authored aliases and CM/gizmo measurem
 The affine aggregate uses current manifest-resolved runtime and source files, the existing Three core module and small synthetic oracles. It retains the prior 69 lifecycle controls, with retired direct-GPU units identified separately, and adds active canonical affine, stock arithmetic, publication, cancellation, resource, Save, history and pivot contracts. Retired rigid-derived job tests are superseded by the active affine publication boundaries; their old 31-control count is not claimed for this implementation.
 
 These are CPU/source and mocked GPU checks, not browser, physical-input or device acceptance. No private fixtures, browser probes, receipts, historical candidate bundles or installed dependencies are included.
+
+## r244 numeric Vertex certificate
+
+The final r244 layer changes only numeric Vertex certificate handoff and mapped preparation. Final P/N/I, ordered selection, complete face membership and exact Float32 connectivity are revalidated; stale or declined proof retains Stock fallback. No old raw IDs, order or weld partition are assumed. The shipped r243 editor is retained solely as the pinned reconstruction input (`rebuildInputEditor`); production loads the new content-addressed editor. Native and slicer sources are unchanged.
+
+    node editor-source/tests/numeric-vertex-certificate/certificate-controls.mjs
+    node editor-source/tests/numeric-vertex-certificate/mapped-wait-controls.mjs
+
+These 34 controls use public synthetic geometry and controlled GPU/renderer/intent transports. Actual browser acceptance and performance limits are recorded separately. Previous-publication queue wait, connectivity/wire work and the inherited artificial-retirement cleanup gap are outside this release.

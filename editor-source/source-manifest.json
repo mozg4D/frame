@@ -1,6 +1,6 @@
 {
   "schema": "frame-current-editor-source-files-v1",
-  "version": "r243-editor-lifecycle-recents",
+  "version": "r244-vertex-certificate-reuse",
   "files": [
     {
       "path": "affine-component-preview.mjs",
@@ -24,8 +24,8 @@
     },
     {
       "path": "build-manifest.json",
-      "bytes": 1445,
-      "sha256": "74e3bffec4a06a0430deaf3d143a64c1ae5cb499651f80c3918873419b76bc47"
+      "bytes": 1559,
+      "sha256": "c93fa278d30f71ec60fb670f0e2e68a9bc56e20fcc5a46511fd77be9c50a254a"
     },
     {
       "path": "derived-selection-integration.json",
@@ -59,13 +59,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 5390,
-      "sha256": "986645969121d98b2014a3a19fd3dd30cf6ec440be79ba6988ea5af9cdd79a50"
+      "bytes": 6387,
+      "sha256": "d644059c34769c7047f1b472a17f4e80d2aa4a6ff2140fe2b13734a3bc8a497d"
     },
     {
       "path": "rebuild.mjs",
-      "bytes": 13866,
-      "sha256": "edc2f241b90d08484a9f671aa7fc23070bd05e1efd5ab829c7655880af8c870c"
+      "bytes": 14996,
+      "sha256": "fb67223a4ae325a5c1425b8ccc4adb13ebca6340bac9f8f09a4b167a86bb683f"
     },
     {
       "path": "rigid-component-preview.mjs",
@@ -851,6 +851,31 @@
       "path": "wire-marquee-integration.json",
       "bytes": 2839,
       "sha256": "349a4443ea21306213776e024afdc9a00bca6870cebc1cc1594650181b52ee75"
+    },
+    {
+      "path": "numeric-vertex-certificate.mjs",
+      "bytes": 6496,
+      "sha256": "60d48e33ce9c0e2e53b6c0e97c8cdc975e71adf02c7f79b4f5d02c9e9d83fcc8"
+    },
+    {
+      "path": "r244-integration.json",
+      "bytes": 10284,
+      "sha256": "f98e7bdbf38ba1309b83370e89cc0b4bef8dc246f7115625ac1a11f70dd37d70"
+    },
+    {
+      "path": "tests/numeric-vertex-certificate/harness.mjs",
+      "bytes": 8421,
+      "sha256": "01e2a7417851f47b84dbf2d9c523144f0eb6641ca831a31f14032d614f370031"
+    },
+    {
+      "path": "tests/numeric-vertex-certificate/certificate-controls.mjs",
+      "bytes": 8476,
+      "sha256": "f1549a73c17daff1fd310bdb33bff20dd74b3b78e7deba9c75dc936e01bb8f93"
+    },
+    {
+      "path": "tests/numeric-vertex-certificate/mapped-wait-controls.mjs",
+      "bytes": 3523,
+      "sha256": "c2673b9bc0d2c45af128c9a798f0418c807f92974e1363903a40139964350347"
     }
   ]
 }

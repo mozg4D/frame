@@ -1,5 +1,5 @@
 {
-  "version": "r243-editor-lifecycle-recents",
+  "version": "r244-vertex-certificate-reuse",
   "assets": {
     "frame-three-core": {
       "path": "./modules/frame-three-core.9edde002b066a9a05676.js",
@@ -151,9 +151,9 @@
       "critical": true
     },
     "editor": {
-      "path": "./modules/editor.963cb8f7a0affc14321a.js",
-      "sha256": "963cb8f7a0affc14321ab18c0587222270ac078400c1420b8923ecfab12d6a93",
-      "bytes": 2866786,
+      "path": "./modules/editor.25e6fb67db66c7589d45.js",
+      "sha256": "25e6fb67db66c7589d45bb48ebf56fbf31cfb2ee4bb6c88760a1afcff04331d1",
+      "bytes": 2873798,
       "critical": true
     },
     "overhang-worker": {

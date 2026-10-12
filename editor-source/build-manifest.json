@@ -1,9 +1,9 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r243-editor-lifecycle-recents",
-  "productionEditor": "modules/editor.963cb8f7a0affc14321a.js",
-  "productionSHA256": "963cb8f7a0affc14321ab18c0587222270ac078400c1420b8923ecfab12d6a93",
-  "productionBytes": 2866786,
+  "version": "r244-vertex-certificate-reuse",
+  "productionEditor": "modules/editor.25e6fb67db66c7589d45.js",
+  "productionSHA256": "25e6fb67db66c7589d45bb48ebf56fbf31cfb2ee4bb6c88760a1afcff04331d1",
+  "productionBytes": 2873798,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
@@ -24,5 +24,7 @@
   "edgeSelectionMath": "edge-selection-math.mjs",
   "edgeSelectionIntegration": "edge-selection-integration.json",
   "edgeSelectionExtraction": "edge-selection-extraction.json",
-  "r243Integration": "r243-integration.json"
+  "r243Integration": "r243-integration.json",
+  "rebuildInputEditor": "modules/editor.963cb8f7a0affc14321a.js",
+  "r244Integration": "r244-integration.json"
 }
