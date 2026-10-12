@@ -12866,7 +12866,7 @@ function cmdAddObject(name, type, selectedHashes, opts) {
   };
 }
 function cmdDelete(hashes) {
-frameAffineEnsureAuthoring();
+frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));
 
   hashes=hashes.slice();const cameraBefore=frameActiveCamera();
   const deleting=new Set();for(const h of hashes)collectSubtree(h,deleting);
@@ -12980,7 +12980,7 @@ function collectPolygonalMeshes(h, out, seen) {
   for (let child of n.children) collectPolygonalMeshes(child, out, seen);
 }
 function cmdMakePolygonal(hashes) {
-frameAffineEnsureAuthoring();
+frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));
 
   let selected = hashes.filter((h) => OBJ.has(h)), set = new Set(selected), roots = sortByTreeOrder(selected.filter((h) => {
     let p = OBJ.get(h)?.parent;
@@ -13123,7 +13123,7 @@ async function connectDeleteSelection() {
         await new Promise(resolve=>setTimeout(resolve,12));if(!sameSelection())return;
       }
     }
-    if(sameSelection())runCmd(cmdConnectDelete(hashes));
+    if(sameSelection())return frameAffineRunExactAction('Connect / To editable',()=>frameAffineExecutePreparedCommand(cmdConnectDelete(hashes),null,hashes),{hashes,guard:sameSelection});
   })();
   try{return await request.promise;}finally{if(pendingEditableSelection===request)pendingEditableSelection=null;}
 }
@@ -13336,7 +13336,7 @@ function cmdReparent(hashes,drop){
   return {animationCommand:true,redo(){detachList(moving);insertList(moving,drop);for(const [h,w] of worlds)setNodeFromWorld(OBJ.get(h),w);frameIndexMotionPaths();if(animAfter)frameRestoreChannels(animAfter,owners);else animAfter=frameSerializeChannels(owners);},undo(){for(const e of parentSnap){if(e.ph==='__root')rootOrder=e.children.slice();else if(OBJ.has(e.ph))OBJ.get(e.ph).children=e.children.slice();}before.forEach(restoreNode);frameIndexMotionPaths();frameRestoreChannels(animBefore,owners);}};
 }
 function cmdCopyTo(hashes, drop) {
-frameAffineEnsureAuthoring();
+frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));
 
   hashes=frameIncludeOwnedPaths(hashes);
   if (!hashes.length) return { redo() {
@@ -13421,7 +13421,7 @@ frameAffineEnsureAuthoring();
   }, cmd;
 }
 function cmdDuplicateToRoot(hashes) {
-frameAffineEnsureAuthoring();
+frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));
 
   hashes=frameIncludeOwnedPaths(hashes);
   let roots = sortByTreeOrder(hashes.filter((h) => OBJ.has(h) && !hashes.some((o) => o !== h && isAncestor(OBJ.get(o), OBJ.get(h))))), cmd = { newRoots: [], map: /* @__PURE__ */ new Map(), redo() {
@@ -15174,8 +15174,8 @@ function applyLoopSelection(mode = "replace") {
   rebuildPolySelection();
 }
 function leaveVertexTool(commitLine = !0) {
-  if (vpState.renderer?.domElement && (vpState.renderer.domElement.style.cursor = ""), vertexTools.mode === "lineCut") {
-    commitLine ? finishLineCut() : (vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());
+  if(commitLine&&vertexTools.mode==='lineCut'&&frameAffineAuthoringPending([...selNodes]))return finishLineCut();if (vpState.renderer?.domElement && (vpState.renderer.domElement.style.cursor = ""), vertexTools.mode === "lineCut") {
+    return commitLine ? finishLineCut() : (vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());
     return;
   }
   vertexTools.soft.active && disableSoftSelection(!1), vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel();
@@ -15323,10 +15323,10 @@ function commitGeometryEdit(hashes, beforeGeom, beforeSel) {
   } }), rebuildPolySelection(!0), scheduleGeneratorEvaluation();
 }
 function addPointAt(cx, cy, vi,preparedNative=null) {
-frameAffineEnsureAuthoring();
+if(frameAffineAuthoringPending([...selNodes])){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Add point',()=>addPointAt(cx,cy,vi,null),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}frameAffineEnsureAuthoring([...selNodes]);
 
   let snap=preparedNative?preparedNative.snap:resolveVertexToolSnap(cx,cy,vi,true,null,'click');
-  if(snap?.then)return snap.then(snap=>frameNativeCommitClick(()=>addPointAt(cx,cy,vi,{snap})));
+  if(snap?.then)return frameAffineAfterExactPicker(snap,snap=>frameNativeCommitClick(()=>addPointAt(cx,cy,vi,{snap})),'Add point');
   if (!snap || snap.type === "vertex") return;
   let mesh = snap.mesh, h = snap.h, beforeGeom = capturePolyGeometries([h]), beforeSel = capturePolySelectionState(), logicalSel = capturePolyLogicalSelection(), tris = meshTriangles(mesh), inv = mesh.matrixWorld.clone().invert(), local = snap.world.clone().applyMatrix4(inv), key = (p) => `${p.x.toFixed(5)},${p.y.toFixed(5)},${p.z.toFixed(5)}`, out = [];
   if (snap.type === "face")
@@ -15364,7 +15364,7 @@ frameAffineEnsureAuthoring();
   installEditedGeometry(mesh, makeGeometryFromTriangles(out, !!mesh.geometry.attributes.uv)), restorePolyLogicalSelection(logicalSel), commitGeometryEdit([h], beforeGeom, beforeSel);
 }
 function addPointToolClick(cx,cy,vi){
-  return frameAfterPicker(resolveVertexToolSnap(cx,cy,vi,true,null,'click'),snap=>frameNativeCommitClick(()=>snap?(snap.type!=='vertex'&&addPointAt(cx,cy,vi,{snap}),true):false));
+  if(frameAffineAuthoringPending([...selNodes])){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Add point',()=>addPointToolClick(cx,cy,vi),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}return frameAffineAfterExactPicker(resolveVertexToolSnap(cx,cy,vi,true,null,'click'),snap=>frameNativeCommitClick(()=>snap?(snap.type!=='vertex'&&addPointAt(cx,cy,vi,{snap}),true):false),'Add point');
 }
 function barycentric2DFrom3D(p, a, b, c) {
   let v0 = b.clone().sub(a), v1 = c.clone().sub(a), v2 = p.clone().sub(a), d00 = v0.dot(v0), d01 = v0.dot(v1), d11 = v1.dot(v1), d20 = v2.dot(v0), d21 = v2.dot(v1), den = d00 * d11 - d01 * d01 || 1, v = (d11 * d20 - d01 * d21) / den, w = (d00 * d21 - d01 * d20) / den;
@@ -15517,7 +15517,7 @@ function cutTriangleByScreenSegment(tri, s0, s1, mesh, cam, r, visibleOnly, edge
   return out;
 }
 function applyLineCut() {
-frameAffineEnsureAuthoring();
+if(frameAffineAuthoringPending([...selNodes])){const line=vertexTools.line,points=line.map(p=>p.screen.slice()),mode=vertexTools.mode,view=frameAffinePointerView(vertexTools.view);return frameAffineRunExactAction('Line cut',()=>applyLineCut(),{guard:()=>frameAffineLineCutCurrent(line,points,mode,view)});}frameAffineEnsureAuthoring([...selNodes]);
 
   if (vertexTools.line.length < 2) return;
   let vi = vertexTools.view, r = rectFor(vi), cam = vpState.views[vi]?.cam;
@@ -15546,7 +15546,7 @@ function activateLineCut() {
   polyMode && (leaveVertexTool(), vertexTools.mode = "lineCut", vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, activateTab("tabAttributes"), refreshAttributesPanel());
 }
 function finishLineCut() {
-  vertexTools.mode === "lineCut" && (applyLineCut(), vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());
+  if(vertexTools.mode==='lineCut'&&frameAffineAuthoringPending([...selNodes])){const line=vertexTools.line,points=line.map(p=>p.screen.slice()),mode=vertexTools.mode,view=frameAffinePointerView(vertexTools.view);return frameAffineRunExactAction('Line cut',()=>finishLineCut(),{guard:()=>frameAffineLineCutCurrent(line,points,mode,view)});}vertexTools.mode === "lineCut" && (applyLineCut(), vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());
 }
 function meshBoundaryLoops(mesh) {
   let g = mesh.geometry, pos = g.attributes.position, idx = g.index, top = vertexTopology(g), groupOf = top.groupOf, P = top.groups.map((v) => new THREE2.Vector3().fromBufferAttribute(pos, v[0])), faces = (idx ? idx.count : pos.count) / 3, edges = /* @__PURE__ */ new Map(), key = (a, b) => a < b ? a + ":" + b : b + ":" + a;
@@ -15629,7 +15629,7 @@ function triangulateBoundaryLoop(points, mat) {
   return ids.length === 3 && out.push({ v: ids.map((i) => ({ p: p[i].clone(), uv: null })), mat }), out;
 }
 function closeHoveredHole() {
-frameAffineEnsureAuthoring();
+if(frameAffineAuthoringPending([...selNodes])){const hit=vertexTools.hole,mode=vertexTools.mode,vi=vertexTools.view,cx=vpLastX,cy=vpLastY,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Close hole',()=>{updateCloseHolePreview(cx,cy,vi);return closeHoveredHole();},{guard:()=>vertexTools.hole===hit&&vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}frameAffineEnsureAuthoring(vertexTools.hole?[vertexTools.hole.h]:[]);
 
   let hit = vertexTools.hole;
   if (!hit) return !1;
@@ -15640,7 +15640,7 @@ function activateCloseHole() {
   !polyMode || polyElementMode !== "face" || (leaveVertexTool(), vertexTools.mode = "closeHole", vertexTools.hole = null, hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());
 }
 function bridgeSelectedEdges() {
-frameAffineEnsureAuthoring();
+if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Bridge edges',()=>bridgeSelectedEdges(),{hashes:[...polySelection.items.keys()]});frameAffineEnsureAuthoring([...polySelection.items.keys()]);
 
   let done = !1;
   for (let [h, s] of polySelection.items) {
@@ -16635,7 +16635,7 @@ function framePolygonCopyDragAllowed(e) {
   return true;
 }
 function startGizDrag(g, e) {
- frameRigidGestureGeneration++;frameRigidCancelDerived();frameAffineCancelPublication();
+ const pendingStart=frameAffineDeferGizmoStart(g,e);if(pendingStart)return pendingStart;frameRigidGestureGeneration++;frameRigidCancelDerived();frameAffineCancelPublication();
   if(!framePolygonCopyDragAllowed(e))return;
   let view = vpState.views[g.view], fr = g.fr, r = g.r, name = g.object.name;
   r._cx = e.clientX, r._cy = e.clientY;
@@ -16761,7 +16761,7 @@ function frameExplicitRotationStep(linePx) {
   return (linePx < RING_PX ? 10 : linePx < 2 * RING_PX ? 5 : 1) * D2R;
 }
 function doGizDrag(e) {
-  const deferred=gizDrag?._frameDeferredStart;
+  if(frameAffinePendingPointerMove(e))return;const deferred=gizDrag?._frameDeferredStart;
   if(deferred){if(Math.hypot(e.clientX-deferred.clientX,e.clientY-deferred.clientY)<TAP_PX)return;delete gizDrag._frameDeferredStart;if(_gizStart)_gizStart(deferred);}
   let view = vpState.views[gizDrag.view], r = gizDrag.r, cam = view.cam;
   if (r._cx = e.clientX, r._cy = e.clientY, view.cam.updateMatrixWorld(), splineFocusActive() && splineGizModifiers && (splineGizModifiers = { ...splineGizModifiers, ctrl: !!(e.ctrlKey || e.metaKey), shift: !!e.shiftKey }), setRay(view, r), hideHudLine(), gizDrag.mode === "screenRotate") {
@@ -16834,7 +16834,7 @@ function doGizDrag(e) {
   }
 }
 function endGizDrag(e) {
-  if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();
+  if(frameAffinePendingPointerEnd(e))return;if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();
   const uvDrag=!!uvEdit,splineTargets=gizBeforeSpline?[...gizBeforeSpline.keys()]:null;
   const deferred=!!gizDrag?._frameDeferredStart;
   if(!deferred&&_gizEnd)_gizEnd(e);hideHudLine();hideSnapVis();gizDrag=null; if(!deferred&&!uvDrag)scheduleGeneratorEvaluation(0,splineTargets?.length?splineTargets:generatorTransformTargets([...selNodes])); frozenSignsPerView = null;
@@ -16990,6 +16990,7 @@ async function initViewport(container) {
     if(frameCameraGesture){frameCameraGestureEnd();scheduleRender();}
   };
   addEventListener("pointercancel", (event) => {
+    if(frameAffinePendingPointerEnd(event))return;
     if(splinePointerGesture?.direct)finishSplineDirectDrag(splinePointerGesture,true);
     else if(gizDrag)endGizDrag(event);
     cancelMobileTouch(), edgeBevelTool?.dragging && cancelEdgeBevel(), splineBevelTool?.dragging && cancelSplineBevelTool(), splineOutlineTool?.dragging && cancelSplineOutlineTool(), splinePointerGesture = null, hideSplineDrawPreview(), cancelNavigation();
@@ -17096,7 +17097,7 @@ function mobileMarqueePick(gesture,p){
 function mobileFinishEdit(gesture,cancelled=false){
   gesture?.box?.remove();
   if(gesture?.mode==='spline'){finishSplineDirectDrag(gesture.directGesture,cancelled);splinePointerGesture=null;}
-  else if(gesture?.mode==='gizmo'&&gizDrag)endGizDrag({});
+  else if(gesture?.mode==='gizmo'&&(gizDrag||frameAffineAuthoringPointer))endGizDrag({type:cancelled?'pointercancel':'pointerup',pointerId:gesture.pointId,button:0,buttons:0});
 }
 function beginMobilePinch(){
   const pts=[...mobileTouchPointers.values()];if(pts.length<2)return false;
@@ -17165,7 +17166,7 @@ function mobileTouchMove(e){
     if(r&&view){view.ctrl.move(mobilePointerEvent(p),r,true,p.x-gesture.lastX,p.y-gesture.lastY);scheduleRender();}
     gesture.lastX=p.x;gesture.lastY=p.y;
   }else if(gesture.mode==='marquee')mobileMarqueeMove(gesture,p);
-  else if(gesture.mode==='gizmo'&&gizDrag)doGizDrag(mobilePointerEvent(p));
+  else if(gesture.mode==='gizmo'&&(gizDrag||frameAffineAuthoringPointer))doGizDrag(mobilePointerEvent(p));
   else if(gesture.mode==='spline')moveSplineDirectDrag(gesture.directGesture,mobilePointerEvent(p));
   return e.preventDefault(),true;
 }
@@ -17266,7 +17267,7 @@ function onDown(e) {
   }
 }
 function onMove(e) {
-  if (mobileTouchMove(e)) return;
+  if (mobileTouchMove(e)) return;if(frameAffinePendingPointerMove(e))return;
   if (edgeBevelTool?.dragging) {updateEdgeBevel(e);return;}
   if (splineBevelTool?.dragging) {
     updateSplineBevelTool(e);
@@ -17311,7 +17312,7 @@ function onMove(e) {
   lastX = e.clientX, lastY = e.clientY, vpState.views[activeView].ctrl.move(e, r, Math.hypot(e.clientX - downX, e.clientY - downY) >= TAP_PX, dx, dy), scheduleRender();
 }
 function onUp(e) {
-  if (mobileTouchUp(e)) return;
+  if (mobileTouchUp(e)) return;if(frameAffinePendingPointerEnd(e))return;
   let need = !1;
   if (edgeBevelTool?.dragging && e.button === 0) {edgeBevelTool.dragging=false;finishEdgeBevel();return;}
   if (splineBevelTool?.dragging && e.button === 0) {
@@ -17366,7 +17367,7 @@ function onUp(e) {
   if (polyMode && polyElementMode === "face" && vertexTools.mode === "closeHole" && e.button === 0 && activeView >= 0) {
     let vi = activeView;
     if (Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX)
-      vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameNativeCommitClick(()=>{updateCloseHolePreview(event.clientX,event.clientY,vi);closeHoveredHole()||leaveVertexTool(false);})).catch(frameNativePickerError):(updateCloseHolePreview(e.clientX,e.clientY,vi),closeHoveredHole()||leaveVertexTool(false));
+      vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameAffineCloseHoleAt(event.clientX,event.clientY,vi)).catch(frameNativePickerError):frameAffineCloseHoleAt(e.clientX,e.clientY,vi);
     else {
       let r = rectFor(vi);
       r && vpState.views[vi].ctrl.up(e, r);
@@ -17702,7 +17703,7 @@ function clearHistory() {
   clearCommandStack(undoStack), clearCommandStack(redoStack);
 }
 function runCmd(c) {
-if(c&&!c.renderOnly)frameAffineEnsureAuthoring();
+frameAffineCommandPreflight(c); // Fail closed for unclassified non-render-only consumers; known outer actions await exact readiness.
 
   c && (c.redo(), frameAutoKeyCommand(c), frameValidateTopologyCommand(c), registerSceneCommandState(c), undoStack.push(c), trimCommandStack(undoStack), clearCommandStack(redoStack), afterCmd(c));
 }
@@ -18292,7 +18293,7 @@ function applyEdgeBevelOperation(state,size,{select=true}={}) {
   state.error=null;rebuildPolySelection(false);updateAllSplineVisuals();placeGizmoForSelection();scheduleGeneratorEvaluation(0);scheduleRender();return requested;
 }
 function beginEdgeBevel(options={}) {
-frameAffineEnsureAuthoring();
+if(frameAffineAuthoringPending([...polySelection.items.keys()])){const requested={...options};return frameAffineRunExactAction('Bevel edges',()=>beginEdgeBevel(requested),{hashes:[...polySelection.items.keys()]});}frameAffineEnsureAuthoring([...polySelection.items.keys()]);
 
   if(edgeBevelTool)cancelEdgeBevel();
   const items=edgeBevelSelection();if(!items.length)return false;
@@ -18336,7 +18337,7 @@ function renderEdgeBevelAttributes(state,finished) {
   if(state.error){const row=document.createElement('div');row.className='attr-hint';row.textContent=state.error;attrContent.appendChild(row);}
 }
 function startEdgeBevelFromMenu() {
-  try{beginEdgeBevel({interactive:true});}catch(error){attrContent.innerHTML='';const row=document.createElement('div');row.className='attr-hint';row.textContent=error.message;attrContent.appendChild(row);activateTab('tabAttributes');}
+  if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Bevel edges',()=>startEdgeBevelFromMenu(),{hashes:[...polySelection.items.keys()]});try{beginEdgeBevel({interactive:true});}catch(error){attrContent.innerHTML='';const row=document.createElement('div');row.className='attr-hint';row.textContent=error.message;attrContent.appendChild(row);activateTab('tabAttributes');}
 }
 
 
@@ -21631,7 +21632,7 @@ function _endSessionOutside(target) {
 }
 document.addEventListener("pointerdown", (e) => _endSessionOutside(e.target), !0);
 document.addEventListener("wheel", (e) => _endSessionOutside(e.target), !0);
-document.addEventListener("keydown", (e) => {if(e.key==="Escape"&&polyCoordinatePivotEdit?.kind==="poly-pivot"&&_scrubSession&&_scrubSession.inp!==e.target&&!_scrubSession.inp.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();_scrubSession.end(!1);return;}_endSessionOutside(e.target);}, !0);
+document.addEventListener("keydown", (e) => {if(e.key==="Escape"&&_scrubSession?.cancelNumericScrub?.(e))return;if(e.key==="Escape"&&polyCoordinatePivotEdit?.kind==="poly-pivot"&&_scrubSession&&_scrubSession.inp!==e.target&&!_scrubSession.inp.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();_scrubSession.end(!1);return;}_endSessionOutside(e.target);}, !0);
 function frameNumericPointerInput(inp) {
   let firstTouch = null, mouseId = null, dragging = false, userSelect = "";
   function endMouse() {
@@ -21677,7 +21678,7 @@ function frameNumericPointerInput(inp) {
   });
 }
 function makeScrubInput(inp, o) {
-  frameNumericPointerInput(inp);
+  o=frameAffineCoordinateControl(inp,o);frameNumericPointerInput(inp);
   if(o.length){
     const get=o.get,set=o.set,unit=frameUnitScale(),animation=frameControlDescriptors({...o,min:Number.isFinite(o.min)?o.min*unit:o.min,max:Number.isFinite(o.max)?o.max*unit:o.max});
     o={...o,animation,get:()=>get()/unit,set:v=>set(v*unit)};
@@ -21726,7 +21727,10 @@ function makeScrubInput(inp, o) {
     if(wasScrubbing)o.onScrubEnd?.(flag);
   }
   function beginSession() {
-    _scrubSession && _scrubSession.inp !== inp && _scrubSession.end(!0), before === null && (before = getBefore()), _scrubActive = inp, _scrubSession = { inp, end: localEnd };
+    _scrubSession && _scrubSession.inp !== inp && _scrubSession.end(!0), before === null && (before = getBefore()), _scrubActive = inp, _scrubSession = { inp, end: localEnd, cancelNumericScrub(e) {
+      if(!scrubbing||!before?.numericScrubbing||before.closed||!frameAffineNumericSessions.has(before)||before.numericPreviewInput!==inp)return false;
+      e.preventDefault();e.stopImmediatePropagation();cancelling=true;localEnd(false);clearNumericInputText(inp);setNumericInputDisplay(inp,o.get(),hasPrec?o.prec:null,true);scrubbing=false;document.body.style.cursor="";inp.blur();cancelling=false;return true;
+    } };
   }
   inp._frameSetDisplay=v=>setNumericInputDisplay(inp,v,hasPrec?o.prec:null);
   setNumericInputDisplay(inp,o.get(),hasPrec?o.prec:null,true), inp.addEventListener("focus", () => {
@@ -21771,10 +21775,12 @@ function makeScrubInput(inp, o) {
       clearNumericInputText(inp);o.set(v);inp.value=scrubFmt(o.get(),step);
     }
   });
-  let endScrub = () => {
+  let endScrub = (e) => {
+    if(before?.numericScrubbing&&e?.pointerId!==pid)return;
     scrubbing && (localEnd(!0), document.body.style.cursor = ""), scrubbing = !1, moved = !1, pid = null;
   };
-  inp.addEventListener("pointerup", endScrub), inp.addEventListener("pointercancel", endScrub), addEventListener("pointerup", endScrub), addEventListener("pointercancel", endScrub), inp.addEventListener("dblclick", (e) => {
+  const cancelScrub=e=>{if(before?.numericScrubbing){if(e.pointerId!==pid)return;localEnd(false);scrubbing=false;moved=false;pid=null;}else endScrub(e);};
+  inp.addEventListener("pointerup", endScrub), inp.addEventListener("pointercancel", cancelScrub), addEventListener("pointerup", endScrub), addEventListener("pointercancel", cancelScrub), inp.addEventListener("dblclick", (e) => {
     e.preventDefault(), inp.focus(), inp.select();
   }), inp.addEventListener("input", () => {
     beginSession();
@@ -22623,7 +22629,7 @@ function cmdToSplinePatch(h,recognized=null){
 }
 let pendingSplinePatchConversion=null;
 async function convertToSplinePatch(refs,selectionBound=false,options={}){
-  if(pendingSplinePatchConversion)return pendingSplinePatchConversion;
+  const requestedRefs=Array.isArray(refs)?refs.slice():[refs];if(frameAffineAuthoringPending(frameAffineAuthoringHashes(requestedRefs))){const requestedOptions={...options};return frameAffineRunExactAction('To spline patch',()=>convertToSplinePatch(Array.isArray(refs)?requestedRefs:requestedRefs[0],selectionBound,requestedOptions),{hashes:requestedRefs});}if(pendingSplinePatchConversion)return pendingSplinePatchConversion;
   const roots=Array.isArray(refs)?refs:[refs],nodes=roots.map(h=>OBJ.get(h)),selection=[...selNodes],valid=()=>roots.every((h,i)=>OBJ.get(h)===nodes[i])&&(!selectionBound||selNodes.size===selection.length&&selection.every(h=>selNodes.has(h)));
   pendingSplinePatchConversion=(async()=>{
     scheduleGeneratorEvaluation(0,roots);
@@ -23511,7 +23517,7 @@ function dragNUp(ev) {
     renderRows();
     return;
   }
-  let cmd = ctrl ? cmdCopyTo(hashes, drop) : cmdReparent(hashes, drop);
+  if(ctrl&&frameAffineAuthoringPending(frameAffineAuthoringHashes(hashes))){const refs=hashes.slice(),target=drop.target,saved={...drop};return frameAffineRunExactAction('Copy objects',()=>frameAffineExecutePreparedCommand(cmdCopyTo(refs,saved),cmd=>copyObjParams(cmd.map),refs),{hashes:refs,guard:()=>OBJ.get(target.hash)===target});}let cmd = ctrl ? cmdCopyTo(hashes, drop) : cmdReparent(hashes, drop);
   ctrl && cmd.map ? (runCmd(cmd), copyObjParams(cmd.map)) : runCmd(cmd);
 }
 var dropVert = null;
@@ -24121,7 +24127,7 @@ function cmdAssignMatToComponentSelection(matHash) {
   };
 }
 function assignMaterialDrop(matHash, target = null) {
-  const polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets();
+  if(frameAffineAuthoringPending()){const material=MATS.get(matHash),hashes=frameAffineMaterialScope(target?[target]:[...polyFaceTargets().keys(),...splineCellMaterialTargets().keys()]);return frameAffineRunExactAction('Assign component material',()=>assignMaterialDrop(matHash,target),{hashes,guard:()=>MATS.get(matHash)===material});}const polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets();
   if(target&&!componentMaterialTargetMatches(target,polyTargets,cellTargets))return false;
   const cmd=cmdAssignMatToComponentSelection(matHash);
   return cmd?(runCmd(cmd),true):false;
@@ -24191,15 +24197,15 @@ async function applyTextureToMat(matHash, url) {
   }), selMats.clear(), selMats.add(matHash), refreshMatSel();
 }
 async function createTexturedMatForTarget(h, url, usePolySelection = !1) {
-  let ft = await fetchTex(url);
+  const target=OBJ.get(h);return frameAffineRunExactAction('Create textured material',async row=>{const check=()=>{if(row.cancelled||!row.owned||!frameAffineAuthoringIntentCurrent(row.owned))throw row.error??new DOMException('Texture target changed','AbortError');};let ft = await fetchTex(url);
   if (!ft) return;
-  let im = await textureImageFromBytes(ft.bytes,ft.mime);
+  check();let im = await textureImageFromBytes(ft.bytes,ft.mime);
   if (!im) return;
-  let d = getMat(getDefaultMatHash()), base = d ? { h: d.h, s: d.s, l: 100, emm: d.emm, rough: d.rough, metal: d.metal, opac: d.opac, bump: d.bump } : { h: 0, s: 0, l: 100, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, newHash = makeMat(Object.assign({ name: nextMatName() }, base, { map: im, texBytes: ft.texId?null:ft.bytes, texMime: ft.texId?null:ft.mime, texId:ft.texId||null }));
-  refreshMatVisuals(newHash), addMatCard(newHash), (!usePolySelection || !assignMaterialDrop(newHash)) && runCmd(cmdAssignMat(h, newHash, -1)), uvMode && syncUvEditing(), selMats.clear(), selMats.add(newHash), refreshMatSel();
+  check();let d = getMat(getDefaultMatHash()), base = d ? { h: d.h, s: d.s, l: 100, emm: d.emm, rough: d.rough, metal: d.metal, opac: d.opac, bump: d.bump } : { h: 0, s: 0, l: 100, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, newHash = makeMat(Object.assign({ name: nextMatName() }, base, { map: im, texBytes: ft.texId?null:ft.bytes, texMime: ft.texId?null:ft.mime, texId:ft.texId||null }));
+  refreshMatVisuals(newHash);addMatCard(newHash);return frameAffineMaterialApply(newHash,h,-1,usePolySelection,true);},{hashes:frameAffineMaterialScope([h]),guard:()=>!!target&&OBJ.get(h)===target,force:true});
 }
 function makeTagMaterialUnique(h, i) {
-  let n = getObj(h), tag = n && n.tags[i];
+  if(frameAffineAuthoringPending()){const node=OBJ.get(h),tag=node?.tags[i];return frameAffineRunExactAction('Make material unique',()=>makeTagMaterialUnique(h,i),{hashes:frameAffineMaterialScope([h]),guard:()=>OBJ.get(h)===node&&node?.tags[i]===tag});}let n = getObj(h), tag = n && n.tags[i];
   if (!tag || tag.type !== 1 || !tag.ref) return;
   let uses = 0;
   if (eachNode((x) => x.tags.forEach((t) => {
@@ -24269,10 +24275,10 @@ function dropTextureOnViewportNode(h, url) {
     let isDraft = e.dataTransfer.getData("application/x-mat-draft") === "1", cardHash = e.dataTransfer.getData("application/x-frame-material") || e.dataTransfer.getData("text/plain"), tagEl = e.target.closest(".ob-tag"), replaceIdx = tagEl && row.contains(tagEl) ? +tagEl.dataset.ti : -1;
     if (isDraft) {
       let newHash = makeMat(Object.assign({ name: nextMatName() }, { h: draft.h, s: draft.s, l: draft.l, emm: draft.emm, rough: draft.rough, metal: draft.metal, opac: draft.opac, bump: draft.bump, map: draft.map, texBytes: draft.texBytes, texMime: draft.texMime, texId:draft.texId||null }));
-      refreshMatVisuals(newHash), addMatCard(newHash), assignMaterialDrop(newHash, row.dataset.h) || runCmd(cmdAssignMat(row.dataset.h, newHash, replaceIdx)), selMats.clear(), selMats.add(newHash), refreshMatSel();
+      refreshMatVisuals(newHash), addMatCard(newHash), frameAffineMaterialDrop(newHash,row.dataset.h,replaceIdx);
     } else {
       if (!cardHash || !getMat(cardHash)) return;
-      assignMaterialDrop(cardHash, row.dataset.h) || runCmd(cmdAssignMat(row.dataset.h, cardHash, replaceIdx)), selMats.clear(), selMats.add(cardHash), refreshMatSel();
+      return frameAffineMaterialDrop(cardHash,row.dataset.h,replaceIdx);
     }
   });
 })();
@@ -24296,8 +24302,8 @@ function dropTextureOnViewportNode(h, url) {
     let isDraft = e.dataTransfer.getData("application/x-mat-draft") === "1", cardHash = e.dataTransfer.getData("application/x-frame-material") || e.dataTransfer.getData("text/plain");
     if (isDraft) {
       let newHash = makeMat(Object.assign({ name: nextMatName() }, { h: draft.h, s: draft.s, l: draft.l, emm: draft.emm, rough: draft.rough, metal: draft.metal, opac: draft.opac, bump: draft.bump, map: draft.map, texBytes: draft.texBytes, texMime: draft.texMime, texId:draft.texId||null }));
-      refreshMatVisuals(newHash), addMatCard(newHash), assignMaterialDrop(newHash, h) || runCmd(cmdAssignMat(h, newHash, -1)), selMats.clear(), selMats.add(newHash), refreshMatSel();
-    } else cardHash && getMat(cardHash) && (assignMaterialDrop(cardHash, h) || runCmd(cmdAssignMat(h, cardHash, -1)), selMats.clear(), selMats.add(cardHash), refreshMatSel());
+      refreshMatVisuals(newHash), addMatCard(newHash), frameAffineMaterialDrop(newHash,h,-1);
+    } else if(cardHash&&getMat(cardHash))return frameAffineMaterialDrop(cardHash,h,-1);
   });
 })();
 (function() {
@@ -24780,6 +24786,7 @@ function polyWorldPoints() {
   return out;
 }
 function polyExtentInFrame(frame) {
+  const component=frameComponentCurrentExtent(frame);if(component)return component;
   const rigid=frameRigidExtent(frame);if(rigid)return rigid;
   const prepared=frameCurrentNativeEdgeCM();if(prepared&&frame.elements.every((v,i)=>Object.is(v,prepared.frame.elements[i])))return prepared.extent.clone();
   const inv=frame.clone().invert(),mn=new THREE2.Vector3(Infinity,Infinity,Infinity),mx=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let any=false;
@@ -24905,6 +24912,7 @@ function polyAutoBasis() {
   return faceSelectionBasis(h, owner) || edgeSelectionBasis(h, owner) || owner;
 }
 function polyFrameMatrix(bounds=null) {
+  const component=frameComponentCurrentFrame(bounds);if(component)return component;
   const prepared=frameCurrentNativeEdgeCM();if(prepared&&(!bounds||["x","y","z"].every(k=>Object.is(bounds.min[k],prepared.bounds.min[k])&&Object.is(bounds.max[k],prepared.bounds.max[k]))))return prepared.frame.clone();
   let bb = bounds||polySelectionBounds();
   if (!bb) return new THREE2.Matrix4();
@@ -24915,6 +24923,7 @@ function polyCoordReference(mode) {
   return mode === "world" ? new THREE2.Matrix4() : pureWorldFrame(polyOwnerHash());
 }
 function readPolyTransform(mode,measurements=null) {
+  measurements??=frameAffineNumericCurrentMeasurements();
   let world = measurements?measurements.frame:polyFrameMatrix(), ref = polyCoordReference(mode), local = ref.clone().invert().multiply(world), lin = local.clone();
   lin.elements[12] = lin.elements[13] = lin.elements[14] = 0, rotMatOfLin(lin, _RM);
   let e = new THREE2.Euler().setFromRotationMatrix(_RM), p = new THREE2.Vector3().setFromMatrixPosition(local), s = measurements?measurements.extent:polyExtentInFrame(world);
@@ -25230,7 +25239,7 @@ hashes=[...hashes];frameAffineEnsureAuthoring(hashes);
   return out;
 }
 function coordinateSnapshot() {
-frameAffineEnsureAuthoring();
+// Metadata branches consume their current owned state; polygon geometry stays exact via capturePolyGeometries.
 
   if(uvMode)return uvEdit?uvProjectionSnapshot():{kind:"uv-idle"};
   if (splineFocusActive()) {
@@ -25560,7 +25569,7 @@ function geometryWithoutSelected(mesh, s) {
   return lastMat !== null && ng.addGroup(groupStart, outIndex.length - groupStart, lastMat), ng.setIndex(new THREE2.BufferAttribute(outIndex, 1)), ng.attributes.position.count && (ng.computeVertexNormals(), ng.computeBoundingBox()), ng;
 }
 function deleteSelectedPolyElements() {
-  let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState(), changed = !1;
+  if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Delete elements',()=>deleteSelectedPolyElements(),{hashes:[...polySelection.items.keys()]});let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState(), changed = !1;
   for (let h of hashes) {
     let mesh = pickMeshes.get(h), s = polySelection.items.get(h);
     if (!mesh || !s) continue;
@@ -26359,6 +26368,7 @@ function copyObjParams(map) {
 }
 onTransform(() => {
   if(ignoreBridge)return;
+  if(frameRigidInput?.affine&&frameRigidInput.t.domain!=='face'&&!frameRigidFallthrough){bridgeTransform();return;}
   bridgeTransform();updateHUD();
   if(!uvEdit&&splineFocusActive()){
     const targets=gizBeforeSpline?[...gizBeforeSpline.keys()]:splineSelectionOwners();
@@ -26377,6 +26387,565 @@ onViewportPick((hash, shift, mod) => {
   clearPolySelection();clearSplineSelection();
   !shift && !mod && selMats.clear(), shift || mod ? hash && (selNodes.has(hash) ? selNodes.delete(hash) : (selNodes.add(hash), anchorNode = getObj(hash))) : hash ? (selNodes.clear(), selTags.clear(), selNodes.add(hash), anchorNode = getObj(hash)) : (selNodes.clear(), selTags.clear(), anchorNode = null), lastBracketSig = null, refreshSelClasses();
 });
+// Private certification of the existing component selection; UI sets stay in their domain.
+const frameComponentOwnedSelections=new WeakMap();
+const frameAffineAuthoringRows=new Set(),frameAffineAuthoringCanonicalReceipts=new WeakMap(),frameAffineNumericSessions=new Set();
+let frameAffineAuthoringTail=Promise.resolve(),frameAffineAuthoringLastRow=null,frameAffineAuthoringPointer=null,frameAffineAuthoringPointerReplay=null,frameAffineAuthoringNoticeTimer=null,frameAffinePreparedCommandEpoch=0;
+function frameAffineAuthoringHashes(hashes=null){if(!hashes)return null;const out=new Set(),refs=typeof frameIncludeOwnedPaths==='function'?frameIncludeOwnedPaths([...hashes]):hashes;for(const h of refs)collectSubtree(h,out);return [...out];}
+function frameAffineAuthoringNotice(label,error){
+ const cancelled=error?.name==='AbortError',text=cancelled?`${label} cancelled because its editing context changed.`:`Could not complete ${label.toLowerCase()}.`;
+ frameAffineNotes.errors.push(text+(cancelled?'':' '+String(error)));
+ if(typeof document==='undefined')return;let el=document.getElementById('frameAuthoringNotice');if(!el){el=document.createElement('div');el.id='frameAuthoringNotice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:fixed;right:16px;top:46px;padding:8px 12px;background:#303236;color:#eee;border:1px solid #555;border-radius:5px;z-index:10000;pointer-events:none;font:14px sans-serif';document.body.append(el);}clearTimeout(frameAffineAuthoringNoticeTimer);el.textContent=text;el.style.opacity='1';frameAffineAuthoringNoticeTimer=setTimeout(()=>{el.style.opacity='0';},2400);
+}
+function frameAffineAuthoringIntent(hashes=null){
+ const targets=hashes?new Set(hashes):new Set([...pickMeshes.keys()]),base=frameAffineExactIntent(hashes);
+ return{base,targets:[...targets].map(h=>{const mesh=pickMeshes.get(h);mesh?.updateMatrixWorld(true);return{h,node:OBJ.get(h),mesh,stamp:mesh?frameAffineSourceStamp(mesh):null,world:mesh?.matrixWorld.elements.slice(),stage:base.stages.find(r=>r.stage.h===h)?.stage};}),poly:[...polySelection.items].map(([h,e])=>({h,e,sets:frameRigidSetSnapshots([e.faces,e.vertices,e.edges]),context:base.stages.find(r=>r.stage.h===h&&r.stage.context.entry===e)?.stage.context})),polyRevision:framePolySelectionRevision,uv:uvEdit,pivotEdit:editPivot,configuration:{polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode}};
+}
+function frameAffineAuthoringIntentCurrent(intent){
+ const configuration={polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode};if(!frameAffineExactIntentCurrent(intent.base)||intent.uv!==uvEdit||intent.pivotEdit!==editPivot||!Object.keys(configuration).every(k=>Object.is(configuration[k],intent.configuration[k]))||intent.poly.length!==polySelection.items.size)return false;
+ if(!intent.poly.every(({h,e,sets,context})=>polySelection.items.get(h)===e&&(context?frameComponentSelectionCurrent(context):intent.polyRevision===framePolySelectionRevision&&frameRigidSetSnapshotsCurrent(sets))))return false;
+ return intent.targets.every(({h,node,mesh,stamp,world,stage})=>{if(OBJ.get(h)!==node||pickMeshes.get(h)!==mesh)return false;if(!mesh)return true;mesh.updateMatrixWorld(true);return world.every((v,i)=>v===mesh.matrixWorld.elements[i])&&(frameAffineStampCurrent(stamp)||!!stage?.canonicalSnapshot&&frameAffineAuthoringCanonicalCurrent(mesh,stage.canonicalSnapshot));});
+}
+function frameAffineAuthoringCanonicalRemember(g,snapshot){const keys=Object.keys(g.attributes),stamps=keys.map(k=>frameNative.stampAttribute(g.attributes[k])),index=frameNative.stampAttribute(g.index);frameAffineAuthoringCanonicalReceipts.set(g,{snapshot,keys,stamps,index});}
+function frameAffineAuthoringCanonicalCurrent(mesh,snapshot){const g=mesh?.geometry,row=g&&frameAffineAuthoringCanonicalReceipts.get(g);return !!row&&row.snapshot===snapshot&&Object.keys(g.attributes).join(',')===row.keys.join(',')&&row.keys.every((k,i)=>frameNative.attributeCurrent(g.attributes[k],row.stamps[i]))&&frameNative.attributeCurrent(g.index,row.index);}
+function frameAffineAuthoringOwnerCurrent(intent){
+ const b=intent.base;if(b.lifecycle!==frameAffineLifecycleGeneration||b.history!==frameAffineHistorySerial||b.sequence!==sceneMutationSequence||b.token!==sceneStateToken||b.gesture!==frameRigidGestureGeneration||b.mode!==polyElementMode||b.space!==coordMode||intent.uv!==uvEdit||intent.pivotEdit!==editPivot||!frameRigidSetSnapshotsCurrent(b.selection))return false;
+ const configuration={polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode};if(!Object.keys(configuration).every(k=>Object.is(configuration[k],intent.configuration[k])))return false;
+ return intent.targets.every(({h,node,mesh})=>OBJ.get(h)===node&&pickMeshes.get(h)===mesh)&&intent.poly.every(({h,e,sets})=>polySelection.items.get(h)===e&&frameRigidSetSnapshotsCurrent(sets));
+}
+function frameAffineAuthoringSameRequestedContext(a,b){if(!a||!b)return false;const x=a.base,y=b.base,same=(p,q)=>!!p===!!q&&(!p||p.length===q.length&&p.every((v,i)=>v===q[i]));return x.lifecycle===y.lifecycle&&x.history===y.history&&x.sequence===y.sequence&&x.token===y.token&&x.gesture===y.gesture&&x.mode===y.mode&&x.space===y.space&&a.uv===b.uv&&a.pivotEdit===b.pivotEdit&&same(x.pivot,y.pivot)&&Object.keys(a.configuration).every(k=>Object.is(a.configuration[k],b.configuration[k]))&&x.selection.length===y.selection.length&&x.selection.every((r,i)=>Object.keys(r).every(k=>Object.is(r[k],y.selection[i][k])))&&a.poly.length===b.poly.length&&a.poly.every((r,i)=>r.h===b.poly[i].h&&r.e===b.poly[i].e&&r.sets.length===b.poly[i].sets.length&&r.sets.every((s,j)=>Object.keys(s).every(k=>Object.is(s[k],b.poly[i].sets[j][k]))))&&a.targets.length===b.targets.length&&a.targets.every(r=>b.targets.some(q=>q.h===r.h&&q.node===r.node&&q.mesh===r.mesh&&same(r.world,q.world)&&!!r.stamp===!!q.stamp&&(!r.stamp||Object.keys(r.stamp).every(k=>Object.is(r.stamp[k],q.stamp[k])))));}
+function frameAffineAuthoringReleaseRow(row){if(!row.settled||row.dependents.size)return;row.intent=row.owned=row.after=row.onCancel=null;}
+function frameAffineAuthoringReleasePrevious(row){const prior=row.previous;if(!prior)return;row.previous=null;prior.dependents.delete(row);frameAffineAuthoringReleaseRow(prior);}
+function frameAffineAuthoringCancelAll(reason='Editing context changed'){
+ if(typeof frameAffineNumericMoveCM!=='undefined')frameAffineNumericMoveCM=null;
+ for(const row of [...frameAffineAuthoringRows])row.cancel(new DOMException(reason,'AbortError'));
+ for(const s of [...frameAffineNumericSessions])s.cancel(new DOMException(reason,'AbortError'));
+ if(frameAffineAuthoringPointer){const row=frameAffineAuthoringPointer;frameAffineAuthoringPointer=null;row.cancel(new DOMException(reason,'AbortError'));try{vpState.renderer.domElement.releasePointerCapture(row.down.pointerId);}catch{}}
+}
+function frameAffineRunExactAction(label,callback,{hashes=null,guard=null,rollback=null,rollbackCurrent=null,onError=null,force=false}={}){
+ const scope=frameAffineAuthoringHashes(hashes??[...selNodes]);if(!force&&!frameAffineAuthoringPending(scope)&&!frameAffineAuthoringRows.size)return callback();
+ if(frameAffineAuthoringRows.size>=64){const error=new DOMException('Too many pending editing requests','AbortError');onError?onError(error):frameAffineAuthoringNotice(label,error);return Promise.resolve({cancelled:true,reason:'pending-request-limit'});}
+ const intent=frameAffineAuthoringIntent(scope),previous=frameAffineAuthoringTail;let rejectCancel;
+ const cancelled=new Promise((_,reject)=>rejectCancel=reject);cancelled.catch(()=>{});
+ const row={label,intent,previous:frameAffineAuthoringLastRow,dependents:new Set(),settled:false,cancelled:false,owned:null,onCancel:null,cancel(error=new DOMException('Editing context changed','AbortError')){if(this.cancelled)return;this.cancelled=true;this.error=error;this.onCancel?.(error);rejectCancel(error);}};row.previous?.dependents.add(row);frameAffineAuthoringRows.add(row);frameAffineAuthoringLastRow=row;
+ const check=()=>{let current=frameAffineAuthoringIntentCurrent(row.owned??intent);if(!current&&row.previous?.numericCommitted&&frameAffineAuthoringSameRequestedContext(intent,row.previous.intent)&&frameAffineAuthoringIntentCurrent(row.previous.after)){row.owned=frameAffineAuthoringIntent(scope);current=true;}if(row.cancelled||!current||guard&&!guard())throw row.error??new DOMException('Editing context changed','AbortError');};
+ const ready=()=>frameAffineContinueExact(()=>{check();row.owned=frameAffineAuthoringIntent(scope);return true;},scope,{onError(){}});
+ const work=(async()=>{await Promise.race([previous,cancelled]);check();frameAffineAuthoringReleasePrevious(row);try{await Promise.race([ready(),cancelled]);}catch(error){if(error?.name==='AbortError'||error?.name==='InvalidStateError')throw error;check();row.repairedWorkerFailure=String(error);await Promise.race([ready(),cancelled]);}check();try{return await callback(row);}catch(error){if(rollback){if(!rollbackCurrent?.(row))throw new Error('Authoring rollback owner changed',{cause:error});await rollback(error,row);}throw error;}})();work.catch(()=>{});
+ row.promise=Promise.race([work,cancelled]).catch(error=>{if(onError)onError(error);else frameAffineAuthoringNotice(label,error);return{cancelled:true,reason:error.name==='AbortError'?'editing-context-changed':'operation-failed'};}).finally(()=>{frameAffineAuthoringRows.delete(row);row.settled=true;frameAffineAuthoringReleasePrevious(row);if(frameAffineAuthoringLastRow===row)frameAffineAuthoringLastRow=null;frameAffineAuthoringReleaseRow(row);});row.promise.frameAffineAuthoringRow=row;frameAffineAuthoringTail=row.promise.then(()=>{});return row.promise;
+}
+async function frameAffineAuthoringDrain(signal){for(;;){const rows=[...frameAffineAuthoringRows];if(!rows.length)return;await nativeSaveWait(Promise.all(rows.map(row=>row.promise)),signal);}}
+function frameAffineCoordinateNeedsExact(){return !uvMode&&!splineFocusActive()&&!editPivot&&polyFocusActive()&&polySelection.items.size&&(frameAffineAuthoringPending([...polySelection.items.keys()])||frameAffineAuthoringRows.size);}
+// A single latest Coordinate Manager receipt, guarded by geometry and selection.
+var frameAffineNumericMoveCM=null;
+function frameAffineNumericMoveControl(inp,o){
+ if(typeof META==='undefined'||o.snap!==coordinateSnapshot||o.commit!==commitCoordinateSnapshot||o.revert!==revertCoordinateSnapshot)return null;
+ const meta=META.get(inp);return meta?.ch==='pos'&&Number.isInteger(meta.i)&&meta.i>=0&&meta.i<3?{meta,axis:meta.i}:null;
+}
+function frameAffineNumericMoveCandidate(){
+ const b=frameRigidBasic();return b&&polygonShadingAllowed(b.mesh)&&Object.keys(b.g.attributes).length===2&&['vertex','edge'].includes(b.domain)&&!frameRigidInput&&!frameRigidExecuting&&!frameRigidQueue.length?b:null;
+}
+function frameAffineNumericMoveCheck(s){
+ if(s.closed||s.row?.cancelled||!frameAffineAuthoringIntentCurrent(s.numericOwned)||s.numericUnit!==UMM[dispIdx])throw new DOMException('Numeric Move intent changed','AbortError');
+ if(s.numericReference){const ref=polyCoordReference(coordMode).elements;if(!s.numericReference.every((v,i)=>v===ref[i]))throw new DOMException('Numeric coordinate reference changed','AbortError');}
+}
+async function frameAffineNumericMoveCopy(s,array,Type=array.constructor){
+ frameAffineNumericMoveCheck(s);const out=new Type(array.length);
+ for(let i=0;i<array.length;i+=32768){out.set(array.subarray(i,Math.min(i+32768,array.length)),i);await frameAffineYield();frameAffineNumericMoveCheck(s);}return out;
+}
+function* frameAffineNumericMoveSetCopyWork(set){const out=new Set();let n=0;for(const v of set){out.add(v);if((++n&1023)===0)yield;}return out;}
+async function frameAffineNumericMoveCapture(s,b){
+ const attrs={};for(const[k,a]of Object.entries(b.g.attributes))attrs[k]={array:await frameAffineNumericMoveCopy(s,a.array),itemSize:a.itemSize,normalized:a.normalized};
+ const index=await frameAffineNumericMoveCopy(s,b.index.array),selection={};
+ for(const key of['vertices','edges','faces'])selection[key]=await frameNative.drainCooperatively(frameAffineNumericMoveSetCopyWork(b.entry[key]),{isCurrent:()=>!s.closed&&frameAffineAuthoringIntentCurrent(s.numericOwned),yieldTask:frameAffineYield});
+ const raw={attrs,index,groups:b.g.groups.map(q=>({...q})),drawRange:{...b.g.drawRange},userData:{...b.g.userData},wire:null,aliasStable:false,componentStable:false};
+ const state={creaseCos:polygonCreaseGeometryCurrent(b.g)?CREASE_COS:null,origin:frameContourOrigins.get(b.g),userData:{...b.g.userData},drawRange:{...b.g.drawRange},tags:b.node.tags.map(cloneTag),attrs,index,groups:raw.groups.map(q=>({...q}))};
+ return{raw,before:{kind:'poly',geometry:new Map([[b.h,state]]),selection:new Map([[b.h,selection]]),pivot:polyPivotMatrix?.slice()??null}};
+}
+function frameAffineNumericConnectivityDenseMemo(raw){const p=raw?.attrs?.position?.array,index=raw?.index;if(!(p instanceof Float32Array)||!(index instanceof Uint32Array||index instanceof Uint16Array)||p.length%3||!index.length)return null;const vertices=p.length/3;if(!vertices||vertices>4194304||vertices>Math.max(1024,index.length))return null;try{return new Uint32Array(vertices);}catch{return null;}}
+function* frameAffineNumericMoveConnectivityWork(raw){
+ const p=raw.attrs.position.array,canonical=new Map(),byRawID=new Map(),dense=frameAffineNumericConnectivityDenseMemo(raw);let hash=2166136261;
+ for(let i=0;i<raw.index.length;i++){const rawID=raw.index[i],useDense=dense!==null&&rawID<dense.length;let encoded=useDense?dense[rawID]:byRawID.get(rawID);if(!encoded){const at=rawID*3,key=`${p[at].toFixed(7)},${p[at+1].toFixed(7)},${p[at+2].toFixed(7)}`;let id=canonical.get(key);if(id===undefined){id=canonical.size;canonical.set(key,id);}encoded=id+1;if(useDense)dense[rawID]=encoded;else if(byRawID.size<262144)byRawID.set(rawID,encoded);}hash^=encoded-1;hash=Math.imul(hash,16777619);if((i&1023)===1023)yield;}
+ return'mesh:'+raw.index.length+':'+canonical.size+':'+(hash>>>0);
+}
+function frameAffineNumericMoveKey(p,id){const at=id*3;return`${Math.round(p[at]*1e5)},${Math.round(p[at+1]*1e5)},${Math.round(p[at+2]*1e5)}`;}
+function* frameAffineNumericMoveLogicalWork(b,raw,delta,world,inverse){
+ const p=raw.attrs.position.array,out={vertices:new Set(),edges:new Set(),faces:new Set()},v=new THREE2.Vector3(),moved=new THREE2.Vector3(),f32=new Float32Array(3);let n=0;
+ const key=id=>{v.fromArray(p,id*3);moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1).toArray(f32);return frameAffineNumericMoveKey(f32,0);};
+ for(const id of b.entry.vertices){out.vertices.add(key(id));if((++n&1023)===0)yield;}
+ for(const edge of b.entry.edges){const[a,c]=edge.split(':').map(Number),ka=key(a),kb=key(c);out.edges.add(ka<kb?ka+'|'+kb:kb+'|'+ka);if((++n&1023)===0)yield;}
+ for(const face of b.entry.faces){out.faces.add(face);if((++n&1023)===0)yield;}return out;
+}
+function* frameAffineNumericMoveFallbackWork(b,raw,selected,delta,world,inverse){
+ // Reproduce the stock corner expansion and Float32 write before whole Stock.
+ const count=raw.index.length,p=raw.attrs.position.array,n=raw.attrs.normal.array,positions=new Float32Array(count*3),normals=new Float32Array(count*3),index=new Uint32Array(count),ids=new Uint32Array(count),values=new Float32Array(count*3),faceSlots=new Int32Array(count/3),v=new THREE2.Vector3(),moved=new THREE2.Vector3();let used=0;
+ for(let i=0;i<count;i++){const from=raw.index[i],at=from*3;positions.set(p.subarray(at,at+3),i*3);normals.set(n.subarray(at,at+3),i*3);index[i]=i;if(selected.has(from)){v.fromArray(p,at);moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1);ids[used]=i;v.toArray(values,used++*3);faceSlots[Math.floor(i/3)]=1;}if((i&1023)===1023)yield;}
+ return{raw:{...raw,attrs:{position:{array:positions,itemSize:3,normalized:false},normal:{array:normals,itemSize:3,normalized:false}},index,wire:null,aliasStable:false,componentStable:false},ids:ids.subarray(0,used),values:values.subarray(0,used*3),faceSlots};
+}
+function* frameAffineNumericMoveOriginWork(raw,selected,delta,world,inverse,prior){
+ if(raw.index.length/3>8192)return null;
+ let independent=raw.attrs.position.array.length/3===raw.index.length;if(independent)for(let i=0;i<raw.index.length;i++){if(raw.index[i]!==i){independent=false;break;}if((i&1023)===1023)yield;}
+ if((raw.userData._polygonDragCorners||independent)&&prior)return prior;
+ const positions=new Float32Array(raw.index.length*3),indices=new Uint32Array(raw.index.length),v=new THREE2.Vector3(),moved=new THREE2.Vector3();
+ for(let i=0;i<raw.index.length;i++){const id=raw.index[i];v.fromArray(raw.attrs.position.array,id*3);if(selected.has(id)){moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1);}v.toArray(positions,i*3);indices[i]=i;if((i&1023)===1023)yield;}return{version:1,positions,indices};
+}
+function* frameAffineNumericMoveDisplayWork(g){
+ const p=g.attributes.position.array,n=g.attributes.normal?.array,extras=new Float32Array(p.length*3);
+ for(let id=0;id<p.length/3;id++){const at=id*9;if(n)extras.set(n.subarray(id*3,id*3+3),at);else extras[at+2]=1;extras[at+5]=extras[at+6]=extras[at+7]=extras[at+8]=1;if((id&1023)===1023)yield;}
+ return frameAffineNumericMoveDisplayBind({positions:p,extras,indices:g.index.array,vertexCount:g.attributes.position.count,hasNormals:!!n,hasUV:false,hasColors:false,lineIndices:new Map()},g);
+}
+function frameAffineNumericMoveDisplayBind(row,g){
+ const attrs=[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index],stamps=attrs.map(frameNative.stampAttribute);row.source=g;row.stamps=stamps;row.isCurrent=()=>[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index].every((a,i)=>frameNative.attributeCurrent(a,stamps[i]));return row;
+}
+function* frameAffineNumericMoveFiniteWork(snapshot){
+ const p=snapshot.attrs.position.array,n=snapshot.attrs.normal.array,index=snapshot.index;if(p.length%3||n.length!==p.length)throw new DOMException('Numeric result layout changed','InvalidStateError');
+ for(let i=0;i<p.length;i++){if(!Number.isFinite(p[i])||!Number.isFinite(n[i]))throw new DOMException('Numeric Move exceeds supported coordinates','InvalidStateError');if((i&8191)===8191)yield;}
+ for(let i=0;i<index.length;i++){if(!Number.isInteger(index[i])||index[i]<0||index[i]>=p.length/3)throw new DOMException('Numeric result index changed','InvalidStateError');if((i&8191)===8191)yield;}return true;
+}
+function frameAffineNumericMoveCommand(before,after,publication){
+ return{redo(){if(publication){const first=publication;publication=null;first();}else restorePolyCoordState(after);},undo(){restorePolyCoordState(before);}};
+}
+function* frameAffineNumericPreparedSourceWork(raw,t){
+ for(const[a,b]of[[raw.attrs.position.array,t.originalPositions],[raw.attrs.normal.array,t.originalNormals],[raw.index,t.indexSeed]]){if(!a||!b||a.constructor!==b.constructor||a.byteLength!==b.byteLength)return false;const x=new Uint8Array(a.buffer,a.byteOffset,a.byteLength),y=new Uint8Array(b.buffer,b.byteOffset,b.byteLength);for(let i=0;i<x.length;i++){if(x[i]!==y[i])return false;if((i&16383)===16383)yield;}}return true;
+}
+function* frameAffineNumericScopedVertexRestoreWork(g,logical,t,snapshot,b){
+ if(b.domain!=='vertex'||logical.edges.size||logical.faces.size||!t?.eligible||t.status!=='ready'||t.stableFaceComponent!==true||t.g!==b.g||t.mesh!==b.mesh||t.entry!==b.entry||!frameRigidSelection(t,true)||b.entry.faces.size||b.entry.edges.size||b.entry.vertices.size!==t.ids.length||!snapshot.componentStable||!snapshot.selectedExclusive||!snapshot.outsideCanonical||!snapshot.outsidePositionsUnchanged||snapshot.aliasGuard!==t.aliasGuard||typeof t.aliasGuard?.find!=='function'||snapshot.index.length!==t.indexSeed.length)return null;
+ const certificate=frameComponentScopeCertificate(t);if(!certificate||certificate.g!==b.g||certificate.faces!==t.faceIDs)return null;let work=0;for(const id of t.ids){if(!b.entry.vertices.has(id))return null;if((++work&1023)===0)yield;}
+ const mask=new Set(),index=g.index.array,p=g.attributes.position.array;for(const face of t.faceIDs){if(!Number.isInteger(face)||face<0||face*3+2>=index.length)return null;for(let c=0;c<3;c++){const id=index[face*3+c];if(!Number.isInteger(id)||id<0||id*3+2>=p.length)return null;mask.add(id);}if((++work&1023)===0)yield;}
+ if(!mask.size||mask.size>262144||!(snapshot.selectedIDs instanceof Uint32Array)||snapshot.selectedIDs.length!==mask.size)return null;const seen=new Set();for(const id of snapshot.selectedIDs){if(!mask.has(id)||seen.has(id))return null;seen.add(id);if((++work&1023)===0)yield;}
+ const ids=Uint32Array.from(mask).sort(),groups=new Map();for(const id of ids){const at=id*3,x=p[at],y=p[at+1],z=p[at+2];if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)||t.aliasGuard.find(Math.round(x*1e5),Math.round(y*1e5),Math.round(z*1e5)))return null;const key=frameAffineNumericMoveKey(p,id);if(!logical.vertices.has(key))return null;let group=groups.get(key);if(!group){group=[];groups.set(key,group);}group.push(id);if((++work&1023)===0)yield;}
+ if(groups.size!==logical.vertices.size||!frameRigidSelection(t,true))return null;const entry={vertices:new Set(),edges:new Set(),faces:new Set()};for(const group of groups.values())for(const id of group){entry.vertices.add(id);if((++work&1023)===0)yield;}return entry;
+}
+function* frameAffineNumericMoveRestoreSelectionWork(geometry,logical){
+ const p=geometry.attributes.position.array,entry={vertices:new Set(),edges:new Set(),faces:new Set(logical.faces)};let n=0;
+ if(logical.vertices.size)for(const group of yield*frameLogicalVertexGroupsWork(geometry)){if(logical.vertices.has(frameAffineNumericMoveKey(p,group[0])))for(const id of group){entry.vertices.add(id);if((++n&1023)===0)yield;}if((++n&1023)===0)yield;}
+ if(logical.edges.size)for(const edge of yield*frameLogicalEdgesWork(geometry)){const ka=frameAffineNumericMoveKey(p,edge.a),kb=frameAffineNumericMoveKey(p,edge.b);if(logical.edges.has(ka<kb?ka+'|'+kb:kb+'|'+ka))for(const key of edge.keys){entry.edges.add(key);if((++n&1023)===0)yield;}if((++n&1023)===0)yield;}return entry;
+}
+function* frameAffineNumericMoveWireWork(geometry){
+ const p=geometry.attributes.position,index=geometry.index,base=p.count,count=index.count,Type=base<65536?Uint16Array:Uint32Array;
+ if(count<100000||base>94906265){const out=[],seen=new Set();for(let i=0;i<count;i+=3)for(let j=0;j<3;j++){let a=index.array[i+j],b=index.array[i+(j+1)%3];if(a===b)continue;if(a>b){const t=a;a=b;b=t;}const key=base<=94906265?a*base+b:a+':'+b;if(!seen.has(key)){seen.add(key);out.push(a,b);}if(((i+j)&1023)===1023)yield;}return Type.from(out);}
+ let keys=new Float64Array(count),used=0;
+ for(let i=0;i<count;i+=3){for(let j=0;j<3;j++){const a=index.array[i+j],b=index.array[i+(j+1)%3];if(a!==b)keys[used++]=a<b?a*base+b:b*base+a;}if((i&1023)===1023)yield;}
+ for(let i=0;i<used;i+=2048){keys.subarray(i,Math.min(used,i+2048)).sort();yield;}
+ let scratch=new Float64Array(used);
+ for(let width=2048;width<used;width*=2){for(let begin=0;begin<used;begin+=width*2){let a=begin,b=Math.min(begin+width,used),endA=b,endB=Math.min(begin+width*2,used),out=begin;while(a<endA||b<endB){scratch[out++]=b===endB||a<endA&&keys[a]<=keys[b]?keys[a++]:keys[b++];if((out&8191)===0)yield;}}const swap=keys;keys=scratch;scratch=swap;yield;}
+ let unique=0,previous=-1;for(let i=0;i<used;i++){if(keys[i]!==previous){unique++;previous=keys[i];}if((i&8191)===8191)yield;}
+ const out=new Type(unique*2);let at=0;previous=-1;for(let i=0;i<used;i++){const key=keys[i];if(key!==previous){const a=Math.floor(key/base);out[at++]=a;out[at++]=key-a*base;previous=key;}if((i&8191)===8191)yield;}return out;
+}
+function* frameAffineNumericMoveChangedWork(before,snapshot){
+ const a=before.attrs.position.array,b=snapshot.attrs.position.array;if(a.length!==b.length)return true;for(let i=0;i<a.length;i++){if(Math.abs(a[i]-b[i])>1e-5)return true;if((i&8191)===8191)yield;}return false;
+}
+function frameAffineNumericCurrentMeasurements(){
+ const q=typeof frameAffineNumericMoveCM==='undefined'?null:frameAffineNumericMoveCM;if(!q)return null;const{b,stamp,selection,world,space,pivot,reference,revision,animation}=q;
+ if(polyElementMode!==b.domain||coordMode!==space||framePolySelectionRevision!==revision||frameAnimationRevision!==animation||!polyFocusActive()||splineFocusActive()||uvEdit||editPivot||vertexTools.soft.active||polySelection.items.size!==1||polySelection.items.get(b.h)!==b.entry||OBJ.get(b.h)!==b.node||pickMeshes.get(b.h)!==b.mesh||!frameAffineStampCurrent(stamp)||!frameRigidSetSnapshotsCurrent(selection)||!!pivot!==!!polyPivotMatrix||pivot&&!pivot.every((v,i)=>v===polyPivotMatrix[i])){frameAffineNumericMoveCM=null;return null;}
+ b.mesh.updateMatrixWorld(true);const ref=polyCoordReference(space).elements;if(!world.every((v,i)=>v===b.mesh.matrixWorld.elements[i])||!reference.every((v,i)=>v===ref[i])){frameAffineNumericMoveCM=null;return null;}return q.measurements;
+}
+function frameAffineNumericMoveRemember(b,measurements){
+ b.mesh.updateMatrixWorld(true);frameAffineNumericMoveCM={b:{...b,entry:polySelection.items.get(b.h)},measurements,stamp:frameAffineSourceStamp(b.mesh),selection:frameRigidSetSnapshots([polySelection.items.get(b.h).faces,polySelection.items.get(b.h).vertices,polySelection.items.get(b.h).edges]),world:b.mesh.matrixWorld.elements.slice(),space:coordMode,pivot:polyPivotMatrix?.slice()??null,reference:polyCoordReference(coordMode).elements.slice(),revision:framePolySelectionRevision,animation:frameAnimationRevision};
+}
+function frameAffineNumericMovePublish(s,b,g,entry,buffers,measurements,pivot,snapshot,wireDisplay){
+ frameAffineNumericMoveCheck(s);frameAffineNumericPreviewDetach(s,false);const old=b.mesh.geometry,priorEntry=polySelection.items.get(b.h),priorPivot=polyPivotMatrix,priorRevision=framePolySelectionRevision,priorExternal=frameNativeExternalSelection;
+ frameRigidCancelDerived();const prepared=frameRigidPrepared;if(prepared?.mesh===b.mesh){frameRigidPrepared=null;frameRigidDispose(prepared);}const binding=frameAffineBindings.get(b.mesh);if(binding)frameAffineRetireBinding(binding);
+ try{
+  b.mesh.geometry=g;const points=polyPointOverlays.get(b.h);if(points)points.geometry=g;
+  polySelection.items.clear();polySelection.items.set(b.h,entry);polyPivotMatrix=pivot.slice();framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;
+  assignMeshMat(b.mesh,b.h);refreshWireOverlay(b.mesh);frameAffineAuthoringCanonicalRemember(g,snapshot);
+  const wire=wireOverlays.get(b.h)?.geometry,cache=vpState.renderer?.nativeEngine?.geometryCache;if(cache&&wireDisplay&&wire?.attributes.position?.array===wireDisplay.positions&&wire.index?.array===wireDisplay.indices&&!wire.attributes.normal&&!wire.attributes.uv&&!wire.attributes.color)cache.rows.set(wire,frameAffineNumericMoveDisplayBind(wireDisplay,wire));
+  frameAffineNumericMoveRemember({...b,entry,g,p:g.attributes.position,n:g.attributes.normal,index:g.index},measurements);
+  frameRigidInstalling=true;try{frameInstallPolySelectionBuffers(buffers,true,measurements);}finally{frameRigidInstalling=false;}
+  old.dispose();scheduleRender();
+ }catch(error){
+  if(OBJ.get(b.h)===b.node&&pickMeshes.get(b.h)===b.mesh&&b.mesh.geometry===g&&polySelection.items.get(b.h)===entry){b.mesh.geometry=old;polySelection.items.clear();polySelection.items.set(b.h,priorEntry);polyPivotMatrix=priorPivot;framePolySelectionRevision=priorRevision;frameNativeExternalSelection=priorExternal;frameAffineNumericMoveCM=null;const points=polyPointOverlays.get(b.h);if(points)points.geometry=old;refreshWireOverlay(b.mesh);}
+  throw error;
+ }
+}
+async function frameAffineNumericMoveRun(s,control,value){
+ frameAffineNumericMoveCheck(s);const b=frameAffineNumericMoveCandidate();if(!b)return false;
+ s.numericReference=polyCoordReference(coordMode).elements.slice();
+ s.numericOwned=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.row.owned=s.numericOwned;frameAffineNumericMoveCheck(s);
+ const current=()=>!s.closed&&!s.row.cancelled&&frameAffineAuthoringIntentCurrent(s.numericOwned)&&s.numericUnit===UMM[dispIdx],drain=work=>frameNative.drainCooperatively(work,{isCurrent:current,yieldTask:frameAffineYield});
+ const captured=await frameAffineNumericMoveCapture(s,b),{raw,before}=captured,world=b.mesh.matrixWorld.clone(),inverse=world.clone().invert();
+ const measurements=await drain(framePolySelectionMeasurements(new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]),polyPivotMatrix)),old=measurements.frame,desired=old.clone(),millimeters=value*s.numericUnit;
+ if(!Number.isFinite(millimeters))throw new DOMException('Finite numeric Move value required','InvalidStateError');
+ if(coordMode==='world')desired.elements[12+control.axis]=millimeters;else{const reference=polyCoordReference(coordMode),local=new THREE2.Vector3().setFromMatrixPosition(reference.clone().invert().multiply(old));local.setComponent(control.axis,millimeters);desired.setPosition(local.applyMatrix4(reference));}
+ const delta=desired.clone().multiply(old.clone().invert()),logical=await drain(frameAffineNumericMoveLogicalWork(b,raw,delta,world,inverse));
+ const selected=await drain(framePolySelectedVertexIdsWork(b.h,new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]))),prepared=s.numericPreviewPrepared??frameRigidPrepared;
+ let fast=prepared?.mesh===b.mesh&&prepared.status==='ready'&&prepared.stableFaceComponent===true&&prepared.eligible&&prepared.domain===b.domain&&frameRigidSelection(prepared,true)&&prepared.ids.length===selected.size&&!!frameComponentScopeCertificate(prepared);
+ if(fast)fast=await drain((function*(){for(let k=0;k<prepared.ids.length;k++){if(!selected.has(prepared.ids[k]))return false;if((k&1023)===1023)yield;}return true;})());if(fast&&b.domain==='vertex')fast=await drain(frameAffineNumericPreparedSourceWork(raw,prepared));
+ const stage={h:b.h,mesh:b.mesh,node:b.node,logicalVersion:1,canonicalSnapshot:null};s.numericStage=stage;
+ if(fast){raw.aliasGuard=prepared.aliasGuard;raw.aliasStable=raw.componentStable=true;stage.historyRecipe={parent:null,raw,faces:prepared.faceIDs.slice(),world:world.elements.slice(),delta:delta.elements.slice(),inverse:inverse.elements.slice(),aliasGuard:prepared.aliasGuard};}
+ else stage.historyData=await drain(frameAffineNumericMoveFallbackWork(b,raw,selected,delta,world,inverse));
+ let snapshot;try{snapshot=await frameAffineCanonicalAsync(stage);}catch(error){frameAffineNumericMoveCheck(s);if(error.name==='AbortError'||error.name==='InvalidStateError')throw error;snapshot=await frameAffineCanonicalAsync(stage);}frameAffineNumericMoveCheck(s);await drain(frameAffineNumericMoveFiniteWork(snapshot));
+ const origin=await drain(frameAffineNumericMoveOriginWork(raw,selected,delta,world,inverse,before.geometry.get(b.h).origin));
+ snapshot.userData={...raw.userData,framePLAConnectivity:await drain(frameAffineNumericMoveConnectivityWork(raw))};for(const key of['splineBVH','splineWire','splineWireSource','_polygonDragCorners','_faceSources'])delete snapshot.userData[key];
+ const g=new THREE2.BufferGeometry();g.userData={...snapshot.userData};g.setAttribute('position',new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.attrs.position.array),3));g.setAttribute('normal',new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.attrs.normal.array),3));g.setIndex(new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.index),1));for(const q of raw.groups)g.addGroup(q.start,q.count,q.materialIndex);g.setDrawRange(raw.drawRange.start,raw.drawRange.count);g.boundingBox=snapshot.box.clone();g.boundingSphere=snapshot.sphere.clone();markPolygonCreaseGeometry(g);
+ try{
+  const scopedEntry=fast?await drain(frameAffineNumericScopedVertexRestoreWork(g,logical,prepared,snapshot,b)):null,entry=scopedEntry??await drain(frameAffineNumericMoveRestoreSelectionWork(g,logical)),items=new Map([[b.h,entry]]),meshes=new Map([[b.h,{geometry:g,matrixWorld:world,updateMatrixWorld(){}}]]),pivot=desired.elements.slice(),afterMeasurements=await drain(framePolySelectionMeasurements(items,null,meshes,pivot)),buffers=await drain(framePolySelectionBuffers(items,meshes)),display=await drain(frameAffineNumericMoveDisplayWork(g));
+  b.mesh.updateMatrixWorld(true);if(!world.elements.every((v,i)=>v===b.mesh.matrixWorld.elements[i]))throw new DOMException('Numeric Move world changed','AbortError');
+  const cache=vpState.renderer?.nativeEngine?.geometryCache;if(cache)cache.rows.set(g,display);if(origin)frameContourOrigins.bind(g,origin,true);
+  let wireDisplay=null;if(wireOverlays.has(b.h)){const wire=await drain(frameAffineNumericMoveWireWork(g));wireTopologyCache.set(g,{index:g.index,array:g.index.array,version:g.index.version,vertices:g.attributes.position.count,indices:wire});wireDisplay=await drain(frameAffineNumericMoveDisplayWork({attributes:{position:g.attributes.position},index:new THREE2.BufferAttribute(wire,1)}));}
+  const afterSelection={};for(const key of['vertices','edges','faces'])afterSelection[key]=await drain(frameAffineNumericMoveSetCopyWork(entry[key]));
+  const after={kind:'poly',geometry:new Map([[b.h,{...before.geometry.get(b.h),creaseCos:CREASE_COS,origin,userData:{...snapshot.userData},attrs:snapshot.attrs,index:snapshot.index,groups:raw.groups.map(q=>({...q}))}]]),selection:new Map([[b.h,afterSelection]]),pivot};
+  const changed=await drain(frameAffineNumericMoveChangedWork(before.geometry.get(b.h),snapshot));frameAffineNumericMoveCheck(s);
+  if(changed){const command=frameAffineNumericMoveCommand(before,after,()=>frameAffineNumericMovePublish(s,b,g,entry,buffers,afterMeasurements,pivot,snapshot,wireDisplay));frameAffineExecutePreparedCommand(command,null,[b.h]);}
+  else frameAffineNumericMovePublish(s,b,g,entry,buffers,afterMeasurements,pivot,snapshot,wireDisplay);
+  s.row.numericCommitted=true;s.row.after=frameAffineAuthoringIntent([...polySelection.items.keys()]);frameAffineNotes.phases.push({name:'numeric-move-worker',path:fast?'versioned-prepared-component':'cooperative-corner-stock-fallback'});return true;
+ }catch(error){if(b.mesh.geometry!==g)g.dispose();throw error;}
+}
+
+function frameAffineNumericPreviewStatus(s,state){
+ const input=s.numericPreviewInput;if(input){input.dataset.framePreview=state;input.setAttribute?.('aria-busy',state==='preparing'?'true':'false');}
+ if(typeof document==='undefined')return;
+ let el=document.getElementById('frameNumericPreviewStatus');if(!el&&state==='preparing'){el=document.createElement('div');el.id='frameNumericPreviewStatus';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:fixed;right:16px;top:46px;padding:8px 12px;background:#303236;color:#eee;border:1px solid #555;border-radius:5px;z-index:10000;pointer-events:none;font:14px sans-serif';document.body.append(el);}
+ if(el){el.textContent=state==='preparing'?'Preparing live preview…':'';el.style.opacity=state==='preparing'?'1':'0';}
+}
+function* frameAffineNumericPreviewIDsWork(set){const out=new Uint32Array(set.size);let at=0;for(const id of set){out[at++]=id;if((at&1023)===0)yield;}return out;}
+function* frameAffineNumericPreviewSlotsWork(t){
+ t.idSet=new Set();t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++){t.idSet.add(t.ids[k]);t.slot[t.ids[k]]=k+1;if((k&1023)===1023)yield;}return true;
+}
+async function frameAffineNumericPreviewPrepare(s){
+ frameAffineNumericMoveCheck(s);const b=frameAffineNumericMoveCandidate();if(!b)throw new DOMException('Live numeric preview source unavailable','InvalidStateError');
+ const current=()=>!s.closed&&frameAffineAuthoringIntentCurrent(s.numericOwned)&&s.numericUnit===UMM[dispIdx],drain=work=>frameNative.drainCooperatively(work,{isCurrent:current,yieldTask:frameAffineYield});
+ let t=frameRigidPrepared;
+ if(!(t?.mesh===b.mesh&&t.status==='ready'&&frameRigidSelection(t,true)&&t.affine?.ready&&frameAffineBindingCurrent(t.affine)&&!t.affine.active&&frameComponentScopeCertificate(t))){
+  t={...b,...frameRigidOwnerSnapshot(),pa:b.p.array,na:b.n.array,ia:b.index.array,pv:b.p.version,nv:b.n.version,iv:b.index.version,faces:b.entry.faces,vertices:b.entry.vertices,edges:b.entry.edges,selectionSets:frameRigidSetSnapshots([b.entry.faces,b.entry.vertices,b.entry.edges]),selectionRevision:framePolySelectionRevision,status:'preparing',disposed:false,numericPreviewPrivate:true};s.numericPreviewPrepared=t;
+  const mask=await drain(frameComponentFaceMaskWork(t));if(!mask.eligible)throw new DOMException('Live scrub requires an eligible complete component','InvalidStateError');
+  const topology=await drain(frameNative.buildTopologyWork({positions:t.pa,indices:t.ia},{packedTables:true}));let gate=await drain(frameNative.rigidIslandEligibilityWork(topology,t.ia,mask.faces));gate=await drain(frameComponentClosureMatchesWork(gate,mask.selected));
+  if(!gate.eligible)throw new DOMException('Live scrub component certificate declined','InvalidStateError');
+  t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.privateFaces=mask.faces;t.faceIDs=await drain(frameAffineNumericPreviewIDsWork(mask.faces));t.indexSeed=t.ia;await drain(frameAffineNumericPreviewSlotsWork(t));
+  if(!await drain(frameRigidBuildAliasGuard(t))||!t.stableFaceComponent||!frameAffineEligible(t)||!frameRigidAliasSafe(t))throw new DOMException('Live scrub alias or affine certificate declined','InvalidStateError');
+  if(t.domain==='edge'&&await drain(frameEdgeSelectionBasisWork(t.h,pureWorldFrame(t.h),new Map([[t.h,t.entry]]),pickMeshes)))throw new DOMException('Live scrub edge basis requires stock editing','InvalidStateError');
+  t.status='ready';t.componentOrdinary=true;
+ }
+ b.mesh.updateMatrixWorld(true);const cached=t.componentMeasurements,fr=frameComponentFrame(t,t.bounds,polyPivotMatrix),useCached=cached&&fr&&cached.space===coordMode&&cached.world?.elements.every((v,i)=>v===b.mesh.matrixWorld.elements[i])&&fr.elements.slice(0,12).every((v,i)=>v===cached.frame.elements[i]);
+ const measurements=useCached?{bounds:t.bounds,frame:fr,extent:cached.extent.clone()}:await drain(framePolySelectionMeasurements(new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]),polyPivotMatrix,new Map([[b.h,t.idSet]])));if(!measurements)throw new DOMException('Live scrub measurements unavailable','InvalidStateError');
+ frameAffineNumericMoveCheck(s);s.numericPreviewBase=measurements;s.numericPreviewBasic=b;s.numericReference=polyCoordReference(coordMode).elements.slice();s.numericPreviewPrepared=t;
+ if(!t.affine?.ready){
+  let r=frameAffineBindings.get(t.mesh);if(r&&!frameAffineBindingCurrent(r)){frameAffineRetireBinding(r);r=null;}if(r?.active)throw new DOMException('Another preview owns this component','AbortError');
+  if(!r?.ready){
+   const faceSlots=new Int32Array(t.ia.length/3),positions=new Float32Array(t.faceIDs.length*9),extras=new Float32Array(t.faceIDs.length*27),ids=new Uint32Array(t.faceIDs.length*3);
+   for(let k=0;k<t.faceIDs.length;k++){const f=t.faceIDs[k];faceSlots[f]=k+1;for(let c=0;c<3;c++){const at=k*3+c,id=t.ia[f*3+c];positions.set(t.pa.subarray(id*3,id*3+3),at*3);extras.set(t.na.subarray(id*3,id*3+3),at*9);extras[at*9+5]=extras[at*9+6]=extras[at*9+7]=extras[at*9+8]=1;ids[at]=at;}if((k&1023)===1023){await frameAffineYield();frameAffineNumericMoveCheck(s);}}
+   r={domain:t.domain,managed:true,h:t.h,meshRef:new WeakRef(t.mesh),ownerToken:frameAffineOwnerToken(t.h),owner:frameRigidOwnerSnapshot(),entry:t.entry,faces:t.faces,vertices:t.vertices,edges:t.edges,selectionSets:t.selectionSets,selectionRevision:t.selectionRevision,live:true,displayEnabled:false,revision:0,logicalVersion:0,canonicalVersion:0,active:null,display:null,gpu:null,numeric:{positions,extras,indices:null,vertexCount:ids.length,hasNormals:true,hasUV:false,hasColors:false,lineIndices:new Map()},faceIDs:t.faceIDs,faceSlots,ready:false,numericPreviewOwner:s};frameAffineBindingStamp(r,t.mesh);frameAffineBindings.set(t.mesh,r);frameAffineBindingRecords.add(r);t.affine=r;
+   try{r.gpu=await frameNative.GpuAffineCornerPreview.createCooperatively({device:t.device,pool:t.pool,positions,extras,ids,isCurrent:()=>frameAffineBindingCurrent(r),admissionCurrent:current,yieldTask:frameAffineYield});frameAffineNumericMoveCheck(s);r.display=frameNative.registerAffineDisplayOverride(t.mesh,{faceSlots,fullGeometry:()=>r.fullNumeric??null,selectedGeometry:()=>{const revision=r.revision;return{...r.numeric,isCurrent:()=>r.live&&r.displayEnabled&&r.revision===revision&&frameAffineBindingCurrent(r)};},isCurrent:()=>r.displayEnabled&&frameAffineBindingCurrent(r)});r.ready=true;r.promise=Promise.resolve(r);}catch(error){frameAffineRetireBinding(r);throw error;}
+  }t.affine=r;
+ }
+ const cache=t.engine.geometryCache;if(!cache.rows.get(t.g)?.isCurrent())cache.rows.set(t.g,await drain(frameAffineNumericMoveDisplayWork(t.g)));
+ if(t.numericPreviewPrivate&&!t.gpu){
+  t.numeric=cache.rows.get(t.g);t.originalPositions=await frameAffineNumericMoveCopy(s,t.pa);t.originalNormals=await frameAffineNumericMoveCopy(s,t.na);t.indexSeed=await frameAffineNumericMoveCopy(s,t.ia);t.componentMeasurements={...measurements,space:coordMode,world:b.mesh.matrixWorld.clone()};t.bounds={min:measurements.bounds.min.clone(),max:measurements.bounds.max.clone()};t.boundsWorld=b.mesh.matrixWorld.clone();
+  t.gpu=await frameNative.GpuRigidIslandPreview.createCooperatively({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t),admissionCurrent:current,yieldTask:frameAffineYield});frameAffineNumericMoveCheck(s);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);t.promise=Promise.resolve(true);const prior=frameRigidPrepared;frameRigidPrepared=t;if(prior!==t)frameRigidDispose(prior);
+ }
+ frameAffineNumericMoveCheck(s);const source=frameRigidTransactionSnapshot(t);if(!source)throw new DOMException('Live scrub transaction unavailable','AbortError');
+ const p={t,source,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),beforePivot:polyPivotMatrix?.slice()??null,afterGizmo:measurements.frame.elements.slice(),gizmo:measurements.frame.elements.slice(),ready:false,cancel:false,discarded:false,intent:s.numericOwned};
+ if(!frameAffineStartPreview(p))throw new DOMException('Live scrub display unavailable','InvalidStateError');s.numericPreview=p;p.beforeComponentMeasurements=t.componentMeasurements;t.gpu.gathered=false;t.bounds={min:measurements.bounds.min.clone(),max:measurements.bounds.max.clone()};t.boundsWorld=source.world.clone();return p;
+}
+function frameAffineNumericPreviewSubmit(s){
+ const p=s.numericPreview;if(!p||p.cancel||s.pendingValue===undefined)return;frameAffineNumericMoveCheck(s);
+ const value=s.pendingValue,mm=value*s.numericUnit;if(!Number.isFinite(mm))throw new DOMException('Finite live scrub value required','InvalidStateError');
+ const old=s.numericPreviewBase.frame,desired=old.clone(),reference=new THREE2.Matrix4().fromArray(s.numericReference);
+ if(coordMode==='world')desired.elements[12+s.numericPreviewControl.axis]=mm;else{const local=new THREE2.Vector3().setFromMatrixPosition(reference.clone().invert().multiply(old));local.setComponent(s.numericPreviewControl.axis,mm);desired.setPosition(local.applyMatrix4(reference));}
+ p.delta.copy(desired).multiply(old.clone().invert());p.afterGizmo=desired.elements.slice();const local=p.inverse.clone().multiply(p.delta).multiply(p.world);p.t.gpu.submit({matrix:local.elements,world:p.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>!p.cancel&&!p.discarded&&frameRigidTransactionCurrent(p)}).catch(error=>{if(!s.closed&&error.name!=='AbortError'){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});p.rawPoseSubmitted=true;if(p.t.adapter)p.t.adapter.revision++;frameAffineSubmit(p);
+ const shift=new THREE2.Vector3().setFromMatrixPosition(desired).sub(new THREE2.Vector3().setFromMatrixPosition(old)),m={bounds:{min:s.numericPreviewBase.bounds.min.clone().add(shift),max:s.numericPreviewBase.bounds.max.clone().add(shift)},frame:desired,extent:s.numericPreviewBase.extent.clone()};
+ frameAffineNumericMoveRemember(s.numericPreviewBasic,m);placeGizmoForSelection(m);updateHUD(readPolyTransform(coordMode,m));p.numericValue=value;frameAffineNumericPreviewStatus(s,'ready');
+}
+function frameAffineNumericPreviewWatch(s){
+ if(s.numericPreviewRAF||s.closed)return;s.numericPreviewRAF=requestAnimationFrame(()=>{s.numericPreviewRAF=0;if(s.closed)return;try{frameAffineNumericMoveCheck(s);if(s.numericPreview&&s.pendingValue!==s.numericPreview.numericValue)frameAffineNumericPreviewSubmit(s);frameAffineNumericPreviewWatch(s);}catch(error){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});
+}
+function frameAffineNumericPreviewRequest(s,control,input){
+ s.numericScrubbing=true;s.numericPreviewControl=control;s.numericPreviewInput=input;if(s.closed)return;
+ if(!s.numericOwned){frameAffineNumericPreviewStatus(s,'preparing');return;}
+ if(s.numericPreview){frameAffineNumericPreviewWatch(s);return;}if(s.numericPreviewTask)return;
+ frameAffineNumericPreviewStatus(s,'preparing');frameAffineNumericPreviewWatch(s);s.numericPreviewTask=frameAffineNumericPreviewPrepare(s).then(()=>{if(!s.closed){frameAffineNumericPreviewStatus(s,'ready');frameAffineNumericPreviewSubmit(s);}}).catch(error=>{if(!s.closed){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});s.numericPreviewTask.catch(()=>{});
+}
+function frameAffineNumericPreviewDetach(s,restore=true){
+ if(s.numericPreviewRAF){cancelAnimationFrame(s.numericPreviewRAF);s.numericPreviewRAF=0;}frameAffineNumericPreviewStatus(s,restore?'cancelled':'committed');const p=s.numericPreview;if(!p)return;
+ const r=p.r;p.cancel=true;p.discarded=true;
+ if(r?.live&&r.active===p){r.active=null;r.fullNumeric=p.beforeFullNumeric??null;r.rawDisplayBaseline=p.beforeRawDisplayBaseline??null;r.displayEnabled=p.beforeDisplayEnabled??false;r.revision++;if(r.fullNumeric){const revision=r.revision;r.fullNumeric.isCurrent=()=>r.live&&r.revision===revision&&frameRigidSource(p.t);}if(restore){
+  const restoreWork=[],restoreRevision=r.revision;let restoreFailed=false;
+  const afterRestore=()=>{if(!restoreFailed||r.active||r.revision!==restoreRevision||frameRigidPrepared!==p.t||!frameRigidSource(p.t))return;const t=p.t,g=t.g,numeric=t.numeric;frameRigidPrepared=null;frameRigidDispose(t);if(numeric&&t.mesh.geometry===g){const row={positions:numeric.positions,extras:numeric.extras,indices:numeric.indices,vertexCount:numeric.vertexCount,hasNormals:true,hasUV:false,hasColors:false,lineIndices:new Map()};t.engine.geometryCache.rows.set(g,frameAffineNumericMoveDisplayBind(row,g));}scheduleRender();};
+  const failed=(label,error)=>{restoreFailed=true;frameAffineNotes.errors.push(label+String(error));},attempt=(label,work)=>{try{const result=work();if(result?.then)restoreWork.push(Promise.resolve(result).catch(error=>failed(label,error)));}catch(error){failed(label,error);}};
+  if(p.rawPoseSubmitted&&frameRigidSource(p.t))attempt('Numeric raw preview restore: ',()=>{const result=p.t.gpu.submit({matrix:new THREE2.Matrix4().elements,world:p.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>frameRigidSource(p.t)});if(p.t.adapter)p.t.adapter.revision++;return result;});
+  if(frameRigidSource(p.t))attempt('Numeric affine preview restore: ',()=>r.gpu.restoreFrozenSource());
+  const owned=frameAffineAuthoringIntentCurrent(p.intent);if(owned){attempt('Numeric overlay restore: ',()=>frameRigidRestoreOverlays(p));p.t.bounds=p.beforeBounds?{min:p.beforeBounds.min,max:p.beforeBounds.max}:null;p.t.boundsWorld=p.beforeBounds?.world??null;p.t.componentMeasurements=p.beforeComponentMeasurements;attempt('Numeric CM restore: ',()=>{frameAffineNumericMoveRemember(s.numericPreviewBasic,s.numericPreviewBase);placeGizmoForSelection(s.numericPreviewBase);updateHUD(readPolyTransform(coordMode,s.numericPreviewBase));});}
+  p.restorePromise=Promise.all(restoreWork).then(afterRestore);if(restoreFailed)afterRestore();attempt('Numeric restore render: ',()=>scheduleRender());
+ }}
+}
+function frameAffineNumericPreviewRelease(s){
+ const t=s.numericPreviewPrepared,r=t?.affine;if(t?.numericPreviewPrivate&&frameRigidPrepared!==t)frameRigidDispose(t);else if(r?.numericPreviewOwner===s){if(!r.active&&!frameRigidSource(t))frameAffineRetireBinding(r);else delete r.numericPreviewOwner;}
+ s.numericPreview=s.numericPreviewPrepared=s.numericPreviewBase=s.numericPreviewBasic=s.numericPreviewControl=s.numericPreviewInput=s.numericPreviewTask=null;
+}
+
+function frameAffineCoordinateControl(inp,o){
+ if(o.h||o.snap!==coordinateSnapshot)return o;const original=o,numeric=frameAffineNumericMoveControl(inp,o);let active=null;
+ const release=s=>{frameAffineNumericPreviewRelease(s);s.before=s.owned=s.row=s.numericOwned=s.numericStage=s.numericEndRequest=s.requestNumericEnd=s.numericReference=null;s.pendingValue=undefined;};
+ const end=(s,commit)=>{if(!s||s.closed)return;s.ended=true;s.commit=commit;s.requestNumericEnd?.();if(!commit&&!s.before){s.cancel(new DOMException('Numeric edit cancelled','AbortError'));return;}if(s.before){if(!frameAffineAuthoringIntentCurrent(s.owned)){s.cancel(new DOMException('Numeric edit context changed','AbortError'));return;}try{commit?original.commit(s.before):original.revert(s.before);s.row.numericCommitted=commit;if(commit)s.row.after=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.closed=true;frameAffineNumericSessions.delete(s);s.resolveEnd();release(s);if(active===s)active=null;}catch(error){s.cancel(error);}}};
+ return{...o,onScrubStart(){original.onScrubStart?.();if(numeric&&active)frameAffineNumericPreviewRequest(active,numeric,inp);},get(){return active&&!active.closed&&active.pendingValue!==undefined?active.pendingValue:original.get();},snap(){
+  active=null;if(!frameAffineCoordinateNeedsExact()&&!(numeric&&frameAffineNumericMoveCandidate()))return original.snap();let resolveEnd;const ended=new Promise(resolve=>resolveEnd=resolve),s={kind:'frame-exact-pending-coordinate',numericUnit:numeric?UMM[dispIdx]:null,numericStage:null,numericOwned:null,before:null,owned:null,ended:false,commit:false,closed:false,pendingValue:undefined,resolveEnd,cancel(error){if(this.closed)return;this.closed=true;if(this.numericScrubbing&&_scrubSession?.inp===this.numericPreviewInput)_scrubSession.end(false);try{frameAffineNumericPreviewDetach(this,true);}catch(error){frameAffineNotes.errors.push('Numeric preview cancellation: '+String(error));}this.requestNumericEnd?.();if(this.numericStage)frameAffineHistoryJobs.get(this.numericStage)?.cancel(error);if(this.before&&frameAffineAuthoringOwnerCurrent(this.owned))try{original.revert(this.before);}catch{}frameAffineNumericSessions.delete(this);this.resolveEnd();this.row?.cancel(error);release(this);}};s.numericEndRequest=new Promise(resolve=>s.requestNumericEnd=resolve);active=s;frameAffineNumericSessions.add(s);
+  s.finish=()=>end(s,true);s.promise=frameAffineRunExactAction('Coordinate edit',async row=>{s.row=row;row.onCancel=error=>s.cancel(error);if(s.closed)return;if(numeric&&frameAffineNumericMoveCandidate()){s.numericOwned=frameAffineAuthoringIntent([...polySelection.items.keys()]);row.owned=s.numericOwned;if(s.numericScrubbing)frameAffineNumericPreviewRequest(s,numeric,inp);if(!s.ended)await s.numericEndRequest;if(s.numericPreviewTask)await s.numericPreviewTask;if(s.closed)return;frameAffineNumericMoveCheck(s);if(s.commit&&s.pendingValue!==undefined&&await frameAffineNumericMoveRun(s,numeric,s.pendingValue)){s.closed=true;frameAffineNumericSessions.delete(s);s.resolveEnd();release(s);if(active===s)active=null;return ended;}}s.before=original.snap();s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);if(s.pendingValue!==undefined){const v=s.pendingValue;s.pendingValue=undefined;original.set(v);s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);row.owned=s.owned;}if(s.ended)end(s,s.commit);return ended;},{hashes:numeric?frameAffineMaterialScope([...polySelection.items.keys()]):[...polySelection.items.keys()],guard:()=>!s.closed,force:true,onError(error){s.cancel(error);frameAffineAuthoringNotice('Coordinate edit',error);}});s.row=s.promise.frameAffineAuthoringRow;return s;
+ },set(value){const s=active;if(s?.closed)return;if(!s){original.set(value);return;}if(!s.before){s.pendingValue=value;if(s.numericScrubbing)frameAffineNumericPreviewRequest(s,numeric,inp);return;}if(!frameAffineAuthoringIntentCurrent(s.owned)){s.cancel(new DOMException('Numeric edit context changed','AbortError'));return;}try{original.set(value);s.pendingValue=undefined;s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.row.owned=s.owned;}catch(error){s.cancel(error);frameAffineAuthoringNotice('Coordinate edit',error);}},commit(before){before?.kind==='frame-exact-pending-coordinate'?end(before,true):original.commit(before);},revert(before){before?.kind==='frame-exact-pending-coordinate'?end(before,false):original.revert(before);}};
+}
+function frameAffinePointerEvent(e){const q={preventDefault(){},stopPropagation(){}};for(const k of['type','pointerId','pointerType','button','buttons','clientX','clientY','movementX','movementY','ctrlKey','metaKey','shiftKey','altKey'])q[k]=e[k];return q;}
+function frameAffinePointerView(view){const v=vpState.views[view],r=rectFor(view);v?.cam.updateMatrixWorld();return v&&r?{v,cam:v.cam,world:v.cam.matrixWorld.elements.slice(),projection:v.cam.projectionMatrix.elements.slice(),rect:[r.x,r.y,r.w,r.h]}:null;}
+function frameAffinePointerViewCurrent(receipt){if(!receipt)return false;const r=rectFor(vpState.views.indexOf(receipt.v));receipt.cam.updateMatrixWorld();return receipt.v.cam===receipt.cam&&receipt.world.every((v,i)=>v===receipt.cam.matrixWorld.elements[i])&&receipt.projection.every((v,i)=>v===receipt.cam.projectionMatrix.elements[i])&&r&&receipt.rect.every((v,i)=>v===[r.x,r.y,r.w,r.h][i]);}
+function frameAffineGizmoVersionedAdmission(g,e){
+ if(e.ctrlKey||e.metaKey||e.shiftKey)return false;const basic=frameRigidBasic();if(!basic)return false;const waiting=frameRigidQueue.length>0,t=waiting?frameRigidQueue.at(-1).t:frameRigidSchedulePrepare(),name=g.object.name,mode=name==='SR'?'screenRotate':name[0]==='R'?'rotate':name==='S'?'scaleU':name[0]==='S'?'scale':'move';
+ const affine=frameAffineEligible(t)||(t?.domain!=='face'&&t?.status==='preparing'),rigid=(coordMode==='world'||mode==='move')&&['move','rotate','screenRotate'].includes(mode);return !!t&&!['ineligible','failed','cancelled','fallback'].includes(t.status)&&(affine||rigid)&&!!frameRigidTransactionSnapshot(t);
+}
+function frameAffineDeferGizmoStart(g,e){
+ if(frameAffineAuthoringPointerReplay)return false;if(frameAffineAuthoringPointer){const old=frameAffineAuthoringPointer;frameAffineAuthoringPointer=null;old.cancel(new DOMException('New pointer gesture','AbortError'));}
+ const numeric=[...frameAffineNumericSessions].some(s=>!s.closed),exact=polyFocusActive()&&!editPivot&&!uvEdit||!!(e.ctrlKey&&boundNode);if(!exact||!numeric&&(!frameAffineAuthoringPending()||frameAffineGizmoVersionedAdmission(g,e)))return false;
+ if(numeric){blurActive();for(const s of [...frameAffineNumericSessions])s.finish();}const view=frameAffinePointerView(g.view),down=frameAffinePointerEvent(e),row={down,name:g.object.name,view:g.view,receipt:view,events:[],up:null,cancelled:false,cancel(error){this.cancelled=true;this.action?.cancel(error);}};frameAffineAuthoringPointer=row;
+ try{vpState.renderer.domElement.setPointerCapture(e.pointerId);}catch{}
+ row.promise=frameAffineRunExactAction('Polygon drag',action=>{row.action=action;action.onCancel=error=>row.cancel(error);if(row.cancelled)return;const hit=hitGizmo(down.clientX,down.clientY);if(!hit||hit.view!==row.view||hit.object.name!==row.name)throw new DOMException('Gizmo target changed','AbortError');frameAffineAuthoringPointer=null;frameAffineAuthoringPointerReplay=row;try{startGizDrag(hit,down);if(!gizDrag)return;for(const event of row.events)onMove(event);if(row.up)onUp(row.up);}finally{frameAffineAuthoringPointerReplay=null;}},{guard:()=>frameAffineAuthoringPointer===row&&!row.cancelled&&frameAffinePointerViewCurrent(view),force:true,onError(error){if(frameAffineAuthoringPointer===row)frameAffineAuthoringPointer=null;row.cancelled=true;try{vpState.renderer.domElement.releasePointerCapture(down.pointerId);}catch{}frameAffineAuthoringNotice('Polygon drag',error);}});row.action=row.promise.frameAffineAuthoringRow;return true;
+}
+function frameAffinePendingPointerMove(e){const row=frameAffineAuthoringPointer;if(!row||row.down.pointerId!==e.pointerId)return false;if(row.up){e.preventDefault();return true;}if(row.events.length>=512){frameAffineAuthoringPointer=null;row.cancel(new DOMException('Pending pointer event limit reached','AbortError'));return true;}row.events.push(frameAffinePointerEvent(e));e.preventDefault();return true;}
+function frameAffinePendingPointerEnd(e){const row=frameAffineAuthoringPointer;if(!row||row.down.pointerId!==e.pointerId)return false;try{vpState.renderer.domElement.releasePointerCapture(e.pointerId);}catch{}if(e.type==='pointercancel'){frameAffineAuthoringPointer=null;row.cancel(new DOMException('Pointer cancelled','AbortError'));}else row.up=frameAffinePointerEvent(e);e.preventDefault();return true;}
+function frameAffineCloseHoleAt(cx,cy,vi){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Close hole',()=>frameNativeCommitClick(()=>{updateCloseHolePreview(cx,cy,vi);if(!closeHoveredHole())leaveVertexTool(false);} ),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}
+function frameAffineLineCutCurrent(line,points,mode,view){return vertexTools.line===line&&line.length===points.length&&line.every((p,i)=>p.screen.every((v,j)=>v===points[i][j]))&&vertexTools.mode===mode&&frameAffinePointerViewCurrent(view);}
+function frameAffineAfterExactPicker(value,callback,label,guard=null){if(!value?.then)return callback(value);const intent=frameAffineAuthoringIntent(frameAffineAuthoringHashes([...selNodes]));return value.then(q=>{if(!frameAffineAuthoringIntentCurrent(intent)||guard&&!guard())throw new DOMException('Picker editing context changed','AbortError');return callback(q);}).catch(error=>{frameAffineAuthoringNotice(label,error);return false;});}
+function frameAffineCommandPreflight(cmd){
+ if(!cmd||cmd.renderOnly)return;
+ if([...frameAffineStages.values()].some(s=>!s.canonicalSnapshot)){const error=new DOMException('This action needs completed canonical geometry','InvalidStateError');frameAffineAuthoringNotice('Edit',error);throw error;}
+ frameAffineEnsureAuthoring();
+}
+function frameAffineMaterialScope(hashes=[]){return[...new Set([...frameAffineStages.keys(),...hashes])];}
+function frameAffineMaterialApply(matHash,target,replaceIdx=-1,useComponents=true,finishSelection=true){
+ const cmd=useComponents?cmdAssignMatToComponentSelection(matHash):null,polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets(),component=!!cmd&&(!target||componentMaterialTargetMatches(target,polyTargets,cellTargets)),selected=component?cmd:cmdAssignMat(target,matHash,replaceIdx);if(!selected)return false;
+ frameAffineExecutePreparedCommand(selected,()=>{if(finishSelection){if(uvMode)syncUvEditing();selMats.clear();selMats.add(matHash);refreshMatSel();}},frameAffineMaterialScope(component?[...polyTargets.keys(),...cellTargets.keys()]:[target]));return true;
+}
+function frameAffineMaterialDrop(matHash,target,replaceIdx=-1,{useComponents=true,finishSelection=true}={}){
+ const node=target?OBJ.get(target):null,material=MATS.get(matHash),tag=replaceIdx>=0?node?.tags[replaceIdx]:null,hashes=frameAffineMaterialScope(target?[target]:[...polyFaceTargets().keys(),...splineCellMaterialTargets().keys()]);
+ return frameAffineRunExactAction('Assign material',()=>frameAffineMaterialApply(matHash,target,replaceIdx,useComponents,finishSelection),{hashes,guard:()=>MATS.get(matHash)===material&&(!target||OBJ.get(target)===node)&&(replaceIdx<0||node?.tags[replaceIdx]===tag)});
+}
+function frameAffineExecutePreparedCommand(cmd,after=null,hashes=[...selNodes]){
+ if(!cmd)return cmd;frameAffineCommandPreflight(cmd);const intent=frameAffineAuthoringIntent(frameAffineAuthoringHashes(hashes)),historyEpoch=frameAffinePreparedCommandEpoch,oldUndo=undoStack,beforeUndo=undoStack.length,oldRedo=redoStack,isolatedRedo=[],nodes=[...selNodes],tags=[...selTags],anchor=anchorNode,owned=intent.targets.map(r=>({...r,three:threeOf.get(r.h)}));redoStack=isolatedRedo;let started=false,restoreRedo=true;
+ const current=()=>historyEpoch===frameAffinePreparedCommandEpoch&&undoStack===oldUndo&&redoStack===isolatedRedo&&intent.base.lifecycle===frameAffineLifecycleGeneration&&intent.base.history===frameAffineHistorySerial&&intent.base.gesture===frameRigidGestureGeneration&&intent.base.mode===polyElementMode&&intent.base.space===coordMode&&intent.uv===uvEdit&&intent.pivotEdit===editPivot&&intent.configuration.polyMode===polyMode&&intent.configuration.splineMode===splineMode&&intent.configuration.componentFocus===componentFocus&&intent.configuration.uvMode===uvMode&&intent.configuration.soft===vertexTools.soft.active&&intent.configuration.channels===frameChannels.size&&intent.configuration.animation===frameAnimationRevision&&intent.configuration.tool===vertexTools.mode&&(sceneStateToken===intent.base.token&&sceneMutationSequence===intent.base.sequence||undoStack.length===beforeUndo+1&&undoStack.at(-1)===cmd&&sceneStateToken===cmd._frameSceneAfter&&sceneMutationSequence===cmd._frameSceneAfter)&&owned.every(r=>OBJ.get(r.h)===r.node&&pickMeshes.get(r.h)===r.mesh||!OBJ.has(r.h)&&!pickMeshes.has(r.h)&&threeOf.get(r.h)===r.three&&!!r.three?.userData._hiddenForUndo)&&[...selNodes].every(h=>nodes.includes(h)||cmd.newRoots?.includes(h)||[...(cmd.map?.values()??[])].includes(h))&&[...selTags].every(tag=>tags.includes(tag));
+ try{started=true;runCmd(cmd);after?.(cmd);clearCommandStack(oldRedo);return cmd;}
+ catch(error){if(!started||!current()){restoreRedo=false;throw new Error('Command rollback owner changed',{cause:error});}try{cmd.undo();if(undoStack.at(-1)===cmd){undoStack.pop();restoreSceneCommandState(cmd,'before');}selNodes.clear();selTags.clear();for(const h of nodes)if(OBJ.has(h))selNodes.add(h);for(const tag of tags)selTags.add(tag);anchorNode=anchor;afterCmd(cmd);}catch(rollbackError){if(!current())restoreRedo=false;throw new AggregateError([error,rollbackError],'Command failed and rollback could not complete');}throw error;}
+ finally{if(restoreRedo&&historyEpoch===frameAffinePreparedCommandEpoch&&undoStack===oldUndo&&redoStack===isolatedRedo)redoStack=oldRedo;}
+}
+function frameAffinePasteNodes(hashes){const refs=hashes.slice();return frameAffineRunExactAction('Paste objects',()=>frameAffineExecutePreparedCommand(cmdDuplicateToRoot(refs),cmd=>{copyObjParams(cmd.map);selNodes.clear();selTags.clear();for(const h of cmd.newRoots)selNodes.add(h);anchorNode=cmd.newRoots.length?getObj(cmd.newRoots[0]):null;lastBracketSig=null;refreshSelClasses();},refs),{hashes:refs});}
+function frameAffineDeleteNodes(hashes,{clearTags=true}={}){const refs=hashes.slice();return frameAffineRunExactAction('Delete objects',()=>frameAffineExecutePreparedCommand(cmdDelete(refs),()=>{for(const h of refs)selNodes.delete(h);if(clearTags)selTags.clear();anchorNode=null;renderRows();refreshSelClasses();},refs),{hashes:refs});}
+
+const frameAffineHistoryJobs=new WeakMap(),frameAffineHistoryJobRows=new Set();
+let frameAffineHistorySerial=0;
+function frameAffineHistoryOwnerCurrent(row){return !row.closed&&row.stage.logicalVersion===row.logicalVersion&&row.lifecycle===frameAffineLifecycleGeneration&&pickMeshes.get(row.stage.h)===row.mesh&&row.stage.mesh===row.mesh&&frameAffineOwnerToken(row.stage.h)===row.owner;}
+function frameAffineHistoryCheck(row){if(!frameAffineHistoryOwnerCurrent(row))throw row.error??new DOMException('Canonical history owner retired','AbortError');}
+async function frameAffineHistoryAwait(row,promise){const result=await Promise.race([promise,row.cancelPromise]);frameAffineHistoryCheck(row);return result;}
+async function frameAffineHistoryCopy(row,array,Type=array.constructor){
+ frameAffineHistoryCheck(row);const out=new Type(array.length);
+ for(let k=0;k<array.length;k+=65536){out.set(array.subarray(k,Math.min(array.length,k+65536)),k);await frameAffineYield();frameAffineHistoryCheck(row);}return out;
+}
+function frameAffineHistoryWorker(row){
+ frameAffineHistoryCheck(row);const worker=frameNative.createAffineCornerWorker(),pending=new Map();let serial=0;row.worker=worker;
+ const close=reason=>{if(row.worker!==worker)return;row.worker=null;worker.onmessage=worker.onerror=null;for(const p of pending.values())p.reject(reason??new DOMException('Canonical history worker retired','AbortError'));pending.clear();worker.terminate();};row.closeWorker=close;
+ worker.onmessage=({data:m})=>{const p=pending.get(m.id);if(!p)return;pending.delete(m.id);if(m.kind==='error')p.reject(Error(m.error));else p.resolve(m);};worker.onerror=e=>close(Error(e.message));
+ return(message,transfer=[])=>new Promise((resolve,reject)=>{try{frameAffineHistoryCheck(row);if(row.worker!==worker)throw new DOMException('Canonical history worker retired','AbortError');const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({id,...message},transfer);}catch(error){reject(error);}});
+}
+function frameAffineHistoryAncestors(stage){const required=new Set(),visit=s=>{if(!s||required.has(s))return;required.add(s);const recipe=s.historyRecipe;visit(recipe?.inherit);visit(recipe?.parent);};visit(stage);return required;}
+function frameAffineHistoryCancelExcept(stage){const required=frameAffineHistoryAncestors(stage);for(const row of [...frameAffineHistoryJobRows])if(row.stage.h===stage.h&&!required.has(row.stage))row.cancel(new DOMException('Canonical history request superseded','AbortError'));}
+function frameAffineCanonicalAsync(stage){
+ if(stage.canonicalSnapshot)return Promise.resolve(stage.canonicalSnapshot);const prior=frameAffineHistoryJobs.get(stage);if(prior&&!prior.closed)return prior.promise;
+ const recipe=stage.historyRecipe?{...stage.historyRecipe,faces:stage.historyRecipe.faces?.slice(),world:stage.historyRecipe.world?.slice(),delta:stage.historyRecipe.delta?.slice(),inverse:stage.historyRecipe.inverse?.slice()}:null,data=stage.historyData??stage.pendingData;
+ if(!recipe&&!data)return Promise.reject(new DOMException('Affine canonical history recipe missing','AbortError'));
+ let rejectCancellation;const cancelPromise=new Promise((_,reject)=>rejectCancellation=reject);cancelPromise.catch(()=>{});
+ const row={stage,mesh:stage.mesh,owner:frameAffineOwnerToken(stage.h),lifecycle:frameAffineLifecycleGeneration,logicalVersion:stage.logicalVersion,closed:false,worker:null,error:null,promise:null,cancelPromise,cancel(reason){if(this.closed)return;this.closed=true;this.error=reason??new DOMException('Canonical history cancelled','AbortError');rejectCancellation(this.error);this.closeWorker?.(this.error);}};
+ frameAffineHistoryJobs.set(stage,row);frameAffineHistoryJobRows.add(row);row.promise=(async()=>{
+  await frameAffineYield();frameAffineHistoryCheck(row);if(stage.canonicalSnapshot)return stage.canonicalSnapshot;
+  if(recipe?.inherit){const snapshot=await frameAffineHistoryAwait(row,frameAffineCanonicalAsync(recipe.inherit));if(snapshot.logicalVersion!==undefined&&snapshot.logicalVersion!==row.logicalVersion)throw new DOMException('Inherited canonical history version changed','AbortError');stage.canonicalSnapshot=snapshot;return snapshot;}
+  let raw,faceSlots,guard,stock,outsideCanonical=false;
+  if(recipe){
+   raw=recipe.parent?await frameAffineHistoryAwait(row,frameAffineCanonicalAsync(recipe.parent)):recipe.raw;frameAffineHistoryCheck(row);const baseVersion=recipe.parent?.logicalVersion??row.logicalVersion-1;
+   if(!Number.isSafeInteger(row.logicalVersion)||baseVersion<0||row.logicalVersion!==baseVersion+1)throw new DOMException('Canonical history version changed','AbortError');
+   const positions=await frameAffineHistoryCopy(row,raw.attrs.position.array),normals=await frameAffineHistoryCopy(row,raw.attrs.normal.array),indices=await frameAffineHistoryCopy(row,raw.index,Uint32Array),faces=recipe.faces.slice(),call=frameAffineHistoryWorker(row),ownerVersion=++frameAffineSerial,gesture=++frameAffineSerial;
+   const prepared=await call({kind:'canonical-prepare',positions,normals,indices,faceIDs:faces,version:baseVersion,ownerVersion,creaseCos:CREASE_COS},[positions.buffer,normals.buffer,indices.buffer,faces.buffer]);frameAffineHistoryCheck(row);
+   if(prepared.kind!=='canonical-prepared'||prepared.ownerVersion!==ownerVersion||prepared.version!==baseVersion)throw new DOMException('Canonical history prepare receipt changed','InvalidStateError');
+   const begin=await call({kind:'canonical-begin',gesture,baseVersion,ownerVersion});frameAffineHistoryCheck(row);if(begin.kind!=='canonical-began'||begin.ownerVersion!==ownerVersion||begin.baseVersion!==baseVersion||begin.gesture!==gesture)throw new DOMException('Canonical history begin receipt changed','InvalidStateError');
+   const q=await call({kind:'canonical-pose',gesture,revision:1,baseVersion,ownerVersion,world:recipe.world,delta:recipe.delta,inverse:recipe.inverse,final:true});frameAffineHistoryCheck(row);
+   if(q.kind!=='canonical-posed'||q.ownerVersion!==ownerVersion||q.baseVersion!==baseVersion||q.version!==row.logicalVersion||q.gesture!==gesture||q.revision!==1||q.committed!==true)throw new DOMException('Canonical history pose receipt changed','InvalidStateError');
+   stock={positions:q.rawPositions,normals:q.rawNormals,indices:q.rawIndices,outsideHashes:q.outsideHashes,cornerPositionsUnchanged:q.cornerPositionsUnchanged};outsideCanonical=q.outsideCanonical===true;guard=recipe.aliasGuard;faceSlots=new Int32Array(raw.index.length/3);
+   for(let k=0;k<recipe.faces.length;k++){faceSlots[recipe.faces[k]]=k+1;if((k&2047)===2047){await frameAffineYield();frameAffineHistoryCheck(row);}}
+  }else{
+   raw=data.raw;const positions=await frameAffineHistoryCopy(row,raw.attrs.position.array),normals=await frameAffineHistoryCopy(row,raw.attrs.normal.array),indices=await frameAffineHistoryCopy(row,raw.index,Uint32Array);faceSlots=data.faceSlots;guard=data.aliasGuard;
+   for(let k=0;k<data.ids.length;k++){positions.set(data.values.subarray(k*3,k*3+3),data.ids[k]*3);if((k&8191)===8191){await frameAffineYield();frameAffineHistoryCheck(row);}}
+   const slots=await frameAffineHistoryCopy(row,faceSlots,Int32Array),call=frameAffineHistoryWorker(row),gesture=++frameAffineSerial,q=await call({kind:'whole',positions,normals,indices,faceSlots:slots,gesture,revision:1,creaseCos:CREASE_COS},[positions.buffer,normals.buffer,indices.buffer,slots.buffer]);frameAffineHistoryCheck(row);
+   if(q.kind!=='whole-stock'||q.gesture!==gesture||q.revision!==1)throw new DOMException('Legacy canonical history receipt changed','InvalidStateError');stock=q;outsideCanonical=q.outsideCanonical===true;
+  }
+  const snapshot=await frameNative.drainCooperatively(frameAffineWholeSnapshotWork(raw,stock,faceSlots,guard,outsideCanonical),{isCurrent:()=>frameAffineHistoryOwnerCurrent(row),yieldTask:frameAffineYield});frameAffineHistoryCheck(row);snapshot.logicalVersion=row.logicalVersion;stage.canonicalSnapshot=snapshot;return snapshot;
+ })().finally(()=>{row.closeWorker?.();row.closed=true;frameAffineHistoryJobRows.delete(row);if(frameAffineHistoryJobs.get(stage)===row)frameAffineHistoryJobs.delete(stage);});row.promise.catch(()=>{});return row.promise;
+}
+function frameAffineAuthoringPending(hashes=null){const wanted=hashes?new Set(hashes):null;return [...frameAffineStages.values()].some(stage=>(!wanted||wanted.has(stage.h))&&frameAffineStageCurrent(stage)&&(!stage.canonicalSnapshot||stage.canonicalSnapshot!==stage.snapshot));}
+function frameAffineExactIntent(hashes=null){
+ const wanted=hashes?new Set(hashes):null,stages=[...frameAffineStages.values()].filter(stage=>(!wanted||wanted.has(stage.h))&&frameAffineStageCurrent(stage));
+ return{lifecycle:frameAffineLifecycleGeneration,history:frameAffineHistorySerial,sequence:sceneMutationSequence,token:sceneStateToken,gesture:frameRigidGestureGeneration,input:frameRigidInput,mode:polyElementMode,space:coordMode,pivot:polyPivotMatrix?.slice()??null,selection:frameRigidSetSnapshots([selNodes,selTags]),stages:stages.map(stage=>({stage,mesh:stage.mesh,owner:frameAffineOwnerToken(stage.h),stamp:stage.stamp,context:stage.context}))};
+}
+function frameAffineExactIntentCurrent(intent){
+ if(intent.lifecycle!==frameAffineLifecycleGeneration||intent.history!==frameAffineHistorySerial||intent.sequence!==sceneMutationSequence||intent.token!==sceneStateToken||intent.gesture!==frameRigidGestureGeneration||intent.input!==frameRigidInput||intent.mode!==polyElementMode||intent.space!==coordMode||!!intent.pivot!==!!polyPivotMatrix||intent.pivot&&!intent.pivot.every((v,i)=>v===polyPivotMatrix[i])||!frameRigidSetSnapshotsCurrent(intent.selection))return false;
+ return intent.stages.every(({stage,mesh,owner,stamp,context})=>pickMeshes.get(stage.h)===mesh&&frameAffineOwnerToken(stage.h)===owner&&frameComponentSelectionCurrent(context)&&(frameAffineStampCurrent(stamp)||stage.canonicalSnapshot&&(frameAffineAuthoringCanonicalCurrent(mesh,stage.canonicalSnapshot)||frameAffineSnapshotMatches(mesh,stage.canonicalSnapshot))));
+}
+function frameAffineContinueExact(continuation,hashes=null,{rollback=null,rollbackCurrent=null,onError=null}={}){
+ if(rollback&&typeof rollbackCurrent!=='function')throw new TypeError('Exact continuation rollback requires an ownership check');
+ const intent=frameAffineExactIntent(hashes);const promise=(async()=>{
+  if(frameRigidInput||frameRigidExecuting||frameRigidQueue.length)throw new DOMException('Exact authoring continuation requires released gesture ownership','InvalidStateError');
+  const snapshots=await Promise.all(intent.stages.map(({stage})=>stage.canonicalSnapshot??(stage.historyPending?frameAffineCanonicalAsync(stage):stage.promise.catch(()=>frameAffineCanonicalAsync(stage)))));
+  if(!frameAffineExactIntentCurrent(intent))throw new DOMException('Exact authoring intent version changed','AbortError');
+  for(let k=0;k<intent.stages.length;k++){const{stage}=intent.stages[k];if(stage.snapshot!==snapshots[k]){frameAffineAssertHistory(stage);stage.generation++;frameAffineBind(stage,snapshots[k],true);frameAffineForgetStage(stage);}}
+  if(!frameAffineExactIntentCurrent(intent))throw new DOMException('Exact authoring intent changed after canonical bind','AbortError');
+  try{return await continuation();}catch(error){if(rollback){if(!rollbackCurrent())throw new Error('Exact continuation rollback ownership changed',{cause:error});await rollback(error);}throw error;}
+ })().catch(error=>{if(onError)onError(error);else{frameAffineNotes.errors.push('Exact authoring continuation: '+String(error));console.error('Exact authoring continuation did not commit',error);}throw error;});promise.catch(()=>{});return promise;
+}
+
+const frameComponentMeasurementScopes=new Map();
+function frameComponentScopeCertificate(t){
+ if(!t||t.domain==='face'||!frameComponentSelectionCurrent(t))return null;
+ const mesh=pickMeshes.get(t.h),g=mesh?.geometry,k=g&&frameAffineKnownGeometry.get(g);let ids,guard,faces;
+ if(t.g===g&&t.stableFaceComponent===true&&t.eligible&&t.faceIDs?.length&&frameRigidSelection(t,true)){ids=t.ids;guard=t.aliasGuard;faces=t.faceIDs;}
+ else if(k?.domain===t.domain&&k.aliasStable&&frameAffineKnownIDs(t.h)&&k.faceIDs?.length&&(!t.faceIDs?.length||k.faceIDs.length===t.faceIDs.length&&k.faceIDs.every((f,i)=>f===t.faceIDs[i]))){ids=Uint32Array.from(k.ids);guard=k.aliasGuard;faces=k.faceIDs;}
+ else return null;
+ if(!ids?.length||!faces?.length||faces.length>524288||typeof guard?.find!=='function'||!frameRigidAliasSafe({stableFaceComponent:true,ids,pa:g.attributes.position.array,aliasGuard:guard}))return null;
+ return{mesh,g,ids,guard,faces};
+}
+function frameComponentScopedMeshes(t,meshes=pickMeshes){
+ const proof=frameComponentScopeCertificate(t),source=meshes.get(t?.h);if(!proof||!source?.geometry?.index||source.geometry.index.count!==proof.g.index.count)return null;
+ const stamp=frameAffineSourceStamp(proof.mesh),geometry=source.geometry,prior=frameComponentMeasurementScopes.get(geometry);let scoped;
+ if(prior&&prior.source===source&&frameAffineStampCurrent(prior.stamp)&&prior.faces.length===proof.faces.length&&prior.faces.every((f,i)=>f===proof.faces[i])){scoped=prior.mesh;frameComponentMeasurementScopes.delete(geometry);frameComponentMeasurementScopes.set(geometry,prior);}
+ else{
+  const faces=proof.faces.slice(),index=geometry.index;
+  scoped={geometry:{attributes:geometry.attributes,index:{count:faces.length*3,getX:i=>index.getX(faces[Math.floor(i/3)]*3+i%3)}},matrixWorld:source.matrixWorld,updateMatrixWorld(){source.updateMatrixWorld(true);this.matrixWorld=source.matrixWorld;}};
+  if(prior)logicalEdgeCache.delete(prior.mesh.geometry);frameComponentMeasurementScopes.set(geometry,{source,stamp,faces,mesh:scoped});
+  while(frameComponentMeasurementScopes.size>2){const key=frameComponentMeasurementScopes.keys().next().value,row=frameComponentMeasurementScopes.get(key);frameComponentMeasurementScopes.delete(key);logicalEdgeCache.delete(row.mesh.geometry);}
+ }
+ const out=new Map(meshes);out.set(t.h,scoped);return out;
+}
+function frameComponentPreparedRemapProof(stage,old,entry){
+ const t=frameRigidPrepared,c=stage.context;
+ if(!t||t.disposed||t.status!=='ready'||!t.eligible||t.stableFaceComponent!==true||t.mesh!==stage.mesh||c.mesh!==stage.mesh||t.g!==old||t.mesh.geometry!==old||t.node!==stage.node||c.node!==stage.node||t.h!==stage.h||c.h!==stage.h||t.entry!==entry||entry!==c.entry||t.domain!==c.domain||t.domain==='face'||!frameRigidSource(t)||!frameRigidSelection(t,true))return null;
+ const p=old.attributes.position,n=old.attributes.normal,ix=old.index;
+ if(p.itemSize!==3||n.itemSize!==3||ix.itemSize!==1||p.normalized||n.normalized||ix.normalized||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||ix.isInterleavedBufferAttribute||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||p.array.length!==p.count*3||n.array.length!==n.count*3||p.count!==n.count||ix.array.length!==ix.count||ix.count%3)return null;
+ const faces=t.faceIDs,mask=c.faceIDs,privateFaces=t.privateFaces;
+ if(!(faces instanceof Uint32Array)||!(mask instanceof Uint32Array)||!faces.length||faces.length>524288||mask.length!==faces.length||privateFaces?.size!==faces.length||typeof privateFaces.has!=='function')return null;
+ for(let k=0;k<faces.length;k++)if(faces[k]!==mask[k]||(k&&faces[k]<=faces[k-1])||faces[k]>=old.index.count/3||!privateFaces.has(faces[k]))return null;
+ // Certificate rechecks live selection/source and the original alias guard on
+ // actual committed positions; no known-geometry stamp is refreshed or relaxed.
+ const proof=frameComponentScopeCertificate(t);
+ return proof&&proof.mesh===stage.mesh&&proof.g===old&&proof.faces===faces?proof:null;
+}
+
+function frameComponentSelectionRemap(stage,old,index,entry){
+ const context=stage.context,canRebase=entry===context.entry&&frameComponentCanRebase(context,old),proof=canRebase?(frameComponentPreparedRemapProof(stage,old,entry)||frameComponentScopeCertificate({...context,selectionSets:frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]),selectionRevision:framePolySelectionRevision})):null;
+ if(!proof||proof.g!==old)return frameAffineSelectionRemap(old,index,entry);
+ const semantic=frameAffineOrderedSelectionRemap(old,index,entry,proof.faces);return frameAffineRestoreSelectionOrder(stage,index,semantic,proof.faces);
+}
+function frameComponentKnownMeasurements(h=null){
+ if(h===null){if(polySelection.items.size!==1)return null;h=polySelection.items.keys().next().value;}
+ const mesh=pickMeshes.get(h),k=mesh&&frameAffineKnownGeometry.get(mesh.geometry),m=k?.componentMeasurements;
+ if(!m||k.domain==='face'||!k.aliasStable||!frameAffineKnownIDs(h)||m.space!==coordMode||!!m.pivot!==!!polyPivotMatrix||m.pivot&&!m.pivot.every((v,i)=>v===polyPivotMatrix[i]))return null;
+ mesh.updateMatrixWorld(true);return m.world.elements.every((v,i)=>v===mesh.matrixWorld.elements[i])?m:null;
+}
+function frameComponentHistoryBasis(t){
+ const meshes=frameComponentScopedMeshes(t);if(!meshes)return null;const owner=pureWorldFrame(t.h);
+ const work=frameEdgeSelectionBasisWork(t.h,owner,new Map([[t.h,t.entry]]),meshes);let step;do{step=work.next();}while(!step.done);return step.value||owner;
+}
+
+function frameComponentPureSelection(entry,domain){
+ const field={face:'faces',vertex:'vertices',edge:'edges'}[domain];
+ return !!field&&!!entry?.[field]?.size&&['faces','vertices','edges'].every(key=>key===field||!entry[key].size);
+}
+function frameComponentSelectionCurrent(t){
+ const e=polySelection.items.get(t?.h),domain=t?.domain??'face';
+ return !!t&&e===t.entry&&e.faces===t.faces&&e.vertices===t.vertices&&e.edges===t.edges&&polySelection.items.size===1&&polyElementMode===domain&&polyFocusActive()&&!polyExactEdgeVertices?.has(t.h)&&framePolySelectionRevision===t.selectionRevision&&frameRigidSetSnapshotsCurrent(t.selectionSets)&&frameComponentPureSelection(e,domain);
+}
+function* frameComponentFaceMaskWork(t){
+ // Use the stock movement closure, including logical aliases for edge endpoints.
+ // A copied map prevents the prepared-ID shortcut from certifying itself.
+ const selected=yield* framePolySelectedVertexIdsWork(t.h,new Map([[t.h,t.entry]]),null,pickMeshes),faces=new Set();let work=0;
+ for(const id of selected){if(!Number.isInteger(id)||id<0||id>=t.p.count)return{eligible:false,reason:'component-raw-slot-out-of-range'};if((++work&4095)===0)yield;}
+ for(let f=0;f<t.ia.length/3;f++){
+  let inside=0;for(let c=0;c<3;c++)inside+=selected.has(t.ia[f*3+c])?1:0;
+  if(inside&&inside!==3)return{eligible:false,reason:'partial-component-face'};
+  if(inside===3)faces.add(f);if((++work&4095)===0)yield;
+ }
+ if(!faces.size)return{eligible:false,reason:'component-face-mask-empty'};
+ return{eligible:true,faces,selected};
+}
+function* frameComponentClosureMatchesWork(gate,selected){
+ if(!gate.eligible)return gate;if(gate.ids.length!==selected.size)return{eligible:false,reason:'component-alias-closure-mismatch'};
+ let work=0;for(const id of gate.ids){if(!selected.has(id))return{eligible:false,reason:'component-alias-closure-mismatch'};if((++work&4095)===0)yield;}
+ return gate;
+}
+function frameComponentKnownMask(t){
+ const k=frameAffineKnownGeometry.get(t.g);if(!k||k.domain!==t.domain||!frameAffineKnownIDs(t.h)||!k.aliasStable||!k.faceIDs?.length)return false;
+ t.faceIDs=k.faceIDs.slice();t.privateFaces=new Set(t.faceIDs);return true;
+}
+function frameComponentCanRebase(context,geometry){
+ if((context.domain??'face')==='face')return false;
+ if(frameComponentSelectionCurrent(context))return true;
+ const r=frameComponentOwnedSelections.get(context.entry);
+ return !!r&&r.geometry===geometry&&r.domain===context.domain&&frameComponentSelectionCurrent(r)&&r.faceIDs.length===context.faceIDs?.length&&r.faceIDs.every((id,i)=>id===context.faceIDs[i]);
+}
+function frameComponentRebase(context,snapshot,geometry){
+ const entry=polySelection.items.get(context.h);if(!entry||polyElementMode!==context.domain)return false;
+ context.entry=entry;context.faces=entry.faces;context.vertices=entry.vertices;context.edges=entry.edges;context.selectionRevision=framePolySelectionRevision;context.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);context.ids=snapshot.selectedIDs;
+ frameComponentOwnedSelections.set(entry,{...context,geometry,faceIDs:context.faceIDs.slice()});return true;
+}
+function frameComponentFrame(t,bounds,pivot=polyPivotMatrix){
+ if(!t||t.domain==='face'||!t.componentOrdinary||!bounds)return null;
+ let frame;if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else frame=coordMode==='world'?new THREE2.Matrix4():pureWorldFrame(t.h);
+ frame.setPosition(pivot?new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(pivot)):bounds.min.clone().add(bounds.max).multiplyScalar(.5));return frame;
+}
+function frameComponentCurrentFrame(bounds=null){
+ const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;
+ const frame=frameRigidSelection(t)?frameComponentFrame(t,bounds??frameRigidBounds()):null;if(frame)return frame;
+ return !frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements()?.frame.clone()??null:null;
+}
+function frameComponentCurrentExtent(frame){
+ const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared,m=t?.componentMeasurements;if(!m||!frameRigidSelection(t)||m.space!==coordMode){const known=!frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements():null;return known&&[0,1,2,4,5,6,8,9,10].every(i=>Object.is(frame.elements[i],known.frame.elements[i]))?known.extent.clone():null;}
+ t.mesh.updateMatrixWorld(true);if(!m.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;
+ if(![0,1,2,4,5,6,8,9,10].every(i=>Object.is(frame.elements[i],m.frame.elements[i])))return null;return m.extent.clone();
+}
+async function frameComponentPrepareMeasurements(t){
+ if(t.domain==='face')return true;
+ const mesh=t.mesh;mesh.updateMatrixWorld(true);const world=mesh.matrixWorld.clone(),space=coordMode,pivot=polyPivotMatrix?.slice()??null,items=new Map([[t.h,t.entry]]),rigidIDs=new Map([[t.h,t.idSet]]),current=()=>{mesh.updateMatrixWorld(true);return frameRigidSelection(t,true)&&space===coordMode&&world.elements.every((v,i)=>v===mesh.matrixWorld.elements[i])&&!!pivot===!!polyPivotMatrix&&(!pivot||pivot.every((v,i)=>v===polyPivotMatrix[i]));};
+ const measurementMeshes=frameComponentScopedMeshes(t)??pickMeshes;
+ // Collinear edge selections need a changing edge basis; leave that extension to stock.
+ if(t.domain==='edge'){
+  const basis=await frameNative.drainCooperatively(frameEdgeSelectionBasisWork(t.h,pureWorldFrame(t.h),items,measurementMeshes),{isCurrent:current,yieldTask:frameAffineYield});
+  if(basis)return false;
+ }
+ const m=await frameNative.drainCooperatively(framePolySelectionMeasurements(items,null,measurementMeshes,polyPivotMatrix,rigidIDs),{isCurrent:current,yieldTask:frameAffineYield});
+ if(!current()||!m)return false;t.componentOrdinary=true;t.componentMeasurements={...m,space:coordMode,world};return true;
+}
+function frameComponentRememberMeasurements(context,measurements,world){
+ const mesh=pickMeshes.get(context.h),known=mesh&&frameAffineKnownGeometry.get(mesh.geometry),receipt={...measurements,space:coordMode,world:world.clone(),pivot:polyPivotMatrix?.slice()??null};let remembered=false;
+ if(context.domain!=='face'&&known?.domain===context.domain&&known.entry===context.entry&&frameComponentSelectionCurrent(context)&&frameAffineKnownIDs(context.h)){known.componentMeasurements=receipt;remembered=true;}
+ const t=frameRigidPrepared;if(t?.domain!=='face'&&t?.h===context.h&&t.entry===context.entry&&frameRigidSelection(t)){t.componentMeasurements=receipt;return true;}return remembered;
+}
+function* frameComponentExactMeasurementsWork(s,positions){
+ const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let work=0;
+ for(const id of s.t.ids){p.fromArray(positions,id*3).applyMatrix4(s.world);min.min(p);max.max(p);if((++work&4095)===0)yield;}
+ const bounds={min,max},frame=frameComponentFrame(s.t,bounds,s.beforePivot?s.afterGizmo:null),inverse=frame.clone().invert(),lo=new THREE2.Vector3(Infinity,Infinity,Infinity),hi=new THREE2.Vector3(-Infinity,-Infinity,-Infinity);
+ for(const id of s.t.ids){p.fromArray(positions,id*3).applyMatrix4(s.world).applyMatrix4(inverse);lo.min(p);hi.max(p);if((++work&4095)===0)yield;}
+ return{bounds,frame,extent:hi.sub(lo),space:coordMode,world:s.world.clone()};
+}
+function frameComponentQueueExactMeasurements(s,q){
+ if(s.t.domain==='face'||!q.rawFullPositions)return;s.componentCMJob?.abort();const job=new AbortController();s.componentCMJob=job;
+ const current=()=>{s.t.mesh.updateMatrixWorld(true);return s.componentCMJob===job&&!s.cancel&&!s.discarded&&s.r.live&&q.revision===s.affineRevision&&frameRigidSource(s.t)&&frameRigidSelection(s.t)&&coordMode===s.coordinateSpace&&s.world.elements.every((v,i)=>v===s.t.mesh.matrixWorld.elements[i]);};
+ s.componentCMPromise=frameNative.drainCooperatively(frameComponentExactMeasurementsWork(s,q.rawFullPositions),{signal:job.signal,isCurrent:current,yieldTask:frameAffineYield}).then(m=>{if(!current())return false;s.t.componentMeasurements=m;s.t.bounds={min:m.bounds.min.clone(),max:m.bounds.max.clone()};s.t.boundsWorld=s.world.clone();updateHUD(readPolyTransform(coordMode,m));scheduleRender();return true;}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push('Component exact CM: '+String(error));return false;});
+}
+function frameComponentPublishMeasurements(s,result,frame){
+ if(s.t.domain==='face'||!result.basisMin||!result.basisMax)return false;
+ const bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};
+ frame.setPosition(s.beforePivot?new THREE2.Vector3(s.afterGizmo[12],s.afterGizmo[13],s.afterGizmo[14]):bounds.min.clone().add(bounds.max).multiplyScalar(.5));
+ const extent=new THREE2.Vector3().fromArray(result.basisMax).sub(new THREE2.Vector3().fromArray(result.basisMin));
+ s.t.componentMeasurements={bounds,frame,extent,space:coordMode,world:s.world.clone()};updateHUD(readPolyTransform(coordMode,s.t.componentMeasurements));return true;
+}
+function frameComponentRefreshAfterBind(stage,snapshot){
+ const context=stage.context;if(!frameComponentSelectionCurrent(context))return false;
+ frameRigidCancelDerived();const stamp=frameAffineSourceStamp(stage.mesh),world=stage.mesh.matrixWorld.clone(),items=new Map([[stage.h,context.entry]]),ids=new Map([[stage.h,new Set(snapshot.selectedIDs)]]),controller=new AbortController(),job={controller,closed:false,cancel(){this.closed=true;controller.abort();}};frameRigidDerivedJob=job;const measurementMeshes=frameComponentScopedMeshes(context)??pickMeshes;
+ const current=()=>!job.closed&&frameRigidDerivedJob===job&&OBJ.get(stage.h)===stage.node&&pickMeshes.get(stage.h)===stage.mesh&&frameComponentSelectionCurrent(context)&&frameAffineStampCurrent(stamp)&&world.elements.every((v,i)=>v===stage.mesh.matrixWorld.elements[i]);
+ job.promise=frameNative.drainCooperatively((function*(){const buffers=yield*framePolySelectionBuffers(items),measurements=yield*framePolySelectionMeasurements(items,null,measurementMeshes,polyPivotMatrix,ids);return{buffers,measurements};})(),{signal:controller.signal,isCurrent:current,yieldTask:frameAffineYield}).then(result=>{
+  if(!current())return false;frameRigidInstalling=true;try{for(const o of[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;}frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);}finally{frameRigidInstalling=false;}return true;
+ }).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push('Component bind overlay: '+String(error));return false;}).finally(()=>{if(frameRigidDerivedJob===job)frameRigidDerivedJob=null;frameRigidSchedulePrepare();});return true;
+}
+
 var frameRigidPrepared=null,frameRigidInput=null,frameRigidExecuting=null,frameRigidQueue=[],frameRigidDraining=false,frameRigidFallthrough=false,frameRigidInstalling=false;
 var frameRigidNotes={prepared:0,starts:0,moves:0,commits:0,cancels:0,queuedStarts:0,fallbacks:0,undo:0,redo:0,errors:[],phases:[]};
 const frameAffineBindings=new WeakMap(),frameAffineBindingRecords=new Set();
@@ -26388,7 +26957,7 @@ let frameAffineSerial=0,frameAffineSaving=null;
 function frameAffineEligible(t){if(!t||!t.faceIDs?.length||t.faceIDs.length>524288||Object.keys(t.g.attributes).some(k=>k!=='position'&&k!=='normal')||polyExactEdgeVertices?.has(t.h)||!frameAffineMaterialsAllowed(t.mesh))return false;let runs=1;for(let k=1;k<t.faceIDs.length;k++)if(t.faceIDs[k]!==t.faceIDs[k-1]+1&&++runs>128)return false;return true;}
 function frameAffineRawSnapshot(t){
  const g=t.mesh.geometry,attrs={};for(const[k,a]of Object.entries(g.attributes))attrs[k]={array:a.array.slice(),itemSize:a.itemSize,normalized:a.normalized};
- const wire=wireOverlays.get(t.h)?.geometry;return{attrs,index:t.indexSeed,groups:g.groups.map(q=>({...q})),drawRange:{...g.drawRange},userData:{...g.userData},wire:wire?.index?.array??null,box:g.boundingBox?.clone()??null,sphere:g.boundingSphere?.clone()??null,selectedIDs:t.ids.slice(),aliasGuard:t.aliasGuard,aliasStable:t.stableFaceComponent===true};
+ const wire=wireOverlays.get(t.h)?.geometry;return{attrs,index:t.indexSeed,groups:g.groups.map(q=>({...q})),drawRange:{...g.drawRange},userData:{...g.userData},wire:wire?.index?.array??null,box:g.boundingBox?.clone()??null,sphere:g.boundingSphere?.clone()??null,selectedIDs:t.ids.slice(),aliasGuard:t.aliasGuard,aliasStable:t.stableFaceComponent===true,componentStable:t.domain!=='face'&&t.stableFaceComponent===true};
 }
 function frameAffineGeometry(snapshot){
  const g=new THREE2.BufferGeometry();g.userData={...snapshot.userData};delete g.userData._polygonDragCorners;
@@ -26396,33 +26965,33 @@ function frameAffineGeometry(snapshot){
  g.setIndex(new THREE2.BufferAttribute(snapshot.index.slice(),1));for(const q of snapshot.groups)g.addGroup(q.start,q.count,q.materialIndex);g.setDrawRange(snapshot.drawRange.start,snapshot.drawRange.count);
  g.boundingBox=snapshot.box?.clone()??null;g.boundingSphere=snapshot.sphere?.clone()??null;
  if(snapshot.wire)wireTopologyCache.set(g,{index:g.index,array:g.index.array,version:g.index.version,vertices:g.attributes.position.count,indices:snapshot.wire});
- markPolygonCreaseGeometry(g);return g;
+ markPolygonCreaseGeometry(g);frameAffineAuthoringCanonicalRemember(g,snapshot);return g;
 }
 function frameAffineSourceStamp(mesh){const g=mesh.geometry,p=g.attributes.position,n=g.attributes.normal,i=g.index;return{mesh,g,p,n,i,pa:p.array,na:n.array,ia:i.array,pv:p.version,nv:n.version,iv:i.version,pcount:p.count,ncount:n.count,icount:i.count,pitem:p.itemSize,nitem:n.itemSize,iitem:i.itemSize,pnorm:p.normalized,nnorm:n.normalized,inorm:i.normalized,pinter:!!p.isInterleavedBufferAttribute,ninter:!!n.isInterleavedBufferAttribute,iinter:!!i.isInterleavedBufferAttribute,keys:Object.keys(g.attributes).join(','),groups:JSON.stringify(g.groups),range:JSON.stringify(g.drawRange),epoch:frameRigidEpoch.get(g)??0};}
 function frameAffineStampCurrent(s){const g=s?.mesh?.geometry;return !!s&&!!g&&g===s.g&&g.attributes.position===s.p&&g.attributes.normal===s.n&&g.index===s.i&&s.p.array===s.pa&&s.n.array===s.na&&s.i.array===s.ia&&s.p.version===s.pv&&s.n.version===s.nv&&s.i.version===s.iv&&s.p.count===s.pcount&&s.n.count===s.ncount&&s.i.count===s.icount&&s.p.itemSize===s.pitem&&s.n.itemSize===s.nitem&&s.i.itemSize===s.iitem&&s.p.normalized===s.pnorm&&s.n.normalized===s.nnorm&&s.i.normalized===s.inorm&&!!s.p.isInterleavedBufferAttribute===s.pinter&&!!s.n.isInterleavedBufferAttribute===s.ninter&&!!s.i.isInterleavedBufferAttribute===s.iinter&&Object.keys(g.attributes).join(',')===s.keys&&JSON.stringify(g.groups)===s.groups&&JSON.stringify(g.drawRange)===s.range&&(frameRigidEpoch.get(g)??0)===s.epoch;}
 function frameAffineStageCurrent(stage){return frameAffineStages.get(stage.h)===stage&&OBJ.get(stage.h)===stage.node&&pickMeshes.get(stage.h)===stage.mesh&&frameAffineStampCurrent(stage.stamp);}
 function frameAffineKnownIDs(h){
  const mesh=pickMeshes.get(h),k=mesh&&frameAffineKnownGeometry.get(mesh.geometry),e=polySelection.items.get(h);
- return k&&frameAffineStampCurrent(k.stamp)&&e===k.entry&&e.faces===k.faces&&e.vertices===k.vertices&&e.edges===k.edges&&frameRigidSetSnapshotsCurrent(k.sets)&&framePolySelectionRevision===k.selection&&!e.vertices.size&&!e.edges.size&&!polyExactEdgeVertices?.has(h)&&polyElementMode==='face'&&polyFocusActive()?k.ids:null;
+ return k&&frameAffineStampCurrent(k.stamp)&&e===k.entry&&e.faces===k.faces&&e.vertices===k.vertices&&e.edges===k.edges&&frameRigidSetSnapshotsCurrent(k.sets)&&framePolySelectionRevision===k.selection&&frameComponentPureSelection(e,k.domain??'face')&&!polyExactEdgeVertices?.has(h)&&polyElementMode===(k.domain??'face')&&polyFocusActive()?k.ids:null;
 }
 function frameAffineRememberGeometry(stage,snapshot,g){
  const entry=polySelection.items.get(stage.h);if(!entry||entry!==stage.context.entry||entry.faces!==stage.context.faces||entry.vertices!==stage.context.vertices||entry.edges!==stage.context.edges||!frameRigidSetSnapshotsCurrent(stage.context.selectionSets))return;
- frameAffineKnownGeometry.set(g,{stamp:frameAffineSourceStamp(stage.mesh),entry,faces:entry.faces,vertices:entry.vertices,edges:entry.edges,sets:frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]),selection:framePolySelectionRevision,ids:new Set(snapshot.selectedIDs),aliasGuard:snapshot.aliasGuard,aliasStable:snapshot.aliasStable,outsideCanonical:snapshot.outsideCanonical===true,outsideHashes:snapshot.outsideHashes});
+ frameAffineKnownGeometry.set(g,{domain:stage.context.domain??'face',faceIDs:stage.context.faceIDs?.slice()??Uint32Array.from(entry.faces).sort(),stamp:frameAffineSourceStamp(stage.mesh),entry,faces:entry.faces,vertices:entry.vertices,edges:entry.edges,sets:frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]),selection:framePolySelectionRevision,ids:new Set(snapshot.selectedIDs),aliasGuard:snapshot.aliasGuard,aliasStable:(stage.context.domain??'face')==='face'?snapshot.aliasStable:(snapshot.componentStable===true||snapshot.aliasStable===true)&&frameRigidAliasSafe({stableFaceComponent:true,ids:snapshot.selectedIDs,pa:snapshot.attrs.position.array,aliasGuard:snapshot.aliasGuard}),outsideCanonical:snapshot.outsideCanonical===true,outsideHashes:snapshot.outsideHashes});
 }
 function frameAffineBind(stage,snapshot,syncPose=true){
  const mesh=stage.mesh;if(!mesh||OBJ.get(stage.h)!==stage.node||pickMeshes.get(stage.h)!==mesh)throw new DOMException('Affine history owner changed','AbortError');
- const old=mesh.geometry,entry=polySelection.items.get(stage.h),selection=entry?{vertices:[...entry.vertices],edges:[...entry.edges],revision:framePolySelectionRevision}:null,remap=frameAffineSelectionRemap(old,snapshot.index,entry),g=frameAffineGeometry(snapshot),t=frameRigidPrepared,points=polyPointOverlays.get(stage.h),oldPoints=points?.geometry,wire=wireOverlays.get(stage.h),oldWire=wire?.geometry,oldPivot=polyPivotMatrix?.slice()??null,oldGizmo=typeof getGizmoWorldArray==='function'?getGizmoWorldArray():null,overlays=typeof frameRigidCaptureOverlays==='function'?frameRigidCaptureOverlays():null,prior={stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot};let changed=false;const binding=frameAffineBindings.get(mesh),preserve=binding&&frameAffineBindingCurrent(binding)&&snapshot.index.length===old.index.array.length?binding:null,keepWorker=!!preserve&&frameAffineStages.get(stage.h)===stage&&preserve.logicalVersion===stage.logicalVersion&&preserve.canonicalVersion===stage.logicalVersion&&preserve.canonicalSnapshot===snapshot&&!!preserve.workerPipe&&!preserve.workerPipe.closed&&preserve.workerPipe.confirmedVersion===stage.logicalVersion,bindingPrior=preserve?{stamp:preserve.stamp,physicalRaw:preserve.physicalRaw,initialRaw:preserve.initialRaw,canonicalSnapshot:preserve.canonicalSnapshot,logicalVersion:preserve.logicalVersion,canonicalVersion:preserve.canonicalVersion,rawDisplayBaseline:preserve.rawDisplayBaseline,fullNumeric:preserve.fullNumeric,bindDisplay:preserve.bindDisplay,active:preserve.active,revision:preserve.revision,lastPublishedSnapshot:preserve.lastPublishedSnapshot,positions:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.positions.slice():null,extras:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.extras.slice():null}:null;
+ const old=mesh.geometry,entry=polySelection.items.get(stage.h),selection=entry?{vertices:[...entry.vertices],edges:[...entry.edges],revision:framePolySelectionRevision}:null,remap=frameComponentSelectionRemap(stage,old,snapshot.index,entry),g=frameAffineGeometry(snapshot),t=frameRigidPrepared,points=polyPointOverlays.get(stage.h),oldPoints=points?.geometry,wire=wireOverlays.get(stage.h),oldWire=wire?.geometry,oldPivot=polyPivotMatrix?.slice()??null,oldGizmo=typeof getGizmoWorldArray==='function'?getGizmoWorldArray():null,overlays=typeof frameRigidCaptureOverlays==='function'?frameRigidCaptureOverlays():null,prior={stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot,selectionOrder:stage.selectionOrder},contextPrior=Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(stage.context)).filter(([,descriptor])=>'value'in descriptor&&descriptor.writable).map(([key,descriptor])=>[key,descriptor.value])),ownedPrior=frameComponentOwnedSelections.get(entry),rebase=frameComponentCanRebase(stage.context,old);let changed=false;const binding=frameAffineBindings.get(mesh),preserve=binding&&frameAffineBindingCurrent(binding)&&snapshot.index.length===old.index.array.length?binding:null,keepWorker=!!preserve&&frameAffineStages.get(stage.h)===stage&&preserve.logicalVersion===stage.logicalVersion&&preserve.canonicalVersion===stage.logicalVersion&&preserve.canonicalSnapshot===snapshot&&!!preserve.workerPipe&&!preserve.workerPipe.closed&&preserve.workerPipe.confirmedVersion===stage.logicalVersion,bindingPrior=preserve?{selectionSets:preserve.selectionSets,selectionRevision:preserve.selectionRevision,stamp:preserve.stamp,physicalRaw:preserve.physicalRaw,initialRaw:preserve.initialRaw,canonicalSnapshot:preserve.canonicalSnapshot,logicalVersion:preserve.logicalVersion,canonicalVersion:preserve.canonicalVersion,rawDisplayBaseline:preserve.rawDisplayBaseline,fullNumeric:preserve.fullNumeric,bindDisplay:preserve.bindDisplay,active:preserve.active,revision:preserve.revision,lastPublishedSnapshot:preserve.lastPublishedSnapshot,positions:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.positions.slice():null,extras:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.extras.slice():null}:null;
  let gpuCheckpoint=null;try{
   if(bindingPrior?.positions)gpuCheckpoint=preserve.gpu.beginAuthoringTransaction();
-  if(t?.mesh===mesh)frameRigidPrepared=null;frameRigidCancelDerived();mesh.geometry=g;changed=true;frameAffineApplyRemap(entry,remap);if(points)points.geometry=g;
-  refreshWireOverlay(mesh);if(preserve)frameAffineSeedBindDisplay(preserve,mesh,snapshot,g,wire?.geometry);stage.stamp=frameAffineSourceStamp(mesh);stage.bound=snapshot;stage.snapshot=snapshot;frameAffineRememberGeometry(stage,snapshot,g);
+  if(t?.mesh===mesh)frameRigidPrepared=null;frameRigidCancelDerived();mesh.geometry=g;changed=true;frameAffineApplyRemap(entry,remap);if(rebase)frameComponentRebase(stage.context,snapshot,g);if(points)points.geometry=g;
+  refreshWireOverlay(mesh);if(preserve)frameAffineSeedBindDisplay(preserve,mesh,snapshot,g,wire?.geometry);stage.stamp=frameAffineSourceStamp(mesh);stage.bound=snapshot;stage.snapshot=snapshot;if(rebase&&remap)stage.selectionOrder=Object.freeze({h:stage.h,entry,domain:stage.context.domain,index:snapshot.index,vertexCount:snapshot.attrs.position.array.length/3,vertices:remap.vertices,edges:remap.edges});frameAffineRememberGeometry(stage,snapshot,g);
   const canonicalValues=new Float32Array(snapshot.selectedIDs.length*3);for(let k=0;k<snapshot.selectedIDs.length;k++)canonicalValues.set(snapshot.attrs.position.array.subarray(snapshot.selectedIDs[k]*3,snapshot.selectedIDs[k]*3+3),k*3);if(syncPose)frameRigidHistoryPose({...stage.context,ids:snapshot.selectedIDs},canonicalValues,stage.pivot,stage.pose,frameAffineLiveOverlays(stage),stage.space,stage.world);
-  if(remap&&typeof rebuildPolySelection==='function')rebuildPolySelection(false);scheduleRender();if(preserve)frameAffineBindingTransfer(preserve,mesh,snapshot,keepWorker);frameRigidSchedulePrepare();
+  if(remap&&!(rebase&&frameComponentRefreshAfterBind(stage,snapshot))&&typeof rebuildPolySelection==='function')rebuildPolySelection(false);scheduleRender();if(preserve)frameAffineBindingTransfer(preserve,mesh,snapshot,keepWorker);frameRigidSchedulePrepare();
  }catch(error){
   const own=changed&&mesh.geometry===g;if(own){mesh.geometry=old;if(points)points.geometry=oldPoints;if(wire)wire.geometry=oldWire;if(selection){entry.vertices.clear();entry.edges.clear();for(const id of selection.vertices)entry.vertices.add(id);for(const id of selection.edges)entry.edges.add(id);framePolySelectionRevision=selection.revision;}polyPivotMatrix=oldPivot;}
-  if(preserve&&preserve.live){const current=frameRigidPrepared;if(current&&current!==t&&current.mesh===mesh){current.affinePreserve=preserve;frameRigidDispose(current);frameRigidPrepared=null;}const closed=preserve.workerPipe?.closed,{positions,extras,...state}=bindingPrior;Object.assign(preserve,state);if(closed){preserve.workerPipe=null;preserve.initialRaw=preserve.physicalRaw;preserve.logicalVersion=preserve.canonicalVersion=0;}if(positions){preserve.numeric.positions.set(positions);preserve.numeric.extras.set(extras);}}
-  Object.assign(stage,prior);frameAffineKnownGeometry.delete(g);frameAffineCleanup(()=>t?.engine?.geometryCache.rows.delete(g));objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);wireTopologyCache.delete(g);
-  if(t&&!t.disposed&&mesh.geometry===old&&frameRigidSource(t)){frameRigidPrepared=t;t.affine=preserve??t.affine;}else if(t&&t.mesh===mesh){if(preserve)t.affinePreserve=preserve;frameRigidDispose(t);}
+  if(preserve&&preserve.live){const current=frameRigidPrepared;if(current&&current!==t&&current.mesh===mesh){current.affinePreserve=preserve;frameRigidDispose(current);frameRigidPrepared=null;}const closed=preserve.workerPipe?.closed,{positions,extras,...state}=bindingPrior;Object.assign(preserve,state);if(own&&rebase){preserve.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);preserve.selectionRevision=framePolySelectionRevision;}if(closed){preserve.workerPipe=null;preserve.initialRaw=preserve.physicalRaw;preserve.logicalVersion=preserve.canonicalVersion=0;}if(positions){preserve.numeric.positions.set(positions);preserve.numeric.extras.set(extras);}}
+  Object.assign(stage,prior);Object.assign(stage.context,contextPrior);if(own&&rebase){stage.context.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);stage.context.selectionRevision=framePolySelectionRevision;if(ownedPrior){ownedPrior.selectionSets=stage.context.selectionSets;ownedPrior.selectionRevision=framePolySelectionRevision;frameComponentOwnedSelections.set(entry,ownedPrior);}else frameComponentOwnedSelections.delete(entry);}frameAffineKnownGeometry.delete(g);frameAffineCleanup(()=>t?.engine?.geometryCache.rows.delete(g));objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);wireTopologyCache.delete(g);
+  if(t&&!t.disposed&&mesh.geometry===old&&frameRigidSource(t)){if(own&&rebase&&t.entry===entry){t.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);t.selectionRevision=framePolySelectionRevision;}frameRigidPrepared=t;t.affine=preserve??t.affine;}else if(t&&t.mesh===mesh){if(preserve)t.affinePreserve=preserve;frameRigidDispose(t);}
   if(gpuCheckpoint)try{gpuCheckpoint.rollback();}catch(rollbackError){frameAffineRetireBinding(preserve);if(t?.affine===preserve)t.affine=null;if(frameRigidPrepared===t){frameRigidDispose(t);frameRigidPrepared=null;}frameAffineNotes.errors.push('Affine Bind GPU rollback: '+String(rollbackError));}
   if(own)try{if(overlays)frameRigidRestoreOverlays({overlays});if(oldGizmo)setGizmoFromMatrix(oldGizmo);updateHUD();scheduleRender();}catch{}
   frameAffineCleanup(()=>g.dispose());throw error;
@@ -26432,18 +27001,20 @@ function frameAffineBind(stage,snapshot,syncPose=true){
 }
 function frameAffineAdopt(stage){
  const version=stage.generation;stage.installPromise=stage.promise.then(async result=>{
+  if(stage.generation!==version)return false;
   stage.canonicalSnapshot??=result;stage.pendingData=stage.historyData=stage.historyRecipe=null;stage.error=null;stage.resolveSnapshot=stage.rejectSnapshot=null;stage.workerSession=null;
   await frameAffineYield();if(stage.generation!==version||!frameAffineStageCurrent(stage))return false;
   if(frameAffinePublicationBusy()){setTimeout(()=>{if(stage.generation===version&&frameAffineStageCurrent(stage))frameAffineAdopt(stage);},32);return false;}
   frameAffineAssertHistory(stage);const snapshot=stage.canonicalSnapshot;if(stage.snapshot!==snapshot){frameAffineBind(stage,snapshot,true);frameAffineNotes.installed++;}frameAffineForgetStage(stage);return true;
  }).catch(error=>{
+  if(stage.generation!==version)return false;
   if(frameAffineStages.get(stage.h)===stage&&frameAffineStageCurrent(stage)){
    stage.error=error;stage.workerSession?.deref()?.closeWorker?.(error);stage.workerSession=null;
    if(error.name!=='AbortError'){frameAffineNotes.errors.push(String(error));console.error('Affine exact result failed; canonical repair is required before Save',error);}
   }else if(frameAffineStages.get(stage.h)===stage)frameAffineForgetStage(stage,{cancel:true});return false;
  });return stage.installPromise;
 }
-function frameAffineCancelPublication(){for(const stage of frameAffineStages.values())if(!stage.snapshot){stage.generation++;frameAffineAdopt(stage);}}
+function frameAffineCancelPublication(){for(const stage of frameAffineStages.values())if(!stage.snapshot||stage.historyPending){stage.generation++;frameAffineAdopt(stage);}}
 function* frameAffineSnapshotWork(s,compact){
  if(s.stockFast)return yield* frameAffineMergedSnapshotWork(s,compact);
  let stock=s.wholeCompact;
@@ -26499,7 +27070,7 @@ function frameAffinePosePublish(s,q){
  const t=s.t;if(q.rawFullPositions){s.rawDisplayFullTouched=true;r.rawDisplayBaseline={positions:q.rawFullPositions};t.numeric.positions.set(q.rawFullPositions);}else{for(let k=0;k<q.positions.length/3;k++)t.numeric.positions.set(q.positions.subarray(k*3,k*3+3),(t.ids?.[k]??k)*3);}
  t.device.queue.writeBuffer(t.gpu.position,0,t.numeric.positions);t.device.queue.writeBuffer(r.gpu.position,0,r.numeric.positions);t.device.queue.writeBuffer(r.gpu.normal,0,r.numeric.extras);
  if(t.adapter){t.adapter.revision++;const values=t.numeric.positions;t.adapter.positionView=(id,c)=>values[id*3+c];}r.revision++;if(r.fullNumeric){const revision=r.revision;r.fullNumeric.isCurrent=()=>r.live&&r.revision===revision&&frameRigidSource(t);}
- frameAffineNotes.exactPoses++;frameAffineNotes.phases.push({name:'affine-exact-worker-pose',gesture:s.affineID,revision:q.revision,...q.timings});scheduleRender();return true;
+ frameComponentQueueExactMeasurements(s,q);frameAffineNotes.exactPoses++;frameAffineNotes.phases.push({name:'affine-exact-worker-pose',gesture:s.affineID,revision:q.revision,...q.timings});scheduleRender();return true;
 }
 function frameAffinePump(s){
  if(s.affineFailed)return;s.affineDirty=true;if(s.affineRunning||s.cancel||s.discarded)return;s.affineRunning=true;
@@ -26520,28 +27091,63 @@ function frameAffineSubmit(s){
  const local=s.inverse.clone().multiply(s.delta).multiply(s.world),normal3=new THREE2.Matrix3().getNormalMatrix(local),normal=new THREE2.Matrix4(),a=normal3.elements,e=normal.elements,sign=local.determinant()<0?-1:1;for(let col=0;col<3;col++)for(let row=0;row<3;row++)e[col*4+row]=a[col*3+row]*sign;
  s.revision++;s.affineRevision++;if(t.adapter){t.adapter.positionView=s.previewPositionView??null;t.adapter.revision++;}r.fullNumeric=null;r.revision++;
  for(const{o,matrix}of s.overlays??[]){o.matrixAutoUpdate=false;o.matrix.copy(s.delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}
- const revision=s.affineRevision,current=()=>!s.cancel&&!s.discarded&&r.active===s&&s.affineRevision===revision&&frameRigidTransactionCurrent(s);
+ const cmFrame=s.t.domain!=='face'?frameComponentFrame(s.t,s.t.bounds??s.beforeBounds,s.beforePivot?s.afterGizmo:null):null,cmBasis=cmFrame?cmFrame.clone().invert():new THREE2.Matrix4();const revision=s.affineRevision,current=()=>!s.cancel&&!s.discarded&&r.active===s&&s.affineRevision===revision&&frameRigidTransactionCurrent(s);
  if(s.ready&&t.gpu)t.gpu.submit({matrix:local.elements,world:s.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:current}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});
- r.gpu.submit({matrix:local.elements,normalMatrix:normal.elements,world:s.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:current}).then(result=>{if(result.status!=='ready'||!current())return;t.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};t.boundsWorld=s.world.clone();updateHUD();scheduleRender();}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});
+ r.gpu.submit({matrix:local.elements,normalMatrix:normal.elements,world:s.world.elements,basis:cmBasis.elements,isCurrent:current}).then(result=>{if(result.status!=='ready'||!current())return;t.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};t.boundsWorld=s.world.clone();if(!cmFrame||!frameComponentPublishMeasurements(s,result,cmFrame))updateHUD();scheduleRender();}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});
  frameAffineNotes.poses++;if(s.ready)frameAffinePump(s);scheduleRender();
 }
+function frameAffineOrderedSelectionRemap(old,index,entry,faces=null){
+ if(!entry||(!entry.vertices.size&&!entry.edges.size))return null;const oldIndex=old.index?.array;if(!oldIndex||oldIndex.length!==index.length)throw new DOMException('Affine selection face order changed','AbortError');
+ const vertexMap=new Map(),edgeMap=new Map(),key=(a,b)=>a<b?a+':'+b:b+':'+a;
+ const add=(map,from,to)=>{if(!map.has(from)){map.set(from,to);return;}const prior=map.get(from);if(prior instanceof Set)prior.add(to);else if(prior!==to)map.set(from,new Set([prior,to]));};
+ const visit=f=>{for(let c=0;c<3;c++){const at=f*3+c,next=f*3+(c+1)%3,from=oldIndex[at];if(entry.vertices.has(from))add(vertexMap,from,index[at]);const edge=key(from,oldIndex[next]);if(entry.edges.has(edge))add(edgeMap,edge,key(index[at],index[next]));}};
+ if(faces)for(const f of faces)visit(f);else for(let f=0;f<index.length/3;f++)visit(f);
+ const ordered=(source,map)=>{const out=new Set();for(const from of source)if(map.has(from)){const to=map.get(from);if(to instanceof Set)for(const id of to)out.add(id);else out.add(to);}return out;};
+ return{vertices:ordered(entry.vertices,vertexMap),edges:ordered(entry.edges,edgeMap)};
+}
+function frameAffineCaptureSelectionOrder(s,fallback){
+ const t=s.t,e=t.entry;if(!['vertex','edge'].includes(t.domain)||!fallback?.index||!fallback.attrs?.position||!frameComponentPureSelection(e,t.domain))return null;
+ const admitted=s.source?.entry===e&&s.source.domain===t.domain,vertices=admitted?s.source.vertexIDs:Uint32Array.from(e.vertices),edges=admitted?s.source.edgeIDs:Array.from(e.edges);
+ return Object.freeze({h:t.h,entry:e,domain:t.domain,index:fallback.index,vertexCount:fallback.attrs.position.array.length/3,vertices,edges});
+}
+function frameAffineRestoreSelectionOrder(stage,index,semantic,faces){
+ const order=stage.selectionOrder,c=stage.context;if(!order||!semantic||order.h!==stage.h||order.entry!==c.entry||order.domain!==c.domain||!['vertex','edge'].includes(order.domain)||!(order.index instanceof Uint32Array||order.index instanceof Uint16Array)||order.index.length!==index.length||!Number.isSafeInteger(order.vertexCount)||order.vertexCount<1)return semantic;
+ if(!order.vertices?.[Symbol.iterator]||!order.edges?.[Symbol.iterator])return semantic;
+ const vertices=new Set(order.vertices),edges=new Set(order.edges);if(vertices.size!==(order.vertices.size??order.vertices.length)||edges.size!==(order.edges.size??order.edges.length))return semantic;
+ for(const id of vertices)if(!Number.isInteger(id)||id<0||id>=order.vertexCount)return semantic;
+ for(const edge of edges){if(typeof edge!=='string')return semantic;const pair=edge.split(':');if(pair.length!==2)return semantic;const[a,b]=pair.map(Number);if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||a>=b||b>=order.vertexCount||edge!==a+':'+b)return semantic;}
+ const saved=order.index===index?{vertices,edges}:frameAffineOrderedSelectionRemap({index:{array:order.index}},index,{vertices,edges},faces);
+ if(!saved||saved.vertices.size!==semantic.vertices.size||saved.edges.size!==semantic.edges.size)return semantic;
+ for(const id of saved.vertices)if(!semantic.vertices.has(id))return semantic;for(const edge of saved.edges)if(!semantic.edges.has(edge))return semantic;
+ return saved;
+}
+
 function frameAffineStage(s,values,pivot,pose,overlays,fallback,promise){
- const mesh=new WeakRef(s.t.mesh),h=s.t.h,owner=frameAffineOwnerToken(h),currentNode=()=>frameAffineOwnerTokens.get(OBJ.get(h))===owner?OBJ.get(h):undefined,context={h,get mesh(){return mesh.deref();},get node(){return currentNode();},entry:s.t.entry,faces:s.t.faces,vertices:s.t.vertices,edges:s.t.edges,selectionSets:s.t.selectionSets,selectionRevision:s.t.selectionRevision,ids:s.t.ids};
- return{h,owner,get node(){return currentNode();},get mesh(){return mesh.deref();},context,world:s.world.clone(),space:s.coordinateSpace,values,pivot:pivot?.slice()??null,pose:pose.slice(),overlays:frameAffineFreezeOverlays(overlays),bound:fallback,fallback,promise,generation:0,snapshot:null,canonicalSnapshot:null,pendingData:null,stamp:frameAffineSourceStamp(s.t.mesh)};
+ const mesh=new WeakRef(s.t.mesh),h=s.t.h,owner=frameAffineOwnerToken(h),currentNode=()=>frameAffineOwnerTokens.get(OBJ.get(h))===owner?OBJ.get(h):undefined,context={domain:s.t.domain,faceIDs:s.t.faceIDs.slice(),h,get mesh(){return mesh.deref();},get node(){return currentNode();},entry:s.t.entry,faces:s.t.faces,vertices:s.t.vertices,edges:s.t.edges,selectionSets:s.t.selectionSets,selectionRevision:s.t.selectionRevision,ids:s.t.ids};
+ return{h,owner,get node(){return currentNode();},get mesh(){return mesh.deref();},context,selectionOrder:frameAffineCaptureSelectionOrder(s,fallback),world:s.world.clone(),space:s.coordinateSpace,values,pivot:pivot?.slice()??null,pose:pose.slice(),overlays:frameAffineFreezeOverlays(overlays),bound:fallback,fallback,promise,generation:0,snapshot:null,canonicalSnapshot:null,pendingData:null,stamp:frameAffineSourceStamp(s.t.mesh)};
 }
 function frameAffineHistory(stage,expected=stage){
- frameRigidBeforeHistory();frameAffineAssertHistory(expected);const current=frameAffineStages.get(stage.h),prior={generation:stage.generation,stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot};
- try{const snapshot=frameAffineCanonicalNow(stage);frameAffineCancelPublication();stage.generation++;frameAffineBind(stage,snapshot,true);frameAffineNotes.history++;frameAffineForgetStage(stage);}
- catch(error){Object.assign(stage,prior);if(current)frameAffineStages.set(stage.h,current);else frameAffineStages.delete(stage.h);throw error;}
+ frameRigidBeforeHistory();frameAffineAssertHistory(expected);const current=frameAffineStages.get(stage.h),prior={generation:stage.generation,stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot,promise:stage.promise,error:stage.error,historyPending:stage.historyPending},serial=frameAffineHistorySerial;
+ try{const pending=!stage.canonicalSnapshot,snapshot=stage.canonicalSnapshot??stage.fallback;if(!snapshot)throw new DOMException('Affine history display snapshot missing','AbortError');frameAffineCancelPublication();stage.generation++;stage.historyPending=pending;if(pending){stage.promise=frameAffineCanonicalAsync(stage);stage.error=null;}frameAffineBind(stage,snapshot,true);frameAffineHistorySerial++;frameAffineNotes.history++;frameAffineHistoryCancelExcept(stage);if(pending){frameAffineStages.set(stage.h,stage);frameAffineAdopt(stage);}else frameAffineForgetStage(stage);}
+ catch(error){frameAffineHistoryJobs.get(stage)?.cancel(error);frameAffineHistorySerial=serial;Object.assign(stage,prior);if(current)frameAffineStages.set(stage.h,current);else frameAffineStages.delete(stage.h);throw error;}
+}
+async function frameAffineReleaseSnapshot(s,values){
+ const t=s.t,raw=s.beforeRaw,serial=frameAffineHistorySerial,token=sceneStateToken,sequence=sceneMutationSequence,current=()=>!s.cancel&&!s.discarded&&frameAffineHistorySerial===serial&&sceneStateToken===token&&sceneMutationSequence===sequence&&frameRigidTransactionCurrent(s,true)&&frameRigidSelection(t,true);
+ if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');const attrs={};
+ for(const[k,a]of Object.entries(raw.attrs)){const array=k==='position'||k==='normal'?await frameAffineCopyOwnedArray(a.array,current):a.array;attrs[k]={...a,array};}
+ if(!attrs.position||!attrs.normal||values.length!==t.ids.length*3||s.beforeNormals.length!==values.length)throw new DOMException('Affine release snapshot layout changed','AbortError');
+ for(let k=0;k<t.ids.length;k++){const at=t.ids[k]*3,o=k*3;attrs.position.array.set(values.subarray(o,o+3),at);attrs.normal.array.set(s.beforeNormals.subarray(o,o+3),at);if((k&8191)===8191){await frameAffineYield();if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');}}
+ if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');return{releaseCurrent:current,attrs,index:t.indexSeed,groups:t.g.groups.map(q=>({...q})),drawRange:{...t.g.drawRange},userData:{...t.g.userData},wire:wireOverlays.get(t.h)?.geometry?.index?.array??null,box:null,sphere:null,selectedIDs:t.ids.slice(),aliasGuard:t.aliasGuard,aliasStable:t.stableFaceComponent===true,componentStable:t.domain!=='face'&&t.stableFaceComponent===true};
 }
 async function frameAffineCommit(s){
  const t=s.t,started=performance.now();if(!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Affine transaction stale before release','AbortError');
  const values=new Float32Array(t.ids.length*3),p=new THREE2.Vector3(),moved=new THREE2.Vector3();for(let k=0;k<t.ids.length;k++){p.fromArray(s.beforeValues,k*3);moved.copy(p).applyMatrix4(s.world).applyMatrix4(s.delta).applyMatrix4(s.inverse);p.lerp(moved,1);p.toArray(values,k*3);if((k&8191)===8191){await frameAffineYield();if(s.cancel||s.discarded||!frameRigidTransactionCurrent(s,true)||!frameRigidSelection(t,true))throw new DOMException('Affine release source changed','AbortError');}}
  if(!frameRigidAliasSafe(t,values)){s.affine=false;s.kind='cpu';s.closeWorker?.();return frameRigidFallback(s);}
+ const afterFallback=await frameAffineReleaseSnapshot(s,values);if(!afterFallback.releaseCurrent()||!frameAffineSnapshotMatches(t.mesh,s.beforeRaw))throw new DOMException('Affine release snapshot content changed','AbortError');delete afterFallback.releaseCurrent;
  const prior=frameAffineStages.get(t.h),pivot=s.beforePivot?s.afterGizmo.slice():null,overlays=frameRigidCaptureOverlays(),history={undo:undoStack.slice(),redo:redoStack.slice(),token:sceneStateToken,sequence:sceneMutationSequence,started:sceneWorkStartedAt};let wrote=false,after,before;
  let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});promise.catch(()=>{});s.resolveSnapshot=resolve;s.rejectSnapshot=reject;
  try{
-  t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,values,s.beforeNormals,null,()=>wrote=true);frameRigidExactBounds(t);const canonical=polyFrameMatrix(t.bounds).elements.slice(),afterFallback=frameAffineRawSnapshot(t);
+  t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,values,s.beforeNormals,null,()=>wrote=true);frameRigidExactBounds(t);const canonical=polyFrameMatrix(t.bounds).elements.slice();afterFallback.userData={...t.g.userData};afterFallback.box=t.g.boundingBox?.clone()??null;afterFallback.sphere=t.g.boundingSphere?.clone()??null;
   after=frameAffineStage(s,values,pivot,canonical,overlays,afterFallback,promise);before=frameAffineStage(s,s.beforeValues,s.beforePivot,s.gizmo,s.overlays,s.beforeRaw,s.beforeExact);
   after.pendingData={raw:s.beforeRaw,ids:t.ids,values,faceSlots:s.r?.faceSlots??new Int32Array(t.indexSeed.length/3),aliasGuard:t.aliasGuard};if(!s.r?.faceSlots)for(const face of t.faceIDs)after.pendingData.faceSlots[face]=1;
   after.historyData=after.pendingData;after.historyRecipe={parent:s.priorStage??null,raw:s.beforeRaw,faces:s.faceIDs.slice(),world:s.world.elements.slice(),delta:s.delta.elements.slice(),inverse:s.inverse.elements.slice(),aliasGuard:t.aliasGuard};before.historyRecipe=s.priorStage?{inherit:s.priorStage}:null;after.logicalVersion=s.baseVersion+1;before.logicalVersion=s.baseVersion;after.workerSession=new WeakRef(s);after.resolveSnapshot=resolve;after.rejectSnapshot=reject;before.pendingData=prior?.pendingData??null;before.canonicalSnapshot=prior?prior.canonicalSnapshot??null:s.beforeRaw;
@@ -26556,7 +27162,7 @@ async function frameAffineCommit(s){
  }
 }
 async function frameAffineWaitForSave(signal){
- for(;;){if(signal?.aborted)throw signal.reason||new DOMException('Save cancelled','AbortError');frameAffinePruneStages();const boundary=frameAffineBoundary();if(boundary.released.length){await nativeSaveWait(frameRigidDraining?new Promise(resolve=>setTimeout(resolve,4)):frameRigidDrain(),signal);continue;}const active=boundary.active,stages=boundary.stages.filter(({stage})=>stage.mesh!==active?.t.mesh),resolved=await nativeSaveWait(Promise.all(stages.map(({stage})=>stage.error?frameAffineRepairStage(stage):stage.promise.catch(()=>frameAffineRepairStage(stage)))),signal);
+ blurActive();await frameAffineAuthoringDrain(signal);for(;;){if(signal?.aborted)throw signal.reason||new DOMException('Save cancelled','AbortError');frameAffinePruneStages();const boundary=frameAffineBoundary();if(boundary.released.length){await nativeSaveWait(frameRigidDraining?new Promise(resolve=>setTimeout(resolve,4)):frameRigidDrain(),signal);continue;}const active=boundary.active,stages=boundary.stages.filter(({stage})=>stage.mesh!==active?.t.mesh);let resolved;try{resolved=await nativeSaveWait(Promise.all(stages.map(({stage})=>stage.error?frameAffineRepairStage(stage):stage.promise.catch(()=>frameAffineRepairStage(stage)))),signal);}catch(error){if(!frameAffineBoundaryCurrent(boundary))continue;throw error;}
   await nativeSaveWait(Promise.all(stages.map(({stage})=>stage.installPromise??Promise.resolve())),signal);if(!frameAffineBoundaryCurrent(boundary))continue;const snapshots=new Map(stages.map(({stage},k)=>[stage.mesh.geometry,stage.canonicalSnapshot??resolved[k]]));
   if(active){if(!active.ready||!active.call||!active.run){await nativeSaveWait(frameAffineYield(),signal);continue;}
    let snapshot;try{snapshot=await nativeSaveWait(frameAffineCaptureActiveSave(active,boundary),signal);}catch(error){if(!frameAffineBoundaryCurrent(boundary))continue;throw error;}
@@ -26614,24 +27220,19 @@ function frameAffineFreezeOverlays(rows){return(rows??[]).map(({o,position,matri
 function frameAffineLiveOverlays(stage){return(stage.overlays??[]).flatMap(row=>{const o=row.owner?.deref?.()??row.o;return o?[{...row,o}]:[];});}
 function frameAffineForgetStage(stage,{cancel=false}={}){
  if(frameAffineStages.get(stage.h)===stage)frameAffineStages.delete(stage.h);stage.generation++;
- if(cancel){stage.workerSession?.deref()?.closeWorker?.();stage.rejectSnapshot?.(new DOMException('Affine owner retired','AbortError'));stage.pendingData=null;}
- stage.stamp=null;stage.workerSession=null;stage.resolveSnapshot=stage.rejectSnapshot=null;
+ if(cancel){frameAffineHistoryJobs.get(stage)?.cancel(new DOMException('Affine owner retired','AbortError'));stage.workerSession?.deref()?.closeWorker?.();stage.rejectSnapshot?.(new DOMException('Affine owner retired','AbortError'));stage.pendingData=null;}
+ stage.historyPending=false;stage.stamp=null;stage.workerSession=null;stage.resolveSnapshot=stage.rejectSnapshot=null;
 }
 function frameAffinePruneStages({clear=false}={}){
- if(clear)frameAffineLifecycleGeneration++;
+ if(clear){frameAffineAuthoringCancelAll('Scene cleared');frameAffineLifecycleGeneration++;for(const row of [...frameAffineHistoryJobRows])row.cancel(new DOMException('Affine scene retired','AbortError'));}
  for(const stage of [...frameAffineStages.values()])if(clear||OBJ.get(stage.h)!==stage.node||pickMeshes.get(stage.h)!==stage.mesh||!frameAffineStampCurrent(stage.stamp))frameAffineForgetStage(stage,{cancel:true});
  if(clear)frameAffineStages.clear();
 }
 function frameAffinePublicationBusy(){return !!(gizDrag||frameRigidInput||frameRigidExecuting||(typeof framePolySelectionJob!=='undefined'&&framePolySelectionJob));}
-function frameAffineSelectionRemap(old,index,entry){
- if(!entry||(!entry.vertices.size&&!entry.edges.size))return null;const oldIndex=old.index?.array;if(!oldIndex||oldIndex.length!==index.length)throw new DOMException('Affine selection face order changed','AbortError');
- const vertices=new Set(),edges=new Set(),key=(a,b)=>a<b?a+':'+b:b+':'+a;
- for(let f=0;f<index.length;f+=3){for(let c=0;c<3;c++)if(entry.vertices.has(oldIndex[f+c]))vertices.add(index[f+c]);for(let c=0;c<3;c++){const n=(c+1)%3;if(entry.edges.has(key(oldIndex[f+c],oldIndex[f+n])))edges.add(key(index[f+c],index[f+n]));}}
- return{vertices,edges};
-}
+function frameAffineSelectionRemap(old,index,entry){return frameAffineOrderedSelectionRemap(old,index,entry);}
 function frameAffineApplyRemap(entry,remap){if(!remap)return;entry.vertices.clear();entry.edges.clear();for(const id of remap.vertices)entry.vertices.add(id);for(const id of remap.edges)entry.edges.add(id);framePolySelectionRevision++;}
 function frameAffineCanonicalNow(stage){
- if(stage.canonicalSnapshot)return stage.canonicalSnapshot;const recipe=stage.historyRecipe,data=stage.historyData??stage.pendingData;let raw,source,index,faceSlots,aliasGuard;
+ if(stage.canonicalSnapshot)return stage.canonicalSnapshot;if(stage.historyPending){const error=new DOMException('Exact canonical history requires an asynchronous continuation','InvalidStateError');error.canonicalReady=frameAffineCanonicalAsync(stage);throw error;}const recipe=stage.historyRecipe,data=stage.historyData??stage.pendingData;let raw,source,index,faceSlots,aliasGuard;
  if(recipe?.inherit){const snapshot=frameAffineCanonicalNow(recipe.inherit);stage.canonicalSnapshot=snapshot;stage.historyRecipe=stage.historyData=null;return snapshot;}
  if(recipe){
   raw=recipe.parent?frameAffineCanonicalNow(recipe.parent):recipe.raw;faceSlots=new Int32Array(raw.index.length/3);const ids=new Set();for(let k=0;k<recipe.faces.length;k++){const f=recipe.faces[k];faceSlots[f]=k+1;for(let c=0;c<3;c++)ids.add(raw.index[f*3+c]);}
@@ -26652,19 +27253,19 @@ function frameAffineEnsureAuthoring(hashes=null){
 function frameAffineBoundary(){
  const active=frameRigidInput?.affine?frameRigidInput:null;
  const released=[...new Set([...(typeof frameRigidQueue==='undefined'?[]:frameRigidQueue),typeof frameRigidExecuting==='undefined'?null:frameRigidExecuting])].filter(s=>s?.released&&!s.cancel&&!s.discarded&&!s.committed);
- return{released,generation:frameAffineLifecycleGeneration,gesture:typeof frameRigidGestureGeneration==='undefined'?null:frameRigidGestureGeneration,input:frameRigidInput,active,revision:active?.affineRevision,source:active?frameAffineSourceStamp(active.t.mesh):null,stages:[...frameAffineStages.values()].filter(frameAffineStageCurrent).map(stage=>({stage,stamp:stage.stamp})),sequence:typeof sceneMutationSequence==='undefined'?null:sceneMutationSequence};
+ return{released,history:frameAffineHistorySerial,generation:frameAffineLifecycleGeneration,gesture:typeof frameRigidGestureGeneration==='undefined'?null:frameRigidGestureGeneration,input:frameRigidInput,active,revision:active?.affineRevision,source:active?frameAffineSourceStamp(active.t.mesh):null,stages:[...frameAffineStages.values()].filter(frameAffineStageCurrent).map(stage=>({stage,stamp:stage.stamp})),sequence:typeof sceneMutationSequence==='undefined'?null:sceneMutationSequence};
 }
 function frameAffineBoundaryCurrent(b){
- return !b.released.length&&![...(typeof frameRigidQueue==='undefined'?[]:frameRigidQueue),typeof frameRigidExecuting==='undefined'?null:frameRigidExecuting].some(s=>s?.released&&!s.cancel&&!s.discarded&&!s.committed)&&b.generation===frameAffineLifecycleGeneration&&b.input===frameRigidInput&&b.revision===b.active?.affineRevision&&(!b.active||!b.active.cancel&&!b.active.discarded&&frameAffineStampCurrent(b.source))&&(b.gesture===null||b.gesture===frameRigidGestureGeneration)&&(b.sequence===null||b.sequence===sceneMutationSequence)&&b.stages.every(({stage,stamp})=>frameAffineStages.get(stage.h)===stage&&stage.stamp===stamp&&frameAffineStampCurrent(stamp));
+ return b.history===frameAffineHistorySerial&&!b.released.length&&![...(typeof frameRigidQueue==='undefined'?[]:frameRigidQueue),typeof frameRigidExecuting==='undefined'?null:frameRigidExecuting].some(s=>s?.released&&!s.cancel&&!s.discarded&&!s.committed)&&b.generation===frameAffineLifecycleGeneration&&b.input===frameRigidInput&&b.revision===b.active?.affineRevision&&(!b.active||!b.active.cancel&&!b.active.discarded&&frameAffineStampCurrent(b.source))&&(b.gesture===null||b.gesture===frameRigidGestureGeneration)&&(b.sequence===null||b.sequence===sceneMutationSequence)&&b.stages.every(({stage,stamp})=>frameAffineStages.get(stage.h)===stage&&stage.stamp===stamp&&frameAffineStampCurrent(stamp));
 }
 function* frameAffineWholeSnapshotWork(raw,stock,faceSlots,aliasGuard,outsideCanonical=false){
  const p=stock.positions,n=stock.normals,index=stock.indices;if(index.length!==raw.index.length)throw Error('Stock affine result changed face count');
- const map=new Int32Array(raw.attrs.position.array.length/3);map.fill(-1);const selected=new Set(),outside=new Set();
- for(let f=0;f<index.length/3;f++){const inside=!!faceSlots[f];for(let c=0;c<3;c++){const at=f*3+c;map[raw.index[at]]=index[at];(inside?selected:outside).add(index[at]);}if((f&2047)===0)yield;}
+ const map=new Int32Array(raw.attrs.position.array.length/3);map.fill(-1);const selected=new Set(),outside=new Set(),sourceBits=new Uint32Array(raw.attrs.position.array.buffer,raw.attrs.position.array.byteOffset,raw.attrs.position.array.length),resultBits=new Uint32Array(p.buffer,p.byteOffset,p.length);let outsidePositionsUnchanged=true;
+ for(let f=0;f<index.length/3;f++){const inside=!!faceSlots[f];for(let c=0;c<3;c++){const at=f*3+c;map[raw.index[at]]=index[at];(inside?selected:outside).add(index[at]);if(!inside)for(let j=0;j<3;j++)if(sourceBits[raw.index[at]*3+j]!==resultBits[index[at]*3+j])outsidePositionsUnchanged=false;}if((f&2047)===0)yield;}
  let exclusive=true;for(const id of selected)if(outside.has(id)){exclusive=false;break;}
  let wire=null;if(raw.wire){wire=new Uint32Array(raw.wire.length);for(let k=0;k<wire.length;k++){const id=map[raw.wire[k]];if(id<0)throw Error('Affine wire vertex not represented by stock');wire[k]=id;if((k&8191)===0)yield;}}
  const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),v=new THREE2.Vector3();for(let k=0;k<p.length;k+=3){v.fromArray(p,k);min.min(v);max.max(v);if((k&24575)===0)yield;}const center=min.clone().add(max).multiplyScalar(.5);let radius2=0;for(let k=0;k<p.length;k+=3){v.fromArray(p,k);radius2=Math.max(radius2,center.distanceToSquared(v));if((k&24575)===0)yield;}
- return{...raw,attrs:{position:{array:p,itemSize:3,normalized:false},normal:{array:n,itemSize:3,normalized:false}},index,wire,box:new THREE2.Box3(min,max),sphere:new THREE2.Sphere(center,Math.sqrt(radius2)),selectedIDs:Uint32Array.from(selected),aliasGuard,aliasStable:!!raw.aliasStable&&!!outsideCanonical&&exclusive,selectedExclusive:exclusive,outsideCanonical,rawToCanonical:map,outsideHashes:stock.outsideHashes??null,cornerPositionsUnchanged:stock.cornerPositionsUnchanged===true};
+ return{...raw,attrs:{position:{array:p,itemSize:3,normalized:false},normal:{array:n,itemSize:3,normalized:false}},index,wire,box:new THREE2.Box3(min,max),sphere:new THREE2.Sphere(center,Math.sqrt(radius2)),selectedIDs:Uint32Array.from(selected),aliasGuard,aliasStable:!!raw.aliasStable&&!!outsideCanonical&&exclusive,selectedExclusive:exclusive,outsideCanonical,outsidePositionsUnchanged,componentStable:(raw.componentStable===true||raw.aliasStable===true)&&outsidePositionsUnchanged&&exclusive,rawToCanonical:map,outsideHashes:stock.outsideHashes??null,cornerPositionsUnchanged:stock.cornerPositionsUnchanged===true};
 }
 
 function* frameAffineMergedSnapshotWork(s,compact){
@@ -26698,9 +27299,9 @@ function frameAffineAbortAll(reason){
 function frameAffineCleanup(work){try{work();}catch(error){frameAffineNotes.errors.push('Affine cleanup: '+String(error));}}
 async function frameAffineRepairStage(stage){
  if(stage.canonicalSnapshot)return stage.canonicalSnapshot;if(stage.repairPromise)return stage.repairPromise;
- stage.repairPromise=Promise.resolve().then(()=>{
+ stage.repairPromise=Promise.resolve().then(async()=>{
   if(!frameAffineStageCurrent(stage))throw new DOMException('Affine repair source changed','AbortError');frameAffineAssertHistory(stage);
-  const snapshot=frameAffineCanonicalNow(stage);stage.error=null;stage.promise=Promise.resolve(snapshot);frameAffineAdopt(stage);return snapshot;
+  const snapshot=await frameAffineCanonicalAsync(stage);stage.error=null;stage.promise=Promise.resolve(snapshot);frameAffineAdopt(stage);return snapshot;
  }).catch(error=>{stage.error=error;throw error;}).finally(()=>{stage.repairPromise=null;});stage.repairPromise.catch(()=>{});return stage.repairPromise;
 }
 function frameAffineCreateWorkerPipe(r,raw,faceIDs,baseVersion=0){
@@ -26716,7 +27317,7 @@ function frameAffineBindingStamp(r,mesh){const stamp=frameAffineSourceStamp(mesh
 function frameAffineBindingCurrent(r){
  if(!r?.live)return false;if(!r.managed)return frameRigidSource(r.active?.t??r.t);
  const mesh=r.meshRef.deref(),node=OBJ.get(r.h),entry=polySelection.items.get(r.h);
- return !!mesh&&pickMeshes.get(r.h)===mesh&&frameAffineOwnerToken(r.h)===r.ownerToken&&node&&frameRigidOwnerCurrent(r.owner)&&frameAffineStampCurrent(r.stamp)&&entry===r.entry&&entry.faces===r.faces&&entry.vertices===r.vertices&&entry.edges===r.edges&&polySelection.items.size===1&&polyElementMode==='face'&&polyFocusActive()&&framePolySelectionRevision===r.selectionRevision&&!entry.vertices.size&&!entry.edges.size&&frameRigidSetSnapshotsCurrent(r.selectionSets);
+ return !!mesh&&pickMeshes.get(r.h)===mesh&&frameAffineOwnerToken(r.h)===r.ownerToken&&node&&frameRigidOwnerCurrent(r.owner)&&frameAffineStampCurrent(r.stamp)&&entry===r.entry&&entry.faces===r.faces&&entry.vertices===r.vertices&&entry.edges===r.edges&&polySelection.items.size===1&&polyElementMode===(r.domain??'face')&&polyFocusActive()&&framePolySelectionRevision===r.selectionRevision&&frameComponentPureSelection(entry,r.domain??'face')&&!polyExactEdgeVertices?.has(r.h)&&frameRigidSetSnapshotsCurrent(r.selectionSets);
 }
 function frameAffineTouchBinding(t){const r=t?.affine;if(r?.managed&&r.live&&r.meshRef.deref()===t.mesh&&t.mesh.geometry===t.g)frameAffineBindingStamp(r,t.mesh);}
 function frameAffineRetireBinding(r){
@@ -26730,7 +27331,7 @@ function frameAffinePrepareEarly(t){
  if(r&&!frameAffineBindingCurrent(r)){frameAffineRetireBinding(r);r=null;}
  if(r){t.affine=r;return r.promise;}
  const began=performance.now(),faceIDs=t.faceIDs.slice().sort(),faceSlots=new Int32Array(t.ia.length/3),positions=new Float32Array(faceIDs.length*9),extras=new Float32Array(faceIDs.length*27);
- r={managed:true,h:t.h,meshRef:new WeakRef(t.mesh),ownerToken:frameAffineOwnerToken(t.h),owner:frameRigidOwnerSnapshot(),entry:t.entry,faces:t.faces,vertices:t.vertices,edges:t.edges,selectionSets:t.selectionSets,selectionRevision:t.selectionRevision,live:true,displayEnabled:false,revision:0,logicalVersion:0,canonicalVersion:0,active:null,display:null,gpu:null,numeric:null,faceIDs,faceSlots,ready:false};frameAffineBindingStamp(r,t.mesh);frameAffineBindings.set(t.mesh,r);frameAffineBindingRecords.add(r);t.affine=r;
+ r={domain:t.domain,managed:true,h:t.h,meshRef:new WeakRef(t.mesh),ownerToken:frameAffineOwnerToken(t.h),owner:frameRigidOwnerSnapshot(),entry:t.entry,faces:t.faces,vertices:t.vertices,edges:t.edges,selectionSets:t.selectionSets,selectionRevision:t.selectionRevision,live:true,displayEnabled:false,revision:0,logicalVersion:0,canonicalVersion:0,active:null,display:null,gpu:null,numeric:null,faceIDs,faceSlots,ready:false};frameAffineBindingStamp(r,t.mesh);frameAffineBindings.set(t.mesh,r);frameAffineBindingRecords.add(r);t.affine=r;
  r.promise=(async()=>{
   for(let k=0;k<faceIDs.length;k++){const f=faceIDs[k];faceSlots[f]=k+1;for(let c=0;c<3;c++){const at=k*3+c,id=t.ia[f*3+c];positions.set(t.pa.subarray(id*3,id*3+3),at*3);extras.set(t.na.subarray(id*3,id*3+3),at*9);extras[at*9+5]=extras[at*9+6]=extras[at*9+7]=extras[at*9+8]=1;}if((k&2047)===0){await frameAffineYield();if(!frameAffineBindingCurrent(r))throw new DOMException('Affine early selection changed','AbortError');}}
   r.numeric={source:r,positions,extras,indices:null,vertexCount:faceIDs.length*3,hasNormals:true,hasUV:false,hasColors:false,lineIndices:new Map()};
@@ -26744,10 +27345,10 @@ function frameAffineStartPreview(s){
  const r=s.t.affine;if(!r?.gpu||!r.live||s.previewReady||s.cancel||s.discarded)return false;
  s.boundsCaptured=true;s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld?.clone()??s.world.clone()}:null;s.r=r;s.faceIDs=r.faceIDs;s.faceSlots=r.faceSlots;s.affineID=++frameAffineSerial;s.affineRevision=0;s.affineDirty=s.affineRunning=s.affineEnded=false;s.previewReady=true;s.beforeDisplayEnabled=r.displayEnabled;s.beforeFullNumeric=r.fullNumeric;r.bindDisplay=null;s.beforeRawDisplayBaseline=r.rawDisplayBaseline;s.overlays=frameRigidCaptureOverlays();r.displayEnabled=true;r.fullNumeric=null;r.active=s;r.gpu.gathered=false;r.revision++;frameAffineNotes.starts++;return true;
 }
-function frameAffineAwaitPreview(s){const r=s.t.affine;if(!r)return;if(r.ready){frameAffineStartPreview(s);return;}r.promise.then(()=>{if(!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s)){frameAffineStartPreview(s);if(s.previewReady)frameAffineSubmit(s);}}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});}
+function frameAffineAwaitPreview(s){const r=s.t.affine;if(!r){if(s.t.domain!=='face')s.t.promise?.then(ok=>{if(ok&&!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s))frameAffineAwaitPreview(s);});return;}if(r.ready){frameAffineStartPreview(s);return;}r.promise.then(()=>{if(!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s)){frameAffineStartPreview(s);if(s.previewReady)frameAffineSubmit(s);}}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});}
 function frameAffineBindingTransfer(r,mesh,snapshot,keepWorker){
  if(!r?.live)return;if(!keepWorker){frameAffineCleanup(()=>r.workerPipe?.close());r.workerPipe=null;r.logicalVersion=r.canonicalVersion=0;r.initialRaw=snapshot;}else{r.canonicalVersion=r.logicalVersion=snapshot.logicalVersion??r.logicalVersion;r.canonicalSnapshot=snapshot;}
- r.physicalRaw=snapshot;r.rawDisplayBaseline=null;r.fullNumeric=null;r.bindDisplay=null;r.active=null;r.revision++;frameAffineBindingStamp(r,mesh);
+ if(r.domain!=='face'){const entry=polySelection.items.get(r.h);r.entry=entry;r.faces=entry.faces;r.vertices=entry.vertices;r.edges=entry.edges;r.selectionRevision=framePolySelectionRevision;r.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);}r.physicalRaw=snapshot;r.rawDisplayBaseline=null;r.fullNumeric=null;r.bindDisplay=null;r.active=null;r.revision++;frameAffineBindingStamp(r,mesh);
  if(keepWorker&&r.lastPublishedSnapshot===snapshot)return;const p=r.numeric.positions,x=r.numeric.extras;for(let k=0;k<r.faceIDs.length;k++)for(let c=0;c<3;c++){const id=snapshot.index[r.faceIDs[k]*3+c],at=k*3+c;p.set(snapshot.attrs.position.array.subarray(id*3,id*3+3),at*3);x.set(snapshot.attrs.normal.array.subarray(id*3,id*3+3),at*9);}r.gpu.writeAuthoringRanges([[0,r.faceIDs.length*3]]);
 }
 function frameAffineSeedBindDisplay(r,mesh,snapshot,g,wire){
@@ -26768,12 +27369,16 @@ function frameAffineKnownGate(t){
  if(!values.length||ranges.length>4096)return null;
  return{eligible:true,ids:values,ranges,label:null,faceCount:t.faceIDs.length,vertexCount:values.length,gate:'mapped-exclusive-affine-face-selection',aliasGuard:k.aliasGuard,stableFaceComponent:true};
 }
+async function frameAffineCopyOwnedArray(array,isCurrent){
+ if(!isCurrent())throw new DOMException('Affine copy owner changed','AbortError');const out=new array.constructor(array.length);
+ for(let i=0;i<array.length;i+=32768){out.set(array.subarray(i,Math.min(i+32768,array.length)),i);await frameAffineYield();if(!isCurrent())throw new DOMException('Affine copy owner changed','AbortError');}return out;
+}
 async function frameAffineKnownNumeric(t){
  const g=t.g,old=t.engine.geometryCache.rows.get(g);if(old?.isCurrent())return old;
  const prior=frameAffineNumericTasks.get(g);if(prior&&frameAffineStampCurrent(prior.stamp))return prior.promise;
  const stamp=frameAffineSourceStamp(t.mesh),task={stamp,promise:null};frameAffineNumericTasks.set(g,task);
  task.promise=(async()=>{
-  const positions=stamp.pa.slice(),extras=new Float32Array(stamp.pcount*9),indices=stamp.ia;
+  const positions=await frameAffineCopyOwnedArray(stamp.pa,()=>frameAffineStampCurrent(stamp)),extras=new Float32Array(stamp.pcount*9),indices=stamp.ia;
   const work=(function*(){for(let k=0;k<stamp.pcount;k++){const at=k*9,o=k*3;extras[at]=stamp.na[o];extras[at+1]=stamp.na[o+1];extras[at+2]=stamp.na[o+2];extras[at+5]=extras[at+6]=extras[at+7]=extras[at+8]=1;if((k&8191)===0)yield;}return true;})();
   await frameNative.drainCooperatively(work,{isCurrent:()=>frameAffineStampCurrent(stamp),yieldTask:frameAffineYield});
   if(!frameAffineStampCurrent(stamp))throw new DOMException('Mapped affine numeric source changed','AbortError');
@@ -26783,9 +27388,18 @@ async function frameAffineKnownNumeric(t){
 }
 
 
-function frameRigidBasic(){if(!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1||vertexTools.soft.active||uvEdit||editPivot||frameChannels.size||!vpState.renderer?.nativeEngine)return null;const[h,entry]=polySelection.items.entries().next().value,mesh=pickMeshes.get(h),node=OBJ.get(h),g=mesh?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;if(!node||!mesh?.isMesh||mesh.isInstancedMesh||g?.isInstancedBufferGeometry||mesh.userData.splineChunks||!entry.faces.size||entry.vertices.size||entry.edges.size||frameMorphTag(h)||!p||!n||!index||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||p.normalized||n.normalized||p.itemSize!==3||n.itemSize!==3||n.count!==p.count||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||!(index.array instanceof Uint32Array||index.array instanceof Uint16Array))return null;return{h,entry,mesh,node,g,p,n,index};}
+function frameRigidBasic(){
+ const domain=polyElementMode;if(!polyFocusActive()||!['face','vertex','edge'].includes(domain)||polySelection.items.size!==1||vertexTools.soft.active||uvEdit||editPivot||frameChannels.size||!vpState.renderer?.nativeEngine)return null;
+ const[h,entry]=polySelection.items.entries().next().value,mesh=pickMeshes.get(h),node=OBJ.get(h),g=mesh?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;
+ if(!node||!mesh?.isMesh||mesh.isInstancedMesh||g?.isInstancedBufferGeometry||mesh.userData.splineChunks||!frameComponentPureSelection(entry,domain)||polyExactEdgeVertices?.has(h)||frameMorphTag(h)||!p||!n||!index||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||p.normalized||n.normalized||p.itemSize!==3||n.itemSize!==3||n.count!==p.count||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||!(index.array instanceof Uint32Array||index.array instanceof Uint16Array))return null;
+ return{h,entry,mesh,node,g,p,n,index,domain};
+}
 function frameRigidSource(t){return !!t&&!t.disposed&&frameRigidOwnerCurrent(t)&&OBJ.get(t.h)===t.node&&pickMeshes.get(t.h)===t.mesh&&t.mesh.geometry===t.g&&t.g.attributes.position===t.p&&t.g.attributes.normal===t.n&&t.g.index===t.index&&t.p.array===t.pa&&t.n.array===t.na&&t.index.array===t.ia&&t.p.version===t.pv&&t.n.version===t.nv&&t.index.version===t.iv;}
-function frameRigidSelection(t,membership=false){const a=polySelection.items.get(t?.h);if(t?.aliasSafe===false||!frameRigidSource(t)||a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||polySelection.items.size!==1||polyElementMode!=='face'||!polyFocusActive()||framePolySelectionRevision!==t.selectionRevision||a.faces.size!==t.faceIDs.length||a.vertices.size||a.edges.size||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const id of t.faceIDs)if(!a.faces.has(id))return false;return true;}
+function frameRigidSelection(t,membership=false){
+ if(t?.aliasSafe===false||!frameRigidSource(t)||!frameComponentSelectionCurrent(t))return false;
+ if(t.domain==='face'){if(t.faces.size!==t.faceIDs.length)return false;if(membership)for(const id of t.faceIDs)if(!t.faces.has(id))return false;}
+ else if(t.privateFaces&&t.privateFaces.size!==t.faceIDs.length)return false;return true;
+}
 function frameRigidUniformWorld(m){const e=m.elements,x=Math.hypot(e[0],e[1],e[2]),y=Math.hypot(e[4],e[5],e[6]),z=Math.hypot(e[8],e[9],e[10]),tol=Math.max(x,y,z)*1e-9;return x>1e-12&&Math.abs(x-y)<tol&&Math.abs(x-z)<tol&&Math.abs(e[0]*e[4]+e[1]*e[5]+e[2]*e[6])<x*x*1e-9&&Math.abs(e[0]*e[8]+e[1]*e[9]+e[2]*e[10])<x*x*1e-9&&Math.abs(e[4]*e[8]+e[5]*e[9]+e[6]*e[10])<x*x*1e-9;}
 function frameRigidDispose(t){
  if(!t||t.disposed)return;t.disposed=true;frameAffineCleanup(()=>frameAffineDispose(t));frameAffineCleanup(()=>t.gpu?.dispose());
@@ -26796,17 +27410,17 @@ function frameRigidSchedulePrepare(){
  frameAffinePruneBindings();if(frameRigidInstalling||frameRigidFallthrough)return null;const basic=frameRigidBasic();if(!basic){if(!frameRigidQueue.length){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return null;}
  const old=frameRigidPrepared;if(old&&frameRigidSelection(old,true))return old;if(frameRigidQueue.length)return old;
  frameRigidDispose(old);const t=frameRigidPrepared={...basic,...frameRigidOwnerSnapshot(),pa:basic.p.array,na:basic.n.array,ia:basic.index.array,pv:basic.p.version,nv:basic.n.version,iv:basic.index.version,faces:basic.entry.faces,vertices:basic.entry.vertices,edges:basic.entry.edges,faceIDs:Uint32Array.from(basic.entry.faces),selectionSets:frameRigidSetSnapshots([basic.entry.faces,basic.entry.vertices,basic.entry.edges]),selectionRevision:framePolySelectionRevision,status:'preparing',disposed:false};const started=performance.now();
- if(frameAffineEligible(t))frameAffinePrepareEarly(t);t.promise=(async()=>{await frameAffineYield();if(!frameRigidSelection(t,true))throw new DOMException('Rigid preparation owner changed','AbortError');const mapped=frameAffineKnownGate(t);let gate=mapped;if(!mapped){const cached=await frameGetNativeTopologyCache().get(t.g);if(!frameRigidSelection(t,true)||!cached.isCurrent())throw new DOMException('Rigid selection changed','AbortError');const tasks=frameNative.createYieldQueue();try{const work=frameNative.rigidIslandEligibilityWork(cached.topology,t.ia,t.faces);for(;;){const step=work.next();if(step.done){gate=step.value;break;}await tasks.yield();if(!frameRigidSelection(t,false))throw new DOMException('Rigid selection changed','AbortError');}}finally{tasks.dispose();}}if(!frameRigidSelection(t,true))throw new DOMException('Rigid eligibility stale','AbortError');t.gate=gate;if(!gate.eligible){t.status='ineligible';return false;}t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.idSet=new Set(t.ids);t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;t.originalPositions=t.pa.slice();t.originalNormals=t.na.slice();let indexSeed=frameRigidIndexSeeds.get(t.g);if(!indexSeed||indexSeed.array!==t.ia||indexSeed.version!==t.iv){indexSeed={array:t.ia,version:t.iv,values:t.ia.slice()};frameRigidIndexSeeds.set(t.g,indexSeed);}t.indexSeed=indexSeed.values;if(mapped){t.aliasGuard=mapped.aliasGuard;t.stableFaceComponent=true;t.stableFaceProofBytes=0;}else{const aliases=frameNative.createYieldQueue();try{const work=frameRigidBuildAliasGuard(t);for(;;){const step=work.next();if(step.done){if(!step.value){t.eligible=false;t.gate={eligible:false,reason:t.aliasGuardFailure??'alias-validation-memory-budget'};t.status='ineligible';return false;}break;}await aliases.yield();if(!frameRigidSelection(t))throw new DOMException('Rigid alias preparation stale','AbortError');}}finally{aliases.dispose();}}t.aliasSafe=frameRigidAliasSafe(t);if(!t.aliasSafe)throw new DOMException('Rigid alias eligibility stale','AbortError');
- frameRigidExactBounds(t);t.numeric=mapped?await frameAffineKnownNumeric(t):t.engine.geometryCache.capture(t.g);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);const gpu=await frameNative.GpuRigidIslandPreview.create({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t)});if(!frameRigidSelection(t,true)){gpu.dispose();throw new DOMException('Rigid preparation stale','AbortError');}t.gpu=gpu;t.status='ready';frameRigidNotes.prepared++;frameRigidNotes.phases.push({name:'selection-ready',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length,historySourceBytes:t.originalPositions.byteLength+t.originalNormals.byteLength+t.indexSeed.byteLength,aliasGuardBytes:t.aliasGuard.bytes});return true;
+ if(t.domain==='face'&&frameAffineEligible(t))frameAffinePrepareEarly(t);t.promise=(async()=>{await frameAffineYield();if(!frameRigidSelection(t,true))throw new DOMException('Rigid preparation owner changed','AbortError');const mapped=t.domain==='face'?frameAffineKnownGate(t):frameComponentKnownMask(t)?frameAffineKnownGate(t):null;let gate=mapped;if(!mapped){const cached=await frameGetNativeTopologyCache().get(t.g);if(!frameRigidSelection(t,true)||!cached.isCurrent())throw new DOMException('Rigid selection changed','AbortError');const tasks=frameNative.createYieldQueue();try{if(t.domain!=='face'){const mask=await frameNative.drainCooperatively(frameComponentFaceMaskWork(t),{isCurrent:()=>frameRigidSelection(t,true),yieldTask:()=>tasks.yield()});if(!mask.eligible){t.gate=mask;t.status='ineligible';return false;}t.privateFaces=mask.faces;t.componentClosure=mask.selected;t.faceIDs=Uint32Array.from(mask.faces).sort();}const work=frameNative.rigidIslandEligibilityWork(cached.topology,t.ia,t.domain==='face'?t.faces:t.privateFaces);for(;;){const step=work.next();if(step.done){gate=step.value;break;}await tasks.yield();if(!frameRigidSelection(t,false))throw new DOMException('Rigid selection changed','AbortError');}}finally{tasks.dispose();}}if(t.domain!=='face'&&!mapped)gate=await frameNative.drainCooperatively(frameComponentClosureMatchesWork(gate,t.componentClosure),{isCurrent:()=>frameRigidSelection(t,true),yieldTask:frameAffineYield});t.componentClosure=null;if(!frameRigidSelection(t,true))throw new DOMException('Rigid eligibility stale','AbortError');t.gate=gate;if(!gate.eligible){t.status='ineligible';return false;}t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.idSet=new Set(t.ids);t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;t.originalPositions=await frameAffineCopyOwnedArray(t.pa,()=>frameRigidSelection(t,true));t.originalNormals=await frameAffineCopyOwnedArray(t.na,()=>frameRigidSelection(t,true));let indexSeed=frameRigidIndexSeeds.get(t.g);if(!indexSeed||indexSeed.array!==t.ia||indexSeed.version!==t.iv){indexSeed={array:t.ia,version:t.iv,values:await frameAffineCopyOwnedArray(t.ia,()=>frameRigidSelection(t,true))};frameRigidIndexSeeds.set(t.g,indexSeed);}t.indexSeed=indexSeed.values;if(mapped){t.aliasGuard=mapped.aliasGuard;t.stableFaceComponent=true;t.stableFaceProofBytes=0;}else{const aliases=frameNative.createYieldQueue();try{const work=frameRigidBuildAliasGuard(t);for(;;){const step=work.next();if(step.done){if(!step.value){t.eligible=false;t.gate={eligible:false,reason:t.aliasGuardFailure??'alias-validation-memory-budget'};t.status='ineligible';return false;}break;}await aliases.yield();if(!frameRigidSelection(t))throw new DOMException('Rigid alias preparation stale','AbortError');}}finally{aliases.dispose();}}t.aliasSafe=frameRigidAliasSafe(t);if(!t.aliasSafe)throw new DOMException('Rigid alias eligibility stale','AbortError');
+ if(t.domain!=='face'){if(!t.stableFaceComponent||!frameAffineEligible(t)||!await frameComponentPrepareMeasurements(t)){t.status='ineligible';t.gate={eligible:false,reason:'component-affine-or-basis-certificate-declined'};return false;}frameAffinePrepareEarly(t);}frameRigidExactBounds(t);t.numeric=mapped?await frameAffineKnownNumeric(t):t.engine.geometryCache.capture(t.g);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);const gpu=await frameNative.GpuRigidIslandPreview.create({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t)});if(!frameRigidSelection(t,true)){gpu.dispose();throw new DOMException('Rigid preparation stale','AbortError');}t.gpu=gpu;t.status='ready';frameRigidNotes.prepared++;frameRigidNotes.phases.push({name:'selection-ready',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length,historySourceBytes:t.originalPositions.byteLength+t.originalNormals.byteLength+t.indexSeed.byteLength,aliasGuardBytes:t.aliasGuard.bytes});return true;
  })().catch(e=>{t.status=e.name==='AbortError'?'cancelled':'failed';t.error=e;frameRigidDispose(t);if(e.name!=='AbortError')frameRigidNotes.errors.push(String(e));return false;});return t;
 }
-function frameRigidSelectedIDs(h){const t=frameRigidPrepared;return t?.h===h&&t.eligible&&frameRigidSelection(t)?t.idSet:frameRigidSource(t)?null:frameAffineKnownIDs(h);}
-function frameRigidBounds(){const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;if(!t?.bounds||!frameRigidSelection(t))return null;t.mesh.updateMatrixWorld(true);if(!t.boundsWorld?.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;return{min:t.bounds.min.clone(),max:t.bounds.max.clone()};}
+function frameRigidSelectedIDs(h){const t=frameRigidPrepared;return t?.h===h&&t.eligible&&frameRigidSelection(t)?t.idSet:frameRigidSource(t)?t.domain!=='face'&&frameComponentScopeCertificate(t)?frameAffineKnownIDs(h):null:frameAffineKnownIDs(h);}
+function frameRigidBounds(){const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;if(!t?.bounds||!frameRigidSelection(t)){const known=!frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements():null;return known?{min:known.bounds.min.clone(),max:known.bounds.max.clone()}:null;}t.mesh.updateMatrixWorld(true);if(!t.boundsWorld?.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;return{min:t.bounds.min.clone(),max:t.bounds.max.clone()};}
 function frameRigidExtent(frame){const b=frameRigidBounds();if(!b)return null;const e=frame.elements;if([0,5,10].some(i=>Math.abs(e[i]-1)>1e-12)||[1,2,4,6,8,9].some(i=>Math.abs(e[i])>1e-12))return null;return b.max.sub(b.min);}
 function frameRigidStart(e){
  if(frameRigidFallthrough)return false;const pending=frameRigidQueue.length>0;if(pending&&!frameRigidTransactionCurrent(frameRigidQueue.at(-1))){frameRigidAbortAll('source-or-selection-changed');}
  const waiting=frameRigidQueue.length>0,basic=frameRigidBasic();if(!basic&&!waiting)return false;let t=waiting?frameRigidQueue.at(-1).t:frameRigidSchedulePrepare();
- const affine=!!basic&&frameAffineEligible(t)&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&(['move','rotate','screenRotate','scale','scaleU'].includes(gizDrag?.mode)||frameAffineStages.get(t.h)&&!frameAffineStages.get(t.h).snapshot);const rigid=!!basic&&(coordMode==='world'||gizDrag?.mode==='move')&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!(rigid||affine)||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;
+ const affine=!!basic&&(frameAffineEligible(t)||(t?.domain!=='face'&&t?.status==='preparing'))&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&(['move','rotate','screenRotate','scale','scaleU'].includes(gizDrag?.mode)||frameAffineStages.get(t.h)&&!frameAffineStages.get(t.h).snapshot);const rigid=!!basic&&(coordMode==='world'||gizDrag?.mode==='move')&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!(rigid||affine)||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;
  const source=frameRigidTransactionSnapshot(t);if(!source)return false;const before=getGizmoWorldArray().slice();let abortResolve;const abortPromise=new Promise(r=>abortResolve=r),s={t,source,affine,kind:affine?'affine':'cpu',event:e,drag:gizDrag,gizmo:before,afterGizmo:before.slice(),beforePivot:polyPivotMatrix?.slice()??null,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),revision:0,ready:false,released:false,cancel:false,discarded:false,overlays:null,abortPromise,abortResolve};frameRigidQueue.push(s);frameRigidInput=s;if(s.affine)frameAffineAwaitPreview(s);else if(t.affine){frameAffineDispose(t);t.affine=null;}frameRigidInstallInput(s);frameRigidNotes.starts++;if(frameRigidQueue.length>1)frameRigidNotes.queuedStarts++;frameRigidDrain();return true;
 }
 function frameRigidActivate(s){const t=s.t,ids=t.ids;s.beforeValues=new Float32Array(ids.length*3);s.beforeNormals=new Float32Array(ids.length*3);for(let k=0;k<ids.length;k++){const at=ids[k]*3;for(let j=0;j<3;j++){s.beforeValues[k*3+j]=t.pa[at+j];s.beforeNormals[k*3+j]=t.na[at+j];}}s.overlays=frameRigidCaptureOverlays();s.normalMatrix=new THREE2.Matrix3();s.point=new THREE2.Vector3();s.moved=new THREE2.Vector3();s.normalPoint=new THREE2.Vector3();s.cachedSlot=-1;s.cachedRevision=-1;s.cachedNormalSlot=-1;s.cachedNormalRevision=-1;
@@ -26818,22 +27432,22 @@ function frameRigidApplyDelta(delta){const s=frameRigidInput;if(!s||frameRigidFa
 function frameRigidFinish(e){const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;s.released=true;s.cancel=!!s.cancel||e?.type==='pointercancel'||s.gizmo.every((v,i)=>v===getGizmoWorldArray()[i]);s.releaseEvent=e;frameRigidInput=null;frameRigidClearInput();if(s.cancel)s.abortResolve(false);if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-before-release');return true;}frameRigidDrain();return true;}
 function frameRigidApplySparse(t,positions,normals,historyExpected=null,onWrite=null){const current=pickMeshes.get(t.h),g=current?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;if(current!==t.mesh||OBJ.get(t.h)!==t.node||!p||!n||!index||p.itemSize!==3||n.itemSize!==3||p.count!==t.p.count||n.count!==p.count||index.count!==t.indexSeed.length||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||positions.length!==t.ids.length*3||normals.length!==positions.length)throw new DOMException('Rigid authoring owner/layout changed','AbortError');
  if(historyExpected){for(let k=0;k<t.indexSeed.length;k++)if(index.array[k]!==t.indexSeed[k])throw new DOMException('Rigid history topology changed','AbortError');for(let id=0;id<p.count;id++){const k=t.slot[id]-1;for(let j=0;j<3;j++){const at=id*3+j,wantedP=k>=0?historyExpected.positions[k*3+j]:t.originalPositions[at],wantedN=k>=0?historyExpected.normals[k*3+j]:t.originalNormals[at];if(p.array[at]!==wantedP||n.array[at]!==wantedN)throw new DOMException('Rigid history content changed','AbortError');}}}else if(!frameRigidSource(t))throw new DOMException('Rigid commit source changed','AbortError');
- const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameAffineTouchBinding(t);frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}
+ const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;if(t.domain!=='face')t.componentMeasurements=null;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameAffineTouchBinding(t);frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}
 function frameRigidExactBounds(t){t.mesh.updateMatrixWorld(true);const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();for(const i of t.ids){p.fromArray(t.pa,i*3).applyMatrix4(t.mesh.matrixWorld);min.min(p);max.max(p);}t.bounds={min,max};t.boundsWorld=t.mesh.matrixWorld.clone();}
 // History restores a frozen overlay pose and the next gesture frame synchronously.
 function frameRigidCaptureOverlays(){return[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex].map(o=>({o,matrix:o.matrix.clone(),auto:o.matrixAutoUpdate,position:o.geometry.getAttribute('position'),visible:o.visible}));}
 function frameRigidHistoryPose(t,values,pivot,pose,overlays,space,world){
  const entry=polySelection.items.get(t.h),m=pickMeshes.get(t.h);
- if(!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1||entry!==t.entry||entry.vertices!==t.vertices||entry.edges!==t.edges||entry.faces!==t.faces||framePolySelectionRevision!==t.selectionRevision||!frameRigidSetSnapshotsCurrent(t.selectionSets)||OBJ.get(t.h)!==t.node||m!==t.mesh)return false;
+ if(!frameComponentSelectionCurrent(t)||OBJ.get(t.h)!==t.node||m!==t.mesh)return false;
  m.updateMatrixWorld(true);if(!world.elements.every((v,i)=>v===m.matrixWorld.elements[i]))return false;
  frameRigidRestoreOverlays({overlays});polyPivotMatrix=pivot?.slice()??null;
  const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();
  for(let k=0;k<t.ids.length;k++){p.fromArray(values,k*3).applyMatrix4(m.matrixWorld);min.min(p);max.max(p);}
- let frame;if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else if(coordMode==='world')frame=new THREE2.Matrix4();else if(space===coordMode){frame=new THREE2.Matrix4().fromArray(pose);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else frame=polyAutoBasis();
+ let frame;if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else if(coordMode==='world')frame=new THREE2.Matrix4();else if(space===coordMode){frame=new THREE2.Matrix4().fromArray(pose);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else frame=(t.domain!=='face'?frameComponentHistoryBasis(t):null)||polyAutoBasis();
  frame.setPosition(pivot?new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(pivot)):min.clone().add(max).multiplyScalar(.5));
  const inverse=frame.clone().invert(),lo=new THREE2.Vector3(Infinity,Infinity,Infinity),hi=new THREE2.Vector3(-Infinity,-Infinity,-Infinity);
  for(let k=0;k<t.ids.length;k++){p.fromArray(values,k*3).applyMatrix4(m.matrixWorld).applyMatrix4(inverse);lo.min(p);hi.max(p);}
- const measurements={bounds:{min,max},frame,extent:hi.sub(lo)};t.bounds={min:min.clone(),max:max.clone()};t.boundsWorld=m.matrixWorld.clone();boundNode=null;placeGizmoForSelection(measurements);updateHUD(readPolyTransform(coordMode,measurements));scheduleRender();return true;
+ const measurements={bounds:{min,max},frame,extent:hi.sub(lo)};t.bounds={min:min.clone(),max:max.clone()};t.boundsWorld=m.matrixWorld.clone();boundNode=null;frameComponentRememberMeasurements(t,measurements,world);placeGizmoForSelection(measurements);updateHUD(readPolyTransform(coordMode,measurements));scheduleRender();return true;
 }
 // Derived selection uses private committed views. It never owns the drag queue.
 let frameRigidDerivedJob=null,frameRigidGestureGeneration=0;
@@ -26851,7 +27465,7 @@ function frameRigidDerivedSnapshot(t,pivot,values){
   const frozen={geometry:{attributes:{position:{count:p.count,itemSize:3,getX:i=>get(i,0),getY:i=>get(i,1),getZ:i=>get(i,2)}},index:seed?{count:seed.length,getX:i=>seed[i]}:null},matrixWorld:world,updateMatrixWorld(){}};
   meshes.set(h,frozen);sources.push({h,entry,node:OBJ.get(h),epoch:frameRigidEpoch.get(g)??0,pcount:p.count,icount:index?.count,ncount:normal?.count,vertices:entry.vertices,edges:entry.edges,faces:entry.faces,mesh,g,p,pa,index,ia,normal,na:normal?.array,pv:p.version,iv:index?.version,nv:normal?.version,world,sets:frameRigidSetSnapshots([entry.vertices,entry.edges,entry.faces])});
  }
- const rigidIDs=new Map(),entry=polySelection.items.get(t.h);if(frameRigidSelection(t)&&entry?.faces===t.faces&&!entry.vertices.size&&!entry.edges.size)rigidIDs.set(t.h,t.idSet);
+ const rigidIDs=new Map(),entry=polySelection.items.get(t.h);if(frameRigidSelection(t)&&entry===t.entry)rigidIDs.set(t.h,t.idSet);
  return{items:new Map(entries),meshes,sources,rigidIDs,selection:framePolySelectionRevision,owners:[...selNodes],space:coordMode,mode:polyElementMode,focus:componentFocus,poly:polyMode,pivot:pivot?.slice()??null,exact:polyExactEdgeVertices,soft:vertexTools.soft.active,uv:uvEdit,uvMode,editPivot,animation:frameAnimationRevision,channels:frameChannels.size,generation:frameRigidGestureGeneration,adapter:t.adapter,adapterRevision:t.adapter?.revision,positionView:t.adapter?.positionView,normalView:t.adapter?.normalView};
 }
 function frameRigidDerivedCurrent(s){
@@ -26869,7 +27483,8 @@ function frameRigidRefreshSelection(t,pivot=null,values=null){
  job.promise=Promise.resolve().then(async()=>{
   const valid=()=>!job.closed&&frameRigidDerivedJob===job&&frameRigidDerivedCurrent(source);
   if(!valid())return false;
-  const work=(function*(){const buffers=yield*framePolySelectionBuffers(source.items,source.meshes),measurements=yield*framePolySelectionMeasurements(source.items,source.exact,source.meshes,source.pivot,source.rigidIDs);return{buffers,measurements};})();
+  const measurementMeshes=frameComponentScopedMeshes(t,source.meshes)??source.meshes;
+  const work=(function*(){const buffers=yield*framePolySelectionBuffers(source.items,source.meshes),measurements=yield*framePolySelectionMeasurements(source.items,source.exact,measurementMeshes,source.pivot,source.rigidIDs);return{buffers,measurements};})();
   const result=await frameNative.drainCooperatively(work,{signal:controller.signal,isCurrent:valid,yieldTask:()=>typeof globalThis.scheduler?.yield==='function'?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,4))});
   if(!valid())return false;
   frameRigidInstalling=true;try{for(const o of[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;}frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);}finally{frameRigidInstalling=false;}
@@ -26885,20 +27500,20 @@ function frameRigidCommit(s){const t=s.t,started=performance.now();if(!frameRigi
  try{t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,afterValues,afterNormals,null,()=>wrote=true);pushCmd(command);s.committed=true;frameRigidHistoryPose(t,afterValues,afterPivot,s.afterGizmo,afterOverlays,s.coordinateSpace,s.world);frameRigidRefreshSelection(t,afterPivot,afterValues);frameRigidNotes.commits++;frameRigidNotes.phases.push({name:'authoring-commit-and-derived-launch',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length});}
  catch(error){if(wrote&&t.mesh.geometry===t.g&&t.g.attributes.position===t.p&&t.g.attributes.normal===t.n&&t.p.array===t.pa&&t.n.array===t.na){frameRigidRestoreAuthoring(t,s.beforeValues,s.beforeNormals);polyPivotMatrix=s.beforePivot;frameRigidRestoreOverlays(s);frameRigidExactBounds(t);try{placeGizmoForSelection();updateHUD();scheduleRender();}catch{}}undoStack.splice(0,undoStack.length,...history.undo);redoStack.splice(0,redoStack.length,...history.redo);sceneStateToken=history.token;sceneMutationSequence=history.sequence;sceneWorkStartedAt=history.started;throw error;}
 }
-async function frameRigidFallback(s){if(s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s))throw new DOMException('CPU fallback source changed','AbortError');frameRigidNotes.fallbacks++;if(frameRigidInput===s){frameRigidInput=null;frameRigidClearInput();}frameRigidFallthrough=true;const uiDrag=gizDrag,savedSpace=coordMode;try{frameRigidDispose(s.t);if(frameRigidPrepared===s.t)frameRigidPrepared=null;coordMode=s.coordinateSpace;setGizmoFromMatrix(s.gizmo);gizDrag=s.drag;_gizStart?.(s.event);setGizmoFromMatrix(s.afterGizmo);bridgeTransform();if(s.released)await _gizEnd?.(s.releaseEvent);else frameRigidCpuSession=s;}finally{gizDrag=uiDrag;coordMode=savedSpace;frameRigidFallthrough=false;}}
+async function frameRigidFallback(s){if(s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s))throw new DOMException('CPU fallback source changed','AbortError');frameRigidNotes.fallbacks++;if(frameRigidInput===s){frameRigidInput=null;frameRigidClearInput();}const uiDrag=gizDrag,savedSpace=coordMode,savedFallthrough=frameRigidFallthrough,priorFallbackOwner=frameRigidFallbackOwner,fallbackLease={session:s};frameRigidFallbackOwner=fallbackLease;frameRigidFallthrough=true;try{frameRigidDispose(s.t);if(frameRigidPrepared===s.t)frameRigidPrepared=null;coordMode=s.coordinateSpace;setGizmoFromMatrix(s.gizmo);gizDrag=s.drag;_gizStart?.(s.event);setGizmoFromMatrix(s.afterGizmo);bridgeTransform();if(s.released)await _gizEnd?.(s.releaseEvent);else frameRigidCpuSession=s;}finally{if(frameRigidFallbackOwner===fallbackLease){if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded){gizDrag=uiDrag;coordMode=savedSpace;}frameRigidFallthrough=savedFallthrough;frameRigidFallbackOwner=priorFallbackOwner;}}}
 async function frameRigidDrain(){if(frameRigidDraining)return;frameRigidDraining=true;try{while(frameRigidQueue.length){const s=frameRigidQueue[0];frameRigidExecuting=s;let remove=false;try{
  if(s.discarded||s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-queued-transaction');remove=true;continue;}
- if(!s.ready){const ok=s.kind==='cpu'||s.t.status==='fallback'?false:await Promise.race([s.t.promise,s.abortPromise]);if(frameRigidQueue[0]!==s||s.discarded){remove=true;continue;}if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-after-preparation');remove=true;continue;}if(!ok){if(s.kind==='cpu'||['ineligible','failed','fallback'].includes(s.t.status)){await frameRigidFallback(s);if(s.released)frameRigidRebaseQueued(s);remove=true;continue;}frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidSelection(s.t)){frameRigidAbortAll('selection-changed-after-preparation');remove=true;continue;}if(s.affine)await frameAffinePrepare(s.t);if(s.cancel||s.discarded||!frameRigidTransactionCurrent(s))continue;const previewOverlays=s.previewReady?s.overlays:null;frameRigidActivate(s);if(previewOverlays)s.overlays=previewOverlays;if(s.affine)frameAffineActivate(s);if(!s.boundsCaptured)s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld.clone()}:null;frameRigidSubmit(s);}
- if(!s.released)return;if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(s.affine)await frameAffineCommit(s);else frameRigidCommit(s);frameRigidRebaseQueued(s);remove=true;
- }catch(e){s.cancel=true;if(e.name!=='AbortError'){frameRigidNotes.errors.push(String(e));console.error('Rigid island transaction failed',e);}frameRigidAbortAll('transaction-failed');remove=true;}finally{if(remove&&frameRigidQueue[0]===s)frameRigidQueue.shift();if(remove&&frameRigidExecuting===s)frameRigidExecuting=null;}if(remove&&frameRigidQueue.length)await frameAffineYield();}
+ if(!s.ready){const ok=s.kind==='cpu'||s.t.status==='fallback'?false:await Promise.race([s.t.promise,s.abortPromise]);if(frameRigidQueue[0]!==s||s.discarded){remove=true;continue;}if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-after-preparation');remove=true;continue;}if(!ok){if(s.kind==='cpu'||['ineligible','failed','fallback'].includes(s.t.status)){await frameRigidFallback(s);if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded&&!s.cancel&&s.released)frameRigidRebaseQueued(s);remove=true;continue;}frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidSelection(s.t)){frameRigidAbortAll('selection-changed-after-preparation');remove=true;continue;}if(s.affine)await frameAffinePrepare(s.t);if(frameRigidQueue[0]!==s||frameRigidExecuting!==s||s.cancel||s.discarded||!frameRigidTransactionCurrent(s))continue;const previewOverlays=s.previewReady?s.overlays:null;frameRigidActivate(s);if(previewOverlays)s.overlays=previewOverlays;if(s.affine)frameAffineActivate(s);if(!s.boundsCaptured)s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld.clone()}:null;frameRigidSubmit(s);}
+ if(!s.released)return;if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(s.affine)await frameAffineCommit(s);else frameRigidCommit(s);if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded&&!s.cancel)frameRigidRebaseQueued(s);remove=true;
+ }catch(e){s.cancel=true;if(e.name!=='AbortError'){frameRigidNotes.errors.push(String(e));console.error('Rigid island transaction failed',e);}if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded)frameRigidAbortAll('transaction-failed');else{s.discarded=true;frameAffineCleanup(()=>s.closeWorker?.(e));frameAffineCleanup(()=>s.abortResolve?.(false));}remove=true;}finally{if(remove&&frameRigidQueue[0]===s)frameRigidQueue.shift();if(remove&&frameRigidExecuting===s)frameRigidExecuting=null;}if(remove&&frameRigidQueue.length)await frameAffineYield();}
  }finally{frameRigidDraining=false;if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}}
 
 
-var frameRigidEpoch=new WeakMap(),frameRigidIndexSeeds=new WeakMap(),frameRigidCpuSession=null;
+var frameRigidEpoch=new WeakMap(),frameRigidIndexSeeds=new WeakMap(),frameRigidCpuSession=null,frameRigidFallbackOwner=null;
 function frameRigidOwnerSnapshot(){const renderer=vpState.renderer,engine=renderer?.nativeEngine,owner=engine?.owner;return{renderer,engine,owner,device:owner?.device,pool:owner?.pool,ownerGeneration:owner?.generation,bridge:renderer?.bridge,lease:renderer?.bridge?.lease,leaseGeneration:renderer?.bridge?.lease?.generation};}
 function frameRigidOwnerCurrent(t){return vpState.renderer===t.renderer&&t.renderer?.nativeEngine===t.engine&&!t.engine?.disposed&&t.engine?.owner===t.owner&&t.owner?.state==='ready'&&t.owner.device===t.device&&t.engine.device===t.device&&t.owner.pool===t.pool&&!t.pool?.disposed&&t.owner.generation===t.ownerGeneration&&t.renderer.bridge===t.bridge&&!t.bridge?.disposed&&t.bridge.engine===t.engine&&t.bridge.device===t.device&&t.bridge.lease===t.lease&&t.lease?.owner===t.owner&&t.lease.device===t.device&&t.lease.generation===t.leaseGeneration&&t.lease.isCurrent();}
-function frameRigidTransactionSnapshot(t){if(!t||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh)return null;const g=t.mesh.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index,a=polySelection.items.get(t.h);if(!p||!n||!index||!a||polySelection.items.size!==1||polyElementMode!=='face'||!polyFocusActive())return null;t.mesh.updateMatrixWorld(true);return{h:t.h,node:t.node,mesh:t.mesh,g,p,n,index,pa:p.array,na:n.array,ia:index.array,pv:p.version,nv:n.version,iv:index.version,...frameRigidOwnerSnapshot(),world:t.mesh.matrixWorld.clone(),entry:a,faces:a.faces,vertices:a.vertices,edges:a.edges,faceIDs:Uint32Array.from(a.faces),vertexIDs:Uint32Array.from(a.vertices),edgeIDs:Uint32Array.from(a.edges),selectionSets:frameRigidSetSnapshots([a.faces,a.vertices,a.edges]),selectionRevision:framePolySelectionRevision,animationRevision:frameAnimationRevision,softActive:vertexTools.soft.active,uvMode,uvEdit,editPivot,hasMorph:!!frameMorphTag(t.h),channelCount:frameChannels.size,pivot:polyPivotMatrix?.slice()??null,epoch:frameRigidEpoch.get(g)??0};}
-function frameRigidTransactionCurrent(s,membership=false){const t=s?.source;if(!t||s.discarded||!frameRigidOwnerCurrent(t)||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh||t.mesh.geometry!==t.g||t.g.attributes.position!==t.p||t.g.attributes.normal!==t.n||t.g.index!==t.index||t.p.array!==t.pa||t.n.array!==t.na||t.index.array!==t.ia||t.p.version!==t.pv||t.n.version!==t.nv||t.index.version!==t.iv||(frameRigidEpoch.get(t.g)??0)!==t.epoch||frameAnimationRevision!==t.animationRevision||vertexTools.soft.active!==t.softActive||uvMode!==t.uvMode||uvEdit!==t.uvEdit||editPivot!==t.editPivot||!!frameMorphTag(t.h)!==t.hasMorph||frameChannels.size!==t.channelCount||!!polyPivotMatrix!==!!t.pivot||t.pivot&&!t.pivot.every((v,i)=>v===polyPivotMatrix[i])||framePolySelectionRevision!==t.selectionRevision||!polyFocusActive()||polyElementMode!=='face'||polySelection.items.size!==1)return false;const a=polySelection.items.get(t.h);if(a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||a.faces.size!==t.faceIDs.length||a.vertices.size!==t.vertexIDs.length||a.edges.size!==t.edgeIDs.length||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const [ids,set]of[[t.faceIDs,a.faces],[t.vertexIDs,a.vertices],[t.edgeIDs,a.edges]])for(const id of ids)if(!set.has(id))return false;t.mesh.updateMatrixWorld(true);return t.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]);}
+function frameRigidTransactionSnapshot(t){if(!t||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh)return null;const g=t.mesh.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index,a=polySelection.items.get(t.h);if(!p||!n||!index||!a||polySelection.items.size!==1||polyElementMode!==(t.domain??polyElementMode)||!polyFocusActive())return null;t.mesh.updateMatrixWorld(true);return{exact:polyExactEdgeVertices?.get(t.h),domain:t.domain??polyElementMode,h:t.h,node:t.node,mesh:t.mesh,g,p,n,index,pa:p.array,na:n.array,ia:index.array,pv:p.version,nv:n.version,iv:index.version,...frameRigidOwnerSnapshot(),world:t.mesh.matrixWorld.clone(),entry:a,faces:a.faces,vertices:a.vertices,edges:a.edges,faceIDs:Uint32Array.from(a.faces),vertexIDs:Uint32Array.from(a.vertices),edgeIDs:Array.from(a.edges),selectionSets:frameRigidSetSnapshots([a.faces,a.vertices,a.edges]),selectionRevision:framePolySelectionRevision,animationRevision:frameAnimationRevision,softActive:vertexTools.soft.active,uvMode,uvEdit,editPivot,hasMorph:!!frameMorphTag(t.h),channelCount:frameChannels.size,pivot:polyPivotMatrix?.slice()??null,epoch:frameRigidEpoch.get(g)??0};}
+function frameRigidTransactionCurrent(s,membership=false){const t=s?.source;if(!t||s.discarded||!frameRigidOwnerCurrent(t)||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh||t.mesh.geometry!==t.g||t.g.attributes.position!==t.p||t.g.attributes.normal!==t.n||t.g.index!==t.index||t.p.array!==t.pa||t.n.array!==t.na||t.index.array!==t.ia||t.p.version!==t.pv||t.n.version!==t.nv||t.index.version!==t.iv||(frameRigidEpoch.get(t.g)??0)!==t.epoch||frameAnimationRevision!==t.animationRevision||vertexTools.soft.active!==t.softActive||uvMode!==t.uvMode||uvEdit!==t.uvEdit||editPivot!==t.editPivot||!!frameMorphTag(t.h)!==t.hasMorph||frameChannels.size!==t.channelCount||!!polyPivotMatrix!==!!t.pivot||t.pivot&&!t.pivot.every((v,i)=>v===polyPivotMatrix[i])||framePolySelectionRevision!==t.selectionRevision||!polyFocusActive()||polyElementMode!==t.domain||polyExactEdgeVertices?.get(t.h)!==t.exact||polySelection.items.size!==1)return false;const a=polySelection.items.get(t.h);if(a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||a.faces.size!==t.faceIDs.length||a.vertices.size!==t.vertexIDs.length||a.edges.size!==t.edgeIDs.length||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const [ids,set]of[[t.faceIDs,a.faces],[t.vertexIDs,a.vertices],[t.edgeIDs,a.edges]])for(const id of ids)if(!set.has(id))return false;t.mesh.updateMatrixWorld(true);return t.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]);}
 function frameRigidClearInput(){gizBeforePoly=null;gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=null;gizBeforeGizmo=null;gizBeforePolySoft=null;polyExactEdgeVertices=null;}
 function frameRigidInstallInput(s){gizBeforeGizmo=s.gizmo;gizBeforePoly=new Map([[s.t.h,{ids:s.t.ids??[],_rigidPreview:true}]]);gizBeforePolyGeom=null;gizBeforePolySel=null;gizBeforePolyPivot=s.beforePivot;}
 function frameRigidRestoreOverlays(s){for(const{o,matrix,auto,position,visible}of s.overlays??[]){if(position)o.geometry.setAttribute('position',position);if(visible!==undefined)o.visible=visible;o.matrix.copy(matrix);o.matrixAutoUpdate=auto;o.matrixWorldNeedsUpdate=true;}}
@@ -26916,12 +27531,12 @@ function frameRigidAbortAll(reason){
  frameRigidNotes.cancels+=sessions.size-(keep?1:0);frameAffineCleanup(()=>scheduleRender());
 }
 function frameRigidBeforeHistory(){
- frameRigidCancelDerived();frameAffineCancelPublication();
+ frameAffinePreparedCommandEpoch++;frameAffineAuthoringCancelAll('History changed');frameRigidCancelDerived();frameAffineCancelPublication();
  if(frameRigidQueue.length||frameRigidInput)frameRigidAbortAll('undo-or-redo');
  const cpu=frameRigidCpuSession;frameRigidCpuSession=null;if(cpu){cpu.cancel=true;cpu.discarded=true;}
  if(gizDrag&&(gizDrag._frameAuthoringContext?.component||polyFocusActive()||splineFocusActive()||uvEdit)){const pointerId=gizDrag._frameAuthoringPointerId??gizDrag._frameDeferredStart?.pointerId??cpu?.event?.pointerId;frameRigidFallthrough=true;try{frameRigidCancelStockDrag(pointerId);}finally{frameRigidFallthrough=false;frameRigidClearInput();gizDrag=null;frameClearPolygonGizmoMove();frozenSignsPerView=null;try{vpState.renderer.domElement.releasePointerCapture(pointerId);}catch{}frameRigidNotes.cancels++;hideHudLine();hideSnapVis();scheduleRender();}}
 }
-function frameRigidRebaseQueued(completed){for(const s of frameRigidQueue){if(s===completed||s.ready||s.discarded)continue;if(s.t.h!==completed.t.h||OBJ.get(s.t.h)!==s.t.node||pickMeshes.get(s.t.h)!==s.t.mesh){s.cancel=true;continue;}const a=polySelection.items.get(s.t.h);if(!a||a.faces.size!==s.source.faceIDs.length||s.source.faceIDs.some(id=>!a.faces.has(id))||a.vertices.size!==s.source.vertexIDs.length||s.source.vertexIDs.some(id=>!a.vertices.has(id))||a.edges.size!==s.source.edgeIDs.length||s.source.edgeIDs.some(id=>!a.edges.has(id))){s.cancel=true;continue;}if(completed.kind==='cpu'||s.t.aliasSafe===false||!frameRigidSource(s.t)){const m=s.t.mesh,g=m.geometry,p=g.attributes.position,n=g.attributes.normal,index=g.index;s.t={h:s.t.h,node:s.t.node,mesh:m,g,p,n,index,status:'fallback',promise:Promise.resolve(false)};s.kind='cpu';}s.source=frameRigidTransactionSnapshot(s.t);if(!s.source)s.cancel=true;}if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}
+function frameRigidRebaseQueued(completed){for(const s of frameRigidQueue){if(s===completed||s.ready||s.discarded)continue;if(s.t.h!==completed.t.h||OBJ.get(s.t.h)!==s.t.node||pickMeshes.get(s.t.h)!==s.t.mesh){s.cancel=true;continue;}const a=polySelection.items.get(s.t.h);if(!a||a.faces.size!==s.source.faceIDs.length||s.source.faceIDs.some(id=>!a.faces.has(id))||a.vertices.size!==s.source.vertexIDs.length||s.source.vertexIDs.some(id=>!a.vertices.has(id))||a.edges.size!==s.source.edgeIDs.length||s.source.edgeIDs.some(id=>!a.edges.has(id))){s.cancel=true;continue;}if(completed.kind==='cpu'||s.t.aliasSafe===false||!frameRigidSource(s.t)){const m=s.t.mesh,g=m.geometry,p=g.attributes.position,n=g.attributes.normal,index=g.index;s.t={domain:s.t.domain,h:s.t.h,node:s.t.node,mesh:m,g,p,n,index,status:'fallback',promise:Promise.resolve(false)};s.kind='cpu';}s.source=frameRigidTransactionSnapshot(s.t);if(!s.source)s.cancel=true;}if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}
 function frameRigidStockEndDone(){if(frameRigidFallthrough||!frameRigidCpuSession)return;const s=frameRigidCpuSession;frameRigidCpuSession=null;s.released=true;frameRigidRebaseQueued(s);frameRigidDrain();}
 
 var frameRigidSetVersions=new WeakMap();
@@ -27019,7 +27634,7 @@ function frameRigidNativeWorkerClosureComplete(){}
 
 onGizmoDragStart((e) => {
   frameRigidCaptureDragContext(e);
-  if(frameRigidStart(e))return;frameAffineEnsureAuthoring();
+  if(frameRigidStart(e))return; // Exact stock polygon/duplicate branches keep their local gates.
   if (uvEdit) {
     boundNode = UV_VIRTUAL; uvBeforeFrame=uvProjectionSnapshot();gizBeforeObj=null;gizBeforeObjState=null;gizBeforeGizmo=getGizmoWorldArray();
     return;
@@ -28248,7 +28863,7 @@ document.getElementById("btnDownload").oncontextmenu = async (e) => {
       reportFileError(error, "export");
     }
 };
-var IDB_NAME = "hashEditorRecents", IDB_STORE = "handles";
+var IDB_NAME = "hashEditorRecents", IDB_STORE = "handles", recentHandleCache = new Map(), recentHandleVersions = new Map(), recentMenuGeneration = 0, recentHandlePersistence = Promise.resolve();
 function idb() {
   return new Promise((res, rej) => {
     let r = indexedDB.open(IDB_NAME, 1);
@@ -28257,23 +28872,11 @@ function idb() {
     }, r.onsuccess = () => res(r.result), r.onerror = () => rej(r.error);
   });
 }
-async function saveHandle(name, handle) {
-  try {
-    (await idb()).transaction(IDB_STORE, "readwrite").objectStore(IDB_STORE).put(handle, name);
-  } catch {
-  }
-}
-async function getHandle(name) {
-  try {
-    let db = await idb();
-    return await new Promise((res) => {
-      let rq = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(name);
-      rq.onsuccess = () => res(rq.result || null), rq.onerror = () => res(null);
-    });
-  } catch {
-    return null;
-  }
-}
+function recentUnavailableNames(){try{return new Set(JSON.parse(localStorage.getItem('recentHandleUnavailable')||'[]'));}catch{return new Set();}}
+function setRecentHandleUnavailable(name,unavailable){try{const names=recentUnavailableNames();if(unavailable)names.add(name);else names.delete(name);const recents=getNames();localStorage.setItem('recentHandleUnavailable',JSON.stringify([...names].filter(n=>recents.includes(n))));return true;}catch{return false;}}
+function dismissRecents(){recentMenuGeneration++;recentsMenu.classList.remove('show');}
+async function saveHandle(name,handle){let db;try{db=await idb();return await new Promise((resolve,reject)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.oncomplete=()=>resolve(true);tx.onabort=tx.onerror=()=>reject(tx.error||new Error('Recent handle persistence failed'));const store=tx.objectStore(IDB_STORE);if(handle)store.put(handle,name);else store.delete(name);});}catch{return false;}finally{db?.close();}}
+async function getHandle(name){if(recentUnavailableNames().has(name))return null;let db;try{db=await idb();return await new Promise(resolve=>{const tx=db.transaction(IDB_STORE,'readonly'),rq=tx.objectStore(IDB_STORE).get(name);rq.onsuccess=()=>resolve(rq.result||null);rq.onerror=tx.onabort=()=>resolve(null);});}catch{return null;}finally{db?.close();}}
 function getNames() {
   try {
     return JSON.parse(localStorage.getItem("recents") || "[]");
@@ -28287,56 +28890,23 @@ function setNames(a) {
   } catch {
   }
 }
-function addRecent(name, handle) {
-  let a = getNames().filter((x) => x !== name);
-  a.unshift(name), a.length > 12 && (a.length = 12), setNames(a), handle && FSA && saveHandle(name, handle);
-}
-async function openRecent(name) {
-  if (FSA) {
-    let h = await getHandle(name);
-    if (h)
-      try {
-        let p = await h.queryPermission({ mode: "read" });
-        if (p !== "granted" && (p = await h.requestPermission({ mode: "read" })), p === "granted") {
-          await loadFromHandle(h, name);
-          return;
-        }
-      } catch {
-      }
-  }
-  fileInput.click();
-}
-function renderRecents() {
-  let names = getNames();
-  if (recentsMenu.innerHTML = "", !names.length) {
-    let d = document.createElement("div");
-    d.className = "ritem empty", d.textContent = "(no recent files)", recentsMenu.appendChild(d);
-    return;
-  }
-  for (let n of names) {
-    let d = document.createElement("div");
-    d.className = "ritem", d.textContent = n, d.title = n, d.dataset.name = n, recentsMenu.appendChild(d);
-  }
-}
+function addRecent(name,handle){let a=getNames().filter(x=>x!==name);a.unshift(name);if(a.length>12)a.length=12;setNames(a);const version=(recentHandleVersions.get(name)||0)+1;recentHandleVersions.set(name,version);recentHandleCache.set(name,handle&&FSA?handle:null);setRecentHandleUnavailable(name,true);if(!FSA)return Promise.resolve(false);const task=recentHandlePersistence.then(async()=>{if(recentHandleVersions.get(name)!==version)return false;const ok=await saveHandle(name,handle||null);if(recentHandleVersions.get(name)!==version)return ok;const recorded=ok?setRecentHandleUnavailable(name,!handle):false;if(!ok||!recorded)reportFileError(new Error('Recent file access could not be saved for later sessions.'),'recent-persistence');return ok&&recorded;}).catch(error=>{try{reportFileError(error,'recent-persistence');}catch{}return false;});recentHandlePersistence=task;return task;}
+function offerRecentFileFallback(name,generation=recentMenuGeneration){if(generation!==recentMenuGeneration)return {ok:false,operation:'open-recent-stale'};reportFileError(new Error('The saved file handle for '+name+' is unavailable. Choose the file to reopen it.'),'open-recent-unavailable');recentsMenu.querySelector('.recent-file-fallback')?.remove();const button=document.createElement('button');button.type='button';button.className='ritem recent-file-fallback';button.textContent='Choose file…';button.addEventListener('click',()=>{dismissRecents();doOpen();});recentsMenu.appendChild(button);recentsMenu.classList.add('show');}
+async function openRecent(name){const generation=++recentMenuGeneration,version=recentHandleVersions.get(name)||0,current=()=>generation===recentMenuGeneration&&(recentHandleVersions.get(name)||0)===version;let h=FSA?recentHandleCache.get(name):null,p;try{if(h){p=await h.requestPermission({mode:'read'});}else if(FSA&&!recentHandleCache.has(name)){h=await getHandle(name);if(!current())return {ok:false,operation:'open-recent-stale'};if(h){recentHandleCache.set(name,h);p=await h.queryPermission({mode:'read'});if(!current())return {ok:false,operation:'open-recent-stale'};if(p==='prompt')return reportFileError(new Error('Click this Recent item again to allow access to '+name),'open-recent-permission');}}if(!current())return {ok:false,operation:'open-recent-stale'};if(!h)return offerRecentFileFallback(name,generation);if(p!=='granted')return reportFileError(new Error('Access to '+name+' was not granted'),'open-recent-permission');return await loadFromHandle(h,name);}catch(error){if(!current())return {ok:false,operation:'open-recent-stale'};if(error?.name==='NotFoundError'){if(recentHandleCache.get(name)===h)recentHandleCache.set(name,null);setRecentHandleUnavailable(name,true);return offerRecentFileFallback(name,generation);}return reportFileError(error,'open-recent');}}
+function renderRecents(){let names=getNames();recentsMenu.innerHTML='';if(!names.length){let d=document.createElement('div');d.className='ritem empty';d.textContent='(no recent files)';recentsMenu.appendChild(d);return;}for(let n of names){let d=document.createElement('div');d.className='ritem';d.textContent=n;d.title=n;d.dataset.name=n;recentsMenu.appendChild(d);if(FSA&&!recentHandleCache.has(n)){const version=recentHandleVersions.get(n)||0;getHandle(n).then(h=>{if(h&&(recentHandleVersions.get(n)||0)===version&&!recentHandleCache.has(n))recentHandleCache.set(n,h);});}}}
 function showRecents() {
+  recentMenuGeneration++;
   renderRecents();
   let r = recentsBtn.getBoundingClientRect();
   recentsMenu.style.left = r.left + "px", recentsMenu.style.top = r.bottom + "px", recentsMenu.classList.add("show");
 }
 recentsBtn.addEventListener("click", (e) => {
   e.stopPropagation();
-  recentsMenu.classList.contains("show") ? recentsMenu.classList.remove("show") : showRecents();
+  recentsMenu.classList.contains("show") ? dismissRecents() : showRecents();
 });
-recentsMenu.addEventListener("click", (e) => {
-  let item = e.target.closest(".ritem");
-  if (item?.dataset.name) openRecent(item.dataset.name), recentsMenu.classList.remove("show");
-});
-addEventListener("pointerdown", (e) => {
-  recentsMenu.classList.contains("show") && !recentsBtn.contains(e.target) && !recentsMenu.contains(e.target) && recentsMenu.classList.remove("show");
-});
-addEventListener("keydown", (e) => {
-  e.key === "Escape" && recentsMenu.classList.remove("show");
-});
+recentsMenu.addEventListener("click",(e)=>{let item=e.target.closest(".ritem");if(item?.dataset.name){recentsMenu.classList.remove("show");openRecent(item.dataset.name);}});
+addEventListener("pointerdown",(e)=>{if(!recentsBtn.contains(e.target)&&!recentsMenu.contains(e.target))dismissRecents();});
+addEventListener("keydown",(e)=>{if(e.key==='Escape')dismissRecents();});
 addEventListener("keydown", (e) => {
   let mod = e.ctrlKey || e.metaKey;
   if(uvEdit&&gizDrag&&e.key==="Escape"){e.preventDefault();endGizDrag({type:"pointercancel"});return;}
@@ -28405,8 +28975,7 @@ addEventListener("keydown", (e) => {
   if (mod && e.code === "KeyV") {
     if (isEditing()) return;
     if (e.preventDefault(), clipNodes && clipNodes.length) {
-      let cmd = cmdDuplicateToRoot(clipNodes);
-      runCmd(cmd), copyObjParams(cmd.map), selNodes.clear(), selTags.clear(), cmd.newRoots.forEach((h) => selNodes.add(h)), anchorNode = cmd.newRoots.length ? getObj(cmd.newRoots[0]) : null, lastBracketSig = null, refreshSelClasses();
+      frameAffinePasteNodes(clipNodes);
     }
     return;
   }
@@ -28483,11 +29052,11 @@ addEventListener("keydown", (e) => {
     if(hasSpline||hasPoly){e.preventDefault();hasSpline&&deleteSelectedSplineElements();hasPoly&&deleteSelectedPolyElements();return;}
   }
   if (!isEditing() && (e.key === "Delete" || e.key === "Backspace") && selNodes.size && (treeActive || (!vertexEditActive&&!splineMode&&!polyMode) || (!hasSplineElementSelection()&&!hasPolyElementSelection()))) {
-    e.preventDefault(), runCmd(cmdDelete([...selNodes])), selNodes.clear(), selTags.clear(), anchorNode = null, renderRows(), refreshSelClasses();
+    e.preventDefault(), frameAffineDeleteNodes([...selNodes]);
     return;
   }
   if (!isEditing() && (e.key === "Delete" || e.key === "Backspace") && (selNodes.size || selTags.size)) {
-    e.preventDefault(), selNodes.size ? (runCmd(cmdDelete([...selNodes])), selNodes.clear()) : (runCmd(cmdDeleteTags([...selTags])), selTags.clear()), renderRows(), refreshSelClasses();
+    e.preventDefault();if(selNodes.size)frameAffineDeleteNodes([...selNodes]);else{runCmd(cmdDeleteTags([...selTags]));selTags.clear();renderRows();refreshSelClasses();}
     return;
   }
   if (!treeActive || isEditing()) return;
@@ -28601,15 +29170,15 @@ function installFrameAI() {
       for (let fi of spec.faces || spec.ids || []) Number.isInteger(fi) && fi >= 0 && fi < count && s.faces.add(fi);
     }
     return rebuildPolySelection(), selection();
-  }, setCoordinates = (values) => {
+  }, setCoordinates = (values) => {const requested={...values};for(const k of ["position","rotation","size"])if(Array.isArray(requested[k]))requested[k]=requested[k].slice();return frameAffineRunExactAction("Coordinate edit",()=>{
     if (!gizmoVisible) throw new Error("nothing is selected");
     let before = coordinateSnapshot(), apply = (ch, v) => {
       if (Array.isArray(v))
         for (let i = 0; i < 3; i++) Number.isFinite(v[i]) && applyInput(ch, i, v[i]);
     };
-    apply("pos", values.position), apply("rot", values.rotation), apply("size", values.size), syncCube(), commitCoordinateSnapshot(before);
+    apply("pos", requested.position), apply("rot", requested.rotation), apply("size", requested.size), syncCube(), commitCoordinateSnapshot(before);
     return updateHUD(), !uvEdit && scheduleGeneratorEvaluation(0), scheduleRender(), coordinates();
-  }, viewRect = (view) => {
+  });}, viewRect = (view) => {
     let vi = view ?? (vpState.mode === "single" ? vpState.singleView : 0), r = rectFor(vi);
     if (!r) throw new Error("view not found");
     return { view: vi, x: r.x, y: r.y, width: r.w, height: r.h };
@@ -28675,7 +29244,7 @@ function installFrameAI() {
     const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
     const run=current=>{let operation;
       if (vertexTools.mode==="addPoint") operation=frameAfterPicker(addPointToolClick(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");leaveVertexTool(false);}});
-      else if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
+      else if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");return finishLineCut();}});
       else if (vertexTools.mode==="loop") operation=frameAfterPicker(vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(x,y,vpState.views[vi].cam,rectFor(vi),EDIT_HIT_PX,"click"):reliableHoverEdge(x,y,vpState.views[vi].cam,rectFor(vi),viewShading[vi]===1),hit=>{if(!current())throw new DOMException("Tool context changed","AbortError");frameNativeCommitClick(()=>{updateLoopPreview(x,y,vi,{hit});vertexTools.loop?applyLoopSelection(mode):leaveVertexTool(false);});});
       else if (vertexTools.mode==="soft") operation=frameAfterPicker(polyClickPick(x,y,mode),ok=>{ok?recalculateSoftSelection():(current()?leaveVertexTool(false):(()=>{throw new DOMException("Tool context changed","AbortError");})());});
       else throw new Error("no clickable vertex tool is active");
@@ -28699,13 +29268,13 @@ function installFrameAI() {
   }, faceToolClick = (options) => {
     const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
     const run=current=>{let operation;
-      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
-      else if (vertexTools.mode==="closeHole") (updateCloseHolePreview(x,y,vi),closeHoveredHole()||leaveVertexTool(false));
+      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");return finishLineCut();}});
+      else if (vertexTools.mode==="closeHole") operation=frameAffineCloseHoleAt(x,y,vi);
       else throw new Error("no clickable face tool is active");
       return frameAfterPicker(operation,()=>({tool:vertexToolState(),selection:selection()}));
     };
     return vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({clientX:x,clientY:y,view:vi},(_event,current)=>run(current)):run(()=>true);
-  }, runEdgeTool = (name, options = {}) => {
+  }, runEdgeTool = (name, options = {}) => {if(["bridge","finish"].includes(name)&&frameAffineAuthoringPending([...selNodes])){const requested={...options};return frameAffineRunExactAction("Edge tool",()=>runEdgeTool(name,requested));} 
     if (!polyMode || polyElementMode !== "edge") throw new Error("edge mode is required");
     if (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), name === "lineCut") activateLineCut();
     else if (name === "bridge") bridgeSelectedEdges();
@@ -28723,17 +29292,17 @@ function installFrameAI() {
   }, edgeToolClick = (options) => {
     const vi=options.view??0,x=options.x,y=options.y,mode=options.mode||"replace";
     const run=current=>{let operation;
-      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");finishLineCut();}});
+      if (vertexTools.mode==="lineCut") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException("Tool context changed","AbortError");return finishLineCut();}});
       else if (vertexTools.mode==="loop") operation=frameAfterPicker(vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(x,y,vpState.views[vi].cam,rectFor(vi),EDIT_HIT_PX,"click"):reliableHoverEdge(x,y,vpState.views[vi].cam,rectFor(vi),viewShading[vi]===1),hit=>{if(!current())throw new DOMException("Tool context changed","AbortError");frameNativeCommitClick(()=>{updateLoopPreview(x,y,vi,{hit});vertexTools.loop?applyLoopSelection(mode):leaveVertexTool(false);});});
       else throw new Error("no clickable edge tool is active");
       return frameAfterPicker(operation,()=>({tool:vertexToolState(),selection:selection()}));
     };
     return vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({clientX:x,clientY:y,view:vi},(_event,current)=>run(current)):run(()=>true);
-  }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {
+  }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == "boolean" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {const requested={...options};for(const k of ["translate","rotate","scale"])if(Array.isArray(requested[k]))requested[k]=requested[k].slice();return frameAffineRunExactAction("Transform elements",()=>{
     if (!polyMode || !polySelection.items.size) throw new Error("subobject selection is required");
     let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState();
-    options.extrude && (polyElementMode === "edge" || polyElementMode === "face") && extrudeSelectedForDrag();
-    let snap = capturePolySelection(), frame = polyFrameMatrix(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(options.translate) ? options.translate : [0, 0, 0], rr = Array.isArray(options.rotate) ? options.rotate : [0, 0, 0], ss = Array.isArray(options.scale) ? options.scale : [1, 1, 1], delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(Number.isFinite(+ss[0]) ? +ss[0] : 1, Number.isFinite(+ss[1]) ? +ss[1] : 1, Number.isFinite(+ss[2]) ? +ss[2] : 1)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
+    requested.extrude && (polyElementMode === "edge" || polyElementMode === "face") && extrudeSelectedForDrag();
+    let snap = capturePolySelection(), frame = polyFrameMatrix(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(requested.translate) ? requested.translate : [0, 0, 0], rr = Array.isArray(requested.rotate) ? requested.rotate : [0, 0, 0], ss = Array.isArray(requested.scale) ? requested.scale : [1, 1, 1], delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(Number.isFinite(+ss[0]) ? +ss[0] : 1, Number.isFinite(+ss[1]) ? +ss[1] : 1, Number.isFinite(+ss[2]) ? +ss[2] : 1)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));
     applyPolyDelta(delta, snap), orientExtrudedFaces();
     let logical = capturePolyLogicalSelection();
     polyExactEdgeVertices = null;
@@ -28745,7 +29314,7 @@ function installFrameAI() {
     }, undo() {
       restorePolyGeometries(beforeGeom), restorePolySelectionState(beforeSel);
     } }), scheduleGeneratorEvaluation(0, hashes), { selection: selection(), topology: hashes.map((h) => meshTopology(h)) };
-  }, meshTopology = (ref) => {
+  });}, meshTopology = (ref) => {
     let h = resolveObjects(ref)[0], mesh = pickMeshes.get(h);
     if (!mesh) throw new Error("mesh object not found");
     let g = mesh.geometry, pos = g.attributes.position, index = g.index, faces = (index ? index.count : pos.count) / 3, incidence = /* @__PURE__ */ new Map(), a = new THREE2.Vector3(), b = new THREE2.Vector3(), c = new THREE2.Vector3(), degenerateFaces = 0;
@@ -28777,12 +29346,12 @@ function installFrameAI() {
   }, deleteSubobjects = () => {
     if (!polyMode) throw new Error("subobject mode is required");
     return deleteSelectedPolyElements(), selection();
-  }, makePolygonal = (refs) => {
-    refs != null && selectObjects(refs);
-    let cmd = cmdMakePolygonal([...selNodes]);
+  }, makePolygonal = (refs) => {refs != null && selectObjects(refs);const requestedHashes=[...selNodes];return frameAffineRunExactAction("Make polygonal",()=>{
+    
+    let cmd = cmdMakePolygonal(requestedHashes);
     if (!cmd) throw new Error("selected objects contain no geometry");
-    return runCmd(cmd), { object: cmd.result, state: state() };
-  }, splineTopology = (ref) => {
+    let result;frameAffineExecutePreparedCommand(cmd,()=>{result={ object: cmd.result, state: state() };},requestedHashes);return result;
+  },{hashes:requestedHashes});}, splineTopology = (ref) => {
     let h = resolveObjects(ref)[0], d = evaluatedSplineData(h), state2 = replicaStates.get(h);
     if (!d && PARAMETRIC_MESH_TYPES.has(objParams.get(h)?.__type)) {
       evaluateParametricMeshNode(h), state2 = replicaStates.get(h), d = state2?.generatedCageData || null;
@@ -28865,12 +29434,12 @@ function installFrameAI() {
     return mutateSplineObjects([h], () => {
       result2 = splitSplineSegment(d, segment, t);
     }), { result: result2, topology: splineTopology(h) };
-  }, connectDelete = (refs) => {
-    refs != null && selectObjects(refs);
-    let cmd = cmdConnectDelete([...selNodes]);
+  }, connectDelete = (refs) => {refs != null && selectObjects(refs);const requestedHashes=[...selNodes];return frameAffineRunExactAction("Connect / To editable",()=>{
+    
+    let cmd = cmdConnectDelete(requestedHashes);
     if (!cmd) throw new Error("Connect + Delete has no applicable geometry");
-    return runCmd(cmd), { object: cmd.result || null, state: state() };
-  }, beginSplineComponent = (ref) => {
+    let result;frameAffineExecutePreparedCommand(cmd,()=>{result={ object: cmd.result || null, state: state() };},requestedHashes);return result;
+  },{hashes:requestedHashes});}, beginSplineComponent = (ref) => {
     if (ref != null && selectObjects(ref), !beginSplineDrawOnActive()) throw new Error("select a spline object first");
     return state();
   }, splineDrawPointAI = (options = {}) => {
@@ -28895,7 +29464,7 @@ function installFrameAI() {
     }, undo() {
       restoreSplineFullState(fullBefore, beforeSel);
     } }), { selection: selection(), topology: owners.map(splineTopology) };
-  }, addSplineBevelAI = (options = {}) => {
+  }, addSplineBevelAI = (options = {}) => {if(frameAffineAuthoringPending([...polySelection.items.keys()])){const requested={...options};return frameAffineRunExactAction("Spline bevel",()=>addSplineBevelAI(requested));} 
     let owners = splineSelectionOwners(), eligibility = splineBevelSelection();
     if (!createSplineBevelTag(options)) throw new Error("Bevel requires valence-2 spline vertices: " + JSON.stringify({ domain: eligibility.domain, eligible: Object.fromEntries(eligibility.grouped), active: splineSelection.active }));
     return { objects: owners, tags: owners.flatMap((h) => splineBevelTags(h).map(cloneTag)), topology: owners.map(splineTopology) };
@@ -29236,14 +29805,14 @@ function installFrameAI() {
     visit(vpState.scene), visit(vpState.hudScene), visit(vpState.overlayScene);
     let memory = vpState.renderer?.info?.memory || {}, renderInfo = vpState.renderer?.info?.render || {}, heap = performance.memory;
     return { objects: OBJ.size, roots: rootOrder.length, sceneObjects: objects.size, geometries: geometries.size, materials: materials.size, textures: textures.size, contentThrees: contentThrees.length, threeOf: threeOf.size, pickMeshes: pickMeshes.size, replicaStates: replicaStates.size, splineVisuals: splineVisuals.size, splineData: splineData.size, evaluatedSplineCache: evaluatedSplineCache.size, wireOverlays: wireOverlays.size, polyPointOverlays: polyPointOverlays.size, creaseOverlays: creaseOverlays.size, history: { undo: undoStack.length, redo: redoStack.length, limit: HISTORY_LIMIT }, renderer: { geometries: memory.geometries || 0, textures: memory.textures || 0, programs: vpState.renderer?.info?.programs?.length || 0, calls: renderInfo.calls || 0, triangles: renderInfo.triangles || 0 }, browserHeap: heap ? { used: heap.usedJSHeapSize, total: heap.totalJSHeapSize, limit: heap.jsHeapSizeLimit } : null, boolean: booleanRuntime.stats() };
-  }, deleteObjectsAI = (refs) => {
-    let hashes = resolveObjects(refs);
-    if (!hashes.length) throw new Error("no matching objects");
-    runCmd(cmdDelete(hashes));
+  }, deleteObjectsAI = (refs) => {let hashes = resolveObjects(refs);
+    if (!hashes.length) throw new Error("no matching objects");return frameAffineRunExactAction("Delete objects",()=>{
+    
+    let result;frameAffineExecutePreparedCommand(cmdDelete(hashes),()=>{
     for (let h of hashes)
       selNodes.delete(h), anchorNode?.hash === h && (anchorNode = null);
-    return selTags.clear(), treeChanged(), refreshSelClasses(), { deleted: hashes, resources: resourceStatsAI() };
-  }, reparentObjectsAI = (refs, targetRef, mode = "child") => {
+    selTags.clear();treeChanged();refreshSelClasses();result={ deleted: hashes, resources: resourceStatsAI() };},hashes);return result;
+  },{hashes});}, reparentObjectsAI = (refs, targetRef, mode = "child") => {
     let hashes = resolveObjects(refs), target = resolveObjects(targetRef)[0] && OBJ.get(resolveObjects(targetRef)[0]);
     if (!hashes.length || !target) throw new Error("moving objects and target are required");
     if (!["child", "before", "after"].includes(mode)) throw new Error("mode must be child, before or after");
@@ -29549,7 +30118,7 @@ function installFrameAI() {
       const hit=reliableHoverEdge(x,y,cam,r,viewShading[vr.view]===1,options.radius??EDIT_HIT_PX);
       return frameAfterPicker(hit,hit=>hit?{object:hit.h,keys:hit.keys.slice(),vertices:hit.edge.slice(0,2)}:null);
     },
-    bevelEdges(options={}){if(!beginEdgeBevel(options))throw Error('Bevel: select polygon or cage edges');return api.getEdgeBevelState();},
+    bevelEdges(options={}){return frameAfterPicker(beginEdgeBevel({...options}),ok=>{if(ok?.cancelled)return ok;if(!ok)throw Error('Bevel: select polygon or cage edges');return api.getEdgeBevelState();});},
     getEdgeBevelState(){const s=edgeBevelTool||edgeBevelResult;return s?{active:!!edgeBevelTool,size:s.requested,round:s.round,segments:s.segments,limit:s.limit,error:s.error,objects:s.items.map(i=>i.h)}:null;},
     updateEdgeBevel(options={}){const s=edgeBevelTool||edgeBevelResult;if(!s)throw Error('No active bevel');const before=captureEdgeBevelState(s.items),size=s.requested,round=s.round,segments=s.segments;
       if('round'in options)s.round=!!options.round;if('segments'in options)s.segments=Math.max(2,Math.min(32,Math.round(+options.segments)||6));

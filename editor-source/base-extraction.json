@@ -1,8 +1,7 @@
 {
-  "schema": "frame-exact-line-delta-v1",
-  "beforeSHA256": "4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b",
+  "beforeSHA256": "963cb8f7a0affc14321ab18c0587222270ac078400c1420b8923ecfab12d6a93",
+  "beforeBytes": 2866786,
   "afterSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
-  "beforeBytes": 2752641,
   "afterBytes": 2602100,
   "operations": [
     {
@@ -103,6 +102,13 @@
       "insert": []
     },
     {
+      "startLine": 13125,
+      "deleteLines": 1,
+      "insert": [
+        "    if(sameSelection())runCmd(cmdConnectDelete(hashes));\n"
+      ]
+    },
+    {
       "startLine": 13338,
       "deleteLines": 2,
       "insert": []
@@ -125,14 +131,43 @@
       ]
     },
     {
+      "startLine": 15176,
+      "deleteLines": 2,
+      "insert": [
+        "  if (vpState.renderer?.domElement && (vpState.renderer.domElement.style.cursor = \"\"), vertexTools.mode === \"lineCut\") {\n",
+        "    commitLine ? finishLineCut() : (vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());\n"
+      ]
+    },
+    {
       "startLine": 15325,
       "deleteLines": 2,
       "insert": []
     },
     {
+      "startLine": 15328,
+      "deleteLines": 1,
+      "insert": [
+        "  if(snap?.then)return snap.then(snap=>frameNativeCommitClick(()=>addPointAt(cx,cy,vi,{snap})));\n"
+      ]
+    },
+    {
+      "startLine": 15366,
+      "deleteLines": 1,
+      "insert": [
+        "  return frameAfterPicker(resolveVertexToolSnap(cx,cy,vi,true,null,'click'),snap=>frameNativeCommitClick(()=>snap?(snap.type!=='vertex'&&addPointAt(cx,cy,vi,{snap}),true):false));\n"
+      ]
+    },
+    {
       "startLine": 15519,
       "deleteLines": 2,
       "insert": []
+    },
+    {
+      "startLine": 15548,
+      "deleteLines": 1,
+      "insert": [
+        "  vertexTools.mode === \"lineCut\" && (applyLineCut(), vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());\n"
+      ]
     },
     {
       "startLine": 15631,
@@ -246,127 +281,288 @@
       "insert": []
     },
     {
-      "startLine": 17202,
+      "startLine": 16763,
+      "deleteLines": 1,
+      "insert": [
+        "  const deferred=gizDrag?._frameDeferredStart;\n"
+      ]
+    },
+    {
+      "startLine": 16836,
+      "deleteLines": 1,
+      "insert": [
+        "  if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();\n"
+      ]
+    },
+    {
+      "startLine": 16992,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17404,
+      "startLine": 17099,
+      "deleteLines": 1,
+      "insert": [
+        "  else if(gesture?.mode==='gizmo'&&gizDrag)endGizDrag({});\n"
+      ]
+    },
+    {
+      "startLine": 17168,
+      "deleteLines": 1,
+      "insert": [
+        "  else if(gesture.mode==='gizmo'&&gizDrag)doGizDrag(mobilePointerEvent(p));\n"
+      ]
+    },
+    {
+      "startLine": 17203,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 17269,
+      "deleteLines": 1,
+      "insert": [
+        "  if (mobileTouchMove(e)) return;\n"
+      ]
+    },
+    {
+      "startLine": 17314,
+      "deleteLines": 1,
+      "insert": [
+        "  if (mobileTouchUp(e)) return;\n"
+      ]
+    },
+    {
+      "startLine": 17369,
+      "deleteLines": 1,
+      "insert": [
+        "      vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameNativeCommitClick(()=>{updateCloseHolePreview(event.clientX,event.clientY,vi);closeHoveredHole()||leaveVertexTool(false);})).catch(frameNativePickerError):(updateCloseHolePreview(e.clientX,e.clientY,vi),closeHoveredHole()||leaveVertexTool(false));\n"
+      ]
+    },
+    {
+      "startLine": 17405,
       "deleteLines": 1,
       "insert": [
         "    e.button === 1 && Math.hypot(e.clientX - downX, e.clientY - downY) < VIEW_SWITCH_PX && e.buttons === 0 && vi >= 0 ? (toggleViewportLayout(vi), need = !0) : e.button === 0 && !e.altKey && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 ? doPick(e) : e.button === 2 && Math.hypot(e.clientX - downX, e.clientY - downY) < TAP_PX && e.buttons === 0 && openViewportContextMenu(e.clientX, e.clientY);\n"
       ]
     },
     {
-      "startLine": 17467,
+      "startLine": 17468,
       "deleteLines": 3,
       "insert": [
         "    let hash2 = polyClickPick(e.clientX, e.clientY, mode,preparedNative);\n"
       ]
     },
     {
-      "startLine": 17482,
+      "startLine": 17483,
       "deleteLines": 1,
       "insert": [
         "    hash2 && (componentFocus = \"poly\", placeGizmoForSelection()), vertexTools.soft.active && (hash2 ? recalculateSoftSelection() : leaveVertexTool(!1)), _vpPick && (hash2 || mode === \"replace\") && _vpPick(hash2, e.shiftKey, ctrl);\n"
       ]
     },
     {
-      "startLine": 17704,
+      "startLine": 17705,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 17713,
+      "startLine": 17714,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17715,
+      "startLine": 17716,
       "deleteLines": 1,
       "insert": [
         "  let c = undoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17721,
+      "startLine": 17722,
       "deleteLines": 1,
       "insert": [
         "  redoStack.push(c);trimCommandStack(redoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17724,
+      "startLine": 17725,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 17726,
+      "startLine": 17727,
       "deleteLines": 1,
       "insert": [
         "  let c = redoStack.pop();\n"
       ]
     },
     {
-      "startLine": 17729,
+      "startLine": 17730,
       "deleteLines": 1,
       "insert": [
         "  c.redo();restoreSceneCommandState(c,'after');undoStack.push(c);trimCommandStack(undoStack);afterCmd(c);if(!c.renderOnly&&vertexTools.soft.active)recalculateSoftSelection();\n"
       ]
     },
     {
-      "startLine": 17732,
+      "startLine": 17733,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 18294,
+      "startLine": 18295,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 21318,
+      "startLine": 18339,
+      "deleteLines": 1,
+      "insert": [
+        "  try{beginEdgeBevel({interactive:true});}catch(error){attrContent.innerHTML='';const row=document.createElement('div');row.className='attr-hint';row.textContent=error.message;attrContent.appendChild(row);activateTab('tabAttributes');}\n"
+      ]
+    },
+    {
+      "startLine": 21319,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 21331,
+      "startLine": 21332,
       "deleteLines": 1,
       "insert": [
         " if(!g?.attributes?.position)return null;\n"
       ]
     },
     {
-      "startLine": 21633,
+      "startLine": 21634,
       "deleteLines": 1,
       "insert": [
         "document.addEventListener(\"keydown\", (e) => _endSessionOutside(e.target), !0);\n"
       ]
     },
     {
-      "startLine": 21724,
+      "startLine": 21680,
+      "deleteLines": 1,
+      "insert": [
+        "  frameNumericPointerInput(inp);\n"
+      ]
+    },
+    {
+      "startLine": 21725,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24473,
+      "startLine": 21729,
+      "deleteLines": 4,
+      "insert": [
+        "    _scrubSession && _scrubSession.inp !== inp && _scrubSession.end(!0), before === null && (before = getBefore()), _scrubActive = inp, _scrubSession = { inp, end: localEnd };\n"
+      ]
+    },
+    {
+      "startLine": 21777,
+      "deleteLines": 2,
+      "insert": [
+        "  let endScrub = () => {\n"
+      ]
+    },
+    {
+      "startLine": 21781,
+      "deleteLines": 2,
+      "insert": [
+        "  inp.addEventListener(\"pointerup\", endScrub), inp.addEventListener(\"pointercancel\", endScrub), addEventListener(\"pointerup\", endScrub), addEventListener(\"pointercancel\", endScrub), inp.addEventListener(\"dblclick\", (e) => {\n"
+      ]
+    },
+    {
+      "startLine": 22631,
+      "deleteLines": 1,
+      "insert": [
+        "  if(pendingSplinePatchConversion)return pendingSplinePatchConversion;\n"
+      ]
+    },
+    {
+      "startLine": 23519,
+      "deleteLines": 1,
+      "insert": [
+        "  let cmd = ctrl ? cmdCopyTo(hashes, drop) : cmdReparent(hashes, drop);\n"
+      ]
+    },
+    {
+      "startLine": 24129,
+      "deleteLines": 1,
+      "insert": [
+        "  const polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets();\n"
+      ]
+    },
+    {
+      "startLine": 24199,
+      "deleteLines": 1,
+      "insert": [
+        "  let ft = await fetchTex(url);\n"
+      ]
+    },
+    {
+      "startLine": 24201,
+      "deleteLines": 1,
+      "insert": [
+        "  let im = await textureImageFromBytes(ft.bytes,ft.mime);\n"
+      ]
+    },
+    {
+      "startLine": 24203,
+      "deleteLines": 2,
+      "insert": [
+        "  let d = getMat(getDefaultMatHash()), base = d ? { h: d.h, s: d.s, l: 100, emm: d.emm, rough: d.rough, metal: d.metal, opac: d.opac, bump: d.bump } : { h: 0, s: 0, l: 100, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, newHash = makeMat(Object.assign({ name: nextMatName() }, base, { map: im, texBytes: ft.texId?null:ft.bytes, texMime: ft.texId?null:ft.mime, texId:ft.texId||null }));\n",
+        "  refreshMatVisuals(newHash), addMatCard(newHash), (!usePolySelection || !assignMaterialDrop(newHash)) && runCmd(cmdAssignMat(h, newHash, -1)), uvMode && syncUvEditing(), selMats.clear(), selMats.add(newHash), refreshMatSel();\n"
+      ]
+    },
+    {
+      "startLine": 24207,
+      "deleteLines": 1,
+      "insert": [
+        "  let n = getObj(h), tag = n && n.tags[i];\n"
+      ]
+    },
+    {
+      "startLine": 24277,
+      "deleteLines": 1,
+      "insert": [
+        "      refreshMatVisuals(newHash), addMatCard(newHash), assignMaterialDrop(newHash, row.dataset.h) || runCmd(cmdAssignMat(row.dataset.h, newHash, replaceIdx)), selMats.clear(), selMats.add(newHash), refreshMatSel();\n"
+      ]
+    },
+    {
+      "startLine": 24280,
+      "deleteLines": 1,
+      "insert": [
+        "      assignMaterialDrop(cardHash, row.dataset.h) || runCmd(cmdAssignMat(row.dataset.h, cardHash, replaceIdx)), selMats.clear(), selMats.add(cardHash), refreshMatSel();\n"
+      ]
+    },
+    {
+      "startLine": 24304,
+      "deleteLines": 2,
+      "insert": [
+        "      refreshMatVisuals(newHash), addMatCard(newHash), assignMaterialDrop(newHash, h) || runCmd(cmdAssignMat(h, newHash, -1)), selMats.clear(), selMats.add(newHash), refreshMatSel();\n",
+        "    } else cardHash && getMat(cardHash) && (assignMaterialDrop(cardHash, h) || runCmd(cmdAssignMat(h, cardHash, -1)), selMats.clear(), selMats.add(cardHash), refreshMatSel());\n"
+      ]
+    },
+    {
+      "startLine": 24479,
       "deleteLines": 1,
       "insert": [
         "var ignoreBridge = !1, coordinateBridgeOperation = null, lastBracketSig = null, gizBeforeObj = null, gizBeforeObjState = null, gizBeforeObjPivot = null, gizBeforeGizmo = null, gizBeforePoly = null, gizBeforePolyGeom = null, gizBeforePolySoft = null, gizBeforePolySel = null, gizBeforePolyPivot = null, polyPivotMatrix = null, gizBeforeMulti = null, gizBeforeMultiState = null, polyExactEdgeVertices = null, polyExtrudedFaces = null, gizBeforeSpline = null, gizBeforeSplineSel = null, gizBeforeSplinePivot = null, gizBeforeSplineFull = null, splineGizModifiers = null, uvMode = !1, uvEdit = null, uvBeforeFrame = null;\n"
       ]
     },
     {
-      "startLine": 24624,
+      "startLine": 24630,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24626,
+      "startLine": 24632,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24639,
+      "startLine": 24645,
       "deleteLines": 3,
       "insert": [
         "function* framePolySelectedVertexIdsWork(h,items=polySelection.items,exact=polyExactEdgeVertices) {\n",
@@ -374,50 +570,55 @@
       ]
     },
     {
-      "startLine": 24782,
-      "deleteLines": 2,
+      "startLine": 24788,
+      "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 24817,
+      "startLine": 24824,
       "deleteLines": 1,
       "insert": [
         "function* frameFaceSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24819,
+      "startLine": 24826,
       "deleteLines": 1,
       "insert": [
         "  const s=items.get(h),mesh=pickMeshes.get(h),g=mesh?.geometry,pos=g?.attributes.position,idx=g?.index;\n"
       ]
     },
     {
-      "startLine": 24864,
+      "startLine": 24871,
       "deleteLines": 1,
       "insert": [
         "function* frameEdgeSelectionBasisWork(h,ownerRot,items=polySelection.items) {\n"
       ]
     },
     {
-      "startLine": 24866,
+      "startLine": 24873,
       "deleteLines": 1,
       "insert": [
         "  let s = items.get(h), mesh = pickMeshes.get(h), pos = mesh?.geometry?.attributes.position;\n"
       ]
     },
     {
-      "startLine": 24907,
+      "startLine": 24914,
+      "deleteLines": 2,
+      "insert": []
+    },
+    {
+      "startLine": 24925,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 24927,
+      "startLine": 24936,
       "deleteLines": 15,
       "insert": []
     },
     {
-      "startLine": 24960,
+      "startLine": 24969,
       "deleteLines": 1,
       "insert": [
         "  let delta = desired.clone().multiply(old.clone().invert()), snap = capturePolySelection();\n",
@@ -425,129 +626,389 @@
       ]
     },
     {
-      "startLine": 24965,
+      "startLine": 24974,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 25209,
+      "startLine": 25218,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 25216,
+      "startLine": 25225,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 25232,
+      "startLine": 25241,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 25240,
+      "startLine": 25250,
       "deleteLines": 4,
       "insert": []
     },
     {
-      "startLine": 25270,
+      "startLine": 25279,
       "deleteLines": 8,
       "insert": []
     },
     {
-      "startLine": 25331,
+      "startLine": 25340,
       "deleteLines": 5,
       "insert": []
     },
     {
-      "startLine": 25579,
+      "startLine": 25571,
+      "deleteLines": 1,
+      "insert": [
+        "  let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState(), changed = !1;\n"
+      ]
+    },
+    {
+      "startLine": 25588,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 26379,
-      "deleteLines": 640,
+      "startLine": 26370,
+      "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27020,
+      "startLine": 26389,
+      "deleteLines": 1245,
+      "insert": []
+    },
+    {
+      "startLine": 27635,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 27063,
+      "startLine": 27678,
       "deleteLines": 3,
       "insert": []
     },
     {
-      "startLine": 27164,
+      "startLine": 27779,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 27168,
+      "startLine": 27783,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27185,
+      "startLine": 27800,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27190,
+      "startLine": 27805,
       "deleteLines": 1,
       "insert": [
         "    if (Math.abs(x1 - x0) + Math.abs(y1 - y0) > 3)\n"
       ]
     },
     {
-      "startLine": 27539,
+      "startLine": 28154,
       "deleteLines": 2,
       "insert": []
     },
     {
-      "startLine": 27656,
+      "startLine": 28271,
       "deleteLines": 1,
       "insert": [
         "   job.capturing=true;const savedToken=sceneStateToken,mutation=nativeSaveMutation,snapshot=await nativeSaveCopy(buildHashSceneSnapshot(),signal);job.capturing=false;\n"
       ]
     },
     {
-      "startLine": 27659,
+      "startLine": 28274,
       "deleteLines": 1,
       "insert": [
         "  finally{job.capturing=false;options.signal?.removeEventListener('abort',abort);status.remove();if(nativeSceneSave===job)nativeSceneSave=null;}\n"
       ]
     },
     {
-      "startLine": 27954,
+      "startLine": 28569,
       "deleteLines": 1,
       "insert": []
     },
     {
-      "startLine": 27966,
+      "startLine": 28581,
       "deleteLines": 1,
       "insert": [
         "   const data=q.geometry,g=new THREE2.BufferGeometry();g.setAttribute('position',new THREE2.BufferAttribute(data.positions,3));g.setIndex(new THREE2.BufferAttribute(data.indices,1));g.computeBoundingBox();\n"
       ]
     },
     {
-      "startLine": 27970,
+      "startLine": 28585,
       "deleteLines": 1,
       "insert": [
         "   frameContourOrigins.bind(g,data.contourOrigin);const mesh={geometry:g};normalizeCreaseTopology(mesh,false);const out=mesh.geometry;\n"
       ]
     },
     {
-      "startLine": 28609,
+      "startLine": 28865,
+      "deleteLines": 1,
+      "insert": [
+        "var IDB_NAME = \"hashEditorRecents\", IDB_STORE = \"handles\";\n"
+      ]
+    },
+    {
+      "startLine": 28874,
+      "deleteLines": 5,
+      "insert": [
+        "async function saveHandle(name, handle) {\n",
+        "  try {\n",
+        "    (await idb()).transaction(IDB_STORE, \"readwrite\").objectStore(IDB_STORE).put(handle, name);\n",
+        "  } catch {\n",
+        "  }\n",
+        "}\n",
+        "async function getHandle(name) {\n",
+        "  try {\n",
+        "    let db = await idb();\n",
+        "    return await new Promise((res) => {\n",
+        "      let rq = db.transaction(IDB_STORE, \"readonly\").objectStore(IDB_STORE).get(name);\n",
+        "      rq.onsuccess = () => res(rq.result || null), rq.onerror = () => res(null);\n",
+        "    });\n",
+        "  } catch {\n",
+        "    return null;\n",
+        "  }\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 28892,
+      "deleteLines": 4,
+      "insert": [
+        "function addRecent(name, handle) {\n",
+        "  let a = getNames().filter((x) => x !== name);\n",
+        "  a.unshift(name), a.length > 12 && (a.length = 12), setNames(a), handle && FSA && saveHandle(name, handle);\n",
+        "}\n",
+        "async function openRecent(name) {\n",
+        "  if (FSA) {\n",
+        "    let h = await getHandle(name);\n",
+        "    if (h)\n",
+        "      try {\n",
+        "        let p = await h.queryPermission({ mode: \"read\" });\n",
+        "        if (p !== \"granted\" && (p = await h.requestPermission({ mode: \"read\" })), p === \"granted\") {\n",
+        "          await loadFromHandle(h, name);\n",
+        "          return;\n",
+        "        }\n",
+        "      } catch {\n",
+        "      }\n",
+        "  }\n",
+        "  fileInput.click();\n",
+        "}\n",
+        "function renderRecents() {\n",
+        "  let names = getNames();\n",
+        "  if (recentsMenu.innerHTML = \"\", !names.length) {\n",
+        "    let d = document.createElement(\"div\");\n",
+        "    d.className = \"ritem empty\", d.textContent = \"(no recent files)\", recentsMenu.appendChild(d);\n",
+        "    return;\n",
+        "  }\n",
+        "  for (let n of names) {\n",
+        "    let d = document.createElement(\"div\");\n",
+        "    d.className = \"ritem\", d.textContent = n, d.title = n, d.dataset.name = n, recentsMenu.appendChild(d);\n",
+        "  }\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 28897,
+      "deleteLines": 1,
+      "insert": []
+    },
+    {
+      "startLine": 28904,
+      "deleteLines": 1,
+      "insert": [
+        "  recentsMenu.classList.contains(\"show\") ? recentsMenu.classList.remove(\"show\") : showRecents();\n"
+      ]
+    },
+    {
+      "startLine": 28906,
+      "deleteLines": 3,
+      "insert": [
+        "recentsMenu.addEventListener(\"click\", (e) => {\n",
+        "  let item = e.target.closest(\".ritem\");\n",
+        "  if (item?.dataset.name) openRecent(item.dataset.name), recentsMenu.classList.remove(\"show\");\n",
+        "});\n",
+        "addEventListener(\"pointerdown\", (e) => {\n",
+        "  recentsMenu.classList.contains(\"show\") && !recentsBtn.contains(e.target) && !recentsMenu.contains(e.target) && recentsMenu.classList.remove(\"show\");\n",
+        "});\n",
+        "addEventListener(\"keydown\", (e) => {\n",
+        "  e.key === \"Escape\" && recentsMenu.classList.remove(\"show\");\n",
+        "});\n"
+      ]
+    },
+    {
+      "startLine": 28977,
+      "deleteLines": 1,
+      "insert": [
+        "      let cmd = cmdDuplicateToRoot(clipNodes);\n",
+        "      runCmd(cmd), copyObjParams(cmd.map), selNodes.clear(), selTags.clear(), cmd.newRoots.forEach((h) => selNodes.add(h)), anchorNode = cmd.newRoots.length ? getObj(cmd.newRoots[0]) : null, lastBracketSig = null, refreshSelClasses();\n"
+      ]
+    },
+    {
+      "startLine": 29054,
+      "deleteLines": 1,
+      "insert": [
+        "    e.preventDefault(), runCmd(cmdDelete([...selNodes])), selNodes.clear(), selTags.clear(), anchorNode = null, renderRows(), refreshSelClasses();\n"
+      ]
+    },
+    {
+      "startLine": 29058,
+      "deleteLines": 1,
+      "insert": [
+        "    e.preventDefault(), selNodes.size ? (runCmd(cmdDelete([...selNodes])), selNodes.clear()) : (runCmd(cmdDeleteTags([...selTags])), selTags.clear()), renderRows(), refreshSelClasses();\n"
+      ]
+    },
+    {
+      "startLine": 29172,
+      "deleteLines": 1,
+      "insert": [
+        "  }, setCoordinates = (values) => {\n"
+      ]
+    },
+    {
+      "startLine": 29178,
       "deleteLines": 1,
       "insert": [
         "    apply(\"pos\", values.position), apply(\"rot\", values.rotation), apply(\"size\", values.size), syncCube(), polyMode && editPivot ? (polyPivotMatrix = getGizmoWorldArray().slice(), scheduleRender()) : commitCoordinateSnapshot(before);\n"
       ]
     },
     {
-      "startLine": 32872,
+      "startLine": 29180,
+      "deleteLines": 1,
+      "insert": [
+        "  }, viewRect = (view) => {\n"
+      ]
+    },
+    {
+      "startLine": 29246,
+      "deleteLines": 1,
+      "insert": [
+        "      else if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");finishLineCut();}});\n"
+      ]
+    },
+    {
+      "startLine": 29270,
+      "deleteLines": 2,
+      "insert": [
+        "      if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");finishLineCut();}});\n",
+        "      else if (vertexTools.mode===\"closeHole\") (updateCloseHolePreview(x,y,vi),closeHoveredHole()||leaveVertexTool(false));\n"
+      ]
+    },
+    {
+      "startLine": 29276,
+      "deleteLines": 1,
+      "insert": [
+        "  }, runEdgeTool = (name, options = {}) => {\n"
+      ]
+    },
+    {
+      "startLine": 29294,
+      "deleteLines": 1,
+      "insert": [
+        "      if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");finishLineCut();}});\n"
+      ]
+    },
+    {
+      "startLine": 29300,
+      "deleteLines": 1,
+      "insert": [
+        "  }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == \"boolean\" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {\n"
+      ]
+    },
+    {
+      "startLine": 29303,
+      "deleteLines": 2,
+      "insert": [
+        "    options.extrude && (polyElementMode === \"edge\" || polyElementMode === \"face\") && extrudeSelectedForDrag();\n",
+        "    let snap = capturePolySelection(), frame = polyFrameMatrix(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(options.translate) ? options.translate : [0, 0, 0], rr = Array.isArray(options.rotate) ? options.rotate : [0, 0, 0], ss = Array.isArray(options.scale) ? options.scale : [1, 1, 1], delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(Number.isFinite(+ss[0]) ? +ss[0] : 1, Number.isFinite(+ss[1]) ? +ss[1] : 1, Number.isFinite(+ss[2]) ? +ss[2] : 1)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));\n"
+      ]
+    },
+    {
+      "startLine": 29316,
+      "deleteLines": 1,
+      "insert": [
+        "  }, meshTopology = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 29348,
+      "deleteLines": 3,
+      "insert": [
+        "  }, makePolygonal = (refs) => {\n",
+        "    refs != null && selectObjects(refs);\n",
+        "    let cmd = cmdMakePolygonal([...selNodes]);\n"
+      ]
+    },
+    {
+      "startLine": 29352,
+      "deleteLines": 2,
+      "insert": [
+        "    return runCmd(cmd), { object: cmd.result, state: state() };\n",
+        "  }, splineTopology = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 29436,
+      "deleteLines": 3,
+      "insert": [
+        "  }, connectDelete = (refs) => {\n",
+        "    refs != null && selectObjects(refs);\n",
+        "    let cmd = cmdConnectDelete([...selNodes]);\n"
+      ]
+    },
+    {
+      "startLine": 29440,
+      "deleteLines": 2,
+      "insert": [
+        "    return runCmd(cmd), { object: cmd.result || null, state: state() };\n",
+        "  }, beginSplineComponent = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 29466,
+      "deleteLines": 1,
+      "insert": [
+        "  }, addSplineBevelAI = (options = {}) => {\n"
+      ]
+    },
+    {
+      "startLine": 29807,
+      "deleteLines": 4,
+      "insert": [
+        "  }, deleteObjectsAI = (refs) => {\n",
+        "    let hashes = resolveObjects(refs);\n",
+        "    if (!hashes.length) throw new Error(\"no matching objects\");\n",
+        "    runCmd(cmdDelete(hashes));\n"
+      ]
+    },
+    {
+      "startLine": 29813,
+      "deleteLines": 2,
+      "insert": [
+        "    return selTags.clear(), treeChanged(), refreshSelClasses(), { deleted: hashes, resources: resourceStatsAI() };\n",
+        "  }, reparentObjectsAI = (refs, targetRef, mode = \"child\") => {\n"
+      ]
+    },
+    {
+      "startLine": 30120,
+      "deleteLines": 1,
+      "insert": [
+        "    bevelEdges(options={}){if(!beginEdgeBevel(options))throw Error('Bevel: select polygon or cage edges');return api.getEdgeBevelState();},\n"
+      ]
+    },
+    {
+      "startLine": 33441,
       "deleteLines": 1,
       "insert": []
     }

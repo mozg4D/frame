@@ -1,11 +1,7 @@
 {
   "schema": "frame-current-editor-source-files-v1",
+  "version": "r243-editor-lifecycle-recents",
   "files": [
-    {
-      "path": "README.md",
-      "bytes": 5144,
-      "sha256": "fb188f55d584594bfcb86bc71f0a17e2710c74816e37f58eb835b76dba92fe7b"
-    },
     {
       "path": "affine-component-preview.mjs",
       "bytes": 59188,
@@ -23,13 +19,13 @@
     },
     {
       "path": "base-extraction.json",
-      "bytes": 14863,
-      "sha256": "bdaf1d8bf80a6ab84246bd41c2718f672139295a26715537b8364e67a0984f76"
+      "bytes": 32389,
+      "sha256": "0268fc2db14f3f5d50c2d992b27aab22c781f546383e416f0d88280a9123f0ca"
     },
     {
       "path": "build-manifest.json",
-      "bytes": 1361,
-      "sha256": "6267168ebdf7d50bc7de8fdac763014c02967a71b052576c8cfc2c5899b9fc67"
+      "bytes": 1445,
+      "sha256": "74e3bffec4a06a0430deaf3d143a64c1ae5cb499651f80c3918873419b76bc47"
     },
     {
       "path": "derived-selection-integration.json",
@@ -57,9 +53,19 @@
       "sha256": "f6766572fef8bdb90988fa42a18d24300076b1910a0591080f7a5931e5b5afb9"
     },
     {
+      "path": "r243-integration.json",
+      "bytes": 174515,
+      "sha256": "e0d6e4041dd2f18cc3e005976d925960c433507dc53ed44cc203ee1bddc06c2c"
+    },
+    {
+      "path": "README.md",
+      "bytes": 5390,
+      "sha256": "986645969121d98b2014a3a19fd3dd30cf6ec440be79ba6988ea5af9cdd79a50"
+    },
+    {
       "path": "rebuild.mjs",
-      "bytes": 13350,
-      "sha256": "6ddbfa05ceae2c3feeb0655225cdfecaa9efd5d91d1cfb7f10794d2e66ab4c5a"
+      "bytes": 13866,
+      "sha256": "edc2f241b90d08484a9f671aa7fc23070bd05e1efd5ab829c7655880af8c870c"
     },
     {
       "path": "rigid-component-preview.mjs",
@@ -85,11 +91,6 @@
       "path": "stl-postprocess.mjs",
       "bytes": 6267,
       "sha256": "d58572698090cd8026cb67311530a228ae45625eed160e2b2fe076b8e6104ae4"
-    },
-    {
-      "path": "tests/affine/README.md",
-      "bytes": 2517,
-      "sha256": "8c29e608ae2062ee4832b3f1dc015aff160e3da3c816e0eb6dab7ef6e73530e7"
     },
     {
       "path": "tests/affine/display/abort-cleanup-fault-matrix.mjs",
@@ -442,6 +443,11 @@
       "sha256": "d03a27709b5d291ce0da2237fe547a57aceeed022e31b1d8cc43b1a8ab57d9fc"
     },
     {
+      "path": "tests/affine/README.md",
+      "bytes": 2517,
+      "sha256": "8c29e608ae2062ee4832b3f1dc015aff160e3da3c816e0eb6dab7ef6e73530e7"
+    },
+    {
       "path": "tests/affine/run-review.mjs",
       "bytes": 1421,
       "sha256": "4f67907395895c5b41c766d1293e6254a19e23ed08b9de14b5a5b35ada41ae33"
@@ -588,13 +594,8 @@
     },
     {
       "path": "tests/current-rigid-source.mjs",
-      "bytes": 700,
-      "sha256": "56cd78c785b51716695c003594ae6baab6ea62f9ebbed0facfd79f8a2eed5225"
-    },
-    {
-      "path": "tests/edge-cache/README.md",
-      "bytes": 3404,
-      "sha256": "b4b09c710a15fc9f27439e53e0d8a4119df283fd515bdfbbf0577fd816098629"
+      "bytes": 958,
+      "sha256": "fa8eefa957d026c42b963fe5f86c7d045b23e4aafcd85c4bf86c2f1a0178826a"
     },
     {
       "path": "tests/edge-cache/inputs.mjs",
@@ -617,6 +618,11 @@
       "sha256": "9fbe9354377eb4cec20027ca104c0a2652f7f63b484b56cf2281598143cf6827"
     },
     {
+      "path": "tests/edge-cache/README.md",
+      "bytes": 3404,
+      "sha256": "b4b09c710a15fc9f27439e53e0d8a4119df283fd515bdfbbf0577fd816098629"
+    },
+    {
       "path": "tests/edge-cache/ribbon/review-ribbon.mjs",
       "bytes": 18562,
       "sha256": "0786a060cf3b30f3ff373322a84e5c3fcd501c347256b180db26222b62d371ec"
@@ -630,11 +636,6 @@
       "path": "tests/edge-cache/semantics/check-semantics.mjs",
       "bytes": 12171,
       "sha256": "b3fe2a91cf605bfc837d89e61bf03787c94951d5154b3958c2e738b1c87f0949"
-    },
-    {
-      "path": "tests/edge-selection/README.md",
-      "bytes": 4079,
-      "sha256": "ef90541ca700805840d6b09521a7716d684441f4c1d141ddf4fa94bab7f0fc00"
     },
     {
       "path": "tests/edge-selection/additional/independent-resume-controls.mjs",
@@ -687,6 +688,11 @@
       "sha256": "b685c3bf5ea2c9fd9c242a00bab3eb2aa45b39f20d721cf8bad51a85a05af4ba"
     },
     {
+      "path": "tests/edge-selection/README.md",
+      "bytes": 4079,
+      "sha256": "ef90541ca700805840d6b09521a7716d684441f4c1d141ddf4fa94bab7f0fc00"
+    },
+    {
       "path": "tests/edge-selection/receipt/receipt-adversarial.mjs",
       "bytes": 19037,
       "sha256": "17b79e66b6241a8f88213cc63736b3c7657bc06539c5ce2280f8836ab1620848"
@@ -723,8 +729,8 @@
     },
     {
       "path": "tests/guards.mjs",
-      "bytes": 8584,
-      "sha256": "367d398590a1d5915a2b387065e89286dc1edbd6ef644ebd03e2267d227ed485"
+      "bytes": 8630,
+      "sha256": "def51d9d1d92e3c0c1ff6631984af0cacd7a3140927c4fbd2411f7e49fd3836c"
     },
     {
       "path": "tests/hash-loader.mjs",
@@ -740,16 +746,6 @@
       "path": "tests/stable-face-proof.mjs",
       "bytes": 4551,
       "sha256": "ef677cd449f771b8d7e305386078dd1c3e87860bc6475f7fa2e26e7e2bdb7ce6"
-    },
-    {
-      "path": "tests/stl/LICENSE-FRAME.txt",
-      "bytes": 5021,
-      "sha256": "3a87f4b9794aa3ebfe7a173bc00f228c61d56548f119eff1fc3ca3d5137e10af"
-    },
-    {
-      "path": "tests/stl/README.md",
-      "bytes": 11516,
-      "sha256": "8124fb3c3ab64b60e4d5ba7302a0a39703a31404c95dab0315794481365129e3"
     },
     {
       "path": "tests/stl/actual-worker.mjs",
@@ -802,6 +798,11 @@
       "sha256": "f61f1e3579c029d1c55b27c2919613cb0ddcacf148e810180c82d0ef87b8a656"
     },
     {
+      "path": "tests/stl/LICENSE-FRAME.txt",
+      "bytes": 5021,
+      "sha256": "3a87f4b9794aa3ebfe7a173bc00f228c61d56548f119eff1fc3ca3d5137e10af"
+    },
+    {
       "path": "tests/stl/postprocess-contracts.mjs",
       "bytes": 10322,
       "sha256": "474056ce6305eb06e8ce525e1b052043976845c719225008ea632bab84c8ad10"
@@ -825,6 +826,11 @@
       "path": "tests/stl/postprocess-source.mjs",
       "bytes": 2206,
       "sha256": "b2e376edd378c8c499ff9500605d53405071b2c9864f8a7f31ef822c3eb51c21"
+    },
+    {
+      "path": "tests/stl/README.md",
+      "bytes": 11516,
+      "sha256": "8124fb3c3ab64b60e4d5ba7302a0a39703a31404c95dab0315794481365129e3"
     },
     {
       "path": "tests/stl/run-review.mjs",

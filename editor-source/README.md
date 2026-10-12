@@ -1,3 +1,5 @@
+This source reconstruction is updated for r243. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+
 # Current editor source
 
 This directory reconstructs the r241 edge-selection, STL-import and affine-island editor exactly. The shipped editor is the complete application source; a small hash-checked extraction delta recovers the pinned integration base without a duplicate bundle. The base rigid helper and integration steps are followed by the current affine helper, known-geometry binding helper and a compact exact delta. Subsequent STL-only helpers and compact integration deltas bind the exact crease and edge calculations, then the postprocess coordinator. The edge-selection helper, exact CM math and final checked delta complete the current source. A small reverse delta also supports pinned pre-edge regression oracles without duplicating the editor.

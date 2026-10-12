@@ -1,0 +1,99 @@
+{
+  "beforeSHA256": "2e5af192ec3642b662cb54e98483b224dc6f124a68709ad0d0cfdc76b0fb0c85",
+  "beforeBytes": 551794,
+  "afterSHA256": "eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5",
+  "afterBytes": 557302,
+  "operations": [
+    {
+      "startLine": 61,
+      "deleteLines": 0,
+      "insert": [
+        " const rigidCooperativeInputs=new WeakMap();\n"
+      ]
+    },
+    {
+      "startLine": 62,
+      "deleteLines": 0,
+      "insert": [
+        " static async createCooperatively({device,pool,positions,extras,ids,isCurrent=()=>true,admissionCurrent=isCurrent,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0))}={}){\n",
+        "  if(pool?.device!==device||!device?.queue||typeof pool.borrowCooperatively!=='function')fail('Cooperative same-device GPU pool required');\n",
+        "  if(!(positions instanceof Float32Array)||positions.length%3||!(extras instanceof Float32Array)||extras.length!==positions.length*3||!(ids instanceof Uint32Array)||!ids.length)fail('Explicit affine source layout required');\n",
+        "  const check=()=>{if(!isCurrent()||!admissionCurrent())throw new DOMException('Cooperative affine source changed','AbortError');},copy=new Uint32Array(ids.length),rows=[];let previous=-1,self;\n",
+        "  check();for(let at=0;at<ids.length;at++){const id=ids[at];if(id<=previous||id>=positions.length/3)fail('Unique ascending in-range slots required');copy[at]=id;previous=id;if((at&4095)===4095){await yieldTask();check();}}\n",
+        "  admitRigidGpuArray(positions);admitRigidGpuArray(extras);\n",
+        "  const options={device,pool,positions,extras,ids:copy,isCurrent},upload={isCurrent:()=>isCurrent()&&admissionCurrent(),yieldTask};\n",
+        "  try{\n",
+        "   for(const[data,label]of[[positions,'Frame mutable authoring display/pick positions'],[extras,'Frame mutable facet normals'],[copy,'Frozen raw component slots']]){rows.push(await pool.borrowCooperatively(data,128,label,upload));check();}\n",
+        "   rigidCooperativeInputs.set(options,{ids:copy});self=new GpuRigidIslandPreview(options);rigidCooperativeInputs.delete(options);await self.initialize();check();return self;\n",
+        "  }catch(error){self?.dispose();throw error;}finally{rigidCooperativeInputs.delete(options);for(const row of rows)pool.release(row);}\n",
+        " }\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 63,
+      "deleteLines": 1,
+      "insert": [
+        " constructor(options){const{device,pool,positions,extras,ids,isCurrent}=options,prepared=rigidCooperativeInputs.get(options);if(pool?.device!==device||!device?.queue)fail('Same-device shared GPU pool required');if(!(positions instanceof Float32Array)||positions.length%3||!(extras instanceof Float32Array)||extras.length!==positions.length*3)fail('Indexed Float32 position/normal layout required');if(!(ids instanceof Uint32Array)||!ids.length)fail('Uint32 selected raw slots required');let previous=-1;if(!prepared)for(const id of ids){if(id<=previous||id>=positions.length/3)fail('Unique ascending in-range slots required');previous=id;}this.device=device;this.pool=pool;this.isCurrent=isCurrent;this.ids=prepared?.ids??ids.slice();this.faces=this.ids;this.version=0;this.disposed=false;this.borrowed=[];admitRigidGpuArray(positions);admitRigidGpuArray(extras);this.cpuPositions=positions;this.cpuExtras=extras;this.base=null;try{this.position=this.borrow(positions,128,'Frame mutable authoring display/pick positions');this.normal=this.borrow(extras,128,'Frame mutable facet normals');this.id=this.borrow(this.ids,128,'Frozen raw component slots');this.face=this.borrow(this.faces,128,'Touched raw faces');this.base=device.createBuffer({label:'Frozen GPU gesture source',size:Math.max(4,ids.length*24),usage:128|4|8});this.gathered=false;this.last=null;this.pending=new Set();this.stats={submissions:0,uniformBytes:0,selectedVertices:ids.length,selectedNormals:this.ids.length};}catch(error){for(const row of this.borrowed)this.pool.release(row);this.borrowed=[];this.base?.destroy();this.disposed=true;throw error;}}\n"
+      ]
+    },
+    {
+      "startLine": 99,
+      "deleteLines": 0,
+      "insert": [
+        "  async borrowCooperatively(data,usage,label='Frame cooperative buffer',{minBytes=4,isCurrent=()=>true,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0)),batchBytes=262144}={}) {\n",
+        "    if(this.disposed)throw Error('GPU pool disposed');\n",
+        "    if(!ArrayBuffer.isView(data)||data instanceof DataView)throw Error('Typed source view required');\n",
+        "    if(!Number.isSafeInteger(batchBytes)||batchBytes<4)throw Error('Invalid upload batch');\n",
+        "    const check=()=>{if(this.disposed||!isCurrent())throw new DOMException('Cooperative GPU upload owner changed','AbortError');};check();\n",
+        "    usage=rigidGpuBufferUsage(data,usage);const size=Math.max(minBytes,4,Math.ceil(data.byteLength/4)*4),key=`${usage}:${size}`;\n",
+        "    if(size>this.device.limits.maxBufferSize||((usage&GPUBufferUsage.STORAGE)&&size>this.device.limits.maxStorageBufferBindingSize))throw Error(`${label}: buffer limit; explicit batching required`);\n",
+        "    const prior=this.entries.get(data)?.get(key);if(prior){prior.refs++;return prior;}\n",
+        "    let buffer;\n",
+        "    try{\n",
+        "      buffer=this.device.createBuffer({label,size,usage,mappedAtCreation:true});const target=new Uint8Array(buffer.getMappedRange()),source=new Uint8Array(data.buffer,data.byteOffset,data.byteLength);\n",
+        "      for(let at=0;at<source.length;at+=batchBytes){target.set(source.subarray(at,Math.min(at+batchBytes,source.length)),at);await yieldTask();check();}\n",
+        "      buffer.unmap();check();\n",
+        "      let variants=this.entries.get(data);if(!variants){variants=new Map();this.entries.set(data,variants);}const raced=variants.get(key);\n",
+        "      if(raced){buffer.destroy();buffer=null;raced.refs++;return raced;}\n",
+        "      const row={pool:this,buffer,data,usage,size,key,refs:1,freed:false};variants.set(key,row);this.bytes+=size;buffer=null;return row;\n",
+        "    }catch(error){buffer?.destroy();throw error;}\n",
+        "  }\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 5417,
+      "deleteLines": 0,
+      "insert": [
+        " const affineCooperativeInputs=new WeakMap();\n"
+      ]
+    },
+    {
+      "startLine": 5418,
+      "deleteLines": 0,
+      "insert": [
+        " static async createCooperatively({device,pool,positions,extras,ids,isCurrent=()=>true,admissionCurrent=isCurrent,yieldTask=()=>new Promise(resolve=>setTimeout(resolve,0))}={}){\n",
+        "  if(pool?.device!==device||!device?.queue||typeof pool.borrowCooperatively!=='function')fail('Cooperative same-device GPU pool required');\n",
+        "  if(!(positions instanceof Float32Array)||positions.length%3||!(extras instanceof Float32Array)||extras.length!==positions.length*3||!(ids instanceof Uint32Array)||!ids.length)fail('Explicit affine source layout required');\n",
+        "  const check=()=>{if(!isCurrent()||!admissionCurrent())throw new DOMException('Cooperative affine source changed','AbortError');},copy=new Uint32Array(ids.length),rows=[];let previous=-1,self;\n",
+        "  check();for(let at=0;at<ids.length;at++){const id=ids[at];if(id<=previous||id>=positions.length/3)fail('Unique ascending in-range slots required');copy[at]=id;previous=id;if((at&4095)===4095){await yieldTask();check();}}\n",
+        "  admitRigidGpuArray(positions);admitRigidGpuArray(extras);\n",
+        "  const options={device,pool,positions,extras,ids:copy,isCurrent},upload={isCurrent:()=>isCurrent()&&admissionCurrent(),yieldTask};\n",
+        "  try{\n",
+        "   for(const[data,label]of[[positions,'Frame mutable authoring display/pick positions'],[extras,'Frame mutable facet normals'],[copy,'Frozen raw component slots']]){rows.push(await pool.borrowCooperatively(data,128,label,upload));check();}\n",
+        "   affineCooperativeInputs.set(options,{ids:copy});self=new GpuAffineCornerPreview(options);affineCooperativeInputs.delete(options);await self.initialize();check();return self;\n",
+        "  }catch(error){self?.dispose();throw error;}finally{affineCooperativeInputs.delete(options);for(const row of rows)pool.release(row);}\n",
+        " }\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 5419,
+      "deleteLines": 1,
+      "insert": [
+        " constructor(options){const{device,pool,positions,extras,ids,isCurrent}=options,prepared=affineCooperativeInputs.get(options);if(pool?.device!==device||!device?.queue)fail('Same-device shared GPU pool required');if(!(positions instanceof Float32Array)||positions.length%3||!(extras instanceof Float32Array)||extras.length!==positions.length*3)fail('Indexed Float32 position/normal layout required');if(!(ids instanceof Uint32Array)||!ids.length)fail('Uint32 selected raw slots required');let previous=-1;if(!prepared)for(const id of ids){if(id<=previous||id>=positions.length/3)fail('Unique ascending in-range slots required');previous=id;}this.device=device;this.pool=pool;this.isCurrent=isCurrent;this.ids=prepared?.ids??ids.slice();this.faces=this.ids;this.version=0;this.disposed=false;this.borrowed=[];admitRigidGpuArray(positions);admitRigidGpuArray(extras);this.cpuPositions=positions;this.cpuExtras=extras;this.base=null;try{this.position=this.borrow(positions,128,'Frame mutable authoring display/pick positions');this.normal=this.borrow(extras,128,'Frame mutable facet normals');this.id=this.borrow(this.ids,128,'Frozen raw component slots');this.face=this.borrow(this.faces,128,'Touched raw faces');this.base=device.createBuffer({label:'Frozen GPU gesture source',size:Math.max(4,ids.length*24),usage:128|4|8});this.gathered=false;this.last=null;this.pending=new Set();this.stats={submissions:0,uniformBytes:0,selectedVertices:ids.length,selectedNormals:this.ids.length};}catch(error){for(const row of this.borrowed)this.pool.release(row);this.borrowed=[];this.base?.destroy();this.disposed=true;throw error;}}\n"
+      ]
+    }
+  ]
+}

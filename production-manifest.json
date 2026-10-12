@@ -1,5 +1,5 @@
 {
-  "version": "r242-slicer-cache",
+  "version": "r243-editor-lifecycle-recents",
   "assets": {
     "frame-three-core": {
       "path": "./modules/frame-three-core.9edde002b066a9a05676.js",
@@ -151,9 +151,9 @@
       "critical": true
     },
     "editor": {
-      "path": "./modules/editor.4a5ef2cdfe5c6b0bfe06.js",
-      "sha256": "4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b",
-      "bytes": 2752641,
+      "path": "./modules/editor.963cb8f7a0affc14321a.js",
+      "sha256": "963cb8f7a0affc14321ab18c0587222270ac078400c1420b8923ecfab12d6a93",
+      "bytes": 2866786,
       "critical": true
     },
     "overhang-worker": {
@@ -356,9 +356,9 @@
       "critical": true
     },
     "frame-native": {
-      "path": "./modules/native.2e5af192ec3642b662cb.js",
-      "sha256": "2e5af192ec3642b662cb54e98483b224dc6f124a68709ad0d0cfdc76b0fb0c85",
-      "bytes": 551794,
+      "path": "./modules/native.eaf66728b97f40f0b783.js",
+      "sha256": "eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5",
+      "bytes": 557302,
       "critical": true
     }
   }

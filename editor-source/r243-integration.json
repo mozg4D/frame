@@ -1,0 +1,1550 @@
+{
+  "beforeSHA256": "4a5ef2cdfe5c6b0bfe062d1a7cc5970a269e855f0a1cef9df2ab2ddad5ede74b",
+  "beforeBytes": 2752641,
+  "afterSHA256": "963cb8f7a0affc14321ab18c0587222270ac078400c1420b8923ecfab12d6a93",
+  "afterBytes": 2866786,
+  "operations": [
+    {
+      "startLine": 12868,
+      "deleteLines": 1,
+      "insert": [
+        "frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));\n"
+      ]
+    },
+    {
+      "startLine": 12982,
+      "deleteLines": 1,
+      "insert": [
+        "frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));\n"
+      ]
+    },
+    {
+      "startLine": 13125,
+      "deleteLines": 1,
+      "insert": [
+        "    if(sameSelection())return frameAffineRunExactAction('Connect / To editable',()=>frameAffineExecutePreparedCommand(cmdConnectDelete(hashes),null,hashes),{hashes,guard:sameSelection});\n"
+      ]
+    },
+    {
+      "startLine": 13338,
+      "deleteLines": 1,
+      "insert": [
+        "frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));\n"
+      ]
+    },
+    {
+      "startLine": 13423,
+      "deleteLines": 1,
+      "insert": [
+        "frameAffineEnsureAuthoring(frameAffineAuthoringHashes(hashes));\n"
+      ]
+    },
+    {
+      "startLine": 15176,
+      "deleteLines": 2,
+      "insert": [
+        "  if(commitLine&&vertexTools.mode==='lineCut'&&frameAffineAuthoringPending([...selNodes]))return finishLineCut();if (vpState.renderer?.domElement && (vpState.renderer.domElement.style.cursor = \"\"), vertexTools.mode === \"lineCut\") {\n",
+        "    return commitLine ? finishLineCut() : (vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());\n"
+      ]
+    },
+    {
+      "startLine": 15325,
+      "deleteLines": 1,
+      "insert": [
+        "if(frameAffineAuthoringPending([...selNodes])){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Add point',()=>addPointAt(cx,cy,vi,null),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}frameAffineEnsureAuthoring([...selNodes]);\n"
+      ]
+    },
+    {
+      "startLine": 15328,
+      "deleteLines": 1,
+      "insert": [
+        "  if(snap?.then)return frameAffineAfterExactPicker(snap,snap=>frameNativeCommitClick(()=>addPointAt(cx,cy,vi,{snap})),'Add point');\n"
+      ]
+    },
+    {
+      "startLine": 15366,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffineAuthoringPending([...selNodes])){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Add point',()=>addPointToolClick(cx,cy,vi),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}return frameAffineAfterExactPicker(resolveVertexToolSnap(cx,cy,vi,true,null,'click'),snap=>frameNativeCommitClick(()=>snap?(snap.type!=='vertex'&&addPointAt(cx,cy,vi,{snap}),true):false),'Add point');\n"
+      ]
+    },
+    {
+      "startLine": 15519,
+      "deleteLines": 1,
+      "insert": [
+        "if(frameAffineAuthoringPending([...selNodes])){const line=vertexTools.line,points=line.map(p=>p.screen.slice()),mode=vertexTools.mode,view=frameAffinePointerView(vertexTools.view);return frameAffineRunExactAction('Line cut',()=>applyLineCut(),{guard:()=>frameAffineLineCutCurrent(line,points,mode,view)});}frameAffineEnsureAuthoring([...selNodes]);\n"
+      ]
+    },
+    {
+      "startLine": 15548,
+      "deleteLines": 1,
+      "insert": [
+        "  if(vertexTools.mode==='lineCut'&&frameAffineAuthoringPending([...selNodes])){const line=vertexTools.line,points=line.map(p=>p.screen.slice()),mode=vertexTools.mode,view=frameAffinePointerView(vertexTools.view);return frameAffineRunExactAction('Line cut',()=>finishLineCut(),{guard:()=>frameAffineLineCutCurrent(line,points,mode,view)});}vertexTools.mode === \"lineCut\" && (applyLineCut(), vertexTools.mode = null, vertexTools.line = [], hideVertexToolGuides(), lastAttrKey = null, refreshAttributesPanel());\n"
+      ]
+    },
+    {
+      "startLine": 15631,
+      "deleteLines": 1,
+      "insert": [
+        "if(frameAffineAuthoringPending([...selNodes])){const hit=vertexTools.hole,mode=vertexTools.mode,vi=vertexTools.view,cx=vpLastX,cy=vpLastY,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Close hole',()=>{updateCloseHolePreview(cx,cy,vi);return closeHoveredHole();},{guard:()=>vertexTools.hole===hit&&vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}frameAffineEnsureAuthoring(vertexTools.hole?[vertexTools.hole.h]:[]);\n"
+      ]
+    },
+    {
+      "startLine": 15642,
+      "deleteLines": 1,
+      "insert": [
+        "if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Bridge edges',()=>bridgeSelectedEdges(),{hashes:[...polySelection.items.keys()]});frameAffineEnsureAuthoring([...polySelection.items.keys()]);\n"
+      ]
+    },
+    {
+      "startLine": 16637,
+      "deleteLines": 1,
+      "insert": [
+        " const pendingStart=frameAffineDeferGizmoStart(g,e);if(pendingStart)return pendingStart;frameRigidGestureGeneration++;frameRigidCancelDerived();frameAffineCancelPublication();\n"
+      ]
+    },
+    {
+      "startLine": 16763,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffinePendingPointerMove(e))return;const deferred=gizDrag?._frameDeferredStart;\n"
+      ]
+    },
+    {
+      "startLine": 16836,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffinePendingPointerEnd(e))return;if(polyFocusActive()&&!editPivot&&!uvEdit)frameFlushPolygonGizmoMove(e);else frameClearPolygonGizmoMove();\n"
+      ]
+    },
+    {
+      "startLine": 16992,
+      "deleteLines": 0,
+      "insert": [
+        "    if(frameAffinePendingPointerEnd(event))return;\n"
+      ]
+    },
+    {
+      "startLine": 17098,
+      "deleteLines": 1,
+      "insert": [
+        "  else if(gesture?.mode==='gizmo'&&(gizDrag||frameAffineAuthoringPointer))endGizDrag({type:cancelled?'pointercancel':'pointerup',pointerId:gesture.pointId,button:0,buttons:0});\n"
+      ]
+    },
+    {
+      "startLine": 17167,
+      "deleteLines": 1,
+      "insert": [
+        "  else if(gesture.mode==='gizmo'&&(gizDrag||frameAffineAuthoringPointer))doGizDrag(mobilePointerEvent(p));\n"
+      ]
+    },
+    {
+      "startLine": 17268,
+      "deleteLines": 1,
+      "insert": [
+        "  if (mobileTouchMove(e)) return;if(frameAffinePendingPointerMove(e))return;\n"
+      ]
+    },
+    {
+      "startLine": 17313,
+      "deleteLines": 1,
+      "insert": [
+        "  if (mobileTouchUp(e)) return;if(frameAffinePendingPointerEnd(e))return;\n"
+      ]
+    },
+    {
+      "startLine": 17368,
+      "deleteLines": 1,
+      "insert": [
+        "      vpState.renderer?.isFrameNativeViewportRenderer?frameNativeQueueClick({...e,clientX:e.clientX,clientY:e.clientY,view:vi},event=>frameAffineCloseHoleAt(event.clientX,event.clientY,vi)).catch(frameNativePickerError):frameAffineCloseHoleAt(e.clientX,e.clientY,vi);\n"
+      ]
+    },
+    {
+      "startLine": 17704,
+      "deleteLines": 1,
+      "insert": [
+        "frameAffineCommandPreflight(c); // Fail closed for unclassified non-render-only consumers; known outer actions await exact readiness.\n"
+      ]
+    },
+    {
+      "startLine": 18294,
+      "deleteLines": 1,
+      "insert": [
+        "if(frameAffineAuthoringPending([...polySelection.items.keys()])){const requested={...options};return frameAffineRunExactAction('Bevel edges',()=>beginEdgeBevel(requested),{hashes:[...polySelection.items.keys()]});}frameAffineEnsureAuthoring([...polySelection.items.keys()]);\n"
+      ]
+    },
+    {
+      "startLine": 18338,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Bevel edges',()=>startEdgeBevelFromMenu(),{hashes:[...polySelection.items.keys()]});try{beginEdgeBevel({interactive:true});}catch(error){attrContent.innerHTML='';const row=document.createElement('div');row.className='attr-hint';row.textContent=error.message;attrContent.appendChild(row);activateTab('tabAttributes');}\n"
+      ]
+    },
+    {
+      "startLine": 21633,
+      "deleteLines": 1,
+      "insert": [
+        "document.addEventListener(\"keydown\", (e) => {if(e.key===\"Escape\"&&_scrubSession?.cancelNumericScrub?.(e))return;if(e.key===\"Escape\"&&polyCoordinatePivotEdit?.kind===\"poly-pivot\"&&_scrubSession&&_scrubSession.inp!==e.target&&!_scrubSession.inp.contains(e.target)){e.preventDefault();e.stopImmediatePropagation();_scrubSession.end(!1);return;}_endSessionOutside(e.target);}, !0);\n"
+      ]
+    },
+    {
+      "startLine": 21679,
+      "deleteLines": 1,
+      "insert": [
+        "  o=frameAffineCoordinateControl(inp,o);frameNumericPointerInput(inp);\n"
+      ]
+    },
+    {
+      "startLine": 21728,
+      "deleteLines": 1,
+      "insert": [
+        "    _scrubSession && _scrubSession.inp !== inp && _scrubSession.end(!0), before === null && (before = getBefore()), _scrubActive = inp, _scrubSession = { inp, end: localEnd, cancelNumericScrub(e) {\n",
+        "      if(!scrubbing||!before?.numericScrubbing||before.closed||!frameAffineNumericSessions.has(before)||before.numericPreviewInput!==inp)return false;\n",
+        "      e.preventDefault();e.stopImmediatePropagation();cancelling=true;localEnd(false);clearNumericInputText(inp);setNumericInputDisplay(inp,o.get(),hasPrec?o.prec:null,true);scrubbing=false;document.body.style.cursor=\"\";inp.blur();cancelling=false;return true;\n",
+        "    } };\n"
+      ]
+    },
+    {
+      "startLine": 21773,
+      "deleteLines": 1,
+      "insert": [
+        "  let endScrub = (e) => {\n",
+        "    if(before?.numericScrubbing&&e?.pointerId!==pid)return;\n"
+      ]
+    },
+    {
+      "startLine": 21776,
+      "deleteLines": 1,
+      "insert": [
+        "  const cancelScrub=e=>{if(before?.numericScrubbing){if(e.pointerId!==pid)return;localEnd(false);scrubbing=false;moved=false;pid=null;}else endScrub(e);};\n",
+        "  inp.addEventListener(\"pointerup\", endScrub), inp.addEventListener(\"pointercancel\", cancelScrub), addEventListener(\"pointerup\", endScrub), addEventListener(\"pointercancel\", cancelScrub), inp.addEventListener(\"dblclick\", (e) => {\n"
+      ]
+    },
+    {
+      "startLine": 22625,
+      "deleteLines": 1,
+      "insert": [
+        "  const requestedRefs=Array.isArray(refs)?refs.slice():[refs];if(frameAffineAuthoringPending(frameAffineAuthoringHashes(requestedRefs))){const requestedOptions={...options};return frameAffineRunExactAction('To spline patch',()=>convertToSplinePatch(Array.isArray(refs)?requestedRefs:requestedRefs[0],selectionBound,requestedOptions),{hashes:requestedRefs});}if(pendingSplinePatchConversion)return pendingSplinePatchConversion;\n"
+      ]
+    },
+    {
+      "startLine": 23513,
+      "deleteLines": 1,
+      "insert": [
+        "  if(ctrl&&frameAffineAuthoringPending(frameAffineAuthoringHashes(hashes))){const refs=hashes.slice(),target=drop.target,saved={...drop};return frameAffineRunExactAction('Copy objects',()=>frameAffineExecutePreparedCommand(cmdCopyTo(refs,saved),cmd=>copyObjParams(cmd.map),refs),{hashes:refs,guard:()=>OBJ.get(target.hash)===target});}let cmd = ctrl ? cmdCopyTo(hashes, drop) : cmdReparent(hashes, drop);\n"
+      ]
+    },
+    {
+      "startLine": 24123,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffineAuthoringPending()){const material=MATS.get(matHash),hashes=frameAffineMaterialScope(target?[target]:[...polyFaceTargets().keys(),...splineCellMaterialTargets().keys()]);return frameAffineRunExactAction('Assign component material',()=>assignMaterialDrop(matHash,target),{hashes,guard:()=>MATS.get(matHash)===material});}const polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets();\n"
+      ]
+    },
+    {
+      "startLine": 24193,
+      "deleteLines": 1,
+      "insert": [
+        "  const target=OBJ.get(h);return frameAffineRunExactAction('Create textured material',async row=>{const check=()=>{if(row.cancelled||!row.owned||!frameAffineAuthoringIntentCurrent(row.owned))throw row.error??new DOMException('Texture target changed','AbortError');};let ft = await fetchTex(url);\n"
+      ]
+    },
+    {
+      "startLine": 24195,
+      "deleteLines": 1,
+      "insert": [
+        "  check();let im = await textureImageFromBytes(ft.bytes,ft.mime);\n"
+      ]
+    },
+    {
+      "startLine": 24197,
+      "deleteLines": 2,
+      "insert": [
+        "  check();let d = getMat(getDefaultMatHash()), base = d ? { h: d.h, s: d.s, l: 100, emm: d.emm, rough: d.rough, metal: d.metal, opac: d.opac, bump: d.bump } : { h: 0, s: 0, l: 100, emm: 0, rough: 50, metal: 0, opac: 0, bump: 0 }, newHash = makeMat(Object.assign({ name: nextMatName() }, base, { map: im, texBytes: ft.texId?null:ft.bytes, texMime: ft.texId?null:ft.mime, texId:ft.texId||null }));\n",
+        "  refreshMatVisuals(newHash);addMatCard(newHash);return frameAffineMaterialApply(newHash,h,-1,usePolySelection,true);},{hashes:frameAffineMaterialScope([h]),guard:()=>!!target&&OBJ.get(h)===target,force:true});\n"
+      ]
+    },
+    {
+      "startLine": 24201,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffineAuthoringPending()){const node=OBJ.get(h),tag=node?.tags[i];return frameAffineRunExactAction('Make material unique',()=>makeTagMaterialUnique(h,i),{hashes:frameAffineMaterialScope([h]),guard:()=>OBJ.get(h)===node&&node?.tags[i]===tag});}let n = getObj(h), tag = n && n.tags[i];\n"
+      ]
+    },
+    {
+      "startLine": 24271,
+      "deleteLines": 1,
+      "insert": [
+        "      refreshMatVisuals(newHash), addMatCard(newHash), frameAffineMaterialDrop(newHash,row.dataset.h,replaceIdx);\n"
+      ]
+    },
+    {
+      "startLine": 24274,
+      "deleteLines": 1,
+      "insert": [
+        "      return frameAffineMaterialDrop(cardHash,row.dataset.h,replaceIdx);\n"
+      ]
+    },
+    {
+      "startLine": 24298,
+      "deleteLines": 2,
+      "insert": [
+        "      refreshMatVisuals(newHash), addMatCard(newHash), frameAffineMaterialDrop(newHash,h,-1);\n",
+        "    } else if(cardHash&&getMat(cardHash))return frameAffineMaterialDrop(cardHash,h,-1);\n"
+      ]
+    },
+    {
+      "startLine": 24782,
+      "deleteLines": 0,
+      "insert": [
+        "  const component=frameComponentCurrentExtent(frame);if(component)return component;\n"
+      ]
+    },
+    {
+      "startLine": 24907,
+      "deleteLines": 0,
+      "insert": [
+        "  const component=frameComponentCurrentFrame(bounds);if(component)return component;\n"
+      ]
+    },
+    {
+      "startLine": 24917,
+      "deleteLines": 0,
+      "insert": [
+        "  measurements??=frameAffineNumericCurrentMeasurements();\n"
+      ]
+    },
+    {
+      "startLine": 25232,
+      "deleteLines": 1,
+      "insert": [
+        "// Metadata branches consume their current owned state; polygon geometry stays exact via capturePolyGeometries.\n"
+      ]
+    },
+    {
+      "startLine": 25562,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameAffineAuthoringPending([...polySelection.items.keys()]))return frameAffineRunExactAction('Delete elements',()=>deleteSelectedPolyElements(),{hashes:[...polySelection.items.keys()]});let hashes = [...polySelection.items.keys()], beforeGeom = capturePolyGeometries(hashes), beforeSel = capturePolySelectionState(), changed = !1;\n"
+      ]
+    },
+    {
+      "startLine": 26361,
+      "deleteLines": 0,
+      "insert": [
+        "  if(frameRigidInput?.affine&&frameRigidInput.t.domain!=='face'&&!frameRigidFallthrough){bridgeTransform();return;}\n"
+      ]
+    },
+    {
+      "startLine": 26379,
+      "deleteLines": 0,
+      "insert": [
+        "// Private certification of the existing component selection; UI sets stay in their domain.\n",
+        "const frameComponentOwnedSelections=new WeakMap();\n",
+        "const frameAffineAuthoringRows=new Set(),frameAffineAuthoringCanonicalReceipts=new WeakMap(),frameAffineNumericSessions=new Set();\n",
+        "let frameAffineAuthoringTail=Promise.resolve(),frameAffineAuthoringLastRow=null,frameAffineAuthoringPointer=null,frameAffineAuthoringPointerReplay=null,frameAffineAuthoringNoticeTimer=null,frameAffinePreparedCommandEpoch=0;\n",
+        "function frameAffineAuthoringHashes(hashes=null){if(!hashes)return null;const out=new Set(),refs=typeof frameIncludeOwnedPaths==='function'?frameIncludeOwnedPaths([...hashes]):hashes;for(const h of refs)collectSubtree(h,out);return [...out];}\n",
+        "function frameAffineAuthoringNotice(label,error){\n",
+        " const cancelled=error?.name==='AbortError',text=cancelled?`${label} cancelled because its editing context changed.`:`Could not complete ${label.toLowerCase()}.`;\n",
+        " frameAffineNotes.errors.push(text+(cancelled?'':' '+String(error)));\n",
+        " if(typeof document==='undefined')return;let el=document.getElementById('frameAuthoringNotice');if(!el){el=document.createElement('div');el.id='frameAuthoringNotice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:fixed;right:16px;top:46px;padding:8px 12px;background:#303236;color:#eee;border:1px solid #555;border-radius:5px;z-index:10000;pointer-events:none;font:14px sans-serif';document.body.append(el);}clearTimeout(frameAffineAuthoringNoticeTimer);el.textContent=text;el.style.opacity='1';frameAffineAuthoringNoticeTimer=setTimeout(()=>{el.style.opacity='0';},2400);\n",
+        "}\n",
+        "function frameAffineAuthoringIntent(hashes=null){\n",
+        " const targets=hashes?new Set(hashes):new Set([...pickMeshes.keys()]),base=frameAffineExactIntent(hashes);\n",
+        " return{base,targets:[...targets].map(h=>{const mesh=pickMeshes.get(h);mesh?.updateMatrixWorld(true);return{h,node:OBJ.get(h),mesh,stamp:mesh?frameAffineSourceStamp(mesh):null,world:mesh?.matrixWorld.elements.slice(),stage:base.stages.find(r=>r.stage.h===h)?.stage};}),poly:[...polySelection.items].map(([h,e])=>({h,e,sets:frameRigidSetSnapshots([e.faces,e.vertices,e.edges]),context:base.stages.find(r=>r.stage.h===h&&r.stage.context.entry===e)?.stage.context})),polyRevision:framePolySelectionRevision,uv:uvEdit,pivotEdit:editPivot,configuration:{polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode}};\n",
+        "}\n",
+        "function frameAffineAuthoringIntentCurrent(intent){\n",
+        " const configuration={polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode};if(!frameAffineExactIntentCurrent(intent.base)||intent.uv!==uvEdit||intent.pivotEdit!==editPivot||!Object.keys(configuration).every(k=>Object.is(configuration[k],intent.configuration[k]))||intent.poly.length!==polySelection.items.size)return false;\n",
+        " if(!intent.poly.every(({h,e,sets,context})=>polySelection.items.get(h)===e&&(context?frameComponentSelectionCurrent(context):intent.polyRevision===framePolySelectionRevision&&frameRigidSetSnapshotsCurrent(sets))))return false;\n",
+        " return intent.targets.every(({h,node,mesh,stamp,world,stage})=>{if(OBJ.get(h)!==node||pickMeshes.get(h)!==mesh)return false;if(!mesh)return true;mesh.updateMatrixWorld(true);return world.every((v,i)=>v===mesh.matrixWorld.elements[i])&&(frameAffineStampCurrent(stamp)||!!stage?.canonicalSnapshot&&frameAffineAuthoringCanonicalCurrent(mesh,stage.canonicalSnapshot));});\n",
+        "}\n",
+        "function frameAffineAuthoringCanonicalRemember(g,snapshot){const keys=Object.keys(g.attributes),stamps=keys.map(k=>frameNative.stampAttribute(g.attributes[k])),index=frameNative.stampAttribute(g.index);frameAffineAuthoringCanonicalReceipts.set(g,{snapshot,keys,stamps,index});}\n",
+        "function frameAffineAuthoringCanonicalCurrent(mesh,snapshot){const g=mesh?.geometry,row=g&&frameAffineAuthoringCanonicalReceipts.get(g);return !!row&&row.snapshot===snapshot&&Object.keys(g.attributes).join(',')===row.keys.join(',')&&row.keys.every((k,i)=>frameNative.attributeCurrent(g.attributes[k],row.stamps[i]))&&frameNative.attributeCurrent(g.index,row.index);}\n",
+        "function frameAffineAuthoringOwnerCurrent(intent){\n",
+        " const b=intent.base;if(b.lifecycle!==frameAffineLifecycleGeneration||b.history!==frameAffineHistorySerial||b.sequence!==sceneMutationSequence||b.token!==sceneStateToken||b.gesture!==frameRigidGestureGeneration||b.mode!==polyElementMode||b.space!==coordMode||intent.uv!==uvEdit||intent.pivotEdit!==editPivot||!frameRigidSetSnapshotsCurrent(b.selection))return false;\n",
+        " const configuration={polyMode,splineMode,componentFocus,uvMode,soft:vertexTools.soft.active,channels:frameChannels.size,animation:frameAnimationRevision,bound:boundNode,tool:vertexTools.mode};if(!Object.keys(configuration).every(k=>Object.is(configuration[k],intent.configuration[k])))return false;\n",
+        " return intent.targets.every(({h,node,mesh})=>OBJ.get(h)===node&&pickMeshes.get(h)===mesh)&&intent.poly.every(({h,e,sets})=>polySelection.items.get(h)===e&&frameRigidSetSnapshotsCurrent(sets));\n",
+        "}\n",
+        "function frameAffineAuthoringSameRequestedContext(a,b){if(!a||!b)return false;const x=a.base,y=b.base,same=(p,q)=>!!p===!!q&&(!p||p.length===q.length&&p.every((v,i)=>v===q[i]));return x.lifecycle===y.lifecycle&&x.history===y.history&&x.sequence===y.sequence&&x.token===y.token&&x.gesture===y.gesture&&x.mode===y.mode&&x.space===y.space&&a.uv===b.uv&&a.pivotEdit===b.pivotEdit&&same(x.pivot,y.pivot)&&Object.keys(a.configuration).every(k=>Object.is(a.configuration[k],b.configuration[k]))&&x.selection.length===y.selection.length&&x.selection.every((r,i)=>Object.keys(r).every(k=>Object.is(r[k],y.selection[i][k])))&&a.poly.length===b.poly.length&&a.poly.every((r,i)=>r.h===b.poly[i].h&&r.e===b.poly[i].e&&r.sets.length===b.poly[i].sets.length&&r.sets.every((s,j)=>Object.keys(s).every(k=>Object.is(s[k],b.poly[i].sets[j][k]))))&&a.targets.length===b.targets.length&&a.targets.every(r=>b.targets.some(q=>q.h===r.h&&q.node===r.node&&q.mesh===r.mesh&&same(r.world,q.world)&&!!r.stamp===!!q.stamp&&(!r.stamp||Object.keys(r.stamp).every(k=>Object.is(r.stamp[k],q.stamp[k])))));}\n",
+        "function frameAffineAuthoringReleaseRow(row){if(!row.settled||row.dependents.size)return;row.intent=row.owned=row.after=row.onCancel=null;}\n",
+        "function frameAffineAuthoringReleasePrevious(row){const prior=row.previous;if(!prior)return;row.previous=null;prior.dependents.delete(row);frameAffineAuthoringReleaseRow(prior);}\n",
+        "function frameAffineAuthoringCancelAll(reason='Editing context changed'){\n",
+        " if(typeof frameAffineNumericMoveCM!=='undefined')frameAffineNumericMoveCM=null;\n",
+        " for(const row of [...frameAffineAuthoringRows])row.cancel(new DOMException(reason,'AbortError'));\n",
+        " for(const s of [...frameAffineNumericSessions])s.cancel(new DOMException(reason,'AbortError'));\n",
+        " if(frameAffineAuthoringPointer){const row=frameAffineAuthoringPointer;frameAffineAuthoringPointer=null;row.cancel(new DOMException(reason,'AbortError'));try{vpState.renderer.domElement.releasePointerCapture(row.down.pointerId);}catch{}}\n",
+        "}\n",
+        "function frameAffineRunExactAction(label,callback,{hashes=null,guard=null,rollback=null,rollbackCurrent=null,onError=null,force=false}={}){\n",
+        " const scope=frameAffineAuthoringHashes(hashes??[...selNodes]);if(!force&&!frameAffineAuthoringPending(scope)&&!frameAffineAuthoringRows.size)return callback();\n",
+        " if(frameAffineAuthoringRows.size>=64){const error=new DOMException('Too many pending editing requests','AbortError');onError?onError(error):frameAffineAuthoringNotice(label,error);return Promise.resolve({cancelled:true,reason:'pending-request-limit'});}\n",
+        " const intent=frameAffineAuthoringIntent(scope),previous=frameAffineAuthoringTail;let rejectCancel;\n",
+        " const cancelled=new Promise((_,reject)=>rejectCancel=reject);cancelled.catch(()=>{});\n",
+        " const row={label,intent,previous:frameAffineAuthoringLastRow,dependents:new Set(),settled:false,cancelled:false,owned:null,onCancel:null,cancel(error=new DOMException('Editing context changed','AbortError')){if(this.cancelled)return;this.cancelled=true;this.error=error;this.onCancel?.(error);rejectCancel(error);}};row.previous?.dependents.add(row);frameAffineAuthoringRows.add(row);frameAffineAuthoringLastRow=row;\n",
+        " const check=()=>{let current=frameAffineAuthoringIntentCurrent(row.owned??intent);if(!current&&row.previous?.numericCommitted&&frameAffineAuthoringSameRequestedContext(intent,row.previous.intent)&&frameAffineAuthoringIntentCurrent(row.previous.after)){row.owned=frameAffineAuthoringIntent(scope);current=true;}if(row.cancelled||!current||guard&&!guard())throw row.error??new DOMException('Editing context changed','AbortError');};\n",
+        " const ready=()=>frameAffineContinueExact(()=>{check();row.owned=frameAffineAuthoringIntent(scope);return true;},scope,{onError(){}});\n",
+        " const work=(async()=>{await Promise.race([previous,cancelled]);check();frameAffineAuthoringReleasePrevious(row);try{await Promise.race([ready(),cancelled]);}catch(error){if(error?.name==='AbortError'||error?.name==='InvalidStateError')throw error;check();row.repairedWorkerFailure=String(error);await Promise.race([ready(),cancelled]);}check();try{return await callback(row);}catch(error){if(rollback){if(!rollbackCurrent?.(row))throw new Error('Authoring rollback owner changed',{cause:error});await rollback(error,row);}throw error;}})();work.catch(()=>{});\n",
+        " row.promise=Promise.race([work,cancelled]).catch(error=>{if(onError)onError(error);else frameAffineAuthoringNotice(label,error);return{cancelled:true,reason:error.name==='AbortError'?'editing-context-changed':'operation-failed'};}).finally(()=>{frameAffineAuthoringRows.delete(row);row.settled=true;frameAffineAuthoringReleasePrevious(row);if(frameAffineAuthoringLastRow===row)frameAffineAuthoringLastRow=null;frameAffineAuthoringReleaseRow(row);});row.promise.frameAffineAuthoringRow=row;frameAffineAuthoringTail=row.promise.then(()=>{});return row.promise;\n",
+        "}\n",
+        "async function frameAffineAuthoringDrain(signal){for(;;){const rows=[...frameAffineAuthoringRows];if(!rows.length)return;await nativeSaveWait(Promise.all(rows.map(row=>row.promise)),signal);}}\n",
+        "function frameAffineCoordinateNeedsExact(){return !uvMode&&!splineFocusActive()&&!editPivot&&polyFocusActive()&&polySelection.items.size&&(frameAffineAuthoringPending([...polySelection.items.keys()])||frameAffineAuthoringRows.size);}\n",
+        "// A single latest Coordinate Manager receipt, guarded by geometry and selection.\n",
+        "var frameAffineNumericMoveCM=null;\n",
+        "function frameAffineNumericMoveControl(inp,o){\n",
+        " if(typeof META==='undefined'||o.snap!==coordinateSnapshot||o.commit!==commitCoordinateSnapshot||o.revert!==revertCoordinateSnapshot)return null;\n",
+        " const meta=META.get(inp);return meta?.ch==='pos'&&Number.isInteger(meta.i)&&meta.i>=0&&meta.i<3?{meta,axis:meta.i}:null;\n",
+        "}\n",
+        "function frameAffineNumericMoveCandidate(){\n",
+        " const b=frameRigidBasic();return b&&polygonShadingAllowed(b.mesh)&&Object.keys(b.g.attributes).length===2&&['vertex','edge'].includes(b.domain)&&!frameRigidInput&&!frameRigidExecuting&&!frameRigidQueue.length?b:null;\n",
+        "}\n",
+        "function frameAffineNumericMoveCheck(s){\n",
+        " if(s.closed||s.row?.cancelled||!frameAffineAuthoringIntentCurrent(s.numericOwned)||s.numericUnit!==UMM[dispIdx])throw new DOMException('Numeric Move intent changed','AbortError');\n",
+        " if(s.numericReference){const ref=polyCoordReference(coordMode).elements;if(!s.numericReference.every((v,i)=>v===ref[i]))throw new DOMException('Numeric coordinate reference changed','AbortError');}\n",
+        "}\n",
+        "async function frameAffineNumericMoveCopy(s,array,Type=array.constructor){\n",
+        " frameAffineNumericMoveCheck(s);const out=new Type(array.length);\n",
+        " for(let i=0;i<array.length;i+=32768){out.set(array.subarray(i,Math.min(i+32768,array.length)),i);await frameAffineYield();frameAffineNumericMoveCheck(s);}return out;\n",
+        "}\n",
+        "function* frameAffineNumericMoveSetCopyWork(set){const out=new Set();let n=0;for(const v of set){out.add(v);if((++n&1023)===0)yield;}return out;}\n",
+        "async function frameAffineNumericMoveCapture(s,b){\n",
+        " const attrs={};for(const[k,a]of Object.entries(b.g.attributes))attrs[k]={array:await frameAffineNumericMoveCopy(s,a.array),itemSize:a.itemSize,normalized:a.normalized};\n",
+        " const index=await frameAffineNumericMoveCopy(s,b.index.array),selection={};\n",
+        " for(const key of['vertices','edges','faces'])selection[key]=await frameNative.drainCooperatively(frameAffineNumericMoveSetCopyWork(b.entry[key]),{isCurrent:()=>!s.closed&&frameAffineAuthoringIntentCurrent(s.numericOwned),yieldTask:frameAffineYield});\n",
+        " const raw={attrs,index,groups:b.g.groups.map(q=>({...q})),drawRange:{...b.g.drawRange},userData:{...b.g.userData},wire:null,aliasStable:false,componentStable:false};\n",
+        " const state={creaseCos:polygonCreaseGeometryCurrent(b.g)?CREASE_COS:null,origin:frameContourOrigins.get(b.g),userData:{...b.g.userData},drawRange:{...b.g.drawRange},tags:b.node.tags.map(cloneTag),attrs,index,groups:raw.groups.map(q=>({...q}))};\n",
+        " return{raw,before:{kind:'poly',geometry:new Map([[b.h,state]]),selection:new Map([[b.h,selection]]),pivot:polyPivotMatrix?.slice()??null}};\n",
+        "}\n",
+        "function frameAffineNumericConnectivityDenseMemo(raw){const p=raw?.attrs?.position?.array,index=raw?.index;if(!(p instanceof Float32Array)||!(index instanceof Uint32Array||index instanceof Uint16Array)||p.length%3||!index.length)return null;const vertices=p.length/3;if(!vertices||vertices>4194304||vertices>Math.max(1024,index.length))return null;try{return new Uint32Array(vertices);}catch{return null;}}\n",
+        "function* frameAffineNumericMoveConnectivityWork(raw){\n",
+        " const p=raw.attrs.position.array,canonical=new Map(),byRawID=new Map(),dense=frameAffineNumericConnectivityDenseMemo(raw);let hash=2166136261;\n",
+        " for(let i=0;i<raw.index.length;i++){const rawID=raw.index[i],useDense=dense!==null&&rawID<dense.length;let encoded=useDense?dense[rawID]:byRawID.get(rawID);if(!encoded){const at=rawID*3,key=`${p[at].toFixed(7)},${p[at+1].toFixed(7)},${p[at+2].toFixed(7)}`;let id=canonical.get(key);if(id===undefined){id=canonical.size;canonical.set(key,id);}encoded=id+1;if(useDense)dense[rawID]=encoded;else if(byRawID.size<262144)byRawID.set(rawID,encoded);}hash^=encoded-1;hash=Math.imul(hash,16777619);if((i&1023)===1023)yield;}\n",
+        " return'mesh:'+raw.index.length+':'+canonical.size+':'+(hash>>>0);\n",
+        "}\n",
+        "function frameAffineNumericMoveKey(p,id){const at=id*3;return`${Math.round(p[at]*1e5)},${Math.round(p[at+1]*1e5)},${Math.round(p[at+2]*1e5)}`;}\n",
+        "function* frameAffineNumericMoveLogicalWork(b,raw,delta,world,inverse){\n",
+        " const p=raw.attrs.position.array,out={vertices:new Set(),edges:new Set(),faces:new Set()},v=new THREE2.Vector3(),moved=new THREE2.Vector3(),f32=new Float32Array(3);let n=0;\n",
+        " const key=id=>{v.fromArray(p,id*3);moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1).toArray(f32);return frameAffineNumericMoveKey(f32,0);};\n",
+        " for(const id of b.entry.vertices){out.vertices.add(key(id));if((++n&1023)===0)yield;}\n",
+        " for(const edge of b.entry.edges){const[a,c]=edge.split(':').map(Number),ka=key(a),kb=key(c);out.edges.add(ka<kb?ka+'|'+kb:kb+'|'+ka);if((++n&1023)===0)yield;}\n",
+        " for(const face of b.entry.faces){out.faces.add(face);if((++n&1023)===0)yield;}return out;\n",
+        "}\n",
+        "function* frameAffineNumericMoveFallbackWork(b,raw,selected,delta,world,inverse){\n",
+        " // Reproduce the stock corner expansion and Float32 write before whole Stock.\n",
+        " const count=raw.index.length,p=raw.attrs.position.array,n=raw.attrs.normal.array,positions=new Float32Array(count*3),normals=new Float32Array(count*3),index=new Uint32Array(count),ids=new Uint32Array(count),values=new Float32Array(count*3),faceSlots=new Int32Array(count/3),v=new THREE2.Vector3(),moved=new THREE2.Vector3();let used=0;\n",
+        " for(let i=0;i<count;i++){const from=raw.index[i],at=from*3;positions.set(p.subarray(at,at+3),i*3);normals.set(n.subarray(at,at+3),i*3);index[i]=i;if(selected.has(from)){v.fromArray(p,at);moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1);ids[used]=i;v.toArray(values,used++*3);faceSlots[Math.floor(i/3)]=1;}if((i&1023)===1023)yield;}\n",
+        " return{raw:{...raw,attrs:{position:{array:positions,itemSize:3,normalized:false},normal:{array:normals,itemSize:3,normalized:false}},index,wire:null,aliasStable:false,componentStable:false},ids:ids.subarray(0,used),values:values.subarray(0,used*3),faceSlots};\n",
+        "}\n",
+        "function* frameAffineNumericMoveOriginWork(raw,selected,delta,world,inverse,prior){\n",
+        " if(raw.index.length/3>8192)return null;\n",
+        " let independent=raw.attrs.position.array.length/3===raw.index.length;if(independent)for(let i=0;i<raw.index.length;i++){if(raw.index[i]!==i){independent=false;break;}if((i&1023)===1023)yield;}\n",
+        " if((raw.userData._polygonDragCorners||independent)&&prior)return prior;\n",
+        " const positions=new Float32Array(raw.index.length*3),indices=new Uint32Array(raw.index.length),v=new THREE2.Vector3(),moved=new THREE2.Vector3();\n",
+        " for(let i=0;i<raw.index.length;i++){const id=raw.index[i];v.fromArray(raw.attrs.position.array,id*3);if(selected.has(id)){moved.copy(v).applyMatrix4(world).applyMatrix4(delta).applyMatrix4(inverse);v.lerp(moved,1);}v.toArray(positions,i*3);indices[i]=i;if((i&1023)===1023)yield;}return{version:1,positions,indices};\n",
+        "}\n",
+        "function* frameAffineNumericMoveDisplayWork(g){\n",
+        " const p=g.attributes.position.array,n=g.attributes.normal?.array,extras=new Float32Array(p.length*3);\n",
+        " for(let id=0;id<p.length/3;id++){const at=id*9;if(n)extras.set(n.subarray(id*3,id*3+3),at);else extras[at+2]=1;extras[at+5]=extras[at+6]=extras[at+7]=extras[at+8]=1;if((id&1023)===1023)yield;}\n",
+        " return frameAffineNumericMoveDisplayBind({positions:p,extras,indices:g.index.array,vertexCount:g.attributes.position.count,hasNormals:!!n,hasUV:false,hasColors:false,lineIndices:new Map()},g);\n",
+        "}\n",
+        "function frameAffineNumericMoveDisplayBind(row,g){\n",
+        " const attrs=[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index],stamps=attrs.map(frameNative.stampAttribute);row.source=g;row.stamps=stamps;row.isCurrent=()=>[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index].every((a,i)=>frameNative.attributeCurrent(a,stamps[i]));return row;\n",
+        "}\n",
+        "function* frameAffineNumericMoveFiniteWork(snapshot){\n",
+        " const p=snapshot.attrs.position.array,n=snapshot.attrs.normal.array,index=snapshot.index;if(p.length%3||n.length!==p.length)throw new DOMException('Numeric result layout changed','InvalidStateError');\n",
+        " for(let i=0;i<p.length;i++){if(!Number.isFinite(p[i])||!Number.isFinite(n[i]))throw new DOMException('Numeric Move exceeds supported coordinates','InvalidStateError');if((i&8191)===8191)yield;}\n",
+        " for(let i=0;i<index.length;i++){if(!Number.isInteger(index[i])||index[i]<0||index[i]>=p.length/3)throw new DOMException('Numeric result index changed','InvalidStateError');if((i&8191)===8191)yield;}return true;\n",
+        "}\n",
+        "function frameAffineNumericMoveCommand(before,after,publication){\n",
+        " return{redo(){if(publication){const first=publication;publication=null;first();}else restorePolyCoordState(after);},undo(){restorePolyCoordState(before);}};\n",
+        "}\n",
+        "function* frameAffineNumericPreparedSourceWork(raw,t){\n",
+        " for(const[a,b]of[[raw.attrs.position.array,t.originalPositions],[raw.attrs.normal.array,t.originalNormals],[raw.index,t.indexSeed]]){if(!a||!b||a.constructor!==b.constructor||a.byteLength!==b.byteLength)return false;const x=new Uint8Array(a.buffer,a.byteOffset,a.byteLength),y=new Uint8Array(b.buffer,b.byteOffset,b.byteLength);for(let i=0;i<x.length;i++){if(x[i]!==y[i])return false;if((i&16383)===16383)yield;}}return true;\n",
+        "}\n",
+        "function* frameAffineNumericScopedVertexRestoreWork(g,logical,t,snapshot,b){\n",
+        " if(b.domain!=='vertex'||logical.edges.size||logical.faces.size||!t?.eligible||t.status!=='ready'||t.stableFaceComponent!==true||t.g!==b.g||t.mesh!==b.mesh||t.entry!==b.entry||!frameRigidSelection(t,true)||b.entry.faces.size||b.entry.edges.size||b.entry.vertices.size!==t.ids.length||!snapshot.componentStable||!snapshot.selectedExclusive||!snapshot.outsideCanonical||!snapshot.outsidePositionsUnchanged||snapshot.aliasGuard!==t.aliasGuard||typeof t.aliasGuard?.find!=='function'||snapshot.index.length!==t.indexSeed.length)return null;\n",
+        " const certificate=frameComponentScopeCertificate(t);if(!certificate||certificate.g!==b.g||certificate.faces!==t.faceIDs)return null;let work=0;for(const id of t.ids){if(!b.entry.vertices.has(id))return null;if((++work&1023)===0)yield;}\n",
+        " const mask=new Set(),index=g.index.array,p=g.attributes.position.array;for(const face of t.faceIDs){if(!Number.isInteger(face)||face<0||face*3+2>=index.length)return null;for(let c=0;c<3;c++){const id=index[face*3+c];if(!Number.isInteger(id)||id<0||id*3+2>=p.length)return null;mask.add(id);}if((++work&1023)===0)yield;}\n",
+        " if(!mask.size||mask.size>262144||!(snapshot.selectedIDs instanceof Uint32Array)||snapshot.selectedIDs.length!==mask.size)return null;const seen=new Set();for(const id of snapshot.selectedIDs){if(!mask.has(id)||seen.has(id))return null;seen.add(id);if((++work&1023)===0)yield;}\n",
+        " const ids=Uint32Array.from(mask).sort(),groups=new Map();for(const id of ids){const at=id*3,x=p[at],y=p[at+1],z=p[at+2];if(!Number.isFinite(x)||!Number.isFinite(y)||!Number.isFinite(z)||t.aliasGuard.find(Math.round(x*1e5),Math.round(y*1e5),Math.round(z*1e5)))return null;const key=frameAffineNumericMoveKey(p,id);if(!logical.vertices.has(key))return null;let group=groups.get(key);if(!group){group=[];groups.set(key,group);}group.push(id);if((++work&1023)===0)yield;}\n",
+        " if(groups.size!==logical.vertices.size||!frameRigidSelection(t,true))return null;const entry={vertices:new Set(),edges:new Set(),faces:new Set()};for(const group of groups.values())for(const id of group){entry.vertices.add(id);if((++work&1023)===0)yield;}return entry;\n",
+        "}\n",
+        "function* frameAffineNumericMoveRestoreSelectionWork(geometry,logical){\n",
+        " const p=geometry.attributes.position.array,entry={vertices:new Set(),edges:new Set(),faces:new Set(logical.faces)};let n=0;\n",
+        " if(logical.vertices.size)for(const group of yield*frameLogicalVertexGroupsWork(geometry)){if(logical.vertices.has(frameAffineNumericMoveKey(p,group[0])))for(const id of group){entry.vertices.add(id);if((++n&1023)===0)yield;}if((++n&1023)===0)yield;}\n",
+        " if(logical.edges.size)for(const edge of yield*frameLogicalEdgesWork(geometry)){const ka=frameAffineNumericMoveKey(p,edge.a),kb=frameAffineNumericMoveKey(p,edge.b);if(logical.edges.has(ka<kb?ka+'|'+kb:kb+'|'+ka))for(const key of edge.keys){entry.edges.add(key);if((++n&1023)===0)yield;}if((++n&1023)===0)yield;}return entry;\n",
+        "}\n",
+        "function* frameAffineNumericMoveWireWork(geometry){\n",
+        " const p=geometry.attributes.position,index=geometry.index,base=p.count,count=index.count,Type=base<65536?Uint16Array:Uint32Array;\n",
+        " if(count<100000||base>94906265){const out=[],seen=new Set();for(let i=0;i<count;i+=3)for(let j=0;j<3;j++){let a=index.array[i+j],b=index.array[i+(j+1)%3];if(a===b)continue;if(a>b){const t=a;a=b;b=t;}const key=base<=94906265?a*base+b:a+':'+b;if(!seen.has(key)){seen.add(key);out.push(a,b);}if(((i+j)&1023)===1023)yield;}return Type.from(out);}\n",
+        " let keys=new Float64Array(count),used=0;\n",
+        " for(let i=0;i<count;i+=3){for(let j=0;j<3;j++){const a=index.array[i+j],b=index.array[i+(j+1)%3];if(a!==b)keys[used++]=a<b?a*base+b:b*base+a;}if((i&1023)===1023)yield;}\n",
+        " for(let i=0;i<used;i+=2048){keys.subarray(i,Math.min(used,i+2048)).sort();yield;}\n",
+        " let scratch=new Float64Array(used);\n",
+        " for(let width=2048;width<used;width*=2){for(let begin=0;begin<used;begin+=width*2){let a=begin,b=Math.min(begin+width,used),endA=b,endB=Math.min(begin+width*2,used),out=begin;while(a<endA||b<endB){scratch[out++]=b===endB||a<endA&&keys[a]<=keys[b]?keys[a++]:keys[b++];if((out&8191)===0)yield;}}const swap=keys;keys=scratch;scratch=swap;yield;}\n",
+        " let unique=0,previous=-1;for(let i=0;i<used;i++){if(keys[i]!==previous){unique++;previous=keys[i];}if((i&8191)===8191)yield;}\n",
+        " const out=new Type(unique*2);let at=0;previous=-1;for(let i=0;i<used;i++){const key=keys[i];if(key!==previous){const a=Math.floor(key/base);out[at++]=a;out[at++]=key-a*base;previous=key;}if((i&8191)===8191)yield;}return out;\n",
+        "}\n",
+        "function* frameAffineNumericMoveChangedWork(before,snapshot){\n",
+        " const a=before.attrs.position.array,b=snapshot.attrs.position.array;if(a.length!==b.length)return true;for(let i=0;i<a.length;i++){if(Math.abs(a[i]-b[i])>1e-5)return true;if((i&8191)===8191)yield;}return false;\n",
+        "}\n",
+        "function frameAffineNumericCurrentMeasurements(){\n",
+        " const q=typeof frameAffineNumericMoveCM==='undefined'?null:frameAffineNumericMoveCM;if(!q)return null;const{b,stamp,selection,world,space,pivot,reference,revision,animation}=q;\n",
+        " if(polyElementMode!==b.domain||coordMode!==space||framePolySelectionRevision!==revision||frameAnimationRevision!==animation||!polyFocusActive()||splineFocusActive()||uvEdit||editPivot||vertexTools.soft.active||polySelection.items.size!==1||polySelection.items.get(b.h)!==b.entry||OBJ.get(b.h)!==b.node||pickMeshes.get(b.h)!==b.mesh||!frameAffineStampCurrent(stamp)||!frameRigidSetSnapshotsCurrent(selection)||!!pivot!==!!polyPivotMatrix||pivot&&!pivot.every((v,i)=>v===polyPivotMatrix[i])){frameAffineNumericMoveCM=null;return null;}\n",
+        " b.mesh.updateMatrixWorld(true);const ref=polyCoordReference(space).elements;if(!world.every((v,i)=>v===b.mesh.matrixWorld.elements[i])||!reference.every((v,i)=>v===ref[i])){frameAffineNumericMoveCM=null;return null;}return q.measurements;\n",
+        "}\n",
+        "function frameAffineNumericMoveRemember(b,measurements){\n",
+        " b.mesh.updateMatrixWorld(true);frameAffineNumericMoveCM={b:{...b,entry:polySelection.items.get(b.h)},measurements,stamp:frameAffineSourceStamp(b.mesh),selection:frameRigidSetSnapshots([polySelection.items.get(b.h).faces,polySelection.items.get(b.h).vertices,polySelection.items.get(b.h).edges]),world:b.mesh.matrixWorld.elements.slice(),space:coordMode,pivot:polyPivotMatrix?.slice()??null,reference:polyCoordReference(coordMode).elements.slice(),revision:framePolySelectionRevision,animation:frameAnimationRevision};\n",
+        "}\n",
+        "function frameAffineNumericMovePublish(s,b,g,entry,buffers,measurements,pivot,snapshot,wireDisplay){\n",
+        " frameAffineNumericMoveCheck(s);frameAffineNumericPreviewDetach(s,false);const old=b.mesh.geometry,priorEntry=polySelection.items.get(b.h),priorPivot=polyPivotMatrix,priorRevision=framePolySelectionRevision,priorExternal=frameNativeExternalSelection;\n",
+        " frameRigidCancelDerived();const prepared=frameRigidPrepared;if(prepared?.mesh===b.mesh){frameRigidPrepared=null;frameRigidDispose(prepared);}const binding=frameAffineBindings.get(b.mesh);if(binding)frameAffineRetireBinding(binding);\n",
+        " try{\n",
+        "  b.mesh.geometry=g;const points=polyPointOverlays.get(b.h);if(points)points.geometry=g;\n",
+        "  polySelection.items.clear();polySelection.items.set(b.h,entry);polyPivotMatrix=pivot.slice();framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;\n",
+        "  assignMeshMat(b.mesh,b.h);refreshWireOverlay(b.mesh);frameAffineAuthoringCanonicalRemember(g,snapshot);\n",
+        "  const wire=wireOverlays.get(b.h)?.geometry,cache=vpState.renderer?.nativeEngine?.geometryCache;if(cache&&wireDisplay&&wire?.attributes.position?.array===wireDisplay.positions&&wire.index?.array===wireDisplay.indices&&!wire.attributes.normal&&!wire.attributes.uv&&!wire.attributes.color)cache.rows.set(wire,frameAffineNumericMoveDisplayBind(wireDisplay,wire));\n",
+        "  frameAffineNumericMoveRemember({...b,entry,g,p:g.attributes.position,n:g.attributes.normal,index:g.index},measurements);\n",
+        "  frameRigidInstalling=true;try{frameInstallPolySelectionBuffers(buffers,true,measurements);}finally{frameRigidInstalling=false;}\n",
+        "  old.dispose();scheduleRender();\n",
+        " }catch(error){\n",
+        "  if(OBJ.get(b.h)===b.node&&pickMeshes.get(b.h)===b.mesh&&b.mesh.geometry===g&&polySelection.items.get(b.h)===entry){b.mesh.geometry=old;polySelection.items.clear();polySelection.items.set(b.h,priorEntry);polyPivotMatrix=priorPivot;framePolySelectionRevision=priorRevision;frameNativeExternalSelection=priorExternal;frameAffineNumericMoveCM=null;const points=polyPointOverlays.get(b.h);if(points)points.geometry=old;refreshWireOverlay(b.mesh);}\n",
+        "  throw error;\n",
+        " }\n",
+        "}\n",
+        "async function frameAffineNumericMoveRun(s,control,value){\n",
+        " frameAffineNumericMoveCheck(s);const b=frameAffineNumericMoveCandidate();if(!b)return false;\n",
+        " s.numericReference=polyCoordReference(coordMode).elements.slice();\n",
+        " s.numericOwned=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.row.owned=s.numericOwned;frameAffineNumericMoveCheck(s);\n",
+        " const current=()=>!s.closed&&!s.row.cancelled&&frameAffineAuthoringIntentCurrent(s.numericOwned)&&s.numericUnit===UMM[dispIdx],drain=work=>frameNative.drainCooperatively(work,{isCurrent:current,yieldTask:frameAffineYield});\n",
+        " const captured=await frameAffineNumericMoveCapture(s,b),{raw,before}=captured,world=b.mesh.matrixWorld.clone(),inverse=world.clone().invert();\n",
+        " const measurements=await drain(framePolySelectionMeasurements(new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]),polyPivotMatrix)),old=measurements.frame,desired=old.clone(),millimeters=value*s.numericUnit;\n",
+        " if(!Number.isFinite(millimeters))throw new DOMException('Finite numeric Move value required','InvalidStateError');\n",
+        " if(coordMode==='world')desired.elements[12+control.axis]=millimeters;else{const reference=polyCoordReference(coordMode),local=new THREE2.Vector3().setFromMatrixPosition(reference.clone().invert().multiply(old));local.setComponent(control.axis,millimeters);desired.setPosition(local.applyMatrix4(reference));}\n",
+        " const delta=desired.clone().multiply(old.clone().invert()),logical=await drain(frameAffineNumericMoveLogicalWork(b,raw,delta,world,inverse));\n",
+        " const selected=await drain(framePolySelectedVertexIdsWork(b.h,new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]))),prepared=s.numericPreviewPrepared??frameRigidPrepared;\n",
+        " let fast=prepared?.mesh===b.mesh&&prepared.status==='ready'&&prepared.stableFaceComponent===true&&prepared.eligible&&prepared.domain===b.domain&&frameRigidSelection(prepared,true)&&prepared.ids.length===selected.size&&!!frameComponentScopeCertificate(prepared);\n",
+        " if(fast)fast=await drain((function*(){for(let k=0;k<prepared.ids.length;k++){if(!selected.has(prepared.ids[k]))return false;if((k&1023)===1023)yield;}return true;})());if(fast&&b.domain==='vertex')fast=await drain(frameAffineNumericPreparedSourceWork(raw,prepared));\n",
+        " const stage={h:b.h,mesh:b.mesh,node:b.node,logicalVersion:1,canonicalSnapshot:null};s.numericStage=stage;\n",
+        " if(fast){raw.aliasGuard=prepared.aliasGuard;raw.aliasStable=raw.componentStable=true;stage.historyRecipe={parent:null,raw,faces:prepared.faceIDs.slice(),world:world.elements.slice(),delta:delta.elements.slice(),inverse:inverse.elements.slice(),aliasGuard:prepared.aliasGuard};}\n",
+        " else stage.historyData=await drain(frameAffineNumericMoveFallbackWork(b,raw,selected,delta,world,inverse));\n",
+        " let snapshot;try{snapshot=await frameAffineCanonicalAsync(stage);}catch(error){frameAffineNumericMoveCheck(s);if(error.name==='AbortError'||error.name==='InvalidStateError')throw error;snapshot=await frameAffineCanonicalAsync(stage);}frameAffineNumericMoveCheck(s);await drain(frameAffineNumericMoveFiniteWork(snapshot));\n",
+        " const origin=await drain(frameAffineNumericMoveOriginWork(raw,selected,delta,world,inverse,before.geometry.get(b.h).origin));\n",
+        " snapshot.userData={...raw.userData,framePLAConnectivity:await drain(frameAffineNumericMoveConnectivityWork(raw))};for(const key of['splineBVH','splineWire','splineWireSource','_polygonDragCorners','_faceSources'])delete snapshot.userData[key];\n",
+        " const g=new THREE2.BufferGeometry();g.userData={...snapshot.userData};g.setAttribute('position',new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.attrs.position.array),3));g.setAttribute('normal',new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.attrs.normal.array),3));g.setIndex(new THREE2.BufferAttribute(await frameAffineNumericMoveCopy(s,snapshot.index),1));for(const q of raw.groups)g.addGroup(q.start,q.count,q.materialIndex);g.setDrawRange(raw.drawRange.start,raw.drawRange.count);g.boundingBox=snapshot.box.clone();g.boundingSphere=snapshot.sphere.clone();markPolygonCreaseGeometry(g);\n",
+        " try{\n",
+        "  const scopedEntry=fast?await drain(frameAffineNumericScopedVertexRestoreWork(g,logical,prepared,snapshot,b)):null,entry=scopedEntry??await drain(frameAffineNumericMoveRestoreSelectionWork(g,logical)),items=new Map([[b.h,entry]]),meshes=new Map([[b.h,{geometry:g,matrixWorld:world,updateMatrixWorld(){}}]]),pivot=desired.elements.slice(),afterMeasurements=await drain(framePolySelectionMeasurements(items,null,meshes,pivot)),buffers=await drain(framePolySelectionBuffers(items,meshes)),display=await drain(frameAffineNumericMoveDisplayWork(g));\n",
+        "  b.mesh.updateMatrixWorld(true);if(!world.elements.every((v,i)=>v===b.mesh.matrixWorld.elements[i]))throw new DOMException('Numeric Move world changed','AbortError');\n",
+        "  const cache=vpState.renderer?.nativeEngine?.geometryCache;if(cache)cache.rows.set(g,display);if(origin)frameContourOrigins.bind(g,origin,true);\n",
+        "  let wireDisplay=null;if(wireOverlays.has(b.h)){const wire=await drain(frameAffineNumericMoveWireWork(g));wireTopologyCache.set(g,{index:g.index,array:g.index.array,version:g.index.version,vertices:g.attributes.position.count,indices:wire});wireDisplay=await drain(frameAffineNumericMoveDisplayWork({attributes:{position:g.attributes.position},index:new THREE2.BufferAttribute(wire,1)}));}\n",
+        "  const afterSelection={};for(const key of['vertices','edges','faces'])afterSelection[key]=await drain(frameAffineNumericMoveSetCopyWork(entry[key]));\n",
+        "  const after={kind:'poly',geometry:new Map([[b.h,{...before.geometry.get(b.h),creaseCos:CREASE_COS,origin,userData:{...snapshot.userData},attrs:snapshot.attrs,index:snapshot.index,groups:raw.groups.map(q=>({...q}))}]]),selection:new Map([[b.h,afterSelection]]),pivot};\n",
+        "  const changed=await drain(frameAffineNumericMoveChangedWork(before.geometry.get(b.h),snapshot));frameAffineNumericMoveCheck(s);\n",
+        "  if(changed){const command=frameAffineNumericMoveCommand(before,after,()=>frameAffineNumericMovePublish(s,b,g,entry,buffers,afterMeasurements,pivot,snapshot,wireDisplay));frameAffineExecutePreparedCommand(command,null,[b.h]);}\n",
+        "  else frameAffineNumericMovePublish(s,b,g,entry,buffers,afterMeasurements,pivot,snapshot,wireDisplay);\n",
+        "  s.row.numericCommitted=true;s.row.after=frameAffineAuthoringIntent([...polySelection.items.keys()]);frameAffineNotes.phases.push({name:'numeric-move-worker',path:fast?'versioned-prepared-component':'cooperative-corner-stock-fallback'});return true;\n",
+        " }catch(error){if(b.mesh.geometry!==g)g.dispose();throw error;}\n",
+        "}\n",
+        "\n",
+        "function frameAffineNumericPreviewStatus(s,state){\n",
+        " const input=s.numericPreviewInput;if(input){input.dataset.framePreview=state;input.setAttribute?.('aria-busy',state==='preparing'?'true':'false');}\n",
+        " if(typeof document==='undefined')return;\n",
+        " let el=document.getElementById('frameNumericPreviewStatus');if(!el&&state==='preparing'){el=document.createElement('div');el.id='frameNumericPreviewStatus';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:fixed;right:16px;top:46px;padding:8px 12px;background:#303236;color:#eee;border:1px solid #555;border-radius:5px;z-index:10000;pointer-events:none;font:14px sans-serif';document.body.append(el);}\n",
+        " if(el){el.textContent=state==='preparing'?'Preparing live preview\u2026':'';el.style.opacity=state==='preparing'?'1':'0';}\n",
+        "}\n",
+        "function* frameAffineNumericPreviewIDsWork(set){const out=new Uint32Array(set.size);let at=0;for(const id of set){out[at++]=id;if((at&1023)===0)yield;}return out;}\n",
+        "function* frameAffineNumericPreviewSlotsWork(t){\n",
+        " t.idSet=new Set();t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++){t.idSet.add(t.ids[k]);t.slot[t.ids[k]]=k+1;if((k&1023)===1023)yield;}return true;\n",
+        "}\n",
+        "async function frameAffineNumericPreviewPrepare(s){\n",
+        " frameAffineNumericMoveCheck(s);const b=frameAffineNumericMoveCandidate();if(!b)throw new DOMException('Live numeric preview source unavailable','InvalidStateError');\n",
+        " const current=()=>!s.closed&&frameAffineAuthoringIntentCurrent(s.numericOwned)&&s.numericUnit===UMM[dispIdx],drain=work=>frameNative.drainCooperatively(work,{isCurrent:current,yieldTask:frameAffineYield});\n",
+        " let t=frameRigidPrepared;\n",
+        " if(!(t?.mesh===b.mesh&&t.status==='ready'&&frameRigidSelection(t,true)&&t.affine?.ready&&frameAffineBindingCurrent(t.affine)&&!t.affine.active&&frameComponentScopeCertificate(t))){\n",
+        "  t={...b,...frameRigidOwnerSnapshot(),pa:b.p.array,na:b.n.array,ia:b.index.array,pv:b.p.version,nv:b.n.version,iv:b.index.version,faces:b.entry.faces,vertices:b.entry.vertices,edges:b.entry.edges,selectionSets:frameRigidSetSnapshots([b.entry.faces,b.entry.vertices,b.entry.edges]),selectionRevision:framePolySelectionRevision,status:'preparing',disposed:false,numericPreviewPrivate:true};s.numericPreviewPrepared=t;\n",
+        "  const mask=await drain(frameComponentFaceMaskWork(t));if(!mask.eligible)throw new DOMException('Live scrub requires an eligible complete component','InvalidStateError');\n",
+        "  const topology=await drain(frameNative.buildTopologyWork({positions:t.pa,indices:t.ia},{packedTables:true}));let gate=await drain(frameNative.rigidIslandEligibilityWork(topology,t.ia,mask.faces));gate=await drain(frameComponentClosureMatchesWork(gate,mask.selected));\n",
+        "  if(!gate.eligible)throw new DOMException('Live scrub component certificate declined','InvalidStateError');\n",
+        "  t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.privateFaces=mask.faces;t.faceIDs=await drain(frameAffineNumericPreviewIDsWork(mask.faces));t.indexSeed=t.ia;await drain(frameAffineNumericPreviewSlotsWork(t));\n",
+        "  if(!await drain(frameRigidBuildAliasGuard(t))||!t.stableFaceComponent||!frameAffineEligible(t)||!frameRigidAliasSafe(t))throw new DOMException('Live scrub alias or affine certificate declined','InvalidStateError');\n",
+        "  if(t.domain==='edge'&&await drain(frameEdgeSelectionBasisWork(t.h,pureWorldFrame(t.h),new Map([[t.h,t.entry]]),pickMeshes)))throw new DOMException('Live scrub edge basis requires stock editing','InvalidStateError');\n",
+        "  t.status='ready';t.componentOrdinary=true;\n",
+        " }\n",
+        " b.mesh.updateMatrixWorld(true);const cached=t.componentMeasurements,fr=frameComponentFrame(t,t.bounds,polyPivotMatrix),useCached=cached&&fr&&cached.space===coordMode&&cached.world?.elements.every((v,i)=>v===b.mesh.matrixWorld.elements[i])&&fr.elements.slice(0,12).every((v,i)=>v===cached.frame.elements[i]);\n",
+        " const measurements=useCached?{bounds:t.bounds,frame:fr,extent:cached.extent.clone()}:await drain(framePolySelectionMeasurements(new Map([[b.h,b.entry]]),null,new Map([[b.h,b.mesh]]),polyPivotMatrix,new Map([[b.h,t.idSet]])));if(!measurements)throw new DOMException('Live scrub measurements unavailable','InvalidStateError');\n",
+        " frameAffineNumericMoveCheck(s);s.numericPreviewBase=measurements;s.numericPreviewBasic=b;s.numericReference=polyCoordReference(coordMode).elements.slice();s.numericPreviewPrepared=t;\n",
+        " if(!t.affine?.ready){\n",
+        "  let r=frameAffineBindings.get(t.mesh);if(r&&!frameAffineBindingCurrent(r)){frameAffineRetireBinding(r);r=null;}if(r?.active)throw new DOMException('Another preview owns this component','AbortError');\n",
+        "  if(!r?.ready){\n",
+        "   const faceSlots=new Int32Array(t.ia.length/3),positions=new Float32Array(t.faceIDs.length*9),extras=new Float32Array(t.faceIDs.length*27),ids=new Uint32Array(t.faceIDs.length*3);\n",
+        "   for(let k=0;k<t.faceIDs.length;k++){const f=t.faceIDs[k];faceSlots[f]=k+1;for(let c=0;c<3;c++){const at=k*3+c,id=t.ia[f*3+c];positions.set(t.pa.subarray(id*3,id*3+3),at*3);extras.set(t.na.subarray(id*3,id*3+3),at*9);extras[at*9+5]=extras[at*9+6]=extras[at*9+7]=extras[at*9+8]=1;ids[at]=at;}if((k&1023)===1023){await frameAffineYield();frameAffineNumericMoveCheck(s);}}\n",
+        "   r={domain:t.domain,managed:true,h:t.h,meshRef:new WeakRef(t.mesh),ownerToken:frameAffineOwnerToken(t.h),owner:frameRigidOwnerSnapshot(),entry:t.entry,faces:t.faces,vertices:t.vertices,edges:t.edges,selectionSets:t.selectionSets,selectionRevision:t.selectionRevision,live:true,displayEnabled:false,revision:0,logicalVersion:0,canonicalVersion:0,active:null,display:null,gpu:null,numeric:{positions,extras,indices:null,vertexCount:ids.length,hasNormals:true,hasUV:false,hasColors:false,lineIndices:new Map()},faceIDs:t.faceIDs,faceSlots,ready:false,numericPreviewOwner:s};frameAffineBindingStamp(r,t.mesh);frameAffineBindings.set(t.mesh,r);frameAffineBindingRecords.add(r);t.affine=r;\n",
+        "   try{r.gpu=await frameNative.GpuAffineCornerPreview.createCooperatively({device:t.device,pool:t.pool,positions,extras,ids,isCurrent:()=>frameAffineBindingCurrent(r),admissionCurrent:current,yieldTask:frameAffineYield});frameAffineNumericMoveCheck(s);r.display=frameNative.registerAffineDisplayOverride(t.mesh,{faceSlots,fullGeometry:()=>r.fullNumeric??null,selectedGeometry:()=>{const revision=r.revision;return{...r.numeric,isCurrent:()=>r.live&&r.displayEnabled&&r.revision===revision&&frameAffineBindingCurrent(r)};},isCurrent:()=>r.displayEnabled&&frameAffineBindingCurrent(r)});r.ready=true;r.promise=Promise.resolve(r);}catch(error){frameAffineRetireBinding(r);throw error;}\n",
+        "  }t.affine=r;\n",
+        " }\n",
+        " const cache=t.engine.geometryCache;if(!cache.rows.get(t.g)?.isCurrent())cache.rows.set(t.g,await drain(frameAffineNumericMoveDisplayWork(t.g)));\n",
+        " if(t.numericPreviewPrivate&&!t.gpu){\n",
+        "  t.numeric=cache.rows.get(t.g);t.originalPositions=await frameAffineNumericMoveCopy(s,t.pa);t.originalNormals=await frameAffineNumericMoveCopy(s,t.na);t.indexSeed=await frameAffineNumericMoveCopy(s,t.ia);t.componentMeasurements={...measurements,space:coordMode,world:b.mesh.matrixWorld.clone()};t.bounds={min:measurements.bounds.min.clone(),max:measurements.bounds.max.clone()};t.boundsWorld=b.mesh.matrixWorld.clone();\n",
+        "  t.gpu=await frameNative.GpuRigidIslandPreview.createCooperatively({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t),admissionCurrent:current,yieldTask:frameAffineYield});frameAffineNumericMoveCheck(s);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);t.promise=Promise.resolve(true);const prior=frameRigidPrepared;frameRigidPrepared=t;if(prior!==t)frameRigidDispose(prior);\n",
+        " }\n",
+        " frameAffineNumericMoveCheck(s);const source=frameRigidTransactionSnapshot(t);if(!source)throw new DOMException('Live scrub transaction unavailable','AbortError');\n",
+        " const p={t,source,world:source.world.clone(),inverse:source.world.clone().invert(),coordinateSpace:coordMode,delta:new THREE2.Matrix4(),beforePivot:polyPivotMatrix?.slice()??null,afterGizmo:measurements.frame.elements.slice(),gizmo:measurements.frame.elements.slice(),ready:false,cancel:false,discarded:false,intent:s.numericOwned};\n",
+        " if(!frameAffineStartPreview(p))throw new DOMException('Live scrub display unavailable','InvalidStateError');s.numericPreview=p;p.beforeComponentMeasurements=t.componentMeasurements;t.gpu.gathered=false;t.bounds={min:measurements.bounds.min.clone(),max:measurements.bounds.max.clone()};t.boundsWorld=source.world.clone();return p;\n",
+        "}\n",
+        "function frameAffineNumericPreviewSubmit(s){\n",
+        " const p=s.numericPreview;if(!p||p.cancel||s.pendingValue===undefined)return;frameAffineNumericMoveCheck(s);\n",
+        " const value=s.pendingValue,mm=value*s.numericUnit;if(!Number.isFinite(mm))throw new DOMException('Finite live scrub value required','InvalidStateError');\n",
+        " const old=s.numericPreviewBase.frame,desired=old.clone(),reference=new THREE2.Matrix4().fromArray(s.numericReference);\n",
+        " if(coordMode==='world')desired.elements[12+s.numericPreviewControl.axis]=mm;else{const local=new THREE2.Vector3().setFromMatrixPosition(reference.clone().invert().multiply(old));local.setComponent(s.numericPreviewControl.axis,mm);desired.setPosition(local.applyMatrix4(reference));}\n",
+        " p.delta.copy(desired).multiply(old.clone().invert());p.afterGizmo=desired.elements.slice();const local=p.inverse.clone().multiply(p.delta).multiply(p.world);p.t.gpu.submit({matrix:local.elements,world:p.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>!p.cancel&&!p.discarded&&frameRigidTransactionCurrent(p)}).catch(error=>{if(!s.closed&&error.name!=='AbortError'){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});p.rawPoseSubmitted=true;if(p.t.adapter)p.t.adapter.revision++;frameAffineSubmit(p);\n",
+        " const shift=new THREE2.Vector3().setFromMatrixPosition(desired).sub(new THREE2.Vector3().setFromMatrixPosition(old)),m={bounds:{min:s.numericPreviewBase.bounds.min.clone().add(shift),max:s.numericPreviewBase.bounds.max.clone().add(shift)},frame:desired,extent:s.numericPreviewBase.extent.clone()};\n",
+        " frameAffineNumericMoveRemember(s.numericPreviewBasic,m);placeGizmoForSelection(m);updateHUD(readPolyTransform(coordMode,m));p.numericValue=value;frameAffineNumericPreviewStatus(s,'ready');\n",
+        "}\n",
+        "function frameAffineNumericPreviewWatch(s){\n",
+        " if(s.numericPreviewRAF||s.closed)return;s.numericPreviewRAF=requestAnimationFrame(()=>{s.numericPreviewRAF=0;if(s.closed)return;try{frameAffineNumericMoveCheck(s);if(s.numericPreview&&s.pendingValue!==s.numericPreview.numericValue)frameAffineNumericPreviewSubmit(s);frameAffineNumericPreviewWatch(s);}catch(error){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});\n",
+        "}\n",
+        "function frameAffineNumericPreviewRequest(s,control,input){\n",
+        " s.numericScrubbing=true;s.numericPreviewControl=control;s.numericPreviewInput=input;if(s.closed)return;\n",
+        " if(!s.numericOwned){frameAffineNumericPreviewStatus(s,'preparing');return;}\n",
+        " if(s.numericPreview){frameAffineNumericPreviewWatch(s);return;}if(s.numericPreviewTask)return;\n",
+        " frameAffineNumericPreviewStatus(s,'preparing');frameAffineNumericPreviewWatch(s);s.numericPreviewTask=frameAffineNumericPreviewPrepare(s).then(()=>{if(!s.closed){frameAffineNumericPreviewStatus(s,'ready');frameAffineNumericPreviewSubmit(s);}}).catch(error=>{if(!s.closed){s.cancel(error);frameAffineAuthoringNotice('Numeric preview',error);}});s.numericPreviewTask.catch(()=>{});\n",
+        "}\n",
+        "function frameAffineNumericPreviewDetach(s,restore=true){\n",
+        " if(s.numericPreviewRAF){cancelAnimationFrame(s.numericPreviewRAF);s.numericPreviewRAF=0;}frameAffineNumericPreviewStatus(s,restore?'cancelled':'committed');const p=s.numericPreview;if(!p)return;\n",
+        " const r=p.r;p.cancel=true;p.discarded=true;\n",
+        " if(r?.live&&r.active===p){r.active=null;r.fullNumeric=p.beforeFullNumeric??null;r.rawDisplayBaseline=p.beforeRawDisplayBaseline??null;r.displayEnabled=p.beforeDisplayEnabled??false;r.revision++;if(r.fullNumeric){const revision=r.revision;r.fullNumeric.isCurrent=()=>r.live&&r.revision===revision&&frameRigidSource(p.t);}if(restore){\n",
+        "  const restoreWork=[],restoreRevision=r.revision;let restoreFailed=false;\n",
+        "  const afterRestore=()=>{if(!restoreFailed||r.active||r.revision!==restoreRevision||frameRigidPrepared!==p.t||!frameRigidSource(p.t))return;const t=p.t,g=t.g,numeric=t.numeric;frameRigidPrepared=null;frameRigidDispose(t);if(numeric&&t.mesh.geometry===g){const row={positions:numeric.positions,extras:numeric.extras,indices:numeric.indices,vertexCount:numeric.vertexCount,hasNormals:true,hasUV:false,hasColors:false,lineIndices:new Map()};t.engine.geometryCache.rows.set(g,frameAffineNumericMoveDisplayBind(row,g));}scheduleRender();};\n",
+        "  const failed=(label,error)=>{restoreFailed=true;frameAffineNotes.errors.push(label+String(error));},attempt=(label,work)=>{try{const result=work();if(result?.then)restoreWork.push(Promise.resolve(result).catch(error=>failed(label,error)));}catch(error){failed(label,error);}};\n",
+        "  if(p.rawPoseSubmitted&&frameRigidSource(p.t))attempt('Numeric raw preview restore: ',()=>{const result=p.t.gpu.submit({matrix:new THREE2.Matrix4().elements,world:p.world.elements,basis:new THREE2.Matrix4().elements,isCurrent:()=>frameRigidSource(p.t)});if(p.t.adapter)p.t.adapter.revision++;return result;});\n",
+        "  if(frameRigidSource(p.t))attempt('Numeric affine preview restore: ',()=>r.gpu.restoreFrozenSource());\n",
+        "  const owned=frameAffineAuthoringIntentCurrent(p.intent);if(owned){attempt('Numeric overlay restore: ',()=>frameRigidRestoreOverlays(p));p.t.bounds=p.beforeBounds?{min:p.beforeBounds.min,max:p.beforeBounds.max}:null;p.t.boundsWorld=p.beforeBounds?.world??null;p.t.componentMeasurements=p.beforeComponentMeasurements;attempt('Numeric CM restore: ',()=>{frameAffineNumericMoveRemember(s.numericPreviewBasic,s.numericPreviewBase);placeGizmoForSelection(s.numericPreviewBase);updateHUD(readPolyTransform(coordMode,s.numericPreviewBase));});}\n",
+        "  p.restorePromise=Promise.all(restoreWork).then(afterRestore);if(restoreFailed)afterRestore();attempt('Numeric restore render: ',()=>scheduleRender());\n",
+        " }}\n",
+        "}\n",
+        "function frameAffineNumericPreviewRelease(s){\n",
+        " const t=s.numericPreviewPrepared,r=t?.affine;if(t?.numericPreviewPrivate&&frameRigidPrepared!==t)frameRigidDispose(t);else if(r?.numericPreviewOwner===s){if(!r.active&&!frameRigidSource(t))frameAffineRetireBinding(r);else delete r.numericPreviewOwner;}\n",
+        " s.numericPreview=s.numericPreviewPrepared=s.numericPreviewBase=s.numericPreviewBasic=s.numericPreviewControl=s.numericPreviewInput=s.numericPreviewTask=null;\n",
+        "}\n",
+        "\n",
+        "function frameAffineCoordinateControl(inp,o){\n",
+        " if(o.h||o.snap!==coordinateSnapshot)return o;const original=o,numeric=frameAffineNumericMoveControl(inp,o);let active=null;\n",
+        " const release=s=>{frameAffineNumericPreviewRelease(s);s.before=s.owned=s.row=s.numericOwned=s.numericStage=s.numericEndRequest=s.requestNumericEnd=s.numericReference=null;s.pendingValue=undefined;};\n",
+        " const end=(s,commit)=>{if(!s||s.closed)return;s.ended=true;s.commit=commit;s.requestNumericEnd?.();if(!commit&&!s.before){s.cancel(new DOMException('Numeric edit cancelled','AbortError'));return;}if(s.before){if(!frameAffineAuthoringIntentCurrent(s.owned)){s.cancel(new DOMException('Numeric edit context changed','AbortError'));return;}try{commit?original.commit(s.before):original.revert(s.before);s.row.numericCommitted=commit;if(commit)s.row.after=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.closed=true;frameAffineNumericSessions.delete(s);s.resolveEnd();release(s);if(active===s)active=null;}catch(error){s.cancel(error);}}};\n",
+        " return{...o,onScrubStart(){original.onScrubStart?.();if(numeric&&active)frameAffineNumericPreviewRequest(active,numeric,inp);},get(){return active&&!active.closed&&active.pendingValue!==undefined?active.pendingValue:original.get();},snap(){\n",
+        "  active=null;if(!frameAffineCoordinateNeedsExact()&&!(numeric&&frameAffineNumericMoveCandidate()))return original.snap();let resolveEnd;const ended=new Promise(resolve=>resolveEnd=resolve),s={kind:'frame-exact-pending-coordinate',numericUnit:numeric?UMM[dispIdx]:null,numericStage:null,numericOwned:null,before:null,owned:null,ended:false,commit:false,closed:false,pendingValue:undefined,resolveEnd,cancel(error){if(this.closed)return;this.closed=true;if(this.numericScrubbing&&_scrubSession?.inp===this.numericPreviewInput)_scrubSession.end(false);try{frameAffineNumericPreviewDetach(this,true);}catch(error){frameAffineNotes.errors.push('Numeric preview cancellation: '+String(error));}this.requestNumericEnd?.();if(this.numericStage)frameAffineHistoryJobs.get(this.numericStage)?.cancel(error);if(this.before&&frameAffineAuthoringOwnerCurrent(this.owned))try{original.revert(this.before);}catch{}frameAffineNumericSessions.delete(this);this.resolveEnd();this.row?.cancel(error);release(this);}};s.numericEndRequest=new Promise(resolve=>s.requestNumericEnd=resolve);active=s;frameAffineNumericSessions.add(s);\n",
+        "  s.finish=()=>end(s,true);s.promise=frameAffineRunExactAction('Coordinate edit',async row=>{s.row=row;row.onCancel=error=>s.cancel(error);if(s.closed)return;if(numeric&&frameAffineNumericMoveCandidate()){s.numericOwned=frameAffineAuthoringIntent([...polySelection.items.keys()]);row.owned=s.numericOwned;if(s.numericScrubbing)frameAffineNumericPreviewRequest(s,numeric,inp);if(!s.ended)await s.numericEndRequest;if(s.numericPreviewTask)await s.numericPreviewTask;if(s.closed)return;frameAffineNumericMoveCheck(s);if(s.commit&&s.pendingValue!==undefined&&await frameAffineNumericMoveRun(s,numeric,s.pendingValue)){s.closed=true;frameAffineNumericSessions.delete(s);s.resolveEnd();release(s);if(active===s)active=null;return ended;}}s.before=original.snap();s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);if(s.pendingValue!==undefined){const v=s.pendingValue;s.pendingValue=undefined;original.set(v);s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);row.owned=s.owned;}if(s.ended)end(s,s.commit);return ended;},{hashes:numeric?frameAffineMaterialScope([...polySelection.items.keys()]):[...polySelection.items.keys()],guard:()=>!s.closed,force:true,onError(error){s.cancel(error);frameAffineAuthoringNotice('Coordinate edit',error);}});s.row=s.promise.frameAffineAuthoringRow;return s;\n",
+        " },set(value){const s=active;if(s?.closed)return;if(!s){original.set(value);return;}if(!s.before){s.pendingValue=value;if(s.numericScrubbing)frameAffineNumericPreviewRequest(s,numeric,inp);return;}if(!frameAffineAuthoringIntentCurrent(s.owned)){s.cancel(new DOMException('Numeric edit context changed','AbortError'));return;}try{original.set(value);s.pendingValue=undefined;s.owned=frameAffineAuthoringIntent([...polySelection.items.keys()]);s.row.owned=s.owned;}catch(error){s.cancel(error);frameAffineAuthoringNotice('Coordinate edit',error);}},commit(before){before?.kind==='frame-exact-pending-coordinate'?end(before,true):original.commit(before);},revert(before){before?.kind==='frame-exact-pending-coordinate'?end(before,false):original.revert(before);}};\n",
+        "}\n",
+        "function frameAffinePointerEvent(e){const q={preventDefault(){},stopPropagation(){}};for(const k of['type','pointerId','pointerType','button','buttons','clientX','clientY','movementX','movementY','ctrlKey','metaKey','shiftKey','altKey'])q[k]=e[k];return q;}\n",
+        "function frameAffinePointerView(view){const v=vpState.views[view],r=rectFor(view);v?.cam.updateMatrixWorld();return v&&r?{v,cam:v.cam,world:v.cam.matrixWorld.elements.slice(),projection:v.cam.projectionMatrix.elements.slice(),rect:[r.x,r.y,r.w,r.h]}:null;}\n",
+        "function frameAffinePointerViewCurrent(receipt){if(!receipt)return false;const r=rectFor(vpState.views.indexOf(receipt.v));receipt.cam.updateMatrixWorld();return receipt.v.cam===receipt.cam&&receipt.world.every((v,i)=>v===receipt.cam.matrixWorld.elements[i])&&receipt.projection.every((v,i)=>v===receipt.cam.projectionMatrix.elements[i])&&r&&receipt.rect.every((v,i)=>v===[r.x,r.y,r.w,r.h][i]);}\n",
+        "function frameAffineGizmoVersionedAdmission(g,e){\n",
+        " if(e.ctrlKey||e.metaKey||e.shiftKey)return false;const basic=frameRigidBasic();if(!basic)return false;const waiting=frameRigidQueue.length>0,t=waiting?frameRigidQueue.at(-1).t:frameRigidSchedulePrepare(),name=g.object.name,mode=name==='SR'?'screenRotate':name[0]==='R'?'rotate':name==='S'?'scaleU':name[0]==='S'?'scale':'move';\n",
+        " const affine=frameAffineEligible(t)||(t?.domain!=='face'&&t?.status==='preparing'),rigid=(coordMode==='world'||mode==='move')&&['move','rotate','screenRotate'].includes(mode);return !!t&&!['ineligible','failed','cancelled','fallback'].includes(t.status)&&(affine||rigid)&&!!frameRigidTransactionSnapshot(t);\n",
+        "}\n",
+        "function frameAffineDeferGizmoStart(g,e){\n",
+        " if(frameAffineAuthoringPointerReplay)return false;if(frameAffineAuthoringPointer){const old=frameAffineAuthoringPointer;frameAffineAuthoringPointer=null;old.cancel(new DOMException('New pointer gesture','AbortError'));}\n",
+        " const numeric=[...frameAffineNumericSessions].some(s=>!s.closed),exact=polyFocusActive()&&!editPivot&&!uvEdit||!!(e.ctrlKey&&boundNode);if(!exact||!numeric&&(!frameAffineAuthoringPending()||frameAffineGizmoVersionedAdmission(g,e)))return false;\n",
+        " if(numeric){blurActive();for(const s of [...frameAffineNumericSessions])s.finish();}const view=frameAffinePointerView(g.view),down=frameAffinePointerEvent(e),row={down,name:g.object.name,view:g.view,receipt:view,events:[],up:null,cancelled:false,cancel(error){this.cancelled=true;this.action?.cancel(error);}};frameAffineAuthoringPointer=row;\n",
+        " try{vpState.renderer.domElement.setPointerCapture(e.pointerId);}catch{}\n",
+        " row.promise=frameAffineRunExactAction('Polygon drag',action=>{row.action=action;action.onCancel=error=>row.cancel(error);if(row.cancelled)return;const hit=hitGizmo(down.clientX,down.clientY);if(!hit||hit.view!==row.view||hit.object.name!==row.name)throw new DOMException('Gizmo target changed','AbortError');frameAffineAuthoringPointer=null;frameAffineAuthoringPointerReplay=row;try{startGizDrag(hit,down);if(!gizDrag)return;for(const event of row.events)onMove(event);if(row.up)onUp(row.up);}finally{frameAffineAuthoringPointerReplay=null;}},{guard:()=>frameAffineAuthoringPointer===row&&!row.cancelled&&frameAffinePointerViewCurrent(view),force:true,onError(error){if(frameAffineAuthoringPointer===row)frameAffineAuthoringPointer=null;row.cancelled=true;try{vpState.renderer.domElement.releasePointerCapture(down.pointerId);}catch{}frameAffineAuthoringNotice('Polygon drag',error);}});row.action=row.promise.frameAffineAuthoringRow;return true;\n",
+        "}\n",
+        "function frameAffinePendingPointerMove(e){const row=frameAffineAuthoringPointer;if(!row||row.down.pointerId!==e.pointerId)return false;if(row.up){e.preventDefault();return true;}if(row.events.length>=512){frameAffineAuthoringPointer=null;row.cancel(new DOMException('Pending pointer event limit reached','AbortError'));return true;}row.events.push(frameAffinePointerEvent(e));e.preventDefault();return true;}\n",
+        "function frameAffinePendingPointerEnd(e){const row=frameAffineAuthoringPointer;if(!row||row.down.pointerId!==e.pointerId)return false;try{vpState.renderer.domElement.releasePointerCapture(e.pointerId);}catch{}if(e.type==='pointercancel'){frameAffineAuthoringPointer=null;row.cancel(new DOMException('Pointer cancelled','AbortError'));}else row.up=frameAffinePointerEvent(e);e.preventDefault();return true;}\n",
+        "function frameAffineCloseHoleAt(cx,cy,vi){const mode=vertexTools.mode,view=frameAffinePointerView(vi);return frameAffineRunExactAction('Close hole',()=>frameNativeCommitClick(()=>{updateCloseHolePreview(cx,cy,vi);if(!closeHoveredHole())leaveVertexTool(false);} ),{guard:()=>vertexTools.mode===mode&&frameAffinePointerViewCurrent(view)});}\n",
+        "function frameAffineLineCutCurrent(line,points,mode,view){return vertexTools.line===line&&line.length===points.length&&line.every((p,i)=>p.screen.every((v,j)=>v===points[i][j]))&&vertexTools.mode===mode&&frameAffinePointerViewCurrent(view);}\n",
+        "function frameAffineAfterExactPicker(value,callback,label,guard=null){if(!value?.then)return callback(value);const intent=frameAffineAuthoringIntent(frameAffineAuthoringHashes([...selNodes]));return value.then(q=>{if(!frameAffineAuthoringIntentCurrent(intent)||guard&&!guard())throw new DOMException('Picker editing context changed','AbortError');return callback(q);}).catch(error=>{frameAffineAuthoringNotice(label,error);return false;});}\n",
+        "function frameAffineCommandPreflight(cmd){\n",
+        " if(!cmd||cmd.renderOnly)return;\n",
+        " if([...frameAffineStages.values()].some(s=>!s.canonicalSnapshot)){const error=new DOMException('This action needs completed canonical geometry','InvalidStateError');frameAffineAuthoringNotice('Edit',error);throw error;}\n",
+        " frameAffineEnsureAuthoring();\n",
+        "}\n",
+        "function frameAffineMaterialScope(hashes=[]){return[...new Set([...frameAffineStages.keys(),...hashes])];}\n",
+        "function frameAffineMaterialApply(matHash,target,replaceIdx=-1,useComponents=true,finishSelection=true){\n",
+        " const cmd=useComponents?cmdAssignMatToComponentSelection(matHash):null,polyTargets=polyFaceTargets(),cellTargets=splineCellMaterialTargets(),component=!!cmd&&(!target||componentMaterialTargetMatches(target,polyTargets,cellTargets)),selected=component?cmd:cmdAssignMat(target,matHash,replaceIdx);if(!selected)return false;\n",
+        " frameAffineExecutePreparedCommand(selected,()=>{if(finishSelection){if(uvMode)syncUvEditing();selMats.clear();selMats.add(matHash);refreshMatSel();}},frameAffineMaterialScope(component?[...polyTargets.keys(),...cellTargets.keys()]:[target]));return true;\n",
+        "}\n",
+        "function frameAffineMaterialDrop(matHash,target,replaceIdx=-1,{useComponents=true,finishSelection=true}={}){\n",
+        " const node=target?OBJ.get(target):null,material=MATS.get(matHash),tag=replaceIdx>=0?node?.tags[replaceIdx]:null,hashes=frameAffineMaterialScope(target?[target]:[...polyFaceTargets().keys(),...splineCellMaterialTargets().keys()]);\n",
+        " return frameAffineRunExactAction('Assign material',()=>frameAffineMaterialApply(matHash,target,replaceIdx,useComponents,finishSelection),{hashes,guard:()=>MATS.get(matHash)===material&&(!target||OBJ.get(target)===node)&&(replaceIdx<0||node?.tags[replaceIdx]===tag)});\n",
+        "}\n",
+        "function frameAffineExecutePreparedCommand(cmd,after=null,hashes=[...selNodes]){\n",
+        " if(!cmd)return cmd;frameAffineCommandPreflight(cmd);const intent=frameAffineAuthoringIntent(frameAffineAuthoringHashes(hashes)),historyEpoch=frameAffinePreparedCommandEpoch,oldUndo=undoStack,beforeUndo=undoStack.length,oldRedo=redoStack,isolatedRedo=[],nodes=[...selNodes],tags=[...selTags],anchor=anchorNode,owned=intent.targets.map(r=>({...r,three:threeOf.get(r.h)}));redoStack=isolatedRedo;let started=false,restoreRedo=true;\n",
+        " const current=()=>historyEpoch===frameAffinePreparedCommandEpoch&&undoStack===oldUndo&&redoStack===isolatedRedo&&intent.base.lifecycle===frameAffineLifecycleGeneration&&intent.base.history===frameAffineHistorySerial&&intent.base.gesture===frameRigidGestureGeneration&&intent.base.mode===polyElementMode&&intent.base.space===coordMode&&intent.uv===uvEdit&&intent.pivotEdit===editPivot&&intent.configuration.polyMode===polyMode&&intent.configuration.splineMode===splineMode&&intent.configuration.componentFocus===componentFocus&&intent.configuration.uvMode===uvMode&&intent.configuration.soft===vertexTools.soft.active&&intent.configuration.channels===frameChannels.size&&intent.configuration.animation===frameAnimationRevision&&intent.configuration.tool===vertexTools.mode&&(sceneStateToken===intent.base.token&&sceneMutationSequence===intent.base.sequence||undoStack.length===beforeUndo+1&&undoStack.at(-1)===cmd&&sceneStateToken===cmd._frameSceneAfter&&sceneMutationSequence===cmd._frameSceneAfter)&&owned.every(r=>OBJ.get(r.h)===r.node&&pickMeshes.get(r.h)===r.mesh||!OBJ.has(r.h)&&!pickMeshes.has(r.h)&&threeOf.get(r.h)===r.three&&!!r.three?.userData._hiddenForUndo)&&[...selNodes].every(h=>nodes.includes(h)||cmd.newRoots?.includes(h)||[...(cmd.map?.values()??[])].includes(h))&&[...selTags].every(tag=>tags.includes(tag));\n",
+        " try{started=true;runCmd(cmd);after?.(cmd);clearCommandStack(oldRedo);return cmd;}\n",
+        " catch(error){if(!started||!current()){restoreRedo=false;throw new Error('Command rollback owner changed',{cause:error});}try{cmd.undo();if(undoStack.at(-1)===cmd){undoStack.pop();restoreSceneCommandState(cmd,'before');}selNodes.clear();selTags.clear();for(const h of nodes)if(OBJ.has(h))selNodes.add(h);for(const tag of tags)selTags.add(tag);anchorNode=anchor;afterCmd(cmd);}catch(rollbackError){if(!current())restoreRedo=false;throw new AggregateError([error,rollbackError],'Command failed and rollback could not complete');}throw error;}\n",
+        " finally{if(restoreRedo&&historyEpoch===frameAffinePreparedCommandEpoch&&undoStack===oldUndo&&redoStack===isolatedRedo)redoStack=oldRedo;}\n",
+        "}\n",
+        "function frameAffinePasteNodes(hashes){const refs=hashes.slice();return frameAffineRunExactAction('Paste objects',()=>frameAffineExecutePreparedCommand(cmdDuplicateToRoot(refs),cmd=>{copyObjParams(cmd.map);selNodes.clear();selTags.clear();for(const h of cmd.newRoots)selNodes.add(h);anchorNode=cmd.newRoots.length?getObj(cmd.newRoots[0]):null;lastBracketSig=null;refreshSelClasses();},refs),{hashes:refs});}\n",
+        "function frameAffineDeleteNodes(hashes,{clearTags=true}={}){const refs=hashes.slice();return frameAffineRunExactAction('Delete objects',()=>frameAffineExecutePreparedCommand(cmdDelete(refs),()=>{for(const h of refs)selNodes.delete(h);if(clearTags)selTags.clear();anchorNode=null;renderRows();refreshSelClasses();},refs),{hashes:refs});}\n",
+        "\n",
+        "const frameAffineHistoryJobs=new WeakMap(),frameAffineHistoryJobRows=new Set();\n",
+        "let frameAffineHistorySerial=0;\n",
+        "function frameAffineHistoryOwnerCurrent(row){return !row.closed&&row.stage.logicalVersion===row.logicalVersion&&row.lifecycle===frameAffineLifecycleGeneration&&pickMeshes.get(row.stage.h)===row.mesh&&row.stage.mesh===row.mesh&&frameAffineOwnerToken(row.stage.h)===row.owner;}\n",
+        "function frameAffineHistoryCheck(row){if(!frameAffineHistoryOwnerCurrent(row))throw row.error??new DOMException('Canonical history owner retired','AbortError');}\n",
+        "async function frameAffineHistoryAwait(row,promise){const result=await Promise.race([promise,row.cancelPromise]);frameAffineHistoryCheck(row);return result;}\n",
+        "async function frameAffineHistoryCopy(row,array,Type=array.constructor){\n",
+        " frameAffineHistoryCheck(row);const out=new Type(array.length);\n",
+        " for(let k=0;k<array.length;k+=65536){out.set(array.subarray(k,Math.min(array.length,k+65536)),k);await frameAffineYield();frameAffineHistoryCheck(row);}return out;\n",
+        "}\n",
+        "function frameAffineHistoryWorker(row){\n",
+        " frameAffineHistoryCheck(row);const worker=frameNative.createAffineCornerWorker(),pending=new Map();let serial=0;row.worker=worker;\n",
+        " const close=reason=>{if(row.worker!==worker)return;row.worker=null;worker.onmessage=worker.onerror=null;for(const p of pending.values())p.reject(reason??new DOMException('Canonical history worker retired','AbortError'));pending.clear();worker.terminate();};row.closeWorker=close;\n",
+        " worker.onmessage=({data:m})=>{const p=pending.get(m.id);if(!p)return;pending.delete(m.id);if(m.kind==='error')p.reject(Error(m.error));else p.resolve(m);};worker.onerror=e=>close(Error(e.message));\n",
+        " return(message,transfer=[])=>new Promise((resolve,reject)=>{try{frameAffineHistoryCheck(row);if(row.worker!==worker)throw new DOMException('Canonical history worker retired','AbortError');const id=++serial;pending.set(id,{resolve,reject});worker.postMessage({id,...message},transfer);}catch(error){reject(error);}});\n",
+        "}\n",
+        "function frameAffineHistoryAncestors(stage){const required=new Set(),visit=s=>{if(!s||required.has(s))return;required.add(s);const recipe=s.historyRecipe;visit(recipe?.inherit);visit(recipe?.parent);};visit(stage);return required;}\n",
+        "function frameAffineHistoryCancelExcept(stage){const required=frameAffineHistoryAncestors(stage);for(const row of [...frameAffineHistoryJobRows])if(row.stage.h===stage.h&&!required.has(row.stage))row.cancel(new DOMException('Canonical history request superseded','AbortError'));}\n",
+        "function frameAffineCanonicalAsync(stage){\n",
+        " if(stage.canonicalSnapshot)return Promise.resolve(stage.canonicalSnapshot);const prior=frameAffineHistoryJobs.get(stage);if(prior&&!prior.closed)return prior.promise;\n",
+        " const recipe=stage.historyRecipe?{...stage.historyRecipe,faces:stage.historyRecipe.faces?.slice(),world:stage.historyRecipe.world?.slice(),delta:stage.historyRecipe.delta?.slice(),inverse:stage.historyRecipe.inverse?.slice()}:null,data=stage.historyData??stage.pendingData;\n",
+        " if(!recipe&&!data)return Promise.reject(new DOMException('Affine canonical history recipe missing','AbortError'));\n",
+        " let rejectCancellation;const cancelPromise=new Promise((_,reject)=>rejectCancellation=reject);cancelPromise.catch(()=>{});\n",
+        " const row={stage,mesh:stage.mesh,owner:frameAffineOwnerToken(stage.h),lifecycle:frameAffineLifecycleGeneration,logicalVersion:stage.logicalVersion,closed:false,worker:null,error:null,promise:null,cancelPromise,cancel(reason){if(this.closed)return;this.closed=true;this.error=reason??new DOMException('Canonical history cancelled','AbortError');rejectCancellation(this.error);this.closeWorker?.(this.error);}};\n",
+        " frameAffineHistoryJobs.set(stage,row);frameAffineHistoryJobRows.add(row);row.promise=(async()=>{\n",
+        "  await frameAffineYield();frameAffineHistoryCheck(row);if(stage.canonicalSnapshot)return stage.canonicalSnapshot;\n",
+        "  if(recipe?.inherit){const snapshot=await frameAffineHistoryAwait(row,frameAffineCanonicalAsync(recipe.inherit));if(snapshot.logicalVersion!==undefined&&snapshot.logicalVersion!==row.logicalVersion)throw new DOMException('Inherited canonical history version changed','AbortError');stage.canonicalSnapshot=snapshot;return snapshot;}\n",
+        "  let raw,faceSlots,guard,stock,outsideCanonical=false;\n",
+        "  if(recipe){\n",
+        "   raw=recipe.parent?await frameAffineHistoryAwait(row,frameAffineCanonicalAsync(recipe.parent)):recipe.raw;frameAffineHistoryCheck(row);const baseVersion=recipe.parent?.logicalVersion??row.logicalVersion-1;\n",
+        "   if(!Number.isSafeInteger(row.logicalVersion)||baseVersion<0||row.logicalVersion!==baseVersion+1)throw new DOMException('Canonical history version changed','AbortError');\n",
+        "   const positions=await frameAffineHistoryCopy(row,raw.attrs.position.array),normals=await frameAffineHistoryCopy(row,raw.attrs.normal.array),indices=await frameAffineHistoryCopy(row,raw.index,Uint32Array),faces=recipe.faces.slice(),call=frameAffineHistoryWorker(row),ownerVersion=++frameAffineSerial,gesture=++frameAffineSerial;\n",
+        "   const prepared=await call({kind:'canonical-prepare',positions,normals,indices,faceIDs:faces,version:baseVersion,ownerVersion,creaseCos:CREASE_COS},[positions.buffer,normals.buffer,indices.buffer,faces.buffer]);frameAffineHistoryCheck(row);\n",
+        "   if(prepared.kind!=='canonical-prepared'||prepared.ownerVersion!==ownerVersion||prepared.version!==baseVersion)throw new DOMException('Canonical history prepare receipt changed','InvalidStateError');\n",
+        "   const begin=await call({kind:'canonical-begin',gesture,baseVersion,ownerVersion});frameAffineHistoryCheck(row);if(begin.kind!=='canonical-began'||begin.ownerVersion!==ownerVersion||begin.baseVersion!==baseVersion||begin.gesture!==gesture)throw new DOMException('Canonical history begin receipt changed','InvalidStateError');\n",
+        "   const q=await call({kind:'canonical-pose',gesture,revision:1,baseVersion,ownerVersion,world:recipe.world,delta:recipe.delta,inverse:recipe.inverse,final:true});frameAffineHistoryCheck(row);\n",
+        "   if(q.kind!=='canonical-posed'||q.ownerVersion!==ownerVersion||q.baseVersion!==baseVersion||q.version!==row.logicalVersion||q.gesture!==gesture||q.revision!==1||q.committed!==true)throw new DOMException('Canonical history pose receipt changed','InvalidStateError');\n",
+        "   stock={positions:q.rawPositions,normals:q.rawNormals,indices:q.rawIndices,outsideHashes:q.outsideHashes,cornerPositionsUnchanged:q.cornerPositionsUnchanged};outsideCanonical=q.outsideCanonical===true;guard=recipe.aliasGuard;faceSlots=new Int32Array(raw.index.length/3);\n",
+        "   for(let k=0;k<recipe.faces.length;k++){faceSlots[recipe.faces[k]]=k+1;if((k&2047)===2047){await frameAffineYield();frameAffineHistoryCheck(row);}}\n",
+        "  }else{\n",
+        "   raw=data.raw;const positions=await frameAffineHistoryCopy(row,raw.attrs.position.array),normals=await frameAffineHistoryCopy(row,raw.attrs.normal.array),indices=await frameAffineHistoryCopy(row,raw.index,Uint32Array);faceSlots=data.faceSlots;guard=data.aliasGuard;\n",
+        "   for(let k=0;k<data.ids.length;k++){positions.set(data.values.subarray(k*3,k*3+3),data.ids[k]*3);if((k&8191)===8191){await frameAffineYield();frameAffineHistoryCheck(row);}}\n",
+        "   const slots=await frameAffineHistoryCopy(row,faceSlots,Int32Array),call=frameAffineHistoryWorker(row),gesture=++frameAffineSerial,q=await call({kind:'whole',positions,normals,indices,faceSlots:slots,gesture,revision:1,creaseCos:CREASE_COS},[positions.buffer,normals.buffer,indices.buffer,slots.buffer]);frameAffineHistoryCheck(row);\n",
+        "   if(q.kind!=='whole-stock'||q.gesture!==gesture||q.revision!==1)throw new DOMException('Legacy canonical history receipt changed','InvalidStateError');stock=q;outsideCanonical=q.outsideCanonical===true;\n",
+        "  }\n",
+        "  const snapshot=await frameNative.drainCooperatively(frameAffineWholeSnapshotWork(raw,stock,faceSlots,guard,outsideCanonical),{isCurrent:()=>frameAffineHistoryOwnerCurrent(row),yieldTask:frameAffineYield});frameAffineHistoryCheck(row);snapshot.logicalVersion=row.logicalVersion;stage.canonicalSnapshot=snapshot;return snapshot;\n",
+        " })().finally(()=>{row.closeWorker?.();row.closed=true;frameAffineHistoryJobRows.delete(row);if(frameAffineHistoryJobs.get(stage)===row)frameAffineHistoryJobs.delete(stage);});row.promise.catch(()=>{});return row.promise;\n",
+        "}\n",
+        "function frameAffineAuthoringPending(hashes=null){const wanted=hashes?new Set(hashes):null;return [...frameAffineStages.values()].some(stage=>(!wanted||wanted.has(stage.h))&&frameAffineStageCurrent(stage)&&(!stage.canonicalSnapshot||stage.canonicalSnapshot!==stage.snapshot));}\n",
+        "function frameAffineExactIntent(hashes=null){\n",
+        " const wanted=hashes?new Set(hashes):null,stages=[...frameAffineStages.values()].filter(stage=>(!wanted||wanted.has(stage.h))&&frameAffineStageCurrent(stage));\n",
+        " return{lifecycle:frameAffineLifecycleGeneration,history:frameAffineHistorySerial,sequence:sceneMutationSequence,token:sceneStateToken,gesture:frameRigidGestureGeneration,input:frameRigidInput,mode:polyElementMode,space:coordMode,pivot:polyPivotMatrix?.slice()??null,selection:frameRigidSetSnapshots([selNodes,selTags]),stages:stages.map(stage=>({stage,mesh:stage.mesh,owner:frameAffineOwnerToken(stage.h),stamp:stage.stamp,context:stage.context}))};\n",
+        "}\n",
+        "function frameAffineExactIntentCurrent(intent){\n",
+        " if(intent.lifecycle!==frameAffineLifecycleGeneration||intent.history!==frameAffineHistorySerial||intent.sequence!==sceneMutationSequence||intent.token!==sceneStateToken||intent.gesture!==frameRigidGestureGeneration||intent.input!==frameRigidInput||intent.mode!==polyElementMode||intent.space!==coordMode||!!intent.pivot!==!!polyPivotMatrix||intent.pivot&&!intent.pivot.every((v,i)=>v===polyPivotMatrix[i])||!frameRigidSetSnapshotsCurrent(intent.selection))return false;\n",
+        " return intent.stages.every(({stage,mesh,owner,stamp,context})=>pickMeshes.get(stage.h)===mesh&&frameAffineOwnerToken(stage.h)===owner&&frameComponentSelectionCurrent(context)&&(frameAffineStampCurrent(stamp)||stage.canonicalSnapshot&&(frameAffineAuthoringCanonicalCurrent(mesh,stage.canonicalSnapshot)||frameAffineSnapshotMatches(mesh,stage.canonicalSnapshot))));\n",
+        "}\n",
+        "function frameAffineContinueExact(continuation,hashes=null,{rollback=null,rollbackCurrent=null,onError=null}={}){\n",
+        " if(rollback&&typeof rollbackCurrent!=='function')throw new TypeError('Exact continuation rollback requires an ownership check');\n",
+        " const intent=frameAffineExactIntent(hashes);const promise=(async()=>{\n",
+        "  if(frameRigidInput||frameRigidExecuting||frameRigidQueue.length)throw new DOMException('Exact authoring continuation requires released gesture ownership','InvalidStateError');\n",
+        "  const snapshots=await Promise.all(intent.stages.map(({stage})=>stage.canonicalSnapshot??(stage.historyPending?frameAffineCanonicalAsync(stage):stage.promise.catch(()=>frameAffineCanonicalAsync(stage)))));\n",
+        "  if(!frameAffineExactIntentCurrent(intent))throw new DOMException('Exact authoring intent version changed','AbortError');\n",
+        "  for(let k=0;k<intent.stages.length;k++){const{stage}=intent.stages[k];if(stage.snapshot!==snapshots[k]){frameAffineAssertHistory(stage);stage.generation++;frameAffineBind(stage,snapshots[k],true);frameAffineForgetStage(stage);}}\n",
+        "  if(!frameAffineExactIntentCurrent(intent))throw new DOMException('Exact authoring intent changed after canonical bind','AbortError');\n",
+        "  try{return await continuation();}catch(error){if(rollback){if(!rollbackCurrent())throw new Error('Exact continuation rollback ownership changed',{cause:error});await rollback(error);}throw error;}\n",
+        " })().catch(error=>{if(onError)onError(error);else{frameAffineNotes.errors.push('Exact authoring continuation: '+String(error));console.error('Exact authoring continuation did not commit',error);}throw error;});promise.catch(()=>{});return promise;\n",
+        "}\n",
+        "\n",
+        "const frameComponentMeasurementScopes=new Map();\n",
+        "function frameComponentScopeCertificate(t){\n",
+        " if(!t||t.domain==='face'||!frameComponentSelectionCurrent(t))return null;\n",
+        " const mesh=pickMeshes.get(t.h),g=mesh?.geometry,k=g&&frameAffineKnownGeometry.get(g);let ids,guard,faces;\n",
+        " if(t.g===g&&t.stableFaceComponent===true&&t.eligible&&t.faceIDs?.length&&frameRigidSelection(t,true)){ids=t.ids;guard=t.aliasGuard;faces=t.faceIDs;}\n",
+        " else if(k?.domain===t.domain&&k.aliasStable&&frameAffineKnownIDs(t.h)&&k.faceIDs?.length&&(!t.faceIDs?.length||k.faceIDs.length===t.faceIDs.length&&k.faceIDs.every((f,i)=>f===t.faceIDs[i]))){ids=Uint32Array.from(k.ids);guard=k.aliasGuard;faces=k.faceIDs;}\n",
+        " else return null;\n",
+        " if(!ids?.length||!faces?.length||faces.length>524288||typeof guard?.find!=='function'||!frameRigidAliasSafe({stableFaceComponent:true,ids,pa:g.attributes.position.array,aliasGuard:guard}))return null;\n",
+        " return{mesh,g,ids,guard,faces};\n",
+        "}\n",
+        "function frameComponentScopedMeshes(t,meshes=pickMeshes){\n",
+        " const proof=frameComponentScopeCertificate(t),source=meshes.get(t?.h);if(!proof||!source?.geometry?.index||source.geometry.index.count!==proof.g.index.count)return null;\n",
+        " const stamp=frameAffineSourceStamp(proof.mesh),geometry=source.geometry,prior=frameComponentMeasurementScopes.get(geometry);let scoped;\n",
+        " if(prior&&prior.source===source&&frameAffineStampCurrent(prior.stamp)&&prior.faces.length===proof.faces.length&&prior.faces.every((f,i)=>f===proof.faces[i])){scoped=prior.mesh;frameComponentMeasurementScopes.delete(geometry);frameComponentMeasurementScopes.set(geometry,prior);}\n",
+        " else{\n",
+        "  const faces=proof.faces.slice(),index=geometry.index;\n",
+        "  scoped={geometry:{attributes:geometry.attributes,index:{count:faces.length*3,getX:i=>index.getX(faces[Math.floor(i/3)]*3+i%3)}},matrixWorld:source.matrixWorld,updateMatrixWorld(){source.updateMatrixWorld(true);this.matrixWorld=source.matrixWorld;}};\n",
+        "  if(prior)logicalEdgeCache.delete(prior.mesh.geometry);frameComponentMeasurementScopes.set(geometry,{source,stamp,faces,mesh:scoped});\n",
+        "  while(frameComponentMeasurementScopes.size>2){const key=frameComponentMeasurementScopes.keys().next().value,row=frameComponentMeasurementScopes.get(key);frameComponentMeasurementScopes.delete(key);logicalEdgeCache.delete(row.mesh.geometry);}\n",
+        " }\n",
+        " const out=new Map(meshes);out.set(t.h,scoped);return out;\n",
+        "}\n",
+        "function frameComponentPreparedRemapProof(stage,old,entry){\n",
+        " const t=frameRigidPrepared,c=stage.context;\n",
+        " if(!t||t.disposed||t.status!=='ready'||!t.eligible||t.stableFaceComponent!==true||t.mesh!==stage.mesh||c.mesh!==stage.mesh||t.g!==old||t.mesh.geometry!==old||t.node!==stage.node||c.node!==stage.node||t.h!==stage.h||c.h!==stage.h||t.entry!==entry||entry!==c.entry||t.domain!==c.domain||t.domain==='face'||!frameRigidSource(t)||!frameRigidSelection(t,true))return null;\n",
+        " const p=old.attributes.position,n=old.attributes.normal,ix=old.index;\n",
+        " if(p.itemSize!==3||n.itemSize!==3||ix.itemSize!==1||p.normalized||n.normalized||ix.normalized||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||ix.isInterleavedBufferAttribute||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||p.array.length!==p.count*3||n.array.length!==n.count*3||p.count!==n.count||ix.array.length!==ix.count||ix.count%3)return null;\n",
+        " const faces=t.faceIDs,mask=c.faceIDs,privateFaces=t.privateFaces;\n",
+        " if(!(faces instanceof Uint32Array)||!(mask instanceof Uint32Array)||!faces.length||faces.length>524288||mask.length!==faces.length||privateFaces?.size!==faces.length||typeof privateFaces.has!=='function')return null;\n",
+        " for(let k=0;k<faces.length;k++)if(faces[k]!==mask[k]||(k&&faces[k]<=faces[k-1])||faces[k]>=old.index.count/3||!privateFaces.has(faces[k]))return null;\n",
+        " // Certificate rechecks live selection/source and the original alias guard on\n",
+        " // actual committed positions; no known-geometry stamp is refreshed or relaxed.\n",
+        " const proof=frameComponentScopeCertificate(t);\n",
+        " return proof&&proof.mesh===stage.mesh&&proof.g===old&&proof.faces===faces?proof:null;\n",
+        "}\n",
+        "\n",
+        "function frameComponentSelectionRemap(stage,old,index,entry){\n",
+        " const context=stage.context,canRebase=entry===context.entry&&frameComponentCanRebase(context,old),proof=canRebase?(frameComponentPreparedRemapProof(stage,old,entry)||frameComponentScopeCertificate({...context,selectionSets:frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]),selectionRevision:framePolySelectionRevision})):null;\n",
+        " if(!proof||proof.g!==old)return frameAffineSelectionRemap(old,index,entry);\n",
+        " const semantic=frameAffineOrderedSelectionRemap(old,index,entry,proof.faces);return frameAffineRestoreSelectionOrder(stage,index,semantic,proof.faces);\n",
+        "}\n",
+        "function frameComponentKnownMeasurements(h=null){\n",
+        " if(h===null){if(polySelection.items.size!==1)return null;h=polySelection.items.keys().next().value;}\n",
+        " const mesh=pickMeshes.get(h),k=mesh&&frameAffineKnownGeometry.get(mesh.geometry),m=k?.componentMeasurements;\n",
+        " if(!m||k.domain==='face'||!k.aliasStable||!frameAffineKnownIDs(h)||m.space!==coordMode||!!m.pivot!==!!polyPivotMatrix||m.pivot&&!m.pivot.every((v,i)=>v===polyPivotMatrix[i]))return null;\n",
+        " mesh.updateMatrixWorld(true);return m.world.elements.every((v,i)=>v===mesh.matrixWorld.elements[i])?m:null;\n",
+        "}\n",
+        "function frameComponentHistoryBasis(t){\n",
+        " const meshes=frameComponentScopedMeshes(t);if(!meshes)return null;const owner=pureWorldFrame(t.h);\n",
+        " const work=frameEdgeSelectionBasisWork(t.h,owner,new Map([[t.h,t.entry]]),meshes);let step;do{step=work.next();}while(!step.done);return step.value||owner;\n",
+        "}\n",
+        "\n",
+        "function frameComponentPureSelection(entry,domain){\n",
+        " const field={face:'faces',vertex:'vertices',edge:'edges'}[domain];\n",
+        " return !!field&&!!entry?.[field]?.size&&['faces','vertices','edges'].every(key=>key===field||!entry[key].size);\n",
+        "}\n",
+        "function frameComponentSelectionCurrent(t){\n",
+        " const e=polySelection.items.get(t?.h),domain=t?.domain??'face';\n",
+        " return !!t&&e===t.entry&&e.faces===t.faces&&e.vertices===t.vertices&&e.edges===t.edges&&polySelection.items.size===1&&polyElementMode===domain&&polyFocusActive()&&!polyExactEdgeVertices?.has(t.h)&&framePolySelectionRevision===t.selectionRevision&&frameRigidSetSnapshotsCurrent(t.selectionSets)&&frameComponentPureSelection(e,domain);\n",
+        "}\n",
+        "function* frameComponentFaceMaskWork(t){\n",
+        " // Use the stock movement closure, including logical aliases for edge endpoints.\n",
+        " // A copied map prevents the prepared-ID shortcut from certifying itself.\n",
+        " const selected=yield* framePolySelectedVertexIdsWork(t.h,new Map([[t.h,t.entry]]),null,pickMeshes),faces=new Set();let work=0;\n",
+        " for(const id of selected){if(!Number.isInteger(id)||id<0||id>=t.p.count)return{eligible:false,reason:'component-raw-slot-out-of-range'};if((++work&4095)===0)yield;}\n",
+        " for(let f=0;f<t.ia.length/3;f++){\n",
+        "  let inside=0;for(let c=0;c<3;c++)inside+=selected.has(t.ia[f*3+c])?1:0;\n",
+        "  if(inside&&inside!==3)return{eligible:false,reason:'partial-component-face'};\n",
+        "  if(inside===3)faces.add(f);if((++work&4095)===0)yield;\n",
+        " }\n",
+        " if(!faces.size)return{eligible:false,reason:'component-face-mask-empty'};\n",
+        " return{eligible:true,faces,selected};\n",
+        "}\n",
+        "function* frameComponentClosureMatchesWork(gate,selected){\n",
+        " if(!gate.eligible)return gate;if(gate.ids.length!==selected.size)return{eligible:false,reason:'component-alias-closure-mismatch'};\n",
+        " let work=0;for(const id of gate.ids){if(!selected.has(id))return{eligible:false,reason:'component-alias-closure-mismatch'};if((++work&4095)===0)yield;}\n",
+        " return gate;\n",
+        "}\n",
+        "function frameComponentKnownMask(t){\n",
+        " const k=frameAffineKnownGeometry.get(t.g);if(!k||k.domain!==t.domain||!frameAffineKnownIDs(t.h)||!k.aliasStable||!k.faceIDs?.length)return false;\n",
+        " t.faceIDs=k.faceIDs.slice();t.privateFaces=new Set(t.faceIDs);return true;\n",
+        "}\n",
+        "function frameComponentCanRebase(context,geometry){\n",
+        " if((context.domain??'face')==='face')return false;\n",
+        " if(frameComponentSelectionCurrent(context))return true;\n",
+        " const r=frameComponentOwnedSelections.get(context.entry);\n",
+        " return !!r&&r.geometry===geometry&&r.domain===context.domain&&frameComponentSelectionCurrent(r)&&r.faceIDs.length===context.faceIDs?.length&&r.faceIDs.every((id,i)=>id===context.faceIDs[i]);\n",
+        "}\n",
+        "function frameComponentRebase(context,snapshot,geometry){\n",
+        " const entry=polySelection.items.get(context.h);if(!entry||polyElementMode!==context.domain)return false;\n",
+        " context.entry=entry;context.faces=entry.faces;context.vertices=entry.vertices;context.edges=entry.edges;context.selectionRevision=framePolySelectionRevision;context.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);context.ids=snapshot.selectedIDs;\n",
+        " frameComponentOwnedSelections.set(entry,{...context,geometry,faceIDs:context.faceIDs.slice()});return true;\n",
+        "}\n",
+        "function frameComponentFrame(t,bounds,pivot=polyPivotMatrix){\n",
+        " if(!t||t.domain==='face'||!t.componentOrdinary||!bounds)return null;\n",
+        " let frame;if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else frame=coordMode==='world'?new THREE2.Matrix4():pureWorldFrame(t.h);\n",
+        " frame.setPosition(pivot?new THREE2.Vector3().setFromMatrixPosition(new THREE2.Matrix4().fromArray(pivot)):bounds.min.clone().add(bounds.max).multiplyScalar(.5));return frame;\n",
+        "}\n",
+        "function frameComponentCurrentFrame(bounds=null){\n",
+        " const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;\n",
+        " const frame=frameRigidSelection(t)?frameComponentFrame(t,bounds??frameRigidBounds()):null;if(frame)return frame;\n",
+        " return !frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements()?.frame.clone()??null:null;\n",
+        "}\n",
+        "function frameComponentCurrentExtent(frame){\n",
+        " const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared,m=t?.componentMeasurements;if(!m||!frameRigidSelection(t)||m.space!==coordMode){const known=!frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements():null;return known&&[0,1,2,4,5,6,8,9,10].every(i=>Object.is(frame.elements[i],known.frame.elements[i]))?known.extent.clone():null;}\n",
+        " t.mesh.updateMatrixWorld(true);if(!m.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;\n",
+        " if(![0,1,2,4,5,6,8,9,10].every(i=>Object.is(frame.elements[i],m.frame.elements[i])))return null;return m.extent.clone();\n",
+        "}\n",
+        "async function frameComponentPrepareMeasurements(t){\n",
+        " if(t.domain==='face')return true;\n",
+        " const mesh=t.mesh;mesh.updateMatrixWorld(true);const world=mesh.matrixWorld.clone(),space=coordMode,pivot=polyPivotMatrix?.slice()??null,items=new Map([[t.h,t.entry]]),rigidIDs=new Map([[t.h,t.idSet]]),current=()=>{mesh.updateMatrixWorld(true);return frameRigidSelection(t,true)&&space===coordMode&&world.elements.every((v,i)=>v===mesh.matrixWorld.elements[i])&&!!pivot===!!polyPivotMatrix&&(!pivot||pivot.every((v,i)=>v===polyPivotMatrix[i]));};\n",
+        " const measurementMeshes=frameComponentScopedMeshes(t)??pickMeshes;\n",
+        " // Collinear edge selections need a changing edge basis; leave that extension to stock.\n",
+        " if(t.domain==='edge'){\n",
+        "  const basis=await frameNative.drainCooperatively(frameEdgeSelectionBasisWork(t.h,pureWorldFrame(t.h),items,measurementMeshes),{isCurrent:current,yieldTask:frameAffineYield});\n",
+        "  if(basis)return false;\n",
+        " }\n",
+        " const m=await frameNative.drainCooperatively(framePolySelectionMeasurements(items,null,measurementMeshes,polyPivotMatrix,rigidIDs),{isCurrent:current,yieldTask:frameAffineYield});\n",
+        " if(!current()||!m)return false;t.componentOrdinary=true;t.componentMeasurements={...m,space:coordMode,world};return true;\n",
+        "}\n",
+        "function frameComponentRememberMeasurements(context,measurements,world){\n",
+        " const mesh=pickMeshes.get(context.h),known=mesh&&frameAffineKnownGeometry.get(mesh.geometry),receipt={...measurements,space:coordMode,world:world.clone(),pivot:polyPivotMatrix?.slice()??null};let remembered=false;\n",
+        " if(context.domain!=='face'&&known?.domain===context.domain&&known.entry===context.entry&&frameComponentSelectionCurrent(context)&&frameAffineKnownIDs(context.h)){known.componentMeasurements=receipt;remembered=true;}\n",
+        " const t=frameRigidPrepared;if(t?.domain!=='face'&&t?.h===context.h&&t.entry===context.entry&&frameRigidSelection(t)){t.componentMeasurements=receipt;return true;}return remembered;\n",
+        "}\n",
+        "function* frameComponentExactMeasurementsWork(s,positions){\n",
+        " const min=new THREE2.Vector3(Infinity,Infinity,Infinity),max=new THREE2.Vector3(-Infinity,-Infinity,-Infinity),p=new THREE2.Vector3();let work=0;\n",
+        " for(const id of s.t.ids){p.fromArray(positions,id*3).applyMatrix4(s.world);min.min(p);max.max(p);if((++work&4095)===0)yield;}\n",
+        " const bounds={min,max},frame=frameComponentFrame(s.t,bounds,s.beforePivot?s.afterGizmo:null),inverse=frame.clone().invert(),lo=new THREE2.Vector3(Infinity,Infinity,Infinity),hi=new THREE2.Vector3(-Infinity,-Infinity,-Infinity);\n",
+        " for(const id of s.t.ids){p.fromArray(positions,id*3).applyMatrix4(s.world).applyMatrix4(inverse);lo.min(p);hi.max(p);if((++work&4095)===0)yield;}\n",
+        " return{bounds,frame,extent:hi.sub(lo),space:coordMode,world:s.world.clone()};\n",
+        "}\n",
+        "function frameComponentQueueExactMeasurements(s,q){\n",
+        " if(s.t.domain==='face'||!q.rawFullPositions)return;s.componentCMJob?.abort();const job=new AbortController();s.componentCMJob=job;\n",
+        " const current=()=>{s.t.mesh.updateMatrixWorld(true);return s.componentCMJob===job&&!s.cancel&&!s.discarded&&s.r.live&&q.revision===s.affineRevision&&frameRigidSource(s.t)&&frameRigidSelection(s.t)&&coordMode===s.coordinateSpace&&s.world.elements.every((v,i)=>v===s.t.mesh.matrixWorld.elements[i]);};\n",
+        " s.componentCMPromise=frameNative.drainCooperatively(frameComponentExactMeasurementsWork(s,q.rawFullPositions),{signal:job.signal,isCurrent:current,yieldTask:frameAffineYield}).then(m=>{if(!current())return false;s.t.componentMeasurements=m;s.t.bounds={min:m.bounds.min.clone(),max:m.bounds.max.clone()};s.t.boundsWorld=s.world.clone();updateHUD(readPolyTransform(coordMode,m));scheduleRender();return true;}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push('Component exact CM: '+String(error));return false;});\n",
+        "}\n",
+        "function frameComponentPublishMeasurements(s,result,frame){\n",
+        " if(s.t.domain==='face'||!result.basisMin||!result.basisMax)return false;\n",
+        " const bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};\n",
+        " frame.setPosition(s.beforePivot?new THREE2.Vector3(s.afterGizmo[12],s.afterGizmo[13],s.afterGizmo[14]):bounds.min.clone().add(bounds.max).multiplyScalar(.5));\n",
+        " const extent=new THREE2.Vector3().fromArray(result.basisMax).sub(new THREE2.Vector3().fromArray(result.basisMin));\n",
+        " s.t.componentMeasurements={bounds,frame,extent,space:coordMode,world:s.world.clone()};updateHUD(readPolyTransform(coordMode,s.t.componentMeasurements));return true;\n",
+        "}\n",
+        "function frameComponentRefreshAfterBind(stage,snapshot){\n",
+        " const context=stage.context;if(!frameComponentSelectionCurrent(context))return false;\n",
+        " frameRigidCancelDerived();const stamp=frameAffineSourceStamp(stage.mesh),world=stage.mesh.matrixWorld.clone(),items=new Map([[stage.h,context.entry]]),ids=new Map([[stage.h,new Set(snapshot.selectedIDs)]]),controller=new AbortController(),job={controller,closed:false,cancel(){this.closed=true;controller.abort();}};frameRigidDerivedJob=job;const measurementMeshes=frameComponentScopedMeshes(context)??pickMeshes;\n",
+        " const current=()=>!job.closed&&frameRigidDerivedJob===job&&OBJ.get(stage.h)===stage.node&&pickMeshes.get(stage.h)===stage.mesh&&frameComponentSelectionCurrent(context)&&frameAffineStampCurrent(stamp)&&world.elements.every((v,i)=>v===stage.mesh.matrixWorld.elements[i]);\n",
+        " job.promise=frameNative.drainCooperatively((function*(){const buffers=yield*framePolySelectionBuffers(items),measurements=yield*framePolySelectionMeasurements(items,null,measurementMeshes,polyPivotMatrix,ids);return{buffers,measurements};})(),{signal:controller.signal,isCurrent:current,yieldTask:frameAffineYield}).then(result=>{\n",
+        "  if(!current())return false;frameRigidInstalling=true;try{for(const o of[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;}frameInstallPolySelectionBuffers(result.buffers,true,result.measurements);}finally{frameRigidInstalling=false;}return true;\n",
+        " }).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push('Component bind overlay: '+String(error));return false;}).finally(()=>{if(frameRigidDerivedJob===job)frameRigidDerivedJob=null;frameRigidSchedulePrepare();});return true;\n",
+        "}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26390,
+      "deleteLines": 1,
+      "insert": [
+        " const wire=wireOverlays.get(t.h)?.geometry;return{attrs,index:t.indexSeed,groups:g.groups.map(q=>({...q})),drawRange:{...g.drawRange},userData:{...g.userData},wire:wire?.index?.array??null,box:g.boundingBox?.clone()??null,sphere:g.boundingSphere?.clone()??null,selectedIDs:t.ids.slice(),aliasGuard:t.aliasGuard,aliasStable:t.stableFaceComponent===true,componentStable:t.domain!=='face'&&t.stableFaceComponent===true};\n"
+      ]
+    },
+    {
+      "startLine": 26398,
+      "deleteLines": 1,
+      "insert": [
+        " markPolygonCreaseGeometry(g);frameAffineAuthoringCanonicalRemember(g,snapshot);return g;\n"
+      ]
+    },
+    {
+      "startLine": 26405,
+      "deleteLines": 1,
+      "insert": [
+        " return k&&frameAffineStampCurrent(k.stamp)&&e===k.entry&&e.faces===k.faces&&e.vertices===k.vertices&&e.edges===k.edges&&frameRigidSetSnapshotsCurrent(k.sets)&&framePolySelectionRevision===k.selection&&frameComponentPureSelection(e,k.domain??'face')&&!polyExactEdgeVertices?.has(h)&&polyElementMode===(k.domain??'face')&&polyFocusActive()?k.ids:null;\n"
+      ]
+    },
+    {
+      "startLine": 26409,
+      "deleteLines": 1,
+      "insert": [
+        " frameAffineKnownGeometry.set(g,{domain:stage.context.domain??'face',faceIDs:stage.context.faceIDs?.slice()??Uint32Array.from(entry.faces).sort(),stamp:frameAffineSourceStamp(stage.mesh),entry,faces:entry.faces,vertices:entry.vertices,edges:entry.edges,sets:frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]),selection:framePolySelectionRevision,ids:new Set(snapshot.selectedIDs),aliasGuard:snapshot.aliasGuard,aliasStable:(stage.context.domain??'face')==='face'?snapshot.aliasStable:(snapshot.componentStable===true||snapshot.aliasStable===true)&&frameRigidAliasSafe({stableFaceComponent:true,ids:snapshot.selectedIDs,pa:snapshot.attrs.position.array,aliasGuard:snapshot.aliasGuard}),outsideCanonical:snapshot.outsideCanonical===true,outsideHashes:snapshot.outsideHashes});\n"
+      ]
+    },
+    {
+      "startLine": 26413,
+      "deleteLines": 1,
+      "insert": [
+        " const old=mesh.geometry,entry=polySelection.items.get(stage.h),selection=entry?{vertices:[...entry.vertices],edges:[...entry.edges],revision:framePolySelectionRevision}:null,remap=frameComponentSelectionRemap(stage,old,snapshot.index,entry),g=frameAffineGeometry(snapshot),t=frameRigidPrepared,points=polyPointOverlays.get(stage.h),oldPoints=points?.geometry,wire=wireOverlays.get(stage.h),oldWire=wire?.geometry,oldPivot=polyPivotMatrix?.slice()??null,oldGizmo=typeof getGizmoWorldArray==='function'?getGizmoWorldArray():null,overlays=typeof frameRigidCaptureOverlays==='function'?frameRigidCaptureOverlays():null,prior={stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot,selectionOrder:stage.selectionOrder},contextPrior=Object.fromEntries(Object.entries(Object.getOwnPropertyDescriptors(stage.context)).filter(([,descriptor])=>'value'in descriptor&&descriptor.writable).map(([key,descriptor])=>[key,descriptor.value])),ownedPrior=frameComponentOwnedSelections.get(entry),rebase=frameComponentCanRebase(stage.context,old);let changed=false;const binding=frameAffineBindings.get(mesh),preserve=binding&&frameAffineBindingCurrent(binding)&&snapshot.index.length===old.index.array.length?binding:null,keepWorker=!!preserve&&frameAffineStages.get(stage.h)===stage&&preserve.logicalVersion===stage.logicalVersion&&preserve.canonicalVersion===stage.logicalVersion&&preserve.canonicalSnapshot===snapshot&&!!preserve.workerPipe&&!preserve.workerPipe.closed&&preserve.workerPipe.confirmedVersion===stage.logicalVersion,bindingPrior=preserve?{selectionSets:preserve.selectionSets,selectionRevision:preserve.selectionRevision,stamp:preserve.stamp,physicalRaw:preserve.physicalRaw,initialRaw:preserve.initialRaw,canonicalSnapshot:preserve.canonicalSnapshot,logicalVersion:preserve.logicalVersion,canonicalVersion:preserve.canonicalVersion,rawDisplayBaseline:preserve.rawDisplayBaseline,fullNumeric:preserve.fullNumeric,bindDisplay:preserve.bindDisplay,active:preserve.active,revision:preserve.revision,lastPublishedSnapshot:preserve.lastPublishedSnapshot,positions:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.positions.slice():null,extras:!keepWorker||preserve.lastPublishedSnapshot!==snapshot?preserve.numeric.extras.slice():null}:null;\n"
+      ]
+    },
+    {
+      "startLine": 26416,
+      "deleteLines": 2,
+      "insert": [
+        "  if(t?.mesh===mesh)frameRigidPrepared=null;frameRigidCancelDerived();mesh.geometry=g;changed=true;frameAffineApplyRemap(entry,remap);if(rebase)frameComponentRebase(stage.context,snapshot,g);if(points)points.geometry=g;\n",
+        "  refreshWireOverlay(mesh);if(preserve)frameAffineSeedBindDisplay(preserve,mesh,snapshot,g,wire?.geometry);stage.stamp=frameAffineSourceStamp(mesh);stage.bound=snapshot;stage.snapshot=snapshot;if(rebase&&remap)stage.selectionOrder=Object.freeze({h:stage.h,entry,domain:stage.context.domain,index:snapshot.index,vertexCount:snapshot.attrs.position.array.length/3,vertices:remap.vertices,edges:remap.edges});frameAffineRememberGeometry(stage,snapshot,g);\n"
+      ]
+    },
+    {
+      "startLine": 26419,
+      "deleteLines": 1,
+      "insert": [
+        "  if(remap&&!(rebase&&frameComponentRefreshAfterBind(stage,snapshot))&&typeof rebuildPolySelection==='function')rebuildPolySelection(false);scheduleRender();if(preserve)frameAffineBindingTransfer(preserve,mesh,snapshot,keepWorker);frameRigidSchedulePrepare();\n"
+      ]
+    },
+    {
+      "startLine": 26422,
+      "deleteLines": 3,
+      "insert": [
+        "  if(preserve&&preserve.live){const current=frameRigidPrepared;if(current&&current!==t&&current.mesh===mesh){current.affinePreserve=preserve;frameRigidDispose(current);frameRigidPrepared=null;}const closed=preserve.workerPipe?.closed,{positions,extras,...state}=bindingPrior;Object.assign(preserve,state);if(own&&rebase){preserve.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);preserve.selectionRevision=framePolySelectionRevision;}if(closed){preserve.workerPipe=null;preserve.initialRaw=preserve.physicalRaw;preserve.logicalVersion=preserve.canonicalVersion=0;}if(positions){preserve.numeric.positions.set(positions);preserve.numeric.extras.set(extras);}}\n",
+        "  Object.assign(stage,prior);Object.assign(stage.context,contextPrior);if(own&&rebase){stage.context.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);stage.context.selectionRevision=framePolySelectionRevision;if(ownedPrior){ownedPrior.selectionSets=stage.context.selectionSets;ownedPrior.selectionRevision=framePolySelectionRevision;frameComponentOwnedSelections.set(entry,ownedPrior);}else frameComponentOwnedSelections.delete(entry);}frameAffineKnownGeometry.delete(g);frameAffineCleanup(()=>t?.engine?.geometryCache.rows.delete(g));objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);wireTopologyCache.delete(g);\n",
+        "  if(t&&!t.disposed&&mesh.geometry===old&&frameRigidSource(t)){if(own&&rebase&&t.entry===entry){t.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);t.selectionRevision=framePolySelectionRevision;}frameRigidPrepared=t;t.affine=preserve??t.affine;}else if(t&&t.mesh===mesh){if(preserve)t.affinePreserve=preserve;frameRigidDispose(t);}\n"
+      ]
+    },
+    {
+      "startLine": 26434,
+      "deleteLines": 0,
+      "insert": [
+        "  if(stage.generation!==version)return false;\n"
+      ]
+    },
+    {
+      "startLine": 26439,
+      "deleteLines": 0,
+      "insert": [
+        "  if(stage.generation!==version)return false;\n"
+      ]
+    },
+    {
+      "startLine": 26445,
+      "deleteLines": 1,
+      "insert": [
+        "function frameAffineCancelPublication(){for(const stage of frameAffineStages.values())if(!stage.snapshot||stage.historyPending){stage.generation++;frameAffineAdopt(stage);}}\n"
+      ]
+    },
+    {
+      "startLine": 26501,
+      "deleteLines": 1,
+      "insert": [
+        " frameComponentQueueExactMeasurements(s,q);frameAffineNotes.exactPoses++;frameAffineNotes.phases.push({name:'affine-exact-worker-pose',gesture:s.affineID,revision:q.revision,...q.timings});scheduleRender();return true;\n"
+      ]
+    },
+    {
+      "startLine": 26522,
+      "deleteLines": 1,
+      "insert": [
+        " const cmFrame=s.t.domain!=='face'?frameComponentFrame(s.t,s.t.bounds??s.beforeBounds,s.beforePivot?s.afterGizmo:null):null,cmBasis=cmFrame?cmFrame.clone().invert():new THREE2.Matrix4();const revision=s.affineRevision,current=()=>!s.cancel&&!s.discarded&&r.active===s&&s.affineRevision===revision&&frameRigidTransactionCurrent(s);\n"
+      ]
+    },
+    {
+      "startLine": 26524,
+      "deleteLines": 1,
+      "insert": [
+        " r.gpu.submit({matrix:local.elements,normalMatrix:normal.elements,world:s.world.elements,basis:cmBasis.elements,isCurrent:current}).then(result=>{if(result.status!=='ready'||!current())return;t.bounds={min:new THREE2.Vector3().fromArray(result.min),max:new THREE2.Vector3().fromArray(result.max)};t.boundsWorld=s.world.clone();if(!cmFrame||!frameComponentPublishMeasurements(s,result,cmFrame))updateHUD();scheduleRender();}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});\n"
+      ]
+    },
+    {
+      "startLine": 26527,
+      "deleteLines": 0,
+      "insert": [
+        "function frameAffineOrderedSelectionRemap(old,index,entry,faces=null){\n",
+        " if(!entry||(!entry.vertices.size&&!entry.edges.size))return null;const oldIndex=old.index?.array;if(!oldIndex||oldIndex.length!==index.length)throw new DOMException('Affine selection face order changed','AbortError');\n",
+        " const vertexMap=new Map(),edgeMap=new Map(),key=(a,b)=>a<b?a+':'+b:b+':'+a;\n",
+        " const add=(map,from,to)=>{if(!map.has(from)){map.set(from,to);return;}const prior=map.get(from);if(prior instanceof Set)prior.add(to);else if(prior!==to)map.set(from,new Set([prior,to]));};\n",
+        " const visit=f=>{for(let c=0;c<3;c++){const at=f*3+c,next=f*3+(c+1)%3,from=oldIndex[at];if(entry.vertices.has(from))add(vertexMap,from,index[at]);const edge=key(from,oldIndex[next]);if(entry.edges.has(edge))add(edgeMap,edge,key(index[at],index[next]));}};\n",
+        " if(faces)for(const f of faces)visit(f);else for(let f=0;f<index.length/3;f++)visit(f);\n",
+        " const ordered=(source,map)=>{const out=new Set();for(const from of source)if(map.has(from)){const to=map.get(from);if(to instanceof Set)for(const id of to)out.add(id);else out.add(to);}return out;};\n",
+        " return{vertices:ordered(entry.vertices,vertexMap),edges:ordered(entry.edges,edgeMap)};\n",
+        "}\n",
+        "function frameAffineCaptureSelectionOrder(s,fallback){\n",
+        " const t=s.t,e=t.entry;if(!['vertex','edge'].includes(t.domain)||!fallback?.index||!fallback.attrs?.position||!frameComponentPureSelection(e,t.domain))return null;\n",
+        " const admitted=s.source?.entry===e&&s.source.domain===t.domain,vertices=admitted?s.source.vertexIDs:Uint32Array.from(e.vertices),edges=admitted?s.source.edgeIDs:Array.from(e.edges);\n",
+        " return Object.freeze({h:t.h,entry:e,domain:t.domain,index:fallback.index,vertexCount:fallback.attrs.position.array.length/3,vertices,edges});\n",
+        "}\n",
+        "function frameAffineRestoreSelectionOrder(stage,index,semantic,faces){\n",
+        " const order=stage.selectionOrder,c=stage.context;if(!order||!semantic||order.h!==stage.h||order.entry!==c.entry||order.domain!==c.domain||!['vertex','edge'].includes(order.domain)||!(order.index instanceof Uint32Array||order.index instanceof Uint16Array)||order.index.length!==index.length||!Number.isSafeInteger(order.vertexCount)||order.vertexCount<1)return semantic;\n",
+        " if(!order.vertices?.[Symbol.iterator]||!order.edges?.[Symbol.iterator])return semantic;\n",
+        " const vertices=new Set(order.vertices),edges=new Set(order.edges);if(vertices.size!==(order.vertices.size??order.vertices.length)||edges.size!==(order.edges.size??order.edges.length))return semantic;\n",
+        " for(const id of vertices)if(!Number.isInteger(id)||id<0||id>=order.vertexCount)return semantic;\n",
+        " for(const edge of edges){if(typeof edge!=='string')return semantic;const pair=edge.split(':');if(pair.length!==2)return semantic;const[a,b]=pair.map(Number);if(!Number.isInteger(a)||!Number.isInteger(b)||a<0||a>=b||b>=order.vertexCount||edge!==a+':'+b)return semantic;}\n",
+        " const saved=order.index===index?{vertices,edges}:frameAffineOrderedSelectionRemap({index:{array:order.index}},index,{vertices,edges},faces);\n",
+        " if(!saved||saved.vertices.size!==semantic.vertices.size||saved.edges.size!==semantic.edges.size)return semantic;\n",
+        " for(const id of saved.vertices)if(!semantic.vertices.has(id))return semantic;for(const edge of saved.edges)if(!semantic.edges.has(edge))return semantic;\n",
+        " return saved;\n",
+        "}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26528,
+      "deleteLines": 2,
+      "insert": [
+        " const mesh=new WeakRef(s.t.mesh),h=s.t.h,owner=frameAffineOwnerToken(h),currentNode=()=>frameAffineOwnerTokens.get(OBJ.get(h))===owner?OBJ.get(h):undefined,context={domain:s.t.domain,faceIDs:s.t.faceIDs.slice(),h,get mesh(){return mesh.deref();},get node(){return currentNode();},entry:s.t.entry,faces:s.t.faces,vertices:s.t.vertices,edges:s.t.edges,selectionSets:s.t.selectionSets,selectionRevision:s.t.selectionRevision,ids:s.t.ids};\n",
+        " return{h,owner,get node(){return currentNode();},get mesh(){return mesh.deref();},context,selectionOrder:frameAffineCaptureSelectionOrder(s,fallback),world:s.world.clone(),space:s.coordinateSpace,values,pivot:pivot?.slice()??null,pose:pose.slice(),overlays:frameAffineFreezeOverlays(overlays),bound:fallback,fallback,promise,generation:0,snapshot:null,canonicalSnapshot:null,pendingData:null,stamp:frameAffineSourceStamp(s.t.mesh)};\n"
+      ]
+    },
+    {
+      "startLine": 26532,
+      "deleteLines": 3,
+      "insert": [
+        " frameRigidBeforeHistory();frameAffineAssertHistory(expected);const current=frameAffineStages.get(stage.h),prior={generation:stage.generation,stamp:stage.stamp,bound:stage.bound,snapshot:stage.snapshot,promise:stage.promise,error:stage.error,historyPending:stage.historyPending},serial=frameAffineHistorySerial;\n",
+        " try{const pending=!stage.canonicalSnapshot,snapshot=stage.canonicalSnapshot??stage.fallback;if(!snapshot)throw new DOMException('Affine history display snapshot missing','AbortError');frameAffineCancelPublication();stage.generation++;stage.historyPending=pending;if(pending){stage.promise=frameAffineCanonicalAsync(stage);stage.error=null;}frameAffineBind(stage,snapshot,true);frameAffineHistorySerial++;frameAffineNotes.history++;frameAffineHistoryCancelExcept(stage);if(pending){frameAffineStages.set(stage.h,stage);frameAffineAdopt(stage);}else frameAffineForgetStage(stage);}\n",
+        " catch(error){frameAffineHistoryJobs.get(stage)?.cancel(error);frameAffineHistorySerial=serial;Object.assign(stage,prior);if(current)frameAffineStages.set(stage.h,current);else frameAffineStages.delete(stage.h);throw error;}\n",
+        "}\n",
+        "async function frameAffineReleaseSnapshot(s,values){\n",
+        " const t=s.t,raw=s.beforeRaw,serial=frameAffineHistorySerial,token=sceneStateToken,sequence=sceneMutationSequence,current=()=>!s.cancel&&!s.discarded&&frameAffineHistorySerial===serial&&sceneStateToken===token&&sceneMutationSequence===sequence&&frameRigidTransactionCurrent(s,true)&&frameRigidSelection(t,true);\n",
+        " if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');const attrs={};\n",
+        " for(const[k,a]of Object.entries(raw.attrs)){const array=k==='position'||k==='normal'?await frameAffineCopyOwnedArray(a.array,current):a.array;attrs[k]={...a,array};}\n",
+        " if(!attrs.position||!attrs.normal||values.length!==t.ids.length*3||s.beforeNormals.length!==values.length)throw new DOMException('Affine release snapshot layout changed','AbortError');\n",
+        " for(let k=0;k<t.ids.length;k++){const at=t.ids[k]*3,o=k*3;attrs.position.array.set(values.subarray(o,o+3),at);attrs.normal.array.set(s.beforeNormals.subarray(o,o+3),at);if((k&8191)===8191){await frameAffineYield();if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');}}\n",
+        " if(!current())throw new DOMException('Affine release snapshot owner changed','AbortError');return{releaseCurrent:current,attrs,index:t.indexSeed,groups:t.g.groups.map(q=>({...q})),drawRange:{...t.g.drawRange},userData:{...t.g.userData},wire:wireOverlays.get(t.h)?.geometry?.index?.array??null,box:null,sphere:null,selectedIDs:t.ids.slice(),aliasGuard:t.aliasGuard,aliasStable:t.stableFaceComponent===true,componentStable:t.domain!=='face'&&t.stableFaceComponent===true};\n"
+      ]
+    },
+    {
+      "startLine": 26540,
+      "deleteLines": 0,
+      "insert": [
+        " const afterFallback=await frameAffineReleaseSnapshot(s,values);if(!afterFallback.releaseCurrent()||!frameAffineSnapshotMatches(t.mesh,s.beforeRaw))throw new DOMException('Affine release snapshot content changed','AbortError');delete afterFallback.releaseCurrent;\n"
+      ]
+    },
+    {
+      "startLine": 26543,
+      "deleteLines": 1,
+      "insert": [
+        "  t.adapter.positionView=t.adapter.normalView=null;frameRigidApplySparse(t,values,s.beforeNormals,null,()=>wrote=true);frameRigidExactBounds(t);const canonical=polyFrameMatrix(t.bounds).elements.slice();afterFallback.userData={...t.g.userData};afterFallback.box=t.g.boundingBox?.clone()??null;afterFallback.sphere=t.g.boundingSphere?.clone()??null;\n"
+      ]
+    },
+    {
+      "startLine": 26558,
+      "deleteLines": 1,
+      "insert": [
+        " blurActive();await frameAffineAuthoringDrain(signal);for(;;){if(signal?.aborted)throw signal.reason||new DOMException('Save cancelled','AbortError');frameAffinePruneStages();const boundary=frameAffineBoundary();if(boundary.released.length){await nativeSaveWait(frameRigidDraining?new Promise(resolve=>setTimeout(resolve,4)):frameRigidDrain(),signal);continue;}const active=boundary.active,stages=boundary.stages.filter(({stage})=>stage.mesh!==active?.t.mesh);let resolved;try{resolved=await nativeSaveWait(Promise.all(stages.map(({stage})=>stage.error?frameAffineRepairStage(stage):stage.promise.catch(()=>frameAffineRepairStage(stage)))),signal);}catch(error){if(!frameAffineBoundaryCurrent(boundary))continue;throw error;}\n"
+      ]
+    },
+    {
+      "startLine": 26616,
+      "deleteLines": 2,
+      "insert": [
+        " if(cancel){frameAffineHistoryJobs.get(stage)?.cancel(new DOMException('Affine owner retired','AbortError'));stage.workerSession?.deref()?.closeWorker?.();stage.rejectSnapshot?.(new DOMException('Affine owner retired','AbortError'));stage.pendingData=null;}\n",
+        " stage.historyPending=false;stage.stamp=null;stage.workerSession=null;stage.resolveSnapshot=stage.rejectSnapshot=null;\n"
+      ]
+    },
+    {
+      "startLine": 26620,
+      "deleteLines": 1,
+      "insert": [
+        " if(clear){frameAffineAuthoringCancelAll('Scene cleared');frameAffineLifecycleGeneration++;for(const row of [...frameAffineHistoryJobRows])row.cancel(new DOMException('Affine scene retired','AbortError'));}\n"
+      ]
+    },
+    {
+      "startLine": 26625,
+      "deleteLines": 6,
+      "insert": [
+        "function frameAffineSelectionRemap(old,index,entry){return frameAffineOrderedSelectionRemap(old,index,entry);}\n"
+      ]
+    },
+    {
+      "startLine": 26633,
+      "deleteLines": 1,
+      "insert": [
+        " if(stage.canonicalSnapshot)return stage.canonicalSnapshot;if(stage.historyPending){const error=new DOMException('Exact canonical history requires an asynchronous continuation','InvalidStateError');error.canonicalReady=frameAffineCanonicalAsync(stage);throw error;}const recipe=stage.historyRecipe,data=stage.historyData??stage.pendingData;let raw,source,index,faceSlots,aliasGuard;\n"
+      ]
+    },
+    {
+      "startLine": 26654,
+      "deleteLines": 1,
+      "insert": [
+        " return{released,history:frameAffineHistorySerial,generation:frameAffineLifecycleGeneration,gesture:typeof frameRigidGestureGeneration==='undefined'?null:frameRigidGestureGeneration,input:frameRigidInput,active,revision:active?.affineRevision,source:active?frameAffineSourceStamp(active.t.mesh):null,stages:[...frameAffineStages.values()].filter(frameAffineStageCurrent).map(stage=>({stage,stamp:stage.stamp})),sequence:typeof sceneMutationSequence==='undefined'?null:sceneMutationSequence};\n"
+      ]
+    },
+    {
+      "startLine": 26657,
+      "deleteLines": 1,
+      "insert": [
+        " return b.history===frameAffineHistorySerial&&!b.released.length&&![...(typeof frameRigidQueue==='undefined'?[]:frameRigidQueue),typeof frameRigidExecuting==='undefined'?null:frameRigidExecuting].some(s=>s?.released&&!s.cancel&&!s.discarded&&!s.committed)&&b.generation===frameAffineLifecycleGeneration&&b.input===frameRigidInput&&b.revision===b.active?.affineRevision&&(!b.active||!b.active.cancel&&!b.active.discarded&&frameAffineStampCurrent(b.source))&&(b.gesture===null||b.gesture===frameRigidGestureGeneration)&&(b.sequence===null||b.sequence===sceneMutationSequence)&&b.stages.every(({stage,stamp})=>frameAffineStages.get(stage.h)===stage&&stage.stamp===stamp&&frameAffineStampCurrent(stamp));\n"
+      ]
+    },
+    {
+      "startLine": 26661,
+      "deleteLines": 2,
+      "insert": [
+        " const map=new Int32Array(raw.attrs.position.array.length/3);map.fill(-1);const selected=new Set(),outside=new Set(),sourceBits=new Uint32Array(raw.attrs.position.array.buffer,raw.attrs.position.array.byteOffset,raw.attrs.position.array.length),resultBits=new Uint32Array(p.buffer,p.byteOffset,p.length);let outsidePositionsUnchanged=true;\n",
+        " for(let f=0;f<index.length/3;f++){const inside=!!faceSlots[f];for(let c=0;c<3;c++){const at=f*3+c;map[raw.index[at]]=index[at];(inside?selected:outside).add(index[at]);if(!inside)for(let j=0;j<3;j++)if(sourceBits[raw.index[at]*3+j]!==resultBits[index[at]*3+j])outsidePositionsUnchanged=false;}if((f&2047)===0)yield;}\n"
+      ]
+    },
+    {
+      "startLine": 26666,
+      "deleteLines": 1,
+      "insert": [
+        " return{...raw,attrs:{position:{array:p,itemSize:3,normalized:false},normal:{array:n,itemSize:3,normalized:false}},index,wire,box:new THREE2.Box3(min,max),sphere:new THREE2.Sphere(center,Math.sqrt(radius2)),selectedIDs:Uint32Array.from(selected),aliasGuard,aliasStable:!!raw.aliasStable&&!!outsideCanonical&&exclusive,selectedExclusive:exclusive,outsideCanonical,outsidePositionsUnchanged,componentStable:(raw.componentStable===true||raw.aliasStable===true)&&outsidePositionsUnchanged&&exclusive,rawToCanonical:map,outsideHashes:stock.outsideHashes??null,cornerPositionsUnchanged:stock.cornerPositionsUnchanged===true};\n"
+      ]
+    },
+    {
+      "startLine": 26700,
+      "deleteLines": 1,
+      "insert": [
+        " stage.repairPromise=Promise.resolve().then(async()=>{\n"
+      ]
+    },
+    {
+      "startLine": 26702,
+      "deleteLines": 1,
+      "insert": [
+        "  const snapshot=await frameAffineCanonicalAsync(stage);stage.error=null;stage.promise=Promise.resolve(snapshot);frameAffineAdopt(stage);return snapshot;\n"
+      ]
+    },
+    {
+      "startLine": 26718,
+      "deleteLines": 1,
+      "insert": [
+        " return !!mesh&&pickMeshes.get(r.h)===mesh&&frameAffineOwnerToken(r.h)===r.ownerToken&&node&&frameRigidOwnerCurrent(r.owner)&&frameAffineStampCurrent(r.stamp)&&entry===r.entry&&entry.faces===r.faces&&entry.vertices===r.vertices&&entry.edges===r.edges&&polySelection.items.size===1&&polyElementMode===(r.domain??'face')&&polyFocusActive()&&framePolySelectionRevision===r.selectionRevision&&frameComponentPureSelection(entry,r.domain??'face')&&!polyExactEdgeVertices?.has(r.h)&&frameRigidSetSnapshotsCurrent(r.selectionSets);\n"
+      ]
+    },
+    {
+      "startLine": 26732,
+      "deleteLines": 1,
+      "insert": [
+        " r={domain:t.domain,managed:true,h:t.h,meshRef:new WeakRef(t.mesh),ownerToken:frameAffineOwnerToken(t.h),owner:frameRigidOwnerSnapshot(),entry:t.entry,faces:t.faces,vertices:t.vertices,edges:t.edges,selectionSets:t.selectionSets,selectionRevision:t.selectionRevision,live:true,displayEnabled:false,revision:0,logicalVersion:0,canonicalVersion:0,active:null,display:null,gpu:null,numeric:null,faceIDs,faceSlots,ready:false};frameAffineBindingStamp(r,t.mesh);frameAffineBindings.set(t.mesh,r);frameAffineBindingRecords.add(r);t.affine=r;\n"
+      ]
+    },
+    {
+      "startLine": 26746,
+      "deleteLines": 1,
+      "insert": [
+        "function frameAffineAwaitPreview(s){const r=s.t.affine;if(!r){if(s.t.domain!=='face')s.t.promise?.then(ok=>{if(ok&&!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s))frameAffineAwaitPreview(s);});return;}if(r.ready){frameAffineStartPreview(s);return;}r.promise.then(()=>{if(!s.cancel&&!s.discarded&&frameRigidTransactionCurrent(s)){frameAffineStartPreview(s);if(s.previewReady)frameAffineSubmit(s);}}).catch(error=>{if(error.name!=='AbortError')frameAffineNotes.errors.push(String(error));});}\n"
+      ]
+    },
+    {
+      "startLine": 26749,
+      "deleteLines": 1,
+      "insert": [
+        " if(r.domain!=='face'){const entry=polySelection.items.get(r.h);r.entry=entry;r.faces=entry.faces;r.vertices=entry.vertices;r.edges=entry.edges;r.selectionRevision=framePolySelectionRevision;r.selectionSets=frameRigidSetSnapshots([entry.faces,entry.vertices,entry.edges]);}r.physicalRaw=snapshot;r.rawDisplayBaseline=null;r.fullNumeric=null;r.bindDisplay=null;r.active=null;r.revision++;frameAffineBindingStamp(r,mesh);\n"
+      ]
+    },
+    {
+      "startLine": 26770,
+      "deleteLines": 0,
+      "insert": [
+        "async function frameAffineCopyOwnedArray(array,isCurrent){\n",
+        " if(!isCurrent())throw new DOMException('Affine copy owner changed','AbortError');const out=new array.constructor(array.length);\n",
+        " for(let i=0;i<array.length;i+=32768){out.set(array.subarray(i,Math.min(i+32768,array.length)),i);await frameAffineYield();if(!isCurrent())throw new DOMException('Affine copy owner changed','AbortError');}return out;\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 26775,
+      "deleteLines": 1,
+      "insert": [
+        "  const positions=await frameAffineCopyOwnedArray(stamp.pa,()=>frameAffineStampCurrent(stamp)),extras=new Float32Array(stamp.pcount*9),indices=stamp.ia;\n"
+      ]
+    },
+    {
+      "startLine": 26785,
+      "deleteLines": 1,
+      "insert": [
+        "function frameRigidBasic(){\n",
+        " const domain=polyElementMode;if(!polyFocusActive()||!['face','vertex','edge'].includes(domain)||polySelection.items.size!==1||vertexTools.soft.active||uvEdit||editPivot||frameChannels.size||!vpState.renderer?.nativeEngine)return null;\n",
+        " const[h,entry]=polySelection.items.entries().next().value,mesh=pickMeshes.get(h),node=OBJ.get(h),g=mesh?.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index;\n",
+        " if(!node||!mesh?.isMesh||mesh.isInstancedMesh||g?.isInstancedBufferGeometry||mesh.userData.splineChunks||!frameComponentPureSelection(entry,domain)||polyExactEdgeVertices?.has(h)||frameMorphTag(h)||!p||!n||!index||p.isInterleavedBufferAttribute||n.isInterleavedBufferAttribute||p.normalized||n.normalized||p.itemSize!==3||n.itemSize!==3||n.count!==p.count||!(p.array instanceof Float32Array)||!(n.array instanceof Float32Array)||!(index.array instanceof Uint32Array||index.array instanceof Uint16Array))return null;\n",
+        " return{h,entry,mesh,node,g,p,n,index,domain};\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 26787,
+      "deleteLines": 1,
+      "insert": [
+        "function frameRigidSelection(t,membership=false){\n",
+        " if(t?.aliasSafe===false||!frameRigidSource(t)||!frameComponentSelectionCurrent(t))return false;\n",
+        " if(t.domain==='face'){if(t.faces.size!==t.faceIDs.length)return false;if(membership)for(const id of t.faceIDs)if(!t.faces.has(id))return false;}\n",
+        " else if(t.privateFaces&&t.privateFaces.size!==t.faceIDs.length)return false;return true;\n",
+        "}\n"
+      ]
+    },
+    {
+      "startLine": 26798,
+      "deleteLines": 2,
+      "insert": [
+        " if(t.domain==='face'&&frameAffineEligible(t))frameAffinePrepareEarly(t);t.promise=(async()=>{await frameAffineYield();if(!frameRigidSelection(t,true))throw new DOMException('Rigid preparation owner changed','AbortError');const mapped=t.domain==='face'?frameAffineKnownGate(t):frameComponentKnownMask(t)?frameAffineKnownGate(t):null;let gate=mapped;if(!mapped){const cached=await frameGetNativeTopologyCache().get(t.g);if(!frameRigidSelection(t,true)||!cached.isCurrent())throw new DOMException('Rigid selection changed','AbortError');const tasks=frameNative.createYieldQueue();try{if(t.domain!=='face'){const mask=await frameNative.drainCooperatively(frameComponentFaceMaskWork(t),{isCurrent:()=>frameRigidSelection(t,true),yieldTask:()=>tasks.yield()});if(!mask.eligible){t.gate=mask;t.status='ineligible';return false;}t.privateFaces=mask.faces;t.componentClosure=mask.selected;t.faceIDs=Uint32Array.from(mask.faces).sort();}const work=frameNative.rigidIslandEligibilityWork(cached.topology,t.ia,t.domain==='face'?t.faces:t.privateFaces);for(;;){const step=work.next();if(step.done){gate=step.value;break;}await tasks.yield();if(!frameRigidSelection(t,false))throw new DOMException('Rigid selection changed','AbortError');}}finally{tasks.dispose();}}if(t.domain!=='face'&&!mapped)gate=await frameNative.drainCooperatively(frameComponentClosureMatchesWork(gate,t.componentClosure),{isCurrent:()=>frameRigidSelection(t,true),yieldTask:frameAffineYield});t.componentClosure=null;if(!frameRigidSelection(t,true))throw new DOMException('Rigid eligibility stale','AbortError');t.gate=gate;if(!gate.eligible){t.status='ineligible';return false;}t.eligible=true;t.ids=gate.ids;t.ranges=gate.ranges;t.idSet=new Set(t.ids);t.slot=new Int32Array(t.p.count);for(let k=0;k<t.ids.length;k++)t.slot[t.ids[k]]=k+1;t.originalPositions=await frameAffineCopyOwnedArray(t.pa,()=>frameRigidSelection(t,true));t.originalNormals=await frameAffineCopyOwnedArray(t.na,()=>frameRigidSelection(t,true));let indexSeed=frameRigidIndexSeeds.get(t.g);if(!indexSeed||indexSeed.array!==t.ia||indexSeed.version!==t.iv){indexSeed={array:t.ia,version:t.iv,values:await frameAffineCopyOwnedArray(t.ia,()=>frameRigidSelection(t,true))};frameRigidIndexSeeds.set(t.g,indexSeed);}t.indexSeed=indexSeed.values;if(mapped){t.aliasGuard=mapped.aliasGuard;t.stableFaceComponent=true;t.stableFaceProofBytes=0;}else{const aliases=frameNative.createYieldQueue();try{const work=frameRigidBuildAliasGuard(t);for(;;){const step=work.next();if(step.done){if(!step.value){t.eligible=false;t.gate={eligible:false,reason:t.aliasGuardFailure??'alias-validation-memory-budget'};t.status='ineligible';return false;}break;}await aliases.yield();if(!frameRigidSelection(t))throw new DOMException('Rigid alias preparation stale','AbortError');}}finally{aliases.dispose();}}t.aliasSafe=frameRigidAliasSafe(t);if(!t.aliasSafe)throw new DOMException('Rigid alias eligibility stale','AbortError');\n",
+        " if(t.domain!=='face'){if(!t.stableFaceComponent||!frameAffineEligible(t)||!await frameComponentPrepareMeasurements(t)){t.status='ineligible';t.gate={eligible:false,reason:'component-affine-or-basis-certificate-declined'};return false;}frameAffinePrepareEarly(t);}frameRigidExactBounds(t);t.numeric=mapped?await frameAffineKnownNumeric(t):t.engine.geometryCache.capture(t.g);t.adapter=frameNative.registerRigidGpuGeometry(t.g,t.numeric,{isCurrent:()=>frameRigidSource(t)});frameNative.installRigidGpuAttributeViews(t.adapter);const gpu=await frameNative.GpuRigidIslandPreview.create({device:t.device,pool:t.pool,positions:t.numeric.positions,extras:t.numeric.extras,ids:t.ids,isCurrent:()=>frameRigidSource(t)});if(!frameRigidSelection(t,true)){gpu.dispose();throw new DOMException('Rigid preparation stale','AbortError');}t.gpu=gpu;t.status='ready';frameRigidNotes.prepared++;frameRigidNotes.phases.push({name:'selection-ready',ms:performance.now()-started,faces:t.faceIDs.length,vertices:t.ids.length,ranges:t.ranges.length,historySourceBytes:t.originalPositions.byteLength+t.originalNormals.byteLength+t.indexSeed.byteLength,aliasGuardBytes:t.aliasGuard.bytes});return true;\n"
+      ]
+    },
+    {
+      "startLine": 26802,
+      "deleteLines": 2,
+      "insert": [
+        "function frameRigidSelectedIDs(h){const t=frameRigidPrepared;return t?.h===h&&t.eligible&&frameRigidSelection(t)?t.idSet:frameRigidSource(t)?t.domain!=='face'&&frameComponentScopeCertificate(t)?frameAffineKnownIDs(h):null:frameAffineKnownIDs(h);}\n",
+        "function frameRigidBounds(){const t=frameRigidInput?.t??frameRigidExecuting?.t??frameRigidPrepared;if(!t?.bounds||!frameRigidSelection(t)){const known=!frameRigidInput&&!frameRigidExecuting?frameComponentKnownMeasurements():null;return known?{min:known.bounds.min.clone(),max:known.bounds.max.clone()}:null;}t.mesh.updateMatrixWorld(true);if(!t.boundsWorld?.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]))return null;return{min:t.bounds.min.clone(),max:t.bounds.max.clone()};}\n"
+      ]
+    },
+    {
+      "startLine": 26808,
+      "deleteLines": 1,
+      "insert": [
+        " const affine=!!basic&&(frameAffineEligible(t)||(t?.domain!=='face'&&t?.status==='preparing'))&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&(['move','rotate','screenRotate','scale','scaleU'].includes(gizDrag?.mode)||frameAffineStages.get(t.h)&&!frameAffineStages.get(t.h).snapshot);const rigid=!!basic&&(coordMode==='world'||gizDrag?.mode==='move')&&!e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['move','rotate','screenRotate'].includes(gizDrag?.mode);if(!waiting&&(!(rigid||affine)||!t||['ineligible','failed','cancelled','fallback'].includes(t.status)))return false;\n"
+      ]
+    },
+    {
+      "startLine": 26820,
+      "deleteLines": 1,
+      "insert": [
+        " const same=g===t.g&&frameRigidSource(t),aliasSafe=frameRigidAliasSafe(t,positions);onWrite?.();for(let k=0;k<t.ids.length;k++){const id=t.ids[k],at=id*3,o=k*3;for(let j=0;j<3;j++){p.array[at+j]=positions[o+j];n.array[at+j]=normals[o+j];if(same){t.numeric.positions[at+j]=positions[o+j];t.numeric.extras[id*9+j]=normals[o+j];}}}t.aliasSafe=aliasSafe;if(t.domain!=='face')t.componentMeasurements=null;p.needsUpdate=true;n.needsUpdate=true;g.boundingBox=null;g.boundingSphere=null;markPolygonCreaseGeometry(g);objectPickBVHs.delete(g);frameSTLPickTrees.delete(g);frameRigidEpoch.set(g,(frameRigidEpoch.get(g)??0)+1);if(same){t.pv=p.version;t.nv=n.version;frameAffineTouchBinding(t);frameNative.touchRigidGpuGeometry(t.adapter);t.gpu.writeAuthoringRanges(t.ranges);}frameGetNativeTopologyCache().invalidate(g);vertexGroupCache.delete(g);vertexGroupOfCache.delete(g);logicalEdgeCache.delete(g);faceAdjacencyCache.delete(g);vertexTopologyCache.delete(g);if(!same){frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;}return{mesh:current,g,same};}\n"
+      ]
+    },
+    {
+      "startLine": 26826,
+      "deleteLines": 1,
+      "insert": [
+        " if(!frameComponentSelectionCurrent(t)||OBJ.get(t.h)!==t.node||m!==t.mesh)return false;\n"
+      ]
+    },
+    {
+      "startLine": 26831,
+      "deleteLines": 1,
+      "insert": [
+        " let frame;if(pivot&&coordMode==='object'){frame=new THREE2.Matrix4().fromArray(pivot);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else if(coordMode==='world')frame=new THREE2.Matrix4();else if(space===coordMode){frame=new THREE2.Matrix4().fromArray(pose);rotMatOfLin(frame,frame);frame.setPosition(0,0,0);}else frame=(t.domain!=='face'?frameComponentHistoryBasis(t):null)||polyAutoBasis();\n"
+      ]
+    },
+    {
+      "startLine": 26835,
+      "deleteLines": 1,
+      "insert": [
+        " const measurements={bounds:{min,max},frame,extent:hi.sub(lo)};t.bounds={min:min.clone(),max:max.clone()};t.boundsWorld=m.matrixWorld.clone();boundNode=null;frameComponentRememberMeasurements(t,measurements,world);placeGizmoForSelection(measurements);updateHUD(readPolyTransform(coordMode,measurements));scheduleRender();return true;\n"
+      ]
+    },
+    {
+      "startLine": 26853,
+      "deleteLines": 1,
+      "insert": [
+        " const rigidIDs=new Map(),entry=polySelection.items.get(t.h);if(frameRigidSelection(t)&&entry===t.entry)rigidIDs.set(t.h,t.idSet);\n"
+      ]
+    },
+    {
+      "startLine": 26871,
+      "deleteLines": 1,
+      "insert": [
+        "  const measurementMeshes=frameComponentScopedMeshes(t,source.meshes)??source.meshes;\n",
+        "  const work=(function*(){const buffers=yield*framePolySelectionBuffers(source.items,source.meshes),measurements=yield*framePolySelectionMeasurements(source.items,source.exact,measurementMeshes,source.pivot,source.rigidIDs);return{buffers,measurements};})();\n"
+      ]
+    },
+    {
+      "startLine": 26887,
+      "deleteLines": 1,
+      "insert": [
+        "async function frameRigidFallback(s){if(s.cancel||s.discarded)return;if(!frameRigidTransactionCurrent(s))throw new DOMException('CPU fallback source changed','AbortError');frameRigidNotes.fallbacks++;if(frameRigidInput===s){frameRigidInput=null;frameRigidClearInput();}const uiDrag=gizDrag,savedSpace=coordMode,savedFallthrough=frameRigidFallthrough,priorFallbackOwner=frameRigidFallbackOwner,fallbackLease={session:s};frameRigidFallbackOwner=fallbackLease;frameRigidFallthrough=true;try{frameRigidDispose(s.t);if(frameRigidPrepared===s.t)frameRigidPrepared=null;coordMode=s.coordinateSpace;setGizmoFromMatrix(s.gizmo);gizDrag=s.drag;_gizStart?.(s.event);setGizmoFromMatrix(s.afterGizmo);bridgeTransform();if(s.released)await _gizEnd?.(s.releaseEvent);else frameRigidCpuSession=s;}finally{if(frameRigidFallbackOwner===fallbackLease){if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded){gizDrag=uiDrag;coordMode=savedSpace;}frameRigidFallthrough=savedFallthrough;frameRigidFallbackOwner=priorFallbackOwner;}}}\n"
+      ]
+    },
+    {
+      "startLine": 26890,
+      "deleteLines": 3,
+      "insert": [
+        " if(!s.ready){const ok=s.kind==='cpu'||s.t.status==='fallback'?false:await Promise.race([s.t.promise,s.abortPromise]);if(frameRigidQueue[0]!==s||s.discarded){remove=true;continue;}if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidTransactionCurrent(s)){frameRigidAbortAll('stale-after-preparation');remove=true;continue;}if(!ok){if(s.kind==='cpu'||['ineligible','failed','fallback'].includes(s.t.status)){await frameRigidFallback(s);if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded&&!s.cancel&&s.released)frameRigidRebaseQueued(s);remove=true;continue;}frameRigidCancelSession(s);remove=true;continue;}if(!frameRigidSelection(s.t)){frameRigidAbortAll('selection-changed-after-preparation');remove=true;continue;}if(s.affine)await frameAffinePrepare(s.t);if(frameRigidQueue[0]!==s||frameRigidExecuting!==s||s.cancel||s.discarded||!frameRigidTransactionCurrent(s))continue;const previewOverlays=s.previewReady?s.overlays:null;frameRigidActivate(s);if(previewOverlays)s.overlays=previewOverlays;if(s.affine)frameAffineActivate(s);if(!s.boundsCaptured)s.beforeBounds=s.t.bounds?{min:s.t.bounds.min.clone(),max:s.t.bounds.max.clone(),world:s.t.boundsWorld.clone()}:null;frameRigidSubmit(s);}\n",
+        " if(!s.released)return;if(s.cancel){frameRigidCancelSession(s);remove=true;continue;}if(s.affine)await frameAffineCommit(s);else frameRigidCommit(s);if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded&&!s.cancel)frameRigidRebaseQueued(s);remove=true;\n",
+        " }catch(e){s.cancel=true;if(e.name!=='AbortError'){frameRigidNotes.errors.push(String(e));console.error('Rigid island transaction failed',e);}if(frameRigidQueue[0]===s&&frameRigidExecuting===s&&!s.discarded)frameRigidAbortAll('transaction-failed');else{s.discarded=true;frameAffineCleanup(()=>s.closeWorker?.(e));frameAffineCleanup(()=>s.abortResolve?.(false));}remove=true;}finally{if(remove&&frameRigidQueue[0]===s)frameRigidQueue.shift();if(remove&&frameRigidExecuting===s)frameRigidExecuting=null;}if(remove&&frameRigidQueue.length)await frameAffineYield();}\n"
+      ]
+    },
+    {
+      "startLine": 26896,
+      "deleteLines": 1,
+      "insert": [
+        "var frameRigidEpoch=new WeakMap(),frameRigidIndexSeeds=new WeakMap(),frameRigidCpuSession=null,frameRigidFallbackOwner=null;\n"
+      ]
+    },
+    {
+      "startLine": 26899,
+      "deleteLines": 2,
+      "insert": [
+        "function frameRigidTransactionSnapshot(t){if(!t||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh)return null;const g=t.mesh.geometry,p=g?.attributes.position,n=g?.attributes.normal,index=g?.index,a=polySelection.items.get(t.h);if(!p||!n||!index||!a||polySelection.items.size!==1||polyElementMode!==(t.domain??polyElementMode)||!polyFocusActive())return null;t.mesh.updateMatrixWorld(true);return{exact:polyExactEdgeVertices?.get(t.h),domain:t.domain??polyElementMode,h:t.h,node:t.node,mesh:t.mesh,g,p,n,index,pa:p.array,na:n.array,ia:index.array,pv:p.version,nv:n.version,iv:index.version,...frameRigidOwnerSnapshot(),world:t.mesh.matrixWorld.clone(),entry:a,faces:a.faces,vertices:a.vertices,edges:a.edges,faceIDs:Uint32Array.from(a.faces),vertexIDs:Uint32Array.from(a.vertices),edgeIDs:Array.from(a.edges),selectionSets:frameRigidSetSnapshots([a.faces,a.vertices,a.edges]),selectionRevision:framePolySelectionRevision,animationRevision:frameAnimationRevision,softActive:vertexTools.soft.active,uvMode,uvEdit,editPivot,hasMorph:!!frameMorphTag(t.h),channelCount:frameChannels.size,pivot:polyPivotMatrix?.slice()??null,epoch:frameRigidEpoch.get(g)??0};}\n",
+        "function frameRigidTransactionCurrent(s,membership=false){const t=s?.source;if(!t||s.discarded||!frameRigidOwnerCurrent(t)||OBJ.get(t.h)!==t.node||pickMeshes.get(t.h)!==t.mesh||t.mesh.geometry!==t.g||t.g.attributes.position!==t.p||t.g.attributes.normal!==t.n||t.g.index!==t.index||t.p.array!==t.pa||t.n.array!==t.na||t.index.array!==t.ia||t.p.version!==t.pv||t.n.version!==t.nv||t.index.version!==t.iv||(frameRigidEpoch.get(t.g)??0)!==t.epoch||frameAnimationRevision!==t.animationRevision||vertexTools.soft.active!==t.softActive||uvMode!==t.uvMode||uvEdit!==t.uvEdit||editPivot!==t.editPivot||!!frameMorphTag(t.h)!==t.hasMorph||frameChannels.size!==t.channelCount||!!polyPivotMatrix!==!!t.pivot||t.pivot&&!t.pivot.every((v,i)=>v===polyPivotMatrix[i])||framePolySelectionRevision!==t.selectionRevision||!polyFocusActive()||polyElementMode!==t.domain||polyExactEdgeVertices?.get(t.h)!==t.exact||polySelection.items.size!==1)return false;const a=polySelection.items.get(t.h);if(a!==t.entry||a.faces!==t.faces||a.vertices!==t.vertices||a.edges!==t.edges||a.faces.size!==t.faceIDs.length||a.vertices.size!==t.vertexIDs.length||a.edges.size!==t.edgeIDs.length||!frameRigidSetSnapshotsCurrent(t.selectionSets))return false;if(membership)for(const [ids,set]of[[t.faceIDs,a.faces],[t.vertexIDs,a.vertices],[t.edgeIDs,a.edges]])for(const id of ids)if(!set.has(id))return false;t.mesh.updateMatrixWorld(true);return t.world.elements.every((v,i)=>v===t.mesh.matrixWorld.elements[i]);}\n"
+      ]
+    },
+    {
+      "startLine": 26918,
+      "deleteLines": 1,
+      "insert": [
+        " frameAffinePreparedCommandEpoch++;frameAffineAuthoringCancelAll('History changed');frameRigidCancelDerived();frameAffineCancelPublication();\n"
+      ]
+    },
+    {
+      "startLine": 26923,
+      "deleteLines": 1,
+      "insert": [
+        "function frameRigidRebaseQueued(completed){for(const s of frameRigidQueue){if(s===completed||s.ready||s.discarded)continue;if(s.t.h!==completed.t.h||OBJ.get(s.t.h)!==s.t.node||pickMeshes.get(s.t.h)!==s.t.mesh){s.cancel=true;continue;}const a=polySelection.items.get(s.t.h);if(!a||a.faces.size!==s.source.faceIDs.length||s.source.faceIDs.some(id=>!a.faces.has(id))||a.vertices.size!==s.source.vertexIDs.length||s.source.vertexIDs.some(id=>!a.vertices.has(id))||a.edges.size!==s.source.edgeIDs.length||s.source.edgeIDs.some(id=>!a.edges.has(id))){s.cancel=true;continue;}if(completed.kind==='cpu'||s.t.aliasSafe===false||!frameRigidSource(s.t)){const m=s.t.mesh,g=m.geometry,p=g.attributes.position,n=g.attributes.normal,index=g.index;s.t={domain:s.t.domain,h:s.t.h,node:s.t.node,mesh:m,g,p,n,index,status:'fallback',promise:Promise.resolve(false)};s.kind='cpu';}s.source=frameRigidTransactionSnapshot(s.t);if(!s.source)s.cancel=true;}if(frameRigidInput&&!frameRigidInput.discarded){frameRigidInstallInput(frameRigidInput);setGizmoFromMatrix(frameRigidInput.afterGizmo);}}\n"
+      ]
+    },
+    {
+      "startLine": 27021,
+      "deleteLines": 1,
+      "insert": [
+        "  if(frameRigidStart(e))return; // Exact stock polygon/duplicate branches keep their local gates.\n"
+      ]
+    },
+    {
+      "startLine": 28250,
+      "deleteLines": 1,
+      "insert": [
+        "var IDB_NAME = \"hashEditorRecents\", IDB_STORE = \"handles\", recentHandleCache = new Map(), recentHandleVersions = new Map(), recentMenuGeneration = 0, recentHandlePersistence = Promise.resolve();\n"
+      ]
+    },
+    {
+      "startLine": 28259,
+      "deleteLines": 17,
+      "insert": [
+        "function recentUnavailableNames(){try{return new Set(JSON.parse(localStorage.getItem('recentHandleUnavailable')||'[]'));}catch{return new Set();}}\n",
+        "function setRecentHandleUnavailable(name,unavailable){try{const names=recentUnavailableNames();if(unavailable)names.add(name);else names.delete(name);const recents=getNames();localStorage.setItem('recentHandleUnavailable',JSON.stringify([...names].filter(n=>recents.includes(n))));return true;}catch{return false;}}\n",
+        "function dismissRecents(){recentMenuGeneration++;recentsMenu.classList.remove('show');}\n",
+        "async function saveHandle(name,handle){let db;try{db=await idb();return await new Promise((resolve,reject)=>{const tx=db.transaction(IDB_STORE,'readwrite');tx.oncomplete=()=>resolve(true);tx.onabort=tx.onerror=()=>reject(tx.error||new Error('Recent handle persistence failed'));const store=tx.objectStore(IDB_STORE);if(handle)store.put(handle,name);else store.delete(name);});}catch{return false;}finally{db?.close();}}\n",
+        "async function getHandle(name){if(recentUnavailableNames().has(name))return null;let db;try{db=await idb();return await new Promise(resolve=>{const tx=db.transaction(IDB_STORE,'readonly'),rq=tx.objectStore(IDB_STORE).get(name);rq.onsuccess=()=>resolve(rq.result||null);rq.onerror=tx.onabort=()=>resolve(null);});}catch{return null;}finally{db?.close();}}\n"
+      ]
+    },
+    {
+      "startLine": 28289,
+      "deleteLines": 31,
+      "insert": [
+        "function addRecent(name,handle){let a=getNames().filter(x=>x!==name);a.unshift(name);if(a.length>12)a.length=12;setNames(a);const version=(recentHandleVersions.get(name)||0)+1;recentHandleVersions.set(name,version);recentHandleCache.set(name,handle&&FSA?handle:null);setRecentHandleUnavailable(name,true);if(!FSA)return Promise.resolve(false);const task=recentHandlePersistence.then(async()=>{if(recentHandleVersions.get(name)!==version)return false;const ok=await saveHandle(name,handle||null);if(recentHandleVersions.get(name)!==version)return ok;const recorded=ok?setRecentHandleUnavailable(name,!handle):false;if(!ok||!recorded)reportFileError(new Error('Recent file access could not be saved for later sessions.'),'recent-persistence');return ok&&recorded;}).catch(error=>{try{reportFileError(error,'recent-persistence');}catch{}return false;});recentHandlePersistence=task;return task;}\n",
+        "function offerRecentFileFallback(name,generation=recentMenuGeneration){if(generation!==recentMenuGeneration)return {ok:false,operation:'open-recent-stale'};reportFileError(new Error('The saved file handle for '+name+' is unavailable. Choose the file to reopen it.'),'open-recent-unavailable');recentsMenu.querySelector('.recent-file-fallback')?.remove();const button=document.createElement('button');button.type='button';button.className='ritem recent-file-fallback';button.textContent='Choose file\u2026';button.addEventListener('click',()=>{dismissRecents();doOpen();});recentsMenu.appendChild(button);recentsMenu.classList.add('show');}\n",
+        "async function openRecent(name){const generation=++recentMenuGeneration,version=recentHandleVersions.get(name)||0,current=()=>generation===recentMenuGeneration&&(recentHandleVersions.get(name)||0)===version;let h=FSA?recentHandleCache.get(name):null,p;try{if(h){p=await h.requestPermission({mode:'read'});}else if(FSA&&!recentHandleCache.has(name)){h=await getHandle(name);if(!current())return {ok:false,operation:'open-recent-stale'};if(h){recentHandleCache.set(name,h);p=await h.queryPermission({mode:'read'});if(!current())return {ok:false,operation:'open-recent-stale'};if(p==='prompt')return reportFileError(new Error('Click this Recent item again to allow access to '+name),'open-recent-permission');}}if(!current())return {ok:false,operation:'open-recent-stale'};if(!h)return offerRecentFileFallback(name,generation);if(p!=='granted')return reportFileError(new Error('Access to '+name+' was not granted'),'open-recent-permission');return await loadFromHandle(h,name);}catch(error){if(!current())return {ok:false,operation:'open-recent-stale'};if(error?.name==='NotFoundError'){if(recentHandleCache.get(name)===h)recentHandleCache.set(name,null);setRecentHandleUnavailable(name,true);return offerRecentFileFallback(name,generation);}return reportFileError(error,'open-recent');}}\n",
+        "function renderRecents(){let names=getNames();recentsMenu.innerHTML='';if(!names.length){let d=document.createElement('div');d.className='ritem empty';d.textContent='(no recent files)';recentsMenu.appendChild(d);return;}for(let n of names){let d=document.createElement('div');d.className='ritem';d.textContent=n;d.title=n;d.dataset.name=n;recentsMenu.appendChild(d);if(FSA&&!recentHandleCache.has(n)){const version=recentHandleVersions.get(n)||0;getHandle(n).then(h=>{if(h&&(recentHandleVersions.get(n)||0)===version&&!recentHandleCache.has(n))recentHandleCache.set(n,h);});}}}\n"
+      ]
+    },
+    {
+      "startLine": 28321,
+      "deleteLines": 0,
+      "insert": [
+        "  recentMenuGeneration++;\n"
+      ]
+    },
+    {
+      "startLine": 28327,
+      "deleteLines": 1,
+      "insert": [
+        "  recentsMenu.classList.contains(\"show\") ? dismissRecents() : showRecents();\n"
+      ]
+    },
+    {
+      "startLine": 28329,
+      "deleteLines": 10,
+      "insert": [
+        "recentsMenu.addEventListener(\"click\",(e)=>{let item=e.target.closest(\".ritem\");if(item?.dataset.name){recentsMenu.classList.remove(\"show\");openRecent(item.dataset.name);}});\n",
+        "addEventListener(\"pointerdown\",(e)=>{if(!recentsBtn.contains(e.target)&&!recentsMenu.contains(e.target))dismissRecents();});\n",
+        "addEventListener(\"keydown\",(e)=>{if(e.key==='Escape')dismissRecents();});\n"
+      ]
+    },
+    {
+      "startLine": 28407,
+      "deleteLines": 2,
+      "insert": [
+        "      frameAffinePasteNodes(clipNodes);\n"
+      ]
+    },
+    {
+      "startLine": 28485,
+      "deleteLines": 1,
+      "insert": [
+        "    e.preventDefault(), frameAffineDeleteNodes([...selNodes]);\n"
+      ]
+    },
+    {
+      "startLine": 28489,
+      "deleteLines": 1,
+      "insert": [
+        "    e.preventDefault();if(selNodes.size)frameAffineDeleteNodes([...selNodes]);else{runCmd(cmdDeleteTags([...selTags]));selTags.clear();renderRows();refreshSelClasses();}\n"
+      ]
+    },
+    {
+      "startLine": 28603,
+      "deleteLines": 1,
+      "insert": [
+        "  }, setCoordinates = (values) => {const requested={...values};for(const k of [\"position\",\"rotation\",\"size\"])if(Array.isArray(requested[k]))requested[k]=requested[k].slice();return frameAffineRunExactAction(\"Coordinate edit\",()=>{\n"
+      ]
+    },
+    {
+      "startLine": 28609,
+      "deleteLines": 1,
+      "insert": [
+        "    apply(\"pos\", requested.position), apply(\"rot\", requested.rotation), apply(\"size\", requested.size), syncCube(), commitCoordinateSnapshot(before);\n"
+      ]
+    },
+    {
+      "startLine": 28611,
+      "deleteLines": 1,
+      "insert": [
+        "  });}, viewRect = (view) => {\n"
+      ]
+    },
+    {
+      "startLine": 28677,
+      "deleteLines": 1,
+      "insert": [
+        "      else if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");return finishLineCut();}});\n"
+      ]
+    },
+    {
+      "startLine": 28701,
+      "deleteLines": 2,
+      "insert": [
+        "      if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");return finishLineCut();}});\n",
+        "      else if (vertexTools.mode===\"closeHole\") operation=frameAffineCloseHoleAt(x,y,vi);\n"
+      ]
+    },
+    {
+      "startLine": 28707,
+      "deleteLines": 1,
+      "insert": [
+        "  }, runEdgeTool = (name, options = {}) => {if([\"bridge\",\"finish\"].includes(name)&&frameAffineAuthoringPending([...selNodes])){const requested={...options};return frameAffineRunExactAction(\"Edge tool\",()=>runEdgeTool(name,requested));} \n"
+      ]
+    },
+    {
+      "startLine": 28725,
+      "deleteLines": 1,
+      "insert": [
+        "      if (vertexTools.mode===\"lineCut\") operation=frameAfterPicker(lineCutAddPoint(x,y,vi),ok=>{if(!ok){if(!current())throw new DOMException(\"Tool context changed\",\"AbortError\");return finishLineCut();}});\n"
+      ]
+    },
+    {
+      "startLine": 28731,
+      "deleteLines": 1,
+      "insert": [
+        "  }, setEdgeToolOptions = (options) => (typeof options.visibleOnly == \"boolean\" && (vertexTools.visibleOnly = options.visibleOnly), lastAttrKey = null, refreshAttributesPanel(), vertexToolState()), transformSubobjects = (options = {}) => {const requested={...options};for(const k of [\"translate\",\"rotate\",\"scale\"])if(Array.isArray(requested[k]))requested[k]=requested[k].slice();return frameAffineRunExactAction(\"Transform elements\",()=>{\n"
+      ]
+    },
+    {
+      "startLine": 28734,
+      "deleteLines": 2,
+      "insert": [
+        "    requested.extrude && (polyElementMode === \"edge\" || polyElementMode === \"face\") && extrudeSelectedForDrag();\n",
+        "    let snap = capturePolySelection(), frame = polyFrameMatrix(), pivot = new THREE2.Vector3().setFromMatrixPosition(frame), tr = Array.isArray(requested.translate) ? requested.translate : [0, 0, 0], rr = Array.isArray(requested.rotate) ? requested.rotate : [0, 0, 0], ss = Array.isArray(requested.scale) ? requested.scale : [1, 1, 1], delta = new THREE2.Matrix4().makeTranslation(pivot.x + (+tr[0] || 0), pivot.y + (+tr[1] || 0), pivot.z + (+tr[2] || 0)).multiply(new THREE2.Matrix4().makeRotationFromEuler(new THREE2.Euler((+rr[0] || 0) * D2R, (+rr[1] || 0) * D2R, (+rr[2] || 0) * D2R))).multiply(new THREE2.Matrix4().makeScale(Number.isFinite(+ss[0]) ? +ss[0] : 1, Number.isFinite(+ss[1]) ? +ss[1] : 1, Number.isFinite(+ss[2]) ? +ss[2] : 1)).multiply(new THREE2.Matrix4().makeTranslation(-pivot.x, -pivot.y, -pivot.z));\n"
+      ]
+    },
+    {
+      "startLine": 28747,
+      "deleteLines": 1,
+      "insert": [
+        "  });}, meshTopology = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 28779,
+      "deleteLines": 3,
+      "insert": [
+        "  }, makePolygonal = (refs) => {refs != null && selectObjects(refs);const requestedHashes=[...selNodes];return frameAffineRunExactAction(\"Make polygonal\",()=>{\n",
+        "    \n",
+        "    let cmd = cmdMakePolygonal(requestedHashes);\n"
+      ]
+    },
+    {
+      "startLine": 28783,
+      "deleteLines": 2,
+      "insert": [
+        "    let result;frameAffineExecutePreparedCommand(cmd,()=>{result={ object: cmd.result, state: state() };},requestedHashes);return result;\n",
+        "  },{hashes:requestedHashes});}, splineTopology = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 28867,
+      "deleteLines": 3,
+      "insert": [
+        "  }, connectDelete = (refs) => {refs != null && selectObjects(refs);const requestedHashes=[...selNodes];return frameAffineRunExactAction(\"Connect / To editable\",()=>{\n",
+        "    \n",
+        "    let cmd = cmdConnectDelete(requestedHashes);\n"
+      ]
+    },
+    {
+      "startLine": 28871,
+      "deleteLines": 2,
+      "insert": [
+        "    let result;frameAffineExecutePreparedCommand(cmd,()=>{result={ object: cmd.result || null, state: state() };},requestedHashes);return result;\n",
+        "  },{hashes:requestedHashes});}, beginSplineComponent = (ref) => {\n"
+      ]
+    },
+    {
+      "startLine": 28897,
+      "deleteLines": 1,
+      "insert": [
+        "  }, addSplineBevelAI = (options = {}) => {if(frameAffineAuthoringPending([...polySelection.items.keys()])){const requested={...options};return frameAffineRunExactAction(\"Spline bevel\",()=>addSplineBevelAI(requested));} \n"
+      ]
+    },
+    {
+      "startLine": 29238,
+      "deleteLines": 4,
+      "insert": [
+        "  }, deleteObjectsAI = (refs) => {let hashes = resolveObjects(refs);\n",
+        "    if (!hashes.length) throw new Error(\"no matching objects\");return frameAffineRunExactAction(\"Delete objects\",()=>{\n",
+        "    \n",
+        "    let result;frameAffineExecutePreparedCommand(cmdDelete(hashes),()=>{\n"
+      ]
+    },
+    {
+      "startLine": 29244,
+      "deleteLines": 2,
+      "insert": [
+        "    selTags.clear();treeChanged();refreshSelClasses();result={ deleted: hashes, resources: resourceStatsAI() };},hashes);return result;\n",
+        "  },{hashes});}, reparentObjectsAI = (refs, targetRef, mode = \"child\") => {\n"
+      ]
+    },
+    {
+      "startLine": 29551,
+      "deleteLines": 1,
+      "insert": [
+        "    bevelEdges(options={}){return frameAfterPicker(beginEdgeBevel({...options}),ok=>{if(ok?.cancelled)return ok;if(!ok)throw Error('Bevel: select polygon or cage edges');return api.getEdgeBevelState();});},\n"
+      ]
+    }
+  ]
+}

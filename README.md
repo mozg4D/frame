@@ -8,7 +8,7 @@ A browser-based 3D workspace for spline and polygon modeling, scene assembly, an
 
 ## Current application
 
-The hosted application is **r242**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
+The hosted application is **r243**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
 
 The viewport requires a supported WebGPU configuration. Startup checks capabilities and offers Retry if initialization fails. Mip generation is selected through fresh numerical checks for each GPU generation, including odd-sized textures. Calibration failures expose a copyable diagnostic report. r229 reuses resources within one owner-bound calibration session while retaining the same validation controls. Startup timing still needs measurement on each target device. Cached application resources can be reopened offline through the PWA.
 
@@ -17,6 +17,8 @@ The slicer generates perimeter paths with guarded adaptive handling and Solid or
 r241 reuses one bounded exact edge table and prepares edge-selection/coordinate-manager measurements cooperatively, with stale source and interaction checks before publication and click continuation. Raw aliases, pivot and history semantics are preserved. Partial-face and very large selections remain expensive; this is not a general selection-latency or frame-rate guarantee.
 
 r242 reuses immutable slicer descriptions and bounded original-topology operands, and avoids repeated edge-array construction inside a cleanup scan. Geometry, provenance, native task protocol and the shared worker budget retain their prior behavior. Source controls and three-layer synthetic browser lifecycle checks passed; these checks do not establish production slicing speed, broader adaptive coverage or physical-print acceptance. The r241 editor/native component behavior is unchanged.
+
+r243 fixes Escape/pointer cancellation and retired release ownership, preserves stock selection ordering, reduces repeated numeric Move selection/connectivity work with bounded exact caches, and makes Recent reopen stored handles with explicit permission/unavailable-file behavior. Source/regression checks pass. Representative browser checks are recorded separately from full acceptance: heavy original-STL testing is blocked by a re-requested browser file permission, dense runtime performance is unmeasured, and independent heavy stock P/N/I equivalence remains unverified. Recent already-running load cancellation and simultaneous metadata-storage/deletion failure remain limitations. This release does not claim a complete performance or workflow fix. Private fixtures, recovery scenes, diagnostics and transient review artifacts are excluded.
 
 ## Repository
 

@@ -1,8 +1,10 @@
+This source reconstruction is updated for r243. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+
 # Native viewport sources
 
 The 38 source modules in this directory and `bundle-native.mjs` produce the native viewport bundle used by r241 edge selection and affine component processing:
 
-`modules/native.2e5af192ec3642b662cb.js`
+`modules/native.eaf66728b97f40f0b783.js`
 
 ## Rebuild
 
@@ -12,7 +14,7 @@ From the repository root, write the bundle to a temporary file outside the check
 
     node native-source/bundle-native.mjs /absolute/path/outside/frame/native.js
 
-Expected output: 551,794 bytes, SHA256 `2e5af192ec3642b662cb54e98483b224dc6f124a68709ad0d0cfdc76b0fb0c85`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
+Expected output: 557,302 bytes, SHA256 `eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5`. TypeScript is a build-time dependency only. The command builds this native bundle; it does not rebuild or publish the whole application.
 
 Mip generation is selected by fresh native/actual GL controls for the current GPU owner generation. Production and calibration share gpu-mipmap.mjs; the baseline bilinear profile is preferred when it passes. The measured area profile integrates odd-dimension footprints in linear RGB and writes each mip to an sRGB8 target. The .008 control tolerance, exact base uploads, default source texture settings, implicit LOD and POT/NPOT color/bump gates remain enforced. Loss/Retry repeats calibration for the new device generation.
 
