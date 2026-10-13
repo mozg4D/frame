@@ -1,5 +1,5 @@
 {
-  "version": "r246-vertex-post-stock-yield",
+  "version": "r247-selection-presentation-ownership",
   "assets": {
     "frame-three-core": {
       "path": "./modules/frame-three-core.9edde002b066a9a05676.js",
@@ -151,9 +151,9 @@
       "critical": true
     },
     "editor": {
-      "path": "./modules/editor.84ac4330c08a23ed6dfa.js",
-      "sha256": "84ac4330c08a23ed6dfaae98e468a40eaa3e6ce60c8cfb939a73e6834655518c",
-      "bytes": 2886516,
+      "path": "./modules/editor.b46b7edb7b8fab6c0f1e.js",
+      "sha256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28",
+      "bytes": 2888003,
       "critical": true
     },
     "overhang-worker": {

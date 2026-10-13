@@ -1,4 +1,4 @@
-This source reconstruction is updated for r246. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+This source reconstruction is updated for r247. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
 
 # Current editor source
 
@@ -68,3 +68,13 @@ The final layer reconstructs exact r245 first, then replaces only the last effec
     node editor-source/tests/post-stock-yield/controls.mjs
 
 The three current-runtime scheduling controls complement the retained 49 display controls and 34 r244 controls. The source review independently exercised eight closure/drain/ownership/unit/timer-lifetime controls. HOME trusted wheel A/B, exact whole Stock/order and stale selection cancellation evidence is separate from these portable controls.
+
+## r247 selection presentation ownership
+
+The final layer reconstructs exact r246, replaces three effective functions, and inserts the cleared presentation helper immediately before frameInstallPolySelectionBuffers. The result must match source-cleared V2 b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28 byte for byte. Native, service worker, arithmetic, Undo refresh and queued-abort restoration order remain unchanged.
+
+    node editor-source/tests/selection-presentation/controls.mjs
+    node editor-source/tests/selection-presentation/staged-singleton-controls.mjs
+    node editor-source/tests/selection-presentation/private-preview-controls.mjs
+
+These are the same 75 public synthetic source controls (34 compatibility, 36 staged singleton/Connected and 5 private-preview ownership) with manifest-resolved current runtime and path-only harness adaptation. Actual native getter disposal, current private display lease and real geometry math are exercised; transport/GPU fixtures are controlled. Six baseline/V1 negative witnesses are retained. Separate HOME runtime evidence covers 21 correct nonempty publication records and three private-preview cancellations. Natural contaminated prepared fallback and physical presentation latency were not measured.

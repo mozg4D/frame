@@ -1,0 +1,49 @@
+{
+  "schema": "frame-r247-editor-integration-v1",
+  "version": "r247-selection-presentation-ownership",
+  "baseCommit": "4cff435cc3a41a4d7f0911cb317be9b402b0b180",
+  "beforeSHA256": "84ac4330c08a23ed6dfaae98e468a40eaa3e6ce60c8cfb939a73e6834655518c",
+  "beforeBytes": 2886516,
+  "afterSHA256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28",
+  "afterBytes": 2888003,
+  "scope": "Exact source-cleared V2: retire stale generic preview ownership before singleton/Connected world-buffer and CM reads; refresh actual overlay world matrices; protect current numerical private preview during stale cleanup. No bounds, Undo or queued-abort order fixes.",
+  "functions": [
+    {
+      "name": "rebuildPolySelection",
+      "occurrence": "last",
+      "beforeSHA256": "949ae858c9095dcb24b5c5e75aec305d06a9d3ba247958713e14a2ca6953b00e",
+      "beforeBytes": 321,
+      "afterSHA256": "649e18908b9f87ae19d3bff96e36f142c862f5d7852e6bb81646dd1b9313b3e4",
+      "afterBytes": 281,
+      "code": "function rebuildPolySelection(syncGizmo = !0) {\n  frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;\n  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;\n  frameCommitPolySelectionPresentation({items:polySelection.items},syncGizmo);\n}"
+    },
+    {
+      "name": "frameApplyPreparedPolySelection",
+      "occurrence": "last",
+      "beforeSHA256": "2dd3b1523d781738aedf95e52b3c54676c4a3a1fd1d7d9adaedf73f83538fcf3",
+      "beforeBytes": 681,
+      "afterSHA256": "e6e699cd5f2068130338642f18300033800fe957aaa81fb8056d1d329304a008",
+      "afterBytes": 618,
+      "code": "function frameApplyPreparedPolySelection(result){\n  frameConnectedSelectionComplete=null;\n  if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}\n  polyPivotMatrix=null;\n  if(result.connected){polyExactEdgeVertices=null;polyExtrudedFaces=null;}\n  polySelection.items.clear();for(const [h,s] of result.items)polySelection.items.set(h,s);\n  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;frameCommitPolySelectionPresentation(result);\n  if(vertexTools.soft.active)recalculateSoftSelection();\n  if(result.connected)frameRememberConnectedSelection();\n}"
+    },
+    {
+      "name": "frameRigidAbortAll",
+      "occurrence": "last",
+      "beforeSHA256": "5bd4c4219be4ab566ccc349982d31910e80c01128adc3a16efd0f091e937801b",
+      "beforeBytes": 1520,
+      "afterSHA256": "f2d385c77ebc6520c7f693774630dd206ab228a9af05e742112ca3e7cb38f191",
+      "afterBytes": 1777,
+      "code": "function frameRigidAbortAll(reason){\n const owned=frameRigidInput||frameRigidExecuting,prepared=frameRigidPrepared,sessions=new Set([...frameRigidQueue,frameRigidInput,frameRigidExecuting,prepared?.affine?.active].filter(Boolean));const restoreOwners=new Set();for(const s of sessions)try{if(frameRigidTransactionCurrent(s))restoreOwners.add(s);}catch{}let keep=false;\n try{keep=reason==='undo-or-redo'&&prepared?.status==='ready'&&owned?.t===prepared&&owned.ready&&frameRigidTransactionCurrent(owned)&&frameRigidSelection(prepared);}catch{}\n frameAffineAbortAll(reason);\n frameRigidQueue.splice(0);frameRigidInput=frameRigidExecuting=null;if(!keep)frameRigidPrepared=null;\n for(const s of sessions){s.cancel=true;s.discarded=!keep||s!==owned;s.reason=reason;s.revision++;frameAffineCleanup(()=>s.closeWorker?.());frameAffineCleanup(()=>s.abortResolve?.(false));if(restoreOwners.has(s))frameAffineCleanup(()=>frameRigidRestoreOverlays(s));if(!keep||s.t!==prepared)frameRigidDispose(s.t);}\n if(keep){frameAffineCleanup(()=>frameRigidCancelSession(owned));owned.discarded=true;}else frameRigidDispose(prepared);if(!keep&&typeof frameAffinePruneBindings==='function')frameAffinePruneBindings({clear:true});\n frameAffineCleanup(()=>frameRigidClearInput());\n if(owned){if(gizDrag===owned.drag){gizDrag=null;frameAffineCleanup(()=>frameClearPolygonGizmoMove());frozenSignsPerView=null;frameAffineCleanup(()=>vpState.renderer.domElement.releasePointerCapture(owned.event.pointerId));}if(restoreOwners.has(owned)&&OBJ.get(owned.t.h)===owned.t.node&&![...frameNumericDisplayRoots.values()].some(r=>r.lease?.active&&r.lease.current()))frameAffineCleanup(()=>setGizmoFromMatrix(owned.gizmo));}\n frameRigidNotes.cancels+=sessions.size-(keep?1:0);frameAffineCleanup(()=>scheduleRender());\n}"
+    }
+  ],
+  "helpers": [
+    {
+      "name": "frameCommitPolySelectionPresentation",
+      "beforeFunction": "frameInstallPolySelectionBuffers",
+      "sha256": "421f95f13fdeacc7f3a207b44531f51f7bf9bc084b198756a87923be7fe37755",
+      "bytes": 1332,
+      "code": "function frameCommitPolySelectionPresentation(result,syncGizmo=true){\n const sessions=new Set([...frameRigidQueue,frameRigidInput,frameRigidExecuting,frameRigidPrepared?.affine?.active].filter(Boolean));\n const current=[...sessions].some(s=>frameRigidTransactionCurrent(s)),retired=sessions.size>0&&!current;\n const rebuild=retired&&[...sessions].some(s=>s.t?.adapter?.positionView&&polySelection.items.has(s.t.h)&&frameRigidSource(s.t));\n if(retired){\n  const exact=polyExactEdgeVertices;\n  frameRigidAbortAll('selection-changed');\n  polyExactEdgeVertices=exact;\n }\n if(!current)for(const o of[polySelection.face,polySelection.faceBack,polySelection.edge,polySelection.vertex]){\n  o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;o.updateMatrixWorld(true);\n }\n if(!result.buffers||rebuild)result.buffers=frameDrainSelectionWork(framePolySelectionBuffers(polySelection.items));\n if(rebuild&&result.measurements){\n  const measurements=frameDrainSelectionWork(framePolySelectionMeasurements(polySelection.items,null,pickMeshes,polyPivotMatrix,result.measurements.selectedIDs??null));\n  if(measurements)Object.assign(result.measurements,measurements);else result.measurements=null;\n }\n frameRememberNativeEdgeCM(result);\n frameInstallPolySelectionBuffers(result.buffers,syncGizmo,result.measurements??null);\n}"
+    }
+  ],
+  "clearedCandidateSHA256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28"
+}
