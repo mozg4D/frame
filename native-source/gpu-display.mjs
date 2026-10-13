@@ -1,6 +1,7 @@
 import {FRAME_MIP_BILINEAR_WGSL,createFrameMipGenerator,generateFrameMipChain,assertFrameMipGenerationReceipt} from './gpu-mipmap.mjs';
 /** Native WebGPU colour/line/point backend. Shares device + immutable geometry uploads. */
 import {GpuBufferPool,LatestFrameQueue} from './gpu-resources.mjs';
+import {assertPrivateDisplayPacketCurrent} from './display-override-reservation.mjs';
 import {textureState,textureStateCurrent,texturePolicy} from './texture-policy.mjs';
 import {PHYSICAL_WGSL,createPhysicalDfg} from './gpu-physical.mjs';
 import {ENVIRONMENT_WGSL} from './gpu-environment.mjs';
@@ -352,6 +353,7 @@ export class FrameGpuDisplay {
     return this.pipelines.get(key);
   }
   async prepare(packet,{pixelRatio=1}={}){
+    assertPrivateDisplayPacketCurrent(packet);
     this._check();const {geometry:g,instances,material:m}=packet;
     if(!g?.positions||!g.extras||!instances?.data)throw Error('Display packet missing geometry or instances');
     if(m.unsupported?.length)throw Error('Unported material: '+m.unsupported.join(', '));
@@ -374,7 +376,7 @@ export class FrameGpuDisplay {
       const sides=packet.kind==='triangles'&&m.transparent&&m.cullMode==='none'&&!m.forceSinglePass?['front','back']:[m.cullMode];
       // Complete the object's back faces before front faces, including all
       // mirrored instance ranges. frontFace supplies each range's winding.
-      for(const cullMode of sides)for(const range of instances.ranges){const pipeline=await this._pipeline(packet.kind,{...m,cullMode},range.frontFace,features);h.draws.push({range,pipeline});}
+      for(const cullMode of sides)for(const range of instances.ranges){const pipeline=await this._pipeline(packet.kind,{...m,cullMode},range.frontFace,features);assertPrivateDisplayPacketCurrent(packet);h.draws.push({range,pipeline});}
       this._check();this.handles.add(h);return h;
     }catch(e){for(const row of borrowed)this.pool.release(row);if(texture)this._releaseTexture(texture);throw e;}
   }
@@ -391,6 +393,7 @@ export class FrameGpuDisplay {
   }
   /** Caller supplies a GPUCanvasContext or explicit colour texture for deterministic tests. */
   encodeFrame({context=null,texture=null,width,height,views,clearColor=[.012,.012,.012,1],isCurrent=()=>true}){
+    for(const view of views??[])for(const h of view.handles??[])assertPrivateDisplayPacketCurrent(h.packet);
     if(this.cubicWindowCapability?.isCurrent&&!this.cubicWindowCapability.isCurrent())throw new DOMException('Cubic display capability expired before encode','AbortError');
     this._check();if(!isCurrent()||!this.dfg.isCurrent()||views?.some(v=>v.environment&&!v.environment.isCurrent()))throw new DOMException('Display source changed before encode','AbortError');if(!views?.length)throw Error('At least one display view required');
     const colorTexture=texture??context?.getCurrentTexture();if(!colorTexture)throw Error('WebGPU colour target required');
@@ -425,7 +428,7 @@ export class FrameGpuDisplay {
         }
       }
       pass.end();if(this.presentation)this.presentation.encode(encoder,targets,colorTexture);let released=false;
-      return {commands:[encoder.finish()],release:(control)=>{if(released)return;released=true;for(const row of refs)this.pool.release(row);return this.presentation?.release(targets,control);}};
+      return {commands:[encoder.finish()],assertCurrent:()=>{for(const view of views)for(const h of view.handles??[])assertPrivateDisplayPacketCurrent(h.packet);},release:(control)=>{if(released)return;released=true;for(const row of refs)this.pool.release(row);return this.presentation?.release(targets,control);}};
     }catch(e){for(const row of refs)this.pool.release(row);this.presentation?.release(targets,{submitted:false});throw e;}
   }
   render(frame){this._check();return this.queue.request(frame);}

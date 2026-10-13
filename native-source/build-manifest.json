@@ -1,0 +1,253 @@
+{
+  "schema": "frame-r245-native-build-v1",
+  "version": "r245-warm-vertex-numeric-display",
+  "typescript": "5.9.3",
+  "productionNative": "modules/native.4ec912c8a6f2b4d498f1.js",
+  "productionSHA256": "4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440",
+  "productionBytes": 578886,
+  "r245Integration": "r245-integration.json",
+  "r244SHA256": "eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5",
+  "r244Bytes": 557302,
+  "baselineInputs": [
+    {
+      "name": "affine-corner-worker.mjs",
+      "source": "affine-corner-worker.mjs",
+      "bytes": 15428,
+      "sha256": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1"
+    },
+    {
+      "name": "affine-stock-proof.mjs",
+      "source": "affine-stock-proof.mjs",
+      "bytes": 2568,
+      "sha256": "45f000c23e5122b841af1216f7339f48979ba0bccf7036dbb6cd3f8df45a02d0"
+    },
+    {
+      "name": "affine-stock-worker.mjs",
+      "source": "affine-stock-worker.mjs",
+      "bytes": 3405,
+      "sha256": "9448ff98f4025b4971022ef4c9b6c50ddfca02eda250033620eba21ca02b85ba"
+    },
+    {
+      "name": "affine-versioned-base.mjs",
+      "source": "affine-versioned-base.mjs",
+      "bytes": 6323,
+      "sha256": "827c7b589da8353b12f964cf1a53aabf48ddf2288720e2cafda6fd7a81071782"
+    },
+    {
+      "name": "bundle-native.mjs",
+      "source": "rebuild-inputs/r244/bundle-native.mjs",
+      "bytes": 6817,
+      "sha256": "c1f82e5e6abfa95e39755878f7e5dcf24f7b8f16e4e4eb19b2b08352a7fefe28"
+    },
+    {
+      "name": "connected-selection.mjs",
+      "source": "connected-selection.mjs",
+      "bytes": 3486,
+      "sha256": "c8d0f98694aabc0e4de4695b159e65cbf68b84138819d27fa18dbe20651cd58c"
+    },
+    {
+      "name": "corner-worker.mjs",
+      "source": "corner-worker.mjs",
+      "bytes": 6060,
+      "sha256": "308c30e777507cd9e461b7c35fa4bf8a70054b688afe10e2cff679aafd0cfb92"
+    },
+    {
+      "name": "cubic-capabilities.mjs",
+      "source": "cubic-capabilities.mjs",
+      "bytes": 4642,
+      "sha256": "661e8e2890df9105d50ae579446bdfa375694fedc89adbe70f48b3ce572fa482"
+    },
+    {
+      "name": "cubic-derivative-calibration.mjs",
+      "source": "cubic-derivative-calibration.mjs",
+      "bytes": 6778,
+      "sha256": "dcf147c864fa6b52158b2a83710c69902fd73f5f48f0010726bc86bcc7526375"
+    },
+    {
+      "name": "cubic-derivative-profile.mjs",
+      "source": "cubic-derivative-profile.mjs",
+      "bytes": 1598,
+      "sha256": "e1e3fae89b637549e43582d2ed5028451b8f8bf0b655795572939b5f3abe6c95"
+    },
+    {
+      "name": "device-broker.mjs",
+      "source": "device-broker.mjs",
+      "bytes": 4157,
+      "sha256": "6634c2aadf5874c83748466e70331e02cb717e2f5007130680736bc80b9259d0"
+    },
+    {
+      "name": "display-packets.mjs",
+      "source": "rebuild-inputs/r244/display-packets.mjs",
+      "bytes": 27958,
+      "sha256": "1c6fb9f4078a4c84be715d1588b48545739b24e850a787578941abfa3bcbcede"
+    },
+    {
+      "name": "exact-corner.mjs",
+      "source": "exact-corner.mjs",
+      "bytes": 10086,
+      "sha256": "c8027cfc6a5e63a41b41cd08302377a61ebcf7d2123b7fd1cbfdf9589726a145"
+    },
+    {
+      "name": "gpu-affine-preview.mjs",
+      "source": "rebuild-inputs/r244/gpu-affine-preview.mjs",
+      "bytes": 14336,
+      "sha256": "e2da1ab6d3600681656624682a44010c8ee95885f61b5bd84c1fa2ac1ec1f81e"
+    },
+    {
+      "name": "gpu-cubic-map.mjs",
+      "source": "gpu-cubic-map.mjs",
+      "bytes": 25616,
+      "sha256": "36f4ef83485c88edbb864a26447d5a4c575bb174ae5e79ffb7b2ad38c6b26923"
+    },
+    {
+      "name": "gpu-cubic-mip-calibration.mjs",
+      "source": "gpu-cubic-mip-calibration.mjs",
+      "bytes": 68993,
+      "sha256": "b32356b68e4fbdfeb20174ece32e26a850fdfa768e34ce83d933a72431727a5e"
+    },
+    {
+      "name": "gpu-display.mjs",
+      "source": "rebuild-inputs/r244/gpu-display.mjs",
+      "bytes": 44997,
+      "sha256": "86b416ab57ad0bb4b0d0b167c46d10c619c099983d040d8fc2a5349b73ab299d"
+    },
+    {
+      "name": "gpu-environment.mjs",
+      "source": "gpu-environment.mjs",
+      "bytes": 20302,
+      "sha256": "72fec32b4025ac3f97de66f25619139eb9513b95b0fb7a882649f05809de9fc1"
+    },
+    {
+      "name": "gpu-island-preview.mjs",
+      "source": "gpu-island-preview.mjs",
+      "bytes": 18505,
+      "sha256": "dc9be973a4cfd7c146a1483a370d52c195df32e1ba9880d1d742262ae45ce1e1"
+    },
+    {
+      "name": "gpu-mipmap.mjs",
+      "source": "gpu-mipmap.mjs",
+      "bytes": 9353,
+      "sha256": "eb39269d42b76a4d0f83e28c0dcbe9e7f51cab8b500612c9920d1b4abc0a7f52"
+    },
+    {
+      "name": "gpu-physical.mjs",
+      "source": "gpu-physical.mjs",
+      "bytes": 16368,
+      "sha256": "9872b9458e98e74f754e14f6e0475773e5c50ec8c87724c1d1f88ddcd4484660"
+    },
+    {
+      "name": "gpu-presentation.mjs",
+      "source": "gpu-presentation.mjs",
+      "bytes": 6865,
+      "sha256": "8cdaa3b800d5cbf3f80ec97885e49463f68d389c8292cb206eca60e3b5fc7a8b"
+    },
+    {
+      "name": "gpu-printer.mjs",
+      "source": "gpu-printer.mjs",
+      "bytes": 20682,
+      "sha256": "50e942c5edf3c6d056f672eb3f33ca2012530186b362f45eefc6902e70399c23"
+    },
+    {
+      "name": "gpu-resources.mjs",
+      "source": "gpu-resources.mjs",
+      "bytes": 5086,
+      "sha256": "2e307df9faf402a8fb57089e780778ead77099db2f78fa9626730eb2f2da49ee"
+    },
+    {
+      "name": "gpu-selection.mjs",
+      "source": "gpu-selection.mjs",
+      "bytes": 26538,
+      "sha256": "2cc149aad4e6ae53a39ae555ceba4a4d17b5f052a3ca1b43916e169643295cd7"
+    },
+    {
+      "name": "interaction-controller.mjs",
+      "source": "interaction-controller.mjs",
+      "bytes": 9805,
+      "sha256": "a17114fa570b1f22347b344ecf68c154f1dc77ac10b7fa7567b1fbf3eacb2443"
+    },
+    {
+      "name": "native-corner.mjs",
+      "source": "native-corner.mjs",
+      "bytes": 17988,
+      "sha256": "9961a4d70b8ba490380e4dc540408ced12633390937d3fbbaff0adf8b77411e7"
+    },
+    {
+      "name": "native-engine.mjs",
+      "source": "native-engine.mjs",
+      "bytes": 13238,
+      "sha256": "6dc6a91b8753d5800b23ead9686a33b77716e2659e467e74e54cdb8eead00114"
+    },
+    {
+      "name": "native-pickers.mjs",
+      "source": "native-pickers.mjs",
+      "bytes": 36371,
+      "sha256": "41719f9e27e26a28512cde9f2ce2576704430878f7a10740b51efc0b6fcbd214"
+    },
+    {
+      "name": "picker-depth.mjs",
+      "source": "picker-depth.mjs",
+      "bytes": 13413,
+      "sha256": "e51d9e3109dea6757a7ce7e585c5eac00d9f49aa85df638e71a895c2135d0f0d"
+    },
+    {
+      "name": "picker-lane.mjs",
+      "source": "picker-lane.mjs",
+      "bytes": 2498,
+      "sha256": "f0ff3a451b9cf8427aca3ba9dc871d7335611a7cd589e56ca0c7f3839d7c8cfa"
+    },
+    {
+      "name": "picker-ribbon.mjs",
+      "source": "picker-ribbon.mjs",
+      "bytes": 11580,
+      "sha256": "62b8c764c3ecae124ea1288e1a7e05fddb484de9683123879458dbd41783e4e8"
+    },
+    {
+      "name": "relative-frame.mjs",
+      "source": "relative-frame.mjs",
+      "bytes": 3967,
+      "sha256": "4e5b0941e6f42a930761c5ae53178fe1796ed317f75c625d6b2f5e4683aa47c5"
+    },
+    {
+      "name": "render-domain.mjs",
+      "source": "render-domain.mjs",
+      "bytes": 2778,
+      "sha256": "e174bb06b2871f0c845e1f9ea7d33a6f37d8a0d12f52e5bf119f0efa91c0257c"
+    },
+    {
+      "name": "texture-policy.mjs",
+      "source": "texture-policy.mjs",
+      "bytes": 3531,
+      "sha256": "18ac57d805404cfb6f25e6c626a375945bb8232d917903fdd6778dba68722000"
+    },
+    {
+      "name": "topology-islands.mjs",
+      "source": "topology-islands.mjs",
+      "bytes": 18833,
+      "sha256": "58b33b3eb8d5488469a565766b6d8387e4618cac0409d9c5f38125a7e6f232fc"
+    },
+    {
+      "name": "topology-worker.mjs",
+      "source": "topology-worker.mjs",
+      "bytes": 2172,
+      "sha256": "a32292762e010249b381614164c5c56d156eebac6f011b5e3bba65d9564d34c8"
+    },
+    {
+      "name": "viewport-host.mjs",
+      "source": "viewport-host.mjs",
+      "bytes": 8350,
+      "sha256": "6f0bdbd354fa5dfda516dcc77fe1bc52b4d85767b9d84179143a288c171fbd9e"
+    },
+    {
+      "name": "viewport-renderer.mjs",
+      "source": "rebuild-inputs/r244/viewport-renderer.mjs",
+      "bytes": 15677,
+      "sha256": "bda520442a49be7ac52e54c2834f2cc93ec9e67f24c0916752f20ec518f0f77c"
+    },
+    {
+      "name": "r243-integration.json",
+      "source": "r243-integration.json",
+      "bytes": 10144,
+      "sha256": "2aaa4c3fe488262a804b72b83cb5cf973bac7835c4ef64f38bef53da075835b8"
+    }
+  ]
+}

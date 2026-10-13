@@ -1,7 +1,12 @@
 {
   "schema": "frame-current-native-source-files-v1",
-  "version": "r243-editor-lifecycle-recents",
+  "version": "r245-warm-vertex-numeric-display",
   "files": [
+    {
+      "path": "README.md",
+      "bytes": 6497,
+      "sha256": "6e1c69b92bf18ac088f7445c2a91f72e4f390c77f9fd83201329e9cc84f6a3e6"
+    },
     {
       "path": "affine-corner-worker.mjs",
       "bytes": 15428,
@@ -23,9 +28,19 @@
       "sha256": "827c7b589da8353b12f964cf1a53aabf48ddf2288720e2cafda6fd7a81071782"
     },
     {
+      "path": "bounded-pose-submit.mjs",
+      "bytes": 1753,
+      "sha256": "38e5385a2f25e242a76b7f44e0224e0c6d9f287bf173b67355bf499363d608a6"
+    },
+    {
+      "path": "build-manifest.json",
+      "bytes": 8371,
+      "sha256": "5523551b63495694c23eb11fd8ef3f06ad021daaaff11d98f9564232625960a8"
+    },
+    {
       "path": "bundle-native.mjs",
-      "bytes": 6817,
-      "sha256": "c1f82e5e6abfa95e39755878f7e5dcf24f7b8f16e4e4eb19b2b08352a7fefe28"
+      "bytes": 3011,
+      "sha256": "c523ffaa65837322983fa56e66cd527c2c26ab4c56dcea7a8a2634cea63a2d38"
     },
     {
       "path": "connected-selection.mjs",
@@ -58,9 +73,14 @@
       "sha256": "6634c2aadf5874c83748466e70331e02cb717e2f5007130680736bc80b9259d0"
     },
     {
+      "path": "display-override-reservation.mjs",
+      "bytes": 1499,
+      "sha256": "22cea8f7c2adb998aebe2c2d0c86b1efbcd4953949e19e0b331110c9c6939d96"
+    },
+    {
       "path": "display-packets.mjs",
-      "bytes": 27958,
-      "sha256": "1c6fb9f4078a4c84be715d1588b48545739b24e850a787578941abfa3bcbcede"
+      "bytes": 30033,
+      "sha256": "4361d4bed79a92d872e0e413e6de0fbdb14389a47f1db071f0c74ebd9da4eb4a"
     },
     {
       "path": "exact-corner.mjs",
@@ -69,8 +89,8 @@
     },
     {
       "path": "gpu-affine-preview.mjs",
-      "bytes": 14336,
-      "sha256": "e2da1ab6d3600681656624682a44010c8ee95885f61b5bd84c1fa2ac1ec1f81e"
+      "bytes": 16444,
+      "sha256": "083522524062609971f9491f0c295289c60951deae68ec2659a34f6f51a9a56a"
     },
     {
       "path": "gpu-cubic-map.mjs",
@@ -84,8 +104,8 @@
     },
     {
       "path": "gpu-display.mjs",
-      "bytes": 44997,
-      "sha256": "86b416ab57ad0bb4b0d0b167c46d10c619c099983d040d8fc2a5349b73ab299d"
+      "bytes": 45399,
+      "sha256": "212ca5c0ada8bc7c31a9cb6c6136e72f5bc00e8217986085182d31d135bfba71"
     },
     {
       "path": "gpu-environment.mjs",
@@ -133,6 +153,11 @@
       "sha256": "a17114fa570b1f22347b344ecf68c154f1dc77ac10b7fa7567b1fbf3eacb2443"
     },
     {
+      "path": "layer-r245.cjs",
+      "bytes": 9020,
+      "sha256": "8402a51fffd3f424367f70cc01f412d58b23d8279c872cee778049c0bf1ecede"
+    },
+    {
       "path": "native-corner.mjs",
       "bytes": 17988,
       "sha256": "9961a4d70b8ba490380e4dc540408ced12633390937d3fbbaff0adf8b77411e7"
@@ -146,6 +171,16 @@
       "path": "native-pickers.mjs",
       "bytes": 36371,
       "sha256": "41719f9e27e26a28512cde9f2ce2576704430878f7a10740b51efc0b6fcbd214"
+    },
+    {
+      "path": "numeric-display-lease.mjs",
+      "bytes": 7416,
+      "sha256": "96a9013add85e48642acde5e5662d6b55a617eb206ea2b4273d90bf427d4f5f5"
+    },
+    {
+      "path": "numeric-display-source.mjs",
+      "bytes": 4217,
+      "sha256": "04dd74f132b9dd168592bb10d30bfe6d9cda9c9d9791ea15fce8bc1042cca54d"
     },
     {
       "path": "picker-depth.mjs",
@@ -168,9 +203,34 @@
       "sha256": "2aaa4c3fe488262a804b72b83cb5cf973bac7835c4ef64f38bef53da075835b8"
     },
     {
-      "path": "README.md",
-      "bytes": 5196,
-      "sha256": "5a3b11dea8819871e5c324142933cc05226c3d2dc059be954f9d30ef0fe1be95"
+      "path": "r245-integration.json",
+      "bytes": 48215,
+      "sha256": "bf012dc8968484d2ef8f55681962f0b6a4df25641513dfc0001b6c1328dc4f31"
+    },
+    {
+      "path": "rebuild-inputs/r244/bundle-native.mjs",
+      "bytes": 6817,
+      "sha256": "c1f82e5e6abfa95e39755878f7e5dcf24f7b8f16e4e4eb19b2b08352a7fefe28"
+    },
+    {
+      "path": "rebuild-inputs/r244/display-packets.mjs",
+      "bytes": 27958,
+      "sha256": "1c6fb9f4078a4c84be715d1588b48545739b24e850a787578941abfa3bcbcede"
+    },
+    {
+      "path": "rebuild-inputs/r244/gpu-affine-preview.mjs",
+      "bytes": 14336,
+      "sha256": "e2da1ab6d3600681656624682a44010c8ee95885f61b5bd84c1fa2ac1ec1f81e"
+    },
+    {
+      "path": "rebuild-inputs/r244/gpu-display.mjs",
+      "bytes": 44997,
+      "sha256": "86b416ab57ad0bb4b0d0b167c46d10c619c099983d040d8fc2a5349b73ab299d"
+    },
+    {
+      "path": "rebuild-inputs/r244/viewport-renderer.mjs",
+      "bytes": 15677,
+      "sha256": "bda520442a49be7ac52e54c2834f2cc93ec9e67f24c0916752f20ec518f0f77c"
     },
     {
       "path": "relative-frame.mjs",
@@ -224,8 +284,8 @@
     },
     {
       "path": "viewport-renderer.mjs",
-      "bytes": 15677,
-      "sha256": "bda520442a49be7ac52e54c2834f2cc93ec9e67f24c0916752f20ec518f0f77c"
+      "bytes": 16593,
+      "sha256": "8cc131b7645da3442d5ca9cc69edf3f4108d3f5e13afbf55017e89b6dad1c5b5"
     }
   ]
 }

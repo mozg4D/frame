@@ -1,17 +1,17 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r244-vertex-certificate-reuse",
-  "productionEditor": "modules/editor.25e6fb67db66c7589d45.js",
-  "productionSHA256": "25e6fb67db66c7589d45bb48ebf56fbf31cfb2ee4bb6c88760a1afcff04331d1",
-  "productionBytes": 2873798,
+  "version": "r245-warm-vertex-numeric-display",
+  "productionEditor": "modules/editor.1faeb5d83d4471f6f1f2.js",
+  "productionSHA256": "1faeb5d83d4471f6f1f2c0cfba253fc8295c4591a74ef740329fd37a14281e33",
+  "productionBytes": 2886351,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
   "editorIntegration": "wire-marquee-integration.json",
   "derivedIntegration": "derived-selection-integration.json",
-  "productionNative": "modules/native.eaf66728b97f40f0b783.js",
-  "nativeSHA256": "eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5",
-  "nativeBytes": 557302,
+  "productionNative": "modules/native.4ec912c8a6f2b4d498f1.js",
+  "nativeSHA256": "4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440",
+  "nativeBytes": 578886,
   "affineHelper": "affine-component-preview.mjs",
   "affineKnown": "affine-known-geometry.mjs",
   "affineIntegration": "affine-integration.json",
@@ -26,5 +26,6 @@
   "edgeSelectionExtraction": "edge-selection-extraction.json",
   "r243Integration": "r243-integration.json",
   "rebuildInputEditor": "modules/editor.963cb8f7a0affc14321a.js",
-  "r244Integration": "r244-integration.json"
+  "r244Integration": "r244-integration.json",
+  "r245Integration": "r245-integration.json"
 }

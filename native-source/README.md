@@ -1,4 +1,4 @@
-This source reconstruction is updated for r243. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+This source reconstruction is updated for r245. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
 
 # Native viewport sources
 
@@ -42,3 +42,9 @@ The current rigid preview adapter is `gpu-island-preview.mjs`. It shares display
 The affine modules preserve stock ordered Float32 coordinates and crease topology in owner-bound worker snapshots. Full-stock fallback handles topology/normal cases outside the compact proof. Display overrides preserve face order and material ownership; raw position views, geometry registrations and worker leases have explicit cleanup. See the portable affine contracts under `editor-source/tests/affine/`. These checks do not establish hardware timing or general frame-rate guarantees.
 
 The native edge picker retains one compact CPU topology table per adapter, capped at 64 MiB of additional retained typed arrays. It keeps exact representative order and lazily expands authored raw aliases for the selected group. Source identity/content and cancellation guard reuse; disposal clears retention. This cap does not cover transient build workspace, existing GPU buffers or total process memory. Topology now carries the first authored logical-edge corner for each raw edge, while existing labels and arrays remain unchanged. The metadata adds four retained bytes per raw edge and a temporary twelve-byte-per-face workspace.
+
+## r245 reconstruction and display lifetime
+
+Production: `modules/native.4ec912c8a6f2b4d498f1.js`, 578,886 bytes, SHA256 `4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440`. `bundle-native.mjs` stages pinned r244 source inputs (four prior modules and the prior bundler live in `rebuild-inputs/r244/`), rebuilds the exact r244/r243 cooperative runtime, then derives the checked layer from current source with `layer-r245.cjs`. The layer preserves cooperative constructors/pool APIs and existing shader source. Source recipe operations are re-derived and checked; outputs must be new files outside the checkout.
+
+New modules own override reservations, bounded pose scheduling, private corner/primitive sources and display leases. Private capture guards remain mandatory through prepare/encode/final submission. Their identity is included in the handle cache key; ordinary snapshot/cache semantics remain unchanged. Canonical Stock work is still serialized for every accepted step. Warm complete/exclusive Vertex numeric translation in an unchanged ordinary owner/world/reference/unit/crease context. Cold/not-ready Vertex, Edge/Polygon, numeric Rotate/Scale, UV/soft/morph/edit-pivot and unsupported materials retain existing paths; this release adds no performance acceptance for them.

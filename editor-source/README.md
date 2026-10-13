@@ -1,4 +1,4 @@
-This source reconstruction is updated for r244. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+This source reconstruction is updated for r245. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
 
 # Current editor source
 
@@ -46,3 +46,17 @@ The final r244 layer changes only numeric Vertex certificate handoff and mapped 
     node editor-source/tests/numeric-vertex-certificate/mapped-wait-controls.mjs
 
 These 34 controls use public synthetic geometry and controlled GPU/renderer/intent transports. Actual browser acceptance and performance limits are recorded separately. Previous-publication queue wait, connectivity/wire work and the inherited artificial-retirement cleanup gap are outside this release.
+
+## r245 warm Vertex numeric display
+
+Warm complete/exclusive Vertex numeric translation in an unchanged ordinary owner/world/reference/unit/crease context. Cold/not-ready Vertex, Edge/Polygon, numeric Rotate/Scale, UV/soft/morph/edit-pivot and unsupported materials retain existing paths; this release adds no performance acceptance for them.
+
+The final checked recipe rebuilds r244, replaces the eight effective last function declarations, and inserts `numeric-display-controls.mjs` before the first application statement. Production Native is explicitly pinned to the matching r245 module. Retained r243/r244 bundles are reconstruction inputs and regression oracles. Canonical authoring math/queue/history remain unchanged.
+
+    node editor-source/tests/numeric-display/numeric-display-races.mjs
+    node editor-source/tests/numeric-display/editor-adapter-races.mjs
+    node editor-source/tests/numeric-display/private-packet-lifetime.mjs
+    node editor-source/tests/numeric-display/private-cache-lifetime.mjs
+    node --experimental-vm-modules editor-source/tests/numeric-display/native-layer-check.cjs
+
+The 49 controls use public fixtures and mock GPU/transport; they do not establish presentation latency. Hardware receipt separately distinguishes 545 ms GPU command completion from the 2.50 s nested-rAF opportunity and leaves perceived latency unmeasured.

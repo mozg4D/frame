@@ -1,5 +1,5 @@
 {
-  "version": "r244-vertex-certificate-reuse",
+  "version": "r245-warm-vertex-numeric-display",
   "assets": {
     "frame-three-core": {
       "path": "./modules/frame-three-core.9edde002b066a9a05676.js",
@@ -151,9 +151,9 @@
       "critical": true
     },
     "editor": {
-      "path": "./modules/editor.25e6fb67db66c7589d45.js",
-      "sha256": "25e6fb67db66c7589d45bb48ebf56fbf31cfb2ee4bb6c88760a1afcff04331d1",
-      "bytes": 2873798,
+      "path": "./modules/editor.1faeb5d83d4471f6f1f2.js",
+      "sha256": "1faeb5d83d4471f6f1f2c0cfba253fc8295c4591a74ef740329fd37a14281e33",
+      "bytes": 2886351,
       "critical": true
     },
     "overhang-worker": {
@@ -356,9 +356,9 @@
       "critical": true
     },
     "frame-native": {
-      "path": "./modules/native.eaf66728b97f40f0b783.js",
-      "sha256": "eaf66728b97f40f0b7837367fde4561d5d92373eb7b1d6a11c7cfa5af665c0a5",
-      "bytes": 557302,
+      "path": "./modules/native.4ec912c8a6f2b4d498f1.js",
+      "sha256": "4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440",
+      "bytes": 578886,
       "critical": true
     }
   }

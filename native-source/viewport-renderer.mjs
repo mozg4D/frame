@@ -97,7 +97,8 @@ export class FrameViewportBridge {
   // temporary render batching is intentionally restored before async compilation.
   // Only texture/image changes must still reject, because texels are read later.
   const textureGuards=[];for(const p of snapshot.packets){const t=p.material?.texture;if(t){const stamp=textureState(t);textureGuards.push(()=>textureStateCurrent(t,stamp));}}
-  this.builder.views.push({camera:view,packets:snapshot.packets,textureGuards,pixelRatio:this.pixelRatio,environment});
+  const privateGuards=snapshot.packets.map(p=>p.privateLeaseCurrent).filter(g=>g!==undefined);if(privateGuards.some(g=>typeof g!=='function'))throw Error('Explicit private display capture guard required');
+  this.builder.views.push({camera:view,packets:snapshot.packets,textureGuards,privateGuards,pixelRatio:this.pixelRatio,environment});
   if(scene.background?.isColor)this.builder.views[this.builder.views.length-1].background=encodeColor(scene.background);
   return this.builder.views[this.builder.views.length-1];
  }
@@ -111,12 +112,20 @@ export class FrameViewportBridge {
  _key(packet,ratio){
   if(packet.kind.startsWith('printer-'))return null; // printer uniforms can be camera dependent; retained per in-flight frame only
   const m=packet.material,t=m.texture;
-  return [this.renderDomain,this._id(packet.geometry),this._id(packet.instances),this._id(packet.indices),packet.kind,packet.start,packet.count,packet.renderOrder,
+  const key=[this.renderDomain,this._id(packet.geometry),this._id(packet.instances),this._id(packet.indices),packet.kind,packet.start,packet.count,packet.renderOrder,
    m.cullMode,m.transparent,m.depthWrite,m.depthTest,m.colorWrite,m.depthBias,m.slopeBias,this._id(t),t?.version,t?.source?.version,
    ...textureState(t).map(v=>this._id(v)),
    ...new Uint32Array(packDraw(packet,ratio).buffer)].join('|');
+  const guard=packet.privateLeaseCurrent;if(guard===undefined)return key;
+  if(typeof guard!=='function')throw new TypeError('Explicit private display capture guard required');
+  // Each private capture closes over its exact override token and pose revision.
+  // Its prepared handle must retain that guard, including for unchanged outside
+  // geometry. A new capture gets a fresh handle; the frame fence retires old ones.
+  let captureId=this.ids.get(guard);if(!captureId)this.ids.set(guard,captureId=++this.nextId);
+  return key+'|private-capture:'+captureId;
  }
  _assertFrameCurrent(frame){
+  if(frame.views.some(v=>v.privateGuards?.some(g=>!g())))throw abort('Private numeric display changed before native submission');
   if(this.engine.display.cubicWindowCapability?.isCurrent&&!this.engine.display.cubicWindowCapability.isCurrent())throw abort('Cubic viewport capability expired before submission');
   assertAdapterRenderDomain(this.engine,this.renderDomain);assertAdapterRenderDomain(this.engine.display,this.renderDomain);if(this.disposed||frame.lease!==this.lease||!frame.lease.isCurrent())throw abort('Viewport device lost before native submission');
   if(this.engine.display.dfg&&!this.engine.display.dfg.isCurrent())throw abort('Physical DFG lost before native submission');

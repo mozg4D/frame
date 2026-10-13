@@ -1,4 +1,5 @@
 import {captureRigidGpuGeometry} from './gpu-island-preview.mjs';
+import {assertDisplayOverrideOwner} from './display-override-reservation.mjs';
 /** Native display snapshots of actual Frame/Three data. No second editable scene graph. */
 import {IDENTITY,multiply4,webgpuProjection} from './gpu-selection.mjs';
 import {assertCubicMapSubset} from './gpu-cubic-map.mjs';
@@ -170,8 +171,9 @@ function materialStamp(m) {
 
 const affineDisplayOverrides=new WeakMap();
 /** One authoring object. Only triangle display packets receive the exact corner view. */
-export function registerAffineDisplayOverride(object,{selectedGeometry,fullGeometry=()=>null,faceSlots,isCurrent=()=>true}={}){
+export function registerAffineDisplayOverride(object,{selectedGeometry,fullGeometry=()=>null,faceSlots,isCurrent=()=>true,owner=null}={}){
  if(!object?.isMesh||!(faceSlots instanceof Int32Array)||typeof selectedGeometry!=='function')throw Error('Explicit mesh corner packet adapter required');
+ assertDisplayOverrideOwner(object,owner);
  const prior=affineDisplayOverrides.get(object);prior?.dispose();const cache=new Map(),token={live:true,dispose(){this.live=false;if(affineDisplayOverrides.get(object)===this)affineDisplayOverrides.delete(object);cache.clear();}};
  token.capture=options=>{
   if(!token.live||!isCurrent())return null;
@@ -187,12 +189,25 @@ export function registerAffineDisplayOverride(object,{selectedGeometry,fullGeome
    }
    if(row.vertexCount!==selected.vertexCount)throw Error('Affine corner display layout changed');for(const run of row.runs)packets.push({...packet,start:run.start,count:run.count,geometry:run.inside?selected:geometry});
   }
+  if(owner){const privateLeaseCurrent=()=>token.live&&affineDisplayOverrides.get(object)===token&&isCurrent()&&selected.isCurrent()&&(!full||full.isCurrent());for(let k=0;k<packets.length;k++)packets[k]={...packets[k],privateLeaseCurrent};}
   return{packets,isCurrent:()=>token.live&&affineDisplayOverrides.get(object)===token&&isCurrent()&&base.isCurrent()&&selected.isCurrent()&&(!full||full.isCurrent())};
  };
  affineDisplayOverrides.set(object,token);return token;
 }
 
-export function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null,affineOverride=true}={}){
+const primitiveDisplayOverrides=new WeakMap();
+/** Private numeric wire/marker draw data. Never changes authoring geometry. */
+export function registerPrimitiveDisplayOverride(object,{packets,isCurrent=()=>true,owner=null}={}){
+ if(!(object?.isLineSegments||object?.isPoints)||typeof packets!=='function')throw new TypeError('Explicit line/point packet adapter required');
+ assertDisplayOverrideOwner(object,owner);const prior=primitiveDisplayOverrides.get(object);prior?.dispose();
+ const token={live:true,dispose(){this.live=false;if(primitiveDisplayOverrides.get(object)===this)primitiveDisplayOverrides.delete(object);}};
+ token.capture=options=>{if(!token.live||!isCurrent())return null;const base=captureDisplayObject(object,{...options,primitiveOverride:false}),rows=packets(base.packets);
+  if(!Array.isArray(rows)||rows.some(p=>!['segments','points'].includes(p.kind)||!p.geometry?.isCurrent?.()||!p.instances?.isCurrent?.()||!Number.isSafeInteger(p.count)||p.count<0||!(p.indices instanceof Uint32Array||p.indices instanceof Uint16Array)||p.indices.length!==p.count))throw new TypeError('Private primitive packet layout changed');
+  const privateLeaseCurrent=()=>token.live&&primitiveDisplayOverrides.get(object)===token&&isCurrent()&&rows.every(p=>p.geometry.isCurrent()&&p.instances.isCurrent());return{packets:owner?rows.map(p=>({...p,privateLeaseCurrent})):rows,isCurrent:()=>privateLeaseCurrent()&&base.isCurrent()};
+ };primitiveDisplayOverrides.set(object,token);return token;
+}
+export function captureDisplayObject(object,{geometryCache=new DisplayGeometryCache(),instanceCache=new DisplayInstanceCache(),strict=true,camera=null,affineOverride=true,primitiveOverride=true}={}){
+  if(primitiveOverride){const token=primitiveDisplayOverrides.get(object);if(token){const custom=token.capture({geometryCache,instanceCache,strict,camera});if(custom)return custom;}}
   if(affineOverride){const token=affineDisplayOverrides.get(object);if(token){const custom=token.capture({geometryCache,instanceCache,strict,camera});if(custom)return custom;}}
   // Deliberately reject non-renderable roots before touching their lazy geometry getter.
   if(!object || !(object.isMesh||object.isLine||object.isPoints||object.isSprite))fail('Only actual drawables can be captured');
