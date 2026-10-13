@@ -8,7 +8,7 @@ A browser-based 3D workspace for spline and polygon modeling, scene assembly, an
 
 ## Current application
 
-The application build is **r245**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
+The application build is **r246**. It provides parametric primitives, surface generators, Boolean operations, shared instances, materials, and animation. Native `.hash` files preserve editable scenes; geometry exchange supports glTF/GLB, OBJ, STL, PLY, SVG, and DXF.
 
 The viewport requires a supported WebGPU configuration. Startup checks capabilities and offers Retry if initialization fails. Mip generation is selected through fresh numerical checks for each GPU generation, including odd-sized textures. Calibration failures expose a copyable diagnostic report. r229 reuses resources within one owner-bound calibration session while retaining the same validation controls. Startup timing still needs measurement on each target device. Cached application resources can be reopened offline through the PWA.
 
@@ -25,6 +25,8 @@ r244 carries a verified complete Vertex component certificate onto the exact fin
 r245 uses a prewarmed private GPU corner display for eligible Vertex numeric translation. Wire, selected markers and all-point overlays share its pose while exact Stock geometry, ordered selection, history and Save remain serial. Private token/pose guards survive async capture and submission; prepared handles are keyed by the exact capture guard and retire after the frame fence. Warm complete/exclusive Vertex numeric translation in an unchanged ordinary owner/world/reference/unit/crease context. Cold/not-ready Vertex, Edge/Polygon, numeric Rotate/Scale, UV/soft/morph/edit-pivot and unsupported materials retain existing paths; this release adds no performance acceptance for them.
 
 One HOME pair on a 1,571,149-triangle fixture completed child canvas render commands on the GPU 545 ms after B input, before parent publication. This is queue completion/readiness, not compositor or physical presentation. Two nested rAF callbacks completed at 2.50 s and show frame/paint opportunities only. Main-thread/frame scheduling and perceived presentation latency remain unbounded by this measurement; there is no instant-display or stable-latency claim. Public projected-material GPU pixels and exact Stock/Undo/Redo/Save gates passed; private fixtures remain outside the repository. Per-capture handle/uniform churn remains, with bounded tested buffer/handle counts.
+
+r246 changes only the scheduling of prepared Vertex numeric Move after canonical Stock returns. Every eighth yielded budget cycle opens an ordinary task opportunity; current owner/selection/unit/cancellation checks, exact Stock math and ordered history remain unchanged. A foreground HOME A/B on one model observed trusted wheel-to-camera median 125.1 ms versus 48.6 ms and earlier native completion callbacks. These browser-trusted CDP events include routing/queue delay; physical presentation and a general throughput gain are not established. There is no instant-response or hard 3 ms slice/latency promise. Hidden/background timer throttling may increase authoring delay. Cold navigation still has an independent measured first-use cost. Edge/Polygon/Rotate/Scale preview scope is unchanged.
 
 ## Repository
 

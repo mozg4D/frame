@@ -1,4 +1,4 @@
-This source reconstruction is updated for r245. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
+This source reconstruction is updated for r246. The prior checked helper integrations remain explicit; a final hash-checked r243 delta reproduces the shipped runtime exactly. Baseline source/helper contracts are retained for regression oracles.
 
 # Current editor source
 
@@ -60,3 +60,11 @@ The final checked recipe rebuilds r244, replaces the eight effective last functi
     node --experimental-vm-modules editor-source/tests/numeric-display/native-layer-check.cjs
 
 The 49 controls use public fixtures and mock GPU/transport; they do not establish presentation latency. Hardware receipt separately distinguishes 545 ms GPU command completion from the 2.50 s nested-rAF opportunity and leaves perceived latency unmeasured.
+
+## r246 prepared Vertex post-Stock scheduling
+
+The final layer reconstructs exact r245 first, then replaces only the last effective `frameAffineNumericMoveRun` through `r246-integration.json`. Old recipes/runtime inputs and retained controls remain pinned. Native remains the exact r245 module. Every eighth yielded budget cycle after Stock in prepared Vertex Move uses an ordinary timer task; the global helper, algorithms, stamps and cancellation guards are unchanged. This is a fairness change, not a hard 3 ms bound. Background timer throttling can delay hidden authoring; no general throughput or presentation guarantee is added.
+
+    node editor-source/tests/post-stock-yield/controls.mjs
+
+The three current-runtime scheduling controls complement the retained 49 display controls and 34 r244 controls. The source review independently exercised eight closure/drain/ownership/unit/timer-lifetime controls. HOME trusted wheel A/B, exact whole Stock/order and stale selection cancellation evidence is separate from these portable controls.

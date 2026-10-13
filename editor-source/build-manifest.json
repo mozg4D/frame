@@ -1,9 +1,9 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r245-warm-vertex-numeric-display",
-  "productionEditor": "modules/editor.1faeb5d83d4471f6f1f2.js",
-  "productionSHA256": "1faeb5d83d4471f6f1f2c0cfba253fc8295c4591a74ef740329fd37a14281e33",
-  "productionBytes": 2886351,
+  "version": "r246-vertex-post-stock-yield",
+  "productionEditor": "modules/editor.84ac4330c08a23ed6dfa.js",
+  "productionSHA256": "84ac4330c08a23ed6dfaae98e468a40eaa3e6ce60c8cfb939a73e6834655518c",
+  "productionBytes": 2886516,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
@@ -27,5 +27,6 @@
   "r243Integration": "r243-integration.json",
   "rebuildInputEditor": "modules/editor.963cb8f7a0affc14321a.js",
   "r244Integration": "r244-integration.json",
-  "r245Integration": "r245-integration.json"
+  "r245Integration": "r245-integration.json",
+  "r246Integration": "r246-integration.json"
 }

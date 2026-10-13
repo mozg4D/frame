@@ -1,11 +1,11 @@
 {
   "schema": "frame-current-editor-source-files-v1",
-  "version": "r245-warm-vertex-numeric-display",
+  "version": "r246-vertex-post-stock-yield",
   "files": [
     {
       "path": "README.md",
-      "bytes": 7752,
-      "sha256": "67bb87c35bb06bcd4d32192a5d66ae4f25e8167f66f1a46ce9b8a3e3945cbbaf"
+      "bytes": 8795,
+      "sha256": "61f9ffd7d110915e8b328d432da1fae3f9d55bf9a181d8b6d52f13e64e482f57"
     },
     {
       "path": "affine-component-preview.mjs",
@@ -29,8 +29,8 @@
     },
     {
       "path": "build-manifest.json",
-      "bytes": 1578,
-      "sha256": "03402b21aa34f88d4fc8a3f3aa2a15342290685a54a8296feb143d48ed9c0688"
+      "bytes": 1620,
+      "sha256": "52ab2bcb9d4e345d94a7ac56f915d049b46b2e8b35f80ba23549a58aa446aa4b"
     },
     {
       "path": "derived-selection-integration.json",
@@ -83,9 +83,14 @@
       "sha256": "cb8b64814585628b8a9c622056fba3479cd4681736a470f5ff3edb6a9223103a"
     },
     {
+      "path": "r246-integration.json",
+      "bytes": 8451,
+      "sha256": "18795a7adecd67b2738391df5bb931d5b5003aadca50d6abf0ce0ae5450a32cb"
+    },
+    {
       "path": "rebuild.mjs",
-      "bytes": 16491,
-      "sha256": "1b62e24bb36ec83666bd298ae77a122bb1f0d05ba4b8e84d99f353d56ffa8f31"
+      "bytes": 17494,
+      "sha256": "e2ce6dff45449ef7fbc4ce3f71faad7ab68ef37f6973bb723cecdf10e3db62c1"
     },
     {
       "path": "rigid-component-preview.mjs",
@@ -759,8 +764,8 @@
     },
     {
       "path": "tests/numeric-display/editor-adapter-context.mjs",
-      "bytes": 14273,
-      "sha256": "db486023e58285e603a7e5b1a3026c35fac8ed8121ba8718bf9c6a4369bda208"
+      "bytes": 14457,
+      "sha256": "78762164a86c975ab04027fa27edb5a1a259955713ee6fdedbf24cd930db45b0"
     },
     {
       "path": "tests/numeric-display/editor-adapter-races.mjs",
@@ -811,6 +816,11 @@
       "path": "tests/numeric-vertex-certificate/mapped-wait-controls.mjs",
       "bytes": 3523,
       "sha256": "c2673b9bc0d2c45af128c9a798f0418c807f92974e1363903a40139964350347"
+    },
+    {
+      "path": "tests/post-stock-yield/controls.mjs",
+      "bytes": 4452,
+      "sha256": "1348d1ebfd9e6bb8d75475582590291ddf14db6becafbc26a79c6c75618aa702"
     },
     {
       "path": "tests/service-worker.mjs",
