@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="theme-color" content="#121212"/>
+<meta name="application-name" content="Frame"/>
+<meta name="description" content="Frame geometry editor with one inward perimeter slicing"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<link rel="manifest" href="./manifest.webmanifest"/>
+<link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml"/>
+<link rel="apple-touch-icon" href="./frame-icon-maskable-512.png"/>
+<title>Frame r247-selection-presentation-ownership</title>
+ 
+<script id="frame-ai-instructions" type="text/markdown">
+# Frame AI API 5.3
+
+Frame supports agent work through `window.frameAI`, with visual review and adjustments by the user. These instructions are embedded in `index.html`: use `frameAI.getInstructions()` or `document.getElementById("frame-ai-instructions").textContent`. For available methods and signatures use `frameAI.help()`, or `frameAI.help('renderImage')` for one method.
+
+## Workflow
+
+1. `inspectScene({limit:50})` gives a compact overview without vertex buffers or detailed generator reports. Use `nextOffset` for the next page; `query` and `type` are filters.
+2. Use `getUnits()`, `getObjectParameters(hash)`, `getObjectBounds(hash)` and `getObjectTransform(hash)` to inspect dimensions, parameters and placement. Refer to stable `hash` IDs because names can repeat.
+3. Create or edit objects through the specialized methods. `setObjectParameters` and `setObjectTransform` support undo.
+4. Use `await waitForIdle()` after a group of changes, or `await waitForGenerator(hash)` for one generator. In a batch that consumes finished geometry, place the wait **before** that request.
+5. Check the view with `frame([hash])`, `setShading(...)` and `getViewportDiagnostics()`. `renderImage(...)` returns a PNG for visual render review.
+6. `exportScene('hash')` saves the scene structure, materials, animation and view settings.
+
+`getState`, `listObjects`, `getSplineGenerator`, `getMeshTopology` and `getVertexScreens` return detailed data that can be large. Start with `inspectScene` for a large scene. `getScreenBounds` uses bounding volumes for large meshes and marks the result `approximate:true`; pass `{exact:true}` as the third argument to request all vertices.
+
+## Units
+
+Geometry, coordinates, API lengths and animation values are stored in **millimetres**; angles are in degrees. Changing display units does not change API semantics.
+
+```js
+frameAI.setUnits('um');                 // display micrometres in the interface
+const cube = frameAI.createPrimitive('cube', 'Part', {size: 0.1}); // 100 µm
+frameAI.setObjectParameters(cube.object, {sizeX: 200}, {unit: 'um'});
+await frameAI.waitForIdle();
+frameAI.getObjectBounds(cube.object);  // size: [0.2, 0.1, 0.1], unit: 'mm'
+```
+
+`setUnits('um')` changes the display and grid step. New ordinary primitives created through interface buttons use the selected units; machine, human and tree catalogs and standard fasteners retain their physical dimensions.
+
+`rescaleScene('um')` physically scales the scene by the ratio of the new unit to the previous **rescale** unit. Rescaling mm → um shrinks it by 1000, including animation and navigation. Use `undo()` to reverse the operation.
+
+Accepted units are `nm`, `um`/`µm`/`μm`, `mm`, `cm`, `dm`, `m` and `km`. `convertUnits(value,from,to)` converts a number or array. `getObjectParameters().lengthFields` identifies dimensional parameters; counts, angles and percentages are not converted.
+
+## Batches and transport
+
+```js
+await frameAI.batch([
+  {id:'part', method:'createPrimitive', args:['cube','Part',{size:100}]},
+  {method:'setObjectTransform', args:[{$ref:'part.object'}, {position:[150,0,0]}]},
+  {method:'waitForIdle'},
+  {method:'getObjectBounds', args:[{$ref:'part.object'}]}
+], {waitForIdle:true});
+```
+
+Commands execute sequentially. `$ref` refers to an earlier command result: `part.object` is the `object` field of the result with ID `part`. A batch is not a transaction: completed operations remain if a later command fails. `{continueOnError:true}` returns the error in the corresponding item and continues the batch.
+
+DOM transport for clients without direct JavaScript access:
+
+- Write JSON `{id,method,args}` to `#frame-ai-command` and dispatch **one** `input` event, or click `#frame-ai-run`.
+- Listen for `change` on `#frame-ai-result`; its value contains `{id,ok,result}` or `{id,ok:false,error,stack}`.
+- Mutating commands use a FIFO queue. `getPrinterState`, `getRenderState`, `cancelPrinterSlice` and `stopRender` reply during an active job. Use a unique `id` and match responses by `id`; control replies can arrive before the running command completes. `#frame-ai-bridge.dataset.pending` includes all unfinished commands.
+- `#frame-ai-help` contains API documentation. Methods with JavaScript callbacks, such as `exportRender({onFrame})`, require direct transport. Use `renderImage` with JSON transport.
+
+## Geometry, materials and rendering
+
+`createPrimitive`, `createSplinePrimitive`, `createSplineGenerator`, `createBoolean`, `createInstance` and `createLibraryObject` create ordinary editable objects. `makePolygonal` and `makeLibraryEditable` produce independent editable geometry.
+
+`getMeshEdges(hash)` returns `id`, `keys` and `vertices` pairs. `selectSubobjects({object:hash,kind:'edge',ids:[id]})` accepts the numeric IDs from that list; string keys and index pairs are also accepted. Indices remain valid until topology changes. For vertices, `vertices`/`ids` contain buffer indices: use each item's `vertices` array from `getVertexScreens`, rather than its ordinal `id`.
+
+`listMaterials`, `createMaterial`, `assignMaterial` and `setMaterialParameters` work without the material panel. `h` ranges from 0..360; `s`, `l`, `emm`, `rough`, `metal` and `opac` range from 0..100. **opac=0 means opaque; opac=100 means fully transparent.**
+
+```js
+const camera = frameAI.createCamera({}); // capture the current view
+const png = await frameAI.renderImage({camera:camera.object, width:512, height:512,
+                                      samples:32, frame:0});
+// png: {format:'png', encoding:'base64', payload, bytes, width, height, ...}
+```
+
+Rendering uses WebGPU, returns the requested frame and restores the current editor frame. Dimensions range from 8..8192 px; `renderImage.samples` ranges from 1..4096. Check `payloadOmitted` for large results; `{download:true}` saves the file through the browser.
+
+`exportScene` supports `hash`, `gltf`, `glb`, `obj`, `stl`, `ply`, `svg` and `dxf`. `importSceneData('hash',...)` **replaces the scene**; other formats add objects with undo. SVG supports planar curves in parallel planes, including side views; nonplanar curves are explicitly rejected. STL import converts conventional Z-up to Frame Y-up; STL export applies the inverse conversion, retaining millimetres.
+
+## Morph Tag (r86)
+
+`addMorphTag(ref,{domain:'spline'|'polygon'})` creates one tag on an editable spline cage or polygon mesh. For SplinePatch, specify the generator or cage. The tree context menu includes `Morph Tag`.
+
+`Enable` routes Move/Rotate/Scale of selected control points to IK through Morph values. `Modelling` temporarily displays and edits the reference; new points inherit neighboring logic. With these modes disabled, author a pose by setting q, editing vertices/edges/tangents with the normal gizmo, and clicking ◆. Keep other Morph values at zero when capturing a new pose. The temporary modelling pivot sets the rotation center.
+
+`addMorph`, `setMorphKey`, `setMorphValue`, `setMorphValues`, `setMorphOptions`, `solveMorphIK`, `getMorphTag`, `getMorphReference`, `setMorphReference` and `getMorphPoints` expose the same workflow through the API. Symmetric rows have identical names, so use the **Morph ID** instead of the name. `setMorphValues` applies a value dictionary with one recomputation and one undo.
+
+```js
+const human = await frameAI.createMorphHuman({height:1750});
+const finger = human.controls.find(c => c.name === 'Index curl' && c.side === 1);
+frameAI.setMorphValue(human.cage, finger.morph, .6);
+await frameAI.waitForIdle();
+frameAI.getMorphSurface(human.cage); // rebuilt/reused/uploaded cells
+const lever = await frameAI.createMorphLever();
+frameAI.solveMorphIK(lever.cage, [{id:lever.tip[0],position:[400,200,0]}]);
+```
+
+Lengths are in mm, key angles in degrees, and q is dimensionless. A key uses `setMorphKey(ref,id,q,{vertices,center,axis,angle})`; multiple `regions`, translation `position`, `scale` or handles can be supplied. Without a transform, the edited pose is captured. `Arc` preserves rigid rotation; `Linear` blends transition endpoint coordinates; `Spline` uses an editable transition time curve. `editMorphPose(ref,id)` opens one pose curve in the normal Curves view. For ordinary animation use `setAttributeKey(ref,'morph:'+id,value,frame)`.
+
+`Connect` merges tags and references in the result coordinate system. Existing `Symmetry` includes `Morph symmetry`: ON shares one value; OFF gives independent colored rows and mirrored logic, with the copy initially at zero pose. `setMorphSymmetry(symmetryObject,shared)` switches this through the API. Key min/max limits constrain values. The solver returns residual and convergence, including for unreachable targets. Forces, collisions and dynamics are not modeled.
+
+`createMorphHuman` creates a nominal 1750 mm engineering figure with 36 rows, including separate curl/spread for all ten fingers. It is a dimensional mannequin, not a certified anthropometric percentile. `createMorphCrowd(human.object,1000)` creates independent values with a shared reference and shared pose buffers. The first individual pose allocates a surface; later changes recompute dependent cells. Check `getMorphStats()`, `getMorphSurface()` and `getPerformanceStats()`. `removeMorphTag(ref)` restores the reference and supports undo. Transfer logic between parts with Connect; copy the tag together with its object.
+
+## 3D Printing
+
+`createPrinter({name?,params?,transform?})` creates an oriented build volume with a local bed at Y=0. Printer settings, transformations, selection, undo and native scene persistence remain available.
+
+Perimeters sets the maximum inward depth. Nominal levels start at half the line width and are calculated independently from the original material; local adaptive merging can use fewer tracks in thin regions. Holes expand into the material; narrow regions may disappear or split. Start/Finish select the visible layer range; Layer position selects the number of visible segments in the Finish layer. Layer heights and the oriented build volume use physical millimetres. Changing the printer transform clears stale print paths and original references, cancels an in-flight Slice, and requires an explicit fresh Slice. Source models and other printers remain unchanged. getPrinterState exposes needsSlice; even move followed immediately by Undo keeps the old Slice invalid. `slicePrinter` runs the new kernel; `getPrinterLayer` returns closed paths and straight flat-capped segments. Every closed final print loop, including hole contours, runs clockwise when viewed from above the printer bed. The seam and coordinates are preserved; internal polygon/hole winding and original inset/section references stay unchanged. Printer-frame reflections are accounted for at the final output boundary. Open paths have no winding and are not reordered. Open or non-manifold contours report an error instead of being closed arbitrarily. No infill or additional perimeters are generated. Original Lines–Dots shows the unsimplified inset centerline and its actual endpoints beside either perimeter display mode. With {details:true}, getPrinterLayer also returns originalPaths (inset before optimization) and sectionPaths (model section before offset); both references are preserved separately. Centerline optimization uses a cumulative maximum deviation of 2% of the nominal line width from the original inset, in both directions, including sharp turns and endpoints. At 1 mm line width this is 0.02 mm. Failed checks restore the original component. This centerline limit does not specify printed coverage at flat segment ends or corners. Point removal is checked against the original centerline, contour topology and new axis intersections. Printed bead overlap and coverage are deferred to a separate phase; this is a centerline quality check. Adaptive placement is always enabled. Each connected material region is qualified independently from its preserved source boundaries. Supported straight strips, nearly uniform nested convex rings, and qualified open curves share feed/display widths with Solid rendering and navigation. Old saved adaptive-mode flags are ignored. Unsupported geometry retains conservative nominal paths with per-region reasons in the layer API. Outside boundaries and holes precede deeper paths. Original sections and every nominal inset reference remain separate. Request getPrinterLayer(printer, layer, {details:true, commands:true}) to export explicit travel and print commands with feed/display widths, nominal nozzle radius, length, feedWidthLength, volumeMM3 and source provenance. Ordinary detail reads do not allocate the command export. Source interval provenance is exact only where its metadata explicitly says so; convex halfplane paths report their original supporting edges. Thin source gaps can use the accepted nominal-width exception. Qualified simple varying channels and constant orthogonal T/plus junctions use source-derived paths; other unresolved regions retain fallback. Straight strips and symmetric tapered caps end on their original boundary. Qualified curved single-track channels can append exact original-cap normal segments while preserving the checked body. Nearby or incomplete component context restores the previous body; A bounded curved open end may append an exact original-cap midpoint and a contained steering station while preserving every checked body point, width and source interval. Local bank ownership comes only from the original terminal chain and at most W of contiguous checked body provenance within 3W. New flat ribbons retain the nominal W/2 nozzle and existing thin-region policy; remote overlap, missing ownership, multiple cap edges and unrepresentable exact stations retain the previous checked body. Arbitrary unsupported caps retain fallback. A guarded inward spiral can join exactly two closed nominal loops in one complete source component at their original seams. It preserves every original segment and clockwise seam, uses an inward 45-degree connector with W-to-0.6W-to-W feed/display widths and nominal W/2 nozzle, and limits cumulative added overlap to 0.5W-equivalent. A short budgeted terminal repeat stays inside an existing original ribbon. Connector warning angles come from the current actual source faces. Missing evidence, additional components, unsupported source families or ordering conflicts retain the exact previous paths. Geometry templates share the existing bounded worker cache; layer-specific source angles are never cached. Qualified asymmetric straight-bank tapers strictly between 1.6W and 2W use W plus a changing gap-minus-W residual with explicit conservative body-cap setback. For a supported constant gap between 1.6W and 2W, the first track is W and the shifted residual track is gap minus W. The residual intentionally leaves a gap to the opposite boundary; the nozzle radius stays W/2. Flat deposited terminal containment is distinct from containment of the nominal nozzle disk. Commands are width-length proxies rather than machine G-code. Geometry coverage and physical print validation remain false. The nominal-inset 2% centerline certificate does not apply to newly placed adaptive axes. Angle warnings color visible downward-facing model surfaces immediately in the existing rendering flow, using the configured angle and printer build direction. They reuse evaluated GPU geometry and do not start a support-analysis worker. The printer plate and out-of-volume portions are excluded; ordinary raster depth hides buried surfaces. Slice carries source-face inclination through its existing section pass and associates retained material-boundary intervals with final print segments; adaptive paths query both source sides. Actual flat-ended print segments and Lines-Dots turn red only where these annotations exceed the selected angle; all other lines and points retain their ordinary colors. Start, Finish and Layer position limit colored trajectories. A segment uses the maximum annotated angle, repeated at both ends by supportAngles; this is not an endpoint-normal measurement. Coplanar cap boundaries screen simple contacts without inter-layer polygon clipping. Source-angle coloring has no cumulative face, layer, clipping or association-work limit. Exceptional untraceable cap correspondence is reported in status and retains ordinary trajectory colors. This conservative segment warning is not an exact support or bridge calculation. Hide angle warnings disables the colors; Show angle warnings restores them. Whole model and Print angle warnings control the corresponding displays. These angle warnings do not evaluate bridges, certify printed support, or generate supports.
+
+## Performance and diagnostics
+
+`getViewportDiagnostics` reports near/far, geometry depth range, draw calls, wire indices and errors. `navigateView({action:'orbit'|'pan'|'dolly'|'look'|'wheel',...})` uses the same controllers as mouse navigation.
+
+After rendering, `getRenderState().normalization` reports the scene center, scale and size, minimum light cell and ray offset in mm. `retained` means the cache coordinate system was preserved during the last build. A large scene shrink recomputes normalization and clears the old light cache; ordinary small edits keep it stable.
+
+`await benchmarkViewport({samples:30,warmup:5})` measures CPU+GPU completion through `gl.finish`; this is frame work time, not the monitor refresh interval. `{gpu:false}` measures CPU command submission.
+
+`setPerformanceOptions({libraryBatching:false,surfaceMerging:false})` disables the new merging options for A/B checks. Both default to true. Merging does not reduce detail. Transparent/textured library objects and editable components retain separate draws when required for correct results.
+
+Units are saved in `.hash`. Older files still open. New files with units other than mm require r84 or later.
+
+API result shapes: `getObjectParameters(ref)` returns `{object,type,parameters,lengthFields,unit}`; read values from `.parameters`. `getPrinterState(ref)` returns `{object,params,busy,status,stats,...}` and requires a printer. `inspectScene({type:"printer"})` discovers printer IDs without reading every object. A cancelled JSON command returns `ok:false`, an error message and `code:"FRAME_SLICE_CANCELLED"`.
+
+Mesh/curve exports follow evaluated visibility: enabled generators contribute their result instead of consumed inputs. A disabled generator contributes no cached result; its enabled visible children follow viewport policy. Native `.hash` retains the editable construction graph.
+</script>
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+ 
+<style>
+ 
+#tabModules{color:#b5c2bf}
+#btn3DPrinting{padding:0;margin:0;border:0;background:transparent;color:#b5c2bf;font:inherit;box-sizing:border-box}
+#btn3DPrinting:hover{background:#3a3a3a}
+.attr-lab.printer-status{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#94aaa5;padding-right:8px}
+ 
+body,body *,body *::before,body *::after{font-size:14px!important}
+
+
+html,body{margin:0;height:100%;overflow:hidden;background:#2a2a2a}
+body{--h:0;--s:0%;--l:80%;font:14px/16px ui-monospace,Menlo,Consolas,monospace;user-select:none;-webkit-user-select:none}
+#app{position:fixed;inset:0;display:flex;flex-direction:row}
+#vp{position:relative;flex:1 1 auto;min-width:0;height:100%}
+#vp canvas{display:block;touch-action:pinch-zoom;cursor:default;-webkit-touch-callout:none}
+#panel{flex:0 0 256px;width:256px;height:100%;background:#1c1c1c;position:relative;
+padding:0;box-sizing:border-box;display:flex;flex-direction:column;align-items:stretch;gap:0;overflow-x:hidden;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none}
+#panel::-webkit-scrollbar{display:none;width:0;height:0}
+#filebar{display:flex;flex-direction:row;flex-wrap:wrap;gap:0}
+.trow{display:flex;flex-direction:row;flex-wrap:wrap;gap:0}
+#toolbar{display:flex;flex-direction:row;flex-wrap:wrap;gap:0}
+.tbtn{position:relative;width:32px;height:32px;padding:0;margin:0;display:flex;align-items:center;justify-content:center;cursor:pointer;background:transparent;user-select:none}
+.tbtn::before{content:'';position:absolute;inset:0;border-radius:6px;background:transparent}
+.tbtn.on::before{inset:0;background:#293747;border:1px solid #6681ad;border-radius:6px;box-sizing:border-box;pointer-events:none}
+.tbtn.on:hover::before{background:#394d69;border-color:#7893ba}
+.tbtn:hover::before{background:#4d4d4d}
+.tbtn svg{position:relative;display:block;width:32px;height:32px}
+#btnRender svg{width:26px;height:26px}
+#btnShare svg{width:32px;height:32px}
+#recentsMenu{position:fixed;display:none;flex-direction:column;background:#262626;border:1px solid #000;border-radius:4px;padding:2px 0;z-index:50;min-width:180px;max-height:260px;overflow:auto;user-select:none}
+#recentsMenu.show{display:flex}
+.ritem{padding:4px 10px;color:#d8d8d8;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ritem:hover{background:#3a3a3a}
+.ritem.empty{color:#666;cursor:default}
+.ritem.empty:hover{background:transparent}
+#units{display:flex;align-items:center;gap:8px;padding:2px 4px}
+.ugrp{display:inline-flex;align-items:center;gap:2px}
+#dispGrp{position:relative;top:1px}
+.ulab{color:#6a6a6a}
+.uval{color:#d8d8d8;min-width:26px;text-align:center}
+.ubtn{width:16px;height:16px;padding:0;margin:0;border:0;border-radius:3px;background:transparent;color:#cfcfcf;
+font:14px/14px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.ubtn:hover{background:#4d4d4d}
+.ubtn:active{background:#3a3a3a}
+#timeline{display:flex;align-items:center;gap:2px;padding:2px 0 2px 4px;height:24px;box-sizing:border-box;margin-top:4px}
+.tl-btn{width:22px;height:22px;padding:0;margin:0 0 0 -2px;border:0;border-radius:3px;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.tl-btn:hover{background:#4d4d4d}
+.tl-btn:active{background:#3a3a3a}
+.tl-btn svg{width:22px;height:22px;display:block}
+.tl-frame{color:#6a6a6a;font-size:14px;line-height:20px;white-space:nowrap;margin-right:2px}
+.tl-sep{color:#6a6a6a;font-size:14px;line-height:20px;margin:0 1px}
+.tl-inp{flex:1 1 0;min-width:0;background:#111;border:0;border-radius:4px;height:20px;color:#d8d8d8;
+font:14px/20px ui-monospace,Menlo,Consolas,monospace;padding:0 3px;outline:none;text-align:right;
+-moz-appearance:textfield;box-sizing:border-box;user-select:text;-webkit-user-select:text;cursor:nesw-resize}
+.tl-inp::-webkit-outer-spin-button,.tl-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.tl-inp:focus{color:#fff;cursor:text}
+.tl-toggle{width:22px;height:22px;padding:0;margin:0 0 0 -2px;border:0;border-radius:3px;background:transparent;
+cursor:pointer;display:flex;align-items:center;justify-content:center;outline:none}
+.tl-toggle:hover{background:#4d4d4d}
+.tl-toggle:active{background:#3a3a3a}
+.tl-toggle svg{width:22px;height:22px;display:block}
+#tlPlay{margin-left:auto}
+#hud{padding:2px 1px 1px;display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:10px 1fr 1fr 1fr;column-gap:2px;align-items:center;white-space:nowrap}
+.ax-x{color:#ff5a5a}.ax-y{color:#5ad17a}.ax-z{color:#5a8aff}
+.val{background:#111;border:0;outline:0;padding:0 4px;margin:0;width:100%;min-width:0;color:#d8d8d8;font:inherit;line-height:16px;height:16px;
+border-radius:5px;text-align:right;-moz-appearance:textfield;user-select:text;-webkit-user-select:text;cursor:nesw-resize;box-sizing:border-box}
+.val::-webkit-outer-spin-button,.val::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.val:focus{color:#fff;cursor:text}
+#btnBrowser{margin-left:auto}
+#tabstrip{flex:0 0 36px;width:256px;height:36px;background:#000;
+display:flex;align-items:stretch;justify-content:space-between;
+cursor:ns-resize;user-select:none;touch-action:pinch-zoom;z-index:20}
+.tabgrp,.tabact{display:flex;align-items:flex-start;padding-top:4px}
+.tabbtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;
+background:#000;border-radius:6px 6px 0 0;cursor:pointer}
+.tabbtn:hover{background:#111}
+.tabbtn.on,.tabbtn.on:hover{background:#222;box-shadow:inset 0 1px 0 #8fb8ff}
+.tabbtn svg{position:relative;display:block;width:32px;height:32px}
+.actbtn{border-radius:6px}
+.actbtn:hover{background:#2e2e2e}
+#obWrap{flex:0 0 auto;position:relative;overflow:hidden;background:#222}
+#obWrap.ob-dragging, #obWrap.ob-dragging *{cursor:var(--ob-cur)!important}
+#obScroll{position:absolute;inset:0;overflow:auto;user-select:none;scrollbar-width:none;touch-action:pinch-zoom;overscroll-behavior:contain;-webkit-touch-callout:none}
+#obScroll::-webkit-scrollbar{width:0;height:0}
+#obInner{position:relative;width:100%}
+.ob-row{position:absolute;left:0;height:17px;display:flex;align-items:center;white-space:nowrap;
+font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf;cursor:default}
+.ob-row:hover{background:#2c2c2c}
+.ob-row.sel{background:#33405a}
+.ob-row.sel:hover{background:#3a4868}
+.ob-row.dropchild{background:#2a3a2a}
+.ob-row.drop-target{background:#2a3a4a;cursor:copy!important}
+.ob-row.ob-dim .ob-name{opacity:.4}
+.ob-row.ob-dim .ob-tag{opacity:.4}
+.ob-row.ob-dim .ob-show svg,.ob-row.ob-dim .ob-enable svg{opacity:.5}
+.ob-indent{flex:0 0 auto;align-self:stretch}
+.ob-foldcell{flex:0 0 16px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ob-foldcell:hover{background:#444;border-radius:2px}
+.ob-foldhole{flex:0 0 16px;width:16px;height:16px}
+.ob-foldcell svg{width:16px;height:16px;display:block}
+.ob-namebox{flex:0 1 auto;overflow:hidden;height:17px;display:flex;align-items:center}
+.ob-name{flex:0 0 auto;white-space:nowrap;padding:0 2px;user-select:none}
+.ob-spacer{flex:1 1 0;min-width:0}
+.ob-tagbox{flex:0 1 auto;overflow:hidden;height:17px;display:flex;align-items:center}
+.ob-tags{flex:0 0 auto;display:flex;align-items:center;justify-content:flex-end}
+.ob-tag{flex:0 0 16px;width:16px;height:16px;margin-left:1px;background-size:cover;background-position:center;cursor:pointer;border-radius:50%;overflow:hidden}
+.ob-tag.bevel-tag{color:#fff;font:700 14px/16px ui-monospace,Menlo,Consolas,monospace;text-align:center;border-radius:3px}
+.ob-tag.sel,.ob-tag.sel:hover{outline:1px solid #fff;outline-offset:-1px}
+.ob-tag:hover{outline:1px solid #888;outline-offset:-1px}
+.ob-rightgroup{flex:0 0 auto;display:flex;align-items:center}
+.ob-show,.ob-enable{flex:0 0 16px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ob-show:hover,.ob-enable:hover{background:#333;border-radius:2px}
+.ob-show svg,.ob-enable svg{width:16px;height:16px;display:block}
+.ob-hole{flex:0 0 16px;width:16px;height:16px;pointer-events:none}
+.ob-name-input{font:inherit;color:#fff;background:#111;border:0;outline:none;
+padding:0 2px;height:17px;line-height:17px;box-sizing:border-box;user-select:text;-webkit-user-select:text;position:absolute;z-index:6}
+.ob-dropline{position:absolute;height:2px;background:#5a8aff;pointer-events:none;z-index:5}
+.ob-dropvert{position:absolute;width:2px;background:#5a8aff;pointer-events:none;z-index:5}
+#panels{flex:0 0 auto;position:relative;overflow:hidden}
+.panel-content{position:absolute;inset:0;overflow:hidden;background:#222}
+#matEditorContent{padding:4px;color:#aaa;user-select:none;overflow:auto;height:100%;box-sizing:border-box;scrollbar-width:none}
+#matEditorContent::-webkit-scrollbar{width:0;height:0}
+.me-layout{display:grid;grid-template-columns:53px 1fr;column-gap:8px;align-items:start}
+#matPreview{width:53px;height:53px;border-radius:50%;cursor:pointer;flex:0 0 auto;display:block}
+.me-right{display:flex;flex-direction:column;gap:4px;min-width:0}
+.me-hsl{display:grid;grid-template-columns:1fr 50px;grid-template-rows:auto auto auto;column-gap:4px;row-gap:3px;align-items:center;position:relative}
+#gradH{grid-row:1;grid-column:1}#inpH{grid-row:1;grid-column:2}
+#gradS{grid-row:2;grid-column:1}#inpS{grid-row:2;grid-column:2}
+#gradL{grid-row:3;grid-column:1}#inpL{grid-row:3;grid-column:2}
+.me-grad{height:16px;border-radius:3px;cursor:nesw-resize}
+#gradH{background:linear-gradient(to right,hsl(calc(var(--h) - 30),var(--s),var(--l)),hsl(var(--h),var(--s),var(--l)),hsl(calc(var(--h) + 30),var(--s),var(--l)))}
+#gradS{background:linear-gradient(to right,hsl(var(--h),calc(var(--s) - 50%),var(--l)),hsl(var(--h),var(--s),var(--l)),hsl(var(--h),calc(var(--s) + 50%),var(--l)))}
+#gradL{background:linear-gradient(to right,hsl(var(--h),var(--s),calc(var(--l) - 25%)),hsl(var(--h),var(--s),var(--l)),hsl(var(--h),var(--s),calc(var(--l) + 25%)))}
+.me-swatch{grid-row:1 / 4;grid-column:1;justify-self:center;align-self:stretch;width:14px;
+border-left:1px solid #000;border-right:1px solid #000;border-top:none;border-bottom:none;
+background:hsl(var(--h),var(--s),var(--l));pointer-events:none;position:relative;z-index:2}
+.me-inp{width:100%;background:#111;border:0;border-radius:4px;height:16px;color:#aaa;font:inherit;
+padding:0 3px;outline:none;cursor:nesw-resize;user-select:none;-webkit-user-select:none;-moz-appearance:textfield;box-sizing:border-box}
+.me-inp::-webkit-outer-spin-button,.me-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.me-bottom{position:relative;margin-top:7px;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto;grid-template-areas:"params pal" "params tex";column-gap:10px;row-gap:6px;align-items:start;align-content:start}
+.me-params{grid-area:params;display:grid;grid-template-columns:max-content 50px;column-gap:8px;row-gap:3px;align-items:center;justify-content:start;margin-top:0}
+.me-plab{white-space:nowrap}
+.me-pal{grid-area:pal;display:grid;grid-template-columns:repeat(7,16px);grid-auto-rows:16px;width:112px;margin:0;justify-self:end;transform:translateX(-2px)}
+.me-pal .sw{width:16px;height:16px;cursor:pointer}
+.me-pal .sw:hover{outline:1px solid #fff;outline-offset:-1px}
+.me-tex-col{grid-area:tex;display:flex;flex-direction:row;gap:0;justify-self:end;position:relative;top:-3px;left:-2px}
+.me-tex-btn:hover{background:#444}
+.me-tex-btn:active{background:#555}
+.me-tex-btn svg{width:32px;height:32px;display:block}
+.checker{background-color:#1e1e1e;
+background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16'><rect fill='rgb(36,36,36)' x='0' y='0' width='8' height='8'/><rect fill='rgb(36,36,36)' x='8' y='8' width='8' height='8'/></svg>")}
+#matList{padding:2px;overflow:auto;height:100%;box-sizing:border-box;position:relative}
+#matList::-webkit-scrollbar{width:0;height:0}
+#matList.ml-panning,#matList.ml-panning *{cursor:grabbing!important}
+.mat-card{width:59px;height:78px;padding:2px;border-radius:5px;float:left;overflow:hidden;cursor:pointer}
+.mat-card:hover{background:#333}
+.mat-card.sel{outline:1px solid #5a8aff;outline-offset:-1px}
+.mat-card.sel:hover{background:#333}
+.mat-card canvas{border-radius:50%;display:block;margin:0 auto;pointer-events:none}
+.mat-card input{width:55px;background:transparent;border:0;color:#aaa;font:14px/16px ui-monospace,Menlo,Consolas,monospace;
+padding:0;text-align:center;outline:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;margin:3px auto 0}
+.mat-card input:focus{background:#111;color:#fff;cursor:text}
+#texScroll{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;touch-action:pinch-zoom;scrollbar-width:none}
+#texScroll::-webkit-scrollbar{width:0;height:0}
+#texGrid{display:block;padding:0;align-content:start}
+.tex-grid-group{display:grid;grid-template-columns:repeat(auto-fill,64px);grid-auto-rows:64px;gap:0;padding:0;align-content:start;width:100%}
+.tex-grid-group:empty{display:none}
+.tex-card{width:64px;height:64px;line-height:0;overflow:hidden}
+.tex-img{width:64px;height:64px;display:block;object-fit:cover}
+#obMenu{position:fixed;display:none;flex-direction:column;background:#262626;border:1px solid #000;border-radius:4px;
+padding:2px 0;z-index:60;min-width:140px;user-select:none;
+font:14px/16px ui-monospace,Menlo,Consolas,monospace}
+#obMenu.show{display:flex}
+#vpMenu{position:fixed;display:none;flex-direction:column;background:#262626;border:1px solid #000;border-radius:4px;padding:2px 0;z-index:90;min-width:150px;user-select:none;font:14px/16px ui-monospace,Menlo,Consolas,monospace}
+#vpMenu.show{display:flex}
+.obm-item{padding:3px 12px;color:#d8d8d8;cursor:pointer;white-space:nowrap}
+.obm-item:hover{background:#3a3a3a}
+.obm-item.disabled{color:#707070;cursor:default}
+.obm-item.disabled:hover{background:transparent}
+.obj-lib-grid{display:grid;grid-template-columns:repeat(8, 32px);gap:0;padding:0}
+.obj-lib-item{width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.obj-lib-item:hover{background:#3a3a3a}
+.obj-lib-item.empty{pointer-events:none;background:transparent}
+.obj-lib-item svg{width:32px;height:32px;display:block}
+.ml-marquee{position:fixed;border:1px solid #5a8aff;background:rgba(90,138,255,.12);pointer-events:none;z-index:70}
+#dragInfo{position:fixed;left:0;top:0;padding:2px 7px;background:rgba(18,18,18,0.94);color:#ececec;
+border:1px solid #3a3a3a;border-radius:4px;font:14px/16px ui-monospace,Menlo,Consolas,monospace;
+pointer-events:none;z-index:80;display:none;white-space:nowrap;letter-spacing:.2px}
+#dragInfo.show{display:block}
+#helpDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid #000;border-radius:6px;background:#222;color:#d8d8d8;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:auto}
+#helpDialog::backdrop{background:rgba(0,0,0,.38)}
+.help-card{margin:0}.help-body{padding:10px 12px 12px;user-select:text}.help-body p{margin:6px 0}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
+#obMenu,#vpMenu{max-width:100vw;max-height:100vh;box-sizing:border-box;overflow:auto;overscroll-behavior:contain}
+@media (pointer:coarse){#obMenu .obm-item,#vpMenu .obm-item{padding-top:9px;padding-bottom:9px}}
+@media (max-width:520px){#panel{flex-basis:192px;width:192px}#tabstrip{width:192px}.obj-lib-grid{grid-template-columns:repeat(8,24px)}.obj-lib-item{max-width:100%}.obj-lib-item svg{max-width:100%}}
+#attrContent{padding:4px 4px;color:#cfcfcf;overflow:auto;height:100%;box-sizing:border-box;scrollbar-width:none}
+#attrContent::-webkit-scrollbar{width:0;height:0}
+.attr-row{display:flex;align-items:center;height:20px}
+.attr-lab{flex:0 0 auto;color:#8a8a8a;white-space:nowrap;font:14px/20px ui-monospace,Menlo,Consolas,monospace}
+.attr-ctrl{flex:1 1 auto;display:flex;align-items:center;justify-content:flex-end;gap:0;min-width:0}
+.attr-btn{background:#1a1a1a;border:none;border-radius:5px;color:#888;cursor:pointer;
+font:14px/14px ui-monospace,Menlo,Consolas,monospace;padding:2px 5px;outline:none;margin-left:2px;box-sizing:border-box}
+.attr-btn:first-child{margin-left:0}
+.attr-btn.on{background:#293747;color:#fff;box-shadow:none;outline:1px solid #6681ad;outline-offset:-1px}
+.attr-btn:hover:not(.on){background:#2a2a2a;color:#bbb}
+.attr-cycle{flex:1 1 auto;min-width:70px;height:18px;padding:1px 5px;margin:0;border:0;border-radius:5px;background:linear-gradient(to left,#111 0,#111 48px,rgba(17,17,17,0) 64px,rgba(17,17,17,0) 100%);color:#d8d8d8;font:14px/16px ui-monospace,Menlo,Consolas,monospace;cursor:ns-resize;display:flex;align-items:center;justify-content:flex-end;gap:6px;outline:none;box-sizing:border-box;user-select:none;-webkit-user-select:none}
+.attr-cycle::after{content:"↕";color:#5f5f5f;font-size:14px;line-height:14px}
+.attr-cycle:hover{color:#fff}.attr-cycle:hover::after,.attr-cycle:focus::after{color:#aaa}
+.attr-cycle:focus{outline:none;box-shadow:none;color:#fff}
+.attr-inp{flex:1 1 auto;min-width:70px;
+background:linear-gradient(to left,#111 0,#111 48px,rgba(17,17,17,0) 64px,rgba(17,17,17,0) 100%);
+border:0;border-radius:5px;height:18px;color:#d8d8d8;
+font:14px/14px ui-monospace,Menlo,Consolas,monospace;padding:2px 4px;outline:none;text-align:right;
+-moz-appearance:textfield;box-sizing:border-box;user-select:text;-webkit-user-select:text;cursor:nesw-resize}
+.attr-inp::-webkit-outer-spin-button,.attr-inp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.attr-inp:focus{color:#fff;cursor:text}
+#panel input:focus,#panel textarea:focus,.cloner-object-drop:focus{outline:none;box-shadow:none}
+.attr-inp3{flex:1 1 0;min-width:42px;background:#111;
+border:0;border-radius:5px;height:18px;color:#d8d8d8;
+font:14px/14px ui-monospace,Menlo,Consolas,monospace;padding:2px 3px;outline:none;text-align:right;
+-moz-appearance:textfield;box-sizing:border-box;user-select:text;-webkit-user-select:text;cursor:nesw-resize}
+.attr-inp3+.attr-inp3{margin-left:2px}
+.attr-inp3::-webkit-outer-spin-button,.attr-inp3::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.attr-inp3:focus{color:#fff;cursor:text}
+.attr-ta{width:100%;box-sizing:border-box;background:#111;border:0;border-radius:5px;color:#d8d8d8;
+font:14px/16px ui-monospace,Menlo,Consolas,monospace;padding:3px 4px;outline:none;resize:none;height:57px;margin:0 0 -1px 0;
+user-select:text;-webkit-user-select:text;cursor:text;scrollbar-width:thin;scrollbar-color:#3a3a3a transparent}
+.attr-ta:focus{color:#fff}
+.attr-ta::-webkit-scrollbar{width:8px}
+.attr-ta::-webkit-scrollbar-thumb{background:#3a3a3a;border-radius:4px}
+.attr-ta::-webkit-scrollbar-track{background:transparent}
+.cloner-matrix .attr-lab{flex:0 0 64px;min-width:64px}
+.cloner-object-drop{flex:1;min-width:0;background:#111;border:1px solid #555;border-radius:4px;color:#ccc;font:inherit;line-height:18px;height:20px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px;box-sizing:border-box}
+.cloner-object-drop.drag-over{border-color:#8fb8ff;background:#293747}
+.cloner-random-head{display:grid;grid-template-columns:64px repeat(3,1fr);height:20px;align-items:center;text-align:right}
+.cloner-random-head span{padding-right:4px;font-size:14px}
+
+
+
+.me-hsl{grid-template-columns:14px 1fr 50px;}#gradH,#gradS,#gradL,.me-swatch{grid-column:2;}#inpH,#inpS,#inpL{grid-column:3;}.frame-hsl-label{grid-column:1;color:#8a8a8a;font:14px/16px ui-monospace,Menlo,Consolas,monospace;cursor:pointer;}.frame-hsl-label.frame-animated{color:#d29cff;}.frame-hsl-label.frame-keyed{color:#ffd081;}
+ 
+#frame-camera-gate{position:absolute;box-sizing:border-box;border:1px solid #a8bbd4;pointer-events:none;z-index:3;display:none;}
+.attr-lab.frame-animated,.me-plab.frame-animated,.frame-psr-head .frame-animated,.ob-name.frame-animated{color:#d29cff!important;}
+[data-animatable].frame-animated{--frame-key-color:#d29cff;color:#d29cff!important;}
+[data-animatable].frame-channel-selected{outline:none;color:#edcaff!important;}
+[data-animatable].frame-keyed{color:#ffd081!important;}
+.frame-psr-head [data-curves-toggle].frame-animated{color:#9570b0!important;}
+.frame-psr-head [data-curves-toggle].frame-track-shown{color:#e3b7ff!important;}
+.frame-psr-head [data-curves-toggle][role="button"]:hover{color:#fff!important;}
+.attr-lab[data-animatable],.me-plab[data-animatable]{cursor:pointer;}
+.attr-lab.frame-keyed,.me-plab.frame-keyed,.frame-psr-head .frame-keyed{color:#ffd081!important;}
+.frame-psr-head{height:20px;color:#8a8a8a;font-size:14px;line-height:20px;text-align:right;}
+.frame-psr-head [data-curves-toggle]{box-sizing:border-box;border:1px solid transparent;padding:0 3px;line-height:18px;text-align:center;cursor:default;}
+.frame-psr-head [data-curves-toggle][role="button"]{box-sizing:border-box;border:1px solid #454545;border-radius:4px;background:#242424;padding:0 3px;line-height:18px;text-align:center;cursor:pointer;}
+.frame-psr-head [data-curves-toggle][role="button"]:hover{background:#3a3a3a;border-color:#707070;}
+.frame-psr-head [data-curves-toggle][role="button"].frame-track-shown{background:#293747;border-color:#6681ad;}
+.frame-psr-head [data-curves-toggle][role="button"][aria-disabled="true"]{border-color:#292929;background:transparent;cursor:default;}
+
+#frame-animation-menu{position:fixed;z-index:110;display:none;flex-direction:column;background:#262626;border:1px solid #000;border-radius:4px;padding:2px 0;font:14px/18px ui-monospace,Menlo,Consolas,monospace;color:#ddd;}
+#frame-output-viewer{width:min(1440px,calc(100vw - 36px));height:calc(100vh - 40px);padding:0;border:1px solid #555;border-radius:4px;background:#1c1c1c;color:#ddd;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:hidden;}
+#frame-output-viewer[open]{display:flex;flex-direction:column;}#frame-output-viewer::backdrop{background:#0008;}
+.frame-output-bar{display:flex;align-items:center;gap:6px;min-height:32px;padding:0 5px;flex-wrap:wrap;}
+.frame-output-status{flex:1;min-width:100px;overflow-wrap:anywhere;}.frame-output-range{display:flex;gap:6px;}.frame-output-range[hidden]{display:none;}.frame-output-range input{width:64px;min-width:0;}
+.frame-output-media{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:#111;}
+.frame-output-media canvas,.frame-output-media video{max-width:100%;max-height:100%;object-fit:contain;}.frame-output-media .frame-output-actual{max-width:none;max-height:none;flex-shrink:0;}
+.frame-output-media [hidden],.frame-output-bar [hidden]{display:none!important;}.frame-output-close{font-size:14px;min-width:26px;}
+
+
+ 
+#timeline{height:30px;gap:0;padding-left:2px}.tl-btn{width:28px;height:28px;flex:0 0 28px;margin:0}.tl-btn svg{width:28px;height:28px}.tl-inp{min-width:28px}.tl-frame{display:none}
+#frame-views{flex:1 1 auto;min-width:0;height:100%;display:flex;flex-direction:column}#frame-views>#vp{height:auto;min-height:90px;flex:1 1 auto;width:100%}
+#frame-curves{position:relative;flex:0 0 auto;width:100%;background:#202020;outline:none}#frame-curves-divider{height:1px;background:#000;position:relative;cursor:ns-resize;z-index:15}#frame-curves-divider::after{content:'';position:absolute;left:0;right:0;top:-3px;bottom:-3px}#frame-curves-canvas{width:100%;height:calc(100% - 1px);display:block;touch-action:pinch-zoom;outline:none}
+.frame-object-animated:not(.sel){background:#29252d}.frame-object-animated:not(.sel):hover{background:#302b35}
+.frame-curve-numeric{display:flex;align-items:center;gap:12px;padding:4px 10px;color:#ccc}.frame-curve-numeric input{min-width:85px;width:105px;background:#111;color:#ddd;border:0;border-radius:3px;font:14px ui-monospace,Consolas,monospace;padding:3px}
+#frame-render-progress{font:14px/19px ui-monospace,Consolas,monospace;color:#aaa;min-height:19px;white-space:normal;overflow-wrap:anywhere;margin-top:3px}
+
+
+#frame-curves-close{position:absolute;top:1px;right:1px;width:24px;height:24px;padding:0;border:0;border-radius:0;background:transparent;cursor:pointer;z-index:12}#frame-curves-close:hover{background:#393939}#frame-curves-close svg{display:block;width:16px;height:16px;margin:auto}#frame-curves.track-only #frame-curves-close{width:16px;height:16px}
+</style>
+<!-- Bundled Three.js r186:
+The MIT License
+
+Copyright © 2010-2026 three.js authors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+ -->
+<script id="frame-assets" type="application/json">{"version":"r247-selection-presentation-ownership","assets":{"frame-three-core":{"path":"./modules/frame-three-core.9edde002b066a9a05676.js","sha256":"9edde002b066a9a05676a6127f67735b62baf399bdea529f2f7e31657da769e6","bytes":1458113,"critical":true},"three":{"path":"./modules/three.ed200c36396533a895a2.js","sha256":"ed200c36396533a895a276bdf539ca86bd7ec8909d483de4f6eb5bda32cb24ec","bytes":663102,"critical":true},"surface":{"path":"./modules/surface-builder.0312b7b82f7796e0aedb.js","sha256":"0312b7b82f7796e0aedbdefb4dbfb676cc267f59dd6692c9fda800765b82ed2c","bytes":136539,"critical":true},"slicer-worker":{"path":"./modules/slicer-worker.069c5667bb5be698ada0.js","sha256":"069c5667bb5be698ada0f3fc49535b17fbd7750ee3f9e768643dd90619dc5340","bytes":876753,"critical":true},"boolean-worker":{"path":"./modules/boolean-worker.4f0836a2599f29210b37.js","sha256":"4f0836a2599f29210b37ee07dd55f83e6ef9e6615677113edd196c5edfdcf07e","bytes":201226,"critical":true,"preload":false},"default-environment":{"path":"./textures/default-environment.83a8dee4fde3a64bbec3.webp","sha256":"83a8dee4fde3a64bbec3d7c5740fd6db3aa75d5f66ad5110b66d57755c482361","bytes":131806,"critical":true,"preload":false},"model:car/sedan@1":{"path":"./models/car-sedan-1.7c392044accd0b24f082.hash","sha256":"7c392044accd0b24f082d22fd6499b096ffccb16b0fef776472bb572cc041952","bytes":6045,"critical":true,"preload":false},"model:tree/bush@1/0":{"path":"./models/tree-bush-1-0.b3694b56e3edab580a7e.hash","sha256":"b3694b56e3edab580a7e74051e96d7e4be86a275e6a2b290c63e521a939a9222","bytes":82995,"critical":true,"preload":false},"model:tree/bush@1/1":{"path":"./models/tree-bush-1-1.7b2247fd1862a542978a.hash","sha256":"7b2247fd1862a542978a1ba4f4659d89feab2efb98d213f994d34622e18ab5fb","bytes":278902,"critical":true,"preload":false},"model:tree/spruce@1/0":{"path":"./models/tree-spruce-1-0.4b4a3b9d411868e34bcc.hash","sha256":"4b4a3b9d411868e34bcc9c770ba78c9df8fb7982d1b3bd3ca86c63328cdfad1c","bytes":55877,"critical":true,"preload":false},"model:tree/spruce@1/1":{"path":"./models/tree-spruce-1-1.fab7a42d2fb6d280df05.hash","sha256":"fab7a42d2fb6d280df051ff41457a6d2d844b88b7ef80b467c667d9c0046c891","bytes":226992,"critical":true,"preload":false},"model:tree/oak@1/0":{"path":"./models/tree-oak-1-0.f0d41472898e58b73e77.hash","sha256":"f0d41472898e58b73e77e5dc9256e04b02dbcb8163befd53389e7f96da8a6c72","bytes":235500,"critical":true,"preload":false},"model:tree/oak@1/1":{"path":"./models/tree-oak-1-1.351fb9ae2b1d2ccb285c.hash","sha256":"351fb9ae2b1d2ccb285c78d9f53f2c45d6c6cf98939aeeb039e270412c7eab99","bytes":653873,"critical":true,"preload":false},"model:tree/poplar@1/0":{"path":"./models/tree-poplar-1-0.5f23f8280b7ad87e1565.hash","sha256":"5f23f8280b7ad87e15650f96093ab6540762b19d002ea4b68effb8d416629626","bytes":150767,"critical":true,"preload":false},"model:tree/poplar@1/1":{"path":"./models/tree-poplar-1-1.d25ebf13bf7ce98c370b.hash","sha256":"d25ebf13bf7ce98c370b1df0081f0fe75bf295dbd8ca04be566a076b93f0a0b9","bytes":342686,"critical":true,"preload":false},"model:human/male@1/standing":{"path":"./models/human-male-1-standing.aa88146669cfeb93e313.hash","sha256":"aa88146669cfeb93e313cf4f991737f8b5e31b3e90904837f2e6185ef7dae7bd","bytes":11000,"critical":true,"preload":false},"model:human/male@1/sitting":{"path":"./models/human-male-1-sitting.37857d29e757925c6ddc.hash","sha256":"37857d29e757925c6ddc8d109159fdbb5ccdadafbe81032f2f3024f99387a8e3","bytes":10940,"critical":true,"preload":false},"model:human/male@1/walking":{"path":"./models/human-male-1-walking.0d778492f3a03810c557.hash","sha256":"0d778492f3a03810c5571c26588bdd26165f440eb97ea88e6a5a5b1c7e01188e","bytes":11814,"critical":true,"preload":false},"model:human/female@1/standing":{"path":"./models/human-female-1-standing.f350d730ead85643d364.hash","sha256":"f350d730ead85643d364eaba737caf683a151cfcc220e5ceeef9415dbfb5a730","bytes":10791,"critical":true,"preload":false},"model:human/female@1/sitting":{"path":"./models/human-female-1-sitting.e203e930a16b4eb6ae61.hash","sha256":"e203e930a16b4eb6ae61dda4d1065305b09348238a4c05cd50dfe7d33b32ca9e","bytes":10755,"critical":true,"preload":false},"model:human/female@1/walking":{"path":"./models/human-female-1-walking.68881beef6a4b53d5145.hash","sha256":"68881beef6a4b53d51452a09dbb33f5d66ed919e7da279a231d9ce16b23c52e9","bytes":12009,"critical":true,"preload":false},"frame-printer":{"path":"./modules/printer.23e68964365d7a864168.js","sha256":"23e68964365d7a8641680328e8e714632166c5ef5e55f23a4a04e0c1211f72f7","bytes":95977,"critical":true},"editor":{"path":"./modules/editor.b46b7edb7b8fab6c0f1e.js","sha256":"b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28","bytes":2888003,"critical":true},"overhang-worker":{"path":"./modules/overhang-worker.14f8acc6054b16fa9afc.js","sha256":"14f8acc6054b16fa9afc893cd662fe3052251d7e69293b55bf1014f529f18ac9","bytes":239040,"critical":true,"preload":false},"texture:tex-01":{"path":"./textures/tex-01.db96ceaab7756a18bc2f.webp","sha256":"db96ceaab7756a18bc2f20cfc4f777583b7a9c03b797710f030c0b18e8d53e3b","bytes":26116,"critical":true},"texture:tex-02":{"path":"./textures/tex-02.9c7bcc311c22324159d2.webp","sha256":"9c7bcc311c22324159d25789c6b2383b9f00b99a13487049345b4a7e2203c7fe","bytes":19190,"critical":true},"texture:tex-03":{"path":"./textures/tex-03.faa7261adc97cf5faf8f.webp","sha256":"faa7261adc97cf5faf8f7673787e331cd37b21ff39b30d64c802a25934145e8b","bytes":12650,"critical":true},"texture:tex-04":{"path":"./textures/tex-04.ba899674c8e3d48b5508.webp","sha256":"ba899674c8e3d48b5508f26a5daa4260218030464b78553604bde778b04ebd56","bytes":12256,"critical":true},"texture:tex-05":{"path":"./textures/tex-05.26a908b8b8b861e9a97b.webp","sha256":"26a908b8b8b861e9a97be7b5952c1b42aad3ac3555ef536d2768a9d2903ec91e","bytes":33748,"critical":true},"texture:tex-06":{"path":"./textures/tex-06.9206b6ca1a630b283acb.webp","sha256":"9206b6ca1a630b283acbcf013d9daa36df751a6bf9db759b1445aa9f8e246d70","bytes":24512,"critical":true},"texture:tex-07":{"path":"./textures/tex-07.bcd9783e64198f3fba91.webp","sha256":"bcd9783e64198f3fba91bf60e4a7c6150920e6ca82874080c3ff6651e4ed4231","bytes":10434,"critical":true},"texture:tex-08":{"path":"./textures/tex-08.94b4a22b444d22caab3f.webp","sha256":"94b4a22b444d22caab3fb753207ab2245df752382b7e65b4d1ed2c9bba8ac829","bytes":10560,"critical":true},"texture:tex-09":{"path":"./textures/tex-09.7e5bb04678976c692abe.webp","sha256":"7e5bb04678976c692abebe9e8dad43b4801272716902d64e417cbce655eddb1b","bytes":31590,"critical":true},"texture:tex-10":{"path":"./textures/tex-10.37e80a3431c69ae4dbd4.webp","sha256":"37e80a3431c69ae4dbd4c9e2ef2721b1f3e02da0efd92771709c246440123564","bytes":15908,"critical":true},"texture:tex-11":{"path":"./textures/tex-11.332bfe61e61b6f69601d.webp","sha256":"332bfe61e61b6f69601d370a4a3d92b2ba7763676213fd5cdba454f3e8fab2c9","bytes":15534,"critical":true},"texture:tex-12":{"path":"./textures/tex-12.a2cac4d3dcf255271592.webp","sha256":"a2cac4d3dcf25527159219f896729c5bad666b989e61f46be0651a490b5fae09","bytes":12208,"critical":true},"texture:tex-13":{"path":"./textures/tex-13.c521802fbd840fac86bd.webp","sha256":"c521802fbd840fac86bd14f508dc2d61105b48191cb196e2e5467a1a5492e59b","bytes":41930,"critical":true},"texture:tex-14":{"path":"./textures/tex-14.f08862991a2a4b9720e0.webp","sha256":"f08862991a2a4b9720e0585ded8ad871533268659d6c577523f17fecc47f5ef5","bytes":31168,"critical":true},"texture:tex-15":{"path":"./textures/tex-15.7ef0e4e77bf9c3aceafc.webp","sha256":"7ef0e4e77bf9c3aceafc2a2d6e1f649a3812c53ef885ae1650c72c6e98fadf06","bytes":30850,"critical":true},"texture:tex-16":{"path":"./textures/tex-16.d7c84f3c850111a0d3a9.webp","sha256":"d7c84f3c850111a0d3a9ec9947c9d44833ad6fff8c5c9c016b6bd410a279df90","bytes":28804,"critical":true},"texture:tex-17":{"path":"./textures/tex-17.312a4cf6ca53502cdddd.webp","sha256":"312a4cf6ca53502cdddd34d8a1a6bd4a51ec598fd612ae1e8bf2cc13fa3346c2","bytes":36654,"critical":true},"texture:tex-18":{"path":"./textures/tex-18.9c7e38da835d48c6a504.webp","sha256":"9c7e38da835d48c6a50499bf4ee0be08466dae2a301171f7870c769cab99fbb1","bytes":43112,"critical":true},"texture:tex-19":{"path":"./textures/tex-19.289d8da838a03bf134a4.webp","sha256":"289d8da838a03bf134a427e746588bd0fbd8c6ca62b5e0685888ebda14fdd15a","bytes":34044,"critical":true},"texture:tex-20":{"path":"./textures/tex-20.7bf9b24a414aa62eb930.webp","sha256":"7bf9b24a414aa62eb9300d8bd6bf4c0b7e70199976068fc1294f6ffbdacdb0b7","bytes":36740,"critical":true},"texture:tex-21":{"path":"./textures/tex-21.75798f7c7f4a5df36a62.webp","sha256":"75798f7c7f4a5df36a627f96c4cde77399cb5f6e1551ea637e287cabd1d208ba","bytes":35424,"critical":true},"texture:tex-22":{"path":"./textures/tex-22.64bb42086d2253f281e0.webp","sha256":"64bb42086d2253f281e005bfe1523a7186d973a5f7b37bdb44413dcb45459af6","bytes":23682,"critical":true},"texture:tex-23":{"path":"./textures/tex-23.71b4bf86136f02460d8c.webp","sha256":"71b4bf86136f02460d8c4bc86e6b032f3f88caf615d3af75669db398502017ad","bytes":32676,"critical":true},"texture:tex-24":{"path":"./textures/tex-24.cfdab93e098ff0cafd9b.webp","sha256":"cfdab93e098ff0cafd9b70929ab82ca6878009af51a4a973f8f08379ec122d73","bytes":25106,"critical":true},"texture:tex-25":{"path":"./textures/tex-25.a46dff443e84c23b887f.webp","sha256":"a46dff443e84c23b887f8d9190a0299237468378677600684a5f42bd3bef4e73","bytes":13756,"critical":true},"texture:tex-26":{"path":"./textures/tex-26.5a5ce2187bd60a91ada3.webp","sha256":"5a5ce2187bd60a91ada33a466bab1a9279b0eafbf7ada2f9fe7baad9454ddeb4","bytes":20784,"critical":true},"texture:tex-27":{"path":"./textures/tex-27.aa45e3a7a1fd9fda58fe.webp","sha256":"aa45e3a7a1fd9fda58fe459f0501d52c4d24261257ac63e2795fe4f9862849bc","bytes":2958,"critical":true},"texture:tex-28":{"path":"./textures/tex-28.71c383f1f1741091d35c.webp","sha256":"71c383f1f1741091d35cfac14e392b44da866876c1fd9b03afae3bc90d281d99","bytes":40170,"critical":true},"texture:tex-29":{"path":"./textures/tex-29.740e3e7a2a391ef5bbcb.webp","sha256":"740e3e7a2a391ef5bbcbe13f05ce316f2cb6e34bfa53bffbadefbf36d061f876","bytes":26984,"critical":true},"texture:tex-30":{"path":"./textures/tex-30.a1f409a80a06f21de742.webp","sha256":"a1f409a80a06f21de742db499d927f63894bf2e0d58edfaa1b4ec125ff17fd74","bytes":17260,"critical":true},"texture:tex-31":{"path":"./textures/tex-31.b84a8751fadab866847d.webp","sha256":"b84a8751fadab866847d05e3fb85d88e73d3ba4626e3987e0675b991d8d4b7ad","bytes":25452,"critical":true},"texture:tex-32":{"path":"./textures/tex-32.725f23f3c52726b32d01.webp","sha256":"725f23f3c52726b32d017ad70d58e7a3c9dfeca1cd16df2c6e30118ad242d218","bytes":25366,"critical":true},"frame-native":{"path":"./modules/native.4ec912c8a6f2b4d498f1.js","sha256":"4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440","bytes":578886,"critical":true}}}</script>
+<script type="importmap">{"imports":{"frame-three-core":"./modules/frame-three-core.9edde002b066a9a05676.js","three":"./modules/three.ed200c36396533a895a2.js","frame-printer":"./modules/printer.23e68964365d7a864168.js","three/addons/":"https://unpkg.com/three@0.186.0/examples/jsm/","editor":"./modules/editor.b46b7edb7b8fab6c0f1e.js","frame-native":"./modules/native.4ec912c8a6f2b4d498f1.js"},"integrity":{"./modules/frame-three-core.9edde002b066a9a05676.js":"sha256-nt3gArBmqaBWdqYSf2dzW2K685m96lKfL34xZX2naeY=","./modules/surface-builder.0312b7b82f7796e0aedb.js":"sha256-AxK3uC93luCu2977Tb+2dswmf1ndZpLJ/agAdluC7Sw=","./modules/boolean-worker.4f0836a2599f29210b37.js":"sha256-Twg2olmfKSELN+4H3VX4Pm755mFWdxE+3RlsXt/c8H4=","./modules/overhang-worker.14f8acc6054b16fa9afc.js":"sha256-FPisxgVLFvqa/Ik81mL+MFIlHX5pKTtVvxAU9Snxisk=","./modules/printer.23e68964365d7a864168.js":"sha256-I+aJZDZdeoZBaAMo6OcUYyFmxe9eVfI6SgTgwSEfcvc=","./modules/three.ed200c36396533a895a2.js":"sha256-7SAMNjllM6iVona99TnKhr1+yJCdSD3k9utb2jLLJOw=","./modules/slicer-worker.069c5667bb5be698ada0.js":"sha256-BpxWZ7tb5pitoPP8SVNbF/vXdQ7j+edoZD3ZBhncU0A=","./modules/native.4ec912c8a6f2b4d498f1.js":"sha256-TskSyKbytNSY8dazi7I1yc2e5A3lfGTVajO5Kzz+xEA=","./modules/editor.b46b7edb7b8fab6c0f1e.js":"sha256-tGt+23uPq2wPHhfkydgmCMfcDJrXpj/JrkleKGjunyg="}}</script>
+</head>
+<body>
+<div id="app">
+<div id="vp"></div>
+<div id="panel">
+<div id="filebar">
+<div class="tbtn" id="btnOpen"     title="Open (.hash)"></div>
+<div class="tbtn" id="btnRecents"  title="Recent files"></div>
+<div class="tbtn" id="btnSave"     title="Save"></div>
+<div class="tbtn" id="btnSaveAs"   title="Save as…"></div>
+<div class="tbtn" id="btnSaveInc"  title="Save incremental (+1)"></div>
+<button style="border:0;padding:0;color:#9299a3;background:transparent" class="tbtn" id="btnShare" title="Share scene" aria-label="Share scene"></button>
+<div class="tbtn" id="btnDownload" title="Download as .hash"></div>
+<div class="tbtn" id="btnBrowser"  title="Fold all / restore tree"></div>
+</div>
+<div id="obWrap"><div id="obScroll"><div id="obInner"></div></div></div>
+<div id="tabstrip">
+<div class="tabgrp">
+<div class="tabbtn" id="tabAttributes"  title="Attributes manager"></div>
+<div class="tabbtn" id="tabObjects"     title="Objects library"></div>
+<div class="tabbtn" id="tabMaterialMgr" title="Material editor"></div>
+<div class="tabbtn" id="tabMaterials"   title="Materials"></div>
+<div class="tabbtn" id="tabTextures"    title="Textures library"></div>
+<div class="tabbtn" id="tabModules" title="Modules" role="button" aria-label="Modules" tabindex="0"></div>
+</div>
+<div class="tabact">
+<div class="tabbtn actbtn" id="tabDelUnused" title="Remove unused / duplicate materials" style="display:none"></div>
+<div class="tabbtn actbtn" id="tabAddTexture" title="Add texture" style="display:none"></div>
+</div>
+</div>
+<div id="panels">
+<div id="attributesPanel" class="panel-content" style="display:none"><div id="attrContent"></div></div>
+<div id="objectsPanel" class="panel-content" style="display:none"></div>
+<div id="matEditorPanel" class="panel-content" style="display:none">
+<div id="matEditorContent">
+<div class="me-layout">
+<canvas id="matPreview" width="53" height="53" draggable="true"></canvas>
+<div class="me-right">
+<div class="me-hsl">
+<div class="me-grad" id="gradH"></div>
+<input class="me-inp" id="inpH" value="0.0" spellcheck="false" autocomplete="off">
+<div class="me-grad" id="gradS"></div>
+<input class="me-inp" id="inpS" value="0.0" spellcheck="false" autocomplete="off">
+<div class="me-grad" id="gradL"></div>
+<input class="me-inp" id="inpL" value="80.0" spellcheck="false" autocomplete="off">
+<div class="me-swatch"></div>
+</div>
+</div>
+</div>
+<div class="me-bottom">
+<div class="me-pal" id="mePal"></div>
+<div class="me-params">
+<span class="me-plab">Emissive</span><input class="me-inp" id="inpEmm" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Roughness</span><input class="me-inp" id="inpRough" value="50.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Metalness</span><input class="me-inp" id="inpMetal" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab">Opacity</span><input class="me-inp" id="inpOpac" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab" id="bumpLab" style="display:none">Bump</span><input class="me-inp" id="inpBump" value="0.0" spellcheck="false" autocomplete="off" style="display:none">
+</div>
+<div class="me-tex-col">
+<div class="me-tex-btn" id="btnLoadTex" title="Load texture"></div>
+<div class="me-tex-btn" id="btnDelTex" title="Delete texture" style="display:none"></div>
+</div>
+</div>
+</div>
+</div>
+<div id="modulesPanel" class="panel-content" style="display:none"><button id="btn3DPrinting" class="obj-lib-item" title="3D Printer" aria-label="3D Printer"></button></div>
+<div id="materialsPanel" class="panel-content checker" style="display:none"><div id="matList"></div></div>
+<div id="texturesPanel" class="panel-content" style="display:none">
+<div id="texScroll"><div id="texGrid"></div></div>
+</div>
+</div>
+<div class="trow" id="modelbar">
+<div class="tbtn" id="btnHelp"     title="Help"></div>
+<div class="tbtn" id="btnInstance" title="Instance"></div>
+<div class="tbtn" id="btnBoolean"  title="Boolean"></div>
+<div class="tbtn" id="btnSymmetry" title="Symmetry"></div>
+<div class="tbtn" id="btnCloner"   title="Cloner"></div>
+<div class="tbtn" id="btnRender" title="Render" role="button" aria-label="Add render object" tabindex="0"></div>
+</div>
+<div class="trow" id="modelbar2">
+<div class="tbtn" id="btnVertexMode"  title="Vertex selection mode"></div>
+<div class="tbtn" id="btnEdgeMode"    title="Edge selection mode"></div>
+<div class="tbtn" id="btnPolygonMode" title="Polygon selection mode"></div>
+<div class="tbtn" id="btnSpline"      title="Draw spline"></div>
+<div class="tbtn" id="btnExtrude"     title="Extrude"></div>
+<div class="tbtn" id="btnLathe"       title="Lathe"></div>
+<div class="tbtn" id="btnSweep"       title="Sweep"></div>
+<div class="tbtn" id="btnSplinePatch" title="Spline patch"></div>
+</div>
+<div id="toolbar">
+<div class="tbtn" id="btnShading" title="Shading mode"></div>
+<div class="tbtn" id="btnQuant"  title="Quantize (Q)"></div>
+<div class="tbtn" id="btnSnap"   title="Snapping (S)"></div>
+<div class="tbtn" id="coordBtn" title="World / Object coordinates (W)"></div>
+<div class="tbtn" id="btnPivot"  title="Edit pivot (P)"></div>
+<div class="tbtn" id="btnLocal"  title="Auto pivot to far bbox corner"></div>
+<div class="tbtn" id="btnUV"     title="UV edit / display"></div>
+<div class="tbtn" id="btnSolo"   title="Solo mode"></div>
+</div>
+<div id="timeline">
+<span class="tl-frame">frame</span>
+<input class="tl-inp" id="tlCur" inputmode="numeric" autocomplete="off" spellcheck="false">
+<span class="tl-sep">/</span>
+<input class="tl-inp" id="tlTotal" inputmode="numeric" autocomplete="off" spellcheck="false">
+<button class="tl-btn" id="tlPlay" title="Play / Pause"></button>
+<button class="tl-btn" id="tlPrevKey" title="Previous key"></button>
+<button class="tl-btn" id="tlNextKey" title="Next key"></button>
+<button class="tl-btn" id="tlSetKey" title="Set key"></button>
+<button class="tl-btn" id="tlDelKey" title="Delete key"></button>
+
+</div>
+<div id="units">
+<span class="ugrp" id="dispGrp"><span class="ulab">unit</span><button class="ubtn" id="dM">−</button><span class="uval" id="dV">mm</span><button class="ubtn" id="dP">+</button></span>
+<span class="ugrp" id="rsclGrp"><span class="ulab">rescale</span><button class="ubtn" id="rM">−</button><span class="uval" id="rV">mm</span><button class="ubtn" id="rP">+</button></span>
+</div>
+<div id="hud">
+<div class="row"><span class="ax ax-x">x</span><input class="val" id="px" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="rx" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sx" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+<div class="row"><span class="ax ax-y">y</span><input class="val" id="py" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="ry" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sy" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+<div class="row"><span class="ax ax-z">z</span><input class="val" id="pz" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="rz" inputmode="decimal" autocomplete="off" spellcheck="false"><input class="val" id="sz" inputmode="decimal" autocomplete="off" spellcheck="false"></div>
+</div>
+</div>
+</div>
+<input type="file" id="fileInput" multiple style="display:none" accept=".hash,.gltf,.glb,.obj,.stl,.ply,.svg,.dxf"/>
+<input type="file" id="texInput" style="display:none" accept="image/*"/>
+<div id="recentsMenu"></div>
+<div id="obMenu"></div>
+<div id="vpMenu"></div>
+<div id="dragInfo"></div>
+<dialog id="helpDialog" aria-label="FRAME Help">
+  <div class="help-card">
+    <div class="help-body">
+      <p><kbd>Q</kbd> Quantize · <kbd>S</kbd> Snap · <kbd>W</kbd> World/Object · <kbd>P</kbd> Pivot</p>
+      <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
+      <p>Open supports native HASH, glTF/GLB, OBJ, STL, PLY, SVG and the documented DXF subset. Save As chooses a format; right-click Download exports interchange files.</p>
+      <p>Native HASH is the lossless format for editable splines, generators, hierarchy, materials and animation.</p>
+      <p>Viewport touch: drag one finger to orbit; drag two to pan, or pinch to zoom the camera. Hold then drag to select a rectangle. Hold without dragging and release for the context menu. Double tap: Quad / Single view.</p>
+      <p>Pinch with a finger in the right panel to zoom the page. To switch from an active viewport gesture to page zoom, lift your fingers and start a new pinch.</p>
+      <p>Touch: hold for a context menu. In Objects Browser, drag a name or row to move it; drop between rows to reorder, on a row to make a child. Scroll with two fingers, or drag empty space / the left indentation. Release outside the tree to cancel.</p>
+    <p>Morph modes: Solve adjusts morph values when dragging points; Edit opens pose keys on a separate 0–100 timeline; Modelling disables deformation and edits the reference. Set keys with the animation toolbar. Curves show the selected point's X/Y/Z; drag their tangent handles to adjust motion.</p>
+    </div>
+  </div>
+</dialog>
+<script>
+ 
+ 
+window.frameBootDiagnostics={errors:[]};
+const frameBootOutput=document.createElement('textarea');
+frameBootOutput.id='frame-boot-errors';frameBootOutput.hidden=true;document.body.appendChild(frameBootOutput);
+const recordFrameBootError=entry=>{window.frameBootDiagnostics.errors.push(entry);const value=JSON.stringify(window.frameBootDiagnostics.errors);frameBootOutput.value=value;frameBootOutput.textContent=value;frameBootOutput.setAttribute('data-errors',value);};
+addEventListener('error',event=>recordFrameBootError({message:event.message,source:event.filename,line:event.lineno,column:event.colno}));
+addEventListener('unhandledrejection',event=>recordFrameBootError({message:String(event.reason?.stack||event.reason)}));
+
+
+ 
+const ICO_GRID = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><line x1="5.5" y1="4.5" x2="5.5" y2="27.5"/><line x1="12.5" y1="4.5" x2="12.5" y2="27.5"/><line x1="19.5" y1="4.5" x2="19.5" y2="27.5"/><line x1="26.5" y1="4.5" x2="26.5" y2="27.5"/><line x1="4.5" y1="5.5" x2="27.5" y2="5.5"/><line x1="4.5" y1="12.5" x2="27.5" y2="12.5"/><line x1="4.5" y1="19.5" x2="27.5" y2="19.5"/><line x1="4.5" y1="26.5" x2="27.5" y2="26.5"/><circle cx="19.5" cy="12.5" r="2.5" fill="#f08a1d" stroke-width="0"/></svg>`;
+const ICO_MAGNET = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#c2c2c2" stroke-width="4.5" stroke-linecap="butt" stroke-linejoin="round"><line x1="18" y1="6.5" x2="14.5" y2="9.5"/><path d="M15 9L10 13.5Q6 18.5 10 23" stroke="#37539a"/><line x1="26" y1="14.5" x2="23" y2="17.5"/><path d="M9.5 22.5Q13 26.5 18.5 22L23.5 17" stroke="#983a3a"/></svg>`;
+const ICO_GLOBE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="11" stroke-width="1.6"/><ellipse cx="16" cy="16" rx="6" ry="11"/><line x1="5" y1="16" x2="27" y2="16"/><line x1="16" y1="5" x2="16" y2="27"/><line x1="7" y1="10.5" x2="25.5" y2="10.5"/><line x1="7" y1="21.5" x2="25" y2="21.5"/></svg>`;
+const ICO_ARROW = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 24L8 9.5"/><path d="M8.5 24L23 24"/><path d="M8 4.5L4.5 10L11.5 10Z" fill="#9a9a9a"/><path d="M27.5 24L22 20.5L22 27.5Z" fill="#9a9a9a"/></svg>`;
+const ICO_CUBE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ff5a5a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="14" y1="17" x2="6.5" y2="23"/><line x1="14" y1="17" x2="26" y2="20" stroke="#5ad17a"/><line x1="14" y1="17" x2="13.5" y2="5" stroke="#5a8aff" stroke-width="1.6"/><path d="M26 20L20 27.5M13.5 4.5L5 9M27 6.5L20.5 12M6.5 23L20 27.5M13.5 4.5L27 6.5M5 9L20.5 12M6.5 23L5 9M20 27.5L20.5 12M26 20L27 6.5" stroke="#9a9a9a" stroke-width="1.2"/></svg>`;
+const ICO_SQUARE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><rect x="5" y="5" width="11" height="11" fill="#9a9a9a"/><rect x="16" y="5" width="11" height="11" fill="#606060"/><rect x="5" y="16" width="11" height="11" fill="#606060"/><rect x="16" y="16" width="11" height="11" fill="#9a9a9a"/></svg>`;
+const ICO_PERSON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 13.5A9 9 0 0 1 25.5 13.5"/><line x1="6.5" y1="13.5" x2="6.5" y2="25"/><line x1="25.5" y1="13.5" x2="25.5" y2="25"/><ellipse cx="16" cy="25.5" rx="9.5" ry="2"/><circle cx="16" cy="11" r="2.5" fill="#9a9a9a"/><path d="M12 20.5C11.5 15 13.5 13.5 16 13.5C18.5 13.5 20.5 15 20 20.5Z" fill="#9a9a9a"/></svg>`;
+const ICO_HELP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.5 12.5A4.5 4.5 0 1 1 18.5 16.5C17 17.2 16 18.2 16 19.8"/><circle cx="16" cy="23" r="1.4" fill="#9a9a9a"/></svg>`;
+const ICO_OPEN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9d8f80" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 25L9 13.5L27 13.5L25 25Z"/><polyline points="6.5,25 5.5,7.5 12,7.5 13.5,10 23,10 23.5,13.5"/></svg>`;
+const ICO_SAVE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="square" stroke-linejoin="round"><line x1="11" y1="15" x2="20" y2="15"/><line x1="11" y1="19" x2="20" y2="19"/><line x1="11" y1="23" x2="20" y2="23"/><polyline points="8,5 5,8 5,24.5 8,27 24,27 27,24 27,10 22,5 8,5" stroke="#5a8aff" stroke-width="1" stroke-linecap="round"/><polyline points="18,5 11,5 11,11 21,11 21,5 18,5 18,11" stroke-linecap="round"/></svg>`;
+const ICO_SAVEAS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><line x1="11" y1="15" x2="14" y2="15" stroke-linecap="square"/><line x1="11" y1="19" x2="13" y2="19" stroke-linecap="square"/><line x1="11" y1="23" x2="20.5" y2="23" stroke-linecap="square"/><polyline points="18,17.5 17,19 19.5,19 28.5,12.5 27,10.5 18,17.5 19.5,19" stroke="#ffffff" stroke-width="2"/><polyline points="24.5,7.5 22,5 8,5 5,8 5,24.5 8,27 24,27 27,24" stroke="#5a8aff" stroke-width="1"/><polyline points="18,5 11,5 11,11 21,11 21,5 18,5 18,11"/><line x1="27" y1="19" x2="27" y2="24" stroke="#5a8aff" stroke-width="2"/></svg>`;
+const ICO_SAVEINC = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 5.5L17 5.5L20.5 9L20.5 18.5L6.5 18.5Z" stroke="#5a8aff"/><rect x="13.5" y="5.5" width="2" height="4"/><line x1="9" y1="12.5" x2="17" y2="12.5"/><line x1="9" y1="15.5" x2="17" y2="15.5"/><path d="M24 20L24 26" stroke="#c2c2c2" stroke-width="2" stroke-linecap="square"/><path d="M21 23L27 23" stroke="#c2c2c2" stroke-width="2" stroke-linecap="square"/><polyline points="9.5,5.5 15.5,5.5 15.5,9.5 9.5,9.5 9.5,5.5"/></svg>`;
+const ICO_DOWNLOAD = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7.5L16 19.5"/><path d="M11.5 15L16 19.5L20.5 15"/><path d="M7 21L7 25L25 25L25 21"/></svg>`;
+const ICO_RECENTS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#c99359" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="17" r="9"/><path d="M16 12L15.5 17.5L21 19.5" stroke="#9a9a9a" stroke-width="2"/><path d="M11 5L7.5 8M21.5 5L24.5 8"/></svg>`;
+const ICO_BROWSER_FOLDED = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,21 16,25 23,21"/><polyline points="9,11 16,7 23,11"/></svg>`;
+const ICO_BROWSER_UNFOLDED = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9,25 16,20.5 23,25"/><polyline points="9,7.5 16,11.5 23,7.5"/></svg>`;
+const ICO_TAB_ATTRIBUTES = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="butt" stroke-linejoin="round"><line x1="6.5" y1="9" x2="25.5" y2="9" stroke-width="1.6"/><rect x="9.5" y="7.5" width="4" height="3" fill="#9a9a9a" stroke-linecap="round"/><line x1="6.5" y1="16" x2="25.5" y2="16" stroke-width="1.6"/><line x1="6.5" y1="23" x2="25.5" y2="23" stroke-width="1.6"/><rect x="18.5" y="14.5" width="4" height="3" fill="#9a9a9a" stroke-linecap="round"/><rect x="10.5" y="21.5" width="4" height="3" fill="#9a9a9a" stroke-linecap="round"/></svg>`;
+const ICO_TAB_MATERIALS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#666" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><defs><radialGradient id="m1" cx="35%" cy="35%" r="65%"><stop offset="0%" stop-color="#ababab"/><stop offset="100%" stop-color="#504735"/></radialGradient><radialGradient id="m2" cx="35%" cy="35%" r="65%"><stop offset="0%" stop-color="#ababab"/><stop offset="100%" stop-color="#24335c"/></radialGradient><radialGradient id="m3" cx="35%" cy="35%" r="65%"><stop offset="0%" stop-color="#ababab"/><stop offset="100%" stop-color="#3d3455"/></radialGradient><radialGradient id="m4" cx="35%" cy="35%" r="65%"><stop offset="0%" stop-color="#ababab"/><stop offset="100%" stop-color="#44273b"/></radialGradient></defs><circle cx="9.5" cy="9.5" r="5.5" fill="url(#m1)"/><circle cx="22.5" cy="9.5" r="5.5" fill="url(#m2)"/><circle cx="9.5" cy="22.5" r="5.5" fill="url(#m3)"/><circle cx="22.5" cy="22.5" r="5.5" fill="url(#m4)"/></svg>`;
+const ICO_TAB_MATERIAL_MGR = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ababab" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><defs><radialGradient id="mm" cx="35%" cy="35%" r="65%"><stop offset="0%" stop-color="#b5b5b5"/><stop offset="100%" stop-color="#575757"/></radialGradient></defs><circle cx="13" cy="13" r="9" fill="url(#mm)" stroke="#666" stroke-width="0"/><line x1="14.5" y1="25.5" x2="28.5" y2="25.5"/><ellipse cx="22" cy="25.5" rx="2" ry="2" fill="#ababab"/></svg>`;
+const ICO_TAB_TEXTURES = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a544e" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M17 5.5C25 13.5 16 17.5 18 26.5"/><path d="M10 5.5C4 17 16 15 13 26.5"/><path d="M26.5 18C22.5 18 21.5 22 22.5 26.5"/><path d="M23.5 5.5C23.5 8.5 24.5 10.5 26.5 11.5"/><path d="M5.5 18C8.5 19.5 9.5 23.5 8.5 26.5"/><rect x="4.5" y="4.5" width="23" height="23"/><ellipse cx="14.5" cy="12" rx="1.5" ry="3"/></svg>`;
+const ICO_TAB_ADD_TEXTURE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#777" stroke-width="1.4" stroke-linecap="round"><line x1="16" y1="8" x2="16" y2="24"/><line x1="8" y1="16" x2="24" y2="16"/></svg>`;
+const ICO_TAB_OBJECTS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="5.5" y="5.5" width="9" height="9"/><circle cx="22" cy="10" r="4.5" stroke-width="1.2"/><path d="M10 17.5L5.5 26.5L14.5 26.5Z"/><path d="M22 17.5L26.5 22L22 26.5L17.5 22Z" stroke-width="1.2"/></svg>`;
+const ICO_TAB_DELETE_UNUSED = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 9L9.5 24.5C10 25.5 10.5 26 11.5 26L20.5 26C21.5 26 22 25.5 22.5 24.5L22.5 9"/><line x1="7.5" y1="8.5" x2="24.5" y2="8.5"/><path d="M13.5 8L13.5 6.5C13.5 5.5 14.5 4.5 16 4.5C18 4.5 18.5 5.5 18.5 6.5L18.5 8"/><line x1="13" y1="11.5" x2="13" y2="22.5"/><line x1="16" y1="11.5" x2="16" y2="22.5"/><line x1="19" y1="11.5" x2="19" y2="22.5"/></svg>`;
+const ICO_MODE_VERTEX = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke="#9a9a9a" stroke-width="1.2"/><path d="M7 11L16 16L25 11M16 16L16 26" stroke="#9a9a9a" stroke-width="1.6"/><circle cx="7" cy="11" r="1" fill="#5a8aff"/><circle cx="16" cy="16" r="1.5" fill="#5a8aff"/><circle cx="25" cy="11" r="1" fill="#5a8aff"/><circle cx="16" cy="26" r="1.5" fill="#5a8aff"/><circle cx="16" cy="6.5" r="1" fill="#5a8aff"/><circle cx="8" cy="21.5" r="1.5" fill="#5a8aff"/><circle cx="24" cy="21.5" r="1" fill="#5a8aff"/></svg>`;
+const ICO_MODE_EDGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#43d17a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke="#9a9a9a" stroke-width="1.2"/><path d="M7 11L16 16L25 11"/><line x1="16" y1="16" x2="16" y2="26"/></svg>`;
+const ICO_MODE_FACE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 11L16 7L25 11L16 16Z" fill="#ffd000" fill-opacity="0.5"/><path d="M7 11L16 6.5L25 11L24 21.5L16 26L8 21.5Z" stroke-width="1.2"/><path d="M7.5 11L16 16L24.5 11M16 16L16 25" stroke-width="1.6"/></svg>`;
+const ICO_SYMMETRY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><line x1="16" y1="5.5" x2="16" y2="26.5" stroke="#5a8aff" stroke-width="1.4" stroke-dasharray="2.6 2.4"/><path d="M12 9L5.5 13L7 21L12 23Z" fill="#9a9a9a"/><path d="M21 9.5L27 13L25.5 21L21 22.5Z" stroke-width="2"/></svg>`;
+const ICO_CLONER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#606060" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9.5" stroke-width="1.2" stroke-dasharray="2.4 2.2"/><rect x="14" y="4.5" width="4" height="4" fill="#f08a1d"/><rect x="23.5" y="10.5" width="4" height="4" fill="#9a9a9a"/><rect x="19.5" y="21.5" width="4" height="4" fill="#9a9a9a"/><rect x="8.5" y="21.5" width="4" height="4" fill="#9a9a9a"/><rect x="4.5" y="10.5" width="4" height="4" fill="#9a9a9a"/></svg>`;
+const ICO_SPLINE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M7 24C12.5 23.5 9.5 8.5 16 8C22.5 7.5 18.5 21 25.5 18.5" stroke-width="1.6"/><circle cx="7" cy="24" r="2" fill="#5a8aff"/><circle cx="15.5" cy="8" r="2" fill="#5a8aff"/><circle cx="25.5" cy="18.5" r="2" fill="#5a8aff"/></svg>`;
+const ICO_INSTANCE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="12.5" y="12.5" width="13" height="13"/><rect x="6.5" y="6.5" width="13" height="13" fill="#9a9a9a"/></svg>`;
+const ICO_EXTRUDE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ababab" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><line x1="8.5" y1="21.5" x2="8.5" y2="13.5" stroke-dasharray="2 3"/><line x1="27.5" y1="21" x2="8.5" y2="21" stroke="#5a8aff" stroke-width="1.8" stroke-dasharray="2 3"/><path d="M8.5 13.5L27.5 13.5L22.5 18.5L4.5 18.5Z"/><path d="M16 15L16 6.5M13.5 10L16 5L18.5 10" stroke="#5a8aff" stroke-width="1.4"/><polyline points="8.5,21.5 4.5,27 22.5,27 27.5,21.5" stroke="#5a8aff" stroke-width="1.8"/><line x1="4.5" y1="26.5" x2="4.5" y2="18.5"/><line x1="22.5" y1="26.5" x2="22.5" y2="18.5"/><line x1="27.5" y1="21.5" x2="27.5" y2="13.5"/></svg>`;
+const ICO_LATHE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ababab" stroke-width="1" stroke-linecap="butt" stroke-linejoin="round"><path d="M16 7C22.5 6 25 11 21.5 14.5C18 19 26.5 24 16 25" stroke="#5a8aff" stroke-width="1.8" stroke-linecap="round"/><line x1="16" y1="4.5" x2="16" y2="9"/><line x1="16" y1="11" x2="16" y2="15"/><line x1="16" y1="17" x2="16" y2="21.5"/><line x1="16" y1="23" x2="16" y2="27.5"/><path d="M16 7C9.5 6 7 11 10 14.5C14.5 19 5.5 24 16 25" stroke-linecap="round"/></svg>`;
+const ICO_SWEEP = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#606060" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 6A4.5 2.5 0 0 1 26.5 9"/><path d="M26.5 9A4.5 2.5 0 1 1 19 6" stroke-dasharray="2 2"/><path d="M15 24.5C17.5 18 21.5 13.5 26.5 9"/><path d="M5 23.5C8.5 15.5 14.5 10 19 6"/><ellipse cx="10" cy="24" rx="5" ry="2.5" stroke="#5a8aff"/><path d="M10 24C13 17 18 11.5 22 7.5" stroke="#5a8aff" stroke-width="1.3"/></svg>`;
+const ICO_BOOLEAN = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="6.5" y="6.5" width="13" height="13"/><rect x="12.5" y="12.5" width="13" height="13"/><rect x="13.5" y="13.5" width="5" height="5" fill="#f08a1d" stroke="#f08a1d" stroke-linecap="square" stroke-linejoin="miter"/></svg>`;
+const ICO_SPLINE_PATCH = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#606060" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 17C12.5 14.5 20 13.5 25 17" stroke-width="1.2" stroke-dasharray="2 2"/><path d="M16 6C17 12.5 17 18 16 23.5" stroke-width="1.2" stroke-dasharray="2 2"/><path d="M6.5 8C12.5 4.5 21.5 5.5 25.5 9C25 14 24.5 19 25.5 25.5C21.5 22 11.5 23.5 6.5 25.5Z" fill="#5a8aff" fill-opacity="0.25" stroke="#5a8aff" stroke-width="1.4"/><circle cx="6.5" cy="8" r="1.5" fill="#5a8aff"/><circle cx="6.5" cy="25.5" r="1.5" fill="#5a8aff"/><circle cx="25.5" cy="25.5" r="1.5" fill="#5a8aff"/><circle cx="25.5" cy="9" r="1.5" fill="#5a8aff"/></svg>`;
+const ICO_TEX_LOAD = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="7" width="22" height="18" rx="2"/><circle cx="11.5" cy="13.5" r="2.5" fill="#c99359"/><path d="M5.5 22L11.5 16L16 20.5L19.5 17L26 23.5"/></svg>`;
+const ICO_TEX_DELETE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#ff5a5a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="10" x2="22" y2="22"/><line x1="22" y1="10" x2="10" y2="22"/></svg>`;
+const ICO_TREE_PLUS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#8a8a8a" stroke-width="1"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/><line x1="8" y1="5" x2="8" y2="11" stroke-linecap="round"/><line x1="5" y1="8" x2="11" y2="8" stroke-linecap="round"/></svg>`;
+const ICO_TREE_MINUS = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#8a8a8a" stroke-width="1"><rect x="2.5" y="2.5" width="11" height="11" rx="1"/><line x1="5" y1="8" x2="11" y2="8" stroke-linecap="round"/></svg>`;
+const ICO_TREE_HIDE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><rect x="3.5" y="3.5" width="9" height="9" rx="1" fill="#b04a4a"/></svg>`;
+const ICO_TREE_SHOW = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="#7a7a7a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="9" height="9" rx="1"/></svg>`;
+const ICO_TREE_ENABLE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none"><rect x="3.5" y="3.5" width="9" height="9" rx="1" fill="#5aa85a"/></svg>`;
+const ICO_OBJ_CUBE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 17L6.5 23M14 17L26 20M14 17L13.5 4.5" stroke-dasharray="2 2"/><path d="M26 20L20 27.5M13.5 4.5L5 9M27 6.5L20.5 12M6.5 23L20 27.5M13.5 4.5L27 6.5M5 9L20.5 12M6.5 23L5 9M20 27.5L20.5 12M26 20L27 6.5"/></svg>`;
+const ICO_OBJ_CYL = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="16" cy="9" rx="8.5" ry="3.5"/><path d="M7.5 9L7.5 23C7.5 25 11 26.5 16 26.5C21 26.5 25 25 24.5 23L24.5 9"/><path d="M 7.5 23 A 8.5 3.5 0 0 1 24.5 23" stroke-dasharray="2 2"/></svg>`;
+const ICO_OBJ_TUBE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="16" cy="10" rx="9.5" ry="5"/><ellipse cx="16" cy="10" rx="4.5" ry="2"/><path d="M6.5 10L6.5 23C7.5 25 11 27 16 27C21 27 25 25 25.5 23L25.5 10"/><path d="M11.5 14.5L11.5 22.5C11.5 23.5 13.5 24 16 24C18 24 20.5 23.5 20.5 22.5L20.5 13.5" stroke-dasharray="2 2"/><path d="M7 23A9 4.5 0 0 1 25 23" stroke-dasharray="2 2" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const ICO_OBJ_SPHERE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="10.5"/><path d="M5.5 16A10.5 4 0 0 1 26.5 16M16 5.5A4 10.5 0 0 0 16 26.5" stroke-dasharray="2 2"/><path d="M5.5 16A10.5 4 0 0 0 26.5 16M16 5.5A4 10.5 0 0 1 16 26.5"/></svg>`;
+const ICO_OBJ_CAPSULE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 12a8 8 0 0 1 16 0v8a8 8 0 0 1-16 0Z"/><path d="M8 12c0 2.3 3.6 4.2 8 4.2s8-1.9 8-4.2M8 20c0 2.3 3.6 4.2 8 4.2s8-1.9 8-4.2"/><path d="M8 12c0-2.3 3.6-4.2 8-4.2s8 1.9 8 4.2M8 20c0-2.3 3.6-4.2 8-4.2s8 1.9 8 4.2" stroke-dasharray="1.8 2"/></svg>`;
+const ICO_OBJ_SQUARE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7.5 7.5L24.5 7.5L24.5 24.5L7.5 24.5Z" fill-opacity="0.15" stroke-width="1"/><circle cx="7.5" cy="7.5" r="1" fill="#5a8aff"/><circle cx="24.5" cy="7.5" r="1" fill="#5a8aff"/><circle cx="24.5" cy="24.5" r="1" fill="#5a8aff"/><circle cx="7.5" cy="24.5" r="1" fill="#5a8aff"/></svg>`;
+const ICO_OBJ_CIRCLE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="16" cy="16" rx="10" ry="10" fill-opacity="0.15" stroke-width="1"/><circle cx="16" cy="6" r="1" fill="#5a8aff"/><circle cx="26" cy="16" r="1" fill="#5a8aff"/><circle cx="16" cy="26" r="1" fill="#5a8aff"/><circle cx="6" cy="16" r="1" fill="#5a8aff"/></svg>`;
+const ICO_OBJ_POLY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5.5L25.5 10.5L25.5 22L16 26.5L6.5 22L6.5 10.5Z" fill-opacity="0.15" stroke-width="1"/><circle cx="16" cy="5.5" r="1" fill="#5a8aff"/><circle cx="25.5" cy="10.5" r="1" fill="#5a8aff"/><circle cx="25.5" cy="22" r="1" fill="#5a8aff"/><circle cx="16" cy="26.5" r="1" fill="#5a8aff"/><circle cx="6.5" cy="22" r="1" fill="#5a8aff"/><circle cx="6.5" cy="10.5" r="1" fill="#5a8aff"/></svg>`;
+const ICO_OBJ_TEXT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="18.5" r="1" fill="#5a8aff"/><circle cx="23.5" cy="25" r="1" fill="#5a8aff"/><circle cx="16" cy="7.5" r="1" fill="#5a8aff"/><circle cx="8.5" cy="25" r="1" fill="#5a8aff"/><line x1="8.5" y1="25" x2="16" y2="7.5" stroke-width="1"/><line x1="23.5" y1="24.5" x2="16" y2="7.5" stroke-width="1"/><line x1="11" y1="18.5" x2="21" y2="18.5" stroke-width="1"/><circle cx="21" cy="18.5" r="1" fill="#5a8aff"/></svg>`;
+const ICO_OBJ_HELIX = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 8C7 5.5 25 5.5 25 8S7 12.5 7 15s18 2.5 18 5-18 2.5-18 5"/><circle cx="7" cy="8" r="1.2" fill="#5a8aff"/><circle cx="25" cy="25" r="1.2" fill="#5a8aff"/></svg>`;
+const ICO_OBJ_GEAR = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4.5l2 3.2 3.7-1 1 3.7 3.2 2-2 3.1 2 3.2-3.2 2-1 3.7-3.7-1-2 3.2-2-3.2-3.7 1-1-3.7-3.2-2 2-3.2-2-3.1 3.2-2 1-3.7 3.7 1z"/><circle cx="16" cy="16" r="4.4"/></svg>`;
+const ICO_OBJ_PULLEY = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5a8aff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5.2c2.1 0 2.2 2 3.6 2.5 1.5.6 3-1 4.5.5 1.5 1.5-.1 3 .5 4.5.5 1.4 2.5 1.5 2.5 3.6s-2 2.2-2.5 3.6c-.6 1.5 1 3-.5 4.5-1.5 1.5-3-.1-4.5.5-1.4.5-1.5 2.5-3.6 2.5s-2.2-2-3.6-2.5c-1.5-.6-3 1-4.5-.5-1.5-1.5.1-3-.5-4.5-.5-1.4-2.5-1.5-2.5-3.6s2-2.2 2.5-3.6c.6-1.5-1-3 .5-4.5 1.5-1.5 3 .1 4.5-.5 1.4-.5 1.5-2.5 3.6-2.5z"/><circle cx="16" cy="16" r="7.2" stroke-dasharray="2 2"/></svg>`;
+
+const ICO_OBJ_BOLT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><g transform="translate(1 1) rotate(-40 16 16)"><path d="M12.5 12v12.5l1.5 1.5h4l1.5-1.5V12"/><path d="m12.5 17.5 7-2m-7 5.5 7-2m-7 5.5 7-2" stroke-width="1.2"/><path d="M8.5 5.5 12 3.5h8l3.5 2L20 8h-8Z"/><path d="M8.5 5.5v4l3.5 2.5h8l3.5-2.5v-4M12 8v4m8-4v4"/></g></svg>`;
+const ICO_OBJ_NUT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.2" stroke-linejoin="round"><path d="M16 4.8L25.7 10.4V21.6L16 27.2L6.3 21.6V10.4Z"/><circle cx="16" cy="16" r="5.1"/><path d="M6.3 10.4L10 12.5M25.7 10.4L22 12.5M6.3 21.6L10 19.5M25.7 21.6L22 19.5" stroke-dasharray="2 2"/></svg>`;
+const ICO_OBJ_WASHER = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="16" cy="13" rx="11" ry="6.5"/><ellipse cx="16" cy="13" rx="4.8" ry="2.8"/><path d="M5 13v5c0 3.6 4.9 6.5 11 6.5s11-2.9 11-6.5v-5M11.2 13c1.2-1.4 8.4-1.4 9.6 0M11.2 13v1.1M20.8 13v1.1"/></svg>`;const ICO_TL_PLAY = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M9.5 6.5l12 7.5-12 7.5z" fill="#99a5b6"/></svg>`;
+const ICO_TL_PAUSE = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M10 6.5v15M18 6.5v15" fill="none" stroke="#99a5b6" stroke-width="3"/></svg>`;
+const ICO_TL_PREV = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M9 7v14M20 7l-9 7 9 7z" fill="none" stroke="#cbd2dc"/></svg>`;
+const ICO_TL_NEXT = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M19 7v14M8 7l9 7-9 7z" fill="none" stroke="#cbd2dc"/></svg>`;
+const ICO_TL_KEY = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M14 6l8 8-8 8-8-8z" fill="none" stroke="#bb9761"/><path d="M14 10v8M10 14h8" fill="none" stroke="#cdb088"/></svg>`;
+const ICO_TL_DELKEY = `<svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg"><path d="M14 6l8 8-8 8-8-8z" fill="none" stroke="#abb4c1"/><path d="M10 14h8" fill="none" stroke="#e56f6f" stroke-width="1.5"/></svg>`;
+const ICO_TL_LINEAR = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" fill="none" stroke="#c2c2c2" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4.3" y1="16.5" x2="17.7" y2="5.5"/><path d="M4.3 14.3L6.5 16.5L4.3 18.7L2.1 16.5Z" fill="#f08a1d"/><path d="M17.7 3.3L19.9 5.5L17.7 7.7L15.5 5.5Z" fill="#f08a1d"/></svg>`;
+const ICO_TL_SOFT = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" fill="none" stroke="#f08a1d" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16.5C13.5 16.5 6.5 5.5 16.5 5.5" stroke="#c2c2c2" stroke-width="1.8"/><ellipse cx="16.5" cy="5.5" rx="2" ry="2" fill="#f08a1d"/><ellipse cx="4" cy="16.5" rx="2" ry="2" fill="#f08a1d"/></svg>`;
+const ICO_SHADING_SOLID = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="0" stroke-linecap="round" stroke-linejoin="round"><defs><radialGradient id="icoShadeGrad" cx="38%" cy="33%" r="70%"><stop offset="0%" stop-color="#808080"/><stop offset="100%" stop-color="#2c2c2c"/></radialGradient></defs><circle cx="16" cy="16" r="10.5" fill="url(#icoShadeGrad)"/></svg>`;
+const ICO_SHADING_WIRE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#9a9a9a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9.5"/><ellipse cx="16" cy="16" rx="9.5" ry="3.5"/><ellipse cx="16" cy="16" rx="3.5" ry="9.5"/></svg>`;
+const ICO_SHADING_SOLIDWIRE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#e8e8e8" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><defs><radialGradient id="icoShadeGradSW" cx="38%" cy="33%" r="70%"><stop offset="0%" stop-color="#808080"/><stop offset="100%" stop-color="#2c2c2c"/></radialGradient></defs><circle cx="16" cy="16" r="10" fill="url(#icoShadeGradSW)"/><path d="M6.5 16A9.5 3.5 0 0 1 25.5 16" stroke-opacity="0.85"/><path d="M16 6.5A3.5 9.5 0 0 1 16 25.5" stroke-opacity="0.85"/><path d="M26 16A10 3 0 0 1 6 16"/><path d="M15.75 26A3.75 10 0 0 1 15.75 6"/></svg>`;
+const ICO_SHADING_CAGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5ab1cf" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="9.5"/><ellipse cx="16" cy="16" rx="9.5" ry="3.5"/><ellipse cx="16" cy="16" rx="3.5" ry="9.5"/></svg>`;
+const ICO_SHADING_SOLIDCAGE = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none" stroke="#5ab1cf" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><defs><radialGradient id="icoShadeGradSC" cx="38%" cy="33%" r="70%"><stop offset="0%" stop-color="#808080"/><stop offset="100%" stop-color="#2c2c2c"/></radialGradient></defs><circle cx="16" cy="16" r="10" fill="url(#icoShadeGradSC)" stroke="none"/><path d="M26 16A10 3 0 0 1 6 16"/><path d="M15.75 26A3.75 10 0 0 1 15.75 6"/></svg>`;
+
+window.ICONS = {
+ICO_GRID, ICO_MAGNET, ICO_GLOBE, ICO_ARROW, ICO_CUBE, ICO_SQUARE, ICO_PERSON, ICO_HELP,
+ICO_OPEN, ICO_SAVE, ICO_SAVEAS, ICO_SAVEINC, ICO_DOWNLOAD, ICO_RECENTS,
+ICO_BROWSER_FOLDED, ICO_BROWSER_UNFOLDED,
+ICO_TAB_ATTRIBUTES, ICO_TAB_MATERIALS, ICO_TAB_MATERIAL_MGR, ICO_TAB_TEXTURES, ICO_TAB_ADD_TEXTURE, ICO_TAB_OBJECTS,
+ICO_TAB_DELETE_UNUSED,
+ICO_MODE_VERTEX, ICO_MODE_EDGE, ICO_MODE_FACE, ICO_SYMMETRY, ICO_CLONER, ICO_SPLINE,
+ICO_INSTANCE, ICO_EXTRUDE, ICO_LATHE, ICO_SWEEP, ICO_BOOLEAN, ICO_SPLINE_PATCH,
+ICO_TEX_LOAD, ICO_TEX_DELETE, ICO_TREE_PLUS, ICO_TREE_MINUS, ICO_TREE_HIDE, ICO_TREE_SHOW, ICO_TREE_ENABLE,
+ICO_OBJ_CUBE, ICO_OBJ_CYL, ICO_OBJ_TUBE, ICO_OBJ_SPHERE, ICO_OBJ_CAPSULE, ICO_OBJ_SQUARE, ICO_OBJ_CIRCLE, ICO_OBJ_POLY, ICO_OBJ_TEXT, ICO_OBJ_HELIX, ICO_OBJ_GEAR, ICO_OBJ_PULLEY, ICO_OBJ_NUT, ICO_OBJ_WASHER, ICO_OBJ_BOLT,
+ICO_TL_PLAY, ICO_TL_PAUSE, ICO_TL_PREV, ICO_TL_NEXT, ICO_TL_KEY, ICO_TL_DELKEY, ICO_TL_LINEAR, ICO_TL_SOFT,
+ICO_SHADING_SOLID, ICO_SHADING_WIRE, ICO_SHADING_SOLIDWIRE, ICO_SHADING_CAGE, ICO_SHADING_SOLIDCAGE
+};
+
+</script>
+<script id="surface-builder-core" type="text/plain"></script>
+<script type="text/plain" id="frame-single-slicer-worker-source"></script>
+<script type="module" id="frame-bootstrap">
+const indicator=document.createElement('div');indicator.id='frame-boot-status';indicator.setAttribute('role','status');indicator.textContent='Loading Frame.';indicator.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-items:center;background:#121212;color:#ddd;font:14px sans-serif';document.body.append(indicator);
+try{
+ 
+const manifest=JSON.parse(document.getElementById('frame-assets').textContent);
+const pending=new Map(),blobs=new Map();
+let errorPanel=null;
+function entry(id){const a=manifest.assets[id];if(!a)throw Error('Resource is unavailable: '+id);return a;}
+function url(id){return new URL(entry(id).path,document.baseURI).href;}
+function memo(key,read){if(pending.has(key))return pending.get(key);const p=Promise.resolve().then(read);pending.set(key,p);p.catch(()=>{if(pending.get(key)===p)pending.delete(key);});return p;}
+async function bytes(id){return memo('bytes:'+id,async()=>{const a=entry(id),response=await fetch(url(id));if(!response.ok)throw Error('Resource could not load: '+id);const b=await response.arrayBuffer();if(b.byteLength!==a.bytes)throw Error('Incomplete resource: '+id);const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',b))].map(x=>x.toString(16).padStart(2,'0')).join('');if(digest!==a.sha256)throw Error('Resource version mismatch: '+id);return b;});}
+function text(id){return memo('text:'+id,async()=>new TextDecoder().decode(await bytes(id)));}
+function json(id){return memo('json:'+id,async()=>{const b=await bytes(id),raw=entry(id).encoding==='gzip'?await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(b);return JSON.parse(raw);});}
+function blobURL(id,type='application/octet-stream'){return memo('blob:'+id,async()=>{const u=URL.createObjectURL(new Blob([await bytes(id)],{type}));blobs.set(id,u);return u;});}
+function report(error,retry,label='Resource could not load.'){if(!errorPanel){errorPanel=document.createElement('div');errorPanel.id='frame-resource-error';errorPanel.setAttribute('role','alert');errorPanel.style.cssText='position:fixed;left:12px;bottom:12px;max-width:360px;padding:12px;background:#242424;color:#eee;border:1px solid #888;z-index:100001;font:13px sans-serif';document.body.append(errorPanel);}errorPanel.replaceChildren();const message=document.createElement('div');message.textContent=label;message.title=error?.message||String(error);errorPanel.append(message);if(retry){const b=document.createElement('button');b.textContent='Retry';b.style.marginTop='8px';b.onclick=()=>{errorPanel?.remove();errorPanel=null;Promise.resolve().then(retry).catch(e=>report(e,retry,label));};errorPanel.append(b);}const close=document.createElement('button');close.textContent='Close';close.style.marginLeft='8px';close.onclick=()=>{errorPanel?.remove();errorPanel=null;};errorPanel.append(close);}
+async function critical(){const ids=Object.keys(manifest.assets).filter(id=>entry(id).critical&&entry(id).preload!==false);let next=0;await Promise.all(Array.from({length:Math.min(4,ids.length)},async()=>{while(next<ids.length)await bytes(ids[next++]);}));}
+const frameAssets=Object.freeze({manifest,entry,url,bytes,text,json,blobURL,worker:id=>blobURL(id,'text/javascript'),report,critical});
+
+ Object.defineProperty(globalThis,'frameAssets',{value:frameAssets});
+ await frameAssets.critical();const source=await frameAssets.text('surface');document.getElementById('surface-builder-core').textContent=source;new Function(source)();await import(frameAssets.url('editor'));indicator.remove();
+}catch(error){indicator.replaceChildren();const box=document.createElement('div'),text=document.createElement('p'),retry=document.createElement('button');text.textContent='Frame could not load. Check your connection and retry.';text.title=error?.message||String(error);retry.textContent='Retry';retry.onclick=()=>location.reload();box.append(text,retry);indicator.append(box);}
+
+</script>
+
+<script>
+if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost'||location.hostname==='127.0.0.1')){
+  addEventListener('load',async()=>{
+    try{
+      const registration=await navigator.serviceWorker.getRegistration('./')||await navigator.serviceWorker.register('./frame-sw.js',{scope:'./',updateViaCache:'none'});
+      const check=()=>{
+        if(document.visibilityState!=='visible'||!navigator.onLine)return;
+        registration.update().catch(()=>{});
+        (navigator.serviceWorker.controller||registration.active)?.postMessage({type:'FRAME_CHECK_UPDATE'});
+      };
+      check();
+      navigator.serviceWorker.ready.then(check).catch(()=>{});
+      addEventListener('online',check);
+      document.addEventListener('visibilitychange',check);
+      setInterval(check,5*60*1000);
+       
+    }catch(error){console.warn('Frame service worker registration failed',error);}
+  });
+}
+</script>
+<script>
+ 
+window.addEventListener('DOMContentLoaded',()=>{
+  const context=document.modelContext;if(!context?.registerTool)return;const lifetime=new AbortController();
+  const inputSchema={type:'object',properties:{printer:{type:'string',minLength:1}},required:['printer'],additionalProperties:false};
+  const printer=input=>{if(!input||typeof input.printer!=='string'||!input.printer.trim()||Object.keys(input).some(k=>k!=='printer'))throw Error('A printer reference is required.');return input.printer;};
+  for(const tool of [
+    {name:'read_frame_printer',title:'Read Frame printer',description:'Read printer settings, slice status and segment counts.',inputSchema,annotations:{readOnlyHint:true},execute:input=>window.frameAI.getPrinterState(printer(input))},
+    {name:'slice_frame_printer',title:'Slice Frame printer',description:'Generate one inward perimeter for visible geometry using the printer settings and update its preview.',inputSchema,annotations:{readOnlyHint:false},execute:input=>window.frameAI.slicePrinter(printer(input))}
+  ])try{Promise.resolve(context.registerTool(tool,{signal:lifetime.signal})).catch(console.warn);}catch(error){console.warn(error);}
+  window.addEventListener('pagehide',()=>lifetime.abort(),{once:true});
+});
+</script>
+</body>
+</html>

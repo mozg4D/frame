@@ -78,3 +78,9 @@ The final layer reconstructs exact r246, replaces three effective functions, and
     node editor-source/tests/selection-presentation/private-preview-controls.mjs
 
 These are the same 75 public synthetic source controls (34 compatibility, 36 staged singleton/Connected and 5 private-preview ownership) with manifest-resolved current runtime and path-only harness adaptation. Actual native getter disposal, current private display lease and real geometry math are exercised; transport/GPU fixtures are controlled. Six baseline/V1 negative witnesses are retained. Separate HOME runtime evidence covers 21 correct nonempty publication records and three private-preview cancellations. Natural contaminated prepared fallback and physical presentation latency were not measured.
+
+## r248 Ordinary Move and worker vertex picking
+
+The reviewed V9 source is included with its 164 public source controls. Set FRAME_TYPESCRIPT to TypeScript 5.9.3. `node editor-source/ordinary-move-build.mjs --candidate` builds the source-test candidate; `node editor-source/ordinary-move-release.mjs` packages its browser worker graph and updates content-addressed production resources, asset hashes and SRI. The ordinary runtime manifest pins each source/output relation. The existing exact reconstruction adds r248-integration.json after r247 and reproduces the shipped editor via `node editor-source/rebuild.mjs /new/path/outside/repo/editor.mjs`.
+
+Run the suites listed in ordinary-move-controls.json with Node ESM support (`--experimental-default-type=module` on Node21). These tests use public fixtures and emulated GPU/native transports. Hardware/performance V9 acceptance remains pending, as disclosed in the root README. Candidate test outputs and QA HTML are local build artifacts and are not shipped as releases.

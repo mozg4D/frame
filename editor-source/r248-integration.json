@@ -1,0 +1,1025 @@
+{
+  "beforeSHA256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28",
+  "beforeBytes": 2888003,
+  "afterSHA256": "14694d2e39a34bf370f790dd94d545c8f9239f7a0bda6ee08415e41940ae8bfe",
+  "afterBytes": 2935580,
+  "operations": [
+    {
+      "startLine": 9,
+      "deleteLines": 0,
+      "insert": [
+        "import {OrdinaryMoveActor} from \"./ordinary-move-actor.f2e631f4f50c5249b548.js\";\n",
+        "// Inserted into the frozen editor module by ordinary-move-build.mjs. All\n",
+        "// topology/Stock/wire/BVH/overlay array production belongs to workers.\n",
+        "var frameOrdinaryOwners=new Map(),frameOrdinaryPrepared=null,frameOrdinaryInput=null,frameOrdinaryInstalling=false,frameOrdinaryCM=null,frameOrdinaryHistory=Promise.resolve(),frameOrdinarySavingBoundary=null;\n",
+        "var frameOrdinaryNotes={starts:0,moves:0,ends:0,published:0,errors:[]};\n",
+        "var frameOrdinaryEpochs=new WeakMap();\n",
+        "var frameOrdinarySceneEpoch=0,frameOrdinaryRetiring=new WeakMap();\n",
+        "var frameOrdinaryCancelledPointer=null;\n",
+        "var frameOrdinaryHoverState={active:null,latest:null};\n",
+        "function frameOrdinaryRetirePrepared(){const q=frameOrdinaryPrepared;frameOrdinaryPrepared=null;if(q){q.cancel?.();Promise.resolve(q.readPromise||q.promise).then(packet=>q.r.actor.releaseRead(packet)).catch(()=>{});}}\n",
+        "function frameOrdinaryAbortable(promise,signal){\n",
+        " if(signal.aborted){Promise.resolve(promise).catch(()=>{});return Promise.reject(new DOMException('Connected selection cancelled','AbortError'));}\n",
+        " return new Promise((resolve,reject)=>{const cleanup=()=>signal.removeEventListener('abort',cancel),cancel=()=>{cleanup();reject(new DOMException('Connected selection cancelled','AbortError'));};signal.addEventListener('abort',cancel,{once:true});Promise.resolve(promise).then(value=>{cleanup();resolve(value);},error=>{cleanup();reject(error);});});\n",
+        "}\n",
+        "function frameCommitPreparedPolySelectionState(result){\n",
+        "  frameConnectedSelectionComplete=null;\n",
+        "  if(edgeBevelResult){edgeBevelResult=null;lastAttrKey=null;refreshAttributesPanel();}\n",
+        "  polyPivotMatrix=null;\n",
+        "  if(result.connected){polyExactEdgeVertices=null;polyExtrudedFaces=null;}\n",
+        "  polySelection.items.clear();for(const [h,s] of result.items)polySelection.items.set(h,s);\n",
+        "  framePolySelectionRevision++;if(!frameNativeClickCommit)frameNativeExternalSelection++;\n",
+        "}\n",
+        "function frameOrdinaryCaptureSource(g){\n",
+        " const attribute=a=>a&&[a,a.array,a.version,a.count,a.itemSize,a.normalized,a.isInterleavedBufferAttribute,a.data,a.offset,a.data?.stride];\n",
+        " return {geometry:g,position:attribute(g.attributes.position),normal:attribute(g.attributes.normal),index:attribute(g.index),epoch:frameOrdinaryEpochs.get(g)||0,rigidEpoch:frameRigidEpoch.get(g)||0};\n",
+        "}\n",
+        "function frameOrdinarySourceCurrent(s){\n",
+        " const g=s.geometry;if((frameOrdinaryEpochs.get(g)||0)!==s.epoch||(frameRigidEpoch.get(g)||0)!==s.rigidEpoch)return false;\n",
+        " const attribute=a=>a&&[a,a.array,a.version,a.count,a.itemSize,a.normalized,a.isInterleavedBufferAttribute,a.data,a.offset,a.data?.stride];\n",
+        " return [[g.attributes.position,s.position],[g.attributes.normal,s.normal],[g.index,s.index]].every(([a,stamp])=>!!a&&attribute(a).every((v,i)=>Object.is(v,stamp[i])));\n",
+        "}\n",
+        "function frameOrdinaryMutation(g){if(!g)return;frameOrdinaryEpochs.set(g,(frameOrdinaryEpochs.get(g)||0)+1);}\n",
+        "function frameOrdinaryRetireOwner(h){const r=frameOrdinaryOwners.get(h);if(!r)return null;frameOrdinaryOwners.delete(h);if(frameOrdinaryPrepared?.r===r)frameOrdinaryRetirePrepared();const retirement=Promise.resolve(r.actor.dispose());frameOrdinaryRetiring.set(r.mesh,retirement);retirement.finally(()=>{if(frameOrdinaryRetiring.get(r.mesh)===retirement)frameOrdinaryRetiring.delete(r.mesh);}).catch(()=>{});return retirement;}\n",
+        "function frameOrdinaryDeleteMap(map,h){const r=frameOrdinaryOwners.get(h);if(r&&(map===pickMeshes&&map.get(h)===r.mesh||map===OBJ&&map.get(h)===r.node))frameOrdinaryRetireOwner(h);return map.delete(h);}\n",
+        "function frameOrdinarySetMap(map,h,value){const r=frameOrdinaryOwners.get(h);if(r&&(map===pickMeshes&&(value!==r.mesh||!r.current())||map===OBJ&&(value!==r.node||!r.current())))frameOrdinaryRetireOwner(h);return map.set(h,value);}\n",
+        "function frameOrdinaryClearMap(map){if(map===pickMeshes||map===OBJ)for(const h of [...frameOrdinaryOwners.keys()])frameOrdinaryRetireOwner(h);return map.clear();}\n",
+        "function frameOrdinaryClearOwners(){frameOrdinarySceneEpoch++;for(const h of [...frameOrdinaryOwners.keys()])frameOrdinaryRetireOwner(h);for(const stack of [undoStack||[],redoStack||[]])for(let i=stack.length-1;i>=0;i--)if(stack[i].ordinaryMove)stack.splice(i,1)[0].dispose();frameOrdinaryRetirePrepared();frameOrdinaryInput=frameOrdinaryCM=frameOrdinarySavingBoundary=null;}\n",
+        "function frameOrdinaryRestoreHistoryOwners(hashes,epoch){if(epoch!==frameOrdinarySceneEpoch)return;const wanted=new Set(hashes);for(const c of [...undoStack,...redoStack]){const q=c.ordinaryMove;if(q&&q.sceneEpoch===epoch&&wanted.has(q.h)&&pickMeshes.get(q.h)===q.mesh)q.node=OBJ.get(q.h);}}\n",
+        "function frameOrdinaryHistoryEntry(owner,job){return{renderOnly:true,ordinaryMove:{...owner,job},undo(){},redo(){},dispose(){job.checkpoints=null;}};}\n",
+        "function frameOrdinaryBeforeExternalEdit(hashes=null){\n",
+        " const wanted=hashes?new Set(hashes):null,targets=[...frameOrdinaryOwners.values()].filter(r=>(!wanted||wanted.has(r.h))&&r.current());\n",
+        " for(const r of targets){\n",
+        "  if(r.actor.input||r.actor.operations||r.actor.packet||r.actor.root?.rows.length)throw new DOMException('Wait for the released Move to become exact before editing its geometry','InvalidStateError');\n",
+        " }\n",
+        " for(const r of targets){frameOrdinaryMutation(r.geometry);frameOrdinaryRetireOwner(r.h);}\n",
+        "}\n",
+        "function frameOrdinaryExactPending(hashes=null){const wanted=hashes?new Set(hashes):null;return [...frameOrdinaryOwners.values()].some(r=>(!wanted||wanted.has(r.h))&&r.current()&&(r.actor.input||r.actor.operations||r.actor.packet||r.actor.historyBusy||r.actor.root?.rows.length||r.actor.root?.transition));}\n",
+        "function frameOrdinaryAssertExact(hashes=null){if(frameOrdinaryExactPending(hashes))throw new DOMException('This action requires the released Move exact revision','InvalidStateError');}\n",
+        "async function frameOrdinaryContinueExact(continuation,hashes=null){\n",
+        " const wanted=hashes?new Set(hashes):null,owners=[...frameOrdinaryOwners.values()].filter(r=>(!wanted||wanted.has(r.h))&&r.current());\n",
+        " if(owners.some(r=>r.actor.input))throw new DOMException('Release the ordinary Move before this action','InvalidStateError');\n",
+        " await Promise.all(owners.map(r=>r.actor.exact));await frameOrdinaryHistory;\n",
+        " for(const r of owners){if(!r.current())throw new DOMException('Move exact owner changed','AbortError');await r.actor.displayTail;await r.actor.publicationDone?.promise;if(r.actor.packet&&!await r.actor.tryPublish({force:true}))throw new DOMException('Move exact publication was superseded','AbortError');}\n",
+        " frameOrdinaryAssertExact(hashes);return continuation();\n",
+        "}\n",
+        "function frameOrdinaryCommandTargets(cmd){return cmd?.geometryTargets??null;}\n",
+        "function frameOrdinaryHistoryGuard(){if([...frameOrdinaryOwners.values()].some(r=>r.actor.historyBusy))throw new DOMException('Wait for Move history publication before another history command','InvalidStateError');}\n",
+        "function frameOrdinaryAfterExternalCommand(cmd){frameOrdinaryHistoryGuard();if(!cmd||cmd.renderOnly)return;const targets=frameOrdinaryCommandTargets(cmd);if(targets)for(const h of targets){const r=frameOrdinaryOwners.get(h);if(r){if(r.current())frameOrdinaryMutation(r.geometry);frameOrdinaryRetireOwner(h);}}}\n",
+        "function frameOrdinaryAssertGeometryExact(g){for(const r of frameOrdinaryOwners.values())if(r.geometry===g&&r.current())frameOrdinaryAssertExact([r.h]);}\n",
+        "function frameOrdinaryCanonicalSaveSnapshot(g){for(const r of frameOrdinaryOwners.values())if(r.geometry===g&&r.current()&&g.index.array instanceof Uint32Array&&Object.keys(g.attributes).every(k=>k==='position'||k==='normal')){frameOrdinaryAssertExact([r.h]);const q={positions:g.attributes.position.array,normals:g.attributes.normal.array,indices:g.index.array},origin=frameContourOrigins.get(g);if(origin)q.contourOrigin=origin;return q;}return null;}\n",
+        "async function frameOrdinaryWaitForSave(signal){\n",
+        " for(;;){\n",
+        "  if(signal?.aborted)throw signal.reason||new DOMException('Save cancelled','AbortError');\n",
+        "  const owners=[...frameOrdinaryOwners.values()].filter(r=>r.current()||r.actor.closed&&pickMeshes.get(r.h)===r.mesh&&r.mesh.geometry===r.geometry&&frameOrdinarySourceCurrent(r.source));\n",
+        "  if(owners.some(r=>r.actor.closed))throw new DOMException('Move worker failed before Save exact boundary','AbortError');\n",
+        "  if(owners.some(r=>r.actor.input))throw new DOMException('Release Move before Save','InvalidStateError');\n",
+        "  await nativeSaveWait(Promise.all(owners.map(r=>r.actor.exact)),signal);await nativeSaveWait(frameOrdinaryHistory,signal);\n",
+        "  for(const r of owners){if(!r.current())throw new DOMException('Move Save owner changed','AbortError');await nativeSaveWait(r.actor.displayTail,signal);await nativeSaveWait(r.actor.publicationDone?.promise,signal);}\n",
+        "  if(owners.some(r=>r.actor.operations||r.actor.input))continue;\n",
+        "  for(const r of owners){if(!r.current())throw new DOMException('Move Save owner changed','AbortError');if(r.actor.packet&&!await nativeSaveWait(r.actor.tryPublish({force:true}),signal))throw new DOMException('Move Save publication failed','AbortError');}\n",
+        "  if(frameOrdinaryExactPending())continue;\n",
+        "  frameOrdinarySavingBoundary=owners.map(r=>({r,source:r.source,version:r.actor.version,renderVersion:r.actor.renderVersion}));return;\n",
+        " }\n",
+        "}\n",
+        "function frameOrdinarySaveCheck(){frameOrdinaryAssertExact();if(nativeSceneSave?.capturing&&frameOrdinarySavingBoundary?.some(q=>!q.r.current()||q.r.source!==q.source||q.r.actor.version!==q.version||q.r.actor.renderVersion!==q.renderVersion))throw new DOMException('Move Save revision changed','AbortError');}\n",
+        "function frameOrdinarySupported(){\n",
+        " if(!polyFocusActive()||splineFocusActive()||uvMode||uvEdit||editPivot||vertexTools.soft.active||polyExactEdgeVertices||polySelection.items.size!==1||!['vertex','edge','face'].includes(polyElementMode))return false;\n",
+        " const [h,s]=polySelection.items.entries().next().value,m=pickMeshes.get(h),g=m?.geometry;\n",
+        " return !!m&&selNodes.has(h)&&!!(s.vertices.size+s.edges.size+s.faces.size)&&!frameMorphTag(h)&&polygonShadingAllowed(m)&&Object.keys(g.attributes).every(k=>k==='position'||k==='normal')&&g.attributes.position.array instanceof Float32Array&&g.attributes.normal?.array instanceof Float32Array&&(g.index?.array instanceof Uint16Array||g.index?.array instanceof Uint32Array)&&!!frameRigidOwnerSnapshot().pool;\n",
+        "}\n",
+        "// Read-only vertex queries do not require an existing Move selection.\n",
+        "function frameOrdinaryPickerTarget(){\n",
+        " if(!polyMode||splineFocusActive()||uvMode||uvEdit||editPivot||vertexTools.soft.active||polyExactEdgeVertices||selNodes.size!==1||!['vertex','edge','face'].includes(polyElementMode))return null;\n",
+        " const h=selNodes.values().next().value,m=pickMeshes.get(h),g=m?.geometry;\n",
+        " return m&&isVertexEditableMesh(h)&&effectiveVisible(h)&&!frameMorphTag(h)&&polygonShadingAllowed(m)&&Object.keys(g.attributes).every(k=>k==='position'||k==='normal')&&g.attributes.position.array instanceof Float32Array&&g.attributes.normal?.array instanceof Float32Array&&(g.index?.array instanceof Uint16Array||g.index?.array instanceof Uint32Array)&&frameRigidOwnerSnapshot().pool?h:null;\n",
+        "}\n",
+        "var frameOrdinaryModifierKeys=new Set(),frameOrdinaryModifierRevision=0,frameOrdinaryPointerRevision=0;\n",
+        "var frameOrdinarySnapState={active:null,latest:null};\n",
+        "function frameOrdinaryModifierHeld(){return [...frameOrdinaryModifierKeys].some(k=>k.startsWith('Control')||k.startsWith('Meta'));}\n",
+        "function frameOrdinaryModifierKey(e,down){\n",
+        " if(e.key!=='Control'&&e.key!=='Meta')return;\n",
+        " const before=frameOrdinaryModifierHeld(),key=e.code||e.key;\n",
+        " if(down)frameOrdinaryModifierKeys.add(key);else{frameOrdinaryModifierKeys.delete(key);frameOrdinaryModifierKeys.delete(e.key+'Pointer');}\n",
+        " if(before!==frameOrdinaryModifierHeld())frameOrdinaryModifierRevision++;\n",
+        "}\n",
+        "function frameOrdinaryModifierPointer(e){\n",
+        " frameOrdinaryPointerRevision++;\n",
+        " const before=frameOrdinaryModifierHeld();\n",
+        " for(const [name,held]of [['Control',!!e.ctrlKey],['Meta',!!e.metaKey]]){\n",
+        "  const keys=[...frameOrdinaryModifierKeys].filter(k=>k.startsWith(name));\n",
+        "  if(!held)for(const key of keys)frameOrdinaryModifierKeys.delete(key);else if(!keys.length)frameOrdinaryModifierKeys.add(name+'Pointer');\n",
+        " }\n",
+        " if(before!==frameOrdinaryModifierHeld())frameOrdinaryModifierRevision++;\n",
+        "}\n",
+        "function frameOrdinaryClearModifierPreview(){if(frameOrdinaryModifierKeys.size){frameOrdinaryModifierKeys.clear();frameOrdinaryModifierRevision++;}}\n",
+        "if(typeof addEventListener==='function')addEventListener('blur',frameOrdinaryClearModifierPreview);\n",
+        "function frameOrdinarySnapGuard(vi,kind){\n",
+        " const guard=frameNativePickerGuard(vi,kind),mode=vertexTools.mode,domain=polyElementMode,selectionRevision=framePolySelectionRevision,pointerRevision=frameOrdinaryPointerRevision,revision=frameOrdinaryModifierRevision,temporary=kind==='hover'&&!mode&&frameOrdinaryModifierHeld();\n",
+        " return()=>guard()&&vertexTools.mode===mode&&polyElementMode===domain&&framePolySelectionRevision===selectionRevision&&(kind!=='hover'||frameOrdinaryPointerRevision===pointerRevision)&&(!temporary||frameOrdinaryModifierHeld()&&revision===frameOrdinaryModifierRevision);\n",
+        "}\n",
+        "function frameOrdinaryCancelSnapLatest(){const s=frameOrdinarySnapState;if(s.latest){s.latest.reject(new DOMException('Superseded snap pointer','AbortError'));s.latest=null;}if(s.active)s.active.superseded=true;}\n",
+        "async function frameOrdinaryCancelHoverReads(){\n",
+        " frameNativeHoverIntent++;frameOrdinaryHoverState.latest=null;frameOrdinaryCancelSnapLatest();\n",
+        " await Promise.allSettled([frameOrdinaryHoverState.active?.promise,frameOrdinarySnapState.active?.running].filter(Boolean));\n",
+        "}\n",
+        "async function frameOrdinaryRunSnap(row){\n",
+        " if(!row.current())throw new DOMException('Snap context changed','AbortError');\n",
+        " const r=rectFor(row.vi),cam=vpState.views[row.vi].cam;\n",
+        " const vertex=await frameOrdinaryVertexPick(row.cx,row.cy,row.vi,r,cam,row.current,{hover:true,radius:10});\n",
+        " try{if(!row.current()||!vertex.handled||!vertex.isCurrent())throw new DOMException('Snap vertex context changed','AbortError');return await resolveVertexToolSnap(row.cx,row.cy,row.vi,row.allowFace,{snapVertexPrepared:true,snapVertexHit:vertex.hit,snapCurrent:row.current},row.kind);}finally{vertex.release();}\n",
+        "}\n",
+        "function frameOrdinaryDrainSnap(){\n",
+        " const s=frameOrdinarySnapState;if(s.active||!s.latest)return;const row=s.latest;s.latest=null;s.active=row;\n",
+        " row.running=frameOrdinaryRunSnap(row);row.running.then(row.resolve,row.reject).finally(()=>{if(s.active===row)s.active=null;frameOrdinaryDrainSnap();});\n",
+        "}\n",
+        "function frameOrdinaryToolSnap(cx,cy,vi,allowFace,kind){\n",
+        " if(!vpState.renderer?.isFrameNativeViewportRenderer||!frameOrdinaryPickerTarget())return null;\n",
+        " if(kind==='hover'){frameNativeHoverIntent++;frameOrdinaryHoverState.latest=null;}\n",
+        " const guard=frameOrdinarySnapGuard(vi,kind),row={cx,cy,vi,allowFace,kind,superseded:false};row.current=()=>!row.superseded&&guard();\n",
+        " if(kind==='click')return frameOrdinaryCancelHoverReads().then(()=>frameOrdinaryRunSnap(row));\n",
+        " const promise=new Promise((resolve,reject)=>Object.assign(row,{resolve,reject}));frameOrdinaryCancelSnapLatest();frameOrdinarySnapState.latest=row;frameOrdinaryDrainSnap();return promise;\n",
+        "}\n",
+        "\n",
+        "function frameOrdinaryGizmoAdmission(g,e){return !e?.ctrlKey&&!e?.metaKey&&!e?.shiftKey&&['P','X','Y','Z','XY','XZ','YZ'].includes(g?.object?.name)&&frameOrdinarySupported();}\n",
+        "function frameOrdinaryNewPointer(e){if(frameOrdinaryCancelledPointer?.pointerId===e.pointerId)frameOrdinaryCancelledPointer=null;}\n",
+        "function frameOrdinaryDrainPointer(e,end=false){if(!frameOrdinaryCancelledPointer||frameOrdinaryCancelledPointer.pointerId!==e.pointerId)return false;if(end)frameOrdinaryCancelledPointer=null;e.preventDefault();return true;}\n",
+        "function frameOrdinaryEscape(e){\n",
+        " if(e.key!=='Escape'||!gizDrag||!frameOrdinaryInput&&!frameOrdinaryGizmoAdmission({object:{name:'P'}},gizDrag._frameDeferredStart||{}))return false;\n",
+        " const pointerId=frameOrdinaryInput?.pointerId??gizDrag._frameDeferredStart?.pointerId??gizDrag._frameAuthoringPointerId;\n",
+        " e.preventDefault();endGizDrag({type:'pointercancel',pointerId});activeView=-1;\n",
+        " if(pointerId!==undefined)frameOrdinaryCancelledPointer={pointerId};return true;\n",
+        "}\n",
+        "function frameOrdinaryStamp(){return {entry:polySelection.items.values().next().value,revision:framePolySelectionRevision,domain:polyElementMode,space:coordMode,pivot:polyPivotMatrix,render:frameOrdinaryOwners.get(polySelection.items.keys().next().value)?.actor.renderVersion};}\n",
+        "function frameOrdinaryStampCurrent(t){return frameOrdinarySupported()&&t.entry===polySelection.items.values().next().value&&t.revision===framePolySelectionRevision&&t.domain===polyElementMode&&t.space===coordMode&&t.pivot===polyPivotMatrix;}\n",
+        "function frameOrdinaryActorStamp(r){return {h:r.h,entry:polySelection.items.get(r.h),revision:framePolySelectionRevision,domain:polyElementMode,space:coordMode,pivot:polyPivotMatrix};}\n",
+        "function frameOrdinaryActorPresentationCurrent(r,s){return r.sceneEpoch===frameOrdinarySceneEpoch&&pickMeshes.get(r.h)===r.mesh&&r.mesh.geometry===r.geometry&&s.h===r.h&&frameOrdinarySupported()&&polySelection.items.size===1&&polySelection.items.has(r.h)&&s.entry===polySelection.items.get(r.h)&&s.revision===framePolySelectionRevision&&s.domain===polyElementMode&&s.space===coordMode&&s.pivot===polyPivotMatrix;}\n",
+        "async function frameOrdinaryStageEntry(r,packet,current){const entry={vertices:new Set(),edges:new Set(),faces:new Set()};let count=0;for(const key of Object.keys(entry)){const values=packet.selection[key]||[],packed=key==='edges'&&values instanceof Uint32Array;for(let at=0;at<values.length;at+=packed?2:1){entry[key].add(packed?`${values[at]}:${values[at+1]}`:values[at]);if((++count&2047)===0){await r.actor.tasks.yield();if(!current())throw new DOMException('Owned selection changed','AbortError');}}}packet.entry=entry;}\n",
+        "function frameOrdinaryContext(h){const m=pickMeshes.get(h);m.updateMatrixWorld(true);return {domain:polyElementMode,space:coordMode,pivot:polyPivotMatrix?.slice()??null,world:m.matrixWorld.toArray(),inverse:m.matrixWorld.clone().invert().toArray(),ownerFrame:pureWorldFrame(h).toArray(),identity:new THREE2.Matrix4().toArray()};}\n",
+        "async function frameOrdinaryCopySelection(s){const out={vertices:[],edges:[],faces:[]};let count=0;for(const name of Object.keys(out))for(const id of s?.[name]||[]){out[name].push(id);if((++count&2047)===0)await frameAffineYield();}return out;}\n",
+        "function frameOrdinaryMeasurements(raw){return raw?{bounds:{min:new THREE2.Vector3().fromArray(raw.bounds.min),max:new THREE2.Vector3().fromArray(raw.bounds.max)},frame:new THREE2.Matrix4().fromArray(raw.frame),extent:new THREE2.Vector3().fromArray(raw.extent)}:null;}\n",
+        "function frameOrdinaryCurrentMeasurements(){const q=frameOrdinaryCM;return q&&frameOrdinaryStampCurrent(q.stamp)?q.measurements:null;}\n",
+        "function frameOrdinaryAwaitMeasurements(value){if(value||frameOrdinaryCurrentMeasurements()||frameOrdinaryInstalling||!frameOrdinarySupported())return false;const q=frameOrdinaryPrepare();return !!q&&!q.presented;}\n",
+        "async function frameOrdinaryVertexPick(cx,cy,vi,rect,cam,current,{hover=false,radius=EDIT_HIT_PX}={}){\n",
+        " const h=frameOrdinaryPickerTarget();if(!h)return{handled:false,release(){}};\n",
+        " if(!hover){await frameOrdinaryCancelHoverReads();if(!current())throw new DOMException('Vertex click context changed','AbortError');}\n",
+        " const r=frameOrdinaryOwner(h),a=r.actor;await a.ready;if(!hover)a.sequence++;const sequence=a.sequence;await a.publicationDone?.promise;\n",
+        " const selectionRevision=framePolySelectionRevision,valid=()=>r.current()&&current()&&a.sequence===sequence&&framePolySelectionRevision===selectionRevision,check=()=>{if(!valid())throw new DOMException('Vertex click context changed','AbortError');};\n",
+        " check();if(!hover)a.selectionOperations=(a.selectionOperations||0)+1;let released=false,pickToken;\n",
+        " const release=()=>{if(released)return;released=true;if(!hover){a.selectionOperations--;a.tryPublish();}};\n",
+        " try{\n",
+        "  cam.updateMatrixWorld(true);cam.updateProjectionMatrix();const context={world:r.mesh.matrixWorld.toArray(),view:cam.matrixWorldInverse.toArray(),projection:cam.projectionMatrix.toArray(),rect:{x:rect.x,y:rect.y,w:rect.w,h:rect.h},cx,cy,radius};\n",
+        "  let page=await a.request('vertex-pick-start',{renderVersion:a.renderVersion,context});pickToken=page.pickToken;check();let hit=null,probes=0;const through=selectionThroughShading(vi),world=new THREE2.Vector3(),ndc=new THREE2.Vector3();\n",
+        "  for(let start=0;start<page.total&&!hit;){\n",
+        "   const values=page.candidates;for(let at=0;at<values.length;at+=8){check();world.set(values[at+3],values[at+4],values[at+5]);ndc.set(values[at+6],values[at+7],values[at+2]);\n",
+        "    if(through||exactVertexVisible(world,ndc,cam)){hit={mesh:r.mesh,h,vi:values[at],vertices:[],d:values[at+1],depth:values[at+2],world:world.clone(),screen:[cx,cy]};break;}\n",
+        "    if((++probes&7)===0){await a.tasks.yield();check();}\n",
+        "   }\n",
+        "   start+=values.length/8;if(start<page.total&&!hit)page=await a.request('vertex-pick-next',{pickToken,renderVersion:a.renderVersion,start});\n",
+        "  }\n",
+        "  if(hit&&!hover){let start=0,total=Infinity;while(start<total){const chunk=await a.request('vertex-pick-group',{pickToken,renderVersion:a.renderVersion,representative:hit.vi,start});check();total=chunk.total;for(let at=0;at<chunk.vertices.length;at++){hit.vertices.push(chunk.vertices[at]);if((at&2047)===2047){await a.tasks.yield();check();}}start+=chunk.vertices.length;} }\n",
+        "  const counter=hover?'vertexHoverPicks':'vertexPicks';frameOrdinaryNotes[counter]=(frameOrdinaryNotes[counter]||0)+1;return{handled:true,hit,isCurrent:valid,release};\n",
+        " }catch(e){release();throw e;}finally{if(pickToken!==undefined&&a.current())await a.request('vertex-pick-cancel',{pickToken}).catch(()=>{});}\n",
+        "}\n",
+        "function frameOrdinaryDrainHover(){\n",
+        " const state=frameOrdinaryHoverState;if(state.active||!state.latest)return;const row=state.latest;state.latest=null;\n",
+        " if(row.intent!==frameNativeHoverIntent||!row.current())return;state.active=row;\n",
+        " row.promise=frameOrdinaryVertexPick(row.cx,row.cy,row.vi,row.rect,row.cam,()=>row.intent===frameNativeHoverIntent&&row.current(),{hover:true}).then(result=>{try{if(result.handled&&result.isCurrent()){updatePolyHover(row.cx,row.cy,{intent:row.intent,vertexPrepared:true,vertexHit:result.hit});scheduleRender();}}finally{result.release();}}).catch(e=>{if(e.name!=='AbortError')frameNativePickerError(e);}).finally(()=>{if(state.active===row)state.active=null;frameOrdinaryDrainHover();});\n",
+        "}\n",
+        "function frameOrdinaryHover(cx,cy,preparedNative){\n",
+        " if(preparedNative||!frameOrdinaryPickerTarget()||polyElementMode!=='vertex'||vertexTools.mode||!vpState.renderer?.isFrameNativeViewportRenderer)return false;\n",
+        " const vi=viewAt(cx,cy),rect=rectFor(vi);if(vi<0||!rect)return false;\n",
+        " const cam=vpState.views[vi].cam,intent=++frameNativeHoverIntent,current=frameNativePickerGuard(vi,'hover');\n",
+        " clearPolyHover(true);frameOrdinaryHoverState.latest={cx,cy,vi,rect,cam,intent,current};frameOrdinaryDrainHover();return true;\n",
+        "}\n",
+        "function frameOrdinaryRollbackJobs(r,jobs){\n",
+        " let restored=false;for(const job of jobs.toReversed()){const s=job.uiSession;if(!s||!frameOrdinaryActorPresentationCurrent(r,{...s.presentationStamp,pivot:job.context.afterPivot??s.presentationStamp.pivot}))continue;polyPivotMatrix=s.presentationStamp.pivot;frameRigidRestoreOverlays({overlays:s.overlays});frameOrdinaryCM={stamp:frameOrdinaryStamp(),measurements:s.measurements};restored=true;}\n",
+        " if(frameOrdinaryInput?.r===r&&frameOrdinaryInput.job.cancelled)frameOrdinaryInput.blocked=true;\n",
+        " if(restored){frameOrdinaryRetirePrepared();if(!r.actor.closed)frameOrdinaryPrepare();placeGizmoForSelection(frameOrdinaryCurrentMeasurements());updateHUD(readPolyTransform(coordMode,frameOrdinaryCurrentMeasurements()));}\n",
+        " if(r.actor.initialDerived&&pickMeshes.get(r.h)===r.mesh&&r.mesh.geometry===r.geometry)frameOrdinarySeed(r.geometry,r.actor.initialDerived);\n",
+        "}\n",
+        "function frameOrdinarySeed(g,derived){\n",
+        " frameBindSTLWireIndices(g,derived.wire);frameBindSTLPickTree(g,derived.bvh);\n",
+        " g.boundingBox=new THREE2.Box3(new THREE2.Vector3().fromArray(derived.bounds.min),new THREE2.Vector3().fromArray(derived.bounds.max));\n",
+        " g.boundingSphere=new THREE2.Sphere(new THREE2.Vector3().fromArray(derived.sphere.center),derived.sphere.radius);\n",
+        "}\n",
+        "function frameOrdinaryGeometry(raw,derived){const g=new THREE2.BufferGeometry();g.userData={...raw.userData};g.groups=raw.groups.map(q=>({...q}));g.setDrawRange(raw.drawRange.start,raw.drawRange.count);g.setAttribute('position',new THREE2.BufferAttribute(raw.positions,3));g.setAttribute('normal',new THREE2.BufferAttribute(raw.normals,3));g.setIndex(new THREE2.BufferAttribute(raw.indices,1));frameOrdinarySeed(g,derived);markPolygonCreaseGeometry(g);return g;}\n",
+        "async function frameOrdinaryStageSelection(r,packet,current){\n",
+        " const resources=[];try{for(const [key,data] of Object.entries(packet.overlayNumeric)){for(const field of ['positions','extras','indices'])resources.push(await r.actor.pool.borrowAsync(data[field],136,'Move selection display',{minBytes:field==='indices'?8:4,isCurrent:current,yieldTask:()=>r.actor.tasks.yield()}));if(key==='fp')resources.push(await r.actor.pool.borrowAsync(data.indices,16,'Move selection triangle indices',{isCurrent:current,yieldTask:()=>r.actor.tasks.yield()}));}\n",
+        " await frameOrdinaryStageEntry(r,packet,current);\n",
+        " if(!current())throw new DOMException('Selection display changed','AbortError');packet.uploads=resources;return packet;}catch(e){for(const row of resources)r.actor.pool.release(row);throw e;}\n",
+        "}\n",
+        "function frameOrdinaryInstallSelection(r,packet,sync=true,retirePrevious=true){\n",
+        " const previous=r.overlayUploads;r.overlayUploads=packet.uploads||[];\n",
+        " for(const [key,o]of [['fp',polySelection.face],['ep',polySelection.edge],['vp',polySelection.vertex]]){\n",
+        "  const numeric=packet.overlayNumeric[key],g=o.geometry;\n",
+        "  g.setAttribute('position',new THREE2.BufferAttribute(numeric.positions,3));g.setIndex(new THREE2.BufferAttribute(numeric.indices,1));\n",
+        "  const attrs=[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index];\n",
+        "  const row={...numeric,source:g,stamps:attrs.map(frameNative.stampAttribute),lineIndices:new Map(key==='fp'?[]:[[`${key==='ep'?'segments':'points'}:0:${numeric.vertexCount}`,numeric.indices]])};row.isCurrent=()=>[g.attributes.position,g.attributes.normal,g.attributes.uv,g.attributes.color,g.index].every((a,i)=>frameNative.attributeCurrent(a,row.stamps[i]));r.engine.geometryCache.rows.set(g,row);\n",
+        "  o.matrix.identity();o.matrixAutoUpdate=false;o.matrixWorldNeedsUpdate=true;o.visible=polyMode&&numeric.vertexCount>0;\n",
+        " }\n",
+        " polySelection.faceBack.visible=polySelection.face.visible;polySelection.faceBack.matrix.identity();polySelection.faceBack.matrixAutoUpdate=false;polySelection.faceBack.matrixWorldNeedsUpdate=true;\n",
+        " if(retirePrevious)for(const row of previous||[])r.actor.pool.release(row);\n",
+        " const measurements=frameOrdinaryMeasurements(packet.measurements);frameOrdinaryCM={stamp:frameOrdinaryStamp(),measurements};\n",
+        " if(sync){setGizmoVisible(polySelection.items.size>0);placeGizmoForSelection(measurements);updateHUD(measurements?readPolyTransform(coordMode,measurements):null);}scheduleRender();\n",
+        "}\n",
+        "function frameOrdinaryOwner(h){\n",
+        " let r=frameOrdinaryOwners.get(h),retirement;if(r&&!r.current()){retirement=frameOrdinaryRetireOwner(h);r=null;}\n",
+        " if(r)return r;\n",
+        " const m=pickMeshes.get(h),node=OBJ.get(h),owner=frameRigidOwnerSnapshot();m.updateMatrixWorld(true);\n",
+        " retirement??=frameOrdinaryRetiring.get(m);r={h,mesh:m,node,sceneEpoch:frameOrdinarySceneEpoch,geometry:m.geometry,source:frameOrdinaryCaptureSource(m.geometry),world:m.matrixWorld.toArray(),engine:owner.engine,owner};\n",
+        " r.current=()=>r.sceneEpoch===frameOrdinarySceneEpoch&&!r.actor?.closed&&pickMeshes.get(h)===m&&OBJ.get(h)===node&&m.geometry===r.geometry&&frameOrdinarySourceCurrent(r.source)&&frameRigidOwnerCurrent(owner)&&(m.updateMatrixWorld(true),m.matrixWorld.elements.every((v,i)=>v===r.world[i]));\n",
+        " frameRigidDispose(frameRigidPrepared);frameRigidPrepared=null;frameNumericDisplayRetire(frameNumericDisplayRoots.get(h));\n",
+        " r.actor=new OrdinaryMoveActor({native:frameNative,mesh:m,device:owner.device,pool:owner.pool,hooks:{\n",
+        "  current:r.current,error:e=>{frameOrdinaryNotes.errors.push(String(e));console.error('Ordinary Move',e);},render:scheduleRender,\n",
+        "  beforeInitialize:()=>retirement,metadata:g=>({...g.userData}),seed:frameOrdinarySeed,\n",
+        "  aliases:(g,numeric,derived)=>{const rows=[],o=wireOverlays.get(h);if(o?.geometry?.attributes.position===g.attributes.position&&Object.keys(o.geometry.attributes).length===1&&o.geometry.index)rows.push({geometry:o.geometry,extras:numeric.extras,elements:derived.wireElements});return rows;},\n",
+        "  copySelection:frameOrdinaryCopySelection,selection:()=>polySelection.items.get(h),context:history=>{const q=frameOrdinaryContext(h);if(history&&polySelection.items.size===1&&polySelection.items.has(h)&&polyPivotMatrix===(history.direction==='undo'?history.job.context.afterPivot:history.job.context.beforePivot))q.pivot=history.direction==='undo'?history.job.context.beforePivot:history.job.context.afterPivot;return q;},selectionStamp:()=>frameOrdinaryActorStamp(r),selectionCurrent:s=>frameOrdinaryActorPresentationCurrent(r,s),\n",
+        "  stageEntry:(packet,current)=>frameOrdinaryStageEntry(r,packet,current),releaseSelection:packet=>{for(const row of packet?.uploads||[])r.actor.pool.release(row);if(packet)packet.uploads=[];},\n",
+        "  stageSelection:(packet,current)=>frameOrdinaryStageSelection(r,packet,current),geometry:frameOrdinaryGeometry,\n",
+        "  pose:job=>{const envelope=frameOrdinaryBvhEnvelope(r.geometry);if(envelope){const base=r.actor.initialDerived.bounds;r.geometry.boundingBox=new THREE2.Box3(new THREE2.Vector3().fromArray(base.min).add(new THREE2.Vector3().fromArray(envelope.min)),new THREE2.Vector3().fromArray(base.max).add(new THREE2.Vector3().fromArray(envelope.max)));const box=r.geometry.boundingBox;r.geometry.boundingSphere=new THREE2.Sphere(box.getCenter(new THREE2.Vector3()),box.getSize(new THREE2.Vector3()).length()/2);}\n",
+        "   const s=frameOrdinaryInput?.job===job?frameOrdinaryInput:job.uiSession;if(!s||job.cancelled||!frameOrdinaryActorPresentationCurrent(r,{...s.presentationStamp,pivot:job.context.afterPivot??s.presentationStamp.pivot}))return;const delta=new THREE2.Matrix4().fromArray(job.delta);for(const {o,matrix}of s.overlays){o.matrix.copy(delta).multiply(matrix);o.matrixWorldNeedsUpdate=true;}const base=s.measurements;if(base){const shift=new THREE2.Vector3(job.delta[12],job.delta[13],job.delta[14]);const measurements={bounds:{min:base.bounds.min.clone().add(shift),max:base.bounds.max.clone().add(shift)},frame:base.frame.clone(),extent:base.extent.clone()};measurements.frame.elements[12]+=shift.x;measurements.frame.elements[13]+=shift.y;measurements.frame.elements[14]+=shift.z;frameOrdinaryCM={stamp:frameOrdinaryStamp(),measurements};updateHUD(readPolyTransform(coordMode,measurements));}scheduleRender();},\n",
+        "  command:job=>{job.command=frameOrdinaryHistoryEntry({h,mesh:m,node,sceneEpoch:r.sceneEpoch},job);pushCmd(job.command);},\n",
+        "  cancelled:(job,chain)=>frameOrdinaryRollbackJobs(r,chain),\n",
+        "  rollbackClosed:jobs=>frameOrdinaryRollbackJobs(r,jobs),\n",
+        "  retired:job=>{const s=frameOrdinaryInput;if(s?.job===job&&job.cancelled){s.blocked=true;s.overlays=s.measurements=s.presentationStamp=null;}},\n",
+        "  failed:jobs=>{frameOrdinaryRollbackJobs(r,jobs);for(const job of jobs){for(const stack of [undoStack,redoStack]){const i=stack.indexOf(job.command);if(i>=0)stack.splice(i,1);}job.checkpoints=null;}if(frameOrdinaryPrepared?.r===r)frameOrdinaryRetirePrepared();if(frameOrdinaryInput?.r===r)frameOrdinaryInput.blocked=true;},\n",
+        "  disposed:()=>{for(const row of r.overlayUploads||[])r.actor.pool.release(row);r.overlayUploads=[];},\n",
+        "  links:(g,numeric,derived)=>{const wire=wireOverlays.get(h),geometry=wire?liveWireGeometry(g):null;return {wire,geometry,aliases:geometry?[{geometry,extras:numeric.extras,elements:derived.wireElements}]:[]};},\n",
+        "  prepareInstall:(g,packet,options)=>{\n",
+        "   const old={geometry:m.geometry,source:r.source,entry:polySelection.items.get(h),revision:framePolySelectionRevision,pivot:polyPivotMatrix,cm:frameOrdinaryCM,edgeCM:frameNativeEdgeCM,connected:frameConnectedSelectionComplete,exactEdge:polyExactEdgeVertices,prepared:frameOrdinaryPrepared,uploads:r.overlayUploads,wire:options.links?.wire?.geometry,point:polyPointOverlays.get(h)?.geometry,overlays:frameRigidCaptureOverlays(),indices:[polySelection.face,polySelection.edge,polySelection.vertex].map(o=>[o.geometry,o.geometry.index,r.engine.geometryCache.rows.get(o.geometry)])};let committed=false,finished=false,present=false,committedRevision=null;\n",
+        "   return {commit(){\n",
+        "    const current=polySelection.items.get(h);if(current&&(current!==options.stamp.entry||framePolySelectionRevision!==options.stamp.revision))throw new DOMException('Owned selection changed during publication','AbortError');\n",
+        "    present=options.present();committed=true;m.geometry=g;r.geometry=g;r.source=frameOrdinaryCaptureSource(g);\n",
+        "    if(current){polySelection.items.set(h,packet.entry);framePolySelectionRevision++;}committedRevision=framePolySelectionRevision;\n",
+        "    if(present){if(options.history&&polyPivotMatrix===(options.history.direction==='undo'?options.history.job.context.afterPivot:options.history.job.context.beforePivot))polyPivotMatrix=options.history.direction==='undo'?options.history.job.context.beforePivot:options.history.job.context.afterPivot;frameNativeEdgeCM=null;frameConnectedSelectionComplete=null;polyExactEdgeVertices=null;frameOrdinaryInstallSelection(r,packet,true,false);}\n",
+        "    if(options.links?.wire)options.links.wire.geometry=options.links.geometry;\n",
+        "    const points=polyPointOverlays.get(h);if(points)points.geometry=g;frameOrdinaryPrepared=null;\n",
+        "   },rollback(){if(!committed||finished)return;m.geometry=old.geometry;r.geometry=old.geometry;r.source=old.source;if(polySelection.items.get(h)===packet.entry){if(old.entry)polySelection.items.set(h,old.entry);else polySelection.items.delete(h);}if(framePolySelectionRevision===committedRevision){framePolySelectionRevision=old.revision;polyPivotMatrix=old.pivot;frameOrdinaryCM=old.cm;frameNativeEdgeCM=old.edgeCM;frameConnectedSelectionComplete=old.connected;polyExactEdgeVertices=old.exactEdge;frameOrdinaryPrepared=old.prepared;r.overlayUploads=old.uploads;frameRigidRestoreOverlays({overlays:old.overlays});for(const [geometry,index,row]of old.indices){geometry.setIndex(index);if(row)r.engine.geometryCache.rows.set(geometry,row);else r.engine.geometryCache.rows.delete(geometry);}}if(options.links?.wire)options.links.wire.geometry=old.wire;const points=polyPointOverlays.get(h);if(points)points.geometry=old.point;scheduleRender();},\n",
+        "   finish(){finished=true;if(present)for(const row of old.uploads||[])r.actor.pool.release(row);else for(const row of packet.uploads||[])r.actor.pool.release(row);old.geometry.dispose();old.wire?.dispose();frameOrdinaryNotes.published++;}\n",
+        "   };\n",
+        "  },\n",
+        "  published:()=>frameOrdinaryPrepare(),refresh:()=>{frameOrdinaryPrepared=null;return frameOrdinaryPrepare();}\n",
+        " }});frameOrdinaryOwners.set(h,r);return r;\n",
+        "}\n",
+        "function frameOrdinaryPrepare(sync=true,connected=false,clicked=null,control=null){\n",
+        " if(!frameOrdinarySupported()||frameOrdinaryInstalling)return null;\n",
+        " const stamp=frameOrdinaryStamp(),h=polySelection.items.keys().next().value,r=frameOrdinaryOwner(h);\n",
+        " if(!connected&&frameOrdinaryPrepared?.r===r&&frameOrdinaryStampCurrent(frameOrdinaryPrepared.stamp))return frameOrdinaryPrepared;\n",
+        " frameOrdinaryRetirePrepared();const controller=new AbortController(),prepared={r,stamp,sequence:r.actor.sequence,promise:null,readPromise:null,cancel(){controller.abort();if(frameOrdinaryPrepared===prepared)frameOrdinaryRetirePrepared();}};frameOrdinaryPrepared=prepared;\n",
+        " const externalCancel=()=>prepared.cancel();control?.signal?.addEventListener('abort',externalCancel,{once:true});if(control?.signal?.aborted)prepared.cancel();\n",
+        " const current=()=>!controller.signal.aborted&&(control?.isCurrent?.()??true)&&frameOrdinaryPrepared===prepared&&r.current()&&frameOrdinaryStampCurrent(stamp)&&(!connected||r.actor.sequence===prepared.sequence);\n",
+        " prepared.readPromise=(async()=>{const seed=clicked?{vertices:clicked.domain==='vertex'?clicked.ids:[],edges:clicked.domain==='edge'?clicked.ids:[],faces:clicked.domain==='face'?clicked.ids:[]}:stamp.entry;const selection=await frameOrdinaryCopySelection(seed);if(!frameOrdinaryStampCurrent(stamp)||connected&&controller.signal.aborted)throw new DOMException('Move selection changed','AbortError');const context=frameOrdinaryContext(h);if(connected)context.pivot=null;return r.actor.read(selection,context,{connected,selectionRevision:stamp.revision});})();\n",
+        " let packet;\n",
+        " const work=(async()=>{packet=await prepared.readPromise;\n",
+        "  if(!current())throw new DOMException('Move selection changed','AbortError');\n",
+        "  await frameOrdinaryStageSelection(r,packet,current);\n",
+        "  if(!current())throw new DOMException('Connected selection changed','AbortError');\n",
+        "  prepared.packet=packet;\n",
+        "  if(!connected&&r.actor.sequence!==prepared.sequence){r.actor.hooks.releaseSelection(packet);return packet;}\n",
+        "  const commit=()=>{if(connected){frameCommitPreparedPolySelectionState({items:new Map([[h,packet.entry]]),connected:true});prepared.stamp=frameOrdinaryStamp();}frameOrdinaryInstallSelection(r,packet,sync);prepared.presented=true;if(connected)frameRememberConnectedSelection();};\n",
+        "  if(connected&&control?.nativeOwned)frameNativeCommitClick(commit);else commit();r.actor.tryPublish();return packet;\n",
+        " })().finally(()=>{control?.signal?.removeEventListener('abort',externalCancel);if(!prepared.presented){r.actor.hooks.releaseSelection(packet);Promise.resolve(prepared.readPromise).then(q=>r.actor.releaseRead(q)).catch(()=>{});}});\n",
+        " prepared.promise=frameOrdinaryAbortable(work,controller.signal).catch(e=>{if(e.name!=='AbortError'){frameOrdinaryNotes.errors.push(String(e));frameNativeSelectionError(e);}throw e;});prepared.promise.catch(()=>{});return prepared;\n",
+        "}\n",
+        "function frameOrdinaryPresentation(result,sync){if(frameOrdinaryInstalling||!frameOrdinarySupported())return false;frameOrdinaryCM=null;frameOrdinaryRetirePrepared();frameOrdinaryPrepare(sync);return true;}\n",
+        "function frameOrdinaryConnected(options,control){if(!frameOrdinarySupported())return null;const clicked=options.clicked;if(clicked&&(options.mode&&options.mode!=='replace'||clicked.h!==polySelection.items.keys().next().value||clicked.domain!==polyElementMode||clicked.geometry!==pickMeshes.get(clicked.h)?.geometry||clicked.revision!==framePolySelectionRevision))return null;return frameOrdinaryPrepare(true,true,clicked,{...control,nativeOwned:options.nativeOwned===true});}\n",
+        "function frameOrdinaryStart(e){\n",
+        " if(!frameOrdinarySupported()||gizDrag?.mode!=='move'||e?.ctrlKey||e?.metaKey||e?.shiftKey)return false;\n",
+        " if(framePolySelectionJob?.ordinary)frameCancelPolySelectionWork();\n",
+        " const prepared=frameOrdinaryPrepare(false),r=prepared.r,context=frameOrdinaryContext(r.h),before=getGizmoWorldArray().slice();if(r.actor.historyBusy){frameOrdinaryInput={blocked:true,before,pointerId:e?.pointerId};gizBeforeGizmo=before;gizBeforePoly=new Map();return true;}\n",
+        " const job=r.actor.start(prepared.readPromise,{...context,selection:prepared.stamp.entry});\n",
+        " frameOrdinaryInput={r,job,before,pointerId:e?.pointerId,presentationStamp:frameOrdinaryActorStamp(r),measurements:frameOrdinaryCurrentMeasurements(),overlays:frameRigidCaptureOverlays()};job.uiSession=frameOrdinaryInput;gizBeforeGizmo=before;gizBeforePoly=new Map();gizBeforePolyGeom=null;gizBeforePolySel=null;frameOrdinaryNotes.starts++;return true;\n",
+        "}\n",
+        "function frameOrdinaryApply(delta){const s=frameOrdinaryInput;if(!s)return false;if(s.blocked)return true;const local=new THREE2.Matrix4().fromArray(s.job.context.inverse).multiply(delta).multiply(new THREE2.Matrix4().fromArray(s.job.context.world));s.r.actor.pose(s.job,delta.elements,local.elements);frameOrdinaryNotes.moves++;return true;}\n",
+        "function frameOrdinaryFinish(e){\n",
+        " const s=frameOrdinaryInput;if(!s)return false;\n",
+        " if(s.blocked||s.job?.cancelled){frameOrdinaryInput=null;gizBeforePoly=gizBeforeGizmo=null;placeGizmoForSelection(frameOrdinaryCurrentMeasurements());return true;}\n",
+        " const cancel=e?.type==='pointercancel'||getGizmoWorldArray().every((v,i)=>v===s.before[i]);\n",
+        " s.job.context.beforePivot=s.job.context.pivot;\n",
+        " if(!cancel&&s.job.context.pivot){polyPivotMatrix=getGizmoWorldArray().slice();s.job.context.afterPivot=polyPivotMatrix;}else s.job.context.afterPivot=s.job.context.pivot;\n",
+        " s.r.actor.finish(s.job,{cancel});if(!cancel)s.r.actor.hooks.pose(s.job);frameOrdinaryInput=null;gizBeforePoly=gizBeforeGizmo=null;frameOrdinaryNotes.ends++;\n",
+        " (s.job.presentationReady||s.job.completion).then(()=>{frameOrdinaryRetirePrepared();frameOrdinaryPrepare();}).catch(()=>{});return true;\n",
+        "}\n",
+        "async function frameOrdinaryResolveHistory(c){const q=c.ordinaryMove;if(q.sceneEpoch!==frameOrdinarySceneEpoch||pickMeshes.get(q.h)!==q.mesh||OBJ.get(q.h)!==q.node||!q.job.checkpoints)throw new DOMException('Move history mesh/checkpoint changed','AbortError');const r=frameOrdinaryOwner(q.h);await r.actor.ready;return r.actor;}\n",
+        "function frameOrdinaryHistoryCommand(direction){const epoch=frameOrdinarySceneEpoch,from=direction==='undo'?undoStack:redoStack,to=direction==='undo'?redoStack:undoStack;if(!from.at(-1)?.ordinaryMove&&![...frameOrdinaryOwners.values()].some(r=>r.actor.operations))return false;frameOrdinaryHistory=frameOrdinaryHistory.then(async()=>{await Promise.all([...frameOrdinaryOwners.values()].map(r=>r.actor.exact));if(epoch!==frameOrdinarySceneEpoch)return;const c=from.at(-1);if(!c?.ordinaryMove){if(c)direction==='undo'?undo():redo();return;}const actor=await frameOrdinaryResolveHistory(c);await actor.history(c.ordinaryMove.job,direction,{isCurrent:()=>epoch===frameOrdinarySceneEpoch&&from.at(-1)===c});if(from.at(-1)!==c)throw new DOMException('Move history changed','AbortError');from.pop();to.push(c);trimCommandStack(to);restoreSceneCommandState(c,direction==='undo'?'before':'after');afterCmd(c);}).catch(e=>{if(epoch!==frameOrdinarySceneEpoch)return;frameOrdinaryNotes.errors.push(String(e));frameNativeSelectionError(e);});return true;}\n",
+        "function frameOrdinaryBvhEnvelope(g){for(const r of frameOrdinaryOwners.values())if(r.geometry===g&&r.current()&&r.actor.root?.rows.length){const min=[0,0,0],max=[0,0,0];for(const row of r.actor.root.rows)if(row.live&&!row.retiring){const local=new THREE2.Matrix4().fromArray(row.inverse).multiply(new THREE2.Matrix4().fromArray(row.delta)).multiply(new THREE2.Matrix4().fromArray(row.world));for(let k=0;k<3;k++){min[k]+=Math.min(0,local.elements[12+k]);max[k]+=Math.max(0,local.elements[12+k]);}}for(let k=0;k<3;k++){const pad=Math.max(1,Math.abs(g.boundingBox.min.getComponent(k)),Math.abs(g.boundingBox.max.getComponent(k)))*1e-5;min[k]-=pad;max[k]+=pad;}return {min,max};}return null;}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 8414,
+      "deleteLines": 1,
+      "insert": [
+        "  return frameOrdinarySetMap(OBJ,h,{\n"
+      ]
+    },
+    {
+      "startLine": 8866,
+      "deleteLines": 1,
+      "insert": [
+        "    pickMeshes.get(h) === mesh && frameOrdinaryDeleteMap(pickMeshes,h), meshToHash.delete(mesh);\n"
+      ]
+    },
+    {
+      "startLine": 10202,
+      "deleteLines": 1,
+      "insert": [
+        " const envelope=frameOrdinaryBvhEnvelope(g);const lower=(i)=>bounds[i]+(envelope?.min[i%6]??0),upper=(i)=>bounds[i]+(envelope?.max[i%6-3]??0);\n",
+        " const entry=node=>{let lo=0,hi=Infinity;const at=node*6;for(let k=0;k<3;k++){if(Math.abs(D[k])<1e-30){if(O[k]<lower(at+k)||O[k]>upper(at+k+3))return Infinity;}else{const a=(lower(at+k)-O[k])/D[k],b=(upper(at+k+3)-O[k])/D[k];lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));}}return lo<=hi?lo:Infinity;};\n"
+      ]
+    },
+    {
+      "startLine": 10226,
+      "deleteLines": 1,
+      "insert": [
+        "  frameOrdinarySetMap(pickMeshes,h,mesh), meshToHash.set(mesh, h), pickMeshes.get(h).matrixAutoUpdate = !1;\n"
+      ]
+    },
+    {
+      "startLine": 11385,
+      "deleteLines": 1,
+      "insert": [
+        "  frameOrdinaryDeleteMap(pickMeshes,h), meshToHash.delete(mesh), threeOf.get(h) === mesh && threeOf.delete(h);\n"
+      ]
+    },
+    {
+      "startLine": 12879,
+      "deleteLines": 1,
+      "insert": [
+        "      savedNode ? (restoreChildren = savedNode.children.slice(), frameOrdinarySetMap(OBJ,newHash,savedNode), savedNode.children = [], savedParams && (objParams.set(newHash, { ...savedParams }), syncParametricObject(newHash))) : newHash = makeNode(name, type, enableSlot), created = !0;\n"
+      ]
+    },
+    {
+      "startLine": 12912,
+      "deleteLines": 1,
+      "insert": [
+        "      t && (t.parent?.remove(t), threeOf.delete(newHash)), objParams.delete(newHash), rootOrder = rootOrder.filter((c) => c !== newHash), frameOrdinaryDeleteMap(OBJ,newHash);\n"
+      ]
+    },
+    {
+      "startLine": 12917,
+      "deleteLines": 0,
+      "insert": [
+        "const frameOrdinaryDeleteEpoch=frameOrdinarySceneEpoch;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 12943,
+      "deleteLines": 1,
+      "insert": [
+        "          pm && (t.userData._wasPick = !0, t.userData._pickObject = pm, frameOrdinaryDeleteMap(pickMeshes,h), meshToHash.delete(pm));\n"
+      ]
+    },
+    {
+      "startLine": 12949,
+      "deleteLines": 1,
+      "insert": [
+        "        frameOrdinaryDeleteMap(OBJ,h);\n"
+      ]
+    },
+    {
+      "startLine": 12953,
+      "deleteLines": 1,
+      "insert": [
+        "      deleted = !1, list.forEach((h) => frameOrdinarySetMap(OBJ,h,{\n"
+      ]
+    },
+    {
+      "startLine": 12971,
+      "deleteLines": 1,
+      "insert": [
+        "          frameOrdinarySetMap(pickMeshes,h,pm), meshToHash.set(pm, h), t.userData._wasPick = !1, delete t.userData._pickObject;\n"
+      ]
+    },
+    {
+      "startLine": 12977,
+      "deleteLines": 1,
+      "insert": [
+        "    \n",
+        "frameOrdinaryRestoreHistoryOwners(list,frameOrdinaryDeleteEpoch);\n",
+        "},\n"
+      ]
+    },
+    {
+      "startLine": 13002,
+      "deleteLines": 1,
+      "insert": [
+        "          frameOrdinaryDeleteMap(pickMeshes,h), threeOf.delete(h), objParams.delete(h), animationTracks.delete(h), frameChannels.delete(h), evaluatedSplineCache.delete(h), sceneObjects.delete(h);\n"
+      ]
+    },
+    {
+      "startLine": 13072,
+      "deleteLines": 1,
+      "insert": [
+        "    setNodeFromWorld(n, frame), frameOrdinarySetMap(OBJ,newHash,n), parent ? (parent.children = parent.children.filter((h) => h !== newHash), parent.children.splice(Math.max(0, Math.min(replacementIndex < 0 ? parent.children.length : replacementIndex, parent.children.length)), 0, newHash)) : (rootOrder = rootOrder.filter((h) => h !== newHash), rootOrder.splice(Math.max(0, Math.min(replacementIndex < 0 ? rootOrder.length : replacementIndex, rootOrder.length)), 0, newHash));\n"
+      ]
+    },
+    {
+      "startLine": 13093,
+      "deleteLines": 1,
+      "insert": [
+        "    frameOrdinaryDeleteMap(pickMeshes,newHash), threeOf.delete(newHash), frameOrdinaryDeleteMap(OBJ,newHash), objParams.delete(newHash), animationTracks.delete(newHash), rootOrder = rootOrder.filter((h) => h !== newHash), mesh = null;\n"
+      ]
+    },
+    {
+      "startLine": 13143,
+      "deleteLines": 1,
+      "insert": [
+        "    setNodeFromWorld(n, frame), frameOrdinarySetMap(OBJ,newHash,n), parent ? (parent.children = parent.children.filter((h) => h !== newHash), parent.children.splice(Math.max(0, Math.min(replacementIndex < 0 ? parent.children.length : replacementIndex, parent.children.length)), 0, newHash)) : (rootOrder = rootOrder.filter((h) => h !== newHash), rootOrder.splice(Math.max(0, Math.min(replacementIndex < 0 ? rootOrder.length : replacementIndex, rootOrder.length)), 0, newHash)), objParams.set(newHash, { ...params }), installSplineObject(newHash, cloneSplineData(data));\n"
+      ]
+    },
+    {
+      "startLine": 13146,
+      "deleteLines": 1,
+      "insert": [
+        "    parent && (parent.children = parent.children.filter((h) => h !== newHash)), disposeSplineVisual(newHash, !0), frameOrdinaryDeleteMap(OBJ,newHash), objParams.delete(newHash), animationTracks.delete(newHash), rootOrder = rootOrder.filter((h) => h !== newHash);\n"
+      ]
+    },
+    {
+      "startLine": 13221,
+      "deleteLines": 1,
+      "insert": [
+        "    setNodeFromWorld(patch,frame);frameOrdinarySetMap(OBJ,patchHash,patch);const order=parent?parent.children:rootOrder;order.splice(Math.max(0,Math.min(index<0?order.length:index,order.length)),0,patchHash);objParams.set(patchHash,{__type:'spline_patch'});\n"
+      ]
+    },
+    {
+      "startLine": 13223,
+      "deleteLines": 1,
+      "insert": [
+        "    if(morphMerge)cage.tags.push(cloneTag(morphMerge.tag));frameOrdinarySetMap(OBJ,cageHash,cage);objParams.set(cageHash,{__type:'spline',angle:data.approximation?.angle||10});installSplineObject(cageHash,cloneSplineData(data));syncMeshParents();evaluateSplinePatchNode(patchHash);deleteNew=cmdDelete([patchHash]);created=true;\n"
+      ]
+    },
+    {
+      "startLine": 13239,
+      "deleteLines": 1,
+      "insert": [
+        "    setNodeFromWorld(n,frame);frameOrdinarySetMap(OBJ,newHash,n);const order=parent?parent.children:rootOrder;order.splice(Math.max(0,Math.min(index<0?order.length:index,order.length)),0,newHash);\n"
+      ]
+    },
+    {
+      "startLine": 13242,
+      "deleteLines": 1,
+      "insert": [
+        "  const destroy=()=>{const n=OBJ.get(newHash),parent=OBJ.get(n?.parent);if(parent)parent.children=parent.children.filter(h=>h!==newHash);disposeSplineVisual(newHash,true);frameOrdinaryDeleteMap(OBJ,newHash);objParams.delete(newHash);animationTracks.delete(newHash);rootOrder=rootOrder.filter(h=>h!==newHash);};\n"
+      ]
+    },
+    {
+      "startLine": 13340,
+      "deleteLines": 1,
+      "insert": [
+        "      }), childSnaps.forEach(restoreNode), frameOrdinaryDeleteMap(OBJ,g);\n"
+      ]
+    },
+    {
+      "startLine": 13424,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinarySetMap(OBJ,s.nh,{\n"
+      ]
+    },
+    {
+      "startLine": 13465,
+      "deleteLines": 1,
+      "insert": [
+        "        idx >= 0 && contentThrees.splice(idx, 1), m.parent ? m.parent.remove(m) : vpState.scene.remove(m), disposeObjThrees(m), frameOrdinaryDeleteMap(pickMeshes,h), meshToHash.delete(m), threeOf.delete(h);\n"
+      ]
+    },
+    {
+      "startLine": 13467,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinaryDeleteMap(OBJ,h);\n"
+      ]
+    },
+    {
+      "startLine": 13506,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinarySetMap(OBJ,s.nh,{\n"
+      ]
+    },
+    {
+      "startLine": 13542,
+      "deleteLines": 1,
+      "insert": [
+        "        idx >= 0 && contentThrees.splice(idx, 1), m.parent ? m.parent.remove(m) : vpState.scene.remove(m), disposeObjThrees(m), frameOrdinaryDeleteMap(pickMeshes,h), meshToHash.delete(m), threeOf.delete(h);\n"
+      ]
+    },
+    {
+      "startLine": 13544,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinaryDeleteMap(OBJ,h);\n"
+      ]
+    },
+    {
+      "startLine": 13645,
+      "deleteLines": 1,
+      "insert": [
+        " clearHistory();clearContent();disposeThreeMats();frameOrdinaryClearMap(OBJ);rootOrder=[];MATS.clear();defaultMatHash=null;treeAllFolded=false;treeFoldSnapshot=null;setBrowserIcon();\n"
+      ]
+    },
+    {
+      "startLine": 13648,
+      "deleteLines": 1,
+      "insert": [
+        " for(const [h,q] of scene.nodes){const n={hash:h,name:q.name??q.kind??'object',type:q.type??TYPE_MESH,parent:q.parent||null,children:[],visible:q.visible!==false,enabled:q.enabled!==false,enableSlot:!!q.enableSlot,tags:(q.tags||[]).map(t=>hashTag(t,true)),folded:!!q.folded,pos:new THREE2.Vector3(),lin:new THREE2.Matrix4(),pivot:new THREE2.Matrix4()};applyTR(n,q.transform||HASH_IDENTITY);if(q.pivot)applyPivot(n,q.pivot);n._libraryTagsExplicit=!!q.customTags;frameOrdinarySetMap(OBJ,h,n);sceneObjects.set(h,{hash:h,name:n.name,type:n.type,parent:n.parent,children:n.children,pos:n.pos,lin:n.lin,geom:q.geometry?{...q.geometry}:null,selects:q.selects||null,three:null});}\n"
+      ]
+    },
+    {
+      "startLine": 13661,
+      "deleteLines": 1,
+      "insert": [
+        "  stopVertexModeTool(), disableSoftSelection(!1), clearHistory(), clearContent(), disposeThreeMats(), frameOrdinaryClearMap(OBJ), rootOrder = [], MATS.clear(), defaultMatHash = null;\n"
+      ]
+    },
+    {
+      "startLine": 13803,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryBeforeExternalEdit([meshToHash.get(mesh)]);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 13860,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryClearOwners();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 13864,
+      "deleteLines": 1,
+      "insert": [
+        "  contentThrees = [], sceneObjects.clear(), frameOrdinaryClearMap(pickMeshes), meshToHash.clear(), threeOf.clear(), splineVisuals.clear(), splineData.clear(), splineSelection.vertices.clear(), splineSelection.handles.clear(), splineSelection.segments.clear(), splineSelection.active = null, splineSelection.anchor = null, splineSelection.pivot = null, splineMode = !1, splineDrawing = !1, splineDrawingLeavesVertexMode = !1, splineDrawSequence = null, splineLastVertex = null, splineDrawHistory = [], splineCtrlSequence = null, splineCtrlLastVertex = null, splineWorkPlane = null, splineBevelTool = null, splineBevelResult = null, splineOutlineTool = null, splineOutlineResult = null, clearSplineHover(), clearPolyHover();\n"
+      ]
+    },
+    {
+      "startLine": 15241,
+      "deleteLines": 0,
+      "insert": [
+        "  if(!preparedNative?.snapVertexPrepared){const query=frameOrdinaryToolSnap(cx,cy,vi,allowFace,kind);if(query)return query;}\n",
+        "  if(preparedNative?.snapCurrent&&!preparedNative.snapCurrent())throw new DOMException('Snap context changed','AbortError');\n",
+        "  if(preparedNative?.edgePrepared&&preparedNative.hit?.isCurrent&&!preparedNative.hit.isCurrent())throw new DOMException('Native edge snap changed','AbortError');\n"
+      ]
+    },
+    {
+      "startLine": 15243,
+      "deleteLines": 1,
+      "insert": [
+        "  let vh = preparedNative?.snapVertexPrepared?preparedNative.snapVertexHit:reliableHoverVertex(cx, cy, cam, r, vertexThrough, 10), p = new THREE2.Vector3();\n"
+      ]
+    },
+    {
+      "startLine": 15245,
+      "deleteLines": 1,
+      "insert": [
+        "    vh.mesh.updateMatrixWorld(!0), vh.world?p.copy(vh.world):p.fromBufferAttribute(vh.mesh.geometry.attributes.position, vh.vi).applyMatrix4(vh.mesh.matrixWorld);\n"
+      ]
+    },
+    {
+      "startLine": 15254,
+      "deleteLines": 2,
+      "insert": [
+        "  }, eh = preparedNative?.edgePrepared?preparedNative.hit:vpState.renderer?.isFrameNativeViewportRenderer?frameNativeEdgeRequest(cx,cy,cam,r,10,kind):reliableHoverEdge(cx, cy, cam, r, wire, 10);\n",
+        "  if(eh?.then){const reuse={...preparedNative,snapVertexPrepared:true,snapVertexHit:vh,snapCurrent:preparedNative?.snapCurrent??frameOrdinarySnapGuard(vi,kind)};return eh.then(hit=>resolveVertexToolSnap(cx,cy,vi,allowFace,{...reuse,edgePrepared:true,hit},kind));}\n"
+      ]
+    },
+    {
+      "startLine": 15354,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryBeforeExternalEdit([meshToHash.get(mesh)]);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15768,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryHover(cx,cy,preparedNative))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 15800,
+      "deleteLines": 1,
+      "insert": [
+        "    let hit2 = preparedNative?.vertexPrepared?preparedNative.vertexHit:reliableHoverVertex(cx, cy, vpState.views[vi].cam, r, selectionThroughShading(vi));\n"
+      ]
+    },
+    {
+      "startLine": 15921,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryPresentation(result,syncGizmo))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 16139,
+      "deleteLines": 1,
+      "insert": [
+        "    let hit2 = preparedNative?.vertexPrepared?preparedNative.vertexHit:reliableHoverVertex(cx, cy, cam, r, selectionThroughShading(vi));\n"
+      ]
+    },
+    {
+      "startLine": 16388,
+      "deleteLines": 6,
+      "insert": [
+        " frameCommitPreparedPolySelectionState(result);\n",
+        " frameCommitPolySelectionPresentation(result);\n"
+      ]
+    },
+    {
+      "startLine": 17272,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryModifierPointer(e);frameOrdinaryNewPointer(e);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17338,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryModifierPointer(e);if(frameOrdinaryDrainPointer(e))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17383,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryDrainPointer(e,true))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17504,
+      "deleteLines": 1,
+      "insert": [
+        "    const vertex=polyMode&&polyElementMode==='vertex'&&!vertexTools.mode?await frameOrdinaryVertexPick(event.clientX,event.clientY,vi,r,vpState.views[vi].cam,current,{radius:event.ctrlKey||event.metaKey?Math.max(EDIT_HIT_PX,10):EDIT_HIT_PX}):{handled:false,release(){}};\n",
+        "try{if(!current()||vertex.handled&&!vertex.isCurrent())throw new DOMException('Vertex click context changed before commit','AbortError');const vertexHit=vertex.hit&&vertex.hit.d<=EDIT_HIT_PX*EDIT_HIT_PX?vertex.hit:null;let addPointSnap=null,addPointSnapPrepared=false;if((event.ctrlKey||event.metaKey)&&vertex.handled&&!vertexHit){addPointSnap=await resolveVertexToolSnap(event.clientX,event.clientY,vi,true,{snapVertexPrepared:true,snapVertexHit:vertex.hit&&vertex.hit.d<=100?vertex.hit:null,snapCurrent:current},'click');addPointSnapPrepared=true;if(!current()||!vertex.isCurrent())throw new DOMException('Ctrl click context changed before commit','AbortError');}return frameNativeCommitClick(()=>doPick(event,{hit,vertexPrepared:vertex.handled,vertexHit,addPointSnapPrepared,addPointSnap}));}finally{vertex.release();}\n"
+      ]
+    },
+    {
+      "startLine": 17533,
+      "deleteLines": 1,
+      "insert": [
+        "    if (polyElementMode === \"vertex\" && ctrl && !vertexTools.mode && !(preparedNative?.vertexPrepared?preparedNative.vertexHit:reliableHoverVertex(e.clientX, e.clientY, vpState.views[vi].cam, r, selectionThroughShading(vi)))) {\n"
+      ]
+    },
+    {
+      "startLine": 17535,
+      "deleteLines": 1,
+      "insert": [
+        "      return frameAfterPicker(addPointAt(e.clientX,e.clientY,vi,preparedNative?.addPointSnapPrepared?{snap:preparedNative.addPointSnap}:null),()=>placeGizmoForSelection());\n"
+      ]
+    },
+    {
+      "startLine": 17774,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryHistoryGuard();if(c&&!c.renderOnly)frameOrdinaryAssertExact(frameOrdinaryCommandTargets(c));\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17779,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryAfterExternalCommand(c);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17783,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryHistoryCommand('undo'))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 17794,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryHistoryCommand('redo'))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 19463,
+      "deleteLines": 1,
+      "insert": [
+        "  const n=OBJ.get(h),owner=objParams.get(h)?.motionOwner;if(n?.parent){const p=OBJ.get(n.parent);if(p)p.children=p.children.filter(x=>x!==h);}rootOrder=rootOrder.filter(x=>x!==h);selNodes.delete(h);disposeSplineVisual(h,true);frameOrdinaryDeleteMap(OBJ,h);objParams.delete(h);if(owner&&frameMotionPaths.get(owner)===h)frameMotionPaths.delete(owner);\n"
+      ]
+    },
+    {
+      "startLine": 19469,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const x of s.paths){if(!OBJ.has(x.h)){const n={hash:x.h,pos:new THREE2.Vector3(),lin:new THREE2.Matrix4(),pivot:new THREE2.Matrix4()};frameOrdinarySetMap(OBJ,x.h,n);}restoreNode(x.node);objParams.set(x.h,cloneP(x.params));frameMotionPaths.set(x.owner,x.h);frameAttachPathOrder(x.h,x.owner);installSplineObject(x.h,cloneSplineData(x.data));}\n"
+      ]
+    },
+    {
+      "startLine": 21401,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryAssertGeometryExact(g);const ordinary=frameOrdinaryCanonicalSaveSnapshot(g);if(ordinary)return ordinary;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 22723,
+      "deleteLines": 1,
+      "insert": [
+        "      if(r.originalMesh){r.originalMesh.parent?.remove(r.originalMesh);frameOrdinaryDeleteMap(pickMeshes,r.h);meshToHash.delete(r.originalMesh);threeOf.delete(r.h);const at=contentThrees.indexOf(r.originalMesh);if(at>=0)contentThrees.splice(at,1);for(const map of [wireOverlays,polyPointOverlays,creaseOverlays]){const o=map.get(r.h);if(o){o.parent?.remove(o);o.geometry?.dispose();o.material?.dispose();map.delete(r.h);}}}\n"
+      ]
+    },
+    {
+      "startLine": 22728,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinarySetMap(OBJ,r.child,child);objParams.set(r.child,{__type:'spline',angle:r.data.approximation?.angle||10});installSplineObject(r.child,cloneSplineData(r.data));\n"
+      ]
+    },
+    {
+      "startLine": 22734,
+      "deleteLines": 1,
+      "insert": [
+        "    for(const r of records){disposeReplicaState(r.h,replicaStates.get(r.h));disposeSplineVisual(r.child,true);frameOrdinaryDeleteMap(OBJ,r.child);objParams.delete(r.child);\n"
+      ]
+    },
+    {
+      "startLine": 22838,
+      "deleteLines": 1,
+      "insert": [
+        "    frameOrdinarySetMap(OBJ,h,n), rootOrder = rootOrder.filter((x) => x !== h), rootOrder.unshift(h), objParams.set(h, { ...params }), installSplineObject(h, cloneSplineData(data)), selNodes.clear(), selTags.clear(), selNodes.add(h), anchorNode = n, treeChanged(), refreshSelClasses(), activateTab(\"tabAttributes\"), enterDrawing ? (enterSplineEdit(!0), splineDrawingLeavesVertexMode = leaveVertexModeAfterDraw) : splineMode && leaveSplineEdit();\n"
+      ]
+    },
+    {
+      "startLine": 22840,
+      "deleteLines": 1,
+      "insert": [
+        "    splineMode && leaveSplineEdit(), disposeSplineVisual(h, !0), frameOrdinaryDeleteMap(OBJ,h), objParams.delete(h), rootOrder = rootOrder.filter((x) => x !== h), selNodes.clear(), selTags.clear();\n"
+      ]
+    },
+    {
+      "startLine": 24470,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryAwaitMeasurements(transform))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 24994,
+      "deleteLines": 0,
+      "insert": [
+        "measurements??=frameOrdinaryCurrentMeasurements();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 25424,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryBeforeExternalEdit([...s.keys()]);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 25542,
+      "deleteLines": 1,
+      "insert": [
+        "  const ordinary=frameOrdinaryConnected(options,{signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&valid()});job.ordinary=ordinary;\n",
+        "  job.promise=(ordinary?ordinary.promise.then(()=>true):framePrepareNativeConnected(options,{signal:controller.signal,isCurrent:()=>!controller.signal.aborted&&valid(),yieldTask:()=>tasks.yield()}).then(result=>{\n"
+      ]
+    },
+    {
+      "startLine": 25544,
+      "deleteLines": 2,
+      "insert": [
+        "  })).catch(error=>{if(error.name!=='AbortError'){console.error('Connected selection failed',error);frameNativeSelectionError(error);}return false;}).finally(()=>{\n",
+        "    job.ordinary=null;tasks.dispose();removeEventListener('keydown',key,true);if(framePolySelectionJob===job)framePolySelectionJob=null;\n"
+      ]
+    },
+    {
+      "startLine": 25566,
+      "deleteLines": 1,
+      "insert": [
+        "    frameStartNativeConnected({domain:hit.domain,clicked:hit,nativeOwned:e.frameNativeDrained===true,mode:e.ctrlKey||e.metaKey?'invert':e.shiftKey?'add':'replace'});if(e.frameNativeDrained)return framePolySelectionJob?.promise||frameOrdinaryPrepared?.promise;\n"
+      ]
+    },
+    {
+      "startLine": 25657,
+      "deleteLines": 0,
+      "insert": [
+        "if(!frameOrdinaryInput)frameOrdinaryBeforeExternalEdit(snap?[...snap.keys()]:null);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26261,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryAwaitMeasurements(measurements)){if(!frameOrdinaryInput)setGizmoVisible(false);return;}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26812,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryGizmoAdmission(g,e))return true;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 26898,
+      "deleteLines": 1,
+      "insert": [
+        "function frameAffineAuthoringPending(hashes=null){\n",
+        "if(frameOrdinaryExactPending(hashes))return true;\n",
+        "const wanted=hashes?new Set(hashes):null;return [...frameAffineStages.values()].some(stage=>(!wanted||wanted.has(stage.h))&&frameAffineStageCurrent(stage)&&(!stage.canonicalSnapshot||stage.canonicalSnapshot!==stage.snapshot));}\n"
+      ]
+    },
+    {
+      "startLine": 26908,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryExactPending(hashes))return frameOrdinaryContinueExact(()=>frameAffineContinueExact(continuation,hashes,{rollback,rollbackCurrent,onError}),hashes);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 27288,
+      "deleteLines": 0,
+      "insert": [
+        "await frameOrdinaryWaitForSave(signal);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 27372,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryAssertExact(hashes);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 27533,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinarySupported()){frameOrdinaryPrepare();return null;}\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 27544,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinaryStart(e))return true;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 27554,
+      "deleteLines": 2,
+      "insert": [
+        "function frameRigidApplyDelta(delta){\n",
+        "if(frameOrdinaryApply(delta))return true;\n",
+        "const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-during-input');return true;}s.delta.copy(delta);s.afterGizmo=getGizmoWorldArray().slice();frameRigidNotes.moves++;if(s.previewReady)frameAffineSubmit(s);else if(s.ready&&frameRigidExecuting===s)frameRigidSubmit(s);return true;}\n",
+        "function frameRigidFinish(e){\n",
+        "if(frameOrdinaryFinish(e))return true;\n",
+        "const s=frameRigidInput;if(!s||frameRigidFallthrough)return false;s.released=true;s.cancel=!!s.cancel||e?.type==='pointercancel'||s.gizmo.every((v,i)=>v===getGizmoWorldArray()[i]);s.releaseEvent=e;frameRigidInput=null;frameRigidClearInput();if(s.cancel)s.abortResolve(false);if(!frameRigidTransactionCurrent(s)){s.cancel=true;frameRigidAbortAll('source-changed-before-release');return true;}frameRigidDrain();return true;}\n"
+      ]
+    },
+    {
+      "startLine": 27679,
+      "deleteLines": 0,
+      "insert": [
+        "if(frameOrdinarySupported()&&gizDrag?.mode==='move'&&!event?.ctrlKey&&!event?.metaKey&&!event?.shiftKey)return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 28278,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinarySaveCheck();\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 28329,
+      "deleteLines": 1,
+      "insert": [
+        "function nativeSaveCheck(signal){\n",
+        "if(nativeSceneSave?.capturing)frameOrdinarySaveCheck();\n",
+        "if(signal?.aborted)throw signal.reason||new DOMException('Save cancelled','AbortError');}\n"
+      ]
+    },
+    {
+      "startLine": 28386,
+      "deleteLines": 0,
+      "insert": [
+        "if(!nativeSceneSave)frameOrdinarySavingBoundary=null;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 28482,
+      "deleteLines": 1,
+      "insert": [
+        "      if (setNodeFromLocal(n, record.matrix), frameOrdinarySetMap(OBJ,record.h,n), record.spline)\n"
+      ]
+    },
+    {
+      "startLine": 28511,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinaryDeleteMap(pickMeshes,record.h);\n"
+      ]
+    },
+    {
+      "startLine": 28513,
+      "deleteLines": 1,
+      "insert": [
+        "      t?.isMesh && meshToHash.delete(t), threeOf.delete(record.h), objParams.delete(record.h), frameOrdinaryDeleteMap(OBJ,record.h);\n"
+      ]
+    },
+    {
+      "startLine": 29034,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryModifierKey(e,true);if(frameOrdinaryEscape(e))return;\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 29210,
+      "deleteLines": 0,
+      "insert": [
+        "frameOrdinaryModifierKey(e,false);\n",
+        "\n"
+      ]
+    },
+    {
+      "startLine": 29803,
+      "deleteLines": 1,
+      "insert": [
+        "        frameOrdinarySetMap(OBJ,h,n), objParams.set(h, { __type: \"instance\", source });\n"
+      ]
+    },
+    {
+      "startLine": 29811,
+      "deleteLines": 1,
+      "insert": [
+        "        t && (t.parent?.remove(t), threeOf.delete(h)), frameOrdinaryDeleteMap(OBJ,h), objParams.delete(h);\n"
+      ]
+    },
+    {
+      "startLine": 29836,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinarySetMap(OBJ,h,node), rootOrder = [h, ...rootOrder.filter((x) => x !== h)];\n"
+      ]
+    },
+    {
+      "startLine": 29844,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinaryDeleteMap(pickMeshes,h), threeOf.delete(h), frameOrdinaryDeleteMap(OBJ,h), rootOrder = rootOrder.filter((x) => x !== h), mesh = null;\n"
+      ]
+    },
+    {
+      "startLine": 29873,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinarySetMap(OBJ,h,node), rootOrder = rootOrder.filter((x) => x !== h), rootOrder.unshift(h);\n"
+      ]
+    },
+    {
+      "startLine": 29882,
+      "deleteLines": 1,
+      "insert": [
+        "      frameOrdinaryDeleteMap(pickMeshes,h), threeOf.delete(h), frameOrdinaryDeleteMap(OBJ,h), rootOrder = rootOrder.filter((x) => x !== h), mesh = null;\n"
+      ]
+    },
+    {
+      "startLine": 31555,
+      "deleteLines": 1,
+      "insert": [
+        "        disposeSplineVisual(t.helper,true);frameOrdinaryDeleteMap(OBJ,t.helper);objParams.delete(t.helper);\n"
+      ]
+    }
+  ]
+}

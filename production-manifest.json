@@ -1,5 +1,5 @@
 {
-  "version": "r247-selection-presentation-ownership",
+  "version": "r248-ordinary-move-worker-picking",
   "assets": {
     "frame-three-core": {
       "path": "./modules/frame-three-core.9edde002b066a9a05676.js",
@@ -151,9 +151,9 @@
       "critical": true
     },
     "editor": {
-      "path": "./modules/editor.b46b7edb7b8fab6c0f1e.js",
-      "sha256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28",
-      "bytes": 2888003,
+      "path": "./modules/editor.14694d2e39a34bf370f7.js",
+      "sha256": "14694d2e39a34bf370f790dd94d545c8f9239f7a0bda6ee08415e41940ae8bfe",
+      "bytes": 2935580,
       "critical": true
     },
     "overhang-worker": {
@@ -359,6 +359,90 @@
       "path": "./modules/native.4ec912c8a6f2b4d498f1.js",
       "sha256": "4ec912c8a6f2b4d498f1d6b38bb235c9cd9ee40de57c64d56a33b92b3cfec440",
       "bytes": 578886,
+      "critical": true
+    },
+    "ordinary-gpu-island-preview": {
+      "path": "./modules/gpu-island-preview.dc9be973a4cfd7c146a1.js",
+      "sha256": "dc9be973a4cfd7c146a1483a370d52c195df32e1ba9880d1d742262ae45ce1e1",
+      "bytes": 18505,
+      "critical": true
+    },
+    "ordinary-ordinary-move-upload": {
+      "path": "./modules/ordinary-move-upload.d7d183518bf9a821443c.js",
+      "sha256": "d7d183518bf9a821443c17ec8ce434d50195d6d42af5d7eb055262bbd00ef1b0",
+      "bytes": 4162,
+      "critical": true
+    },
+    "ordinary-ordinary-move-display": {
+      "path": "./modules/ordinary-move-display.f8db0a092f53a52ae3d2.js",
+      "sha256": "f8db0a092f53a52ae3d29535d8d51081cbc087717f53ddb9417b4443b273fb8a",
+      "bytes": 9141,
+      "critical": true
+    },
+    "ordinary-topology-islands": {
+      "path": "./modules/topology-islands.58b33b3eb8d5488469a5.js",
+      "sha256": "58b33b3eb8d5488469a565766b6d8387e4618cac0409d9c5f38125a7e6f232fc",
+      "bytes": 18833,
+      "critical": true
+    },
+    "ordinary-connected-selection": {
+      "path": "./modules/connected-selection.65bdcdb810ce4d9cf77f.js",
+      "sha256": "65bdcdb810ce4d9cf77fd9df4dd21de86e76cbd765cd12225c7d437bdd0a63e5",
+      "bytes": 3506,
+      "critical": true
+    },
+    "ordinary-ordinary-move-history": {
+      "path": "./modules/ordinary-move-history.b78f5eaa319c090a5606.js",
+      "sha256": "b78f5eaa319c090a5606e48400fa277946c70352938896237aae5766456edc66",
+      "bytes": 3205,
+      "critical": true
+    },
+    "ordinary-ordinary-move-selection": {
+      "path": "./modules/ordinary-move-selection.76a7c0c8f044c78d6ca6.js",
+      "sha256": "76a7c0c8f044c78d6ca6121f95d57c600d60cd1eb6bc035904a51f0d61b5153d",
+      "bytes": 1670,
+      "critical": true
+    },
+    "ordinary-affine-corner-worker": {
+      "path": "./modules/affine-corner-worker.d91f5ae84673b0868284.js",
+      "sha256": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1",
+      "bytes": 15428,
+      "critical": true
+    },
+    "ordinary-ordinary-move-core": {
+      "path": "./modules/ordinary-move-core.dd983ce785d52a4d38b7.js",
+      "sha256": "dd983ce785d52a4d38b791b63b6a2a25e1c010ef8fd3d65b4ce475ff5aff0728",
+      "bytes": 18761,
+      "critical": true
+    },
+    "ordinary-ordinary-move-kernels": {
+      "path": "./modules/ordinary-move-kernels.06b12922940fdd76742a.js",
+      "sha256": "06b12922940fdd76742a1740b9c35ededa45884d0ddf87d39a43f713419ff369",
+      "bytes": 21421,
+      "critical": true
+    },
+    "ordinary-ordinary-move-picking": {
+      "path": "./modules/ordinary-move-picking.4d392a9aa1df2ba9c309.js",
+      "sha256": "4d392a9aa1df2ba9c309c7cd4c3616693b5a465934bfcb1ee42314c6168fb8b1",
+      "bytes": 2562,
+      "critical": true
+    },
+    "ordinary-ordinary-move-compute": {
+      "path": "./modules/ordinary-move-compute.45cbb3a76d12de5a56cc.js",
+      "sha256": "45cbb3a76d12de5a56ccb6a7424efc94cb36625f09a9abeefeb745102049d1b0",
+      "bytes": 1988,
+      "critical": true
+    },
+    "ordinary-ordinary-move-worker": {
+      "path": "./modules/ordinary-move-worker.2f91d2ffa83fd9aac044.js",
+      "sha256": "2f91d2ffa83fd9aac044702b752ae81b54b830110d4c1f77caace2f103eeeb02",
+      "bytes": 21409,
+      "critical": true
+    },
+    "ordinary-ordinary-move-actor": {
+      "path": "./modules/ordinary-move-actor.f2e631f4f50c5249b548.js",
+      "sha256": "f2e631f4f50c5249b548cb7d832324ed802a596f2cf8e5543dd19c6cbcc5c146",
+      "bytes": 17413,
       "critical": true
     }
   }

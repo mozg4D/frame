@@ -1,6 +1,6 @@
 {
   "schema": "frame-current-editor-source-files-v1",
-  "version": "r247-selection-presentation-ownership",
+  "version": "r248-ordinary-move-worker-picking",
   "files": [
     {
       "path": "affine-component-preview.mjs",
@@ -24,8 +24,8 @@
     },
     {
       "path": "build-manifest.json",
-      "bytes": 1675,
-      "sha256": "6a3fc03048c8a0315e4fa1b74c869639494adb91e51afc9141a97c1cbf80b67f"
+      "bytes": 1717,
+      "sha256": "34f8722c00547de1ae40084bf74bb95098d2a05dcc3b1842945ca5006e23ee57"
     },
     {
       "path": "derived-selection-integration.json",
@@ -89,13 +89,13 @@
     },
     {
       "path": "README.md",
-      "bytes": 10072,
-      "sha256": "c3c722ae1678d5e8ff4fcb052391d8569ee0d1366a52002b8913bb04933e935e"
+      "bytes": 11097,
+      "sha256": "6e89d595bb62c4817851c8a300de0b22be2a17d104744b565841a4a5f1484957"
     },
     {
       "path": "rebuild.mjs",
-      "bytes": 18894,
-      "sha256": "e337956408d33706c4562b56f9681396f79d75b403993b69050c26225beb1fdf"
+      "bytes": 19402,
+      "sha256": "028929a94a6f59f90951ab7db141360b29dff4112ac1a821c8009d64326b4ce5"
     },
     {
       "path": "rigid-component-preview.mjs",
@@ -971,6 +971,41 @@
       "path": "wire-marquee-integration.json",
       "bytes": 2839,
       "sha256": "349a4443ea21306213776e024afdc9a00bca6870cebc1cc1594650181b52ee75"
+    },
+    {
+      "path": "ordinary-move-base-index.html",
+      "bytes": 103976,
+      "sha256": "82b8640d7bf7c39246957745decf8b15cd2fab09fc80c5087db2ff7fa1510188"
+    },
+    {
+      "path": "ordinary-move-build.mjs",
+      "bytes": 19287,
+      "sha256": "37fc358cfae8988c63b587f6577ad32c639d72fd3a4730b67a1389b4b51a6063"
+    },
+    {
+      "path": "ordinary-move-controls.json",
+      "bytes": 1453,
+      "sha256": "58ffb24b6861ac7f8ac130715b7a57d74ef85b43dcc323ebe0a8b38b7dc2ae3e"
+    },
+    {
+      "path": "ordinary-move-integration.mjs",
+      "bytes": 42565,
+      "sha256": "3ab029952e908589f7f4ae76d9750a37b660722d3c391c181beaf912776a112b"
+    },
+    {
+      "path": "ordinary-move-release.mjs",
+      "bytes": 5193,
+      "sha256": "7343395baf2b86745d25d769031861c253d05993bd66d8e92a4ed7769361a6f8"
+    },
+    {
+      "path": "ordinary-move-runtime-manifest.json",
+      "bytes": 9509,
+      "sha256": "94298f3aebb37db33c750de762d35f3159e2b726800dfbd1980b3f0d6dfbcc28"
+    },
+    {
+      "path": "r248-integration.json",
+      "bytes": 74586,
+      "sha256": "1cf1b8e80531fe6e612efb4a3fa8356235dcdfec248d430e4de0e3f8280345ad"
     }
   ]
 }

@@ -1,0 +1,25 @@
+{
+  "cases": 164,
+  "suites": [
+    "editor-source/tests/ordinary-island-move/actor-controls.mjs",
+    "editor-source/tests/ordinary-island-move/composed-controls.mjs",
+    "editor-source/tests/ordinary-island-move/connected-bookkeeping-controls.mjs",
+    "editor-source/tests/ordinary-island-move/connected-lifecycle-controls.mjs",
+    "editor-source/tests/ordinary-island-move/core-controls.mjs",
+    "editor-source/tests/ordinary-island-move/editor-controls.mjs",
+    "editor-source/tests/ordinary-island-move/event-entry-controls.mjs",
+    "editor-source/tests/ordinary-island-move/history-controls.mjs",
+    "editor-source/tests/ordinary-island-move/hover-entry-controls.mjs",
+    "editor-source/tests/ordinary-island-move/lifetime-controls.mjs",
+    "editor-source/tests/ordinary-island-move/pivot-failure-controls.mjs",
+    "editor-source/tests/ordinary-island-move/renderer-controls.mjs",
+    "editor-source/tests/ordinary-island-move/save-controls.mjs",
+    "editor-source/tests/ordinary-island-move/scene-lifecycle-controls.mjs",
+    "editor-source/tests/ordinary-island-move/selection-entry-controls.mjs",
+    "editor-source/tests/ordinary-island-move/serialization-controls.mjs",
+    "editor-source/tests/ordinary-island-move/worker-controls.mjs",
+    "native-source/tests/ordinary-move-display.mjs",
+    "native-source/tests/ordinary-move-upload.mjs",
+    "editor-source/tests/ordinary-island-move/modifier-picker-entry-controls.mjs"
+  ]
+}

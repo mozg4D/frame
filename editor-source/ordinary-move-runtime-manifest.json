@@ -1,0 +1,230 @@
+{
+  "version": "r248-ordinary-move-worker-picking",
+  "candidateSHA256": "49e28a3e889d1f449ad7c3dec6f0048345d809100f9f6eacbaa4ed8e7f28f83f",
+  "productionEditor": "modules/editor.14694d2e39a34bf370f7.js",
+  "productionSHA256": "14694d2e39a34bf370f790dd94d545c8f9239f7a0bda6ee08415e41940ae8bfe",
+  "productionBytes": 2935580,
+  "modules": [
+    {
+      "source": "native-source/gpu-island-preview.mjs",
+      "sourceSHA256": "dc9be973a4cfd7c146a1483a370d52c195df32e1ba9880d1d742262ae45ce1e1",
+      "path": "modules/gpu-island-preview.dc9be973a4cfd7c146a1.js",
+      "sha256": "dc9be973a4cfd7c146a1483a370d52c195df32e1ba9880d1d742262ae45ce1e1",
+      "bytes": 18505,
+      "references": []
+    },
+    {
+      "source": "native-source/ordinary-move-upload.mjs",
+      "sourceSHA256": "9306a477da2c6437277f6b80b2bab05fd2a63301bdccfea6a2e2928d4fb7d18c",
+      "path": "modules/ordinary-move-upload.d7d183518bf9a821443c.js",
+      "sha256": "d7d183518bf9a821443c17ec8ce434d50195d6d42af5d7eb055262bbd00ef1b0",
+      "bytes": 4162,
+      "references": [
+        {
+          "source": "native-source/gpu-island-preview.mjs",
+          "destination": "modules/gpu-island-preview.dc9be973a4cfd7c146a1.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-display.mjs",
+      "sourceSHA256": "3b4f8c55e84e72611154d7551c47cfd800f9ee3f907e0a1e139d5cf133ac96d2",
+      "path": "modules/ordinary-move-display.f8db0a092f53a52ae3d2.js",
+      "sha256": "f8db0a092f53a52ae3d29535d8d51081cbc087717f53ddb9417b4443b273fb8a",
+      "bytes": 9141,
+      "references": [
+        {
+          "source": "native-source/ordinary-move-upload.mjs",
+          "destination": "modules/ordinary-move-upload.d7d183518bf9a821443c.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/topology-islands.mjs",
+      "sourceSHA256": "58b33b3eb8d5488469a565766b6d8387e4618cac0409d9c5f38125a7e6f232fc",
+      "path": "modules/topology-islands.58b33b3eb8d5488469a5.js",
+      "sha256": "58b33b3eb8d5488469a565766b6d8387e4618cac0409d9c5f38125a7e6f232fc",
+      "bytes": 18833,
+      "references": []
+    },
+    {
+      "source": "native-source/connected-selection.mjs",
+      "sourceSHA256": "c8d0f98694aabc0e4de4695b159e65cbf68b84138819d27fa18dbe20651cd58c",
+      "path": "modules/connected-selection.65bdcdb810ce4d9cf77f.js",
+      "sha256": "65bdcdb810ce4d9cf77fd9df4dd21de86e76cbd765cd12225c7d437bdd0a63e5",
+      "bytes": 3506,
+      "references": [
+        {
+          "source": "native-source/topology-islands.mjs",
+          "destination": "modules/topology-islands.58b33b3eb8d5488469a5.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-history.mjs",
+      "sourceSHA256": "b78f5eaa319c090a5606e48400fa277946c70352938896237aae5766456edc66",
+      "path": "modules/ordinary-move-history.b78f5eaa319c090a5606.js",
+      "sha256": "b78f5eaa319c090a5606e48400fa277946c70352938896237aae5766456edc66",
+      "bytes": 3205,
+      "references": []
+    },
+    {
+      "source": "native-source/ordinary-move-selection.mjs",
+      "sourceSHA256": "76a7c0c8f044c78d6ca6121f95d57c600d60cd1eb6bc035904a51f0d61b5153d",
+      "path": "modules/ordinary-move-selection.76a7c0c8f044c78d6ca6.js",
+      "sha256": "76a7c0c8f044c78d6ca6121f95d57c600d60cd1eb6bc035904a51f0d61b5153d",
+      "bytes": 1670,
+      "references": []
+    },
+    {
+      "source": "native-source/affine-corner-worker.mjs",
+      "sourceSHA256": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1",
+      "path": "modules/affine-corner-worker.d91f5ae84673b0868284.js",
+      "sha256": "d91f5ae84673b08682845b1165b3fcac9715470fe0a9842ca0db3f3e912990e1",
+      "bytes": 15428,
+      "references": []
+    },
+    {
+      "source": "native-source/ordinary-move-core.mjs",
+      "sourceSHA256": "b87882f12a6ef53364d0563ff3f1cbf37232e116846e2cab0bf00af886e702f7",
+      "path": "modules/ordinary-move-core.dd983ce785d52a4d38b7.js",
+      "sha256": "dd983ce785d52a4d38b791b63b6a2a25e1c010ef8fd3d65b4ce475ff5aff0728",
+      "bytes": 18761,
+      "references": [
+        {
+          "source": "native-source/affine-corner-worker.mjs",
+          "destination": "modules/affine-corner-worker.d91f5ae84673b0868284.js"
+        },
+        {
+          "source": "native-source/ordinary-move-history.mjs",
+          "destination": "modules/ordinary-move-history.b78f5eaa319c090a5606.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-kernels.mjs",
+      "sourceSHA256": "e735080b99a0891310d15400a8bb194c2a1d134e14a6c75ee3f193fe400d39ca",
+      "path": "modules/ordinary-move-kernels.06b12922940fdd76742a.js",
+      "sha256": "06b12922940fdd76742a1740b9c35ededa45884d0ddf87d39a43f713419ff369",
+      "bytes": 21421,
+      "references": [
+        {
+          "source": "modules/frame-three-core.9edde002b066a9a05676.js",
+          "destination": "modules/frame-three-core.9edde002b066a9a05676.js"
+        },
+        {
+          "source": "native-source/ordinary-move-core.mjs",
+          "destination": "modules/ordinary-move-core.dd983ce785d52a4d38b7.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-picking.mjs",
+      "sourceSHA256": "ae18c54de3fc12baa45d73ebb653edfb18500dcb989368acfd3942893bc24e8a",
+      "path": "modules/ordinary-move-picking.4d392a9aa1df2ba9c309.js",
+      "sha256": "4d392a9aa1df2ba9c309c7cd4c3616693b5a465934bfcb1ee42314c6168fb8b1",
+      "bytes": 2562,
+      "references": [
+        {
+          "source": "modules/frame-three-core.9edde002b066a9a05676.js",
+          "destination": "modules/frame-three-core.9edde002b066a9a05676.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-compute.mjs",
+      "sourceSHA256": "a9195f62b1072924a40f06e9c160f97d844dc3f32f21275a1df0f8c90c7b5227",
+      "path": "modules/ordinary-move-compute.45cbb3a76d12de5a56cc.js",
+      "sha256": "45cbb3a76d12de5a56ccb6a7424efc94cb36625f09a9abeefeb745102049d1b0",
+      "bytes": 1988,
+      "references": [
+        {
+          "source": "native-source/ordinary-move-core.mjs",
+          "destination": "modules/ordinary-move-core.dd983ce785d52a4d38b7.js"
+        },
+        {
+          "source": "native-source/ordinary-move-kernels.mjs",
+          "destination": "modules/ordinary-move-kernels.06b12922940fdd76742a.js"
+        },
+        {
+          "source": "native-source/ordinary-move-history.mjs",
+          "destination": "modules/ordinary-move-history.b78f5eaa319c090a5606.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-worker.mjs",
+      "sourceSHA256": "5926d4d5f9f6484b5feb4dfd2f41bd385f6c24ea1d211b213e43ba9f4305040a",
+      "path": "modules/ordinary-move-worker.2f91d2ffa83fd9aac044.js",
+      "sha256": "2f91d2ffa83fd9aac044702b752ae81b54b830110d4c1f77caace2f103eeeb02",
+      "bytes": 21409,
+      "references": [
+        {
+          "source": "native-source/ordinary-move-core.mjs",
+          "destination": "modules/ordinary-move-core.dd983ce785d52a4d38b7.js"
+        },
+        {
+          "source": "native-source/affine-corner-worker.mjs",
+          "destination": "modules/affine-corner-worker.d91f5ae84673b0868284.js"
+        },
+        {
+          "source": "native-source/ordinary-move-kernels.mjs",
+          "destination": "modules/ordinary-move-kernels.06b12922940fdd76742a.js"
+        },
+        {
+          "source": "native-source/topology-islands.mjs",
+          "destination": "modules/topology-islands.58b33b3eb8d5488469a5.js"
+        },
+        {
+          "source": "native-source/connected-selection.mjs",
+          "destination": "modules/connected-selection.65bdcdb810ce4d9cf77f.js"
+        },
+        {
+          "source": "native-source/ordinary-move-picking.mjs",
+          "destination": "modules/ordinary-move-picking.4d392a9aa1df2ba9c309.js"
+        },
+        {
+          "source": "native-source/ordinary-move-history.mjs",
+          "destination": "modules/ordinary-move-history.b78f5eaa319c090a5606.js"
+        },
+        {
+          "source": "native-source/ordinary-move-selection.mjs",
+          "destination": "modules/ordinary-move-selection.76a7c0c8f044c78d6ca6.js"
+        },
+        {
+          "source": "native-source/ordinary-move-compute.mjs",
+          "destination": "modules/ordinary-move-compute.45cbb3a76d12de5a56cc.js"
+        }
+      ]
+    },
+    {
+      "source": "native-source/ordinary-move-actor.mjs",
+      "sourceSHA256": "98e063b304564cbd6dbceab9c21d832c7a4bf116603f76dfd1068e1fb66ae58b",
+      "path": "modules/ordinary-move-actor.f2e631f4f50c5249b548.js",
+      "sha256": "f2e631f4f50c5249b548cb7d832324ed802a596f2cf8e5543dd19c6cbcc5c146",
+      "bytes": 17413,
+      "references": [
+        {
+          "source": "native-source/ordinary-move-display.mjs",
+          "destination": "modules/ordinary-move-display.f8db0a092f53a52ae3d2.js"
+        },
+        {
+          "source": "native-source/connected-selection.mjs",
+          "destination": "modules/connected-selection.65bdcdb810ce4d9cf77f.js"
+        },
+        {
+          "source": "native-source/ordinary-move-history.mjs",
+          "destination": "modules/ordinary-move-history.b78f5eaa319c090a5606.js"
+        },
+        {
+          "source": "native-source/ordinary-move-selection.mjs",
+          "destination": "modules/ordinary-move-selection.76a7c0c8f044c78d6ca6.js"
+        },
+        {
+          "source": "native-source/ordinary-move-worker.mjs",
+          "destination": "modules/ordinary-move-worker.2f91d2ffa83fd9aac044.js"
+        }
+      ]
+    }
+  ]
+}

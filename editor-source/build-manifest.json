@@ -1,9 +1,9 @@
 {
   "schema": "frame-current-editor-source-v1",
-  "version": "r247-selection-presentation-ownership",
-  "productionEditor": "modules/editor.b46b7edb7b8fab6c0f1e.js",
-  "productionSHA256": "b46b7edb7b8fab6c0f1e17e4c9d82608c7dc0c9ad7a63fc9ae495e2868ee9f28",
-  "productionBytes": 2888003,
+  "version": "r248-ordinary-move-worker-picking",
+  "productionEditor": "modules/editor.14694d2e39a34bf370f7.js",
+  "productionSHA256": "14694d2e39a34bf370f790dd94d545c8f9239f7a0bda6ee08415e41940ae8bfe",
+  "productionBytes": 2935580,
   "baseSHA256": "0e51597ef74e6e6583d18fca9ff1725cc4bff5edde26ef7400d71ae9986d609f",
   "baseExtraction": "base-extraction.json",
   "typescript": "5.9.3",
@@ -29,5 +29,6 @@
   "r244Integration": "r244-integration.json",
   "r245Integration": "r245-integration.json",
   "r246Integration": "r246-integration.json",
-  "r247Integration": "r247-integration.json"
+  "r247Integration": "r247-integration.json",
+  "r248Integration": "r248-integration.json"
 }
