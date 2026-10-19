@@ -1,0 +1,8 @@
+<!doctype html><meta charset="utf-8"><title>Frame automated tests</title>
+<style>body{margin:16px;background:#202124;color:#ddd;font:14px system-ui}iframe{width:100%;height:600px;border:1px solid #555}pre{white-space:pre-wrap}button{padding:8px 20px}</style>
+<h1>Frame tests</h1><p>Тесты выполняются в отдельной сцене внутри iframe. Рабочая вкладка приложения сохраняется.</p><button id="run">Run tests</button><pre id="status">Ready</pre><iframe src="../index.html" title="Isolated Frame test scene"></iframe>
+<script type="module">
+import {runSuite} from './suite.js';
+const frame=document.querySelector('iframe'),button=document.querySelector('button'),status=document.querySelector('pre');
+button.onclick=async()=>{button.disabled=true;try{await new Promise(ok=>{if(frame.contentWindow.frameAI)ok();else frame.addEventListener('load',ok,{once:true});});const api=frame.contentWindow.frameAI;window.frameTestResult=await runSuite(api,{progress:name=>status.textContent='Completed: '+name});status.textContent=JSON.stringify(window.frameTestResult,null,2);}catch(e){status.textContent=e.stack;}finally{button.disabled=false;}};
+</script>

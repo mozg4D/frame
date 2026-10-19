@@ -1,0 +1,9 @@
+node_modules/
+tests/results/
+__pycache__/
+
+# Heavy local scenes: keep on disk, never publish them.
+/Frame_Campus_1000_5M.hash
+/tests/scenes/test.stl
+/tests/scenes/stress-mesh-100m.hash
+/tests/scenes/release-1000-10m.hash

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "frame": {
+      "command": "node",
+      "args": ["C:/frame/tools/mcp.mjs"]
+    }
+  }
+}
