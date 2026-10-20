@@ -7,3 +7,8 @@ __pycache__/
 /tests/scenes/test.stl
 /tests/scenes/stress-mesh-100m.hash
 /tests/scenes/release-1000-10m.hash
+
+/tests/scenes/tst.stl
+
+# Rebuild from the included material models with generate-material-gallery.mjs.
+/tests/scenes/material-gallery.hash

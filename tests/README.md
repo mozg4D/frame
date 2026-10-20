@@ -15,6 +15,8 @@ npm run test:syntax         # Parse both executable scripts in index.html
 npm test                   # Standard checks + 2304 unique spline cells
 npm run test:stress         # Same checks, longer GPU timing sample
 npm run test:all            # Also load large user fixtures from tests/scenes/
+npm run test:interaction    # Mouse, insertion, tangents, Outline/Bevel, latency budgets
+npm run test:performance    # 100M triangles: all four shading modes, p95 + hover/navigation
 ```
 
 `test:all` can require over 9 GiB of VRAM and much more RAM; close other heavy scenes first. It includes the 100,548,288-triangle HASH and the single-object original-scale STL import. Each large fixture gets a separate browser context, then is focused in a single perspective Solid view for fresh render timings. This prevents keeping both 100M-triangle scenes resident simultaneously. Those files are user fixtures, not prerequisites for standard tests. Missing optional files are reported as skipped.
@@ -22,6 +24,8 @@ npm run test:all            # Also load large user fixtures from tests/scenes/
 Open [the browser runner](http://127.0.0.1:56116/tests/index.html) to run the shared API suite inside an embedded tab. Click **Run tests**. The application is in a separate iframe. This runs API/geometry checks; CLI additionally runs real Playwright mouse/keyboard and MCP process checks.
 
 Results: `tests/results/latest.json` plus timestamped history. The report includes the actual `index.html` SHA-256, each assertion, browser/GPU errors, scene load time and CPU/GPU frame timings. Exit code 0 means all mandatory checks passed; any assertion, JavaScript/WebGPU error or missing adapter makes the command fail. A timing sample is evidence for that machine/view, not a portable FPS threshold.
+
+Every changed operation must have a performance test. Shared-suite API calls record wall time by command/type and fail above 5 s (60 s for load/build/geometry/render). Interaction regressions additionally cap completed mouse operations at 1 s, warmed partial Outline updates at 250 ms and a 512-edge Outline at 2 s. The 100M test records 6 warmup + 32 measured frames per shading mode, CPU/GPU median/p95/max, a changed camera, geometry-cache reuse, and WebGPU errors. Its standalone report is `results/performance-100m.json`; `test:all` includes the same checks for the heavy fixture. These are regression budgets, not claims that every operation has identical latency.
 
 The standard suite covers schema/errors/no-mutation validation; serialized calls; all 15 implemented library types; hierarchy, object transforms without geometry rewrites, metadata/geometry Undo/Redo; two-stage To Editable; generator inputs; spline tangents/selection/weld; buffer and texture-backed mesh weld/digests/connected; lighting, views, shading, HASH and OBJ round trips; finite valid geometry on a cage with 2304 different curved cells. Real UI checks cover library buttons, context menus/focus/Escape, wheel over the gizmo, keyboard layout, Delete from the tree and double-click connected in all three modes. MCP checks exercise stdio initialization/discovery/call/read/error.
 
@@ -33,6 +37,8 @@ To extend:
 4. Keep expected results meaningful and stable. Do not silently lower tolerances or remove a failing assertion to get green.
 
 The runner imports the actual production `index.html`; it does not inject private engine functions, replace shaders or patch application source.
+
+`viewport-status.mjs`, called by the UI checks, observes real HASH save/load progress. It checks a short unboxed line directly below FPS, absence of the VRAM row, cleanup after completion, and a 3 s completed-operation budget for the tiny UI fixture. Timings are recorded in `ui.timings`.
 
 Regenerate the unique-cell fixture through the public API with `node tests/scenes/generate-unique.mjs`. Its seed and geometry are deterministic; native object IDs and saved camera records can change, so the entire HASH byte digest is not a fixture invariant.
 
@@ -66,4 +72,30 @@ When a Git-excluded heavy fixture is absent, the report lists that specific fixt
 `replica-feedback.mjs` adds native-only live generator edits, all six Instance/Symmetry/Cloner orderings, shared geometry/selection/material resources, instanced drawing, copy/delete UI, caret/arrow events and a dense Boolean seam regression. `npm run test:witch` is an opt-in run against the unchanged local `tests/scenes/ведьма.obj`: subtract/union/intersect with a cube, source digests, 1000 full-resolution occurrences and actual WebGPU timings. Its report is `tests/results/witch-final.json` with the exact HTML SHA-256.
 
 
-`pivot-feedback.mjs` covers physical L in two layouts, repeated numeric arrows, SVG text plate bounds, doubled rotation bands, Object Browser tag priority, source/Instance pivots, local clone random transforms, exact batched GPU extents, stable surface distribution, Cloner-to-group conversion with Undo/Redo and copy-on-write edits, and distinct static/moving instance buffers. `npm run test:cloner-witch` loads the original local witch and measures Count changes (100 → 200 → 1000 → 50), verifies one surface preparation/readback, stable placement prefixes and source PSR/pivot semantics; report: `tests/results/object-cloner-witch.json`.
+`pivot-feedback.mjs` covers physical L in two layouts, repeated numeric arrows, SVG text plate bounds, doubled rotation bands, Object Browser name/tag space and horizontal pan, source/Instance pivots, local clone random transforms, exact batched GPU extents, stable surface distribution, Cloner-to-group conversion with Undo/Redo and copy-on-write edits, and distinct static/moving instance buffers. `npm run test:cloner-witch` loads the original local witch and measures Count changes (100 → 200 → 1000 → 50), verifies one surface preparation/readback, stable placement prefixes and source PSR/pivot semantics; report: `tests/results/object-cloner-witch.json`.
+
+
+`import-performance-feedback.mjs` runs in standard/stress and standalone (`node tests/import-performance-feedback.mjs`). It checks the supplied vase.obj, emission/metal-rough import, custom GLB chunks/materials/UV/scale round trip, UV tag routing and omission, actual UV/emissive path-traced pixels, viewport-to-browser reveal, continuous 1000-object movement, and delayed navigation release without a menu. Every operation records wall time and a latency budget. Local vase and the generated 1000-object fixture must be present.
+
+`heavy-live.mjs` now runs in both profiles and verifies exactly four rebuilt cells/segments, untouched GPU geometry, a fresh full-build oracle, Undo/cancel, continuous pointer latency, and a global angle rebuild with hardwareConcurrency minus one CPU workers. Existing regular quad interiors remain on WebGPU. The 1000-object fixture is spread across XZ with 550 mm spacing by `scenes/spread-release.mjs --existing`, also called during `generate-release.mjs --stress`; geometry, object count and triangle count are preserved.
+
+Solid+Isoparms overlays genuine spline cages on generated surfaces and uses Solid+Wire for plain polygons. The 100M benchmark compares the latter modes directly; Isoparms uses the bounded compute edge rasterizer for ordinary meshes.
+
+
+Material/editor regressions (included in standard and stress, isolated contexts):
+- `npm run test:materials`: 12 actual Khronos GLB imports, PBR editor values/slot placement, normal/AO/ORM/alpha, real texture drop, unit diagonal scrubbing, HASH/GLB round trips, realtime edits, near-opaque viewport pixels and zero-alpha linear-film reference, material Delete/Undo.
+- `npm run test:editor`: multiple cameras, green point exclusivity, FOV projection, camera HASH/UI add, DIN names, two consecutive bolt vertex edits, tangent visibility, continuous axis snapping, tag/name room, MMB pan, Z and quad overlays.
+- `npm run test:pointer-lock`: actual Chromium screen-edge input, relative numeric/navigation movement, release and Escape; CDP window bounds are restored afterward.
+- `browser-scroll.mjs` runs in the real 1000-object fixture: continued scroll with a stationary outside pointer, distance-dependent speed and release cleanup. The same fixture must create a camera and complete a render within 60 seconds.
+- Dense Boolean union/subtract/intersect operate on ~786k input triangles. Completed operations have 45 s budgets; operations lasting beyond 3.4 s must expose delayed, aligned, compact progress and remove it on completion. No artificial percentage or worker replacement.
+- 100M performance now also samples Solid+Wire; polygon Solid+Isoparms must match its cost, with no second edge pass. Test reports include exact HTML SHA, wall times and CPU/GPU frame samples.
+
+`npm run test:gallery` opens the native 12-model HASH, awaits the real material atlas/pipelines, records viewport CPU/GPU frame samples, saves viewport/render screenshots and completes an actual four-sample render. Load/material readiness have 10 s budgets; completed render has a 60 s budget. Report: `results/gallery-qa.json`, with the exact HTML SHA and WebGPU validation.
+
+Camera/texture UI regressions also cover the bottom Camera icon (always adds, including the imported gallery), inactive-camera start and Stop in Camera attributes, seven one-click texture removals/reloads through the real file chooser, linked alpha removal/export, packed-slot independence and Undo. The material layout asserts 15×16 px palette cells, no sidebar clipping and the exact 1 px texture-button offset. `test:gallery` measures two bottom-toolbar adds (1.8 s each budget), Undo, and a completed render started from Camera attributes; readiness is checked until a stable complete epoch, not an intermediate cached state.
+
+User interaction revisions: `npm run test:user` covers camera/light/Target, inclusive browser ranges, grouped C conversion, Group, 2D Bevel, refined Ctrl insertion, multi-cage marquee and native Merge. `morph-gesture.mjs` checks IK before release and Undo on pure splines and polygons. `npm run test:fixture` ensures the ignored 64-copy STL fixture.
+
+`user-feedback.mjs`, `gesture-feedback.mjs` and `morph-gesture.mjs` run in isolated contexts during both standard and stress profiles. They measure staged C conversion, grouping, native Merge, real file-drop choices, camera helper picking, nearest cubic insertion, multi-cage marquee, the last orthographic gizmo operation, object-coordinate grid snapping and GPU UV preservation. Morph checks drag vertices/edges/faces before release, verify retained selection and Undo, and sample finger/elbow volume and neutral digests.
+
+The 100M benchmark fits all independent mesh roots and checks every mesh center is in the viewport. Component-mode latency measures the completed mode change; the separate eight-frame sample measures steady CPU/GPU rendering stability.

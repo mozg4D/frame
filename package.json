@@ -8,9 +8,21 @@
     "test:all": "node tests/run.mjs --stress --fixtures",
     "test:witch": "node tests/witch.mjs",
     "test:cloner-witch": "node tests/object-cloner-witch.mjs",
+    "test:materials": "node tests/material-editor.mjs",
+    "test:gallery": "node tests/material-gallery.mjs",
+    "test:editor": "node tests/editor-revision.mjs",
+    "test:pointer-lock": "node tests/pointer-lock.mjs",
+    "test:interaction": "node tests/interaction-feedback.mjs",
+    "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",
-    "mcp": "node tools/mcp.mjs"
+    "mcp": "node tools/mcp.mjs",
+    "test:user": "node tests/user-feedback.mjs",
+    "test:fixture": "node tests/scenes/generate-heavy.mjs"
   },
-  "devDependencies": { "playwright": "1.64.1" },
-  "engines": { "node": ">=22" }
+  "devDependencies": {
+    "playwright": "1.64.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

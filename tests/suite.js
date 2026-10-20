@@ -1,8 +1,9 @@
+import {measuredAPI,performanceFailures} from './performance.mjs';
 import {runFeatureSuite} from './features-suite.js';
 import {runViewSuite} from './view-suite.js';
 // Shared by the standalone runner and tests/index.html in an embedded browser.
 export async function runSuite(api,options={}){
-  const results=[],metrics={},call=(name,args={})=>api.call(name,args),inspect=()=>call('scene.inspect'),check=(name,pass,detail)=>{results.push({name,pass:!!pass,...detail===undefined?{}:{detail}});if(!pass)throw Error(name);},near=(a,b,epsilon=1e-5)=>Math.abs(a-b)<epsilon;
+  const metrics={};api=measuredAPI(api,metrics);const results=[],call=(name,args={})=>api.call(name,args),inspect=()=>call('scene.inspect'),check=(name,pass,detail)=>{results.push({name,pass:!!pass,...detail===undefined?{}:{detail}});if(!pass)throw Error(name);},near=(a,b,epsilon=1e-5)=>Math.abs(a-b)<epsilon;
   const clear=async()=>{const s=await inspect();if(s.objects.length)await call('scene.delete',{ids:s.objects.filter(n=>!n.parent).map(n=>n.hash||n.id)});await call('view.set',{index:0,single:true,mode:'object',shading:'solid',coordinates:'object',snap:false,quantize:false});};
   const test=async(name,run)=>{try{await clear();await run();}catch(e){results.push({name,pass:false,error:e.stack||e.message});}options.progress?.(name,results);};
   const rejected=async(name,command,args)=>{let error;try{await call(command,args);}catch(e){error=e;}check(name,!!error?.code,error?.code);};
@@ -53,5 +54,5 @@ export async function runSuite(api,options={}){
   await test('Unique spline patch load',async()=>{
     const started=performance.now();await call('scene.open',{url:'tests/scenes/unique-patches.hash'});const s=await inspect(),n=s.objects.find(n=>n.mesh);check('stress fixture resolves 2304 distinct cells',n.spline.cells===2304,{cells:n.spline.cells});const g=await call('diagnostics.mesh',{id:n.hash,geometry:true});check('stress fixture has finite complex GPU surface',g.finite&&g.indicesValid&&g.triangles===244657);await call('view.set',{focus:n.hash,shading:'solid'});metrics.unique={buildAndLoadMs:performance.now()-started,...await call('diagnostics.frame',{frames:options.stress?32:4}),report:(await call('spline.inspect',{id:n.hash})).report};const frames=metrics.unique.frames;check('timing samples belong to distinct newly rendered frames',frames.every((f,i)=>Number.isFinite(f.cpuMs)&&Number.isFinite(f.gpuMs)&&(!i||f.id>frames[i-1].id)),frames.map(f=>f.id));
   });
-  const views=await runViewSuite(api);results.push(...views.results);const features=await runFeatureSuite(api,options.progress);results.push(...features.results);await clear();return {pass:results.every(r=>r.pass),assertions:results.length,results,metrics};
+  const views=await runViewSuite(api);results.push(...views.results);const features=await runFeatureSuite(api,options.progress);results.push(...features.results);await clear();const slow=performanceFailures(metrics);check('All shared-suite operations meet their wall-time budgets',!slow.length,slow);return {pass:results.every(r=>r.pass),assertions:results.length,results,metrics};
 }
