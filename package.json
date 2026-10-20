@@ -6,6 +6,8 @@
     "test": "node tests/run.mjs",
     "test:stress": "node tests/run.mjs --stress",
     "test:all": "node tests/run.mjs --stress --fixtures",
+    "test:witch": "node tests/witch.mjs",
+    "test:cloner-witch": "node tests/object-cloner-witch.mjs",
     "test:syntax": "node tests/syntax.mjs",
     "mcp": "node tools/mcp.mjs"
   },
