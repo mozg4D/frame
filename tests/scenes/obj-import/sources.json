@@ -1,0 +1,74 @@
+[
+  {
+    "name": "box.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/box.obj",
+    "bytes": 973,
+    "sha256": "918234c1c9166cce4e9a463d7057a59b5b7cfe40a5f4f9240740c79b7a9fa4a9"
+  },
+  {
+    "name": "capsule.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/capsule.obj",
+    "bytes": 897371,
+    "sha256": "7e4e244a290331c5f4f3590b0114b30e70cd78dd8211780ba818b573ad45999f"
+  },
+  {
+    "name": "chair_model.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/chair_model.obj",
+    "bytes": 639979,
+    "sha256": "7707885a613f733749912dc182ab7172b7498e5fe62810bb1951017612fb8b05"
+  },
+  {
+    "name": "fandisk.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/fandisk.obj",
+    "bytes": 367112,
+    "sha256": "27e201141bf9c869b922ce4f03fdef7b5dfc62b7e721f77b44efae1e2aecdce9"
+  },
+  {
+    "name": "fuze.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/fuze.obj",
+    "bytes": 81184,
+    "sha256": "a42779b57af5969baf8a08fd2194f57d5a87882ddc1f2dfcce05f99519e7ce60"
+  },
+  {
+    "name": "ico4uv.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/ico4uv.obj",
+    "bytes": 115732,
+    "sha256": "740a4eadbc7de49ca5367a8287de0a63a50684ca4c942d8bcb0064ed817cf933"
+  },
+  {
+    "name": "negative_indices.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/negative_indices.obj",
+    "bytes": 930,
+    "sha256": "fc6b6b3f9536ec7fda698b9be79130eab89f2819828082cf925e6f8db611fdad"
+  },
+  {
+    "name": "polygonfaces.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/polygonfaces.obj",
+    "bytes": 249,
+    "sha256": "b6b6a22c3b9c4dab38df1ea45bc02b817646a331b593001d850947aabf2289d7"
+  },
+  {
+    "name": "quadknot.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/quadknot.obj",
+    "bytes": 201734,
+    "sha256": "03188bb460ac583e87048890de5a3382877d49e3aae8cb85ec6ea06b90d944a8"
+  },
+  {
+    "name": "rabbit.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/rabbit.obj",
+    "bytes": 76673,
+    "sha256": "82fa74048fe2243f657cda7fc157d01f35cd39f5bfc945a10db1671e62361ad4"
+  },
+  {
+    "name": "textured_tetrahedron.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/textured_tetrahedron.obj",
+    "bytes": 467,
+    "sha256": "0e64cfad3260b78676dccd65b64eb06bd8fd72fe496f38df43c8891719b922ca"
+  },
+  {
+    "name": "wallhole.obj",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/wallhole.obj",
+    "bytes": 7349,
+    "sha256": "1fbc5796c69f440c9f1e4052d3044095e9ec742a92cac4f909c7301f39c4e654"
+  }
+]

@@ -1,0 +1,22 @@
+{
+  "id": "3d-printer",
+  "name": "3D Printer",
+  "color": "#8fc8bb",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "objects": [{
+    "type": "printer",
+    "name": "3D Printer",
+    "fields": {
+      "Start layer": 1,
+      "Finish layer": 3332,
+      "Layer position": 0,
+      "Line width": 1,
+      "Layer height": 0.3,
+      "Initial layer height": 0.6,
+      "Perimeters": 1,
+      "Overhang angle": 45,
+      "Min path length": 3
+    }
+  }]
+}

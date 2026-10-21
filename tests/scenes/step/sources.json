@@ -1,0 +1,82 @@
+[
+  {
+    "name": "simple-basic-cube-cube.stp",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/simple-basic-cube/cube.stp",
+    "bytes": 8010,
+    "sha256": "cfa52db7eab6fe6a73986a87aff8702d24431bdb7da6382afdd94234deb3f648"
+  },
+  {
+    "name": "cube-10x10mm-Cube-10x10.stp",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-10x10mm/Cube%2010x10.stp",
+    "bytes": 9138,
+    "sha256": "963924fdd23de1127cab2a4d38426f36e3c05cadacd47561dba0b2fcb9886293"
+  },
+  {
+    "name": "cube-fcstd-cube.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-fcstd/cube.step",
+    "bytes": 17032,
+    "sha256": "dc21bcabee7fc40694aaddbc0c91e2b9083e33b40e5a6055c0722c33ec9b50fb"
+  },
+  {
+    "name": "cube-fcstd-cube2.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-fcstd/cube2.step",
+    "bytes": 18112,
+    "sha256": "c9607400b18df0389a8b89532334e28bd7f5ad039c5568d0153227dd0a54e8ae"
+  },
+  {
+    "name": "cube-fcstd-cube3.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-fcstd/cube3.step",
+    "bytes": 16632,
+    "sha256": "9a5855ff8aff9ea79178eee5994061b126e634a8a838bf37bf9ebe410f1c07b2"
+  },
+  {
+    "name": "cube-units-cube-in.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-units/cube-in.step",
+    "bytes": 18531,
+    "sha256": "f52324692b57eba7684739c45c7f6ddbb7019a70c7e96bf70a6da726e70fbde1"
+  },
+  {
+    "name": "cube-units-cube-m.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-units/cube-m.step",
+    "bytes": 17487,
+    "sha256": "181f50a866062fe6bea05982491f3530c2be08a68d54f94ac3d5b8d037a09e45"
+  },
+  {
+    "name": "cube-units-cube-mm.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cube-units/cube-mm.step",
+    "bytes": 17607,
+    "sha256": "c3a7c0da333c4e3026468d5bc023557c3ba889609ab3232a7d577df5981d103d"
+  },
+  {
+    "name": "conical-surface-conical-surface.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/conical-surface/conical-surface.step",
+    "bytes": 9391,
+    "sha256": "c4a65756a022264d8448b417fddbcc0ad24ccc02c4d1f41099b57ba0cd643b67"
+  },
+  {
+    "name": "rounded-cube-rounded-cube.step",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/rounded-cube/rounded-cube.step",
+    "bytes": 20532,
+    "sha256": "370c5474e50dc94923f0dacb5113f7258233601620ab530d937c18571869d49e"
+  },
+  {
+    "name": "cax-if-io1-cm-214.stp",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cax-if/io1-cm-214.stp",
+    "bytes": 41720,
+    "sha256": "eb234e26bca411a6da39c311e74d5a47b5e7a1248ae589a3a86cd2dee1f91f9b",
+    "expected": "polygon"
+  },
+  {
+    "name": "cax-if-io1-tu-203.stp",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cax-if/io1-tu-203.stp",
+    "bytes": 77285,
+    "sha256": "9c5013bb7c60fa6fde168ba119949069aa083f43b395c4970253fa1c6bc58006",
+    "expected": "reject"
+  },
+  {
+    "name": "cax-if-sg1-c5-214.stp",
+    "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cax-if/sg1-c5-214.stp",
+    "bytes": 23354,
+    "sha256": "5e8ff5347d6edc7b648455e469ec84850237faf9e96b8d3bc14f00afcdffe443"
+  }
+]

@@ -1,0 +1,80 @@
+[
+  {
+    "name": "bunny.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/bunny.ply",
+    "bytes": 658744,
+    "sha256": "8faa052bb08cf1625eec97b6508baceee11eec9cf28f83f6a9d4547ab15d7761"
+  },
+  {
+    "name": "cycloidal.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/cycloidal.ply",
+    "bytes": 1079764,
+    "sha256": "d10f336ff4c4ca7f2c262b1fd880a2ac2bbe1ea60c072951f3f5003986481e5a"
+  },
+  {
+    "name": "featuretype.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/featuretype.ply",
+    "bytes": 342700,
+    "sha256": "765b5771a7b13232ba3bea3bc89e0b8a477cb69ac4a9c1791bde0c700787ffc5"
+  },
+  {
+    "name": "fixed_top.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/fixed_top.ply",
+    "bytes": 109902,
+    "sha256": "8cbe375e9070e65f7154cd1704ddb6f20a92641888cc6714b070e78e375886ff"
+  },
+  {
+    "name": "fuze.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/fuze.ply",
+    "bytes": 50463,
+    "sha256": "48331230eb7aa9b7871ea5845dce133f4ad7bf6d923382d1b2eef6110bbd686d"
+  },
+  {
+    "name": "mirror.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/mirror.ply",
+    "bytes": 5649,
+    "sha256": "83fb7ba5bf4c73f987bb50d0dc7a52cb7ef287a6ec8c3b82204d4c25263e6538"
+  },
+  {
+    "name": "octagonal_pocket.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/octagonal_pocket.ply",
+    "bytes": 62502,
+    "sha256": "587fcac53033eeb25682fc2449cab9545bb8d9d888423996d6f706e3a6a9ab62"
+  },
+  {
+    "name": "sphere.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/sphere.ply",
+    "bytes": 36707,
+    "sha256": "c9d4f8188871229e3c099f931b38a55c46ab40b46889a715765e082e6941009d"
+  },
+  {
+    "name": "suzanne.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/suzanne.ply",
+    "bytes": 155800,
+    "sha256": "08ba5aad744d2963f1462d35861c3a4fb627e6780e63bbedc50faee5b79685a5"
+  },
+  {
+    "name": "tet.ply",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/tet.ply",
+    "bytes": 303,
+    "sha256": "adeb4f9287a02adf200e2079323158b6712c0c1d61c6eca2779fe41cdcd85ea4"
+  },
+  {
+    "name": "dolphins.ply",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/ply/ascii/dolphins.ply",
+    "bytes": 44623,
+    "sha256": "1246b1050ebc1e2e6b9de796a004bd3914e525546d402a5e286fbe6f13940c8e"
+  },
+  {
+    "name": "lucy.ply",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/ply/binary/Lucy100k.ply",
+    "bytes": 1900227,
+    "sha256": "837f769e67155dc4a6e9a90683a61d6f6b4571a2a97d79586831011f450e66e2"
+  },
+  {
+    "name": "dolphins-be.ply",
+    "url": "https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/ply/binary/dolphins_be.ply",
+    "bytes": 32388,
+    "sha256": "179896e5fc2e3422d4dcad49e6442041df6e09a6e421701bc8965eb05d3221d1"
+  }
+]

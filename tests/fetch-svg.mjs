@@ -1,0 +1,6 @@
+import {mkdir,writeFile} from 'node:fs/promises';
+import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
+const repo='feathericons/feather',result=spawnSync('git',['ls-remote','https://github.com/'+repo+'.git','HEAD'],{encoding:'utf8'}),rev=result.stdout?.split(/\s+/)[0];if(result.status||!/^\w{40}$/.test(rev))throw Error('Cannot resolve upstream SVG revision');const base=new URL('scenes/svg/',import.meta.url),sources=[];await mkdir(base,{recursive:true});
+for(const name of ['activity','anchor','aperture','cloud','codepen','command','heart','image','map','octagon','settings','slack']){const url=`https://raw.githubusercontent.com/${repo}/${rev}/icons/${name}.svg`,r=await fetch(url);if(!r.ok)throw Error(url);const bytes=Buffer.from(await r.arrayBuffer());await writeFile(new URL(name+'.svg',base),bytes);sources.push({name:name+'.svg',url,bytes:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')});}
+const license=await fetch(`https://raw.githubusercontent.com/${repo}/${rev}/LICENSE`);if(!license.ok)throw Error('SVG attribution');await writeFile(new URL('LICENSE',base),await license.text());await writeFile(new URL('sources.json',base),JSON.stringify(sources,null,2)+'\n');console.log(sources.length+' upstream SVG files');

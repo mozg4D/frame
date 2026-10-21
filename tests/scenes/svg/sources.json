@@ -1,0 +1,74 @@
+[
+  {
+    "name": "activity.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/activity.svg",
+    "bytes": 239,
+    "sha256": "709c447f937c500c82f7d02361fd27e618493bd40c77960ef03325a68a773fdb"
+  },
+  {
+    "name": "anchor.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/anchor.svg",
+    "bytes": 294,
+    "sha256": "7f9ecff330f6021d93b6ba0b9db54013013bb68e4e9ac04300c85722aff4db82"
+  },
+  {
+    "name": "aperture.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/aperture.svg",
+    "bytes": 491,
+    "sha256": "3d6c859251f304def7b87c36fcd658a0df61d0c6892b671f6a9b8fd090b893de"
+  },
+  {
+    "name": "cloud.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/cloud.svg",
+    "bytes": 244,
+    "sha256": "45a52d3b54fb60f3fcdfedf60644bf36348b1db1dfff3b11c40746584fbdee25"
+  },
+  {
+    "name": "codepen.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/codepen.svg",
+    "bytes": 413,
+    "sha256": "7f95b847c25d6b7e485f11f7dc53925f387ea94256b5bd8f892ceb5e93dfb12c"
+  },
+  {
+    "name": "command.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/command.svg",
+    "bytes": 383,
+    "sha256": "8b10f738422cffefa8d5fe8eeaac52db52b73b64bf79f4199b619d79aa561493"
+  },
+  {
+    "name": "heart.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/heart.svg",
+    "bytes": 335,
+    "sha256": "edfe493d0a62b84e25f4e2d1c2df8a47dfe2a637a554b44970196f52c191eaae"
+  },
+  {
+    "name": "image.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/image.svg",
+    "bytes": 315,
+    "sha256": "89eef0760a6c98898c331e0e489f59f1b2a1199367326b2367ceb0963b1492ad"
+  },
+  {
+    "name": "map.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/map.svg",
+    "bytes": 324,
+    "sha256": "57776cec294acd035b7ea01b4c222f54360481dee1f58fc12a3ad6da6cbcf0e9"
+  },
+  {
+    "name": "octagon.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/octagon.svg",
+    "bytes": 277,
+    "sha256": "a65b21e4d4b14793906fcc5c7ab006b8f3df50b9cfaee3926c270679dc990194"
+  },
+  {
+    "name": "settings.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/settings.svg",
+    "bytes": 964,
+    "sha256": "8fe83a7900335105bedd742225ac0d96454a96670a186774532df41414c9cfbb"
+  },
+  {
+    "name": "slack.svg",
+    "url": "https://raw.githubusercontent.com/feathericons/feather/3dc050d97405062eba78aa57115c0a15c63abdaa/icons/slack.svg",
+    "bytes": 921,
+    "sha256": "db9ad09739e31903d2638e8383e723605de19cdf36f6ffcf10eba6379b55d92d"
+  }
+]

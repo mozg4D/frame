@@ -16,8 +16,17 @@
     "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",
     "mcp": "node tools/mcp.mjs",
+    "test:plugins": "node tests/modeling-plugins.mjs",
     "test:user": "node tests/user-feedback.mjs",
-    "test:fixture": "node tests/scenes/generate-heavy.mjs"
+    "test:fixture": "node tests/scenes/generate-heavy.mjs",
+    "test:delete": "node tests/delete-context.mjs",
+    "test:formats": "node tests/geometry-formats.mjs",
+    "test:obj": "node tests/obj-import.mjs",
+    "test:print-formats": "node tests/print-formats.mjs",
+    "test:step": "node tests/step-import.mjs",
+    "test:svg": "node tests/svg-import.mjs",
+    "test:surfaces": "node tests/surface-correctness.mjs",
+    "test:large-delete": "node tests/large-delete.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

@@ -1,0 +1,163 @@
+[
+  {
+    "format": "vtk",
+    "name": "vtk/250.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/250.vtk",
+    "bytes": 10787,
+    "sha256": "b2b37078a8a416c5275e60ce0a135cb3724e5e384f593318529816b8e39655e8"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/brainImageSmooth.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/brainImageSmooth.vtk",
+    "bytes": 299259,
+    "sha256": "d25386e59b530647adbb9eb79348bcdc5e146b6a6914bc427651800074058b6e"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/fran_cut.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/fran_cut.vtk",
+    "bytes": 174933,
+    "sha256": "499c170dd475725f47de4e436f080bd18d1a2cc315411f9c490ba42b6dffbc6d"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/k.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/k.vtk",
+    "bytes": 8303,
+    "sha256": "2d63eb5bcc9a4917c0c9992a56cf09a329c98c0e207692977c1f323d3aeabd83"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/opal_mound_fault.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/opal_mound_fault.vtk",
+    "bytes": 171567,
+    "sha256": "ec1ecf9d007365df332dc5c110e497a0d82bcd043683b6651d153cc8461dfc08"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/plate.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/plate.vtk",
+    "bytes": 81913,
+    "sha256": "a6eba322d73dc097d8b27cc88d34546d4e6aa0c83b7c90f0e1be52ee79ed4cbf"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/polyEx.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/polyEx.vtk",
+    "bytes": 639,
+    "sha256": "f020ce787fa515d949723b67b9e667dff8eed8d908830dc6e6ae525df87c60bf"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/t.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/t.vtk",
+    "bytes": 3048,
+    "sha256": "debd6351d9ee79edae37c068e37a8ca96ca421ac093157ceec5d7a39ee7bc4bc"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/usa.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/usa.vtk",
+    "bytes": 80258,
+    "sha256": "a3961568784c1cd7b56b8aee0e5706db82648d3b96edb6ba245f6e5c9e01338d"
+  },
+  {
+    "format": "vtk",
+    "name": "vtk/v.vtk",
+    "url": "https://raw.githubusercontent.com/pyvista/data/5a3de12d34c24aa5dd5e5db1cbc2defebc0d4da3/Data/v.vtk",
+    "bytes": 4847,
+    "sha256": "c6213a5e78ae882ead3578045f18ab0e3780d936ebdd2db70f4bff269d73e124"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/box.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/box.3mf",
+    "bytes": 1176,
+    "sha256": "d45d18cbbc4f189c2951b5c8c400333c0de633c4b88608dc6f5416b8f7677524"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/cube_gears.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/cube_gears.3mf",
+    "bytes": 263230,
+    "sha256": "5694dd00fec4b1ec118c33840a1984be5ca01494930fd1bdef102b9b70a2d2c2"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/cylinder.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/cylinder.3mf",
+    "bytes": 1833,
+    "sha256": "2a263ec8c0e35a677b3a3fc97941f4596a8df3c071bac94551a4512ae95ca086"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/dodeca_chain_loop.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/dodeca_chain_loop.3mf",
+    "bytes": 66809,
+    "sha256": "b568f94139bc70d8995c646039563833dd1395a6e443fb3e29d38cab068df7d7"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/heartgears.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/heartgears.3mf",
+    "bytes": 382238,
+    "sha256": "5fa8cc9b273a108b9da3ad590512abbb63498deec33968d16b75e877d65b4fe0"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/multiple_cylinders.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/multiple_cylinders.3mf",
+    "bytes": 1981,
+    "sha256": "4725faf69742bb8ed3be117284b6cb47a75e02cfa0f2da3675e6bccfa3f9d54f"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/sphere.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/sphere.3mf",
+    "bytes": 34075,
+    "sha256": "6039ea72ed7822ff1441f556fea88b865078e6bd1937887735bf2d42007d8d74"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/torus.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/core/torus.3mf",
+    "bytes": 21446,
+    "sha256": "4072eb3a90d53679e7460269402eacb7652078c4acdca331351e0dc5ccf975c5"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/Helix.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/lib3mf/bfb5df00057fae7e306c511fa7c6ff476dfaad28/SDK/Examples/Files/Helix.3mf",
+    "bytes": 5167,
+    "sha256": "7f9cbc99f7efc78b076f187e85ffee4cd62baf6761bf85321271a4e6667c96cb"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/WagonWithWheels.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/lib3mf/bfb5df00057fae7e306c511fa7c6ff476dfaad28/Tests/TestFiles/BuildItems/WagonWithWheels.3mf",
+    "bytes": 3772,
+    "sha256": "8864b318d2e2b1921cfd10649a6af8bb9b9b4965f0f561e84308237898825fce"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/pyramids.3mf",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/pyramids.3mf",
+    "bytes": 32983,
+    "sha256": "f550d826d8780a6cd54db38211feeec15d4a461392da5ab8dae88b63341e9de5"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/featuretype.3mf",
+    "url": "https://raw.githubusercontent.com/mikedh/trimesh/dc8490c825c382d2d58b5bd87ecacc74790ead27/models/featuretype.3MF",
+    "bytes": 27927,
+    "sha256": "691d595112e1ece72a594b685e5925d000b0ac1ac5ef9d1c149f320e7351137a"
+  },
+  {
+    "format": "3mf",
+    "name": "3mf/box_prod.3mf",
+    "url": "https://raw.githubusercontent.com/3MFConsortium/3mf-samples/665e20dc4d7777fd4c9702bca86a2d4028440337/examples/production/box_prod.3mf",
+    "bytes": 10017,
+    "sha256": "66c24c97b58a32a45b33c5e6537b03c981c4ad4a23623f5bbf344d8fcdfc612e"
+  }
+]

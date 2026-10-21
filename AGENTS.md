@@ -1,6 +1,6 @@
 # Frame development
 
-- Runtime application code lives only in `index.html`. Development tools/tests may use separate files. Keep heavy-scene performance and memory use a priority.
+- Core runtime application code lives in `index.html`. Independently developed plugins live in their own `modules/<plugin>/` directories; see `plugins.md`. Development tools/tests may use separate files. Keep heavy-scene performance and memory use a priority.
 - Keep runtime code minimal: reuse existing algorithms, editor paths and GPU resources instead of adding parallel implementations.
 - Compatibility with earlier formats, APIs, and behavior is not required for now. The user will explicitly say when compatibility becomes necessary; do not add compatibility layers or migrations preemptively.
 - Read `app.md` before changing behavior; update it when behavior or the API changes.
@@ -14,3 +14,5 @@
 - Browser-only runner: `tests/index.html` on the same local server. It uses a separate iframe scene; leave the user's working scene alone. CLI uses its own browser context and ephemeral localhost server.
 
 - Change the application interface only when the user explicitly requests that interface change. Keep code, documentation, fixtures and UI text in English.
+
+- Read `requests.md` before work and before finishing. It is the sole core/plugin API request queue. Every entry names its requester and recipient. Implement relevant requests autonomously without asking the user; verify the requesting side can use the result, update app.md/plugins.md and tests, then remove only the completed entry. Preserve unrelated requests. Plugin authors follow this same workflow.

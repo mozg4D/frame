@@ -1,0 +1,8 @@
+# Preserve upstream geometry samples byte-for-byte for their recorded SHA-256.
+tests/scenes/obj-import/*.obj -text -diff
+tests/scenes/ply/*.ply -text -diff
+tests/scenes/print-formats/**/*.vtk -text -diff
+tests/scenes/print-formats/**/*.3mf -text -diff
+tests/scenes/step/*.step -text -diff
+tests/scenes/step/*.stp -text -diff
+tests/scenes/svg/*.svg -text -diff
