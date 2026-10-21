@@ -17,6 +17,7 @@ npm run test:stress         # Same checks, longer GPU timing sample
 npm run test:all            # Also load large user fixtures from tests/scenes/
 npm run test:interaction    # Mouse, insertion, tangents, Outline/Bevel, latency budgets
 npm run test:performance    # 100M triangles: all four shading modes, p95 + hover/navigation
+node tests/october-regressions.mjs # Spline tools, neutral cages, Bevel, cut/loop, pixels and latency
 ```
 
 `test:all` can require over 9 GiB of VRAM and much more RAM; close other heavy scenes first. It includes the 100,548,288-triangle HASH and the single-object original-scale STL import. Each large fixture gets a separate browser context, then is focused in a single perspective Solid view for fresh render timings. This prevents keeping both 100M-triangle scenes resident simultaneously. Those files are user fixtures, not prerequisites for standard tests. Missing optional files are reported as skipped.
@@ -28,6 +29,8 @@ Results: `tests/results/latest.json` plus timestamped history. The report includ
 Every changed operation must have a performance test. Shared-suite API calls record wall time by command/type and fail above 5 s (60 s for load/build/geometry/render). Interaction regressions additionally cap completed mouse operations at 1 s, warmed partial Outline updates at 250 ms and a 512-edge Outline at 2 s. The 100M test records 6 warmup + 32 measured frames per shading mode, CPU/GPU median/p95/max, a changed camera, geometry-cache reuse, and WebGPU errors. Its standalone report is `results/performance-100m.json`; `test:all` includes the same checks for the heavy fixture. These are regression budgets, not claims that every operation has identical latency.
 
 The standard suite covers schema/errors/no-mutation validation; serialized calls; all 15 implemented library types; hierarchy, object transforms without geometry rewrites, metadata/geometry Undo/Redo; two-stage To Editable; generator inputs; spline tangents/selection/weld; buffer and texture-backed mesh weld/digests/connected; lighting, views, shading, HASH and OBJ round trips; finite valid geometry on a cage with 2304 different curved cells. Real UI checks cover library buttons, context menus/focus/Escape, wheel over the gizmo, keyboard layout, Delete from the tree and double-click connected in all three modes. MCP checks exercise stdio initialization/discovery/call/read/error.
+
+The October regression module is part of both standard and stress runs. It checks diagonal Outline through zero and branched paths; Connect selection; tangent visibility, point priority and vector averaging; Ctrl connections and temporary drawing; neutral generator cages; source detachment; the supplied resolver scene against r248's fourteen oriented cells; warped quads; sphere cap extrusion; border/Undo; repeated polygon Bevel and exact Undo; loop hover; visible-only cuts; viewport Ctrl+A; Soft cube deformation; parameter-only Attributes; and native green edge pixels. Completed operations have wall-time budgets and the resolver fixture records CPU/GPU frames. Diagnostic errors stay outside the interface.
 
 To extend:
 

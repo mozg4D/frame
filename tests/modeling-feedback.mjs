@@ -19,7 +19,7 @@ export async function modelingFeedbackChecks(page){
       selection=await click(points[1],'Shift');check('Patch '+mode+' Shift adds',keys.every(k=>selection.components.includes(k)),selection);
       selection=await click(points[1],'Shift');check('Patch '+mode+' Shift is idempotent',selection.components.length===2,selection);
       selection=await click(points[0],'Control');check('Patch '+mode+' Ctrl toggles off',selection.components.length===1&&selection.components[0]===keys[1],selection);
-      selection=await click(points[0],'Control');check('Patch '+mode+' Ctrl toggles on',selection.components.length===2,selection);
+      selection=await click(points[0],'Control');if(mode==='vertex'){const connected=(await call('spline.inspect',{id:patch.hash})).data;check('Patch Ctrl point click connects selected vertices',selection.components.length===1&&Object.values(connected.segments).some(e=>[e.a,e.b].includes(keys[0])&&[e.a,e.b].includes(keys[1])),selection);await call('spline.replace',{id:patch.hash,data});}else check('Patch '+mode+' Ctrl toggles on',selection.components.length===2,selection);
       await call('scene.select',{ids:[patch.hash],mode,components:[]});const a=await project(source,[-85,-45,0]),b=await project(source,[-15,45,0]);await drag(a,b,'Alt');selection=(await call('scene.inspect')).selection;const expected=mode==='polygon'?1:4;check('Patch '+mode+' rectangle selects the left component',selection.components.length===expected,selection);
       await page.keyboard.down('Control');await drag(a,b,'Alt');await page.keyboard.up('Control');selection=(await call('scene.inspect')).selection;check('Patch '+mode+' Ctrl rectangle toggles off',selection.components.length===0,selection);
     }

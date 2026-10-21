@@ -1,6 +1,7 @@
 # Test scenes
 
 - `unique-patches.hash`: deterministic seed 6139, a 48×48 grid of different nonplanar curved cells. 2304 cells, 2401 authored vertices, 4704 spline segments; 337398 surface triangles / 169605 vertices at the stored approximation. Every cell has different positions/tangents. It exercises the general Float64 worker builder, not a repeated-cell cache or the regular translational GPU fast path. Source recipe: `generate-unique.mjs`.
+- `resolver-feedback.json`: the sixteen-vertex, twenty-eight-segment cage supplied in the 21 October 2026 share link, plus fourteen oriented reference cells obtained from `origin/main` r248 (`238944a`). Its obsolete twelve-cell table is deliberately retained in the input to verify that segment geometry determines the surface.
 - The tiny OBJ and six-vertex polygon weld scenes are generated directly in `suite.js`, avoiding binary fixture duplication.
 - Existing user scenes are in this directory: `frame-spline-regular.hash`, `test.stl`, `stress-mesh-100m.hash`. Large fixtures are opt-in with `npm run test:all`.
 
@@ -10,6 +11,8 @@ boolean-patch-regression.hash: the 269-vertex / 534-triangle Boolean mesh suppli
 
 - `morph-fingers.hash` (also `morph-hands.hash` for the previous path): two horizontal fingers with rounded rectangular sections (one polygon, one spline patch), plus an elbow with visible biceps deformation. Curl/Flex use native authored pose curves and preserve section area/neutral-axis arc length. Generator: `generate-release.mjs --hands`.
 - `release-1000-10m.hash`: 1000 objects, 9,993,256 triangles, 32 supported types; 919 different explicit dense meshes plus generators, stock models, curves, lights, cameras, hierarchy, materials, per-face masks, UV and Morph. Generator: `generate-release.mjs --stress`; source seed/manifest/validation are in ignored results/.
+
+The unchanged release fixture now rebuilds to 9,993,290 triangles: the spline finger uses the original adaptive surface builder and has 284 triangles instead of its saved 250. Every other object's triangle count is unchanged.
 - `material-selects.gltf` / `shared-mesh.gltf`: deterministic embedded buffers for normalized UVs, two material primitives on one object, repeated mesh nodes and node hierarchy. Metres in glTF become millimetres.
 - `DamagedHelmet/`: unchanged Khronos sample asset for the native glTF importer. Model/rebuild attribution and license information are preserved in its README; test data only, not a runtime library.
 
