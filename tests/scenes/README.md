@@ -9,7 +9,7 @@
 
 boolean-patch-regression.hash: the 269-vertex / 534-triangle Boolean mesh supplied in the user's share link on 18.10.2026. Expected: exact position digest and signed volume after To Spline Patch; 534 authored cells without resolver cycle-budget overflow.
 
-- `morph-fingers.hash` (also `morph-hands.hash` for the previous path): two horizontal fingers with rounded rectangular sections (one polygon, one spline patch), plus an elbow with visible biceps deformation. Curl/Flex use native authored pose curves and preserve section area/neutral-axis arc length. Generator: `generate-release.mjs --hands`.
+- `morph-fingers.hash` (also `morph-hands.hash`): horizontal polygon/patch fingers with 16 controls, four side quads per phalanx and a single tip quad (13 quads total, open root), plus a two-segment elbow. Each finger has independent Proximal/Middle/Distal region Morphs; the elbow has Flex. Zero animation channels and zero baked point samples. Generator: `generate-release.mjs --hands`.
 - `release-1000-10m.hash`: 1000 objects, 9,993,256 triangles, 32 supported types; 919 different explicit dense meshes plus generators, stock models, curves, lights, cameras, hierarchy, materials, per-face masks, UV and Morph. Generator: `generate-release.mjs --stress`; source seed/manifest/validation are in ignored results/.
 
 The unchanged release fixture now rebuilds to 9,993,290 triangles: the spline finger uses the original adaptive surface builder and has 284 triangles instead of its saved 250. Every other object's triangle count is unchanged.
