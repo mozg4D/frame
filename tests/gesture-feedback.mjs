@@ -15,5 +15,5 @@ export async function gestureFeedbackChecks(page){
  return {pass:true,checks,timings};
  }catch(e){return {pass:false,checks,timings,error:e.stack};}
 }
-if(process.argv[1]===fileURLToPath(import.meta.url)){const s=await launch({headless:false});try{await ready(s.page);const r=await gestureFeedbackChecks(s.page);console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}finally{await s.close();}}
+if(process.argv[1]===fileURLToPath(import.meta.url)){const s=await launch({headless:!process.argv.includes('--headed')});try{await ready(s.page);const r=await gestureFeedbackChecks(s.page);console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}finally{await s.close();}}
 

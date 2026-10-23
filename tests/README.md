@@ -8,7 +8,7 @@ npx playwright install chromium
 npm test
 ```
 
-Setup is needed once after checkout/dependency changes. Node 22+ is required. `npm test` starts a temporary localhost server and an isolated Chromium context with real WebGPU. It never opens/saves over the working scene. Default is headed Chromium because headless WebGPU is unavailable on some Windows drivers. `--headless` is optional and fails explicitly if there is no GPU adapter; `FRAME_BROWSER` can select another Chromium executable, `FRAME_DPR=2` runs at DPR 2.
+Setup is needed once after checkout/dependency changes. Node 22+ is required. `npm test` starts a temporary localhost server and an isolated Chromium context with real WebGPU. It never opens/saves over the working scene. Default is full Chromium headless with hardware WebGPU, including pointer-lock tests; it leaves the OS mouse/keyboard and foreground window alone. `--headed` explicitly opens a visible debugging browser. Missing WebGPU is a failure; there is no software-GPU or visible-window fallback; `FRAME_BROWSER` can select another Chromium executable, `FRAME_DPR=2` runs at DPR 2.
 
 ```powershell
 npm run test:syntax         # Parse both executable scripts in index.html
@@ -120,3 +120,7 @@ Generator correctness and PLY coverage are included in both mandatory suites. Fo
 The downloaded geometry corpora use Git `-text` attributes to preserve their recorded source bytes across checkout platforms. Do not normalize their line endings or whitespace. Source manifests, scripts and documentation remain ordinary text files.
 
 materials-selection-feedback.mjs covers the native pixel icon, extra material texture-label spacing, r248 Toggle Border mixed states and Undo, patch cell hover edges in all four views, and evaluated Morph geometry bounds and surface selection at neutral/intermediate/full poses in morph-fingers.hash. It records operation budgets, CPU/GPU frames and GPU errors and runs in the shared suite.
+
+Standard/stress profiles discover each installed plugin's `tests/index.mjs` from `plugins/index.json`; missing plugin AGENTS.md or tests are failures. `npm run test:plugins` also runs this discovery directly. `npm run test:animation` covers editable viewport motion paths, key/tangent gestures and Undo/cancellation, frame ticks, parent frames, scalar/integer/discrete/material channels and HASH. `editor-final-feedback.mjs` checks deleted sphere cages never draw an intermediate frame and icons/crosses use native dimensions. The heavy benchmark selects all 50271552 logical vertices through the real GPU marquee, checks orange pixels and measures steady/navigation latency.
+
+The animation camera regression also opens the locally generated `scenes/material-gallery.hash`. Generate it with `node tests/scenes/generate-material-gallery.mjs` after preparing the material-model corpus; the large HASH remains ignored. Missing required local fixtures are reported as failures, never as successful checks.

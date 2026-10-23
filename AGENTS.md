@@ -1,6 +1,6 @@
 # Frame development
 
-- Core runtime application code lives in `index.html`. Independently developed plugins live in their own `modules/<plugin>/` directories; see `plugins.md`. Development tools/tests may use separate files. Keep heavy-scene performance and memory use a priority.
+- Core runtime application code lives in `index.html`. Independently developed plugins live in their own `plugins/<plugin>/` directories; see `plugins.md`. Development tools/tests may use separate files. Keep heavy-scene performance and memory use a priority.
 - Keep runtime code minimal: reuse existing algorithms, editor paths and GPU resources instead of adding parallel implementations.
 - Compatibility with earlier formats, APIs, and behavior is not required for now. The user will explicitly say when compatibility becomes necessary; do not add compatibility layers or migrations preemptively.
 - Read `app.md` before changing behavior; update it when behavior or the API changes.
@@ -12,6 +12,9 @@
 - Add a focused regression case to the shared suite or focused UI modules under `tests/` for a fixed bug/new operation. Keep test code outside runtime. New automation commands require a schema, validation before mutation, and tests.
 - `tests/results/latest.json` records the tested `index.html` SHA-256, failures and timings. Do not claim a newer file passed an older report. Test results, browser dependencies and failure screenshots are ignored by Git.
 - Browser-only runner: `tests/index.html` on the same local server. It uses a separate iframe scene; leave the user's working scene alone. CLI uses its own browser context and ephemeral localhost server.
+- CLI tests and MCP use full Chromium headless by default, including native pointer-lock checks. A visible window requires explicit `--headed`; do not silently fall back to a visible browser or software GPU. Each plugin owns `AGENTS.md` and `tests/index.mjs`; standard/stress verification discovers plugin checks from the catalogue.
+
+- Author every icon at its displayed native dimensions. Do not scale icons with CSS, transforms or a mismatched SVG viewBox; author a separate native-size variant when needed.
 
 - Change the application interface only when the user explicitly requests that interface change. Keep code, documentation, fixtures and UI text in English.
 

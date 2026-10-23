@@ -1,12 +1,13 @@
 {
   "id": "3d-printer",
   "name": "3D Printer",
-  "color": "#8fc8bb",
+  "color": "#92aaa4",
   "module": "plugin.js",
   "icon": "icon.svg",
   "objects": [{
     "type": "printer",
     "name": "3D Printer",
+    "breakAfter": ["Layer position"],
     "fields": {
       "Start layer": 1,
       "Finish layer": 3332,

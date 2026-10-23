@@ -2,7 +2,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {launch,ready,root} from '../tools/browser.mjs';
 import {join} from 'node:path';
-const report={started:new Date().toISOString(),indexSHA256:createHash('sha256').update(await readFile(join(root,'index.html'))).digest('hex'),checks:[],errors:[]},session=await launch({headless:false}),{page}=session;
+const report={started:new Date().toISOString(),indexSHA256:createHash('sha256').update(await readFile(join(root,'index.html'))).digest('hex'),checks:[],errors:[]},session=await launch({headless:!process.argv.includes('--headed')}),{page}=session;
 const call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name);};
 page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error')report.errors.push(m.text());});
 try{

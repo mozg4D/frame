@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "widthMm": 2,
+  "scene": "tests/scenes/slicer-zoo.hash",
+  "objects": [
+    {
+      "name": "Rounded taper - Ogryzok",
+      "purpose": "Rounded narrowing and terminating perimeters"
+    },
+    {
+      "name": "Acute star",
+      "purpose": "Acute tips, concave branches and spiral connectivity"
+    },
+    {
+      "name": "Strip 0.5W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 0.5
+    },
+    {
+      "name": "Strip 0.59W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 0.59
+    },
+    {
+      "name": "Strip 0.6W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 0.6
+    },
+    {
+      "name": "Strip 0.8W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 0.8
+    },
+    {
+      "name": "Strip 0.99W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 0.99
+    },
+    {
+      "name": "Strip 1W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 1
+    },
+    {
+      "name": "Strip 1.49W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 1.49
+    },
+    {
+      "name": "Strip 1.5W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 1.5
+    },
+    {
+      "name": "Strip 1.6W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 1.6
+    },
+    {
+      "name": "Strip 2.99W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 2.99
+    },
+    {
+      "name": "Strip 3.01W",
+      "purpose": "Bead count/width threshold",
+      "widthW": 3.01
+    },
+    {
+      "name": "Nested cavity shells",
+      "purpose": "Inner void, shell winding independence"
+    },
+    {
+      "name": "Nested overlapping solids",
+      "purpose": "Nested volume/union semantics"
+    },
+    {
+      "name": "Needle wedge",
+      "purpose": "Acute return and thin-wall widening"
+    },
+    {
+      "name": "Micro islands below 3W",
+      "purpose": "Filter complete tiny trajectories rather than filling every micro-gap"
+    },
+    {
+      "name": "Reversed winding cube",
+      "purpose": "Normal independence"
+    },
+    {
+      "name": "Mixed winding cube",
+      "purpose": "Normal independence on inconsistent triangle winding"
+    },
+    {
+      "name": "Missing one triangle",
+      "purpose": "Moderately open input"
+    },
+    {
+      "name": "Duplicate faces",
+      "purpose": "Coincident duplicate input"
+    },
+    {
+      "name": "Unwelded 0.04 mm crack",
+      "purpose": "Cracked STL-style soup"
+    },
+    {
+      "name": "Overhang 30 degrees",
+      "purpose": "Angle threshold around 45 degrees",
+      "angle": 30
+    },
+    {
+      "name": "Overhang 44 degrees",
+      "purpose": "Angle threshold around 45 degrees",
+      "angle": 44
+    },
+    {
+      "name": "Overhang 45 degrees",
+      "purpose": "Angle threshold around 45 degrees",
+      "angle": 45
+    },
+    {
+      "name": "Overhang 46 degrees",
+      "purpose": "Angle threshold around 45 degrees",
+      "angle": 46
+    },
+    {
+      "name": "Overhang 60 degrees",
+      "purpose": "Angle threshold around 45 degrees",
+      "angle": 60
+    }
+  ],
+  "reference": {
+    "file": "test.stl",
+    "sha256": "27047f3cb6c94a5d4bffd8e5427a0e984a22cef21491acc5866f48ebd62f56e5",
+    "included": true
+  },
+  "stats": {
+    "meshes": 28,
+    "vertices": 785979,
+    "triangles": 1571912
+  }
+}

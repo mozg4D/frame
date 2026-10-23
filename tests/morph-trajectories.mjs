@@ -37,4 +37,4 @@ export async function morphTrajectoryChecks(page){
   return {pass:true,checks,timings};
  }catch(error){await page.mouse.up();await page.screenshot({path:'C:/frame/tests/results/morph-trajectories-failure.png'}).catch(()=>{});return {pass:false,checks,timings,error:error.stack};}
 }
-if(process.argv[1]===fileURLToPath(import.meta.url)){const s=await launch({headless:false});try{await ready(s.page);const r=await morphTrajectoryChecks(s.page);console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}finally{await s.close();}}
+if(process.argv[1]===fileURLToPath(import.meta.url)){const s=await launch({headless:!process.argv.includes('--headed')});try{await ready(s.page);const r=await morphTrajectoryChecks(s.page);console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}finally{await s.close();}}

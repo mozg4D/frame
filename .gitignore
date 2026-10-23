@@ -13,3 +13,6 @@ tests/.step-reference/
 
 # Rebuild from the included material models with generate-material-gallery.mjs.
 /tests/scenes/material-gallery.hash
+
+# Regenerate the printer corpus, including the local incoming STL reference.
+/tests/scenes/slicer-zoo.hash

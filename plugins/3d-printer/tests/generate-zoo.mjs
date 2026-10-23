@@ -1,0 +1,38 @@
+// Authoring fixture only. No slicing or toolpath algorithm is implemented here.
+import {launch,ready} from '../../../tools/browser.mjs';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+export const W=2;
+const box=(x=40,y=30,z=40)=>({vertices:[-x/2,0,-z/2,x/2,0,-z/2,x/2,y,-z/2,-x/2,y,-z/2,-x/2,0,z/2,x/2,0,z/2,x/2,y,z/2,-x/2,y,z/2],indices:[0,2,1,0,3,2,4,5,6,4,6,7,0,1,5,0,5,4,3,7,6,3,6,2,0,4,7,0,7,3,1,2,6,1,6,5]});
+function prism(points,height=20){
+ const n=points.length,vertices=points.flatMap(([x,z])=>[x,0,z]).concat(points.flatMap(([x,z])=>[x,height,z])),indices=[],ring=Array.from({length:n},(_,i)=>i),cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+ if(points.reduce((sum,p,i)=>sum+p[0]*points[(i+1)%n][1]-p[1]*points[(i+1)%n][0],0)<0)ring.reverse();
+ while(ring.length>2){let clipped=false;for(let i=0;i<ring.length;i++){const a=ring[(i+ring.length-1)%ring.length],b=ring[i],c=ring[(i+1)%ring.length];if(cross(points[a],points[b],points[c])<=0)continue;if(ring.some(d=>d!==a&&d!==b&&d!==c&&cross(points[a],points[b],points[d])>=0&&cross(points[b],points[c],points[d])>=0&&cross(points[c],points[a],points[d])>=0))continue;indices.push(a,b,c,a+n,c+n,b+n);ring.splice(i,1);clipped=true;break;}if(!clipped)throw Error('Invalid fixture polygon');}
+ for(let i=0;i<n;i++){const j=(i+1)%n;indices.push(i,j+n,i+n,i,j,j+n);}return {vertices,indices};
+}
+function roundedStub(){const sections=[[0,28],[15,28],[28,25],[42,18],[55,10],[64,5],[70,3]],segments=32,vertices=[],indices=[];for(const [y,r]of sections)for(let i=0;i<segments;i++){const a=i*Math.PI*2/segments;vertices.push(Math.cos(a)*r,y,Math.sin(a)*r);}for(let j=0;j+1<sections.length;j++)for(let i=0;i<segments;i++){const a=j*segments+i,b=j*segments+(i+1)%segments,c=b+segments,d=a+segments;indices.push(a,d,b,b,d,c);}for(let i=1;i+1<segments;i++)indices.push(0,i,i+1,(sections.length-1)*segments,(sections.length-1)*segments+i+1,(sections.length-1)*segments+i);return {vertices,indices};}
+const combine=(a,b)=>({vertices:a.vertices.concat(b.vertices),indices:a.indices.concat(b.indices.map(i=>i+a.vertices.length/3))});
+export function zooCases(){
+ const cases=[{name:'Rounded taper - Ogryzok',mesh:roundedStub(),purpose:'Rounded narrowing and terminating perimeters'},{name:'Acute star',mesh:prism(Array.from({length:18},(_,i)=>{const a=i*Math.PI/9,r=i%2?7:48;return [Math.cos(a)*r,Math.sin(a)*r];})),purpose:'Acute tips, concave branches and spiral connectivity'}];
+ for(const width of [.5,.59,.6,.8,.99,1,1.49,1.5,1.6,2.99,3.01])cases.push({name:'Strip '+width+'W',mesh:box(width*W,15,65),purpose:'Bead count/width threshold',widthW:width});
+ const inner=box(25,30,25);inner.vertices=inner.vertices.map((v,i)=>v+(i%3===1?10:0));inner.indices=inner.indices.map((v,i,a)=>i%3===1?a[i+1]:i%3===2?a[i-1]:v);cases.push({name:'Nested cavity shells',mesh:combine(box(65,55,65),inner),purpose:'Inner void, shell winding independence'});
+ const inset=box(25,30,25);inset.vertices=inset.vertices.map((v,i)=>v+(i%3===1?8:0));cases.push({name:'Nested overlapping solids',mesh:combine(box(60,50,60),inset),purpose:'Nested volume/union semantics'});
+ cases.push({name:'Needle wedge',mesh:prism([[-45,-.5],[45,0],[-45,.5]],12),purpose:'Acute return and thin-wall widening'});
+ const short=box(.5*W,2,.5*W);cases.push({name:'Micro islands below 3W',mesh:combine(short,{vertices:short.vertices.map((v,i)=>v+(i%3===0?8:0)),indices:short.indices}),purpose:'Filter complete tiny trajectories rather than filling every micro-gap'});
+ const reversed=box();reversed.indices=reversed.indices.map((v,i,a)=>i%3===1?a[i+1]:i%3===2?a[i-1]:v);cases.push({name:'Reversed winding cube',mesh:reversed,purpose:'Normal independence'});
+ const mixed=box();for(let i=0;i<mixed.indices.length;i+=6)[mixed.indices[i+1],mixed.indices[i+2]]=[mixed.indices[i+2],mixed.indices[i+1]];cases.push({name:'Mixed winding cube',mesh:mixed,purpose:'Normal independence on inconsistent triangle winding'});
+ const missing=box();missing.indices.splice(0,3);cases.push({name:'Missing one triangle',mesh:missing,purpose:'Moderately open input'});
+ const duplicates=box();duplicates.indices.push(...duplicates.indices.slice(0,6));cases.push({name:'Duplicate faces',mesh:duplicates,purpose:'Coincident duplicate input'});
+ const crack=box(),v=[],ix=[];for(let i=0;i<crack.indices.length;i++){const at=crack.indices[i]*3;v.push(crack.vertices[at]+(i<6?.04:0),crack.vertices[at+1],crack.vertices[at+2]);ix.push(i);}cases.push({name:'Unwelded 0.04 mm crack',mesh:{vertices:v,indices:ix},purpose:'Cracked STL-style soup'});
+ for(const angle of [30,44,45,46,60]){const m=box(30,45,30);m.vertices=m.vertices.map((v,i,a)=>i%3===0?v+a[i+1]*Math.tan(angle*Math.PI/180):v);cases.push({name:'Overhang '+angle+' degrees',mesh:m,purpose:'Angle threshold around 45 degrees',angle});}
+ return cases;
+}
+if(process.argv[1]===fileURLToPath(import.meta.url)){
+ const s=await launch({headless:!process.argv.includes('--headed')});try{const page=s.page;await ready(page);const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),cases=zooCases(),printer=await call('plugins.create',{plugin:'3d-printer'}),root=await call('scene.create',{type:'group',name:'Adversarial slicing zoo - W 2 mm'});
+  for(let i=0;i<cases.length;i++){const c=cases[i],n=await call('mesh.create',{...c.mesh,name:c.name}),x=(i%6-2.5)*140,z=(Math.floor(i/6)-2)*145;await call('transform.set',{channel:'position',axis:0,value:x});await call('transform.set',{channel:'position',axis:2,value:z});await call('scene.update',{id:n.hash,parent:root.hash});}
+  let reference=null;if(!process.argv.includes('--without-reference')){const file=new URL('../../../tests/scenes/test.stl',import.meta.url);try{const bytes=await readFile(file);const result=await call('scene.merge',{url:'tests/scenes/test.stl'}),n=result.objects[0];await call('scene.select',{ids:[n.hash]});const initial=(await call('scene.inspect')).objects.find(o=>o.hash===n.hash),dims=initial.bounds.max.map((v,k)=>v-initial.bounds.min[k]),factor=100/Math.max(...dims);for(let axis=0;axis<3;axis++)await call('transform.set',{channel:'size',axis,value:dims[axis]*factor});const sized=(await call('scene.inspect')).objects.find(o=>o.hash===n.hash);for(let axis=0;axis<3;axis++)await call('transform.set',{channel:'position',axis,value:sized.worldMatrix[12+axis]+[350,80,350][axis]-(sized.bounds.min[axis]+sized.bounds.max[axis])/2});await call('scene.update',{id:n.hash,parent:root.hash,name:'Incoming user test.stl reference'});reference={file:'test.stl',sha256:createHash('sha256').update(bytes).digest('hex'),included:true};}catch(e){if(e.code!=='ENOENT')throw e;reference={file:'test.stl',included:false};}}
+  await call('scene.select',{ids:[printer.hash]});await call('view.set',{index:0,single:true,mode:'object',shading:'solid-isoparms',focus:printer.hash});await call('scene.select',{ids:[]});const destination=new URL('../../../tests/scenes/slicer-zoo.hash',import.meta.url),download=page.waitForEvent('download',{timeout:120000});await page.locator('#btnDownload').click();await(await download).saveAs(fileURLToPath(destination));
+  const state=await call('scene.inspect'),manifest={version:1,widthMm:W,scene:'tests/scenes/slicer-zoo.hash',objects:cases.map(({mesh,...c})=>c),reference,stats:Object.fromEntries(['meshes','vertices','triangles'].map(k=>[k,state.stats[k]]))};await writeFile(new URL('./slicer-zoo.json',import.meta.url),JSON.stringify(manifest,null,2)+'\n');console.log(JSON.stringify({file:fileURLToPath(destination),cases:cases.length,triangles:state.stats.triangles,reference}));
+ }finally{await s.close();}
+}

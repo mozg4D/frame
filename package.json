@@ -16,7 +16,8 @@
     "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",
     "mcp": "node tools/mcp.mjs",
-    "test:plugins": "node tests/modeling-plugins.mjs",
+    "test:plugins": "node tests/plugin-infrastructure.mjs && node tests/modeling-plugins.mjs",
+    "test:animation": "node tests/animation-feedback.mjs",
     "test:user": "node tests/user-feedback.mjs",
     "test:fixture": "node tests/scenes/generate-heavy.mjs",
     "test:delete": "node tests/delete-context.mjs",
@@ -29,7 +30,8 @@
     "test:surfaces": "node tests/surface-correctness.mjs",
     "test:large-delete": "node tests/large-delete.mjs",
     "test:mobile": "node tests/mobile-release.mjs",
-    "test:pwa": "node tests/pwa.mjs"
+    "test:pwa": "node tests/pwa.mjs",
+    "test:october23": "node tests/october23-feedback.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
