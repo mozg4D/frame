@@ -1,0 +1,224 @@
+[
+  {
+    "name": "bin_dxf_r12.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/bin_dxf_r12.dxf",
+    "sha256": "1e7a904d67bc7036bd3f78a6273cdf28124ba7e8b731604c0593288182f2aa0e",
+    "version": "AC1009",
+    "entities": {
+      "LINE": 3
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "bin_dxf_r13.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/bin_dxf_r13.dxf",
+    "sha256": "c65782683815ff0f1680d26207da1637a486f96b30bc215685e26cf7adee8464",
+    "version": "AC1012",
+    "entities": {
+      "LINE": 3
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "bin_dxf_r14.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/bin_dxf_r14.dxf",
+    "sha256": "177a97e5dc86ca106d0dd6365d139122fc54ff78df87670847eb7174a8bbd5eb",
+    "version": "AC1014",
+    "entities": {
+      "LINE": 3
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "bin_dxf_r2000.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/bin_dxf_r2000.dxf",
+    "sha256": "bdbe44e042bc6f56fbf5bd4fde0053fa1b82dcf90305f21a521a7b70d2c37320",
+    "version": "AC1015",
+    "entities": {
+      "TEXT": 1
+    },
+    "expectedReject": true
+  },
+  {
+    "name": "ASCII_R12.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/ASCII_R12.dxf",
+    "sha256": "ff4f87343206ad4734ce2bd2b72ef5a7e72fdd75e4576f0939d17116097ff270",
+    "version": "AC1009",
+    "entities": {
+      "INSERT": 1,
+      "LINE": 2
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "cc_dxflib.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/cc_dxflib.dxf",
+    "sha256": "46651b2ce3d7c4b032d081414a8d943c90bb7b8a4529d3b4c38f71b9136793b9",
+    "version": "AC1009",
+    "entities": {
+      "POLYLINE": 1
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "Leica_Disto_S910.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/Leica_Disto_S910.dxf",
+    "sha256": "ea16b349b28cd8e4e9432e591ab1ccb1cebb9e6435f7cf858f5ea5b224177f9f",
+    "version": "AC1009",
+    "entities": {
+      "POINT": 11,
+      "LINE": 10,
+      "TEXT": 11
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "small_r13.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/small_r13.dxf",
+    "sha256": "51868640ebca4d0290d07e04113ae85c64c55b2f916fb8f1f63962763bcd6d23",
+    "version": "AC1012",
+    "entities": {
+      "POLYLINE": 16
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "small_r14.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/integration_tests/data/small_r14.dxf",
+    "sha256": "ef157171b5f5560321763d5241363c83ad67c8638b0885604d64e792ea3ad2a7",
+    "version": "AC1014",
+    "entities": {},
+    "expectedReject": true
+  },
+  {
+    "name": "3dface.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/3dface.dxf",
+    "sha256": "e49d8882afaf2d8ae18ebe18941cc32ab676f697973dc9e504cc281444e6fc88",
+    "version": "AC1032",
+    "entities": {
+      "3DFACE": 44,
+      "TEXT": 6,
+      "MTEXT": 16,
+      "LWPOLYLINE": 5
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "clockwise_arcs_hatch.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/clockwise_arcs_hatch.dxf",
+    "sha256": "e1a16ccd840abb9b884f4024ed00c20eff5b88bf46a19e4d38968d73968aa19d",
+    "version": "AC1027",
+    "entities": {
+      "HATCH": 1
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "dimension_in_nested_blocks.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/dimension_in_nested_blocks.dxf",
+    "sha256": "a27aa6449602dc23bd467a3ae8eab9251391d8e48a16a26785f19b459323165d",
+    "version": "AC1027",
+    "entities": {
+      "INSERT": 4
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "insert_bricscad_level_1.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/insert_bricscad_level_1.dxf",
+    "sha256": "fee0e1cde80c8de44ff388ce5f4ef3b3846c8183f57913cf8eed910fc83baf9c",
+    "version": "AC1027",
+    "entities": {
+      "INSERT": 6,
+      "TEXT": 12,
+      "LWPOLYLINE": 6
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "multi_insert_with_attribs.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/multi_insert_with_attribs.dxf",
+    "sha256": "3e6987cf6bc1e26b72b092474bfedcd05afb730fa3652c8d31f0f5c24328a6e1",
+    "version": "AC1027",
+    "entities": {
+      "INSERT": 1
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "hatches_1.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/hatches_1.dxf",
+    "sha256": "e15c248b5713b7fd1c56bd0d3868b19fa93869fd3bc955df265d0c3f66339c53",
+    "version": "AC1032",
+    "entities": {
+      "LWPOLYLINE": 16,
+      "HATCH": 10,
+      "ARC": 6
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "hatches_2.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/hatches_2.dxf",
+    "sha256": "305f74d0390d7000e78b2e608ea4d0ee7a1297f02644fd8f2d7afb5b0256f32e",
+    "version": "AC1032",
+    "entities": {
+      "LWPOLYLINE": 4,
+      "ARC": 1,
+      "SPLINE": 1,
+      "ELLIPSE": 1,
+      "HATCH": 2,
+      "MTEXT": 2
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "uncommon.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/uncommon.dxf",
+    "sha256": "e9accdd5886d60c0caeb827cf7c613a2ea6cfc7c8f335675f8eb2491a1601215",
+    "version": "AC1032",
+    "entities": {
+      "LINE": 19,
+      "MTEXT": 19,
+      "SPLINE": 1,
+      "DIMENSION": 13,
+      "CIRCLE": 1,
+      "LWPOLYLINE": 6,
+      "LARGE_RADIAL_DIMENSION": 2,
+      "ARC": 1,
+      "ARC_DIMENSION": 1,
+      "MULTILEADER": 2,
+      "RAY": 3,
+      "POINT": 6,
+      "MESH": 1,
+      "POLYLINE": 2,
+      "SOLID": 1,
+      "INSERT": 1,
+      "XLINE": 2,
+      "3DSOLID": 1
+    },
+    "expectedReject": false
+  },
+  {
+    "name": "visibility.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/visibility.dxf",
+    "sha256": "e8078cf0aafa19869751e9cad3bf1a44d97efc67991c3357f12dd54f37d4c876",
+    "version": "AC1032",
+    "entities": {
+      "INSERT": 2,
+      "MTEXT": 4
+    },
+    "expectedReject": true
+  },
+  {
+    "name": "Minimal_DXF_AC1006.dxf",
+    "url": "https://raw.githubusercontent.com/mozman/ezdxf/7b202613e0d689955b8932a22bcbcf68bdd684f0/examples_dxf/Minimal_DXF_AC1006.dxf",
+    "sha256": "309330b0fbfd59320eebd31109b6a81a81e4a99fde117f954f0b0bbd11a22cf6",
+    "version": "AC1006",
+    "entities": {
+      "3DFACE": 2,
+      "LINE": 1
+    },
+    "expectedReject": false
+  }
+]

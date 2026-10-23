@@ -6,7 +6,7 @@ export async function modelingFeedbackChecks(page){
   const click=async(point,modifier)=>{if(modifier)await page.keyboard.down(modifier);await page.mouse.click(...point);if(modifier)await page.keyboard.up(modifier);return (await call('scene.inspect')).selection;};
   const drag=async(a,b,modifier)=>{if(modifier)await page.keyboard.down(modifier);await page.mouse.move(...a);await page.mouse.down();await page.mouse.move(...b,{steps:6});await page.mouse.up();if(modifier)await page.keyboard.up(modifier);await call('scene.inspect');};
   try{
-    check('Page title is Frame',await page.title()==='Frame');
+    check('Page title is Frame followed by its application version',await page.title()===await page.evaluate(()=>'Frame '+document.querySelector('meta[name="frame-version"]').content));
     await clear();const patch=await call('scene.create',{type:'spline_patch'});
     const data=await page.evaluate(()=>{const K=FrameSpline.K(),d=K.createSplineData();d.sourceCells=[];for(const cx of [-50,50]){const q=K.addSplineSequence(d),v=[[-30,-40,0],[30,-40,0],[30,40,0],[-30,40,0]].map(p=>K.addSplineVertex(d,[p[0]+cx,p[1],p[2]])),ids=[];for(let i=0;i<4;i++)ids.push(K.addSplineSegment(d,q,v[i],v[(i+1)%4]));d.sequences.find(s=>s.id===q).closed=true;d.sourceCells.push({loops:[ids.map(edge=>({edge,reversed:false}))]});}return d;});
     await call('spline.replace',{id:patch.hash,data});const cage=await call('spline.inspect',{id:patch.hash}),source=cage.id,vertices=Object.keys(cage.data.vertices),edges=Object.keys(cage.data.segments);

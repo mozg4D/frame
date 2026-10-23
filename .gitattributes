@@ -8,3 +8,5 @@ tests/scenes/print-formats/**/*.3mf -text -diff
 tests/scenes/step/*.step -text -diff
 tests/scenes/step/*.stp -text -diff
 tests/scenes/svg/*.svg -text -diff
+tests/scenes/dxf/*.dxf -text -diff
+tests/scenes/dxf.dxf -text -diff

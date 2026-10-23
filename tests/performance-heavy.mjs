@@ -18,6 +18,12 @@ export async function heavyPerformanceChecks(page,state){
    const started=performance.now();await call('view.set',{mode:'vertex'});const elapsedMs=performance.now()-started,components=await call('diagnostics.frame',{frames:8}),componentGPU=stats(components.frames.map(f=>f.gpuMs));modes[shading].components={...components,elapsedMs,gpu:componentGPU};check(shading+' 100M component maps settle within 1 s and stay stable',elapsedMs<1000&&componentGPU.p95<componentGPU.median*1.6+5,{elapsedMs,gpu:componentGPU});
   }
   check('Polygon Solid Isoparms costs the same as Solid Wire without an extra edge pass',modes['solid-isoparms'].gpu.median<modes['solid-wire'].gpu.median*1.12+1,{solidWire:modes['solid-wire'].gpu,solidIsoparms:modes['solid-isoparms'].gpu});
+  // Exercise the new marker pass on every logical vertex in the real 100M scene.
+  for(const shading of ['solid-isoparms','isoparms']){
+   await call('view.set',{camera,index:0,single:true,mode:'object',shading});await call('scene.select',{ids:roots});const started=performance.now();await call('view.set',{mode:'vertex'});const elapsedMs=performance.now()-started;await call('diagnostics.frame',{frames:4});const frames=await call('diagnostics.frame',{frames:12}),gpu=stats(frames.frames.map(f=>f.gpuMs)),cpu=stats(frames.frames.map(f=>f.cpuMs));modes['vertices-'+shading]={...frames,gpu,cpu,elapsedMs};
+   check(shading+' all selected polygon vertices have bounded completed/frame latency',elapsedMs<2500&&gpu.p95<500&&cpu.p95<50,{elapsedMs,gpu,cpu,vertices:state.stats.vertices});
+  }
+  await call('view.set',{mode:'object'});await call('scene.select',{ids:[]});
   return {pass:true,checks,modes};
  }catch(e){return {pass:false,checks,modes,error:e.stack};}
 }

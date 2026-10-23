@@ -25,8 +25,11 @@
     "test:print-formats": "node tests/print-formats.mjs",
     "test:step": "node tests/step-import.mjs",
     "test:svg": "node tests/svg-import.mjs",
+    "test:dxf": "node tests/dxf-import.mjs",
     "test:surfaces": "node tests/surface-correctness.mjs",
-    "test:large-delete": "node tests/large-delete.mjs"
+    "test:large-delete": "node tests/large-delete.mjs",
+    "test:mobile": "node tests/mobile-release.mjs",
+    "test:pwa": "node tests/pwa.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
