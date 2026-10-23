@@ -6,4 +6,7 @@
 
 The generated HASH and large original STL remain local/ignored. The recipe and small manifest are versioned. Never alter the original STL to make tests pass. The manifest records its SHA-256 and whether it was present.
 
-Future slicer invariants and the full handoff specification are in ../AGENTS.md. Until a slicer exists these are scene/viewport/parameter checks, not claims about printable toolpaths.
+Future slicer invariants and the full handoff specification are in ../AGENTS.md. The current stage produces raw GPU triangle/plane intersections only; the previous perimeter planner is removed.
+
+
+`npm run test:slicer` checks raw sections against an independent plane oracle, no filtering/repair/booleans, separate first-layer height, GPU ownership, pixels, native icon grid alignment and job lifetimes. `npm run test:slicer:corpus` expects all 27 fixtures and the unchanged incoming STL to retain raw intersections. `npm run test:slicer:performance` compares triangle spans with per-layer GPU scanning, measures a 4000-layer / 768000-segment workload, sparse-height triangles, multi-buffer output and CPU/GPU frames. These checks make no claim of printable contours or swept-strip coverage.

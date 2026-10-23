@@ -1,3 +1,4 @@
+import {slicerChecks} from './slicer.mjs';
 import {zooCases} from './generate-zoo.mjs';
 export async function pluginChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),check=(name,pass,detail)=>{checks.push({name:'3D Printer: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},red=c=>c[0]>200&&c[1]<60&&c[2]<60;
@@ -5,6 +6,7 @@ export async function pluginChecks(page){
   const old=await call('scene.inspect');if(old.objects.length)await call('scene.delete',{ids:old.objects.filter(n=>!n.parent).map(n=>n.hash)});
   await page.locator('#tabPlugins').click();const icon=page.locator('[data-plugin="3d-printer"] img'),metrics=await icon.evaluate(el=>{const r=el.getBoundingClientRect();return {w:r.width,h:r.height,nw:el.naturalWidth,nh:el.naturalHeight,transform:getComputedStyle(el).transform};});
   check('icon is native 32 x 32 without scaling',metrics.w===32&&metrics.h===32&&metrics.nw===32&&metrics.nh===32&&metrics.transform==='none',metrics);
+  const artwork=await icon.evaluate(async el=>{await el.decode();const c=document.createElement('canvas');c.width=c.height=32;const ctx=c.getContext('2d');ctx.drawImage(el,0,0);const data=ctx.getImageData(0,0,32,32).data;return {fractionalAlpha:Array.from(data).filter((v,i)=>i%4===3&&v!==0&&v!==255).length,rail:Array.from(data.slice((5*32+5)*4,(5*32+5)*4+4)),outside:data[(5*32+4)*4+3],nozzle:data[(20*32+15)*4+3]};});check('icon strokes and silhouette sit exactly on the 32px grid',artwork.fractionalAlpha===0&&artwork.rail[3]===255&&artwork.outside===0&&artwork.nozzle===255,artwork);
   const start=performance.now(),printers=[];for(let i=0;i<4;i++){await page.locator('#tabPlugins').click();await page.locator('[data-plugin="3d-printer"]').click();printers.push((await call('scene.inspect')).objects.find(n=>n.type==='printer'&&n.selected));}const ms=performance.now()-start;timings.push({name:'Four printer UI creations',ms,limit:3000});check('repeated icon clicks create independent printers',printers.every(Boolean)&&new Set(printers.map(n=>n.hash)).size===4&&ms<3000,{ms,count:printers.length});
   const spacing=await page.locator('#attrContent').evaluate(el=>{const row=key=>[...el.querySelectorAll('[data-field]')].find(e=>e.dataset.field===key).closest('.attr-row').getBoundingClientRect();return row('Line width').top-row('Layer position').bottom;});check('layer controls have an eight pixel trailing gap',spacing===8,{spacing});
   for(const n of printers.slice(1))await call('scene.delete',{ids:[n.hash]});const printer=printers[0],cube=await call('scene.create',{type:'cube'});await call('transform.set',{channel:'position',axis:1,value:300});await call('scene.select',{ids:[]});
@@ -23,6 +25,6 @@ export async function pluginChecks(page){
   for(const sign of [1,-1]){const c=(await call('scene.inspect')).view.camera,back=direction.map(v=>v*sign);c[0]=Math.atan2(-back[0],back[2]);c[1]=Math.asin(back[1]);await call('view.set',{index:0,single:true,camera:c,shading:'solid',focus:printer.hash});check('arbitrary printer rotation preserves '+(sign>0?'top':'underside')+' classification',red(await sample([0,sign*20,0]))===(sign<0));}
   await call('scene.update',{id:printer.hash,params:{'Overhang angle':90}});check('editable overhang angle immediately updates the shader',!red(await sample([0,-20,0])));
   const cases=zooCases();check('adversarial fixture recipe covers width thresholds and damaged topology',cases.length===27&&[.6,1,1.5,1.6].every(w=>cases.some(c=>c.widthW===w))&&cases.some(c=>c.name==='Mixed winding cube')&&cases.some(c=>c.name==='Missing one triangle'));
-  return {pass:true,checks,timings};
+  const slicing=await slicerChecks(page);return {...slicing,checks:[...checks,...slicing.checks],timings:[...timings,...slicing.timings]};
  }catch(e){return {pass:false,checks,timings,error:e.stack};}
 }

@@ -6,13 +6,29 @@ Follow the root AGENTS.md, plugins.md and requests.md. Keep runtime code in this
 - Local +Y is the build direction. The volume is X/Z [-500,500] mm and Y [0,1000] mm. Exclude fragments outside the volume and on the bed from surface-angle warnings. Share the core GPU device, evaluated geometry and raster depth; never retain a CPU triangle mirror.
 - The current warning is an immediate face-angle preview, not a slicing/support result. The core derives the visible-side geometric normal from raster derivatives without reading supplied shading normals or winding. For a closed object viewed from outside, this is its outward visible side. Open zero-thickness faces are classified on the viewed side; their material interior cannot be inferred. Top faces must not be classified as undersides. Respect mirrored/rotated frames and visibility. Bed exclusion includes 0.001 mm tolerance for Float32 projection reconstruction.
 - Author the printer icon at native 32x32 pixels without scaling, using a subdued color. The layer controls have an 8 px gap after Layer position through the declarative breakAfter field.
-- Slicing, Slice controls, toolpath rendering and machine output are deferred. Do not add a nonfunctional Slice button. Future slicing rules require a separate implementation and validation against the user's specification.
+- The user reset slicing to raw GPU plane intersections on 2026-10-23. The previous perimeter planner is removed. Machine output and the full planner are deferred.
 - Attributes contain only editable controls and requested spacing. Diagnostics stay in the API/developer data.
 - Each test checks observable editor or GPU behavior and useful completed-operation latency. Do not open a visible browser unless --headed was explicitly requested. Do not treat missing WebGPU as a pass.
 
-## Pending slicer specification and architecture
+## GPU raw sections, stage 1 (2026-10-23)
 
-This is the handoff specification for a future chat. The user has explicitly deferred slicer code. Build the adversarial fixture now, but do not implement Slice, a slicing job, toolpaths or machine output during the editor-only task. The following is the user's requested behavior; architecture details are a proposal to validate, not an implemented guarantee.
+The previous perimeter planner has been removed at the user's request. Runtime is one file, `plugin.js`, plus the native 32x32 `icon.svg` and discovery metadata. No worker, external geometry code, repair, welding, deduplication, contour union, offsets, minimum-length/width filtering, perimeter generation or solid fill runs in this stage.
+
+GPU transforms each current evaluated triangle into printer-local coordinates, computes its first and last active layer, and adds two counters to a layer difference array. Only this bounded metadata returns to CPU for prefix sums and output allocation. A second GPU pass writes raw plane/triangle intersections directly into compact 32-byte endpoint/width records, already grouped by layer. The default triangle-span kernel visits each source triangle once for counting, then once per output buffer; a per-layer GPU baseline is available through `slice {algorithm:'layer-scan'}` for measurement. No triangle or section coordinates return to CPU during slicing. Explicit bounded `inspect` diagnostics are the exception.
+
+Layer 1 is sampled at Initial layer height / 2; later centers are Initial layer height + (zeroBasedLayer - 0.5) * Layer height. Half-open Y intervals handle vertices and coplanar faces consistently. Float32 plane comparisons correct span rounding. Input winding is ignored; duplicate, open, cracked, tiny and overlapping sections remain separate raw segments. At this stage X/Z boundaries do not clip sections or add boundary edges. The build Y window remains 0..1000 mm. The data is an unstitched linear spline-segment set, not ordered closed contours or printable trajectories.
+
+The preview draws only native GPU line-list segments in subdued grey-green, at one physical pixel. Physical Line width is stored in each endpoint, and camera-facing butt-ended ribbon code remains in the same module for the next stage; no ribbon/polygon draw is submitted now. The three edges meeting at (-500,0,-500) identify +X red, +Y green and +Z blue even while selected. The face-angle warning remains independent.
+
+Jobs are independent per printer and publish atomically after GPU completion. Cancelled/stale/failed jobs release unpublished buffers. Geometry, visibility, frame, line width and layer heights invalidate derived sections. Preview controls and Overhang angle retain them. Perimeters and Min path length are deferred planner parameters and have no effect in stage 1. First nonempty success initializes Finish; later success preserves/clamps it. HASH saves controls, not output buffers.
+
+Limits are 4096 layers, eight million total raw segments and at most 64 MiB per output binding (also bounded by device limits). A single layer exceeding one binding or output beyond these bounds reports an API-only error; no partial result is published. Metadata readback is at most 16392 bytes, rather than section geometry. `peakGPUBytes` measures job-owned scratch plus retained output, not total adapter VRAM. `triangleVisits`, per-stage completed wall times and `metadataReadBytes` are available in status. Inspection reads at most 4096 segments for one selected layer.
+
+Run `npm run test:slicer`, `npm run test:slicer:corpus`, `npm run test:slicer:performance` and the standard/stress suites. The current tests validate raw intersections; earlier perimeter/coverage acceptance no longer describes this implementation.
+
+## Remaining slicer specification and architecture
+
+The following is deferred backlog from the previous request, retained for future stages only. Stage 1 above intentionally does not implement these planner, filtering, clipping, repair, width or fill requirements.
 
 ### Ownership, coordinates and scale
 
@@ -59,4 +75,4 @@ A full-bed fine texture is unsuitable: 4000/0.04=100000 cells per side at the no
 
 Keep the deterministic recipe and checks under this plugin's tests directory. The generated scene belongs in the shared tests/scenes directory and includes: a tapered rounded stub ("ogryzok"), acute/concave stars, strips around 0.6/1/1.5/1.6W, nested shells/volumes, disconnected islands, acute tips, tiny paths, holes, sloping undersides, duplicates, flipped winding and moderate cracks/missing faces. Retain named objects for identifying failures. tests/scenes/test.stl is the user's real-world incoming print-data example; never modify or replace it, and include it as a reference in the corpus manifest.
 
-Future tests must check strip coverage/voids, adjacency error, bead width/count transitions, short-path filtering, clockwise preference, spiral connections, arbitrary printer frames, normal independence, build clipping, overhang-angle updates, stale-job rejection, first/subsequent Finish layer behavior, total wall time, peak memory and segment-render CPU/GPU times. A fast intersection kernel alone is not success.
+Future tests must check strip coverage/voids, adjacency error, bead width/count transitions, short-path filtering, clockwise preference, spiral connections, arbitrary printer frames, normal independence, build clipping, overhang-angle updates, stale-job rejection, first/subsequent Finish layer behavior, total wall time, peak memory and segment-render CPU/GPU times. These full-planner acceptance checks apply only when that future stage is requested.
