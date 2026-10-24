@@ -10,3 +10,7 @@ tests/scenes/step/*.stp -text -diff
 tests/scenes/svg/*.svg -text -diff
 tests/scenes/dxf/*.dxf -text -diff
 tests/scenes/dxf.dxf -text -diff
+
+# User regression model and portable shared scene retain their original bytes.
+tests/scenes/sk30.stp -text -diff
+tests/scenes/selection-shading.hash -text -diff

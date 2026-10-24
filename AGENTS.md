@@ -12,10 +12,8 @@
 - Add a focused regression case to the shared suite or focused UI modules under `tests/` for a fixed bug/new operation. Keep test code outside runtime. New automation commands require a schema, validation before mutation, and tests.
 - `tests/results/latest.json` records the tested `index.html` SHA-256, failures and timings. Do not claim a newer file passed an older report. Test results, browser dependencies and failure screenshots are ignored by Git.
 - Browser-only runner: `tests/index.html` on the same local server. It uses a separate iframe scene; leave the user's working scene alone. CLI uses its own browser context and ephemeral localhost server.
-- CLI tests and MCP use full Chromium headless by default, including native pointer-lock checks. A visible window requires explicit `--headed`; do not silently fall back to a visible browser or software GPU. Each plugin owns `AGENTS.md` and `tests/index.mjs`; standard/stress verification discovers plugin checks from the catalogue.
+- CLI tests open a visible Chromium window by default; `--headless` is available explicitly. Playwright sends browser-local events without system mouse/keyboard automation. Run native pointer-lock checks in a separate headless browser to avoid capturing the system pointer. Never silently fall back to software GPU. Each plugin owns `AGENTS.md` and `tests/index.mjs`; standard/stress verification discovers plugin checks from the catalogue.
 
 - Author every icon at its displayed native dimensions. Do not scale icons with CSS, transforms or a mismatched SVG viewBox; author a separate native-size variant when needed.
 
 - Change the application interface only when the user explicitly requests that interface change. Keep code, documentation, fixtures and UI text in English.
-
-- Read `requests.md` before work and before finishing. It is the sole core/plugin API request queue. Every entry names its requester and recipient. Implement relevant requests autonomously without asking the user; verify the requesting side can use the result, update app.md/plugins.md and tests, then remove only the completed entry. Preserve unrelated requests. Plugin authors follow this same workflow.

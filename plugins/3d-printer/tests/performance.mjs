@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 const sides=96,vertices=[0,0,0,0,1000,0],indices=[];
 for(let i=0;i<sides;i++){const a=i*Math.PI*2/sides;vertices.push(40*Math.cos(a),0,40*Math.sin(a),40*Math.cos(a),1000,40*Math.sin(a));}
 for(let i=0;i<sides;i++){const a=2+i*2,b=2+(i+1)%sides*2;indices.push(0,b,a,1,a+1,b+1,a,b,b+1,a,b+1,a+1);}
-const session=await launch({headless:!process.argv.includes('--headed')}),errors=[],checks=[],report={checks},check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
+const session=await launch({headless:process.argv.includes('--headless')}),errors=[],checks=[],report={checks},check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
 try{
  const page=session.page;page.on('pageerror',e=>errors.push(e.stack));await ready(page);await page.evaluate(()=>{window.__printerPerfGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__printerPerfGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
  const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),printer=await call('plugins.create',{plugin:'3d-printer'}),mesh=await call('mesh.create',{vertices,indices,name:'4000-layer GPU sections benchmark'});

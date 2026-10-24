@@ -8,7 +8,7 @@ npx playwright install chromium
 npm test
 ```
 
-Setup is needed once after checkout/dependency changes. Node 22+ is required. `npm test` starts a temporary localhost server and an isolated Chromium context with real WebGPU. It never opens/saves over the working scene. Default is full Chromium headless with hardware WebGPU, including pointer-lock tests; it leaves the OS mouse/keyboard and foreground window alone. `--headed` explicitly opens a visible debugging browser. Missing WebGPU is a failure; there is no software-GPU or visible-window fallback; `FRAME_BROWSER` can select another Chromium executable, `FRAME_DPR=2` runs at DPR 2.
+Setup is needed once after checkout/dependency changes. Node 22+ is required. `npm test` starts a temporary localhost server and an isolated Chromium context with real WebGPU. It never opens/saves over the working scene. Tests open visible Chromium with hardware WebGPU by default; `--headless` opts out. All ordinary input uses Playwright inside the test context. Native pointer-lock checks run in a separate headless browser to avoid capturing the OS pointer. Missing WebGPU is a failure; there is no software-GPU fallback; `FRAME_BROWSER` can select another Chromium executable, `FRAME_DPR=2` runs at DPR 2.
 
 ```powershell
 npm run test:syntax         # Parse both executable scripts in index.html

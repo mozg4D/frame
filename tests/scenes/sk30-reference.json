@@ -1,0 +1,18 @@
+{
+  "volume": 64423.258301887116,
+  "area": 17125.87046713967,
+  "bounds": {
+    "min": [
+      -42.0,
+      0.0,
+      -70.0
+    ],
+    "max": [
+      42.0,
+      24.0,
+      1e-07
+    ]
+  },
+  "sha256": "7a2c2e9df2a1a7b69eb35449f34cdca50b4f1e7787b7f6bfbf41d55f90385d71",
+  "source": "User-provided sk30.stp; independent Open CASCADE 7.9.3 BRepGProp and BRepBndLib"
+}

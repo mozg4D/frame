@@ -1,0 +1,22 @@
+export async function numericContourChecks(page){
+ const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
+ const check=(name,pass,detail)=>{checks.push({name:'GPU contour numerics: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
+ const prism=loops=>{const vertices=[],indices=[];for(const points of loops){const base=vertices.length/3;for(const [x,z]of points)vertices.push(x,0,z,x,1,z);for(let i=0;i<points.length;i++){const a=base+i*2,b=base+(i+1)%points.length*2;indices.push(a,b,b+1,a,b+1,a+1);}}return {vertices,indices};};
+ const area=points=>Math.abs(points.reduce((sum,a,i)=>{const b=points[(i+1)%points.length];return sum+a[0]*b[1]-a[1]*b[0];},0))/2;
+ const tilted=[[148.42352294921875,-29.423242568969727],[148.4906463623047,-27.41073226928711],[148.2034149169922,-24.55954360961914],[146,-24.5],[146,-29.5]];
+ const dense=Array.from({length:2049},(_,i)=>{const x=i%64,z=Math.floor(i/64);return [[x,z],[x+.3,z],[x+.3,z+.3],[x,z+.3]];});
+ try{
+  for(const test of [{name:'Float32 tilted contour',loops:[tilted],area:area(tilted)},{name:'Texture-backed Float32 contour',loops:[tilted],area:area(tilted),storage:'texture'},{name:'Four endpoints at a shared corner',loops:[[[-40,-40],[0,-40],[0,0],[-40,0]],[[0,0],[40,0],[40,40],[0,40]]],area:3200},{name:'Dense 16392-edge layer',loops:dense,area:2049*.09,width:.1,limit:10000,dense:true}]){
+   const old=await call('scene.inspect');if(old.objects.length)await call('scene.delete',{ids:old.objects.filter(n=>!n.parent).map(n=>n.hash)});await call('view.set',{mode:'object',snap:false,quantize:false,pivot:false});
+   const printer=await call('plugins.create',{plugin:'3d-printer'});await call('scene.update',{id:printer.hash,params:{'Line width':test.width||1,'Layer height':1,'Initial layer height':1}});await call('mesh.create',{...prism(test.loops),...(test.storage?{storage:test.storage}:{})});
+   const limit=test.limit||3000,started=performance.now();await call('plugins.command',{id:printer.hash,operation:'slice'});let status;do{status=await call('plugins.command',{id:printer.hash,operation:'status'});if(status.state==='running')await page.waitForTimeout(5);}while(status.state==='running'&&performance.now()-started<limit);
+   check(test.name+' publishes one closed layer',status.state==='complete'&&status.result.lastLayer===1,status);const ms=performance.now()-started;timings.push({name:test.name,ms,limit});check(test.name+' completed latency',ms<limit,{ms});
+   const total=status.result.layers[0].segments,layer={data:[],kinds:[],segments:total};for(let offset=0;offset<total;offset+=4096){const part=(await call('plugins.command',{id:printer.hash,operation:'inspect',args:{layer:1,offset,count:4096}})).layer;check(test.name+' bounded inspection page '+offset,part.segments===Math.min(4096,total-offset)&&part.inspectionOffset===offset&&part.totalSegments===total,part.segments);layer.data.push(...part.data);layer.kinds.push(...part.kinds);}const degree=new Map();let signedArea=0;
+   for(let i=0;i<layer.data.length;i+=8){const [x,,z,,X,,Z]=layer.data.slice(i,i+8),a=x+','+z,b=X+','+Z;degree.set(a,(degree.get(a)||0)+1);degree.set(b,(degree.get(b)||0)-1);signedArea+=(x*Z-X*z)/2;}
+   check(test.name+' has finite balanced vector endpoints',layer.data.every(Number.isFinite)&&[...degree.values()].every(n=>n===0),{segments:layer.segments,degree:[...degree.values()]});
+   check(test.name+' preserves independent polygon area',Math.abs(signedArea-test.area)<.025,{actual:signedArea,expected:test.area});
+   if(test.dense){check('dense layer exceeds the former edge and inspection limits',status.result.rawSegments===16392&&total===8196,{raw:status.result.rawSegments,total});for(const args of [{layer:1},{layer:1,offset:total+1,count:1},{layer:1,count:4097},{layer:1,offset:-1,count:1}]){let rejected=false;try{await call('plugins.command',{id:printer.hash,operation:'inspect',args});}catch{rejected=true;}check('invalid inspection is rejected '+JSON.stringify(args),rejected);}const end=(await call('plugins.command',{id:printer.hash,operation:'inspect',args:{layer:1,offset:total,count:1}})).layer;check('inspection at layer end is empty',end.segments===0&&end.data.length===0&&end.totalSegments===total,end);check('invalid reads preserve published geometry',(await call('plugins.command',{id:printer.hash,operation:'status'})).result.segments===total);}
+  }
+  return {pass:true,checks,timings};
+ }catch(e){return {pass:false,checks,timings,error:e.stack};}
+}

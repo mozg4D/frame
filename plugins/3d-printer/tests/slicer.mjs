@@ -67,7 +67,7 @@ export async function slicerChecks(page){
 }
 
 if(process.argv[1]===fileURLToPath(import.meta.url)){
- const session=await launch({headless:!process.argv.includes('--headed')}),errors=[],consoleErrors=[];
+ const session=await launch({headless:process.argv.includes('--headless')}),errors=[],consoleErrors=[];
  try{const page=session.page;page.on('pageerror',e=>errors.push(e.stack));page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});await ready(page);await page.evaluate(()=>{window.__slicerGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__slicerGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});const result=await slicerChecks(page);result.gpu=await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__slicerGPU,adapter:frameEngine.renderer.device.adapterInfo}));result.errors=errors;result.consoleErrors=consoleErrors;result.pass&&=!errors.length&&!consoleErrors.length&&!result.gpu.validation&&!result.gpu.uncaptured.length;
   result.sources={};for(const path of ['index.html','plugins/3d-printer/plugin.js','plugins/3d-printer/plugin.json','plugins/3d-printer/icon.svg'])result.sources[path]=createHash('sha256').update(await readFile(new URL('../../../'+path,import.meta.url))).digest('hex');await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/printer-slicer.json',import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;
  }finally{await session.close();}
