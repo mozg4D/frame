@@ -1,0 +1,145 @@
+{
+  "source": "Pre-optimization Float64 Outline output; exact cubic coordinates, handles, identifiers and sequences",
+  "entries": [
+    {
+      "text": "Text",
+      "distance": -2,
+      "sha256": "87766dc86674073372afe50d8da93f2952e4a9cc41d0b3ecfb9d430b4b08a863",
+      "vertices": 92,
+      "segments": 92
+    },
+    {
+      "text": "Text",
+      "distance": 1,
+      "sha256": "bf492b9247ba7896fff37516d30dbbb102bd906ed38be7552064bbce825c8775",
+      "vertices": 92,
+      "segments": 92
+    },
+    {
+      "text": "Text",
+      "distance": 2,
+      "sha256": "7cf697acc19354f9f854a119e75ec3957f23e9c9f1981d00339886a9292295cb",
+      "vertices": 92,
+      "segments": 92
+    },
+    {
+      "text": "Text",
+      "distance": 3,
+      "sha256": "5a79d1324c5a08ac9b134cbf92c566d8628efdbbf7fe90706d0f75203561d7ba",
+      "vertices": 92,
+      "segments": 92
+    },
+    {
+      "text": "Frame modeling",
+      "distance": -2,
+      "sha256": "a5d9a26f2546eb285b24a4a438613a874d80097ba537f0205fdd8787b03ca87e",
+      "vertices": 308,
+      "segments": 308
+    },
+    {
+      "text": "Frame modeling",
+      "distance": 1,
+      "sha256": "e1d3ced3709361705b151cb42d1eabd68c64e66c6ebd7ead0ba89bf240e15f0a",
+      "vertices": 311,
+      "segments": 311
+    },
+    {
+      "text": "Frame modeling",
+      "distance": 2,
+      "sha256": "b21ba890f4054f1c7246b0efe6acabdc33c99b1e64cf71647356aa07be215fe1",
+      "vertices": 311,
+      "segments": 311
+    },
+    {
+      "text": "Frame modeling",
+      "distance": 3,
+      "sha256": "e935774820fa21adeb83e7bdb7d6607a86225a34bb9ba69bc4d014bb5634a655",
+      "vertices": 311,
+      "segments": 311
+    },
+    {
+      "text": "OagS",
+      "distance": -2,
+      "sha256": "412ebc439941cd92e671078a211b8f9b39d1fdf167c00db8da8059b54f73e7d3",
+      "vertices": 100,
+      "segments": 100
+    },
+    {
+      "text": "OagS",
+      "distance": 1,
+      "sha256": "aa1c1c8984aac9efe5e511b9f3e90c0c1c75856736de2dcceb1fa45793870e8d",
+      "vertices": 101,
+      "segments": 101
+    },
+    {
+      "text": "OagS",
+      "distance": 2,
+      "sha256": "88406e30aa348dbaf097fd014b1f8d61a0f360787158606008ff1d31a9ab5cdf",
+      "vertices": 101,
+      "segments": 101
+    },
+    {
+      "text": "OagS",
+      "distance": 3,
+      "sha256": "5c0b593bab27b2cb649f2d1d53052116d764ba087225146f7471b25946ff5a22",
+      "vertices": 101,
+      "segments": 101
+    },
+    {
+      "text": "BO08",
+      "distance": -2,
+      "sha256": "e1f5982568768721cc920fa15a5ba3d0ebfc3760c7485a1d9e1150eb2369868e",
+      "vertices": 82,
+      "segments": 82
+    },
+    {
+      "text": "BO08",
+      "distance": 1,
+      "sha256": "4287c7cf75cab3407b41feaccd1b38c0765d121bac88e00572b1a788b447ef72",
+      "vertices": 82,
+      "segments": 82
+    },
+    {
+      "text": "BO08",
+      "distance": 2,
+      "sha256": "20a16519a8e8887d32238809e3b1c707a42e306b4b84a4ae88ccc7d49924a66e",
+      "vertices": 82,
+      "segments": 82
+    },
+    {
+      "text": "BO08",
+      "distance": 3,
+      "sha256": "196ce1f76fcee160813d6c0e432aa1a196c2ad966b790e33d61b26aee9576078",
+      "vertices": 82,
+      "segments": 82
+    },
+    {
+      "text": "Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling ",
+      "distance": -2,
+      "sha256": "31083fc1d1ce02b11af711fe4f71ae9fbc10729b2c3e6e70d5e30afb70a1bf87",
+      "vertices": 4620,
+      "segments": 4620
+    },
+    {
+      "text": "Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling ",
+      "distance": 1,
+      "sha256": "3d9cd21f5aad4c4aa4dc17c7964cb9efd0a9955530b7eb3df5fb60eebe2345df",
+      "vertices": 4725,
+      "segments": 4725
+    },
+    {
+      "text": "Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling ",
+      "distance": 2,
+      "sha256": "b52a31ee2be00d459c0cf05819c76b92c89b4af948b662c67bbd94782c5f4f84",
+      "vertices": 4725,
+      "segments": 4725
+    },
+    {
+      "text": "Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling Frame modeling ",
+      "distance": 3,
+      "sha256": "560d413a9a44eae80db0cbb821e5094d2305ba7b023e9aa24cc49aaff02d4253",
+      "vertices": 4725,
+      "segments": 4725
+    }
+  ]
+}

@@ -21,6 +21,14 @@
         "Perimeters": 1,
         "Overhang angle": 45,
         "Min path length": 3
+      },
+      "parameterResets": {
+        "Start layer": {
+          "Layer position": 0
+        },
+        "Finish layer": {
+          "Layer position": 0
+        }
       }
     }
   ]
