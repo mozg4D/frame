@@ -18,7 +18,7 @@ export async function dxfImportChecks(page){
  const faces=meshes=>meshes.flatMap(({p,ix})=>Array.from({length:ix.length/3},(_,i)=>[0,1,2].map(k=>p.slice(ix[i*3+k]*3,ix[i*3+k]*3+3))));
  try{
   const sources=JSON.parse(await readFile(new URL('sources.json',folder))),success=sources.filter(f=>!f.expectedReject);check('At least ten distinct upstream DXF inputs successfully imported',success.length>=10&&new Set(success.map(f=>f.sha256)).size===success.length);
-  check('DXF chooser and API discovery', (await page.locator('#frameSceneFile').getAttribute('accept')).endsWith(',.dxf')&&(await page.evaluate(()=>frameAI.listTools())).some(t=>t.name==='diagnostics.import'));
+  check('DXF chooser and API discovery', (await page.locator('#frameSceneFile').getAttribute('accept')).split(',').includes('.dxf')&&(await page.evaluate(()=>frameAI.listTools())).some(t=>t.name==='diagnostics.import'));
   const generated=['curves-generated.dxf','blocks-generated.dxf','meshes-generated.dxf','fit-generated.dxf','modern-binary-generated.dxf','unicode-R2000.dxf','unicode-R2013.dxf'];
   for(const f of [...sources,...generated.map(name=>({name}))]){
    const bytes=await readFile(new URL(f.name,folder));if(f.sha256)check(f.name+' upstream SHA256',sha(bytes)===f.sha256);

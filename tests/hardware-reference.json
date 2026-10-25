@@ -1,5 +1,5 @@
 {
-  "checked": "2026-10-24",
+  "checked": "2026-10-25",
   "units": "mm",
   "families": {
     "regular": {
@@ -1374,7 +1374,9 @@
     "boellhoff912": "https://eshop-tr.boellhoff.com/out/media/pdf/DIN_912_Edelstahl_A4___en.pdf",
     "unbrakoM2": "https://www.unbrakousa.com/details/item?itemID=104151",
     "boellhoff7982": "https://eshop.boellhoff.de/out/media/pdf/DIN_7982_Edelstahl_A2___en.pdf",
-    "index7982": "https://www.indexfix.com/wp-content/uploads/CMP6735/files/FT_ROS_en_rev9.pdf"
+    "index7982": "https://www.indexfix.com/wp-content/uploads/CMP6735/files/FT_ROS_en_rev9.pdf",
+    "orbitalM6x35": "https://www.orbitalfasteners.co.uk/products/m6-x-35-socket-cap-screw-high-tensile-bright-zinc-plated",
+    "diboltM6x35": "https://dibolt.co.uk/products/m6-x-35mm-socket-cap-screw-stainless-steel-a2-304-din-912/"
   },
   "notes": [
     "Nominal reference geometry; threads are represented by the nominal envelope, not a helical manufacturing model.",
@@ -1382,6 +1384,7 @@
     "DIN 127 A free height is selected inside the manufacturer tolerance range.",
     "BRALO flat-head L excludes K; countersunk L includes the head.",
     "MISUMI HNTT external bodies are shared by thread sizes within one slot series.",
-    "Manufacturer product listings establish commercial catalogue existence, not perpetual stock or suitability for an engineering load."
+    "Manufacturer product listings establish commercial catalogue existence, not perpetual stock or suitability for an engineering load.",
+    "DIN 912 now includes the omitted 35 mm length for M3 through M16; M6 x 35 is cross-checked against Orbital, Dibolt and the Boellhoff dimensions."
   ]
 }
