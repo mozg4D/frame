@@ -31,6 +31,7 @@
     "test:large-delete": "node tests/large-delete.mjs",
     "test:mobile": "node tests/mobile-release.mjs",
     "test:pwa": "node tests/pwa.mjs",
+    "test:spline-workflows": "node tests/spline-modeling-workflows.mjs",
     "test:october23": "node tests/october23-feedback.mjs",
     "test:slicer": "node plugins/3d-printer/tests/slicer.mjs",
     "test:slicer:corpus": "node plugins/3d-printer/tests/corpus.mjs",
