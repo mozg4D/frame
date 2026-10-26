@@ -67,7 +67,7 @@ import {nextInteractionChecks} from './next-interaction.mjs';
 import {viewLiveChecks} from './view-live.mjs';
 import {mcpChecks} from './mcp.spec.mjs';
 const args=process.argv.slice(2),output=join(root,'tests/results');await mkdir(output,{recursive:true});
-const sourceHashes=async()=>Object.fromEntries(await Promise.all(['index.html','plugins/3d-printer/plugin.js'].map(async path=>[path,createHash('sha256').update(await readFile(join(root,path))).digest('hex')])));
+const sourceHashes=async()=>Object.fromEntries(await Promise.all(['index.html','plugins/3d-printer/plugin.js','plugins/atomic/plugin.js'].map(async path=>[path,createHash('sha256').update(await readFile(join(root,path))).digest('hex')])));
 const report={sources:await sourceHashes(),started:new Date().toISOString(),indexSHA256:createHash('sha256').update(await readFile(join(root,'index.html'))).digest('hex'),profile:args.includes('--stress')?'stress':'standard',errors:[],consoleErrors:[]};let session,timer;
 try{
   report.syntax=await syntax();report.simd=await simdChecks();session=await launch({headless:args.includes('--headless')});const {page}=session;page.on('pageerror',e=>report.errors.push(e.stack||e.message));page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());else if(m.text().startsWith('[tests]'))console.log(m.text());});await ready(page);
