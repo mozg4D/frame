@@ -1,3 +1,4 @@
+import {heavyEditorChecks} from './heavy-editor.mjs';
 import {ensureHeavyScene} from './scenes/generate-heavy.mjs';
 import {launch,ready} from '../tools/browser.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -33,6 +34,7 @@ export async function heavyPerformanceChecks(page,state){
   await call('view.set',{mode:'object',shading:'solid',camera});await call('scene.select',{ids:[]});
   const printerStart=performance.now(),printer=await call('plugins.create',{plugin:'3d-printer'}),printerMs=performance.now()-printerStart;await call('scene.select',{ids:[]});await call('diagnostics.frame',{frames:6});const printerFrames=await call('diagnostics.frame',{frames:12}),printerGpu=stats(printerFrames.frames.map(f=>f.gpuMs)),printerCpu=stats(printerFrames.frames.map(f=>f.cpuMs));modes['printer-solid']={...printerFrames,gpu:printerGpu,cpu:printerCpu,elapsedMs:printerMs};
   check('Plugin warnings on 100M triangles have bounded completed/frame latency',printerMs<2500&&printerGpu.p95<500&&printerCpu.p95<50,{printerMs,gpu:printerGpu,cpu:printerCpu});await call('scene.delete',{ids:[printer.hash]});
+  const editor=await heavyEditorChecks(page,state);checks.push(...editor.checks);modes.editor={timings:editor.timings};if(!editor.pass)throw Error(editor.error);
   return {pass:true,checks,modes};
  }catch(e){return {pass:false,checks,modes,error:e.stack};}
 }
