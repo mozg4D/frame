@@ -1,4 +1,4 @@
-import {box} from './slicer.mjs';
+import {box,openTop} from './slicer.mjs';
 import {launch,ready} from '../../../tools/browser.mjs';
 import {fileURLToPath} from 'node:url';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -17,7 +17,7 @@ export async function printerFeedbackChecks(page){
  try{
   await clear();const printer=await call('plugins.create',{plugin:'3d-printer'});
   await call('scene.update',{id:printer.hash,params:{'Layer height':1,'Initial layer height':1}});
-  const mesh=await call('mesh.create',{...box()});
+  const mesh=await call('mesh.create',{...openTop(box())});
   await call('scene.update',{id:mesh.hash,parent:printer.hash});
   await call('scene.select',{ids:[printer.hash]});await call('view.set',{index:1,single:true,focus:mesh.hash,shading:'solid'});
   await measure('Real Slice button to rendered coverage',3000,async()=>{await page.locator('[data-plugin-action="slice"] button').click();const s=await wait(printer.hash);check('Slice publishes both cube LDIs',s.state==='complete'&&s.result.intervals>0&&s.result.lastLayer===30,s);await call('scene.update',{id:printer.hash,params:{'Finish layer':1}});check('Coverage reaches native GPU pixels',(await pixels(mesh.hash,[5,.5,5])).some(c=>c.slice(0,3).every(v=>v>250)));});
