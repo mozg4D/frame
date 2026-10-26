@@ -9,18 +9,17 @@
       "type": "printer",
       "name": "3D Printer",
       "breakAfter": [
-        "Layer position"
+        "Overhang angle"
       ],
       "fields": {
         "Start layer": 1,
         "Finish layer": 3332,
         "Layer position": 0,
+        "Overhang angle": 45,
         "Line width": 1,
         "Layer height": 0.3,
         "Initial layer height": 0.6,
-        "Perimeters": 1,
-        "Overhang angle": 45,
-        "Min path length": 3
+        "Perimeters": 1
       },
       "parameterResets": {
         "Start layer": {

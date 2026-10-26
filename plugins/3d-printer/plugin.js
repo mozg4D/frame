@@ -149,7 +149,7 @@ async function createPreview(context,slicer){
  const d=context.device,module=await checkedModule(d,'Printer LDI coverage and axes',previewShader);
  const uniformLayout=()=>d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]}),cameraLayout=uniformLayout(),frameLayout=uniformLayout();
  const imageLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});
- const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:entryPoint==='axes'?[cameraLayout,frameLayout]:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='axes'?'fs':'coverage',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:entryPoint==='axes'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:entryPoint==='map',depthCompare:entryPoint==='map'?'less-equal':'always'}});
+ const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:entryPoint==='axes'?[cameraLayout,frameLayout]:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='axes'?'fs':'coverage',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:entryPoint==='axes'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}});
  const [axes,maps]=await Promise.all([Promise.all([false,true].map(o=>pipeline('axes',o))),Promise.all([false,true].map(o=>pipeline('map',o)))]);
  const groups=new WeakMap(),group=(buffer,layout)=>{let cache=groups.get(buffer);if(!cache)groups.set(buffer,cache=new Map());if(!cache.has(layout))cache.set(layout,d.createBindGroup({layout,entries:[{binding:0,resource:{buffer}}]}));return cache.get(layout);};
  return ({pass,camera,frame,orthographic,hash,params})=>{
@@ -164,7 +164,7 @@ async function createPreview(context,slicer){
 class LDISlicer{
  constructor(context){this.context=context;this.jobs=new Map();this.initialized=new Map();this.serial=0;this.pipelines=new WeakMap();}
  signature(hash){try{return this.context.scene.signature(hash,KEYS);}catch{return null;}}
- config(snapshot){const p=snapshot.params,width=p['Line width'],height=p['Layer height'],initial=p['Initial layer height'];if(!(width>=.01&&width<=100&&height>=.01&&height<=1000&&initial>=.01&&initial<=1000))throw failure('INVALID_ARGUMENT','Invalid printer width or layer heights.');return {width,height,initial};}
+ config(snapshot){const p=snapshot.params,width=p['Line width'],height=p['Layer height'],initial=p['Initial layer height'];if(!(width>=.1&&width<=100&&height>=.1&&height<=100&&initial>=.1&&initial<=100))throw failure('INVALID_ARGUMENT','Invalid printer width or layer heights.');return {width,height,initial};}
  disposeResult(result){for(const b of result?.resources||[])b.destroy();}
  retire(hash){const job=this.jobs.get(hash);if(job){clearTimeout(job.refreshTimer);job.cancelled=true;this.disposeResult(job.result);this.jobs.delete(hash);}this.initialized.delete(hash);}
  check(job){if(job.cancelled)throw failure('CANCELLED','Slicing cancelled.');if(this.signature(job.hash)!==job.signature)throw failure('STALE_JOB','Source geometry, visibility, printer or sampling settings changed.');}
@@ -239,11 +239,11 @@ class LDISlicer{
 
 export async function activate(context){
  if(context.version!==1)throw Error('Unsupported Frame plugin API');const slicer=new LDISlicer(context);let preview=null;
- slicer.preparePreview=async()=>{if(preview?.device!==context.device)preview={device:context.device,draw:await createPreview(context,slicer)};};
+ let previewPending=null;slicer.preparePreview=()=>preview?.device===context.device?Promise.resolve():previewPending??=(async()=>{const device=context.device,draw=await createPreview(context,slicer);preview={device,draw};})().finally(()=>{previewPending=null;});
  context.operations.register(slicer.operations());context.attributes.register(hash=>slicer.attributes(hash));
  const corners=[[-500,0,-500],[500,0,-500],[500,0,500],[-500,0,500],[-500,1000,-500],[500,1000,-500],[500,1000,500],[-500,1000,500]],edges=[];
  for(let i=0;i<4;i++)edges.push(...corners[i],...corners[(i+1)%4],...corners[i+4],...corners[(i+1)%4+4],...corners[i],...corners[i+4]);
- await slicer.preparePreview();
+ slicer.preparePreview().then(()=>context.requestDraw());
  await context.viewport.register({pivot:[-500,0,500],bounds:{min:[-500,0,-500],max:[500,1000,500]},surfaceSelection:'last-active',lines:new Float32Array(edges),color:[.45,.62,.58,.65],selectedColor:[.75,.65,.43,.65],settings:params=>[Math.sin(Math.max(0,Math.min(90,params['Overhang angle']))*Math.PI/180),0,0,0],retire:hash=>slicer.retire(hash),render:state=>{if(preview?.device!==state.device){slicer.preparePreview().then(()=>context.requestDraw());return;}preview.draw(state);},shader:`fn pluginSurface(local:vec3f,normal:vec3f,build:vec3f,settings:vec4f)->vec4f{
   if(local.y<=0.001||local.y>1000.||abs(local.x)>500.||abs(local.z)>500.){discard;}
   if(-dot(normal,build)<=settings.x+0.000001){discard;}return vec4f(1.,.12,.12,1.);
