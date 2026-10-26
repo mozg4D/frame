@@ -105,3 +105,6 @@ Printer inspection accepts layer, axis (X/Z), ray offset/count and returns clean
 Printer control revision: the three physical width/height fields are 0.1..100, Perimeters is 1..1000, Min path length is removed, and Overhang angle follows Layer position. Filled coverage is topmost in all shading modes. Helper hits remain below gizmos in the viewport stacking context; asynchronous pipeline preparation does not block first object publication.
 
 Viewport registration resolves once its validated descriptor is installed. Shared GPU pipeline preparation continues asynchronously; the renderer skips a pending helper and requests a redraw on completion. Plugins should coalesce their own asynchronous render preparation and never block owner publication on compilation.
+
+
+Printer overlap cleanup (2026-10-26): transient GPU union/find labels canonical connected shells. Balanced shell rays use nonzero winding before the established even-odd shell/occurrence-union combination; unbalanced winding falls back to geometric parity. The shell labels and plane metadata share one transient storage binding, preserving the device's eight-storage-buffer and 16 KiB workgroup limits. Status topology is nonzero-shell-even-odd-occurrence-union. Runtime readback remains 56 bytes. tests/stl-oracle.mjs independently checks test.stl connectivity and layers including 438.

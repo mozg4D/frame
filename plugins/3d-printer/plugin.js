@@ -1,13 +1,14 @@
 // Persistent orthogonal layered depth images. Geometry never leaves the GPU.
 const KEYS=['Line width','Layer height','Initial layer height'];
-const MAX_LAYERS=4096,MAX_RAYS=4194304,MAX_EVENTS=16777216,MAX_HITS=1024;
+const LAYER_BATCH=64,MAX_LAYERS=4096,MAX_RAYS=4194304,MAX_EVENTS=16777216,MAX_HITS=1024;
+const sourceLanes=count=>Math.min(256,2**Math.ceil(Math.log2(Math.max(1,4096/Math.max(1,count)))));
 const failure=(code,message)=>Object.assign(Error(message),{code});
 const emptySchema={type:'object',properties:{},additionalProperties:false};
 const layerY=(i,o)=>i?o.initial+(i-.5)*o.height:o.initial*.5;
 const checkedModule=async(d,label,code)=>{const module=d.createShaderModule({label,code}),info=await module.getCompilationInfo(),errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.message).join('; '));return module;};
 
 const sourceShader=texture=>`
-struct Config{matrix:mat4x4f,size:vec4u,domain:vec4f,heights:vec4f};
+struct Config{matrix:mat4x4f,size:vec4u,domain:vec4f,heights:vec4f,shell:vec4u};
 @group(0) @binding(0) var ${texture?'positions:texture_2d_array<u32>':'<storage,read> positions:array<f32>'};
 @group(0) @binding(1) var ${texture?'indices:texture_2d_array<u32>':'<storage,read> indices:array<u32>'};
 @group(0) @binding(2) var<uniform> cfg:Config;
@@ -16,7 +17,7 @@ struct Config{matrix:mat4x4f,size:vec4u,domain:vec4f,heights:vec4f};
 @group(0) @binding(5) var<storage,read_write> cursors:array<atomic<u32>>;
 @group(0) @binding(6) var<storage,read_write> events:array<vec2u>;
 @group(0) @binding(7) var<storage,read_write> metrics:array<atomic<u32>>;
-@group(0) @binding(8) var<storage,read_write> planes:array<vec2u>;
+@group(0) @binding(8) var<storage,read_write> planes:array<atomic<u32>>;
 ${texture?`fn scalar(t:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(t);return textureLoad(t,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x;}
 fn index(i:u32)->u32{return scalar(indices,i);}fn value(i:u32)->f32{return bitcast<f32>(scalar(positions,i));}`:`fn index(i:u32)->u32{return indices[i];}fn value(i:u32)->f32{return positions[i];}`}
 fn point(i:u32)->vec3f{let k=index(i)*3u;return (cfg.matrix*vec4f(value(k),value(k+1u),value(k+2u),1)).xyz;}
@@ -27,7 +28,12 @@ fn cross(a:vec2f,b:vec2f)->f32{let x=a.x*b.y;let y=a.y*b.x;let d=x-y;if(abs(d)>(
 fn project(p:vec3f,axis:u32)->vec3f{return select(p.zyx,p.xyz,axis!=0u);}
 fn yAt(i:u32)->f32{return select(cfg.heights.x+(f32(i)-.5)*cfg.heights.y,cfg.heights.x*.5,i==0u);}
 fn before(a:vec3f,b:vec3f)->bool{return a.x<b.x||(a.x==b.x&&(a.y<b.y||(a.y==b.y&&a.z<b.z)));}
-fn raster(A:vec3f,B:vec3f,C:vec3f,axis:u32,emit:bool){
+fn root(vertex:u32)->u32{var v=vertex;loop{let p=atomicLoad(&planes[v]);if(p==v){return v;}let q=atomicLoad(&planes[p]);atomicMin(&planes[v],q);v=q;}}
+@compute @workgroup_size(128) fn shellInit(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=invocation(id,groups);if(i<cfg.shell.x){atomicStore(&planes[cfg.shell.y+i],cfg.shell.y+i);}}
+@compute @workgroup_size(128) fn shellJoin(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=invocation(id,groups);if(i>=cfg.size.x){return;}let a=index(i*3u)+cfg.shell.y;for(var k=1u;k<3u;k++){let b=index(i*3u+k)+cfg.shell.y;loop{let x=root(a);let y=root(b);if(x==y){break;}let hi=max(x,y);let lo=min(x,y);if(atomicMin(&planes[hi],lo)==hi){break;}}}}
+@compute @workgroup_size(128) fn shellCompress(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=invocation(id,groups);if(i<cfg.shell.x){let v=cfg.shell.y+i;atomicStore(&planes[v],root(v));}}
+fn raster(A:vec3f,B:vec3f,C:vec3f,axis:u32,emit:bool,vertex:u32,lane:u32,lanes:u32){
+ let originalA=project(A,axis);let originalB=project(B,axis);let originalC=project(C,axis);let direction=u32(cross(originalB.xy-originalA.xy,originalC.xy-originalA.xy)>0.);
  // Canonical ordering makes duplicate/reversed triangles bit-identical.
  var a=project(A,axis);var b=project(B,axis);var c=project(C,axis);
  if(before(b,a)){let v=a;a=b;b=v;}if(before(c,b)){let v=b;b=c;c=v;}if(before(b,a)){let v=a;a=b;b=v;}
@@ -40,7 +46,10 @@ fn raster(A:vec3f,B:vec3f,C:vec3f,axis:u32,emit:bool){
  while(firstLayer>1u&&yAt(firstLayer-1u)>=minY){firstLayer--;}
  while(firstLayer<cfg.size.w&&yAt(firstLayer)<minY){firstLayer++;}
  if(yAt(0u)>=minY&&yAt(0u)<=maxY){firstLayer=0u;}
- for(var layer=firstLayer;layer<cfg.size.w;layer++){let y=yAt(layer);if(y>maxY){break;}if(y<minY){continue;}
+ // Bound serial work per lane even for a full-height coarse triangle.
+ firstLayer=max(firstLayer,cfg.shell.w);let layerEnd=min(cfg.size.w,cfg.shell.w+${LAYER_BATCH}u);if(firstLayer>=layerEnd||first+lane>=end){return;}
+ let ab=b-a;let ac=c-a;let slopes=bitcast<vec2u>(vec2f(ab.z*ac.y-ab.y*ac.z,ab.x*ac.z-ab.z*ac.x)/area);var component=0u;if(emit){component=atomicLoad(&planes[cfg.shell.y+vertex]);}
+ for(var layer=firstLayer;layer<layerEnd;layer++){let y=yAt(layer);if(y>maxY){break;}if(y<minY){continue;}
   // Interpolate shared edges in the same direction. Half-open section
   // endpoints prevent skinny triangles and shared vertices losing a crossing.
   let vertices=array<vec3f,3>(a,b,c);var cuts:array<vec3f,2>;var n=0u;
@@ -48,15 +57,15 @@ fn raster(A:vec3f,B:vec3f,C:vec3f,axis:u32,emit:bool){
    if(v.y<=y&&y<w.y){let f=(y-v.y)/(w.y-v.y);cuts[n]=vec3f(fma(f,w.x-v.x,v.x),y,fma(f,w.z-v.z,v.z));n++;}
   }
   if(n!=2u){continue;}var v=cuts[0];var w=cuts[1];if(v.x>w.x){let swap=v;v=w;w=swap;}if(v.x==w.x){continue;}
-  for(var col=first;col<end;col++){let x=low+(f32(col)+.5)*pitch;if(x<v.x||x>=w.x){continue;}
+  for(var col=first+lane;col<end;col+=lanes){let x=low+(f32(col)+.5)*pitch;if(x<v.x||x>=w.x){continue;}
    let depth=fma((x-v.x)/(w.x-v.x),w.z-v.z,v.z);let ray=select(layer*cfg.size.z+col,cfg.size.w*cfg.size.z+layer*cfg.size.y+col,axis!=0u);
-   if(emit){let at=offsets[ray]+atomicAdd(&cursors[ray],1u);events[at]=vec2u(bitcast<u32>(depth),u32(cfg.heights.z));let ab=b-a;let ac=c-a;planes[at]=bitcast<vec2u>(vec2f(ab.z*ac.y-ab.y*ac.z,ab.x*ac.z-ab.z*ac.x)/area);}
+   if(emit){let at=offsets[ray]+atomicAdd(&cursors[ray],1u);events[at]=vec2u(bitcast<u32>(depth),u32(cfg.heights.z));let base=cfg.shell.z+at*4u;atomicStore(&planes[base],slopes.x);atomicStore(&planes[base+1u],slopes.y);atomicStore(&planes[base+2u],component);atomicStore(&planes[base+3u],direction);}
    else{atomicAdd(&counts[ray],1u);atomicAdd(&metrics[0],1u);}
   }
  }
 }
-@compute @workgroup_size(128) fn count(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) groups:vec3u){let t=invocation(gid,groups);if(t<cfg.size.x){let a=point(t*3u);let b=point(t*3u+1u);let c=point(t*3u+2u);raster(a,b,c,0u,false);raster(a,b,c,1u,false);}}
-@compute @workgroup_size(128) fn emit(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) groups:vec3u){let t=invocation(gid,groups);if(t<cfg.size.x){let a=point(t*3u);let b=point(t*3u+1u);let c=point(t*3u+2u);raster(a,b,c,0u,true);raster(a,b,c,1u,true);}}
+@compute @workgroup_size(128) fn count(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) groups:vec3u){let slot=invocation(gid,groups);let lanes=u32(cfg.heights.w);let t=slot/lanes;let lane=slot%lanes;if(t<cfg.size.x){let a=point(t*3u);let b=point(t*3u+1u);let c=point(t*3u+2u);raster(a,b,c,0u,false,0u,lane,lanes);raster(a,b,c,1u,false,0u,lane,lanes);}}
+@compute @workgroup_size(128) fn emit(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) groups:vec3u){let slot=invocation(gid,groups);let lanes=u32(cfg.heights.w);let t=slot/lanes;let lane=slot%lanes;if(t<cfg.size.x){let a=point(t*3u);let b=point(t*3u+1u);let c=point(t*3u+2u);raster(a,b,c,0u,true,index(t*3u),lane,lanes);raster(a,b,c,1u,true,index(t*3u),lane,lanes);}}
 `;
 
 const scanShader=`
@@ -84,29 +93,41 @@ struct Config{size:vec4u};
 @group(0) @binding(4) var<storage,read_write> intervals:array<vec2f>;
 @group(0) @binding(5) var<storage,read_write> metrics:array<atomic<u32>>;
 @group(0) @binding(6) var<uniform> cfg:Config;
-@group(0) @binding(7) var<storage,read> planes:array<vec2u>;
+@group(0) @binding(7) var<storage,read> planes:array<u32>;
 var<workgroup> hits:array<vec4u,1024>;
-
-fn less(a:vec4u,b:vec4u)->bool{let x=bitcast<f32>(a.x);let y=bitcast<f32>(b.x);return x<y||(x==y&&(a.y<b.y||(a.y==b.y&&(a.z<b.z||(a.z==b.z&&a.w<b.w)))));}
+fn slope(e:vec4u)->vec2u{let at=cfg.size.y+e.w*4u;return vec2u(planes[at],planes[at+1u]);}
+fn direction(e:vec4u)->i32{return select(-1,1,planes[cfg.size.y+e.w*4u+3u]!=0u);}
+fn less(a:vec4u,b:vec4u,shells:bool)->bool{
+ if(shells){if(a.y!=b.y){return a.y<b.y;}if(a.z!=b.z){return a.z<b.z;}}
+ let x=bitcast<f32>(a.x);let y=bitcast<f32>(b.x);if(x!=y){return x<y;}if(a.y!=b.y){return a.y<b.y;}
+ if(!shells){return false;}let pa=slope(a);let pb=slope(b);if(pa.x!=pb.x){return pa.x<pb.x;}return pa.y<pb.y;
+}
+fn duplicate(a:vec4u,b:vec4u)->bool{return all(a.xyz==b.xyz)&&all(slope(a)==slope(b));}
 @compute @workgroup_size(128) fn clean(@builtin(workgroup_id) gid:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
  let ray=gid.x+gid.y*groups.x;if(ray>=cfg.size.x){return;}let count=counts[ray];let offset=offsets[ray];
  if(lane==0u){var length=1u;while(length<count){length*=2u;}hits[0].x=length;}workgroupBarrier();let n=workgroupUniformLoad(&hits[0]).x;
- for(var i=lane;i<n;i+=128u){var v=vec4u(0x7f7fffffu,0xffffffffu,0u,0u);if(i<count){v=vec4u(events[offset+i],planes[offset+i]);}hits[i]=v;}workgroupBarrier();
- for(var size=2u;size<=n;size*=2u){var step=size/2u;while(step>0u){for(var i=lane;i<n;i+=128u){let j=i^step;if(j>i&&less(hits[j],hits[i])==((i&size)==0u)){let v=hits[i];hits[i]=hits[j];hits[j]=v;}}workgroupBarrier();step/=2u;}}
- if(lane!=0u){return;}var owners:array<u32,8>;var filled=0;var i=0u;var start=0.;var written=0u;let base=offset/2u;
- while(i<count){let depth=bitcast<f32>(hits[i].x);let before=filled;
-  loop{let event=hits[i];let owner=event.y;let word=owner/32u;let mask=1u<<(owner%32u);
-   // Only the same depth AND plane is a duplicate. Nearby real crossings
-   // retain their parity, even when a thin overlap is below the map pitch.
-   filled+=select(1,-1,(owners[word]&mask)!=0u);owners[word]^=mask;i++;
-   while(i<count&&all(hits[i]==event)){atomicAdd(&metrics[3],1u);i++;}
-   if(i>=count||bitcast<f32>(hits[i].x)!=depth){break;}
+ let sentinel=vec4u(0x7f7fffffu,0xffffffffu,0xffffffffu,0u);
+ for(var i=lane;i<n;i+=128u){var v=sentinel;if(i<count){let at=cfg.size.y+(offset+i)*4u;v=vec4u(events[offset+i],planes[at+2u],offset+i);}hits[i]=v;}workgroupBarrier();
+ // Resolve nonzero winding inside each connected shell, independent of its
+ // global orientation. Unbalanced authored winding falls back to parity.
+ for(var size=2u;size<=n;size*=2u){var step=size/2u;while(step>0u){for(var i=lane;i<n;i+=128u){let j=i^step;if(j>i&&less(hits[j],hits[i],true)==((i&size)==0u)){let v=hits[i];hits[i]=hits[j];hits[j]=v;}}workgroupBarrier();step/=2u;}}
+ if(lane==0u){var i=0u;var output=0u;var ambiguous=false;
+  while(i<count){let begin=i;let owner=hits[i].y;let shell=hits[i].z;var balance=0;var unique=0u;
+   while(i<count&&hits[i].y==owner&&hits[i].z==shell){let e=hits[i];balance+=direction(e);unique++;i++;while(i<count&&duplicate(hits[i],e)){atomicAdd(&metrics[3],1u);i++;}}
+   let end=i;ambiguous=ambiguous||(unique%2u!=0u);var winding=0;var parity=false;var j=begin;
+   while(j<end){let e=hits[j];let before=select(parity,winding!=0,balance==0);winding+=direction(e);parity=!parity;j++;while(j<end&&duplicate(hits[j],e)){j++;}let after=select(parity,winding!=0,balance==0);if(before!=after){hits[output]=e;output++;}}
   }
+  for(var j=output;j<n;j++){hits[j]=sentinel;}hits[0].z=output;hits[0].w=u32(ambiguous);
+ }workgroupBarrier();let kept=workgroupUniformLoad(&hits[0]).z;let ambiguous=workgroupUniformLoad(&hits[0]).w;
+ // Shells still alternate cavities/islands within one occurrence. Different
+ // evaluated occurrences unite through the existing active-owner bitset.
+ for(var size=2u;size<=n;size*=2u){var step=size/2u;while(step>0u){for(var i=lane;i<n;i+=128u){let j=i^step;if(j>i&&less(hits[j],hits[i],false)==((i&size)==0u)){let v=hits[i];hits[i]=hits[j];hits[j]=v;}}workgroupBarrier();step/=2u;}}
+ if(lane!=0u){return;}var owners:array<u32,8>;var filled=0;var i=0u;var start=0.;var written=0u;let base=offset/2u;
+ while(i<kept){let depth=bitcast<f32>(hits[i].x);let before=filled;
+  loop{let owner=hits[i].y;let word=owner/32u;let mask=1u<<(owner%32u);filled+=select(1,-1,(owners[word]&mask)!=0u);owners[word]^=mask;i++;if(i>=kept||bitcast<f32>(hits[i].x)!=depth){break;}}
   if(before==0&&filled>0){start=depth;}if(before>0&&filled==0){let a=max(start,-500.);let b=min(depth,500.);if(b>a){intervals[base+written]=vec2f(a,b);written++;}}
  }
- // An open shell has no uniquely defined inside. Never extend an unmatched
- // event to infinity: retain completed pairs and report the ambiguous ray.
- if(filled!=0){atomicAdd(&metrics[2],1u);}headers[ray]=vec2u(base,written|select(0u,0x80000000u,filled!=0));atomicAdd(&metrics[0],written);
+ if(filled!=0||ambiguous!=0u){atomicAdd(&metrics[2],1u);}headers[ray]=vec2u(base,written|select(0u,0x80000000u,filled!=0||ambiguous!=0u));atomicAdd(&metrics[0],written);
 }
 `;
 
@@ -175,14 +196,14 @@ class LDISlicer{
   const job={id:++this.serial,hash,scene:snapshot.scene,signature:snapshot.signature,contentSignature:snapshot.contentSignature,automatic,options,state:'running',stage:'bounds',completed:0,total:2,started:performance.now(),cancelled:false,result:null};this.jobs.set(hash,job);
   this.run(job,snapshot).catch(e=>{job.state=e.code==='CANCELLED'?'cancelled':e.code==='STALE_JOB'?'stale':'failed';job.error={code:e.code||'SLICE_FAILED',message:e.message};if(job.state==='stale'&&job.automatic)this.invalidate(job);}).finally(()=>{job.ms=performance.now()-job.started;this.context.requestAttributes();this.context.requestDraw();});this.context.requestAttributes();return this.status(hash);
  }
- summary(r){return {representation:'orthogonal-ldi',topology:'even-odd-per-occurrence-union',axes:['X','Z'],builds:1,lastLayer:r.lastLayer,grid:r.grid,rawEvents:r.rawEvents,intervals:r.intervals,ambiguousRays:r.ambiguousRays,duplicateEvents:r.duplicateEvents,peakGPUBytes:r.peakGPUBytes,retainedGPUBytes:r.retainedGPUBytes,metadataReadBytes:r.metadataReadBytes,triangleVisits:r.triangleVisits,timings:r.timings,preview:{primitive:'triangle-list',polygonVertices:6,format:'rgba8unorm',finishLayer:r.previewLayer,reconstructions:r.reconstructions,reconstructSubmitMs:r.reconstructSubmitMs||0}};}
+ summary(r){return {representation:'orthogonal-ldi',topology:'nonzero-shell-even-odd-occurrence-union',axes:['X','Z'],builds:1,lastLayer:r.lastLayer,grid:r.grid,rawEvents:r.rawEvents,intervals:r.intervals,ambiguousRays:r.ambiguousRays,duplicateEvents:r.duplicateEvents,peakGPUBytes:r.peakGPUBytes,retainedGPUBytes:r.retainedGPUBytes,metadataReadBytes:r.metadataReadBytes,triangleVisits:r.triangleVisits,timings:r.timings,preview:{primitive:'triangle-list',polygonVertices:6,format:'rgba8unorm',finishLayer:r.previewLayer,reconstructions:r.reconstructions,reconstructSubmitMs:r.reconstructSubmitMs||0}};}
  status(hash){const job=this.jobs.get(hash);if(!job)return {state:'idle',result:null};if(job.result&&this.signature(hash)!==job.signature)this.invalidate(job);return {id:job.id,state:job.state,stage:job.stage,completed:job.completed,total:job.total,ms:job.ms??performance.now()-job.started,error:job.error||null,result:job.result?this.summary(job.result):null};}
  cancel(hash){const job=this.jobs.get(hash);if(job){clearTimeout(job.refreshTimer);job.refresh=false;if(job.state==='running')job.cancelled=true;}return this.status(hash);}
  attributes(hash){const s=this.status(hash),last=s.result?.lastLayer||3332;return {actions:[{id:'slice',label:'Slice',cancel:'cancel',busy:s.state==='running',progress:s.state==='running'?(s.completed?'50%':'…'):''}],ranges:{'Start layer':{min:1,max:last,scrubRange:()=>[1,last]},'Finish layer':{min:1,max:last,scrubRange:()=>[1,last]},'Layer position':{min:0,max:s.result?last:0}}};}
  async kernels(d){let p=this.pipelines.get(d);if(!p){p=(async()=>{
   const compute=async(label,code,names,entries)=>{const module=await checkedModule(d,label,code),layout=d.createBindGroupLayout({entries}),plan=d.createPipelineLayout({bindGroupLayouts:[layout]}),result={layout};await Promise.all(names.map(async entryPoint=>result[entryPoint]=await d.createComputePipelineAsync({label:label+' '+entryPoint,layout:plan,compute:{module,entryPoint}})));return result;};
   const buffer=(binding,type='storage')=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type}});
-  const source=texture=>compute('LDI source',sourceShader(texture),['bounds','count','emit'],[0,1].map(binding=>texture?{binding,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}:buffer(binding,'read-only-storage')).concat([buffer(2,'uniform'),buffer(3),buffer(4,'read-only-storage'),buffer(5),buffer(6),buffer(7),buffer(8)]));
+  const source=texture=>compute('LDI source',sourceShader(texture),['bounds','count','emit','shellInit','shellJoin','shellCompress'],[0,1].map(binding=>texture?{binding,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}:buffer(binding,'read-only-storage')).concat([buffer(2,'uniform'),buffer(3),buffer(4,'read-only-storage'),buffer(5),buffer(6),buffer(7),buffer(8)]));
   const [native,paged,scan,clean,coverage]=await Promise.all([source(false),source(true),compute('LDI prefix',scanShader,['scan','add'],[buffer(0,'read-only-storage'),buffer(1),buffer(2),buffer(3,'uniform'),buffer(4)]),compute('LDI sort and union',cleanShader,['clean'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2,'read-only-storage'),buffer(3),buffer(4),buffer(5),buffer(6,'uniform'),buffer(7,'read-only-storage')]),compute('LDI layer reconstruction',coverageShader,['reconstruct'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),{binding:2,visibility:GPUShaderStage.COMPUTE,storageTexture:{access:'write-only',format:'rgba8unorm'}},buffer(3,'uniform')])]);return {native,paged,scan,clean,coverage};
  })();this.pipelines.set(d,p);}return p;}
  dispatch(d,pipeline,bind,n,workgroup=128){if(!n)return;const e=d.createCommandEncoder(),pass=e.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,bind);const blocks=Math.ceil(n/workgroup),x=Math.min(blocks,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(x,Math.ceil(blocks/x));pass.end();d.queue.submit([e.finish()]);}
@@ -199,9 +220,10 @@ class LDISlicer{
   const read=async(buffer,bytes)=>{const b=make(bytes,GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ,'LDI small metadata readback');try{const e=d.createCommandEncoder();e.copyBufferToBuffer(buffer,0,b,0,bytes);d.queue.submit([e.finish()]);await b.mapAsync(GPUMapMode.READ);const data=b.getMappedRange().slice(0,bytes);b.unmap();metadataReadBytes+=bytes;this.check(job);return data;}finally{free(b);}};
   try{
    const t=performance.now(),p=await this.kernels(d);this.check(job);const timings={compileMs:performance.now()-t};
-   const metrics=make(32,storage,'LDI counters'),uniform=make(112,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI source transform'),placeholders=Array.from({length:5},(_,i)=>make(16,storage,'LDI placeholder '+i));
+   const metrics=make(32,storage,'LDI counters'),uniform=make(128,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI source transform'),placeholders=Array.from({length:5},(_,i)=>make(16,storage,'LDI placeholder '+i));
+   const shellOffsets=new Map();let shellWords=0;for(const mesh of snapshot.meshes){shellOffsets.set(mesh,shellWords);shellWords+=mesh.vertexCount;}
    let grid={width:1,depth:1,min:[0,0],pitch:[1,1]},last=1,counts=placeholders[0],offsets=placeholders[1],cursors=placeholders[2],events=placeholders[3],planes=placeholders[4];
-   const sourcePass=entry=>{for(const mesh of snapshot.meshes){this.check(job);if(!mesh.triangleCount)continue;const data=new ArrayBuffer(112);new Float32Array(data).set(mesh.matrix);new Uint32Array(data).set([mesh.triangleCount,grid.width,grid.depth,last],16);new Float32Array(data).set([...grid.min,...grid.pitch,options.initial,options.height,mesh.solid,0],20);d.queue.writeBuffer(uniform,0,data);const k=mesh.storage==='texture'?p.paged:p.native;this.dispatch(d,k[entry],group(k.layout,[mesh.storage==='texture'?mesh.positions.view:mesh.positions,mesh.storage==='texture'?mesh.indices.view:mesh.indices,uniform,counts,offsets,cursors,events,metrics,planes]),mesh.triangleCount);}};
+   const sourcePass=entry=>{for(const mesh of snapshot.meshes){this.check(job);if(!mesh.triangleCount)continue;const tiled=entry==='count'||entry==='emit',lanes=tiled?sourceLanes(mesh.triangleCount):1;for(let layer=0;layer<(tiled?last:1);layer+=LAYER_BATCH){const data=new ArrayBuffer(128);new Float32Array(data).set(mesh.matrix);new Uint32Array(data).set([mesh.triangleCount,grid.width,grid.depth,last],16);new Float32Array(data).set([...grid.min,...grid.pitch,options.initial,options.height,mesh.solid,lanes],20);new Uint32Array(data).set([mesh.vertexCount,shellOffsets.get(mesh),shellWords,layer],28);d.queue.writeBuffer(uniform,0,data);const k=mesh.storage==='texture'?p.paged:p.native;this.dispatch(d,k[entry],group(k.layout,[mesh.storage==='texture'?mesh.positions.view:mesh.positions,mesh.storage==='texture'?mesh.indices.view:mesh.indices,uniform,counts,offsets,cursors,events,metrics,planes]),entry==='shellInit'||entry==='shellCompress'?mesh.vertexCount:mesh.triangleCount*lanes);}}};
    d.queue.writeBuffer(metrics,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));let started=performance.now();sourcePass('bounds');const rawBounds=new Uint32Array(await read(metrics,24));
    const unordered=v=>{const a=new Uint32Array([v&0x80000000?v^0x80000000:~v]);return new Float32Array(a.buffer)[0];},lo=Array.from(rawBounds.slice(0,3),unordered),hi=Array.from(rawBounds.slice(3),unordered);timings.boundsMs=performance.now()-started;
    if(!snapshot.meshes.length||!lo.every(Number.isFinite)||!hi.every(Number.isFinite)||hi[0]<=-500||lo[0]>=500||hi[2]<=-500||lo[2]>=500||hi[1]<layerY(0,options)){job.state='empty';return;}
@@ -214,11 +236,11 @@ class LDISlicer{
    const scan=async(input,output,n,root=true)=>{const blocks=Math.ceil(n/256),sums=make(blocks*4,storage,'LDI scan block sums'),config=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI scan config');d.queue.writeBuffer(config,0,new Uint32Array([n,root?1:0,0,0]));this.dispatch(d,p.scan.scan,group(p.scan.layout,[input,output,sums,config,metrics]),n,256);if(blocks>1){const prefix=make(blocks*4,storage,'LDI scan block offsets');await scan(sums,prefix,blocks,false);this.dispatch(d,p.scan.add,group(p.scan.layout,[prefix,output,sums,config,metrics]),n,256);free(prefix);}free(sums);free(config);};
    await scan(counts,offsets,rays);const totals=new Uint32Array(await read(metrics,16)),rawEvents=totals[0];timings.countMs=performance.now()-started;
    if(!rawEvents){job.state='empty';return;}if(rawEvents>Math.min(MAX_EVENTS,Math.floor(d.limits.maxStorageBufferBindingSize/8)))throw failure('LDI_EVENT_LIMIT','LDI depth events exceed the bounded GPU allocation.');if(totals[1]>MAX_HITS)throw failure('LDI_RAY_LIMIT','A ray exceeds 1024 depth events; split the source geometry.');
-   job.stage='ldi-emit';started=performance.now();cursors=make(rays*4,storage,'LDI emit cursors');events=make(rawEvents*8,storage,'LDI raw depth and occurrence events');planes=make(rawEvents*8,storage,'LDI crossing plane slopes');sourcePass('emit');await d.queue.onSubmittedWorkDone();this.check(job);timings.emitMs=performance.now()-started;free(cursors);for(const b of placeholders)free(b);
-   const headers=make(rays*8,storage,'Clean X and Z LDI ray headers'),intervalBuffer=make(Math.floor(rawEvents/2)*8,storage,'Clean X and Z union depth intervals'),cleanConfig=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI clean config');d.queue.writeBuffer(cleanConfig,0,new Uint32Array([rays,0,0,0]));d.queue.writeBuffer(metrics,0,new Uint32Array(8));job.stage='ldi-clean';started=performance.now();this.dispatch(d,p.clean.clean,group(p.clean.layout,[counts,offsets,events,headers,intervalBuffer,metrics,cleanConfig,planes]),rays*128);const cleaned=new Uint32Array(await read(metrics,16));timings.cleanMs=performance.now()-started;free(counts);free(offsets);free(events);free(planes);free(cleanConfig);
+   job.stage='ldi-emit';started=performance.now();cursors=make(rays*4,storage,'LDI emit cursors');events=make(rawEvents*8,storage,'LDI raw depth and occurrence events');planes=make((shellWords+rawEvents*4)*4,storage,'LDI shell roots and crossing planes');sourcePass('shellInit');sourcePass('shellJoin');sourcePass('shellCompress');sourcePass('emit');await d.queue.onSubmittedWorkDone();this.check(job);timings.emitMs=performance.now()-started;free(cursors);for(const b of placeholders)free(b);
+   const headers=make(rays*8,storage,'Clean X and Z LDI ray headers'),intervalBuffer=make(Math.floor(rawEvents/2)*8,storage,'Clean X and Z union depth intervals'),cleanConfig=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI clean config');d.queue.writeBuffer(cleanConfig,0,new Uint32Array([rays,shellWords,0,0]));d.queue.writeBuffer(metrics,0,new Uint32Array(8));job.stage='ldi-clean';started=performance.now();this.dispatch(d,p.clean.clean,group(p.clean.layout,[counts,offsets,events,headers,intervalBuffer,metrics,cleanConfig,planes]),rays*128);const cleaned=new Uint32Array(await read(metrics,16));timings.cleanMs=performance.now()-started;free(counts);free(offsets);free(events);free(planes);free(cleanConfig);
    const image=d.createTexture({label:'Finish layer LDI coverage',size:[nx,nz],format:'rgba8unorm',usage:GPUTextureUsage.STORAGE_BINDING|GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_SRC});owned.add(image);live+=nx*nz*4;peak=Math.max(peak,live);const config=make(48,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI selected layer');
    await this.preparePreview();this.check(job);const resources=[headers,intervalBuffer,image,config],params=this.context.scene.capture(job.hash,KEYS).params,firstSuccess=this.initialized.get(job.hash)!==snapshot.scene;
-   const r={resources,headers,intervalBuffer,image,config,grid,lastLayer:last,rawEvents,intervals:cleaned[0],ambiguousRays:cleaned[2],duplicateEvents:cleaned[3],triangleVisits:snapshot.meshes.reduce((n,m)=>n+m.triangleCount*3,0),metadataReadBytes,peakGPUBytes:peak,retainedGPUBytes:rays*8+intervalBuffer.size+nx*nz*4+config.size,timings,reconstructions:0,previewLayer:0,coveragePipeline:p.coverage.reconstruct};r.coverageGroup=group(p.coverage.layout,[headers,intervalBuffer,image.createView(),config]);job.result=r;
+   const r={resources,headers,intervalBuffer,image,config,grid,lastLayer:last,rawEvents,intervals:cleaned[0],ambiguousRays:cleaned[2],duplicateEvents:cleaned[3],triangleVisits:snapshot.meshes.reduce((n,m)=>n+m.triangleCount*(2+2*Math.ceil(last/LAYER_BATCH)*sourceLanes(m.triangleCount)),0),metadataReadBytes,peakGPUBytes:peak,retainedGPUBytes:rays*8+intervalBuffer.size+nx*nz*4+config.size,timings,reconstructions:0,previewLayer:0,coveragePipeline:p.coverage.reconstruct};r.coverageGroup=group(p.coverage.layout,[headers,intervalBuffer,image.createView(),config]);job.result=r;
    const finish=firstSuccess?last:Math.max(1,Math.min(last,Math.round(params['Finish layer'])));this.reconstruct(job,finish);await d.queue.onSubmittedWorkDone();this.check(job);
    try{this.context.update(job.hash,{'Finish layer':finish,'Start layer':Math.max(1,Math.min(last,params['Start layer']))});}catch(error){job.result=null;throw error;}
    this.initialized.set(job.hash,snapshot.scene);for(const b of resources)owned.delete(b);job.completed=2;job.state='complete';job.stage='complete';

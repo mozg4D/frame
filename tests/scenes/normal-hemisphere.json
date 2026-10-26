@@ -1,0 +1,7 @@
+{
+  "file": "normal-hemisphere.png",
+  "provenance": "Deterministic mathematical reference generated for the October 26 normal-map regression; no learned image content.",
+  "size": [256, 256],
+  "convention": "OpenGL +Y: red right, green up, blue outward",
+  "formula": "At texel center u=(x+0.5)/256, v=(y+0.5)/256: nx=(u-0.5)/0.4, ny=(0.5-v)/0.4, nz=sqrt(1-nx*nx-ny*ny). Outside the disk use (0,0,1). Encode round(255*(n*0.5+0.5)) as RGB PNG."
+}
