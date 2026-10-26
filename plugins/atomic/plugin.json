@@ -5,10 +5,54 @@
   "icon": "icon.svg",
   "color": "#83b8d7",
   "objects": [
-    {"type":"atomic","name":"Atomic","fields":{"Temperature":20,"Damping":1,"Target FPS":30,"Fixed Time":1,"Color":["Element","Charge","Force"]}},
-    {"type":"atomic_selection","name":"Selection","fields":{}},
-    {"type":"atomic_fixed","name":"Fixed","fields":{}},
-    {"type":"atomic_velocity","name":"Velocity","fields":{"Velocity":0}},
-    {"type":"atomic_force","name":"Force","fields":{"Force":0,"Speed limit":1}}
+    {
+      "type": "atomic",
+      "name": "Atomic",
+      "fields": {
+        "Temperature": 20,
+        "Damping": 1,
+        "Target FPS": 30,
+        "Fixed Time": 1,
+        "Color": [
+          "Element",
+          "Charge",
+          "Force"
+        ]
+      }
+    },
+    {
+      "type": "atomic_selection",
+      "name": "Selection",
+      "fields": {}
+    },
+    {
+      "type": "atomic_fixed",
+      "name": "Fixed",
+      "fields": {}
+    },
+    {
+      "type": "atomic_velocity",
+      "name": "Velocity",
+      "fields": {
+        "Velocity x": 0,
+        "Velocity y": 0,
+        "Velocity z": 0
+      }
+    },
+    {
+      "type": "atomic_force",
+      "name": "Force",
+      "fields": {
+        "Force x": 0,
+        "Force y": 0,
+        "Force z": 0,
+        "Speed limit": 1
+      }
+    },
+    {
+      "type": "atomic_element",
+      "name": "Element",
+      "fields": {}
+    }
   ]
 }

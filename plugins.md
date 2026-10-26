@@ -114,3 +114,10 @@ Viewport registration resolves once its validated descriptor is installed. Share
 
 
 Printer overlap cleanup (2026-10-26): transient GPU union/find labels canonical connected shells. Balanced shell rays use nonzero winding before the established even-odd shell/occurrence-union combination; unbalanced winding falls back to geometric parity. The shell labels and plane metadata share one transient storage binding, preserving the device's eight-storage-buffer and 16 KiB workgroup limits. Status topology is nonzero-shell-even-odd-occurrence-union. Runtime readback remains 56 bytes. tests/stl-oracle.mjs independently checks test.stl connectivity and layers including 438.
+
+
+Plugin editor presentation uses the core-owned `overlay()` descriptor `{hash,columns,cells}`. Cells contain `{label,column,row,color,action,args?,active?}` and invoke registered operations. The core places transparent controls in the active viewport and removes them when the descriptor is absent. `rowColor(node)` may supply the ordinary Browser name color. No plugin Browser implementation is needed.
+
+Attribute descriptors additionally support action `row`, `active` and `disabled`, `units:{field:unit}`, and `vectors:[{label,fields:[x,y,z],unit}]`. The core groups native editable fields without changing parameter/history/animation binding. `document.materialize(hash,rgb)` creates a normal material/tag when absent, inside the plugin's native transaction; `editMaterial(hash)` opens the existing editor.
+
+`flush(options)` is the plugin frame-completion barrier: independent plugin promises run concurrently and every promise must resolve before authoring/export proceeds. For output, animation runs first and each solver advances its own exact requested interval before the common GPU queue is awaited. Shared viewport pipeline preparation remains asynchronous; plugin initialization must not await unrelated plugin work.
