@@ -16,7 +16,7 @@ npm test                   # Standard checks + 2304 unique spline cells
 npm run test:stress         # Same checks, longer GPU timing sample
 npm run test:all            # Also load large user fixtures from tests/scenes/
 npm run test:interaction    # Mouse, insertion, tangents, Outline/Bevel, latency budgets
-npm run test:performance    # 100M triangles: all four shading modes, p95 + hover/navigation
+npm run test:performance    # 100M triangles: all five shading modes, p95 + hover/navigation
 node tests/october-regressions.mjs # Spline tools, neutral cages, Bevel, cut/loop, pixels and latency
 ```
 
@@ -138,3 +138,5 @@ Regenerate the ignored `scenes/release-1000-10m.hash` with `node tests/scenes/ge
 `node tests/component-feedback.mjs --headless` covers the supplied planar square, owner/body clicks, vertex Bevel selection and Ctrl-copy topology/Undo. The printer adaptive-LDNI checks run through its catalogue-discovered tests/index.mjs, including an independent convex-union area oracle and bounded ray overflow refinement. Printer performance distinguishes cold compilation (1.5 s) from warm completion (1 s) on the 4000-layer fixture.
 
 `node tests/viewport-printer-revision.mjs --headless` checks native Top-to-Perspective vertex IDs and pixels, including a rotated/scaled editable Car, retained body-click gizmos, degree-gated Vertex Bevel, lower-right Front axes, and sk30 STEP To Spline Patch topology/volume/Undo/Redo/HASH. Standard and stress profiles include this module.
+
+`node tests/material-interaction.mjs` verifies material-colored wire pixels, first Ctrl/Shift component drag completion, immediate visibility paint, folder-image drops, root-only texture requests and OpenGL/DirectX normal rendering/export. It is included in standard/stress runs.
