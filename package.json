@@ -15,6 +15,7 @@
     "test:interaction": "node tests/interaction-feedback.mjs",
     "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",
+    "test:ai": "node tests/ai-chat.mjs",
     "test:atomic": "node plugins/atomic/tests/run.mjs",
     "test:atomic:performance": "node plugins/atomic/tests/performance.mjs --million",
     "mcp": "node tools/mcp.mjs",

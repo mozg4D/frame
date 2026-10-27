@@ -1,5 +1,18 @@
 # Frame application context
 
+## Local AI chat and file controls (2026-10-27)
+
+Open shows Recent files on hover, or ArrowDown for keyboard navigation; clicking Open still opens the file chooser. The old Recents button is removed. AI occupies its toolbar slot and opens a chat beside the workspace. Drag its left divider or use its arrow keys to change width; the width persists locally. Narrow screens use an overlay. Closing cancels the current inference, prevents subsequent tool calls and releases the local model. A native editor command already in progress finishes normally and stays in Undo.
+
+Connect uses Chrome's built-in `LanguageModel` Prompt API with Gemini Nano, without cloud requests, keys, SDKs or a second scene model. Availability is checked separately for English text and images using the same modalities as session creation. Chrome controls model eligibility and download; unavailable profiles get a requirements link. Official supported Prompt API languages are English, Japanese, Spanish, German and French; Russian is best effort. A working Chrome model is required for actual inference, and model accuracy is not guaranteed.
+
+The chat accepts up to four PNG/JPEG/WebP images per message by picker, paste or drop (8 MiB and 16 megapixels per image). Image drops stay in the chat. Nano receives image Blobs, a bounded current object directory and the native tool directory. Structured JSON responses request an exact native command schema, execute a discovered command, or finish. Plugin operation schemas must be discovered before invocation. Commands run sequentially through `frameAI.call` with native validation, transactions, GPU ownership and Undo; model output is never evaluated as code or HTML. Results return to Nano with bounded previews. Each user turn has a 32-step limit. New chat clears the session and attachments. Conversation and images are memory-only and excluded from HASH. The AI panel is the requested chat surface for model availability, download, command feedback and inference errors; Attributes retain only editable controls.
+
+`ai.inspect {}` returns local provider availability, connection, image support, busy state, attachment count and last command/error; it returns no conversation or image content. `tests/ai-chat.mjs` covers native Open/resize, picker/paste/drop, structured tool dispatch, actual tube geometry/history, Atomic creation/crystal/exact physics stepping, units, invalid output, Stop, text-only and unavailable providers. Deterministic tests substitute only `LanguageModel`; real Gemini Nano inference and its quality must be checked separately in an eligible downloaded Chrome profile.
+
+Plugin scalar/vector units appear beside the row name, such as `Fixed Time (fs)`, `Temperature (°C)`, `Velocity (Å/fs)` and `Force (eV/Å)`, leaving input values numeric. Atomic physical time remains femtoseconds; this UI change performs no unit conversion.
+
+
 ## Atomic integration (2026-10-26)
 
 `plugins/atomic/plugin.js` is a native, lazy-loaded Atomic object with the supplied r47 NEP89-1/NEP4+ZBL model, all 75 supported species and embedded license/provenance. It borrows Frame's GPUDevice, camera, object frame, render pass and depth; there is no plugin canvas, iframe or permanent RAF. Each Atomic has an independent physical world in angstroms, femtoseconds, eV and amu. Object transforms change only its Frame affine frame. Paused editing allocates compact display state; the NEP solver initializes when physics or force/charge inspection needs it.

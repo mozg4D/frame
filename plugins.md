@@ -121,3 +121,5 @@ Plugin editor presentation uses the core-owned `overlay()` descriptor `{hash,col
 Attribute descriptors additionally support action `row`, `active` and `disabled`, `units:{field:unit}`, and `vectors:[{label,fields:[x,y,z],unit}]`. The core groups native editable fields without changing parameter/history/animation binding. `document.materialize(hash,rgb)` creates a normal material/tag when absent, inside the plugin's native transaction; `editMaterial(hash)` opens the existing editor.
 
 `flush(options)` is the plugin frame-completion barrier: independent plugin promises run concurrently and every promise must resolve before authoring/export proceeds. For output, animation runs first and each solver advances its own exact requested interval before the common GPU queue is awaited. Shared viewport pipeline preparation remains asynchronous; plugin initialization must not await unrelated plugin work.
+
+The core renders `attributes.units` beside scalar row labels in parentheses and vector `unit` beside the merged vector row label. Units never occupy numeric inputs or their control group.
