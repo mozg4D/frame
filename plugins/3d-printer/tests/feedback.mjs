@@ -43,7 +43,7 @@ export async function printerFeedbackChecks(page){
   await call('scene.select',{ids:[second.hash]});await call('scene.select',{ids:[]});check('Deselecting retains last active printer',(await pixels(null,[10,350,10])).some(red));
   await call('scene.update',{id:second.hash,enabled:false});check('Disabled printer falls back to the remaining printer',!(await pixels(null,[10,350,10])).some(red));
   await clear();const guide=await call('plugins.create',{plugin:'3d-printer'});await call('scene.select',{ids:[]});await call('view.set',{index:0,single:true,focus:guide.hash,shading:'solid'});
-  check('Perspective blue guide points toward negative Z',(await pixels(null,[0,0,-650])).some(blue)&&!(await pixels(null,[0,0,650])).some(blue));
+  check('Perspective blue guide preserves its screen direction and now denotes positive world Z',(await pixels(null,[0,0,650])).some(blue)&&!(await pixels(null,[0,0,-650])).some(blue));
   check('Printer blue axis stays inside the box',(await pixels(guide.hash,[-500,0,100])).some(blue));
   return {pass:true,checks,timings};
  }catch(e){await page.mouse.up().catch(()=>{});return {pass:false,checks,timings,error:e.stack};}
