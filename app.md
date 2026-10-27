@@ -1,12 +1,22 @@
 # Frame application context
 
+## Atomic motion and million-atom physics (2026-10-27)
+
+Atomic defaults to Target FPS 10. Play immediately shows Initializing while preparing physics; a failed start offers Retry. The million-atom grid clear uses a bounded two-dimensional dispatch, avoiding the 65535-workgroup limit. Neighbor storage starts at 64 entries and grows through the existing checked GPU capacity path. Unchanged offline intervals reuse force/neighbor state; animated Fixed changes invalidate it. Interactive animation coalesces pending constraint updates instead of accumulating one task per timeline frame.
+
+Native navigation queries the Atomic surface under the pointer in world coordinates. Marquee selects every projected atom center inside its rectangle, including occluded atoms; ordinary click and snapping retain depth visibility.
+
+`tests/scenes/atomic-tube-impact.hash` demonstrates one physical world with a moving Fixed nanotube clamp, a loaded free tip and a diamond projectile with initial Velocity. Its generator measures free-tube response, clamp motion, finite state and projectile velocity, then exports 121 native Viewport frames at 30 fps with exactly 4 fs per output frame. Colors identify the orange clamp, green loaded tip and gold diamond. Run `node tests/scenes/generate-atomic-impact.mjs`; optional FRAME_ATOMIC_OUTPUT selects a deliverable directory.
+
+A million-atom diamond initializes and takes real NEP steps, but hardware-dependent multi-second steps are expected: Target FPS is a scheduling target, not a throughput guarantee. The gallery retains Fixed Time 0 for its two largest worlds so whole-gallery offline exports do not step them accidentally. Interactive Play still advances these worlds.
+
 ## Atomic gallery and interaction revision (2026-10-27)
 
 The periodic table compacts the supported rare-earth species and Ac into its final row and sits six pixels below the active viewport edge. The placement element is a pressed button. Escape, right click and other editing/UI actions end placement; ordinary viewport navigation retains it. Clicking a named Force or Velocity selection opens Attributes. Restore preserves Play/Pause while resetting positions, velocities and physical time. Derived rendering updates retain the previous complete display, including during post-Play component drags in Element, Force and Charge modes.
 
 Detached atoms inherit materials from their native group. Mixed appearances create material subgroups; individual atoms carry no duplicate material tags. Cached selection bounds check authoring identities before constructing dynamic membership, keeping the million-atom gallery responsive.
 
-`tests/scenes/atomic-mega.hash` is a reproducible 12-world gallery with 1,048,670 atoms: 75 species, five molecular families, FCC/BCC/diamond crystals, graphene and BN sheets, single/multiwall nanotubes, animated Fixed grips, Force loading, colliding Velocity clusters, a 32,768-atom Cu velocity world and a million-atom diamond preview. Each owner has a stored initial state. The two largest owners default to Fixed Time 0 so camera export does not accidentally initialize their solvers. Zero-duration stepping leaves display-only state compact. The million-atom exhibit demonstrates display/editing capacity; it is not a million-atom physics performance claim. See the adjacent gallery README and generator.
+`tests/scenes/atomic-mega.hash` is a reproducible 12-world gallery with 1,048,670 atoms: 75 species, five molecular families, FCC/BCC/diamond crystals, graphene and BN sheets, single/multiwall nanotubes, animated Fixed grips, Force loading, colliding Velocity clusters, a 32,768-atom Cu velocity world and a million-atom diamond preview. Each owner has a stored initial state. The two largest owners default to Fixed Time 0 so camera export does not accidentally initialize their solvers. Zero-duration stepping leaves display-only state compact. The million-atom exhibit demonstrates display/editing capacity and can initialize real NEP physics through Play; a separate million-physics benchmark measures its slower physical stepping. See the adjacent gallery README and generator.
 
 
 ## File controls and recent files (2026-10-27)

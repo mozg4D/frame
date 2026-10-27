@@ -11,7 +11,7 @@
       "fields": {
         "Temperature": 20,
         "Damping": 1,
-        "Target FPS": 30,
+        "Target FPS": 10,
         "Fixed Time": 1,
         "Color": [
           "Element",

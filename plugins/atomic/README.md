@@ -64,3 +64,13 @@ Runtime SHA-256: 27ba8da240dcf34ef7d1680385b5b336ad36fd2421645af23c2aea8464c32c9
 October 27 interaction update: the final table row combines supported rare-earth species and Ac; its active element is a pressed button. Placement ends on Escape, right click or another editing action, and survives navigation. Named Force/Velocity clicks open Attributes. Restore preserves the current playback mode. Detached appearances belong to groups, including separate groups for mixed colors. Display data remains visible while derived state updates.
 
 The reproducible gallery is `tests/scenes/atomic-mega.hash` (see `tests/scenes/atomic-mega.md`). Run `node tests/atomic-mega.mjs`, `node plugins/atomic/tests/physics.mjs`, and the standard Atomic performance runner for scene, solver and million-atom edit measurements respectively. These measure different workloads.
+
+### Moving clamp and impact example
+
+Open `tests/scenes/atomic-tube-impact.hash`. The orange Fixed clamp moves 1 Å and returns over frames 0–120; the green tip receives a continuous +X force. The gold diamond starts with -X Velocity and collides with the tube. All components share one Atomic world. Play physics and timeline for interactive use; native video output advances exactly 4 fs after each animation frame. The reproducible generator verifies clamp motion, response of mobile tube atoms and projectile velocity before exporting H.264 video.
+
+Target FPS defaults to 10. Million-atom physics is supported within device buffer/memory limits, but can take seconds per step. Play displays Initializing during solver preparation. Marquee includes hidden atom centers; click/navigation retain depth visibility.
+
+Run `node plugins/atomic/tests/million-physics.mjs` for the separate real million-atom initialization/step benchmark (up to 90 s initialization and 60 s per measured interval; several GiB of GPU memory). Standard tests retain the compact million-atom preview benchmark.
+
+The [impact example guide](../../tests/scenes/atomic-tube-impact.md) describes controls, units and validation; [rendered MP4](../../tests/scenes/atomic-tube-impact.mp4).

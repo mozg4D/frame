@@ -125,3 +125,5 @@ Attribute descriptors additionally support action `row`, `active` and `disabled`
 The core renders `attributes.units` beside scalar row labels in parentheses and vector `unit` beside the merged vector row label. Units never occupy numeric inputs or their control group.
 
 Document selection in the objects area activates native Attributes. Shared overlays sit six pixels below the viewport edge and show active cells as pressed buttons. Atomic detachment puts effective appearance on native groups rather than duplicating atom material tags.
+
+Editor hooks may implement asynchronous `navigation(x,y)` returning `{depth}` for a visible surface hit, or null. Depth is distance along the shared normalized camera ray, matching the native mesh ray picker. The host reconstructs the exact world point and compares it with native mesh/spline hits. A plugin must preserve native occlusion when producing its hit. Atomic uses this for orbit/zoom under the pointer without reading its atom state back to the CPU.
