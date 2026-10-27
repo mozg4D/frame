@@ -1,5 +1,5 @@
 import {axisConsistencyChecks} from './axis-consistency.mjs';
-import {aiChatChecks} from './ai-chat.mjs';
+import {fileControlsChecks} from './file-controls.mjs';
 import {materialInteractionChecks} from './material-interaction.mjs';
 import {mapsToolsChecks} from './october26-maps-tools.mjs';
 import {viewportPrinterRevisionChecks} from './viewport-printer-revision.mjs';
@@ -79,7 +79,7 @@ try{
   const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Suite exceeded 10 minutes')),600000);});
   report.suite=await runStage('suite',()=>Promise.race([page.evaluate(async stress=>{const {runSuite}=await import('./tests/suite.js');return runSuite(frameAI,{stress,progress:name=>console.log('[tests] '+name)});},args.includes('--stress')),timeout]));clearTimeout(timer);
   const isolated=async(name,fn,nativeLock=false)=>runStage(name,async()=>{const lockSession=nativeLock?await launch({headless:true}):null;const browserSession=lockSession||session;await page.evaluate(()=>frameAI.call('render.stop'));const context=await browserSession.browser.newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1)});try{const fixture=await context.newPage();fixture.on('pageerror',e=>report.errors.push(name+': '+e.message));fixture.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(name+': '+m.text());});await fixture.goto(browserSession.url+'/index.html');await ready(fixture);await fixture.evaluate(()=>{window.__fixtureGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__fixtureGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});const result=await fn(fixture);result.gpu=await fixture.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__fixtureGPU}));if(result.gpu.validation||result.gpu.uncaptured.length){result.pass=false;result.error=JSON.stringify(result.gpu);}return result;}finally{await context.close();await lockSession?.close();}});
-  report.aiChat=await isolated('aiChat',aiChatChecks);
+  report.fileControls=await isolated('fileControls',fileControlsChecks);
   report.axisConsistency=await isolated('axisConsistency',axisConsistencyChecks);
   report.splineModeling=await isolated('splineModeling',splineModelingChecks);
   report.pluginInfrastructure=await isolated('pluginInfrastructure',pluginInfrastructureChecks);
