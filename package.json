@@ -18,6 +18,7 @@
     "test:file-controls": "node tests/file-controls.mjs",
     "test:atomic": "node plugins/atomic/tests/run.mjs",
     "test:atomic:performance": "node plugins/atomic/tests/performance.mjs --million",
+    "test:atomic:comparison": "node plugins/atomic/tests/comparison.mjs",
     "mcp": "node tools/mcp.mjs",
     "test:plugins": "node tests/plugin-infrastructure.mjs && node tests/modeling-plugins.mjs",
     "test:animation": "node tests/animation-feedback.mjs",

@@ -74,3 +74,9 @@ Target FPS defaults to 10. Million-atom physics is supported within device buffe
 Run `node plugins/atomic/tests/million-physics.mjs` for the separate real million-atom initialization/step benchmark (up to 90 s initialization and 60 s per measured interval; several GiB of GPU memory). Standard tests retain the compact million-atom preview benchmark.
 
 The [impact example guide](../../tests/scenes/atomic-tube-impact.md) describes controls, units and validation; [rendered MP4](../../tests/scenes/atomic-tube-impact.mp4).
+
+### Throughput and interruption
+
+For 8192+ atoms the solver profiles its existing serial/cooperative kernels and uses the measured faster paths. Target FPS controls display cadence and packet latency budgets, not a sleep between physical batches. The queue is bounded to one estimated display period (at most eight packets, each targeting no more than 8 ms). Pause interrupts scheduling immediately and drains the current step. The NEP model, descriptor/energy math, stable timestep bounds and offline physical intervals are unchanged.
+
+`status` exposes `kernelModes`, `kernelProfiles`, `packetBudgetMs`, `maxQueuedPackets`, and `queueWaits`. Force inspection evaluates pending constraint changes first. `npm run test:atomic:comparison -- --original path/to/Atomic_sim_r47.html [--output report.json]` measures the original unmodified file and Frame on the same GPU/browser; five samples follow 41 warmup steps in each of two ABBA trials. Native Play is measured independently at Target FPS 10. Performance acceptance permits at most 5% measurement tolerance relative to the original. Initialization is reported but not used as a cold-start comparison because the applications initialize their solvers at different times.

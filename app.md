@@ -1,5 +1,11 @@
 # Frame application context
 
+## Atomic GPU throughput (2026-10-27)
+
+Atomic measures serial/cooperative NEP kernels on the current GPU for worlds with at least 8192 atoms. Physics continues between display updates instead of idling until the next Target FPS deadline. Per-packet work targets at most 8 ms; estimated queued work is limited to one display period, up to eight packets. The existing yielding channel keeps browser work runnable and avoids nested-timer clamping. Native Pause and the API interrupt owned background scheduling before waiting for editor/GPU settling; the current physical step completes normally. Offline intervals still advance exactly Fixed Time, with the original stable substeps.
+
+`status` includes kernel modes/profiles, packet budget, queued-packet limit and queue-wait count. `inspect {forces:true}` evaluates pending Fixed/Force changes before reading bounded force data. `npm run test:atomic:comparison -- --original path/to/Atomic_sim_r47.html` runs two same-workload trials per application in ABBA order, with 41 warmup steps and both completed-step and native Play measurements. It does not modify the original file. Initialization timings exclude original startup compilation and must not be interpreted as a matched cold-start comparison. The million-physics runner also warms up 41 steps before measuring five steady intervals.
+
 ## Atomic motion and million-atom physics (2026-10-27)
 
 Atomic defaults to Target FPS 10. Play immediately shows Initializing while preparing physics; a failed start offers Retry. The million-atom grid clear uses a bounded two-dimensional dispatch, avoiding the 65535-workgroup limit. Neighbor storage starts at 64 entries and grows through the existing checked GPU capacity path. Unchanged offline intervals reuse force/neighbor state; animated Fixed changes invalidate it. Interactive animation coalesces pending constraint updates instead of accumulating one task per timeline frame.
