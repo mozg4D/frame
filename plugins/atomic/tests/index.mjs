@@ -1,3 +1,4 @@
+import {feedbackChecks} from './feedback.mjs';
 import {revisionChecks} from './revision.mjs';
 import {extendedChecks} from './extended.mjs';
 import {nepChecks} from './nep.mjs';
@@ -25,6 +26,6 @@ export async function pluginChecks(page){
   const copied=await call('scene.duplicate',{ids:[h]}),copy=copied.objects.find(n=>n.type==='atomic');check('whole Atomic copies with descendants',!!copy&&copy.hash!==h,copied);const source=await cmd('inspect');await cmd('step',{timeFs:.5},copy.hash);check('independent worlds never alter one another',JSON.stringify(source)===JSON.stringify(await cmd('inspect')));
   await call('scene.select',{ids:[h]});await call('view.set',{index:1,single:true,shading:'solid',focus:h});await page.locator('[data-plugin-element="C"]').click();const rect=await page.locator('#frame-engine-canvas').boundingBox();await page.mouse.click(rect.x+rect.width*.7,rect.y+rect.height*.55);await call('scene.inspect');check('native element button places an atom',(await cmd('status')).atoms===4);
   await page.keyboard.press('Escape');await cmd('pause');await call('scene.select',{ids:[h]});await call('view.set',{single:false,index:0,focus:h});const frames=await timed('shared viewport rendering',10000,()=>call('diagnostics.frame',{frames:3}));check('native frame diagnostics remain available',!!frames,frames);
-  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
+  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks,feedbackChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }

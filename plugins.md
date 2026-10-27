@@ -123,3 +123,5 @@ Attribute descriptors additionally support action `row`, `active` and `disabled`
 `flush(options)` is the plugin frame-completion barrier: independent plugin promises run concurrently and every promise must resolve before authoring/export proceeds. For output, animation runs first and each solver advances its own exact requested interval before the common GPU queue is awaited. Shared viewport pipeline preparation remains asynchronous; plugin initialization must not await unrelated plugin work.
 
 The core renders `attributes.units` beside scalar row labels in parentheses and vector `unit` beside the merged vector row label. Units never occupy numeric inputs or their control group.
+
+Document selection in the objects area activates native Attributes. Shared overlays sit six pixels below the viewport edge and show active cells as pressed buttons. Atomic detachment puts effective appearance on native groups rather than duplicating atom material tags.

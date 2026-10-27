@@ -1,5 +1,14 @@
 # Frame application context
 
+## Atomic gallery and interaction revision (2026-10-27)
+
+The periodic table compacts the supported rare-earth species and Ac into its final row and sits six pixels below the active viewport edge. The placement element is a pressed button. Escape, right click and other editing/UI actions end placement; ordinary viewport navigation retains it. Clicking a named Force or Velocity selection opens Attributes. Restore preserves Play/Pause while resetting positions, velocities and physical time. Derived rendering updates retain the previous complete display, including during post-Play component drags in Element, Force and Charge modes.
+
+Detached atoms inherit materials from their native group. Mixed appearances create material subgroups; individual atoms carry no duplicate material tags. Cached selection bounds check authoring identities before constructing dynamic membership, keeping the million-atom gallery responsive.
+
+`tests/scenes/atomic-mega.hash` is a reproducible 12-world gallery with 1,048,670 atoms: 75 species, five molecular families, FCC/BCC/diamond crystals, graphene and BN sheets, single/multiwall nanotubes, animated Fixed grips, Force loading, colliding Velocity clusters, a 32,768-atom Cu velocity world and a million-atom diamond preview. Each owner has a stored initial state. The two largest owners default to Fixed Time 0 so camera export does not accidentally initialize their solvers. Zero-duration stepping leaves display-only state compact. The million-atom exhibit demonstrates display/editing capacity; it is not a million-atom physics performance claim. See the adjacent gallery README and generator.
+
+
 ## File controls and recent files (2026-10-27)
 
 Open shows recent files on hover, or ArrowDown for keyboard navigation; clicking Open still opens the file chooser. An empty recent list shows no popup or placeholder. Help occupies the former AI toolbar slot, between Share and Fold all. The remaining modeling buttons start with Instance and shift left by one slot.

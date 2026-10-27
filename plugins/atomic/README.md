@@ -59,3 +59,8 @@ Plain left drags away from the gizmo navigate while preserving selected atoms. C
 Native NVIDIA Turing WebGPU: 90 focused Atomic checks pass. Standard and DPR-2 stress each pass 5168 assertions, with no JS/console/WebGPU errors or lost/replaced device. The unchanged 100548288-triangle fixture passes 43 rendering/editor checks. The million-atom preview/edit benchmark passes creation, selection, center transforms, native detachment and exact Undo/Redo; create/full rotation/detach complete in 2.08/1.50/3.74 seconds, and history uses 217.5 MiB of its 256 MiB limit. These are local fixture measurements, not physical simulation throughput.
 
 Runtime SHA-256: 27ba8da240dcf34ef7d1680385b5b336ad36fd2421645af23c2aea8464c32c9e. Atomic SHA-256: 2f010d85b9fa7903b4b0ea7ce68b489c654f56066a5453e9bbe1f99cd9182047. Ignored tests/results/atomic-acceptance.json binds the passing reports to final staged bytes. The model/NEP kernel prefix remains byte-identical to the incoming revision.
+
+
+October 27 interaction update: the final table row combines supported rare-earth species and Ac; its active element is a pressed button. Placement ends on Escape, right click or another editing action, and survives navigation. Named Force/Velocity clicks open Attributes. Restore preserves the current playback mode. Detached appearances belong to groups, including separate groups for mixed colors. Display data remains visible while derived state updates.
+
+The reproducible gallery is `tests/scenes/atomic-mega.hash` (see `tests/scenes/atomic-mega.md`). Run `node tests/atomic-mega.mjs`, `node plugins/atomic/tests/physics.mjs`, and the standard Atomic performance runner for scene, solver and million-atom edit measurements respectively. These measure different workloads.
