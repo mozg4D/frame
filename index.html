@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 28 oct 21:04">
-<title>Frame 2026 28 oct 21:04</title>
+<meta name="frame-version" content="2026 28 oct 21:34">
+<title>Frame 2026 28 oct 21:34</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -1332,8 +1332,9 @@ const a=o.plane,i=e=>[v(M(e,a.origin),a.u),v(M(e,a.origin),a.v)],l=o.chains.map(
 }),l=G,c=i.plane,u=c.normal.map(e=>e*((+t.offset||0)<0?-1:1)),h=(e,t)=>c.origin.map((n,r)=>n+e[0]*c.u[r]+e[1]*c.v[r]+t*u[r]),f=Math.min(Math.max(0,+t.startSize||0),.5*o),d=Math.min(Math.max(0,+t.endSize||0),.5*o),p=(e,t)=>{let n=!1
 ;for(let r=0,s=t.length-1;r<t.length;s=r++){const o=t[s],a=t[r];o[1]>e[1]!=a[1]>e[1]&&e[0]<o[0]+(e[1]-o[1])*(a[0]-o[0])/(a[1]-o[1])&&(n=!n)}return n},S=i.prepared.paths.map((e,t)=>({curves:e.curves.map(e=>({...e,
 cp:e.cp.map(i.prepared.toWorld)})),chain:i.analysis.chains[t]})),k=S.map(e=>e.curves.flatMap(e=>l.flatten(e.cp,i.prepared.tol*i.prepared.scale).slice(0,-1).map(e=>e.p)));for(let O=0;O<S.length;O++){
-const T=k.reduce((e,t,n)=>e+(O!==n&&p(k[O][0],t)?1:0),0);l.area(k[O])>0!=(T%2==0)&&(S[O].curves=S[O].curves.slice().reverse().map(e=>({...e,cp:e.cp.slice().reverse()})))}const z=new Map,q=e=>{if(!z.has(e)){const t=l.offset(i.prepared,-e)
-;z.set(e,t)}return z.get(e)};function E(t){if(t.loops.length!==S.length)return null;const n=new Map;for(const r of t.loops){
+const T=k.reduce((e,t,n)=>e+(O!==n&&p(k[O][0],t)?1:0),0);l.area(k[O])>0!=(T%2==0)&&(S[O].curves=S[O].curves.slice().reverse().map(e=>({...e,cp:e.cp.slice().reverse()})))}const z=new Map,insetTolerance=Math.max(1e-7,8*i.prepared.tol*i.prepared.scale),insetBounds=[[Infinity,Infinity],[-Infinity,-Infinity]];for(const loop of k)for(const point of loop)for(let axis=0;axis<2;axis++){insetBounds[0][axis]=Math.min(insetBounds[0][axis],point[axis]);insetBounds[1][axis]=Math.max(insetBounds[1][axis],point[axis]);}
+function validateInset(result,size){for(const loop of result.loops)for(const piece of loop.pieces)for(const parameter of [0,.5]){const point=l.value(piece.cp,parameter);let inside=false,distance2=Infinity;for(const polygon of k)for(let j=0;j<polygon.length;j++){const a=polygon[j],b=polygon[(j+1)%polygon.length],dx=b[0]-a[0],dy=b[1]-a[1],length2=dx*dx+dy*dy,t=length2?Math.max(0,Math.min(1,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length2)):0,x=point[0]-a[0]-t*dx,y=point[1]-a[1]-t*dy;distance2=Math.min(distance2,x*x+y*y);if(a[1]>point[1]!==b[1]>point[1]&&point[0]<a[0]+(point[1]-a[1])*dx/dy)inside=!inside;}const distance=Math.sqrt(distance2);if(!inside&&distance>insetTolerance||distance+insetTolerance<size)throw Error("Extrude bevel is too large: the inset cap leaves the profile's filled region");}}
+const q=e=>{if(!z.has(e)){if(e>.5*Math.min(...insetBounds[1].map((v,k)=>v-insetBounds[0][k]))+insetTolerance)throw Error("Extrude bevel is too large: the inset cap collapses");const t=l.offset(i.prepared,-e);validateInset(t,e);z.set(e,t)}return z.get(e)};function E(t){if(t.loops.length!==S.length)return null;const n=new Map;for(const r of t.loops){
 const t=new Set(r.pieces.map(e=>e.source).filter(t=>e.segments[t])),s=S.findIndex(e=>[...t].every(t=>e.curves.some(e=>e.id===t)));if(s<0||n.has(s)||!t.size)return null;let o=r.pieces.slice(),a=o.findIndex(t=>e.segments[t.source])
 ;o=o.slice(a).concat(o.slice(0,a));const i=[];for(const t of o){const n=i.at(-1);!n||n.id!==t.source&&e.segments[t.source]?i.push({id:t.source,curves:[t.cp]}):n.curves.push(t.cp)}
 i.length>1&&i[0].id===i.at(-1).id&&(i[0].curves=i.at(-1).curves.concat(i[0].curves),i.pop());const l=S[s].curves.map(e=>e.id),c=i.map(e=>l.indexOf(e.id));if(c.some(e=>e<0)||new Set(c).size!==c.length)return null;let u=0
