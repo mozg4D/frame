@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 28 oct 21:34">
-<title>Frame 2026 28 oct 21:34</title>
+<meta name="frame-version" content="2026 28 oct 21:47">
+<title>Frame 2026 28 oct 21:47</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -1361,7 +1361,7 @@ x.get(o)};for(let t=0;t<f;t++)for(const n of e.sequences){const r=gt(e,n);let s=
 ;continue}f&&w.add(c.id);const d=A(t,c.from),p=A(t,c.to),m=i*t/h;if(d===p)continue;s&&o===d||(s=N(y,!!n.closed&&a));const g=it(c.reversed?r.hb:r.ha,m),b=it(c.reversed?r.ha:r.hb,m),v=O(y,s,d,p,g,b);y.segments[v].soft=!!r.soft,ot(e,c.id,y,v),profileCopies.set(t+':'+c.id,{edge:v,reversed:c.reversed}),f&&axisCopies.set(c.id,{edge:v,reversed:c.reversed}),
 o=p,S.add(c.from),S.add(c.to)}}for(const t of S){const n=e.vertices[t];if(g(n))continue;const r=N(y,l);for(let e=0;e<h;e++){
 const n=l?(e+1)%f:e+1,s=i*e/h,o=i*(e+1)/h,a=4/3*Math.tan((o-s)/4),c=A(e,t),u=A(n,t),d=y.vertices[c],p=y.vertices[u],m=O(y,r,c,u,[d[2]*a,0,-d[0]*a],[-p[2]*a,0,p[0]*a]);angularCopies.set(t+':'+e,m),y.segments[m].soft=!0,v.has(t)&&(y.segments[m].boundary=!0),
-y.segments[m].approximation={angle:b}}}y.sequences=y.sequences.filter(e=>e.segments.length);const k=ae(y);if(!k.ok)throw Error(k.errors.join("; "));r&&u(y,r);st(y);const faces=[],ring=(station,id)=>profileCopies.get(station+':'+id)||axisCopies.get(id),rail=(id,station,reversed=false)=>{const edge=angularCopies.get(id+':'+station);return edge?{edge,reversed}:null;};for(const [id,edge]of Object.entries(e.segments)){if(M(P(e,id)))continue;for(let station=0;station<h;station++){const next=l?(station+1)%f:station+1,a=ring(station,id),b=ring(next,id);if(a&&b)faces.push({loops:[[a,rail(edge.b,station),{edge:b.edge,reversed:!b.reversed},rail(edge.a,station,true)].filter(Boolean)]});}}
+y.segments[m].approximation={angle:b}}}y.sequences=y.sequences.filter(e=>e.segments.length);const k=ae(y);if(!k.ok)throw Error(k.errors.join("; "));r&&u(y,r);st(y);if(d.every(point=>Math.abs(point[1]-d[0][1])<=m))return y;const faces=[],ring=(station,id)=>profileCopies.get(station+':'+id)||axisCopies.get(id),rail=(id,station,reversed=false)=>{const edge=angularCopies.get(id+':'+station);return edge?{edge,reversed}:null;};for(const [id,edge]of Object.entries(e.segments)){if(M(P(e,id)))continue;for(let station=0;station<h;station++){const next=l?(station+1)%f:station+1,a=ring(station,id),b=ring(next,id);if(a&&b)faces.push({loops:[[a,rail(edge.b,station),{edge:b.edge,reversed:!b.reversed},rail(edge.a,station,true)].filter(Boolean)]});}}
 if(!l){const source=ConstructedSurface.sourceCaps(e);if(!source)return y;for(const station of [0,f-1]){const map=new Map(Object.keys(e.segments).map(id=>[id,ring(station,id)?[ring(station,id)]:null])),caps=ConstructedSurface.mappedCaps(y,e,map,source);if(!caps)return y;faces.push(...caps);}}
 if(v.size){const extra=ConstructedSurface.boundaryCaps(y,faces);if(!extra)return y;faces.push(...extra);}ConstructedSurface.finish(y,faces,'lathe');return y}function ct(e,t=!1){return t?{
 vertices:[e.vertices[0],...e.vertices.slice(1).reverse()],edges:e.edges.slice().reverse().map(e=>({...e,from:e.to,to:e.from,reversed:!e.reversed}))}:{vertices:e.vertices.slice().reverse(),edges:e.edges.slice().reverse().map(e=>({...e,
