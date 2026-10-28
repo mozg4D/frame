@@ -11,6 +11,7 @@ export async function pluginChecks(page){
  try{
   const old=await call('scene.inspect');if(old.objects.length)await call('scene.delete',{ids:old.objects.filter(n=>!n.parent).map(n=>n.hash)});
   const a=await timed('cold native creation',10000,()=>call('plugins.create',{plugin:'atomic'})),h=a.hash,cmd=(op,args={},hash=h)=>call('plugins.command',{id:hash,operation:op,args});
+  await page.locator('#tabAttributes').click();const attributeLabels=await page.locator('#attrContent .attr-lab').allTextContents(),confinementIndex=attributeLabels.findIndex(label=>label.startsWith('Confinement'));check('Confinement appears immediately before Color in native Attributes',confinementIndex>=0&&attributeLabels[confinementIndex+1]==='Color',attributeLabels);
   await cmd('elements');await call('diagnostics.frame',{frames:2});
   const palette=page.locator('#frame-plugin-overlay-atomic');check('all 75 supported elements appear in viewport table',await palette.locator('button').count()===75);check('periodic table has no background',await palette.evaluate(el=>getComputedStyle(el).backgroundColor==='rgba(0, 0, 0, 0)'));
   const icon=await page.locator('[data-plugin="atomic"] img').evaluate(async el=>{await el.decode();const svg=await(await fetch(el.src)).text();return {width:el.naturalWidth,height:el.naturalHeight,css:getComputedStyle(el).transform,thin:svg.includes('stroke-width="1"'),scaled:/scale\(/.test(svg)};});check('atomic artwork is native 32px with thinner unscaled strokes',icon.width===32&&icon.height===32&&icon.css==='none'&&icon.thin&&!icon.scaled,icon);

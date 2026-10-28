@@ -17,3 +17,5 @@
 - Author every icon at its displayed native dimensions. Do not scale icons with CSS, transforms or a mismatched SVG viewBox; author a separate native-size variant when needed.
 
 - Change the application interface only when the user explicitly requests that interface change. Keep code, documentation, fixtures and UI text in English.
+
+- After completing and validating each task that changes this repository, commit the task changes and push them to GitHub `origin/main` without waiting for a separate publication request, unless the user explicitly asks to keep the work local. Preserve unrelated work, never force-push, and verify that remote `main` matches the intended commit. For application releases, also verify the GitHub Pages build and deployed assets against committed Git bytes before reporting publication.
