@@ -33,6 +33,8 @@ Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. P
 | `scene.open`, `scene.export`, `scene.share` | Same-origin HASH/OBJ/STL/glTF/GLB, packed scene URL or bounded base64; HASH, binary STL or native GLB (`format: hash|stl|glb`, default hash) size/digest/data; portable gzip/base64url Share URL |
 | `diagnostics.mesh`, `diagnostics.frame`, `diagnostics.pixels` | Explicit finite/index/SHA checks, fresh-frame timings or up to 64 rendered RGBA pixels |
 
+Generator `evaluation.report.diagnostics` exposes `generatedFamily`, `knownSurfaceKinds` and construction cell counts when Extrude, Lathe or Sweep supplied a transient plan. Incremental GPU updates retain these diagnostics. Make Editable intentionally drops the plan: ordinary source cages and HASH contain geometry only, and the shared resolver/classifier reconstructs their cells.
+
 `scene.inspect` includes `buildError` on unsupported/invalid geometry parameters, just as the Attributes panel does. Such a scene can still be inspected, repaired with `scene.update`, or deleted. Export rejects unfinished/invalid builds. JSON-RPC unknown tools/schema violations return protocol error -32602; errors during tool execution return isError with a message/code. No arbitrary JavaScript/eval tool is exposed. Frame timing waits for fresh, monotonically increasing frame IDs, including pipeline initialization; it fails after 30 seconds without a measured frame. Explicit geometry digests are limited to 32 MiB, inline file data to 16 MiB; use regular file workflows for larger assets. User-originated UI operations are not globally locked by the API: avoid simultaneous manual edits while an AI transaction runs.
 
 ## MCP stdio adapter

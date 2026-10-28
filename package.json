@@ -37,6 +37,7 @@
     "test:pwa": "node tests/pwa.mjs",
     "test:spline-workflows": "node tests/spline-modeling-workflows.mjs",
     "test:october23": "node tests/october23-feedback.mjs",
+    "test:slicer:perimeters": "node plugins/3d-printer/tests/perimeters.mjs",
     "test:slicer": "node plugins/3d-printer/tests/slicer.mjs",
     "test:slicer:corpus": "node plugins/3d-printer/tests/corpus.mjs",
     "test:slicer:performance": "node plugins/3d-printer/tests/performance.mjs",

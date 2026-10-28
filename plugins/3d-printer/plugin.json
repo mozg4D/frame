@@ -19,7 +19,8 @@
         "Line width": 1,
         "Layer height": 0.3,
         "Initial layer height": 0.6,
-        "Perimeters": 1
+        "Perimeters": 1,
+        "Max deviation": 0.02
       },
       "parameterResets": {
         "Start layer": {
