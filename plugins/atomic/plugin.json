@@ -16,7 +16,8 @@
           "Element",
           "Charge",
           "Force"
-        ]
+        ],
+        "Confinement": 0
       },
       "disable": true
     },

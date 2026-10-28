@@ -44,7 +44,9 @@ export async function slicerChecks(page){
    ['three nested shells',[combine(box(40,2,40),box(20,2,20),box(8,2,8))],1264],
    ['contained independent solid',[box(40,2,40),box(20,2,20)],1600],
    ['intersecting solid union',[box(40,2,40),shifted(box(40,2,40),20,0,20)],2800],
-   ['same occurrence even-odd overlap',[combine(box(40,2,40),shifted(box(40,2,40),20,0,20))],2400],
+   ['interpenetrating shells in one occurrence unite',[combine(box(40,2,40),shifted(box(40,2,40),20,0,20))],2800],
+   ['reversed interpenetrating shell',[combine(box(40,2,40),(()=>{const m=shifted(box(40,2,40),20,0,20);for(let i=0;i<m.indices.length;i+=3)[m.indices[i+1],m.indices[i+2]]=[m.indices[i+2],m.indices[i+1]];return m;})())],2800],
+   ['transitive shell overlap union',[combine(box(40,2,40),shifted(box(40,2,40),20,0,20),shifted(box(40,2,40),40,0,40))],4000],
    ['coincident independent solids',[box(40,2,40),box(40,2,40)],1600],
    ['shared-edge union',[box(40,2,40),shifted(box(40,2,40),40,0,0)],3200],
   ];
