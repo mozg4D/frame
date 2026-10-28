@@ -11,24 +11,26 @@
       "fields": {
         "Temperature": 20,
         "Damping": 1,
-        "Target FPS": 10,
-        "Fixed Time": 1,
+        "Time scale": 60,
         "Color": [
           "Element",
           "Charge",
           "Force"
         ]
-      }
+      },
+      "disable": true
     },
     {
       "type": "atomic_selection",
       "name": "Selection",
-      "fields": {}
+      "fields": {},
+      "disable": false
     },
     {
       "type": "atomic_fixed",
       "name": "Fixed",
-      "fields": {}
+      "fields": {},
+      "disable": true
     },
     {
       "type": "atomic_velocity",
@@ -37,7 +39,8 @@
         "Velocity x": 0,
         "Velocity y": 0,
         "Velocity z": 0
-      }
+      },
+      "disable": true
     },
     {
       "type": "atomic_force",
@@ -47,12 +50,14 @@
         "Force y": 0,
         "Force z": 0,
         "Speed limit": 1
-      }
+      },
+      "disable": true
     },
     {
       "type": "atomic_element",
       "name": "Element",
-      "fields": {}
+      "fields": {},
+      "disable": false
     }
   ]
 }

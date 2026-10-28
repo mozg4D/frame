@@ -1,3 +1,4 @@
+import {timelineChecks} from './timeline.mjs';
 import {autotuneChecks} from './autotune.mjs';
 import {motionChecks} from './motion.mjs';
 import {feedbackChecks} from './feedback.mjs';
@@ -27,7 +28,7 @@ export async function pluginChecks(page){
   const saved=await timed('HASH save',10000,()=>call('scene.export',{includeData:true}));await timed('HASH open',10000,()=>call('scene.open',{name:'atomic-check.hash',base64:saved.base64}));check('independent records and selection survive HASH',(await cmd('inspect')).total===3&&(await call('scene.inspect')).objects.some(n=>n.hash===fixed.hash));
   const copied=await call('scene.duplicate',{ids:[h]}),copy=copied.objects.find(n=>n.type==='atomic');check('whole Atomic copies with descendants',!!copy&&copy.hash!==h,copied);const source=await cmd('inspect');await cmd('step',{timeFs:.5},copy.hash);check('independent worlds never alter one another',JSON.stringify(source)===JSON.stringify(await cmd('inspect')));
   await call('scene.select',{ids:[h]});await call('view.set',{index:1,single:true,shading:'solid',focus:h});await page.locator('[data-plugin-element="C"]').click();const rect=await page.locator('#frame-engine-canvas').boundingBox();await page.mouse.click(rect.x+rect.width*.7,rect.y+rect.height*.55);await call('scene.inspect');check('native element button places an atom',(await cmd('status')).atoms===4);
-  await page.keyboard.press('Escape');await cmd('pause');await call('scene.select',{ids:[h]});await call('view.set',{single:false,index:0,focus:h});const frames=await timed('shared viewport rendering',10000,()=>call('diagnostics.frame',{frames:3}));check('native frame diagnostics remain available',!!frames,frames);
-  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks,feedbackChecks,motionChecks,autotuneChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
+  await page.keyboard.press('Escape');await call('animation.pause');await call('scene.select',{ids:[h]});await call('view.set',{single:false,index:0,focus:h});const frames=await timed('shared viewport rendering',10000,()=>call('diagnostics.frame',{frames:3}));check('native frame diagnostics remain available',!!frames,frames);
+  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks,feedbackChecks,motionChecks,autotuneChecks,timelineChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }

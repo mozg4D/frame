@@ -5,7 +5,7 @@ export async function revisionChecks(page){
  check('Restore starts disabled',await page.locator('[data-plugin-action-button="restore-state"]').isDisabled());
  await c('create-atoms',{atoms:[{species:6,position:[0,0,0]},{species:8,position:[10,0,0]},{species:6,position:[20,0,0]}]});
  await page.locator('[data-plugin-action-button="store-state"]').click();await c('status');check('State row shares store and enabled restore',await page.locator('[data-plugin-action-row="state"] button').count()===2&&await page.locator('[data-plugin-action-button="restore-state"]').isEnabled());
- check('Fixed Time displays fs',await page.locator('[data-field="Fixed Time"]').evaluate(el=>el.closest('.attr-row').textContent.includes('fs')));
+ check('Time scale displays fs/s',await page.locator('[data-field="Time scale"]').evaluate(el=>el.closest('.attr-row').textContent.includes('fs/s')));
  let scene=await call('scene.inspect'),rows=scene.objects.filter(o=>o.type==='atomic_element'&&o.parent===h);check('One material owner per present species',rows.length===2&&rows.every(r=>r.tags.some(t=>t.kind==='material')),rows);
  const carbon=rows.find(r=>r.name==='C'),oxygen=rows.find(r=>r.name==='O'),red=await call('material.create',{name:'Carbon red',params:{h:0,s:100,l:50}});await call('material.assign',{id:carbon.hash,material:red.uid});
  const visual=await c('visualization');check('Element material affects every matching atom only',visual.colors[0][0]>.99&&visual.colors[0][1]<.01&&visual.colors[2][0]>.99&&visual.colors[1][1]>.01,visual.colors);

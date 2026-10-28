@@ -6,7 +6,7 @@ Create Atomic from Plugins, choose an element and click in a viewport. Elements 
 
 Internal units are angstroms, femtoseconds, eV and amu; Temperature is Celsius. Velocity uses local XYZ components in angstrom/fs, applied once at initialization. Force uses local XYZ components in eV/angstrom; Speed limit is angstrom/fs. Damping retains the r47 integrator parameter. Fixed atom positions follow their authored/animated Frame selections and still contribute to interactions. Only Fixed internal selections permit PSR animation. Atomic object transforms never change physical coordinates.
 
-Store State saves positions. Restore State requires unchanged stable IDs, resets velocity/clock/derived buffers and reproduces the same initialization. Interactive Target FPS adjusts work scheduling. Fixed Time determines the exact physical interval per offline output frame, split into stable integration substeps; hardware speed does not change this interval. Choose Camera Renderer = Viewport to include Atomic in image/video output. The normal path tracer does not trace Atomic impostors.
+Store State saves positions. Restore State requires unchanged stable IDs, resets velocity/clock/derived buffers and reproduces the same initialization. The timeline is fixed at 60 fps. Time scale (fs/s) determines physical time per timeline second; each frame advances Time scale / 60 fs using stable internal substeps. The common timeline Play waits for every enabled world before advancing another frame, slowing the entire animation when necessary. Pause drains the current frame. Each world keeps its own Time scale. There is no independent Atomic Play. Choose Camera Renderer = Viewport to include Atomic in image/video output. The normal path tracer does not trace Atomic impostors.
 
 Charge color retains the original diagnostic with its 32768-atom limit. It is not an extra electrostatic force model. Fixed, Velocity and Force materials override species material colors; owner emission uses a cheap shared shader. Opacity, textures, roughness and individual material pipelines are omitted. Material does not change species or forces.
 
@@ -20,14 +20,16 @@ await frameAI.call('plugins.describe', {plugin:'atomic'}); // Full validated sch
 const atomic = (operation,args={}) =>
   frameAI.call('plugins.command', {id:hash,operation,args});
 await atomic('create-molecule', {name:'water'});
-await atomic('settings', {Temperature:20,Damping:1,'Fixed Time':1});
+await atomic('settings', {Temperature:20,Damping:1,'Time scale':60});
 await atomic('store-state');
 await atomic('step', {timeFs:0.73});
 await atomic('inspect', {count:3,runtime:true,forces:true});
 await atomic('restore-state');
+await frameAI.call('animation.play');
+await frameAI.call('animation.pause');
 ```
 
-Operations: status, inspect, visualization, create-atoms, delete-atoms, set-species, select-atoms, transform-atoms, create-selection, selection, play, pause, toggle-play, store-state, restore-state, settings, step, add-mode, create-molecule and create-crystal. Structure positions are local angstroms. Stable IDs start at one and survive deletion/reordering. Inspect is bounded to 4096 atoms. Named selection and whole-object lifecycle also use normal scene commands. Errors remain available through automation, never Attributes.
+Operations: status, inspect, visualization, create-atoms, delete-atoms, set-species, select-atoms, transform-atoms, create-selection, selection, store-state, restore-state, settings, step, add-mode, create-molecule and create-crystal. Structure positions are local angstroms. Stable IDs start at one and survive deletion/reordering. Inspect is bounded to 4096 atoms. Named selection and whole-object lifecycle also use normal scene commands. Errors remain available through automation, never Attributes.
 
 ## Verification
 
@@ -67,9 +69,11 @@ The reproducible gallery is `tests/scenes/atomic-mega.hash` (see `tests/scenes/a
 
 ### Moving clamp and impact example
 
-Open `tests/scenes/atomic-tube-impact.hash`. The orange Fixed clamp moves 1 Å and returns over frames 0–120; the green tip receives a continuous +X force. The gold diamond starts with -X Velocity and collides with the tube. All components share one Atomic world. Play physics and timeline for interactive use; native video output advances exactly 4 fs after each animation frame. The reproducible generator verifies clamp motion, response of mobile tube atoms and projectile velocity before exporting H.264 video.
+Open `tests/scenes/atomic-tube-impact.hash`. The orange Fixed clamp moves 1 angstrom and returns over frames 0-240; the green tip receives a continuous +X force. The gold diamond starts with -X Velocity and collides with the tube. All components share one Atomic world. Use timeline Play; native 60 fps video output advances 2 fs between frames at Time scale 120 fs/s. Frame zero is the initial state. The reproducible generator checks clamp motion, mobile response and projectile deceleration before exporting H.264 video.
 
-Target FPS defaults to 10. Million-atom physics is supported within device buffer/memory limits, but can take seconds per step. Play displays Initializing during solver preparation. Marquee includes hidden atom centers; click/navigation retain depth visibility.
+Green Browser points control computation on Atomic, Fixed, Force and Velocity only. Disabling a world freezes positions, velocities and its physical clock without hiding it or catching up later. Disabling Fixed releases its atoms; re-enabling anchors their current positions and subsequent clamp animation continues from there. Force stops contributing without clearing acquired velocity. Velocity is a one-time initialization source: enabling it mid-run does not inject an impulse. Red points affect visibility only, including species/membership rows, never forces or computation. Separate worlds do not interact.
+
+Scrubbing evaluates animation and enabled Fixed positions without integrating or rewinding physics. Restore resets stored positions, velocity and physical clock. Video output resets enabled worlds to stored positions (or the initial runtime authoring positions), evaluates frame zero without stepping, and computes every interval sequentially from zero, including preroll before a nonzero output start. Still output captures the current state without advancing. Simulation playback stops at the timeline end; it cannot loop an uncached physical history. The path tracer does not include Atomic impostors; choose Viewport for Atomic exports.
 
 Run `node plugins/atomic/tests/million-physics.mjs` for the separate real million-atom initialization/step benchmark (up to 90 s initialization and 60 s per measured interval; several GiB of GPU memory). Standard tests retain the compact million-atom preview benchmark.
 
@@ -77,6 +81,6 @@ The [impact example guide](../../tests/scenes/atomic-tube-impact.md) describes c
 
 ### Throughput and interruption
 
-For 8192+ atoms the solver profiles its existing serial/cooperative kernels and uses the measured faster paths. Target FPS controls display cadence and packet latency budgets, not a sleep between physical batches. The queue is bounded to one estimated display period (at most eight packets, each targeting no more than 8 ms). Pause interrupts scheduling immediately and drains the current step. The NEP model, descriptor/energy math, stable timestep bounds and offline physical intervals are unchanged.
+For 8192+ atoms the solver profiles its existing serial/cooperative kernels and uses the measured faster paths. The shared timeline owns display cadence and exact physical intervals. GPU work packets target 8 ms, with two queued packets for fast steps and up to eight when a physical step already exceeds one display period. Pause interrupts scheduling immediately and drains the current multi-world frame. The NEP model, descriptor/energy math, stable timestep bounds and offline physical intervals are unchanged.
 
-`status` exposes `kernelModes`, `kernelProfiles`, `packetBudgetMs`, `maxQueuedPackets`, and `queueWaits`. Force inspection evaluates pending constraint changes first. `npm run test:atomic:comparison -- --original path/to/Atomic_sim_r47.html [--output report.json]` measures the original unmodified file and Frame on the same GPU/browser; five samples follow 41 warmup steps in each of two ABBA trials. Native Play is measured independently at Target FPS 10. Performance acceptance permits at most 5% measurement tolerance relative to the original. Initialization is reported but not used as a cold-start comparison because the applications initialize their solvers at different times.
+`status` exposes `kernelModes`, `kernelProfiles`, `packetBudgetMs`, `maxQueuedPackets`, and `queueWaits`. Force inspection evaluates pending constraint changes first. `npm run test:atomic:comparison -- --original path/to/Atomic_sim_r47.html [--output report.json]` measures the original unmodified file and Frame on the same GPU/browser; five samples follow 41 warmup steps in each of two ABBA trials. Native Play is measured independently: the original uses its 10 fps display target; Frame uses its 60 fps timeline and Time scale 30 fs/s. Performance acceptance permits at most 5% measurement tolerance relative to the original. Initialization is reported but not used as a cold-start comparison because the applications initialize their solvers at different times.
