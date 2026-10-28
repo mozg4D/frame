@@ -1,5 +1,19 @@
 # Frame application context
 
+## Multiple-profile generators and planar Spline Patch evaluation (2026-10-28)
+
+New file precedes Open. Its native 32 px SVG contains a compact 13 by 19 px document drawing. New file uses the native scene lifecycle, releases scene GPU ownership and resets the Save target, materials, timeline, Loop and history. The same validated command is available as `scene.new {}`. Recent files remain available. Loop is redrawn within its native 28 px SVG with smaller arcs and arrowheads; no icon transform or viewBox scaling is used.
+
+Extrude and Lathe evaluate every child spline independently, recursively collecting groups. Nested or overlapping child objects remain separate generated solids; multiple contours inside one child retain that child's ordinary even-odd hole semantics. Each child is evaluated in the generator frame. Make Editable produces one Spline Patch with one editable source cage per generated child, retaining independent cells through Undo/Redo and HASH.
+
+Extrude chooses its direction from the control points, independent of spline/pivot axes. Planar points supply a stable plane normal using two farthest-point sweeps. Otherwise a linear covariance pass and bounded 3 by 3 eigensolve approximate an oriented box; the principal direction with the smallest measured point extent is used. The largest normal component is positive and Offset controls the sign. This is a fast approximate minimum box, not an exact minimum-volume box solver.
+
+Every production Extrude uses the ordinary Spline Patch surface builder. For planar hard straight contours without cap fillets, the generator passes its already-known wall/cap boundaries to that builder after checking every edge's closed, oriented incidence. It does not generate an alternate polygon mesh. Soft interpolation, curved handles, nonplanarity and cap fillets automatically use the general cell resolver. The general resolver also uses linear contour/plane analysis, exact endpoint samples for monotone straight spans, forced manifold face selection and an early exclusion for impossible interior partitions. Worker batches retain coordinator-owned quad descriptions; large cage display changes upload existing arrays in bulk.
+
+`tests/generator-revision.mjs` checks native icons/New file, independent nested profiles, holes, tilted and nonplanar points, parameter transitions, editable conversion, history and HASH. Standard/stress discover these checks. Its `--benchmark` mode compares completed GPU publication against a test-only direct polygon extrusion on 1000/4000/12000-point concave contours, with three trials, analytic volume/topology and latency budgets plus native CPU/GPU frame timestamps. The polygon reference is confined to tests and has no application switch. It omits cage construction/display, as a dedicated polygon shortcut would. Spline Patch remains substantially slower on heavy contours; this comparison is not a claim of speed parity.
+
+Runtime/service-worker version: Frame 2026 28 oct 19:00.
+
 ## Shared animation and Atomic time (2026-10-27)
 
 Timeline and video output use fixed 60 fps. HASH opening preserves the saved frame, range and material curves independently of the prior editor state. Camera has no FPS or FOV parameter (projection remains 45 degrees); Viewport Camera attributes omit the render View action and retain Image/Video. The timeline has Play/Pause and Loop; measured playback speed replaces the frame label while playing. Every completed timeline frame waits for animation/Morph/spline evaluation and every enabled Atomic world. There is no frame skipping or wall-clock catch-up. Playback with simulation stops at the end when Loop is off; Loop wraps the authored frame while continuing physical state.
