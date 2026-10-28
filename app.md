@@ -1,5 +1,13 @@
 # Frame application context
 
+## Shared surface evaluation efficiency (2026-10-29)
+
+The ordinary Spline Patch classifier recognizes exact curved translation cells from cubic control points, including after Make Editable, without construction metadata. A straight axis must be perpendicular to the curved section; oblique translations and cells with two curved axes retain the adaptive builder. Convex planar four-sided cells with four boundary samples use two triangles directly in the common CPU builder. Concave, folded and curved boundaries retain general triangulation; extra shared boundary samples are preserved.
+
+Certified monotone straight cubics bypass normalized curve-cache key construction and curvature sampling, retaining their endpoints and exact tangent diagnostics. Generator profile cap recognition uses a runtime LRU capped at 16 MiB and eight entries, keyed by complete profile geometry. Generated cages and their known cell plans stay in the coordinator worker through preparation instead of making a main-thread round trip; the main thread retains ordinary cage data for editing/display. The single pending generation has a transient identity, is consumed during preparation and falls back to ordinary geometric preparation if superseded. No generation identity or construction plan is saved in HASH or editable sources.
+
+`tests/surface-efficiency.mjs` validates convex/concave/tilted/curved cells, geometry-only Extrude recognition and invalidation/Undo. Standard/stress include it. Its benchmark measures cold builds and three completed offset updates on 1000/4000/12000-point concave profiles, analytic volume/topology, and native CPU/GPU frame budgets. `--baseline-ref=<git revision> --benchmark` serves the exact preceding runtime through the same browser and test driver, without changing workspace files.
+
 ## Constructive spline generators and surface evaluation (2026-10-28)
 
 New file precedes Open. Its native 32 px SVG contains a compact 13 by 19 px document drawing. New file uses the native scene lifecycle, releases scene GPU ownership and resets the Save target, materials, timeline, Loop and history. The same validated command is available as `scene.new {}`. Recent files remain available. Loop is redrawn within its native 28 px SVG with smaller arcs and arrowheads; no icon transform or viewBox scaling is used.
@@ -16,7 +24,7 @@ Construction information is runtime-only and deliberately disappears at Make Edi
 
 `tests/generator-revision.mjs` checks native icons/New file, independent nested profiles, holes, tilted and nonplanar points, parameter transitions, editable conversion, history and HASH. `tests/generator-construction.mjs` adds soft profiles, cap fillets, open/closed paths, both Sweep transports, partial Lathe, independent geometric recognition and analytic volumes; it checks construction-info loss and Undo. Standard/stress discover both. Benchmark modes record completed-operation latency and native CPU/GPU frames. The construction benchmark compares all three soft-profile generators with the preceding revision; the extrusion benchmark also retains a test-only direct polygon reference on 1000/4000/12000-point contours. The polygon reference has no application switch and omits cage construction/display, as a dedicated polygon shortcut would. Heavy Spline Patch construction is still not a claim of polygon-path speed parity.
 
-Runtime/service-worker version: Frame 2026 28 oct 21:47.
+Runtime/service-worker version: Frame 2026 29 oct 00:03.
 
 Validation on NVIDIA Ampere: standard and DPR-2 stress each passed 5546 assertions, the 100,548,288-triangle benchmark passed 43 checks, and printer performance/corpus passed 23 checks and 27 cases. Completed soft-profile update medians over three trials at 256 segments were Extrude 150.03 to 119.32 ms, Sweep 157.27 to 131.32 ms, and Lathe 746.03 to 745.50 ms versus the preceding generator revision; Lathe's difference is within timing noise. On the 12,000-point hard concave contour, Spline Patch took 3751.88 ms versus the test-only polygon reference's 165.80 ms (22.63 times slower). The reference omits cage creation/display. Both use native completed-operation measurements, with analytic geometry and GPU error checks; these are fixture/device-specific results, not a claim of parity.
 
