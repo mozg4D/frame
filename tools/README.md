@@ -22,7 +22,7 @@ Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. P
 | `scene.new` | Empty native document; reset file target, materials, timeline and history |
 | `scene.create`, `scene.update`, `scene.delete` | Implemented objects, parameter edits and recoverable deletion; generators accept ordered `inputs` and optional `parent`; Extrude/Lathe evaluate every child independently, including nested groups |
 | `scene.select`, `selection.pick` | Owners or explicit spline/mesh Vertex IDs; CSS picking and Select Connected for all component modes |
-| `scene.convert` | One To Editable step: solid â†’ spline patch â†’ polygon mesh; curve â†’ editable spline |
+| `scene.convert` | One To Editable step: solid → spline patch → polygon mesh; curve → editable spline |
 | `spline.inspect`, `spline.replace`, `spline.tangents`, `spline.rebuild` | Authored/evaluated cage, validated replacement, Soft/Hard/Equal Tangents |
 | `mesh.edit`, `selection.loop`, `selection.soft` | Native polygon topology operations, Frame edge loops and surface-distance falloff; validated worker input, normal Undo |
 | `view.solo` | Freeze selected owners/descendants as a temporary visibility filter |
