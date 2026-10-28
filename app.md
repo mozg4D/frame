@@ -18,6 +18,8 @@ Construction information is runtime-only and deliberately disappears at Make Edi
 
 Runtime/service-worker version: Frame 2026 28 oct 21:47.
 
+Validation on NVIDIA Ampere: standard and DPR-2 stress each passed 5546 assertions, the 100,548,288-triangle benchmark passed 43 checks, and printer performance/corpus passed 23 checks and 27 cases. Completed soft-profile update medians over three trials at 256 segments were Extrude 150.03 to 119.32 ms, Sweep 157.27 to 131.32 ms, and Lathe 746.03 to 745.50 ms versus the preceding generator revision; Lathe's difference is within timing noise. On the 12,000-point hard concave contour, Spline Patch took 3751.88 ms versus the test-only polygon reference's 165.80 ms (22.63 times slower). The reference omits cage creation/display. Both use native completed-operation measurements, with analytic geometry and GPU error checks; these are fixture/device-specific results, not a claim of parity.
+
 ## Shared animation and Atomic time (2026-10-27)
 
 Timeline and video output use fixed 60 fps. HASH opening preserves the saved frame, range and material curves independently of the prior editor state. Camera has no FPS or FOV parameter (projection remains 45 degrees); Viewport Camera attributes omit the render View action and retain Image/Video. The timeline has Play/Pause and Loop; measured playback speed replaces the frame label while playing. Every completed timeline frame waits for animation/Morph/spline evaluation and every enabled Atomic world. There is no frame skipping or wall-clock catch-up. Playback with simulation stops at the end when Loop is off; Loop wraps the authored frame while continuing physical state.

@@ -1,6 +1,7 @@
 # Keep runtime validation hashes identical in Git and Windows working copies.
 index.html text eol=lf
-plugins/3d-printer/plugin.js text eol=lf
+plugins/3d-printer/plugin.js -text
+plugins/3d-printer/icon.svg -text
 plugins/atomic/plugin.js text eol=lf
 # Preserve upstream geometry samples byte-for-byte for their recorded SHA-256.
 tests/scenes/obj-import/*.obj -text -diff
