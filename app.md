@@ -8,15 +8,18 @@ Native hierarchy/transforms remain unrestricted. Stock/Protected are global inhe
 
 Canonical source triangles remain GPU-owned. Triangle-clipped conservative planning tiles preserve thin forbidden features; bounded fields/trajectories may live on CPU. XYZ kernels independently embed Printer's cleanup/parity/occurrence policy. Sampled display LOD, exact analytic history and sparse fine tiles have distinct accuracy/ownership. Numerical/capacity failures block publication; machining precision is never silently weakened. Empty/ambiguous Stock is diagnostic-only. Total source/finished-surface certification is not claimed; residuals expose accessibility-limited candidates.
 
+Conservative 3D volume cells now retain source triangle boundaries even when all isolated XYZ rays miss a thin component. Continuous Flat/Ball/V sweeps bound full removal and possible contact; bounded caches support backward Progress, concurrent queries and safe retirement. inspect {point:[x,y,z],volume:true} exposes at most 256 cells in root physical coordinates. Triangle-free interiors remain conditional on XYZ cleanup labels. Each operation runs an adaptive stock-volume audit, including buried material, with inner/outer remaining-volume and confirmed/possible excess/gouge bounds. Confirmed gouge fails; limited traversal exposes unvisited volume. The audit does not certify missing Target material, reverse surface deviation or inaccessible residuals. These and complete refinement beyond audit budgets remain open in plugins/mill/TODO.md; sourceAccuracyCertified/finishedSurfaceCertified remain false.
+
 Core capture adds conservative occurrence bounds metadata. A generic native surfaceFilter retains materials/UVs/buffers while Mill's motion BVH removes cut fragments before shading. Compact GPU cut patches/paths/cutter use native passes, without a second scene. Dynamic native numeric ranges let Progress adopt N without reselection. HASH stores authoring and resets reopened Progress; jobs remain derived. Slice time is a marked feed/dwell lower bound with unknown rapid/acceleration/pause contributions.
 
 Strict AI operations are settings/status/slice/cancel/paths/gcode/export/inspect. Explicit slice {geometryOnly:true} builds sampled geometry diagnostics, geometry-ready/machiningReady:false. Default Slice publishes complete only after machining/replay/export validation. Start/Tool Change use a finite state parser; unsupported modes/macros and unsafe custom positioning fail atomically. See plugins/mill/README.md and TODO.md for contracts/budgets/limits.
 
 Focused tests, independent numerical/GPU/stock/deviation/G-code oracles, nonplanar Flat/Ball/V, thin protection, detours, sequential/manual changes and native/random Progress are discovered by standard/stress. Reports bind exact runtime/plugin hashes. The separate Mill performance runner checks native presentation and canonical residency on the unchanged 100548288-triangle fixture.
 
-Standard and DPR-2 stress each passed 6459 assertions, including 245 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 0.900 ms CPU / 13.009 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
 
-Runtime/service-worker version: Frame 2026 29 oct 17:46.
+Standard and DPR-2 stress each passed 6489 assertions, including 275 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 1.000 ms CPU / 15.712 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
+
+Runtime/service-worker version: Frame 2026 29 oct 21:10.
 
 ## Direct planar Extrude and cached Text splines (2026-10-29)
 
