@@ -1,6 +1,6 @@
 # Mill: remaining work
 
-This is an incomplete implementation of the full Mill specification. The current verified stage is native CNC/Stock/Protected authoring plus independent three-axis GPU solid snapshots. It does not yet produce machining trajectories, virtual milling, machining time or G-code. A successful geometry build reports geometry-ready, not machiningReady.
+This is an incomplete implementation of the full Mill specification. The current stage is native CNC/Stock/Protected authoring, full job-wide Stock/Protected GPU snapshots and operation-local Target snapshots. It does not yet produce machining trajectories, virtual milling, machining time or G-code. A successful geometry build reports geometry-ready, not machiningReady.
 
 ## Accepted human decisions
 
@@ -13,7 +13,7 @@ This is an incomplete implementation of the full Mill specification. The current
 
 ## Required implementation stages
 
-1. Retain a root job's actual stock beyond individual operation boxes where needed for collision/next-operation queries. Sequential operations must consume prior virtual stock, not independently reimport the initial scene.
+1. Partially implemented: a root job retains actual Stock and Protected beyond every operation box, imports each once, and operations reference the shared initial stock revision 0 with explicit physical-to-job transforms. Still required with stages 3-4: publish subtractive revisions and make sequential operations consume the preceding virtual stock. Initial revision references alone do not implement sequential machining.
 2. Add sparse/tiled refinement and a defensible Tolerance error budget. Current pitch-based solid import is sampled and bounded, not a certificate of machining accuracy. Add target/protected conservative envelopes for thin features and ambiguous input.
 3. Implement Flat/Ball/V analytic infinite-length cutter profiles. Use the same shape for accessibility, removal, verification and display.
 4. Implement continuous cutter sweeps and GPU interval subtraction. Check full swept volumes, including material outside the operation envelope, rather than only endpoints/centerlines.
@@ -33,7 +33,7 @@ This is an incomplete implementation of the full Mill specification. The current
 - Dense ray headers inside an occupied box: max 2048 samples per dimension / 4194304 combined rays. Very fine Tolerance fails instead of lowering accuracy.
 - Max 256 occurrences per role, 1024 hits per ray and 16777216 raw events, further bounded by device binding limits.
 - Reflected/degenerate/skewed machine frames are ignored. A tilted child axis is ignored within a fixed-axis three-axis job; supporting re-fixturing/indexed setups requires an explicit physical interpretation.
-- Current operation snapshots clip to each physical box and have no subtractive history. Never use them as proof of collision-free inter-operation travel.
+- Target snapshots clip to each physical operation box. Job Stock/Protected cover their full occupied bounds in root physical coordinates, at the smallest active operation Tolerance, subject to the same dense-grid limits. No subtractive history or conservative safety certificate exists yet. Never use these sampled snapshots as proof of collision-free travel.
 - General malformed/open geometry and sub-sample topology are not certified. Preserve Printer's policy/diagnostics and do not substitute a majority-vote preview for safety verification.
 
 Keep README.md, AGENTS.md, app.md, plugins.md, schemas and tests synchronized as these stages are implemented. Mill must remain one independent runtime JS file. Port an improvement back to Printer only when its relevance and correctness/performance are actually demonstrated by separate Printer tests.
