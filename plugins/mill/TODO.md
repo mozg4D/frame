@@ -30,11 +30,12 @@ Operational fixed-axis CAM is implemented within README.md limits. The full geom
 - [x] Native GPU Stock/cut/path/cutter presentation, preserved materials/UVs, bounded AI operations and minimal .ngc export.
 - [x] Independent cutter/sweep/stock/deviation/G-code oracles, native/random Progress, realistic nonplanar/thin/protected/multi-operation cases and completed-operation/frame/memory budgets in standard/stress discovery.
 
+- [x] Resume adaptive volume refinement across bounded cell/block/time passes using retained packed frontiers, per-job CPU limits, transactional block commits and cancellation/retry; continuation preserves the operation cut prefix and reports all unvisited volume.
+
 ## Remaining work
 
 - [ ] Certify solid interior and shell relationships independently of sampled XYZ cleanup labels, including disconnected thin shells, nested cavities and interpenetrating occurrences. Triangle surface coverage alone does not certify these interiors; sourceAccuracyCertified remains false.
 - [ ] Verify end-to-end Tolerance in both directions over the whole finished part, including missing target material and uncertain cut/reference boundaries. The new excess-volume audit is one-sided and conditional on the source model; finishedSurfaceCertified remains false.
-- [ ] Complete or resume adaptive volume refinement beyond the current cell/block/time limits, with retained unresolved work and bounded resources. A limited audit must continue to expose unvisited volume instead of reporting a complete geometric check.
 - [ ] Prove accessibility or inaccessibility of every excess 3D region and refine reachable regions, including undercuts/cavities. Neither sampled top residuals nor unresolved volume cells are proof of inaccessibility.
 
 ## Model boundaries
