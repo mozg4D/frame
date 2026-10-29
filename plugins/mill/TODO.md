@@ -1,39 +1,35 @@
-# Mill: remaining work
+# Mill implementation checklist
 
-This is an incomplete implementation of the full Mill specification. The current stage is native CNC/Stock/Protected authoring, full job-wide Stock/Protected GPU snapshots and operation-local Target snapshots. It does not yet produce machining trajectories, virtual milling, machining time or G-code. A successful geometry build reports geometry-ready, not machiningReady.
+The operational fixed-axis CAM stages are implemented within README.md limits. complete means a verified program/result in this model. Finite source/residual sampling is not universal source-topology, finished-surface or physical-machine certification.
 
 ## Accepted human decisions
 
-- Stock and Protected are ordinary tags anywhere in the scene; no implicit protection from CNC parenting.
-- CNC uses normal native transforms and hierarchy. Skew/unsupported states are red and ignored; do not block native editing.
-- CNC may attach under a part/assembly. Do not introduce special parent/child type rules.
-- Use Printer's self-overlap cleanup, nested even-odd and occurrence-union semantics.
-- Treat the cutter as infinitely long; no cutting-length/stick-out/holder fields. Step Down is a per-pass maximum, not a geometric cutter length.
-- The green switch disables CNC computation without hiding the helper.
+- Stock/Protected are global ordinary inherited tags, independent of CNC parenting.
+- Native hierarchy/transforms remain unrestricted; unsupported skew/reflection/axis states are red/ignored.
+- CNC may attach beneath a part/assembly.
+- Solid reconstruction uses Printer cleanup, nested parity and occurrence union.
+- Cutters extend upward infinitely; Step Down is a pass maximum, without holder/flute/stick-out UI.
+- Green skips computation and retains helpers/descendants.
 
-## Required implementation stages
+## Implemented stages
 
-1. Partially implemented: a root job retains actual Stock and Protected beyond every operation box, imports each once, and operations reference the shared initial stock revision 0 with explicit physical-to-job transforms. Still required with stages 3-4: publish subtractive revisions and make sequential operations consume the preceding virtual stock. Initial revision references alone do not implement sequential machining.
-2. Add sparse/tiled refinement and a defensible Tolerance error budget. Current pitch-based solid import is sampled and bounded, not a certificate of machining accuracy. Add target/protected conservative envelopes for thin features and ambiguous input.
-3. Implement Flat/Ball/V analytic infinite-length cutter profiles. Use the same shape for accessibility, removal, verification and display.
-4. Implement continuous cutter sweeps and GPU interval subtraction. Check full swept volumes, including material outside the operation envelope, rather than only endpoints/centerlines.
-5. Build local distance/accessibility fields and a deterministic automatic planner for clearing, islands/pockets, contours and nonplanar finishing. Detect inaccessible residual stock.
-6. Distribute actual Step Down/Step Over evenly within the user's maxima. Surface tolerance may require smaller finishing spacing.
-7. Select climb direction from current material-contact side and signed RPM, with explicit handling of full-slot/ambiguous contact.
-8. Implement feasible continuation/ramp/helix/peck entries. Z must follow cumulative XY distance; enforce Feed and the vertical Plunge component, and perform constant-depth cleanup.
-9. Plan short Safe Dist transitions against current stock/protected geometry, carrying the actual tool position across sibling/nested operations. Validate the upper box plane before treating it as a safe route.
-10. Publish one verified motion stream for simulation, time, Progress and export. Implement bounded checkpoints/replay for backward Progress, set N only after full successful publication and automatically display Progress=N.
-11. Implement a documented G-code backend and custom-block state contract, start/finish lifecycle, same-tool continuation, manual tool changes, spindle restart/direction and safe final return. Unknown custom motions/modal changes must not silently invalidate verification.
-12. Calculate an honest estimated machining time, documenting unknown rapid/acceleration/manual-pause contributions. Replace --:--:-- only when an estimate exists.
-13. Add compact GPU toolpath/virtual-stock rendering and bounded AI path/stock inspection, G-code retrieval/export and a minimal native export UI entry point.
-14. Add independent swept-volume/collision/deviation/residual-stock and G-code replay oracles, realistic user fixtures, multi-operation tests, random Progress tests and representative completed-operation/memory/frame benchmarks.
+- [x] Shared full-domain Stock/Protected, actual subtractive revisions and native-preorder propagation.
+- [x] Sparse fine tiles, bounded caches, explicit numerical/tolerance budgets and thin forbidden-feature envelopes; display LOD separate from machining precision.
+- [x] Analytic infinite Flat/Ball/V cutters shared by accessibility, sweeps, verification, replay and display.
+- [x] Continuous GPU subtraction and full-volume sweep checks, including out-of-box material.
+- [x] Accessibility pyramids, clearing/pockets/islands/contours, nonplanar finishing, residual detection and bounded reachable-residual refinement.
+- [x] Even bounded Step Down/Step Over, smaller finish/scallop spacing when needed.
+- [x] Current-stock contact and signed-RPM climb selection; explicit full-slot/ambiguous cases.
+- [x] Continuation/ramp/helix/peck, cumulative XY descent, quantized Feed/Plunge checks and constant-depth cleanup.
+- [x] Direct/minimum-lift/XY-detour transitions, validated upper planes/descents and inter-operation position carry.
+- [x] One immutable stream for simulation/time/Progress/export; bounded backward checkpoints and atomic N publication.
+- [x] LinuxCNC/custom-state contract, Start once, same-tool continuation, mandatory manual changes, signed restart and final home/M5/M30.
+- [x] Exact programmed feed/dwell time, explicit unknown rapid/acceleration/pause time and lower-bound UI.
+- [x] Native GPU Stock/cut/path/cutter presentation, preserved materials/UVs, bounded AI operations and minimal .ngc export.
+- [x] Independent cutter/sweep/stock/deviation/G-code oracles, native/random Progress, realistic nonplanar/thin/protected/multi-operation cases and completed-operation/frame/memory budgets in standard/stress discovery.
 
-## Existing limits to revisit
+## Model boundaries
 
-- Dense ray headers inside an occupied box: max 2048 samples per dimension / 4194304 combined rays. Very fine Tolerance fails instead of lowering accuracy.
-- Max 256 occurrences per role, 1024 hits per ray and 16777216 raw events, further bounded by device binding limits.
-- Reflected/degenerate/skewed machine frames are ignored. A tilted child axis is ignored within a fixed-axis three-axis job; supporting re-fixturing/indexed setups requires an explicit physical interpretation.
-- Target snapshots clip to each physical operation box. Job Stock/Protected cover their full occupied bounds in root physical coordinates, at the smallest active operation Tolerance, subject to the same dense-grid limits. No subtractive history or conservative safety certificate exists yet. Never use these sampled snapshots as proof of collision-free travel.
-- General malformed/open geometry and sub-sample topology are not certified. Preserve Printer's policy/diagnostics and do not substitute a majority-vote preview for safety verification.
+Indexed/re-fixtured, reflected/skewed/degenerate setups require another physical model. Empty/ambiguous Stock remains diagnostic-only. General malformed/open interiors and sub-sample topology are uncertified. Residual inspection samples the conservative top model, separating reachable failures from accessibility-limited candidates; it does not prove every inaccessible volume. Cut patches are sampled display geometry. Tool calibration, machine offsets, rapid speed, acceleration and pause duration remain controller/setup inputs.
 
-Keep README.md, AGENTS.md, app.md, plugins.md, schemas and tests synchronized as these stages are implemented. Mill must remain one independent runtime JS file. Port an improvement back to Printer only when its relevance and correctness/performance are actually demonstrated by separate Printer tests.
+Keep README.md, AGENTS.md, app.md, plugins.md, schemas and tests synchronized. Runtime stays one plugin.js. Port to Printer only after separate relevance/correctness/performance verification.
