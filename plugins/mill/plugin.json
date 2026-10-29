@@ -1,0 +1,49 @@
+{
+  "id": "mill",
+  "name": "Mill",
+  "color": "#92aaa4",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "tags": [
+    {
+      "kind": "stock",
+      "name": "Stock",
+      "text": "S"
+    },
+    {
+      "kind": "protected",
+      "name": "Protected",
+      "text": "P"
+    }
+  ],
+  "objects": [
+    {
+      "type": "cnc",
+      "name": "CNC",
+      "textFields": [
+        "Start G-code",
+        "Tool Change G-code"
+      ],
+      "fields": {
+        "Tool": [
+          "Flat",
+          "Ball",
+          "V"
+        ],
+        "Diameter": 6,
+        "Angle": 90,
+        "Step Down": 3,
+        "Step Over": 2,
+        "Ramp Angle": 3,
+        "Feed": 1000,
+        "Plunge": 250,
+        "Spindle": 12000,
+        "Safe Dist": 2,
+        "Tolerance": 0.25,
+        "Start G-code": "G21\nG90\nG17\nG94",
+        "Tool Change G-code": "M5\nM0",
+        "Progress": 0
+      }
+    }
+  ]
+}

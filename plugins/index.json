@@ -1,4 +1,5 @@
 [
   "3d-printer/plugin.json",
-  "atomic/plugin.json"
+  "atomic/plugin.json",
+  "mill/plugin.json"
 ]

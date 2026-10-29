@@ -1,5 +1,19 @@
 # Frame application context
 
+## Mill scene model and GPU solid foundation (2026-10-29)
+
+The independent Mill plugin adds native CNC owners and ordinary Stock/Protected tags. Tags inherit through arbitrary native hierarchy; protection is no longer implied by a CNC child. A CNC may attach below a part or assembly and uses native Position/Rotation/Size and inherited affine frames. Physical tool attributes stay in millimetres while box dimensions follow orthogonal scale. Skew/singular/reflected machine frames and incompatible nested tool axes are red/ignored, without blocking scene editing. The green switch skips computation and retains the helper.
+
+The current implementation is an incomplete CAM foundation: Slice imports stock/target/protected roles into three orthogonal GPU interval families, reporting geometry-ready and machiningReady:false. XYZ rays share shell/interpenetration labels and the existing Printer self-overlap/nested-parity/occurrence-union policy, independently embedded in Mill's one JS file. Canonical buffer/texture source geometry and all retained depths stay on the shared GPU; each nonempty role reads 56 metadata bytes. Tolerance requests pitch without silent coarsening, within explicit grid/event/device limits. Each operation currently imports source geometry independently; sequential virtual stock, cutter sweeps, path planning, time, Progress and G-code are still pending. See plugins/mill/README.md and TODO.md; do not describe geometry-ready as finished machining.
+
+Generic plugin infrastructure now supports manifest-declared native tags, tag.list/tag.set, declared multiline textFields, validated parameter hooks and temporary native mesh surface styles. Ordinary assigned/inherited materials take precedence. Stock fallback is translucent; Protected fallback is red above ordinary/plugin surfaces and below component selection/gizmos. Styles borrow canonical geometry and never enter materials/HASH authoring. Native documentChanged/created hooks support derived presentation/defaults. Root G-code text is authored/persisted but not executed; unavailable machining time displays --:--:-- and Progress remains zero.
+
+Focused verification is node plugins/mill/tests/run.mjs --headless (also npm run test:mill). The shared catalogue discovers Mill tests in standard/stress. Coverage includes actual native context menus, text/defaults/history/HASH, parent/child transforms, physical scale, skew/axis rejection, green visibility, user material precedence, analytic XYZ intervals, cavities/overlaps/winding/duplicates/paged geometry, cancellation/limits and completed-operation/frame budgets.
+
+Validation of the implemented foundation: 76 focused visible checks, 6289 standard and 6289 DPR-2 stress assertions, 43 unchanged 100M checks and 12 Mill presentation checks passed on NVIDIA Turing with no JS/console/WebGPU/device errors. Tested/staged runtime SHA-256: f2f7ed51cbd8dd0a96cf4dbc3634cdcf2d8687cad8ab25c12e12e16afe6da697; Mill SHA-256: d593df1f84a74bd3a13607de3fb8105d011400b56d0a6087786819c764702506. Evidence is in tests/results/mill-acceptance.json. This validates geometry/authoring only, not the deferred CAM planner.
+
+Runtime/service-worker version: Frame 2026 29 oct 03:27.
+
 ## Direct planar Extrude and cached Text splines (2026-10-29)
 
 Extrude with a nonzero Offset, planar cubic controls and zero Start/End fillet evaluates directly from the native profile samples and shared cap triangulator. The fast path preserves independent children, even-odd holes, signed Offset and uncapped open chains. Certification checks every cubic control, so a nonplanar handle, branch, unresolved contour or any nonzero fillet uses the ordinary Spline Patch evaluator. No mode switch or extra parameter is exposed. Make Editable always creates ordinary editable Spline Patch sources and reconstructs their surfaces through the common evaluator, with normal history and HASH persistence.

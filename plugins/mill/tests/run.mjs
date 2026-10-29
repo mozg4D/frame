@@ -1,0 +1,10 @@
+import {launch,ready} from '../../../tools/browser.mjs';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {pluginChecks} from './index.mjs';
+const s=await launch({headless:process.argv.includes('--headless')}),errors=[],consoleErrors=[];
+try{
+ await ready(s.page);s.page.on('pageerror',e=>errors.push(e.stack));s.page.on('console',m=>{if(m.type()==='error')consoleErrors.push(m.text());});
+ await s.page.evaluate(()=>{window.__millDevice=frameEngine.renderer.device;window.__millErrors=[];window.__millLost=null;__millDevice.lost.then(info=>__millLost={reason:info.reason,message:info.message});__millDevice.addEventListener('uncapturederror',e=>__millErrors.push(e.error.message));__millDevice.pushErrorScope('validation');});
+ const result=await pluginChecks(s.page);result.gpu=await s.page.evaluate(async()=>({validation:(await __millDevice.popErrorScope())?.message||null,errors:__millErrors,lost:__millLost,changed:frameEngine.renderer.device!==__millDevice,adapter:Object.fromEntries(['vendor','architecture','device','description'].map(k=>[k,__millDevice.adapterInfo[k]]))}));result.errors=errors;result.consoleErrors=consoleErrors;result.pass&&=!errors.length&&!consoleErrors.length&&!result.gpu.validation&&!result.gpu.errors.length&&!result.gpu.lost&&!result.gpu.changed;result.sources={};for(const path of ['index.html','plugins/mill/plugin.js','plugins/mill/plugin.json','plugins/mill/icon.svg'])result.sources[path]=createHash('sha256').update(await readFile(new URL('../../../'+path,import.meta.url))).digest('hex');await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/mill.json',import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify({pass:result.pass,checks:result.checks.length,failed:result.checks.filter(c=>!c.pass),error:result.error,gpu:result.gpu,errors,consoleErrors,timings:result.timings},null,2));process.exitCode=result.pass?0:1;
+}finally{await s.close();}

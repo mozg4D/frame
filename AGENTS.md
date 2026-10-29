@@ -3,7 +3,7 @@
 - Core runtime application code lives in `index.html`. Independently developed plugins live in their own `plugins/<plugin>/` directories; see `plugins.md`. Development tools/tests may use separate files. Keep heavy-scene performance and memory use a priority.
 - Keep runtime code minimal: reuse existing algorithms, editor paths and GPU resources instead of adding parallel implementations.
 - Compatibility with earlier formats, APIs, and behavior is not required for now. The user will explicitly say when compatibility becomes necessary; do not add compatibility layers or migrations preemptively.
-- Read `app.md` before changing behavior; update it when behavior or the API changes.
+- Read `app.md` before changing behavior; update it when behavior or the API changes. Update each affected plugin's architecture/behavior/API documentation with its runtime changes as well.
 - The AI developer owns AI API/MCP maintenance. Whenever a task reveals inconvenient/missing automation or diagnostics, improve the API, schemas, documentation and regression coverage as part of that task.
 - `window.frameAI` is the supported automation API. Discover commands with `frameAI.listTools()` / MCP `tools/list`. Reuse editor transactions, source spline cages and native GPU ownership; do not add a parallel scene model for AI/tests.
 - After completing a task, run `npm test` from this directory. It checks syntax, API, real UI events, MCP and a 2304-cell spline fixture. Fix failures before reporting success. If the environment has no WebGPU adapter, report that limitation explicitly; never count skipped GPU tests as passed.

@@ -44,7 +44,9 @@
     "test:viewport": "node tests/viewport-feedback.mjs",
     "test:modeling-viewport": "node tests/modeling-viewport-feedback.mjs",
     "test:planar-extrude": "node tests/planar-extrude.mjs",
-    "test:text-presets": "node tests/text-presets.mjs"
+    "test:text-presets": "node tests/text-presets.mjs",
+    "test:mill": "node plugins/mill/tests/run.mjs",
+    "test:mill:performance": "node plugins/mill/tests/performance.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

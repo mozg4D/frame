@@ -20,3 +20,7 @@ tests/scenes/selection-shading.hash -text -diff
 
 tests/scenes/october25-polygons.hash -text -diff
 tests/scenes/ведьма.obj filter=lfs diff=lfs merge=lfs -text
+
+# Keep Mill source evidence stable across Windows checkouts.
+plugins/mill/plugin.js text eol=lf
+plugins/mill/icon.svg -text whitespace=cr-at-eol

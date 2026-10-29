@@ -1,0 +1,15 @@
+# Mill
+
+Follow ../../AGENTS.md and ../../plugins.md. Runtime stays in one plugin.js, borrowing the native GPUDevice, evaluated buffer/texture meshes and ordinary document/editor paths. Do not introduce a runtime dependency on Printer or a separate scene/renderer. Keep documentation synchronized with behavior and architecture.
+
+The latest human decisions override the original specification: Stock and Protected are ordinary scene tags inherited by descendant geometry; parenting geometry under CNC does not imply protection. CNC may be parented under any native object and inherits ordinary affine transforms. Non-orthogonal/skewed or otherwise unsupported frames are red and ignored, without blocking the native transform/reparent operation. The green switch skips that CNC operation and does not hide its helper or descendants. Use Printer's self-overlap cleanup, nested even-odd and occurrence-union policy. The eventual cutter model has infinite length; no flute-length/holder UI is requested.
+
+Current implementation is the native authoring and GPU geometry foundation, not completed CAM. Read README.md and TODO.md before extending it. A completed import has state geometry-ready and machiningReady:false. Do not call it a complete Slice, virtual milling or machine-ready toolpath. Do not fabricate time estimates, progress, trajectories or G-code. Complete these stages against actual stock before enabling export.
+
+One root collects CNC descendants in actual Scene Tree preorder through intervening ordinary nodes. Native hierarchy is unrestricted. In one three-axis job, a child whose directed tool axis differs from the root is currently red/ignored; this does not prevent editing it. Physical dimensions are obtained from the orthogonal frame scale; tool parameters remain in millimetres. Skew and reflected/degenerate machine frames are currently unsupported.
+
+Each enabled valid CNC builds independent stock/target/protected three-axis interval snapshots. These are not yet sequential virtual stock. All directions share shell connectivity and interpenetration labels before final cleanup. Source geometry, raw events and intervals stay on GPU; only 56 metadata bytes per nonempty role are read during construction. Explicit bounded inspect is separate. Never round nearby genuine depths together. No normals are read; the geometric crossing-sign cleanup matches Printer, including its documented winding/ambiguity limits.
+
+Retain normal user materials. Fallback stock transparency and Protected red/topmost are temporary native surface styles; they are never material tags or HASH records. Derived resources retire on staleness/deletion/cancellation/scene or device changes. No partial failed result is published. No standing diagnostics are shown in Attributes.
+
+Run node plugins/mill/tests/run.mjs --headless for focused hardware-WebGPU checks. Standard/stress discover tests/index.mjs. Extend numerical oracles and completed-operation/frame/memory budgets with each new stage. Full repository validation and publication follow root instructions.
