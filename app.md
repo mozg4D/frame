@@ -1,6 +1,6 @@
 # Frame application context
 
-## Mill sequential CAM (2026-10-29)
+## Mill sequential CAM and part verification (2026-11-02)
 
 The independent single-file Mill plugin now completes fixed-axis three-axis Slice: shared full-domain stock history, analytic Flat/Ball/V sweeps, even clearing and island contours, adaptive nonplanar finishing, residual inspection/refinement, verified entries/transitions/tool changes and final root-home return. One immutable quantized stream drives GPU subtraction, random Progress, time and LinuxCNC G-code. Export is enabled after atomic completion and Progress becomes N. Finite source/residual sampling is explicitly not a universal geometry or machine certificate.
 
@@ -20,12 +20,11 @@ Strict AI operations are settings/status/slice/cancel/audit/paths/gcode/export/i
 
 Focused tests, independent numerical/GPU/stock/deviation/G-code oracles, nonplanar Flat/Ball/V, thin protection, detours, sequential/manual changes and native/random Progress are discovered by standard/stress. Reports bind exact runtime/plugin hashes. The separate Mill performance runner checks native presentation and canonical residency on the unchanged 100548288-triangle fixture.
 
+Standard and DPR-2 stress each passed 6556 assertions, including 342 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 0.900 ms CPU / 13.081 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
 
+Runtime/service-worker version: Frame 2026 02 nov 11:30.
 
-
-Standard and DPR-2 stress each passed 6531 assertions, including 317 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 1.200 ms CPU / 12.977 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
-
-Runtime/service-worker version: Frame 2026 30 oct 00:01.
+Whole-part verification now covers all captured Stock and Target, with desired material Target union (original Stock intersect Protected). Certified interior/exterior witnesses bound both native solid and boundary distances; uncertain cells refine without replacing a proof with grid spacing. Proved absent Target, including initially undersized Stock, fails with MISSING_TARGET before N/G-code publication. status.partAudit and accuracy.nativeFinishedSurfaceCertified distinguish this bounded native result from authoring/evaluator accuracy. audit {scope:"part"} resumes the final cut prefix at any Progress using the shared frontier budget; default scope remains operation. finishedSurfaceCertified remains false until source approximation error is propagated.
 
 ## Direct planar Extrude and cached Text splines (2026-10-29)
 

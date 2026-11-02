@@ -1,6 +1,6 @@
 # Mill
 
-Mill plans a fixed-axis three-axis job on Frame's shared WebGPU device. Default Slice builds sequential roughing, contours and nonplanar finishing, verifies continuous cutter sweeps, validates source interiors where supported, audits remaining 3D material, replays material removal and publishes one immutable stream for display, Progress, time and LinuxCNC G-code. A completed job reports complete and machiningReady:true: a program in the documented model. Source-distance and finished-surface error certification and complete residual-accessibility proofs remain open in TODO.md.
+Mill plans a fixed-axis three-axis job on Frame's shared WebGPU device. Default Slice builds sequential roughing, contours and nonplanar finishing, verifies continuous cutter sweeps, validates source interiors where supported, audits remaining 3D material, replays material removal and publishes one immutable stream for display, Progress, time and LinuxCNC G-code. A completed job reports complete and machiningReady:true: a program in the documented model. Whole-part native solid and surface-distance verification is bounded and explicit. End-to-end authoring/evaluator error and complete residual-accessibility proofs remain open in TODO.md.
 
 ## Native scene and coordinates
 
@@ -50,6 +50,14 @@ Actual source surfaces retain native assigned/inherited materials, polygon masks
 
 Dense diagnostics retain limits of 2048 cells/axis and 4194304 XYZ rays. Imports allow 256 occurrences/role, 1024 raw hits/ray and 16777216 raw events, bounded by device bindings. Planning allows 200000 events, 100000 distributed passes, 8192 tiles/query and 48 detour source boxes. Replay has eight checkpoints/64 MiB; fine tiles 64 MiB; cut presentation 2097152 patches. Capacity failure retires results instead of exporting partial paths. Nonempty Stock with balanced sampled crossings is required; empty/ambiguous Stock is diagnostic-only. Open Target/Protected surfaces are conservatively preserved. General broken/open solid interiors cannot be universally recovered.
 
+## Whole-part native verification
+
+A separate resumable whole-part audit covers all captured Stock and Target, including regions outside CNC boxes and Target absent from initial Stock. Its desired solid is Target union (original Stock intersect Protected); floating Protected is an obstacle, not required workpiece material. Certified cell interiors and exteriors provide witness points. A segment between opposite membership witnesses crosses the actual boundary, and guarded farthest-corner distance bounds cover every point of an uncertain candidate cell. Both material-distance directions and both surface-distance directions are checked. Derived bounded lattice fields choose witnesses without source-triangle readback; their nearest-site approximation cannot weaken accepted distance bounds. Unknown cells refine from Tolerance/4 toward Tolerance/64, with explicit unresolved and unvisited regions on limits. Native boundary certification never follows from cell diagonal alone.
+
+status.partAudit reports the four directional covers, missingTarget confirmed/possible/initiallyMissingVolume, domain/source validation, nativeSurfaceCertified and nativeDistanceUpperBound. Covers measure candidate-region volume, not an exact occupied-material integral. A proved missing Target fails with MISSING_TARGET before N/G-code publication and retains error detail. A native certificate requires a complete domain and source proof, no missing Target, completed traversal and no unresolved distance cover. It compares original native GPU solids minus continuous sweeps against the native reference. Authoring/evaluator approximation error remains unavailable; sourceAccuracyCertified and finishedSurfaceCertified stay false. accuracy.nativeFinishedSurfaceCertified and partAuditComplete expose these separate results.
+
+audit {scope:"part",maxCells?,maxBlocks?,maxMs?} continues the frozen final cut prefix at any Progress, independently of operation audits. An operation cannot be selected in part scope. Omitted scope remains operation. Whole-part and operation frontiers share the existing 32 MiB job budget and 65536-region per-audit bound. Cancellation commits only complete blocks; source/settings/scene/device changes retire both frontiers and owned GPU caches. Distance workspaces remain bounded derived CPU fields; peakScratchBytes accounts for their live buffers. Coarse Target-overlap priority finds missing material before spending work on ambiguous Stock boundaries. Complete traversal can still retain unresolved native error; it is not an accessibility proof.
+
 ## Progress and time
 
 Only full success publishes N and sets root Progress=N. Progress covers all stream events, including tool/spindle/pause/modal events, and changes derived display only. Backward/random seeks restore immutable source or a bounded checkpoint and replay exactly the selected cut prefix. New seeks supersede older requests. Source/settings/relative-frame changes, cancellation, deletion, HASH/scene replacement and device changes retire derived resources. Common rigid assembly motion reuses physical results. HASH stores authoring, not GPU jobs; reopened Progress resets to zero.
@@ -74,7 +82,7 @@ Discover plugins.describe {plugin:"mill"}; invoke plugins.command {id,operation,
 | status | Eligibility/preorder, stage/state, current/requested/N, actual revision, transforms/planning/contours/residuals, time uncertainty and GPU accounting. retainedGPUBytes counts actual owned buffers; peakGPUBytes is an aggregate estimate and excludes driver/compiler allocations. |
 | slice | Root-only complete CAM. geometryOnly:true explicitly builds sampled diagnostics, geometry-ready/machiningReady:false. |
 | cancel | Cancel Slice or pause an audit continuation at its last committed block. |
-| audit | Root-only continuation of a retained operation-volume audit; optional operation and bounded maxCells/maxBlocks/maxMs. Returns immediately; poll status.audit.running. |
+| audit | Root-only continuation of a retained operation-volume audit or scope:"part" whole-part audit; optional operation applies only to operation scope, with bounded maxCells/maxBlocks/maxMs. Returns immediately; poll status.audit.running. |
 | paths | Immutable events in root physical mm; offset/count, at most 256. |
 | gcode | Program character page, at most 65536, plus dialect/setup/time contract. |
 | export | Download complete verified .ngc via the minimal native action. |
@@ -90,8 +98,8 @@ node plugins/mill/tests/run.mjs --headless runs hardware WebGPU checks. Standard
 
 npm run test:mill:performance -- --headless checks unchanged 100548288-triangle source residency and native fallback presentation. Full npm test and DPR-2 npm run test:stress are required before publication. Reports bind exact runtime/plugin hashes; historical foundation results do not validate newer code.
 
-## Verified release (2026 30 oct 00:01)
+## Verified release (2026 02 nov 11:30)
 
-Standard and DPR-2 stress each passed 6531 assertions, including 317 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 1.200 ms CPU / 12.977 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
+Standard and DPR-2 stress each passed 6556 assertions, including 342 Mill checks, on hardware nvidia turing. Neither run reported JavaScript/console/WebGPU errors, device loss or device replacement. The separate unchanged 100548288-triangle presentation benchmark passed 15 checks, including a 512-sweep fragment mask; canonical source residency stayed unchanged. Its machined-mode p95 was 0.900 ms CPU / 13.081 ms GPU. These are local fixture/device measurements, not universal throughput or geometry certificates.
 
-Source-bound reports are tests/results/mill-standard.json, mill-stress.json, mill.json and mill-performance.json. The tested index SHA-256 is 474bffb7155a2bf84554b7b1dcb367fba25147e5979af177363edd5263000f5d; Mill plugin SHA-256 is 1546e5fcd8c75636ece170997010936d89b99a29fdbf569cdb54bff9976422b6.
+Source-bound reports are tests/results/mill-standard.json, mill-stress.json, mill.json and mill-performance.json. The tested index SHA-256 is e4aee0eedbdcc4cf390ec1a31220d25500fd20a9e52795c90723efa31cc8e5b5; Mill plugin SHA-256 is cb70eb0141f189a205697c9554fda5e58943c233bdeeb147ced1ece2ebd0310f.
