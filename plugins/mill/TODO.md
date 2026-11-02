@@ -1,6 +1,6 @@
 # Mill implementation checklist
 
-Operational fixed-axis CAM is implemented within README.md limits. The full geometric-accuracy work is not finished: the open items below remain part of this checklist. complete means a verified program/result in the documented model; it does not certify the entire finished surface or a physical machine.
+Operational fixed-axis CAM is implemented within README.md limits. Bounded authoring-source envelopes, full-part residual accessibility and verified residual correction are implemented. Precision and completeness are explicit certificate flags; model/resource limits below remain part of the contract. complete means a verified program/result in the documented model; it does not certify the entire finished surface or a physical machine.
 
 ## Accepted human decisions
 
@@ -41,13 +41,18 @@ Operational fixed-axis CAM is implemented within README.md limits. The full geom
 
 - [x] Prove supported curved planar cap fills, including separated holes and two-curve lenses, using exact boundary/triangulation checks and bounded source homotopy; remove fictitious straight-rail parameter error.
 
-## Remaining work
+- [x] Conservative coefficient/ribbon reference enclosures for general 2/3/4/5-sided cells, explicit full-domain bands for unproved planar and multi-component references, fresh cached-HASH attestations and versioned authored polygon deformation bounds. Coarse bounds retain their entire width.
+- [x] Bounded continuous XY cutter-pose covers using certified GPU interior witnesses, whole-part union of supported setups, distinct reachable/inaccessible/unresolved reports, guarded Ball tangencies and verified operation-volume residual refinement.
 
-- [ ] Extend proved authoring-source envelopes to general spline cells, unproved planar boundary families, multi-component shell relationships, cached generated HASH surfaces and deformed geometry. Supported source contracts now propagate approximation through the complete part proof; unsupported, limited or unresolved cases remain uncertified.
-- [ ] Prove accessibility or inaccessibility of every excess 3D region and refine reachable regions, including undercuts/cavities. Neither sampled top residuals nor unresolved volume cells are proof of inaccessibility.
+## Final source and residual stages
+
+- [x] Extend proved authoring-source envelopes to general spline cells and unproved planar boundary families using actual coefficient/ribbon enclosures; use a full-domain band when no tighter contract is proved. Validate separated multi-component relationships on the shared GPU, with an explicit enclosing-domain fallback for unresolved relationships. Rebuild unattested cached HASH surfaces and bound authored Morph/point-animation arithmetic. No error bound is capped to force a machining certificate.
+- [x] Cover every candidate excess 3D region with a bounded continuous accessibility test; distinguish reachable, proved inaccessible and unresolved results. Retain/resume unresolved packed frontiers, search adaptively inside thin obstacles, and refine reachable regions through verified operations and whole-part correction cycles in native preorder. Publish positive accessibility certification only after the complete domain and every excess region are resolved; capacity/precision limits remain explicit.
+
+No implementation stages are left unchecked. This does not remove the finite resource and proof limits below or turn a conservative enclosing-domain bound into a small machining error.
 
 ## Model boundaries
 
-Indexed/re-fixtured, reflected/skewed/degenerate CNC setups require another physical model. Empty/ambiguous sampled Stock remains diagnostic-only. The independent source certificate covers validated closed finite Float32 surface complexes within explicit resource limits. Open/nonmanifold edge incidence, degenerate faces, self-intersections, unresolved coincident or tangent shell relations, and capacity failures receive no certificate; their volume queries retain the labelled XYZ policy fallback. Cell mapping can remain uncertain even for certified source geometry. Source-interior validation alone does not certify source-distance or finished-part error. Separate sourceAccuracy contracts and completed authoring-band covers govern those flags. Planning uses conservative top residual samples. Whole-part bounds include both directions and proved authoring envelopes, while unsupported source families and inaccessible-region proofs remain incomplete. Cut patches are sampled display geometry. Tool calibration, machine offsets, rapid speed, acceleration and pause duration remain controller/setup inputs.
+Indexed/re-fixtured, reflected/skewed/degenerate CNC setups require another physical model. Empty/ambiguous sampled Stock remains diagnostic-only. The independent source certificate covers validated closed finite Float32 surface complexes within explicit resource limits. Open/nonmanifold edge incidence, degenerate faces, self-intersections, unresolved coincident or tangent shell relations, and capacity failures receive no certificate; their volume queries retain the labelled XYZ policy fallback. Cell mapping can remain uncertain even for certified source geometry. Source-interior validation alone does not certify source-distance or finished-part error. Separate sourceAccuracy contracts and completed authoring-band covers govern those flags. Planning uses conservative top residual samples. Whole-part bounds include both directions and proved authoring envelopes, and accessibility is certified only after all required source contracts and contacting-pose covers complete. Whole-domain fallbacks may be too wide for the requested Tolerance; unresolved/limited covers remain explicitly uncertified. Cut patches are sampled display geometry. Tool calibration, machine offsets, rapid speed, acceleration and pause duration remain controller/setup inputs.
 
 Keep README.md, AGENTS.md, app.md, plugins.md, schemas and tests synchronized. Runtime stays one plugin.js. Port to Printer only after separate relevance/correctness/performance verification.

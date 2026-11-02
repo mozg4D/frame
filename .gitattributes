@@ -24,3 +24,8 @@ tests/scenes/ведьма.obj filter=lfs diff=lfs merge=lfs -text
 # Keep Mill source evidence stable across Windows checkouts.
 plugins/mill/plugin.js text eol=lf
 plugins/mill/icon.svg -text whitespace=cr-at-eol
+
+# Keep deployed shell and plugin manifests byte-identical to validation reports.
+frame-sw.js text eol=lf
+plugins/index.json text eol=lf
+plugins/**/plugin.json text eol=lf

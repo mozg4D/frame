@@ -78,3 +78,8 @@ Material/camera updates:
 - Create any number of `scene.create {type:'render'}` cameras. `scene.update {id,enabled:true}` activates one exclusively. Active camera frame/FOV drive Perspective and render; ordinary transform commands edit camera frames. `render.start` switches a single orthographic workspace to Perspective.
 
 `scene.group`, `scene.connect` and `scene.merge` use normal native hierarchy/conversion/import transactions. `scene.inspect.selection.splines` exposes component sets for all selected cages. Discover exact schemas with `frameAI.listTools()`.
+
+
+## Embedded Text spline conversion
+
+`node tools/convert-text-font.mjs <older-index.html>` reproduces the native font asset from an earlier Frame index containing the original Droid Sans outline data. The converter runs that version's original fitting kernel for all 591 characters, retains layout arithmetic order, source SHA-256 and original font attribution, and writes only the compressed spline presets into the current index.html. Original outline definitions and their parser are absent from the current runtime. `npm run test:text-presets` checks every curve against the immutable original reference and a completed large-Text latency budget.
