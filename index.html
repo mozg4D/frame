@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 02 nov 13:52">
-<title>Frame 2026 02 nov 13:52</title>
+<meta name="frame-version" content="2026 02 nov 15:08">
+<title>Frame 2026 02 nov 15:08</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -1550,7 +1550,7 @@ function prepareFresh(data,resolved=null){
   const quads=cells.fills.map(f=>{const q=regularQuad(data,f);return q&&quadSamplesMatch(f,params)?q:null;}),sampledAt=performance.now();
   return {data,cells,quads,params,samples,resolveMs:resolvedAt-started,sampleMs:sampledAt-resolvedAt,prepareMs:performance.now()-started};
 }
-function buildBatch(state,indices){return indices.map(i=>{const quad=state.quads[i];if(quad)return {i,quad:true};const cell=K.buildSplineSurface.cell(state.data,state.cells.fills[i],state.data.approximation?.angle||10,id=>state.samples.get(id));const order=[...new Set(cell.boundary.map(b=>b[1]))],boundary=order.length,seen=new Set(order);for(let v=0;v<cell.positions.length/3;v++)if(!seen.has(v))order.push(v);const remap=new Uint32Array(order.length),positions=new Float32Array(cell.positions.length);order.forEach((v,j)=>{remap[v]=j;positions.set(cell.positions.subarray(v*3,v*3+3),j*3);});return {i,cell:{positions,indices:cell.indices.map(v=>remap[v]),boundary:[...new Map(cell.boundary.map(([key,v])=>[v,key]))].map(([v,key])=>[key,remap[v]])}};});}
+function buildBatch(state,indices){return indices.map(i=>{const quad=state.quads[i];if(quad)return {i,quad:true};const cell=K.buildSplineSurface.cell(state.data,state.cells.fills[i],state.data.approximation?.angle||10,id=>state.samples.get(id));const order=[...new Set(cell.boundary.map(b=>b[1]))],boundary=order.length,seen=new Set(order);for(let v=0;v<cell.positions.length/3;v++)if(!seen.has(v))order.push(v);const remap=new Uint32Array(order.length),positions=new Float32Array(cell.positions.length);order.forEach((v,j)=>{remap[v]=j;positions.set(cell.positions.subarray(v*3,v*3+3),j*3);});return {i,cell:{positions,indices:cell.indices.map(v=>remap[v]),boundary:[...new Map(cell.boundary.map(([key,v])=>[v,key]))].map(([v,key])=>[key,remap[v]]),planar:cell.report.builder==='frame-planar'}};});}
 
 // Bounds refer to the authored cubic complex, not a sampling-angle promise.
 function sourceAccuracy(state){
@@ -1560,17 +1560,70 @@ function sourceAccuracy(state){
  function straightPlanar(edges){let normal=null,origin=null;for(const cp of edges){const a=vector(cp[0]),d=sub(vector(cp[3]),a);if(zero(d))return false;const axis=d.findIndex(x=>x!==0n);for(const p of cp){if(!zero(cross(sub(vector(p),a),d)))return false;if(p[axis]<Math.min(cp[0][axis],cp[3][axis])||p[axis]>Math.max(cp[0][axis],cp[3][axis]))return false;}if(!origin)origin=a;else if(!normal){const n=cross(sub(a,origin),d);if(!zero(n))normal=n;}}
   if(!normal){const points=edges.flat().map(vector);for(let i=1;i+1<points.length;i++){const n=cross(sub(points[i],points[0]),sub(points[i+1],points[0]));if(!zero(n)){normal=n;origin=points[0];break;}}}return !!normal&&edges.flat().every(p=>sub(vector(p),origin).reduce((s,x,i)=>s+x*normal[i],0n)===0n);
  }
+ let planarWork=0;const spend=()=>{if(++planarWork>262144)throw Error('SOURCE_ACCURACY_WORK_LIMIT');};
+ function planarBound(fill,edges,cell){
+  if(cell.planarAccuracy)return cell.planarAccuracy;
+  const fail=reason=>(cell.planarAccuracy={unknown:reason});
+  if(!cell.planar||!cell.positions||!cell.indices)return fail('SOURCE_PLANAR_TRIANGULATION');
+  if(edges.length>64||cell.positions.length>1536)return fail('SOURCE_ACCURACY_WORK_LIMIT');
+  const controls=edges.flat(),origin=vector(controls[0]);let normal=null;
+  for(let i=1;i+1<controls.length;i++){const n=cross(sub(vector(controls[i]),origin),sub(vector(controls[i+1]),origin));if(!zero(n)){normal=n;break;}}
+  if(!normal||controls.some(p=>sub(vector(p),origin).reduce((sum,x,i)=>sum+x*normal[i],0n)!==0n))return fail('SOURCE_NONPLANAR_CONTROLS');
+  const abs=x=>x<0n?-x:x;let drop=0;for(let i=1;i<3;i++)if(abs(normal[i])>abs(normal[drop]))drop=i;const axes=[0,1,2].filter(i=>i!==drop);
+  // Remove common dyadic zeros before the bounded exact planar predicates.
+  let shift=1074;for(const p of [...controls,...Array.from({length:cell.positions.length/3},(_,i)=>Array.from(cell.positions.subarray(3*i,3*i+3)))])for(const axis of axes){float[0]=p[axis];const b=bits[0],e=Number((b>>52n)&2047n);let m=(b&((1n<<52n)-1n))|(e?1n<<52n:0n),tail=0;if(!m)continue;while(!(m&1n)){m>>=1n;tail++;}shift=Math.min(shift,(e?e-1:0)+tail);}
+  // Three spare bits per level keep all twelve cubic bisections exact.
+  const point=p=>axes.map(k=>(integer(p[k])>>BigInt(shift))<<36n),subtract=(a,b)=>a.map((x,i)=>x-b[i]),dot=(a,b)=>a[0]*b[0]+a[1]*b[1],turn=(a,b,c)=>{spend();const u=subtract(b,a),v=subtract(c,a);return u[0]*v[1]-u[1]*v[0];},equal=(a,b)=>a.every((x,i)=>x===b[i]);
+  const boxes=cp=>[0,1].map(k=>[cp.reduce((v,p)=>p[k]<v?p[k]:v,cp[0][k]),cp.reduce((v,p)=>p[k]>v?p[k]:v,cp[0][k])]),separate=(A,B)=>{
+   spend();const a=boxes(A),b=boxes(B);if(a.some((range,k)=>range[1]<b[k][0]||b[k][1]<range[0]))return true;
+   for(const points of [A,B])for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++){if(equal(points[i],points[j]))continue;const X=A.map(p=>turn(points[i],points[j],p)),Y=B.map(p=>turn(points[i],points[j],p));if(X.every(x=>x<=0n)&&Y.every(x=>x>0n)||X.every(x=>x<0n)&&Y.every(x=>x>=0n)||Y.every(x=>x<=0n)&&X.every(x=>x>0n)||Y.every(x=>x<0n)&&X.every(x=>x>=0n))return true;}
+   return false;
+  },split=cp=>{const middle=(a,b)=>a.map((x,i)=>(x+b[i])/2n),a=middle(cp[0],cp[1]),b=middle(cp[1],cp[2]),c=middle(cp[2],cp[3]),d=middle(a,b),e=middle(b,c),f=middle(d,e);return [[cp[0],a,d,f],[f,e,c,cp[3]]];},disjoint=(A,B,depth=0)=>{
+   if(separate(A,B))return true;if(depth===12)return false;const extent=cp=>boxes(cp).reduce((m,r)=>r[1]-r[0]>m?r[1]-r[0]:m,0n);return extent(A)>=extent(B)?split(A).every(a=>disjoint(a,B,depth+1)):split(B).every(b=>disjoint(A,b,depth+1));
+  };
+  const curves=edges.map(cp=>cp.map(point)),loops=[];let cursor=0;
+  for(const refs of fill.loops){const loop=curves.slice(cursor,cursor+refs.length);cursor+=refs.length;if(loop.length<2)return fail('SOURCE_PLANAR_TOPOLOGY');
+   if(loop.some((cp,i)=>loop.slice(0,i).some(other=>equal(cp[0],other[0]))))return fail('SOURCE_PLANAR_TOPOLOGY');
+   for(let i=0;i<loop.length;i++){const A=loop[i],B=loop[(i+1)%loop.length],chord=subtract(A[3],A[0]);if(!equal(A[3],B[0])||equal(A[3],A[0])||[0,1,2].some(j=>dot(subtract(A[j+1],A[j]),chord)<0n))return fail('SOURCE_PLANAR_TOPOLOGY');
+    if(loop.length>2){let direction=subtract(A[3],A[2]).map((x,k)=>x+B[1][k]-B[0][k]);if(direction.every(x=>x===0n))direction=subtract(B[3],A[0]);if(direction.every(x=>x===0n)||A.some(p=>dot(subtract(p,A[3]),direction)>0n)||B.some(p=>dot(subtract(p,A[3]),direction)<0n)||!A.slice(0,3).some(p=>dot(subtract(p,A[3]),direction)<0n)||!B.slice(1).some(p=>dot(subtract(p,A[3]),direction)>0n))return fail('SOURCE_PLANAR_TOPOLOGY');}
+   }
+   if(loop.length===2){const side=loop.map(cp=>cp.slice(1,3).map(p=>turn(cp[0],cp[3],p))),orientation=side.map(values=>values.every(x=>x>=0n)&&values.some(x=>x>0n)?1:values.every(x=>x<=0n)&&values.some(x=>x<0n)?-1:values.every(x=>x===0n)?0:2);if(orientation.includes(2)||orientation[0]===0&&orientation[1]===0||orientation[0]&&orientation[1]&&orientation[0]!==orientation[1])return fail('SOURCE_PLANAR_TOPOLOGY');}
+   for(let i=0;i<loop.length;i++)for(let j=i+2;j<loop.length;j++)if(!(i===0&&j===loop.length-1)&&!disjoint(loop[i],loop[j]))return fail('SOURCE_PLANAR_TOPOLOGY');loops.push(loop);
+  }
+  for(let i=0;i<loops.length;i++)for(let j=i+1;j<loops.length;j++)for(const A of loops[i])for(const B of loops[j])if(!disjoint(A,B))return fail('SOURCE_PLANAR_TOPOLOGY');
+  const positions=Array.from({length:cell.positions.length/3},(_,i)=>point(Array.from(cell.positions.subarray(3*i,3*i+3)))),keys=new Map(cell.boundary),boundary=[];let outerSign=0;
+  for(const [loopIndex,refs] of fill.loops.entries()){const ids=[];for(const ref of refs){const e=state.data.segments[ref.edge],list=state.samples.get(ref.edge).map((_,i,a)=>keys.get(i===0?'v:'+e.a:i===a.length-1?'v:'+e.b:'s:'+ref.edge+':'+i));if(list.some(id=>id===undefined))return fail('SOURCE_PLANAR_TRIANGULATION');if(ref.reversed)list.reverse();ids.push(...list.slice(0,-1));}if(ids.length<3||new Set(ids).size!==ids.length)return fail('SOURCE_PLANAR_TRIANGULATION');const area=ids.reduce((sum,id,i)=>{const a=positions[id],b=positions[ids[(i+1)%ids.length]];return sum+a[0]*b[1]-a[1]*b[0];},0n),sign=area>0n?1:area<0n?-1:0;if(!sign||loopIndex&&sign===outerSign)return fail('SOURCE_PLANAR_TRIANGULATION');if(!loopIndex)outerSign=sign;for(let i=0;i<ids.length;i++){const a=positions[ids[(i+ids.length-1)%ids.length]],b=positions[ids[i]],c=positions[ids[(i+1)%ids.length]];if(equal(b,c)||turn(a,b,c)===0n&&dot(subtract(a,b),subtract(c,b))>0n)return fail('SOURCE_PLANAR_TRIANGULATION');boundary.push([ids[i],ids[(i+1)%ids.length]]);}}
+  const intersects=(A,B,C,D)=>{spend();const a=boxes([A,B]),b=boxes([C,D]);if(a.some((r,k)=>r[1]<b[k][0]||b[k][1]<r[0]))return false;const x=turn(A,B,C),y=turn(A,B,D),u=turn(C,D,A),v=turn(C,D,B);return (x===0n||y===0n||x<0n!==y<0n)&&(u===0n||v===0n||u<0n!==v<0n);};
+  for(let i=0;i<boundary.length;i++)for(let j=i+1;j<boundary.length;j++){const [a,b]=boundary[i],[c,d]=boundary[j];if(a===c||a===d||b===c||b===d)continue;if(intersects(positions[a],positions[b],positions[c],positions[d]))return fail('SOURCE_PLANAR_TRIANGULATION');}
+  const edgeKey=(a,b)=>Math.min(a,b)+':'+Math.max(a,b),expected=new Set(boundary.map(([a,b])=>edgeKey(a,b))),incidence=new Map();let sign=0;
+  if(expected.size!==boundary.length||cell.indices.length%3)return fail('SOURCE_PLANAR_TRIANGULATION');
+  for(let i=0;i<cell.indices.length;i+=3){const ids=Array.from(cell.indices.subarray(i,i+3));if(ids.some(id=>id>=positions.length))return fail('SOURCE_PLANAR_TRIANGULATION');const area=turn(...ids.map(id=>positions[id])),s=area>0n?1:area<0n?-1:0;if(!s||sign&&s!==sign)return fail('SOURCE_PLANAR_TRIANGULATION');sign=s;for(let j=0;j<3;j++){const a=ids[j],b=ids[(j+1)%3],key=edgeKey(a,b),record=incidence.get(key)||[0,0];record[0]++;record[1]+=a<b?1:-1;incidence.set(key,record);}}
+  const [firstA,firstB]=boundary[0],orientation=(incidence.get(edgeKey(firstA,firstB))?.[1]||0)*(firstA<firstB?1:-1);
+  if(!sign||!orientation||boundary.some(([a,b])=>incidence.get(edgeKey(a,b))?.[1]!==orientation*(a<b?1:-1))||[...expected].some(key=>incidence.get(key)?.[0]!==1)||[...incidence].some(([key,[count,direction]])=>expected.has(key)?count!==1:count!==2||direction!==0))return fail('SOURCE_PLANAR_TRIANGULATION');
+  let chordError=0;for(let e=0;e<edges.length;e++){const cp=edges[e],ref=fill.loops.flat()[e],params=state.params.get(ref.edge),step=Math.max(...params.slice(1).map((t,i)=>t-params[i])),derivative=Math.max(...[0,1].map(i=>Math.hypot(...cp[i].map((x,k)=>6*(cp[i+2][k]-2*cp[i+1][k]+x)))));chordError=Math.max(chordError,step*step*derivative/8);}
+  // Boundary homotopy confines fill disagreement to its swept strip. A second
+  // boundary correspondence covers the reverse fill distance; oblique planar
+  // projection has norm at most sqrt(3). Triangle incidence proves the fill.
+  const scale=Math.max(1,...controls.flat().map(Math.abs)),numeric=128*2**-24*Math.sqrt(3)*scale+4096*Number.EPSILON*scale+2**-110;
+  return cell.planarAccuracy={shape:2*Math.sqrt(3)*chordError,numeric:3*Math.sqrt(3)*numeric,matched:true};
+ }
+
+ function straightMonotone(cp){const points=cp.map(vector),d=sub(points[3],points[0]);return !zero(d)&&points.every(p=>zero(cross(sub(p,points[0]),d)))&&[0,1,2].every(i=>sub(points[i+1],points[i]).reduce((sum,x,k)=>sum+x*d[k],0n)>=0n);}
  function quadBound(q,fill){const E=q.edges,w=q.w||[0,0,1,1],net=Array.from({length:4},()=>Array(4)),exact=Array.from({length:4},()=>Array(4));for(let i=0;i<4;i++)for(let j=0;j<4;j++){
    if(q.mode===0){net[i][j]=E[0][i].map((x,k)=>x+E[1][j][k]-E[0][3][k]);exact[i][j]=[0,1,2].map(k=>(integer(E[0][i][k])+integer(E[1][j][k])-integer(E[0][3][k]))*unit);}else{const x=q.base?j:i,y=q.base?3-i:j,A=E[q.base][x],B=E[q.base+2][3-x],W=integer(w[y]);net[i][j]=A.map((a,k)=>a+w[y]*(B[k]-a));exact[i][j]=A.map((a,k)=>integer(a)*(unit-W)+integer(B[k])*W);}
   }
   const boundaries=[Array.from({length:4},(_,i)=>exact[i][0]),Array.from({length:4},(_,i)=>exact[3][i]),Array.from({length:4},(_,i)=>exact[3-i][3]),Array.from({length:4},(_,i)=>exact[0][3-i])];let matched=true,seam=0;for(let e=0;e<4;e++)for(let i=0;i<4;i++){if(boundaries[e][i].some((v,k)=>v!==integer(E[e][i][k])*unit))matched=false;const [u,v]=e===0?[i,0]:e===1?[3,i]:e===2?[3-i,3]:[0,3-i];seam=Math.max(seam,Math.hypot(...net[u][v].map((x,k)=>x-E[e][i][k])));}
   let uu=0,vv=0,uv=0;for(let i=0;i<4;i++)for(let j=0;j<4;j++){if(i<2)uu=Math.max(uu,Math.hypot(...net[i][j].map((x,k)=>6*(net[i+2][j][k]-2*net[i+1][j][k]+x))));if(j<2)vv=Math.max(vv,Math.hypot(...net[i][j].map((x,k)=>6*(net[i][j+2][k]-2*net[i][j+1][k]+x))));if(i<3&&j<3)uv=Math.max(uv,Math.hypot(...net[i][j].map((x,k)=>9*(net[i+1][j+1][k]-net[i+1][j][k]-net[i][j+1][k]+x))));}
+  // A monotone straight translation rail can use physical position as its
+  // parameter. Its nonlinear cubic speed contributes no geometric deviation.
+  if(q.mode===0){if(straightMonotone(E[0]))uu=0;if(straightMonotone(E[1]))vv=0;uv=0;}
   const params=fill.loops[0].slice(0,2).map(ref=>quadParams(ref,state.params)),step=a=>Math.max(0,...a.slice(1).map((x,i)=>x-a[i])),du=step(params[0]),dv=step(params[1]),scale=Math.max(1,...E.flat().flat().map(Math.abs)),weights=q.mode===0?1:1+w.reduce((s,x)=>s+Math.abs(x),0),numeric=(128+(params[0].length>2&&params[1].length>2?(q.mode===0?128:512)*weights**2:0))*2**-24*Math.sqrt(3)*scale+2**-110,shape=fill.planar&&straightPlanar(E)?0:du*du*uu/8+dv*dv*vv/8+du*dv*uv/4;
   return {shape:shape+seam,numeric:numeric+1024*Number.EPSILON*scale,matched};
  }
- try{let shape=0,numeric=0,matched=true;const incidence=new Map(),parents=fills.map((_,i)=>i),root=i=>{while(parents[i]!==i)i=parents[i];return i;};for(let i=0;i<fills.length;i++){const fill=fills[i],q=state.quads[i],edges=fill.loops.flatMap(loop=>loop.map(ref=>{const cp=edge(ref.edge);return ref.reversed?cp.reverse():cp;}));let bound;if(q)bound=quadBound(q,fill);else if(fill.planar&&straightPlanar(edges)){const scale=Math.max(1,...edges.flat().flat().map(Math.abs));bound={shape:0,numeric:128*2**-24*Math.sqrt(3)*scale+2**-110,matched:true};}else return unknown('SOURCE_CELL_FAMILY');if(!Number.isFinite(bound.shape+bound.numeric))return unknown('SOURCE_ACCURACY_NUMERIC');shape=Math.max(shape,bound.shape);numeric=Math.max(numeric,bound.numeric);matched&&=bound.matched;for(const ref of fill.loops.flat()){const list=incidence.get(ref.edge)||[];list.push(i);incidence.set(ref.edge,list);}}
-  const closed=incidence.size>0&&[...incidence.values()].every(list=>list.length===2);for(const list of incidence.values())for(let j=1;j<list.length;j++){const a=root(list[0]),b=root(list[j]);if(a!==b)parents[Math.max(a,b)]=Math.min(a,b);}const components=new Set(fills.map((_,i)=>root(i))).size,envelope=closed&&matched&&components===1;return {version:1,reference:'cubic-surface-complex',surfaceCertified:true,surfaceError:(shape+numeric)*(1+1024*Number.EPSILON),tessellationError:shape,numericError:numeric,solidEnvelopeCertified:envelope,closedParameterization:closed,parameterComponents:components,boundaryMatched:matched,reason:envelope?null:!matched?'SOURCE_BOUNDARY_MISMATCH':!closed?'SOURCE_OPEN_PARAMETERIZATION':'SOURCE_COMPONENT_RELATION'};
- }catch{return unknown('SOURCE_ACCURACY_NUMERIC');}
+ try{let shape=0,numeric=0,matched=true,failure=null;const incidence=new Map(),parents=fills.map((_,i)=>i),root=i=>{while(parents[i]!==i)i=parents[i];return i;};for(let i=0;i<fills.length;i++){const fill=fills[i],q=state.quads[i],edges=fill.loops.flatMap(loop=>loop.map(ref=>{const cp=edge(ref.edge);return ref.reversed?cp.reverse():cp;}));let bound;if(q)bound=quadBound(q,fill);else if(fill.planar&&straightPlanar(edges)){const scale=Math.max(1,...edges.flat().flat().map(Math.abs));bound={shape:0,numeric:128*2**-24*Math.sqrt(3)*scale+2**-110,matched:true};}else if(fill.planar&&state.parts[i]?.cell)bound=planarBound(fill,edges,state.parts[i].cell);else bound={unknown:'SOURCE_CELL_FAMILY'};if(bound.unknown){failure||=bound.unknown;continue;}if(!Number.isFinite(bound.shape+bound.numeric)){failure||='SOURCE_ACCURACY_NUMERIC';continue;}shape=Math.max(shape,bound.shape);numeric=Math.max(numeric,bound.numeric);matched&&=bound.matched;for(const ref of fill.loops.flat()){const list=incidence.get(ref.edge)||[];list.push(i);incidence.set(ref.edge,list);}}
+  // Retain independent cell proofs even when another cell is uncertified.
+  if(failure)return unknown(failure);const closed=incidence.size>0&&[...incidence.values()].every(list=>list.length===2);for(const list of incidence.values())for(let j=1;j<list.length;j++){const a=root(list[0]),b=root(list[j]);if(a!==b)parents[Math.max(a,b)]=Math.min(a,b);}const components=new Set(fills.map((_,i)=>root(i))).size,envelope=closed&&matched&&components===1;return {version:1,reference:'cubic-surface-complex',surfaceCertified:true,surfaceError:(shape+numeric)*(1+1024*Number.EPSILON),tessellationError:shape,numericError:numeric,solidEnvelopeCertified:envelope,closedParameterization:closed,parameterComponents:components,boundaryMatched:matched,reason:envelope?null:!matched?'SOURCE_BOUNDARY_MISMATCH':!closed?'SOURCE_OPEN_PARAMETERIZATION':'SOURCE_COMPONENT_RELATION'};
+ }catch(error){return unknown(error.message==='SOURCE_ACCURACY_WORK_LIMIT'?error.message:'SOURCE_ACCURACY_NUMERIC');}
 }
 
 function assembleFresh(state,parts){
@@ -1629,9 +1682,10 @@ function prepare(data,key,baseToken,resolved=null){
   old.prepareMs=performance.now()-started;return old;
 }
 function assemble(state,parts){for(const part of parts)state.parts[part.i]=part;const started=performance.now(),canDelta=!state.forceFull&&state.layout&&state.parts.every(p=>p.cell&&p.cell.boundary.every((b,i)=>b[1]===i));const result=canDelta?assembleDelta(state):assembleFresh(state,state.parts);result.report.diagnostics??=state.cells.diagnostics;result.report.assembleMs=performance.now()-started;result.report.affectedCells=state.dirty.length;result.report.cachedCells=state.cells.fills.length-state.dirty.length;result.report.builtCells=state.dirty.length;result.report.resolverReused=state.incremental;result.report.changedEdges=state.changedEdges.length;result.report.prepareMs=state.prepareMs;
+  const accuracyStarted=performance.now();result.sourceAccuracy=sourceAccuracy(state);result.report.sourceAccuracy=result.sourceAccuracy;result.report.sourceAccuracyMs=performance.now()-accuracyStarted;
   for(const part of state.parts)if(part.cell){const cell=part.cell;if(cell.positions){cell.vertexCount=cell.positions.length/3;cell.indexCount=cell.indices.length;delete cell.positions;delete cell.indices;}}
-  result.report.cpuTriangleCacheBytes=0;result.sourceAccuracy=sourceAccuracy(state);result.report.sourceAccuracy=result.sourceAccuracy;
-  surfacePlans.delete(state.key);surfacePlans.set(state.key,state);let total=0;for(const [key,p]of [...surfacePlans].reverse()){let bytes=JSON.stringify(p.data).length*2;for(const a of p.samples.values())bytes+=a.length*128;for(const part of p.parts)if(part.cell)bytes+=(part.cell.positions?.byteLength||0)+(part.cell.indices?.byteLength||0)+part.cell.boundary.length*64;total+=bytes;if(total>64*1024*1024)surfacePlans.delete(key);}result.report.cacheBytes=Math.min(total,64*1024*1024);return result;
+  result.report.cpuTriangleCacheBytes=0;
+  surfacePlans.delete(state.key);surfacePlans.set(state.key,state);let total=0;for(const [key,p]of [...surfacePlans].reverse()){let bytes=JSON.stringify(p.data).length*2;for(const a of p.samples.values())bytes+=a.length*128;for(const part of p.parts)if(part.cell)bytes+=(part.cell.positions?.byteLength||0)+(part.cell.indices?.byteLength||0)+part.cell.boundary.length*64+(part.cell.planarAccuracy?256:0);total+=bytes;if(total>64*1024*1024)surfacePlans.delete(key);}result.report.cacheBytes=Math.min(total,64*1024*1024);return result;
 }
 
 

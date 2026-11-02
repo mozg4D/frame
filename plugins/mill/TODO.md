@@ -39,9 +39,11 @@ Operational fixed-axis CAM is implemented within README.md limits. The full geom
 - [x] Shared source-approximation metadata for canonical polygons and supported cubic/straight-planar cells, exact continuity checks, safe physical affine bounds and explicit unsupported reasons.
 - [x] Propagate proved source bands through planning, collision, volume subtraction and whole-part covers; certify supported authoring surfaces only after complete verification, without a final-distance shortcut.
 
+- [x] Prove supported curved planar cap fills, including separated holes and two-curve lenses, using exact boundary/triangulation checks and bounded source homotopy; remove fictitious straight-rail parameter error.
+
 ## Remaining work
 
-- [ ] Extend proved authoring-source envelopes to general spline cells, curved planar caps, multi-component shell relationships, cached generated HASH surfaces and deformed geometry. Supported source contracts now propagate approximation through the complete part proof; unsupported, limited or unresolved cases remain uncertified.
+- [ ] Extend proved authoring-source envelopes to general spline cells, unproved planar boundary families, multi-component shell relationships, cached generated HASH surfaces and deformed geometry. Supported source contracts now propagate approximation through the complete part proof; unsupported, limited or unresolved cases remain uncertified.
 - [ ] Prove accessibility or inaccessibility of every excess 3D region and refine reachable regions, including undercuts/cavities. Neither sampled top residuals nor unresolved volume cells are proof of inaccessibility.
 
 ## Model boundaries
