@@ -83,3 +83,9 @@ Material/camera updates:
 ## Embedded Text spline conversion
 
 `node tools/convert-text-font.mjs <older-index.html>` reproduces the native font asset from an earlier Frame index containing the original Droid Sans outline data. The converter runs that version's original fitting kernel for all 591 characters, retains layout arithmetic order, source SHA-256 and original font attribution, and writes only the compressed spline presets into the current index.html. Original outline definitions and their parser are absent from the current runtime. `npm run test:text-presets` checks every curve against the immutable original reference and a completed large-Text latency budget.
+
+## Polygon Unite
+
+`geometry.unite {ids?,selectedIslands?,fillRule?}` uses the native context-menu operation and returns `{object,report}`. IDs identify distinct editable polygon objects without an active Morph tag. With no IDs it uses the current selection. Explicit IDs default to whole objects; `selectedIslands:true` expands current component seeds to complete exact-position-connected islands and preserves unselected geometry. `nested-union` is default; `union` fills all shells; global `even-odd` toggles all shells/occurrences. Invalid arguments, damaged external open surfaces and unresolved numerical/capacity conditions reject before scene replacement. Normal Undo/Redo and HASH are reused. See `../tests/unite.md` for source semantics, precision and performance accounting.
+
+`mesh.create` stores explicit Float32 coordinates and triangle indices without a distance weld. It intentionally preserves raw winding/duplicate geometry so diagnostics and preparation operate on the requested input. Distinct representable nearby vertices remain distinct.

@@ -16,3 +16,9 @@ tests/.step-reference/
 
 # Regenerate the printer corpus, including the local incoming STL reference.
 /tests/scenes/slicer-zoo.hash
+
+# Local task scratch, diagnostics and prototype assembly.
+/work/
+
+# SHA-verified local copies of user STL inputs; preserve on disk, never publish.
+/tests/scenes/unite-source/

@@ -4,6 +4,7 @@ import {printerRevisionChecks} from './revision.mjs';
 import {numericLDIChecks} from './numeric-ldi.mjs';
 import {printerFeedbackChecks} from './feedback.mjs';
 import {slicerChecks} from './slicer.mjs';
+import {volumePreparationChecks} from './volume-preparation.mjs';
 import {zooCases} from './generate-zoo.mjs';
 export async function pluginChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),check=(name,pass,detail)=>{checks.push({name:'3D Printer: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},red=c=>c[0]>200&&c[1]<60&&c[2]<60;
@@ -34,6 +35,7 @@ export async function pluginChecks(page){
   const overlap=await overlapChecks(page);checks.push(...overlap.checks);timings.push(...overlap.timings);if(!overlap.pass)return {...overlap,checks,timings};
   const revision=await printerRevisionChecks(page);checks.push(...revision.checks);timings.push(...revision.timings);if(!revision.pass)return {...revision,checks,timings};
   const adaptive=await numericLDIChecks(page);checks.push(...adaptive.checks);timings.push(...adaptive.timings);if(!adaptive.pass)return {...adaptive,checks,timings};
+  const volume=await volumePreparationChecks(page);checks.push(...volume.checks);timings.push(...volume.timings);if(!volume.pass)return {...volume,checks,timings};
   const slicing=await slicerChecks(page);if(!slicing.pass)return {...slicing,checks:[...checks,...slicing.checks],timings:[...timings,...slicing.timings]};const feedback=await printerFeedbackChecks(page);if(!feedback.pass)return {...feedback,checks:[...checks,...slicing.checks,...feedback.checks],timings:[...timings,...slicing.timings,...feedback.timings]};return {pass:true,checks:[...checks,...slicing.checks,...feedback.checks],timings:[...timings,...slicing.timings,...feedback.timings]};
  }catch(e){return {pass:false,checks,timings,error:e.stack};}
 }
