@@ -9,7 +9,8 @@ export async function printerFeedbackChecks(page){
  const check=(name,pass,detail)=>{checks.push({name:'Printer feedback: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
  const clear=async()=>{await call('render.stop');const s=await call('scene.inspect');if(s.objects.length)await call('scene.delete',{ids:s.objects.filter(n=>!n.parent).map(n=>n.hash)});await call('view.set',{mode:'object',coordinates:'world',pivot:false,snap:false,quantize:false});};
  const project=async(id,point)=>(await call('view.project',{...(id?{id}:{}),point})).screen;
- const pixels=async(id,p)=>{const q=await project(id,p);return(await call('diagnostics.pixels',{points:[q,...[[1,0],[-1,0],[0,1],[0,-1]].map(d=>q.map((v,k)=>v+d[k]))]})).colors;};
+ // Probe the neighbouring physical pixels: a CSS-pixel cross skips one-pixel guides at DPR 2.
+ const pixels=async(id,p)=>{const q=await project(id,p),dpr=await page.evaluate(()=>devicePixelRatio),points=Array.from({length:9},(_,i)=>[q[0]+(i%3-1)/dpr,q[1]+(Math.floor(i/3)-1)/dpr]);return(await call('diagnostics.pixels',{points})).colors;};
  const red=c=>c[0]>200&&c[1]<60&&c[2]<60,green=c=>c[0]>65&&c[0]<105&&c[1]>170&&c[2]>120&&c[2]<180,blue=c=>c[2]>150&&c[2]>c[0]*1.5&&c[2]>c[1]*1.2;
  const command=(id,operation,args={})=>call('plugins.command',{id,operation,args});
  const wait=async(id,predicate=s=>s.state!=='running')=>{const started=performance.now();while(performance.now()-started<5000){const s=await command(id,'status');if(predicate(s))return s;await page.waitForTimeout(10);}throw Error('Printer did not settle: '+JSON.stringify(await command(id,'status')));};

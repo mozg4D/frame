@@ -28,6 +28,7 @@ Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. P
 | `view.solo` | Freeze selected owners/descendants as a temporary visibility filter |
 | `diagnostics.appearance` | Explicit UV corner samples/digest and material face-mask counts/samples |
 | `mesh.create` | Explicit triangle geometry, ordinary or texture-backed GPU storage |
+| `mesh.inspect`, `mesh.replace` | Explicit native vertex/face IDs and dihedrals; validated replacement through native topology history and material lineage |
 | `transform.set`, `edit.history` | Normal numeric transactions and Undo/Redo |
 | `view.set`, `view.project`, `view.pick` | Per-view shading/layout/modes/options/focus, camera replay (12/23/27 values), world/screen navigation target |
 | `scene.open`, `scene.export`, `scene.share` | Same-origin HASH/OBJ/STL/glTF/GLB, packed scene URL or bounded base64; HASH, binary STL or native GLB (`format: hash|stl|glb`, default hash) size/digest/data; portable gzip/base64url Share URL |
@@ -57,13 +58,23 @@ The browser must already expose CDP. The adapter requires exactly one page with 
 
 Transport/tool references: [MCP stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports), [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
 
+## Direct polygon modeling
+
+`mesh.inspect {id,vertices?,faces?,topology?,angle?}` returns local millimetre positions and canonical triangle vertex IDs. With neither ID array it returns the complete mesh up to 10,000 vertices/faces; larger geometry requires explicit IDs. Empty arrays request no samples. Readback is bounded to 32 MiB. `topology:true` additionally audits up to 100,000 triangles using exact-position aliases: boundary/nonmanifold edges, winding disagreements, degenerate triangles, signed volume and edges at or above `angle` (default 46 degrees). This is an incidence/angle diagnostic, not an intersection certificate. No CPU geometry is retained.
+
+`mesh.replace {id,vertices,indices,sourceFaces?,uv?}` reuses native topology upload/publication and one Undo. `sourceFaces[f]` names the old face whose material selections the new triangle inherits; -1 is unassigned. Masked owners require the complete mapping. An owner with imported UV requires explicit finite UV pairs for every new triangle corner. Matrices, pivot, hierarchy and buffer/texture storage follow the existing polygon edit path. Morph owners reject; native topology IDs can change, so use the returned object hash. All validation happens before mutation, including Float32 overflow and lineage bounds. Same-count position changes are supported.
+
+`scene.select {ids:[id],mode:'polygon',components:[faceIDs...]}` selects canonical triangle IDs without screen picking. `material.assign {id,material,faces:[faceIDs...]}` creates an explicit native face mask independently of visibility/current mode; omitting `faces` keeps whole-owner assignment. `view.set {focusSelection:true}` uses native component focus; it is exclusive with object `focus`. `scene.inspect.materialEditor.material` gives the currently displayed material UID. These tools enable inspect -> construct -> replace -> assign -> multi-view/angle audit -> Undo/Redo checks without an ID image or a parallel scene model.
+
+Polygon Unite retains the invoking element mode. Its selected output contains only the processed islands, leaving passthrough islands unselected. Native Undo and Redo preserve the corresponding component selections.
+
 Extend v1 by adding a schema/handler in the `initializeFrameAI` registry in `index.html`, reusing editor operations, and adding a regression. Both MCP and tests discover the new command automatically; the adapter carries no duplicate tool implementations. Breaking changes require a new API version.
 
 The AI developer owns API/MCP maintenance: extend missing or inconvenient controls/diagnostics while doing application work, with schemas and regressions. For the already-open embedded tab, direct `frameAI.call` is the shortest route and controls that exact scene; MCP is the transport for external MCP clients. UI input tests still verify event delivery/focus.
 
 Share returns `https://mozg4d.github.io/frame/#scene=v1.<gzip-base64url-HASH>`. It does not upload anything. `scene.open` can decode the fragment locally, without fetching that host; startup accepts the same fragment. Limits: 16 MiB packed / 512 MiB unpacked, with lower practical URL limits possible in browsers/messengers. Before the new application is published, the hosted URL is for exchanging the bug scene; the local application/API can already read it.
 
-Version 1.1.0 has 24 tools. First To Editable of a solid creates a spline_patch owner with a child editable spline; `sources` gives child hashes. Approximation belongs to that child. Source operations accept the patch hash as an alias of its sole editable source; ambiguous replacement is rejected before mutation, and multi-source inspect returns the combined cage; spline.inspect returns both owner and actual source id, and reports the owning surface build. Second conversion bakes the mesh and removes source children with Undo support. Existing embedded cages are normalized on load.
+Discover the current tool registry with `frameAI.listTools()`. First To Editable of a solid creates a spline_patch owner with a child editable spline; `sources` gives child hashes. Approximation belongs to that child. Source operations accept the patch hash as an alias of its sole editable source; ambiguous replacement is rejected before mutation, and multi-source inspect returns the combined cage; spline.inspect returns both owner and actual source id, and reports the owning surface build. Second conversion bakes the mesh and removes source children with Undo support. Existing embedded cages are normalized on load.
 
 `spline.rebuild({id})` forces a fresh resolver and full build for diagnostic comparison, without changing source or Undo. `diagnostics.mesh({id,geometry:true,cells:[0,2303]})` additionally hashes interior positions of named general surface cells (maximum 64), allowing untouched GPU ranges to be checked across edits. `scene.inspect.lighting` exposes baked studio light parameters. Connected counts now refer to elements of the active mode, with visited vertex count in `vertices`.
 
