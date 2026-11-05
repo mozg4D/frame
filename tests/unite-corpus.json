@@ -1,6 +1,6 @@
 {
   "sourceDirectory": "C:\\Users\\mozg4\\Downloads\\Telegram Desktop",
-  "sourcePolicy": "Read-only originals; exact SHA-256 verified before and after Unite benchmarks. Originals are never rewritten or committed. Benchmark-only staging copies and generated outputs stay under ignored tests/results/.",
+  "sourcePolicy": "Read-only originals; exact SHA-256 verified before and after Unite benchmarks. Seven important nonempty Telegram STL inputs are preserved. Part1.stl, Part 2.stl and Part 3.stl were excluded at the user request. The empty source is retained as an invalid-input regression. Originals are never rewritten.",
   "vertexEquivalence": "Exact Float32 coordinates; signed zero canonicalized",
   "files": [
     {
@@ -466,137 +466,15 @@
       "inventoryMs": 7643.5739998705685
     },
     {
-      "name": "Part 2.stl",
-      "bytes": 49682884,
-      "sha256": "eb11dcc4b47646dfea52dbd7c1804a89d696a5ca2a0923f54fa0a9866a5fbf62",
-      "valid": true,
-      "triangles": 993656,
-      "uniqueTriangles": 993656,
-      "exactDuplicateTriangles": 0,
-      "vertices": 496820,
-      "degenerateTriangles": 0,
-      "bounds": {
-        "min": [
-          -490.13470458984375,
-          -174.18479919433594,
-          -137.94552612304688
-        ],
-        "max": [
-          419.86529541015625,
-          7.350352764129639,
-          17.70339584350586
-        ]
-      },
-      "rawBoundaryEdges": 0,
-      "rawNonmanifoldEdges": 0,
-      "rawInconsistentWindingEdges": 0,
-      "deduplicatedBoundaryEdges": 0,
-      "deduplicatedNonmanifoldEdges": 0,
-      "connectedComponents": 1,
-      "closedComponentsAfterDeduplication": 1,
-      "largestComponentsByTriangles": [
-        993656
-      ],
-      "damagedComponentsByTriangles": [],
-      "closedComponentsByTriangles": [
-        993656
-      ],
-      "sourceNormalsOpposeWinding": 0,
-      "sourceNormalsZeroOrOrthogonal": 0,
-      "surfaceArea": 620575.7857869145,
-      "signedVolumeFromStoredWinding": 981191.9409178441,
-      "inventoryMs": 11903.756299987435
-    },
-    {
-      "name": "Part 3.stl",
-      "bytes": 54766284,
-      "sha256": "aa9ff0c4c7a925a5127d277960bcb2e060e61d3440c30e67ac6278fd0a01d144",
-      "valid": true,
-      "triangles": 1095324,
-      "uniqueTriangles": 1095324,
-      "exactDuplicateTriangles": 0,
-      "vertices": 547654,
-      "degenerateTriangles": 0,
-      "bounds": {
-        "min": [
-          419.86529541015625,
-          -171.13607788085938,
-          -98.0183334350586
-        ],
-        "max": [
-          1375.055419921875,
-          7.350258827209473,
-          93.1619873046875
-        ]
-      },
-      "rawBoundaryEdges": 0,
-      "rawNonmanifoldEdges": 0,
-      "rawInconsistentWindingEdges": 0,
-      "deduplicatedBoundaryEdges": 0,
-      "deduplicatedNonmanifoldEdges": 0,
-      "connectedComponents": 1,
-      "closedComponentsAfterDeduplication": 1,
-      "largestComponentsByTriangles": [
-        1095324
-      ],
-      "damagedComponentsByTriangles": [],
-      "closedComponentsByTriangles": [
-        1095324
-      ],
-      "sourceNormalsOpposeWinding": 0,
-      "sourceNormalsZeroOrOrthogonal": 0,
-      "surfaceArea": 562873.2438613046,
-      "signedVolumeFromStoredWinding": 878170.3583492091,
-      "inventoryMs": 12974.621100118384
-    },
-    {
-      "name": "Part1.stl",
-      "bytes": 51777484,
-      "sha256": "a891b8f5479ed0a04830c9366309630af330b6aff5ca31a93f7076733271dfe6",
-      "valid": true,
-      "triangles": 1035548,
-      "uniqueTriangles": 1035548,
-      "exactDuplicateTriangles": 0,
-      "vertices": 517760,
-      "degenerateTriangles": 0,
-      "bounds": {
-        "min": [
-          -1440.1343994140625,
-          -234.89007568359375,
-          -153.89443969726562
-        ],
-        "max": [
-          -490.1346435546875,
-          202.90213012695312,
-          83.72290802001953
-        ]
-      },
-      "rawBoundaryEdges": 0,
-      "rawNonmanifoldEdges": 0,
-      "rawInconsistentWindingEdges": 0,
-      "deduplicatedBoundaryEdges": 0,
-      "deduplicatedNonmanifoldEdges": 0,
-      "connectedComponents": 1,
-      "closedComponentsAfterDeduplication": 1,
-      "largestComponentsByTriangles": [
-        1035548
-      ],
-      "damagedComponentsByTriangles": [],
-      "closedComponentsByTriangles": [
-        1035548
-      ],
-      "sourceNormalsOpposeWinding": 0,
-      "sourceNormalsZeroOrOrthogonal": 0,
-      "surfaceArea": 758473.8988508827,
-      "signedVolumeFromStoredWinding": 1242954.2785259548,
-      "inventoryMs": 11959.962600143626
-    },
-    {
       "name": "Ноги, руки низ.stl",
       "bytes": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "valid": false,
       "error": "Empty or truncated STL"
     }
-  ]
+  ],
+  "repairPolicy": {
+    "relativeSurfaceTolerance": 0.0001,
+    "thinMaterialDefects": "Unresolved defects thinner than the tolerance may be removed, including films and needles with a larger lateral contour."
+  }
 }

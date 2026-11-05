@@ -256,10 +256,12 @@ def main():
         return
     files = []
     for path in sorted(args.directory.rglob("*.stl"), key=lambda p: p.name.lower()):
+        if "".join(path.stem.lower().split()) in {"part1", "part2", "part3"}:
+            continue  # Explicitly excluded by the owner of this regression corpus.
         result = inventory(path)
         files.append(result)
         print(json.dumps({key: result[key] for key in ["name", "bytes", "valid", "triangles", "connectedComponents", "inventoryMs"] if key in result}, ensure_ascii=False), flush=True)
-    report = {"sourceDirectory": str(args.directory), "sourcePolicy": "Read-only originals; exact SHA-256 verified before and after Unite benchmarks. Originals are never rewritten or committed. Benchmark-only staging copies and generated outputs stay under ignored tests/results/.", "vertexEquivalence": "Exact Float32 coordinates; signed zero canonicalized", "files": files}
+    report = {"sourceDirectory": str(args.directory), "sourcePolicy": "Read-only originals; exact SHA-256 verified before and after Unite benchmarks. Part 1, 2 and 3 are excluded at the user request. Originals are never rewritten or committed.", "repairPolicy": {"relativeSurfaceTolerance": 0.0001, "thinMaterialDefects": "Material defects thinner than tolerance may be removed, including films and needles whose lateral contour extends farther than tolerance."}, "vertexEquivalence": "Exact Float32 coordinates; signed zero canonicalized", "files": files}
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -29,3 +29,6 @@ plugins/mill/icon.svg -text whitespace=cr-at-eol
 frame-sw.js text eol=lf
 plugins/index.json text eol=lf
 plugins/**/plugin.json text eol=lf
+
+# Preserve upstream whitespace in volume dependency patches.
+tools/volume/patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab

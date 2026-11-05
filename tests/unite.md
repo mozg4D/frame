@@ -6,7 +6,7 @@ The common plugin API is `context.scene.prepareVolume(snapshot, options)`, where
 
 ## Material rules
 
-Input normals are ignored. Exact duplicate triangles within an occurrence are idempotent. Exact Float32 vertex equality determines source connectivity; there is no distance weld that can erase a thin wall. Local orientation is repaired across manifold edges. A globally reversed closed shell has the same interior. A nonorientable cycle rejects the operation.
+Input normals are ignored. Exact duplicate triangles within an occurrence are idempotent. Exact Float32 vertex equality determines source connectivity; there is no distance weld that can erase a thin wall. Local orientation is repaired across manifold edges. A globally reversed closed shell has the same interior. An unresolved nonorientable cycle rejects the operation; the dirty-input fallback can recover bounded cells when a consistent source winding is unavailable.
 
 For an already conforming nonmanifold face complex, bounded angular sectors around edges can recover closed volume cells. This handles a shared internal face stored once or in duplicate between adjacent bodies. Unused sheets remain subject to the two-sided interior check. An ambiguous radial order or a complex requiring unresolved intersection cuts does not receive an invented closure. Filling rules operate on the recovered closed cells; historical body membership cannot be inferred from a single unordered face complex. Keep bodies as separate occurrences when that distinction must survive global even-odd filling. Recovery currently accepts at most 500,000 source faces.
 
@@ -14,7 +14,7 @@ For an already conforming nonmanifold face complex, bounded angular sectors arou
 * `union` fills the nonzero interior of every shell and combines all shells with OR, including contained shells.
 * `even-odd` toggles all closed shells globally, using crossing parity inside a self-intersecting shell. Overlapping occurrences therefore produce symmetric difference, and two identical separate solids cancel. This explicit rule differs from the default occurrence union.
 
-An open sheet contributes no invented solid interior. It is removed only when every arranged patch has closed material on both sides. An external/protruding open sheet or damaged exterior shell rejects atomically. Hole reconstruction is not implemented. Balanced four-face edges can be legitimate contact singularities, for example the touching lobes of a parity-filled bowtie; edge incidence is reported rather than silently perturbed into a manifold.
+An open sheet contributes no invented solid interior. It is removed only when every arranged patch has closed material on both sides. A known external/protruding open sheet or an exterior that cannot be resolved into bounded cells rejects atomically. Hole reconstruction is not implemented. Balanced four-face edges can be legitimate contact singularities, for example the touching lobes of a parity-filled bowtie; edge incidence is reported rather than silently perturbed into a manifold.
 
 ## Chosen implementation
 
@@ -26,6 +26,10 @@ GPU BVH, triangle-box, plane and projected-distance filtering retain the same 1.
 
 The Float32 repair is a bounded greedy/local search, not an exhaustive feasibility solver. Its failed-embedding diagnostic reports failure of that search within the two-ULP window; it does not prove that no other embedding or rational-coordinate output exists.
 
+If the direct path cannot resolve dirty input, the fallback streams GPU BVH candidate pairs to the pinned Geogram predicates and constructs the surface arrangement on the worker. It recovers the boundary of bounded cells, applies explicit parity when requested, and alternates distinct nested clusters in the default rule. Manifold is used for a bounded Float32 embedding and polygon splices. Small post-rounding intersections can be separated with a displacement limited to 0.001% of the model extent; only the audited candidate may publish. An alternate embedding reuses the first arrangement's material and provenance. A resolved closed shell below the reliable numerical resolution rejects rather than being silently approximated.
+
+If a chord misses the source envelope, affected faces define small reconstruction boxes. GPU ray queries sample the arranged material inside each box and the existing boundary in a collar. The temporary tetrahedral lattice yields a polygon patch. Additional source tests can move a splice away from an unsupported seam. The final forward check accepts a subtriangle only when it lies in the tolerance neighborhood of one convex source triangle or inside a ball proved to reach the source. Longest-edge subdivision covers the whole output triangle; exhausted work is an explicit failure. The largest captured AABB extent defines the 1e-4 tolerance. Signed-volume and clearance-gated reverse probes reject lost resolved material and distinguish thin defects. These probes are finite, separate from the continuous forward check.
+
 This is a GPU-assisted surface arrangement with a CPU topology stage. It is not a fully GPU-resident Boolean or an exact rational-coordinate implementation. Completed time includes source capture/readback, worker startup and geometry, GPU synchronization, output upload and native editor publication. No SDF, full-volume voxel representation or physical solver is introduced.
 
 | Alternative | Useful property | Assessment for this task |
@@ -33,11 +37,18 @@ This is a GPU-assisted surface arrangement with a CPU topology stage. It is not 
 | Connected components / union-find | Shell and patch labels; unchanged regions avoid repeated classification | Connectivity alone cannot cut triangles or remove intersecting internal faces. |
 | Multiple-axis LDI/LDNI | Fast parallel projection, interval operations, compact Printer input | Finite ray grids can miss thin/oblique detail. Reconstructing a complete 3D polygon boundary is additional work. |
 | Direct intersections and arrangement | Keeps source polygons and explicit intersection curves; no sampling pitch | Robust coplanar contacts and consistent output embedding dominate difficult inputs; actual intersections can be quadratic. |
-| Adaptive source-backed reconstruction | Can concentrate new geometry near intersections | Requires feature-preserving refinement and consistent transitions. Sample-only stopping rules cannot establish source topology. Not implemented as a competing runtime here. |
-| CPU/WASM manifold kernel | A separate robust topology implementation with face provenance and tolerance | Pinned Manifold 3.5.4 is an optional research comparison. Its kernel status and native Float32 geometry require separate checks; it is not an application dependency or automatic fallback. |
+| Adaptive source-backed reconstruction | Can concentrate new geometry near intersections | Requires feature-preserving refinement and consistent transitions. Sample-only stopping rules cannot establish source topology. The local fallback uses a continuous forward proof and a separate topology audit; a global adaptive grid did not meet the time or memory goals. |
+| CPU/WASM manifold kernel | A separate robust topology implementation with face provenance and tolerance | Standalone Manifold did not clean the actual Float32 export. The fallback pairs the pinned kernel with exact arrangement, re-embedding and independent publication checks. |
 | Implemented hybrid | GPU search/classification plus existing constrained topology machinery | Avoids a full fine grid, preserves unchanged source regions and exposes bounded numerical failures. |
 
 The architecture follows the separation of arrangements and cell labels in [Mesh Arrangements for Solid Geometry](https://www.cs.columbia.edu/cg/mesh-arrangements/). [LDNI solid modeling](https://mewangcl.github.io/pubs/CADGPUModeler.pdf) provides the relevant GPU sampled alternative. [Hybrid Booleans](https://www.graphics.rwth-aachen.de/publication/0338/) motivates preserving original polygons outside refined intersection regions. [Interactive and Robust Mesh Booleans](https://arxiv.org/abs/2205.14151) demonstrates the importance of consistent numerical intersection decisions. These papers are references for the comparison; no published throughput is presented as a Frame measurement.
+
+### Dirty-input research observations
+
+- A native AABB candidate pass is useful even when it cannot finish the operation alone. Exact predicates are necessary on nearly coplanar and overlapping facets; proximity welding alone changes which gaps and layers exist.
+- Global snap rounding of a dense dirty reference increased one trial from 937 proper intersections to over 560,000 after two rounds. In contrast, reusing the exact material arrangement and separating a small set of rounded contacts avoided another source intersection pass. This is why the fallback bounds its local displacement and rejects an unsuccessful contact solve.
+- A global adaptive occupancy reconstruction exceeded two million tetrahedra on the difficult `1, 2.stl` trial. Restricting the reconstruction to certified bad regions keeps the rest of the boundary polygonal and unresampled. A splice needs its own topology and surface checks; clean local patches alone do not establish a clean joint.
+- The first continuous proof took 219 s on a 259,350-face research mesh. Reusing the supporting triangle between subdivision nodes and querying the BVH only when needed reduced a follow-up check of the same mesh to 77 s. Both checks found eight violations. A coarser barycentric sample missed violations inside long triangles. These are proof-only timings, separate from the completed editor operation.
 
 ## Reproducible checks
 
@@ -48,7 +59,8 @@ npm run test:unite:performance -- --headless
 npm run test:unite:integration -- --headless
 node plugins/3d-printer/tests/volume-preparation.mjs --headless
 npm run test:unite:ldi -- --headless
-npm run test:unite:corpus -- --headless
+npm run test:unite:kernel
+npm run test:unite:corpus -- --headless --audit-surface
 npm test -- --headless
 npm run test:stress -- --headless
 ```
@@ -57,9 +69,9 @@ The focused fixtures independently check exact native edge incidence, analytic v
 
 `unite-cells.mjs` independently clips 2D triangle sections to audit 94 shared-edge tetrahedral configurations with exhaustive worker pairs and Float64 side decisions. Completed answers receive volume, boundary-side and occupancy checks; explicit unsupported/precision rejections remain separately counted. This CPU audit does not measure completed GPU/native operation time. `unite-performance.mjs` measures cold and warm native union of two independently generated dense box surfaces, with actual intersection cuts, observed memory and independent analytic output checks. At its default 64 divisions the input has 98,304 triangles; `--divisions=128` requests 393,216 triangles. Input construction and output-oracle time are excluded from operation timing, while all preparation and native publication work is included.
 
-`unite-corpus.json` inventories all 11 original Telegram STL paths and hashes: ten nonempty binary files, 5,622,891 triangles and 281,145,390 bytes, plus one empty file. Original paths are never rewritten. All 11 captured byte sequences are preserved locally under ignored `tests/scenes/unite-source/`; keep these user fixtures. During the task the original paths `Part 2.stl`, `Part 3.stl` and `Part1.stl` became unavailable. Their previously staged copies matched the captured hashes and were preserved with the rest of the corpus. Final measurements explicitly use `--source-dir=tests/scenes/unite-source`; they do not recreate the missing original paths. Every selected input is hash-checked before and after its attempt. Temporary staging/exported results remain under ignored `tests/results/`.
+`unite-corpus.json` inventories the seven nonempty Telegram STL inputs requested for dirty-geometry acceptance and the empty invalid input. The three clean Part files are excluded. Original files and ignored staging copies are hash-checked; no original STL is rewritten or distributed. The benchmark imports each original through the native STL codec and saves the result through the same editor path. Temporary copies and exported results remain under ignored `tests/results/`.
 
-`unite-corpus.py` independently audits exact Float32 topology and samples Float64 nearest-source distances; verified closed one-component sources additionally receive an independent oriented-side oracle. One-sided sampled displacement is not a complete surface-distance or occupancy certificate.
+`unite-corpus.py` audits stored Float32 topology and samples independent Float64 nearest-source distances. `unite-audit.mjs` runs a separate CPU all-AABB broad phase on the saved STL, checks exact degenerate facets and the vertex link graph, and can independently cover every saved triangle against the original STL. The analytic suites and separate material-retention probes cover cavity and occupancy behavior.
 
 Reports bind the actual loaded runtime bytes. `timings.totalMs` measures shared preparation; `editorTotalMs` measures the complete native operation. `peakGPUBytes` counts preparation-owned GPU storage including readback staging; `editorPeakGPUBytes` records the tracked scene/publication/Undo peak, with `editorGPUBytesBefore` as its baseline. Driver, pipeline and swap-chain memory are not exposed by WebGPU. `peakCPUBytes`/`peakHostBytes` are explicitly labelled conservative array/table storage estimates, not process-RSS measurements; benchmark heap/process observations are separate. The CDP sampler records simultaneous worker and page JavaScript heap plus ArrayBuffer backing-store bytes every 20 ms. It reports the observed sampled peak and sample count; it excludes process/driver overhead and can miss shorter peaks. It never adds independent maxima from different times. Output triangle counts, candidate pairs, cut faces, patch queries, fallback counts and numerical diagnostics explain the measured work.
 
@@ -67,7 +79,23 @@ Reports bind the actual loaded runtime bytes. `timings.totalMs` measures shared 
 
 Capacity and numerical failures reject before replacing editor geometry. Current bounds include two million input triangles, 256 occurrences/shells for the GPU classifier, four million candidate pairs/fragments, bounded per-face constraints and device binding limits. These are implementation limits, not an assertion that arbitrary corrupt polygon soup has a uniquely recoverable volume. Edge-incidence validation alone is not a general exact-arithmetic proof of intersection-free geometry.
 
-## Measured results, 2026-11-03
+## Dirty STL results, 2026-11-05
+
+Runtime Frame 2026 05 nov 08:55, SHA-256 `8653af5e322f7312d8435632731f4b6822954a01b404c301bcb6708e759277c3`. The original seven files passed native completion and independent exact Float32 topology, proper-intersection and continuous forward checks. The source SHA-256 values matched before and after every operation. The numbers below include the complete editor operation; export and independent audit run separately. Peak GPU storage is preparation-owned, and the observed host figure combines dedicated worker and main-frame managed storage. See [the recorded run](unite-repair-results.json) for per-file digests, tolerance bounds, additional editor GPU memory and the separate conservative host estimate.
+
+| Original STL | Source triangles | Output triangles | Operation (s) | Preparation GPU peak (MiB) | Observed managed host peak (MiB) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1, 2.stl | 462,486 | 262,520 | 332.257 | 25.24 | 364.1 |
+| 3.stl | 238,616 | 157,780 | 63.037 | 11.07 | 202.61 |
+| 4, 4.1, 10 нов.stl | 431,559 | 295,926 | 79.601 | 45.28 | 305.98 |
+| 5 отдельно вертикально.stl | 269,061 | 188,156 | 39.371 | 33.97 | 310.18 |
+| 6 совместно.stl | 211,946 | 162,980 | 121.815 | 27.9 | 258.4 |
+| 7.stl | 235,080 | 192,648 | 30.653 | 29.48 | 240.46 |
+| 8, 9.stl | 649,615 | 625,062 | 155.161 | 52.37 | 389.98 |
+
+The reverse clearance probes are finite. A separate six-view check of the final `1, 2.stl` export found sixteen visible source samples beyond the lateral tolerance; all corresponded to paired source layers no more than 2.171e-7 coordinate units apart, against a 1.258e-4 tolerance. These sub-tolerance defects may be removed under the stated repair policy.
+
+## Historical results, 2026-11-03
 
 The measurements below use native NVIDIA Turing WebGPU, runtime SHA-256 `65a7f0967280eddebbcd511f30cbf052da99108cebbe5bb118fea21b304c1b02` and Printer SHA-256 `d4c4d1fb76ba87762e49fd8bec1d8f7fe4dc499d26b2e50fb7f27732ed382827`. They are local individual cold/warm runs, not universal throughput guarantees. Full source-bound records are in [unite-results.json](unite-results.json).
 

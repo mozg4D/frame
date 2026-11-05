@@ -1,0 +1,207 @@
+{
+  "version": "Frame 2026 05 nov 08:55",
+  "indexSHA256": "8653af5e322f7312d8435632731f4b6822954a01b404c301bcb6708e759277c3",
+  "kernelSHA256": "0e3a6b442b66860e300070e4063bb0c9606301c6f39637df2f4fe79dc556378c",
+  "adapter": "NVIDIA GeForce RTX 2080 Ti",
+  "measurement": "Complete editor operation, including capture, cleanup and publication. The independent verification runs after the native STL export and is excluded from operation time.",
+  "sourcePolicy": "Read-only originals; SHA-256 before and after each operation. Part files excluded.",
+  "pass": true,
+  "models": [
+    {
+      "name": "1, 2.stl",
+      "sourceSHA256": "94f5a9137ce9f287bc4f1e8e9637a8607057efbb8467ecb990ae07f1572a4308",
+      "outputSHA256": "9e78d12929363e30516805e87442fde2b21e574fa05f5da1809bd42b7cea36b3",
+      "inputTriangles": 462486,
+      "outputTriangles": 262520,
+      "operationSeconds": 332.257,
+      "peakGPUBytes": 26461904,
+      "editorAdditionalGPUBytes": 43281060,
+      "estimatedCPUBytes": 1533620908,
+      "observedManagedHostPeakBytes": 381788336,
+      "surface": {
+        "sourceSHA256": "94f5a9137ce9f287bc4f1e8e9637a8607057efbb8467ecb990ae07f1572a4308",
+        "tolerance": 0.0001257980227470398,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00012579801156355102
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.003300226925356946,
+        "referenceVolume": 0.003300255262257597
+      }
+    },
+    {
+      "name": "3.stl",
+      "sourceSHA256": "8e5c26e8defd41a3faaada10b7262ab15a2ff18958a67d5b30a1901cdd8c6f0f",
+      "outputSHA256": "eec3f1428227ca79b73efbf3c8cc86c29d064a844987ef40685321d068043aa4",
+      "inputTriangles": 238616,
+      "outputTriangles": 157780,
+      "operationSeconds": 63.037,
+      "peakGPUBytes": 11602704,
+      "editorAdditionalGPUBytes": 25115488,
+      "estimatedCPUBytes": 639779952,
+      "observedManagedHostPeakBytes": 212453827,
+      "surface": {
+        "sourceSHA256": "8e5c26e8defd41a3faaada10b7262ab15a2ff18958a67d5b30a1901cdd8c6f0f",
+        "tolerance": 0.00012663576006889343,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00012663568814407083
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.003430934420888251,
+        "referenceVolume": 0.0034309336518420492
+      }
+    },
+    {
+      "name": "4, 4.1, 10 нов.stl",
+      "sourceSHA256": "d5e11098ddc0473dcf657a45db1e2f01d13afb82acff0c785fdd88c377f19c43",
+      "outputSHA256": "e5e6088b4abc268bb0d2cdcce31ad506a9c6d372a6d480d5761f45211e6847d1",
+      "inputTriangles": 431559,
+      "outputTriangles": 295926,
+      "operationSeconds": 79.601,
+      "peakGPUBytes": 47483816,
+      "editorAdditionalGPUBytes": 47613804,
+      "estimatedCPUBytes": 828981492,
+      "observedManagedHostPeakBytes": 320841635,
+      "surface": {
+        "sourceSHA256": "d5e11098ddc0473dcf657a45db1e2f01d13afb82acff0c785fdd88c377f19c43",
+        "tolerance": 0.00012444504499435426,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00012444502921301272
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.007511690192825055,
+        "referenceVolume": 0.007511667232133335
+      }
+    },
+    {
+      "name": "5 отдельно вертикально.stl",
+      "sourceSHA256": "7addd853b5823b9d6caae05daa57f325b66c55ddaf5d796094066b44651767c2",
+      "outputSHA256": "2f8c8f71466ac543c8d5bcadc2feac96e0f6b251774b89047a733500c5f85c29",
+      "inputTriangles": 269061,
+      "outputTriangles": 188156,
+      "operationSeconds": 39.371,
+      "peakGPUBytes": 35620536,
+      "editorAdditionalGPUBytes": 35620536,
+      "estimatedCPUBytes": 570278388,
+      "observedManagedHostPeakBytes": 325244310,
+      "surface": {
+        "sourceSHA256": "7addd853b5823b9d6caae05daa57f325b66c55ddaf5d796094066b44651767c2",
+        "tolerance": 0.00012917559146881103,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00012917550783156514
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.005691880634185438,
+        "referenceVolume": 0.0056918804839833186
+      }
+    },
+    {
+      "name": "6 совместно.stl",
+      "sourceSHA256": "2c92a2ad61028c8a62eb23a827297a3d4bdf325d63fa8112af178d740d8525a3",
+      "outputSHA256": "320326f0680431f232c1425eed3f4e075daeb951b78ff0b7e01289f05a32b1b6",
+      "inputTriangles": 211946,
+      "outputTriangles": 162980,
+      "operationSeconds": 121.815,
+      "peakGPUBytes": 29255168,
+      "editorAdditionalGPUBytes": 29255168,
+      "estimatedCPUBytes": 609631948,
+      "observedManagedHostPeakBytes": 270955593,
+      "surface": {
+        "sourceSHA256": "2c92a2ad61028c8a62eb23a827297a3d4bdf325d63fa8112af178d740d8525a3",
+        "tolerance": 0.00011905757188796997,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00011905754889703652
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.0019651892395296067,
+        "referenceVolume": 0.0019651926217639855
+      }
+    },
+    {
+      "name": "7.stl",
+      "sourceSHA256": "6a280404752f957741fa8dcd32c397876a57f6ccf2f5f64cf5ef9df7c7ea5692",
+      "outputSHA256": "d99c2cfb68418506092c980210c667e5c71e5a069756a350c2935e2907acc806",
+      "inputTriangles": 235080,
+      "outputTriangles": 192648,
+      "operationSeconds": 30.653,
+      "peakGPUBytes": 30910384,
+      "editorAdditionalGPUBytes": 30910384,
+      "estimatedCPUBytes": 473523176,
+      "observedManagedHostPeakBytes": 252139855,
+      "surface": {
+        "sourceSHA256": "6a280404752f957741fa8dcd32c397876a57f6ccf2f5f64cf5ef9df7c7ea5692",
+        "tolerance": 0.00012560459971427919,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.00012560457438649445
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.0036615721561526417,
+        "referenceVolume": 0.0036615620880273564
+      }
+    },
+    {
+      "name": "8, 9.stl",
+      "sourceSHA256": "c3cba631ab3e018ea17d8e22257511538781577135584c0c22121ce56a7627a3",
+      "outputSHA256": "637e758f600d8578528c4698dc106b96b2768200b28054db0107780437d6d4ea",
+      "inputTriangles": 649615,
+      "outputTriangles": 625062,
+      "operationSeconds": 155.161,
+      "peakGPUBytes": 54912264,
+      "editorAdditionalGPUBytes": 99604620,
+      "estimatedCPUBytes": 1465024864,
+      "observedManagedHostPeakBytes": 408927250,
+      "surface": {
+        "sourceSHA256": "c3cba631ab3e018ea17d8e22257511538781577135584c0c22121ce56a7627a3",
+        "tolerance": 0.00012894479036331178,
+        "failedFaces": 0,
+        "unresolvedFaces": 0,
+        "certifiedUpper": 0.000128944754425903
+      },
+      "properIntersections": 0,
+      "vertexFanIssues": 0,
+      "degenerateTriangles": 0,
+      "retention": {
+        "missingSamples": 0,
+        "maxDistance": 0,
+        "volume": 0.010782534140747448,
+        "referenceVolume": 0.01078253631134378
+      }
+    }
+  ]
+}

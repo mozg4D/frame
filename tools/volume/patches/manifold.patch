@@ -1,0 +1,23 @@
+diff --git a/src/impl.cpp b/src/impl.cpp
+index 0267a33..dc24032 100644
+--- a/src/impl.cpp
++++ b/src/impl.cpp
+@@ -1,3 +1,4 @@
++extern "C" double frame_volume_precision();
+ // Copyright 2021 The Manifold Authors.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+@@ -682,7 +683,7 @@ Manifold::Impl Manifold::Impl::Transform(const mat3x4& transform_) const {
+  * by the optional input.
+  */
+ void Manifold::Impl::SetEpsilon(double minEpsilon, bool useSingle) {
+-  epsilon_ = MaxEpsilon(minEpsilon, bBox_);
++  epsilon_ = MaxEpsilon(std::max(minEpsilon,bBox_.Scale()*frame_volume_precision()), bBox_);
+   double minTol = epsilon_;
+   if (useSingle)
+     minTol =
+@@ -929,3 +930,4 @@ bool Manifold::WriteOBJ(std::ostream& stream) const {
+ }
+ #endif
+ }  // namespace manifold
++

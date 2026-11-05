@@ -53,7 +53,8 @@
     "test:unite:manifold": "node tests/unite-manifold.mjs",
     "test:unite:integration": "node tests/unite-integration.mjs",
     "test:unite:corpus": "node tests/unite-benchmark.mjs",
-    "test:unite:ldi": "node tests/unite-compare.mjs"
+    "test:unite:ldi": "node tests/unite-compare.mjs",
+    "test:unite:kernel": "node tests/unite-kernel.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
