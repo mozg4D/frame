@@ -1,0 +1,38 @@
+{
+  "format": "frame-exchange-binary-parts-v1",
+  "purpose": "Focused Docs technical qualification package; not a release",
+  "archive": {
+    "filename": "frame-docs-focused-20261107-2208-r3.zip",
+    "size": 13067680,
+    "sha256": "153d67476a9b121784ec21ede7a123e53a8d3873c78fde82ff361c05f688e261",
+    "git_blob_sha1": "a7e63e1524b31326b28a5ef2bb5798ca0e401c33",
+    "extracted_root": "frame-docs-focused-20261107-2208-r3"
+  },
+  "parts": [
+    {
+      "order": 1,
+      "path": "exchange/frame-docs-focused-20261107-2208-r3-153d6747.zip.part01",
+      "size": 8388608,
+      "sha256": "3f4f30e1ae6d9759b7e0420fb6d63fb39072cf8faa65345d36260b2f0c7615c0",
+      "git_blob_sha1": "e17af1615795b4167b7232b891c462f3c663ccff"
+    },
+    {
+      "order": 2,
+      "path": "exchange/frame-docs-focused-20261107-2208-r3-153d6747.zip.part02",
+      "size": 4679072,
+      "sha256": "42f5843379055091816a574d628f598315129f02ea4ac2b19ab1a15ec7dc4870",
+      "git_blob_sha1": "54ed29959022a91864e74da6ce9bbf8fadfb2dcf"
+    }
+  ],
+  "reassembly": "Concatenate the binary bytes of part01 then part02, without text decoding or newline insertion. Verify every part size and SHA256, then the archive size and SHA256 before extraction. Verify the frozen source inventory and every listed source hash before executing any package code.",
+  "source_inventory": {
+    "path": "DOCS-GATE-INVENTORY.json",
+    "file_count": 173,
+    "sha256": "88c8eb186292f8cd7088b6304562aec32fd73121cd0d89ffc421ddd6d58cf2e6"
+  },
+  "runtime": {
+    "index.html": "c4dd55f425708ea0ac1f3bae0345db3f4b4084e797f7e6b2ad9f492c0b4402e3",
+    "frame-sw.js": "8a7479df4744389287ebb79142c08784fcbfe0387cd04a13c42eb970b51267d0"
+  },
+  "status": "15 CPU stages passed; browser/hardware qualification has not run. Full standard/stress, real OS IME and installed-PWA gates are not certified. No main branch or live site deployment."
+}
