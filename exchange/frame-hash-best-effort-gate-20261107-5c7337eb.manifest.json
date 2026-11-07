@@ -1,0 +1,17 @@
+{
+  "BASE-OPTIONAL.json": "ebabfe84e04d676e9f9bbc88de0789f440508af0846e280afe5531b09d6909f4",
+  "BASE-REQUIRED.json": "05cfef78e5941320376adca66197f6a032becece697440a34ac066eed9bf04cc",
+  "HOST-VALIDATION.json": "0fa0f9703174030da5604d1c39e6d913d8e403c8acde430bba3bd62050136635",
+  "OVERLAY-SHA256.json": "ced5251a7f70a2caa774a2f02d385255dd85416c1d9cc5ac94ca7b42850638c5",
+  "PREPARATION-VALIDATION.json": "56d0abad86ddf8e126900ea6ac555686ae41b981f0f8612456fb493360aeb71a",
+  "README.txt": "58056ab8d565a77b6096bbb168a1fbed892c98fd4475f919dda049f4f679bd20",
+  "hash-best-effort.patch": "3b4ec7de10d8164ff9568719d251fc535650ebae148262cec956631c6d1cfd31",
+  "overlay/app.md": "26c31f61c1a0743d89b0524e3cde3a495af2476a197c3cc6f479b655c32ac786",
+  "overlay/index.html": "a78e9964b4d096104f446f50f98866d9bdf5347d96a8c9973753b22bb56a1c02",
+  "overlay/package.json": "9749db1583085c609cf8b6216e91c46ade06c68c7b24fbec07886aba614c0621",
+  "overlay/plugins.md": "642826a7ad485f52cd6d5e3626ce13ae37bb4af1c002586b82924e99cec09466",
+  "overlay/tests/hash-best-effort-browser.mjs": "e3608069492eb8a0cb52f118400d388fb36e8fe100d688f7b2598e3fc7f69b11",
+  "overlay/tests/hash-best-effort.mjs": "11f3669d805ae21279dcade6a4ffbf0d684cf2411e11037ba3714763fea91c40",
+  "overlay/tests/run.mjs": "fa46d369835cdae043c735424dcb9f93ce2c02879aa6f32aebdc25c5e23c5a6c",
+  "prepare.mjs": "924c53c28f50a5a63a38e157f9c078383fd3d4587d530cfc6ed6551b013521ab"
+}
