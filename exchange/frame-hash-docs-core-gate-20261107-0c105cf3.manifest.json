@@ -1,0 +1,21 @@
+{
+  "BASE-OPTIONAL.json": "ebabfe84e04d676e9f9bbc88de0789f440508af0846e280afe5531b09d6909f4",
+  "BASE-REQUIRED.json": "325578ae265cff523ef5495cb168254c58a86028fda2df38ebcfd3cbc52e0814",
+  "HOST-VALIDATION.json": "318cc890afd67539d30fe05eff49e3e7c592988e0665a8321e08a5e6b48f699a",
+  "OVERLAY-SHA256.json": "f8f4075fcaae4400a37d87b2bd78b280ad526ebab745c37dbaafbcc5927dbee9",
+  "README.txt": "c805dbec8a6d73c303a084822107c11a64e783ee5dc5b985178f7eb4fab811ee",
+  "overlay/HASH-DOCS-QUALIFICATION.md": "b4eb2bddcf5cb6769cc9ebbd52d2559a0e60b996ed4491cc432fd3564b08bb7a",
+  "overlay/HASH-DOCS-SOURCES.json": "9609a6abbc48d83db20ad2ef3772837b091d74b81cadcb1a50eb72ed1e54a10a",
+  "overlay/SCENE-DOCS-ARCHITECTURE.md": "fcb5d81aefd198b59cf3f78c05762fe34464bca613555adae445c99b2bfcc54c",
+  "overlay/app.md": "462aab9a50bbaaf9582d525b38a54ef976d9ccf9be60a10ff96286463ee419f0",
+  "overlay/index.html": "dc71a654ab8d5406244be074ba49d25b3df8e8034542c7bcd93ac03be33d62dc",
+  "overlay/package.json": "484a7a0923e2251e0d1ab385894547e83b3bc4c13d2545c21d5a839f95794e5c",
+  "overlay/tests/hash-best-effort.mjs": "af0ee0047ff5ce5e910b7947c4e181f05b1349a71406f8f5b86f00f5e291ea1d",
+  "overlay/tests/hash-docs-browser.mjs": "11408af56442f17370c1f0d259568d770038236fcaedf05d61f26aab19c89fe3",
+  "overlay/tests/hash-docs-lifecycle.mjs": "417cb2caccc66aec999ce9bdac9371bf4671d4c01c409daa89cbc48b5b6b2028",
+  "overlay/tests/plugin-references-browser.mjs": "603b8806fb8861bd92455cc335593ac7c1630d57d86ba1b07ca66ff82f915d44",
+  "overlay/tests/plugin-references.mjs": "d7664ebcb6be1a1e9a9d286942a54fc9b742e829695a9dfd20517f2254822921",
+  "overlay/tests/run.mjs": "31be9515413216e50cbd0ac452345692fbc4d8f9019c83bf8e930fb48c17c387",
+  "overlay/tests/scene-documentation.mjs": "e08c0e38891e807270f294e0364feea9eea68e6d4f9176f49378607baecd539d",
+  "prepare.mjs": "3630c9cc7e82da84f1a58527de7fefae8bddd4383a3b034027e716611c847f88"
+}
