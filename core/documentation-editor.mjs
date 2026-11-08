@@ -1,4 +1,5 @@
 import {session,edit,selectionAfter,presentation,rescueRecord,readRescue} from './documentation-sync.mjs';
+import {installDocumentationGeometry} from './documentation-geometry.mjs';
 const area=document.querySelector('textarea'),status=document.querySelector('output'),token=location.hash.slice(1),rescueKey='frame-docs-draft-v1';
 let port=null,composing=false,finishing=false,finishTimer=null,lastState=null,recoveryWarning='',operationWarning='',seal=null;
 const selection=()=>({start:area.selectionStart,end:area.selectionEnd,direction:area.selectionDirection});
@@ -43,5 +44,5 @@ area.addEventListener('select',()=>persist(lastState));
 window.addEventListener('beforeunload',e=>{capture();persist(lastState);if(lastState?.pending||lastState?.dirty||lastState?.fault||composing||finishing){e.preventDefault();e.returnValue='';}});
 window.addEventListener('pagehide',()=>{capture();persist(lastState);if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=null;port?.close();});
 try{const recovered=readRescue(window.sessionStorage.getItem(rescueKey),token);if(recovered){sync.restore(recovered);area.setSelectionRange(recovered.start,recovered.end,recovered.direction);persist(lastState);}}catch{recoveryWarning='Reload recovery unavailable. Keep this window open and copy any unsaved draft before closing.';status.hidden=false;status.textContent=recoveryWarning;}
-if(opener&&token)opener.postMessage({kind:'frame-docs-ready',token},location.origin);else if(!lastState){status.hidden=false;status.textContent='Open documentation from the scene’s Docs button.';}
+if(opener&&token){installDocumentationGeometry();opener.postMessage({kind:'frame-docs-ready',token},location.origin);}else if(!lastState){status.hidden=false;status.textContent='Open documentation from the scene’s Docs button.';}
 setInterval(()=>{if(port&&(!opener||opener.closed))disconnect();},1000);

@@ -15,9 +15,9 @@ Object.assign(area, {value: '', disabled: true, readOnly: false, selectionStart:
   setSelectionRange(start, end, direction) {Object.assign(this, {selectionStart: start, selectionEnd: end, selectionDirection: direction});}});
 win.sessionStorage = {getItem: k => saved.get(k) ?? null, setItem: (k,v) => saved.set(k,v), removeItem: k => saved.delete(k)};
 const opener = {closed: false, postMessage() {}}, port = {postMessage: m => sent.push(structuredClone(m)), close() {}};
-const context = vm.createContext({...sync, document: {querySelector: s => s === 'textarea' ? area : output}, window: win, opener,
+const context = vm.createContext({...sync, installDocumentationGeometry() {}, document: {querySelector: s => s === 'textarea' ? area : output}, window: win, opener,
   location: {hash: '#test', origin: 'https://frame.example'}, setInterval() {}, setTimeout, clearTimeout});
-vm.runInContext(source.replace(/^import[^\n]*\n/, ''), context);
+vm.runInContext(source.replace(/^import[^\n]*\n/gm, ''), context);
 const check = (name, actual, expected = true) => {assert.deepEqual(actual, expected, name); checks.push(name);};
 const checks = [], start = performance.now();
 const receive = data => port.onmessage({data});

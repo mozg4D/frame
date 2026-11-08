@@ -1,3 +1,13 @@
+## Doc window geometry (2026-11-08)
+
+Doc remembers its popup content size and screen position in local browser preferences, independent of scene/HASH data. Resize, focus loss, a lightweight one-second move poll and close capture the latest valid bounds. Repeated Doc clicks only focus the open window. Reopening Doc, reloading Frame and installed/offline use share the same per-origin preference.
+
+Restore clamps the window to the available work area, accounting for outer bounds, browser zoom and changed resolution. Extended-display coordinates are retained when the browser reports an extended desktop; otherwise a removed or inaccessible display is mapped to the current screen. The browser/OS may constrain placement, ignore popup sizing, or open a tab instead. No display-enumeration permission is requested. Chrome's one-pixel feature-size rounding is corrected once inside the newly opened popup; there is no ongoing forced resize and the main window is never moved. Invalid or unavailable localStorage falls back safely and does not affect documentation drafts or saving.
+
+A completed clean Doc close no longer leaves the next file operation waiting on a closed message port while the browser propagates its closed flag. The pending seal observes only its exact child and port, stops observing at acknowledgement, and keeps the existing acknowledged lease verification. Canceled closes and replaced connections remain blocked. This is closed-window handling, not a draft flush: accepting the browser's unsaved-draft close warning retains the previous discard semantics; a rejected late write is drained without being committed.
+
+Focused CPU and native-browser regressions are tests/documentation-geometry.mjs and tests/documentation-geometry-browser.mjs (with --headless and optional --offline). These cover geometry only; Doc text undo/synchronization is unchanged. Runtime/service-worker version: Frame 2026 08 nov 11:50.
+
 # F1 application Help (2026-11-08)
 
 Unmodified F1 opens the existing Help dialog while the main Frame page has keyboard focus, including editable controls that stop event bubbling. It uses the same path as the Help button, closes transient menus, does not route into viewport shortcuts, and ignores key-repeat after the first press. Escape uses native dialog dismissal and focus restoration. Controls keep their normal blur/commit behavior, just as with the Help button. Modified F1 and active IME composition are not intercepted. The separate Doc window is unchanged.

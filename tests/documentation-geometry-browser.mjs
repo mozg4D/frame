@@ -1,0 +1,28 @@
+// Own browser/profile only. No user tab, pointer or scene is accessed.
+import assert from 'node:assert/strict';
+import {readFile,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {chromium} from 'playwright';
+import {serve,ready} from '../tools/browser.mjs';
+const paths=['index.html','frame-sw.js','documentation.html','core/documentation-window.mjs','core/documentation-editor.mjs','core/documentation-geometry.mjs','core/documentation-sync.mjs','tests/documentation-geometry-browser.mjs'];
+const hashes=async()=>Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));
+const report={pass:false,sources:await hashes(),headless:process.argv.includes('--headless'),offline:process.argv.includes('--offline'),checks:[],timings:[],errors:[]};
+const check=(name,condition)=>{report.checks.push({name,pass:!!condition});assert.ok(condition,name);};
+const timed=async(name,fn)=>{const start=performance.now();const result=await fn();const ms=performance.now()-start;report.timings.push({name,ms,budgetMs:3000});check(name+' within 3000 ms',ms<3000);return result;};
+const server=await serve();let browser;
+try{
+ browser=await chromium.launch({headless:report.headless,executablePath:process.env.FRAME_BROWSER,ignoreDefaultArgs:['--enable-unsafe-swiftshader'],args:['--enable-unsafe-webgpu','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
+ const context=await browser.newContext({viewport:null,serviceWorkers:report.offline?'allow':'block'}),page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.message));await page.goto(server.url+'/index.html');await ready(page);
+ if(report.offline){await page.evaluate(()=>navigator.serviceWorker.ready.then(()=>true));await page.waitForFunction(()=>!!navigator.serviceWorker.controller);await context.setOffline(true);await page.reload();await ready(page);check('Offline geometry module is cached',await page.evaluate(async()=>{const r=await fetch('./core/documentation-geometry.mjs');return r.ok&&r.headers.get('content-type').includes('javascript');}));}
+ report.gpu=await page.evaluate(()=>{const a=frameEngine.renderer.device.adapterInfo;return {vendor:a.vendor,description:a.description,isFallbackAdapter:a.isFallbackAdapter};});check('Native hardware, no software fallback',report.gpu.isFallbackAdapter===false&&!/swiftshader|software|llvmpipe/i.test(JSON.stringify(report.gpu)));
+ const open=()=>timed('Open editable Doc',async()=>{const event=page.waitForEvent('popup');await page.click('#btnDocs');const p=await event;p.on('pageerror',e=>report.errors.push(e.message));await p.waitForFunction(()=>{const a=document.querySelector('textarea');return a&&!a.disabled&&!a.readOnly;});return p;});
+ const measure=p=>p.evaluate(()=>({left:screenX,top:screenY,width:innerWidth,height:innerHeight,outerWidth,outerHeight}));
+ let popup=await open();report.first=await measure(popup);
+ await popup.evaluate(()=>{resizeTo(596,444);moveTo(133,111);});await popup.waitForTimeout(150);report.moved=await measure(popup);check('Test changes its own popup position',report.moved.left!==report.first.left||report.moved.top!==report.first.top);check('Test changes its own popup size',report.moved.width!==report.first.width||report.moved.height!==report.first.height);
+ const pages=context.pages().length;await page.click('#btnDocs');check('Repeated click reuses popup',context.pages().length===pages);check('Repeated click does not reset geometry',JSON.stringify(await measure(popup))===JSON.stringify(report.moved));
+ await popup.locator('textarea').fill('Geometry fixture text');await page.waitForFunction(()=>frameDocumentation.get().text==='Geometry fixture text');
+ await timed('Close and reopen remembered Doc',async()=>{const closed=popup.waitForEvent('close');await popup.close({runBeforeUnload:true});await closed;popup=await open();});report.reopened=await measure(popup);check('Reopen retains size and position',JSON.stringify(report.reopened)===JSON.stringify(report.moved));for(let i=0;i<3;i++){const closed=popup.waitForEvent('close');await popup.close({runBeforeUnload:true});await closed;popup=await open();check('Repeated reopen '+i+' has no size drift',JSON.stringify(await measure(popup))===JSON.stringify(report.moved));}check('Geometry does not change documentation',await popup.locator('textarea').inputValue()==='Geometry fixture text');
+ await popup.evaluate(()=>moveTo(177,155));report.movedOnly=await measure(popup);await popup.close({runBeforeUnload:true});await page.waitForFunction(()=>JSON.parse(localStorage.getItem('frame-docs-window-v1')).left===177);await page.reload();await ready(page);popup=await open();report.afterReload=await measure(popup);check('Main reload keeps remembered geometry',JSON.stringify(report.afterReload)===JSON.stringify(report.movedOnly));
+ check('Preference stores geometry only',await page.evaluate(()=>{const x=JSON.parse(localStorage.getItem('frame-docs-window-v1'));return Object.keys(x).sort().join(',')==='height,left,outerHeight,outerWidth,screen,top,width';}));
+ check('No JavaScript errors',!report.errors.length);report.pass=true;
+}catch(error){report.error=error.stack;process.exitCode=1;}finally{await browser?.close();await server.close();report.sourcesAfter=await hashes();if(JSON.stringify(report.sources)!==JSON.stringify(report.sourcesAfter)){report.pass=false;report.error='Source changed during run';process.exitCode=1;}await writeFile(new URL('./results/documentation-geometry-browser'+(report.offline?'-offline':'')+'.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}

@@ -1,0 +1,79 @@
+{
+  "baseCommit": "6d2a3198eba34a26c19408409b34208dcbff9361",
+  "releaseVersion": "2026 08 nov 11:50",
+  "files": {
+    "index.html": {
+      "baseSHA256": "59f9bc7a9ba93f91d659d19573856b908e9c198ba3cc9f410af70d1efd6df64d",
+      "patches": [
+        {
+          "before": "<meta name=\"frame-version\" content=\"2026 08 nov 10:44\">\n<title>Frame 2026 08 nov 10:44</title>\n",
+          "after": "<meta name=\"frame-version\" content=\"2026 08 nov 11:50\">\n<title>Frame 2026 08 nov 11:50</title>\n",
+          "count": 1
+        }
+      ]
+    },
+    "frame-sw.js": {
+      "baseSHA256": "c166a9677c35f33811a7c51e53b3c6aef3afed340e0ef76b60ef7ee9aa2fddea",
+      "patches": [
+        {
+          "before": "const VERSION='2026 08 nov 10:44',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;\n",
+          "after": "const VERSION='2026 08 nov 11:50',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;\n",
+          "count": 1
+        },
+        {
+          "before": "const CORE=[\"index.html\",\"documentation.html\",\"core/documentation-window.mjs\",\"core/documentation-editor.mjs\",\"core/documentation-sync.mjs\",\"manifest.webmanifest\",\"frame-icon-v4.svg\",\"frame-icon-192-v4.png\",\"frame-icon-512-v4.png\",\"frame-icon-maskable-512.png\",\"frame-hash-256-v4.png\",\"frame-v4.ico\",\"plugins/index.json\",\"kernels/volume-0e3a6b442b66860e3000.wasm\"];\n",
+          "after": "const CORE=[\"index.html\",\"documentation.html\",\"core/documentation-window.mjs\",\"core/documentation-geometry.mjs\",\"core/documentation-editor.mjs\",\"core/documentation-sync.mjs\",\"manifest.webmanifest\",\"frame-icon-v4.svg\",\"frame-icon-192-v4.png\",\"frame-icon-512-v4.png\",\"frame-icon-maskable-512.png\",\"frame-hash-256-v4.png\",\"frame-v4.ico\",\"plugins/index.json\",\"kernels/volume-0e3a6b442b66860e3000.wasm\"];\n",
+          "count": 1
+        }
+      ]
+    },
+    "core/documentation-window.mjs": {
+      "baseSHA256": "34e3ad3c5efc674e17abf183879716809f225b8bf249f672dff36224d5a4eda3",
+      "patches": [
+        {
+          "before": "",
+          "after": "import {documentationWindowFeatures} from './documentation-geometry.mjs';\n",
+          "count": 1
+        },
+        {
+          "before": " const abort=message=>{if(!seal)return;const current=seal;seal=null;clearTimeout(current.timer);current.close();try{send(current.port,{kind:'release',id:current.id,error:message});}catch{}current.reject(error(message));};\n",
+          "after": " const abort=message=>{if(!seal)return;const current=seal;seal=null;clearTimeout(current.timer);clearInterval(current.watch);current.close();try{send(current.port,{kind:'release',id:current.id,error:message});}catch{}current.reject(error(message));};\n",
+          "count": 1
+        },
+        {
+          "before": "   current.close();clearTimeout(current.timer);current.version=m.version;current.acknowledged=true;\n",
+          "after": "   current.close();clearTimeout(current.timer);clearInterval(current.watch);current.version=m.version;current.acknowledged=true;\n",
+          "count": 1
+        },
+        {
+          "before": " button.onclick=()=>{if(child&&!child.closed){child.focus();return;}token=crypto.randomUUID();child=host.open(new URL('../documentation.html#'+token,import.meta.url),'frame-docs-'+token,'popup,width=760,height=700');if(!child)host.alert('Allow this documentation window to open, then click Docs again.');};\n",
+          "after": " button.onclick=()=>{if(child&&!child.closed){child.focus();return;}token=crypto.randomUUID();child=host.open(new URL('../documentation.html#'+token,import.meta.url),'frame-docs-'+token,documentationWindowFeatures(host));if(!child)host.alert('Allow this documentation window to open, then click Docs again.');};\n",
+          "count": 1
+        },
+        {
+          "before": "  return new Promise((resolve,reject)=>{const current=seal={id:++next,port,epoch,close,resolve,reject};current.timer=setTimeout(()=>abort('Docs did not finish in time. Keep the draft open and retry the file operation.'),timeout);try{send(port,{kind:'seal',id:current.id,mode});}catch{abort('Docs connection failed. Keep the draft open and retry.');}});\n",
+          "after": "  return new Promise((resolve,reject)=>{const current=seal={id:++next,port,child,epoch,close,resolve,reject};current.timer=setTimeout(()=>abort('Docs did not finish in time. Keep the draft open and retry the file operation.'),timeout);current.watch=setInterval(()=>{if(seal!==current||current.acknowledged)return;if(child!==current.child||port!==current.port){abort('Docs connection changed. Retry the file operation.');return;}if(!current.child.closed)return;seal=null;clearTimeout(current.timer);clearInterval(current.watch);current.close();current.resolve(null);},25);try{send(port,{kind:'seal',id:current.id,mode});}catch{abort('Docs connection failed. Keep the draft open and retry.');}});\n",
+          "count": 1
+        }
+      ]
+    },
+    "core/documentation-editor.mjs": {
+      "baseSHA256": "afc2e507ee43077bb9657db577d7cf2cce92c8dc44d98e32918cd473d9200709",
+      "patches": [
+        {
+          "before": "",
+          "after": "import {installDocumentationGeometry} from './documentation-geometry.mjs';\n",
+          "count": 1
+        },
+        {
+          "before": "if(opener&&token)opener.postMessage({kind:'frame-docs-ready',token},location.origin);else if(!lastState){status.hidden=false;status.textContent='Open documentation from the scene\u2019s Docs button.';}\n",
+          "after": "if(opener&&token){installDocumentationGeometry();opener.postMessage({kind:'frame-docs-ready',token},location.origin);}else if(!lastState){status.hidden=false;status.textContent='Open documentation from the scene\u2019s Docs button.';}\n",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "newFiles": {
+    "core/documentation-geometry.mjs": "e3768c5cde2abee77095e6ff69b1f7e8f09a2b2f20e32a1b5d42ecd29e00d327"
+  }
+}
