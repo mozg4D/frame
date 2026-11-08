@@ -1,7 +1,7 @@
 {
   "format": "frame-reviewed-non-unite-v1",
   "name": "release-non-unite",
-  "releaseVersion": "2026 08 nov 13:30",
+  "releaseVersion": "2026 08 nov 15:30",
   "modules": [
     "tests/suite.js",
     "tests/performance.mjs",
@@ -52,8 +52,8 @@
     "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
     "core/documentation-window.mjs": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907",
     "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
-    "frame-sw.js": "c60c8ebd04bc3931858b5d461f3ca62bfdad37bd73611c087478033e943cb4f2",
-    "index.html": "78fd90c133116a2d94e9147c085a41e907d4edccc9f822cba56b934953809546",
+    "frame-sw.js": "7b039989fe586ddc71ce836930cadf672230a6944fa38789083a5523c1c0feef",
+    "index.html": "da143ca4641dcdcf0a096a5fb67556d2309381905deb53633ca3a6812e97d288",
     "kernels/NOTICE.md": "ebad3785cd99f036a332772aa5c767e33f01387902aedce8795064f6112b1169",
     "kernels/licenses/amgcl.txt": "95d7a4dff94857349e7c5cad45cf86a2a4952bbe3ec4eb8fd21b07e178578a10",
     "kernels/licenses/emscripten.txt": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c",
@@ -207,8 +207,10 @@
     "tests/documentation-history-memory.mjs": "1e88c97aa928ec4621a7a677b740b9b478d4e5f2ad1efb96ce64c9924dece81c",
     "tests/documentation-history-native.mjs": "1ca7a5c39e3638e82c4405af5c16764c7eabd842638c5191a34b228202f5776c",
     "tests/documentation-history.mjs": "597a94a9a46b254b89158f0b8bd92b3b91396bb6810b0df52361769005d18648",
-    "tests/documentation-history-binding.mjs": "e00fd01ddb256ec91b1c7e137f65b54500c40c9ca8582704867bcb0fc8fabaa6",
-    "tests/documentation-history-layer.json": "cd45fb181070e80d5e0b2f84cf38faa76a6e1c70d142f1e2a3c9bed1c9034d60"
+    "tests/documentation-history-binding.mjs": "a8e7111b91715f2469a16954ebab57d6420e56fd1b8db048ad326c2fc3344e40",
+    "tests/documentation-history-layer.json": "cd45fb181070e80d5e0b2f84cf38faa76a6e1c70d142f1e2a3c9bed1c9034d60",
+    "tests/detachable-views-binding.mjs": "8c5b0c2e05d15df26c62768e7539d9f504cdd0c4bd5e1324b9736d0361267514",
+    "tests/detachable-views-layer.json": "94913065816893e4e433d494ae25c293cbf3bace118e4ac60a8d97cedca1b734"
   },
   "selectedStandardStages": [
     "suite",
