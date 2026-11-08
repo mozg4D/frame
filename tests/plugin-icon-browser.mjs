@@ -27,13 +27,13 @@ try{
       const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);const data=ctx.getImageData(0,0,32,32).data,alpha=(x,y)=>data[4*(y*32+x)+3];
       let x0=32,y0=32,x1=-1,y1=-1,painted=0;for(let y=0;y<32;y++)for(let x=0;x<32;x++)if(alpha(x,y)>0){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);painted++;}
       return {decoded:true,complete:img.complete,width:img.width,height:img.height,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,rect:{width:rect.width,height:rect.height},transform:style.transform,bounds:{x0,y0,x1,y1,width:x1-x0+1,height:y1-y0+1},painted,
-        thermalVertical:[16,17,18,19].map(y=>[alpha(6,y),alpha(7,y),alpha(8,y)]),printerVertical:[16,17].map(y=>[alpha(12,y),alpha(13,y),alpha(14,y)]),png:canvas.toDataURL()};
+        thermalVertical:[16,17,18,19].map(y=>[alpha(6,y),alpha(7,y),alpha(8,y)]),printerFill:[16,17].map(y=>[alpha(12,y),alpha(13,y),alpha(14,y),alpha(15,y)]),png:canvas.toDataURL()};
     });
     report.icons[plugin]={...result,png:undefined};
     check(plugin+' is decoded and displayed at genuine 32px with no CSS transform',isDecodedNativeIcon(result)&&result.transform==='none',report.icons[plugin]);
     check(plugin+' artwork is compact and not clipped',result.bounds.x0>=5&&result.bounds.y0>=5&&result.bounds.x1<=27&&result.bounds.y1<=27&&result.bounds.width<=22&&result.bounds.height<=23&&result.painted>60,result.bounds);
-    const edges=plugin==='thermal'?result.thermalVertical:result.printerVertical;
-    check(plugin+' vertical strokes occupy exactly one fully covered native pixel',edges.every(row=>row[0]===0&&row[1]===255&&row[2]===0),edges);
+    if(plugin==='thermal')check('Thermal box vertical strokes occupy exactly one fully covered native pixel',result.thermalVertical.every(row=>row[0]===0&&row[1]===255&&row[2]===0),result.thermalVertical);
+    else check('Benchy cabin uses solid integer-grid fill beside a transparent passage, not an outline',result.printerFill.every(row=>row[0]===0&&row[1]===255&&row[2]===255&&row[3]===0),result.printerFill);
     await writeFile(resolve(out,`plugin-icon-${plugin}-${stamp}.png`),Buffer.from(result.png.split(',')[1],'base64'),{flag:'wx'});
   }
   report.catalogueCompletedMs=performance.now()-began;check('native icon decode and catalogue interaction complete under 2000ms',report.catalogueCompletedMs<2000,report.catalogueCompletedMs);
