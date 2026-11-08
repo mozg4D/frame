@@ -27,7 +27,7 @@ try{
       const ctx=canvas.getContext('2d');ctx.drawImage(img,0,0);const data=ctx.getImageData(0,0,32,32).data,alpha=(x,y)=>data[4*(y*32+x)+3];
       let x0=32,y0=32,x1=-1,y1=-1,painted=0;for(let y=0;y<32;y++)for(let x=0;x<32;x++)if(alpha(x,y)>0){x0=Math.min(x0,x);y0=Math.min(y0,y);x1=Math.max(x1,x);y1=Math.max(y1,y);painted++;}
       return {decoded:true,complete:img.complete,width:img.width,height:img.height,naturalWidth:img.naturalWidth,naturalHeight:img.naturalHeight,rect:{width:rect.width,height:rect.height},transform:style.transform,bounds:{x0,y0,x1,y1,width:x1-x0+1,height:y1-y0+1},painted,
-        thermalVertical:[16,17,18,19].map(y=>[alpha(6,y),alpha(7,y),alpha(8,y)]),printerVertical:[14,15,16].map(y=>[alpha(8,y),alpha(9,y),alpha(10,y)]),png:canvas.toDataURL()};
+        thermalVertical:[16,17,18,19].map(y=>[alpha(6,y),alpha(7,y),alpha(8,y)]),printerVertical:[16,17].map(y=>[alpha(12,y),alpha(13,y),alpha(14,y)]),png:canvas.toDataURL()};
     });
     report.icons[plugin]={...result,png:undefined};
     check(plugin+' is decoded and displayed at genuine 32px with no CSS transform',isDecodedNativeIcon(result)&&result.transform==='none',report.icons[plugin]);

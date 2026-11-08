@@ -1,3 +1,17 @@
+# Scene Control: common data and parameter authoring
+
+## Shared parameter authoring for Scene Control (2026-11-08)
+
+The common field adapter now permits explicit authoring of Cube size x/y/z (canonical millimetres, minimum zero) and Atomic Temperature (degrees Celsius, minimum -273.15), Damping (inverse picoseconds, minimum zero), Time scale (fs/s, minimum zero), Confinement (eV/angstrom, minimum zero) and Color. This is a bounded foundation for Scene Control, not its executable runtime or control-panel UI.
+
+One declaration supplies field discovery, canonical units/ranges, native Attributes constraints, generic scene.update validation and Atomic settings schema. Native display-unit conversion is unchanged. Numeric Attributes clamp to declared bounds; API writes reject out-of-range values. No physical upper limits are invented. Other scalar fields remain observable read-only. Animated parameters are read-only current observations with writeUnavailable=animated-field; observedFrame never certifies completed simulation.
+
+fields.write accepts one to 128 distinct targets using each field's epoch/revision. All values and targets are validated before publication, and mixed native/Atomic/metadata edits use one ordinary Undo transaction without selecting their owners. No-op batches create no history. Native history and document replacement invalidate stale CAS state, including ABA edits. HASH retains the ordinary parameter values and typed binding references, without a second scene model or extra stored runtime state.
+
+Focused tests: tests/scene-field-writes.mjs and tests/scene-field-writes-browser.mjs (explicit --headless; optional --offline). The browser case uses a three-atom Atomic world and native Cube, tests UI/API/Undo/HASH/duplicate and bounded operation times, and checks native WebGPU errors. It is not an Atomic physics benchmark or a full Scene Control implementation. Existing source/schema records remain inert. Unite is excluded from qualification.
+
+The following sections document the earlier data-only milestone. Their read-only parameter limitation is superseded only for the explicitly declared fields above.
+
 # Scene author data: isolated data-only slice
 
 This core data milestone is integrated additively onto main commit `d98aca74b4be7e4703a26bf51caa874821dcc73b`. It retains the current Doc file-operation admission barrier, popup bridge lane and sealing protocol. The data-only checkpoint was integrated through its exact 112 serial patches, adapting only six overlapping registry/queue guards. Release stamp is Frame 2026 08 nov 10:05 UTC. It adds inert source/schema/binding records and two common native metadata fields. It does not implement Scene Control execution, a panel, Workers, autostart, custom Attributes, arbitrary program state, or universal bindings. This milestone does not impose a permanent execution permission policy on the proposed product.
@@ -93,3 +107,5 @@ A freshly constructed native scene has no records Map until installNativeRecords
 The explicit tests/release-non-unite.mjs gate imports the unchanged shared suite, real UI, live viewport, SIMD and MCP checks. Its reviewed transitive dependencies and runtime bytes are locked by tests/release-non-unite-profile.json and audited before importing test modules or launching a browser. The shared feature suite's legacy Boolean generator uses run/planar commands; the unchanged runtime dispatch reserves Unite execution for unite*/volume* commands. No selected module calls geometry.unite, prepareVolume or a Unite suite.
 
 handWorkflow is excluded in full because it invokes geometry.unite internally. Direct Unite suites and every other omitted standard stage are listed with reasons in the profile and each report. Plugin test discovery, optional large fixtures, full standard/stress results and installed-PWA qualification are not claimed. Existing assertions, source binding checks, latency budgets and all four earlier reversal files are unchanged. Final native/PWA evidence must name the release-stamped index hash, not historical R2.
+
+Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.

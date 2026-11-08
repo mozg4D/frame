@@ -13,7 +13,7 @@ const block=fragment('const FrameAuthorData=','const FrameDocumentation=');
 function environment(){
  const body=`
  let nodes=[{id:'n1',nativeHash:input.A,type:'group',name:'Same',visible:true,enabled:true,tags:[],params:{},parent:null},{id:'n2',nativeHash:input.B,type:'group',name:'Same',visible:true,enabled:true,tags:[],params:{},parent:null}];
- let rootWrites=0,settles=0,undoStack=[],redoStack=[],frameUIUndoSequence=[],frameUIRedoSequence=[],frameUITransaction=0,frameBatchDepth=0,sceneFrameDirty=false;
+ let rootWrites=0,settles=0,undoStack=[],redoStack=[],frameUIUndoSequence=[],frameUIRedoSequence=[],frameUITransaction=0,numericSession=null,frameBatchDepth=0,sceneFrameDirty=false;
  let selected=new Set(['n2']),focusId='n2',selectedTag=null,selectedTags=new Set(),anchorTag=null,activeMaterial=0,selectedMaterials=new Set([0]),timelineFrame=0,timelineTotal=120;
  const frameCurves={},FrameDocumentation={normalize:x=>x},materials=[],FramePluginRecords={replacer:(k,v)=>v},FrameMorph={historyState:()=>null,sceneChannels:()=>new Map(),restoreEditor:()=>{},request:()=>{}},frameSerializeChannels=()=>[],frameSnapshotContent=v=>v,frameTrimUIUndo=()=>{},frameSyncMaterials=()=>{},render=()=>{},frameSyncEngineVisibility=()=>{};
  const FrameHash=input.codec,scene={records:new Map(),meshes:[]},poseRecordCache=null,FM={equal:()=>false,I:()=>[],unpack:x=>x},syncPoseWorld=()=>{};

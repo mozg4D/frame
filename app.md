@@ -1,3 +1,13 @@
+## Shared parameter authoring for Scene Control (2026-11-08)
+
+The common field adapter now permits explicit authoring of Cube size x/y/z (canonical millimetres, minimum zero) and Atomic Temperature (degrees Celsius, minimum -273.15), Damping (inverse picoseconds, minimum zero), Time scale (fs/s, minimum zero), Confinement (eV/angstrom, minimum zero) and Color. This is a bounded foundation for Scene Control, not its executable runtime or control-panel UI.
+
+One declaration supplies field discovery, canonical units/ranges, native Attributes constraints, generic scene.update validation and Atomic settings schema. Native display-unit conversion is unchanged. Numeric Attributes clamp to declared bounds; API writes reject out-of-range values. No physical upper limits are invented. Other scalar fields remain observable read-only. Animated parameters are read-only current observations with writeUnavailable=animated-field; observedFrame never certifies completed simulation.
+
+fields.write accepts one to 128 distinct targets using each field's epoch/revision. All values and targets are validated before publication, and mixed native/Atomic/metadata edits use one ordinary Undo transaction without selecting their owners. No-op batches create no history. Native history and document replacement invalidate stale CAS state, including ABA edits. HASH retains the ordinary parameter values and typed binding references, without a second scene model or extra stored runtime state.
+
+Focused tests: tests/scene-field-writes.mjs and tests/scene-field-writes-browser.mjs (explicit --headless; optional --offline). The browser case uses a three-atom Atomic world and native Cube, tests UI/API/Undo/HASH/duplicate and bounded operation times, and checks native WebGPU errors. It is not an Atomic physics benchmark or a full Scene Control implementation. Existing source/schema records remain inert. Unite is excluded from qualification.
+
 ## Additional independent viewports (2026-11-08)
 
 Each of the four main viewport sections has a native 16-pixel open-view icon flush against its top-right corner. Hover adds no border. Each click opens an additional view in a separate browser window; the original viewport remains fully functional. Multiple Perspective windows are supported. Additional windows have no open-view icon.
@@ -1013,3 +1023,5 @@ Runtime/service-worker version for the perimeter revision: Frame 2026 28 oct 17:
 ## Thermal authoring preview (under construction)
 
 The optional Thermal catalogue entry provides a native 100 mm helper, a separate 25 mm Fan along local X and a 2 mm Probe at the owner's origin. Each uses ordinary native references, transforms, selection, copy, HASH and Undo. Attributes show the disabled native Under construction status; the Thermal owner has Fan/Probe creation actions. All fields are authoring metadata only. Material/Heater tags, numerical solving, temperature measurement and result overlays are not installed. Named numerical API requests explicitly reject before mutation or GPU work. See plugins/thermal/README.md for exact scope and unrun current-core hardware gates.
+
+Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.

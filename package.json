@@ -67,7 +67,9 @@
     "test:docs-geometry": "node tests/documentation-geometry.mjs && node tests/documentation-close.mjs && node tests/documentation-geometry-browser.mjs",
     "test:docs-history": "node tests/documentation-history.mjs && node tests/documentation-history-editor.mjs && node tests/documentation-history-ime.mjs && node tests/documentation-history-memory.mjs && node tests/documentation-history-browser.mjs && node tests/documentation-history-native.mjs",
     "test:detachable-views": "node tests/detachable-views.mjs",
-    "test:detachable-performance": "node tests/detachable-performance.mjs"
+    "test:detachable-performance": "node tests/detachable-performance.mjs",
+    "test:scene-fields:cpu": "node tests/scene-field-writes.mjs",
+    "test:scene-fields": "node tests/scene-field-writes.mjs && node tests/scene-field-writes-browser.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

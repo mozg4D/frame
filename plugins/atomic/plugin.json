@@ -19,7 +19,32 @@
           "Force"
         ]
       },
-      "disable": true
+      "disable": true,
+      "fieldOptions": {
+        "Temperature": {
+          "unit": "°C",
+          "minimum": -273.15,
+          "access": "read-write"
+        },
+        "Damping": {
+          "unit": "ps^-1",
+          "minimum": 0,
+          "access": "read-write"
+        },
+        "Time scale": {
+          "unit": "fs/s",
+          "minimum": 0,
+          "access": "read-write"
+        },
+        "Confinement": {
+          "unit": "eV/Å",
+          "minimum": 0,
+          "access": "read-write"
+        },
+        "Color": {
+          "access": "read-write"
+        }
+      }
     },
     {
       "type": "atomic_selection",

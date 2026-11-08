@@ -1,0 +1,112 @@
+{
+  "baseCommit": "3a4e7732c934b565ae4195a81f54717ce0d49bef",
+  "files": {
+    "index.html": {
+      "baseSHA256": "0a6f92dab37949ead7f21c1c106712923de5ffd4ee53b142c07a8d7dae6ab8e0",
+      "releaseSHA256": "7a267fc1fedb192e6535b56e973b6276bf85c97d0532bf06b64c5b8f7faf7678",
+      "patches": [
+        {
+          "before": "const FrameFields=(()=>{",
+          "after": "const FrameParameters=(()=>{\n const own=(o,k)=>{const d=o&&typeof o==='object'?Object.getOwnPropertyDescriptor(o,k):null;return d&&Object.hasOwn(d,'value')&&d.enumerable?d.value:undefined;};\n function options(type,key){const source=FramePlugins.owner({type})?.manifest.objects.find(o=>o.type===type)?.fieldOptions||own(definitions[type],'3');return own(source,key)||null;}\n function validateOptions(fields,options){if(options===undefined)return;if(!options||typeof options!=='object'||Array.isArray(options))throw Error('Invalid field options');for(const [key,o]of Object.entries(options)){if(!Object.hasOwn(fields,key)||!o||typeof o!=='object'||Array.isArray(o)||Object.keys(o).some(k=>!['unit','minimum','maximum','integer','access'].includes(k))||o.access!==undefined&&o.access!=='read-write'||o.unit!==undefined&&(typeof o.unit!=='string'||o.unit.length>64||!o.unit.isWellFormed())||o.integer!==undefined&&typeof o.integer!=='boolean'||['minimum','maximum'].some(k=>o[k]!==undefined&&(typeof fields[key]!=='number'||!Number.isFinite(o[k])))||o.integer&&typeof fields[key]!=='number'||o.minimum!==undefined&&o.maximum!==undefined&&o.minimum>o.maximum)throw Error('Invalid field option '+key);}}\n function validate(type,changes){const fields=definitions[type]?.[2];for(const [key,value]of Object.entries(changes)){const o=options(type,key);if(!o)continue;const spec=own(fields,key);if(Array.isArray(spec)?!spec.includes(value):typeof value!==typeof spec||typeof value==='number'&&!Number.isFinite(value))FrameAuthorData.error('Invalid parameter '+key);if(typeof value==='number'&&(o.minimum!==undefined&&value<o.minimum||o.maximum!==undefined&&value>o.maximum||o.integer&&!Number.isSafeInteger(value)))FrameAuthorData.error('Parameter outside declared range: '+key);if(typeof value==='string'&&(value.length>16384||!value.isWellFormed()))FrameAuthorData.error('Invalid parameter '+key);}return changes;}\n function schema(type){return Object.fromEntries(Object.entries(definitions[type]?.[2]||{}).filter(([key])=>options(type,key)).map(([key,v])=>{const o=options(type,key);return [key,{type:Array.isArray(v)?typeof v[0]:o.integer?'integer':typeof v,...Array.isArray(v)?{enum:[...v]}:{},...o.minimum!==undefined?{minimum:o.minimum}:{},...o.maximum!==undefined?{maximum:o.maximum}:{}}];}));}\n function attributes(type){const units={},ranges={};for(const key of Object.keys(definitions[type]?.[2]||{})){const o=options(type,key);if(!o)continue;if(o.unit!==undefined)units[key]=o.unit;const range={...o.minimum!==undefined?{min:o.minimum}:{},...o.maximum!==undefined?{max:o.maximum}:{},...o.integer?{int:true}:{}};if(Object.keys(range).length)ranges[key]=range;}return {units,ranges};}\n return Object.freeze({options,validateOptions,validate,schema,attributes});\n})();\n\nconst FrameFields=(()=>{",
+          "count": 1
+        },
+        {
+          "before": "cube:['Cube','ICO_OBJ_CUBE',{'size x':100,'size y':100,'size z':100}],",
+          "after": "cube:['Cube','ICO_OBJ_CUBE',{'size x':100,'size y':100,'size z':100},Object.fromEntries(['size x','size y','size z'].map(k=>[k,{unit:'mm',minimum:0,access:'read-write'}]))],",
+          "count": 1
+        },
+        {
+          "before": "  const result={id:field,label:key,type,...choices?{enum:choices}:{},unit:null,unitKnown:false,access:'read-only',phase:'current',epoch:observation.epoch,observedFrame:observation.observedFrame,revision:null,schemaAvailable:true,runtimeLoaded:source.plugin?data(source.plugin,'loaded')===true:true};",
+          "after": "  const option=FrameParameters.options(source.type,key),animated=!!frameGetTrack(n.id,field)?.keys.size,writable=option?.access==='read-write'&&!animated;\n  const result={id:field,label:key,type,...choices?{enum:choices}:{},unit:option?.unit??null,unitKnown:option?.unit!==undefined,access:writable?'read-write':'read-only',phase:writable?'authoring':'current',epoch:observation.epoch,observedFrame:observation.observedFrame,revision:writable?FrameAuthorData.generation:null,schemaAvailable:true,runtimeLoaded:source.plugin?data(source.plugin,'loaded')===true:true,...option?.minimum!==undefined?{minimum:option.minimum}:{},...option?.maximum!==undefined?{maximum:option.maximum}:{},...option?.integer?{integer:true}:{},...animated&&option?.access==='read-write'?{writeUnavailable:'animated-field'}:{}};",
+          "count": 1
+        },
+        {
+          "before": " function write(writes){const index=FrameAuthorData.owners(),unique=new Set(),prepared=writes.map(w=>{const key=w.owner+':'+w.field;if(unique.has(key))FrameAuthorData.error('Duplicate field target');unique.add(key);const state=read(w.owner,w.field,index);validate(w.field,w.value);if(w.epoch!==state.epoch||w.revision!==state.revision)FrameAuthorData.error('Native field changed; read current revision','CONFLICT');return {n:FrameAuthorData.resolveOwner(w.owner,index),field:w.field,value:w.value};});if(prepared.some(w=>w.n[w.field]!==w.value))commit(()=>{for(const w of prepared)w.n[w.field]=w.value;});return writes.map(w=>read(w.owner,w.field,index));}",
+          "after": " function write(writes){if(!Array.isArray(writes)||!writes.length||writes.length>limits.requests)FrameAuthorData.error('Invalid field write batch');const index=FrameAuthorData.owners(),unique=new Set(),plans=new Map();\n  for(const w of writes){const key=w.owner+':'+w.field;if(unique.has(key))FrameAuthorData.error('Duplicate field target');unique.add(key);const n=FrameAuthorData.resolveOwner(w.owner,index),state=read(w.owner,w.field,index);if(state.access!=='read-write')FrameAuthorData.error('Field is read-only'+(state.writeUnavailable?': '+state.writeUnavailable:''),'UNSUPPORTED');if(w.epoch!==state.epoch||w.revision!==state.revision)FrameAuthorData.error('Native field changed; read current revision','CONFLICT');let plan=plans.get(n);if(!plan)plans.set(n,plan={n,metadata:{},params:{}});if(Object.hasOwn(specs,w.field)){validate(w.field,w.value);plan.metadata[w.field]=w.value;}else{if(state.availability!=='available')FrameAuthorData.error('Parameter value is unavailable','NOT_READY');plan.params[w.field.slice(6)]=w.value;}}\n  for(const plan of plans.values()){FrameParameters.validate(plan.n.type,plan.params);plan.params=FramePlugins.parameterPatch(plan.n,plan.params);FrameParameters.validate(plan.n.type,plan.params);}\n  if([...plans.values()].some(p=>Object.entries(p.metadata).some(([k,v])=>p.n[k]!==v)||Object.entries(p.params).some(([k,v])=>p.n.params[k]!==v)))commit(()=>{for(const p of plans.values()){Object.assign(p.n,p.metadata);Object.assign(p.n.params,p.params);}});return writes.map(w=>read(w.owner,w.field,index));\n }",
+          "count": 1
+        },
+        {
+          "before": "if(object.disable!==undefined&&typeof object.disable!=='boolean')",
+          "after": "FrameParameters.validateOptions(object.fields,object.fieldOptions);if(object.disable!==undefined&&typeof object.disable!=='boolean')",
+          "count": 1
+        },
+        {
+          "before": "function parameterPatch(n,changes={}){const patch=",
+          "after": "function parameterPatch(n,changes={}){FrameParameters.validate(n.type,changes);const patch=",
+          "count": 1
+        },
+        {
+          "before": "function attributes(n){return owner(n)?.attributes?.(n.nativeHash)||null;}",
+          "after": "function attributes(n){const shared=FrameParameters.attributes(n.type),state=owner(n)?.attributes?.(n.nativeHash);return {...state,units:{...shared.units,...state?.units},ranges:{...shared.ranges,...state?.ranges}};}",
+          "count": 1
+        },
+        {
+          "before": "      attributes:Object.freeze({register:attributes=>",
+          "after": "      parameters:Object.freeze({schema:type=>{if(types.get(type)!==entry)throw Error('Invalid plugin type');return FrameParameters.schema(type);}}),\n      attributes:Object.freeze({register:attributes=>",
+          "count": 1
+        },
+        {
+          "before": "}FramePlugins.owner({type})?.editor?.parameters?.({type,params:values},params);if(hardware)",
+          "after": "}FrameParameters.validate(type,params);FramePlugins.owner({type})?.editor?.parameters?.({type,params:values},params);if(hardware)",
+          "count": 1
+        },
+        {
+          "before": "Discover native metadata and read-only current scalar/enum parameters from installed schemas, without loading plugins.",
+          "after": "Discover native metadata and scalar/enum parameters, including declared units/ranges and authoring access, without loading plugins.",
+          "count": 1
+        },
+        {
+          "before": "Write only name/visible metadata; validate every target before one native Undo transaction. Parameters are read-only through this adapter.",
+          "after": "Write metadata and declared non-animated scalar parameters with epoch/revision CAS; preflight every target before one native Undo transaction.",
+          "count": 1
+        },
+        {
+          "before": "if(o.unit!==undefined)units[key]=o.unit;",
+          "after": "if(o.unit!==undefined&&FramePlugins.owner({type}))units[key]=o.unit;",
+          "count": 1
+        },
+        {
+          "before": "for(const plan of plans.values()){FrameParameters.validate(plan.n.type,plan.params);plan.params=FramePlugins.parameterPatch(plan.n,plan.params);FrameParameters.validate(plan.n.type,plan.params);}",
+          "after": "for(const plan of plans.values()){FrameParameters.validate(plan.n.type,plan.params);if(Object.entries(plan.params).some(([k,v])=>plan.n.params[k]!==v)){plan.params=FramePlugins.parameterPatch(plan.n,plan.params);FrameParameters.validate(plan.n.type,plan.params);}}",
+          "count": 1
+        },
+        {
+          "before": "units:{...shared.units,...state?.units},ranges:{...shared.ranges,...state?.ranges}",
+          "after": "units:{...state?.units,...shared.units},ranges:{...state?.ranges,...shared.ranges}",
+          "count": 1
+        },
+        {
+          "before": "type:Array.isArray(v)?typeof v[0]:o.integer?'integer':typeof v",
+          "after": "type:Array.isArray(v)?([...new Set(v.map(x=>typeof x))].length===1?typeof v[0]:[...new Set(v.map(x=>typeof x))]):o.integer?'integer':typeof v",
+          "count": 1
+        },
+        {
+          "before": "Object.assign(p.n,p.metadata);Object.assign(p.n.params,p.params);",
+          "after": "Object.assign(p.n,p.metadata);if(Object.keys(p.params).length)Object.assign(p.n.params,p.params);",
+          "count": 1
+        },
+        {
+          "before": "FrameAuthorData.busy||undoBusy||frameUITransaction||treeGesture||api.transforming",
+          "after": "FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming",
+          "count": 2
+        },
+        {
+          "before": "2026 08 nov 20:01",
+          "after": "2026 08 nov 20:28",
+          "count": 2
+        }
+      ]
+    },
+    "frame-sw.js": {
+      "baseSHA256": "6c3eca50ebd6b3e95ea6166d4496f0491a5e1d76ef221659bb391b09b4ac1fbc",
+      "patches": [
+        {
+          "before": "2026 08 nov 20:01",
+          "after": "2026 08 nov 20:28",
+          "count": 1
+        }
+      ],
+      "releaseSHA256": "bcba844a063604f0990c248b76202f42b67ef83ebc0b348505201056853562ff"
+    }
+  }
+}

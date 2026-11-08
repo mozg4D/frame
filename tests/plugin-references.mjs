@@ -7,7 +7,7 @@ import {fileURLToPath} from 'node:url';
 // Execute the shipped helpers, whole native copy function, and HASH spec path.
 // Scene bookkeeping is stubbed; no browser/GPU qualification is implied.
 export async function pluginReferenceChecks(){
- const {FrameAuthorData}=authorRuntime();const runtimeFunction=(...args)=>new Function('FrameAuthorData',...args).bind(null,FrameAuthorData);
+ let FramePlugins;const {FrameAuthorData,FrameParameters}=authorRuntime({FramePlugins:{owner:n=>FramePlugins?.owner(n)}});const runtimeFunction=(...args)=>new Function('FrameAuthorData','FrameParameters',...args).bind(null,FrameAuthorData,FrameParameters);
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],timings=[];
  const between=(start,end)=>{const a=html.indexOf(start),b=html.indexOf(end,a);assert.ok(a>=0&&b>a,start);return html.slice(a,b);},line=start=>between(start,'\n');
  const check=(name,test)=>{test();checks.push(name);},hash=c=>c.repeat(32),A=hash('a'),B=hash('b'),C=hash('c'),E=hash('e'),R=hash('f');
@@ -15,7 +15,7 @@ export async function pluginReferenceChecks(){
  const declaration={type:'reference_fixture',fields:{Owner:'',External:'',Note:'',Path:'',Choice:[A,'other'],Number:1},textFields:['Note','Path'],parameterResets:{Owner:{Number:0}}};
  const entry={manifest:{id:A,objects:[declaration,{type:A,fields:{Owner:''}}]}},types=new Map([[declaration.type,entry],[A,entry]]);
  const helpers=[line('  function owner(n)'),line('  function referenceField('),line('  function remapAuthoring('),line('  function parameterPatch(')].join('\n');
- const FramePlugins=runtimeFunction('types',helpers+';return {owner,referenceField,remapAuthoring,parameterPatch};')(types);
+ FramePlugins=runtimeFunction('types',helpers+';return {owner,referenceField,remapAuthoring,parameterPatch};')(types);
  check('Only declared strings excluding textFields are references',()=>{assert.equal(FramePlugins.referenceField(declaration.type,'Owner'),true);for(const key of ['Note','Path','Choice','Number','missing'])assert.equal(FramePlugins.referenceField(declaration.type,key),false);assert.equal(FramePlugins.referenceField('unknown','Owner'),false);});
  const metadata={version:1,plugin:{id:A,type:declaration.type,params:{Owner:A,External:E,Note:A,Path:'pose:'+A+':x',Choice:A,Number:1}},tags:[],animation:[]},mapping=new Map([[A,B],[C,R]]),input=structuredClone(metadata);
  const remapped=FramePlugins.remapAuthoring(input,mapping);

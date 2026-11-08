@@ -100,3 +100,13 @@ Material/camera updates:
 `geometry.unite {ids?,selectedIslands?,fillRule?}` uses the native context-menu operation and returns `{object,report}`. IDs identify distinct editable polygon objects without an active Morph tag. With no IDs it uses the current selection. Explicit IDs default to whole objects; `selectedIslands:true` expands current component seeds to complete exact-position-connected islands and preserves unselected geometry. `nested-union` is default; `union` fills all shells; global `even-odd` toggles all shells/occurrences. Invalid arguments, damaged external open surfaces and unresolved numerical/capacity conditions reject before scene replacement. Normal Undo/Redo and HASH are reused. See `../tests/unite.md` for source semantics, precision and performance accounting.
 
 `mesh.create` stores explicit Float32 coordinates and triangle indices without a distance weld. It intentionally preserves raw winding/duplicate geometry so diagnostics and preparation operate on the requested input. Distinct representable nearby vertices remain distinct.
+
+## Common fields and Scene Control authoring
+
+`fields.list({owner})`, `fields.read({owner,field})` and `fields.readBatch({reads,epoch?})` use canonical native owner hashes and stable field IDs (`name`, `visible`, `param:<exact key>`). Discover access, phase, units, range, availability and CAS tokens rather than inferring write support from object type or label. Reads do not activate lazy plugins or complete simulation.
+
+`fields.write({writes:[{owner,field,value,epoch,revision}]})` prevalidates one to 128 unique targets and uses one native Undo transaction without changing selection. Stale tokens reject with CONFLICT; unsupported/read-only targets reject with UNSUPPORTED. No-ops create no history. Currently writable parameters are Cube size x/y/z and Atomic Temperature, Damping, Time scale, Confinement and Color. Animated parameters are explicitly read-only through this adapter. Generic scene.update and Atomic settings use the same declared bounds; native Attributes clamps numeric inputs to those bounds. See SCENE-CONTROL-DATA.md for scope and persistence.
+
+Source/schema/binding records in authorData remain inert. Parameter authoring does not imply managed script execution, worker lifecycle, subscriptions or a separate Control panel.
+
+Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.
