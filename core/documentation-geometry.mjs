@@ -29,8 +29,9 @@ export function installDocumentationGeometry(host=window){
  let last='';
  // Correct feature-size rounding once using saved outer bounds. Outer size
  // also remains meaningful when browser zoom makes innerWidth > outerWidth.
- // Never resize the opener or keep forcing bounds after the user moves it.
- try{const g=restoredBounds(host);if(g)host.resizeTo(g.outerWidth,g.outerHeight);}catch{}
+ // Window features may ignore coordinates even with permission; move once too.
+ // Never move/resize the opener or keep forcing bounds after the user moves it.
+ try{const g=restoredBounds(host);if(g){host.resizeTo(g.outerWidth,g.outerHeight);host.moveTo?.(g.left,g.top);}}catch{}
  const save=()=>{
   try{
    const g={left:host.screenX,top:host.screenY,width:host.innerWidth,height:host.innerHeight,outerWidth:host.outerWidth,outerHeight:host.outerHeight,screen:workArea(host.screen)};
