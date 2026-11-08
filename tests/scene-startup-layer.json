@@ -1,0 +1,10 @@
+{
+  "baseSHA256": "0c0835574ce0b6ade81d614e44aa0bc2a2c8f38e838623f40f4b32bb49250dd5",
+  "patches": [
+    {
+      "before": "      FrameAuthorData.attach(()=>{if(!scene)return null;return JSON.parse(scene.records.get(FrameHash.K.parameters)?.value||'{}').authorData||null;},value=>{if(!scene)fail('NOT_READY','Native scene not ready');const key=FrameHash.K.parameters,global=JSON.parse(scene.records.get(key)?.value||'{\"version\":1,\"frame\":0,\"total\":120,\"materials\":[]}');if(value)global.authorData=value;else delete global.authorData;if(!global.authorData&&!global.documentation&&!global.frame&&global.total===120&&!global.materials?.length&&Object.keys(global).every(k=>['version','frame','total','materials'].includes(k)))scene.records.delete(key);else nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;});",
+      "after": "      FrameAuthorData.attach(()=>{if(!scene?.records)return null;return JSON.parse(scene.records.get(FrameHash.K.parameters)?.value||'{}').authorData||null;},value=>{if(!scene?.records)fail('NOT_READY','Native scene records are not installed');const key=FrameHash.K.parameters,global=JSON.parse(scene.records.get(key)?.value||'{\"version\":1,\"frame\":0,\"total\":120,\"materials\":[]}');if(value)global.authorData=value;else delete global.authorData;if(!global.authorData&&!global.documentation&&!global.frame&&global.total===120&&!global.materials?.length&&Object.keys(global).every(k=>['version','frame','total','materials'].includes(k)))scene.records.delete(key);else nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;});",
+      "count": 1
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "baseSHA256": "6c382fdc8ad930434e5c67e9ac9638729df7c7a2825c8e51dc2b393834d3b4a3",
+  "patches": [
+    {
+      "before": " function history(value,current){const target=envelope(value),previous=envelope(current),live=new Set(target?.records.map(r=>r.id)||[]),retired=[...new Set([...target?.retired||[],...previous?.retired||[],...previous?.records.map(r=>r.id)||[]])].filter(id=>!live.has(id));if(!target&&!retired.length)return null;return envelope({...target||empty(),...retired.length?{retired}:{}});}",
+      "after": " const reservationLimits=Object.freeze({owners:4096,ids:65536,ownerIds:4608});let allocations=new Map();\n const entriesNodes=values=>values.map(n=>[n.nativeHash,n.authorData]),entriesObjects=values=>values.map(o=>[o.hash,o.authoring?.authorData]);\n function reservationPlan(entries,base=allocations){const next=new Map(base);let total=[...next.values()].reduce((n,ids)=>n+ids.size,0);for(const [namespace,input]of entries){const value=envelope(input);if(!value)continue;if(!owner(namespace))error('Invalid author allocation owner');const prior=next.get(namespace),ids=new Set([...prior||[],...value.retired||[],...value.records.map(r=>r.id)]);if(ids.size>reservationLimits.ownerIds)error('Author identity reservation owner limit','LIMIT_EXCEEDED');total+=ids.size-(prior?.size||0);if(ids.size)next.set(namespace,ids);if(next.size>reservationLimits.owners||total>reservationLimits.ids)error('Author identity reservation document limit','LIMIT_EXCEEDED');}return ()=>{allocations=next;};}\n function reserveNodes(target,current=[],rootValue=root()){return reservationPlan([['scene',rootValue],...entriesNodes(current),...entriesNodes(target)]);}\n function reserveObjects(target){return reservationPlan([['scene',root()],...documentReady?entriesNodes(nodes):[],...entriesObjects(target)]);}\n function preflightDocument(objects,rootValue){reservationPlan([['scene',rootValue],...entriesObjects(objects)],new Map());}\n function history(value,current,namespace='scene'){const target=envelope(value),previous=envelope(current),live=new Set(target?.records.map(r=>r.id)||[]),retired=[...new Set([...allocations.get(namespace)||[],...target?.retired||[],...previous?.retired||[],...previous?.records.map(r=>r.id)||[]])].filter(id=>!live.has(id));if(!target&&!retired.length)return null;return envelope({...target||empty(),...retired.length?{retired}:{}});}",
+      "count": 1
+    },
+    {
+      "before": " function restoreNodes(target,current){const old=new Map(current.map(n=>[n.nativeHash,n]));for(const n of target){const value=history(n.authorData,old.get(n.nativeHash)?.authorData);if(value)n.authorData=value;}return target;}",
+      "after": " function restoreNodes(target,current){const old=new Map(current.map(n=>[n.nativeHash,n]));return target.map(n=>{const value=history(n.authorData,old.get(n.nativeHash)?.authorData,n.nativeHash);return value?{...n,authorData:value}:n;});}",
+      "count": 1
+    },
+    {
+      "before": "history(o.authoring?.authorData,old.get(o.hash)?.authoring?.authorData)",
+      "after": "history(o.authoring?.authorData,old.get(o.hash)?.authoring?.authorData,o.hash)",
+      "count": 1
+    },
+    {
+      "before": "function preflightHistory(value){const state=JSON.parse(value);history(state.authorData,root());restoreNodes(state.nodes,nodes);}",
+      "after": "function preflightHistory(value){const state=JSON.parse(value),rootValue=history(state.authorData,root()),target=restoreNodes(state.nodes,nodes);reserveNodes(target,nodes,rootValue);}",
+      "count": 1
+    },
+    {
+      "before": "function setRoot(value){const next=envelope(value);if(JSON.stringify(next)!==JSON.stringify(root()))writeRoot(next);}",
+      "after": "function setRoot(value){const next=envelope(value),publish=reservationPlan([['scene',next]]);if(JSON.stringify(next)!==JSON.stringify(root()))writeRoot(next);publish();}",
+      "count": 1
+    },
+    {
+      "before": "const previous=get(value).data,next=envelope(",
+      "after": "const previous=history(get(value).data,null,value),next=envelope(",
+      "count": 1
+    },
+    {
+      "before": "const target=value==='scene'?null:resolveOwner(value);commit(()=>{if(target)target.authorData=next;else setRoot(next);},false);",
+      "after": "const target=value==='scene'?null:resolveOwner(value),publish=reservationPlan([[value,previous],[value,next]]);commit(()=>{if(target)target.authorData=next;else setRoot(next);publish();},false);",
+      "count": 1
+    },
+    {
+      "before": "history,restoreNodes,restoreObjects,preflightHistory,",
+      "after": "history,restoreNodes,restoreObjects,preflightHistory,reservationLimits,reserveNodes,reserveObjects,preflightDocument,",
+      "count": 1
+    },
+    {
+      "before": "preflightObjects(value,current){history(value.authorData,root());restoreObjects(value.objects,current);}",
+      "after": "preflightObjects(value,current){const rootValue=history(value.authorData,root()),target=restoreObjects(value.objects,current);reservationPlan([['scene',rootValue],...entriesObjects(current),...entriesObjects(target)]);}",
+      "count": 1
+    },
+    {
+      "before": "invalidateDocument(){documentReady=false;epoch=crypto.randomUUID();generation=0;},installed(){documentReady=true;}",
+      "after": "invalidateDocument(replace=true){documentReady=false;epoch=crypto.randomUUID();generation=0;if(replace)allocations=new Map();},installed(){reserveNodes(nodes)();documentReady=true;}",
+      "count": 1
+    },
+    {
+      "before": "window.addEventListener('frame-engine-scene',e=>{\n  FrameAuthorData.invalidateDocument();",
+      "after": "window.addEventListener('frame-engine-scene',e=>{\n  FrameAuthorData.invalidateDocument(false);",
+      "count": 1
+    },
+    {
+      "before": "FrameAuthorData.restoreNodes(s.nodes,nodes);nodes=s.nodes;FrameAuthorData.setRoot(restoredAuthorData);",
+      "after": "const restoredNodes=FrameAuthorData.restoreNodes(s.nodes,nodes),publishAuthorData=FrameAuthorData.reserveNodes(restoredNodes,nodes,restoredAuthorData);nodes=restoredNodes;FrameAuthorData.setRoot(restoredAuthorData);publishAuthorData();",
+      "count": 1
+    },
+    {
+      "before": "function installNativeRecords(objects,camera=null){\n      const {K,T}",
+      "after": "function installNativeRecords(objects,camera=null){\n      const publishAuthorData=FrameAuthorData.reserveObjects(objects);\n      const {K,T}",
+      "count": 1
+    },
+    {
+      "before": "scene.records=records;scene.lightObjects=objects.filter(o=>o.type===2)",
+      "after": "scene.records=records;publishAuthorData();scene.lightObjects=objects.filter(o=>o.type===2)",
+      "count": 1
+    },
+    {
+      "before": "      return {objects,records,camera,meshes,savedUnits,appearance,importReport};",
+      "after": "      FrameAuthorData.preflightDocument(objects,JSON.parse(records.get(K.parameters)?.value||'{}').authorData);\n      return {objects,records,camera,meshes,savedUnits,appearance,importReport};",
+      "count": 1
+    },
+    {
+      "before": "const active=new Set(next.records.map(r=>r.id)),retired=",
+      "after": "if(next.records.some(r=>previous.retired?.includes(r.id)))error('Author record identity was retired; use a fresh ID','CONFLICT');const active=new Set(next.records.map(r=>r.id)),retired=",
+      "count": 1
+    },
+    {
+      "before": "const entriesNodes=values=>values.map(n=>[n.nativeHash,n.authorData]),entriesObjects=values=>values.map(o=>[o.hash,o.authoring?.authorData]);",
+      "after": "const entriesNodes=values=>values.filter(n=>n.authorData).map(n=>[n.nativeHash,n.authorData]),entriesObjects=values=>values.filter(o=>o.authoring?.authorData).map(o=>[o.hash,o.authoring.authorData]);",
+      "count": 1
+    },
+    {
+      "before": "function reserveObjects(target){return reservationPlan([['scene',root()],",
+      "after": "function reserveObjects(target,rootValue=root()){return reservationPlan([['scene',rootValue],",
+      "count": 1
+    },
+    {
+      "before": "      g.copyBefore={objects:currentObjects.map(o=>({...o,matrix:o.matrix?.slice(),pivot:o.pivot?.slice()})),selection:[...objectSelection],frames:snapshotFrames(),authorData:FrameAuthorData.root()};",
+      "after": "      FrameAuthorData.reserveObjects(objects.filter(o=>ids.has(o.hash)).map(o=>({hash:mapping.get(o.hash),authoring:o.authoring})),g.clipboard?mergedAuthorData:FrameAuthorData.root());\n      g.copyBefore={objects:currentObjects.map(o=>({...o,matrix:o.matrix?.slice(),pivot:o.pivot?.slice()})),selection:[...objectSelection],frames:snapshotFrames(),authorData:FrameAuthorData.root()};",
+      "count": 1
+    },
+    {
+      "before": "          for(let i=0;i<plan.objects.length;i++){const o=plan.objects[i];if(o.p){",
+      "after": "          FrameAuthorData.reserveObjects(specs,FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping));\n          for(let i=0;i<plan.objects.length;i++){const o=plan.objects[i];if(o.p){",
+      "count": 1
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import {session,rebase} from '../core/documentation-sync.mjs';
+const checks=[];function check(name,fn){fn();checks.push(name);}
+function setup(text='abcdef'){const sent=[],states=[],s=session({send:m=>sent.push(m),changed:m=>states.push(m)});s.snapshot({text,version:'scene:0'});return {s,sent,states};}
+check('disjoint edits rebase without replacing either author',()=>{assert.equal(rebase('abcdef','Abcdef','abcdeF'),'AbcdeF');assert.equal(rebase('abcdef','abcdeF','Abcdef'),'AbcdeF');assert.throws(()=>rebase('abc','aXbc','aYbc'),/overlap/);});
+check('normal realtime input and own broadcast before ack',()=>{const {s,sent}=setup();s.input('Abcdef');assert.equal(sent.length,1);s.snapshot({text:'Abcdef',version:'scene:1'});s.reply({id:1,ok:true,state:{text:'Abcdef',version:'scene:1'}});assert.equal(s.state.pending,null);assert.equal(s.state.fault,'');});
+check('typing while queued retains subsequent edit and sends next revision',()=>{const {s,sent}=setup();s.input('Abcdef');s.input('AbcdeF');s.reply({id:1,ok:true,state:{text:'Abcdef',version:'scene:1'}});assert.equal(sent[1].text,'AbcdeF');assert.equal(sent[1].version,'scene:1');});
+check('CAS conflict disjoint edits rebase and retry with current version',()=>{const {s,sent}=setup();s.input('Abcdef');s.snapshot({text:'abcdeF',version:'scene:1'});s.reply({id:1,ok:false,code:'CONFLICT'});assert.equal(sent[1].text,'AbcdeF');assert.equal(sent[1].version,'scene:1');});
+check('overlap never silently overwrites and retains draft',()=>{const {s,sent}=setup();s.input('Xbcdef');s.snapshot({text:'Ybcdef',version:'scene:1'});s.reply({id:1,ok:false,code:'CONFLICT'});assert.match(s.state.fault,/overlap/);assert.equal(s.state.draft,'Xbcdef');assert.equal(sent.length,1);});
+check('scene-switch pending draft cannot write into new scene',()=>{const {s,sent}=setup();s.input('local');s.snapshot({text:'new scene',version:'other:0'});s.reply({id:1,ok:false,code:'CONFLICT'});assert.match(s.state.fault,/Scene changed/);assert.equal(s.state.draft,'local');assert.equal(sent.length,1);});
+check('clean editor follows scene switch and stale snapshots ignored',()=>{const {s}=setup();s.snapshot({text:'new',version:'scene:2'});s.snapshot({text:'stale',version:'scene:1'});assert.equal(s.state.draft,'new');s.snapshot({text:'different',version:'other:0'});assert.equal(s.state.draft,'different');});
+check('failure and disconnect retain unsaved text',()=>{const {s}=setup();s.input('local');s.reply({id:1,ok:false,error:'too large'});assert.equal(s.state.draft,'local');assert.match(s.state.fault,/too large/);s.disconnect();assert.equal(s.state.draft,'local');});
+check('whitespace normalization acknowledgement does not loop',()=>{const {s,sent}=setup();s.input(' \n');s.reply({id:1,ok:true,state:{text:'',version:'scene:1'}});assert.equal(s.state.draft,'');assert.equal(sent.length,1);});
+console.log(JSON.stringify({pass:true,checks},null,2));

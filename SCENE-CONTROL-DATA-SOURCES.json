@@ -1,0 +1,216 @@
+{
+  "baseCommit": "d98aca74b4be7e4703a26bf51caa874821dcc73b",
+  "baseIndexSHA256": "bfa3b3bf0d34c8fbaa4fbe229ac4fc7ba135be7b38bf7bffe5235cacdd4bacce",
+  "indexSHA256": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6",
+  "unchangedTrackedFiles": 521,
+  "changedFiles": [
+    {
+      "path": "SCENE-CONTROL-DATA-QUALIFICATION.md",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "1dc7e9db0ca659d907f8fb25b6b6d9e946030373f507c7230302b9e29297df58"
+    },
+    {
+      "path": "SCENE-CONTROL-DATA.md",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "f11d431968cad2721863db151e299b547fab19a5a4ab196c3e172c5af9a3bb40"
+    },
+    {
+      "path": "app.md",
+      "status": "modified",
+      "baseGitBlobSHA": "60979946caaeadc22583731362011cb69ecbde34",
+      "sha256": "201536a418644ba5e3b85658db369441ef5db57debe63f24e5dbe2e219e9a07b"
+    },
+    {
+      "path": "frame-sw.js",
+      "status": "modified",
+      "baseGitBlobSHA": "255e28f1fb04101b50fe3107f4440a3f66704a6c",
+      "sha256": "e785e431a4ac4a3500611bbdb2988e994058f82664c914a45c15016474e52918"
+    },
+    {
+      "path": "index.html",
+      "status": "modified",
+      "baseGitBlobSHA": "7fc7e8978ea3c187a212535010747b7d71fd07d4",
+      "sha256": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6"
+    },
+    {
+      "path": "package.json",
+      "status": "modified",
+      "baseGitBlobSHA": "2567c519968a229bd4f26f9a131c5fe45e6cba3b",
+      "sha256": "291b631b8c373a839cf27525e2ee0ba67471baf3db7a5645a628991a64caaf4e"
+    },
+    {
+      "path": "tests/documentation-sync.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "b10ff55c40578df2c8bd551fe4df9f1f31227162c06e595f8d612eb29e5963c0"
+    },
+    {
+      "path": "tests/hash-best-effort-browser.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "8f74d112565892e3f54d4b1bd4be0eb9c42cc64fcb4e4ed7043d2c14dc988d97"
+    },
+    {
+      "path": "tests/hash-best-effort.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "fabb073133b4d4485ad4f69fd58a003fc534e5b0c3f11c797b2d0771d32b6f7a"
+    },
+    {
+      "path": "tests/hash-docs-lifecycle.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "0824ac7208047609d29418156d791f99492f4151edc93114c9ff04217c0ac847"
+    },
+    {
+      "path": "tests/plugin-references.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "7627ac4e1abf2b944864c1ef87d087e9e2a193602ee664731a029856ed91eed2"
+    },
+    {
+      "path": "tests/release-non-unite-audit.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "933adeb2cd2e3ee77f5dd346a0fa07db4c40e5b5e66210f798dc756465db0816"
+    },
+    {
+      "path": "tests/release-non-unite-profile.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "75d7489d25805bfdd99167a4b58af751df763d48c106640a796e2e17f166b3a6"
+    },
+    {
+      "path": "tests/release-non-unite.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "2133b4f4e63de90811870bc360569099f9ec2302b76b6fdc5fda1e0987576637"
+    },
+    {
+      "path": "tests/scene-authoring-startup.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "8a6e2b21e22d280d57864e0c61cf8152b8c4161924b0909e0e60788f92f9ffe1"
+    },
+    {
+      "path": "tests/scene-control-data-browser.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "426f02155501b0525767ccf35740505a697e97f0142a2f39bc1b5deafb7faecf"
+    },
+    {
+      "path": "tests/scene-control-data-review.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "cc5aad32400d0e5d4db3e42e186c28c056d3c3ec435d12d603b55a54bec26783"
+    },
+    {
+      "path": "tests/scene-control-data.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "5356862c1ba178fa1f47288932906707566ae87147d17f0c2bde8260a5632174"
+    },
+    {
+      "path": "tests/scene-control-native-boundaries.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "f7708073598e9ce0a21295bc64a1f6ad7a27c2d93042dcf651e06ebba3e696c6"
+    },
+    {
+      "path": "tests/scene-data-docs-barrier.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "ce39fd355ca62e1d8b22e82ff94841c8405cc86a37d3343b64e43c9fa3a6423b"
+    },
+    {
+      "path": "tests/scene-data-layer.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "9897fc42ef4be05f2034a69366c8e275d3cbe691b56ce686e0abf8efaf354e6e"
+    },
+    {
+      "path": "tests/scene-data-main-binding.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "705c68ea2f8c50f884316dae96519f45707eea1a564730ee00f94f7ca9807d98"
+    },
+    {
+      "path": "tests/scene-data-main-binding.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "24bd243f99c0c64aeb18fed6526c6dd93a30a635b3e6503951b8728454ec91a1"
+    },
+    {
+      "path": "tests/scene-data-runtime.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "30a2b0b2cf1c2e32f1e053cceb01baf7226a458334dfd2b928942d7e4b6888f5"
+    },
+    {
+      "path": "tests/scene-documentation.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "e08c0e38891e807270f294e0364feea9eea68e6d4f9176f49378607baecd539d"
+    },
+    {
+      "path": "tests/scene-parameter-layer.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "095e012bd9364a9a7faea9d5da4c4f831ff314069b78f8d70924e4acb2ec14d3"
+    },
+    {
+      "path": "tests/scene-parameters.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "d21510543e193186d77c6892368fcb4053207995fac2a4ed04fef18cf3a06238"
+    },
+    {
+      "path": "tests/scene-release-layer.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "1381b9132a2451ea93287a0751c5c550c673e8381f2a742d18dcdf6d8dc5c1c7"
+    },
+    {
+      "path": "tests/scene-reservation-layer.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "8d6cd24f33f5558c0f4f3f3f1205958cb0df66a00ab6ef4486c7841f68f6f740"
+    },
+    {
+      "path": "tests/scene-reservations.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "c04a828c10268e526b098305ad04da709d3c8e5418f8264143c5f2da5f340b69"
+    },
+    {
+      "path": "tests/scene-startup-diagnostics.mjs",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "a9130946d1fea2d1f3064c5e4d5917f857c28904a51d9fa97df9bd6e881f5bfe"
+    },
+    {
+      "path": "tests/scene-startup-layer.json",
+      "status": "added",
+      "baseGitBlobSHA": null,
+      "sha256": "2db2ffb8e5153f410c6c0a15a1c8dfe5705e08024a2cd3bd307293c5f65b1417"
+    }
+  ],
+  "sourceManifestSelfExcluded": true,
+  "localEvidenceNotForPublication": [
+    "tests/scene-port-evidence/",
+    "tests/scene-parameter-evidence/",
+    "tests/results/",
+    "tests/scene-startup-evidence/",
+    "tests/scene-release-evidence/"
+  ],
+  "browserGPU": "Final 38c05f49: Scene native 891/14, Doc 19, non-Unite 249 + 32-frame replay 249, bounded offline PWA 15; real NVIDIA hardware, no unexpected GPU/JS errors. Full standard/stress and full PWA suite excluded.",
+  "exactReversalLayers": [
+    "tests/scene-release-layer.json",
+    "tests/scene-startup-layer.json",
+    "tests/scene-reservation-layer.json",
+    "tests/scene-parameter-layer.json",
+    "tests/scene-data-layer.json"
+  ]
+}

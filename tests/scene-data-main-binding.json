@@ -1,0 +1,11 @@
+{
+  "baseCommit": "d98aca74b4be7e4703a26bf51caa874821dcc73b",
+  "baseIndexSHA256": "bfa3b3bf0d34c8fbaa4fbe229ac4fc7ba135be7b38bf7bffe5235cacdd4bacce",
+  "unchangedFiles": {
+    "core/documentation-editor.mjs": "afc2e507ee43077bb9657db577d7cf2cce92c8dc44d98e32918cd473d9200709",
+    "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
+    "core/documentation-window.mjs": "34e3ad3c5efc674e17abf183879716809f225b8bf249f672dff36224d5a4eda3",
+    "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
+    "frame-sw.js": "6410d5644d64da2edf842877fe2eb1e27fe7aac848be5d9c88ca7abcebc7ac2c"
+  }
+}

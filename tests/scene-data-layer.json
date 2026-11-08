@@ -1,0 +1,678 @@
+{
+  "baseSHA256": "bfa3b3bf0d34c8fbaa4fbe229ac4fc7ba135be7b38bf7bffe5235cacdd4bacce",
+  "baseCommit": "d98aca74b4be7e4703a26bf51caa874821dcc73b",
+  "patches": [
+    {
+      "before": "const FrameDocumentation=(()=>{",
+      "after": "// Scene author data and common native metadata fields. Sources are never evaluated.\nconst FrameAuthorData=(()=>{\n const limits=Object.freeze({bytes:4194304,string:1048576,records:512,refs:256,depth:24,items:100000}),hash=/^[a-f0-9]{32}$/,bad=new Set(['__proto__','prototype','constructor']);\n const error=(message,code='INVALID_ARGUMENT')=>{throw Object.assign(Error(message),{code});};\n const id=v=>typeof v==='string'&&hash.test(v),owner=v=>v==='scene'||id(v),rev=v=>Number.isSafeInteger(v)&&v>=0&&v<Number.MAX_SAFE_INTEGER;\n function json(input){let items=0,bytes=0;const seen=new Set();function copy(v,depth){if(++items>limits.items||depth>limits.depth)error('Author data exceeds structural limit');if(v===null||typeof v==='boolean')return v;if(typeof v==='number'){if(!Number.isFinite(v))error('Author data requires finite numbers');return v;}if(typeof v==='string'){if(v.length>limits.string||!v.isWellFormed())error('Author data requires bounded well-formed Unicode');bytes+=v.length*2;if(bytes>limits.bytes)error('Author data exceeds text limit');return v;}if(!v||typeof v!=='object'||seen.has(v))error('Author data requires acyclic JSON');const array=Array.isArray(v),proto=Object.getPrototypeOf(v);if(!array&&proto!==Object.prototype&&proto!==null)error('Author data requires plain JSON objects');seen.add(v);const descriptors=Object.getOwnPropertyDescriptors(v),out=array?[]:{};for(const key of Reflect.ownKeys(descriptors)){if(array&&key==='length')continue;if(typeof key!=='string'||bad.has(key)||!key.isWellFormed()||key.length>256||array&&(!/^(0|[1-9][0-9]*)$/.test(key)||Number(key)>=v.length))error('Invalid author data key');const d=descriptors[key];if(!Object.hasOwn(d,'value')||!d.enumerable)error('Author data accessors and hidden properties are unsupported');bytes+=key.length*2;if(bytes>limits.bytes)error('Author data exceeds text limit');out[key]=copy(d.value,depth+1);}if(array&&(v.length>limits.items||Object.keys(out).length!==v.length))error('Sparse or oversized author data array');seen.delete(v);return out;}const result=copy(input,0);if(JSON.stringify(result).length>limits.bytes)error('Author data exceeds encoded limit');return result;}\n const keys=(v,allowed)=>{if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).some(k=>!allowed.includes(k)))error('Invalid author data shape');};\n function reference(r){keys(r,['kind','owner','id','field','unresolved']);if(r.unresolved!==undefined&&r.unresolved!==true)error('Invalid unresolved reference');if(!owner(r.owner))error('Invalid reference owner');if(r.kind==='object'){if(r.owner==='scene'||r.id!==undefined||r.field!==undefined)error('Invalid object reference');}else if(r.kind==='field'){if(r.owner==='scene'||r.id!==undefined||typeof r.field!=='string'||!r.field.length||r.field.length>128)error('Invalid field reference');}else if(r.kind==='record'){if(!id(r.id)||r.field!==undefined)error('Invalid record reference');}else error('Unsupported typed reference');return r;}\n function record(r){keys(r,['id','revision','name','kind','refs','payload']);if(!id(r.id)||!rev(r.revision)||typeof r.name!=='string'||r.name.length>256||!Array.isArray(r.refs)||r.refs.length>limits.refs)error('Invalid author record');r.refs.forEach(reference);if(r.kind==='source'){keys(r.payload,['language','text']);if(!['javascript','html','css','text'].includes(r.payload.language)||typeof r.payload.text!=='string')error('Invalid inert source');}else if(r.kind==='schema'){keys(r.payload,['format','definition']);if(r.payload.format!=='json-schema'||!r.payload.definition||typeof r.payload.definition!=='object'||Array.isArray(r.payload.definition))error('Invalid inert schema');}else if(r.kind==='binding'){keys(r.payload,['target']);if(!Number.isInteger(r.payload.target)||r.payload.target<0||r.payload.target>=r.refs.length||r.refs[r.payload.target].kind!=='field')error('Binding requires a typed field target');}else if(r.kind==='opaque'){keys(r.payload,['format','version','data']);if(typeof r.payload.format!=='string'||!r.payload.format.length||r.payload.format.length>128||!Number.isSafeInteger(r.payload.version)||r.payload.version<1||!Object.hasOwn(r.payload,'data'))error('Invalid declared opaque record');}else error('Unsupported author record kind');return r;}\n function envelope(input){if(input===undefined||input===null)return null;const value=json(input);keys(value,['version','revision','records']);if(value.version!==1||!rev(value.revision)||!Array.isArray(value.records)||value.records.length>limits.records)error('Invalid author data envelope');const ids=new Set();for(const r of value.records){record(r);if(ids.has(r.id))error('Duplicate author record ID');ids.add(r.id);}return value;}\n function remap(input,mapping,rootMapping=null){const value=envelope(input);if(!value)return null;for(const r of value.records)for(const ref of r.refs){if(ref.owner==='scene'){if(ref.kind==='record'&&rootMapping){if(rootMapping.has(ref.id)&&!ref.unresolved)ref.id=rootMapping.get(ref.id);else ref.unresolved=true;}}else ref.owner=mapping.get(ref.owner)||ref.owner;}return value;}\n function merge(current,incoming,mapping,rootMapping){const a=envelope(current),b=remap(incoming,mapping,rootMapping);if(!b?.records.length)return a;const records=[...a?.records||[],...b.records.map(r=>({...r,id:rootMapping.get(r.id)||r.id}))];return envelope({version:1,revision:(a?.revision||0)+1,records});}\n function closure(root,objects){root=envelope(root);if(!root)return null;const records=new Map(root.records.map(r=>[r.id,r])),keep=new Set(),visit=r=>{for(const ref of r.refs)if(ref.kind==='record'&&ref.owner==='scene'&&records.has(ref.id)&&!keep.has(ref.id)){keep.add(ref.id);visit(records.get(ref.id));}};for(const o of objects)for(const r of o.authoring?.authorData?.records||[])visit(r);return keep.size?{...root,records:root.records.filter(r=>keep.has(r.id))}:null;}\n let epoch=crypto.randomUUID(),generation=0,readRoot=()=>null,writeRoot=()=>error('Native scene not ready','NOT_READY');\n const empty=()=>({version:1,revision:0,records:[]});\n function root(){return envelope(readRoot());}\n function setRoot(value){writeRoot(envelope(value));}\n function resolveOwner(value){if(!id(value))error('Canonical native owner hash required');const matches=nodes.filter(n=>n.nativeHash===value);if(matches.length!==1)error(matches.length?'Ambiguous native owner':'Native owner is missing','NOT_FOUND');return matches[0];}\n function get(value){if(!owner(value))error('Invalid author owner');return {epoch,owner:value,data:(value==='scene'?root():envelope(resolveOwner(value).authorData))||empty(),runtime:'unavailable'};}\n function expect(value,expected){keys(expected,['epoch','revision']);if(expected.epoch!==epoch||expected.revision!==get(value).data.revision)error('Author data changed; read current revision','CONFLICT');}\n function replace(value,expected,records){expect(value,expected);const previous=get(value).data,next=envelope({version:1,revision:previous.revision+1,records});const old=new Map(previous.records.map(r=>[r.id,r]));for(const r of next.records){const before=old.get(r.id);if(!before){if(r.revision!==0)error('New record revision must be zero');}else{const same=JSON.stringify({...before,revision:0})===JSON.stringify({...r,revision:0});if(r.revision!==before.revision+(same?0:1))error('Record revision must advance exactly once','CONFLICT');}}\n  if(JSON.stringify(next.records)===JSON.stringify(previous.records))return get(value);const target=value==='scene'?null:resolveOwner(value);commit(()=>{if(target)target.authorData=next;else setRoot(next);},false);frameSyncEngineVisibility();return get(value);\n }\n function availability(ref){reference(ref);if(ref.unresolved)return {status:'unresolved-reference'};if(ref.owner==='scene'){const present=root()?.records.some(r=>r.id===ref.id);return {status:present?'available':'missing-record'};}const matches=nodes.filter(n=>n.nativeHash===ref.owner);if(matches.length!==1)return {status:matches.length?'ambiguous-owner':'missing-owner'};const n=matches[0];if(ref.kind==='object')return {status:'available'};if(ref.kind==='record')return {status:n.authorData?.records.some(r=>r.id===ref.id)?'available':'missing-record'};return {status:['name','visible'].includes(ref.field)?'available':'unsupported-field'};}\n return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,availability,root,setRoot,resolveOwner,error,rev,changed(){generation++;},get generation(){return generation;},reset(){epoch=crypto.randomUUID();generation=0;},get epoch(){return epoch;},attach(read,write){readRoot=read;writeRoot=write;}});\n})();\nconst FrameFields=(()=>{\n const specs=Object.freeze({name:Object.freeze({id:'name',label:'Name',type:'string',unit:null,access:'read-write',phase:'authoring',maxLength:4096}),visible:Object.freeze({id:'visible',label:'Visible',type:'boolean',unit:null,access:'read-write',phase:'authoring'})});\n function validate(field,value){if(!Object.hasOwn(specs,field))FrameAuthorData.error('Unsupported native field','UNSUPPORTED');if(typeof value!==specs[field].type||field==='name'&&(value.length>4096||value.includes('\\0')||!value.isWellFormed()))FrameAuthorData.error('Invalid native '+field);return value;}\n function read(owner,field){const n=FrameAuthorData.resolveOwner(owner);if(!Object.hasOwn(specs,field))FrameAuthorData.error('Unsupported native field','UNSUPPORTED');return {owner,field,...specs[field],value:n[field],epoch:FrameAuthorData.epoch,revision:FrameAuthorData.generation,availability:'available'};}\n function write(writes){const unique=new Set(),prepared=writes.map(w=>{const key=w.owner+':'+w.field;if(unique.has(key))FrameAuthorData.error('Duplicate field target');unique.add(key);const state=read(w.owner,w.field);validate(w.field,w.value);if(w.epoch!==state.epoch||w.revision!==state.revision)FrameAuthorData.error('Native field changed; read current revision','CONFLICT');return {n:FrameAuthorData.resolveOwner(w.owner),field:w.field,value:w.value};});if(prepared.some(w=>w.n[w.field]!==w.value))commit(()=>{for(const w of prepared)w.n[w.field]=w.value;});return writes.map(w=>read(w.owner,w.field));}\n return Object.freeze({specs,validate,read,write});\n})();\n\nconst FrameDocumentation=(()=>{",
+      "count": 1,
+      "checkpointIndex": 0
+    },
+    {
+      "before": "function snapshot(){return JSON.stringify({morphEditor:",
+      "after": "function snapshot(){return JSON.stringify({authorData:FrameAuthorData.root(),morphEditor:",
+      "count": 1,
+      "checkpointIndex": 1
+    },
+    {
+      "before": "const old=JSON.parse(before),next=JSON.parse(after);old.preserveCameraFrames=",
+      "after": "FrameAuthorData.changed();const old=JSON.parse(before),next=JSON.parse(after);old.preserveCameraFrames=",
+      "count": 1,
+      "checkpointIndex": 2
+    },
+    {
+      "before": "function restore(value){frameUITransaction++;try{",
+      "after": "function restore(value){FrameAuthorData.reset();frameUITransaction++;try{",
+      "count": 1,
+      "checkpointIndex": 3
+    },
+    {
+      "before": "nodes=s.nodes;selected=new Set(s.selection);",
+      "after": "nodes=s.nodes;FrameAuthorData.setRoot(s.authorData||null);selected=new Set(s.selection);",
+      "count": 1,
+      "checkpointIndex": 4
+    },
+    {
+      "before": "return tags.length||animation.length||n.emptyMesh",
+      "after": "return n.authorData||tags.length||animation.length||n.emptyMesh",
+      "count": 1,
+      "checkpointIndex": 5
+    },
+    {
+      "before": "?{version:1,...n.emptyMesh",
+      "after": "?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh",
+      "count": 1,
+      "checkpointIndex": 6
+    },
+    {
+      "before": "function frameRestoreAuthoring(n,a){delete n.ignoredAuthoring;",
+      "after": "function frameRestoreAuthoring(n,a){delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;",
+      "count": 1,
+      "checkpointIndex": 7
+    },
+    {
+      "before": "if(a.version!==1||!Array.isArray(a.tags)",
+      "after": "if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);if(a.version!==1||!Array.isArray(a.tags)",
+      "count": 1,
+      "checkpointIndex": 8
+    },
+    {
+      "before": "const {plugin,pluginRecords,recordValues,tags,animation,instanceCloud,...metadata}=authoring,result=remap(metadata);",
+      "after": "const {plugin,pluginRecords,recordValues,tags,animation,instanceCloud,authorData,...metadata}=authoring,result=remap(metadata);if(authorData)result.authorData=FrameAuthorData.remap(authorData,mapping,rootMapping);",
+      "count": 1,
+      "checkpointIndex": 9
+    },
+    {
+      "before": "function remapAuthoring(authoring,mapping,remap=structuredClone){",
+      "after": "function remapAuthoring(authoring,mapping,remap=structuredClone,rootMapping=null){",
+      "count": 1,
+      "checkpointIndex": 10
+    },
+    {
+      "before": "const previousGlobal=prior?.get(K.parameters)?.value;",
+      "after": "if(prior?.has(K.parameters)){const saved=JSON.parse(prior.get(K.parameters).value);if(saved.authorData)global.authorData=FrameAuthorData.envelope(saved.authorData);}\n      const previousGlobal=prior?.get(K.parameters)?.value;",
+      "count": 1,
+      "checkpointIndex": 11
+    },
+    {
+      "before": "if(global.frame||global.total!==120||global.materials.length||global.documentation)",
+      "after": "if(global.authorData||global.frame||global.total!==120||global.materials.length||global.documentation)",
+      "count": 1,
+      "checkpointIndex": 12
+    },
+    {
+      "before": "const g=JSON.parse(globalText);if(g.version!==1",
+      "after": "const g=JSON.parse(globalText);if(g.authorData!==undefined)g.authorData=FrameAuthorData.envelope(g.authorData);if(g.version!==1",
+      "count": 1,
+      "checkpointIndex": 13
+    },
+    {
+      "before": "function notifyObjects(){const indices=",
+      "after": "function notifyObjects(){FrameAuthorData.changed();const indices=",
+      "count": 1,
+      "checkpointIndex": 14
+    },
+    {
+      "before": "async function restoreStructure(objects,selection){",
+      "after": "async function restoreStructure(objects,selection){FrameAuthorData.reset();",
+      "count": 1,
+      "checkpointIndex": 15
+    },
+    {
+      "before": "frames:snapshotFrames()};\n      try{\n        for(const o of objects",
+      "after": "frames:snapshotFrames(),authorData:FrameAuthorData.root()};\n      try{\n        for(const o of objects",
+      "count": 1,
+      "checkpointIndex": 16
+    },
+    {
+      "before": "frames:snapshotFrames()},created:g.copyCreated",
+      "after": "frames:snapshotFrames(),authorData:FrameAuthorData.root()},created:g.copyCreated",
+      "count": 1,
+      "checkpointIndex": 17
+    },
+    {
+      "before": "await restoreStructure(g.copyBefore.objects,g.copyBefore.selection);",
+      "after": "FrameAuthorData.setRoot(g.copyBefore.authorData||null);await restoreStructure(g.copyBefore.objects,g.copyBefore.selection);",
+      "count": 1,
+      "checkpointIndex": 18
+    },
+    {
+      "before": "await restoreStructure(action.before.objects,action.before.selection);",
+      "after": "FrameAuthorData.setRoot(action.before.authorData||null);await restoreStructure(action.before.objects,action.before.selection);",
+      "count": 1,
+      "checkpointIndex": 19
+    },
+    {
+      "before": "await restoreStructure(action.after.objects,action.after.selection);",
+      "after": "FrameAuthorData.setRoot(action.after.authorData||null);await restoreStructure(action.after.objects,action.after.selection);",
+      "count": 2,
+      "checkpointIndex": 20
+    },
+    {
+      "before": "async function undoEdit(){\n",
+      "after": "async function undoEdit(){\n      if(!undoBusy)FrameAuthorData.reset();\n",
+      "count": 1,
+      "checkpointIndex": 21
+    },
+    {
+      "before": "async function redoEdit(){\n",
+      "after": "async function redoEdit(){\n      if(!undoBusy)FrameAuthorData.reset();\n",
+      "count": 1,
+      "checkpointIndex": 22
+    },
+    {
+      "before": "function nativeSceneEvent(name){splineMaterialOrigins.clear();",
+      "after": "function nativeSceneEvent(name){FrameAuthorData.reset();splineMaterialOrigins.clear();",
+      "count": 1,
+      "checkpointIndex": 23
+    },
+    {
+      "before": "put(K.version,T.uint32,new Uint32Array([1]));put(K.all,T.ids,clip.objects.map(o=>o.hash));",
+      "after": "put(K.version,T.uint32,new Uint32Array([1]));put(K.all,T.ids,clip.objects.map(o=>o.hash));const authorData=FrameAuthorData.closure(FrameAuthorData.root(),clip.objects);if(authorData)put(K.parameters,T.text,JSON.stringify({version:1,frame:0,total:120,materials:[],authorData}));",
+      "count": 1,
+      "checkpointIndex": 24
+    },
+    {
+      "before": "published=false,importedDocumentation='',documentationMapping=new Map();",
+      "after": "published=false,importedDocumentation='',documentationMapping=new Map(),importedAuthorData=null,rootMapping=new Map(),authorMapping=new Map(),authorPublished=false;",
+      "count": 1,
+      "checkpointIndex": 25
+    },
+    {
+      "before": "appearance:captureMergeAppearance(space),meshes:new Set(space.meshes)",
+      "after": "appearance:captureMergeAppearance(space),meshes:new Set(space.meshes),authorData:FrameAuthorData.root()",
+      "count": 1,
+      "checkpointIndex": 26
+    },
+    {
+      "before": "          if(!options.clipboard){importedDocumentation=",
+      "after": "          importedAuthorData=JSON.parse(plan.records.get(K.parameters)?.value||'{}').authorData||null;authorMapping=mapping;rootMapping=new Map((importedAuthorData?.records||[]).map(r=>[r.id,FrameHash.newId()]));FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,mapping,rootMapping);\n          if(!options.clipboard){importedDocumentation=",
+      "count": 1,
+      "checkpointIndex": 27
+    },
+    {
+      "before": "authoring:FramePlugins.remapAuthoring(o.authoring,mapping,remap),",
+      "after": "authoring:FramePlugins.remapAuthoring(o.authoring,mapping,remap,rootMapping),",
+      "count": 1,
+      "checkpointIndex": 28
+    },
+    {
+      "before": "const g={copyBefore:{objects:before.objects,selection:before.selection,frames:before.frames},copyCreated:created};commitObjectCopy(g);",
+      "after": "const g={copyBefore:{objects:before.objects,selection:before.selection,frames:before.frames},copyCreated:created};g.copyBefore.authorData=before.authorData;const mergedAuthorData=FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);FrameAuthorData.setRoot(mergedAuthorData);authorPublished=true;commitObjectCopy(g);",
+      "count": 1,
+      "checkpointIndex": 29
+    },
+    {
+      "before": "try{if(same){releaseMergeAppearance(before.appearance",
+      "after": "try{if(same){if(authorPublished)FrameAuthorData.setRoot(before.authorData);releaseMergeAppearance(before.appearance",
+      "count": 1,
+      "checkpointIndex": 30
+    },
+    {
+      "before": "commit(()=>n.name=input.value.trim())",
+      "after": "commit(()=>n.name=FrameFields.validate('name',input.value.trim()))",
+      "count": 1,
+      "checkpointIndex": 31
+    },
+    {
+      "before": "const n=resolve(a.id);parameters(n.type,a.params||{},n.params);",
+      "after": "const n=resolve(a.id);for(const k of ['name','visible'])if(a[k]!==undefined)FrameFields.validate(k,a[k]);parameters(n.type,a.params||{},n.params);",
+      "count": 1,
+      "checkpointIndex": 32
+    },
+    {
+      "before": "      const anyParams={type:'object',properties:{},additionalProperties:true};",
+      "after": "      const anyParams={type:'object',properties:{},additionalProperties:true};\n      FrameAuthorData.attach(()=>{if(!scene)return null;return JSON.parse(scene.records.get(FrameHash.K.parameters)?.value||'{}').authorData||null;},value=>{if(!scene)fail('NOT_READY','Native scene not ready');const key=FrameHash.K.parameters,global=JSON.parse(scene.records.get(key)?.value||'{\"version\":1,\"frame\":0,\"total\":120,\"materials\":[]}');if(value)global.authorData=value;else delete global.authorData;nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;});\n      const dataOwner={type:'string',maxLength:32},dataRevision={type:'integer',minimum:0,maximum:Number.MAX_SAFE_INTEGER-1},dataJSON={};\n      const dataTool=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);Object.assign(tools.get(name),{authoringData:true,dataOnly:readOnly});};\n      dataTool('authorData.get','Read inert scene/object author records without activating plugins or settling GPU work.',required(obj({owner:dataOwner}),'owner'),true,a=>FrameAuthorData.get(a.owner));\n      dataTool('authorData.inspect','Inspect inert author records and exact typed reference availability.',required(obj({owner:dataOwner}),'owner'),true,a=>{const state=FrameAuthorData.get(a.owner);return {...state,references:state.data.records.flatMap(r=>r.refs.map((ref,index)=>({record:r.id,index,ref,...FrameAuthorData.availability(ref)})))};});\n      dataTool('authorData.replace','Replace native author records atomically with epoch/envelope and per-record revision checks. No source execution.',required(obj({owner:dataOwner,expected:required(obj({epoch:str,revision:dataRevision}),'epoch','revision'),records:array(dataJSON,512)}),'owner','expected','records'),false,a=>FrameAuthorData.replace(a.owner,a.expected,a.records));\n      dataTool('fields.list','Discover partial common native fields: name and visible only; exact owner hash, authoring values, no Atomic internals.',required(obj({owner:dataOwner}),'owner'),true,a=>({owner:a.owner,fields:Object.keys(FrameFields.specs).map(field=>FrameFields.read(a.owner,field))}));\n      dataTool('fields.read','Read one supported native authoring field without changing selection.',required(obj({owner:dataOwner,field:str}),'owner','field'),true,a=>FrameFields.read(a.owner,a.field));\n      dataTool('fields.write','Validate all exact native field writes before one native Undo transaction.',required(obj({writes:{...array(required(obj({owner:dataOwner,field:str,value:dataJSON,epoch:str,revision:dataRevision}),'owner','field','value','epoch','revision'),128),minItems:1}}),'writes'),false,a=>FrameFields.write(a.writes));\n",
+      "count": 1,
+      "checkpointIndex": 33
+    },
+    {
+      "before": "validate(tool.inputSchema,args);const input=json(args);",
+      "after": "if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=json(args);",
+      "count": 1,
+      "checkpointIndex": 34
+    },
+    {
+      "before": "await settle(tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));",
+      "after": "if(tool.authoringData&&(undoBusy||frameUITransaction||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(!tool.dataOnly)await settle(tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));",
+      "count": 2,
+      "checkpointIndex": 35
+    },
+    {
+      "before": "const input=json(args);if(nativeIOBusy&&!bridgeGuard)",
+      "after": "const input=json(args);if(tool.authoringData&&!scene)fail('NOT_READY','Native scene not ready');if(nativeIOBusy&&!bridgeGuard)",
+      "count": 1,
+      "checkpointIndex": 36
+    },
+    {
+      "before": "for(const key of Reflect.ownKeys(descriptors)){",
+      "after": "for(const key of Reflect.ownKeys(descriptors).sort((a,b)=>String(a).localeCompare(String(b)))){",
+      "count": 1,
+      "checkpointIndex": 37
+    },
+    {
+      "before": "let epoch=crypto.randomUUID(),generation=0,readRoot",
+      "after": "let epoch=crypto.randomUUID(),generation=0,busy=0,readRoot",
+      "count": 1,
+      "checkpointIndex": 38
+    },
+    {
+      "before": "changed(){generation++;},get generation()",
+      "after": "begin(){busy++;let done=false;return ()=>{if(!done){done=true;busy--;}};},get busy(){return busy>0;},changed(){generation++;},get generation()",
+      "count": 1,
+      "checkpointIndex": 39
+    },
+    {
+      "before": "async function duplicateGizmoObjects(g){\n      await FramePlugins.flush",
+      "after": "async function duplicateGizmoObjects(g){const finishAuthoring=FrameAuthorData.begin();try{\n      await FramePlugins.flush",
+      "count": 1,
+      "checkpointIndex": 40
+    },
+    {
+      "before": "g.copyBefore={objects:currentObjects.map",
+      "after": "const importedAuthorData=g.clipboard?JSON.parse(g.clipboard.records?.get(FrameHash.K.parameters)?.value||'{}').authorData||null:null,rootMapping=g.clipboard?new Map((importedAuthorData?.records||[]).map(r=>[r.id,FrameHash.newId()])):null;const mergedAuthorData=g.clipboard?FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,mapping,rootMapping):null;\n      g.copyBefore={objects:currentObjects.map",
+      "count": 1,
+      "checkpointIndex": 41
+    },
+    {
+      "before": "...FramePlugins.remapAuthoring(metadata,mapping),",
+      "after": "...FramePlugins.remapAuthoring(metadata,mapping,structuredClone,rootMapping),",
+      "count": 1,
+      "checkpointIndex": 42
+    },
+    {
+      "before": "g.scope='objects';return true;",
+      "after": "g.scope='objects';if(g.clipboard)FrameAuthorData.setRoot(mergedAuthorData);return true;",
+      "count": 1,
+      "checkpointIndex": 43
+    },
+    {
+      "before": "}catch(error){for(const mesh of created)if(!scene?.meshes.includes(mesh)){disposeMesh(mesh);releaseMorphState(mesh.hashId);}throw error;}\n    }\n    let nativeClipboard",
+      "after": "}catch(error){for(const mesh of created)if(!scene?.meshes.includes(mesh)){disposeMesh(mesh);releaseMorphState(mesh.hashId);}throw error;}\n      }finally{finishAuthoring();}\n    }\n    let nativeClipboard",
+      "count": 1,
+      "checkpointIndex": 44
+    },
+    {
+      "before": "undoBusy||frameUITransaction||api.transforming||heldPointers.size||boxDrag||drag",
+      "after": "FrameAuthorData.busy||undoBusy||frameUITransaction||treeGesture||api.transforming||heldPointers.size||boxDrag||drag",
+      "count": 2,
+      "checkpointIndex": 45
+    },
+    {
+      "before": "n[g.action]=g.value;renderTree();",
+      "after": "n[g.action]=g.action==='visible'?FrameFields.validate('visible',g.value):g.value;renderTree();",
+      "count": 1,
+      "checkpointIndex": 46
+    },
+    {
+      "before": "if(ref.kind==='record'&&ref.owner==='scene'&&records.has(ref.id)",
+      "after": "if(!ref.unresolved&&ref.kind==='record'&&ref.owner==='scene'&&records.has(ref.id)",
+      "count": 1,
+      "checkpointIndex": 47
+    },
+    {
+      "before": "function remapAuthoring(authoring,mapping,remap=structuredClone,rootMapping=null){",
+      "after": "function remapAuthoring(authoring,mapping,remap=structuredClone,rootMapping=null,authorMapping=mapping){",
+      "count": 1,
+      "checkpointIndex": 48
+    },
+    {
+      "before": "FrameAuthorData.remap(authorData,mapping,rootMapping)",
+      "after": "FrameAuthorData.remap(authorData,authorMapping,rootMapping)",
+      "count": 1,
+      "checkpointIndex": 49
+    },
+    {
+      "before": "authorMapping=mapping;rootMapping=",
+      "after": "authorMapping=new Map(plan.objects.map(o=>[o.hash,mapping.get(o.hash)]));rootMapping=",
+      "count": 1,
+      "checkpointIndex": 50
+    },
+    {
+      "before": "FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,mapping,rootMapping);\n          if(!options.clipboard)",
+      "after": "FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);\n          if(!options.clipboard)",
+      "count": 1,
+      "checkpointIndex": 51
+    },
+    {
+      "before": "authoring:FramePlugins.remapAuthoring(o.authoring,mapping,remap,rootMapping),",
+      "after": "authoring:FramePlugins.remapAuthoring(o.authoring,mapping,remap,rootMapping,authorMapping),",
+      "count": 1,
+      "checkpointIndex": 52
+    },
+    {
+      "before": "bridgeGuard?.();if(seal)await seal();const id=++sequence;",
+      "after": "bridgeGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&!scene)fail('NOT_READY','Native scene not ready');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;",
+      "count": 1,
+      "checkpointIndex": 53
+    },
+    {
+      "before": "const value=await tool.run(input,interruption);if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');",
+      "after": "const value=await tool.run(input,interruption);",
+      "count": 1,
+      "checkpointIndex": 54
+    },
+    {
+      "before": "try{validate(tool.inputSchema,message.params?.arguments??{});}catch(e)",
+      "after": "try{if(tool.authoringData){const argumentsData=FrameAuthorData.json(message.params?.arguments??{});message={...message,params:{...message.params,arguments:argumentsData}};}validate(tool.inputSchema,message.params?.arguments??{});}catch(e)",
+      "count": 1,
+      "checkpointIndex": 55
+    },
+    {
+      "before": "keys(value,['version','revision','records']);",
+      "after": "keys(value,['version','revision','records','retired']);",
+      "count": 1,
+      "checkpointIndex": 56
+    },
+    {
+      "before": "ids.add(r.id);}return value;}",
+      "after": "ids.add(r.id);}if(value.retired!==undefined&&(!Array.isArray(value.retired)||value.retired.length>4096||new Set(value.retired).size!==value.retired.length||value.retired.some(h=>!id(h)||ids.has(h))))error('Invalid retired author IDs');return value;}",
+      "count": 1,
+      "checkpointIndex": 57
+    },
+    {
+      "before": "return envelope({version:1,revision:(a?.revision||0)+1,records});",
+      "after": "return envelope({version:1,revision:(a?.revision||0)+1,records,...a?.retired?{retired:a.retired}:{}});",
+      "count": 1,
+      "checkpointIndex": 58
+    },
+    {
+      "before": "const previous=get(value).data,next=envelope({version:1,revision:previous.revision+1,records});",
+      "after": "const previous=get(value).data,next=envelope({version:1,revision:previous.revision+1,records});const active=new Set(next.records.map(r=>r.id)),retired=[...previous.retired||[],...previous.records.filter(r=>!active.has(r.id)).map(r=>r.id)];if(retired.length){next.retired=retired;envelope(next);}",
+      "count": 1,
+      "checkpointIndex": 59
+    },
+    {
+      "before": "if(!before){if(r.revision!==0)",
+      "after": "if(!before){if(previous.retired?.includes(r.id))error('Author record identity was retired; use a fresh ID','CONFLICT');if(r.revision!==0)",
+      "count": 1,
+      "checkpointIndex": 60
+    },
+    {
+      "before": "changed(){generation++;}",
+      "after": "changed(){if(generation>=Number.MAX_SAFE_INTEGER-1){epoch=crypto.randomUUID();generation=0;}else generation++;}",
+      "count": 1,
+      "checkpointIndex": 61
+    },
+    {
+      "before": "function setRoot(value){writeRoot(envelope(value));}",
+      "after": "function setRoot(value){const next=envelope(value);if(JSON.stringify(next)!==JSON.stringify(root()))writeRoot(next);}",
+      "count": 1,
+      "checkpointIndex": 62
+    },
+    {
+      "before": "nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;",
+      "after": "if(!global.authorData&&!global.documentation&&!global.frame&&global.total===120&&!global.materials?.length&&Object.keys(global).every(k=>['version','frame','total','materials'].includes(k)))scene.records.delete(key);else nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;",
+      "count": 1,
+      "checkpointIndex": 63
+    },
+    {
+      "before": "function resolveOwner(value){if(!id(value))error('Canonical native owner hash required');const matches=nodes.filter(n=>n.nativeHash===value);",
+      "after": "function owners(){const index=new Map();for(const n of nodes){const prior=index.get(n.nativeHash);if(prior)prior.push(n);else index.set(n.nativeHash,[n]);}return index;}\n function resolveOwner(value,index=null){if(!id(value))error('Canonical native owner hash required');const matches=index?index.get(value)||[]:nodes.filter(n=>n.nativeHash===value);",
+      "count": 1,
+      "checkpointIndex": 64
+    },
+    {
+      "before": "function availability(ref){reference(ref);",
+      "after": "function availability(ref,context=null){reference(ref);",
+      "count": 1,
+      "checkpointIndex": 65
+    },
+    {
+      "before": "const present=root()?.records.some(r=>r.id===ref.id);",
+      "after": "const present=context?context.root.has(ref.id):root()?.records.some(r=>r.id===ref.id);",
+      "count": 1,
+      "checkpointIndex": 66
+    },
+    {
+      "before": "const matches=nodes.filter(n=>n.nativeHash===ref.owner);",
+      "after": "const matches=context?context.owners.get(ref.owner)||[]:nodes.filter(n=>n.nativeHash===ref.owner);",
+      "count": 1,
+      "checkpointIndex": 67
+    },
+    {
+      "before": "return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,availability,root,setRoot,resolveOwner",
+      "after": "function inspect(value){const state=get(value),context={owners:owners(),root:new Set((value==='scene'?state.data:root())?.records.map(r=>r.id)||[])};return {...state,references:state.data.records.flatMap(r=>r.refs.map((ref,index)=>({record:r.id,index,ref,...availability(ref,context)})))};}\n return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,inspect,availability,root,setRoot,resolveOwner,owners",
+      "count": 1,
+      "checkpointIndex": 68
+    },
+    {
+      "before": "function read(owner,field){const n=FrameAuthorData.resolveOwner(owner);",
+      "after": "function read(owner,field,index=null){const n=FrameAuthorData.resolveOwner(owner,index);",
+      "count": 1,
+      "checkpointIndex": 69
+    },
+    {
+      "before": "function write(writes){const unique=new Set(),prepared=",
+      "after": "function write(writes){const index=FrameAuthorData.owners(),unique=new Set(),prepared=",
+      "count": 1,
+      "checkpointIndex": 70
+    },
+    {
+      "before": "const state=read(w.owner,w.field);validate",
+      "after": "const state=read(w.owner,w.field,index);validate",
+      "count": 1,
+      "checkpointIndex": 71
+    },
+    {
+      "before": "n:FrameAuthorData.resolveOwner(w.owner),field:w.field",
+      "after": "n:FrameAuthorData.resolveOwner(w.owner,index),field:w.field",
+      "count": 1,
+      "checkpointIndex": 72
+    },
+    {
+      "before": "return writes.map(w=>read(w.owner,w.field));",
+      "after": "return writes.map(w=>read(w.owner,w.field,index));",
+      "count": 1,
+      "checkpointIndex": 73
+    },
+    {
+      "before": "a=>{const state=FrameAuthorData.get(a.owner);return {...state,references:state.data.records.flatMap(r=>r.refs.map((ref,index)=>({record:r.id,index,ref,...FrameAuthorData.availability(ref)})))};}",
+      "after": "a=>FrameAuthorData.inspect(a.owner)",
+      "count": 1,
+      "checkpointIndex": 74
+    },
+    {
+      "before": "if(ref.kind==='record')return {status:n.authorData?.records.some(r=>r.id===ref.id)?'available':'missing-record'};",
+      "after": "if(ref.kind==='record'){let ids=context?.records.get(n);if(context&&!ids){ids=new Set(n.authorData?.records.map(r=>r.id)||[]);context.records.set(n,ids);}return {status:(ids?ids.has(ref.id):n.authorData?.records.some(r=>r.id===ref.id))?'available':'missing-record'};}",
+      "count": 1,
+      "checkpointIndex": 75
+    },
+    {
+      "before": "context={owners:owners(),root:",
+      "after": "context={owners:owners(),records:new Map(),root:",
+      "count": 1,
+      "checkpointIndex": 76
+    },
+    {
+      "before": " function root(){return envelope(readRoot());}",
+      "after": "\n function history(value,current){const target=envelope(value),previous=envelope(current),live=new Set(target?.records.map(r=>r.id)||[]),retired=[...new Set([...target?.retired||[],...previous?.retired||[],...previous?.records.map(r=>r.id)||[]])].filter(id=>!live.has(id));if(!target&&!retired.length)return null;return envelope({...target||empty(),...retired.length?{retired}:{}});}\n function restoreNodes(target,current){const old=new Map(current.map(n=>[n.nativeHash,n]));for(const n of target){const value=history(n.authorData,old.get(n.nativeHash)?.authorData);if(value)n.authorData=value;}return target;}\n function restoreObjects(target,current){const old=new Map(current.map(o=>[o.hash,o]));return target.map(o=>{const authorData=history(o.authoring?.authorData,old.get(o.hash)?.authoring?.authorData);return authorData?{...o,authoring:{version:1,tags:[],animation:[],...o.authoring,authorData}}:o;});}\n function preflightHistory(value){const state=JSON.parse(value);history(state.authorData,root());restoreNodes(state.nodes,nodes);}\n function root(){return envelope(readRoot());}",
+      "count": 1,
+      "checkpointIndex": 77
+    },
+    {
+      "before": "availability,root,setRoot,resolveOwner,owners,",
+      "after": "availability,root,setRoot,history,restoreNodes,restoreObjects,preflightHistory,restoreRoot(value){setRoot(history(value,root()));},resolveOwner,owners,",
+      "count": 1,
+      "checkpointIndex": 78
+    },
+    {
+      "before": "s=JSON.parse(value,FramePluginRecords.reviver);nodes=s.nodes;FrameAuthorData.setRoot(s.authorData||null);",
+      "after": "s=JSON.parse(value,FramePluginRecords.reviver),restoredAuthorData=FrameAuthorData.history(s.authorData,FrameAuthorData.root());FrameAuthorData.restoreNodes(s.nodes,nodes);nodes=s.nodes;FrameAuthorData.setRoot(restoredAuthorData);",
+      "count": 1,
+      "checkpointIndex": 79
+    },
+    {
+      "before": "if(!from.length)return;const target=from.at(-1),opposite=",
+      "after": "if(!from.length)return;const target=from.at(-1);FrameAuthorData.preflightHistory(target);const opposite=",
+      "count": 1,
+      "checkpointIndex": 80
+    },
+    {
+      "before": "async function restoreStructure(objects,selection){FrameAuthorData.reset();",
+      "after": "async function restoreStructure(objects,selection){FrameAuthorData.reset();objects=FrameAuthorData.restoreObjects(objects,poseObjects());",
+      "count": 1,
+      "checkpointIndex": 81
+    },
+    {
+      "before": "async function undoObjectCopy(action){",
+      "after": "async function undoObjectCopy(action){\n      FrameAuthorData.history(action.before.authorData,FrameAuthorData.root());FrameAuthorData.restoreObjects(action.before.objects,poseObjects());",
+      "count": 1,
+      "checkpointIndex": 82
+    },
+    {
+      "before": "async function redoObjectCopy(action){",
+      "after": "async function redoObjectCopy(action){\n      FrameAuthorData.history(action.after.authorData,FrameAuthorData.root());FrameAuthorData.restoreObjects(action.after.objects,poseObjects());",
+      "count": 1,
+      "checkpointIndex": 83
+    },
+    {
+      "before": "FrameAuthorData.setRoot(g.copyBefore.authorData||null);",
+      "after": "FrameAuthorData.restoreRoot(g.copyBefore.authorData||null);",
+      "count": 1,
+      "checkpointIndex": 84
+    },
+    {
+      "before": "FrameAuthorData.setRoot(action.before.authorData||null);",
+      "after": "FrameAuthorData.restoreRoot(action.before.authorData||null);",
+      "count": 1,
+      "checkpointIndex": 85
+    },
+    {
+      "before": "FrameAuthorData.setRoot(action.after.authorData||null);",
+      "after": "FrameAuthorData.restoreRoot(action.after.authorData||null);",
+      "count": 2,
+      "checkpointIndex": 86
+    },
+    {
+      "before": "restoreRoot(value){setRoot(history(value,root()));},resolveOwner",
+      "after": "restoreRoot(value){setRoot(history(value,root()));},preflightObjects(value,current){history(value.authorData,root());restoreObjects(value.objects,current);},resolveOwner",
+      "count": 1,
+      "checkpointIndex": 87
+    },
+    {
+      "before": "if(metadata&&(!geometry||metadata.sequence>(geometry.sequence||0))){metaUndo.pop();",
+      "after": "if(metadata&&(!geometry||metadata.sequence>(geometry.sequence||0))){if(metadata.copy)FrameAuthorData.preflightObjects(metadata.before,poseObjects());metaUndo.pop();",
+      "count": 1,
+      "checkpointIndex": 88
+    },
+    {
+      "before": "return;}const action=metaRedo.pop();if(!action)return;",
+      "after": "return;}if(next?.copy)FrameAuthorData.preflightObjects(next.after,poseObjects());const action=metaRedo.pop();if(!action)return;",
+      "count": 1,
+      "checkpointIndex": 89
+    },
+    {
+      "before": "try{const value=await tool.run(input,interruption);if(!tool.dataOnly)await settle",
+      "after": "let value,handlerCompleted=false;try{value=await tool.run(input,interruption);handlerCompleted=true;if(!tool.dataOnly)await settle",
+      "count": 1,
+      "checkpointIndex": 90
+    },
+    {
+      "before": "}catch(error){if(typeof error.code!=='string'){const wrapped=",
+      "after": "}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:json(value??null)});if(typeof error.code!=='string'){const wrapped=",
+      "count": 1,
+      "checkpointIndex": 91
+    },
+    {
+      "before": "result={isError:true,content:[{type:'text',text:(e.code||'COMMAND_FAILED')+': '+e.message}]};",
+      "after": "result={isError:true,content:[{type:'text',text:(e.code||'COMMAND_FAILED')+': '+e.message}],...e.code==='AUTHORING_POST_SETTLE_FAILED'?{structuredContent:{completed:true,receipt:e.receipt}}:{}};",
+      "count": 1,
+      "checkpointIndex": 92
+    },
+    {
+      "before": "if(!cancel&&input.value.trim())commit(()=>n.name=FrameFields.validate('name',input.value.trim()));else renderTree();",
+      "after": "if(!cancel&&input.value.trim()){let value;try{value=FrameFields.validate('name',input.value.trim());}catch(error){renderTree();fileOperationError(error);return;}commit(()=>n.name=value);}else renderTree();",
+      "count": 1,
+      "checkpointIndex": 93
+    },
+    {
+      "before": "if(JSON.stringify(result).length>limits.bytes)",
+      "after": "if(new TextEncoder().encode(JSON.stringify(result)).byteLength>limits.bytes)",
+      "count": 1,
+      "checkpointIndex": 94
+    },
+    {
+      "before": "['name','visible'].includes(ref.field)?'available':'unsupported-field'",
+      "after": "Object.hasOwn(FrameFields.specs,ref.field)?'available':'unsupported-field'",
+      "count": 1,
+      "checkpointIndex": 95
+    },
+    {
+      "before": "let done=false;const finish=cancel=>{if(done)return;done=true;input.remove();if(!cancel&&input.value.trim()){let value;try{value=FrameFields.validate('name',input.value.trim());}catch(error){renderTree();fileOperationError(error);return;}commit(()=>n.name=value);}else renderTree();};",
+      "after": "let done=false;const finish=cancel=>{if(done)return;let value;if(!cancel&&input.value.trim())try{value=FrameFields.validate('name',input.value.trim());}catch(error){input.setCustomValidity?.(error.message);input.reportValidity?.();input.focus();fileOperationError(error);return;}input.setCustomValidity?.('');done=true;input.remove();if(value!==undefined)commit(()=>n.name=value);else renderTree();};",
+      "count": 1,
+      "checkpointIndex": 96
+    },
+    {
+      "before": "let epoch=crypto.randomUUID(),generation=0,busy=0,readRoot",
+      "after": "let epoch=crypto.randomUUID(),generation=0,busy=0,documentReady=true,readRoot",
+      "count": 1,
+      "checkpointIndex": 97
+    },
+    {
+      "before": "begin(){busy++;let done=false;",
+      "after": "get ready(){return documentReady;},invalidateDocument(){documentReady=false;epoch=crypto.randomUUID();generation=0;},installed(){documentReady=true;},begin(){busy++;let done=false;",
+      "count": 1,
+      "checkpointIndex": 98
+    },
+    {
+      "before": "function disposeScene(value){navigationSurface=null;",
+      "after": "function disposeScene(value){if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurface=null;",
+      "count": 1,
+      "checkpointIndex": 99
+    },
+    {
+      "before": "scene=sceneFromMeshes(",
+      "after": "FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(",
+      "count": 5,
+      "checkpointIndex": 100
+    },
+    {
+      "before": "scene=newScene;newScene=null;",
+      "after": "FrameAuthorData.invalidateDocument();scene=newScene;newScene=null;",
+      "count": 1,
+      "checkpointIndex": 101
+    },
+    {
+      "before": "meshes:scene.meshes.map((m,index)=>({index,triangles:m.triangleCount,vertices:m.vertexCount}))}}));\n    }",
+      "after": "meshes:scene.meshes.map((m,index)=>({index,triangles:m.triangleCount,vertices:m.vertexCount}))}}));FrameAuthorData.installed();\n    }",
+      "count": 1,
+      "checkpointIndex": 102
+    },
+    {
+      "before": "if(tool.authoringData&&!scene)fail('NOT_READY','Native scene not ready');",
+      "after": "if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');",
+      "count": 2,
+      "checkpointIndex": 103
+    },
+    {
+      "before": "busy=0,documentReady=true,readRoot",
+      "after": "busy=0,documentReady=false,readRoot",
+      "count": 1,
+      "checkpointIndex": 104
+    },
+    {
+      "before": "window.addEventListener('frame-engine-scene',e=>{\n",
+      "after": "window.addEventListener('frame-engine-scene',e=>{\n  FrameAuthorData.invalidateDocument();\n",
+      "count": 1,
+      "checkpointIndex": 105
+    },
+    {
+      "before": "  window.frameDocumentation?.reset();\n",
+      "after": "  window.frameDocumentation?.reset();\n  FrameAuthorData.installed();\n",
+      "count": 1,
+      "checkpointIndex": 106
+    },
+    {
+      "before": "}}));FrameAuthorData.installed();\n    }",
+      "after": "}}));if(!FrameAuthorData.ready)throw Error('Native authoring document installation failed');\n    }",
+      "count": 1,
+      "checkpointIndex": 107
+    },
+    {
+      "before": "      frameNativeFileTask=(run,{replace=false,prepare}={})=>enqueueCommand(async seal=>{await api.ready;if(replace&&(canvas.dataset.ready==='error'||!scene)){await Promise.allSettled([objectActionQueue,clipboardSerial,selectionQueue,editSerial,appearanceQueue,replicaQueue,animationSerial]);}else await settle();await prepare?.();await seal();const result=await run();await settle();return result;},{documentation:replace?'replace':'save'});",
+      "after": "      async function settleDocument(replace=false){await api.ready;if(replace&&(canvas.dataset.ready==='error'||!scene||FrameAuthorData.ready===false)){await Promise.allSettled([objectActionQueue,clipboardSerial,selectionQueue,editSerial,appearanceQueue,replicaQueue,animationSerial]);}else{if(scene&&canvas.dataset.ready!=='error'&&FrameAuthorData.ready===false)fail('NOT_READY','Native authoring document is not installed');await settle();}}\n      frameNativeFileTask=(run,{replace=false,prepare}={})=>enqueueCommand(async seal=>{await settleDocument(replace);await prepare?.();await seal();const result=await run();await settle();return result;},{documentation:replace?'replace':'save'});",
+      "count": 1,
+      "checkpointIndex": 108
+    },
+    {
+      "before": "if(!tool.dataOnly)await settle(tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)",
+      "after": "if(['scene.new','scene.open','scene.merge','scene.share','scene.export'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)",
+      "count": 1,
+      "checkpointIndex": 109
+    },
+    {
+      "before": "if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(name==='animation.pause')",
+      "after": "if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')",
+      "count": 1,
+      "checkpointIndex": 110
+    },
+    {
+      "before": "if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))",
+      "after": "if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))",
+      "count": 1,
+      "checkpointIndex": 111
+    }
+  ]
+}

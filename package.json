@@ -55,7 +55,13 @@
     "test:unite:integration": "node tests/unite-integration.mjs",
     "test:unite:corpus": "node tests/unite-benchmark.mjs",
     "test:unite:ldi": "node tests/unite-compare.mjs",
-    "test:unite:kernel": "node tests/unite-kernel.mjs"
+    "test:unite:kernel": "node tests/unite-kernel.mjs",
+    "test:scene-data:cpu": "node tests/scene-control-data.mjs && node tests/scene-control-data-review.mjs && node tests/scene-data-docs-barrier.mjs && node tests/scene-data-main-binding.mjs && node tests/scene-parameters.mjs && node tests/scene-reservations.mjs && node tests/scene-authoring-startup.mjs && node tests/scene-startup-diagnostics.mjs",
+    "test:scene-data": "npm run test:scene-data:cpu && node tests/scene-control-data-browser.mjs",
+    "test:scene-data:audit": "node tests/scene-documentation.mjs && node tests/hash-docs-lifecycle.mjs && node tests/hash-best-effort.mjs && node tests/plugin-references.mjs && node tests/documentation-sync.mjs && node tests/documentation-button-state.mjs && node tests/documentation-empty-editor.mjs",
+    "test:release:non-unite:audit": "node tests/release-non-unite-audit.mjs",
+    "test:release:non-unite": "node tests/release-non-unite.mjs",
+    "test:release:non-unite:stress": "node tests/release-non-unite.mjs --stress"
   },
   "devDependencies": {
     "playwright": "1.64.1"

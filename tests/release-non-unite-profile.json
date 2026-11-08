@@ -1,0 +1,463 @@
+{
+  "format": "frame-reviewed-non-unite-v1",
+  "name": "release-non-unite",
+  "releaseVersion": "2026 08 nov 10:05",
+  "modules": [
+    "tests/suite.js",
+    "tests/performance.mjs",
+    "tests/features-suite.js",
+    "tests/view-suite.js",
+    "tests/ui.mjs",
+    "tests/viewport-status.mjs",
+    "tests/next-interaction.mjs",
+    "tests/view-live.mjs",
+    "tests/heavy-live.mjs",
+    "tests/simd.mjs",
+    "tests/mcp.spec.mjs",
+    "tools/mcp.mjs",
+    "tools/browser.mjs",
+    "tests/syntax.mjs"
+  ],
+  "edges": {
+    "tests/suite.js": [
+      "tests/performance.mjs",
+      "tests/features-suite.js",
+      "tests/view-suite.js"
+    ],
+    "tests/performance.mjs": [],
+    "tests/features-suite.js": [],
+    "tests/view-suite.js": [],
+    "tests/ui.mjs": [
+      "tests/viewport-status.mjs"
+    ],
+    "tests/viewport-status.mjs": [],
+    "tests/next-interaction.mjs": [],
+    "tests/view-live.mjs": [
+      "tests/heavy-live.mjs"
+    ],
+    "tests/heavy-live.mjs": [],
+    "tests/simd.mjs": [],
+    "tests/mcp.spec.mjs": [
+      "tools/browser.mjs",
+      "tools/mcp.mjs"
+    ],
+    "tools/mcp.mjs": [
+      "tools/browser.mjs"
+    ],
+    "tools/browser.mjs": [],
+    "tests/syntax.mjs": []
+  },
+  "sources": {
+    "core/documentation-editor.mjs": "afc2e507ee43077bb9657db577d7cf2cce92c8dc44d98e32918cd473d9200709",
+    "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
+    "core/documentation-window.mjs": "34e3ad3c5efc674e17abf183879716809f225b8bf249f672dff36224d5a4eda3",
+    "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
+    "frame-sw.js": "e785e431a4ac4a3500611bbdb2988e994058f82664c914a45c15016474e52918",
+    "index.html": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6",
+    "kernels/NOTICE.md": "ebad3785cd99f036a332772aa5c767e33f01387902aedce8795064f6112b1169",
+    "kernels/licenses/amgcl.txt": "95d7a4dff94857349e7c5cad45cf86a2a4952bbe3ec4eb8fd21b07e178578a10",
+    "kernels/licenses/emscripten.txt": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c",
+    "kernels/licenses/geogram.txt": "0d0c1107470055650966ae919f732ebff14542f942db564df3b1a49e349b917b",
+    "kernels/licenses/libmeshb.txt": "0c530f13022718dfe67d1cd96fda94b9a6d7d441afbc8b8cec4f29211b9b0b49",
+    "kernels/licenses/manifold.txt": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+    "kernels/licenses/meshoptimizer.txt": "f03037ca7bad1e3eb7f4a63fa6084a8baabd5ba30d3c239a9a7f35705d873e26",
+    "kernels/licenses/opennl.txt": "30f24f03201c9edc4a25b813886473ca50310d0ee355e6f3f6278eb6a87a674a",
+    "kernels/licenses/poisson-recon.txt": "3cc012a8442b4f013d54fd5fb99e3267d6118025d1ebaf4ee6780c54f3e4840b",
+    "kernels/licenses/rply.txt": "c5d67f3a7a7e6ca583530f9da311604f8b5a33de8afc4b2d6458287574878453",
+    "kernels/licenses/stb.txt": "7169810d8b6cf25c9bc0d1067ecce30bbff74a1ccafdfe37ccbe1ee7849d5c36",
+    "kernels/licenses/xatlas.txt": "5ca27fd08baa8ab8c1022ef45cfe489632666441bdeb837a13904fa5eb086bc6",
+    "kernels/licenses/zlib.txt": "845efc77857d485d91fb3e0b884aaa929368c717ae8186b66fe1ed2495753243",
+    "kernels/volume-0e3a6b442b66860e3000.wasm": "0e3a6b442b66860e300070e4063bb0c9606301c6f39637df2f4fe79dc556378c",
+    "manifest.webmanifest": "90707f9f7b780b241444e50ec9428d53449d78899ec2aad7082e7a564e280d6e",
+    "package-lock.json": "6a8875903dfc734f3f5b19c73e01a4c9966bc18f2cbe693d92fd9bd0d146c1da",
+    "plugins/3d-printer/AGENTS.md": "7f3e891b7168d2f72a1a0714c55d40a3fafb1ae381f896a485e4503c190a69c9",
+    "plugins/3d-printer/icon.svg": "0431821c0f938a7342e890b796c9612018de01892df94cd07bcd9bc3254ca697",
+    "plugins/3d-printer/plugin.js": "d4c4d1fb76ba87762e49fd8bec1d8f7fe4dc499d26b2e50fb7f27732ed382827",
+    "plugins/3d-printer/plugin.json": "30c6e8eed056bc56eb6210e19d0db2ba43b8facf22abeb0c4abdac8393b9af27",
+    "plugins/3d-printer/tests/README.md": "c2d2e939b5b285670f89c6be32703dc080277222cca010170f34256875bb5d73",
+    "plugins/3d-printer/tests/corpus.mjs": "ff7c8bf5bb18572d997aaa05df16fac736de2c494756683031a661ab3aafa811",
+    "plugins/3d-printer/tests/feedback.mjs": "fcce89c104cc9fa2353010fa4c8263b798787a337a3aedd3c90c51d0a9ed4de8",
+    "plugins/3d-printer/tests/generate-zoo.mjs": "c2e8f515e513653c05df7d8698a6f90496b0c515c41ad7da6475131244fe8c1b",
+    "plugins/3d-printer/tests/index.mjs": "5af4472f73eb36d0c8a391eb749c880ab6b0841ff0fe8608b9959e279bf6f75e",
+    "plugins/3d-printer/tests/numeric-ldi.mjs": "df9319613a29303590639ee84333d618b04d5bde2235d9223c18b7fe7f772650",
+    "plugins/3d-printer/tests/overlap.mjs": "c3084bfe28803df67ec03e06672d09d711dbd911232244dbdcf9c48eddf630d4",
+    "plugins/3d-printer/tests/performance.mjs": "41da840b2271c3ed46e0595536d92e3d76cb729e92c014bdbc190bb58128c771",
+    "plugins/3d-printer/tests/perimeters.mjs": "9a7b42ee01f43371916920db8b8e03234fe97f660bca698f2e7d8bc6156adb43",
+    "plugins/3d-printer/tests/revision.mjs": "e80796fa8a073c8cedec3c928a87266dc6c5e3709b72e27168c648278d9d557a",
+    "plugins/3d-printer/tests/slicer-zoo.json": "433646dce65d9f18b60f4cc42fe043d5b46bbadfe637346de07c1fe39f3850d3",
+    "plugins/3d-printer/tests/slicer.mjs": "b4d75aefedb2ff06813b19487b706e104f913a39b3d61ff61ca05e5065fb801a",
+    "plugins/3d-printer/tests/stl-oracle.mjs": "d719e37b9609ab1f3c0d23dbec79cd78dcf19a22401d60b1028b06d360b5b5fc",
+    "plugins/3d-printer/tests/volume-preparation.mjs": "c135e15aeff63f579dbd27b24cdb8d25c536cb8e536e7aaf80448e5a91e4c05e",
+    "plugins/AGENTS.md": "b621ac552e8a3e80b02e378c96b2714e97996ee223f31902d26442fddbeff1da",
+    "plugins/atomic/AGENTS.md": "fb1801a891032d37cc8fc9026fa4e0e5cf5b122a9fff50c42d0b39aea4214bde",
+    "plugins/atomic/README.md": "a9eff4424a0797d2aadc069147a3a7f5d7ca2d9edacbb1c26049621c662496d7",
+    "plugins/atomic/icon.svg": "60810bebdb880f077749d59209ef076f1f79ec1ebd3953f82b9d2c18f0e3b35d",
+    "plugins/atomic/plugin.js": "b0548611406d032505e5aa6c8c6e28a5bf3026261de7c3e54a75b4c1c469c902",
+    "plugins/atomic/plugin.json": "c1091274541d8e093f65b1d868aabf095471aafdc7646feef2154d9f85684072",
+    "plugins/atomic/provenance.json": "ee15da0185b3cb6879a04956feb3cac01ade027f88a19f904ed6d6882c61215a",
+    "plugins/atomic/tests/autotune.mjs": "bf0780df59e723282322cc1bc5593c6c25da097de3416851cdaaacf87ccc3463",
+    "plugins/atomic/tests/comparison.mjs": "931645a63c72a41146b403e921bddf02f612044931502a6eaded8335b9a4866f",
+    "plugins/atomic/tests/extended.mjs": "881ba652bb47e9d8fe5fa218e58a697f29784b1489c3196ca1b70d374bb5bf83",
+    "plugins/atomic/tests/feedback.mjs": "de73fe2684ce8e800f5808687b33d4368af5b6f9e209bb56d37f97c6366c70a5",
+    "plugins/atomic/tests/generate-reference.mjs": "77535c2d000ddc9971b3b69b81a29929929c0b32ade59a1ea6db6dbc282c274f",
+    "plugins/atomic/tests/index.mjs": "88da1779fd56a153625baca4913ab80fc5e9374cf24641462081306f315a42f8",
+    "plugins/atomic/tests/million-physics.mjs": "7e68e32c75518253163decb3389de7a1ed3bd95ae2573f61ea849ee3e624f37f",
+    "plugins/atomic/tests/motion.mjs": "d8cda81e572223a332ff949cb062b76195f480afee2ae71905d8c8ae512191a7",
+    "plugins/atomic/tests/nep-reference.json": "323a7e3e9c9c7261b57c2a5d814f7142b478ace1c6fa45cb34991497b3ed4a58",
+    "plugins/atomic/tests/nep.mjs": "6808d22130e649a4e89d1bd26ddde48b9011728bc51fe24e53e48b1fa64a0734",
+    "plugins/atomic/tests/performance.mjs": "533e31479ecce381aecc661c0cae2a50032cb0001255071ec80287ef8b685a1d",
+    "plugins/atomic/tests/physics.mjs": "46f9d502fa478bbd8c10570ba332fae26ee0c26949e6b0cd1cf27c1154de0363",
+    "plugins/atomic/tests/revision.mjs": "3ed96c5fd1dc5a375e649588b7d99b710674acf6411684598422bf318a6a64a5",
+    "plugins/atomic/tests/run.mjs": "5fae1c1ef82b2bbb4c35b527d45702cc6f569170eb3da9b0fbdfa48f9ab71385",
+    "plugins/atomic/tests/timeline.mjs": "f9964f846976ae898f3b21777b6cb6eac8fb8695aab7a5cea10a42cd0794d6c1",
+    "plugins/atomic/tests/ui.mjs": "76278fe8c3721084111b9ba0735789dd0901ba441524de24cc56e448b1d16f6e",
+    "plugins/index.json": "76b263f994b14e9a7bc9c0fa83f38f729f2abb757ae01f710c63f05be0eae3d0",
+    "plugins/mill/AGENTS.md": "b6265f3fc0e6905b8cf4abb13ad01f7cf64db5f54b5908869691caa72095fa19",
+    "plugins/mill/README.md": "01b628a0755fe12882c401ce409e6fb768782a85e7ea6bafd4c65c6b4014a33b",
+    "plugins/mill/TODO.md": "5ce558b4e970af90f8f313a520b3f3c97821e9181de772e1d7c4c3a9ad7a9870",
+    "plugins/mill/icon.svg": "a4f9d74953c0562ea2b8b90931b5aa3ad8b2789603752c662579d5876c6d0a24",
+    "plugins/mill/plugin.js": "018efbf853bce54dcb9bd9bdb04dcc511000a301fc88dc6617b573ed97e4bb20",
+    "plugins/mill/plugin.json": "28fdda3faf1d0b0ab866263b95628e60e417026827b638e88c9c4de61fc0f448",
+    "plugins/mill/tests/accessibility.mjs": "efa2cb87224139b5ee392f0b79dcebc593a53246fe64766108e551826ea79c6b",
+    "plugins/mill/tests/cutter.mjs": "592e89d5e61335fae591f3dbbbc367601b95edf691853982bc9d90e09e381977",
+    "plugins/mill/tests/fields.mjs": "02b21580e515121d31c996da966dc4f8b8731009e467cd2b475cac92235a585f",
+    "plugins/mill/tests/index.mjs": "e7cc7bacac1d5fc6f0d20388e0d27e79667643850513f0bc92ee4d6e91ca3d0d",
+    "plugins/mill/tests/job-stock.mjs": "8b9933200c5f1c9a444f10278ed8864ac94e1e146c181766ef10b2dc5eaf5f4d",
+    "plugins/mill/tests/machining.mjs": "8f260e17d2a432730072809fbe0e454fc4f1848403508974e7ec0ec783e71a13",
+    "plugins/mill/tests/part.mjs": "db507fa6a37f6905cdd4c92a28158a230955010baa7f90aed7372de9cf0952a2",
+    "plugins/mill/tests/performance.mjs": "13eb842f58af25d77a8b235840f27f772af5c777d64db3f1d17b09f150f5004f",
+    "plugins/mill/tests/planar-accuracy.mjs": "6fdcdc3b67a52475a9a53ce3f56d22ee03f7e355dc22cfb7de813848fe49c91b",
+    "plugins/mill/tests/planar-fill-oracle.mjs": "b31944723249fc754137ac288d0c24bda8ef00ce64ebbc0d400f464f0ec9dee1",
+    "plugins/mill/tests/planner.mjs": "e048d544865c620ec46937dcf9945b03643aa0a4e134680ccb3da8eede781039",
+    "plugins/mill/tests/resources.mjs": "f318c81717c376720353acaa4e39579f641183f814532c81c634a5fb57837935",
+    "plugins/mill/tests/resume.mjs": "3b5270038dacf53b998861d73d73367f788182164945de57c7f73bd407e7e34c",
+    "plugins/mill/tests/run.mjs": "24cb8e4a17b0ec54b7cb63eb1b5dea9ad9970098487e89aa3366a2ac3e281825",
+    "plugins/mill/tests/scenarios.mjs": "0b4e20f4169c5580ce5e09189d7be00fc8c60370264bf4216dd817d4ccd10810",
+    "plugins/mill/tests/solid-predicates.mjs": "d203d38cab746571ac0481ea12cce9ca6c45b5dd8e0b9705c38133c2516be134",
+    "plugins/mill/tests/solid.mjs": "b487dac7f4e34c92ae49c5bec07a0e7ae44fedd1e0bf63122dc125ed02c06a15",
+    "plugins/mill/tests/source-accuracy.mjs": "c6cce77d79b1968f9f2218babd8fe0cb9241842953b5ab70ab9529d8454fe95e",
+    "plugins/mill/tests/source-envelopes.mjs": "b91db2f87fe9af4e1eab6f9410f4620e6ec2486524c8ead98f12779429d43774",
+    "plugins/mill/tests/stream.mjs": "ccafa3f988649f44e953e4dd1acea00536d95713e9dbdbae098d06b4ec0a7326",
+    "plugins/mill/tests/sweeps.mjs": "c0f30e6c1ce2a26272884702f754fbd22392abdc13c7406a21d732b0e61d6176",
+    "plugins/mill/tests/tiles.mjs": "8b6899b301dccd7cdada2fe2b774107c80c9f08f6c0cfe40e34bbc6e6b9b8f92",
+    "plugins/mill/tests/volume.mjs": "aa31652c554b647536f59428870dd6a03dbf6dc5063acadcfa5c45187fd4eb01",
+    "plugins/mill/tests/whole-residual.mjs": "7079943cf8cd2519e1f5b76c626304513dcc80f61b416efdda99c9ecb0db9e8c",
+    "tests/features-suite.js": "845b279d71b45b5373902513746c8da07a8c9a54151ab3827e67abd524f2b2e2",
+    "tests/heavy-live.mjs": "083ad28a59570316394f6dee8c557cf101d45a549d4cc6d0a3d488dcfbcbbeb9",
+    "tests/mcp.spec.mjs": "8b21cbac3739ce64d14e592f1d8c02ce8098110c1076afd9041f27bfd2f92cfd",
+    "tests/next-interaction.mjs": "3b39cfe12ada3d75dbf5f2841d2911be5804de86ae05963686f8fd4e1ed3b2e7",
+    "tests/performance.mjs": "3633791b96de85a3f9b8a4366748236cd76f1cbf425d34ddbf242c64ce10ccc5",
+    "tests/release-non-unite-audit.mjs": "933adeb2cd2e3ee77f5dd346a0fa07db4c40e5b5e66210f798dc756465db0816",
+    "tests/release-non-unite.mjs": "2133b4f4e63de90811870bc360569099f9ec2302b76b6fdc5fda1e0987576637",
+    "tests/run.mjs": "fdea7705bd9a6ed2f1df59a9f9afc55838b8d32ad9b91d46a0f373787039a845",
+    "tests/scenes/unique-patches.hash": "075960d42eeb6bfddfba8c4104d12d31c646cf65713a96e1778630c9dc34da79",
+    "tests/simd.mjs": "6f17ff495bd62e03128e1e5d564d92887c0fe94046e9da896666f2e9d4f3d682",
+    "tests/suite.js": "efbd3b3db9c4e1c4b2de05fba33da940f6877754a057d67055b5b6dd5150de5b",
+    "tests/syntax.mjs": "bb5ebecc3493887ae1ac94628f7807d5a5859362ffa918b07a1a3d6b7b56fa0f",
+    "tests/ui.mjs": "2550b8ccbd52beb9589900163d417aeecae6cc3f143c499dc3d290534e9bf146",
+    "tests/view-live.mjs": "b98ed4a26581d367be7e5485b2fe3fa0387a52689e4f42b33b069fd026ba30e6",
+    "tests/view-suite.js": "d58ab20125b038556cdccee0561b7f7bd4457a73c7db9112a03f5d8853c27ff0",
+    "tests/viewport-status.mjs": "c14797872cd54dd0fd6ea1b7e8bb338a3564c4b9c7dce7ac2502e1a9f52e5d20",
+    "tools/browser.mjs": "11dbe0937966a25610daafe8ac663b76019ae6e9f8d05a28014102a7ef1ed38c",
+    "tools/mcp.mjs": "b1e2e6b2a54965bcd882daa762bede1b6ce01a37daeaaf289e6b5fc0b804fea1"
+  },
+  "selectedStandardStages": [
+    "suite",
+    "ui",
+    "next",
+    "viewLive",
+    "mcp"
+  ],
+  "extraSelectedStages": [
+    "syntax",
+    "simd",
+    "hardware",
+    "startup"
+  ],
+  "excludedStandardStages": [
+    {
+      "stage": "animationFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "axisConsistency",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "componentFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "deleteContext",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "dxfImport",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "editorFinal",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "editorRevision",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "engineering",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "feedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "fileControls",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "filePlayback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "followup",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "generatorConstruction",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "generatorRevision",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "geometryFormats",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "gestureFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "handWorkflow",
+      "reason": "Contains geometry.unite execution in selected-island workflow; entire suite excluded."
+    },
+    {
+      "stage": "importPerformance",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "interaction",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "largeDelete",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "lightingFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "mapsTools",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "materialEditor",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "materialInteraction",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "materialsSelection",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "mobileRelease",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "modeling",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "modelingPlugins",
+      "reason": "Plugin test discovery is outside this release profile; avoids indirect volume preparation."
+    },
+    {
+      "stage": "modelingViewport",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "morphGesture",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "november3",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "objImport",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october23",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Curves",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Editor",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Geometry",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Interaction",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Latency",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Library",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Precision",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Render",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october24Stock",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october25",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october26Editor",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "october28",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "octoberFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "pivotFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "planarExtrude",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "pluginInfrastructure",
+      "reason": "Plugin test discovery is outside this release profile; avoids indirect volume preparation."
+    },
+    {
+      "stage": "pointerLock",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "polygonFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "printFormats",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "pwa",
+      "reason": "Installed-PWA behavior needs a separate final-byte gate; not claimed by this profile."
+    },
+    {
+      "stage": "release",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "replicaFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "revisions",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "splineModeling",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "stepImport",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "surfaceCorrectness",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "surfaceEfficiency",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "svgImport",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "textPresets",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "unite",
+      "reason": "Direct Unite qualification is deferred by user instruction; suite is not imported."
+    },
+    {
+      "stage": "uniteConditioning",
+      "reason": "Direct Unite qualification is deferred by user instruction; suite is not imported."
+    },
+    {
+      "stage": "uniteIntegration",
+      "reason": "Direct Unite qualification is deferred by user instruction; suite is not imported."
+    },
+    {
+      "stage": "userFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "viewportFeedback",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "viewportPrinterRevision",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    },
+    {
+      "stage": "workflowDetails",
+      "reason": "Outside this bounded release profile; unchanged suite not executed or counted."
+    }
+  ],
+  "limits": [
+    "This bounded profile is not the full standard or full stress suite.",
+    "--stress increases shared-suite frame samples only; it does not add excluded stages.",
+    "No plugin test discovery, Unite/volume preparation or optional large fixtures.",
+    "Installed-PWA behavior and focused Scene Control/Doc native gates are separate.",
+    "Read-only source audit is a review/hash fence, not a universal JavaScript call-graph proof.",
+    "Runtime contains unchanged inert Unite definitions; selected routes do not invoke them."
+  ]
+}

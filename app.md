@@ -1,3 +1,13 @@
+# Scene Control author data and read-only fields (2026-11-08)
+
+Release stamp: Frame 2026 08 nov 10:05 UTC. This milestone stores inert source/schema/binding/opaque records in native HASH parameters and exposes read-only scalar current-parameter observations. It does not implement source execution, a Control panel, custom Attributes, managed Workers, autostart or subscriptions. Only native name/visible metadata is writable through the common field authoring CAS; param:<exact key> values remain read-only and observedFrame is context, not completed simulation.
+
+Native Undo, typed reference remapping, document-lifetime owner ID reservations, HASH persistence and installation readiness use the existing scene/history. The corrected pre-install root reader treats absent records as absent data without creating a Map or admitting writes. Doc save/replacement barriers, popup sealing and the always-available editable-empty Doc window are unchanged.
+
+Final runtime 38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6 passed 403 CPU checks, 891 native Scene Control assertions in 14 cases, 19 Doc checks, 249 explicit non-Unite checks plus a 249-check 32-frame replay, and 15 bounded offline-PWA checks. Hardware was NVIDIA RTX 3060 without software fallback or unexpected GPU/JS errors. See SCENE-CONTROL-DATA-QUALIFICATION.md for exact provenance, report hashes and exclusions.
+
+Use npm run test:release:non-unite:audit before the explicit npm run test:release:non-unite profile. It preserves the original shared API/features/views, real UI events, MCP and 2304-cell load/live-drag assertions without changing their thresholds. The profile reports every omitted standard stage, including handWorkflow and all Unite stages, as excluded rather than passed. npm test, the full stress suite, plugin test discovery and Unite/volume-preparation suites are not release gates for this milestone. No plugin or Unite implementation was changed.
+
 # Frame application context
 
 ## Documentation entry point (2026-11-08)

@@ -1,0 +1,21 @@
+{
+  "baseSHA256": "619e12e70d11555ba69614b1650460b135a3257af70a8f221ab93f1b3ab51d0f",
+  "releaseVersion": "2026 08 nov 10:05",
+  "patches": [
+    {
+      "before": "<meta name=\"frame-version\" content=\"2026 08 nov 08:29\">\n<title>Frame 2026 08 nov 08:29</title>",
+      "after": "<meta name=\"frame-version\" content=\"2026 08 nov 10:05\">\n<title>Frame 2026 08 nov 10:05</title>",
+      "count": 1
+    }
+  ],
+  "serviceWorker": {
+    "baseSHA256": "6410d5644d64da2edf842877fe2eb1e27fe7aac848be5d9c88ca7abcebc7ac2c",
+    "patches": [
+      {
+        "before": "const VERSION='2026 08 nov 08:29',CACHE=",
+        "after": "const VERSION='2026 08 nov 10:05',CACHE=",
+        "count": 1
+      }
+    ]
+  }
+}
