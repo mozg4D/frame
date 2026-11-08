@@ -1,3 +1,4 @@
+import {benchyStampBase} from './benchy-release-binding.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -14,7 +15,8 @@ checks.push('Only the paired shell/cache stamp is changed on the verified prompt
 
 const predecessor = JSON.parse(await readFile(new URL('detachable-views-layer.json', import.meta.url)));
 for (const [path, file] of Object.entries(layer.files)) {
-  const raw = await readFile(new URL('../' + path, import.meta.url), 'utf8');
+  const current = await readFile(new URL('../' + path, import.meta.url), 'utf8');
+  const raw = benchyStampBase(path, current);
   assert.equal(file.patches.length, 1);
   const patch = file.patches[0];
   assert.equal(patch.count, 1);
@@ -28,7 +30,7 @@ for (const [path, file] of Object.entries(layer.files)) {
     assert.throws(() => iconStampBase(path, mutated), /Exact icon release source/);
   }
   checks.push(path + ': extra bytes, stale version and duplicate patch rejected');
-  assert.equal(sha(detachableBase(path, raw)), predecessor.files[path].baseSHA256);
+  assert.equal(sha(detachableBase(path, current)), predecessor.files[path].baseSHA256);
   checks.push(path + ': complete historical binding chain remains exact');
 }
 for (const [path, expected] of Object.entries(layer.immutableLayers)) {
