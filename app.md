@@ -1,3 +1,13 @@
+## Doc text Undo and Redo (2026-11-08)
+
+Doc keeps a bounded local patch history so remote integration cannot silently disable Undo. Ctrl/Cmd-Z undoes; Ctrl-Y or Ctrl/Cmd-Shift-Z redoes. Semantic Z/Y keys take priority, with physical KeyZ/KeyY fallback for non-Latin keyboard layouts. Continuous typing groups one word for up to one second. Line breaks, whitespace, replacement/paste and IME commits are separate steps. Moving the caret or leaving the editor ends the group. History holds at most 128 steps and four million UTF-16 payload characters. Detached patch strings do not retain old megabyte documents.
+
+Disjoint remote edits survive local Undo/Redo, with positions and selections transformed. Overlapping older operations and their older dependent history are discarded rather than reverting external text. History resets at a new scene epoch and is not persisted across popup reloads. Faulted drafts remain copy-only. Native composition holds remote painting through its final input, including back-to-back compositions. Browser menu enablement can still follow native browser history; keyboard shortcuts are the supported path. CPU event-ordering and dispatched browser keyboard tests do not certify every OS IME/layout combination.
+
+Focused CPU, native-browser, full native Frame and offline regressions cover whole words, Enter, mid-word breaks, remote edits, pending acknowledgments, scene replacement, composition, retained heap size and completed-operation latency.
+
+Runtime/service-worker version: Frame 2026 08 nov 13:30.
+
 ## Doc window geometry (2026-11-08)
 
 Doc remembers its popup content size and screen position in local browser preferences, independent of scene/HASH data. Resize, focus loss, a lightweight one-second move poll and close capture the latest valid bounds. Repeated Doc clicks only focus the open window. Reopening Doc, reloading Frame and installed/offline use share the same per-origin preference.

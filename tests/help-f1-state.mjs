@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {historyBase,historyLayer} from './documentation-history-binding.mjs';
 import {createHash} from 'node:crypto';
 import {reverseAuthorLayer} from './scene-data-runtime.mjs';
 import {geometryBase} from './documentation-geometry-binding.mjs';
 import {thermalBase} from './thermal-release-binding.mjs';
-const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('function frameOpenHelp(){'),end=html.indexOf("window.addEventListener('keydown',e=>{if(!e.target.closest",start);
+const rawHTML=await readFile(new URL('../index.html',import.meta.url),'utf8'),html=historyBase('index.html',rawHTML),start=html.indexOf('function frameOpenHelp(){'),end=html.indexOf("window.addEventListener('keydown',e=>{if(!e.target.closest",start);
 assert.ok(start>=0&&end>start);const source=html.slice(start,end),listeners=[],dialog={open:false,opens:0,showModal(){this.open=true;this.opens++;}},menu={closes:0};
 const open=new Function('window','$','closeMenu',source+'return frameOpenHelp;')({addEventListener:(type,fn,capture)=>listeners.push({type,fn,capture})},id=>{assert.equal(id,'helpDialog');return dialog;},()=>menu.closes++);
 const checks=[];const check=(name,fn)=>{fn();checks.push(name);};const event=(patch={})=>({key:'F1',code:'F1',ctrlKey:false,metaKey:false,altKey:false,shiftKey:false,isComposing:false,repeat:false,defaultPrevented:false,stopped:false,preventDefault(){this.defaultPrevented=true;},stopImmediatePropagation(){this.stopped=true;},...patch});
@@ -25,6 +26,6 @@ check('Tooltip, accessibility shortcut and Help text advertise F1',()=>{assert.o
 const thermalLayer=JSON.parse(await readFile(new URL('thermal-release-layer.json',import.meta.url)));
 const layer=JSON.parse(await readFile(new URL('help-f1-layer.json',import.meta.url))),sha=s=>createHash('sha256').update(s).digest('hex');
 check('Exact shortcut/version delta reverses to published main',()=>assert.equal(sha(reverseAuthorLayer(geometryBase('index.html',thermalBase('index.html',html,thermalLayer)),layer)),layer.baseSHA256));
-const sw=await readFile(new URL('../frame-sw.js',import.meta.url),'utf8');
+const sw=historyBase('frame-sw.js',await readFile(new URL('../frame-sw.js',import.meta.url),'utf8'));
 check('Exact service-worker stamp delta reverses to published main',()=>assert.equal(sha(reverseAuthorLayer(geometryBase('frame-sw.js',thermalBase('frame-sw.js',sw,thermalLayer)),layer.serviceWorker)),layer.serviceWorker.baseSHA256));
-console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,indexSHA256:sha(html)}));
+console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,indexSHA256:sha(rawHTML)}));

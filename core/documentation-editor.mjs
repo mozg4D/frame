@@ -1,7 +1,9 @@
 import {session,edit,selectionAfter,presentation,rescueRecord,readRescue} from './documentation-sync.mjs';
 import {installDocumentationGeometry} from './documentation-geometry.mjs';
+import {history} from './documentation-history.mjs';
 const area=document.querySelector('textarea'),status=document.querySelector('output'),token=location.hash.slice(1),rescueKey='frame-docs-draft-v1';
 let port=null,composing=false,finishing=false,finishTimer=null,lastState=null,recoveryWarning='',operationWarning='',seal=null;
+const undoHistory=history();let historyEpoch=null,beforeInput=null,compositionBefore=null;
 const selection=()=>({start:area.selectionStart,end:area.selectionEnd,direction:area.selectionDirection});
 function persist(s){
  if(!s)return;
@@ -9,6 +11,8 @@ function persist(s){
  status.dataset.error=String(!!(s.fault||recoveryWarning));status.textContent=[s.fault,recoveryWarning].filter(Boolean).join(' ')||operationWarning||(seal?'File operation in progress. Editing is temporarily paused.':'');status.hidden=!status.textContent;
 }
 function paint(s){
+ const epoch=s.version?.slice(0,s.version.lastIndexOf(':'));
+ if(epoch&&epoch!==historyEpoch){undoHistory.reset(s.text);historyEpoch=epoch;beforeInput=null;}else if(area.value!==s.text&&!composing&&!finishing)undoHistory.remote(s.text);
  lastState=s;
  // Do not change the DOM or selection under an active native composition.
  // Terminal faults are visible immediately, but readOnly waits for its end.
@@ -32,14 +36,23 @@ function receive(m){
  else if(m?.kind==='reply')sync.reply(m);else if(m?.kind==='closed')disconnect();
 }
 window.addEventListener('message',event=>{if(port||event.source!==opener||event.origin!==location.origin||event.data?.kind!=='frame-docs-connect'||event.data.token!==token||event.ports.length!==1)return;port=event.ports[0];port.onmessage=event=>receive(event.data);port.onmessageerror=disconnect;});
-function finishComposition(){finishTimer=null;if(!finishing)return;capture();finishing=false;sync.resume(area.value);}
+function recordComposition(){if(compositionBefore)undoHistory.record(compositionBefore.text,area.value,compositionBefore.selection,selection(),'insertCompositionText');compositionBefore=null;beforeInput=null;}
+function finishComposition(){finishTimer=null;if(!finishing)return;capture();recordComposition();finishing=false;sync.resume(area.value);}
 function scheduleFinish(){if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=setTimeout(finishComposition,0);}
-area.addEventListener('input',()=>{if(seal?.acknowledged){invalidateSeal();return;}if(composing||finishing){capture();if(finishing)scheduleFinish();}else sync.input(area.value);});
-area.addEventListener('compositionstart',()=>{if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=null;finishing=false;composing=true;sync.hold();capture();if(seal){port.postMessage({kind:'seal-invalid',id:seal.id,error:'Composition started during a file operation; draft retained.'});sync.stop('Composition started during a file operation. These later edits have not been sent to the scene. Draft retained; copy it before reopening.');}});
+function changeHistory(backwards){
+ if(area.disabled||area.readOnly||composing||finishing||seal)return;
+ const changed=undoHistory.step(backwards);if(!changed)return;
+ const e=edit(area.value,changed.text);area.setRangeText(e.text,e.start,e.end,'preserve');const s=changed.selection;area.setSelectionRange(s.start,s.end,s.direction);beforeInput=null;sync.input(area.value);
+}
+area.addEventListener('keydown',e=>{if(composing||finishing||area.disabled||area.readOnly||seal)return;const key=e.key.toLowerCase(),shortcut=key==='z'||key==='y'?key:e.code==='KeyZ'?'z':e.code==='KeyY'?'y':key;if((e.ctrlKey||e.metaKey)&&!e.altKey&&(shortcut==='z'||shortcut==='y'&&!e.metaKey)){e.preventDefault();changeHistory(shortcut==='z'&&!e.shiftKey);return;}if(['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key))undoHistory.breakGroup();});
+area.addEventListener('pointerdown',()=>undoHistory.breakGroup());
+area.addEventListener('beforeinput',e=>{if(!composing&&!finishing&&(e.inputType==='historyUndo'||e.inputType==='historyRedo')){e.preventDefault();changeHistory(e.inputType==='historyUndo');return;}beforeInput={text:area.value,selection:selection()};});
+area.addEventListener('input',e=>{if(!composing&&!finishing&&!seal?.acknowledged){const before=beforeInput||{text:undoHistory.state.text,selection:selection()};undoHistory.record(before.text,area.value,before.selection,selection(),e.inputType);}beforeInput=null;if(seal?.acknowledged){invalidateSeal();return;}if(composing||finishing){capture();if(finishing)scheduleFinish();}else sync.input(area.value);});
+area.addEventListener('compositionstart',()=>{if(finishTimer!==null)clearTimeout(finishTimer);if(finishing){capture();recordComposition();}finishTimer=null;finishing=false;composing=true;compositionBefore={text:area.value,selection:selection()};undoHistory.breakGroup();sync.hold();capture();if(seal){port.postMessage({kind:'seal-invalid',id:seal.id,error:'Composition started during a file operation; draft retained.'});sync.stop('Composition started during a file operation. These later edits have not been sent to the scene. Draft retained; copy it before reopening.');}});
 // Native engines differ in whether the final input precedes compositionend.
 // Hold remote integration through this event turn, including its final input.
 area.addEventListener('compositionend',()=>{capture();composing=false;finishing=true;scheduleFinish();});
-area.addEventListener('blur',()=>{capture();if(lastState)paint(lastState);});
+area.addEventListener('blur',()=>{undoHistory.breakGroup();capture();if(lastState)paint(lastState);});
 area.addEventListener('select',()=>persist(lastState));
 window.addEventListener('beforeunload',e=>{capture();persist(lastState);if(lastState?.pending||lastState?.dirty||lastState?.fault||composing||finishing){e.preventDefault();e.returnValue='';}});
 window.addEventListener('pagehide',()=>{capture();persist(lastState);if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=null;port?.close();});

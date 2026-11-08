@@ -1,12 +1,13 @@
 // Source-string tests only: no browser, network, plugin discovery or runtime mutation.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {historyBase,historyLayer} from './documentation-history-binding.mjs';
 import {thermalBase,thermalSHA256,thermalStampText,assertThermalStamp,thermalStampTime} from './thermal-release-binding.mjs';
-const root=new URL('../',import.meta.url),layer=JSON.parse(await readFile(new URL('tests/thermal-release-layer.json',root))),sources={},checks=[];
+const root=new URL('../',import.meta.url),layer=JSON.parse(await readFile(new URL('tests/thermal-release-layer.json',root))),sources={},currentSources={},checks=[];
 const check=(name,fn)=>{fn();checks.push(name);},clone=()=>JSON.parse(JSON.stringify(layer));
 for(const path of ['index.html','frame-sw.js']){
-  const raw=sources[path]=await readFile(new URL(path,root),'utf8'),entry=layer.files[path],patch=entry.patches[0],base=thermalBase(path,raw,layer);
-  check(path+': exact current raw digest',()=>assert.equal(thermalSHA256(raw),entry.releaseSHA256));
+  const current=currentSources[path]=await readFile(new URL(path,root),'utf8'),raw=sources[path]=historyBase(path,current),entry=layer.files[path],patch=entry.patches[0],base=thermalBase(path,raw,layer);
+  check(path+': exact historical Thermal raw digest',()=>assert.equal(thermalSHA256(raw),entry.releaseSHA256));
   check(path+': exact predecessor digest',()=>assert.equal(thermalSHA256(base),entry.baseSHA256));
   check(path+': forward stamp round trip',()=>assert.equal(base.replace(patch.before,patch.after),raw));
   const anchors=path==='index.html'?['<meta name="frame-version" content="','<title>Frame ']:["const VERSION='"];
@@ -31,4 +32,4 @@ check('Extra source mutation cannot be encoded in this layer',()=>{const bad=clo
 check('Invalid predecessor commit rejected',()=>{const bad=clone();bad.baseCommit='pending';assert.throws(()=>thermalBase('index.html',sources['index.html'],bad),/Exact predecessor commit/);});
 check('Invalid calendar stamp rejected',()=>assert.throws(()=>thermalStampTime('2026 31 feb 12:00'),/Valid release stamp/));
 check('Unrelated file passed unchanged for historical checks',()=>assert.equal(thermalBase('core/documentation-editor.mjs','unchanged sentinel',layer),'unchanged sentinel'));
-console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,baseCommit:layer.baseCommit,indexSHA256:thermalSHA256(sources['index.html']),serviceWorkerSHA256:thermalSHA256(sources['frame-sw.js'])}));
+console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,baseCommit:layer.baseCommit,indexSHA256:thermalSHA256(currentSources['index.html']),serviceWorkerSHA256:thermalSHA256(currentSources['frame-sw.js']),historicalIndexSHA256:thermalSHA256(sources['index.html']),historicalServiceWorkerSHA256:thermalSHA256(sources['frame-sw.js'])}));

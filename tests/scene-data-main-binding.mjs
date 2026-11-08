@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {historyBase,historyLayer} from './documentation-history-binding.mjs';
 import {createHash} from 'node:crypto';
 import {reverseAuthorLayer} from './scene-data-runtime.mjs';
 import {geometryBase} from './documentation-geometry-binding.mjs';
@@ -11,8 +12,8 @@ const release=JSON.parse(await readFile(new URL('tests/scene-release-layer.json'
 const startup=JSON.parse(await readFile(new URL('tests/scene-startup-layer.json',root)));
 const reservations=JSON.parse(await readFile(new URL('tests/scene-reservation-layer.json',root)));
 const extension=JSON.parse(await readFile(new URL('tests/scene-parameter-layer.json',root)));
-const current=await readFile(new URL('index.html',root),'utf8'),layer=JSON.parse(await readFile(new URL('tests/scene-data-layer.json',root))),binding=JSON.parse(await readFile(new URL('tests/scene-data-main-binding.json',root)));
-const helpBase=reverseAuthorLayer(geometryBase('index.html',thermalBase('index.html',current,thermalLayer)),help),swCurrent=await readFile(new URL('frame-sw.js',root),'utf8');
+const rawCurrent=await readFile(new URL('index.html',root),'utf8'),current=historyBase('index.html',rawCurrent),layer=JSON.parse(await readFile(new URL('tests/scene-data-layer.json',root))),binding=JSON.parse(await readFile(new URL('tests/scene-data-main-binding.json',root)));
+const helpBase=reverseAuthorLayer(geometryBase('index.html',thermalBase('index.html',current,thermalLayer)),help),swCurrent=historyBase('frame-sw.js',await readFile(new URL('frame-sw.js',root),'utf8'));
 assert.equal(sha(helpBase),help.baseSHA256,'F1 reverses exactly to published Scene milestone');
 const released=reverseAuthorLayer(helpBase,release),sw=reverseAuthorLayer(geometryBase('frame-sw.js',thermalBase('frame-sw.js',swCurrent,thermalLayer)),help.serviceWorker);
 assert.equal(sha(sw),help.serviceWorker.baseSHA256);
@@ -28,5 +29,5 @@ assert.equal(sha(reverseAuthorLayer(prior,reservations)),reservations.baseSHA256
 assert.equal(layer.baseCommit,binding.baseCommit);
 assert.equal(layer.baseSHA256,binding.baseIndexSHA256);
 assert.equal(sha(reverseAuthorLayer(reverseAuthorLayer(reverseAuthorLayer(prior,reservations),extension),layer)),binding.baseIndexSHA256,'Complete main index is byte-identical after exact reversal');
-for(const [file,hash]of Object.entries(binding.unchangedFiles))assert.equal(sha(file==='frame-sw.js'?reverseAuthorLayer(sw,release.serviceWorker):geometryBase(file,await readFile(new URL(file,root),'utf8'))),hash,file);
-console.log(JSON.stringify({pass:true,checks:18,baseCommit:binding.baseCommit,indexSHA256:sha(current),baseSHA256:binding.baseIndexSHA256,scope:'Eight exact reversal layers to original main; Thermal stamps reverse before geometry, unchanged Docs and original service worker'}));
+for(const [file,hash]of Object.entries(binding.unchangedFiles))assert.equal(sha(file==='frame-sw.js'?reverseAuthorLayer(sw,release.serviceWorker):geometryBase(file,historyBase(file,await readFile(new URL(file,root),'utf8')))),hash,file);
+console.log(JSON.stringify({pass:true,checks:18,baseCommit:binding.baseCommit,indexSHA256:sha(rawCurrent),baseSHA256:binding.baseIndexSHA256,scope:'Eight exact reversal layers to original main; Thermal stamps reverse before geometry, unchanged Docs and original service worker'}));

@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
+import {history} from '../core/documentation-history.mjs';
 import * as sync from '../core/documentation-sync.mjs';
 const source = await readFile(new URL('../core/documentation-editor.mjs', import.meta.url), 'utf8');
 class Target {
@@ -15,7 +16,7 @@ Object.assign(area, {value: '', disabled: true, readOnly: false, selectionStart:
   setSelectionRange(start, end, direction) {Object.assign(this, {selectionStart: start, selectionEnd: end, selectionDirection: direction});}});
 win.sessionStorage = {getItem: k => saved.get(k) ?? null, setItem: (k,v) => saved.set(k,v), removeItem: k => saved.delete(k)};
 const opener = {closed: false, postMessage() {}}, port = {postMessage: m => sent.push(structuredClone(m)), close() {}};
-const context = vm.createContext({...sync, installDocumentationGeometry() {}, document: {querySelector: s => s === 'textarea' ? area : output}, window: win, opener,
+const context = vm.createContext({...sync, history, performance, installDocumentationGeometry() {}, document: {querySelector: s => s === 'textarea' ? area : output}, window: win, opener,
   location: {hash: '#test', origin: 'https://frame.example'}, setInterval() {}, setTimeout, clearTimeout});
 vm.runInContext(source.replace(/^import[^\n]*\n/gm, ''), context);
 const check = (name, actual, expected = true) => {assert.deepEqual(actual, expected, name); checks.push(name);};
