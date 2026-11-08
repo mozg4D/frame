@@ -1,0 +1,24 @@
+{
+  "format": "frame-source-overlay-v1",
+  "baseCommit": "d98aca74b4be7e4703a26bf51caa874821dcc73b",
+  "runtimeSHA256": "0c0835574ce0b6ade81d614e44aa0bc2a2c8f38e838623f40f4b32bb49250dd5",
+  "baselineFiles": 525,
+  "overlayFiles": 25,
+  "files": [
+    {
+      "path": "scene-control-overlay.json.gz",
+      "bytes": 1774927,
+      "sha256": "13fdf73a9ab1707f8d1d702b19af8b7edd256769f372a50691803390fe2f6828"
+    },
+    {
+      "path": "assemble-scene-control.mjs",
+      "bytes": 2897,
+      "sha256": "98c7efdebf9fc7ce6cd0e92c0177c37773044eccb170a53f84a0de02d56a445f"
+    },
+    {
+      "path": "README.md",
+      "bytes": 3126,
+      "sha256": "fd29c3891118d1cb1cfbbd2bfb80b89ba37449de5c2846ac978a351641949180"
+    }
+  ]
+}
