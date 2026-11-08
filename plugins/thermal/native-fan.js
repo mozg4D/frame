@@ -7,7 +7,7 @@ function validateFanProfile(params){
  if(!params||typeof params!=='object'||Array.isArray(params)||Object.keys(params).some(k=>!fields.includes(k)))fail('INVALID_ARGUMENT','Unknown Fan parameter.');
  const ref=params.Thermal;
  if(typeof ref!=='string')fail('INVALID_ARGUMENT','Select a Thermal object or leave the Fan unassigned.');
- if(!Number.isFinite(params['Shutoff pressure'])||params['Shutoff pressure']<0)fail('INVALID_ARGUMENT','Shutoff pressure must be nonnegative Pa.');
+ if(!Number.isFinite(params['Shutoff pressure'])||params['Shutoff pressure']<0)fail('INVALID_ARGUMENT','Pressure must be nonnegative Pa.');
  if(!Number.isFinite(params['Free flow'])||params['Free flow']<=0)fail('INVALID_ARGUMENT','Free flow must be positive m³/s.');
  if(!['Forward','Reverse'].includes(params.Direction))fail('INVALID_ARGUMENT','Fan direction must be Forward or Reverse along its local X.');
 }

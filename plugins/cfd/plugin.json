@@ -1,0 +1,19 @@
+{
+  "id":"cfd",
+  "name":"CFD",
+  "color":"#73adc7",
+  "module":"plugin.js",
+  "icon":"icon.svg",
+  "objects":[{
+    "type":"cfd",
+    "name":"CFD",
+    "breakAfter":["Speed","Altitude"],
+    "fields":{"Speed":20,"Medium":["Air","Water"],"Altitude":0,"Ground":["None","Road"]},
+    "fieldOptions":{
+      "Speed":{"unit":"m/s","minimum":0,"access":"read-write"},
+      "Altitude":{"unit":"m","access":"read-write"},
+      "Medium":{"access":"read-write"},
+      "Ground":{"access":"read-write"}
+    }
+  }]
+}

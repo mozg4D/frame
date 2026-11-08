@@ -1,0 +1,16 @@
+# Shared parameter-tag contract required by Structural
+
+Current core 82b0cc7 registers plugin tag names/text but replaces every manifest tag's fields with {}. Its native tag.set only assigns/removes a single fieldless marker. A declaration of fields, multiple or inheritance would be silently ignored, so Structural does not install such declarations.
+
+Before installing Material, Force and Optimize Space, coordinate one shared core change:
+
+1. Validate manifest tag fields, finite defaults, enum choices, ranges, canonical units, vector rows, multiple and inheritance/additive declarations. Reject malformed/unsupported declarations before registry mutation; never silently discard declared fields.
+2. Register the same parameter schema for native Attributes, AI discovery, API validation, copy and HASH. Material/Optimize Space have a preset choice. Force has two native compact vector rows, Force XYZ (N) and Torque XYZ (Nm). No duplicated editor or parameter registry.
+3. Address individual tag instances by native owner hash plus stable tag UID. Current native duplication may preserve a UID in a different owner namespace; never deduplicate physical sources by bare UID. Add/update/remove one of several Force tags on an object, preserve independent values and animation paths, and distinguish assignment of one marker from adding another instance. Validate all targets before one native Undo transaction. Preserve other tags, selection and existing unrelated native tag behavior.
+4. Keep every tag instance and authoring field through native copy, clipboard, merge, HASH, undo/redo and animation. Remap internal typed object references when declared, including opaque/unavailable payload handling. Never activate unknown reference data by guessing.
+5. Expose captured effective tag provenance from the shared evaluated scene. Nearest Material wins by ancestor; additive Force inherits each source UID exactly once. A Force on a parent is one total load, not multiplied by descendants. Preserve native pivot/frames and current frame values. No CPU triangle mirror, second scene graph or permanent GPU data.
+6. Share generic descriptors/hooks for tag units/vector rows/ranges and native attribute actions. Availability must remain explicit in this authoring preview; tags alone must not imply a working solver.
+
+Tests must cover nested materials, repeated Force instances, simultaneous forces, a shared parent force over several child meshes, group assignment, mixed invalid writes without partial mutation, native animation/history, duplicate/merge/HASH and unavailable-authoring preservation. Measure completed operation latency; then qualify geometry/load mapping and numerical GPU paths separately.
+
+This document requests a shared capability, not a compatibility layer or permission to edit core in parallel. The current preview uses only already-supported fieldless Fixture/Preserve markers.

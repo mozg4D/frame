@@ -102,10 +102,6 @@ The reservation fix is a third exact reversible layer, tests/scene-reservation-l
 
 A freshly constructed native scene has no records Map until installNativeRecords publishes one. The attached author-data root reader treats that specific pre-install state as absent metadata, without creating records or marking the document ready. Root writes in that state reject NOT_READY. Already-bound native records use the unchanged read/write path. This allows reservation preflight before first native publication while preserving installation readiness fencing. The exact fourth reversal layer is tests/scene-startup-layer.json.
 
-## Release qualification without Unite
+## Historical release qualification
 
-The explicit tests/release-non-unite.mjs gate imports the unchanged shared suite, real UI, live viewport, SIMD and MCP checks. Its reviewed transitive dependencies and runtime bytes are locked by tests/release-non-unite-profile.json and audited before importing test modules or launching a browser. The shared feature suite's legacy Boolean generator uses run/planar commands; the unchanged runtime dispatch reserves Unite execution for unite*/volume* commands. No selected module calls geometry.unite, prepareVolume or a Unite suite.
-
-handWorkflow is excluded in full because it invokes geometry.unite internally. Direct Unite suites and every other omitted standard stage are listed with reasons in the profile and each report. Plugin test discovery, optional large fixtures, full standard/stress results and installed-PWA qualification are not claimed. Existing assertions, source binding checks, latency budgets and all four earlier reversal files are unchanged. Final native/PWA evidence must name the release-stamped index hash, not historical R2.
-
-Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.
+SCENE-CONTROL-DATA-QUALIFICATION.md and SCENE-CONTROL-DATA-SOURCES.json preserve the evidence for the earlier data-only milestone. Its temporary bounded release profile has since been retired. Current releases use the full standard/stress profiles after removal of the polygon-union pipeline. Historical result hashes do not qualify current source bytes.

@@ -37,7 +37,7 @@ const sources=[
  section('    function restoreFrames(snapshot,notify=true,opposite=null){','\n    function frameSnapshotsEqual('),
  line('function commit(action, refresh=true){'),
  section('      function enqueueCommand(run,{documentation=null,bridge=false}={}){','      frameNativeFileTask='),
- line('      async function call(name,args={},bridgeGuard=null){'),
+ line('      async function call(name,args={},bridgeGuard=null,sessionGuard=null){'),
  affine,
  line('const defaults = fields =>'),
  line('  function owner(n){return types.get(n?.type);}'),

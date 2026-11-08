@@ -1,0 +1,277 @@
+{
+  "format": "frame-current-source-baseline-v1",
+  "version": "2026 09 nov 01:37",
+  "predecessorCommit": "82b0cc7bc4eadd832f1af535fd21c461c439967c",
+  "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
+  "scopes": {
+    "thermal-ui": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "viewport.html",
+      "plugins/thermal/plugin.json",
+      "plugins/thermal/plugin.js",
+      "plugins/thermal/native-fan.js",
+      "plugins/thermal/native-frame.js",
+      "plugins/thermal/tests/fan-ui.mjs",
+      "plugins/thermal/tests/native-probe.mjs",
+      "plugins/thermal/tests/native-selection.mjs",
+      "plugins/thermal/tests/native-history-contract.mjs",
+      "plugins/thermal/tests/opaque-authoring.mjs",
+      "plugins/thermal/tests/browser-gate-contract.mjs",
+      "plugins/thermal/tests/authoring-browser.mjs",
+      "plugins/thermal/tests/navigation-browser.mjs"
+    ],
+    "gizmo": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "viewport.html",
+      "tests/selection-gizmo-state.mjs",
+      "tests/selection-gizmo-browser.mjs",
+      "tests/viewport-pointer-priority.mjs"
+    ],
+    "scene": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "viewport.html",
+      "core/documentation-window.mjs",
+      "core/documentation-editor.mjs",
+      "core/documentation-history.mjs",
+      "core/documentation-sync.mjs",
+      "core/documentation-geometry.mjs",
+      "tests/scene-data-runtime.mjs",
+      "tests/scene-control-data.mjs",
+      "tests/scene-control-data-review.mjs",
+      "tests/scene-data-docs-barrier.mjs",
+      "tests/scene-parameters.mjs",
+      "tests/scene-reservations.mjs",
+      "tests/scene-authoring-startup.mjs",
+      "tests/scene-startup-diagnostics.mjs",
+      "tests/scene-field-writes.mjs",
+      "tests/scene-program-runtime.mjs",
+      "tests/scene-program-plans.mjs",
+      "tests/scene-control-data-browser.mjs",
+      "tests/scene-program-browser.mjs"
+    ],
+    "help": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "viewport.html",
+      "tests/help-f1-state.mjs"
+    ],
+    "plugin-overlay": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/atomic/plugin.js",
+      "plugins/atomic/tests/feedback.mjs",
+      "tests/plugin-overlay-refresh.mjs"
+    ],
+    "native-file-fixtures": [
+      "index.html",
+      "frame-sw.js",
+      "tests/native-file-completion.mjs",
+      "tests/october23-feedback.mjs",
+      "tests/october23-picker-fixture.mjs",
+      "tests/file-controls.mjs",
+      "tests/pwa.mjs"
+    ]
+  },
+  "files": {
+    "core/documentation-editor.mjs": {
+      "bytes": 8372,
+      "sha256": "8faf402362c280884a57eb8d52b84b779cd6f7f2093f51e7d9b5f22f60fce85d"
+    },
+    "core/documentation-geometry.mjs": {
+      "bytes": 3711,
+      "sha256": "8f8d0477069dcebd321ee56b404bc515e4b642740cf04542ca1c51f52a4106c2"
+    },
+    "core/documentation-history.mjs": {
+      "bytes": 4879,
+      "sha256": "5fed57e42e467371305360ecfb5ede75c00764674a88452c359d4543cc4509b6"
+    },
+    "core/documentation-sync.mjs": {
+      "bytes": 6383,
+      "sha256": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158"
+    },
+    "core/documentation-window.mjs": {
+      "bytes": 4752,
+      "sha256": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907"
+    },
+    "frame-sw.js": {
+      "bytes": 3869,
+      "sha256": "0b0b3c6fd8c35a688346da426c1f2d54ebc66e47492cfdc812ff31f5a44804bd"
+    },
+    "index.html": {
+      "bytes": 2773865,
+      "sha256": "b159777ebbb7b33849b45551c11561e0653a7516b9a55d1ae056e9f4383b8288"
+    },
+    "plugins/index.json": {
+      "bytes": 176,
+      "sha256": "c74e0534ba95cc00681dfb4ee7bb8159ef1ece34edfbe29674a918c476f9e445"
+    },
+    "plugins/thermal/native-fan.js": {
+      "bytes": 6483,
+      "sha256": "a542d351a79b553fe851d93e3c2e92d37af34fed73e4d9841d76825da172ab9d"
+    },
+    "plugins/thermal/native-frame.js": {
+      "bytes": 1200,
+      "sha256": "e598b8f53d12716ce6ebc345e913bfc9f343def20ddb2ac88a7ac7762e041f7b"
+    },
+    "plugins/thermal/plugin.js": {
+      "bytes": 5357,
+      "sha256": "b36d8ac13f6df138ad2ff0005763d4d2e9952eab873a0e25b57ce5fb5703760c"
+    },
+    "plugins/thermal/plugin.json": {
+      "bytes": 685,
+      "sha256": "c6b77b7a2aee02643fdf857bdec1c26ae9b6390495fcc76c305f4df1f2994a2b"
+    },
+    "plugins/thermal/tests/authoring-browser.mjs": {
+      "bytes": 16601,
+      "sha256": "84e1370a034649fbd43f1fb57264c489c1338d4d78b322081ab5e4561d3b3e62"
+    },
+    "plugins/thermal/tests/browser-gate-contract.mjs": {
+      "bytes": 16419,
+      "sha256": "005810886bda7ea5526f5b689325ad353b8192c030c43ef6c609488a77a8b558"
+    },
+    "plugins/thermal/tests/fan-ui.mjs": {
+      "bytes": 7682,
+      "sha256": "02d2b87119bcd82c1a2baa97f2d4504a818c093af76ff37bf67d53fdcee59552"
+    },
+    "plugins/thermal/tests/native-history-contract.mjs": {
+      "bytes": 5421,
+      "sha256": "20328b5207d1fe2c0d9775932e8a38f86fe05dbd2ca2495e4b799db2951ee794"
+    },
+    "plugins/thermal/tests/native-probe.mjs": {
+      "bytes": 6191,
+      "sha256": "7aae28ed89026675bcfa986b1c6db3e585d47d7a60bba18870560411c6728238"
+    },
+    "plugins/thermal/tests/native-selection.mjs": {
+      "bytes": 11310,
+      "sha256": "f5e03006357354cf48cd23b538ee65262007d4754754003bbdcfc0e3f29c0610"
+    },
+    "plugins/thermal/tests/navigation-browser.mjs": {
+      "bytes": 9102,
+      "sha256": "ea4d5d98c97a714c0190fdfc11e39862ba3c81657a29afe56caff2bd1a4e8b63"
+    },
+    "plugins/thermal/tests/opaque-authoring.mjs": {
+      "bytes": 5242,
+      "sha256": "2c2e799e607b8779337ce5e31bd895b1aedbfccc0b6077712b9156c8c90a2e81"
+    },
+    "tests/help-f1-state.mjs": {
+      "bytes": 3959,
+      "sha256": "307fa8b899cd79395c75a64cfd9dc961e5d9fb22d8c944de1930f7e97a432fa4"
+    },
+    "tests/scene-authoring-startup.mjs": {
+      "bytes": 5369,
+      "sha256": "8a6e2b21e22d280d57864e0c61cf8152b8c4161924b0909e0e60788f92f9ffe1"
+    },
+    "tests/scene-control-data-browser.mjs": {
+      "bytes": 54971,
+      "sha256": "dc0389e197593f9296596d0fdd61faa273bb880752ab017392fc56697b1ccdb4"
+    },
+    "tests/scene-control-data-review.mjs": {
+      "bytes": 49643,
+      "sha256": "7922637065a6ab5bd97d4df122efd7446fbd8ec21bca85352bdf5dd8b1aab219"
+    },
+    "tests/scene-control-data.mjs": {
+      "bytes": 19603,
+      "sha256": "11ce1cad7f5801dcbb05dfb47a209e7a5722db4c3886ad75abca2c840be841c5"
+    },
+    "tests/scene-data-docs-barrier.mjs": {
+      "bytes": 5742,
+      "sha256": "1d83ec0f9b5e39d2f526b03ebcc2122b665c287dc3cfe17c9794a4d718bd18d6"
+    },
+    "tests/scene-data-runtime.mjs": {
+      "bytes": 1199,
+      "sha256": "1d28751cad5667c712fe556c6ce71fc6629b45c1a69cee9ea87063d1e3af7a3f"
+    },
+    "tests/scene-field-writes.mjs": {
+      "bytes": 9260,
+      "sha256": "1b35d6a4946fd0e30437af88fc34f895a4bc6532006312873c6598cbaa783586"
+    },
+    "tests/scene-parameters.mjs": {
+      "bytes": 15876,
+      "sha256": "49cee97399632d66588a3f780e72feb50ac296af2f8f43df8aaba1a154dca88b"
+    },
+    "tests/scene-program-browser.mjs": {
+      "bytes": 18200,
+      "sha256": "f058f7f6455e396174d83c67ae8664d0a729f17322690c047b6c514bb95ce4f1"
+    },
+    "tests/scene-program-plans.mjs": {
+      "bytes": 5509,
+      "sha256": "68cbda4032cd96a1a8713dad2f5e4a6e394be7f073e15f0307a8d5a97d17365e"
+    },
+    "tests/scene-program-runtime.mjs": {
+      "bytes": 23892,
+      "sha256": "7559bfc5db1bcbf27a18ce388c7054692d057cd4a81a458e1b8c11ca178d7764"
+    },
+    "tests/scene-reservations.mjs": {
+      "bytes": 10604,
+      "sha256": "c04a828c10268e526b098305ad04da709d3c8e5418f8264143c5f2da5f340b69"
+    },
+    "tests/scene-startup-diagnostics.mjs": {
+      "bytes": 2130,
+      "sha256": "a9130946d1fea2d1f3064c5e4d5917f857c28904a51d9fa97df9bd6e881f5bfe"
+    },
+    "tests/selection-gizmo-browser.mjs": {
+      "bytes": 12488,
+      "sha256": "b83b3cc0f3e573815f911d3af25351713ee99a2824f9cc91dd17327cfd20a9e8"
+    },
+    "tests/selection-gizmo-state.mjs": {
+      "bytes": 5031,
+      "sha256": "5ea2d5083da3038df4843dd3c828b5e73a005f433a21a21ef5b28c304123a773"
+    },
+    "viewport.html": {
+      "bytes": 384,
+      "sha256": "e51adb1ab55e2c86b5dace58bf78b848d37b6ed068537100da34ce9721084ca4"
+    },
+    "tests/viewport-pointer-priority.mjs": {
+      "bytes": 5469,
+      "sha256": "b91a02da4068c964b91de1677d16f4b41377008be8d3c0c3f46b42d9e151b492"
+    },
+    "plugins/atomic/plugin.js": {
+      "bytes": 3904663,
+      "sha256": "401378d375a277ad76b7743af26c83e5c4eb64ecdac9bce15657047f9bd5840e"
+    },
+    "plugins/atomic/tests/feedback.mjs": {
+      "bytes": 8810,
+      "sha256": "09dedb014dd10e1d5b7e3251ca9c5ed98d36456d0abf8d56a721b27a600ac41b"
+    },
+    "tests/plugin-overlay-refresh.mjs": {
+      "bytes": 6307,
+      "sha256": "d86bed9cbf159bd7c4c7c8cd5d3c71bb02b4d2b11fddbdb7e001925a898ccaf4"
+    },
+    "tests/native-file-completion.mjs": {
+      "bytes": 989,
+      "sha256": "bdcc8f93fbb59a38d3e54144870c1b4a88cb0d53e8286ff6ec4d0e3091be4648"
+    },
+    "tests/october23-feedback.mjs": {
+      "bytes": 23102,
+      "sha256": "68b4cbdd6cd6d555331bc47ff8507c14acb7b28d63bba4b66f83b26792914d20"
+    },
+    "tests/october23-picker-fixture.mjs": {
+      "bytes": 2527,
+      "sha256": "68514c0c67a846526f5e7de774a52f7062a7f79310855ded642e384be5c77591"
+    },
+    "tests/file-controls.mjs": {
+      "bytes": 10905,
+      "sha256": "a17c2de6ba5da9f35d5011412316cf6f7567cc0ca83ed4452d99bd2dc0c8275f"
+    },
+    "tests/pwa.mjs": {
+      "bytes": 16310,
+      "sha256": "1aee92a64d5491db4773e38cf8ac236d98323b7280de65b0ad113cfd053f589c"
+    }
+  },
+  "archivedProofs": {
+    "tests/scene-data-main-binding.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/thermal-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/thermal-ui-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/selection-gizmo-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/documentation-history-layer-test.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
+    "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
+  }
+}

@@ -55,7 +55,7 @@ test('repeated native sync preserves Probe frame and later authored edits instea
 });
 test('Probe initialization does not change native Thermal or corrected Fan defaults',async()=>{
  const f=await fixture();await f.create();const fan=f.native.create('thermal_fan');f.native.sync();
- assert.deepEqual(Array.from(f.native.local(f.owner.nativeHash)),Array.from(math.I()));assert.deepEqual(Array.from(f.native.packed(fan.nativeHash)),[.25,0,0,0,.25,0,0,0,.25,-25,-12.5,-12.5]);
+ assert.deepEqual(Array.from(f.native.local(f.owner.nativeHash)),Array.from(math.I()));assert.deepEqual(Array.from(f.native.packed(fan.nativeHash)),[.3,0,0,0,.3,0,0,0,.1,-25,-12.5,-12.5]);
 });
 test('32 complete source-extracted native Probe creations and syncs stay below 1500 ms',async()=>{
  const f=await fixture(),started=performance.now();for(let i=0;i<32;i++){const probe=await f.create();assert.deepEqual(Array.from(f.native.packed(probe.nativeHash)),packed);assert.deepEqual(edgeLengths(f.viewport.lines,f.native.local(probe.nativeHash)),Array(12).fill(2));}

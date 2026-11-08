@@ -1,6 +1,6 @@
 # Keep runtime validation hashes identical in Git and Windows working copies.
 index.html text eol=lf
-plugins/3d-printer/plugin.js -text
+plugins/3d-printer/plugin.js -text whitespace=cr-at-eol
 plugins/3d-printer/icon.svg -text
 plugins/atomic/plugin.js text eol=lf
 # Preserve upstream geometry samples byte-for-byte for their recorded SHA-256.
@@ -30,5 +30,83 @@ frame-sw.js text eol=lf
 plugins/index.json text eol=lf
 plugins/**/plugin.json text eol=lf
 
-# Preserve upstream whitespace in volume dependency patches.
-tools/volume/patches/*.patch text eol=lf whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+# Keep popup/core runtime bytes identical in Git, Windows and release checks.
+viewport.html text eol=lf
+documentation.html text eol=lf
+core/*.mjs text eol=lf
+
+plugins/structural/** text eol=lf
+
+plugins/circuit/** text eol=lf
+
+plugins/cfd/** text eol=lf
+
+# Exact current-baseline text bytes on Windows and fresh clones; no scene/binary rules.
+.gitattributes text eol=lf
+core/documentation-editor.mjs text eol=lf
+core/documentation-geometry.mjs text eol=lf
+core/documentation-history.mjs text eol=lf
+core/documentation-sync.mjs text eol=lf
+core/documentation-window.mjs text eol=lf
+frame-sw.js text eol=lf
+index.html text eol=lf
+package.json text eol=lf
+plugins/index.json text eol=lf
+plugins/thermal/native-fan.js text eol=lf
+plugins/thermal/native-frame.js text eol=lf
+plugins/thermal/plugin.js text eol=lf
+plugins/thermal/plugin.json text eol=lf
+plugins/thermal/tests/authoring-browser.mjs text eol=lf
+plugins/thermal/tests/browser-gate-contract.mjs text eol=lf
+plugins/thermal/tests/fan-ui.mjs text eol=lf
+plugins/thermal/tests/native-history-contract.mjs text eol=lf
+plugins/thermal/tests/native-probe.mjs text eol=lf
+plugins/thermal/tests/native-selection.mjs text eol=lf
+plugins/thermal/tests/navigation-browser.mjs text eol=lf
+plugins/thermal/tests/opaque-authoring.mjs text eol=lf
+tests/README.md text eol=lf
+tests/current-source-baseline-test.mjs text eol=lf
+tests/current-source-baseline.json text eol=lf
+tests/current-source-baseline.mjs text eol=lf
+tests/help-f1-state.mjs text eol=lf
+tests/scene-authoring-startup.mjs text eol=lf
+tests/scene-control-data-browser.mjs text eol=lf
+tests/scene-control-data-review.mjs text eol=lf
+tests/scene-control-data.mjs text eol=lf
+tests/scene-data-docs-barrier.mjs text eol=lf
+tests/scene-data-runtime.mjs text eol=lf
+tests/scene-field-writes.mjs text eol=lf
+tests/scene-parameters.mjs text eol=lf
+tests/scene-program-browser.mjs text eol=lf
+tests/scene-program-plans.mjs text eol=lf
+tests/scene-program-runtime.mjs text eol=lf
+tests/scene-reservations.mjs text eol=lf
+tests/scene-startup-diagnostics.mjs text eol=lf
+tests/selection-gizmo-browser.mjs text eol=lf
+tests/selection-gizmo-state.mjs text eol=lf
+tools/browser.mjs text eol=lf
+viewport.html text eol=lf
+
+frame-icon-v4.svg text eol=lf
+
+manifest.webmanifest text eol=lf
+
+plugins/atomic/icon.svg text eol=lf
+
+plugins/thermal/icon.svg text eol=lf
+
+tests/viewport-pointer-priority.mjs text eol=lf
+
+tests/plugin-overlay-refresh.mjs text eol=lf
+
+plugins/atomic/tests/feedback.mjs text eol=lf
+
+tests/native-file-completion.mjs text eol=lf
+
+tests/october23-feedback.mjs text eol=lf
+
+tests/october23-picker-fixture.mjs text eol=lf
+
+tests/file-controls.mjs text eol=lf
+
+tests/pwa.mjs text eol=lf

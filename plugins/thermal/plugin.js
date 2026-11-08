@@ -18,7 +18,7 @@ export async function activate(context){
     return {hash:n.nativeHash,type:n.type,authoringOnly:true};
   };
   context.operations.register([
-    {id:'create-fan',description:'Create a separate 25 mm native Fan helper with an explicit Thermal reference. Authoring only; its direction is local X, and it does not drive a solver.',inputSchema:emptySchema,readOnly:false,run:create('thermal_fan')},
+    {id:'create-fan',description:'Create a separate 30 by 30 by 10 mm native Fan helper. Its internal Thermal ownership is preserved; new Fans point along local +X. Authoring only, without a solver.',inputSchema:emptySchema,readOnly:false,run:create('thermal_fan')},
     {id:'create-probe',description:'Create a 2 mm native Probe helper at the owner origin with an explicit Thermal reference. Authoring only; no temperature is measured.',inputSchema:emptySchema,readOnly:false,run:create('thermal_probe')},
     {id:'fan-inputs',description:'Inspect detached native Fan parameters, local-X direction and frame metadata. Never certifies containment, grid alignment or numerical eligibility.',inputSchema:emptySchema,readOnly:true,run:hash=>inspectNativeFans(context,hash)},
     {id:'status',description:'Read the explicit under-construction authoring-only status. No numerical result exists in this preview.',inputSchema:emptySchema,readOnly:true,run:status},
@@ -29,7 +29,7 @@ export async function activate(context){
   context.editor.register({
     created:n=>{
       if(n.type==='thermal_probe'){const frame=context.math.I();frame[0]=frame[5]=frame[10]=.02;n.creationFrame=Array.from(context.math.pack(frame));}
-      if(n.type==='thermal_fan'){const frame=context.math.I();frame[0]=frame[5]=frame[10]=.25;frame.set([-25,-12.5,-12.5],12);n.creationFrame=Array.from(context.math.pack(frame));}
+      if(n.type==='thermal_fan'){const frame=context.math.I();frame[0]=frame[5]=.3;frame[10]=.1;frame.set([-25,-12.5,-12.5],12);n.creationFrame=Array.from(context.math.pack(frame));}
     },
     parameters:(n,changes)=>{
       if(n.type==='thermal_fan'){validateFanParameters(D,{...n.params,...changes});return {};}
@@ -41,8 +41,8 @@ export async function activate(context){
   });
   context.attributes.register(hash=>{
     const n=find(hash),notice={id:'status',label:'Under construction',disabled:true};
-    if(n.type==='thermal_probe')return {actions:[notice]};
-    if(n.type==='thermal_fan')return {units:{'Shutoff pressure':'Pa','Free flow':'m³/s'},ranges:{'Shutoff pressure':{min:0},'Free flow':{min:Number.MIN_VALUE}},actions:[notice]};
+    if(n.type==='thermal_probe')return {hiddenFields:['Thermal'],actions:[notice]};
+    if(n.type==='thermal_fan')return {hiddenFields:['Thermal','Direction'],labels:{'Shutoff pressure':'Pressure'},units:{'Shutoff pressure':'Pa','Free flow':'m³/s'},ranges:{'Shutoff pressure':{min:0},'Free flow':{min:Number.MIN_VALUE}},actions:[notice]};
     return {units:{Ambient:'°C',Initial:'°C'},actions:[notice,{id:'create-fan',label:'Fan'},{id:'create-probe',label:'Probe'}]};
   });
   // Reuse the original native shared 100 mm line primitive. Probe/Fan sizes

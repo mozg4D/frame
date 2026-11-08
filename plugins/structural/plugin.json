@@ -1,0 +1,22 @@
+{
+  "id": "structural",
+  "name": "Structural",
+  "description": "Under-construction authoring preview. No scene solver, voxel field or topology result is available.",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "color": "#dfaa68",
+  "objects": [{
+    "type": "structural",
+    "name": "Structural",
+    "fields": {"Voxel size": 1, "Material (%)": 30, "Displacement": 1},
+    "fieldOptions": {
+      "Voxel size": {"unit": "mm", "minimum": 0.000001, "access": "read-write"},
+      "Material (%)": {"minimum": 0.000001, "maximum": 100, "access": "read-write"},
+      "Displacement": {"minimum": 0, "access": "read-write"}
+    }
+  }],
+  "tags": [
+    {"kind": "structural_fixture", "name": "Fixture", "text": "X"},
+    {"kind": "structural_preserve", "name": "Preserve", "text": "P"}
+  ]
+}

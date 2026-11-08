@@ -1,3 +1,4 @@
+import {helperNavigationChecks} from './navigation-browser.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
@@ -7,10 +8,10 @@ import {nativeProbeBrowserChecks} from './native-probe-browser.mjs';
 import {isHardwareAdapter,isDecodedNativeIcon,hasBoundedFrameTimings,restoresAuthoringRows,captureAuthoringRejection} from './browser-gates.mjs';
 
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const fanFrame=[.25,0,0,0,.25,0,0,0,.25,-25,-12.5,-12.5];
+const fanFrame=[.3,0,0,0,.3,0,0,0,.1,-25,-12.5,-12.5];
 const forbidden=['solve-grid','solve-scene','measure','inspect','inspect-velocity'];
 export async function authoringBrowserChecks(parent,check,timed){
- const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},serviceWorkers:'block'}),page=await context.newPage(),errors=[],requests=[];
+ const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1),serviceWorkers:'block'}),page=await context.newPage(),errors=[],requests=[];
  page.on('pageerror',e=>errors.push(e.stack));page.on('request',r=>{if(r.url().includes('/plugins/thermal/'))requests.push(new URL(r.url()).pathname);});
  try{
   await page.goto(parent.url());await ready(page);
@@ -31,14 +32,20 @@ export async function authoringBrowserChecks(parent,check,timed){
   await checkUI(owner.hash);
   await timed('native Fan action',10000,async()=>{await page.locator('[data-plugin-action-button="create-fan"]').click();await call('scene.inspect');});
   const fan=(await inspect()).find(n=>n.type==='thermal_fan'),fanHash=fan?.hash;
-  check('Fan action preserves 25 mm native default, reference and selection',fan?.selected&&fan.parent===owner.hash&&fan.params.Thermal===owner.hash&&equal(fan.matrix,fanFrame),fan);
+  check('Fan action preserves 30 by 30 by 10 mm native default, reference and selection',fan?.selected&&fan.parent===owner.hash&&fan.params.Thermal===owner.hash&&equal(fan.matrix,fanFrame),fan);
+  await checkUI(fanHash);
+  const fanUI=await page.locator('#attrContent').evaluate(el=>({hidden:[...el.querySelectorAll('[data-field="Thermal"],[data-field="Direction"]')].length,pressure:el.querySelector('[data-field="Shutoff pressure"]')?.closest('.attr-row')?.querySelector('.attr-lab')?.textContent,freeFlow:!!el.querySelector('[data-field="Free flow"]')}));
+  check('Fan UI hides internal owner and legacy direction while retaining native Pressure input',fanUI.hidden===0&&fanUI.pressure==='Pressure (Pa)'&&fanUI.freeFlow,fanUI);
+  await page.locator('#attrContent [data-field="Shutoff pressure"]').fill('12.5');await page.locator('#attrContent [data-field="Shutoff pressure"]').press('Enter');await call('scene.inspect');
+  check('Pressure label retains native field update and Undo binding',(await inspect()).find(n=>n.hash===fanHash).params['Shutoff pressure']===12.5);await call('edit.history',{action:'undo'});
+  check('Pressure native Undo restores original value',(await inspect()).find(n=>n.hash===fanHash).params['Shutoff pressure']===0);
   const originalOwner=(await inspect()).find(n=>n.hash===owner.hash);
   await timed('immediate Fan transform targets only child',1500,()=>call('transform.set',{channel:'position',axis:0,value:-20,coordinates:'world'}));
   const moved=(await inspect()).find(n=>n.hash===fanHash),movedFrame=[...fanFrame];movedFrame[9]=-20;
   check('immediate Fan transform edits child rather than owner',equal(moved.matrix,movedFrame)&&equal((await inspect()).find(n=>n.hash===owner.hash).worldMatrix,originalOwner.worldMatrix),moved);
   await call('edit.history',{action:'undo'});check('Fan transform Undo',equal((await inspect()).find(n=>n.hash===fanHash).matrix,fanFrame));
   await call('edit.history',{action:'redo'});check('Fan transform Redo',equal((await inspect()).find(n=>n.hash===fanHash).matrix,movedFrame));await call('edit.history',{action:'undo'});
-  let metadata=await cmd('fan-inputs',{},fanHash);check('Fan points along positive local X and is never solver eligible',equal(metadata.fan.directionLocal,[1,0,0])&&equal(metadata.fan.mapping.sizeMM,[25,25,25])&&!metadata.solverEligible&&!metadata.solverCoupled,metadata);
+  let metadata=await cmd('fan-inputs',{},fanHash);check('Fan points along positive local X and is never solver eligible',equal(metadata.fan.directionLocal,[1,0,0])&&equal(metadata.fan.mapping.sizeMM,[30,30,10])&&!metadata.solverEligible&&!metadata.solverCoupled,metadata);
   await call('scene.update',{id:fanHash,params:{Direction:'Reverse'}});metadata=await cmd('fan-inputs',{},fanHash);check('Reverse points along negative local X',equal(metadata.fan.directionLocal,[-1,0,0]));
   await call('edit.history',{action:'undo'});await call('scene.select',{ids:[fanHash]});await call('transform.set',{channel:'rotation',axis:2,value:30,coordinates:'object'});metadata=await cmd('fan-inputs',{},fanHash);
   check('rotated Fan is ordinary authoring without claiming physical eligibility',metadata.fan.mapping.status==='unsupported-frame'&&Math.abs(Math.hypot(...metadata.fan.normalizedWorldAxis)-1)<1e-12&&!metadata.solverEligible,metadata);await call('edit.history',{action:'undo'});
@@ -54,11 +61,14 @@ export async function authoringBrowserChecks(parent,check,timed){
   for(const hash of [owner.hash,fanHash,probe.hash]){const s=await cmd('status',{},hash);check('status exposes no field or measurement',s.authoringOnly&&s.state==='under-construction'&&!s.numericalAvailable&&!s.measurementAvailable&&!('temperature' in s),s);}
 
   const other=await call('plugins.create',{plugin:'thermal'}),wrong=await call('scene.create',{type:'group'});
-  const drop=async(target,source)=>{await call('scene.select',{ids:[target]});await page.locator('#tabAttributes').click();const n=(await inspect()).find(n=>n.hash===source),row=page.locator(`.ob-row[data-id="${n.id}"] .ob-name`),field=page.locator('#attrContent .cloner-object-drop[data-field="Thermal"]');await row.scrollIntoViewIfNeeded();const a=await row.boundingBox(),b=await field.boundingBox();if(!a||!b)throw Error('Native reference drop target unavailable');await page.mouse.move(a.x+a.width/2,a.y+a.height/2);await page.mouse.down();await page.mouse.move(a.x+a.width/2+5,a.y+a.height/2,{steps:2});await page.mouse.move(b.x+b.width/2,b.y+b.height/2,{steps:12});await page.mouse.up();await call('scene.inspect');};
+  // Internal ownership no longer has an editable drop row. Keep its typed
+  // native storage contract through API, Undo, HASH and owner remapping.
   for(const hash of [fanHash,probe.hash]){
-   await timed('native Thermal reference drop',1500,()=>drop(hash,other.hash));let n=(await inspect()).find(n=>n.hash===hash);check('drop stores canonical native hash independently from parent',n.params.Thermal===other.hash&&n.parent===owner.hash,n);
-   const valid=JSON.stringify(n.params);await drop(hash,wrong.hash);n=(await inspect()).find(n=>n.hash===hash);check('wrong-type drop rejects before mutation',JSON.stringify(n.params)===valid,n);
-   await page.locator('#attrContent .cloner-object-drop[data-field="Thermal"]').focus();await page.keyboard.press('Backspace');await call('scene.inspect');check('native reference clear remains unassigned',(await inspect()).find(n=>n.hash===hash).params.Thermal==='');
+   await checkUI(hash);check('Thermal helper hides internal owner from Attributes',await page.locator('#attrContent [data-field="Thermal"]').count()===0);
+   await call('scene.update',{id:hash,params:{Thermal:other.hash}});let n=(await inspect()).find(n=>n.hash===hash);check('hidden reference stores canonical native hash independently from parent',n.params.Thermal===other.hash&&n.parent===owner.hash,n);
+   const valid=JSON.stringify(n.params);let rejected=false;try{await call('scene.update',{id:hash,params:{Thermal:wrong.hash}});}catch{rejected=true;}
+   n=(await inspect()).find(n=>n.hash===hash);check('hidden wrong-type reference rejects before mutation',rejected&&JSON.stringify(n.params)===valid,n);
+   await call('scene.update',{id:hash,params:{Thermal:''}});check('internal reference clear remains unassigned',(await inspect()).find(n=>n.hash===hash).params.Thermal==='');
    await call('scene.update',{id:hash,params:{Thermal:owner.hash}});
   }
   await call('scene.delete',{ids:[other.hash,wrong.hash]});
@@ -93,10 +103,10 @@ export async function authoringBrowserChecks(parent,check,timed){
 export async function pluginChecks(page){
  const checks=[],timings=[],check=(name,pass,detail)=>{checks.push({name:'Thermal preview: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
  const timed=async(name,limit,fn)=>{const started=performance.now(),value=await fn(),ms=performance.now()-started;timings.push({name,ms,limit});check(name+' latency',ms<limit,{ms,limit});return value;};
- try{const preview=await authoringBrowserChecks(page,check,timed),probe=await nativeProbeBrowserChecks(page,check,timed);return {pass:true,checks,timings,evidence:{preview,probe},hardwareVerified:true};}catch(error){return {pass:false,checks,timings,error:error.stack,hardwareVerified:false};}
+ try{const preview=await authoringBrowserChecks(page,check,timed),probe=await nativeProbeBrowserChecks(page,check,timed),navigation=await helperNavigationChecks(page,check,timed);return {pass:true,checks,timings,evidence:{preview,probe,navigation},hardwareVerified:true};}catch(error){return {pass:false,checks,timings,error:error.stack,hardwareVerified:false};}
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  let session,result;try{session=await launch({headless:process.argv.includes('--headless')});result=await pluginChecks(session.page);}catch(error){result={pass:false,checks:[],timings:[],hardwareVerified:false,error:error.stack};}finally{await session?.close();}
- result.sources={};for(const p of ['index.html','plugins/index.json','plugins/thermal/plugin.js','plugins/thermal/plugin.json','plugins/thermal/native-fan.js','plugins/thermal/native-frame.js','plugins/thermal/tests/authoring-browser.mjs','plugins/thermal/tests/native-probe-browser.mjs','plugins/thermal/tests/browser-gates.mjs','tools/browser.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
+ result.sources={};for(const p of ['index.html','plugins/index.json','plugins/thermal/plugin.js','plugins/thermal/plugin.json','plugins/thermal/native-fan.js','plugins/thermal/native-frame.js','plugins/thermal/tests/authoring-browser.mjs','plugins/thermal/tests/native-probe-browser.mjs','plugins/thermal/tests/browser-gates.mjs','plugins/thermal/tests/navigation-browser.mjs','tools/browser.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
  await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/thermal-authoring-preview.json',import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;
 }

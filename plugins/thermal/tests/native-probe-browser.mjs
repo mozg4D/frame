@@ -25,7 +25,7 @@ export function checkDefaultProbeFrame(check,objects,hash,ownerHash=null,label='
 // measured-temperature, stale-read, cancellation and physics assertions.
 // Always use a new context, the supported runner, and real hardware WebGPU.
 export async function nativeProbeBrowserChecks(parent,check,timed){
- const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},serviceWorkers:'block'}),page=await context.newPage(),errors=[];
+ const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1),serviceWorkers:'block'}),page=await context.newPage(),errors=[];
  page.on('pageerror',error=>errors.push(error.stack));
  try{
   const catalogue=JSON.parse(await readFile(new URL('../../index.json',import.meta.url),'utf8'));if(!catalogue.includes('thermal/plugin.json'))catalogue.push('thermal/plugin.json');

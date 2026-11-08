@@ -53,10 +53,10 @@ test('every numerical endpoint rejects arbitrary input before mutation, device a
  console.log(JSON.stringify({operation:'30 rejection-only numerical calls',wallMs,budgetMs:100,hardwareVerified:false}));
 });
 
-test('Fan has exact 25 mm native frame and local-X direction independent of native hierarchy',async()=>{
+test('Fan has exact 30 by 30 by 10 mm native frame and local-X direction independent of native hierarchy',async()=>{
  const f=await fixture(),{hash}=await f.command('create-fan');let fan=f.native.nodes.find(n=>n.nativeHash===hash),r=f.command('fan-inputs');
- assert.deepEqual(shape(f,hash),[.25,0,0,0,0,.25,0,0,0,0,.25,0,-25,-12.5,-12.5,1]);
- assert.deepEqual(r.fan.mapping.sizeMM,[25,25,25]);assert.deepEqual(r.fan.directionLocal,[1,0,0]);assert.equal(r.solverEligible,false);
+ assert.deepEqual(shape(f,hash),[.3,0,0,0,0,.3,0,0,0,0,.1,0,-25,-12.5,-12.5,1]);
+ assert.deepEqual(r.fan.mapping.sizeMM,[30,30,10]);assert.deepEqual(r.fan.directionLocal,[1,0,0]);assert.equal(r.solverEligible,false);
  f.editor.parameters(fan,{Direction:'Reverse'});fan.params.Direction='Reverse';r=f.command('fan-inputs');assert.deepEqual(r.fan.directionLocal,[-1,0,0]);
  const matrix=math.rotation([0,0,1],Math.PI/2);matrix[0]*=.25;matrix[1]*=.25;matrix[4]*=.25;matrix[5]*=.25;matrix[10]=.25;
  f.native.setLocal(hash,matrix);r=f.command('fan-inputs');assert.ok(Math.abs(r.fan.normalizedWorldAxis[1]+1)<1e-12);assert.equal(r.fan.mapping.status,'unsupported-frame');
@@ -76,7 +76,7 @@ test('Fan and Probe parameter validation rejects invalid references before nativ
 
 test('repeated completed authoring creation and metadata inspection stay bounded with zero numerical allocations',async()=>{
  const f=await fixture(),started=performance.now();
- for(let i=0;i<32;i++){const {hash}=await f.command(i%2?'create-fan':'create-probe');if(i%2){const r=f.command('fan-inputs',{},hash);assert.deepEqual(r.fan.mapping.sizeMM,[25,25,25]);}assert.equal(f.command('status',{},hash).numericalAvailable,false);}
+ for(let i=0;i<32;i++){const {hash}=await f.command(i%2?'create-fan':'create-probe');if(i%2){const r=f.command('fan-inputs',{},hash);assert.deepEqual(r.fan.mapping.sizeMM,[30,30,10]);}assert.equal(f.command('status',{},hash).numericalAvailable,false);}
  const wallMs=performance.now()-started;assert.ok(wallMs<1500);assert.equal(f.native.transactions,32);assert.equal(f.deviceReads,0);
  console.log(JSON.stringify({operation:'32 native preview creations plus status/Fan metadata',wallMs,budgetMs:1500,hardwareVerified:false}));
 });

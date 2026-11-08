@@ -2,17 +2,9 @@
 
 Follow the root AGENTS.md and plugins.md. Runtime stays in one plugin.js; plugin checks are discovered through tests/index.mjs. Preserve independent native printer owners, their 32x32 icon, parameter/HASH/Undo ownership, shared GPU device, evaluated buffer/texture geometry and the existing box/axes/last-active surface warning. Keep code, UI and documentation in English. Attributes contain only the existing editable controls, gap and short Slice progress; diagnostics belong in the API.
 
-## Shared normalized volume preparation (2026-11-03)
+## Direct GPU geometry input (2026-11-08)
 
-`plugins.command {id,operation:"prepare-volume",args?:{fillRule}}` explicitly requests the shared core `context.scene.prepareVolume(context.scene.capture(id,[]),options)` pipeline. It returns a background preparation handle. `status.preparation` reports state, fill rule, completion time, retained GPU bytes and the shared arrangement/accuracy report. Supported fill rules are `nested-union` (default), `union` and `even-odd`; their conventions and numerical limits belong to the common core API. The core can repair damaged polygon boundaries with bounded local GPU sampling, exact intersection checks and a source-surface certificate before those polygons reach the printer. Preparation reads transient geometry for the bounded host arrangement stage as disclosed by its report; original source GPU resources and files remain unchanged.
-
-Each printer caches its own disposable normalized positions/indices by geometry-only capture signature and fill rule. Sampling and perimeter controls do not rebuild it. Relative geometry, visibility, source/device/scene changes invalidate it; a common assembly transform retains printer-local buffers. Reset/reopen/deletion retire prepared output. Active Slice readers defer disposal until their submitted GPU work is done. HASH stores no normalized buffers or job. `cancel` also cancels a running preparation; failed, cancelled or stale work never publishes a partial normalized result.
-
-Replacing a preparation's fill rule can retire buffers after an earlier Slice completed. `result.preparation` keeps the historical build report, while live retained-Slice memory counts the normalized buffers only while that actual result remains alive. The independent current preparation is reported separately.
-
-`slice {prepareVolume:true,fillRule?}` consumes that cache, preparing it first when necessary. It feeds the normalized polygon boundary as one occurrence in the original printer-local frame through the existing GPU LDI/perimeter stages. `result.preparation` identifies the shared build and whether it was reused; reported memory includes the retained prepared buffers. Existing source signature validation remains authoritative, and automatic relative-frame refresh preserves the normalized-Slice request. Supplying a fill rule without `prepareVolume:true` rejects before a new Slice job. Default `slice {}` retains the direct LDI path and its existing latency/ambiguity behavior. No new UI field/button is added.
-
-`tests/volume-preparation.mjs` exercises the real shared preparation consumer, normalized random-winding/duplicate/intersecting input, source digests, cache retention/invalidation, independent printers, cancellation and native HASH. Its independent interval oracle and completed-operation budgets run in standard/stress profiles.
+Slice consumes evaluated source geometry directly through its existing orthogonal LDI kernels. The former optional normalized-volume operation, cache and Slice arguments are removed. There is no core polygon union/repair prepass. Source GPU resources and ordinary authoring/HASH ownership are unchanged. Removed operation/argument rejection and ordinary Slice are covered by tests/removed-volume.mjs; plugin discovery still runs the analytic LDI, perimeter, overlap, cancellation and history suites.
 
 ## Printer GPU LDI coverage preview
 

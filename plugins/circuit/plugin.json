@@ -1,0 +1,214 @@
+{
+  "id": "circuit",
+  "name": "Circuit",
+  "color": "#b8d1bd",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "objects": [
+    {
+      "type": "circuit",
+      "name": "Circuit",
+      "fields": {
+        "Nets": true,
+        "Time scale": 0.001,
+        "History": 500
+      },
+      "fieldOptions": {
+        "Time scale": {
+          "unit": "s/s",
+          "minimum": 0,
+          "access": "read-write"
+        },
+        "History": {
+          "unit": "MB",
+          "minimum": 0,
+          "maximum": 4000,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_resistor",
+      "name": "Resistor",
+      "fields": {
+        "Circuit": "",
+        "Resistance": 1000
+      },
+      "fieldOptions": {
+        "Resistance": {
+          "unit": "ohm",
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_capacitor",
+      "name": "Capacitor",
+      "fields": {
+        "Circuit": "",
+        "Capacitance": 0.000001
+      },
+      "fieldOptions": {
+        "Capacitance": {
+          "unit": "F",
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_inductor",
+      "name": "Inductor",
+      "fields": {
+        "Circuit": "",
+        "Inductance": 0.001
+      },
+      "fieldOptions": {
+        "Inductance": {
+          "unit": "H",
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_diode",
+      "name": "Diode",
+      "fields": {
+        "Circuit": "",
+        "Saturation current": 1e-14,
+        "Emission coefficient": 1
+      },
+      "fieldOptions": {
+        "Saturation current": {
+          "unit": "A",
+          "minimum": 5e-324,
+          "access": "read-write"
+        },
+        "Emission coefficient": {
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_led",
+      "name": "LED",
+      "fields": {
+        "Circuit": "",
+        "Saturation current": 1e-20,
+        "Emission coefficient": 2
+      },
+      "fieldOptions": {
+        "Saturation current": {
+          "unit": "A",
+          "minimum": 5e-324,
+          "access": "read-write"
+        },
+        "Emission coefficient": {
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_bjt",
+      "name": "BJT",
+      "fields": {
+        "Circuit": "",
+        "Polarity": [
+          "NPN",
+          "PNP"
+        ],
+        "Forward beta": 100
+      },
+      "fieldOptions": {
+        "Forward beta": {
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_mosfet",
+      "name": "MOSFET",
+      "fields": {
+        "Circuit": "",
+        "Polarity": [
+          "N-channel",
+          "P-channel"
+        ],
+        "Threshold voltage": 2
+      },
+      "fieldOptions": {
+        "Threshold voltage": {
+          "unit": "V",
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_voltage",
+      "name": "Voltage source",
+      "fields": {
+        "Circuit": "",
+        "Voltage": 5
+      },
+      "fieldOptions": {
+        "Voltage": {
+          "unit": "V",
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_current",
+      "name": "Current source",
+      "fields": {
+        "Circuit": "",
+        "Current": 0.001
+      },
+      "fieldOptions": {
+        "Current": {
+          "unit": "A",
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_controller",
+      "name": "Controller",
+      "fields": {
+        "Circuit": "",
+        "High voltage": 3.3,
+        "Output resistance": 50
+      },
+      "fieldOptions": {
+        "High voltage": {
+          "unit": "V",
+          "minimum": 5e-324,
+          "access": "read-write"
+        },
+        "Output resistance": {
+          "unit": "ohm",
+          "minimum": 5e-324,
+          "access": "read-write"
+        }
+      }
+    },
+    {
+      "type": "circuit_custom",
+      "name": "Component",
+      "fields": {
+        "Circuit": ""
+      },
+      "fieldOptions": {}
+    }
+  ],
+  "assets": [
+    "data.js",
+    "symbols.js",
+    "viewport.js"
+  ]
+}

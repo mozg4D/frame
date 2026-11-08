@@ -1,5 +1,7 @@
 # Scene Control core data milestone qualification
 
+Historical evidence only. The temporary bounded profile referenced below was retired when the polygon-union pipeline was removed. Its file inventory and hashes record the original milestone, not current checkout files. Current verification uses npm test and npm run test:stress.
+
 ## Qualified runtime
 
 Release: Frame 2026 08 nov 10:05 UTC.
@@ -37,7 +39,7 @@ The first native candidate 0c083557 failed at startup before browser assertions 
 
 ## Explicit exclusions and reproducibility
 
-Run node tests/release-non-unite-audit.mjs before node tests/release-non-unite.mjs --headless. Add --stress only for the same bounded profile with more shared-suite frame samples. Source changes fail closed. On LAB, any external Playwright loader must be inherited through NODE_OPTIONS by the spawned MCP child. FRAME_BROWSER selects the existing verified browser; no software-GPU fallback is accepted.
+The original profile sources and reports are identifiable from the historical source inventory and hashes below. They are not current release commands.
 
 handWorkflow is excluded because it executes geometry.unite. Direct unite, uniteIntegration and uniteConditioning stages are excluded. Every other omitted standard stage is named in tests/release-non-unite-profile.json and each report. Plugin test discovery, optional large fixtures, full standard/stress and full installed-PWA update/plugin behavior are not qualified. Existing npm test and npm run test:stress execute Unite and were not used. No assertion or latency threshold was weakened.
 

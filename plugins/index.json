@@ -2,5 +2,8 @@
   "3d-printer/plugin.json",
   "atomic/plugin.json",
   "mill/plugin.json",
-  "thermal/plugin.json"
+  "thermal/plugin.json",
+  "structural/plugin.json",
+  "circuit/plugin.json",
+  "cfd/plugin.json"
 ]
