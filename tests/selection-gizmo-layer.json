@@ -1,0 +1,80 @@
+{
+  "format": "frame-selection-gizmo-layer-v1",
+  "baseCommit": "7237cc82925dbaf934d1bb5627673bd2aaaa62e1",
+  "baseVersion": "2026 08 nov 23:27",
+  "releaseVersion": "2026 08 nov 23:42",
+  "timeZone": "Europe/Moscow",
+  "files": {
+    "index.html": {
+      "baseSHA256": "2e96d2b61bf8a5fa99fe5650f1b63f8e74d3fc548e9e1483f712b1112aa54538",
+      "releaseSHA256": "2dfbc2a48b192d62d1aa12fa22dc6c95af8e6cc34769e052badf5659ff676c9f",
+      "patches": [
+        {
+          "before": ".frame-gizmo{position:fixed;overflow:hidden;",
+          "after": ".frame-gizmo{position:fixed;z-index:35;overflow:hidden;",
+          "count": 1
+        },
+        {
+          "before": "display:block;color:#999!important;background:transparent;z-index:40",
+          "after": "display:block;color:#888!important;background:transparent;z-index:40",
+          "count": 1
+        },
+        {
+          "before": "if(e.key==='Escape'){stop();selected.clear();selectedTag=null;focusId=null;render();}",
+          "after": "if(e.key==='Escape'){stop();selected.clear();selectedTag=null;focusId=null;render();frameSelectEngineObjects(false);}",
+          "count": 1
+        },
+        {
+          "before": "!scene;if(handles.hidden)return;",
+          "after": "!scene;if(handles.hidden){hideGizmo();return;}",
+          "count": 1
+        },
+        {
+          "before": "    function drawGizmo(){",
+          "after": "    function hideGizmo(){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}}\n    function drawGizmo(){",
+          "count": 1
+        },
+        {
+          "before": "const frame=selectionFrame();if(!frame||handles.hidden){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}return;}",
+          "after": "const frame=selectionFrame();if(!frame||handles.hidden){hideGizmo();return;}",
+          "count": 1
+        },
+        {
+          "before": "<meta name=\"frame-version\" content=\"2026 08 nov 23:27\">\n<title>Frame 2026 08 nov 23:27</title>",
+          "after": "<meta name=\"frame-version\" content=\"2026 08 nov 23:42\">\n<title>Frame 2026 08 nov 23:42</title>",
+          "count": 1
+        }
+      ]
+    },
+    "frame-sw.js": {
+      "baseSHA256": "378f5dfe03492ea82deee0228a48b8d0077c6d1f5098dbd184e92a98aef735f9",
+      "releaseSHA256": "d6f97160abd9e8ec804cfed644cc96dd80d52593739b07236f0d3a775b053fb4",
+      "patches": [
+        {
+          "before": "const VERSION='2026 08 nov 23:27',CACHE=",
+          "after": "const VERSION='2026 08 nov 23:42',CACHE=",
+          "count": 1
+        }
+      ]
+    }
+  },
+  "immutableLayers": {
+    "tests/benchy-release-layer.json": "b78f2e983fab9b18c915e5164968592b1f394c0658e13bc44cb8d83948b02b2e",
+    "tests/detachable-views-layer.json": "94913065816893e4e433d494ae25c293cbf3bace118e4ac60a8d97cedca1b734",
+    "tests/documentation-geometry-layer.json": "cccc93bffe614c3fe6c40e653bee8231a353ac4fbfc7f2e95d0db90899512bc9",
+    "tests/documentation-history-layer.json": "cd45fb181070e80d5e0b2f84cf38faa76a6e1c70d142f1e2a3c9bed1c9034d60",
+    "tests/help-f1-layer.json": "376c150a6343d1f0f615c06d58b020b53e13df0665644f4a2967e7345b516359",
+    "tests/icon-release-layer.json": "7c6a91a08b9782f633c9365457eb70997269cd6261cb825a1c67b06e5ec76a79",
+    "tests/scene-data-layer.json": "9897fc42ef4be05f2034a69366c8e275d3cbe691b56ce686e0abf8efaf354e6e",
+    "tests/scene-field-layer.json": "7db8d8f2d5f532f7b21408ac38b97467c6b2e9c9a494a558095da9d984ef5e2f",
+    "tests/scene-parameter-layer.json": "095e012bd9364a9a7faea9d5da4c4f831ff314069b78f8d70924e4acb2ec14d3",
+    "tests/scene-program-layer.json": "dce94e5891ef0475ef105be194aa28a88ef3965d62c26d86b996e890fb4178cc",
+    "tests/scene-release-layer.json": "1381b9132a2451ea93287a0751c5c550c673e8381f2a742d18dcdf6d8dc5c1c7",
+    "tests/scene-reservation-layer.json": "8d6cd24f33f5558c0f4f3f3f1205958cb0df66a00ab6ef4486c7841f68f6f740",
+    "tests/scene-startup-layer.json": "2db2ffb8e5153f410c6c0a15a1c8dfe5705e08024a2cd3bd307293c5f65b1417",
+    "tests/thermal-release-layer.json": "d1e757a0bb36efb5d9cbbc6a1b400bbc0b779da65ed897d5832ff39673b1a38c",
+    "tests/viewport-copies-layer.json": "f08c14d1be9564cb9895901ebfc35db2204474be26c59fc3933d5062ee02d49f",
+    "tests/viewport-placement-layer.json": "20e71509b034437d687246820bca34ed6f620cbc549359e6eb5038ac0b844333",
+    "tests/viewport-prompt-layer.json": "e3da1d8ffcff713529c608cfd40fb05bc4afc7c5c88e7fbcf21aa272cb6ee230"
+  }
+}

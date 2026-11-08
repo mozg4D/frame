@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 08 nov 23:27">
-<title>Frame 2026 08 nov 23:27</title>
+<meta name="frame-version" content="2026 08 nov 23:42">
+<title>Frame 2026 08 nov 23:42</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -118,7 +118,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 #frameMaterialSelection[hidden]{display:none!important}#frame-engine-stats{position:absolute;top:8px;left:8px;pointer-events:none;line-height:20px;text-shadow:0 1px 3px #000}
 #frame-engine-stats output{display:none}
 #frame-engine-status,#frame-file-progress,#frame-boolean-progress{position:absolute;top:8px;left:8px;right:8px;margin:0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;text-shadow:0 1px 3px #000}
-#frame-engine-handles{position:fixed;width:0;height:0;display:block;z-index:35;pointer-events:none}.frame-gizmo{position:fixed;overflow:hidden;touch-action:none;pointer-events:none}.frame-gizmo [data-part]{pointer-events:visiblePainted;cursor:pointer}.frame-gizmo [data-part]:hover{opacity:1}#frame-engine-handles>button{position:absolute;opacity:0;pointer-events:none;width:18px;height:18px}
+#frame-engine-handles{position:fixed;width:0;height:0;display:block;z-index:35;pointer-events:none}.frame-gizmo{position:fixed;z-index:35;overflow:hidden;touch-action:none;pointer-events:none}.frame-gizmo [data-part]{pointer-events:visiblePainted;cursor:pointer}.frame-gizmo [data-part]:hover{opacity:1}#frame-engine-handles>button{position:absolute;opacity:0;pointer-events:none;width:18px;height:18px}
 @keyframes frame-bounds-flash{from{opacity:1}to{opacity:0}}.frame-bounds-flash{animation:frame-bounds-flash .35s ease-out forwards;pointer-events:none}
 #frame-engine-handles button{width:22px;height:22px;padding:0;border-radius:2px;border:1px solid #aaa;touch-action:none;color:#111!important;cursor:default}
 #frame-engine-handles button:nth-child(1){background:#82b5d3}#frame-engine-handles button:nth-child(2){background:#e4b777}#frame-engine-handles button:nth-child(3){background:#98c58c}
@@ -126,7 +126,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 #attrContent input.ax-x{color:#ff5a5a!important}#attrContent input.ax-y{color:#5ad17a!important}#attrContent input.ax-z{color:#7da5ff!important}.ob-limited svg{color:#e65b58;fill:#e65b58}.ob-limited svg *{stroke:#e65b58}.attr-unit{white-space:nowrap;font-size:10px}.frame-plugin-overlay button{background:transparent!important;box-shadow:none!important}.frame-plugin-overlay button.on{background:#454545!important;box-shadow:inset 1px 1px #777,inset -1px -1px #222!important;border-radius:3px}
 
 
-.view .frame-view-open{position:absolute;right:0;top:0;width:16px;height:16px;padding:0;margin:0;border:0;border-radius:0;display:block;color:#999!important;background:transparent;z-index:40;cursor:pointer}.view .frame-view-open:hover{color:#aaa!important;background:#444;outline:none}.view .frame-view-open:focus-visible{color:#ddd!important;background:#444;outline:1px solid #aaa;outline-offset:-1px}.frame-view-open svg{display:block;width:16px;height:16px}.frame-view-open svg,.frame-view-open svg *{color:inherit!important}
+.view .frame-view-open{position:absolute;right:0;top:0;width:16px;height:16px;padding:0;margin:0;border:0;border-radius:0;display:block;color:#888!important;background:transparent;z-index:40;cursor:pointer}.view .frame-view-open:hover{color:#aaa!important;background:#444;outline:none}.view .frame-view-open:focus-visible{color:#ddd!important;background:#444;outline:1px solid #aaa;outline-offset:-1px}.frame-view-open svg{display:block;width:16px;height:16px}.frame-view-open svg,.frame-view-open svg *{color:inherit!important}
 .view .frame-view-notice{position:absolute;right:0;top:18px;max-width:min(300px,100%);box-sizing:border-box;padding:6px 8px;color:#ddd;background:#292929;font:12px/1.4 Arial,sans-serif;z-index:41;pointer-events:none}.view .frame-view-notice[hidden]{display:none}
 </style>
 </head>
@@ -12390,7 +12390,7 @@ FrameViewWindows.onDocument('keydown',e=>{
   if(ctrl&&key==='a'){if(FrameViewWindows.hovered()){selectionArea='viewport';if($('frame-engine-canvas').dataset.elementMode!=='object')return;selected=new Set(nodes.map(n=>n.id));selectedTag=null;selectedTags.clear();refreshSelection();frameSelectEngineObjects();e.preventDefault();return;}e.preventDefault();if(selectionArea==='materials'){selectedMaterials=new Set(materials.map((m,i)=>i));refreshMaterialSelection();}else{selected=new Set(nodes.map(n=>n.id));selectedTag=null;selectedTags.clear();refreshSelection();frameSelectEngineObjects();}return;}
   if(selectionArea==='materials'){if(ctrl&&['c','v','d'].includes(key)){e.preventDefault();if(key==='c')copySelectedMaterials();if(key==='v')insertMaterialCopies(materialClipboard);if(key==='d')insertMaterialCopies([...selectedMaterials].sort((a,b)=>a-b).map(i=>materials[i]));return;}if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelectedMaterials();return;}}
   if(ctrl&&['z','y','d','c','v','s','o'].includes(key)){e.preventDefault();if(key==='z')history(!e.shiftKey);if(key==='y')history(false);if(key==='d')duplicate();if(key==='c'){if(window.frameEngine){window.frameEngine.copySelection().catch(fileOperationError);return;}clipboard=roots(selected).map(id=>structuredClone([node(id),...descendants(id).map(node)]));}if(key==='v'&&window.frameEngine){window.frameEngine.pasteSelection().catch(fileOperationError);return;}if(key==='v'&&clipboard.length)commit(()=>{const copies=[];for(const branch of clipboard){const map=new Map(branch.map(n=>[n.id,'n'+(++serial)]));for(const original of branch){const n=structuredClone(original);n.id=map.get(original.id);n.parent=map.get(original.parent)||null;nodes.push(n);}copies.push(map.get(branch[0].id));}selected=new Set(copies);focusId=copies[0];selectedTag=null;});return;}
-  if((e.key==='Delete'||e.key==='Backspace')&&!e.target.closest?.('[data-field]')){e.preventDefault();remove();}if(e.key==='F2'&&selectionArea==='objects'){e.preventDefault();rename(focusId);}if(e.key==='Escape'){stop();selected.clear();selectedTag=null;focusId=null;render();}
+  if((e.key==='Delete'||e.key==='Backspace')&&!e.target.closest?.('[data-field]')){e.preventDefault();remove();}if(e.key==='F2'&&selectionArea==='objects'){e.preventDefault();rename(focusId);}if(e.key==='Escape'){stop();selected.clear();selectedTag=null;focusId=null;render();frameSelectEngineObjects(false);}
   if(key==='z'&&!ctrl&&!e.altKey){e.preventDefault();window.frameEngine?.focusSelection();return;}
   const shortcut={q:'btnQuant',s:'btnSnap',w:'coordBtn',p:'btnPivot',l:'btnPivot'}[key];if(shortcut&&!ctrl&&!e.altKey)$(shortcut).click();
   if(e.target.closest('#obInner')&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const rows=visibleRows().map(r=>r.n.id),i=rows.indexOf(focusId),n=current();if(e.key==='ArrowLeft'&&n){if(children(n.id).length&&!n.folded)toggleFold(n);else if(n.parent)selectRow(n.parent);}else if(e.key==='ArrowRight'&&n){if(n.folded)toggleFold(n);else if(children(n.id).length)selectRow(children(n.id)[0].id);}else selectRow(rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))],e);scrollToFocus();}
@@ -16993,7 +16993,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const aux=auxiliaryState();if(aux)selectionBox=aux.box;
       const indices=scene?currentSelectionMeshes().map(mesh=>scene.meshes.indexOf(mesh)):[],signature=selectionScope+':'+objectSelection.join(',')+':'+indices.join(',');
       if(signature!==selectionSignature){selectionSignature=signature;window.dispatchEvent(new CustomEvent('frame-engine-selection',{detail:{indices,scope:selectionScope,hashes:objectSelection,preserveTags:preserveSelectionTags}}));}
-      handles.hidden=!!window.FrameSpline?.drawing||(!selectedMesh&&aux?.kind!=='light'&&!objectSelection.length&&!splineComponentHash()&&!FramePlugins.dispatch('selection'))||!selectionBox||button.disabled||!scene;if(handles.hidden)return;
+      handles.hidden=!!window.FrameSpline?.drawing||(!selectedMesh&&aux?.kind!=='light'&&!objectSelection.length&&!splineComponentHash()&&!FramePlugins.dispatch('selection'))||!selectionBox||button.disabled||!scene;if(handles.hidden){hideGizmo();return;}
       drawGizmo();const hs=[selectionGeneration,poseEpoch,coordinateMode,pivotEditing,...selectionBox.min,...selectionBox.max].join(':');if(hs!==transformHudSignature){transformHudSignature=hs;notifyTransformUI();}
     }
     function inverseView(p){if(frameViewKind(viewIndex)===1)p=[p[0],-p[1],p[2]];const c=Math.cos(frameViewKind(viewIndex)?0:cameraRoll),r=Math.sin(frameViewKind(viewIndex)?0:cameraRoll);p=[c*p[0]-r*p[1],r*p[0]+c*p[1],p[2]];const cy=Math.cos(yaw),sy=Math.sin(yaw),cx=Math.cos(pitch),sx=Math.sin(pitch);return [cy*p[0]+sx*sy*p[1]-cx*sy*p[2],cx*p[1]+sx*p[2],(frameViewKind(viewIndex)===0?-1:1)*(sy*p[0]-sx*cy*p[1]+cx*cy*p[2])];}
@@ -17504,9 +17504,10 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(axes.length===1){const axis=axes[0],view=FM.unit(inverseView([0,0,1])),cross=FM.cross(axis,view),perp=FM.scale(Math.hypot(...cross)>1e-9?FM.unit(cross):[0,1,0],8*g.unit),offset=Math.round(FM.dot(center,axis)/step)*step-FM.dot(origin,axis);for(let i=-half;i<=half;i++){const p=FM.add(origin,FM.scale(axis,offset+i*step));line(project(FM.sub(p,perp)),project(FM.add(p,perp)));}}
       else{const [u,v]=axes,cu=Math.round(FM.dot(center,u)/step)*step-FM.dot(origin,u),cv=Math.round(FM.dot(center,v)/step)*step-FM.dot(origin,v),point=(a,b)=>project(FM.add(origin,FM.add(FM.scale(u,a),FM.scale(v,b))));for(let i=-half;i<=half;i++){line(point(cu+i*step,cv-half*step),point(cu+i*step,cv+half*step));line(point(cu-half*step,cv+i*step),point(cu+half*step,cv+i*step));}}
     }
+    function hideGizmo(){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}}
     function drawGizmo(){
       FramePlugins.drawOverlays();
-      const frame=selectionFrame();if(!frame||handles.hidden){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}return;}
+      const frame=selectionFrame();if(!frame||handles.hidden){hideGizmo();return;}
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas,pivot=Array.from(frame.slice(12,15)),basis=gizmoBasis();lastGizmoState=null;
       handles.style.cssText='left:0;top:0;width:0;height:0;transform:none';handles.dataset.pivot=JSON.stringify(pivot);
       try{for(const i of frameViewSections.keys()){

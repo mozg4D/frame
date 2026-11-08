@@ -1,3 +1,7 @@
+## Selection gizmo visibility (2026-11-08)
+
+Clearing object or component selection removes transform handles from every main and additional viewport, including the active hit-test cache. Background clicks, Escape, API deselection and element-mode changes share this cleanup. Reselecting restores the ordinary gizmo. Body-owned gizmos retain their original stacking above scene helper hit areas, including Thermal, so those objects do not intercept transform handles. Light, motion and plugin overlays retain their native selection rules. The main-view open icon keeps its native 16-pixel geometry and uses a slightly darker gray.
+
 ## Managed Scene Control programs (2026-11-08)
 
 The native core now supports explicit persisted JavaScript programs in the main page and named/shared Workers. Source records alone remain inert; a versioned opaque Scene Control descriptor references its source, internal imports and native field bindings through existing typed references. Manual or ready startup, live source/dependency changes, enable/disable, Stop/restart, native Undo, HASH and duplicate use one native scene model. Main programs have arbitrary DOM/core access. There is no mandatory sandbox or restricted language.

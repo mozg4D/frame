@@ -1,5 +1,7 @@
 # Frame automated tests
 
+Selection/gizmo regressions: `node tests/selection-gizmo-state.mjs` checks the actual native cleanup functions without GPU; `node tests/selection-gizmo-browser.mjs --headless` checks native main/additional views, repeated API and background deselection, Escape/cancel, element-mode changes, helper preservation and Thermal/gizmo overlap. Repeat with `FRAME_DPR=2` for native high-DPI icon/interaction coverage. The focused browser gate uses an isolated context and identifiable hardware, records completed-operation and CPU/GPU frame budgets, and never imports plugin test discovery.
+
 Run after completing application tasks, from `C:\frame`:
 
 ```powershell

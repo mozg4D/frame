@@ -1,7 +1,7 @@
 {
   "format": "frame-reviewed-non-unite-v1",
   "name": "release-non-unite",
-  "releaseVersion": "2026 08 nov 23:27",
+  "releaseVersion": "2026 08 nov 23:42",
   "modules": [
     "tests/suite.js",
     "tests/performance.mjs",
@@ -52,8 +52,8 @@
     "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
     "core/documentation-window.mjs": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907",
     "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
-    "frame-sw.js": "378f5dfe03492ea82deee0228a48b8d0077c6d1f5098dbd184e92a98aef735f9",
-    "index.html": "2e96d2b61bf8a5fa99fe5650f1b63f8e74d3fc548e9e1483f712b1112aa54538",
+    "frame-sw.js": "d6f97160abd9e8ec804cfed644cc96dd80d52593739b07236f0d3a775b053fb4",
+    "index.html": "2dfbc2a48b192d62d1aa12fa22dc6c95af8e6cc34769e052badf5659ff676c9f",
     "kernels/NOTICE.md": "ebad3785cd99f036a332772aa5c767e33f01387902aedce8795064f6112b1169",
     "kernels/licenses/amgcl.txt": "95d7a4dff94857349e7c5cad45cf86a2a4952bbe3ec4eb8fd21b07e178578a10",
     "kernels/licenses/emscripten.txt": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c",
@@ -237,8 +237,13 @@
     "tests/scene-program-runtime.mjs": "7559bfc5db1bcbf27a18ce388c7054692d057cd4a81a458e1b8c11ca178d7764",
     "tests/scene-program-plans.mjs": "68cbda4032cd96a1a8713dad2f5e4a6e394be7f073e15f0307a8d5a97d17365e",
     "tests/scene-program-browser.mjs": "f058f7f6455e396174d83c67ae8664d0a729f17322690c047b6c514bb95ce4f1",
-    "tests/scene-program-binding.mjs": "6ea014c2747666be4ec6d275d4553e86d30fde0ddad4439de675e230918992c3",
-    "tests/scene-program-layer.json": "dce94e5891ef0475ef105be194aa28a88ef3965d62c26d86b996e890fb4178cc"
+    "tests/scene-program-binding.mjs": "1f539b95358449804075516ed9fb5753baa1c939f51dc2bcede6fe84273410cb",
+    "tests/scene-program-layer.json": "dce94e5891ef0475ef105be194aa28a88ef3965d62c26d86b996e890fb4178cc",
+    "tests/selection-gizmo-state.mjs": "5ea2d5083da3038df4843dd3c828b5e73a005f433a21a21ef5b28c304123a773",
+    "tests/selection-gizmo-browser.mjs": "b83b3cc0f3e573815f911d3af25351713ee99a2824f9cc91dd17327cfd20a9e8",
+    "tests/selection-gizmo-binding.mjs": "57cc2902c27f0a2fec36a28be2a9b7ac376dc0fdcc418e4a60823d963a4f66c7",
+    "tests/selection-gizmo-layer.json": "df7323a22d56ac8c657ead7d2813c69227d92447eed64a4b19e06881cdfdcc20",
+    "tests/selection-gizmo-release.mjs": "e35d94f6b116fcb8b2a41f086528d74a83cb86de6ba057c58145c4fecc90809c"
   },
   "selectedStandardStages": [
     "suite",
