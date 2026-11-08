@@ -1,0 +1,31 @@
+// CPU regression for markup and host visibility. Does not qualify native UI/GPU.
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {installDocumentationWindow} from '../core/documentation-window.mjs';
+const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const markup = html.match(/<button\b[^>]*id="btnDocs"[^>]*>/)?.[0];
+assert.ok(markup, 'Docs toolbar button exists');
+assert.ok(!/\bhidden\b/.test(markup), 'Docs markup is visible before module initialization');
+const button = {hidden: false};
+const events = new EventTarget(), host = new EventTarget();
+const opened = []; let focused = 0, text = '';
+host.open = (url, name, features) => {const child = {closed: false, focus() {focused++;}}; opened.push({url, name, features, child}); return child;};
+host.alert = () => {throw Error('Unexpected popup failure');};
+const start = performance.now();
+installDocumentationWindow({button, events, host, read: () => ({text, version: 'scene:0'}), write: async () => {throw Error('Opening Docs must not write documentation');}});
+assert.equal(button.hidden, false, 'Empty documentation does not hide the button');
+button.onclick();
+assert.equal(opened.length, 1, 'Empty documentation opens a window');
+assert.equal(opened[0].url.pathname.endsWith('/documentation.html'), true);
+assert.ok(opened[0].url.hash.length > 1, 'Popup has a unique connection token');
+button.onclick();
+assert.equal(opened.length, 1, 'Repeated click reuses the window');
+assert.equal(focused, 1, 'Repeated click focuses the window');
+for (const value of ['First text', '', 'New text', '']) {text = value; events.dispatchEvent(new Event('frame-documentation-change')); assert.equal(button.hidden, false, 'Visibility is independent of document text');}
+opened[0].child.closed = true;
+button.onclick();
+assert.equal(opened.length, 2, 'Empty documentation reopens after closing');
+assert.notEqual(opened[0].name, opened[1].name, 'New popup gets a fresh connection');
+const ms = performance.now() - start;
+assert.ok(ms < 1000, 'Visibility and window lifecycle complete within 1000 ms');
+console.log(JSON.stringify({pass: true, assertions: 15, ms, budgetMs: 1000, scope: 'CPU markup and host lifecycle; not native browser/GPU'}, null, 2));

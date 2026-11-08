@@ -3,7 +3,7 @@ export function installDocumentationWindow({button,write,read,events=window,host
  const error=message=>Object.assign(Error(message),{code:'DOCS_PENDING'});
  const send=(active,m)=>active.postMessage(m);
  const abort=message=>{if(!seal)return;const current=seal;seal=null;clearTimeout(current.timer);current.close();try{send(current.port,{kind:'release',id:current.id,error:message});}catch{}current.reject(error(message));};
- const refresh=()=>{const state=read();button.hidden=!state.text;port?.postMessage({kind:'snapshot',state});};
+ const refresh=()=>{const state=read();port?.postMessage({kind:'snapshot',state});};
  const ready=event=>{if(!child||event.source!==child||event.origin!==location.origin||event.data?.kind!=='frame-docs-ready'||event.data.token!==token)return;abort('Docs reconnected. Retry the file operation after checking the draft.');port?.close();const channel=new MessageChannel();port=channel.port1;const active=port;let busy=false;
  active.onmessage=async event=>{if(active!==port)return;const m=event.data;
   if(m?.kind==='sealed'&&seal&&seal.port===active&&m.id===seal.id){const current=seal;
