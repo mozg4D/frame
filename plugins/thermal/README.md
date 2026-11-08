@@ -4,7 +4,7 @@ Thermal is **under construction**. This preview provides native object authoring
 
 ## Available authoring
 
-- Thermal uses the existing native 100 mm helper box and a genuine native 32 × 32 icon.
+- Thermal uses the existing native 100 mm helper box and a genuine native 32 × 32 icon. The compact cube artwork is drawn directly on that grid with one-pixel box strokes and three heat marks; it is not a scaled version of a larger icon.
 - Fan is a separate native child with an explicit Thermal reference. The shared box is scaled to 25 mm and placed at owner-local [-25, -12.5, -12.5] mm. Forward/Reverse follows the Fan's local X. Ordinary native transforms remain editable; detached metadata inspection does not certify numerical eligibility.
 - Probe is a native 2 mm helper at the owner's origin with an explicit Thermal reference. It has no Measure action and produces no temperature.
 - Native selection, Attributes, object-reference drop, transformation, duplicate, clipboard, HASH and Undo own all authoring. There is no parallel scene model, renderer or panel.

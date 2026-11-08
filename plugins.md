@@ -34,7 +34,7 @@ IDs, object types and parameter keys must remain stable while a scene uses them.
 
 `fields` uses the core's attribute schema: finite numbers create numeric fields, booleans create switches, arrays create cycling choices, and strings create object-reference fields. Array element zero is the default. The core supplies selection, rename, parenting, enabled/visible state, numeric scrubbing, keyboard editing, animation, Undo and HASH storage. An icon click creates the first declared object type. `plugins.create` can select another type explicitly. Plugin parameters live in the ordinary node `params`; no second scene graph is maintained.
 
-An object declaration can include `breakAfter:["Field name"]` to add eight CSS pixels of empty spacing after those field rows. Author plugin icons at their displayed native 32x32 dimensions; CSS transforms and viewBox scaling are not used. UI creation is serialized and included in API settling, so repeated clicks each complete an independent creation, including first-use lazy compilation.
+An object declaration can include `breakAfter:["Field name"]` to add eight CSS pixels of empty spacing after those field rows. Author plugin icons at their displayed native 32x32 dimensions; CSS transforms and viewBox scaling are not used. Thermal uses a compact one-pixel cube with heat marks; 3D Printer uses a small side-profile Benchy hull, cabin and smokestack. Both are drawn directly on the native pixel grid. UI creation is serialized and included in API settling, so repeated clicks each complete an independent creation, including first-use lazy compilation.
 
 ## Module entry point
 
