@@ -1,0 +1,42 @@
+{
+  "baseCommit": "69320eabf91b1cdd838a09082c34a843f21aec21",
+  "baseSHA256": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6",
+  "releaseVersion": "2026 08 nov 10:44",
+  "patches": [
+    {
+      "before": "id=\"btnHelp\" aria-label=\"Help\"     title=\"Help\"",
+      "after": "id=\"btnHelp\" aria-label=\"Help\" aria-keyshortcuts=\"F1\" title=\"Help (F1)\"",
+      "count": 1
+    },
+    {
+      "before": "    <div class=\"help-body\">\n      <p><kbd>E</kbd>",
+      "after": "    <div class=\"help-body\">\n      <p><kbd>F1</kbd> Help \u00b7 <kbd>Esc</kbd> close Help</p>\n      <p><kbd>E</kbd>",
+      "count": 1
+    },
+    {
+      "before": "function closeMenu(){$('menu').hidden=true;delete $('menu').dataset.owner;}window.addEventListener('keydown',e=>{",
+      "after": "function closeMenu(){$('menu').hidden=true;delete $('menu').dataset.owner;}\nfunction frameOpenHelp(){closeMenu();const dialog=$('helpDialog');if(!dialog.open)dialog.showModal();}\n// Capture F1 before editor/tool shortcuts, including controls that stop bubbling.\nwindow.addEventListener('keydown',e=>{if(e.defaultPrevented||e.isComposing||e.ctrlKey||e.metaKey||e.altKey||e.shiftKey||(e.key!=='F1'&&e.code!=='F1'))return;e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)frameOpenHelp();},true);\nwindow.addEventListener('keydown',e=>{",
+      "count": 1
+    },
+    {
+      "before": "$('btnHelp').onclick=()=>$('helpDialog').showModal();",
+      "after": "$('btnHelp').onclick=frameOpenHelp;",
+      "count": 1
+    },
+    {
+      "before": "<meta name=\"frame-version\" content=\"2026 08 nov 10:05\">\n<title>Frame 2026 08 nov 10:05</title>",
+      "after": "<meta name=\"frame-version\" content=\"2026 08 nov 10:44\">\n<title>Frame 2026 08 nov 10:44</title>",
+      "count": 1
+    }
+  ],
+  "serviceWorker": {
+    "baseSHA256": "e785e431a4ac4a3500611bbdb2988e994058f82664c914a45c15016474e52918",
+    "patches": [
+      {
+        "before": "const VERSION='2026 08 nov 10:05',CACHE=",
+        "after": "const VERSION='2026 08 nov 10:44',CACHE=",
+        "count": 1
+      }
+    ]
+  }
+}

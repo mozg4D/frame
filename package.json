@@ -61,7 +61,9 @@
     "test:scene-data:audit": "node tests/scene-documentation.mjs && node tests/hash-docs-lifecycle.mjs && node tests/hash-best-effort.mjs && node tests/plugin-references.mjs && node tests/documentation-sync.mjs && node tests/documentation-button-state.mjs && node tests/documentation-empty-editor.mjs",
     "test:release:non-unite:audit": "node tests/release-non-unite-audit.mjs",
     "test:release:non-unite": "node tests/release-non-unite.mjs",
-    "test:release:non-unite:stress": "node tests/release-non-unite.mjs --stress"
+    "test:release:non-unite:stress": "node tests/release-non-unite.mjs --stress",
+    "test:help:cpu": "node tests/help-f1-state.mjs",
+    "test:help": "node tests/help-f1-state.mjs && node tests/help-f1.mjs --headless"
   },
   "devDependencies": {
     "playwright": "1.64.1"

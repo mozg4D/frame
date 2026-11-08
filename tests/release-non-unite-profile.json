@@ -1,7 +1,7 @@
 {
   "format": "frame-reviewed-non-unite-v1",
   "name": "release-non-unite",
-  "releaseVersion": "2026 08 nov 10:05",
+  "releaseVersion": "2026 08 nov 10:44",
   "modules": [
     "tests/suite.js",
     "tests/performance.mjs",
@@ -52,8 +52,8 @@
     "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
     "core/documentation-window.mjs": "34e3ad3c5efc674e17abf183879716809f225b8bf249f672dff36224d5a4eda3",
     "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
-    "frame-sw.js": "e785e431a4ac4a3500611bbdb2988e994058f82664c914a45c15016474e52918",
-    "index.html": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6",
+    "frame-sw.js": "c166a9677c35f33811a7c51e53b3c6aef3afed340e0ef76b60ef7ee9aa2fddea",
+    "index.html": "59f9bc7a9ba93f91d659d19573856b908e9c198ba3cc9f410af70d1efd6df64d",
     "kernels/NOTICE.md": "ebad3785cd99f036a332772aa5c767e33f01387902aedce8795064f6112b1169",
     "kernels/licenses/amgcl.txt": "95d7a4dff94857349e7c5cad45cf86a2a4952bbe3ec4eb8fd21b07e178578a10",
     "kernels/licenses/emscripten.txt": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c",
@@ -159,7 +159,10 @@
     "tests/view-suite.js": "d58ab20125b038556cdccee0561b7f7bd4457a73c7db9112a03f5d8853c27ff0",
     "tests/viewport-status.mjs": "c14797872cd54dd0fd6ea1b7e8bb338a3564c4b9c7dce7ac2502e1a9f52e5d20",
     "tools/browser.mjs": "11dbe0937966a25610daafe8ac663b76019ae6e9f8d05a28014102a7ef1ed38c",
-    "tools/mcp.mjs": "b1e2e6b2a54965bcd882daa762bede1b6ce01a37daeaaf289e6b5fc0b804fea1"
+    "tools/mcp.mjs": "b1e2e6b2a54965bcd882daa762bede1b6ce01a37daeaaf289e6b5fc0b804fea1",
+    "tests/help-f1-state.mjs": "d10daf957829f7b9151682406b69004fe5def9f363d4b21d947427f63bc8cef6",
+    "tests/help-f1.mjs": "fad52dad47f84773e24971ca26efc8e987c14bb5631cf9e5bd6a2d212e445efc",
+    "tests/help-f1-layer.json": "376c150a6343d1f0f615c06d58b020b53e13df0665644f4a2967e7345b516359"
   },
   "selectedStandardStages": [
     "suite",

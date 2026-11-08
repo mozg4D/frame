@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 08 nov 10:05">
-<title>Frame 2026 08 nov 10:05</title>
+<meta name="frame-version" content="2026 08 nov 10:44">
+<title>Frame 2026 08 nov 10:44</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -209,7 +209,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 </div>
 </div>
 <div class="trow" id="modelbar">
-<button type="button" class="tbtn" id="btnHelp" aria-label="Help"     title="Help"></button>
+<button type="button" class="tbtn" id="btnHelp" aria-label="Help" aria-keyshortcuts="F1" title="Help (F1)"></button>
 <button type="button" class="tbtn" id="btnDocs" title="Doc">Doc</button>
 <button type="button" class="tbtn" id="btnInstance" aria-label="Instance" title="Instance"></button>
 <button type="button" class="tbtn" id="btnBoolean" aria-label="Boolean"  title="Boolean"></button>
@@ -264,6 +264,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <dialog id="dialog"><div class="dialog-head"><span id="dialogTitle"></span><button id="dialogClose" aria-label="Close">×</button></div><div class="dialog-body" id="dialogBody"></div><div class="dialog-actions"><button id="dialogCancel">Cancel</button><button id="dialogOK">OK</button></div></dialog><dialog id="helpDialog" aria-label="FRAME Help">
   <div class="help-card">
     <div class="help-body">
+      <p><kbd>F1</kbd> Help · <kbd>Esc</kbd> close Help</p>
       <p><kbd>E</kbd> Move · <kbd>R</kbd> Rotate · <kbd>T</kbd> Scale (next selection drag)</p>
       <p><kbd>Q</kbd> Quantize · <kbd>S</kbd> Snap · <kbd>W</kbd> World/Object · <kbd>P</kbd> Pivot</p>
       <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
@@ -11399,7 +11400,11 @@ function refreshTabActions(){$('tabAddMaterial').style.display=activeTab==='tabM
 function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tabs)){const on=tab===id;$(tab).classList.toggle('on',on);$(tab).setAttribute('role','tab');$(tab).ariaSelected=String(on);$(tab).setAttribute('aria-controls',panel);$(panel).style.display=on?'block':'none';$(panel).setAttribute('role','tabpanel');$(panel).setAttribute('aria-labelledby',tab);}refreshTabActions();if(id==='tabMaterials')selectionArea='materials';else if(id==='tabTextures')selectionArea='textures';else if(id==='tabObjects')selectionArea='objects';if(id==='tabAttributes')renderAttributes();if(id==='tabTextures')renderTextures();}
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 
-function closeMenu(){$('menu').hidden=true;delete $('menu').dataset.owner;}window.addEventListener('keydown',e=>{if(!e.target.closest?.('input,textarea,select,[contenteditable]')&&!['Control','Meta','Shift','Alt','Enter','Escape'].includes(e.key))window.frameEngine?.cancelPolygonTool?.();},true);
+function closeMenu(){$('menu').hidden=true;delete $('menu').dataset.owner;}
+function frameOpenHelp(){closeMenu();const dialog=$('helpDialog');if(!dialog.open)dialog.showModal();}
+// Capture F1 before editor/tool shortcuts, including controls that stop bubbling.
+window.addEventListener('keydown',e=>{if(e.defaultPrevented||e.isComposing||e.ctrlKey||e.metaKey||e.altKey||e.shiftKey||(e.key!=='F1'&&e.code!=='F1'))return;e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)frameOpenHelp();},true);
+window.addEventListener('keydown',e=>{if(!e.target.closest?.('input,textarea,select,[contenteditable]')&&!['Control','Meta','Shift','Alt','Enter','Escape'].includes(e.key))window.frameEngine?.cancelPolygonTool?.();},true);
 window.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('menu').hidden){closeMenu();e.preventDefault();e.stopImmediatePropagation();}},true);
 function showMenu(x,y,items,focus=true){
   $('menu').style.display='';
@@ -11918,7 +11923,7 @@ async function frameDecodeShare(value){
 }
 $('btnShare').onclick=async()=>{try{const {url}=await window.frameAI.call('scene.share');try{await navigator.clipboard.writeText(url);}catch{const input=document.createElement('textarea');input.value=url;input.style.cssText='position:fixed;left:-9999px';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw Error('Could not copy scene link');}let notice=$('shareNotice');if(!notice){notice=document.createElement('div');notice.id='shareNotice';notice.setAttribute('role','status');document.body.append(notice);}notice.textContent='Scene link copied';const r=$('btnShare').getBoundingClientRect();notice.style.top=r.bottom+2+'px';notice.style.right=Math.max(2,innerWidth-r.right)+'px';notice.hidden=false;clearTimeout(shareNoticeTimer);shareNoticeTimer=setTimeout(()=>notice.hidden=true,1500);}catch(e){fileOperationError(e);}};
 
-$('btnHelp').onclick=()=>$('helpDialog').showModal();
+$('btnHelp').onclick=frameOpenHelp;
 $('helpDialog').onclick=e=>{const r=$('helpDialog').getBoundingClientRect();if(e.target===$('helpDialog')&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))$('helpDialog').close();};
 
 function treeHeight(value){const height=id=>{const el=$(id),c=getComputedStyle(el);return el.offsetHeight+(parseFloat(c.marginTop)||0)+(parseFloat(c.marginBottom)||0);},bottom=['modelbar','modelbar2','toolbar','timeline','units','hud'].reduce((sum,id)=>sum+height(id),0),max=Math.max(40,$('panel').clientHeight-height('filebar')-36-bottom);$('obWrap').style.flexBasis=Math.max(40,Math.min(max,value))+'px';}

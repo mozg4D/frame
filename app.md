@@ -1,3 +1,9 @@
+# F1 application Help (2026-11-08)
+
+Unmodified F1 opens the existing Help dialog while the main Frame page has keyboard focus, including editable controls that stop event bubbling. It uses the same path as the Help button, closes transient menus, does not route into viewport shortcuts, and ignores key-repeat after the first press. Escape uses native dialog dismissal and focus restoration. Controls keep their normal blur/commit behavior, just as with the Help button. Modified F1 and active IME composition are not intercepted. The separate Doc window is unchanged.
+
+The Help button advertises F1. Browser/system shortcuts outside the focused application page cannot be overridden; keyboards may require Fn+F1. The button remains available as the fallback. No plugin, rendering, geometry or Unite code changes.
+
 # Scene Control author data and read-only fields (2026-11-08)
 
 Release stamp: Frame 2026 08 nov 10:05 UTC. This milestone stores inert source/schema/binding/opaque records in native HASH parameters and exposes read-only scalar current-parameter observations. It does not implement source execution, a Control panel, custom Attributes, managed Workers, autostart or subscriptions. Only native name/visible metadata is writable through the common field authoring CAS; param:<exact key> values remain read-only and observedFrame is context, not completed simulation.
