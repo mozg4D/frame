@@ -1,3 +1,4 @@
+import {programBase} from './scene-program-binding.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -15,7 +16,7 @@ checks.push('Paired shell/cache stamp only, on the previous verified icon releas
 
 const predecessor = JSON.parse(await readFile(new URL('detachable-views-layer.json', import.meta.url)));
 for (const [path, file] of Object.entries(layer.files)) {
-  const current = await readFile(new URL('../' + path, import.meta.url), 'utf8');
+  const current = programBase(path,await readFile(new URL('../' + path, import.meta.url), 'utf8'));
   assert.equal(file.patches.length, 1);
   const patch = file.patches[0];
   assert.equal(patch.count, 1);
@@ -26,7 +27,7 @@ for (const [path, file] of Object.entries(layer.files)) {
   assert.equal(base.replace(patch.before, patch.after), current);
   checks.push(path + ': exact stamp-only forward and reverse');
   for (const changed of [current + ' ', current.replace(layer.releaseVersion, layer.baseVersion), current + patch.after]) {
-    assert.throws(() => benchyStampBase(path, changed), /Exact Benchy release source/);
+    assert.throws(() => benchyStampBase(path, changed), /Exact (Benchy release source|Scene program runtime)/);
   }
   checks.push(path + ': additional bytes, old stamp and duplicate patch rejected');
   assert.equal(sha(iconStampBase(path, base)), iconReleaseLayer.files[path].baseSHA256);

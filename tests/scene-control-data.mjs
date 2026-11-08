@@ -37,7 +37,7 @@ function environment(){
  FrameAuthorData.installed();
  const docs={get:()=>({version:'fixture:0'})};
  ${fragment('      let documentationWindow=null;', '      async function settleDocument')}
- ${fragment('      async function call(name,args={},bridgeGuard=null)')}
+ ${fragment('      async function call(name,args={},bridgeGuard=null,sessionGuard=null)')}
  return {FrameAuthorData,FrameFields,call,tools,get nodes(){return nodes;},scene,installNativeRecords,frameUndoUI,commit,snapshot,get undo(){return undoStack;},get settles(){return settles;},block(v){nativeIOBusy=v;},restoreData(s){const value=JSON.parse(s);nodes.splice(0,nodes.length,...value.nodes);FrameAuthorData.reset();FrameAuthorData.setRoot(value.authorData);},setValue(owner,field,value){commit(()=>{nodes.find(n=>n.nativeHash===owner)[field]=value;},false);}};
  `;
  return new Function('input','crypto',body)({A,B,codec},webcrypto);

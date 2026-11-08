@@ -1,3 +1,4 @@
+import {programBase} from './scene-program-binding.mjs';
 // Exact cache-stamp reversal for the reference-based Benchy icon release.
 // Current browser gates use the current runtime directly.
 import assert from 'node:assert/strict';
@@ -9,6 +10,7 @@ export const benchyReleaseLayer = JSON.parse(await readFile(new URL('benchy-rele
 const sha = value => createHash('sha256').update(value).digest('hex');
 
 export function benchyStampBase(path, text) {
+  text=programBase(path,text);
   const file = benchyReleaseLayer.files[path];
   if (!file) return text;
   assert.equal(sha(text), file.releaseSHA256, 'Exact Benchy release source: ' + path);

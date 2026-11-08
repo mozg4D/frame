@@ -13,7 +13,7 @@ export async function hashDocsLifecycleChecks(){
  const fragment=(start,end)=>{const a=html.indexOf(start),b=html.indexOf(end,a+start.length);assert.ok(a>=0&&b>a,`Missing runtime anchors: ${start}`);return html.slice(a,b);};
  const appearance=fragment('function captureMergeAppearance(space)','    async function loadHash');
  const newSource=fragment('async function newFile()','\n\n    async function start()');
- const apiSource=fragment('async function call(name,args={},bridgeGuard=null)','\n');
+ const apiSource=fragment('async function call(name,args={},bridgeGuard=null,sessionGuard=null)','\n');
  const documentation=fragment('const FrameDocumentation=','const FramePlugins=');
  const check=async(name,fn)=>{const t=performance.now();try{await fn();checks.push({name,pass:true,elapsedMs:performance.now()-t});}catch(e){checks.push({name,pass:false,error:e.stack,elapsedMs:performance.now()-t});}};
  function env(mode='flush'){

@@ -1,3 +1,11 @@
+## Managed Scene Control programs (2026-11-08)
+
+The native core now supports explicit persisted JavaScript programs in the main page and named/shared Workers. Source records alone remain inert; a versioned opaque Scene Control descriptor references its source, internal imports and native field bindings through existing typed references. Manual or ready startup, live source/dependency changes, enable/disable, Stop/restart, native Undo, HASH and duplicate use one native scene model. Main programs have arbitrary DOM/core access. There is no mandatory sandbox or restricted language.
+
+Structured programs.* commands return asynchronous job receipts outside the Frame FIFO, allowing program hooks to await the common Frame API without deadlock. Separate window.framePrograms SDK messaging supports typed arrays and transferables. Managed resources and document lifetimes are retired explicitly; an already admitted native handler may finish after Stop, and arbitrary direct main effects are not rolled back. Main synchronous loops cannot be forcibly stopped. Native authoring busy state fences startup; temporary busy state does not destroy unchanged activations.
+
+This is the managed execution milestone, not full Scene Control. The Control window/panel, custom Attributes, subscriptions, timeline/export hooks and test-copy runner remain absent. See SCENE-CONTROL-PROGRAMS.md for author API, source examples, trust boundaries and bounded diagnostics. Focused CPU and native browser tests are tests/scene-program-runtime.mjs, tests/scene-program-plans.mjs and tests/scene-program-browser.mjs. Browser tests use isolated scenes and actual hardware Workers/WebGPU, with optional offline replay; they do not execute Unite.
+
 ## Shared parameter authoring for Scene Control (2026-11-08)
 
 The common field adapter now permits explicit authoring of Cube size x/y/z (canonical millimetres, minimum zero) and Atomic Temperature (degrees Celsius, minimum -273.15), Damping (inverse picoseconds, minimum zero), Time scale (fs/s, minimum zero), Confinement (eV/angstrom, minimum zero) and Color. This is a bounded foundation for Scene Control, not its executable runtime or control-panel UI.

@@ -136,7 +136,7 @@ export async function sceneControlDataBrowserChecks(page) {
     await run('Blank native scene is inert and shared API is discoverable', async () => {
       await call('scene.new'); const blank = await get();
       equal('Blank scene has no author records', blank.data.records, []);
-      equal('Execution is explicitly unavailable', blank.runtime, 'unavailable');
+      equal('Managed runtime is available but sources require explicit descriptors', blank.runtime, 'managed');
       check('No Control button or panel exists', await page.locator('#btnControl,#controlPanel,[data-scene-control-panel]').count() === 0);
       const tools = await page.evaluate(() => frameAI.listTools());
       for (const name of ['authorData.get','authorData.inspect','authorData.replace','fields.list','fields.read','fields.write']) {

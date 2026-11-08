@@ -1,7 +1,7 @@
 {
   "format": "frame-reviewed-non-unite-v1",
   "name": "release-non-unite",
-  "releaseVersion": "2026 08 nov 22:39",
+  "releaseVersion": "2026 08 nov 23:27",
   "modules": [
     "tests/suite.js",
     "tests/performance.mjs",
@@ -52,8 +52,8 @@
     "core/documentation-sync.mjs": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158",
     "core/documentation-window.mjs": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907",
     "documentation.html": "58c1c9869d6e45ecebb843cf6bd8a499900a2a90e2b3eb2689b6e06c2ba5a3ae",
-    "frame-sw.js": "26c7c5e2b545404f78baf4371f50f5f1e1cdb41725e37063bf462dbf0510c2b5",
-    "index.html": "ccd22f669aa84838cd48f40d583dd5ccc6bf6aa04d8dab5e0b146d6856ae475e",
+    "frame-sw.js": "378f5dfe03492ea82deee0228a48b8d0077c6d1f5098dbd184e92a98aef735f9",
+    "index.html": "2e96d2b61bf8a5fa99fe5650f1b63f8e74d3fc548e9e1483f712b1112aa54538",
     "kernels/NOTICE.md": "ebad3785cd99f036a332772aa5c767e33f01387902aedce8795064f6112b1169",
     "kernels/licenses/amgcl.txt": "95d7a4dff94857349e7c5cad45cf86a2a4952bbe3ec4eb8fd21b07e178578a10",
     "kernels/licenses/emscripten.txt": "2fd38dc06e484cdd7a3f1e2f6577f5d53062052a2fd85131b56b89fbd673731c",
@@ -230,9 +230,15 @@
     "tests/icon-release.mjs": "6434c7dd1c317b03b67b45220030b8bc31b31eaf9d3f7ade800a9e575ce624e3",
     "tests/plugin-icon-artwork.mjs": "151007c201960077a2d0570eda9493f906b81f843f2e68bd6b01ac21bc4aaa4d",
     "tests/plugin-icon-browser.mjs": "66d40d80c20a4d628cb12a6a9c118d7566d78a62b2dd794baa1cacaaa3c87994",
-    "tests/benchy-release-binding.mjs": "bfbf4ff17359a189251a1e978874f59636dafdbece6077be7a4b7bd25d538658",
+    "tests/benchy-release-binding.mjs": "dda12e05bf87cdbd9c3471ba97a4282b0bc456ffabafb18fc536d682fc7dc1e7",
     "tests/benchy-release-layer.json": "b78f2e983fab9b18c915e5164968592b1f394c0658e13bc44cb8d83948b02b2e",
-    "tests/benchy-release.mjs": "ff8547c351cf340b516de3192ae1a759345e570e9581079d0139d842bf34b495"
+    "tests/benchy-release.mjs": "1636eb75f27ca7b5fa4ccd08aeed0c31c0f21c133eca767617c0368c116a3107",
+    "SCENE-CONTROL-PROGRAMS.md": "41a8d42b2591e05b046a48588636326afe197c13c1d6e707ea67f8fb92bacfad",
+    "tests/scene-program-runtime.mjs": "7559bfc5db1bcbf27a18ce388c7054692d057cd4a81a458e1b8c11ca178d7764",
+    "tests/scene-program-plans.mjs": "68cbda4032cd96a1a8713dad2f5e4a6e394be7f073e15f0307a8d5a97d17365e",
+    "tests/scene-program-browser.mjs": "f058f7f6455e396174d83c67ae8664d0a729f17322690c047b6c514bb95ce4f1",
+    "tests/scene-program-binding.mjs": "6ea014c2747666be4ec6d275d4553e86d30fde0ddad4439de675e230918992c3",
+    "tests/scene-program-layer.json": "dce94e5891ef0475ef105be194aa28a88ef3965d62c26d86b996e890fb4178cc"
   },
   "selectedStandardStages": [
     "suite",

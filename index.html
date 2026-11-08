@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 08 nov 22:39">
-<title>Frame 2026 08 nov 22:39</title>
+<meta name="frame-version" content="2026 08 nov 23:27">
+<title>Frame 2026 08 nov 23:27</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -11069,7 +11069,7 @@ const FramePluginTags=(()=>{
   return {params};
 })();
 
-// Scene author data and common native metadata fields. Sources are never evaluated.
+// Author data remains inspectable without execution. Explicit program descriptors opt into managed execution below.
 const FrameAuthorData=(()=>{
  const limits=Object.freeze({bytes:4194304,string:1048576,records:512,refs:256,depth:24,items:100000}),hash=/^[a-f0-9]{32}$/,bad=new Set(['__proto__','prototype','constructor']);
  const error=(message,code='INVALID_ARGUMENT')=>{throw Object.assign(Error(message),{code});};
@@ -11082,6 +11082,7 @@ const FrameAuthorData=(()=>{
  function remap(input,mapping,rootMapping=null){const value=envelope(input);if(!value)return null;for(const r of value.records)for(const ref of r.refs){if(ref.owner==='scene'){if(ref.kind==='record'&&rootMapping){if(rootMapping.has(ref.id)&&!ref.unresolved)ref.id=rootMapping.get(ref.id);else ref.unresolved=true;}}else ref.owner=mapping.get(ref.owner)||ref.owner;}return value;}
  function merge(current,incoming,mapping,rootMapping){const a=envelope(current),b=remap(incoming,mapping,rootMapping);if(!b?.records.length)return a;const records=[...a?.records||[],...b.records.map(r=>({...r,id:rootMapping.get(r.id)||r.id}))];return envelope({version:1,revision:(a?.revision||0)+1,records,...a?.retired?{retired:a.retired}:{}});}
  function closure(root,objects){root=envelope(root);if(!root)return null;const records=new Map(root.records.map(r=>[r.id,r])),keep=new Set(),visit=r=>{for(const ref of r.refs)if(!ref.unresolved&&ref.kind==='record'&&ref.owner==='scene'&&records.has(ref.id)&&!keep.has(ref.id)){keep.add(ref.id);visit(records.get(ref.id));}};for(const o of objects)for(const r of o.authoring?.authorData?.records||[])visit(r);return keep.size?{...root,records:root.records.filter(r=>keep.has(r.id))}:null;}
+ let documentToken=crypto.randomUUID(),lifecycle=()=>{};const notify=reason=>{try{lifecycle(reason);}catch(error){console.error('Scene program lifecycle failed',error);}};
  let epoch=crypto.randomUUID(),generation=0,busy=0,documentReady=false,readRoot=()=>null,writeRoot=()=>error('Native scene not ready','NOT_READY');
  const empty=()=>({version:1,revision:0,records:[]});
 
@@ -11096,17 +11097,17 @@ const FrameAuthorData=(()=>{
  function restoreObjects(target,current){const old=new Map(current.map(o=>[o.hash,o]));return target.map(o=>{const authorData=history(o.authoring?.authorData,old.get(o.hash)?.authoring?.authorData,o.hash);return authorData?{...o,authoring:{version:1,tags:[],animation:[],...o.authoring,authorData}}:o;});}
  function preflightHistory(value){const state=JSON.parse(value),rootValue=history(state.authorData,root()),target=restoreNodes(state.nodes,nodes);reserveNodes(target,nodes,rootValue);}
  function root(){return envelope(readRoot());}
- function setRoot(value){const next=envelope(value),publish=reservationPlan([['scene',next]]);if(JSON.stringify(next)!==JSON.stringify(root()))writeRoot(next);publish();}
+ function setRoot(value){const next=envelope(value),publish=reservationPlan([['scene',next]]);if(JSON.stringify(next)!==JSON.stringify(root()))writeRoot(next);publish();notify('records');}
  function owners(){const index=new Map();for(const n of nodes){const prior=index.get(n.nativeHash);if(prior)prior.push(n);else index.set(n.nativeHash,[n]);}return index;}
  function resolveOwner(value,index=null){if(!id(value))error('Canonical native owner hash required');const matches=index?index.get(value)||[]:nodes.filter(n=>n.nativeHash===value);if(matches.length!==1)error(matches.length?'Ambiguous native owner':'Native owner is missing','NOT_FOUND');return matches[0];}
- function get(value){if(!owner(value))error('Invalid author owner');return {epoch,owner:value,data:(value==='scene'?root():envelope(resolveOwner(value).authorData))||empty(),runtime:'unavailable'};}
+ function get(value){if(!owner(value))error('Invalid author owner');return {epoch,owner:value,data:(value==='scene'?root():envelope(resolveOwner(value).authorData))||empty(),runtime:'managed'};}
  function expect(value,expected){keys(expected,['epoch','revision']);if(expected.epoch!==epoch||expected.revision!==get(value).data.revision)error('Author data changed; read current revision','CONFLICT');}
  function replace(value,expected,records){expect(value,expected);const previous=history(get(value).data,null,value),next=envelope({version:1,revision:previous.revision+1,records});if(next.records.some(r=>previous.retired?.includes(r.id)))error('Author record identity was retired; use a fresh ID','CONFLICT');const active=new Set(next.records.map(r=>r.id)),retired=[...previous.retired||[],...previous.records.filter(r=>!active.has(r.id)).map(r=>r.id)];if(retired.length){next.retired=retired;envelope(next);}const old=new Map(previous.records.map(r=>[r.id,r]));for(const r of next.records){const before=old.get(r.id);if(!before){if(previous.retired?.includes(r.id))error('Author record identity was retired; use a fresh ID','CONFLICT');if(r.revision!==0)error('New record revision must be zero');}else{const same=JSON.stringify({...before,revision:0})===JSON.stringify({...r,revision:0});if(r.revision!==before.revision+(same?0:1))error('Record revision must advance exactly once','CONFLICT');}}
   if(JSON.stringify(next.records)===JSON.stringify(previous.records))return get(value);const target=value==='scene'?null:resolveOwner(value),publish=reservationPlan([[value,previous],[value,next]]);commit(()=>{if(target)target.authorData=next;else setRoot(next);publish();},false);frameSyncEngineVisibility();return get(value);
  }
  function availability(ref,context=null){reference(ref);if(ref.unresolved)return {status:'unresolved-reference'};if(ref.owner==='scene'){const present=context?context.root.has(ref.id):root()?.records.some(r=>r.id===ref.id);return {status:present?'available':'missing-record'};}const matches=context?context.owners.get(ref.owner)||[]:nodes.filter(n=>n.nativeHash===ref.owner);if(matches.length!==1)return {status:matches.length?'ambiguous-owner':'missing-owner'};const n=matches[0];if(ref.kind==='object')return {status:'available'};if(ref.kind==='record'){let ids=context?.records.get(n);if(context&&!ids){ids=new Set(n.authorData?.records.map(r=>r.id)||[]);context.records.set(n,ids);}return {status:(ids?ids.has(ref.id):n.authorData?.records.some(r=>r.id===ref.id))?'available':'missing-record'};}return {status:FrameFields.descriptor(n,ref.field).availability};}
  function inspect(value){const state=get(value),context={owners:owners(),records:new Map(),root:new Set((value==='scene'?state.data:root())?.records.map(r=>r.id)||[])};return {...state,references:state.data.records.flatMap(r=>r.refs.map((ref,index)=>({record:r.id,index,ref,...availability(ref,context)})))};}
- return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,inspect,availability,root,setRoot,history,restoreNodes,restoreObjects,preflightHistory,reservationLimits,reserveNodes,reserveObjects,preflightDocument,restoreRoot(value){setRoot(history(value,root()));},preflightObjects(value,current){const rootValue=history(value.authorData,root()),target=restoreObjects(value.objects,current);reservationPlan([['scene',rootValue],...entriesObjects(current),...entriesObjects(target)]);},resolveOwner,owners,error,rev,get ready(){return documentReady;},invalidateDocument(replace=true){documentReady=false;epoch=crypto.randomUUID();generation=0;if(replace)allocations=new Map();},installed(){reserveNodes(nodes)();documentReady=true;},begin(){busy++;let done=false;return ()=>{if(!done){done=true;busy--;}};},get busy(){return busy>0;},changed(){if(generation>=Number.MAX_SAFE_INTEGER-1){epoch=crypto.randomUUID();generation=0;}else generation++;},get generation(){return generation;},reset(){epoch=crypto.randomUUID();generation=0;},get epoch(){return epoch;},attach(read,write){readRoot=read;writeRoot=write;}});
+ return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,inspect,availability,root,setRoot,history,restoreNodes,restoreObjects,preflightHistory,reservationLimits,reserveNodes,reserveObjects,preflightDocument,restoreRoot(value){setRoot(history(value,root()));},preflightObjects(value,current){const rootValue=history(value.authorData,root()),target=restoreObjects(value.objects,current);reservationPlan([['scene',rootValue],...entriesObjects(current),...entriesObjects(target)]);},resolveOwner,owners,error,rev,get ready(){return documentReady;},get documentToken(){return documentToken;},observe(fn){lifecycle=fn;return ()=>{if(lifecycle===fn)lifecycle=()=>{};};},invalidateDocument(replace=true){documentReady=false;documentToken=crypto.randomUUID();epoch=crypto.randomUUID();generation=0;if(replace)allocations=new Map();notify('document');},installed(){reserveNodes(nodes)();documentReady=true;notify('installed');},begin(){busy++;let done=false;return ()=>{if(!done){done=true;busy--;if(!busy)notify('native-ready');}};},get busy(){return busy>0;},changed(){if(generation>=Number.MAX_SAFE_INTEGER-1){epoch=crypto.randomUUID();generation=0;}else generation++;notify('changed');},get generation(){return generation;},reset(){epoch=crypto.randomUUID();generation=0;notify('history');},get epoch(){return epoch;},attach(read,write){readRoot=read;writeRoot=write;}});
 })();
 const FrameParameters=(()=>{
  const own=(o,k)=>{const d=o&&typeof o==='object'?Object.getOwnPropertyDescriptor(o,k):null;return d&&Object.hasOwn(d,'value')&&d.enumerable?d.value:undefined;};
@@ -11219,6 +11220,349 @@ let creating=Promise.resolve();
   function drawOverlays(){for(const n of nodes)if(owner(n)){const color=dispatch('rowColor',n),el=$('row-'+n.id)?.querySelector('.ob-name');if(el)el.style.setProperty('--object-color',color||objectColor(n.type));}for(const entry of entries.values()){const data=entry.editor?.overlay?.(),id='frame-plugin-overlay-'+entry.manifest.id;let panel=$(id);if(!data){panel?.remove();continue;}const view=window.frameEngine.pluginView(),stamp=JSON.stringify([data,view.instance,view.rect]);if(panel)framePlaceOverlay(panel,view.instance);if(panel?.dataset.stamp===stamp)continue;if(!panel){panel=document.createElement('div');panel.id=id;panel.className='frame-plugin-overlay';framePlaceOverlay(panel,view.instance);}panel.dataset.stamp=stamp;panel.style.cssText='position:fixed;z-index:15;display:grid;grid-template-columns:repeat('+data.columns+',20px);grid-auto-rows:20px;gap:1px;right:'+(panel.ownerDocument.defaultView.innerWidth-view.rect.left-view.rect.width+36)+'px;top:'+(view.rect.top+6)+'px';panel.replaceChildren();for(const cell of data.cells){const button=document.createElement('button');button.textContent=cell.label;button.dataset.pluginElement=cell.label;button.style.cssText='grid-column:'+cell.column+';grid-row:'+cell.row+';border:0;padding:0;background:transparent;font:12px Arial;cursor:pointer;color:'+cell.color;button.style.setProperty('color',cell.color,'important');button.classList.toggle('on',!!cell.active);button.setAttribute('aria-pressed',String(!!cell.active));button.onclick=()=>window.frameAI.call('plugins.command',{id:data.hash,operation:cell.action,args:cell.args||{}}).catch(fileOperationError);panel.append(button);}}}
   return {drawOverlays,ready,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagMenu,tagList,ensureType:async type=>{await ready;const entry=types.get(type);if(entry)await use(entry);},create:createObject};
 })();window.framePlugins=Object.freeze({version:1,ready:FramePlugins.ready,list:FramePlugins.list,create:FramePlugins.create});
+
+
+/* Scene Control runtime. Keep this factory self-contained when inlining it in index.html. */
+function createSceneProgramRuntime(services) {
+  'use strict';
+  const LIMITS = Object.freeze({ jobs:128, pendingJobs:64, resultBytes:65536, instances:512, contexts:32, requests:128, modules:512, moduleBytes:16777216, resources:1024 });
+  const instances = new Map(), workers = new Map(), jobs = new Map();
+  const notifications=[];let notificationScheduled=false,droppedNotifications=0;
+  const runtimeId=globalThis.crypto?.randomUUID?.()||(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
+  let documentToken = services.getDocument().token, serial = 0, jobSerial = 0, disposed = false, autoPending = false, reconcileScheduled = false;
+  const clock = () => performance.now();
+  const error = (code, message) => Object.assign(new Error(message), {code});
+  const problem = e => ({code:typeof e?.code === 'string' ? e.code : 'PROGRAM_FAILED', message:String(e?.message || e).slice(0,4096)});
+  const keyOf = p => JSON.stringify([p.owner,p.id]);
+  const clone = (value, transfer=[]) => structuredClone(value,{transfer});
+  const notify = detail => {
+    if(!services.onStatus)return;
+    if(notifications.length>=128){notifications.shift();droppedNotifications++;}notifications.push(detail);
+    if(notificationScheduled)return;notificationScheduled=true;setTimeout(()=>{notificationScheduled=false;const pending=notifications.splice(0),dropped=droppedNotifications;droppedNotifications=0;if(dropped)pending.unshift({type:'diagnostic-overflow',dropped});for(const event of pending){try{services.onStatus(event);}catch(_){}}},0);
+  };
+  const available = plan => plan && (plan.availability === 'available' || plan.availability?.status === 'available');
+  const json = (value,byteLimit=LIMITS.resultBytes) => {
+    let nodes=0,strings=0;
+    const visit=(v,depth)=>{
+      if(++nodes>8192||depth>24)throw error('RESULT_LIMIT','Program result exceeds the JSON complexity limit');
+      if(typeof v==='string'){strings+=v.length;if(strings>byteLimit)throw error('RESULT_LIMIT','Program result exceeds the JSON size limit');return v;}
+      if(v===null||typeof v==='boolean')return v;
+      if(typeof v==='number'&&Number.isFinite(v))return v;
+      if(!v||typeof v!=='object')throw error('RESULT_NOT_JSON','Program result is not JSON. Use the native structured-clone SDK for typed values.');
+      const prototype=Object.getPrototypeOf(v);
+      if(!Array.isArray(v)&&prototype!==Object.prototype&&prototype!==null)throw error('RESULT_NOT_JSON','Program result is not a plain JSON value. Use the native SDK.');
+      if(Object.getOwnPropertySymbols(v).length)throw error('RESULT_NOT_JSON','Program result contains symbol properties');
+      const descriptors=Object.getOwnPropertyDescriptors(v), out=Array.isArray(v)?[]:{};
+      for(const [k,d] of Object.entries(descriptors)){
+        if(Array.isArray(v)&&k==='length')continue;
+        if(!d.enumerable||!Object.hasOwn(d,'value'))throw error('RESULT_NOT_JSON','Program result contains accessors or hidden properties');
+        if(k==='__proto__'||k==='prototype'||k==='constructor')throw error('RESULT_NOT_JSON','Program result contains an unsafe JSON key');
+        if(Array.isArray(v)&&(!/^(0|[1-9][0-9]*)$/.test(k)||Number(k)>=v.length))throw error('RESULT_NOT_JSON','Program result has non-index array properties');
+        out[k]=visit(d.value,depth+1);
+      }
+      if(Array.isArray(v)&&Object.keys(out).length!==v.length)throw error('RESULT_NOT_JSON','Program result contains array holes');
+      return out;
+    };
+    const result=visit(value===undefined?null:value,0);
+    if(new TextEncoder().encode(JSON.stringify(result)).length>byteLimit)throw error('RESULT_LIMIT','Program result exceeds the JSON size limit');
+    return result;
+  };
+  const statusOf = i => ({owner:i.owner,id:i.id,name:i.name,context:i.context,generation:i.generation,state:i.state,desired:i.desired,signature:i.signatureTag,startedAt:i.startedAt||null,updatedAt:i.updatedAt,error:i.error||null,reason:i.reason||null});
+  function publish(i,state,reason=null,err=null){i.state=state;i.reason=reason;i.error=err?problem(err):null;i.updatedAt=clock();notify({type:'instance',...statusOf(i)});}
+  function guard(i,requireReady=true){
+    const document=services.getDocument();
+    if(disposed||!i.live||instances.get(i.key)!==i||document.token!==i.documentToken)throw error('STALE_INSTANCE','Scene program belongs to an inactive document or activation');
+    if(!document.ready){if(requireReady)throw error('NOT_READY','Native document is temporarily unavailable');return true;}
+    const live=services.getPlan({owner:i.owner,id:i.id});
+    if(!available(live)||live.signature!==i.signature)throw error('STALE_INSTANCE','Scene program descriptor or dependency changed');
+    return true;
+  }
+  function guardedCall(i,name,args){guard(i);return services.call(name,args,()=>guard(i));}
+  /* Shared implementation runs in main and in each named Worker. No source rewriting. */
+  function createRealm(host,limits){
+    const modules=new Map(), active=new Map(), transfers=new WeakMap();let moduleBytes=0,pendingWork=0;
+    const fail=(code,message)=>Object.assign(new Error(message),{code});
+    const summarize=e=>({code:typeof e?.code==='string'?e.code:'PROGRAM_FAILED',message:String(e?.message||e).slice(0,4096)});
+    function moduleFor(source){
+      const key=JSON.stringify([source.owner,source.id,source.revision,source.text]);
+      if(modules.has(key))return modules.get(key);
+      const bytes=new TextEncoder().encode(source.text).length;
+      if(modules.size>=limits.modules||moduleBytes+bytes>limits.moduleBytes)throw fail('MODULE_CACHE_LIMIT','This execution realm reached its source-revision cache limit (512 revisions / 16 MiB source). Restart the Worker context or reload the page for main-context modules.');
+      moduleBytes+=bytes;
+      let url;
+      const promise=Promise.resolve().then(()=>{
+        url=host.moduleURL?host.moduleURL(source.text):URL.createObjectURL(new Blob([source.text],{type:'text/javascript'}));
+        return import(url);
+      }).finally(()=>{if(url&&!host.moduleURL)URL.revokeObjectURL(url);});
+      modules.set(key,promise);return promise;
+    }
+    function assert(i){if(!i.live||active.get(i.key)!==i)throw fail('STALE_INSTANCE','Scene program activation has stopped');host.guard(i.key);}
+    function cleanOne(i,fn){try{Promise.resolve(fn()).catch(e=>host.diagnostic(i.key,'cleanup',summarize(e)));}catch(e){host.diagnostic(i.key,'cleanup',summarize(e));}}
+    function cleanup(i,fn){
+      if(typeof fn!=='function')throw fail('INVALID_CLEANUP','cleanup expects a function');
+      if(!i.live){cleanOne(i,fn);return ()=>{};}
+      try{assert(i);}catch(e){cleanOne(i,fn);throw e;}
+      if(i.cleanups.size>=limits.resources){cleanOne(i,fn);throw fail('RESOURCE_LIMIT','Scene program has too many registered resources');}
+      i.cleanups.add(fn);return ()=>i.cleanups.delete(fn);
+    }
+    function contextFor(i,plan){
+      const resources={
+        listen(target,type,fn,options){assert(i);target.addEventListener(type,fn,options);cleanup(i,()=>target.removeEventListener(type,fn,options));return fn;},
+        timeout(fn,ms,...args){assert(i);let forget=()=>{};const id=setTimeout(()=>{forget();try{assert(i);Promise.resolve(fn(...args)).catch(e=>host.diagnostic(i.key,'callback',summarize(e)));}catch(e){host.diagnostic(i.key,'callback',summarize(e));}},ms);forget=cleanup(i,()=>clearTimeout(id));return id;},
+        interval(fn,ms,...args){assert(i);const id=setInterval(()=>{try{assert(i);Promise.resolve(fn(...args)).catch(e=>host.diagnostic(i.key,'callback',summarize(e)));}catch(e){host.diagnostic(i.key,'callback',summarize(e));}},ms);cleanup(i,()=>clearInterval(id));return id;},
+        animationFrame(fn){assert(i);if(typeof requestAnimationFrame!=='function')throw fail('UNAVAILABLE','requestAnimationFrame is unavailable in this realm');let forget=()=>{};const id=requestAnimationFrame(time=>{forget();try{assert(i);Promise.resolve(fn(time)).catch(e=>host.diagnostic(i.key,'callback',summarize(e)));}catch(e){host.diagnostic(i.key,'callback',summarize(e));}});forget=cleanup(i,()=>cancelAnimationFrame(id));return id;},
+        dom(node){assert(i);cleanup(i,()=>node.remove());return node;},
+        objectURL(blob){assert(i);const url=URL.createObjectURL(blob);cleanup(i,()=>URL.revokeObjectURL(url));return url;}
+      };
+      const ctx={owner:plan.owner,id:plan.id,name:plan.name,context:plan.context,params:structuredClone(plan.params||{}),bindings:structuredClone(plan.bindings||{}),signal:i.controller.signal,
+        cleanup:fn=>cleanup(i,fn),resources,
+        import:alias=>{assert(i);if(!Object.hasOwn(plan.imports||{},alias))throw fail('UNKNOWN_IMPORT','Unknown internal source alias: '+alias);return moduleFor(plan.imports[alias]);},
+        call:(name,args={})=>{assert(i);return host.call(i.key,name,args);},
+        listTools:()=>{assert(i);return host.listTools(i.key);},
+        transfer:(value,transfer=[])=>{assert(i);const envelope={};transfers.set(envelope,{value,transfer});return envelope;}
+      };
+      ctx.frame=Object.freeze({call:ctx.call,listTools:ctx.listTools});
+      if(host.getCore)Object.defineProperty(ctx,'core',{enumerable:true,get(){assert(i);return host.getCore(i.key);}});
+      return Object.freeze(ctx);
+    }
+    async function start(key,plan){
+      if(pendingWork>=limits.requests)throw fail('WORK_LIMIT','Too many unsettled user hooks in this execution realm');pendingWork++;
+      const i={key,live:true,cleanups:new Set(),controller:new AbortController(),namespace:null,hooks:null};active.set(key,i);
+      try{
+        const namespace=await moduleFor(plan.source);assert(i);i.namespace=namespace;
+        const hooks=typeof namespace.activate==='function'?await namespace.activate(contextFor(i,plan)):null;
+        if(hooks!==null&&hooks!==undefined&&(typeof hooks!=='object'||Array.isArray(hooks)))throw fail('INVALID_ACTIVATION','activate(ctx) must return an object or nothing');
+        i.hooks=hooks||{};
+        if(typeof i.hooks.dispose==='function')cleanup(i,()=>i.hooks.dispose());
+        assert(i);
+        return {exports:[...new Set([...Object.keys(namespace).filter(k=>k!=='activate'&&typeof namespace[k]==='function'),...Object.keys(i.hooks.exports||{}).filter(k=>typeof i.hooks.exports[k]==='function')])].slice(0,256)};
+      }catch(e){stop(key);throw e;}finally{pendingWork--;}
+    }
+    function stop(key){const i=active.get(key);if(!i)return;i.live=false;active.delete(key);i.controller.abort();for(const fn of i.cleanups){i.cleanups.delete(fn);cleanOne(i,fn);}i.hooks=null;i.namespace=null;}
+    async function invoke(key,method,args,message=false){
+      if(pendingWork>=limits.requests)throw fail('WORK_LIMIT','Too many unsettled user hooks in this execution realm');
+      const i=active.get(key);if(!i)throw fail('NOT_RUNNING','Scene program is not active');assert(i);
+      const fn=message?i.hooks?.onMessage:(Object.hasOwn(i.hooks?.exports||{},method)?i.hooks.exports[method]:(method!=='activate'&&Object.hasOwn(i.namespace||{},method)?i.namespace[method]:null));
+      if(typeof fn!=='function')throw fail('UNKNOWN_EXPORT',message?'Scene program has no onMessage handler':'Unknown callable export: '+method);
+      pendingWork++;try{const result=await fn.apply(i.hooks,message?[args]:args);assert(i);
+      return transfers.get(result)||{value:result,transfer:[]};}finally{pendingWork--;}
+    }
+    return {start,stop,invoke,stats:()=>({modules:modules.size,moduleBytes,pendingWork,activations:active.size,resources:[...active.values()].reduce((n,i)=>n+i.cleanups.size,0)})};
+  }
+  const main=createRealm({
+    guard:key=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i,false);},
+    call:(key,name,args)=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');return guardedCall(i,name,args);},
+    listTools:()=>services.listTools(),getCore:key=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i);return services.getCore();},moduleURL:services.moduleURL,
+    diagnostic:(key,phase,detail)=>notify({type:'diagnostic',context:'main',activation:key,phase,error:detail})
+  },LIMITS);
+  function workerBootstrap(realmFactory,limits){
+    const requests=new Map(), alive=new Set();let serial=0;
+    const problem=e=>({code:typeof e?.code==='string'?e.code:'PROGRAM_FAILED',message:String(e?.message||e).slice(0,4096)});
+    function rpc(key,type,payload){
+      if(!alive.has(key))return Promise.reject(Object.assign(new Error('Activation stopped'),{code:'STALE_INSTANCE'}));
+      if(requests.size>=limits.requests)return Promise.reject(Object.assign(new Error('Worker API request limit reached'),{code:'REQUEST_LIMIT'}));
+      const id=++serial;return new Promise((resolve,reject)=>{requests.set(id,{resolve,reject});try{postMessage({type,id,key,...payload});}catch(e){requests.delete(id);reject(e);}});
+    }
+    const realm=realmFactory({
+      guard:key=>{if(!alive.has(key))throw Object.assign(new Error('Activation stopped'),{code:'STALE_INSTANCE'});},
+      call:(key,name,args)=>rpc(key,'api',{name,args}),listTools:key=>rpc(key,'tools',{}),
+      diagnostic:(key,phase,error)=>postMessage({type:'diagnostic',key,phase,error})
+    },limits);
+    onmessage=event=>{
+      const m=event.data;
+      if(m.type==='response'){const r=requests.get(m.id);if(!r)return;requests.delete(m.id);m.error?r.reject(Object.assign(new Error(m.error.message),{code:m.error.code})):r.resolve(m.value);return;}
+      if(m.type!=='request')return;
+      (async()=>{
+        try{
+          let output;
+          if(m.operation==='start'){alive.add(m.key);try{output={value:await realm.start(m.key,m.plan),transfer:[]};}catch(e){alive.delete(m.key);throw e;}}
+          else if(m.operation==='stop'){alive.delete(m.key);realm.stop(m.key);output={value:{stopped:true},transfer:[]};}
+          else if(m.operation==='invoke')output=await realm.invoke(m.key,m.method,m.args,false);
+          else if(m.operation==='message')output=await realm.invoke(m.key,null,m.data,true);
+          else throw Object.assign(new Error('Unknown Worker operation'),{code:'INVALID_OPERATION'});
+          postMessage({type:'result',id:m.id,value:output.value},output.transfer);
+        }catch(e){try{postMessage({type:'result',id:m.id,error:problem(e)});}catch(_) {}}
+      })();
+    };
+  }
+  function createWorker(context){
+    if(workers.size>=LIMITS.contexts)throw error('CONTEXT_LIMIT','Scene program Worker context limit reached');
+    const source='('+workerBootstrap.toString()+')('+createRealm.toString()+','+JSON.stringify(LIMITS)+');';
+    let url=null,worker;
+    if(services.createWorker)worker=services.createWorker(source,context);
+    else{url=URL.createObjectURL(new Blob([source],{type:'text/javascript'}));try{worker=new Worker(url,{type:'module',name:context});}catch(e){URL.revokeObjectURL(url);throw e;}}
+    const w={context,worker,url,requests:new Map(),serial:0,live:true};workers.set(context,w);
+    worker.onmessage=event=>{
+      if(!w.live)return;const m=event.data;
+      if(m.type==='result'){const request=w.requests.get(m.id);if(!request)return;w.requests.delete(m.id);m.error?request.reject(Object.assign(new Error(m.error.message),{code:m.error.code})):request.resolve(m.value);return;}
+      if(m.type==='diagnostic'){notify({type:'diagnostic',context,activation:m.key,phase:m.phase,error:m.error});return;}
+      if(m.type==='api'||m.type==='tools'){
+        const i=[...instances.values()].find(value=>value.realmKey===m.key&&value.context===context);
+        Promise.resolve().then(()=>{if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i);return m.type==='api'?guardedCall(i,m.name,m.args):services.listTools();}).then(value=>{
+          if(w.live)try{worker.postMessage({type:'response',id:m.id,value});}catch(e){worker.postMessage({type:'response',id:m.id,error:problem(e)});}
+        },e=>{if(w.live)worker.postMessage({type:'response',id:m.id,error:problem(e)});});
+      }
+    };
+    worker.onerror=event=>{event.preventDefault?.();terminate(context,'worker-error',error('WORKER_FAILED',event.message||'Worker failed'));};
+    worker.onmessageerror=()=>terminate(context,'worker-message-error',error('CLONE_FAILED','Worker message could not be deserialized'));
+    return w;
+  }
+  function request(w,payload,transfer=[]){
+    if(!w.live)return Promise.reject(error('CONTEXT_TERMINATED','Worker context is terminated'));
+    if(payload.operation!=='stop'&&w.requests.size>=LIMITS.requests)return Promise.reject(error('REQUEST_LIMIT','Worker request limit reached'));
+    const id=++w.serial;return new Promise((resolve,reject)=>{w.requests.set(id,{resolve,reject});try{w.worker.postMessage({type:'request',id,...payload},transfer);}catch(e){w.requests.delete(id);reject(e);}});
+  }
+  function cancelJobs(i,reason,err=null){for(const job of jobs.values())if(job.instance===i&&['queued','running'].includes(job.state)){job.state=err?'error':'cancelled';job.error=err?problem(err):{code:'STALE_INSTANCE',message:reason};job.finishedAt=clock();job.instance=null;}}
+  function invalidate(i,reason,err=null){if(!i.live)return;i.live=false;cancelJobs(i,reason,err);publish(i,err?'error':'stopped',reason,err);}
+  function terminate(context,reason,err=null){
+    const w=workers.get(context);
+    const affected=[];
+    for(const i of instances.values())if(i.context===context&&(i.live||i.state==='stopping'&&reason!=='last-instance-stopped')){if(i.live)invalidate(i,reason,err);else publish(i,err?'error':'stopped',reason,err);if(reason!=='last-instance-stopped')i.desired=false;affected.push({owner:i.owner,id:i.id});}
+    if(w){w.live=false;workers.delete(context);w.worker.terminate();if(w.url)URL.revokeObjectURL(w.url);for(const r of w.requests.values())r.reject(err||error('CONTEXT_TERMINATED','Named Worker context stopped'));w.requests.clear();}
+    if(affected.length)notify({type:'context-terminated',context,reason,affected});return affected;
+  }
+  function retire(i,reason){
+    if(!i.live)return i.stopPromise||Promise.resolve({affected:[]});
+    invalidate(i,reason);publish(i,'stopping',reason);
+    i.stopPromise=new Promise((resolve,reject)=>setTimeout(()=>{
+      const finish=()=>{if(i.state==='stopping')publish(i,'stopped',reason);resolve({affected:[{owner:i.owner,id:i.id}]});};
+      if(i.context==='main'){try{main.stop(i.realmKey);finish();}catch(e){reject(e);}return;}
+      const w=workers.get(i.context);if(!w){finish();return;}
+      request(w,{operation:'stop',key:i.realmKey}).then(()=>{
+        if(workers.get(i.context)===w&&![...instances.values()].some(peer=>peer.live&&peer.context===i.context))terminate(i.context,'last-instance-stopped');
+        finish();
+      },e=>{if(e.code==='CONTEXT_TERMINATED')finish();else reject(e);});
+    },0));i.stopPromise.catch(()=>{});return i.stopPromise;
+  }
+  function trimJobs(){for(const [id,j] of jobs){if(jobs.size<LIMITS.jobs)break;if(!['queued','running'].includes(j.state))jobs.delete(id);}}
+  function admit(control=false){
+    if(disposed)throw error('RUNTIME_DISPOSED','Scene program runtime is disposed');
+    if(!control&&[...jobs.values()].filter(j=>['queued','running'].includes(j.state)).length>=LIMITS.pendingJobs)throw error('JOB_LIMIT','Too many unfinished scene program jobs');
+    if(control&&jobs.size>=LIMITS.jobs&&![...jobs.values()].some(j=>!['queued','running'].includes(j.state))){
+      const [id,oldest]=jobs.entries().next().value;oldest.state='cancelled';oldest.error={code:'JOB_EXPIRED',message:'Control-plane history capacity reached; running user work is not cancelled by history eviction'};oldest.instance=null;jobs.delete(id);
+    }
+  }
+  function kickReconcile(){if(!autoPending||reconcileScheduled||disposed)return;reconcileScheduled=true;setTimeout(()=>{reconcileScheduled=false;if(disposed)return;autoPending=false;try{reconcile({reason:'autostart-capacity'});}catch(e){notify({type:'diagnostic',phase:'reconcile',error:problem(e)});}},0);}
+  function job(operation,i,run){
+    admit(operation==='stop'||operation==='terminateContext');
+    trimJobs();const id='scene-job-'+runtimeId+'-'+(++jobSerial),j={jobId:id,operation,state:'queued',createdAt:clock(),startedAt:null,finishedAt:null,instance:i};jobs.set(id,j);
+    setTimeout(()=>{
+      if(j.state!=='queued')return;j.state='running';j.startedAt=clock();
+      Promise.resolve().then(run).then(value=>{if(j.state!=='running')return;try{j.result=json(value);j.state='completed';}catch(e){j.error=problem(e);j.state='error';}},e=>{if(j.state==='running'){j.state='error';j.error=problem(e);}}).finally(()=>{if(j.state==='running')return;j.finishedAt=j.finishedAt||clock();j.instance=null;notify({type:'job',jobId:id,operation,state:j.state,error:j.error||null});kickReconcile();});
+    },0);
+    return {jobId:id,operation,state:'queued',owner:i?.owner||null,id:i?.id||null};
+  }
+  function requirePlan(target){
+    if(disposed)throw error('RUNTIME_DISPOSED','Scene program runtime is disposed');
+    const document=services.getDocument();if(document.token!==documentToken)reconcile({reason:'document-changed'});
+    if(!document.ready)throw error('NOT_READY','Native document is not ready');
+    const p=services.getPlan(target);if(!p)throw error('MISSING_PROGRAM','Scene program descriptor does not exist');
+    if(!available(p))throw error('UNAVAILABLE_PROGRAM','Scene program dependencies are unavailable: '+JSON.stringify(p.availability));return p;
+  }
+  function prepare(plan){
+    const key=keyOf(plan);if(!instances.has(key)&&instances.size>=LIMITS.instances)throw error('INSTANCE_LIMIT','Scene program instance limit reached');
+    const i={key,owner:plan.owner,id:plan.id,name:plan.name||'',context:plan.context,signature:plan.signature,generation:++serial,documentToken:services.getDocument().token,desired:true,live:true,state:'queued',updatedAt:clock()};
+    let hash=2166136261;for(let at=0;at<plan.signature.length;at++)hash=Math.imul(hash^plan.signature.charCodeAt(at),16777619);i.signatureTag=(hash>>>0).toString(16)+':'+plan.signature.length;
+    i.realmKey=key+':'+i.generation;instances.set(key,i);return i;
+  }
+  async function launch(i,plan){
+    try{
+      guard(i);publish(i,'starting');
+      const result=i.context==='main'?await main.start(i.realmKey,plan):await request(workers.get(i.context)||createWorker(i.context),{operation:'start',key:i.realmKey,plan});
+      guard(i,false);i.startedAt=clock();publish(i,'running');return {...statusOf(i),exports:result.exports};
+    }catch(e){if(i.live){invalidate(i,e.code==='NOT_READY'&&!services.getDocument().ready?'native-not-ready':'activation-failed',e);if(i.context==='main')main.stop(i.realmKey);else if(![...instances.values()].some(peer=>peer.live&&peer.context===i.context))terminate(i.context,'activation-failed');}throw e;}
+  }
+  function start(target){
+    admit();
+    const plan=requirePlan(target),old=instances.get(keyOf(plan));
+    if(old?.live&&old.signature===plan.signature)return job('start',old,()=>statusOf(old));
+    if(old?.live)retire(old,'restart').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));const i=prepare(plan);return job('start',i,()=>launch(i,plan));
+  }
+  function stop(target){
+    admit(true);
+    const i=instances.get(keyOf(target));if(!i){const plan=services.getPlan(target);if(!plan)throw error('MISSING_PROGRAM','Scene program descriptor does not exist');const stopped=prepare(plan);stopped.desired=false;stopped.live=false;publish(stopped,'stopped','explicit-stop');return job('stop',null,()=>({affected:[statusOf(stopped)]}));}
+    i.desired=false;const completion=retire(i,'explicit-stop');return job('stop',null,async()=>({context:i.context,...await completion}));
+  }
+  function restart(target){admit();const plan=requirePlan(target),old=instances.get(keyOf(plan));if(old?.live)retire(old,'explicit-restart').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));const i=prepare(plan);return job('restart',i,()=>launch(i,plan));}
+  function terminateContext({context}){admit(true);if(typeof context!=='string'||!context.startsWith('worker:'))throw error('INVALID_CONTEXT','Only a named Worker context can be terminated');const affected=terminate(context,'explicit-termination');return job('terminateContext',null,()=>({context,affected}));}
+  function running(target){const i=instances.get(keyOf(target));if(!i||i.state!=='running')throw error('NOT_RUNNING','Scene program is not running');guard(i);return i;}
+  async function direct(target,message=false){
+    const i=running(target),payload=message?target.data:(target.args||[]),transfer=target.transfer||[];
+    if(!message&&!Array.isArray(payload))throw error('INVALID_ARGS','Native export args must be an array');
+    if(i.context!=='main')return request(workers.get(i.context),{operation:message?'message':'invoke',key:i.realmKey,method:target.method,...(message?{data:payload}:{args:payload})},transfer).then(value=>{guard(i,false);return value;});
+    const copy=clone(payload,transfer);const result=await main.invoke(i.realmKey,target.method,copy,message);guard(i,false);return clone(result.value,result.transfer);
+  }
+  function invoke(target){admit();const i=running(target),args=json(target.args||[]);if(!Array.isArray(args))throw error('INVALID_ARGS','Export args must be an array');return job('invoke',i,()=>direct({...target,args,transfer:[]}));}
+  function reconcile({reason='metadata'}={}){
+    if(disposed)return {disposed:true};
+    const document=services.getDocument(),newDocument=document.token!==documentToken;
+    if(newDocument){for(const context of [...workers.keys()])terminate(context,'document-changed');for(const i of instances.values())if(i.context==='main')retire(i,'document-changed').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));instances.clear();documentToken=document.token;}
+    if(!document.ready)return {ready:false,instances:instances.size};
+    const plans=services.readPlans(),byKey=new Map(plans.map(p=>[keyOf(p),p])),restartPlans=[];
+    for(const [key,i] of instances){
+      const plan=byKey.get(key);
+      if(!plan){retire(i,'descriptor-removed').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));instances.delete(key);continue;}
+      if(i.live&&(!available(plan)||plan.signature!==i.signature)){
+        retire(i,available(plan)?'descriptor-changed':'dependency-unavailable').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));
+        if(available(plan))restartPlans.push(plan);
+      }
+      else if(!i.live&&i.desired&&['dependency-unavailable','descriptor-changed','native-not-ready'].includes(i.reason)&&available(plan))restartPlans.push(plan);
+    }
+    const receipts=[];
+    for(const p of restartPlans){try{receipts.push(start(p));}catch(e){if(e.code==='JOB_LIMIT')autoPending=true;else notify({type:'diagnostic',phase:'reconcile',error:problem(e)});}}
+    for(const p of plans){if(p.start==='ready'&&available(p)&&!instances.has(keyOf(p))){try{receipts.push(start(p));}catch(e){if(e.code==='JOB_LIMIT')autoPending=true;else notify({type:'diagnostic',phase:'autostart',owner:p.owner,id:p.id,error:problem(e)});}}}
+    return {ready:true,reason,instances:instances.size,jobs:receipts};
+  }
+  function status(target){
+    if(target?.owner!==undefined){const i=instances.get(keyOf(target)),plan=services.getPlan(target);return i?statusOf(i):plan?{owner:plan.owner,id:plan.id,name:plan.name,context:plan.context,state:'idle',availability:plan.availability,error:plan.error||null}:null;}
+    return {ready:!!services.getDocument().ready,disposed,instances:[...instances.values()].map(statusOf),contexts:[...workers.values()].map(w=>({context:w.context,pendingRequests:w.requests.size,instances:[...instances.values()].filter(i=>i.live&&i.context===w.context).length})),main:main.stats(),jobs:{retained:jobs.size,pending:[...jobs.values()].filter(j=>['queued','running'].includes(j.state)).length},limits:LIMITS};
+  }
+  function poll({jobId}){const j=jobs.get(jobId);if(!j)throw error('MISSING_JOB','Scene program job expired or does not exist');const {instance,...value}=j;return json(value,LIMITS.resultBytes+8192);}
+  function dispose(){if(disposed)return;for(const context of [...workers.keys()])terminate(context,'runtime-disposed');for(const i of instances.values())if(i.context==='main')retire(i,'runtime-disposed').catch(e=>notify({type:'diagnostic',phase:'cleanup',error:problem(e)}));disposed=true;instances.clear();for(const j of jobs.values())if(['queued','running'].includes(j.state)){j.state='cancelled';j.error={code:'RUNTIME_DISPOSED',message:'Runtime disposed'};j.finishedAt=clock();j.instance=null;}notify({type:'disposed'});}
+  return Object.freeze({start,stop,restart,invoke,status,poll,reconcile,dispose,terminateContext,invokeDirect:target=>direct(target,false),postMessage:target=>direct(target,true)});
+}
+
+function createSceneProgramPlans(services){
+ const format='frame.scene-control',ident=/^[a-f0-9]{32}$/,alias=/^[A-Za-z_$][\w$.-]{0,127}$/,context=/^(main|worker:[A-Za-z0-9_.-]{1,64})$/;
+ let cached=null,versions=new Map();
+ const error=(code,message)=>{throw Object.assign(Error(message),{code});},shape=(v,keys)=>{if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).some(k=>!keys.includes(k)))error('INVALID_DESCRIPTOR','Unexpected program descriptor properties');};
+ function read(){
+  if(cached)return cached;
+  if(!services.getDocument().ready)return [];
+  const owners=services.owners(),root=services.root(),records=new Map([['scene',new Map((root?.records||[]).map(r=>[r.id,r]))]]),used=new Set();
+  function owner(value){if(value==='scene')return null;const a=owners.get(value)||[];if(a.length!==1)error(a.length?'AMBIGUOUS_OWNER':'MISSING_OWNER','Program owner is not uniquely available');return a[0];}
+  function record(ref){if(!ref||ref.kind!=='record'||ref.unresolved)error('MISSING_SOURCE','A resolved typed record reference is required');let m=records.get(ref.owner);if(!m){const n=owner(ref.owner);m=new Map((n.authorData?.records||[]).map(r=>[r.id,r]));records.set(ref.owner,m);}const r=m.get(ref.id);if(!r)error('MISSING_SOURCE','Referenced author record is missing');return r;}
+  function source(ref){const r=record(ref);if(r.kind!=='source'||r.payload?.language!=='javascript')error('INVALID_SOURCE','A JavaScript source record is required');const key=ref.owner+':'+ref.id,old=versions.get(key);used.add(key);if(!old||old.revision!==r.revision||old.text!==r.payload.text)versions.set(key,{revision:r.revision,text:r.payload.text,token:crypto.randomUUID()});return {owner:ref.owner,id:ref.id,revision:r.revision,name:r.name,text:r.payload.text,signature:versions.get(key).token};}
+  function refAt(r,index){if(!Number.isSafeInteger(index)||index<0||index>=r.refs.length)error('INVALID_DESCRIPTOR','Program reference index is out of range');return r.refs[index];}
+  function field(ref){if(ref?.kind==='record'){const b=record(ref);if(b.kind!=='binding')error('INVALID_BINDING','Binding alias must reference a field or a binding record');ref=refAt(b,b.payload.target);}if(ref?.kind!=='field')error('INVALID_BINDING','Binding alias requires a typed field reference');return {...ref};}
+  function table(v,resolve){if(v===undefined)return {};if(!v||typeof v!=='object'||Array.isArray(v)||Object.keys(v).length>128)error('INVALID_DESCRIPTOR','Program alias table is invalid');return Object.fromEntries(Object.entries(v).map(([name,index])=>{if(!alias.test(name)||['__proto__','prototype','constructor'].includes(name))error('INVALID_DESCRIPTOR','Invalid program alias');return [name,resolve(index)];}));}
+  const plans=[];
+  const visit=(namespace,list)=>{for(const r of list||[]){if(r.kind!=='opaque'||r.payload?.format!==format)continue;const plan={owner:namespace,id:r.id,name:r.name,revision:r.revision,availability:'available',signature:'',source:null,imports:{},bindings:{},params:{},context:'main',start:'manual'};
+   try{if(r.payload.version!==1)error('UNSUPPORTED_VERSION','Unsupported Scene Control descriptor version');const d=r.payload.data;shape(d,['source','context','start','imports','bindings','params']);const selectedContext=d.context===undefined?'main':d.context;if(typeof selectedContext!=='string'||!context.test(selectedContext)||d.start!==undefined&&!['manual','ready'].includes(d.start))error('INVALID_DESCRIPTOR','Invalid program context or startup mode');if(d.params!==undefined&&(!d.params||typeof d.params!=='object'||Array.isArray(d.params)))error('INVALID_DESCRIPTOR','Program params must be a JSON object');plan.context=selectedContext;plan.start=d.start||'manual';plan.source=source(refAt(r,d.source));plan.imports=table(d.imports,i=>source(refAt(r,i)));plan.bindings=table(d.bindings,i=>field(refAt(r,i)));plan.params=d.params||{};plan.signature=JSON.stringify([r.id,r.revision,r.refs,d,plan.bindings,plan.source.signature,Object.entries(plan.imports).map(([k,v])=>[k,v.signature])]);if(namespace!=='scene'&&owner(namespace).enabled===false){plan.availability='disabled';plan.error={code:'OWNER_DISABLED',message:'The program owner is disabled'};}}
+   catch(e){plan.availability='unavailable';plan.error={code:e.code||'INVALID_DESCRIPTOR',message:e.message};plan.signature=JSON.stringify([r.id,r.revision,r.refs,r.payload]);}
+   plans.push(plan);
+  }};
+  visit('scene',root?.records);for(const [hash,a]of owners){if(a.length===1&&ident.test(hash))visit(hash,a[0].authorData?.records);else if(a.some(n=>n.authorData?.records.some(r=>r.kind==='opaque'&&r.payload?.format===format)))for(const n of a)for(const r of n.authorData?.records||[])if(r.kind==='opaque'&&r.payload?.format===format)plans.push({owner:hash,id:r.id,name:r.name,revision:r.revision,availability:'unavailable',signature:'ambiguous:'+r.id,error:{code:'AMBIGUOUS_OWNER',message:'Program owner is not unique'},context:'main',start:'manual',source:null,imports:{},bindings:{},params:{}});}
+  for(const key of versions.keys())if(!used.has(key))versions.delete(key);
+  cached=plans;return plans;
+ }
+ return Object.freeze({read,get({owner,id}){return read().find(p=>p.owner===owner&&p.id===id)||null;},invalidate({document=false}={}){cached=null;if(document)versions=new Map();},format,version:1});
+}
+const FrameScenePrograms=(()=>{
+ let runtime=null,installed=false,hostActive=true,hostToken=crypto.randomUUID(),queued=false,nativeState=()=>({busy:true}),notifyVersion=0;
+ const documentState=()=>({token:hostToken+':'+FrameAuthorData.documentToken,ready:installed&&hostActive&&FrameAuthorData.ready&&!FrameAuthorData.busy&&!nativeState().busy&&!frameUITransaction});
+ const plans=createSceneProgramPlans({getDocument:documentState,owners:()=>FrameAuthorData.owners(),root:()=>FrameAuthorData.root()});
+ const core=Object.freeze({get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>{render();frameSyncEngineVisibility();},authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins});
+ const capabilities=Object.freeze({version:1,contexts:['main','named-worker'],descriptor:{format:'frame.scene-control',version:1},arbitraryJavaScript:true,mainDOM:true,coreAccess:true,managedResources:true,jobExecution:true,structuredCloneMessaging:true,panel:false,customAttributes:false,fieldSubscriptions:false,frameLifecycle:false,testCopies:false});
+ function changed(reason){plans.invalidate({document:reason==='document'});if(reason==='document')runtime?.reconcile({reason});if(queued)return;queued=true;queueMicrotask(()=>{queued=false;plans.invalidate();runtime?.reconcile({reason});});}
+ FrameAuthorData.observe(changed);
+ function address(a,optional=false){if(optional&&a.owner===undefined&&a.id===undefined)return a;if(!(a.owner==='scene'||typeof a.owner==='string'&&/^[a-f0-9]{32}$/.test(a.owner))||typeof a.id!=='string'||!/^[a-f0-9]{32}$/.test(a.id))FrameAuthorData.error('Canonical owner and program descriptor ID required');return a;}
+ function current(){if(!runtime)FrameAuthorData.error('Scene program runtime is not initialized','NOT_READY');return runtime;}
+ return Object.freeze({capabilities,changed,install({call,listTools,state,ready}){if(runtime)return;nativeState=state;runtime=createSceneProgramRuntime({getDocument:documentState,readPlans:()=>plans.read(),getPlan:a=>plans.get(a),call:(name,args,guard)=>{guard?.();return call(name,args,guard);},listTools,getCore:()=>core,onStatus:detail=>{notifyVersion++;window.dispatchEvent(new CustomEvent('frame-program-state',{detail:{version:notifyVersion,...detail}}));}});window.frameCore=core;window.framePrograms=runtime;window.frameProgramRefresh=changed;Promise.resolve(ready).then(()=>{installed=true;changed('api-ready');}).catch(error=>console.error('Scene program API readiness failed',error));window.addEventListener('pagehide',()=>{hostActive=false;hostToken=crypto.randomUUID();plans.invalidate({document:true});runtime.reconcile({reason:'host-retired'});});window.addEventListener('pageshow',e=>{if(e.persisted){hostActive=true;changed('host-restored');}});},
+ describe(){return {capabilities,document:documentState(),descriptor:{format:'frame.scene-control',version:1,data:{source:'typed source-record reference index',context:'main or worker:<name>',start:'manual or ready',imports:'alias to typed source-record reference index',bindings:'alias to typed field or binding-record reference index',params:'JSON object'}},sourceInspection:'authorData.get/inspect; source records remain inert without a recognized descriptor',scope:'Managed execution only; no Control panel, custom Attributes, subscriptions, frame/export integration or test-copy runner.'};},
+ status:a=>current().status(address(a||{},true)),start:a=>current().start(address(a)),stop:a=>current().stop(address(a)),restart:a=>current().restart(address(a)),invoke:a=>current().invoke(address(a)),poll:a=>current().poll(a),terminateContext:a=>{if(!/^worker:[A-Za-z0-9_.-]{1,64}$/.test(a.context))FrameAuthorData.error('Named Worker context required');return current().terminateContext(a);}
+ });
+})();
 
 function hardwareName(n){if(n.type==='tree')return ({spruce:'Spruce',oak:'Oak',poplar:'Poplar',bush:'Bush'})[n.params.type]||n.params.type;return ['bolt','nut','washer'].includes(n.type)?n.params.type+' '+n.params.size+(n.type==='bolt'?'*'+n.params.length:''):null;}
 function create(type, parent=null, name=definitions[type][0]) {
@@ -16577,7 +16921,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       gpu.dead=true;selectionBusy=false;selectedMeshes=[];hideMarquee();hoverCursor.inside=false;sceneFrameDirty=true;selectionGeneration++;orbitGeneration++;activity++;clearTimeout(idleTimer);heldPointers.clear();
       if(scene?.gpu===gpu)disposeScene(scene);disposeSessionResources(gpu);
       selectedMesh=null;selectionBox=null;editDrag=null;editFinishing=false;editPipelines=null;editInit=null;
-      undoGPU=null;undoRAM=[];undoBytes=0;undoReservedBytes=0;undoBusy=false;archiveTask=null;lazyTask=null;maintenanceBusy=false;creaseJobs.clear();
+      undoGPU=null;undoRAM=[];undoBytes=0;undoReservedBytes=0;undoBusy=false;window.frameProgramRefresh?.('history-ready');archiveTask=null;lazyTask=null;maintenanceBusy=false;creaseJobs.clear();
       editSerial=Promise.resolve();selectionQueue=Promise.resolve();pendingWheel=null;wheelBusy=false;
       pathtracer?.dispose();pathtracer=null;clearTimeout(renderTimer);renderTimer=0;renderScene=null;renderSignature='';scene=null;renderer=null;rendererPromise=null;gpuAllocations.clear();allocatedBytes=0;gpuAllocationPeak=0;handles.hidden=true;updateMemoryStats();
     }
@@ -16794,17 +17138,17 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     async function undoEdit(){
       if(!undoBusy)FrameAuthorData.reset();
-      if(editDrag||gizmoSession||editFinishing||undoBusy||button.disabled)return;coreNumeric=null;const geometry=undoGPU||undoRAM.at(-1),metadata=metaUndo.at(-1),ui=window.frameHistorySequence?.(true)||0;if(ui>Math.max(geometry?.sequence||0,metadata?.sequence||0)){undoBusy=true;try{await frameUndoUI(true);}finally{undoBusy=false;}return;}
-      if(metadata&&(!geometry||metadata.sequence>(geometry.sequence||0))){if(metadata.copy)FrameAuthorData.preflightObjects(metadata.before,poseObjects());metaUndo.pop();if(metadata.copy){undoBusy=true;try{await undoObjectCopy(metadata);}catch(error){metaUndo.push(metadata);throw error;}finally{appearanceRestorePin=null;undoBusy=false;}}else restoreFrames(metadata.before,true,metadata.after);metaRedo.push(metadata);return;}
+      if(editDrag||gizmoSession||editFinishing||undoBusy||button.disabled)return;coreNumeric=null;const geometry=undoGPU||undoRAM.at(-1),metadata=metaUndo.at(-1),ui=window.frameHistorySequence?.(true)||0;if(ui>Math.max(geometry?.sequence||0,metadata?.sequence||0)){undoBusy=true;try{await frameUndoUI(true);}finally{undoBusy=false;window.frameProgramRefresh?.('history-ready');}return;}
+      if(metadata&&(!geometry||metadata.sequence>(geometry.sequence||0))){if(metadata.copy)FrameAuthorData.preflightObjects(metadata.before,poseObjects());metaUndo.pop();if(metadata.copy){undoBusy=true;try{await undoObjectCopy(metadata);}catch(error){metaUndo.push(metadata);throw error;}finally{appearanceRestorePin=null;undoBusy=false;window.frameProgramRefresh?.('history-ready');}}else restoreFrames(metadata.before,true,metadata.after);metaRedo.push(metadata);return;}
       if(!geometry)return;undoBusy=true;const frames=snapshotFrames();let redo;
-      try{if(archiveTask)await archiveTask;const target=undoGPU||undoRAM.at(-1);redo=await snapshotForRedo(target);appearanceRestorePin=redo;await archiveRedoRecord(redo,target);await undoGeometryEdit(true);if(target.frameBefore)restoreFrames(target.frameBefore,true,true);metaRedo.push({geometry:redo,frames,sequence:target.sequence});redo=null;notifyTransformUI();}catch(error){if(redo){if(redo.ram)undoBytes-=redo.bytes;discardRecord(redo);}editError(error);}finally{appearanceRestorePin=null;undoBusy=false;touchActivity();}
+      try{if(archiveTask)await archiveTask;const target=undoGPU||undoRAM.at(-1);redo=await snapshotForRedo(target);appearanceRestorePin=redo;await archiveRedoRecord(redo,target);await undoGeometryEdit(true);if(target.frameBefore)restoreFrames(target.frameBefore,true,true);metaRedo.push({geometry:redo,frames,sequence:target.sequence});redo=null;notifyTransformUI();}catch(error){if(redo){if(redo.ram)undoBytes-=redo.bytes;discardRecord(redo);}editError(error);}finally{appearanceRestorePin=null;undoBusy=false;window.frameProgramRefresh?.('history-ready');touchActivity();}
     }
     async function redoEdit(){
       if(!undoBusy)FrameAuthorData.reset();
-      if(editDrag||gizmoSession||editFinishing||undoBusy||button.disabled)return;coreNumeric=null;const next=metaRedo.at(-1),ui=window.frameHistorySequence?.(false)||0;if(ui&&(!next||ui<(next.sequence||0))){undoBusy=true;try{await frameUndoUI(false);}finally{undoBusy=false;}return;}if(next?.copy)FrameAuthorData.preflightObjects(next.after,poseObjects());const action=metaRedo.pop();if(!action)return;
-      if(!action.geometry){if(action.copy){undoBusy=true;try{await redoObjectCopy(action);}finally{appearanceRestorePin=null;undoBusy=false;}}else restoreFrames(action.after,true,action.before);metaUndo.push(action);return;}
+      if(editDrag||gizmoSession||editFinishing||undoBusy||button.disabled)return;coreNumeric=null;const next=metaRedo.at(-1),ui=window.frameHistorySequence?.(false)||0;if(ui&&(!next||ui<(next.sequence||0))){undoBusy=true;try{await frameUndoUI(false);}finally{undoBusy=false;window.frameProgramRefresh?.('history-ready');}return;}if(next?.copy)FrameAuthorData.preflightObjects(next.after,poseObjects());const action=metaRedo.pop();if(!action)return;
+      if(!action.geometry){if(action.copy){undoBusy=true;try{await redoObjectCopy(action);}finally{appearanceRestorePin=null;undoBusy=false;window.frameProgramRefresh?.('history-ready');}}else restoreFrames(action.after,true,action.before);metaUndo.push(action);return;}
       const record=action.geometry;undoBusy=true;let previous;
-      try{previous=await snapshotForRedo(record);appearanceRestorePin=previous;previous.sequence=action.sequence||++transformSequence;previous.frameBefore=snapshotFrames();if(undoGPU){await archiveUndo(false);if(undoGPU)discardRecord(undoGPU);}if(record.topology)await restoreTopologyRecord(record);else restoreRecord(record);await restoreGeometryMorphs(record);restoreFrames(action.frames,true,true);previous.frameAfter=snapshotFrames();undoGPU=previous;previous=null;for(const state of record.states||[record])await readBounds(state.mesh);syncReplicas();await refreshSelectionBounds();notifyTransformUI();await draw();}finally{appearanceRestorePin=null;undoBusy=false;if(record.ram)undoBytes-=record.bytes;discardRecord(record);if(previous)discardRecord(previous);reportUndo();touchActivity();}
+      try{previous=await snapshotForRedo(record);appearanceRestorePin=previous;previous.sequence=action.sequence||++transformSequence;previous.frameBefore=snapshotFrames();if(undoGPU){await archiveUndo(false);if(undoGPU)discardRecord(undoGPU);}if(record.topology)await restoreTopologyRecord(record);else restoreRecord(record);await restoreGeometryMorphs(record);restoreFrames(action.frames,true,true);previous.frameAfter=snapshotFrames();undoGPU=previous;previous=null;for(const state of record.states||[record])await readBounds(state.mesh);syncReplicas();await refreshSelectionBounds();notifyTransformUI();await draw();}finally{appearanceRestorePin=null;undoBusy=false;window.frameProgramRefresh?.('history-ready');if(record.ram)undoBytes-=record.bytes;discardRecord(record);if(previous)discardRecord(previous);reportUndo();touchActivity();}
     }
 
     function reportUndo(){canvas.dataset.undo=JSON.stringify({gpu:undoGPU?1:0,ram:undoRAM.length,ramBytes:undoBytes,reservedBytes:undoReservedBytes,limitBytes:RAM_UNDO_LIMIT,ramBlocked:!!undoGPU?.ramBlocked});scheduleMemoryStats();}
@@ -16860,7 +17204,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(editDrag||editFinishing||undoBusy&&!owned||button.disabled)return;const gpu=renderer;if(!gpu)return;undoBusy=true;touchActivity();
       try{if(lazyTask)await lazyTask;if(archiveTask)await archiveTask;checkSession(gpu);let record=undoGPU||undoRAM.at(-1);if(!record)return;if(record.topology)await restoreTopologyRecord(record);else restoreRecord(record);await restoreGeometryMorphs(record);if(record===undoGPU)discardRecord(record);else{undoRAM.pop();undoBytes-=record.bytes;record.ram=null;}
         for(const state of record.states||[record])await readBounds(state.mesh);syncReplicas();await refreshSelectionBounds();await draw();reportUndo();
-      }catch(error){editError(error);}finally{if(renderer===gpu){undoBusy=false;touchActivity();}}
+      }catch(error){editError(error);}finally{if(renderer===gpu){undoBusy=false;window.frameProgramRefresh?.('history-ready');touchActivity();}}
     }
     async function clearEdits(){
       releaseRedo();metaUndo=[];componentPivot=null;measurementCache=null;
@@ -17826,7 +18170,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       nativeIOBusy=true;button.disabled=true;document.getElementById('app').inert=true;FrameViewWindows.setInert(true);hoverCursor.inside=false;
       status.hidden=true;const out=document.createElement('div');out.id='frame-file-progress';out.setAttribute('role','status');out.textContent=label;$('frame-engine-host').append(out);return text=>{out.textContent=text;};
     }
-    function nativeIOEnd(){nativeIOBusy=false;button.disabled=false;document.getElementById('app').inert=false;FrameViewWindows.setInert(false);$('frame-file-progress')?.remove();touchActivity();frameSyncMaterials();}
+    function nativeIOEnd(){nativeIOBusy=false;window.frameProgramRefresh?.('native-ready');button.disabled=false;document.getElementById('app').inert=false;FrameViewWindows.setInert(false);$('frame-file-progress')?.remove();touchActivity();frameSyncMaterials();}
     async function nativeReadGPU(gpu,resource,count){
       const d=gpu.device,size=count*4,out=new Uint8Array(size),capacity=4*1024*1024;
       const read=makeGPUBuffer(d,{label:'bounded HASH readback',size:Math.min(capacity,Math.max(4,resource.kind==='texture'?Math.ceil(resource.width*4/256)*256:size)),usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
@@ -18822,9 +19166,19 @@ function FramePolygonKernel(d){
       FrameAuthorData.attach(()=>{if(!scene?.records)return null;return JSON.parse(scene.records.get(FrameHash.K.parameters)?.value||'{}').authorData||null;},value=>{if(!scene?.records)fail('NOT_READY','Native scene records are not installed');const key=FrameHash.K.parameters,global=JSON.parse(scene.records.get(key)?.value||'{"version":1,"frame":0,"total":120,"materials":[]}');if(value)global.authorData=value;else delete global.authorData;if(!global.authorData&&!global.documentation&&!global.frame&&global.total===120&&!global.materials?.length&&Object.keys(global).every(k=>['version','frame','total','materials'].includes(k)))scene.records.delete(key);else nativePut(scene.records,key,null,FrameHash.T.text,JSON.stringify(global));sceneFrameDirty=true;});
       const dataOwner={type:'string',maxLength:32},dataRevision={type:'integer',minimum:0,maximum:Number.MAX_SAFE_INTEGER-1},dataJSON={};
       const dataTool=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);Object.assign(tools.get(name),{authoringData:true,dataOnly:readOnly});};
+      const programTarget=required(obj({owner:dataOwner,id:{type:'string',minLength:32,maxLength:32}}),'owner','id');
+      const programTool=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);Object.assign(tools.get(name),{dataOnly:true});};
+      programTool('programs.describe','Describe actual managed Scene execution, descriptor format and currently unsupported Control capabilities. Does not run source.',obj({}),true,()=>FrameScenePrograms.describe());
+      programTool('programs.status','Inspect current program instances, contexts and bounded execution diagnostics without waiting for user code.',obj({owner:dataOwner,id:{type:'string',maxLength:32}}),true,a=>FrameScenePrograms.status(a));
+      programTool('programs.start','Start a persisted Scene program outside the command queue; returns a job receipt immediately. Main JavaScript and named Workers are supported.',programTarget,false,a=>FrameScenePrograms.start(a));
+      programTool('programs.stop','Invalidate managed API access immediately and cooperatively release one instance. Does not promise to interrupt arbitrary synchronous main-thread code.',programTarget,false,a=>FrameScenePrograms.stop(a));
+      programTool('programs.restart','Stop then start one program as a managed asynchronous job; source and dependency revisions are rechecked.',programTarget,false,a=>FrameScenePrograms.restart(a));
+      programTool('programs.invoke','Invoke a running program method outside the Frame FIFO and return a job receipt. This structured API accepts JSON; native SDK messaging separately supports transferables.',required(obj({owner:dataOwner,id:{type:'string',minLength:32,maxLength:32},method:{type:'string',maxLength:128},args:array({},128)}),'owner','id','method'),false,a=>FrameScenePrograms.invoke(a));
+      programTool('programs.job','Read one bounded runtime job result/error. Pending, failed and cancelled work are distinct from completed work.',required(obj({jobId:{type:'string',maxLength:64}}),'jobId'),true,a=>FrameScenePrograms.poll(a));
+      programTool('programs.terminateContext','Force-terminate a named Worker context and report every affected instance. This does not roll back prior scene changes.',required(obj({context:{type:'string',maxLength:71}}),'context'),false,a=>FrameScenePrograms.terminateContext(a));
       dataTool('authorData.get','Read inert scene/object author records without activating plugins or settling GPU work.',required(obj({owner:dataOwner}),'owner'),true,a=>FrameAuthorData.get(a.owner));
       dataTool('authorData.inspect','Inspect inert author records and exact typed reference availability.',required(obj({owner:dataOwner}),'owner'),true,a=>FrameAuthorData.inspect(a.owner));
-      dataTool('authorData.replace','Replace native author records atomically with epoch/envelope and per-record revision checks. No source execution.',required(obj({owner:dataOwner,expected:required(obj({epoch:str,revision:dataRevision}),'epoch','revision'),records:array(dataJSON,512)}),'owner','expected','records'),false,a=>FrameAuthorData.replace(a.owner,a.expected,a.records));
+      dataTool('authorData.replace','Replace native author records atomically with revision checks. Sources stay inert; ready program descriptors reconcile asynchronously outside this transaction.',required(obj({owner:dataOwner,expected:required(obj({epoch:str,revision:dataRevision}),'epoch','revision'),records:array(dataJSON,512)}),'owner','expected','records'),false,a=>FrameAuthorData.replace(a.owner,a.expected,a.records));
       dataTool('fields.list','Discover native metadata and scalar/enum parameters, including declared units/ranges and authoring access, without loading plugins.',required(obj({owner:dataOwner}),'owner'),true,a=>FrameFields.list(a.owner));
       dataTool('fields.read','Read native metadata or a current scalar/enum parameter; observation is not simulation completion.',required(obj({owner:dataOwner,field:{type:'string',maxLength:128}}),'owner','field'),true,a=>FrameFields.read(a.owner,a.field));
       dataTool('fields.readBatch','Read up to 128 ordered native fields in one synchronous epoch/frame observation; per-item availability, bounded output, no settlement.',required(obj({reads:{...array(required(obj({owner:dataOwner,field:{type:'string',maxLength:128}}),'owner','field'),128),minItems:1},epoch:str}),'reads'),true,a=>FrameFields.readBatch(a.reads,a.epoch));
@@ -18970,10 +19324,11 @@ function FramePolygonKernel(d){
         try{setViewerMode('element','object');commit(()=>{n=create('mesh',null,a.name||'Polygon object');n.nativeHash=FrameHash.newId();mesh.hashId=n.nativeHash;n.engineIndex=scene.meshes.length;scene.meshes.push(mesh);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});publishTopology(gpu,[]);nativeSceneStats('AI mesh');await choose([n]);return describe(n);}catch(e){if(!scene.meshes.includes(mesh))disposeMesh(mesh);throw e;}
       });
       register('diagnostics.frame','Render frames and collect CPU/GPU timing; no selection or scene changes.',obj({frames:{...integer,minimum:1,maximum:120}}),true,async a=>{const frames=[];for(let i=0;i<(a.frames||3);i++){const before=renderer.lastFrameRaw?.id??-1,started=performance.now();do{await draw(true);await renderer.device.queue.onSubmittedWorkDone();await new Promise(resolve=>setTimeout(resolve,0));if(performance.now()-started>30000)fail('TIMEOUT','No fresh rendered frame was measured');}while(!renderer.lastFrameRaw||renderer.lastFrameRaw.id<=before);frames.push({...renderer.lastFrameRaw});}return {frames,width:renderer.width,height:renderer.height,adapter:renderer.device.adapterInfo?Object.fromEntries(['vendor','architecture','device','description'].map(k=>[k,renderer.device.adapterInfo[k]])):null,timestampQueries:renderer.device.features.has('timestamp-query')};});
-      async function call(name,args={},bridgeGuard=null){const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=json(args);if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}return enqueueCommand(async seal=>{bridgeGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{value=await tool.run(input,interruption);handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=json(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:json(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}},{documentation:['scene.new','scene.open'].includes(name)?'replace':['scene.share','scene.export'].includes(name)?'save':null,bridge:!!bridgeGuard});}
+      async function call(name,args={},bridgeGuard=null,sessionGuard=null){sessionGuard?.();const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=json(args);if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}return enqueueCommand(async seal=>{bridgeGuard?.();sessionGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();sessionGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{sessionGuard?.();value=await tool.run(input,interruption);handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=json(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:json(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}},{documentation:['scene.new','scene.open'].includes(name)?'replace':['scene.share','scene.export'].includes(name)?'save':null,bridge:!!bridgeGuard});}
       const listTools=()=>Array.from(tools.values(),({run,...descriptor})=>json(descriptor));
       async function rpc(message){const id=message?.id??null,error=(code,text)=>({jsonrpc:'2.0',id,error:{code,message:text}});if(!message||message.jsonrpc!=='2.0'||typeof message.method!=='string')return error(-32600,'Invalid Request');if(message.method.startsWith('notifications/'))return null;try{let result;if(message.method==='initialize')result={protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'frame',version}};else if(message.method==='ping')result={};else if(message.method==='tools/list')result={tools:listTools()};else if(message.method==='tools/call'){const tool=tools.get(message.params?.name);if(!tool)return error(-32602,'Unknown tool: '+message.params?.name);try{if(tool.authoringData){const argumentsData=FrameAuthorData.json(message.params?.arguments??{});message={...message,params:{...message.params,arguments:argumentsData}};}validate(tool.inputSchema,message.params?.arguments??{});}catch(e){return error(-32602,e.message);}try{const value=await call(message.params?.name,message.params?.arguments??{});result={content:[{type:'text',text:JSON.stringify(value)}],structuredContent:{result:value}};}catch(e){result={isError:true,content:[{type:'text',text:(e.code||'COMMAND_FAILED')+': '+e.message}],...e.code==='AUTHORING_POST_SETTLE_FAILED'?{structuredContent:{completed:true,receipt:e.receipt}}:{}};}}else return error(-32601,'Method not found');return {jsonrpc:'2.0',id,result};}catch(e){return error(-32603,e.message);}}
       window.frameAI=Object.freeze({version,listTools,call:(name,args)=>call(name,args),rpc,ready:api.ready});
+      FrameScenePrograms.install({call:(name,args,guard)=>call(name,args,null,guard),listTools,state:()=>({busy:nativeIOBusy||undoBusy}),ready:api.ready});
       import('./core/documentation-window.mjs').then(({installDocumentationWindow})=>documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()})).catch(fileOperationError);
     }
 

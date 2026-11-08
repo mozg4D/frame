@@ -6,7 +6,7 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
 const fragment=(a,b='\n')=>{const at=html.indexOf(a),end=html.indexOf(b,at+a.length);assert.ok(at>=0&&end>at,a);return html.slice(at,end);};
-const queue=fragment('let documentationWindow=null;','      async function settleDocument'),call=fragment('async function call(name,args={},bridgeGuard=null)');
+const queue=fragment('let documentationWindow=null;','      async function settleDocument'),call=fragment('async function call(name,args={},bridgeGuard=null,sessionGuard=null)');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const tick=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
 function env(){

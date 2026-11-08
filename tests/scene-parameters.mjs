@@ -42,7 +42,7 @@ await check('Actual shared registry exposes readBatch as data-only, validates de
  ${fragment('      const register=')}
  ${fragment('      const dataOwner=', "      register('app.describe'")}
  ${fragment('      let documentationWindow=null;', '      async function settleDocument')}
- ${fragment('      async function call(name,args={},bridgeGuard=null)')}
+ ${fragment('      async function call(name,args={},bridgeGuard=null,sessionGuard=null)')}
  return {call,tools,busy:v=>nativeIOBusy=v};`;
  const r=new Function('FrameAuthorData','FrameFields','onSettle',body)(e.FrameAuthorData,e.FrameFields,()=>settlements++);
  for(const name of ['fields.list','fields.read','fields.readBatch']){assert.equal(r.tools.get(name).dataOnly,true);assert.equal(r.tools.get(name).authoringData,true);}
