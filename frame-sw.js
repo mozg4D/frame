@@ -1,7 +1,7 @@
 // Bump with the visible application version for each published runtime release.
-const VERSION='2026 05 nov 08:55',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
+const VERSION='2026 08 nov 00:14',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
-const CORE=["index.html","manifest.webmanifest","frame-icon-v4.svg","frame-icon-192-v4.png","frame-icon-512-v4.png","frame-icon-maskable-512.png","frame-hash-256-v4.png","frame-v4.ico","plugins/index.json","kernels/volume-0e3a6b442b66860e3000.wasm"];
+const CORE=["index.html","documentation.html","core/documentation-window.mjs","core/documentation-editor.mjs","core/documentation-sync.mjs","manifest.webmanifest","frame-icon-v4.svg","frame-icon-192-v4.png","frame-icon-512-v4.png","frame-icon-maskable-512.png","frame-hash-256-v4.png","frame-v4.ico","plugins/index.json","kernels/volume-0e3a6b442b66860e3000.wasm"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};
 async function download(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Offline resource HTTP '+response.status);return response;}
 async function cacheShell(cache){
@@ -27,7 +27,7 @@ self.addEventListener('activate',event=>event.waitUntil((async()=>{
 })()));
 self.addEventListener('message',event=>{if(event.data?.type==='FRAME_GET_VERSION')event.source?.postMessage({type:'FRAME_UPDATE_READY',version:VERSION});});
 self.addEventListener('fetch',event=>{
-  const request=event.request,url=new URL(request.url);if(request.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(ROOT))return;
+  const request=event.request,url=new URL(request.url);url.hash='';if(request.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(ROOT))return;
   const launch=url.pathname===new URL(ROOT).pathname||url.pathname===new URL(SHELL).pathname;
   if(request.mode==='navigate'&&launch){event.respondWith((async()=>{const cache=await caches.open(CACHE);return await cache.match(SHELL)||await cacheShell(cache);})());return;}
   // Models and scenes remain ordinary files; only application resources and visited textures cache.
