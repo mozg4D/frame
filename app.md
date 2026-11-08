@@ -2,9 +2,9 @@
 
 ## Documentation entry point (2026-11-08)
 
-The Docs button is always visible, including a new scene or a scene with no documentation. It opens the same plain-text documentation window with an empty editable document, so the user can write the first text. Clearing or deleting all documentation keeps the button available. Repeated clicks focus the existing window; closing and reopening reads the current scene text. An initial empty snapshot and a clean switch to an empty scene keep the editor enabled. Pending drafts still retain the existing scene-change and conflict guards; native HASH persistence is unchanged.
+The Doc button (tooltip: Doc) is always visible, including a new scene or a scene with no documentation. It opens the same plain-text documentation window with an empty editable document, so the user can write the first text. Clearing or deleting all documentation keeps the button available. Repeated clicks focus the existing window; closing and reopening reads the current scene text. An initial empty snapshot and a clean switch to an empty scene keep the editor enabled. Pending drafts still retain the existing scene-change and conflict guards; native HASH persistence is unchanged.
 
-`npm run test:docs-button -- --headless` checks this flow in a native Frame browser. Its `--host-only` mode exercises the actual documentation modules and extracted native CAS in an isolated browser fixture without claiming GPU startup or HASH validation. Both record completed-operation latency budgets and exact source hashes. Runtime/service-worker version: Frame 2026 08 nov 08:10.
+`npm run test:docs-button -- --headless` checks this flow in a native Frame browser. Its `--host-only` mode exercises the actual documentation modules and extracted native CAS in an isolated browser fixture without claiming GPU startup or HASH validation. Both record completed-operation latency budgets and exact source hashes. Runtime/service-worker version: Frame 2026 08 nov 08:29.
 
 ## Hand modeling, polygon inspection and selection continuity (2026-11-03)
 
