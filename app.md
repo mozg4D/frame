@@ -981,3 +981,7 @@ plugins.command status adds result.perimeters with state/error, count, firstOffs
 npm run test:slicer:perimeters checks analytic rotated squares/circles/concave stars, noise, holes, disconnected islands, narrow-neck splits, build clipping, native pixels, tolerance Undo, paged GPU meshes, exact twelve-segment three-square output and independent error/latency oracles. Standard/stress discover these checks. The existing 4000-layer performance suite also budgets completed path generation and Finish-to-frame changes.
 
 Runtime/service-worker version for the perimeter revision: Frame 2026 28 oct 17:24.
+
+## Thermal authoring preview (under construction)
+
+The optional Thermal catalogue entry provides a native 100 mm helper, a separate 25 mm Fan along local X and a 2 mm Probe at the owner's origin. Each uses ordinary native references, transforms, selection, copy, HASH and Undo. Attributes show the disabled native Under construction status; the Thermal owner has Fan/Probe creation actions. All fields are authoring metadata only. Material/Heater tags, numerical solving, temperature measurement and result overlays are not installed. Named numerical API requests explicitly reject before mutation or GPU work. See plugins/thermal/README.md for exact scope and unrun current-core hardware gates.

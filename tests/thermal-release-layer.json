@@ -1,0 +1,30 @@
+{
+  "format": "frame-thermal-stamp-layer-v1",
+  "baseCommit": "034e97ff3c942a81f1181a321f212f3172a4961e",
+  "baseVersion": "2026 08 nov 11:50",
+  "releaseVersion": "2026 08 nov 12:05",
+  "files": {
+    "index.html": {
+      "baseSHA256": "f51340c0870349e3f7f10a870e600bc08f945061ab0df83b74fb01c0f0df1cb4",
+      "releaseSHA256": "e88aba59c8553dbdd9a1e1d9537a046e148863002c610368a6500ac334c9cfa9",
+      "patches": [
+        {
+          "before": "<meta name=\"frame-version\" content=\"2026 08 nov 11:50\">\n<title>Frame 2026 08 nov 11:50</title>\n",
+          "after": "<meta name=\"frame-version\" content=\"2026 08 nov 12:05\">\n<title>Frame 2026 08 nov 12:05</title>\n",
+          "count": 1
+        }
+      ]
+    },
+    "frame-sw.js": {
+      "baseSHA256": "1346f1fe826623bd7d185709b7bc01501d550d314216731cead88353165e8eb4",
+      "releaseSHA256": "afdfb4f8f5d0665095392d465699da515e616cb8d816619abb7c0cda7e525119",
+      "patches": [
+        {
+          "before": "const VERSION='2026 08 nov 11:50',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;\n",
+          "after": "const VERSION='2026 08 nov 12:05',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;\n",
+          "count": 1
+        }
+      ]
+    }
+  }
+}

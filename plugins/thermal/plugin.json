@@ -1,0 +1,41 @@
+{
+  "id": "thermal",
+  "name": "Thermal",
+  "color": "#dc9c76",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "objects": [
+    {
+      "type": "thermal",
+      "name": "Thermal",
+      "fields": {
+        "Ambient": 20,
+        "Initial": 20
+      }
+    },
+    {
+      "type": "thermal_probe",
+      "name": "Probe",
+      "fields": {
+        "Thermal": ""
+      }
+    },
+    {
+      "type": "thermal_fan",
+      "name": "Fan",
+      "fields": {
+        "Thermal": "",
+        "Shutoff pressure": 0,
+        "Free flow": 0.1,
+        "Direction": [
+          "Forward",
+          "Reverse"
+        ]
+      }
+    }
+  ],
+  "assets": [
+    "native-fan.js",
+    "native-frame.js"
+  ]
+}
