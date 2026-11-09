@@ -1,0 +1,10 @@
+{
+  "ancestorModuleSHA256": "41ab944e70217befec1fa32f470e7db7317fffd61a41c4938cd91e2fb48559c1",
+  "unchangedBackendBodySHA256": "2deacdf8f12e7a4dfb8e8d6845802958f19f59219c18852c6ace2a86200d963f",
+  "bodyStartsWith": "export const MAX_CELLS",
+  "bodyEndsBefore": "export async function activate",
+  "removed": "Only unused scene authoring imports and activation. Assembly, WGSL, GPU iteration, readback, resource ownership and guards are unchanged.",
+  "conductionSHA256": "4fdba47c736b434b904959825065d80c1de8d9eba92bb7995045578686d7e5a6",
+  "sharedDeviceStateBodySHA256": "611a6cf226d3e929e121029af33256ac4c82513306b6638f353de229679f721d",
+  "installedPhysicalFrameValidatorSHA256": "e598b8f53d12716ce6ebc345e913bfc9f343def20ddb2ac88a7ac7762e041f7b"
+}
