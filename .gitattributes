@@ -143,3 +143,18 @@ experiments/thermal/MATERIAL-PROPERTIES.md text eol=lf
 experiments/thermal/tests/material-properties.mjs text eol=lf
 plugins/circuit/plugin.js text eol=lf
 tests/spline-display-samples*.mjs text eol=lf
+
+experiments/structural-load/** text eol=lf
+experiments/thermal/material-storage.js text eol=lf
+experiments/thermal/MATERIAL-STORAGE.md text eol=lf
+experiments/thermal/tests/material-storage.mjs text eol=lf
+experiments/thermal/*.js text eol=lf
+tests/creation-sanity*.mjs text eol=lf
+tests/hardware-catalogue.mjs text eol=lf
+tests/hardware-length-reference.json text eol=lf
+tests/october24-library.mjs text eol=lf
+tests/current-source-baseline.json text eol=lf
+tools/extract-hardware-pdf.py text eol=lf
+tests/hand-workflow.mjs text eol=lf
+
+tests/camera-view*.mjs text eol=lf

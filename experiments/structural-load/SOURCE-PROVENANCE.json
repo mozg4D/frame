@@ -1,0 +1,25 @@
+{
+  "source": "C:/Users/user/frame-gpu-check/structural-afe7d3de/frame-structural/plugins/structural/",
+  "reused": [
+    {
+      "from": "load-case.js",
+      "to": "load-case-reference.js",
+      "sha256Original": "3678ed9b8a8e2819e39822a13f3b7f0b407bb75ed42d1cb78b623e008190be75",
+      "transformation": "Keep only vec/cross/dot/orthogonal, wrenchInGrid, selectedCells and regionWrench; omit import and unused solver wrappers; arithmetic unchanged"
+    },
+    {
+      "from": "load-mapping.js",
+      "to": "load-mapping-reference.js",
+      "sha256Original": "d98728edad7677a811fc68f51d54fc0cb9b685f2ede3ed0bcbeacaa8bded0bb2",
+      "transformation": "Only redirect solver and regionWrench imports to retained reference modules"
+    }
+  ],
+  "current": {
+    "experiments/structural-load/resolved-case.js": "50ed47ffe2356dd7f395937e2342a36a0c2aabdaa90fa1022011594eef921359",
+    "experiments/structural-load/load-case-reference.js": "5b471b48792f548959b7217a2bf0cdcfc909cfbe61b31bc78fc151defbe3a424",
+    "experiments/structural-load/load-mapping-reference.js": "1a03a2767b2b06f505db5def55c9cae8a7b17e0fbe20b0847cb1433dc70c6bf5",
+    "experiments/structural-load/tests/resolved-case.mjs": "44af64b0d8b08b011b7bd8a0635a6391ebe06d7c4b0c375ba4df7c8a04fabc03",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d"
+  }
+}

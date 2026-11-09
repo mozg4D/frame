@@ -16,6 +16,7 @@
     "test:interaction": "node tests/interaction-feedback.mjs",
     "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",
+    "test:hardware": "node tests/hardware-catalogue.mjs",
     "test:docs-button": "node tests/documentation-button-state.mjs && node tests/documentation-empty-editor.mjs && node tests/documentation-button.mjs",
     "test:file-controls": "node tests/file-controls.mjs",
     "test:atomic": "node plugins/atomic/tests/run.mjs",

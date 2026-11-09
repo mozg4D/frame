@@ -1,0 +1,6994 @@
+{
+  "checked": "2026-11-09",
+  "units": "mm",
+  "scope": "Commercially documented combinations for the existing Frame diameter subset; not the complete standard range or a stock/commonness claim.",
+  "source": {
+    "source": "https://www.wurth.ae/downloads/pdf/Totalrange/fasteners%5B1%5D.pdf",
+    "sha256": "8f4f9abf375ab7c8e140d93976020054ed24e78c7e0e62687e369b39dcc6c3d3",
+    "pages": 515,
+    "title": "Wuerth Total Range - Fasteners, historical catalogue (individual sheets 2002-2011)"
+  },
+  "families": {
+    "ISO7380": {
+      "label": "ISO 7380-1",
+      "rows": {
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {
+            "4": {
+              "page": 120,
+              "article": "0098 013 4"
+            },
+            "5": {
+              "page": 120,
+              "article": "0099 013 5"
+            },
+            "6": {
+              "page": 120,
+              "article": "0099 013 6"
+            },
+            "8": {
+              "page": 120,
+              "article": "0099 013 8"
+            },
+            "10": {
+              "page": 120,
+              "article": "0099 013 10"
+            },
+            "12": {
+              "page": 120,
+              "article": "0099 013 12"
+            },
+            "16": {
+              "page": 120,
+              "article": "0099 013 16"
+            },
+            "20": {
+              "page": 120,
+              "article": "0099 013 20"
+            },
+            "25": {
+              "page": 120,
+              "article": "0098 013 25"
+            },
+            "30": {
+              "page": 120,
+              "article": "0099 013 30"
+            },
+            "35": {
+              "page": 120,
+              "article": "0098 013 35"
+            },
+            "40": {
+              "page": 120,
+              "article": "0098 013 40"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 120,
+              "article": "0099 014 6"
+            },
+            "5": {
+              "page": 120,
+              "article": "0098 014 5"
+            },
+            "8": {
+              "page": 120,
+              "article": "0099 014 8"
+            },
+            "10": {
+              "page": 120,
+              "article": "0099 014 10"
+            },
+            "12": {
+              "page": 120,
+              "article": "0099 014 12"
+            },
+            "14": {
+              "page": 120,
+              "article": "0098 014 14"
+            },
+            "16": {
+              "page": 120,
+              "article": "0099 014 16"
+            },
+            "20": {
+              "page": 120,
+              "article": "0099 014 20"
+            },
+            "22": {
+              "page": 120,
+              "article": "0060 014 22"
+            },
+            "25": {
+              "page": 120,
+              "article": "0099 014 25"
+            },
+            "30": {
+              "page": 120,
+              "article": "0099 014 30"
+            },
+            "35": {
+              "page": 120,
+              "article": "0099 014 35"
+            },
+            "40": {
+              "page": 120,
+              "article": "0098 014 40"
+            },
+            "45": {
+              "page": 120,
+              "article": "0098 014 45"
+            },
+            "50": {
+              "page": 120,
+              "article": "0098 014 50"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            75
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 120,
+              "article": "0099 015 6"
+            },
+            "8": {
+              "page": 120,
+              "article": "0099 015 8"
+            },
+            "10": {
+              "page": 120,
+              "article": "0099 015 10"
+            },
+            "12": {
+              "page": 120,
+              "article": "0099 015 12"
+            },
+            "14": {
+              "page": 120,
+              "article": "0098 015 14"
+            },
+            "16": {
+              "page": 120,
+              "article": "0099 015 16"
+            },
+            "18": {
+              "page": 120,
+              "article": "0060 015 18"
+            },
+            "20": {
+              "page": 120,
+              "article": "0099 015 20"
+            },
+            "25": {
+              "page": 120,
+              "article": "0099 015 25"
+            },
+            "30": {
+              "page": 120,
+              "article": "0099 015 30"
+            },
+            "35": {
+              "page": 120,
+              "article": "0099 015 35"
+            },
+            "40": {
+              "page": 120,
+              "article": "0099 015 40"
+            },
+            "45": {
+              "page": 120,
+              "article": "0099 015 45"
+            },
+            "50": {
+              "page": 120,
+              "article": "0098 015 50"
+            },
+            "55": {
+              "page": 120,
+              "article": "0098 015 55"
+            },
+            "60": {
+              "page": 120,
+              "article": "0099 015 60"
+            },
+            "70": {
+              "page": 120,
+              "article": "0060 015 70"
+            },
+            "75": {
+              "page": 120,
+              "article": "0060 015 75"
+            }
+          },
+          "supplierCatalogue": {
+            "22": {
+              "source": "https://unbrakousa.com/details/item?itemID=401220",
+              "article": "401220"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 120,
+              "article": "0060 016 6"
+            },
+            "8": {
+              "page": 120,
+              "article": "0099 016 8"
+            },
+            "10": {
+              "page": 120,
+              "article": "0099 016 10"
+            },
+            "12": {
+              "page": 120,
+              "article": "0099 016 12"
+            },
+            "14": {
+              "page": 120,
+              "article": "0098 016 14"
+            },
+            "16": {
+              "page": 120,
+              "article": "0099 016 16"
+            },
+            "18": {
+              "page": 120,
+              "article": "0060 016 18"
+            },
+            "20": {
+              "page": 120,
+              "article": "0099 016 20"
+            },
+            "25": {
+              "page": 121,
+              "article": "0099 016 25"
+            },
+            "30": {
+              "page": 121,
+              "article": "0098 016 30"
+            },
+            "35": {
+              "page": 121,
+              "article": "0099 016 35"
+            },
+            "40": {
+              "page": 121,
+              "article": "0099 016 40"
+            },
+            "45": {
+              "page": 121,
+              "article": "0099 016 45"
+            },
+            "50": {
+              "page": 121,
+              "article": "0099 016 50"
+            },
+            "55": {
+              "page": 121,
+              "article": "0098 016 55"
+            },
+            "60": {
+              "page": 121,
+              "article": "0098 016 60"
+            },
+            "70": {
+              "page": 121,
+              "article": "0098 016 70"
+            },
+            "80": {
+              "page": 121,
+              "article": "0098 016 80"
+            },
+            "90": {
+              "page": 121,
+              "article": "0098 016 90"
+            }
+          },
+          "supplierCatalogue": {
+            "22": {
+              "source": "https://www.fabory.com/nl/laagbolkopschroef-met-binnenzeskant-iso-7380-1-staal-blank-010-9-m6x22/p/07150060022",
+              "article": "07150.060.022",
+              "corroboration": {
+                "pdfPage": 121,
+                "articleAsPrinted": "00600 16 22",
+                "note": "An extra zero in the printed article prefix excludes this cell from automatic extraction; the row and independent current Fabory article agree."
+              }
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "10": {
+              "page": 121,
+              "article": "0099 018 10"
+            },
+            "12": {
+              "page": 121,
+              "article": "0099 018 12"
+            },
+            "14": {
+              "page": 121,
+              "article": "0098 018 14"
+            },
+            "16": {
+              "page": 121,
+              "article": "0099 018 16"
+            },
+            "18": {
+              "page": 121,
+              "article": "0060 018 18"
+            },
+            "20": {
+              "page": 121,
+              "article": "0099 018 20"
+            },
+            "22": {
+              "page": 121,
+              "article": "0060 018 22"
+            },
+            "25": {
+              "page": 121,
+              "article": "0099 018 25"
+            },
+            "30": {
+              "page": 121,
+              "article": "0099 018 30"
+            },
+            "35": {
+              "page": 121,
+              "article": "0098 018 35"
+            },
+            "40": {
+              "page": 121,
+              "article": "0099 018 40"
+            },
+            "45": {
+              "page": 121,
+              "article": "0099 018 45"
+            },
+            "50": {
+              "page": 121,
+              "article": "0099 018 50"
+            },
+            "55": {
+              "page": 121,
+              "article": "0098 018 55"
+            },
+            "60": {
+              "page": 121,
+              "article": "0099 018 60"
+            },
+            "65": {
+              "page": 121,
+              "article": "0098 018 65"
+            },
+            "70": {
+              "page": 121,
+              "article": "0098 018 70"
+            },
+            "75": {
+              "page": 121,
+              "article": "0098 018 75"
+            },
+            "80": {
+              "page": 121,
+              "article": "0098 018 80"
+            },
+            "90": {
+              "page": 121,
+              "article": "0060 018 90"
+            },
+            "100": {
+              "page": 121,
+              "article": "0060 018 100"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            12,
+            14,
+            16,
+            18,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "12": {
+              "page": 121,
+              "article": "0098 0110 12"
+            },
+            "14": {
+              "page": 121,
+              "article": "0060 0210 14"
+            },
+            "16": {
+              "page": 121,
+              "article": "0099 0110 16"
+            },
+            "18": {
+              "page": 121,
+              "article": "0060 0210 18"
+            },
+            "20": {
+              "page": 121,
+              "article": "0099 0110 20"
+            },
+            "25": {
+              "page": 121,
+              "article": "0099 0110 25"
+            },
+            "30": {
+              "page": 121,
+              "article": "0099 0110 30"
+            },
+            "35": {
+              "page": 121,
+              "article": "0099 0110 35"
+            },
+            "40": {
+              "page": 121,
+              "article": "0099 0110 40"
+            },
+            "45": {
+              "page": 121,
+              "article": "0098 0110 45"
+            },
+            "50": {
+              "page": 121,
+              "article": "0099 0110 50"
+            },
+            "55": {
+              "page": 121,
+              "article": "0099 0110 55"
+            },
+            "60": {
+              "page": 121,
+              "article": "0099 0110 60"
+            },
+            "65": {
+              "page": 121,
+              "article": "0060 0210 65"
+            },
+            "70": {
+              "page": 121,
+              "article": "0098 0110 70"
+            },
+            "75": {
+              "page": 121,
+              "article": "0060 0110 75"
+            },
+            "80": {
+              "page": 121,
+              "article": "0098 0110 80"
+            },
+            "85": {
+              "page": 121,
+              "article": "0060 0110 85"
+            },
+            "90": {
+              "page": 121,
+              "article": "0060 0110 90"
+            }
+          }
+        },
+        "M12": {
+          "lengths": [
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            90
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "16": {
+              "page": 121,
+              "article": "0060 0112 16"
+            },
+            "20": {
+              "page": 121,
+              "article": "0098 0112 20"
+            },
+            "25": {
+              "page": 121,
+              "article": "0098 0112 25"
+            },
+            "30": {
+              "page": 121,
+              "article": "0098 0112 30"
+            },
+            "35": {
+              "page": 121,
+              "article": "0098 0112 35"
+            },
+            "40": {
+              "page": 121,
+              "article": "0098 0112 40"
+            },
+            "45": {
+              "page": 121,
+              "article": "0098 0112 45"
+            },
+            "50": {
+              "page": 121,
+              "article": "0098 0112 50"
+            },
+            "55": {
+              "page": 121,
+              "article": "0098 0112 55"
+            },
+            "60": {
+              "page": 121,
+              "article": "0098 0112 60"
+            },
+            "70": {
+              "page": 121,
+              "article": "0060 0112 70"
+            },
+            "90": {
+              "page": 121,
+              "article": "0060 0212 90"
+            }
+          }
+        }
+      }
+    },
+    "DIN7985": {
+      "label": "DIN 7985 H",
+      "rows": {
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {
+            "4": {
+              "page": 92,
+              "article": "0283 3 4"
+            },
+            "5": {
+              "page": 92,
+              "article": "0293 3 5"
+            },
+            "6": {
+              "page": 92,
+              "article": "0293 3 6"
+            },
+            "8": {
+              "page": 92,
+              "article": "0293 3 8"
+            },
+            "10": {
+              "page": 92,
+              "article": "0293 3 10"
+            },
+            "12": {
+              "page": 92,
+              "article": "0293 3 12"
+            },
+            "14": {
+              "page": 92,
+              "article": "0046 3 14"
+            },
+            "16": {
+              "page": 92,
+              "article": "0293 3 16"
+            },
+            "18": {
+              "page": 92,
+              "article": "0293 3 18"
+            },
+            "20": {
+              "page": 92,
+              "article": "0293 3 20"
+            },
+            "22": {
+              "page": 92,
+              "article": "0046 3 22"
+            },
+            "25": {
+              "page": 92,
+              "article": "0293 3 25"
+            },
+            "28": {
+              "page": 92,
+              "article": "0283 3 28"
+            },
+            "30": {
+              "page": 92,
+              "article": "0293 3 30"
+            },
+            "35": {
+              "page": 92,
+              "article": "0293 3 35"
+            },
+            "40": {
+              "page": 92,
+              "article": "0283 3 40"
+            },
+            "45": {
+              "page": 92,
+              "article": "0046 3 45"
+            },
+            "50": {
+              "page": 92,
+              "article": "0283 3 50"
+            },
+            "55": {
+              "page": 92,
+              "article": "0046 3 55"
+            },
+            "60": {
+              "page": 92,
+              "article": "0046 3 60"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            32,
+            35,
+            38,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "4": {
+              "page": 93,
+              "article": "0046 4 4"
+            },
+            "5": {
+              "page": 93,
+              "article": "0283 4 5"
+            },
+            "6": {
+              "page": 93,
+              "article": "0293 4 6"
+            },
+            "8": {
+              "page": 93,
+              "article": "0293 4 8"
+            },
+            "10": {
+              "page": 93,
+              "article": "0293 4 10"
+            },
+            "12": {
+              "page": 93,
+              "article": "0293 4 12"
+            },
+            "14": {
+              "page": 93,
+              "article": "0283 4 14"
+            },
+            "16": {
+              "page": 93,
+              "article": "0293 4 16"
+            },
+            "18": {
+              "page": 93,
+              "article": "0283 4 18"
+            },
+            "20": {
+              "page": 93,
+              "article": "0293 4 20"
+            },
+            "22": {
+              "page": 93,
+              "article": "0283 4 22"
+            },
+            "25": {
+              "page": 93,
+              "article": "0293 4 25"
+            },
+            "28": {
+              "page": 93,
+              "article": "0046 4 28"
+            },
+            "30": {
+              "page": 93,
+              "article": "0293 4 30"
+            },
+            "32": {
+              "page": 93,
+              "article": "0046 4 32"
+            },
+            "35": {
+              "page": 93,
+              "article": "0293 4 35"
+            },
+            "38": {
+              "page": 93,
+              "article": "0046 4 38"
+            },
+            "40": {
+              "page": 93,
+              "article": "0293 4 40"
+            },
+            "45": {
+              "page": 93,
+              "article": "0283 4 45"
+            },
+            "50": {
+              "page": 93,
+              "article": "0293 4 50"
+            },
+            "55": {
+              "page": 93,
+              "article": "0046 4 55"
+            },
+            "60": {
+              "page": 93,
+              "article": "0283 4 60"
+            },
+            "65": {
+              "page": 93,
+              "article": "0046 4 65"
+            },
+            "70": {
+              "page": 93,
+              "article": "0046 4 70"
+            },
+            "75": {
+              "page": 93,
+              "article": "0046 4 75"
+            },
+            "80": {
+              "page": 93,
+              "article": "0046 4 80"
+            },
+            "90": {
+              "page": 93,
+              "article": "0046 4 90"
+            },
+            "100": {
+              "page": 93,
+              "article": "0046 4 100"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 93,
+              "article": "0293 5 6"
+            },
+            "8": {
+              "page": 93,
+              "article": "0293 5 8"
+            },
+            "10": {
+              "page": 93,
+              "article": "0293 5 10"
+            },
+            "12": {
+              "page": 93,
+              "article": "0293 5 12"
+            },
+            "14": {
+              "page": 93,
+              "article": "0046 5 14"
+            },
+            "16": {
+              "page": 93,
+              "article": "0293 5 16"
+            },
+            "18": {
+              "page": 93,
+              "article": "0283 5 18"
+            },
+            "20": {
+              "page": 93,
+              "article": "0293 5 20"
+            },
+            "22": {
+              "page": 93,
+              "article": "0283 5 22"
+            },
+            "25": {
+              "page": 93,
+              "article": "0293 5 25"
+            },
+            "28": {
+              "page": 93,
+              "article": "0046 5 28"
+            },
+            "30": {
+              "page": 93,
+              "article": "0293 5 30"
+            },
+            "35": {
+              "page": 93,
+              "article": "0293 5 35"
+            },
+            "40": {
+              "page": 93,
+              "article": "0293 5 40"
+            },
+            "45": {
+              "page": 93,
+              "article": "0293 5 45"
+            },
+            "50": {
+              "page": 93,
+              "article": "0293 5 50"
+            },
+            "55": {
+              "page": 93,
+              "article": "0283 5 55"
+            },
+            "60": {
+              "page": 93,
+              "article": "0283 5 60"
+            },
+            "65": {
+              "page": 93,
+              "article": "0046 5 65"
+            },
+            "70": {
+              "page": 93,
+              "article": "0283 5 70"
+            },
+            "75": {
+              "page": 93,
+              "article": "0046 5 75"
+            },
+            "80": {
+              "page": 93,
+              "article": "0283 5 80"
+            },
+            "90": {
+              "page": 93,
+              "article": "0046 5 90"
+            },
+            "100": {
+              "page": 93,
+              "article": "0046 5 100"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            32,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 94,
+              "article": "0046 6 6"
+            },
+            "8": {
+              "page": 94,
+              "article": "0283 6 8"
+            },
+            "10": {
+              "page": 94,
+              "article": "0293 6 10"
+            },
+            "12": {
+              "page": 94,
+              "article": "0293 6 12"
+            },
+            "14": {
+              "page": 94,
+              "article": "0046 6 14"
+            },
+            "16": {
+              "page": 94,
+              "article": "0293 6 16"
+            },
+            "18": {
+              "page": 94,
+              "article": "0283 6 18"
+            },
+            "20": {
+              "page": 94,
+              "article": "0293 6 20"
+            },
+            "22": {
+              "page": 94,
+              "article": "0283 6 22"
+            },
+            "25": {
+              "page": 94,
+              "article": "0293 6 25"
+            },
+            "28": {
+              "page": 94,
+              "article": "0046 6 28"
+            },
+            "30": {
+              "page": 94,
+              "article": "0293 6 30"
+            },
+            "32": {
+              "page": 94,
+              "article": "0046 06 32"
+            },
+            "35": {
+              "page": 94,
+              "article": "0293 6 35"
+            },
+            "40": {
+              "page": 94,
+              "article": "0293 6 40"
+            },
+            "45": {
+              "page": 94,
+              "article": "0293 6 45"
+            },
+            "50": {
+              "page": 94,
+              "article": "0293 6 50"
+            },
+            "55": {
+              "page": 94,
+              "article": "0046 6 55"
+            },
+            "60": {
+              "page": 94,
+              "article": "0293 6 60"
+            },
+            "65": {
+              "page": 94,
+              "article": "0283 6 65"
+            },
+            "70": {
+              "page": 94,
+              "article": "0293 6 70"
+            },
+            "75": {
+              "page": 94,
+              "article": "0046 6 75"
+            },
+            "80": {
+              "page": 94,
+              "article": "0293 6 80"
+            },
+            "85": {
+              "page": 94,
+              "article": "0046 6 85"
+            },
+            "90": {
+              "page": 94,
+              "article": "0283 6 90"
+            },
+            "95": {
+              "page": 94,
+              "article": "0046 6 95"
+            },
+            "100": {
+              "page": 94,
+              "article": "0046 6 100"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "10": {
+              "page": 94,
+              "article": "0283 8 10"
+            },
+            "12": {
+              "page": 94,
+              "article": "0283 8 12"
+            },
+            "14": {
+              "page": 94,
+              "article": "0046 08 14"
+            },
+            "16": {
+              "page": 94,
+              "article": "0293 8 16"
+            },
+            "18": {
+              "page": 94,
+              "article": "0046 08 18"
+            },
+            "20": {
+              "page": 94,
+              "article": "0283 8 20"
+            },
+            "22": {
+              "page": 94,
+              "article": "0046 08 22"
+            },
+            "25": {
+              "page": 94,
+              "article": "0293 8 25"
+            },
+            "30": {
+              "page": 94,
+              "article": "0293 8 30"
+            },
+            "35": {
+              "page": 94,
+              "article": "0293 8 35"
+            },
+            "40": {
+              "page": 94,
+              "article": "0283 8 40"
+            },
+            "45": {
+              "page": 94,
+              "article": "0283 8 45"
+            },
+            "50": {
+              "page": 94,
+              "article": "0293 8 50"
+            },
+            "55": {
+              "page": 94,
+              "article": "0046 8 55"
+            },
+            "60": {
+              "page": 94,
+              "article": "0283 8 60"
+            },
+            "65": {
+              "page": 94,
+              "article": "0046 8 65"
+            },
+            "70": {
+              "page": 94,
+              "article": "0046 8 70"
+            },
+            "75": {
+              "page": 94,
+              "article": "0046 8 75"
+            },
+            "80": {
+              "page": 94,
+              "article": "0046 8 80"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60,
+            70,
+            80
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "16": {
+              "page": 94,
+              "article": "0046 10 16"
+            },
+            "20": {
+              "page": 94,
+              "article": "0046 10 20"
+            },
+            "25": {
+              "page": 94,
+              "article": "0046 10 25"
+            },
+            "30": {
+              "page": 94,
+              "article": "0046 10 30"
+            },
+            "35": {
+              "page": 94,
+              "article": "0046 10 35"
+            },
+            "40": {
+              "page": 94,
+              "article": "0046 10 40"
+            },
+            "45": {
+              "page": 94,
+              "article": "0046 10 45"
+            },
+            "50": {
+              "page": 94,
+              "article": "0046 10 50"
+            },
+            "60": {
+              "page": 94,
+              "article": "0046 10 60"
+            },
+            "70": {
+              "page": 94,
+              "article": "0046 10 70"
+            },
+            "80": {
+              "page": 94,
+              "article": "0046 10 80"
+            }
+          }
+        }
+      }
+    },
+    "DIN6921": {
+      "label": "DIN 6921",
+      "rows": {
+        "M5": {
+          "lengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {},
+          "supplierCatalogue": {
+            "10": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M5x10 10.9"
+            },
+            "16": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M5x16 10.9"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60
+          ],
+          "previousLengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "16": {
+              "page": 163,
+              "article": "0273 926 16"
+            },
+            "20": {
+              "page": 163,
+              "article": "0273 926 20"
+            },
+            "25": {
+              "page": 163,
+              "article": "0273 926 25"
+            },
+            "30": {
+              "page": 163,
+              "article": "0273 926 30"
+            }
+          },
+          "supplierCatalogue": {
+            "12": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x12 10.9"
+            },
+            "16": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x16 10.9"
+            },
+            "20": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x20 10.9"
+            },
+            "25": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x25 10.9"
+            },
+            "30": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x30 10.9"
+            },
+            "35": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.060.0350"
+            },
+            "40": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M6x40 10.9"
+            },
+            "45": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.060.0450"
+            },
+            "50": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.060.0500"
+            },
+            "55": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.060.0550"
+            },
+            "60": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.060.0600"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "16": {
+              "page": 163,
+              "article": "0273 928 16"
+            },
+            "20": {
+              "page": 163,
+              "article": "0273 928 20"
+            },
+            "25": {
+              "page": 163,
+              "article": "0273 928 25"
+            },
+            "30": {
+              "page": 163,
+              "article": "0273 928 30"
+            },
+            "35": {
+              "page": 163,
+              "article": "0273 928 35"
+            },
+            "40": {
+              "page": 163,
+              "article": "0273 928 40"
+            }
+          },
+          "supplierCatalogue": {
+            "10": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x10 10.9"
+            },
+            "12": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.080.0120"
+            },
+            "16": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x16 10.9"
+            },
+            "20": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x20 10.9"
+            },
+            "25": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x25 10.9"
+            },
+            "30": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x30 10.9"
+            },
+            "35": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x35 10.9"
+            },
+            "40": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x40 10.9"
+            },
+            "45": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x45 10.9"
+            },
+            "50": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x50 10.9"
+            },
+            "55": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.080.0550"
+            },
+            "60": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.080.0600"
+            },
+            "70": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.080.0700"
+            },
+            "75": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M8x75 10.9"
+            },
+            "65": {
+              "source": "https://www.birkhofer-shop.com/epages/BirkhoferVerbindungselemente.mobile/?ClassicView=1&ObjectPath=%2FShops%2FBirkhoferVerbindungselemente%2FCategories%2FSchrauben%2FSechskantschrauben%2F%22mit+Flansch%22%2F%22ohne+Sperrverzahnung%22%2F%22Edelstahl+A2%22",
+              "article": "06921.1.200.080.0650"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            110
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "20": {
+              "page": 163,
+              "article": "0273 921 020"
+            },
+            "25": {
+              "page": 163,
+              "article": "0273 921 025"
+            },
+            "30": {
+              "page": 163,
+              "article": "0273 921 030"
+            },
+            "35": {
+              "page": 163,
+              "article": "0273 921 035"
+            },
+            "40": {
+              "page": 163,
+              "article": "0273 921 040"
+            },
+            "45": {
+              "page": 163,
+              "article": "0273 921 045"
+            },
+            "50": {
+              "page": 163,
+              "article": "0273 921 050"
+            }
+          },
+          "supplierCatalogue": {
+            "16": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x16 10.9"
+            },
+            "25": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x25 10.9"
+            },
+            "30": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x30 10.9"
+            },
+            "35": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x35 10.9"
+            },
+            "45": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x45 10.9"
+            },
+            "50": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x50 10.9"
+            },
+            "55": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x55 10.9"
+            },
+            "60": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x60 10.9"
+            },
+            "65": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x65 10.9"
+            },
+            "70": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x70 10.9"
+            },
+            "110": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M10x110 10.9"
+            }
+          }
+        },
+        "M12": {
+          "lengths": [
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90,
+            100,
+            120,
+            200
+          ],
+          "previousLengths": [
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "20": {
+              "page": 163,
+              "article": "0273 921 220"
+            },
+            "25": {
+              "page": 163,
+              "article": "0273 921 225"
+            },
+            "30": {
+              "page": 163,
+              "article": "0273 921 230"
+            },
+            "35": {
+              "page": 163,
+              "article": "0273 921 235"
+            },
+            "40": {
+              "page": 163,
+              "article": "0273 921 240"
+            },
+            "45": {
+              "page": 163,
+              "article": "0273 921 245"
+            },
+            "50": {
+              "page": 163,
+              "article": "0273 921 250"
+            }
+          },
+          "supplierCatalogue": {
+            "25": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x25 10.9"
+            },
+            "30": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x30 10.9"
+            },
+            "35": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x35 10.9"
+            },
+            "40": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x40 10.9"
+            },
+            "45": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x45 10.9"
+            },
+            "50": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x50 10.9"
+            },
+            "55": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x55 10.9"
+            },
+            "60": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x60 10.9"
+            },
+            "70": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x70 10.9"
+            },
+            "80": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x80 10.9"
+            },
+            "90": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x90 10.9"
+            },
+            "100": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x100 10.9"
+            },
+            "120": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x120 10.9"
+            },
+            "200": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M12x200 10.9"
+            }
+          }
+        },
+        "M16": {
+          "lengths": [
+            30,
+            35,
+            40,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90,
+            100,
+            110,
+            130,
+            200
+          ],
+          "previousLengths": [
+            30,
+            40,
+            50,
+            60
+          ],
+          "catalogue": {},
+          "supplierCatalogue": {
+            "30": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x30 10.9"
+            },
+            "35": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x35 10.9"
+            },
+            "40": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x40 10.9"
+            },
+            "50": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x50 10.9"
+            },
+            "55": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x55 10.9"
+            },
+            "60": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x60 10.9"
+            },
+            "70": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x70 10.9"
+            },
+            "80": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x80 10.9"
+            },
+            "90": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x90 10.9"
+            },
+            "100": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x100 10.9"
+            },
+            "110": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x110 10.9"
+            },
+            "130": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x130 10.9"
+            },
+            "200": {
+              "source": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+              "product": "DIN 6921 M16x200 10.9"
+            }
+          }
+        }
+      }
+    },
+    "DIN933": {
+      "label": "DIN 933",
+      "rows": {
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {
+            "4": {
+              "page": 147,
+              "article": "0055 3 4"
+            },
+            "5": {
+              "page": 147,
+              "article": "0091 3 5"
+            },
+            "6": {
+              "page": 147,
+              "article": "0091 3 6"
+            },
+            "8": {
+              "page": 147,
+              "article": "0091 3 8"
+            },
+            "10": {
+              "page": 147,
+              "article": "0091 3 10"
+            },
+            "12": {
+              "page": 147,
+              "article": "0091 3 12"
+            },
+            "16": {
+              "page": 147,
+              "article": "0091 3 16"
+            },
+            "18": {
+              "page": 147,
+              "article": "0096 3 18"
+            },
+            "20": {
+              "page": 147,
+              "article": "0091 3 20"
+            },
+            "22": {
+              "page": 147,
+              "article": "0057 03 22"
+            },
+            "25": {
+              "page": 147,
+              "article": "0091 3 25"
+            },
+            "30": {
+              "page": 147,
+              "article": "0091 3 30"
+            },
+            "35": {
+              "page": 147,
+              "article": "0096 3 35"
+            },
+            "40": {
+              "page": 147,
+              "article": "0091 3 40"
+            },
+            "45": {
+              "page": 147,
+              "article": "0057 03 45"
+            },
+            "50": {
+              "page": 147,
+              "article": "0057 03 50"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 147,
+              "article": "0091 4 6"
+            },
+            "8": {
+              "page": 147,
+              "article": "0091 4 8"
+            },
+            "10": {
+              "page": 147,
+              "article": "0091 4 10"
+            },
+            "12": {
+              "page": 147,
+              "article": "0091 4 12"
+            },
+            "16": {
+              "page": 147,
+              "article": "0091 4 16"
+            },
+            "18": {
+              "page": 147,
+              "article": "0091 4 18"
+            },
+            "20": {
+              "page": 147,
+              "article": "0091 4 20"
+            },
+            "22": {
+              "page": 147,
+              "article": "0055 4 22"
+            },
+            "25": {
+              "page": 147,
+              "article": "0091 4 25"
+            },
+            "30": {
+              "page": 147,
+              "article": "0091 4 30"
+            },
+            "35": {
+              "page": 147,
+              "article": "0091 4 35"
+            },
+            "40": {
+              "page": 147,
+              "article": "0091 4 40"
+            },
+            "45": {
+              "page": 147,
+              "article": "0096 4 45"
+            },
+            "50": {
+              "page": 147,
+              "article": "0091 4 50"
+            },
+            "55": {
+              "page": 147,
+              "article": "0057 04 55"
+            },
+            "60": {
+              "page": 147,
+              "article": "0096 4 60"
+            },
+            "65": {
+              "page": 147,
+              "article": "0057 4 65"
+            },
+            "70": {
+              "page": 147,
+              "article": "0057 4 70"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 147,
+              "article": "0057 05 6"
+            },
+            "8": {
+              "page": 147,
+              "article": "0091 5 8"
+            },
+            "10": {
+              "page": 147,
+              "article": "0091 5 10"
+            },
+            "12": {
+              "page": 147,
+              "article": "0091 5 12"
+            },
+            "14": {
+              "page": 147,
+              "article": "0057 5 14"
+            },
+            "16": {
+              "page": 147,
+              "article": "0091 5 16"
+            },
+            "18": {
+              "page": 147,
+              "article": "0057 05 18"
+            },
+            "20": {
+              "page": 147,
+              "article": "0091 5 20"
+            },
+            "22": {
+              "page": 147,
+              "article": "0057 05 22"
+            },
+            "25": {
+              "page": 147,
+              "article": "0091 5 25"
+            },
+            "30": {
+              "page": 147,
+              "article": "0091 5 30"
+            },
+            "35": {
+              "page": 147,
+              "article": "0091 5 35"
+            },
+            "40": {
+              "page": 147,
+              "article": "0091 5 40"
+            },
+            "45": {
+              "page": 148,
+              "article": "0091 5 45"
+            },
+            "50": {
+              "page": 148,
+              "article": "0091 5 50"
+            },
+            "55": {
+              "page": 148,
+              "article": "0091 5 55"
+            },
+            "60": {
+              "page": 148,
+              "article": "0091 5 60"
+            },
+            "65": {
+              "page": 148,
+              "article": "0057 05 65"
+            },
+            "70": {
+              "page": 148,
+              "article": "0091 5 70"
+            },
+            "80": {
+              "page": 148,
+              "article": "0091 5 80"
+            },
+            "90": {
+              "page": 148,
+              "article": "0057 5 90"
+            },
+            "100": {
+              "page": 148,
+              "article": "0057 5 100"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            27,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "8": {
+              "page": 148,
+              "article": "0091 6 8"
+            },
+            "10": {
+              "page": 148,
+              "article": "0091 6 10"
+            },
+            "12": {
+              "page": 148,
+              "article": "0091 6 12"
+            },
+            "14": {
+              "page": 148,
+              "article": "0096 6 14"
+            },
+            "16": {
+              "page": 148,
+              "article": "0091 6 16"
+            },
+            "18": {
+              "page": 148,
+              "article": "0091 6 18"
+            },
+            "20": {
+              "page": 148,
+              "article": "0091 6 20"
+            },
+            "22": {
+              "page": 148,
+              "article": "0091 6 22"
+            },
+            "25": {
+              "page": 148,
+              "article": "0091 6 25"
+            },
+            "27": {
+              "page": 148,
+              "article": "0057 6 27"
+            },
+            "30": {
+              "page": 148,
+              "article": "0091 6 30"
+            },
+            "35": {
+              "page": 148,
+              "article": "0091 6 35"
+            },
+            "40": {
+              "page": 148,
+              "article": "0091 6 40"
+            },
+            "45": {
+              "page": 148,
+              "article": "0091 6 45"
+            },
+            "50": {
+              "page": 148,
+              "article": "0091 6 50"
+            },
+            "55": {
+              "page": 148,
+              "article": "0091 6 55"
+            },
+            "60": {
+              "page": 148,
+              "article": "0091 6 60"
+            },
+            "65": {
+              "page": 148,
+              "article": "0091 6 65"
+            },
+            "70": {
+              "page": 148,
+              "article": "0091 6 70"
+            },
+            "75": {
+              "page": 148,
+              "article": "0096 6 75"
+            },
+            "80": {
+              "page": 148,
+              "article": "0091 6 80"
+            },
+            "90": {
+              "page": 148,
+              "article": "0091 6 90"
+            },
+            "100": {
+              "page": 148,
+              "article": "0091 6 100"
+            },
+            "110": {
+              "page": 148,
+              "article": "0057 06 110"
+            },
+            "120": {
+              "page": 148,
+              "article": "0057 06 120"
+            },
+            "130": {
+              "page": 148,
+              "article": "0057 6 130"
+            },
+            "140": {
+              "page": 148,
+              "article": "0057 6 140"
+            },
+            "150": {
+              "page": 148,
+              "article": "0057 6 150"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            180,
+            200
+          ],
+          "previousLengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "10": {
+              "page": 148,
+              "article": "0057 08 10"
+            },
+            "12": {
+              "page": 148,
+              "article": "0057 08 12"
+            },
+            "14": {
+              "page": 148,
+              "article": "0055 8 14"
+            },
+            "16": {
+              "page": 148,
+              "article": "0056 8 16"
+            },
+            "18": {
+              "page": 148,
+              "article": "0057 08 18"
+            },
+            "20": {
+              "page": 148,
+              "article": "0056 8 20"
+            },
+            "22": {
+              "page": 148,
+              "article": "0057 08 22"
+            },
+            "25": {
+              "page": 148,
+              "article": "0056 8 25"
+            },
+            "30": {
+              "page": 148,
+              "article": "0056 8 30"
+            },
+            "35": {
+              "page": 148,
+              "article": "0056 8 35"
+            },
+            "40": {
+              "page": 148,
+              "article": "0056 8 40"
+            },
+            "45": {
+              "page": 148,
+              "article": "0056 8 45"
+            },
+            "50": {
+              "page": 148,
+              "article": "0056 8 50"
+            },
+            "55": {
+              "page": 148,
+              "article": "0056 8 55"
+            },
+            "60": {
+              "page": 148,
+              "article": "0056 8 60"
+            },
+            "65": {
+              "page": 148,
+              "article": "0056 8 65"
+            },
+            "70": {
+              "page": 148,
+              "article": "0056 8 70"
+            },
+            "75": {
+              "page": 148,
+              "article": "0056 8 75"
+            },
+            "80": {
+              "page": 149,
+              "article": "0091 8 80"
+            },
+            "90": {
+              "page": 149,
+              "article": "0091 8 90"
+            },
+            "100": {
+              "page": 149,
+              "article": "0091 8 100"
+            },
+            "110": {
+              "page": 149,
+              "article": "0091 8 110"
+            },
+            "120": {
+              "page": 149,
+              "article": "0091 8 120"
+            },
+            "130": {
+              "page": 149,
+              "article": "0091 8 130"
+            },
+            "140": {
+              "page": 149,
+              "article": "0091 8 140"
+            },
+            "150": {
+              "page": 149,
+              "article": "0091 8 150"
+            },
+            "160": {
+              "page": 149,
+              "article": "0091 8 160"
+            },
+            "180": {
+              "page": 149,
+              "article": "0091 8 180"
+            },
+            "200": {
+              "page": 149,
+              "article": "0091 8 200"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            12,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            170,
+            180,
+            200
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "12": {
+              "page": 149,
+              "article": "0091 10 12"
+            },
+            "16": {
+              "page": 149,
+              "article": "0091 10 16"
+            },
+            "18": {
+              "page": 149,
+              "article": "0057 10 18"
+            },
+            "20": {
+              "page": 149,
+              "article": "0091 10 20"
+            },
+            "22": {
+              "page": 149,
+              "article": "0057 10 22"
+            },
+            "25": {
+              "page": 149,
+              "article": "0091 10 25"
+            },
+            "28": {
+              "page": 149,
+              "article": "0057 10 28"
+            },
+            "30": {
+              "page": 149,
+              "article": "0091 10 30"
+            },
+            "35": {
+              "page": 149,
+              "article": "0091 10 35"
+            },
+            "40": {
+              "page": 149,
+              "article": "0091 10 40"
+            },
+            "45": {
+              "page": 149,
+              "article": "0091 10 45"
+            },
+            "50": {
+              "page": 149,
+              "article": "0091 10 50"
+            },
+            "55": {
+              "page": 149,
+              "article": "0091 10 55"
+            },
+            "60": {
+              "page": 149,
+              "article": "0091 10 60"
+            },
+            "65": {
+              "page": 149,
+              "article": "0091 10 65"
+            },
+            "70": {
+              "page": 149,
+              "article": "0091 10 70"
+            },
+            "75": {
+              "page": 149,
+              "article": "0057 010 75"
+            },
+            "80": {
+              "page": 149,
+              "article": "0091 10 80"
+            },
+            "85": {
+              "page": 149,
+              "article": "0056 10 85"
+            },
+            "90": {
+              "page": 149,
+              "article": "0091 10 90"
+            },
+            "100": {
+              "page": 149,
+              "article": "0091 10 100"
+            },
+            "110": {
+              "page": 149,
+              "article": "0091 10 110"
+            },
+            "120": {
+              "page": 149,
+              "article": "0091 10 120"
+            },
+            "130": {
+              "page": 149,
+              "article": "0091 10 130"
+            },
+            "140": {
+              "page": 149,
+              "article": "0091 10 140"
+            },
+            "150": {
+              "page": 149,
+              "article": "0091 10 150"
+            },
+            "160": {
+              "page": 149,
+              "article": "0091 10 160"
+            },
+            "170": {
+              "page": 149,
+              "article": "0055 10 170"
+            },
+            "180": {
+              "page": 149,
+              "article": "0091 10 180"
+            },
+            "200": {
+              "page": 149,
+              "article": "0055 10 200"
+            }
+          }
+        },
+        "M12": {
+          "lengths": [
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            180,
+            200,
+            220,
+            240,
+            260,
+            280,
+            300
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "16": {
+              "page": 149,
+              "article": "0091 12 16"
+            },
+            "18": {
+              "page": 149,
+              "article": "0057 12 18"
+            },
+            "20": {
+              "page": 149,
+              "article": "0091 12 20"
+            },
+            "22": {
+              "page": 149,
+              "article": "0057 12 22"
+            },
+            "25": {
+              "page": 149,
+              "article": "0091 12 25"
+            },
+            "28": {
+              "page": 149,
+              "article": "0057 12 28"
+            },
+            "30": {
+              "page": 149,
+              "article": "0091 12 30"
+            },
+            "35": {
+              "page": 149,
+              "article": "0091 12 35"
+            },
+            "40": {
+              "page": 149,
+              "article": "0091 12 40"
+            },
+            "45": {
+              "page": 149,
+              "article": "0091 12 45"
+            },
+            "50": {
+              "page": 149,
+              "article": "0091 12 50"
+            },
+            "55": {
+              "page": 149,
+              "article": "0091 12 55"
+            },
+            "60": {
+              "page": 149,
+              "article": "0091 12 60"
+            },
+            "65": {
+              "page": 149,
+              "article": "0091 12 65"
+            },
+            "70": {
+              "page": 149,
+              "article": "0091 12 70"
+            },
+            "75": {
+              "page": 149,
+              "article": "0096 12 75"
+            },
+            "80": {
+              "page": 149,
+              "article": "0091 12 80"
+            },
+            "85": {
+              "page": 149,
+              "article": "0056 12 85"
+            },
+            "90": {
+              "page": 149,
+              "article": "0091 12 90"
+            },
+            "100": {
+              "page": 149,
+              "article": "0091 12 100"
+            },
+            "110": {
+              "page": 149,
+              "article": "0091 12 110"
+            },
+            "120": {
+              "page": 149,
+              "article": "0091 12 120"
+            },
+            "130": {
+              "page": 149,
+              "article": "0091 12 130"
+            },
+            "140": {
+              "page": 150,
+              "article": "0091 12 140"
+            },
+            "150": {
+              "page": 150,
+              "article": "0091 12 150"
+            },
+            "160": {
+              "page": 150,
+              "article": "0091 12 160"
+            },
+            "180": {
+              "page": 150,
+              "article": "0091 12 180"
+            },
+            "200": {
+              "page": 150,
+              "article": "0057 12 200"
+            },
+            "220": {
+              "page": 150,
+              "article": "0055 12 220"
+            },
+            "240": {
+              "page": 150,
+              "article": "0055 12 240"
+            },
+            "260": {
+              "page": 150,
+              "article": "0055 12 260"
+            },
+            "280": {
+              "page": 150,
+              "article": "0055 12 280"
+            },
+            "300": {
+              "page": 150,
+              "article": "0055 12 300"
+            }
+          }
+        },
+        "M16": {
+          "lengths": [
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            180,
+            190,
+            200,
+            220,
+            240,
+            260,
+            280,
+            300
+          ],
+          "previousLengths": [
+            25,
+            30,
+            40,
+            50,
+            60
+          ],
+          "catalogue": {
+            "20": {
+              "page": 150,
+              "article": "0091 16 20"
+            },
+            "25": {
+              "page": 150,
+              "article": "0091 16 25"
+            },
+            "30": {
+              "page": 150,
+              "article": "0091 16 30"
+            },
+            "35": {
+              "page": 150,
+              "article": "0091 16 35"
+            },
+            "40": {
+              "page": 150,
+              "article": "0091 16 40"
+            },
+            "45": {
+              "page": 150,
+              "article": "0091 16 45"
+            },
+            "50": {
+              "page": 150,
+              "article": "0091 16 50"
+            },
+            "55": {
+              "page": 150,
+              "article": "0091 16 55"
+            },
+            "60": {
+              "page": 150,
+              "article": "0091 16 60"
+            },
+            "65": {
+              "page": 150,
+              "article": "0091 16 65"
+            },
+            "70": {
+              "page": 150,
+              "article": "0091 16 70"
+            },
+            "75": {
+              "page": 150,
+              "article": "0091 16 75"
+            },
+            "80": {
+              "page": 150,
+              "article": "0091 16 80"
+            },
+            "85": {
+              "page": 150,
+              "article": "0096 16 85"
+            },
+            "90": {
+              "page": 150,
+              "article": "0091 16 90"
+            },
+            "100": {
+              "page": 150,
+              "article": "0091 16 100"
+            },
+            "110": {
+              "page": 150,
+              "article": "0091 16 110"
+            },
+            "120": {
+              "page": 150,
+              "article": "0091 16 120"
+            },
+            "130": {
+              "page": 150,
+              "article": "0091 16 130"
+            },
+            "140": {
+              "page": 150,
+              "article": "0091 16 140"
+            },
+            "150": {
+              "page": 150,
+              "article": "0091 16 150"
+            },
+            "160": {
+              "page": 150,
+              "article": "0091 16 160"
+            },
+            "180": {
+              "page": 150,
+              "article": "0096 16 180"
+            },
+            "190": {
+              "page": 150,
+              "article": "0055 16 190"
+            },
+            "200": {
+              "page": 150,
+              "article": "0091 16 200"
+            },
+            "220": {
+              "page": 150,
+              "article": "0057 16 220"
+            },
+            "240": {
+              "page": 150,
+              "article": "0055 16 240"
+            },
+            "260": {
+              "page": 150,
+              "article": "0055 16 260"
+            },
+            "280": {
+              "page": 150,
+              "article": "0055 16 280"
+            },
+            "300": {
+              "page": 150,
+              "article": "0055 16 300"
+            }
+          }
+        }
+      }
+    },
+    "DIN965": {
+      "label": "DIN 965 H",
+      "rows": {
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {
+            "4": {
+              "page": 95,
+              "article": "0048 3 4"
+            },
+            "5": {
+              "page": 95,
+              "article": "0048 3 5"
+            },
+            "6": {
+              "page": 95,
+              "article": "0048 3 6"
+            },
+            "8": {
+              "page": 95,
+              "article": "0048 3 8"
+            },
+            "10": {
+              "page": 95,
+              "article": "0048 3 10"
+            },
+            "12": {
+              "page": 95,
+              "article": "0048 3 12"
+            },
+            "14": {
+              "page": 95,
+              "article": "0048 3 14"
+            },
+            "16": {
+              "page": 95,
+              "article": "0048 3 16"
+            },
+            "18": {
+              "page": 95,
+              "article": "0048 3 18"
+            },
+            "20": {
+              "page": 95,
+              "article": "0048 3 20"
+            },
+            "22": {
+              "page": 95,
+              "article": "0048 3 22"
+            },
+            "25": {
+              "page": 95,
+              "article": "0048 3 25"
+            },
+            "28": {
+              "page": 95,
+              "article": "0048 3 28"
+            },
+            "30": {
+              "page": 95,
+              "article": "0048 3 30"
+            },
+            "35": {
+              "page": 95,
+              "article": "0048 3 35"
+            },
+            "40": {
+              "page": 95,
+              "article": "0048 3 40"
+            },
+            "45": {
+              "page": 96,
+              "article": "0048 3 45"
+            },
+            "50": {
+              "page": 96,
+              "article": "0048 3 50"
+            },
+            "60": {
+              "page": 96,
+              "article": "0048 3 60"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90,
+            100,
+            105
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "5": {
+              "page": 96,
+              "article": "0048 4 5"
+            },
+            "6": {
+              "page": 96,
+              "article": "0048 4 6"
+            },
+            "8": {
+              "page": 96,
+              "article": "0048 4 8"
+            },
+            "10": {
+              "page": 96,
+              "article": "0048 4 10"
+            },
+            "12": {
+              "page": 96,
+              "article": "0048 4 12"
+            },
+            "14": {
+              "page": 96,
+              "article": "0048 4 14"
+            },
+            "16": {
+              "page": 96,
+              "article": "0048 4 16"
+            },
+            "18": {
+              "page": 96,
+              "article": "0048 4 18"
+            },
+            "20": {
+              "page": 96,
+              "article": "0048 4 20"
+            },
+            "22": {
+              "page": 96,
+              "article": "0048 4 22"
+            },
+            "25": {
+              "page": 96,
+              "article": "0048 4 25"
+            },
+            "28": {
+              "page": 96,
+              "article": "0048 4 28"
+            },
+            "30": {
+              "page": 96,
+              "article": "0048 4 30"
+            },
+            "35": {
+              "page": 96,
+              "article": "0048 4 35"
+            },
+            "40": {
+              "page": 96,
+              "article": "0048 4 40"
+            },
+            "45": {
+              "page": 96,
+              "article": "0048 4 45"
+            },
+            "50": {
+              "page": 96,
+              "article": "0048 4 50"
+            },
+            "55": {
+              "page": 96,
+              "article": "0048 4 55"
+            },
+            "60": {
+              "page": 96,
+              "article": "0048 4 60"
+            },
+            "70": {
+              "page": 96,
+              "article": "0048 4 70"
+            },
+            "80": {
+              "page": 96,
+              "article": "0048 4 80"
+            },
+            "90": {
+              "page": 96,
+              "article": "0048 4 90"
+            },
+            "100": {
+              "page": 96,
+              "article": "0048 4 100"
+            },
+            "105": {
+              "page": 96,
+              "article": "0048 4 105"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 96,
+              "article": "0048 5 6"
+            },
+            "8": {
+              "page": 96,
+              "article": "0048 5 8"
+            },
+            "10": {
+              "page": 96,
+              "article": "0048 5 10"
+            },
+            "12": {
+              "page": 96,
+              "article": "0048 5 12"
+            },
+            "14": {
+              "page": 96,
+              "article": "0048 5 14"
+            },
+            "16": {
+              "page": 96,
+              "article": "0048 5 16"
+            },
+            "18": {
+              "page": 96,
+              "article": "0048 5 18"
+            },
+            "20": {
+              "page": 96,
+              "article": "0048 5 20"
+            },
+            "22": {
+              "page": 96,
+              "article": "0048 5 22"
+            },
+            "25": {
+              "page": 96,
+              "article": "0048 5 25"
+            },
+            "28": {
+              "page": 96,
+              "article": "0048 5 28"
+            },
+            "30": {
+              "page": 96,
+              "article": "0048 5 30"
+            },
+            "35": {
+              "page": 96,
+              "article": "0048 5 35"
+            },
+            "40": {
+              "page": 96,
+              "article": "0048 5 40"
+            },
+            "45": {
+              "page": 96,
+              "article": "0048 5 45"
+            },
+            "50": {
+              "page": 96,
+              "article": "0048 5 50"
+            },
+            "55": {
+              "page": 96,
+              "article": "0048 5 55"
+            },
+            "60": {
+              "page": 96,
+              "article": "0048 5 60"
+            },
+            "65": {
+              "page": 96,
+              "article": "0048 5 65"
+            },
+            "70": {
+              "page": 96,
+              "article": "0048 5 70"
+            },
+            "75": {
+              "page": 96,
+              "article": "0048 5 75"
+            },
+            "80": {
+              "page": 96,
+              "article": "0048 5 80"
+            },
+            "90": {
+              "page": 96,
+              "article": "0048 5 90"
+            },
+            "100": {
+              "page": 96,
+              "article": "0048 5 100"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "8": {
+              "page": 96,
+              "article": "0048 6 8"
+            },
+            "10": {
+              "page": 96,
+              "article": "0048 6 10"
+            },
+            "12": {
+              "page": 96,
+              "article": "0048 6 12"
+            },
+            "14": {
+              "page": 96,
+              "article": "0048 6 14"
+            },
+            "16": {
+              "page": 96,
+              "article": "0048 6 16"
+            },
+            "18": {
+              "page": 96,
+              "article": "0048 6 18"
+            },
+            "20": {
+              "page": 97,
+              "article": "0048 6 20"
+            },
+            "22": {
+              "page": 97,
+              "article": "0048 6 22"
+            },
+            "25": {
+              "page": 97,
+              "article": "0048 6 25"
+            },
+            "30": {
+              "page": 97,
+              "article": "0048 6 30"
+            },
+            "35": {
+              "page": 97,
+              "article": "0048 6 35"
+            },
+            "40": {
+              "page": 97,
+              "article": "0048 6 40"
+            },
+            "45": {
+              "page": 97,
+              "article": "0048 6 45"
+            },
+            "50": {
+              "page": 97,
+              "article": "0048 6 50"
+            },
+            "55": {
+              "page": 97,
+              "article": "0048 6 55"
+            },
+            "60": {
+              "page": 97,
+              "article": "0048 6 60"
+            },
+            "65": {
+              "page": 97,
+              "article": "0048 6 65"
+            },
+            "70": {
+              "page": 97,
+              "article": "0048 6 70"
+            },
+            "75": {
+              "page": 97,
+              "article": "0048 6 75"
+            },
+            "80": {
+              "page": 97,
+              "article": "0048 6 80"
+            },
+            "90": {
+              "page": 97,
+              "article": "0048 6 90"
+            },
+            "100": {
+              "page": 97,
+              "article": "0048 6 100"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "10": {
+              "page": 97,
+              "article": "0048 8 10"
+            },
+            "12": {
+              "page": 97,
+              "article": "0048 8 12"
+            },
+            "14": {
+              "page": 97,
+              "article": "0048 8 14"
+            },
+            "16": {
+              "page": 97,
+              "article": "0048 8 16"
+            },
+            "18": {
+              "page": 97,
+              "article": "0048 8 18"
+            },
+            "20": {
+              "page": 97,
+              "article": "0048 8 20"
+            },
+            "25": {
+              "page": 97,
+              "article": "0048 8 25"
+            },
+            "30": {
+              "page": 97,
+              "article": "0048 8 30"
+            },
+            "35": {
+              "page": 97,
+              "article": "0048 8 35"
+            },
+            "40": {
+              "page": 97,
+              "article": "0048 8 40"
+            },
+            "45": {
+              "page": 97,
+              "article": "0048 8 45"
+            },
+            "50": {
+              "page": 97,
+              "article": "0048 8 50"
+            },
+            "55": {
+              "page": 97,
+              "article": "0048 8 55"
+            },
+            "60": {
+              "page": 97,
+              "article": "0048 8 60"
+            },
+            "65": {
+              "page": 97,
+              "article": "0048 8 65"
+            },
+            "70": {
+              "page": 97,
+              "article": "0048 8 70"
+            },
+            "80": {
+              "page": 97,
+              "article": "0048 8 80"
+            },
+            "90": {
+              "page": 97,
+              "article": "0048 8 90"
+            },
+            "100": {
+              "page": 97,
+              "article": "0048 8 100"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60,
+            70,
+            80
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "16": {
+              "page": 97,
+              "article": "0048 10 16"
+            },
+            "20": {
+              "page": 97,
+              "article": "0048 10 20"
+            },
+            "25": {
+              "page": 97,
+              "article": "0048 10 25"
+            },
+            "30": {
+              "page": 97,
+              "article": "0048 10 30"
+            },
+            "35": {
+              "page": 97,
+              "article": "0048 10 35"
+            },
+            "40": {
+              "page": 97,
+              "article": "0048 10 40"
+            },
+            "45": {
+              "page": 97,
+              "article": "0048 10 45"
+            },
+            "50": {
+              "page": 97,
+              "article": "0048 10 50"
+            },
+            "60": {
+              "page": 97,
+              "article": "0048 10 60"
+            },
+            "70": {
+              "page": 97,
+              "article": "0048 10 70"
+            },
+            "80": {
+              "page": 97,
+              "article": "0048 10 80"
+            }
+          }
+        }
+      }
+    },
+    "DIN7991": {
+      "label": "DIN 7991",
+      "rows": {
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60,
+            80
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30
+          ],
+          "catalogue": {
+            "4": {
+              "page": 115,
+              "article": "0089 03 4"
+            },
+            "5": {
+              "page": 115,
+              "article": "0100 3 5"
+            },
+            "6": {
+              "page": 115,
+              "article": "0299 3 6"
+            },
+            "8": {
+              "page": 115,
+              "article": "0299 3 8"
+            },
+            "10": {
+              "page": 115,
+              "article": "0299 3 10"
+            },
+            "12": {
+              "page": 115,
+              "article": "0299 3 12"
+            },
+            "14": {
+              "page": 115,
+              "article": "0299 3 14"
+            },
+            "16": {
+              "page": 115,
+              "article": "0299 3 16"
+            },
+            "18": {
+              "page": 115,
+              "article": "0100 3 18"
+            },
+            "20": {
+              "page": 115,
+              "article": "0299 3 20"
+            },
+            "25": {
+              "page": 115,
+              "article": "0299 3 25"
+            },
+            "30": {
+              "page": 115,
+              "article": "0299 3 30"
+            },
+            "35": {
+              "page": 115,
+              "article": "0299 3 35"
+            },
+            "40": {
+              "page": 115,
+              "article": "0299 3 40"
+            },
+            "45": {
+              "page": 115,
+              "article": "0100 3 45"
+            },
+            "50": {
+              "page": 115,
+              "article": "0100 3 50"
+            },
+            "60": {
+              "page": 115,
+              "article": "0089 03 60"
+            },
+            "80": {
+              "page": 115,
+              "article": "0089 03 80"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "5": {
+              "page": 115,
+              "article": "0089 04 5"
+            },
+            "6": {
+              "page": 115,
+              "article": "0299 4 6"
+            },
+            "8": {
+              "page": 115,
+              "article": "0299 4 8"
+            },
+            "10": {
+              "page": 115,
+              "article": "0299 4 10"
+            },
+            "12": {
+              "page": 115,
+              "article": "0299 4 12"
+            },
+            "14": {
+              "page": 115,
+              "article": "0100 4 14"
+            },
+            "16": {
+              "page": 115,
+              "article": "0299 4 16"
+            },
+            "18": {
+              "page": 115,
+              "article": "0299 4 18"
+            },
+            "20": {
+              "page": 115,
+              "article": "0299 4 20"
+            },
+            "22": {
+              "page": 115,
+              "article": "0087 4 22"
+            },
+            "25": {
+              "page": 115,
+              "article": "0299 4 25"
+            },
+            "30": {
+              "page": 115,
+              "article": "0299 4 30"
+            },
+            "35": {
+              "page": 115,
+              "article": "0299 4 35"
+            },
+            "40": {
+              "page": 115,
+              "article": "0299 4 40"
+            },
+            "45": {
+              "page": 115,
+              "article": "0299 4 45"
+            },
+            "50": {
+              "page": 115,
+              "article": "0299 4 50"
+            },
+            "55": {
+              "page": 115,
+              "article": "0089 04 55"
+            },
+            "60": {
+              "page": 115,
+              "article": "0299 4 60"
+            },
+            "70": {
+              "page": 115,
+              "article": "0299 4 70"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            7,
+            8,
+            10,
+            11,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            70,
+            75,
+            80,
+            90,
+            100,
+            105
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 115,
+              "article": "0100 5 6"
+            },
+            "7": {
+              "page": 115,
+              "article": "0100 5 7"
+            },
+            "8": {
+              "page": 115,
+              "article": "0299 5 8"
+            },
+            "10": {
+              "page": 115,
+              "article": "0299 5 10"
+            },
+            "11": {
+              "page": 115,
+              "article": "0087 5 11"
+            },
+            "12": {
+              "page": 115,
+              "article": "0299 5 12"
+            },
+            "14": {
+              "page": 115,
+              "article": "0299 5 14"
+            },
+            "16": {
+              "page": 115,
+              "article": "0299 5 16"
+            },
+            "18": {
+              "page": 115,
+              "article": "0100 5 18"
+            },
+            "20": {
+              "page": 115,
+              "article": "0299 5 20"
+            },
+            "22": {
+              "page": 116,
+              "article": "0299 5 22"
+            },
+            "25": {
+              "page": 116,
+              "article": "0299 5 25"
+            },
+            "28": {
+              "page": 116,
+              "article": "0089 05 28"
+            },
+            "30": {
+              "page": 116,
+              "article": "0299 5 30"
+            },
+            "35": {
+              "page": 116,
+              "article": "0299 5 35"
+            },
+            "40": {
+              "page": 116,
+              "article": "0299 5 40"
+            },
+            "45": {
+              "page": 116,
+              "article": "0299 5 45"
+            },
+            "50": {
+              "page": 116,
+              "article": "0299 5 50"
+            },
+            "55": {
+              "page": 116,
+              "article": "0087 5 55"
+            },
+            "60": {
+              "page": 116,
+              "article": "0299 5 60"
+            },
+            "70": {
+              "page": 116,
+              "article": "0299 5 70"
+            },
+            "75": {
+              "page": 116,
+              "article": "0089 05 75"
+            },
+            "80": {
+              "page": 116,
+              "article": "0100 5 80"
+            },
+            "90": {
+              "page": 116,
+              "article": "0100 5 90"
+            },
+            "100": {
+              "page": 116,
+              "article": "0100 5 100"
+            },
+            "105": {
+              "page": 116,
+              "article": "0100 5 105"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            6,
+            8,
+            10,
+            11,
+            12,
+            13,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            90,
+            95,
+            100,
+            110,
+            120,
+            125
+          ],
+          "previousLengths": [
+            12,
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "6": {
+              "page": 116,
+              "article": "0087 6 6"
+            },
+            "8": {
+              "page": 116,
+              "article": "0299 6 8"
+            },
+            "10": {
+              "page": 116,
+              "article": "0299 6 10"
+            },
+            "11": {
+              "page": 116,
+              "article": "0087 6 11"
+            },
+            "12": {
+              "page": 116,
+              "article": "0299 6 12"
+            },
+            "13": {
+              "page": 116,
+              "article": "0087 6 13"
+            },
+            "14": {
+              "page": 116,
+              "article": "0299 6 14"
+            },
+            "16": {
+              "page": 116,
+              "article": "0299 6 16"
+            },
+            "18": {
+              "page": 116,
+              "article": "0100 6 18"
+            },
+            "20": {
+              "page": 116,
+              "article": "0299 6 20"
+            },
+            "22": {
+              "page": 116,
+              "article": "0299 6 22"
+            },
+            "25": {
+              "page": 116,
+              "article": "0299 6 25"
+            },
+            "30": {
+              "page": 116,
+              "article": "0299 6 30"
+            },
+            "35": {
+              "page": 116,
+              "article": "0299 6 35"
+            },
+            "40": {
+              "page": 116,
+              "article": "0299 6 40"
+            },
+            "45": {
+              "page": 116,
+              "article": "0299 6 45"
+            },
+            "50": {
+              "page": 116,
+              "article": "0299 6 50"
+            },
+            "55": {
+              "page": 116,
+              "article": "0299 6 55"
+            },
+            "60": {
+              "page": 116,
+              "article": "0299 6 60"
+            },
+            "65": {
+              "page": 116,
+              "article": "0299 6 65"
+            },
+            "70": {
+              "page": 116,
+              "article": "0299 6 70"
+            },
+            "75": {
+              "page": 116,
+              "article": "0089 6 75"
+            },
+            "80": {
+              "page": 116,
+              "article": "0299 6 80"
+            },
+            "90": {
+              "page": 116,
+              "article": "0299 6 90"
+            },
+            "95": {
+              "page": 116,
+              "article": "0087 6 95"
+            },
+            "100": {
+              "page": 116,
+              "article": "0100 6 100"
+            },
+            "110": {
+              "page": 116,
+              "article": "0089 06 110"
+            },
+            "120": {
+              "page": 116,
+              "article": "0089 06 120"
+            },
+            "125": {
+              "page": 116,
+              "article": "0089 6 125"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            8,
+            10,
+            11,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "8": {
+              "page": 116,
+              "article": "0089 08 8"
+            },
+            "10": {
+              "page": 116,
+              "article": "0299 8 10"
+            },
+            "11": {
+              "page": 116,
+              "article": "0087 8 11"
+            },
+            "12": {
+              "page": 116,
+              "article": "0299 8 12"
+            },
+            "14": {
+              "page": 116,
+              "article": "0299 8 14"
+            },
+            "16": {
+              "page": 116,
+              "article": "0299 8 16"
+            },
+            "18": {
+              "page": 116,
+              "article": "0299 8 18"
+            },
+            "20": {
+              "page": 116,
+              "article": "0299 8 20"
+            },
+            "22": {
+              "page": 116,
+              "article": "0100 8 22"
+            },
+            "25": {
+              "page": 116,
+              "article": "0299 8 25"
+            },
+            "30": {
+              "page": 116,
+              "article": "0299 8 30"
+            },
+            "35": {
+              "page": 116,
+              "article": "0299 8 35"
+            },
+            "40": {
+              "page": 116,
+              "article": "0299 8 40"
+            },
+            "45": {
+              "page": 116,
+              "article": "0299 8 45"
+            },
+            "50": {
+              "page": 116,
+              "article": "0299 8 50"
+            },
+            "55": {
+              "page": 116,
+              "article": "0100 8 55"
+            },
+            "60": {
+              "page": 116,
+              "article": "0299 8 60"
+            },
+            "65": {
+              "page": 116,
+              "article": "0100 8 65"
+            },
+            "70": {
+              "page": 116,
+              "article": "0299 8 70"
+            },
+            "75": {
+              "page": 116,
+              "article": "0100 8 75"
+            },
+            "80": {
+              "page": 116,
+              "article": "0299 8 80"
+            },
+            "85": {
+              "page": 116,
+              "article": "0100 8 85"
+            },
+            "90": {
+              "page": 116,
+              "article": "0100 8 90"
+            },
+            "95": {
+              "page": 117,
+              "article": "0089 08 95"
+            },
+            "100": {
+              "page": 117,
+              "article": "0299 8 100"
+            },
+            "110": {
+              "page": 117,
+              "article": "0100 8 110"
+            },
+            "120": {
+              "page": 117,
+              "article": "0100 8 120"
+            },
+            "130": {
+              "page": 117,
+              "article": "0100 8 130"
+            },
+            "140": {
+              "page": 117,
+              "article": "0089 08 140"
+            },
+            "150": {
+              "page": 117,
+              "article": "0089 08 150"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            12,
+            16,
+            18,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            110,
+            120,
+            130,
+            135,
+            140,
+            150,
+            160,
+            180,
+            190,
+            200,
+            250
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "12": {
+              "page": 117,
+              "article": "0089 010 12"
+            },
+            "16": {
+              "page": 117,
+              "article": "0299 10 16"
+            },
+            "18": {
+              "page": 117,
+              "article": "0087 10 18"
+            },
+            "20": {
+              "page": 117,
+              "article": "0299 10 20"
+            },
+            "25": {
+              "page": 117,
+              "article": "0299 10 25"
+            },
+            "30": {
+              "page": 117,
+              "article": "0299 10 30"
+            },
+            "35": {
+              "page": 117,
+              "article": "0299 10 35"
+            },
+            "40": {
+              "page": 117,
+              "article": "0299 10 40"
+            },
+            "45": {
+              "page": 117,
+              "article": "0299 10 45"
+            },
+            "50": {
+              "page": 117,
+              "article": "0299 10 50"
+            },
+            "55": {
+              "page": 117,
+              "article": "0100 10 55"
+            },
+            "60": {
+              "page": 117,
+              "article": "0299 10 60"
+            },
+            "65": {
+              "page": 117,
+              "article": "0100 10 65"
+            },
+            "70": {
+              "page": 117,
+              "article": "0299 10 70"
+            },
+            "75": {
+              "page": 117,
+              "article": "0100 10 75"
+            },
+            "80": {
+              "page": 117,
+              "article": "0299 10 80"
+            },
+            "85": {
+              "page": 117,
+              "article": "0087 10 85"
+            },
+            "90": {
+              "page": 117,
+              "article": "0299 10 90"
+            },
+            "95": {
+              "page": 117,
+              "article": "0087 10 95"
+            },
+            "100": {
+              "page": 117,
+              "article": "0299 10 100"
+            },
+            "110": {
+              "page": 117,
+              "article": "0299 10 110"
+            },
+            "120": {
+              "page": 117,
+              "article": "0100 10 120"
+            },
+            "130": {
+              "page": 117,
+              "article": "0100 10 130"
+            },
+            "135": {
+              "page": 117,
+              "article": "0087 10 135"
+            },
+            "140": {
+              "page": 117,
+              "article": "0299 10 140"
+            },
+            "150": {
+              "page": 117,
+              "article": "0089 010 150"
+            },
+            "160": {
+              "page": 117,
+              "article": "0089 010 160"
+            },
+            "180": {
+              "page": 117,
+              "article": "0089 010 180"
+            },
+            "190": {
+              "page": 117,
+              "article": "0089 10 190"
+            },
+            "200": {
+              "page": 117,
+              "article": "0087 10 200"
+            },
+            "250": {
+              "page": 117,
+              "article": "0089 10 250"
+            }
+          }
+        },
+        "M12": {
+          "lengths": [
+            13,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            100,
+            110,
+            115,
+            120,
+            130,
+            135,
+            140,
+            150,
+            160,
+            170,
+            180,
+            190,
+            200,
+            210
+          ],
+          "previousLengths": [
+            25,
+            30,
+            40,
+            50
+          ],
+          "catalogue": {
+            "13": {
+              "page": 117,
+              "article": "0089 12 13"
+            },
+            "16": {
+              "page": 117,
+              "article": "0089 012 16"
+            },
+            "20": {
+              "page": 117,
+              "article": "0100 12 20"
+            },
+            "25": {
+              "page": 117,
+              "article": "0100 12 25"
+            },
+            "30": {
+              "page": 117,
+              "article": "0100 12 30"
+            },
+            "35": {
+              "page": 117,
+              "article": "0100 12 35"
+            },
+            "40": {
+              "page": 117,
+              "article": "0100 12 40"
+            },
+            "45": {
+              "page": 117,
+              "article": "0100 12 45"
+            },
+            "50": {
+              "page": 117,
+              "article": "0100 12 50"
+            },
+            "55": {
+              "page": 117,
+              "article": "0100 12 55"
+            },
+            "60": {
+              "page": 117,
+              "article": "0100 12 60"
+            },
+            "65": {
+              "page": 117,
+              "article": "0100 12 65"
+            },
+            "70": {
+              "page": 117,
+              "article": "0299 12 70"
+            },
+            "75": {
+              "page": 117,
+              "article": "0299 12 75"
+            },
+            "80": {
+              "page": 117,
+              "article": "0299 12 80"
+            },
+            "85": {
+              "page": 117,
+              "article": "0100 12 85"
+            },
+            "90": {
+              "page": 117,
+              "article": "0299 12 90"
+            },
+            "100": {
+              "page": 117,
+              "article": "0299 12 100"
+            },
+            "110": {
+              "page": 117,
+              "article": "0299 12 110"
+            },
+            "115": {
+              "page": 117,
+              "article": "0087 12 115"
+            },
+            "120": {
+              "page": 117,
+              "article": "0299 12 120"
+            },
+            "130": {
+              "page": 117,
+              "article": "0089 012 130"
+            },
+            "135": {
+              "page": 117,
+              "article": "0299 12 135"
+            },
+            "140": {
+              "page": 117,
+              "article": "0089 012 140"
+            },
+            "150": {
+              "page": 117,
+              "article": "0089 012 150"
+            },
+            "160": {
+              "page": 117,
+              "article": "0100 12 160"
+            },
+            "170": {
+              "page": 117,
+              "article": "0089 012 170"
+            },
+            "180": {
+              "page": 117,
+              "article": "0089 012 180"
+            },
+            "190": {
+              "page": 117,
+              "article": "0089 012 190"
+            },
+            "200": {
+              "page": 117,
+              "article": "0087 12 200"
+            },
+            "210": {
+              "page": 117,
+              "article": "0089 012 210"
+            }
+          }
+        }
+      }
+    },
+    "DIN912": {
+      "label": "DIN 912",
+      "rows": {
+        "M2": {
+          "lengths": [
+            3,
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            20
+          ],
+          "previousLengths": [
+            3,
+            4,
+            5,
+            6,
+            8,
+            10,
+            12
+          ],
+          "catalogue": {
+            "3": {
+              "page": 100,
+              "article": "0094 2 3"
+            },
+            "4": {
+              "page": 100,
+              "article": "0094 2 4"
+            },
+            "5": {
+              "page": 100,
+              "article": "0094 2 5"
+            },
+            "6": {
+              "page": 100,
+              "article": "0094 2 6"
+            },
+            "8": {
+              "page": 100,
+              "article": "0094 2 8"
+            },
+            "10": {
+              "page": 100,
+              "article": "0094 2 10"
+            },
+            "12": {
+              "page": 100,
+              "article": "0094 2 12"
+            },
+            "14": {
+              "page": 100,
+              "article": "0083 2 14"
+            },
+            "16": {
+              "page": 100,
+              "article": "0083 2 16"
+            },
+            "20": {
+              "page": 100,
+              "article": "0084 2 20"
+            }
+          }
+        },
+        "M3": {
+          "lengths": [
+            4,
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            60,
+            70
+          ],
+          "previousLengths": [
+            6,
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35
+          ],
+          "catalogue": {
+            "4": {
+              "page": 100,
+              "article": "0097 3 4"
+            },
+            "5": {
+              "page": 100,
+              "article": "0097 3 5"
+            },
+            "6": {
+              "page": 100,
+              "article": "0097 3 6"
+            },
+            "8": {
+              "page": 100,
+              "article": "0097 3 8"
+            },
+            "10": {
+              "page": 100,
+              "article": "0097 3 10"
+            },
+            "12": {
+              "page": 100,
+              "article": "0097 3 12"
+            },
+            "14": {
+              "page": 100,
+              "article": "0097 3 14"
+            },
+            "16": {
+              "page": 100,
+              "article": "0097 3 16"
+            },
+            "18": {
+              "page": 100,
+              "article": "0097 3 18"
+            },
+            "20": {
+              "page": 100,
+              "article": "0097 3 20"
+            },
+            "22": {
+              "page": 100,
+              "article": "0097 3 22"
+            },
+            "25": {
+              "page": 100,
+              "article": "0097 3 25"
+            },
+            "30": {
+              "page": 100,
+              "article": "0097 3 30"
+            },
+            "35": {
+              "page": 100,
+              "article": "0097 3 35"
+            },
+            "40": {
+              "page": 100,
+              "article": "0097 3 40"
+            },
+            "45": {
+              "page": 100,
+              "article": "0094 3 45"
+            },
+            "50": {
+              "page": 100,
+              "article": "0083 3 50"
+            },
+            "60": {
+              "page": 100,
+              "article": "0084 3 60"
+            }
+          },
+          "supplierCatalogue": {
+            "70": {
+              "source": "https://www.bossard.com/tw-zh-tw/eshop/screws-and-bolts-with-internal-drive/hex-socket-head-cap-screws-partially-threaded/p/2/",
+              "article": "BN 2 / 3646060"
+            }
+          }
+        },
+        "M4": {
+          "lengths": [
+            5,
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            28,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            80,
+            90,
+            100
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40
+          ],
+          "catalogue": {
+            "5": {
+              "page": 100,
+              "article": "0097 4 5"
+            },
+            "6": {
+              "page": 100,
+              "article": "0097 4 6"
+            },
+            "8": {
+              "page": 100,
+              "article": "0097 4 8"
+            },
+            "10": {
+              "page": 100,
+              "article": "0097 4 10"
+            },
+            "12": {
+              "page": 100,
+              "article": "0097 4 12"
+            },
+            "14": {
+              "page": 100,
+              "article": "0097 4 14"
+            },
+            "16": {
+              "page": 100,
+              "article": "0097 4 16"
+            },
+            "18": {
+              "page": 100,
+              "article": "0097 4 18"
+            },
+            "20": {
+              "page": 100,
+              "article": "0097 4 20"
+            },
+            "22": {
+              "page": 100,
+              "article": "0097 4 22"
+            },
+            "25": {
+              "page": 100,
+              "article": "0097 4 25"
+            },
+            "28": {
+              "page": 101,
+              "article": "0082 4 28"
+            },
+            "30": {
+              "page": 101,
+              "article": "0097 4 30"
+            },
+            "35": {
+              "page": 101,
+              "article": "0097 4 35"
+            },
+            "40": {
+              "page": 101,
+              "article": "0097 4 40"
+            },
+            "45": {
+              "page": 101,
+              "article": "0097 4 45"
+            },
+            "50": {
+              "page": 101,
+              "article": "0097 4 50"
+            },
+            "55": {
+              "page": 101,
+              "article": "0094 4 55"
+            },
+            "60": {
+              "page": 101,
+              "article": "0094 4 60"
+            },
+            "65": {
+              "page": 101,
+              "article": "0097 4 65"
+            },
+            "70": {
+              "page": 101,
+              "article": "0083 4 70"
+            },
+            "80": {
+              "page": 101,
+              "article": "0083 4 80"
+            },
+            "90": {
+              "page": 101,
+              "article": "0083 4 90"
+            },
+            "100": {
+              "page": 101,
+              "article": "0083 4 100"
+            }
+          }
+        },
+        "M5": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            170,
+            180,
+            200
+          ],
+          "previousLengths": [
+            8,
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40
+          ],
+          "catalogue": {
+            "6": {
+              "page": 101,
+              "article": "0097 5 6"
+            },
+            "8": {
+              "page": 101,
+              "article": "0097 5 8"
+            },
+            "10": {
+              "page": 101,
+              "article": "0097 5 10"
+            },
+            "12": {
+              "page": 101,
+              "article": "0097 5 12"
+            },
+            "14": {
+              "page": 101,
+              "article": "0097 5 14"
+            },
+            "16": {
+              "page": 101,
+              "article": "0097 5 16"
+            },
+            "18": {
+              "page": 101,
+              "article": "0097 5 18"
+            },
+            "20": {
+              "page": 101,
+              "article": "0097 5 20"
+            },
+            "22": {
+              "page": 101,
+              "article": "0094 5 22"
+            },
+            "25": {
+              "page": 101,
+              "article": "0097 5 25"
+            },
+            "30": {
+              "page": 101,
+              "article": "0097 5 30"
+            },
+            "35": {
+              "page": 101,
+              "article": "0097 5 35"
+            },
+            "40": {
+              "page": 101,
+              "article": "0097 5 40"
+            },
+            "45": {
+              "page": 101,
+              "article": "0097 5 45"
+            },
+            "50": {
+              "page": 101,
+              "article": "0097 5 50"
+            },
+            "55": {
+              "page": 101,
+              "article": "0097 5 55"
+            },
+            "60": {
+              "page": 101,
+              "article": "0097 5 60"
+            },
+            "65": {
+              "page": 101,
+              "article": "0097 5 65"
+            },
+            "70": {
+              "page": 101,
+              "article": "0097 5 70"
+            },
+            "75": {
+              "page": 101,
+              "article": "0083 5 75"
+            },
+            "80": {
+              "page": 101,
+              "article": "0097 5 80"
+            },
+            "85": {
+              "page": 101,
+              "article": "0083 5 85"
+            },
+            "90": {
+              "page": 101,
+              "article": "0094 5 90"
+            },
+            "95": {
+              "page": 101,
+              "article": "0082 5 95"
+            },
+            "100": {
+              "page": 101,
+              "article": "0094 5 100"
+            },
+            "110": {
+              "page": 101,
+              "article": "0083 5 110"
+            },
+            "120": {
+              "page": 101,
+              "article": "0083 5 120"
+            },
+            "130": {
+              "page": 101,
+              "article": "0083 5 130"
+            },
+            "140": {
+              "page": 101,
+              "article": "0083 5 140"
+            },
+            "150": {
+              "page": 101,
+              "article": "0083 5 150"
+            },
+            "160": {
+              "page": 101,
+              "article": "0083 5 160"
+            },
+            "170": {
+              "page": 101,
+              "article": "0083 5 170"
+            },
+            "180": {
+              "page": 101,
+              "article": "0084 5 180"
+            },
+            "200": {
+              "page": 101,
+              "article": "0082 5 200"
+            }
+          }
+        },
+        "M6": {
+          "lengths": [
+            6,
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            110,
+            120,
+            125,
+            130,
+            140,
+            145,
+            150,
+            160,
+            165,
+            170,
+            175,
+            180,
+            200
+          ],
+          "previousLengths": [
+            10,
+            12,
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            50
+          ],
+          "catalogue": {
+            "6": {
+              "page": 101,
+              "article": "0083 6 6"
+            },
+            "8": {
+              "page": 101,
+              "article": "0097 6 8"
+            },
+            "10": {
+              "page": 101,
+              "article": "0097 6 10"
+            },
+            "12": {
+              "page": 101,
+              "article": "0097 6 12"
+            },
+            "14": {
+              "page": 101,
+              "article": "0097 6 14"
+            },
+            "16": {
+              "page": 101,
+              "article": "0097 6 16"
+            },
+            "18": {
+              "page": 101,
+              "article": "0097 6 18"
+            },
+            "20": {
+              "page": 101,
+              "article": "0097 6 20"
+            },
+            "22": {
+              "page": 101,
+              "article": "0097 6 22"
+            },
+            "25": {
+              "page": 101,
+              "article": "0097 6 25"
+            },
+            "30": {
+              "page": 101,
+              "article": "0097 6 30"
+            },
+            "35": {
+              "page": 101,
+              "article": "0097 6 35"
+            },
+            "40": {
+              "page": 101,
+              "article": "0097 6 40"
+            },
+            "45": {
+              "page": 101,
+              "article": "0097 6 45"
+            },
+            "50": {
+              "page": 101,
+              "article": "0097 6 50"
+            },
+            "55": {
+              "page": 101,
+              "article": "0097 6 55"
+            },
+            "60": {
+              "page": 101,
+              "article": "0097 6 60"
+            },
+            "65": {
+              "page": 101,
+              "article": "0094 6 65"
+            },
+            "70": {
+              "page": 101,
+              "article": "0097 6 70"
+            },
+            "75": {
+              "page": 101,
+              "article": "0083 6 75"
+            },
+            "80": {
+              "page": 101,
+              "article": "0097 6 80"
+            },
+            "85": {
+              "page": 101,
+              "article": "0083 6 85"
+            },
+            "90": {
+              "page": 101,
+              "article": "0097 6 90"
+            },
+            "95": {
+              "page": 101,
+              "article": "0083 6 95"
+            },
+            "100": {
+              "page": 101,
+              "article": "0097 6 100"
+            },
+            "110": {
+              "page": 101,
+              "article": "0083 6 110"
+            },
+            "120": {
+              "page": 101,
+              "article": "0097 6 120"
+            },
+            "125": {
+              "page": 101,
+              "article": "0082 6 125"
+            },
+            "130": {
+              "page": 101,
+              "article": "0097 6 130"
+            },
+            "140": {
+              "page": 101,
+              "article": "0097 6 140"
+            },
+            "145": {
+              "page": 101,
+              "article": "0084 06 145"
+            },
+            "150": {
+              "page": 102,
+              "article": "0097 6 150"
+            },
+            "160": {
+              "page": 102,
+              "article": "0083 6 160"
+            },
+            "165": {
+              "page": 102,
+              "article": "0084 06 165"
+            },
+            "170": {
+              "page": 102,
+              "article": "0084 06 170"
+            },
+            "175": {
+              "page": 102,
+              "article": "0082 6 175"
+            },
+            "180": {
+              "page": 102,
+              "article": "0083 6 180"
+            },
+            "200": {
+              "page": 102,
+              "article": "0083 6 200"
+            }
+          }
+        },
+        "M8": {
+          "lengths": [
+            8,
+            10,
+            12,
+            14,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            105,
+            110,
+            115,
+            120,
+            125,
+            130,
+            140,
+            145,
+            150,
+            155,
+            160,
+            165,
+            170,
+            180,
+            185,
+            190,
+            200,
+            220
+          ],
+          "previousLengths": [
+            16,
+            20,
+            25,
+            30,
+            35,
+            40,
+            50
+          ],
+          "catalogue": {
+            "8": {
+              "page": 102,
+              "article": "0084 08 8"
+            },
+            "10": {
+              "page": 102,
+              "article": "0097 8 10"
+            },
+            "12": {
+              "page": 102,
+              "article": "0097 8 12"
+            },
+            "14": {
+              "page": 102,
+              "article": "0097 8 14"
+            },
+            "16": {
+              "page": 102,
+              "article": "0097 8 16"
+            },
+            "18": {
+              "page": 102,
+              "article": "0097 8 18"
+            },
+            "20": {
+              "page": 102,
+              "article": "0097 8 20"
+            },
+            "22": {
+              "page": 102,
+              "article": "0097 8 22"
+            },
+            "25": {
+              "page": 102,
+              "article": "0097 8 25"
+            },
+            "30": {
+              "page": 102,
+              "article": "0097 8 30"
+            },
+            "35": {
+              "page": 102,
+              "article": "0097 8 35"
+            },
+            "40": {
+              "page": 102,
+              "article": "0097 8 40"
+            },
+            "45": {
+              "page": 102,
+              "article": "0097 8 45"
+            },
+            "50": {
+              "page": 102,
+              "article": "0097 8 50"
+            },
+            "55": {
+              "page": 102,
+              "article": "0097 8 55"
+            },
+            "60": {
+              "page": 102,
+              "article": "0097 8 60"
+            },
+            "65": {
+              "page": 102,
+              "article": "0097 8 65"
+            },
+            "70": {
+              "page": 102,
+              "article": "0097 8 70"
+            },
+            "75": {
+              "page": 102,
+              "article": "0097 8 75"
+            },
+            "80": {
+              "page": 102,
+              "article": "0097 8 80"
+            },
+            "85": {
+              "page": 102,
+              "article": "0094 8 85"
+            },
+            "90": {
+              "page": 102,
+              "article": "0097 8 90"
+            },
+            "95": {
+              "page": 102,
+              "article": "0094 8 95"
+            },
+            "100": {
+              "page": 102,
+              "article": "0094 8 100"
+            },
+            "105": {
+              "page": 102,
+              "article": "0082 8 105"
+            },
+            "110": {
+              "page": 102,
+              "article": "0097 8 110"
+            },
+            "115": {
+              "page": 102,
+              "article": "0084 08 115"
+            },
+            "120": {
+              "page": 102,
+              "article": "0097 8 120"
+            },
+            "125": {
+              "page": 102,
+              "article": "0080 8 125"
+            },
+            "130": {
+              "page": 102,
+              "article": "0097 8 130"
+            },
+            "140": {
+              "page": 102,
+              "article": "0097 8 140"
+            },
+            "145": {
+              "page": 102,
+              "article": "0084 08 145"
+            },
+            "150": {
+              "page": 102,
+              "article": "0097 8 150"
+            },
+            "155": {
+              "page": 102,
+              "article": "0083 8 155"
+            },
+            "160": {
+              "page": 102,
+              "article": "0083 8 160"
+            },
+            "165": {
+              "page": 102,
+              "article": "0084 8 165"
+            },
+            "170": {
+              "page": 102,
+              "article": "0080 8 170"
+            },
+            "180": {
+              "page": 102,
+              "article": "0083 8 180"
+            },
+            "185": {
+              "page": 102,
+              "article": "0083 8 185"
+            },
+            "190": {
+              "page": 102,
+              "article": "0083 8 190"
+            },
+            "200": {
+              "page": 102,
+              "article": "0083 8 200"
+            },
+            "220": {
+              "page": 102,
+              "article": "0083 8 220"
+            }
+          }
+        },
+        "M10": {
+          "lengths": [
+            10,
+            12,
+            16,
+            18,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            105,
+            110,
+            120,
+            125,
+            130,
+            140,
+            150,
+            160,
+            170,
+            180,
+            190,
+            195,
+            200,
+            210,
+            220,
+            230,
+            240,
+            260,
+            265,
+            280,
+            300
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            35,
+            40,
+            50
+          ],
+          "catalogue": {
+            "10": {
+              "page": 102,
+              "article": "0082 10 10"
+            },
+            "12": {
+              "page": 102,
+              "article": "0083 10 12"
+            },
+            "16": {
+              "page": 102,
+              "article": "0097 10 16"
+            },
+            "18": {
+              "page": 102,
+              "article": "0094 10 18"
+            },
+            "20": {
+              "page": 102,
+              "article": "0097 10 20"
+            },
+            "22": {
+              "page": 102,
+              "article": "0094 10 22"
+            },
+            "25": {
+              "page": 102,
+              "article": "0097 10 25"
+            },
+            "30": {
+              "page": 102,
+              "article": "0097 10 30"
+            },
+            "35": {
+              "page": 102,
+              "article": "0097 10 35"
+            },
+            "40": {
+              "page": 102,
+              "article": "0097 10 40"
+            },
+            "45": {
+              "page": 102,
+              "article": "0097 10 45"
+            },
+            "50": {
+              "page": 102,
+              "article": "0097 10 50"
+            },
+            "55": {
+              "page": 102,
+              "article": "0097 10 55"
+            },
+            "60": {
+              "page": 102,
+              "article": "0097 10 60"
+            },
+            "65": {
+              "page": 102,
+              "article": "0097 10 65"
+            },
+            "70": {
+              "page": 102,
+              "article": "0097 10 70"
+            },
+            "75": {
+              "page": 102,
+              "article": "0083 10 75"
+            },
+            "80": {
+              "page": 102,
+              "article": "0097 10 80"
+            },
+            "85": {
+              "page": 102,
+              "article": "0083 10 85"
+            },
+            "90": {
+              "page": 102,
+              "article": "0097 10 90"
+            },
+            "95": {
+              "page": 102,
+              "article": "0082 10 95"
+            },
+            "100": {
+              "page": 102,
+              "article": "0097 10 100"
+            },
+            "105": {
+              "page": 102,
+              "article": "0080 10 105"
+            },
+            "110": {
+              "page": 102,
+              "article": "0097 10 110"
+            },
+            "120": {
+              "page": 102,
+              "article": "0097 10 120"
+            },
+            "125": {
+              "page": 102,
+              "article": "0083 10 125"
+            },
+            "130": {
+              "page": 102,
+              "article": "0097 10 130"
+            },
+            "140": {
+              "page": 102,
+              "article": "0097 10 140"
+            },
+            "150": {
+              "page": 102,
+              "article": "0097 10 150"
+            },
+            "160": {
+              "page": 102,
+              "article": "0083 10 160"
+            },
+            "170": {
+              "page": 103,
+              "article": "0083 10 170"
+            },
+            "180": {
+              "page": 103,
+              "article": "0083 10 180"
+            },
+            "190": {
+              "page": 103,
+              "article": "0080 10 190"
+            },
+            "195": {
+              "page": 103,
+              "article": "0080 10 195"
+            },
+            "200": {
+              "page": 103,
+              "article": "0083 10 200"
+            },
+            "210": {
+              "page": 103,
+              "article": "0082 10 210"
+            },
+            "220": {
+              "page": 103,
+              "article": "0083 10 220"
+            },
+            "230": {
+              "page": 103,
+              "article": "0082 10 230"
+            },
+            "240": {
+              "page": 103,
+              "article": "0083 10 240"
+            },
+            "260": {
+              "page": 103,
+              "article": "0080 10 260"
+            },
+            "265": {
+              "page": 103,
+              "article": "0082 10 265"
+            },
+            "280": {
+              "page": 103,
+              "article": "0080 10 280"
+            },
+            "300": {
+              "page": 103,
+              "article": "0080 10 300"
+            }
+          }
+        },
+        "M12": {
+          "lengths": [
+            16,
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            105,
+            110,
+            115,
+            120,
+            130,
+            135,
+            140,
+            150,
+            160,
+            170,
+            180,
+            190,
+            200,
+            210,
+            220,
+            230,
+            240,
+            260,
+            280,
+            300
+          ],
+          "previousLengths": [
+            20,
+            25,
+            30,
+            35,
+            40,
+            50
+          ],
+          "catalogue": {
+            "16": {
+              "page": 103,
+              "article": "0097 12 16"
+            },
+            "20": {
+              "page": 103,
+              "article": "0097 12 20"
+            },
+            "22": {
+              "page": 103,
+              "article": "0083 12 22"
+            },
+            "25": {
+              "page": 103,
+              "article": "0097 12 25"
+            },
+            "30": {
+              "page": 103,
+              "article": "0097 12 30"
+            },
+            "35": {
+              "page": 103,
+              "article": "0097 12 35"
+            },
+            "40": {
+              "page": 103,
+              "article": "0097 12 40"
+            },
+            "45": {
+              "page": 103,
+              "article": "0097 12 45"
+            },
+            "50": {
+              "page": 103,
+              "article": "0097 12 50"
+            },
+            "55": {
+              "page": 103,
+              "article": "0097 12 55"
+            },
+            "60": {
+              "page": 103,
+              "article": "0097 12 60"
+            },
+            "65": {
+              "page": 103,
+              "article": "0094 12 65"
+            },
+            "70": {
+              "page": 103,
+              "article": "0097 12 70"
+            },
+            "75": {
+              "page": 103,
+              "article": "0083 12 75"
+            },
+            "80": {
+              "page": 103,
+              "article": "0097 12 80"
+            },
+            "85": {
+              "page": 103,
+              "article": "0080 12 85"
+            },
+            "90": {
+              "page": 103,
+              "article": "0097 12 90"
+            },
+            "95": {
+              "page": 103,
+              "article": "0082 12 95"
+            },
+            "100": {
+              "page": 103,
+              "article": "0097 12 100"
+            },
+            "105": {
+              "page": 103,
+              "article": "0083 12 105"
+            },
+            "110": {
+              "page": 103,
+              "article": "0097 12 110"
+            },
+            "115": {
+              "page": 103,
+              "article": "0080 12 115"
+            },
+            "120": {
+              "page": 103,
+              "article": "0097 12 120"
+            },
+            "130": {
+              "page": 103,
+              "article": "0097 12 130"
+            },
+            "135": {
+              "page": 103,
+              "article": "0082 12 135"
+            },
+            "140": {
+              "page": 103,
+              "article": "0097 12 140"
+            },
+            "150": {
+              "page": 103,
+              "article": "0097 12 150"
+            },
+            "160": {
+              "page": 103,
+              "article": "0083 12 160"
+            },
+            "170": {
+              "page": 103,
+              "article": "0083 12 170"
+            },
+            "180": {
+              "page": 103,
+              "article": "0094 12 180"
+            },
+            "190": {
+              "page": 103,
+              "article": "0080 12 190"
+            },
+            "200": {
+              "page": 103,
+              "article": "0083 12 200"
+            },
+            "210": {
+              "page": 103,
+              "article": "0083 12 210"
+            },
+            "220": {
+              "page": 103,
+              "article": "0083 12 220"
+            },
+            "230": {
+              "page": 103,
+              "article": "0084 12 230"
+            },
+            "240": {
+              "page": 103,
+              "article": "0083 12 240"
+            },
+            "260": {
+              "page": 103,
+              "article": "0083 12 260"
+            },
+            "280": {
+              "page": 103,
+              "article": "0083 12 280"
+            },
+            "300": {
+              "page": 103,
+              "article": "0083 12 300"
+            }
+          }
+        },
+        "M16": {
+          "lengths": [
+            20,
+            22,
+            25,
+            30,
+            35,
+            40,
+            45,
+            50,
+            55,
+            60,
+            65,
+            70,
+            75,
+            80,
+            85,
+            90,
+            95,
+            100,
+            105,
+            110,
+            120,
+            130,
+            140,
+            150,
+            160,
+            170,
+            180,
+            190,
+            195,
+            200,
+            210,
+            220,
+            230,
+            240,
+            250,
+            260,
+            280,
+            300,
+            340
+          ],
+          "previousLengths": [
+            30,
+            35,
+            40,
+            50,
+            60
+          ],
+          "catalogue": {
+            "20": {
+              "page": 104,
+              "article": "0083 16 20"
+            },
+            "22": {
+              "page": 104,
+              "article": "0083 16 22"
+            },
+            "25": {
+              "page": 104,
+              "article": "0097 16 25"
+            },
+            "30": {
+              "page": 104,
+              "article": "0097 16 30"
+            },
+            "35": {
+              "page": 104,
+              "article": "0097 16 35"
+            },
+            "40": {
+              "page": 104,
+              "article": "0097 16 40"
+            },
+            "45": {
+              "page": 104,
+              "article": "0097 16 45"
+            },
+            "50": {
+              "page": 104,
+              "article": "0097 16 50"
+            },
+            "55": {
+              "page": 104,
+              "article": "0097 16 55"
+            },
+            "60": {
+              "page": 104,
+              "article": "0097 16 60"
+            },
+            "65": {
+              "page": 104,
+              "article": "0094 16 65"
+            },
+            "70": {
+              "page": 104,
+              "article": "0097 16 70"
+            },
+            "75": {
+              "page": 104,
+              "article": "0080 16 75"
+            },
+            "80": {
+              "page": 104,
+              "article": "0097 16 80"
+            },
+            "85": {
+              "page": 104,
+              "article": "0080 16 85"
+            },
+            "90": {
+              "page": 104,
+              "article": "0097 16 90"
+            },
+            "95": {
+              "page": 104,
+              "article": "0083 16 95"
+            },
+            "100": {
+              "page": 104,
+              "article": "0097 16 100"
+            },
+            "105": {
+              "page": 104,
+              "article": "0082 16 105"
+            },
+            "110": {
+              "page": 104,
+              "article": "0097 16 110"
+            },
+            "120": {
+              "page": 104,
+              "article": "0097 16 120"
+            },
+            "130": {
+              "page": 104,
+              "article": "0097 16 130"
+            },
+            "140": {
+              "page": 104,
+              "article": "0097 16 140"
+            },
+            "150": {
+              "page": 104,
+              "article": "0097 16 150"
+            },
+            "160": {
+              "page": 104,
+              "article": "0083 16 160"
+            },
+            "170": {
+              "page": 104,
+              "article": "0083 16 170"
+            },
+            "180": {
+              "page": 104,
+              "article": "0083 16 180"
+            },
+            "190": {
+              "page": 104,
+              "article": "0083 16 190"
+            },
+            "195": {
+              "page": 104,
+              "article": "0082 16 195"
+            },
+            "200": {
+              "page": 104,
+              "article": "0083 16 200"
+            },
+            "210": {
+              "page": 104,
+              "article": "0083 16 210"
+            },
+            "220": {
+              "page": 104,
+              "article": "0083 16 220"
+            },
+            "230": {
+              "page": 104,
+              "article": "0084 16 230"
+            },
+            "240": {
+              "page": 104,
+              "article": "0083 16 240"
+            },
+            "250": {
+              "page": 104,
+              "article": "0084 016 250"
+            },
+            "260": {
+              "page": 104,
+              "article": "0083 16 260"
+            },
+            "280": {
+              "page": 104,
+              "article": "0083 16 280"
+            },
+            "300": {
+              "page": 104,
+              "article": "0083 16 300"
+            },
+            "340": {
+              "page": 104,
+              "article": "0083 16 340"
+            }
+          }
+        }
+      }
+    },
+    "DIN7982": {
+      "label": "DIN 7982 C-H",
+      "rows": {
+        "ST2.9": {
+          "lengths": [
+            6.5,
+            9.5,
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38
+          ],
+          "previousLengths": [
+            9.5,
+            13,
+            16,
+            19,
+            25
+          ],
+          "catalogue": {
+            "6.5": {
+              "page": 52,
+              "article": "0127 229 65"
+            },
+            "9.5": {
+              "page": 52,
+              "article": "0127 229 95"
+            },
+            "13": {
+              "page": 52,
+              "article": "0127 229 13"
+            },
+            "16": {
+              "page": 52,
+              "article": "0127 229 16"
+            },
+            "19": {
+              "page": 52,
+              "article": "0127 229 19"
+            },
+            "22": {
+              "page": 52,
+              "article": "0127 229 22"
+            },
+            "25": {
+              "page": 52,
+              "article": "0127 229 25"
+            },
+            "32": {
+              "page": 52,
+              "article": "0123 29 32"
+            },
+            "38": {
+              "page": 52,
+              "article": "0127 229 38"
+            }
+          }
+        },
+        "ST3.5": {
+          "lengths": [
+            6.5,
+            9.5,
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38,
+            45,
+            50,
+            60,
+            70
+          ],
+          "previousLengths": [
+            9.5,
+            13,
+            16,
+            19,
+            25,
+            32
+          ],
+          "catalogue": {
+            "6.5": {
+              "page": 52,
+              "article": "0127 235 65"
+            },
+            "9.5": {
+              "page": 52,
+              "article": "0127 235 95"
+            },
+            "13": {
+              "page": 52,
+              "article": "0127 235 13"
+            },
+            "16": {
+              "page": 52,
+              "article": "0127 235 16"
+            },
+            "19": {
+              "page": 52,
+              "article": "0127 235 19"
+            },
+            "22": {
+              "page": 52,
+              "article": "0127 235 22"
+            },
+            "25": {
+              "page": 52,
+              "article": "0127 235 25"
+            },
+            "32": {
+              "page": 52,
+              "article": "0127 235 32"
+            },
+            "38": {
+              "page": 52,
+              "article": "0127 235 38"
+            },
+            "45": {
+              "page": 52,
+              "article": "0127 235 45"
+            },
+            "50": {
+              "page": 52,
+              "article": "0127 235 50"
+            },
+            "60": {
+              "page": 52,
+              "article": "0127 235 60"
+            },
+            "70": {
+              "page": 52,
+              "article": "0127 235 70"
+            }
+          }
+        },
+        "ST4.2": {
+          "lengths": [
+            9.5,
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38,
+            45,
+            50,
+            55,
+            60,
+            70,
+            90
+          ],
+          "previousLengths": [
+            13,
+            16,
+            19,
+            25,
+            32,
+            38
+          ],
+          "catalogue": {
+            "9.5": {
+              "page": 53,
+              "article": "0127 242 95"
+            },
+            "13": {
+              "page": 53,
+              "article": "0127 242 13"
+            },
+            "16": {
+              "page": 53,
+              "article": "0127 242 16"
+            },
+            "19": {
+              "page": 53,
+              "article": "0127 242 19"
+            },
+            "22": {
+              "page": 53,
+              "article": "0127 242 22"
+            },
+            "25": {
+              "page": 53,
+              "article": "0127 242 25"
+            },
+            "32": {
+              "page": 53,
+              "article": "0127 242 32"
+            },
+            "38": {
+              "page": 53,
+              "article": "0127 242 38"
+            },
+            "45": {
+              "page": 53,
+              "article": "0127 242 45"
+            },
+            "50": {
+              "page": 53,
+              "article": "0127 242 50"
+            },
+            "55": {
+              "page": 53,
+              "article": "0127 242 55"
+            },
+            "60": {
+              "page": 53,
+              "article": "0127 242 60"
+            },
+            "70": {
+              "page": 53,
+              "article": "0127 242 70"
+            },
+            "90": {
+              "page": 53,
+              "article": "0123 42 90"
+            }
+          }
+        },
+        "ST4.8": {
+          "lengths": [
+            9.5,
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38,
+            45,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90,
+            100,
+            110,
+            120
+          ],
+          "previousLengths": [
+            13,
+            16,
+            19,
+            25,
+            32,
+            38
+          ],
+          "catalogue": {
+            "9.5": {
+              "page": 53,
+              "article": "0127 248 95"
+            },
+            "13": {
+              "page": 53,
+              "article": "0127 248 13"
+            },
+            "16": {
+              "page": 53,
+              "article": "0127 248 16"
+            },
+            "19": {
+              "page": 53,
+              "article": "0127 248 19"
+            },
+            "22": {
+              "page": 53,
+              "article": "0127 248 22"
+            },
+            "25": {
+              "page": 53,
+              "article": "0127 248 25"
+            },
+            "32": {
+              "page": 53,
+              "article": "0127 248 32"
+            },
+            "38": {
+              "page": 53,
+              "article": "0127 248 38"
+            },
+            "45": {
+              "page": 53,
+              "article": "0127 248 45"
+            },
+            "50": {
+              "page": 53,
+              "article": "0127 248 50"
+            },
+            "55": {
+              "page": 53,
+              "article": "0123 48 55"
+            },
+            "60": {
+              "page": 53,
+              "article": "0127 248 60"
+            },
+            "70": {
+              "page": 53,
+              "article": "0127 248 70"
+            },
+            "80": {
+              "page": 53,
+              "article": "0127 248 80"
+            },
+            "90": {
+              "page": 53,
+              "article": "0127 248 90"
+            },
+            "100": {
+              "page": 53,
+              "article": "0127 248 100"
+            },
+            "110": {
+              "page": 53,
+              "article": "0116 48 110"
+            },
+            "120": {
+              "page": 53,
+              "article": "0123 48 120"
+            }
+          }
+        },
+        "ST5.5": {
+          "lengths": [
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38,
+            45,
+            50,
+            55,
+            60,
+            70,
+            80,
+            90,
+            100,
+            110,
+            120
+          ],
+          "previousLengths": [
+            16,
+            19,
+            25,
+            32,
+            38
+          ],
+          "catalogue": {
+            "13": {
+              "page": 53,
+              "article": "0127 255 13"
+            },
+            "16": {
+              "page": 53,
+              "article": "0127 255 16"
+            },
+            "19": {
+              "page": 53,
+              "article": "0127 255 19"
+            },
+            "22": {
+              "page": 53,
+              "article": "0127 255 22"
+            },
+            "25": {
+              "page": 53,
+              "article": "0127 255 25"
+            },
+            "32": {
+              "page": 53,
+              "article": "0127 255 32"
+            },
+            "38": {
+              "page": 53,
+              "article": "0127 255 38"
+            },
+            "45": {
+              "page": 53,
+              "article": "0127 255 45"
+            },
+            "50": {
+              "page": 53,
+              "article": "0127 255 50"
+            },
+            "55": {
+              "page": 53,
+              "article": "0123 55 55"
+            },
+            "60": {
+              "page": 53,
+              "article": "0127 255 60"
+            },
+            "70": {
+              "page": 53,
+              "article": "0127 255 70"
+            },
+            "80": {
+              "page": 53,
+              "article": "0127 255 80"
+            },
+            "90": {
+              "page": 53,
+              "article": "0127 255 90"
+            },
+            "100": {
+              "page": 53,
+              "article": "0127 255 100"
+            },
+            "110": {
+              "page": 53,
+              "article": "0116 55 110"
+            },
+            "120": {
+              "page": 53,
+              "article": "0123 55 120"
+            }
+          }
+        },
+        "ST6.3": {
+          "lengths": [
+            13,
+            16,
+            19,
+            22,
+            25,
+            32,
+            38,
+            45,
+            50,
+            60,
+            70,
+            80,
+            90,
+            100,
+            110,
+            120
+          ],
+          "previousLengths": [
+            19,
+            25,
+            32,
+            38,
+            50
+          ],
+          "catalogue": {
+            "13": {
+              "page": 53,
+              "article": "0127 263 13"
+            },
+            "16": {
+              "page": 53,
+              "article": "0127 263 16"
+            },
+            "19": {
+              "page": 53,
+              "article": "0127 263 19"
+            },
+            "22": {
+              "page": 53,
+              "article": "0127 263 22"
+            },
+            "25": {
+              "page": 53,
+              "article": "0127 263 25"
+            },
+            "32": {
+              "page": 53,
+              "article": "0127 263 32"
+            },
+            "38": {
+              "page": 53,
+              "article": "0127 263 38"
+            },
+            "45": {
+              "page": 53,
+              "article": "0127 263 45"
+            },
+            "50": {
+              "page": 53,
+              "article": "0127 263 50"
+            },
+            "60": {
+              "page": 53,
+              "article": "0127 263 60"
+            },
+            "70": {
+              "page": 53,
+              "article": "0127 263 70"
+            },
+            "80": {
+              "page": 53,
+              "article": "0127 263 80"
+            },
+            "90": {
+              "page": 53,
+              "article": "0127 263 90"
+            },
+            "100": {
+              "page": 53,
+              "article": "0127 263 100"
+            },
+            "110": {
+              "page": 53,
+              "article": "0116 63 110"
+            },
+            "120": {
+              "page": 53,
+              "article": "0116 63 120"
+            }
+          }
+        }
+      }
+    }
+  },
+  "crossChecks": [
+    {
+      "family": "DIN912",
+      "size": "M6",
+      "length": 60,
+      "status": "Documented by independent suppliers; normal catalogue product, not a special unsupported size.",
+      "sources": [
+        "https://www.fabory.com/nl/cilinderschroef-met-binnenzeskant-din-912-staal-elektrolytisch-verzinkt-8-8-m6x60/p/07160060060",
+        "https://www.orbitalfasteners.co.uk/products/m6-x-60-socket-cap-screw-high-tensile-grade-12-9-self-colour",
+        "https://eshop-tr.boellhoff.com/out/media/pdf/DIN_912_Edelstahl_A4___en.pdf"
+      ]
+    },
+    {
+      "family": "DIN965",
+      "status": "Current Wuerth product sheet independently confirms shorter/longer metric combinations.",
+      "source": "https://marketplacemedia.witglobal.net/source/marketplace/stmedia/wuerth/documents/documents/std.lang.all/29210461.pdf",
+      "sha256": "9c5e6381d349ead6f7f32753447b48b4cd195757cf23a2052b61c80c52548879"
+    }
+  ],
+  "notes": [
+    "The previous lists were curated subsets, not standard limits. Missing from these finite catalogues never establishes unavailability.",
+    "Length is under-head for ordinary screws and includes the head for countersunk screws.",
+    "A listed article is catalogue evidence only; no claim of current stock, popularity, material/strength, complete standard coverage or load suitability.",
+    "Diameter and head/drive geometry remain the explicit DIN/ISO dimensions in hardware-reference.json. Replacement ISO head geometry must not be substituted for DIN.",
+    "Every added length has a primary catalogue article and matching PDF length cell, or an explicitly named supplier product variant. Packed article codes and mismatching/ambiguous cells were excluded.",
+    "Nuts, washers, proprietary rivet nuts and T-slot families retain their source-specific dimensions and are all covered by the existing 19-family geometry audit.",
+    "The total-range PDF is historical commercial evidence, not a live stock feed. The reported common DIN 912 M6 x 60 is additionally checked against current independent suppliers. Long/specialist lengths are not described as common."
+  ],
+  "additionalCatalogues": [
+    {
+      "url": "https://shop.botniabolt.fi/en/products/hexbolts/hexbolt-with-flange/hexbolt-with-flange-steel/din-6921-m12x90-10-9",
+      "sha256": "548f6b67b3f88fd758d721f2845d02c17aa2fc99edb45550322d57497c81af44",
+      "kind": "Original supplier product variant data in the public HTML, not filter cross-products."
+    }
+  ]
+}

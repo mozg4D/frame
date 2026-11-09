@@ -1,5 +1,7 @@
 # Frame automated tests
 
+Camera View: `node tests/camera-view-state.mjs` runs the shipped handler/manual-lifetime CPU checks and old-predicate negative control. `node tests/camera-view.mjs` covers native View clicks from single/quad/additional viewports, pixels, delete/Undo, New/HASH and frame budgets. `node tests/camera-view.mjs --realtime` creates the default Camera with the native toolbar, clicks View during initial automatic preparation and checks a complete image from that first click. Both browser modes use an isolated full headless Chromium with hardware WebGPU only. The CPU and both browser cases are included in standard/stress.
+
 ## Current source baseline after volume removal
 
 The combined release starts a new exact current-byte baseline in `tests/current-source-baseline.json`. `npm run test:current-source` verifies the actual shipped files and negative hash controls. This is source binding, not behavioral or GPU qualification. Scene data/programs/fields, Thermal authoring, gizmo and Help behavioral tests continue to extract and execute the actual current source. No removed implementation is reconstructed or executed.

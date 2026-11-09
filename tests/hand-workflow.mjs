@@ -11,9 +11,9 @@ export async function handWorkflowChecks(page){
  const quad={vertices:[-80,-60,0,80,-60,0,80,60,0,-80,60,0],indices:[0,1,2,0,2,3]};
  try{
   await call('scene.new');const start=(await state()).view;check('Empty document camera follows levelled shared view',Math.abs(start.camera[0]+Math.PI/4)<1e-10&&Math.abs(start.camera[1]-Math.PI/6)<1e-10&&start.camera[2]===.4,start.camera);
-  for(const storage of ['auto','texture'])for(const angle of [45,45.9,46,46.1]){
+  for(const storage of ['auto','texture'])for(const angle of [43,43.9,44.1,45,46]){
    await call('scene.new');const rad=angle*Math.PI/180,n=await call('mesh.create',{storage,vertices:[0,-30,0,0,30,0,-60,0,0,60*Math.cos(rad),0,60*Math.sin(rad)],indices:[0,1,2,1,0,3]});
-   const crease=await page.evaluate(h=>frameEngine.scene.meshes.find(m=>m.hashId===h).edgeCounts[1],n.hash);check(storage+' native crease at '+angle+' degrees',crease===(angle>=46?1:0),{crease,angle});
+   const crease=await page.evaluate(h=>frameEngine.scene.meshes.find(m=>m.hashId===h).edgeCounts[1],n.hash);check(storage+' native crease at '+angle+' degrees',crease===(angle>44?1:0),{crease,angle});
   }
   await call('scene.new');let n=await call('mesh.create',quad);const red=await call('material.create',{name:'Red',params:{h:0,s:80,l:50}}),blue=await call('material.create',{name:'Blue',params:{h:220,s:80,l:50}});
   await measure('Assign explicit face material',600,()=>call('material.assign',{id:n.hash,material:red.uid,faces:[0]}));
@@ -45,10 +45,10 @@ export async function handWorkflowChecks(page){
   const dot=(a,b)=>a.reduce((sum,v,k)=>sum+v*b[k],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
   await measure('Validate eight-sided bend fixture corpus',20000,async()=>{for(const [i,pose]of reference.cases.entries()){
    await call('scene.new');const n=await call('mesh.create',{vertices:pose.vertices,indices:pose.indices,...i%2?{storage:'texture'}:{}}),result=await call('mesh.inspect',{id:n.hash,vertices:[],faces:[],topology:true});
-   check(pose.name+' has no unintended crease',result.topology.creases.length===0&&result.topology.maxAngle<46,result.topology.maxAngle);check(pose.name+' retains one open root and oriented surface',result.topology.boundary.length===8&&result.topology.nonmanifold.length===0&&result.topology.orientationWarnings===0&&result.topology.degenerate.length===0);
+   const normals=[];for(let f=0;f<pose.indices.length;f+=3){const P=pose.indices.slice(f,f+3).map(v=>pose.vertices.slice(v*3,v*3+3)),N=cross(P[1].map((v,k)=>v-P[0][k]),P[2].map((v,k)=>v-P[0][k])),length=Math.hypot(...N);normals.push(N.map(v=>v/length));}const edges=new Map();for(let f=0;f<pose.indices.length/3;f++)for(let k=0;k<3;k++){const a=pose.indices[f*3+k],b=pose.indices[f*3+(k+1)%3],key=[Math.min(a,b),Math.max(a,b)].join(':');if(!edges.has(key))edges.set(key,[]);edges.get(key).push(f);}const expected=[...edges.values()].filter(f=>f.length===2&&dot(normals[f[0]],normals[f[1]])<Math.cos(44*Math.PI/180)).length;check(pose.name+' CPU topology follows independent 44 degree oracle',result.topology.creases.length===expected&&result.topology.angle===44,{expected,actual:result.topology.creases.length});check(pose.name+' retains one open root and oriented surface',result.topology.boundary.length===8&&result.topology.nonmanifold.length===0&&result.topology.orientationWarnings===0&&result.topology.degenerate.length===0);
    let volume=0;for(let f=0;f<pose.closedIndices.length;f+=3){const P=pose.closedIndices.slice(f,f+3).map(v=>pose.vertices.slice(v*3,v*3+3));volume+=dot(P[0],cross(P[1],P[2]))/6;}
    check(pose.name+' conserves finger volume after Float32 publication',Math.abs(Math.abs(volume)/pose.referenceVolume-1)<2e-6,{volume,reference:pose.referenceVolume});
-   const crease=await page.evaluate(h=>frameEngine.scene.meshes.find(m=>m.hashId===h).edgeCounts[1],n.hash);check(pose.name+' native GPU agrees with angle oracle',crease===0,crease);
+   const crease=await page.evaluate(h=>frameEngine.scene.meshes.find(m=>m.hashId===h).edgeCounts[1],n.hash);check(pose.name+' native GPU agrees with 44 degree angle oracle',crease===expected,{crease,expected});
   }});
  }catch(error){return {pass:false,checks,timings,error:error.message,debug:await state().catch(()=>null)};}
  return {pass:checks.every(c=>c.pass),checks,timings};
