@@ -1,0 +1,3 @@
+# Isolated Magneto continuation
+
+Follow the original Frame instructions before integrating this module. Keep all native plugin runtime inside plugins/magneto. This workspace has no native Frame runtime and is not a release. Do not touch another worker's batch. Never report CPU lifecycle tests as a physics, GPU, or complete plugin pass. Preserve opaque backend state ownership; no CPU mirror of native sample buffers. Test changes with npm test and retain an exact source-hash report. Native integration needs the current Frame API, independent physical oracles, browser checks, aggregate standard/stress checks, and authorized publication.

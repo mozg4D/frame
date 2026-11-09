@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:spline-display-samples": "node tests/spline-display-samples.mjs && node tests/spline-display-samples-browser.mjs --headless",
     "test": "node tests/run.mjs",
     "test:stress": "node tests/run.mjs --stress",
     "test:all": "node tests/run.mjs --stress --fixtures",

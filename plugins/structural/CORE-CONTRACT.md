@@ -1,8 +1,10 @@
 # Shared parameter-tag contract required by Structural
 
-Current core 82b0cc7 registers plugin tag names/text but replaces every manifest tag's fields with {}. Its native tag.set only assigns/removes a single fieldless marker. A declaration of fields, multiple or inheritance would be silently ignored, so Structural does not install such declarations.
+Reviewed against main 649c046723fc2d181e75d234c43ddf73f5165e75 (2026-11-09). The earlier 82b0cc7 blocker is partly resolved: native plugin tags now accept finite numeric/boolean fields and homogeneous enum choices. tag.set validates merged params atomically, tag.read returns owner-scoped UIDs/params, and the existing native history, animation and HASH paths preserve those fields. See app.md, Native plugin tag fields, and tests/plugin-tag-fields.mjs.
 
-Before installing Material, Force and Optimize Space, coordinate one shared core change:
+This is still not the complete Structural tag contract. The current bridge does not provide tag fieldOptions/units/ranges, compact vector rows, multiple independently addressed Force instances, or captured inherited physical provenance. Structural's installed manifest still declares only fieldless Fixture and Preserve markers. Do not register unsupported metadata or treat scalar tag storage as working load application. Confirm current source and qualification before integrating each remaining capability.
+
+Before installing Material, Force and Optimize Space, coordinate the remaining shared core work (reuse the implemented scalar validation, native IDs and transactions):
 
 1. Validate manifest tag fields, finite defaults, enum choices, ranges, canonical units, vector rows, multiple and inheritance/additive declarations. Reject malformed/unsupported declarations before registry mutation; never silently discard declared fields.
 2. Register the same parameter schema for native Attributes, AI discovery, API validation, copy and HASH. Material/Optimize Space have a preset choice. Force has two native compact vector rows, Force XYZ (N) and Torque XYZ (Nm). No duplicated editor or parameter registry.

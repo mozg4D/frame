@@ -35,6 +35,58 @@ check('explicit ownership transfer disconnects pins without changing stable pin 
 const custom=await run('create-component',a.nativeHash,{kind:'custom',pins:[{label:'ONE',position:[-20,0,0]},{label:'TWO',position:[20,0,0]},{label:'THREE',position:[0,0,20]}]});
 check('custom components preserve explicit local pin definitions',()=>assert.equal(custom.pins.length,3));
 check('invalid requests do not mutate authoring',()=>{const before=JSON.stringify(D.nodes);assert.throws(()=>run('assign-net',c.hash,{pin:'f'.repeat(32),name:'FAIL'}));assert.throws(()=>run('set-ground',a.nativeHash,{net:'f'.repeat(32)}));assert.equal(JSON.stringify(D.nodes),before);});
+for(const record of [null,{type:7,value:'{}'}]){
+ const target=D.nodes.find(n=>n.nativeHash===b.nativeHash),saved=target.pluginRecords[RECORD];
+ if(record)target.pluginRecords[RECORD]=record;else delete target.pluginRecords[RECORD];
+ const before=JSON.stringify(D.nodes),count=history.length;
+ await assert.rejects(()=>run('create-resistor',b.nativeHash),e=>e.code==='CIRCUIT_DATA_INVALID');
+ assert.throws(()=>run('move-component',c.hash,{circuit:b.nativeHash}),e=>e.code==='CIRCUIT_DATA_INVALID');
+ assert.throws(()=>hooks.parameters(D.nodes.find(n=>n.nativeHash===custom.hash),{Circuit:b.nativeHash}),e=>e.code==='CIRCUIT_DATA_INVALID');
+ check('invalid target '+(record?'record':'absence')+' rejects creation and transfer before mutation',()=>{assert.equal(JSON.stringify(D.nodes),before);assert.equal(history.length,count);});
+ target.pluginRecords[RECORD]=saved;
+}
+check('topology exposes stable nodes without electrical values or authoring mutation',()=>{
+ const before=JSON.stringify(D.nodes),count=history.length,snapshot=run('topology',a.nativeHash);
+ assert.equal(snapshot.numericalAvailable,false);assert.equal(snapshot.authoringOnly,true);
+ assert.equal(snapshot.nets.find(n=>n.id===snapshot.ground).node,'0');
+ const pins=snapshot.components.flatMap(n=>n.pins),unassigned=pins.filter(p=>p.net===null);
+ assert.equal(new Set(unassigned.map(p=>p.node)).size,unassigned.length);
+ for(const p of pins.filter(p=>p.net!==null))assert.equal(p.node,snapshot.nets.find(n=>n.id===p.net).node);
+ assert(!snapshot.components.some(n=>n.hash===r.hash));
+ snapshot.components[0].pins[0].position[0]=999;
+ assert.equal(JSON.stringify(D.nodes),before);assert.equal(history.length,count);
+});
+check('topology ignores display names, grouping and visibility; preserves disabled state',()=>{
+ const current=D.nodes.find(n=>n.nativeHash===c.hash),before=run('topology',a.nativeHash);
+ const saved={parent:current.parent,visible:current.visible,enabled:current.enabled};
+ current.parent=null;current.visible=false;
+ assert.deepEqual(run('topology',a.nativeHash),before);
+ current.enabled=false;assert.equal(run('topology',a.nativeHash).components.find(n=>n.hash===c.hash).enabled,false);
+ Object.assign(current,saved);
+ const net=run('create-net',a.nativeHash,{name:'0'}),snapshot=run('topology',a.nativeHash);
+ assert.equal(snapshot.nets.find(n=>n.id===net.id).node,'n_'+net.id);
+ const old=run('topology',a.nativeHash).nets.find(n=>n.id===net.id).node;
+ run('rename-net',a.nativeHash,{net:net.id,name:'arbitrary .spice name'});
+ assert.equal(run('topology',a.nativeHash).nets.find(n=>n.id===net.id).node,old);
+});
+check('topology rejects dangling pin references without silently creating connectivity',()=>{
+ const current=D.nodes.find(n=>n.nativeHash===c.hash),record=current.pluginRecords[RECORD],data=JSON.parse(record.value);
+ data.pins[0].net='f'.repeat(32);current.pluginRecords[RECORD]={type:7,value:JSON.stringify(data)};
+ const before=JSON.stringify(D.nodes),count=history.length;
+ assert.throws(()=>run('topology',a.nativeHash),e=>e.code==='CIRCUIT_DATA_INVALID');
+ assert.equal(JSON.stringify(D.nodes),before);assert.equal(history.length,count);current.pluginRecords[RECORD]=record;
+});
+check('topology is bounded and available only for a Circuit owner',()=>{assert.throws(()=>run('topology',c.hash),e=>e.code==='INVALID_OWNER');assert.equal(operations.get('topology').readOnly,true);assert.equal(operations.get('topology').inputSchema.additionalProperties,false);});
+check('generic owner assignment cannot bypass the component bound',()=>{
+ const saved=D.nodes,template=D.nodes.find(n=>n.nativeHash===r.hash),source=D.nodes.find(n=>n.nativeHash===custom.hash);
+ try{D.nodes=[...saved.filter(n=>n.params.Circuit!==b.nativeHash),...Array.from({length:512},(_,i)=>({...template,nativeHash:i.toString(16).padStart(32,'0')}))];
+  assert.throws(()=>hooks.parameters(source,{Circuit:b.nativeHash}),e=>e.code==='LIMIT_EXCEEDED');
+  const start=performance.now(),snapshot=run('topology',b.nativeHash),ms=performance.now()-start;
+  assert.equal(snapshot.components.length,512);assert.equal(new Set(snapshot.components.flatMap(c=>c.pins.map(p=>p.node))).size,1024);
+  timings.push({name:'512-component topology snapshot',ms,limit:1000});assert(ms<1000);
+  D.nodes.push({...template,nativeHash:'e'.repeat(32)});assert.throws(()=>run('topology',b.nativeHash),e=>e.code==='LIMIT_EXCEEDED');
+ }finally{D.nodes=saved;}
+});
 check('all numerical operations reject before mutation',()=>{const before=JSON.stringify(D.nodes);for(const id of ['solve','transient','ac','reset','scope','controller','results','export-netlist'])assert.throws(()=>run(id,a.nativeHash,{anything:true}),e=>e.code==='CIRCUIT_AUTHORING_ONLY');assert.equal(JSON.stringify(D.nodes),before);});
 check('symbol arrays are finite bounded line geometry, not card textures',()=>{for(const kind of Object.keys(models)){const v=symbol(kind);assert(v.length>0&&v.length%6===0&&v.length<1000&&[...v].every(Number.isFinite));}});
 check('multi-pin visual network uses a tree, not a complete graph',()=>assert.equal(tree([[0,0,0],[1,0,0],[2,0,0],[3,0,0]]).length,18));
@@ -42,5 +94,6 @@ check('missing or malformed authoring records fail closed',()=>{const n=D.nodes.
 const manifest=JSON.parse(await readFile(new URL('../plugin.json',import.meta.url),'utf8'));
 check('native common-field units and explicit write access come from manifest',()=>{assert.equal(manifest.objects.find(o=>o.type==='circuit_resistor').fieldOptions.Resistance.unit,'ohm');assert.equal(manifest.objects[0].fieldOptions['Time scale'].unit,'s/s');});
 const t=performance.now();for(let i=0;i<100;i++)run('inspect',c.hash);const ms=performance.now()-t;timings.push({name:'100 completed component inspections',ms,limit:1000});assert(ms<1000);
+const topologyStart=performance.now();for(let i=0;i<100;i++)run('topology',a.nativeHash);const topologyMS=performance.now()-topologyStart;timings.push({name:'100 completed topology snapshots',ms:topologyMS,limit:1000});assert(topologyMS<1000);
 const cache=await netCacheChecks();checks.push(...cache.checks);timings.push(...cache.timings);
 console.log(JSON.stringify({pass:true,scope:'CPU adapter contract checks only; not native UI, HASH codec, rendering or electrical qualification.',checks,timings,totalMS:performance.now()-start},null,2));

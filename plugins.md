@@ -227,3 +227,19 @@ This minimal bridge accepts at most 64 fields, each with a nonempty key of at mo
 Native Attributes shows the declared rows without a separate tag UI or generic status action. Values use ordinary native tag paths `tag:<uid>:<field>` for animation, normal HASH metadata and Undo. The generic bridge keeps existing ordinary object/group ownership, leaves visual Frame Material tags untouched and introduces no plugin-specific physics or owner policy. Plugins requiring restricted applicability need an explicit validation contract separately.
 
 Known parameter-bearing plugin tags restored without a UID receive a canonical native 32-hex ID before animation binding. Existing valid IDs are preserved; legacy fieldless markers without an ID remain unchanged on restore. The shared animation-binding fallback also uses the native ID generator, so focus or label resolution cannot create a hyphenated ID that HASH rejects.
+
+## Native Cut authoring
+
+Cut uses existing object textFields for literal multiline params, with fieldOptions access read-write for common bindings. Ordinary string reference fields remain unchanged. The plugin owns a Top-plane helper and native Avoid/No-cut tags; generation is explicitly unavailable. See plugins/cut/README.md for capabilities and PLAN.md for the existing shared Outline integration boundary.
+
+## RF authoring and per-type helpers
+
+RF is an unfinished native authoring preview: RF/Section rectangles, independent Terminal cubes and namespaced material/goal markers. All numerical requests reject before computation. See plugins/rf/README.md for its staged physics acceptance plan and exclusions.
+
+`viewport.register` may declare `helpers:{object_type:{lines:Float32Array,bounds:{min,max},pivot?}}` for types in that plugin's manifest. The default descriptor is used for unspecified types. The selected helper supplies ordinary bounds, default pivot, native helper hits and line drawing; explicit authored pivots still take precedence. Colors/settings/shader/custom callbacks remain shared. Registration validates and copies all geometry before installation; the default plus variants share the existing 10000-segment cap and one native vertex buffer. Core owns its allocation/retirement. This adds no plugin-specific renderer or scene graph.
+
+Optional `surfaceWarnings:false` suppresses the surface-warning and associated wire-depth mesh passes while preserving helper lines/hits/custom rendering. It defaults to existing behavior. RF uses it because its helpers do not apply a surface warning.
+
+## Optics unfinished foundation
+
+Optics adds a lazy native Design Space and Subject/Sensor/Source/Target authoring planes, stable task/receiver references, shared Blocker/Optical tags and explicit Unfinished status. Native settings/history/HASH remain shared. No scene solver, optimizer, material physics or computed result is available. Direct viewport edge picking remains unfinished while Browser selection and native bounds/gizmos use Frame. Independent CPU interface-law references are not imported by the runtime. See plugins/optics/README.md and PLAN.md for exact scope, API and gates.

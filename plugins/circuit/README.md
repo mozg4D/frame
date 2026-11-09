@@ -18,6 +18,7 @@ These parameters are authored intentions, not complete validated electrical mode
 Discover with frameAI plugins.describe for plugin circuit, then call the existing plugins.command on an owner's native hash.
 
 - status / inspect: inspect owner networks or component pins. Unavailable pin voltage is null with availability solver-unavailable, never a false zero.
+- topology: read a bounded, detached connectivity snapshot for one Circuit. Includes stable component/pin/net identities, local pin positions and explicit owner/component enabled flags. Visibility and parenting do not alter electrical membership. It validates record integrity and rejects dangling net references; it does not validate electrical models or physical solvability.
 - create-component: kind from resistor, capacitor, inductor, diode, led, bjt, mosfet, voltage, current, controller or custom; optional name. Custom accepts 1–64 explicitly labelled local-position pins. Compact create-resistor and equivalent actions are also registered.
 - create-net: name; returns an existing or new owner-local stable ID.
 - assign-net: component owner, stable pin ID, name. A nonempty new name creates a network, an existing name connects to it, and empty text disconnects that pin only.
@@ -26,6 +27,10 @@ Discover with frameAI plugins.describe for plugin circuit, then call the existin
 - move-component: component owner, target circuit hash. Explicit transfer clears network assignments while retaining pin IDs. Ordinary reparenting never transfers electrical membership.
 
 Network names are Unicode NFC, trimmed, case-sensitive, 1–128 UTF-16 code units without control characters. Empty text is accepted only for pin disconnection. Unassigned pins are distinct, not one implicit node. Networks in separate Circuits are independent even if names match.
+
+Topology node identifiers are `n_<net ID>` for assigned networks and `p_<component hash>_<pin ID>` for disconnected pins. Only the explicitly selected Ground maps to `0`; a network named `0` has no special meaning. Clients must address nodes as `(circuit, node)` because copied Circuits retain owner-local network IDs. Node names never contain user-entered net names. Components and nets are sorted by stable identity; pin order is the authored order. Disabled components remain in this authoring snapshot with `enabled:false`; this is not a compiled active solver graph. No connectivity snapshot is persisted in HASH or cached as a second scene model.
+
+Creation and explicit or generic ownership transfer validate target authoring data before mutation. Generic owner edits also enforce the same component bound. Failed target preflight does not add an Undo step.
 
 Bounds are 512 created components per Circuit, 64 pins per component and 1024 networks per Circuit. Authoring settings use seconds of electrical time per Frame second (default 0.001 s/s) and decimal MB (1 MB = 1,000,000 bytes). History is only a future allocation ceiling; the preview allocates no measurement history.
 

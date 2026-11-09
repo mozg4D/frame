@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import {DEFAULTS,BLOCKS,validate,settingsObserver,STORAGE_KEY,loadSettings} from '../model.js';
+const t=performance.now();
+const text='G21\r\n; café 日本語\n\nM8\n';
+assert.equal(validate({...DEFAULTS,'Start G-code':text})['Start G-code'],text);
+for(const patch of [{Passes:0},{Passes:1.5},{Passes:Infinity},{Speed:0},{'Line width':-1},{Mode:'Laser'},{'Start G-code':'\ud800'},{'Tool on G-code':'x'.repeat(16385)}])assert.throws(()=>validate({...DEFAULTS,...patch}));
+const data=new Map(),storage={getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)};
+let nodes=[],selected=[];const context={document:{get nodes(){return nodes;},get selected(){return selected;}}};
+const obs=settingsObserver(context,storage),make=id=>({type:'cut',nativeHash:id,params:{...DEFAULTS}});
+const a=make('a');nodes.unshift(a);obs.created(a);a.params.Speed=73;a.params['Start G-code']=text;obs.observe();
+const b=make('b');nodes.unshift(b);obs.created(b);assert.equal(b.params.Speed,73);assert.equal(b.params['Start G-code'],text);
+b.params.Speed=42;obs.schedule();await Promise.resolve();assert.equal(loadSettings(storage).params.Speed,42);assert.equal(a.params.Speed,73);
+// HASH/restoration observes all native values after replacement; selected wins.
+nodes=[{...a,params:{...a.params,Speed:11}},{...b,params:{...b.params,Speed:12}}];selected=[nodes[0]];obs.observe();assert.equal(obs.status().params.Speed,11);
+nodes=[{...a,params:{...a.params,Speed:21}},{...b,params:{...b.params,Speed:22}}];selected=[];obs.observe();assert.equal(obs.status().params.Speed,22);
+nodes=nodes.map(n=>({...n,params:{...n.params}}));selected=[nodes[0]];obs.observe();assert.equal(obs.status().params.Speed,21);
+selected=[];nodes=nodes.map(n=>({...n}));obs.observe();assert.equal(obs.status().params.Speed,22);
+nodes=[];obs.observe();assert.equal(loadSettings(storage).params.Speed,22);
+assert.ok(data.get(STORAGE_KEY));assert.deepEqual(BLOCKS.map(k=>loadSettings(storage).params[k]),[text,'','','']);
+assert.doesNotThrow(()=>settingsObserver(context,{getItem(){throw Error();},setItem(){throw Error();}}).observe());
+for(let i=0;i<10000;i++)validate(DEFAULTS);
+const ms=performance.now()-t;assert.ok(ms<1000,`Authoring validation budget: ${ms} ms`);
+console.log(JSON.stringify({pass:true,validationIterations:10000,ms,limit:1000}));

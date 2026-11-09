@@ -1,3 +1,7 @@
+## Coordinated plugin authoring batch (2026-11-09)
+
+Release: Frame 2026 09 nov 14:56 (Europe/Moscow). Cut, RF and Optics add native authoring only; Circuit adds bounded connectivity inspection and validation before ownership changes. Structural PCG, Thermal material properties, Magneto reference and Optics power accounting remain unloaded experiments. No physical solver is enabled by this batch. Exact-source standard and stress each passed 7876 checks on physical RTX hardware at DPR1, followed by two 27-check heavy-live stability passes. Full DPR2 and test:all/100M qualification were not run for this batch.
+
 ## Native navigation cursor return (2026-11-09)
 
 Navigation restores the real system cursor on return from the screen edge rather than drawing an app-only arrow. Pointer capture continues the same gesture without camera jumps; repeated crossings, pending lock release, Escape, blur and hidden-window cancellation are covered. Numeric scrubbing is unchanged. Runtime/service-worker version: Frame 2026 09 nov 07:37.
@@ -1097,3 +1101,25 @@ Known parameter-bearing plugin tags restored without a UID receive a canonical n
 Application and service-worker release: Frame 2026 09 nov 03:01 (Europe/Moscow). Magneto remains an unfinished native authoring preview; numerical operations are unavailable. See plugins/magneto/README.md and QUALIFICATION.md for scope and evidence boundaries.
 
 Release qualification includes fresh full standard, DPR 2 stress, DPR 1 all-fixture/100M checks and focused Magneto gates. The large-fixture transform test now frames all owners and validates the real native handle before dragging; this corrects an offscreen test setup without changing runtime behavior. See plugins/magneto/QUALIFICATION.md for retained failures and limits.
+
+## Cut authoring foundation
+
+Cut is a lazy native authoring preview with a Top local X/Z rectangle, lower-left origin, red/blue axes, Cut/Mark settings, integer passes, four native multiline machine blocks, common field CAS and native Avoid/No-cut tags. Settings persist through HASH and native history; last applied technology settings supply new owners from stable local storage. Generate is disabled, Save/time/sequence controls are absent, and unavailable operations reject CUT_AUTHORING_ONLY. No geometry, protection enforcement, toolpath, G-code or machine execution is implied. See plugins/cut/README.md and PLAN.md for API, defaults provenance and remaining qualification.
+
+## Circuit connectivity foundation (2026-11-09)
+
+Circuit's read-only `topology` operation returns bounded authoring connectivity with stable node identifiers, distinct disconnected pins, explicit Ground and enabled flags. It rejects dangling network references and does not validate electrical models or supply calculated values. Creation and ownership transfer preflight target records and limits before native mutation. See `plugins/circuit/README.md` and `QUALIFICATION.md`; the ngspice/WASM, controller synchronization and Scope acceptance criteria remain unfinished.
+
+## RF authoring foundation
+
+RF adds independent native Terminal cubes, multiple native section planes and material/coverage markers. TX/RX, bands, source/load metadata and Target polarization are authoring only. Native hierarchy assigns helpers to their nearest RF. No field, impedance, received power or optimized geometry is computed; numerical operations explicitly reject. The common plugin helper bridge supports per-type line geometry/bounds/pivots while retaining native selection, transforms and resource ownership. See plugins/rf/README.md for the implementation plan and qualification status.
+
+## Optics unfinished foundation
+
+Optics adds a lazy native Design Space and Subject/Sensor/Source/Target authoring planes, stable task/receiver references, shared Blocker/Optical tags and explicit Unfinished status. Native settings/history/HASH remain shared. No scene solver, optimizer, material physics or computed result is available. Direct viewport edge picking remains unfinished while Browser selection and native bounds/gizmos use Frame. Independent CPU interface-law references are not imported by the runtime. See plugins/optics/README.md and PLAN.md for exact scope, API and gates.
+
+## Native spline display sample reuse (2026-11-09)
+
+Surface preparation can reuse exact curve samples already computed for the same native source cage display. Reuse requires the same cage object, a complete segment set and matching endpoint, tangent-handle and approximation fingerprints for every edge. In-place edits, stale live-preview fingerprints, transformed cages and missing samples fall back to worker sampling. Samples are cloned by the existing worker message; no CPU surface mirror or new persistent sample cache is introduced.
+
+The leading worker reports `displaySamplesReused`; all available worker lanes, geometry assembly, source-accuracy evaluation and native history/cancel handling retain their existing paths. `npm run test:spline-display-samples` verifies stale-cache rejection, exact fresh-sampling geometry/source-accuracy oracles and Undo. The unchanged heavy-live suite continues to enforce the 5-second completed global approximation budget.

@@ -47,6 +47,19 @@ export function readData(D,n){
  return data;
 }
 export const saveData=(D,n,data)=>D.setRecord(n.nativeHash,RECORD,7,JSON.stringify(data));
+// Ephemeral authoring connectivity, not a netlist, model validator or solver result.
+export function topology(D,owner){
+ const data=readData(D,owner),nets=new Map(data.nets.map(net=>[net.id,net]));
+ const members=D.nodes.filter(n=>models[modelOf(n)]&&n.params.Circuit===owner.nativeHash);
+ if(members.length>LIMITS.components)throw fail('LIMIT_EXCEEDED','Circuit supports at most 512 preview components.');
+ const nodeForNet=id=>id===data.ground?'0':'n_'+id;
+ const components=members.map(n=>({hash:n.nativeHash,kind:modelOf(n),enabled:n.enabled!==false,pins:readData(D,n).pins.map(p=>{
+  if(p.net!==null&&!nets.has(p.net))throw fail('CIRCUIT_DATA_INVALID','Pin refers to a missing network in its Circuit.');
+  return {id:p.id,label:p.label,position:[...p.position],net:p.net,node:p.net===null?'p_'+n.nativeHash+'_'+p.id:nodeForNet(p.net)};
+ })})).sort((a,b)=>a.hash.localeCompare(b.hash));
+ return {circuit:owner.nativeHash,stage:'authoring-preview',authoringOnly:true,numericalAvailable:false,enabled:owner.enabled!==false,ground:data.ground,
+  nets:data.nets.map(net=>({...net,node:nodeForNet(net.id)})).sort((a,b)=>a.id.localeCompare(b.id)),components};
+}
 export function tree(points){
  if(points.length<2)return [];
  // A deterministic star is a connected tree, never an all-pairs graph.

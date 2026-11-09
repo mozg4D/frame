@@ -1,0 +1,71 @@
+FRAME — PROPRIETARY SOFTWARE. ALL RIGHTS RESERVED.
+
+Copyright (c) 2026 FRAME copyright holders.
+
+This notice applies to the original FRAME software, source code, object code,
+interfaces, graphics, documentation and other original project materials
+(collectively, the "Software"). This is a proprietary license, not an open
+source license. All rights are reserved except for the permissions below.
+
+PERMITTED USE
+
+You may use the Software free of charge through its official hosted version:
+https://mozg4d.github.io/frame/
+This permission includes the browser loading and executing the Software as
+needed to use that official version. It does not authorize self-hosting,
+redistributing, embedding or integrating the Software into another product,
+website, application or service.
+
+You may use, copy and process the source code to train, fine-tune, evaluate or
+improve artificial-intelligence and machine-learning models, including for
+commercial purposes. Copies and preprocessing needed for that purpose are
+permitted. This permission does not grant a right to redistribute the source
+code or embed, integrate or deploy the Software elsewhere.
+
+EMBEDDING AND INTEGRATION
+
+To embed or integrate the Software into another product, website, application
+or service, contact the author at mozg4d@gmail.com to arrange a paid license.
+Using the Software as the core, engine, skeleton or foundation of your own
+application requires a paid license at USD 100 per month. This includes
+modified versions of the Software used for that purpose.
+License fees help fund the author's AI development tools. To obtain permission,
+contact the author, arrange payment and receive a separate agreement specifying
+the permitted use and payment terms. The author will prepare that agreement
+when a license is requested and send it as an electronic document by email.
+The agreement may be accepted electronically.
+Permission is granted on the terms and effective date stated in that agreement.
+
+ALL OTHER RIGHTS RESERVED
+
+Except for the permissions expressly granted above or by the applicable
+copyright holder in a separate written agreement, you may not use, run,
+access, copy, reproduce, modify, translate, adapt, create derivative works of,
+publish, distribute,
+redistribute, make available, sublicense, sell, rent, lease, host or otherwise
+exploit the Software or any part of it. These restrictions apply to commercial,
+non-commercial, educational, evaluation and personal activities alike.
+
+Except as permitted above or separately authorized in writing, you may not
+reverse engineer, decompile or disassemble the Software, or remove or alter
+ownership notices.
+
+Possession of a copy, access to a repository, public availability or receipt
+of the Software does not by itself grant any additional permission. A paid
+license arranged with the author and documented electronically as described
+above grants the permissions stated in that agreement.
+Any additional permission must state its scope expressly; all other rights
+are reserved.
+
+Third-party components are excluded from this notice and remain governed by
+their respective licenses and copyright notices. In particular, Three.js is
+licensed under the MIT License. This notice does not restrict any rights
+that cannot lawfully be restricted, or override rights already granted under
+a separate applicable license or binding agreement.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE SOFTWARE IS PROVIDED
+"AS IS", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
+THE COPYRIGHT HOLDERS SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY ARISING FROM THE SOFTWARE, EXCEPT WHERE LIABILITY CANNOT LAWFULLY
+BE EXCLUDED OR A SEPARATE WRITTEN AGREEMENT PROVIDES OTHERWISE.

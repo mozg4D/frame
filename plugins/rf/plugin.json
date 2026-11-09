@@ -1,0 +1,29 @@
+{
+  "id": "rf",
+  "name": "RF",
+  "description": "Unfinished RF authoring. No electromagnetic solver or numerical results are available.",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "color": "#7ab7cf",
+  "objects": [
+    {"type":"rf","name":"RF","fields":{}},
+    {"type":"rf_section","name":"Section","disable":false,"fields":{}},
+    {"type":"rf_terminal","name":"Terminal","textFields":["Bands"],"fields":{
+      "TX":true,"RX":false,"Bands":"2.400–2.500","Power":1,"Phase":0,
+      "Matching":true,"Load resistance":50,"Load reactance":0,"Reference impedance":50
+    },"fieldOptions":{
+      "Power":{"unit":"W","minimum":0,"access":"read-write"},
+      "Phase":{"unit":"deg","access":"read-write"},
+      "Load resistance":{"unit":"ohm","minimum":0.000001,"access":"read-write"},
+      "Load reactance":{"unit":"ohm","access":"read-write"},
+      "Reference impedance":{"unit":"ohm","minimum":0.000001,"access":"read-write"}
+    }}
+  ],
+  "tags":[
+    {"kind":"rf_metal","name":"Metal","text":"M","fields":{"Material":["PEC","Copper","Aluminium"]}},
+    {"kind":"rf_dielectric","name":"Dielectric","text":"D","fields":{"Material":["FR-4","PTFE","Glass"]}},
+    {"kind":"rf_target","name":"Target","text":"T","fields":{"Polarization":["Any","Linear","RHCP","LHCP"],"Linear angle":0,"Coverage":["Uniform","Total"]}},
+    {"kind":"rf_avoid","name":"Avoid","text":"A"},
+    {"kind":"rf_optimize_space","name":"Optimize Space","text":"O"}
+  ]
+}

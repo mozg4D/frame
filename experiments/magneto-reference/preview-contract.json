@@ -1,0 +1,23 @@
+{
+  "id": "magneto",
+  "stage": "CPU_REFERENCE_CONTRACT",
+  "status": "NOT_INSTALLABLE",
+  "statusScope": "This CPU reference folder only; separate native authoring preview exists in main with Solve disabled",
+  "separateNativePreviewMainAnchor": "649c046723fc2d181e75d234c43ddf73f5165e75",
+  "catalogueMutation": false,
+  "entities": ["nativeMagnetoTag", "nativeMagnetoPlane"],
+  "planeModes": ["Solve", "Current Density"],
+  "quantities": ["B", "H", "Magnetization", "Saturation"],
+  "presentations": ["Strokes", "Section"],
+  "solveActions": ["Frame", "Animation"],
+  "requiredNativeAdapters": [
+    "GPU orientation-independent geometry and weighted sample generation",
+    "verified preset data and persistent sample-local magnetic state",
+    "closed-conductor cut and normalized divergence-free current basis",
+    "shared GPU solve with source/device cancellation and atomic publication",
+    "finite plane camera-adaptive renderer without magnetic re-solve on camera motion",
+    "native attributes, Undo, HASH and chronological animation/curves"
+  ],
+  "mustRemainUnavailableUntilNativeGates": ["Frame", "Animation"],
+  "notProductionClaims": ["tiny gaps", "general finite-body convergence", "calibrated hysteresis", "source reaction loads"]
+}

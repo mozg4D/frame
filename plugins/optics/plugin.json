@@ -1,0 +1,20 @@
+{
+  "id": "optics",
+  "name": "Optics (unfinished)",
+  "description": "Unfinished native authoring foundation. No scene Solve, optimization, image, power measurement or manufacturing result is available.",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "color": "#8fcbd6",
+  "assets": ["authoring.js", "viewport.js"],
+  "objects": [
+    {"type":"optics","name":"Optics","fields":{"Mode":["Imaging","Illumination"],"Max surfaces":8,"Min thickness":1,"Min gap":1},"fieldOptions":{"Mode":{"access":"read-write"},"Max surfaces":{"integer":true,"minimum":1,"access":"read-write"},"Min thickness":{"unit":"mm","minimum":0,"access":"read-write"},"Min gap":{"unit":"mm","minimum":0,"access":"read-write"}}},
+    {"type":"optics_subject","name":"Subject","fields":{"Optics":"","Sensor":"","Distance":["Finite","Infinity"],"Depth min":0,"Depth max":0,"Horizontal field":20,"Vertical field":20,"Mapping":["Upright","Inverted"]},"fieldOptions":{"Distance":{"access":"read-write"},"Depth min":{"unit":"mm","access":"read-write"},"Depth max":{"unit":"mm","access":"read-write"},"Horizontal field":{"unit":"deg","minimum":0.000001,"maximum":179,"access":"read-write"},"Vertical field":{"unit":"deg","minimum":0.000001,"maximum":179,"access":"read-write"},"Mapping":{"access":"read-write"}}},
+    {"type":"optics_sensor","name":"Sensor","fields":{"Optics":"","Pixels x":1024,"Pixels y":1024},"fieldOptions":{"Pixels x":{"integer":true,"minimum":1,"maximum":32768,"access":"read-write"},"Pixels y":{"integer":true,"minimum":1,"maximum":32768,"access":"read-write"}}},
+    {"type":"optics_source","name":"Source","fields":{"Optics":"","Target":"","Power":1,"Wavelength":550,"Distribution":["Lambertian","Collimated"]},"fieldOptions":{"Power":{"unit":"W","minimum":0,"access":"read-write"},"Wavelength":{"unit":"nm","minimum":0.000001,"access":"read-write"},"Distribution":{"access":"read-write"}}},
+    {"type":"optics_target","name":"Target","fields":{"Optics":"","Goal":["Relative","Absolute"],"Irradiance":1},"fieldOptions":{"Goal":{"access":"read-write"},"Irradiance":{"unit":"W/m2","minimum":0,"access":"read-write"}}}
+  ],
+  "tags": [
+    {"kind":"optics_blocker","name":"Blocker","text":"B"},
+    {"kind":"optics_optical","name":"Optical","text":"O","fields":{"Model":["Unassigned","Dielectric volume","Mirror surface"],"Coating":["None","Unassigned"]}}
+  ]
+}

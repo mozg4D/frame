@@ -129,3 +129,17 @@ plugins.md text eol=lf
 tests/run.mjs text eol=lf
 tests/pointer-lock.mjs text eol=lf
 tests/pointer-return.mjs text eol=lf
+
+plugins/cut/** text eol=lf
+
+plugins/optics/** text eol=lf
+experiments/optics/** text eol=lf
+
+plugins/rf/** text eol=lf
+experiments/structural-pcg/** text eol=lf
+experiments/magneto-reference/** text eol=lf
+experiments/thermal/material-properties.js text eol=lf
+experiments/thermal/MATERIAL-PROPERTIES.md text eol=lf
+experiments/thermal/tests/material-properties.mjs text eol=lf
+plugins/circuit/plugin.js text eol=lf
+tests/spline-display-samples*.mjs text eol=lf

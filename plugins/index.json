@@ -6,5 +6,8 @@
   "structural/plugin.json",
   "circuit/plugin.json",
   "cfd/plugin.json",
-  "magneto/plugin.json"
+  "magneto/plugin.json",
+  "cut/plugin.json",
+  "rf/plugin.json",
+  "optics/plugin.json"
 ]

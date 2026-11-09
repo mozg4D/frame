@@ -31,9 +31,12 @@ export async function pluginChecks(parent){
   const original=await cmd('inspect',{},r.hash);await timed('network merge with native references',1500,()=>cmd('rename-net',{net:ground.id,name:'OUT'}));check('merge retargets Ground and component pins',(await cmd('inspect')).ground===out.id&&(await cmd('inspect',{},r.hash)).pins.every(p=>p.net===out.id));
   await call('edit.history',{action:'undo'});check('one native Undo restores merge',equal((await cmd('inspect',{},r.hash)).pins,original.pins)&&(await cmd('inspect')).ground===ground.id);
   const second=await call('plugins.create',{plugin:'circuit'}),other=await cmd('create-net',{name:'OUT'},second.hash);check('independent Circuit network namespace',other.id!==out.id);
+  const topology=await timed('bounded native topology snapshot',1000,()=>cmd('topology'));
+  check('topology preserves explicit Ground and disconnected pin identities',topology.numericalAvailable===false&&topology.nets.find(n=>n.id===ground.id)?.node==='0'&&topology.components.find(n=>n.hash===capacitor.hash)?.pins[1].node==='p_'+capacitor.hash+'_'+capacitor.pins[1].id,topology);
   const saved=await timed('native HASH export',3000,()=>call('scene.export',{includeData:true})),savedRows=await rows(),savedR=await cmd('inspect',{},r.hash),savedOwner=await cmd('inspect');
   await timed('native HASH reopen',10000,()=>call('scene.open',{name:'circuit-authoring.hash',base64:saved.base64}));
   check('HASH preserves pin/net IDs and explicit ownership',equal(await cmd('inspect',{},r.hash),savedR)&&equal(await cmd('inspect'),savedOwner));
+  check('HASH preserves derived topology without stored solver data',equal(await cmd('topology'),topology));
   for(const n of savedRows){const q=(await rows()).find(q=>q.hash===n.hash);check('HASH preserves ordinary frame and parameters',q&&equal(q.matrix,n.matrix)&&equal(q.params,n.params)&&q.parent===n.parent,{before:n,after:q});}
   for(const mode of ['duplicate','clipboard','merge']){
    let copy,mergeRows;

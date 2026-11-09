@@ -1,0 +1,113 @@
+{
+  "scope": "Structural experimental PCG lifecycle continuation; CPU and command emulators only",
+  "node": "v24.22.1",
+  "started": "2026-11-09T08:54:37.037Z",
+  "main": "649c046723fc2d181e75d234c43ddf73f5165e75",
+  "sceneSolved": false,
+  "analysisReady": false,
+  "hardwareValidated": false,
+  "published": false,
+  "sources": {
+    "index.html": "6016e72a56159f3a0fbf649443e6897bb8b06f8515b49f134ea0d489b9fbcb95",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d",
+    "experiments/structural-pcg/tests/validation.mjs": "44e0ed2fb6c7d5c0fc33e2b3c7af2691ed61f1e1d4feecfc830fa14bcfc3515f",
+    "experiments/structural-pcg/tests/lifecycle.mjs": "23eb258275fa0354a486aaa48d1699370350445d6fed304a77e2d78a8e203598",
+    "experiments/structural-pcg/tests/hardware.mjs": "ed5b728ce639965dd5a6eeb744b1286c63ae0cf3f9fd3d84170bcabadae846ce",
+    "experiments/structural-pcg/tests/qualify-cpu.mjs": "a260adbfb6cccfbf25241c32fad75318d6da34f1abafc41d52bb44bc43018221"
+  },
+  "stages": [
+    {
+      "name": "candidate-validation",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "experiments/structural-pcg/tests/validation.mjs",
+        "experiments/structural-pcg/tests/lifecycle.mjs"
+      ],
+      "exit": 0,
+      "pass": true,
+      "completedMs": 192.5765,
+      "tests": 26,
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "log": "experiments/structural-pcg/tests/results/candidate-validation.log"
+    },
+    {
+      "name": "candidate-authoring",
+      "args": [
+        "--test",
+        "--test-reporter=tap",
+        "plugins/structural/tests/authoring-preview.mjs"
+      ],
+      "exit": 0,
+      "pass": true,
+      "completedMs": 127.76650000000004,
+      "tests": 8,
+      "passed": 8,
+      "failed": 0,
+      "skipped": 0,
+      "log": "experiments/structural-pcg/tests/results/candidate-authoring.log"
+    },
+    {
+      "name": "candidate-tag-bridge",
+      "args": [
+        "tests/plugin-tag-fields.mjs"
+      ],
+      "exit": 0,
+      "pass": true,
+      "completedMs": 75.0754,
+      "tests": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "log": "experiments/structural-pcg/tests/results/candidate-tag-bridge.log",
+      "checks": 43,
+      "timings": [
+        {
+          "name": "100 completed two-owner edits",
+          "ms": 2.7298000000000044,
+          "limit": 500
+        }
+      ]
+    },
+    {
+      "name": "candidate-hardware-harness-syntax",
+      "args": [
+        "--check",
+        "experiments/structural-pcg/tests/hardware.mjs"
+      ],
+      "exit": 0,
+      "pass": true,
+      "completedMs": 42.62209999999999,
+      "tests": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "log": "experiments/structural-pcg/tests/results/candidate-hardware-harness-syntax.log"
+    },
+    {
+      "name": "candidate-pcg-syntax",
+      "args": [
+        "--check",
+        "experiments/structural-pcg/gpu-pcg.js"
+      ],
+      "exit": 0,
+      "pass": true,
+      "completedMs": 42.74629999999996,
+      "tests": 0,
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "log": "experiments/structural-pcg/tests/results/candidate-pcg-syntax.log"
+    }
+  ],
+  "pending": [
+    "coordinated exact-source GPU component gate",
+    "full shared npm test -- --headless",
+    "integration/publication through main chat"
+  ],
+  "pass": true,
+  "finished": "2026-11-09T08:54:37.520Z"
+}
