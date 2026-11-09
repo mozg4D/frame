@@ -68,7 +68,9 @@
     "test:current-source": "node tests/current-source-baseline.mjs && node tests/current-source-baseline-test.mjs",
     "test:viewport-pointer:cpu": "node tests/viewport-pointer-priority.mjs",
     "test:plugin-overlay:cpu": "node tests/plugin-overlay-refresh.mjs",
-    "test:native-file-fixture:cpu": "node tests/october23-picker-fixture.mjs"
+    "test:native-file-fixture:cpu": "node tests/october23-picker-fixture.mjs",
+    "test:authoring-stamp:cpu": "node tests/authoring-stamp.mjs",
+    "test:authoring-stamp": "node tests/authoring-stamp.mjs && node tests/authoring-stamp-browser.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

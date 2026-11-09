@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 09 nov 03:01",
-  "predecessorCommit": "eee342a1840ddc3326d74a376765c4cfd6e34843",
+  "version": "2026 09 nov 06:38",
+  "predecessorCommit": "b8d23602ac9b951d7af926bec4fd99627659c7b8",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -90,6 +90,35 @@
       "plugins/magneto/tests/authoring.test.mjs",
       "plugins/magneto/tests/authoring-browser.mjs",
       "plugins/magneto/tests/index.mjs"
+    ],
+    "authoring-stamp": [
+      "index.html",
+      "tests/authoring-stamp.mjs",
+      "tests/authoring-stamp-browser.mjs"
+    ],
+    "thermal-integration": [
+      "app.md",
+      "experiments/thermal/NATIVE-INPUTS.md",
+      "experiments/thermal/native-inputs.js",
+      "experiments/thermal/tests/native-input-fixture.mjs",
+      "experiments/thermal/tests/native-inputs-browser.mjs",
+      "experiments/thermal/tests/native-inputs.mjs",
+      "frame-sw.js",
+      "index.html",
+      "package.json",
+      "plugins.md",
+      "tests/authoring-stamp-browser.mjs",
+      "tests/authoring-stamp.mjs",
+      "tests/run.mjs"
+    ],
+    "thermal-native-observation": [
+      "index.html",
+      "frame-sw.js",
+      "experiments/thermal/NATIVE-INPUTS.md",
+      "experiments/thermal/native-inputs.js",
+      "experiments/thermal/tests/native-input-fixture.mjs",
+      "experiments/thermal/tests/native-inputs-browser.mjs",
+      "experiments/thermal/tests/native-inputs.mjs"
     ]
   },
   "files": {
@@ -115,11 +144,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "b17c6a11ddbcbc4b13c0813cb97620285fda742610a71dc4df1a7818b7135a36"
+      "sha256": "f02514882ddcd3772f884d73ba9098b860676ddc8dcfa6666b7ab5cab93b41d2"
     },
     "index.html": {
-      "bytes": 2777299,
-      "sha256": "207009dfc3d8b34b0966c1a9345ddaceba5502a5782c588506afa4fcfa4ef0d9"
+      "bytes": 2778083,
+      "sha256": "46176034b55e5bd75f1918f8e12c16419140e6ccecd239fab09bd3af04de35e4"
     },
     "plugins/index.json": {
       "bytes": 201,
@@ -312,6 +341,50 @@
     "tests/fixture-transform.mjs": {
       "bytes": 3032,
       "sha256": "70e602e02a709abd8116833bcbaba24351070e612a0d850ae4de452212a8fd61"
+    },
+    "tests/authoring-stamp.mjs": {
+      "bytes": 15420,
+      "sha256": "4cd70355932947491f0c2a2d3fb4e90496ebdc2677df10599ad313ec53b624cf"
+    },
+    "tests/authoring-stamp-browser.mjs": {
+      "bytes": 13442,
+      "sha256": "7425392cf77f279b1854b932c7efcc0ded676377482e512c62bc75b8c7ca29a5"
+    },
+    "app.md": {
+      "bytes": 272671,
+      "sha256": "3321e4a3561a76aafc7201a15f593b40e017bcecd09f644fa276d0d8637168eb"
+    },
+    "experiments/thermal/NATIVE-INPUTS.md": {
+      "bytes": 15384,
+      "sha256": "e369ce9d9ace2aa3da25ad79c63819cdcd597053483397d7f478fd2c3052137f"
+    },
+    "experiments/thermal/native-inputs.js": {
+      "bytes": 12946,
+      "sha256": "3c02f1e7eb462b85e0ad2e0d131fc269c580b241c32b1ed178bee8b0d0f2ceb1"
+    },
+    "experiments/thermal/tests/native-input-fixture.mjs": {
+      "bytes": 5500,
+      "sha256": "b6c93ec25f21ed1181443447dc85eaa0eceb91008b53a69f439f3093c4a3444c"
+    },
+    "experiments/thermal/tests/native-inputs-browser.mjs": {
+      "bytes": 12685,
+      "sha256": "b117c15d42220c7f07db8e255702208c97eb76f208f074fbb75a2cb0b6608a6d"
+    },
+    "experiments/thermal/tests/native-inputs.mjs": {
+      "bytes": 19164,
+      "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
+    },
+    "package.json": {
+      "bytes": 5749,
+      "sha256": "964785a0c4b31b2697beb1bc1f916c1dbbf8148bdabf285036fa38d986a6da63"
+    },
+    "plugins.md": {
+      "bytes": 46232,
+      "sha256": "012d72ffa28bf263250ba86540391d0a99de63337aaf1631d485b1a5bace73ab"
+    },
+    "tests/run.mjs": {
+      "bytes": 20501,
+      "sha256": "678c32705f963a5d0469e6b29ac4c6b707193f2e2d36b61812fc54771d913a0e"
     }
   },
   "archivedProofs": {
