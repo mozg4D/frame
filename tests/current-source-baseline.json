@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 09 nov 01:37",
-  "predecessorCommit": "82b0cc7bc4eadd832f1af535fd21c461c439967c",
+  "version": "2026 09 nov 03:01",
+  "predecessorCommit": "eee342a1840ddc3326d74a376765c4cfd6e34843",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -77,6 +77,19 @@
       "tests/october23-picker-fixture.mjs",
       "tests/file-controls.mjs",
       "tests/pwa.mjs"
+    ],
+    "magneto": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "plugins/magneto/plugin.json",
+      "plugins/magneto/plugin.js",
+      "plugins/magneto/icon.svg",
+      "tests/plugin-tag-fields.mjs",
+      "tests/plugin-tag-fields-browser.mjs",
+      "plugins/magneto/tests/authoring.test.mjs",
+      "plugins/magneto/tests/authoring-browser.mjs",
+      "plugins/magneto/tests/index.mjs"
     ]
   },
   "files": {
@@ -102,15 +115,15 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "0b0b3c6fd8c35a688346da426c1f2d54ebc66e47492cfdc812ff31f5a44804bd"
+      "sha256": "b17c6a11ddbcbc4b13c0813cb97620285fda742610a71dc4df1a7818b7135a36"
     },
     "index.html": {
-      "bytes": 2773865,
-      "sha256": "b159777ebbb7b33849b45551c11561e0653a7516b9a55d1ae056e9f4383b8288"
+      "bytes": 2777299,
+      "sha256": "207009dfc3d8b34b0966c1a9345ddaceba5502a5782c588506afa4fcfa4ef0d9"
     },
     "plugins/index.json": {
-      "bytes": 176,
-      "sha256": "c74e0534ba95cc00681dfb4ee7bb8159ef1ece34edfbe29674a918c476f9e445"
+      "bytes": 201,
+      "sha256": "d144b27b14f4bc124477ddbf6899283b4e77881e790c9f5bc189b81ef793608e"
     },
     "plugins/thermal/native-fan.js": {
       "bytes": 6483,
@@ -263,6 +276,42 @@
     "tests/pwa.mjs": {
       "bytes": 16310,
       "sha256": "1aee92a64d5491db4773e38cf8ac236d98323b7280de65b0ad113cfd053f589c"
+    },
+    "plugins/magneto/plugin.json": {
+      "bytes": 832,
+      "sha256": "708e9074c41e8d9e0780108043ae1b47675a78ac7b59b0966bf797c4d439285c"
+    },
+    "plugins/magneto/plugin.js": {
+      "bytes": 4886,
+      "sha256": "908c82a3cb527fc268932f39ed245079d2d35487d50d54c6d96e17728cc7e9ff"
+    },
+    "plugins/magneto/icon.svg": {
+      "bytes": 214,
+      "sha256": "c67139dc0e704dd413cb1cd82a6fce24b86d9591d6bb482322cb9155b6a8b77b"
+    },
+    "tests/plugin-tag-fields.mjs": {
+      "bytes": 12747,
+      "sha256": "35e6c44d7ebdc2d298c9cfb551317e1dce9afdf44646a25b19b7dcc08da6cce4"
+    },
+    "tests/plugin-tag-fields-browser.mjs": {
+      "bytes": 4942,
+      "sha256": "ea0e2867635135e85ac111e8d2fb4b13064d9161603bba7bdcb71d78edc4e852"
+    },
+    "plugins/magneto/tests/authoring.test.mjs": {
+      "bytes": 7322,
+      "sha256": "d7aeac88f459d7e8001fbb2e64133c4110c1be52779c5e1edbab964ed6a9fbac"
+    },
+    "plugins/magneto/tests/authoring-browser.mjs": {
+      "bytes": 15804,
+      "sha256": "0477b0c678cdbf871eba4ef48f320d6cef00cf439db13df9412cf451456eeb3f"
+    },
+    "plugins/magneto/tests/index.mjs": {
+      "bytes": 54,
+      "sha256": "17e4cba01811ee5fb175a8a943d8f1da74a5284538eb5ba959ed2a2f8a76b089"
+    },
+    "tests/fixture-transform.mjs": {
+      "bytes": 3032,
+      "sha256": "70e602e02a709abd8116833bcbaba24351070e612a0d850ae4de452212a8fd61"
     }
   },
   "archivedProofs": {

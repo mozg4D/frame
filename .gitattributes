@@ -110,3 +110,9 @@ tests/october23-picker-fixture.mjs text eol=lf
 tests/file-controls.mjs text eol=lf
 
 tests/pwa.mjs text eol=lf
+
+plugins/magneto/** text eol=lf
+tests/plugin-tag-fields.mjs text eol=lf
+tests/plugin-tag-fields-browser.mjs text eol=lf
+
+tests/fixture-transform.mjs text eol=lf

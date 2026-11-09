@@ -1059,3 +1059,23 @@ Editable motion-path keys and tangent handles receive pointer input above the tr
 ## Plugin overlay state refresh (2026-11-09)
 
 Plugin attribute-state notifications now immediately refresh the same plugin's core-owned overlay. Atomic placement cancellation therefore clears the periodic-table pressed cell immediately after an Attributes click, keyboard cancellation or navigation, without changing the actual placement/physics state machine. Unchanged descriptors reuse their DOM stamp; the refresh does not scan scene Browser rows, visit other plugin descriptors or rebuild transform gizmos. High-frequency requestDraw remains unchanged.
+
+## Magneto unfinished authoring preview
+
+Magneto adds finite XY plane helpers using native transforms, hierarchy, selection/gizmos, Undo, animation and HASH. Mode buttons choose Solve or Current Density; the latter exposes one signed scalar in A/mm². Solve mode stores one B/H/Magnetization/Saturation × Strokes/Section choice, with Frame/Animation disabled. The visible Unfinished notice and catalogue name identify authoring only. Material-only Magneto tags require the shared parameter-tag bridge. Intended preset names have no calibrated physics. The shared surfaceStyle fallback is non-destructive and suppressed by effective Frame Material. Numerical actions reject; no field, persistent state, Force/Torque or curves exist. See plugins/magneto/README.md. Focused native authoring hardware gates passed at DPR 1 and 2; full standard/stress aggregate remains pending. See plugins/magneto/QUALIFICATION.md for exact hashes and limits.
+
+## Native plugin tag fields (isolated LAB bridge)
+
+Plugin tag declarations may optionally include bounded scalar `fields`: finite numbers, booleans or homogeneous nonempty string/number choices. Choice element zero is the native default. Fieldless marker declarations keep their empty parameter shape. Tag field options/ranges and object references are not supported by this narrow declaration contract.
+
+Native Attributes, discrete animation, Undo and HASH use the existing tag parameter container and stable tag UID. `tag.set {ids,kind,enabled,params?}` validates all targets and the full merged parameter values before one ordinary transaction. Editing keeps the existing UID; no-op batches create no history. Removal cannot include params. `tag.read {ids,kind}` returns validated native tags with UID and params per owner; `tag.list` exposes fields without loading plugin modules. No plugin-specific owner restriction or visual Material replacement is introduced. Known plugin HASH validation remains strict; unavailable/unresolved tag authoring stays on the existing best-effort path.
+
+CPU regression: `node tests/plugin-tag-fields.mjs`. The prepared `tests/plugin-tag-fields-browser.mjs` exports a focused native test for two polygon owners in an isolated hardware-qualified browser page. It has not been run by this bridge task. Full standard/stress and hardware gates remain separate and required.
+
+Known parameter-bearing plugin tags restored without a UID receive a canonical native 32-hex ID before animation binding. Existing valid IDs are preserved; legacy fieldless markers without an ID remain unchanged on restore. The shared animation-binding fallback also uses the native ID generator, so focus or label resolution cannot create a hyphenated ID that HASH rejects.
+
+## Unfinished Magneto authoring release (2026-11-09)
+
+Application and service-worker release: Frame 2026 09 nov 03:01 (Europe/Moscow). Magneto remains an unfinished native authoring preview; numerical operations are unavailable. See plugins/magneto/README.md and QUALIFICATION.md for scope and evidence boundaries.
+
+Release qualification includes fresh full standard, DPR 2 stress, DPR 1 all-fixture/100M checks and focused Magneto gates. The large-fixture transform test now frames all owners and validates the real native handle before dragging; this corrects an offscreen test setup without changing runtime behavior. See plugins/magneto/QUALIFICATION.md for retained failures and limits.

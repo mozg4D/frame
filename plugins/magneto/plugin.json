@@ -1,0 +1,23 @@
+{
+  "id": "magneto",
+  "name": "Magneto (unfinished)",
+  "description": "Unfinished native authoring preview. No magnetic solver, material physics, current-conductor solve or field/results are available.",
+  "module": "plugin.js",
+  "icon": "icon.svg",
+  "color": "#bd95d6",
+  "objects": [{
+    "type": "magneto",
+    "name": "Magneto",
+    "fields": {
+      "Mode": ["Solve", "Current Density"],
+      "Quantity": ["B", "H", "Magnetization", "Saturation"],
+      "Presentation": ["Strokes", "Section"],
+      "Current Density": 0
+    },
+    "fieldOptions": {"Current Density": {"unit": "A/mm²", "access": "read-write"}}
+  }],
+  "tags": [{
+    "kind": "magneto", "name": "Magneto", "text": "M",
+    "fields": {"Material": ["Electrical Steel M19", "Electrical Steel M27", "Pure Iron", "NdFeB N35", "NdFeB N42", "NdFeB N52"]}
+  }]
+}
