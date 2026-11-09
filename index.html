@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 09 nov 06:38">
-<title>Frame 2026 09 nov 06:38</title>
+<meta name="frame-version" content="2026 09 nov 07:37">
+<title>Frame 2026 09 nov 07:37</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -10693,18 +10693,40 @@ function rename(id){
 }
 
 // The same logarithmic step and six-pixel notches as Frame's makeScrubInput.
-let framePointerLock=null,framePointerLockBlocked=false;
-function frameUnlockPointer(){const lock=framePointerLock;framePointerLock=null;if(lock){lock.ended=true;lock.cursor?.remove();}const doc=lock?.element.ownerDocument||FrameViewWindows.inputDocument;if(doc.pointerLockElement)doc.exitPointerLock();}
-function frameEdgePointer(e,element){const document=element.ownerDocument,screen=document.defaultView.screen;if(!e.isTrusted||framePointerLock||framePointerLockBlocked||document.pointerLockElement||!element.requestPointerLock)return;const left=screen.availLeft||0,top=screen.availTop||0;if(e.screenX>left+2&&e.screenX<left+screen.availWidth-3&&e.screenY>top+2&&e.screenY<top+screen.availHeight-3)return;const lock={element,id:e.pointerId,x:e.clientX,y:e.clientY,buttons:e.buttons,screenOffsetX:e.screenX-e.clientX,screenOffsetY:e.screenY-e.clientY};framePointerLock=lock;framePointerLockBlocked=true;try{const request=element.requestPointerLock();request?.catch(()=>{if(framePointerLock===lock)framePointerLock=null;});}catch{framePointerLock=null;}}
+let framePointerLock=null,framePointerLockBlocked=false,framePointerMenuBlocked=false;
+function frameUnlockPointer(){const lock=framePointerLock;framePointerLock=null;if(lock){lock.ended=true;if(lock.element.id==='frame-engine-canvas'&&(lock.buttons&2))framePointerMenuBlocked=true;try{if(lock.element.hasPointerCapture(lock.id))lock.element.releasePointerCapture(lock.id);}catch{}}const doc=lock?.element.ownerDocument||FrameViewWindows.inputDocument;if(doc.pointerLockElement)doc.exitPointerLock();}
+function framePointerInsideScreen(x,y,screen){const left=screen.availLeft||0,top=screen.availTop||0;return x>left+2&&x<left+screen.availWidth-3&&y>top+2&&y<top+screen.availHeight-3;}
+function frameEdgePointer(e,element){
+  const document=element.ownerDocument,screen=document.defaultView.screen,previous=framePointerLock;
+  if(!e.isTrusted||previous&&!previous.captured||framePointerLockBlocked||document.pointerLockElement||!element.requestPointerLock||framePointerInsideScreen(e.screenX,e.screenY,screen))return;
+  const lock={element,id:e.pointerId,x:previous?.x??e.clientX,y:previous?.y??e.clientY,buttons:e.buttons,nativeX:e.clientX,nativeY:e.clientY};lock.screenOffsetX=e.screenX-lock.x;lock.screenOffsetY=e.screenY-lock.y;framePointerLock=lock;framePointerLockBlocked=true;
+  const failed=()=>{if(framePointerLock===lock)framePointerLock=previous||null;};try{const request=element.requestPointerLock();request?.catch(failed);}catch{failed();}
+}
 function frameLockedEvent(type,lock,e){lock.element.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:lock.id,pointerType:'mouse',isPrimary:true,clientX:lock.x,clientY:lock.y,button:e?.button??0,buttons:type==='pointermove'?lock.buttons:0,ctrlKey:e?.ctrlKey,shiftKey:e?.shiftKey,altKey:e?.altKey,metaKey:e?.metaKey}));}
-FrameViewWindows.onDocument('pointerdown',()=>framePointerLockBlocked=false,true);
-FrameViewWindows.onDocument('pointermove',e=>{if(e.isTrusted&&framePointerLock)e.stopImmediatePropagation();},true);
-FrameViewWindows.onDocument('mousemove',e=>{const lock=framePointerLock,document=e.currentTarget,screen=document.defaultView.screen;if(!lock||document.pointerLockElement!==lock.element)return;if(lock.skipRecenter&&e.isTrusted){lock.skipRecenter=false;return;}lock.x+=e.movementX;lock.y+=e.movementY;if(lock.element.id==='frame-engine-canvas'){const x=lock.x+lock.screenOffsetX,y=lock.y+lock.screenOffsetY,inside=x>(screen.availLeft||0)+2&&x<(screen.availLeft||0)+screen.availWidth-3&&y>(screen.availTop||0)+2&&y<(screen.availTop||0)+screen.availHeight-3;if(inside){if(!lock.cursor){lock.cursor=document.createElementNS('http://www.w3.org/2000/svg','svg');lock.cursor.id='frame-navigation-cursor';lock.cursor.setAttribute('width','12');lock.cursor.setAttribute('height','18');lock.cursor.style.cssText='position:fixed;pointer-events:none;z-index:2147483647';lock.cursor.innerHTML='<path d="M1 1L1 14L4 11L7 17L9 16L6 10L11 10Z" fill="white" stroke="black" stroke-width="1"/>';document.body.append(lock.cursor);}lock.cursor.style.left=lock.x+'px';lock.cursor.style.top=lock.y+'px';lock.cursor.style.display='';}else if(lock.cursor)lock.cursor.style.display='none';}frameLockedEvent('pointermove',lock,e);},true);
-for(const type of ['pointerup','mouseup','pointercancel'])FrameViewWindows.onDocument(type,e=>{const lock=framePointerLock,document=e.currentTarget;if(!lock||!e.isTrusted)return;if(document.pointerLockElement===lock.element){e.stopImmediatePropagation();frameUnlockPointer();frameLockedEvent(type==='pointercancel'?'pointercancel':'pointerup',lock,e);}else frameUnlockPointer();},true);
-FrameViewWindows.onDocument('pointerlockchange',e=>{const lock=framePointerLock,document=e.currentTarget;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else lock.skipRecenter=true;}else if(lock){framePointerLock=null;lock.cursor?.remove();frameLockedEvent('pointercancel',lock);}});
+FrameViewWindows.onDocument('pointerdown',()=>{framePointerLockBlocked=false;framePointerMenuBlocked=false;},true);
+FrameViewWindows.onDocument('contextmenu',e=>{if(framePointerMenuBlocked){framePointerMenuBlocked=false;e.preventDefault();e.stopImmediatePropagation();}},true);
+FrameViewWindows.onDocument('pointermove',e=>{
+  const lock=framePointerLock;if(!e.isTrusted||!lock||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();if(!lock.captured)return;
+  // Native pointer lock restores the OS cursor to its capture position. Continue
+  // the gesture in its existing coordinates, while showing only that real cursor.
+  lock.x+=e.clientX-lock.nativeX;lock.y+=e.clientY-lock.nativeY;lock.nativeX=e.clientX;lock.nativeY=e.clientY;frameLockedEvent('pointermove',lock,e);
+  if(framePointerInsideScreen(e.screenX,e.screenY,e.currentTarget.defaultView.screen))framePointerLockBlocked=false;else frameEdgePointer(e,lock.element);
+},true);
+FrameViewWindows.onDocument('mousemove',e=>{
+  const lock=framePointerLock,document=e.currentTarget;if(!lock||lock.returning||document.pointerLockElement!==lock.element)return;if(lock.skipRecenter&&e.isTrusted){lock.skipRecenter=false;return;}lock.x+=e.movementX;lock.y+=e.movementY;frameLockedEvent('pointermove',lock,e);
+  // A DOM cursor cannot leave the app window or move the system cursor on release.
+  // Return to native capture as soon as relative travel comes back onto the screen.
+  if(framePointerLock===lock&&lock.element.id==='frame-engine-canvas'&&framePointerInsideScreen(lock.x+lock.screenOffsetX,lock.y+lock.screenOffsetY,document.defaultView.screen)){lock.returning=true;document.exitPointerLock();}
+},true);
+for(const type of ['pointerup','mouseup','pointercancel'])FrameViewWindows.onDocument(type,e=>{const lock=framePointerLock;if(!lock||!e.isTrusted||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();frameUnlockPointer();frameLockedEvent(type==='pointercancel'?'pointercancel':'pointerup',lock,e);},true);
+FrameViewWindows.onDocument('pointerlockchange',e=>{
+  const lock=framePointerLock,document=e.currentTarget;if(lock&&document!==lock.element.ownerDocument)return;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else lock.skipRecenter=true;}
+  else if(lock?.returning){lock.returning=false;lock.captured=true;try{lock.element.setPointerCapture(lock.id);}catch{frameCancelPointer();}}
+  else if(lock&&!lock.captured){framePointerLock=null;frameLockedEvent('pointercancel',lock);}
+});
 function frameCancelPointer(){const lock=framePointerLock;frameUnlockPointer();if(lock)frameLockedEvent('pointercancel',lock);}
 FrameViewWindows.onDocument('keydown',e=>{if(e.key==='Escape'&&framePointerLock){e.preventDefault();e.stopImmediatePropagation();frameCancelPointer();}},true);
-FrameViewWindows.onWindow('blur',frameCancelPointer);FrameViewWindows.onDocument('visibilitychange',()=>{if(document.hidden)frameCancelPointer();});
+FrameViewWindows.onWindow('blur',frameCancelPointer);FrameViewWindows.onDocument('visibilitychange',e=>{if(e.currentTarget.hidden&&e.currentTarget===framePointerLock?.element.ownerDocument)frameCancelPointer();});
 function bindNumber(input,o){
   if(o.length){const get=o.get,set=o.set,unit=unitMillimeters[displayUnitIndex];o={...o,get:()=>get()/unit,set:v=>set(v*unit)};}
   input.type='text';input.inputMode='decimal';input.spellcheck=false;input.autocomplete='off';input.dataset.numeric='';

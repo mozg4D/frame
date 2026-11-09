@@ -11,7 +11,7 @@
     "test:materials": "node tests/material-editor.mjs",
     "test:gallery": "node tests/material-gallery.mjs",
     "test:editor": "node tests/editor-revision.mjs",
-    "test:pointer-lock": "node tests/pointer-lock.mjs",
+    "test:pointer-lock": "node tests/pointer-return.mjs && node tests/pointer-lock.mjs",
     "test:interaction": "node tests/interaction-feedback.mjs",
     "test:performance": "node tests/performance-heavy.mjs",
     "test:syntax": "node tests/syntax.mjs",

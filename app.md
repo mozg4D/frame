@@ -1,3 +1,7 @@
+## Native navigation cursor return (2026-11-09)
+
+Navigation restores the real system cursor on return from the screen edge rather than drawing an app-only arrow. Pointer capture continues the same gesture without camera jumps; repeated crossings, pending lock release, Escape, blur and hidden-window cancellation are covered. Numeric scrubbing is unchanged. Runtime/service-worker version: Frame 2026 09 nov 07:37.
+
 ## Synchronous native authoring observation (2026-11-09)
 
 Release stamp: Frame 2026 09 nov 06:38 (Europe/Moscow). The application shell and service worker share this version.
@@ -130,7 +134,7 @@ Polygon hover and component maps require an explicitly selected editable mesh; s
 
 Bridge in Edge mode is a one-shot boundary-edge drag: hover the first edge, press and drag to another edge, then release. Valid edges highlight during the gesture. Separate edges create two oriented triangles; consistently oriented adjacent edges create one. Degenerate pairs and existing faces reject atomically. Release, right-click, Escape, another mode/tool or pointer cancellation exits Bridge. The scripted mesh.edit Bridge operation also retains equal-length chain/loop support.
 
-The shading cycle is Isoparms -> Wireframe -> Solid -> Solid + Isoparms -> Solid + Wire. Solid hides patch isoparms while retaining requested component helpers. Open recents can replace the Save dropdown immediately. Browser marquees clear on cancellation, a replacement gesture and window blur. Pointer-lock navigation shows a virtual cursor when accumulated relative travel returns inside the screen, hides it beyond the edge, and removes it when navigation finishes.
+The shading cycle is Isoparms -> Wireframe -> Solid -> Solid + Isoparms -> Solid + Wire. Solid hides patch isoparms while retaining requested component helpers. Open recents can replace the Save dropdown immediately. Browser marquees clear on cancellation, a replacement gesture and window blur. Pointer-lock navigation keeps the system cursor hidden beyond the screen edge. When accumulated relative travel returns inside the screen, it immediately restores the native cursor and pointer capture while the same navigation gesture continues. The browser restores its saved screen-edge capture position; Frame preserves the accumulated gesture coordinates so this restoration and the eventual button release do not jump the camera. No app-only cursor is drawn. A subsequent edge crossing can lock again; Escape, blur, visibility loss and pointer cancellation finish the gesture. Numeric scrubbing retains unlimited pointer lock.
 
 `diagnostics.pixels {points,presentation:true}` samples the native composed hover presentation without SVG overlays; the default continues sampling cached geometry. `tests/november3-feedback.mjs` exercises native hover, materials, deletion/history, nested buffer/texture replicas, Ctrl extrusion, orthographic moving-pixel comparison, Connect/To Editable, Bridge gestures, camera navigation, file dropdowns and Browser cleanup with completed-operation budgets. Pointer-lock regression verifies native lock/re-entry separately in a headless browser. Both run in the shared standard/stress suite. Runtime/service-worker version: Frame 2026 03 nov 15:50.
 
