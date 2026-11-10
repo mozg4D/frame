@@ -1,0 +1,26 @@
+{
+  "mainReviewed": "649c046723fc2d181e75d234c43ddf73f5165e75",
+  "mainIndexSHA256": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+  "sourceExtractedFunction": {
+    "name": "pluginSnapshot",
+    "sha256": "11b51364da084123f7b74ffa367ed5df7da93fccb1414842df3edaafe04e7bd7",
+    "providerScope": "CPU stubs for occurrence/resource identity, bounds and affine multiplication; actual native function body executes"
+  },
+  "retainedDomainReference": {
+    "path": "C:/Users/user/frame-gpu-check/structural-afe7d3de/frame-structural/plugins/structural/discretization.js",
+    "sha256": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "localSHA256": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "unchanged": true
+  },
+  "sources": {
+    "index.html": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+    "experiments/structural-capture/capture.js": "31a01d462eaf99e9a8a66a083a796b976fb004879efb23692bc9040f24afbd6b",
+    "experiments/structural-capture/domain-reference.js": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "experiments/structural-capture/tests/capture.mjs": "2ee010e8d950f3a610ae4a453e8930d50f6ec55b6e2fe23946b6ab44002f587d",
+    "experiments/structural-load/resolved-case.js": "50ed47ffe2356dd7f395937e2342a36a0c2aabdaa90fa1022011594eef921359",
+    "experiments/structural-load/load-case-reference.js": "5b471b48792f548959b7217a2bf0cdcfc909cfbe61b31bc78fc151defbe3a424",
+    "experiments/structural-load/load-mapping-reference.js": "1a03a2767b2b06f505db5def55c9cae8a7b17e0fbe20b0847cb1433dc70c6bf5",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d"
+  }
+}

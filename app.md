@@ -1,3 +1,11 @@
+## Live spline preview CPU work (2026-11-10)
+
+Gizmo shape eligibility is resolved once per visible view during each draw, after that view restores its canvas and camera. The signature and every handle use the same synchronous classification; there is no cross-frame selection cache.
+
+Live Morph preview resolves the original owner and Solve poses before synchronously reading selected keys and observed points. Ordinary spline drags avoid a discarded full-cage Morph snapshot. Admitted spline and polygon edits retain call-time snapshots, parent-source ownership, logical vertex IDs and per-owner queue coalescing.
+
+`tests/live-preview-work.mjs` runs 26 CPU regressions against the shipped functions and small historical reference snippets. Native gestures, exact geometry, Undo/Cancel, CPU/GPU timings and the original Playwright 65/150 ms heavy-drag budgets remain required in fresh standard and stress gates.
+
 ## Camera View during initial realtime preparation (2026-11-09)
 
 The first View click starts a protected manual render when the active Camera is automatically preparing its initial image with Realtime on. It no longer cancels that unseen automatic preparation and leaves the viewport without an image. View still stops a manual render during preparation, or any already visible render preview. Its title and accessible label use the same action rule. `render.inspect` exposes `manual`, the existing native manual-job lifetime; it is false again after completion or failure.
@@ -515,6 +523,8 @@ Spline reference is an authored cage; polygon reference is a separate canonical 
 `tests/scenes/morph-fingers.hash` and `morph-hands.hash` contain two horizontal fingers (patch and polygon) and a two-segment elbow. Each finger has 16 controls, 12 side quads (four per phalanx) and one tip quad; the root is open. Proximal, Middle and Distal are independent 0–100 Morph weights, each authored as one native rotating region. Flex controls the elbow. These fixtures contain zero animation channels or baked point samples. Recipe: `generate-release.mjs --hands`, using `morph-anatomy.mjs`. Verify each joint against analytic rotation, composition, phalanx lengths, live multi-joint IK, Undo and exact neutral/HASH restoration.
 
 ## HASH native scene
+
+Native preflight builds one owner-ID membership Set, reusing it for duplicate-ID and parent-reference validation. Parent membership is independent of object order and does not scan the owner array for each child. Missing parents, invalid parent cardinality and cycles still reject. `node tests/hash-parent-membership.mjs` checks the actual native preflight plus a bounded 100000-owner membership workload. This change does not alter HASH storage or the scene authority model.
 
 `.hash` is the canonical addressed scene model in RAM: `scene.records` maps address to type/value. Geometry values are owner-bound GPU descriptors with current counts, not CPU arrays. Compress only for Save. Add fields/types only for an actual authored feature after deciding ownership, precision, serialized size and exact round-trip checks. No speculative catch-all data container.
 
@@ -1153,3 +1163,9 @@ Optics adds a lazy native Design Space and Subject/Sensor/Source/Target authorin
 Surface preparation can reuse exact curve samples already computed for the same native source cage display. Reuse requires the same cage object, a complete segment set and matching endpoint, tangent-handle and approximation fingerprints for every edge. In-place edits, stale live-preview fingerprints, transformed cages and missing samples fall back to worker sampling. Samples are cloned by the existing worker message; no CPU surface mirror or new persistent sample cache is introduced.
 
 The leading worker reports `displaySamplesReused`; all available worker lanes, geometry assembly, source-accuracy evaluation and native history/cancel handling retain their existing paths. `npm run test:spline-display-samples` verifies stale-cache rejection, exact fresh-sampling geometry/source-accuracy oracles and Undo. The unchanged heavy-live suite continues to enforce the 5-second completed global approximation budget.
+
+## Native gesture observation barrier (2026-11-09)
+
+Read-only native observations such as scene.inspect settle the already accepted gizmo input before capturing their snapshot while the pointer remains held. The native path cancels the coalesced gizmo frame, applies its latest accepted live event, awaits edit preparation, flushes its dirty transform and waits for the existing Morph queue. An ending gesture does not replay a late queued event. This does not end the gesture, release the pointer or create a new history transaction; mutating commands still reject an active gesture with BUSY. The guarantee is limited to accepted gizmo/dirty-transform work at the drain point, not later events, async snapping/copy completion or raw spline input. Synchronous authoringStamp observation is unchanged.
+
+The original Morph gesture accuracy (50 plus/minus3) and 1.5-second completed-operation budget are unchanged. tests/morph-input-settlement.mjs covers deterministic coalescing, preparation ordering, dirty work, ending/stale gestures, no duplicate evaluation and removed-barrier negative controls. The shared standard/stress runner includes all13 CPU cases.

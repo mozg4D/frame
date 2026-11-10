@@ -1,5 +1,9 @@
 # Cut authoring foundation
 
+A second unloaded CPU module now checks supplied linear motion against actual Avoid/No-cut polygon regions with holes. [LINEAR-REGIONS.md](LINEAR-REGIONS.md) defines its region-only validation, continuous active swept disks, tool-off semantics, conservative contacts and hard limits. It does not capture native sources, plan or split routes, add persistence, or change Generate availability.
+
+The separate, unloaded [linear work-interval foundation](LINEAR-PATHS.md) now validates explicit already-linear inputs and constructs bounded physical work geometry for CPU qualification. It is not runtime source capture or a complete route; Generate and all runtime availability remain unchanged.
+
 Cut is an independent native plugin for a future flat cutting and line-marking workflow. This milestone implements authoring, not CAM. Generate is disabled. The API rejects generation, source extraction, result and save with CUT_AUTHORING_ONLY. There is no job, toolpath, preview sequence, estimated time, G-code position or export file. Empty and populated scenes are both unqualified; no empty successful job is fabricated. No physical machine is contacted.
 
 The native rectangle is 1000 × 1000 mm in local X/Z, with pivot at (0,0,0). Positive X is right and positive Z is up in Frame Top, so the pivot is lower left. The head-side normal is negative Y. Red X and blue Z sides meet at the pivot. Ordinary native size/scale, rotation, hierarchy and position edit the same owner frame. Future program X/Y must map to local X/Z, never world X/Y. Multiple owners are independent. Native enabled/visible controls remain intact.

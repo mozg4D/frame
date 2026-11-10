@@ -1,0 +1,51 @@
+{
+  "scope": "Native geometry/resource observation, bounded physical grid and authored boundary handoff; CPU source-extracted native snapshot plus numerical references/command emulators",
+  "started": "2026-11-09T13:04:28.815Z",
+  "finished": "2026-11-09T13:04:29.110Z",
+  "node": "v24.22.1",
+  "command": [
+    "node",
+    "--test",
+    "--test-reporter=tap",
+    "experiments/structural-pcg/tests/validation.mjs",
+    "experiments/structural-pcg/tests/lifecycle.mjs",
+    "experiments/structural-load/tests/resolved-case.mjs",
+    "experiments/structural-capture/tests/capture.mjs"
+  ],
+  "exit": 0,
+  "completedMs": 293.74980000000005,
+  "tests": 50,
+  "passed": 50,
+  "failed": 0,
+  "skipped": 0,
+  "pass": true,
+  "sources": {
+    "index.html": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+    "experiments/structural-capture/capture.js": "31a01d462eaf99e9a8a66a083a796b976fb004879efb23692bc9040f24afbd6b",
+    "experiments/structural-capture/domain-reference.js": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "experiments/structural-capture/tests/capture.mjs": "2ee010e8d950f3a610ae4a453e8930d50f6ec55b6e2fe23946b6ab44002f587d",
+    "experiments/structural-load/resolved-case.js": "50ed47ffe2356dd7f395937e2342a36a0c2aabdaa90fa1022011594eef921359",
+    "experiments/structural-load/load-case-reference.js": "5b471b48792f548959b7217a2bf0cdcfc909cfbe61b31bc78fc151defbe3a424",
+    "experiments/structural-load/load-mapping-reference.js": "1a03a2767b2b06f505db5def55c9cae8a7b17e0fbe20b0847cb1433dc70c6bf5",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d"
+  },
+  "sceneSolved": false,
+  "analysisReady": false,
+  "geometryClassified": false,
+  "hardwareValidated": false,
+  "fullSuiteRun": false,
+  "published": false,
+  "review": {
+    "model": "gpt-6.1-sol",
+    "reasoning": "high",
+    "change": "Observed stale capture permanently revokes handle and drops borrowed snapshot references; frame-return regression added"
+  },
+  "pending": [
+    "Coordinate browser/GPU slot",
+    "Native effective Structural tag provenance",
+    "Robust clipped source-geometry occupancy and fixture intersection",
+    "Actual captured-geometry PCG hardware comparisons",
+    "Shared standard gate and main batch integration"
+  ]
+}

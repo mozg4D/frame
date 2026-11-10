@@ -18,8 +18,16 @@ Run: `node --test experiments/optics/reference.test.mjs`.
 
 Nine node:test cases cover normal incidence, Snell refraction, Brewster reflectance, TIR, the critical boundary, grazing, matching indices, extreme finite index values at normal incidence, validation, normalization, power accounting and 20,000 reproducible randomized interface cases. Random cases check unit lengths, Snell, reflection, reciprocity and power closure. CPU budget for that batch including assertions is five seconds; diagnostic output records measured wall time. This is a CPU reference safety budget, not a production throughput claim. No GPU or full application suite is executed by this isolated test command.
 
-Floating-point real arithmetic cannot resolve arbitrary index ratios or rays arbitrarily close to critical/grazing boundaries; no arbitrary precision claim is made. All transport, scene intersection, path termination, wavelength sampling and integration remain future work.
+Floating-point real arithmetic cannot resolve arbitrary index ratios or rays arbitrarily close to critical/grazing boundaries; no arbitrary precision claim is made. Production scene transport, spectral sampling and native integration remain future work; the bounded unloaded references below exercise individual parts.
 
 ## Finite source sampling
 
 `source-sampling.mjs` adds an isolated one-sample reference for uniform rectangular Lambertian and ideal Collimated emitters. It preserves finite emitting area, uses explicit caller-provided unit samples and fixed source watts divided by sample count, and distinguishes solid-angle density from delta-direction probability mass. See [SOURCE-SAMPLING.md](SOURCE-SAMPLING.md) for units, physical references, analytic moment/cone/footprint oracles and numerical limits. Run `node --test experiments/optics/source-sampling.test.mjs`. The native plugin does not import this experiment; no scene calculation or LED calibration is implied.
+
+## Triangle geometry
+
+`triangle-geometry.mjs` adds two-sided triangle intersections and closest-hit queries for bounded CPU fixtures. [TRIANGLE-GEOMETRY.md](TRIANGLE-GEOMETRY.md) describes units, explicit uncertainty, shared-edge/tie handling, actual-hole and mirror-return oracles, and the distinction between a finite-segment miss and power escaping a full scene. Run `node --test experiments/optics/triangle-geometry.test.mjs`. This experiment is unloaded; its small linear scan is not a production scene-capture or GPU traversal implementation.
+
+## Bounded opaque transport
+
+`fixture-transport.mjs` follows one ray through actual nearest-triangle events in ideal opaque fixtures, with conserved terminal watts and explicit unresolved work. See [FIXTURE-TRANSPORT.md](FIXTURE-TRANSPORT.md) for models, self-contact policy, budgets and limits. Run `node --test experiments/optics/fixture-transport.test.mjs`. It adds no runtime import or persistence/HASH data, including no JSON scene records.

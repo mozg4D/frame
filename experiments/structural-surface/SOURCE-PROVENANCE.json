@@ -1,0 +1,28 @@
+{
+  "mainReviewed": "649c046723fc2d181e75d234c43ddf73f5165e75",
+  "mainIndexSHA256": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+  "nativeAddressingSource": {
+    "path": "plugins/3d-printer/plugin.js",
+    "sha256": "c5efe334cac848fa8f21da96b5905f1d2df59ad8119026173218c6a9b11813b7"
+  },
+  "satSource": {
+    "path": "C:/Users/user/frame-gpu-check/structural-afe7d3de/frame-structural/plugins/structural/occupancy-gpu.js",
+    "sha256": "ae94d7d07a6567647e4ffed38c4bcac503b7f6e4a9f746dc117593d6d7e8c2d8",
+    "retainedFunctionsSHA256": "5b40bff5f6b0665e8198ad3da8c34b9ecb162ba093db41eafac3b8057487309d",
+    "policy": "Retain separated/touches only; native source point addressing and transforms added; no parity/ray classifier imported"
+  },
+  "sources": {
+    "index.html": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+    "plugins/3d-printer/plugin.js": "c5efe334cac848fa8f21da96b5905f1d2df59ad8119026173218c6a9b11813b7",
+    "experiments/structural-surface/surface-work.js": "e6c4d0ebaaac8bad83658278950fabe8bab67b5ec16e99fb467f0a31cdd4933d",
+    "experiments/structural-surface/sat-reference.js": "8f79ad65ff00ffda96cd0371ab7edb8360b17f70a6ffc477eeb57c80c0d8ed21",
+    "experiments/structural-surface/tests/surface.mjs": "293e352112556225e0b4860c1949ba250a9f077ab2b53f4be8facdb488afdc9f",
+    "experiments/structural-surface/kernels/buffer.wgsl": "76a243d16b406bc5b6223c43b9c98cec3b6308f041f1d1de2bbe248adf826cbe",
+    "experiments/structural-surface/kernels/texture.wgsl": "816e90d3425024af163dc9609b6b2677a9e6ba093f12986d51b953c8a1f3c694",
+    "experiments/structural-capture/capture.js": "31a01d462eaf99e9a8a66a083a796b976fb004879efb23692bc9040f24afbd6b",
+    "experiments/structural-capture/domain-reference.js": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "experiments/structural-load/resolved-case.js": "50ed47ffe2356dd7f395937e2342a36a0c2aabdaa90fa1022011594eef921359",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d"
+  }
+}

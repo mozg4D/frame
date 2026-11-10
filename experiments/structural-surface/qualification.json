@@ -1,0 +1,60 @@
+{
+  "scope": "Native buffer/texture surface dispatch preparation and generated WGSL source; CPU tests and independent clipping fixture oracles only",
+  "started": "2026-11-09T16:05:40.790Z",
+  "finished": "2026-11-09T16:05:41.083Z",
+  "node": "v24.22.1",
+  "command": [
+    "node",
+    "--test",
+    "--test-reporter=tap",
+    "experiments/structural-pcg/tests/validation.mjs",
+    "experiments/structural-pcg/tests/lifecycle.mjs",
+    "experiments/structural-load/tests/resolved-case.mjs",
+    "experiments/structural-capture/tests/capture.mjs",
+    "experiments/structural-surface/tests/surface.mjs"
+  ],
+  "exit": 0,
+  "completedMs": 292.66929999999996,
+  "tests": 63,
+  "passed": 63,
+  "failed": 0,
+  "skipped": 0,
+  "pass": true,
+  "sources": {
+    "index.html": "a3201279facd58d9861d5d8128f17b0cde10fbb50184f5bebc5aa03346bf75ee",
+    "plugins/3d-printer/plugin.js": "c5efe334cac848fa8f21da96b5905f1d2df59ad8119026173218c6a9b11813b7",
+    "experiments/structural-surface/surface-work.js": "e6c4d0ebaaac8bad83658278950fabe8bab67b5ec16e99fb467f0a31cdd4933d",
+    "experiments/structural-surface/sat-reference.js": "8f79ad65ff00ffda96cd0371ab7edb8360b17f70a6ffc477eeb57c80c0d8ed21",
+    "experiments/structural-surface/tests/surface.mjs": "293e352112556225e0b4860c1949ba250a9f077ab2b53f4be8facdb488afdc9f",
+    "experiments/structural-surface/kernels/buffer.wgsl": "76a243d16b406bc5b6223c43b9c98cec3b6308f041f1d1de2bbe248adf826cbe",
+    "experiments/structural-surface/kernels/texture.wgsl": "816e90d3425024af163dc9609b6b2677a9e6ba093f12986d51b953c8a1f3c694",
+    "experiments/structural-capture/capture.js": "31a01d462eaf99e9a8a66a083a796b976fb004879efb23692bc9040f24afbd6b",
+    "experiments/structural-capture/domain-reference.js": "b26c8a4b3b869c61948947b6439d13e182a49b8847b2c96cd55b3a945a849d56",
+    "experiments/structural-load/resolved-case.js": "50ed47ffe2356dd7f395937e2342a36a0c2aabdaa90fa1022011594eef921359",
+    "experiments/structural-pcg/gpu-pcg.js": "659e7dd510a02378a0f2d1139445d68fae1dc52ab05b487400a8c905bc769b25",
+    "experiments/structural-pcg/hex8-reference.js": "a7fd55e54ae7130bb8297e7829d6715cc3ef1794e58b09421925c4ce245ede8d"
+  },
+  "sceneSolved": false,
+  "analysisReady": false,
+  "geometryClassified": false,
+  "shaderCompiled": false,
+  "hardwareValidated": false,
+  "fullSuiteRun": false,
+  "published": false,
+  "hashSceneWrites": false,
+  "review": {
+    "model": "gpt-6.1-sol",
+    "reasoning": "high",
+    "fixed": [
+      "Missing parenthesis in generated guard; split expression and delimiter negative-control regression",
+      "Paged texture scalar capacity/layout admission; require native metadata and add truncation/layout regressions"
+    ]
+  },
+  "pending": [
+    "Coordinated compile of both generated WGSL variants",
+    "GPU surface-label comparison against clipping fixtures and dirty/transformed cases",
+    "Shared-device GPU job owner, cancellation and failure qualification",
+    "Explicit volume interior policy and physical tag provenance",
+    "Shared standard gate and main batch integration"
+  ]
+}

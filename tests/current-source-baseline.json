@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 09 nov 16:35",
-  "predecessorCommit": "cd90c4cbbf01f26bdbed5260a98861ca0e06c316",
+  "version": "2026 10 nov 08:31",
+  "predecessorCommit": "8df4081f2d279a78837ecc0e2edcf0fa8d7b1656",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -150,11 +150,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "9729bed9aafe9cf3abcef701cccb71ee0306112d4dcbf044ff42af8941477cdc"
+      "sha256": "3ad2e27373b0e3129debb0e37dccee31171f24016bcecdd8c8fbb420945670b5"
     },
     "index.html": {
-      "bytes": 2785167,
-      "sha256": "ed96ea17c57a0c5f2ea1b117cc24c74675b46367716212fbaf93c09a2f482ae0"
+      "bytes": 2785497,
+      "sha256": "001aed491163d0f4cf63acd16351c32b981091898323ecd494137c6850bde820"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -281,8 +281,8 @@
       "sha256": "b91a02da4068c964b91de1677d16f4b41377008be8d3c0c3f46b42d9e151b492"
     },
     "plugins/atomic/plugin.js": {
-      "bytes": 3904663,
-      "sha256": "401378d375a277ad76b7743af26c83e5c4eb64ecdac9bce15657047f9bd5840e"
+      "bytes": 3904956,
+      "sha256": "9b57ff9e2922080c47490740f0b4a8218e2fa57bd32e1723648c7912d1423f39"
     },
     "plugins/atomic/tests/feedback.mjs": {
       "bytes": 8810,
@@ -357,8 +357,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 283192,
-      "sha256": "3c16693f9a5bc73448b9b5e76663c4c1f1e61bc9d0d1a5960241c380e331120b"
+      "bytes": 285742,
+      "sha256": "7ac8ac7ad05c05a4f50ee47d6b980d58e062c5c9b502c3efad097caff3eb48ad"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -389,8 +389,8 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 22123,
-      "sha256": "e6a23896291d185bb0709f00399a13b6187415b6b4c5437b45ffdaabb97eddec"
+      "bytes": 23218,
+      "sha256": "709dfd07d23389124320dafc3835a2ca87a19ebf26606bdb71bef42651fd9966"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 12983,

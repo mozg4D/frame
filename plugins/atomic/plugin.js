@@ -701,7 +701,7 @@ class GPUCarbon {
   const shared=await ready,gpu=new GPUCarbon(device);for(const key of ['layout','pipelineLayout','shaderModule','kernelLoads','variants','model','pipelineCache'])gpu[key]=shared[key];gpu.pipelines=gpu.variants.cached;gpu.autoTune=true;
   if(device.features.has('timestamp-query')){gpu.query=device.createQuerySet({type:'timestamp',count:2});gpu.queryBuffer=device.createBuffer({size:256,usage:GPUBufferUsage.QUERY_RESOLVE|GPUBufferUsage.COPY_SRC});}return gpu;
  }
- constructor(device){this.device=device;this.pipelines={};this.buffers=[];this.retiredBuffers=[];this.stride=256;this.atoms=[];this.lastMs=0;this.gpuMs=null;this.asleep=false;this.lost=null;this.origin=[0,0,0];this.snapshotSerial=0;this.paused=false;this.grabStiffness=1;this.grabIndices=[];this.grabDelta=[0,0,0];this.grabPose=false;this.inputClockOrigin=performance.now();this.forceSequence=['checkRebuild','clearGrid','insertGrid','findNeighbors','buildNeighborMap','finishNeighbors','beginForces','descriptors','directedForces','gatherForces','finishKick'];this.stepSequence=['beginStep','driftAtoms',...this.forceSequence,'endStep'];this.temperatureK=293.15;this.dampingRate=1;this.thermalSeed=0x9c7213f5;this.workBudgetMs=8;this.yieldBudgetMs=6;this.maxQueuedPackets=4;}
+ constructor(device){this.device=device;this.pipelineCount=0;this.pipelines={};this.buffers=[];this.retiredBuffers=[];this.stride=256;this.atoms=[];this.lastMs=0;this.gpuMs=null;this.asleep=false;this.lost=null;this.origin=[0,0,0];this.snapshotSerial=0;this.paused=false;this.grabStiffness=1;this.grabIndices=[];this.grabDelta=[0,0,0];this.grabPose=false;this.inputClockOrigin=performance.now();this.forceSequence=['checkRebuild','clearGrid','insertGrid','findNeighbors','buildNeighborMap','finishNeighbors','beginForces','descriptors','directedForces','gatherForces','finishKick'];this.stepSequence=['beginStep','driftAtoms',...this.forceSequence,'endStep'];this.temperatureK=293.15;this.dampingRate=1;this.thermalSeed=0x9c7213f5;this.workBudgetMs=8;this.yieldBudgetMs=6;this.maxQueuedPackets=4;}
  setThermostat(temperatureK,dampingRate,seed=this.thermalSeed){
   this.temperatureK=temperatureK;this.dampingRate=dampingRate;this.thermalSeed=seed>>>0;
   if(this.n){this.device.queue.writeBuffer(this.buffers[6],20,new Float32Array([dampingRate]));this.device.queue.writeBuffer(this.buffers[6],64,new Float32Array([temperatureK]));this.device.queue.writeBuffer(this.buffers[6],68,new Uint32Array([this.thermalSeed]));this.device.queue.writeBuffer(this.buffers[4],4,new Uint32Array([0]));this.asleep=false;}
@@ -714,10 +714,10 @@ class GPUCarbon {
   if(!this.pipelineCache.has(key))this.pipelineCache.set(key,this.device.createComputePipelineAsync({layout:this.pipelineLayout,compute:{module:this.shaderModule,entryPoint,constants}}).then(pipeline=>{this.pipelineCount++;return pipeline;}).catch(error=>{this.pipelineCache.delete(key);throw error;}));
   return this.pipelineCache.get(key);
  }
- async loadKernels(key,build){if(!this.kernelLoads[key])this.kernelLoads[key]=build();return this.kernelLoads[key];}
- async ensureMaterialKernels(){
-  await this.loadKernels('nep',async()=>{
-   await Promise.all(['cached','stream','coopCached','coopStream'].flatMap(variant=>['descriptors','directedForces','gatherChemical','gatherForces'].map(async name=>{
+ async loadKernels(key,build){if(!this.kernelLoads[key]){const ready=build();this.kernelLoads[key]=ready;ready.catch(()=>{if(this.kernelLoads[key]===ready)delete this.kernelLoads[key];});}return this.kernelLoads[key];}
+ async ensureMaterialKernels(cooperative=false){
+  await this.loadKernels(cooperative?'nepCooperative':'nep',async()=>{
+   await Promise.all((cooperative?['coopCached','coopStream']:['cached','stream']).flatMap(variant=>['descriptors','directedForces','gatherChemical','gatherForces'].map(async name=>{
     const entry=variant.startsWith('coop')?({descriptors:'descriptorsCoop',directedForces:'directedForcesCoop',gatherChemical:'gatherChemicalCoop',gatherForces:'applyForcesCoop'}[name]):name==='gatherChemical'?'gatherChemicalCoop':name;
     this.variants[variant][name]=await this.makePipeline(entry,{INTERPOLATE_RADIAL:1,CACHE_FORCES:variant==='cached'||variant==='coopCached'?1:0});
    })));
@@ -768,6 +768,8 @@ class GPUCarbon {
   if(this.yieldChannel)await new Promise(resolve=>{this.yieldPending.push(resolve);this.yieldChannel.port2.postMessage(0);});else await new Promise(resolve=>setTimeout(resolve,0));
  }
  async tuneKernels(){
+  if(!this.autoTune||this.tuned||this.n<8192||this.asleep)return;
+  await this.ensureMaterialKernels(true);
   if(!this.autoTune||this.tuned||this.n<8192||this.asleep)return;this.tuned=true;
   const d=this.device,count=Math.min(4096,this.n),profiles={};d.pushErrorScope('validation');
   try{for(const phase of ['descriptors','directedForces','gatherForces']){

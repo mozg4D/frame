@@ -1,0 +1,131 @@
+{
+  "provenance": "Exact descriptors from baseline Atomic401378d375a277ad76b7743af26c83e5c4eb64ecdac9bce15657047f9bd5840e; no physical-state or shader implementation is duplicated.",
+  "baselinePluginSHA256": "401378d375a277ad76b7743af26c83e5c4eb64ecdac9bce15657047f9bd5840e",
+  "shaderLiteralLineSHA256": "eb02b56006da2a4d2e4cf19cc64a64585dd7395a5b054f7e38f100e21cedce5a",
+  "modelFunctionLineSHA256": "8bcace3e46f080cb10f787260c0dedf1a8d1acea8df03fc5fc2a2359217656cf",
+  "layoutEntries": [
+    {
+      "binding": 0,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 1,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 2,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 3,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 4,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 5,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 6,
+      "visibility": 4,
+      "type": "uniform"
+    },
+    {
+      "binding": 7,
+      "visibility": 4,
+      "type": "storage"
+    },
+    {
+      "binding": 8,
+      "visibility": 4,
+      "type": "read-only-storage"
+    },
+    {
+      "binding": 9,
+      "visibility": 4,
+      "type": "uniform"
+    },
+    {
+      "binding": 10,
+      "visibility": 4,
+      "type": "uniform"
+    }
+  ],
+  "serialAndCommonSignatures": [
+    "beginForces[]",
+    "beginGrabForces[]",
+    "beginStep[]",
+    "beginVisual[]",
+    "buildDrawArgs[]",
+    "buildNeighborMap[[\"CACHE_FORCES\",0]]",
+    "buildNeighborMap[[\"CACHE_FORCES\",1]]",
+    "checkRebuild[]",
+    "clearGrid[]",
+    "descriptors[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "descriptors[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForces[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForces[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "driftAtoms[]",
+    "endStep[]",
+    "filterGrab[]",
+    "findNeighbors[]",
+    "finishKick[]",
+    "finishNeighbors[]",
+    "gatherChemicalCoop[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherChemicalCoop[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherForces[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherForces[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "grabForces[]",
+    "initRadialTable[]",
+    "initialRest[]",
+    "insertGrid[]",
+    "poseSelected[]",
+    "visualize[]"
+  ],
+  "allVariantSignatures": [
+    "applyForcesCoop[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "applyForcesCoop[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "beginForces[]",
+    "beginGrabForces[]",
+    "beginStep[]",
+    "beginVisual[]",
+    "buildDrawArgs[]",
+    "buildNeighborMap[[\"CACHE_FORCES\",0]]",
+    "buildNeighborMap[[\"CACHE_FORCES\",1]]",
+    "checkRebuild[]",
+    "clearGrid[]",
+    "descriptorsCoop[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "descriptorsCoop[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "descriptors[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "descriptors[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForcesCoop[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForcesCoop[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForces[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "directedForces[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "driftAtoms[]",
+    "endStep[]",
+    "filterGrab[]",
+    "findNeighbors[]",
+    "finishKick[]",
+    "finishNeighbors[]",
+    "gatherChemicalCoop[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherChemicalCoop[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherForces[[\"CACHE_FORCES\",0],[\"INTERPOLATE_RADIAL\",1]]",
+    "gatherForces[[\"CACHE_FORCES\",1],[\"INTERPOLATE_RADIAL\",1]]",
+    "grabForces[]",
+    "initRadialTable[]",
+    "initialRest[]",
+    "insertGrid[]",
+    "poseSelected[]",
+    "visualize[]"
+  ]
+}

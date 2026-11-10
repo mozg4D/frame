@@ -9,6 +9,8 @@ This folder is an isolated CPU reference continuation, not an installed Frame pl
 - materials.js: explicit-parameter soft tanh saturation and hard reversible/vector-play remanence. These are synthetic reference laws, not calibrated named presets.
 - reference-solver.js: at most 128 explicit weighted local magnetic samples, rigid local/world transforms, equivalent-sphere diagonal demagnetization, nonlinear residual solve with backtracking, signed prescribed-current scaling/cache, lifecycle session and fixed-moment resultant loads.
 - conductor-current.js: at most 32 nodes/64 explicitly supplied oriented flux-tube edges, closed Kirchhoff flow, signed cut normalization and minimum Joule dissipation; optional explicit geometry-to-currentBases quadrature mapping. See conductor-current.md for the average-density model and topology/scale restrictions.
+- reference-animation.js: bounded quasistatic history for explicit piecewise-linear uniform-H/current-amplitude schedules, all knots mandatory, chronological trial rollback/refinement, final-result-only publication and scalar traces. See reference-animation.md for local-error, capacity and source-model limits.
+- finite-body.js: independent prescribed-uniform-M cuboid H/B oracle using analytic six-face charge integrals, fixed rigid rotations, bounded numerical domain and explicit interior B correction. At most 32 cuboids/512 targets. See finite-body.md and finite-body-review.md; no solver/native/state integration or persistence.
 
 Read the per-module notes before use. SI units are mandatory. No source geometry is read from native Frame. No CPU mirror of GPU triangles or magnetic sample buffers is created. The small CPU arrays here belong only to the numerical reference backend.
 
@@ -25,7 +27,7 @@ Textbook/independent checks cover magnetic sphere demagnetization, a separate no
 - Arbitrary native/polygonal closed-conductor current-density cut/topology preprocessing and solve. The explicit graph oracle is only a bounded numerical component.
 - Hybrid near/far GPU solver, spatial convergence and tiny-gap qualification.
 - Production field rendering and solver-state integration with the separate native Magneto tag/plane authoring preview.
-- Solve Animation event/refinement/checkpoint/curve integration.
+- Native Solve Animation source/timeline capture, dynamic geometry, checkpoint/curve integration and qualification. The bounded fixed-geometry schedule reference is separate from this native work.
 - Browser/hardware/full Frame aggregate testing and release.
 
 preview-contract.json and preview-integration.md describe this folder's uninstalled CPU boundary and remaining native solver adapters. NOT_INSTALLABLE applies to this folder, not to the separately published authoring preview. Native Solve must not be represented as ready until its missing adapters and gates exist.
