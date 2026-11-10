@@ -1,0 +1,7 @@
+{
+  "archive": "FRAME-84FDA9-FROZEN-SOURCE-AND-FUNCTIONAL-KIT.zip",
+  "purpose": "Frozen source/runtime and independent functional checks for cross-computer verification",
+  "bytes": 26660523,
+  "sha256": "3395b17943267239c7af178fa625f36f64c4d70be3144e826fe012c5ce3468cc",
+  "runtime_index_sha256": "84fda9bb242561157bcb0245d841916b32c4c737902ff3adec99dae36e7f9c54"
+}
