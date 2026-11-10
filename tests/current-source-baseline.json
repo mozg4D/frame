@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 17:40",
-  "predecessorCommit": "d4da181f5eff7d8f02ae0ec53028540086bd947d",
+  "version": "2026 10 nov 19:23",
+  "predecessorCommit": "fa6b6164e91991f42fe193a5394ff41f5dee1340",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -159,11 +159,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "3c422414e62dc0f8fd3a351abeeb9a57ba8bc69a7622b9b3e4f527b684a8c848"
+      "sha256": "64083ac68268d0b0b02de4fea6e400e995e37e9ccd0639dcb7743aec52eed3bf"
     },
     "index.html": {
-      "bytes": 2797098,
-      "sha256": "b829fbce9acd2ac035ab0ac22f361e9d79d5daa84ce9994eca55b56a848addaf"
+      "bytes": 2797767,
+      "sha256": "9f1e5ddafe430ed07fe85df7f2ee03cb14c3aa19242c3bb7505d0f002d74a6b2"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -366,8 +366,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 293800,
-      "sha256": "7f80d9112a6c655f5138b6ffedd30f2c6e04d409ca5cbb0d149293bfd4463959"
+      "bytes": 296827,
+      "sha256": "79d0d9ebc515caa3cfbb3382f0d7f855033a28432d675fb6cb947614809579b9"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -398,16 +398,16 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 24513,
-      "sha256": "5ca5f8f6d37097012c45b7cbaa7ebf6a4a029e81b38c4c841eb0bac79e417ea4"
+      "bytes": 25076,
+      "sha256": "102071e8299745d95092a172b7124c62a81c0fc2fa825e0650d391b02586f87c"
     },
     "tests/pointer-lock.mjs": {
-      "bytes": 17286,
-      "sha256": "779a13eef0bd32651b9e0d3b40bc0015da704119013961fc00f8d91b8fcbd81e"
+      "bytes": 11026,
+      "sha256": "c67b5ab8822d03702b3f2d689460f257a24bead7bfd9fded9466b87b00d79352"
     },
     "tests/pointer-return.mjs": {
-      "bytes": 12848,
-      "sha256": "d18eba644e19d95f2b29a87775b2558bcdcb6553f682654dc60648fc7d92e3f6"
+      "bytes": 11910,
+      "sha256": "02cb6b32ddaca5c60fa2ca7b235cbb451c865fadca214e886e2ee76bb37d2a28"
     },
     "plugins/structural/icon.svg": {
       "bytes": 347,
