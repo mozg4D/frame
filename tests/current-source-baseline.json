@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 14:43",
-  "predecessorCommit": "e3eb77dddcc2a136c4c880c15c09e727713cf0fe",
+  "version": "2026 10 nov 16:45",
+  "predecessorCommit": "bbaafe8376f8591c5c0a9c95df28a4feca7fc07e",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -159,11 +159,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "036bb063bb5884a2e41d06c6ebcaca9d214284cc1bb4ff22377953a9af59f4ea"
+      "sha256": "9232942ca7b277ded7c03bef06610803e7806bea603f52925f133e79aad0f86e"
     },
     "index.html": {
-      "bytes": 2786741,
-      "sha256": "1790219e394c5622caee20c9329ae3b7d8d51129cce98830194ebae836a6cc71"
+      "bytes": 2796169,
+      "sha256": "563c9c27d2aa962f30a25372fc8a5a2d9cc0574fea0b7e2a8edcaa16fcc38a43"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -366,8 +366,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 287680,
-      "sha256": "4688b4235d5c0a81ad5e52c1c4c5199ca4c5dcdaf9f6a66d8aae7a5858c6aed9"
+      "bytes": 292917,
+      "sha256": "d902291927f12741b50ad4a44649e4622483faf03bec1c6f433185894746cee4"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -398,8 +398,8 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 23218,
-      "sha256": "709dfd07d23389124320dafc3835a2ca87a19ebf26606bdb71bef42651fd9966"
+      "bytes": 24055,
+      "sha256": "a9e0b6b55553d898b59b5c1d6028ad543cb31098fa9d02d2461c0fd6a9b9fc97"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 17286,

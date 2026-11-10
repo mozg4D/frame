@@ -164,3 +164,8 @@ tests/hash-parent-membership.mjs text eol=lf
 tests/morph-input-settlement.mjs text eol=lf
 
 tests/compact-icon-artwork.mjs text eol=lf
+
+tests/instance-extrude.mjs text eol=lf
+tests/instance-spline-sources.mjs text eol=lf
+tests/file-bridge*.mjs text eol=lf
+tools/file-bridge.mjs text eol=lf

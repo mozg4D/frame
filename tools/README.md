@@ -46,7 +46,7 @@ After `npm ci` and `npx playwright install chromium`:
 node C:\frame\tools\mcp.mjs
 ```
 
-The adapter speaks JSON-RPC/MCP **2025-06-18** over newline-delimited stdin/stdout. Only protocol messages go to stdout. It supports `initialize`, `ping`, `tools/list`, `tools/call`; no resources/prompts/HTTP RPC are advertised. Schemas and execution come from the same `frameAI` instance. Default launch opens an isolated visible Frame session on its own temporary localhost server. It closes that owned session on stdin EOF. It does not select the user's existing scene automatically.
+The adapter speaks JSON-RPC/MCP **2025-06-18** over newline-delimited stdin/stdout. Only protocol messages go to stdout. It supports `initialize`, `ping`, `tools/list`, `tools/call`; no resources/prompts/HTTP RPC are advertised. Schemas and execution come from the same `frameAI` instance. Default launch opens an isolated headless Frame session on its own temporary localhost server. It closes that owned session on stdin EOF. It does not select the user's existing scene automatically.
 
 Generic client configuration example: `mcp.example.json`. To target one existing Chromium tab explicitly:
 
@@ -54,7 +54,7 @@ Generic client configuration example: `mcp.example.json`. To target one existing
 node C:\frame\tools\mcp.mjs --cdp http://127.0.0.1:9222 --url http://127.0.0.1:56116/index.html
 ```
 
-The browser must already expose CDP. The adapter requires exactly one page with the given URL; it does not reload that page. This is optional: an AI controlling the embedded browser can call `frameAI.call` there directly. `--headless` is available for systems that support WebGPU in headless Chromium.
+The browser must already expose CDP. The adapter requires exactly one page with the given URL; it does not reload that page. This is optional: an AI controlling the embedded browser can call `frameAI.call` there directly. Use `--headed` to show an isolated browser window.
 
 Transport/tool references: [MCP stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports), [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
 
@@ -105,3 +105,33 @@ Material/camera updates:
 Source/schema/binding records in authorData remain inert. Parameter authoring does not imply managed script execution, worker lifecycle, subscriptions or a separate Control panel.
 
 Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.
+
+
+### Native spline occurrences and material tags
+
+Generator `scene.create.inputs` and later child reparenting accept native spline Instances and nested groups without copying the authored profile. The source must resolve to native spline geometry. Source pivots, occurrence transforms and source edits remain live through HASH and Undo/Redo. Cyclic Instance/generator dependencies are rejected before mutation. `scene.inspect.sources` lists immediate native spline, Instance and group inputs.
+
+`material.assign {id, material, faces?}` can tag an empty Extrude or other native generator; `faces` still addresses existing triangles only. `material.remove {id, tag?}` deletes one material tag by its discovered UID, or all material tags on that owner when omitted, through native Undo. It does not remove the material from the document or affect tags on other owners.
+
+
+
+## Authorized local HASH files
+
+Run the MCP host on the computer containing the projects. Grant each exact input/output filename explicitly (the parent directory must exist):
+
+```powershell
+node C:\frame\tools\mcp.mjs --cdp http://127.0.0.1:9222 --url https://mozg4d.github.io/frame/ --allow-file C:\projects\model.hash --allow-file C:\projects\model-copy.hash
+```
+
+```js
+await frameAI.call('scene.open', {path:'C:\\projects\\model.hash'});
+await frameAI.call('scene.save');
+await frameAI.call('scene.saveAs', {path:'C:\\projects\\model-copy.hash'});
+await frameAI.call('scene.file'); // path, filename, binding, byte count and SHA-256 receipt
+```
+
+These are also ordinary MCP `tools/call` commands. Command arguments cannot grant new paths. Save streams through bounded chunks without the inline 16 MiB limit and does not show a picker; the current file binding is shared with native Save. Failed replacement import clears the old binding rather than risking a later save to the wrong file. New clears it too. Import reads still need enough memory for the native browser File.
+
+The host uses same-directory temporary files and atomic rename, rejects symlink targets, overlapping writes and detected external changes during a save, and cleans up aborted transfers. This is not a sandbox against concurrent privileged filesystem changes. Grants expire when the adapter closes or the selected main document navigates (including reload). Reconnect the adapter explicitly for that document; saved recents never grant access themselves. An uncertain transport result after rename requires inspecting the target before retrying. Native browser file handles retain their own browser permission rules.
+
+CPU checks: `node tests/file-bridge.mjs` and `node tests/file-bridge-boundary.mjs`. Native isolated checks: `node tests/file-bridge-browser.mjs --headless`; the aggregate also checks MCP Open/Save against the authorized host. A Windows symlink test reports unavailable if the OS account lacks that privilege; it is not counted as passed.

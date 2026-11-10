@@ -1,9 +1,10 @@
 // Minimal MCP stdio adapter. Frame owns schemas, validation and command execution.
 import {createInterface} from 'node:readline';
 import {launch,ready} from './browser.mjs';
+import {attachFileBridge} from './file-bridge.mjs';
 const args=process.argv.slice(2),option=name=>args.includes(name)?args[args.indexOf(name)+1]:undefined;
 let session=null,connecting=null,initialized=false,queue=Promise.resolve();
-async function connect(){if(session)return session;if(!connecting)connecting=(async()=>{const s=await launch({headless:!args.includes('--headed'),cdp:option('--cdp'),url:option('--url')});try{await ready(s.page);session=s;return s;}catch(e){await s.close();throw e;}})().finally(()=>{connecting=null;});return connecting;}
+async function connect(){if(session)return session;if(!connecting)connecting=(async()=>{const s=await launch({headless:!args.includes('--headed'),cdp:option('--cdp'),url:option('--url')});try{await ready(s.page);const grants=args.flatMap((arg,i)=>arg==='--allow-file'?[args[i+1]]:[]);if(grants.some(path=>!path||path.startsWith('--')))throw Error('--allow-file requires an exact local filename');const bridge=await attachFileBridge(s.page,grants),close=s.close;s.close=async()=>{await bridge.close();await close();};session=s;return s;}catch(e){await s.close();throw e;}})().finally(()=>{connecting=null;});return connecting;}
 const send=message=>process.stdout.write(JSON.stringify(message)+'\n');
 async function handle(message){const id=message?.id??null,error=(code,text)=>({jsonrpc:'2.0',id,error:{code,message:text}});if(!message||message.jsonrpc!=='2.0'||typeof message.method!=='string'){send(error(-32600,'Invalid Request'));return;}if(message.method.startsWith('notifications/'))return;
   if(message.method==='initialize'){initialized=true;send({jsonrpc:'2.0',id,result:{protocolVersion:'2025-06-18',capabilities:{tools:{}},serverInfo:{name:'frame',version:'1.0.0'},instructions:'Commands edit the selected Frame session and use normal Undo. Default launch is an isolated session. Discover schemas with tools/list.'}});return;}
