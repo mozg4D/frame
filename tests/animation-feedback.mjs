@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 export async function animationFeedbackChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),state=()=>call('scene.inspect'),check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},near=(a,b,eps=1e-6)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<eps),clear=async()=>{const s=await state();if(s.objects.length)await call('scene.delete',{ids:s.objects.filter(n=>!n.parent).map(n=>n.hash)});},measure=async(name,limit,fn)=>{const start=performance.now(),result=await fn(),ms=performance.now()-start;timings.push({name,ms,limit});check(name+' latency',ms<limit,{ms,limit});return result;};
  try{
-  await clear();const cube=await call('scene.create',{type:'cube'});await call('view.set',{index:2,single:true,shading:'solid',mode:'object',focus:cube.hash});
+  await clear();const cube=await call('scene.create',{type:'cube'});for(const axis of [0,1,2])await call('transform.set',{channel:'position',axis,value:-50});await call('view.set',{index:2,single:true,shading:'solid',mode:'object',focus:cube.hash});
   for(const [frame,value]of [[0,[-100,0,0]],[10,[0,60,0]],[20,[100,0,0]]])await call('animation.key',{id:cube.hash,path:'position',frame,value,interpolation:'soft'});
   await call('animation.seek',{frame:10});const count=(await state()).objects.length;
   let trajectory=await call('animation.trajectory',{id:cube.hash});check('trajectory reads native key vertices',trajectory.keys.length===3&&near(trajectory.keys[1].position,[0,60,0]),trajectory);
