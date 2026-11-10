@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 10 nov 19:23">
-<title>Frame 2026 10 nov 19:23</title>
+<meta name="frame-version" content="2026 10 nov 20:21">
+<title>Frame 2026 10 nov 20:21</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -11369,8 +11369,24 @@ FrameViewWindows.onDocument('visibilitychange',()=>{if(FrameViewWindows.allHidde
 const sceneInput=document.createElement('input');sceneInput.id='frameSceneFile';sceneInput.type='file';sceneInput.accept='.hash,.stl,.obj,.gltf,.glb,.ply,.vtk,.3mf,.svg,.step,.stp,.dxf,.bin,image/*';sceneInput.multiple=true;sceneInput.hidden=true;document.body.append(sceneInput);
 let sceneFileName='scene.hash',sceneFileHandle=null,lastSavedFormat='hash',frameUpdateReady=false;const recentFileNames=[],recentSceneFiles=new Map(),recentFileCompanions=new Map();
 // The trusted host grants exact paths. These descriptors convey no permission.
+async function connectFrameFileHost({url,token}){
+  const fail=(message,code='FILE_HOST_CONNECTION_FAILED',status)=>{throw Object.assign(Error(message),{code,...(status===undefined?{}:{status})});};
+  let endpoint;try{endpoint=new URL(url);}catch{fail('A loopback file host URL is required','INVALID_ARGUMENT');}
+  if(endpoint.protocol!=='http:'||endpoint.hostname!=='127.0.0.1'||!endpoint.port||endpoint.pathname!=='/frame-file/v1/'||endpoint.search||endpoint.hash||endpoint.username||endpoint.password||typeof token!=='string'||!/^[a-f0-9]{64}$/.test(token))fail('Use the exact URL and session token printed by the local Frame file host','INVALID_ARGUMENT');
+  if(window.top!==window)fail('Connect the main Frame document, not an embedded frame','INVALID_ARGUMENT');
+  if(typeof window.__frameFileHost==='function')fail('A file host is already attached to this document','FILE_HOST_ALREADY_CONNECTED');
+  const request=async(route,key,body)=>{let response;try{response=await fetch(new URL(route,endpoint),{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify(body),credentials:'omit',redirect:'error',cache:'no-store'});}catch{fail('Cannot reach the local Frame file host. Keep the host running and allow the browser local-network permission if requested.');}let result;try{result=await response.json();}catch{fail('Invalid response from the local Frame file host');}if(!response.ok||result.error)fail(result.error||'Local file host rejected the request',result.code||'FILE_HOST_REJECTED',response.status);return result;};
+  let session=null,closed=false,last=0,idleMs=0,renewing=null;
+  const renew=()=>{if(closed)fail('File host connection is closed','FILE_HOST_DISCONNECTED');if(!renewing)renewing=(async()=>{const connected=await request('connect',token,{session});if(typeof connected.session!=='string'||!/^[a-f0-9]{64}$/.test(connected.session)||!Number.isFinite(connected.idleMs)||connected.idleMs<=0)fail('Invalid file host session');session=connected.session;idleMs=connected.idleMs;last=Date.now();if(closed)fail('File host connection is closed','FILE_HOST_DISCONNECTED');})().finally(()=>{renewing=null;});return renewing;};
+  await renew();
+  const host=async args=>{if(closed)fail('File host connection is closed','FILE_HOST_DISCONNECTED');const begin=args?.op==='beginRead'||args?.op==='beginWrite';if(begin&&Date.now()-last>=idleMs*0.75)await renew();let result;try{result=await request('file',session,args);}catch(error){if(!begin||error.status!==403||error.code!=='FILE_HOST_DENIED'||closed)throw error;await renew();result=await request('file',session,args);}last=Date.now();return result;};
+  const close=async()=>{if(closed)return;closed=true;token=null;window.removeEventListener('pagehide',hide);if(window.__frameFileHost===host)delete window.__frameFileHost;if(window.__frameFileHostConnection===connection)delete window.__frameFileHostConnection;if(renewing)await renewing.catch(()=>{});const key=session;session=null;if(key)await request('disconnect',key,{});};
+  const hide=()=>{void close().catch(()=>{});},connection={url:endpoint.href,close};
+  window.__frameFileHost=host;window.__frameFileHostConnection=connection;window.addEventListener('pagehide',hide,{once:true});
+  return {connected:true,url:endpoint.href};
+}
 function frameHostFileHandle(path,name=path.split(/[\\/]/).pop()){
-  const host=async args=>{if(typeof window.__frameFileHost!=='function')throw Object.assign(Error('An authorized local file host is required'),{code:'FILE_BRIDGE_REQUIRED'});return window.__frameFileHost(args);};
+  const host=async args=>{if(typeof window.__frameFileHost!=='function')throw Object.assign(Error('No filesystem host is connected to this document. Start tools/file-host.mjs with exact --allow-file grants, then use scene.host.connect. No scene reload is required.'),{code:'FILE_BRIDGE_REQUIRED'});return window.__frameFileHost(args);};
   return {frameHostPath:path,name,lastReceipt:null,
     async getFile(){const transfer=await host({op:'beginRead',path}),parts=[];try{let chunk;do{chunk=await host({op:'read',id:transfer.id});parts.push(Uint8Array.from(atob(chunk.base64),c=>c.charCodeAt(0)));}while(!chunk.done);this.lastReceipt=await host({op:'finish',id:transfer.id});return new File(parts,transfer.name);}catch(error){await host({op:'abort',id:transfer.id}).catch(()=>{});throw error;}},
     async createWritable(){const transfer=await host({op:'beginWrite',path}),handle=this;let closed=false;return {
@@ -11380,16 +11396,73 @@ function frameHostFileHandle(path,name=path.split(/[\\/]/).pop()){
     };}
   };
 }
-function frameFileInfo(){return {name:sceneFileName,path:sceneFileHandle?.frameHostPath||null,bound:!!sceneFileHandle,host:!!sceneFileHandle?.frameHostPath,...sceneFileHandle?.lastReceipt||{}};}
-async function frameSaveBoundFile(path){
+function frameFileInfo(){return {name:sceneFileName,path:sceneFileHandle?.frameHostPath||null,bound:!!sceneFileHandle,host:typeof window.__frameFileHost==='function',hostBound:!!sceneFileHandle?.frameHostPath,hostURL:window.__frameFileHostConnection?.url||null,request:typeof frameFilePermissionRequest==='undefined'||!frameFilePermissionRequest?null:{...frameFilePermissionRequest},...sceneFileHandle?.lastReceipt||{}};}
+async function frameSaveBoundFile(path,selectedHandle){
   if(path!==undefined&&(typeof path!=='string'||!path.trim()))throw Object.assign(Error('A nonempty local path is required'),{code:'INVALID_ARGUMENT'});
-  const handle=path!==undefined?frameHostFileHandle(path):sceneFileHandle;if(!handle)throw Object.assign(Error('No current file; use scene.saveAs with an authorized .hash path'),{code:'FILE_TARGET_REQUIRED'});
+  const handle=selectedHandle||(path!==undefined?frameHostFileHandle(path):sceneFileHandle);if(!handle)throw Object.assign(Error('No current file; use scene.file.request with action saveAs, or scene.saveAs with an authorized .hash path'),{code:'FILE_TARGET_REQUIRED'});
   if(!/\.hash$/i.test(handle.name))throw Object.assign(Error('Project target must end in .hash'),{code:'INVALID_ARGUMENT'});
   const writable=await handle.createWritable();try{await window.frameEngine.saveHash(writable);}catch(error){await writable.abort?.().catch(()=>{});throw error;}
   sceneFileHandle=handle;sceneFileName=handle.name;lastSavedFormat='hash';await rememberSceneFile(handle);return frameFileInfo();
 }
 
 let frameNativeFileTask=async()=>{throw Error('Frame is not ready');};
+
+// Native browser pickers own consent. Pending requests reuse the existing toolbar.
+let frameFilePermissionRequest=null,frameFilePermissionStart=null;
+function frameCancelFileRequest(){
+  if(frameFilePermissionRequest&&['selecting','running'].includes(frameFilePermissionRequest.state))throw Object.assign(Error('Cancel the active browser file picker first'),{code:'BUSY'});
+  if(frameFilePermissionRequest?.state==='pending'){frameFilePermissionRequest.state='cancelled';frameFilePermissionRequest.activationRequired=false;}
+  frameFilePermissionStart=null;return frameFilePermissionRequest?{...frameFilePermissionRequest}:null;
+}
+function frameContinueFileRequest(button){
+  if(frameFilePermissionRequest?.state!=='pending'||frameFilePermissionRequest.button!==button||!frameFilePermissionStart)return false;
+  void frameFilePermissionStart();return true;
+}
+function frameRequestFileAccess({action,name}){
+  const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
+  if(!['open','saveAs','save'].includes(action))fail('INVALID_ARGUMENT','Expected open, saveAs or save');
+  if(name!==undefined&&(action!=='saveAs'||typeof name!=='string'||name.length>255||/[\\/\x00-\x1f]/.test(name)||!/^.+\.hash$/i.test(name)))fail('INVALID_ARGUMENT','name must be a .hash filename without a path, for saveAs only');
+  if(frameFilePermissionRequest&&['pending','selecting','running'].includes(frameFilePermissionRequest.state))fail('BUSY','Finish or cancel the current file request');
+  const originalHandle=sceneFileHandle,epoch=FrameAuthorData.epoch;
+  if(action==='open'&&typeof window.showOpenFilePicker!=='function'||action==='saveAs'&&typeof window.showSaveFilePicker!=='function')fail('UNSUPPORTED','This browser does not support native file access. Use Chrome or Edge, or an authorized local file host.');
+  if(action==='save'&&(!originalHandle||originalHandle.frameHostPath||typeof originalHandle.requestPermission!=='function'||!/\.hash$/i.test(originalHandle.name)))fail('FILE_TARGET_REQUIRED','Choose a native HASH file with scene.file.request action saveAs first');
+  const request=frameFilePermissionRequest={id:crypto.randomUUID(),action,state:'pending',activationRequired:true,button:action==='open'?'btnOpen':'btnSave',name:action==='open'?null:action==='save'?originalHandle.name:name||sceneFileName.replace(/\.[^.]+$/,'')+'.hash'};
+  const guard=()=>{if(FrameAuthorData.epoch!==epoch||sceneFileHandle!==originalHandle)fail('FILE_REQUEST_STALE','The scene or its file target changed. Request file access again.');};
+  frameFilePermissionStart=async()=>{
+    if(request.state!=='pending')return;
+    let chosen;const activated=!!window.navigator?.userActivation?.isActive;
+    try{
+      guard();request.state='selecting';request.activationRequired=false;
+      const options={excludeAcceptAllOption:true,types:[{description:'Frame scene',accept:{'application/x-frame-hash':['.hash']}}]};
+      // No synthetic/trusted-event heuristic: the browser enforces activation.
+      const selection=action==='open'?window.showOpenFilePicker({...options,multiple:false}):action==='saveAs'?window.showSaveFilePicker({...options,suggestedName:request.name}):originalHandle.requestPermission({mode:'readwrite'});
+      const selected=Promise.resolve(selection);selected.catch(()=>{});
+      await frameNativeFileTask(async()=>{
+        guard();request.state='running';
+        if(action==='open'){
+          const file=await chosen.getFile();guard();sceneFileHandle=null;
+          await window.frameEngine.loadFile(file);
+          if(!$('frame-engine-status').hidden)fail('IO_ERROR',$('frame-engine-status').textContent||'Import failed');
+          sceneFileHandle=chosen;sceneFileName=chosen.name;await rememberSceneFile(chosen);
+        }else await frameSaveBoundFile(undefined,chosen);
+      },{replace:action==='open',prepare:async()=>{
+        const value=await selected;guard();
+        if(action==='save'&&value!=='granted')fail('FILE_PERMISSION_DENIED','The browser did not grant write permission.');
+        chosen=action==='open'?value?.[0]:action==='save'?originalHandle:value;
+        if(!chosen||typeof chosen.getFile!=='function'||typeof chosen.createWritable!=='function'||!/\.hash$/i.test(chosen.name))fail('INVALID_ARGUMENT','Choose a HASH file');
+      }});
+      request.state='completed';request.name=chosen.name;frameFilePermissionStart=null;
+    }catch(error){
+      if(request.state==='selecting'&&error.name==='SecurityError'&&!activated){request.state='pending';request.activationRequired=true;return;}
+      frameFilePermissionStart=null;request.state=error.name==='AbortError'?'cancelled':'failed';
+      if(request.state==='failed'){request.error={code:typeof error.code==='string'?error.code:'IO_ERROR',message:error.message||String(error)};fileOperationError(error);}
+    }
+  };
+  if(window.navigator?.userActivation?.isActive)void frameFilePermissionStart();
+  return {...request};
+}
+FrameViewWindows.onWindow('frame-engine-scene',()=>{if(frameFilePermissionRequest?.state==='pending')frameCancelFileRequest();});
+
 const recentFilesDB=new Promise((resolve,reject)=>{const r=indexedDB.open('frame-recent-files:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Recent files storage is blocked'));});
 function trimRecentFiles(){for(const name of recentFileNames.splice(10)){recentSceneFiles.delete(name);recentFileCompanions.delete(name);}}
 const recentFilesReady=recentFilesDB.then(db=>new Promise((resolve,reject)=>{const r=db.transaction('files').objectStore('files').get('list');r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);})).then(records=>{for(const {name,source,files=[]}of records)if(!recentSceneFiles.has(name)){recentFileNames.push(name);recentSceneFiles.set(name,source?.frameHostPath?frameHostFileHandle(source.frameHostPath,source.name):source);recentFileCompanions.set(name,files);}trimRecentFiles();}).catch(fileOperationError);
@@ -11419,8 +11492,8 @@ async function saveSceneFile({as=false,incremental=false,download=false,format}=
   }catch(error){fileOperationError(error);}
 }
 $('btnNew').onclick=()=>{closeMenu();window.frameAI.call('scene.new').then(()=>{if(frameUpdateReady){const url=new URL(location.href);url.search='';url.hash='';location.replace(url.href);}}).catch(fileOperationError);};
-$('btnOpen').onclick=()=>{closeMenu();sceneInput.click();};
-$('btnSave').onclick=()=>saveSceneFile();
+$('btnOpen').onclick=()=>{closeMenu();if(frameContinueFileRequest('btnOpen'))return;sceneInput.click();};
+$('btnSave').onclick=()=>{closeMenu();if(!frameContinueFileRequest('btnSave'))saveSceneFile();};
 let saveFormatsLeaveTimer;
 function showSaveFormats(focus=false){const r=$('btnSave').getBoundingClientRect();showMenu(r.left,r.bottom,[['Frame scene (.hash)',()=>saveSceneFile({as:true,format:'hash'})],['Save incremental (+1)',()=>saveSceneFile({incremental:true})],['STL mesh (.stl)',()=>saveSceneFile({as:true,format:'stl'})],['glTF binary (.glb)',()=>saveSceneFile({as:true,format:'glb'})],['PLY mesh (.ply)',()=>saveSceneFile({as:true,format:'ply'})],['VTK surface (.vtk)',()=>saveSceneFile({as:true,format:'vtk'})],['3MF print model (.3mf)',()=>saveSceneFile({as:true,format:'3mf'})]],focus);$('menu').dataset.owner='save-formats';$('menu').querySelector('button').setAttribute('aria-current','true');}
 $('btnSave').onpointerenter=e=>{if(e.pointerType!=='touch'){clearTimeout(saveFormatsLeaveTimer);showSaveFormats();}};
@@ -18053,7 +18126,11 @@ function FramePolygonKernel(d){
         try{if(sample){hoverPresentationGroup(renderer);const pass=e.beginRenderPass({colorAttachments:[{view:sample.createView(),loadOp:'clear',storeOp:'store'}]});pass.setPipeline(renderer.hoverPresentation.pipeline);pass.setBindGroup(0,renderer.hoverPresentation.group);pass.draw(3);pass.end();}for(let i=0;i<a.points.length;i++){const p=a.points[i],x=Math.floor((p[0]-rect.left)*renderer.width/rect.width),y=Math.floor((p[1]-rect.top)*renderer.height/rect.height);if(x<0||y<0||x>=renderer.width||y>=renderer.height)fail('INVALID_ARGUMENT','Pixel is outside active view');e.copyTextureToBuffer({texture:sample||renderer.cachedColor,origin:[x,y]},{buffer:read,offset:i*256,bytesPerRow:256},[1,1]);}d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const b=new Uint8Array(read.getMappedRange()),bgra=renderer.format.startsWith('bgra'),colors=a.points.map((_,i)=>bgra?[b[i*256+2],b[i*256+1],b[i*256],b[i*256+3]]:Array.from(b.subarray(i*256,i*256+4)));read.unmap();return {colors};}finally{releaseGPU(read);sample?.destroy();}
       });
 
-      register('scene.file','Inspect the current project file binding and last host receipt.',obj({}),true,()=>frameFileInfo());
+      register('scene.file','Inspect the current project file binding, browser permission request and last host receipt.',obj({}),true,()=>frameFileInfo());
+      register('scene.file.request','Use the native browser picker for HASH open/saveAs, or renew permission and save. With browser activation it starts immediately; otherwise returns pending with an existing toolbar button target. Inspect scene.file for completion.',required(obj({action:choice('open','saveAs','save'),name:{type:'string',maxLength:255}}),'action'),false,a=>frameRequestFileAccess(a));
+      register('scene.file.cancel','Cancel a pending file request before its native picker starts.',obj({}),false,()=>frameCancelFileRequest());
+      register('scene.host.connect','Attach an authorized local filesystem host to this PWA document without reload. Use the URL and ephemeral token printed by tools/file-host.mjs.',required(obj({url:str,token:str}),'url','token'),false,a=>connectFrameFileHost(a));
+      register('scene.host.disconnect','Disconnect this document from its local loopback file host without changing the current scene or file target.',obj({}),false,async()=>{if(window.__frameFileHostConnection)await window.__frameFileHostConnection.close();else if(typeof window.__frameFileHost==='function')fail('UNSUPPORTED','This host is managed by its external adapter');return frameFileInfo();});
       register('scene.save','Save HASH to the current file, or bind an authorized local path. Streams without the inline data limit.',obj({path:str}),false,a=>frameSaveBoundFile(a.path));
       register('scene.saveAs','Save HASH and bind an authorized local path after successful atomic replacement.',required(obj({path:str}),'path'),false,a=>frameSaveBoundFile(a.path));
       register('scene.export','Serialize HASH (default) or visible evaluated surfaces as binary STL/PLY/VTK or 3MF (millimeters) / GLB (meters, materials and UV). Returns byte count/SHA-256; includeData is limited to 16 MiB.',obj({includeData:bool,format:choice('hash','stl','glb','ply','vtk','3mf')}),true,async a=>{const blob=await(a.format==='vtk'?saveVTK():a.format==='3mf'?save3MF():a.format==='ply'?savePLY():a.format==='stl'?saveSTL():a.format==='glb'?saveGLB():saveHash());if(a.includeData&&blob.size>16*1024*1024)fail('LIMIT','Use normal Save for files above 16 MiB');const bytes=new Uint8Array(await blob.arrayBuffer()),sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join('');let base64;if(a.includeData){const parts=[];for(let i=0;i<bytes.length;i+=16384)parts.push(String.fromCharCode(...bytes.subarray(i,i+16384)));base64=btoa(parts.join(''));}return {bytes:bytes.length,sha256,...a.includeData?{base64}:{}};});

@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {setImmediate} from 'node:timers/promises';
+import vm from 'node:vm';
+import {fileURLToPath} from 'node:url';
+export async function filePermissionChecks(){
+ const source=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=performance.now(),checks=[],listeners=new Map(),status={hidden:true,textContent:''},activation={isActive:false};
+ const check=(name,pass)=>{assert.ok(pass,name);checks.push(name);};
+ const c=vm.createContext({Blob,File,DOMException,console,Error,crypto,sceneFileName:'current.hash',sceneFileHandle:null,lastSavedFormat:'hash',FrameAuthorData:{epoch:'one'},FrameViewWindows:{onWindow:(type,fn)=>listeners.set(type,fn)},window:{navigator:{userActivation:activation}},$:()=>status,rememberSceneFile:async()=>{},fileOperationError:()=>{},frameNativeFileTask:async(run,{prepare}={})=>{await prepare?.();return run();}});
+ vm.runInContext(source.slice(source.indexOf('function frameFileInfo('),source.indexOf('let frameNativeFileTask='))+source.slice(source.indexOf('// Native browser pickers own consent.'),source.indexOf('const recentFilesDB=')),c);
+ const evalc=s=>vm.runInContext(s,c),request=a=>{c.args=a;return evalc('frameRequestFileAccess(args)');},info=()=>evalc('frameFileInfo()'),resume=()=>evalc('frameFilePermissionStart()'),cancel=()=>evalc('frameCancelFileRequest()');
+ const bytes=new Uint8Array(17*1024*1024+1);let pickers=0,writes=0,aborts=0,loads=0,committed=0,permission='granted';
+ const handle=name=>({name,async getFile(){return new File([bytes],name);},async requestPermission(){return permission;},async createWritable(){writes++;return {async write(data){assert.ok(data.byteLength||data.size);},async close(){committed++;},async abort(){aborts++;}};}}),first=handle('native.hash'),second=handle('copy.hash');
+ const picker=value=>async()=>{pickers++;if(!activation.isActive)throw new DOMException('Must be handling a user gesture','SecurityError');return value;};
+ c.window.showSaveFilePicker=picker(first);c.window.showOpenFilePicker=picker([second]);c.window.frameEngine={async saveHash(w){await w.write(bytes);await w.close();},async loadFile(){loads++;}};
+ assert.throws(()=>request({action:'saveAs',name:'C:\\secret.hash'}),e=>e.code==='INVALID_ARGUMENT');check('Invalid filename does not create a request or invoke a picker',info().request===null&&pickers===0);
+ let r=request({action:'saveAs',name:'copy.hash'});check('Without activation request returns existing toolbar target without new UI',r.state==='pending'&&r.activationRequired&&r.button==='btnSave'&&pickers===0&&writes===0);assert.throws(()=>request({action:'open'}),e=>e.code==='BUSY');check('Unrelated toolbar action is not intercepted',!evalc("frameContinueFileRequest('btnOpen')"));
+ check('Matching toolbar delegates to the browser',evalc("frameContinueFileRequest('btnSave')"));await setImmediate();check('Browser SecurityError retains pending activation requirement',pickers===1&&info().request.state==='pending'&&info().request.activationRequired);cancel();check('API cancellation preserves the scene and binding',info().request.state==='cancelled'&&!info().bound&&loads===0);
+ activation.isActive=true;r=request({action:'saveAs'});await setImmediate();check('Active direct API immediately uses native Save As and streams over 16 MiB',r.state==='selecting'&&info().bound&&info().name==='native.hash'&&info().request.state==='completed'&&committed===1&&loads===0);
+ await evalc('frameSaveBoundFile()');check('Repeated Save uses native binding without picker',committed===2&&pickers===2);
+ c.window.showSaveFilePicker=async()=>{throw new DOMException('Cancelled','AbortError');};request({action:'saveAs'});await setImmediate();check('Cancelled native picker keeps binding and bytes',info().name==='native.hash'&&info().request.state==='cancelled'&&committed===2);
+ c.window.showSaveFilePicker=picker(second);c.window.frameEngine.saveHash=async w=>{await w.write(bytes);throw Error('Disk write failed');};request({action:'saveAs'});await setImmediate();check('Save failure aborts writable and preserves binding',aborts===1&&info().name==='native.hash'&&info().request.state==='failed'&&committed===2);
+ c.window.frameEngine.saveHash=async w=>{await w.write(bytes);await w.close();};permission='denied';request({action:'save'});await setImmediate();check('Denied permission performs no write',info().request.error.code==='FILE_PERMISSION_DENIED'&&committed===2);permission='granted';request({action:'save'});await setImmediate();check('Renewed native permission saves current handle',committed===3&&info().request.state==='completed');
+ activation.isActive=false;request({action:'open'});listeners.get('frame-engine-scene')();check('Document replacement automatically cancels pending request',info().request.state==='cancelled'&&!evalc("frameContinueFileRequest('btnOpen')"));
+ request({action:'open'});c.FrameAuthorData.epoch='two';activation.isActive=true;await resume();check('Stale request rejects before picker or import',info().request.error.code==='FILE_REQUEST_STALE'&&loads===0);
+ request({action:'open'});await setImmediate();check('Native Open retains selected handle after importer success',loads===1&&info().name==='copy.hash'&&info().request.state==='completed');
+ c.window.frameEngine.loadFile=async()=>{throw Error('Invalid HASH');};request({action:'open'});await setImmediate();check('Failed replacement importer clears stale Save binding',!info().bound&&info().request.state==='failed');
+ c.window.showOpenFilePicker=undefined;assert.throws(()=>request({action:'open'}),e=>e.code==='UNSUPPORTED');check('Unsupported browser fails without a pending request',info().request.state==='failed');
+ let release;c.window.showSaveFilePicker=()=>new Promise(r=>release=r);request({action:'saveAs'});assert.throws(cancel,e=>e.code==='BUSY');release(second);await setImmediate();check('Open browser picker is cancelled in native UI rather than silently bypassed',info().request.state==='completed');
+ const helper=source.slice(source.indexOf('// Native browser pickers own consent.'),source.indexOf('const recentFilesDB='));check('No app dialog or event trust filter is present',!helper.includes('createElement')&&!helper.includes('isTrusted')&&!source.includes('frameFilePermissionDialog'));
+ check('Only explicit pending requests redirect existing Open/Save handlers',source.includes("if(frameContinueFileRequest('btnOpen'))return;sceneInput.click()")&&source.includes("if(!frameContinueFileRequest('btnSave'))saveSceneFile()"));
+ const elapsedMs=performance.now()-start;check('Completed permission and 17 MiB cases remain under 1000 ms',elapsedMs<1000);return {pass:true,checks,elapsedMs,budgetMs:1000};
+}
+if(process.argv[1]===fileURLToPath(import.meta.url))console.log(JSON.stringify(await filePermissionChecks(),null,2));

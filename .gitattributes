@@ -169,3 +169,9 @@ tests/instance-extrude.mjs text eol=lf
 tests/instance-spline-sources.mjs text eol=lf
 tests/file-bridge*.mjs text eol=lf
 tools/file-bridge.mjs text eol=lf
+
+# Keep PWA file access runtime and regression bytes stable across platforms.
+tools/file-host*.mjs text eol=lf
+tools/README.md text eol=lf
+tests/file-host*.mjs text eol=lf
+tests/file-permission*.mjs text eol=lf

@@ -1216,3 +1216,20 @@ Extrude consumes only authored spline profiles and spline primitives, including 
 The same filtering applies to explicit scene.create inputs, normal child reparenting, source updates and HASH reconstruction. tests/extrude-mixed-children.mjs covers native and polygon children, independent nested Extrudes, mixed group Instances, removal/reinsertion of the last profile, Undo/Redo, HASH, exact geometry and completed-operation/frame budgets. tests/instance-extrude.mjs retains the six-panel Instance and pivot regressions.
 
 Object Browser rectangle selection publishes its completed owner selection to the normal viewport transform queue, including when a component mode is active. Plain/Alt rectangles replace, Shift adds, and Ctrl/Meta toggles. Escape, pointer cancellation and window blur discard a rectangle preview and restore the prior highlighted owners, tags and focus. The existing tag rectangle selection retains its tags. scene.inspect.selection.nativeObjects reports the exact owner hashes held by the transform engine, alongside the Browser selection in objects; component selections leave nativeObjects empty.
+
+## Normal PWA local filesystem host
+
+Release candidate: 2026 10 nov 20:21.
+
+An optional authenticated loopback host in tools/file-host.mjs attaches to a normal PWA without CDP or browser restart. scene.host.connect/disconnect manage the current document adapter, not scene contents. Native file operations retain exact-path grants, streaming chunks and atomic saves. scene.file reports adapter attachment separately from the current host-backed file binding. See tools/README.md for private local pairing, legacy 16:45 attachment, browser permissions, revocation and verification limits. No host is installed or started by publishing the site.
+
+
+## Native PWA file permission requests
+
+`scene.file.request({action:"saveAs",name?:"project.hash"})` saves the current scene through Chrome/Edge's native file picker. `action:"open"` opens a selected HASH and replaces the scene; `action:"save"` renews native write permission and saves the bound file. There is no extra Frame dialog, text panel or button.
+
+If the browser reports active user activation, the request starts immediately. Otherwise it returns `state:"pending"`, `activationRequired:true` and `button:"btnOpen"` or `"btnSave"`. Clicking that existing toolbar button resumes only its matching pending request. A supported trusted browser-automation click can provide activation; ordinary JavaScript `.click()` does not create it. The browser remains the authority, including if activation expires. `scene.file.cancel()` cancels a pending request; document replacement also cancels it. Cancel an already-open picker through the native browser UI.
+
+`scene.file().request` reports the latest ID/action and pending, selecting, running, completed, cancelled or failed state. No path or file changes occur before a native selection. Save As preserves scene/history and binds only after successful close. Picker cancellation and pre-import failures preserve the prior binding. Once replacement import starts, that binding is cleared even if import fails, matching ordinary Open. Repeated `scene.save({})` and native Save stream to the granted handle without another picker or the inline-base64 16 MiB cap. Browser permissions, memory, disk and native-format limits still apply. Absolute paths remain the separate exact-grant host route.
+
+Tests `tests/file-permission.mjs` and `tests/file-permission-browser.mjs` cover request state, existing toolbar dispatch, native serialization/import and cancellation. Controlled picker adapters with real OPFS handles test writes; `tests/file-permission-activation.mjs` uses the untouched native API to distinguish no activation, synthetic `.click()`, trusted click and the activation granted by the test automation's evaluation path. Native chooser completion is not inferred from mocked pickers or headless AbortError responses.

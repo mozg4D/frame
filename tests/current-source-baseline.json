@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 19:23",
-  "predecessorCommit": "fa6b6164e91991f42fe193a5394ff41f5dee1340",
+  "version": "2026 10 nov 20:21",
+  "predecessorCommit": "8b757943c36a089e6e78c01c51ad59cb10d83b22",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -134,6 +134,22 @@
       "plugins/optics/icon.svg",
       "plugins/cut/icon.svg",
       "tests/compact-icon-artwork.mjs"
+    ],
+    "file-access": [
+      "index.html",
+      "frame-sw.js",
+      "tools/file-host.mjs",
+      "tools/file-host-client.mjs",
+      "tools/file-bridge.mjs",
+      "tests/file-host-browser.mjs",
+      "tests/file-host-concurrency.mjs",
+      "tests/file-host-idle.mjs",
+      "tests/file-host-large-browser.mjs",
+      "tests/file-host-long-idle.mjs",
+      "tests/file-host.mjs",
+      "tests/file-permission-activation.mjs",
+      "tests/file-permission-browser.mjs",
+      "tests/file-permission.mjs"
     ]
   },
   "files": {
@@ -159,11 +175,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "64083ac68268d0b0b02de4fea6e400e995e37e9ccd0639dcb7743aec52eed3bf"
+      "sha256": "264d37926ab7b9059d170e395fc3af6dbb9b417d83ef1df820b042b470653d17"
     },
     "index.html": {
-      "bytes": 2797767,
-      "sha256": "9f1e5ddafe430ed07fe85df7f2ee03cb14c3aa19242c3bb7505d0f002d74a6b2"
+      "bytes": 2807901,
+      "sha256": "6b57b1978433c6f374dc1f290dda4026579e7e2ef93a2c3db8c67937549d42f3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -366,8 +382,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 296827,
-      "sha256": "79d0d9ebc515caa3cfbb3382f0d7f855033a28432d675fb6cb947614809579b9"
+      "bytes": 299648,
+      "sha256": "05b6cb17b1f27dc90701d529d55dd6875d74cc96cbc3ffe673ec3bfdfa51f4fc"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -398,8 +414,8 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 25076,
-      "sha256": "102071e8299745d95092a172b7124c62a81c0fc2fa825e0650d391b02586f87c"
+      "bytes": 27272,
+      "sha256": "1a34380ad4e3e1f00ee2337bf892242282d53827a4e524073df0f69ed2b66afc"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -424,6 +440,54 @@
     "tests/compact-icon-artwork.mjs": {
       "bytes": 5335,
       "sha256": "9e239ecf503740deec9aba9b35aa6fe584072ec6051f231d12688cd12460b509"
+    },
+    "tools/file-host.mjs": {
+      "bytes": 6021,
+      "sha256": "2a7b4f0c45d5eaa67b7e3c284c3708ad03f420b485f89965808d26a2c5c6707f"
+    },
+    "tools/file-host-client.mjs": {
+      "bytes": 3386,
+      "sha256": "fb95ad79883dd8cddc9b52812431aa2b7bfd99f53ae96867d6db7b9f314a483f"
+    },
+    "tools/file-bridge.mjs": {
+      "bytes": 5395,
+      "sha256": "df10f0bfb6282ed9c64b0df5467aa1a4f847952d020080dd9d45205c78bed21f"
+    },
+    "tests/file-host-browser.mjs": {
+      "bytes": 8788,
+      "sha256": "d7765b4d8bba8fd502ab346b62e7f68c2f96e9a039b6e0112e057a30809fe268"
+    },
+    "tests/file-host-concurrency.mjs": {
+      "bytes": 9911,
+      "sha256": "c367423f025cf3cfe13f8c62b4b65c123db59be30f71310b46c16d73a4c3ae59"
+    },
+    "tests/file-host-idle.mjs": {
+      "bytes": 6989,
+      "sha256": "b62e39eaf1b0f2c608bf2c0268954db94ac5d9d58ae0dd3809a46a38aa62287e"
+    },
+    "tests/file-host-large-browser.mjs": {
+      "bytes": 2914,
+      "sha256": "71597284ee3c4e36c362034daf845df9bbfe3bac2674a00ce3fe38d3c76e8db6"
+    },
+    "tests/file-host-long-idle.mjs": {
+      "bytes": 2490,
+      "sha256": "36787beaacf266b517f32e86824b7cd0b5364198b1fe06246629f3b0074b21c6"
+    },
+    "tests/file-host.mjs": {
+      "bytes": 5750,
+      "sha256": "f0113b2abfc264821e9cdddee04560c2785a5445e3b2a97108cb82707d89d13b"
+    },
+    "tests/file-permission-activation.mjs": {
+      "bytes": 3675,
+      "sha256": "4bf550a66b4a8c73bca8a99989bebfa31987e468833c94337ab66d1edc1f2b6a"
+    },
+    "tests/file-permission-browser.mjs": {
+      "bytes": 10938,
+      "sha256": "52aee9df230163ec5dce2d975f7c548011c0a1f6777e5e6712ac0a53f2d70e2b"
+    },
+    "tests/file-permission.mjs": {
+      "bytes": 6855,
+      "sha256": "71231d2d32977d26a23bd15e241322c1285b705306f6ecc63a7f3599db7b46ad"
     }
   },
   "archivedProofs": {
