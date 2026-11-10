@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 08:31",
-  "predecessorCommit": "8df4081f2d279a78837ecc0e2edcf0fa8d7b1656",
+  "version": "2026 10 nov 14:43",
+  "predecessorCommit": "e3eb77dddcc2a136c4c880c15c09e727713cf0fe",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -125,6 +125,15 @@
       "frame-sw.js",
       "tests/pointer-lock.mjs",
       "tests/pointer-return.mjs"
+    ],
+    "compact-icons": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/magneto/icon.svg",
+      "plugins/structural/icon.svg",
+      "plugins/optics/icon.svg",
+      "plugins/cut/icon.svg",
+      "tests/compact-icon-artwork.mjs"
     ]
   },
   "files": {
@@ -150,11 +159,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "3ad2e27373b0e3129debb0e37dccee31171f24016bcecdd8c8fbb420945670b5"
+      "sha256": "036bb063bb5884a2e41d06c6ebcaca9d214284cc1bb4ff22377953a9af59f4ea"
     },
     "index.html": {
-      "bytes": 2785497,
-      "sha256": "001aed491163d0f4cf63acd16351c32b981091898323ecd494137c6850bde820"
+      "bytes": 2786741,
+      "sha256": "1790219e394c5622caee20c9329ae3b7d8d51129cce98830194ebae836a6cc71"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -266,11 +275,11 @@
     },
     "tests/selection-gizmo-browser.mjs": {
       "bytes": 12488,
-      "sha256": "b83b3cc0f3e573815f911d3af25351713ee99a2824f9cc91dd17327cfd20a9e8"
+      "sha256": "c1c5bac614954f69569b1fdcd0da2f4f96a53d6144c9e4a1b521e799b88064f2"
     },
     "tests/selection-gizmo-state.mjs": {
       "bytes": 5031,
-      "sha256": "5ea2d5083da3038df4843dd3c828b5e73a005f433a21a21ef5b28c304123a773"
+      "sha256": "618123b2f0586af64a734bea272d78c5fd1b2b9a8bd26e7197e4faa6742d3200"
     },
     "viewport.html": {
       "bytes": 384,
@@ -322,7 +331,7 @@
     },
     "plugins/magneto/icon.svg": {
       "bytes": 214,
-      "sha256": "c67139dc0e704dd413cb1cd82a6fce24b86d9591d6bb482322cb9155b6a8b77b"
+      "sha256": "e733e0b6b1c909f2d914e4a64c3555181cb4ec23e7e1f3631af0d074f0f44165"
     },
     "tests/plugin-tag-fields.mjs": {
       "bytes": 12747,
@@ -357,8 +366,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 285742,
-      "sha256": "7ac8ac7ad05c05a4f50ee47d6b980d58e062c5c9b502c3efad097caff3eb48ad"
+      "bytes": 287680,
+      "sha256": "4688b4235d5c0a81ad5e52c1c4c5199ca4c5dcdaf9f6a66d8aae7a5858c6aed9"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -393,12 +402,28 @@
       "sha256": "709dfd07d23389124320dafc3835a2ca87a19ebf26606bdb71bef42651fd9966"
     },
     "tests/pointer-lock.mjs": {
-      "bytes": 12983,
-      "sha256": "838ef9ea28a447f8cc3a2ff5960753ba80d32ccabf7baf45495f31902517de22"
+      "bytes": 17286,
+      "sha256": "779a13eef0bd32651b9e0d3b40bc0015da704119013961fc00f8d91b8fcbd81e"
     },
     "tests/pointer-return.mjs": {
-      "bytes": 10378,
-      "sha256": "4ccacba6fd6c02def92c753077390b1f34a23acd2562c34c5703ef052f2c9f8c"
+      "bytes": 12848,
+      "sha256": "d18eba644e19d95f2b29a87775b2558bcdcb6553f682654dc60648fc7d92e3f6"
+    },
+    "plugins/structural/icon.svg": {
+      "bytes": 347,
+      "sha256": "c12aedd9e3aefef5ceedbe390e47372efdf049ee7300dc8c623ca64d6d368069"
+    },
+    "plugins/optics/icon.svg": {
+      "bytes": 303,
+      "sha256": "0f08eab7388b8a2412d31b15ed161067940b23ffff693142df57224e582a1d29"
+    },
+    "plugins/cut/icon.svg": {
+      "bytes": 304,
+      "sha256": "c6af478ba10693b934d7604033fd7727611e2c3295bafe251e9085935fbed746"
+    },
+    "tests/compact-icon-artwork.mjs": {
+      "bytes": 5335,
+      "sha256": "9e239ecf503740deec9aba9b35aa6fe584072ec6051f231d12688cd12460b509"
     }
   },
   "archivedProofs": {

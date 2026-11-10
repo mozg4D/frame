@@ -162,3 +162,5 @@ tests/camera-view*.mjs text eol=lf
 tests/hash-parent-membership.mjs text eol=lf
 
 tests/morph-input-settlement.mjs text eol=lf
+
+tests/compact-icon-artwork.mjs text eol=lf

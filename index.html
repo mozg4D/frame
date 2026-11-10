@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 10 nov 08:31">
-<title>Frame 2026 10 nov 08:31</title>
+<meta name="frame-version" content="2026 10 nov 14:43">
+<title>Frame 2026 10 nov 14:43</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -126,7 +126,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 #attrContent input.ax-x{color:#ff5a5a!important}#attrContent input.ax-y{color:#5ad17a!important}#attrContent input.ax-z{color:#7da5ff!important}.ob-limited svg{color:#e65b58;fill:#e65b58}.ob-limited svg *{stroke:#e65b58}.attr-unit{white-space:nowrap;font-size:10px}.frame-plugin-overlay button{background:transparent!important;box-shadow:none!important}.frame-plugin-overlay button.on{background:#454545!important;box-shadow:inset 1px 1px #777,inset -1px -1px #222!important;border-radius:3px}
 
 
-.view .frame-view-open{position:absolute;right:0;top:0;width:16px;height:16px;padding:0;margin:0;border:0;border-radius:0;display:block;color:#888!important;background:transparent;z-index:40;cursor:pointer}.view .frame-view-open:hover{color:#aaa!important;background:#444;outline:none}.view .frame-view-open:focus-visible{color:#ddd!important;background:#444;outline:1px solid #aaa;outline-offset:-1px}.frame-view-open svg{display:block;width:16px;height:16px}.frame-view-open svg,.frame-view-open svg *{color:inherit!important}
+.view .frame-view-open{position:absolute;right:0;top:0;width:16px;height:16px;padding:0;margin:0;border:0;border-radius:0;display:block;color:#777!important;background:transparent;z-index:40;cursor:pointer}.view .frame-view-open:hover{color:#aaa!important;background:#444;outline:none}.view .frame-view-open:focus-visible{color:#ddd!important;background:#444;outline:1px solid #aaa;outline-offset:-1px}.frame-view-open svg{display:block;width:16px;height:16px}.frame-view-open svg,.frame-view-open svg *{color:inherit!important}
 .view .frame-view-notice{position:absolute;right:0;top:18px;max-width:min(300px,100%);box-sizing:border-box;padding:6px 8px;color:#ddd;background:#292929;font:12px/1.4 Arial,sans-serif;z-index:41;pointer-events:none}.view .frame-view-notice[hidden]{display:none}
 </style>
 </head>
@@ -10708,32 +10708,40 @@ function frameUnlockPointer(){const lock=framePointerLock;framePointerLock=null;
 function framePointerInsideScreen(x,y,screen){const left=screen.availLeft||0,top=screen.availTop||0;return x>left+2&&x<left+screen.availWidth-3&&y>top+2&&y<top+screen.availHeight-3;}
 function frameEdgePointer(e,element){
   const document=element.ownerDocument,screen=document.defaultView.screen,previous=framePointerLock;
-  if(!e.isTrusted||previous&&!previous.captured||framePointerLockBlocked||document.pointerLockElement||!element.requestPointerLock||framePointerInsideScreen(e.screenX,e.screenY,screen))return;
-  const lock={element,id:e.pointerId,x:previous?.x??e.clientX,y:previous?.y??e.clientY,buttons:e.buttons,nativeX:e.clientX,nativeY:e.clientY};lock.screenOffsetX=e.screenX-lock.x;lock.screenOffsetY=e.screenY-lock.y;framePointerLock=lock;framePointerLockBlocked=true;
-  const failed=()=>{if(framePointerLock===lock)framePointerLock=previous||null;};try{const request=element.requestPointerLock();request?.catch(failed);}catch{failed();}
+  if(!e.isTrusted||previous?.pending||previous&&!previous.captured||framePointerLockBlocked||document.pointerLockElement||!element.requestPointerLock||framePointerInsideScreen(e.screenX,e.screenY,screen))return;
+  const lock={element,id:e.pointerId,x:previous?.x??e.clientX,y:previous?.y??e.clientY,buttons:e.buttons,nativeX:e.clientX,nativeY:e.clientY,captured:true,pending:true};lock.screenOffsetX=e.screenX-lock.x;lock.screenOffsetY=e.screenY-lock.y;framePointerLock=lock;framePointerLockBlocked=true;
+  const failed=lock.failed=()=>{if(framePointerLock===lock){lock.pending=false;if(!previous)framePointerLock=null;}};try{const request=element.requestPointerLock();request?.catch(failed);}catch{failed();}
 }
 function frameLockedEvent(type,lock,e){lock.element.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:lock.id,pointerType:'mouse',isPrimary:true,clientX:lock.x,clientY:lock.y,button:e?.button??0,buttons:type==='pointermove'?lock.buttons:0,ctrlKey:e?.ctrlKey,shiftKey:e?.shiftKey,altKey:e?.altKey,metaKey:e?.metaKey}));}
 FrameViewWindows.onDocument('pointerdown',()=>{framePointerLockBlocked=false;framePointerMenuBlocked=false;},true);
 FrameViewWindows.onDocument('contextmenu',e=>{if(framePointerMenuBlocked){framePointerMenuBlocked=false;e.preventDefault();e.stopImmediatePropagation();}},true);
 FrameViewWindows.onDocument('pointermove',e=>{
-  const lock=framePointerLock;if(!e.isTrusted||!lock||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();if(!lock.captured)return;
+  const lock=framePointerLock;if(!e.isTrusted||!lock||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();if(!lock.captured||e.currentTarget.pointerLockElement===lock.element)return;
   // Native pointer lock restores the OS cursor to its capture position. Continue
   // the gesture in its existing coordinates, while showing only that real cursor.
-  lock.x+=e.clientX-lock.nativeX;lock.y+=e.clientY-lock.nativeY;lock.nativeX=e.clientX;lock.nativeY=e.clientY;frameLockedEvent('pointermove',lock,e);
-  if(framePointerInsideScreen(e.screenX,e.screenY,e.currentTarget.defaultView.screen))framePointerLockBlocked=false;else frameEdgePointer(e,lock.element);
+  if(lock.rebase){lock.rebase=false;lock.x+=e.movementX||0;lock.y+=e.movementY||0;lock.nativeX=e.clientX;lock.nativeY=e.clientY;frameLockedEvent('pointermove',lock,e);}else{lock.x+=e.clientX-lock.nativeX;lock.y+=e.clientY-lock.nativeY;lock.nativeX=e.clientX;lock.nativeY=e.clientY;frameLockedEvent('pointermove',lock,e);}
+  // Chromium may not have reactivated this pointer by pointerlockchange. Retry
+  // capture on its first native event instead of canceling the held gesture.
+  if(!lock.element.hasPointerCapture(lock.id))try{lock.element.setPointerCapture(lock.id);}catch{}
+  if(lock.pending){lock.screenOffsetX=e.screenX-lock.x;lock.screenOffsetY=e.screenY-lock.y;}else if(framePointerInsideScreen(e.screenX,e.screenY,e.currentTarget.defaultView.screen))framePointerLockBlocked=false;else frameEdgePointer(e,lock.element);
 },true);
 FrameViewWindows.onDocument('mousemove',e=>{
-  const lock=framePointerLock,document=e.currentTarget;if(!lock||lock.returning||document.pointerLockElement!==lock.element)return;if(lock.skipRecenter&&e.isTrusted){lock.skipRecenter=false;return;}lock.x+=e.movementX;lock.y+=e.movementY;frameLockedEvent('pointermove',lock,e);
+  const lock=framePointerLock,document=e.currentTarget;if(!lock||lock.returning||document.pointerLockElement!==lock.element)return;
+  // Some Windows Chromium builds report the warp to the viewport center once.
+  // Ignore that exact warp, not the first real movement of every edge crossing.
+  if(lock.skipRecenter&&e.isTrusted){lock.skipRecenter=false;const w=document.defaultView,dx=Math.round(w.innerWidth/2)-lock.nativeX,dy=Math.round(w.innerHeight/2)-lock.nativeY;if([1,w.devicePixelRatio||1].some(scale=>Math.abs(e.movementX-dx*scale)<2&&Math.abs(e.movementY-dy*scale)<2))return;}
+  lock.x+=e.movementX;lock.y+=e.movementY;frameLockedEvent('pointermove',lock,e);
   // A DOM cursor cannot leave the app window or move the system cursor on release.
   // Return to native capture as soon as relative travel comes back onto the screen.
   if(framePointerLock===lock&&lock.element.id==='frame-engine-canvas'&&framePointerInsideScreen(lock.x+lock.screenOffsetX,lock.y+lock.screenOffsetY,document.defaultView.screen)){lock.returning=true;document.exitPointerLock();}
 },true);
 for(const type of ['pointerup','mouseup','pointercancel'])FrameViewWindows.onDocument(type,e=>{const lock=framePointerLock;if(!lock||!e.isTrusted||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();frameUnlockPointer();frameLockedEvent(type==='pointercancel'?'pointercancel':'pointerup',lock,e);},true);
 FrameViewWindows.onDocument('pointerlockchange',e=>{
-  const lock=framePointerLock,document=e.currentTarget;if(lock&&document!==lock.element.ownerDocument)return;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else lock.skipRecenter=true;}
-  else if(lock?.returning){lock.returning=false;lock.captured=true;try{lock.element.setPointerCapture(lock.id);}catch{frameCancelPointer();}}
+  const lock=framePointerLock,document=e.currentTarget;if(lock&&document!==lock.element.ownerDocument)return;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else{lock.pending=false;lock.captured=false;lock.skipRecenter=true;}}
+  else if(lock?.returning){lock.returning=false;lock.captured=true;lock.rebase=true;try{lock.element.setPointerCapture(lock.id);}catch{}}
   else if(lock&&!lock.captured){framePointerLock=null;frameLockedEvent('pointercancel',lock);}
 });
+FrameViewWindows.onDocument('pointerlockerror',e=>{const lock=framePointerLock;if(lock?.pending&&e.currentTarget===lock.element.ownerDocument)lock.failed();});
 function frameCancelPointer(){const lock=framePointerLock;frameUnlockPointer();if(lock)frameLockedEvent('pointercancel',lock);}
 FrameViewWindows.onDocument('keydown',e=>{if(e.key==='Escape'&&framePointerLock){e.preventDefault();e.stopImmediatePropagation();frameCancelPointer();}},true);
 FrameViewWindows.onWindow('blur',frameCancelPointer);FrameViewWindows.onDocument('visibilitychange',e=>{if(e.currentTarget.hidden&&e.currentTarget===framePointerLock?.element.ownerDocument)frameCancelPointer();});

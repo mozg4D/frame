@@ -1,3 +1,9 @@
+## Compact native plugin icons (2026-11-10)
+
+Magneto, Structural, Optics and Cut retain native 32 x 32 SVG canvases. Their paths are manually redrawn one pixel inward on each outer edge, without CSS transforms or viewBox scaling. Optics uses a narrower lens and 11 pixels of horizontal convergence space instead of 8. Magneto has slightly darker purple fills. The separate-view button retains native 16 x 16 geometry and unchanged hover/focus contrast, with its idle gray reduced from #888 to #777. Plugin authoring behavior and scene colors are unchanged.
+
+`node tests/compact-icon-artwork.mjs --headless` verifies exact raster bounds, native dimensions, stroke/palette intent, darker idle and retained hover colors, source identity and completed decode budgets at DPR1 and DPR2. It renders isolated 2D SVG artwork only; it does not replace the application hardware standard/stress gates.
+
 ## Live spline preview CPU work (2026-11-10)
 
 Gizmo shape eligibility is resolved once per visible view during each draw, after that view restores its canvas and camera. The signature and every handle use the same synchronous classification; there is no cross-frame selection cache.
@@ -40,9 +46,11 @@ Focused regressions: tests/creation-sanity.mjs (CPU) and tests/creation-sanity-b
 
 Release: Frame 2026 09 nov 14:56 (Europe/Moscow). Cut, RF and Optics add native authoring only; Circuit adds bounded connectivity inspection and validation before ownership changes. Structural PCG, Thermal material properties, Magneto reference and Optics power accounting remain unloaded experiments. No physical solver is enabled by this batch. Exact-source standard and stress each passed 7876 checks on physical RTX hardware at DPR1, followed by two 27-check heavy-live stability passes. Full DPR2 and test:all/100M qualification were not run for this batch.
 
-## Native navigation cursor return (2026-11-09)
+## Native navigation cursor return (2026-11-10)
 
-Navigation restores the real system cursor on return from the screen edge rather than drawing an app-only arrow. Pointer capture continues the same gesture without camera jumps; repeated crossings, pending lock release, Escape, blur and hidden-window cancellation are covered. Numeric scrubbing is unchanged. Runtime/service-worker version: Frame 2026 09 nov 07:37.
+Screen-edge navigation uses the browser's real pointer lock and native cursor restoration, never an app-only arrow. The browser owns the actual restoration position; Frame cannot move the OS cursor. The gesture stays active while a lock request is pending and while native pointer capture is temporarily unavailable during unlock. Capture is retried on the next native event instead of canceling navigation. The first post-unlock position resets the native coordinate baseline without moving the camera; any nonzero relative movement in that event is preserved. Subsequent native motion keeps the accumulated gesture displacement. Only an initial movement matching the viewport-center warp is filtered, rather than unconditionally dropping the first real movement. Escape, blur, hidden windows, pointer cancellation and release still finish the gesture. Numeric scrubbing retains unlimited pointer lock.
+
+The shared CPU suite covers delayed capture, changed native restoration coordinates, pending/failed requests, repeated screen crossings, negative monitor coordinates, DPR 1/2 recenter filtering and cancellation. Native browser checks additionally use trusted movement events for repeated orbit/pan/zoom cycles and inject one temporary capture failure. Headless tests avoid taking the user's system pointer; they do not prove the OS's visible cursor placement on a particular monitor arrangement.
 
 ## Synchronous native authoring observation (2026-11-09)
 
@@ -818,7 +826,7 @@ Object and polygon component selection commits on a completed click. Polygon ver
 
 Position-track trajectories use purple paths and their native animation key/tangent records. Clicking a trajectory key or tangent places the combined gizmo at that control. The same transform/numeric transactions edit those records and support exact Undo/cancellation. Their contextual Soft/Hard toggle and Equal Tangents act on selected keys without creating scene objects. Equal Tangents appears only when spatial handles exist. Context menus omit unavailable actions throughout the editor. The reserved fallback material has no Materials Library card. Visibility/Enable controls have no blue outline; the active tab matches its panel and retains its blue top border.
 
-Every Camera uses a level evaluated frame, including target constraints and rendering. Translation and affine stretch are preserved. While dragging the target of the active camera, pointer projection stays frozen until release. Native pointer-lock navigation ignores Chromium's initial trusted cursor-recentering event, then continues with relative motion.
+Every Camera uses a level evaluated frame, including target constraints and rendering. Translation and affine stretch are preserved. While dragging the target of the active camera, pointer projection stays frozen until release. Native pointer-lock navigation filters only an initial event matching the viewport-center warp, then continues with every relative movement.
 
 Enabled generators hide consumed source curves in every shading mode. Explicitly selected sources remain visible; an active Spline Patch exposes its authored cage for component editing. Clicking a patch polygon activates its source spline owner. A Patch with multiple input splines resolves each source independently before passing its derived cells into the existing surface builder. This derived data is transient; authored cages retain ordinary vertices, tangents, sequences and borders. Disconnected cages and their marked hole borders remain supported within one authored spline.
 
