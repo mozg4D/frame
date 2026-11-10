@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 20:21",
-  "predecessorCommit": "8b757943c36a089e6e78c01c51ad59cb10d83b22",
+  "version": "2026 10 nov 21:32",
+  "predecessorCommit": "92c0fde07767daf22f2d3ee7b72d740a6d2d6a6e",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -150,6 +150,34 @@
       "tests/file-permission-activation.mjs",
       "tests/file-permission-browser.mjs",
       "tests/file-permission.mjs"
+    ],
+    "clipping": [
+      "index.html",
+      "tests/perspective-clipping.mjs",
+      "tests/perspective-clipping-browser.mjs"
+    ],
+    "object-marquee": [
+      "index.html",
+      "tests/object-marquee.mjs",
+      "tests/object-marquee-browser.mjs",
+      "tests/object-marquee-heavy.mjs"
+    ],
+    "spline-palette": [
+      "index.html",
+      "tests/spline-palette.mjs",
+      "tests/spline-palette-browser.mjs"
+    ],
+    "selection-bounds-flash": [
+      "index.html",
+      "frame-sw.js",
+      "tests/selection-bounds-flash.mjs",
+      "tests/selection-bounds-flash-browser.mjs",
+      "tests/gizmo-query-work.mjs"
+    ],
+    "object-enable": [
+      "index.html",
+      "frame-sw.js",
+      "tests/object-enable.mjs"
     ]
   },
   "files": {
@@ -175,11 +203,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "264d37926ab7b9059d170e395fc3af6dbb9b417d83ef1df820b042b470653d17"
+      "sha256": "83538d1a1b3c7ba58e57dad7bd6f0cd15e63eaec17cf66cd213654d952d68cf2"
     },
     "index.html": {
-      "bytes": 2807901,
-      "sha256": "6b57b1978433c6f374dc1f290dda4026579e7e2ef93a2c3db8c67937549d42f3"
+      "bytes": 2819634,
+      "sha256": "875013a7585327cb377ee7b0a2333b388e5ab45d3afe11077a97c4c5502fd631"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -382,8 +410,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 299648,
-      "sha256": "05b6cb17b1f27dc90701d529d55dd6875d74cc96cbc3ffe673ec3bfdfa51f4fc"
+      "bytes": 302764,
+      "sha256": "b439b05b29b7ecf0e1db6e676eb3c4a216eef353b16115a2bee66007bafe243b"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -414,8 +442,8 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 27272,
-      "sha256": "1a34380ad4e3e1f00ee2337bf892242282d53827a4e524073df0f69ed2b66afc"
+      "bytes": 29182,
+      "sha256": "341023887647687fcf7033f8becffe6ab80d00c221ee60bb4d7afc11a5e32885"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -488,6 +516,54 @@
     "tests/file-permission.mjs": {
       "bytes": 6855,
       "sha256": "71231d2d32977d26a23bd15e241322c1285b705306f6ecc63a7f3599db7b46ad"
+    },
+    "tests/perspective-clipping.mjs": {
+      "bytes": 7171,
+      "sha256": "f0d496f59c3a1c8d79ba4479ac3b78dad1ee7f478b0b460b426be39bd7fd49c3"
+    },
+    "tests/perspective-clipping-browser.mjs": {
+      "bytes": 8284,
+      "sha256": "f457a4ad48c8676816be83187239d9dc989e751e6b0aa8ca6a9bba39bee2478c"
+    },
+    "tests/object-marquee.mjs": {
+      "bytes": 6253,
+      "sha256": "0f00e188a342e0e77e364592bb2279f9cf0be4a23166208a03b39a394844ce5b"
+    },
+    "tests/object-marquee-browser.mjs": {
+      "bytes": 12814,
+      "sha256": "b64b791904672b1b683e8d3fdaeabb6f97a251d6cc7e2bceead7ea3db9f5a49f"
+    },
+    "tests/object-marquee-heavy.mjs": {
+      "bytes": 3248,
+      "sha256": "dd3d704aae021be2711d473d47e9c163c6aa1ff2f7e7e4bd3f5a094061b4c9d9"
+    },
+    "tests/spline-palette.mjs": {
+      "bytes": 1292,
+      "sha256": "eae8e770762d2748eee2c5e068587b9ce6b2c0027e7403c58fd176f8e2c9a4ba"
+    },
+    "tests/spline-palette-browser.mjs": {
+      "bytes": 6253,
+      "sha256": "be0bcba8571fe459ba49cd67961a7c565144a51e4a1ba2ea2231390087abdd67"
+    },
+    "tests/README.md": {
+      "bytes": 38650,
+      "sha256": "77d5ac8d99b8f0c5467da4bf17334b1d3abfabdc31608bc0b240e507d0c62c37"
+    },
+    "tests/selection-bounds-flash.mjs": {
+      "bytes": 5073,
+      "sha256": "2ee68754bd2771b7fff0f3c05682f7834b4ebf9fa8dbac3814be418e3e773714"
+    },
+    "tests/selection-bounds-flash-browser.mjs": {
+      "bytes": 6758,
+      "sha256": "942f55ae75df0549f3430763e384f39a9858082c4891f5ecf546838b9d294124"
+    },
+    "tests/object-enable.mjs": {
+      "bytes": 7219,
+      "sha256": "f892c82798dd9cef3bd189660dfd0ef347e614191f885d8dd93382c6ac125f48"
+    },
+    "tests/gizmo-query-work.mjs": {
+      "bytes": 18593,
+      "sha256": "0612b9271fe7d7e4c1b01cc46f4159779d21af419b5a4c19c4eaf960e812b4b1"
     }
   },
   "archivedProofs": {

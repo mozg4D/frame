@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+export async function objectMarqueeChecks(){
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],timings=[],check=(name,fn)=>{fn();checks.push({name,pass:true});};
+ try{
+  const source=html.slice(html.indexOf('    function marqueeSegmentHit('),html.indexOf('    function marqueeLineHits(')),segment=Function(source+';return marqueeSegmentHit;')(),planes=[[1,0,-.1,0],[-1,0,.2,0],[0,1,-.1,0],[0,-1,.2,0],[0,0,1,-.01],[0,0,-1,10]];
+  check('A diagonal spline misses empty corners of its bounding box',()=>assert.equal(segment([0,0,1,1],[1,1,1,1],[[1,0,0,-.1],[-1,0,0,.2],[0,1,0,-.8],[0,-1,0,.9],[0,0,1,0]]),false));
+  check('Former bounding-box acceptance fails the empty-corner oracle',()=>{const oldBoundsHit=(a,b,r)=>Math.max(a[0],b[0])>=r[0]&&Math.min(a[0],b[0])<=r[2]&&Math.max(a[1],b[1])>=r[1]&&Math.min(a[1],b[1])<=r[3];assert.equal(oldBoundsHit([0,0],[1,1],[.1,.8,.2,.9]),true);assert.equal(segment([0,0,1,1],[1,1,1,1],[[1,0,0,-.1],[-1,0,0,.2],[0,1,0,-.8],[0,-1,0,.9]]),false);});
+  check('Segment crossing a rectangle hits without an enclosed endpoint',()=>assert.equal(segment([0,.15,1,1],[1,.15,1,1],planes),true));
+  check('Behind-camera projected overlap is rejected',()=>assert.equal(segment([-.15,-.15,-1,1],[-.16,-.16,-1,1],planes),false));
+  check('Near-plane crossing is clipped rather than mirrored or wholly rejected',()=>{assert.equal(segment([.15,.15,1,1],[-.15,-.15,-1,1],planes),true);assert.equal(segment([2,2,1,1],[.15,.15,-1,1],planes),false);});
+  check('Far plane rejects invisible curves',()=>assert.equal(segment([3,3,20,1],[3.5,3.5,20,1],planes),false));
+  check('Boundary contact and stationary visible spline points remain hits',()=>{assert.equal(segment([.1,.1,1,1],[.1,.1,1,1],planes),true);assert.equal(segment([0,0,1,1],[0,0,1,1],planes),false);});
+  const ownerSource=html.slice(html.indexOf('    function marqueeObjectOwners('),html.indexOf('    function selectObjectRectangle(')),owners=Function('helperShown',ownerSource+';return marqueeObjectOwners;')(h=>h!=='hidden'),objects=[{hash:'group'},{hash:'leaf',parent:'group'},{hash:'sibling',parent:'group'},{hash:'unrelated'},{hash:'hidden'}];
+  check('Group membership derives only from real descendant hits',()=>assert.deepEqual(owners(new Set(['leaf']),objects),['group','leaf']));
+  check('Empty rectangles do not inherit an unrelated group bounding box',()=>assert.deepEqual(owners(new Set(),objects),[]));
+  check('Visibility is preserved and cyclic metadata cannot loop forever',()=>assert.deepEqual(owners(new Set(['hidden','a']),[...objects,{hash:'a',parent:'b'},{hash:'b',parent:'a'}]),['a','b']));
+  check('Object selection reuses GPU geometry, never reads polygon arrays or allocates element bitsets',()=>{const s=html.slice(html.indexOf('    function selectObjectRectangle('),html.indexOf('    function selectRectangle('));assert.match(s,/m\.positions/);assert.match(s,/m\.indices/);assert.match(s,/marqueeObjectOwners/);assert.doesNotMatch(s,/readGeometry|nativeReadGPU|boxEntry|selected element bitset/);assert.match(s,/Math\.max\(16,candidates\.length\*4\)/);});
+  check('GPU clipping uses all six homogeneous planes before perspective division',()=>{const s=html.slice(html.indexOf("label:'object rectangle geometry intersection'"),html.indexOf('for(const module of [pick,overlay,objectPick]'));assert.match(s,/k<6u/);assert.match(s,/return p\.z/);assert.match(s,/return p\.w-p\.z/);assert.match(s,/rectangleProject\(index\(\(f%box\.mesh\.z\)\*3u\+i\)/);assert.doesNotMatch(s,/p\.xy\/p\.w/);});
+  const helperSource=html.slice(html.indexOf('    function nativeHelperShape('),html.indexOf('    function drawLightHelpers(')),helperNodes=[{nativeHash:'target',type:'target'},{nativeHash:'camera',type:'render',params:{'resolution x':16,'resolution y':9}},{nativeHash:'active',type:'render'},{nativeHash:'light',type:'infinite'}],identity=[1,0,0,0,0,1,0,0,0,0,1,0,10,20,30,1],math={point:(m,p,w=1)=>p.map((v,i)=>v+(w?m[12+i]:0)),unit:p=>p.map(v=>v/Math.hypot(...p)),add:(a,b)=>a.map((v,i)=>v+b[i]),scale:(p,n)=>p.map(v=>v*n)},shape=Function('nodes','objectWorld','cameraConfig','worldPerPixel','scene','FM',helperSource+';return nativeHelperShape;')(helperNodes,()=>identity,()=>helperNodes[2],()=>2,{lightObjects:['light']},math);
+  check('Native Target reuses its exact 7 CSS px circular helper shape',()=>assert.deepEqual(shape('target'),{points:[[10,20,30]],radius:7}));
+  check('Inactive Camera reuses all eight original edges and active Camera stays excluded',()=>{const q=shape('camera');assert.equal(q.points.length,5);assert.equal(q.edges.length,8);assert.deepEqual(q.points[0],[10,20,30]);assert.equal(q.points[1][0],98);assert.equal(shape('active'),null);});
+  check('Infinite Light reuses its original 62 CSS px arrow',()=>{const q=shape('light');assert.equal(q.points.length,4);assert.deepEqual(q.edges,[[0,1],[1,2],[1,3]]);assert.deepEqual(q.points[1],[134,20,30]);});
+  const helperStart=performance.now();for(let i=0;i<10000;i++)shape('light');const helperMs=performance.now()-helperStart;timings.push({name:'10000 native helper shape evaluations',ms:helperMs,budgetMs:500});check('Native helper selection metadata work is bounded',()=>assert.ok(helperMs<500));
+  const t=performance.now();let hits=0;for(let i=0;i<100000;i++)hits+=segment([0,.15,1,1],[1,.15,1,1],planes);const ms=performance.now()-t;timings.push({name:'100000 spline segment intersections',ms,budgetMs:500});check('Completed spline intersection latency',()=>{assert.equal(hits,100000);assert.ok(ms<500);});
+  return {pass:true,checks,timings};
+ }catch(error){return {pass:false,checks,timings,error:error.stack};}
+}
+if(process.argv[1]===fileURLToPath(import.meta.url)){const r=await objectMarqueeChecks();r.indexSHA256=createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex');await mkdir(new URL('results/',import.meta.url),{recursive:true});await writeFile(new URL('results/object-marquee-cpu.json',import.meta.url),JSON.stringify(r,null,2));console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}

@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 10 nov 20:21">
-<title>Frame 2026 10 nov 20:21</title>
+<meta name="frame-version" content="2026 10 nov 21:32">
+<title>Frame 2026 10 nov 21:32</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -9165,7 +9165,7 @@ ICO_PLUGINS:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-r
   "ICO_TREE_MINUS": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"#8a8a8a\" stroke-width=\"1\"><rect x=\"2.5\" y=\"2.5\" width=\"11\" height=\"11\" rx=\"1\"/><line x1=\"5\" y1=\"8\" x2=\"11\" y2=\"8\" stroke-linecap=\"round\"/></svg>",
   "ICO_TREE_HIDE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\" rx=\"1\" fill=\"#b04a4a\"/></svg>",
   "ICO_TREE_SHOW": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\" stroke=\"#7a7a7a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\" rx=\"1\"/></svg>",
-  "ICO_TREE_ENABLE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\" rx=\"1\" fill=\"#4d914d\"/></svg>",
+  "ICO_TREE_ENABLE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\" fill=\"none\"><rect x=\"3.5\" y=\"3.5\" width=\"9\" height=\"9\" rx=\"1\" fill=\"#458345\"/></svg>",
   "ICO_OBJ_CUBE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 17L6.5 23M14 17L26 20M14 17L13.5 4.5\" stroke-dasharray=\"2 2\"/><path d=\"M26 20L20 27.5M13.5 4.5L5 9M27 6.5L20.5 12M6.5 23L20 27.5M13.5 4.5L27 6.5M5 9L20.5 12M6.5 23L5 9M20 27.5L20.5 12M26 20L27 6.5\"/></svg>",
   "ICO_OBJ_CYL": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"16\" cy=\"9\" rx=\"8.5\" ry=\"3.5\"/><path d=\"M7.5 9L7.5 23C7.5 25 11 26.5 16 26.5C21 26.5 25 25 24.5 23L24.5 9\"/><path d=\"M 7.5 23 A 8.5 3.5 0 0 1 24.5 23\" stroke-dasharray=\"2 2\"/></svg>",
   "ICO_OBJ_TUBE": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"16\" cy=\"10\" rx=\"9.5\" ry=\"5\"/><ellipse cx=\"16\" cy=\"10\" rx=\"4.5\" ry=\"2\"/><path d=\"M6.5 10L6.5 23C7.5 25 11 27 16 27C21 27 25 25 25.5 23L25.5 10\"/><path d=\"M11.5 14.5L11.5 22.5C11.5 23.5 13.5 24 16 24C18 24 20.5 23.5 20.5 22.5L20.5 13.5\" stroke-dasharray=\"2 2\"/><path d=\"M7 23A9 4.5 0 0 1 25 23\" stroke-dasharray=\"2 2\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
@@ -14492,6 +14492,12 @@ window.frameEngine=(()=>{
 
     const lightHelperViews=new Map();
     function helperShown(hash){const flags=nativeValue(hash,'flags')?.[0]??3,parent=nativeValue(hash,'parent')?.[0];return !!(flags&1)&&(!parent||helperShown(parent));}
+    function nativeHelperShape(hash){
+      const n=nodes.find(n=>n.nativeHash===hash),m=objectWorld(hash),p=FM.point(m,[0,0,0]);
+      if(n?.type==='render'){if(n===cameraConfig())return null;const size=worldPerPixel(p)*44,h=size*Math.tan(Math.PI/8),w=h*(n.params['resolution x']/n.params['resolution y']);return {points:[[0,0,0],[size,-h,-w],[size,-h,w],[size,h,w],[size,h,-w]].map(p=>FM.point(m,p)),edges:[[0,1],[0,2],[0,3],[0,4],[1,2],[2,3],[3,4],[4,1]]};}
+      if(n?.type==='target')return {points:[p],radius:7};
+      if(!(scene.lightObjects||[]).includes(hash))return null;const z=FM.unit(FM.point(m,[1,0,0],0)),x=FM.unit(FM.point(m,[0,0,1],0)),length=worldPerPixel(p)*62,tip=FM.add(p,FM.scale(z,length));return {points:[p,tip,FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,length*.08)),FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,-length*.08))],edges:[[0,1],[1,2],[1,3]]};
+    }
     function drawLightHelpers(){
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas;
       try{for(const i of frameViewSections.keys()){
@@ -14500,8 +14506,8 @@ window.frameEngine=(()=>{
         if(!svg){svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.classList.add('frame-light-helpers');svg.dataset.view=i;svg.style.cssText='position:fixed;pointer-events:none;z-index:10;overflow:hidden';$('vp').append(svg);lightHelperViews.set(i,svg);}
         framePlaceOverlay(svg,i);viewIndex=i;canvas=c;restoreCamera(i===active?saved:viewStates[i]||defaultCamera(i));const rect=c.getBoundingClientRect();Object.assign(svg.style,{display:'block',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px'});svg.setAttribute('viewBox','0 0 '+rect.width+' '+rect.height);
         const key=[...nodes.filter(n=>pluginViewport(n)).flatMap(n=>[n.nativeHash,n.visible,n.enabled,frameSoloContains(n),helperShown(n.nativeHash),lightShown(n.nativeHash)]),poseEpoch,rect.left,rect.top,rect.width,rect.height,...captureCamera(),...(scene.lightObjects||[]).flatMap(h=>[h,helperShown(h)]),...nodes.filter(n=>n.type==='render').flatMap(n=>[n.nativeHash,n.enabled,n.params['resolution x'],n.params['resolution y']])].join(':');if(svg.dataset.signature===key)continue;svg.dataset.signature=key;svg.replaceChildren();drawPluginHits(svg,rect);
-        for(const hash of [...scene.lightObjects||[],...nodes.filter(n=>n.type==='target'||n.type==='render').map(n=>n.nativeHash)]){if(!helperShown(hash))continue;const camera=nodes.find(n=>n.nativeHash===hash&&n.type==='render');if(camera){if(camera===cameraConfig())continue;const m=objectWorld(hash),size=worldPerPixel(FM.point(m,[0,0,0]))*44,h=size*Math.tan(Math.PI/8),w=h*(camera.params['resolution x']/camera.params['resolution y']),pts=[[0,0,0],[size,-h,-w],[size,-h,w],[size,h,w],[size,h,-w]].map(p=>worldScreen(FM.point(m,p)).map((v,j)=>v-(j?rect.top:rect.left)));if(!pts.flat().every(Number.isFinite))continue;const path=document.createElementNS(svg.namespaceURI,'path');path.classList.add('frame-camera-helper');path.style.cursor='pointer';path.dataset.hash=hash;path.setAttribute('fill','none');path.setAttribute('stroke','#dda888');path.setAttribute('d',[[0,1],[0,2],[0,3],[0,4],[1,2],[2,3],[3,4],[4,1]].map(([a,b])=>'M'+pts[a].join(',')+'L'+pts[b].join(',')).join(''));path.style.pointerEvents='stroke';path.onclick=e=>{if(e.button!==0)return;selectRow(camera.id);frameSelectEngineObjects();e.stopPropagation();};const pick=path.cloneNode(true);pick.classList.remove('frame-camera-helper');pick.classList.add('frame-helper-hit');pick.setAttribute('stroke','transparent');pick.setAttribute('stroke-width','10');pick.onclick=path.onclick;svg.append(path,pick);continue;}const target=nodes.some(n=>n.nativeHash===hash&&n.type==='target');if(target){const p=worldScreen(FM.point(objectWorld(hash),[0,0,0])).map((v,j)=>v-(j?rect.top:rect.left)),circle=document.createElementNS(svg.namespaceURI,'circle');circle.setAttribute('cx',p[0]);circle.setAttribute('cy',p[1]);circle.setAttribute('r',7);circle.setAttribute('fill','none');circle.setAttribute('stroke','#88c2d6');circle.style.pointerEvents='all';circle.style.cursor='pointer';circle.onclick=e=>{const n=nodes.find(n=>n.nativeHash===hash);selectRow(n.id);frameSelectEngineObjects();e.stopPropagation();};svg.append(circle);continue;}const frame=objectWorld(hash),p=Array.from(frame.slice(12,15)),z=FM.unit(FM.point(frame,[1,0,0],0)),x=FM.unit(FM.point(frame,[0,0,1],0)),length=worldPerPixel(p)*62,tip=FM.add(p,FM.scale(z,length)),points=[p,tip,FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,length*.08)),FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,-length*.08))],xy=points.map(q=>worldScreen(q).map((v,j)=>v-(j?rect.top:rect.left)));if(!xy.flat().every(Number.isFinite))continue;
-          const path=document.createElementNS(svg.namespaceURI,'path');path.classList.add('frame-infinite-direction');path.dataset.hash=hash;path.setAttribute('fill','none');path.setAttribute('stroke','#ffe5a1');path.setAttribute('stroke-width','1.25');path.setAttribute('d',[[0,1],[1,2],[1,3]].map(([a,b])=>'M'+xy[a].join(',')+'L'+xy[b].join(',')).join(''));path.style.pointerEvents='stroke';path.style.cursor='pointer';path.onclick=e=>{if(e.button!==0)return;const n=nodes.find(n=>n.nativeHash===hash);if(n){selectRow(n.id);frameSelectEngineObjects();e.stopPropagation();}};const pick=path.cloneNode(true);pick.classList.remove('frame-infinite-direction');pick.classList.add('frame-helper-hit');pick.setAttribute('stroke','transparent');pick.setAttribute('stroke-width','10');pick.onclick=path.onclick;svg.append(path,pick);
+        for(const hash of [...scene.lightObjects||[],...nodes.filter(n=>n.type==='target'||n.type==='render').map(n=>n.nativeHash)]){if(!helperShown(hash))continue;const camera=nodes.find(n=>n.nativeHash===hash&&n.type==='render');if(camera){if(camera===cameraConfig())continue;const geometry=nativeHelperShape(hash),pts=geometry.points.map(p=>worldScreen(p).map((v,j)=>v-(j?rect.top:rect.left)));if(!pts.flat().every(Number.isFinite))continue;const path=document.createElementNS(svg.namespaceURI,'path');path.classList.add('frame-camera-helper');path.style.cursor='pointer';path.dataset.hash=hash;path.setAttribute('fill','none');path.setAttribute('stroke','#dda888');path.setAttribute('d',geometry.edges.map(([a,b])=>'M'+pts[a].join(',')+'L'+pts[b].join(',')).join(''));path.style.pointerEvents='stroke';path.onclick=e=>{if(e.button!==0)return;selectRow(camera.id);frameSelectEngineObjects();e.stopPropagation();};const pick=path.cloneNode(true);pick.classList.remove('frame-camera-helper');pick.classList.add('frame-helper-hit');pick.setAttribute('stroke','transparent');pick.setAttribute('stroke-width','10');pick.onclick=path.onclick;svg.append(path,pick);continue;}const target=nodes.some(n=>n.nativeHash===hash&&n.type==='target');if(target){const geometry=nativeHelperShape(hash),p=worldScreen(geometry.points[0]).map((v,j)=>v-(j?rect.top:rect.left)),circle=document.createElementNS(svg.namespaceURI,'circle');circle.dataset.hash=hash;circle.setAttribute('cx',p[0]);circle.setAttribute('cy',p[1]);circle.setAttribute('r',geometry.radius);circle.setAttribute('fill','none');circle.setAttribute('stroke','#88c2d6');circle.style.pointerEvents='all';circle.style.cursor='pointer';circle.onclick=e=>{const n=nodes.find(n=>n.nativeHash===hash);selectRow(n.id);frameSelectEngineObjects();e.stopPropagation();};svg.append(circle);continue;}const geometry=nativeHelperShape(hash),xy=geometry.points.map(q=>worldScreen(q).map((v,j)=>v-(j?rect.top:rect.left)));if(!xy.flat().every(Number.isFinite))continue;
+          const path=document.createElementNS(svg.namespaceURI,'path');path.classList.add('frame-infinite-direction');path.dataset.hash=hash;path.setAttribute('fill','none');path.setAttribute('stroke','#ffe5a1');path.setAttribute('stroke-width','1.25');path.setAttribute('d',geometry.edges.map(([a,b])=>'M'+xy[a].join(',')+'L'+xy[b].join(',')).join(''));path.style.pointerEvents='stroke';path.style.cursor='pointer';path.onclick=e=>{if(e.button!==0)return;const n=nodes.find(n=>n.nativeHash===hash);if(n){selectRow(n.id);frameSelectEngineObjects();e.stopPropagation();}};const pick=path.cloneNode(true);pick.classList.remove('frame-infinite-direction');pick.classList.add('frame-helper-hit');pick.setAttribute('stroke','transparent');pick.setAttribute('stroke-width','10');pick.onclick=path.onclick;svg.append(path,pick);
         }
       }}finally{canvas=activeCanvas;viewIndex=active;restoreCamera(saved);}
     }
@@ -15462,18 +15468,21 @@ fn occupied(p:vec2i,channel:u32)->bool{
 
     function clippingPlanes() {
       if(!scene)return [0.0004,4];
-      let front=0,back=0.001;const min=[...scene.boundsMin],max=[...scene.boundsMax],include=box=>{if(box)for(let k=0;k<3;k++){min[k]=Math.min(min[k],box.min[k]);max[k]=Math.max(max[k],box.max[k]);}};
+      const orthographic=!!frameViewKind(viewIndex),empty=!orthographic&&!scene.meshes.length;
+      let front=0,back=0.001;const min=empty?[Infinity,Infinity,Infinity]:[...scene.boundsMin],max=empty?[-Infinity,-Infinity,-Infinity]:[...scene.boundsMax],include=box=>{if(box)for(let k=0;k<3;k++){min[k]=Math.min(min[k],box.min[k]);max[k]=Math.max(max[k],box.max[k]);}};
       for(const n of nodes)if(pluginViewport(n))include(pluginBounds(n.nativeHash,n));
       for(const d of splineDisplays.values())if(splineShown(d))include(splineBounds(d.hash));
       for(const m of scene.curveReplicas||[])if(m.frameVisible){const d=replicaDisplay(m);if(d)include(transformedBox({min:d.min,max:d.max},FM.mul(objectWorld(m.hashId),m.replicaMatrix)));}
+      if(!min.every(Number.isFinite)||!max.every(Number.isFinite))include({min:scene.boundsMin,max:scene.boundsMax});
+      // Guides are not scene geometry and must not push the perspective near plane forward.
+      if(orthographic)include({min:[-1000,0,-1000],max:[1000,1000,1000]});
       for(let mask=0;mask<8;mask++){
-        const guideMin=[-1000,0,-1000],guideMax=[1000,1000,1000];
-        const p=min.map((v,i)=>(((mask>>i)&1?Math.max(max[i],guideMax[i]):Math.min(v,guideMin[i]))-scene.center[i])*scene.scale);
+        const p=min.map((v,i)=>(((mask>>i)&1?max[i]:v)-scene.center[i])*scene.scale);
         const depth=3.2-rotatePoint(p)[2]-orbitOffset[2];front=Math.min(front,depth);back=Math.max(back,depth);
       }
-      const padding=Math.max(0.0001,(back-front)*0.01);back+=padding;if(frameViewKind(viewIndex))front-=padding;
-      if(movingMeshes()){back=2**Math.ceil(Math.log2(back));if(frameViewKind(viewIndex))front=-(2**Math.ceil(Math.log2(-front)));}
-      return [frameViewKind(viewIndex)?front:back/10000,back];
+      const padding=Math.max(0.0001,(back-front)*0.01);back+=padding;if(orthographic)front-=padding;
+      if(orthographic&&movingMeshes()){back=2**Math.ceil(Math.log2(back));front=-(2**Math.ceil(Math.log2(-front)));}
+      return [orthographic?front:back/10000,back];
     }
 
     function cameraFrame(){return {position:inverseView([-panX-orbitOffset[0],-panY-orbitOffset[1],3.2-orbitOffset[2]]).map((v,i)=>v/scene.scale+scene.center[i]),right:inverseView([1,0,0]),up:inverseView([0,1,0]),forward:inverseView([0,0,-1]),parity:frameViewKind(viewIndex)<=1?-1:1};}
@@ -16304,6 +16313,18 @@ fn occupied(p:vec2i,channel:u32)->bool{
 
     let lastGizmoOperation='move',gizmoSession=null,gizmoSignature='',lastGizmoState=null,pivotKey=null,boundsFlash=0,boundsFlashUntil=0;
     function flashObjectBounds(){boundsFlash++;boundsFlashUntil=performance.now()+350;}
+    function projectedBoundsFlash(box,rect,clip){
+      const ortho=!!frameViewKind(viewIndex),f=ortho?zoom:cameraFocal(),aspect=rect.width/rect.height;
+      const corners=Array.from({length:8},(_,mask)=>{const r=rotatePoint(box.min.map((v,k)=>(((mask>>k)&1?box.max[k]:v)-scene.center[k])*scene.scale)),depth=3.2-r[2]-orbitOffset[2];return [(r[0]+orbitOffset[0]+panX)*f/aspect,(r[1]+orbitOffset[1]+panY)*f,depth,ortho?1:depth];});
+      const planes=p=>[p[3]+p[0],p[3]-p[0],p[3]+p[1],p[3]-p[1],p[2]-clip[0],clip[1]-p[2]],screen=p=>[(p[0]/p[3]+1)*rect.width*.5,(1-p[1]/p[3])*rect.height*.5];let path='';
+      for(const [a,b]of [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]]){
+        const p=corners[a],q=corners[b];if(!p.every(Number.isFinite)||!q.every(Number.isFinite))continue;const A=planes(p),B=planes(q);let lo=0,hi=1;
+        for(let k=0;k<6;k++){if(A[k]<0&&B[k]<0){hi=-1;break;}if(A[k]<0)lo=Math.max(lo,A[k]/(A[k]-B[k]));else if(B[k]<0)hi=Math.min(hi,A[k]/(A[k]-B[k]));}
+        if(lo>hi)continue;const at=t=>screen(p.map((v,k)=>v+(q[k]-v)*t)),u=at(lo),v=at(hi);if(u.every(Number.isFinite)&&v.every(Number.isFinite))path+='M'+u.join(',')+'L'+v.join(',');
+      }
+      return path;
+    }
+
     // Frame r248's combined transform geometry; projections and input use native core math.
     const svgNS='http://www.w3.org/2000/svg',gizmoViews=new Map(),gizmoViewStates=new Map();
     let gizmoSvg;
@@ -16365,7 +16386,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         const singleControl=singleSelectedControl();
         const signature=[rect.left,rect.top,rect.width,rect.height,scene.scale,...scene.center,...objectSelection,selectionBox?.min.join(','),selectionBox?.max.join(','),...captureCamera(),perspectiveFov,cameraRoll,...pivot,...basis.flat(),...signs,pivotEditing,singleControl,coordinateMode,boundsFlash,uvEditing,quantize,snapping,gizmoSession?.kind,...gizmoSession?.delta||[],auxiliaryState()?.frame.join(','),gizmoSession?.kind==='rotate'?gizmoSession.event?.clientX:'',gizmoSession?.kind==='rotate'?gizmoSession.event?.clientY:''].join(':');
         const prior=gizmoViewStates.get(i);if(prior?.signature===signature){if(i===active)lastGizmoState=prior;continue;}const previousFlash=svg.querySelector('.frame-bounds-flash');svg.replaceChildren();drawAuxiliaryShape(svg,project,rect);
-        if(selectionScope==='objects'&&performance.now()<boundsFlashUntil){const path=previousFlash?.dataset.flash===String(boundsFlash)?previousFlash:document.createElementNS(svgNS,'path');path.classList.add('frame-bounds-flash');path.dataset.flash=boundsFlash;path.setAttribute('fill','none');path.setAttribute('stroke','#ffda00');path.setAttribute('stroke-width','1');path.setAttribute('d',objectSelection.map(h=>{const b=nodeBounds(h),p=Array.from({length:8},(_,mask)=>project(b.min.map((n,j)=>mask>>j&1?b.max[j]:n))).map(p=>[p[0]-rect.left,p[1]-rect.top]);return [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]].map(([a,b])=>'M'+p[a].join(',')+'L'+p[b].join(',')).join('');}).join(''));svg.append(path);}
+        if(selectionScope==='objects'&&performance.now()<boundsFlashUntil){const path=previousFlash?.dataset.flash===String(boundsFlash)?previousFlash:document.createElementNS(svgNS,'path');path.classList.add('frame-bounds-flash');path.dataset.flash=boundsFlash;path.setAttribute('fill','none');path.setAttribute('stroke','#ffda00');path.setAttribute('stroke-width','1');const clip=clippingPlanes();path.setAttribute('d',objectSelection.map(h=>projectedBoundsFlash(nodeBounds(h),rect,clip)).join(''));svg.append(path);}
         const state={view:i,pivot,basis,signs,unit,at,mode3D,rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom},signature,shapes:[],parts:[],handles:[]},size=75*unit/(mode3D?10:3.35),world=p=>mode3D?FM.add(pivot,basis.reduce((v,a,j)=>FM.add(v,FM.scale(a,p[j]*signs[j]*size)),[0,0,0])):FM.add(pivot,FM.scale(p,size));
         const shape=(name,color,geo,projectPoint=p=>project(world(p)))=>{
           const part=gizmoPart(name);if(pivotEditing&&part.startsWith('scale')||singleControl&&(part.startsWith('scale')||!pivotEditing&&(part.startsWith('rotate')||part==='screenRotate')))return;const points=[];for(let n=0;n<geo.positions.length;n+=3)points.push(projectPoint(Array.from(geo.positions.slice(n,n+3))));
@@ -16602,7 +16623,36 @@ fn occupied(p:vec2i,channel:u32)->bool{
       `+raster+`
         @fragment fn overlayFS(e:Element)->@location(0) vec4f{if(box.counts.x==0u){if(!pointVisible(e.v.x,project(e.v.x))){discard;}}else if(!visible(e)){discard;}return vec4f(select(vec3f(1.,.48,.08),vec3f(.396,.929,.525),box.counts.x==1u),select(1.,.45,box.counts.x==2u));}
       `});
-      for(const module of [pick,overlay]){const info=await module.getCompilationInfo(),errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.message).join('; '));}
+      // Reuse canonical paged/buffer positions and object frames; only one hit word per object returns to RAM.
+      const objectPick=d.createShaderModule({label:'object rectangle geometry intersection',code:common+`
+        @group(1) @binding(8) var<storage,read_write> hits:array<atomic<u32>>;
+        @group(1) @binding(12) var<storage,read> occurrences:array<vec4f>;
+        fn rectangleProject(v:u32,occurrence:u32)->vec4f{let j=v*3u;var p=vec3f(coordinate(j),coordinate(j+1u),coordinate(j+2u));if(box.options.x!=0u){let instance=occurrences[occurrence];p=p*instance.w+instance.xyz;}let world=objectPoint(p,objectFrame);return frameProject((camera.rotation*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz);}
+        fn plane(p:vec4f,k:u32)->f32{
+          let lo=box.rect.xy/camera.frame.xy*vec2f(2,-2)+vec2f(-1,1);
+          let hi=box.rect.zw/camera.frame.xy*vec2f(2,-2)+vec2f(-1,1);
+          switch k {case 0u:{return p.x-lo.x*p.w;}case 1u:{return hi.x*p.w-p.x;}case 2u:{return p.y-hi.y*p.w;}case 3u:{return lo.y*p.w-p.y;}case 4u:{return p.z;}default:{return p.w-p.z;}}
+        }
+        fn triangleHit(f:u32)->bool{
+          var points:array<vec4f,9>;var next:array<vec4f,9>;var count=3u;
+          for(var i=0u;i<3u;i++){points[i]=rectangleProject(index((f%box.mesh.z)*3u+i),f/box.mesh.z);}
+          // Clip against the four marquee sides and the camera near/far planes before division by w.
+          for(var k=0u;k<6u;k++){
+            var n=0u;var a=points[count-1u];var da=plane(a,k);
+            for(var i=0u;i<count;i++){let b=points[i];let db=plane(b,k);
+              if((da<0.&&db>0.)||(da>0.&&db<0.)){next[n]=mix(a,b,da/(da-db));n++;}
+              if(db>=0.){next[n]=b;n++;}a=b;da=db;
+            }
+            if(n==0u){return false;}count=n;points=next;
+          }
+          return true;
+        }
+        @compute @workgroup_size(128) fn objectRectangle(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+          let f=id.x+id.y*groups.x*128u;if(f>=box.counts.y||atomicLoad(&hits[box.mesh.w])!=0u){return;}
+          if(triangleHit(f)){atomicStore(&hits[box.mesh.w],1u);}
+        }
+      `});
+      for(const module of [pick,overlay,objectPick]){const info=await module.getCompilationInfo(),errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.message).join('; '));}
       const stages=GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE;
       const global=d.createBindGroupLayout({entries:[{binding:0,visibility:stages,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'depth'}},{binding:2,visibility:GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE,texture:{sampleType:'uint'}}]});
       const makeLayout=write=>d.createBindGroupLayout({entries:[...[0,1,2].map(binding=>({binding,visibility:stages,buffer:{type:'read-only-storage'}})),...[3,4].map(binding=>({binding,visibility:stages,texture:{sampleType:'uint',viewDimension:'2d-array'}})),{binding:5,visibility:stages,buffer:{type:'uniform'}},{binding:6,visibility:write?GPUShaderStage.FRAGMENT|GPUShaderStage.COMPUTE:stages,buffer:{type:write?'storage':'read-only-storage'}},...(write?[7,8,9].map(binding=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}})):[]),...(write?[{binding:10,visibility:GPUShaderStage.COMPUTE,buffer:{type:'read-only-storage'}}]:[]),{binding:11,visibility:stages,buffer:{type:'uniform'}}]});
@@ -16611,7 +16661,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       for(const [entryPoint,topology]of [['markerVS','triangle-list'],['edgeVS','line-list'],['faceVS','triangle-list']]){
         overlays.push(await d.createRenderPipelineAsync({layout:readPipelineLayout,vertex:{module:overlay,entryPoint},fragment:{module:overlay,entryPoint:'overlayFS',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology,cullMode:'none'}}));
       }
-      const clickSelect=await d.createComputePipelineAsync({layout:writePipelineLayout,compute:{module:pick,entryPoint:'clickSelect'}}),restoreElements=await d.createComputePipelineAsync({layout:writePipelineLayout,compute:{module:pick,entryPoint:'restoreElements'}});checkSession(gpu);return gpu.boxPipelines={global,writeLayout,readLayout,checkVertices,buildElements,clickSelect,restoreElements,overlays};
+      const clickSelect=await d.createComputePipelineAsync({layout:writePipelineLayout,compute:{module:pick,entryPoint:'clickSelect'}}),restoreElements=await d.createComputePipelineAsync({layout:writePipelineLayout,compute:{module:pick,entryPoint:'restoreElements'}});const objectRectangle=await d.createComputePipelineAsync({layout:'auto',compute:{module:objectPick,entryPoint:'objectRectangle'}});checkSession(gpu);return gpu.boxPipelines={global,writeLayout,readLayout,checkVertices,buildElements,clickSelect,restoreElements,overlays,objectRectangle};
     }
     function boxGlobalGroup(gpu,depth=gpu.depth){return gpu.device.createBindGroup({layout:gpu.boxPipelines.global,entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:depth.createView()},{binding:2,resource:gpu.triangleIds.createView()}]});}
     function boxEntry(gpu,s,draw,meshIndex,rect){
@@ -16627,8 +16677,55 @@ fn occupied(p:vec2i,channel:u32)->bool{
       for(let mask=0;mask<8;mask++){const p=mesh.boundsMin.map((v,i)=>((mask>>i)&1)?mesh.boundsMax[i]:v).map((v,i)=>(v-scene.center[i])*scene.scale);if(!frameViewKind(viewIndex)&&3.2-rotatePoint(p)[2]-orbitOffset[2]<=0)return true;const xy=projectOrbitPoint(p);xs.push((xy[0]-bounds.left)*renderer.width/bounds.width);ys.push((xy[1]-bounds.top)*renderer.height/bounds.height);}
       return Math.max(...xs)>=rect[0]&&Math.min(...xs)<=rect[2]&&Math.max(...ys)>=rect[1]&&Math.min(...ys)<=rect[3];
     }
+    function marqueeSegmentHit(a,b,planes){
+      let lo=0,hi=1;for(const plane of planes){const da=plane.reduce((s,v,i)=>s+v*a[i],0),db=plane.reduce((s,v,i)=>s+v*b[i],0);if(da<0&&db<0)return false;if(da<0)lo=Math.max(lo,da/(da-db));else if(db<0)hi=Math.min(hi,da/(da-db));if(lo>hi)return false;}return true;
+    }
+    function marqueeLineHits(cssRect){
+      const bounds=canvas.getBoundingClientRect(),ortho=!!frameViewKind(viewIndex),[near,far]=clippingPlanes(),focal=ortho?zoom:cameraFocal(),aspect=bounds.width/bounds.height;
+      const [x,y,u,v]=cssRect.map((n,i)=>(n-(i%2?bounds.top:bounds.left))/(i%2?bounds.height:bounds.width)*2-1);
+      const planes=[[focal/aspect,0,-x,0],[-focal/aspect,0,u,0],[0,focal,v,0],[0,-focal,-y,0],[0,0,1,-near],[0,0,-1,far]];
+      if(ortho)for(let i=0;i<4;i++){planes[i][3]=planes[i][2];planes[i][2]=0;}
+      const point=(p,m)=>{const q=rotatePoint(FM.point(m,p).map((v,k)=>(v-scene.center[k])*scene.scale));return [q[0]+orbitOffset[0]+panX,q[1]+orbitOffset[1]+panY,3.2-q[2]-orbitOffset[2],1];},hits=new Set();
+      const lines=(hash,values,m)=>{for(let i=0;i<values.length;i+=6)if(marqueeSegmentHit(point(values.subarray(i,i+3),m),point(values.subarray(i+3,i+6),m),planes)){hits.add(hash);break;}};
+      for(const d of splineDisplays.values())if(splineShown(d)&&!FrameSpline.sourceNode(nodes.find(n=>n.nativeHash===d.hash)))lines(d.hash,d.lineValues,objectWorld(d.hash));
+      for(const m of scene.curveReplicas||[]){const d=replicaDisplay(m);if(m.frameVisible&&d)lines(m.hashId,d.lineValues,FM.mul(objectWorld(m.hashId),m.replicaMatrix));}
+      for(const n of nodes){const helper=pluginHelper(n);if(helper?.lines?.length&&pluginShown(n))lines(n.nativeHash,helper.lines,objectWorld(n.nativeHash));}
+      // Native SVG helpers are overlays: reuse their drawn shape, without a scene-bbox hit or raster far cutoff.
+      if(!(viewIndex===0&&renderOverlayActive())){const helperPlanes=planes.slice(0,4);if(!ortho)helperPlanes.push([0,0,1,-Number.EPSILON]);const identity=FM.I();
+        for(const hash of [...scene.lightObjects||[],...nodes.filter(n=>n.type==='target'||n.type==='render').map(n=>n.nativeHash)]){if(!helperShown(hash))continue;const geometry=nativeHelperShape(hash);if(!geometry)continue;
+          if(geometry.radius){const p=point(geometry.points[0],identity);if(!ortho&&p[2]<=0)continue;const xy=worldScreen(geometry.points[0]),dx=Math.max(cssRect[0]-xy[0],0,xy[0]-cssRect[2]),dy=Math.max(cssRect[1]-xy[1],0,xy[1]-cssRect[3]);if(dx*dx+dy*dy<=geometry.radius**2)hits.add(hash);}
+          else if(geometry.edges.some(([a,b])=>marqueeSegmentHit(point(geometry.points[a],identity),point(geometry.points[b],identity),helperPlanes)))hits.add(hash);
+        }
+      }
+      return hits;
+    }
+    function marqueeObjectOwners(hits,objects){
+      const byHash=new Map(objects.map(o=>[o.hash,o]));for(const hash of [...hits]){const seen=new Set();for(let o=byHash.get(hash);o&&!seen.has(o.hash);o=byHash.get(o.parent)){seen.add(o.hash);hits.add(o.hash);}}
+      return objects.filter(o=>hits.has(o.hash)&&helperShown(o.hash)).map(o=>o.hash);
+    }
+    function selectObjectRectangle(cssRect,operation){
+      if(!scene||selectionBusy||editDrag||editFinishing||undoBusy||button.disabled)return selectionQueue;
+      const gpu=renderer,space=scene,generation=++selectionGeneration,requested=performance.now();selectionBusy=true;orbitGeneration++;pendingWheel=null;touchActivity();
+      selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
+        const valid=()=>renderer===gpu&&!gpu.dead&&scene===space&&generation===selectionGeneration;const resources=[];if(!valid())return;
+        try{
+          if(cloudRows().length)await cloudPipeline(gpu);await draw(false);if(!valid())return;const hits=marqueeLineHits(cssRect),bounds=canvas.getBoundingClientRect(),rect=cssRect.map((v,i)=>(v-(i%2?bounds.top:bounds.left))*(i%2?gpu.height/bounds.height:gpu.width/bounds.width));
+          const candidates=space.meshes.filter(m=>m.triangleCount&&meshVisible(m)&&boxIntersectsMesh(m,rect));
+          for(const n of cloudRows()){if(!helperShown(n.nativeHash)||!lightShown(n.nativeHash)||!frameSoloContains(n))continue;const bounds=nodeBounds(n.nativeHash);if(!bounds)continue;for(const row of n.instanceCloud){const source=space.meshes.find(m=>m.hashId===row.source&&!m.replicaMatrix),state=gpu.cloudInstances?.get(n.nativeHash+row.field);if(!source||!state)continue;const mesh={...source,hashId:n.nativeHash,frameVisible:true,boundsMin:bounds.min,boundsMax:bounds.max,objectFrame:state.uniform,cloudPoints:state.buffer,sourceTriangles:source.triangleCount,triangleCount:source.triangleCount*state.points.length/4};if(meshVisible(mesh)&&boxIntersectsMesh(mesh,rect))candidates.push(mesh);}}
+          if(candidates.length){
+            await createBoxPipelines(gpu);if(!valid())return;const d=gpu.device,pipeline=gpu.boxPipelines.objectRectangle,bytes=Math.max(16,candidates.length*4),result=makeGPUBuffer(d,{label:'object rectangle hits',size:bytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC}),read=makeGPUBuffer(d,{size:bytes,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});resources.push(result,read);
+            const global=d.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:gpu.uniform}}]}),e=d.createCommandEncoder(),pass=e.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,global);
+            candidates.forEach((m,i)=>{const settings=makeGPUBuffer(d,{size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),data=new ArrayBuffer(64);resources.push(settings);new Float32Array(data).set(rect);new Uint32Array(data).set([2,m.triangleCount,0,0,m.paged?1:0,0,m.sourceTriangles||m.triangleCount,i,m.cloudPoints?1:0,0,0,0],4);d.queue.writeBuffer(settings,0,data);
+              pass.setBindGroup(1,d.createBindGroup({layout:pipeline.getBindGroupLayout(1),entries:[{binding:0,resource:{buffer:m.paged?gpu.dummyBuffer:m.positions}},{binding:1,resource:{buffer:m.paged?gpu.dummyBuffer:m.indices}},{binding:3,resource:(m.paged?m.positions:gpu.dummyTexture).view},{binding:4,resource:(m.paged?m.indices:gpu.dummyTexture).view},{binding:5,resource:{buffer:settings}},{binding:8,resource:{buffer:result}},{binding:11,resource:{buffer:m.objectFrame}},{binding:12,resource:{buffer:m.cloudPoints||gpu.dummyReadBuffer}}]}));const count=Math.ceil(m.triangleCount/128),x=Math.min(count,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(x,Math.ceil(count/x));
+            });pass.end();e.copyBufferToBuffer(result,0,read,0,bytes);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const values=new Uint32Array(read.getMappedRange());candidates.forEach((m,i)=>{if(values[i])hits.add(m.hashId);});read.unmap();
+          }
+          if(!valid())return;const owners=marqueeObjectOwners(hits,poseObjects()),hashes=[...frameMergeSelection(objectSelection,owners,operation)],owned=new Set(hashes.flatMap(h=>objectDescendants(h))),indices=space.meshes.map((m,i)=>owned.has(m.hashId)?i:-1).filter(i=>i>=0);
+          boundsFlashUntil=0;for(const svg of gizmoViews.values())svg.querySelector('.frame-bounds-flash')?.remove();applyObjectSelection(indices,{objectHashes:hashes});if(indices.length){posedPipelines(gpu,false).catch(editError);posedPipelines(gpu,true).catch(editError);ensureTransformBackground(gpu);}if(uvEditing&&!hashes.includes(window.frameUVTarget)){uvEditing=false;document.getElementById('btnUV').classList.remove('on');document.getElementById('btnUV').ariaPressed='false';}await draw();await gpu.device.queue.onSubmittedWorkDone();if(valid())canvas.dataset.boxSelection=JSON.stringify({mode:'object',objects:hashes.length,hits:owners.length,candidateObjects:candidates.length,readbackBytes:candidates.length?Math.max(16,candidates.length*4):0,totalMs:performance.now()-requested,gpu:!!candidates.length,rect:cssRect});
+        }catch(error){if(valid())editError(error);}finally{for(const r of resources)releaseGPU(r);if(generation===selectionGeneration){selectionBusy=false;draw(false);}}
+      });return selectionQueue;
+    }
     function selectRectangle(cssRect,operation='replace'){const plugin=FramePlugins.dispatch('rectangle',cssRect,operation);if(plugin){selectionQueue=Promise.resolve(plugin).catch(editError);return selectionQueue;}if(!scene)return selectionQueue;
-      if(elementMode==='object'){const hits=poseObjects().filter(o=>{const n=nodes.find(n=>n.nativeHash===o.hash);if(!n||!helperShown(o.hash))return false;const b=nodeBounds(o.hash);if(!b)return false;const p=[];for(let mask=0;mask<8;mask++)p.push(worldScreen(b.min.map((v,i)=>mask>>i&1?b.max[i]:v)));return Math.max(...p.map(p=>p[0]))>=cssRect[0]&&Math.min(...p.map(p=>p[0]))<=cssRect[2]&&Math.max(...p.map(p=>p[1]))>=cssRect[1]&&Math.min(...p.map(p=>p[1]))<=cssRect[3];}).map(o=>o.hash);return selectObjectHashes(hits,operation);}if(!scene.meshes.length)return selectionQueue;
+      if(elementMode==='object')return selectObjectRectangle(cssRect,operation);if(!scene.meshes.length)return selectionQueue;
       selectionScope='components';objectSelection=[];componentPivot=null;measurementCache=null;
       if(!scene||editDrag||editFinishing||undoBusy||button.disabled)return selectionQueue;
       const gpu=renderer,space=scene,generation=++selectionGeneration,mode=elementMode,shading=shadingMode,requested=performance.now();orbitGeneration++;pendingWheel=null;touchActivity();selectedMesh=null;selectedMeshes=[];selectionBox=null;updateHandles();selectionBusy=true;
@@ -17712,11 +17809,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     function replicaDisplay(mesh){for(let source=mesh;source;source=source.replicaSource){const display=source.display||splineDisplays.get(source.hashId);if(display)return display;}return null;}
     function drawSplineDisplays(pass){
       if(!splinePipelines)return;const pipelines=splinePipelines[frameViewKind(viewIndex)?1:0];for(const d of splineDisplays.values()){if(!splineShown(d)||!d.controlCount)continue;if(FrameSpline.sourceNode(nodes.find(n=>n.nativeHash===d.hash)))continue;if(d.consumed&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode)&&!(FrameSpline.isActive(nodes.find(n=>n.nativeHash===d.hash))&&elementMode!=='object'))continue;const owner=nodes.find(n=>n.nativeHash===d.hash),selected=objectSelection.includes(d.hash)||FrameSpline.isActive(owner),showControls=(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner?.id)&&FrameSpline.isEditable(owner),showEdges=selected&&['edge','polygon'].includes(elementMode)&&FrameSpline.isEditable(owner);if((d.generated||node(owner?.parent)?.type==='spline_patch')&&!showControls&&!showEdges&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode))continue;
-        const values=new Float32Array(20);values.set(objectWorld(d.hash));values.set([.353,.694,.812,1],16);renderer.device.queue.writeBuffer(d.uniform,0,values);if(showControls){values.set([.435,.51,.565,1],16);renderer.device.queue.writeBuffer(d.handleUniform,0,values);}
+        const values=new Float32Array(20);values.set(objectWorld(d.hash));values.set([.282,.555,.65,1],16);renderer.device.queue.writeBuffer(d.uniform,0,values);if(showControls){values.set([.435,.51,.565,1],16);renderer.device.queue.writeBuffer(d.handleUniform,0,values);}
         const group=(pipeline,buffer,hover=false)=>{const key=(frameViewKind(viewIndex)?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();const token=hover==='selection'?'edge-selection':hover?'edge-hover':buffer;if(!cache.has(token)){const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:hover==='selection'?d.selectionUniform:hover?d.hoverUniform:buffer===d.handles?d.handleUniform:d.uniform}},{binding:2,resource:{buffer}}];if(pipeline!==pipelines[0])entries.push({binding:3,resource:{buffer:d.flags}});cache.set(token,renderer.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries}));}return cache.get(token);};
         pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.lines));if(shadingMode!=='solid'||!d.generated&&node(owner?.parent)?.type!=='spline_patch')pass.draw(d.count);if(showEdges&&d.selection.size){values.set([.396,.929,.525,1],16);renderer.device.queue.writeBuffer(d.selectionUniform,0,values);pass.setBindGroup(0,group(pipelines[0],d.lines,'selection'));for(const id of FrameSpline.componentEdges(d.data,d.selection)){const range=d.ranges.get(id);if(range)pass.draw(range.length/3,1,range.line/3);}}if(showEdges&&splineHover?.hash===d.hash&&(splineHover.segment||splineHover.cell)){values.set([.541,1,.671,1],16);renderer.device.queue.writeBuffer(d.hoverUniform,0,values);pass.setBindGroup(0,group(pipelines[0],d.lines,true));for(const id of FrameSpline.componentEdges(d.data,new Set([splineHover.key]))){const range=d.ranges.get(id);if(range)pass.draw(range.length/3,1,range.line/3);}}if(showControls){pass.setBindGroup(0,group(pipelines[0],d.handles));for(const [id,range]of d.ranges)for(const [side,offset]of [['ha',0],['hb',2]])if(splineHandleVisible(d,'h:'+id+':'+side))pass.draw(2,1,range.handle/3+offset);for(const [key,offset]of d.freeOffsets)if(splineHandleVisible(d,'free:'+key))pass.draw(2,1,offset/3);const points=pipelines[shadingMode==='wireframe'||shadingMode==='isoparms'?1:2];pass.setPipeline(points);pass.setBindGroup(0,group(points,d.controls));pass.draw(6,d.controlCount);}
       }
-const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas||[]];for(const m of copies){const d=replicaDisplay(m);if(!d||!m.frameVisible||!m.curve&&shadingMode!=='isoparms'&&shadingMode!=='solid-isoparms')continue;const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);if(!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))continue;const values=new Float32Array(20);values.set(matrix);values.set([.353,.694,.812,1],16);if(!m.curveUniform)m.curveUniform=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);renderer.device.queue.writeBuffer(m.curveUniform,0,values);const key=frameViewKind(viewIndex)?1:0;m.curveGroups??=[];let cache=m.curveGroups[key];if(cache?.lines!==d.lines){const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}}]});cache=m.curveGroups[key]={lines:d.lines,group};}pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);pass.draw(d.count);}
+const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas||[]];for(const m of copies){const d=replicaDisplay(m);if(!d||!m.frameVisible||!m.curve&&shadingMode!=='isoparms'&&shadingMode!=='solid-isoparms')continue;const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);if(!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))continue;const values=new Float32Array(20);values.set(matrix);values.set([.282,.555,.65,1],16);if(!m.curveUniform)m.curveUniform=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);renderer.device.queue.writeBuffer(m.curveUniform,0,values);const key=frameViewKind(viewIndex)?1:0;m.curveGroups??=[];let cache=m.curveGroups[key];if(cache?.lines!==d.lines){const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}}]});cache=m.curveGroups[key]={lines:d.lines,group};}pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);pass.draw(d.count);}
         }
     function selectedId(id){return selected.has(id);}
     function splineBounds(hash){const d=splineDisplays.get(hash);return d&&Number.isFinite(d.min[0])?transformedBox({min:d.min,max:d.max},objectWorld(hash)):null;}
