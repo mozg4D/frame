@@ -1,3 +1,11 @@
+## Independent plugin icon alignment (2026-11-11)
+
+Release candidate stamp: Frame 2026 11 nov 18:15 (Europe/Moscow). This change is based directly on main 42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0, without the unpublished heavy-drag or material-lifecycle changes.
+
+CFD artwork moves exactly two native pixels right. Optics keeps its incoming rays and convergence point, shortens the centered lens from 24 to 22 pixels and leaves one pixel between the lens and outgoing strokes. Magneto keeps its geometry and darkens both fills by eight RGB levels. All three SVGs remain native 32 by 32 pixels without scaling. Other icons, including Save, and scene/texture behavior are unchanged.
+
+`node tests/plugin-icon-alignment.mjs` checks exact geometry, palette, native-size rules, seven negative controls and a 250 ms CPU budget. Standard/stress also execute these contracts. `node tests/compact-icon-artwork.mjs --headless` checks isolated 2D raster bounds, displayed dimensions and decode budgets at DPR 1 and 2; it does not qualify application interaction or WebGPU. Fresh exact-source native plugin, PWA and aggregate standard/stress checks remain required before publication.
+
 ## Perspective clipping and selection release (2026-11-10)
 
 Release stamp: Frame 2026 10 nov 21:32 (Europe/Moscow). Perspective uses scene-bound clipping with near = far / 10000. Object marquee tests displayed geometry instead of bounding-box interiors, and selection bounds feedback is clipped before projection. Native spline cage cyan and Object Browser enabled green are dimmed; selected and hovered highlights remain unchanged. The preceding native file host and permission workflows are retained.

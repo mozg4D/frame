@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 10 nov 21:32",
-  "predecessorCommit": "92c0fde07767daf22f2d3ee7b72d740a6d2d6a6e",
+  "version": "2026 11 nov 18:15",
+  "predecessorCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -133,7 +133,11 @@
       "plugins/structural/icon.svg",
       "plugins/optics/icon.svg",
       "plugins/cut/icon.svg",
-      "tests/compact-icon-artwork.mjs"
+      "tests/compact-icon-artwork.mjs",
+      "plugins/cfd/icon.svg",
+      "tests/plugin-icon-alignment.mjs",
+      "tests/icon-raster-contract.mjs",
+      "tests/fixtures/icon-main-42f64a46.json"
     ],
     "file-access": [
       "index.html",
@@ -203,11 +207,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "83538d1a1b3c7ba58e57dad7bd6f0cd15e63eaec17cf66cd213654d952d68cf2"
+      "sha256": "e7fc5187121621c9561d1d772093a59c372b1445534b126d92848de3a5780919"
     },
     "index.html": {
       "bytes": 2819634,
-      "sha256": "875013a7585327cb377ee7b0a2333b388e5ab45d3afe11077a97c4c5502fd631"
+      "sha256": "06402542e81cccdaab85aec01bc9bb533cf1ec0a308f6ef0af347a1a0101f80a"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -375,7 +379,7 @@
     },
     "plugins/magneto/icon.svg": {
       "bytes": 214,
-      "sha256": "e733e0b6b1c909f2d914e4a64c3555181cb4ec23e7e1f3631af0d074f0f44165"
+      "sha256": "54c1c1eebdfeaf231b77f8e5e3c34a28304d2512e9739e14a41de1160b4768be"
     },
     "tests/plugin-tag-fields.mjs": {
       "bytes": 12747,
@@ -390,8 +394,8 @@
       "sha256": "d7aeac88f459d7e8001fbb2e64133c4110c1be52779c5e1edbab964ed6a9fbac"
     },
     "plugins/magneto/tests/authoring-browser.mjs": {
-      "bytes": 15804,
-      "sha256": "0477b0c678cdbf871eba4ef48f320d6cef00cf439db13df9412cf451456eeb3f"
+      "bytes": 15927,
+      "sha256": "da4c71a2d317c73c835717106bc30b7ba916ac3443acc840a9cb5b9d7469033b"
     },
     "plugins/magneto/tests/index.mjs": {
       "bytes": 54,
@@ -410,8 +414,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 302764,
-      "sha256": "b439b05b29b7ecf0e1db6e676eb3c4a216eef353b16115a2bee66007bafe243b"
+      "bytes": 303937,
+      "sha256": "0cba6d83cd5b1a77d25469d03fdee807042e76335b056a98664df75d48614955"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -442,8 +446,8 @@
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 29182,
-      "sha256": "341023887647687fcf7033f8becffe6ab80d00c221ee60bb4d7afc11a5e32885"
+      "bytes": 29657,
+      "sha256": "82fe09f4c50693fb6e43fe8a6ce5137bbff7546282f2b0fb6ba8f7d226ada096"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -458,16 +462,16 @@
       "sha256": "c12aedd9e3aefef5ceedbe390e47372efdf049ee7300dc8c623ca64d6d368069"
     },
     "plugins/optics/icon.svg": {
-      "bytes": 303,
-      "sha256": "0f08eab7388b8a2412d31b15ed161067940b23ffff693142df57224e582a1d29"
+      "bytes": 317,
+      "sha256": "710dac98c44eed093b4c00c42600718dd286ec75ae5bc790c6bd7174ed117c8c"
     },
     "plugins/cut/icon.svg": {
       "bytes": 304,
       "sha256": "c6af478ba10693b934d7604033fd7727611e2c3295bafe251e9085935fbed746"
     },
     "tests/compact-icon-artwork.mjs": {
-      "bytes": 5335,
-      "sha256": "9e239ecf503740deec9aba9b35aa6fe584072ec6051f231d12688cd12460b509"
+      "bytes": 10668,
+      "sha256": "d2b67ad3a885774ba65a9759de5c1b793752d48dfd7a8f4601d29d75f51a6ab5"
     },
     "tools/file-host.mjs": {
       "bytes": 6021,
@@ -546,8 +550,8 @@
       "sha256": "be0bcba8571fe459ba49cd67961a7c565144a51e4a1ba2ea2231390087abdd67"
     },
     "tests/README.md": {
-      "bytes": 38650,
-      "sha256": "77d5ac8d99b8f0c5467da4bf17334b1d3abfabdc31608bc0b240e507d0c62c37"
+      "bytes": 43073,
+      "sha256": "694194197a99d681dc425afdb44e10d3acec070c951a2142e7244cc5ae89fd52"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -564,6 +568,22 @@
     "tests/gizmo-query-work.mjs": {
       "bytes": 18593,
       "sha256": "0612b9271fe7d7e4c1b01cc46f4159779d21af419b5a4c19c4eaf960e812b4b1"
+    },
+    "plugins/cfd/icon.svg": {
+      "bytes": 345,
+      "sha256": "c5886d466485e92ecec0cb86a1974ec61f969e9414abf91cdfe897e735aa929f"
+    },
+    "tests/plugin-icon-alignment.mjs": {
+      "bytes": 4903,
+      "sha256": "09e73a6445812c8b9c8c11796418c25f50753c2ebf240168ea34dd7994cfdc6d"
+    },
+    "tests/icon-raster-contract.mjs": {
+      "bytes": 15681,
+      "sha256": "6c58edc50fe5d37d84d93c6ef78503b32f9af8d10b8005eae129e7c9166dee70"
+    },
+    "tests/fixtures/icon-main-42f64a46.json": {
+      "bytes": 3126,
+      "sha256": "436300c23c3ccdebd921b562fec45627e9f3bdecc240a664a98d82b697f8d70b"
     }
   },
   "archivedProofs": {

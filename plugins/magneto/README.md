@@ -15,3 +15,8 @@ The CPU reference is preserved outside this candidate at frame-magneto-state-lab
 ## Qualification
 
 CPU descriptor tests verify fields, row layout, owner isolation, signed values, disabled/rejected physical actions, finite helper geometry and absence of a second runtime. Focused browser coverage is prepared separately. Focused hidden hardware Chromium checks passed at DPR 1 and 2, 71 checks each, with identical before/after sources and clean shared-device errors. See QUALIFICATION.md for exact evidence and corrected test-oracle failures. Full npm test/stress and large-scene qualification remain pending. This preview is not engineering validation.
+
+
+## Native icon artwork
+
+The native 32 by 32 pixel icon retains its geometry and uses solid fills #a57dbe and #cfc0d7, eight RGB levels darker than the preceding artwork. No opacity, SVG or CSS scaling is used. The shared source and raster checks are `tests/plugin-icon-alignment.mjs` and `tests/compact-icon-artwork.mjs`; native authoring behavior is unchanged.

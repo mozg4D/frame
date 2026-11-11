@@ -35,3 +35,8 @@ Host contract: node --test plugins/cfd/tests/authoring.test.mjs
 Dedicated real-browser authoring gate: node plugins/cfd/tests/browser.mjs --headless
 
 The focused gate uses an isolated page on the current frozen core and actual nonsoftware WebGPU. It covers discovery/lazy import, genuine 32px icon, real repeated clicks, native fields/status, invalid writes, multiple boxes, transform and parameter Undo/Redo, duplicate, HASH, animation, unavailable numerical calls and bounded operation/render times. It checks uncaptured/validation GPU errors and no numerical imports. Reports bind to exact source hashes. Full repository standard/stress qualification is separately required before catalogue publication.
+
+
+## Native icon artwork
+
+The native 32 by 32 pixel icon moves its complete artwork two pixels right, retaining geometry, both stroke widths and color. No SVG or CSS scaling is used. The shared source and raster checks are `tests/plugin-icon-alignment.mjs` and `tests/compact-icon-artwork.mjs`; native authoring behavior is unchanged.

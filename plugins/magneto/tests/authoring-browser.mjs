@@ -1,3 +1,4 @@
+import {currentBaseline,verifyCurrentBaseline} from '../../../tests/current-source-baseline.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
@@ -110,9 +111,9 @@ export async function pluginChecks(parent){
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const sources=async()=>{const hashes={};for(const p of ['index.html','plugins/index.json','plugins/magneto/plugin.json','plugins/magneto/plugin.js','plugins/magneto/icon.svg','plugins/magneto/tests/authoring-browser.mjs','plugins/magneto/tests/authoring.test.mjs','tests/plugin-tag-fields.mjs','tests/plugin-tag-fields-browser.mjs','tools/browser.mjs'])hashes[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');return hashes;};
  const before=await sources();
- const expectedIndex='207009dfc3d8b34b0966c1a9345ddaceba5502a5782c588506afa4fcfa4ef0d9';
+ const expectedIndex=currentBaseline.files['index.html'].sha256;
  const requestedDPR=Number(process.env.FRAME_DPR||1);
- let session,result;try{if(![1,2].includes(requestedDPR))throw Error('Magneto focused gate supports FRAME_DPR=1 or 2.');if(before['index.html']!==expectedIndex)throw Error('Candidate index changed from reviewed tag-bridge source; update freeze only after review.');if(!process.argv.includes('--headless'))throw Error('This LAB gate requires --headless and a coordinated GPU slot.');session=await launch({headless:true});result=await pluginChecks(session.page);}catch(e){result={pass:false,requestedDPR,actualDPR:null,error:e.stack};}finally{await session?.close();}
+ let session,result;try{await verifyCurrentBaseline('magneto');if(![1,2].includes(requestedDPR))throw Error('Magneto focused gate supports FRAME_DPR=1 or 2.');if(before['index.html']!==expectedIndex)throw Error('Candidate index changed from the reviewed current-source baseline; update freeze only after review.');if(!process.argv.includes('--headless'))throw Error('This LAB gate requires --headless and a coordinated GPU slot.');session=await launch({headless:true});result=await pluginChecks(session.page);}catch(e){result={pass:false,requestedDPR,actualDPR:null,error:e.stack};}finally{await session?.close();}
  result.sourcesBefore=before;result.sourcesAfter=await sources();if(!equal(result.sourcesBefore,result.sourcesAfter)){result.pass=false;result.error='Source changed during run';}
  const report='magneto-authoring-preview-dpr'+([1,2].includes(requestedDPR)?requestedDPR:'invalid')+'.json';
  await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/'+report,import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;

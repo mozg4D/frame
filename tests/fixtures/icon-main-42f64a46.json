@@ -1,0 +1,42 @@
+{
+  "format": "frame-native-icon-main-reference-v1",
+  "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
+  "provenance": "Verbatim Git blobs from committed main, not reconstructed from candidate artwork. Runtime never imports this test fixture.",
+  "icons": {
+    "cfd": {
+      "path": "plugins/cfd/icon.svg",
+      "bytes": 343,
+      "sha256": "57a5604ce477e60f5cc60972db8c3a5d69cc9e4b3c60769e38bb5a9930488fd4",
+      "gitBlob": "492f9f8d54da70a9b8c785207077451c9f8a408f",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#73adc7\" stroke-width=\"1\" stroke-linejoin=\"miter\">\n  <path d=\"M8.5 10.5 17.5 5.5l8 5v11l-9 5-8-5zM8.5 10.5l8 5 9-5M16.5 15.5v11\"/>\n  <path stroke-width=\"1.5\" stroke-linecap=\"round\" d=\"M3.5 13.5h6m-6 5h10m-10 5h6M12.5 16.5l2 2-2 2\"/>\n</svg>\n"
+    },
+    "magneto": {
+      "path": "plugins/magneto/icon.svg",
+      "bytes": 214,
+      "sha256": "e733e0b6b1c909f2d914e4a64c3555181cb4ec23e7e1f3631af0d074f0f44165",
+      "gitBlob": "8d81fbab160b6f46f2b8d0fda507cdba2c8a90dd",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><path d=\"M8 9h5v10a3 3 0 0 0 6 0V9h5v10a8 8 0 0 1-16 0Z\" fill=\"#ad85c6\"/><path d=\"M8 6h5v4H8zm11 0h5v4h-5z\" fill=\"#d7c8df\"/></svg>\n"
+    },
+    "structural": {
+      "path": "plugins/structural/icon.svg",
+      "bytes": 347,
+      "sha256": "c12aedd9e3aefef5ceedbe390e47372efdf049ee7300dc8c623ca64d6d368069",
+      "gitBlob": "acf2f7d5d5593ae659d8bc0b0f1574362c97f448",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#dfaa68\" stroke-width=\"1\" stroke-linejoin=\"miter\">\n  <path d=\"M7.5 9.5h17v15h-17zM7.5 9.5l17 15M24.5 9.5l-17 15M7.5 17.5h17M16.5 9.5v15\"/>\n  <path stroke-linecap=\"square\" d=\"M5.5 26.5h6m9 0h6M8.5 24.5v2m15-2v2M16.5 4.5v4m-2-2 2 2 2-2\"/>\n</svg>\n"
+    },
+    "optics": {
+      "path": "plugins/optics/icon.svg",
+      "bytes": 303,
+      "sha256": "0f08eab7388b8a2412d31b15ed161067940b23ffff693142df57224e582a1d29",
+      "gitBlob": "151683f8165d1c3a62ff998405a40257aefe5621",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><g fill=\"none\" stroke=\"#8fcbd6\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M14 4C10 10 10 22 14 28C18 22 18 10 14 4Z\"/><path d=\"M3 8H9M3 16H9M3 24H9M18 8L29 16L18 24M18 16H29\"/></g></svg>\n"
+    },
+    "cut": {
+      "path": "plugins/cut/icon.svg",
+      "bytes": 304,
+      "sha256": "c6af478ba10693b934d7604033fd7727611e2c3295bafe251e9085935fbed746",
+      "gitBlob": "df81a90dfe6c2551b2bab8db5afcd009464d57ab",
+      "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><g fill=\"none\" stroke=\"#c6a377\" stroke-width=\"1.5\" stroke-linejoin=\"round\"><path d=\"M6 23.5h20v3H6zM13.5 5.5h5v6l-2.5 4-2.5-4z\"/><path d=\"M16 16v6\" stroke=\"#eb6a54\"/><path d=\"m12 19-2-2m10 2 2-2M9 25h4m6 0h4\"/></g></svg>\n"
+    }
+  }
+}

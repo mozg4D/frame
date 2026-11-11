@@ -37,3 +37,8 @@ See PLAN.md for acceptance gates. Never infer diffraction PSF, universal optimiz
 `validation/power-ledger.js` evaluates compact per-source terminal-power aggregates supplied by a caller. It is not imported by the plugin, included in manifest assets, or exposed as a Frame operation. It does not trace rays, capture geometry, assign receiver categories, change authoring, allocate GPU resources or enable Solve. See `validation/README.md` for the input contract and limits. The existing `measuredPower:null` and unavailable-operation behavior remain unchanged.
 
 Run the focused accounting checks with `node --test plugins/optics/tests/power-ledger.mjs`. Their conservation checks qualify bookkeeping only; they cannot establish that physical categories are correct or disjoint, that receiver targets are met, or that a scene calculation is valid.
+
+
+## Native icon artwork
+
+The native 32 by 32 pixel icon has a centered 22-pixel lens and a one-pixel minimum clear gap between the lens and outgoing strokes. Incoming rays, convergence point and stroke styling are unchanged. No SVG or CSS scaling is used. The shared source and raster checks are `tests/plugin-icon-alignment.mjs` and `tests/compact-icon-artwork.mjs`; native authoring behavior is unchanged.

@@ -1,3 +1,5 @@
+import {iconRasterContractCPUChecks} from './icon-raster-contract.mjs';
+import {pluginIconAlignmentChecks} from './plugin-icon-alignment.mjs';
 import {selectionBoundsFlashChecks} from './selection-bounds-flash.mjs';
 import {selectionBoundsFlashBrowserChecks} from './selection-bounds-flash-browser.mjs';
 import {splinePaletteCPUChecks} from './spline-palette.mjs';
@@ -120,6 +122,8 @@ const args=process.argv.slice(2),output=join(root,'tests/results');await mkdir(o
 const sourceHashes=async()=>{const catalogue=JSON.parse(await readFile(join(root,'plugins/index.json'),'utf8')),paths=['index.html','plugins/index.json'];for(const manifest of catalogue){const path='plugins/'+manifest,base=path.replace(/[^/]+$/,''),data=JSON.parse(await readFile(join(root,path),'utf8'));paths.push(path,...[data.module,data.icon,...data.assets||[]].map(file=>base+file));}return Object.fromEntries(await Promise.all([...new Set(paths)].map(async path=>[path,createHash('sha256').update(await readFile(join(root,path))).digest('hex')])));};
 const report={sources:await sourceHashes(),started:new Date().toISOString(),indexSHA256:createHash('sha256').update(await readFile(join(root,'index.html'))).digest('hex'),profile:args.includes('--stress')?'stress':'standard',errors:[],consoleErrors:[]};let session,timer;
 try{
+  report.pluginIconAlignmentCPU=await pluginIconAlignmentChecks();if(!report.pluginIconAlignmentCPU.pass)throw Error('Plugin icon alignment CPU regressions failed');
+  report.iconRasterContractCPU=await iconRasterContractCPUChecks();if(!report.iconRasterContractCPU.pass)throw Error('Independent icon raster CPU contracts failed');
   report.splinePaletteCPU=await splinePaletteCPUChecks();if(!report.splinePaletteCPU.pass)throw Error('Spline palette CPU regressions failed');
   report.selectionBoundsFlashCPU=await selectionBoundsFlashChecks();if(!report.selectionBoundsFlashCPU.pass)throw Error('Selection bounds flash CPU regressions failed');
   report.objectMarqueeCPU=await objectMarqueeChecks();if(!report.objectMarqueeCPU.pass)throw Error('Object marquee CPU regressions failed');
