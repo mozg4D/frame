@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 11 nov 18:15",
-  "predecessorCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
+  "version": "2026 11 nov 20:06",
+  "predecessorCommit": null,
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -182,6 +182,34 @@
       "index.html",
       "frame-sw.js",
       "tests/object-enable.mjs"
+    ],
+    "texture-dnd": [
+      "index.html",
+      "frame-sw.js",
+      "app.md",
+      "tools/README.md",
+      "tests/run.mjs",
+      "tests/README.md",
+      "package.json",
+      "tests/texture-history-fixture.mjs",
+      "tests/texture-slot-drag.mjs",
+      "tests/texture-slot-drag-browser.mjs",
+      "tests/texture-dnd-source-contract.mjs",
+      "tests/texture-dnd-source-contract.json"
+    ],
+    "scene-create-name": [
+      "index.html",
+      "tests/run.mjs",
+      "tests/scene-create-name.mjs",
+      "tests/scene-create-name-browser.mjs"
+    ],
+    "numeric-display": [
+      "index.html",
+      "frame-sw.js",
+      "package.json",
+      "tests/run.mjs",
+      "tests/numeric-display.mjs",
+      "tests/numeric-display-browser.mjs"
     ]
   },
   "files": {
@@ -207,11 +235,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "e7fc5187121621c9561d1d772093a59c372b1445534b126d92848de3a5780919"
+      "sha256": "5a0b051d98ab49d58cbb6abc9539100696b79621b0b3f9aec643eab99b50d7f3"
     },
     "index.html": {
-      "bytes": 2819634,
-      "sha256": "06402542e81cccdaab85aec01bc9bb533cf1ec0a308f6ef0af347a1a0101f80a"
+      "bytes": 2827883,
+      "sha256": "46f87fb6d5e3d14c8476c6f0a94c9b0a8a68a07d2e1f0c1184889955738c09b5"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -414,8 +442,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 303937,
-      "sha256": "0cba6d83cd5b1a77d25469d03fdee807042e76335b056a98664df75d48614955"
+      "bytes": 309768,
+      "sha256": "56d8da220ee76f79efa56e9b87aef85dbe9dabdb0d5990be32ed6620dc46064a"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -438,16 +466,16 @@
       "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
     },
     "package.json": {
-      "bytes": 5976,
-      "sha256": "5544a26eadfb7f44bca1a79d14a0d7390283effbb78decb9b5119c5e99b9ef88"
+      "bytes": 6384,
+      "sha256": "0365b8efbdbfa04cb8758ae1802a234a57e475ac7a2e586f10e1f83f9b8d0dc1"
     },
     "plugins.md": {
       "bytes": 48440,
       "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
     },
     "tests/run.mjs": {
-      "bytes": 29657,
-      "sha256": "82fe09f4c50693fb6e43fe8a6ce5137bbff7546282f2b0fb6ba8f7d226ada096"
+      "bytes": 31615,
+      "sha256": "9a140a605d521437ce5226141ae2ceb73d6ee333c136c6d1ff3cc59df32aa89c"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -550,8 +578,8 @@
       "sha256": "be0bcba8571fe459ba49cd67961a7c565144a51e4a1ba2ea2231390087abdd67"
     },
     "tests/README.md": {
-      "bytes": 43073,
-      "sha256": "694194197a99d681dc425afdb44e10d3acec070c951a2142e7244cc5ae89fd52"
+      "bytes": 44115,
+      "sha256": "0aa47ce2d6a102ddf712ef0d243d0a7395e746f061e9d5cae869d8ae7c9b0b39"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -577,13 +605,53 @@
       "bytes": 4903,
       "sha256": "09e73a6445812c8b9c8c11796418c25f50753c2ebf240168ea34dd7994cfdc6d"
     },
-    "tests/icon-raster-contract.mjs": {
-      "bytes": 15681,
-      "sha256": "6c58edc50fe5d37d84d93c6ef78503b32f9af8d10b8005eae129e7c9166dee70"
+    "tests/texture-dnd-source-contract.mjs": {
+      "bytes": 1638,
+      "sha256": "c476acf9a63f046d5e5f9ed1c5bf456fe447508ea1e835ee5874d4ef5b41a10e"
+    },
+    "tests/texture-history-fixture.mjs": {
+      "bytes": 4564,
+      "sha256": "338b7943bf6bd14a10b1a5bd3550630f72c466a551bedfde2464595975612717"
+    },
+    "tests/texture-dnd-source-contract.json": {
+      "bytes": 9826,
+      "sha256": "660dd8539a280ba297f25d9313aed3ada9e9a9cee9416bbbcf2748f34d5b130c"
+    },
+    "tests/texture-slot-drag-browser.mjs": {
+      "bytes": 17676,
+      "sha256": "dc849a1edf2b1b99ee7dd09b5f71a02edb9a3a73e84cd42c33df9d425b27219c"
+    },
+    "tools/README.md": {
+      "bytes": 24544,
+      "sha256": "13c352712f6f1120fe7bef8f94132cb4544fdf57a100efb15d04bbd9d49a16d7"
+    },
+    "tests/texture-slot-drag.mjs": {
+      "bytes": 43892,
+      "sha256": "d58bf4d1142113d7bd2ee3b9aeee417f7b4ed27b0dc4f4ed7fb9c609d11fe0b7"
     },
     "tests/fixtures/icon-main-42f64a46.json": {
       "bytes": 3126,
       "sha256": "436300c23c3ccdebd921b562fec45627e9f3bdecc240a664a98d82b697f8d70b"
+    },
+    "tests/icon-raster-contract.mjs": {
+      "bytes": 15681,
+      "sha256": "6c58edc50fe5d37d84d93c6ef78503b32f9af8d10b8005eae129e7c9166dee70"
+    },
+    "tests/scene-create-name.mjs": {
+      "bytes": 7000,
+      "sha256": "6028b75aa9aac51330c5abf97e3f54acbe8246d191fbcb10959084e5d523c05e"
+    },
+    "tests/scene-create-name-browser.mjs": {
+      "bytes": 10059,
+      "sha256": "090494f449de4dda5c9242880ed8b72d945ef5e2282e79efddf1e2dbf6eda0b1"
+    },
+    "tests/numeric-display.mjs": {
+      "bytes": 18877,
+      "sha256": "3fea5cfa782c95806f3c82c9acdc5d66ab92fba0402ccc839d31f9f7e6829ada"
+    },
+    "tests/numeric-display-browser.mjs": {
+      "bytes": 18505,
+      "sha256": "caa38d684d203b65d86e47e2e98a98f199d0769003983a1995d1d358cbbee1c4"
     }
   },
   "archivedProofs": {
@@ -594,5 +662,13 @@
     "tests/documentation-history-layer-test.mjs": "Historical qualification only; not executed or counted as passed for this release.",
     "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
     "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
+  },
+  "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
+  "sourcePredecessor": {
+    "kind": "Sealed independently reviewed icon v5; single combined DnD + Nut + near-zero release follows; actual parent commit unresolved until publication",
+    "manifestSHA256": "e92b7b45713e00dbe89823785baa266119b42d89612867030e31080a1699bbd2",
+    "inventorySHA256": "675887a36097f14dddf90f21f1cd6ddc17e5e5f8ab414765f47a947224b63648",
+    "runtimeSHA256": "06402542e81cccdaab85aec01bc9bb533cf1ec0a308f6ef0af347a1a0101f80a",
+    "sourceFiles": 863
   }
 }

@@ -3,6 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:numeric-display:cpu": "node tests/numeric-display.mjs",
+    "test:numeric-display": "node tests/numeric-display.mjs && node tests/numeric-display-browser.mjs --headless",
     "test:spline-display-samples": "node tests/spline-display-samples.mjs && node tests/spline-display-samples-browser.mjs --headless",
     "test": "node tests/run.mjs",
     "test:stress": "node tests/run.mjs --stress",
@@ -72,7 +74,9 @@
     "test:plugin-overlay:cpu": "node tests/plugin-overlay-refresh.mjs",
     "test:native-file-fixture:cpu": "node tests/october23-picker-fixture.mjs",
     "test:authoring-stamp:cpu": "node tests/authoring-stamp.mjs",
-    "test:authoring-stamp": "node tests/authoring-stamp.mjs && node tests/authoring-stamp-browser.mjs"
+    "test:authoring-stamp": "node tests/authoring-stamp.mjs && node tests/authoring-stamp-browser.mjs",
+    "test:texture-slots:cpu": "node tests/texture-dnd-source-contract.mjs && node tests/texture-slot-drag.mjs",
+    "test:texture-slots": "npm run test:texture-slots:cpu && node tests/texture-slot-drag-browser.mjs --headless"
   },
   "devDependencies": {
     "playwright": "1.64.1"
