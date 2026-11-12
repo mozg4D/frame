@@ -11,8 +11,8 @@ struct Output{@builtin(position) position:vec4f,@location(0) color:vec3f};
  let ends=array<vec3f,2>(vec3f(1000,0,0),vec3f(0,0,1000));
  let colors=array<vec3f,2>(vec3f(.82,.24,.22),vec3f(.28,.44,.85));
  let local=select(vec3f(0),ends[vertex/2u],vertex%2u!=0u);
- let p=(camera.rotation*vec4f(((frame.matrix*vec4f(local,1)).xyz-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
- let xy=p.xy+camera.viewport.zw;let depth=3.2-p.z;var out:Output;out.color=colors[vertex/2u];
+ let p=(frameCameraRelative(camera.rotation)*vec4f(((frame.matrix*vec4f(local,1)).xyz-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
+ let xy=p.xy+camera.viewport.zw;let depth=-p.z;var out:Output;out.color=colors[vertex/2u];
  if(orthographic){out.position=vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/(camera.clip.y-camera.clip.x),1);}
  else{out.position=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);}return out;
 }
@@ -22,7 +22,7 @@ export function createAxes(context){
  function prepare(d){
   if(pending)return;device=d;
   error=null;pending=(async()=>{
-   const module=d.createShaderModule({label:'Cut local axes',code:shader});
+   const module=d.createShaderModule({label:'Cut local axes',code:context.viewport.cameraWGSL+shader});
    layouts=[0,1].map(()=>d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]}));
    const layout=d.createPipelineLayout({bindGroupLayouts:layouts});
    const built=await Promise.all([false,true].map(orthographic=>d.createRenderPipelineAsync({label:'Cut local axes',layout,vertex:{module,entryPoint:'axes',constants:{orthographic}},fragment:{module,entryPoint:'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat()}]},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}})));

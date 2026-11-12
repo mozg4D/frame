@@ -54,3 +54,7 @@ The renderer reuses canonical Frame transforms, the shared device, native pass, 
 ## Checks
 
 CPU: node plugins/circuit/tests/authoring.mjs. Native browser gate: node plugins/circuit/tests/index.mjs (visible hardware Chromium by default; --headless explicit). Catalogue discovery uses that same pluginChecks entry point. Source hashes and hardware evidence are written to tests/results/circuit-authoring-preview.json. CPU adapters do not certify actual HASH/UI/GPU behavior. Current test results and unrun release gates belong in QUALIFICATION.md.
+
+## Stable viewport depth
+
+The viewport opts into `context.viewport.cameraWGSL` and its affine `frameCameraRelative` helper, documented in ../../plugins.md. The public camera uniform is unchanged. Only local projection arithmetic changes; depth policy, authoring, geometry, computation and persistence remain unchanged. The helper preserves tiny relative depth gaps but retains Float32 camera-base error. Native validation remains required.

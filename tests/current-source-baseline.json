@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 11 nov 20:06",
-  "predecessorCommit": null,
+  "version": "2026 12 nov 03:44",
+  "predecessorCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -210,6 +210,128 @@
       "tests/run.mjs",
       "tests/numeric-display.mjs",
       "tests/numeric-display-browser.mjs"
+    ],
+    "viewport-integration": [
+      "app.md",
+      "frame-sw.js",
+      "index.html",
+      "plugins.md",
+      "plugins/3d-printer/README.md",
+      "plugins/3d-printer/plugin.js",
+      "plugins/atomic/README.md",
+      "plugins/atomic/plugin.js",
+      "plugins/circuit/README.md",
+      "plugins/circuit/viewport.js",
+      "plugins/cut/README.md",
+      "plugins/cut/viewport.js",
+      "plugins/mill/README.md",
+      "plugins/mill/plugin.js",
+      "plugins/optics/README.md",
+      "plugins/optics/viewport.js",
+      "tests/README.md",
+      "tests/camera-relative-depth.mjs",
+      "tests/camera-shader-order.mjs",
+      "tests/motion-path-perspective.mjs",
+      "tests/object-enable.mjs",
+      "tests/perspective-clipping-browser.mjs",
+      "tests/perspective-clipping.mjs",
+      "tests/run.mjs",
+      "tests/spline-corner-browser.mjs",
+      "tests/spline-depth-browser.mjs",
+      "tests/spline-depth.mjs",
+      "tests/spline-palette-browser.mjs",
+      "tests/spline-palette.mjs",
+      "tests/spline-shader-source-contract.mjs"
+    ],
+    "atomic-display-bounds": [
+      "index.html",
+      "frame-sw.js",
+      "app.md",
+      "plugins.md",
+      "package.json",
+      "plugins/atomic/plugin.js",
+      "plugins/atomic/README.md",
+      "plugins/atomic/tests/display-bounds.mjs",
+      "plugins/atomic/tests/material-readiness.mjs",
+      "tests/perspective-clipping.mjs",
+      "tests/run.mjs",
+      "tests/README.md"
+    ],
+    "camera-animation": [
+      "frame-sw.js",
+      "index.html",
+      "tests/camera-animation-navigation.mjs",
+      "tests/camera-hash-coordinates.mjs",
+      "tests/motion-path-perspective.mjs"
+    ],
+    "animation-transaction": [
+      "index.html",
+      "app.md",
+      "package.json",
+      "tests/run.mjs",
+      "tests/README.md",
+      "tests/animation-transaction.mjs",
+      "tests/animation-transaction-browser.mjs",
+      "tests/fixtures/animation-contract-negative.json",
+      "tests/authoring-stamp.mjs",
+      "tests/scene-control-data.mjs",
+      "tests/texture-history-fixture.mjs",
+      "tests/texture-dnd-source-contract.mjs",
+      "tests/texture-dnd-source-contract.json"
+    ],
+    "spline-planar-contracts": [
+      "index.html",
+      "frame-sw.js",
+      "tests/spline-planar-contracts.mjs",
+      "tests/run.mjs",
+      "package.json",
+      "app.md"
+    ],
+    "native-observation-contracts": [
+      "index.html",
+      "frame-sw.js",
+      "tests/perspective-clipping-browser.mjs",
+      "tests/diagnostic-pixels.mjs",
+      "tests/diagnostic-pixels-contract.mjs",
+      "tests/spline-depth-browser.mjs",
+      "tests/spline-corner-browser.mjs",
+      "tests/spline-corner-evidence-contract.mjs",
+      "tests/run.mjs",
+      "tests/README.md",
+      "package.json",
+      "app.md",
+      "tests/corner-screenshot-contract.mjs",
+      "tests/corner-screenshot-evidence.mjs"
+    ],
+    "camera-relative-depth": [
+      "app.md",
+      "frame-sw.js",
+      "index.html",
+      "plugins.md",
+      "plugins/3d-printer/README.md",
+      "plugins/3d-printer/plugin.js",
+      "plugins/atomic/README.md",
+      "plugins/atomic/plugin.js",
+      "plugins/circuit/README.md",
+      "plugins/circuit/viewport.js",
+      "plugins/cut/README.md",
+      "plugins/cut/viewport.js",
+      "plugins/mill/README.md",
+      "plugins/mill/plugin.js",
+      "plugins/optics/README.md",
+      "plugins/optics/viewport.js",
+      "tests/README.md",
+      "tests/camera-relative-depth.mjs",
+      "tests/camera-shader-order.mjs",
+      "tests/run.mjs",
+      "tests/spline-depth-browser.mjs",
+      "tests/spline-depth.mjs",
+      "tests/spline-shader-source-contract.mjs"
+    ],
+    "motion-path-perspective": [
+      "index.html",
+      "tests/motion-path-perspective.mjs",
+      "tests/run.mjs"
     ]
   },
   "files": {
@@ -235,11 +357,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "5a0b051d98ab49d58cbb6abc9539100696b79621b0b3f9aec643eab99b50d7f3"
+      "sha256": "6f5636a55e36a2b7e69b54dc2123fb8f0274d6107a592b242b3b2aee64b0f3d1"
     },
     "index.html": {
-      "bytes": 2827883,
-      "sha256": "46f87fb6d5e3d14c8476c6f0a94c9b0a8a68a07d2e1f0c1184889955738c09b5"
+      "bytes": 2834837,
+      "sha256": "4f7919a2831aa66608ce5cd6b8a6202cfb615c635e5e66ab266f6db86519c390"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -310,8 +432,8 @@
       "sha256": "7922637065a6ab5bd97d4df122efd7446fbd8ec21bca85352bdf5dd8b1aab219"
     },
     "tests/scene-control-data.mjs": {
-      "bytes": 19603,
-      "sha256": "11ce1cad7f5801dcbb05dfb47a209e7a5722db4c3886ad75abca2c840be841c5"
+      "bytes": 19622,
+      "sha256": "bbc4fe11ef3d320607ab65e3d6ee814d2842e78fbc069c0979f4deee123f8822"
     },
     "tests/scene-data-docs-barrier.mjs": {
       "bytes": 5742,
@@ -366,8 +488,8 @@
       "sha256": "b91a02da4068c964b91de1677d16f4b41377008be8d3c0c3f46b42d9e151b492"
     },
     "plugins/atomic/plugin.js": {
-      "bytes": 3904956,
-      "sha256": "9b57ff9e2922080c47490740f0b4a8218e2fa57bd32e1723648c7912d1423f39"
+      "bytes": 3913995,
+      "sha256": "92bbe3fac440d140c880340feb42d47d51ae1d05ffd75eeaba4d58b2e7bf8e01"
     },
     "plugins/atomic/tests/feedback.mjs": {
       "bytes": 8810,
@@ -434,16 +556,16 @@
       "sha256": "70e602e02a709abd8116833bcbaba24351070e612a0d850ae4de452212a8fd61"
     },
     "tests/authoring-stamp.mjs": {
-      "bytes": 15419,
-      "sha256": "8bde20613693204d896fafe004a9cd11b62c70e8f3b8159849e2ff4181dcb288"
+      "bytes": 15438,
+      "sha256": "25b9c052802550727e2cb18ba66955bc2ef287452d98f55fffc9afaf4f5925ec"
     },
     "tests/authoring-stamp-browser.mjs": {
       "bytes": 13441,
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 309768,
-      "sha256": "56d8da220ee76f79efa56e9b87aef85dbe9dabdb0d5990be32ed6620dc46064a"
+      "bytes": 326633,
+      "sha256": "4fddbef804363adadac11e7391522868dd427296bd58349037104f1b4969a8b9"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -466,16 +588,16 @@
       "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
     },
     "package.json": {
-      "bytes": 6384,
-      "sha256": "0365b8efbdbfa04cb8758ae1802a234a57e475ac7a2e586f10e1f83f9b8d0dc1"
+      "bytes": 7071,
+      "sha256": "16f4cc4c9e62b59b5512d1427af1bf60dba7db66819b33c8393a9e47dea15645"
     },
     "plugins.md": {
-      "bytes": 48440,
-      "sha256": "e2b71da827f254f6bfcebc4ffc90fb4791dc925de67d30da7a1684dcfc7c4da1"
+      "bytes": 50735,
+      "sha256": "f7d0eb13eb96b48a355f186098e8c8f6bf759dba2748adfd4c458e51174c600e"
     },
     "tests/run.mjs": {
-      "bytes": 31615,
-      "sha256": "9a140a605d521437ce5226141ae2ceb73d6ee333c136c6d1ff3cc59df32aa89c"
+      "bytes": 34886,
+      "sha256": "1673742a30dd8ee317ef4822b17a08174c4d7cdc9c98445a61e03e4e497dafa0"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -550,12 +672,12 @@
       "sha256": "71231d2d32977d26a23bd15e241322c1285b705306f6ecc63a7f3599db7b46ad"
     },
     "tests/perspective-clipping.mjs": {
-      "bytes": 7171,
-      "sha256": "f0d496f59c3a1c8d79ba4479ac3b78dad1ee7f478b0b460b426be39bd7fd49c3"
+      "bytes": 20884,
+      "sha256": "3516765deb044ba0d2fb75f7c1286e79cea5f19a65dc2bacbfb096beea15aa73"
     },
     "tests/perspective-clipping-browser.mjs": {
-      "bytes": 8284,
-      "sha256": "f457a4ad48c8676816be83187239d9dc989e751e6b0aa8ca6a9bba39bee2478c"
+      "bytes": 11367,
+      "sha256": "708b66b0337b22ec9f0b69f0d0c9448ca57a9fc47753b8368c1ad45aa9e63996"
     },
     "tests/object-marquee.mjs": {
       "bytes": 6253,
@@ -571,15 +693,15 @@
     },
     "tests/spline-palette.mjs": {
       "bytes": 1292,
-      "sha256": "eae8e770762d2748eee2c5e068587b9ce6b2c0027e7403c58fd176f8e2c9a4ba"
+      "sha256": "dd7082b02cda25c9247a356a268254568c97a9e646610e02316c27e56afd10b6"
     },
     "tests/spline-palette-browser.mjs": {
       "bytes": 6253,
-      "sha256": "be0bcba8571fe459ba49cd67961a7c565144a51e4a1ba2ea2231390087abdd67"
+      "sha256": "3d5b854965f6754e974652c12337b49033408fcb614022204a5b1440b3b87f27"
     },
     "tests/README.md": {
-      "bytes": 44115,
-      "sha256": "0aa47ce2d6a102ddf712ef0d243d0a7395e746f061e9d5cae869d8ae7c9b0b39"
+      "bytes": 50359,
+      "sha256": "1ec20e9aa03f3e607726239265446c95636db3f2e312b9e856c5a30a5d39918f"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -591,7 +713,7 @@
     },
     "tests/object-enable.mjs": {
       "bytes": 7219,
-      "sha256": "f892c82798dd9cef3bd189660dfd0ef347e614191f885d8dd93382c6ac125f48"
+      "sha256": "3f2edf483ae0e1742a95da54e1cfe0e765e64afe2463d80c7dcc80696ebd99a5"
     },
     "tests/gizmo-query-work.mjs": {
       "bytes": 18593,
@@ -606,16 +728,16 @@
       "sha256": "09e73a6445812c8b9c8c11796418c25f50753c2ebf240168ea34dd7994cfdc6d"
     },
     "tests/texture-dnd-source-contract.mjs": {
-      "bytes": 1638,
-      "sha256": "c476acf9a63f046d5e5f9ed1c5bf456fe447508ea1e835ee5874d4ef5b41a10e"
+      "bytes": 1692,
+      "sha256": "13a443d4feb05f488a9e3591f4beb868d8fef0d185903deb40e4376dd6ad1002"
     },
     "tests/texture-history-fixture.mjs": {
-      "bytes": 4564,
-      "sha256": "338b7943bf6bd14a10b1a5bd3550630f72c466a551bedfde2464595975612717"
+      "bytes": 4583,
+      "sha256": "b165412dd3ff24b91c19d650575a95b45a8d60d7eb42eacd5ef234bf33504d9d"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 9826,
-      "sha256": "660dd8539a280ba297f25d9313aed3ada9e9a9cee9416bbbcf2748f34d5b130c"
+      "bytes": 10289,
+      "sha256": "3f4541792c68a4a794d335e90fef948811494db777909d1e7df39f2f5c1c6344"
     },
     "tests/texture-slot-drag-browser.mjs": {
       "bytes": 17676,
@@ -652,6 +774,134 @@
     "tests/numeric-display-browser.mjs": {
       "bytes": 18505,
       "sha256": "caa38d684d203b65d86e47e2e98a98f199d0769003983a1995d1d358cbbee1c4"
+    },
+    "tests/spline-depth-browser.mjs": {
+      "bytes": 15839,
+      "sha256": "c521505d37d80c1b88fffc08bdaa27dec7d1ca75e39b1d247e8f00b5a55d4133"
+    },
+    "tests/spline-corner-browser.mjs": {
+      "bytes": 6533,
+      "sha256": "0097511a5ba6d01a2689610822d7004b81f0fc4e1e24d7e827778c276018b97f"
+    },
+    "tests/spline-depth.mjs": {
+      "bytes": 9414,
+      "sha256": "9ff96a048fdd6a7322dede60d14ee7de47afa54786f02bbc49d7bc293554188e"
+    },
+    "plugins/atomic/tests/display-bounds.mjs": {
+      "bytes": 25492,
+      "sha256": "36445d1d6cf649384cd7668212ba02bcfc11cf26965fc178f6b9ff3dfb4d683e"
+    },
+    "plugins/atomic/tests/material-readiness.mjs": {
+      "bytes": 12934,
+      "sha256": "3c74d9ec627cc0ad233aa0b526bfc4e57a2deb6395d18fca8b9cddbbd1cceb51"
+    },
+    "plugins/atomic/README.md": {
+      "bytes": 17510,
+      "sha256": "7fcef888183c5402364fffdbfb237062cb2517a7f168a049dff30a063342b6ba"
+    },
+    "tests/camera-animation-navigation.mjs": {
+      "bytes": 27365,
+      "sha256": "8aa2fd2e2d0c2f08dd5735d504a56d974abf76bd90141e40168a19e51d6bfde7"
+    },
+    "tests/camera-hash-coordinates.mjs": {
+      "bytes": 5696,
+      "sha256": "5e227b4740701e1290f2ae42de260b83a1ab19386af7dc3b2e4507b53e9e1432"
+    },
+    "tests/animation-transaction.mjs": {
+      "bytes": 23407,
+      "sha256": "c29e6a04cba544b5f2e2a0fa56c2dcad495b4d40ebf9db09223c88fa8c3b1b18"
+    },
+    "tests/animation-transaction-browser.mjs": {
+      "bytes": 9285,
+      "sha256": "495fa65b77b3a8a171a2bd57833d564dd2fb30cbd023bd8b3934b1b80d77db1f"
+    },
+    "tests/fixtures/animation-contract-negative.json": {
+      "bytes": 3747,
+      "sha256": "7d2646ce3f428008b74776c056b0f858929944d65843a5dd1e1da391235eecf1"
+    },
+    "tests/spline-planar-contracts.mjs": {
+      "bytes": 16065,
+      "sha256": "9cd2231f7a3415b740a8375af4d9b5a3c5127e70be53bb90d056e6e5b23e1a9f"
+    },
+    "tests/diagnostic-pixels.mjs": {
+      "bytes": 613,
+      "sha256": "9522262e7be92af530554e68be12272e394465633b8a7908251c31d0ceb852b2"
+    },
+    "tests/diagnostic-pixels-contract.mjs": {
+      "bytes": 6365,
+      "sha256": "890eea1de802a3081a9ad33f6003e6bd34c59056e196428120e0da0925ec17dc"
+    },
+    "tests/spline-corner-evidence-contract.mjs": {
+      "bytes": 4473,
+      "sha256": "3da1757edf1225da0badbdf4aa5bde0224e73da1b75720a3f1fb5a0f8907faa2"
+    },
+    "tests/corner-screenshot-contract.mjs": {
+      "bytes": 4311,
+      "sha256": "65ecccfdb449ef5caa16e20a4f56246684ae19f80d5216c0d5a343026aac983d"
+    },
+    "tests/corner-screenshot-evidence.mjs": {
+      "bytes": 1418,
+      "sha256": "3d8d092c34cf34ff20bf8dd60ec526042b6f23b62c846c3b5c34ec99efe3b3e9"
+    },
+    "plugins/3d-printer/README.md": {
+      "bytes": 553,
+      "sha256": "d7a0e63062333905e7d705caf64efefa91d528c4f357a6001211f311069ad42d"
+    },
+    "plugins/3d-printer/plugin.js": {
+      "bytes": 69545,
+      "sha256": "680d4e87f5243214217def12b388f8e6988ac3c884086341bf417fbf6683a980"
+    },
+    "plugins/circuit/README.md": {
+      "bytes": 8044,
+      "sha256": "4e5676e750183433b18bffed70061597d3bdf235400a5ff5515a1835a0f805bf"
+    },
+    "plugins/circuit/viewport.js": {
+      "bytes": 5834,
+      "sha256": "8478da690245746ea83d457e2b8952cf873d24a0136aa31ccad21b730a5f4a41"
+    },
+    "plugins/cut/README.md": {
+      "bytes": 5967,
+      "sha256": "a055c07edf5158717e0a68b1f9bd15831f09d56175aeaaa06a570b113d35b527"
+    },
+    "plugins/cut/viewport.js": {
+      "bytes": 3104,
+      "sha256": "c3fe5fad38afaf4a5fec099a26eda684960a2167ae4322fd58dff92b1ce91efb"
+    },
+    "plugins/mill/README.md": {
+      "bytes": 40383,
+      "sha256": "607f308181a70ca8a40330353ca7e9a92c4bffc98a80348bcf017c73cdb388c5"
+    },
+    "plugins/mill/plugin.js": {
+      "bytes": 265407,
+      "sha256": "6a7cd18cc0fe601c4ede168f7069d5e998dd1946c4161b8dab9170072994c654"
+    },
+    "plugins/optics/README.md": {
+      "bytes": 6276,
+      "sha256": "389ebc524c92773557786a52207d42a2f62c682b6511f833f38fd8b4db7f9248"
+    },
+    "plugins/optics/viewport.js": {
+      "bytes": 4354,
+      "sha256": "53df27aab13d9f72b4c64a42ec1017b5120248cdbaae66d675c0e4db311f9e72"
+    },
+    "tests/camera-relative-depth.mjs": {
+      "bytes": 13324,
+      "sha256": "b37cd1b81a15bd0635f553896efa383a00ceaf6763b1421edfd4d8f0cc4d902c"
+    },
+    "tests/camera-shader-order.mjs": {
+      "bytes": 9845,
+      "sha256": "ec878c809bbb95ae35428693684425d33a975945a0cc58fc0f485034ac790c3e"
+    },
+    "tests/spline-shader-source-contract.mjs": {
+      "bytes": 4285,
+      "sha256": "94ab33cd160761756588b1e4e2eb61c5f64af5224975332f2bdb1a8edc29877a"
+    },
+    "tests/motion-path-perspective.mjs": {
+      "bytes": 14272,
+      "sha256": "25e431d7074ec55efbe8d7fdd1be8726d01592e793e8b5ca78a7d5c8a55f3318"
+    },
+    "tests/performance-heavy.mjs": {
+      "bytes": 9925,
+      "sha256": "86992dbfc3a7599d79eb7af0648d147471e1519924faa9edd221f9b0591925f8"
     }
   },
   "archivedProofs": {
@@ -663,12 +913,11 @@
     "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
     "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
   },
-  "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
+  "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
   "sourcePredecessor": {
-    "kind": "Sealed independently reviewed icon v5; single combined DnD + Nut + near-zero release follows; actual parent commit unresolved until publication",
-    "manifestSHA256": "e92b7b45713e00dbe89823785baa266119b42d89612867030e31080a1699bbd2",
-    "inventorySHA256": "675887a36097f14dddf90f21f1cd6ddc17e5e5f8ab414765f47a947224b63648",
-    "runtimeSHA256": "06402542e81cccdaab85aec01bc9bb533cf1ec0a308f6ef0af347a1a0101f80a",
-    "sourceFiles": 863
+    "kind": "Current published combined icons/DnD/Nut/numeric base; parent commit is coordinator-verified, not an assertion that this viewport candidate is published",
+    "runtimeSHA256": "46f87fb6d5e3d14c8476c6f0a94c9b0a8a68a07d2e1f0c1184889955738c09b5",
+    "sourceFiles": 872,
+    "viewportOverlayRuntimeSHA256": "a0548e15c9aabbd70432154c6c6638e7f08f55de840ac67f3bb0f05cf7d18bba"
   }
 }

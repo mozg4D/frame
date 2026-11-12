@@ -1,6 +1,6 @@
 {
   "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
-  "scope": "Unchanged main save/serialization/catalogue/history functions and existing texture/SRC inputs. Source proof only, not behavioral qualification.",
+  "scope": "Unchanged main save/serialization/catalogue functions and existing texture/SRC inputs; native restore has the explicitly recorded animation-rollback-only extension. Source proof only, not behavioral qualification.",
   "regions": [
     {
       "prefix": "function createFrameHashCodec(){",
@@ -22,15 +22,21 @@
     },
     {
       "prefix": "function commit(action, refresh=true)",
-      "nextPrefix": "function restore(value){",
+      "nextPrefix": "function restore(value,heldAnimation=null){",
       "bytes": 220,
       "sha256": "84c2ff9f66499ace0559b253d000164e7c8d80fc6754425e9fcc20d05e66d508"
     },
     {
-      "prefix": "function restore(value){",
+      "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 1977,
-      "sha256": "a7bfa11764262c04099b93f6c502e30d40772587151fc0ca7e4463c8131ac919"
+      "bytes": 2204,
+      "sha256": "67716c6285b7d985f6335d6e8e10de6ec5ef2d12a8b2b9bb7388e49063ec3c97",
+      "change": {
+        "reason": "Optional current-value rollback mode for failed animation edits; default one-argument history reevaluation is unchanged.",
+        "beforeSHA256": "a7bfa11764262c04099b93f6c502e30d40772587151fc0ca7e4463c8131ac919",
+        "beforeBytes": 1977,
+        "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188"
+      }
     },
     {
       "prefix": "async function frameUndoUI(",

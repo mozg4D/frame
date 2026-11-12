@@ -257,8 +257,8 @@ struct Config{size:vec4u,domain:vec4f,heights:vec4f};
 override orthographic:bool=false;
 struct Output{@builtin(position) position:vec4f,@location(0) color:vec3f,@location(1) uv:vec2f};
 fn project(local:vec3f,color:vec3f,uv:vec2f)->Output{
- let p=(camera.rotation*vec4f(((frame.matrix*vec4f(local,1)).xyz-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
- let xy=p.xy+camera.viewport.zw;let depth=3.2-p.z;var out:Output;out.color=color;out.uv=uv;
+ let p=(frameCameraRelative(camera.rotation)*vec4f(((frame.matrix*vec4f(local,1)).xyz-camera.centerScale.xyz)*camera.centerScale.w,1)).xyz;
+ let xy=p.xy+camera.viewport.zw;let depth=-p.z;var out:Output;out.color=color;out.uv=uv;
  if(orthographic){out.position=vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/(camera.clip.y-camera.clip.x),1);}
  else{out.position=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);}return out;
 }
@@ -272,7 +272,7 @@ fn pathPoint(p:vec2f,color:vec3f)->Output{let i=cfg.size.w;let y=select(cfg.heig
 `;
 
 async function createPreview(context,slicer){
- const d=context.device,module=await checkedModule(d,'Printer LDI coverage and axes',previewShader);
+ const d=context.device,module=await checkedModule(d,'Printer LDI coverage and axes',context.viewport.cameraWGSL+previewShader);
  const uniformLayout=()=>d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]}),cameraLayout=uniformLayout(),frameLayout=uniformLayout();
  const imageLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}}]});
  const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:entryPoint==='axes'?[cameraLayout,frameLayout]:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='map'?'coverage':'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:entryPoint==='axes'||entryPoint==='perimeter'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}});

@@ -76,7 +76,15 @@
     "test:authoring-stamp:cpu": "node tests/authoring-stamp.mjs",
     "test:authoring-stamp": "node tests/authoring-stamp.mjs && node tests/authoring-stamp-browser.mjs",
     "test:texture-slots:cpu": "node tests/texture-dnd-source-contract.mjs && node tests/texture-slot-drag.mjs",
-    "test:texture-slots": "npm run test:texture-slots:cpu && node tests/texture-slot-drag-browser.mjs --headless"
+    "test:texture-slots": "npm run test:texture-slots:cpu && node tests/texture-slot-drag-browser.mjs --headless",
+    "test:atomic:bounds:cpu": "node plugins/atomic/tests/display-bounds.mjs",
+    "test:camera-animation:cpu": "node tests/camera-animation-navigation.mjs",
+    "test:animation-transaction:cpu": "node tests/animation-transaction.mjs",
+    "test:animation-transaction": "node tests/animation-transaction.mjs && node tests/animation-transaction-browser.mjs --headless",
+    "test:spline-planar:cpu": "node tests/spline-planar-contracts.mjs",
+    "test:diagnostic-pixels:cpu": "node tests/diagnostic-pixels-contract.mjs",
+    "test:spline-corner-evidence:cpu": "node tests/spline-corner-evidence-contract.mjs",
+    "test:corner-screenshot:cpu": "node tests/corner-screenshot-contract.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"

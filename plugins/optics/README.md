@@ -42,3 +42,7 @@ Run the focused accounting checks with `node --test plugins/optics/tests/power-l
 ## Native icon artwork
 
 The native 32 by 32 pixel icon has a centered 22-pixel lens and a one-pixel minimum clear gap between the lens and outgoing strokes. Incoming rays, convergence point and stroke styling are unchanged. No SVG or CSS scaling is used. The shared source and raster checks are `tests/plugin-icon-alignment.mjs` and `tests/compact-icon-artwork.mjs`; native authoring behavior is unchanged.
+
+## Stable viewport depth
+
+The viewport opts into `context.viewport.cameraWGSL` and its affine `frameCameraRelative` helper, documented in ../../plugins.md. The public camera uniform is unchanged. Only local projection arithmetic changes; depth policy, authoring, geometry, computation and persistence remain unchanged. The helper preserves tiny relative depth gaps but retains Float32 camera-base error. Native validation remains required.

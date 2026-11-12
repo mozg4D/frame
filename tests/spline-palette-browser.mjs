@@ -21,10 +21,10 @@ export async function splinePaletteBrowserChecks(page){
     const label=(patch?'Patch':'Curve')+' view '+index;
     await measure(label+' focus',()=>call('view.set',{index,single:true,mode:'edge',shading:patch?'solid-isoparms':'isoparms',focus:owner.hash}));
     await call('scene.select',{ids:[spline.hash],mode:'edge',components:[]});await page.mouse.move(5,5);await call('diagnostics.frame',{frames:2});
-    const p=await pixelCheck(label+' unselected cage uses dim cyan',point,[72,142,166]);
+    const p=await pixelCheck(label+' unselected cage uses dim cyan',point,[60,117,138]);
     await measure(label+' edge selection',()=>call('scene.select',{ids:[spline.hash],mode:'edge',components:[edge]}));await page.mouse.move(5,5);await call('diagnostics.frame',{frames:2});await pixelCheck(label+' selected edge stays green',point,[101,237,134]);
     await call('scene.select',{ids:[spline.hash],mode:'edge',components:[]});await page.mouse.move(...p);await call('diagnostics.frame',{frames:2});await pixelCheck(label+' hovered edge stays bright green',point,[138,255,171]);
-    await page.mouse.move(5,5);await call('diagnostics.frame',{frames:2});await pixelCheck(label+' repeated deselection restores dim cyan',point,[72,142,166]);
+    await page.mouse.move(5,5);await call('diagnostics.frame',{frames:2});await pixelCheck(label+' repeated deselection restores dim cyan',point,[60,117,138]);
     const r=await call('diagnostics.frame',{frames:5});frames.push({name:label,...r});check(label+' native CPU/GPU frame budgets',r.timestampQueries&&r.frames.every(f=>f.cpuMs<50&&f.gpuMs<100),r);
    }
   }

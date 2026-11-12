@@ -23,7 +23,7 @@ function environment(){
  ${fragment('function snapshot(){')}
  ${fragment('function checkpoint(before){')}
  ${fragment('function commit(action, refresh=true){')}
- ${fragment('function restore(value){')}
+ ${fragment('function restore(value,heldAnimation=null){')}
  ${fragment('async function frameUndoUI(back){')}
  ${fragment('function nativeRecord(id,type,value){')}
  ${fragment('function nativePut(map,id,field,type,value){')}

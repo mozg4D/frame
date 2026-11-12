@@ -148,3 +148,7 @@ Operation continuation restores the shared full-domain free-pose verifier in the
 Standard and DPR-2 stress each pass 6677 assertions; the focused Mill suite passes 436 checks, with no JavaScript, console or WebGPU errors and no lost/replaced device. Index SHA-256 is 7a583f52a8500ed051edc5081d2aa5f377af796c7f16329be94cb1cf67730ddb; Mill SHA-256 is 018efbf853bce54dcb9bd9bdb04dcc511000a301fc88dc6617b573ed97e4bb20. Source-bound reports are tests/results/november2-standard-final.json, november2-stress-final.json and november2-mill-focused-final.json.
 
 The unchanged 100548288-triangle presentation benchmark passes all 15 checks on native NVIDIA Ampere, retaining the same canonical geometry in baseline, Stock, Protected and machined modes. Completed presentations take 259/244/259/506 ms respectively, under the existing 2000 ms budget. Machined CPU/GPU frame p95 is 0.90/25.46 ms. This measures presentation rather than full 100M-triangle CAM planning; source-certification work limits above still apply. Results are local fixture/device measurements recorded in tests/results/mill-performance.json.
+
+## Stable viewport depth
+
+The viewport opts into `context.viewport.cameraWGSL` and its affine `frameCameraRelative` helper, documented in ../../plugins.md. The public camera uniform is unchanged. Only local projection arithmetic changes; depth policy, authoring, geometry, computation and persistence remain unchanged. The helper preserves tiny relative depth gaps but retains Float32 camera-base error. Native validation remains required.

@@ -10,8 +10,8 @@ struct ObjectFrame{matrix:mat4x4f,inverse:mat4x4f,color:vec4f,settings:vec4f};
 override orthographic:bool=false;
 @vertex fn vs(@location(0) point:vec3f)->@builtin(position) vec4f{
  let world=(object.matrix*vec4f(point,1)).xyz;
- let p=camera.rotation*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1);
- let xy=p.xy+camera.viewport.zw;let depth=3.2-p.z;
+ let p=frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1);
+ let xy=p.xy+camera.viewport.zw;let depth=-p.z;
  if(orthographic){return vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/(camera.clip.y-camera.clip.x),1);}
  return vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);
 }
@@ -25,7 +25,7 @@ export async function installSymbols(context,{find,members,read,symbol,bounds}){
   release();const s=state={device,format,geometry:new Map(),nets:new Map(),groups:new WeakMap(),pipelines:[],ready:false,retired:false,error:null};
   const stage=GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT;
   s.layout=device.createBindGroupLayout({entries:[{binding:0,visibility:stage,buffer:{type:'uniform'}},{binding:1,visibility:stage,buffer:{type:'uniform'}}]});
-  const module=device.createShaderModule({label:'Circuit authoring line symbols',code:shader}),layout=device.createPipelineLayout({bindGroupLayouts:[s.layout]});
+  const module=device.createShaderModule({label:'Circuit authoring line symbols',code:context.viewport.cameraWGSL+shader}),layout=device.createPipelineLayout({bindGroupLayouts:[s.layout]});
   for(const [kind,vertices]of geometry){const buffer=device.createBuffer({label:'Circuit '+kind+' shared symbol',size:vertices.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});device.queue.writeBuffer(buffer,0,vertices);s.geometry.set(kind,{buffer,count:vertices.length/3});}
   s.pending=(async()=>{const info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.filter(m=>m.type==='error').map(m=>m.message).join('; '));await Promise.all([false,true].map(async(orthographic,i)=>{s.pipelines[i]=await device.createRenderPipelineAsync({label:'Circuit symbol lines',layout,vertex:{module,entryPoint:'vs',constants:{orthographic},buffers:[{arrayStride:12,attributes:[{shaderLocation:0,offset:0,format:'float32x3'}]}]},fragment:{module,entryPoint:'fs',targets:[{format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});}));if(!s.retired){s.ready=true;context.requestDraw();}})().catch(e=>{s.error=e;console.error('Circuit symbol rendering unavailable:',e);});
   device.lost.then(()=>{if(state===s)release();});return s;

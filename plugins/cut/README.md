@@ -25,3 +25,7 @@ Use `plugins.create {plugin:'cut'}` or `scene.create {type:'cut'}`. Discover ope
 ## Verification
 
 `node plugins/cut/tests/model.mjs` checks constraints, exact opaque strings, applied defaults, independent owners, native restoration selection, storage failure and a completed 10000-validation latency budget of one second. `tests/index.mjs` is discovered by the shared plugin suite and covers real icon creation, native controls/text/Undo, CAS, invalid writes, defaults, tags, HASH, unavailable operations and hardware frame timings. Full geometry, G-code, route accuracy and machine safety acceptance are not claimed. See PLAN.md for remaining acceptance work.
+
+## Stable viewport depth
+
+The viewport opts into `context.viewport.cameraWGSL` and its affine `frameCameraRelative` helper, documented in ../../plugins.md. The public camera uniform is unchanged. Only local projection arithmetic changes; depth policy, authoring, geometry, computation and persistence remain unchanged. The helper preserves tiny relative depth gaps but retains Float32 camera-base error. Native validation remains required.
