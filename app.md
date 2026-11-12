@@ -1,3 +1,9 @@
+## Selected spline-surface instance cages (source candidate, 2026-11-12)
+
+A selected instance whose source carries an evaluated spline surface now retains the source's blue cage in Polygon mode even in Solid shading. The existing source display and line buffer remain shared; only the existing per-occurrence transform/uniform and bind group are used. Bare-spline instances and isoparm shading retain their previous eligibility. Selected-owner membership is built once per eligible draw, with linear owner/occurrence lookup rather than a nested array search. This changes display eligibility only: surface batching, source geometry, selection/picking ownership, HASH and line depth remain unchanged. It does not fix coplanar line loss or Boolean edge provenance.
+
+`tests/instance-polygon-cage.mjs` executes the shipped replica cage draw path with an inert GPU adapter, including source sharing, transforms, selection-owner identity, cache invalidation and bounded completed CPU work. Native UI, GPU compilation, full suites and relevant high-line-count rendering still require separate qualification.
+
 ## Combined viewport v6 source candidate
 
 Paired application/cache stamp: Frame 2026 12 nov 03:44 (Moscow UTC+3), selected from clock.curr_time before final exact-byte checks. This unpublished revision adds only the reviewed motion-path visibility correction to frozen v5: additional view instance identity is resolved through frameViewKind before the existing positive-depth predicate. Its shared CPU regression is invoked and fails fast. Native fixtures, budgets, camera ownership, authoring/history and zero-console guard remain unchanged. Earlier candidate headings and results below are historical; no previous native PASS qualifies these final v6 bytes.

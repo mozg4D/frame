@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 12 nov 15:20",
-  "predecessorCommit": "1ad70122ee4658ab6e598d16ef36a0341d19a7f9",
+  "version": "2026 12 nov 16:22",
+  "predecessorCommit": "9991a73ab99fec0a54993492852247df6b372cb6",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -338,6 +338,13 @@
       "frame-sw.js",
       "tests/viewport-connected-routing.mjs",
       "tests/viewport-connected-browser.mjs"
+    ],
+    "instance-polygon-cage": [
+      "index.html",
+      "tests/instance-polygon-cage.mjs",
+      "tests/run.mjs",
+      "app.md",
+      "package.json"
     ]
   },
   "files": {
@@ -363,11 +370,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "c96ad1a0e4866f1effe16f3046a25d80b5c2b076c73dab2544f12f7a41e710ea"
+      "sha256": "c9af65e64d5613bc07c2494c5af0f6b5b4f9b7a2d86a0df7437480a807d5aada"
     },
     "index.html": {
-      "bytes": 2835262,
-      "sha256": "e990e4b34e69b9a64c5e6d777e9c2e98b444f51323fa1d338108b11b5bdd9464"
+      "bytes": 2835419,
+      "sha256": "5c720a92d581b5304e1b7cb5419cfad2e1e14608747ebc9a9c9b8c14e49106f7"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -570,8 +577,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 326874,
-      "sha256": "2991a7f49a2b12531a2c9197440595c43a80c1f64629f5d3bff4a8c8c4589156"
+      "bytes": 327976,
+      "sha256": "e90bf88a33e3099955b25fd365301dece399eeb0389909f0ae2a276af9e8943d"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -594,16 +601,16 @@
       "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
     },
     "package.json": {
-      "bytes": 7225,
-      "sha256": "e27496519d728b3505611a363ceb36e0f5e3f56d136d2ec83621274ec15257c0"
+      "bytes": 7303,
+      "sha256": "db5831e637b9d9798cac193a020eeb8411739309497b569e2be5fdb08e156cc2"
     },
     "plugins.md": {
       "bytes": 50735,
       "sha256": "f7d0eb13eb96b48a355f186098e8c8f6bf759dba2748adfd4c458e51174c600e"
     },
     "tests/run.mjs": {
-      "bytes": 35413,
-      "sha256": "e7533616fe94c6f06928c3157094746aaebca4d0f78ea7478415ae0871decb96"
+      "bytes": 35686,
+      "sha256": "082e0318f61b95312ca9a56a37ee9fc5b95134dd0282ecf96807cdf8c1d528d9"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -916,6 +923,10 @@
     "tests/viewport-connected-browser.mjs": {
       "bytes": 7489,
       "sha256": "7f9629c216a13642f29307de5704aac371baad8fb718eb3cd4b6cf84aeb8a3af"
+    },
+    "tests/instance-polygon-cage.mjs": {
+      "bytes": 8844,
+      "sha256": "6d2398f4f894aed3a3d760b1c6d3d92ccd6f4d58d9770e946e475d95e38d9a47"
     }
   },
   "archivedProofs": {
@@ -927,9 +938,9 @@
     "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
     "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
   },
-  "baseCommit": "1ad70122ee4658ab6e598d16ef36a0341d19a7f9",
+  "baseCommit": "9991a73ab99fec0a54993492852247df6b372cb6",
   "sourcePredecessor": {
-    "kind": "Published main before scoped connected-event routing release; source identity is not native qualification",
-    "runtimeSHA256": "4f7919a2831aa66608ce5cd6b8a6202cfb615c635e5e66ab266f6db86519c390"
+    "kind": "Published main before selected-instance cage source candidate; no native qualification claimed",
+    "runtimeSHA256": "e990e4b34e69b9a64c5e6d777e9c2e98b444f51323fa1d338108b11b5bdd9464"
   }
 }
