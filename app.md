@@ -1106,7 +1106,7 @@ The unchanged tests/scenes/test.stl is also tested at its native size multiplied
 
 ## October 26 editor and instanced rendering revision
 
-Double-click Select Connected is captured at the common viewport host, including a gizmo that appears between clicks. Authored spline adjacency stays separate from resolved filled-cell adjacency. Shared GPU connected frontiers rebind after capacity growth. Selected editable sources under Cloner/Symmetry remain drawable and pickable in Vertex, Edge and Polygon modes; final rendering and export retain ordinary consumed-source visibility.
+Double-click Select Connected is captured in the viewport document for viewport surfaces and body-level transform gizmos, including a gizmo that appears between clicks. View activation and detached documents retain this route; Objects rows and unrelated panels or menus do not invoke it. The clicked connected component is selected, not disconnected islands. Authored spline adjacency stays separate from resolved filled-cell adjacency. Shared GPU connected frontiers rebind after capacity growth. Selected editable sources under Cloner/Symmetry remain drawable and pickable in Vertex, Edge and Polygon modes; final rendering and export retain ordinary consumed-source visibility.
 
 Finite polygon Line Cut projects vertices in its worker and builds edge adjacency only for faces overlapping the finite cut region. Whole-mesh canonical topology remains GPU-owned after publication. Welded triangles with repeated vertex IDs retain their face/UV/material identities but do not enter edge adjacency, preventing false nonmanifold edges and broken smooth fans.
 

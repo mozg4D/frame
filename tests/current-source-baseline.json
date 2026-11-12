@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 12 nov 03:44",
-  "predecessorCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
+  "version": "2026 12 nov 15:20",
+  "predecessorCommit": "1ad70122ee4658ab6e598d16ef36a0341d19a7f9",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -332,6 +332,12 @@
       "index.html",
       "tests/motion-path-perspective.mjs",
       "tests/run.mjs"
+    ],
+    "viewport-connected": [
+      "index.html",
+      "frame-sw.js",
+      "tests/viewport-connected-routing.mjs",
+      "tests/viewport-connected-browser.mjs"
     ]
   },
   "files": {
@@ -357,11 +363,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "6f5636a55e36a2b7e69b54dc2123fb8f0274d6107a592b242b3b2aee64b0f3d1"
+      "sha256": "c96ad1a0e4866f1effe16f3046a25d80b5c2b076c73dab2544f12f7a41e710ea"
     },
     "index.html": {
-      "bytes": 2834837,
-      "sha256": "4f7919a2831aa66608ce5cd6b8a6202cfb615c635e5e66ab266f6db86519c390"
+      "bytes": 2835262,
+      "sha256": "e990e4b34e69b9a64c5e6d777e9c2e98b444f51323fa1d338108b11b5bdd9464"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -564,8 +570,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 326633,
-      "sha256": "4fddbef804363adadac11e7391522868dd427296bd58349037104f1b4969a8b9"
+      "bytes": 326874,
+      "sha256": "2991a7f49a2b12531a2c9197440595c43a80c1f64629f5d3bff4a8c8c4589156"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -588,16 +594,16 @@
       "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
     },
     "package.json": {
-      "bytes": 7071,
-      "sha256": "16f4cc4c9e62b59b5512d1427af1bf60dba7db66819b33c8393a9e47dea15645"
+      "bytes": 7225,
+      "sha256": "e27496519d728b3505611a363ceb36e0f5e3f56d136d2ec83621274ec15257c0"
     },
     "plugins.md": {
       "bytes": 50735,
       "sha256": "f7d0eb13eb96b48a355f186098e8c8f6bf759dba2748adfd4c458e51174c600e"
     },
     "tests/run.mjs": {
-      "bytes": 34886,
-      "sha256": "1673742a30dd8ee317ef4822b17a08174c4d7cdc9c98445a61e03e4e497dafa0"
+      "bytes": 35413,
+      "sha256": "e7533616fe94c6f06928c3157094746aaebca4d0f78ea7478415ae0871decb96"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -700,8 +706,8 @@
       "sha256": "3d5b854965f6754e974652c12337b49033408fcb614022204a5b1440b3b87f27"
     },
     "tests/README.md": {
-      "bytes": 50359,
-      "sha256": "1ec20e9aa03f3e607726239265446c95636db3f2e312b9e856c5a30a5d39918f"
+      "bytes": 51291,
+      "sha256": "8cde17f3911c764e270fdb04024bb979d2f1a4230fcf9aa567d849adb663dec7"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -902,6 +908,14 @@
     "tests/performance-heavy.mjs": {
       "bytes": 9925,
       "sha256": "86992dbfc3a7599d79eb7af0648d147471e1519924faa9edd221f9b0591925f8"
+    },
+    "tests/viewport-connected-routing.mjs": {
+      "bytes": 10095,
+      "sha256": "5fa73b8d828cb2640d9c8bf3d31ea0b80990f4167bb598e1777875a204c46bab"
+    },
+    "tests/viewport-connected-browser.mjs": {
+      "bytes": 7489,
+      "sha256": "7f9629c216a13642f29307de5704aac371baad8fb718eb3cd4b6cf84aeb8a3af"
     }
   },
   "archivedProofs": {
@@ -913,11 +927,9 @@
     "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
     "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
   },
-  "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
+  "baseCommit": "1ad70122ee4658ab6e598d16ef36a0341d19a7f9",
   "sourcePredecessor": {
-    "kind": "Current published combined icons/DnD/Nut/numeric base; parent commit is coordinator-verified, not an assertion that this viewport candidate is published",
-    "runtimeSHA256": "46f87fb6d5e3d14c8476c6f0a94c9b0a8a68a07d2e1f0c1184889955738c09b5",
-    "sourceFiles": 872,
-    "viewportOverlayRuntimeSHA256": "a0548e15c9aabbd70432154c6c6638e7f08f55de840ac67f3bb0f05cf7d18bba"
+    "kind": "Published main before scoped connected-event routing release; source identity is not native qualification",
+    "runtimeSHA256": "4f7919a2831aa66608ce5cd6b8a6202cfb615c635e5e66ab266f6db86519c390"
   }
 }

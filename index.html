@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 12 nov 03:44">
-<title>Frame 2026 12 nov 03:44</title>
+<meta name="frame-version" content="2026 12 nov 15:20">
+<title>Frame 2026 12 nov 15:20</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -16992,7 +16992,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(pendingWheel){pendingWheel.delta+=delta;pendingWheel.x=event.clientX;pendingWheel.y=event.clientY;}else pendingWheel={x:event.clientX,y:event.clientY,delta};
       processWheel();
     },{passive:false});
-    $('frame-engine-host').addEventListener('dblclick',event=>{event.preventDefault();event.stopImmediatePropagation();const view=frameViewportAt(event.clientX,event.clientY);if(view!==null&&activateFrameView(view)&&!event.altKey&&!FrameSpline.drawing){if(drag?.vertexPending){drag.cancelled=true;drag=null;orbitGeneration++;}selectConnected(event.clientX,event.clientY,frameSelectionOperation(event));}},true);
+    function viewportConnectedDoubleClick(event){
+      const target=event.target,doc=target?.ownerDocument;if(!doc||event.button!==0||target.closest?.('input,textarea,select,button,[contenteditable],#menu,.frame-plugin-overlay,.frame-view-open')||!target.closest?.('#frame-engine-host,.frame-gizmo')&&!target.matches?.('.frame-viewport-canvas,.view[data-view]')&&target!==doc.body)return;
+      const view=frameViewportAt(event.clientX,event.clientY,doc);if(view===null||event.altKey||FrameSpline.drawing||!activateFrameView(view))return;
+      event.preventDefault();event.stopImmediatePropagation();if(drag?.vertexPending){drag.cancelled=true;drag=null;orbitGeneration++;}selectConnected(event.clientX,event.clientY,frameSelectionOperation(event));
+    }
+    FrameViewWindows.onDocument('dblclick',viewportConnectedDoubleClick,true);
     new ResizeObserver(()=>draw(true,true)).observe(document.getElementById('vp'));
 
     const serverMode = window.location?.protocol === 'http:' || window.location?.protocol === 'https:';

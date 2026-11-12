@@ -84,7 +84,9 @@
     "test:spline-planar:cpu": "node tests/spline-planar-contracts.mjs",
     "test:diagnostic-pixels:cpu": "node tests/diagnostic-pixels-contract.mjs",
     "test:spline-corner-evidence:cpu": "node tests/spline-corner-evidence-contract.mjs",
-    "test:corner-screenshot:cpu": "node tests/corner-screenshot-contract.mjs"
+    "test:corner-screenshot:cpu": "node tests/corner-screenshot-contract.mjs",
+    "test:connected-routing:cpu": "node tests/viewport-connected-routing.mjs",
+    "test:connected-routing": "node tests/viewport-connected-browser.mjs"
   },
   "devDependencies": {
     "playwright": "1.64.1"
