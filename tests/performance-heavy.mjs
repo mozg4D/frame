@@ -1,3 +1,4 @@
+import {pluginEnabled} from './test-policy.mjs';
 import {heavyEditorChecks} from './heavy-editor.mjs';
 import {ensureHeavyScene} from './scenes/generate-heavy.mjs';
 import {launch,ready} from '../tools/browser.mjs';
@@ -13,6 +14,7 @@ export async function heavyPerformanceChecks(page,state){
   const roots=state.objects.filter(n=>!n.parent).map(n=>n.hash);await call('view.set',{index:0,single:true,mode:'object'});await call('scene.select',{ids:roots});await page.evaluate(()=>frameEngine.focusSelection());await call('scene.select',{ids:[]});const camera=(await call('scene.inspect')).view.camera,rect=await page.locator('#frame-engine-canvas').boundingBox(),centers=await page.evaluate(async points=>{const out=[];for(const point of points)out.push((await frameAI.call('view.project',{point})).screen);return out;},state.objects.filter(n=>n.mesh&&n.bounds).map(n=>n.bounds.center));check('100M benchmark frames the centers of every independent mesh',centers.length===64&&centers.every(p=>p[0]>=rect.x&&p[0]<=rect.x+rect.width&&p[1]>=rect.y&&p[1]<=rect.y+rect.height),{objects:centers.length,rect});
   // Preserve cold/warm frames in the report; steady budgets start after GPU clock/pipeline warmup.
   for(const shading of ['solid','solid-wire','wireframe','isoparms','solid-isoparms']){
+   console.log('[tests] 100M '+shading+' warmup, steady frames, navigation and components');
    await call('view.set',{camera,index:0,single:true,mode:'object',shading});const warmup=await call('diagnostics.frame',{frames:60});const frames=await call('diagnostics.frame',{frames:32}),gpu=stats(frames.frames.map(f=>f.gpuMs)),cpu=stats(frames.frames.map(f=>f.cpuMs));modes[shading]={...frames,gpu,cpu,warmup,camera:(await call('scene.inspect')).view.camera};
    check(shading+' 100M steady frame p95 avoids sporadic stalls',gpu.p95<gpu.median*1.6+5&&cpu.p95<50,{gpu,cpu});
    const original=(await call('scene.inspect')).view.camera,changed=[...original];changed[0]+=.27;changed[1]-=.12;await call('view.set',{camera:changed});const navigation=await call('diagnostics.frame',{frames:8});modes[shading].navigation=navigation;const navigationGPU=stats(navigation.frames.map(f=>f.gpuMs));check(shading+' remains stable after camera rotation',navigationGPU.p95<navigationGPU.median*1.6+5,navigationGPU);
@@ -33,9 +35,9 @@ export async function heavyPerformanceChecks(page,state){
   await call('view.set',{camera,mode:'vertex',shading:'solid-isoparms'});const first=state.objects.find(n=>n.mesh);await page.locator('[data-id="'+first.id+'"] .ob-name').click();const browserStart=performance.now();await page.mouse.move(1180,120);await page.keyboard.press('Control+a');const browserSelection=await call('scene.inspect'),browserMs=performance.now()-browserStart;
   check('100M browser Ctrl+A draws the vertices of all 64 owners',browserSelection.stats.vertexDisplay.objects===64&&browserSelection.stats.vertexDisplay.vertices===state.stats.vertices&&browserMs<2500,{display:browserSelection.stats.vertexDisplay,browserMs,expected:state.stats.vertices});
   await call('view.set',{mode:'object',shading:'solid',camera});await call('scene.select',{ids:[]});
-  const printerStart=performance.now(),printer=await call('plugins.create',{plugin:'3d-printer'}),printerMs=performance.now()-printerStart;await call('scene.select',{ids:[]});await call('diagnostics.frame',{frames:6});const printerFrames=await call('diagnostics.frame',{frames:12}),printerGpu=stats(printerFrames.frames.map(f=>f.gpuMs)),printerCpu=stats(printerFrames.frames.map(f=>f.cpuMs));modes['printer-solid']={...printerFrames,gpu:printerGpu,cpu:printerCpu,elapsedMs:printerMs};
-  check('Plugin warnings on 100M triangles have bounded completed/frame latency',printerMs<2500&&printerGpu.p95<500&&printerCpu.p95<50,{printerMs,gpu:printerGpu,cpu:printerCpu});await call('scene.delete',{ids:[printer.hash]});
-  const editor=await heavyEditorChecks(page,state);checks.push(...editor.checks);modes.editor={timings:editor.timings};if(!editor.pass)throw Error(editor.error);
+  if(pluginEnabled('3d-printer')){const printerStart=performance.now(),printer=await call('plugins.create',{plugin:'3d-printer'}),printerMs=performance.now()-printerStart;await call('scene.select',{ids:[]});await call('diagnostics.frame',{frames:6});const printerFrames=await call('diagnostics.frame',{frames:12}),printerGpu=stats(printerFrames.frames.map(f=>f.gpuMs)),printerCpu=stats(printerFrames.frames.map(f=>f.cpuMs));modes['printer-solid']={...printerFrames,gpu:printerGpu,cpu:printerCpu,elapsedMs:printerMs};
+  check('Plugin warnings on 100M triangles have bounded completed/frame latency',printerMs<2500&&printerGpu.p95<500&&printerCpu.p95<50,{printerMs,gpu:printerGpu,cpu:printerCpu});await call('scene.delete',{ids:[printer.hash]});}
+  console.log('[tests] 100M native editor operations');const editor=await heavyEditorChecks(page,state);checks.push(...editor.checks);modes.editor={timings:editor.timings};if(!editor.pass)throw Error(editor.error);
   return {pass:true,checks,modes};
  }catch(e){return {pass:false,checks,modes,error:e.stack};}
 }

@@ -1,3 +1,4 @@
+import {pluginEnabled} from './test-policy.mjs';
 import {readFile,writeFile,mkdir,access} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -6,9 +7,9 @@ import {box,waitForSlice} from '../plugins/3d-printer/tests/slicer.mjs';
 
 export async function removedVolumeSourceChecks(){
  const checks=[],check=(name,pass)=>{checks.push({name,pass:!!pass});if(!pass)throw Error(name);};
- const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),worker=await readFile(new URL('../frame-sw.js',import.meta.url),'utf8'),printer=await readFile(new URL('../plugins/3d-printer/plugin.js',import.meta.url),'utf8');
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),worker=await readFile(new URL('../frame-sw.js',import.meta.url),'utf8'),printer=pluginEnabled('3d-printer')?await readFile(new URL('../plugins/3d-printer/plugin.js',import.meta.url),'utf8'):null;
  check('Removed polygon union has no runtime names, engine entry points or WASM loader',!(/\bunite\w*\b|prepareVolume|frame-volume|volumeBakeShader|volumeQueryShader|volumeJob|volumeBinary/i.test(html)));
- check('Printer owns only its direct LDI path',!(/prepareVolume|prepare-volume|normalizedVolume|volumeStatus|acquireVolume|disposeVolume/.test(printer)));
+ if(printer!==null)check('Printer owns only its direct LDI path',!(/prepareVolume|prepare-volume|normalizedVolume|volumeStatus|acquireVolume|disposeVolume/.test(printer)));
  check('Offline core no longer requests the removed WASM asset',!worker.includes('kernels/'));
  for(const path of ['tests/unite-fixtures.mjs','tests/unite-run.mjs','tools/build-volume.ps1','kernels/volume-0e3a6b442b66860e3000.wasm']){let exists=true;try{await access(new URL('../'+path,import.meta.url));}catch{exists=false;}check('Removed dependency is absent: '+path,!exists);}
  return {pass:true,checks};
@@ -28,11 +29,12 @@ export async function removedVolumeChecks(page){
   const before=JSON.stringify((await call('scene.inspect')).objects);await rejects('Removed geometry call rejects',()=>call('geometry.unite',{ids:[mesh.hash]}));check('Removed geometry call leaves scene unchanged',JSON.stringify((await call('scene.inspect')).objects)===before);
   const saved=await call('scene.export',{includeData:true});await measure('Existing polygon HASH round trip',2500,()=>call('scene.open',{name:'existing-polygon.hash',base64:saved.base64}));
   const restored=await call('diagnostics.mesh',{id:mesh.hash,geometry:true});check('Existing polygon geometry survives unchanged',original.positionsSHA256===restored.positionsSHA256&&original.indicesSHA256===restored.indicesSHA256);check('Existing polygon material survives unchanged',JSON.stringify(materials)===JSON.stringify(await call('diagnostics.appearance',{id:mesh.hash})));
-  const printer=await call('plugins.create',{plugin:'3d-printer'});await call('scene.update',{id:printer.hash,params:{'Line width':2,'Layer height':2,'Initial layer height':2}});const command=(operation,args={})=>call('plugins.command',{id:printer.hash,operation,args});
+  if(pluginEnabled('3d-printer')){const printer=await call('plugins.create',{plugin:'3d-printer'});await call('scene.update',{id:printer.hash,params:{'Line width':2,'Layer height':2,'Initial layer height':2}});const command=(operation,args={})=>call('plugins.command',{id:printer.hash,operation,args});
   const operations=(await call('plugins.describe',{plugin:'3d-printer'})).operations,slice=operations.find(o=>o.id==='slice');check('Printer discovers only direct Slice',!operations.some(o=>o.id==='prepare-volume')&&slice.inputSchema.additionalProperties===false&&Object.keys(slice.inputSchema.properties).length===0);
   const printerBefore=JSON.stringify((await call('scene.inspect')).objects);await rejects('Removed Printer operation rejects',()=>command('prepare-volume'));await rejects('Removed normalized Slice option rejects',()=>command('slice',{prepareVolume:true}));await rejects('Removed filling rule rejects',()=>command('slice',{fillRule:'union'}));check('Removed Printer arguments publish no job or scene mutation',(await command('status')).state==='idle'&&JSON.stringify((await call('scene.inspect')).objects)===printerBefore);
   const result=await measure('Direct Printer LDI Slice',3000,async()=>{await command('slice');return waitForSlice(call,printer.hash);});check('Direct Slice retains native LDI diagnostics',result.state==='complete'&&result.result.representation==='orthogonal-ldi'&&result.result.metadataReadBytes===56&&result.result.intervals>0&&!('preparation'in result)&&!('preparation'in result.result),result);
   const raw=await call('diagnostics.mesh',{id:mesh.hash,geometry:true});check('Direct Slice never rewrites source polygons',original.positionsSHA256===raw.positionsSHA256&&original.indicesSHA256===raw.indicesSHA256);
+  }
   await call('scene.new');return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack||error.message};}
 }

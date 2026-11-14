@@ -20,5 +20,8 @@ tests/.step-reference/
 # Local task scratch, diagnostics and prototype assembly.
 /work/
 
+# Original PNG texture sources were intentionally removed.
+/textures/src/
+
 # SHA-verified local copies of user STL inputs; preserve on disk, never publish.
 /tests/scenes/unite-source/

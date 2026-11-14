@@ -1,3 +1,4 @@
+import {testDprs} from './test-policy.mjs';
 // Independent main artwork references. Only tests import this file or its fixture.
 import assert from 'node:assert/strict';
 import {runInNewContext} from 'node:vm';
@@ -102,14 +103,14 @@ export async function iconRasterContractCPUChecks(){
  for(const ray of ['M3 8H9','M3 16H9','M3 24H9'])check('Optics incoming projection retains actual '+ray+' mutation',()=>assert.notEqual(opticsIncomingComponent(references.optics.svg.replace(ray,ray.replace('M3','M4'))),incoming));
  check('Optics incoming projection rejects missing subpath instead of silently restoring it',()=>assert.throws(()=>opticsIncomingComponent(references.optics.svg.replace('M3 16H9',''))));
  check('All seven incoming component negative controls actually change source',()=>assert.equal(opticsIncomingMutants(references.optics.svg).length,7));
- for(const dpr of [1,2]){
+ for(const dpr of testDprs){
   const n=32*dpr,seed=new Uint8Array(n*n*4);for(const [x,y,c]of [[3*dpr,4*dpr,[73,173,199,255]],[7*dpr,21*dpr,[74,173,198,17]]])for(let k=0;k<4;k++)seed[(y*n+x)*4+k]=c[k];
   const target=shiftRaster(seed,n,n,2*dpr,0);check('Exact native integer RGBA translation at DPR'+dpr,()=>{assert.equal(target.clippedAlpha,0);assert.ok(rasterDifference(target.pixels,shiftRaster(seed,n,n,2*dpr,0).pixels).equal);assert.deepEqual(rasterBounds(target.pixels,n,n),[5*dpr,4*dpr,9*dpr,21*dpr]);});
   for(const [name,dx,dy]of [['stale',0,0],['x+1',dpr,0],['x+3',3*dpr,0],['y+1',2*dpr,dpr]])check('Reject raster '+name+' mutant DPR'+dpr,()=>assert.ok(!rasterDifference(target.pixels,shiftRaster(seed,n,n,dx,dy).pixels).equal));
   for(const channel of [0,1,2,3]){const mutant=Uint8Array.from(target.pixels);mutant[(4*dpr*n+5*dpr)*4+channel]--;check('Reject changed RGBA channel '+channel+' DPR'+dpr,()=>assert.ok(!rasterDifference(mutant,target.pixels).equal));}
   check('Reject clipping instead of silent reference loss DPR'+dpr,()=>assert.ok(shiftRaster(seed,n,n,n,0).clippedAlpha>0));
  }
- for(const dpr of [1,2]){
+ for(const dpr of testDprs){
   const size=32*dpr,variants=Array.from({length:33},(_,i)=>({name:'variant-'+i,svg:'<svg data-fixture="'+i+'"/>'})),payloads=variants.map((_,j)=>Uint8ClampedArray.from({length:size*size*4},(_v,i)=>(i*73+j*29)&255));
   let decodes=0,draws=0,reads=0,scales=0,canvases=0;
   const fake={performance,btoa,Image:class{async decode(){decodes++;}},document:{createElement(tag){assert.equal(tag,'canvas');canvases++;return {getContext(type){assert.equal(type,'2d');return {scale(x,y){assert.equal(x,dpr);assert.equal(y,dpr);scales++;},drawImage(){draws++;},getImageData(x,y,w,h){assert.equal(x,0);assert.equal(y,0);assert.equal(w,size);assert.equal(h,size);return {data:payloads[reads++]};}};}};}}};

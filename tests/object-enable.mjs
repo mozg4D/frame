@@ -1,3 +1,4 @@
+import {testDprs} from './test-policy.mjs';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -23,7 +24,7 @@ export async function objectEnableChecks(page){
 export async function objectEnableArtworkChecks(){
  const checks=[],timings=[],html=await readFile(source,'utf8'),sha=createHash('sha256').update(html).digest('hex'),check=(n,p,d)=>record(checks,n,p,d),match=html.match(/^  "ICO_TREE_ENABLE": ("[^\n]+"),$/m);
  check('Exact shipped enable icon exists',!!match);const icon=JSON.parse(match[1]),css=html.match(/<style>([\s\S]*?)<\/style>/)[1];check('No scaling, filter or opacity',!/(?:transform|filter|opacity|style)=/.test(icon));
- const browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER||undefined});try{await mkdir(out,{recursive:true});for(const dpr of [1,2]){
+ const browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER||undefined});try{await mkdir(out,{recursive:true});for(const dpr of testDprs){
   const context=await browser.newContext({viewport:{width:640,height:280},deviceScaleFactor:dpr}),page=await context.newPage(),at=performance.now();
   await page.setContent(`<style>${css}body{overflow:auto;padding:24px}#obWrap{width:280px;height:100px}.ob-namebox{width:220px}</style><div id="obWrap">${['Enabled','Selected','Disabled'].map((name,i)=>`<div class="ob-row${i===1?' sel':''}"><span class="ob-namebox"><span class="ob-name">${name}</span></span><span class="ob-rightgroup"><button class="ob-show"></button><button class="ob-enable" aria-pressed="${i!==2}">${i!==2?icon:''}</button></span></div>`).join('')}</div>`);
   const pixels=await page.evaluate(async({icon,dpr})=>{const img=new Image();img.src='data:image/svg+xml;base64,'+btoa(icon);await img.decode();const c=document.createElement('canvas');c.width=c.height=16*dpr;const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);const data=ctx.getImageData(0,0,c.width,c.height).data,bounds=[c.width,c.height,-1,-1];let opaque=0;for(let y=0;y<c.height;y++)for(let x=0;x<c.width;x++){const i=4*(y*c.width+x);if(data[i+3]){bounds[0]=Math.min(bounds[0],x);bounds[1]=Math.min(bounds[1],y);bounds[2]=Math.max(bounds[2],x);bounds[3]=Math.max(bounds[3],y);}if(data[i+3]===255&&data[i]===57&&data[i+1]===109&&data[i+2]===57)opaque++;}const mid=4*(8*dpr*c.width+8*dpr);return {bounds,opaque,center:Array.from(data.slice(mid,mid+4))};},{icon,dpr});

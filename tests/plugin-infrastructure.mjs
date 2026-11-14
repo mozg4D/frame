@@ -1,3 +1,4 @@
+import {pluginEnabled} from './test-policy.mjs';
 import assert from 'node:assert/strict';
 import {readFile,readdir,access,writeFile,mkdir} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
@@ -8,7 +9,7 @@ export async function pluginLayoutChecks(root=new URL('../plugins/',import.meta.
  const catalogue=JSON.parse(await readFile(new URL('index.json',root),'utf8')),checks=[];
  const directories=(await readdir(root,{withFileTypes:true})).filter(e=>e.isDirectory()).map(e=>e.name).sort();
  assert.deepEqual(directories,catalogue.map(path=>path.split('/')[0]).sort(),'Every plugin directory belongs to the catalogue');
- for(const id of directories){
+ for(const id of directories.filter(pluginEnabled)){
   const folder=new URL(id+'/',root),entries=await readdir(folder,{withFileTypes:true});
   assert.deepEqual(entries.filter(e=>e.isFile()).map(e=>e.name).sort(),['AGENTS.md','icon.svg','plugin.js','plugin.json'],id+' has exactly four plugin files');
   assert.ok(entries.every(e=>e.isFile()||e.isDirectory()&&e.name==='tests'),id+' allows only the tests directory');
@@ -24,10 +25,10 @@ export async function pluginLayoutChecks(root=new URL('../plugins/',import.meta.
 
 export async function pluginInfrastructureChecks(page){
  const {checks}=await pluginLayoutChecks(),timings=[],catalogue=JSON.parse(await readFile(new URL('../plugins/index.json',import.meta.url),'utf8'));
- for(const manifest of catalogue){
+ for(const manifest of catalogue.filter(path=>pluginEnabled(path.split('/')[0]))){
   const folder=new URL('../plugins/'+manifest.replace(/[^/]+$/,''),import.meta.url),entry=new URL('tests/index.mjs',folder);
   await access(fileURLToPath(new URL('AGENTS.md',folder)));await access(fileURLToPath(entry));
-  const {pluginChecks}=await import(entry.href),result=await pluginChecks(page);
+  console.log('[tests] plugin '+manifest.split('/')[0]+' START');const started=performance.now();const {pluginChecks}=await import(entry.href),result=await pluginChecks(page);console.log('[tests] plugin '+manifest.split('/')[0]+' '+(result.pass?'PASS':'FAIL')+' '+((performance.now()-started)/1000).toFixed(1)+'s');
   checks.push(...result.checks);timings.push(...result.timings||[]);if(!result.pass)return {...result,checks,timings};
  }
  return {pass:true,checks,timings};

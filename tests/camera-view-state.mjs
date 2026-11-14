@@ -1,3 +1,4 @@
+import {standardCameraFilmValid} from './camera-view.mjs';
 // Execute the shipped View handler and manual-render lifetime without a GPU.
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -29,6 +30,13 @@ export async function cameraViewStateChecks(html){
  await test('Native renderStart releases manual ownership on failure',async()=>{const e=fixture(html);e.renderTick=async()=>{throw Error('test render failure');};await assert.rejects(e.renderStart(),/test render failure/);assert.equal(e.renderManual,false);});
  // The old native predicate must fail the exact regression, independently of GPU timing.
  await test('Negative control restores the first-click cancellation bug',()=>{const old=html.replace('if(n.enabled&&(state.running&&state.manual||state.visible))','if(n.enabled&&(state.running||state.visible))');assert.notEqual(old,html);const e=fixture(old);e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);});
+
+ const film=(foreground=[1.5,1.5,1.5,128],background=[.13,.13,.13,128])=>({width:744,height:760,colors:[foreground,background]});
+ await test('Default studio and unit emissive foreground have resolved physical contrast',()=>assert.equal(standardCameraFilmValid(film()),true));
+ await test('Black background cannot substitute for the enabled default environment',()=>assert.equal(standardCameraFilmValid(film(undefined,[0,0,0,128])),false));
+ await test('Environment-only image cannot substitute for the emissive fixture',()=>assert.equal(standardCameraFilmValid(film([.13,.13,.13,128])),false));
+ await test('Partially accumulated image cannot substitute for 128 completed samples',()=>assert.equal(standardCameraFilmValid(film([1.5,1.5,1.5,127])),false));
+ await test('Nonfinite, colored or malformed camera background is rejected',()=>{for(const p of [film(undefined,[NaN,.13,.13,128]),film(undefined,[.13,.14,.13,128]),{width:1,height:1,colors:[[1,1,1,128]]}])assert.equal(standardCameraFilmValid(p),false);});
  return {pass:checks.every(c=>c.pass),checks};
 }
 

@@ -172,3 +172,9 @@ tests/file-permission*.mjs text eol=lf
 
 # Inline Doc regression sources must match their recorded release bytes.
 tests/documentation-*.mjs text eol=lf
+
+tests/object-enable.mjs text eol=lf
+
+tests/plugin-loading.mjs text eol=lf
+
+tests/test-policy.mjs text eol=lf

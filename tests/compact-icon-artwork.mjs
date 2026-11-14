@@ -1,3 +1,4 @@
+import {testDprs} from './test-policy.mjs';
 import {pluginIconAlignmentChecks} from './plugin-icon-alignment.mjs';
 import {iconIds,iconRasterReferences,deriveIconRasterExpectation,iconRasterMutants,shiftRaster,rasterDifference,alphaDifference,rasterBounds,opticsIncomingComponent,opticsIncomingMutants,renderIconRasterVariants,decodeIconRasterVariants,iconRasterContractCPUChecks} from './icon-raster-contract.mjs';
 import assert from 'node:assert/strict';
@@ -21,7 +22,7 @@ check('Structural crisp half-pixel stroke centers retained',byId.structural.incl
 check('Detach native 16px and darker idle only',css.includes('color:#777!important')&&css.includes(':hover{color:#aaa!important')&&detach.includes('viewBox="0 0 16 16"'));
 await mkdir(out,{recursive:true});const browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER||undefined,args:['--disable-gpu','--disable-gpu-compositing']});
 const report={started:new Date().toISOString(),pass:false,kind:'compact-native-artwork',sources,checks,rasters,oracleTimings:[],referenceCommit:'42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0',rasterAcceptance:'Complete RGBA against independently derived main artwork contract. Alpha boxes are observations, not renderer-independent vector bounds.',hardwareGPUValidated:false,applicationInteractionValidated:false};
-try{for(const dpr of [1,2]){
+try{for(const dpr of testDprs){
  const context=await browser.newContext({viewport:{width:920,height:420},deviceScaleFactor:dpr}),page=await context.newPage(),start=performance.now(),size=32*dpr,productionRasters=[];
  await page.setContent(`<html><style>${css}body{margin:20px;background:#252525;color:#ddd;font:13px Arial}main{display:flex;gap:28px}section{width:140px}p{height:32px}img{display:block;width:32px;height:32px}canvas{display:block;margin-top:12px;image-rendering:pixelated}.view{position:relative;width:16px;height:16px}</style><main>${icons.map(({id,svg})=>`<section><p>${id}: native 32px</p><img id="${id}" src="data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}"><canvas id="${id}-zoom" width="128" height="128"></canvas></section>`).join('')}</main><p>Pixel inspection below each native icon: diagnostic magnification only.</p><div class="view"><button class="frame-view-open">${detach}</button></div></html>`);
  check('Actual context DPR'+dpr,await page.evaluate(()=>devicePixelRatio)===dpr);

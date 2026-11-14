@@ -38,7 +38,7 @@
 - context.operations.register owns schemas/readOnly/run; plugins.command validates before dispatch. Long jobs return handles promptly. context.update uses native Undo. Attributes actions use native controls; only Printer Slice may show short progress. Diagnostics belong in API.
 - context.editor integrates component selection/transforms/copy/animation/flush. flush({output:true,frame}) must finish exact physical interval/GPU work before offline output. Shared 60 fps timeline owns playback.
 
-Each plugin owns one AGENTS.md and tests/index.mjs exporting async pluginChecks(page) -> {pass,checks,timings,error?}; keep fixtures/helpers local. Catalogue standard/stress discovers checks. Root owns global verification/publication rules; plugin documents own only specific limits/commands.
+Each plugin owns one AGENTS.md and tests/index.mjs exporting async pluginChecks(page) -> {pass,checks,timings,error?}; keep fixtures/helpers local. Standard/stress runs Atomic checks by default; other plugin checks run only when explicitly requested with --plugins=<id,...> or --plugins=all. Root owns global verification/publication rules; plugin documents own only specific limits/commands.
 
 ## Change checks
 

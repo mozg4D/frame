@@ -1,6 +1,6 @@
 {
   "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
-  "scope": "Unchanged main save/serialization/catalogue functions and existing texture/SRC inputs; native restore has the explicitly recorded animation-rollback-only extension. Source proof only, not behavioral qualification.",
+  "scope": "Unchanged main save/serialization/catalogue functions and existing runtime texture inputs (textures/src was intentionally removed); native restore has the explicitly recorded animation-rollback-only extension. Source proof only, not behavioral qualification.",
   "regions": [
     {
       "prefix": "function createFrameHashCodec(){",
@@ -106,26 +106,6 @@
     }
   ],
   "files": {
-    "textures/src/1.png": {
-      "bytes": 4430316,
-      "sha256": "c3ae20f8d56289ec4cc37085bfddf31326d580f8b704ea5f8d7ad467226a7c0b"
-    },
-    "textures/src/1n.png": {
-      "bytes": 3546463,
-      "sha256": "56b53e4be32c2a2dc857f0a8a5fb78c85d6fa165899f9c77198a53cf8d8add8c"
-    },
-    "textures/src/2.png": {
-      "bytes": 3813858,
-      "sha256": "0c532d14e6472e0cf19904f6e3e1f6aaf2e2d7c2905b88b01f192fefa34f97b6"
-    },
-    "textures/src/2n.png": {
-      "bytes": 2914023,
-      "sha256": "49f017ab2016d1d552309c2ce2714111223a3e20e467997018d6d7a1da1c13d1"
-    },
-    "textures/src/2n2.png": {
-      "bytes": 3261494,
-      "sha256": "646373c526a8d8216f73d0cfc55a6dabdb7896ea692dec41bb8169b2e6e4d008"
-    },
     "textures/tex-01.db96ceaab7756a18bc2f.webp": {
       "bytes": 26116,
       "sha256": "db96ceaab7756a18bc2f20cfc4f777583b7a9c03b797710f030c0b18e8d53e3b"
