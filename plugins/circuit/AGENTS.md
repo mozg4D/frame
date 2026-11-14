@@ -10,3 +10,11 @@ Authoring/connectivity only; no electrical solver, measured voltage/current, Sco
 - Time scale is electrical s/Frame s (default 0.001), MB decimal. Stored history budget allocates no samples. Next gate is a reproducible licensed solver and independent closed-loop accepted-time/state-preservation proof; Scene Control scheduling alone is insufficient.
 
 Checks: node plugins/circuit/tests/authoring.mjs; node plugins/circuit/tests/net-cache.mjs; node plugins/circuit/tests/index.mjs --headless. CPU authoring/cache checks do not qualify native GPU or electrical results.
+
+## Connectivity and solver boundary
+
+- Explicit move-component transfer clears net assignments but preserves stable pins; ordinary hierarchy reparent changes no electrical membership. create-net reuses canonical name; assign-net empty disconnects one pin; set-ground holds explicit net/null. Validate target authoring BEFORE any transfer/create/generic owner mutation.
+- topology nodes use n_<net ID> or p_<component hash>_<pin ID>, explicit Ground alone 0; no user name in identity. Sort components/nets by stable identity, preserve authored pin order and disabled components with enabled:false. Visibility affects drawing, not electrical membership. Detached snapshots are never persisted/cached as another graph.
+- Solver adapter needs pinned reproducible ngspice build/license audit and incremental JS/RC closed-loop proof with accepted-time events, preserved capacitor state, trial-step callback discipline and bounded storage. Batch-only wrapper is insufficient. Source/net topology does not validate electrical models, polarity or pin-model mapping.
+- Reuse common Scene Control lifecycle only after frame/export barriers are defined; no Circuit-owned execution loop. Compile identities with explicit missing-model/reference diagnostics; later result revision/staleness/differential references and Scope use shared Doc window transport/read-only Curves, not another editor/window subsystem.
+- Acceptance must independently cover divider/RC/RLC, semiconductor currents, controller feedback/event determinism, JS/WASM history limits, HASH size independent of runtime samples, reset/pause/seek and offline cleanup before exposing numerical controls.

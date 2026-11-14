@@ -9,3 +9,5 @@ Native authoring only; no temperature/airflow/heat-transfer solver. Runtime plug
 - No private panel/renderer/worker/device; shared helper bridge owns resources. Experiments stay unloaded research.
 
 Checks: node --test plugins/thermal/tests/fan-ui.mjs plugins/thermal/tests/native-selection.mjs plugins/thermal/tests/native-history-contract.mjs plugins/thermal/tests/opaque-authoring.mjs plugins/thermal/tests/browser-gate-contract.mjs; node plugins/thermal/tests/authoring-browser.mjs --headless. tests/index.mjs integrates native gate; CPU adapters do not qualify native HASH/UI/GPU.
+
+Continuation pointers: experiments/thermal/native-inputs.js, material-properties.js, material-storage.js and material-flux.js hold unloaded bounded contracts. fan-inputs validation of frame/reference never proves containment, grid alignment, inherited enabled eligibility or numerical coupling. Retain declared unresolved refs through native drop/copy/HASH; generic authoring changes and physical source snapshots are distinct. No prototype material/flow result can bypass THERMAL_AUTHORING_ONLY without a separately qualified current-core geometry/physics/lifecycle path.

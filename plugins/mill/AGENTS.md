@@ -2,6 +2,14 @@
 
 Runtime one plugin.js; evaluated buffer/texture geometry and shared GPU. No Printer runtime dependency or CPU triangle mirror.
 
+## Ownership and planning model
+
+- CNC box is local X/Y [-50,50], Z [-100,0] mm; upper near-left pivot/home (-50,-50,0). Positive orthogonal scale changes physical box, never tool/feed/clearance units. A root traverses CNC descendants through ordinary nodes; disabled root still supplies coordinates/lifecycle to enabled children.
+- Stock supplies material, Protected forbidden geometry, dual-tagged belongs to both; evaluated untagged geometry is Target. Non-CNC children have no implicit Protected role. Orthogonal positive scale/rigid orientation/in-plane child rotations supported; directed child tool axis must match root. Native frame editing remains unrestricted even if a setup is ineligible.
+- Roughing distributes rows/depth within Step Down/Step Over; Ball/V account for analytic profile. Clearing/island contours use configuration-space bands. Finishing bounds height/chord/scallop, reachable residual samples allow up to three verified refinement passes. Full-pose accessibility certificate is separate from finite top-field sampling.
+- Contact side plus signed RPM chooses climb direction; full-slot/uncertain contact stays labelled. Prefer continuous moves, otherwise validated cumulative-XY ramps/helices/bounded pecks and cleanup. Feed obeys absolute vertical Plunge in root physical frame, including rotated setups.
+- Transitions verify direct Safe Dist, then minimum safe lift; bounded A* detours verify every continuous sweep/upper plane/descent. A controlled feed retract may use cleared pose, never unverified G0. Same tool carries stock/position without home/tool-change; changed tools verify both envelopes and mandatory stopped manual pause. Final home occurs once.
+
 ## Physical/program contract
 
 - Stock/Protected are global inherited native tags independent of CNC parenting. Native hierarchy is unrestricted; unsupported skew/reflection/degeneracy/incompatible axes are red/ignored. Green skips computation while retaining helpers/descendants. Cutters extend infinitely upward; Step Down is a pass maximum, no holder/flute/stick-out model.
@@ -28,3 +36,13 @@ Runtime one plugin.js; evaluated buffer/texture geometry and shared GPU. No Prin
 Discover plugins.describe for schemas. geometryOnly:true is sampled diagnostic mode, not completed CAM. inspect reports root-physical conservative cells/interior model/source flags. audit scope part resumes final-prefix proof; default scope is operation. Indexed/re-fixtured machining, finite holders and unsupported/limited source relations remain outside the model.
 
 Checks: node plugins/mill/tests/run.mjs --headless; npm run test:mill:performance -- --headless. tests/index.mjs discovers independent cutter/sweep/G-code replay/source-envelope/whole-part/residual/accessibility/history/budget checks. The 100M-triangle benchmark measures residency/presentation, not full CAM throughput.
+
+## Working budgets and continuation paths
+
+- Source-interior proof cap: 4096 triangles/262144 vertices/128 components per geometry, 67108864 predicate-work units/job, 64 MiB retained proofs. Dyadic queries: 65536 records, <=128 probes/16 refinements; capacity/uncertainty leaves explicit source reason, never zero. These bounds may prevent a full certificate even when display accepts larger sources.
+- Dense display is approximately 256 cells/axis, independent of machining Tolerance. Fine 32-cubed XYZ tiles and separate 16-cubed volume tiles use bounded 64 MiB/128-tile LRUs. Reconstruct evicted tiles from original source+selected cut prefix; no reset to virgin stock. Full-cell coverage uses continuous analytic sweeps/subrectangle unions, not unrelated corner samples.
+- Planning diagonal/path allowance/height/scallop each have existing Tolerance fractions; controller quantum <=Tolerance/64. Preserve numeric Float32/affine padding separately and reject NUMERIC_LIMIT rather than silently loosening requested precision. Inspect sample diagonal is not a source-error certificate.
+- Initial operation audit caps 131072 cells/256 blocks/5000 ms with bounded final-block overrun. Limited traversal can coexist with verified program completion but cannot set surface/accessibility flags. Continuation selects frozen prefix, reports unvisited volume and only commits whole blocks. Shared queue caps and witness rules above apply to operation AND part scopes.
+- Dense diagnostics <=2048 cells/axis/4194304 rays; import 256 occurrences/role, 1024 events/ray/16777216 events subject to device limits. Plan <=200000 events, 100000 passes, 8192 tiles/query, 48 detour boxes; replay <=8 checkpoints/64 MiB, presentation <=2097152 cut patches. Capacity failure retires result atomically. Inspect these constants in code before extending capacity.
+- Fallback red/topmost Protected and generated fragment mask never override explicit native materials. Most recently completed/seeked root owns shared cut presentation; hide root restores native geometry. Display cutter height does not limit infinite collision shape.
+- Focused owners in tests/: `stream.mjs`, `source-envelopes.mjs`, `accessibility.mjs`, `whole-residual.mjs`; use actual tests/index.mjs inventory for current numerical/replay module names. Exercise continuation at nonfinal Progress, unknown source bands, thin obstacles, source-witness retirement and failed off-centre searches.

@@ -896,52 +896,52 @@
       "sha256": "6d2398f4f894aed3a3d760b1c6d3d92ccd6f4d58d9770e946e475d95e38d9a47"
     },
     "plugins/optics/AGENTS.md": {
-      "bytes": 2632,
-      "sha256": "a1c403e7376bb7696bea8a6df2db4b71b0e75d5f1653baf6a1f5822fd1c8eb33"
+      "bytes": 4651,
+      "sha256": "0af3f4d30be6c887d6c25cd8b81b41fc601003a0402c60be9894d588201b4b52"
     },
     "plugins/atomic/AGENTS.md": {
-      "bytes": 2503,
-      "sha256": "22c1a0a2336886f8a36df995e74fbe48ca435ce59fb1f272943fd2f90f2b5107"
+      "bytes": 5240,
+      "sha256": "578d8edb39536082ecaba39406c1c7bacf43b1066df07c39a19efd772095b8a5"
     },
     "plugins/structural/AGENTS.md": {
-      "bytes": 1588,
-      "sha256": "732d860873d92cde70ac1d49361ae34f701ab1bdd214c1d348c31a6116a59c4e"
+      "bytes": 3772,
+      "sha256": "7ac49f727d2d479fe5ec9a310e78b7b12b9f1e01e8a9315acfe8e52e29cd8ad7"
     },
     "plugins/mill/AGENTS.md": {
-      "bytes": 6213,
-      "sha256": "c7b3b277ad6146abd4fd93990086aa56313aa1c82edddf03b8c3a92113dc1b26"
+      "bytes": 10345,
+      "sha256": "185a0e4ccd801a5836b51cdb9bfcb7e282d02bbf4151e3fe101f9095ac7b73d8"
     },
     "plugins/magneto/AGENTS.md": {
-      "bytes": 1223,
-      "sha256": "cf67dd25e25c3e9edee3d5815b01234cc561a47828e832429f5465e778999d13"
+      "bytes": 1764,
+      "sha256": "2a91716d4ad04e4ed56cb9196bab217b586bb0b2d7d7b168d324f9b38a317dd8"
     },
     "plugins/thermal/AGENTS.md": {
-      "bytes": 1684,
-      "sha256": "f0ba47c6dc1e59d1475ccfa8c55f65dd863fd52e1d5a7be45b4ea55fed7e1b72"
+      "bytes": 2258,
+      "sha256": "ddd4ad26b32e7621c1a9ecd1d98e7c74d2bbe9eb2cb5e61d668778d0a6a5f6ca"
     },
     "plugins/cfd/AGENTS.md": {
-      "bytes": 1763,
-      "sha256": "4648a81cc634a33ece0ce9719e78bae648cec62855ed973deaf9b86629f99301"
+      "bytes": 2423,
+      "sha256": "fc1e8ee65101fd4353c6f57fd7dce2eb7f6a8115d5bb40b90c7bac36c44af560"
     },
     "plugins/rf/AGENTS.md": {
-      "bytes": 1347,
-      "sha256": "b74a107b4d07b57f4b628917b521eabf2660c3b63ec75b434fe26413c9377f97"
+      "bytes": 3105,
+      "sha256": "ff567e4f08e1b1f7a659b0328de8508b8c542e668119815af674de2f4f978b39"
     },
     "plugins/cut/AGENTS.md": {
-      "bytes": 3578,
-      "sha256": "0989ea0c2cbe2d48477bc87a096e35151e80140a825e152f65ed4a1a693d0ae9"
+      "bytes": 6748,
+      "sha256": "7d7f3bfcd1849ff1f498858ca3510a6f3e0546679f8be1f4a6bc7fdff2ba93d9"
     },
     "plugins/circuit/AGENTS.md": {
-      "bytes": 1936,
-      "sha256": "a11b11ad53e5fac7ee6bb48d3d0f7a9d3c9dadd26b26856093196d3da2889735"
+      "bytes": 3591,
+      "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 11371,
-      "sha256": "3db1b7762e7f72d46151b91b1ac3b239754d6c2572590544c7e84c918966a533"
+      "bytes": 51370,
+      "sha256": "a92fb9c7608fc4836baacbbb2394818eecae946cfa9be95d428ec5a4d4211cce"
     },
     "plugins/3d-printer/AGENTS.md": {
-      "bytes": 3899,
-      "sha256": "018a56040a178c723ce2bcb4fb1c6405464f5917eee23d2bc91423fcc0c8d172"
+      "bytes": 6595,
+      "sha256": "54aa0058bdc72150db6be2f66e301aecdb48aedd6e0da6ef4848bcf72c2d389c"
     },
     "documentation.html": {
       "bytes": 20524,
