@@ -1,0 +1,158 @@
+{
+  "pass": true,
+  "checks": [
+    {
+      "name": "Flat 1x1",
+      "pass": true,
+      "detail": {
+        "firstPixel": [
+          127,
+          127,
+          255,
+          255
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "Flat 3x7",
+      "pass": true,
+      "detail": {
+        "firstPixel": [
+          127,
+          127,
+          255,
+          255
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "Flat 127x65",
+      "pass": true,
+      "detail": {
+        "firstPixel": [
+          127,
+          127,
+          255,
+          255
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "Flat 512x512",
+      "pass": true,
+      "detail": {
+        "firstPixel": [
+          127,
+          127,
+          255,
+          255
+        ],
+        "errors": []
+      }
+    },
+    {
+      "name": "Periodic sine agrees with analytic surface normals",
+      "pass": true,
+      "detail": {
+        "maxVectorError": 0.005781707992976083
+      }
+    },
+    {
+      "name": "Rising height has negative red normal",
+      "pass": true
+    },
+    {
+      "name": "Unit hemisphere after RGB8 encoding",
+      "pass": true,
+      "detail": {
+        "meanTiltDeg": 18.216011285766285,
+        "rmsTiltDeg": 20.35187390144303,
+        "p95TiltDeg": 28.27119255065918,
+        "maxTiltDeg": 28.27119243777,
+        "maxUnitLengthError": 0.0032501876653894257,
+        "backFacingPixels": 0,
+        "seamMeanDelta": 0.008267392575603607,
+        "interiorMeanDelta": 0.061881725584356534
+      }
+    },
+    {
+      "name": "OpenGL +Y and DirectX -Y flip only green",
+      "pass": true
+    },
+    {
+      "name": "Image-down rising height has positive OpenGL green",
+      "pass": true
+    },
+    {
+      "name": "Broad affine lighting is removed",
+      "pass": true,
+      "detail": {
+        "maxNormalX": 0.0039215686274509665
+      }
+    },
+    {
+      "name": "Recovered emboss has outward normals on both axes",
+      "pass": true
+    },
+    {
+      "name": "Emboss center stays flat",
+      "pass": true
+    },
+    {
+      "name": "Invalid parameters reject before GPU mutation",
+      "pass": true
+    },
+    {
+      "name": "No WebGPU validation errors",
+      "pass": true,
+      "detail": {
+        "validation": null,
+        "uncaptured": []
+      }
+    },
+    {
+      "name": "No errors after repeated conversions",
+      "pass": true,
+      "detail": []
+    }
+  ],
+  "benchmark": {
+    "generic": {
+      "samples": 12,
+      "medianGpuMs": 1.341248,
+      "p95GpuMs": 1.342976,
+      "medianComputeReadbackMs": 5.199999988079071
+    },
+    "emboss": {
+      "samples": 12,
+      "medianGpuMs": 2.924544,
+      "p95GpuMs": 2.92816,
+      "medianComputeReadbackMs": 7.5
+    },
+    "cavity": {
+      "samples": 12,
+      "medianGpuMs": 2.848768,
+      "p95GpuMs": 2.861056,
+      "medianComputeReadbackMs": 7.599999964237213
+    }
+  },
+  "gpu": {
+    "vendor": "nvidia",
+    "architecture": "turing",
+    "description": "",
+    "backend": "",
+    "timestamps": true
+  },
+  "sourceHashes": {
+    "normal.wgsl": "aa73a4e1c665cba44cead0280a26a03882243a7654fac76268421a8dda4e49e0",
+    "normal-map.mjs": "7b43adcc5fb627d38a6fddf1889ef8bc4a188e288fc1d99c045f9e3a4514ffdd",
+    "presets.mjs": "f081d796cc7561b11f4decd690690918394948647187ed8d4278bb3866938169",
+    "preview.mjs": "509d182418f51907e30c489a73d3f5b94d2f0fe78a6529ee200cde6eb5834732",
+    "browser.mjs": "f3955842dfbd6b9f4b5111e17a6e60cb2ebd78d04deaea9e394b934eda2b261d",
+    "convert.mjs": "8df738abbc7fbe7c7dead6190db72729b27ee7b46c1f6635945193b6fe687288",
+    "verify.mjs": "f229163e1c10f6649027fe1827df42796c9fda82e44e8c070c94c7d4a7871c29"
+  }
+}

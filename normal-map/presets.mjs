@@ -1,0 +1,37 @@
+// Small material hints; all surface normals are calculated by the same shader.
+const material=(name,strength,bands=[1,1,.3],extra={})=>({name,options:{strength,bands,...extra}});
+export const presets={
+  'tex-01':material('Weathered metal',2.1,[.65,1,.15]),
+  'tex-02':material('Brushed metal',.65,[1,.35,0]),
+  'tex-03':material('Diamond plate',4.5,[.25,1.1,.65],{mode:2,feature:[.065,.604,6,0]}),
+  'tex-04':material('Carbon weave',2.5,[.5,1,.35]),
+  'tex-05':material('Woven fabric',2.1,[.8,.8,.15]),
+  'tex-06':material('Fine fabric',1.3,[.7,.5,0]),
+  'tex-07':material('Plywood',.6,[.7,.5,0]),
+  'tex-08':material('Pine',1.1,[.7,.8,.08]),
+  'tex-09':material('OSB',1.6,[.5,.8,.1]),
+  'tex-10':material('Wood grain',1.2,[.65,.7,.05]),
+  'tex-11':material('Dark wood',1.0,[.65,.7,.05]),
+  'tex-12':material('Wood boards',1.1,[.6,.7,.1]),
+  'tex-13':material('Fine plaster',1.1,[.8,.5,0]),
+  'tex-14':material('Rough plaster',1.6,[.7,.7,.1]),
+  'tex-15':material('Concrete',1.1,[.6,.65,.08]),
+  'tex-16':material('Weathered concrete',1.5,[.65,.8,.1]),
+  'tex-17':material('Asphalt',2.0,[.75,.7,.05]),
+  'tex-18':material('Grass',2.1,[.6,.8,.12],{gamma:.8}),
+  'tex-19':material('Rippled sand',4.5,[.08,.6,4.5]),
+  'tex-20':material('Dry ground',2.0,[.6,.8,.15]),
+  'tex-21':material('Gravel',3.0,[.4,1.1,.4]),
+  'tex-22':material('Rounded pebbles',6.0,[0,1.1,1],{mode:3,feature:[.20,0,10,.05]}),
+  'tex-23':material('Soil',2.6,[.6,.9,.15]),
+  'tex-24':material('Compacted earth',2.2,[.5,.9,.2]),
+  'tex-25':material('Stone slabs',2.0,[.5,1,.2],{range:[.63,.76]}),
+  'tex-26':material('Brickwork',3.4,[.45,1,.25],{mode:1,range:[.07,.23]}),
+  'tex-27':material('Ceramic tiles',2.6,[.4,1,.15],{range:[.55,.72]}),
+  'tex-28':material('Stone tiles',1.5,[.5,.8,.15]),
+  'tex-29':material('Stone blocks',2.8,[.5,1,.25]),
+  'tex-30':material('Polished marble',.3,[.5,.3,0]),
+  'tex-31':material('Travertine',1.8,[.6,.85,.12],{gamma:.65}),
+  'tex-32':material('Dark brickwork',2.7,[.5,1,.2])
+};
+export const presetFor=name=>presets[name.match(/^tex-\d+/)?.[0]]??{name:'Generic surface',options:{}};
