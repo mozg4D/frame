@@ -6,7 +6,7 @@
 - Reuse existing kernels, transactions and GPU resources. Prioritize large-scene latency and bounded memory. No compatibility layers/migrations without a user requirement.
 - Change UI only when requested. Code/UI/docs/fixtures are English. Draw icons at native dimensions without CSS/viewBox scaling.
 - This is implementation context for the coding agent, not user help. Before editing, read the affected contracts here and the affected plugin AGENTS.md; locate their owning symbols/tests. Preserve behavior across input, evaluator, rendering, history and persistence. Keep one description per contract; omit release history, old measurements and setup walkthroughs. Shared plugin APIs belong in `plugins/AGENTS.md`; plugin-specific semantics belong only in that plugin's sole `AGENTS.md`. Constants and full schemas remain authoritative in code; verify them before changing a dependent path.
-- Maintain `window.frameAI`/MCP with features. Missing automation/diagnostics found during a task belong in that implementation. New commands require schemas, validation before mutation and focused regression coverage outside runtime.
+- Maintain `window.frameAI` with features. Missing automation/diagnostics found during a task belong in that implementation. New commands require schemas, validation before mutation and focused regression coverage outside runtime.
 - Preserve unrelated work and user fixtures. After validation, commit task changes and push `origin/main` unless asked to keep local. Never force-push; verify remote commit. Application releases also require Pages/deployed-byte verification.
 
 ## Ownership, GPU data and history
@@ -132,7 +132,7 @@
 - Merge reuses native decoders/remapping and one append transaction; never reload/re-encode destination scene to merge another file.
 - Scene formats: HASH/STL/OBJ/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF. Geometry exports use visible evaluated occurrences; HASH retains authoring. STL maps Z-up to Y-up on import and reverses on export; OBJ is mm, glTF metres without axis swap. Unsupported required extensions reject before replacement. DXF text/ACIS/proxy data is diagnosed, not fabricated. Preserve asset license/attribution files.
 - Plain Save writes HASH/reuses only a HASH binding; explicit format invokes Save As. scene.file reports binding/receipts. scene.file.request(open/save/saveAs) uses browser permission; without activation it queues the matching existing toolbar action. Synthetic click does not grant activation. Cancellation before import preserves binding; replacement clears it.
-- Absolute-path scene.open/save/saveAs require an attached exact-grant local host. Grants come from tools/mcp.mjs --allow-file, never scene arguments. Chunked transfers save via flushed same-directory temporary file/atomic rename. Reconnect after navigation; inspect before retrying uncertain post-rename outcomes. Host setup: `tools/README.md`.
+- Absolute-path scene.open/save/saveAs require an attached exact-grant local host. Grants come from tools/file-host.mjs --allow-file, never scene arguments. Chunked transfers save via flushed same-directory temporary file/atomic rename. Reconnect after navigation; inspect before retrying uncertain post-rename outcomes. Host setup: `tools/README.md`.
 - Recent descriptors do not grant filesystem permission. Share embeds HASH in URL (16 MiB packed/512 MiB unpacked), with no upload/server storage; browser URL limits can be lower. Use files for large scenes.
 
 - HASH matrix/pivot payload is 12 Float64 values, camera uses world-unit records independent of GPU normalization; saving an orthographic active view still stores Perspective camera from main view 0. Do not persist derived world/inverse frames or normalized camera offsets. Independent meshes remain independent records even if compression shares data.
@@ -147,14 +147,13 @@
 
 ## AI, author data and programs
 
-- frameAI provides ready/listTools/call/rpc. Discover schemas instead of keeping command lists/counts in docs. Native hashes are stable, UI IDs session-local; units are mm/degrees/CSS pixels.
+- frameAI provides ready/listTools/call. Discover schemas instead of keeping command lists/counts in docs. Native hashes are stable, UI IDs session-local; units are mm/degrees/CSS pixels.
 - Native mutations serialize and settle accepted editor/evaluator work. Mutations/export/share reject BUSY during manual gestures. Read-only observation flushes accepted live input without ending gestures or creating history. Diagnostics are bounded; volume alone does not certify a solid.
-- tools/mcp.mjs is stdio JSON-RPC; stdout is protocol only. Default browser is isolated; exact CDP URL explicitly selects an existing tab. Prefer direct frameAI in the intended tab. No eval endpoint/background HTTP RPC server.
 - authorData lives in root/owner parameters: {version:1,revision,records,retired?}. Identity is (owner,id), never name. Source/schema/binding/opaque payloads are inert unless explicitly opted into execution.
 - Envelope caps: 512 records, 256 refs/record, 4 MiB JSON, depth 24, 4096 retired IDs. Validate plain JSON, safe finite numbers, Unicode and capacity before mutation.
 - authorData.get/inspect/replace and fields.list/read/write use native epochs/revisions. CAS writes preflight all 1..128 distinct targets before one Undo transaction. No-op adds no history. Animated parameters are observations, not writable through this adapter.
 - Executable descriptors are opaque format frame.scene-control, version 1, data {source,context,start,imports?,bindings?,params?}; source/imports/bindings index typed refs. Context main or worker:<name>; start defaults manual, ready opts into autostart. Source records alone stay inert.
-- programs.describe/status/start/stop/restart/invoke/job/terminateContext own lifecycle. Poll queued receipts. ESM activate(ctx) owns per-activation state/exports/cleanup; ctx.import loads referenced source unchanged. Managed calls execute outside Frame FIFO. Frame/MCP is JSON; native framePrograms.invokeDirect/postMessage supports structured clone/transfers.
+- programs.describe/status/start/stop/restart/invoke/job/terminateContext own lifecycle. Poll queued receipts. ESM activate(ctx) owns per-activation state/exports/cleanup; ctx.import loads referenced source unchanged. Managed calls execute outside Frame FIFO. Frame AI API is JSON; native framePrograms.invokeDirect/postMessage supports structured clone/transfers.
 - HASH saves program sources/descriptors, not heaps/timers/jobs. Main JS/direct frameCore access is not sandboxed or forcibly interruptible.
 
 - Field CAS generation is conservative/global, not persisted per-field revision. Unrelated author edits may invalidate it; ABA cannot restore validity. Native history/replacement rotates epoch before async restoration. Persisted record revisions may rewind; runtime tokens must not. Frame observation is not completed simulation.

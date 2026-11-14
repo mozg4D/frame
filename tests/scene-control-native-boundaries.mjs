@@ -126,47 +126,43 @@ export async function sceneControlNativeBoundaries(page, {run, check, equal, tim
     });
     report.completed.push('Actual popup dirty Save/rejected New and post-replacement queued CAS');
 
-    await run('Native committed author edits expose direct and RPC post-settle receipts', async () => {
+    await run('Native committed author edits expose direct post-settle receipts', async () => {
       await call('scene.new');
-      for (const transport of ['direct', 'rpc']) {
-        const id = (transport === 'direct' ? 'd' : 'e').repeat(32);
-        const before = await get(), record = sourceRecord(id, 'Receipt boundary ' + transport);
-        const result = await timed('Committed edit plus one post-settle fault: ' + transport, 6000,
-          () => page.evaluate(async ({transport,before,record}) => {
-            const original = FramePlugins.flush;
-            let injected = 0;
-            // Only inject after this exact new record is visible in the real
-            // native root. Pre-settlement and all actual commit code are intact.
-            FramePlugins.flush = async function(...args) {
-              if (!injected && FrameAuthorData.get('scene').data.records.some(r => r.id === record.id)) {
-                injected++; throw new Error('SCENE_DATA_EXPECTED_POST_SETTLE_FAULT');
-              }
-              return original.apply(this,args);
-            };
-            const undoBefore = undoStack.length;
-            try {
-              const args = {owner:'scene', expected:{epoch:before.epoch,revision:before.data.revision}, records:[...before.data.records,record]};
-              let outcome;
-              if (transport === 'rpc') outcome = await frameAI.rpc({jsonrpc:'2.0',id:771,method:'tools/call',params:{name:'authorData.replace',arguments:args}});
-              else try {outcome = {unexpectedSuccess:await frameAI.call('authorData.replace',args)};}
-              catch (e) {outcome = {code:e.code,completed:e.completed,receipt:e.receipt,message:e.message};}
-              return {outcome,injected,undoBefore,undoAfter:undoStack.length};
-            } finally {FramePlugins.flush = original;}
-          }, {transport,before,record}));
-        equal(transport + ': fault is injected exactly once after real mutation', result.injected, 1);
-        equal(transport + ': committed edit creates exactly one native Undo entry', result.undoAfter, result.undoBefore + 1);
-        const outcome = result.outcome;
-        const receipt = transport === 'rpc' ? outcome.result?.structuredContent?.receipt : outcome.receipt;
-        check(transport + ': failure reports committed completion', transport === 'rpc'
-          ? outcome.result?.isError === true && outcome.result.structuredContent?.completed === true && outcome.result.content.some(c => c.text?.startsWith('AUTHORING_POST_SETTLE_FAILED:'))
-          : outcome.code === 'AUTHORING_POST_SETTLE_FAILED' && outcome.completed === true, outcome);
-        const current = await get();
-        equal(transport + ': receipt matches reread epoch and native committed data', receipt, current);
-        equal(transport + ': exact record appears once, without retry', current.data.records.filter(r => r.id === id), [record]);
-        equal(transport + ': envelope revision advanced once', current.data.revision, before.data.revision + 1);
-      }
+      const transport = 'direct', id = 'd'.repeat(32);
+      const before = await get(), record = sourceRecord(id, 'Receipt boundary ' + transport);
+      const result = await timed('Committed edit plus one post-settle fault: ' + transport, 6000,
+        () => page.evaluate(async ({before,record}) => {
+          const original = FramePlugins.flush;
+          let injected = 0;
+          // Only inject after this exact new record is visible in the real
+          // native root. Pre-settlement and all actual commit code are intact.
+          FramePlugins.flush = async function(...args) {
+            if (!injected && FrameAuthorData.get('scene').data.records.some(r => r.id === record.id)) {
+              injected++; throw new Error('SCENE_DATA_EXPECTED_POST_SETTLE_FAULT');
+            }
+            return original.apply(this,args);
+          };
+          const undoBefore = undoStack.length;
+          try {
+            const args = {owner:'scene', expected:{epoch:before.epoch,revision:before.data.revision}, records:[...before.data.records,record]};
+            let outcome;
+            try {outcome = {unexpectedSuccess:await frameAI.call('authorData.replace',args)};}
+            catch (e) {outcome = {code:e.code,completed:e.completed,receipt:e.receipt,message:e.message};}
+            return {outcome,injected,undoBefore,undoAfter:undoStack.length};
+          } finally {FramePlugins.flush = original;}
+        }, {before,record}));
+      equal(transport + ': fault is injected exactly once after real mutation', result.injected, 1);
+      equal(transport + ': committed edit creates exactly one native Undo entry', result.undoAfter, result.undoBefore + 1);
+      const outcome = result.outcome;
+      const receipt = outcome.receipt;
+      check(transport + ': failure reports committed completion',
+        outcome.code === 'AUTHORING_POST_SETTLE_FAILED' && outcome.completed === true, outcome);
+      const current = await get();
+      equal(transport + ': receipt matches reread epoch and native committed data', receipt, current);
+      equal(transport + ': exact record appears once, without retry', current.data.records.filter(r => r.id === id), [record]);
+      equal(transport + ': envelope revision advanced once', current.data.revision, before.data.revision + 1);
     });
-    report.completed.push('Real commit + narrowly injected post-settlement failure, direct/RPC receipts');
+    report.completed.push('Real commit + narrowly injected post-settlement failure, direct receipt');
     await run('Native cross-tab clipboard and failed-install readiness boundaries', async () => {
       await call('scene.new');
       const source = await call('scene.create', {type:'cube', name:'Cross-tab clipboard owner'});

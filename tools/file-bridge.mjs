@@ -1,4 +1,4 @@
-// Explicit exact-path grants belong to the trusted MCP launcher, never tool arguments.
+// Explicit exact-path grants belong to the trusted local file host, never tool arguments.
 import {open,realpath,rename,unlink,lstat} from 'node:fs/promises';
 import {constants} from 'node:fs';
 import {resolve,dirname,basename,join} from 'node:path';

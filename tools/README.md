@@ -36,27 +36,7 @@ Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. P
 
 Generator `evaluation.report.diagnostics` exposes `generatedFamily`, `knownSurfaceKinds` and construction cell counts when Extrude, Lathe or Sweep supplied a transient plan. Incremental GPU updates retain these diagnostics. Make Editable intentionally drops the plan: ordinary source cages and HASH contain geometry only, and the shared resolver/classifier reconstructs their cells.
 
-`scene.inspect` includes `buildError` on unsupported/invalid geometry parameters, just as the Attributes panel does. Such a scene can still be inspected, repaired with `scene.update`, or deleted. Export rejects unfinished/invalid builds. JSON-RPC unknown tools/schema violations return protocol error -32602; errors during tool execution return isError with a message/code. No arbitrary JavaScript/eval tool is exposed. Frame timing waits for fresh, monotonically increasing frame IDs, including pipeline initialization; it fails after 30 seconds without a measured frame. Explicit geometry digests are limited to 32 MiB, inline file data to 16 MiB; use regular file workflows for larger assets. User-originated UI operations are not globally locked by the API: avoid simultaneous manual edits while an AI transaction runs.
-
-## MCP stdio adapter
-
-After `npm ci` and `npx playwright install chromium`:
-
-```powershell
-node C:\frame\tools\mcp.mjs
-```
-
-The adapter speaks JSON-RPC/MCP **2025-06-18** over newline-delimited stdin/stdout. Only protocol messages go to stdout. It supports `initialize`, `ping`, `tools/list`, `tools/call`; no resources/prompts/HTTP RPC are advertised. Schemas and execution come from the same `frameAI` instance. Default launch opens an isolated headless Frame session on its own temporary localhost server. It closes that owned session on stdin EOF. It does not select the user's existing scene automatically.
-
-Generic client configuration example: `mcp.example.json`. To target one existing Chromium tab explicitly:
-
-```powershell
-node C:\frame\tools\mcp.mjs --cdp http://127.0.0.1:9222 --url http://127.0.0.1:56116/index.html
-```
-
-The browser must already expose CDP. The adapter requires exactly one page with the given URL; it does not reload that page. This is optional: an AI controlling the embedded browser can call `frameAI.call` there directly. Use `--headed` to show an isolated browser window.
-
-Transport/tool references: [MCP stdio](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports), [MCP tools](https://modelcontextprotocol.io/specification/2025-06-18/server/tools).
+`scene.inspect` includes `buildError` on unsupported/invalid geometry parameters, just as the Attributes panel does. Such a scene can still be inspected, repaired with `scene.update`, or deleted. Export rejects unfinished/invalid builds. No arbitrary JavaScript/eval tool is exposed. Frame timing waits for fresh, monotonically increasing frame IDs, including pipeline initialization; it fails after 30 seconds without a measured frame. Explicit geometry digests are limited to 32 MiB, inline file data to 16 MiB; use regular file workflows for larger assets. User-originated UI operations are not globally locked by the API: avoid simultaneous manual edits while an AI transaction runs.
 
 ## Direct polygon modeling
 
@@ -67,9 +47,9 @@ Transport/tool references: [MCP stdio](https://modelcontextprotocol.io/specifica
 `scene.select {ids:[id],mode:'polygon',components:[faceIDs...]}` selects canonical triangle IDs without screen picking. `material.assign {id,material,faces:[faceIDs...]}` creates an explicit native face mask independently of visibility/current mode; omitting `faces` keeps whole-owner assignment. `view.set {focusSelection:true}` uses native component focus; it is exclusive with object `focus`. `scene.inspect.materialEditor.material` gives the currently displayed material UID. These tools enable inspect -> construct -> replace -> assign -> multi-view/angle audit -> Undo/Redo checks without an ID image or a parallel scene model.
 
 
-Extend v1 by adding a schema/handler in the `initializeFrameAI` registry in `index.html`, reusing editor operations, and adding a regression. Both MCP and tests discover the new command automatically; the adapter carries no duplicate tool implementations. Breaking changes require a new API version.
+Extend v1 by adding a schema/handler in the `initializeFrameAI` registry in `index.html`, reusing editor operations, and adding a regression. Tests discover the new command automatically. Breaking changes require a new API version.
 
-The AI developer owns API/MCP maintenance: extend missing or inconvenient controls/diagnostics while doing application work, with schemas and regressions. For the already-open embedded tab, direct `frameAI.call` is the shortest route and controls that exact scene; MCP is the transport for external MCP clients. UI input tests still verify event delivery/focus.
+The AI developer owns AI API maintenance: extend missing or inconvenient controls/diagnostics while doing application work, with schemas and regressions. For the already-open embedded tab, direct `frameAI.call` is the shortest route and controls that exact scene. UI input tests still verify event delivery/focus.
 
 Share returns `https://mozg4d.github.io/frame/#scene=v1.<gzip-base64url-HASH>`. It does not upload anything. `scene.open` can decode the fragment locally, without fetching that host; startup accepts the same fragment. Limits: 16 MiB packed / 512 MiB unpacked, with lower practical URL limits possible in browsers/messengers. Before the new application is published, the hosted URL is for exchanging the bug scene; the local application/API can already read it.
 
@@ -125,11 +105,13 @@ For browser-native handles, scene.file reports bound:true, hostBound:false and p
 
 ## Authorized local HASH files
 
-Run the MCP host on the computer containing the projects. Grant each exact input/output filename explicitly (the parent directory must exist):
+Run the local file host on the computer containing the projects. Grant each exact input/output filename explicitly (the parent directory must exist):
 
 ```powershell
-node C:\frame\tools\mcp.mjs --cdp http://127.0.0.1:9222 --url https://mozg4d.github.io/frame/ --allow-file C:\projects\model.hash --allow-file C:\projects\model-copy.hash
+node C:\frame\tools\file-host.mjs --allow-file C:\projects\model.hash --allow-file C:\projects\model-copy.hash
 ```
+
+Connect the intended Frame document with `scene.host.connect` using the host URL and token as described below, then use the ordinary AI API commands:
 
 ```js
 await frameAI.call('scene.open', {path:'C:\\projects\\model.hash'});
@@ -138,15 +120,15 @@ await frameAI.call('scene.saveAs', {path:'C:\\projects\\model-copy.hash'});
 await frameAI.call('scene.file'); // path, filename, binding, byte count and SHA-256 receipt
 ```
 
-These are also ordinary MCP `tools/call` commands. Command arguments cannot grant new paths. Save streams through bounded chunks without the inline 16 MiB limit and does not show a picker; the current file binding is shared with native Save. Failed replacement import clears the old binding rather than risking a later save to the wrong file. New clears it too. Import reads still need enough memory for the native browser File.
+Command arguments cannot grant new paths. Save streams through bounded chunks without the inline 16 MiB limit and does not show a picker; the current file binding is shared with native Save. Failed replacement import clears the old binding rather than risking a later save to the wrong file. New clears it too. Import reads still need enough memory for the native browser File.
 
-The host uses same-directory temporary files and atomic rename, rejects symlink targets, overlapping writes and detected external changes during a save, and cleans up aborted transfers. This is not a sandbox against concurrent privileged filesystem changes. Grants expire when the adapter closes or the selected main document navigates (including reload). Reconnect the adapter explicitly for that document; saved recents never grant access themselves. An uncertain transport result after rename requires inspecting the target before retrying. Native browser file handles retain their own browser permission rules.
+The host uses same-directory temporary files and atomic rename, rejects symlink targets, overlapping writes and detected external changes during a save, and cleans up aborted transfers. This is not a sandbox against concurrent privileged filesystem changes. Grants expire when the host closes. Reloading or navigating the connected document requires explicitly reconnecting that document; saved recents never grant access themselves. An uncertain transport result after rename requires inspecting the target before retrying. Native browser file handles retain their own browser permission rules.
 
-CPU checks: `node tests/file-bridge.mjs` and `node tests/file-bridge-boundary.mjs`. Native isolated checks: `node tests/file-bridge-browser.mjs --headless`; the aggregate also checks MCP Open/Save against the authorized host. A Windows symlink test reports unavailable if the OS account lacks that privilege; it is not counted as passed.
+CPU checks: `node tests/file-bridge.mjs` and `node tests/file-bridge-boundary.mjs`. Native isolated checks: `node tests/file-bridge-browser.mjs --headless`. A Windows symlink test reports unavailable if the OS account lacks that privilege; it is not counted as passed.
 
 ## Normal PWA filesystem host (no browser restart)
 
-The stdio MCP adapter attaches a file bridge only to the page it controls. Publishing the web API does not install or start a filesystem host. A normal installed PWA without CDP therefore needs this explicit local transport:
+Publishing the web API does not install or start a filesystem host. A normal installed PWA uses this explicit local transport for absolute-path operations:
 
     node tools/file-host.mjs --allow-file "C:\projects\printer.hash" --allow-file "C:\projects\printer-copy.hash"
 
