@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 15 nov 00:09">
+<meta name="frame-version" content="2026 15 nov 00:26">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15088,7 +15088,7 @@ struct Material{colorEmission:vec4f,surface:vec4f,maps:vec4f,extra:vec4f,channel
 @group(2) @binding(1) var materialImages:texture_2d_array<f32>;
 @group(2) @binding(2) var materialSampler:sampler;
 @group(2) @binding(3) var materialColorImages:texture_2d_array<f32>;
-struct MaterialOutput{@builtin(position) position:vec4f,@location(0) normal:vec3f,@location(1) viewPosition:vec3f,@location(2) @interpolate(flat) selected:u32,@location(3) @interpolate(perspective) bary:vec3f,@location(4) localPosition:vec3f,@location(5) localNormal:vec3f,@location(6) @interpolate(flat) material:u32,@location(7) uv:vec2f,@location(8) @interpolate(flat) wireEdges:u32}
+struct MaterialOutput{@builtin(position) position:vec4f,@location(0) normal:vec3f,@location(1) viewPosition:vec3f,@location(2) @interpolate(flat) selected:u32,@location(3) @interpolate(linear) bary:vec3f,@location(4) localPosition:vec3f,@location(5) localNormal:vec3f,@location(6) @interpolate(flat) material:u32,@location(7) uv:vec2f,@location(8) @interpolate(flat) wireEdges:u32}
 fn faceMaterial(face:u32)->u32{var i=materialTags[1];loop{if(i==0u){break;}i--;let at=16u+i*4u;let offset=materialTags[at+1u];if(face<materialTags[at+2u]&&((materialTags[offset+(face>>5u)]>>(face&31u))&1u)!=0u){return materialTags[at];}}return materialTags[0];}
 @vertex fn materialVS(@builtin(vertex_index) v:u32)->MaterialOutput{
  var id=v;if(materialGroups||materialWire||materialUV){id=renderAliases[v];}let old=surfaceVertex(id);let record=packedNormals[id];let raw=loadPositionRaw(record.x);let lo=vec3f(bitcast<f32>(materialTags[4]),bitcast<f32>(materialTags[5]),bitcast<f32>(materialTags[6]));let inv=vec3f(bitcast<f32>(materialTags[8]),bitcast<f32>(materialTags[9]),bitcast<f32>(materialTags[10]));var bary=vec3f(0);if(materialWire){let role=v%3u;bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));}var material=materialTags[0];if(materialGroups){material=faceMaterial(v/3u+faceBase.y);}let localNormal=mat3x3f(projection.nx.xyz,projection.ny.xyz,projection.nz.xyz)*decodeOct(unpack2x16snorm(record.y));let local=(projection.inverse*vec4f(raw,1)).xyz;var uv=vec2f(0);if(materialUV){uv=importedUVs[v+faceBase.y*3u];}var edges=0u;if(materialWire){edges=surfaceWireEdges(v);}return MaterialOutput(old.position,old.normal,old.viewPosition,old.selected,bary,local,localNormal,material,uv,edges);
@@ -15458,7 +15458,8 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
           struct Params { rotation: mat4x4f, centerScale: vec4f, viewport: vec4f, clip:vec4f, frame:vec4f, modes:vec4f }
           @group(0) @binding(0) var<uniform> params: Params;
           fn frameProject(p:vec3f)->vec4f{let xy=p.xy+params.viewport.zw;let depth=-p.z;if(orthographic){return vec4f(xy.x*params.viewport.y/params.viewport.x,xy.y*params.viewport.y,(depth-params.clip.x)/(params.clip.y-params.clip.x),1);}return vec4f(xy.x*params.clip.w/params.viewport.x,xy.y*params.clip.w,(params.clip.y*depth-params.clip.x*params.clip.y)/(params.clip.y-params.clip.x),depth);}
-          struct Output { @builtin(position) position: vec4f, @location(0) normal: vec3f, @location(1) viewPosition: vec3f, @location(2) @interpolate(flat) selected:u32, @location(3) @interpolate(perspective) bary:vec3f, @location(8) @interpolate(flat) wireEdges:u32 }
+          // Wire distances are measured in screen pixels; perspective weights distort their derivatives.
+          struct Output { @builtin(position) position: vec4f, @location(0) normal: vec3f, @location(1) viewPosition: vec3f, @location(2) @interpolate(flat) selected:u32, @location(3) @interpolate(linear) bary:vec3f, @location(8) @interpolate(flat) wireEdges:u32 }
           fn decodeOct(e: vec2f) -> vec3f {
             var n = vec3f(e, 1.0 - abs(e.x) - abs(e.y));
             if (n.z < 0.0) {

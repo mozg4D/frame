@@ -1,4 +1,5 @@
 import {createCornerScreenshotCapture} from './corner-screenshot-evidence.mjs';
+import {surfaceWireStabilityBrowserChecks} from './surface-wire-stability-browser.mjs';
 import {readDiagnosticPixels} from './diagnostic-pixels.mjs';
 // Isolated native WebGPU occlusion fixture. No user tab, scene or file is modified.
 import assert from 'node:assert/strict';
@@ -25,6 +26,7 @@ export async function splineDepthBrowserChecks(page,{legacy=false,requireLegacyL
  const cyan=colors=>colors.some(c=>[60,117,138].every((v,k)=>Math.abs(c[k]-v)<=2));
  let leaks=0;
  try{
+  if(!legacy){const wire=await surfaceWireStabilityBrowserChecks(page);check('Surface wire pixel stability and frame budgets',wire.pass,wire);}
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),code=await splineCageShaderSource(html),compilation=await page.evaluate(async code=>{const info=await frameEngine.renderer.device.createShaderModule({label:'exact spline cage qualification',code}).getCompilationInfo();return info.messages.map(m=>({type:m.type,message:m.message,lineNum:m.lineNum,linePos:m.linePos}));},code);check('Exact candidate spline WGSL compiles without errors',!compilation.some(m=>m.type==='error'),compilation);
   await call('scene.new');await call('view.set',{index:2,single:true,mode:'object',shading:'solid-isoparms'});
   const data=await page.evaluate(()=>{const K=FrameSpline.K(),d=K.createSplineData();for(const [y,z]of [[-45,3],[0,0],[45,-3]]){const q=K.addSplineSequence(d,false),a=K.addSplineVertex(d,[-80,y,z]),b=K.addSplineVertex(d,[80,y,z]);K.addSplineSegment(d,q,a,b);}return d;});
