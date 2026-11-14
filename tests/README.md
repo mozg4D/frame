@@ -129,7 +129,7 @@ When a Git-excluded heavy fixture is absent, the report lists that specific fixt
 
 `heavy-live.mjs` now runs in both profiles and verifies exactly four rebuilt cells/segments, untouched GPU geometry, a fresh full-build oracle, Undo/cancel, continuous pointer latency, and a global angle rebuild with hardwareConcurrency minus one CPU workers. Existing regular quad interiors remain on WebGPU. The 1000-object fixture is spread across XZ with 550 mm spacing by `scenes/spread-release.mjs --existing`, also called during `generate-release.mjs --stress`; geometry, object count and triangle count are preserved.
 
-Solid+Isoparms overlays genuine spline cages on generated surfaces and uses Solid+Wire for plain polygons. The 100M benchmark compares the latter modes directly; Isoparms uses the bounded compute edge rasterizer for ordinary meshes.
+Solid+Isoparms colours only spline-marked edges in the surface's barycentric wire shader; ordinary polygon objects retain their full wireframe. Solid+Wire colours the same marked edges cyan and retains all other edges. Materials and batched Instances use the same surface shader policy, without a second cyan cage pass. Unshaded Wire uses the shared unique-edge bits in the compute rasterizer. `node tests/solid-wire-browser.mjs` is the focused DPR1 hardware smoke for filtering, continuity, materials, both storage backends, baking and shared instance masks; it does not run the full suite or large-scene benchmarks.
 
 
 Material/editor regressions (included in standard and stress, isolated contexts):
