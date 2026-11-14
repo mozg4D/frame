@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 14 nov 23:57">
+<meta name="frame-version" content="2026 15 nov 00:09">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15366,12 +15366,23 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       pass.end();
     }
 
+    function deferPluginSceneLines(r){
+      if(!r.pluginViewports)return false;
+      for(const [entry,state]of r.pluginViewports){const v=entry.viewport;if(!state.loaded||v.stage!=='opaque'||!(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode))))continue;if(nodes.some(n=>FramePlugins.owner(n)===entry&&pluginShown(n)))return true;}return false;
+    }
+    function renderDeferredSceneLines(r,encoder,color,depth,width,height,grid=true){
+      if(!deferPluginSceneLines(r))return;
+      // Lines do not write depth: draw them once after every opaque plugin has written its surfaces.
+      const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
+      if(grid)drawViewGrid(pass,width,height);drawSplineDisplays(pass);pass.end();
+    }
     function renderGeometry(r,pass,width,height,include=()=>true,grid=true,mask=null,cages=true){
-      if(shadingMode==='off'){if(grid)drawViewGrid(pass,width,height);return 0;}
+      const deferLines=cages&&deferPluginSceneLines(r);
+      if(shadingMode==='off'){if(grid&&!deferLines)drawViewGrid(pass,width,height);return 0;}
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms';let visible=wire?0:drawCloudInstances(r,pass);pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
       const batched=!wire&&scene.meshes.some(m=>m.replicaMatrix)?drawReplicaBatches(r,pass,include,cages?'scene':'background'):new Set();visible+=batched.size;
       if(!wire)for(const mesh of scene.meshes){if(batched.has(mesh)||pluginSurfaceStyle(mesh)||!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;const pipelines=meshPipelines(r,mesh),material=materialMeshGPU(r,mesh),filter=pluginSurfaceFilter(mesh),filtered=filter?filteredSurfacePipeline(r,mesh,filter,material):null,pipeline=filtered?.pipeline||(material?materialPipeline(r,mesh):null);if(filter&&!filtered)continue;pass.setPipeline(pipeline||(polygonWire(mesh)?pipelines.wireSurfacePipeline:pipelines.pipeline));if(filtered)pass.setBindGroup(3,filtered.group);if(pipeline&&material)pass.setBindGroup(2,material.state.group);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,pipeline&&material?material.bindings.groups.get(part).group:part.shadingBindGroup);if(polygonWire(mesh)||pipeline&&material&&(material.bindings.grouped||importedUV(mesh)))pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}
-      if(grid)drawViewGrid(pass,width,height);if(cages)drawSplineDisplays(pass);
+      if(grid&&!deferLines)drawViewGrid(pass,width,height);if(cages&&!deferLines)drawSplineDisplays(pass);
       if(wire&&mask){pass.setPipeline(mask.wire.present);pass.setBindGroup(0,mask.wire.paint);pass.draw(3);visible=mask.visible;}else if(wire){pass.setBindGroup(0,r.edgeUniforms);for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;pass.setPipeline(meshPipelines(r,mesh).edgePipeline);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.edgeBindGroup);pass.setIndexBuffer(part.lines,'uint32');pass.drawIndexed((mesh.paged?part.edgeCount:mesh.edgeCounts[0])*2);}}}return visible;
     }
     function ensureTransformBackground(r){
@@ -15409,7 +15420,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         const encoder=d.createCommandEncoder(),color=v.context.getCurrentTexture(),background=transformBackground(r,encoder,width,height),mask=encodeWireRaster(r,encoder,width,height,background?m=>background.moving.has(m):undefined),pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),clearValue:[29/255,29/255,29/255,1],loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:v.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
         if(background)restoreTransformBackground(r,pass,background);
         renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask);
-        pass.end();renderPluginViewports(r,encoder,color,v.depth,'opaque');renderMaterialTransparency(r,encoder,color,v.depth,width,height);renderPluginSurfaceStyles(r,encoder,color,v.depth);renderPluginViewports(r,encoder,color,v.depth);renderPluginSurfaceStyles(r,encoder,color,v.depth,true);renderPolygonVertices(r,encoder,color,v.depth);renderBoxSelection(r,encoder,color,v.depth);d.queue.submit([encoder.finish()]);v.scene=scene;v.key=key;canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);
+        pass.end();renderPluginViewports(r,encoder,color,v.depth,'opaque');renderDeferredSceneLines(r,encoder,color,v.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode));renderMaterialTransparency(r,encoder,color,v.depth,width,height);renderPluginSurfaceStyles(r,encoder,color,v.depth);renderPluginViewports(r,encoder,color,v.depth);renderPluginSurfaceStyles(r,encoder,color,v.depth,true);renderPolygonVertices(r,encoder,color,v.depth);renderBoxSelection(r,encoder,color,v.depth);d.queue.submit([encoder.finish()]);v.scene=scene;v.key=key;canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);
       }}finally{canvas=activeCanvas;viewIndex=activeIndex;shadingMode=activeShading;restoreCamera(camera);r.device.queue.writeBuffer(r.uniform,0,cameraUniform(r.width||1,r.height||1));}
     }
     function ensureOrthoPipelines(r){
@@ -15890,7 +15901,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         if(background)restoreTransformBackground(r,pass,background);
         const visibleMeshes=(background?.cache.visible||0)+renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask);
         canvas.dataset.transformBackground=JSON.stringify(background?{moving:background.moving.size,built:background.built,builds:background.cache.builds}:null);
-        pass.end();renderPluginViewports(r,encoder,r.cachedColor,r.depth,'opaque');renderMaterialTransparency(r,encoder,r.cachedColor,r.depth,width,height);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth);renderPluginViewports(r,encoder,r.cachedColor,r.depth);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth,true);canvas.dataset.visibleMeshes=String(visibleMeshes);
+        pass.end();renderPluginViewports(r,encoder,r.cachedColor,r.depth,'opaque');renderDeferredSceneLines(r,encoder,r.cachedColor,r.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode));renderMaterialTransparency(r,encoder,r.cachedColor,r.depth,width,height);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth);renderPluginViewports(r,encoder,r.cachedColor,r.depth);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth,true);canvas.dataset.visibleMeshes=String(visibleMeshes);
         r.geometryFrames=(r.geometryFrames||0)+1;r.cachedScene=scene;sceneFrameDirty=false;
       }
       // Component colors keep their IDs; a different editable owner changes eligibility.

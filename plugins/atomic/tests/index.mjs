@@ -6,6 +6,7 @@ import {revisionChecks} from './revision.mjs';
 import {extendedChecks} from './extended.mjs';
 import {nepChecks} from './nep.mjs';
 import {nativeUIChecks} from './ui.mjs';
+import {lineOcclusionChecks} from './line-occlusion.mjs';
 export async function pluginChecks(page){
  const checks=[],timings=[],call=async(name,args={})=>{const begin=performance.now(),result=await page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),ms=performance.now()-begin,limit=name==='render.export'||args.operation==='step'||args.forces?15000:3000;timings.push({name:'Atomic '+name+(args.operation?' '+args.operation:''),ms,limit});if(ms>limit)throw Error(name+' latency '+ms+' > '+limit);return result;},check=(name,pass,detail)=>{checks.push({name:'Atomic: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},timed=async(name,limit,fn)=>{const t=performance.now(),r=await fn(),ms=performance.now()-t;timings.push({name:'Atomic '+name,ms,limit});check(name+' latency',ms<limit,{ms,limit});return r;};
  try{
@@ -30,6 +31,6 @@ export async function pluginChecks(page){
   const copied=await call('scene.duplicate',{ids:[h]}),copy=copied.objects.find(n=>n.type==='atomic');check('whole Atomic copies with descendants',!!copy&&copy.hash!==h,copied);const source=await cmd('inspect');await cmd('step',{timeFs:.5},copy.hash);check('independent worlds never alter one another',JSON.stringify(source)===JSON.stringify(await cmd('inspect')));
   await call('scene.select',{ids:[h]});await call('view.set',{index:1,single:true,shading:'solid',focus:h});await page.locator('[data-plugin-element="C"]').click();const rect=await page.locator('#frame-engine-canvas').boundingBox();await page.mouse.click(rect.x+rect.width*.7,rect.y+rect.height*.55);await call('scene.inspect');check('native element button places an atom',(await cmd('status')).atoms===4);
   await page.keyboard.press('Escape');await call('animation.pause');await call('scene.select',{ids:[h]});await call('view.set',{single:false,index:0,focus:h});const frames=await timed('shared viewport rendering',10000,()=>call('diagnostics.frame',{frames:3}));check('native frame diagnostics remain available',!!frames,frames);
-  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks,feedbackChecks,motionChecks,autotuneChecks,timelineChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
+  const objects=(await call('scene.inspect')).objects;await call('scene.delete',{ids:objects.filter(n=>!n.parent).map(n=>n.hash)});for(const run of [extendedChecks,nepChecks,nativeUIChecks,revisionChecks,feedbackChecks,motionChecks,autotuneChecks,timelineChecks,lineOcclusionChecks]){const r=await run(page);checks.push(...r.checks);timings.push(...r.timings);if(!r.pass)return {...r,checks,timings};}return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }
