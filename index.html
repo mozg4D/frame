@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 14 nov 23:25">
+<meta name="frame-version" content="2026 14 nov 23:41">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -9326,7 +9326,7 @@ return new FrameRenderer(container,changed);}</script>
 // Original Frame icons, material previews and numeric expression helpers.
 
 const icons = {
-ICO_CONTROL:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#aaa" stroke-width="1.5"><path d="M7 5v22M16 5v22M25 5v22"/><path fill="#202020" d="M4 10h6v5H4zM13 19h6v5h-6zM22 8h6v5h-6z"/></svg>',
+ICO_CONTROL:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#aaa" stroke-width="1"><path d="M10.5 8.5v15M16.5 8.5v15M22.5 8.5v15"/><path fill="#202020" d="M8.5 12.5h4v4h-4zM14.5 18.5h4v4h-4zM20.5 9.5h4v4h-4z"/></svg>',
 ICO_PLUGINS:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges" fill="#626872"><rect x="5" y="5" width="9" height="9"/><rect x="18" y="5" width="9" height="9"/><rect x="5" y="18" width="9" height="9"/><path fill="#a0a7b2" d="M22 18h1v4h4v1h-4v4h-1v-4h-4v-1h4z"/></svg>',
 
   "ICO_GRID": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"5.5\" y1=\"4.5\" x2=\"5.5\" y2=\"27.5\"/><line x1=\"12.5\" y1=\"4.5\" x2=\"12.5\" y2=\"27.5\"/><line x1=\"19.5\" y1=\"4.5\" x2=\"19.5\" y2=\"27.5\"/><line x1=\"26.5\" y1=\"4.5\" x2=\"26.5\" y2=\"27.5\"/><line x1=\"4.5\" y1=\"5.5\" x2=\"27.5\" y2=\"5.5\"/><line x1=\"4.5\" y1=\"12.5\" x2=\"27.5\" y2=\"12.5\"/><line x1=\"4.5\" y1=\"19.5\" x2=\"27.5\" y2=\"19.5\"/><line x1=\"4.5\" y1=\"26.5\" x2=\"27.5\" y2=\"26.5\"/><circle cx=\"19.5\" cy=\"12.5\" r=\"2.5\" fill=\"#f08a1d\" stroke-width=\"0\"/></svg>",
@@ -10613,7 +10613,7 @@ let creating=Promise.resolve();
 const FrameSceneControl=(()=>{
  const panels=new Set(),mounted=new Map(),geometry=createFrameDocumentationGeometry('frame-control-window-v1');
  let child=null,activeDocument=null;
- const instruction='Scene Control runs AI-written code that can extend any part of Frame: add interfaces, tools, custom objects and behavior. Tell Codex what you want and ask it to use Scene Control. Save as HASH to keep the code with your scene.';
+ const instruction='Scene Control runs AI-written code that can extend any part of Frame: add interfaces, tools, custom objects and behavior. Tell Codex what you want and ask it to use Scene Control.';
  const report=error=>console.error('Scene Control panel failed',error);
  function release(slot){slot.live=false;try{slot.dispose?.();}catch(error){report(error);}slot.root.remove();}
  function clear(){for(const slot of mounted.values())release(slot);mounted.clear();activeDocument=null;}
