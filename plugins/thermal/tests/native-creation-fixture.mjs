@@ -16,7 +16,7 @@ export const core=await readFile(new URL('../../../index.html',import.meta.url),
 export const manifest=JSON.parse(await readFile(new URL('../plugin.json',import.meta.url),'utf8'));
 const section=(start,end)=>{const a=core.indexOf(start),b=core.indexOf(end,a);assert.ok(a>=0&&b>a,`Missing native contract: ${start}`);return core.slice(a,b);};
 const line=start=>{const a=core.indexOf(start),b=core.indexOf('\n',a);assert.ok(a>=0&&b>a,`Missing native contract: ${start}`);return core.slice(a,b);};
-const affine=section('const FM=(()=>{','\n\n    const POSE_WGSL');
+const affine=section('const FM=(()=>{','\n\n    const CAMERA_RELATIVE_WGSL');
 export const math=new Function(affine+';return FM;')();
 const sources=[
  fragment('const FrameAuthorData=','const FrameDocumentation='),
@@ -29,6 +29,7 @@ const sources=[
  line('    function selectedRoots(){'),
  line('    function objectDescendants(h,objects=poseObjects()){'),
  line('    function objectPivot(h){'),
+ line('    function pluginHelper(n){'),
  line('    function freezePivots(hashes){'),
  section('    function applyObjectDelta(delta,before,roots=selectedRoots(),editPivot=pivotEditing){','\n    function poseRay('),
  line('    function transformedBox(box,m){'),

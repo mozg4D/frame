@@ -6,7 +6,7 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 if(!process.argv.includes('--headless'))throw Error('This regression requires explicit --headless');
 const report={pass:false,checks:[],timings:[],errors:[],consoleErrors:[],dpr:Number(process.env.FRAME_DPR||1)};
-const sources=async()=>Object.fromEntries(await Promise.all(['index.html','frame-sw.js','viewport.html','plugins/index.json','plugins/thermal/plugin.js','plugins/thermal/native-fan.js','plugins/thermal/native-frame.js','tests/selection-gizmo-browser.mjs'].map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));report.sources=await sources();
+const sources=async()=>Object.fromEntries(await Promise.all(['index.html','frame-sw.js','viewport.html','plugins/index.json','plugins/thermal/plugin.js','tests/selection-gizmo-browser.mjs'].map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));report.sources=await sources();
 const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
 const measure=async(name,fn,budgetMs=1000)=>{const start=performance.now(),out=await fn(),ms=performance.now()-start;report.timings.push({name,ms,budgetMs});check(name+' completed latency',ms<budgetMs,{ms,budgetMs});return out;};
 const server=await serve();let browser,page;

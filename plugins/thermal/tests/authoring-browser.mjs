@@ -96,7 +96,7 @@ export async function authoringBrowserChecks(parent,check,timed){
   check('native authoring helper CPU/GPU frame budget',hasBoundedFrameTimings(afterFrames),{beforeFrames,afterFrames});
   const gpu=await page.evaluate(async()=>{await frameEngine.renderer.device.queue.onSubmittedWorkDone();return {validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,errors:__thermalPreviewGPU,lost:__thermalPreviewLost,numericalBuffers:__thermalPreviewBuffers.filter(s=>/^Thermal\s/.test(s))};});
   check('no numerical GPU allocations or error',!gpu.numericalBuffers.length&&!gpu.validation&&!gpu.errors.length&&!gpu.lost&&!errors.length,{gpu,errors});
-  check('no numerical solver modules requested',requests.every(p=>['plugin.json','icon.svg','plugin.js','native-fan.js','native-frame.js'].some(n=>p==='/plugins/thermal/'+n)),requests);
+  check('no numerical solver modules requested',requests.every(p=>['plugin.json','icon.svg','plugin.js'].some(n=>p==='/plugins/thermal/'+n)),requests);
   return {hardware,gpu,beforeFrames,afterFrames,requests,scope:'Current-core authoring preview only. No numerical qualification; full standard/stress/large-scene gates are not run by this harness.'};
  }finally{await context.close();}
 }
@@ -107,6 +107,6 @@ export async function pluginChecks(page){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  let session,result;try{session=await launch({headless:process.argv.includes('--headless')});result=await pluginChecks(session.page);}catch(error){result={pass:false,checks:[],timings:[],hardwareVerified:false,error:error.stack};}finally{await session?.close();}
- result.sources={};for(const p of ['index.html','plugins/index.json','plugins/thermal/plugin.js','plugins/thermal/plugin.json','plugins/thermal/native-fan.js','plugins/thermal/native-frame.js','plugins/thermal/tests/authoring-browser.mjs','plugins/thermal/tests/native-probe-browser.mjs','plugins/thermal/tests/browser-gates.mjs','plugins/thermal/tests/navigation-browser.mjs','tools/browser.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
+ result.sources={};for(const p of ['index.html','plugins/index.json','plugins/thermal/plugin.js','plugins/thermal/plugin.json','plugins/thermal/tests/authoring-browser.mjs','plugins/thermal/tests/native-probe-browser.mjs','plugins/thermal/tests/browser-gates.mjs','plugins/thermal/tests/navigation-browser.mjs','tools/browser.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
  await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/thermal-authoring-preview.json',import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;
 }

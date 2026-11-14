@@ -205,10 +205,5 @@
       },
       "fieldOptions": {}
     }
-  ],
-  "assets": [
-    "data.js",
-    "symbols.js",
-    "viewport.js"
   ]
 }

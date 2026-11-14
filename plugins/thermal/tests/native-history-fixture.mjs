@@ -19,7 +19,7 @@ const sources=[
  fragment('const FrameAuthorData=','const FrameDocumentation='),
  section('    async function undoEdit(){','\n    async function redoEdit(){'),
  section('    function restoreFrames(snapshot,notify=true,opposite=null){','\n    function frameSnapshotsEqual('),
- line('function restore(value){FrameAuthorData.reset();'),
+ line('function restore(value,heldAnimation=null){FrameAuthorData.reset();'),
  line('async function frameUndoUI(back){')
 ].join('\n');
 export function historyFixture(initialNodes,onRestored=()=>{}){

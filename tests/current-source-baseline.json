@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 14 nov 10:18",
+  "version": "2026 14 nov 22:08",
   "predecessorCommit": "56b0a777c3e869842c17f5aae7c40ab2239d8f21",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
@@ -11,8 +11,6 @@
       "viewport.html",
       "plugins/thermal/plugin.json",
       "plugins/thermal/plugin.js",
-      "plugins/thermal/native-fan.js",
-      "plugins/thermal/native-frame.js",
       "plugins/thermal/tests/fan-ui.mjs",
       "plugins/thermal/tests/native-probe.mjs",
       "plugins/thermal/tests/native-selection.mjs",
@@ -217,13 +215,13 @@
       "plugins/atomic/AGENTS.md",
       "plugins/atomic/plugin.js",
       "plugins/circuit/AGENTS.md",
-      "plugins/circuit/viewport.js",
+      "plugins/circuit/plugin.js",
       "plugins/cut/AGENTS.md",
-      "plugins/cut/viewport.js",
+      "plugins/cut/plugin.js",
       "plugins/mill/AGENTS.md",
       "plugins/mill/plugin.js",
       "plugins/optics/AGENTS.md",
-      "plugins/optics/viewport.js",
+      "plugins/optics/plugin.js",
       "tests/README.md",
       "tests/camera-relative-depth.mjs",
       "tests/camera-shader-order.mjs",
@@ -307,13 +305,13 @@
       "plugins/atomic/AGENTS.md",
       "plugins/atomic/plugin.js",
       "plugins/circuit/AGENTS.md",
-      "plugins/circuit/viewport.js",
+      "plugins/circuit/plugin.js",
       "plugins/cut/AGENTS.md",
-      "plugins/cut/viewport.js",
+      "plugins/cut/plugin.js",
       "plugins/mill/AGENTS.md",
       "plugins/mill/plugin.js",
       "plugins/optics/AGENTS.md",
-      "plugins/optics/viewport.js",
+      "plugins/optics/plugin.js",
       "tests/README.md",
       "tests/camera-relative-depth.mjs",
       "tests/camera-shader-order.mjs",
@@ -369,35 +367,27 @@
     },
     "frame-sw.js": {
       "bytes": 3774,
-      "sha256": "925a28dd63e85bb3fab410adf05e26f2ca85cbd9408e641516a59d4e0698d6de"
+      "sha256": "0c07dfead85a9380ce8ffbba1edfa26be623f5b15ca93170d81244f056860525"
     },
     "index.html": {
       "bytes": 2837379,
-      "sha256": "b272df723715781387dee90133d8084fa9b8e501d18b3ec1af59395dd0af6194"
+      "sha256": "1a4ee4663afd77512a81ab577ac272245f5cdaf90507e5e733c910ab97b9c38e"
     },
     "plugins/index.json": {
       "bytes": 266,
       "sha256": "5f699acc28d7deaeaf177bbfd24e5617a372182478b35c42369bf25113c88331"
     },
-    "plugins/thermal/native-fan.js": {
-      "bytes": 6483,
-      "sha256": "a542d351a79b553fe851d93e3c2e92d37af34fed73e4d9841d76825da172ab9d"
-    },
-    "plugins/thermal/native-frame.js": {
-      "bytes": 1200,
-      "sha256": "e598b8f53d12716ce6ebc345e913bfc9f343def20ddb2ac88a7ac7762e041f7b"
-    },
     "plugins/thermal/plugin.js": {
-      "bytes": 5357,
-      "sha256": "b36d8ac13f6df138ad2ff0005763d4d2e9952eab873a0e25b57ce5fb5703760c"
+      "bytes": 12955,
+      "sha256": "0e6bf2d4b41cc06b01be3eb8da22c5bf73ea9744a0056db246075c67166d7d0c"
     },
     "plugins/thermal/plugin.json": {
-      "bytes": 685,
-      "sha256": "c6b77b7a2aee02643fdf857bdec1c26ae9b6390495fcc76c305f4df1f2994a2b"
+      "bytes": 623,
+      "sha256": "4bc70d6a8f8d95f8a22b68fcd8b2babe1ce4bcf4e97fa1c6786723c6dc6ecf68"
     },
     "plugins/thermal/tests/authoring-browser.mjs": {
-      "bytes": 16601,
-      "sha256": "84e1370a034649fbd43f1fb57264c489c1338d4d78b322081ab5e4561d3b3e62"
+      "bytes": 16501,
+      "sha256": "bf877f36b285133e3ac78b7f88c5222bb1f794a5e3b8184522d9736e6d553121"
     },
     "plugins/thermal/tests/browser-gate-contract.mjs": {
       "bytes": 16419,
@@ -484,8 +474,8 @@
       "sha256": "a9130946d1fea2d1f3064c5e4d5917f857c28904a51d9fa97df9bd6e881f5bfe"
     },
     "tests/selection-gizmo-browser.mjs": {
-      "bytes": 12488,
-      "sha256": "c1c5bac614954f69569b1fdcd0da2f4f96a53d6144c9e4a1b521e799b88064f2"
+      "bytes": 12422,
+      "sha256": "25ee4ef2e206a5211710683ca44ce51319a6790ac51c749f525dc28d9f864b30"
     },
     "tests/selection-gizmo-state.mjs": {
       "bytes": 5031,
@@ -847,29 +837,17 @@
       "bytes": 69545,
       "sha256": "680d4e87f5243214217def12b388f8e6988ac3c884086341bf417fbf6683a980"
     },
-    "plugins/circuit/viewport.js": {
-      "bytes": 5834,
-      "sha256": "8478da690245746ea83d457e2b8952cf873d24a0136aa31ccad21b730a5f4a41"
-    },
-    "plugins/cut/viewport.js": {
-      "bytes": 3104,
-      "sha256": "c3fe5fad38afaf4a5fec099a26eda684960a2167ae4322fd58dff92b1ce91efb"
-    },
     "plugins/mill/plugin.js": {
       "bytes": 265407,
       "sha256": "6a7cd18cc0fe601c4ede168f7069d5e998dd1946c4161b8dab9170072994c654"
     },
-    "plugins/optics/viewport.js": {
-      "bytes": 4354,
-      "sha256": "53df27aab13d9f72b4c64a42ec1017b5120248cdbaae66d675c0e4db311f9e72"
-    },
     "tests/camera-relative-depth.mjs": {
-      "bytes": 13324,
-      "sha256": "b37cd1b81a15bd0635f553896efa383a00ceaf6763b1421edfd4d8f0cc4d902c"
+      "bytes": 13318,
+      "sha256": "62a1ac8fd6fe5fe19128c94dd3e2dfc3e11708213c0dc30ea0d837f84a5e8d1b"
     },
     "tests/camera-shader-order.mjs": {
-      "bytes": 9845,
-      "sha256": "ec878c809bbb95ae35428693684425d33a975945a0cc58fc0f485034ac790c3e"
+      "bytes": 9839,
+      "sha256": "fb6702ab018f0881ea8a5eef3bf40a9c9c889a244c0d7903fd04ff88d3a30166"
     },
     "tests/spline-shader-source-contract.mjs": {
       "bytes": 4285,
@@ -896,12 +874,12 @@
       "sha256": "6d2398f4f894aed3a3d760b1c6d3d92ccd6f4d58d9770e946e475d95e38d9a47"
     },
     "plugins/optics/AGENTS.md": {
-      "bytes": 4651,
-      "sha256": "0af3f4d30be6c887d6c25cd8b81b41fc601003a0402c60be9894d588201b4b52"
+      "bytes": 4646,
+      "sha256": "1cb7911708be9558a7876acf0471a74ae2f677ee7eacaecac46babc7cf0a851b"
     },
     "plugins/atomic/AGENTS.md": {
-      "bytes": 5240,
-      "sha256": "578d8edb39536082ecaba39406c1c7bacf43b1066df07c39a19efd772095b8a5"
+      "bytes": 5228,
+      "sha256": "eca6fd433b5812bf2e56238c6daf4833ad4938f12d4ece3b83a47ca93077c745"
     },
     "plugins/structural/AGENTS.md": {
       "bytes": 3772,
@@ -916,8 +894,8 @@
       "sha256": "2a91716d4ad04e4ed56cb9196bab217b586bb0b2d7d7b168d324f9b38a317dd8"
     },
     "plugins/thermal/AGENTS.md": {
-      "bytes": 2258,
-      "sha256": "ddd4ad26b32e7621c1a9ecd1d98e7c74d2bbe9eb2cb5e61d668778d0a6a5f6ca"
+      "bytes": 2271,
+      "sha256": "dd49bc591ac19510dc9cbd7aae76350ecc5fb57a90d0e8533ab71bbc9b6269cc"
     },
     "plugins/cfd/AGENTS.md": {
       "bytes": 2423,
@@ -928,8 +906,8 @@
       "sha256": "ff567e4f08e1b1f7a659b0328de8508b8c542e668119815af674de2f4f978b39"
     },
     "plugins/cut/AGENTS.md": {
-      "bytes": 6748,
-      "sha256": "7d7f3bfcd1849ff1f498858ca3510a6f3e0546679f8be1f4a6bc7fdff2ba93d9"
+      "bytes": 6766,
+      "sha256": "bf6f5f77f736bbe4849a5b070e0d95cd2f7fe40be79b3950e36826b64ff78def"
     },
     "plugins/circuit/AGENTS.md": {
       "bytes": 3591,
@@ -990,6 +968,18 @@
     "tests/documentation-history-native.mjs": {
       "bytes": 5841,
       "sha256": "fcb49eab05563c4f853308c64da684e37ac0a14b784e60674da6897269b99c57"
+    },
+    "plugins/circuit/plugin.js": {
+      "bytes": 24353,
+      "sha256": "728f5d78b204c9c18e772413ccbab5954d861c554f5c89e5c5558e13d9969f9a"
+    },
+    "plugins/cut/plugin.js": {
+      "bytes": 8947,
+      "sha256": "a01ffcc41124ed3c05b5e775a7170ebeece20779e2d4f03ccffd580985c9ae36"
+    },
+    "plugins/optics/plugin.js": {
+      "bytes": 10829,
+      "sha256": "04b02f2024332ad325fe61b6e0c2859534aac8d05c0c15bf3f0bc456b651efdd"
     }
   },
   "archivedProofs": {

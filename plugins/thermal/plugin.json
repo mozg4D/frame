@@ -33,9 +33,5 @@
         ]
       }
     }
-  ],
-  "assets": [
-    "native-fan.js",
-    "native-frame.js"
   ]
 }

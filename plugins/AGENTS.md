@@ -2,6 +2,7 @@
 
 ## Discovery and authoring
 
+- Each plugin directory contains exactly AGENTS.md, icon.svg, plugin.json and plugin.js, plus an optional tests/ directory. Keep all runtime code in plugin.js and provenance in plugin.json; test-only helpers/fixtures belong under tests/. Do not add runtime sidecar files or directories.
 - Catalogue: plugins/index.json; manifest: <id>/plugin.json; export activate(context). IDs match directories, object types are unique; assets stay same-origin inside plugins. Activation runs once before use and creates no owner itself.
 - Cold startup/native operations make no plugin requests. Plugins tab discovers metadata/icons without executing unused modules; HASH loads required modules only. Unknown tag ownership may require catalogue metadata. Explicit plugin discovery opens Plugins initially. Offline availability requires prior use in the current shell cache.
 - Manifest fields: finite number, boolean, choices (first default), string reference. Literal strings use textFields. fieldOptions declares units/bounds/integer/access once for Attributes/API/fields; context.parameters.schema(type) supplies operation schemas. Shared field writes require explicit read-write access; animated/reference fields remain unavailable there.

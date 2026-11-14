@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {validateLinearRegions,REGION_LIMITS} from '../linear-regions.js';
+import {validateLinearRegions,REGION_LIMITS} from './linear-regions.js';
 
 let checks=0;
 const check=(v,message)=>{checks++;assert.ok(v,message);};
@@ -150,5 +150,5 @@ const benchmark=(name,input,iterations,limitMs)=>{
 };
 const dense={regions:[region('No-cut',circle(256))],motions:Array.from({length:2000},(_,i)=>motion([-10,i/100],[-5,i/100],'Cut',1,String(i)))};
 const timings=[benchmark('256-edge region + 2000 continuous lines',dense,3,3000),benchmark('small enclosing obstacle',fixture(),1000,1000)];
-const sources=['linear-regions.js','linear-geometry.js','tests/linear-regions.mjs'].map(path=>({path:`plugins/cut/${path}`,sha256:createHash('sha256').update(readFileSync(new URL(`../${path}`,import.meta.url))).digest('hex')}));
+const sources=['tests/linear-regions.js','tests/linear-geometry.js','tests/linear-regions.mjs'].map(path=>({path:`plugins/cut/${path}`,sha256:createHash('sha256').update(readFileSync(new URL(`../${path}`,import.meta.url))).digest('hex')}));
 console.log(JSON.stringify({pass:true,checks,node:process.version,scope:'standalone CPU region-only linear validation; no source capture, routing, work-area, machine or runtime qualification',sources,timings},null,2));

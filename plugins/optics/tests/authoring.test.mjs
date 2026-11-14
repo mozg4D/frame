@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {activate} from '../plugin.js';
-import {validateRelations,helper,bounds,roles} from '../authoring.js';
+import {validateRelations,helper,bounds,roles} from '../plugin.js';
 const manifest=JSON.parse(await readFile(new URL('../plugin.json',import.meta.url),'utf8'));
 const defaults=type=>Object.fromEntries(Object.entries(manifest.objects.find(o=>o.type===type).fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]));
 const node=(type,hash,patch={})=>({nativeHash:hash,type,params:{...defaults(type),...patch},enabled:true});
@@ -57,6 +57,6 @@ test('orphan reference inspection diagnoses without silently rebinding',async()=
 test('finite tiny shared line geometry has native bounds and no ray/scene arrays',async()=>{
  assert.equal(helper('optics').length,72);assert.equal(helper('plane').length,42);assert.ok([...helper('plane'),...helper('optics')].every(Number.isFinite));assert.equal(bounds('optics_sensor').min[2],0);
  const h=host();await activate(h);assert.equal(h.viewportDescriptor.lines.length,0);assert.equal(typeof h.viewportDescriptor.render,'function');assert.equal(h.viewportDescriptor.enabledAffectsVisibility,false);
- const source=(await Promise.all(['plugin.js','authoring.js','viewport.js'].map(p=>readFile(new URL('../'+p,import.meta.url),'utf8')))).join('\n');
+ const source=await readFile(new URL('../plugin.js',import.meta.url),'utf8');
  assert.doesNotMatch(source,/requestDevice|setInterval|requestAnimationFrame|scene\.capture|experiments\/optics/);
 });

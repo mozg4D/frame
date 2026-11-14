@@ -1,6 +1,6 @@
 # Atomic
 
-Read `plugin.js`, `plugin.json` and `provenance.json` before changing physics/persistence. Runtime embeds NEP89-1 weights, NEP4/ZBL kernels, charge diagnostic and license; provenance.json pins model source. Preserve energy/descriptor kernels, use shared device.
+Read `plugin.js` and `plugin.json` before changing physics/persistence. Runtime embeds NEP89-1 weights, NEP4/ZBL kernels, charge diagnostic and license; plugin.json provenance pins model source. Preserve energy/descriptor kernels, use shared device.
 
 - One Atomic owns one world. Units: angstrom/fs/eV/amu; Temperature Celsius, Damping inverse ps, Time scale fs/s. Object affine motion never changes internal atom coordinates.
 - Selection pauses physics; edits preserve velocities. Fixed atoms interact but skip integration. Velocity initializes local XYZ angstrom/fs once; Force continuously applies local XYZ eV/angstrom. Confinement is nonnegative constant-magnitude eV/angstrom toward local pivot, zero at pivot; do not alter NEP kernels.

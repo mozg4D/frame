@@ -58,6 +58,6 @@ export async function pluginChecks(parent){
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  let session,result;try{session=await launch({headless:process.argv.includes('--headless')});await ready(session.page);result=await pluginChecks(session.page);}catch(e){result={pass:false,checks:[],timings:[],error:e.stack,hardwareVerified:false};}finally{await session?.close();}
- result.sources={};for(const p of ['index.html','plugins/index.json','plugins/circuit/plugin.js','plugins/circuit/plugin.json','plugins/circuit/data.js','plugins/circuit/symbols.js','plugins/circuit/viewport.js','plugins/circuit/tests/index.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
+ result.sources={};for(const p of ['index.html','plugins/index.json','plugins/circuit/plugin.js','plugins/circuit/plugin.json','plugins/circuit/tests/index.mjs'])result.sources[p]=createHash('sha256').update(await readFile(new URL('../../../'+p,import.meta.url))).digest('hex');
  await mkdir(new URL('../../../tests/results/',import.meta.url),{recursive:true});await writeFile(new URL('../../../tests/results/circuit-authoring-preview.json',import.meta.url),JSON.stringify(result,null,2));console.log(JSON.stringify(result,null,2));process.exitCode=result.pass?0:1;
 }

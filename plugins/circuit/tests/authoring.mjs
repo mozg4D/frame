@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {readFile} from 'node:fs/promises';
 import {activate} from '../plugin.js';
-import {models,RECORD,normalizeName,readData,tree} from '../data.js';
-import {symbol} from '../symbols.js';
+import {models,RECORD,normalizeName,readData,tree} from '../plugin.js';
+import {symbol} from '../plugin.js';
 import {netCacheChecks} from './net-cache.mjs';
 
 const start=performance.now(),checks=[],timings=[];let history=[],future=[],operations,hooks,attributes,viewport;

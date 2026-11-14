@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
-import {evaluatePowerLedger, MAX_POWER_LEDGER_SOURCES} from '../validation/power-ledger.js';
+import {evaluatePowerLedger, MAX_POWER_LEDGER_SOURCES} from './power-ledger.js';
 
 const hash = n => n.toString(16).padStart(32, '0');
 const source = (n, emittedWatts) => ({hash:hash(n), emittedWatts});

@@ -21,7 +21,7 @@ const snapshot=f=>JSON.stringify({nodes:f.native.nodes,frames:f.native.nodes.map
 const shape=(f,hash)=>Array.from(f.native.local(hash));
 
 test('manifest is a lazy authoring-only closure with genuine 32 px native icon',async()=>{
- assert.deepEqual(manifest.assets,['native-fan.js','native-frame.js']);assert.equal(manifest.tags,undefined);
+ assert.equal(manifest.assets,undefined);assert.equal(manifest.tags,undefined);
  assert.deepEqual(manifest.objects.map(o=>o.type),['thermal','thermal_probe','thermal_fan']);
  const source=await readFile(new URL('../plugin.js',import.meta.url),'utf8'),icon=await readFile(new URL('../icon.svg',import.meta.url),'utf8');
  assert.match(icon,/width="32" height="32" viewBox="0 0 32 32"/);assert.doesNotMatch(icon,/transform=/);

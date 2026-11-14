@@ -1,7 +1,7 @@
 {
   "id": "cut", "name": "Cut (authoring preview)",
   "description": "Native flat cutting/marking authoring. Toolpath generation and machine output are unavailable.",
-  "module": "plugin.js", "icon": "icon.svg", "assets": ["model.js", "viewport.js"], "color": "#c6a377",
+  "module": "plugin.js", "icon": "icon.svg", "color": "#c6a377",
   "objects": [{"type": "cut", "name": "Cut",
     "fields": {"Mode": ["Cut", "Mark"], "Speed": 1000, "Passes": 1, "Line width": 0.2, "Lead-in": 1, "Start G-code": "", "Finish G-code": "", "Tool on G-code": "", "Tool off G-code": ""},
     "textFields": ["Start G-code", "Finish G-code", "Tool on G-code", "Tool off G-code"],

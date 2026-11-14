@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {DEFAULTS,BLOCKS,validate,settingsObserver,STORAGE_KEY,loadSettings} from '../model.js';
+import {DEFAULTS,BLOCKS,validate,settingsObserver,STORAGE_KEY,loadSettings} from '../plugin.js';
 const t=performance.now();
 const text='G21\r\n; café 日本語\n\nM8\n';
 assert.equal(validate({...DEFAULTS,'Start G-code':text})['Start G-code'],text);

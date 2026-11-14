@@ -1,6 +1,6 @@
 # Thermal
 
-Native authoring only; no temperature/airflow/heat-transfer solver. Runtime plugin.js plus resource-free native-fan.js/native-frame.js.
+Native authoring only; no temperature/airflow/heat-transfer solver. The single runtime plugin.js includes resource-free native Fan/frame inspection.
 
 - Shared 100 mm helper; Probe 2 mm at owner origin. New Fan 30x30x10 mm at owner-local [-25,-12.5,-12.5], pointing +X. These are creation defaults; native affine frames own subsequent placement.
 - Create once in a native transaction then await editor selection. Explicit Thermal references are native hashes independent of parenting, never inferred/session IDs. Fan/Probe hide internal refs; Fan hides Direction and displays Pressure for stored Shutoff pressure. Preserve authored Reverse values.

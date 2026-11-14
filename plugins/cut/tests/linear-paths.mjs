@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
-import {prepareLinearPaths, LINEAR_LIMITS} from '../linear-paths.js';
+import {prepareLinearPaths, LINEAR_LIMITS} from './linear-paths.js';
 
 let checks=0;
 const check=(condition,message)=>{checks++;assert.ok(condition,message);};
@@ -154,5 +154,5 @@ denseOpen.sources=[localSource('16000-line',false,Array.from({length:16000},(_,i
 const closed512=fixture();closed512.mode='Mark';closed512.passes=8;
 closed512.sources=[localSource('512-circle-polygon',true,Array.from({length:512},(_,i)=>[50+40*Math.cos(i*2*Math.PI/512),50+40*Math.sin(i*2*Math.PI/512)]))];
 const timings=[benchmark('16000-point open x4',denseOpen,3,2000),benchmark('512-vertex simple closed Mark x8',closed512,5,1500),benchmark('3-4-5 open segment',fixture(),1000,1000)];
-const sources=['linear-paths.js','linear-geometry.js','tests/linear-paths.mjs'].map(path=>({path:`plugins/cut/${path}`,sha256:createHash('sha256').update(readFileSync(new URL(`../${path}`,import.meta.url))).digest('hex')}));
+const sources=['tests/linear-paths.js','tests/linear-geometry.js','tests/linear-paths.mjs'].map(path=>({path:`plugins/cut/${path}`,sha256:createHash('sha256').update(readFileSync(new URL(`../${path}`,import.meta.url))).digest('hex')}));
 console.log(JSON.stringify({pass:true,checks,node:process.version,scope:'standalone CPU work intervals; no native capture, travel, swept-width safety, G-code or machine acceptance',sources,timings},null,2));

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {installSymbols} from '../viewport.js';
-import {symbol,bounds} from '../symbols.js';
+import {installSymbols} from '../plugin.js';
+import {symbol,bounds} from '../plugin.js';
 
 // Execute the shipped render/cache code with explicit CPU GPU-resource doubles.
 // This proves cache invalidation and bounded buffer retirement, not hardware rendering.

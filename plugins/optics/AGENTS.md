@@ -9,7 +9,7 @@ Native authoring only; no scene tracer, measured image/power, optimizer, physica
 
 ## Validation and next gates
 
-validation/power-ledger.js evaluatePowerLedger is an unloaded compact CPU aggregate checker. Caller supplies one record/source, fixed emitted watts, explicit tolerances and disjoint useful/unwanted/absorbed/escaped/unresolved watts. Check each source and globally; unresolved stays visible, zero emission has no efficiency, never normalize bad balance. Design Space exit is not escape; receiver hits cannot double-count. Conservation alone does not certify transport/attribution/receiver coverage.
+tests/power-ledger.js evaluatePowerLedger is an unloaded compact CPU aggregate checker. Caller supplies one record/source, fixed emitted watts, explicit tolerances and disjoint useful/unwanted/absorbed/escaped/unresolved watts. Check each source and globally; unresolved stays visible, zero emission has no efficiency, never normalize bad balance. Design Space exit is not escape; receiver hits cannot double-count. Conservation alone does not certify transport/attribution/receiver coverage.
 
 Before Solve qualify physical capture, spectral materials/coatings, closest-surface/media/Fresnel/TIR, source sampling/receiver mapping and per-source accounting with bounded-work unresolved power. Optimization must independently retrace actual shared manufacturable surfaces; E_opt is not energy, source power stays fixed. Separate direct Solve from optimization/topology research; compare representations before adopting dense full-volume methods. No universal/global-optimum claims.
 

@@ -10,10 +10,10 @@ Runtime authoring only. Generate disabled; generate/sources/result/save reject C
 
 ## Unloaded geometry
 
-- linear-paths.js prepareLinearPaths accepts supplied world-mm polylines, unit orthogonal rigid X/Z basis and physically scaled area. Open Cut/Mark/simple closed Mark only; closed Cut/curves/regions/tags/leads reject. Validate complete input/planarity/rectangle/topology/precision first. Immutable intervals expand tool-on/work-line/tool-off in source/pass order; no travel joins/compensation/output.
+- tests/linear-paths.js prepareLinearPaths accepts supplied world-mm polylines, unit orthogonal rigid X/Z basis and physically scaled area. Open Cut/Mark/simple closed Mark only; closed Cut/curves/regions/tags/leads reject. Validate complete input/planarity/rectangle/topology/precision first. Immutable intervals expand tool-on/work-line/tool-off in source/pass order; no travel joins/compensation/output.
 - Caps: 128 sources, 16384 vertices, 512/closed source, 131072 events, coordinates <=1e9 mm. Working tolerance 1e-6 mm; edges <=4e-6 reject. Closed Mark clockwise from head side. Centerline bounds do not certify swept width; travelPlanned/machineReady remain false.
-- linear-regions.js validateLinearRegions separately checks supplied local lines against simple Avoid/No-cut polygons with holes. Avoid checks entire head-reference segment in any state; active No-cut checks radius width/2 including end/dwell disks. Tangency/uncertain contact rejects conservatively; no splitting/routing.
-- Region caps: 64 regions, 128 rings, 256 vertices/ring, 4096 total vertices and 4096 motions, 2000000 pair-work units; tolerance 1e-6 mm. Shared predicates linear-geometry.js. Region validity does not qualify connectivity/area/placement/leads/machine readiness. Neither module is runtime-imported.
+- tests/linear-regions.js validateLinearRegions separately checks supplied local lines against simple Avoid/No-cut polygons with holes. Avoid checks entire head-reference segment in any state; active No-cut checks radius width/2 including end/dwell disks. Tangency/uncertain contact rejects conservatively; no splitting/routing.
+- Region caps: 64 regions, 128 rings, 256 vertices/ring, 4096 total vertices and 4096 motions, 2000000 pair-work units; tolerance 1e-6 mm. Shared predicates tests/linear-geometry.js. Region validity does not qualify connectivity/area/placement/leads/machine readiness. Neither module is runtime-imported.
 
 ## Required integration
 
