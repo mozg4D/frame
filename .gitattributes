@@ -43,10 +43,7 @@ plugins/cfd/** text eol=lf
 
 # Exact current-baseline text bytes on Windows and fresh clones; no scene/binary rules.
 .gitattributes text eol=lf
-core/documentation-editor.mjs text eol=lf
 core/documentation-geometry.mjs text eol=lf
-core/documentation-history.mjs text eol=lf
-core/documentation-sync.mjs text eol=lf
 core/documentation-window.mjs text eol=lf
 frame-sw.js text eol=lf
 index.html text eol=lf
@@ -174,3 +171,6 @@ tools/file-host*.mjs text eol=lf
 tools/README.md text eol=lf
 tests/file-host*.mjs text eol=lf
 tests/file-permission*.mjs text eol=lf
+
+# Inline Doc regression sources must match their recorded release bytes.
+tests/documentation-*.mjs text eol=lf

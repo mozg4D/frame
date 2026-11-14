@@ -1,7 +1,7 @@
 // Bump with the visible application version for each published runtime release.
 const VERSION='2026 14 nov 10:18',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
-const CORE=["index.html","viewport.html","documentation.html","core/documentation-window.mjs","core/documentation-geometry.mjs","core/documentation-editor.mjs","core/documentation-history.mjs","core/documentation-sync.mjs","manifest.webmanifest","frame-icon-v4.svg","frame-icon-192-v4.png","frame-icon-512-v4.png","frame-icon-maskable-512.png","frame-hash-256-v4.png","frame-v4.ico","plugins/index.json"];
+const CORE=["index.html","viewport.html","documentation.html","core/documentation-window.mjs","core/documentation-geometry.mjs","manifest.webmanifest","frame-icon-v4.svg","frame-icon-192-v4.png","frame-icon-512-v4.png","frame-icon-maskable-512.png","frame-hash-256-v4.png","frame-v4.ico","plugins/index.json"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};
 async function download(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Offline resource HTTP '+response.status);return response;}
 async function cacheShell(cache){

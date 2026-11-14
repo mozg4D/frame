@@ -37,9 +37,6 @@
       "plugins/index.json",
       "viewport.html",
       "core/documentation-window.mjs",
-      "core/documentation-editor.mjs",
-      "core/documentation-history.mjs",
-      "core/documentation-sync.mjs",
       "core/documentation-geometry.mjs",
       "tests/scene-data-runtime.mjs",
       "tests/scene-control-data.mjs",
@@ -53,7 +50,8 @@
       "tests/scene-program-runtime.mjs",
       "tests/scene-program-plans.mjs",
       "tests/scene-control-data-browser.mjs",
-      "tests/scene-program-browser.mjs"
+      "tests/scene-program-browser.mjs",
+      "documentation.html"
     ],
     "help": [
       "index.html",
@@ -341,36 +339,41 @@
       "tests/run.mjs",
       "AGENTS.md",
       "package.json"
+    ],
+    "documentation": [
+      "documentation.html",
+      "core/documentation-window.mjs",
+      "core/documentation-geometry.mjs",
+      "frame-sw.js",
+      "tests/documentation-source.mjs",
+      "tests/documentation-empty-editor.mjs",
+      "tests/documentation-history-editor.mjs",
+      "tests/documentation-history-ime.mjs",
+      "tests/documentation-history-memory.mjs",
+      "tests/documentation-history.mjs",
+      "tests/documentation-sync.mjs",
+      "tests/documentation-button.mjs",
+      "tests/documentation-geometry-browser.mjs",
+      "tests/documentation-history-browser.mjs",
+      "tests/documentation-history-native.mjs"
     ]
   },
   "files": {
-    "core/documentation-editor.mjs": {
-      "bytes": 8372,
-      "sha256": "8faf402362c280884a57eb8d52b84b779cd6f7f2093f51e7d9b5f22f60fce85d"
-    },
     "core/documentation-geometry.mjs": {
       "bytes": 3711,
       "sha256": "8f8d0477069dcebd321ee56b404bc515e4b642740cf04542ca1c51f52a4106c2"
-    },
-    "core/documentation-history.mjs": {
-      "bytes": 4879,
-      "sha256": "5fed57e42e467371305360ecfb5ede75c00764674a88452c359d4543cc4509b6"
-    },
-    "core/documentation-sync.mjs": {
-      "bytes": 6383,
-      "sha256": "b1666032f57d255945d942941af69d69a31557344eea00ba9b775872fe98e158"
     },
     "core/documentation-window.mjs": {
       "bytes": 4752,
       "sha256": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907"
     },
     "frame-sw.js": {
-      "bytes": 3869,
-      "sha256": "d8bdc3a951d8f6234f9340960dec6ef4a8b407438819016aca3bbee79a4326ca"
+      "bytes": 3774,
+      "sha256": "925a28dd63e85bb3fab410adf05e26f2ca85cbd9408e641516a59d4e0698d6de"
     },
     "index.html": {
-      "bytes": 2837228,
-      "sha256": "70d7581fee0603d7e24d03a25e03a2a5bbfb0550e7b0ac1d26b8c858b1f3e91c"
+      "bytes": 2837379,
+      "sha256": "b272df723715781387dee90133d8084fa9b8e501d18b3ec1af59395dd0af6194"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -939,6 +942,54 @@
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 3899,
       "sha256": "018a56040a178c723ce2bcb4fb1c6405464f5917eee23d2bc91423fcc0c8d172"
+    },
+    "documentation.html": {
+      "bytes": 20524,
+      "sha256": "dc1555d0023b0e88b8a5740a444dfe88c98230d5046cd52dcf8dda3408939341"
+    },
+    "tests/documentation-source.mjs": {
+      "bytes": 1015,
+      "sha256": "92474781142ea8c9ec7fd6054bcb17587be2e0bef77e38f2253061d387313dae"
+    },
+    "tests/documentation-empty-editor.mjs": {
+      "bytes": 3875,
+      "sha256": "abdf84ebfd9329f90386ce5662f28bfe34aa15aa79087cc09f6bac14f6150b0d"
+    },
+    "tests/documentation-history-editor.mjs": {
+      "bytes": 4867,
+      "sha256": "2e95f70fc3cafff1c6fff89d297137ba81d01079be451a8c04bd4547897964e8"
+    },
+    "tests/documentation-history-ime.mjs": {
+      "bytes": 3984,
+      "sha256": "485a1c6798eca50cbb887abac31c6034e79ab9d4cf3f7001cd91817a633f0969"
+    },
+    "tests/documentation-history-memory.mjs": {
+      "bytes": 1545,
+      "sha256": "5661f9e9ebf9a5150fb09971d7de73d70f8ddc36c503555a0c3f8014c1755587"
+    },
+    "tests/documentation-history.mjs": {
+      "bytes": 5201,
+      "sha256": "d5b991288259395b8bf8b1ba2731af108a72805ee5a8fce152eb4538aef2e3ba"
+    },
+    "tests/documentation-sync.mjs": {
+      "bytes": 2935,
+      "sha256": "f7c1976e1fadf4158c23c13a52e5deaf3560a0b351d7a76f65e167330559a634"
+    },
+    "tests/documentation-button.mjs": {
+      "bytes": 7675,
+      "sha256": "b2caff88b9b6d43078caa70261478b73725fa598be47e0f8660f48c85fa9463e"
+    },
+    "tests/documentation-geometry-browser.mjs": {
+      "bytes": 5642,
+      "sha256": "52e4e1e207dab2dd8ba8c165d04058bf3876cab13b51222d08414c1f226e7580"
+    },
+    "tests/documentation-history-browser.mjs": {
+      "bytes": 6702,
+      "sha256": "a04e2d7dd2bca6ed146f0a37dc5533ca7a9eaab7dbe806b0265b3e82db489f7e"
+    },
+    "tests/documentation-history-native.mjs": {
+      "bytes": 5841,
+      "sha256": "fcb49eab05563c4f853308c64da684e37ac0a14b784e60674da6897269b99c57"
     }
   },
   "archivedProofs": {

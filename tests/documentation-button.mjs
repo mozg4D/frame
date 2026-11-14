@@ -7,7 +7,7 @@ import {chromium} from 'playwright';
 import {serve, ready} from '../tools/browser.mjs';
 
 const hostOnly = process.argv.includes('--host-only');
-const files = ['index.html', 'core/documentation-window.mjs', 'core/documentation-geometry.mjs', 'core/documentation-editor.mjs', 'core/documentation-history.mjs', 'core/documentation-sync.mjs', 'documentation.html', 'frame-sw.js', 'tests/documentation-button.mjs'];
+const files = ['index.html', 'core/documentation-window.mjs', 'core/documentation-geometry.mjs', 'documentation.html', 'frame-sw.js', 'tests/documentation-button.mjs'];
 const contents = Object.fromEntries(await Promise.all(files.map(async p => [p, await readFile(new URL('../' + p, import.meta.url), 'utf8')])));
 const sha = value => createHash('sha256').update(value).digest('hex');
 const report = {pass: false, scope: hostOnly ? 'Browser Docs host fixture; not native WebGPU/HASH qualification' : 'Native Frame browser', sources: Object.fromEntries(files.map(p => [p, sha(contents[p])])), checks: [], pageErrors: [], timings: []};

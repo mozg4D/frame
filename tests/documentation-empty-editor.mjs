@@ -1,10 +1,10 @@
+import {editorSource as source} from './documentation-source.mjs';
 // Actual editor module and sync with minimal CPU DOM/port fixtures. No GPU claim.
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import {history} from '../core/documentation-history.mjs';
-import * as sync from '../core/documentation-sync.mjs';
-const source = await readFile(new URL('../core/documentation-editor.mjs', import.meta.url), 'utf8');
+import {history} from './documentation-source.mjs';
+import * as sync from './documentation-source.mjs';
+
 class Target {
   listeners = new Map();
   addEventListener(name, fn) {const a = this.listeners.get(name) || []; a.push(fn); this.listeners.set(name, a);}

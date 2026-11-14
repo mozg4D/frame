@@ -4,14 +4,14 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {serve} from '../tools/browser.mjs';
-const paths=['index.html','core/documentation-window.mjs','core/documentation-editor.mjs','core/documentation-sync.mjs','core/documentation-geometry.mjs','core/documentation-history.mjs','tests/documentation-history-browser.mjs'];
+const paths=['index.html','documentation.html','core/documentation-window.mjs','core/documentation-geometry.mjs','tests/documentation-history-browser.mjs'];
 const sources=async()=>Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));
-const report={pass:false,scope:'Native browser input in actual Doc modules and CAS host; no WebGPU/HASH qualification',sources:await sources(),checks:[],timings:[],errors:[]};
+const report={pass:false,scope:'Native browser input in actual Doc modules and CAS host; no WebGPU/HASH qualification',sources:await sources(),checks:[],timings:[],errors:[],requests:[]};
 const check=(name,actual,expected)=>{report.checks.push({name,pass:actual===expected});assert.equal(actual,expected,name);};
 const server=await serve();let browser;
 try{
  browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER,ignoreDefaultArgs:['--enable-unsafe-swiftshader']});
- const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();context.on('page',p=>p.on('pageerror',e=>report.errors.push(e.message)));
+ const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();context.on('request',r=>report.requests.push(new URL(r.url()).pathname));context.on('page',p=>p.on('pageerror',e=>report.errors.push(e.message)));
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('const FrameDocumentation='),end=html.indexOf('const FramePlugins=',start);assert.ok(start>=0&&end>start);
  const body=`<button id="doc">Doc</button><script type="module">import {installDocumentationWindow} from '/core/documentation-window.mjs';${html.slice(start,end)}let text='';const docs=FrameDocumentation.create({read:()=>text,write:v=>text=v,notify:state=>dispatchEvent(new CustomEvent('frame-documentation-change',{detail:state}))});window.docs=docs;window.reset=()=>{text='';docs.reset();};window.delay=0;installDocumentationWindow({button:document.getElementById('doc'),read:()=>docs.get(),write:async(a,g)=>{if(window.delay)await new Promise(r=>setTimeout(r,window.delay));g();return docs.update(a);}});window.ready=true;</script>`;
  await page.route('**/documentation-history-host.html',route=>route.fulfill({contentType:'text/html',body}));await page.goto(server.url+'/documentation-history-host.html');await page.waitForFunction(()=>window.ready);
@@ -26,5 +26,5 @@ try{
  area=await fresh();await page.evaluate(()=>window.delay=150);await area.pressSequentially('word',{delay:5});await popup.keyboard.press('Enter');await popup.keyboard.press('Control+z');await popup.keyboard.press('Control+z');await settled('');check('Undo while writes are pending is not overwritten by echoes',await area.inputValue(),'');await key('Control+y','word','Redo while writes settle restores a complete word');
  await page.evaluate(()=>reset());await popup.waitForFunction(()=>document.querySelector('textarea').value==='');await key('Control+z','','Scene epoch change cannot restore previous-scene text');
  area=await fresh();await area.pressSequentially('keep',{delay:10});await settled('keep');await popup.keyboard.press('Control+a');await popup.keyboard.insertText('replacement Ω');await settled('replacement Ω');await key('Control+z','keep','Selection replacement undoes as one operation');await key('Control+y','replacement Ω','Selection replacement redoes exactly');
- check('No JavaScript errors',report.errors.length,0);report.pass=true;
+ check('Editor makes no requests for removed modules',report.requests.some(p=>/\/core\/documentation-(?:editor|history|sync)\.mjs$/.test(p)),false);check('No JavaScript errors',report.errors.length,0);report.pass=true;
 }catch(e){report.error=e.stack;process.exitCode=1;}finally{await browser?.close();await server.close();report.sourcesAfter=await sources();if(JSON.stringify(report.sources)!==JSON.stringify(report.sourcesAfter)){report.pass=false;report.error='Sources changed during the run';process.exitCode=1;}await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/documentation-history-browser.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));}

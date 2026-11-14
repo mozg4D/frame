@@ -1,10 +1,10 @@
+import {editorSource as source} from './documentation-source.mjs';
 // CPU event-ordering checks. Not an OS IME qualification.
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {readFile} from 'node:fs/promises';
-import * as sync from '../core/documentation-sync.mjs';
-import {history} from '../core/documentation-history.mjs';
-const source=await readFile(new URL('../core/documentation-editor.mjs',import.meta.url),'utf8');
+import * as sync from './documentation-source.mjs';
+import {history} from './documentation-source.mjs';
+
 class Target {listeners=new Map();addEventListener(n,f){const a=this.listeners.get(n)||[];a.push(f);this.listeners.set(n,a);}fire(n,e={}){for(const f of this.listeners.get(n)||[])f(e);}}
 function setup(initial='') {const win=new Target(),area=new Target(),sent=[],saved=new Map(),status={dataset:{},hidden:true};let h;
 Object.assign(area,{value:'',selectionStart:0,selectionEnd:0,selectionDirection:'none',disabled:true,readOnly:false,setRangeText(t,s,e){this.value=this.value.slice(0,s)+t+this.value.slice(e);},setSelectionRange(s,e,d){Object.assign(this,{selectionStart:s,selectionEnd:e,selectionDirection:d});}});

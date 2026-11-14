@@ -6,7 +6,6 @@ import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 
 const files = ['index.html', 'core/documentation-window.mjs',
-  'core/documentation-editor.mjs', 'core/documentation-history.mjs', 'core/documentation-sync.mjs',
   'documentation.html', 'frame-sw.js', 'tests/scene-control-data-browser.mjs',
   'tests/scene-control-native-boundaries.mjs'];
 const sources = async () => Object.fromEntries(await Promise.all(files.map(async name =>

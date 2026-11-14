@@ -1,16 +1,16 @@
+import {editorSource as source} from './documentation-source.mjs';
 // Actual editor module, with native-like event/port ordering in a CPU fixture.
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
 import vm from 'node:vm';
-import * as sync from '../core/documentation-sync.mjs';
-import {history} from '../core/documentation-history.mjs';
+import * as sync from './documentation-source.mjs';
+import {history} from './documentation-source.mjs';
 class Target {listeners=new Map();addEventListener(n,fn){const a=this.listeners.get(n)||[];a.push(fn);this.listeners.set(n,a);}fire(n,e={}){for(const f of this.listeners.get(n)||[])f(e);}}
 const win=new Target(),area=new Target(),sent=[],saved=new Map(),status={dataset:{},hidden:true};
 Object.assign(area,{value:'',selectionStart:0,selectionEnd:0,selectionDirection:'none',disabled:true,readOnly:false,setRangeText(text,start,end){this.value=this.value.slice(0,start)+text+this.value.slice(end);},setSelectionRange(start,end,direction){Object.assign(this,{selectionStart:start,selectionEnd:end,selectionDirection:direction});}});
 win.sessionStorage={getItem:k=>saved.get(k)??null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)};
 const opener={closed:false,postMessage(){}},port={postMessage:m=>sent.push(structuredClone(m)),close(){}};
 const context=vm.createContext({...sync,history,performance,installDocumentationGeometry(){},window:win,document:{querySelector:s=>s==='textarea'?area:status},location:{hash:'#test',origin:'https://frame.example'},opener,setTimeout,clearTimeout,setInterval(){}});
-const source=await readFile(new URL('../core/documentation-editor.mjs',import.meta.url),'utf8');vm.runInContext(source.replace(/^import[^\n]*\n/gm,''),context);
+vm.runInContext(source.replace(/^import[^\n]*\n/gm,''),context);
 win.fire('message',{source:opener,origin:'https://frame.example',data:{kind:'frame-docs-connect',token:'test'},ports:[port]});
 let version=0,sceneText='',acked=0;const receive=m=>port.onmessage({data:m}),snapshot=text=>receive({kind:'snapshot',state:{text,version:'scene:'+ ++version}});
 receive({kind:'snapshot',state:{text:'',version:'scene:0'}});

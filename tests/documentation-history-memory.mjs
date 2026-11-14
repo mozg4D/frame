@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {history} from '../core/documentation-history.mjs';
+import {history} from './documentation-source.mjs';
 if(!global.gc){const r=spawnSync(process.execPath,['--expose-gc',fileURLToPath(import.meta.url)],{encoding:'utf8'});process.stdout.write(r.stdout);process.stderr.write(r.stderr);process.exit(r.status??1);}
 const h=history(),size=1048576,start=500000;let text='x'.repeat(size);h.reset(text);text.charCodeAt(size-1);global.gc();const before=process.memoryUsage().heapUsed,t=performance.now();
 for(let i=0;i<128;i++){const after=text.slice(0,start)+String.fromCharCode(65+i%26).repeat(32)+text.slice(start+32);h.record(text,after,{start,end:start+32},{start:start+32,end:start+32},'insertReplacementText',i);text=after;}

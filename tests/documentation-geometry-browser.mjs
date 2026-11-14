@@ -4,7 +4,7 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {serve,ready} from '../tools/browser.mjs';
-const paths=['index.html','frame-sw.js','documentation.html','core/documentation-window.mjs','core/documentation-editor.mjs', 'core/documentation-history.mjs','core/documentation-geometry.mjs','core/documentation-sync.mjs','tests/documentation-geometry-browser.mjs'];
+const paths=['index.html','frame-sw.js','documentation.html','core/documentation-window.mjs','core/documentation-geometry.mjs','tests/documentation-geometry-browser.mjs'];
 const hashes=async()=>Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));
 const report={pass:false,sources:await hashes(),headless:process.argv.includes('--headless'),offline:process.argv.includes('--offline'),checks:[],timings:[],errors:[]};
 const check=(name,condition)=>{report.checks.push({name,pass:!!condition});assert.ok(condition,name);};

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {session,rebase} from '../core/documentation-sync.mjs';
+import {session,rebase} from './documentation-source.mjs';
 const checks=[];function check(name,fn){fn();checks.push(name);}
 function setup(text='abcdef'){const sent=[],states=[],s=session({send:m=>sent.push(m),changed:m=>states.push(m)});s.snapshot({text,version:'scene:0'});return {s,sent,states};}
 check('disjoint edits rebase without replacing either author',()=>{assert.equal(rebase('abcdef','Abcdef','abcdeF'),'AbcdeF');assert.equal(rebase('abcdef','abcdeF','Abcdef'),'AbcdeF');assert.throws(()=>rebase('abc','aXbc','aYbc'),/overlap/);});

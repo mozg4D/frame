@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {history} from '../core/documentation-history.mjs';
+import {history} from './documentation-source.mjs';
 const checks=[];const check=(name,actual,expected)=>{assert.deepEqual(actual,expected,name);checks.push(name);};
 const s=(start,end=start)=>({start,end,direction:'none'});
 let h=history();h.reset('');let text='',time=0;
