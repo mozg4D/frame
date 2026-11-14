@@ -1,5 +1,5 @@
 // Bump with the visible application version for each published runtime release.
-const VERSION='2026 14 nov 23:55',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
+const VERSION='2026 14 nov 23:57',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
 const CORE=["index.html","manifest.webmanifest","frame-icon.svg","frame-icon-192.png","frame-icon-512.png","frame-icon-maskable-512.png","frame-hash-256.png","frame.ico"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};

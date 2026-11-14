@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 14 nov 23:55">
+<meta name="frame-version" content="2026 14 nov 23:57">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11761,7 +11761,7 @@ function frameSyncShadingControls(mode){
  $('btnShading').setAttribute('aria-label',$('btnShading').title);$('btnShading').setAttribute('aria-pressed',String(lines!=='off'));
 }
 $('btnSolid').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading];window.frameEngine?.setViewerMode('shading',frameShadingMode(!solid,lines));};
-$('btnShading').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading],cycle=['wire','isoparms','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(solid,cycle[(cycle.indexOf(lines)+1)%cycle.length]));};
+$('btnShading').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading],cycle=['isoparms','wire','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(solid,cycle[(cycle.indexOf(lines)+1)%cycle.length]));};
 frameSyncShadingControls(shading);
 const units=['nm','µm','mm','cm','dm','m','km'];
 for(const [suffix,step]of [['M',-1],['P',1]]){
