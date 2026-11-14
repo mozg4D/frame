@@ -32,6 +32,31 @@ export async function surfaceWireStabilityBrowserChecks(page){
   // Closed-solid negative control: rear edges are well inside the projected front face.
   await call('scene.new');await call('view.set',{index:2,single:true});const cube=await call('scene.create',{type:'cube'});await call('scene.select',{ids:[cube.hash]});for(const [axis,value]of [-50,-50,0].entries())await call('transform.set',{channel:'position',axis,value,coordinates:'world'});await call('scene.select',{ids:[]});await call('view.set',{index:0,single:true,shading:'solid-isoparms',camera});await warm();const solidCube=await capture(),back=[];for(const t of [-30,-10,10,30])back.push([-50,t,100],[50,t,100],[t,-50,100],[t,50,100]);const hiddenBack=await hits(solidCube,back);check('A solid hides its own rear edges',hiddenBack.every(v=>!v),hiddenBack);await call('view.set',{shading:'isoparms'});await warm();const wireCube=await capture(),shownBack=await hits(wireCube,back);check('Wire-only negative control exposes rear edges',shownBack.filter(Boolean).length>=14,shownBack);
   for(const storage of ['auto','texture']){await call('scene.new');await call('mesh.create',{storage,vertices:[-80,-60,0,80,-60,0,80,60,0,-80,60,0],indices:[0,2,1,0,3,2]});await call('scene.select',{ids:[]});await call('view.set',{index:0,single:true,shading:'solid-wire',camera});await warm();const solid=await capture([0,0,0]);await call('view.set',{shading:'wireframe'});await warm();const wire=await capture([128,128,128]),diff=difference(solid,wire);check(storage+' backend retains native polygon edges',solid.pixels.length>500&&sameStroke(solid,wire),{solid:solid.pixels.length,wire:wire.pixels.length,different:diff.length});}
+  // A long cylinder leaves both triangles incident to its front generator without
+  // raster samples. An isolated quad cannot reproduce this: background exposes it.
+  await call('scene.new');await call('view.set',{index:2,single:true});
+  const rod=await call('scene.create',{type:'cylinder',params:{diameter:10,height:1463,'angle approximation':10}});
+  await call('scene.select',{ids:[rod.hash]});
+  for(const [axis,value]of [52,190,93].entries())await call('transform.set',{channel:'position',axis,value,coordinates:'world'});
+  await call('scene.select',{ids:[]});
+  for(const phase of [0,.25,.5]){
+   const yaw=12.006601836602544,pitch=.1395987755982983,distance=238.07672003716232;
+   const forward=[Math.cos(pitch)*Math.sin(yaw),-Math.sin(pitch),Math.cos(pitch)*Math.cos(yaw)],target=[52+phase,1400,88],eye=target.map((v,k)=>v-forward[k]*distance);
+   await call('view.set',{index:0,single:true,shading:'solid-isoparms',camera:[yaw,pitch,1,0,0,...target,...eye,distance]});await warm();const solid=await capture();
+   await call('view.set',{shading:'isoparms'});await warm();const wire=await capture();
+   const ends=await page.evaluate(()=>[[52,190,88],[52,1653,88]].map(p=>frameEngine.pluginProject(p)));
+   const coverage=mask=>{
+    const set=new Set(mask.pixels),[a,b]=ends,missing=[];let rows=0;
+    for(let y=20;y<Math.min(mask.height-20,700);y++){
+     if(y<Math.min(a[1],b[1])||y>Math.max(a[1],b[1]))continue;
+     const x=Math.floor(a[0]+(b[0]-a[0])*(y+.5-a[1])/(b[1]-a[1]));if(x<2||x>=mask.width-2)continue;
+     rows++;if(![-1,0,1].some(dx=>set.has(y*mask.width+x+dx)))missing.push(y);
+    }return {rows,missing};
+   },visible=coverage(solid),control=coverage(wire);
+   check('Narrow facet preserves the complete stroke at phase '+phase,visible.rows>500&&control.missing.length===0&&visible.missing.length===0,{solid:visible,wire:control});
+   await call('view.set',{shading:'solid-isoparms'});await warm();const rear=await hits(await capture(),[1100,1200,1300].map(y=>[52,y,98]));
+   check('Narrow facet does not expose rear generator at phase '+phase,rear.every(v=>!v),rear);
+  }
   await call('scene.new');const template=await call('scene.create',{type:'cube'}),copies=await call('scene.create',{type:'cloner',inputs:[template.hash],params:{'count x':8,'count y':1,'count z':1,'spacing x':160}});await call('scene.select',{ids:[]});await call('view.set',{index:0,single:true,shading:'solid-isoparms',focus:copies.hash});await warm();const batch=await capture();check('Lines retain shared instance draw calls',batch.pixels.length>500&&batch.draws.draws<=2&&batch.draws.instances===8,batch.draws);
   await call('view.set',{index:2,single:true,shading:'solid-isoparms',focus:copies.hash});await warm();await call('view.set',{index:0,single:false,shading:'solid-isoparms'});await warm();const resources=await page.evaluate(()=>frameEngine.viewResources());check('Passive solid view owns its visible triangle map',resources.passiveContexts>0&&resources.passiveWireIDBytes>0,resources);await call('view.set',{index:0,single:true});await warm();const measured=await call('diagnostics.frame',{frames:5});frames.push(measured);check('Native CPU/GPU frame budgets',measured.timestampQueries&&measured.frames.every(f=>f.cpuMs<50&&f.gpuMs<50),measured.frames);
   // Hardware clipping must produce strokes even when a source triangle crosses the eye.
