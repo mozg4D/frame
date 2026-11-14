@@ -97,7 +97,7 @@
       "tests/authoring-stamp-browser.mjs"
     ],
     "thermal-integration": [
-      "app.md",
+      "AGENTS.md",
       "experiments/thermal/NATIVE-INPUTS.md",
       "experiments/thermal/native-inputs.js",
       "experiments/thermal/tests/native-input-fixture.mjs",
@@ -106,7 +106,6 @@
       "frame-sw.js",
       "index.html",
       "package.json",
-      "plugins.md",
       "tests/authoring-stamp-browser.mjs",
       "tests/authoring-stamp.mjs",
       "tests/run.mjs"
@@ -186,7 +185,7 @@
     "texture-dnd": [
       "index.html",
       "frame-sw.js",
-      "app.md",
+      "AGENTS.md",
       "tools/README.md",
       "tests/run.mjs",
       "tests/README.md",
@@ -212,21 +211,20 @@
       "tests/numeric-display-browser.mjs"
     ],
     "viewport-integration": [
-      "app.md",
+      "AGENTS.md",
       "frame-sw.js",
       "index.html",
-      "plugins.md",
-      "plugins/3d-printer/README.md",
+      "plugins/3d-printer/AGENTS.md",
       "plugins/3d-printer/plugin.js",
-      "plugins/atomic/README.md",
+      "plugins/atomic/AGENTS.md",
       "plugins/atomic/plugin.js",
-      "plugins/circuit/README.md",
+      "plugins/circuit/AGENTS.md",
       "plugins/circuit/viewport.js",
-      "plugins/cut/README.md",
+      "plugins/cut/AGENTS.md",
       "plugins/cut/viewport.js",
-      "plugins/mill/README.md",
+      "plugins/mill/AGENTS.md",
       "plugins/mill/plugin.js",
-      "plugins/optics/README.md",
+      "plugins/optics/AGENTS.md",
       "plugins/optics/viewport.js",
       "tests/README.md",
       "tests/camera-relative-depth.mjs",
@@ -246,11 +244,10 @@
     "atomic-display-bounds": [
       "index.html",
       "frame-sw.js",
-      "app.md",
-      "plugins.md",
+      "AGENTS.md",
       "package.json",
       "plugins/atomic/plugin.js",
-      "plugins/atomic/README.md",
+      "plugins/atomic/AGENTS.md",
       "plugins/atomic/tests/display-bounds.mjs",
       "plugins/atomic/tests/material-readiness.mjs",
       "tests/perspective-clipping.mjs",
@@ -266,7 +263,7 @@
     ],
     "animation-transaction": [
       "index.html",
-      "app.md",
+      "AGENTS.md",
       "package.json",
       "tests/run.mjs",
       "tests/README.md",
@@ -285,7 +282,7 @@
       "tests/spline-planar-contracts.mjs",
       "tests/run.mjs",
       "package.json",
-      "app.md"
+      "AGENTS.md"
     ],
     "native-observation-contracts": [
       "index.html",
@@ -299,26 +296,25 @@
       "tests/run.mjs",
       "tests/README.md",
       "package.json",
-      "app.md",
+      "AGENTS.md",
       "tests/corner-screenshot-contract.mjs",
       "tests/corner-screenshot-evidence.mjs"
     ],
     "camera-relative-depth": [
-      "app.md",
+      "AGENTS.md",
       "frame-sw.js",
       "index.html",
-      "plugins.md",
-      "plugins/3d-printer/README.md",
+      "plugins/3d-printer/AGENTS.md",
       "plugins/3d-printer/plugin.js",
-      "plugins/atomic/README.md",
+      "plugins/atomic/AGENTS.md",
       "plugins/atomic/plugin.js",
-      "plugins/circuit/README.md",
+      "plugins/circuit/AGENTS.md",
       "plugins/circuit/viewport.js",
-      "plugins/cut/README.md",
+      "plugins/cut/AGENTS.md",
       "plugins/cut/viewport.js",
-      "plugins/mill/README.md",
+      "plugins/mill/AGENTS.md",
       "plugins/mill/plugin.js",
-      "plugins/optics/README.md",
+      "plugins/optics/AGENTS.md",
       "plugins/optics/viewport.js",
       "tests/README.md",
       "tests/camera-relative-depth.mjs",
@@ -343,7 +339,7 @@
       "index.html",
       "tests/instance-polygon-cage.mjs",
       "tests/run.mjs",
-      "app.md",
+      "AGENTS.md",
       "package.json"
     ]
   },
@@ -576,10 +572,6 @@
       "bytes": 13441,
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
-    "app.md": {
-      "bytes": 328892,
-      "sha256": "bbeba98e0859334fa8e0c02b0f0ba1c8e72124e7d50149228e33e90f16c8c579"
-    },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
       "sha256": "e369ce9d9ace2aa3da25ad79c63819cdcd597053483397d7f478fd2c3052137f"
@@ -603,10 +595,6 @@
     "package.json": {
       "bytes": 7303,
       "sha256": "db5831e637b9d9798cac193a020eeb8411739309497b569e2be5fdb08e156cc2"
-    },
-    "plugins.md": {
-      "bytes": 50735,
-      "sha256": "f7d0eb13eb96b48a355f186098e8c8f6bf759dba2748adfd4c458e51174c600e"
     },
     "tests/run.mjs": {
       "bytes": 35686,
@@ -757,8 +745,8 @@
       "sha256": "dc849a1edf2b1b99ee7dd09b5f71a02edb9a3a73e84cd42c33df9d425b27219c"
     },
     "tools/README.md": {
-      "bytes": 24544,
-      "sha256": "13c352712f6f1120fe7bef8f94132cb4544fdf57a100efb15d04bbd9d49a16d7"
+      "bytes": 24535,
+      "sha256": "52c02cd9371bcfd0315827c3edba41797dd72c3b4feb923abd5c49be0e45b082"
     },
     "tests/texture-slot-drag.mjs": {
       "bytes": 43892,
@@ -808,10 +796,6 @@
       "bytes": 12934,
       "sha256": "3c74d9ec627cc0ad233aa0b526bfc4e57a2deb6395d18fca8b9cddbbd1cceb51"
     },
-    "plugins/atomic/README.md": {
-      "bytes": 17510,
-      "sha256": "7fcef888183c5402364fffdbfb237062cb2517a7f168a049dff30a063342b6ba"
-    },
     "tests/camera-animation-navigation.mjs": {
       "bytes": 27989,
       "sha256": "79de3a8ef904251cc674f0f60777ff16ba87c4a61eaad98b89c769026b5f271d"
@@ -856,41 +840,21 @@
       "bytes": 1418,
       "sha256": "3d8d092c34cf34ff20bf8dd60ec526042b6f23b62c846c3b5c34ec99efe3b3e9"
     },
-    "plugins/3d-printer/README.md": {
-      "bytes": 553,
-      "sha256": "d7a0e63062333905e7d705caf64efefa91d528c4f357a6001211f311069ad42d"
-    },
     "plugins/3d-printer/plugin.js": {
       "bytes": 69545,
       "sha256": "680d4e87f5243214217def12b388f8e6988ac3c884086341bf417fbf6683a980"
-    },
-    "plugins/circuit/README.md": {
-      "bytes": 8044,
-      "sha256": "4e5676e750183433b18bffed70061597d3bdf235400a5ff5515a1835a0f805bf"
     },
     "plugins/circuit/viewport.js": {
       "bytes": 5834,
       "sha256": "8478da690245746ea83d457e2b8952cf873d24a0136aa31ccad21b730a5f4a41"
     },
-    "plugins/cut/README.md": {
-      "bytes": 5967,
-      "sha256": "a055c07edf5158717e0a68b1f9bd15831f09d56175aeaaa06a570b113d35b527"
-    },
     "plugins/cut/viewport.js": {
       "bytes": 3104,
       "sha256": "c3fe5fad38afaf4a5fec099a26eda684960a2167ae4322fd58dff92b1ce91efb"
     },
-    "plugins/mill/README.md": {
-      "bytes": 40383,
-      "sha256": "607f308181a70ca8a40330353ca7e9a92c4bffc98a80348bcf017c73cdb388c5"
-    },
     "plugins/mill/plugin.js": {
       "bytes": 265407,
       "sha256": "6a7cd18cc0fe601c4ede168f7069d5e998dd1946c4161b8dab9170072994c654"
-    },
-    "plugins/optics/README.md": {
-      "bytes": 6276,
-      "sha256": "389ebc524c92773557786a52207d42a2f62c682b6511f833f38fd8b4db7f9248"
     },
     "plugins/optics/viewport.js": {
       "bytes": 4354,
@@ -927,6 +891,54 @@
     "tests/instance-polygon-cage.mjs": {
       "bytes": 8844,
       "sha256": "6d2398f4f894aed3a3d760b1c6d3d92ccd6f4d58d9770e946e475d95e38d9a47"
+    },
+    "plugins/optics/AGENTS.md": {
+      "bytes": 2632,
+      "sha256": "a1c403e7376bb7696bea8a6df2db4b71b0e75d5f1653baf6a1f5822fd1c8eb33"
+    },
+    "plugins/atomic/AGENTS.md": {
+      "bytes": 2503,
+      "sha256": "22c1a0a2336886f8a36df995e74fbe48ca435ce59fb1f272943fd2f90f2b5107"
+    },
+    "plugins/structural/AGENTS.md": {
+      "bytes": 1588,
+      "sha256": "732d860873d92cde70ac1d49361ae34f701ab1bdd214c1d348c31a6116a59c4e"
+    },
+    "plugins/mill/AGENTS.md": {
+      "bytes": 6213,
+      "sha256": "c7b3b277ad6146abd4fd93990086aa56313aa1c82edddf03b8c3a92113dc1b26"
+    },
+    "plugins/magneto/AGENTS.md": {
+      "bytes": 1223,
+      "sha256": "cf67dd25e25c3e9edee3d5815b01234cc561a47828e832429f5465e778999d13"
+    },
+    "plugins/thermal/AGENTS.md": {
+      "bytes": 1684,
+      "sha256": "f0ba47c6dc1e59d1475ccfa8c55f65dd863fd52e1d5a7be45b4ea55fed7e1b72"
+    },
+    "plugins/cfd/AGENTS.md": {
+      "bytes": 1763,
+      "sha256": "4648a81cc634a33ece0ce9719e78bae648cec62855ed973deaf9b86629f99301"
+    },
+    "plugins/rf/AGENTS.md": {
+      "bytes": 1347,
+      "sha256": "b74a107b4d07b57f4b628917b521eabf2660c3b63ec75b434fe26413c9377f97"
+    },
+    "plugins/cut/AGENTS.md": {
+      "bytes": 3578,
+      "sha256": "0989ea0c2cbe2d48477bc87a096e35151e80140a825e152f65ed4a1a693d0ae9"
+    },
+    "plugins/circuit/AGENTS.md": {
+      "bytes": 1936,
+      "sha256": "a11b11ad53e5fac7ee6bb48d3d0f7a9d3c9dadd26b26856093196d3da2889735"
+    },
+    "AGENTS.md": {
+      "bytes": 11371,
+      "sha256": "3db1b7762e7f72d46151b91b1ac3b239754d6c2572590544c7e84c918966a533"
+    },
+    "plugins/3d-printer/AGENTS.md": {
+      "bytes": 3899,
+      "sha256": "018a56040a178c723ce2bcb4fb1c6405464f5917eee23d2bc91423fcc0c8d172"
     }
   },
   "archivedProofs": {

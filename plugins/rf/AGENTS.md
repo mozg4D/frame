@@ -1,11 +1,10 @@
-# RF development
+# RF
 
-Follow ../../AGENTS.md and ../AGENTS.md. Keep runtime in plugin.js. Current work is authoring only, never a qualified RF calculation.
+Native problem authoring only; no Maxwell/FDTD solution, field/impedance/S-parameters/received power/optimized geometry.
 
-- Native RF/Section planes and Terminal cubes use the common helper contract, document hierarchy, transforms, selection, Undo and HASH.
-- A Terminal belongs to its nearest RF ancestor. No hidden pairing, ground, electrical connections or scalar-field proxy for received power.
-- Validate before native mutation. Do not await the serialized API inside activation or an operation. Native editor selection is awaited after one creation transaction.
-- Numerical requests reject with RF_AUTHORING_ONLY before scene capture or GPU allocation. Do not replace this gate until the corresponding physical tests pass.
-- Keep UI minimal and English; diagnostics belong to the API or red native rows, never warning prose in Attributes.
-- Material names are saved intentions, not calibrated electromagnetic constants. No automatic visual-material replacement.
-- Run node --test plugins/rf/tests/authoring.mjs plugins/rf/tests/native-helpers.mjs, native browser checks, standard and stress qualification. Coordinate hardware use; headless isolated contexts only when the user is working.
+- RF/Section are 100 mm XY planes, +Z normal. Terminal is a 2 mm cube, future impressed-current direction +X. Terminal/Section belongs to nearest RF ancestor; no hidden pairing/ground/connections.
+- Use viewport.helpers/surfaceWarnings:false and native frames/params/tags/Undo/HASH; no private scene/device/job cache/CPU mirror. Material presets are intentions, not calibrated constants or visual-material replacements.
+- status reports detached authoring/capability data. add-terminal/add-section commit once and await editor selection. settings validates merged Terminal values first. Numerical endpoints reject RF_AUTHORING_ONLY before capture/allocation. Diagnostics stay in API/red rows, not Attributes prose.
+- Before physics define normalized excitation g, voltage/current/sign conventions, charge continuity/energy exchange, SI units/material dispersion/convergence. Multiple sections, Target polarization, material presets and possible later voxel-to-mesh optimization remain requirements, not numerical results.
+
+Checks: node --test plugins/rf/tests/authoring.mjs plugins/rf/tests/native-helpers.mjs; node plugins/rf/tests/run.mjs --headless. tests/index.mjs discovers native authoring, not RF qualification.

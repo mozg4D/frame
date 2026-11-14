@@ -119,13 +119,12 @@ tests/fixture-transform.mjs text eol=lf
 
 tests/authoring-stamp.mjs text eol=lf
 tests/authoring-stamp-browser.mjs text eol=lf
-app.md text eol=lf
+AGENTS.md text eol=lf
 experiments/thermal/NATIVE-INPUTS.md text eol=lf
 experiments/thermal/native-inputs.js text eol=lf
 experiments/thermal/tests/native-input-fixture.mjs text eol=lf
 experiments/thermal/tests/native-inputs-browser.mjs text eol=lf
 experiments/thermal/tests/native-inputs.mjs text eol=lf
-plugins.md text eol=lf
 tests/run.mjs text eol=lf
 tests/pointer-lock.mjs text eol=lf
 tests/pointer-return.mjs text eol=lf
