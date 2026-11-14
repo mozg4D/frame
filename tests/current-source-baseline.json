@@ -1,7 +1,7 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 12 nov 16:22",
-  "predecessorCommit": "9991a73ab99fec0a54993492852247df6b372cb6",
+  "version": "2026 14 nov 10:18",
+  "predecessorCommit": "56b0a777c3e869842c17f5aae7c40ab2239d8f21",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -370,11 +370,11 @@
     },
     "frame-sw.js": {
       "bytes": 3869,
-      "sha256": "c9af65e64d5613bc07c2494c5af0f6b5b4f9b7a2d86a0df7437480a807d5aada"
+      "sha256": "d8bdc3a951d8f6234f9340960dec6ef4a8b407438819016aca3bbee79a4326ca"
     },
     "index.html": {
-      "bytes": 2835419,
-      "sha256": "5c720a92d581b5304e1b7cb5419cfad2e1e14608747ebc9a9c9b8c14e49106f7"
+      "bytes": 2837228,
+      "sha256": "70d7581fee0603d7e24d03a25e03a2a5bbfb0550e7b0ac1d26b8c858b1f3e91c"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -577,8 +577,8 @@
       "sha256": "afe33560962e6001e6dbbdb6349194790cb860fad1aa731c802c48d609d89989"
     },
     "app.md": {
-      "bytes": 327976,
-      "sha256": "e90bf88a33e3099955b25fd365301dece399eeb0389909f0ae2a276af9e8943d"
+      "bytes": 328892,
+      "sha256": "bbeba98e0859334fa8e0c02b0f0ba1c8e72124e7d50149228e33e90f16c8c579"
     },
     "experiments/thermal/NATIVE-INPUTS.md": {
       "bytes": 15384,
@@ -813,8 +813,8 @@
       "sha256": "7fcef888183c5402364fffdbfb237062cb2517a7f168a049dff30a063342b6ba"
     },
     "tests/camera-animation-navigation.mjs": {
-      "bytes": 27365,
-      "sha256": "8aa2fd2e2d0c2f08dd5735d504a56d974abf76bd90141e40168a19e51d6bfde7"
+      "bytes": 27989,
+      "sha256": "79de3a8ef904251cc674f0f60777ff16ba87c4a61eaad98b89c769026b5f271d"
     },
     "tests/camera-hash-coordinates.mjs": {
       "bytes": 5696,

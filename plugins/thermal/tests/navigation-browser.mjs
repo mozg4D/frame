@@ -2,10 +2,16 @@
 import {ready} from '../../../tools/browser.mjs';
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 export async function helperNavigationChecks(parent,check,timed){
- const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1),serviceWorkers:'block'}),page=await context.newPage(),errors=[];
+ const context=await parent.context().browser().newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1),serviceWorkers:'block'}),page=await context.newPage(),errors=[];let permissionSession;
  context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));page.on('pageerror',e=>errors.push(e.message));
  try{
+  // Match viewport-copies: this navigation fixture uses the ordinary popup fallback.
+  // Deny optional screen enumeration only in this owned temporary context, so an
+  // extended Home desktop cannot leave the real click waiting on a native prompt.
+  permissionSession=await parent.context().browser().newBrowserCDPSession();const permissionPage=await context.newCDPSession(page);
+  try{const {targetInfo}=await permissionPage.send('Target.getTargetInfo');await permissionSession.send('Browser.setPermission',{permission:{name:'window-management'},setting:'denied',origin:new URL(parent.url()).origin,browserContextId:targetInfo.browserContextId});}finally{await permissionPage.detach();}
   await page.goto(parent.url());await ready(page);
+  check('navigation fixture explicitly uses denied screen enumeration fallback',await page.evaluate(async()=>(await navigator.permissions.query({name:'window-management'})).state)==='denied');
   const call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),inspect=async()=>(await call('scene.inspect')).objects;
   const rows=await inspect();if(rows.length)await call('scene.delete',{ids:rows.filter(n=>!n.parent).map(n=>n.hash)});
   const owner=await call('plugins.create',{plugin:'thermal'}),fan=await call('plugins.command',{id:owner.hash,operation:'create-fan',args:{}}),probe=await call('plugins.command',{id:owner.hash,operation:'create-probe',args:{}});
@@ -57,5 +63,5 @@ export async function helperNavigationChecks(parent,check,timed){
   const gpu=await page.evaluate(async()=>({validation:(await __thermalNavDevice.popErrorScope())?.message||null,uncaptured:__thermalNavErrors,lost:__thermalNavLost,sameDevice:__thermalNavDevice===frameEngine.renderer.device}));
   check('native helper interaction preserves GPU and emits no error',!gpu.validation&&!gpu.uncaptured.length&&!gpu.lost&&gpu.sameDevice&&!errors.length,{gpu,errors});
   return {hardware,gpu,errors,scope:'Native helper interaction only; no numerical physics.'};
- }finally{await context.close();}
+ }finally{await context.close();await permissionSession?.detach();}
 }

@@ -6,8 +6,8 @@
 <link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 12 nov 16:22">
-<title>Frame 2026 12 nov 16:22</title>
+<meta name="frame-version" content="2026 14 nov 10:18">
+<title>Frame 2026 14 nov 10:18</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -221,6 +221,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <button type="button" class="tbtn" id="btnCloner" aria-label="Cloner"   title="Cloner"></button>
 <button type="button" class="tbtn" id="btnRender" aria-label="Add Camera" title="Add Camera"></button>
 <button class="tbtn" id="btnTarget" title="Target" aria-label="Add target"></button><button class="tbtn" id="btnInfinite" title="Infinite light" aria-label="Add infinite light"></button>
+<button type="button" class="tbtn" id="btnSolo" aria-label="Solo mode"   title="Solo mode"></button>
 </div>
 <div class="trow" id="modelbar2">
 <button type="button" class="tbtn" id="btnVertexMode" aria-label="Vertex selection mode"  title="Vertex selection mode"></button>
@@ -233,6 +234,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <button type="button" class="tbtn" id="btnSplinePatch" aria-label="Spline patch" title="Spline patch"></button>
 </div>
 <div id="toolbar">
+<button type="button" class="tbtn" id="btnSolid" aria-label="Solid" title="Solid" aria-pressed="true"></button>
 <button type="button" class="tbtn" id="btnShading" aria-label="Shading mode" title="Shading mode"></button>
 <button type="button" class="tbtn" id="btnQuant" aria-label="Quantize (Q)"  title="Quantize (Q)"></button>
 <button type="button" class="tbtn" id="btnSnap" aria-label="Snapping (S)"   title="Snapping (S)"></button>
@@ -240,7 +242,6 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <button type="button" class="tbtn" id="btnPivot" aria-label="Edit pivot (P)"  title="Edit pivot (P)"></button>
 <button type="button" class="tbtn" id="btnLocal" aria-label="Auto pivot to far bbox corner"  title="Auto pivot to far bbox corner"></button>
 <button type="button" class="tbtn" id="btnUV" aria-label="UV edit / display"     title="UV edit / display"></button>
-<button type="button" class="tbtn" id="btnSolo" aria-label="Solo mode"   title="Solo mode"></button>
 </div>
 <div id="timeline">
 <span class="tl-frame">frame</span>
@@ -10046,7 +10047,7 @@ const buttonIcons = {tabPlugins:'ICO_PLUGINS',
   btnNew:'newFile',btnOpen:'ICO_OPEN',btnSave:'ICO_SAVE',btnShare:'share',btnDownload:'ICO_DOWNLOAD',btnBrowser:'ICO_BROWSER_UNFOLDED',
   tabAttributes:'ICO_TAB_ATTRIBUTES',tabObjects:'ICO_TAB_OBJECTS',tabMaterialMgr:'ICO_TAB_MATERIAL_MGR',tabMaterials:'ICO_TAB_MATERIALS',tabTextures:'ICO_TAB_TEXTURES',tabAddMaterial:'ICO_TAB_ADD_TEXTURE',tabDelUnused:'ICO_TAB_DELETE_UNUSED',
   btnHelp:'ICO_HELP',btnInstance:'ICO_INSTANCE',btnBoolean:'ICO_BOOLEAN',btnSymmetry:'ICO_SYMMETRY',btnCloner:'ICO_CLONER',btnRender:'camera',btnTarget:'target',btnInfinite:'light',btnVertexMode:'ICO_MODE_VERTEX',btnEdgeMode:'ICO_MODE_EDGE',btnPolygonMode:'ICO_MODE_FACE',btnSpline:'ICO_SPLINE',btnExtrude:'ICO_EXTRUDE',btnLathe:'ICO_LATHE',btnSweep:'ICO_SWEEP',btnSplinePatch:'ICO_SPLINE_PATCH',
-  btnShading:'ICO_SHADING_SOLID',btnQuant:'ICO_GRID',btnSnap:'ICO_MAGNET',coordBtn:'ICO_GLOBE',btnPivot:'ICO_ARROW',btnLocal:'ICO_CUBE',btnUV:'ICO_SQUARE',btnSolo:'ICO_PERSON',
+  btnSolid:'ICO_SHADING_SOLID',btnShading:'ICO_SHADING_CAGE',btnQuant:'ICO_GRID',btnSnap:'ICO_MAGNET',coordBtn:'ICO_GLOBE',btnPivot:'ICO_ARROW',btnLocal:'ICO_CUBE',btnUV:'ICO_SQUARE',btnSolo:'ICO_PERSON',
   tlPlay:'ICO_TL_PLAY',tlPrevKey:'ICO_TL_PREV',tlNextKey:'ICO_TL_NEXT',btnLoadTex:'ICO_TEX_LOAD',btnOpacityTex:'ICO_TEX_LOAD'
 };
 for (const [id, key] of Object.entries(buttonIcons)) $(id).innerHTML = icons[key];
@@ -10243,10 +10244,10 @@ let creating=Promise.resolve();
     return Object.freeze({lines:value.lines.slice(),bounds:Object.freeze({min:Object.freeze([...value.bounds.min]),max:Object.freeze([...value.bounds.max])}),...(value.pivot===undefined?{}:{pivot:Object.freeze([...value.pivot])})});
   }
   function pluginViewportDescriptor(viewport,objects){
-    if(!viewport||viewport.stage!==undefined&&!['opaque','overlay'].includes(viewport.stage)||viewport.enabledAffectsVisibility!==undefined&&typeof viewport.enabledAffectsVisibility!=='boolean'||viewport.surfaceSelection!==undefined&&viewport.surfaceSelection!=='last-active'||viewport.surfaceWarnings!==undefined&&typeof viewport.surfaceWarnings!=='boolean'||typeof viewport.shader!=='string'||typeof viewport.settings!=='function'||![viewport.color,viewport.selectedColor].every(c=>Array.isArray(c)&&c.length===4&&c.every(Number.isFinite)))throw Error('Invalid plugin viewport');
+    if(!viewport||viewport.renderKind!==undefined&&!['solid','overlay','helper'].includes(viewport.renderKind)||viewport.stage!==undefined&&!['opaque','overlay'].includes(viewport.stage)||viewport.enabledAffectsVisibility!==undefined&&typeof viewport.enabledAffectsVisibility!=='boolean'||viewport.surfaceSelection!==undefined&&viewport.surfaceSelection!=='last-active'||viewport.surfaceWarnings!==undefined&&typeof viewport.surfaceWarnings!=='boolean'||typeof viewport.shader!=='string'||typeof viewport.settings!=='function'||![viewport.color,viewport.selectedColor].every(c=>Array.isArray(c)&&c.length===4&&c.every(Number.isFinite)))throw Error('Invalid plugin viewport');
     const base=pluginHelperDescriptor(viewport),helpers=Object.create(null),types=new Set(objects.map(o=>o.type));let length=base.lines.length;
     if(viewport.helpers!==undefined){if(!viewport.helpers||typeof viewport.helpers!=='object'||Array.isArray(viewport.helpers))throw Error('Invalid plugin helpers');for(const [type,helper]of Object.entries(viewport.helpers)){if(!types.has(type))throw Error('Unknown plugin helper type');helpers[type]=pluginHelperDescriptor(helper);length+=helpers[type].lines.length;if(length>60000)throw Error('Plugin helpers exceed 10000 segments');}}
-    return Object.freeze({...viewport,...base,helpers:Object.freeze(helpers)});
+    return Object.freeze({renderKind:'solid',...viewport,...base,helpers:Object.freeze(helpers)});
   }
   function use(entry){if(entry.loaded)return Promise.resolve();if(entry.pending)return entry.pending;entry.pending=import(entry.module).then(async module=>{if(typeof module.activate!=='function')throw Error('Plugin must export activate(context)');await module.activate(Object.freeze({...bridge(entry),id:entry.manifest.id,version:1,get api(){return window.frameAI;},get device(){return window.frameEngine?.renderer?.device;},gpu:hash=>{const engine=window.frameEngine,mesh=engine?.scene?.meshes.find(m=>m.hashId===hash&&!m.replicaMatrix);if(!mesh)return null;return Object.freeze({device:engine.renderer.device,positions:mesh.positions,indices:mesh.indices,normals:mesh.normals,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount,storage:mesh.paged?'texture':'buffer',version:mesh.version});},viewport:Object.freeze({get cameraWGSL(){return window.frameEngine.pluginCameraWGSL;},register:async viewport=>{entry.viewport=pluginViewportDescriptor(viewport,entry.manifest.objects);window.frameEngine?.preparePluginViewport(entry).catch(fileOperationError);}}),scene:Object.freeze({get transforming(){return !!window.frameEngine?.transforming;},prepareAccuracy:()=>window.frameEngine.pluginPrepareAccuracy(),capture:(hash,keys=[])=>window.frameEngine.pluginSnapshot(hash,keys,true),signature:(hash,keys)=>window.frameEngine.pluginSnapshot(hash,keys,false).signature}),
       operations:Object.freeze({register:operations=>{if(!Array.isArray(operations)||operations.some(o=>!o||!/^[a-z][a-z0-9-]*$/.test(o.id)||typeof o.run!=='function'||typeof o.description!=='string'||o.inputSchema?.type!=='object'||typeof o.readOnly!=='boolean'||o.interrupt!=null&&typeof o.interrupt!=='function')||new Set(operations.map(o=>o.id)).size!==operations.length)throw Error('Invalid plugin operations');entry.operations=new Map(operations.map(o=>[o.id,Object.freeze({...o})]));}}),
@@ -11359,9 +11360,24 @@ function frameSetSolo(on){if(on){const all=new Set([...selected].flatMap(id=>[id
 $('btnSolo').onclick=()=>frameSetSolo(!frameSoloIds);
 $('btnLocal').onclick=()=>window.frameEngine?.autoPivot();
 for(const [id,mode]of Object.entries({btnVertexMode:'vertex',btnEdgeMode:'edge',btnPolygonMode:'polygon'}))$(id).onclick=()=>{selectionArea='viewport';window.frameEngine?.setViewerMode('element',$(id).classList.contains('on')?'object':mode);};
-let shading=0;const shadingIcons=['ICO_SHADING_SOLID','ICO_SHADING_WIRE','ICO_SHADING_SOLIDWIRE','ICO_SHADING_CAGE','ICO_SHADING_SOLIDCAGE'],shadingCycle=[3,1,0,4,2];
-$('btnShading').innerHTML=icons[shadingIcons[shading]];
-$('btnShading').onclick=()=>{selectionArea='viewport';const next=shadingCycle[(shadingCycle.indexOf(shading)+1)%shadingCycle.length];window.frameEngine?.setViewerMode('shading',['solid','wireframe','solid-wire','isoparms','solid-isoparms'][next]);};
+// Independent controls map to the existing per-view/HASH mode, without duplicate state.
+const frameShadingStates={
+ solid:[true,'off'],wireframe:[false,'wire'],'solid-wire':[true,'wire'],
+ isoparms:[false,'isoparms'],'solid-isoparms':[true,'isoparms'],off:[false,'off']
+};
+let shading='solid-isoparms';
+function frameShadingMode(solid,lines){return lines==='off'?(solid?'solid':'off'):lines==='wire'?(solid?'solid-wire':'wireframe'):(solid?'solid-isoparms':'isoparms');}
+function frameSyncShadingControls(mode){
+ shading=mode;const [solid,lines]=frameShadingStates[mode];
+ $('btnSolid').classList.toggle('on',solid);$('btnSolid').setAttribute('aria-pressed',String(solid));
+ $('btnShading').innerHTML=icons[lines==='wire'?'ICO_SHADING_WIRE':'ICO_SHADING_CAGE'];
+ $('btnShading').classList.toggle('on',lines!=='off');$('btnShading').style.opacity=lines==='off'?'.4':'';
+ $('btnShading').title='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[lines];
+ $('btnShading').setAttribute('aria-label',$('btnShading').title);$('btnShading').setAttribute('aria-pressed',String(lines!=='off'));
+}
+$('btnSolid').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading];window.frameEngine?.setViewerMode('shading',frameShadingMode(!solid,lines));};
+$('btnShading').onclick=()=>{selectionArea='viewport';const [solid,lines]=frameShadingStates[shading],cycle=['wire','isoparms','off'];window.frameEngine?.setViewerMode('shading',frameShadingMode(solid,cycle[(cycle.indexOf(lines)+1)%cycle.length]));};
+frameSyncShadingControls(shading);
 const units=['nm','µm','mm','cm','dm','m','km'];
 for(const [suffix,step]of [['M',-1],['P',1]]){
   $('d'+suffix).ariaLabel='Display unit'+(step>0?' increase':' decrease');
@@ -11594,7 +11610,7 @@ FrameViewWindows.onWindow('frame-engine-parents',e=>{const byHash=new Map(nodes.
 FrameViewWindows.onWindow('frame-engine-mode',e=>{
   const {elementMode,shadingMode}=e.detail;
   for(const [id,mode]of Object.entries({btnVertexMode:'vertex',btnEdgeMode:'edge',btnPolygonMode:'polygon'})){$(id).classList.toggle('on',elementMode===mode);$(id).ariaPressed=String(elementMode===mode);}
-  shading=['solid','wireframe','solid-wire','isoparms','solid-isoparms'].indexOf(shadingMode);$('btnShading').innerHTML=icons[shadingIcons[shading]];$('btnShading').title='Shading: '+{solid:'Solid',wireframe:'Wireframe','solid-wire':'Solid + Wire',isoparms:'Isoparms','solid-isoparms':'Solid + Isoparms'}[shadingMode];
+  frameSyncShadingControls(shadingMode);
 });
 FrameViewWindows.onWindow('frame-engine-scene',e=>{
   FrameAuthorData.invalidateDocument(false);
@@ -12899,7 +12915,7 @@ window.frameEngine=(()=>{
     const gpuAllocations=new Map();let allocatedBytes=0,memoryPending=false;
     let gpuAllocationPeak=0,elementMode='object',shadingMode='solid-isoparms',pendingFrame=null,frameCount=0,sceneFrameDirty=true;
     const hoverCursor={x:0,y:0,inside:false};
-    const elementIds={vertex:0,edge:1,polygon:2,object:3},shadingIds={wireframe:0,solid:1,'solid-wire':2,isoparms:0,'solid-isoparms':1};
+    const elementIds={vertex:0,edge:1,polygon:2,object:3},shadingIds={wireframe:0,solid:1,'solid-wire':2,isoparms:0,'solid-isoparms':1,off:0};
     function makeGPUBuffer(device,descriptor){
       const buffer=device.createBuffer(descriptor);gpuAllocations.set(buffer,buffer.size);
       allocatedBytes+=buffer.size;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return buffer;
@@ -14246,7 +14262,7 @@ window.frameEngine=(()=>{
     // Navigation is core state. Geometry and pipelines have one GPU owner across all views.
     let viewIndex=0,viewRevision=0;
     const viewStates=[null,null,null,null],passiveViews=new Map(),cameraNavigationRevisions=new Map();let cameraRoll=0,cameraViewKey='',perspectiveFov=45;
-    const viewShadingNames=['solid','wireframe','solid-wire','isoparms','solid-isoparms'],defaultViewShadings=['solid-isoparms','isoparms','isoparms','isoparms'],viewShadings=[...defaultViewShadings];
+    const viewShadingNames=['solid','wireframe','solid-wire','isoparms','solid-isoparms','off'],defaultViewShadings=['solid-isoparms','isoparms','isoparms','isoparms'],viewShadings=[...defaultViewShadings];
     const captureCamera=()=>[yaw,pitch,zoom,panX,panY,...orbitPivot,...orbitOffset,orbitDepth];
     function restoreCamera(v){[yaw,pitch,zoom,panX,panY]=v;orbitPivot=v.slice(5,8);orbitOffset=v.slice(8,11);orbitDepth=v[11];}
     function defaultCamera(i){i=frameViewKind(i);return [i===3?Math.PI/2:i===0?-Math.PI/4:0,i===1?Math.PI/2:i===0?Math.PI/6:0,i?2.41421356/3.2:1,0,0,0,0,0,0,0,0,3.2];}
@@ -14389,8 +14405,8 @@ window.frameEngine=(()=>{
     }
 
     let pathtracer=null,renderTimer=0,renderManual=false,renderSignature='',renderBlocked='',renderScene=null,lastRealtime=false,renderConfigKey='';
-    function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
-    function renderOverlayActive(){const s=renderState();return s.running||s.visible||!!s.exportKind;}
+    function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:!pathtracer.canvas.hidden&&pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
+    function renderOverlayActive(){if(['off','wireframe','isoparms'].includes(viewShadings[0]))return false;const s=renderState();return s.running||s.visible||!!s.exportKind;}
     function cameraConfig(){return nodes.find(n=>n.type==='render'&&n.enabled);}
     // Camera tracks own the full navigation pose, including paused/partial tracks and animated dependencies.
     function cameraNavigationOwned(index=viewIndex){
@@ -14414,7 +14430,7 @@ window.frameEngine=(()=>{
     function storeCameraNavigation(){if(cameraNavigationOwned())return;const n=cameraConfig();if(viewIndex||!n||!nativeValue(n.nativeHash,'type'))return;const placement=cameraPlacement();if(!placement)return;const parent=transformParent(n.nativeHash),world=FM.unpack(placement.matrix);putFrame(n.nativeHash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),world):world);cameraNavigationRevisions.set(n.nativeHash,(cameraNavigationRevisions.get(n.nativeHash)||0)+1);syncPoseWorld();cameraViewKey='';notifyTransformUI();}
 
     function renderStatus(){const state=renderState(),c=cameraConfig(),button=$('frameRenderToggle');if(button){button.title=button.ariaLabel=current()===c&&(state.running&&state.manual||state.visible)?'Stop render':'Render';button.textContent='view';}for(const [id,kind]of [['frameRenderImage','image'],['frameRenderVideo','video']]){const b=$(id),on=state.exportKind===kind;if(b){b.textContent=on?'stop':kind;b.ariaLabel=on?'Stop '+kind+' render':kind;b.disabled=!!state.exportKind&&!on;}}drawLightHelpers();drawMotionPaths();}
-    function scheduleRenderPreview(){if(renderManual||renderExporting||!renderer||!scene)return;const config=cameraConfig(),key=config?JSON.stringify([config.nativeHash,config.params]):'';if(key!==renderConfigKey){renderConfigKey=key;renderSignature=renderBlocked='';lastRealtime=config?.params.realtime==='on';}if(renderTimer)return;renderTimer=setTimeout(()=>{renderTimer=0;if(renderManual)return;renderTick().catch(error=>{renderBlocked=renderSignature;if(pathtracer){pathtracer.stats.phase='error';pathtracer.stats.errors=[error.message];pathtracer.stop(true);}renderStatus();});},32);}
+    function scheduleRenderPreview(){if(pathtracer)pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);if(renderManual||renderExporting||!renderer||!scene)return;const config=cameraConfig(),key=config?JSON.stringify([config.nativeHash,config.params]):'';if(key!==renderConfigKey){renderConfigKey=key;renderSignature=renderBlocked='';lastRealtime=config?.params.realtime==='on';}if(renderTimer)return;renderTimer=setTimeout(()=>{renderTimer=0;if(renderManual)return;renderTick().catch(error=>{renderBlocked=renderSignature;if(pathtracer){pathtracer.stats.phase='error';pathtracer.stats.errors=[error.message];pathtracer.stop(true);}renderStatus();});},32);}
     function renderStop(hide=true){viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}renderManual=false;renderBlocked=renderSignature;clearTimeout(renderTimer);renderTimer=0;pathtracer?.stop(hide);renderStatus();draw(false);return renderState();}
     function renderView(){
       if(!frameViewVisible(0)||frameViewElement(0)?.ownerDocument.hidden)return null;const c=viewIndex===0?canvas:frameViewCanvases.get(0);if(!c?.getClientRects().length)return null;
@@ -14451,7 +14467,7 @@ window.frameEngine=(()=>{
       if(renderScene!==scene){pathtracer?.dispose();pathtracer=null;renderSignature='';renderScene=scene;}
       if(signature===renderSignature&&!manual)return;if(signature===renderBlocked&&!manual)return;renderSignature=signature;renderBlocked='';
       if(!manual&&!renderManual&&config.params.realtime!=='on'){pathtracer?.stop(true);return;}
-      pathtracer??=Function('return ('+document.getElementById('frame-pathtracer').textContent+')')()(frameViewElement(0),renderer.device,renderStatus);
+      pathtracer??=Function('return ('+document.getElementById('frame-pathtracer').textContent+')')()(frameViewElement(0),renderer.device,renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
       const moving=!exporting&&!!(heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing()),pixels=view.rect.w*view.rect.h,scale=Math.min(1,Math.sqrt(160000/Math.max(1,pixels)));
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
       const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:moving?2:Math.max(1,Math.round(config.params.samples||128)),giStrength:1,displayHz:FRAME_FPS,denoise:true,previewPresentation:!exporting,...exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:moving?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
@@ -14748,6 +14764,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     }
     function clearMaterialTransparency(r){const oit=r?.materialState?.oit;if(oit){releaseGPU(oit.accum);releaseGPU(oit.reveal);r.materialState.oit=null;}}
     function renderMaterialTransparency(r,encoder,color,depth,width,height){
+      if(shadingMode==='off')return;
       const meshes=scene.meshes.filter(m=>materialTransparent(m)&&meshVisible(m));if(!meshes.length)return;const state=ensureMaterialState(r),d=r.device;
       if(!state.composeInit){state.composeInit=(async()=>{const module=d.createShaderModule({code:`@group(0) @binding(0) var accum:texture_2d<f32>;@group(0) @binding(1) var reveal:texture_2d<f32>;@vertex fn vs(@builtin(vertex_index) v:u32)->@builtin(position) vec4f{return vec4f(f32((v<<1u)&2u)*2.-1.,f32(v&2u)*2.-1.,0,1);}@fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f{let a=textureLoad(accum,vec2i(p.xy),0);let alpha=1.-textureLoad(reveal,vec2i(p.xy),0).x;if(a.a<=1e-8||alpha<=0.){discard;}return vec4f(a.rgb/max(a.a,1e-8),alpha);}`}),pipeline=await d.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list'}});if(renderer===r&&r.materialState===state){state.compose=pipeline;draw();}})().catch(editError);}
       for(const mesh of meshes){materialMeshGPU(r,mesh);materialPipeline(r,mesh,true);}if(!state.compose)return;
@@ -14913,11 +14930,11 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         for(const n of owners){const hash=n.nativeHash;if(!pluginShown(n))continue;
           let row=state.nodes.get(hash);if(!row){const uniform=makeGPUBuffer(r.device,{label:entry.manifest.id+' viewport frame',size:160,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});row={uniform,group:r.device.createBindGroup({layout:state.layout,entries:[{binding:0,resource:{buffer:uniform}}]})};state.nodes.set(hash,row);}
           const values=new Float32Array(40),world=objectWorld(hash),settings=v.settings(n.params);values.set(world);values.set(FM.inv(world),16);values.set(v.colorFor?.(hash,n.params,selected.has(n.id))||(selected.has(n.id)?v.selectedColor:v.color),32);values.set(settings,36);r.device.queue.writeBuffer(row.uniform,0,values);
-          const helper=pluginHelper(n),warning=v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
+          const helper=pluginHelper(n),warning=shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
           if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
           if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;pass.setPipeline(state.surfaces[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}
-          if(helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}v.render?.({pass,camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format});pass.end();
+          if(helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}if(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode)))v.render?.({pass,camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format});pass.end();
         }
       }
     }
@@ -14955,6 +14972,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       return pipeline?{pipeline,group:state.group}:null;
     }
     function renderPluginSurfaceStyles(r,encoder,color,depth,topmost=false){
+      if(['off','wireframe','isoparms'].includes(shadingMode))return;
       const rows=scene.meshes.flatMap(mesh=>{const style=pluginSurfaceStyle(mesh);return style&&!!style.topmost===topmost&&meshVisible(mesh)?[{mesh,style}]:[];});if(!rows.length)return;
       let state=r.pluginSurfaceStyles;if(!state){const d=r.device,module=d.createShaderModule({label:'native plugin fallback surface',code:r.shaderSource+'\n@group(2) @binding(0) var<uniform> pluginStyle:vec4f; @fragment fn pluginStyleFS(input:Output)->@location(0) vec4f{let shade=.55+.45*abs(normalize(input.normal).z);return vec4f(pluginStyle.rgb*shade,pluginStyle.a);}'}),layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});state=r.pluginSurfaceStyles={module,layout,plan:d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),layout]}),pipelines:new Map(),pending:new Set(),colors:new Map()};}
       const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});pass.setBindGroup(0,r.bindGroup);
@@ -14964,7 +14982,8 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     }
 
     function renderGeometry(r,pass,width,height,include=()=>true,grid=true,mask=null,cages=true){
-      let visible=drawCloudInstances(r,pass);const wire=shadingMode==='wireframe'||shadingMode==='isoparms';pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
+      if(shadingMode==='off'){if(grid)drawViewGrid(pass,width,height);return 0;}
+      const wire=shadingMode==='wireframe'||shadingMode==='isoparms';let visible=wire?0:drawCloudInstances(r,pass);pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
       const batched=!wire&&shadingMode!=='solid-wire'&&scene.meshes.some(m=>m.replicaMatrix)?drawReplicaBatches(r,pass,include,cages?'scene':'background'):new Set();visible+=batched.size;
       if(!wire)for(const mesh of scene.meshes){if(batched.has(mesh)||pluginSurfaceStyle(mesh)||!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;const pipelines=meshPipelines(r,mesh),material=materialMeshGPU(r,mesh),filter=pluginSurfaceFilter(mesh),filtered=filter?filteredSurfacePipeline(r,mesh,filter,material):null,pipeline=filtered?.pipeline||(material?materialPipeline(r,mesh):null);if(filter&&!filtered)continue;pass.setPipeline(pipeline||(polygonWire(mesh)?pipelines.wireSurfacePipeline:pipelines.pipeline));if(filtered)pass.setBindGroup(3,filtered.group);if(pipeline&&material)pass.setBindGroup(2,material.state.group);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,pipeline&&material?material.bindings.groups.get(part).group:part.shadingBindGroup);if(polygonWire(mesh)||pipeline&&material&&(material.bindings.grouped||importedUV(mesh)))pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}
       if(grid)drawViewGrid(pass,width,height);if(cages)drawSplineDisplays(pass);
@@ -14978,6 +14997,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       return r.backgroundInit;
     }
     function transformBackground(r,encoder,width,height,slot=null){
+      if(shadingMode==='off')return null;
       const moving=movingMeshes();if(!moving?.size||scene.meshes.some(materialTransparent))return null;
       // Touching meshes stay in scene order, including coplanar surface/wire ties.
       const epsilon=Math.max(...scene.boundsMax.map((n,i)=>n-scene.boundsMin[i]))*1e-6;let added=true;while(added){added=false;for(const m of scene.meshes)if(m.frameVisible!==false&&!moving.has(m)&&[...moving].some(a=>a.boundsMin.every((n,i)=>n<=m.boundsMax[i]+epsilon&&a.boundsMax[i]+epsilon>=m.boundsMin[i]))){moving.add(m);added=true;}}
@@ -15372,6 +15392,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     function renderPolygonVertices(gpu,encoder,color=gpu.cachedColor,depth=gpu.depth){
+      if(shadingMode==='off')return;
       gpu.vertexDisplay??=new Map();const display={objects:0,vertices:0};gpu.vertexDisplay.set(viewIndex,display);if(elementMode!=='vertex')return;const wanted=new Set(componentMeshes());if(!wanted.size)return;
       gpu.vertexGlobals??=new WeakMap();let global=gpu.vertexGlobals.get(depth);if(!global){global=gpu.device.createBindGroup({layout:gpu.featureHover.globalLayout,entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:depth.createView()},{binding:2,resource:gpu.triangleIds.createView()}]});gpu.vertexGlobals.set(depth,global);}
       if([...wanted].reduce((sum,m)=>sum+m.vertexCount,0)>100000){renderDenseVertices(gpu,encoder,color,depth,wanted,global,display);renderSoftVertices(gpu,encoder,color,wanted,global);return;}
@@ -15483,10 +15504,10 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(r.featureKey!==featureKey)r.featureMode=null;
       const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(width-1,Math.floor((hoverCursor.x-rect.left)*width/rect.width))),y=Math.max(0,Math.min(height-1,Math.floor((hoverCursor.y-rect.top)*height/rect.height)));
       const stationaryPress=drag?.button===0&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<=3;const hoverIdle=(!heldPointers.size||stationaryPress)&&(!drag||stationaryPress)&&!boxDrag&&!selectionBusy&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!button.disabled&&!wheelBusy&&!pendingWheel&&performance.now()>=(r.hoverReadyAt||0);
-      const splineSelection=!!splineComponentHash()||objectSelection.length&&objectSelection.every(h=>splineDisplays.has(h)),componentMode=elementMode!=='object'&&!splineSelection&&eligibleComponents.length>0;const enabled=componentMode&&hoverCursor.inside&&hoverIdle;let surfacePass=false,featurePass=false;
+      const splineSelection=!!splineComponentHash()||objectSelection.length&&objectSelection.every(h=>splineDisplays.has(h)),componentMode=shadingMode!=='off'&&elementMode!=='object'&&!splineSelection&&eligibleComponents.length>0;const enabled=shadingMode!=='off'&&componentMode&&hoverCursor.inside&&hoverIdle;let surfacePass=false,featurePass=false;
       // Wireframe needs no surface pass while navigating or while the cursor is outside the canvas.
       // Build the polygon ID/depth map once when an idle hover or an explicit selection needs it.
-      const surfaceNeeded=r.surfaceRequested||(componentMode&&hoverIdle&&((full&&shadingMode!=='wireframe')||(hoverCursor.inside&&elementMode==='polygon')||(shadingMode!=='wireframe'&&elementMode!=='polygon')));
+      const surfaceNeeded=shadingMode!=='off'&&(r.surfaceRequested||(componentMode&&hoverIdle&&((full&&shadingMode!=='wireframe')||(hoverCursor.inside&&elementMode==='polygon')||(shadingMode!=='wireframe'&&elementMode!=='polygon'))));
       if(surfaceNeeded&&(r.surfaceScene!==scene||r.surfaceKey!==surfaceKey)){
         const ids=encoder.beginRenderPass({colorAttachments:[{view:r.triangleIds.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:r.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
         ids.setPipeline(frameViewKind(viewIndex)?r.ortho.idPipeline:r.idPipeline);ids.setBindGroup(0,r.bindGroup);
@@ -15494,7 +15515,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       }r.surfaceRequested=false;
       const surfaceCurrent=r.surfaceScene===scene&&r.surfaceKey===surfaceKey;device.queue.writeBuffer(r.uniform,140,new Float32Array([surfaceCurrent?1:0]));
       if(full||(surfacePass&&r.boxSelection?.mode!=='polygon')){renderPolygonVertices(r,encoder);renderBoxSelection(r,encoder);}
-      if((!splineSelection||r.featureRequested)&&(elementMode==='vertex'||elementMode==='edge')&&(hoverIdle||r.featureRequested)&&(r.featureMode!==elementMode||r.featureScene!==scene)){renderFeatureMap(r,encoder);r.featureKey=featureKey;featurePass=true;}r.featureRequested=false;
+      if(shadingMode!=='off'&&(!splineSelection||r.featureRequested)&&(elementMode==='vertex'||elementMode==='edge')&&(hoverIdle||r.featureRequested)&&(r.featureMode!==elementMode||r.featureScene!==scene)){renderFeatureMap(r,encoder);r.featureKey=featureKey;featurePass=true;}r.featureRequested=false;
 
       const cursorData=new ArrayBuffer(32);new Int32Array(cursorData).set([x,y,enabled?1:0,elementIds[elementMode]]);new Float32Array(cursorData).set([width/rect.width,height/rect.height,(hoverCursor.x-rect.left)*width/rect.width,(hoverCursor.y-rect.top)*height/rect.height],4);device.queue.writeBuffer(r.hoverPresentation.uniform,0,cursorData);
       if(enabled&&elementMode!=='polygon'){const search=encoder.beginComputePass();search.setPipeline(r.featureHover.search);search.setBindGroup(0,r.featureHover.searchGroup);search.dispatchWorkgroups(1);search.end();}else encoder.clearBuffer(r.hoverPresentation.winner);
@@ -16831,6 +16852,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     async function refreshSelectionBounds(){const boxes=[];for(const mesh of currentSelectionMeshes()){const box=await readBounds(mesh,true);if(box)boxes.push(box);}selectionBox=unionSelectionBounds(boxes);}
     function unionSelectionBounds(boxes){if(!boxes.length)return null;const min=[0,1,2].map(i=>Math.min(...boxes.map(b=>b.min[i]))),max=[0,1,2].map(i=>Math.max(...boxes.map(b=>b.max[i])));return {min,max,center:min.map((v,i)=>(v+max[i])/2)};}
     function renderBoxSelection(gpu,encoder,color=gpu.cachedColor,depth=gpu.depth){
+      if(shadingMode==='off')return;
       const s=gpu.boxSelection;if(s?.mode==='vertex'&&gpu.vertexDisplay?.get(viewIndex)?.screenRaster)return;if(!s||s.mode!==elementMode||s.space!==scene||!s.counts.some(Boolean))return;
       const draws=featureDrawGroups(gpu);s.entries=s.entries.map(entry=>{const current=draws.find(draw=>(draw.mesh===entry.draw.mesh||entry.draw.mesh.replicaKey&&draw.mesh.replicaKey===entry.draw.mesh.replicaKey)&&(draw.part.faceStart||0)===(entry.draw.part.faceStart||0));if(current===entry.draw)return entry;releaseGPU(entry.settings);return current?boxEntry(gpu,s,current,entry.meshIndex,s.rect):null;}).filter(Boolean);
       const p=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}]});p.setPipeline(gpu.boxPipelines.overlays[elementIds[s.mode]]);p.setBindGroup(0,boxGlobalGroup(gpu,depth));
@@ -17165,7 +17187,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }
       return new Float64Array([...values,mainActiveView,single?1:0,...modesChanged?viewShadings.slice(0,4).map(v=>viewShadingNames.indexOf(v)):[]]);
     }
-    function validNativeCamera(v){return v&&(v.length===12||v.length===23||v.length===27)&&!v.some(n=>!Number.isFinite(n))&&v[2]>0&&v[11]>0&&(v.length===12||v[14]>0&&v[17]>0&&v[20]>0&&Number.isInteger(v[21])&&v[21]>=0&&v[21]<=3&&(v[22]===0||v[22]===1))&&(v.length!==27||Array.from(v.slice(23)).every(n=>Number.isInteger(n)&&n>=0&&n<5));}
+    function validNativeCamera(v){return v&&(v.length===12||v.length===23||v.length===27)&&!v.some(n=>!Number.isFinite(n))&&v[2]>0&&v[11]>0&&(v.length===12||v[14]>0&&v[17]>0&&v[20]>0&&Number.isInteger(v[21])&&v[21]>=0&&v[21]<=3&&(v[22]===0||v[22]===1))&&(v.length!==27||Array.from(v.slice(23)).every(n=>Number.isInteger(n)&&n>=0&&n<viewShadingNames.length));}
     function applyNativeCamera(v,preservePerspective=false){
       if(!v)return;const perspective=Array.from(v.slice(0,12)),eye=rotatePoint(Array.from(v.slice(8,11),(n,k)=>(n-scene.center[k])*scene.scale),v[0],v[1],0);
       perspective[3]*=scene.scale;perspective[4]*=scene.scale;for(let k=0;k<3;k++)perspective[5+k]=(v[5+k]-scene.center[k])*scene.scale;perspective[8]=-perspective[3]-eye[0];perspective[9]=-perspective[4]-eye[1];perspective[10]=3.2-eye[2];perspective[11]*=scene.scale;if(!preservePerspective)viewStates[0]=perspective;
@@ -17885,6 +17907,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
 
     function replicaDisplay(mesh){for(let source=mesh;source;source=source.replicaSource){const display=source.display||splineDisplays.get(source.hashId);if(display)return display;}return null;}
     function drawSplineDisplays(pass){
+      if(shadingMode==='off')return;
       if(!splinePipelines)return;const pipelines=splinePipelines[frameViewKind(viewIndex)?1:0];for(const d of splineDisplays.values()){if(!splineShown(d)||!d.controlCount)continue;if(FrameSpline.sourceNode(nodes.find(n=>n.nativeHash===d.hash)))continue;if(d.consumed&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode)&&!(FrameSpline.isActive(nodes.find(n=>n.nativeHash===d.hash))&&elementMode!=='object'))continue;const owner=nodes.find(n=>n.nativeHash===d.hash),selected=objectSelection.includes(d.hash)||FrameSpline.isActive(owner),showControls=(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner?.id)&&FrameSpline.isEditable(owner),showEdges=selected&&['edge','polygon'].includes(elementMode)&&FrameSpline.isEditable(owner);if((d.generated||node(owner?.parent)?.type==='spline_patch')&&!showControls&&!showEdges&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode))continue;
         const values=new Float32Array(20);values.set(objectWorld(d.hash));values.set([.235,.46,.54,1],16);renderer.device.queue.writeBuffer(d.uniform,0,values);if(showControls){values.set([.435,.51,.565,1],16);renderer.device.queue.writeBuffer(d.handleUniform,0,values);}
         const group=(pipeline,buffer,hover=false)=>{const key=(frameViewKind(viewIndex)?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();const token=hover==='selection'?'edge-selection':hover?'edge-hover':buffer;if(!cache.has(token)){const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:hover==='selection'?d.selectionUniform:hover?d.hoverUniform:buffer===d.handles?d.handleUniform:d.uniform}},{binding:2,resource:{buffer}}];if(pipeline!==pipelines[0])entries.push({binding:3,resource:{buffer:d.flags}});cache.set(token,renderer.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries}));}return cache.get(token);};
@@ -18289,7 +18312,7 @@ function FramePolygonKernel(d){
       register('edit.history','Undo or Redo one normal editor transaction, including metadata and geometry.',required(obj({action:choice('undo','redo')}),'action'),false,async a=>{await(a.action==='undo'?undoEdit():redoEdit());await settle();return selectionInfo();});
       register('view.windows','Inspect main and additional independent camera instances sharing one live scene and GPU device.',obj({}),true,()=>FrameViewWindows.inspect());
       register('view.window','Open an additional independent view from a main view (0..3), or focus/close an additional instance. Opening needs browser popup permission. Main views remain in place.',required(obj({index:integer,action:choice('open','focus','close')}),'index','action'),false,a=>{if(a.action==='open'?a.index>3:!FrameViewWindows.visible(a.index))fail('INVALID_ARGUMENT','Invalid view instance');return FrameViewWindows.command(a.index,a.action);});
-      register('view.set','Set active view, single/quad, shading, selection mode and transform options; focus an object if requested.',obj({index:integer,single:bool,camera:array(num,27),shading:choice('solid','wireframe','solid-wire','isoparms','solid-isoparms'),mode:choice('object','vertex','edge','polygon'),coordinates:choice('world','object'),snap:bool,quantize:bool,pivot:bool,uv:bool,focus:str,focusSelection:bool}),false,async a=>{if(a.index!==undefined&&(!frameViewSections.has(a.index)||a.index>=4&&!FrameViewWindows.visible(a.index)))fail('INVALID_ARGUMENT','Unknown view instance');if(a.focus&&a.focusSelection)fail('INVALID_ARGUMENT','Choose object focus or current selection');if(a.camera&&!validNativeCamera(a.camera))fail('INVALID_ARGUMENT','Invalid camera record');if(a.camera&&cameraNavigationOwned(0))fail('INVALID_ARGUMENT','Camera animation owns the main view');if(a.camera)applyNativeCamera(a.camera);if(a.focus)resolve(a.focus);if(a.index!==undefined&&!activateFrameView(a.index))fail('BUSY','Cannot switch view during a gesture');if(a.single!==undefined){single=a.single;renderViews();}if(a.mode)setViewerMode('element',a.mode);if(a.shading)setViewerMode('shading',a.shading);setTransformOptions(a);if(a.focus){const n=resolve(a.focus);await focusSpline(n.nativeHash);}if(a.focusSelection)await focusSpline(null);if(a.uv!==undefined)await setUVEditing(a.uv,a.focus?resolve(a.focus).nativeHash:null);await draw(true);return {index:viewIndex,single,shading:shadingMode,mode:elementMode,camera:Array.from(nativeCamera())};});
+      register('view.set','Set active view, single/quad, shading, selection mode and transform options; focus an object if requested.',obj({index:integer,single:bool,camera:array(num,27),shading:choice('solid','wireframe','solid-wire','isoparms','solid-isoparms','off'),mode:choice('object','vertex','edge','polygon'),coordinates:choice('world','object'),snap:bool,quantize:bool,pivot:bool,uv:bool,focus:str,focusSelection:bool}),false,async a=>{if(a.index!==undefined&&(!frameViewSections.has(a.index)||a.index>=4&&!FrameViewWindows.visible(a.index)))fail('INVALID_ARGUMENT','Unknown view instance');if(a.focus&&a.focusSelection)fail('INVALID_ARGUMENT','Choose object focus or current selection');if(a.camera&&!validNativeCamera(a.camera))fail('INVALID_ARGUMENT','Invalid camera record');if(a.camera&&cameraNavigationOwned(0))fail('INVALID_ARGUMENT','Camera animation owns the main view');if(a.camera)applyNativeCamera(a.camera);if(a.focus)resolve(a.focus);if(a.index!==undefined&&!activateFrameView(a.index))fail('BUSY','Cannot switch view during a gesture');if(a.single!==undefined){single=a.single;renderViews();}if(a.mode)setViewerMode('element',a.mode);if(a.shading)setViewerMode('shading',a.shading);setTransformOptions(a);if(a.focus){const n=resolve(a.focus);await focusSpline(n.nativeHash);}if(a.focusSelection)await focusSpline(null);if(a.uv!==undefined)await setUVEditing(a.uv,a.focus?resolve(a.focus).nativeHash:null);await draw(true);return {index:viewIndex,single,shading:shadingMode,mode:elementMode,camera:Array.from(nativeCamera())};});
       register('view.project','Project a world point (or local point on an object) to CSS screen coordinates in the active view.',required(obj({point:vector,id:str}),'point'),true,a=>{const p=a.id?FM.point(objectWorld(resolve(a.id).nativeHash),a.point):a.point;return {point:p,screen:worldScreen(p)};});
       register('view.pick','Read navigation world-space target under a CSS screen point: native mesh, plugin surface, visible spline or finite XZ guide fallback.',required(obj({x:num,y:num}),'x','y'),true,async a=>({point:await pickWorldPoint(a.x,a.y)}));
       register('scene.merge','Merge a same-origin scene URL into the current scene using native import and one Undo.',required(obj({url:str}),'url'),false,async a=>{const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol)||!/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('INVALID_ARGUMENT','Expected same-origin scene URL');const r=await fetch(u);if(!r.ok)fail('IO_ERROR','HTTP '+r.status);const roots=await mergeFile(new File([await r.blob()],decodeURIComponent(u.pathname.split('/').pop())),{baseURL:u.href});await settle();return {objects:roots.map(h=>describe(resolve(h)))};});

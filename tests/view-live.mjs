@@ -1,9 +1,24 @@
 import {heavyLiveChecks} from './heavy-live.mjs';
+export async function viewShadingChecks(page,check){
+ const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
+ await call('view.set',{index:0,shading:'solid-isoparms'});await call('view.set',{index:2,shading:'isoparms'});const before=(await call('scene.inspect')).view.shadings;
+ await page.getByRole('button',{name:'Lines: Isoparms',exact:true}).click();
+ let modes=(await call('scene.inspect')).view.shadings;
+ check('Lines Isoparms to Off changes only the active view and preserves Solid off',modes.every((m,i)=>m===(i===2?'off':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
+ await page.locator('#btnShading').focus();await page.keyboard.press('Space');
+ modes=(await call('scene.inspect')).view.shadings;
+ check('Keyboard Space cycles Lines Off to Wire without enabling Solid',modes.every((m,i)=>m===(i===2?'wireframe':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
+ await page.locator('#btnSolid').focus();await page.keyboard.press('Enter');
+ modes=(await call('scene.inspect')).view.shadings;
+ check('Keyboard Enter toggles Solid without changing Wire or other views',modes.every((m,i)=>m===(i===2?'solid-wire':before[i]))&&await page.locator('#btnShading').getAttribute('title')==='Lines: Wire',modes);
+ await call('view.set',{index:0});
+ check('Both controls reflect the active view combination',await page.locator('#btnShading').getAttribute('title')==='Lines: Isoparms'&&await page.locator('#btnShading').getAttribute('aria-pressed')==='true'&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='true');
+}
 export async function viewLiveChecks(page){
  const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),checks=[],check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name);},clear=async()=>{const s=await call('scene.inspect');if(s.objects.length)await call('scene.delete',{ids:s.objects.filter(n=>!n.parent).map(n=>n.hash)});};
  try{
   await page.evaluate(()=>{window.__viewGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__viewGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
-  await call('view.set',{index:0,shading:'solid-isoparms'});await call('view.set',{index:2,shading:'isoparms'});await page.getByRole('button',{name:'Shading mode',exact:true}).click();let modes=(await call('scene.inspect')).view.shadings;check('shading button changes only active view',modes[0]==='solid-isoparms'&&modes[2]==='wireframe');await call('view.set',{index:0});check('shading button reflects active view',(await page.locator('#btnShading').getAttribute('title'))==='Shading: Solid + Isoparms');
+  await viewShadingChecks(page,check);
   await clear();const n=await call('mesh.create',{vertices:[-50,-50,0,50,-50,0,-50,50,0,50,50,0],indices:[0,1,2,2,1,3]});await call('view.set',{index:2,single:true,mode:'object',shading:'solid',focus:n.hash});await call('scene.select',{ids:[n.hash]});
   const before=(await call('scene.inspect')).view.camera,center=(await call('view.project',{point:[0,0,0]})).screen;await page.mouse.move(...center);await page.mouse.down({button:'middle'});await page.mouse.move(center[0]+35,center[1]+24,{steps:3});await page.mouse.up({button:'middle'});let after=(await call('scene.inspect')).view.camera;check('middle pan starts on gizmo',after.some((v,i)=>Math.abs(v-before[i])>1e-6));
   await call('view.set',{focus:n.hash});let camera=(await call('scene.inspect')).view.camera;await page.mouse.move(...center);await page.mouse.down({button:'right'});await page.mouse.move(center[0]+35,center[1]-20,{steps:3});await page.mouse.up({button:'right'});after=(await call('scene.inspect')).view.camera;check('right zoom starts on gizmo',after.some((v,i)=>Math.abs(v-camera[i])>1e-6));await page.keyboard.press('Escape');

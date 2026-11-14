@@ -3,6 +3,41 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
+// The public six modes encode two independent controls, not a five-mode cycle.
+// Keep this oracle separate from the runtime's mode mapping and click handlers.
+export async function solidLinesChecks(page,check){
+ const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
+ const mode=(solid,lines)=>({wire:solid?'solid-wire':'wireframe',isoparms:solid?'solid-isoparms':'isoparms',off:solid?'solid':'off'})[lines];
+ const inspect=async()=>({view:(await call('scene.inspect')).view,ui:await page.evaluate(()=>({solid:document.querySelector('#btnSolid').getAttribute('aria-pressed'),lines:document.querySelector('#btnShading').getAttribute('aria-label'),pressed:document.querySelector('#btnShading').getAttribute('aria-pressed')}))});
+ const expect=async(name,solid,lines)=>{const actual=await inspect();check(name,actual.view.shading===mode(solid,lines)&&actual.ui.solid===String(solid)&&actual.ui.lines==='Lines: '+{wire:'Wire',isoparms:'Isoparms',off:'Off'}[lines]&&actual.ui.pressed===String(lines!=='off'),{solid,lines,expected:mode(solid,lines),actual});};
+ const combinations=new Set();
+ for(const solid of [false,true]){
+  await call('view.set',{shading:mode(solid,'wire')});
+  for(const [lines,next]of [['wire','isoparms'],['isoparms','off'],['off','wire']]){
+   await expect('Solid/Lines combination '+mode(solid,lines),solid,lines);combinations.add(mode(solid,lines));
+   await page.locator('#btnSolid').click();await expect('Solid toggle preserves Lines '+lines+' from '+solid,!solid,lines);
+   await page.locator('#btnSolid').click();await expect('Solid toggle restores '+mode(solid,lines),solid,lines);
+   await page.locator('#btnShading').click();await expect('Lines '+lines+' -> '+next+' preserves Solid '+solid,solid,next);
+  }
+ }
+ check('All six independent Solid/Lines combinations are reachable',combinations.size===6,[...combinations]);
+ check('Solid precedes Lines and Solo ends the upper row',await page.evaluate(()=>{const solid=document.querySelector('#btnSolid'),lines=document.querySelector('#btnShading'),solo=document.querySelector('#btnSolo');return solid.nextElementSibling===lines&&solo.parentElement!==solid.parentElement&&solo===solo.parentElement.lastElementChild;}));
+ const light=await call('scene.create',{type:'infinite'});
+ await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid'});
+ const helper=()=>page.locator('.frame-light-helpers[data-view="2"] .frame-infinite-direction[data-hash="'+light.hash+'"]');
+ await call('diagnostics.frame',{frames:3});check('Light helper is visible with Solid on',await helper().isVisible()&&!!await helper().getAttribute('d'));
+ const mesh=await call('mesh.create',{vertices:[-50,-50,0,50,-50,0,0,50,0],indices:[0,1,2]});
+ await call('view.set',{focus:mesh.hash});await call('scene.select',{ids:[mesh.hash],mode:'vertex',components:[0]});
+ await page.locator('#btnSolid').click();await expect('Both controls off selects helpers-only',false,'off');
+ // Observe actual native draw submission, including indexed surface/component draws.
+ const draws=await page.evaluate(async()=>{const r=frameEngine.renderer,p=GPURenderPassEncoder.prototype,original={setPipeline:p.setPipeline,draw:p.draw,drawIndexed:p.drawIndexed},current=new WeakMap(),rows=[];p.setPipeline=function(value){current.set(this,value);return original.setPipeline.call(this,value);};for(const name of ['draw','drawIndexed'])p[name]=function(...args){const pipeline=current.get(this);rows.push({name,label:pipeline?.label,grid:pipeline===r.gridPipeline||pipeline===r.orthoGridPipeline,presentation:pipeline===r.hoverPresentation.pipeline,count:args[0]});return original[name].apply(this,args);};try{await frameAI.call('diagnostics.frame',{frames:3});return rows;}finally{Object.assign(p,original);}});
+ // The final three-vertex cached-color blit is presentation, not scene geometry.
+ check('Helpers-only submits grid and axes without geometry or component draws',draws.some(r=>r.grid&&r.count>0)&&draws.every(r=>r.grid||r.presentation&&r.name==='draw'&&r.count===3),draws);
+ await call('scene.select',{ids:[light.hash],mode:'object'});await call('diagnostics.frame',{frames:2});check('Selected light helper remains visible with both controls off',await helper().isVisible()&&!!await helper().getAttribute('d'));
+ await call('scene.select',{ids:[]});await call('diagnostics.frame',{frames:2});check('Unselected light helper remains visible with both controls off',await helper().isVisible()&&!!await helper().getAttribute('d'));
+ await call('scene.delete',{ids:[light.hash,mesh.hash]});await call('view.set',{index:0,single:true,mode:'object',shading:'solid'});
+}
+
 export async function november3Checks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),state=()=>call('scene.inspect');
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
@@ -76,7 +111,7 @@ export async function november3Checks(page){
   await call('scene.update',{id:n.hash,name:'renamed'});await page.mouse.move(280,300);await page.mouse.down({button:'middle'});await page.mouse.move(310,320,{steps:4});await page.mouse.up({button:'middle'});await state();const uiView=(await state()).view.camera;await call('edit.history',{action:'undo'});check('UI Undo preserves camera navigation',(await state()).view.camera.every((v,i)=>Math.abs(v-uiView[i])<1e-8));
   await page.evaluate(()=>window.__pendingHistory=snapshot());await page.mouse.move(280,300);await page.mouse.down({button:'middle'});await page.mouse.move(315,330,{steps:4});await page.mouse.up({button:'middle'});await state();const during=(await state()).view.camera;await page.evaluate(h=>{nodes.find(n=>n.nativeHash===h).name='after navigation';checkpoint(__pendingHistory);render();delete window.__pendingHistory;},n.hash);await call('edit.history',{action:'undo'});check('Navigation during a pending transaction stays outside Undo',(await state()).view.camera.every((v,i)=>Math.abs(v-during[i])<1e-8));
   await clear();n=await call('scene.create',{type:'cube'});n=await call('scene.convert',{id:n.hash});await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:n.hash});const draws=await page.evaluate(async()=>{const proto=GPURenderPassEncoder.prototype,draw=proto.draw,set=proto.setPipeline,labels=new WeakMap(),rows=[];proto.setPipeline=function(p){labels.set(this,p.label);return set.call(this,p);};proto.draw=function(...args){if(labels.get(this)==='spline cage')rows.push(args[0]);return draw.apply(this,args);};try{await frameAI.call('diagnostics.frame',{frames:3});return {cage:rows.length};}finally{proto.draw=draw;proto.setPipeline=set;}});check('Solid patch display has no cage line draw',draws.cage===0,draws);
-  await call('view.set',{shading:'isoparms'});const modes=[];for(let i=0;i<5;i++){modes.push((await state()).view.shading);await page.locator('#btnShading').click();}check('Shading cycle follows requested order',modes.join(',')==='isoparms,wireframe,solid,solid-isoparms,solid-wire',modes);
+  await solidLinesChecks(page,check);
   await page.evaluate(async()=>{await rememberSceneFile(new File([await frameEngine.saveHash()],'hover-regression.hash'));});await page.locator('#btnOpen').hover();await page.waitForFunction(()=>document.querySelector('#menu').dataset.owner==='recents'&&!document.querySelector('#menu').hidden);await page.locator('#btnSave').hover();await page.waitForFunction(()=>document.querySelector('#menu').dataset.owner==='save-formats');await page.locator('#btnOpen').hover();check('Open dropdown reopens immediately after Save',await page.locator('#menu').evaluate(e=>!e.hidden&&e.dataset.owner==='recents'));await page.keyboard.press('Escape');
   const browser=await page.locator('#obScroll').boundingBox();await page.mouse.move(browser.x+8,browser.y+browser.height-20);await page.mouse.down();await page.mouse.move(browser.x+150,browser.y+browser.height-80,{steps:4});check('Objects marquee is visible during drag',await page.locator('.ob-marquee').count()===1);await page.evaluate(()=>window.dispatchEvent(new Event('blur')));check('Objects marquee clears on window blur',await page.locator('.ob-marquee').count()===0);await page.mouse.up();
   const native=await call('diagnostics.frame',{frames:8});check('Native CPU and GPU frame latency',native.timestampQueries&&native.frames.every(f=>f.cpuMs<50&&f.gpuMs<35),native);timings.push({name:'Native frames',...native});

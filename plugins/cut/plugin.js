@@ -16,7 +16,7 @@ export async function activate(context){
     {id:'cancel',description:'No generation job exists in the authoring milestone.',inputSchema:empty,readOnly:true,run:hash=>{owner(hash);return {cancelled:false,job:null,reason:'CUT_AUTHORING_ONLY'};}}
   ]);
   context.attributes.register(hash=>{owner(hash);return {actions:[{id:'generate',label:'Generate',disabled:true}]};});
-  await context.viewport.register({pivot:[0,0,0],bounds:{min:[0,0,0],max:[1000,0,1000]},
+  await context.viewport.register({renderKind:'helper',pivot:[0,0,0],bounds:{min:[0,0,0],max:[1000,0,1000]},
     lines:new Float32Array([0,0,0,1000,0,0,1000,0,0,1000,0,1000,1000,0,1000,0,0,1000,0,0,1000,0,0,0]),color:[.65,.58,.46,1],selectedColor:[.85,.74,.53,1],settings:()=>[0,0,0,0],render:axes,
     shader:'fn pluginSurface(local:vec3f,normal:vec3f,build:vec3f,settings:vec4f)->vec4f { discard; return vec4f(0.0); }'});
 }

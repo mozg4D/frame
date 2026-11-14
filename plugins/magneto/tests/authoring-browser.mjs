@@ -20,7 +20,24 @@ export async function pluginChecks(parent){
   await page.goto(parent.url());await ready(page);
   actualDPR=await page.evaluate(()=>devicePixelRatio);check('actual device pixel ratio matches requested gate',actualDPR===requestedDPR,{requestedDPR,actualDPR});
   hardware=await page.evaluate(()=>{const d=frameEngine.renderer.device;window.__magnetoDevice=d;window.__magnetoErrors=[];window.__magnetoLost=null;d.addEventListener('uncapturederror',e=>__magnetoErrors.push(e.error.message));d.lost.then(e=>__magnetoLost={reason:e.reason,message:e.message});d.pushErrorScope('validation');return d.adapterInfo?Object.fromEntries(['vendor','architecture','device','description','isFallbackAdapter'].map(k=>[k,d.adapterInfo[k]])):null;});
+  const profile=process.env.FRAME_GPU_PROFILE||'lab-ampere';check('explicit hardware qualification profile is supported',['lab-ampere','home-rtx2080ti-610.88'].includes(profile),profile);
+  if(profile==='home-rtx2080ti-610.88'){
+   const session=await parent.context().browser().newBrowserCDPSession();let systemInfo;try{systemInfo=await session.send('SystemInfo.getInfo');}finally{await session.detach();}
+   const match=(h,info,node,browser)=>h?.isFallbackAdapter===false&&h.vendor==='nvidia'&&h.architecture==='turing'&&!/swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(h))&&info?.gpu?.devices?.some(d=>d.vendorId===4318&&d.deviceId===7684&&d.deviceString==='NVIDIA GeForce RTX 2080 Ti'&&d.driverVersion==='32.0.16.1088')&&/NVIDIA GeForce RTX 2080 Ti/.test(info.gpu.auxAttributes?.glRenderer||'')&&!/swiftshader|llvmpipe|software/i.test(info.gpu.auxAttributes?.glRenderer||'')&&node==='v24.19.0'&&browser==='157.0.8103.51';
+   const browser=parent.context().browser().version();check('real Home RTX 2080 Ti Turing 610.88, pinned Node/Chrome, no fallback',match(hardware,systemInfo,process.version,browser),{profile,hardware,node:process.version,browser,devices:systemInfo.gpu.devices,renderer:systemInfo.gpu.auxAttributes?.glRenderer});
+   for(const [label,h,info,node,version]of [
+    ['fallback',{...hardware,isFallbackAdapter:true},systemInfo,process.version,browser],
+    ['wrong architecture',{...hardware,architecture:'ampere'},systemInfo,process.version,browser],
+    ['wrong vendor',{...hardware,vendor:'microsoft'},systemInfo,process.version,browser],
+    ['software',{...hardware,description:'SwiftShader'},systemInfo,process.version,browser],
+    ['wrong device',hardware,{gpu:{...systemInfo.gpu,devices:systemInfo.gpu.devices.map(d=>({...d,deviceId:0}))}},process.version,browser],
+    ['wrong driver',hardware,{gpu:{...systemInfo.gpu,devices:systemInfo.gpu.devices.map(d=>({...d,driverVersion:'0'}))}},process.version,browser],
+    ['wrong Node',hardware,systemInfo,'v21.0.0',browser],
+    ['wrong Chrome',hardware,systemInfo,process.version,'0']
+   ])check('Home hardware profile negative control rejects '+label,!match(h,info,node,version));
+  }else{
   check('real LAB NVIDIA Ampere hardware, no fallback',hardware&&hardware.isFallbackAdapter===false&&/nvidia/i.test(JSON.stringify(hardware))&&/ampere/i.test(JSON.stringify(hardware))&&!/swiftshader|llvmpipe|lavapipe|software/i.test(JSON.stringify(hardware)),hardware);
+  }
   const call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),inspect=async()=>(await call('scene.inspect')).objects;
   const initial=await inspect();if(initial.length)await call('scene.delete',{ids:initial.filter(n=>!n.parent).map(n=>n.hash)});
   check('lazy catalogue',(await call('plugins.list')).some(p=>p.id==='magneto'&&!p.loaded));
