@@ -142,24 +142,24 @@ await test('temporary document readiness fences commands without killing unchang
 await test('disabled dependencies suspend and resume, explicit stop stays stopped',async()=>{
   for(const context of ['main','worker:availability']){const p=plan('availability','export const value=()=>1;',{context}),h=harness([p]);await completed(h.runtime,h.runtime.start(p));h.set({...p,availability:'disabled'});h.runtime.reconcile();await delay(30);equal(h.runtime.status(p).state,'stopped');h.set(p);await completed(h.runtime,h.runtime.reconcile().jobs[0]);equal(h.runtime.status(p).state,'running');await completed(h.runtime,h.runtime.stop(p));h.set({...p,availability:'disabled'});h.runtime.reconcile();h.set(p);h.runtime.reconcile();equal(h.runtime.status(p).state,'stopped');h.runtime.dispose();}
 });
-await test('unsettled native hooks remain bounded even after cancellation',async()=>{
+await test('ordinary native hooks have no artificial execution quota and remain counted after stop',async()=>{
   let release;globalThis.__workGate=new Promise(resolve=>release=resolve);const p=plan('work-limit','export const pending=()=>globalThis.__workGate;'),h=harness([p]);await completed(h.runtime,h.runtime.start(p));const pending=[];
-  for(let n=0;n<128;n++)pending.push(h.runtime.invokeDirect({...p,method:'pending'}).catch(e=>e.code));equal(h.runtime.status().main.pendingWork,128);await rejects(()=>h.runtime.invokeDirect({...p,method:'pending'}),'WORK_LIMIT');await completed(h.runtime,h.runtime.stop(p));equal(h.runtime.status().main.pendingWork,128,'stopping cannot pretend to cancel arbitrary pending JS');release(null);await Promise.all(pending);equal(h.runtime.status().main.pendingWork,0);h.runtime.dispose();delete globalThis.__workGate;
+  for(let n=0;n<160;n++)pending.push(h.runtime.invokeDirect({...p,method:'pending'}).catch(e=>e.code));equal(h.runtime.status().main.pendingWork,160);await completed(h.runtime,h.runtime.stop(p));equal(h.runtime.status().main.pendingWork,160,'stopping cannot pretend to cancel arbitrary pending JS');release(null);await Promise.all(pending);equal(h.runtime.status().main.pendingWork,0);h.runtime.dispose();delete globalThis.__workGate;
 });
-await test('autostart proceeds in bounded waves and force termination is available at the job limit',async()=>{
+await test('autostart has no job quota and busy Workers remain terminable',async()=>{
   const shared={owner:'scene',id:'wave-source',revision:0,text:'export const answer=()=>42;'};
   const plans=Array.from({length:70},(_,i)=>plan('wave-'+i,shared.text,{source:shared,start:'ready'})),h=harness(plans);h.runtime.reconcile();const deadline=elapsed()+1500;while(h.runtime.status().instances.filter(i=>i.state==='running').length<70&&elapsed()<deadline)await delay(5);equal(h.runtime.status().instances.filter(i=>i.state==='running').length,70);equal(h.runtime.status().main.modules,1);h.runtime.dispose();
-  const p=plan('capacity-hung','export const hang=()=>new Promise(()=>{});',{context:'worker:capacity'}),w=harness([p]);await completed(w.runtime,w.runtime.start(p));for(let n=0;n<64;n++)w.runtime.invoke({...p,method:'hang'});throws(()=>w.runtime.invoke({...p,method:'hang'}),'JOB_LIMIT');await completed(w.runtime,w.runtime.terminateContext({context:p.context}));equal(w.runtime.status().contexts.length,0);w.runtime.dispose();
+  const p=plan('capacity-hung','export const hang=()=>new Promise(()=>{});',{context:'worker:capacity'}),w=harness([p]);await completed(w.runtime,w.runtime.start(p));for(let n=0;n<64;n++)w.runtime.invoke({...p,method:'hang'});w.runtime.invoke({...p,method:'hang'});equal(w.runtime.status().jobs.pending,65);await completed(w.runtime,w.runtime.terminateContext({context:p.context}));equal(w.runtime.status().contexts.length,0);w.runtime.dispose();
 });
 await test('readiness loss between admission and scheduled launch retries without immortal queued activation',async()=>{
   const p=plan('admitted-ready','export const value=()=>9;'),h=harness([p]);const receipt=h.runtime.start(p);h.document.ready=false;
   equal((await done(h.runtime,receipt)).error.code,'NOT_READY');equal(h.runtime.status(p).state,'error');equal(h.runtime.status(p).reason,'native-not-ready');
   h.document.ready=true;const resumed=h.runtime.reconcile();equal(resumed.jobs.length,1);await completed(h.runtime,resumed.jobs[0]);equal(await h.runtime.invokeDirect({...p,method:'value'}),9);h.runtime.dispose();
 });
-await test('live edit preserves desired restart when job admission is saturated',async()=>{
+await test('live edit restarts with many unrelated pending calls',async()=>{
  let release;globalThis.__restartGate=new Promise(r=>release=r);const a=plan('restart-a','export const version=()=>1;'),b=plan('restart-b','export const hold=()=>globalThis.__restartGate;'),h=harness([a,b]);
  await completed(h.runtime,h.runtime.start(a));await completed(h.runtime,h.runtime.start(b));const pending=[];for(let n=0;n<64;n++)pending.push(h.runtime.invoke({...b,method:'hold'}));
- h.set({...a,signature:'new-a',source:{...a.source,revision:1,text:'export const version=()=>2;'}});h.runtime.reconcile();equal(h.runtime.status(a).desired,true);await delay(10);equal(h.runtime.status(a).state,'stopped');
+ h.set({...a,signature:'new-a',source:{...a.source,revision:1,text:'export const version=()=>2;'}});h.runtime.reconcile();equal(h.runtime.status(a).desired,true);await delay(10);equal(h.runtime.status(a).state,'running');
  release(null);for(const receipt of pending)await completed(h.runtime,receipt);const deadline=elapsed()+1000;while(h.runtime.status(a).state!=='running'&&elapsed()<deadline)await delay(2);equal(h.runtime.status(a).state,'running');equal(await h.runtime.invokeDirect({...a,method:'version'}),2);h.runtime.dispose();delete globalThis.__restartGate;
 });
 await test('cooperative Worker stop retains reserved bounded admission at SDK request capacity',async()=>{

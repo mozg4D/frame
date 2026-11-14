@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "scenes": [
+    {
+      "name": "Scene Control — Crystal studio",
+      "file": "crystals.hash",
+      "description": "A saved Diamond crystal and an AI-written panel for Diamond, Silicon, Copper and Iron."
+    },
+    {
+      "name": "Atomic — tube impact",
+      "file": "atomic-tube-impact.hash",
+      "description": "Existing 640-atom synthetic test scene."
+    }
+  ]
+}

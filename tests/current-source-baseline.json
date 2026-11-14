@@ -1,14 +1,12 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 14 nov 22:08",
-  "predecessorCommit": "56b0a777c3e869842c17f5aae7c40ab2239d8f21",
+  "version": "2026 14 nov 23:25",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
       "index.html",
       "frame-sw.js",
       "plugins/index.json",
-      "viewport.html",
       "plugins/thermal/plugin.json",
       "plugins/thermal/plugin.js",
       "plugins/thermal/tests/fan-ui.mjs",
@@ -24,7 +22,6 @@
       "index.html",
       "frame-sw.js",
       "plugins/index.json",
-      "viewport.html",
       "tests/selection-gizmo-state.mjs",
       "tests/selection-gizmo-browser.mjs",
       "tests/viewport-pointer-priority.mjs",
@@ -34,9 +31,6 @@
       "index.html",
       "frame-sw.js",
       "plugins/index.json",
-      "viewport.html",
-      "core/documentation-window.mjs",
-      "core/documentation-geometry.mjs",
       "tests/scene-data-runtime.mjs",
       "tests/scene-control-data.mjs",
       "tests/scene-control-data-review.mjs",
@@ -49,14 +43,12 @@
       "tests/scene-program-runtime.mjs",
       "tests/scene-program-plans.mjs",
       "tests/scene-control-data-browser.mjs",
-      "tests/scene-program-browser.mjs",
-      "documentation.html"
+      "tests/scene-program-browser.mjs"
     ],
     "help": [
       "index.html",
       "frame-sw.js",
       "plugins/index.json",
-      "viewport.html",
       "tests/help-f1-state.mjs"
     ],
     "plugin-overlay": [
@@ -97,11 +89,6 @@
     ],
     "thermal-integration": [
       "AGENTS.md",
-      "experiments/thermal/NATIVE-INPUTS.md",
-      "experiments/thermal/native-inputs.js",
-      "experiments/thermal/tests/native-input-fixture.mjs",
-      "experiments/thermal/tests/native-inputs-browser.mjs",
-      "experiments/thermal/tests/native-inputs.mjs",
       "frame-sw.js",
       "index.html",
       "package.json",
@@ -112,12 +99,7 @@
     ],
     "thermal-native-observation": [
       "index.html",
-      "frame-sw.js",
-      "experiments/thermal/NATIVE-INPUTS.md",
-      "experiments/thermal/native-inputs.js",
-      "experiments/thermal/tests/native-input-fixture.mjs",
-      "experiments/thermal/tests/native-inputs-browser.mjs",
-      "experiments/thermal/tests/native-inputs.mjs"
+      "frame-sw.js"
     ],
     "pointer-return": [
       "index.html",
@@ -355,10 +337,17 @@
       "package.json",
       "tests/test-policy.mjs"
     ],
+    "plugin-loading": [
+      "index.html",
+      "frame-sw.js",
+      "plugins/index.json",
+      "tests/plugin-loading.mjs",
+      "tests/pwa.mjs",
+      "tests/run.mjs",
+      "AGENTS.md",
+      "tests/test-policy.mjs"
+    ],
     "documentation": [
-      "documentation.html",
-      "core/documentation-window.mjs",
-      "core/documentation-geometry.mjs",
       "frame-sw.js",
       "tests/documentation-source.mjs",
       "tests/documentation-empty-editor.mjs",
@@ -371,24 +360,28 @@
       "tests/documentation-geometry-browser.mjs",
       "tests/documentation-history-browser.mjs",
       "tests/documentation-history-native.mjs"
+    ],
+    "popup-packaging": [
+      "index.html",
+      "frame-sw.js",
+      "manifest.webmanifest",
+      "tests/documentation-source.mjs",
+      "tests/popup-packaging.mjs",
+      "frame-hash-256.png",
+      "frame-icon-192.png",
+      "frame-icon-512.png",
+      "frame-icon.svg",
+      "frame.ico"
     ]
   },
   "files": {
-    "core/documentation-geometry.mjs": {
-      "bytes": 3711,
-      "sha256": "8f8d0477069dcebd321ee56b404bc515e4b642740cf04542ca1c51f52a4106c2"
-    },
-    "core/documentation-window.mjs": {
-      "bytes": 4752,
-      "sha256": "453ede9dc08315dabfcf6bf3f6d93f6c209342e0cdaa68e10566d9c685be4907"
-    },
     "frame-sw.js": {
-      "bytes": 3774,
-      "sha256": "0c07dfead85a9380ce8ffbba1edfa26be623f5b15ca93170d81244f056860525"
+      "bytes": 3244,
+      "sha256": "0a881bbf70e9126bc08ba897fd2885394a182175bbf9042bf8628efe32328049"
     },
     "index.html": {
-      "bytes": 2837379,
-      "sha256": "1a4ee4663afd77512a81ab577ac272245f5cdaf90507e5e733c910ab97b9c38e"
+      "bytes": 2874271,
+      "sha256": "a18e4768bce6df68489851b0ba301a2941d8b8e63f99a309ab9ac5e1da507e45"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -435,32 +428,32 @@
       "sha256": "2c2e799e607b8779337ce5e31bd895b1aedbfccc0b6077712b9156c8c90a2e81"
     },
     "tests/help-f1-state.mjs": {
-      "bytes": 3959,
-      "sha256": "307fa8b899cd79395c75a64cfd9dc961e5d9fb22d8c944de1930f7e97a432fa4"
+      "bytes": 3791,
+      "sha256": "f6eae3678761252cbe0f0eb82cdecad5c6fa47dc76c77ccd06e228c684b371ad"
     },
     "tests/scene-authoring-startup.mjs": {
       "bytes": 5369,
       "sha256": "8a6e2b21e22d280d57864e0c61cf8152b8c4161924b0909e0e60788f92f9ffe1"
     },
     "tests/scene-control-data-browser.mjs": {
-      "bytes": 54971,
-      "sha256": "dc0389e197593f9296596d0fdd61faa273bb880752ab017392fc56697b1ccdb4"
+      "bytes": 54874,
+      "sha256": "6fabc9aa19e67da6e1d258ba989be2a388235d819df354d6393dfaa0a738340b"
     },
     "tests/scene-control-data-review.mjs": {
-      "bytes": 49643,
-      "sha256": "7922637065a6ab5bd97d4df122efd7446fbd8ec21bca85352bdf5dd8b1aab219"
+      "bytes": 48719,
+      "sha256": "98186ebdcdbded0b6540057ef7219564659645d79d3f08c40da9d2e80c1928cf"
     },
     "tests/scene-control-data.mjs": {
-      "bytes": 19622,
-      "sha256": "bbc4fe11ef3d320607ab65e3d6ee814d2842e78fbc069c0979f4deee123f8822"
+      "bytes": 19651,
+      "sha256": "7294fc1c435c28025407eb40fe1c336df79e3268ddf954387dd89765cb547db6"
     },
     "tests/scene-data-docs-barrier.mjs": {
       "bytes": 5742,
       "sha256": "1d83ec0f9b5e39d2f526b03ebcc2122b665c287dc3cfe17c9794a4d718bd18d6"
     },
     "tests/scene-data-runtime.mjs": {
-      "bytes": 1199,
-      "sha256": "1d28751cad5667c712fe556c6ce71fc6629b45c1a69cee9ea87063d1e3af7a3f"
+      "bytes": 926,
+      "sha256": "fab30c898a5e0b57d0b553be05a91ccfed1e239fb2a7e0381d74bc2b1ae9b7fc"
     },
     "tests/scene-field-writes.mjs": {
       "bytes": 9260,
@@ -471,16 +464,16 @@
       "sha256": "49cee97399632d66588a3f780e72feb50ac296af2f8f43df8aaba1a154dca88b"
     },
     "tests/scene-program-browser.mjs": {
-      "bytes": 18200,
-      "sha256": "f058f7f6455e396174d83c67ae8664d0a729f17322690c047b6c514bb95ce4f1"
+      "bytes": 18229,
+      "sha256": "f8206ed805c790dae21c80d3f6644db7da45f98a0a4c56b37d296dadfb9def54"
     },
     "tests/scene-program-plans.mjs": {
       "bytes": 5509,
       "sha256": "68cbda4032cd96a1a8713dad2f5e4a6e394be7f073e15f0307a8d5a97d17365e"
     },
     "tests/scene-program-runtime.mjs": {
-      "bytes": 23892,
-      "sha256": "7559bfc5db1bcbf27a18ce388c7054692d057cd4a81a458e1b8c11ca178d7764"
+      "bytes": 23814,
+      "sha256": "e8298d2e3e3807a3a2cbb2af00a3395530504f0aec0f50901bb08b0ff0f51866"
     },
     "tests/scene-reservations.mjs": {
       "bytes": 10604,
@@ -491,16 +484,12 @@
       "sha256": "a9130946d1fea2d1f3064c5e4d5917f857c28904a51d9fa97df9bd6e881f5bfe"
     },
     "tests/selection-gizmo-browser.mjs": {
-      "bytes": 12596,
-      "sha256": "195caffc0ea682fb282de02c82ca5c8a6a53c8ba9e85e3bdbe2ef7bac791a264"
+      "bytes": 12580,
+      "sha256": "5edabfa92b0de453506e37190ee5e3f43593404eec51faca38fcfff8446d4e00"
     },
     "tests/selection-gizmo-state.mjs": {
       "bytes": 5031,
       "sha256": "618123b2f0586af64a734bea272d78c5fd1b2b9a8bd26e7197e4faa6742d3200"
-    },
-    "viewport.html": {
-      "bytes": 384,
-      "sha256": "e51adb1ab55e2c86b5dace58bf78b848d37b6ed068537100da34ce9721084ca4"
     },
     "tests/viewport-pointer-priority.mjs": {
       "bytes": 5469,
@@ -535,8 +524,8 @@
       "sha256": "9d95b9ee1af54c8805c67c471097901639e3d547ba533cd16b37d3ec60e50959"
     },
     "tests/pwa.mjs": {
-      "bytes": 16436,
-      "sha256": "920ab1dcbcfc3f5d47e3fbd9ba4ec9f9e7cf5fc273bd65b800979c93c308df56"
+      "bytes": 17621,
+      "sha256": "cb279608f9c14af5993f34640cc9e5e40d28c612d15b7792852c36ba9bb8c9b9"
     },
     "plugins/magneto/plugin.json": {
       "bytes": 832,
@@ -582,33 +571,13 @@
       "bytes": 13275,
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
-    "experiments/thermal/NATIVE-INPUTS.md": {
-      "bytes": 15384,
-      "sha256": "e369ce9d9ace2aa3da25ad79c63819cdcd597053483397d7f478fd2c3052137f"
-    },
-    "experiments/thermal/native-inputs.js": {
-      "bytes": 12946,
-      "sha256": "3c02f1e7eb462b85e0ad2e0d131fc269c580b241c32b1ed178bee8b0d0f2ceb1"
-    },
-    "experiments/thermal/tests/native-input-fixture.mjs": {
-      "bytes": 5500,
-      "sha256": "b6c93ec25f21ed1181443447dc85eaa0eceb91008b53a69f439f3093c4a3444c"
-    },
-    "experiments/thermal/tests/native-inputs-browser.mjs": {
-      "bytes": 12685,
-      "sha256": "b117c15d42220c7f07db8e255702208c97eb76f208f074fbb75a2cb0b6608a6d"
-    },
-    "experiments/thermal/tests/native-inputs.mjs": {
-      "bytes": 19164,
-      "sha256": "14a77087a0d4d4c1feb74ce8fe2dc8e338e8acd7f989c7d53bcbfbf7b8a9d7fd"
-    },
     "package.json": {
       "bytes": 7651,
       "sha256": "7fc891c9619e6bda7c37216c689e890a92ff4862158d86a1b8e1b6a8b19db1de"
     },
     "tests/run.mjs": {
-      "bytes": 32962,
-      "sha256": "cc23fb4fb0f4caa7788b332d76acc14a07bb0384571f322b9010ef7371279c96"
+      "bytes": 33118,
+      "sha256": "77ae54d20581c1d4193a56ad2338fb065d7799082c5b149243098c45ae79ae13"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -711,8 +680,8 @@
       "sha256": "3d5b854965f6754e974652c12337b49033408fcb614022204a5b1440b3b87f27"
     },
     "tests/README.md": {
-      "bytes": 52515,
-      "sha256": "e873ea02352b1e034b63f0ec095b133c719f576d080dbe6f1ec4bf20b4fc6537"
+      "bytes": 52839,
+      "sha256": "edc18c08f6f3e6461d66127cca9f371b0609778c65421219733fd72d51e091e2"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -890,61 +859,13 @@
       "bytes": 8844,
       "sha256": "6d2398f4f894aed3a3d760b1c6d3d92ccd6f4d58d9770e946e475d95e38d9a47"
     },
-    "plugins/optics/AGENTS.md": {
-      "bytes": 4646,
-      "sha256": "1cb7911708be9558a7876acf0471a74ae2f677ee7eacaecac46babc7cf0a851b"
-    },
-    "plugins/atomic/AGENTS.md": {
-      "bytes": 5228,
-      "sha256": "eca6fd433b5812bf2e56238c6daf4833ad4938f12d4ece3b83a47ca93077c745"
-    },
-    "plugins/structural/AGENTS.md": {
-      "bytes": 3772,
-      "sha256": "7ac49f727d2d479fe5ec9a310e78b7b12b9f1e01e8a9315acfe8e52e29cd8ad7"
-    },
-    "plugins/mill/AGENTS.md": {
-      "bytes": 10345,
-      "sha256": "185a0e4ccd801a5836b51cdb9bfcb7e282d02bbf4151e3fe101f9095ac7b73d8"
-    },
-    "plugins/magneto/AGENTS.md": {
-      "bytes": 1764,
-      "sha256": "2a91716d4ad04e4ed56cb9196bab217b586bb0b2d7d7b168d324f9b38a317dd8"
-    },
-    "plugins/thermal/AGENTS.md": {
-      "bytes": 2271,
-      "sha256": "dd49bc591ac19510dc9cbd7aae76350ecc5fb57a90d0e8533ab71bbc9b6269cc"
-    },
-    "plugins/cfd/AGENTS.md": {
-      "bytes": 2423,
-      "sha256": "fc1e8ee65101fd4353c6f57fd7dce2eb7f6a8115d5bb40b90c7bac36c44af560"
-    },
-    "plugins/rf/AGENTS.md": {
-      "bytes": 3105,
-      "sha256": "ff567e4f08e1b1f7a659b0328de8508b8c542e668119815af674de2f4f978b39"
-    },
-    "plugins/cut/AGENTS.md": {
-      "bytes": 6766,
-      "sha256": "bf6f5f77f736bbe4849a5b070e0d95cd2f7fe40be79b3950e36826b64ff78def"
-    },
-    "plugins/circuit/AGENTS.md": {
-      "bytes": 3591,
-      "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
-    },
-    "AGENTS.md": {
-      "bytes": 51634,
-      "sha256": "3459fc5ad3ee6635f39e24f06ce9320c192d13cc0d4ac8f033f1c1daee7bae31"
-    },
-    "plugins/3d-printer/AGENTS.md": {
-      "bytes": 6595,
-      "sha256": "54aa0058bdc72150db6be2f66e301aecdb48aedd6e0da6ef4848bcf72c2d389c"
-    },
-    "documentation.html": {
-      "bytes": 20524,
-      "sha256": "dc1555d0023b0e88b8a5740a444dfe88c98230d5046cd52dcf8dda3408939341"
+    "tests/plugin-loading.mjs": {
+      "bytes": 8215,
+      "sha256": "81b2b6196f181a76d724ab7e2b36f2b8b83bbed50e1055f0cc6deb35c928cff7"
     },
     "tests/documentation-source.mjs": {
-      "bytes": 1015,
-      "sha256": "92474781142ea8c9ec7fd6054bcb17587be2e0bef77e38f2253061d387313dae"
+      "bytes": 1791,
+      "sha256": "870bf0d4326620d457b99c79ebd6c2a39816bb4d14442fbf679e37a3fba93613"
     },
     "tests/documentation-empty-editor.mjs": {
       "bytes": 3875,
@@ -971,20 +892,96 @@
       "sha256": "f7c1976e1fadf4158c23c13a52e5deaf3560a0b351d7a76f65e167330559a634"
     },
     "tests/documentation-button.mjs": {
-      "bytes": 7675,
-      "sha256": "b2caff88b9b6d43078caa70261478b73725fa598be47e0f8660f48c85fa9463e"
+      "bytes": 7657,
+      "sha256": "a70cc3b26f03437987a2511f2062a305de7dff06fa818edc68ce4db678f8d6ff"
     },
     "tests/documentation-geometry-browser.mjs": {
-      "bytes": 5642,
-      "sha256": "52e4e1e207dab2dd8ba8c165d04058bf3876cab13b51222d08414c1f226e7580"
+      "bytes": 5492,
+      "sha256": "56e2a79d882303145a4d6e30c8259fe8765e90e1032ec985e9d4e5ebab16e0e2"
     },
     "tests/documentation-history-browser.mjs": {
-      "bytes": 6702,
-      "sha256": "a04e2d7dd2bca6ed146f0a37dc5533ca7a9eaab7dbe806b0265b3e82db489f7e"
+      "bytes": 6687,
+      "sha256": "70bf1587ad636fe5ec4634397503eab78820ce5f817273c021b5c09e5d78befd"
     },
     "tests/documentation-history-native.mjs": {
-      "bytes": 5841,
-      "sha256": "fcb49eab05563c4f853308c64da684e37ac0a14b784e60674da6897269b99c57"
+      "bytes": 5753,
+      "sha256": "8b488ee4cc391326ce523a4b3358a316f89a43ac6ccf686ebc8046fbe3d92505"
+    },
+    "plugins/optics/AGENTS.md": {
+      "bytes": 4581,
+      "sha256": "25093ac9e1847b62b1557e5573beffb1d3091d5bad3c6a7b72989867c645d557"
+    },
+    "plugins/atomic/AGENTS.md": {
+      "bytes": 5228,
+      "sha256": "eca6fd433b5812bf2e56238c6daf4833ad4938f12d4ece3b83a47ca93077c745"
+    },
+    "plugins/structural/AGENTS.md": {
+      "bytes": 3478,
+      "sha256": "54df94fc6a92bf6e60e8f21d811d15fbef834845970e2d79a5f169a93854b6a2"
+    },
+    "plugins/mill/AGENTS.md": {
+      "bytes": 10345,
+      "sha256": "185a0e4ccd801a5836b51cdb9bfcb7e282d02bbf4151e3fe101f9095ac7b73d8"
+    },
+    "plugins/magneto/AGENTS.md": {
+      "bytes": 1529,
+      "sha256": "0aa2e9d46cad86cef8cda10bea45925b8a6f322cce5862c9387a321c1d070110"
+    },
+    "plugins/thermal/AGENTS.md": {
+      "bytes": 2076,
+      "sha256": "ee429d95e7fe83de0194ed83770c6675fe48ddb09d870cd96036763de285321a"
+    },
+    "plugins/cfd/AGENTS.md": {
+      "bytes": 2423,
+      "sha256": "fc1e8ee65101fd4353c6f57fd7dce2eb7f6a8115d5bb40b90c7bac36c44af560"
+    },
+    "plugins/rf/AGENTS.md": {
+      "bytes": 3105,
+      "sha256": "ff567e4f08e1b1f7a659b0328de8508b8c542e668119815af674de2f4f978b39"
+    },
+    "plugins/cut/AGENTS.md": {
+      "bytes": 6766,
+      "sha256": "bf6f5f77f736bbe4849a5b070e0d95cd2f7fe40be79b3950e36826b64ff78def"
+    },
+    "plugins/circuit/AGENTS.md": {
+      "bytes": 3591,
+      "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
+    },
+    "AGENTS.md": {
+      "bytes": 52263,
+      "sha256": "b5d890d19a8ce9da21fc83aca95323290a80f3db2b7cd165734026722e739271"
+    },
+    "plugins/3d-printer/AGENTS.md": {
+      "bytes": 6595,
+      "sha256": "54aa0058bdc72150db6be2f66e301aecdb48aedd6e0da6ef4848bcf72c2d389c"
+    },
+    "manifest.webmanifest": {
+      "bytes": 1017,
+      "sha256": "53a88a826cc79d27e9aa8814a830aab4b024cb67e363d4f29098733769220cde"
+    },
+    "tests/popup-packaging.mjs": {
+      "bytes": 5310,
+      "sha256": "429a2bb77b4d5a573874a864d4d5bcbddf9d86b9e72523e55970084b4bd2c051"
+    },
+    "frame-hash-256.png": {
+      "bytes": 750,
+      "sha256": "d12b3d0eb14aba4002a6413670c9355e82631163d7924034360fdd6bb37d07d3"
+    },
+    "frame-icon-192.png": {
+      "bytes": 787,
+      "sha256": "95bf76bc31d6e50d21598b9607842eeb8aec4a8604c1feb4ea5a9f7b8091a006"
+    },
+    "frame-icon-512.png": {
+      "bytes": 1840,
+      "sha256": "359ecabfa5f246dcec27a41ae8ea9a043ce22257fac72dadb0c02515e59de0b8"
+    },
+    "frame-icon.svg": {
+      "bytes": 428,
+      "sha256": "7cf6bd28dab27a878100c714b0158d12cf478dd128a89d14b2a893854a29bbf0"
+    },
+    "frame.ico": {
+      "bytes": 7337,
+      "sha256": "7e99007c9817f684ee1caa03d3ebfdb46d656690bd9072904703857fc2234bc9"
     },
     "plugins/circuit/plugin.js": {
       "bytes": 24353,
@@ -1002,19 +999,5 @@
       "bytes": 905,
       "sha256": "2ea4e3744a60df392a1fb945ee19a4a6cfaf2c07331198e02c4b6bebf26d812c"
     }
-  },
-  "archivedProofs": {
-    "tests/scene-data-main-binding.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/thermal-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/thermal-ui-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/selection-gizmo-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/documentation-history-layer-test.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/benchy-release.mjs": "Historical qualification only; not executed or counted as passed for this release.",
-    "tests/icon-release.mjs": "Historical qualification only; not executed or counted as passed for this release."
-  },
-  "baseCommit": "9991a73ab99fec0a54993492852247df6b372cb6",
-  "sourcePredecessor": {
-    "kind": "Published main before selected-instance cage source candidate; no native qualification claimed",
-    "runtimeSHA256": "e990e4b34e69b9a64c5e6d777e9c2e98b444f51323fa1d338108b11b5bdd9464"
   }
 }

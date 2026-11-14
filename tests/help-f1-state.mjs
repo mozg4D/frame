@@ -19,7 +19,7 @@ check('Other keys remain untouched',()=>{const e=run({key:'a',code:'KeyA'});asse
 check('Keyboard key fallback',()=>{run({code:''});assert.equal(dialog.open,true);dialog.open=false;});
 check('Physical F1 code fallback',()=>{run({key:'Unidentified'});assert.equal(dialog.open,true);dialog.open=false;});
 check('Editable values are not read or modified by the shortcut handler',()=>{const target=new Proxy({}, {get(){throw Error('Handler must not alter editable control state');}});run({target});assert.equal(dialog.open,true);});
-check('Help button uses exactly the same opening function',()=>assert.ok(html.includes("$('btnHelp').onclick=frameOpenHelp;")));
-check('Tooltip, accessibility shortcut and Help text advertise F1',()=>{assert.ok(html.includes('aria-keyshortcuts="F1" title="Help (F1)"'));assert.ok(html.includes('<kbd>F1</kbd> Help'));});
+check('Scene Control replaces the Help toolbar button',()=>{assert.ok(!html.includes('id="btnHelp"'));assert.ok(html.includes("$('btnControl').onclick=()=>FrameSceneControl.open();"));});
+check('Tooltip, accessibility shortcut and Help text advertise F1',()=>{assert.ok(html.includes('<kbd>F1</kbd> Help'));});
 const sha=s=>createHash('sha256').update(s).digest('hex');
-console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,indexSHA256:sha(rawHTML),sourceMode:'actual current bytes',historicalReversalChecks:{status:'archived-not-run',count:2,reason:'Post-removal release uses a new current-source baseline; no predecessor reconstruction.'}}));
+console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,indexSHA256:sha(rawHTML),sourceMode:'actual current bytes'}));

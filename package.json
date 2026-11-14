@@ -63,6 +63,7 @@
     "test:scene-fields:cpu": "node tests/scene-field-writes.mjs",
     "test:scene-fields": "node tests/scene-field-writes.mjs && node tests/scene-field-writes-browser.mjs",
     "test:scene-programs:cpu": "node tests/scene-program-runtime.mjs && node tests/scene-program-plans.mjs",
+    "test:scene-control": "node tests/scene-control-panel-browser.mjs",
     "test:scene-programs": "node tests/scene-program-browser.mjs",
     "test:removed-volume": "node tests/removed-volume.mjs",
     "test:selection-gizmo:cpu": "node tests/selection-gizmo-state.mjs && node tests/current-source-baseline.mjs --scope gizmo",

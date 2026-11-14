@@ -25,7 +25,7 @@ try{
  const waitState=async(owner,key,state)=>{await page.waitForFunction(([o,i,s])=>framePrograms.status({owner:o,id:i})?.state===s,[owner,key,state],{timeout:7000});return status(owner,key);};
  const finish=async receipt=>timed(receipt.operation+' job',7000,async()=>{check('Receipt is immediate and names bounded job',receipt.state==='queued'&&receipt.jobId.length<=64,receipt);await page.waitForFunction(id=>!['queued','running'].includes(framePrograms.poll({jobId:id}).state),receipt.jobId,{timeout:7000});const result=await call('programs.job',{jobId:receipt.jobId});check(receipt.operation+' job completed',result.state==='completed',result);return result.result;});
  const invoke=async(owner,method,args=[],key=D)=>finish(await call('programs.invoke',{...target(owner,key),method,args}));
- const desc=await call('programs.describe');check('Capabilities disclose implemented and absent stages',desc.capabilities.arbitraryJavaScript&&desc.capabilities.mainDOM&&desc.capabilities.jobExecution&&!desc.capabilities.panel&&!desc.capabilities.frameLifecycle&&!desc.capabilities.testCopies,desc.capabilities);
+ const desc=await call('programs.describe');check('Capabilities disclose implemented and absent stages',desc.capabilities.arbitraryJavaScript&&desc.capabilities.mainDOM&&desc.capabilities.jobExecution&&desc.capabilities.panel&&!desc.capabilities.sandboxed&&!desc.capabilities.frameLifecycle&&!desc.capabilities.testCopies,desc.capabilities);
  check('Blank runtime has no workers or activations',(await call('programs.status')).instances.length===0&&(await call('programs.status')).contexts.length===0);
  const cube=await call('scene.create',{type:'cube',name:'Program Cube'}),C=cube.hash;
  const code=`let moduleIdentity=crypto.randomUUID();

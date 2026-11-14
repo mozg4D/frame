@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="./frame-icon-v4.svg" type="image/svg+xml">
+<link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 14 nov 23:07">
-<title>Frame 2026 14 nov 23:07</title>
+<meta name="frame-version" content="2026 14 nov 23:25">
+<title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
 *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#202020}body{user-select:none;--h:0;--s:0%;--l:80%}
@@ -213,7 +213,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 </div>
 </div>
 <div class="trow" id="modelbar">
-<button type="button" class="tbtn" id="btnHelp" aria-label="Help" aria-keyshortcuts="F1" title="Help (F1)"></button>
+<button type="button" class="tbtn" id="btnControl" aria-label="Scene Control" title="Scene Control"></button>
 <button type="button" class="tbtn" id="btnDocs" title="Doc">Doc</button>
 <button type="button" class="tbtn" id="btnInstance" aria-label="Instance" title="Instance"></button>
 <button type="button" class="tbtn" id="btnBoolean" aria-label="Boolean"  title="Boolean"></button>
@@ -284,6 +284,208 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
     </div>
   </div>
 </dialog>
+<script id="frame-control-shell" type="text/plain"><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="frame-icon.svg" type="image/svg+xml"><title>Scene Control | Frame</title><style>:root{color-scheme:dark;font:14px/1.5 ui-monospace,Consolas,monospace;color:#cfcfcf;background:#202020}*{box-sizing:border-box}body{margin:0;padding:20px}button,input,select{font:inherit;color:inherit}button,select,input{background:#303030;border:1px solid #555;border-radius:4px;padding:7px 10px}button{cursor:pointer}button:hover{background:#414141}button:disabled{opacity:.45;cursor:default}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #8fb8ff}section+section{margin-top:20px}h1,h2{font-size:16px;margin:0 0 12px}p{margin:0 0 14px}#frame-control-empty{max-width:54ch;color:#aaa}[hidden]{display:none!important}</style></head><body><p id="frame-control-empty"></p><main id="frame-control-content"></main></body></html></script>
+<script id="frame-documentation-shell" type="text/plain"><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="./frame-icon.svg" type="image/svg+xml"><title>Scene Documentation · Frame</title><style>
+:root{color-scheme:dark;font:14px system-ui,sans-serif;background:#1b1b1b;color:#ddd}body{margin:0;height:100dvh;display:flex;flex-direction:column}textarea{flex:1;min-height:0;resize:none;border:0;outline:0;background:transparent;color:inherit;font:inherit;line-height:1.55;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere}output{font-size:12px;padding:8px 24px;color:#aaa}output[data-error=true]{color:#ffbc88}</style></head><body><textarea aria-label="Scene documentation" spellcheck="false" disabled></textarea><output hidden></output></body></html>
+</script>
+<script id="frame-viewport-shell" type="text/plain"><!doctype html><html lang="en" data-frame-viewport-shell><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="frame-icon.svg"><title>View | Frame</title><style>html,body{margin:0;background:#1d1d1d;color:#aaa;font:13px system-ui}p{margin:16px}</style></head><body><p>Open an additional view from Frame.</p></body></html></script>
+<script id="frame-documentation-editor" type="text/plain">
+
+// Documentation synchronization.
+const {edit,selectionAfter,presentation,rebase,draftLimit,rescueRecord,readRescue,session}=(()=>{
+// One contiguous edit envelope. Conservative: overlapping envelopes conflict.
+const splitPair=(s,i)=>i>0&&i<s.length&&/[\uD800-\uDBFF]/.test(s[i-1])&&/[\uDC00-\uDFFF]/.test(s[i]);
+function edit(base,text){let start=0,end=base.length,tail=text.length;while(start<end&&start<tail&&base[start]===text[start])start++;while(end>start&&tail>start&&base[end-1]===text[tail-1]){end--;tail--;}if(splitPair(base,start)||splitPair(text,start))start--;if(splitPair(base,end))end++;if(splitPair(text,tail))tail++;return {start,end,text:text.slice(start,tail)};}
+// Insertions at a boundary have right affinity. Positions inside a replacement
+// move to its end; the left edge of a nonempty replacement stays at its start.
+function selectionAfter(base,text,start,end,direction='none'){
+ const e=edit(base,text),delta=e.text.length-(e.end-e.start),map=p=>p<e.start?p:p>=e.end?p+delta:p===e.start?e.start:e.start+e.text.length;
+ let a=Math.max(0,Math.min(text.length,map(start))),b=Math.max(0,Math.min(text.length,map(end)));
+ if(start===end){if(splitPair(text,a))a++;b=a;}else{if(splitPair(text,a))a--;if(splitPair(text,b))b++;}
+ return {start:a,end:b,direction};
+}
+function presentation(s){return {disabled:!s.editable&&!s.text&&!s.pending&&!s.dirty&&!s.fault,readOnly:!!s.fault,message:s.fault||''};}
+
+function rebase(base,local,remote){
+ if(local===base)return remote;if(remote===base||local===remote)return local;
+ const a=edit(base,local),b=edit(base,remote);
+ // Same-position insertions and touching edit boundaries are intentionally ambiguous.
+ if(a.end<b.start)return remote.slice(0,a.start)+a.text+remote.slice(a.end);
+ if(b.end<a.start){const shift=b.text.length-(b.end-b.start),start=a.start+shift,end=a.end+shift;return remote.slice(0,start)+a.text+remote.slice(end);}
+ throw Error('Concurrent changes overlap. Your draft is retained; copy it before reopening.');
+}
+const epoch=s=>s.version.slice(0,s.version.lastIndexOf(':'));
+const newer=(a,b)=>epoch(a)!==epoch(b)||Number(a.version.split(':').at(-1))>Number(b.version.split(':').at(-1));
+// A single bounded, plain-text sessionStorage record. The body is not JSON
+// escaped, so every valid 1 Mi UTF-16 document has the same storage bound.
+const draftLimit=1048576;
+function rescueRecord({text,version},token,{start,end,direction}){
+ if(typeof text!=='string'||text.length>draftLimit)throw Error('Draft exceeds recovery limit');
+ const header=JSON.stringify({format:1,token,version,start,end,direction});
+ if(header.length>2048)throw Error('Invalid recovery metadata');
+ return header+'\n'+text;
+}
+function readRescue(raw,token){
+ if(raw===null)return null;
+ if(typeof raw!=='string'||raw.length>draftLimit+2049)throw Error('Invalid recovery record');
+ const split=raw.indexOf('\n');if(split<0||split>2048)throw Error('Invalid recovery header');
+ const h=JSON.parse(raw.slice(0,split)),text=raw.slice(split+1);
+ if(h.format!==1||typeof h.token!=='string'||typeof h.version!=='string'||h.version.length>256||!h.version.includes(':')||text.length>draftLimit||!Number.isSafeInteger(h.start)||!Number.isSafeInteger(h.end)||h.start<0||h.end<h.start||h.end>text.length||!['none','forward','backward'].includes(h.direction))throw Error('Invalid recovery draft');
+ return h.token===token?{text,version:h.version,start:h.start,end:h.end,direction:h.direction}:null;
+}
+function session({send,changed}){
+ let base=null,draft='',pending=null,latest=null,heldReply=null,fault='',next=0,editable=false,held=false;
+ const emit=()=>changed({text:draft,editable,version:base?.version,pending:!!pending,dirty:!!base&&draft!==base.text,fault});
+ // Capture is deliberately separate from submission. Even the final IME input
+ // after a terminal fault belongs to this local draft, never to a newer scene.
+ const capture=text=>{if(!editable||!base||text===draft)return false;draft=text;return true;};
+ const fail=message=>{fault||=message;pending=null;latest=null;heldReply=null;};
+ function integrate(s){if(!base){base=s;draft=s.text;editable=true;return;}if(epoch(s)!==epoch(base)){if(pending||draft!==base.text)throw Error('Scene changed. Your previous-scene draft is retained; copy it before reopening.');base=s;draft=s.text;editable=true;return;}if(!newer(s,base))return;draft=rebase(base.text,draft,s.text);base=s;editable||=!!s.text;}
+ function pump(){if(fault||held||pending||!base||draft===base.text)return;pending={id:++next,text:draft,base};try{send({kind:'write',id:pending.id,text:draft,version:base.version});}catch{fail('Main scene connection failed. Draft retained here; copy it before closing.');}}
+ function applyLatest(){if(latest){const s=latest;latest=null;integrate(s);}}
+ function reply(m){const p=pending;pending=null;heldReply=null;try{if(m.ok){const s=m.state;if(epoch(s)!==epoch(p.base))throw Error('Scene changed while saving; draft retained.');draft=draft===p.text?s.text:rebase(p.text,draft,s.text);base=s;}else if(m.code!=='CONFLICT')throw Error((m.error||'Save failed')+' Draft retained here; copy it before reopening.');applyLatest();if(!m.ok&&base.version===p.base.version)throw Error(m.error||'Save conflict; draft retained.');pump();}catch(e){fail(e.message);}}
+ return {
+  capture(text){if(capture(text))emit();},
+  input(text){capture(text);pump();emit();},
+  hold(){held=true;},
+  resume(text){capture(text);held=false;if(!fault)try{if(heldReply)reply(heldReply);else if(!pending){applyLatest();pump();}}catch(e){fail(e.message);}emit();},
+  snapshot(s){if(fault)return;if(held&&base&&epoch(s)!==epoch(base)){fail('Scene changed during composition. Your previous-scene draft is retained; copy it before reopening.');emit();return;}if(held||pending){if(!latest||newer(s,latest))latest=s;emit();return;}try{integrate(s);pump();}catch(e){fail(e.message);}emit();},
+  reply(m){if(fault||!pending||m.id!==pending.id)return;if(held&&(m.ok||m.code==='CONFLICT'))heldReply=m;else reply(m);emit();},
+  stop(message){if(fault)return;fail(message);emit();},
+  disconnect(){if(fault)return;fail('Main scene connection closed. Draft retained here; copy it before closing.');emit();},
+  restore(s){if(base)return;base={text:'',version:s.version};draft=s.text;editable=true;fail('Recovered draft after reload; recovery may be incomplete. Copy it before reopening Docs; it has not been sent to the scene.');emit();},
+  get state(){return {base,draft,pending,fault};}
+ };
+}
+return {edit,selectionAfter,presentation,rebase,draftLimit,rescueRecord,readRescue,session};
+})();
+
+// Local text history.
+const {history}=(()=>{
+const selection=(s,text)=>({start:Math.max(0,Math.min(text.length,s.start)),end:Math.max(0,Math.min(text.length,s.end)),direction:s.direction||'none'});
+const same=(a,b)=>a.start===b.start&&a.end===b.end&&a.direction===b.direction;
+// Detach patch payloads: a small slice must not retain an old megabyte document.
+const detach=text=>JSON.parse(JSON.stringify(text));
+const delta=(before,after)=>{const e=edit(before,after);return {start:e.start,before:detach(before.slice(e.start,e.end)),after:detach(e.text)};};
+const replace=(text,e,undo)=>{const from=undo?e.after:e.before,to=undo?e.before:e.after;if(text.slice(e.start,e.start+from.length)!==from)throw Error('History no longer matches');return text.slice(0,e.start)+to+text.slice(e.start+from.length);};
+// Map two disjoint edits without walking/copying every historical document.
+// Each entry is transformed in O(1); the remote text is diffed just once.
+function commute(a,b){
+ const ae=a.start+a.before.length,be=b.start+b.before.length,ad=a.after.length-a.before.length,bd=b.after.length-b.before.length;
+ if(a.start===ae&&b.start===be&&a.start===b.start)throw Error('Ambiguous history insertion');
+ if(ae<=b.start)return {local:a,remote:{...b,start:b.start+ad}};
+ if(be<=a.start)return {local:{...a,start:a.start+bd},remote:b};
+ throw Error('Remote change overlaps history');
+}
+function moveSelection(s,e,length){
+ const end=e.start+e.before.length,d=e.after.length-e.before.length,map=p=>p<e.start?p:p>=end?p+d:p===e.start?e.start:e.start+e.after.length;
+ return selection({start:map(s.start),end:map(s.end),direction:s.direction},{length});
+}
+// Local-only patch history. External changes transform disjoint entries; an
+// overlapping historical entry and its older dependencies are dropped rather
+// than reverting someone else's text. No scene history or storage is involved.
+function history({limit=128,maxCharacters=4*1048576}={}){
+ let current='',undo=[],redo=[],group=null;
+ const trim=()=>{while(undo.length+redo.length>limit||[...undo,...redo].reduce((n,e)=>n+e.before.length+e.after.length,0)>maxCharacters){if(undo.length)undo.shift();else redo.shift();}if(group&&!undo.includes(group))group=null;};
+ const entry=(before,after,a,b)=>({...delta(before,after),selectionBefore:selection(a,before),selectionAfter:selection(b,after)});
+ function transform(stack,from,to,backwards){
+  const out=[];let remote=delta(from,to),length=from.length;
+  for(let i=stack.length-1;i>=0;i--){const e=stack[i];try{
+   const local={start:e.start,before:backwards?e.after:e.before,after:backwards?e.before:e.after};
+   const mapped=commute(local,remote),newLength=length+remote.after.length-remote.before.length,nextLength=length+local.after.length-local.before.length;
+   const a=moveSelection(e.selectionBefore,backwards?mapped.remote:remote,backwards?nextLength+mapped.remote.after.length-mapped.remote.before.length:newLength);
+   const b=moveSelection(e.selectionAfter,backwards?remote:mapped.remote,backwards?newLength:nextLength+mapped.remote.after.length-mapped.remote.before.length);
+   out.push({...e,start:mapped.local.start,selectionBefore:a,selectionAfter:b});length=nextLength;remote=mapped.remote;
+  }catch{break;}}
+  return out.reverse();
+ }
+ return {
+  reset(text){current=text;undo=[];redo=[];group=null;},
+  remote(text){if(text===current)return;undo=transform(undo,current,text,true);redo=transform(redo,current,text,false);current=text;group=null;trim();},
+  breakGroup(){group=null;},
+  record(before,after,a,b,type='',time=performance.now()){
+   if(before!==current)this.remote(before);
+   if(before===after)return;
+   const e=entry(before,after,a,b);let merge=false;
+   if(group&&group.type===type&&time-group.time<=1000&&same(group.selectionAfter,e.selectionBefore)){
+    if(type==='insertText'&&!group.before&&!e.before&&group.start+group.after.length===e.start&&!/\s/u.test(group.after+e.after)){group.after+=e.after;merge=true;}
+    else if(type==='deleteContentBackward'&&!group.after&&!e.after&&e.start+e.before.length===group.start){group.before=e.before+group.before;group.start=e.start;merge=true;}
+    else if(type==='deleteContentForward'&&!group.after&&!e.after&&e.start===group.start){group.before+=e.before;merge=true;}
+   }
+   if(merge){group.selectionAfter=e.selectionAfter;group.time=time;}else{group={...e,type,time};undo.push(group);}
+   redo=[];current=after;trim();
+  },
+  step(backwards=true){
+   group=null;const from=backwards?undo:redo,to=backwards?redo:undo,e=from.pop();if(!e)return null;
+   try{current=replace(current,e,backwards);to.push(e);return {text:current,selection:backwards?e.selectionBefore:e.selectionAfter};}
+   catch{from.length=0;return null;}
+  },
+  get state(){return {text:current,undo:undo.length,redo:redo.length,characters:[...undo,...redo].reduce((n,e)=>n+e.before.length+e.after.length,0)};}
+ };
+}
+return {history};
+})();
+
+// Editor UI.
+const area=document.querySelector('textarea'),status=document.querySelector('output'),token=location.hash.slice(1),rescueKey='frame-docs-draft-v1';
+let port=null,composing=false,finishing=false,finishTimer=null,lastState=null,recoveryWarning='',operationWarning='',seal=null;
+const undoHistory=history();let historyEpoch=null,beforeInput=null,compositionBefore=null;
+const selection=()=>({start:area.selectionStart,end:area.selectionEnd,direction:area.selectionDirection});
+function persist(s){
+ if(!s)return;
+ if(s.version){const unsafe=s.pending||s.dirty||s.fault||composing||finishing;try{if(unsafe)window.sessionStorage.setItem(rescueKey,rescueRecord(s,token,selection()));else window.sessionStorage.removeItem(rescueKey);recoveryWarning='';}catch{recoveryWarning=unsafe?'Reload recovery unavailable. Keep this window open and copy the draft before closing.':'';}}
+ status.dataset.error=String(!!(s.fault||recoveryWarning));status.textContent=[s.fault,recoveryWarning].filter(Boolean).join(' ')||operationWarning||(seal?'File operation in progress. Editing is temporarily paused.':'');status.hidden=!status.textContent;
+}
+function paint(s){
+ const epoch=s.version?.slice(0,s.version.lastIndexOf(':'));
+ if(epoch&&epoch!==historyEpoch){undoHistory.reset(s.text);historyEpoch=epoch;beforeInput=null;}else if(area.value!==s.text&&!composing&&!finishing)undoHistory.remote(s.text);
+ lastState=s;
+ // Do not change the DOM or selection under an active native composition.
+ // Terminal faults are visible immediately, but readOnly waits for its end.
+ if(!composing&&!finishing&&!seal?.acknowledged){if(area.value!==s.text){const change=edit(area.value,s.text),nextSelection=selectionAfter(area.value,s.text,area.selectionStart,area.selectionEnd,area.selectionDirection);area.setRangeText(change.text,change.start,change.end,'preserve');area.setSelectionRange(nextSelection.start,nextSelection.end,nextSelection.direction);}const ui=presentation(s);area.disabled=ui.disabled;area.readOnly=ui.readOnly||!!seal;}
+ persist(s);
+ if(seal&&!seal.acknowledged){if(s.fault){port.postMessage({kind:'sealed',id:seal.id,ok:false,error:s.fault});seal=null;}else if(!composing&&!finishing&&!s.pending&&!s.dirty){seal.acknowledged=true;seal.text=area.value;port.postMessage({kind:'sealed',id:seal.id,ok:true,version:s.version});}}
+}
+const sync=session({send:m=>port.postMessage(m),changed:paint});
+function capture(){sync.capture(area.value);}
+function disconnect(){capture();sync.disconnect();}
+function invalidateSeal(){if(!seal?.acknowledged||area.value===seal.text)return;capture();sync.stop('These later edits have not been sent to the scene. Your draft is retained; copy it before reopening.');port.postMessage({kind:'seal-invalid',id:seal.id,error:lastState.fault});}
+function receive(m){
+ invalidateSeal();capture();
+ if(m?.kind==='seal'&&Number.isSafeInteger(m.id)){
+  const blocked=seal||composing||finishing||lastState?.fault||!lastState?.version||m.mode==='replace'&&(lastState.pending||lastState.dirty);
+  if(blocked){operationWarning='Finish the Docs edit, then retry this file operation. Your draft is retained.';persist(lastState);port.postMessage({kind:'sealed',id:m.id,ok:false,error:lastState?.fault||operationWarning});return;}
+  operationWarning='';seal={id:m.id,acknowledged:false,snapshot:null};area.readOnly=true;sync.input(area.value);return;
+ }
+ if(m?.kind==='release'&&seal?.id===m.id){const snapshot=seal.snapshot;seal=null;operationWarning=typeof m.error==='string'?m.error:'';if(snapshot)sync.snapshot(snapshot);paint(lastState);return;}
+ if(m?.kind==='snapshot'){if(seal?.acknowledged)seal.snapshot=m.state;else sync.snapshot(m.state);}
+ else if(m?.kind==='reply')sync.reply(m);else if(m?.kind==='closed')disconnect();
+}
+window.addEventListener('message',event=>{if(port||event.source!==opener||event.origin!==location.origin||event.data?.kind!=='frame-docs-connect'||event.data.token!==token||event.ports.length!==1)return;port=event.ports[0];port.onmessage=event=>receive(event.data);port.onmessageerror=disconnect;});
+function recordComposition(){if(compositionBefore)undoHistory.record(compositionBefore.text,area.value,compositionBefore.selection,selection(),'insertCompositionText');compositionBefore=null;beforeInput=null;}
+function finishComposition(){finishTimer=null;if(!finishing)return;capture();recordComposition();finishing=false;sync.resume(area.value);}
+function scheduleFinish(){if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=setTimeout(finishComposition,0);}
+function changeHistory(backwards){
+ if(area.disabled||area.readOnly||composing||finishing||seal)return;
+ const changed=undoHistory.step(backwards);if(!changed)return;
+ const e=edit(area.value,changed.text);area.setRangeText(e.text,e.start,e.end,'preserve');const s=changed.selection;area.setSelectionRange(s.start,s.end,s.direction);beforeInput=null;sync.input(area.value);
+}
+area.addEventListener('keydown',e=>{if(composing||finishing||area.disabled||area.readOnly||seal)return;const key=e.key.toLowerCase(),shortcut=key==='z'||key==='y'?key:e.code==='KeyZ'?'z':e.code==='KeyY'?'y':key;if((e.ctrlKey||e.metaKey)&&!e.altKey&&(shortcut==='z'||shortcut==='y'&&!e.metaKey)){e.preventDefault();changeHistory(shortcut==='z'&&!e.shiftKey);return;}if(['arrowleft','arrowright','arrowup','arrowdown','home','end','pageup','pagedown'].includes(key))undoHistory.breakGroup();});
+area.addEventListener('pointerdown',()=>undoHistory.breakGroup());
+area.addEventListener('beforeinput',e=>{if(!composing&&!finishing&&(e.inputType==='historyUndo'||e.inputType==='historyRedo')){e.preventDefault();changeHistory(e.inputType==='historyUndo');return;}beforeInput={text:area.value,selection:selection()};});
+area.addEventListener('input',e=>{if(!composing&&!finishing&&!seal?.acknowledged){const before=beforeInput||{text:undoHistory.state.text,selection:selection()};undoHistory.record(before.text,area.value,before.selection,selection(),e.inputType);}beforeInput=null;if(seal?.acknowledged){invalidateSeal();return;}if(composing||finishing){capture();if(finishing)scheduleFinish();}else sync.input(area.value);});
+area.addEventListener('compositionstart',()=>{if(finishTimer!==null)clearTimeout(finishTimer);if(finishing){capture();recordComposition();}finishTimer=null;finishing=false;composing=true;compositionBefore={text:area.value,selection:selection()};undoHistory.breakGroup();sync.hold();capture();if(seal){port.postMessage({kind:'seal-invalid',id:seal.id,error:'Composition started during a file operation; draft retained.'});sync.stop('Composition started during a file operation. These later edits have not been sent to the scene. Draft retained; copy it before reopening.');}});
+// Native engines differ in whether the final input precedes compositionend.
+// Hold remote integration through this event turn, including its final input.
+area.addEventListener('compositionend',()=>{capture();composing=false;finishing=true;scheduleFinish();});
+area.addEventListener('blur',()=>{undoHistory.breakGroup();capture();if(lastState)paint(lastState);});
+area.addEventListener('select',()=>persist(lastState));
+window.addEventListener('beforeunload',e=>{capture();persist(lastState);if(lastState?.pending||lastState?.dirty||lastState?.fault||composing||finishing){e.preventDefault();e.returnValue='';}});
+window.addEventListener('pagehide',()=>{capture();persist(lastState);if(finishTimer!==null)clearTimeout(finishTimer);finishTimer=null;port?.close();});
+try{const recovered=readRescue(window.sessionStorage.getItem(rescueKey),token);if(recovered){sync.restore(recovered);area.setSelectionRange(recovered.start,recovered.end,recovered.direction);persist(lastState);}}catch{recoveryWarning='Reload recovery unavailable. Keep this window open and copy any unsaved draft before closing.';status.hidden=false;status.textContent=recoveryWarning;}
+if(opener&&token){installDocumentationGeometry();opener.postMessage({kind:'frame-docs-ready',token},location.origin);}else if(!lastState){status.hidden=false;status.textContent='Open documentation from the scene’s Docs button.';}
+setInterval(()=>{if(port&&(!opener||opener.closed))disconnect();},1000);
+</script>
 <script id="frame-spline-kernel" type="text/plain">function FrameSplineKernel(e){const t={};!function(e){"use strict";const t=(()=>{
 const e=(e,t)=>e.map((e,n)=>e+t[n]),t=(e,t)=>e.map((e,n)=>e-t[n]),n=(e,t)=>e.map(e=>e*t),r=(e,t)=>e.reduce((e,n,r)=>e+n*t[r],0),s=(e,t)=>[e[1]*t[2]-e[2]*t[1],e[2]*t[0]-e[0]*t[2],e[0]*t[1]-e[1]*t[0]],o=e=>Math.hypot(...e),a=e=>{const t=o(e)
 ;return t>1e-30?n(e,1/t):[0,0,0]},i=(t,r,s)=>e(n(t,1-s),n(r,s)),l=e=>Math.max(-1,Math.min(1,e)),c=e=>Math.max(0,Math.min(1,e));function u(e,s){const o=r(s,s)||1,a=r(e,s)/o;return t(e,n(s,a))}function h(e,t){const n=e.knots
@@ -9124,6 +9326,7 @@ return new FrameRenderer(container,changed);}</script>
 // Original Frame icons, material previews and numeric expression helpers.
 
 const icons = {
+ICO_CONTROL:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="#aaa" stroke-width="1.5"><path d="M7 5v22M16 5v22M25 5v22"/><path fill="#202020" d="M4 10h6v5H4zM13 19h6v5h-6zM22 8h6v5h-6z"/></svg>',
 ICO_PLUGINS:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges" fill="#626872"><rect x="5" y="5" width="9" height="9"/><rect x="18" y="5" width="9" height="9"/><rect x="5" y="18" width="9" height="9"/><path fill="#a0a7b2" d="M22 18h1v4h4v1h-4v4h-1v-4h-4v-1h4z"/></svg>',
 
   "ICO_GRID": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"5.5\" y1=\"4.5\" x2=\"5.5\" y2=\"27.5\"/><line x1=\"12.5\" y1=\"4.5\" x2=\"12.5\" y2=\"27.5\"/><line x1=\"19.5\" y1=\"4.5\" x2=\"19.5\" y2=\"27.5\"/><line x1=\"26.5\" y1=\"4.5\" x2=\"26.5\" y2=\"27.5\"/><line x1=\"4.5\" y1=\"5.5\" x2=\"27.5\" y2=\"5.5\"/><line x1=\"4.5\" y1=\"12.5\" x2=\"27.5\" y2=\"12.5\"/><line x1=\"4.5\" y1=\"19.5\" x2=\"27.5\" y2=\"19.5\"/><line x1=\"4.5\" y1=\"26.5\" x2=\"27.5\" y2=\"26.5\"/><circle cx=\"19.5\" cy=\"12.5\" r=\"2.5\" fill=\"#f08a1d\" stroke-width=\"0\"/></svg>",
@@ -9914,6 +10117,114 @@ function frameCurvesSyncAttributeValues(){
 function frameShortcutKey(e){return /^(Key[A-Z]|Digit[0-9])$/.test(e.code)?e.code.slice(e.code.startsWith('Key')?3:5).toLowerCase():e.key.toLowerCase();}
 // Native view windows share the original DOM, camera records, document and GPU device.
 // No second application, postMessage receiver, scene serialization or child script exists.
+// Embedded popup documents. Object URLs keep reload available without extra files.
+function framePopupDocumentURL(kind,script=''){
+ const source=document.getElementById('frame-'+kind+'-shell');if(!source)throw Error('Missing popup document');
+ const base=document.createElement('base');base.href=new URL('./',document.baseURI).href;
+ let html=source.textContent.replace('<head>','<head>'+base.outerHTML);
+ if(script)html=html.replace('</body>','<script type="module">'+script.replace(/<\/script/gi,'<\\/script')+'<'+'/script></body>');
+ return URL.createObjectURL(new Blob([html],{type:'text/html'}));
+}
+function frameTrackPopupURL(host,child,url){
+ if(!child){URL.revokeObjectURL(url);return;}
+ const release=()=>{host.clearInterval(timer);host.removeEventListener('pagehide',release);URL.revokeObjectURL(url);};
+ const timer=host.setInterval(()=>{if(child.closed)release();},1000);host.addEventListener('pagehide',release,{once:true});
+}
+function openDocumentationPopup(host,token,features){
+ const source=document.getElementById('frame-documentation-editor').textContent;
+ const script='const {installDocumentationGeometry}=('+createFrameDocumentationGeometry.toString()+')();\n'+source;
+ const url=framePopupDocumentURL('documentation',script),child=host.open(url+'#'+token,'frame-docs-'+token,features);frameTrackPopupURL(host,child,url);return child;
+}
+
+// Documentation window geometry.
+function createFrameDocumentationGeometry(key='frame-docs-window-v1'){
+// Window preferences only. No document text, scene state or display permission.
+const finite=(n,min,max)=>typeof n==='number'&&Number.isFinite(n)&&n>=min&&n<=max;
+const clamp=(n,min,max)=>Math.max(min,Math.min(n,max));
+function workArea(screen){
+ if(!screen||!finite(screen.availWidth,100,32768)||!finite(screen.availHeight,100,32768))return null;
+ return {left:finite(screen.availLeft,-1000000,1000000)?Math.round(screen.availLeft):0,top:finite(screen.availTop,-1000000,1000000)?Math.round(screen.availTop):0,width:Math.round(screen.availWidth),height:Math.round(screen.availHeight)};
+}
+function valid(g){return g&&finite(g.left,-1000000,1000000)&&finite(g.top,-1000000,1000000)&&finite(g.width,100,32768)&&finite(g.height,100,32768)&&finite(g.outerWidth,100,32768)&&finite(g.outerHeight,100,32768);}
+function restoredBounds(host){
+ let saved;try{saved=JSON.parse(host.localStorage.getItem(key));}catch{}
+ if(!valid(saved))return null;
+ const current=workArea(host.screen);
+ // Keep known extended-display coordinates, but restore an unavailable display
+ // onto the current one. Native window.open also clamps impossible placement.
+ const previous=workArea(saved.screen&&{availLeft:saved.screen.left,availTop:saved.screen.top,availWidth:saved.screen.width,availHeight:saved.screen.height});
+ const area=current&&(!previous||host.screen?.isExtended!==true||current.left===previous.left&&current.top===previous.top)?current:previous;
+ const outerWidth=Math.round(Math.min(saved.outerWidth,area?.width||32768)),outerHeight=Math.round(Math.min(saved.outerHeight,area?.height||32768));
+ const width=Math.max(100,outerWidth-Math.max(0,saved.outerWidth-saved.width)),height=Math.max(100,outerHeight-Math.max(0,saved.outerHeight-saved.height));
+ const left=Math.round(area?clamp(saved.left,area.left,area.left+Math.max(0,area.width-outerWidth)):saved.left),top=Math.round(area?clamp(saved.top,area.top,area.top+Math.max(0,area.height-outerHeight)):saved.top);
+ return {width,height,left,top,outerWidth,outerHeight};
+}
+function documentationWindowFeatures(host=window){
+ const g=restoredBounds(host);if(g)return `popup,width=${g.width},height=${g.height},left=${g.left},top=${g.top}`;
+ const area=workArea(host.screen),width=Math.min(760,area?.width||760),height=Math.min(700,Math.max(100,(area?.height||780)-80));
+ return `popup,width=${width},height=${height}`;
+}
+function installDocumentationGeometry(host=window){
+ let last='';
+ // Correct feature-size rounding once using saved outer bounds. Outer size
+ // also remains meaningful when browser zoom makes innerWidth > outerWidth.
+ // Window features may ignore coordinates even with permission; move once too.
+ // Never move/resize the opener or keep forcing bounds after the user moves it.
+ try{const g=restoredBounds(host);if(g){host.resizeTo(g.outerWidth,g.outerHeight);host.moveTo?.(g.left,g.top);}}catch{}
+ const save=()=>{
+  try{
+   const g={left:host.screenX,top:host.screenY,width:host.innerWidth,height:host.innerHeight,outerWidth:host.outerWidth,outerHeight:host.outerHeight,screen:workArea(host.screen)};
+   if(!valid(g))return;
+   for(const k of ['left','top','width','height','outerWidth','outerHeight'])g[k]=Math.round(g[k]);
+   const value=JSON.stringify(g);if(value===last)return;
+   host.localStorage.setItem(key,value);last=value;
+  }catch{} // Blocked/quota-limited preferences must not affect draft safety.
+ };
+ // Browsers expose resize, but no cross-browser window-move event.
+ const timer=host.setInterval(save,1000);
+ for(const name of ['resize','blur','beforeunload'])host.addEventListener(name,save);
+ host.addEventListener('pagehide',()=>{save();host.clearInterval(timer);});
+ save();
+}
+
+return {documentationWindowFeatures,installDocumentationGeometry};
+}
+
+// Documentation popup host.
+function installDocumentationWindow({button,write,read,events=window,host=window,timeout=5000,openPopup=openDocumentationPopup}){
+ const {documentationWindowFeatures}=createFrameDocumentationGeometry();
+ let child=null,port=null,token=null,seal=null,next=0;
+ const error=message=>Object.assign(Error(message),{code:'DOCS_PENDING'});
+ const send=(active,m)=>active.postMessage(m);
+ const abort=message=>{if(!seal)return;const current=seal;seal=null;clearTimeout(current.timer);clearInterval(current.watch);current.close();try{send(current.port,{kind:'release',id:current.id,error:message});}catch{}current.reject(error(message));};
+ const refresh=()=>{const state=read();port?.postMessage({kind:'snapshot',state});};
+ const ready=event=>{if(!child||event.source!==child||event.origin!==location.origin||event.data?.kind!=='frame-docs-ready'||event.data.token!==token)return;abort('Docs reconnected. Retry the file operation after checking the draft.');port?.close();const channel=new MessageChannel();port=channel.port1;const active=port;let busy=false;
+ active.onmessage=async event=>{if(active!==port)return;const m=event.data;
+  if(m?.kind==='sealed'&&seal&&seal.port===active&&m.id===seal.id){const current=seal;
+   if(!m.ok){abort(m.error||'Finish the Docs edit before this file operation.');return;}
+   const state=read();if(typeof m.version!=='string'||m.version!==state.version||m.version.split(':').slice(0,-1).join(':')!==current.epoch){abort('Docs changed while preparing the file operation. Retry after checking the draft.');return;}
+   // Close admission in this message turn, before resolving/awaiting anything.
+   current.close();clearTimeout(current.timer);clearInterval(current.watch);current.version=m.version;current.acknowledged=true;
+   current.resolve({verify(){if(current.invalid||seal!==current||port!==active||child.closed||read().version!==current.version)throw error(current.invalid||'Docs changed before the file operation. Retry after checking the draft.');},release(reason){if(seal===current)seal=null;try{send(active,{kind:'release',id:current.id,...reason?{error:'File operation failed: '+reason+'. Retry after checking the draft.'}:{}});}catch{}}});return;
+  }
+  if(m?.kind==='seal-invalid'&&seal&&seal.port===active&&m.id===seal.id){seal.invalid=m.error||'Docs input changed while the file operation was sealed.';if(!seal.acknowledged)abort(seal.invalid);return;}
+  if(m?.kind!=='write'||!Number.isSafeInteger(m.id)||typeof m.text!=='string'||typeof m.version!=='string')return;
+  if(busy){send(active,{kind:'reply',id:m.id,ok:false,error:'A documentation write is already pending'});return;}busy=true;
+  try{const state=await write({text:m.text,version:m.version},()=>{if(port!==active||child.closed)throw error('Docs connection changed. Draft retained.');});send(active,{kind:'reply',id:m.id,ok:true,state});}
+  catch(e){send(active,{kind:'snapshot',state:read()});send(active,{kind:'reply',id:m.id,ok:false,code:e.code,error:e.message});}finally{busy=false;}
+ };
+ active.onmessageerror=()=>{if(active===port)abort('Docs connection failed. Keep the draft open and retry.');};
+ child.postMessage({kind:'frame-docs-connect',token},location.origin,[channel.port2]);refresh();};
+ button.onclick=()=>{if(child&&!child.closed){child.focus();return;}token=crypto.randomUUID();child=openPopup(host,token,documentationWindowFeatures(host));if(!child)host.alert('Allow this documentation window to open, then click Docs again.');};
+ events.addEventListener('frame-documentation-change',refresh);host.addEventListener('message',ready);host.addEventListener('pagehide',()=>{abort('Main scene connection closed.');port?.postMessage({kind:'closed'});port?.close();});refresh();
+ return {seal({mode,epoch,close}){
+  if(!child||child.closed){close();return Promise.resolve(null);}
+  if(!port)return Promise.reject(error('Docs is still connecting. Retry the file operation when the editor is ready.'));
+  if(seal)return Promise.reject(error('Another Docs file operation is still pending.'));
+  return new Promise((resolve,reject)=>{const current=seal={id:++next,port,child,epoch,close,resolve,reject};current.timer=setTimeout(()=>abort('Docs did not finish in time. Keep the draft open and retry the file operation.'),timeout);current.watch=setInterval(()=>{if(seal!==current||current.acknowledged)return;if(child!==current.child||port!==current.port){abort('Docs connection changed. Retry the file operation.');return;}if(!current.child.closed)return;seal=null;clearTimeout(current.timer);clearInterval(current.watch);current.close();current.resolve(null);},25);try{send(port,{kind:'seal',id:current.id,mode});}catch{abort('Docs connection failed. Keep the draft open and retry.');}});
+ }};
+}
+
 const FrameViewWindows=(()=>{
   const owned=new Map(),subscriptions=[],ui=new Map(),frames=new Map();let inputDocument=document,closing=false,frameSerial=0,ioBlocked=false,windowEpoch=0;
   const inputTypes=['pointerdown','pointermove','pointerup','pointercancel','wheel','keydown','keyup','contextmenu','focusin'];
@@ -9974,9 +10285,9 @@ const FrameViewWindows=(()=>{
   function waitForShell(r,url){return new Promise((resolve,reject)=>{const start=performance.now();let timer;const done=(error,doc)=>{clearInterval(timer);r.cancelLoad=null;error?reject(error):resolve(doc);};r.cancelLoad=()=>done(Error('The view window was closed before it finished loading.'));timer=setInterval(()=>{try{if(r.window.closed){done(Error('The view window was closed before it finished loading.'));return;}const doc=r.window.document;if(doc.URL===url&&doc.readyState==='complete'&&doc.documentElement.hasAttribute('data-frame-viewport-shell')){done(null,doc);return;}if(performance.now()-start>10000)done(Error('The view window did not load. Check the connection and try again.'));}catch{done(Error('The view window navigated away from Frame.'));}},25);});}
   async function open(source,requestPlacement=false){if(!window.frameEngine?.renderer)throw Error('The viewport is not ready.');if(!window.frameEngine.canDetachView())throw Error('Finish the current viewport gesture before opening another view.');
     const requestEpoch=windowEpoch,placementRequest=screenAccess(requestPlacement&&window.screen?.isExtended===true);if(requestPlacement&&screenAttempt){await placementRequest;if(closing||requestEpoch!==windowEpoch)throw Error('The view request was cancelled by navigation.');if(navigator.userActivation?.isActive===false)throw Error('Click the view icon again to open a window after the permission request.');if(!window.frameEngine?.canDetachView())throw Error('Finish the current viewport gesture before opening another view.');}
-    let index=4;while(owned.has(index))index++;let slot=0;while([...owned.values()].some(r=>r.source===source&&r.slot===slot))slot++;const saved=savedBounds(source,slot),g=bounds(saved),features=g?`popup,width=${g.width},height=${g.height},left=${g.left},top=${g.top}`:'popup,width=900,height=700',url=new URL('viewport.html#'+encodeURIComponent(frameViewNames[source]),location.href).href;
-    const child=window.open(url,'frame-view-'+crypto.randomUUID(),features);if(!child)throw Error('The browser blocked the view window. Allow popups for Frame, then click the view icon again.');child.opener=null;const r={index,source,slot,saved,window:child,ready:false,returning:false};owned.set(index,r);
-    try{const doc=await waitForShell(r,url);if(r.returning||closing)throw Error('The view window is closing.');r.document=doc;doc.title=frameViewNames[source]+' | Frame';doc.documentElement.lang='en';doc.head.replaceChildren();const title=doc.createElement('title');title.textContent=frameViewNames[source]+' | Frame';doc.head.append(title);const icon=doc.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=new URL('frame-icon-v4.svg',location.href).href;doc.head.append(icon);for(const style of document.querySelectorAll('style'))doc.head.append(style.cloneNode(true));const style=doc.createElement('style');style.textContent='html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1d1d1d}.view{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}';doc.head.append(style);doc.body.replaceChildren();
+    let index=4;while(owned.has(index))index++;let slot=0;while([...owned.values()].some(r=>r.source===source&&r.slot===slot))slot++;const saved=savedBounds(source,slot),g=bounds(saved),features=g?`popup,width=${g.width},height=${g.height},left=${g.left},top=${g.top}`:'popup,width=900,height=700',url=framePopupDocumentURL('viewport')+'#'+encodeURIComponent(frameViewNames[source]);
+    const child=window.open(url,'frame-view-'+crypto.randomUUID(),features);frameTrackPopupURL(window,child,url.split('#')[0]);if(!child)throw Error('The browser blocked the view window. Allow popups for Frame, then click the view icon again.');child.opener=null;const r={index,source,slot,saved,window:child,ready:false,returning:false};owned.set(index,r);
+    try{const doc=await waitForShell(r,url);if(r.returning||closing)throw Error('The view window is closing.');r.document=doc;doc.title=frameViewNames[source]+' | Frame';doc.documentElement.lang='en';doc.head.replaceChildren();const title=doc.createElement('title');title.textContent=frameViewNames[source]+' | Frame';doc.head.append(title);const icon=doc.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=new URL('frame-icon.svg',location.href).href;doc.head.append(icon);for(const style of document.querySelectorAll('style'))doc.head.append(style.cloneNode(true));const style=doc.createElement('style');style.textContent='html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1d1d1d}.view{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}';doc.head.append(style);doc.body.replaceChildren();
       const section=document.createElement('section');section.className='view';section.dataset.view=index;section.ariaLabel=frameViewNames[source];const c=document.createElement('canvas');c.className='frame-viewport-canvas';c.dataset.passiveView=index;c.getContext('webgpu');section.append(c);frameViewSections.set(index,section);frameViewCanvases.set(index,c);doc.body.append(section);window.frameEngine.createView(index,source);r.ready=true;doc.body.inert=ioBlocked;
       r.focus=()=>{inputDocument=doc;activateFrameView(index);};r.key=e=>{inputDocument=doc;if(blockIO(e))return;if(!e.target.closest?.('input,textarea,select,[contenteditable],dialog,#menu')&&!activateFrameView(index)){e.preventDefault();e.stopImmediatePropagation();}};child.addEventListener('focus',r.focus);for(const type of ['keydown','keyup'])child.addEventListener(type,r.key,true);for(const type of inputTypes)doc.addEventListener(type,capture,true);for(const item of subscriptions)(item.kind==='document'?doc:child).addEventListener(item.type,item.listener,item.options);
       r.resize=()=>{save(r);window.frameEngine?.layoutChanged();};r.save=()=>save(r);r.pagehide=()=>{close(index,false).catch(fileOperationError);};child.addEventListener('resize',r.resize);child.addEventListener('blur',r.save);child.addEventListener('pagehide',r.pagehide);
@@ -10046,7 +10357,7 @@ icons.newFile='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" vi
 const buttonIcons = {tabPlugins:'ICO_PLUGINS',
   btnNew:'newFile',btnOpen:'ICO_OPEN',btnSave:'ICO_SAVE',btnShare:'share',btnDownload:'ICO_DOWNLOAD',btnBrowser:'ICO_BROWSER_UNFOLDED',
   tabAttributes:'ICO_TAB_ATTRIBUTES',tabObjects:'ICO_TAB_OBJECTS',tabMaterialMgr:'ICO_TAB_MATERIAL_MGR',tabMaterials:'ICO_TAB_MATERIALS',tabTextures:'ICO_TAB_TEXTURES',tabAddMaterial:'ICO_TAB_ADD_TEXTURE',tabDelUnused:'ICO_TAB_DELETE_UNUSED',
-  btnHelp:'ICO_HELP',btnInstance:'ICO_INSTANCE',btnBoolean:'ICO_BOOLEAN',btnSymmetry:'ICO_SYMMETRY',btnCloner:'ICO_CLONER',btnRender:'camera',btnTarget:'target',btnInfinite:'light',btnVertexMode:'ICO_MODE_VERTEX',btnEdgeMode:'ICO_MODE_EDGE',btnPolygonMode:'ICO_MODE_FACE',btnSpline:'ICO_SPLINE',btnExtrude:'ICO_EXTRUDE',btnLathe:'ICO_LATHE',btnSweep:'ICO_SWEEP',btnSplinePatch:'ICO_SPLINE_PATCH',
+  btnControl:'ICO_CONTROL',btnInstance:'ICO_INSTANCE',btnBoolean:'ICO_BOOLEAN',btnSymmetry:'ICO_SYMMETRY',btnCloner:'ICO_CLONER',btnRender:'camera',btnTarget:'target',btnInfinite:'light',btnVertexMode:'ICO_MODE_VERTEX',btnEdgeMode:'ICO_MODE_EDGE',btnPolygonMode:'ICO_MODE_FACE',btnSpline:'ICO_SPLINE',btnExtrude:'ICO_EXTRUDE',btnLathe:'ICO_LATHE',btnSweep:'ICO_SWEEP',btnSplinePatch:'ICO_SPLINE_PATCH',
   btnSolid:'ICO_SHADING_SOLID',btnShading:'ICO_SHADING_CAGE',btnQuant:'ICO_GRID',btnSnap:'ICO_MAGNET',coordBtn:'ICO_GLOBE',btnPivot:'ICO_ARROW',btnLocal:'ICO_CUBE',btnUV:'ICO_SQUARE',btnSolo:'ICO_PERSON',
   tlPlay:'ICO_TL_PLAY',tlPrevKey:'ICO_TL_PREV',tlNextKey:'ICO_TL_NEXT',btnLoadTex:'ICO_TEX_LOAD',btnOpacityTex:'ICO_TEX_LOAD'
 };
@@ -10225,12 +10536,42 @@ const FramePlugins=(()=>{
   };}
 let creating=Promise.resolve();
   const local=(base,path)=>{const url=new URL(path,base);if(url.origin!==location.origin||!url.pathname.startsWith(new URL('plugins/',location.href).pathname))throw Error('Plugin path must stay in plugins/');return url.href;};
-  const ready=(async()=>{const root=new URL('plugins/',location.href),response=await fetch(new URL('index.json',root));if(!response.ok)throw Error('Plugin catalogue HTTP '+response.status);const paths=await response.json();if(!Array.isArray(paths)||paths.length>256)throw Error('Invalid plugin catalogue');for(const path of paths){try{const url=local(root,path),r=await fetch(url);if(!r.ok)throw Error('Plugin manifest HTTP '+r.status);const manifest=await r.json();if(!/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)||entries.has(manifest.id)||typeof manifest.name!=='string'||!Array.isArray(manifest.objects)||new Set(manifest.objects.map(o=>o.type)).size!==manifest.objects.length)throw Error('Invalid plugin manifest');if(manifest.assets!==undefined&&(!Array.isArray(manifest.assets)||manifest.assets.length>64||manifest.assets.some(p=>typeof p!=='string')))throw Error('Invalid plugin assets');for(const asset of manifest.assets||[])local(url,asset);const entry={manifest,url,module:local(url,manifest.module),icon:local(url,manifest.icon),loaded:false,pending:null};if(manifest.tags!==undefined&&(!Array.isArray(manifest.tags)||manifest.tags.length>32||manifest.tags.some(t=>!t||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||tagDefinitions[t.kind]||typeof t.name!=='string'||!t.name.trim()||typeof t.text!=='string'||t.text.length>2)||new Set(manifest.tags.map(t=>t.kind)).size!==manifest.tags.length))throw Error('Invalid plugin tags');for(const t of manifest.tags||[])FramePluginTags.declaration(t);for(const object of manifest.objects){if(!/^[a-z][a-z0-9_]*$/.test(object.type)||definitions[object.type]||typeof object.name!=='string'||!object.name.trim()||!object.fields||typeof object.fields!=='object'||Array.isArray(object.fields))throw Error('Invalid plugin object type');FrameParameters.validateOptions(object.fields,object.fieldOptions);if(object.disable!==undefined&&typeof object.disable!=='boolean')throw Error('Invalid plugin disable control');if(object.textFields!==undefined&&(!Array.isArray(object.textFields)||object.textFields.some(k=>typeof k!=='string'||typeof object.fields[k]!=='string')))throw Error('Invalid plugin text fields');if(object.breakAfter!==undefined&&(!Array.isArray(object.breakAfter)||object.breakAfter.some(k=>typeof k!=='string'||!Object.hasOwn(object.fields,k))))throw Error('Invalid plugin spacing');if(object.parameterResets!==undefined){if(!object.parameterResets||typeof object.parameterResets!=='object'||Array.isArray(object.parameterResets))throw Error('Invalid plugin parameter resets');for(const [key,patch]of Object.entries(object.parameterResets)){if(!Object.hasOwn(object.fields,key)||!patch||typeof patch!=='object'||Array.isArray(patch)||Object.entries(patch).some(([k,v])=>!Object.hasOwn(object.fields,k)||typeof v!==typeof object.fields[k]||typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin parameter reset');}}for(const value of Object.values(object.fields))if(!(typeof value==='number'&&Number.isFinite(value)||typeof value==='boolean'||typeof value==='string'||Array.isArray(value)&&value.length&&value.every(v=>typeof v==='string'||typeof v==='number')))throw Error('Invalid plugin field');}entries.set(manifest.id,entry);for(const t of manifest.tags||[]){tagDefinitions[t.kind]={name:t.name,text:t.text,fields:FramePluginTags.declaration(t),plugin:manifest.id};tagOwners.set(t.kind,entry);}for(const object of manifest.objects){definitions[object.type]=[object.name,'plugin:'+manifest.id,object.fields];types.set(object.type,entry);}const button=document.createElement('button');button.className='obj-lib-item';button.dataset.plugin=manifest.id;button.title=manifest.name;button.ariaLabel=manifest.name;const image=new Image();image.src=entry.icon;image.width=image.height=32;image.alt='';button.append(image);button.onclick=()=>{creating=creating.then(()=>createObject(manifest.id)).catch(fileOperationError);};$('pluginsGrid').append(button);const iconResponse=await fetch(entry.icon);if(iconResponse.ok){const svg=await iconResponse.text();icons['plugin:'+manifest.id]=svg;}}catch(e){errors.set(path,e.message);}}})().catch(e=>{errors.set('catalogue',e.message);});
-  function list(){return [...entries.values()].map(e=>({id:e.manifest.id,name:e.manifest.name,types:e.manifest.objects.map(o=>o.type),loaded:e.loaded,error:errors.get(e.manifest.id)||null}));}
+  const manifests=new Map();let cataloguePending=null,panelPending=null,installed=null;
+  function manifest(path,expected){
+    const url=local(new URL('plugins/',location.href),path);
+    if(manifests.has(url))return manifests.get(url);
+    const pending=(async()=>{const r=await fetch(url);if(!r.ok)throw Error('Plugin manifest HTTP '+r.status);const manifest=await r.json();if(!/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)||manifest.id!==expected||typeof manifest.name!=='string'||!Array.isArray(manifest.objects)||new Set(manifest.objects.map(o=>o.type)).size!==manifest.objects.length)throw Error('Invalid plugin manifest');if(manifest.assets!==undefined&&(!Array.isArray(manifest.assets)||manifest.assets.length>64||manifest.assets.some(p=>typeof p!=='string')))throw Error('Invalid plugin assets');for(const asset of manifest.assets||[])local(url,asset);const entry={manifest,url,module:local(url,manifest.module),icon:local(url,manifest.icon),loaded:false,pending:null};if(manifest.tags!==undefined&&(!Array.isArray(manifest.tags)||manifest.tags.length>32||manifest.tags.some(t=>!t||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||tagDefinitions[t.kind]||typeof t.name!=='string'||!t.name.trim()||typeof t.text!=='string'||t.text.length>2)||new Set(manifest.tags.map(t=>t.kind)).size!==manifest.tags.length))throw Error('Invalid plugin tags');for(const t of manifest.tags||[])FramePluginTags.declaration(t);for(const object of manifest.objects){if(!/^[a-z][a-z0-9_]*$/.test(object.type)||definitions[object.type]||typeof object.name!=='string'||!object.name.trim()||!object.fields||typeof object.fields!=='object'||Array.isArray(object.fields))throw Error('Invalid plugin object type');FrameParameters.validateOptions(object.fields,object.fieldOptions);if(object.disable!==undefined&&typeof object.disable!=='boolean')throw Error('Invalid plugin disable control');if(object.textFields!==undefined&&(!Array.isArray(object.textFields)||object.textFields.some(k=>typeof k!=='string'||typeof object.fields[k]!=='string')))throw Error('Invalid plugin text fields');if(object.breakAfter!==undefined&&(!Array.isArray(object.breakAfter)||object.breakAfter.some(k=>typeof k!=='string'||!Object.hasOwn(object.fields,k))))throw Error('Invalid plugin spacing');if(object.parameterResets!==undefined){if(!object.parameterResets||typeof object.parameterResets!=='object'||Array.isArray(object.parameterResets))throw Error('Invalid plugin parameter resets');for(const [key,patch]of Object.entries(object.parameterResets)){if(!Object.hasOwn(object.fields,key)||!patch||typeof patch!=='object'||Array.isArray(patch)||Object.entries(patch).some(([k,v])=>!Object.hasOwn(object.fields,k)||typeof v!==typeof object.fields[k]||typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin parameter reset');}}for(const value of Object.values(object.fields))if(!(typeof value==='number'&&Number.isFinite(value)||typeof value==='boolean'||typeof value==='string'||Array.isArray(value)&&value.length&&value.every(v=>typeof v==='string'||typeof v==='number')))throw Error('Invalid plugin field');}entries.set(manifest.id,entry);for(const t of manifest.tags||[]){tagDefinitions[t.kind]={name:t.name,text:t.text,fields:FramePluginTags.declaration(t),plugin:manifest.id};tagOwners.set(t.kind,entry);}for(const object of manifest.objects){definitions[object.type]=[object.name,'plugin:'+manifest.id,object.fields];types.set(object.type,entry);}return entry;})();
+    manifests.set(url,pending);pending.catch(()=>manifests.delete(url));return pending;
+  }
+  function discover(id){if(typeof id!=='string'||id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(id))return Promise.reject(Error('Invalid plugin ID'));return entries.has(id)?Promise.resolve(entries.get(id)):manifest(id+'/plugin.json',id);}
+  function catalogue(){
+    if(cataloguePending)return cataloguePending;
+    cataloguePending=(async()=>{const response=await fetch(new URL('plugins/index.json',location.href));if(!response.ok)throw Error('Plugin catalogue HTTP '+response.status);const paths=await response.json();if(!Array.isArray(paths)||paths.length>256||new Set(paths).size!==paths.length||paths.some(path=>typeof path!=='string'||!/^([a-z0-9][a-z0-9-]*)\/plugin\.json$/.test(path)))throw Error('Invalid plugin catalogue');return installed=(await Promise.all(paths.map(async path=>{try{return await discover(path.split('/')[0]);}catch(error){errors.set(path,error.message);return null;}}))).filter(Boolean);})();
+    cataloguePending.catch(()=>cataloguePending=null);return cataloguePending;
+  }
+  function icon(entry){
+    if(entry.iconPending)return entry.iconPending;
+    entry.iconPending=(async()=>{const response=await fetch(entry.icon);if(!response.ok)throw Error('Plugin icon HTTP '+response.status);const svg=await response.text();icons['plugin:'+entry.manifest.id]=svg;return svg;})();
+    entry.iconPending.catch(()=>entry.iconPending=null);return entry.iconPending;
+  }
+  function show(){
+    if(panelPending)return panelPending;
+    panelPending=(async()=>{const installed=await catalogue();await Promise.all(installed.map(async entry=>{try{const svg=await icon(entry);if($('pluginsGrid').querySelector('[data-plugin="'+entry.manifest.id+'"]'))return;const button=document.createElement('button');button.className='obj-lib-item';button.dataset.plugin=entry.manifest.id;button.title=entry.manifest.name;button.ariaLabel=entry.manifest.name;const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);image.width=image.height=32;image.alt='';button.append(image);button.onclick=()=>{creating=creating.then(()=>createObject(entry.manifest.id)).catch(fileOperationError);};entry.button=button;}catch(error){errors.set(entry.manifest.id,error.message);}}));for(const entry of installed)if(entry.button&&!entry.button.isConnected)$('pluginsGrid').append(entry.button);})();
+    panelPending.catch(()=>panelPending=null);return panelPending;
+  }
+  function open(){if(!panelPending)activateTab('tabPlugins');return show();}
+  async function prepareAuthoring(objects){
+    const authoring=objects.map(o=>o.authoring).filter(a=>a&&(a.plugin||a.tags.some(t=>!Object.hasOwn(tagDefinitions,t.kind)||tagOwners.has(t.kind)))),ids=new Set(authoring.filter(a=>a.plugin&&!a.pluginReferencesUnresolved).map(a=>a.plugin.id));
+    await Promise.all([...ids].map(async id=>{try{await discover(id);}catch(error){errors.set(id,error.message);}}));
+    if(authoring.some(a=>a.tags.some(t=>!t.referencesUnresolved&&!Object.hasOwn(tagDefinitions,t.kind))))try{await catalogue();}catch(error){errors.set('catalogue',error.message);}
+    const used=new Set();for(const a of authoring){const p=a.plugin,entry=p&&!a.pluginReferencesUnresolved&&owner({type:p.type});if(entry&&entry.manifest.id===p.id)used.add(entry);for(const t of a.tags)if(!t.referencesUnresolved&&tagOwners.has(t.kind))used.add(tagOwners.get(t.kind));frameValidateAuthoring(JSON.stringify({...a,recordValues:undefined}));}
+    await Promise.all([...used].map(entry=>icon(entry).catch(error=>errors.set(entry.manifest.id,error.message))));
+  }
+  function list(){return [...new Set([...(installed||[]),...entries.values()])].map(e=>({id:e.manifest.id,name:e.manifest.name,types:e.manifest.objects.map(o=>o.type),loaded:e.loaded,error:errors.get(e.manifest.id)||null}));}
   function owner(n){return types.get(n?.type);}
   function referenceField(type,key){const spec=types.get(type)?.manifest.objects.find(o=>o.type===type);return typeof spec?.fields[key]==='string'&&!spec.textFields?.includes(key);}
   function remapAuthoring(authoring,mapping,remap=structuredClone,rootMapping=null,authorMapping=mapping){if(!authoring)return authoring;const {plugin,pluginRecords,recordValues,tags,animation,instanceCloud,authorData,...metadata}=authoring,result=remap(metadata);if(authorData)result.authorData=FrameAuthorData.remap(authorData,authorMapping,rootMapping);if(pluginRecords)result.pluginRecords=structuredClone(pluginRecords);if(animation)result.animation=animation.map(([path,track])=>[path.replace(/^(pose|tag|mat):([^:]+)(.*)$/,(all,prefix,id,tail)=>mapping.has(id)?prefix+':'+mapping.get(id)+tail:all),structuredClone(track)]);if(instanceCloud)result.instanceCloud=instanceCloud.map(row=>({...structuredClone(row),source:mapping.get(row.source)||row.source}));if(recordValues)result.recordValues=Object.fromEntries(Object.entries(recordValues).map(([key,r])=>[key,{...r,value:r.type===4?Array.from(r.value,v=>mapping.get(v)||v):structuredClone(r.value)}]));if(tags)result.tags=tags.map(t=>Object.hasOwn(tagDefinitions,t.kind)&&!t.referencesUnresolved?remap(t):{...structuredClone(t),...t.uid?{uid:mapping.get(t.uid)||t.uid}:{},...mapping.size?{referencesUnresolved:true}:{}});if(plugin){result.plugin=structuredClone(plugin);const entry=owner({type:plugin.type}),available=entry?.manifest.id===plugin.id&&!authoring.pluginReferencesUnresolved;if(available){for(const [key,value]of Object.entries(result.plugin.params))if(referenceField(plugin.type,key))result.plugin.params[key]=mapping.get(value)||value;}else if(mapping.size)result.pluginReferencesUnresolved=true;}return result;}
-  async function ensureTag(kind){await ready;const entry=tagOwners.get(kind);if(!entry)throw Error('Unknown plugin tag');await use(entry);}
+  async function ensureTag(kind){if(!tagOwners.has(kind))await open();const entry=tagOwners.get(kind);if(!entry)throw Error('Unknown plugin tag');await use(entry);}
   function tagPlan(targets,kind,enabled,changes){if(!tagOwners.has(kind))throw Error('Unknown plugin tag');if(typeof enabled!=='boolean'||!Array.isArray(targets)||!targets.length||targets.some(n=>!n||!Array.isArray(n.tags)))throw Error('Invalid plugin tag targets');if(!enabled&&changes!==undefined)throw Error('Removing a tag cannot set parameters');const spec=tagDefinitions[kind];if(changes!==undefined)FramePluginTags.params(spec,changes);return [...new Set(targets)].map(n=>{const tag=n.tags.find(t=>t.kind===kind),params=enabled?FramePluginTags.params(spec,{...tag?.params,...changes}):null;return {n,tag,params,changed:enabled?!tag||Object.keys(params).some(k=>params[k]!==tag.params[k]):!!tag};});}
   function setTags(targets,kind,enabled,changes){const plan=tagPlan(targets,kind,enabled,changes);if(!plan.some(p=>p.changed))return;commit(()=>{for(const {n,tag,params,changed}of plan){if(!changed)continue;if(enabled){if(tag)Object.assign(tag.params,params);else n.tags.push({uid:FrameHash.newId(),kind,params});}else n.tags=n.tags.filter(t=>t.kind!==kind);}});}
   function readTags(targets,kind){if(!tagOwners.has(kind))throw Error('Unknown plugin tag');return targets.map(n=>({id:n.id,hash:n.nativeHash||null,tags:n.tags.filter(t=>t.kind===kind).map(t=>({uid:t.uid,kind,params:FramePluginTags.params(tagDefinitions[kind],t.params)}))}));}
@@ -10259,19 +10600,63 @@ let creating=Promise.resolve();
   function attributes(n){const shared=FrameParameters.attributes(n.type),state=owner(n)?.attributes?.(n.nativeHash);return {...state,units:{...state?.units,...shared.units},ranges:{...state?.ranges,...shared.ranges}};}
   function refreshAttributes(entry){const n=current();if(owner(n)!==entry)return;const state=attributes(n);for(const input of $('attrContent').querySelectorAll('input[data-numeric][data-field]')){const range=state?.ranges?.[input.dataset.field];if(range)input._numericRange=range;input._sync?.();}for(const button of $('attrContent').querySelectorAll('[data-plugin-action-button]')){const action=state?.actions?.find(a=>a.id===button.dataset.pluginActionButton);if(!action)continue;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.classList.toggle('on',!!action.active);button.setAttribute('aria-pressed',String(!!action.active));button.setAttribute('aria-busy',String(!!action.busy));const progress=button.previousElementSibling;if(progress?.hasAttribute('data-plugin-progress'))progress.textContent=String(action.progress||'').slice(0,32);}}
   function renderActions(n,content){const state=attributes(n);for(const key of state?.hiddenFields||[])content.querySelector('[data-field="'+key+'"]')?.closest('.attr-row')?.remove();for(const [key,label]of Object.entries(state?.labels||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field&&typeof label==='string')field.closest('.attr-row').querySelector('.attr-lab').textContent=label;}for(const [key,unit]of Object.entries(state?.units||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field){const label=field.closest('.attr-row').querySelector('.attr-lab');label.textContent+=' ('+unit+')';}}for(const vector of state?.vectors||[]){const fields=vector.fields.map(key=>content.querySelector('[data-field="'+key+'"]'));if(fields.some(f=>!f))continue;const row=fields[0].closest('.attr-row'),controls=row.querySelector('.attr-ctrl');row.querySelector('.attr-lab').textContent=vector.label+(vector.unit?' ('+vector.unit+')':'');fields.forEach((field,i)=>{field.classList.add('ax-'+['x','y','z'][i]);field.style.cssText='width:38px;min-width:0;flex:1';if(i){field.closest('.attr-row').remove();controls.append(field);}});}for(const group of state?.groups||[]){const section=document.createElement('div');section.className='frame-attribute-group';section.dataset.pluginGroup=group.label;const heading=document.createElement('div');heading.className='attr-row';const label=document.createElement('span');label.className='attr-lab';label.textContent=group.label;heading.append(label);const controls=document.createElement('div');controls.className='frame-attribute-grid';for(const action of group.actions){const button=document.createElement('button');button.className='attr-btn'+(action.active?' on':'');button.textContent=action.label;button.setAttribute('aria-pressed',String(!!action.active));button.dataset.pluginElement=action.label;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:action.id,args:action.args||{}}).catch(fileOperationError);controls.append(button);}section.append(heading,controls);content.append(section);}for(const action of [...state?.actions||[]].reverse()){const row=document.createElement('div');row.className='attr-row';row.dataset.pluginAction=action.id;if(action.row){row.dataset.pluginActionRow=action.row;const label=document.createElement('span');label.className='attr-lab';label.textContent=action.row;row.append(label);}const controls=document.createElement('div');controls.className='attr-ctrl';const progress=document.createElement('span');progress.dataset.pluginProgress='';progress.textContent=String(action.progress||'').slice(0,32);const button=document.createElement('button');button.className='attr-btn frame-attribute-button'+(action.active?' on':'');button.setAttribute('aria-pressed',String(!!action.active));button.textContent=action.label;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.setAttribute('aria-busy',String(!!action.busy));button.dataset.pluginActionButton=action.id;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:(attributes(n)?.actions?.find(a=>a.id===action.id)?.busy&&action.cancel)||action.id,args:{}}).catch(fileOperationError);controls.append(progress,button);row.append(controls);if(action.row){const existing=content.querySelector('[data-plugin-action-row="'+action.row+'"]');if(existing){existing.querySelector('.attr-ctrl').prepend(...controls.children);continue;}}content.prepend(row);}}
-  async function operations(id){await ready;const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');await use(entry);return [...entry.operations?.values()||[]].map(({run,interrupt,...o})=>({...o,interruptible:typeof interrupt==='function'}));}
-  async function loadUsed(){await ready;await creating;await Promise.all([...new Set(nodes.flatMap(n=>[owner(n),...n.tags.map(t=>tagOwners.get(t.kind))]).filter(Boolean))].map(use));}
-  async function createObject(id,type){await ready;const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
+  async function operations(id){if(!entries.has(id))await open();const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');await use(entry);return [...entry.operations?.values()||[]].map(({run,interrupt,...o})=>({...o,interruptible:typeof interrupt==='function'}));}
+  async function loadUsed(){await creating;await Promise.all([...new Set(nodes.flatMap(n=>[owner(n),...n.tags.map(t=>tagOwners.get(t.kind))]).filter(Boolean))].map(use));}
+  async function createObject(id,type){if(!entries.has(id))await open();const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
   FrameViewWindows.onWindow('frame-engine-scene',()=>loadUsed().then(()=>window.frameEngine?.draw(true)).catch(fileOperationError));
   function drawOverlays(only=null){if(!only)for(const n of nodes)if(owner(n)){const color=dispatch('rowColor',n),el=$('row-'+n.id)?.querySelector('.ob-name');if(el)el.style.setProperty('--object-color',color||objectColor(n.type));}for(const entry of only?[only]:entries.values()){const data=entry.editor?.overlay?.(),id='frame-plugin-overlay-'+entry.manifest.id;let panel=$(id);if(!data){panel?.remove();continue;}const view=window.frameEngine.pluginView(),stamp=JSON.stringify([data,view.instance,view.rect]);if(panel)framePlaceOverlay(panel,view.instance);if(panel?.dataset.stamp===stamp)continue;if(!panel){panel=document.createElement('div');panel.id=id;panel.className='frame-plugin-overlay';framePlaceOverlay(panel,view.instance);}panel.dataset.stamp=stamp;panel.style.cssText='position:fixed;z-index:15;display:grid;grid-template-columns:repeat('+data.columns+',20px);grid-auto-rows:20px;gap:1px;right:'+(panel.ownerDocument.defaultView.innerWidth-view.rect.left-view.rect.width+36)+'px;top:'+(view.rect.top+6)+'px';panel.replaceChildren();for(const cell of data.cells){const button=document.createElement('button');button.textContent=cell.label;button.dataset.pluginElement=cell.label;button.style.cssText='grid-column:'+cell.column+';grid-row:'+cell.row+';border:0;padding:0;background:transparent;font:12px Arial;cursor:pointer;color:'+cell.color;button.style.setProperty('color',cell.color,'important');button.classList.toggle('on',!!cell.active);button.setAttribute('aria-pressed',String(!!cell.active));button.onclick=()=>window.frameAI.call('plugins.command',{id:data.hash,operation:cell.action,args:cell.args||{}}).catch(fileOperationError);panel.append(button);}}}
-  return {drawOverlays,ready,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{await ready;const entry=types.get(type);if(entry)await use(entry);},create:createObject};
-})();window.framePlugins=Object.freeze({version:1,ready:FramePlugins.ready,list:FramePlugins.list,create:FramePlugins.create});
+  return {drawOverlays,show,open,prepareAuthoring,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{if(!definitions[type])await open();const entry=types.get(type);if(entry)await use(entry);},create:createObject};
+})();window.framePlugins=Object.freeze({version:1,get ready(){return FramePlugins.open();},list:FramePlugins.list,create:FramePlugins.create});
 
+
+// Same-origin presentation window for arbitrary scene-owned JavaScript.
+const FrameSceneControl=(()=>{
+ const panels=new Set(),mounted=new Map(),geometry=createFrameDocumentationGeometry('frame-control-window-v1');
+ let child=null,activeDocument=null;
+ const instruction='Scene Control runs AI-written code that can extend any part of Frame: add interfaces, tools, custom objects and behavior. Tell Codex what you want and ask it to use Scene Control. Save as HASH to keep the code with your scene.';
+ const report=error=>console.error('Scene Control panel failed',error);
+ function release(slot){slot.live=false;try{slot.dispose?.();}catch(error){report(error);}slot.root.remove();}
+ function clear(){for(const slot of mounted.values())release(slot);mounted.clear();activeDocument=null;}
+ function sync(){
+  if(!child||child.closed)return;
+  let doc;try{doc=child.document;}catch{return;}
+  const root=doc.getElementById('frame-control-content');if(!root)return;
+  if(doc!==activeDocument){clear();activeDocument=doc;geometry.installDocumentationGeometry(child);}
+  for(const [panel,slot]of mounted)if(!panels.has(panel)){mounted.delete(panel);release(slot);}
+  const empty=doc.getElementById('frame-control-empty');empty.hidden=panels.size>0;empty.textContent=instruction;
+  for(const panel of panels){
+   if(mounted.has(panel))continue;
+   const section=doc.createElement('section'),slot={root:section,live:true,dispose:null};root.append(section);mounted.set(panel,slot);
+   try{
+    const result=panel({window:child,document:doc,root:section,host:window});
+    Promise.resolve(result).then(dispose=>{if(typeof dispose!=='function')return;if(slot.live)slot.dispose=dispose;else try{dispose();}catch(error){report(error);}},error=>{if(slot.live){section.textContent=error.message;section.setAttribute('role','alert');}report(error);});
+   }catch(error){section.textContent=error.message;section.setAttribute('role','alert');report(error);}
+  }
+ }
+ function open(){
+  if(child&&!child.closed){child.focus();sync();return inspect();}
+  clear();
+  const url=framePopupDocumentURL('control',"window.opener?.postMessage({type:'frame-control-ready'},location.origin);window.addEventListener('pagehide',()=>window.opener?.postMessage({type:'frame-control-leaving'},location.origin));");child=window.open(url,'frame-control',geometry.documentationWindowFeatures(window));frameTrackPopupURL(window,child,url);
+  if(!child)throw Error('Allow the Scene Control window to open, then click Scene Control again.');
+  const opened=child;opened.addEventListener('load',()=>{if(child===opened)sync();});
+  opened.addEventListener('pagehide',()=>{if(child===opened)clear();});opened.focus();return inspect();
+ }
+ function register(mount){
+  if(typeof mount!=='function')throw TypeError('Scene Control register expects a function receiving {window,document,root,host}.');
+  // Each registration has its own identity even when callers share a function.
+  const panel=context=>mount(context);panels.add(panel);sync();let live=true;
+  return ()=>{if(!live)return;live=false;panels.delete(panel);sync();};
+ }
+ function inspect(){return {open:!!child&&!child.closed,panels:panels.size};}
+ window.addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==child)return;if(event.data?.type==='frame-control-ready')sync();else if(event.data?.type==='frame-control-leaving')clear();});
+ window.addEventListener('pagehide',()=>{clear();panels.clear();child?.close();child=null;});
+ return Object.freeze({register,open,inspect,reset(){panels.clear();sync();},close(){clear();child?.close();child=null;}});
+})();
 
 /* Scene Control runtime. Keep this factory self-contained when inlining it in index.html. */
 function createSceneProgramRuntime(services) {
   'use strict';
-  const LIMITS = Object.freeze({ jobs:128, pendingJobs:64, resultBytes:65536, instances:512, contexts:32, requests:128, modules:512, moduleBytes:16777216, resources:1024 });
+  const LIMITS = Object.freeze({ jobs:128, resultBytes:65536 });
   const instances = new Map(), workers = new Map(), jobs = new Map();
   const notifications=[];let notificationScheduled=false,droppedNotifications=0;
   const runtimeId=globalThis.crypto?.randomUUID?.()||(Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));
@@ -10333,7 +10718,7 @@ function createSceneProgramRuntime(services) {
       const key=JSON.stringify([source.owner,source.id,source.revision,source.text]);
       if(modules.has(key))return modules.get(key);
       const bytes=new TextEncoder().encode(source.text).length;
-      if(modules.size>=limits.modules||moduleBytes+bytes>limits.moduleBytes)throw fail('MODULE_CACHE_LIMIT','This execution realm reached its source-revision cache limit (512 revisions / 16 MiB source). Restart the Worker context or reload the page for main-context modules.');
+
       moduleBytes+=bytes;
       let url;
       const promise=Promise.resolve().then(()=>{
@@ -10348,7 +10733,7 @@ function createSceneProgramRuntime(services) {
       if(typeof fn!=='function')throw fail('INVALID_CLEANUP','cleanup expects a function');
       if(!i.live){cleanOne(i,fn);return ()=>{};}
       try{assert(i);}catch(e){cleanOne(i,fn);throw e;}
-      if(i.cleanups.size>=limits.resources){cleanOne(i,fn);throw fail('RESOURCE_LIMIT','Scene program has too many registered resources');}
+
       i.cleanups.add(fn);return ()=>i.cleanups.delete(fn);
     }
     function contextFor(i,plan){
@@ -10368,11 +10753,12 @@ function createSceneProgramRuntime(services) {
         transfer:(value,transfer=[])=>{assert(i);const envelope={};transfers.set(envelope,{value,transfer});return envelope;}
       };
       ctx.frame=Object.freeze({call:ctx.call,listTools:ctx.listTools});
+      if(host.getControl)ctx.control=Object.freeze({register:mount=>{assert(i);const unregister=host.getControl().register(mount);cleanup(i,unregister);return unregister;}});
       if(host.getCore)Object.defineProperty(ctx,'core',{enumerable:true,get(){assert(i);return host.getCore(i.key);}});
       return Object.freeze(ctx);
     }
     async function start(key,plan){
-      if(pendingWork>=limits.requests)throw fail('WORK_LIMIT','Too many unsettled user hooks in this execution realm');pendingWork++;
+      pendingWork++;
       const i={key,live:true,cleanups:new Set(),controller:new AbortController(),namespace:null,hooks:null};active.set(key,i);
       try{
         const namespace=await moduleFor(plan.source);assert(i);i.namespace=namespace;
@@ -10386,7 +10772,7 @@ function createSceneProgramRuntime(services) {
     }
     function stop(key){const i=active.get(key);if(!i)return;i.live=false;active.delete(key);i.controller.abort();for(const fn of i.cleanups){i.cleanups.delete(fn);cleanOne(i,fn);}i.hooks=null;i.namespace=null;}
     async function invoke(key,method,args,message=false){
-      if(pendingWork>=limits.requests)throw fail('WORK_LIMIT','Too many unsettled user hooks in this execution realm');
+
       const i=active.get(key);if(!i)throw fail('NOT_RUNNING','Scene program is not active');assert(i);
       const fn=message?i.hooks?.onMessage:(Object.hasOwn(i.hooks?.exports||{},method)?i.hooks.exports[method]:(method!=='activate'&&Object.hasOwn(i.namespace||{},method)?i.namespace[method]:null));
       if(typeof fn!=='function')throw fail('UNKNOWN_EXPORT',message?'Scene program has no onMessage handler':'Unknown callable export: '+method);
@@ -10398,7 +10784,7 @@ function createSceneProgramRuntime(services) {
   const main=createRealm({
     guard:key=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i,false);},
     call:(key,name,args)=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');return guardedCall(i,name,args);},
-    listTools:()=>services.listTools(),getCore:key=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i);return services.getCore();},moduleURL:services.moduleURL,
+    listTools:()=>services.listTools(),getControl:services.getControl?()=>services.getControl():undefined,getCore:key=>{const i=[...instances.values()].find(value=>value.realmKey===key);if(!i)throw error('STALE_INSTANCE','Activation no longer exists');guard(i,false);return services.getCore();},moduleURL:services.moduleURL,
     diagnostic:(key,phase,detail)=>notify({type:'diagnostic',context:'main',activation:key,phase,error:detail})
   },LIMITS);
   function workerBootstrap(realmFactory,limits){
@@ -10406,7 +10792,7 @@ function createSceneProgramRuntime(services) {
     const problem=e=>({code:typeof e?.code==='string'?e.code:'PROGRAM_FAILED',message:String(e?.message||e).slice(0,4096)});
     function rpc(key,type,payload){
       if(!alive.has(key))return Promise.reject(Object.assign(new Error('Activation stopped'),{code:'STALE_INSTANCE'}));
-      if(requests.size>=limits.requests)return Promise.reject(Object.assign(new Error('Worker API request limit reached'),{code:'REQUEST_LIMIT'}));
+
       const id=++serial;return new Promise((resolve,reject)=>{requests.set(id,{resolve,reject});try{postMessage({type,id,key,...payload});}catch(e){requests.delete(id);reject(e);}});
     }
     const realm=realmFactory({
@@ -10432,7 +10818,7 @@ function createSceneProgramRuntime(services) {
     };
   }
   function createWorker(context){
-    if(workers.size>=LIMITS.contexts)throw error('CONTEXT_LIMIT','Scene program Worker context limit reached');
+
     const source='('+workerBootstrap.toString()+')('+createRealm.toString()+','+JSON.stringify(LIMITS)+');';
     let url=null,worker;
     if(services.createWorker)worker=services.createWorker(source,context);
@@ -10455,7 +10841,7 @@ function createSceneProgramRuntime(services) {
   }
   function request(w,payload,transfer=[]){
     if(!w.live)return Promise.reject(error('CONTEXT_TERMINATED','Worker context is terminated'));
-    if(payload.operation!=='stop'&&w.requests.size>=LIMITS.requests)return Promise.reject(error('REQUEST_LIMIT','Worker request limit reached'));
+
     const id=++w.serial;return new Promise((resolve,reject)=>{w.requests.set(id,{resolve,reject});try{w.worker.postMessage({type:'request',id,...payload},transfer);}catch(e){w.requests.delete(id);reject(e);}});
   }
   function cancelJobs(i,reason,err=null){for(const job of jobs.values())if(job.instance===i&&['queued','running'].includes(job.state)){job.state=err?'error':'cancelled';job.error=err?problem(err):{code:'STALE_INSTANCE',message:reason};job.finishedAt=clock();job.instance=null;}}
@@ -10480,13 +10866,11 @@ function createSceneProgramRuntime(services) {
       },e=>{if(e.code==='CONTEXT_TERMINATED')finish();else reject(e);});
     },0));i.stopPromise.catch(()=>{});return i.stopPromise;
   }
-  function trimJobs(){for(const [id,j] of jobs){if(jobs.size<LIMITS.jobs)break;if(!['queued','running'].includes(j.state))jobs.delete(id);}}
+  function trimJobs(){let completed=[...jobs.values()].filter(j=>!['queued','running'].includes(j.state)).length;for(const [id,j] of jobs){if(completed<=LIMITS.jobs)break;if(!['queued','running'].includes(j.state)){jobs.delete(id);completed--;}}}
   function admit(control=false){
     if(disposed)throw error('RUNTIME_DISPOSED','Scene program runtime is disposed');
-    if(!control&&[...jobs.values()].filter(j=>['queued','running'].includes(j.state)).length>=LIMITS.pendingJobs)throw error('JOB_LIMIT','Too many unfinished scene program jobs');
-    if(control&&jobs.size>=LIMITS.jobs&&![...jobs.values()].some(j=>!['queued','running'].includes(j.state))){
-      const [id,oldest]=jobs.entries().next().value;oldest.state='cancelled';oldest.error={code:'JOB_EXPIRED',message:'Control-plane history capacity reached; running user work is not cancelled by history eviction'};oldest.instance=null;jobs.delete(id);
-    }
+
+
   }
   function kickReconcile(){if(!autoPending||reconcileScheduled||disposed)return;reconcileScheduled=true;setTimeout(()=>{reconcileScheduled=false;if(disposed)return;autoPending=false;try{reconcile({reason:'autostart-capacity'});}catch(e){notify({type:'diagnostic',phase:'reconcile',error:problem(e)});}},0);}
   function job(operation,i,run){
@@ -10494,7 +10878,7 @@ function createSceneProgramRuntime(services) {
     trimJobs();const id='scene-job-'+runtimeId+'-'+(++jobSerial),j={jobId:id,operation,state:'queued',createdAt:clock(),startedAt:null,finishedAt:null,instance:i};jobs.set(id,j);
     setTimeout(()=>{
       if(j.state!=='queued')return;j.state='running';j.startedAt=clock();
-      Promise.resolve().then(run).then(value=>{if(j.state!=='running')return;try{j.result=json(value);j.state='completed';}catch(e){j.error=problem(e);j.state='error';}},e=>{if(j.state==='running'){j.state='error';j.error=problem(e);}}).finally(()=>{if(j.state==='running')return;j.finishedAt=j.finishedAt||clock();j.instance=null;notify({type:'job',jobId:id,operation,state:j.state,error:j.error||null});kickReconcile();});
+      Promise.resolve().then(run).then(value=>{if(j.state!=='running')return;try{j.result=json(value);j.state='completed';}catch(e){j.error=problem(e);j.state='error';}},e=>{if(j.state==='running'){j.state='error';j.error=problem(e);}}).finally(()=>{if(j.state==='running')return;j.finishedAt=j.finishedAt||clock();j.instance=null;trimJobs();notify({type:'job',jobId:id,operation,state:j.state,error:j.error||null});kickReconcile();});
     },0);
     return {jobId:id,operation,state:'queued',owner:i?.owner||null,id:i?.id||null};
   }
@@ -10506,7 +10890,7 @@ function createSceneProgramRuntime(services) {
     if(!available(p))throw error('UNAVAILABLE_PROGRAM','Scene program dependencies are unavailable: '+JSON.stringify(p.availability));return p;
   }
   function prepare(plan){
-    const key=keyOf(plan);if(!instances.has(key)&&instances.size>=LIMITS.instances)throw error('INSTANCE_LIMIT','Scene program instance limit reached');
+    const key=keyOf(plan);
     const i={key,owner:plan.owner,id:plan.id,name:plan.name||'',context:plan.context,signature:plan.signature,generation:++serial,documentToken:services.getDocument().token,desired:true,live:true,state:'queued',updatedAt:clock()};
     let hash=2166136261;for(let at=0;at<plan.signature.length;at++)hash=Math.imul(hash^plan.signature.charCodeAt(at),16777619);i.signatureTag=(hash>>>0).toString(16)+':'+plan.signature.length;
     i.realmKey=key+':'+i.generation;instances.set(key,i);return i;
@@ -10598,14 +10982,14 @@ const FrameScenePrograms=(()=>{
  let runtime=null,installed=false,hostActive=true,hostToken=crypto.randomUUID(),queued=false,nativeState=()=>({busy:true}),notifyVersion=0;
  const documentState=()=>({token:hostToken+':'+FrameAuthorData.documentToken,ready:installed&&hostActive&&FrameAuthorData.ready&&!FrameAuthorData.busy&&!nativeState().busy&&!frameUITransaction});
  const plans=createSceneProgramPlans({getDocument:documentState,owners:()=>FrameAuthorData.owners(),root:()=>FrameAuthorData.root()});
- const core=Object.freeze({get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>{render();frameSyncEngineVisibility();},authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins});
- const capabilities=Object.freeze({version:1,contexts:['main','named-worker'],descriptor:{format:'frame.scene-control',version:1},arbitraryJavaScript:true,mainDOM:true,coreAccess:true,managedResources:true,jobExecution:true,structuredCloneMessaging:true,panel:false,customAttributes:false,fieldSubscriptions:false,frameLifecycle:false,testCopies:false});
- function changed(reason){plans.invalidate({document:reason==='document'});if(reason==='document')runtime?.reconcile({reason});if(queued)return;queued=true;queueMicrotask(()=>{queued=false;plans.invalidate();runtime?.reconcile({reason});});}
+ const core={get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},window,document,definitions,control:FrameSceneControl,resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>{render();frameSyncEngineVisibility();},authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins};
+ const capabilities=Object.freeze({version:1,contexts:['main','named-worker'],descriptor:{format:'frame.scene-control',version:1},arbitraryJavaScript:true,sandboxed:false,mainDOM:true,coreAccess:true,managedResources:true,jobExecution:true,structuredCloneMessaging:true,panel:true,customAttributes:false,fieldSubscriptions:false,frameLifecycle:false,testCopies:false});
+ function changed(reason){plans.invalidate({document:reason==='document'});if(reason==='document'){FrameSceneControl.reset();runtime?.reconcile({reason});}if(queued)return;queued=true;queueMicrotask(()=>{queued=false;plans.invalidate();runtime?.reconcile({reason});});}
  FrameAuthorData.observe(changed);
  function address(a,optional=false){if(optional&&a.owner===undefined&&a.id===undefined)return a;if(!(a.owner==='scene'||typeof a.owner==='string'&&/^[a-f0-9]{32}$/.test(a.owner))||typeof a.id!=='string'||!/^[a-f0-9]{32}$/.test(a.id))FrameAuthorData.error('Canonical owner and program descriptor ID required');return a;}
  function current(){if(!runtime)FrameAuthorData.error('Scene program runtime is not initialized','NOT_READY');return runtime;}
- return Object.freeze({capabilities,changed,install({call,listTools,state,ready}){if(runtime)return;nativeState=state;runtime=createSceneProgramRuntime({getDocument:documentState,readPlans:()=>plans.read(),getPlan:a=>plans.get(a),call:(name,args,guard)=>{guard?.();return call(name,args,guard);},listTools,getCore:()=>core,onStatus:detail=>{notifyVersion++;window.dispatchEvent(new CustomEvent('frame-program-state',{detail:{version:notifyVersion,...detail}}));}});window.frameCore=core;window.framePrograms=runtime;window.frameProgramRefresh=changed;Promise.resolve(ready).then(()=>{installed=true;changed('api-ready');}).catch(error=>console.error('Scene program API readiness failed',error));window.addEventListener('pagehide',()=>{hostActive=false;hostToken=crypto.randomUUID();plans.invalidate({document:true});runtime.reconcile({reason:'host-retired'});});window.addEventListener('pageshow',e=>{if(e.persisted){hostActive=true;changed('host-restored');}});},
- describe(){return {capabilities,document:documentState(),descriptor:{format:'frame.scene-control',version:1,data:{source:'typed source-record reference index',context:'main or worker:<name>',start:'manual or ready',imports:'alias to typed source-record reference index',bindings:'alias to typed field or binding-record reference index',params:'JSON object'}},sourceInspection:'authorData.get/inspect; source records remain inert without a recognized descriptor',scope:'Managed execution only; no Control panel, custom Attributes, subscriptions, frame/export integration or test-copy runner.'};},
+ return Object.freeze({capabilities,changed,install({call,listTools,state,ready}){if(runtime)return;nativeState=state;runtime=createSceneProgramRuntime({getDocument:documentState,readPlans:()=>plans.read(),getPlan:a=>plans.get(a),call:(name,args,guard)=>{guard?.();return call(name,args,guard);},listTools,getCore:()=>core,getControl:()=>FrameSceneControl,onStatus:detail=>{notifyVersion++;window.dispatchEvent(new CustomEvent('frame-program-state',{detail:{version:notifyVersion,...detail}}));}});window.frameCore=core;window.frameControl=FrameSceneControl;window.framePrograms=runtime;window.frameProgramRefresh=changed;Promise.resolve(ready).then(()=>{installed=true;changed('api-ready');}).catch(error=>console.error('Scene program API readiness failed',error));window.addEventListener('pagehide',()=>{hostActive=false;hostToken=crypto.randomUUID();plans.invalidate({document:true});runtime.reconcile({reason:'host-retired'});});window.addEventListener('pageshow',e=>{if(e.persisted){hostActive=true;changed('host-restored');}});},
+ describe(){return {capabilities,document:documentState(),descriptor:{format:'frame.scene-control',version:1,data:{source:'typed source-record reference index',context:'main or worker:<name>',start:'manual or ready',imports:'alias to typed source-record reference index',bindings:'alias to typed field or binding-record reference index',params:'JSON object'}},sourceInspection:'authorData.get/inspect; source records remain inert without a recognized descriptor',panel:{register:'ctx.control.register(({window,document,root,host}) => cleanup?)',native:'window.frameControl',window:'Same-origin popup; position and size are browser preferences'},scope:'Arbitrary JavaScript with native main-tab DOM/core access and optional named Workers. No sandbox or tool allowlist; lifecycle helpers are optional. Native browser rules apply.'};},
  status:a=>current().status(address(a||{},true)),start:a=>current().start(address(a)),stop:a=>current().stop(address(a)),restart:a=>current().restart(address(a)),invoke:a=>current().invoke(address(a)),poll:a=>current().poll(a),terminateContext:a=>{if(!/^worker:[A-Za-z0-9_.-]{1,64}$/.test(a.context))FrameAuthorData.error('Named Worker context required');return current().terminateContext(a);}
  });
 })();
@@ -10910,7 +11294,7 @@ for(const [i,id]of ['px','rx','sx','py','ry','sy','pz','rz','sz'].entries()){
 }
 
 function refreshTabActions(){$('tabAddMaterial').style.display=activeTab==='tabMaterialMgr'?'':'none';$('tabDelUnused').style.display=activeTab==='tabMaterials'&&(materialCleanupPlan().toDelete.size||nodes.some(n=>n.tags.some(t=>t.kind==='material'&&t.mask)))?'':'none';}
-function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tabs)){const on=tab===id;$(tab).classList.toggle('on',on);$(tab).setAttribute('role','tab');$(tab).ariaSelected=String(on);$(tab).setAttribute('aria-controls',panel);$(panel).style.display=on?'block':'none';$(panel).setAttribute('role','tabpanel');$(panel).setAttribute('aria-labelledby',tab);}refreshTabActions();if(id==='tabMaterials')selectionArea='materials';else if(id==='tabTextures')selectionArea='textures';else if(id==='tabObjects')selectionArea='objects';if(id==='tabAttributes')renderAttributes();if(id==='tabTextures')renderTextures();}
+function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tabs)){const on=tab===id;$(tab).classList.toggle('on',on);$(tab).setAttribute('role','tab');$(tab).ariaSelected=String(on);$(tab).setAttribute('aria-controls',panel);$(panel).style.display=on?'block':'none';$(panel).setAttribute('role','tabpanel');$(panel).setAttribute('aria-labelledby',tab);}refreshTabActions();if(id==='tabMaterials')selectionArea='materials';else if(id==='tabTextures')selectionArea='textures';else if(id==='tabObjects')selectionArea='objects';if(id==='tabAttributes')renderAttributes();if(id==='tabTextures')renderTextures();if(id==='tabPlugins')FramePlugins.show().catch(fileOperationError);}
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 
 function closeMenu(){$('menu').hidden=true;delete $('menu').dataset.owner;}
@@ -11558,7 +11942,7 @@ function leaveRecents(){clearTimeout(recentsLeaveTimer);recentsLeaveTimer=setTim
 $('btnOpen').onpointerleave=leaveRecents;$('menu').addEventListener('pointerleave',leaveRecents);
 $('menu').addEventListener('pointerenter',()=>clearTimeout(recentsLeaveTimer));
 $('btnOpen').onkeydown=e=>{if(e.key==='ArrowDown'){e.preventDefault();e.stopPropagation();showRecents(true);}};
-for(const id of ['btnNew','btnOpen','btnSave','btnDownload','btnShare','btnHelp','btnDocs','btnBrowser'])$('filebar').append($(id));
+for(const id of ['btnNew','btnOpen','btnSave','btnDownload','btnShare','btnControl','btnDocs','btnBrowser'])$('filebar').append($(id));
 FrameViewWindows.onDocument('keydown',e=>{if((e.ctrlKey||e.metaKey)&&['s','o'].includes(frameShortcutKey(e))){e.preventDefault();e.stopImmediatePropagation();if(frameShortcutKey(e)==='o')$('btnOpen').click();else saveSceneFile({incremental:e.altKey});}},true);
 
 let shareNoticeTimer;
@@ -11570,7 +11954,7 @@ async function frameDecodeShare(value){
 }
 $('btnShare').onclick=async()=>{try{const {url}=await window.frameAI.call('scene.share');try{await navigator.clipboard.writeText(url);}catch{const input=document.createElement('textarea');input.value=url;input.style.cssText='position:fixed;left:-9999px';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw Error('Could not copy scene link');}let notice=$('shareNotice');if(!notice){notice=document.createElement('div');notice.id='shareNotice';notice.setAttribute('role','status');document.body.append(notice);}notice.textContent='Scene link copied';const r=$('btnShare').getBoundingClientRect();notice.style.top=r.bottom+2+'px';notice.style.right=Math.max(2,innerWidth-r.right)+'px';notice.hidden=false;clearTimeout(shareNoticeTimer);shareNoticeTimer=setTimeout(()=>notice.hidden=true,1500);}catch(e){fileOperationError(e);}};
 
-$('btnHelp').onclick=frameOpenHelp;
+$('btnControl').onclick=()=>FrameSceneControl.open();
 $('helpDialog').onclick=e=>{const r=$('helpDialog').getBoundingClientRect();if(e.target===$('helpDialog')&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))$('helpDialog').close();};
 
 function treeHeight(value){const height=id=>{const el=$(id),c=getComputedStyle(el);return el.offsetHeight+(parseFloat(c.marginTop)||0)+(parseFloat(c.marginBottom)||0);},bottom=['modelbar','modelbar2','toolbar','timeline','units','hud'].reduce((sum,id)=>sum+height(id),0),max=Math.max(40,$('panel').clientHeight-height('filebar')-36-bottom);$('obWrap').style.flexBasis=Math.max(40,Math.min(max,value))+'px';}
@@ -17311,6 +17695,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const appearance=await decodeAppearancePlan(read,map,objects,records);const materialIDs=records.get(K.materials)?.value||[];for(const o of objects)if(o.authoring?.library?.slots.some(slot=>!materialIDs.includes(slot.materialUID)))throw Error('Unknown library slot material');// Only declared records have ownership/reference semantics. Other records are omitted, never guessed.
       // Addressing is XOR: reject collisions with any native owner/field, including fields not yet authored.
       const nativeGlobals=new Set(['version','all','parameters','camera','units','materials','assets'].map(field=>K[field])),nativeSpaces=[[ids,['type','name','parent','flags','matrix','pivot','projection','light','spline','parameters','tags','positions','indices']],[materialIDs,['name','parameters','maps']],[records.get(K.assets)?.value||[],['image','path']],[objects.flatMap(o=>records.get(FrameHash.address(o.hash,'tags'))?.value||[]),['material','faces','uv']]].map(([owners,fields])=>({owners:new Set(owners.map(id=>BigInt('0x'+id))),fields:fields.map(field=>BigInt('0x'+K[field]))}));for(const address of pluginAddresses.keys()){const value=BigInt('0x'+address);if(nativeGlobals.has(address)||nativeSpaces.some(space=>space.fields.some(field=>space.owners.has(value^field))))throw Error('Plugin record overlaps a native property');}
+      await FramePlugins.prepareAuthoring(objects);
       const unavailablePlugins=[],unavailableTags=[];for(const o of objects){const a=o.authoring,p=a?.plugin;if(p&&(FramePlugins.owner({type:p.type})?.manifest.id!==p.id||a.pluginReferencesUnresolved))unavailablePlugins.push({hash:o.hash,id:p.id,type:p.type,reason:a.pluginReferencesUnresolved?'unresolved-references':'not-installed'});for(const t of a?.tags||[])if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)unavailableTags.push({hash:o.hash,uid:t.uid||null,kind:t.kind,reason:t.referencesUnresolved?'unresolved-references':'not-installed'});}const ignoredExtensionRecords=[...map.keys()].filter(id=>!records.has(id)),importReport={format:'hash',unavailablePlugins,unavailableTags,ignoredExtensionRecords,opaqueData:'Unavailable declared authoring is preserved but not evaluated. Unknown extension records are omitted. After identity remapping, unavailable plugin/tag payloads stay inactive because their reference schema is unknown.'};
       FrameAuthorData.preflightDocument(objects,JSON.parse(records.get(K.parameters)?.value||'{}').authorData);
       return {objects,records,camera,meshes,savedUnits,appearance,importReport};
@@ -17335,7 +17720,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       if(sameScene)for(const [current,prior]of [[polygonResources,before.polygons],[uvResources,before.uvs]]){for(const [id,value]of current)if(value!==prior.get(id)){release.add(value.resource);current.delete(id);}for(const [id,value]of prior)current.set(id,value);}
       for(const resource of release)if(!baseline.has(resource)&&gpuAllocations.has(resource))releaseGPU(resource);
     }
-    async function mergeFile(file,options={}){await FramePlugins.ready;await selectionQueue;await editSerial;await appearanceQueue;syncMaterials();
+    async function mergeFile(file,options={}){await selectionQueue;await editSerial;await appearanceQueue;syncMaterials();
       const progress=nativeIOStart('Reading scene…'),space=scene,gpu=renderer,created=[],guard=()=>{if(scene!==space||renderer!==gpu)throw Error('Scene or GPU changed during Merge');};let before,specs=[],plan,catalog,data,published=false,importedDocumentation='',documentationMapping=new Map(),importedAuthorData=null,rootMapping=new Map(),authorMapping=new Map(),authorPublished=false;
       try{
         before={objects:poseObjects().map(o=>({...o,matrix:o.matrix?.slice(),pivot:o.pivot?.slice()})),selection:[...objectSelection],frames:snapshotFrames(),appearance:captureMergeAppearance(space),meshes:new Set(space.meshes),authorData:FrameAuthorData.root()};
@@ -17369,7 +17754,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         throw error;
       }finally{nativeIOEnd();}
     }
-    async function loadHash(file,name=file.name||'scene.hash'){await FramePlugins.ready;
+    async function loadHash(file,name=file.name||'scene.hash'){
       const progress=nativeIOStart('Checking HASH…'),started=performance.now();let gpu,newMeshes=[],published=false;
       try{
         const plan=await nativeDecodePlan(file);let i=0;
@@ -17383,7 +17768,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const byId=new Map(plan.objects.map(o=>[o.hash,o])),shown=o=>(o.flags&3)===3&&(!o.parent||shown(byId.get(o.parent)));
         setVisibility(plan.objects.filter(o=>o.index!==undefined).map(o=>({index:o.index,visible:shown(o)})));
         // Scene event also installs the persisted hierarchy in the Objects Browser.
-        nativeSceneEvent(name);nativeSceneStats(name);lastImportReport=plan.importReport;button.disabled=false;await draw();button.disabled=true;await gpu.device.queue.onSubmittedWorkDone();
+        nativeSceneEvent(name);await FramePlugins.loadUsed();nativeSceneStats(name);lastImportReport=plan.importReport;button.disabled=false;await draw();button.disabled=true;await gpu.device.queue.onSubmittedWorkDone();
         canvas.dataset.hashLoad=JSON.stringify({objects:scene.meshes.length,triangles:scene.triangleCount,fileBytes:file.size,elapsedMs:performance.now()-started});canvas.dataset.ready='true';status.hidden=true;
       }catch(error){if(!published){for(const mesh of newMeshes)disposeMesh(mesh);}fileOperationError(error);throw error;}finally{nativeIOEnd();}
       await window.FrameSpline?.flush();
@@ -17397,7 +17782,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       canvas.dataset.ready='loading';
       if(!new URL(location.href).searchParams.get('scene')||new URL(location.href).searchParams.has('empty')){const gpu=await getRenderer();FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,[]);installNativeRecords([]);resetView();nativeSceneEvent('scene.hash');canvas.dataset.ready='true';status.hidden=true;button.disabled=false;await draw();return;}
       const nativeFile=new URL(location.href).searchParams.get('scene');
-      if(nativeFile){if(!/^(?:tests\/scenes\/)?[a-zA-Z0-9_.-]+\.hash$/i.test(nativeFile))throw Error('Invalid scene filename');const response=await fetch(nativeFile,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status+' while reading HASH.');return loadHash(await response.blob(),nativeFile);}
+      if(nativeFile){if(!/^(?:(?:tests\/)?scenes\/)?[a-zA-Z0-9_.-]+\.hash$/i.test(nativeFile))throw Error('Invalid scene filename');const response=await fetch(nativeFile,{cache:'no-store'});if(!response.ok)throw Error('HTTP '+response.status+' while reading HASH.');return loadHash(await response.blob(),nativeFile);}
 
     }
     const zipCRC32=(()=>{const table=new Uint32Array(256);for(let i=0;i<256;i++){let c=i;for(let k=0;k<8;k++)c=c&1?0xedb88320^(c>>>1):c>>>1;table[i]=c;}return (bytes,crc=0xffffffff)=>{for(const b of bytes)crc=table[(crc^b)&255]^(crc>>>8);return crc>>>0;};})();
@@ -18158,10 +18543,10 @@ function FramePolygonKernel(d){
         if(s.type==='object'){for(const k of s.required||[])if(!Object.hasOwn(v,k))fail('INVALID_ARGUMENT',path+'.'+k+' is required');for(const [k,x]of Object.entries(v)){if(!Object.hasOwn(s.properties,k)){if(s.additionalProperties===false)fail('INVALID_ARGUMENT','Unknown '+path+'.'+k);}else validate(s.properties[k],x,path+'.'+k);}}
       }
       const register=(name,description,inputSchema,readOnly,run)=>tools.set(name,{name,description,inputSchema,annotations:{readOnlyHint:readOnly,destructiveHint:!readOnly,idempotentHint:readOnly,openWorldHint:false},run});
-      register('tag.list','List installed native plugin tags without loading unused modules.',obj({}),true,async()=>{await FramePlugins.ready;return FramePlugins.tagList();});
-      register('tag.set','Assign, edit or remove a registered plugin tag on native objects/groups in one Undo transaction. Existing tag identity is preserved; params merges declared native fields.',required(obj({ids:array(str,10000),kind:str,enabled:bool,params:{type:'object',properties:{},additionalProperties:true}}),'ids','kind','enabled'),false,async a=>{const targets=refs(a.ids);if(!targets.length)fail('INVALID_ARGUMENT','Choose at least one object');await FramePlugins.ready;try{FramePlugins.tagPlan(targets,a.kind,a.enabled,a.params);}catch(e){fail('INVALID_ARGUMENT',e.message);}await FramePlugins.ensureTag(a.kind);FramePlugins.setTags(targets,a.kind,a.enabled,a.params);await settle();return {objects:targets.map(describe)};});
-      register('tag.read','Read validated registered plugin tag parameters and stable tag identities without loading unused modules.',required(obj({ids:array(str,10000),kind:str}),'ids','kind'),true,async a=>{const targets=refs(a.ids);if(!targets.length)fail('INVALID_ARGUMENT','Choose at least one object');await FramePlugins.ready;try{return {objects:FramePlugins.readTags(targets,a.kind)};}catch(e){fail('INVALID_ARGUMENT',e.message);}});
-      register('plugins.list','List installed plugin metadata without loading unused JavaScript.',obj({}),true,async()=>{await FramePlugins.ready;return FramePlugins.list();});
+      register('tag.list','Open Plugins and list installed native plugin tags without executing unused modules.',obj({}),true,async()=>{await FramePlugins.open();return FramePlugins.tagList();});
+      register('tag.set','Assign, edit or remove a registered plugin tag on native objects/groups in one Undo transaction. Existing tag identity is preserved; params merges declared native fields.',required(obj({ids:array(str,10000),kind:str,enabled:bool,params:{type:'object',properties:{},additionalProperties:true}}),'ids','kind','enabled'),false,async a=>{const targets=refs(a.ids);if(!targets.length)fail('INVALID_ARGUMENT','Choose at least one object');if(!FramePlugins.tagList().some(t=>t.kind===a.kind))await FramePlugins.open();try{FramePlugins.tagPlan(targets,a.kind,a.enabled,a.params);}catch(e){fail('INVALID_ARGUMENT',e.message);}await FramePlugins.ensureTag(a.kind);FramePlugins.setTags(targets,a.kind,a.enabled,a.params);await settle();return {objects:targets.map(describe)};});
+      register('tag.read','Read validated registered plugin tag parameters and stable tag identities without loading unused modules.',required(obj({ids:array(str,10000),kind:str}),'ids','kind'),true,async a=>{const targets=refs(a.ids);if(!targets.length)fail('INVALID_ARGUMENT','Choose at least one object');if(!FramePlugins.tagList().some(t=>t.kind===a.kind))await FramePlugins.open();try{return {objects:FramePlugins.readTags(targets,a.kind)};}catch(e){fail('INVALID_ARGUMENT',e.message);}});
+      register('plugins.list','Open Plugins and list installed metadata without executing unused JavaScript.',obj({}),true,async()=>{await FramePlugins.open();return FramePlugins.list();});
       register('plugins.describe','Load and discover one plugin operation registry and argument schemas.',required(obj({plugin:str}),'plugin'),true,async a=>({plugin:a.plugin,operations:await FramePlugins.operations(a.plugin)}));
       register('plugins.command','Run a registered plugin operation after schema validation. Slice starts a background job; status observes completion.',required(obj({id:str,operation:str,args:{type:'object',properties:{},additionalProperties:true}}),'id','operation'),false,async(a,interruption)=>{const n=resolve(a.id);await FramePlugins.ensureType(n.type);const operation=FramePlugins.owner(n)?.operations?.get(a.operation);if(!operation)fail('UNKNOWN_TOOL','Unknown plugin operation: '+a.operation);validate(operation.inputSchema,a.args||{});return operation.run(n.nativeHash,a.args||{},interruption);});
       register('plugins.create','Load one installed plugin and add its object using native Undo.',required(obj({plugin:str,type:str}),'plugin'),false,async a=>{const n=await FramePlugins.create(a.plugin,a.type);await settle();return describe(n);});
@@ -18178,8 +18563,9 @@ function FramePolygonKernel(d){
       const dataTool=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);Object.assign(tools.get(name),{authoringData:true,dataOnly:readOnly});};
       const programTarget=required(obj({owner:dataOwner,id:{type:'string',minLength:32,maxLength:32}}),'owner','id');
       const programTool=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);Object.assign(tools.get(name),{dataOnly:true});};
-      programTool('programs.describe','Describe actual managed Scene execution, descriptor format and currently unsupported Control capabilities. Does not run source.',obj({}),true,()=>FrameScenePrograms.describe());
+      programTool('programs.describe','Describe Scene Control execution, panel registration and descriptor format. Does not run source.',obj({}),true,()=>FrameScenePrograms.describe());
       programTool('programs.status','Inspect current program instances, contexts and bounded execution diagnostics without waiting for user code.',obj({owner:dataOwner,id:{type:'string',maxLength:32}}),true,a=>FrameScenePrograms.status(a));
+      programTool('programs.panel','Inspect, open, focus or close the Scene Control window. Opening uses ordinary browser popup permissions.',obj({action:choice('inspect','open','focus','close')}),false,a=>{if(!a.action||a.action==='inspect')return FrameSceneControl.inspect();if(a.action==='close'){FrameSceneControl.close();return FrameSceneControl.inspect();}return FrameSceneControl.open();});
       programTool('programs.start','Start a persisted Scene program outside the command queue; returns a job receipt immediately. Main JavaScript and named Workers are supported.',programTarget,false,a=>FrameScenePrograms.start(a));
       programTool('programs.stop','Invalidate managed API access immediately and cooperatively release one instance. Does not promise to interrupt arbitrary synchronous main-thread code.',programTarget,false,a=>FrameScenePrograms.stop(a));
       programTool('programs.restart','Stop then start one program as a managed asynchronous job; source and dependency revisions are rechecked.',programTarget,false,a=>FrameScenePrograms.restart(a));
@@ -18345,7 +18731,7 @@ function FramePolygonKernel(d){
       const listTools=()=>Array.from(tools.values(),({run,...descriptor})=>json(descriptor));
       window.frameAI=Object.freeze({version,listTools,call:(name,args)=>call(name,args),ready:api.ready});
       FrameScenePrograms.install({call:(name,args,guard)=>call(name,args,null,guard),listTools,state:()=>({busy:nativeIOBusy||undoBusy}),ready:api.ready});
-      import('./core/documentation-window.mjs').then(({installDocumentationWindow})=>documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()})).catch(fileOperationError);
+      documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()});
     }
 
     const api={pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,evaluateBoolean,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;for(const o of values)if(poseObjects().some(p=>p.hash===o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit,saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
@@ -18368,7 +18754,7 @@ function FramePolygonKernel(d){
     };
     window.frameEngine=api;
     setViewerMode('element','object');setViewerMode('shading','solid-isoparms');
-    api.ready=FramePlugins.ready.then(()=>start()).catch(error=>{canvas.dataset.ready='error';fileOperationError(error);});
+    api.ready=start().catch(error=>{canvas.dataset.ready='error';fileOperationError(error);});
     initializeFrameAI();
     return api;
 

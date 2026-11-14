@@ -1,7 +1,7 @@
 // Bump with the visible application version for each published runtime release.
-const VERSION='2026 14 nov 23:07',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
+const VERSION='2026 14 nov 23:25',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
-const CORE=["index.html","viewport.html","documentation.html","core/documentation-window.mjs","core/documentation-geometry.mjs","manifest.webmanifest","frame-icon-v4.svg","frame-icon-192-v4.png","frame-icon-512-v4.png","frame-icon-maskable-512.png","frame-hash-256-v4.png","frame-v4.ico","plugins/index.json"];
+const CORE=["index.html","manifest.webmanifest","frame-icon.svg","frame-icon-192.png","frame-icon-512.png","frame-icon-maskable-512.png","frame-hash-256.png","frame.ico"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};
 async function download(url){const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Offline resource HTTP '+response.status);return response;}
 async function cacheShell(cache){
@@ -15,8 +15,6 @@ self.addEventListener('install',event=>event.waitUntil((async()=>{
   const response=await download(SHELL),html=await response.clone().text();
   if(!html.includes('name="frame-version" content="'+VERSION+'"')||!/<\/html>\s*$/i.test(html))throw Error('Frame release mismatch');
   for(const path of CORE.filter(p=>p!=='index.html'))await cache.put(local(path),await download(local(path)));
-  const catalogue=await (await cache.match(local('plugins/index.json'))).json();
-  for(const path of catalogue){const url=local('plugins/'+path),manifest=await download(url),data=await manifest.clone().json();await cache.put(url,manifest);for(const path of [data.module,data.icon,...data.assets||[]]){const asset=local(new URL(path,url).href);await cache.put(asset,await download(asset));}}
   await cache.put(SHELL,response);await self.skipWaiting();
 })()));
 self.addEventListener('activate',event=>event.waitUntil((async()=>{

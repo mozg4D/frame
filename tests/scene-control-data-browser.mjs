@@ -137,7 +137,7 @@ export async function sceneControlDataBrowserChecks(page) {
       await call('scene.new'); const blank = await get();
       equal('Blank scene has no author records', blank.data.records, []);
       equal('Managed runtime is available but sources require explicit descriptors', blank.runtime, 'managed');
-      check('No Control button or panel exists', await page.locator('#btnControl,#controlPanel,[data-scene-control-panel]').count() === 0);
+      check('Control button is always available', await page.locator('#btnControl').count() === 1);
       const tools = await page.evaluate(() => frameAI.listTools());
       for (const name of ['authorData.get','authorData.inspect','authorData.replace','fields.list','fields.read','fields.write']) {
         const tool = tools.find(t => t.name === name); check(name + ' has one shared discoverable input schema', !!tool && tool.inputSchema?.type === 'object' && tools.filter(t => t.name === name).length === 1);
@@ -190,7 +190,7 @@ export async function sceneControlDataBrowserChecks(page) {
       const unavailable = (await inspect(ownerA.hash)).references.find(r => r.record === O.opaque);
       equal('Unsupported future field remains explicitly unsupported',unavailable.status,'unsupported-field');
       equal('Declared opaque payload remains exact and inactive',(await get(ownerA.hash)).data.records.find(r => r.id === O.opaque).payload,objectRecords.find(r => r.id === O.opaque).payload);
-      check('Stored scripts and HTML do not reveal Control',await page.locator('#btnControl,#controlPanel,[data-scene-control-panel]').count() === 0);
+      check('Stored scripts and HTML do not alter Control availability',await page.locator('#btnControl').count() === 1);
     });
 
     await run('DATA-ONLY read instrumentation',async () => {
@@ -446,7 +446,7 @@ export async function sceneControlDataBrowserChecks(page) {
       await reject('Pre-record-delete request is stale after identical Undo','authorData.replace',{owner:'scene',expected:expected(beforeRecordDelete),records:beforeRecordDelete.data.records},/changed|revision|epoch/i);
       equal('Native lifecycle never executed authored code',await page.evaluate(() => __sceneDataExecutionSentinel),0);
       equal('No author-program import request was made',report.authorModuleRequests,[]);
-      check('No Control execution surface appeared',await page.locator('#btnControl,#controlPanel,[data-scene-control-panel]').count() === 0);
+      check('Control remains available without source execution',await page.locator('#btnControl').count() === 1);
     });
 
     await run('Undo creation reserves root/object IDs across branch edits and native HASH',async () => {

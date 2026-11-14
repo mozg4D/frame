@@ -5,8 +5,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 
-const files = ['index.html', 'core/documentation-window.mjs',
-  'documentation.html', 'frame-sw.js', 'tests/scene-control-data-browser.mjs',
+const files = ['index.html', 'frame-sw.js', 'tests/scene-control-data-browser.mjs',
   'tests/scene-control-native-boundaries.mjs'];
 const sources = async () => Object.fromEntries(await Promise.all(files.map(async name =>
   [name, createHash('sha256').update(await readFile(new URL('../' + name, import.meta.url))).digest('hex')])));

@@ -82,7 +82,9 @@ Material/camera updates:
 
 `fields.write({writes:[{owner,field,value,epoch,revision}]})` prevalidates one to 128 unique targets and uses one native Undo transaction without changing selection. Stale tokens reject with CONFLICT; unsupported/read-only targets reject with UNSUPPORTED. No-ops create no history. Currently writable parameters are Cube size x/y/z and Atomic Temperature, Damping, Time scale, Confinement and Color. Animated parameters are explicitly read-only through this adapter. Generic scene.update and Atomic settings use the same declared bounds; native Attributes clamps numeric inputs to those bounds. See ../AGENTS.md for scope and persistence.
 
-Source/schema/binding records in authorData remain inert. Parameter authoring does not imply managed script execution, worker lifecycle, subscriptions or a separate Control panel.
+Source/schema/binding records alone remain inert. A frame.scene-control descriptor selects JavaScript source, main or worker:<name>, and manual or ready startup. Execution is arbitrary native JavaScript with no sandbox or tool allowlist; main code can access DOM, globals and frameCore, and may also create its own Workers. Lifecycle helpers are optional.
+
+For the always-available Scene Control popup, activate(ctx) can call ctx.control.register(({window,document,root,host}) => { /* build ordinary DOM; optionally return cleanup */ }). The registration retires with the activation; native frameControl.register is also available. The popup restores its own geometry, remounts after Reload and shows a short Codex instruction when no panel is registered. Sources and descriptors persist inside HASH; no external script file or script editor is needed. Inspect programs.describe and frameAI.listTools() for the current host/API. tools/create-crystal-scene.mjs produces scenes/crystals.hash as a native example.
 
 Common author-data/field calls return BUSY while a native numeric edit session is open, including focus before typing. Finish with Enter, blur or Escape and reread CAS tokens before retrying. This protects the editor’s existing full-snapshot cancel behavior without forcibly committing or canceling user input.
 
