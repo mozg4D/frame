@@ -1,27 +1,10 @@
 {
+  "scope": "Historical source and qualification snapshot. References to files and evidence directories no longer present have been removed. Commit identities, file counts, hashes and browser/GPU results describe the original snapshot, not the current checkout.",
   "baseCommit": "d98aca74b4be7e4703a26bf51caa874821dcc73b",
   "baseIndexSHA256": "bfa3b3bf0d34c8fbaa4fbe229ac4fc7ba135be7b38bf7bffe5235cacdd4bacce",
   "indexSHA256": "38c05f49552245080c8aef6a2274824db1facb85ecbbed036b565df7e2f717a6",
   "unchangedTrackedFiles": 521,
   "changedFiles": [
-    {
-      "path": "SCENE-CONTROL-DATA-QUALIFICATION.md",
-      "status": "added",
-      "baseGitBlobSHA": null,
-      "sha256": "1dc7e9db0ca659d907f8fb25b6b6d9e946030373f507c7230302b9e29297df58"
-    },
-    {
-      "path": "SCENE-CONTROL-DATA.md",
-      "status": "added",
-      "baseGitBlobSHA": null,
-      "sha256": "f11d431968cad2721863db151e299b547fab19a5a4ab196c3e172c5af9a3bb40"
-    },
-    {
-      "path": "app.md",
-      "status": "modified",
-      "baseGitBlobSHA": "60979946caaeadc22583731362011cb69ecbde34",
-      "sha256": "201536a418644ba5e3b85658db369441ef5db57debe63f24e5dbe2e219e9a07b"
-    },
     {
       "path": "frame-sw.js",
       "status": "modified",
@@ -69,24 +52,6 @@
       "status": "added",
       "baseGitBlobSHA": null,
       "sha256": "7627ac4e1abf2b944864c1ef87d087e9e2a193602ee664731a029856ed91eed2"
-    },
-    {
-      "path": "tests/release-non-unite-audit.mjs",
-      "status": "added",
-      "baseGitBlobSHA": null,
-      "sha256": "933adeb2cd2e3ee77f5dd346a0fa07db4c40e5b5e66210f798dc756465db0816"
-    },
-    {
-      "path": "tests/release-non-unite-profile.json",
-      "status": "added",
-      "baseGitBlobSHA": null,
-      "sha256": "75d7489d25805bfdd99167a4b58af751df763d48c106640a796e2e17f166b3a6"
-    },
-    {
-      "path": "tests/release-non-unite.mjs",
-      "status": "added",
-      "baseGitBlobSHA": null,
-      "sha256": "2133b4f4e63de90811870bc360569099f9ec2302b76b6fdc5fda1e0987576637"
     },
     {
       "path": "tests/scene-authoring-startup.mjs",
@@ -199,11 +164,7 @@
   ],
   "sourceManifestSelfExcluded": true,
   "localEvidenceNotForPublication": [
-    "tests/scene-port-evidence/",
-    "tests/scene-parameter-evidence/",
-    "tests/results/",
-    "tests/scene-startup-evidence/",
-    "tests/scene-release-evidence/"
+    "tests/results/"
   ],
   "browserGPU": "Final 38c05f49: Scene native 891/14, Doc 19, non-Unite 249 + 32-frame replay 249, bounded offline PWA 15; real NVIDIA hardware, no unexpected GPU/JS errors. Full standard/stress and full PWA suite excluded.",
   "exactReversalLayers": [
