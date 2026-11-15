@@ -3,7 +3,7 @@
   "name": "Atomic",
   "module": "plugin.js",
   "icon": "icon.svg",
-  "color": "#83b8d7",
+  "color": "#87afc2",
   "objects": [
     {
       "type": "atomic",
