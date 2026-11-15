@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 01:11",
+  "version": "2026 16 nov 01:34",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -430,16 +430,21 @@
       "tests/camera-shader-order.mjs",
       "tests/run.mjs",
       "tests/suite.js"
+    ],
+    "quad-patch": [
+      "index.html",
+      "frame-sw.js",
+      "tests/quad-patch-materials-browser.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "cc437a63080219c2b4ef45f85ed9a7541ec52829b13b9e5fd48e7294a9dcfbdc"
+      "sha256": "bcbf68938f2ce3c306eb9b5492ed59f08de921efb4236e269eded669f814b80a"
     },
     "index.html": {
-      "bytes": 2875947,
-      "sha256": "27327147eeef1b0e18ae4c980f14724e824eefc2381da411247ac661aa721ed3"
+      "bytes": 2879469,
+      "sha256": "7887bad78f884d67a2b8a341ddaba9c6f08d75dd731f0646f07f76a006e56852"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1132,6 +1137,10 @@
     "tests/polygon-line-mask.mjs": {
       "bytes": 1608,
       "sha256": "8a4bcd160c134a8f5ceb1478c65ecb5e68aeb19afbb8f0e0c334346161401159"
+    },
+    "tests/quad-patch-materials-browser.mjs": {
+      "bytes": 9434,
+      "sha256": "e9dee187f159c6267432a993f21c9b873d1a09c2b0e7a59b76931ccfff78ab00"
     }
   }
 }

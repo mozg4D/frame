@@ -1,0 +1,87 @@
+import assert from 'node:assert/strict';
+import {launch,ready} from '../tools/browser.mjs';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+
+const s=await launch({headless:true}),checks=[],errors=[];
+const {page,context}=s;
+context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));
+page.on('pageerror',e=>errors.push(e.message));
+const call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]);
+const check=(name,pass,detail)=>{console.log((pass?'PASS ':'FAIL ')+name);checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
+const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+let failure;
+try{
+ await ready(page);
+ check('Hardware WebGPU at DPR 1',await page.evaluate(()=>!frameEngine.renderer.device.adapterInfo.isFallbackAdapter&&devicePixelRatio===1));
+ await page.evaluate(()=>{window.__gpuErrors=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__gpuErrors.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
+ const mesh=await call('mesh.create',{vertices:[0,0,0,80,0,0,0,80,0],indices:[0,1,2]});
+ await call('view.set',{index:0,single:true,focus:mesh.hash});
+ const main=(await call('view.windows')).views.map(v=>v.camera);
+ const popup=context.waitForEvent('page');const opened=await call('view.window',{index:0,action:'open'}),child=await popup,id=opened.opened;
+ await child.waitForSelector('.view');
+ const start=performance.now();
+ await child.locator('#frame-engine-canvas').click({button:'middle',position:{x:110,y:100}});
+ await child.waitForFunction(()=>document.querySelectorAll('.view:not([hidden])').length===4,{},{timeout:3000});
+ const quad=(await call('view.windows')).views.filter(v=>v.window===id);
+ check('Middle click opens detached quad within 2 seconds',performance.now()-start<2000&&quad.length===4&&quad.every(v=>v.visible&&!v.single),quad);
+ check('Detached quad contains four projection kinds',same(quad.map(v=>v.projection).sort(),[0,1,2,3]));
+ const rects=await child.locator('.view').evaluateAll(els=>els.map(el=>{const r=el.getBoundingClientRect();return [r.x,r.y,r.width,r.height];}));
+ check('Four non-overlapping equal viewports',new Set(rects.map(r=>r[0]+':'+r[1])).size===4&&rects.every(r=>Math.abs(r[2]-rects[0][2])<2&&Math.abs(r[3]-rects[0][3])<2),rects);
+ const top=quad.find(v=>v.projection===1);
+ await child.locator('[data-view="'+top.index+'"] canvas').click({button:'middle',position:{x:80,y:75}});
+ await child.waitForFunction(()=>document.querySelectorAll('.view:not([hidden])').length===1);
+ check('Middle click maximizes chosen detached projection',(await call('scene.inspect')).view.index===top.index&&(await call('scene.inspect')).view.single);
+ await call('view.set',{single:false});
+ check('API changes detached layout only',(await call('view.windows')).views.filter(v=>v.index<4).filter(v=>v.visible).length===1&&await child.locator('.view:visible').count()===4);
+ check('Main cameras unchanged',same((await call('view.windows')).views.filter(v=>v.index<4).map(v=>v.camera),main));
+ await call('view.window',{index:top.index,action:'close'});
+ check('Closing any quad member releases all four views',(await call('view.windows')).views.length===4&&await page.locator('#frame-engine-canvas').count()===1);
+ await call('scene.new');await call('view.set',{index:2,single:true,mode:'object'});
+ const patch=await call('scene.create',{type:'spline_patch',name:'Painted Patch'}),sources=[];
+ const group=await call('scene.create',{type:'group',parent:patch.hash,name:'Grouped source'});
+ for(let source=0;source<2;source++){
+  const n=await call('scene.create',{type:'spline',parent:source?group.hash:patch.hash,name:'Cage '+source});sources.push(n);
+  const data=await page.evaluate(offset=>{const K=FrameSpline.K(),d=K.createSplineData(),v=[];for(let y=0;y<2;y++)for(let x=0;x<3;x++)v.push(K.addSplineVertex(d,[offset+x*60,y*60,0]));for(const [a,b]of [[0,1],[1,2],[3,4],[4,5],[0,3],[1,4],[2,5]])K.addSplineSegment(d,K.addSplineSequence(d),v[a],v[b]);return d;},source*180);
+  await call('spline.replace',{id:n.hash,data});
+ }
+ const patchInfo=(await call('scene.inspect')).objects.find(n=>n.hash===patch.hash);
+ check('Two independent cages build four cells',patchInfo.evaluation.report.cells===4,patchInfo.evaluation);
+ const colors=await page.evaluate(()=>({patch:objectColor('spline_patch'),extrude:objectColor('extrude'),mesh:objectColor('mesh')}));
+ check('Browser Patch color is distinct',colors.patch!==colors.extrude&&colors.patch!==colors.mesh,colors);
+ await call('view.set',{index:2,single:true,mode:'polygon',shading:'solid',focus:patch.hash});
+ const red=await call('material.create',{name:'Cell red',params:{h:0,s:100,l:50}}),blue=await call('material.create',{name:'Cell blue',params:{h:240,s:100,l:50}});
+ // GPU surface picking must return source-local cell IDs even with multiple cages.
+ await call('scene.select',{ids:[patch.hash],mode:'polygon'});
+ const at=(await call('view.project',{id:sources[1].hash,point:[210,30,0]})).screen;
+ await call('selection.pick',{x:at[0],y:at[1]});
+ const picked=(await call('scene.inspect')).selection;
+ check('GPU pick selects a cell of the second cage',picked.splines.some(row=>row.id===sources[1].hash&&row.components.some(k=>k.startsWith('cell:'))),picked);
+ await page.evaluate(async({source,uid})=>{const n=nodes.find(n=>n.nativeHash===source),i=materials.findIndex(m=>m.uid===uid);await frameAssignMaterial(n.id,i);},{source:sources[1].hash,uid:red.uid});
+ await call('scene.inspect');
+ const masks=()=>page.evaluate(async hash=>{const n=nodes.find(n=>n.nativeHash===hash),m=frameEngine.scene.meshes.find(m=>m.hashId===hash),d=frameEngine.renderer.device,out=[];for(const tag of n.tags.filter(t=>t.kind==='material')){const set=frameEngine.scene.records.get(FrameHash.address(tag.uid,'faces'))?.value;if(!set){out.push({uid:tag.uid,whole:true});continue;}const size=set.count*4,r=d.createBuffer({size,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),e=d.createCommandEncoder();e.copyBufferToBuffer(set.resource,0,r,0,size);d.queue.submit([e.finish()]);await r.mapAsync(GPUMapMode.READ);const bits=new Uint32Array(r.getMappedRange()).slice();r.unmap();r.destroy();out.push({uid:tag.uid,material:materials[tag.material].uid,cells:m.splineFaceRanges.map(([first,count])=>Array.from({length:count},(_,i)=>(bits[(first+i)>>5]>>>((first+i)&31))&1))});}return out;},patch.hash);
+ let tags=await masks();
+ check('Browser material assignment masks only one complete cell',tags.length===1&&!tags[0].whole&&tags[0].cells.filter(bits=>bits.every(Boolean)).length===1&&tags[0].cells.filter(bits=>bits.every(b=>!b)).length===3,tags);
+ await call('scene.select',{ids:[sources[0].hash],mode:'polygon',components:['cell:1']});
+ await call('material.assign',{id:sources[0].hash,material:blue.uid,selection:true});
+ tags=await masks();check('API assigns another color to a different cell',tags.length===2&&tags[1].material===blue.uid&&tags[1].cells.filter(bits=>bits.every(Boolean)).length===1,tags);
+ const beforeUndo=tags;
+ await call('edit.history',{action:'undo'});check('Cell material Undo', (await masks()).length===1);
+ await call('edit.history',{action:'redo'});check('Cell material Redo',same(await masks(),beforeUndo));
+ await call('scene.select',{ids:[patch.hash],mode:'polygon'});
+ await page.evaluate(async hash=>{const n=nodes.find(n=>n.nativeHash===hash);await frameEngine.restorePolygonSelection(hash,n.tags.find(t=>t.kind==='material').mask);},patch.hash);
+ check('Material tag restores the second cage cell',(await call('scene.inspect')).selection.splines.some(row=>row.id===sources[1].hash&&row.components.length===1));
+ await call('spline.rebuild',{id:patch.hash});check('Rebuild keeps cell materials',same(await masks(),beforeUndo));
+ const saved=await call('scene.export',{includeData:true});await call('scene.open',{name:'painted-patch.hash',base64:saved.base64});
+ check('HASH reload keeps cell materials',same(await masks(),beforeUndo));
+ await call('view.set',{index:2,single:true,shading:'solid',mode:'object',focus:patch.hash});await call('scene.select',{ids:[]});
+ await call('diagnostics.frame',{frames:2});
+ const points=[];for(const [id,point]of [[sources[0].hash,[85,27,0]],[sources[1].hash,[205,27,0]]])points.push((await call('view.project',{id,point})).screen);
+ const pixels=(await call('diagnostics.pixels',{points})).colors;
+ await page.screenshot({path:'tests/results/quad-patch-materials.png'});
+ check('Rendered cells visibly show independent blue and red materials',pixels[0][2]>pixels[0][0]+30&&pixels[1][0]>pixels[1][2]+30,pixels);
+ const frames=await call('diagnostics.frame',{frames:2});check('Native frame completion',frames.frames.length===2);
+ const gpu=await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message,errors:__gpuErrors}));
+ check('No JavaScript or GPU errors',!errors.length&&!gpu.validation&&!gpu.errors.length,{errors,gpu});
+}catch(e){failure=e.stack;console.error(failure);process.exitCode=1;}
+finally{await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/quad-patch-materials.json',import.meta.url),JSON.stringify({pass:!failure,checks,errors,failure,indexSHA256:createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex')},null,2));await s.close();}
