@@ -253,3 +253,6 @@ tests/viewport-connected-routing.mjs text eol=lf
 
 # Keep focused object-picking evidence identical after checkout.
 tests/object-click-selection.mjs text eol=lf
+
+# Native documents are binary addressed records.
+*.hash -text -diff

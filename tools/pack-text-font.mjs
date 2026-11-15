@@ -1,0 +1,11 @@
+// Offline packing of native planar cubic characters. Every Float64 bit is retained.
+export function packTextFont(font){
+ const scalars=new Map(),view=new DataView(new ArrayBuffer(8)),bits=n=>{view.setFloat64(0,n,true);return view.getBigUint64(0,true).toString(16);},count=n=>{if(!Number.isFinite(n))throw Error('Non-finite font coordinate');const key=bits(n),old=scalars.get(key);if(old)old.count++;else scalars.set(key,{value:n,count:1});};
+ const presets=Object.entries(font.splines),vector=p=>{if(!Array.isArray(p)||p.length!==3||!Object.is(p[2],0))throw Error('Font requires planar native XYZ vectors');count(p[0]);count(p[1]);};
+ for(const [char,character]of presets){if([...char].length!==1)throw Error('Font requires single Unicode character keys');count(character.advance);for(const contour of character.contours)for(const edge of contour){vector(edge.point);vector(edge.ha);vector(edge.hb);}}
+ const ordered=[...scalars.values()].sort((a,b)=>b.count-a.count),numbers=new Float64Array(ordered.map(n=>n.value)),ids=new Map(ordered.map((n,i)=>[bits(n.value),i])),contours=[],characters=[],shared=new Map();
+ const uint=(out,n)=>{if(!Number.isSafeInteger(n)||n<0||n>0xffffffff)throw Error('Font integer limit');do{const byte=n%128;n=Math.floor(n/128);out.push(byte+(n?128:0));}while(n);},number=(out,n)=>uint(out,ids.get(bits(n)));
+ for(const [char,character]of presets){uint(characters,char.codePointAt(0));number(characters,character.advance);uint(characters,character.contours.length);for(const contour of character.contours){if(!contour.length)throw Error('Empty font contour');const out=[];uint(out,contour.length);for(const edge of contour){number(out,edge.point[0]);number(out,edge.point[1]);const flags=(edge.soft?1:0)|(edge.ha.some(n=>!Object.is(n,0))?2:0)|(edge.hb.some(n=>!Object.is(n,0))?4:0);uint(out,flags);if(flags&2){number(out,edge.ha[0]);number(out,edge.ha[1]);}if(flags&4){number(out,edge.hb[0]);number(out,edge.hb[1]);}}
+   const key=out.join(',');if(!shared.has(key)){shared.set(key,shared.size);contours.push(...out);}uint(characters,shared.get(key));}}
+ return {version:2,sourceSHA256:font.sourceSHA256,font:font.font,lineHeight:font.lineHeight,baseline:font.baseline,characterCount:presets.length,contourCount:shared.size,numbers,contours:new Uint8Array(contours),characters:new Uint8Array(characters)};
+}

@@ -1,16 +1,12 @@
-// One-time conversion of a source Frame font to ordinary native spline cages.
-// Supply an older index.html as argv[2]; no outline parser is shipped at runtime.
+// Repack the current native cubic font. No outline parser or JSON compatibility.
 import {readFile,writeFile} from 'node:fs/promises';
 import {gunzipSync,gzipSync} from 'node:zlib';
-import {createHash} from 'node:crypto';
-const source=await readFile(process.argv[2],'utf8'),target=new URL('../index.html',import.meta.url);
-const font=JSON.parse(gunzipSync(Buffer.from(source.match(/<script id="frame-spline-font" type="text\/plain">([^<]+)/)[1],'base64')));
-if(!font.glyphs)throw Error('Expected the original outline font');
-const K=Function('return ('+source.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1]+')')()();K.setFont(font);
-const scale=100/font.resolution;
-const splines=Object.fromEntries(Object.entries(font.glyphs).map(([char,glyph])=>{
- const {vertices,segments,sequences}=K.primitive('text',{text:char});return [char,{advance:glyph.ha*scale,vertices,segments,sequences}];
-}));
-const preset={version:1,sourceSHA256:createHash('sha256').update(JSON.stringify(font)).digest('hex'),font:{familyName:font.familyName,original_font_information:font.original_font_information},lineHeight:(font.boundingBox.yMax-font.boundingBox.yMin+font.underlineThickness)*scale,baseline:-(font.boundingBox.yMax+font.boundingBox.yMin)*scale/2,splines};
-let html=await readFile(target,'utf8');const codecStart=html.indexOf('function createFrameHashCodec(){'),codecEnd=html.indexOf('const FrameHash=createFrameHashCodec();',codecStart),codec=Function(html.slice(codecStart,codecEnd)+'return createFrameHashCodec();')(),packed=gzipSync(codec.snapshot(preset),{level:9});html=html.replace(/(<script id="frame-spline-font" type="text\/plain">)[^<]+/,(_,tag)=>tag+packed.toString('base64'));await writeFile(target,html);
-console.log(JSON.stringify({splines:Object.keys(splines).length,sourceSHA256:preset.sourceSHA256,bytes:packed.length}));
+import {packTextFont} from './pack-text-font.mjs';
+
+const target=new URL('../index.html',import.meta.url),source=await readFile(process.argv[2]||target,'utf8');
+const start=source.indexOf('function createFrameHashCodec(){'),end=source.indexOf('const FrameHash=createFrameHashCodec();',start),codec=Function(source.slice(start,end)+'return createFrameHashCodec();')();
+const kernel=source.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1],K=Function('return ('+kernel+')')()();
+const re=/(<script id="frame-spline-font" type="text\/plain">)([^<]+)/,before=Buffer.from(source.match(re)[2],'base64'),font=K.decodeTextFont(codec.openSnapshot(new Uint8Array(gunzipSync(before))));
+const native=packTextFont(font),packed=gzipSync(codec.snapshot(native),{level:9}),html=await readFile(target,'utf8');
+await writeFile(target,html.replace(re,(_,tag)=>tag+packed.toString('base64')));
+console.log({characters:native.characterCount,sharedContours:native.contourCount,sourceSHA256:native.sourceSHA256,beforeBytes:before.length,bytes:packed.length});

@@ -92,7 +92,7 @@ check('all numerical operations reject before mutation',()=>{const before=JSON.s
 check('symbol arrays are finite bounded line geometry, not card textures',()=>{for(const kind of Object.keys(models)){const v=symbol(kind);assert(v.length>0&&v.length%6===0&&v.length<1000&&[...v].every(Number.isFinite));}});
 check('multi-pin visual network uses a tree, not a complete graph',()=>assert.equal(tree([[0,0,0],[1,0,0],[2,0,0],[3,0,0]]).length,18));
 check('missing or malformed authoring records fail closed',()=>{const n=D.nodes.find(n=>n.nativeHash===custom.hash),record=n.pluginRecords[RECORD];delete n.pluginRecords[RECORD];assert.throws(()=>readData(D,n),e=>e.code==='CIRCUIT_DATA_INVALID');n.pluginRecords[RECORD]={type:7,value:'{}'};assert.throws(()=>readData(D,n));n.pluginRecords[RECORD]=record;});
-const manifest=JSON.parse(await readFile(new URL('../plugin.json',import.meta.url),'utf8'));
+const manifest=JSON.parse(await readFile(new URL('../plugin.json',import.meta.url),'utf8'));assert.equal(manifest.recordTypes[RECORD],0);
 check('native common-field units and explicit write access come from manifest',()=>{assert.equal(manifest.objects.find(o=>o.type==='circuit_resistor').fieldOptions.Resistance.unit,'ohm');assert.equal(manifest.objects[0].fieldOptions['Time scale'].unit,'s/s');});
 const t=performance.now();for(let i=0;i<100;i++)run('inspect',c.hash);const ms=performance.now()-t;timings.push({name:'100 completed component inspections',ms,limit:1000});assert(ms<1000);
 const topologyStart=performance.now();for(let i=0;i<100;i++)run('topology',a.nativeHash);const topologyMS=performance.now()-topologyStart;timings.push({name:'100 completed topology snapshots',ms:topologyMS,limit:1000});assert(topologyMS<1000);

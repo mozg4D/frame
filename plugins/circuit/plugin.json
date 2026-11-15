@@ -3,7 +3,7 @@
   "name": "Circuit",
   "color": "#b8d1bd",
   "module": "plugin.js",
-  "binaryValues": ["c17c0170000000000000000000000001"],
+  "recordTypes": {"c17c0170000000000000000000000001": 0},
   "icon": "icon.svg",
   "objects": [
     {

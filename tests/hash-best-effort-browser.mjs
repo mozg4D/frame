@@ -57,10 +57,10 @@ async function fixtureInPage({config: c, variant = 'normal'}) {
   };
   const vertices = new Float32Array([0, 0, 0, 12, 0, 0, 0, 9, 0]), indices = new Uint32Array([0, 1, 2]);
   const expected = {matrices, groupAuthoring: structuredClone(groupAuthoring), meshAuthoring: structuredClone(meshAuthoring), payloads: {}};
-  for (const [name, value] of Object.entries(payloads)) expected.payloads[key[name]] = {type: T[name], value: typeof value === 'string' ? value : Array.from(value), rawHex: ArrayBuffer.isView(value) ? Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), n => n.toString(16).padStart(2, '0')).join('') : null};
+  for (const [name, value] of Object.entries(payloads)) expected.payloads[key[name]] = {type: T[name], value: ArrayBuffer.isView(value) || Array.isArray(value) ? Array.from(value) : value, rawHex: ArrayBuffer.isView(value) ? Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), n => n.toString(16).padStart(2, '0')).join('') : null};
   put(K.version, T.uint32, new Uint32Array([1]));
   put(K.all, T.ids, ['group', 'mesh', 'known', 'instance', 'external'].map(n => h[n]));
-  put(K.parameters, T.text, JSON.stringify({version: 1, frame: 0, total: 10, materials: []}));
+  put(K.parameters, T.value, {version: 1, frame: 0, total: 10, materials: []});
   for (const name of ['group', 'mesh', 'known', 'instance', 'external']) {
     property(h[name], 'type', T.bytes, new Uint8Array([name === 'mesh' ? 1 : 0]));
     property(h[name], 'name', T.text, 'Best effort ' + name);
@@ -100,9 +100,9 @@ async function fixtureInPage({config: c, variant = 'normal'}) {
     case 'bad-version': put(K.version, T.uint32, new Uint32Array([2])); break;
     case 'bad-flags': property(h.group, 'flags', T.bytes, new Uint8Array([255])); break;
   }
-  property(h.group, 'parameters', T.text, JSON.stringify(groupAuthoring));
-  property(h.mesh, 'parameters', T.text, JSON.stringify(meshAuthoring));
-  property(h.known, 'parameters', T.text, JSON.stringify(knownAuthoring));
+  property(h.group, 'parameters', T.value, groupAuthoring);
+  property(h.mesh, 'parameters', T.value, meshAuthoring);
+  property(h.known, 'parameters', T.value, knownAuthoring);
   const parts = [];
   for (const record of records.values()) parts.push((await FrameHash.pack(record)).blob);
   if (variant === 'duplicate-address') parts.push(parts[0]);
@@ -119,10 +119,10 @@ async function decodeInPage(base64) {
   const file = new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))]), index = await FrameHash.index(file), out = {};
   for (const [id, record] of index) {
     const value = await FrameHash.read(file, record);
-    out[id] = {type: record.type, value: typeof value === 'string' ? value : Array.from(value), rawHex: ArrayBuffer.isView(value) ? Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), n => n.toString(16).padStart(2, '0')).join('') : null};
+    out[id] = {type: record.type, value: ArrayBuffer.isView(value) || Array.isArray(value) ? Array.from(value) : value, rawHex: ArrayBuffer.isView(value) ? Array.from(new Uint8Array(value.buffer, value.byteOffset, value.byteLength), n => n.toString(16).padStart(2, '0')).join('') : null};
   }
-  return {records: out, objects: out[FrameHash.K.all].value.map(hash => ({hash, authoring: out[FrameHash.address(hash, 'parameters')] ? JSON.parse(out[FrameHash.address(hash, 'parameters')].value) : null,
-    pluginRecords: Object.fromEntries((out[FrameHash.address(hash, 'parameters')] ? JSON.parse(out[FrameHash.address(hash, 'parameters')].value).pluginRecords || [] : []).map(r => [r.key, out[FrameHash.address(hash, r.key)]]))}))};
+  return {records: out, objects: out[FrameHash.K.all].value.map(hash => ({hash, authoring: out[FrameHash.address(hash, 'parameters')] ? out[FrameHash.address(hash, 'parameters')].value : null,
+    pluginRecords: Object.fromEntries((out[FrameHash.address(hash, 'parameters')] ? out[FrameHash.address(hash, 'parameters')].value.pluginRecords || [] : []).map(r => [r.key, out[FrameHash.address(hash, r.key)]]))}))};
 }
 
 // Isolated context: shared-suite callers' working scenes are never modified.

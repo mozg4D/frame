@@ -31,10 +31,10 @@ async function decodeHash(base64) {
   const file = new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))]);
   const records = await FrameHash.index(file);
   const value = async key => { const r = records.get(key); return r ? FrameHash.read(file, r) : undefined; };
-  const parameters = JSON.parse(await value(FrameHash.K.parameters) || '{}');
+  const parameters = (await value(FrameHash.K.parameters) || {});
   const hashes = Array.from(await value(FrameHash.K.all) || []), objects = [];
   for (const hash of hashes) {
-    const authoring = JSON.parse(await value(FrameHash.address(hash, 'parameters')) || '{}');
+    const authoring = (await value(FrameHash.address(hash, 'parameters')) || {});
     objects.push({hash, authorData:authoring.authorData ?? null});
   }
   return {root:parameters.authorData ?? null, objects};
