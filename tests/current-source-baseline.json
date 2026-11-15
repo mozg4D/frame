@@ -1010,6 +1010,10 @@
     "tests/navigation-dropdown-feedback.mjs": {
       "bytes": 10839,
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
+    },
+    ".gitattributes": {
+      "bytes": 9152,
+      "sha256": "7840d0fa96da48364e15fed1bbcacb03cd03cbe90fd0b362c9d27a75c31e063b"
     }
   }
 }
