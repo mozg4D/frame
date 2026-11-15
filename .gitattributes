@@ -286,3 +286,5 @@ tests/viewport-placement.mjs text eol=lf
 tests/viewport-printer-revision.mjs text eol=lf
 tests/current-release-fixture.mjs text eol=lf
 tests/hash-save-streaming.mjs text eol=lf
+tests/plain-wire-culling-browser.mjs text eol=lf
+tests/suite.js text eol=lf

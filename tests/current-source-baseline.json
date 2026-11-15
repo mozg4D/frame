@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 19:10",
+  "version": "2026 15 nov 22:47",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -418,16 +418,25 @@
       "tests/scenes/hgr15-normal-bug.hash",
       "tests/scenes/nema23-normals.hash",
       ".gitattributes"
+    ],
+    "plain-wire-culling": [
+      "index.html",
+      "frame-sw.js",
+      "tests/plain-wire-culling-browser.mjs",
+      "tests/surface-wire-stability-browser.mjs",
+      "tests/camera-shader-order.mjs",
+      "tests/run.mjs",
+      "tests/suite.js"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "2ba8f87fa0b3bcb343efd7a66d371730880e04dc708a3bf0b169473bc7b79a6f"
+      "sha256": "4ea4c8f0f5f5855f67a4cc0bd64288b622a7e4d5c5f58a5a7dcf4acd2a048b3e"
     },
     "index.html": {
-      "bytes": 2854061,
-      "sha256": "a726bcd1516de1b593e8a8dde94ca142149b7d6e521d713f63fdc8620ee8917a"
+      "bytes": 2893098,
+      "sha256": "84c6e0dcdb153fbece4d9508fcef06db012a97a08bdae95fbe49fd6fecd942f3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -622,8 +631,8 @@
       "sha256": "c72203aa7720047e843a497f484802baad25b1490298b032c3cfcb67eeb5be92"
     },
     "tests/run.mjs": {
-      "bytes": 34239,
-      "sha256": "5098b1c2a7a147f225b7c7cf1bf2de04a41ebdda9be8f5cfbcac1d01b0d9c95b"
+      "bytes": 34425,
+      "sha256": "fa9aef8b9a8014ee2287753482df19f02d7f027d8b06e00b34da89d38cf8de2b"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -726,8 +735,8 @@
       "sha256": "be540adb0023dd441c2c58a7bd670472c9455765a85c712e48c3592357b84de9"
     },
     "tests/README.md": {
-      "bytes": 54350,
-      "sha256": "2e1d314d486be6aecc386529945fe4d0595f96678cad9caf013cb188a132e93f"
+      "bytes": 55272,
+      "sha256": "a49e1e8f6d15e01ef99b687f558e04a3f84368418c1aefa638f84e43ff55530b"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -878,8 +887,8 @@
       "sha256": "10ff868e66265f7171013f29261febc98c2e80ce955d22ff71968c4d3b7b615d"
     },
     "tests/camera-shader-order.mjs": {
-      "bytes": 10547,
-      "sha256": "4a3dd92c692aedd6b2120c6da65f13fdea7d90960af7080f96ade8f5aa634997"
+      "bytes": 10797,
+      "sha256": "d9cc1bba3bb0875d8ce2cf56de310695b756c24bb233a5a22f3fecf5549663af"
     },
     "tests/spline-shader-source-contract.mjs": {
       "bytes": 4285,
@@ -994,8 +1003,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 62912,
-      "sha256": "c77a967cb518757a05a89796e49d92945a00fe9b5f2e5ac3887b5a2da111e69e"
+      "bytes": 64591,
+      "sha256": "846f39052a2fe63d30efe3d3874933ac0759ed76b2bc4b56c85f61ef946f011c"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1050,8 +1059,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 10716,
-      "sha256": "72d5186c35681cd7e511b769ba88c064573e527b1f121b6ab24a8f89d4cc2349"
+      "bytes": 10792,
+      "sha256": "450f35dcdcdc21648d4677f09fa028a63b15cc87e048519dec73162ae90f10ae"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1096,6 +1105,18 @@
     "tests/hash-save-streaming.mjs": {
       "bytes": 5346,
       "sha256": "3cddbabf23b2c183c3520d2fa930ed15ce4357a5fb91f4956b18b8f730778619"
+    },
+    "tests/surface-wire-stability-browser.mjs": {
+      "bytes": 16382,
+      "sha256": "b655427fce793ad8973f73f2bb8a7fba807f33814064151ad7a797ec2da0cc45"
+    },
+    "tests/plain-wire-culling-browser.mjs": {
+      "bytes": 14646,
+      "sha256": "7f0befc1379f7e6e5ec08cb0aca8a848480f59adc9d33b8fb01ff56ae3b5a300"
+    },
+    "tests/suite.js": {
+      "bytes": 17851,
+      "sha256": "7cf62143391b7c2f7970bf4c5df034a09c6c37059a2fb20556b412950f9e6afd"
     }
   }
 }

@@ -92,6 +92,8 @@ To extend:
 
 The runner imports the actual production `index.html`; it does not inject private engine functions, replace shaders or patch application source.
 
+`node tests/plain-wire-culling-browser.mjs` checks native subpixel edge culling on hardware WebGPU. It checks lazy compute compilation after empty startup, requires actual culled line draws, compares complete color and triangle-ID textures byte-for-byte against the original path, and covers buffer/texture geometry, object transforms, both projections, both shaded line modes and subpixel camera phases. Dense subpixel fixtures exercise edge and triangle stream overflow, stable coplanar triangle order and nonempty pixel coverage. Repeated-frame reuse and in-place vertex edits with Undo/Redo qualify cache invalidation and retirement of superseded derived streams. Standard/stress include this check. `node tests/surface-wire-stability-browser.mjs --no-primitive-index` separately runs the unchanged raster/occlusion assertions with that optional GPU feature disabled. The 100M benchmark retains all original budgets.
+
 `viewport-status.mjs`, called by the UI checks, observes real HASH save/load progress. It checks a short unboxed line in the top left viewport corner, absence of diagnostic FPS and the VRAM row, cleanup after completion, and a 3 s completed-operation budget for the tiny UI fixture. Timings are recorded in `ui.timings`.
 
 Regenerate the unique-cell fixture through the public API with `node tests/scenes/generate-unique.mjs`. Its seed and geometry are deterministic; native object IDs and saved camera records can change, so the entire HASH byte digest is not a fixture invariant.
