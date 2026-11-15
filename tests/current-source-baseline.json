@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 00:38",
+  "version": "2026 16 nov 01:11",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -421,10 +421,11 @@
       "tests/scenes/nema23-normals.hash",
       ".gitattributes"
     ],
-    "plain-wire-culling": [
+    "plain-polygon-lines": [
       "index.html",
       "frame-sw.js",
-      "tests/plain-wire-culling-browser.mjs",
+      "tests/plain-polygon-lines-browser.mjs",
+      "tests/polygon-line-mask.mjs",
       "tests/surface-wire-stability-browser.mjs",
       "tests/camera-shader-order.mjs",
       "tests/run.mjs",
@@ -434,11 +435,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "442c730a26530febefa98e4b9c31f4fbd906ef7a6e2172ddb9d3215d96d2c463"
+      "sha256": "cc437a63080219c2b4ef45f85ed9a7541ec52829b13b9e5fd48e7294a9dcfbdc"
     },
     "index.html": {
-      "bytes": 2910683,
-      "sha256": "14681f36eabad0f9ac703125e0d17007214fe587cfce34ddd5b080cb43790a43"
+      "bytes": 2875947,
+      "sha256": "27327147eeef1b0e18ae4c980f14724e824eefc2381da411247ac661aa721ed3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -633,8 +634,8 @@
       "sha256": "e482408ddac4f9b65d5d688af7aa69eddc636a5522897f32f57eba1bffb9fd48"
     },
     "tests/run.mjs": {
-      "bytes": 34577,
-      "sha256": "53f00724d559517e6f5feab6328a670ea09a111756af670e2c09942af29883a8"
+      "bytes": 34582,
+      "sha256": "bdcfb08b012fc5133a4bcd4ff0969c782bd8341af2e24d2daab052fb2d5b4152"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -737,8 +738,8 @@
       "sha256": "be540adb0023dd441c2c58a7bd670472c9455765a85c712e48c3592357b84de9"
     },
     "tests/README.md": {
-      "bytes": 55272,
-      "sha256": "a49e1e8f6d15e01ef99b687f558e04a3f84368418c1aefa638f84e43ff55530b"
+      "bytes": 55070,
+      "sha256": "74df7d369cc54baa861e06eb079eac36ca9594915af287696a41be66f58193bd"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -889,8 +890,8 @@
       "sha256": "10ff868e66265f7171013f29261febc98c2e80ce955d22ff71968c4d3b7b615d"
     },
     "tests/camera-shader-order.mjs": {
-      "bytes": 10797,
-      "sha256": "d9cc1bba3bb0875d8ce2cf56de310695b756c24bb233a5a22f3fecf5549663af"
+      "bytes": 10547,
+      "sha256": "4a3dd92c692aedd6b2120c6da65f13fdea7d90960af7080f96ade8f5aa634997"
     },
     "tests/spline-shader-source-contract.mjs": {
       "bytes": 4285,
@@ -1005,8 +1006,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 66125,
-      "sha256": "287c00a20ae8658353d6b98700bbf2a73fed3f8f1e6a2086ae7446a0b25820e7"
+      "bytes": 65574,
+      "sha256": "d12374df1f17feeb6fe22b2606e72748c30b6071a6aa1f4705207e516bef82f5"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1109,12 +1110,8 @@
       "sha256": "3cddbabf23b2c183c3520d2fa930ed15ce4357a5fb91f4956b18b8f730778619"
     },
     "tests/surface-wire-stability-browser.mjs": {
-      "bytes": 16382,
-      "sha256": "b655427fce793ad8973f73f2bb8a7fba807f33814064151ad7a797ec2da0cc45"
-    },
-    "tests/plain-wire-culling-browser.mjs": {
-      "bytes": 14646,
-      "sha256": "7f0befc1379f7e6e5ec08cb0aca8a848480f59adc9d33b8fb01ff56ae3b5a300"
+      "bytes": 16756,
+      "sha256": "28d1b71c403aef4eea60b8f12f8509b5d2dfec83bbcb9a0172017d3041b482b2"
     },
     "tests/suite.js": {
       "bytes": 17851,
@@ -1127,6 +1124,14 @@
     "tests/ai-collaboration-browser.mjs": {
       "bytes": 6815,
       "sha256": "71dbe9e7a6b7640e7a4445836e3afe5c73aa7ca1b374c97d48dc53c6ae2514db"
+    },
+    "tests/plain-polygon-lines-browser.mjs": {
+      "bytes": 6324,
+      "sha256": "bc1d6e51bfe74b26c430d2ff39bac6f53bad1c240735935f67c216a4540960d0"
+    },
+    "tests/polygon-line-mask.mjs": {
+      "bytes": 1608,
+      "sha256": "8a4bcd160c134a8f5ceb1478c65ecb5e68aeb19afbb8f0e0c334346161401159"
     }
   }
 }

@@ -14,7 +14,7 @@ import {splineDepthChecks} from './spline-depth.mjs';
 import {cameraRelativeDepthChecks} from './camera-relative-depth.mjs';
 import {splineShaderSourceContractChecks} from './spline-shader-source-contract.mjs';
 import {splineDepthBrowserChecks} from './spline-depth-browser.mjs';
-import {plainWireCullingBrowserChecks} from './plain-wire-culling-browser.mjs';
+import {plainPolygonLinesBrowserChecks} from './plain-polygon-lines-browser.mjs';
 import {animationTransactionChecks} from './animation-transaction.mjs';
 import {animationTransactionBrowserChecks} from './animation-transaction-browser.mjs';
 import {splinePlanarContractChecks} from './spline-planar-contracts.mjs';
@@ -223,7 +223,7 @@ try{
   report.objectMarqueeBrowser=await isolated('objectMarqueeBrowser',objectMarqueeBrowserChecks);
   report.splinePaletteBrowser=await isolated('splinePaletteBrowser',splinePaletteBrowserChecks);
   report.splineDepthBrowser=await isolated('splineDepthBrowser',splineDepthBrowserChecks);
-  report.plainWireCullingBrowser=await isolated('plainWireCullingBrowser',plainWireCullingBrowserChecks);
+  report.plainPolygonLinesBrowser=await isolated('plainPolygonLinesBrowser',plainPolygonLinesBrowserChecks);
   report.splinePlanarContracts=await runStage('splinePlanarContracts',splinePlanarContractChecks);
   report.creationSanityCPU=await runStage('creationSanityCPU',creationSanityCPUChecks);
   report.creationSanityBrowser=await isolated('creationSanityBrowser',creationSanityBrowserChecks);
