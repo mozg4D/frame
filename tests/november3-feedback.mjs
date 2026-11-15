@@ -13,7 +13,7 @@ export async function solidLinesChecks(page,check){
  const combinations=new Set();
  for(const solid of [false,true]){
   await call('view.set',{shading:mode(solid,'wire')});
-  for(const [lines,next]of [['wire','isoparms'],['isoparms','off'],['off','wire']]){
+  for(const [lines,next]of [['wire','off'],['off','isoparms'],['isoparms','wire']]){
    await expect('Solid/Lines combination '+mode(solid,lines),solid,lines);combinations.add(mode(solid,lines));
    await page.locator('#btnSolid').click();await expect('Solid toggle preserves Lines '+lines+' from '+solid,!solid,lines);
    await page.locator('#btnSolid').click();await expect('Solid toggle restores '+mode(solid,lines),solid,lines);

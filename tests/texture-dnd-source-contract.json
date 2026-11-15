@@ -1,12 +1,18 @@
 {
   "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
-  "scope": "Unchanged main save/serialization/catalogue functions and existing runtime texture inputs (textures/src was intentionally removed); native restore has the explicitly recorded animation-rollback-only extension. Source proof only, not behavioral qualification.",
+  "scope": "Current save/serialization/catalogue source regions and unchanged original runtime textures. Declared extensions cover native animation rollback and bounded HASH range reading. Source identity only; native behavioral and GPU qualification remain separate.",
   "regions": [
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 8425,
-      "sha256": "dd8a928b45a891b93f79f6d4b828804641db4a7cc6c716c04ecd12648c3de3ec"
+      "bytes": 9472,
+      "sha256": "56419f1625854ffceff769e463eb6ce36d26533952f1feba1fbe4861e2a48c59",
+      "change": {
+        "reason": "Bounded HASH range reader introduced by the cold-loading optimization; current codec behavior is separately exercised by native HASH and material history tests.",
+        "baseCommit": "0f18ab1",
+        "beforeBytes": 8425,
+        "beforeSHA256": "dd8a928b45a891b93f79f6d4b828804641db4a7cc6c716c04ecd12648c3de3ec"
+      }
     },
     {
       "prefix": "function snapshot(){",
@@ -64,7 +70,7 @@
     },
     {
       "prefix": "    function syncMaterials(){",
-      "nextPrefix": "    function refreshMaterialOwners(){",
+      "nextPrefix": "    function refreshMaterialOwners(",
       "bytes": 3172,
       "sha256": "9ce606a0d59c58f603bf3831f509dd4948db54bfd278460ec81dd83f0489255b"
     },

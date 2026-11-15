@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 15 nov 02:51">
+<meta name="frame-version" content="2026 15 nov 03:34">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15363,6 +15363,8 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       const state=ensureMaterialState(r);if(state.libraryMeshes===scene.meshes&&state.libraryRevision===appearanceRevision&&state.libraryAppearance===appearanceSignature&&state.libraryAsset===state.assetKey&&state.signature&&state.group)return state;
       const library=scene.records.get(FrameHash.K.materials)?.value||[],used=new Set(),normalIds=new Set(),has=id=>id&&id!==FrameHash.K.zero;
       for(const mesh of scene.meshes)for(const tag of mesh.materialTags||[]){const maps=appearanceValue(tag.materialUID,'maps')||[];for(const id of maps)if(has(id))used.add(id);if(has(maps[0])&&!has(maps[6]))normalIds.add(maps[0]);}
+      // Keep a prepared estimate while its source is live in any material slot.
+      for(const key of state.layers?.keys()||[])if(key.startsWith('normal:')&&used.has(key.slice(7)))normalIds.add(key.slice(7));
       const assetKey=[...used].sort().join(':')+'|'+[...normalIds].sort().join(':');
       if(state.loadingKey&&state.loadingKey!==assetKey){state.assetTicket++;state.loadingKey=null;}
       const track=(resource,size)=>{gpuAllocations.set(resource,size);allocatedBytes+=size;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);};
@@ -16264,6 +16266,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
         const visibleMeshes=(background?.cache.visible||0)+renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask);
         canvas.dataset.transformBackground=JSON.stringify(background?{moving:background.moving.size,built:background.built,builds:background.cache.builds}:null);
         pass.end();renderPluginViewports(r,encoder,r.cachedColor,r.depth,'opaque');renderDeferredSceneLines(r,encoder,r.cachedColor,r.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode),r.triangleIds,background);renderMaterialTransparency(r,encoder,r.cachedColor,r.depth,width,height);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth);renderPluginViewports(r,encoder,r.cachedColor,r.depth);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth,true);canvas.dataset.visibleMeshes=String(visibleMeshes);
+        // Only edited-source copies differ from the component ID map. Ordinary
+        // Solid+Lines IDs stay reusable without another full geometry pass.
+        if(polygonWire()&&scene.meshes.some(m=>replicaEditingSource(m))){r.surfaceScene=null;r.surfaceKey=null;}
         r.geometryFrames=(r.geometryFrames||0)+1;r.cachedScene=scene;sceneFrameDirty=false;
       }
       // Component colors keep their IDs; a different editable owner changes eligibility.

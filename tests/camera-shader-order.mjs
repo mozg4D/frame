@@ -21,6 +21,8 @@ function assemblies(html,plugins){
  const add=(name,code)=>{assert.equal(typeof code,'string',name);out.push({name,code});};
  add('core/surface-grid-id-edge',main);
  add('core/wire-raster',value(html,"label:'wire diamond rasterization',code:",env));
+ const nativeLines=value(scope(html,'async function ensureNativeSurfaceLines('),'const source=',env);add('core/native-surface-lines',nativeLines);
+ add('core/native-filtered-lines',value(scope(html,'function nativeFilteredLinePipeline('),"label:'native filtered surface lines',code:",{...env,state:{source:nativeLines},filter:{shader:'fn pluginSurfaceKeep(world:vec3f)->bool{return true;}'}}));
  const bridge=scope(html,'async function preparePluginViewport('),uniform=value(bridge,'const uniform=');
  add('core/plugin-helper-lines',value(bridge,"label:entry.manifest.id+' helper lines',code:",{...env,uniform}));
  add('core/plugin-warning',value(bridge,'const fragment=',{...env,r,uniform,v:{shader:'fn pluginSurface(local:vec3f,normal:vec3f,build:vec3f,settings:vec4f)->vec4f{return vec4f(1);}'}}));
@@ -33,12 +35,12 @@ function assemblies(html,plugins){
  add('core/cage',value(scope(html,'async function ensureSplinePipelines('),"label:'spline cage display',code:",env));
  const material=value(scope(html,'function ensureMaterialState('),'const source=',{...env,r});add('core/material',material);
  add('core/cloud',value(scope(html,'async function cloudPipeline('),'code:',{...env,r}));
- add('core/replica',value(scope(html,'function replicaPipeline('),"label:'shared geometry instanced surface',code:",{...env,r}));
+ for(const wire of [false,true])add('core/replica/wire='+wire,value(scope(html,'function replicaPipeline('),"label:'shared geometry instanced surface',code:",{...env,r,wire}));
  add('core/plugin-fallback',value(scope(html,'function renderPluginSurfaceStyles('),"label:'native plugin fallback surface',code:",{...env,r}));
  const filtered=scope(html,'function filteredSurfacePipeline(');
- for(const isMaterial of [false,true])for(const style of [false,true])for(const transparent of [false,true]){
-  const input=isMaterial?'MaterialOutput':'Output',shade=isMaterial?'materialShade(input,front)':style?'vec4f(pluginStyle.rgb*(.55+.45*abs(normalize(input.normal).z)),pluginStyle.a)':'shade(input,front)',settings={...env,material:isMaterial,style,transparent,input,shade,source:isMaterial?material:main,filter:{shader:'fn pluginSurfaceKeep(world:vec3f)->bool{return true;}'}};
-  settings.body=value(filtered,',body=',settings);add(`core/filter/material=${isMaterial}/style=${style}/transparent=${transparent}`,value(filtered,',code=',settings));
+ for(const isMaterial of [false,true])for(const style of [false,true])for(const transparent of [false,true])for(const wire of [false,true]){
+  const input=isMaterial?'MaterialOutput':'Output',shade=isMaterial?'materialShade(input,front)':style?'vec4f(pluginStyle.rgb*(.55+.45*abs(normalize(input.normal).z)),pluginStyle.a)':'shade(input,front)',settings={...env,material:isMaterial,style,transparent,nativeWire:wire&&!style&&!transparent,input,shade,source:isMaterial?material:main,filter:{shader:'fn pluginSurfaceKeep(world:vec3f)->bool{return true;}'}};
+  settings.body=value(filtered,',body=',settings);add(`core/filter/material=${isMaterial}/style=${style}/transparent=${transparent}/wire=${wire}`,value(filtered,',code=',settings));
  }
  const context={viewport:{cameraWGSL:env.CAMERA_RELATIVE_WGSL}};
  for(const [path,s]of Object.entries(plugins)){
@@ -51,11 +53,11 @@ function assemblies(html,plugins){
 }
 export async function cameraShaderOrderChecks(root=new URL('../',import.meta.url)){
  const html=await readFile(new URL('index.html',root),'utf8'),paths=['atomic/plugin.js','mill/plugin.js','circuit/plugin.js','optics/plugin.js','3d-printer/plugin.js','cut/plugin.js'].filter(path=>pluginEnabled(path.split('/')[0])),plugins=Object.fromEntries(await Promise.all(paths.map(async p=>[p,await readFile(new URL('plugins/'+p,root),'utf8')]))),checks=[],test=(name,fn)=>{try{fn();checks.push({name,pass:true});}catch(e){checks.push({name,pass:false,error:e.stack});}},start=performance.now();let built;
- test('All affected shipped WGSL expressions assemble and have one shared helper after global directives',()=>{built=assemblies(html,plugins);assert.equal(built.out.length,24+paths.reduce((n,path)=>n+(path.startsWith('atomic')?2:1),0));for(const row of built.out){assert.equal((row.code.match(/fn frameCameraRelative\(/g)||[]).length,1,row.name);row.directives=directiveOrder(row.code);}});
+ test('All affected shipped WGSL expressions assemble and have one shared helper after global directives',()=>{built=assemblies(html,plugins);assert.equal(built.out.length,35+paths.reduce((n,path)=>n+(path.startsWith('atomic')?2:1),0));for(const row of built.out){assert.equal((row.code.match(/fn frameCameraRelative\(/g)||[]).length,1,row.name);row.directives=directiveOrder(row.code);}});
  test('Primitive-index false and true source assemblies both retain their declared capability branch',()=>{assert.ok(built);for(const enabled of [false,true]){const code=built.out.find(r=>r.name==='core/feature/primitiveIndex='+enabled).code;assert.equal(code.includes('enable primitive_index;'),enabled);directiveOrder(code);if(enabled)assert.ok(code.indexOf('enable primitive_index;')<code.indexOf('fn frameCameraRelative('));}});
  test('Historical helper-before-enable fails for true; false remains valid without inventing a directive',()=>{const old=html.replace("${primitiveIndex?'enable primitive_index;':''}${CAMERA_RELATIVE_WGSL}","${CAMERA_RELATIVE_WGSL}${primitiveIndex?'enable primitive_index;':''}");assert.notEqual(old,html);const bad=assemblies(old,plugins).out;assert.throws(()=>directiveOrder(bad.find(r=>r.name==='core/feature/primitiveIndex=true').code),/directive follows/);assert.doesNotThrow(()=>directiveOrder(bad.find(r=>r.name==='core/feature/primitiveIndex=false').code));});
  test('Every assembled module rejects appended global directives and accepts a leading directive control',()=>{assert.ok(built);for(const row of built.out){for(const directive of ['enable primitive_index;','requires readonly_and_readwrite_storage_textures;','diagnostic(off, derivative_uniformity);'])assert.throws(()=>directiveOrder(row.code+'\n'+directive),/directive follows/,row.name);assert.doesNotThrow(()=>directiveOrder('diagnostic(off, derivative_uniformity);\n'+row.code));}});
  const elapsed=performance.now()-start;test('Completed source assembly and ordering controls fit1000ms CPU budget',()=>assert.ok(elapsed<1000,`${elapsed}ms`));
- return {pass:checks.every(c=>c.pass),checks,indexSHA256:sha(html),assemblies:built?.out.map(r=>({name:r.name,bytes:Buffer.byteLength(r.code),sha256:sha(r.code),directives:r.directives})),timings:[{name:'Affected WGSL assembly and directive-order controls',ms:elapsed,budgetMs:1000}],scope:'Affected core/derived/plugin shader assembly templates, both primitiveIndex branches and all8 filter flag combinations. Plugin-warning/filter callback bodies are declared inert fixtures. This is source ordering only, not WGSL compilation or validation of arbitrary external callback code.',native:false};
+ return {pass:checks.every(c=>c.pass),checks,indexSHA256:sha(html),assemblies:built?.out.map(r=>({name:r.name,bytes:Buffer.byteLength(r.code),sha256:sha(r.code),directives:r.directives})),timings:[{name:'Affected WGSL assembly and directive-order controls',ms:elapsed,budgetMs:1000}],scope:'Affected core/derived/plugin shader assembly templates, both primitiveIndex branches and all16 material/style/transparency/wire flag combinations. Plugin-warning/filter callback bodies are declared inert fixtures. This is source ordering only, not WGSL compilation or validation of arbitrary external callback code.',native:false};
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){const r=await cameraShaderOrderChecks();console.log(JSON.stringify(r,null,2));process.exitCode=r.pass?0:1;}

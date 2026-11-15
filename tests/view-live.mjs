@@ -4,13 +4,13 @@ export async function viewShadingChecks(page,check){
  await call('view.set',{index:0,shading:'solid-isoparms'});await call('view.set',{index:2,shading:'isoparms'});const before=(await call('scene.inspect')).view.shadings;
  await page.getByRole('button',{name:'Lines: Isoparms',exact:true}).click();
  let modes=(await call('scene.inspect')).view.shadings;
- check('Lines Isoparms to Off changes only the active view and preserves Solid off',modes.every((m,i)=>m===(i===2?'off':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
+ check('Lines Isoparms to Wire changes only the active view and preserves Solid off',modes.every((m,i)=>m===(i===2?'wireframe':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
  await page.locator('#btnShading').focus();await page.keyboard.press('Space');
  modes=(await call('scene.inspect')).view.shadings;
- check('Keyboard Space cycles Lines Off to Wire without enabling Solid',modes.every((m,i)=>m===(i===2?'wireframe':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
+ check('Keyboard Space cycles Lines Wire to Off without enabling Solid',modes.every((m,i)=>m===(i===2?'off':before[i]))&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='false',modes);
  await page.locator('#btnSolid').focus();await page.keyboard.press('Enter');
  modes=(await call('scene.inspect')).view.shadings;
- check('Keyboard Enter toggles Solid without changing Wire or other views',modes.every((m,i)=>m===(i===2?'solid-wire':before[i]))&&await page.locator('#btnShading').getAttribute('title')==='Lines: Wire',modes);
+ check('Keyboard Enter toggles Solid without changing Lines Off or other views',modes.every((m,i)=>m===(i===2?'solid':before[i]))&&await page.locator('#btnShading').getAttribute('title')==='Lines: Off',modes);
  await call('view.set',{index:0});
  check('Both controls reflect the active view combination',await page.locator('#btnShading').getAttribute('title')==='Lines: Isoparms'&&await page.locator('#btnShading').getAttribute('aria-pressed')==='true'&&await page.locator('#btnSolid').getAttribute('aria-pressed')==='true');
 }

@@ -1,14 +1,17 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
 
 const reference=JSON.parse(await readFile(new URL('./fixtures/automatic-normal-reference.json',import.meta.url),'utf8'));
-const session=await launch({headless:true}),checks=[],errors=[];
+export async function automaticNormalBrowserChecks(page){
+const checks=[],errors=[];let scopeOpen=false;
 try{
-  await ready(session.page);const page=session.page,call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
+  const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
   page.on('pageerror',e=>errors.push(e.message));
   await page.evaluate(()=>{window.normalErrors=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>normalErrors.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
+  scopeOpen=true;
   const check=(name,pass,detail)=>{assert.ok(pass,name+': '+JSON.stringify(detail));checks.push(name);console.log('PASS '+name);};
   const plane={vertices:[-50,-50,0,50,-50,0,50,50,0,-50,50,0],indices:[0,1,2,0,2,3]};
   await call('render.stop');const owner=await call('mesh.create',plane),material=await call('material.create',{name:'Automatic normal smoke',params:{l:100,rough:75,bump:100,normalY:-1}});
@@ -29,17 +32,18 @@ try{
   check('Automatic convention is OpenGL and cannot be toggled',await page.locator('#btnNormalY').textContent()==='+Y'&&await page.locator('#btnNormalY').isDisabled());
   const before=await page.evaluate(()=>{const s=frameEngine.renderer.materialState;window.normalAtlasBefore=s.atlas;return {ticket:s.assetTicket,generations:s.normalGenerations};});
   await page.locator('#inpBump').fill('250');await page.locator('#inpBump').press('Enter');await state();
-  const after=await page.evaluate(async uid=>{
+  const settings=()=>page.evaluate(async uid=>{
     const s=frameEngine.renderer.materialState,d=frameEngine.renderer.device,b=d.createBuffer({size:s.data.size,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-    try{const e=d.createCommandEncoder();e.copyBufferToBuffer(s.data,0,b,0,s.data.size);d.queue.submit([e.finish()]);await b.mapAsync(GPUMapMode.READ);const f=new Float32Array(b.getMappedRange()),index=frameMaterialState().library.findIndex(m=>m.uid===uid),at=(index+1)*28;return {sameAtlas:s.atlas===normalAtlasBefore,ticket:s.assetTicket,generations:s.normalGenerations,strength:f[at+7],normalY:f[at+24]};}finally{b.destroy();}
+    try{const e=d.createCommandEncoder();e.copyBufferToBuffer(s.data,0,b,0,s.data.size);d.queue.submit([e.finish()]);await b.mapAsync(GPUMapMode.READ);const f=new Float32Array(b.getMappedRange()),library=frameMaterialState().library,index=library.findIndex(m=>m.uid===uid),at=(index+1)*28;return {sameAtlas:s.atlas===normalAtlasBefore,ticket:s.assetTicket,generations:s.normalGenerations,strength:f[at+7],normalY:f[at+24],normalLayer:f[at+14],explicitLayer:s.layers.get(library[index].normalAsset),generatedLayer:s.layers.get('normal:'+library[index].colorAsset)};}finally{b.destroy();}
   },material.uid);
+  const after=await settings();
   check('Strength edit reuses GPU atlas and generated normals',after.sameAtlas&&after.ticket===before.ticket&&after.generations===before.generations&&after.strength===2.5&&after.normalY===1,after);
   await call('edit.history',{action:'undo'});check('Normal intensity supports Undo',(await state()).materials.find(m=>m.uid===material.uid).bump===100);await call('edit.history',{action:'redo'});
   const normal=await page.evaluate(()=>{const c=document.createElement('canvas');c.width=c.height=4;const x=c.getContext('2d');x.fillStyle='rgb(128,230,204)';x.fillRect(0,0,4,4);return c.toDataURL().split(',')[1];});
   await call('material.texture',{material:material.uid,slot:'normal',base64:normal});await select();
-  check('Explicit normal overrides generated image and retains DirectX setting',await page.locator('#btnNormalY').isEnabled()&&await page.locator('#btnNormalY').textContent()==='−Y'&&await page.evaluate(()=>![...frameEngine.renderer.materialState.layers.keys()].some(k=>k.startsWith('normal:'))));
+  const explicit=await settings();check('Explicit normal overrides the retained estimate and keeps DirectX',await page.locator('#btnNormalY').isEnabled()&&await page.locator('#btnNormalY').textContent()==='−Y'&&explicit.normalLayer===explicit.explicitLayer&&explicit.normalLayer!==explicit.generatedLayer&&explicit.normalY===-1&&explicit.generations===before.generations,explicit);
   await call('material.texture',{material:material.uid,slot:'normal',remove:true});await select();
-  check('Removing explicit normal restores OpenGL generation and intensity',await page.locator('#btnNormalY').isDisabled()&&await page.locator('#btnNormalY').textContent()==='+Y'&&(await state()).materials.find(m=>m.uid===material.uid).bump===250);
+  const restored=await settings();check('Removing explicit normal reuses OpenGL estimate and intensity',await page.locator('#btnNormalY').isDisabled()&&await page.locator('#btnNormalY').textContent()==='+Y'&&(await state()).materials.find(m=>m.uid===material.uid).bump===250&&restored.normalLayer===restored.generatedLayer&&restored.normalY===1&&restored.generations===before.generations,restored);
   const hash=await call('scene.export',{includeData:true});await call('scene.open',{base64:hash.base64,name:'automatic-normal.hash'});
   const loaded=(await state()).materials.find(m=>m.uid===material.uid);
   check('HASH preserves authoring and regenerates normals without adding a normal asset',loaded.bump===250&&loaded.normalY===-1&&!loaded.normalAsset&&await page.evaluate(()=>frameEngine.renderer.materialState.autoNormalIds.size===1));
@@ -50,8 +54,17 @@ try{
   await call('scene.create',{type:'render',params:{realtime:'off',samples:1,'resolution x':96,'resolution y':96}});const rendered=await call('render.start');
   check('Path tracer renders generated normal on the shared device',rendered.phase==='complete'&&rendered.hasImage&&rendered.sharedDevice&&!rendered.errors.length,rendered);await call('render.stop');
   const validation=await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message??null,uncaptured:normalErrors}));
+  scopeOpen=false;
   check('No JavaScript or GPU validation errors',!errors.length&&!validation.validation&&!validation.uncaptured.length,{errors,...validation});
   const report={pass:true,checks,validation,indexSHA256:createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex')};
   await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/automatic-normal-browser.json',import.meta.url),JSON.stringify(report,null,2));
   console.log(`${checks.length} focused checks passed.`);
-}finally{await session.close();}
+  return report;
+}catch(error){
+  const validation=scopeOpen?await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message??null,uncaptured:normalErrors})).catch(e=>({error:e.message})):null;
+  return {pass:false,checks,error:error.stack,validation};
+}
+}
+if(process.argv[1]===fileURLToPath(import.meta.url)){
+ const session=await launch({headless:true});try{await ready(session.page);const result=await automaticNormalBrowserChecks(session.page);if(!result.pass)console.error(result.error);process.exitCode=result.pass?0:1;}finally{await session.close();}
+}

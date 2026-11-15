@@ -1,4 +1,5 @@
 import {selectedPlugins,extraPluginsEnabled,excludedPluginResult,pluginEnabled} from './test-policy.mjs';
+import {pluginLoadingChecks} from './plugin-loading.mjs';
 import {pluginWarningModeChecks} from './plugin-warning-modes.mjs';
 import {instancePolygonCageChecks} from './instance-polygon-cage.mjs';
 import {viewportConnectedRoutingChecks} from './viewport-connected-routing.mjs';
@@ -117,6 +118,7 @@ import {morphGestureChecks} from './morph-gesture.mjs';
 import {userFeedbackChecks} from './user-feedback.mjs';
 import {ensureHeavyScene} from './scenes/generate-heavy.mjs';
 import {materialEditorChecks} from './material-editor.mjs';
+import {automaticNormalBrowserChecks} from './automatic-normal-browser.mjs';
 import {materialsSelectionChecks} from './materials-selection-feedback.mjs';
 import {editorRevisionChecks} from './editor-revision.mjs';
 import {pointerLockChecks} from './pointer-lock.mjs';
@@ -143,7 +145,7 @@ import {uiChecks} from './ui.mjs';
 import {nextInteractionChecks} from './next-interaction.mjs';
 import {viewLiveChecks} from './view-live.mjs';
 const args=process.argv.slice(2),output=join(root,'tests/results');await mkdir(output,{recursive:true});
-const sourceHashes=async()=>{const catalogue=JSON.parse(await readFile(join(root,'plugins/index.json'),'utf8')),paths=[...(await readdir(join(root,'tests'))).filter(name=>/\.(?:mjs|js|json)$/.test(name)).map(name=>'tests/'+name),'frame-sw.js','tests/plugin-warning-modes.mjs','index.html','plugins/index.json','tests/numeric-display.mjs','tests/numeric-display-browser.mjs','tests/scene-create-name.mjs','tests/scene-create-name-browser.mjs','tests/texture-history-fixture.mjs','tests/texture-slot-drag.mjs','tests/texture-slot-drag-browser.mjs','tests/texture-dnd-source-contract.mjs','tests/texture-dnd-source-contract.json'];for(const manifest of catalogue){const path='plugins/'+manifest,base=path.replace(/[^/]+$/,''),data=JSON.parse(await readFile(join(root,path),'utf8'));paths.push(path,...[data.module,data.icon,...data.assets||[]].map(file=>base+file));}return Object.fromEntries(await Promise.all([...new Set(paths)].map(async path=>[path,createHash('sha256').update(await readFile(join(root,path))).digest('hex')])));};
+const sourceHashes=async()=>{const catalogue=JSON.parse(await readFile(join(root,'plugins/index.json'),'utf8')),paths=[...(await readdir(join(root,'tests'))).filter(name=>/\.(?:mjs|js|json)$/.test(name)).map(name=>'tests/'+name),'tests/plugin-loading.mjs','frame-sw.js','tests/plugin-warning-modes.mjs','index.html','plugins/index.json','tests/numeric-display.mjs','tests/numeric-display-browser.mjs','tests/scene-create-name.mjs','tests/scene-create-name-browser.mjs','tests/texture-history-fixture.mjs','tests/texture-slot-drag.mjs','tests/texture-slot-drag-browser.mjs','tests/texture-dnd-source-contract.mjs','tests/texture-dnd-source-contract.json'];for(const manifest of catalogue){const path='plugins/'+manifest,base=path.replace(/[^/]+$/,''),data=JSON.parse(await readFile(join(root,path),'utf8'));paths.push(path,...[data.module,data.icon,...data.assets||[]].map(file=>base+file));}return Object.fromEntries(await Promise.all([...new Set(paths)].map(async path=>[path,createHash('sha256').update(await readFile(join(root,path))).digest('hex')])));};
 const report={sources:await sourceHashes(),started:new Date().toISOString(),indexSHA256:createHash('sha256').update(await readFile(join(root,'index.html'))).digest('hex'),profile:args.includes('--stress')?'stress':'standard',dpr:Number(process.env.FRAME_DPR||1),plugins:selectedPlugins,pluginRuntimeLoads:[],stageTimings:[],errors:[],consoleErrors:[]};let session,timer;
 
 const omittedStages=new Map(extraPluginsEnabled?[]:[['pluginIconAlignmentCPU','Other-plugin artwork is opt-in'],['iconRasterContractCPU','Other-plugin artwork is opt-in'],['pluginWarningModes','Other-plugin rendering is opt-in']]);
@@ -196,7 +198,10 @@ try{
   report.splineCornerEvidenceCPU=await runStage('splineCornerEvidenceCPU',()=>splineCornerEvidenceContractChecks());
   report.animationTransactionCPU=await runStage('animationTransactionCPU',()=>animationTransactionChecks());
   report.motionPathPerspectiveCPU=await runStage('motionPathPerspectiveCPU',()=>motionPathPerspectiveChecks());
-  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=context=>context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match&&!request.serviceWorker()){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime loaded: '+id);}});for(const context of session.browser.contexts())observeContext(context);const newContext=session.browser.newContext.bind(session.browser);session.browser.newContext=async(...args)=>{const context=await newContext(...args);observeContext(context);return context;};const {page}=session;page.on('pageerror',e=>report.errors.push(e.stack||e.message));page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());else if(m.text().startsWith('[tests]'))console.log(m.text());});await ready(page);
+  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
+    context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime requested: '+id);}});
+    await context.route(/\/plugins\/([^/]+)\/plugin\.js(?:\?.*)?$/,route=>{const id=/\/plugins\/([^/]+)\/plugin\.js/.exec(route.request().url())[1];return pluginEnabled(id)?route.continue():route.abort('blockedbyclient');});
+  };for(const context of session.browser.contexts())await observeContext(context);const newContext=session.browser.newContext.bind(session.browser);session.browser.newContext=async(...args)=>{const context=await newContext(...args);await observeContext(context);return context;};const {page}=session;page.on('pageerror',e=>report.errors.push(e.stack||e.message));page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());else if(m.text().startsWith('[tests]'))console.log(m.text());});await ready(page);
   await page.evaluate(()=>{window.__frameGPU=[];window.__frameGPUDevice=frameEngine.renderer.device;window.__frameGPULost=null;__frameGPUDevice.lost.then(info=>window.__frameGPULost={reason:info.reason,message:info.message});__frameGPUDevice.addEventListener('uncapturederror',e=>__frameGPU.push(e.error.message));__frameGPUDevice.pushErrorScope('validation');});
   // One validation scope spans shared stages: asynchronous native work owns nested device scopes.
 
@@ -265,6 +270,7 @@ try{
   report.animationFeedback=await isolated('animationFeedback',animationFeedbackChecks);
   report.october23=await isolated('october23',october23Checks);
   report.mobileRelease=await isolated('mobileRelease',mobileReleaseChecks);
+  report.pluginLoading=await runStage('pluginLoading',()=>pluginLoadingChecks(session.browser));
   report.pwa=await runStage('pwa',()=>pwaChecks(session.browser));
   report.geometryFormats=await isolated('geometryFormats',geometryFormatChecks);
   report.objImport=await isolated('objImport',objImportChecks);
@@ -283,6 +289,7 @@ try{
   report.importPerformance=await isolated('importPerformance',importPerformanceChecks);
   report.textureSlotDrag=await isolated('textureSlotDrag',textureSlotDragBrowserChecks);
   report.materialEditor=await isolated('materialEditor',materialEditorChecks);
+  report.automaticNormal=await isolated('automaticNormal',automaticNormalBrowserChecks);
   report.materialsSelection=await isolated('materialsSelection',materialsSelectionChecks);
   report.editorRevision=await isolated('editorRevision',editorRevisionChecks);
   report.pointerLock=await isolated('pointerLock',pointerLockChecks,true);
