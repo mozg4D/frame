@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 15 nov 13:34">
+<meta name="frame-version" content="2026 15 nov 13:55">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -4790,9 +4790,10 @@ function area2(p, poly) {
   }
   return s;
 }
-function properIntersect(a, b, c, d, eps = 1e-12) {
-  let o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
-  return (o1 > eps && o2 < -eps || o1 < -eps && o2 > eps) && (o3 > eps && o4 < -eps || o3 < -eps && o4 > eps);
+function properIntersect(a, b, c, d, eps = 0) {
+  // Skinny cut faces still need constraint flips below a fixed area epsilon.
+  const side=(a,b,c)=>{const x=(b.x-a.x)*(c.y-a.y),y=(b.y-a.y)*(c.x-a.x),value=x-y,bound=Math.max(eps,(Math.abs(x)+Math.abs(y))*Number.EPSILON*4);return value>bound?1:value<-bound?-1:0;};
+  return side(a,b,c)*side(a,b,d)<0&&side(c,d,a)*side(c,d,b)<0;
 }
 function pointInPoly(q, p, poly) {
   let inside = !1, eps = 1e-13;
@@ -13347,7 +13348,13 @@ window.FrameSpline=(()=>{
       async function evaluateNode(n){n.nativeHash??=FrameHash.newId();let inputs=[],inputPivots=[];
         if(n.type==='boolean'){
           for(const child of children(n.id)){if(supported.has(child.type))await evaluate(child);else if(child.type==='group')for(const id of descendants(child.id)){const c=node(id);if(supported.has(c.type))await evaluate(c);}}
-          if(!n.enabled)return null;try{if(engine.restoringSplines){const occurrences=[n.id,...descendants(n.id)].map(node).filter(q=>['instance','cloner','symmetry'].includes(q.type)),prepared=new Set();async function requireSource(q){if(!q||prepared.has(q.id))return;prepared.add(q.id);if(supported.has(q.type))await evaluate(q);else if(q.type==='instance')await requireSource(objectReference(q.params.object));else for(const child of children(q.id))await requireSource(child);}for(const q of occurrences)await requireSource(q);if(occurrences.length)engine.syncReplicas(new Set(occurrences.map(q=>q.id)));}const state=await engine.evaluateBoolean(n,states.get(n.id));if(state)states.set(n.id,state);delete n.splineError;return state?.data;}catch(error){engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}
+          if(!n.enabled)return null;try{
+            const occurrences=[n.id,...descendants(n.id)].map(node).filter(q=>['instance','cloner','symmetry'].includes(q.type)),prepared=new Set();
+            async function requireSource(q){if(!q||prepared.has(q.id))return;prepared.add(q.id);if(supported.has(q.type))await evaluate(q);else if(q.type==='instance')await requireSource(objectReference(q.params.object));else for(const child of children(q.id))await requireSource(child);}
+            // Ordinary edits need the same current referenced geometry as a cold build.
+            for(const q of occurrences)await requireSource(q);if(occurrences.length)engine.syncReplicas(engine.restoringSplines?new Set(occurrences.map(q=>q.id)):null);
+            const state=await engine.evaluateBoolean(n,states.get(n.id));if(state)states.set(n.id,state);else dirty=true;delete n.splineError;return state?.data;
+          }catch(error){engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}
         }
         let dependencies=[];if(generators.has(n.type)){try{for(const row of generatorSources(n)){const d=await evaluate(row.node);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){inputs.push(engine.splineOccurrenceInFrame(d,row.node.nativeHash,n.nativeHash,row.instances));inputPivots.push(engine.splineOccurrencePivot(row.node.nativeHash,n.nativeHash,row.instances));}}}catch(error){engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
         if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const signature=editingNow?null:JSON.stringify([n.enabled,shape(n),inputs,inputPivots]);if(!editingNow&&old?.signature===signature)return old.data;

@@ -1,5 +1,7 @@
 # Keep runtime validation hashes identical in Git and Windows working copies.
 index.html text eol=lf
+tests/boolean-patch-feedback.mjs text eol=lf
+tests/scenes/boolean-meltus8.hash -text -diff
 tests/navigation-dropdown-feedback.mjs text eol=lf
 plugins/3d-printer/plugin.js -text whitespace=cr-at-eol
 plugins/3d-printer/icon.svg -text
