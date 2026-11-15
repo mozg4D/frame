@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 02:21">
+<meta name="frame-version" content="2026 16 nov 02:31">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -10526,12 +10526,14 @@ function frameShortcutKey(e){return /^(Key[A-Z]|Digit[0-9])$/.test(e.code)?e.cod
 // Embedded popup documents. Object URLs keep reload available without extra files.
 function framePopupDocumentURL(kind,script=''){
  const source=document.getElementById('frame-'+kind+'-shell');if(!source)throw Error('Missing popup document');
+ if(kind==='viewport'&&navigator.serviceWorker?.controller){const url=new URL('index.html',document.baseURI);url.searchParams.set('frame-window','viewport');return url.href;}
  const base=document.createElement('base');base.href=new URL('./',document.baseURI).href;
  let html=source.textContent.replace('<head>','<head>'+base.outerHTML);
  if(script)html=html.replace('</body>','<script type="module">'+script.replace(/<\/script/gi,'<\\/script')+'<'+'/script></body>');
  return URL.createObjectURL(new Blob([html],{type:'text/html'}));
 }
 function frameTrackPopupURL(host,child,url){
+ if(!url.startsWith('blob:'))return;
  if(!child){URL.revokeObjectURL(url);return;}
  const release=()=>{host.clearInterval(timer);host.removeEventListener('pagehide',release);URL.revokeObjectURL(url);};
  const timer=host.setInterval(()=>{if(child.closed)release();},1000);host.addEventListener('pagehide',release,{once:true});

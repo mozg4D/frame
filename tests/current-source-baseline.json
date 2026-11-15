@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 02:21",
+  "version": "2026 16 nov 02:31",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -439,12 +439,12 @@
   },
   "files": {
     "frame-sw.js": {
-      "bytes": 3244,
-      "sha256": "74972abdb95cc55069a6bbe801003b3d9b2b9fb06da3b0bd985a474a1a423801"
+      "bytes": 3960,
+      "sha256": "1401326bf379010db7e69f553e1f867f775319b62d49ac92a8dca59da7fcd054"
     },
     "index.html": {
-      "bytes": 2881430,
-      "sha256": "7503e83f500e0495878f3c34b0e169b2984ea8b34fe63011a55076553a42de5d"
+      "bytes": 2881642,
+      "sha256": "dbfbf3049137b18a5de78f4ab5a2544e552b7b6ee628663654d04e8770878c1e"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1023,8 +1023,8 @@
       "sha256": "559e7983065c91ea100ff747196860c0e2407af4f26f58ae8e3ef06ce48a68be"
     },
     "tests/popup-packaging.mjs": {
-      "bytes": 5310,
-      "sha256": "429a2bb77b4d5a573874a864d4d5bcbddf9d86b9e72523e55970084b4bd2c051"
+      "bytes": 5833,
+      "sha256": "4742c79cab4f0c13d2c5a3d14bb4209e25702662b4f0eefe77e14a95c3a02c21"
     },
     "frame-hash-256.png": {
       "bytes": 750,

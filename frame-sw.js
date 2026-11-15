@@ -1,5 +1,5 @@
 // Bump with the visible application version for each published runtime release.
-const VERSION='2026 16 nov 02:21',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
+const VERSION='2026 16 nov 02:31',CACHE='frame-native-'+VERSION,ROOT=self.registration.scope;
 const SHELL=new URL('index.html',ROOT).href;
 const CORE=["index.html","manifest.webmanifest","frame-icon.svg","frame-icon-192.png","frame-icon-512.png","frame-icon-maskable-512.png","frame-hash-256.png","frame.ico"];
 const local=path=>{const url=new URL(path,ROOT);if(url.origin!==self.location.origin||!url.href.startsWith(ROOT))throw Error('Invalid offline resource');return url.href;};
@@ -8,6 +8,16 @@ async function cacheShell(cache){
   const response=await download(SHELL),html=await response.clone().text();
   if(!html.includes('name="frame-version" content="'+VERSION+'"')||!/<\/html>\s*$/i.test(html))throw Error('Frame release mismatch');
   await cache.put(SHELL,response);return cache.match(SHELL);
+}
+let viewportShell;
+async function viewportDocument(){
+  if(!viewportShell){
+    const cache=await caches.open(CACHE),response=await cache.match(SHELL)||await cacheShell(cache),html=await response.text();
+    const source=html.match(/<script id="frame-viewport-shell" type="text\/plain">([\s\S]*?)<\/script>/)?.[1];
+    if(!source)throw Error('Missing embedded viewport shell');
+    viewportShell=source.replace('<head>','<head><base href="'+ROOT+'">');
+  }
+  return new Response(viewportShell,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
 }
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const cache=await caches.open(CACHE);
@@ -27,6 +37,7 @@ self.addEventListener('message',event=>{if(event.data?.type==='FRAME_GET_VERSION
 self.addEventListener('fetch',event=>{
   const request=event.request,url=new URL(request.url);url.hash='';if(request.method!=='GET'||url.origin!==self.location.origin||!url.href.startsWith(ROOT))return;
   const launch=url.pathname===new URL(ROOT).pathname||url.pathname===new URL(SHELL).pathname;
+  if(request.mode==='navigate'&&launch&&url.searchParams.get('frame-window')==='viewport'){event.respondWith(viewportDocument());return;}
   if(request.mode==='navigate'&&launch){event.respondWith((async()=>{const cache=await caches.open(CACHE);return await cache.match(SHELL)||await cacheShell(cache);})());return;}
   // Models and scenes remain ordinary files; only application resources and visited textures cache.
   const resource=CORE.some(p=>url.href===local(p))||['plugins/','models/','textures/'].some(p=>url.href.startsWith(local(p)));
