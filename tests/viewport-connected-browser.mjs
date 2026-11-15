@@ -31,6 +31,13 @@ export async function viewportConnectedBrowserChecks(page){
     const point=hit.point,h=await history(),start=performance.now();await page.mouse.dblclick(...point);s=await state();const ms=performance.now()-start;timings.push({name:storage+' '+mode+' Objects row then gizmo double click',ms,budgetMs:1500});check('Completed connected selection budget',ms<1500,{ms});
     check(storage+' '+mode+' selects connected island, not disconnected triangle',total(s)===expected&&s.selection.objects.includes(mesh.hash),s.selection);
     await page.mouse.dblclick(...point);s=await state();check(storage+' '+mode+' repeated double click remains connected',total(s)===expected,s.selection);check('Stationary double click adds no UI Undo transaction',JSON.stringify(await history())===JSON.stringify(h),await history());
+    const overlay=await page.locator('#frame-gizmo [data-part="move01"]').evaluate(path=>{
+     const matrix=path.getScreenCTM();if(!matrix)return null;
+     for(const subpath of path.getAttribute('d').match(/M[^Z]+Z/g)||[]){const v=(subpath.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/ig)||[]).map(Number);if(v.length!==6)continue;const p=new DOMPoint((v[0]+v[2]+v[4])/3,(v[1]+v[3]+v[5])/3).matrixTransform(matrix);if(path.ownerDocument.elementFromPoint(p.x,p.y)===path)return [p.x,p.y];}return null;
+    });check('Selected island retains a painted topmost gizmo',!!overlay,overlay);
+    await page.mouse.dblclick(...overlay);const deletion=performance.now();await page.keyboard.press(mode==='edge'?'Backspace':'Delete');s=await state();const remaining=s.objects.find(o=>o.id===mesh.id),deleteMs=performance.now()-deletion;timings.push({name:storage+' '+mode+' immediate Delete over body-level gizmo',ms:deleteMs,budgetMs:1500});check('Component Delete completes within budget',deleteMs<1500,{ms:deleteMs});
+    check(storage+' '+mode+' double click then immediate Delete retains owner and disconnected island',remaining?.type==='mesh'&&remaining.mesh?.triangles===1&&remaining.mesh?.vertices===3,s);
+    await call('edit.history',{action:'undo'});const restored=await call('diagnostics.mesh',{id:mesh.hash,geometry:true});check(storage+' '+mode+' Delete Undo restores exact geometry and component selection',restored.positionsSHA256===before.positionsSHA256&&restored.indicesSHA256===before.indicesSHA256&&total(await state())===expected,restored);
    }
    const after=await call('diagnostics.mesh',{id:mesh.hash,geometry:true});check(storage+' selection leaves authored geometry unchanged',before.positionsSHA256===after.positionsSHA256&&before.indicesSHA256===after.indicesSHA256,{before,after});
    await call('view.set',{mode:'polygon'});await page.locator('#tabObjects').click();await page.locator('#row-'+mesh.id+' .ob-name').click();await state();
