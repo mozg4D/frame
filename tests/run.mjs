@@ -35,6 +35,7 @@ import {perspectiveClippingChecks} from './perspective-clipping.mjs';
 import {perspectiveClippingBrowserChecks} from './perspective-clipping-browser.mjs';
 import {objectBrowserMarqueeChecks} from './object-browser-marquee.mjs';
 import {extrudeMixedChildrenChecks} from './extrude-mixed-children.mjs';
+import {extrudePivotBrowserChecks} from './extrude-pivot-browser.mjs';
 import {instanceGeneratorChildrenChecks} from './instance-generator-children.mjs';
 import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
@@ -231,6 +232,7 @@ try{
   report.textPresets=await runStage('textPresets',textPresetChecks);
   report.instanceExtrude=await isolated('instanceExtrude',instanceExtrudeChecks);
   report.extrudeMixedChildren=await isolated('extrudeMixedChildren',extrudeMixedChildrenChecks);
+  report.extrudePivot=await isolated('extrudePivot',extrudePivotBrowserChecks);
   report.instanceGeneratorChildren=await isolated('instanceGeneratorChildren',instanceGeneratorChildrenChecks);
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);
