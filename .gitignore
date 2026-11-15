@@ -25,3 +25,6 @@ tests/.step-reference/
 
 # SHA-verified local copies of user STL inputs; preserve on disk, never publish.
 /tests/scenes/unite-source/
+
+# Full user assembly retained locally for repeated-open normal diagnostics.
+/tests/scenes/meltus8-normals.hash

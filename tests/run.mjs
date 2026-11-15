@@ -37,6 +37,7 @@ import {objectBrowserMarqueeChecks} from './object-browser-marquee.mjs';
 import {extrudeMixedChildrenChecks} from './extrude-mixed-children.mjs';
 import {extrudePivotBrowserChecks} from './extrude-pivot-browser.mjs';
 import {instanceGeneratorChildrenChecks} from './instance-generator-children.mjs';
+import {splinePatchNormalChecks} from './spline-patch-normals.mjs';
 import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
@@ -234,6 +235,7 @@ try{
   report.extrudeMixedChildren=await isolated('extrudeMixedChildren',extrudeMixedChildrenChecks);
   report.extrudePivot=await isolated('extrudePivot',extrudePivotBrowserChecks);
   report.instanceGeneratorChildren=await isolated('instanceGeneratorChildren',instanceGeneratorChildrenChecks);
+  report.splinePatchNormals=await isolated('splinePatchNormals',splinePatchNormalChecks);
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);
   report.surfaceEfficiency=await isolated('surfaceEfficiency',surfaceEfficiencyChecks);

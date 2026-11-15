@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 15:27",
+  "version": "2026 15 nov 15:52",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -404,16 +404,28 @@
       "tests/meltus8-rod.mjs",
       "tests/scenes/meltus8-rod.hash",
       "tests/instance-spline-sources.mjs"
+    ],
+    "patch-normals": [
+      "index.html",
+      "frame-sw.js",
+      "AGENTS.md",
+      ".gitignore",
+      "package.json",
+      "tests/run.mjs",
+      "tests/README.md",
+      "tests/spline-patch-normals.mjs",
+      "tests/scenes/hgr15-normal-bug.hash",
+      "tests/scenes/nema23-normals.hash"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "21c764774b5e955fd91a1befed96916d80b43853a1fd986d989e63256de8f063"
+      "sha256": "3ae687352b20139747c7360cf9d099f4d32e2ce868047bccaaa94d4dac1d95de"
     },
     "index.html": {
-      "bytes": 2829480,
-      "sha256": "c5afe97c8d38f2971ed23db5b68fe7292adc05ba7d0745cbfee73f28284fe14a"
+      "bytes": 2834676,
+      "sha256": "2f1561fe75cf2cff5baf7156352807de124090131206c4827cdd8258cc57afd3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -604,12 +616,12 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 7912,
-      "sha256": "4c7eb7fa076253d31beb6a7ca9ed7e0ba27234b6520f5026d31dc954fe571576"
+      "bytes": 8248,
+      "sha256": "1dafb6a2d4ef140f21b1c5b58082d742e53c438b4e4f4a44d7ab201d03503fb3"
     },
     "tests/run.mjs": {
-      "bytes": 33821,
-      "sha256": "6e4a86f440620ec0f1934e2a98a13924be5e569d3971d97fd0fb7d5575c2c07e"
+      "bytes": 34130,
+      "sha256": "b7b05780487d4a61d5df154498eb94e37c0375d59a097b1fb859c07e35b2699b"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -712,8 +724,8 @@
       "sha256": "3d5b854965f6754e974652c12337b49033408fcb614022204a5b1440b3b87f27"
     },
     "tests/README.md": {
-      "bytes": 52816,
-      "sha256": "20bb4046c5b6197473a61c182acd90016cb7c07b4971556a774528364434b1e7"
+      "bytes": 53514,
+      "sha256": "9ee8ffd758b4d3c66c56233182f4dbc846316db644416e8f4c4006ad5959d9d0"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 5073,
@@ -980,8 +992,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 58345,
-      "sha256": "3c789d7b11ba52c606235de9a81c206e0477b69c40e693e0e5e75f2862472c76"
+      "bytes": 60566,
+      "sha256": "016894a053699749125eb24dba03e32416eaab6c3ee845e0a1c9e08096d8da34"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1062,6 +1074,22 @@
     "tests/instance-spline-sources.mjs": {
       "bytes": 7727,
       "sha256": "16518a569d570ace79afe854a159a0a761c49129c8c1d18957e0633b8d041fbb"
+    },
+    ".gitignore": {
+      "bytes": 885,
+      "sha256": "b187ffe24d8f0e4c6060f982e96ab71e3539858baaf7dcc8678745dca6a1f2e7"
+    },
+    "tests/spline-patch-normals.mjs": {
+      "bytes": 12515,
+      "sha256": "c71bf9cee8c6941fdcbe096d6a40da6c21b99dec0bf952ab3f78ada253aebdef"
+    },
+    "tests/scenes/hgr15-normal-bug.hash": {
+      "bytes": 14145,
+      "sha256": "cc1b451d6975d2ca26ad15160ab980478239bc5472d448803838a39202b9e3b0"
+    },
+    "tests/scenes/nema23-normals.hash": {
+      "bytes": 15468,
+      "sha256": "ead9afce7140e9b632a9453592261bceb764b21f4480c143918d019c83481877"
     }
   }
 }
