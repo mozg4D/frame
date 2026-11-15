@@ -1,4 +1,4 @@
-# Frame AI API v1.2
+# Frame AI API v1.3
 
 The application exposes `window.frameAI` inside `index.html`, without a network listener, external runtime scripts, a second scene model, or automatic geometry readback. Source of truth for tool names and JSON schemas:
 
@@ -13,7 +13,7 @@ await frameAI.call('scene.inspect');
 await frameAI.call('edit.history', {action:'undo'});
 ```
 
-Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. Prefer native object `hash`; the short UI `id` is session-local. Every call validates before mutation, is serialized, and waits for editor/GPU/build queues. Normal editor Undo/Redo is reused. Mutations, Export and Share return `BUSY` during an active interactive gesture; inspection/diagnostics remain available. Calls emit `frame-ai-call` start/complete/error events with command name and sequence, without argument copies.
+Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. Prefer native object `hash`; the short UI `id` is session-local. Native calls validate before mutation, serialize, and wait for editor/GPU/build queues. Coordination-only calls bypass that queue and do not wait for GPU/editor work. Normal editor Undo/Redo is reused. Mutations, Export and Share return `BUSY` during an active interactive gesture; inspection/diagnostics remain available. Native calls emit `frame-ai-call` start/complete/error events with command name and sequence, without argument copies.
 
 | Tools | Purpose |
 |---|---|
@@ -52,9 +52,51 @@ const result = await frameAI.batch([
 ]);
 ```
 
-`transform.apply` accepts any nonempty combination of `position`, `rotation`, and `size` vectors. It uses the current object/component selection and one native Undo. Size is applied in the initial coordinate axes, followed by rotation and position around the pivot; world-space size therefore describes the size before the requested rotation. Object coordinates are convenient for placing a part by its final dimensions and rotation. Flat dimensions stay zero; nonflat dimensions must respect the native positive minimum. `transform.set` retains its single-axis interface.
+`transform.apply` accepts any nonempty combination of `position`, `rotation`, and `size` vectors with one native Undo. Both `transform.apply` and `transform.set` accept optional `ids:[nativeHash,...]` to select and transform whole objects within the same FIFO command. Explicit targets leave those objects selected, switch to Object selection mode, disable Pivot Edit and default to World coordinates. Omitting `ids` retains the current object/component-selection behavior. Size is applied in the initial coordinate axes, followed by rotation and position around the pivot; world-space size therefore describes the size before the requested rotation. Object coordinates are convenient for placing a part by its final dimensions and rotation. Flat dimensions stay zero; nonflat dimensions must respect the native positive minimum.
 
 `measure.gap({from:partA,to:partB,direction:[1,0,0]})` normalizes a world direction and returns each part's projected `min/max`, signed `gap = to.min - from.max`, `reverseGap`, and `projectionOverlap` in mm. Positive gap separates the intervals; negative gap indicates projection overlap. This does not measure nearest Euclidean surface distance or certify intersection. Meshes use GPU extrema of evaluated geometry, including occurrences and descendants; curves/plugin bounds set `conservative:true`. Selection remains unchanged.
+
+## Multiple chats in one Frame document
+
+Collaboration coordinates clients attached to the same live Frame page. Join with a descriptive chat name and task, inspect participants/work notes, and release your notes when finished. Notes are advisory: overlapping work is allowed and reported, and ordinary API/manual edits remain available. A group note includes its current descendants by default, including later hierarchy changes. Shared materials and linked sources outside that hierarchy need separate coordination; a note does not discover or lock dependencies. There is no cap on active participants or notes. Names/participant IDs provide attribution within the page, not authenticated identities or a connection to a chat service.
+
+```js
+const joined = await frameAI.call('collab.join', {
+  name:'Chat: housing', task:'Place mounting holes'
+});
+const session = joined.participant.id;
+const note = await frameAI.call('collab.claim', {
+  session, ids:[assemblyHash], task:'Place mounting holes'
+});
+// note.overlaps is informational. All participants may continue editing.
+await frameAI.call('collab.participants');
+await frameAI.call('collab.claims', {ids:[assemblyHash]});
+
+const request = {
+  session, requestId:'housing-move-001',
+  document:joined.document.id,
+  name:'transform.apply', args:{ids:[partHash],position:[200,0,0]}
+};
+const receipt = await frameAI.call('collab.run', request);
+// Check receipt.state === 'complete' or 'failed'; inspect receipt.result/error.
+// After a lost response, repeat this exact request ID and arguments.
+// It returns the same operation's receipt without executing a second time.
+await frameAI.call('collab.request', {session,requestId:request.requestId});
+await frameAI.call('collab.release', {session,claim:note.claim.id});
+await frameAI.call('collab.leave', {session});
+```
+
+Use `collab.run` with `name:'api.batch'` for a dependent command sequence. Batches keep their existing per-command Undo and partial-completion semantics: a complete request receipt can contain a batch result with `ok:false`. Coordination tools belong outside batches. Always await dependent requests or put them in one batch; concurrent submissions are scheduled when admitted to the native queue. Existing direct `frameAI.call` clients remain supported and their mutation events have a null participant.
+
+`collab.message({session,to:otherParticipantId,text})` publishes an addressed message; omit `to` to broadcast. Messages are public within this page. Poll `collab.events({session,stream,after,limit})`, keep `stream`, and advance `after` to `nextCursor`, even when no addressed messages are returned. The feed includes presence, notes, request receipts, command activity and observed native revisions. `truncated` or `reset` means reread participants, claims and relevant scene state. Command targets in the feed are bounded hints; they are not a complete geometry/dependency change set. `scene.observed` reports an observed authoring revision, not proof of who made an edit.
+
+Presence expires after 30 minutes idle by default. `collab.update({session,task?,ttlSeconds?})`, attributed requests, and polling events/request status with `session` renew it; `ttlSeconds` accepts 1..86400. Pending requests pin presence until they finish. `collab.release` without a claim releases all your notes; Leave removes your participant and notes. Queued requests recheck presence, while already admitted effects can finish and are never implicitly rolled back.
+
+`collab.participants` returns the current document ID and global `epoch/revision`. Optional `document` in `collab.run` rejects work prepared for another document. Optional `expected:{epoch,revision}` adds conservative scene-wide compare-and-set before handler admission; unrelated authoring edits can invalidate it. Omit this optional precondition for independent work, or use existing field/author-data CAS for their declared operations. Every attributed request also captures its admission document: another New/Open fences queued old-document work. An intentional New/Open within that request's own batch advances its fence. New/Open clears notes but retains participant IDs and receipts. Reload clears the entire coordination runtime. HASH/Undo contain no coordination state; Undo remains the shared chronological editor history.
+
+Request IDs stay reserved until their participant leaves/expires, even after payload eviction. Keep each ID unique for a new logical operation. The last 128 small result payloads share a 4 MiB budget; individual cached payloads are at most 256 KiB. Large results are returned to the original caller once. A later receipt with `resultAvailable:false` still identifies the completed/failed request: inspect the model or retained export transfer instead of submitting the edit with a new ID. Failures do not imply rollback. The event feed retains 2048 events and explicitly reports gaps. Participant/claim lists accept offset/limit pagination; these retention/page bounds do not restrict scene edits or active chat count. All coordination operates in the existing page; separate Frame documents do not automatically synchronize.
+
+Focused checks: `npm run test:collaboration:cpu` and `npm run test:collaboration` (isolated native browser, DPR 1).
 
 ## Named HASH files for AI clients
 

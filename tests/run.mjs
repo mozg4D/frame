@@ -1,4 +1,5 @@
 import {selectedPlugins,extraPluginsEnabled,excludedPluginResult,pluginEnabled} from './test-policy.mjs';
+import {collaborationChecks} from './ai-collaboration.mjs';
 import {pluginLoadingChecks} from './plugin-loading.mjs';
 import {pluginWarningModeChecks} from './plugin-warning-modes.mjs';
 import {instancePolygonCageChecks} from './instance-polygon-cage.mjs';
@@ -198,6 +199,7 @@ try{
   report.livePreviewWorkCPU=await runStage('livePreviewWorkCPU',()=>livePreviewWorkChecks());
   report.atomicMaterialReadinessCPU=await runStage('atomicMaterialReadinessCPU',()=>atomicMaterialReadinessChecks());
   report.atomicDisplayBoundsCPU=await runStage('atomicDisplayBoundsCPU',()=>atomicDisplayBoundsChecks());
+  report.aiCollaborationCPU=await runStage('aiCollaborationCPU',()=>collaborationChecks());
   report.morphInputSettlement=await runStage('morphInputSettlement',()=>morphInputSettlementChecks());
   report.hashParentMembership=await runStage('hashParentMembership',()=>hashParentMembershipChecks());
   report.cornerScreenshotContractCPU=await runStage('cornerScreenshotContractCPU',()=>cornerScreenshotContractChecks());

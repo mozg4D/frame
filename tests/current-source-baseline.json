@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 22:47",
+  "version": "2026 16 nov 00:38",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -44,7 +44,9 @@
       "tests/scene-program-plans.mjs",
       "tests/scene-control-data-browser.mjs",
       "tests/scene-program-browser.mjs",
-      "tests/hash-save-streaming.mjs"
+      "tests/hash-save-streaming.mjs",
+      "tests/ai-collaboration.mjs",
+      "tests/ai-collaboration-browser.mjs"
     ],
     "help": [
       "index.html",
@@ -432,11 +434,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "4ea4c8f0f5f5855f67a4cc0bd64288b622a7e4d5c5f58a5a7dcf4acd2a048b3e"
+      "sha256": "442c730a26530febefa98e4b9c31f4fbd906ef7a6e2172ddb9d3215d96d2c463"
     },
     "index.html": {
-      "bytes": 2893098,
-      "sha256": "84c6e0dcdb153fbece4d9508fcef06db012a97a08bdae95fbe49fd6fecd942f3"
+      "bytes": 2910683,
+      "sha256": "14681f36eabad0f9ac703125e0d17007214fe587cfce34ddd5b080cb43790a43"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -627,12 +629,12 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 8375,
-      "sha256": "c72203aa7720047e843a497f484802baad25b1490298b032c3cfcb67eeb5be92"
+      "bytes": 8544,
+      "sha256": "e482408ddac4f9b65d5d688af7aa69eddc636a5522897f32f57eba1bffb9fd48"
     },
     "tests/run.mjs": {
-      "bytes": 34425,
-      "sha256": "fa9aef8b9a8014ee2287753482df19f02d7f027d8b06e00b34da89d38cf8de2b"
+      "bytes": 34577,
+      "sha256": "53f00724d559517e6f5feab6328a670ea09a111756af670e2c09942af29883a8"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -779,8 +781,8 @@
       "sha256": "581a149f19554b8bfb56774ea5ce809694318b7512e07df6d627fdb26213272a"
     },
     "tools/README.md": {
-      "bytes": 27645,
-      "sha256": "fd14113e104e11036b9fe2248fccdce239f8a464d9ac200b57aabae8a9c63607"
+      "bytes": 33240,
+      "sha256": "24ce21a578f1c3fe2bc9a94eb215bd12a57caae795d2337849aef41d3d6a3b2c"
     },
     "tests/texture-slot-drag.mjs": {
       "bytes": 43928,
@@ -1003,8 +1005,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 64591,
-      "sha256": "846f39052a2fe63d30efe3d3874933ac0759ed76b2bc4b56c85f61ef946f011c"
+      "bytes": 66125,
+      "sha256": "287c00a20ae8658353d6b98700bbf2a73fed3f8f1e6a2086ae7446a0b25820e7"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1059,8 +1061,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 10792,
-      "sha256": "450f35dcdcdc21648d4677f09fa028a63b15cc87e048519dec73162ae90f10ae"
+      "bytes": 10832,
+      "sha256": "b75fe5b76ff08fe2bb66561ffb6043be301d007e95a187df0b630781d7652c8f"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1117,6 +1119,14 @@
     "tests/suite.js": {
       "bytes": 17851,
       "sha256": "7cf62143391b7c2f7970bf4c5df034a09c6c37059a2fb20556b412950f9e6afd"
+    },
+    "tests/ai-collaboration.mjs": {
+      "bytes": 12470,
+      "sha256": "051eeeecab066b0590e726dec4cc0377582427ae6a807e5e3ceb91af3704b43a"
+    },
+    "tests/ai-collaboration-browser.mjs": {
+      "bytes": 6815,
+      "sha256": "71dbe9e7a6b7640e7a4445836e3afe5c73aa7ca1b374c97d48dc53c6ae2514db"
     }
   }
 }

@@ -288,3 +288,4 @@ tests/current-release-fixture.mjs text eol=lf
 tests/hash-save-streaming.mjs text eol=lf
 tests/plain-wire-culling-browser.mjs text eol=lf
 tests/suite.js text eol=lf
+tests/ai-collaboration*.mjs text eol=lf
