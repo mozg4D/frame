@@ -13,3 +13,5 @@ export const editorSource=inlineSource.slice(at+boundary.length);
 const helpers=inlineSource.slice(0,at);
 const api=await import('data:text/javascript;base64,'+Buffer.from(helpers+'\n'+documentationHostSource+'\nconst {documentationWindowFeatures,installDocumentationGeometry}=createFrameDocumentationGeometry();\nexport {edit,selectionAfter,presentation,rebase,draftLimit,rescueRecord,readRescue,session,history,documentationWindowFeatures,installDocumentationGeometry,installDocumentationWindow};').toString('base64'));
 export const {edit,selectionAfter,presentation,rebase,draftLimit,rescueRecord,readRescue,session,history,documentationWindowFeatures,installDocumentationGeometry,installDocumentationWindow}=api;
+// CPU lifecycle fixtures inject the popup transport; native packaging has its own browser gate.
+export const openPopupFixture=(host,token,features)=>host.open(new URL('blob:https://frame.example/'+token+'#'+token),'frame-docs-'+token,features);

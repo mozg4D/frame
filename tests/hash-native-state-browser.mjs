@@ -1,3 +1,4 @@
+import {pluginEnabled} from './test-policy.mjs';
 import assert from 'node:assert/strict';
 import {launch,ready} from '../tools/browser.mjs';
 import {H} from './hash-codec-fixture.mjs';
@@ -37,12 +38,13 @@ try{
  await command('create-molecule',{name:'water'});check('Atomic uses native binary authoring records',(await command('inspect')).total===3);
  await call('scene.delete',{ids:[atomic.hash]});await call('edit.history',{action:'undo'});check('Binary Undo retains Atomic record leases after owner deletion',(await command('inspect')).total===3);
  const atoms=await call('scene.export',{includeData:true});await call('scene.open',{name:'atoms.hash',base64:atoms.base64});check('Atomic binary HASH round trip preserves atoms',(await command('inspect')).total===3);
- await call('scene.new');const circuit=await call('plugins.create',{plugin:'circuit'}),circuitSaved=await call('scene.export',{includeData:true}),circuitInput=H.reader(new Blob([Buffer.from(circuitSaved.base64,'base64')])),circuitIndex=await circuitInput.index(),legacy=[];
+ const parameterInput=H.reader(new Blob([Buffer.from(atoms.base64,'base64')])),parameterIndex=await parameterInput.index(),textParameters=[];for(const record of parameterIndex.values()){let type=record.type,value=await parameterInput.read(record);if(record.id===H.address(atomic.hash,'parameters')){type=H.T.text;value=JSON.stringify(value);}textParameters.push({id:record.id,type,value});}const invalidParameters=new Blob((await Promise.all(textParameters.map(r=>H.pack(r)))).map(r=>r.blob));await assert.rejects(call('scene.open',{name:'json-parameters.hash',base64:Buffer.from(await invalidParameters.arrayBuffer()).toString('base64')}),/JSON parameters are not supported/);check('JSON authoring parameters reject before replacing the native scene',(await command('inspect')).total===3);
+ if(pluginEnabled('circuit')){await call('scene.new');const circuit=await call('plugins.create',{plugin:'circuit'}),circuitSaved=await call('scene.export',{includeData:true}),circuitInput=H.reader(new Blob([Buffer.from(circuitSaved.base64,'base64')])),circuitIndex=await circuitInput.index(),legacy=[];
  const field='c17c0170000000000000000000000001';
  for(const record of circuitIndex.values()){let type=record.type,value=await circuitInput.read(record);if(record.id===H.address(circuit.hash,'parameters'))value.pluginRecords.find(r=>r.key===field).type=H.T.text;if(record.id===H.address(circuit.hash,field)){type=H.T.text;value=JSON.stringify(H.values.decode(value));}legacy.push({id:record.id,type,value});}
  const legacyBlob=new Blob((await Promise.all(legacy.map(r=>H.pack(r)))).map(r=>r.blob));await assert.rejects(call('scene.open',{name:'legacy-circuit.hash',base64:Buffer.from(await legacyBlob.arrayBuffer()).toString('base64')}),/Wrong plugin HASH record type/);
  check('JSON plugin records reject before replacing the native scene',await page.evaluate(([hash,key])=>nodes.find(n=>n.nativeHash===hash).pluginRecords[key].type===0,[circuit.hash,field]));
- const textParameters=[];for(const record of circuitIndex.values()){let type=record.type,value=await circuitInput.read(record);if(record.id===H.address(circuit.hash,'parameters')){type=H.T.text;value=JSON.stringify(value);}textParameters.push({id:record.id,type,value});}const invalidParameters=new Blob((await Promise.all(textParameters.map(r=>H.pack(r)))).map(r=>r.blob));await assert.rejects(call('scene.open',{name:'json-parameters.hash',base64:Buffer.from(await invalidParameters.arrayBuffer()).toString('base64')}),/JSON parameters are not supported/);check('JSON authoring parameters reject before replacing the native scene',(await call('scene.inspect')).objects.some(n=>n.hash===circuit.hash));
+ }else console.log('SKIP Circuit-specific HASH checks: plugin not requested');
  await call('scene.new');const text=await call('scene.create',{type:'text',params:{text:'Frame Текст O8B'}});check('Compact native font builds Text through the actual worker',!text.buildError&&text.spline?.segments>0);
  assert.deepEqual(errors,[]);console.log({pass:true,checks:checks.length});
 }finally{await session.close();}

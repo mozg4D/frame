@@ -1,13 +1,13 @@
 // Actual host module + real MessageChannel, synthetic popup lifecycle only.
 import assert from 'node:assert/strict';
-import {installDocumentationWindow} from '../core/documentation-window.mjs';
+import {installDocumentationWindow,openPopupFixture} from './documentation-source.mjs';
 globalThis.location={origin:'https://frame.example'};
 class Target{listeners=new Map();addEventListener(n,f){const a=this.listeners.get(n)||[];a.push(f);this.listeners.set(n,a);}fire(n,e={}){for(const f of this.listeners.get(n)||[])f(e);}}
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 function fixture(write=async()=>{}){
  const host=new Target(),events=new Target(),button={},children=[],messages=[];let token,closeCount=0;
  host.open=url=>{token=url.hash.slice(1);const child={closed:false,focus(){},postMessage(m,origin,[port]){this.port=port;port.onmessage=e=>messages.push(e.data);}};children.push(child);return child;};host.alert=()=>{};
- const api=installDocumentationWindow({button,host,events,read:()=>({text:'safe text',version:'epoch:0'}),write,timeout:200});
+ const api=installDocumentationWindow({openPopup:openPopupFixture,button,host,events,read:()=>({text:'safe text',version:'epoch:0'}),write,timeout:200});
  const connect=()=>{const child=children.at(-1);host.fire('message',{source:child,origin:location.origin,data:{kind:'frame-docs-ready',token}});return child;};
  button.onclick();const child=connect();
  return {api,host,button,child,children,messages,connect,close:()=>closeCount++,get closes(){return closeCount;},cleanup(){host.fire('pagehide');for(const child of children)child.port?.close();}};

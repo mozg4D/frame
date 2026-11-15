@@ -8,7 +8,7 @@ import {serve,ready} from '../../../tools/browser.mjs';
 export async function lineOcclusionChecks(page,{capture=null}={}){
  const checks=[],cases=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
  const check=(name,pass,detail)=>{checks.push({name:'Atomic lines: '+name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
- const colors=async point=>{const p=(await call('view.project',{point})).screen,points=[];for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++)points.push([p[0]+x,p[1]+y]);const r=await call('diagnostics.pixels',{points});return {point,screen:p,cyan:r.colors.filter(c=>[60,117,138].every((v,k)=>Math.abs(c[k]-v)<=2)).length,colors:[...new Map(r.colors.map(c=>[c.join(),c])).values()]};};
+ const colors=async point=>{const p=(await call('view.project',{point})).screen,points=[];for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++)points.push([p[0]+x,p[1]+y]);const r=await call('diagnostics.pixels',{points});return {point,screen:p,cyan:r.colors.filter(c=>[46,90,106].every((v,k)=>Math.abs(c[k]-v)<=2)).length,colors:[...new Map(r.colors.map(c=>[c.join(),c])).values()]};};
  const observe=async index=>({front:await colors(index===0?[0,.1,-2]:[0,-.1,2]),rear:await colors(index===0?[0,-.1,2]:[0,.1,-2])});
  const start=performance.now();
  try{

@@ -89,7 +89,7 @@ export async function sceneControlNativeBoundaries(page, {run, check, equal, tim
       const savedDoc = await page.evaluate(async base64 => {
         const file = new Blob([Uint8Array.from(atob(base64), c => c.charCodeAt(0))]);
         const records = await FrameHash.index(file), record = records.get(FrameHash.K.parameters);
-        return JSON.parse(await FrameHash.read(file, record)).documentation;
+        return (await FrameHash.read(file, record)).documentation;
       }, saved.base64);
       equal('Native streaming HASH includes text drained from actual Docs port', savedDoc, text);
       equal('Actual Doc seal publishes the exact unsent text', (await call('docs.get')).text, text);

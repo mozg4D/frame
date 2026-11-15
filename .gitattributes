@@ -260,3 +260,29 @@ tests/object-click-selection.mjs text eol=lf
 # Keep the Patch normal regression source identities portable.
 tests/spline-patch-normals.mjs text eol=lf
 .gitignore text eol=lf
+
+# Keep repaired core and Atomic regression sources byte-identical across checkouts.
+plugins/atomic/tests/line-occlusion.mjs text eol=lf
+plugins/atomic/tests/material-readiness.mjs text eol=lf
+tests/component-feedback.mjs text eol=lf
+tests/followup.mjs text eol=lf
+tests/hash-codec-fixture.mjs text eol=lf
+tests/hash-docs-lifecycle.mjs text eol=lf
+tests/hash-native-state-browser.mjs text eol=lf
+tests/import-performance-feedback.mjs text eol=lf
+tests/materials-selection-feedback.mjs text eol=lf
+tests/october24-stock.mjs text eol=lf
+tests/october25-workflow-details.mjs text eol=lf
+tests/october26-editor.mjs text eol=lf
+tests/october26-maps-tools.mjs text eol=lf
+tests/october26-render.mjs text eol=lf
+tests/planar-extrude.mjs text eol=lf
+tests/scene-control-native-boundaries.mjs text eol=lf
+tests/scene-control-panel-browser.mjs text eol=lf
+tests/surface-wire-stability-browser.mjs text eol=lf
+tests/viewport-copies.mjs text eol=lf
+tests/viewport-placement-browser.mjs text eol=lf
+tests/viewport-placement.mjs text eol=lf
+tests/viewport-printer-revision.mjs text eol=lf
+tests/current-release-fixture.mjs text eol=lf
+tests/hash-save-streaming.mjs text eol=lf

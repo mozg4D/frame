@@ -1,14 +1,15 @@
+import {keySource} from './hash-codec-fixture.mjs';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
 const kernel=html.match(/<script id="frame-spline-kernel"[^>]*>([\s\S]*?)<\/script>/)[1];
 const K=Function('return ('+kernel+')')()();
 const source=html.slice(html.indexOf('  function surfaceDisplaySamples('),html.indexOf('  async function buildNow('));
-const displays=new Map(),samplesFor=Function('window',source+';return surfaceDisplaySamples;')({frameEngine:{splineDisplays:displays}});
+const displays=new Map(),samplesFor=Function('window',keySource+source+';return surfaceDisplaySamples;')({frameEngine:{splineDisplays:displays}});
 const data=K.createSplineData({angle:15}),sequence=K.addSplineSequence(data),ids=[];
 for(const point of [[0,0,0],[10,0,1],[10,10,0],[0,10,-1]])ids.push(K.addSplineVertex(data,point));
 for(let i=0;i<4;i++)K.addSplineSegment(data,sequence,ids[i],ids[(i+1)%4],[2,1,i*.2],[-1,-2,-i*.1]);
-const fingerprint=(data,id)=>{const e=data.segments[id];return JSON.stringify([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation]);};
+const fingerprint=(data,id)=>{const e=data.segments[id];return K.valueKey([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation]);};
 const entries=Object.keys(data.segments),samples=new Map(entries.map(id=>[id,K.sampleSplineSegment(data,id)]));
 const display={data,ranges:new Map(entries.map(id=>[id,{}])),edgeKeys:new Map(entries.map(id=>[id,fingerprint(data,id)])),samples};
 assert.equal(samplesFor(data),null);

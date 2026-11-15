@@ -1,7 +1,7 @@
 // CPU regression for markup and host visibility. Does not qualify native UI/GPU.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {installDocumentationWindow} from '../core/documentation-window.mjs';
+import {installDocumentationWindow,openPopupFixture} from './documentation-source.mjs';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const markup = html.match(/<button\b[^>]*id="btnDocs"[^>]*>[\s\S]*?<\/button>/)?.[0];
 assert.ok(markup, 'Doc toolbar button exists');
@@ -14,11 +14,11 @@ const opened = []; let focused = 0, text = '';
 host.open = (url, name, features) => {const child = {closed: false, focus() {focused++;}}; opened.push({url, name, features, child}); return child;};
 host.alert = () => {throw Error('Unexpected popup failure');};
 const start = performance.now();
-installDocumentationWindow({button, events, host, read: () => ({text, version: 'scene:0'}), write: async () => {throw Error('Opening Docs must not write documentation');}});
+installDocumentationWindow({openPopup:openPopupFixture,button, events, host, read: () => ({text, version: 'scene:0'}), write: async () => {throw Error('Opening Docs must not write documentation');}});
 assert.equal(button.hidden, false, 'Empty documentation does not hide the button');
 button.onclick();
 assert.equal(opened.length, 1, 'Empty documentation opens a window');
-assert.equal(opened[0].url.pathname.endsWith('/documentation.html'), true);
+assert.equal(opened[0].url.protocol, 'blob:');
 assert.ok(opened[0].url.hash.length > 1, 'Popup has a unique connection token');
 button.onclick();
 assert.equal(opened.length, 1, 'Repeated click reuses the window');

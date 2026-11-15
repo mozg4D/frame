@@ -1,10 +1,11 @@
 // Own Chromium context; actual Doc editor/ports/native CAS, no GPU or scene model.
+import {documentationHostSource,documentationPopupMarkup} from './documentation-source.mjs';
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {chromium} from 'playwright';
 import {serve} from '../tools/browser.mjs';
-const paths=['index.html','documentation.html','core/documentation-window.mjs','core/documentation-geometry.mjs','tests/documentation-history-browser.mjs'];
+const paths=['index.html','tests/documentation-history-browser.mjs'];
 const sources=async()=>Object.fromEntries(await Promise.all(paths.map(async p=>[p,createHash('sha256').update(await readFile(new URL('../'+p,import.meta.url))).digest('hex')])));
 const report={pass:false,scope:'Native browser input in actual Doc modules and CAS host; no WebGPU/HASH qualification',sources:await sources(),checks:[],timings:[],errors:[],requests:[]};
 const check=(name,actual,expected)=>{report.checks.push({name,pass:actual===expected});assert.equal(actual,expected,name);};
@@ -13,7 +14,7 @@ try{
  browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER,ignoreDefaultArgs:['--enable-unsafe-swiftshader']});
  const context=await browser.newContext({serviceWorkers:'block'}),page=await context.newPage();context.on('request',r=>report.requests.push(new URL(r.url()).pathname));context.on('page',p=>p.on('pageerror',e=>report.errors.push(e.message)));
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('const FrameDocumentation='),end=html.indexOf('const FramePlugins=',start);assert.ok(start>=0&&end>start);
- const body=`<button id="doc">Doc</button><script type="module">import {installDocumentationWindow} from '/core/documentation-window.mjs';${html.slice(start,end)}let text='';const docs=FrameDocumentation.create({read:()=>text,write:v=>text=v,notify:state=>dispatchEvent(new CustomEvent('frame-documentation-change',{detail:state}))});window.docs=docs;window.reset=()=>{text='';docs.reset();};window.delay=0;installDocumentationWindow({button:document.getElementById('doc'),read:()=>docs.get(),write:async(a,g)=>{if(window.delay)await new Promise(r=>setTimeout(r,window.delay));g();return docs.update(a);}});window.ready=true;</script>`;
+ const body=`${documentationPopupMarkup}<button id="doc">Doc</button><script type="module">${documentationHostSource}${html.slice(start,end)}let text='';const docs=FrameDocumentation.create({read:()=>text,write:v=>text=v,notify:state=>dispatchEvent(new CustomEvent('frame-documentation-change',{detail:state}))});window.docs=docs;window.reset=()=>{text='';docs.reset();};window.delay=0;installDocumentationWindow({button:document.getElementById('doc'),read:()=>docs.get(),write:async(a,g)=>{if(window.delay)await new Promise(r=>setTimeout(r,window.delay));g();return docs.update(a);}});window.ready=true;</script>`;
  await page.route('**/documentation-history-host.html',route=>route.fulfill({contentType:'text/html',body}));await page.goto(server.url+'/documentation-history-host.html');await page.waitForFunction(()=>window.ready);
  let popup;
  const fresh=async()=>{await popup?.close();await page.evaluate(()=>{window.delay=0;reset();});const pending=page.waitForEvent('popup');await page.click('#doc');popup=await pending;await popup.waitForFunction(()=>{const a=document.querySelector('textarea');return a&&!a.disabled&&!a.readOnly;});return popup.locator('textarea');};

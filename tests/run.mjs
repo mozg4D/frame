@@ -43,6 +43,7 @@ import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
 import {fileHostConcurrencyChecks} from './file-host-concurrency.mjs';
 import {fileHostLargeBrowserChecks} from './file-host-large-browser.mjs';
+import {hashSaveStreamingChecks} from './hash-save-streaming.mjs';
 import {filePermissionChecks} from './file-permission.mjs';
 import {filePermissionBrowserChecks} from './file-permission-browser.mjs';
 import {fileHostIdleChecks} from './file-host-idle.mjs';
@@ -173,6 +174,7 @@ const runStage=async(name,fn)=>{
 console.log('[tests] Scope: core + '+selectedPlugins.join(',')+'; DPR '+report.dpr+'; profile '+report.profile+'; large fixtures '+args.includes('--fixtures'));
 
 try{
+  report.hashSaveStreamingCPU=await runStage('hashSaveStreamingCPU',hashSaveStreamingChecks);
   report.numericDisplayCPU=await runStage('numericDisplayCPU',()=>numericDisplayChecks());
   report.sceneCreateNameCPU=await runStage('sceneCreateNameCPU',()=>sceneCreateNameCPUChecks());
   report.textureDndSourceContract=await runStage('textureDndSourceContract',()=>textureDndSourceContractChecks());
@@ -244,7 +246,7 @@ try{
   report.filePlayback=await isolated('filePlayback',filePlaybackChecks);
   report.october28=await isolated('october28',october28Checks);
   report.fileBridgeBrowser=await isolated('fileBridgeBrowser',fileBridgeBrowserChecks);
-  report.fileHostBrowser=await isolated('fileHostBrowser',fileHostBrowserChecks);report.fileHostLargeBrowser=await isolated('fileHostLargeBrowser',page=>fileHostLargeBrowserChecks(page,join(root,'tests','scenes','release-1000-10m.hash')));report.filePermissionBrowser=await isolated('filePermissionBrowser',filePermissionBrowserChecks);
+  report.fileHostBrowser=await isolated('fileHostBrowser',fileHostBrowserChecks);report.fileHostLargeBrowser=await isolated('fileHostLargeBrowser',page=>fileHostLargeBrowserChecks(page));report.filePermissionBrowser=await isolated('filePermissionBrowser',filePermissionBrowserChecks);
   report.fileControls=await isolated('fileControls',fileControlsChecks);
   report.cameraHashBrowser=await isolated('cameraHashBrowser',cameraHashBrowserChecks);
   report.objectBrowserMarquee=await isolated('objectBrowserMarquee',objectBrowserMarqueeChecks);

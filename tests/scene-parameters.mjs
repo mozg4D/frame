@@ -35,7 +35,7 @@ await check('100k owners: list, 128 repeated batch reads and inspect each build 
 await check('Actual shared registry exposes readBatch as data-only, validates descriptors and native state without settlement',async()=>{
  const e=env();let settlements=0;const body=`
  const tools=new Map(),version='fixture';let tail=Promise.resolve(),sequence=0,nativeIOBusy=false,undoBusy=false,frameUITransaction=0,numericSession=null,treeGesture=null;
- const scene={},api={ready:Promise.resolve(),transforming:false},heldPointers=new Set(),boxDrag=null,drag=null,json=v=>JSON.parse(JSON.stringify(v)),window={dispatchEvent(){}},CustomEvent=class{},docs={get:()=>({version:'fixture:0'})};
+ const copy=structuredClone,scene={},api={ready:Promise.resolve(),transforming:false},heldPointers=new Set(),boxDrag=null,drag=null,json=v=>JSON.parse(JSON.stringify(v)),window={dispatchEvent(){}},CustomEvent=class{},docs={get:()=>({version:'fixture:0'})};
  const settle=()=>{onSettle();throw Error('Reads must not settle');};
  ${fragment('      const fail=(code,message)=>')}
  ${fragment('      function validate(s,v,path=', '      const register=')}

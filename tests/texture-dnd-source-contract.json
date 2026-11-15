@@ -1,30 +1,39 @@
 {
   "baseCommit": "42f64a46d18f9a4a77c0c6e34ce92384b6d28fe0",
-  "scope": "Current save/serialization/catalogue source regions and unchanged original runtime textures. Declared extensions cover native animation rollback and bounded HASH range reading. Source identity only; native behavioral and GPU qualification remain separate.",
+  "scope": "Exact current native save/history/material source regions and retained runtime texture inputs. Source identity is separate from native behavioral and GPU qualification.",
   "regions": [
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 9472,
-      "sha256": "56419f1625854ffceff769e463eb6ce36d26533952f1feba1fbe4861e2a48c59",
+      "bytes": 19611,
+      "sha256": "a8580721db51e9e5465f22479678a59ea1a96284d9ad1ae86296d2d5face5236",
       "change": {
-        "reason": "Bounded HASH range reader introduced by the cold-loading optimization; current codec behavior is separately exercised by native HASH and material history tests.",
+        "reason": "Native binary value records, history snapshots and bounded file readers are verified by the HASH and file gates.",
         "baseCommit": "0f18ab1",
         "beforeBytes": 8425,
-        "beforeSHA256": "dd8a928b45a891b93f79f6d4b828804641db4a7cc6c716c04ecd12648c3de3ec"
+        "beforeSHA256": "dd8a928b45a891b93f79f6d4b828804641db4a7cc6c716c04ecd12648c3de3ec",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
       }
     },
     {
       "prefix": "function snapshot(){",
       "nextPrefix": "function frameTrimUIUndo(){",
-      "bytes": 638,
-      "sha256": "1c267de5d6d93ed9e988ced71d61c60852e52babe4be38e7f7da5399ef0b660b"
+      "bytes": 644,
+      "sha256": "f74cdd1db0b4ad6fe1e742b79ad450c2b21a489296c62ad710f235be79931b90",
+      "change": {
+        "reason": "History snapshots use addressed native binary records.",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      }
     },
     {
       "prefix": "function checkpoint(before)",
       "nextPrefix": "function commit(action, refresh=true){",
-      "bytes": 1021,
-      "sha256": "444144dd07f4c6ee8984540df587465fc09e8ab69e22d3e743b150c2d9b9fbd0"
+      "bytes": 1092,
+      "sha256": "44dbe1fd578b82a85d2bce4013bf77bfe5d84a797d192585d51e35dd2fbdb014",
+      "change": {
+        "reason": "Native snapshots preserve camera state and deletion-scoped material history.",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      }
     },
     {
       "prefix": "function commit(action, refresh=true)",
@@ -35,20 +44,25 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2204,
-      "sha256": "67716c6285b7d985f6335d6e8e10de6ec5ef2d12a8b2b9bb7388e49063ec3c97",
+      "bytes": 2216,
+      "sha256": "45ebf6be354cc0b7f0dba9eb986fe04573bc6595d39f4e966e468a76a10d4135",
       "change": {
-        "reason": "Optional current-value rollback mode for failed animation edits; default one-argument history reevaluation is unchanged.",
+        "reason": "Native binary snapshot restoration retains the animation rollback contract.",
         "beforeSHA256": "a7bfa11764262c04099b93f6c502e30d40772587151fc0ca7e4463c8131ac919",
         "beforeBytes": 1977,
-        "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188"
+        "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
       }
     },
     {
       "prefix": "async function frameUndoUI(",
       "nextPrefix": "function history(back){",
-      "bytes": 610,
-      "sha256": "80afa2fffa240e7b91773f485e010d555e09766fede48dbf03d9efa2e012bb6a"
+      "bytes": 637,
+      "sha256": "88bc76f054f375eb2b5985527462e12895f9c10ada1f7d8b0b595e2496eee4c9",
+      "change": {
+        "reason": "UI Undo/Redo decode native binary snapshot records.",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      }
     },
     {
       "prefix": "function replaceMaterials(",
@@ -71,8 +85,12 @@
     {
       "prefix": "    function syncMaterials(){",
       "nextPrefix": "    function refreshMaterialOwners(",
-      "bytes": 3172,
-      "sha256": "9ce606a0d59c58f603bf3831f509dd4948db54bfd278460ec81dd83f0489255b"
+      "bytes": 3273,
+      "sha256": "b7a618d0e716d06a299cf02be7960ee7de794a055f07ad3d208e1b207096c1eb",
+      "change": {
+        "reason": "Current native material synchronization retains explicit library and owner identities.",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      }
     },
     {
       "prefix": "    async function undoObjectCopy(action){",
@@ -95,8 +113,14 @@
     {
       "prefix": "    async function saveHash(",
       "nextPrefix": "    async function nativeDecodePlan(file){",
-      "bytes": 3248,
-      "sha256": "0488efcef650034f2ed038340be252bdb9ca8ca264e4b9e7bbc224fa363fa818"
+      "bytes": 3677,
+      "sha256": "da7ceb1821223dec83bed3b94a64ba4e91b9065aed2e42be802c1d4c5aae6bb2",
+      "change": {
+        "reason": "Bounded ordered HASH writes and elapsed-work yielding remove per-record host/timer latency; native bytes, IO errors and large-file budgets are checked separately.",
+        "beforeBytes": 3248,
+        "beforeSHA256": "0488efcef650034f2ed038340be252bdb9ca8ca264e4b9e7bbc224fa363fa818",
+        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      }
     },
     {
       "prefix": "async function saveSceneFile(",

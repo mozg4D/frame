@@ -1,5 +1,6 @@
 // Default: native Frame. --host-only: actual Docs modules/native CAS in an
 // isolated browser fixture; not a WebGPU or native HASH qualification.
+import {documentationHostSource,documentationPopupMarkup} from './documentation-source.mjs';
 import assert from 'node:assert/strict';
 import {readFile, writeFile, mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -7,7 +8,7 @@ import {chromium} from 'playwright';
 import {serve, ready} from '../tools/browser.mjs';
 
 const hostOnly = process.argv.includes('--host-only');
-const files = ['index.html', 'core/documentation-window.mjs', 'core/documentation-geometry.mjs', 'documentation.html', 'frame-sw.js', 'tests/documentation-button.mjs'];
+const files = ['index.html',    'frame-sw.js', 'tests/documentation-button.mjs'];
 const contents = Object.fromEntries(await Promise.all(files.map(async p => [p, await readFile(new URL('../' + p, import.meta.url), 'utf8')])));
 const sha = value => createHash('sha256').update(value).digest('hex');
 const report = {pass: false, scope: hostOnly ? 'Browser Docs host fixture; not native WebGPU/HASH qualification' : 'Native Frame browser', sources: Object.fromEntries(files.map(p => [p, sha(contents[p])])), checks: [], pageErrors: [], timings: []};
@@ -24,8 +25,8 @@ try {
     const button = html.match(/<button\b[^>]*id="btnDocs"[^>]*>[\s\S]*?<\/button>/)?.[0]; assert.ok(button);
     const start = html.indexOf('const FrameDocumentation='), end = html.indexOf('const FramePlugins=', start); assert.ok(start >= 0 && end > start);
     // Bind the extracted native CAS to one transient text value, not a scene model.
-    const fixture = `<!doctype html><meta charset="utf-8">${button}<script type="module">
-      import {installDocumentationWindow} from '/core/documentation-window.mjs';
+    const fixture = `<!doctype html><meta charset="utf-8">${documentationPopupMarkup}${button}<script type="module">
+      ${documentationHostSource}
       ${html.slice(start, end)}
       let text = '';
       const docs = FrameDocumentation.create({read: () => text, write: value => {text = value;}, notify: state => dispatchEvent(new CustomEvent('frame-documentation-change', {detail: state}))});

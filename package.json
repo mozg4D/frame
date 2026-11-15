@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:hash:cpu": "node tests/hash-native-state.mjs && node tests/hash-bulk-reader.mjs && node tests/hash-binary-contract.mjs",
+    "test:hash:cpu": "node tests/hash-native-state.mjs && node tests/hash-bulk-reader.mjs && node tests/hash-binary-contract.mjs && node tests/hash-save-streaming.mjs",
     "test:hash": "npm run test:hash:cpu && node tests/hash-native-state-browser.mjs",
     "test:numeric-display:cpu": "node tests/numeric-display.mjs",
     "test:numeric-display": "node tests/numeric-display.mjs && node tests/numeric-display-browser.mjs --headless",

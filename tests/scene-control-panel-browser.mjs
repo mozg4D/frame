@@ -23,7 +23,7 @@ try{
  await page.evaluate(()=>__unregisterControl());
  check('Unregister cleans content and restores instructions',await popup.locator('#custom-panel').count()===0&&await popup.locator('#frame-control-empty').isVisible()&&await page.evaluate(()=>__panelCleaned===1));
  await popup.close();
- check('Window size preferences are saved',await page.evaluate(()=>!!JSON.parse(localStorage.getItem('frame-control-window-v1'))?.width));
+ check('Window size preferences are saved',await page.evaluate(()=>!!FrameValue.fromStorage(localStorage.getItem('frame-control-window-v1'))?.width));
  // Open actual on-disk HASH through native startup, including scene code autostart.
  await page.goto(session.url+'/index.html?scene=scenes/crystals.hash');await ready(page);
  await page.evaluate(()=>{window.__controlGPU={device:frameEngine.renderer.device,errors:[],lost:null};__controlGPU.device.pushErrorScope('validation');__controlGPU.device.addEventListener('uncapturederror',e=>__controlGPU.errors.push(e.error.message));__controlGPU.device.lost.then(e=>__controlGPU.lost=e.message);});
@@ -47,10 +47,9 @@ try{
  await page.evaluate(()=>{frameControl.register(({root})=>{root.textContent='Unmanaged panel';});});
  await page.evaluate(()=>frameAI.call('scene.new'));await popup.locator('#frame-control-empty').waitFor();check('New scene removes managed and directly registered panels and restores instructions',await popup.locator('[data-crystal]').count()===0&&await page.evaluate(()=>frameControl.inspect().panels===0));
  const gpu=await page.evaluate(async()=>{const d=__controlGPU.device;await d.queue.onSubmittedWorkDone();return {hardware:Object.fromEntries(['vendor','architecture','isFallbackAdapter'].map(k=>[k,d.adapterInfo[k]])),validation:(await d.popErrorScope())?.message||null,uncaptured:__controlGPU.errors,lost:__controlGPU.lost,replaced:d!==frameEngine.renderer.device};});report.gpu=gpu;check('Hardware WebGPU',gpu.hardware.vendor==='nvidia'&&!gpu.hardware.isFallbackAdapter);check('No GPU errors or device replacement',!gpu.validation&&!gpu.uncaptured.length&&!gpu.lost&&!gpu.replaced);check('No uncaught browser errors',report.errors.length===0);
- await page.goto(session.url+'/progress.html');await page.locator('#scene-catalogue a').first().waitFor();
- const link=page.getByRole('link',{name:'Scene Control — Crystal studio',exact:true});check('Local progress reads the scenes catalogue',await link.count()===1&&new URL(await link.getAttribute('href')).searchParams.get('scene')==='scenes/crystals.hash');
- check('Progress scene download is served from scenes',await page.evaluate(async()=>{const a=document.querySelector('a[download="crystals.hash"]');return !!a&&(await fetch(a.href)).ok;}));
- await page.screenshot({path:new URL('../work/scene-control/progress.png',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')});
+ // The progress page and catalogue were explicitly removed from the shipped app.
+ report.retiredChecks=[{name:'Progress scene catalogue links and downloads',reason:'Removed app resources',commits:['a08278b','c596da2']}];
+ await page.screenshot({path:new URL('../work/scene-control/control-after-new.png',import.meta.url).pathname.replace(/^\/([A-Z]:)/,'$1')});
  report.pass=true;
 }catch(error){report.error=error.stack;}finally{
  await session?.close();report.sources=before;report.sourceUnchanged=JSON.stringify(before)===JSON.stringify(await sources());if(!report.sourceUnchanged)report.pass=false;
