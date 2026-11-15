@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 13:55",
+  "version": "2026 15 nov 14:10",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -397,16 +397,23 @@
       "tests/run.mjs",
       "tests/boolean-patch-feedback.mjs",
       "tests/scenes/boolean-meltus8.hash"
+    ],
+    "meltus8-rod": [
+      "index.html",
+      "frame-sw.js",
+      "tests/meltus8-rod.mjs",
+      "tests/scenes/meltus8-rod.hash",
+      "tests/instance-spline-sources.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "c4683bbac1d93058d6d434feb2965223e14343395e15c928a2863c9f8cf692fd"
+      "sha256": "d5a8bf791882a28c8af8f090958b78596a3550e04433ebe825d1d2d2163ef8e6"
     },
     "index.html": {
-      "bytes": 2952051,
-      "sha256": "0e37571e827d27ab0a321c236c1b2e2b731b8050779b196d9eef9670ac0fca80"
+      "bytes": 2952501,
+      "sha256": "76624c821d31795363ad499d16c705b701a59176684e8ef34f4b75e929432cfc"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1043,6 +1050,18 @@
     "tests/scenes/boolean-meltus8.hash": {
       "bytes": 141661,
       "sha256": "4f86d96c93bb3916f6900354f32d1db953640e6bce94519bca4c772fa12fafb0"
+    },
+    "tests/meltus8-rod.mjs": {
+      "bytes": 8671,
+      "sha256": "3bb9a0d72674c532ee1a8cc5e56f6a6db0f58e44f25476209513c28464254159"
+    },
+    "tests/scenes/meltus8-rod.hash": {
+      "bytes": 173468,
+      "sha256": "89086a4ef3cb56be99d7b1a26b7fe9ad74336346e1314d089b42fa1c487ec2fc"
+    },
+    "tests/instance-spline-sources.mjs": {
+      "bytes": 7727,
+      "sha256": "16518a569d570ace79afe854a159a0a761c49129c8c1d18957e0633b8d041fbb"
     }
   }
 }
