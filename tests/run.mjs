@@ -35,6 +35,7 @@ import {perspectiveClippingChecks} from './perspective-clipping.mjs';
 import {perspectiveClippingBrowserChecks} from './perspective-clipping-browser.mjs';
 import {objectBrowserMarqueeChecks} from './object-browser-marquee.mjs';
 import {extrudeMixedChildrenChecks} from './extrude-mixed-children.mjs';
+import {instanceGeneratorChildrenChecks} from './instance-generator-children.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
 import {fileHostConcurrencyChecks} from './file-host-concurrency.mjs';
@@ -229,6 +230,7 @@ try{
   report.textPresets=await runStage('textPresets',textPresetChecks);
   report.instanceExtrude=await isolated('instanceExtrude',instanceExtrudeChecks);
   report.extrudeMixedChildren=await isolated('extrudeMixedChildren',extrudeMixedChildrenChecks);
+  report.instanceGeneratorChildren=await isolated('instanceGeneratorChildren',instanceGeneratorChildrenChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);
   report.surfaceEfficiency=await isolated('surfaceEfficiency',surfaceEfficiencyChecks);
   report.generatorConstruction=await isolated('generatorConstruction',generatorConstructionChecks);
