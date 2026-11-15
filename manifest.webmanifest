@@ -6,7 +6,7 @@
   "scope": "./",
   "display": "standalone",
   "background_color": "#202020",
-  "theme_color": "#141414",
+  "theme_color": "#000000",
   "description": "Frame CAD/CAE workspace",
   "prefer_related_applications": false,
   "icons": [

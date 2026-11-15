@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
-<meta name="theme-color" content="#141414">
-<meta name="frame-version" content="2026 15 nov 16:04">
+<meta name="theme-color" content="#000000">
+<meta name="frame-version" content="2026 15 nov 16:06">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -107,7 +107,7 @@ padding:0;text-align:center;outline:none;overflow:hidden;text-overflow:ellipsis;
 .frame-attribute-group{margin-top:8px}.frame-attribute-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:2px;grid-auto-rows:20px}.frame-attribute-grid>.attr-btn{width:100%;height:20px;min-width:0;padding:0;box-sizing:border-box;text-align:center}
 .frame-attribute-button{display:inline-flex;align-items:center;justify-content:center;min-height:16px;background:#333;border-radius:4px;box-shadow:inset 0 0 0 1px #666;cursor:pointer!important}.attr-lab.frame-attribute-button{padding:0 5px;height:20px}.frame-attribute-button:hover{background:#444}.frame-attribute-button[aria-pressed=true]{background:#293747!important;box-shadow:inset 0 0 0 1px #6681ad}.frame-attribute-button:active{background:#3c4b63}.number-dragging input[data-numeric]{cursor:nesw-resize!important;user-select:none!important}
 .me-preview .me-tex-btn{outline:1px solid #080808;outline-offset:-1px}
-.view{background:#141414;min-width:0;min-height:0}.frame-viewport-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}#frame-curves{background:#141414}
+.view{background:#101010;min-width:0;min-height:0}.frame-viewport-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}#frame-curves{background:#101010}
 #panel,#panels,.panel-content,#obWrap,#obScroll,.tabbtn.on{background:#141414}
 #materialsPanel{background:repeating-conic-gradient(#141414 0 25%,#101010 0 50%) 0/16px 16px}
 button.on,button[aria-pressed=true],.frame-attribute-button[aria-pressed=true]{background:#293747!important;box-shadow:inset 0 0 0 1px #6681ad}
@@ -289,7 +289,7 @@ button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <script id="frame-documentation-shell" type="text/plain"><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="icon" href="./frame-icon.svg" type="image/svg+xml"><title>Scene Documentation · Frame</title><style>
 :root{color-scheme:dark;font:14px system-ui,sans-serif;background:#1b1b1b;color:#ddd}body{margin:0;height:100dvh;display:flex;flex-direction:column}textarea{flex:1;min-height:0;resize:none;border:0;outline:0;background:transparent;color:inherit;font:inherit;line-height:1.55;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere}output{font-size:12px;padding:8px 24px;color:#aaa}output[data-error=true]{color:#ffbc88}</style></head><body><textarea aria-label="Scene documentation" spellcheck="false" disabled></textarea><output hidden></output></body></html>
 </script>
-<script id="frame-viewport-shell" type="text/plain"><!doctype html><html lang="en" data-frame-viewport-shell><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="frame-icon.svg"><title>View | Frame</title><style>html,body{margin:0;background:#141414;color:#aaa;font:13px system-ui}p{margin:16px}</style></head><body><p>Open an additional view from Frame.</p></body></html></script>
+<script id="frame-viewport-shell" type="text/plain"><!doctype html><html lang="en" data-frame-viewport-shell><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="frame-icon.svg"><title>View | Frame</title><style>html,body{margin:0;background:#101010;color:#aaa;font:13px system-ui}p{margin:16px}</style></head><body><p>Open an additional view from Frame.</p></body></html></script>
 <script id="frame-documentation-editor" type="text/plain">
 
 // Documentation synchronization.
@@ -10270,7 +10270,7 @@ function frameCurvesPaintTrack(ctx,W,H){
 }
 function framePaintCurves(){
   const c=frameCurves;if(!c.open||!c.canvas)return;const canvas=c.canvas,W=canvas.clientWidth,H=canvas.clientHeight,D=devicePixelRatio||1;if(!W||H<16)return;
-  const w=Math.round(W*D),h=Math.round(H*D);if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;const ctx=canvas.getContext('2d');ctx.setTransform(D,0,0,D,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle='#141414';ctx.fillRect(0,0,W,H);c.hits=[];c.gizmoHits=[];
+  const w=Math.round(W*D),h=Math.round(H*D);if(canvas.width!==w)canvas.width=w;if(canvas.height!==h)canvas.height=h;const ctx=canvas.getContext('2d');ctx.setTransform(D,0,0,D,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle='#101010';ctx.fillRect(0,0,W,H);c.hits=[];c.gizmoHits=[];
   c.channels=frameCurvesChannels();c.selection=c.selection.filter(s=>{const ch=c.channels.find(q=>q.id===s.id);return ch&&frameHasAxis(ch.t,ch.t.keys.get(s.f),ch.axis);});
   if(!c.view)c.view=frameCurvesInitialView(c.channels);let first=false;for(const ch of c.channels){if(!c.ranges.has(ch.id))c.ranges.set(ch.id,frameCurveValueBounds(ch));if(!c.timeSeen.has(ch.id)){c.timeSeen.add(ch.id);first=true;}}if(first&&!c.drag){const v=frameCurvesInitialView(c.channels);c.view.f0=v.f0;c.view.f1=v.f1;}frameCurvesClampView();frameCurvesUpdateMapping(W,H);const v=c.view,p=c.plot;
   frameCurvesPaintGrid(ctx,W,H);ctx.save();ctx.beginPath();ctx.rect(0,0,W,p.bottom);ctx.clip();
@@ -10684,7 +10684,7 @@ const FrameViewWindows=(()=>{
     const requestEpoch=windowEpoch,placementRequest=screenAccess(requestPlacement&&window.screen?.isExtended===true);if(requestPlacement&&screenAttempt){await placementRequest;if(closing||requestEpoch!==windowEpoch)throw Error('The view request was cancelled by navigation.');if(navigator.userActivation?.isActive===false)throw Error('Click the view icon again to open a window after the permission request.');if(!window.frameEngine?.canDetachView())throw Error('Finish the current viewport gesture before opening another view.');}
     let index=4;while(owned.has(index))index++;let slot=0;while([...owned.values()].some(r=>r.source===source&&r.slot===slot))slot++;const saved=savedBounds(source,slot),g=bounds(saved),features=g?`popup,width=${g.width},height=${g.height},left=${g.left},top=${g.top}`:'popup,width=900,height=700',url=framePopupDocumentURL('viewport')+'#'+encodeURIComponent(frameViewNames[source]);
     const child=window.open(url,'frame-view-'+crypto.randomUUID(),features);frameTrackPopupURL(window,child,url.split('#')[0]);if(!child)throw Error('The browser blocked the view window. Allow popups for Frame, then click the view icon again.');child.opener=null;const r={index,source,slot,saved,window:child,ready:false,returning:false};owned.set(index,r);
-    try{const doc=await waitForShell(r,url);if(r.returning||closing)throw Error('The view window is closing.');r.document=doc;doc.title=frameViewNames[source]+' | Frame';doc.documentElement.lang='en';doc.head.replaceChildren();const title=doc.createElement('title');title.textContent=frameViewNames[source]+' | Frame';doc.head.append(title);const icon=doc.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=new URL('frame-icon.svg',location.href).href;doc.head.append(icon);for(const style of document.querySelectorAll('style'))doc.head.append(style.cloneNode(true));const style=doc.createElement('style');style.textContent='html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#141414}.view{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}';doc.head.append(style);doc.body.replaceChildren();
+    try{const doc=await waitForShell(r,url);if(r.returning||closing)throw Error('The view window is closing.');r.document=doc;doc.title=frameViewNames[source]+' | Frame';doc.documentElement.lang='en';doc.head.replaceChildren();const title=doc.createElement('title');title.textContent=frameViewNames[source]+' | Frame';doc.head.append(title);const icon=doc.createElement('link');icon.rel='icon';icon.type='image/svg+xml';icon.href=new URL('frame-icon.svg',location.href).href;doc.head.append(icon);for(const style of document.querySelectorAll('style'))doc.head.append(style.cloneNode(true));const style=doc.createElement('style');style.textContent='html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101010}.view{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;border:0!important}';doc.head.append(style);doc.body.replaceChildren();
       const section=document.createElement('section');section.className='view';section.dataset.view=index;section.ariaLabel=frameViewNames[source];const c=document.createElement('canvas');c.className='frame-viewport-canvas';c.dataset.passiveView=index;c.getContext('webgpu');section.append(c);frameViewSections.set(index,section);frameViewCanvases.set(index,c);doc.body.append(section);window.frameEngine.createView(index,source);r.ready=true;doc.body.inert=ioBlocked;
       r.focus=()=>{inputDocument=doc;activateFrameView(index);};r.key=e=>{inputDocument=doc;if(blockIO(e))return;if(!e.target.closest?.('input,textarea,select,[contenteditable],dialog,#menu')&&!activateFrameView(index)){e.preventDefault();e.stopImmediatePropagation();}};child.addEventListener('focus',r.focus);for(const type of ['keydown','keyup'])child.addEventListener(type,r.key,true);for(const type of inputTypes)doc.addEventListener(type,capture,true);for(const item of subscriptions)(item.kind==='document'?doc:child).addEventListener(item.type,item.listener,item.options);
       r.resize=()=>{save(r);window.frameEngine?.layoutChanged();};r.save=()=>save(r);r.pagehide=()=>{close(index,false).catch(fileOperationError);};child.addEventListener('resize',r.resize);child.addEventListener('blur',r.save);child.addEventListener('pagehide',r.pagehide);
@@ -12109,7 +12109,7 @@ for(const area of [$('matList'),$('texScroll')])area.addEventListener('pointerdo
 
 // Native WebGPU guides. World coordinates are millimeters, independent of display units.
 // Keep the import.html camera convention: Y up, yaw .4, pitch .65, FOV 45 degrees.
-const frameViewportClear=[20/255,20/255,20/255,1],frameViewportGridScale=20/29;
+const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=20/29;
 function frameViewportGuides(){
   const data=[],grid=[.21,.22,.23].map(value=>value*frameViewportGridScale);
   const line=(a,b,color)=>data.push(...a,...color,...b,...color);
