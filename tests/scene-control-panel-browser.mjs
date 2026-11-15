@@ -8,7 +8,7 @@ const before=await sources();let session;
 try{
  session=await launch({headless:true});const {page}=session;await ready(page);page.on('pageerror',e=>report.errors.push(e.message));
  check('Control icon always visible; Help toolbar button removed',await page.locator('#btnControl').isVisible()&&await page.locator('#btnHelp').count()===0);
- check('Application title has no year',await page.title()==='Frame');
+ await page.waitForFunction(()=>document.title==='Frame - scene.hash');check('Application title identifies the current empty document',await page.title()==='Frame - scene.hash');
  await page.evaluate(async()=>{
   const a=await frameAI.call('authorData.get',{owner:'scene'}),source='d1'.repeat(16),program='d2'.repeat(16);
   await frameAI.call('authorData.replace',{owner:'scene',expected:{epoch:a.epoch,revision:a.data.revision},records:[{id:source,revision:0,name:'Background code',kind:'source',refs:[],payload:{language:'javascript',text:'globalThis.__controlBackground={dom:!!document.body,core:frameCore.engine===frameEngine,internals:typeof definitions==="object"};'}},{id:program,revision:0,name:'Background program',kind:'opaque',refs:[{kind:'record',owner:'scene',id:source}],payload:{format:'frame.scene-control',version:1,data:{source:0,start:'ready',context:'main'}}}]});

@@ -125,14 +125,26 @@
     {
       "prefix": "async function saveSceneFile(",
       "nextPrefix": "function showSaveFormats(focus=false){",
-      "bytes": 3101,
-      "sha256": "dda3dabeea0a0a8877dd4985df9b6b2ff310b1e3a74d722733ab78c6dd29e9ad"
+      "bytes": 3119,
+      "sha256": "abe6d76bc5c7077f4db745c592be970f3fdfb8fddcdd6d9ea3ce7e808b8fe106",
+      "change": {
+        "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
+        "beforeBytes": 3101,
+        "beforeSHA256": "dda3dabeea0a0a8877dd4985df9b6b2ff310b1e3a74d722733ab78c6dd29e9ad",
+        "baseCommit": "b84f684"
+      }
     },
     {
       "prefix": "async function frameSaveBoundFile(",
       "nextPrefix": "function frameCancelFileRequest(){",
-      "bytes": 1122,
-      "sha256": "d287846627fc38920ee2f5794836e42742857b1c41a44c8bfccaf3b8d823f983"
+      "bytes": 1131,
+      "sha256": "63c898f4c0ab3867af525d2559e115ddafb7ea34f1476a0e9df381f91e1391ee",
+      "change": {
+        "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
+        "beforeBytes": 1122,
+        "beforeSHA256": "d287846627fc38920ee2f5794836e42742857b1c41a44c8bfccaf3b8d823f983",
+        "baseCommit": "b84f684"
+      }
     }
   ],
   "files": {

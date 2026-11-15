@@ -15,7 +15,7 @@ try{
  await assert.rejects(bridge.call({op:'beginWrite',path:outside}),/not authorized/);checks++;
  let transfer=await bridge.call({op:'beginWrite',path});await bridge.call({op:'write',id:transfer.id,base64:Buffer.from('aborted').toString('base64')});await bridge.call({op:'abort',id:transfer.id});check((await readFile(path,'utf8'))==='original','abort preserves previous file');
  const bytes=new Uint8Array(17*1024*1024+123);for(let i=0;i<bytes.length;i++)bytes[i]=(i*31)%251;
- const context=vm.createContext({Blob,File,Uint8Array,atob,btoa,Error,window:{__frameFileHost:a=>bridge.call(a)},sceneFileName:'scene.hash',sceneFileHandle:null,lastSavedFormat:'hash',rememberSceneFile:async()=>{}});
+ const context=vm.createContext({document:{title:"Frame"},Blob,File,Uint8Array,atob,btoa,Error,window:{__frameFileHost:a=>bridge.call(a)},sceneFileName:'scene.hash',sceneFileHandle:null,lastSavedFormat:'hash',rememberSceneFile:async()=>{}});
  vm.runInContext(source.slice(source.indexOf('function frameHostFileHandle('),source.indexOf('let frameNativeFileTask=')),context);
  context.path=path;context.other=other;context.bytes=bytes;
  // Execute the actual shipped browser handle against the actual disk host.

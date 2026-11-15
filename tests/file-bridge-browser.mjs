@@ -11,11 +11,15 @@ export async function fileBridgeBrowserChecks(page){
  try{
   await call('scene.new');await call('scene.create',{type:'cube',name:'File bridge fixture'});
   let start=performance.now(),saved=await call('scene.saveAs',{path});timings.push({name:'native save',ms:performance.now()-start});const bytes=await readFile(path);check('Save As binds path and SHA receipt',saved.bound&&saved.path===path&&saved.bytes===bytes.length&&saved.sha256===createHash('sha256').update(bytes).digest('hex'));
+  check('Save As updates the document title',await page.title()==='Frame - original.hash');
   await call('scene.save');check('Repeat save retains bound target',(await call('scene.file')).path===path);
   await call('scene.new');check('New clears binding',!(await call('scene.file')).bound);
+  check('New resets the title to the empty document name',await page.title()==='Frame - scene.hash');
   start=performance.now();const opened=await call('scene.open',{path});timings.push({name:'native open',ms:performance.now()-start});check('Open restores native scene and binds path',opened.file.path===path&&opened.objects.some(n=>n.name==='File bridge fixture'));
+  check('Open updates the document title',await page.title()==='Frame - original.hash');
   await call('scene.saveAs',{path:copy});await page.evaluate(()=>{const save=saveSceneFile;window.__bridgeNativeSaveDone=false;saveSceneFile=async(...args)=>{try{return await save(...args);}finally{saveSceneFile=save;window.__bridgeNativeSaveDone=true;}};});start=performance.now();await page.locator('#btnSave').click();await page.waitForFunction(()=>window.__bridgeNativeSaveDone);timings.push({name:'native button save completed',ms:performance.now()-start});await call('scene.inspect');check('Native Save shares bridge handle',(await call('scene.file')).path===copy);
   let denied=false;try{await call('scene.saveAs',{path:join(dir,'denied.hash')});}catch{denied=true;}check('Unauthorized Save As rejected without replacing binding',denied&&(await call('scene.file')).path===copy);
+  check('Successful Save As and rejected save preserve the actual title',await page.title()==='Frame - copy.hash');
   check('Recents contain host descriptor',await page.evaluate(()=>recentSceneFiles.get('copy.hash')?.frameHostPath.endsWith('copy.hash')));
   await writeFile(path,'invalid HASH');let failed=false;try{await call('scene.open',{path});}catch{failed=true;}check('Failed replacement import leaves no stale Save binding',failed&&!(await call('scene.file')).bound);
   check('Native operations finish within 10 seconds',timings.every(t=>t.ms<10000));return {pass:true,checks,timings};

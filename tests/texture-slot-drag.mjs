@@ -19,7 +19,7 @@ function fixture(html){
  c.run(['const frameMapFields=','const frameMaterialDefaults=','const frameTextureSlots=','const frameMaterialKeys='].map(start=>line(html,start)).join('\n'));
  c.run(`this.frameMapFields=frameMapFields;this.frameMaterialDefaults=frameMaterialDefaults;this.frameTextureSlots=frameTextureSlots;this.materialKeys=frameMaterialKeys;`);c.materialNumber=(m,k)=>m[k]??c.frameMaterialDefaults[k]??0;
  c.run(range(html,'const frameMaterialAssets=new Map(),','function frameAuthoring('));c.run('this.frameMaterialAssets=frameMaterialAssets;this.frameAssetURLs=frameAssetURLs;this.frameTextureSources=frameTextureSources;');
- c.run(line(html,'function editableMaterial(')+'\n'+range(html,'async function instanceMaterialTexture(','function assignMaterial(')+range(html,'async function assignTexture(','const textureInput='));c.run(line(html,'    function materialHistoryReferences('));c.window.frameEngine.materialHistoryReferences=c.materialHistoryReferences;c.window.frameEngine.capturePolygonSelection=async()=>null;c.frameSetMaterialTag=(n,i)=>{n.tags=[{uid:'assigned',kind:'material',material:i,params:{}}];};
+ c.run(line(html,'function frameMaterialOwner(')+'\n'+line(html,'function editableMaterial(')+'\n'+range(html,'async function instanceMaterialTexture(','function assignMaterial(')+range(html,'async function assignTexture(','const textureInput='));c.run(line(html,'    function materialHistoryReferences('));c.window.frameEngine.materialHistoryReferences=c.materialHistoryReferences;c.window.frameEngine.capturePolygonSelection=async()=>null;c.frameSetMaterialTag=(n,i)=>{n.tags=[{uid:'assigned',kind:'material',material:i,params:{}}];};
  c.run(range(html,"for(const button of all('.me-tex-btn')){const slot=button.dataset.map||'map',[field]",'\n\nfor(const area of'));
  c.run(range(html,'function captureMaterialGesture(','// BEGIN native-materials-ui'));c.activeTab='tabMaterialMgr';c.texturesLoaded=false;c.textureFiles=['one.png','two.png'];c.activateTab=id=>{c.activeTab=id;if(id==='tabTextures')c.renderTextures();};c.run(range(html,'function textureCard(','async function instanceMaterialTexture('));c.closeMenu=()=>{};c.run(line(html,"FrameViewWindows.onWindow('dragover',")+'\n'+line(html,"FrameViewWindows.onWindow('drop',"));
  c.dispatch=(name,event={})=>Promise.all((events.get(name)||[]).map(fn=>fn({preventDefault:noop,stopImmediatePropagation:noop,...event})));c.events=events;
@@ -33,6 +33,17 @@ function fixture(html){
 export async function textureSlotDragChecks(){
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],timings=[];
  const test=async(name,fn)=>{try{await fn();checks.push({name,pass:true});}catch(e){checks.push({name,pass:false,error:e.stack});}};
+ await test('HASH material images appear before built-ins, share decoded images and deduplicate every map slot',async()=>{
+  const c=fixture(html),m=c.materials[1];
+  for(const slot of ['map','opacityMap','emissionAsset','roughAsset','metalAsset','normalAsset','aoAsset'])await c.loadMaterialTexture('blob:'+slot,slot,m);
+  m.metalAsset=m.roughAsset;delete m.colorAsset;m.texture=null;m.map=null;
+  c.renderTextures();const grid=c.$('texGrid'),urls=grid.children.map(card=>card.dataset.texture);
+  assert.equal(urls.length,7);assert.deepEqual(urls.slice(-2),['textures/one.png','textures/two.png']);
+  for(const field of ['opacityAsset','emissionAsset','roughAsset','normalAsset','aoAsset']){const a=c.frameMaterialAssets.get(m[field]),cards=grid.children.filter(card=>card.dataset.texture===a.url);assert.equal(cards.length,1);assert.equal(cards[0].querySelector('img'),c.textureImages.get(a.url));}
+  c.renderTextures();assert.deepEqual(grid.children.map(card=>card.dataset.texture),urls);
+  c.activeTab='tabTextures';c.frameInstallMaterialState({assets:[{uid:'a'.repeat(32),path:'',bytes:new Uint8Array([9,8,7])}],library:[{...m,name:'Loaded texture',normalAsset:'a'.repeat(32)}]});
+  assert.ok(grid.children.some(card=>card.title==='Loaded texture — Normal'));
+ });
  await test('All seven by seven slot transfers share the existing image and preserve source and target parameters',async()=>{
   for(const sourceSlot of Object.keys(slots))for(const targetSlot of Object.keys(slots)){
    const c=fixture(html),a=c.materials[1],b=c.addMaterial();await c.loadMaterialTexture('blob:one',sourceSlot,a);const asset=a[slots[sourceSlot]],image=c.textureImages.get('blob:one'),before=plain(a),settings=Object.fromEntries(c.materialKeys.map(k=>[k,b[k]])),history=c.undoStack.length;
