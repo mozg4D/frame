@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 15 nov 16:06">
+<meta name="frame-version" content="2026 15 nov 16:10">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -108,11 +108,11 @@ padding:0;text-align:center;outline:none;overflow:hidden;text-overflow:ellipsis;
 .frame-attribute-button{display:inline-flex;align-items:center;justify-content:center;min-height:16px;background:#333;border-radius:4px;box-shadow:inset 0 0 0 1px #666;cursor:pointer!important}.attr-lab.frame-attribute-button{padding:0 5px;height:20px}.frame-attribute-button:hover{background:#444}.frame-attribute-button[aria-pressed=true]{background:#293747!important;box-shadow:inset 0 0 0 1px #6681ad}.frame-attribute-button:active{background:#3c4b63}.number-dragging input[data-numeric]{cursor:nesw-resize!important;user-select:none!important}
 .me-preview .me-tex-btn{outline:1px solid #080808;outline-offset:-1px}
 .view{background:#101010;min-width:0;min-height:0}.frame-viewport-canvas{position:absolute;inset:0;width:100%;height:100%;display:block}#frame-curves{background:#101010}
-#panel,#panels,.panel-content,#obWrap,#obScroll,.tabbtn.on{background:#141414}
-#materialsPanel{background:repeating-conic-gradient(#141414 0 25%,#101010 0 50%) 0/16px 16px}
+#panel,#panels,.panel-content,#obWrap,#obScroll,.tabbtn.on{background:#101010}
+#materialsPanel{background:repeating-conic-gradient(#101010 0 25%,#0c0c0c 0 50%) 0/16px 16px}
 button.on,button[aria-pressed=true],.frame-attribute-button[aria-pressed=true]{background:#293747!important;box-shadow:inset 0 0 0 1px #6681ad}
 #btnSolid,#btnShading{background:transparent!important;box-shadow:none}
-button.tabbtn.on{background:#141414!important;box-shadow:inset 0 1px #8fb8ff}.ob-show[aria-pressed=true],.ob-enable[aria-pressed=true]{background:transparent!important;box-shadow:none}
+button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob-show[aria-pressed=true],.ob-enable[aria-pressed=true]{background:transparent!important;box-shadow:none}
 .obj-lib-item img{width:32px;height:32px;flex:none}
 .frame-motion{position:fixed;z-index:36;pointer-events:none;overflow:hidden}.frame-motion [data-motion-key]{pointer-events:all;cursor:move}
 #frame-engine-host{position:absolute;inset:0;overflow:hidden}
@@ -9925,7 +9925,7 @@ const boltLabels = {"ISO7380": "ISO 7380-1", "DIN7985": "DIN 7985 H", "DIN6921":
 const FRAME_TRANSFORM_FIELDS=['position','rotation','scale'];
 let frameChannels=new Map(),frameChannelSelection=[],frameAnimationRevision=0,lastAttrKey=null,frameAnimationMenu=null;
 const frameCurves={ranges:new Map(),timeSeen:new Set(),open:false,canvas:null,panel:null,raf:0,view:null,signature:'',context:[],selection:[],hits:[],drag:null,editing:false,pivot:null,activeId:null};
-const ORTHO_LINE=0x696f76,ORTHO_MINOR_OP=.12,ORTHO_MAJOR_OP=.3,EDIT_HIT_PX=8,SNAP_PX=10,TAP_PX=6;
+const ORTHO_LINE=0x747a82,ORTHO_MINOR_OP=.12,ORTHO_MAJOR_OP=.3,EDIT_HIT_PX=8,SNAP_PX=10,TAP_PX=6;
 function orthoVisibleStep(pw){return 10**Math.ceil(Math.log10(140*pw))*.1;}
 function splineScaleMagnitude(v){return Math.max(1e-9,v);}
 function frameIsPLAPath(path){return typeof path==='string'&&path.startsWith('pla:');}
@@ -12109,7 +12109,7 @@ for(const area of [$('matList'),$('texScroll')])area.addEventListener('pointerdo
 
 // Native WebGPU guides. World coordinates are millimeters, independent of display units.
 // Keep the import.html camera convention: Y up, yaw .4, pitch .65, FOV 45 degrees.
-const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=20/29;
+const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=22/29;
 function frameViewportGuides(){
   const data=[],grid=[.21,.22,.23].map(value=>value*frameViewportGridScale);
   const line=(a,b,color)=>data.push(...a,...color,...b,...color);
