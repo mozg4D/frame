@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 18:03",
+  "version": "2026 15 nov 18:50",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -423,11 +423,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "71c8481fd014f0092dc8de4073553684d69fadf31e9c5babb0f8059cbf6b09d5"
+      "sha256": "0ced32867a047065e8de53b9ac4412597c8f06de7cb995fab3d68f9fe19e93b7"
     },
     "index.html": {
-      "bytes": 2836020,
-      "sha256": "9895dd227ccdd41a40ab88f18cffeb95e41aee64c4da3bcb88ef226ceb367a5d"
+      "bytes": 2840935,
+      "sha256": "7bc3b1849a8c7badc9c54e573918f7dcb39c68178423d4aaa13d7d8dbb6121fa"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -875,7 +875,7 @@
     },
     "tests/camera-relative-depth.mjs": {
       "bytes": 13420,
-      "sha256": "ab175b5ed3eab2bbf2f8d11a91423f2c48c9b51991477d92d37f16f688db2ed6"
+      "sha256": "10ff868e66265f7171013f29261febc98c2e80ce955d22ff71968c4d3b7b615d"
     },
     "tests/camera-shader-order.mjs": {
       "bytes": 10547,
@@ -994,8 +994,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 61076,
-      "sha256": "267dc28c96f9e0d42a8160d6e9cd189a45a35609aca37dc12a6bbee52b493883"
+      "bytes": 61566,
+      "sha256": "81e768cee4d25f86c64296d27e8366bf4bde83d9c773d08b144745a575b48b82"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
