@@ -415,7 +415,8 @@
       "tests/README.md",
       "tests/spline-patch-normals.mjs",
       "tests/scenes/hgr15-normal-bug.hash",
-      "tests/scenes/nema23-normals.hash"
+      "tests/scenes/nema23-normals.hash",
+      ".gitattributes"
     ]
   },
   "files": {
@@ -1048,8 +1049,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 9354,
-      "sha256": "4a2a4f168401096dc92c2c4de49c1f27e621693f34b5b4b44fc982fc47cbe6f3"
+      "bytes": 9553,
+      "sha256": "11266e56c92e2319233e306d1f0a6e7768c98b61d2e10443e92f75e752a1100e"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1076,8 +1077,8 @@
       "sha256": "16518a569d570ace79afe854a159a0a761c49129c8c1d18957e0633b8d041fbb"
     },
     ".gitignore": {
-      "bytes": 885,
-      "sha256": "b187ffe24d8f0e4c6060f982e96ab71e3539858baaf7dcc8678745dca6a1f2e7"
+      "bytes": 855,
+      "sha256": "62ad52a0bbc4125c5086854db77b263286678c50f361d1e5e01cfec39a867a30"
     },
     "tests/spline-patch-normals.mjs": {
       "bytes": 12515,

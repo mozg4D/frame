@@ -256,3 +256,7 @@ tests/object-click-selection.mjs text eol=lf
 
 # Native documents are binary addressed records.
 *.hash -text -diff
+
+# Keep the Patch normal regression source identities portable.
+tests/spline-patch-normals.mjs text eol=lf
+.gitignore text eol=lf
