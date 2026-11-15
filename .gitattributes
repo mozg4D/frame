@@ -248,3 +248,6 @@ tests/spline-shader-source-contract.mjs text eol=lf
 tests/texture-slot-drag.mjs text eol=lf
 tests/viewport-connected-browser.mjs text eol=lf
 tests/viewport-connected-routing.mjs text eol=lf
+
+# Keep focused object-picking evidence identical after checkout.
+tests/object-click-selection.mjs text eol=lf

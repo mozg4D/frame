@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 13:06",
+  "version": "2026 15 nov 13:22",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -380,16 +380,23 @@
       "package.json",
       "tests/camera-animation-navigation.mjs",
       "tests/navigation-dropdown-feedback.mjs"
+    ],
+    "object-click-selection": [
+      "index.html",
+      "frame-sw.js",
+      "AGENTS.md",
+      "package.json",
+      "tests/object-click-selection.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "df3b523419c8e8b28c64886e2a59bb28c26c6f896c04bbf14c22b7cfee41cc54"
+      "sha256": "e18eefa8fc356317b87c88d2ec7a00e3599672ca3e4818306ab5724dc4a7fd7d"
     },
     "index.html": {
-      "bytes": 2942126,
-      "sha256": "15342bd55b62eaea71187a4c3b97a027acb3e14cca5a163a264e4727fc07b39b"
+      "bytes": 2950521,
+      "sha256": "b62c29af94fdfd6dd813252d55699f8f1a4664a5a646917413b25deee56bedb3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -580,8 +587,8 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 7769,
-      "sha256": "175184a7e135692f7630ae1543151dd9062934296f9de03c66a76251d5596744"
+      "bytes": 7845,
+      "sha256": "0a6e11ddd90d21c22b8a0acf0c8645557caa2acb36438d96ff9c21f87eab1459"
     },
     "tests/run.mjs": {
       "bytes": 33456,
@@ -956,8 +963,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 57107,
-      "sha256": "e066773a23c28845646c0bec6728da42a6766556c592e20d84e6b05baf334012"
+      "bytes": 57631,
+      "sha256": "9009c8e1d8ed5f4595503233e53d24d97161421ccb5bb7ed01053013f5b2e47a"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1012,8 +1019,12 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 9152,
-      "sha256": "7840d0fa96da48364e15fed1bbcacb03cd03cbe90fd0b362c9d27a75c31e063b"
+      "bytes": 9263,
+      "sha256": "d60ae4bd5d99f79eb21c82f99bff5b015779b32eabb7fc7662eb024475a55f74"
+    },
+    "tests/object-click-selection.mjs": {
+      "bytes": 10359,
+      "sha256": "a93c734df4369366039e1ef3a0d283176a502fee1fb75afef7e9daf13031c153"
     }
   }
 }
