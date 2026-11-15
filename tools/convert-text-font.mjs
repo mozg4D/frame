@@ -12,5 +12,5 @@ const splines=Object.fromEntries(Object.entries(font.glyphs).map(([char,glyph])=
  const {vertices,segments,sequences}=K.primitive('text',{text:char});return [char,{advance:glyph.ha*scale,vertices,segments,sequences}];
 }));
 const preset={version:1,sourceSHA256:createHash('sha256').update(JSON.stringify(font)).digest('hex'),font:{familyName:font.familyName,original_font_information:font.original_font_information},lineHeight:(font.boundingBox.yMax-font.boundingBox.yMin+font.underlineThickness)*scale,baseline:-(font.boundingBox.yMax+font.boundingBox.yMin)*scale/2,splines};
-let html=await readFile(target,'utf8');html=html.replace(/(<script id="frame-spline-font" type="text\/plain">)[^<]+/,(_,tag)=>tag+gzipSync(JSON.stringify(preset),{level:9}).toString('base64'));await writeFile(target,html);
-console.log(JSON.stringify({splines:Object.keys(splines).length,sourceSHA256:preset.sourceSHA256,bytes:gzipSync(JSON.stringify(preset),{level:9}).length}));
+let html=await readFile(target,'utf8');const codecStart=html.indexOf('function createFrameHashCodec(){'),codecEnd=html.indexOf('const FrameHash=createFrameHashCodec();',codecStart),codec=Function(html.slice(codecStart,codecEnd)+'return createFrameHashCodec();')(),packed=gzipSync(codec.snapshot(preset),{level:9});html=html.replace(/(<script id="frame-spline-font" type="text\/plain">)[^<]+/,(_,tag)=>tag+packed.toString('base64'));await writeFile(target,html);
+console.log(JSON.stringify({splines:Object.keys(splines).length,sourceSHA256:preset.sourceSHA256,bytes:packed.length}));

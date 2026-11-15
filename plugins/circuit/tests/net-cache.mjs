@@ -1,3 +1,4 @@
+import {H} from '../../../tests/hash-codec-fixture.mjs';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {resolve} from 'node:path';
@@ -31,7 +32,7 @@ export async function netCacheChecks(){
  const pass={setPipeline(){},setBindGroup(){},setVertexBuffer(_slot,buffer){this.buffer=buffer;},draw(count){draws.push({count,buffer:this.buffer});}},camera={},frame={};
  const render=()=>{const before=draws.length;viewport.render({pass,camera,frame,orthographic:true,hash:owner.nativeHash,device,format:'bgra8unorm'});return draws.length-before;};
  try{
-  await installSymbols({document:D,math:M,requestDraw(){},viewport:{register:async descriptor=>viewport=descriptor}},{find:()=>owner,members:()=>[a,b],read:n=>data.get(n),symbol,bounds});
+  await installSymbols({hash:H,document:D,math:M,requestDraw(){},viewport:{register:async descriptor=>viewport=descriptor}},{find:()=>owner,members:()=>[a,b],read:n=>data.get(n),symbol,bounds});
   render();await new Promise(resolve=>setImmediate(resolve));render();
   check('network cache initially uploads expected owner-local pin endpoints',()=>assert.deepEqual(uploads.at(-1).values,[20,0,0,40,0,0]));
   const initial=uploads.at(-1).buffer,initialCount=uploads.length;render();

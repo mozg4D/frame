@@ -33,8 +33,8 @@ export function pinsFor(kind,definitions=null){
 export const initial=n=>n.type==='circuit'?{version:1,nets:[],ground:null}:{version:1,pins:pinsFor(modelOf(n))};
 export function readData(D,n){
  const r=D.records(n.nativeHash)[RECORD];if(!r)throw fail('CIRCUIT_DATA_INVALID','Circuit authoring record is missing.');
- if(r.type!==7||typeof r.value!=='string'||r.value.length>262144)throw fail('CIRCUIT_DATA_INVALID','Circuit authoring data is unavailable.');
- let data;try{data=JSON.parse(r.value);}catch{throw fail('CIRCUIT_DATA_INVALID','Circuit authoring data is unavailable.');}
+ if(r.type!==0||!r.value||r.value.length>262144)throw fail('CIRCUIT_DATA_INVALID','Circuit authoring data is unavailable.');
+ let data;try{data=D.codec.decode(new Uint8Array(r.value));}catch{throw fail('CIRCUIT_DATA_INVALID','Circuit authoring data is unavailable.');}
  const id=v=>typeof v==='string'&&/^[0-9a-f]{32}$/.test(v);
  if(data?.version!==1)throw fail('CIRCUIT_DATA_INVALID','Unsupported Circuit authoring data version.');
  if(n.type==='circuit'){
@@ -46,7 +46,7 @@ export function readData(D,n){
  }
  return data;
 }
-export const saveData=(D,n,data)=>D.setRecord(n.nativeHash,RECORD,7,JSON.stringify(data));
+export const saveData=(D,n,data)=>D.setRecord(n.nativeHash,RECORD,0,D.codec.encode(data));
 // Ephemeral authoring connectivity, not a netlist, model validator or solver result.
 export function topology(D,owner){
  const data=readData(D,owner),nets=new Map(data.nets.map(net=>[net.id,net]));
@@ -116,7 +116,7 @@ export async function installSymbols(context,{find,members,read,symbol,bounds}){
  const netGeometry=n=>{
   const data=read(n),children=members(n),inverse=M.inv(D.world(n.nativeHash)),points=new Map(data.nets.map(net=>[net.id,[]]));
   if(children.length>LIMITS.components)return null;
-  const stamp=JSON.stringify([data,Array.from(inverse),children.map(c=>[c.nativeHash,shown(c),D.world(c.nativeHash),D.records(c.nativeHash)])]);
+  const stamp=context.hash.values.key([data,Array.from(inverse),children.map(c=>[c.nativeHash,shown(c),D.world(c.nativeHash),D.records(c.nativeHash)])]);
   let row=state.nets.get(n.nativeHash);if(row?.stamp===stamp)return row;
   row?.buffer?.destroy();row={stamp,count:0,buffer:null};state.nets.set(n.nativeHash,row);
   for(const c of children){if(!shown(c))continue;const matrix=M.mul(inverse,D.world(c.nativeHash));for(const pin of read(c).pins)if(points.has(pin.net))points.get(pin.net).push(M.point(matrix,pin.position));}

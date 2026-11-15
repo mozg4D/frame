@@ -1,3 +1,4 @@
+import {keySource} from './hash-codec-fixture.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
@@ -8,6 +9,7 @@ function requestAttributesSource(source){const start=source.indexOf('requestAttr
 function harness(source,atomic){
  const draw=sourceLine(source,'function drawOverlays('),overlay=sourceLine(atomic,'function overlay()'),cancel=sourceLine(atomic,'function cancelPlacement()'),request=requestAttributesSource(source);
  return vm.runInNewContext(`(()=>{
+  ${keySource}
   const metrics={nodeScans:0,otherOverlays:0,rebuilds:0,attributes:0,draws:0},panels=new Map();
   const createElement=()=>({dataset:{},children:[],attributes:{},style:{setProperty(){}},classList:{toggle(){}},ownerDocument:{defaultView:{innerWidth:1000}},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k];},replaceChildren(){metrics.rebuilds++;this.children=[];},append(el){this.children.push(el);},remove(){panels.delete(this.id);}});
   const node={nativeHash:'atomic-owner',type:'atomic'},D={current:node,nodes:[node]},elements=new Map([[6,{z:6,sym:'C'}]]);

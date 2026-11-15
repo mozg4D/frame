@@ -5,7 +5,7 @@ Runtime authoring only. Generate disabled; generate/sources/result/save reject C
 - Work plane local XZ [0,1000]x[0,1000] mm; lower-left pivot, head side -Y; future program X/Y maps X/Z. Native frame owns placement/size.
 - Native fields: Cut/Mark, Speed >=0.001 mm/min, positive integer Passes, nonnegative Line width/Lead-in, four multiline machine blocks. Defaults 1000 mm/min, 1 pass, 0.2 mm, 1 mm. Preserve opaque Unicode blocks exactly; invent no safe M commands/interpretation.
 - Avoid (cut_avoid) and No-cut (cut_no_cut) are fieldless metadata, not enforced runtime protection. Intended Avoid blocks head-reference travel; No-cut permits tool-off travel but protects full active swept width.
-- frame.cut.settings localStorage version 1 retains technology defaults after native commits. Reconcile sole selected Cut, otherwise last native document-array Cut. Storage failure must not roll back scene. textFields/fieldOptions own literal fields/CAS.
+- frame.cut.settings localStorage version 1 uses the shared HASH value storage adapter and retains technology defaults after native commits. Reconcile sole selected Cut, otherwise last native document-array Cut. Storage failure must not roll back scene. textFields/fieldOptions own literal fields/CAS.
 - Helper axes use renderKind helper. Diagnostics stay in API; only actual generation errors may eventually color owner red.
 
 ## Unloaded geometry

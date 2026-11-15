@@ -2,11 +2,12 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {gunzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {H} from './hash-codec-fixture.mjs';
 
 export async function textPresetChecks(){
  const checks=[],timings=[],check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
  try{
-  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),reference=JSON.parse(await readFile(new URL('scenes/text-glyph-reference.json',import.meta.url),'utf8')),kernel=html.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1],font=JSON.parse(gunzipSync(Buffer.from(html.match(/<script id="frame-spline-font" type="text\/plain">([^<]+)/)[1],'base64'))),K=Function('return ('+kernel+')')()();K.setFont(font);
+  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),reference=JSON.parse(await readFile(new URL('scenes/text-glyph-reference.json',import.meta.url),'utf8')),kernel=html.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1],font=H.openSnapshot(new Uint8Array(gunzipSync(Buffer.from(html.match(/<script id="frame-spline-font" type="text\/plain">([^<]+)/)[1],'base64')))),K=Function('return ('+kernel+')')()();K.setFont(font);
   check('Embedded native spline font retains original provenance and removes every outline',font.version===1&&font.sourceSHA256===reference.fontSHA256&&Object.keys(font.splines).length===591&&!('glyphs' in font));
   const digest=data=>createHash('sha256').update(JSON.stringify(Object.values(data.segments).map(e=>[K.segmentPoints(data,e.id).map(p=>p.map(v=>Math.round(v*1e7)/1e7)),!!e.soft]))).digest('hex'),at=performance.now();
   for(const [char,expected]of Object.entries(reference.glyphs)){const data=K.primitive('text',{text:char});check('Original cubic geometry for '+JSON.stringify(char),Object.keys(data.segments).length===expected.segments&&digest(data)===expected.digest);}

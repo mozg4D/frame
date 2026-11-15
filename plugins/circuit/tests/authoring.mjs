@@ -1,3 +1,4 @@
+import {H} from '../../../tests/hash-codec-fixture.mjs';
 import assert from 'node:assert/strict';
 import {performance} from 'node:perf_hooks';
 import {readFile} from 'node:fs/promises';
@@ -8,9 +9,9 @@ import {netCacheChecks} from './net-cache.mjs';
 
 const start=performance.now(),checks=[],timings=[];let history=[],future=[],operations,hooks,attributes,viewport;
 const check=(name,fn)=>{fn();checks.push({name,pass:true});};
-const D={nodes:[],records:h=>D.nodes.find(n=>n.nativeHash===h).pluginRecords||{},setRecord:(h,key,type,value)=>{const n=D.nodes.find(n=>n.nativeHash===h);(n.pluginRecords??={})[key]={type,value};},create:(type,parent,name)=>{const n={id:D.nodes.length+1,nativeHash:crypto.randomUUID().replaceAll('-',''),type,parent:D.nodes.find(n=>n.nativeHash===parent)?.id??null,name,visible:true,enabled:true,params:type==='circuit'?{Nets:true,'Time scale':.001,History:500}:{Circuit:'',...Object.fromEntries(Object.entries(models[type.slice(8)].fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]))}};D.nodes.push(n);hooks?.created(n);return n;},select:()=>{},transaction:fn=>{history.push(structuredClone(D.nodes));future=[];fn();}};
+const D={codec:H.values,nodes:[],records:h=>D.nodes.find(n=>n.nativeHash===h).pluginRecords||{},setRecord:(h,key,type,value)=>{const n=D.nodes.find(n=>n.nativeHash===h);(n.pluginRecords??={})[key]={type,value};},create:(type,parent,name)=>{const n={id:D.nodes.length+1,nativeHash:crypto.randomUUID().replaceAll('-',''),type,parent:D.nodes.find(n=>n.nativeHash===parent)?.id??null,name,visible:true,enabled:true,params:type==='circuit'?{Nets:true,'Time scale':.001,History:500}:{Circuit:'',...Object.fromEntries(Object.entries(models[type.slice(8)].fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]))}};D.nodes.push(n);hooks?.created(n);return n;},select:()=>{},transaction:fn=>{history.push(structuredClone(D.nodes));future=[];fn();}};
 const M={I:()=>new Float64Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]),pack:m=>[m[0],m[1],m[2],m[4],m[5],m[6],m[8],m[9],m[10],m[12],m[13],m[14]]};
-const context={version:1,document:D,math:M,requestAttributes(){},requestDraw(){},operations:{register:a=>operations=new Map(a.map(o=>[o.id,o]))},editor:{register:h=>hooks=h,selectOwner:async()=>{}},attributes:{register:f=>attributes=f},viewport:{register:async d=>viewport=d}};
+const context={hash:H,version:1,document:D,math:M,requestAttributes(){},requestDraw(){},operations:{register:a=>operations=new Map(a.map(o=>[o.id,o]))},editor:{register:h=>hooks=h,selectOwner:async()=>{}},attributes:{register:f=>attributes=f},viewport:{register:async d=>viewport=d}};
 await activate(context);
 const run=(id,hash,args={})=>operations.get(id).run(hash,args),undo=()=>{future.push(structuredClone(D.nodes));D.nodes=history.pop();},redo=()=>{history.push(structuredClone(D.nodes));D.nodes=future.pop();};
 const a=D.create('circuit',null,'Circuit A'),b=D.create('circuit',null,'Circuit B');
@@ -70,8 +71,8 @@ check('topology ignores display names, grouping and visibility; preserves disabl
  assert.equal(run('topology',a.nativeHash).nets.find(n=>n.id===net.id).node,old);
 });
 check('topology rejects dangling pin references without silently creating connectivity',()=>{
- const current=D.nodes.find(n=>n.nativeHash===c.hash),record=current.pluginRecords[RECORD],data=JSON.parse(record.value);
- data.pins[0].net='f'.repeat(32);current.pluginRecords[RECORD]={type:7,value:JSON.stringify(data)};
+ const current=D.nodes.find(n=>n.nativeHash===c.hash),record=current.pluginRecords[RECORD],data=H.values.decode(new Uint8Array(record.value));
+ data.pins[0].net='f'.repeat(32);current.pluginRecords[RECORD]={type:0,value:H.values.encode(data)};
  const before=JSON.stringify(D.nodes),count=history.length;
  assert.throws(()=>run('topology',a.nativeHash),e=>e.code==='CIRCUIT_DATA_INVALID');
  assert.equal(JSON.stringify(D.nodes),before);assert.equal(history.length,count);current.pluginRecords[RECORD]=record;
