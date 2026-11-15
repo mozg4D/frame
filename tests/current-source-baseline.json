@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 16:10",
+  "version": "2026 15 nov 16:22",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -422,11 +422,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "3b3a23b817810eac141ed22f3274df408d6101efbfa6045149873b115afea9bf"
+      "sha256": "ebf6d2d02f8d0ff4a1c68d62f487293127413fabc276389222d41267055ee2ae"
     },
     "index.html": {
-      "bytes": 2834830,
-      "sha256": "d1c640ea464048d0167ac4af7c6b2fe889b6a92b00d5a3a020b9df5f84b80566"
+      "bytes": 2834845,
+      "sha256": "f3a76e6a1edef89983155b6b0bcc4c24f3bfd93da6fabb24aa23ca3157a7cd2a"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -717,12 +717,12 @@
       "sha256": "dd3d704aae021be2711d473d47e9c163c6aa1ff2f7e7e4bd3f5a094061b4c9d9"
     },
     "tests/spline-palette.mjs": {
-      "bytes": 1292,
-      "sha256": "dd7082b02cda25c9247a356a268254568c97a9e646610e02316c27e56afd10b6"
+      "bytes": 1282,
+      "sha256": "1f8517d898779d05fe77467dc40baa767a8aba6e9a3bfab4125b348b2bc86657"
     },
     "tests/spline-palette-browser.mjs": {
-      "bytes": 6253,
-      "sha256": "3d5b854965f6754e974652c12337b49033408fcb614022204a5b1440b3b87f27"
+      "bytes": 6249,
+      "sha256": "97db8c93cca15a6a60a02efe0e0531f893f7de7d90105313f33f2428318e9850"
     },
     "tests/README.md": {
       "bytes": 53514,
@@ -801,16 +801,16 @@
       "sha256": "caa38d684d203b65d86e47e2e98a98f199d0769003983a1995d1d358cbbee1c4"
     },
     "tests/spline-depth-browser.mjs": {
-      "bytes": 16071,
-      "sha256": "a3d416d0cee412204f8972203910c05e0d0470d7e815d7d5f7805f06d9efce44"
+      "bytes": 16067,
+      "sha256": "27eb0977ac33d2c2f2b24fc4f3e419a9736c0ed7786d281b53e8373a3857c3f4"
     },
     "tests/spline-corner-browser.mjs": {
-      "bytes": 6533,
-      "sha256": "0097511a5ba6d01a2689610822d7004b81f0fc4e1e24d7e827778c276018b97f"
+      "bytes": 6531,
+      "sha256": "81e582bcaec048a63336b50fa5e491a35938beab2b76a16c199563b9f926ebb7"
     },
     "tests/spline-depth.mjs": {
-      "bytes": 9414,
-      "sha256": "9ff96a048fdd6a7322dede60d14ee7de47afa54786f02bbc49d7bc293554188e"
+      "bytes": 9417,
+      "sha256": "9464d13dad3b1d87ebe884399affc17eda34e6efa807b035abc114e16e0bc579"
     },
     "plugins/atomic/tests/display-bounds.mjs": {
       "bytes": 25490,
@@ -849,16 +849,16 @@
       "sha256": "9522262e7be92af530554e68be12272e394465633b8a7908251c31d0ceb852b2"
     },
     "tests/diagnostic-pixels-contract.mjs": {
-      "bytes": 6365,
-      "sha256": "890eea1de802a3081a9ad33f6003e6bd34c59056e196428120e0da0925ec17dc"
+      "bytes": 6363,
+      "sha256": "49ee8c583277f75c6f58a472481439a03fb9b6289ce05c3b531297c785e62b56"
     },
     "tests/spline-corner-evidence-contract.mjs": {
-      "bytes": 4473,
-      "sha256": "3da1757edf1225da0badbdf4aa5bde0224e73da1b75720a3f1fb5a0f8907faa2"
+      "bytes": 4461,
+      "sha256": "042d4173d79e6b5382890399fc22742145acdc39aa915e36735c037d88eac499"
     },
     "tests/corner-screenshot-contract.mjs": {
-      "bytes": 4311,
-      "sha256": "65ecccfdb449ef5caa16e20a4f56246684ae19f80d5216c0d5a343026aac983d"
+      "bytes": 4309,
+      "sha256": "7cecd7beeb049c82712e9f4b5eb242beb50a73f10ba9b1c162f9fa5c48bc6ce4"
     },
     "tests/corner-screenshot-evidence.mjs": {
       "bytes": 1418,

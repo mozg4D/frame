@@ -9,7 +9,7 @@ export async function surfaceWireStabilityBrowserChecks(page){
  const checks=[],raster=[],frames=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
  const warm=async()=>{await call('diagnostics.frame',{frames:3});await page.waitForFunction(()=>!frameEngine.renderer.materialState?.pending.size,{},{timeout:10000});await call('diagnostics.frame',{frames:2});};
- const capture=async(color=[60,117,138])=>page.evaluate(async color=>{
+ const capture=async(color=[42,82,96])=>page.evaluate(async color=>{
   await frameEngine.draw(true);const r=frameEngine.renderer,d=r.device,width=r.width,height=r.height,stride=Math.ceil(width*4/256)*256,read=d.createBuffer({size:stride*height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   try{const e=d.createCommandEncoder();e.copyTextureToBuffer({texture:r.cachedColor},{buffer:read,bytesPerRow:stride},[width,height]);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const bytes=new Uint8Array(read.getMappedRange()),bgra=r.format.startsWith('bgra'),pixels=[];for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=y*stride+x*4;if(Math.abs(bytes[i+(bgra?2:0)]-color[0])<=2&&Math.abs(bytes[i+1]-color[1])<=2&&Math.abs(bytes[i+(bgra?0:2)]-color[2])<=2)pixels.push(y*width+x);}read.unmap();return {width,height,pixels,draws:JSON.parse(document.querySelector('#frame-engine-canvas').dataset.surfaceLines||'null')};}finally{read.destroy();}
  },color);
