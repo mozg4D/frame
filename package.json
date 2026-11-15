@@ -79,6 +79,7 @@
     "test:texture-slots": "npm run test:texture-slots:cpu && node tests/texture-slot-drag-browser.mjs --headless",
     "test:atomic:bounds:cpu": "node plugins/atomic/tests/display-bounds.mjs",
     "test:camera-animation:cpu": "node tests/camera-animation-navigation.mjs",
+    "test:navigation-dropdown": "node tests/navigation-dropdown-feedback.mjs",
     "test:animation-transaction:cpu": "node tests/animation-transaction.mjs",
     "test:animation-transaction": "node tests/animation-transaction.mjs && node tests/animation-transaction-browser.mjs --headless",
     "test:spline-planar:cpu": "node tests/spline-planar-contracts.mjs",
