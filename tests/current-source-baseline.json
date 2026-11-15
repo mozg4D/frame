@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 01:46",
+  "version": "2026 16 nov 02:10",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -440,11 +440,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "388511f08d230cc4ff3ad19616407a7746ab90fe76324c550fb49bca02756b21"
+      "sha256": "b723ad0107e08043375b28bf0dd47148ad4b83b98b640ff18cb9e1447b703fa3"
     },
     "index.html": {
-      "bytes": 2880205,
-      "sha256": "4d32840bc3bf87ea95ab84055b60c71d224748cf846ccb966129d64f7b15acd5"
+      "bytes": 2881342,
+      "sha256": "f00fadb3619d1901a3d1d4c8f3722216ed63d6e5977bdc1217c3931871e51c9f"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1011,8 +1011,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 66696,
-      "sha256": "a99f939e9873c1aa6d6424331fa92d61a326906cc9fa0c67b2c61d42b9d899da"
+      "bytes": 67036,
+      "sha256": "f9c00fa531259c3267c6f12244490705160b7f9a0cceac4b73913ef989c24765"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
