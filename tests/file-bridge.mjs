@@ -29,7 +29,7 @@ try{
  await bridge.close();await assert.rejects(bridge.call({op:'beginRead',path}),/closed/);checks++;
  check((await readdir(dir)).every(p=>!p.startsWith('.frame-')),'temporary files cleaned');
  check(source.includes("['scene.new','scene.open','scene.merge','scene.share','scene.export','scene.save','scene.saveAs']"),'save enters native document settlement');
- check(source.includes("['scene.share','scene.export','scene.save','scene.saveAs'].includes(name)?'save'"),'save joins editor flush barrier');
+ check(source.includes("['scene.share','scene.export','scene.save','scene.saveAs','api.batch'].includes(name)?'save'"),'save and batch join editor flush barrier');
  const ms=performance.now()-started;check(ms<20000,'completed large roundtrip and failure suite under 20s');return {pass:true,checks,unavailable,bytes:bytes.length,elapsedMs:ms};
 }finally{await bridge.close();await rm(dir,{recursive:true,force:true});}
 

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 15 nov 18:50",
+  "version": "2026 15 nov 19:10",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -423,11 +423,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3244,
-      "sha256": "0ced32867a047065e8de53b9ac4412597c8f06de7cb995fab3d68f9fe19e93b7"
+      "sha256": "2ba8f87fa0b3bcb343efd7a66d371730880e04dc708a3bf0b169473bc7b79a6f"
     },
     "index.html": {
-      "bytes": 2840935,
-      "sha256": "7bc3b1849a8c7badc9c54e573918f7dcb39c68178423d4aaa13d7d8dbb6121fa"
+      "bytes": 2854061,
+      "sha256": "a726bcd1516de1b593e8a8dde94ca142149b7d6e521d713f63fdc8620ee8917a"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -486,16 +486,16 @@
       "sha256": "c700170ff25b7726ae819ea4b4d8b99c4f54832ec9caf1e233893a31307d61a3"
     },
     "tests/scene-control-data-review.mjs": {
-      "bytes": 49246,
-      "sha256": "dd1666986e5f093457c0a3d0285dc02d07305ee5506651cc8d2ae4236021d545"
+      "bytes": 49276,
+      "sha256": "174a7f2ea0366554ac9816bbe44b3f1535f445998235c3bdb98f2f69d17e0c94"
     },
     "tests/scene-control-data.mjs": {
-      "bytes": 19887,
-      "sha256": "e2c0efbaa9440f4d2fa4ba25838cd6c2d45d99e1cf8d05dd71fe43fdf6cf4aa2"
+      "bytes": 19902,
+      "sha256": "fec2381b375510ddf7d5dcaf75bcf2f4102a250a89ce83d53880f977c0730f6a"
     },
     "tests/scene-data-docs-barrier.mjs": {
-      "bytes": 5763,
-      "sha256": "e38100c80e65bb4ab6e329cc2d4761abf80655e845fb79dd43a4b40ce36749aa"
+      "bytes": 6678,
+      "sha256": "d63d739289d7aaf6f0e9a4d7e59de5e52f0be2b0f270c474d49e1f02fb0d8f67"
     },
     "tests/scene-data-runtime.mjs": {
       "bytes": 1082,
@@ -506,8 +506,8 @@
       "sha256": "1b35d6a4946fd0e30437af88fc34f895a4bc6532006312873c6598cbaa783586"
     },
     "tests/scene-parameters.mjs": {
-      "bytes": 15897,
-      "sha256": "3f911ef57a68428da2429e19db2313a00a760cd038be6709bf542c99e5d61465"
+      "bytes": 15912,
+      "sha256": "0ba412d1891bad81198d1c8fbc75df08cde57ef7b6e2716cbd3a3f66ef15d6f0"
     },
     "tests/scene-program-browser.mjs": {
       "bytes": 18229,
@@ -610,16 +610,16 @@
       "sha256": "70e602e02a709abd8116833bcbaba24351070e612a0d850ae4de452212a8fd61"
     },
     "tests/authoring-stamp.mjs": {
-      "bytes": 15659,
-      "sha256": "9f4b42aa86e4ed274cc77b5798aea5ffad52bf00c58ed0dccf107494c357884a"
+      "bytes": 15674,
+      "sha256": "65a0a16b0c8f8318d3ee51ac1c735522febe15ee9f84f3b3572593b032136a18"
     },
     "tests/authoring-stamp-browser.mjs": {
       "bytes": 13275,
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 8286,
-      "sha256": "5dfecb09509faaed173741d3c3b2bfda001ddb991a760e74fa07a1367353ae1d"
+      "bytes": 8375,
+      "sha256": "c72203aa7720047e843a497f484802baad25b1490298b032c3cfcb67eeb5be92"
     },
     "tests/run.mjs": {
       "bytes": 34239,
@@ -770,8 +770,8 @@
       "sha256": "581a149f19554b8bfb56774ea5ce809694318b7512e07df6d627fdb26213272a"
     },
     "tools/README.md": {
-      "bytes": 23695,
-      "sha256": "8dd3e07b0ee96e259ac432eed80f2c932336c0825765362fee333fccd07859c4"
+      "bytes": 27645,
+      "sha256": "fd14113e104e11036b9fe2248fccdce239f8a464d9ac200b57aabae8a9c63607"
     },
     "tests/texture-slot-drag.mjs": {
       "bytes": 43928,
@@ -994,8 +994,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 61566,
-      "sha256": "81e768cee4d25f86c64296d27e8366bf4bde83d9c773d08b144745a575b48b82"
+      "bytes": 62912,
+      "sha256": "c77a967cb518757a05a89796e49d92945a00fe9b5f2e5ac3887b5a2da111e69e"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,

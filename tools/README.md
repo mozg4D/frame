@@ -1,4 +1,4 @@
-# Frame AI API v1.1
+# Frame AI API v1.2
 
 The application exposes `window.frameAI` inside `index.html`, without a network listener, external runtime scripts, a second scene model, or automatic geometry readback. Source of truth for tool names and JSON schemas:
 
@@ -36,7 +36,49 @@ Coordinates are millimetres, rotations degrees, screen coordinates CSS pixels. P
 
 Generator `evaluation.report.diagnostics` exposes `generatedFamily`, `knownSurfaceKinds` and construction cell counts when Extrude, Lathe or Sweep supplied a transient plan. Incremental GPU updates retain these diagnostics. Make Editable intentionally drops the plan: ordinary source cages and HASH contain geometry only, and the shared resolver/classifier reconstructs their cells.
 
-`scene.inspect` includes `buildError` on unsupported/invalid geometry parameters, just as the Attributes panel does. Such a scene can still be inspected, repaired with `scene.update`, or deleted. Export rejects unfinished/invalid builds. No arbitrary JavaScript/eval tool is exposed. Frame timing waits for fresh, monotonically increasing frame IDs, including pipeline initialization; it fails after 30 seconds without a measured frame. Explicit geometry digests are limited to 32 MiB, inline file data to 16 MiB; use regular file workflows for larger assets. User-originated UI operations are not globally locked by the API: avoid simultaneous manual edits while an AI transaction runs.
+`scene.inspect` includes `buildError` on unsupported/invalid geometry parameters, just as the Attributes panel does. Such a scene can still be inspected, repaired with `scene.update`, or deleted. Export rejects unfinished/invalid builds. No arbitrary JavaScript/eval tool is exposed. Frame timing waits for fresh, monotonically increasing frame IDs, including pipeline initialization; it fails after 30 seconds without a measured frame. Explicit geometry digests are limited to 32 MiB. HASH inline import/export has no 16 MiB cap; chunked export avoids large JSON replies. User-originated UI operations are not globally locked by the API: avoid simultaneous manual edits while an AI transaction runs.
+
+## Batch, placement and measurement
+
+`frameAI.batch(commands, {continueOnError:false})` and `frameAI.call('api.batch', {commands,continueOnError})` reserve one FIFO slot. Commands run consecutively and return ordered `{index,name,ok,result|error}` receipts plus `completed`. Direct argument schemas are checked before execution. Arguments can reference an earlier result using `{$ref:'alias.hash'}` or `{$ref:'0.hash'}`. Reference-dependent validation occurs when that command runs. Batches stop on the first error unless requested otherwise, retain completed edits and each command's Undo, and reject nested batches. They are not atomic transactions.
+
+```js
+const result = await frameAI.batch([
+  {name:'scene.create', args:{type:'group',name:'Assembly'}, as:'assembly'},
+  {name:'scene.create', args:{type:'cube',parent:{$ref:'assembly.hash'}}, as:'part'},
+  {name:'transform.apply', args:{
+    position:[200,0,0], rotation:[0,30,0], size:[80,40,20], coordinates:'object'
+  }}
+]);
+```
+
+`transform.apply` accepts any nonempty combination of `position`, `rotation`, and `size` vectors. It uses the current object/component selection and one native Undo. Size is applied in the initial coordinate axes, followed by rotation and position around the pivot; world-space size therefore describes the size before the requested rotation. Object coordinates are convenient for placing a part by its final dimensions and rotation. Flat dimensions stay zero; nonflat dimensions must respect the native positive minimum. `transform.set` retains its single-axis interface.
+
+`measure.gap({from:partA,to:partB,direction:[1,0,0]})` normalizes a world direction and returns each part's projected `min/max`, signed `gap = to.min - from.max`, `reverseGap`, and `projectionOverlap` in mm. Positive gap separates the intervals; negative gap indicates projection overlap. This does not measure nearest Euclidean surface distance or certify intersection. Meshes use GPU extrema of evaluated geometry, including occurrences and descendants; curves/plugin bounds set `conservative:true`. Selection remains unchanged.
+
+## Named HASH files for AI clients
+
+`scene.export({ids:[partHash],format:'hash',includeData:true})` exports a part with descendants and declared dependencies, preserving world placement and native authoring. Omit `ids` for the whole document. Neither selection nor clipboard changes. Inline import/export has no application file-size cap, but large base64 strings still need browser/client memory.
+
+`scene.saveAs({name:'part.hash',ids:[partHash]})` returns a named immutable file transfer without a picker or changing the current project binding. `scene.export({transfer:true,name:'assembly.hash'})` exposes the same transfer for whole-document export. Results contain `name`, `bytes`, `sha256`, and `transfer:{id,url,chunkBytes}`. The Blob URL belongs to this document; external AI clients should read chunks and write them using their own filesystem/attachment tools. `download:true` optionally requests a browser download, subject to browser download policy. Up to eight transfers may be retained; release them explicitly after saving. An authorized `scene.saveAs({path})` continues to save and bind through the local file host.
+
+```js
+const file = await frameAI.call('scene.saveAs', {name:'part.hash',ids:[partHash]});
+let offset = 0;
+try {
+  while (true) {
+    const chunk = await frameAI.call('scene.export.read', {id:file.transfer.id,offset});
+    // Receiving AI client: decode chunk.base64 and append bytes to file.name.
+    offset = chunk.nextOffset;
+    if (chunk.eof) break;
+  }
+  // Receiving client: verify total bytes and SHA-256 before attaching the file.
+} finally {
+  await frameAI.call('scene.export.release', {id:file.transfer.id});
+}
+```
+
+Chunk reads are at most 1 MiB and need no scene evaluation. Exported files survive New/Open until released. The separate portable Share URL keeps its packed-size/browser URL limits.
 
 ## Direct polygon modeling
 

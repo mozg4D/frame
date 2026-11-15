@@ -6,7 +6,7 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
 const fragment=(a,b='\n')=>{const at=html.indexOf(a),end=html.indexOf(b,at+a.length);assert.ok(at>=0&&end>at,a);return html.slice(at,end);};
-const queue=fragment('let documentationWindow=null;','      async function settleDocument'),call=fragment('async function call(name,args={},bridgeGuard=null,sessionGuard=null)');
+const queue=fragment('let documentationWindow=null;','      async function settleDocument'),call=fragment('async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false)');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 const tick=async()=>{for(let i=0;i<100;i++)await Promise.resolve();};
 function env(){
@@ -44,6 +44,12 @@ await check('Queued data operation rechecks native authoring readiness after fai
 await check('File prepare remains before Doc seal and native publication',async()=>{
  const c=env();c.popup({seal:async()=>{c.events.push('seal');return {verify(){},release(){}};}});
  await c.frameNativeFileTask(async()=>c.events.push('save'),{prepare:async()=>c.events.push('prepare')});assert.deepEqual(c.events,['settle','prepare','seal','save','settle']);
+});
+await check('Batch seals Doc once and runs nested commands before the next FIFO reader',async()=>{
+ const c=env();c.register('api.batch',async a=>{for(const command of a.commands)await c.call(command.name,{},null,null,true);});
+ c.popup({seal:async({mode})=>{assert.equal(mode,'save');c.events.push('seal');await c.call('docs.update',{},()=>{});return {verify(){},release(){c.events.push('release');}};}});
+ const batch=c.call('api.batch',{commands:[{name:'fields.write'},{name:'fields.write'}]}),read=c.call('authorData.get');await Promise.all([batch,read]);
+ assert.equal(c.events.filter(x=>x==='seal').length,1);assert.equal(c.events.filter(x=>x==='field-write').length,2);assert.ok(c.events.indexOf('doc-write')<c.events.indexOf('field-write'));assert.ok(c.events.lastIndexOf('field-write')<c.events.indexOf('data-read'));assert.ok(c.events.indexOf('release')<c.events.indexOf('data-read'));
 });
 const report={pass:checks.every(x=>x.pass),checks,indexSHA256:createHash('sha256').update(html).digest('hex'),browserVerified:false,gpuVerified:false};
 await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/scene-data-docs-barrier.json',import.meta.url),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));if(!report.pass)process.exitCode=1;
