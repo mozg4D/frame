@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 19:13">
+<meta name="frame-version" content="2026 16 nov 19:36">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12170,7 +12170,7 @@ for(const area of [$('matList'),$('texScroll')])area.addEventListener('pointerdo
 
 // Native WebGPU guides. World coordinates are millimeters, independent of display units.
 // Keep the import.html camera convention: Y up, yaw .4, pitch .65, FOV 45 degrees.
-const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=22/29;
+const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=20/29;
 function frameViewportGuides(){
   const data=[],grid=[.21,.22,.23].map(value=>value*frameViewportGridScale);
   const line=(a,b,color)=>data.push(...a,...color,...b,...color);
@@ -15148,7 +15148,7 @@ window.frameEngine=(()=>{
       for(const [id,on]of [['coordBtn',coordinateMode==='world'],['btnPivot',pivotEditing],['btnQuant',quantize],['btnSnap',snapping]]){const b=document.getElementById(id);b.classList.toggle('on',on);b.ariaPressed=String(on);}
       measurementCache=null;notifyTransformUI();draw(false);frameDrawCurves();
     }
-    function quantStepForView(){if(frameViewKind(viewIndex))return 10**Math.ceil(Math.log10(140*2/(zoom*scene.scale*Math.max(1,canvas.clientHeight))))/10;return unitMillimeters[displayUnitIndex];}
+    function quantStepForView(){if(frameViewKind(viewIndex))return 10**Math.ceil(Math.log10(120*2/(zoom*scene.scale*Math.max(1,canvas.clientHeight))))/10;return unitMillimeters[displayUnitIndex];}
     function transformTransaction(){const plugin=FramePlugins.dispatch('beginTransform');if(plugin)return {plugin,before:snapshotFrames(),state:coordinateState(),frame:selectionFrame(),scope:'plugin'};const aux=auxiliaryState(),spline=aux?.kind!=='motion'&&elementMode!=='object'&&window.FrameSpline?.beginTransform();return {motion:aux?.kind==='motion'?motionTransaction():null,spline,mapping:aux?.kind==='mapping'?{hash:aux.hash,frame:new Float64Array(aux.frame)}:null,before:snapshotFrames(),state:coordinateState(),frame:selectionFrame(),roots:selectedRoots(),scope:aux?.kind==='motion'?'motion':spline?'spline':aux?.kind==='mapping'?'mapping':selectionScope};}
     function minimumScaleSize(){let rest=0;for(const mesh of currentSelectionMeshes()){const box=localMeshBox(mesh);for(const value of [...box.min,...box.max])rest=Math.max(rest,Math.abs(value));}const world=Math.max(...selectionBox.min.map(Math.abs),...selectionBox.max.map(Math.abs));return Math.max(1e-20,rest,world)*2**-20;}
     function scaleResponse(axis,pivot,extent){if(auxiliaryState()?.kind==='mapping')return 2;let distance=0;if(selectionScope==='components'&&splineComponentHash()){for(const d of splineDisplays.values())for(const p of FrameSpline.selectedControls(d.data,d.selection))distance=Math.max(distance,Math.abs(FM.dot(FM.sub(FM.point(objectWorld(d.hash),p),pivot),axis)));if(distance>1e-12)return extent/distance;return 2;}for(const mesh of currentSelectionMeshes()){const b=localMeshBox(mesh);for(let mask=0;mask<8;mask++){const p=FM.point(mesh.frameWorld,b.min.map((n,i)=>mask>>i&1?b.max[i]:n));distance=Math.max(distance,Math.abs(FM.dot(FM.sub(p,pivot),axis)));}}if(selectionScope==='objects'){const hashes=new Set(selectedRoots().flatMap(h=>objectDescendants(h)));for(const d of splineDisplays.values())if(hashes.has(d.hash)){const matrix=objectWorld(d.hash);for(let mask=0;mask<8;mask++)distance=Math.max(distance,Math.abs(FM.dot(FM.sub(FM.point(matrix,d.min.map((v,k)=>mask>>k&1?d.max[k]:v)),pivot),axis)));}if(!(distance>1e-12))for(const h of selectedRoots()){const b=nodeBounds(h);for(let mask=0;mask<8;mask++)distance=Math.max(distance,Math.abs(FM.dot(FM.sub(b.min.map((v,k)=>mask>>k&1?b.max[k]:v),pivot),axis)));}}return distance>1e-12?extent/distance:2;}
@@ -15239,7 +15239,7 @@ window.frameEngine=(()=>{
     }
     function orthoGridData(width,height){
       const cssHeight=Math.max(1,canvas.clientHeight),cssWidth=Math.max(1,canvas.clientWidth),pw=2/(zoom*scene.scale*cssHeight);
-      const major=10**Math.ceil(Math.log10(140*pw)),minor=major/10,center=rotatePoint(scene.center);
+      const major=10**Math.ceil(Math.log10(120*pw)),minor=major/10,center=rotatePoint(scene.center);
       const u=center[0]-(panX+orbitOffset[0])/scene.scale,v=center[1]-(panY+orbitOffset[1])/scene.scale;
       const halfW=cssWidth*pw/2,halfH=cssHeight*pw/2,clip=clippingPlanes();
       const origin=rotatePoint(scene.center.map(n=>-n*scene.scale)),depth=3.2-origin[2]-orbitOffset[2];
@@ -17647,7 +17647,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function gizmoPart(name){if(name==='S')return 'scale';if(name==='P')return 'move';if(name==='SR')return 'screenRotate';const axes=[...name.replace(/^[SR]/,'')].map(n=>'XYZ'.indexOf(n)).join('');return (name[0]==='S'?'scale':name[0]==='R'?'rotate':'move')+axes;}
     function gizmoHit(x,y,state=lastGizmoState){if(!state||x<state.rect.left||x>=state.rect.right||y<state.rect.top||y>=state.rect.bottom)return null;for(let i=state.shapes.length-1;i>=0;i--){const s=state.shapes[i];if(s.triangles.some(t=>framePointInTriangle(x,y,t)))return s;}return null;}
     function publicGizmoState(s){if(!s)return null;const {view,pivot,basis,signs,unit,at,mode3D,parts,handles}=s;return {view,pivot,basis,signs,unit,at,mode3D,parts,handles};}
-    function snapGuideStep(pivot){const pixel=worldPerPixel(pivot),major=10**Math.ceil(Math.log10(140*pixel)),minor=major/10;return minor/pixel>=10?minor:major;}
+    function snapGuideStep(pivot){const pixel=worldPerPixel(pivot),major=10**Math.ceil(Math.log10(120*pixel)),minor=major/10;return minor/pixel>=10?minor:major;}
     function drawGizmoFeedback(svg,project,rect){
       const g=gizmoSession;if(!g||g.space!==scene)return;
       const group=document.createElementNS(svgNS,'g');group.dataset.gizmoFeedback=g.kind;group.setAttribute('pointer-events','none');svg.append(group);
