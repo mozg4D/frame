@@ -1073,8 +1073,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 11467,
-      "sha256": "1e62219746a76e8505499caa921fe224e8247c0b572962051d8eaff59bf9f998"
+      "bytes": 11506,
+      "sha256": "eaaa76b36c15704c0fca42ec99ddef5477a51554e6a7d262e5eda8ede289e87a"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
