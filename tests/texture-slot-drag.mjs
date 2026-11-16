@@ -59,6 +59,27 @@ export async function textureSlotDragChecks(){
  await test('Actual native Undo/Redo restores exact shared asset identities and cached image objects',async()=>{
   const c=fixture(html);await c.loadMaterialTexture('blob:one','map');const asset=c.materials[1].colorAsset,img=c.materials[1].map;await c.instanceMaterialTexture(asset,'opacityMap');await c.frameUndoUI(true);assert.equal(c.materials[1].opacityAsset,undefined);assert.equal(c.materials[1].map,img);await c.frameUndoUI(false);assert.equal(c.materials[1].opacityAsset,asset);assert.equal(c.materials[1].opacityMap,img);assert.equal(c.frameMaterialAssets.size,1);
  });
+ await test('Removing the last reference in every slot removes only its shelf card, with exact Undo/Redo',async()=>{
+  for(const slot of Object.keys(slots))for(const visible of [false,true]){
+   const c=fixture(html);await c.loadMaterialTexture('blob:removed',slot);const asset=c.materials[1][slots[slot]],img=c.textureImages.get('blob:removed');c.frameAddTexture('blob:unassigned','Unassigned');c.renderTextures();if(visible)c.activeTab='tabTextures';
+   const present=()=>c.$('texGrid').children.some(card=>card.dataset.texture==='blob:removed');assert.ok(present());c.removeMaterialTexture(slot);assert.equal(present(),false);c.renderTextures();assert.equal(present(),false);assert.ok(c.$('texGrid').children.some(card=>card.dataset.texture==='blob:unassigned'));assert.equal(c.frameMaterialAssets.has(asset),true);assert.equal(c.textureImages.get('blob:removed'),img);assert.equal(c.revoked.length,0);
+   await c.frameUndoUI(true);c.renderTextures();assert.ok(present());assert.equal(c.materials[1][slots[slot]],asset);assert.equal(c.textureImages.get('blob:removed'),img);await c.frameUndoUI(false);assert.equal(present(),false);
+  }
+ });
+ await test('Shared slots, materials, source URLs and environment references preserve the shelf card',async()=>{
+  for(const kind of ['slot','material','url','environment-id','environment-url']){
+   const c=fixture(html),m=c.materials[1];await c.loadMaterialTexture('blob:shared','roughAsset');const asset=m.roughAsset;
+   if(kind==='slot')await c.instanceMaterialTexture(asset,'metalAsset',m);
+   if(kind==='material')await c.instanceMaterialTexture(asset,'normalAsset',c.addMaterial());
+   if(kind==='url'){const other=c.addMaterial(),alias='a'.repeat(32);c.frameMaterialAssets.set(alias,{uid:alias,url:'blob:shared'});other.emissionAsset=alias;}
+   if(kind.startsWith('environment'))c.nodes.push({id:'env',type:'render',params:{'environment image':kind==='environment-id'?asset:'blob:shared'},tags:[]});
+   c.renderTextures();c.removeMaterialTexture('roughAsset');assert.ok(c.$('texGrid').children.some(card=>card.dataset.texture==='blob:shared'),kind);
+  }
+ });
+ await test('Linked base alpha removes its last shelf reference together, while packed ORM survives until its last slot',async()=>{
+  const c=fixture(html),m=c.materials[1];c.alpha=true;await c.loadMaterialTexture('blob:alpha','map');c.renderTextures();c.removeMaterialTexture('map');assert.equal(m.opacityAsset,undefined);assert.ok(!c.$('texGrid').children.some(card=>card.dataset.texture==='blob:alpha'));
+  await c.loadMaterialTexture('blob:orm','roughAsset',m,null,true);c.renderTextures();for(const slot of ['roughAsset','metalAsset']){c.removeMaterialTexture(slot);assert.ok(c.$('texGrid').children.some(card=>card.dataset.texture==='blob:orm'));}c.removeMaterialTexture('aoAsset');assert.ok(!c.$('texGrid').children.some(card=>card.dataset.texture==='blob:orm'));
+ });
  await test('Native HASH stores one payload for all instances and reloads one decoded image object',async()=>{
   const c=fixture(html),a=c.materials[1],b=c.addMaterial(),bytes=new Uint8Array([137,80,78,71,1,2,3]);c.frameMaterialAsset('blob:one',bytes);await c.loadMaterialTexture('blob:one','map',a);const asset=a.colorAsset;await c.instanceMaterialTexture(asset,'opacityMap',a);await c.instanceMaterialTexture(asset,'map',b);await c.instanceMaterialTexture(asset,'normalAsset',b);c.syncMaterials();const {K,T}=c.FrameHash;assert.deepEqual([...c.scene.records.get(K.assets).value],[asset]);assert.equal([...c.scene.records.values()].filter(r=>r.type===T.bytes&&r.value===bytes).length,1);
   const parts=[];for(const record of c.scene.records.values())parts.push((await c.FrameHash.pack(record)).blob);const file=new Blob(parts),map=await c.FrameHash.index(file),decoded=new Map();await c.decodeAppearancePlan(async(key,type)=>{const meta=map.get(key);if(!meta)return undefined;assert.equal(meta.type,type);const value=await c.FrameHash.read(file,meta);decoded.set(key,{id:key,type,value});return value;},map,[],decoded);c.scene.records=decoded;const loaded=c.appearanceLibrary();assert.equal(loaded.assets.length,1);assert.deepEqual([...loaded.assets[0].bytes],[...bytes]);c.frameInstallMaterialState(loaded);const aa=c.materials.find(m=>m.uid===a.uid),bb=c.materials.find(m=>m.uid===b.uid);assert.equal(aa.colorAsset,asset);assert.equal(aa.opacityAsset,asset);assert.equal(bb.colorAsset,asset);assert.equal(bb.normalAsset,asset);assert.equal(aa.map,aa.opacityMap);assert.equal(aa.map,bb.map);assert.equal(c.imageCreates,1,'Unchanged UID and payload reuse the original decoded image');assert.equal(c.revoked.length,0);

@@ -44,14 +44,13 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2216,
-      "sha256": "45ebf6be354cc0b7f0dba9eb986fe04573bc6595d39f4e966e468a76a10d4135",
+      "bytes": 2288,
+      "sha256": "b7cef092c0f577483569bbec1d52ee369bce04132db1e8580beab3593ffdbfe2",
       "change": {
-        "reason": "Native binary snapshot restoration retains the animation rollback contract.",
-        "beforeSHA256": "a7bfa11764262c04099b93f6c502e30d40772587151fc0ca7e4463c8131ac919",
-        "beforeBytes": 1977,
-        "baseCommit": "2254ca0e4aab3f2aacf1c9ea525488d98b63e188",
-        "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+        "reason": "Undo/Redo reconciles unused texture shelf cards against restored material and environment references; encoded image resources remain retained for history.",
+        "beforeBytes": 2216,
+        "beforeSHA256": "45ebf6be354cc0b7f0dba9eb986fe04573bc6595d39f4e966e468a76a10d4135",
+        "baseCommit": "339a95f"
       }
     },
     {
