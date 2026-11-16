@@ -13,7 +13,7 @@ const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 let failure;
 try{
  await ready(page);
- check('Hardware WebGPU at DPR 1',await page.evaluate(()=>!frameEngine.renderer.device.adapterInfo.isFallbackAdapter&&devicePixelRatio===1));
+ const expectedDpr=Number(process.env.FRAME_DPR||1);check('Hardware WebGPU at DPR '+expectedDpr,await page.evaluate(expected=>!frameEngine.renderer.device.adapterInfo.isFallbackAdapter&&devicePixelRatio===expected,expectedDpr));
  await page.evaluate(()=>{window.__gpuErrors=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__gpuErrors.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
  const mesh=await call('mesh.create',{vertices:[0,0,0,80,0,0,0,80,0],indices:[0,1,2]});
  await call('view.set',{index:0,single:true,focus:mesh.hash});

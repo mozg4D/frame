@@ -15,7 +15,11 @@ export function reconstructLegacySource(current,morph,gizmo){
   const needle='FrameMorph.previewEdit(t.morph.n,',call=legacy.indexOf(needle),start=legacy.lastIndexOf('if(t.morph){',call),end=legacy.indexOf('new Float32Array(data)',call);
   if(call<0||start<0||end<=call||legacy.indexOf(needle,call+needle.length)>=0)throw Error('Native polygon Morph caller missing or ambiguous');
   legacy=legacy.slice(0,start)+morph.polygonTransformBranch+legacy.slice(end);
-  return replaceBlock(legacy,'function drawGizmo(','function pointerWorld(',gizmo.drawGizmo+'\n    ');
+  // Compare query work with the current appearance policy on both sides. The
+  // immutable fixture retains its historical opacity; no old proof is relabelled.
+  const oldOpacity="name==='P'?'.6':name==='SR'?'.55':'.5'",sharedOpacity="name==='P'?frameGizmoOpacity.plane:name==='SR'?frameGizmoOpacity.rotation:frameGizmoOpacity.normal";
+  if(gizmo.drawGizmo.split(oldOpacity).length!==2)throw Error('Legacy gizmo opacity anchor missing or ambiguous');
+  return replaceBlock(legacy,'function drawGizmo(','function pointerWorld(',gizmo.drawGizmo.replace(oldOpacity,sharedOpacity)+'\n    ');
 }
 export async function livePreviewWorkChecks(){
   const [html,morphText,gizmoText]=await Promise.all([

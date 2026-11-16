@@ -130,7 +130,7 @@ export async function hashBestEffortBrowserChecks(parent) {
   const sources = await sourceHashes(), checks = [], timings = [], cases = [], errors = [], consoleErrors = [], diagnostics = {};
   const context = await parent.context().browser().newContext({viewport: {width: 1280, height: 900}, serviceWorkers: 'block'});
   const page = await context.newPage();
-  const observe = p => { p.on('pageerror', e => errors.push(e.stack || e.message)); p.on('console', m => { if (m.type() === 'error') consoleErrors.push(m.text()); }); };
+  const observe = p => { p.on('pageerror', e => errors.push(e.stack || e.message)); p.on('console', m => { if (m.type() !== 'error') return;const url=m.location().url;if(url?.endsWith('/plugins/'+missingID+'/plugin.json')&&/\b404\b/.test(m.text()))(diagnostics.expectedMissingManifestErrors??=[]).push({url,text:m.text()});else consoleErrors.push(m.text()); }); };
   observe(page);
   const callOn = (p, name, args = {}) => p.evaluate(([n, a]) => frameAI.call(n, a), [name, args]);
   const call = (name, args = {}) => callOn(page, name, args);
@@ -160,7 +160,9 @@ export async function hashBestEffortBrowserChecks(parent) {
     const declaration = type => ({type, name: 'HASH fixture', fields: {Owner: '', Note: '', Value: 1}, textFields: ['Note']});
     await context.route('**/plugins/index.json', route => route.fulfill({json: [...catalogue, knownID + '/plugin.json', ...(lateInstalled ? [missingID + '/plugin.json'] : [])]}));
     await context.route('**/plugins/' + knownID + '/plugin.json', route => route.fulfill({json: {id: knownID, name: 'HASH known fixture', icon: '../mill/icon.svg', module: 'plugin.js', objects: [declaration(knownType), ...(lateInstalled ? [declaration(missingMeshType)] : [])]}}));
-    await context.route('**/plugins/' + missingID + '/plugin.json', route => route.fulfill({json: {id: missingID, name: 'HASH formerly unavailable fixture', icon: '../mill/icon.svg', module: 'plugin.js', objects: [declaration(missingType)], tags: [{kind: missingTag, name: 'Formerly unavailable tag', text: 'HT', fields: {Value: 12}}]}}));
+    // HASH now discovers referenced manifests directly, before catalogue loading.
+    // A missing package must return 404 until the late-installation case.
+    await context.route('**/plugins/' + missingID + '/plugin.json', route => lateInstalled?route.fulfill({json: {id: missingID, name: 'HASH formerly unavailable fixture', icon: '../mill/icon.svg', module: 'plugin.js', objects: [declaration(missingType)], tags: [{kind: missingTag, name: 'Formerly unavailable tag', text: 'HT', fields: {Value: 12}}]}}):route.fulfill({status:404,contentType:'text/plain',body:'Fixture plugin is not installed'}));
     const module = `export function activate(context) { context.operations.register([{id:'probe',description:'Read known HASH fixture',inputSchema:{type:'object',properties:{},additionalProperties:false},readOnly:true,run(hash) { const n=context.document.object(hash); return {hash:n.nativeHash,type:n.type,params:n.params}; }}]); }`;
     for (const id of [knownID, missingID]) await context.route('**/plugins/' + id + '/plugin.js', route => route.fulfill({contentType: 'text/javascript', body: module}));
     await page.goto(parent.url());
@@ -340,6 +342,7 @@ export async function hashBestEffortBrowserChecks(parent) {
         await late.goto(parent.url()); await ready(late);
         diagnostics.lateHardware = await attachGPU(late); lateScoped = true;
         checkHardware('Late-plugin context uses hardware WebGPU', diagnostics.lateHardware);
+        await callOn(late, 'plugins.list');
         const available = await callOn(late, 'app.describe');
         check('Both formerly unavailable object types are now installed', Object.hasOwn(available.objects, missingType) && Object.hasOwn(available.objects, missingMeshType));
         check('Formerly unavailable tag kind is now installed', (await callOn(late, 'tag.list')).some(tag => tag.kind === missingTag));
@@ -368,6 +371,7 @@ export async function hashBestEffortBrowserChecks(parent) {
     result = {pass: true, browserVerified: true, gpuVerified: true};
   } catch (error) {
     if (currentCase) currentCase.error = error.message;
+    try { diagnostics.failure = await page.evaluate(() => {const canvas=document.querySelector('#frame-engine-canvas');return {ready:canvas?.dataset.ready,operationError:canvas?.dataset.operationError,hashLoad:canvas?.dataset.hashLoad,scene:canvas?.dataset.scene,engineIdle:window.frameEngine?.idle,appInert:document.querySelector('#app')?.inert};}); } catch (captureError) { diagnostics.failureCaptureError = captureError.message; }
     result = {pass: false, browserVerified: false, gpuVerified: false, error: error.stack || String(error)};
   } finally {
     if (scoped) { try { diagnostics.gpu = await finishGPU(page); } catch (error) { diagnostics.gpuCaptureError = error.message; } }

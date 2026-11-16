@@ -1,15 +1,14 @@
-// Test the exact new Undo layer before replaying immutable historical proofs.
+// Bind the history adapter to the shipped embedded editor, without reconstructing old releases.
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
-import {historyBase,historyLayer} from './documentation-history-binding.mjs';
-const sha=v=>createHash('sha256').update(v).digest('hex'),checks=[];
-assert.equal(historyLayer.format,'frame-doc-history-layer-v1');assert.match(historyLayer.baseCommit,/^[a-f0-9]{40}$/);assert.deepEqual(Object.keys(historyLayer.files).sort(),['core/documentation-editor.mjs','frame-sw.js','index.html']);assert.deepEqual(Object.keys(historyLayer.newFiles),['core/documentation-history.mjs']);
-for(const [path,entry]of Object.entries(historyLayer.files)){
- const raw=await readFile(new URL('../'+path,import.meta.url),'utf8'),base=historyBase(path,raw);
- assert.equal(sha(raw),entry.releaseSHA256);assert.equal(sha(base),entry.baseSHA256);checks.push(path+': exact new and predecessor bytes');
- let forward=base;for(const p of entry.patches){assert.equal(forward.split(p.before).length-1,p.count);forward=forward.replace(p.before,p.after);}assert.equal(forward,raw);checks.push(path+': exact forward round trip');
- assert.throws(()=>historyBase(path,raw+' '),/Exact Undo release source/);checks.push(path+': extra byte rejected');
- const saved=entry.baseSHA256;try{entry.baseSHA256='0'.repeat(64);assert.throws(()=>historyBase(path,raw),/Exact Undo predecessor/);}finally{entry.baseSHA256=saved;}checks.push(path+': incorrect predecessor rejected');
-}
-console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,baseCommit:historyLayer.baseCommit}));
+import {inlineSource,history} from './documentation-source.mjs';
+import {verifyCurrentSource} from './current-source-baseline.mjs';
+
+const raw=await readFile(new URL('../index.html',import.meta.url)),source=raw.toString('utf8').replaceAll('\r\n','\n'),checks=[];
+assert.strictEqual(verifyCurrentSource('index.html',raw),raw);checks.push('History executes the exact current application bytes');
+const embedded=source.match(/<script id="frame-documentation-editor" type="text\/plain">([\s\S]*?)<\/script>/)?.[1];
+assert.equal(inlineSource,embedded);checks.push('Adapter extracts the shipped editor without rewriting its source');
+assert.ok(inlineSource.includes(history.toString()));checks.push('Executable history helper comes verbatim from the embedded editor');
+for(const changed of [Buffer.concat([raw,Buffer.from(' ')]),raw.subarray(1)])assert.throws(()=>verifyCurrentSource('index.html',changed),/Current source/);
+checks.push('Added and removed source bytes reject');
+console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,sourceBindingOnly:true,behavioralChecks:'documentation-history*.mjs',hardwareGPUValidated:false}));

@@ -21,7 +21,7 @@ export async function extrudePivotBrowserChecks(page){
   check('Adding a profile sets the lower near left local corner',owner.mesh?.triangles>0&&near(owner.pivot.slice(9),[10,20,0]),owner.pivot);
   const square=await call('scene.create',{type:'square'});
   const colors=await page.evaluate(([s,q])=>[s,q].map(id=>getComputedStyle(document.querySelector(`[data-id="${id}"] .ob-name`)).getPropertyValue('--object-color').trim()),[spline.id,square.id]);
-  check('Editable and parametric spline rows share cyan',colors.every(c=>c==='#7ebdd7'),colors);
+  check('Editable and parametric spline rows share the curve palette',colors.every(c=>c==='#7bbcd2'),colors);
   owner=await call('scene.update',{id:owner.hash,params:{offset:-15}});
   check('Negative Extrude uses the actual minimum depth',near(owner.pivot.slice(9),await localMin(owner.hash))&&near(owner.pivot.slice(9),[10,20,-15]),owner.pivot);
   await call('scene.select',{ids:[owner.hash]});

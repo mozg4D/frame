@@ -1,5 +1,10 @@
 // Test-only adapter. Keep the shipped diagnostics.pixels API limit unchanged.
 export const DIAGNOSTIC_PIXEL_LIMIT=64;
+// diagnostics.pixels accepts CSS coordinates; visit adjacent physical pixels.
+export function physicalPixelNeighborhoods(screens,rect,backing){
+ const stepX=rect.width/backing.width,stepY=rect.height/backing.height;
+ return screens.flatMap(([x,y])=>[-1,0,1].flatMap(dy=>[-1,0,1].map(dx=>[x+dx*stepX,y+dy*stepY])));
+}
 export async function readDiagnosticPixels(call,points,options={}){
  const colors=[];
  for(let offset=0;offset<points.length;offset+=DIAGNOSTIC_PIXEL_LIMIT){

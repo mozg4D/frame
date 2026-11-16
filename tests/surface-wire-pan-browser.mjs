@@ -5,12 +5,13 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
+import {physicalPixelNeighborhoods} from './diagnostic-pixels.mjs';
 
 export async function surfaceWirePanBrowserChecks(page){
  const checks=[],frames=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));console.log('PASS '+name);};
  const samples=async()=>{
-  const points=await page.evaluate(()=>[-45,-15,0,15,45].flatMap(y=>{const [x,z]=frameEngine.pluginProject([0,y,0]);return [-1,0,1].flatMap(dy=>[-1,0,1].map(dx=>[x+dx,z+dy]));}));
+  const observed=await page.evaluate(()=>{const r=frameEngine.renderer,rect=frameEngine.pluginView().rect;return {screens:[-45,-15,0,15,45].map(y=>frameEngine.pluginProject([0,y,0])),rect:{width:rect.width,height:rect.height},backing:{width:r.width,height:r.height}};}),points=physicalPixelNeighborhoods(observed.screens,observed.rect,observed.backing);
   const {colors}=await call('diagnostics.pixels',{points});
   return Array.from({length:5},(_,i)=>colors.slice(i*9,i*9+9).some(c=>[46,90,106].every((v,k)=>Math.abs(c[k]-v)<=2)));
  };

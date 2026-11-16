@@ -16,7 +16,7 @@ export async function hashBestEffortChecks(){
  const author=runtimeFunction('FramePlugins','FramePluginRecords','FrameMorph','frameCurves','framePackTrack',line('function frameAuthoring(')+';return frameAuthoring;')(FramePlugins,FramePluginRecords,{sceneChannels:()=>channels,serializedTags:(_n,t)=>structuredClone(t)},{},t=>t);
  const numeric={kind:'number',dimensions:1,base:1,keys:[[0,{v:1}],[60,{v:2}]]},vector={kind:'number',dimensions:3,base:[0,0,0],keys:[[0,{v:[0,0,0]}],[60,{v:[1,2,3]}]]},metadata={version:1,plugin:{id:'absent',type:'missing_type',params:{Owner:A,Text:B,Nested:{value:[1,true,'safe']}}},tags:[{uid:D,kind:'missing_tag',params:{Text:A}}],animation:[['param:gain',numeric],['tag:'+D+':Gain',numeric],['position',vector]]};
  try{
- const browserSource=await readFile(new URL('./hash-best-effort-browser.mjs',import.meta.url),'utf8'),openStart=browserSource.indexOf('function nativeOpenComplete('),openEnd=browserSource.indexOf('\n}\n',openStart)+2;
+ const browserSource=await readFile(new URL('./hash-best-effort-browser.mjs',import.meta.url),'utf8'),openStart=browserSource.indexOf('function nativeOpenComplete('),openEnd=browserSource.indexOf('\n}',openStart)+2;
  assert.ok(openStart>=0&&openEnd>openStart);
  const openPredicate=runtimeFunction('document','globalThis',browserSource.slice(openStart,openEnd)+';return nativeOpenComplete;'),completion={fileBytes:2636,previousHashLoad:null};
  const openState=()=>({app:{inert:false},canvas:{dataset:{ready:'true',hashLoad:JSON.stringify({objects:2,triangles:2,fileBytes:2636,elapsedMs:47.4}),scene:JSON.stringify({objects:2,triangles:2,vertices:6})}},frameEngine:{idle:true}});

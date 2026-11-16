@@ -12,7 +12,7 @@ const check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});a
 const measure=async(name,fn,budgetMs=1000)=>{const start=performance.now(),out=await fn(),ms=performance.now()-start;report.timings.push({name,ms,budgetMs});check(name+' completed latency',ms<budgetMs,{ms,budgetMs});return out;};
 const server=await serve();let browser,page;
 try{
- browser=await chromium.launch({headless:true,executablePath:process.env.FRAME_BROWSER,ignoreDefaultArgs:['--enable-unsafe-swiftshader'],args:['--enable-unsafe-webgpu','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
+ browser=await chromium.launch({channel:'chromium',headless:true,executablePath:process.env.FRAME_BROWSER,ignoreDefaultArgs:['--enable-unsafe-swiftshader'],args:['--enable-unsafe-webgpu','--disable-background-timer-throttling','--disable-renderer-backgrounding']});
  const context=await browser.newContext({viewport:{width:1280,height:900},deviceScaleFactor:report.dpr,serviceWorkers:'block'});context.on('page',p=>{p.on('pageerror',e=>report.errors.push(e.message));p.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());});});page=await context.newPage();await page.goto(server.url+'/index.html');await ready(page);
  const call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
  report.adapter=await page.evaluate(()=>{const a=frameEngine.renderer.device.adapterInfo;return {vendor:a.vendor,architecture:a.architecture,isFallbackAdapter:a.isFallbackAdapter};});check('Native adapter without software fallback',report.adapter.isFallbackAdapter===false&&!/software|swiftshader|llvmpipe/i.test(JSON.stringify(report.adapter)),report.adapter);

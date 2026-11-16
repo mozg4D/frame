@@ -1,5 +1,12 @@
 // Compare the actual shaded result with Solid at the identical camera. This
 // includes antialiased polygon edges without treating shaded surfaces as lines.
+export function maskPixelCoordinates(mask,rect,screens){
+ return screens.map(([x,y])=>[(x-rect.left)*mask.width/rect.width,(y-rect.top)*mask.height/rect.height]);
+}
+export async function projectMaskPoints(page,mask,points){
+ const {screens,rect}=await page.evaluate(points=>{const r=frameEngine.pluginView().rect;return {screens:points.map(p=>frameEngine.pluginProject(p)),rect:{left:r.left,top:r.top,width:r.width,height:r.height}};},points);
+ return maskPixelCoordinates(mask,rect,screens);
+}
 export async function polygonLineMask(page){
  const capture=phase=>page.evaluate(async phase=>{
   await frameEngine.draw(true);const r=frameEngine.renderer,d=r.device,width=r.width,height=r.height,stride=Math.ceil(width*4/256)*256,read=d.createBuffer({size:stride*height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});

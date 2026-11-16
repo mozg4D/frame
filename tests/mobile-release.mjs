@@ -52,7 +52,7 @@ export async function mobileReleaseChecks(page){
   const zoomBefore=(await state()).view.camera;await touch('touchStart',[[x-30,y0,0],[x+30,y0,1]]);await touch('touchMove',[[x-65,y0,0],[x+65,y0,1]]);await touch('touchEnd',[]);check('Pinch changes camera zoom',(await state()).view.camera[2]!==zoomBefore[2]);
   await touch('touchStart',[[x,y0]]);await touch('touchCancel',[]);await touch('touchStart',[[x,y0]]);await touch('touchEnd',[]);await page.waitForTimeout(80);await touch('touchStart',[[x,y0]]);await touch('touchEnd',[]);await state();check('Double tap toggles quad view',!(await state()).view.single);await call('view.set',{index:0,single:true});
   await touch('touchStart',[[x,y0]]);await page.waitForTimeout(650);check('Long press opens the application context menu',await page.locator('#menu').isVisible());await touch('touchEnd',[]);await page.keyboard.press('Escape');
-  const title=await page.title();check('Window title stays Frame while release identity remains in metadata',title==='Frame'&&await page.locator('meta[name="frame-version"]').getAttribute('content').then(v=>/^\d{4} \d{1,2} [a-z]{3} \d{2}:\d{2}$/.test(v)),title);
+  const title=await page.title(),file=await call('scene.file');check('Window title follows the current scene while release identity remains in metadata',file.name==='material-selects.hash'&&title==='Frame - '+file.name&&await page.locator('meta[name="frame-version"]').getAttribute('content').then(v=>/^\d{4} \d{1,2} [a-z]{3} \d{2}:\d{2}$/.test(v)),{title,file});
   return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}finally{await target?.close();await cdp?.detach();}
 }

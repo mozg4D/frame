@@ -15,6 +15,7 @@ import {cameraRelativeDepthChecks} from './camera-relative-depth.mjs';
 import {splineShaderSourceContractChecks} from './spline-shader-source-contract.mjs';
 import {splineDepthBrowserChecks} from './spline-depth-browser.mjs';
 import {plainPolygonLinesBrowserChecks} from './plain-polygon-lines-browser.mjs';
+import {polygonLineMaskContractChecks} from './polygon-line-mask-contract.mjs';
 import {animationTransactionChecks} from './animation-transaction.mjs';
 import {animationTransactionBrowserChecks} from './animation-transaction-browser.mjs';
 import {splinePlanarContractChecks} from './spline-planar-contracts.mjs';
@@ -185,6 +186,7 @@ try{
   report.pluginIconAlignmentCPU=await runStage('pluginIconAlignmentCPU',()=>pluginIconAlignmentChecks());
   report.iconRasterContractCPU=await runStage('iconRasterContractCPU',()=>iconRasterContractCPUChecks());
   report.splineDepthCPU=await runStage('splineDepthCPU',()=>splineDepthChecks());
+  report.polygonLineMaskCPU=await runStage('polygonLineMaskCPU',polygonLineMaskContractChecks);
   report.cameraRelativeDepthCPU=await runStage('cameraRelativeDepthCPU',()=>cameraRelativeDepthChecks());
   report.splineShaderSourceContractCPU=await runStage('splineShaderSourceContractCPU',()=>splineShaderSourceContractChecks());
   report.splinePaletteCPU=await runStage('splinePaletteCPU',()=>splinePaletteCPUChecks());

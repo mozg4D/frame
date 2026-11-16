@@ -3,14 +3,14 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
-import {polygonLineMask} from './polygon-line-mask.mjs';
+import {polygonLineMask,projectMaskPoints} from './polygon-line-mask.mjs';
 import {readDiagnosticPixels} from './diagnostic-pixels.mjs';
 
 export async function plainPolygonLinesBrowserChecks(page){
  const checks=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
  const warm=async()=>{await page.waitForFunction(()=>frameEngine.renderer.plainWireSurfaces?.get((!!frameEngine.pluginView().index)+':false')?.pipeline);await call('diagnostics.frame',{frames:2});};
- const hits=async(mask,points)=>{const screens=await page.evaluate(points=>points.map(p=>frameEngine.pluginProject(p)),points),set=new Set(mask.pixels);return screens.map(([x,y])=>[-1,0,1].some(dx=>[-1,0,1].some(dy=>set.has((Math.floor(y)+dy)*mask.width+Math.floor(x)+dx))));};
+ const hits=async(mask,points)=>{const screens=await projectMaskPoints(page,mask,points),set=new Set(mask.pixels);return screens.map(([x,y])=>[-1,0,1].some(dx=>[-1,0,1].some(dy=>set.has((Math.floor(y)+dy)*mask.width+Math.floor(x)+dx))));};
  try{
   for(const storage of ['auto','texture'])for(const index of [0,2]){
    const label=storage+' view '+index,rearZ=index===0?2:-2;
@@ -46,7 +46,7 @@ export async function plainPolygonLinesBrowserChecks(page){
 
 if(process.argv[1]===fileURLToPath(import.meta.url)){
  const session=await launch({headless:true}),report={pass:false,errors:[]};
- try{const context=await session.browser.newContext({viewport:{width:1000,height:760},deviceScaleFactor:1,serviceWorkers:'block'}),page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.stack));await page.goto(session.url+'/index.html');await ready(page);report.adapter=await page.evaluate(()=>{const d=frameEngine.renderer.device;window.__plainErrors=[];d.addEventListener('uncapturederror',e=>__plainErrors.push(e.error.message));d.pushErrorScope('validation');return {vendor:d.adapterInfo.vendor,isFallbackAdapter:d.adapterInfo.isFallbackAdapter};});assert.equal(report.adapter.isFallbackAdapter,false);Object.assign(report,await plainPolygonLinesBrowserChecks(page));report.gpu=await page.evaluate(async()=>({scope:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__plainErrors}));report.pass&&=!report.errors.length&&!report.gpu.scope&&!report.gpu.uncaptured.length;
+ try{const context=await session.browser.newContext({viewport:{width:1000,height:760},deviceScaleFactor:Number(process.env.FRAME_DPR||1),serviceWorkers:'block'}),page=await context.newPage();page.on('pageerror',e=>report.errors.push(e.stack));await page.goto(session.url+'/index.html');await ready(page);report.adapter=await page.evaluate(()=>{const d=frameEngine.renderer.device;window.__plainErrors=[];d.addEventListener('uncapturederror',e=>__plainErrors.push(e.error.message));d.pushErrorScope('validation');return {vendor:d.adapterInfo.vendor,isFallbackAdapter:d.adapterInfo.isFallbackAdapter};});assert.equal(report.adapter.isFallbackAdapter,false);Object.assign(report,await plainPolygonLinesBrowserChecks(page));report.gpu=await page.evaluate(async()=>({scope:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__plainErrors}));report.pass&&=!report.errors.length&&!report.gpu.scope&&!report.gpu.uncaptured.length;
  }catch(error){report.error=error.stack;}
  finally{await session.close();report.indexSHA256=createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex');await mkdir(new URL('results/',import.meta.url),{recursive:true});await writeFile(new URL('results/plain-polygon-lines-browser.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify({pass:report.pass,checks:report.checks?.length,error:report.error,state:report.state,pipelines:report.pipelines,gpu:report.gpu},null,2));process.exitCode=report.pass?0:1;}
 }

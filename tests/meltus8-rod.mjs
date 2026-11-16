@@ -13,7 +13,7 @@ let report;
 try{
  await ready(page);page.on('pageerror',e=>errors.push(e.stack));
  const adapter=await page.evaluate(()=>{const a=frameEngine.renderer.device.adapterInfo;return {vendor:a.vendor,description:a.description,isFallbackAdapter:a.isFallbackAdapter};});
- check('Native hardware WebGPU at DPR 1',adapter.isFallbackAdapter===false&&!/swiftshader|software|llvmpipe/i.test(JSON.stringify(adapter))&&await page.evaluate(()=>devicePixelRatio===1),adapter);
+ const expectedDpr=Number(process.env.FRAME_DPR||1),dpr=await page.evaluate(()=>devicePixelRatio);check('Native hardware WebGPU at DPR '+expectedDpr,adapter.isFallbackAdapter===false&&!/swiftshader|software|llvmpipe/i.test(JSON.stringify(adapter))&&dpr===expectedDpr,{...adapter,dpr});
  await page.evaluate(()=>{window.__rodGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__rodGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});
  const fixture=await readFile(new URL('./scenes/meltus8-rod.hash',import.meta.url));
  const opened=await timed('Open supplied meltus8',()=>call('scene.open',{base64:fixture.toString('base64'),name:'meltus8.hash'}),5000);
