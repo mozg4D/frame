@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 03:51">
+<meta name="frame-version" content="2026 16 nov 14:53">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -4065,6 +4065,37 @@ function clipPolylineSegments(positions, indices, points, lines, tolerance = 0, 
   return { lineIds: Uint32Array.from(lineIds), edgeIds: Uint32Array.from(edgeIds), t: Float32Array.from(ts), grid: S.g, postings: S.postings, tolerance: S.tolerance, probes, transitions };
 }
 
+// Boolean display strokes must use final canonical edges: clipping tolerances and
+// simplified seams do not retain the exact endpoint pairs used by GPU Isoparms.
+function booleanDisplayEdges(positions,indices,points,lines,seamPositions,seamIndices){
+  const guides=[],roundoff=2**-22,minimum=2**-149;
+  const add=(p,a,b)=>{a*=3;b*=3;const start=Array.from(p.subarray(a,a+3)),end=Array.from(p.subarray(b,b+3)),delta=end.map((v,k)=>v-start[k]);let axis=0;for(let k=1;k<3;k++)if(Math.abs(delta[k])>Math.abs(delta[axis]))axis=k;if(!delta[axis])return;
+    const error=start.map((v,k)=>Math.max(minimum,Math.max(Math.abs(v),Math.abs(end[k]))*roundoff));guides.push({start,end,delta,axis,error,min:start.map((v,k)=>Math.min(v,end[k])-error[k]),max:start.map((v,k)=>Math.max(v,end[k])+error[k])});};
+  for(let i=0;i<(lines?.length||0);i+=2)for(let k=1;k<lines[i+1];k++)add(points,lines[i]+k-1,lines[i]+k);
+  for(let i=0;i<(seamIndices?.length||0);i+=2)add(seamPositions,seamIndices[i],seamIndices[i+1]);
+  if(!guides.length)return new Uint32Array(0);
+  const order=Uint32Array.from({length:guides.length},(_,i)=>i),nodes=[];
+  function build(start,end){
+    const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(let i=start;i<end;i++){const g=guides[order[i]];for(let k=0;k<3;k++){min[k]=Math.min(min[k],g.min[k]);max[k]=Math.max(max[k],g.max[k]);}}
+    const node={min,max,start,end,left:-1,right:-1},index=nodes.length;nodes.push(node);
+    if(end-start>16){const spans=max.map((v,k)=>v-min[k]),axis=spans.indexOf(Math.max(...spans)),middle=(min[axis]+max[axis])/2;let left=start,right=end-1;
+      while(left<=right){const g=guides[order[left]];if((g.start[axis]+g.end[axis])/2<middle)left++;else{const id=order[left];order[left]=order[right];order[right--]=id;}}
+      const split=left===start||left===end?(start+end)>>1:left;node.left=build(start,split);node.right=build(split,end);
+    }return index;
+  }
+  build(0,order.length);
+  const on=(offset,g)=>{const t=(positions[offset+g.axis]-g.start[g.axis])/g.delta[g.axis],pad=g.error[g.axis]/Math.abs(g.delta[g.axis]);if(t < -pad||t>1+pad)return false;for(let k=0;k<3;k++)if(Math.abs(positions[offset+k]-(g.start[k]+g.delta[k]*t))>g.error[k])return false;return true;};
+  const seen=new Set(),out=[],V=positions.length/3,numeric=V*V<=Number.MAX_SAFE_INTEGER,stack=[];
+  for(let i=0;i<indices.length;i+=3)for(let k=0;k<3;k++){
+    const a=indices[i+k],b=indices[i+(k+1)%3],lo=Math.min(a,b),hi=Math.max(a,b),key=numeric?lo*V+hi:lo+':'+hi;if(seen.has(key))continue;seen.add(key);stack.push(0);
+    while(stack.length){const n=nodes[stack.pop()];if([0,1,2].some(k=>Math.min(positions[a*3+k],positions[b*3+k])<n.min[k]||Math.max(positions[a*3+k],positions[b*3+k])>n.max[k]))continue;
+      if(n.left>=0){stack.push(n.left,n.right);continue;}
+      let found=false;for(let j=n.start;j<n.end;j++){const g=guides[order[j]];if(on(a*3,g)&&on(b*3,g)){found=true;break;}}if(found){out.push(a,b);stack.length=0;}
+    }
+  }
+  return Uint32Array.from(out);
+}
+
 
 var DIRS_RAW = [
   [1, 0.1732050807568877, 0.317837245195782],
@@ -7047,13 +7078,13 @@ async function handleBooleanWorkerMessage(data = {}) {
     const {positions,indices,triangleMaterials}=cleaned,transferTrusted=cleaned.inheritedDefects!==undefined?!cleaned.newDefects.length:!cleaned.nonManifoldEdges&&(!expectsClosed||cleaned.topologyValid);
     Object.assign(report,{orientationWarnings:cleaned.orientationWarnings||0,newDefects:cleaned.newDefects?.slice(0,8),newDefectCount:cleaned.newDefects?.length||0,inheritedDefects:cleaned.inheritedDefects||0,disjointBounds:!!result.stats?.disjointBounds,postprocessMilliseconds:performance.now()-t,transferTrusted,trusted:!!report.topologyValid&&!report.ambiguous&&transferTrusted,watertight:!cleaned.boundaryEdges&&!cleaned.nonManifoldEdges&&!cleaned.orientationWarnings,empty:!indices.length,
       postTransfer:{vertices:positions.length/3,triangles:indices.length/3,weldedVertices:cleaned.weldedVertices,tolerance:cleaned.tolerance,droppedDegenerate:cleaned.droppedDegenerate,droppedDuplicate:cleaned.droppedDuplicate,conformedEdges:cleaned.conformedEdges||0,boundaryEdges:cleaned.boundaryEdges,nonManifoldEdges:cleaned.nonManifoldEdges,expectsClosed,fastPath:!!cleaned.fastPath}});
-    let cageClip=null;
-    if(report.trusted&&indices.length&&data.cagePoints?.length){postMessage({progress:'Isoparms'});const startClip=performance.now();cageClip=clipPolylineSegments(positions,indices,data.cagePoints,data.cageLines,cleaned.tolerance,{steps:32,refine:18});report.cageClipMilliseconds=performance.now()-startClip;}
+    let displayEdges=new Uint32Array(0);
+    if(report.trusted&&indices.length){postMessage({progress:'Isoparms'});const startDisplay=performance.now();displayEdges=booleanDisplayEdges(positions,indices,data.cagePoints,data.cageLines,seamPositions,seamIndices);report.displayEdgeMilliseconds=performance.now()-startDisplay;}
     let render=null;
     if(data.prepareRender!==false&&report.trusted&&indices.length){const t=performance.now();render=prepareBooleanRender(positions,indices,triangleMaterials,cleaned.triangleSources,{positions:data.positionsA,indices:data.indicesA,normals:data.normalsA},{positions:data.positionsB,indices:data.indicesB,normals:data.normalsB},data.creaseCos);report.renderPreparationMilliseconds=performance.now()-t;}
     report.workerTotalMilliseconds=performance.now()-started;
-    return {message:{id:data.id,ok:true,rc,wallMilliseconds,positions,indices,faceMaterials:triangleMaterials,seamPositions,seamIndices,report,cageClip,render,wasmHeapBytes:0},
-      transfer:[positions.buffer,indices.buffer,triangleMaterials.buffer,seamPositions.buffer,seamIndices.buffer,...(render?[render.positions.buffer,render.normals.buffer,render.indices.buffer,render.source.buffer,render.materialIds.buffer,render.bounds.buffer,render.wire.buffer]:[]),...(cageClip?[cageClip.lineIds.buffer,cageClip.edgeIds.buffer,cageClip.t.buffer]:[])]};
+    return {message:{id:data.id,ok:true,rc,wallMilliseconds,positions,indices,faceMaterials:triangleMaterials,seamPositions,seamIndices,report,displayEdges,render,wasmHeapBytes:0},
+      transfer:[positions.buffer,indices.buffer,triangleMaterials.buffer,seamPositions.buffer,seamIndices.buffer,displayEdges.buffer,...(render?[render.positions.buffer,render.normals.buffer,render.indices.buffer,render.source.buffer,render.materialIds.buffer,render.bounds.buffer,render.wire.buffer]:[])]};
   } catch (error) {
     return { message: { id: data.id, ok: !1, error: error?.message || String(error), wasmHeapBytes: 0 }, transfer: [] };
   }
@@ -15253,7 +15284,8 @@ window.frameEngine=(()=>{
       let owned=true;try{
         const pipeline=await pagedPipeline(renderer,'disjoint Boolean assembly',`@group(0) @binding(0) var<storage,read> p:array<f32>;@group(0) @binding(1) var<storage,read> ix:array<u32>;@group(0) @binding(2) var<storage,read_write> out:array<f32>;@group(0) @binding(3) var<storage,read_write> oi:array<u32>;struct Task{translation:vec4f,counts:vec4u};@group(0) @binding(4) var<uniform> task:Task;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) groups:vec3u){let i=gid.x+gid.y*groups.x*128u;if(i<task.counts.x){for(var k=0u;k<3u;k++){out[(task.counts.z+i)*3u+k]=p[i*3u+k]+task.translation[k];}}if(i<task.counts.y){oi[task.counts.w+i]=ix[i]+task.counts.z;}}`);
         const encoder=d.createCommandEncoder();let vo=0,io=0;for(const [i,m]of list.entries()){const bytes=new ArrayBuffer(32);new Float32Array(bytes).set(matrices[i].slice(12,15));new Uint32Array(bytes).set([m.vertexCount,m.count,vo,io],4);const task=makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});temporary.push(task);d.queue.writeBuffer(task,0,bytes);const group=d.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries:[m.positions,m.indices,positions,indices,task].map((buffer,binding)=>({binding,resource:{buffer}}))});dispatchOn(renderer,encoder,pipeline,group,Math.max(m.vertexCount,m.count));vo+=m.vertexCount;io+=m.count;}d.queue.submit([encoder.finish()]);
-        if(!current())return null;const gpuInput={vertices:positions,indices,vertexCount:vertices,triangleCount:corners/3,gpuCanonical:true,nativeExact:true};owned=false;await installSplineSurface(n,{gpuInput,report},current);return report;
+        if(!current())return null;const gpuInput={vertices:positions,indices,vertexCount:vertices,triangleCount:corners/3,gpuCanonical:true,nativeExact:true};owned=false;await installSplineSurface(n,{gpuInput,report},current);
+        const K=FrameSpline.K(),cages=list.flatMap((m,i)=>{const data=replicaDisplay(m)?.data;return data?[K.transformWholeSplineData(structuredClone(data),K.matrix(matrices[i]))]:[];});if(cages.length)await setSplineDisplay(n.nativeHash,K.merge(cages),true,current);return report;
       }finally{if(owned){releaseGPU(positions);releaseGPU(indices);}for(const b of temporary)releaseGPU(b);}
     }
 
@@ -15289,18 +15321,16 @@ window.frameEngine=(()=>{
         for(const contour of result.curveContours||[]){const cp=contour.map(c=>c.cp.map(lift)),q=K.addSplineSequence(cage,true),vertices=cp.map(c=>K.addSplineVertex(cage,c[0]));cp.forEach((c,i)=>{const id=K.addSplineSegment(cage,q,vertices[i],vertices[(i+1)%vertices.length],FM.sub(c[1],c[0]),FM.sub(c[2],c[3]));cage.segments[id].soft=!!contour[i].soft;});}
         if(!valid())return null;removeSpline(hash);await setSplineDisplay(hash,cage,false,valid);
       }else{
-        if(surface.some(v=>!v))throw Error('Use two polygon/surface operands or two planar spline operands');const fast=await disjointBoolean(n,roots,op,valid);if(fast){if(!fast.empty&&data.every(Boolean)){const cages=data.slice(0,op===1?1:2).map((d,i)=>splineInFrame(d,roots[i].nativeHash,hash));await setSplineDisplay(hash,FrameSpline.K().merge(cages),true,valid);}return {hash,signature:key,data:null,report:fast,empty:fast.empty};}
-        const geometryCache=new Map();async function operand(root){const list=[];async function collect(c){if(!c.enabled||c.type==='boolean'&&FrameSpline.states.get(c.id)?.empty)return;const meshes=scene.meshes.filter(m=>m.hashId===c.nativeHash);if(meshes.length){for(const mesh of meshes){let raw=geometryCache.get(mesh.positions);if(!raw){raw=await readGeometry(mesh);geometryCache.set(mesh.positions,raw);}const world=mesh.replicaMatrix?FM.mul(objectWorld(mesh.hashId),mesh.replicaMatrix):objectWorld(mesh.hashId);list.push({positions:raw.vertices,indices:raw.indices,faceMaterials:await booleanFaceMaterials(mesh,materialRegistry),matrix:Array.from(FM.mul(FM.inv(objectWorld(hash)),world))});}return;}for(const ch of children(c.id))await collect(ch);}await collect(root);return list;}
-        const cagePoints=[],cageLines=[];for(let i=0;i<data.length;i++)if(data[i]){const d=splineInFrame(data[i],roots[i].nativeHash,hash);for(const id of Object.keys(d.segments)){const points=FrameSpline.K().sampleSplineSegment(d,id);cageLines.push(cagePoints.length/3,points.length);for(const p of points)cagePoints.push(...p.position);}}
-        const cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),partsA=await operand(roots[0]),partsB=await operand(roots[1]),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set);
+        if(surface.some(v=>!v))throw Error('Use two polygon/surface operands or two planar spline operands');const fast=await disjointBoolean(n,roots,op,valid);if(fast)return {hash,signature:key,data:null,report:fast,empty:fast.empty};
+        const cagePoints=[],cageLines=[],geometryCache=new Map();async function operand(root){const list=[];async function collect(c){if(!c.enabled||c.type==='boolean'&&FrameSpline.states.get(c.id)?.empty)return;const meshes=scene.meshes.filter(m=>m.hashId===c.nativeHash);if(meshes.length){for(const mesh of meshes){let raw=geometryCache.get(mesh.positions);if(!raw){raw=await readGeometry(mesh);geometryCache.set(mesh.positions,raw);}const world=mesh.replicaMatrix?FM.mul(objectWorld(mesh.hashId),mesh.replicaMatrix):objectWorld(mesh.hashId),matrix=FM.mul(FM.inv(objectWorld(hash)),world),lines=replicaDisplay(mesh)?.lineValues;
+          if(lines)for(let i=0;i<lines.length;i+=6){cageLines.push(cagePoints.length/3,2);cagePoints.push(...FM.point(matrix,lines.subarray(i,i+3)),...FM.point(matrix,lines.subarray(i+3,i+6)));}
+          list.push({positions:raw.vertices,indices:raw.indices,faceMaterials:await booleanFaceMaterials(mesh,materialRegistry),matrix:Array.from(matrix)});}return;}for(const ch of children(c.id))await collect(ch);}await collect(root);return list;}
+        const partsA=await operand(roots[0]),partsB=await operand(roots[1]),cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set);
         if(!result.report?.trusted)throw Error('Boolean topology could not be validated: '+JSON.stringify(result.report));if(!valid())return null;
         if(result.indices.length)await installSplineSurface(n,{vertices:result.positions,indices:result.indices,nativeExact:true,tasks:new Uint8Array(0),packets:new Float32Array(0),report:result.report},valid);else removeSpline(hash);installBooleanMaterials(n,result,materialRegistry);
         if(result.indices.length){const previous=splineDisplays.get(hash);if(previous){for(const b of previous.buffers)releaseGPU(b);splineDisplays.delete(hash);}const K=FrameSpline.K(),display=K.createSplineData();
-          // Source cage curves are clipped against the final surface by the legacy worker;
-          // Boolean seams use the same derived display owner, never editable mesh data.
-          const emit=(a,b)=>{if(Math.hypot(...FM.sub(a,b))<1e-10)return;const q=K.addSplineSequence(display,false),u=K.addSplineVertex(display,a),v=K.addSplineVertex(display,b);K.addSplineSegment(display,q,u,v);};
-          if(result.cageClip){const clip=result.cageClip;for(let i=0;i<clip.lineIds.length;i++){const edge=cageLines[clip.lineIds[i]*2]+clip.edgeIds[i],a=cagePoints.slice(edge*3,edge*3+3),b=cagePoints.slice(edge*3+3,edge*3+6);emit(a.map((v,k)=>v+(b[k]-v)*clip.t[i*2]),a.map((v,k)=>v+(b[k]-v)*clip.t[i*2+1]));}}
-          for(let i=0;i<result.seamIndices.length;i+=2){const a=result.seamIndices[i]*3,b=result.seamIndices[i+1]*3;emit(Array.from(result.seamPositions.subarray(a,a+3)),Array.from(result.seamPositions.subarray(b,b+3)));}
+          // Preserve every split endpoint from the final mesh; GPU marking stays exact.
+          for(let i=0;i<result.displayEdges.length;i+=2){const a=result.displayEdges[i]*3,b=result.displayEdges[i+1]*3,q=K.addSplineSequence(display,false),u=K.addSplineVertex(display,Array.from(result.positions.subarray(a,a+3))),v=K.addSplineVertex(display,Array.from(result.positions.subarray(b,b+3)));K.addSplineSegment(display,q,u,v);}
           if(Object.keys(display.segments).length){if(await setSplineDisplay(hash,display,true,valid)===false)return null;splineDisplays.get(hash).booleanSeamOnly=!cageLines.length;}
         }
       }

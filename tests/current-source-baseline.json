@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 03:51",
+  "version": "2026 16 nov 14:53",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -403,7 +403,8 @@
       "package.json",
       "tests/run.mjs",
       "tests/boolean-patch-feedback.mjs",
-      "tests/scenes/boolean-meltus8.hash"
+      "tests/scenes/boolean-meltus8.hash",
+      "tests/boolean-isoparms.mjs"
     ],
     "meltus8-rod": [
       "index.html",
@@ -445,11 +446,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "35b689df1a6d643f20d726093a344e1ef406945975842e938351aebe8d131d75"
+      "sha256": "f644cf4f137f0d49a074e487bd176d8d40aa236fe0fa1d02a9d28219b9468196"
     },
     "index.html": {
-      "bytes": 2884015,
-      "sha256": "0896d413b90efd04a7028f8773cb7a089aac5c37b13ef8c1fd067bd8f16b9be7"
+      "bytes": 2886480,
+      "sha256": "681d81eb8ef3ad7b5eec8eeab40c3f73b93e72307def89e67a5c6f48fd415293"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -644,8 +645,8 @@
       "sha256": "1d9bf4babc4c9e8e26c09f316b88b6c8d9c5d03ab055d6f8d11b74e422788212"
     },
     "tests/run.mjs": {
-      "bytes": 34904,
-      "sha256": "4b29ab69f20e51a7647c60d98e352a78d2643c03ef4f8999f0622af70720d75d"
+      "bytes": 35048,
+      "sha256": "1d0dbab193f5e123ad4eba70888123af858e4ff5d920cd43d297fa91b825a778"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1016,8 +1017,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 68073,
-      "sha256": "45bdff3fd740b8df1fed1a9b77477ded0a99a74c3590de96ee2d20a00032a4c1"
+      "bytes": 68549,
+      "sha256": "52441ec57c23cc6d02305da34cba9b73d856bcd8f5737f1d6c29cd6916430921"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1154,6 +1155,10 @@
     "tests/polygon-line-mask-contract.mjs": {
       "bytes": 2733,
       "sha256": "6185e5a3194aa8a4332a73ea452373c843e2a2de016af6db17f6de1035051e0d"
+    },
+    "tests/boolean-isoparms.mjs": {
+      "bytes": 8457,
+      "sha256": "b1560f283787142fcee527ec2bf38a8d6c6320a2bb1b4d09c9d65fd29f8f2440"
     }
   }
 }
