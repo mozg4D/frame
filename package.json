@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:recent-camera-lines": "node tests/recent-files.mjs && node tests/recent-camera-lines-browser.mjs",
     "test:panel-layout": "node tests/panel-layout-browser.mjs",
     "test:collaboration:cpu": "node tests/ai-collaboration.mjs",
     "test:collaboration": "node tests/ai-collaboration.mjs && node tests/ai-collaboration-browser.mjs",

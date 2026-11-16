@@ -307,3 +307,5 @@ tests/polygon-line-mask-contract.mjs text eol=lf
 tests/boolean-patch-feedback.mjs text eol=lf
 tests/panel-layout-browser.mjs text eol=lf
 tests/attributes-choice-browser.mjs text eol=lf
+tests/recent-files.mjs text eol=lf
+tests/recent-camera-lines-browser.mjs text eol=lf

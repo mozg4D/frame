@@ -52,6 +52,7 @@ import {fileHostConcurrencyChecks} from './file-host-concurrency.mjs';
 import {fileHostLargeBrowserChecks} from './file-host-large-browser.mjs';
 import {hashSaveStreamingChecks} from './hash-save-streaming.mjs';
 import {filePermissionChecks} from './file-permission.mjs';
+import {recentFileChecks} from './recent-files.mjs';
 import {filePermissionBrowserChecks} from './file-permission-browser.mjs';
 import {fileHostIdleChecks} from './file-host-idle.mjs';
 import {fileHostChecks} from './file-host.mjs';
@@ -199,7 +200,7 @@ try{
   report.selectionBoundsFlashCPU=await runStage('selectionBoundsFlashCPU',()=>selectionBoundsFlashChecks());
   report.objectMarqueeCPU=await runStage('objectMarqueeCPU',()=>objectMarqueeChecks());
   report.perspectiveClippingCPU=await runStage('perspectiveClippingCPU',()=>perspectiveClippingChecks());
-  report.filePermissionActivation=await runStage('filePermissionActivation',()=>filePermissionActivationChecks({executablePath:process.env.FRAME_BROWSER}));report.fileHostConcurrency=await runStage('fileHostConcurrency',()=>fileHostConcurrencyChecks());report.filePermissionCPU=await runStage('filePermissionCPU',()=>filePermissionChecks());report.fileHostIdle=await runStage('fileHostIdle',()=>fileHostIdleChecks());report.fileHostCPU=await runStage('fileHostCPU',()=>fileHostChecks());
+  report.filePermissionActivation=await runStage('filePermissionActivation',()=>filePermissionActivationChecks({executablePath:process.env.FRAME_BROWSER}));report.fileHostConcurrency=await runStage('fileHostConcurrency',()=>fileHostConcurrencyChecks());report.filePermissionCPU=await runStage('filePermissionCPU',()=>filePermissionChecks());report.recentFilesCPU=await runStage('recentFilesCPU',()=>recentFileChecks());report.fileHostIdle=await runStage('fileHostIdle',()=>fileHostIdleChecks());report.fileHostCPU=await runStage('fileHostCPU',()=>fileHostChecks());
   report.fileBridgeCPU=await runStage('fileBridgeCPU',()=>fileBridgeCPUChecks());
   report.instanceSplineCPU=await runStage('instanceSplineCPU',()=>instanceSplineCPUChecks());
   report.cameraHashCoordinates=await runStage('cameraHashCoordinates',()=>cameraHashCoordinateChecks());
