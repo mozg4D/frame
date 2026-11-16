@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 15:44",
+  "version": "2026 16 nov 16:45",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -446,11 +446,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "51c856031bd42e05e3c6c59c5e34cf10f08471e1dbb695746c5b8322fed83b60"
+      "sha256": "75ed83e5df3d7031137749d8398d4318e763047c9604319cf9221b41ceccab7b"
     },
     "index.html": {
-      "bytes": 2886606,
-      "sha256": "6148c0744ff31932ab2c883ce98dfbd6d5866356c6413d6966f1801a66988513"
+      "bytes": 2887174,
+      "sha256": "6e1fa2b792e4955f1f674581abe0bd30920e6465d7e449cd4cafb9347b397e3a"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -645,8 +645,8 @@
       "sha256": "1d9bf4babc4c9e8e26c09f316b88b6c8d9c5d03ab055d6f8d11b74e422788212"
     },
     "tests/run.mjs": {
-      "bytes": 35048,
-      "sha256": "1d0dbab193f5e123ad4eba70888123af858e4ff5d920cd43d297fa91b825a778"
+      "bytes": 35203,
+      "sha256": "6e5e94ac835d03ca2bef94be0d286c0d13d3ca01920db46f1745a3b4bdf435c8"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -889,8 +889,8 @@
       "sha256": "3d8d092c34cf34ff20bf8dd60ec526042b6f23b62c846c3b5c34ec99efe3b3e9"
     },
     "plugins/3d-printer/plugin.js": {
-      "bytes": 83432,
-      "sha256": "87c214442c83404c5307ecda0a3d3a12b69cf9c3067841e3c333db416d6b3bc7"
+      "bytes": 90326,
+      "sha256": "b8c1940a56a42b5448db349f2acd446affbd2e8d869f62b4617c1f2bcc9b3f29"
     },
     "plugins/mill/plugin.js": {
       "bytes": 265407,
@@ -1021,8 +1021,8 @@
       "sha256": "52441ec57c23cc6d02305da34cba9b73d856bcd8f5737f1d6c29cd6916430921"
     },
     "plugins/3d-printer/AGENTS.md": {
-      "bytes": 8738,
-      "sha256": "6d490ac3a915f4ec6049c78cbee06b6846868af20b065a705617fd1abb80411d"
+      "bytes": 9864,
+      "sha256": "730717aa630da53fa12aa9fa54096ffd5b78fcada98b0d0c2724a6c2f228761c"
     },
     "manifest.webmanifest": {
       "bytes": 1017,

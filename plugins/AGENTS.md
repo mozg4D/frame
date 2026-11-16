@@ -34,11 +34,13 @@
 ## Rendering and operations
 
 - context.viewport.register owns local helper lines/bounds/pivot, settings/surface-warning shader and render/retire hooks on the shared bridge. Render borrows open pass/camera/frame/device; never end/destroy them. requestDraw schedules rendering; requestAttributes refreshes actions/plugin overlay.
+- context.viewport.isVisible(hash) reports the registered owner's effective viewport visibility, including ancestors, enabled policy, Solo and Solid/Lines mode. Reuse it for custom navigation queries instead of treating draw callbacks as a per-frame visibility ledger (cached views need not redraw).
 - renderKind: solid (default, Solid on), overlay (Solid or Lines), helper (also both off). Stage independently orders callbacks. Visibility/enabled policy/ancestors/Solo still apply. Line-only warnings use evaluated depth; both off suppresses warnings.
 - Per-type helpers use viewport.helpers. Custom geometry needs matching shared bounds/picking support before claiming viewport selection.
 - Optional context.viewport.cameraWGSL defines frameCameraRelative(rotation): subtract 3.2 from translation Z, eye-Z becomes zero. Insert after WGSL directives; projection/inverse reconstruction both use returned translation. Borrowed camera remains 144 bytes/36 floats; Float32 camera-origin error remains.
 - context.operations.register owns schemas/readOnly/run; plugins.command validates before dispatch. Long jobs return handles promptly. context.update uses native Undo. Attributes actions use native controls; only Printer Slice may show short progress. Diagnostics belong in API.
 - context.editor integrates component selection/transforms/copy/animation/flush. flush({output:true,frame}) must finish exact physical interval/GPU work before offline output. Shared 60 fps timeline owns playback.
+- editor.navigation(x,y) may asynchronously return {depth} in the native camera ray's parameter units. Navigation dispatch awaits every provider and chooses the nearest finite positive depth; an asynchronous miss must not intercept later plugins. Query actual displayed geometry, retain bounded readbacks and reject stale asynchronous results.
 
 Each plugin owns one AGENTS.md and tests/index.mjs exporting async pluginChecks(page) -> {pass,checks,timings,error?}; keep fixtures/helpers local. Standard/stress runs Atomic checks by default; other plugin checks run only when explicitly requested with --plugins=<id,...> or --plugins=all. Root owns global verification/publication rules; plugin documents own only specific limits/commands.
 

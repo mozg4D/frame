@@ -1,6 +1,7 @@
 import {selectedPlugins,extraPluginsEnabled,excludedPluginResult,pluginEnabled} from './test-policy.mjs';
 import {collaborationChecks} from './ai-collaboration.mjs';
 import {pluginLoadingChecks} from './plugin-loading.mjs';
+import {pluginNavigationChecks} from './plugin-navigation.mjs';
 import {pluginWarningModeChecks} from './plugin-warning-modes.mjs';
 import {instancePolygonCageChecks} from './instance-polygon-cage.mjs';
 import {viewportConnectedRoutingChecks} from './viewport-connected-routing.mjs';
@@ -179,6 +180,7 @@ const runStage=async(name,fn)=>{
 console.log('[tests] Scope: core + '+selectedPlugins.join(',')+'; DPR '+report.dpr+'; profile '+report.profile+'; large fixtures '+args.includes('--fixtures'));
 
 try{
+  report.pluginNavigationCPU=await runStage('pluginNavigationCPU',pluginNavigationChecks);
   report.hashSaveStreamingCPU=await runStage('hashSaveStreamingCPU',hashSaveStreamingChecks);
   report.numericDisplayCPU=await runStage('numericDisplayCPU',()=>numericDisplayChecks());
   report.sceneCreateNameCPU=await runStage('sceneCreateNameCPU',()=>sceneCreateNameCPUChecks());
