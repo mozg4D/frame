@@ -1,7 +1,7 @@
 import {readFile} from 'node:fs/promises';
 // Exercise shared bridge pixels and native GPU submissions, without a mock renderer.
 export async function pluginWarningModeChecks(page){
- const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),red=c=>c[0]>200&&c[1]<60&&c[2]<60;
+ const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),red=c=>c[0]>70&&c[0]-c[1]>40&&c[0]-c[2]>40;
  const check=(name,pass,detail)=>{checks.push({name:'Plugin warning modes: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
  try{
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),factory=Function(html.slice(html.indexOf('  function pluginHelperDescriptor('),html.indexOf('  function use(entry)'))+';return pluginViewportDescriptor;')(),base={bounds:{min:[0,0,0],max:[1,1,1]},lines:new Float32Array(),color:[1,1,1,1],selectedColor:[1,1,1,1],settings:()=>[0,0,0,0],shader:'discard'};
@@ -10,7 +10,7 @@ export async function pluginWarningModeChecks(page){
   const printer=await call('plugins.create',{plugin:'3d-printer'}),cube=await call('scene.create',{type:'cube'});
   await call('transform.set',{channel:'position',axis:1,value:300});await call('scene.select',{ids:[]});
   await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:printer.hash});const camera=(await call('scene.inspect')).view.camera;camera[1]=-Math.PI/2;await call('view.set',{camera,focus:printer.hash});
-  const point=(await call('view.project',{point:[60,300,60]})).screen,sample=async()=>{await call('diagnostics.frame',{frames:2});return (await call('diagnostics.pixels',{points:[(await call('view.project',{point:[60,300,60]})).screen]})).colors[0];};
+  const point=(await call('view.project',{point:[60,300,45]})).screen,sample=async()=>{await call('diagnostics.frame',{frames:2});return (await call('diagnostics.pixels',{points:[(await call('view.project',{point:[60,300,45]})).screen]})).colors[0];};
   const modes=['solid','solid-wire','solid-isoparms','wireframe','isoparms','off'];
   for(const shading of modes){
    const started=performance.now();await call('view.set',{shading});

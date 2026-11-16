@@ -11,7 +11,7 @@ export async function printerFeedbackChecks(page){
  const project=async(id,point)=>(await call('view.project',{...(id?{id}:{}),point})).screen;
  // Probe the neighbouring physical pixels: a CSS-pixel cross skips one-pixel guides at DPR 2.
  const pixels=async(id,p)=>{const q=await project(id,p),dpr=await page.evaluate(()=>devicePixelRatio),points=Array.from({length:9},(_,i)=>[q[0]+(i%3-1)/dpr,q[1]+(Math.floor(i/3)-1)/dpr]);return(await call('diagnostics.pixels',{points})).colors;};
- const red=c=>c[0]>200&&c[1]<60&&c[2]<60,green=c=>c[0]>65&&c[0]<105&&c[1]>170&&c[2]>120&&c[2]<180,blue=c=>c[2]>150&&c[2]>c[0]*1.5&&c[2]>c[1]*1.2;
+ const red=c=>c[0]>70&&c[0]-c[1]>40&&c[0]-c[2]>40,green=c=>c[0]>65&&c[0]<105&&c[1]>170&&c[2]>120&&c[2]<180,blue=c=>c[2]>150&&c[2]>c[0]*1.5&&c[2]>c[1]*1.2;
  const command=(id,operation,args={})=>call('plugins.command',{id,operation,args});
  const wait=async(id,predicate=s=>s.state!=='running')=>{const started=performance.now();while(performance.now()-started<5000){const s=await command(id,'status');if(predicate(s))return s;await page.waitForTimeout(10);}throw Error('Printer did not settle: '+JSON.stringify(await command(id,'status')));};
  const measure=async(name,limit,fn)=>{const t=performance.now(),r=await fn(),ms=performance.now()-t;timings.push({name,ms,limit});check(name+' latency',ms<limit,{ms,limit});return r;};

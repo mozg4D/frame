@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 17:25">
+<meta name="frame-version" content="2026 16 nov 17:54">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11031,7 +11031,7 @@ let creating=Promise.resolve();
     return Object.freeze({lines:value.lines.slice(),bounds:Object.freeze({min:Object.freeze([...value.bounds.min]),max:Object.freeze([...value.bounds.max])}),...(value.pivot===undefined?{}:{pivot:Object.freeze([...value.pivot])})});
   }
   function pluginViewportDescriptor(viewport,objects){
-    if(!viewport||viewport.renderKind!==undefined&&!['solid','overlay','helper'].includes(viewport.renderKind)||viewport.stage!==undefined&&!['opaque','overlay'].includes(viewport.stage)||viewport.enabledAffectsVisibility!==undefined&&typeof viewport.enabledAffectsVisibility!=='boolean'||viewport.surfaceSelection!==undefined&&viewport.surfaceSelection!=='last-active'||viewport.surfaceWarnings!==undefined&&typeof viewport.surfaceWarnings!=='boolean'||typeof viewport.shader!=='string'||typeof viewport.settings!=='function'||![viewport.color,viewport.selectedColor].every(c=>Array.isArray(c)&&c.length===4&&c.every(Number.isFinite)))throw Error('Invalid plugin viewport');
+    if(!viewport||viewport.renderKind!==undefined&&!['solid','overlay','helper'].includes(viewport.renderKind)||viewport.stage!==undefined&&!['opaque','overlay'].includes(viewport.stage)||viewport.enabledAffectsVisibility!==undefined&&typeof viewport.enabledAffectsVisibility!=='boolean'||viewport.surfaceSelection!==undefined&&viewport.surfaceSelection!=='last-active'||viewport.surfaceWarnings!==undefined&&typeof viewport.surfaceWarnings!=='boolean'||viewport.surfaceWarningBlend!==undefined&&typeof viewport.surfaceWarningBlend!=='boolean'||typeof viewport.shader!=='string'||typeof viewport.settings!=='function'||![viewport.color,viewport.selectedColor].every(c=>Array.isArray(c)&&c.length===4&&c.every(Number.isFinite)))throw Error('Invalid plugin viewport');
     const base=pluginHelperDescriptor(viewport),helpers=Object.create(null),types=new Set(objects.map(o=>o.type));let length=base.lines.length;
     if(viewport.helpers!==undefined){if(!viewport.helpers||typeof viewport.helpers!=='object'||Array.isArray(viewport.helpers))throw Error('Invalid plugin helpers');for(const [type,helper]of Object.entries(viewport.helpers)){if(!types.has(type))throw Error('Unknown plugin helper type');helpers[type]=pluginHelperDescriptor(helper);length+=helpers[type].lines.length;if(length>60000)throw Error('Plugin helpers exceed 10000 segments');}}
     return Object.freeze({renderKind:'solid',...viewport,...base,helpers:Object.freeze(helpers)});
@@ -15985,18 +15985,23 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     async function preparePluginViewport(entry){
       const r=renderer;if(!r||!entry.viewport)return; r.pluginViewports??=new Map();if(r.pluginViewports.has(entry))return r.pluginViewports.get(entry).ready;
-      const d=r.device,v=entry.viewport,helpers=pluginHelperVertices(v),state={nodes:new Map(),surfaces:[],depths:[],lines:[],helperOffsets:helpers.offsets};r.pluginViewports.set(entry,state);if(!helpers.values.length){state.layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});state.loaded=true;state.ready=Promise.resolve();return state.ready;}
+      const d=r.device,v=entry.viewport,helpers=pluginHelperVertices(v),state={nodes:new Map(),surfaces:[],warningLines:[],depths:[],lines:[],helperOffsets:helpers.offsets};r.pluginViewports.set(entry,state);if(!helpers.values.length){state.layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});state.loaded=true;state.ready=Promise.resolve();return state.ready;}
       state.ready=(async()=>{
         const uniform='struct PluginFrame{matrix:mat4x4f,inverse:mat4x4f,color:vec4f,settings:vec4f};';
         const fragment=r.shaderSource+'\n'+uniform+`@group(2) @binding(0) var<uniform> plugin:PluginFrame;
           ${v.shader}
+          override pluginWarningLines:bool=false;
+          override pluginWarningCagesOnly:bool=false;
+          override pluginWarningWireOnly:bool=false;
           @fragment fn pluginFS(input:Output)->@location(0) vec4f{
             let view=vec3f(input.viewPosition.xy-params.viewport.zw,input.viewPosition.z)-frameCameraRelative(params.rotation)[3].xyz;
             let inverseRotation=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz));
             let world=inverseRotation*view/params.centerScale.w+params.centerScale.xyz;
             let crossNormal=cross(dpdx(input.viewPosition),dpdy(input.viewPosition));let lengthNormal=length(crossNormal);
+            // Blend beneath inline polygon strokes; leave native raster/cage stroke pixels intact.
+            var opacity=1.;var lineColor=vec3f(1);if(pluginWarningLines){if(plainSurfaceWire&&!pluginWarningWireOnly){lineColor=plainSurfaceWireColor(vec3f(1),input.bary,input.position.w);}else{opacity=1.-smoothstep(0.,.15,surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,pluginWarningCagesOnly).x);}}
             if(lengthNormal<=1e-20){discard;}let normal=-crossNormal/lengthNormal;
-            return pluginSurface((plugin.inverse*vec4f(world,1)).xyz,inverseRotation*normal,normalize(plugin.matrix[1].xyz),plugin.settings);
+            let warning=pluginSurface((plugin.inverse*vec4f(world,1)).xyz,inverseRotation*normal,normalize(plugin.matrix[1].xyz),plugin.settings);return vec4f(warning.rgb*lineColor,warning.a*opacity);
           }`;
         const surfaceModule=d.createShaderModule({label:entry.manifest.id+' surface overlay',code:fragment});
         const lineModule=d.createShaderModule({label:entry.manifest.id+' helper lines',code:CAMERA_RELATIVE_WGSL+uniform+`
@@ -16014,8 +16019,11 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const cameraLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});
         state.camera=d.createBindGroup({layout:cameraLayout,entries:[{binding:0,resource:{buffer:r.uniform}}]});
         const surfaceLayout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),state.layout]}),lineLayout=d.createPipelineLayout({bindGroupLayouts:[cameraLayout,state.layout]});
+        const warningTargets=v.surfaceWarningBlend?r.surfaceTargets.map((target,i)=>i?target:{...target,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}):r.surfaceTargets;
         const compiles=[];for(const orthographic of [false,true]){
-          for(const posed of [false,true]){compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' occlusion depth',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less-equal'}}).then(p=>state.depths[(orthographic?2:0)+(posed?1:0)]=p));compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' warning',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},fragment:{module:surfaceModule,entryPoint:'pluginFS',targets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.surfaces[(orthographic?2:0)+(posed?1:0)]=p));}
+          for(const posed of [false,true]){const index=(orthographic?2:0)+(posed?1:0);compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' occlusion depth',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less-equal'}}).then(p=>state.depths[index]=p));compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' warning',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},fragment:{module:surfaceModule,entryPoint:'pluginFS',targets:warningTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.surfaces[index]=p));
+            if(v.surfaceWarningBlend)for(let kind=0;kind<4;kind++){const plainSurfaceWire=kind===0||kind===3;compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' warning',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'wireSurfaceVS',constants:{orthographic,posed,plainSurfaceWire}},fragment:{module:surfaceModule,entryPoint:'pluginFS',constants:{plainSurfaceWire,pluginWarningLines:true,pluginWarningCagesOnly:kind===2,pluginWarningWireOnly:kind===3},targets:warningTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.warningLines[index*4+kind]=p));}
+          }
           compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' box',layout:lineLayout,vertex:{module:lineModule,entryPoint:'vs',constants:{orthographic},buffers:[{arrayStride:12,attributes:[{shaderLocation:0,offset:0,format:'float32x3'}]}]},fragment:{module:lineModule,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.lines[orthographic?1:0]=p));
         }
         await Promise.all(compiles);state.vertices=makeGPUBuffer(d,{label:entry.manifest.id+' local helper',size:helpers.values.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});d.queue.writeBuffer(state.vertices,0,helpers.values);state.loaded=true;draw(true);
@@ -16032,7 +16040,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           const helper=pluginHelper(n),warning=shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
           if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
-          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;pass.setPipeline(state.surfaces[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}
+          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms'].includes(shadingMode)?2:1;pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
           if(helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}if(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode)))v.render?.({pass,camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format});pass.end();
         }
       }
@@ -16253,20 +16261,21 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           }
           @fragment fn fs(input:Output,@builtin(front_facing) front:bool)->@location(0) vec4f{return shade(input,front);}
           fn surfaceWireEdges(corner:u32)->u32{if(plainSurfaceWire){return 0u;}if(splineWireEdges[0]==0u){return 0u;}return 8u|splineWireEdges[1u+corner/3u];}
-          fn surfaceWireColor(base:vec3f,bary:vec3f,flags:u32,reciprocalW:f32)->vec3f{
+          fn surfaceWireCoverage(bary:vec3f,flags:u32,reciprocalW:f32,cagesOnly:bool)->vec2f{
             let screenBary=bary*reciprocalW;
             let dx=dpdx(screenBary);let dy=dpdy(screenBary);
             let distances=abs(screenBary)/max(sqrt(dx*dx+dy*dy),vec3f(1e-20));
             let cyan=(vec3u(flags)&vec3u(1u,2u,4u))!=vec3u(0u);
-            let onlyCyan=params.modes.y==3.&&(flags&8u)!=0u;
+            let onlyCyan=cagesOnly&&(flags&8u)!=0u;
             let visible=cyan|vec3<bool>(!onlyCyan);
             // Keep a full-contrast cyan core through subpixel motion, within the same outer footprint.
             let core=select(vec3f(max(0.,params.frame.z-.5)),vec3f(params.frame.z),cyan);
             let coverage=select(vec3f(0),vec3f(1)-smoothstep(core,vec3f(params.frame.z+.5),distances),visible);
             let allCoverage=max(coverage.x,max(coverage.y,coverage.z));
             let blue=select(vec3f(0),coverage,cyan);let cyanCoverage=max(blue.x,max(blue.y,blue.z));
-            return base*(1.-allCoverage)+vec3f(.18095,.3542,.4158)*cyanCoverage;
+            return vec2f(allCoverage,cyanCoverage);
           }
+          fn surfaceWireColor(base:vec3f,bary:vec3f,flags:u32,reciprocalW:f32)->vec3f{let coverage=surfaceWireCoverage(bary,flags,reciprocalW,params.modes.y==3.);return base*(1.-coverage.x)+vec3f(.18095,.3542,.4158)*coverage.y;}
           // Derivatives describe the covered polygon without refetching its corners.
           fn fragmentSurfacePlane(position:vec3f)->vec4f{
             var n=cross(dpdx(position),dpdy(position));n/=max(max(abs(n.x),max(abs(n.y),abs(n.z))),1e-30);
