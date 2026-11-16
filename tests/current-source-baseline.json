@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 18:23",
+  "version": "2026 16 nov 18:39",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -441,16 +441,24 @@
       "index.html",
       "frame-sw.js",
       "tests/quad-patch-materials-browser.mjs"
+    ],
+    "panel-layout": [
+      "index.html",
+      "frame-sw.js",
+      "package.json",
+      "tests/run.mjs",
+      "tests/panel-layout-browser.mjs",
+      "tests/test-policy.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "0b581ed49dc7770b22bf8703f65caebf765b37f85a1b6d6b3a8a559934940c1c"
+      "sha256": "fd5ab9dc16c4447dd527fa60493b31fd025c45f30a890101cd97170c28d9e8b3"
     },
     "index.html": {
-      "bytes": 2890779,
-      "sha256": "1607b5c135e028c2f93222490f6b16f3844210fa3142b70dad28b61d2abcfb4e"
+      "bytes": 2891589,
+      "sha256": "b389127c63b876632d004dfa99412e5da004d341874cf0792f516a7a4e05f785"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -641,12 +649,12 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 8614,
-      "sha256": "1d9bf4babc4c9e8e26c09f316b88b6c8d9c5d03ab055d6f8d11b74e422788212"
+      "bytes": 8678,
+      "sha256": "f0dd11d06aad7ff6bf030739887ed8f0702c91607e83d4efe7bf372deae585db"
     },
     "tests/run.mjs": {
-      "bytes": 35203,
-      "sha256": "6e5e94ac835d03ca2bef94be0d286c0d13d3ca01920db46f1745a3b4bdf435c8"
+      "bytes": 35363,
+      "sha256": "187a00741fb21e9bbe8d3613a5aaf9e2dbe5e1f722bd4b9eee00827ae6362dbe"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -813,8 +821,8 @@
       "sha256": "6028b75aa9aac51330c5abf97e3f54acbe8246d191fbcb10959084e5d523c05e"
     },
     "tests/scene-create-name-browser.mjs": {
-      "bytes": 10059,
-      "sha256": "090494f449de4dda5c9242880ed8b72d945ef5e2282e79efddf1e2dbf6eda0b1"
+      "bytes": 13363,
+      "sha256": "5d5af539bbfc29fe4d0b1290e4938047999bcaebf3f8359f382a288a6128341c"
     },
     "tests/numeric-display.mjs": {
       "bytes": 18877,
@@ -1017,8 +1025,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 68549,
-      "sha256": "52441ec57c23cc6d02305da34cba9b73d856bcd8f5737f1d6c29cd6916430921"
+      "bytes": 69234,
+      "sha256": "6fc2067de32b376944d7828f60c6025d5923860ba16cf7051148cf89846e2ce9"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 11375,
@@ -1159,6 +1167,10 @@
     "tests/boolean-isoparms.mjs": {
       "bytes": 8457,
       "sha256": "b1560f283787142fcee527ec2bf38a8d6c6320a2bb1b4d09c9d65fd29f8f2440"
+    },
+    "tests/panel-layout-browser.mjs": {
+      "bytes": 8424,
+      "sha256": "1b768eb7c121d4fa19ff83df02a4bd75ac18ed1d96c57f81f822d14e3c223453"
     }
   }
 }

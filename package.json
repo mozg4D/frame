@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "test:panel-layout": "node tests/panel-layout-browser.mjs",
     "test:collaboration:cpu": "node tests/ai-collaboration.mjs",
     "test:collaboration": "node tests/ai-collaboration.mjs && node tests/ai-collaboration-browser.mjs",
     "test:ai-workflows": "node tests/syntax.mjs && node tests/ai-workflows-browser.mjs",

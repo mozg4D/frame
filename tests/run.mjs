@@ -24,6 +24,7 @@ import {numericDisplayChecks} from './numeric-display.mjs';
 import {numericDisplayBrowserChecks} from './numeric-display-browser.mjs';
 import {sceneCreateNameCPUChecks} from './scene-create-name.mjs';
 import {sceneCreateNameBrowserChecks} from './scene-create-name-browser.mjs';
+import {panelLayoutBrowserChecks} from './panel-layout-browser.mjs';
 import {textureSlotDragChecks} from './texture-slot-drag.mjs';
 import {textureSlotDragBrowserChecks} from './texture-slot-drag-browser.mjs';
 import {textureDndSourceContractChecks} from './texture-dnd-source-contract.mjs';
@@ -235,6 +236,7 @@ try{
   report.creationSanityBrowser=await isolated('creationSanityBrowser',creationSanityBrowserChecks);
   report.numericDisplayBrowser=await isolated('numericDisplayBrowser',numericDisplayBrowserChecks);
   report.sceneCreateNameBrowser=await isolated('sceneCreateNameBrowser',sceneCreateNameBrowserChecks);
+  report.panelLayoutBrowser=await isolated('panelLayoutBrowser',panelLayoutBrowserChecks);
   report.animationTransactionBrowser=await isolated('animationTransactionBrowser',animationTransactionBrowserChecks);
   report.objectEnable=await isolated('objectEnable',objectEnableChecks);
   report.authoringStampBrowser=await isolated('authoringStampBrowser',authoringStampBrowserChecks);

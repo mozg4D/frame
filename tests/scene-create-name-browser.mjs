@@ -53,6 +53,22 @@ export async function sceneCreateNameBrowserChecks(page){
    check('Invalid name or parameters leave semantic objects, selection, history and document unchanged '+JSON.stringify(args),JSON.stringify(after)===JSON.stringify(before));
   }
   await call('scene.new');await page.locator('#tabObjects').click();check('Native Nut menu starts with an empty scene',(await inspect()).objects.length===0);await measure('Native Nut menu creation',async()=>{await page.locator('#objectsPanel [data-type="nut"]').click();await inspect();});const menuState=await inspect(),menuNut=menuState.objects[0];check('Native menu creates one completed default Nut',menuState.objects.length===1&&validHash(menuNut?.hash)&&menuNut.type==='nut'&&menuNut.name==='regular M6'&&menuNut.params.type==='regular'&&menuNut.params.size==='M6'&&!menuNut.buildError&&menuNut.mesh?.triangles>0,menuNut);
+  await call('scene.new');
+  const source=await measure('Named instance source creation',()=>call('scene.create',{type:'cube',name:'Part 42 🔩'}));await page.locator('#btnInstance').click();
+  const instance=(await inspect()).objects.find(n=>n.type==='instance');check('Instance toolbar copies the exact source name and reference',instance?.name===source.name&&instance.params.object===source.hash,instance);
+  check('Instance name appears in the Object Browser',await page.locator('[data-id="'+instance.id+'"] .ob-namebox').innerText()===source.name);
+  await measure('Named instance Undo',()=>call('edit.history',{action:'undo'}));check('One Undo removes the named instance only',(await inspect()).objects.length===1&&!!await object(source.hash));
+  await measure('Named instance Redo',()=>call('edit.history',{action:'redo'}));check('Redo restores the instance name and source',(await object(instance.hash))?.name===source.name&&(await object(instance.hash)).params.object===source.hash);
+  const savedInstance=await measure('Named instance HASH export',()=>call('scene.export',{includeData:true}));await measure('Named instance HASH open',()=>call('scene.open',{name:'named-instance.hash',base64:savedInstance.base64}));check('HASH preserves the instance name and source',(await object(instance.hash))?.name===source.name&&(await object(instance.hash)).params.object===source.hash);
+  for(const reference of [source.hash,(await object(source.hash)).id]){
+   const n=await measure('API instance creation by '+reference,()=>call('scene.create',{type:'instance',params:{object:reference}}));check('API instance inherits exact source name and canonical hash by '+reference,n.name===source.name&&n.params.object===source.hash,n);
+  }
+  const aliasSource=await call('scene.create',{type:'group',name:'Unique source alias'}),aliasInstance=await call('scene.create',{type:'instance',params:{object:aliasSource.name}});check('API instance resolves a source name before inheriting it',aliasInstance.name===aliasSource.name&&aliasInstance.params.object===aliasSource.hash,aliasInstance);
+  for(const name of ['Custom instance','']){const n=await call('scene.create',{type:'instance',name,params:{object:source.hash}});check('Explicit instance name is preserved '+JSON.stringify(name),n.name===name&&n.params.object===source.hash,n);}
+  await call('scene.update',{id:source.hash,name:''});await call('scene.select',{ids:[source.hash]});await page.locator('#btnInstance').click();const empty=(await inspect()).objects.filter(n=>n.type==='instance'&&n.name==='');check('Toolbar inherits an empty source name exactly',empty.length===2,empty.map(n=>n.name));
+  const emptyAPI=await call('scene.create',{type:'instance',params:{object:source.hash}});check('API inherits an empty source name exactly',emptyAPI.name==='');
+  const labelSource=await call('scene.create',{type:'group',name:'Instance'}),labelInstance=await call('scene.create',{type:'instance',params:{object:'Instance'}});check('Source named Instance resolves before creating its namesake',labelInstance.name==='Instance'&&labelInstance.params.object===labelSource.hash,labelInstance);
+  await call('scene.new');const unbound=await call('scene.create',{type:'instance'});check('An unbound instance retains the default name',unbound.name==='Instance');
   await call('scene.new');return {pass:true,checks,timings};
  }catch(e){return {pass:false,checks,timings,error:e.stack};}
 }
