@@ -38,6 +38,7 @@ import {perspectiveClippingBrowserChecks} from './perspective-clipping-browser.m
 import {objectBrowserMarqueeChecks} from './object-browser-marquee.mjs';
 import {extrudeMixedChildrenChecks} from './extrude-mixed-children.mjs';
 import {extrudePivotBrowserChecks} from './extrude-pivot-browser.mjs';
+import {extrudeCapsBrowserChecks} from './extrude-caps-browser.mjs';
 import {instanceGeneratorChildrenChecks} from './instance-generator-children.mjs';
 import {splinePatchNormalChecks} from './spline-patch-normals.mjs';
 import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
@@ -240,6 +241,7 @@ try{
   report.instanceExtrude=await isolated('instanceExtrude',instanceExtrudeChecks);
   report.extrudeMixedChildren=await isolated('extrudeMixedChildren',extrudeMixedChildrenChecks);
   report.extrudePivot=await isolated('extrudePivot',extrudePivotBrowserChecks);
+  report.extrudeCaps=await isolated('extrudeCaps',extrudeCapsBrowserChecks);
   report.instanceGeneratorChildren=await isolated('instanceGeneratorChildren',instanceGeneratorChildrenChecks);
   report.splinePatchNormals=await isolated('splinePatchNormals',splinePatchNormalChecks);
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);

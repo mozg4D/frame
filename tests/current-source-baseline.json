@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 03:04",
+  "version": "2026 16 nov 03:17",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -440,11 +440,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "b2e587e2ab56a6e461158c747c6eed17d2335a0ea63fab2941b007125c4821da"
+      "sha256": "f06b1f75baf61b0422ee8a8e16f4fb2e2de2dbbe8c07ccfb0178a2e04d4933c5"
     },
     "index.html": {
-      "bytes": 2881598,
-      "sha256": "364793ee1b1537f6b49d32f3375f0bd02a446dc675e87390664ef695224c3975"
+      "bytes": 2883081,
+      "sha256": "2f17da1b5c484e86744e5898c733d8733f831c823f3ef55da9bd57f3de8c7e4a"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -639,8 +639,8 @@
       "sha256": "e482408ddac4f9b65d5d688af7aa69eddc636a5522897f32f57eba1bffb9fd48"
     },
     "tests/run.mjs": {
-      "bytes": 34582,
-      "sha256": "bdcfb08b012fc5133a4bcd4ff0969c782bd8341af2e24d2daab052fb2d5b4152"
+      "bytes": 34728,
+      "sha256": "1fc60375ba1867d934ff2bc49afb598070d85a6a3e3e7e9f9e7a7257f6489b23"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1011,8 +1011,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 67051,
-      "sha256": "2cf17d3bf7251371c65e3c2ee8a8003f82ddb54d3f1a1570319787c35448cc54"
+      "bytes": 67609,
+      "sha256": "dc1a755e126a445949dec332632de123c6b3334201b55d95c62729c5af128ee3"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
