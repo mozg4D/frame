@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 03:17">
+<meta name="frame-version" content="2026 16 nov 03:43">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15822,7 +15822,9 @@ fn foreignVisible(input:Line,p:vec2i,depth:f32)->bool{
   let view=(frameCameraRelative(c.rotation)*vec4f((input.world-c.centerScale.xyz)*c.centerScale.w,1)).xyz;
   let side=dot(plane.xyz,view)+plane.w;
   let error=(dot(abs(plane.xyz),abs(view))+abs(plane.w))*(8./8388608.);
-  if(abs(side)>error){return side*select(plane.w,plane.z,c.clip.z!=0.)>0.;}
+  // Projection adds viewport.zw after the view transform, so the perspective
+  // eye is (-viewport.zw,0). Pan and cursor-anchored zoom move that eye.
+  if(abs(side)>error){return side*select(plane.w-dot(plane.xy,c.viewport.zw),plane.z,c.clip.z!=0.)>0.;}
   return contactVisible(input,plane);
 }
 fn lineVisible(input:Line)->bool{let p=vec2i(input.position.xy);let depth=textureLoad(visibleDepth,p,0);let current=textureLoad(visibleFaces,p,0).x;let sameOwner=current>=input.base&&current<input.base+draw[0].w;let ndc=vec2f(input.position.x/c.frame.x*2.-1.,1.-input.position.y/c.frame.y*2.);let guard=draw[1].y!=0u;if((incident(current,input.edge,input.base,true)&&(!guard||planeVisible(current,ndc,depth,input.base,input.instance)))||(!sameOwner&&guard&&input.position.z<depth)){return true;}if(!sameOwner&&!guard){return foreignVisible(input,p,depth);}let offsets=array<vec2i,4>(vec2i(-1,0),vec2i(1,0),vec2i(0,-1),vec2i(0,1));for(var i=0;i<4;i++){let q=p+offsets[i];if(all(q>=vec2i(0))&&all(q<vec2i(c.frame.xy))){let id=textureLoad(visibleFaces,q,0).x;if(incident(id,input.edge,input.base,false)&&select(foreignVisible(input,p,depth),planeVisible(id,ndc,depth,input.base,input.instance),guard)){return true;}}}return false;}

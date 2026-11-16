@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 03:17",
+  "version": "2026 16 nov 03:43",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -230,7 +230,8 @@
       "tests/spline-palette-browser.mjs",
       "tests/spline-palette.mjs",
       "tests/spline-shader-source-contract.mjs",
-      "tests/test-policy.mjs"
+      "tests/test-policy.mjs",
+      "tests/surface-wire-pan-browser.mjs"
     ],
     "atomic-display-bounds": [
       "index.html",
@@ -293,7 +294,8 @@
       "AGENTS.md",
       "tests/corner-screenshot-contract.mjs",
       "tests/corner-screenshot-evidence.mjs",
-      "tests/test-policy.mjs"
+      "tests/test-policy.mjs",
+      "tests/surface-wire-pan-browser.mjs"
     ],
     "camera-relative-depth": [
       "AGENTS.md",
@@ -318,7 +320,8 @@
       "tests/spline-depth-browser.mjs",
       "tests/spline-depth.mjs",
       "tests/spline-shader-source-contract.mjs",
-      "tests/test-policy.mjs"
+      "tests/test-policy.mjs",
+      "tests/surface-wire-pan-browser.mjs"
     ],
     "motion-path-perspective": [
       "index.html",
@@ -429,7 +432,8 @@
       "tests/surface-wire-stability-browser.mjs",
       "tests/camera-shader-order.mjs",
       "tests/run.mjs",
-      "tests/suite.js"
+      "tests/suite.js",
+      "tests/surface-wire-pan-browser.mjs"
     ],
     "quad-patch": [
       "index.html",
@@ -440,11 +444,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "f06b1f75baf61b0422ee8a8e16f4fb2e2de2dbbe8c07ccfb0178a2e04d4933c5"
+      "sha256": "b581772cde812a647867034a736bf9a1b11dbfbaf20e8c3da5920c49af4e5906"
     },
     "index.html": {
-      "bytes": 2883081,
-      "sha256": "2f17da1b5c484e86744e5898c733d8733f831c823f3ef55da9bd57f3de8c7e4a"
+      "bytes": 2883261,
+      "sha256": "34eadcecdb2aefdc3c22562e3b6f55044768e56f85edbd03b54f6583011be934"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -819,8 +823,8 @@
       "sha256": "caa38d684d203b65d86e47e2e98a98f199d0769003983a1995d1d358cbbee1c4"
     },
     "tests/spline-depth-browser.mjs": {
-      "bytes": 16069,
-      "sha256": "5c7efee69e90c10b87e7495fba10166a0e3f42a00a7008deec96f0c581c0e72d"
+      "bytes": 16259,
+      "sha256": "99c924c235a0a623e807299f6ee639001ac2ed5992b7d4f6afb1806b7a5ea82c"
     },
     "tests/spline-corner-browser.mjs": {
       "bytes": 6532,
@@ -1011,8 +1015,8 @@
       "sha256": "83e1bd1ac72bbaa5d09da1b2c0d23159e4a396380ac5ea55c6f11d4a5bdfaa6f"
     },
     "AGENTS.md": {
-      "bytes": 67609,
-      "sha256": "dc1a755e126a445949dec332632de123c6b3334201b55d95c62729c5af128ee3"
+      "bytes": 67911,
+      "sha256": "5230a5c677a6b39103242df80b983205b6557ee5493ae3022965beded25313f4"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 6595,
@@ -1141,6 +1145,10 @@
     "tests/quad-patch-materials-browser.mjs": {
       "bytes": 9434,
       "sha256": "e9dee187f159c6267432a993f21c9b873d1a09c2b0e7a59b76931ccfff78ab00"
+    },
+    "tests/surface-wire-pan-browser.mjs": {
+      "bytes": 4581,
+      "sha256": "2826c4afec292f7e1e2486f9c2bd1926bb936d138137e5f885da0c28fadba814"
     }
   }
 }
