@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 16:45">
+<meta name="frame-version" content="2026 16 nov 17:21">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -16274,10 +16274,10 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           }
           fn plainSurfaceWireColor(base:vec3f,bary:vec3f,reciprocalW:f32)->vec3f{
             let screen=bary*reciprocalW;
-            // Normalize by the dominant pixel axis: diagonals stay thin without
-            // square roots. A small dark core keeps the inner silhouette visible.
+            // Normalize by the dominant pixel axis without square roots. Cap
+            // contrast at 60%, preserving the antialiased silhouette footprint.
             let span=max(abs(dpdx(screen)),abs(dpdy(screen)));
-            let fade=clamp(abs(screen)/max(span,vec3f(1e-20))-.25,vec3f(0),vec3f(1));
+            let fade=clamp(abs(screen)/max(span,vec3f(1e-20))-.25,vec3f(.4),vec3f(1));
             return base*min(fade.x,min(fade.y,fade.z));
           }
           struct WireSurfaceOutput{@location(0) color:vec4f,@location(1) triangleID:u32,@location(2) plane:vec4f}

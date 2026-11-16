@@ -34,7 +34,7 @@ export async function plainPolygonLinesBrowserChecks(page){
     const points=await page.evaluate(({x,z})=>{const r=frameEngine.renderer,rect=document.querySelector('#frame-engine-canvas').getBoundingClientRect();return [32,57,82].flatMap(y=>{const p=frameEngine.pluginProject([x,y,z]),px=Math.floor((p[0]-rect.left)*r.width/rect.width),py=Math.floor((p[1]-rect.top)*r.height/rect.height);return [-3,-2,-1,0,1,2,3].map(dx=>[rect.left+(px+dx+.5)*rect.width/r.width,rect.top+(py+.5)*rect.height/r.height]);});},{x,z});
     const lines=(await readDiagnosticPixels(call,points)).colors;await call('view.set',{shading:'solid'});const solid=(await readDiagnosticPixels(call,points)).colors;await call('view.set',{shading:'solid-wire'});
     const profiles=[0,1,2].map(row=>{const coverage=lines.slice(row*7,row*7+7).map((c,j)=>{const base=solid[row*7+j].slice(0,3).reduce((a,b)=>a+b,0),value=c.slice(0,3).reduce((a,b)=>a+b,0);return Math.max(0,(base-value)/Math.max(1,base));});return {width:coverage.reduce((a,b)=>a+b,0),peak:Math.max(...coverage)};});
-    check(storage+' view '+index+' thin contrasting polygon stroke at phase '+phase,profiles.every(p=>p.width>=1&&p.width<=1.75&&p.peak>=.5),profiles);
+    check(storage+' view '+index+' thin translucent polygon stroke at phase '+phase,profiles.every(p=>p.width>=.85&&p.width<=1.3&&p.peak>=.5&&p.peak<=.62),profiles);
     const mask=await polygonLineMask(page);check(storage+' view '+index+' thin silhouette stays visible at phase '+phase,(await hits(mask,[[-81.13,47,z],[80.83,47,z],[-20,7.12,z],[-20,107.12,z]])).every(Boolean),{phase});
    }
   }
