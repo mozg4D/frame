@@ -312,7 +312,7 @@ async function createPreview(context,slicer){
  const groups=new WeakMap(),group=(buffer,layout)=>{let cache=groups.get(buffer);if(!cache)groups.set(buffer,cache=new Map());if(!cache.has(layout))cache.set(layout,d.createBindGroup({layout,entries:[{binding:0,resource:{buffer}}]}));return cache.get(layout);};
  return ({pass,camera,frame,orthographic,hash,params})=>{
   pass.setPipeline(axes[orthographic?1:0]);pass.setBindGroup(0,group(camera,cameraLayout));pass.setBindGroup(1,group(frame,frameLayout));pass.draw(6);
-  const job=slicer.jobs.get(hash);if(!job||job.state!=='complete')return;if(job.result&&slicer.signature(hash)!==job.signature)slicer.invalidate(job);if(!job.result)return;
+  const job=slicer.jobs.get(hash);if(!job||job.state!=='complete')return;if(job.result&&!slicer.matches(job))slicer.invalidate(job);if(!job.result)return;
   slicer.reconstruct(job,Math.round(params['Finish layer']),params);slicer.ensurePreview(job,params);const r=job.result,v=r.preview;
   if(!v?.segments||v.error)return;
   if(!v.group)v.group=d.createBindGroup({layout:imageLayout,entries:[{binding:0,resource:r.image.createView()},{binding:1,resource:{buffer:r.config}},{binding:2,resource:{buffer:v.output}},{binding:3,resource:{buffer:v.layers}}]});
@@ -325,11 +325,12 @@ async function createPreview(context,slicer){
 
 class LDISlicer{
  constructor(context){this.context=context;this.jobs=new Map();this.initialized=new Map();this.serial=0;this.pipelines=new WeakMap();}
- signature(hash){try{return this.context.scene.signature(hash,KEYS);}catch{return null;}}
+ signature(hash,includeHidden=false){try{return this.context.scene.signature(hash,KEYS,{includeHidden});}catch{return null;}}
+ matches(job){const complete=job.state==='complete',signature=this.signature(job.hash,complete);return signature!==null&&signature===(complete?job.displaySignature:job.signature);}
  config(snapshot){const p=snapshot.params,width=p['Line width'],height=p['Layer height'],initial=p['Initial layer height'];if(!(width>=.1&&width<=100&&height>=.1&&height<=100&&initial>=.1&&initial<=100))throw failure('INVALID_ARGUMENT','Invalid printer width or layer heights.');return {width,height,initial};}
  disposeResult(result){if(!result)return;result.retired=true;for(const b of result.preview?.resources||[])b.destroy();for(const b of result.previewBuild?.resources||[])b.destroy();for(const b of result.paths?.resources||[])b.destroy();for(const b of result.resources||[])b.destroy();}
  retire(hash){const job=this.jobs.get(hash);if(job){clearTimeout(job.refreshTimer);job.cancelled=true;this.disposeResult(job.result);this.jobs.delete(hash);}this.initialized.delete(hash);}
- check(job){if(job.cancelled)throw failure('CANCELLED','Slicing cancelled.');if(this.signature(job.hash)!==job.signature)throw failure('STALE_JOB','Source geometry, visibility, printer or sampling settings changed.');}
+ check(job){if(job.cancelled)throw failure('CANCELLED','Slicing cancelled.');if(!this.matches(job))throw failure('STALE_JOB','Source geometry, visibility, printer or sampling settings changed.');}
  invalidate(job){this.disposeResult(job.result);job.result=null;job.state='stale';try{job.refresh=this.context.scene.capture(job.hash,KEYS).contentSignature===job.contentSignature;}catch{job.refresh=false;}if(job.refresh)this.refresh(job);this.context.requestAttributes();}
  refresh(job){if(job.refreshTimer)return;job.refreshTimer=setTimeout(()=>{job.refreshTimer=0;if(this.jobs.get(job.hash)!==job||!job.refresh)return;if(this.context.scene.transforming){this.refresh(job);return;}job.refresh=false;try{this.start(job.hash,{},true);}catch(e){job.state='failed';job.error={code:e.code||'SLICE_FAILED',message:e.message};this.context.requestAttributes();}},32);}
  start(hash,args={},automatic=false){
@@ -341,7 +342,7 @@ class LDISlicer{
   return {representation:'orthogonal-ldi',topology:'shell-overlap-union-nested-parity-occurrence-union',axes:['X','Z'],builds:1,lastLayer:r.lastLayer,grid:r.grid,rawEvents:r.rawEvents,intervals:r.intervals,ambiguousRays:r.ambiguousRays,duplicateEvents:r.duplicateEvents,peakGPUBytes:Math.max(r.peakGPUBytes,r.previewPeakGPUBytes||0,retained),retainedGPUBytes:retained,metadataReadBytes:r.metadataReadBytes,triangleVisits:r.triangleVisits,timings:r.timings,
    preview:{primitive:'line-list',points:true,state:r.previewBuild?'running':r.preview?.error?'failed':r.preview?'complete':'idle',error:r.preview?.error||null,startLayer:r.previewStart,finishLayer:r.previewLayer,visibleLayers:Math.max(0,r.previewLayer-r.previewStart+1),segments:visibleSegments,retainedLayers:r.preview?r.lastLayer:0,sections:r.sections.length,completedSections:r.previewBuild?.completed??r.preview?.builds??0,builds:r.preview?.builds||0,metadataReadBytes:r.layerReadBytes+(r.preview?.metadataReadBytes||0),ms:r.preview?.ms||0,reconstructions:r.reconstructions,reconstructSubmitMs:r.reconstructSubmitMs||0},
    perimeters:r.paths?{state:r.paths.error?'failed':r.paths.pending?'running':'complete',error:r.paths.error||null,layer:r.previewLayer,count:r.paths.count,firstOffset:r.paths.width*.5,spacing:r.paths.width,maxDeviation:r.paths.deviation,samplingPitch:r.grid.pitch,sourceAccuracyCertified:false,segments:r.paths.counters?.[4]??null,rawSegments:r.paths.counters?.[1]??null,loops:r.paths.counters?.[3]??null,openLoops:r.paths.counters?.[6]??null,collapsedLoops:r.paths.counters?.[9]??null,capacity:r.paths.capacity,builds:r.pathBuilds,fieldBuilds:r.fieldBuilds,graphBuilds:r.graphBuilds,metadataReadBytes:r.pathBuilds*48,ms:r.paths.ms||0,retainedLayers:r.preview?r.lastLayer:1}:null};}
- status(hash){const job=this.jobs.get(hash);if(!job)return {state:'idle',result:null};if(job.result&&this.signature(hash)!==job.signature)this.invalidate(job);return {id:job.id,state:job.state,stage:job.stage,completed:job.completed,total:job.total,ms:job.ms??performance.now()-job.started,error:job.error||null,result:job.result?this.summary(job.result):null};}
+ status(hash){const job=this.jobs.get(hash);if(!job)return {state:'idle',result:null};if(job.result&&!this.matches(job))this.invalidate(job);return {id:job.id,state:job.state,stage:job.stage,completed:job.completed,total:job.total,ms:job.ms??performance.now()-job.started,error:job.error||null,result:job.result?this.summary(job.result):null};}
  cancel(hash){const job=this.jobs.get(hash);if(job){clearTimeout(job.refreshTimer);job.refresh=false;if(job.state==='running')job.cancelled=true;}return this.status(hash);}
  attributes(hash){const s=this.status(hash),last=s.result?.lastLayer||3332;return {actions:[{id:'slice',label:'Slice',cancel:'cancel',busy:s.state==='running'}],ranges:{'Start layer':{min:1,max:last,scrubRange:()=>[1,last]},'Finish layer':{min:1,max:last,scrubRange:()=>[1,last]},'Layer position':{min:0,max:s.result?last:0},'Max deviation':{min:.0001,max:10,scrubRange:()=>[.001,.1]}},units:{'Max deviation':'mm'}};}
  async kernels(d){let p=this.pipelines.get(d);if(!p){p=(async()=>{
@@ -443,7 +444,7 @@ class LDISlicer{
     const latest=this.context.scene.capture(job.hash,KEYS).params,nextFinish=firstSuccess?last:Math.max(1,Math.min(last,Math.round(latest['Finish layer']))),nextFirst=firstSuccess?1:Math.max(1,Math.min(nextFinish,Math.round(latest['Start layer'])));if(r.preview.key===pathKey(latest)&&finish===nextFinish&&first===nextFirst)break;
    }
    this.context.update(job.hash,{'Finish layer':finish,'Start layer':first});
-   this.initialized.set(job.hash,snapshot.scene);for(const b of resources)owned.delete(b);job.completed=2;job.state='complete';job.stage='complete';
+   job.displaySignature=this.signature(job.hash,true);this.initialized.set(job.hash,snapshot.scene);for(const b of resources)owned.delete(b);job.completed=2;job.state='complete';job.stage='complete';
   }finally{if(job.state!=='complete'){this.disposeResult(job.result);job.result=null;}for(const b of owned)b.destroy();}
  }
  async inspectCoverage(job,args){const r=job.result,d=this.context.device,total=r.grid.width*r.grid.depth,offset=args.offset||0,count=Math.min(args.count||64,total-offset);if(offset>=total)throw failure('INVALID_ARGUMENT','Pixel offset is outside the coverage map.');if(args.layer!==undefined&&args.layer!==r.previewLayer)throw failure('INVALID_ARGUMENT','Coverage inspection reads the displayed Finish layer.');
