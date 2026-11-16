@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 02:44">
+<meta name="frame-version" content="2026 16 nov 03:04">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -16232,12 +16232,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             return vec4f(n,-dot(n,vec3f(position.xy-params.viewport.zw,position.z)));
           }
           fn plainSurfaceWireColor(base:vec3f,bary:vec3f,reciprocalW:f32)->vec3f{
-            let screen=bary*reciprocalW;let dx=dpdx(screen);let dy=dpdy(screen);
-            let distance=abs(screen)/max(sqrt(dx*dx+dy*dy),vec3f(1e-20));
-            let edge=min(distance.x,min(distance.y,distance.z));
-            // A silhouette has samples on its inner side only. Keep its nearest
-            // covered sample in the antialias footprint as the camera moves.
-            return base*smoothstep(params.frame.z,params.frame.z+1.,edge);
+            let screen=bary*reciprocalW;
+            // Normalize by the dominant pixel axis: diagonals stay thin without
+            // square roots. A small dark core keeps the inner silhouette visible.
+            let span=max(abs(dpdx(screen)),abs(dpdy(screen)));
+            let fade=clamp(abs(screen)/max(span,vec3f(1e-20))-.25,vec3f(0),vec3f(1));
+            return base*min(fade.x,min(fade.y,fade.z));
           }
           struct WireSurfaceOutput{@location(0) color:vec4f,@location(1) triangleID:u32,@location(2) plane:vec4f}
           @fragment fn wireSurfaceFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=shade(input,front);if(plainSurfaceWire){return WireSurfaceOutput(vec4f(plainSurfaceWireColor(color.rgb,input.bary,input.position.w),color.a),input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}

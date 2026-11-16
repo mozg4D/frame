@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 16 nov 02:44",
+  "version": "2026 16 nov 03:04",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -440,11 +440,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "c8de483372d928ba3e66a74232bf8e8a43a194676212f46e131f70fa204c5ffd"
+      "sha256": "b2e587e2ab56a6e461158c747c6eed17d2335a0ea63fab2941b007125c4821da"
     },
     "index.html": {
-      "bytes": 2881642,
-      "sha256": "bdfbc9061937ce4979ea8795021c682b5bef5e6b59e66bba3504cca4837bcc24"
+      "bytes": 2881598,
+      "sha256": "364793ee1b1537f6b49d32f3375f0bd02a446dc675e87390664ef695224c3975"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1131,8 +1131,8 @@
       "sha256": "71dbe9e7a6b7640e7a4445836e3afe5c73aa7ca1b374c97d48dc53c6ae2514db"
     },
     "tests/plain-polygon-lines-browser.mjs": {
-      "bytes": 6324,
-      "sha256": "bc1d6e51bfe74b26c430d2ff39bac6f53bad1c240735935f67c216a4540960d0"
+      "bytes": 8796,
+      "sha256": "f2e60a5b635d0ebabf003c3929671363d30280fb9a8043382d7af1b5eace05db"
     },
     "tests/polygon-line-mask.mjs": {
       "bytes": 1608,
