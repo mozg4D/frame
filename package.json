@@ -11,6 +11,7 @@
     "test:hash": "npm run test:hash:cpu && node tests/hash-native-state-browser.mjs",
     "test:numeric-display:cpu": "node tests/numeric-display.mjs",
     "test:numeric-display": "node tests/numeric-display.mjs && node tests/numeric-display-browser.mjs --headless",
+    "test:attributes-choice": "node tests/attributes-choice-browser.mjs",
     "test:spline-display-samples": "node tests/spline-display-samples.mjs && node tests/spline-display-samples-browser.mjs --headless",
     "test": "node tests/run.mjs",
     "test:stress": "node tests/run.mjs --stress",

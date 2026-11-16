@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 19:05">
+<meta name="frame-version" content="2026 16 nov 19:13">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11709,9 +11709,11 @@ function bindChoiceScrub(element,items,get,set,refresh=()=>{},complete=()=>{}){
 function bindCycle(button,items,get,set,format=String,complete=()=>{}){
   const apply=index=>{const v=items[Math.max(0,Math.min(items.length-1,index))];if(v!==get())set(v);button.textContent=format(get());};
   button.title='wheel / diagonal drag / ↑↓\n'+items.map(format).join(' · ');
-  button.onwheel=e=>{if(e.ctrlKey)return;e.preventDefault();commit(()=>apply(items.indexOf(get())+(e.deltaY<0?1:-1)),false);complete();};
   button.onkeydown=e=>{if(['ArrowUp','ArrowRight','ArrowDown','ArrowLeft'].includes(e.key)){e.preventDefault();e.stopPropagation();commit(()=>apply(items.indexOf(get())+(['ArrowUp','ArrowRight'].includes(e.key)?1:-1)),false);complete();}};
-  const refresh=()=>button.textContent=format(get());for(const handle of [button,button.closest('.attr-row')?.querySelector('.attr-lab')].filter(Boolean))bindChoiceScrub(handle,items,get,set,refresh,complete);
+  const refresh=()=>button.textContent=format(get());for(const handle of [button,button.closest('.attr-row')?.querySelector('.attr-lab')].filter(Boolean)){
+    handle.onwheel=e=>{if(e.ctrlKey)return;e.preventDefault();e.stopPropagation();commit(()=>apply(items.indexOf(get())+(e.deltaY<0?1:-1)),false);complete();};
+    bindChoiceScrub(handle,items,get,set,refresh,complete);
+  }
 }
 function renderAttributes(){
   if(frameCurvesRenderAttributes())return;
