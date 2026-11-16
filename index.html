@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 16 nov 18:39">
+<meta name="frame-version" content="2026 16 nov 18:48">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15485,7 +15485,8 @@ window.frameEngine=(()=>{
     function temperatureRGB(kelvin){const t=kelvin/100,r=t<=66?255:329.6987*(t-60)**-.1332048,g=t<=66?99.4708*Math.log(t)-161.1196:288.1222*(t-60)**-.0755148,b=t>=66?255:t<=19?0:138.5177*Math.log(t-10)-305.0448;const rgb=[r,g,b].map((v,i)=>(Math.max(0,Math.min(255,v))/255)**2.2/[1,.9923379987829931,.9577215677125558][i]),peak=Math.max(...rgb);return rgb.map(v=>v/peak);}
     function updateViewportEnvironment(r){
       const env=r.environment;if(!env||env.scene===scene&&env.poseEpoch===poseEpoch&&env.lightValuesEpoch===lightValuesEpoch)return;env.scene=scene;env.poseEpoch=poseEpoch;env.lightValuesEpoch=lightValuesEpoch;const lights=(scene.lightObjects||[]).map(hash=>({hash,light:nativeValue(hash,'light')})),shown=o=>lightShown(o.hash),signature=viewportLightingSignature();if(env.signature===signature)return;
-      const defaults=[{direction:FM.unit([-1,.8,.1]),sharp:56,color:[1,1,1],energy:1.04050},{direction:FM.unit([.7,.65,-.4]),sharp:48,color:[1,1,1],energy:.78037},{direction:FM.unit([.1,.85,1]),sharp:64,color:[1,1,1],energy:.91043}],lobes=[];
+      // Stronger key and softer fill retain the same total studio energy.
+      const defaults=[{direction:FM.unit([-1,.8,.1]),sharp:56,color:[1,1,1],energy:1.19657},{direction:FM.unit([.7,.65,-.4]),sharp:48,color:[1,1,1],energy:.62430},{direction:FM.unit([.1,.85,1]),sharp:64,color:[1,1,1],energy:.91043}],lobes=[];
       for(let i=0;i<Math.max(3,lights.length);i++){const o=lights[i];if(!o){lobes.push(defaults[i]);continue;}const values=o.light||[100,6500,2],half=Math.max(.001,values[2])*Math.PI/360;lobes.push({direction:FM.unit(FM.point(objectWorld(o.hash),[-1,0,0],0)),sharp:Math.min(20000,1.0067/Math.max(1e-6,1-Math.cos(half))),color:temperatureRGB(values[1]),energy:shown(o)?values[0]/100*(Math.PI*1.8):0});}
       env.sources=lobes;const data=new Float32Array(lobes.length*8);lobes.forEach((l,i)=>data.set([...l.direction,l.sharp,...l.color,l.energy],i*8));if(!env.lobes||env.lobes.size<data.byteLength){releaseGPU(env.lobes);env.lobes=makeGPUBuffer(r.device,{label:'environment lobes',size:data.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});}r.device.queue.writeBuffer(env.lobes,0,data);
       const e=r.device.createCommandEncoder();for(let i=0;i<10;i++){const diffuse=i===9,texture=diffuse?env.diffuse:env.specular,mip=diffuse?0:i,size=diffuse?32:256>>mip;r.device.queue.writeBuffer(env.settings,i*256,new Float32Array([i/8,diffuse?1:0,lobes.length,0]));const group=r.device.createBindGroup({layout:env.pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:env.lobes}},{binding:1,resource:{buffer:env.settings,offset:i*256,size:16}},{binding:2,resource:texture.createView({dimension:'2d-array',baseMipLevel:mip,mipLevelCount:1})}]}),p=e.beginComputePass();p.setPipeline(env.pipeline);p.setBindGroup(0,group);p.dispatchWorkgroups(Math.ceil(size/8),Math.ceil(size/8),6);p.end();}r.device.queue.submit([e.finish()]);env.signature=signature;env.revision++;sceneFrameDirty=true;viewRevision++;
