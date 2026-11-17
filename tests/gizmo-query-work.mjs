@@ -62,7 +62,7 @@ function makeFixture(source,{views=[0,1,2],active=1,kinds={},states={},pivotEdit
   env.inverseView=()=>[1,1,1];
   const opacity=source.match(/^const frameGizmoOpacity=([^;]+);/m);assert.ok(opacity,'Shared native gizmo opacity');
   env.frameGizmoOpacity=new Function('return ('+opacity[1]+');')();
-  env.clippingPlanes=()=>[.001,1000];
+  env.clippingPlanes=()=>[.001,1000];env.objectOccurrenceTransform=()=>null;if(source.includes('function objectSelectionBounds('))env.objectSelectionBounds=compile(extractFunction(source,'objectSelectionBounds'),env);
   if(source.includes('function projectedBoundsFlash('))env.projectedBoundsFlash=compile(extractFunction(source,'projectedBoundsFlash'),env);
   const specsStart=source.indexOf('const frameGizmoSpecs='),specsEnd=source.indexOf('function singleSelectedControl(',specsStart);assert.ok(specsStart>=0&&specsEnd>specsStart);
   env.frameGizmoSpecs=new Function(source.slice(specsStart,specsEnd)+';return frameGizmoSpecs;')();

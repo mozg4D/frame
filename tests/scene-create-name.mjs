@@ -15,7 +15,7 @@ function harness(html){
  const anyParamsSource=html.match(/^      const anyParams=.*$/m)[0];
  const code=`${definitionSource}
  let handler,inputSchema,nodes=[],serial=0,selected,focusId,anchorId,selectedTag;const selectedTags=new Set();
- const FramePlugins={ensureType:async()=>{},owner:()=>null,dispatch:()=>{}},FrameParameters={validate:()=>{}};
+ const FramePlugins={ensureType:async()=>{},owner:()=>null,dispatch:()=>{},parameterPatch:(_n,params)=>({...params})},FrameParameters={validate:()=>{}};
  const FrameSpline={supported:['nut','bolt','washer','cube'],generators:new Set(),dependencyValid:()=>true,K:()=>kernel};
  const refs=()=>[],resolve=()=>null;
  const setViewerMode=()=>{},commit=fn=>fn(),isSplineObject=()=>false,settle=async()=>{},choose=async()=>{},describe=n=>structuredClone(n);

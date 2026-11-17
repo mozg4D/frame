@@ -196,8 +196,8 @@
     {
       "prefix": "async function frameSaveBoundFile(",
       "nextPrefix": "function frameCancelFileRequest(){",
-      "bytes": 18082,
-      "sha256": "3a1f98df8d9969cbd61df4fa1cfff06e8dcf2931b2807738096749a5322b7267",
+      "bytes": 18493,
+      "sha256": "fdc9ab09b83563a6bb65a8c848aaa7df821193476d98f4269339629828fb7cb0",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 1122,
@@ -206,8 +206,8 @@
       },
       "sourceBindingUpdate": {
         "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
-        "previousBytes": 1131,
-        "previousSHA256": "63c898f4c0ab3867af525d2559e115ddafb7ea34f1476a0e9df381f91e1391ee",
+        "previousBytes": 18082,
+        "previousSHA256": "3a1f98df8d9969cbd61df4fa1cfff06e8dcf2931b2807738096749a5322b7267",
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false

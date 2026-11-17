@@ -24,7 +24,7 @@ function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,se
   const heldPointers=new Set(state.active?[1]:[]),boxDrag=null,drag=null,polygonClick=Promise.resolve();
   const loopSerial=Promise.resolve(),replicaQueue=Promise.resolve(),animationSerial=Promise.resolve(),measureQueue=Promise.resolve();
   const wheelBusy=false,pendingWheel=null,loadLibraryObjects=async()=>{};
-  const FramePlugins={loadUsed:async()=>{},flush:async()=>{}},FrameGeometry={flush:async()=>{}},FrameSpline={flush:async()=>{}};
+  const FrameFileSources={flush:async()=>{}};const FramePlugins={loadUsed:async()=>{},flush:async()=>{}},FrameGeometry={flush:async()=>{}},FrameSpline={flush:async()=>{}};
   const FrameMorph={flush:async()=>{trace.push('morph-flush');if(state.pendingWeight!==undefined){state.weight=state.pendingWeight;delete state.pendingWeight;trace.push('solve:'+state.weight);}},apply:async()=>{throw Error('No fixture owner should be applied outside the active gesture');}};
   const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
   const applyGizmoEvent=(g,event)=>{if(gizmoSession!==g)return;trace.push('apply:'+event.weight);state.applied++;state.target=event.weight;state.dirty=true;if(!state.ready)editSerial=Promise.resolve().then(()=>{trace.push('prepare-ready');state.ready=true;});};

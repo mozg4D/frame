@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 17 nov 18:13",
+  "version": "2026 17 nov 18:54",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -479,11 +479,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "3d64025658f8359db5fb843c379f10ae1815cec52ad15cb40f8a924092c9e41d"
+      "sha256": "3a1988850d888dc4bc674dc32428197c28160e5891f86d3fcd09cb2676477f63"
     },
     "index.html": {
-      "bytes": 2986216,
-      "sha256": "0eabc504692b158e768eee4f78d3ac1eca20cee82a8c8a2923d92a35f3be97dd"
+      "bytes": 2987122,
+      "sha256": "92ea4afa0584fbffe037f79686c999b361ad2df189f21ff306799cc9e7028a81"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -786,8 +786,8 @@
       "sha256": "6ec5030ee11db4234cfd9478bf548bb4ff2e4d926a3fc6cc1330f82092c2068e"
     },
     "tests/selection-bounds-flash.mjs": {
-      "bytes": 6289,
-      "sha256": "59bca507cbc75356783f116f973d6787c8ba8877c0fc9348a6c3cb0325e602c2"
+      "bytes": 6505,
+      "sha256": "e06fa23bf02ab31881e7e90f0e1df05b3ae0937d3967662e011269aec017b2d5"
     },
     "tests/selection-bounds-flash-browser.mjs": {
       "bytes": 6758,
@@ -798,8 +798,8 @@
       "sha256": "29c1752fdbcc7d33416ee259dc987ee0123d11ea2f02d77c2cd6a1b83b3519b8"
     },
     "tests/gizmo-query-work.mjs": {
-      "bytes": 18809,
-      "sha256": "7a519e91ac3b16f919da917deff8166a6e712e74b07c1e00dc8d52875d9ba04a"
+      "bytes": 18989,
+      "sha256": "169f7821114f5585bcd792481c640ad68124807e3fc55d092792f85eb0079850"
     },
     "plugins/cfd/icon.svg": {
       "bytes": 345,
@@ -818,16 +818,16 @@
       "sha256": "5bb96cac60506a2a7978bf70400aac3168e32c715346d6a5348c08770762a6dd"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 15904,
-      "sha256": "171cf6a5597eda80d941407bdea4dab76c689ea121da64d8bbd038dceb92b2da"
+      "bytes": 15905,
+      "sha256": "88f013a2b0f2b1c845e6e9c643f43201a64fd69f3b277cec8e91a91ff298e3c2"
     },
     "tests/texture-slot-drag-browser.mjs": {
       "bytes": 19714,
       "sha256": "9e32df450a3743e68dc8c7958eb455f5145fb21a098c1b491439f73cfd02f1b9"
     },
     "tools/README.md": {
-      "bytes": 33885,
-      "sha256": "3b08505f7f8fe1bc649de1d6d895899ecd1889f4fc6fdb9b65dff8f547c9299d"
+      "bytes": 35191,
+      "sha256": "91cc5b5b2852e5bffd49959e84c1c6f6f9aa8c11d62d4e467b382e92fc046723"
     },
     "tests/texture-slot-drag.mjs": {
       "bytes": 48133,
@@ -842,8 +842,8 @@
       "sha256": "1af3d427e784aaa17a74a4edb1aed1c1129c3147415c0a0ab84d6ce2c7325cb6"
     },
     "tests/scene-create-name.mjs": {
-      "bytes": 7000,
-      "sha256": "6028b75aa9aac51330c5abf97e3f54acbe8246d191fbcb10959084e5d523c05e"
+      "bytes": 7042,
+      "sha256": "81c88c2a477a2dda95f0233cd6ec81c5bcf0cd279e10130a767f5841a7f58df3"
     },
     "tests/scene-create-name-browser.mjs": {
       "bytes": 13363,
@@ -1050,8 +1050,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 75402,
-      "sha256": "32ec23797f258a98fe8b954427c2d41bfb3c172957c7d4b728c3a8409cc22b8f"
+      "bytes": 76722,
+      "sha256": "05d084f47e0c36ba3930d770908ecc8a8d2ded5fe7b7cc44a5c241c1c014add4"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1106,8 +1106,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 15602,
-      "sha256": "1ae3559ef943eb7e97d0d12a69208abdfbb4192fd90578ab66c0d65da7dc8bc6"
+      "bytes": 15868,
+      "sha256": "67a1e56dc1bda22d3fe48cc983a880ef27b2c060b6d89e3277ae09de463a55f1"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1214,8 +1214,8 @@
       "sha256": "95c3b2e248e077051dc72f2b21cf65daa597fd9b5e3f1316c0a8371c5ca6113a"
     },
     "tests/instance-files-browser.mjs": {
-      "bytes": 13996,
-      "sha256": "2ce05dc17aacdae63ae5a4286cc815af83b502dabe527cb214567a974d2418ea"
+      "bytes": 15524,
+      "sha256": "a9e369fd053b738a1bbd648c5e11f73c3b2f26283902d66c68b059bf6ec98d29"
     },
     "tests/instance-symmetry-copy.mjs": {
       "bytes": 4025,
