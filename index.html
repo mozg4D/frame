@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 17 nov 18:54">
+<meta name="frame-version" content="2026 17 nov 22:11">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -9664,11 +9664,20 @@ function createFrameHashCodec(){
   }
   function reader(file){
     if(!file||!Number.isSafeInteger(file.size)||file.size<0)throw Error('Invalid HASH file');
-    const whole=file.size<=16*1024*1024;let loaded=null,block=null,blockAt=0;
+    const whole=file.size<=16*1024*1024,pageSize=1024*1024,pages=new Map();let loaded=null;
     async function range(at,length){
       if(whole){loaded??=file.arrayBuffer().then(b=>new Uint8Array(b));return (await loaded).subarray(at,at+length);}
-      if(block&&at>=blockAt&&at+length<=blockAt+block.length)return block.subarray(at-blockAt,at-blockAt+length);
-      const next=new Uint8Array(await file.slice(at,Math.min(file.size,at+Math.max(1024*1024,length))).arrayBuffer());blockAt=at;block=next;return next.subarray(0,length);
+      const start=at-at%pageSize,offset=at-start;
+      if(length>pageSize-offset)return new Uint8Array(await file.slice(at,at+length).arrayBuffer());
+      let page=pages.get(start);
+      if(page)pages.delete(start);
+      else{
+        if(pages.size===4)pages.delete(pages.keys().next().value);
+        page=file.slice(start,start+pageSize).arrayBuffer().then(b=>new Uint8Array(b));
+      }
+      pages.set(start,page);
+      try{return (await page).subarray(offset,offset+length);}
+      catch(error){if(pages.get(start)===page)pages.delete(start);throw error;}
     }
     return {file,range,read:record=>read(file,record,range),index:()=>index(file,range)};
   }
@@ -9705,11 +9714,36 @@ function createFrameHashCodec(){
 const FrameHash=createFrameHashCodec();
 const FrameValue=FrameHash.values;
 function frameValueKey(input){
-  // Collision-free structural cache keys; no document serialization or numeric rounding.
   const parts=[],active=new Set();
-  function visit(v,depth){if(depth>128)throw Error('Value key depth limit');if(v===null){parts.push('z');return;}const type=typeof v;if(type==='undefined'){parts.push('u');return;}if(type==='boolean'){parts.push(v?'t':'f');return;}if(type==='number'){parts.push('n',Object.is(v,-0)?'-0':String(v),';');return;}if(type==='string'){parts.push('s',String(v.length),':',v);return;}if(type!=='object'||active.has(v))throw Error('Invalid value key');active.add(v);if(ArrayBuffer.isView(v)){parts.push('v',v.constructor.name,':',String(v.length),':');for(const x of v)visit(x,depth+1);}else if(Array.isArray(v)){parts.push('a',String(v.length),':');for(const x of v)visit(x,depth+1);}else{const keys=Object.keys(v).filter(k=>typeof v[k]!=='function'&&typeof v[k]!=='symbol');parts.push('o',String(keys.length),':');for(const k of keys){visit(k,depth+1);visit(v[k],depth+1);}}active.delete(v);}
+  const number=v=>'n'+(Object.is(v,-0)?'-0':v)+';';
+  function visit(v,depth){
+    if(depth>128)throw Error('Value key depth limit');
+    if(v===null){parts.push('z');return;}
+    const type=typeof v;
+    if(type==='undefined'){parts.push('u');return;}
+    if(type==='boolean'){parts.push(v?'t':'f');return;}
+    if(type==='number'){parts.push(number(v));return;}
+    if(type==='string'){parts.push('s'+v.length+':'+v);return;}
+    if(type!=='object'||active.has(v))throw Error('Invalid value key');
+    active.add(v);
+    if(Array.isArray(v)||ArrayBuffer.isView(v)){
+      // Point coordinates and affine matrices dominate these keys. Emit adjacent
+      // scalars together while preserving the exact worker-side token stream.
+      let run=Array.isArray(v)?'a'+v.length+':':'v'+v.constructor.name+':'+v.length+':';
+      for(const x of v){
+        if(typeof x==='number'&&depth<128){run+=number(x);if(run.length>=8192){parts.push(run);run='';}}
+        else{if(run){parts.push(run);run='';}visit(x,depth+1);}
+      }
+      if(run)parts.push(run);
+    }else{
+      const keys=Object.keys(v).filter(k=>typeof v[k]!=='function'&&typeof v[k]!=='symbol');
+      parts.push('o'+keys.length+':');for(const key of keys){visit(key,depth+1);visit(v[key],depth+1);}
+    }
+    active.delete(v);
+  }
   visit(input,0);return parts.join('');
 }
+function frameSplineSegmentKey(data,e){return frameValueKey([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation]);}
 // Derived normal images share the renderer's GPUDevice and material atlas.
 const FrameNormalMaps=(()=>{
   const presets={"tex-01":{"strength":2.1,"bands":[0.65,1,0.15]},"tex-02":{"strength":0.65,"bands":[1,0.35,0]},"tex-03":{"strength":4.5,"bands":[0.25,1.1,0.65],"mode":2,"feature":[0.065,0.604,6,0]},"tex-04":{"strength":2.5,"bands":[0.5,1,0.35]},"tex-05":{"strength":2.1,"bands":[0.8,0.8,0.15]},"tex-06":{"strength":1.3,"bands":[0.7,0.5,0]},"tex-07":{"strength":0.6,"bands":[0.7,0.5,0]},"tex-08":{"strength":1.1,"bands":[0.7,0.8,0.08]},"tex-09":{"strength":1.6,"bands":[0.5,0.8,0.1]},"tex-10":{"strength":1.2,"bands":[0.65,0.7,0.05]},"tex-11":{"strength":1,"bands":[0.65,0.7,0.05]},"tex-12":{"strength":1.1,"bands":[0.6,0.7,0.1]},"tex-13":{"strength":1.1,"bands":[0.8,0.5,0]},"tex-14":{"strength":1.6,"bands":[0.7,0.7,0.1]},"tex-15":{"strength":1.1,"bands":[0.6,0.65,0.08]},"tex-16":{"strength":1.5,"bands":[0.65,0.8,0.1]},"tex-17":{"strength":2,"bands":[0.75,0.7,0.05]},"tex-18":{"strength":2.1,"bands":[0.6,0.8,0.12],"gamma":0.8},"tex-19":{"strength":4.5,"bands":[0.08,0.6,4.5]},"tex-20":{"strength":2,"bands":[0.6,0.8,0.15]},"tex-21":{"strength":3,"bands":[0.4,1.1,0.4]},"tex-22":{"strength":6,"bands":[0,1.1,1],"mode":3,"feature":[0.2,0,10,0.05]},"tex-23":{"strength":2.6,"bands":[0.6,0.9,0.15]},"tex-24":{"strength":2.2,"bands":[0.5,0.9,0.2]},"tex-25":{"strength":2,"bands":[0.5,1,0.2],"range":[0.63,0.76]},"tex-26":{"strength":3.4,"bands":[0.45,1,0.25],"mode":1,"range":[0.07,0.23]},"tex-27":{"strength":2.6,"bands":[0.4,1,0.15],"range":[0.55,0.72]},"tex-28":{"strength":1.5,"bands":[0.5,0.8,0.15]},"tex-29":{"strength":2.8,"bands":[0.5,1,0.25]},"tex-30":{"strength":0.3,"bands":[0.5,0.3,0]},"tex-31":{"strength":1.8,"bands":[0.6,0.85,0.12],"gamma":0.65},"tex-32":{"strength":2.7,"bands":[0.5,1,0.2]}},devices=new WeakMap();
@@ -10867,8 +10901,21 @@ const frameNodeByReference=ref=>frameLookupNode(ref,null);
 let frameLoadNodeIndex=null;
 let frameReadNodeIndex=null;
 function frameReadHierarchy(read){
-  const previous=frameReadNodeIndex,byParent=new Map();for(const n of nodes){let list=byParent.get(n.parent);if(!list)byParent.set(n.parent,list=[]);list.push(n);}frameReadNodeIndex={nodes,count:nodes.length,byParent};
+  const previous=frameReadNodeIndex;frameReadNodeIndex=frameHierarchyIndex();
   try{return read();}finally{frameReadNodeIndex=previous;}
+}
+// The editor can reorder or reparent in place. Verify live slots before sharing
+// the index with another reader. A retired document owns its cache weakly.
+const frameHierarchyIndices=new WeakMap();
+function frameHierarchyIndex(){
+  const cached=frameHierarchyIndices.get(nodes);
+  if(cached&&cached.count===nodes.length){
+    let i=0;for(;i<nodes.length;i++){const n=nodes[i];if(cached.owners[i]!==n||cached.parents[i]!==n.parent)break;}
+    if(i===nodes.length)return cached;
+  }
+  const owners=[],parents=[],byParent=new Map();
+  for(const n of nodes){owners.push(n);parents.push(n.parent);let list=byParent.get(n.parent);if(!list)byParent.set(n.parent,list=[]);list.push(n);}
+  const index={nodes,count:nodes.length,owners,parents,byParent};frameHierarchyIndices.set(nodes,index);return index;
 }
 function frameLoadNodes(){if(!window.frameEngine?.nativeLoading){frameLoadNodeIndex=null;return null;}if(frameLoadNodeIndex?.nodes===nodes&&frameLoadNodeIndex.count===nodes.length)return frameLoadNodeIndex;const byId=new Map(),byHash=new Map(),byParent=new Map();for(const n of nodes){byId.set(n.id,n);if(n.nativeHash)byHash.set(n.nativeHash,n);let list=byParent.get(n.parent);if(!list)byParent.set(n.parent,list=[]);list.push(n);}return frameLoadNodeIndex={nodes,count:nodes.length,byId,byHash,byParent};}
 const children = id => frameReadNodeIndex?.nodes===nodes&&frameReadNodeIndex.count===nodes.length?frameReadNodeIndex.byParent.get(id)||[]:frameLoadNodes()?.byParent.get(id)||(!window.frameEngine?.nativeLoading?nodes.filter(n=>n.parent===id):[]);
@@ -11536,11 +11583,23 @@ async function frameUndoUI(back){const from=back?undoStack:redoStack,to=back?red
 function history(back){if(window.frameEngine?.scene)return (back?window.frameEngine.undoEdit():window.frameEngine.redoEdit()).catch(fileOperationError);frameUndoUI(back);}
 
 function descendants(id){
-  const byParent=(frameReadNodeIndex?.nodes===nodes&&frameReadNodeIndex.count===nodes.length?frameReadNodeIndex.byParent:frameLoadNodes()?.byParent)||new Map();if(!byParent.size)for(const n of nodes){let list=byParent.get(n.parent);if(!list)byParent.set(n.parent,list=[]);list.push(n);}
+  const byParent=(frameReadNodeIndex?.nodes===nodes&&frameReadNodeIndex.count===nodes.length?frameReadNodeIndex:frameLoadNodes()||frameHierarchyIndex()).byParent;
   const out=[],seen=new Set([id]),stack=[...(byParent.get(id)||[])].reverse();while(stack.length){const n=stack.pop();if(seen.has(n.id))continue;seen.add(n.id);out.push(n.id);const list=byParent.get(n.id)||[];for(let i=list.length-1;i>=0;i--)stack.push(list[i]);}return out;
 }
-function roots(ids){
-  const ancestry=new Map();return [...ids].filter(id=>{const owner=node(id);if(!owner)return true;const path=[],seen=new Set([id]);let parent=node(owner.parent),blocked=false;while(parent&&!seen.has(parent.id)){seen.add(parent.id);if(ids.has(parent.id)){blocked=true;break;}if(ancestry.has(parent.id)){blocked=ancestry.get(parent.id);break;}path.push(parent.id);parent=node(parent.parent);}for(const ancestor of path)ancestry.set(ancestor,blocked);return !blocked;});
+function roots(ids){return frameSelectionRoots(ids,id=>node(node(id)?.parent)?.id);}
+function frameSelectionRoots(ids,parentOf){
+  if(ids.size<2)return [...ids];
+  const ancestry=new Map();
+  return [...ids].filter(id=>{
+    const path=[],seen=new Set([id]);let parent=parentOf(id),blocked=false;
+    while(parent!=null&&!seen.has(parent)){
+      if(ids.has(parent)){blocked=true;break;}
+      if(ancestry.has(parent)){blocked=ancestry.get(parent);break;}
+      path.push(parent);seen.add(parent);parent=parentOf(parent);
+    }
+    for(const ancestor of path)ancestry.set(ancestor,blocked);
+    return !blocked;
+  });
 }
 function treeOrder(parent=null){return children(parent).flatMap(n=>[n.id,...treeOrder(n.id)]);}
 function objectColor(type){const p=frameObjectPalette,plugin=FramePlugins.owner({type});if(plugin)return plugin.manifest.color||p.plugin;return type==='spline_patch'?p.patch:type==='group'?p.group:['instance','cloner','symmetry'].includes(type)?p.distribution:generatorTypes.includes(type)?p.operation:['spline','square','circle','polyhedron','text','helix','gear','pulley'].includes(type)?p.curve:['human','car','tree'].includes(type)?p.asset:type==='render'?p.camera:type==='target'?p.target:type==='infinite'?p.light:type==='mesh'?p.mesh:p.primitive;}
@@ -13755,7 +13814,7 @@ window.FrameSpline=(()=>{
       if(display.ranges.size!==edges.length)continue;
       const samples=[];
       for(const [id,e]of edges){
-        if(display.edgeKeys.get(id)!==frameValueKey([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation])||!display.samples.get(id)){samples.length=0;break;}
+        if(display.edgeKeys.get(id)!==frameSplineSegmentKey(data,e)||!display.samples.get(id)){samples.length=0;break;}
         samples.push([id,display.samples.get(id)]);
       }
       if(samples.length===edges.length)return samples;
@@ -13800,7 +13859,7 @@ window.FrameSpline=(()=>{
         if(evaluating.has(n.id))throw Error('Instance/generator dependency cycle');if(seen.has(n.id))return states.get(n.id)?.data;evaluating.add(n.id);try{return await evaluateNode(n);}finally{evaluating.delete(n.id);seen.add(n.id);}
       }
       function evaluateLegacy(n){if(['spline','spline_patch','boolean'].includes(n.type))return evaluateNode(n);const previous=constructionSerial;let release;constructionSerial=new Promise(resolve=>{release=resolve;});const finish=()=>{release?.();release=null;};return previous.then(()=>evaluateNode(n,finish)).finally(finish);}
-      async function evaluateNode(n,finishConstruction=null,construction=null){requireEvaluationScene(engine,evaluationSpace);n.nativeHash??=FrameHash.newId();let inputs=[],inputPivots=[],inputSources=[];
+      async function evaluateNode(n,finishConstruction=null,construction=null){requireEvaluationScene(engine,evaluationSpace);n.nativeHash??=FrameHash.newId();const inputs=[],inputPivots=[],inputSources=[],inputFrames=[];
         if(n.type==='boolean'){
           for(const child of children(n.id)){if(supported.has(child.type))await evaluate(child);else if(child.type==='group')for(const id of descendants(child.id)){const c=node(id);if(supported.has(c.type))await evaluate(c);}}
           if(!n.enabled)return null;try{
@@ -13811,12 +13870,21 @@ window.FrameSpline=(()=>{
             const state=await engine.evaluateBoolean(n,states.get(n.id),true);if(state)states.set(n.id,state);else dirty=true;delete n.splineError;return state?.data;
           }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}
         }
-        let dependencies=[];if(generators.has(n.type)){try{for(const row of generatorSources(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){inputs.push(engine.splineOccurrenceInFrame(d,row.node.nativeHash,n.nativeHash,row.instances));inputPivots.push(engine.splineOccurrencePivot(row.node.nativeHash,n.nativeHash,row.instances));inputSources.push(row);}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
-        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const staticSignature=!editingNow||old?.signature!=null?frameValueKey([n.enabled,shape(n),inputs,inputPivots]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
-        const changes=liveChanges.get(n);liveChanges.delete(n);const token=editingNow?null:frameValueKey(shape(n)),state={hash:n.nativeHash,signature,liveVersion:editingNow?version:null,data:null};states.set(n.id,state);
-        try{if(generators.has(n.type)&&(!inputs.length||n.type==='sweep'&&inputs.length<2)&&!n.splineData){engine.removeSpline(n.nativeHash);delete n.engineIndex;delete n.splineError;state.empty=true;return null;}if(n.type==='text')await loadFont();const data=n.type==='spline_patch'&&n.splineData?(isEditing()?structuredClone(n.splineData):n.splineData):n.type==='spline_patch'&&inputs.length===1?inputs[0]:n.type==='spline_patch'?mergeData(inputs,true):generators.has(n.type)?await generate(n,inputs,old,inputPivots[0],construction):n.type==='spline'?(n.splineData??=K().createSplineData({angle:n.params['angle approximation']})):await call(construction?'cold:'+construction.group.id+':0':0,'primitive',{type:n.type,params:n.params});
-          if(!nodes.includes(n)||!editingNow&&frameValueKey(shape(n))!==token&&n.type!=='spline'){dirty=true;return null;}if(n.type==='spline')data.approximation={angle:Math.max(1,+n.params['angle approximation']||10)};state.data=data;state.sources=inputSources;
-          let current=()=>nodes.includes(n)&&(editingNow||n.type==='spline'?n.splineData===data||editingNow:frameValueKey(shape(n))===token);if((generators.has(n.type)||solids.has(n.type))&&n.enabled){const baked=old===undefined&&bakedHashes.delete(n.nativeHash)&&n.type!=='spline_patch'&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId===n.nativeHash;if(!baked){const dependencyStamp=()=>frameValueKey([shape(n),generatorSources(n).map(({node:q,instances})=>[q.id,shape(q),instances.map(c=>[c.id,shape(c)]),engine.splineOccurrenceFrame(q.nativeHash,n.nativeHash,instances),engine.packLocalPivot(q.nativeHash)])]),validity=editingNow?null:dependencyStamp();current=()=>nodes.includes(n)&&(editingNow||dependencyStamp()===validity);const space=engine.scene,type=n.type,result=await build(data,n.nativeHash+':'+n.type,engine.scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.paged)?.splineToken,construction);await finishConstruction?.();const editing=isEditing();if(!nodes.includes(n)||n.type!==type||engine.scene!==space||!editing&&!editingNow&&!current()){dirty=true;return null;}if(editing||editingNow){current=()=>nodes.includes(n)&&n.type===type&&engine.scene===space;state.signature=null;if(!editing)dirty=true;}state.cellBindings=result.cellBindings;if(!result.unchanged&&!await engine.installSplineSurface(n,result,current)){state.signature=null;dirty=true;return null;}state.report=result.report;}}
+        let dependencies=[];if(generators.has(n.type)){try{for(const row of generatorSources(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){const source=row.node.nativeHash,frame=engine.splineOccurrenceFrame(source,n.nativeHash,row.instances);
+              inputs.push(d);inputSources.push(row);inputFrames.push([source,row.instances.map(c=>c.nativeHash),frame]);
+              inputPivots.push(engine.splineOccurrencePivot(source,n.nativeHash,row.instances,frame));}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
+        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const staticSignature=!editingNow||old?.signature!=null?frameValueKey([n.enabled,shape(n),inputs,inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
+        const changes=liveChanges.get(n);liveChanges.delete(n);const token=editingNow||n.type==='spline'?null:frameValueKey(shape(n)),state={hash:n.nativeHash,signature,liveVersion:editingNow?version:null,data:null};states.set(n.id,state);
+        try{if(generators.has(n.type)&&(!inputs.length||n.type==='sweep'&&inputs.length<2)&&!n.splineData){engine.removeSpline(n.nativeHash);delete n.engineIndex;delete n.splineError;state.empty=true;return null;}// Transform editable cages only after a changed dependency has admitted a build.
+          for(let i=0;i<inputs.length;i++){const [source,,matrix]=inputFrames[i];inputs[i]=engine.splineOccurrenceInFrame(inputs[i],source,n.nativeHash,inputSources[i].instances,matrix);}
+          if(n.type==='text')await loadFont();const data=n.type==='spline_patch'&&n.splineData?(isEditing()?structuredClone(n.splineData):n.splineData):n.type==='spline_patch'&&inputs.length===1?inputs[0]:n.type==='spline_patch'?mergeData(inputs,true):generators.has(n.type)?await generate(n,inputs,old,inputPivots[0],construction):n.type==='spline'?(n.splineData??=K().createSplineData({angle:n.params['angle approximation']})):await call(construction?'cold:'+construction.group.id+':0':0,'primitive',{type:n.type,params:n.params});
+          if(node(n.id)!==n||!editingNow&&n.type!=='spline'&&frameValueKey(shape(n))!==token){dirty=true;return null;}if(n.type==='spline')data.approximation={angle:Math.max(1,+n.params['angle approximation']||10)};state.data=data;state.sources=inputSources;
+          let current=()=>node(n.id)===n&&(editingNow||n.type==='spline'?n.splineData===data||editingNow:frameValueKey(shape(n))===token);
+          const generator=generators.has(n.type);if((generator||solids.has(n.type))&&n.enabled){const baked=old===undefined&&bakedHashes.delete(n.nativeHash)&&n.type!=='spline_patch'&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId===n.nativeHash;if(!baked){
+            const dependencyStamp=()=>frameValueKey([n.enabled,shape(n),generatorSources(n).map(({node:q,instances})=>[q.id,shape(q),instances.map(c=>[c.id,shape(c)]),engine.splineOccurrenceFrame(q.nativeHash,n.nativeHash,instances),engine.packLocalPivot(q.nativeHash)])]);
+            const validity=generator&&!editingNow?dependencyStamp():null;
+            current=()=>node(n.id)===n&&(editingNow||n.enabled&&(generator?dependencyStamp()===validity:frameValueKey(shape(n))===token));
+            const space=engine.scene,type=n.type,result=await build(data,n.nativeHash+':'+n.type,engine.scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.paged)?.splineToken,construction);await finishConstruction?.();const editing=isEditing();if(node(n.id)!==n||n.type!==type||engine.scene!==space||!editing&&!editingNow&&!current()){dirty=true;return null;}if(editing||editingNow){current=()=>node(n.id)===n&&n.type===type&&engine.scene===space;state.signature=null;if(!editing)dirty=true;}state.cellBindings=result.cellBindings;if(!result.unchanged&&!await engine.installSplineSurface(n,result,current)){state.signature=null;dirty=true;return null;}state.report=result.report;}}
           await finishConstruction?.();directSurfaces.delete(data);if(!(editingNow&&isEditable(n)&&engine.splineDisplays.has(n.nativeHash))&&await engine.setSplineDisplay(n.nativeHash,displayCages.get(data)||data,generators.has(n.type)||solids.has(n.type),current,editingNow&&['spline','spline_patch'].includes(n.type)?changes:null)===false){state.signature=null;dirty=true;return null;}delete n.splineError;
         }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;if(n.type==='extrude'&&old?.data)state.data=old.data;n.splineError=error.message;state.error=error.message;engine.setSplineError(n.nativeHash,error.message);if(current()===n)renderAttributes();}
         return state.data;
@@ -15210,7 +15278,7 @@ window.frameEngine=(()=>{
       updateSceneBounds();if(geometryChanged&&!replicaBuilding&&scene.meshes.some(m=>{for(let q=m.replicaSource;q;q=q.replicaSource)if(changedSources.has(q.hashId))return true;return false;}))syncReplicas();poseEpoch++;measurementCache=null;return geometryChanged;
     }
     function objectDescendants(h,objects=poseObjects()){let children=objects===poseRecordCache?.objects?poseRecordCache.children:null;if(!children){children=new Map();for(const o of objects){if(!children.has(o.parent))children.set(o.parent,[]);children.get(o.parent).push(o.hash);}if(objects===poseRecordCache?.objects)poseRecordCache.children=children;}const out=[h],seen=new Set(out);for(let i=0;i<out.length;i++)for(const hash of children.get(out[i])||[])if(!seen.has(hash)){seen.add(hash);out.push(hash);}return out;}
-    function selectedRoots(){const set=new Set(objectSelection),objects=poseObjects(),parents=new Map(objects.map(o=>[o.hash,transformParent(o.hash,o.parent)]));return [...set].filter(h=>{let p=parents.get(h);while(p){if(set.has(p))return false;p=parents.get(p);}return true;});}
+    function selectedRoots(){return objectSelection.length<2?objectSelection.slice():frameSelectionRoots(new Set(objectSelection),transformParent);}
     function boundsOwnerIndex(){flushReplicaPublication();const index={meshes:new Map(),curves:new Map()},add=(map,key,value)=>{let list=map.get(key);if(!list)map.set(key,list=[]);list.push(value);};for(const mesh of scene.meshes)add(index.meshes,mesh.hashId,mesh);for(const curve of scene.curveReplicas||[])add(index.curves,curve.hashId,curve);return index;}
     function objectSelectionBounds(hash,index=null){const bounds=nodeBounds(hash,index),occurrence=objectOccurrenceTransform();return occurrence&&hash===objectSelection[0]?transformedBox(bounds,occurrence):bounds;}
     function objectBoundsUnion(hashes=objectSelection){if(!hashes.length)return null;const index=hashes.length>8?boundsOwnerIndex():null;return unionSelectionBounds(hashes.map(hash=>objectSelectionBounds(hash,index)));}
@@ -15238,7 +15306,8 @@ window.frameEngine=(()=>{
     function selectionFrame(){
       const aux=auxiliaryState();if(aux)return aux.frame;
       if(!selectionBox)return null;
-      if(selectionScope==='objects'&&selectedRoots().length===1){const h=selectedRoots()[0],frame=FM.mul(objectWorld(h),objectPivot(h)),occurrence=objectOccurrenceTransform();return occurrence?FM.mul(occurrence,frame):frame;}
+      const roots=selectionScope==='objects'?selectedRoots():null;
+      if(roots?.length===1){const h=roots[0],frame=FM.mul(objectWorld(h),objectPivot(h)),occurrence=objectOccurrenceTransform();return occurrence?FM.mul(occurrence,frame):frame;}
       if(componentPivot)return new Float64Array(componentPivot);if(coordinateMode==='object'&&selectionScope==='components'){const frame=splineControlFrame();if(frame)return frame;}
       const h=FramePlugins.dispatch('selection')?.hash||splineComponentHash()||selectedMesh?.hashId,m=coordinateMode==='object'&&h?FM.rigid(objectWorld(h)):FM.I();m.set(selectionBox.center,12);return m;
     }
@@ -15483,13 +15552,14 @@ window.frameEngine=(()=>{
     function installBooleanMaterials(n,result,registry){
       const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh)return;for(const [token,set]of polygonResources)if(set.generatedOwner===mesh){releaseGPU(set.resource);polygonResources.delete(token);}
       const tags=[];if(result.faceMaterials?.length){const count=result.faceMaterials.length,ids=new Set(result.faceMaterials);for(const id of ids){if(!id||!registry[id])continue;const tag={uid:FrameHash.newId(),kind:'material',materialUID:registry[id],params:{}},mask=FrameHash.newId(),byteLength=Math.ceil(count/8),words=new Uint32Array(Math.ceil(count/32));for(let f=0;f<count;f++)if(result.faceMaterials[f]===id)words[f>>5]|=1<<(f&31);const buffer=makeGPUBuffer(renderer.device,{label:'Boolean source material faces',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,byteLength);polygonResources.get(mask).generatedOwner=mesh;tag.mask=mask;tags.push(tag);}}
-      mesh.booleanMaterialTags=tags;if(result.report)result.report.materials=registry.slice(1).map((uid,i)=>({uid,triangles:result.faceMaterials?.reduce((sum,value)=>sum+(value===i+1?1:0),0)||0})).filter(m=>m.triangles);appearanceRevision++;refreshMaterialOwners();draw(true);
+      mesh.booleanMaterialTags=tags;if(result.report)result.report.materials=registry.slice(1).map((uid,i)=>({uid,triangles:result.faceMaterials?.reduce((sum,value)=>sum+(value===i+1?1:0),0)||0})).filter(m=>m.triangles);appearanceRevision++;
+      refreshMaterialOwners(scene.meshes.filter(row=>{for(let source=row;source;source=source.replicaSource)if(source===mesh)return true;return false;}));draw(true);
     }
     async function evaluateBoolean(n,state,publicationPrepared=false){
       if(!publicationPrepared)flushReplicaPublication();
       const roots=children(n.id).filter(c=>c.enabled);if(roots.length!==2){removeSpline(n.nativeHash);return {hash:n.nativeHash,signature:null,data:null,empty:true,report:{operands:roots.length}};}
       const signature=()=>frameReadHierarchy(()=>{
-        const byOwner=new Map();for(const mesh of scene.meshes){let list=byOwner.get(mesh.hashId);if(!list)byOwner.set(mesh.hashId,list=[]);list.push(mesh);}
+        const byOwner=replicaPublicationIndex().meshes;
         return frameValueKey([n.params,roots.map(r=>[r.id,[r.id,...descendants(r.id)].map(id=>{const c=node(id);return [c.nativeHash,c.enabled,c.visible,FrameSpline.shape(c),Array.from(objectLocal(c.nativeHash)),c.tags.map(t=>{if(t.kind!=='material')return t;const {material,materialUID,...tag}=t;return [(materials[material||0]||materials[0]).uid,tag];}),(byOwner.get(c.nativeHash)||[]).map(m=>{let source=m;while(source.replicaSource)source=source.replicaSource;return [m.replicaKey,m.appearanceKey,(source.version||0)-(source.frameRevision||0),pluginIdentity(source.positions),pluginIdentity(source.indices),m.vertexCount,m.triangleCount,Array.from(objectRelativeFrame(m.hashId,n.nativeHash)),m.replicaMatrix&&Array.from(m.replicaMatrix)];})];})])]);
       });
       const key=signature();if(state?.signature===key)return state;
@@ -15734,7 +15804,7 @@ window.frameEngine=(()=>{
     const materialKeys=frameMaterialKeys,materialNumber=(m,k)=>m[k]??frameMaterialDefaults[k]??0;
     const polygonResources=new Map(),uvResources=new Map();
     let renderMaterialCache=null,renderMaterialEpoch=0;
-    function createRenderMaterialCache(){return {scene,renderer,records:scene?.records,epoch:renderMaterialEpoch,values:new Map(),uvTags:new Map(),uv:new WeakMap(),ensuredUV:new WeakMap(),materials:new WeakMap(),transparent:new WeakMap(),transparentState:renderer?.materialState,transparentAlpha:renderer?.materialState?.alphaAssets};}
+    function createRenderMaterialCache(){return {scene,renderer,records:scene?.records,epoch:renderMaterialEpoch,values:new Map(),uvTags:new Map(),uv:new WeakMap(),ensuredUV:new WeakMap(),materials:new WeakMap(),transparent:new WeakMap(),transparentMaterials:new Map(),transparentState:renderer?.materialState,transparentAlpha:renderer?.materialState?.alphaAssets};}
     function currentRenderMaterialCache(){if(!renderMaterialCache)return null;const c=renderMaterialCache;if(c.scene!==scene||c.renderer!==renderer||c.records!==scene?.records||c.epoch!==renderMaterialEpoch)renderMaterialCache=createRenderMaterialCache();return renderMaterialCache;}
     function invalidateRenderMaterials(){if(renderMaterialCache){renderMaterialEpoch++;renderMaterialCache=createRenderMaterialCache();}}
     function withRenderMaterials(read){const previous=renderMaterialCache;renderMaterialCache=createRenderMaterialCache();try{return read();}finally{renderMaterialCache=previous;}}
@@ -15812,7 +15882,7 @@ window.frameEngine=(()=>{
     function appearanceUVTag(hash){const cache=currentRenderMaterialCache();if(cache?.uvTags.has(hash))return cache.uvTags.get(hash);let found=null;for(const uid of appearanceValue(hash,'tags')||[])if(!appearanceValue(uid,'material')){found=uid;break;}cache?.uvTags.set(hash,found);return found;}
     function importedUV(mesh){const cache=currentRenderMaterialCache();if(cache?.uv.has(mesh))return cache.uv.get(mesh);const value=importedUVNow(mesh);currentRenderMaterialCache()?.uv.set(mesh,value);return value;}
     function importedUVNow(mesh){let source=mesh;while(source){const uid=appearanceUVTag(source.hashId);if(uid)return appearanceValue(uid,'uv');source=source.replicaSource;}return null;}
-    function ensureImportedUV(mesh){const cache=currentRenderMaterialCache();if(cache?.ensuredUV.has(mesh))return cache.ensuredUV.get(mesh);const value=ensureImportedUVNow(mesh);currentRenderMaterialCache()?.ensuredUV.set(mesh,value);return value;}
+    function ensureImportedUV(mesh){const cache=currentRenderMaterialCache();if(cache?.ensuredUV.has(mesh))return cache.ensuredUV.get(mesh);const value=ensureImportedUVNow(mesh),current=currentRenderMaterialCache();if(current){current.ensuredUV.set(mesh,value);current.uv.set(mesh,value);}return value;}
     function ensureImportedUVNow(mesh){
       let owner=mesh,uid;while(owner){uid=appearanceUVTag(owner.hashId);if(uid)break;owner=owner.replicaSource;}if(!owner)return null;
       const old=appearanceValue(uid,'uv');if(!old||old.count===owner.count*2)return old;
@@ -15976,11 +16046,22 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     }
     function releaseMaterialState(r){invalidateRenderMaterials();clearMaterialTransparency(r);if(r?.materialState){releaseGPU(r.materialState.data);releaseGPU(r.materialState.atlas);r.materialState.assetTicket++;r.materialState=null;}}
     function materialTransparent(mesh){
-      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;const cache=currentRenderMaterialCache(),state=renderer?.materialState;if(cache){if(cache.transparentState!==state||cache.transparentAlpha!==state?.alphaAssets){cache.transparentState=state;cache.transparentAlpha=state?.alphaAssets;cache.transparent=new WeakMap();}if(cache.transparent.has(mesh))return cache.transparent.get(mesh);}const value=materialTransparentNow(mesh);currentRenderMaterialCache()?.transparent.set(mesh,value);return value;
+      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;const cache=currentRenderMaterialCache(),state=renderer?.materialState;if(cache){if(cache.transparentState!==state||cache.transparentAlpha!==state?.alphaAssets){cache.transparentState=state;cache.transparentAlpha=state?.alphaAssets;cache.transparent=new WeakMap();cache.transparentMaterials.clear();}if(cache.transparent.has(mesh))return cache.transparent.get(mesh);}const value=materialTransparentNow(mesh);currentRenderMaterialCache()?.transparent.set(mesh,value);return value;
     }
     function materialTransparentNow(mesh){
-      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;const tags=mesh.materialTags,start=Math.max(0,tags.findLastIndex(t=>!t.mask)),state=renderer?.materialState;
-      return tags.slice(start).some(t=>{if(t.mask&&!polygonSet(t.mask))return false;const values=appearanceValue(t.materialUID,'parameters'),maps=appearanceValue(t.materialUID,'maps');return values?.[6]>0||maps?.[1]&&maps[1]!==FrameHash.K.zero||values?.[12]!==1&&maps?.[0]&&maps[0]!==FrameHash.K.zero&&state?.alphaAssets?.get(maps[0])!==false;});
+      const tags=mesh.materialTags;if(shadingMode==='wireframe'||shadingMode==='isoparms'||!tags?.length)return false;
+      const cache=currentRenderMaterialCache()?.transparentMaterials,state=renderer?.materialState;
+      for(let i=tags.length-1;i>=0;i--){
+        const tag=tags[i];if(tag.mask&&!polygonSet(tag.mask))continue;
+        const uid=tag.materialUID;let transparent=cache?.get(uid);
+        if(transparent===undefined){
+          const values=appearanceValue(uid,'parameters'),maps=appearanceValue(uid,'maps');
+          transparent=!!(values?.[6]>0||maps?.[1]&&maps[1]!==FrameHash.K.zero||values?.[12]!==1&&maps?.[0]&&maps[0]!==FrameHash.K.zero&&state?.alphaAssets?.get(maps[0])!==false);
+          cache?.set(uid,transparent);
+        }
+        if(transparent)return true;if(!tag.mask)break;
+      }
+      return false;
     }
     function clearMaterialTransparency(r){const oit=r?.materialState?.oit;if(oit){releaseGPU(oit.accum);releaseGPU(oit.reveal);r.materialState.oit=null;}}
     function renderMaterialTransparency(r,encoder,color,depth,width,height){
@@ -16982,7 +17063,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
         r.geometryFrames=(r.geometryFrames||0)+1;r.cachedScene=scene;sceneFrameDirty=false;
       }
       // Component colors keep their IDs; a different editable owner changes eligibility.
-      const eligibleComponents=componentMeshes(),featureKey=[...eligibleComponents.map(m=>m.hashId),perspectiveFov,cameraRoll,viewIndex,zoom,elementMode,shadingMode,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':');
+      const eligibleComponents=elementMode==='object'?[]:componentMeshes();
+      const featureKey=elementMode==='vertex'||elementMode==='edge'?[...eligibleComponents.map(m=>m.hashId),elementMode,shadingMode,surfaceKey].join(':'):null;
       if(r.featureKey!==featureKey)r.featureMode=null;
       const rect=canvas.getBoundingClientRect(),x=Math.max(0,Math.min(width-1,Math.floor((hoverCursor.x-rect.left)*width/rect.width))),y=Math.max(0,Math.min(height-1,Math.floor((hoverCursor.y-rect.top)*height/rect.height)));
       const stationaryPress=drag?.button===0&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)<=3;const hoverIdle=(!heldPointers.size||stationaryPress)&&(!drag||stationaryPress)&&!boxDrag&&!selectionBusy&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!button.disabled&&!wheelBusy&&!pendingWheel&&performance.now()>=(r.hoverReadyAt||0);
@@ -18868,12 +18950,25 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const keep=new Set(built),keepCurves=new Set(builtCurves);for(const m of existing)if(!keep.has(m)){disposeMesh(m);changed=true;}for(const m of oldCurves)if(!keepCurves.has(m))for(const b of m.buffers)releaseGPU(b);const ownerByHash=nodeByHash;for(const m of [...built,...builtCurves]){const n=ownerByHash.get(m.hashId);let hidden=false,p=node(n.parent);while(p){if(p.enabled&&(p.type==='boolean'||!FrameSpline.generators.has(p.type)||consumedInput(p,n,m))&&(FrameSpline.generators.has(p.type)&&FrameSpline.states.get(p.id)?.data&&!FrameSpline.states.get(p.id)?.empty&&!p.splineError||p.type==='boolean'&&FrameSpline.states.get(p.id)?.signature||['cloner','symmetry'].includes(p.type)&&occurrenceCount(p.nativeHash))){hidden=true;break;}p=node(p.parent);}m.frameSourceConsumed=hidden;m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n)&&!hidden;}scene.curveReplicas=builtCurves;scene.meshes=[...raw,...built];const distributors=new Set(owners.filter(n=>n.type==='cloner'&&n.params.type==='object').map(n=>n.id));for(const id of replicaPlacements.keys())if(!distributors.has(id))replicaPlacements.delete(id);const usedSamplers=new Set([...replicaPlacements.values()].map(c=>c.sampler));for(const [source,state]of surfaceSamplers)if(!usedSamplers.has(state)){disposeSurfaceSampler(state);surfaceSamplers.delete(source);}for(const m of raw){const n=nodeByHash.get(m.hashId);m.frameSourceConsumed=false;let parent=node(n?.parent);while(parent){if(parent.enabled&&(parent.type==='boolean'&&FrameSpline.states.get(parent.id)?.signature||['cloner','symmetry'].includes(parent.type)&&occurrenceCount(parent.nativeHash))){m.frameSourceConsumed=true;m.frameVisible=false;}parent=node(parent.parent);}}if(selectionScope==='objects'){const hashes=new Set(objectSelection.flatMap(h=>objectDescendants(h)));selectedMeshes=scene.meshes.filter(m=>hashes.has(m.hashId));selectedMesh=selectedMeshes[0]||null;}if(changed){const layoutChanged=existing.length!==built.length||existing.some((m,i)=>m.replicaKey!==built[i]?.replicaKey||m.triangleCount!==built[i]?.triangleCount);if(layoutChanged)publishTopology(renderer,[]);else{clearFeatureDraws(renderer);clearPickGroups(renderer);for(const m of built){m.faceBase=byKey.get(m.replicaKey).faceBase;renderer.device.queue.writeBuffer(m.connected.range,0,new Uint32Array([m.faceBase,m.triangleCount,0,0]));}refreshMaterialOwners();}}const posed=syncPoseWorld(scopedMeshes);if(selectionScope==='objects'&&objectSelection.length)selectionBox=objectBoundsUnion();if(changed){appearanceSignature='';deferHoverMaps();}return changed||posed;}finally{replicaBuilding=false;}
     }
     function syncNativeObjects(objects){
-      if(!scene||nativeIOBusy&&!splineLoadFinalizing)return;FramePlugins.dispatch('sync');const lightBefore=viewportLightingSignature(),before=snapshotFrames(),worlds=new Map(poseObjects().map(o=>[o.hash,objectWorld(o.hash)])),parents=new Map(poseObjects().map(o=>[o.hash,o.parent]));
+      if(!scene||nativeIOBusy&&!splineLoadFinalizing)return;FramePlugins.dispatch('sync');const lightBefore=viewportLightingSignature();
       const present=objects.filter(o=>o.type===0||o.type===2||Number.isInteger(o.index)&&scene.meshes[o.index]);
-      for(const [hash,target]of poseConstraints)if(!present.some(o=>o.hash===target.nativeHash)){const object=present.find(o=>o.hash===hash),world=worlds.get(hash);if(object&&world)object.matrix=FM.pack(object.parent?FM.mul(FM.inv(worlds.get(object.parent)||FM.I()),world):world);}
+      const byHash=new Map(present.map(o=>[o.hash,o])),prior=new Map(poseObjects().map(o=>[o.hash,o]));
+      const moved=present.filter(o=>prior.has(o.hash)&&prior.get(o.hash).parent!==o.parent);
+      const before=moved.length&&!frameUITransaction?snapshotFrames():null;
+      const worlds=before?.worlds||new Map(moved.map(o=>[o.hash,objectWorld(o.hash)]));
+      for(const [hash,target]of poseConstraints)if(!byHash.has(target.nativeHash)&&prior.has(hash)){
+        const object=byHash.get(hash);if(!object)continue;
+        const world=objectWorld(hash),parent=prior.has(object.parent)?objectWorld(object.parent):FM.I();
+        object.matrix=FM.pack(object.parent?FM.mul(FM.inv(parent),world):world);
+      }
       installNativeRecords(present,scene.records?.get(FrameHash.K.camera)?.value||null);
-      const alive=new Set(present.map(o=>o.hash));objectSelection=objectSelection.filter(h=>alive.has(h));if(selectionScope==='components'){selectedMeshes=selectedMeshes.filter(m=>alive.has(m.hashId));selectedMesh=selectedMeshes[0]||null;}if(!objectSelection.length&&!FramePlugins.dispatch('selection')&&(selectionScope==='objects'||!selectedMeshes.length)){selectedMeshes=[];selectedMesh=null;selectionBox=componentPivot=coordinateCache=null;handles.hidden=true;drawGizmo();}
-      const moved=present.filter(o=>parents.has(o.hash)&&parents.get(o.hash)!==o.parent),depth=o=>{let n=0,p=o.parent;const visited=new Set();while(p&&!visited.has(p)){visited.add(p);n++;p=present.find(q=>q.hash===p)?.parent;}return n;};moved.sort((a,b)=>depth(a)-depth(b));for(const o of moved){poseWorlds.clear();const parent=transformParent(o.hash)?objectWorld(transformParent(o.hash)):FM.I();putFrame(o.hash,'matrix',FM.mul(FM.inv(parent),worlds.get(o.hash)));}if(moved.length){syncPoseWorld();if(!frameUITransaction)commitFrames(before);draw();}
+      objectSelection=objectSelection.filter(h=>byHash.has(h));if(selectionScope==='components'){selectedMeshes=selectedMeshes.filter(m=>byHash.has(m.hashId));selectedMesh=selectedMeshes[0]||null;}if(!objectSelection.length&&!FramePlugins.dispatch('selection')&&(selectionScope==='objects'||!selectedMeshes.length)){selectedMeshes=[];selectedMesh=null;selectionBox=componentPivot=coordinateCache=null;handles.hidden=true;drawGizmo();}
+      if(moved.length){
+        const depth=o=>{let p=o.parent;const seen=new Set();while(p&&!seen.has(p)){seen.add(p);p=byHash.get(p)?.parent;}return seen.size;};
+        moved.sort((a,b)=>depth(a)-depth(b));
+        for(const o of moved){poseWorlds.clear();const parent=transformParent(o.hash);putFrame(o.hash,'matrix',FM.mul(parent?FM.inv(objectWorld(parent)):FM.I(),worlds.get(o.hash)));}
+        syncPoseWorld();if(before)commitFrames(before);draw();
+      }
       setVisibility(present.filter(o=>o.index!==undefined).map(o=>{const n=frameNodeByHash(o.hash);let p=node(n?.parent),consumed=false;while(p){if(p.type==='boolean'&&p.enabled&&FrameSpline.states.get(p.id)?.signature)consumed=true;p=node(p.parent);}return {index:o.index,visible:o.effectiveVisible&&!consumed,sourceConsumed:consumed};}));syncReplicas();if(viewportLightingSignature()!==lightBefore)draw(false);
     }
     function nativeCamera(){
@@ -19593,7 +19688,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         @fragment fn dots(o:Out)->@location(0) vec4f{return o.color;}
       `}),pipelines=[];for(const orthographic of [false,true]){const list=[];for(const point of [0,1,2])list.push(await d.createRenderPipelineAsync({label:'spline '+(point?'controls':'cage'),layout:'auto',vertex:{module,entryPoint:point?'point':'line',constants:{orthographic}},fragment:{module,entryPoint:point?'dots':'color',targets:r.lineTargets},primitive:{topology:point?'triangle-list':'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:point===1?'always':'less-equal'}}));pipelines.push(list);}splinePipelines=pipelines;return pipelines;})();return splinePipelinePromise;
     }
-    function sampledDisplaySegment(data,id){const e=data.segments[id],key=frameValueKey([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation]),old=splineSampleCache.get(key);if(old)return old.samples;const samples=FrameSpline.K().sampleSplineSegment(data,id),bytes=samples.length*128+key.length*2;splineSampleCache.set(key,{samples,bytes});splineSampleBytes+=bytes;while(splineSampleBytes>8*1024*1024&&splineSampleCache.size){const [key,value]=splineSampleCache.entries().next().value;splineSampleBytes-=value.bytes;splineSampleCache.delete(key);}return samples;}
+    function sampledDisplaySegment(data,id,key){const old=splineSampleCache.get(key);if(old)return old.samples;const samples=FrameSpline.K().sampleSplineSegment(data,id),bytes=samples.length*128+key.length*2;splineSampleCache.set(key,{samples,bytes});splineSampleBytes+=bytes;while(splineSampleBytes>8*1024*1024&&splineSampleCache.size){const [key,value]=splineSampleCache.entries().next().value;splineSampleBytes-=value.bytes;splineSampleCache.delete(key);}return samples;}
     // Mark canonical triangle edges once per surface/cage revision. Compact per-block
     // cage-slot links avoid coordinate matching during ordinary line draws. Their capacity
     // is bounded by the cage hash; duplicate-heavy overflow uses the exact hash fallback.
@@ -19718,16 +19813,16 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
 
     async function setSplineDisplay(hash,data,generated=false,current=()=>true,changes=null){
       const space=scene;if(!space||space.gpu?.dead||renderer?.dead)return false;if(current())freezeAncestorPivots([hash]);
-      const gpu=await getRenderer(),valid=()=>scene===space&&renderer===gpu&&!space.gpu?.dead&&!gpu.dead&&current();if(!valid())return false;await ensureSplinePipelines();if(!valid())return false;const prior=splineDisplays.get(hash);if(changes?.size&&prior&&Object.keys(data.segments).length===prior.ranges.size&&[...changes].every(id=>prior.ranges.has(id))){previewSplineData(hash,data,changes);await markSplineSurface(hash,prior,valid);return valid();}const topology=frameValueKey([Object.keys(data.vertices),Object.entries(data.segments).map(([id,e])=>[id,e.a,e.b,e.ha.some(v=>Math.abs(v)>1e-10),e.hb.some(v=>Math.abs(v)>1e-10)]),data.freeHandles]);const edgeKeys=new Map(Object.entries(data.segments).map(([id,e])=>[id,frameValueKey([data.vertices[e.a],data.vertices[e.b],e.ha,e.hb,e.approximation,data.approximation])]));if(prior?.topology===topology){const changed=[...edgeKeys].filter(([id,key])=>prior.edgeKeys.get(id)!==key).map(([id])=>id);if(changed.length)previewSplineData(hash,data,changed);splineDisplayLookup.set(prior,data);prior.edgeKeys=edgeKeys;for(let k=0;k<3;k++){let lo=Infinity,hi=-Infinity;for(let i=k;i<prior.controlValues.length;i+=3){lo=Math.min(lo,prior.controlValues[i]);hi=Math.max(hi,prior.controlValues[i]);}prior.min[k]=lo;prior.max[k]=hi;}await markSplineSurface(hash,prior,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());return true;}
+      const gpu=await getRenderer(),valid=()=>scene===space&&renderer===gpu&&!space.gpu?.dead&&!gpu.dead&&current();if(!valid())return false;await ensureSplinePipelines();if(!valid())return false;const prior=splineDisplays.get(hash);if(changes?.size&&prior&&Object.keys(data.segments).length===prior.ranges.size&&[...changes].every(id=>prior.ranges.has(id))){previewSplineData(hash,data,changes);await markSplineSurface(hash,prior,valid);return valid();}const topology=frameValueKey([Object.keys(data.vertices),Object.entries(data.segments).map(([id,e])=>[id,e.a,e.b,e.ha.some(v=>Math.abs(v)>1e-10),e.hb.some(v=>Math.abs(v)>1e-10)]),data.freeHandles]);const edgeKeys=new Map(Object.entries(data.segments).map(([id,e])=>[id,frameSplineSegmentKey(data,e)]));if(prior?.topology===topology){const changed=[...edgeKeys].filter(([id,key])=>prior.edgeKeys.get(id)!==key).map(([id])=>id);if(changed.length)previewSplineData(hash,data,changed,[],edgeKeys);splineDisplayLookup.set(prior,data);prior.edgeKeys=edgeKeys;for(let k=0;k<3;k++){let lo=Infinity,hi=-Infinity;for(let i=k;i<prior.controlValues.length;i+=3){lo=Math.min(lo,prior.controlValues[i]);hi=Math.max(hi,prior.controlValues[i]);}prior.min[k]=lo;prior.max[k]=hi;}await markSplineSurface(hash,prior,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());return true;}
       const K=FrameSpline.K(),lines=[],control=[],handles=[],samples=new Map(),ranges=new Map(),vertexOffsets=new Map(),handleOffsets=new Map(),controlKeys=[],freeOffsets=new Map(),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(const [id,p]of Object.entries(data.vertices)){vertexOffsets.set(id,control.length);controlKeys.push(id);control.push(...p);for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[k]);max[k]=Math.max(max[k],p[k]);}}
-      for(const [id,s]of Object.entries(data.segments)){const a=sampledDisplaySegment(data,id);samples.set(id,a);const range={line:lines.length,length:Math.max(0,a.length-1)*6,handle:handles.length};ranges.set(id,range);for(let i=1;i<a.length;i++)lines.push(...a[i-1].position,...a[i].position);for(const [side,v]of [['ha',s.a],['hb',s.b]]){const p=data.vertices[v],h=s[side],end=p.map((x,k)=>x+h[k]*FrameSpline.handleScale);handles.push(...p,...end);if(h.some(x=>Math.abs(x)>1e-10)){handleOffsets.set(id+':'+side,control.length);controlKeys.push('h:'+id+':'+side);control.push(...end);}for(let k=0;k<3;k++){min[k]=Math.min(min[k],end[k]);max[k]=Math.max(max[k],end[k]);}}}
+      for(const [id,s]of Object.entries(data.segments)){const a=sampledDisplaySegment(data,id,edgeKeys.get(id));samples.set(id,a);const range={line:lines.length,length:Math.max(0,a.length-1)*6,handle:handles.length};ranges.set(id,range);for(let i=1;i<a.length;i++)lines.push(...a[i-1].position,...a[i].position);for(const [side,v]of [['ha',s.a],['hb',s.b]]){const p=data.vertices[v],h=s[side],end=p.map((x,k)=>x+h[k]*FrameSpline.handleScale);handles.push(...p,...end);if(h.some(x=>Math.abs(x)>1e-10)){handleOffsets.set(id+':'+side,control.length);controlKeys.push('h:'+id+':'+side);control.push(...end);}for(let k=0;k<3;k++){min[k]=Math.min(min[k],end[k]);max[k]=Math.max(max[k],end[k]);}}}
       for(const [v,h]of Object.entries(data.freeHandles||{})){const p=data.vertices[v];if(!p)continue;for(const side of ['in','out'])if(!Object.values(data.segments).some(e=>side==='in'?e.b===v:e.a===v)&&h[side]?.some(x=>Math.abs(x)>1e-12)){const end=p.map((x,k)=>x+h[side][k]*FrameSpline.handleScale);freeOffsets.set(v+':'+side,handles.length);handles.push(...p,...end);controlKeys.push('free:'+v+':'+side);control.push(...end);}}
       const incident=new Map(Object.keys(data.vertices).map(v=>[v,[]]));for(const e of Object.values(data.segments)){incident.get(e.a).push(e.id);incident.get(e.b).push(e.id);}const display={hash,data,topology,edgeKeys,incident,freeOffsets,samples,ranges,vertexOffsets,handleOffsets,controlKeys,keyIndex:new Map(controlKeys.map((k,i)=>[k,i])),pointFlags:Uint32Array.from(controlKeys,k=>/^(h:|free:)/.test(k)?12:0),generated,buffers:[],min,max,count:lines.length/3,controlCount:control.length/3,handleCount:handles.length/3,selection:new Set(),groups:[],visible:true};
-      const make=(label,list)=>{const array=Float32Array.from(list),b=makeGPUBuffer(gpu.device,{label,size:Math.max(4,array.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});display.buffers.push(b);if(array.length)gpu.device.queue.writeBuffer(b,0,array);return b;};const uniform=label=>{const buffer=makeGPUBuffer(gpu.device,{label,size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});display.buffers.push(buffer);return buffer;};try{display.lineValues=Float32Array.from(lines);display.controlValues=Float32Array.from(control);display.handleValues=Float32Array.from(handles);display.lines=make('spline sampled cage',lines);display.controls=make('spline control vertices',control);display.handles=make('spline handle lines',handles);display.flags=make('spline point states',display.pointFlags);display.uniform=uniform('spline display frame');display.handleUniform=uniform('spline tangent frame');display.hoverUniform=uniform('spline edge hover');display.selectionUniform=uniform('spline edge selection');if(display.pointFlags.length)gpu.device.queue.writeBuffer(display.flags,0,display.pointFlags);}catch(error){for(const buffer of display.buffers)releaseGPU(buffer);throw error;}if(!valid()){for(const buffer of display.buffers)releaseGPU(buffer);return false;}splineDisplays.set(hash,display);splineDisplayLookup.set(display);queueReplicaDisplaySource(hash);if(prior){splineDisplayLookup.delete(prior);for(const buffer of prior.buffers)releaseGPU(buffer);}sceneFrameDirty=true;display.emptyPointState={data:display.data,controls:display.controlKeys,flags:display.pointFlags,buffer:display.flags,hover:null};await markSplineSurface(hash,display,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());sceneFrameDirty=true;draw(true);
+      const make=(label,array)=>{const b=makeGPUBuffer(gpu.device,{label,size:Math.max(4,array.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});display.buffers.push(b);if(array.length)gpu.device.queue.writeBuffer(b,0,array);return b;};const uniform=label=>{const buffer=makeGPUBuffer(gpu.device,{label,size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});display.buffers.push(buffer);return buffer;};try{display.lineValues=Float32Array.from(lines);display.controlValues=Float32Array.from(control);display.handleValues=Float32Array.from(handles);display.lines=make('spline sampled cage',display.lineValues);display.controls=make('spline control vertices',display.controlValues);display.handles=make('spline handle lines',display.handleValues);display.flags=make('spline point states',display.pointFlags);display.uniform=uniform('spline display frame');display.handleUniform=uniform('spline tangent frame');}catch(error){for(const buffer of display.buffers)releaseGPU(buffer);throw error;}if(!valid()){for(const buffer of display.buffers)releaseGPU(buffer);return false;}splineDisplays.set(hash,display);splineDisplayLookup.set(display);queueReplicaDisplaySource(hash);if(prior){splineDisplayLookup.delete(prior);for(const buffer of prior.buffers)releaseGPU(buffer);}sceneFrameDirty=true;display.emptyPointState={data:display.data,controls:display.controlKeys,flags:display.pointFlags,buffer:display.flags,hover:null};await markSplineSurface(hash,display,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());sceneFrameDirty=true;draw(true);
     }
-    function previewSplineData(hash,data,segments,affectedVertices=[]){const d=splineDisplays.get(hash);if(!d)return;if([...segments].some(id=>!d.ranges.has(id))||[...affectedVertices].some(v=>!d.vertexOffsets.has(v))){setSplineDisplay(hash,data,d.generated).then(()=>refreshSplineSelection(hash,FrameSpline.selection()));return;}splineDisplayLookup.set(d,data);d.wireVersion=(d.wireVersion||0)+1;const queue=renderer.device.queue,vertices=new Set(affectedVertices),bulk=(segments.size??segments.length)>=256&&(segments.size??segments.length)>=d.ranges.size/4;let repack=false;
-      for(const id of segments){const edge=data.segments[id],range=d.ranges.get(id);if(!edge||!range)continue;const samples=sampledDisplaySegment(data,id);d.samples.set(id,samples);d.projected?.segments.delete(id);d.projected?.controls.delete(edge.a);d.projected?.controls.delete(edge.b);d.projected?.controls.delete('h:'+id+':ha');d.projected?.controls.delete('h:'+id+':hb');if((samples.length-1)*6!==range.length)repack=true;vertices.add(edge.a);vertices.add(edge.b);}
-      if(repack){let size=0;for(const [id,range]of d.ranges){range.line=size;range.length=Math.max(0,d.samples.get(id).length-1)*6;size+=range.length;}d.lineValues=new Float32Array(size);const old=d.lines;if(old.size<Math.max(4,size*4)){d.lines=makeGPUBuffer(renderer.device,{label:'adaptive spline samples',size:Math.max(4,2**Math.ceil(Math.log2(Math.max(4,size*4)))),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});d.buffers[d.buffers.indexOf(old)]=d.lines;for(const cache of d.groups){cache?.delete(old);cache?.delete('edge-hover');cache?.delete('edge-selection');}releaseGPU(old);}d.count=size/3;}
+    function previewSplineData(hash,data,segments,affectedVertices=[],edgeKeys=null){const d=splineDisplays.get(hash);if(!d)return;if([...segments].some(id=>!d.ranges.has(id))||[...affectedVertices].some(v=>!d.vertexOffsets.has(v))){setSplineDisplay(hash,data,d.generated).then(()=>refreshSplineSelection(hash,FrameSpline.selection()));return;}splineDisplayLookup.set(d,data);d.wireVersion=(d.wireVersion||0)+1;const queue=renderer.device.queue,vertices=new Set(affectedVertices),bulk=(segments.size??segments.length)>=256&&(segments.size??segments.length)>=d.ranges.size/4;let repack=false;
+      for(const id of segments){const edge=data.segments[id],range=d.ranges.get(id);if(!edge||!range)continue;const key=edgeKeys?.get(id)??frameSplineSegmentKey(data,edge),samples=sampledDisplaySegment(data,id,key);d.edgeKeys.set(id,key);d.samples.set(id,samples);d.projected?.segments.delete(id);d.projected?.controls.delete(edge.a);d.projected?.controls.delete(edge.b);d.projected?.controls.delete('h:'+id+':ha');d.projected?.controls.delete('h:'+id+':hb');if((samples.length-1)*6!==range.length)repack=true;vertices.add(edge.a);vertices.add(edge.b);}
+      if(repack){let size=0;for(const [id,range]of d.ranges){range.line=size;range.length=Math.max(0,d.samples.get(id).length-1)*6;size+=range.length;}d.lineValues=new Float32Array(size);const old=d.lines;if(old.size<Math.max(4,size*4)){d.lines=makeGPUBuffer(renderer.device,{label:'adaptive spline samples',size:Math.max(4,2**Math.ceil(Math.log2(Math.max(4,size*4)))),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});d.buffers[d.buffers.indexOf(old)]=d.lines;for(const cache of d.groups){cache?.delete(old);}releaseGPU(old);}d.count=size/3;}
       for(const id of repack?d.ranges.keys():segments){const range=d.ranges.get(id),samples=d.samples.get(id);if(!range||!samples)continue;let at=range.line;for(let i=1;i<samples.length;i++){d.lineValues.set(samples[i-1].position,at);d.lineValues.set(samples[i].position,at+3);at+=6;}if(!bulk&&!repack&&at>range.line)queue.writeBuffer(d.lines,range.line*4,d.lineValues,range.line,at-range.line);}
       if((bulk||repack)&&d.lineValues.length)queue.writeBuffer(d.lines,0,d.lineValues);
       for(const id of segments){const edge=data.segments[id],range=d.ranges.get(id);if(!edge||!range)continue;for(const [i,side,v]of [[0,'ha',edge.a],[1,'hb',edge.b]]){const p=data.vertices[v],end=p.map((x,k)=>x+edge[side][k]*FrameSpline.handleScale),at=range.handle+i*6;d.handleValues.set(p,at);d.handleValues.set(end,at+3);const c=d.handleOffsets.get(id+':'+side);if(c!==undefined){d.controlValues.set(end,c);if(!bulk)queue.writeBuffer(d.controls,c*4,d.controlValues,c,3);}}if(!bulk)queue.writeBuffer(d.handles,range.handle*4,d.handleValues,range.handle,12);}
@@ -19750,15 +19845,64 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     });}
 
     function replicaDisplay(mesh){for(let source=mesh;source;source=source.replicaSource){const display=source.display||splineDisplays.get(source.hashId);if(display)return display;}return null;}
-    function drawSplineDisplays(pass){
-      if(shadingMode==='off')return;
-      if(!splinePipelines)return;const solidCages=['solid','solid-wire','solid-isoparms'].includes(shadingMode)||shadingMode==='wireframe'&&!!renderer.wireRaster?.pixels,owners=new Map(nodes.map(n=>[n.nativeHash,n])),surfaces=new Set(scene.meshes.filter(m=>!m.replicaMatrix&&m.frameVisible!==false).map(m=>m.hashId)),surfaceCage=(d,n)=>surfaces.has(d.hash)||d.consumed||node(n?.parent)?.type==='spline_patch'&&surfaces.has(node(n.parent).nativeHash);const pipelines=splinePipelines[frameViewKind(viewIndex)?1:0];for(const d of splineDisplays.values()){const displayOwner=owners.get(d.hash);if(!displayOwner||!d.visible||d.consumed&&!FrameSpline.isActive(displayOwner)||!d.controlCount)continue;if(FrameSpline.sourceNode(displayOwner))continue;if(d.consumed&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode)&&!(FrameSpline.isActive(frameNodeByHash(d.hash))&&elementMode!=='object'))continue;const owner=displayOwner,selected=objectSelection.includes(d.hash)||FrameSpline.isActive(owner),showControls=(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner?.id)&&FrameSpline.isEditable(owner),showEdges=selected&&['edge','polygon'].includes(elementMode)&&FrameSpline.isEditable(owner);if(surfaceCage(d,owner)&&!showControls&&!showEdges&&!['wireframe','solid-wire','isoparms','solid-isoparms'].includes(shadingMode))continue;
-        const values=new Float32Array(20);values.set(objectWorld(d.hash));values.set([.18095,.3542,.4158,1],16);renderer.device.queue.writeBuffer(d.uniform,0,values);if(showControls){values.set([.435,.51,.565,1],16);renderer.device.queue.writeBuffer(d.handleUniform,0,values);}
-        const group=(pipeline,buffer,hover=false)=>{const key=(frameViewKind(viewIndex)?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();const token=hover==='selection'?'edge-selection':hover?'edge-hover':buffer;if(!cache.has(token)){const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:hover==='selection'?d.selectionUniform:hover?d.hoverUniform:buffer===d.handles?d.handleUniform:d.uniform}},{binding:2,resource:{buffer}}];entries.push({binding:3,resource:{buffer:pipeline!==pipelines[0]?d.flags:buffer===d.lines?d.lineFlags:renderer.dummyReadBuffer}});cache.set(token,renderer.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries}));}return cache.get(token);};
-        pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.lines));if(!solidCages||!surfaceCage(d,owner))pass.draw(d.count);if(solidCages&&surfaceCage(d,owner)&&shadingMode==='solid'&&showEdges){for(const [start,end]of d.lineHighlightRuns||[])pass.draw((end-start)*2,1,start*2);}if(showControls){pass.setBindGroup(0,group(pipelines[0],d.handles));for(const [id,range]of d.ranges)for(const [side,offset]of [['ha',0],['hb',2]])if(splineHandleVisible(d,'h:'+id+':'+side))pass.draw(2,1,range.handle/3+offset);for(const [key,offset]of d.freeOffsets)if(splineHandleVisible(d,'free:'+key))pass.draw(2,1,offset/3);const points=pipelines[shadingMode==='wireframe'||shadingMode==='isoparms'?1:2];pass.setPipeline(points);pass.setBindGroup(0,group(points,d.controls));pass.draw(6,d.controlCount);}
+    const splineUniformValues=new WeakMap();
+    function writeSplineDisplayFrame(buffer,matrix,tangent=false){
+      let values=splineUniformValues.get(buffer);
+      if(values&&matrix.every((v,i)=>Object.is(Math.fround(v),values[i])))return;
+      if(!values){
+        values=new Float32Array(20);values.set(tangent?[.435,.51,.565,1]:[.18095,.3542,.4158,1],16);
+        splineUniformValues.set(buffer,values);
       }
-const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas||[]];for(const m of copies){if(!m.frameVisible||!m.curve&&(solidCages||shadingMode!=='isoparms'&&shadingMode!=='wireframe'))continue;const d=replicaDisplay(m);if(!d)continue;const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);if(!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))continue;const values=new Float32Array(20);values.set(matrix);values.set([.18095,.3542,.4158,1],16);if(!m.curveUniform)m.curveUniform=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);renderer.device.queue.writeBuffer(m.curveUniform,0,values);const key=frameViewKind(viewIndex)?1:0;m.curveGroups??=[];let cache=m.curveGroups[key];if(cache?.lines!==d.lines){const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}},{binding:3,resource:{buffer:renderer.dummyReadBuffer}}]});cache=m.curveGroups[key]={lines:d.lines,group};}pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);pass.draw(d.count);}
+      values.set(matrix);renderer.device.queue.writeBuffer(buffer,0,values);
+    }
+    function drawSplineDisplays(pass){
+      if(shadingMode==='off'||!splinePipelines)return;
+      const wire=shadingMode==='wireframe'||shadingMode==='isoparms',solidCages=!wire||shadingMode==='wireframe'&&!!renderer.wireRaster?.pixels;
+      const ortho=!!frameViewKind(viewIndex),pipelines=splinePipelines[ortho?1:0],surfaces=new Set();
+      for(const m of scene.meshes)if(!m.replicaMatrix&&m.frameVisible!==false)surfaces.add(m.hashId);
+      const selectedHashes=new Set(objectSelection);
+      for(const d of splineDisplays.values()){
+        if(!d.visible||!d.controlCount)continue;
+        const owner=frameNodeByHash(d.hash);if(!owner)continue;
+        const active=FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
+        const selected=selectedHashes.has(d.hash)||active,editable=FrameSpline.isEditable(owner);
+        const showControls=editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
+        const parent=node(owner.parent),covered=d.consumed||surfaces.has(d.hash)||parent?.type==='spline_patch'&&surfaces.has(parent.nativeHash);
+        const drawCage=!solidCages||!covered;
+        const highlights=!drawCage&&shadingMode==='solid'&&selected&&editable&&['edge','polygon'].includes(elementMode)&&d.lineHighlightRuns?.length;
+        if(!drawCage&&!showControls&&!highlights||FrameSpline.sourceNode(owner))continue;
+        const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix);
+        if(showControls)writeSplineDisplayFrame(d.handleUniform,matrix,true);
+        const group=(pipeline,buffer)=>{
+          const key=(ortho?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();
+          if(!cache.has(buffer)){
+            const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:buffer===d.handles?d.handleUniform:d.uniform}},{binding:2,resource:{buffer}},{binding:3,resource:{buffer:pipeline!==pipelines[0]?d.flags:buffer===d.lines?d.lineFlags:renderer.dummyReadBuffer}}];
+            cache.set(buffer,renderer.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries}));
+          }
+          return cache.get(buffer);
+        };
+        if(drawCage||highlights){
+          pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.lines));
+          if(drawCage)pass.draw(d.count);else for(const [start,end]of d.lineHighlightRuns)pass.draw((end-start)*2,1,start*2);
         }
+        if(showControls){pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.handles));for(const [id,range]of d.ranges)for(const [side,offset]of [['ha',0],['hb',2]])if(splineHandleVisible(d,'h:'+id+':'+side))pass.draw(2,1,range.handle/3+offset);for(const [key,offset]of d.freeOffsets)if(splineHandleVisible(d,'free:'+key))pass.draw(2,1,offset/3);const points=pipelines[shadingMode==='wireframe'||shadingMode==='isoparms'?1:2];pass.setPipeline(points);pass.setBindGroup(0,group(points,d.controls));pass.draw(6,d.controlCount);}
+      }
+      function drawCopy(m){
+        if(!m.frameVisible)return;const d=replicaDisplay(m);if(!d)return;
+        const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);
+        if(!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))return;
+        m.curveUniform??=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+        writeSplineDisplayFrame(m.curveUniform,matrix);
+        m.curveGroups??=[];const key=ortho?1:0;let cache=m.curveGroups[key];
+        if(cache?.lines!==d.lines){
+          const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}},{binding:3,resource:{buffer:renderer.dummyReadBuffer}}]});
+          cache=m.curveGroups[key]={lines:d.lines,group};
+        }
+        pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);pass.draw(d.count);
+      }
+      if(wire&&!solidCages)for(const m of scene.meshes)if(m.replicaMatrix)drawCopy(m);
+      for(const m of scene.curveReplicas||[])drawCopy(m);
+    }
     function selectedId(id){return selected.has(id);}
     function splineBounds(hash){
       const d=splineDisplays.get(hash);if(!d||!Number.isFinite(d.min[0]))return null;const world=objectWorld(hash),old=d.worldBoundsCache;
@@ -19768,20 +19912,25 @@ const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas|
     function splineLocalFrame(hash){return Array.from(objectLocal(hash));}
     function objectRelativeFrame(source,target=null){
       if(source===target)return FM.I();const from=new Map(),seen=new Set();let current=source,matrix=FM.I(),constrained=false;
-      while(current&&!seen.has(current)){seen.add(current);from.set(current,{matrix,constrained});constrained ||= poseConstraints.has(current)||frameNodeByHash(current)?.type==='render';matrix=FM.mul(objectLocal(current),matrix);current=transformParent(current);}from.set(null,{matrix,constrained});
+      while(current&&!seen.has(current)){
+        seen.add(current);from.set(current,{matrix,constrained});
+        constrained ||= poseConstraints.has(current)||frameNodeByHash(current)?.type==='render';
+        matrix=FM.mul(objectLocal(current),matrix);current=transformParent(current);
+        if(current===target&&!constrained)return matrix;
+      }from.set(null,{matrix,constrained});
       current=target;matrix=FM.I();constrained=false;seen.clear();while(!from.has(current)&&current&&!seen.has(current)){seen.add(current);constrained ||= poseConstraints.has(current)||frameNodeByHash(current)?.type==='render';matrix=FM.mul(objectLocal(current),matrix);current=transformParent(current);}
       const common=from.get(current);if(!common)throw Error('Invalid affine parent chain');if(constrained||common.constrained)return FM.mul(target?FM.inv(objectWorld(target)):FM.I(),source?objectWorld(source):FM.I());
       return current===target?common.matrix:FM.mul(FM.inv(matrix),common.matrix);
     }
-    function splineInFrame(data,source,target){const K=FrameSpline.K(),m=objectRelativeFrame(source,target),identity=FM.I();return m.every((v,i)=>v===identity[i])?data:K.transformWholeSplineData(structuredClone(data),K.matrix(m));}
+    function splineInFrame(data,source,target,m=objectRelativeFrame(source,target)){const K=FrameSpline.K(),identity=FM.I();return m.every((v,i)=>v===identity[i])?data:K.transformWholeSplineData(structuredClone(data),K.matrix(m));}
     function projectSplinePoint(hash,p,index=viewIndex,frame=null){const world=frame?FM.unpack(frame):objectWorld(hash);if(index===viewIndex)return worldScreen(FM.point(world,p));const active=viewIndex,activeCanvas=canvas,saved=captureCamera();try{viewIndex=index;canvas=frameViewCanvases.get(index);restoreCamera(viewStates[index]||defaultCamera(index));return worldScreen(FM.point(world,p));}finally{viewIndex=active;canvas=activeCanvas;restoreCamera(saved);}}
     function instanceSourceFrame(source){return FM.inv(FM.mul(objectWorld(source),objectPivot(source)));}
     function splineOccurrenceFrame(source,target,instances=[]){
       if(!instances.length)return objectRelativeFrame(source,target);let matrix=objectRelativeFrame(instances[0].nativeHash,target);
       for(let i=0;i<instances.length;i++){const ref=objectReference(instances[i].params.object,instances[i]);if(!ref)throw Error('Instance source is missing');const next=instances[i+1]?.nativeHash||source;matrix=FM.mul(matrix,FM.mul(FM.inv(objectPivot(ref.nativeHash)),objectRelativeFrame(next,ref.nativeHash)));}return matrix;
     }
-    function splineOccurrenceInFrame(data,source,target,instances=[]){if(!instances.length)return splineInFrame(data,source,target);const K=FrameSpline.K();return K.transformWholeSplineData(structuredClone(data),K.matrix(splineOccurrenceFrame(source,target,instances)));}
-    function splineOccurrencePivot(source,target,instances=[]){return Array.from(FM.rigid(FM.mul(splineOccurrenceFrame(source,target,instances),objectPivot(source))));}
+    function splineOccurrenceInFrame(data,source,target,instances=[],matrix=splineOccurrenceFrame(source,target,instances)){if(!instances.length)return splineInFrame(data,source,target,matrix);const K=FrameSpline.K();return K.transformWholeSplineData(structuredClone(data),K.matrix(matrix));}
+    function splineOccurrencePivot(source,target,instances=[],matrix=splineOccurrenceFrame(source,target,instances)){return Array.from(FM.rigid(FM.mul(matrix,objectPivot(source))));}
     function instanceCreationFrame(source,parent){return Array.from(FM.pack(FM.mul(parent?FM.inv(objectWorld(parent)):FM.I(),FM.mul(objectWorld(source),objectPivot(source)))));}
     function splineCreationFrame(drawingPlane=false){if(frameViewKind(activeView)===0&&drawingPlane){const active=viewIndex,saved=captureCamera();try{restoreCamera(saved);const m=FM.I();m.set(inverseView([1,0,0]),0);m.set(inverseView([0,1,0]),4);m.set(inverseView([0,0,1]),8);return Array.from(FM.pack(m));}finally{viewIndex=active;restoreCamera(saved);}}const matrix=frameViewKind(activeView)===2?FM.I():frameViewKind(activeView)===3?new Float64Array([0,0,-1,0,0,1,0,0,1,0,0,0,0,0,0,1]):new Float64Array([1,0,0,0,0,0,1,0,0,-1,0,0,0,0,0,1]);return Array.from(FM.pack(matrix));}
     // Preserve the authored view plane while exposing a neutral Perspective object axis.
@@ -19789,8 +19938,21 @@ const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas|
     function initializeSplineCreation(n){n.creationFrame=splineCreationFrame();n.creationPivot=splineCreationPivot(n.creationFrame);}
     function splinePlanePoint(x,y,hash,authoring=false,anchor=null,frame=null,grid=false){if(!scene)return null;activateFrameView(frameViewportAt(x,y)??viewIndex);const world=frame?FM.unpack(frame):objectWorld(hash),last=FrameSpline.drawing?.last,source=frameNodeByHash(hash)?.splineData,p=anchor?FM.point(world,anchor):authoring?FM.point(world,source?.vertices[last]||[0,0,0]):splineBounds(hash)?.center||FM.point(world,[0,0,0]),normal=FM.unit(inverseView([0,0,1])),q=pointerWorld({clientX:x,clientY:y},p,normal);if(q&&quantize&&(authoring||grid)){const step=quantStepForView();for(let k=0;k<3;k++)q[k]=Math.round(q[k]/step)*step;}return q&&FM.point(FM.inv(world),q);}
     // One camera-space cache per cage; local edits invalidate only affected curves and controls.
-    function splineProjectionKey(){flushReplicaPublication();const r=canvas.getBoundingClientRect();return [viewIndex,poseEpoch,r.left,r.top,r.width,r.height,...captureCamera(),...scene.center,scene.scale].join(':');}
-    function splineProjection(d,key){if(d.projected?.key!==key){const matrix=d.replicaMatrix?FM.mul(objectWorld(d.hash),d.replicaMatrix):objectWorld(d.hash),frame=FM.I(),rect=canvas.getBoundingClientRect();for(let col=0;col<4;col++){const p=Array.from(matrix.slice(col*4,col*4+3),(v,k)=>(v-(col===3?scene.center[k]:0))*scene.scale);frame.set(rotatePoint(p),col*4);}frame[12]+=orbitOffset[0]+panX;frame[13]+=orbitOffset[1]+panY;frame[14]+=orbitOffset[2];d.projected={key,segments:new Map(),controls:new Map(),matrix,frame,cx:rect.left+rect.width*.5,cy:rect.top+rect.height*.5,pixels:rect.height*.5*(frameViewKind(viewIndex)?zoom:2.41421356),ortho:!!frameViewKind(viewIndex)};}return d.projected;}
+    let splineProjectionView;
+    function splineProjectionKey(){flushReplicaPublication();const r=canvas.getBoundingClientRect(),ortho=!!frameViewKind(viewIndex);
+      const key=[viewIndex,poseEpoch,r.left,r.top,r.width,r.height,perspectiveFov,cameraRoll,...captureCamera(),...scene.center,scene.scale].join(':');
+      splineProjectionView={key,cx:r.left+r.width*.5,cy:r.top+r.height*.5,pixels:r.height*.5*(ortho?zoom:cameraFocal()),ortho};return key;
+    }
+    function splineProjection(d,key){
+      if(d.projected?.key===key)return d.projected;
+      const matrix=d.replicaMatrix?FM.mul(objectWorld(d.hash),d.replicaMatrix):objectWorld(d.hash),frame=FM.I(),scale=scene.scale;
+      for(let i=0;i<16;i+=4){
+        const p=i===12?[(matrix[i]-scene.center[0])*scale,(matrix[i+1]-scene.center[1])*scale,(matrix[i+2]-scene.center[2])*scale]:[matrix[i]*scale,matrix[i+1]*scale,matrix[i+2]*scale];
+        frame.set(rotatePoint(p),i);
+      }
+      frame[12]+=orbitOffset[0]+panX;frame[13]+=orbitOffset[1]+panY;frame[14]+=orbitOffset[2];
+      return d.projected={...splineProjectionView,segments:new Map(),controls:new Map(),matrix,frame};
+    }
     function projectSplineCached(c,p,out,at=0){const m=c.frame,x=p[0],y=p[1],z=p[2],depth=3.2-(m[2]*x+m[6]*y+m[10]*z+m[14]),pixels=c.ortho?c.pixels:c.pixels/depth;out[at]=c.cx+(m[0]*x+m[4]*y+m[8]*z+m[12])*pixels;out[at+1]=c.cy-(m[1]*x+m[5]*y+m[9]*z+m[13])*pixels;out[at+2]=depth;}
     function projectedSplineControl(cache,id,p){let q=cache.controls.get(id);if(!q){q=new Float64Array(3);projectSplineCached(cache,p,q);cache.controls.set(id,q);}return q;}
     function projectedSplineSegment(cache,id,samples){let values=cache.segments.get(id);if(!values){values=new Float64Array(samples.length*3);for(let i=0;i<samples.length;i++)projectSplineCached(cache,samples[i].position,values,i*3);cache.segments.set(id,values);}return values;}
@@ -19800,12 +19962,13 @@ const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas|
       for(const d of [...splineDisplays.values(),...curveReplicaDisplays()]){const n=frameNodeByHash(d.hash),active=FrameSpline.isActive(n),editable=FrameSpline.isEditable(n),controls=editable&&active&&elementMode==='vertex'||drawing&&n?.type==='spline';if(activeOnly&&!active||!splineShown(d)||d.generated&&!controls&&!(active&&editable&&['edge','polygon'].includes(elementMode)))continue;
         if(controls){for(const [vertex,p]of Object.entries(d.data.vertices))consider(d,p,vertex,{vertex});if(!drawing)for(const [token,offset]of d.freeOffsets){if(!splineHandleVisible(d,'free:'+token))continue;const [,v,side]=token.match(/^(.+):(in|out)$/),h=d.data.freeHandles[v][side],p=d.data.vertices[v];consider(d,p.map((x,k)=>x+h[k]*FrameSpline.handleScale),'free:'+token,{handle:'free:'+token});}if(!drawing)for(const [sid,s]of Object.entries(d.data.segments))for(const [side,v]of [['ha',s.a],['hb',s.b]]){if(!splineHandleVisible(d,'h:'+sid+':'+side))continue;if(!s[side].some(x=>Math.abs(x)>1e-12))continue;consider(d,d.data.vertices[v].map((x,k)=>x+s[side][k]*FrameSpline.handleScale),'h:'+sid+':'+side,{handle:'h:'+sid+':'+side});}}
         if(controls&&(winner?.vertex||winner?.handle)&&winner.hash===d.hash||controlsOnly||controls&&elementMode==='vertex'&&!drawing&&!curves)continue;
+        const cache=splineProjection(d,projectionKey);if(!splineNavigationBoxHit(d,cache,x,y,12))continue;
         if(allowCells&&active&&editable&&elementMode==='polygon'&&FrameSpline.patchOwner(n)){
-          const cache=splineProjection(d,projectionKey);let closest=Infinity;
+          let closest=Infinity;
           for(const [index,cell]of FrameSpline.cells(d.data).entries()){let inside=false,depth=0,count=0;for(const loop of cell.loops){const poly=[];for(const r of loop){const samples=d.samples.get(r.edge);if(!samples)continue;const points=projectedSplineSegment(cache,r.edge,samples);if(r.reversed){for(let i=points.length-3;i>=0;i-=3)poly.push([points[i],points[i+1],points[i+2]]);}else for(let i=0;i<points.length;i+=3)poly.push([points[i],points[i+1],points[i+2]]);}for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];depth+=a[2];count++;if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}}if(inside&&depth/count>0&&depth/count<closest){closest=depth/count;winner={hash:d.hash,cell:'cell:'+index};}}
           if(winner?.hash===d.hash&&winner.cell){best=0;if(!curves)continue;}else if(!curves)continue;
         }
-        const cache=splineProjection(d,projectionKey);for(const [segment,samples]of d.samples){const p=projectedSplineSegment(cache,segment,samples),cp=FrameSpline.K().segmentPoints(d.data,segment),at=t=>{const point=FrameSpline.K().cubicPoint(cp,t),screen=new Float64Array(3);projectSplineCached(cache,point,screen);return {point,screen,distance:Math.hypot(screen[0]-x,screen[1]-y)};};for(let i=3;i<p.length;i+=3){const ax=p[i-3],ay=p[i-2],dx=p[i]-ax,dy=p[i+1]-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1))),dist=Math.hypot(x-ax-t*dx,y-ay-t*dy);if(dist>12)continue;const j=i/3;let lo=samples[j-1].t,hi=samples[j].t;for(let k=0;k<24;k++){const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;if(at(a).distance<at(b).distance)hi=b;else lo=a;}const parameter=(lo+hi)/2,q=at(parameter);if(q.distance<=best&&q.screen[2]>0){best=q.distance;winner={hash:d.hash,segment,t:parameter,point:q.point,screen:q.screen,object:!editable||elementMode!=='edge'};}}}
+        for(const [segment,samples]of d.samples){const p=projectedSplineSegment(cache,segment,samples);let cp;const at=t=>{const K=FrameSpline.K(),point=K.cubicPoint(cp??=K.segmentPoints(d.data,segment),t),screen=new Float64Array(3);projectSplineCached(cache,point,screen);return {point,screen,distance:Math.hypot(screen[0]-x,screen[1]-y)};};for(let i=3;i<p.length;i+=3){const ax=p[i-3],ay=p[i-2],dx=p[i]-ax,dy=p[i+1]-ay,t=Math.max(0,Math.min(1,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1))),dist=Math.hypot(x-ax-t*dx,y-ay-t*dy);if(dist>12)continue;const j=i/3;let lo=samples[j-1].t,hi=samples[j].t;for(let k=0;k<24;k++){const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;if(at(a).distance<at(b).distance)hi=b;else lo=a;}const parameter=(lo+hi)/2,q=at(parameter);if(q.distance<=best&&q.screen[2]>0){best=q.distance;winner={hash:d.hash,segment,t:parameter,point:q.point,screen:q.screen,object:!editable||elementMode!=='edge'};}}}
 
       }return winner;
     }finally{if(saved){viewIndex=saved[0];canvas=saved[1];restoreCamera(saved[2]);}}}
@@ -19840,9 +20003,9 @@ const copies=[...scene.meshes.filter(m=>m.replicaMatrix),...scene.curveReplicas|
       }
       box.valid=true;return box;
     }
-    function splineNavigationBoxHit(d,cache,x,y){
+    function splineNavigationBoxHit(d,cache,x,y,radius=8){
       if(!Number.isFinite(x)||!Number.isFinite(y))return true;const box=splineNavigationScreenBox(d,cache);if(!box.valid)return true;
-      const roundoff=32*Number.EPSILON*Math.max(1,Math.abs(x),Math.abs(y),Math.abs(box.minX),Math.abs(box.maxX),Math.abs(box.minY),Math.abs(box.maxY)),pad=8+roundoff;
+      const roundoff=32*Number.EPSILON*Math.max(1,Math.abs(x),Math.abs(y),Math.abs(box.minX),Math.abs(box.maxX),Math.abs(box.minY),Math.abs(box.maxY)),pad=radius+roundoff;
       return x>=splineNavigationRound(box.minX-pad,-1)&&x<=splineNavigationRound(box.maxX+pad,1)&&y>=splineNavigationRound(box.minY-pad,-1)&&y<=splineNavigationRound(box.maxY+pad,1);
     }
     function splineNavigationPoint(x,y){if(!scene||!splineDisplays.size)return null;const ray=cameraRay(x,y),projectionKey=splineProjectionKey();let best=null;
@@ -20302,7 +20465,15 @@ function FramePolygonKernel(d){
       register('view.project','Project a world point (or local point on an object) to CSS screen coordinates in the active view.',required(obj({point:vector,id:str}),'point'),true,a=>{const p=a.id?FM.point(objectWorld(resolve(a.id).nativeHash),a.point):a.point;return {point:p,screen:worldScreen(p)};});
       register('view.pick','Read navigation world-space target under a CSS screen point: native mesh, plugin surface, visible spline or finite XZ guide fallback.',required(obj({x:num,y:num}),'x','y'),true,async a=>({point:await pickWorldPoint(a.x,a.y)}));
       register('scene.merge','Merge a same-origin scene URL into the current scene using native import and one Undo.',required(obj({url:str}),'url'),false,async a=>{const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol)||!/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('INVALID_ARGUMENT','Expected same-origin scene URL');const r=await fetch(u);if(!r.ok)fail('IO_ERROR','HTTP '+r.status);const roots=await mergeFile(new File([await r.blob()],decodeURIComponent(u.pathname.split('/').pop())),{baseURL:u.href});await settle();return {objects:roots.map(h=>describe(resolve(h)))};});
-      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path),file=await handle.getFile();sceneFileHandle=null;await api.loadFile(file);if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();sceneFileHandle=handle;frameSetSceneFileName(handle.name);await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');let bytes;try{const decoded=atob(a.base64);bytes=Uint8Array.from(decoded,c=>c.charCodeAt(0));}catch(e){if(e.code)throw e;fail('INVALID_ARGUMENT','Invalid base64');}file=new File([bytes],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
+      function sceneBase64Bytes(value){
+        try{
+          if(Uint8Array.fromBase64)return Uint8Array.fromBase64(value);
+          const decoded=atob(value),bytes=new Uint8Array(decoded.length);
+          for(let i=0;i<bytes.length;i++)bytes[i]=decoded.charCodeAt(i);
+          return bytes;
+        }catch{fail('INVALID_ARGUMENT','Invalid base64');}
+      }
+      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path),file=await handle.getFile();sceneFileHandle=null;await api.loadFile(file);if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();sceneFileHandle=handle;frameSetSceneFileName(handle.name);await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');file=new File([sceneBase64Bytes(a.base64)],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
       register('scene.share','Return a portable v1 scene link containing gzip-compressed HASH, without uploading or changing clipboard.',obj({}),true,async()=>({url:await frameShareURL()}));
       register('diagnostics.pixels','Read up to 64 RGBA pixels at active-view CSS coordinates. presentation includes native component hover; SVG overlays are excluded.',required(obj({points:array({...array(num,2),minItems:2},64),presentation:bool}),'points'),true,async a=>{
         const before=renderer.lastFrameRaw?.id??-1,start=performance.now();do{await draw(true);if(renderer.materialState?.pending.size){await Promise.all([...renderer.materialState.pending.values()]);await draw(true);}await renderer.device.queue.onSubmittedWorkDone();await new Promise(r=>setTimeout(r,0));if(performance.now()-start>30000)fail('TIMEOUT','No fresh pixel frame');}while((renderer.lastFrameRaw?.id??-1)<=before);const rect=canvas.getBoundingClientRect(),d=renderer.device,sample=a.presentation?d.createTexture({label:'AI presented hover pixels',size:[renderer.width,renderer.height],format:renderer.format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}):null,read=makeGPUBuffer(d,{label:'AI pixel samples',size:Math.max(256,a.points.length*256),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),e=d.createCommandEncoder();

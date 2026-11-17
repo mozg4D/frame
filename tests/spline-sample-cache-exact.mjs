@@ -3,13 +3,21 @@ import vm from 'node:vm';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {H} from './hash-codec-fixture.mjs';
+import {H,keySource} from './hash-codec-fixture.mjs';
 
 export async function splineSampleCacheExactChecks(){
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],details=[],check=async(name,fn)=>{await fn();checks.push({name,pass:true});};
  try{
   const kernel=html.match(/<script id="frame-spline-kernel"[^>]*>([\s\S]*?)<\/script>/)[1],scalar=Function(html.split('\n').find(l=>l.startsWith('function frameCubicNumber('))+';return frameCubicNumber;')(),factory=Function('return('+kernel+')')(),exact='const n=e[0],r=e.map(e=>e.map((e,t)=>e-n[t])),o=frameValueKey([t,r]);',unsafe='const n=e[0],r=e.map(e=>e.map((e,t)=>e-n[t])),s=Math.max(1e-30,...r.flat().map(Math.abs)),o=t+"|"+r.flat().map(e=>Math.abs(e)<1e-12*s?0:+(e/s).toPrecision(12)).join(",");';assert.ok(kernel.includes(exact));const legacy=Function('return('+kernel.replace(exact,unsafe)+')')(),debug=Function('return('+kernel.replace('sampleSplineSegment:Z,','sampleSplineSegment:Z,sampleCache:St,')+')')();assert.notEqual(kernel,kernel.replace('sampleSplineSegment:Z,',''));
   const fixture=H.values.decode(await readFile(new URL('./scenes/spline-sample-cache-cages.value',import.meta.url))),sweep=fixture.owners.find(n=>n.type==='sweep'),sample=(K,d,id)=>K.sampleSplineSegment(d,id).map(q=>({t:q.t,position:q.position,exactTangent:q.exactTangent}));assert.equal(fixture.owners.length,4);
+  await check('Main-thread and worker keys match for native cages, numeric runs and validation boundaries',()=>{
+   const mainKey=Function(keySource+'return frameValueKey;')(),workerKey=factory(scalar).valueKey;
+   const values=[null,undefined,false,'0:;Ω',0,-0,NaN,Infinity,Number.MIN_VALUE,[],[3,'n3;',4,null,,false,[]],new Uint32Array([0,0xffffffff]),new Float64Array([0,-0,NaN,-Infinity]),Array.from({length:12000},(_,i)=>i+.125),...fixture.owners.map(o=>o.data)];
+   for(const v of values)assert.equal(mainKey(v),workerKey(v));
+   let nested=3;for(let i=0;i<128;i++)nested=[nested];assert.equal(mainKey(nested),workerKey(nested));
+   const cyclic=[];cyclic.push(cyclic);
+   for(const key of [mainKey,workerKey]){assert.throws(()=>key([nested]),/depth limit/);assert.throws(()=>key(cyclic),/Invalid value/);assert.throws(()=>key([1n]),/Invalid value/);}
+  });
   await check('Actual cache warm order formerly changed one exact target curve; both corrected orders now equal a fresh sampler',()=>{const old=legacy(scalar),oldFresh=sample(legacy(scalar),sweep.data,'sd');sample(old,sweep.data,'s4');const oldWarm=sample(old,sweep.data,'sd');assert.notDeepEqual(oldWarm,oldFresh);for(const [first,last]of [['s4','sd'],['sd','s4']]){const warm=factory(scalar);sample(warm,sweep.data,first);assert.deepEqual(sample(warm,sweep.data,last),sample(factory(scalar),sweep.data,last));}details.push({legacyFresh:oldFresh[1].t,legacyWarmed:oldWarm[1].t,fixedFresh:sample(factory(scalar),sweep.data,'sd')[1].t});});
   await check('Keys distinguish tiny real coordinates and signed zero while retaining exact translation-relative reuse',()=>{const K=debug(scalar),data=K.createSplineData(),q=K.addSplineSequence(data),a=K.addSplineVertex(data,[0,0,0]),b=K.addSplineVertex(data,[20,0,0]),id=K.addSplineSegment(data,q,a,b);data.segments[id].ha=[4,9,0];data.segments[id].hb=[-4,9,0];sample(K,data,id);assert.equal(K.sampleCache.size,1);const tiny=structuredClone(data);tiny.segments[id].ha[2]=1e-14;sample(K,tiny,id);assert.equal(K.sampleCache.size,2);const translated=structuredClone(data);for(const p of Object.values(translated.vertices))for(let i=0;i<3;i++)p[i]+=64;sample(K,translated,id);assert.equal(K.sampleCache.size,2);assert.notEqual(K.valueKey([16,[[0,-0,0]]]),K.valueKey([16,[[0,0,0]]]));});
   await check('The exact key preserves the existing 2048-entry bound without storing sampled geometry',()=>{const K=debug(scalar),data=K.createSplineData(),q=K.addSplineSequence(data),a=K.addSplineVertex(data,[0,0,0]),b=K.addSplineVertex(data,[20,0,0]),id=K.addSplineSegment(data,q,a,b);data.segments[id].hb=[-4,9,0];for(let i=0;i<2052;i++){data.segments[id].ha=[4+i/1024,9,0];sample(K,data,id);}assert.equal(K.sampleCache.size,2048);for(const records of K.sampleCache.values())for(const record of records){assert.equal(record.position,undefined);assert.deepEqual(Object.keys(record).sort(),['precisionLimited','stationary','t']);}});

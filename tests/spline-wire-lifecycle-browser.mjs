@@ -5,6 +5,34 @@ import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
+async function checkStandaloneCage(page,hash,check){
+ const result=await page.evaluate(async hash=>{
+  const d=frameEngine.splineDisplays.get(hash),original=structuredClone(d.data),preview=structuredClone(original);
+  const values=d.lineValues.slice(),buffers=[...d.buffers],samples=JSON.stringify([...d.samples]);
+  const vertex='v4',incident=Object.values(preview.segments).filter(e=>e.a===vertex||e.b===vertex).map(e=>e.id);
+  preview.vertices[vertex][0]+=9;
+  frameEngine.previewSplineData(hash,preview,incident,[vertex]);
+  const changed=d.lineValues.some((v,i)=>v!==values[i]);
+  await frameEngine.setSplineDisplay(hash,original,d.generated);
+  const restored=d.lineValues.length===values.length&&d.lineValues.every((v,i)=>Object.is(v,values[i]))&&JSON.stringify([...d.samples])===samples;
+  const reused=frameEngine.splineDisplays.get(hash)===d&&buffers.every((b,i)=>d.buffers[i]===b);
+  await frameAI.call('scene.select',{ids:[],mode:'object'});
+  await frameAI.call('view.set',{index:2,single:true,shading:'solid-isoparms',focus:hash});
+  await frameAI.call('diagnostics.frame',{frames:2});
+  const write=GPUQueue.prototype.writeBuffer;let uploads=0;
+  GPUQueue.prototype.writeBuffer=function(buffer,...args){if(buffer===d.uniform)uploads++;return write.call(this,buffer,...args);};
+  try{
+   await frameAI.call('diagnostics.frame',{frames:3});const repeated=uploads;uploads=0;
+   await frameAI.call('transform.apply',{ids:[hash],position:[17,0,0]});
+   await frameAI.call('diagnostics.frame',{frames:2});const moved=uploads;
+   await frameAI.call('edit.history',{action:'undo'});
+   return {changed,restored,reused,repeated,moved};
+  }finally{GPUQueue.prototype.writeBuffer=write;}
+ },hash);
+ check('Restoring a live preview recovers exact sampled lines in the original display buffers',result.changed&&result.restored&&result.reused,result);
+ check('Unchanged cage frames avoid uniform uploads and an authored Move uploads the new frame',result.repeated===0&&result.moved>0,result);
+}
+
 export async function splineWireLifecycleChecks(page){
  const report={pass:false,checks:[],steps:[],invalidUploads:[]},call=(name,args={})=>page.evaluate(([name,args])=>frameAI.call(name,args),[name,args]),check=(name,pass,detail)=>{report.checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));};
  const step=async(name,fn)=>{report.steps.push(name);await page.evaluate(name=>window.__wireLifecycleStep=name,name);console.log('[wire lifecycle] '+name);return fn();};
@@ -22,7 +50,9 @@ export async function splineWireLifecycleChecks(page){
   });
   for(const type of ['instance','cloner']){
    await call('scene.new');await call('view.set',{index:2,single:true,mode:'object',shading:'solid-isoparms'});
-   const source=await call('scene.create',{type:'spline',name:'Editable grid source'});await call('spline.replace',{id:source.hash,data:gridCage(2,2,20)});const patch=await call('scene.create',{type:'spline_patch',name:'Classified patch',inputs:[source.hash]});let generator;
+   const source=await call('scene.create',{type:'spline',name:'Editable grid source'});await call('spline.replace',{id:source.hash,data:gridCage(2,2,20)});
+   if(type==='instance')await step('Preview, restore and move a standalone cage',()=>checkStandaloneCage(page,source.hash,check));
+   const patch=await call('scene.create',{type:'spline_patch',name:'Classified patch',inputs:[source.hash]});let generator;
    if(type==='instance')generator=await call('scene.create',{type,name:'Patch instance',params:{object:patch.hash}});
    else{const input=await call('scene.create',{type:'instance',name:'Cloner input Instance',params:{object:patch.hash}});generator=await call('scene.create',{type:'cloner',name:'Patch cloner',inputs:[input.hash],params:{type:'matrix','count x':3,'count y':1,'count z':1,'spacing x':70}});}
    await call('transform.apply',{ids:[generator.hash],position:[120,0,0]});report.owners??={};report.owners[type]={source:source.hash,patch:patch.hash,generator:generator.hash};await call('view.set',{focus:patch.hash});await call('diagnostics.frame',{frames:3});
@@ -35,7 +65,14 @@ export async function splineWireLifecycleChecks(page){
    await step(type+': Redo conversion',()=>call('edit.history',{action:'redo'}));
    await step(type+': Select original source cell after Redo',()=>call('scene.select',{ids:[source.hash],mode:'polygon',components:['cell:0']}));
    check(type+': original cell selection completes after conversion Redo',true);await call('scene.select',{ids:[],mode:'object'});
-   const objects=(await call('scene.inspect')).objects,descendants=new Set([generator.hash]);for(let previous=-1;previous!==descendants.size;){previous=descendants.size;for(const n of objects)if(descendants.has(n.parent))descendants.add(n.hash);}const baked=objects.filter(o=>descendants.has(o.hash)&&o.type==='mesh');check(type+': evaluated copies are editable polygon owners',baked.length===(type==='cloner'?3:1),objects.filter(n=>descendants.has(n.hash)).map(n=>({hash:n.hash,parent:n.parent,type:n.type})));
+   let objects=(await call('scene.inspect')).objects;
+   if(type==='instance'){
+    const local=objects.find(o=>o.parent===generator.hash&&o.type==='spline_patch');
+    check('The unpacked Instance contains its own editable Patch and source cage',local&&objects.some(o=>o.parent===local.hash&&o.type==='spline'&&o.hash!==source.hash));
+    await step('Convert the unpacked Patch into a polygon owner',()=>call('scene.convert',{id:local.hash}));
+    objects=(await call('scene.inspect')).objects;
+   }
+   const descendants=new Set([generator.hash]);for(let previous=-1;previous!==descendants.size;){previous=descendants.size;for(const n of objects)if(descendants.has(n.parent))descendants.add(n.hash);}const baked=objects.filter(o=>descendants.has(o.hash)&&o.type==='mesh');check(type+': evaluated copies are editable polygon owners',baked.length===(type==='cloner'?3:1),objects.filter(n=>descendants.has(n.hash)).map(n=>({hash:n.hash,parent:n.parent,type:n.type})));
    const derived=await page.evaluate(hashes=>frameEngine.scene.meshes.filter(m=>hashes.includes(m.hashId)).map(m=>({hash:m.hashId,wireDisplay:m.wireDisplay,wireHighlightDisplay:!!m.wireHighlightDisplay,wireHighlightTable:!!m.wireHighlightTable,active:!!m.splineHighlightActive,parts:(m.parts||[m]).map(p=>({offset:p.splineHighlightOffset||0,wireBuffer:!!p.splineWireEdges}))})),baked.map(n=>n.hash));check(type+': baked owners retain no source wire-highlight metadata',derived.every(m=>!m.wireDisplay&&!m.wireHighlightDisplay&&!m.wireHighlightTable&&!m.active&&m.parts.every(p=>!p.offset&&!p.wireBuffer)),derived);
    const digest=async id=>(await call('diagnostics.mesh',{id,geometry:true})).positionsSHA256,originalDigest=await digest(patch.hash),bakedBefore=new Map();for(const n of baked)bakedBefore.set(n.hash,await digest(n.hash));
    const first=baked[0];await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid-isoparms',focus:first.hash});await call('scene.select',{ids:[first.hash],mode:'vertex',components:[]});const boundsProjection=await call('view.project',{point:first.bounds.center}),localProjection=await call('view.project',{id:first.hash,point:[20,20,0]}),center=boundsProjection.screen;report.connectedInputs??={};report.connectedInputs[type]={first,selection:(await call('scene.inspect')).selection,boundsProjection,localProjection,native:await page.evaluate(hash=>{const m=frameEngine.scene.meshes.find(m=>m.hashId===hash);return {editingHash:FrameSpline.editingHash,frameWorld:Array.from(m.frameWorld),boundsMin:m.boundsMin,boundsMax:m.boundsMax};},first.hash)};

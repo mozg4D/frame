@@ -8,9 +8,9 @@ import {resolve} from 'node:path';
 import {launch,ready} from '../tools/browser.mjs';
 
 export function instrumentNavigationBounds(source){
- const guard='if(!splineNavigationBoxHit(d,cache,x,y))continue;',expose='    function splineSnapPoint(';
+ const guard='if(!splineNavigationBoxHit(d,cache,x,y))continue;',pickGuard='if(!splineNavigationBoxHit(d,cache,x,y,12))continue;',expose='    function splineSnapPoint(';
  for(const marker of [guard,expose])assert.equal(source.split(marker).length,2,marker);
- return source.replace(guard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y))continue;').replace(expose,`    const __navOriginalProjected=projectedSplineSegment;
+ return source.replace(guard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y))continue;').replace(pickGuard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y,12))continue;').replace(expose,`    const __navOriginalProjected=projectedSplineSegment;
     window.__navProbe={point:splineNavigationPoint,localBox:splineNavigationSampleBox,projection:splineProjection,project:projectSplineCached,key:splineProjectionKey,
       countSegments:enabled=>{projectedSplineSegment=enabled?function(...args){window.__navSegmentCalls=(window.__navSegmentCalls||0)+1;return __navOriginalProjected(...args);}:__navOriginalProjected;},
       clearProjection:()=>{for(const d of splineDisplays.values())d.projected=null;},
@@ -59,6 +59,25 @@ export async function navigationBoundsBrowserChecks(page,{metadata,rounds=2}={})
   const child=metadata.handles.denseChildSpline,before=(await call('spline.inspect',{id:child})).data,vertex=Object.keys(before.vertices)[0];await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid-isoparms',focus:child});await call('scene.select',{ids:[child],mode:'vertex',components:[vertex]});
   const preview=await page.evaluate(hash=>{const d=frameEngine.splineDisplays.get(hash);window.__navPreview={hash,display:d,box:__navProbe.localBox(d),version:d.wireVersion,transaction:frameEngine.beginNumeric()};frameEngine.applyNumeric('position',0,frameEngine.transformState.position[0]+.05);const now=frameEngine.splineDisplays.get(hash);return {sameDisplay:now===d,versionBefore:__navPreview.version,versionAfter:now.wireVersion,newBox:__navProbe.localBox(now)!==__navPreview.box};},child);
   check('Actual mutable preview invalidates sample bounds',preview.newBox&&(preview.sameDisplay?preview.versionAfter!==preview.versionBefore:true),preview);const plan=await page.evaluate(()=>__navProbe.queries()),raw=await parity(plan.queries.slice(0,8),'warm');for(const row of raw)assert.deepEqual(row.accelerated.hit,row.original.hit);check('Mutable preview preserves every exact navigation result',true,{queries:raw.length});await page.evaluate(()=>{frameEngine.finishNumeric(__navPreview.transaction,false);delete window.__navPreview;});await call('diagnostics.frame',{frames:2});check('Preview cancellation restores exact authored controls',JSON.stringify((await call('spline.inspect',{id:child})).data)===JSON.stringify(before));await call('scene.select',{ids:[]});await call('view.set',{index:0,single:true,mode:'object',camera:perspective});
+  await call('view.set',{index:2,single:true,mode:'edge',shading:'solid-isoparms',focus:child});await call('scene.select',{ids:[child],mode:'edge',components:[]});
+  const picks=await page.evaluate(hash=>{
+   const d=frameEngine.splineDisplays.get(hash),projection=__navProbe.projection(d,__navProbe.key()),rect=document.querySelector('#frame-engine-canvas').getBoundingClientRect();
+   let segment=null,distance=Infinity;
+   for(const line of d.samples.values())for(let i=1;i<line.length;i++){
+    const a=[],b=[];__navProbe.project(projection,line[i-1].position,a);__navProbe.project(projection,line[i].position,b);
+    const x=(a[0]+b[0])/2,y=(a[1]+b[1])/2,delta=Math.hypot(x-rect.left-rect.width/2,y-rect.top-rect.height/2);
+    if(a[2]>0&&b[2]>0&&delta<distance){distance=delta;segment=[x,y];}
+   }
+   if(!segment)return {hits:0};
+   let hits=0;const mismatches=[];
+   try{for(const [dx,dy]of [[0,0],[9,0],[-9,0],[0,11.99],[0,-12.01],[rect.width,0]]){
+    const pick=reference=>{window.__navReference=reference;return frameEngine.hitSpline(segment[0]+dx,segment[1]+dy,false,false,true,false,true);};
+    const reference=pick(true),filtered=pick(false);if(reference?.segment)hits++;
+    if(JSON.stringify(reference)!==JSON.stringify(filtered))mismatches.push({dx,dy,reference,filtered});
+   }}finally{window.__navReference=false;}
+   return {hits,mismatches};
+  },child);
+  check('Edge picking with conservative bounds preserves the exact owner, cubic parameter and projected point',picks.hits>0&&picks.mismatches.length===0,picks);
   report.pass=report.checks.every(c=>c.pass);
  }catch(error){report.error=error.stack;}finally{await page.mouse.up({button:'middle'}).catch(()=>{});await page.evaluate(()=>{window.__navReference=false;if(window.__navPreview){frameEngine.finishNumeric(__navPreview.transaction,false);delete window.__navPreview;}}).catch(()=>{});}
  return report;

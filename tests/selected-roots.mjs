@@ -20,6 +20,11 @@ export async function selectedRootsChecks(){
   check('Shared unselected ancestry is traversed once per root selection calculation',()=>{assert.equal(leaves.length,5000);assert.ok(visits<=20000);});
   nodes=[{id:'x',parent:'y'},{id:'y',parent:'x'}];visits=0;
   check('Corrupt cyclic hierarchy is bounded instead of recursively overflowing',()=>{assert.deepEqual(roots(new Set(['x'])),['x']);assert.ok(visits<=4);});
+  const nativeSource=html.split('\n').find(line=>line.includes('function selectedRoots(){'));
+  const parents=new Map([['leaf','group'],['group','root'],['cloned',null]]),selection=[];let reads=0;
+  const native=Function('objectSelection','transformParent',html.slice(c,d)+nativeSource+';return selectedRoots;')(selection,hash=>{reads++;return parents.get(hash);});
+  check('Native empty and single-object gizmos read no parent records',()=>{assert.deepEqual(native(),[]);selection.push('leaf');assert.deepEqual(native(),['leaf']);assert.equal(reads,0);});
+  check('Native transforms collapse selected ancestors and respect independent Cloner inputs',()=>{selection.push('root','cloned','leaf');assert.deepEqual(native(),['root','cloned']);assert.ok(reads<=5);});
   return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }

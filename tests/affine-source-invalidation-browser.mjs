@@ -26,5 +26,21 @@ try{
  await call('scene.update',{id:profile.hash,params:{diameter:34}});const changed=await unchanged();check('Authored profile edit still invalidates its Extrude geometry',changed.meshes.includes(extrude.hash),changed);
  await call('scene.update',{id:b.hash,params:{'size x':24}});check('Boolean operand parameter edit still rebuilds its Boolean',await page.evaluate(id=>{const m=frameEngine.scene.meshes.find(m=>m.hashId===id),saved=__affineBaseline.meshes.get(id);return m.positions!==saved.positions;},boolean.hash));
  const profileTarget=await call('scene.create',{type:'target',parent:root.hash,params:{object:profile.hash}});await call('transform.apply',{ids:[profileTarget.hash],position:[130,80,45]});const constrainedBefore=await page.evaluate(id=>FrameSpline.states.get(nodes.find(n=>n.nativeHash===id).id).signature,extrude.hash);await call('transform.set',{ids:[profileTarget.hash],channel:'position',axis:1,value:115});check('Target motion below the common ancestor still updates generated geometry',await page.evaluate(({id,before})=>FrameSpline.states.get(nodes.find(n=>n.nativeHash===id).id).signature!==before,{id:extrude.hash,before:constrainedBefore}));
+ const owner=async hash=>(await call('scene.inspect')).objects.find(o=>o.hash===hash);
+ const sameWorld=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=1e-7*Math.max(1,Math.abs(v),Math.abs(b[i])));
+ const aimed=(await owner(profile.hash)).worldMatrix;
+ await call('scene.delete',{ids:[profileTarget.hash]});
+ check('Deleting a Target freezes its last evaluated world frame',sameWorld(aimed,(await owner(profile.hash)).worldMatrix));
+ await call('edit.history',{action:'undo'});
+ check('Undo restores the Target and the aimed frame',!!await owner(profileTarget.hash)&&sameWorld(aimed,(await owner(profile.hash)).worldMatrix));
+ const parent=await call('scene.create',{type:'group',name:'Reparent destination'});
+ await call('transform.apply',{ids:[parent.hash],position:[17,-12,7],rotation:[0,22,9]});
+ const originalOwner=await owner(extrude.hash);
+ await call('scene.update',{id:extrude.hash,parent:parent.hash});
+ const moved=await owner(extrude.hash);
+ check('Reparenting a generator under a rotated owner preserves world placement',moved.parent===parent.hash&&sameWorld(moved.worldMatrix,originalOwner.worldMatrix));
+ await call('edit.history',{action:'undo'});
+ const restored=await owner(extrude.hash);
+ check('One Undo restores the original parent and world placement',restored.parent===originalOwner.parent&&sameWorld(restored.worldMatrix,originalOwner.worldMatrix));
  const gpu=await page.evaluate(()=>__affineGPU);check('No JavaScript or GPU errors',!errors.length&&!gpu.length,{errors,gpu});await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/affine-source-invalidation.json',import.meta.url),JSON.stringify({pass:true,checks,timings,sourceSHA256:createHash('sha256').update(html).digest('hex')},null,2));
 }catch(error){await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/affine-source-invalidation.json',import.meta.url),JSON.stringify({pass:false,checks,timings,errors,error:error.stack},null,2));console.error(error.stack);process.exitCode=1;}finally{await session.close();}
