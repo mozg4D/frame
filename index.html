@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 17 nov 10:06">
+<meta name="frame-version" content="2026 17 nov 10:47">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15176,7 +15176,7 @@ window.frameEngine=(()=>{
     function poseRay(mesh,ray){if(!mesh.posed)return ray;const s=scene.scale,origin=FM.point(mesh.frameInverse,ray.origin.map((v,i)=>v/s+scene.center[i])).map((v,i)=>(v-scene.center[i])*s),direction=FM.point(mesh.frameInverse,ray.direction,0);return {...ray,origin,direction};}
     function posedPipelines(r,orthographic=false){
       const key=orthographic?'posedOrtho':'posed';if(r[key])return Promise.resolve(r[key]);if(r[key+'Init'])return r[key+'Init'];
-      r[key+'Init']=(async()=>{const d=r.device,module=r.shader,constants={orthographic,posed:true},vertex=entryPoint=>({module,entryPoint,constants}),surface=(vs,fs)=>d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex(vs),fragment:{module,entryPoint:fs,targets:fs==='wireSurfaceFS'?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
+      r[key+'Init']=(async()=>{const d=r.device,module=r.shader,constants={orthographic,posed:true},vertex=entryPoint=>({module,entryPoint,constants}),surface=(vs,fs)=>d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex(vs),fragment:{module,entryPoint:fs,constants,targets:fs==='wireSurfaceFS'?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const pipeline=await surface('vs','fs'),wireSurfacePipeline=await surface('wireSurfaceVS','wireSurfaceFS'),edgePipeline=await d.createRenderPipelineAsync({layout:r.edgeLayout,vertex:vertex('meshEdgeVS'),fragment:{module,entryPoint:'gridFS',targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}),idPipeline=await d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex('idVS'),fragment:{module,entryPoint:'idFS',targets:[{format:'r32uint'}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         if(renderer===r&&!r.dead){r[key]={pipeline,wireSurfacePipeline,edgePipeline,idPipeline};draw();}return r[key];})();return r[key+'Init'];
     }

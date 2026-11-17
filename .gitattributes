@@ -388,3 +388,4 @@ tests/performance-renderer-factorial.mjs text eol=lf
 tests/replica-failed-path-browser.mjs text eol=lf
 tests/replica-publication.mjs text eol=lf
 tests/replica-publication-browser.mjs text eol=lf
+tests/repeated-cloner-renderer-browser.mjs text eol=lf
