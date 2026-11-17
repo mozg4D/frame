@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 17 nov 17:24",
+  "version": "2026 17 nov 18:13",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -465,16 +465,25 @@
       "tests/symmetry-selection.mjs",
       "tests/object-enable.mjs",
       "tests/replica-publication.mjs"
+    ],
+    "file-instances": [
+      "index.html",
+      "frame-sw.js",
+      "tools/file-bridge.mjs",
+      "tools/file-host.mjs",
+      "tools/file-host-client.mjs",
+      "tests/instance-files-browser.mjs",
+      "tests/instance-symmetry-copy.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
-      "bytes": 3960,
-      "sha256": "05acfa0eff92a19dfb0d857c0fe6d30979dc69ed4dc974dcd3b5b96708723faa"
+      "bytes": 5145,
+      "sha256": "3d64025658f8359db5fb843c379f10ae1815cec52ad15cb40f8a924092c9e41d"
     },
     "index.html": {
-      "bytes": 2960621,
-      "sha256": "8fdd632ef5a7d4bb210796d8262fa0678369faa4f15987ab0b6707ab7130afa1"
+      "bytes": 2986216,
+      "sha256": "0eabc504692b158e768eee4f78d3ac1eca20cee82a8c8a2923d92a35f3be97dd"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -669,8 +678,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 37326,
-      "sha256": "da52a80d2f2c8f17197b4859493bc5f77a949f198605bc23af5e797cfc575228"
+      "bytes": 37633,
+      "sha256": "32a8f5051bd1741e5a31d445aea2d8585474f849772582289b7b24acba23cb7a"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -697,16 +706,16 @@
       "sha256": "3fd39d3d6d29b36a58fb22c7b18fc85d0b4495d145eb8138148ba98a86649ea5"
     },
     "tools/file-host.mjs": {
-      "bytes": 6021,
-      "sha256": "2a7b4f0c45d5eaa67b7e3c284c3708ad03f420b485f89965808d26a2c5c6707f"
+      "bytes": 6059,
+      "sha256": "fcea6a6bb846a7eba932f687569c41092d388a83c21b210374bdc7fbe176c1ee"
     },
     "tools/file-host-client.mjs": {
-      "bytes": 3386,
-      "sha256": "fb95ad79883dd8cddc9b52812431aa2b7bfd99f53ae96867d6db7b9f314a483f"
+      "bytes": 3405,
+      "sha256": "ec16771316ddc69110df7c33848bffd611f0d25e70cf16d1a039e0143030d700"
     },
     "tools/file-bridge.mjs": {
-      "bytes": 5398,
-      "sha256": "c129608d1de2d738cc93509170c5bb8edd624d9ffcb01eef12da2e1c12a9d466"
+      "bytes": 5643,
+      "sha256": "afdd652b81c759520ff931ba249d8a4596a79e267fd87debca1a7529ce9eae09"
     },
     "tests/file-host-browser.mjs": {
       "bytes": 8788,
@@ -809,8 +818,8 @@
       "sha256": "5bb96cac60506a2a7978bf70400aac3168e32c715346d6a5348c08770762a6dd"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 14861,
-      "sha256": "aec65a103e610399e6d465fc9468016317776b05ff14cfb6a84489c0c076e062"
+      "bytes": 15904,
+      "sha256": "171cf6a5597eda80d941407bdea4dab76c689ea121da64d8bbd038dceb92b2da"
     },
     "tests/texture-slot-drag-browser.mjs": {
       "bytes": 19714,
@@ -1053,8 +1062,8 @@
       "sha256": "559e7983065c91ea100ff747196860c0e2407af4f26f58ae8e3ef06ce48a68be"
     },
     "tests/popup-packaging.mjs": {
-      "bytes": 5833,
-      "sha256": "4742c79cab4f0c13d2c5a3d14bb4209e25702662b4f0eefe77e14a95c3a02c21"
+      "bytes": 6808,
+      "sha256": "dfa27651c1df745985692c9a1a8ca9e19e5a49153ea760d06f9a1eff4eb81224"
     },
     "frame-hash-256.png": {
       "bytes": 750,
@@ -1203,6 +1212,14 @@
     "tests/replica-publication.mjs": {
       "bytes": 10508,
       "sha256": "95c3b2e248e077051dc72f2b21cf65daa597fd9b5e3f1316c0a8371c5ca6113a"
+    },
+    "tests/instance-files-browser.mjs": {
+      "bytes": 13996,
+      "sha256": "2ce05dc17aacdae63ae5a4286cc815af83b502dabe527cb214567a974d2418ea"
+    },
+    "tests/instance-symmetry-copy.mjs": {
+      "bytes": 4025,
+      "sha256": "aeed5e4ec1a8062ec35343790d4f6c884fa20051b0cffd5ebef4e490039e431f"
     }
   }
 }

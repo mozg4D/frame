@@ -12,6 +12,7 @@ export async function createFileBridge(paths=[]){
  async function dispose(id){const s=sessions.get(id);if(!s)return;sessions.delete(id);await s.file.close().catch(()=>{});if(s.temp)await unlink(s.temp).catch(()=>{});}
  async function call(a){
   if(closed)throw Error('File bridge is closed');
+  if(a.op==='stat'){const path=await target(a.path),version=await fingerprint(path);if(version===null)throw Error('File not found: '+path);const s=await lstat(path);return {path,name:basename(path),bytes:s.size,lastModified:s.mtimeMs,version};}
   if(a.op==='beginRead'||a.op==='beginWrite'){
    const path=await target(a.path),write=a.op==='beginWrite';if(write&&[...sessions.values()].some(s=>s.temp&&s.path===path))throw Error('Another write is active for this path');
    const original=await fingerprint(path),temp=write?join(dirname(path),'.frame-'+randomUUID()+'.tmp'):null;let file;

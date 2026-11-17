@@ -1,3 +1,5 @@
+import {instanceFileChecks} from './instance-files-browser.mjs';
+import {instanceSymmetryCopyChecks} from './instance-symmetry-copy.mjs';
 import {selectedPlugins,extraPluginsEnabled,excludedPluginResult,pluginEnabled} from './test-policy.mjs';
 import {collaborationChecks} from './ai-collaboration.mjs';
 import {pluginLoadingChecks} from './plugin-loading.mjs';
@@ -274,6 +276,7 @@ try{
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);
   report.booleanIsoparms=await isolated('booleanIsoparms',booleanIsoparmsChecks);
   report.symmetrySelection=await isolated('symmetrySelection',symmetrySelectionChecks);
+  report.instanceFiles=await isolated('instanceFiles',instanceFileChecks);report.instanceSymmetryCopy=await isolated('instanceSymmetryCopy',instanceSymmetryCopyChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);
   report.surfaceEfficiency=await isolated('surfaceEfficiency',surfaceEfficiencyChecks);
   report.generatorConstruction=await isolated('generatorConstruction',generatorConstructionChecks);

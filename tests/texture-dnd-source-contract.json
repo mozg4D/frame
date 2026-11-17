@@ -27,11 +27,19 @@
     {
       "prefix": "function snapshot(){",
       "nextPrefix": "function frameTrimUIUndo(){",
-      "bytes": 644,
-      "sha256": "f74cdd1db0b4ad6fe1e742b79ad450c2b21a489296c62ad710f235be79931b90",
+      "bytes": 776,
+      "sha256": "084bd61f794c35479e484e9c129f47ef8d026c3d243e508dccf2ad9cc60b6db3",
       "change": {
         "reason": "History snapshots use addressed native binary records.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
+        "previousBytes": 644,
+        "previousSHA256": "f74cdd1db0b4ad6fe1e742b79ad450c2b21a489296c62ad710f235be79931b90",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -53,8 +61,8 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2261,
-      "sha256": "ea5eca76def3539819250ee676b0f8616f4c80b95267d636e0c5042890a8dcf7",
+      "bytes": 2395,
+      "sha256": "03456c4345f54dbe6448d91347cd6d3eede44e6cc419920d2bd4d4965ddb2fea",
       "change": {
         "reason": "Undo/Redo reconciles unused texture shelf cards against restored material and environment references; encoded image resources remain retained for history.",
         "beforeBytes": 2216,
@@ -62,10 +70,9 @@
         "baseCommit": "339a95f"
       },
       "sourceBindingUpdate": {
-        "reason": "Undo reuses material-thumbnail entries guarded by exact material/image identity instead of clearing the whole cache. Source identity only; historical change metadata and native qualifications remain separate.",
-        "previousBytes": 2288,
-        "previousSHA256": "b7cef092c0f577483569bbec1d52ee369bce04132db1e8580beab3593ffdbfe2",
-        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
+        "previousBytes": 2261,
+        "previousSHA256": "ea5eca76def3539819250ee676b0f8616f4c80b95267d636e0c5042890a8dcf7",
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
@@ -157,13 +164,21 @@
     {
       "prefix": "    async function saveHash(",
       "nextPrefix": "    async function nativeDecodePlan(file){",
-      "bytes": 3677,
-      "sha256": "da7ceb1821223dec83bed3b94a64ba4e91b9065aed2e42be802c1d4c5aae6bb2",
+      "bytes": 3774,
+      "sha256": "abaf2e24ee89d54cbe7a0f04ffb771ac6c3646cfd8f9eefbf0ae8e40fdf86cd1",
       "change": {
         "reason": "Bounded ordered HASH writes and elapsed-work yielding remove per-record host/timer latency; native bytes, IO errors and large-file budgets are checked separately.",
         "beforeBytes": 3248,
         "beforeSHA256": "0488efcef650034f2ed038340be252bdb9ca8ca264e4b9e7bbc224fa363fa818",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
+        "previousBytes": 3677,
+        "previousSHA256": "da7ceb1821223dec83bed3b94a64ba4e91b9065aed2e42be802c1d4c5aae6bb2",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -181,13 +196,21 @@
     {
       "prefix": "async function frameSaveBoundFile(",
       "nextPrefix": "function frameCancelFileRequest(){",
-      "bytes": 1131,
-      "sha256": "63c898f4c0ab3867af525d2559e115ddafb7ea34f1476a0e9df381f91e1391ee",
+      "bytes": 18082,
+      "sha256": "3a1f98df8d9969cbd61df4fa1cfff06e8dcf2931b2807738096749a5322b7267",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 1122,
         "beforeSHA256": "d287846627fc38920ee2f5794836e42742857b1c41a44c8bfccaf3b8d823f983",
         "baseCommit": "b84f684"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
+        "previousBytes": 1131,
+        "previousSHA256": "63c898f4c0ab3867af525d2559e115ddafb7ea34f1476a0e9df381f91e1391ee",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     }
   ],
