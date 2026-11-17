@@ -46,6 +46,7 @@ import {instanceGeneratorChildrenChecks} from './instance-generator-children.mjs
 import {splinePatchNormalChecks} from './spline-patch-normals.mjs';
 import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
 import {booleanIsoparmsChecks} from './boolean-isoparms.mjs';
+import {symmetrySelectionChecks} from './symmetry-selection.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
 import {fileHostConcurrencyChecks} from './file-host-concurrency.mjs';
@@ -272,6 +273,7 @@ try{
   report.splinePatchNormals=await isolated('splinePatchNormals',splinePatchNormalChecks);
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);
   report.booleanIsoparms=await isolated('booleanIsoparms',booleanIsoparmsChecks);
+  report.symmetrySelection=await isolated('symmetrySelection',symmetrySelectionChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);
   report.surfaceEfficiency=await isolated('surfaceEfficiency',surfaceEfficiencyChecks);
   report.generatorConstruction=await isolated('generatorConstruction',generatorConstructionChecks);

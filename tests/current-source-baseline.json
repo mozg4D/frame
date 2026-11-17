@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 17 nov 10:47",
+  "version": "2026 17 nov 14:59",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -458,16 +458,23 @@
       "tests/spline-depth.mjs",
       "tests/recent-files.mjs",
       "tests/recent-camera-lines-browser.mjs"
+    ],
+    "symmetry-selection": [
+      "index.html",
+      "frame-sw.js",
+      "tests/symmetry-selection.mjs",
+      "tests/object-enable.mjs",
+      "tests/replica-publication.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "61f736d20e4764e635803938c2a4c382c4a00311f416fb794a7a947b85370d43"
+      "sha256": "a35025fdcb79ac93bb180209023cbdee669ea36a8e39aacffdfc7ad53a967bfe"
     },
     "index.html": {
-      "bytes": 2956335,
-      "sha256": "56a41eb16c8b1df346012867f4d3dbf0745dbc9c0a5e3909e683047aa8fc9b3e"
+      "bytes": 2956807,
+      "sha256": "8e0aeb1114e7b9ee0b39176ea42ceafbff740ec9dc5f129bcedc80c615c58e71"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -662,8 +669,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 37172,
-      "sha256": "945f0b276f13bb747781348ede9db154ec53142ba59161dd0e7e711ef3c3b15d"
+      "bytes": 37326,
+      "sha256": "da52a80d2f2c8f17197b4859493bc5f77a949f198605bc23af5e797cfc575228"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -778,8 +785,8 @@
       "sha256": "942f55ae75df0549f3430763e384f39a9858082c4891f5ecf546838b9d294124"
     },
     "tests/object-enable.mjs": {
-      "bytes": 7230,
-      "sha256": "da3c07c9360b084066a21db67c36afbe02fffaac05b11e46a03b2ab1769b4882"
+      "bytes": 7823,
+      "sha256": "29c1752fdbcc7d33416ee259dc987ee0123d11ea2f02d77c2cd6a1b83b3519b8"
     },
     "tests/gizmo-query-work.mjs": {
       "bytes": 18809,
@@ -1034,8 +1041,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 74197,
-      "sha256": "d0a0752bd31ed49009de6408deb7d513f92c5d231b534f1bd7d7a0f9f63fa20f"
+      "bytes": 74829,
+      "sha256": "aef5900041251497dae9797f08b1575ac57494f62b15029822a2904c6d06c7a6"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 12642,
@@ -1090,8 +1097,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 15474,
-      "sha256": "014ab90c231ec2102e3e7e4a19f4435f231cf409f858c5ff54af82147a2350ec"
+      "bytes": 15515,
+      "sha256": "f8aa11e7615c5f5153d9a32bbc8161e9c68148cdf5a1009d38454239e5962c43"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1188,6 +1195,14 @@
     "tests/recent-camera-lines-browser.mjs": {
       "bytes": 14753,
       "sha256": "43ca60b79624c79b4c5ecae48e05546175377092d019c8dc0815810740b692d6"
+    },
+    "tests/symmetry-selection.mjs": {
+      "bytes": 10025,
+      "sha256": "3d81f7b48b4386d776c11c46e4acc6ddcc1e583d884a757bace905aee3b3c174"
+    },
+    "tests/replica-publication.mjs": {
+      "bytes": 10508,
+      "sha256": "95c3b2e248e077051dc72f2b21cf65daa597fd9b5e3f1316c0a8371c5ca6113a"
     }
   }
 }
