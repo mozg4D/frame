@@ -36,7 +36,7 @@ function hitRuntime(html,K,data,mode){
  const c={scene:{},splineDisplays:new Map([[display.hash,display]]),elementMode:mode,viewIndex:0,nodes:[owner],frameViewportAt:()=>0,splineProjectionKey:()=>'',splineProjection:()=>({}),
   FrameSpline:{isActive:()=>true,isEditable:()=>true,K:()=>K,handleScale:1},splineShown:()=>true,curveReplicaDisplays:()=>[],splineHandleVisible:()=>false,
   projectedSplineControl:(_c,_id,p)=>[p[0],p[1],1],projectedSplineSegment:(_c,_id,ps)=>Float64Array.from(ps.flatMap(p=>[p.position[0],p.position[1],1])),projectSplineCached:(_c,p,out)=>out.set([p[0],p[1],1])};
- vm.createContext(c);vm.runInContext(section(html,'    function hitSpline(','    let splineHover=')+';globalThis.hit=hitSpline;',c);return c.hit;
+ vm.createContext(c);vm.runInContext(section(html,'function createFrameNodeLookup(','let frameLoadNodeIndex=null;')+section(html,'    function hitSpline(','    let splineHover=')+';globalThis.hit=hitSpline;',c);return c.hit;
 }
 function profile(K,rings,orientation){
  const data=K.createSplineData();for(let r=0;r<rings.length;r++){

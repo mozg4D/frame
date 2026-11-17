@@ -25,7 +25,7 @@ export async function pluginReferenceChecks(){
  check('Null and non-plugin authoring preserve their shapes',()=>{assert.equal(FramePlugins.remapAuthoring(null,mapping),null);assert.deepEqual(FramePlugins.remapAuthoring({version:1,tags:[]},mapping),{version:1,tags:[]});});
  const owner={id:'n1',nativeHash:A,type:'group',parent:null,params:{}},other={id:'n2',nativeHash:B,type:'group',parent:null,params:{}},ref={id:'n3',nativeHash:C,type:declaration.type,parent:null,params:{...metadata.plugin.params,Number:7}},wrong={id:'n4',nativeHash:E,type:'mesh',parent:null,params:{}},nodes=[owner,other,ref,wrong];
  const node=id=>nodes.find(n=>n.id===id),descendants=id=>nodes.filter(n=>n.parent===id).flatMap(n=>[n.id,...descendants(n.id)]);
- const objectReference=runtimeFunction('node','nodes','frameLoadNodes',line('function objectReference(')+';return objectReference;')(node,nodes,()=>null);
+ const objectReference=runtimeFunction('nodes',between('function createFrameNodeLookup(','let frameLoadNodeIndex=null;')+line('function objectReference(')+';return objectReference;')(nodes);
  const frameTargetValid=runtimeFunction('objectReference','descendants','nodes','node',line('function frameTargetValid(')+';return frameTargetValid;')(objectReference,descendants,nodes,node);
  let validates=0,history=[],errors=[];
  entry.editor={parameters(n,changes){validates++;for(const key of ['Owner','External'])if(Object.hasOwn(changes,key)&&changes[key]&&!nodes.some(q=>q.nativeHash===changes[key]&&q.type==='group'))throw Error('Expected canonical group reference');return {...changes};}};

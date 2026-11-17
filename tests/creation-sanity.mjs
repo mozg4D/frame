@@ -62,7 +62,7 @@ export async function creationSanityCPUChecks(){
   const anchorAt=performance.now();for(let i=0;i<2000;i++){const [type,params]=anchored[i%anchored.length];K.primitive(type,params);}const anchorMs=performance.now()-anchorAt;timings.push({name:'2000 complete anchored primitive cage builds',ms:anchorMs,budget:2000});check('Anchored primitive cage builds bounded latency',()=>assert.ok(anchorMs<2000));
   const pentagon=K.primitive('polyhedron',{faces:5,diameter:100}),vertices=Object.values(pentagon.vertices),center=[0,1,2].map(k=>(Math.min(...vertices.map(p=>p[k]))+Math.max(...vertices.map(p=>p[k])))/2);
   check('Odd polygon exposes the original bounds-center offset',()=>assert.ok(Math.abs(center[1]-4.774575140626315)<1e-10));
-  const pivotSource=html.slice(html.indexOf('    function objectPivot('),html.indexOf('\n    function putFrame('));
+  const pivotSource=html.slice(html.indexOf('function createFrameNodeLookup('),html.indexOf('let frameLoadNodeIndex='))+html.slice(html.indexOf('    function objectPivot('),html.indexOf('\n    function putFrame('));
   for(const type of ['polyhedron','cylinder','text','helix'])check('Actual native '+type+' pivot avoids measured-bounds drift and honors explicit edits',()=>{
    let saved,boundsReads=0;const pivot=Function('FM','nativeValue','nodes','FrameSpline','pluginViewport','objectWorld','nodeBounds',pivotSource+';return objectPivot;')(FM,()=>saved,[{nativeHash:'p',type,params:{}}],{K:()=>K},()=>null,()=>FM.I(),()=>{boundsReads++;return {center};});
    assert.deepEqual(Array.from(pivot('p').slice(12,15)),[0,0,0]);assert.equal(boundsReads,0);

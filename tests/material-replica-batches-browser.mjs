@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import {launch,ready} from '../tools/browser.mjs';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+
+const sourceHTML=await readFile(new URL('../index.html',import.meta.url),'utf8'),session=await launch({headless:true}),errors=[],checks=[],rows=[];
+session.page.on('pageerror',e=>errors.push(e.message));
+session.page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
+const page=session.page,call=(p,name,args={})=>p.evaluate(([name,args])=>frameAI.call(name,args),[name,args]);
+const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));console.log('PASS '+name);};
+const warm=async p=>{for(let i=0;i<3;i++){await call(p,'diagnostics.frame',{frames:2});await p.waitForFunction(()=>!frameEngine.renderer.materialState?.replicaPending?.size&&!frameEngine.renderer.materialState?.pending?.size,{},{timeout:30000});}await call(p,'diagnostics.frame',{frames:2});};
+const pixels=p=>p.evaluate(async()=>{const r=frameEngine.renderer,d=r.device,w=r.width,h=r.height,stride=Math.ceil(w*4/256)*256,read=d.createBuffer({size:stride*h,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{const e=d.createCommandEncoder();e.copyTextureToBuffer({texture:r.cachedColor},{buffer:read,bytesPerRow:stride},[w,h]);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const a=new Uint8Array(read.getMappedRange()),out=new Uint8Array(w*h*4);for(let y=0;y<h;y++)out.set(a.subarray(y*stride,y*stride+w*4),y*w*4);read.unmap();let raw='';for(let i=0;i<out.length;i+=16384)raw+=String.fromCharCode(...out.subarray(i,i+16384));return {width:w,height:h,base64:btoa(raw),batch:r.replicaDraws?.get((await frameAI.call('scene.inspect')).view.index),lines:JSON.parse(document.querySelector('#frame-engine-canvas').dataset.surfaceLines||'null')};}finally{read.destroy();}});
+let control;
+try{
+ await page.route('**/index.html',route=>route.fulfill({contentType:'text/html',body:sourceHTML.replace('function replicaBatchOrderSafe(list){','function replicaBatchOrderSafe(list){if(window.__materialOrdinary)return false;')}));await page.reload();await ready(page);await page.evaluate(()=>{window.__replicaErrors=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__replicaErrors.push(e.error.message));});
+ // Real imported corner UVs must reach the instance's native material bind group.
+ await call(page,'scene.open',{url:'tests/scenes/material-selects.gltf'});
+ const source=(await call(page,'scene.inspect')).objects.find(n=>n.mesh),copy=await call(page,'scene.create',{type:'instance',params:{object:source.hash}});
+ await call(page,'transform.set',{ids:[copy.hash],channel:'position',axis:0,value:35,coordinates:'world'});await warm(page);
+ const uv=await page.evaluate(([a,b])=>[a,b].map(hash=>{const mesh=frameEngine.scene.meshes.find(m=>m.hashId===hash);return {hash,source:!!mesh.replicaSource,actual:!!mesh.materialBindings?.uv,resource:mesh.materialBindings?.uv===mesh.uvSource?.resource};}),[source.hash,copy.hash]);
+ check('Imported source and Instance both bind their real corner UV buffer',uv.every(m=>m.actual&&m.resource),uv);
+ await call(page,'scene.new');
+ const cube=await call(page,'scene.create',{type:'cube',params:{'size x':40,'size y':40,'size z':40}});await call(page,'scene.convert',{id:cube.hash});
+ const patch=(await call(page,'scene.inspect')).objects.find(n=>n.type==='spline_patch'),cage=(await call(page,'scene.inspect')).objects.find(n=>n.parent===patch.hash&&n.type==='spline');
+ const paint=await call(page,'material.create',{name:'Textured normal source',params:{h:20,s:15,l:80,rough:65,bump:40}}),blue=await call(page,'material.create',{name:'Masked blue',params:{h:215,s:85,l:55,rough:45}});
+ await call(page,'material.assign',{id:patch.hash,material:paint.uid});
+ await page.evaluate(async uid=>{const canvas=document.createElement('canvas');canvas.width=canvas.height=64;const ctx=canvas.getContext('2d');ctx.fillStyle='#eacb87';ctx.fillRect(0,0,64,64);ctx.fillStyle='#5578bb';ctx.fillRect(0,0,32,32);ctx.fillRect(32,32,32,32);const bytes=new Uint8Array(await(await new Promise(resolve=>canvas.toBlob(resolve,'image/png'))).arrayBuffer()),url=URL.createObjectURL(new Blob([bytes])),m=materials.find(m=>m.uid===uid);m.texture=url;m.colorAsset=frameMaterialAsset(url,bytes);m.map=frameMaterialImage(url);await m.map.decode();frameSyncMaterials();},paint.uid);
+ await call(page,'scene.select',{ids:[cage.hash],mode:'polygon',components:['cell:0']});await call(page,'material.assign',{id:cage.hash,material:blue.uid,selection:true});
+ const cloner=await call(page,'scene.create',{type:'cloner',inputs:[patch.hash],params:{'count x':4,'count y':1,'count z':1,'spacing x':70}});await call(page,'scene.select',{ids:[]});await call(page,'view.set',{index:0,single:true,mode:'object',shading:'solid',focus:cloner.hash});await warm(page);
+ const html=sourceHTML;
+ const capturePair=async()=>{await page.evaluate(()=>window.__materialOrdinary=false);await warm(page);const a=await pixels(page);await page.evaluate(()=>window.__materialOrdinary=true);await warm(page);const b=await pixels(page);await page.evaluate(()=>window.__materialOrdinary=false);return [a,b];};
+ if(!process.argv.includes('--extended-only'))for(const index of [0,2])for(const shading of ['solid','solid-wire','solid-isoparms']){
+  await call(page,'view.set',{index,single:true,mode:'object',shading,focus:cloner.hash});
+  const [a,b]=await capturePair(),aa=Buffer.from(a.base64,'base64'),bb=Buffer.from(b.base64,'base64');let different=0,max=0;for(let i=0;i<aa.length;i++){const delta=Math.abs(aa[i]-bb[i]);if(delta)different++;max=Math.max(max,delta);}rows.push({index,shading,different,max,batch:a.batch,lines:a.lines});
+  check(index+' '+shading+' textured masked instances use native GPU instancing',a.batch.instances===4&&a.batch.calls===1,a.batch);
+  check(index+' '+shading+' pixels match ordinary per-occurrence material rendering',different===0,{different,max});
+ }
+ const compareCurrent=async(label,{instances}={})=>{
+  const [a,b]=await capturePair(),aa=Buffer.from(a.base64,'base64'),bb=Buffer.from(b.base64,'base64');let different=0,max=0;for(let i=0;i<aa.length;i++){const delta=Math.abs(aa[i]-bb[i]);if(delta)different++;max=Math.max(max,delta);}rows.push({label,different,max,batch:a.batch});check(label+' matches ordinary per-occurrence pixels',different===0,{different,max});if(instances!==undefined)check(label+' uses the expected batching fallback',a.batch.instances===instances,a.batch);
+ };
+ // Differing occurrence appearance remains separate; paged geometry keeps its
+ // established path. Picking still returns the occurrence rather than source.
+ for(const storage of ['auto','texture']){
+  await call(page,'scene.new');const plane=await call(page,'mesh.create',{name:'Replica plane',storage,vertices:[-20,-20,0,20,-20,0,20,20,0,-20,20,0],indices:[0,1,2,0,2,3]}),red=await call(page,'material.create',{name:'Plane red',params:{h:0,s:100,l:50}}),green=await call(page,'material.create',{name:'Occurrence green',params:{h:120,s:100,l:50}});await call(page,'material.assign',{id:plane.hash,material:red.uid});const copies=[];
+  for(let i=0;i<3;i++){const copy=await call(page,'scene.create',{type:'instance',params:{object:plane.hash}});await call(page,'transform.set',{ids:[copy.hash],channel:'position',axis:0,value:70*(i+1),coordinates:'world'});copies.push(copy);}
+  await call(page,'material.assign',{id:copies[1].hash,material:green.uid});await call(page,'scene.select',{ids:[plane.hash,...copies.map(n=>n.hash)]});await call(page,'view.set',{index:2,single:true,shading:'solid-wire',mode:'object',focusSelection:true});await call(page,'scene.select',{ids:[]});await compareCurrent(storage+' differing material override',{instances:storage==='auto'?2:0});
+  const at=(await call(page,'view.project',{id:copies[0].hash,point:[0,0,0]})).screen;await call(page,'selection.pick',{x:at[0],y:at[1]});const selected=(await call(page,'scene.inspect')).selection.objects;check(storage+' picking identifies the exact Instance',selected.length===1&&selected[0]===copies[0].hash,selected);await call(page,'scene.select',{ids:[]});
+  await call(page,'transform.set',{ids:[copies[2].hash],channel:'rotation',axis:2,value:17,coordinates:'world'});await compareCurrent(storage+' transformed occurrence');await call(page,'edit.history',{action:'undo'});await compareCurrent(storage+' transform Undo');
+ }
+ // A later duplicate may not move ahead of an intervening coplanar occurrence.
+ await call(page,'scene.new');const plane=await call(page,'mesh.create',{vertices:[-25,-25,0,25,-25,0,25,25,0,-25,25,0],indices:[0,1,2,0,2,3]}),red=await call(page,'material.create',{params:{h:0,s:100,l:50}}),green=await call(page,'material.create',{params:{h:120,s:100,l:50}});await call(page,'material.assign',{id:plane.hash,material:red.uid});
+ const first=await call(page,'scene.create',{type:'instance',params:{object:plane.hash}}),greenSource=await call(page,'mesh.create',{vertices:[-25,-25,0,25,-25,0,25,25,0,-25,25,0],indices:[0,1,2,0,2,3]});await call(page,'material.assign',{id:greenSource.hash,material:green.uid});const intervening=await call(page,'scene.create',{type:'instance',params:{object:greenSource.hash}}),last=await call(page,'scene.create',{type:'instance',params:{object:plane.hash}});await call(page,'scene.update',{id:greenSource.hash,visible:false});
+ const order=await page.evaluate(ids=>frameEngine.scene.meshes.filter(m=>ids.includes(m.hashId)).map(m=>m.hashId),[first.hash,intervening.hash,last.hash]);check('Coplanar control contains an intervening occurrence',order.length===3&&order[1]===intervening.hash,order);await call(page,'transform.set',{ids:[order[0]],channel:'position',axis:0,value:80});await call(page,'transform.set',{ids:[intervening.hash],channel:'position',axis:0,value:150});await call(page,'transform.set',{ids:[order[2]],channel:'position',axis:0,value:150});await call(page,'scene.select',{ids:[plane.hash,first.hash,intervening.hash,last.hash]});await call(page,'view.set',{index:2,single:true,mode:'object',shading:'solid',focusSelection:true});await call(page,'scene.select',{ids:[]});await compareCurrent('intervening coplanar material order',{instances:0});
+ const gpu=await page.evaluate(()=>__replicaErrors);check('No JavaScript or WebGPU validation errors',!errors.length&&!gpu.length,{errors,gpu});
+ await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/material-replica-batches.json',import.meta.url),JSON.stringify({pass:true,checks,rows,scope:process.argv.includes('--extended-only')?'extended native operations':'complete material matrix',testInjection:'same-document test-only order-certificate gate; no product flag',sourceSHA256:createHash('sha256').update(html).digest('hex')},null,2));
+}catch(error){await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/material-replica-batches.json',import.meta.url),JSON.stringify({pass:false,checks,rows,errors,error:error.stack},null,2));console.error(error.stack);process.exitCode=1;}finally{await control?.close();await session.close();}

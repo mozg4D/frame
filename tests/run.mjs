@@ -224,7 +224,25 @@ try{
 
   const timeout=new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('Suite exceeded 10 minutes')),600000);});
   report.suite=await runStage('suite',()=>Promise.race([page.evaluate(async stress=>{const {runSuite}=await import('./tests/suite.js');return runSuite(frameAI,{stress,progress:name=>console.log('[tests] '+name)});},args.includes('--stress')),timeout]));clearTimeout(timer);
-  const isolated=async(name,fn,nativeLock=false)=>runStage(name,async()=>{const lockSession=nativeLock?await launch({headless:true}):null;const browserSession=lockSession||session;await page.evaluate(()=>frameAI.call('render.stop'));const context=await browserSession.browser.newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1)});try{const fixture=await context.newPage(),fixtureConsole=[];fixture.on('pageerror',e=>report.errors.push(name+': '+e.message));fixture.on('console',m=>{if(m.type()==='error')fixtureConsole.push({text:m.text(),url:m.location().url});});await fixture.goto(browserSession.url+'/index.html');await ready(fixture);await fixture.evaluate(()=>{window.__fixtureGPU=[];frameEngine.renderer.device.addEventListener('uncapturederror',e=>__fixtureGPU.push(e.error.message));frameEngine.renderer.device.pushErrorScope('validation');});const result=await fn(fixture);const consoleResult=consumeExpectedHostConsoleErrors(fixtureConsole,result.expectedConsoleErrors);result.expectedNetworkConsole=consoleResult.matched;report.consoleErrors.push(...consoleResult.unexpected.map(m=>name+': '+m.text));result.gpu=await fixture.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__fixtureGPU}));if(result.gpu.validation||result.gpu.uncaptured.length){result.pass=false;result.error=JSON.stringify(result.gpu);}return result;}finally{await context.close();await lockSession?.close();}});
+  const isolated=async(name,fn,nativeLock=false,delegateReload=false)=>runStage(name,async()=>{
+    const lockSession=nativeLock?await launch({headless:true}):null,browserSession=lockSession||session;
+    await page.evaluate(()=>frameAI.call('render.stop'));
+    const context=await browserSession.browser.newContext({viewport:{width:1280,height:900},deviceScaleFactor:Number(process.env.FRAME_DPR||1)});
+    let fixture,originalReload,armed=false,reloads=0;const documents=[];
+    try{
+      fixture=await context.newPage();const fixtureConsole=[];
+      fixture.on('pageerror',e=>report.errors.push(name+': '+e.message));fixture.on('console',m=>{if(m.type()==='error')fixtureConsole.push({text:m.text(),url:m.location().url});});
+      const arm=async()=>{await fixture.evaluate(()=>{const device=frameEngine.renderer.device;window.__fixtureGPUDevice=device;window.__fixtureGPU=[];window.__fixtureGPULost=null;device.addEventListener('uncapturederror',e=>__fixtureGPU.push(e.error.message));device.lost.then(info=>window.__fixtureGPULost={reason:info.reason,message:info.message});device.pushErrorScope('validation');});armed=true;};
+      const collect=async()=>{if(!armed)return;armed=false;documents.push(await fixture.evaluate(async()=>{const device=window.__fixtureGPUDevice;let queueError=null,scopeError=null,validation=null;try{await device.queue.onSubmittedWorkDone();}catch(error){queueError=error.message;}try{validation=(await device.popErrorScope())?.message||null;}catch(error){scopeError=error.message;}return {validation,queueError,scopeError,uncaptured:window.__fixtureGPU,lost:window.__fixtureGPULost,changed:device!==frameEngine.renderer?.device};}));};
+      const failed=d=>d.validation||d.queueError||d.scopeError||d.uncaptured.length||d.lost||d.changed;
+      originalReload=fixture.reload;fixture.reload=async(...options)=>{await collect();if(failed(documents.at(-1)))throw Error('GPU validation before document reload: '+JSON.stringify(documents.at(-1)));const response=await originalReload.apply(fixture,options);reloads++;await ready(fixture);await arm();return response;};
+      await fixture.goto(browserSession.url+'/index.html');await ready(fixture);await arm();const result=await (delegateReload?fn(fixture,{reloadPage:async()=>{await fixture.reload();return documents.at(-1);}}):fn(fixture));await collect();
+      const consoleResult=consumeExpectedHostConsoleErrors(fixtureConsole,result.expectedConsoleErrors);result.expectedNetworkConsole=consoleResult.matched;report.consoleErrors.push(...consoleResult.unexpected.map(m=>name+': '+m.text));
+      result.gpu={validation:documents.map(d=>d.validation).filter(Boolean).join('\n')||null,uncaptured:documents.flatMap(d=>d.uncaptured),documents,documentCount:documents.length};
+      if(reloads)result.checks.push({name:'GPU validation covers every reloaded document',pass:documents.length===reloads+1});
+      if(documents.some(failed)||result.checks?.some(c=>c.pass===false)){result.pass=false;result.error||=JSON.stringify(result.gpu);}return result;
+    }finally{if(fixture&&originalReload)fixture.reload=originalReload;await context.close();await lockSession?.close();}
+  });
   report.perspectiveClippingBrowser=await isolated('perspectiveClippingBrowser',perspectiveClippingBrowserChecks);
   report.viewportConnectedBrowser=await isolated('viewportConnectedBrowser',viewportConnectedBrowserChecks);
   report.selectionBoundsFlashBrowser=await isolated('selectionBoundsFlashBrowser',selectionBoundsFlashBrowserChecks);
@@ -262,7 +280,7 @@ try{
   report.october28=await isolated('october28',october28Checks);
   report.fileBridgeBrowser=await isolated('fileBridgeBrowser',fileBridgeBrowserChecks);
   report.fileHostBrowser=await isolated('fileHostBrowser',fileHostBrowserChecks);report.fileHostLargeBrowser=await isolated('fileHostLargeBrowser',page=>fileHostLargeBrowserChecks(page));report.filePermissionBrowser=await isolated('filePermissionBrowser',filePermissionBrowserChecks);
-  report.fileControls=await isolated('fileControls',fileControlsChecks);
+  report.fileControls=await isolated('fileControls',fileControlsChecks,false,true);
   report.cameraHashBrowser=await isolated('cameraHashBrowser',cameraHashBrowserChecks);
   report.objectBrowserMarquee=await isolated('objectBrowserMarquee',objectBrowserMarqueeChecks);
   report.axisConsistency=await isolated('axisConsistency',axisConsistencyChecks);

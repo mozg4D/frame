@@ -25,6 +25,8 @@
     "test:pointer-lock": "node tests/pointer-return.mjs && node tests/pointer-lock.mjs",
     "test:interaction": "node tests/interaction-feedback.mjs",
     "test:performance": "node tests/performance-heavy.mjs",
+    "test:performance:cpu": "node tests/performance-regressions.mjs",
+    "test:performance:engineering": "node tests/performance-zoo-10k.mjs --scene=tests/scenes/engineering-zoo-10k.hash",
     "test:syntax": "node tests/syntax.mjs",
     "test:meltus8-rod": "node tests/meltus8-rod.mjs",
     "test:hardware": "node tests/hardware-catalogue.mjs",

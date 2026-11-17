@@ -1,0 +1,34 @@
+import assert from 'node:assert/strict';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {fileURLToPath} from 'node:url';
+
+export async function replicaBatchOrderChecks(){
+ const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],timings=[],check=(name,fn)=>{fn();checks.push({name,pass:true});};
+ try{
+  const start=html.indexOf('    function frameReplicaScreenBounds('),end=html.indexOf('    let visibilityFrustum=null;',start);assert.ok(start>=0&&end>start);
+  const context={scene:null,canvas:{width:1000,height:1000},frame:1,view:0,epoch:0,camera:null};
+  const api=Function('context',`let scene,canvas,frameCount,viewIndex,poseEpoch;const cameraUniform=()=>context.camera,meshVisible=mesh=>mesh.visible!==false;${html.slice(start,end)};return {bounds:frameReplicaScreenBounds,index:createFrameReplicaOrderIndex,safe(list){scene=context.scene;canvas=context.canvas;frameCount=context.frame;viewIndex=context.view;poseEpoch=context.epoch;return replicaBatchOrderSafe(list);}};`)(context);
+  const camera=(orthographic=false)=>{const c=new Float32Array(36);c[0]=c[5]=c[10]=c[15]=1;c[19]=1;c[20]=1;c[21]=1;c[24]=.001;c[25]=100;c[26]=orthographic?1:0;c[27]=1;c[28]=c[29]=1000;return c;};
+  const box=(name,rect)=>({name,rect,triangleCount:1,boundsMin:[-.1,-.1,0],boundsMax:[.1,.1,0]});
+  check('Coplanar and quantized near-depth overlapping pixels keep their authored draw order',()=>{for(const name of ['coplanar','near-depth']){const a=box('first',[100,100,110,110]),middle=box(name,[500,500,510,510]),later=box('later',[505,505,515,515]),rows=[a,middle,later],i=api.index(rows,m=>m.rect,()=>true,1000,1000);assert.equal(i.safe([a,later]),false);}});
+  check('Gapped occurrences can batch when every intervening pixel bound is disjoint',()=>{const a=box('first',[0,0,10,10]),middle=box('middle',[30,30,40,40]),later=box('later',[100,100,110,110]),i=api.index([a,middle,later],m=>m.rect,()=>true,1000,1000);assert.equal(i.safe([a,later]),true);});
+  check('Contiguous authored members preserve draw order even with overlapping surfaces',()=>{const rows=[box('a',[1,1,9,9]),box('b',[1,1,9,9])],i=api.index(rows,()=>{throw Error('Unnecessary projection');},()=>true,1000,1000);assert.equal(i.safe(rows),true);assert.equal(i.safe(rows.toReversed()),false);});
+  check('Invisible intervening owners do not prohibit a safe batch',()=>{const a=box('a',[1,1,9,9]),middle=box('hidden',[1,1,9,9]),b=box('b',[1,1,9,9]),i=api.index([a,middle,b],m=>m.rect,m=>m!==middle,1000,1000);assert.equal(i.safe([a,b]),true);});
+  check('Screen-wide and near-plane ambiguous later members fall back safely',()=>{const a=box('a',[1,1,9,9]),middle=box('m',[300,300,400,400]),b=box('b',[0,0,2000,2000]),i=api.index([a,middle,b],m=>m.rect,()=>true,2000,2000);assert.equal(i.safe([a,b]),false);const c=camera();b.boundsMin=[-1,-1,3.19];b.boundsMax=[1,1,3.21];assert.deepEqual(api.bounds(b,c,1000,1000),[0,0,1000,1000]);});
+  let projected=0,visited=0;const rows=Array.from({length:10000},(_,i)=>box(String(i),[(i%100)*10,Math.floor(i/100)*10,(i%100)*10+1,Math.floor(i/100)*10+1])),i=api.index(rows,m=>{projected++;return m.rect;},()=>{visited++;return true;},1000,1000),at=performance.now();
+  for(let k=0;k<1000;k++)i.safe([rows[k],rows[k+5000]]);timings.push({name:'1000 batch certificates across 10000 scene owners',ms:performance.now()-at});
+  check('All groups share one bounded spatial build per index',()=>{assert.equal(projected,10000);assert.equal(visited,10000);});
+  check('Pathological screen overlap exhausts bounded work and falls back without quadratic traversal',()=>{const many=Array.from({length:10000},(_,k)=>box(String(k),[1,1,2,2])),index=api.index(many,m=>m.rect,()=>true,1000,1000);for(let k=0;k<1000;k++)assert.equal(index.safe([many[5000],many[5002]]),false);});
+  const sample=box('sample');sample.boundsMin=[-.1,-.1,0];sample.boundsMax=[.1,.1,0];const obstacle=box('obstacle');obstacle.boundsMin=[-.1,-.1,0];obstacle.boundsMax=[.1,.1,0];const first=box('first');first.boundsMin=[-2,-2,0];first.boundsMax=[-1.9,-1.9,0];context.scene={meshes:[first,obstacle,sample]};context.camera=camera(true);
+  check('Per-view camera changes invalidate the screen certificate within one frame',()=>{assert.equal(api.safe([first,sample]),false);obstacle.boundsMin=[10,-.1,0];obstacle.boundsMax=[11,.1,0];context.epoch++;assert.equal(api.safe([first,sample]),true);context.camera[0]=0;context.camera[8]=1;context.camera[10]=0;context.view=1;assert.equal(api.safe([first,sample]),false);});
+  check('Physical canvas and render-output surfaces keep independent order certificates',()=>{context.camera=camera(true);context.canvas={clientWidth:1000,clientHeight:1000};context.frame++;assert.equal(api.safe([first,sample]),true);context.canvas={width:2000,height:500};context.frame++;assert.equal(api.safe([first,sample]),true);});
+  const f=Math.fround,mul=(m,p)=>[0,1,2].map(axis=>f(f(f(f(m[axis]*p[0])+f(m[4+axis]*p[1]))+f(m[8+axis]*p[2]))+m[12+axis]));
+  function shaderPixel(mesh,c,p,w,h){let q=p.map(f);if(mesh.posed)q=mul(Float32Array.from(mesh.frameWorld),q);q=q.map((v,k)=>f(f(v-c[16+k])*c[19]));const matrix=Float32Array.from(c.slice(0,16));matrix[14]=f(matrix[14]-f(3.2));q=mul(matrix,q);const depth=-q[2],factor=c[26]?c[21]:c[27];return [f(f(f(q[0]+c[22])*factor)/c[20])/(c[26]?1:depth)*w/2+w/2,h/2-f(f(q[1]+c[23])*factor)/(c[26]?1:depth)*h/2,depth];}
+  check('Outward bounds cover Float32 shader projection under shear, reflection and far origins',()=>{for(const ortho of [false,true])for(let caseId=0;caseId<80;caseId++){const c=camera(ortho),origin=caseId%3===0?1e8:0,mesh={posed:true,frameWorld:[-1.00000006,.12,0,0,.23,1.0000001,0,0,0,.04,1,0,origin+.1,.2,0,1],localBoundsMin:[-1,-.6,-.2],localBoundsMax:[1,.6,.2],boundsMin:[origin-3,-2,-1],boundsMax:[origin+3,2,1]};c[16]=origin;c[19]=.3;c[22]=caseId*.001;c[23]=caseId*-.0008;const bounds=api.bounds(mesh,c,1000,1000);for(let n=0;n<100;n++){const p=mesh.localBoundsMin.map((v,k)=>v+(mesh.localBoundsMax[k]-v)*((Math.sin(n*13+caseId*7+k*3)+1)/2)),pixel=shaderPixel(mesh,c,p,1000,1000);if(pixel[2]>=c[24]&&pixel[2]<=c[25]&&pixel[0]>=0&&pixel[0]<=1000&&pixel[1]>=0&&pixel[1]<=1000)assert.ok(bounds&&pixel[0]>=bounds[0]&&pixel[0]<=bounds[2]&&pixel[1]>=bounds[1]&&pixel[1]<=bounds[3],JSON.stringify({bounds,pixel}));}}});
+  return {pass:true,checks,timings};
+ }catch(error){return {pass:false,checks,timings,error:error.stack};}
+}
+if(process.argv[1]===fileURLToPath(import.meta.url)){
+ const report=await replicaBatchOrderChecks();report.indexSHA256=createHash('sha256').update(await readFile(new URL('../index.html',import.meta.url))).digest('hex');await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/replica-batch-order.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));process.exitCode=report.pass?0:1;
+}

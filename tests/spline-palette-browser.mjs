@@ -12,9 +12,10 @@ export async function splinePaletteBrowserChecks(page){
  const pixelCheck=async(name,point,rgb)=>{const p=(await call('view.project',{id:windowId,point})).screen,step=await page.evaluate(()=>{const r=document.querySelector('#frame-engine-canvas').getBoundingClientRect();return [r.width/frameEngine.renderer.width,r.height/frameEngine.renderer.height];}),points=[];for(let y=-3;y<=3;y++)for(let x=-3;x<=3;x++)points.push([p[0]+x*step[0],p[1]+y*step[1]]);const r=await call('diagnostics.pixels',{points,presentation:true});check(name,r.colors.some(c=>rgb.every((v,k)=>Math.abs(c[k]-v)<=2)),{expected:rgb,colors:[...new Map(r.colors.map(c=>[c.join(),c])).values()]});return p;};
  let windowId;
  try{
-  await call('scene.new');
+  // Author this XY cage in its actual XY creation plane before testing either view.
+  await call('scene.new');await call('view.set',{index:2,single:true,shading:'isoparms'});
   const data=await page.evaluate(()=>{const K=FrameSpline.K(),d=K.createSplineData(),q=K.addSplineSequence(d,true),vs=[[-100,-80,0],[100,-80,0],[100,80,0],[-100,80,0]].map(p=>K.addSplineVertex(d,p));vs.forEach((v,i)=>K.addSplineSegment(d,q,v,vs[(i+1)%4]));return d;});
-  const spline=await call('scene.create',{type:'spline'});windowId=spline.hash;await call('spline.replace',{id:spline.hash,data});const edge=Object.keys(data.segments)[0],point=[0,-80,0],initial=JSON.stringify((await call('spline.inspect',{id:spline.hash})).data);
+  const spline=await call('scene.create',{type:'spline'});windowId=spline.hash;await call('spline.replace',{id:spline.hash,data});const edge=Object.keys(data.segments)[0],point=[50,-80,0],initial=JSON.stringify((await call('spline.inspect',{id:spline.hash})).data);
   for(const patch of [false,true]){
    let owner=spline;if(patch)owner=await measure('Create native patch',()=>call('scene.create',{type:'spline_patch',inputs:[spline.hash]}));
    for(const index of [2,0]){

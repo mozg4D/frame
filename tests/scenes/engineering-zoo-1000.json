@@ -1,0 +1,6169 @@
+{
+  "version": 3,
+  "generatorRevision": 4,
+  "kind": "engineering assembly",
+  "count": 1000,
+  "counts": {
+    "group": 21,
+    "spline_patch": 163,
+    "spline": 384,
+    "lathe": 11,
+    "instance": 254,
+    "boolean": 36,
+    "extrude": 54,
+    "sweep": 35,
+    "symmetry": 18,
+    "bolt": 1,
+    "nut": 1,
+    "washer": 1,
+    "cloner": 3,
+    "cube": 1,
+    "cylinder": 1,
+    "tube": 1,
+    "sphere": 1,
+    "capsule": 1,
+    "square": 1,
+    "circle": 1,
+    "polyhedron": 1,
+    "text": 1,
+    "helix": 1,
+    "gear": 1,
+    "pulley": 1,
+    "car": 1,
+    "tree": 1,
+    "human": 1,
+    "render": 1,
+    "target": 1,
+    "infinite": 1
+  },
+  "handles": {
+    "root": "868666ef275e89dfaf854d5a17780070",
+    "group": "bac3bf96bd0cba5f999051b36a0355b9",
+    "deepGroup": "7332f5271a21c92bc13eba2c235433e5",
+    "patch": "3d9054e73949f94f4c6b1fb48d41a471",
+    "childSpline": "6b36651c7d754b8493a54e7fd59d7197",
+    "densePatch": "ffb31b24748bd8724bf80332ae01e273",
+    "denseChildSpline": "9060925aecc2911bac8cd7be42c82619",
+    "densePatchChildren": [
+      "7f7356fe436d654f55ecbbf1e088d20f",
+      "9060925aecc2911bac8cd7be42c82619",
+      "8e965482d7e9c7caedb5d8762b9d7fec",
+      "24c4fdcec1ecc67d320c0753ca48382c",
+      "233f76b7842b9c018f1764594dade179",
+      "599f8c926997648d99d57296601156ce",
+      "577861a706f684b2f32eb85ac5d095f2",
+      "d06426cedcc35f92de4681d4f3213e01",
+      "ddff677ecb66d685d38c1f8776098ae5",
+      "2aab56839740e7fd4c89e8d60a400582",
+      "d8b5d7d9d8e06700ea02e07e1f1ce5bb",
+      "c187a6dd1cef6551f6314e696f89ec60",
+      "e8b495ab586c2ebd0ecf036e48e49036",
+      "6be7bebc4f1620cd0d4a3c0e176a6b0c",
+      "7197f192956544415c00974a2ab87349",
+      "16347cb1c5f851f93edb1f8651130a74",
+      "61262c8f3fee179cf3c7b56e13830ba6",
+      "c2528886447df0c55527ed6a759e1424",
+      "2cdf744c936763a342d53843f5b80c69",
+      "4b1f59eaafe19c2c22a98ae423bef92a",
+      "210d38f097a8c11595f41a367a8106a8",
+      "cbd572a7a0d481f6514178a2d71248c6",
+      "e91524f8f86daf90167eff702a51df62",
+      "c7210d43b033a418f04b66f5bcf854fa",
+      "10c45a2c1d29249adeeae8b982ee9fd6",
+      "b004c613721fedb6f8d3e81523da5b93",
+      "5edc447d69309278b898407f1abb55b6",
+      "9a6d83005273f2eb2039445b65c6279f",
+      "9a1f64b93856a70cff44d71897223b6a",
+      "d4d63774b1393280b67c492b67690bfc",
+      "d07989b0557fd96206d7d9fd88553803",
+      "fe9748b987b7e7ed0d39f0c2b7c83259",
+      "29507033a2c4a16d8093903fde2b27b3",
+      "9a7c01fb38f343117e651afc02665261",
+      "4a9c1491859fd2451ec4e37f3a968e4d",
+      "2b13a9ae84101fe9c63c4c8b7351afaa",
+      "79d3c2e458f5cfc743dc0f46a5b0dbaf",
+      "eaada5f4be3a3049790c827fc35c7866",
+      "db175e30621241cb66d7d3f23b1ac034",
+      "2e1bc9591063be6b34644a7528d55b3b",
+      "415efcb685fc2aaed7408a7553ae0f30",
+      "b3ed6a5eb063edee24f748afcdf5fdee",
+      "0fb2d10bc22fdcbb26181d9a437a8d2c",
+      "8e5826faeb23df417dfe3bd2b3aa9907",
+      "87996e3a9713b9e65242bc152967ad18",
+      "67259592e5062446fef94cbe76f7cfbf",
+      "42da114bfd0fae5b64f68442ac7dc268",
+      "c0a32e29ec47d9e5a184043327961586",
+      "850d65f8facddc053c0ef9e1a7a2978e",
+      "e1fed35fa69f29d323cb522b18a329bb",
+      "3126e383a69c79eff7ba22fa4eef86a9",
+      "628647b325038b34839c00170dfb85cc",
+      "ce2e164919ef568c349463727876c1dc",
+      "d7ed34865a7bbb177a11c495940043ec",
+      "eb0839eb65cc80197a0450ae89e6d8be",
+      "6289368204a89b77044517226df9dac0",
+      "a94e58a6c2597db0c37ca90e0de5bf1b",
+      "065ae73d5e2c0e44d7a73af8cbbdc014",
+      "420ffdc2e869736c16c72809767cd893",
+      "2e4aaf4cd39d8e188c5b00a6a9bc19fd",
+      "27ac0d2b6efa60f5d86beab7d0f2659a",
+      "56d512cb28e34061a54f278b1dc87dba",
+      "e97da2caf3127c964b1a8f5b8ff021e2",
+      "d4786c1cca8d7511a4d773a737ed6e46"
+    ],
+    "deepChild": "7a4ce31561cf89e14233ee4d61c43369",
+    "extrude": "b2b9d791b9bb7cad85605bc94e3b8e5e",
+    "extrudeProfile": "820e752c7036e3c4082d48bdb994ae7a",
+    "boolean": "c16668aae388131071b7b6b549b4043a",
+    "booleanOperand": "c24f7344c82b383219f38157f66ba5d2",
+    "deepBoolean": "1ba602958bc6d7e02c0dc8a06590e32e",
+    "sweep": "ed95f5f37b594b5aa0b18fd9d2c35893",
+    "hose": "ed95f5f37b594b5aa0b18fd9d2c35893",
+    "hosePath": "bb25345b4af20add452bc0c30fd36e32",
+    "lathe": "868b02614ecb5f42bdc3c8e6f1f3e37b",
+    "symmetry": "0817ed615333c7e96613d504b1604efd",
+    "instance": "dfd4a1305e0efd6160e490dd4652e3e4",
+    "instanceSource": "2840158d17e6870d8f173181f00194d0",
+    "cloner": "20c0372697c1cf2044fc2ad283a3c89b",
+    "clonerSource": "357ea1777dcc2f055b20bd6928adf066",
+    "primitive": "22ab6c8536a6e4c943f99ddcf0e6a0cb",
+    "freeSpline": "50a36c06cb334ce6f75eeb347f85a7a2",
+    "camera": "ab1c45c9221006848c1989fa313efed2",
+    "material": "36b8ab28367602bfb1cc6eccfcb6154d",
+    "texturedMaterial": "67ea114e3c01e8144fd87efb6fbc7eb3"
+  },
+  "objects": [
+    {
+      "hash": "868666ef275e89dfaf854d5a17780070",
+      "type": "group",
+      "name": "Engineering workload — stylized mining excavator",
+      "parent": null
+    },
+    {
+      "hash": "28aa7a145e11da6fd8f1206097b33ab6",
+      "type": "group",
+      "name": "Undercarriage and track frames",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "09645b30127f21b8a369bffb19df1283",
+      "type": "group",
+      "name": "Rotating house and service enclosures",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "bac3bf96bd0cba5f999051b36a0355b9",
+      "type": "group",
+      "name": "Boom fabrication",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "0ff346b5e0c6c4b60206dac07f65bbab",
+      "type": "group",
+      "name": "Stick fabrication",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "8635aa28b8bf7f1f02965688855ec562",
+      "type": "group",
+      "name": "Bucket and linkage",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "91b43d63f1e39134099234ea7da2a976",
+      "type": "group",
+      "name": "Hydraulic pipework and hose routing",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "2dcc01735724ab11caa3a90e38a7b5f4",
+      "type": "group",
+      "name": "Electrical harnesses and junction hardware",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "222177084064183c6742c5663fbed646",
+      "type": "group",
+      "name": "Shared standard hardware sources",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "7446acbd0df291a726244ebb091c458d",
+      "type": "group",
+      "name": "Left crawler assembly",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "1322f97d9ced686a656359798a6c5a41",
+      "type": "group",
+      "name": "Right crawler assembly",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "131f995e637d5cb5b9233be8254282be",
+      "type": "group",
+      "name": "Bearing seat assembly 0",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "820ed46c6e22de0de45df0e119f5ed66",
+      "type": "group",
+      "name": "Service hatch assembly 1",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "494f5a3a3ba4761349aac60b227ed9ee",
+      "type": "group",
+      "name": "Rib pack assembly 2",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "2fc2477e798bfa0f2f7ae4db9b643177",
+      "type": "group",
+      "name": "Valve bank assembly 3",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "7332f5271a21c92bc13eba2c235433e5",
+      "type": "group",
+      "name": "Cable tray assembly 4",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "5bb3e8aaf7a549c55e087adca2d87326",
+      "type": "spline_patch",
+      "name": "Standard crawler shoe",
+      "parent": "222177084064183c6742c5663fbed646"
+    },
+    {
+      "hash": "7944a77fd7afb5cdc3dd571bbd52887f",
+      "type": "spline",
+      "name": "Standard crawler shoe control network",
+      "parent": "5bb3e8aaf7a549c55e087adca2d87326"
+    },
+    {
+      "hash": "a39f08c2ef3ac08564c16c368f162fb5",
+      "type": "lathe",
+      "name": "Shared crawler roller",
+      "parent": "222177084064183c6742c5663fbed646"
+    },
+    {
+      "hash": "69ffafc925d094c6733cbcf653cdb1f2",
+      "type": "spline",
+      "name": "Crawler roller section",
+      "parent": "a39f08c2ef3ac08564c16c368f162fb5"
+    },
+    {
+      "hash": "8a1f19fab4458a23973c54773add58a0",
+      "type": "instance",
+      "name": "Crawler shoe 0",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "f4daa1cd30a8f75b6f0e627c9c910179",
+      "type": "instance",
+      "name": "Crawler shoe 1",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "437ee56e6e49e2ff38000c27e1f927b9",
+      "type": "instance",
+      "name": "Crawler shoe 2",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "e6f45dfb120f34e1041717b0de9e2511",
+      "type": "instance",
+      "name": "Crawler shoe 3",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "92ba8e42e3dc797d898499f42288e32b",
+      "type": "instance",
+      "name": "Crawler shoe 4",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "dec266138f0854d16061f69fcae73605",
+      "type": "instance",
+      "name": "Crawler shoe 5",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "5a7a74c5122eb232d26c8204e67a954c",
+      "type": "instance",
+      "name": "Crawler shoe 6",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "a688f3da4f74429495202a6e03646b79",
+      "type": "instance",
+      "name": "Crawler shoe 7",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "340762ffe445492f9ce1c517151771ad",
+      "type": "instance",
+      "name": "Crawler shoe 8",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "7ad6a4f1180bb9d4353853afd33433e1",
+      "type": "instance",
+      "name": "Crawler shoe 9",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "953c39ece073a398ade9fe4f458a14e6",
+      "type": "instance",
+      "name": "Crawler shoe 10",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "7129d4f7dde9bfcee172fc0343730f11",
+      "type": "instance",
+      "name": "Crawler shoe 11",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "ee8ce2bae7274c6ec88f9b786d858e7a",
+      "type": "instance",
+      "name": "Track support roller 0",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "6458d97edc66a84000389d8bef0e6d3f",
+      "type": "instance",
+      "name": "Track support roller 1",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "6376da14c96fb673c30fe0772eae2f9b",
+      "type": "instance",
+      "name": "Track support roller 2",
+      "parent": "7446acbd0df291a726244ebb091c458d"
+    },
+    {
+      "hash": "2bb915e1dc340e6dce9331ea8a6ca949",
+      "type": "instance",
+      "name": "Crawler shoe 0",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "c74ab4f9258c39597a5df85c73a32160",
+      "type": "instance",
+      "name": "Crawler shoe 1",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "32c9d3870b57d24eef86e206af364455",
+      "type": "instance",
+      "name": "Crawler shoe 2",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "83898734b8e248cb6e0692196c816503",
+      "type": "instance",
+      "name": "Crawler shoe 3",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "22743988837b64b515df10a562c88714",
+      "type": "instance",
+      "name": "Crawler shoe 4",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "2587b6dae3c9d83ca5d9487c723ba4af",
+      "type": "instance",
+      "name": "Crawler shoe 5",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "f0910675eb1825fadbfc1c54495177a2",
+      "type": "instance",
+      "name": "Crawler shoe 6",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "4ceb7da229164ea54856be41b75efe6a",
+      "type": "instance",
+      "name": "Crawler shoe 7",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "1204bf9c86796fdbdea9854ae4ad6496",
+      "type": "instance",
+      "name": "Crawler shoe 8",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "86759e43f281d822e9d5b7a319d5339a",
+      "type": "instance",
+      "name": "Crawler shoe 9",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "9fd2ab851695d2ad087958496f5d705b",
+      "type": "instance",
+      "name": "Crawler shoe 10",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "7095b81e21aa29f7985c3ba95fa3a7f1",
+      "type": "instance",
+      "name": "Crawler shoe 11",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "fec01bb37c0d9ddd0545bce80531aeb4",
+      "type": "instance",
+      "name": "Track support roller 0",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "daabc4223d1c82335768cc177e0ff349",
+      "type": "instance",
+      "name": "Track support roller 1",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "ac02dae461c168f36214d7eb43f22c92",
+      "type": "instance",
+      "name": "Track support roller 2",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "3d9054e73949f94f4c6b1fb48d41a471",
+      "type": "spline_patch",
+      "name": "Undercarriage closed box",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "6b36651c7d754b8493a54e7fd59d7197",
+      "type": "spline",
+      "name": "Undercarriage closed box control network",
+      "parent": "3d9054e73949f94f4c6b1fb48d41a471"
+    },
+    {
+      "hash": "be5b2873178755c71090579e9cc22398",
+      "type": "spline_patch",
+      "name": "Rotating house closed box",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "405d2475db555d5e6cf09e2237f5462f",
+      "type": "spline",
+      "name": "Rotating house closed box control network",
+      "parent": "be5b2873178755c71090579e9cc22398"
+    },
+    {
+      "hash": "a6a5338635890f35a32c1e3cf551f8f9",
+      "type": "spline_patch",
+      "name": "Cab structural box",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "632451b6798594aa7f580a6cb980ba83",
+      "type": "spline",
+      "name": "Cab structural box control network",
+      "parent": "a6a5338635890f35a32c1e3cf551f8f9"
+    },
+    {
+      "hash": "7fd30469d77d10f6447ba17ef4ad1cfe",
+      "type": "spline_patch",
+      "name": "Main boom box",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "9483f89fa2b244c2789a1f974b774648",
+      "type": "spline",
+      "name": "Main boom box control network",
+      "parent": "7fd30469d77d10f6447ba17ef4ad1cfe"
+    },
+    {
+      "hash": "9577a79df78f75558e59bc88143da3d8",
+      "type": "spline_patch",
+      "name": "Stick box",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "875261624937dacf52b5ccae37718cbd",
+      "type": "spline",
+      "name": "Stick box control network",
+      "parent": "9577a79df78f75558e59bc88143da3d8"
+    },
+    {
+      "hash": "1492ba0967ab5685242f296e79fab1aa",
+      "type": "spline_patch",
+      "name": "Counterweight shell",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "c71d0171fa4d55773faa343b2ed20f49",
+      "type": "spline",
+      "name": "Counterweight shell control network",
+      "parent": "1492ba0967ab5685242f296e79fab1aa"
+    },
+    {
+      "hash": "daba99f0dabf4cf267b3c2925003355a",
+      "type": "spline_patch",
+      "name": "Engine hood",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "d74bbcf49414b9c65fbb3c819a598f23",
+      "type": "spline",
+      "name": "Engine hood control network",
+      "parent": "daba99f0dabf4cf267b3c2925003355a"
+    },
+    {
+      "hash": "5323a749c106107ee5bab8da497bfae2",
+      "type": "spline_patch",
+      "name": "Cab roof",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "772e0467aa235f7511102da59a6e5824",
+      "type": "spline",
+      "name": "Cab roof control network",
+      "parent": "5323a749c106107ee5bab8da497bfae2"
+    },
+    {
+      "hash": "9b1e48a7c2739fbedc3e90f9f0ff37ef",
+      "type": "spline_patch",
+      "name": "Bucket rolled floor",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "67374e716fc3dfefc1e84bb66464adea",
+      "type": "spline",
+      "name": "Bucket rolled floor control network",
+      "parent": "9b1e48a7c2739fbedc3e90f9f0ff37ef"
+    },
+    {
+      "hash": "a2b5362141cdd25e22beadccc15205ad",
+      "type": "spline_patch",
+      "name": "Bucket backing closed box",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "e7c3c8156cc7201f284135911e3e0a51",
+      "type": "spline",
+      "name": "Bucket backing closed box control network",
+      "parent": "a2b5362141cdd25e22beadccc15205ad"
+    },
+    {
+      "hash": "4d31c5a29f2a32e1b10b16dc7ab411c7",
+      "type": "spline_patch",
+      "name": "Cab side glazing",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "21cd8f5e63578d71793b4e4b47fcc8fc",
+      "type": "spline",
+      "name": "Cab side glazing control network",
+      "parent": "4d31c5a29f2a32e1b10b16dc7ab411c7"
+    },
+    {
+      "hash": "6eb7c3d7cb414d86f088f2b09f428091",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 0",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "a2d76631d71d935b47d03fe5bff6497d",
+      "type": "spline",
+      "name": "Forged bucket tooth 0 control network",
+      "parent": "6eb7c3d7cb414d86f088f2b09f428091"
+    },
+    {
+      "hash": "a80f42ab3da79bcf3d707afe75cd9b9f",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 1",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "721440d338cd18deb0d446c5df2cbe37",
+      "type": "spline",
+      "name": "Forged bucket tooth 1 control network",
+      "parent": "a80f42ab3da79bcf3d707afe75cd9b9f"
+    },
+    {
+      "hash": "ff71d760f6b3f5b0e6b15873eaf7bc3a",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 2",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "7fb72f8dec31b2c14e2396ebec508039",
+      "type": "spline",
+      "name": "Forged bucket tooth 2 control network",
+      "parent": "ff71d760f6b3f5b0e6b15873eaf7bc3a"
+    },
+    {
+      "hash": "414e369da895ebd820be8f70e22a5cb5",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 3",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "7c212f0ad9851a107a6e5b10c28cbb31",
+      "type": "spline",
+      "name": "Forged bucket tooth 3 control network",
+      "parent": "414e369da895ebd820be8f70e22a5cb5"
+    },
+    {
+      "hash": "15f05aa3e3afd3ddd3610a61b05470df",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 4",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "0cd0bbf4b878ed3f652228be146c6d30",
+      "type": "spline",
+      "name": "Forged bucket tooth 4 control network",
+      "parent": "15f05aa3e3afd3ddd3610a61b05470df"
+    },
+    {
+      "hash": "a6e8a316f4971f2e5b528c47187873d6",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 5",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "96c90da8d0e5b84fadaf5fa3528a9eb5",
+      "type": "spline",
+      "name": "Forged bucket tooth 5 control network",
+      "parent": "a6e8a316f4971f2e5b528c47187873d6"
+    },
+    {
+      "hash": "4f4bf38ca2cee31902e2483a462771ba",
+      "type": "spline_patch",
+      "name": "Forged bucket tooth 6",
+      "parent": "8635aa28b8bf7f1f02965688855ec562"
+    },
+    {
+      "hash": "621c4d1a028eb9cf648f0f1eea9e0521",
+      "type": "spline",
+      "name": "Forged bucket tooth 6 control network",
+      "parent": "4f4bf38ca2cee31902e2483a462771ba"
+    },
+    {
+      "hash": "ffb31b24748bd8724bf80332ae01e273",
+      "type": "spline_patch",
+      "name": "Dense grille / compound sheet 0",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "7f7356fe436d654f55ecbbf1e088d20f",
+      "type": "spline",
+      "name": "Compound source 0/0",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "9060925aecc2911bac8cd7be42c82619",
+      "type": "spline",
+      "name": "Compound source 0/1",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "8e965482d7e9c7caedb5d8762b9d7fec",
+      "type": "spline",
+      "name": "Compound source 0/2",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "24c4fdcec1ecc67d320c0753ca48382c",
+      "type": "spline",
+      "name": "Compound source 0/3",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "233f76b7842b9c018f1764594dade179",
+      "type": "spline",
+      "name": "Compound source 0/4",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "599f8c926997648d99d57296601156ce",
+      "type": "spline",
+      "name": "Compound source 0/5",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "577861a706f684b2f32eb85ac5d095f2",
+      "type": "spline",
+      "name": "Compound source 0/6",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d06426cedcc35f92de4681d4f3213e01",
+      "type": "spline",
+      "name": "Compound source 0/7",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "ddff677ecb66d685d38c1f8776098ae5",
+      "type": "spline",
+      "name": "Compound source 0/8",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2aab56839740e7fd4c89e8d60a400582",
+      "type": "spline",
+      "name": "Compound source 0/9",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d8b5d7d9d8e06700ea02e07e1f1ce5bb",
+      "type": "spline",
+      "name": "Compound source 0/10",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "c187a6dd1cef6551f6314e696f89ec60",
+      "type": "spline",
+      "name": "Compound source 0/11",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "e8b495ab586c2ebd0ecf036e48e49036",
+      "type": "spline",
+      "name": "Compound source 0/12",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "6be7bebc4f1620cd0d4a3c0e176a6b0c",
+      "type": "spline",
+      "name": "Compound source 0/13",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "7197f192956544415c00974a2ab87349",
+      "type": "spline",
+      "name": "Compound source 0/14",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "16347cb1c5f851f93edb1f8651130a74",
+      "type": "spline",
+      "name": "Compound source 0/15",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "61262c8f3fee179cf3c7b56e13830ba6",
+      "type": "spline",
+      "name": "Compound source 0/16",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "c2528886447df0c55527ed6a759e1424",
+      "type": "spline",
+      "name": "Compound source 0/17",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2cdf744c936763a342d53843f5b80c69",
+      "type": "spline",
+      "name": "Compound source 0/18",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "4b1f59eaafe19c2c22a98ae423bef92a",
+      "type": "spline",
+      "name": "Compound source 0/19",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "210d38f097a8c11595f41a367a8106a8",
+      "type": "spline",
+      "name": "Compound source 0/20",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "cbd572a7a0d481f6514178a2d71248c6",
+      "type": "spline",
+      "name": "Compound source 0/21",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "e91524f8f86daf90167eff702a51df62",
+      "type": "spline",
+      "name": "Compound source 0/22",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "c7210d43b033a418f04b66f5bcf854fa",
+      "type": "spline",
+      "name": "Compound source 0/23",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "10c45a2c1d29249adeeae8b982ee9fd6",
+      "type": "spline",
+      "name": "Compound source 0/24",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "b004c613721fedb6f8d3e81523da5b93",
+      "type": "spline",
+      "name": "Compound source 0/25",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "5edc447d69309278b898407f1abb55b6",
+      "type": "spline",
+      "name": "Compound source 0/26",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "9a6d83005273f2eb2039445b65c6279f",
+      "type": "spline",
+      "name": "Compound source 0/27",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "9a1f64b93856a70cff44d71897223b6a",
+      "type": "spline",
+      "name": "Compound source 0/28",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d4d63774b1393280b67c492b67690bfc",
+      "type": "spline",
+      "name": "Compound source 0/29",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d07989b0557fd96206d7d9fd88553803",
+      "type": "spline",
+      "name": "Compound source 0/30",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "fe9748b987b7e7ed0d39f0c2b7c83259",
+      "type": "spline",
+      "name": "Compound source 0/31",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "29507033a2c4a16d8093903fde2b27b3",
+      "type": "spline",
+      "name": "Compound source 0/32",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "9a7c01fb38f343117e651afc02665261",
+      "type": "spline",
+      "name": "Compound source 0/33",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "4a9c1491859fd2451ec4e37f3a968e4d",
+      "type": "spline",
+      "name": "Compound source 0/34",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2b13a9ae84101fe9c63c4c8b7351afaa",
+      "type": "spline",
+      "name": "Compound source 0/35",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "79d3c2e458f5cfc743dc0f46a5b0dbaf",
+      "type": "spline",
+      "name": "Compound source 0/36",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "eaada5f4be3a3049790c827fc35c7866",
+      "type": "spline",
+      "name": "Compound source 0/37",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "db175e30621241cb66d7d3f23b1ac034",
+      "type": "spline",
+      "name": "Compound source 0/38",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2e1bc9591063be6b34644a7528d55b3b",
+      "type": "spline",
+      "name": "Compound source 0/39",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "415efcb685fc2aaed7408a7553ae0f30",
+      "type": "spline",
+      "name": "Compound source 0/40",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "b3ed6a5eb063edee24f748afcdf5fdee",
+      "type": "spline",
+      "name": "Compound source 0/41",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "0fb2d10bc22fdcbb26181d9a437a8d2c",
+      "type": "spline",
+      "name": "Compound source 0/42",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "8e5826faeb23df417dfe3bd2b3aa9907",
+      "type": "spline",
+      "name": "Compound source 0/43",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "87996e3a9713b9e65242bc152967ad18",
+      "type": "spline",
+      "name": "Compound source 0/44",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "67259592e5062446fef94cbe76f7cfbf",
+      "type": "spline",
+      "name": "Compound source 0/45",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "42da114bfd0fae5b64f68442ac7dc268",
+      "type": "spline",
+      "name": "Compound source 0/46",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "c0a32e29ec47d9e5a184043327961586",
+      "type": "spline",
+      "name": "Compound source 0/47",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "850d65f8facddc053c0ef9e1a7a2978e",
+      "type": "spline",
+      "name": "Compound source 0/48",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "e1fed35fa69f29d323cb522b18a329bb",
+      "type": "spline",
+      "name": "Compound source 0/49",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "3126e383a69c79eff7ba22fa4eef86a9",
+      "type": "spline",
+      "name": "Compound source 0/50",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "628647b325038b34839c00170dfb85cc",
+      "type": "spline",
+      "name": "Compound source 0/51",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "ce2e164919ef568c349463727876c1dc",
+      "type": "spline",
+      "name": "Compound source 0/52",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d7ed34865a7bbb177a11c495940043ec",
+      "type": "spline",
+      "name": "Compound source 0/53",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "eb0839eb65cc80197a0450ae89e6d8be",
+      "type": "spline",
+      "name": "Compound source 0/54",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "6289368204a89b77044517226df9dac0",
+      "type": "spline",
+      "name": "Compound source 0/55",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "a94e58a6c2597db0c37ca90e0de5bf1b",
+      "type": "spline",
+      "name": "Compound source 0/56",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "065ae73d5e2c0e44d7a73af8cbbdc014",
+      "type": "spline",
+      "name": "Compound source 0/57",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "420ffdc2e869736c16c72809767cd893",
+      "type": "spline",
+      "name": "Compound source 0/58",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2e4aaf4cd39d8e188c5b00a6a9bc19fd",
+      "type": "spline",
+      "name": "Compound source 0/59",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "27ac0d2b6efa60f5d86beab7d0f2659a",
+      "type": "spline",
+      "name": "Compound source 0/60",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "56d512cb28e34061a54f278b1dc87dba",
+      "type": "spline",
+      "name": "Compound source 0/61",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "e97da2caf3127c964b1a8f5b8ff021e2",
+      "type": "spline",
+      "name": "Compound source 0/62",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "d4786c1cca8d7511a4d773a737ed6e46",
+      "type": "spline",
+      "name": "Compound source 0/63",
+      "parent": "ffb31b24748bd8724bf80332ae01e273"
+    },
+    {
+      "hash": "2a9f86a322574af9627a39bc6ae04884",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "7a4ce31561cf89e14233ee4d61c43369",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 0 control network",
+      "parent": "2a9f86a322574af9627a39bc6ae04884"
+    },
+    {
+      "hash": "9281b88b8de4e9aa9e25dcf676889ea2",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 1",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "2ebd0ba189aa96234540a23298c562b5",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 1 control network",
+      "parent": "9281b88b8de4e9aa9e25dcf676889ea2"
+    },
+    {
+      "hash": "0dfcb1a3f198e015da60b69b41e113b3",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 2",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "de3d97c22e5bd1f0ef3aaf928eea024e",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 2 control network",
+      "parent": "0dfcb1a3f198e015da60b69b41e113b3"
+    },
+    {
+      "hash": "978c95f9168b5f124adbbc7997960755",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 3",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "b64d617b9adf74521ba6cad710d03ee2",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 3 control network",
+      "parent": "978c95f9168b5f124adbbc7997960755"
+    },
+    {
+      "hash": "47affd78b93fe4828cc4fdd0f2fbcc7a",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 4",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "f4b52dd78eab8f03db96d8aba2f17f48",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 4 control network",
+      "parent": "47affd78b93fe4828cc4fdd0f2fbcc7a"
+    },
+    {
+      "hash": "8802859bc2d430f0a92f7d060d227495",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "a042845a434c9d966ae195bed08c78fc",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 5 control network",
+      "parent": "8802859bc2d430f0a92f7d060d227495"
+    },
+    {
+      "hash": "33fabf794fd5ed43a2d7dab64d5642a6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 6",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "857d282487fb90a7b307a7ef11e315a2",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 6 control network",
+      "parent": "33fabf794fd5ed43a2d7dab64d5642a6"
+    },
+    {
+      "hash": "6fa54886aab99746d87ee1f8504b22a0",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 7",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "618513165b9e6fef87578d7cb2041862",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 7 control network",
+      "parent": "6fa54886aab99746d87ee1f8504b22a0"
+    },
+    {
+      "hash": "e3cc46616114c36e9b4b0703d6ad7f16",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 8",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "03a7fb5d81c96eef4e10b34dae97990a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 8 control network",
+      "parent": "e3cc46616114c36e9b4b0703d6ad7f16"
+    },
+    {
+      "hash": "c1af9b740eeb675198dcad3d204d7455",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 9",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "fe1ccfb46c93a717f6fd1197ed3866aa",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 9 control network",
+      "parent": "c1af9b740eeb675198dcad3d204d7455"
+    },
+    {
+      "hash": "24efa4619a8a1a5c8e4f458925df8b9a",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "50c9316164e7d2f01345d9ba01fdaf9e",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 10 control network",
+      "parent": "24efa4619a8a1a5c8e4f458925df8b9a"
+    },
+    {
+      "hash": "2b694dbba628c8bc7431b06925f55564",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 11",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "b8677e07abe7d53bb99b6d985844f287",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 11 control network",
+      "parent": "2b694dbba628c8bc7431b06925f55564"
+    },
+    {
+      "hash": "4cfb9ab2254a8d72be55e9461f788abe",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 12",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "3d77141b65bc2a5bd90c03f37256a7b8",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 12 control network",
+      "parent": "4cfb9ab2254a8d72be55e9461f788abe"
+    },
+    {
+      "hash": "0199182bbb3c539a7171f020cb7812ec",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 13",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "500cbf18283901966abbc5948084c0da",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 13 control network",
+      "parent": "0199182bbb3c539a7171f020cb7812ec"
+    },
+    {
+      "hash": "cd2452bede45946afdf532333a73b350",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 14",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "14ae9e14530035f59c8d7e9d8e5ef738",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 14 control network",
+      "parent": "cd2452bede45946afdf532333a73b350"
+    },
+    {
+      "hash": "2a833dca6dc57354dc1fa94e876d9a75",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 15",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "90591a170ce9554262168ebc5436613a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 15 control network",
+      "parent": "2a833dca6dc57354dc1fa94e876d9a75"
+    },
+    {
+      "hash": "0d0337f7994ce92a6c41e4959dbe0cd6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 16",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "5f68816c7d0acbfbe9fad33cf1a45191",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 16 control network",
+      "parent": "0d0337f7994ce92a6c41e4959dbe0cd6"
+    },
+    {
+      "hash": "8e504cc8f5cd4fc4e591cfedfb4a2f70",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 17",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "788651d3e849fde2df56bb0fc537e00a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 17 control network",
+      "parent": "8e504cc8f5cd4fc4e591cfedfb4a2f70"
+    },
+    {
+      "hash": "4e0fccb6427ff5de5653f406714e0592",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 18",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "58ea09a63888b14920bd8692ced89c1a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 18 control network",
+      "parent": "4e0fccb6427ff5de5653f406714e0592"
+    },
+    {
+      "hash": "73057d07d5eab2f030ab89b5a2b989f1",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 19",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "6c592d89f1dcf8a2e9701d14e4ab8ac0",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 19 control network",
+      "parent": "73057d07d5eab2f030ab89b5a2b989f1"
+    },
+    {
+      "hash": "929c0c52602a7a8575df3e8c2d0f9435",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 20",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c8bf7452cb89d2f51ab23bc916955698",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 20 control network",
+      "parent": "929c0c52602a7a8575df3e8c2d0f9435"
+    },
+    {
+      "hash": "a705afad8efbda492b49ffbb62ad0123",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 21",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "dfbd10e1cec7c89808f08650893ebc85",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 21 control network",
+      "parent": "a705afad8efbda492b49ffbb62ad0123"
+    },
+    {
+      "hash": "b1fa678048c6f44c2fa557bac8f4a155",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 22",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "000414432155900afee1fecbce1e3039",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 22 control network",
+      "parent": "b1fa678048c6f44c2fa557bac8f4a155"
+    },
+    {
+      "hash": "9e802f34eb93b4e927a0cb45072e84f2",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 23",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "3292f8be54131af06602640569130071",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 23 control network",
+      "parent": "9e802f34eb93b4e927a0cb45072e84f2"
+    },
+    {
+      "hash": "0b3871277efabc80632eef9ce0ac4139",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 24",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "e2d32df287c2e8b298b4e2a1e8372c30",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 24 control network",
+      "parent": "0b3871277efabc80632eef9ce0ac4139"
+    },
+    {
+      "hash": "11affeebaee85eb0905e28bb11c75c24",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 25",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "8381327af4e253d460ba65025b2d2036",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 25 control network",
+      "parent": "11affeebaee85eb0905e28bb11c75c24"
+    },
+    {
+      "hash": "af0eb96c9bbe165d7140d62ac51d7d95",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 26",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "313c79c6ac41e348e0755147e1635126",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 26 control network",
+      "parent": "af0eb96c9bbe165d7140d62ac51d7d95"
+    },
+    {
+      "hash": "b7dfbd0a926d6dfda33257a1763b05c1",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 27",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "3724f1696f1a4e0d388b68d40b874a43",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 27 control network",
+      "parent": "b7dfbd0a926d6dfda33257a1763b05c1"
+    },
+    {
+      "hash": "f74c7aedd358662dde8a07378f2dc348",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 28",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "936f98934653475f0a379bbf85af124b",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 28 control network",
+      "parent": "f74c7aedd358662dde8a07378f2dc348"
+    },
+    {
+      "hash": "34f24708ccbb7995d2f87d653c23fd50",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 29",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "0ddd59244ee56b4acacab8473e3bc57e",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 29 control network",
+      "parent": "34f24708ccbb7995d2f87d653c23fd50"
+    },
+    {
+      "hash": "5b33ccd0bd6ce92a0b822541a4434800",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 30",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "5565d72812afa336cb78f700f224f3d3",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 30 control network",
+      "parent": "5b33ccd0bd6ce92a0b822541a4434800"
+    },
+    {
+      "hash": "763dd8020d2569b3ae9690d012661a9f",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 31",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "c2d28a3e4fe79a5f6691735eaaa56a5b",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 31 control network",
+      "parent": "763dd8020d2569b3ae9690d012661a9f"
+    },
+    {
+      "hash": "4f33cbb033faaff2ff6f73f8fe256a9a",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 32",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "42e902fe161bd65d799490bda232434f",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 32 control network",
+      "parent": "4f33cbb033faaff2ff6f73f8fe256a9a"
+    },
+    {
+      "hash": "c03768b4ebd0a5879ae601751f39bcc2",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 33",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "da4b975a785346f5df0ab724fba3378b",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 33 control network",
+      "parent": "c03768b4ebd0a5879ae601751f39bcc2"
+    },
+    {
+      "hash": "eb36cb9ce74973c551f30b4541c6be0f",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 34",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "1735a0b9ab11c7974a7584914c614fba",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 34 control network",
+      "parent": "eb36cb9ce74973c551f30b4541c6be0f"
+    },
+    {
+      "hash": "3b88da6ce501846a142e82ea7db93faa",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 35",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "35435eac23ec9b8d5b4ee0a1a5e4b646",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 35 control network",
+      "parent": "3b88da6ce501846a142e82ea7db93faa"
+    },
+    {
+      "hash": "651fb7ea4798fd17e47ecf6444effc01",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 36",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "7152a5e0613553d40f2191e983a414ad",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 36 control network",
+      "parent": "651fb7ea4798fd17e47ecf6444effc01"
+    },
+    {
+      "hash": "78354ba60c20bac44bb7ff8b2b0e79a7",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 37",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "136420b775b8ba387c87a1fc5cf4ea25",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 37 control network",
+      "parent": "78354ba60c20bac44bb7ff8b2b0e79a7"
+    },
+    {
+      "hash": "020f15caef1ae79d5d012bf11f736ac7",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 38",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "c31090d5452d5dbcb386d3ca5ba8a83b",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 38 control network",
+      "parent": "020f15caef1ae79d5d012bf11f736ac7"
+    },
+    {
+      "hash": "82e365312af93857b1c77bd77c683bcf",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 39",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "2ea2cbcd4fe0d76041817ee36eca6804",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 39 control network",
+      "parent": "82e365312af93857b1c77bd77c683bcf"
+    },
+    {
+      "hash": "cba41161267367e608420bab2968b6a6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 40",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "f2528da89fd1ce9503dbbaff6947bba9",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 40 control network",
+      "parent": "cba41161267367e608420bab2968b6a6"
+    },
+    {
+      "hash": "a5ca360f4073fa9d629119986ae9ae4f",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 41",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "400c7fa7fe14086532f37354a900bde0",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 41 control network",
+      "parent": "a5ca360f4073fa9d629119986ae9ae4f"
+    },
+    {
+      "hash": "df5f8e198b876c7ce85dff47b6b28a79",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 42",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "3f746f66bf228d4f672a8861a80c1a8a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 42 control network",
+      "parent": "df5f8e198b876c7ce85dff47b6b28a79"
+    },
+    {
+      "hash": "238703fd2a10c664f2d871fd7d5fdfab",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 43",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "1232b648d5c716e681259696e185930f",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 43 control network",
+      "parent": "238703fd2a10c664f2d871fd7d5fdfab"
+    },
+    {
+      "hash": "e19761ce57c5946997db41f51b1778dc",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 44",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "66c03ea68f45ffe878e368ba3e55842f",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 44 control network",
+      "parent": "e19761ce57c5946997db41f51b1778dc"
+    },
+    {
+      "hash": "c5dfef2ea123c8878d45826904ac6f91",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 45",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0a743e71c57c37507f2ef666f09eb04a",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 45 control network",
+      "parent": "c5dfef2ea123c8878d45826904ac6f91"
+    },
+    {
+      "hash": "c0fd7a7cecc4a37eb9ec3987e1b71215",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 46",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "803a5e4f918447ce6cf9bd07e2af0d15",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 46 control network",
+      "parent": "c0fd7a7cecc4a37eb9ec3987e1b71215"
+    },
+    {
+      "hash": "60232e303f83b3946e4ddc482c56a519",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 47",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "e449f5d6d8d643fb1eb031fa86a050fb",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 47 control network",
+      "parent": "60232e303f83b3946e4ddc482c56a519"
+    },
+    {
+      "hash": "a67fcd06c405f9405939b411126d6440",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 48",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "12574a46317ff2864d541c2977acfdab",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 48 control network",
+      "parent": "a67fcd06c405f9405939b411126d6440"
+    },
+    {
+      "hash": "cd0de44f4a7adb6b068f34a5ae82acf5",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 49",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "a4656f474199b5108c9a46e3333e411e",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 49 control network",
+      "parent": "cd0de44f4a7adb6b068f34a5ae82acf5"
+    },
+    {
+      "hash": "620e3e43c32efe22326664b13d3c59a6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 50",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "55801066e4ab278d08ba8af233a11205",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 50 control network",
+      "parent": "620e3e43c32efe22326664b13d3c59a6"
+    },
+    {
+      "hash": "72228bd71f649997663757415a3339a6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 51",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "85de1842200e2d71218198b8a2a14672",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 51 control network",
+      "parent": "72228bd71f649997663757415a3339a6"
+    },
+    {
+      "hash": "e0b416426c4a28f3ee34c091437936d1",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 52",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "f4893c03d381ac8986ddee1074449a28",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 52 control network",
+      "parent": "e0b416426c4a28f3ee34c091437936d1"
+    },
+    {
+      "hash": "03ffd0082e0cceeaa38f5c74829036fd",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 53",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "fc28091faf4d528a1660578710322158",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 53 control network",
+      "parent": "03ffd0082e0cceeaa38f5c74829036fd"
+    },
+    {
+      "hash": "1b479158e3e39300142daca9effb25e9",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 54",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "91e83e1b135c42f213f15bfd52b2dd9b",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 54 control network",
+      "parent": "1b479158e3e39300142daca9effb25e9"
+    },
+    {
+      "hash": "1d903d5a165602bff2b598b61288f04e",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 55",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "927edf932d5796841808b6a2518eece6",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 55 control network",
+      "parent": "1d903d5a165602bff2b598b61288f04e"
+    },
+    {
+      "hash": "9ed89f99170772b88f5821bcd8ca06a8",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 56",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "0a8bbb80cc6b9e00017df51b8fd0259c",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 56 control network",
+      "parent": "9ed89f99170772b88f5821bcd8ca06a8"
+    },
+    {
+      "hash": "63687c58f85771c3f624a5395b0b4cad",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 57",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "850492836d14021b56625f2d796b57b3",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 57 control network",
+      "parent": "63687c58f85771c3f624a5395b0b4cad"
+    },
+    {
+      "hash": "5796c66d161c8d5a61b5dee05c3ad2d6",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 58",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "00484335c1eff4cae1be963fea028a63",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 58 control network",
+      "parent": "5796c66d161c8d5a61b5dee05c3ad2d6"
+    },
+    {
+      "hash": "547d929f94e82720b86c327ceece7642",
+      "type": "spline_patch",
+      "name": "Formed sheet / welded panel 59",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "b0f2b603aa6da3ae21168141ef3c1467",
+      "type": "spline",
+      "name": "Formed sheet / welded panel 59 control network",
+      "parent": "547d929f94e82720b86c327ceece7642"
+    },
+    {
+      "hash": "a0e4ef694df09a8afa0de3ed720b1f60",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 0",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "9fd2c61b25e46fb59e40e53b0b573abb",
+      "type": "spline",
+      "name": "Variable-section structural member 0 control network",
+      "parent": "a0e4ef694df09a8afa0de3ed720b1f60"
+    },
+    {
+      "hash": "c65bcea294ad4b206857beb9496f2d94",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 1",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "568ab53c607515f21216652a071eba5c",
+      "type": "spline",
+      "name": "Variable-section structural member 1 control network",
+      "parent": "c65bcea294ad4b206857beb9496f2d94"
+    },
+    {
+      "hash": "d05a894097c6d3d3135d15b40806f2f0",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 2",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "87b25c4aec5cfb7a744713477b668c52",
+      "type": "spline",
+      "name": "Variable-section structural member 2 control network",
+      "parent": "d05a894097c6d3d3135d15b40806f2f0"
+    },
+    {
+      "hash": "411e367e372448dc707c8834e92296f8",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 3",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "aaacf22c7da4e11f4a0fe864f18fd64b",
+      "type": "spline",
+      "name": "Variable-section structural member 3 control network",
+      "parent": "411e367e372448dc707c8834e92296f8"
+    },
+    {
+      "hash": "650ee0a8446f37c062a94da0a6bb22ec",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 4",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "993d2d70725661bba7cb03495b831245",
+      "type": "spline",
+      "name": "Variable-section structural member 4 control network",
+      "parent": "650ee0a8446f37c062a94da0a6bb22ec"
+    },
+    {
+      "hash": "3f0fe503bdd6170b0759cd02fd355d8c",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 5",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "87101f5e5ac360d476490da3c1ea8731",
+      "type": "spline",
+      "name": "Variable-section structural member 5 control network",
+      "parent": "3f0fe503bdd6170b0759cd02fd355d8c"
+    },
+    {
+      "hash": "148cde31ef4e2b2c5dded7806b4513af",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 6",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "95058308ed020b4ba485d8d0e50ffd27",
+      "type": "spline",
+      "name": "Variable-section structural member 6 control network",
+      "parent": "148cde31ef4e2b2c5dded7806b4513af"
+    },
+    {
+      "hash": "b0e67ccf1cd424807c376509c93f6463",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 7",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "c936b278fe2a4ac2e149146819206bfc",
+      "type": "spline",
+      "name": "Variable-section structural member 7 control network",
+      "parent": "b0e67ccf1cd424807c376509c93f6463"
+    },
+    {
+      "hash": "0517072be07274b481902cbdb4ab0556",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 8",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "278b5d1b70e1d2ece144e0b2094ed5bb",
+      "type": "spline",
+      "name": "Variable-section structural member 8 control network",
+      "parent": "0517072be07274b481902cbdb4ab0556"
+    },
+    {
+      "hash": "123368a95681b53c04a28731bdc7e70d",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 9",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "15c31025d3c11d6edcde7daa3eacd882",
+      "type": "spline",
+      "name": "Variable-section structural member 9 control network",
+      "parent": "123368a95681b53c04a28731bdc7e70d"
+    },
+    {
+      "hash": "4e9500e2bbea18a5172c30685c8abead",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 10",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "dda2b46160e1cfbfeb447610f83163e3",
+      "type": "spline",
+      "name": "Variable-section structural member 10 control network",
+      "parent": "4e9500e2bbea18a5172c30685c8abead"
+    },
+    {
+      "hash": "59940f6bb88053c4c974274880003306",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 11",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "d808e0ddfc7f9a07d80d5c2d628d1b18",
+      "type": "spline",
+      "name": "Variable-section structural member 11 control network",
+      "parent": "59940f6bb88053c4c974274880003306"
+    },
+    {
+      "hash": "915beededf0a3a7fa1113cd324b1704e",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 12",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "8f80092658565a12e9f698bd4d7e4a59",
+      "type": "spline",
+      "name": "Variable-section structural member 12 control network",
+      "parent": "915beededf0a3a7fa1113cd324b1704e"
+    },
+    {
+      "hash": "a2f6a672b063cdd6c930e9ead2c1ccc9",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 13",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "b6361fc3aefb1609f443a0e80e8a58fd",
+      "type": "spline",
+      "name": "Variable-section structural member 13 control network",
+      "parent": "a2f6a672b063cdd6c930e9ead2c1ccc9"
+    },
+    {
+      "hash": "25cb83cbf3b79870a008ccde529f37c3",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 14",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "58bfac2cb42b640b620b7c50dd41e6bb",
+      "type": "spline",
+      "name": "Variable-section structural member 14 control network",
+      "parent": "25cb83cbf3b79870a008ccde529f37c3"
+    },
+    {
+      "hash": "cd6aba00f2ce24319df1a1dacc2e309d",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 15",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "6a8c08f75f28f93ba97657fd09a67288",
+      "type": "spline",
+      "name": "Variable-section structural member 15 control network",
+      "parent": "cd6aba00f2ce24319df1a1dacc2e309d"
+    },
+    {
+      "hash": "a691898b46047e210c25be8fe6751a39",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 16",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "153f520e6ba76e1fac4af771367be16b",
+      "type": "spline",
+      "name": "Variable-section structural member 16 control network",
+      "parent": "a691898b46047e210c25be8fe6751a39"
+    },
+    {
+      "hash": "d5f1ebdbddea46583339778496f0ec5f",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 17",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "cf0b414ad2dd9e0d9f3fa57ce953ad1c",
+      "type": "spline",
+      "name": "Variable-section structural member 17 control network",
+      "parent": "d5f1ebdbddea46583339778496f0ec5f"
+    },
+    {
+      "hash": "ad3463f3b38a9f9c84d5a509d3d7d461",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 18",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "c9241026b81fdb7a64d1872ca741b7e5",
+      "type": "spline",
+      "name": "Variable-section structural member 18 control network",
+      "parent": "ad3463f3b38a9f9c84d5a509d3d7d461"
+    },
+    {
+      "hash": "fc944957b83ab6ad0863e188fff4d5fa",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 19",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "e00d5288fae956ecefc2c5a86fdc6953",
+      "type": "spline",
+      "name": "Variable-section structural member 19 control network",
+      "parent": "fc944957b83ab6ad0863e188fff4d5fa"
+    },
+    {
+      "hash": "1e459894f235cae555edd7f1c782059f",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 20",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "335994d6b79d4f75bb2777ba965c56cf",
+      "type": "spline",
+      "name": "Variable-section structural member 20 control network",
+      "parent": "1e459894f235cae555edd7f1c782059f"
+    },
+    {
+      "hash": "3b50e7c4c5be36372b462b01f97787df",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 21",
+      "parent": "bac3bf96bd0cba5f999051b36a0355b9"
+    },
+    {
+      "hash": "897dd60772af05ed898cabd310488699",
+      "type": "spline",
+      "name": "Variable-section structural member 21 control network",
+      "parent": "3b50e7c4c5be36372b462b01f97787df"
+    },
+    {
+      "hash": "f6219bfe151c51416f4c7b839b4e1bf7",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 22",
+      "parent": "0ff346b5e0c6c4b60206dac07f65bbab"
+    },
+    {
+      "hash": "6d515baf45b0ad66088a7f95c6396d65",
+      "type": "spline",
+      "name": "Variable-section structural member 22 control network",
+      "parent": "f6219bfe151c51416f4c7b839b4e1bf7"
+    },
+    {
+      "hash": "1bd5c3adabe7c957b843601eec0f05ad",
+      "type": "spline_patch",
+      "name": "Variable-section structural member 23",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "341ff47eb1f042ae0b449e00268db72c",
+      "type": "spline",
+      "name": "Variable-section structural member 23 control network",
+      "parent": "1bd5c3adabe7c957b843601eec0f05ad"
+    },
+    {
+      "hash": "41325272c2030edf18522b11c9e05504",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "e79135e5c4a003f95d187f6d401a7be6",
+      "type": "spline",
+      "name": "Independent folded sheet 0/0",
+      "parent": "41325272c2030edf18522b11c9e05504"
+    },
+    {
+      "hash": "d3171cc7a69b79d7b64974fc28fc8b71",
+      "type": "spline",
+      "name": "Independent folded sheet 0/1",
+      "parent": "41325272c2030edf18522b11c9e05504"
+    },
+    {
+      "hash": "5187c238293d5186dbb90a072dcb3461",
+      "type": "spline",
+      "name": "Independent folded sheet 0/2",
+      "parent": "41325272c2030edf18522b11c9e05504"
+    },
+    {
+      "hash": "d18c2da8e40b7d51476dfd55938fed14",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 1",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "1baa7a2dee19f4f5906dc66888ca7ee4",
+      "type": "spline",
+      "name": "Independent folded sheet 1/0",
+      "parent": "d18c2da8e40b7d51476dfd55938fed14"
+    },
+    {
+      "hash": "7508954f1c67e9235fa814559a0a61fe",
+      "type": "spline",
+      "name": "Independent folded sheet 1/1",
+      "parent": "d18c2da8e40b7d51476dfd55938fed14"
+    },
+    {
+      "hash": "537f64944e1ae2991caff73d283e1a96",
+      "type": "spline",
+      "name": "Independent folded sheet 1/2",
+      "parent": "d18c2da8e40b7d51476dfd55938fed14"
+    },
+    {
+      "hash": "fb1adc55ec839c8c1ee33cd9d3a38bf8",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 2",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "afdb15f88666f61376aeada0a02b1c8c",
+      "type": "spline",
+      "name": "Independent folded sheet 2/0",
+      "parent": "fb1adc55ec839c8c1ee33cd9d3a38bf8"
+    },
+    {
+      "hash": "a5a9484eb41854ce288926b64b76ac71",
+      "type": "spline",
+      "name": "Independent folded sheet 2/1",
+      "parent": "fb1adc55ec839c8c1ee33cd9d3a38bf8"
+    },
+    {
+      "hash": "e081f1ba8cd429853421e3832f317026",
+      "type": "spline",
+      "name": "Independent folded sheet 2/2",
+      "parent": "fb1adc55ec839c8c1ee33cd9d3a38bf8"
+    },
+    {
+      "hash": "90ef6ac3755eae2e9af2a4790c2022e0",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 3",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "c49a63ac48153e5741544c302abf0bb7",
+      "type": "spline",
+      "name": "Independent folded sheet 3/0",
+      "parent": "90ef6ac3755eae2e9af2a4790c2022e0"
+    },
+    {
+      "hash": "55b7ea724dfe0dc4c75124b6d9d7b300",
+      "type": "spline",
+      "name": "Independent folded sheet 3/1",
+      "parent": "90ef6ac3755eae2e9af2a4790c2022e0"
+    },
+    {
+      "hash": "7dcd29b30635d28c8591aead5ce1fff8",
+      "type": "spline",
+      "name": "Independent folded sheet 3/2",
+      "parent": "90ef6ac3755eae2e9af2a4790c2022e0"
+    },
+    {
+      "hash": "0adee4f90716f0d5905d6465d1aaaee7",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 4",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "b57d0effc8753e1aaef93f34d22150dc",
+      "type": "spline",
+      "name": "Independent folded sheet 4/0",
+      "parent": "0adee4f90716f0d5905d6465d1aaaee7"
+    },
+    {
+      "hash": "78956d42b9a416e67678731184828e89",
+      "type": "spline",
+      "name": "Independent folded sheet 4/1",
+      "parent": "0adee4f90716f0d5905d6465d1aaaee7"
+    },
+    {
+      "hash": "755057f71284fdff5d0542ec679664ff",
+      "type": "spline",
+      "name": "Independent folded sheet 4/2",
+      "parent": "0adee4f90716f0d5905d6465d1aaaee7"
+    },
+    {
+      "hash": "65641cd3a28f525b2d61e4c47a75273f",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "7934aba69ce519a89c8242d219f3fa71",
+      "type": "spline",
+      "name": "Independent folded sheet 5/0",
+      "parent": "65641cd3a28f525b2d61e4c47a75273f"
+    },
+    {
+      "hash": "3f51416c8ab97431a86f99749a702b68",
+      "type": "spline",
+      "name": "Independent folded sheet 5/1",
+      "parent": "65641cd3a28f525b2d61e4c47a75273f"
+    },
+    {
+      "hash": "722dabdc38bd88f4ded1ad9547c33417",
+      "type": "spline",
+      "name": "Independent folded sheet 5/2",
+      "parent": "65641cd3a28f525b2d61e4c47a75273f"
+    },
+    {
+      "hash": "148fc1f616bf891cff2f3530002af769",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 6",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "ab0dfde3d1b717abbd6dddfb61661420",
+      "type": "spline",
+      "name": "Independent folded sheet 6/0",
+      "parent": "148fc1f616bf891cff2f3530002af769"
+    },
+    {
+      "hash": "8e129f5cec454b09ed23780a7232be1b",
+      "type": "spline",
+      "name": "Independent folded sheet 6/1",
+      "parent": "148fc1f616bf891cff2f3530002af769"
+    },
+    {
+      "hash": "58ad7848388d61d2a6861478166ec737",
+      "type": "spline",
+      "name": "Independent folded sheet 6/2",
+      "parent": "148fc1f616bf891cff2f3530002af769"
+    },
+    {
+      "hash": "adeecdb6f6156f71f4bdc56e74862cb2",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 7",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "107f3fbd45d0ee1900a84cb769bbf063",
+      "type": "spline",
+      "name": "Independent folded sheet 7/0",
+      "parent": "adeecdb6f6156f71f4bdc56e74862cb2"
+    },
+    {
+      "hash": "66a891b7c373c948e35d1291dc4fa925",
+      "type": "spline",
+      "name": "Independent folded sheet 7/1",
+      "parent": "adeecdb6f6156f71f4bdc56e74862cb2"
+    },
+    {
+      "hash": "dcbc0d4b0aec70121b8ae12bc98b9518",
+      "type": "spline",
+      "name": "Independent folded sheet 7/2",
+      "parent": "adeecdb6f6156f71f4bdc56e74862cb2"
+    },
+    {
+      "hash": "dbbabbbe4f10a32c0988cd1d6555d4dd",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 8",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "fe90ca584d4acfc166e1c486b6fabfa8",
+      "type": "spline",
+      "name": "Independent folded sheet 8/0",
+      "parent": "dbbabbbe4f10a32c0988cd1d6555d4dd"
+    },
+    {
+      "hash": "2c34490a20e9fd5719ce4eda5c0c4234",
+      "type": "spline",
+      "name": "Independent folded sheet 8/1",
+      "parent": "dbbabbbe4f10a32c0988cd1d6555d4dd"
+    },
+    {
+      "hash": "59459e08c8123a63c2d4554756ac28a0",
+      "type": "spline",
+      "name": "Independent folded sheet 8/2",
+      "parent": "dbbabbbe4f10a32c0988cd1d6555d4dd"
+    },
+    {
+      "hash": "52e71216f700c2e120c787bb4a12294c",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 9",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "608cc229bad4d528baa4c2ed8eadd1dd",
+      "type": "spline",
+      "name": "Independent folded sheet 9/0",
+      "parent": "52e71216f700c2e120c787bb4a12294c"
+    },
+    {
+      "hash": "b81c17b2fb5c789af773a953e0e7f24b",
+      "type": "spline",
+      "name": "Independent folded sheet 9/1",
+      "parent": "52e71216f700c2e120c787bb4a12294c"
+    },
+    {
+      "hash": "91f56cfe2523c752939f9ef9bf681ce7",
+      "type": "spline",
+      "name": "Independent folded sheet 9/2",
+      "parent": "52e71216f700c2e120c787bb4a12294c"
+    },
+    {
+      "hash": "98cebcde2aaee396a913cd78ddd06714",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "001e71cf5df323194bd2f141fa69a775",
+      "type": "spline",
+      "name": "Independent folded sheet 10/0",
+      "parent": "98cebcde2aaee396a913cd78ddd06714"
+    },
+    {
+      "hash": "bdbf2b23b18e795b682f9118f1bc338c",
+      "type": "spline",
+      "name": "Independent folded sheet 10/1",
+      "parent": "98cebcde2aaee396a913cd78ddd06714"
+    },
+    {
+      "hash": "9b6ae23a18f32e0beca5993ddf1e3cfd",
+      "type": "spline",
+      "name": "Independent folded sheet 10/2",
+      "parent": "98cebcde2aaee396a913cd78ddd06714"
+    },
+    {
+      "hash": "01d57169bc2ddd1caf31ceaff5bc6d54",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 11",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "5fe424dd49bc24638cabdebc5fb3a15a",
+      "type": "spline",
+      "name": "Independent folded sheet 11/0",
+      "parent": "01d57169bc2ddd1caf31ceaff5bc6d54"
+    },
+    {
+      "hash": "9ab1004d67733012094088d022268757",
+      "type": "spline",
+      "name": "Independent folded sheet 11/1",
+      "parent": "01d57169bc2ddd1caf31ceaff5bc6d54"
+    },
+    {
+      "hash": "dda34d7d4d8287678a6e7bdb2aae1806",
+      "type": "spline",
+      "name": "Independent folded sheet 11/2",
+      "parent": "01d57169bc2ddd1caf31ceaff5bc6d54"
+    },
+    {
+      "hash": "9561545f112266ebe1d8d8fb5e78e487",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 12",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "b4ad49ba25d77d6da2649b4aa2d2dfd5",
+      "type": "spline",
+      "name": "Independent folded sheet 12/0",
+      "parent": "9561545f112266ebe1d8d8fb5e78e487"
+    },
+    {
+      "hash": "0ff28feab05d3020db3d7529e14f83c5",
+      "type": "spline",
+      "name": "Independent folded sheet 12/1",
+      "parent": "9561545f112266ebe1d8d8fb5e78e487"
+    },
+    {
+      "hash": "ebe201f1925ff5931964ca38906e78ec",
+      "type": "spline",
+      "name": "Independent folded sheet 12/2",
+      "parent": "9561545f112266ebe1d8d8fb5e78e487"
+    },
+    {
+      "hash": "54b02e673c1c680dfa14ce8245a097a5",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 13",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "33e1fd982af52011a862c1fc0e030184",
+      "type": "spline",
+      "name": "Independent folded sheet 13/0",
+      "parent": "54b02e673c1c680dfa14ce8245a097a5"
+    },
+    {
+      "hash": "890efa247e7489552a973ec1ca911307",
+      "type": "spline",
+      "name": "Independent folded sheet 13/1",
+      "parent": "54b02e673c1c680dfa14ce8245a097a5"
+    },
+    {
+      "hash": "8bf051fd00b18c060924992b3d1bc22e",
+      "type": "spline",
+      "name": "Independent folded sheet 13/2",
+      "parent": "54b02e673c1c680dfa14ce8245a097a5"
+    },
+    {
+      "hash": "6770714b9a3e008451d49d9f946bfdc1",
+      "type": "spline_patch",
+      "name": "Multi-sheet bracket / duct guard 14",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "6aa2230eb2de13289bdf9ee5b79325ad",
+      "type": "spline",
+      "name": "Independent folded sheet 14/0",
+      "parent": "6770714b9a3e008451d49d9f946bfdc1"
+    },
+    {
+      "hash": "a51f13fe0dd354282a1454f55aee369b",
+      "type": "spline",
+      "name": "Independent folded sheet 14/1",
+      "parent": "6770714b9a3e008451d49d9f946bfdc1"
+    },
+    {
+      "hash": "57d59aafe2cc39da9853b72bd2184a2a",
+      "type": "spline",
+      "name": "Independent folded sheet 14/2",
+      "parent": "6770714b9a3e008451d49d9f946bfdc1"
+    },
+    {
+      "hash": "c16668aae388131071b7b6b549b4043a",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c24f7344c82b383219f38157f66ba5d2",
+      "type": "spline_patch",
+      "name": "Unique plate stock 0",
+      "parent": "c16668aae388131071b7b6b549b4043a"
+    },
+    {
+      "hash": "5b18ad7eee584267598d7fe3543fba20",
+      "type": "spline",
+      "name": "Unique plate stock 0 control network",
+      "parent": "c24f7344c82b383219f38157f66ba5d2"
+    },
+    {
+      "hash": "b2b9d791b9bb7cad85605bc94e3b8e5e",
+      "type": "extrude",
+      "name": "Machining cut volume 60000",
+      "parent": "c16668aae388131071b7b6b549b4043a"
+    },
+    {
+      "hash": "820e752c7036e3c4082d48bdb994ae7a",
+      "type": "spline",
+      "name": "Cutting contour 60000",
+      "parent": "b2b9d791b9bb7cad85605bc94e3b8e5e"
+    },
+    {
+      "hash": "31eff9a930d150a867fe98880d4afa1d",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 1",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "2037466bbfc3c36ca4aa8293cb020550",
+      "type": "spline_patch",
+      "name": "Unique plate stock 1",
+      "parent": "31eff9a930d150a867fe98880d4afa1d"
+    },
+    {
+      "hash": "ff87ef876342342c271e7206e191eb6f",
+      "type": "spline",
+      "name": "Unique plate stock 1 control network",
+      "parent": "2037466bbfc3c36ca4aa8293cb020550"
+    },
+    {
+      "hash": "962b882dee5d2d48332eebefd6556129",
+      "type": "extrude",
+      "name": "Machining cut volume 60001",
+      "parent": "31eff9a930d150a867fe98880d4afa1d"
+    },
+    {
+      "hash": "90afa1528c0581a9904fd572ab469637",
+      "type": "spline",
+      "name": "Cutting contour 60001",
+      "parent": "962b882dee5d2d48332eebefd6556129"
+    },
+    {
+      "hash": "3f6f587f6030b6eadfdc5af14441a1ee",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 2",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "a9ec4b64bbe10574698b7c9b1c54a0e0",
+      "type": "spline_patch",
+      "name": "Unique plate stock 2",
+      "parent": "3f6f587f6030b6eadfdc5af14441a1ee"
+    },
+    {
+      "hash": "9e38d27f785bc7b6d4615715a42c3a61",
+      "type": "spline",
+      "name": "Unique plate stock 2 control network",
+      "parent": "a9ec4b64bbe10574698b7c9b1c54a0e0"
+    },
+    {
+      "hash": "e2b34c52fd28e3075e7792660ce6b3e7",
+      "type": "extrude",
+      "name": "Machining cut volume 60002",
+      "parent": "3f6f587f6030b6eadfdc5af14441a1ee"
+    },
+    {
+      "hash": "f818d3228cf4f2b824a8effba68954dd",
+      "type": "spline",
+      "name": "Cutting contour 60002",
+      "parent": "e2b34c52fd28e3075e7792660ce6b3e7"
+    },
+    {
+      "hash": "031fb74367e84f65f6e10bd0d9765a28",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 3",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "bf22dc9957d475f18fdfd74b2d73c1b7",
+      "type": "spline_patch",
+      "name": "Unique plate stock 3",
+      "parent": "031fb74367e84f65f6e10bd0d9765a28"
+    },
+    {
+      "hash": "a44dc619e8d25002bdc32261c8a2a351",
+      "type": "spline",
+      "name": "Unique plate stock 3 control network",
+      "parent": "bf22dc9957d475f18fdfd74b2d73c1b7"
+    },
+    {
+      "hash": "3a1f632545721bd3b567a7a16a5ed95e",
+      "type": "extrude",
+      "name": "Machining cut volume 60003",
+      "parent": "031fb74367e84f65f6e10bd0d9765a28"
+    },
+    {
+      "hash": "020ad8c83fafcb65d5b2f5147b295052",
+      "type": "spline",
+      "name": "Cutting contour 60003",
+      "parent": "3a1f632545721bd3b567a7a16a5ed95e"
+    },
+    {
+      "hash": "d2061b79fe3f28a0980109a1129a7fb0",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 4",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "4803496eb57862156b7c797d95a0c006",
+      "type": "spline_patch",
+      "name": "Unique plate stock 4",
+      "parent": "d2061b79fe3f28a0980109a1129a7fb0"
+    },
+    {
+      "hash": "38550bf9e19293d5c3228cdc589da587",
+      "type": "spline",
+      "name": "Unique plate stock 4 control network",
+      "parent": "4803496eb57862156b7c797d95a0c006"
+    },
+    {
+      "hash": "47dc3931d9a833d573d789d7e302f62e",
+      "type": "extrude",
+      "name": "Machining cut volume 60004",
+      "parent": "d2061b79fe3f28a0980109a1129a7fb0"
+    },
+    {
+      "hash": "4fcef2baf4e9313a0a5caf81d6166ce7",
+      "type": "spline",
+      "name": "Cutting contour 60004",
+      "parent": "47dc3931d9a833d573d789d7e302f62e"
+    },
+    {
+      "hash": "b42c32052d1db5e115c94fa8d34de272",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b1ee0fe4ba57cd1b8313c315e1c47f87",
+      "type": "spline_patch",
+      "name": "Unique plate stock 5",
+      "parent": "b42c32052d1db5e115c94fa8d34de272"
+    },
+    {
+      "hash": "8d6f378dd22df6109024fa40179fb328",
+      "type": "spline",
+      "name": "Unique plate stock 5 control network",
+      "parent": "b1ee0fe4ba57cd1b8313c315e1c47f87"
+    },
+    {
+      "hash": "ee8e4e64b3f4f5fdc0c301c95e686cc5",
+      "type": "extrude",
+      "name": "Machining cut volume 60005",
+      "parent": "b42c32052d1db5e115c94fa8d34de272"
+    },
+    {
+      "hash": "e5457888e1f7941ed6b474d3fd2dd85a",
+      "type": "spline",
+      "name": "Cutting contour 60005",
+      "parent": "ee8e4e64b3f4f5fdc0c301c95e686cc5"
+    },
+    {
+      "hash": "5d4daa186509b4c63b74383f173c0901",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 6",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "1c6ce7c34a9a7a9bbd5a2eb5c5535fbb",
+      "type": "spline_patch",
+      "name": "Unique plate stock 6",
+      "parent": "5d4daa186509b4c63b74383f173c0901"
+    },
+    {
+      "hash": "38f6fcf769d662c6daadec438210be2a",
+      "type": "spline",
+      "name": "Unique plate stock 6 control network",
+      "parent": "1c6ce7c34a9a7a9bbd5a2eb5c5535fbb"
+    },
+    {
+      "hash": "59f3d7016fd87d4c22a37c960fc17272",
+      "type": "extrude",
+      "name": "Machining cut volume 60006",
+      "parent": "5d4daa186509b4c63b74383f173c0901"
+    },
+    {
+      "hash": "8994dad5f2e95e97f9467baf694c0603",
+      "type": "spline",
+      "name": "Cutting contour 60006",
+      "parent": "59f3d7016fd87d4c22a37c960fc17272"
+    },
+    {
+      "hash": "476e6f2b24627164676a4a539194a538",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 7",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "58b321ee5c9ebc4c15703f57ce7cc30e",
+      "type": "spline_patch",
+      "name": "Unique plate stock 7",
+      "parent": "476e6f2b24627164676a4a539194a538"
+    },
+    {
+      "hash": "c2d9dec24607c956cff7815c6594cc21",
+      "type": "spline",
+      "name": "Unique plate stock 7 control network",
+      "parent": "58b321ee5c9ebc4c15703f57ce7cc30e"
+    },
+    {
+      "hash": "a6d9afd55d6d7414858cbdf1ca9f6f00",
+      "type": "extrude",
+      "name": "Machining cut volume 60007",
+      "parent": "476e6f2b24627164676a4a539194a538"
+    },
+    {
+      "hash": "981d91e2ac4e779640fdced91d184171",
+      "type": "spline",
+      "name": "Cutting contour 60007",
+      "parent": "a6d9afd55d6d7414858cbdf1ca9f6f00"
+    },
+    {
+      "hash": "5ddb83d89d9263316458782a71050a29",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 8",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "75ddc790b80f73b799e35c2667b5361c",
+      "type": "spline_patch",
+      "name": "Unique plate stock 8",
+      "parent": "5ddb83d89d9263316458782a71050a29"
+    },
+    {
+      "hash": "a73fbc036e95c0b5abd56ee37ba82b44",
+      "type": "spline",
+      "name": "Unique plate stock 8 control network",
+      "parent": "75ddc790b80f73b799e35c2667b5361c"
+    },
+    {
+      "hash": "9a7af5a8209dce1518b03c0a3b56b8fb",
+      "type": "extrude",
+      "name": "Machining cut volume 60008",
+      "parent": "5ddb83d89d9263316458782a71050a29"
+    },
+    {
+      "hash": "034aa28e08573c39772449850b2c1055",
+      "type": "spline",
+      "name": "Cutting contour 60008",
+      "parent": "9a7af5a8209dce1518b03c0a3b56b8fb"
+    },
+    {
+      "hash": "b759dc869e839c35d7d666fdbe180761",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 9",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "59e3b55f9085132f08b2a99fc95bf4bc",
+      "type": "spline_patch",
+      "name": "Unique plate stock 9",
+      "parent": "b759dc869e839c35d7d666fdbe180761"
+    },
+    {
+      "hash": "662293dac338db6aba2b9cdb377a8c02",
+      "type": "spline",
+      "name": "Unique plate stock 9 control network",
+      "parent": "59e3b55f9085132f08b2a99fc95bf4bc"
+    },
+    {
+      "hash": "58761266a1a2db4125a0a085ae96efdd",
+      "type": "extrude",
+      "name": "Machining cut volume 60009",
+      "parent": "b759dc869e839c35d7d666fdbe180761"
+    },
+    {
+      "hash": "2a424ff7b73f0df98ee9f26bde4a3bc0",
+      "type": "spline",
+      "name": "Cutting contour 60009",
+      "parent": "58761266a1a2db4125a0a085ae96efdd"
+    },
+    {
+      "hash": "d60b09f90d26ba7aae3d1eef2d880cee",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0d9b5dab3541bad45a8eb723e038ac63",
+      "type": "spline_patch",
+      "name": "Unique plate stock 10",
+      "parent": "d60b09f90d26ba7aae3d1eef2d880cee"
+    },
+    {
+      "hash": "d3b5de2032e40ccdc0645a6034df0007",
+      "type": "spline",
+      "name": "Unique plate stock 10 control network",
+      "parent": "0d9b5dab3541bad45a8eb723e038ac63"
+    },
+    {
+      "hash": "8ba51d130da9aabecef31e1b116d98fc",
+      "type": "extrude",
+      "name": "Machining cut volume 60010",
+      "parent": "d60b09f90d26ba7aae3d1eef2d880cee"
+    },
+    {
+      "hash": "71741d8ca24ad59c561c8afabc9ab783",
+      "type": "spline",
+      "name": "Cutting contour 60010",
+      "parent": "8ba51d130da9aabecef31e1b116d98fc"
+    },
+    {
+      "hash": "ba0ba62452b78617318e655125080248",
+      "type": "boolean",
+      "name": "Welded boss and plate 11",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "3efbe630a0d2a29ad544cf070ef8d4f3",
+      "type": "spline_patch",
+      "name": "Unique plate stock 11",
+      "parent": "ba0ba62452b78617318e655125080248"
+    },
+    {
+      "hash": "cb8dbef781ffd6da27ed1df308ed37c5",
+      "type": "spline",
+      "name": "Unique plate stock 11 control network",
+      "parent": "3efbe630a0d2a29ad544cf070ef8d4f3"
+    },
+    {
+      "hash": "5553ce06fc1b22a91751daab6bfa2cd5",
+      "type": "extrude",
+      "name": "Machining cut volume 60011",
+      "parent": "ba0ba62452b78617318e655125080248"
+    },
+    {
+      "hash": "340c9c0b96034d5fd26fbdcd51456b05",
+      "type": "spline",
+      "name": "Cutting contour 60011",
+      "parent": "5553ce06fc1b22a91751daab6bfa2cd5"
+    },
+    {
+      "hash": "93f87a6ccd89842007c0ddb2333a6169",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 12",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "04dce69ed46ff46310f283ff02526ef1",
+      "type": "spline_patch",
+      "name": "Unique plate stock 12",
+      "parent": "93f87a6ccd89842007c0ddb2333a6169"
+    },
+    {
+      "hash": "f17b129eabefbb71b6c4566a74052d72",
+      "type": "spline",
+      "name": "Unique plate stock 12 control network",
+      "parent": "04dce69ed46ff46310f283ff02526ef1"
+    },
+    {
+      "hash": "f0c19f039c812d77c53b634eb5ff5835",
+      "type": "extrude",
+      "name": "Machining cut volume 60012",
+      "parent": "93f87a6ccd89842007c0ddb2333a6169"
+    },
+    {
+      "hash": "2e8cd8ef46a315e8518470e5d7d599d9",
+      "type": "spline",
+      "name": "Cutting contour 60012",
+      "parent": "f0c19f039c812d77c53b634eb5ff5835"
+    },
+    {
+      "hash": "d5edefe6a29096432e1dc686a94ca833",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 13",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "af0bd44f44935cd998eb960cb4bc2762",
+      "type": "spline_patch",
+      "name": "Unique plate stock 13",
+      "parent": "d5edefe6a29096432e1dc686a94ca833"
+    },
+    {
+      "hash": "c641202165217baa59afd1002c4256f1",
+      "type": "spline",
+      "name": "Unique plate stock 13 control network",
+      "parent": "af0bd44f44935cd998eb960cb4bc2762"
+    },
+    {
+      "hash": "a38d818ec06370910df3b81c1a4b1eb2",
+      "type": "extrude",
+      "name": "Machining cut volume 60013",
+      "parent": "d5edefe6a29096432e1dc686a94ca833"
+    },
+    {
+      "hash": "c63136f00dd94019485fe7bdda8e859a",
+      "type": "spline",
+      "name": "Cutting contour 60013",
+      "parent": "a38d818ec06370910df3b81c1a4b1eb2"
+    },
+    {
+      "hash": "83c8c1276262f1ea531844fc2d72e22c",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 14",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "ab897f5428dcd9637de22cc42326cf5f",
+      "type": "spline_patch",
+      "name": "Unique plate stock 14",
+      "parent": "83c8c1276262f1ea531844fc2d72e22c"
+    },
+    {
+      "hash": "840127ef528f531758cfc2453a500e40",
+      "type": "spline",
+      "name": "Unique plate stock 14 control network",
+      "parent": "ab897f5428dcd9637de22cc42326cf5f"
+    },
+    {
+      "hash": "9d84e6beaf9178a7e2ce78aff5923ea0",
+      "type": "extrude",
+      "name": "Machining cut volume 60014",
+      "parent": "83c8c1276262f1ea531844fc2d72e22c"
+    },
+    {
+      "hash": "d86dcf49e513f92a0bbc6ef642efadf9",
+      "type": "spline",
+      "name": "Cutting contour 60014",
+      "parent": "9d84e6beaf9178a7e2ce78aff5923ea0"
+    },
+    {
+      "hash": "40369abf72a646f5294add31860fd6bd",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 15",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "4538925599a1cf97a70ebfe90bf161e8",
+      "type": "spline_patch",
+      "name": "Unique plate stock 15",
+      "parent": "40369abf72a646f5294add31860fd6bd"
+    },
+    {
+      "hash": "a1ac1045f161e837e463fa8914642bf7",
+      "type": "spline",
+      "name": "Unique plate stock 15 control network",
+      "parent": "4538925599a1cf97a70ebfe90bf161e8"
+    },
+    {
+      "hash": "377cfc10c80acfd468759c98b32391f7",
+      "type": "extrude",
+      "name": "Machining cut volume 60015",
+      "parent": "40369abf72a646f5294add31860fd6bd"
+    },
+    {
+      "hash": "bf32956668b5cb777113dcc18338f14f",
+      "type": "spline",
+      "name": "Cutting contour 60015",
+      "parent": "377cfc10c80acfd468759c98b32391f7"
+    },
+    {
+      "hash": "63540ce611425b8e29dbb3b923ab6362",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 16",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "03d68522d219e0b629fbc0d22eec2da9",
+      "type": "spline_patch",
+      "name": "Unique plate stock 16",
+      "parent": "63540ce611425b8e29dbb3b923ab6362"
+    },
+    {
+      "hash": "5a1afcd77da2eee1b1af828959df9aa6",
+      "type": "spline",
+      "name": "Unique plate stock 16 control network",
+      "parent": "03d68522d219e0b629fbc0d22eec2da9"
+    },
+    {
+      "hash": "5f45a53899839b4404a432f36b9ed66a",
+      "type": "extrude",
+      "name": "Machining cut volume 60016",
+      "parent": "63540ce611425b8e29dbb3b923ab6362"
+    },
+    {
+      "hash": "0a055e44a4a9f6b03d310048f043915e",
+      "type": "spline",
+      "name": "Cutting contour 60016",
+      "parent": "5f45a53899839b4404a432f36b9ed66a"
+    },
+    {
+      "hash": "5357e4278a88546c814a18e379a765ce",
+      "type": "boolean",
+      "name": "Interference witness volume 17",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "9536b31181e1a5f2561cf511d353d821",
+      "type": "spline_patch",
+      "name": "Unique plate stock 17",
+      "parent": "5357e4278a88546c814a18e379a765ce"
+    },
+    {
+      "hash": "04e981cd1928d9053831b08dc007f9e4",
+      "type": "spline",
+      "name": "Unique plate stock 17 control network",
+      "parent": "9536b31181e1a5f2561cf511d353d821"
+    },
+    {
+      "hash": "5e3047245e71ec6a79966149b4d70ac5",
+      "type": "extrude",
+      "name": "Machining cut volume 60017",
+      "parent": "5357e4278a88546c814a18e379a765ce"
+    },
+    {
+      "hash": "b503b5230747c013d192503b87ca6b5a",
+      "type": "spline",
+      "name": "Cutting contour 60017",
+      "parent": "5e3047245e71ec6a79966149b4d70ac5"
+    },
+    {
+      "hash": "56c361c7f20b56a91e0e7062af448d8b",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 18",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "8fef52dcc328728fa9934ac03971dfe9",
+      "type": "spline_patch",
+      "name": "Unique plate stock 18",
+      "parent": "56c361c7f20b56a91e0e7062af448d8b"
+    },
+    {
+      "hash": "bafc2026b602ebd290ae1ce2956b5797",
+      "type": "spline",
+      "name": "Unique plate stock 18 control network",
+      "parent": "8fef52dcc328728fa9934ac03971dfe9"
+    },
+    {
+      "hash": "47d703ffaca45bf863692d550aeee526",
+      "type": "extrude",
+      "name": "Machining cut volume 60018",
+      "parent": "56c361c7f20b56a91e0e7062af448d8b"
+    },
+    {
+      "hash": "35a4ef7dd79e340604c0aa7f0cf29566",
+      "type": "spline",
+      "name": "Cutting contour 60018",
+      "parent": "47d703ffaca45bf863692d550aeee526"
+    },
+    {
+      "hash": "83fa1c2ba96cab696c13565daa48b68c",
+      "type": "boolean",
+      "name": "Bored flange / mounting plate 19",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "1397dc278ef8b8b9329fdc2237d4e30b",
+      "type": "spline_patch",
+      "name": "Unique plate stock 19",
+      "parent": "83fa1c2ba96cab696c13565daa48b68c"
+    },
+    {
+      "hash": "cb07d6328ad1b5daf2e39aa5890016e5",
+      "type": "spline",
+      "name": "Unique plate stock 19 control network",
+      "parent": "1397dc278ef8b8b9329fdc2237d4e30b"
+    },
+    {
+      "hash": "2f03d04a2a655d312ddc8a8a482ab7e8",
+      "type": "extrude",
+      "name": "Machining cut volume 60019",
+      "parent": "83fa1c2ba96cab696c13565daa48b68c"
+    },
+    {
+      "hash": "e8736e03180627b8e93aa4cab72bae51",
+      "type": "spline",
+      "name": "Cutting contour 60019",
+      "parent": "2f03d04a2a655d312ddc8a8a482ab7e8"
+    },
+    {
+      "hash": "1ba602958bc6d7e02c0dc8a06590e32e",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 20",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c764b773eec36f5efeae469d8cf77f87",
+      "type": "boolean",
+      "name": "First machining stage 20",
+      "parent": "1ba602958bc6d7e02c0dc8a06590e32e"
+    },
+    {
+      "hash": "24968e145eb74e8e4783819d7bbef4c9",
+      "type": "spline_patch",
+      "name": "Unique plate stock 20",
+      "parent": "c764b773eec36f5efeae469d8cf77f87"
+    },
+    {
+      "hash": "97c0e44751f0f25e4e0bdecfd119ce3c",
+      "type": "spline",
+      "name": "Unique plate stock 20 control network",
+      "parent": "24968e145eb74e8e4783819d7bbef4c9"
+    },
+    {
+      "hash": "2aca735006a4da848138d2d0a0489a56",
+      "type": "extrude",
+      "name": "Machining cut volume 60020",
+      "parent": "c764b773eec36f5efeae469d8cf77f87"
+    },
+    {
+      "hash": "40571364b600b1a2b0b98d4a094ca1f7",
+      "type": "spline",
+      "name": "Cutting contour 60020",
+      "parent": "2aca735006a4da848138d2d0a0489a56"
+    },
+    {
+      "hash": "f592ed36d92436dc8f89cd6553927774",
+      "type": "extrude",
+      "name": "Machining cut volume 61020",
+      "parent": "1ba602958bc6d7e02c0dc8a06590e32e"
+    },
+    {
+      "hash": "3dda916b64459758c5d2439779fc9b3b",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61020",
+      "parent": "f592ed36d92436dc8f89cd6553927774"
+    },
+    {
+      "hash": "65b1f83d8d58b928aa31abcf266a114c",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 21",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "5bcfc3c8cdea1e04f13ed772b75a453e",
+      "type": "boolean",
+      "name": "First machining stage 21",
+      "parent": "65b1f83d8d58b928aa31abcf266a114c"
+    },
+    {
+      "hash": "489a537353cd2a26f696be02f11d7058",
+      "type": "spline_patch",
+      "name": "Unique plate stock 21",
+      "parent": "5bcfc3c8cdea1e04f13ed772b75a453e"
+    },
+    {
+      "hash": "03185df29fd162ff7c2ce85d273cee78",
+      "type": "spline",
+      "name": "Unique plate stock 21 control network",
+      "parent": "489a537353cd2a26f696be02f11d7058"
+    },
+    {
+      "hash": "9df9a95262998ea5c783ca729439fd04",
+      "type": "extrude",
+      "name": "Machining cut volume 60021",
+      "parent": "5bcfc3c8cdea1e04f13ed772b75a453e"
+    },
+    {
+      "hash": "443e9b3bd0e9cdd965a55b212ea8e3b1",
+      "type": "spline",
+      "name": "Cutting contour 60021",
+      "parent": "9df9a95262998ea5c783ca729439fd04"
+    },
+    {
+      "hash": "8ef1f2b78b9e767b9e83881f9e088528",
+      "type": "extrude",
+      "name": "Machining cut volume 61021",
+      "parent": "65b1f83d8d58b928aa31abcf266a114c"
+    },
+    {
+      "hash": "c89d26943f6254892ac41828632ce5c3",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61021",
+      "parent": "8ef1f2b78b9e767b9e83881f9e088528"
+    },
+    {
+      "hash": "22f481441d7b7e59990e26e9c8625686",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 22",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "cebf8b399c20217fe2831cf3a94a1806",
+      "type": "boolean",
+      "name": "First machining stage 22",
+      "parent": "22f481441d7b7e59990e26e9c8625686"
+    },
+    {
+      "hash": "98dc0588554af47d65f7a7f52059f07e",
+      "type": "spline_patch",
+      "name": "Unique plate stock 22",
+      "parent": "cebf8b399c20217fe2831cf3a94a1806"
+    },
+    {
+      "hash": "dfd3baa7f7e2558741c24170f42aeff5",
+      "type": "spline",
+      "name": "Unique plate stock 22 control network",
+      "parent": "98dc0588554af47d65f7a7f52059f07e"
+    },
+    {
+      "hash": "7222c03107a82b150b12ab4f55a6a5a9",
+      "type": "extrude",
+      "name": "Machining cut volume 60022",
+      "parent": "cebf8b399c20217fe2831cf3a94a1806"
+    },
+    {
+      "hash": "0df7f0f7b1212c8729eb9ca1c6de92e7",
+      "type": "spline",
+      "name": "Cutting contour 60022",
+      "parent": "7222c03107a82b150b12ab4f55a6a5a9"
+    },
+    {
+      "hash": "e496adb5573dc3834169158a17760aac",
+      "type": "extrude",
+      "name": "Machining cut volume 61022",
+      "parent": "22f481441d7b7e59990e26e9c8625686"
+    },
+    {
+      "hash": "f5991bba2123dc4bc131eb5db79bbaa9",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61022",
+      "parent": "e496adb5573dc3834169158a17760aac"
+    },
+    {
+      "hash": "54db12904aa0914e76c37e755f43ae78",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 23",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "877628e0b6e55f33c75b5861148b496d",
+      "type": "boolean",
+      "name": "First machining stage 23",
+      "parent": "54db12904aa0914e76c37e755f43ae78"
+    },
+    {
+      "hash": "21d7e11fa12ac605b5b94021953c5b77",
+      "type": "spline_patch",
+      "name": "Unique plate stock 23",
+      "parent": "877628e0b6e55f33c75b5861148b496d"
+    },
+    {
+      "hash": "4277e0eea9f7a46bcbba5ec433c42365",
+      "type": "spline",
+      "name": "Unique plate stock 23 control network",
+      "parent": "21d7e11fa12ac605b5b94021953c5b77"
+    },
+    {
+      "hash": "97275166e736499f080a31ad429c6f5b",
+      "type": "extrude",
+      "name": "Machining cut volume 60023",
+      "parent": "877628e0b6e55f33c75b5861148b496d"
+    },
+    {
+      "hash": "0167422a117e7072264adb10c6f175fd",
+      "type": "spline",
+      "name": "Cutting contour 60023",
+      "parent": "97275166e736499f080a31ad429c6f5b"
+    },
+    {
+      "hash": "4992a2a1d6a9166b96cc8cee11b78ca8",
+      "type": "extrude",
+      "name": "Machining cut volume 61023",
+      "parent": "54db12904aa0914e76c37e755f43ae78"
+    },
+    {
+      "hash": "a273641117c3bbfd080139f7b56b006e",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61023",
+      "parent": "4992a2a1d6a9166b96cc8cee11b78ca8"
+    },
+    {
+      "hash": "be10e8ebc4836eec9d4c2d0ecf4a0523",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 24",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "11771f304bbb47be09da956bd0ec1ae0",
+      "type": "boolean",
+      "name": "First machining stage 24",
+      "parent": "be10e8ebc4836eec9d4c2d0ecf4a0523"
+    },
+    {
+      "hash": "fa2955581690d90b5990fdb571c4be6f",
+      "type": "spline_patch",
+      "name": "Unique plate stock 24",
+      "parent": "11771f304bbb47be09da956bd0ec1ae0"
+    },
+    {
+      "hash": "a9f1d593708a14baff3c031ac027e526",
+      "type": "spline",
+      "name": "Unique plate stock 24 control network",
+      "parent": "fa2955581690d90b5990fdb571c4be6f"
+    },
+    {
+      "hash": "24907a2bf6d553bef2b4f51c4d9ebccc",
+      "type": "extrude",
+      "name": "Machining cut volume 60024",
+      "parent": "11771f304bbb47be09da956bd0ec1ae0"
+    },
+    {
+      "hash": "e705f38938d7f690f97def1aed1b9289",
+      "type": "spline",
+      "name": "Cutting contour 60024",
+      "parent": "24907a2bf6d553bef2b4f51c4d9ebccc"
+    },
+    {
+      "hash": "1dc9cde85cbc92a7027979fe951380a6",
+      "type": "extrude",
+      "name": "Machining cut volume 61024",
+      "parent": "be10e8ebc4836eec9d4c2d0ecf4a0523"
+    },
+    {
+      "hash": "69c11d9fc24cbbf396080a30bf128578",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61024",
+      "parent": "1dc9cde85cbc92a7027979fe951380a6"
+    },
+    {
+      "hash": "eb3256b980e43ae1e415543d16ab034b",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 25",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "18edbf50eeb33e60ea6307f496da15ca",
+      "type": "boolean",
+      "name": "First machining stage 25",
+      "parent": "eb3256b980e43ae1e415543d16ab034b"
+    },
+    {
+      "hash": "3dc9b8f9577068bd328cca0f5516cfcf",
+      "type": "spline_patch",
+      "name": "Unique plate stock 25",
+      "parent": "18edbf50eeb33e60ea6307f496da15ca"
+    },
+    {
+      "hash": "def6932cca918e93618d36cffbfb521f",
+      "type": "spline",
+      "name": "Unique plate stock 25 control network",
+      "parent": "3dc9b8f9577068bd328cca0f5516cfcf"
+    },
+    {
+      "hash": "0f83eb5bb62ce21ae89074f024689a81",
+      "type": "extrude",
+      "name": "Machining cut volume 60025",
+      "parent": "18edbf50eeb33e60ea6307f496da15ca"
+    },
+    {
+      "hash": "5baba747c43acd1e277d90aef08e4410",
+      "type": "spline",
+      "name": "Cutting contour 60025",
+      "parent": "0f83eb5bb62ce21ae89074f024689a81"
+    },
+    {
+      "hash": "9fa6f34b6e18035bccbda8587dd2f06b",
+      "type": "extrude",
+      "name": "Machining cut volume 61025",
+      "parent": "eb3256b980e43ae1e415543d16ab034b"
+    },
+    {
+      "hash": "2153d2c0f5d463c1926296dc77624dfc",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61025",
+      "parent": "9fa6f34b6e18035bccbda8587dd2f06b"
+    },
+    {
+      "hash": "a506a0482d49abc45dab1c2ebddf35d2",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 26",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "e6b2dcd19e4208c609c6e6de17b25f73",
+      "type": "boolean",
+      "name": "First machining stage 26",
+      "parent": "a506a0482d49abc45dab1c2ebddf35d2"
+    },
+    {
+      "hash": "0d1f1d1efec0209cd5b9a75f2d63dc15",
+      "type": "spline_patch",
+      "name": "Unique plate stock 26",
+      "parent": "e6b2dcd19e4208c609c6e6de17b25f73"
+    },
+    {
+      "hash": "5106314b22a8a9cef096ed328870b4d4",
+      "type": "spline",
+      "name": "Unique plate stock 26 control network",
+      "parent": "0d1f1d1efec0209cd5b9a75f2d63dc15"
+    },
+    {
+      "hash": "7cf68599d5aa8398d47072c57afd988d",
+      "type": "extrude",
+      "name": "Machining cut volume 60026",
+      "parent": "e6b2dcd19e4208c609c6e6de17b25f73"
+    },
+    {
+      "hash": "63f21ba0a4a1ee0fefa911fe6b34d82f",
+      "type": "spline",
+      "name": "Cutting contour 60026",
+      "parent": "7cf68599d5aa8398d47072c57afd988d"
+    },
+    {
+      "hash": "2b13a4da8f543b5eb8ce6437009e9884",
+      "type": "extrude",
+      "name": "Machining cut volume 61026",
+      "parent": "a506a0482d49abc45dab1c2ebddf35d2"
+    },
+    {
+      "hash": "14101fdc8884ea3636ee263bd8bc96dd",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61026",
+      "parent": "2b13a4da8f543b5eb8ce6437009e9884"
+    },
+    {
+      "hash": "5da7fe8f43ba43729379c4cb56821f18",
+      "type": "boolean",
+      "name": "Nested bored clevis / mount 27",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "4436c10d81896f99f8e8486488f4c2cb",
+      "type": "boolean",
+      "name": "First machining stage 27",
+      "parent": "5da7fe8f43ba43729379c4cb56821f18"
+    },
+    {
+      "hash": "a7bf27e5ae0fb29f0a2c04cb65aa6d13",
+      "type": "spline_patch",
+      "name": "Unique plate stock 27",
+      "parent": "4436c10d81896f99f8e8486488f4c2cb"
+    },
+    {
+      "hash": "786df5bd09fd4e90bdff4aa6aff30022",
+      "type": "spline",
+      "name": "Unique plate stock 27 control network",
+      "parent": "a7bf27e5ae0fb29f0a2c04cb65aa6d13"
+    },
+    {
+      "hash": "f330ad459fe0dc09075c4bfd9937b1cd",
+      "type": "extrude",
+      "name": "Machining cut volume 60027",
+      "parent": "4436c10d81896f99f8e8486488f4c2cb"
+    },
+    {
+      "hash": "7403c369e0bbecbe30206028d30ec31c",
+      "type": "spline",
+      "name": "Cutting contour 60027",
+      "parent": "f330ad459fe0dc09075c4bfd9937b1cd"
+    },
+    {
+      "hash": "c93d01e2788ec46cd6e931d65b7d5e5d",
+      "type": "extrude",
+      "name": "Machining cut volume 61027",
+      "parent": "5da7fe8f43ba43729379c4cb56821f18"
+    },
+    {
+      "hash": "82d41b4afa5ff494e2f514910847942e",
+      "type": "instance",
+      "name": "Referenced Cutting contour 61027",
+      "parent": "c93d01e2788ec46cd6e931d65b7d5e5d"
+    },
+    {
+      "hash": "ed95f5f37b594b5aa0b18fd9d2c35893",
+      "type": "sweep",
+      "name": "Electrical harness branch 0",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "12daf57fe0e6976ee1b621f46753e1fb",
+      "type": "spline",
+      "name": "Hose cross-section 0",
+      "parent": "ed95f5f37b594b5aa0b18fd9d2c35893"
+    },
+    {
+      "hash": "bb25345b4af20add452bc0c30fd36e32",
+      "type": "spline",
+      "name": "Routed cubic centerline 0",
+      "parent": "ed95f5f37b594b5aa0b18fd9d2c35893"
+    },
+    {
+      "hash": "8a8971910e52577e7b9d841e1a52d06d",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 1",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "23dc9503bb4debbb825ab69dba234f4f",
+      "type": "spline",
+      "name": "Hose cross-section 1",
+      "parent": "8a8971910e52577e7b9d841e1a52d06d"
+    },
+    {
+      "hash": "88e77f288af54b2bd34b7fe1a7bf4b87",
+      "type": "spline",
+      "name": "Routed cubic centerline 1",
+      "parent": "8a8971910e52577e7b9d841e1a52d06d"
+    },
+    {
+      "hash": "4d8e55bc59873eb80ddb2fed1fa9cd01",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 2",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "d739be1bc716a8182fd9507a0c43946f",
+      "type": "spline",
+      "name": "Hose cross-section 2",
+      "parent": "4d8e55bc59873eb80ddb2fed1fa9cd01"
+    },
+    {
+      "hash": "88260a2545cf2563f4f4ad4e24028efd",
+      "type": "spline",
+      "name": "Routed cubic centerline 2",
+      "parent": "4d8e55bc59873eb80ddb2fed1fa9cd01"
+    },
+    {
+      "hash": "150ddf4f4f0eda83d48ec8e1bcb08c58",
+      "type": "sweep",
+      "name": "Electrical harness branch 3",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "44f810c3030c765bab4ef7533a6a025b",
+      "type": "spline",
+      "name": "Hose cross-section 3",
+      "parent": "150ddf4f4f0eda83d48ec8e1bcb08c58"
+    },
+    {
+      "hash": "10a51436d8e1736c19cbb1566891763e",
+      "type": "spline",
+      "name": "Routed cubic centerline 3",
+      "parent": "150ddf4f4f0eda83d48ec8e1bcb08c58"
+    },
+    {
+      "hash": "97516648f916a262b14b01d4fa5afd6c",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 4",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "090af0adfb134b9518a2511e100d7c85",
+      "type": "spline",
+      "name": "Hose cross-section 4",
+      "parent": "97516648f916a262b14b01d4fa5afd6c"
+    },
+    {
+      "hash": "01188103a58201291f8fa101364e39e5",
+      "type": "spline",
+      "name": "Routed cubic centerline 4",
+      "parent": "97516648f916a262b14b01d4fa5afd6c"
+    },
+    {
+      "hash": "feee1cd5975029062243274f9e872d08",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 5",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "b430663778c22670b2241c76542362c6",
+      "type": "spline",
+      "name": "Hose cross-section 5",
+      "parent": "feee1cd5975029062243274f9e872d08"
+    },
+    {
+      "hash": "3068fbc47e0f303e690d0aa6a608104c",
+      "type": "spline",
+      "name": "Routed cubic centerline 5",
+      "parent": "feee1cd5975029062243274f9e872d08"
+    },
+    {
+      "hash": "6f3d3fa137d703c971821feaf4c25cf1",
+      "type": "sweep",
+      "name": "Electrical harness branch 6",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "c3e812a369e3122bccb676322ff7182d",
+      "type": "spline",
+      "name": "Hose cross-section 6",
+      "parent": "6f3d3fa137d703c971821feaf4c25cf1"
+    },
+    {
+      "hash": "1b1b7725e301c08091c95c0eb1a87e6b",
+      "type": "spline",
+      "name": "Routed cubic centerline 6",
+      "parent": "6f3d3fa137d703c971821feaf4c25cf1"
+    },
+    {
+      "hash": "adf2f90483910734f13be781d8bc4ad1",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 7",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "eff6e49634df708e08557b8f140a19da",
+      "type": "spline",
+      "name": "Hose cross-section 7",
+      "parent": "adf2f90483910734f13be781d8bc4ad1"
+    },
+    {
+      "hash": "fdde5d306579dccc319a3135c830e434",
+      "type": "spline",
+      "name": "Routed cubic centerline 7",
+      "parent": "adf2f90483910734f13be781d8bc4ad1"
+    },
+    {
+      "hash": "ed9587e8ccbc363687003bf84f46c654",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 8",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "12b6efe6a7617634dc3d3b4e36a609c7",
+      "type": "spline",
+      "name": "Hose cross-section 8",
+      "parent": "ed9587e8ccbc363687003bf84f46c654"
+    },
+    {
+      "hash": "6bfca2dea2ec21e655c446a26c387102",
+      "type": "spline",
+      "name": "Routed cubic centerline 8",
+      "parent": "ed9587e8ccbc363687003bf84f46c654"
+    },
+    {
+      "hash": "07680a2959bbba78c97139d71302898f",
+      "type": "sweep",
+      "name": "Electrical harness branch 9",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "2306fee2138f80d7717671a15961af43",
+      "type": "spline",
+      "name": "Hose cross-section 9",
+      "parent": "07680a2959bbba78c97139d71302898f"
+    },
+    {
+      "hash": "31daacff5028fbbd9f710ab58a377d26",
+      "type": "spline",
+      "name": "Routed cubic centerline 9",
+      "parent": "07680a2959bbba78c97139d71302898f"
+    },
+    {
+      "hash": "302c732650e70c44baa67ac880cd2d57",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 10",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "a6ede23b6687cee718b7cbc6775d2374",
+      "type": "spline",
+      "name": "Hose cross-section 10",
+      "parent": "302c732650e70c44baa67ac880cd2d57"
+    },
+    {
+      "hash": "9eaa8357fffc61a25189694fcde4d6ee",
+      "type": "spline",
+      "name": "Routed cubic centerline 10",
+      "parent": "302c732650e70c44baa67ac880cd2d57"
+    },
+    {
+      "hash": "083c79608c3b85ae61ba29505fc7cdbb",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 11",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "cb2171f9222bf44ad1b38fad24a2997a",
+      "type": "spline",
+      "name": "Hose cross-section 11",
+      "parent": "083c79608c3b85ae61ba29505fc7cdbb"
+    },
+    {
+      "hash": "675e25ffac38669d11e5a4c3b3dd2e42",
+      "type": "spline",
+      "name": "Routed cubic centerline 11",
+      "parent": "083c79608c3b85ae61ba29505fc7cdbb"
+    },
+    {
+      "hash": "ebdbca1b3456fae40c908f6f7bd625cc",
+      "type": "sweep",
+      "name": "Electrical harness branch 12",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "d8d84528957ea733cf78af00566b5b2d",
+      "type": "spline",
+      "name": "Hose cross-section 12",
+      "parent": "ebdbca1b3456fae40c908f6f7bd625cc"
+    },
+    {
+      "hash": "ed8434a95a5882b75d8e363207046a6c",
+      "type": "spline",
+      "name": "Routed cubic centerline 12",
+      "parent": "ebdbca1b3456fae40c908f6f7bd625cc"
+    },
+    {
+      "hash": "3b52df2065bc4ee392504a891eff2a10",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 13",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "39cab055d1babf07d8e14856087d59ee",
+      "type": "spline",
+      "name": "Hose cross-section 13",
+      "parent": "3b52df2065bc4ee392504a891eff2a10"
+    },
+    {
+      "hash": "16761c42c1d522efe0f60753cb9c1128",
+      "type": "spline",
+      "name": "Routed cubic centerline 13",
+      "parent": "3b52df2065bc4ee392504a891eff2a10"
+    },
+    {
+      "hash": "f5d0c47d08815cecb1d6d6bfedc449c4",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 14",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "1a40d0ac8c84306ce75ec45718250966",
+      "type": "spline",
+      "name": "Hose cross-section 14",
+      "parent": "f5d0c47d08815cecb1d6d6bfedc449c4"
+    },
+    {
+      "hash": "14c9d7eeff5ff8adcbe6d098e42a4935",
+      "type": "spline",
+      "name": "Routed cubic centerline 14",
+      "parent": "f5d0c47d08815cecb1d6d6bfedc449c4"
+    },
+    {
+      "hash": "50ea818c105044d6724909e0ee53207f",
+      "type": "sweep",
+      "name": "Electrical harness branch 15",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "da333589590d9e1f34824e0dead391b5",
+      "type": "spline",
+      "name": "Hose cross-section 15",
+      "parent": "50ea818c105044d6724909e0ee53207f"
+    },
+    {
+      "hash": "cf8bbcf182537d5ac3c27a289c399ff5",
+      "type": "spline",
+      "name": "Routed cubic centerline 15",
+      "parent": "50ea818c105044d6724909e0ee53207f"
+    },
+    {
+      "hash": "beb2ddb094532648c1002efae0965d57",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 16",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "9a2543ebb0d1d97dab991fa360114a75",
+      "type": "spline",
+      "name": "Hose cross-section 16",
+      "parent": "beb2ddb094532648c1002efae0965d57"
+    },
+    {
+      "hash": "dfe4e8b3c0853400b8423f207905c192",
+      "type": "spline",
+      "name": "Routed cubic centerline 16",
+      "parent": "beb2ddb094532648c1002efae0965d57"
+    },
+    {
+      "hash": "f1c6ec4c50c9c62b1ded8cbdacb19f4a",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 17",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "40702dfbdc4b2345ae844f8f78bb0eb1",
+      "type": "spline",
+      "name": "Hose cross-section 17",
+      "parent": "f1c6ec4c50c9c62b1ded8cbdacb19f4a"
+    },
+    {
+      "hash": "7cc854d8ab5d2d6b053e4f7aae3a3e2c",
+      "type": "spline",
+      "name": "Routed cubic centerline 17",
+      "parent": "f1c6ec4c50c9c62b1ded8cbdacb19f4a"
+    },
+    {
+      "hash": "e71c6e02f7150e369e05d767e5260f90",
+      "type": "sweep",
+      "name": "Electrical harness branch 18",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "c938ca26331d9bd500ceee2bfe8bc9ee",
+      "type": "spline",
+      "name": "Hose cross-section 18",
+      "parent": "e71c6e02f7150e369e05d767e5260f90"
+    },
+    {
+      "hash": "03d07431ccd947e869c6ea243bf486ce",
+      "type": "spline",
+      "name": "Routed cubic centerline 18",
+      "parent": "e71c6e02f7150e369e05d767e5260f90"
+    },
+    {
+      "hash": "5565468ea063e61d33fa5c8105ea0c29",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 19",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "929ec73abb5e5cc1ed0c4537f5dee9a0",
+      "type": "spline",
+      "name": "Hose cross-section 19",
+      "parent": "5565468ea063e61d33fa5c8105ea0c29"
+    },
+    {
+      "hash": "ef0cb5bc6dfc42f2a60b6f572f7db4d9",
+      "type": "spline",
+      "name": "Routed cubic centerline 19",
+      "parent": "5565468ea063e61d33fa5c8105ea0c29"
+    },
+    {
+      "hash": "cedf04de591cc49aecf9edc7c836db70",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 20",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "98994104c5aa2a96f07e3a94b9596859",
+      "type": "spline",
+      "name": "Hose cross-section 20",
+      "parent": "cedf04de591cc49aecf9edc7c836db70"
+    },
+    {
+      "hash": "87fc1ac30cad5295f62c99a02220b0ad",
+      "type": "spline",
+      "name": "Routed cubic centerline 20",
+      "parent": "cedf04de591cc49aecf9edc7c836db70"
+    },
+    {
+      "hash": "246bfff9890ba6137a932f07d4f22775",
+      "type": "sweep",
+      "name": "Electrical harness branch 21",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "d69ed9cf0019ac145160b790b3737938",
+      "type": "spline",
+      "name": "Hose cross-section 21",
+      "parent": "246bfff9890ba6137a932f07d4f22775"
+    },
+    {
+      "hash": "99c30ba43c66702951ef820303be4300",
+      "type": "spline",
+      "name": "Routed cubic centerline 21",
+      "parent": "246bfff9890ba6137a932f07d4f22775"
+    },
+    {
+      "hash": "2e9c37452dc572e8ec3b1b2fae4e2c8d",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 22",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "9b2d7b8346f8f49afb1e9b35987018ad",
+      "type": "spline",
+      "name": "Hose cross-section 22",
+      "parent": "2e9c37452dc572e8ec3b1b2fae4e2c8d"
+    },
+    {
+      "hash": "67f25529c2e35439dfa6c465a253bc64",
+      "type": "spline",
+      "name": "Routed cubic centerline 22",
+      "parent": "2e9c37452dc572e8ec3b1b2fae4e2c8d"
+    },
+    {
+      "hash": "07851abe8b8ac2772a003fbf515f60ca",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 23",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "f38b99c7a351ecb24f6025a3e6b6d6db",
+      "type": "spline",
+      "name": "Hose cross-section 23",
+      "parent": "07851abe8b8ac2772a003fbf515f60ca"
+    },
+    {
+      "hash": "3f3cd6f575a9ea32b1bb3ed78a495ad7",
+      "type": "spline",
+      "name": "Routed cubic centerline 23",
+      "parent": "07851abe8b8ac2772a003fbf515f60ca"
+    },
+    {
+      "hash": "427e192ab091bbb4e431c6c35b72fd83",
+      "type": "sweep",
+      "name": "Electrical harness branch 24",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "a17243b5e7d483f04ec84fa2e6c75717",
+      "type": "spline",
+      "name": "Hose cross-section 24",
+      "parent": "427e192ab091bbb4e431c6c35b72fd83"
+    },
+    {
+      "hash": "3888d136973dcef4a4a37625c2e80183",
+      "type": "spline",
+      "name": "Routed cubic centerline 24",
+      "parent": "427e192ab091bbb4e431c6c35b72fd83"
+    },
+    {
+      "hash": "bf423240190d502392291343e6eeceb0",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 25",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "3136499044ef48c58f7b5095060c4cc5",
+      "type": "spline",
+      "name": "Hose cross-section 25",
+      "parent": "bf423240190d502392291343e6eeceb0"
+    },
+    {
+      "hash": "0c698c2a3d27c933d1ee38a6eeff36cd",
+      "type": "spline",
+      "name": "Routed cubic centerline 25",
+      "parent": "bf423240190d502392291343e6eeceb0"
+    },
+    {
+      "hash": "818da9786d5b37b007817ea8e3d5a1be",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 26",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "59af29d2f4e46b504eba0a2bd5fadec0",
+      "type": "spline",
+      "name": "Hose cross-section 26",
+      "parent": "818da9786d5b37b007817ea8e3d5a1be"
+    },
+    {
+      "hash": "89afa31ffe59e7d2347dff438aad5c09",
+      "type": "spline",
+      "name": "Routed cubic centerline 26",
+      "parent": "818da9786d5b37b007817ea8e3d5a1be"
+    },
+    {
+      "hash": "1e522efbb7b3dff1f2b9609722fac0ee",
+      "type": "sweep",
+      "name": "Electrical harness branch 27",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "87638ac56de5a87a3328abf243f470d3",
+      "type": "spline",
+      "name": "Hose cross-section 27",
+      "parent": "1e522efbb7b3dff1f2b9609722fac0ee"
+    },
+    {
+      "hash": "6a79ae42761f0d06c9f985641fdf25ee",
+      "type": "spline",
+      "name": "Routed cubic centerline 27",
+      "parent": "1e522efbb7b3dff1f2b9609722fac0ee"
+    },
+    {
+      "hash": "c56deee01d5924d17ea98e0740e3f119",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 28",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "46ca19d4cb7fa75e34ddd285628e7327",
+      "type": "spline",
+      "name": "Hose cross-section 28",
+      "parent": "c56deee01d5924d17ea98e0740e3f119"
+    },
+    {
+      "hash": "630e5f058ed5603d1ed51af167b2fbdf",
+      "type": "spline",
+      "name": "Routed cubic centerline 28",
+      "parent": "c56deee01d5924d17ea98e0740e3f119"
+    },
+    {
+      "hash": "febabe0839d4188d56dd75f4127aab5d",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 29",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "19bcf09c5de25a6d8b65199601aeecab",
+      "type": "spline",
+      "name": "Hose cross-section 29",
+      "parent": "febabe0839d4188d56dd75f4127aab5d"
+    },
+    {
+      "hash": "cf6f16e212e0f2755982f26ca11c0949",
+      "type": "spline",
+      "name": "Routed cubic centerline 29",
+      "parent": "febabe0839d4188d56dd75f4127aab5d"
+    },
+    {
+      "hash": "02bfb0924cfcccf5fb5795cde81cd538",
+      "type": "sweep",
+      "name": "Electrical harness branch 30",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "f8514a7a7fc36d04de2cf396bd141a0b",
+      "type": "spline",
+      "name": "Hose cross-section 30",
+      "parent": "02bfb0924cfcccf5fb5795cde81cd538"
+    },
+    {
+      "hash": "db02eeae0ab0cde24632e4a5058fc904",
+      "type": "spline",
+      "name": "Routed cubic centerline 30",
+      "parent": "02bfb0924cfcccf5fb5795cde81cd538"
+    },
+    {
+      "hash": "a50af5b50b3743b8d26df77233fbf14b",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 31",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "893015cb799af6155af0118cd9ed8713",
+      "type": "spline",
+      "name": "Hose cross-section 31",
+      "parent": "a50af5b50b3743b8d26df77233fbf14b"
+    },
+    {
+      "hash": "c77ae29203a87ef508abf2c385bfc1a9",
+      "type": "spline",
+      "name": "Routed cubic centerline 31",
+      "parent": "a50af5b50b3743b8d26df77233fbf14b"
+    },
+    {
+      "hash": "2574d68db0b94f8c8a23b5b76eb01098",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 32",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "0d0995f7f91a24321bb4aed4fd6b1df0",
+      "type": "spline",
+      "name": "Hose cross-section 32",
+      "parent": "2574d68db0b94f8c8a23b5b76eb01098"
+    },
+    {
+      "hash": "e80d40f3f3a9b7732274f1c272dbf47d",
+      "type": "spline",
+      "name": "Routed cubic centerline 32",
+      "parent": "2574d68db0b94f8c8a23b5b76eb01098"
+    },
+    {
+      "hash": "322ed5455d3204d9ff1b7c732a658e60",
+      "type": "sweep",
+      "name": "Electrical harness branch 33",
+      "parent": "2dcc01735724ab11caa3a90e38a7b5f4"
+    },
+    {
+      "hash": "8b2596a30d8042372d625ce0f5042d37",
+      "type": "spline",
+      "name": "Hose cross-section 33",
+      "parent": "322ed5455d3204d9ff1b7c732a658e60"
+    },
+    {
+      "hash": "e3e1103da4f16a9d3394074bb985f1c2",
+      "type": "spline",
+      "name": "Routed cubic centerline 33",
+      "parent": "322ed5455d3204d9ff1b7c732a658e60"
+    },
+    {
+      "hash": "d82e40b22556d28a5afd288a6d62b2ec",
+      "type": "sweep",
+      "name": "Hydraulic hose / formed tube 34",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "a221987dc9362649e935c44879b2f192",
+      "type": "spline",
+      "name": "Hose cross-section 34",
+      "parent": "d82e40b22556d28a5afd288a6d62b2ec"
+    },
+    {
+      "hash": "700f401661dcee7249c0cea367b2b7f6",
+      "type": "spline",
+      "name": "Routed cubic centerline 34",
+      "parent": "d82e40b22556d28a5afd288a6d62b2ec"
+    },
+    {
+      "hash": "9ad8e1b90e34e5482fbfe953d49fc348",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "d48fd8da39a9f4c1c1c729bca69872d2",
+      "type": "spline",
+      "name": "Flange contour and bore 0",
+      "parent": "9ad8e1b90e34e5482fbfe953d49fc348"
+    },
+    {
+      "hash": "88fa8e49037070f13d6de217272f8bbf",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 1",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "145368cafc8c85c95c66cd164c85a0fa",
+      "type": "spline",
+      "name": "Flange contour and bore 1",
+      "parent": "88fa8e49037070f13d6de217272f8bbf"
+    },
+    {
+      "hash": "895b95b85cf7526666e303bba446ec53",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 2",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "0c632c4b4eab0f6335d7c48d6a8d878e",
+      "type": "spline",
+      "name": "Flange contour and bore 2",
+      "parent": "895b95b85cf7526666e303bba446ec53"
+    },
+    {
+      "hash": "b6ee23adb14d8728f95f9f93ce94865c",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 3",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "3dea4b3d944d6938467ee459b345fe29",
+      "type": "spline",
+      "name": "Flange contour and bore 3",
+      "parent": "b6ee23adb14d8728f95f9f93ce94865c"
+    },
+    {
+      "hash": "98f5722ec70b0125df8d44d1969ef4ab",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 4",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "c764e1e4b8cc1b4bff6b444c89b719a2",
+      "type": "spline",
+      "name": "Flange contour and bore 4",
+      "parent": "98f5722ec70b0125df8d44d1969ef4ab"
+    },
+    {
+      "hash": "bd04f6fca027089a3489ab80178a92ec",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "41d4f89d0bba7deda0b27a07b925357e",
+      "type": "spline",
+      "name": "Flange contour and bore 5",
+      "parent": "bd04f6fca027089a3489ab80178a92ec"
+    },
+    {
+      "hash": "18bcc9b20637eb0c3137c5fc04b42d0a",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 6",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "cffd92c94bfa884f132dc032064fb23c",
+      "type": "spline",
+      "name": "Flange contour and bore 6",
+      "parent": "18bcc9b20637eb0c3137c5fc04b42d0a"
+    },
+    {
+      "hash": "60799638e7b93ef9c44b1e8b83d8ed25",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 7",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "925e58936cdd56fb76ada1f68505545c",
+      "type": "spline",
+      "name": "Flange contour and bore 7",
+      "parent": "60799638e7b93ef9c44b1e8b83d8ed25"
+    },
+    {
+      "hash": "4eef18a164aa9286c64f015b259f5ed5",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 8",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "a090518b8c260c8564fac3fe31fe8c41",
+      "type": "spline",
+      "name": "Flange contour and bore 8",
+      "parent": "4eef18a164aa9286c64f015b259f5ed5"
+    },
+    {
+      "hash": "72f9aebd01cebc14ad4bf34466c0b089",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 9",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "fe5800d3fbe0e4238c755f259e93a6ed",
+      "type": "spline",
+      "name": "Flange contour and bore 9",
+      "parent": "72f9aebd01cebc14ad4bf34466c0b089"
+    },
+    {
+      "hash": "20b024892fcd7e8224895520311cc498",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "16f49aeab5c656b5d1a4b362fb978f87",
+      "type": "spline",
+      "name": "Flange contour and bore 10",
+      "parent": "20b024892fcd7e8224895520311cc498"
+    },
+    {
+      "hash": "41236d9e475d5f75238fa22b9d862aa6",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 11",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "7968108c42b78d354fd7a529ba9f1c4c",
+      "type": "spline",
+      "name": "Flange contour and bore 11",
+      "parent": "41236d9e475d5f75238fa22b9d862aa6"
+    },
+    {
+      "hash": "ab6f1c23c4e92aeca638c6d4012dc6ac",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 12",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "a2752c10a7d2d63f10a37150f5762f0b",
+      "type": "spline",
+      "name": "Flange contour and bore 12",
+      "parent": "ab6f1c23c4e92aeca638c6d4012dc6ac"
+    },
+    {
+      "hash": "5f5c6b242a2ac474e2903deb974c2e27",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 13",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "4e5b4cdf8cb659845d68f5dbb7fba588",
+      "type": "spline",
+      "name": "Flange contour and bore 13",
+      "parent": "5f5c6b242a2ac474e2903deb974c2e27"
+    },
+    {
+      "hash": "b51ebc4d643709e2ed4df32daa5642ed",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 14",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "a681569156ee97fa4a5ba52469004a66",
+      "type": "spline",
+      "name": "Flange contour and bore 14",
+      "parent": "b51ebc4d643709e2ed4df32daa5642ed"
+    },
+    {
+      "hash": "f3ebd1e25ed4d02a19fc7f05d6258f8e",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 15",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0980b2c47810490a97060d363655b1ab",
+      "type": "spline",
+      "name": "Flange contour and bore 15",
+      "parent": "f3ebd1e25ed4d02a19fc7f05d6258f8e"
+    },
+    {
+      "hash": "b18888d781e66a46c079b8b246013589",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 16",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "f68025afbf5c7bd0936333e6595c5173",
+      "type": "spline",
+      "name": "Flange contour and bore 16",
+      "parent": "b18888d781e66a46c079b8b246013589"
+    },
+    {
+      "hash": "bc24fe6146808e4f24b26d4a49b5c96a",
+      "type": "extrude",
+      "name": "Unique gasket / flange / rib 17",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "1fc34f5b66ad737fa4874bc186d93ba8",
+      "type": "spline",
+      "name": "Flange contour and bore 17",
+      "parent": "bc24fe6146808e4f24b26d4a49b5c96a"
+    },
+    {
+      "hash": "868b02614ecb5f42bdc3c8e6f1f3e37b",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 0",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "bb591efa4578b24b04cd7cb97b826d73",
+      "type": "spline",
+      "name": "Turned-part section 0",
+      "parent": "868b02614ecb5f42bdc3c8e6f1f3e37b"
+    },
+    {
+      "hash": "81f39d3c1c82d79ee173ff5d2a3088ae",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 1",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "86d7758239e955550d533c74676b4d66",
+      "type": "spline",
+      "name": "Turned-part section 1",
+      "parent": "81f39d3c1c82d79ee173ff5d2a3088ae"
+    },
+    {
+      "hash": "aab501aa6a3d8beb9de67398e772b6d2",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 2",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "cac3ad11f0c806e1248785b91b3b7e1f",
+      "type": "spline",
+      "name": "Turned-part section 2",
+      "parent": "aab501aa6a3d8beb9de67398e772b6d2"
+    },
+    {
+      "hash": "0956cee6b99f88506e17460035e8c8d6",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 3",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "8f88ed0e9f18aca2cc14b5d4e9f8ac6a",
+      "type": "spline",
+      "name": "Turned-part section 3",
+      "parent": "0956cee6b99f88506e17460035e8c8d6"
+    },
+    {
+      "hash": "328b0657cece6b8a36277d117f0d9d42",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 4",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "a04f710ad42b93d3e3496a78361be819",
+      "type": "spline",
+      "name": "Turned-part section 4",
+      "parent": "328b0657cece6b8a36277d117f0d9d42"
+    },
+    {
+      "hash": "6a3832a7081bd2ead23b433629083bb9",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 5",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "2035607a1842bea6aac1440584a5b98a",
+      "type": "spline",
+      "name": "Turned-part section 5",
+      "parent": "6a3832a7081bd2ead23b433629083bb9"
+    },
+    {
+      "hash": "b3ac19f56dcda6a76a8e1c30c17f90b6",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 6",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "840bf39644f27362ae290fa2626c0170",
+      "type": "spline",
+      "name": "Turned-part section 6",
+      "parent": "b3ac19f56dcda6a76a8e1c30c17f90b6"
+    },
+    {
+      "hash": "09f01d9e3cfef45f405e8ac2471b1e24",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 7",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "f0c38e76c4b87a4ca9f6b337c73996f6",
+      "type": "spline",
+      "name": "Turned-part section 7",
+      "parent": "09f01d9e3cfef45f405e8ac2471b1e24"
+    },
+    {
+      "hash": "06e2042ae6d7958a3be2c5c02e8d94e8",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 8",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "82800c476a3ee0fcb48590700e3e378a",
+      "type": "spline",
+      "name": "Turned-part section 8",
+      "parent": "06e2042ae6d7958a3be2c5c02e8d94e8"
+    },
+    {
+      "hash": "885e836033e49ca51344dce5e2e87598",
+      "type": "lathe",
+      "name": "Turned hydraulic gland / bearing bush 9",
+      "parent": "91b43d63f1e39134099234ea7da2a976"
+    },
+    {
+      "hash": "8b59c9236d75ffddb1f564e5f5c5c80a",
+      "type": "spline",
+      "name": "Turned-part section 9",
+      "parent": "885e836033e49ca51344dce5e2e87598"
+    },
+    {
+      "hash": "0551ed4045f8122616445e54e4db66e7",
+      "type": "group",
+      "name": "Shared welded subassembly 0",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "c709e5bd57b81d51fc40c3db7117493a",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 0/0",
+      "parent": "0551ed4045f8122616445e54e4db66e7"
+    },
+    {
+      "hash": "8b60a03365300be68d1a375eb126dd06",
+      "type": "spline",
+      "name": "Subassembly fabrication 0/0 control network",
+      "parent": "c709e5bd57b81d51fc40c3db7117493a"
+    },
+    {
+      "hash": "9b042a0d4c8de8c0eb274d9f27a1a014",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 0/1",
+      "parent": "0551ed4045f8122616445e54e4db66e7"
+    },
+    {
+      "hash": "51a8b97284302f7f5de3b859b47f9c21",
+      "type": "spline",
+      "name": "Subassembly fabrication 0/1 control network",
+      "parent": "9b042a0d4c8de8c0eb274d9f27a1a014"
+    },
+    {
+      "hash": "772306209e56e761c256332737b20849",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 0/2",
+      "parent": "0551ed4045f8122616445e54e4db66e7"
+    },
+    {
+      "hash": "0a57d927b70cb2b0ea53c4cafdc972c1",
+      "type": "spline",
+      "name": "Subassembly fabrication 0/2 control network",
+      "parent": "772306209e56e761c256332737b20849"
+    },
+    {
+      "hash": "393fbee2b461010831609e8227e1a8e1",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 0/3",
+      "parent": "0551ed4045f8122616445e54e4db66e7"
+    },
+    {
+      "hash": "ff87c6544496717a9f2843ca7f88cbcb",
+      "type": "spline",
+      "name": "Subassembly fabrication 0/3 control network",
+      "parent": "393fbee2b461010831609e8227e1a8e1"
+    },
+    {
+      "hash": "4cd0239243d41c05b42d56e0f6f76f7e",
+      "type": "group",
+      "name": "Shared welded subassembly 1",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "b9b3e62c59ea5a212089a6c2eb3a1f44",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 1/0",
+      "parent": "4cd0239243d41c05b42d56e0f6f76f7e"
+    },
+    {
+      "hash": "9e518622dc9e8d0aa795c50d8ef68348",
+      "type": "spline",
+      "name": "Subassembly fabrication 1/0 control network",
+      "parent": "b9b3e62c59ea5a212089a6c2eb3a1f44"
+    },
+    {
+      "hash": "d2b19f4b5c61b5e0bfbebcb2a3914551",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 1/1",
+      "parent": "4cd0239243d41c05b42d56e0f6f76f7e"
+    },
+    {
+      "hash": "17d2d767c605eb1d4917663e3cd5845c",
+      "type": "spline",
+      "name": "Subassembly fabrication 1/1 control network",
+      "parent": "d2b19f4b5c61b5e0bfbebcb2a3914551"
+    },
+    {
+      "hash": "3f8177c46f102c9aab04cbdcaa79b6d2",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 1/2",
+      "parent": "4cd0239243d41c05b42d56e0f6f76f7e"
+    },
+    {
+      "hash": "b811a9691959052a42f63baf4fabe439",
+      "type": "spline",
+      "name": "Subassembly fabrication 1/2 control network",
+      "parent": "3f8177c46f102c9aab04cbdcaa79b6d2"
+    },
+    {
+      "hash": "bb6ab1fd5e8191a864a0f2e477258538",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 1/3",
+      "parent": "4cd0239243d41c05b42d56e0f6f76f7e"
+    },
+    {
+      "hash": "3108b4f7e2a996ae5e5f4781c6e0b135",
+      "type": "spline",
+      "name": "Subassembly fabrication 1/3 control network",
+      "parent": "bb6ab1fd5e8191a864a0f2e477258538"
+    },
+    {
+      "hash": "7de8d4003b37bca8a22ab5e4afb0151f",
+      "type": "group",
+      "name": "Shared welded subassembly 2",
+      "parent": "28aa7a145e11da6fd8f1206097b33ab6"
+    },
+    {
+      "hash": "e1e073869e2ca92523221d0829b6ee91",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 2/0",
+      "parent": "7de8d4003b37bca8a22ab5e4afb0151f"
+    },
+    {
+      "hash": "3550d87cdb42ccf2cda1a888bbcb44d7",
+      "type": "spline",
+      "name": "Subassembly fabrication 2/0 control network",
+      "parent": "e1e073869e2ca92523221d0829b6ee91"
+    },
+    {
+      "hash": "da6f210e91e10d9808c2ffd4d1cea66b",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 2/1",
+      "parent": "7de8d4003b37bca8a22ab5e4afb0151f"
+    },
+    {
+      "hash": "94fd1d6b6fccebefae2d1a3b1a629926",
+      "type": "spline",
+      "name": "Subassembly fabrication 2/1 control network",
+      "parent": "da6f210e91e10d9808c2ffd4d1cea66b"
+    },
+    {
+      "hash": "b3b001c676e44d5f34405b21390cd00c",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 2/2",
+      "parent": "7de8d4003b37bca8a22ab5e4afb0151f"
+    },
+    {
+      "hash": "579035baab745b71bdab7b96037a9300",
+      "type": "spline",
+      "name": "Subassembly fabrication 2/2 control network",
+      "parent": "b3b001c676e44d5f34405b21390cd00c"
+    },
+    {
+      "hash": "dbf4030b9d16f14b76bbf28af7fc49b8",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 2/3",
+      "parent": "7de8d4003b37bca8a22ab5e4afb0151f"
+    },
+    {
+      "hash": "626ebe1b76222b5998291cfaccd2e4a1",
+      "type": "spline",
+      "name": "Subassembly fabrication 2/3 control network",
+      "parent": "dbf4030b9d16f14b76bbf28af7fc49b8"
+    },
+    {
+      "hash": "765fb85c710048fc545e3646ce4c2b35",
+      "type": "group",
+      "name": "Shared welded subassembly 3",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "ed2516070e343aeb63fe5761753eea23",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 3/0",
+      "parent": "765fb85c710048fc545e3646ce4c2b35"
+    },
+    {
+      "hash": "5748530675bd22a508cfb20e72ba3833",
+      "type": "spline",
+      "name": "Subassembly fabrication 3/0 control network",
+      "parent": "ed2516070e343aeb63fe5761753eea23"
+    },
+    {
+      "hash": "899c1e438300d07038ac6f10665be2e7",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 3/1",
+      "parent": "765fb85c710048fc545e3646ce4c2b35"
+    },
+    {
+      "hash": "d4aabff6bb4166912d388add5cfd9717",
+      "type": "spline",
+      "name": "Subassembly fabrication 3/1 control network",
+      "parent": "899c1e438300d07038ac6f10665be2e7"
+    },
+    {
+      "hash": "71c9383c34c98b97faa228455eb7a76c",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 3/2",
+      "parent": "765fb85c710048fc545e3646ce4c2b35"
+    },
+    {
+      "hash": "7433e2d89e97ae02fb2eb382dce424ed",
+      "type": "spline",
+      "name": "Subassembly fabrication 3/2 control network",
+      "parent": "71c9383c34c98b97faa228455eb7a76c"
+    },
+    {
+      "hash": "8fa0269db84d1f1fad0587ef6f64b076",
+      "type": "spline_patch",
+      "name": "Subassembly fabrication 3/3",
+      "parent": "765fb85c710048fc545e3646ce4c2b35"
+    },
+    {
+      "hash": "dbf690c0b038392b1ad54f101d3f82b2",
+      "type": "spline",
+      "name": "Subassembly fabrication 3/3 control network",
+      "parent": "8fa0269db84d1f1fad0587ef6f64b076"
+    },
+    {
+      "hash": "0817ed615333c7e96613d504b1604efd",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "75dc54e191f333aa4d4be2a4aaeba542",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 0",
+      "parent": "0817ed615333c7e96613d504b1604efd"
+    },
+    {
+      "hash": "b1b3a40468d50f1649b250d4d508e9aa",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 1",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "617999a48dd22801ff3747da04ac75dd",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 1",
+      "parent": "b1b3a40468d50f1649b250d4d508e9aa"
+    },
+    {
+      "hash": "9942135b74f06ea459f2ef70a0a6f643",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 2",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "65fab34deb62e2f8f5460c4cb2906ae3",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 2",
+      "parent": "9942135b74f06ea459f2ef70a0a6f643"
+    },
+    {
+      "hash": "c31d51064487e77dae42f7073942e666",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 3",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "6f0862f932a28cfdb06ac3c2a9121613",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 3",
+      "parent": "c31d51064487e77dae42f7073942e666"
+    },
+    {
+      "hash": "747b52beda725c595857cc006a38b791",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 4",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "a875e59d976cd45d69f28aa4cdb02d20",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 4",
+      "parent": "747b52beda725c595857cc006a38b791"
+    },
+    {
+      "hash": "ff5894347c7c2b58fb0e120909d457c3",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b73f3179310dcc4c7d5e8681a6be0f1d",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 5",
+      "parent": "ff5894347c7c2b58fb0e120909d457c3"
+    },
+    {
+      "hash": "9b909cdec4f59d9ae8c2264ac775723f",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 6",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "530fd3b1fc218f6975ee412c6926cfff",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 6",
+      "parent": "9b909cdec4f59d9ae8c2264ac775723f"
+    },
+    {
+      "hash": "b6619a915d8de3ffcda68d1264619b87",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 7",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "7a2ed266eb005cb6c086f9a65dd65a85",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 7",
+      "parent": "b6619a915d8de3ffcda68d1264619b87"
+    },
+    {
+      "hash": "d59cd4afb0d7b97c1a6c3f3a85189dc8",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 8",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "bd7a1dca6feb8072ac044b031e0d53d1",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 8",
+      "parent": "d59cd4afb0d7b97c1a6c3f3a85189dc8"
+    },
+    {
+      "hash": "083acd93227b4fcd34e479d32d7f3c3d",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 9",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "2fe4425171b3c1a8906c43e749057f88",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 9",
+      "parent": "083acd93227b4fcd34e479d32d7f3c3d"
+    },
+    {
+      "hash": "bcfabe1569110564652cf07c453ea406",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "402e44670040a1b5dce67d5db1053021",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 10",
+      "parent": "bcfabe1569110564652cf07c453ea406"
+    },
+    {
+      "hash": "949e68d649b7295eacf0e4fdd922283f",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 11",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "7c5c21fd144a811a7bed5abb73102c2e",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 11",
+      "parent": "949e68d649b7295eacf0e4fdd922283f"
+    },
+    {
+      "hash": "a65ec5e1d92fae1abfae9ac1bab5c4ff",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 12",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "0e7f030376b2c1a7c12a1e0ead2379ce",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 12",
+      "parent": "a65ec5e1d92fae1abfae9ac1bab5c4ff"
+    },
+    {
+      "hash": "e45f1a3c42450a14dfe849fc045eef1f",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 13",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "6c26ea2e0580088ea9244c1022066085",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 13",
+      "parent": "e45f1a3c42450a14dfe849fc045eef1f"
+    },
+    {
+      "hash": "61c48187c1d9815c12c54ab4dcb58fb0",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 14",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "4843a150b5d00d9a02d229f339572572",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 14",
+      "parent": "61c48187c1d9815c12c54ab4dcb58fb0"
+    },
+    {
+      "hash": "831d4db31557b3580985a4f253069a4e",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 15",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b99055df2f537c371620a917198d27e4",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 15",
+      "parent": "831d4db31557b3580985a4f253069a4e"
+    },
+    {
+      "hash": "b9ac6b3508b8cda9a93db0c2885baa78",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 16",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "2ef7caaf62578506e0d2608064a1c4c7",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 16",
+      "parent": "b9ac6b3508b8cda9a93db0c2885baa78"
+    },
+    {
+      "hash": "cfc93d655f16904fb13a94a4123fd16a",
+      "type": "symmetry",
+      "name": "Mirrored bracket / reinforcement family 17",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "e60b6cb7cabddbe799e730ea197e2864",
+      "type": "instance",
+      "name": "Referenced asymmetric fabrication 17",
+      "parent": "cfc93d655f16904fb13a94a4123fd16a"
+    },
+    {
+      "hash": "2840158d17e6870d8f173181f00194d0",
+      "type": "bolt",
+      "name": "Standard bolt reference",
+      "parent": "222177084064183c6742c5663fbed646"
+    },
+    {
+      "hash": "2457bd72194a7565d0ecf0dfe328174b",
+      "type": "nut",
+      "name": "Standard nut reference",
+      "parent": "222177084064183c6742c5663fbed646"
+    },
+    {
+      "hash": "b00954a39e15472d85e3b94cd46447ff",
+      "type": "washer",
+      "name": "Standard washer reference",
+      "parent": "222177084064183c6742c5663fbed646"
+    },
+    {
+      "hash": "dfd4a1305e0efd6160e490dd4652e3e4",
+      "type": "instance",
+      "name": "Installed standard fastener 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "79ac440e86bb3664ab30b9432629397e",
+      "type": "instance",
+      "name": "Installed standard fastener 1",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "c1919856a07e27bb99b67c4fb81a16fe",
+      "type": "instance",
+      "name": "Installed standard fastener 2",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "f413849f3f5486c935f4fe14db66b768",
+      "type": "instance",
+      "name": "Installed standard fastener 3",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "48f4f1ff49641edf2d45ce1541eea61e",
+      "type": "instance",
+      "name": "Installed standard fastener 4",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "81e6d42faa4ce83f68d2187d17f2d691",
+      "type": "instance",
+      "name": "Installed standard fastener 5",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "13f8a0d86d8f1c75c28bc304434b9146",
+      "type": "instance",
+      "name": "Installed standard fastener 6",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "f2b678e2a2ccf17a50c6047c11772bfd",
+      "type": "instance",
+      "name": "Installed standard fastener 7",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "de047bca5e2f789ce15118f9c6b005b8",
+      "type": "instance",
+      "name": "Installed standard fastener 8",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "a65c7d33133ecc7e7e5a0fc804540498",
+      "type": "instance",
+      "name": "Installed standard fastener 9",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "7e0e8ec4966aa3f27c063aa4c4659163",
+      "type": "instance",
+      "name": "Installed standard fastener 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "2df7012cd7201d6f3a7bcb67585b86c4",
+      "type": "instance",
+      "name": "Installed standard fastener 11",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "890e7a8cfb6f31064a5c296087a0515e",
+      "type": "instance",
+      "name": "Installed standard fastener 12",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "28baf2b90aa2e45ec289a1fae1d26125",
+      "type": "instance",
+      "name": "Installed standard fastener 13",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "8fbe2e775bc1acf0a16e6fb9b1596033",
+      "type": "instance",
+      "name": "Installed standard fastener 14",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "b31ad609a150c5f70c17abc2bfdb1537",
+      "type": "instance",
+      "name": "Installed standard fastener 15",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "2d4d1dd4fc2ef230f41f7583fa5510cf",
+      "type": "instance",
+      "name": "Installed standard fastener 16",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "60db02bdbc1e145e4b01a8ed1e4fe207",
+      "type": "instance",
+      "name": "Installed standard fastener 17",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "6cef1d265ab7659a5f1bc7c54c276c7a",
+      "type": "instance",
+      "name": "Installed standard fastener 18",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "3174cb4de3a5ad16ae0f59707decab07",
+      "type": "instance",
+      "name": "Installed standard fastener 19",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "7a816417384b2401a9539e86ab102e47",
+      "type": "instance",
+      "name": "Installed standard fastener 20",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "f22892e6a6b7bca60d1eadd4e0d8a8c6",
+      "type": "instance",
+      "name": "Installed standard fastener 21",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "9befbba925d566dd9d7b9fae05f004fd",
+      "type": "instance",
+      "name": "Installed standard fastener 22",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "6c03a3a0e7362e947213c06ff9aff1e1",
+      "type": "instance",
+      "name": "Installed standard fastener 23",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "5bb83d33cff5308ba5dac3e11253262f",
+      "type": "instance",
+      "name": "Installed standard fastener 24",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "b020466d9dfd053f9f2889bdd4ed22d8",
+      "type": "instance",
+      "name": "Installed standard fastener 25",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "e7a171aac3ec58dcb11be40f90623ede",
+      "type": "instance",
+      "name": "Installed standard fastener 26",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "82f5d4a856de9ee8f3e4c44547abf40b",
+      "type": "instance",
+      "name": "Installed standard fastener 27",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "fd6de98da4b69cb8f09dc137415173c5",
+      "type": "instance",
+      "name": "Installed standard fastener 28",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "7338d3e1fba701ec84bd9ea943fe2659",
+      "type": "instance",
+      "name": "Installed standard fastener 29",
+      "parent": "1322f97d9ced686a656359798a6c5a41"
+    },
+    {
+      "hash": "20c0372697c1cf2044fc2ad283a3c89b",
+      "type": "cloner",
+      "name": "Fastener row / radial bolt circle 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "357ea1777dcc2f055b20bd6928adf066",
+      "type": "instance",
+      "name": "Linked fastener source 0",
+      "parent": "20c0372697c1cf2044fc2ad283a3c89b"
+    },
+    {
+      "hash": "277d28e505d91cb955b091d1a3dafb9f",
+      "type": "cloner",
+      "name": "Fastener row / radial bolt circle 1",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "0f04cc7a18b4e1aab65dc055af0c1f96",
+      "type": "instance",
+      "name": "Linked fastener source 1",
+      "parent": "277d28e505d91cb955b091d1a3dafb9f"
+    },
+    {
+      "hash": "504a17eb9e5ec793bf10e34c6beefacb",
+      "type": "cloner",
+      "name": "Fastener row / radial bolt circle 2",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "29a1798dfcc0d531017cf98834b245aa",
+      "type": "instance",
+      "name": "Linked fastener source 2",
+      "parent": "504a17eb9e5ec793bf10e34c6beefacb"
+    },
+    {
+      "hash": "54ecbe141aadddab154b43f13879db6c",
+      "type": "group",
+      "name": "Tooling and core-family representatives",
+      "parent": "09645b30127f21b8a369bffb19df1283"
+    },
+    {
+      "hash": "22ab6c8536a6e4c943f99ddcf0e6a0cb",
+      "type": "cube",
+      "name": "Tooling cube",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "cffed88ea4f96cbed7e5a6f1c95e1856",
+      "type": "cylinder",
+      "name": "Tooling cylinder",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "68b504b3d20074a278123d2098dc253d",
+      "type": "tube",
+      "name": "Tooling tube",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "5405bb9eb91ae09a66c86acb1c21bbc7",
+      "type": "sphere",
+      "name": "Tooling sphere",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "ed7e20be6dea7e0c66cc482f2a1f321f",
+      "type": "capsule",
+      "name": "Tooling capsule",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "21a9a399b74d525f364372a2081d2fdd",
+      "type": "square",
+      "name": "Tooling square",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "a0073935fce6baa8ae67cfb9328b9e03",
+      "type": "circle",
+      "name": "Tooling circle",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "1066e360abf195783f08880ddc9c8d35",
+      "type": "polyhedron",
+      "name": "Tooling polyhedron",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "2bf4db601896f22a0c2e7eef8b591507",
+      "type": "text",
+      "name": "Tooling text",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "fe34d7e49c16e6f5f41e5ddc0b2fd122",
+      "type": "helix",
+      "name": "Tooling helix",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "79da3611047d224d0c75a0b4fab4643e",
+      "type": "gear",
+      "name": "Tooling gear",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "57ebb5a941866432b0bcd46f145e2e1b",
+      "type": "pulley",
+      "name": "Tooling pulley",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "50a36c06cb334ce6f75eeb347f85a7a2",
+      "type": "spline",
+      "name": "Editable service gasket profile",
+      "parent": "54ecbe141aadddab154b43f13879db6c"
+    },
+    {
+      "hash": "b871f5e7bd0ee348fcd4aa170fcef816",
+      "type": "car",
+      "name": "Scale-reference car",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "54c67abb2f08d90d10969b6ee345e2fb",
+      "type": "tree",
+      "name": "Scale-reference tree",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "dfc2d4c6932c6d5d5a0e82a15e766fc0",
+      "type": "human",
+      "name": "Scale-reference human",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "ab1c45c9221006848c1989fa313efed2",
+      "type": "render",
+      "name": "Assembly inspection camera",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "17c9e69f70064032a40b07db7f78be4e",
+      "type": "target",
+      "name": "Inspection target",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "b0dfb5d9dec47d0172e228913244756b",
+      "type": "infinite",
+      "name": "Assembly key light",
+      "parent": "868666ef275e89dfaf854d5a17780070"
+    },
+    {
+      "hash": "c872c2cb31927ee7f3a8d704174d60c7",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 0",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "5161b28cec4747cd400bf60de9fcf8a3",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 1",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "24983af250a0bc9b7057e70f400e906c",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 2",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "4796ceaa2ce58381c6936902477aa216",
+      "type": "instance",
+      "name": "Referenced fabricated part 3",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "aa4c02efcdf4930f9ce161b67f5fb78e",
+      "type": "instance",
+      "name": "Referenced fabricated part 4",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "2d07af19a3cddbc5e6b0e655c338666b",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 5",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c4916060964a5366530fb0e8cada0f4f",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 6",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "243fb84c974123ae1486474c65895ddf",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 7",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "413de065f7df8586906cd4b826df4816",
+      "type": "instance",
+      "name": "Referenced fabricated part 8",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8ef05a747191b44116cf24fd75c30627",
+      "type": "instance",
+      "name": "Referenced fabricated part 9",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "ca3a8cfecdc8732697efdf454a47c792",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 10",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b4cf7963c8f33d8264a7628663311293",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 11",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "8bb33678edacba9ea117da992cf4c4a0",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 12",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "8872b1db83d1efc1dc91c4319e6e0b7a",
+      "type": "instance",
+      "name": "Referenced fabricated part 13",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "68d2c116cbbf7b915365aaa6b3f26696",
+      "type": "instance",
+      "name": "Referenced fabricated part 14",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "9a411f7e710acc12292553cd52832fbe",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 15",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b94a8af06a16751c9dee56cf7f0ee9a2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 16",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "c9d525a37fb9aa26b595548e09958e51",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 17",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "9a8543cc198c6f977939eab4063e667c",
+      "type": "instance",
+      "name": "Referenced fabricated part 18",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "3e32e34bf1103fe92cf42d613c97f042",
+      "type": "instance",
+      "name": "Referenced fabricated part 19",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "61aefdd144de4dab3f95b4d50a150f76",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 20",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b70259d26aedb23d2d6978091e8607c4",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 21",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "bfa543a76c10115c9e7a06f7ab5063c3",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 22",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "7906b1f3315c761b2f3b60ec21900021",
+      "type": "instance",
+      "name": "Referenced fabricated part 23",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8bf294cc48a492ce9ba78e94af58f073",
+      "type": "instance",
+      "name": "Referenced fabricated part 24",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "6187b0853814b9e6701c17439dbb618f",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 25",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c89420fcbde72cb4ed0e38fa64298199",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 26",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "44babafb999813cc9ca19121461e6783",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 27",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "50cf385583bbc40e8d0a837dbe147ad8",
+      "type": "instance",
+      "name": "Referenced fabricated part 28",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "d9c9adf218eec8c5f3308d4eb841d047",
+      "type": "instance",
+      "name": "Referenced fabricated part 29",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "87ceb145177a694b12a2f6c67aa934b9",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 30",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "52893c430fb8f0909e7ea5461274ff4e",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 31",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "a9dd4a6691c3f8004544b2f147a2b26c",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 32",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "affe2291c0f1905d97b4dc4cada9bce7",
+      "type": "instance",
+      "name": "Referenced fabricated part 33",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "663bf6b2746b6ed0cfde90db6ef27c58",
+      "type": "instance",
+      "name": "Referenced fabricated part 34",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "a9bbdc86a8ffa17f73e672e289d4d1ef",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 35",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "1d6af98523bcaa4174d08622081d1651",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 36",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "11f899493a8a4c59e037182ee975d1ae",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 37",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "8d446ac3cfdacb2463e1a568f2e1b4f8",
+      "type": "instance",
+      "name": "Referenced fabricated part 38",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "e1c84b7dbbfd4708e0c5187c40dd5812",
+      "type": "instance",
+      "name": "Referenced fabricated part 39",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "6af303a0f2a4fbe13d6c869bb2d3b506",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 40",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "f22410bfcea40ddeb3c90047217f567e",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 41",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "d95fa33273a0133f6c81ae6248ffc316",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 42",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "e2b1771ebe443625a0eae0be6d29fd58",
+      "type": "instance",
+      "name": "Referenced fabricated part 43",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "131df26c605ad20cd8a2537196dfeee0",
+      "type": "instance",
+      "name": "Referenced fabricated part 44",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "0c6503ddbc5e1bbcfc8987c0fe26ce17",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 45",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "c16ef35d67675fc637fc9491dd65216b",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 46",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "95695fd7cb5ad9c559c461479177aebb",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 47",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "f2c3ff3e015c4891fb9857c7fc3480fd",
+      "type": "instance",
+      "name": "Referenced fabricated part 48",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "9838c98a9f6f579e02350f25fed7674d",
+      "type": "instance",
+      "name": "Referenced fabricated part 49",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "23e0bac4a0cfc00cb967a33acfd5f624",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 50",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "e00235339ff0c31beef83afbb90f901f",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 51",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "cfe805462f21ff67266cdd9fefe240d1",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 52",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "e2fdb8295acc8df3bfc020fb58dfef56",
+      "type": "instance",
+      "name": "Referenced fabricated part 53",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "cb89c41a5d6e261b4a87fee2456a5264",
+      "type": "instance",
+      "name": "Referenced fabricated part 54",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "67e544f4897e0a025e549cf1c36d3ad2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 55",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "9845b4a32214f1561592f89aa5c6fe40",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 56",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "b8c7add6e263173433b90985d0217003",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 57",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "0e3ca59599e5779038ebc8dfebb34efb",
+      "type": "instance",
+      "name": "Referenced fabricated part 58",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8b0a9292049cdc4a86e84f50e8ef1e35",
+      "type": "instance",
+      "name": "Referenced fabricated part 59",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "16c3f721d58f53d8640aded53d64b0e2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 60",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "79cbdd62fcc27440164c3de34e1c7828",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 61",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "353184a16fefc3aac8d36518d36b0fd5",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 62",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "a87c42af563ea9bd13c8e40da699673e",
+      "type": "instance",
+      "name": "Referenced fabricated part 63",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "104b6ce57b39e6141bb45d1774dda9dc",
+      "type": "instance",
+      "name": "Referenced fabricated part 64",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "ecbe957f08e6a352b6da51c4f6058f47",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 65",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "5dc09e0c61b3ab12f2c54fdc9c53f716",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 66",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "95a9628afb5e8ac654cd778bbd60da54",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 67",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "961c6c03f7cf549d9db2da5ff1d37727",
+      "type": "instance",
+      "name": "Referenced fabricated part 68",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "5c81041b1fb3b72836113aef7253c73d",
+      "type": "instance",
+      "name": "Referenced fabricated part 69",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "9269a84677263b8ebd0d8baee9862dd2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 70",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "5ef3f8c810b3f86517547a50dbcab8de",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 71",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "7c290e78af29322a10446b40ee6a4f14",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 72",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "f81cfde96e24479998c2be512c54b813",
+      "type": "instance",
+      "name": "Referenced fabricated part 73",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "1f949af3028160d634389f033d559df1",
+      "type": "instance",
+      "name": "Referenced fabricated part 74",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "206b466a9856204ab46c2aff38f8ef81",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 75",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "d307f0eb86d939c0d8a0786f63b8cbcd",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 76",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "10231f618336c70cbd231ab8d1a3d15c",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 77",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "de0d93c2c22f46607c99d4252053599b",
+      "type": "instance",
+      "name": "Referenced fabricated part 78",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "e0bd2cf7eaa5ef1a26a9beae82663b07",
+      "type": "instance",
+      "name": "Referenced fabricated part 79",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "14851320848ccf63c054a26e302c077a",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 80",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "7a76091f4b82db28c4146535d82d04fd",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 81",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "50fcabd4435a635001bf0782f24374f8",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 82",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "24e6d251890babeff35ae05d28e340f1",
+      "type": "instance",
+      "name": "Referenced fabricated part 83",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "51ebbada4418fffc9ba5bfeb2f64e5fb",
+      "type": "instance",
+      "name": "Referenced fabricated part 84",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "11f47e45efa77a8f16a3960bbd96fcee",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 85",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "e18be1e468a346fbed9684861caf463e",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 86",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "01d977325fe6fa138c895232601a98ae",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 87",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "b2448b4f37f99475cabf0d448dedf35e",
+      "type": "instance",
+      "name": "Referenced fabricated part 88",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "993ad436516b006eda7b318bab28977c",
+      "type": "instance",
+      "name": "Referenced fabricated part 89",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "7b0d82bd04612df7e1a33d6603035f8a",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 90",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "931fce54a723561eed9cf4d8422487ec",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 91",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "c20b1756e35e16a4434c203c1132ac02",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 92",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "dd319c29cf9ea681741558f1bcb98036",
+      "type": "instance",
+      "name": "Referenced fabricated part 93",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "a778a36541334542dbb64e70670e6687",
+      "type": "instance",
+      "name": "Referenced fabricated part 94",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "1f9f7354b1b39ad1e3a4f6964a2d6ed0",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 95",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "434a19b58c48e4f5954cd1a5d7cdf1f3",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 96",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "2057f79853b6d0846d14c53d565e85dd",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 97",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "8eb47f6e968420ba9dc9f6fa5a7d30bf",
+      "type": "instance",
+      "name": "Referenced fabricated part 98",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8b7795588a0df37cb11d278fc596d19f",
+      "type": "instance",
+      "name": "Referenced fabricated part 99",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "9865434421c724eb5455ff0d0e88dc81",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 100",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "1580fd656cdb7b59af0049f96b78f1fd",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 101",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "39f8677404a043b337874ed921b8da25",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 102",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "dc5b126368123357adf1039d2f7ac24c",
+      "type": "instance",
+      "name": "Referenced fabricated part 103",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "44bada43cd1f3923b65f503294521d0f",
+      "type": "instance",
+      "name": "Referenced fabricated part 104",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "7c2edbdd1be768f9cee84acfed9cbd43",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 105",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "dcd9897ba6646c05f708ed3d5387e1c2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 106",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "4608f888d275f508ebb586b5a71120f2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 107",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "511afcc7f76d33b3ab3e27c71fca69c8",
+      "type": "instance",
+      "name": "Referenced fabricated part 108",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "918857fbdb4ef2e4de4d76ef454175fc",
+      "type": "instance",
+      "name": "Referenced fabricated part 109",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "d0ad5b34a7ed48275b7d7fbfbf3c9a7a",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 110",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "a753a42e8ef911d9806f22129f0d5aea",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 111",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "45ab96219fa8e54717fcb4c190db00b0",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 112",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "727c5ce0ab6df0de3cfee37b229690cc",
+      "type": "instance",
+      "name": "Referenced fabricated part 113",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "0a5de8f8812a048b01a672d7a405f267",
+      "type": "instance",
+      "name": "Referenced fabricated part 114",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "8724a7e5250399476f80df2eae7ff4f3",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 115",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "b008e56be37eba0706c9692e435b0d55",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 116",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "934dcaa160d372be8a824435c4870afe",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 117",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "4a7610ecf3530d2eeed19843f3deac1b",
+      "type": "instance",
+      "name": "Referenced fabricated part 118",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "55f073fdc45a9f50c15619121fe3f6f7",
+      "type": "instance",
+      "name": "Referenced fabricated part 119",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "1191badcf8ae271ed8590161567919a2",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 120",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "3a47eb69796890aea3466d062707b146",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 121",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "792cb83c2c4237212892b3fba20bdfc4",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 122",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "de46b25d68bdca20763bc14df64db4cb",
+      "type": "instance",
+      "name": "Referenced fabricated part 123",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "d5ea1209375f01b7dfe4c2f68f675621",
+      "type": "instance",
+      "name": "Referenced fabricated part 124",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "b26ca3c922551e22c8f0aee38ee8c4ee",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 125",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "3884a6341df5bd3ab71a91b240f12e2b",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 126",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "8c4b56fc933d0c90467da4e2ace96d28",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 127",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "b7f0e81320204df5fdf34bbd9f6a43c1",
+      "type": "instance",
+      "name": "Referenced fabricated part 128",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "86cc841284f9fea4a6a6987b4d088d89",
+      "type": "instance",
+      "name": "Referenced fabricated part 129",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "14b6e24b45999d1e0d6be555ce5e6e2e",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 130",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "54d3c99d901ec6da504f1136cae6dd60",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 131",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "2239cb87aaa5eaa1c83069a63fcbb121",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 132",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "74c78bcabe86ae35f77540bb4e2a439d",
+      "type": "instance",
+      "name": "Referenced fabricated part 133",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "e268d7e7766041b16730fd58fb5a59ec",
+      "type": "instance",
+      "name": "Referenced fabricated part 134",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "d1bf14e2ca2d850cd7bdb1d644899d72",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 135",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0338cd117e6c8bae67d22d70ebe8c6ac",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 136",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "605408a98e500f68775e199d2c7cd473",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 137",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "7abebf4cf20629b186e6bb073b47ede6",
+      "type": "instance",
+      "name": "Referenced fabricated part 138",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "01075297260d57d71d9f5df3bd7a3b45",
+      "type": "instance",
+      "name": "Referenced fabricated part 139",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "5a0738174ffbd695d465112b4437d340",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 140",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0bfda1b93e8390539aaa60ca93bb5133",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 141",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "7602ddb4ca402355618dc33ea9954119",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 142",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "cb71e3c18214c744dbda4f86e9a3daae",
+      "type": "instance",
+      "name": "Referenced fabricated part 143",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8e72d6d241f57515a21430de93084850",
+      "type": "instance",
+      "name": "Referenced fabricated part 144",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "0ba665d241c31d3a3177282b6b45ef46",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 145",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "0557b8c0c661c599ed42b7b92593ba82",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 146",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "984bbd43dafb0f4168079b703bec21a6",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 147",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "af9b3844e9b39f2c4cbf6d208b5d8bed",
+      "type": "instance",
+      "name": "Referenced fabricated part 148",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "8d8e39859537c80cc5f946d4fabe21f4",
+      "type": "instance",
+      "name": "Referenced fabricated part 149",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "f67c340a0361d7af5277ea3baa5a7cd7",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 150",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "3c2fb4c4be0c3a1b963ca70f32d074aa",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 151",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "e74be6e672aff093ac6b04fd827828be",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 152",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "698efc522e78a284ccc4f90d29881ead",
+      "type": "instance",
+      "name": "Referenced fabricated part 153",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "028251e50d7fac384882b51b22b5d6d6",
+      "type": "instance",
+      "name": "Referenced fabricated part 154",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "d1a2c2edae7358545bc62965048a0d8f",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 155",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "d8bec144d97d2309a1536ca4fa96e797",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 156",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "72a5c4c81f0550d48d46b9773fc48e40",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 157",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "13db9ae697f015effb65060bf92f5f3a",
+      "type": "instance",
+      "name": "Referenced fabricated part 158",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "29705918c3418c636353f5b5914d3247",
+      "type": "instance",
+      "name": "Referenced fabricated part 159",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    },
+    {
+      "hash": "9aeb0df3e526818a9ecb522b31f315e5",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 160",
+      "parent": "131f995e637d5cb5b9233be8254282be"
+    },
+    {
+      "hash": "9e9291538a8b5f1ffac4c7078f7a78fe",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 161",
+      "parent": "7332f5271a21c92bc13eba2c235433e5"
+    },
+    {
+      "hash": "e808f0f15ca0cf0a6aa8c478dd12bd33",
+      "type": "instance",
+      "name": "Installed bolt / washer / nut 162",
+      "parent": "2fc2477e798bfa0f2f7ae4db9b643177"
+    },
+    {
+      "hash": "febcd404031b77ebaacdf43e8fe6c35b",
+      "type": "instance",
+      "name": "Referenced fabricated part 163",
+      "parent": "494f5a3a3ba4761349aac60b227ed9ee"
+    },
+    {
+      "hash": "7a077fa05c29e61468aabd76f3a2e992",
+      "type": "instance",
+      "name": "Referenced fabricated part 164",
+      "parent": "820ed46c6e22de0de45df0e119f5ed66"
+    }
+  ],
+  "materials": 128,
+  "textures": 64,
+  "textureSize": 512,
+  "authoredPolygons": 0,
+  "stockPolygonObjects": 3,
+  "complexity": {
+    "authoredCages": 384,
+    "referencedContours": 8,
+    "cageVertices": 5667,
+    "cageSegments": 8513,
+    "distinctControlGraphSignatures": 60,
+    "distinctCageGeometry": 384,
+    "densePatches": [
+      {
+        "hash": "ffb31b24748bd8724bf80332ae01e273",
+        "children": 64,
+        "triangles": 4158,
+        "cells": 480
+      }
+    ]
+  },
+  "booleanOperations": {
+    "subtract": 34,
+    "union": 1,
+    "intersect": 1
+  },
+  "targetDisplayTriangles": [
+    1000000,
+    3000000
+  ],
+  "description": "Stylized excavator-like engineering workload; approximate fabrication assemblies, not dimensioned product CAD. Unique curved sheets, variable-section members, routed pipes/wires and nested cuts dominate. Standard hardware and repeated standard contours use native Instances.",
+  "bytes": 14202129,
+  "sha256": "f440d0cb8866c7bbf5f645b5df6155fa4333276cad788a77162d352e0594689f"
+}

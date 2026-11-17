@@ -1,0 +1,6148 @@
+{
+  "version": 2,
+  "objects": [
+    {
+      "hash": "ec6edae84667ebcaef867ebb5eba1621",
+      "type": "group",
+      "name": "Native Zoo 1000",
+      "parent": null
+    },
+    {
+      "hash": "54d71171a56b7263d4a0dc9f93084db3",
+      "type": "group",
+      "name": "Dense multi-cage Patches",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "8a3396d51f4db74b238324ef5c5e9653",
+      "type": "group",
+      "name": "Editable Patches",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "33f37e11d21d7a25df7fb07d869e38fc",
+      "type": "group",
+      "name": "Surface generators",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "9cbb6697f25e2a18ae813993fc3b506e",
+      "type": "group",
+      "name": "Boolean assemblies",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "a5f47e3433bd6840d0159571ed904a91",
+      "type": "group",
+      "name": "Occurrences",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "807c5b2325d597e8742637e9ee32dfab",
+      "type": "group",
+      "name": "Parametric solids",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "64b0825a3d3640fd0b0084dbde36397c",
+      "type": "group",
+      "name": "Curve primitives",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "4bedf5c62d3978dc9654748e18f30013",
+      "type": "group",
+      "name": "Helpers",
+      "parent": "ec6edae84667ebcaef867ebb5eba1621"
+    },
+    {
+      "hash": "a3fef4355d8beade7c480100038635d5",
+      "type": "spline_patch",
+      "name": "Dense Patch 00",
+      "parent": "54d71171a56b7263d4a0dc9f93084db3"
+    },
+    {
+      "hash": "1afbe8a73d812bc6630bdc284652c1db",
+      "type": "spline",
+      "name": "Dense cage 0/0",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "679475b789264f2c4df8d0b97e372d57",
+      "type": "spline",
+      "name": "Dense cage 0/1",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "1439f516e98778ffc33d03c65a422445",
+      "type": "spline",
+      "name": "Dense cage 0/2",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "758af3893e564acb3f2c30709069a9d2",
+      "type": "spline",
+      "name": "Dense cage 0/3",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "26c67d6921b297c5b8bb29745c8d26a2",
+      "type": "spline",
+      "name": "Dense cage 0/4",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "08ab3530518d2eeaeb26257eb2315188",
+      "type": "spline",
+      "name": "Dense cage 0/5",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "c536fca5d5b8b605dc10604d076afef2",
+      "type": "spline",
+      "name": "Dense cage 0/6",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "47feeed4c0b0978f5a81da5d68bf3a31",
+      "type": "spline",
+      "name": "Dense cage 0/7",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "dd92d2e56a6c893a4afe628eca3c48f9",
+      "type": "spline",
+      "name": "Dense cage 0/8",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "eb94fcd444c88afd844b0dc839b45f06",
+      "type": "spline",
+      "name": "Dense cage 0/9",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "eea86a65ece262bbbf6406fdabb8ef78",
+      "type": "spline",
+      "name": "Dense cage 0/10",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "239d4a0e0618d23911ebaa57848d102d",
+      "type": "spline",
+      "name": "Dense cage 0/11",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "a347e65310043f87a61f4c142246a6d2",
+      "type": "spline",
+      "name": "Dense cage 0/12",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "87d7269cc3ac10b9338ffcea91bcda2f",
+      "type": "spline",
+      "name": "Dense cage 0/13",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "ec186aff667d5dacd639e926d5a632ee",
+      "type": "spline",
+      "name": "Dense cage 0/14",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "c609e4e57f4d8e5672cf951ccde63445",
+      "type": "spline",
+      "name": "Dense cage 0/15",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "dcfa0cbe1dc3703297f36f94d6d8d184",
+      "type": "spline",
+      "name": "Dense cage 0/16",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "33dcea8dd12182823bb1e9604ccd5136",
+      "type": "spline",
+      "name": "Dense cage 0/17",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "ca4331e8edce675898345c6a476c6b30",
+      "type": "spline",
+      "name": "Dense cage 0/18",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "032f87ca8c921afa5febb2453af1c90d",
+      "type": "spline",
+      "name": "Dense cage 0/19",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "f24643706e5fcb398035f1ff0938d313",
+      "type": "spline",
+      "name": "Dense cage 0/20",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "43cc63a8c4a0c8cfd0a03405b80955b9",
+      "type": "spline",
+      "name": "Dense cage 0/21",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "178a3eb6f5092d5bab5cb2b5f5117458",
+      "type": "spline",
+      "name": "Dense cage 0/22",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "5f7387f094888a380ca555b6c993db68",
+      "type": "spline",
+      "name": "Dense cage 0/23",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "a377958a1da27fade065ddae8a79a65e",
+      "type": "spline",
+      "name": "Dense cage 0/24",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "187bc9af0044e556ea657f7353481858",
+      "type": "spline",
+      "name": "Dense cage 0/25",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "07b53f0f52f203bd55fffa42050ec7a9",
+      "type": "spline",
+      "name": "Dense cage 0/26",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "5f3cfd333c4f71492edb7c91edb90682",
+      "type": "spline",
+      "name": "Dense cage 0/27",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "5b83555f982b7d9be732fe62b699120d",
+      "type": "spline",
+      "name": "Dense cage 0/28",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "25c8ff30aee4f42ad0ac69f70408cd55",
+      "type": "spline",
+      "name": "Dense cage 0/29",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "3dea92cb01c569c1f534546063c0398b",
+      "type": "spline",
+      "name": "Dense cage 0/30",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "5c0908579668ccc1aa07bc20be8a312f",
+      "type": "spline",
+      "name": "Dense cage 0/31",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "310fed5c535bdde7a98bb79920d0ea32",
+      "type": "spline",
+      "name": "Dense cage 0/32",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "e8b75f362f36a18c80e5923999641da0",
+      "type": "spline",
+      "name": "Dense cage 0/33",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "73e9d4b3e2b5a26288d75390b6a0bb3f",
+      "type": "spline",
+      "name": "Dense cage 0/34",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "3350473e38b1cdace7e371af2baad4af",
+      "type": "spline",
+      "name": "Dense cage 0/35",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "ae3d73845a941f6c5623fe9d68ce0096",
+      "type": "spline",
+      "name": "Dense cage 0/36",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "db4cda6e31d048468731822615e5d033",
+      "type": "spline",
+      "name": "Dense cage 0/37",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "2b78f03d7a108dd15988f0020f875f9f",
+      "type": "spline",
+      "name": "Dense cage 0/38",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "561fb590bf51e931a0f43fc435a28d95",
+      "type": "spline",
+      "name": "Dense cage 0/39",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "fbad08535e27ffb617a0510dba940db5",
+      "type": "spline",
+      "name": "Dense cage 0/40",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "bbb1b80ab0090bb6bc6dd7356d78f4de",
+      "type": "spline",
+      "name": "Dense cage 0/41",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "7828c9c76f7350d233d0e5c7dc512ad2",
+      "type": "spline",
+      "name": "Dense cage 0/42",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "8de615449edf0b9c833a3070c8f50a87",
+      "type": "spline",
+      "name": "Dense cage 0/43",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "8c5f9168895dc3b23ea2bf760594e80b",
+      "type": "spline",
+      "name": "Dense cage 0/44",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "791be3f400532775fac993975788181c",
+      "type": "spline",
+      "name": "Dense cage 0/45",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "8293aae3036f5067fd272d8823c4aa8a",
+      "type": "spline",
+      "name": "Dense cage 0/46",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "4a053e7ada886e160c7419903b53bb59",
+      "type": "spline",
+      "name": "Dense cage 0/47",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "6db6c5e13fe67023166f3da822a2933f",
+      "type": "spline",
+      "name": "Dense cage 0/48",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "75841a26c111e732af359a89e52fc0fb",
+      "type": "spline",
+      "name": "Dense cage 0/49",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "e77cd9d23a1892d0fa3bc71e6e28629d",
+      "type": "spline",
+      "name": "Dense cage 0/50",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "6fbf2c21cbc8d1202c3b6e608a555e6a",
+      "type": "spline",
+      "name": "Dense cage 0/51",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "10f0ffdd3bfe351f11bf428ed3673075",
+      "type": "spline",
+      "name": "Dense cage 0/52",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "e26bb3b6950cb08bd14cd733c5a80132",
+      "type": "spline",
+      "name": "Dense cage 0/53",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "612e6a271974013b6c1c3f7145120eba",
+      "type": "spline",
+      "name": "Dense cage 0/54",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "b23eca056e53c8d556c2ca938173ffbf",
+      "type": "spline",
+      "name": "Dense cage 0/55",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "c1d811f8248704a8f2e286ee85c7d2e7",
+      "type": "spline",
+      "name": "Dense cage 0/56",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "30b5d169c6057f480e35249194b6d17d",
+      "type": "spline",
+      "name": "Dense cage 0/57",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "2458c1284f85f2ae0a271dc1f2554c65",
+      "type": "spline",
+      "name": "Dense cage 0/58",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "9945ab1d53c2c73005cc4b9e23dbe241",
+      "type": "spline",
+      "name": "Dense cage 0/59",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "21bb4b02a55bfb0c63ebbe09ad15b2ae",
+      "type": "spline",
+      "name": "Dense cage 0/60",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "c76c527220d3fc35e4d17e112341ad2e",
+      "type": "spline",
+      "name": "Dense cage 0/61",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "9f60f7fa1a1b4a519f76b406af152055",
+      "type": "spline",
+      "name": "Dense cage 0/62",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "2ed9030bbfa88398de347ce2feab37b8",
+      "type": "spline",
+      "name": "Dense cage 0/63",
+      "parent": "a3fef4355d8beade7c480100038635d5"
+    },
+    {
+      "hash": "ce9cb6f00d8f86111146e36c9832ecd2",
+      "type": "spline_patch",
+      "name": "Editable Patch 0",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "c880b384128d74670adca3121a6c1f96",
+      "type": "spline",
+      "name": "Patch cage 0",
+      "parent": "ce9cb6f00d8f86111146e36c9832ecd2"
+    },
+    {
+      "hash": "b560a1d8029e8ae5a7b852ef76aac96f",
+      "type": "spline_patch",
+      "name": "Editable Patch 1",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "b181f27597e7385ef1503fc8fc2e7273",
+      "type": "spline",
+      "name": "Patch cage 1",
+      "parent": "b560a1d8029e8ae5a7b852ef76aac96f"
+    },
+    {
+      "hash": "10320d1de6467bdc6978eb456bc61cbd",
+      "type": "spline_patch",
+      "name": "Editable Patch 2",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "976b6755b17298578a68f9d4e9628cb0",
+      "type": "spline",
+      "name": "Patch cage 2",
+      "parent": "10320d1de6467bdc6978eb456bc61cbd"
+    },
+    {
+      "hash": "81251e1729f1c22f4f748deff61293ee",
+      "type": "spline_patch",
+      "name": "Editable Patch 3",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "f1302ba40cd4ce9f18e935b0c9966787",
+      "type": "spline",
+      "name": "Patch cage 3",
+      "parent": "81251e1729f1c22f4f748deff61293ee"
+    },
+    {
+      "hash": "482adbaa9cfdffb0bd3d9c7b1fc5f141",
+      "type": "spline_patch",
+      "name": "Editable Patch 4",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "819da843c1a514e6eb6615b6a1a604b9",
+      "type": "spline",
+      "name": "Patch cage 4",
+      "parent": "482adbaa9cfdffb0bd3d9c7b1fc5f141"
+    },
+    {
+      "hash": "013c0e940fb50076217b0e440bdfca47",
+      "type": "spline_patch",
+      "name": "Editable Patch 5",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "7ff42569057b9c80f2933896fbd3bc32",
+      "type": "spline",
+      "name": "Patch cage 5",
+      "parent": "013c0e940fb50076217b0e440bdfca47"
+    },
+    {
+      "hash": "5299f8f029ef669590feea4b4ee25389",
+      "type": "spline_patch",
+      "name": "Editable Patch 6",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "b34917703a1bea2a51458913b05e127d",
+      "type": "spline",
+      "name": "Patch cage 6",
+      "parent": "5299f8f029ef669590feea4b4ee25389"
+    },
+    {
+      "hash": "38cd1bc043b0ad8cb6aa8c081d44b23b",
+      "type": "spline_patch",
+      "name": "Editable Patch 7",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "49b6cb317af319006bd5432e37ad3ec2",
+      "type": "spline",
+      "name": "Patch cage 7",
+      "parent": "38cd1bc043b0ad8cb6aa8c081d44b23b"
+    },
+    {
+      "hash": "343a0c70aaa0cf7074b16a14eecca96c",
+      "type": "spline_patch",
+      "name": "Editable Patch 8",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "edfbb078fd0345dc1d93b31c266f682c",
+      "type": "spline",
+      "name": "Patch cage 8",
+      "parent": "343a0c70aaa0cf7074b16a14eecca96c"
+    },
+    {
+      "hash": "28e094237bb4625ba2f5658a3ce59a95",
+      "type": "spline_patch",
+      "name": "Editable Patch 9",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "a3ca127586bf49b626252c545cff075f",
+      "type": "spline",
+      "name": "Patch cage 9",
+      "parent": "28e094237bb4625ba2f5658a3ce59a95"
+    },
+    {
+      "hash": "dbee5e3f2fe8b49c321256e8293d4a17",
+      "type": "spline_patch",
+      "name": "Editable Patch 10",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "a9f140a51b62c25e6a3a0d945ed68d81",
+      "type": "spline",
+      "name": "Patch cage 10",
+      "parent": "dbee5e3f2fe8b49c321256e8293d4a17"
+    },
+    {
+      "hash": "8446d8d1c9ebdd46da2978c8ae53bcab",
+      "type": "spline_patch",
+      "name": "Editable Patch 11",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "78fed9af7a39c1148a717d8b3028d7cd",
+      "type": "spline",
+      "name": "Patch cage 11",
+      "parent": "8446d8d1c9ebdd46da2978c8ae53bcab"
+    },
+    {
+      "hash": "a0b4eb1d8baec21ebc11b75ad2ae5458",
+      "type": "spline_patch",
+      "name": "Editable Patch 12",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "b124bdcca1fae501c3900fecea5f9880",
+      "type": "spline",
+      "name": "Patch cage 12",
+      "parent": "a0b4eb1d8baec21ebc11b75ad2ae5458"
+    },
+    {
+      "hash": "39d6e64498b4961428183e877139c3c9",
+      "type": "spline_patch",
+      "name": "Editable Patch 13",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "afd17f81aef8fd2a60b1b607516aa82e",
+      "type": "spline",
+      "name": "Patch cage 13",
+      "parent": "39d6e64498b4961428183e877139c3c9"
+    },
+    {
+      "hash": "77c423b92eab2c861a19bb7a8b6f2225",
+      "type": "spline_patch",
+      "name": "Editable Patch 14",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "ee8547186c3dacd637df722a222c7624",
+      "type": "spline",
+      "name": "Patch cage 14",
+      "parent": "77c423b92eab2c861a19bb7a8b6f2225"
+    },
+    {
+      "hash": "7a46ba9f4dc20588c8e025a46d9bd722",
+      "type": "spline_patch",
+      "name": "Editable Patch 15",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "7c50fb756eb4fe1512d7e387bb55a0cb",
+      "type": "spline",
+      "name": "Patch cage 15",
+      "parent": "7a46ba9f4dc20588c8e025a46d9bd722"
+    },
+    {
+      "hash": "5d05fc4970c472965296047dc43ee3db",
+      "type": "spline_patch",
+      "name": "Editable Patch 16",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "e9b636a155e8af412b8ce2494792b291",
+      "type": "spline",
+      "name": "Patch cage 16",
+      "parent": "5d05fc4970c472965296047dc43ee3db"
+    },
+    {
+      "hash": "21d1719ec716d6d517c92b9d960c8670",
+      "type": "spline_patch",
+      "name": "Editable Patch 17",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "aeaaccfbd77eb2a2305594bbff772c76",
+      "type": "spline",
+      "name": "Patch cage 17",
+      "parent": "21d1719ec716d6d517c92b9d960c8670"
+    },
+    {
+      "hash": "4f8174e8c7e4ae6107a0819e759c2083",
+      "type": "spline_patch",
+      "name": "Editable Patch 18",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "af1c0a06e1d737937cf64fecba3fb76d",
+      "type": "spline",
+      "name": "Patch cage 18",
+      "parent": "4f8174e8c7e4ae6107a0819e759c2083"
+    },
+    {
+      "hash": "1327a5a8b4f8d734d737ae6bca23437f",
+      "type": "spline_patch",
+      "name": "Editable Patch 19",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "33b8bd2f9c46cba02412718deaeda777",
+      "type": "spline",
+      "name": "Patch cage 19",
+      "parent": "1327a5a8b4f8d734d737ae6bca23437f"
+    },
+    {
+      "hash": "727b324d122203195a87cc580a9e754f",
+      "type": "spline_patch",
+      "name": "Editable Patch 20",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "31c3b9b05129b2e3840b78cf95287cbf",
+      "type": "spline",
+      "name": "Patch cage 20",
+      "parent": "727b324d122203195a87cc580a9e754f"
+    },
+    {
+      "hash": "78d78c6b57e6d95f11c45f5512722a67",
+      "type": "spline_patch",
+      "name": "Editable Patch 21",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "3e65cce56ca7bb019fded5537b2e76d6",
+      "type": "spline",
+      "name": "Patch cage 21",
+      "parent": "78d78c6b57e6d95f11c45f5512722a67"
+    },
+    {
+      "hash": "2a1a563c20ff1108008c2cc37e441bd0",
+      "type": "spline_patch",
+      "name": "Editable Patch 22",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "ed0d045a06a26f7b1d32835a674cf933",
+      "type": "spline",
+      "name": "Patch cage 22",
+      "parent": "2a1a563c20ff1108008c2cc37e441bd0"
+    },
+    {
+      "hash": "0f3c3199060a0cfb9c7b666ad96a97ec",
+      "type": "spline_patch",
+      "name": "Editable Patch 23",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "adc07133c7960e2ccd3361e5a434e55b",
+      "type": "spline",
+      "name": "Patch cage 23",
+      "parent": "0f3c3199060a0cfb9c7b666ad96a97ec"
+    },
+    {
+      "hash": "7263f480707c1eef97025a840a2052eb",
+      "type": "spline_patch",
+      "name": "Editable Patch 24",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "73a44b9f8c56c47b3454897712d6873f",
+      "type": "spline",
+      "name": "Patch cage 24",
+      "parent": "7263f480707c1eef97025a840a2052eb"
+    },
+    {
+      "hash": "bf1407ce549364806473db28c36dc134",
+      "type": "spline_patch",
+      "name": "Editable Patch 25",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "d7f78f127426485e6b4edac490442ec2",
+      "type": "spline",
+      "name": "Patch cage 25",
+      "parent": "bf1407ce549364806473db28c36dc134"
+    },
+    {
+      "hash": "fa52039fde32de07d0c0bf27d5e0fd5c",
+      "type": "spline_patch",
+      "name": "Editable Patch 26",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "7b7499e21f039f1ec5662827d75451e3",
+      "type": "spline",
+      "name": "Patch cage 26",
+      "parent": "fa52039fde32de07d0c0bf27d5e0fd5c"
+    },
+    {
+      "hash": "c35c12829a827dcfe35868b97f8b57ae",
+      "type": "spline_patch",
+      "name": "Editable Patch 27",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "765c8085f64dfe8b2411d9590c8d4a2c",
+      "type": "spline",
+      "name": "Patch cage 27",
+      "parent": "c35c12829a827dcfe35868b97f8b57ae"
+    },
+    {
+      "hash": "2be62e9d4de324cd68974eb3f5a72f6a",
+      "type": "spline_patch",
+      "name": "Editable Patch 28",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "1d1bcf47ab51ad4e15cc23dbf20beb06",
+      "type": "spline",
+      "name": "Patch cage 28",
+      "parent": "2be62e9d4de324cd68974eb3f5a72f6a"
+    },
+    {
+      "hash": "ed7bb69f72808cd0cbd36c3ebe5f2fa2",
+      "type": "spline_patch",
+      "name": "Editable Patch 29",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "e78eecde31768d401baa5ec56cd49658",
+      "type": "spline",
+      "name": "Patch cage 29",
+      "parent": "ed7bb69f72808cd0cbd36c3ebe5f2fa2"
+    },
+    {
+      "hash": "fb3228042e2770ebf1cae568c4bf57a4",
+      "type": "spline_patch",
+      "name": "Editable Patch 30",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "850fbd3a012f3c3340a2030c5845a6ca",
+      "type": "spline",
+      "name": "Patch cage 30",
+      "parent": "fb3228042e2770ebf1cae568c4bf57a4"
+    },
+    {
+      "hash": "abb95c157db146b5d24d5d059711db57",
+      "type": "spline_patch",
+      "name": "Editable Patch 31",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "71b66cf8beab2e499ef4367683b621fc",
+      "type": "spline",
+      "name": "Patch cage 31",
+      "parent": "abb95c157db146b5d24d5d059711db57"
+    },
+    {
+      "hash": "9a6b9c6a6ffa35fd1d3b7a2e80b57949",
+      "type": "spline_patch",
+      "name": "Editable Patch 32",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "cd384bf8504b944852c22a8483d00bfc",
+      "type": "spline",
+      "name": "Patch cage 32",
+      "parent": "9a6b9c6a6ffa35fd1d3b7a2e80b57949"
+    },
+    {
+      "hash": "bbcee71d3f19756bf870b79ad5c3e814",
+      "type": "spline_patch",
+      "name": "Editable Patch 33",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "8480352421d3586182394e8287012b05",
+      "type": "spline",
+      "name": "Patch cage 33",
+      "parent": "bbcee71d3f19756bf870b79ad5c3e814"
+    },
+    {
+      "hash": "702d5a211fdfa3a675f7b5afd05df206",
+      "type": "spline_patch",
+      "name": "Editable Patch 34",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "4050f9658b9889887a8d888e335182ac",
+      "type": "spline",
+      "name": "Patch cage 34",
+      "parent": "702d5a211fdfa3a675f7b5afd05df206"
+    },
+    {
+      "hash": "62e53a735e1f96c2fbc1c2ae674a9806",
+      "type": "spline_patch",
+      "name": "Editable Patch 35",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "4d1f83187d9f40c789787e6390aa1795",
+      "type": "spline",
+      "name": "Patch cage 35",
+      "parent": "62e53a735e1f96c2fbc1c2ae674a9806"
+    },
+    {
+      "hash": "297d05678a36245095a6c3e1570b3053",
+      "type": "spline_patch",
+      "name": "Editable Patch 36",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "1cfda36bb8d007276326881991f161d6",
+      "type": "spline",
+      "name": "Patch cage 36",
+      "parent": "297d05678a36245095a6c3e1570b3053"
+    },
+    {
+      "hash": "0d55840c95f4e18568b17dd9856fc820",
+      "type": "spline_patch",
+      "name": "Editable Patch 37",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "60c7cb5467abbbb1b94340cbb12118b7",
+      "type": "spline",
+      "name": "Patch cage 37",
+      "parent": "0d55840c95f4e18568b17dd9856fc820"
+    },
+    {
+      "hash": "3418ac17d9a9901af9ae1a83e2a05aa9",
+      "type": "spline_patch",
+      "name": "Editable Patch 38",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "b7b5a34cc5e0d8e28aa317c54f5d87dd",
+      "type": "spline",
+      "name": "Patch cage 38",
+      "parent": "3418ac17d9a9901af9ae1a83e2a05aa9"
+    },
+    {
+      "hash": "f5cbfd88f6f6aeefe9179eff780bd4f4",
+      "type": "spline_patch",
+      "name": "Editable Patch 39",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "cac24439045c40bf17d8d7eec314d847",
+      "type": "spline",
+      "name": "Patch cage 39",
+      "parent": "f5cbfd88f6f6aeefe9179eff780bd4f4"
+    },
+    {
+      "hash": "718df3d4ce3f819834f5e7aaf1b03a01",
+      "type": "spline_patch",
+      "name": "Editable Patch 40",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "0a40642817c85643cf9a06397894e728",
+      "type": "spline",
+      "name": "Patch cage 40",
+      "parent": "718df3d4ce3f819834f5e7aaf1b03a01"
+    },
+    {
+      "hash": "e8adc28b1d6ac86237863022f3f67339",
+      "type": "spline_patch",
+      "name": "Editable Patch 41",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "9659c1aaa1f163c8c4ca8c76d68d140e",
+      "type": "spline",
+      "name": "Patch cage 41",
+      "parent": "e8adc28b1d6ac86237863022f3f67339"
+    },
+    {
+      "hash": "ba76008a532950638c853e91b2429846",
+      "type": "spline_patch",
+      "name": "Editable Patch 42",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "e612d3d00ee821b1136543e83a859a3f",
+      "type": "spline",
+      "name": "Patch cage 42",
+      "parent": "ba76008a532950638c853e91b2429846"
+    },
+    {
+      "hash": "d5c72824d7c0195d974e8117926d67c7",
+      "type": "spline_patch",
+      "name": "Editable Patch 43",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "a0df06f26312022cab8ff8d8fcb05d1d",
+      "type": "spline",
+      "name": "Patch cage 43",
+      "parent": "d5c72824d7c0195d974e8117926d67c7"
+    },
+    {
+      "hash": "edd09754b35e922d9705b25375ab4ac5",
+      "type": "spline_patch",
+      "name": "Editable Patch 44",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "3518e12073c0756c0333b84f5d7b36d6",
+      "type": "spline",
+      "name": "Patch cage 44",
+      "parent": "edd09754b35e922d9705b25375ab4ac5"
+    },
+    {
+      "hash": "b32da2cde9b6570563932a1d2f31c991",
+      "type": "spline_patch",
+      "name": "Editable Patch 45",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "e2f8d6daf883465871fd31c5bf24b452",
+      "type": "spline",
+      "name": "Patch cage 45",
+      "parent": "b32da2cde9b6570563932a1d2f31c991"
+    },
+    {
+      "hash": "b6623253f64fb786f2fc9158b235fa62",
+      "type": "spline_patch",
+      "name": "Editable Patch 46",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "0340c90e03291770f199afcdb5df2396",
+      "type": "spline",
+      "name": "Patch cage 46",
+      "parent": "b6623253f64fb786f2fc9158b235fa62"
+    },
+    {
+      "hash": "74673c44c0ca7a79a548aee81af8f30e",
+      "type": "spline_patch",
+      "name": "Editable Patch 47",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "5303034cb73b737406f5f16224776e1d",
+      "type": "spline",
+      "name": "Patch cage 47",
+      "parent": "74673c44c0ca7a79a548aee81af8f30e"
+    },
+    {
+      "hash": "2bf97ca125c6e27fca65143e1099db72",
+      "type": "spline_patch",
+      "name": "Editable Patch 48",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "59588589fb993ab3e945477ad903f7a6",
+      "type": "spline",
+      "name": "Patch cage 48",
+      "parent": "2bf97ca125c6e27fca65143e1099db72"
+    },
+    {
+      "hash": "f75cf97bea7b8f07769c3f90e3b38799",
+      "type": "spline_patch",
+      "name": "Editable Patch 49",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "1a45e078aea18548d8540e7f8dcfee01",
+      "type": "spline",
+      "name": "Patch cage 49",
+      "parent": "f75cf97bea7b8f07769c3f90e3b38799"
+    },
+    {
+      "hash": "73169670821f57e792bcae82376993f9",
+      "type": "spline_patch",
+      "name": "Editable Patch 50",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "d5d6b7617a8258a342c423f145360a4b",
+      "type": "spline",
+      "name": "Patch cage 50",
+      "parent": "73169670821f57e792bcae82376993f9"
+    },
+    {
+      "hash": "c56d0b1619c975a299efab1a1b3a8a18",
+      "type": "spline_patch",
+      "name": "Editable Patch 51",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "173f1ea9664c80e45b47d633d481de0f",
+      "type": "spline",
+      "name": "Patch cage 51",
+      "parent": "c56d0b1619c975a299efab1a1b3a8a18"
+    },
+    {
+      "hash": "ffc7a8a3dd03d663686a9687cf9392f1",
+      "type": "spline_patch",
+      "name": "Editable Patch 52",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "05597d7d5accf0713ec27d8728ffe633",
+      "type": "spline",
+      "name": "Patch cage 52",
+      "parent": "ffc7a8a3dd03d663686a9687cf9392f1"
+    },
+    {
+      "hash": "a1dce96de6fba137ad3aa0472e30f139",
+      "type": "spline_patch",
+      "name": "Editable Patch 53",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "baf9d26bed171309c6170a9d275a0b9d",
+      "type": "spline",
+      "name": "Patch cage 53",
+      "parent": "a1dce96de6fba137ad3aa0472e30f139"
+    },
+    {
+      "hash": "8054a18edf19baee5bdcb767b0647af1",
+      "type": "spline_patch",
+      "name": "Editable Patch 54",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "9a2fa08ccb5bba036b56d2bb1591f169",
+      "type": "spline",
+      "name": "Patch cage 54",
+      "parent": "8054a18edf19baee5bdcb767b0647af1"
+    },
+    {
+      "hash": "cfd79d76c59084dc808b55f719849487",
+      "type": "spline_patch",
+      "name": "Editable Patch 55",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "2c76740a1ffa2b9bb90fe7a047a8fe5e",
+      "type": "spline",
+      "name": "Patch cage 55",
+      "parent": "cfd79d76c59084dc808b55f719849487"
+    },
+    {
+      "hash": "20055f76347c2e829ef42c83a71410a2",
+      "type": "spline_patch",
+      "name": "Editable Patch 56",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "4e97685e5b16ad3fd515d4016459e045",
+      "type": "spline",
+      "name": "Patch cage 56",
+      "parent": "20055f76347c2e829ef42c83a71410a2"
+    },
+    {
+      "hash": "52dc83675a80a8d68f935a6e5536cd26",
+      "type": "spline_patch",
+      "name": "Editable Patch 57",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "4ae64e12d34af6e3deccacdfce00ee23",
+      "type": "spline",
+      "name": "Patch cage 57",
+      "parent": "52dc83675a80a8d68f935a6e5536cd26"
+    },
+    {
+      "hash": "b6e9850b7d0ec25fe6200356651e13b3",
+      "type": "spline_patch",
+      "name": "Editable Patch 58",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "a3e821fa6c8a5d6e2b677edec4790a65",
+      "type": "spline",
+      "name": "Patch cage 58",
+      "parent": "b6e9850b7d0ec25fe6200356651e13b3"
+    },
+    {
+      "hash": "8ee1a1d89b4d741dfb554aba6368ff06",
+      "type": "spline_patch",
+      "name": "Editable Patch 59",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "621a263bbbe9f6bf16574ffa072fbb2e",
+      "type": "spline",
+      "name": "Patch cage 59",
+      "parent": "8ee1a1d89b4d741dfb554aba6368ff06"
+    },
+    {
+      "hash": "930d11402d6d126fb63aea1ae2db14fb",
+      "type": "spline_patch",
+      "name": "Editable Patch 60",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "7a8db6a6093e3bb675c28a3a747b0d10",
+      "type": "spline",
+      "name": "Patch cage 60",
+      "parent": "930d11402d6d126fb63aea1ae2db14fb"
+    },
+    {
+      "hash": "95c111b7fd5a0f7b65387927bd3fc6ce",
+      "type": "spline_patch",
+      "name": "Editable Patch 61",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "e132fccc227ab215441207ce824cbe26",
+      "type": "spline",
+      "name": "Patch cage 61",
+      "parent": "95c111b7fd5a0f7b65387927bd3fc6ce"
+    },
+    {
+      "hash": "8a6a251d87c0fa1ad090d38a774efc6d",
+      "type": "spline_patch",
+      "name": "Editable Patch 62",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "02e2f167c2c3bbfc7d45d3e795a4a57e",
+      "type": "spline",
+      "name": "Patch cage 62",
+      "parent": "8a6a251d87c0fa1ad090d38a774efc6d"
+    },
+    {
+      "hash": "de7e1ceed00d8380beb37b1632f50298",
+      "type": "spline_patch",
+      "name": "Editable Patch 63",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "61cbb7a6e960be650638594608498d05",
+      "type": "spline",
+      "name": "Patch cage 63",
+      "parent": "de7e1ceed00d8380beb37b1632f50298"
+    },
+    {
+      "hash": "099e8ec33236dd28ff8c36009f74eacf",
+      "type": "spline_patch",
+      "name": "Editable Patch 64",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "c3edc5999698fc414107649b6e253b43",
+      "type": "spline",
+      "name": "Patch cage 64",
+      "parent": "099e8ec33236dd28ff8c36009f74eacf"
+    },
+    {
+      "hash": "d9aaa2a7905d4ab3034bf17124a5b6bc",
+      "type": "spline_patch",
+      "name": "Editable Patch 65",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "15512797db8e299fcf90a222290f1c6f",
+      "type": "spline",
+      "name": "Patch cage 65",
+      "parent": "d9aaa2a7905d4ab3034bf17124a5b6bc"
+    },
+    {
+      "hash": "923258948e804183a1cbe23c1422d7f6",
+      "type": "spline_patch",
+      "name": "Editable Patch 66",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "375a08e77627ae0df39b105573eb4c35",
+      "type": "spline",
+      "name": "Patch cage 66",
+      "parent": "923258948e804183a1cbe23c1422d7f6"
+    },
+    {
+      "hash": "d3093ccd21bb0dcdd9ba6d43d20adbb0",
+      "type": "spline_patch",
+      "name": "Editable Patch 67",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "2a809d46e3a047e435f673509b87bd24",
+      "type": "spline",
+      "name": "Patch cage 67",
+      "parent": "d3093ccd21bb0dcdd9ba6d43d20adbb0"
+    },
+    {
+      "hash": "a6c614a361d01c92842dfc7525356be3",
+      "type": "spline_patch",
+      "name": "Editable Patch 68",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "d366b8c84e0ab99ade17d18a0bde8fc0",
+      "type": "spline",
+      "name": "Patch cage 68",
+      "parent": "a6c614a361d01c92842dfc7525356be3"
+    },
+    {
+      "hash": "0a6b76d73c8a082e60af8f47493f04bf",
+      "type": "spline_patch",
+      "name": "Editable Patch 69",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "3d8571d50f5907831364771a4ab27b32",
+      "type": "spline",
+      "name": "Patch cage 69",
+      "parent": "0a6b76d73c8a082e60af8f47493f04bf"
+    },
+    {
+      "hash": "613cd7a921745477f9c97bb6a1811840",
+      "type": "spline_patch",
+      "name": "Editable Patch 70",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "43f27fc3d8ffb07240a80fbb0c954d7f",
+      "type": "spline",
+      "name": "Patch cage 70",
+      "parent": "613cd7a921745477f9c97bb6a1811840"
+    },
+    {
+      "hash": "60674ce97da3347cda3ff3dcdf262958",
+      "type": "spline_patch",
+      "name": "Editable Patch 71",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "f30139f9292218ec7c23ca0fd57ed549",
+      "type": "spline",
+      "name": "Patch cage 71",
+      "parent": "60674ce97da3347cda3ff3dcdf262958"
+    },
+    {
+      "hash": "2c4cbff06f1b14f8c45dcbd35a9f7717",
+      "type": "spline_patch",
+      "name": "Editable Patch 72",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "ea63075acb634d6465a8f3e77969d0fd",
+      "type": "spline",
+      "name": "Patch cage 72",
+      "parent": "2c4cbff06f1b14f8c45dcbd35a9f7717"
+    },
+    {
+      "hash": "aee22bf5c069e2e3a7aa5e8c9fc4aa03",
+      "type": "spline_patch",
+      "name": "Editable Patch 73",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "bc1f333d9ab2747d32ee4dfcec851726",
+      "type": "spline",
+      "name": "Patch cage 73",
+      "parent": "aee22bf5c069e2e3a7aa5e8c9fc4aa03"
+    },
+    {
+      "hash": "4bd1c44b804019d4cf22f159adeb8697",
+      "type": "spline_patch",
+      "name": "Editable Patch 74",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "170567a97771ed0924059ba31a22b9c3",
+      "type": "spline",
+      "name": "Patch cage 74",
+      "parent": "4bd1c44b804019d4cf22f159adeb8697"
+    },
+    {
+      "hash": "31b3e4962e220cc2e59ea76cab2d3789",
+      "type": "spline_patch",
+      "name": "Editable Patch 75",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "740730b8a5a67912c3f97332550f585a",
+      "type": "spline",
+      "name": "Patch cage 75",
+      "parent": "31b3e4962e220cc2e59ea76cab2d3789"
+    },
+    {
+      "hash": "218052e6ca782b75f3e64bd48f8f1d18",
+      "type": "spline_patch",
+      "name": "Editable Patch 76",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "6b2ca726c07c28be812d92288486b99d",
+      "type": "spline",
+      "name": "Patch cage 76",
+      "parent": "218052e6ca782b75f3e64bd48f8f1d18"
+    },
+    {
+      "hash": "d27d66f02692325d40d88deb89650918",
+      "type": "spline_patch",
+      "name": "Editable Patch 77",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "1cd1cec707aabb8ad9372d3dc177dd7a",
+      "type": "spline",
+      "name": "Patch cage 77",
+      "parent": "d27d66f02692325d40d88deb89650918"
+    },
+    {
+      "hash": "0c90be731849719a1e3031c23d962e70",
+      "type": "spline_patch",
+      "name": "Editable Patch 78",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "47a8d4d9303c1410d7aa804a29b5bbf9",
+      "type": "spline",
+      "name": "Patch cage 78",
+      "parent": "0c90be731849719a1e3031c23d962e70"
+    },
+    {
+      "hash": "c0fa41bfdb6333e995cf42ab4aad28a7",
+      "type": "spline_patch",
+      "name": "Editable Patch 79",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "49ba78a85b7f968ead6c5fe6f9fbbb72",
+      "type": "spline",
+      "name": "Patch cage 79",
+      "parent": "c0fa41bfdb6333e995cf42ab4aad28a7"
+    },
+    {
+      "hash": "fcd8f7a8a4a63dcf07631ca78fceb30a",
+      "type": "spline_patch",
+      "name": "Editable Patch 80",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "f8cf087d241cb820f54a849e450498b3",
+      "type": "spline",
+      "name": "Patch cage 80",
+      "parent": "fcd8f7a8a4a63dcf07631ca78fceb30a"
+    },
+    {
+      "hash": "ca695c9cf889976fa2bc0a6fae684491",
+      "type": "spline_patch",
+      "name": "Editable Patch 81",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "6d78222ac51a76b58a147c4018c4f62d",
+      "type": "spline",
+      "name": "Patch cage 81",
+      "parent": "ca695c9cf889976fa2bc0a6fae684491"
+    },
+    {
+      "hash": "9a4d90e8beb13121004ef85d20aa7d62",
+      "type": "spline_patch",
+      "name": "Editable Patch 82",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "2d41ac8cf7616402716903582b5eb054",
+      "type": "spline",
+      "name": "Patch cage 82",
+      "parent": "9a4d90e8beb13121004ef85d20aa7d62"
+    },
+    {
+      "hash": "b46b5236d36726b012912b74c54e859b",
+      "type": "spline_patch",
+      "name": "Editable Patch 83",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "ae0c056022af662cbccaa2bff5332766",
+      "type": "spline",
+      "name": "Patch cage 83",
+      "parent": "b46b5236d36726b012912b74c54e859b"
+    },
+    {
+      "hash": "5a02f7dee9b5827be5f86b510e8bac93",
+      "type": "spline_patch",
+      "name": "Editable Patch 84",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "33d2c14ff0aad63dd7f9f4e15ce47f8a",
+      "type": "spline",
+      "name": "Patch cage 84",
+      "parent": "5a02f7dee9b5827be5f86b510e8bac93"
+    },
+    {
+      "hash": "16b5f9b44c983aac57768d326c43c401",
+      "type": "spline_patch",
+      "name": "Editable Patch 85",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "7bef180ee50776a15167aa869f718cfb",
+      "type": "spline",
+      "name": "Patch cage 85",
+      "parent": "16b5f9b44c983aac57768d326c43c401"
+    },
+    {
+      "hash": "62b66becd6872edd0acdc87e3c592c84",
+      "type": "spline_patch",
+      "name": "Editable Patch 86",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "b963316efc9878acb57713e70a424b35",
+      "type": "spline",
+      "name": "Patch cage 86",
+      "parent": "62b66becd6872edd0acdc87e3c592c84"
+    },
+    {
+      "hash": "4a91e038b2e1b72cf04f00d7915a3471",
+      "type": "spline_patch",
+      "name": "Editable Patch 87",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "da2b287a9acb1213030de93957df29d4",
+      "type": "spline",
+      "name": "Patch cage 87",
+      "parent": "4a91e038b2e1b72cf04f00d7915a3471"
+    },
+    {
+      "hash": "52c081c3de59f24b5ec99906f1a01b09",
+      "type": "spline_patch",
+      "name": "Editable Patch 88",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "4896951bc6abe575dd8fc5681f7a17c6",
+      "type": "spline",
+      "name": "Patch cage 88",
+      "parent": "52c081c3de59f24b5ec99906f1a01b09"
+    },
+    {
+      "hash": "df7fefbca9b3ead666ba14697264d715",
+      "type": "spline_patch",
+      "name": "Editable Patch 89",
+      "parent": "8a3396d51f4db74b238324ef5c5e9653"
+    },
+    {
+      "hash": "5e84b7fd7248588c2fb483c3adfafdfa",
+      "type": "spline",
+      "name": "Patch cage 89",
+      "parent": "df7fefbca9b3ead666ba14697264d715"
+    },
+    {
+      "hash": "2b3dcc00f02ec348c8c62bdfe722d918",
+      "type": "extrude",
+      "name": "Extrude 0",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "2a74cb28ee6fa2fe4049cf46e0fd5ca0",
+      "type": "square",
+      "name": "Extrude profile 0",
+      "parent": "2b3dcc00f02ec348c8c62bdfe722d918"
+    },
+    {
+      "hash": "6cf43f573f735db5a7bd5b944914a8c2",
+      "type": "extrude",
+      "name": "Extrude 1",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "3e99b26064a20e2746af4356a06fed32",
+      "type": "circle",
+      "name": "Extrude profile 1",
+      "parent": "6cf43f573f735db5a7bd5b944914a8c2"
+    },
+    {
+      "hash": "d1bb2e561356a427bd86d6d720e9508c",
+      "type": "extrude",
+      "name": "Extrude 2",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "a7696218f8d1d4a7ecf3bcabe31a131a",
+      "type": "circle",
+      "name": "Extrude profile 2",
+      "parent": "d1bb2e561356a427bd86d6d720e9508c"
+    },
+    {
+      "hash": "8cffd140c43d33b24ea9163c4036c83f",
+      "type": "extrude",
+      "name": "Extrude 3",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "ccb5a44f5089eded1b832d7c465ac4dc",
+      "type": "square",
+      "name": "Extrude profile 3",
+      "parent": "8cffd140c43d33b24ea9163c4036c83f"
+    },
+    {
+      "hash": "70c05c6ee7fe113231cd2e708eebbc08",
+      "type": "extrude",
+      "name": "Extrude 4",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "e36c5b21c36a342600a6ec216e416aba",
+      "type": "circle",
+      "name": "Extrude profile 4",
+      "parent": "70c05c6ee7fe113231cd2e708eebbc08"
+    },
+    {
+      "hash": "74c1ee6a34f3f705a9bb04d10103473d",
+      "type": "extrude",
+      "name": "Extrude 5",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "af98783dab9b41d7377d88d089a6f738",
+      "type": "circle",
+      "name": "Extrude profile 5",
+      "parent": "74c1ee6a34f3f705a9bb04d10103473d"
+    },
+    {
+      "hash": "1457a382efae3cbad3fd3ef5a6f50a3f",
+      "type": "extrude",
+      "name": "Extrude 6",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "c9a6dbf75cf9ccfdf123e3046fce9179",
+      "type": "square",
+      "name": "Extrude profile 6",
+      "parent": "1457a382efae3cbad3fd3ef5a6f50a3f"
+    },
+    {
+      "hash": "97877a58cb06d1f43159329ae7b56f64",
+      "type": "extrude",
+      "name": "Extrude 7",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "6409aeddee575d8e9cca27ca2eba263e",
+      "type": "circle",
+      "name": "Extrude profile 7",
+      "parent": "97877a58cb06d1f43159329ae7b56f64"
+    },
+    {
+      "hash": "ceac55d8d5512e3ced29381be904456e",
+      "type": "extrude",
+      "name": "Extrude 8",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "3e161e8977a9ca1af29704892b4073b7",
+      "type": "circle",
+      "name": "Extrude profile 8",
+      "parent": "ceac55d8d5512e3ced29381be904456e"
+    },
+    {
+      "hash": "2ad3b09b2256901a49ce34d6da64f4f4",
+      "type": "extrude",
+      "name": "Extrude 9",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "8382595294fc8f566e509fee4f337226",
+      "type": "square",
+      "name": "Extrude profile 9",
+      "parent": "2ad3b09b2256901a49ce34d6da64f4f4"
+    },
+    {
+      "hash": "6eb3fe67f21747331d1ce5268ee37503",
+      "type": "extrude",
+      "name": "Extrude 10",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "582b2668a20263dc40701614c58f94cf",
+      "type": "circle",
+      "name": "Extrude profile 10",
+      "parent": "6eb3fe67f21747331d1ce5268ee37503"
+    },
+    {
+      "hash": "469ff8abf6143d1624b48aa44691d03a",
+      "type": "extrude",
+      "name": "Extrude 11",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "a9321faa03cea0440c86017128d69b3b",
+      "type": "circle",
+      "name": "Extrude profile 11",
+      "parent": "469ff8abf6143d1624b48aa44691d03a"
+    },
+    {
+      "hash": "3253061ae4656fdf5a74d59162ff9e17",
+      "type": "extrude",
+      "name": "Extrude 12",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "763a55673c0321e9fddc71bd7456dc95",
+      "type": "square",
+      "name": "Extrude profile 12",
+      "parent": "3253061ae4656fdf5a74d59162ff9e17"
+    },
+    {
+      "hash": "c80b782423bb132c6b9295f56c0f29a6",
+      "type": "extrude",
+      "name": "Extrude 13",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "964785420fb52b6ab8ad1ab4a7f85ca5",
+      "type": "circle",
+      "name": "Extrude profile 13",
+      "parent": "c80b782423bb132c6b9295f56c0f29a6"
+    },
+    {
+      "hash": "0cffb79ba6fb47cb6bfeb39ca5d55a34",
+      "type": "extrude",
+      "name": "Extrude 14",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "2fa292a2bb14c50f4f5de2372f43b75d",
+      "type": "circle",
+      "name": "Extrude profile 14",
+      "parent": "0cffb79ba6fb47cb6bfeb39ca5d55a34"
+    },
+    {
+      "hash": "57267273a107f6f268e781d2c3c89d67",
+      "type": "extrude",
+      "name": "Extrude 15",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "901622640b4648e1b16e20b3d0b2e970",
+      "type": "square",
+      "name": "Extrude profile 15",
+      "parent": "57267273a107f6f268e781d2c3c89d67"
+    },
+    {
+      "hash": "faddc96d2bbc8120d49e73ef6ae76601",
+      "type": "extrude",
+      "name": "Extrude 16",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "1c0f0e278ff64138f8b6d73cae4e4233",
+      "type": "circle",
+      "name": "Extrude profile 16",
+      "parent": "faddc96d2bbc8120d49e73ef6ae76601"
+    },
+    {
+      "hash": "af4d07c8aa57b55c0cde7a050a7a9142",
+      "type": "extrude",
+      "name": "Extrude 17",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "88ca955453c7e5152da7434a2b2551c4",
+      "type": "circle",
+      "name": "Extrude profile 17",
+      "parent": "af4d07c8aa57b55c0cde7a050a7a9142"
+    },
+    {
+      "hash": "7f391333ef209f04766e4d09170c97fd",
+      "type": "extrude",
+      "name": "Extrude 18",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "6512eddb98fa0486e002f70c548d10fc",
+      "type": "square",
+      "name": "Extrude profile 18",
+      "parent": "7f391333ef209f04766e4d09170c97fd"
+    },
+    {
+      "hash": "6b09ffcfeb537af9835a0152d1754dec",
+      "type": "extrude",
+      "name": "Extrude 19",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "75e2322fffc7e8004c73f2b2fd2d5cea",
+      "type": "circle",
+      "name": "Extrude profile 19",
+      "parent": "6b09ffcfeb537af9835a0152d1754dec"
+    },
+    {
+      "hash": "d653115d350aa0589aa8de9d8f1f345f",
+      "type": "extrude",
+      "name": "Extrude 20",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "7a2f79110846a05a755751ea574a376b",
+      "type": "circle",
+      "name": "Extrude profile 20",
+      "parent": "d653115d350aa0589aa8de9d8f1f345f"
+    },
+    {
+      "hash": "101e6e2dc6fa62f44039f98e396bd911",
+      "type": "extrude",
+      "name": "Extrude 21",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "2d041b4313a65bd409773a1beefd2e2c",
+      "type": "square",
+      "name": "Extrude profile 21",
+      "parent": "101e6e2dc6fa62f44039f98e396bd911"
+    },
+    {
+      "hash": "58d0b76942fe9e8dfa308f7281e38c4d",
+      "type": "extrude",
+      "name": "Extrude 22",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "1c7a7cfaf4db33acfa0cfc1ced098b83",
+      "type": "circle",
+      "name": "Extrude profile 22",
+      "parent": "58d0b76942fe9e8dfa308f7281e38c4d"
+    },
+    {
+      "hash": "33b4c71bb3ad372e07b9c01ec1e51f00",
+      "type": "extrude",
+      "name": "Extrude 23",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "ff3291e6716aff8464f8561bc9de5dbd",
+      "type": "circle",
+      "name": "Extrude profile 23",
+      "parent": "33b4c71bb3ad372e07b9c01ec1e51f00"
+    },
+    {
+      "hash": "c5a9832bccace678e21dfed0d2dfd6c0",
+      "type": "extrude",
+      "name": "Extrude 24",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "f41018f25fd485f4a5c40897a396e93a",
+      "type": "square",
+      "name": "Extrude profile 24",
+      "parent": "c5a9832bccace678e21dfed0d2dfd6c0"
+    },
+    {
+      "hash": "6df27131e351dca7586388cd16982b8c",
+      "type": "extrude",
+      "name": "Extrude 25",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "83e5a1225f042ab9bb42caef1ae8d0fa",
+      "type": "circle",
+      "name": "Extrude profile 25",
+      "parent": "6df27131e351dca7586388cd16982b8c"
+    },
+    {
+      "hash": "7b29d0dee3edc5be8bad7dd6b4dad72f",
+      "type": "extrude",
+      "name": "Extrude 26",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "3632d5c19f44f311692ba0b7c10452ff",
+      "type": "circle",
+      "name": "Extrude profile 26",
+      "parent": "7b29d0dee3edc5be8bad7dd6b4dad72f"
+    },
+    {
+      "hash": "477724ee9887f4b7838fe427fdc87be8",
+      "type": "extrude",
+      "name": "Extrude 27",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "e7890bc7c9499c08f3dc3a91af53e4c0",
+      "type": "square",
+      "name": "Extrude profile 27",
+      "parent": "477724ee9887f4b7838fe427fdc87be8"
+    },
+    {
+      "hash": "93ae7abfcf6afcb2d16404e5366edae0",
+      "type": "extrude",
+      "name": "Extrude 28",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "a3bc6e72fbfef2fbf6c5d0787e030c1a",
+      "type": "circle",
+      "name": "Extrude profile 28",
+      "parent": "93ae7abfcf6afcb2d16404e5366edae0"
+    },
+    {
+      "hash": "a0e24cdf938ad47bbc1b68f685747275",
+      "type": "extrude",
+      "name": "Extrude 29",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "84bca6d8edb8e9ad5f05950967e88442",
+      "type": "circle",
+      "name": "Extrude profile 29",
+      "parent": "a0e24cdf938ad47bbc1b68f685747275"
+    },
+    {
+      "hash": "7d62805dcdc3a608cc8381e7b486049e",
+      "type": "extrude",
+      "name": "Extrude 30",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "3237d1af8fef5cf0507ac950dd47696a",
+      "type": "square",
+      "name": "Extrude profile 30",
+      "parent": "7d62805dcdc3a608cc8381e7b486049e"
+    },
+    {
+      "hash": "ff1fad1ca110d0236750f64ca5699b28",
+      "type": "extrude",
+      "name": "Extrude 31",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "dc8c14e2c8b7462b2e4d9b5521a858d2",
+      "type": "circle",
+      "name": "Extrude profile 31",
+      "parent": "ff1fad1ca110d0236750f64ca5699b28"
+    },
+    {
+      "hash": "f84c4e7ae03067adfaaa79b843770e33",
+      "type": "extrude",
+      "name": "Extrude 32",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "72bdcd599c5c4ed14ea7586ba447de88",
+      "type": "circle",
+      "name": "Extrude profile 32",
+      "parent": "f84c4e7ae03067adfaaa79b843770e33"
+    },
+    {
+      "hash": "c6c7722dc1d6f7d6aadd65c1bad2b91e",
+      "type": "extrude",
+      "name": "Extrude 33",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "35d2e292e991dea4743a0dc895e426c4",
+      "type": "square",
+      "name": "Extrude profile 33",
+      "parent": "c6c7722dc1d6f7d6aadd65c1bad2b91e"
+    },
+    {
+      "hash": "83d9aafcc7dc6511b03cd144d2ec3104",
+      "type": "extrude",
+      "name": "Extrude 34",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "14e6e916a4851c5c2182b55ab003853c",
+      "type": "circle",
+      "name": "Extrude profile 34",
+      "parent": "83d9aafcc7dc6511b03cd144d2ec3104"
+    },
+    {
+      "hash": "5f02d4b3b83d2086bfcf48ce9f7051fc",
+      "type": "extrude",
+      "name": "Extrude 35",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "e4bc9a57c66351542f13d5ebfcc17276",
+      "type": "circle",
+      "name": "Extrude profile 35",
+      "parent": "5f02d4b3b83d2086bfcf48ce9f7051fc"
+    },
+    {
+      "hash": "492929ca39231ed199434528015c729d",
+      "type": "extrude",
+      "name": "Extrude 36",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "208c73e3f808d1a6fc179caad410040c",
+      "type": "square",
+      "name": "Extrude profile 36",
+      "parent": "492929ca39231ed199434528015c729d"
+    },
+    {
+      "hash": "12a278b4a9e99d93e604ac8ce338f61a",
+      "type": "extrude",
+      "name": "Extrude 37",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "0f19d75d7ec9fd045ee8fcf9bb595e0e",
+      "type": "circle",
+      "name": "Extrude profile 37",
+      "parent": "12a278b4a9e99d93e604ac8ce338f61a"
+    },
+    {
+      "hash": "07dd9733aa389395aea3b894c6f8e4eb",
+      "type": "extrude",
+      "name": "Extrude 38",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "9a188d2e824f794a27f6ac5c54ffdd3c",
+      "type": "circle",
+      "name": "Extrude profile 38",
+      "parent": "07dd9733aa389395aea3b894c6f8e4eb"
+    },
+    {
+      "hash": "01e1f0aafa04999fd7ce9d8c0cd5171e",
+      "type": "extrude",
+      "name": "Extrude 39",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "5e26a8e685ec9a90392bfb2ce612fa3a",
+      "type": "square",
+      "name": "Extrude profile 39",
+      "parent": "01e1f0aafa04999fd7ce9d8c0cd5171e"
+    },
+    {
+      "hash": "9f9d7a3626bfffeb80c8d49d5ec34634",
+      "type": "lathe",
+      "name": "Lathe 0",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "b0328f3581594adbe22d6fd15ffa58ea",
+      "type": "spline",
+      "name": "Lathe profile 0",
+      "parent": "9f9d7a3626bfffeb80c8d49d5ec34634"
+    },
+    {
+      "hash": "74ceaeeef735ebe6d04e153b580ed27d",
+      "type": "lathe",
+      "name": "Lathe 1",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "0080bbfa5a26267806d219fe7b4df5ca",
+      "type": "spline",
+      "name": "Lathe profile 1",
+      "parent": "74ceaeeef735ebe6d04e153b580ed27d"
+    },
+    {
+      "hash": "78c4c7708058adc776c4b69fd5333d31",
+      "type": "lathe",
+      "name": "Lathe 2",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "e8da28d85ccb8c83d1dade7007f19113",
+      "type": "spline",
+      "name": "Lathe profile 2",
+      "parent": "78c4c7708058adc776c4b69fd5333d31"
+    },
+    {
+      "hash": "bd95965fb758460e54d73ae690163cb0",
+      "type": "lathe",
+      "name": "Lathe 3",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "7b259de0628b9774e501a5f125ff43a3",
+      "type": "spline",
+      "name": "Lathe profile 3",
+      "parent": "bd95965fb758460e54d73ae690163cb0"
+    },
+    {
+      "hash": "9d6ca245bc0ddde0d824a937d834c4e2",
+      "type": "lathe",
+      "name": "Lathe 4",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "380ad091071589ef73c9dbdb6e6db2d1",
+      "type": "spline",
+      "name": "Lathe profile 4",
+      "parent": "9d6ca245bc0ddde0d824a937d834c4e2"
+    },
+    {
+      "hash": "725fe077624eb4b9b333c6e97ead5a7d",
+      "type": "lathe",
+      "name": "Lathe 5",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "67b507f04ac011080ab44f49da30928e",
+      "type": "spline",
+      "name": "Lathe profile 5",
+      "parent": "725fe077624eb4b9b333c6e97ead5a7d"
+    },
+    {
+      "hash": "eac90941b3d7755ddcc1ee496ceb201a",
+      "type": "lathe",
+      "name": "Lathe 6",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "067c432b282369b35a741919eb81ab0c",
+      "type": "spline",
+      "name": "Lathe profile 6",
+      "parent": "eac90941b3d7755ddcc1ee496ceb201a"
+    },
+    {
+      "hash": "77cf11a63bc1cdd630741f536fb19f2e",
+      "type": "lathe",
+      "name": "Lathe 7",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "549940f7341e29507113507fe27a79f6",
+      "type": "spline",
+      "name": "Lathe profile 7",
+      "parent": "77cf11a63bc1cdd630741f536fb19f2e"
+    },
+    {
+      "hash": "efe8e312a847af1fbc5cd8982688cc12",
+      "type": "lathe",
+      "name": "Lathe 8",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "dcd226e05f983e55c09a26a5f2cd3ba3",
+      "type": "spline",
+      "name": "Lathe profile 8",
+      "parent": "efe8e312a847af1fbc5cd8982688cc12"
+    },
+    {
+      "hash": "a847e0d9641bd3a673869685ed072fdc",
+      "type": "lathe",
+      "name": "Lathe 9",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "803d6dc624ae2923e78052327bd22733",
+      "type": "spline",
+      "name": "Lathe profile 9",
+      "parent": "a847e0d9641bd3a673869685ed072fdc"
+    },
+    {
+      "hash": "dc6a8c6c4d4268fb0ff790e650544dd5",
+      "type": "lathe",
+      "name": "Lathe 10",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "a7503f9b9360ddeeb6f55d33fd666815",
+      "type": "spline",
+      "name": "Lathe profile 10",
+      "parent": "dc6a8c6c4d4268fb0ff790e650544dd5"
+    },
+    {
+      "hash": "104026bb1d66adb0aa58436704921379",
+      "type": "lathe",
+      "name": "Lathe 11",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "957b5ca9fe4fc7342e5d9798836cabfd",
+      "type": "spline",
+      "name": "Lathe profile 11",
+      "parent": "104026bb1d66adb0aa58436704921379"
+    },
+    {
+      "hash": "9d7965139199d510ce8137d94febd50f",
+      "type": "lathe",
+      "name": "Lathe 12",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "8de442e7496490d63e50eb1f29d7bd36",
+      "type": "spline",
+      "name": "Lathe profile 12",
+      "parent": "9d7965139199d510ce8137d94febd50f"
+    },
+    {
+      "hash": "d08b9d87636f0076e941d0d0af61ebe3",
+      "type": "lathe",
+      "name": "Lathe 13",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "46c8694f920b5180f5c616edb8271116",
+      "type": "spline",
+      "name": "Lathe profile 13",
+      "parent": "d08b9d87636f0076e941d0d0af61ebe3"
+    },
+    {
+      "hash": "7534dfd231ef2080844ef749d0453b24",
+      "type": "lathe",
+      "name": "Lathe 14",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "32fe68dcd25c4653f9f26d7a69248668",
+      "type": "spline",
+      "name": "Lathe profile 14",
+      "parent": "7534dfd231ef2080844ef749d0453b24"
+    },
+    {
+      "hash": "31e0c3d2495874904682ae32f96f4b4b",
+      "type": "sweep",
+      "name": "Sweep 0",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "a1364547a7c223103f812d7dbe790442",
+      "type": "spline",
+      "name": "Sweep profile 0",
+      "parent": "31e0c3d2495874904682ae32f96f4b4b"
+    },
+    {
+      "hash": "1ad6e4abad7c8dbc40fb37ed9d991959",
+      "type": "spline",
+      "name": "Sweep path 0",
+      "parent": "31e0c3d2495874904682ae32f96f4b4b"
+    },
+    {
+      "hash": "38971032ff0cf277ef5589d8fe1e5cd4",
+      "type": "sweep",
+      "name": "Sweep 1",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "b7240b99427cb84c6f216b24080b7fd5",
+      "type": "spline",
+      "name": "Sweep profile 1",
+      "parent": "38971032ff0cf277ef5589d8fe1e5cd4"
+    },
+    {
+      "hash": "f6352b7326e3ad485e0df32bb1bd4487",
+      "type": "spline",
+      "name": "Sweep path 1",
+      "parent": "38971032ff0cf277ef5589d8fe1e5cd4"
+    },
+    {
+      "hash": "8c1c9bf729f79aa4bdf147f44b2c9925",
+      "type": "sweep",
+      "name": "Sweep 2",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "e9b0a876f4d225c45d1e12e976a660ee",
+      "type": "spline",
+      "name": "Sweep profile 2",
+      "parent": "8c1c9bf729f79aa4bdf147f44b2c9925"
+    },
+    {
+      "hash": "7848ae51dc011b924768c2ecf4045cae",
+      "type": "spline",
+      "name": "Sweep path 2",
+      "parent": "8c1c9bf729f79aa4bdf147f44b2c9925"
+    },
+    {
+      "hash": "7e79177a652bb810ff610ba6c0a4a794",
+      "type": "sweep",
+      "name": "Sweep 3",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "ad77c2c65144d2e7932334571ee37d65",
+      "type": "spline",
+      "name": "Sweep profile 3",
+      "parent": "7e79177a652bb810ff610ba6c0a4a794"
+    },
+    {
+      "hash": "924cf1ed82827403238e43a803d0515b",
+      "type": "spline",
+      "name": "Sweep path 3",
+      "parent": "7e79177a652bb810ff610ba6c0a4a794"
+    },
+    {
+      "hash": "d860bc5f0680f1d720da3ff8cf8c26c0",
+      "type": "sweep",
+      "name": "Sweep 4",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "02d911ae7d5e2252e9fb9cfef7bf82a5",
+      "type": "spline",
+      "name": "Sweep profile 4",
+      "parent": "d860bc5f0680f1d720da3ff8cf8c26c0"
+    },
+    {
+      "hash": "1b579202ec9658ccb1e33fa6c2c947e7",
+      "type": "spline",
+      "name": "Sweep path 4",
+      "parent": "d860bc5f0680f1d720da3ff8cf8c26c0"
+    },
+    {
+      "hash": "1746865825b7436fc2de309447e266cd",
+      "type": "sweep",
+      "name": "Sweep 5",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "3aca1b732e9f6a015c5afc762f537db7",
+      "type": "spline",
+      "name": "Sweep profile 5",
+      "parent": "1746865825b7436fc2de309447e266cd"
+    },
+    {
+      "hash": "004527d3ed5506249b03f4441b31048d",
+      "type": "spline",
+      "name": "Sweep path 5",
+      "parent": "1746865825b7436fc2de309447e266cd"
+    },
+    {
+      "hash": "e18f5e1b830f5c23f5ad7ec102c74cc2",
+      "type": "sweep",
+      "name": "Sweep 6",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "5f86d951a68d88bb9e423015ea9adf4e",
+      "type": "spline",
+      "name": "Sweep profile 6",
+      "parent": "e18f5e1b830f5c23f5ad7ec102c74cc2"
+    },
+    {
+      "hash": "bf303b9deae67b3c09f1acc3c536fb9b",
+      "type": "spline",
+      "name": "Sweep path 6",
+      "parent": "e18f5e1b830f5c23f5ad7ec102c74cc2"
+    },
+    {
+      "hash": "cd2c33629cb00e756e29fae51fbd8930",
+      "type": "sweep",
+      "name": "Sweep 7",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "6c8ae059b2f52a4568860e66007147c0",
+      "type": "spline",
+      "name": "Sweep profile 7",
+      "parent": "cd2c33629cb00e756e29fae51fbd8930"
+    },
+    {
+      "hash": "7d1095a3fef364ca3350251cb94c12ce",
+      "type": "spline",
+      "name": "Sweep path 7",
+      "parent": "cd2c33629cb00e756e29fae51fbd8930"
+    },
+    {
+      "hash": "54f10d30b9d6fb3a1d1e0d135624dd22",
+      "type": "sweep",
+      "name": "Sweep 8",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "ead52a4e52c2af16da4d1d660997d058",
+      "type": "spline",
+      "name": "Sweep profile 8",
+      "parent": "54f10d30b9d6fb3a1d1e0d135624dd22"
+    },
+    {
+      "hash": "3d98c696eb20dd70d278d104d705a96a",
+      "type": "spline",
+      "name": "Sweep path 8",
+      "parent": "54f10d30b9d6fb3a1d1e0d135624dd22"
+    },
+    {
+      "hash": "147ab0ebcd701880753b1020e0dce898",
+      "type": "sweep",
+      "name": "Sweep 9",
+      "parent": "33f37e11d21d7a25df7fb07d869e38fc"
+    },
+    {
+      "hash": "95a2686eb4d66a6158c217934baa9478",
+      "type": "spline",
+      "name": "Sweep profile 9",
+      "parent": "147ab0ebcd701880753b1020e0dce898"
+    },
+    {
+      "hash": "5b6c7a30f9426e253bcdd054951705c9",
+      "type": "spline",
+      "name": "Sweep path 9",
+      "parent": "147ab0ebcd701880753b1020e0dce898"
+    },
+    {
+      "hash": "f8057b88559f69213cd487dc0f26571f",
+      "type": "boolean",
+      "name": "Boolean subtract 0",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "c445ce645418d4159a2814a83bdadf0f",
+      "type": "cube",
+      "name": "Boolean base 0",
+      "parent": "f8057b88559f69213cd487dc0f26571f"
+    },
+    {
+      "hash": "0aa4e608059ad48311ec36d6d3b2b6cb",
+      "type": "cube",
+      "name": "Boolean cutter 0",
+      "parent": "f8057b88559f69213cd487dc0f26571f"
+    },
+    {
+      "hash": "7b744f026234fd58f788e95f90c5a884",
+      "type": "boolean",
+      "name": "Boolean intersect 1",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "af887c0199e83ce083a499541777cfa4",
+      "type": "cube",
+      "name": "Boolean base 1",
+      "parent": "7b744f026234fd58f788e95f90c5a884"
+    },
+    {
+      "hash": "d96e803e8394b60298bca4334df02565",
+      "type": "cube",
+      "name": "Boolean cutter 1",
+      "parent": "7b744f026234fd58f788e95f90c5a884"
+    },
+    {
+      "hash": "d2645ed6c17883f065472f244d67e318",
+      "type": "boolean",
+      "name": "Boolean union 2",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "93f1bef5376d6ce286053e868d7b7a81",
+      "type": "cube",
+      "name": "Boolean base 2",
+      "parent": "d2645ed6c17883f065472f244d67e318"
+    },
+    {
+      "hash": "27b77c00c087d1a4a87de9fe6bacddf4",
+      "type": "cube",
+      "name": "Boolean cutter 2",
+      "parent": "d2645ed6c17883f065472f244d67e318"
+    },
+    {
+      "hash": "a1f788d05fc25f46ef964b1b7259fe87",
+      "type": "boolean",
+      "name": "Boolean subtract 3",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "fa30cb1abd5a1ea47fb005d378fd12bb",
+      "type": "cube",
+      "name": "Boolean base 3",
+      "parent": "a1f788d05fc25f46ef964b1b7259fe87"
+    },
+    {
+      "hash": "79984d738e84a8897c9325b693817266",
+      "type": "cube",
+      "name": "Boolean cutter 3",
+      "parent": "a1f788d05fc25f46ef964b1b7259fe87"
+    },
+    {
+      "hash": "4b3dc43bd95d314df3b242533aef8d61",
+      "type": "boolean",
+      "name": "Boolean intersect 4",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "e996550e858971459c1457a42800de7d",
+      "type": "cube",
+      "name": "Boolean base 4",
+      "parent": "4b3dc43bd95d314df3b242533aef8d61"
+    },
+    {
+      "hash": "6c9da5579f3b81ebbf2dd7cfd800d0bf",
+      "type": "cube",
+      "name": "Boolean cutter 4",
+      "parent": "4b3dc43bd95d314df3b242533aef8d61"
+    },
+    {
+      "hash": "b7c2052d2a125046d9420d36ac9e8840",
+      "type": "boolean",
+      "name": "Boolean union 5",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "e39912aebe84dc1fb79e2d27c50677e6",
+      "type": "cube",
+      "name": "Boolean base 5",
+      "parent": "b7c2052d2a125046d9420d36ac9e8840"
+    },
+    {
+      "hash": "86fe5ee834801dac9cb3fa331eb977bd",
+      "type": "cube",
+      "name": "Boolean cutter 5",
+      "parent": "b7c2052d2a125046d9420d36ac9e8840"
+    },
+    {
+      "hash": "b572e82a62a550c95f8d3c55c7bd3ece",
+      "type": "boolean",
+      "name": "Boolean subtract 6",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "309626d1ea6e9888fcef2944d79195e7",
+      "type": "cube",
+      "name": "Boolean base 6",
+      "parent": "b572e82a62a550c95f8d3c55c7bd3ece"
+    },
+    {
+      "hash": "a86c46d15cd4ba16e68d5d8b58a19d10",
+      "type": "cube",
+      "name": "Boolean cutter 6",
+      "parent": "b572e82a62a550c95f8d3c55c7bd3ece"
+    },
+    {
+      "hash": "0fa34fc2ff1bd5a316d507761a2cf1b6",
+      "type": "boolean",
+      "name": "Boolean intersect 7",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "eb8c7d35820aabc6339877307f60d7d7",
+      "type": "cube",
+      "name": "Boolean base 7",
+      "parent": "0fa34fc2ff1bd5a316d507761a2cf1b6"
+    },
+    {
+      "hash": "2aeb71879ac04a55ee1a9391215dd5a4",
+      "type": "cube",
+      "name": "Boolean cutter 7",
+      "parent": "0fa34fc2ff1bd5a316d507761a2cf1b6"
+    },
+    {
+      "hash": "b47a62eda812ebfc3b4e3b0cec799c00",
+      "type": "boolean",
+      "name": "Boolean union 8",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "1937ac8fff739fc0232aa7eed2e2083a",
+      "type": "cube",
+      "name": "Boolean base 8",
+      "parent": "b47a62eda812ebfc3b4e3b0cec799c00"
+    },
+    {
+      "hash": "eaec79edf88da77ce8131a20fd1d5f1f",
+      "type": "cube",
+      "name": "Boolean cutter 8",
+      "parent": "b47a62eda812ebfc3b4e3b0cec799c00"
+    },
+    {
+      "hash": "b8361e21a19bad173c60b6cc81c1095f",
+      "type": "boolean",
+      "name": "Boolean subtract 9",
+      "parent": "9cbb6697f25e2a18ae813993fc3b506e"
+    },
+    {
+      "hash": "767de8bb1575c9a360ec037ed931b6da",
+      "type": "cube",
+      "name": "Boolean base 9",
+      "parent": "b8361e21a19bad173c60b6cc81c1095f"
+    },
+    {
+      "hash": "ad0d1cb5691ecbb6ad8a74465045fc1d",
+      "type": "cube",
+      "name": "Boolean cutter 9",
+      "parent": "b8361e21a19bad173c60b6cc81c1095f"
+    },
+    {
+      "hash": "0f71142a4837b4a8d2027084f714ffbf",
+      "type": "cloner",
+      "name": "Cloner 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "97d94ef3717eab5424cf91ba9de80c99",
+      "type": "cube",
+      "name": "Cloner source 0",
+      "parent": "0f71142a4837b4a8d2027084f714ffbf"
+    },
+    {
+      "hash": "b7ea3f6ea487f07dc93d70383a7bc72d",
+      "type": "cloner",
+      "name": "Cloner 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "44185a05b21e32d195e669bb59cfd7d0",
+      "type": "cube",
+      "name": "Cloner source 1",
+      "parent": "b7ea3f6ea487f07dc93d70383a7bc72d"
+    },
+    {
+      "hash": "e60ab22ea9f8257e65509375c560b2ea",
+      "type": "cloner",
+      "name": "Cloner 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f4cf821e3eed6df7b934eb0974d47baa",
+      "type": "cube",
+      "name": "Cloner source 2",
+      "parent": "e60ab22ea9f8257e65509375c560b2ea"
+    },
+    {
+      "hash": "7737cd86111e4aca33944052f5b7cd32",
+      "type": "cloner",
+      "name": "Cloner 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "13f881d822d063e684ac250b3b8017a6",
+      "type": "cube",
+      "name": "Cloner source 3",
+      "parent": "7737cd86111e4aca33944052f5b7cd32"
+    },
+    {
+      "hash": "5cc4d2c39114254b497f2cff69fe9a78",
+      "type": "cloner",
+      "name": "Cloner 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e7c3801146266c8b0ace0884e861ef2a",
+      "type": "cube",
+      "name": "Cloner source 4",
+      "parent": "5cc4d2c39114254b497f2cff69fe9a78"
+    },
+    {
+      "hash": "c71cb7d7c5faa3fc889b5726daf7f0d5",
+      "type": "cloner",
+      "name": "Cloner 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5503c544c02bbcef037cfb986b46df00",
+      "type": "cube",
+      "name": "Cloner source 5",
+      "parent": "c71cb7d7c5faa3fc889b5726daf7f0d5"
+    },
+    {
+      "hash": "4649dd3fcdc420cec2ee339a432ac464",
+      "type": "cloner",
+      "name": "Cloner 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6fd9597e4af614272dd3ecb71393b707",
+      "type": "cube",
+      "name": "Cloner source 6",
+      "parent": "4649dd3fcdc420cec2ee339a432ac464"
+    },
+    {
+      "hash": "def12b8f2b60cd66fa21d3518e33b0ae",
+      "type": "cloner",
+      "name": "Cloner 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3b9932691e2fc2529bc57964b7389697",
+      "type": "cube",
+      "name": "Cloner source 7",
+      "parent": "def12b8f2b60cd66fa21d3518e33b0ae"
+    },
+    {
+      "hash": "369bb0f71e8e1826126612f9c9889db3",
+      "type": "cloner",
+      "name": "Cloner 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "627dbf4bb35bad90fd9e01032bb3366c",
+      "type": "cube",
+      "name": "Cloner source 8",
+      "parent": "369bb0f71e8e1826126612f9c9889db3"
+    },
+    {
+      "hash": "474c53e4107a8ecb8fddb0a691b3e7b7",
+      "type": "cloner",
+      "name": "Cloner 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e4a7319c2ca1158906de12eec34859e6",
+      "type": "cube",
+      "name": "Cloner source 9",
+      "parent": "474c53e4107a8ecb8fddb0a691b3e7b7"
+    },
+    {
+      "hash": "ad5113f67452ead7a97e8534f07dc627",
+      "type": "symmetry",
+      "name": "Symmetry 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ab37ee80fc91f75fdaec0084ea0a5094",
+      "type": "cube",
+      "name": "Symmetry source 0",
+      "parent": "ad5113f67452ead7a97e8534f07dc627"
+    },
+    {
+      "hash": "eedbcf6ef3b9099a2fa4b8588371719b",
+      "type": "symmetry",
+      "name": "Symmetry 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6b6bdbf367c12f4c24cc85f0761071cc",
+      "type": "cube",
+      "name": "Symmetry source 1",
+      "parent": "eedbcf6ef3b9099a2fa4b8588371719b"
+    },
+    {
+      "hash": "36b4353de833938335be424bbe0e6165",
+      "type": "symmetry",
+      "name": "Symmetry 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d2f79f95545dde8c6643ee8a0c412e2a",
+      "type": "cube",
+      "name": "Symmetry source 2",
+      "parent": "36b4353de833938335be424bbe0e6165"
+    },
+    {
+      "hash": "be57ee76d3ea25f27cd1b45861582c84",
+      "type": "symmetry",
+      "name": "Symmetry 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f82af4c1778de653018ae7555248459c",
+      "type": "cube",
+      "name": "Symmetry source 3",
+      "parent": "be57ee76d3ea25f27cd1b45861582c84"
+    },
+    {
+      "hash": "f528a19159f03332e60c6ff67dbf30cb",
+      "type": "symmetry",
+      "name": "Symmetry 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "eef5beeecce2c11167a4ada0559843f6",
+      "type": "cube",
+      "name": "Symmetry source 4",
+      "parent": "f528a19159f03332e60c6ff67dbf30cb"
+    },
+    {
+      "hash": "268965f8e4318554698cb4bb67d452fa",
+      "type": "symmetry",
+      "name": "Symmetry 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f7908986aa2886e2f66b92ba0233828c",
+      "type": "cube",
+      "name": "Symmetry source 5",
+      "parent": "268965f8e4318554698cb4bb67d452fa"
+    },
+    {
+      "hash": "a6dc286b897d4e34a37f6affa8df20af",
+      "type": "symmetry",
+      "name": "Symmetry 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a245dc907d25a512efb655cecda13a0c",
+      "type": "cube",
+      "name": "Symmetry source 6",
+      "parent": "a6dc286b897d4e34a37f6affa8df20af"
+    },
+    {
+      "hash": "1f9e5482bc4925c2e150ab151970d62b",
+      "type": "symmetry",
+      "name": "Symmetry 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "db9a15b31f177ac725ef90cecd41ad90",
+      "type": "cube",
+      "name": "Symmetry source 7",
+      "parent": "1f9e5482bc4925c2e150ab151970d62b"
+    },
+    {
+      "hash": "6e253c880f11c2cb4060a13d7c6dfb56",
+      "type": "symmetry",
+      "name": "Symmetry 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4dc5dbd730260d9be73b4948816c267e",
+      "type": "cube",
+      "name": "Symmetry source 8",
+      "parent": "6e253c880f11c2cb4060a13d7c6dfb56"
+    },
+    {
+      "hash": "4b5d2daa195168f0f5feccdf82027e82",
+      "type": "symmetry",
+      "name": "Symmetry 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2154d1fb06a1c15e14d89426367ea46c",
+      "type": "cube",
+      "name": "Symmetry source 9",
+      "parent": "4b5d2daa195168f0f5feccdf82027e82"
+    },
+    {
+      "hash": "b0cd9f98c2b2f1a7ed3f837323dd345d",
+      "type": "cube",
+      "name": "cube 0",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "933b5c39041e1a2bdb270ade975f36c7",
+      "type": "cylinder",
+      "name": "cylinder 1",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "3c215e9a1987c87c5d64c0416068bef3",
+      "type": "tube",
+      "name": "tube 2",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "17af4cd2c4804069089f8c06335940c6",
+      "type": "sphere",
+      "name": "sphere 3",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e0dcdbf4e28929204074b879d61695d3",
+      "type": "capsule",
+      "name": "capsule 4",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "853b22519b318c2fcbd8b7c517dffb2c",
+      "type": "nut",
+      "name": "nut 5",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "5120b661c5edd67714dfd6b77c171c6b",
+      "type": "washer",
+      "name": "washer 6",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "6b2a00a669671613c1c0f704ffa91cda",
+      "type": "bolt",
+      "name": "bolt 7",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "2f93e50ee1c801bbbafd3f3a5f5f25f2",
+      "type": "cube",
+      "name": "cube 8",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "52c772cb8e0757c94129c9529ac97850",
+      "type": "cylinder",
+      "name": "cylinder 9",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "679fa6b13ad9dae5275921a0c068001b",
+      "type": "tube",
+      "name": "tube 10",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "c7f07e0431f1c850ccbd3f63ee5d59db",
+      "type": "sphere",
+      "name": "sphere 11",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "45d494b0bdfeddfbdaf090b6e68817cf",
+      "type": "capsule",
+      "name": "capsule 12",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "3199c85fe24658a2cc992fd9746193df",
+      "type": "nut",
+      "name": "nut 13",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "0320e13f31774b7b98f9445eaa26b1f6",
+      "type": "washer",
+      "name": "washer 14",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a31e68411abe606ed5eddcc109a1a867",
+      "type": "bolt",
+      "name": "bolt 15",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "540f482e87bbb55df47573a9f9cf57c0",
+      "type": "cube",
+      "name": "cube 16",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "aa9a1264af402d71a166259e448e2f19",
+      "type": "cylinder",
+      "name": "cylinder 17",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "d11594a4324570493b3f76c0ab759f79",
+      "type": "tube",
+      "name": "tube 18",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f6f6672121d1f098c58b0f3d596cfa54",
+      "type": "sphere",
+      "name": "sphere 19",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "2c4cd95fa7d1627a6ed4df9230d6aeb9",
+      "type": "capsule",
+      "name": "capsule 20",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "ed9847f389dbf467ea73b05f87295a9d",
+      "type": "nut",
+      "name": "nut 21",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "06cc1573eaba5374fdc4b8c787187504",
+      "type": "washer",
+      "name": "washer 22",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a3df7040e52598f29c095cf0f9457566",
+      "type": "bolt",
+      "name": "bolt 23",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "7eea0f7389236dd4bed5dc7d55c20da5",
+      "type": "cube",
+      "name": "cube 24",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "7e07b4bfbb223c37c0420ea0c8dc09a8",
+      "type": "cylinder",
+      "name": "cylinder 25",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "d3b7648b1f0ce77c1db49a2019c89d9a",
+      "type": "tube",
+      "name": "tube 26",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "8e9f8a12f22ecd371910b870fc7d63c4",
+      "type": "sphere",
+      "name": "sphere 27",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "ee8317b558c16d8cdba633bfb0b6aef6",
+      "type": "capsule",
+      "name": "capsule 28",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "7761bbfc6d7fe28e3c630ea8152ba1f9",
+      "type": "nut",
+      "name": "nut 29",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a6d0babc06baa34656cb02a860f89abb",
+      "type": "washer",
+      "name": "washer 30",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "6924c8fc02474f6e4c1ab68a75b7cc2e",
+      "type": "bolt",
+      "name": "bolt 31",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4cae622efc3fcebc35dd7b8a2d961b2a",
+      "type": "cube",
+      "name": "cube 32",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a3a201371087970a6026c87d03944e1e",
+      "type": "cylinder",
+      "name": "cylinder 33",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "b4f293cb9e46d5d82d0756a5cc0ea01b",
+      "type": "tube",
+      "name": "tube 34",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "3fdf1944333a554278851901256987ac",
+      "type": "sphere",
+      "name": "sphere 35",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "adbe0be186c61fee264edda9f53ddb13",
+      "type": "capsule",
+      "name": "capsule 36",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "9fac3b87a3e7871f977556a8d7bac689",
+      "type": "nut",
+      "name": "nut 37",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "19b0b5d3232cb9c171f6cb38cb10c9a7",
+      "type": "washer",
+      "name": "washer 38",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "838f1e6845cf6193ea19ff241e1f00e8",
+      "type": "bolt",
+      "name": "bolt 39",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "ac0ff6ceeae43870607301bbafe62656",
+      "type": "cube",
+      "name": "cube 40",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "aa6084e1e9fcb511b17fb8a7e592df94",
+      "type": "cylinder",
+      "name": "cylinder 41",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "c16109d076ed7273aa07b1997058c333",
+      "type": "tube",
+      "name": "tube 42",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "9173839dee46112b4cc8f333c1147165",
+      "type": "sphere",
+      "name": "sphere 43",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "c4779e62e030b7c6b8ebc8a68fe8d28d",
+      "type": "capsule",
+      "name": "capsule 44",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "974075a4c5b45bbd89ccc72eee49b29c",
+      "type": "nut",
+      "name": "nut 45",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "6f98860d229ec134507ceb3db419ae0b",
+      "type": "washer",
+      "name": "washer 46",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4fcea84919dffd274c3c55f1814aa369",
+      "type": "bolt",
+      "name": "bolt 47",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "212574bf4a9a8325d29dd2f5602e3761",
+      "type": "cube",
+      "name": "cube 48",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "2d8d7145b993d0a96424b90ce350a419",
+      "type": "cylinder",
+      "name": "cylinder 49",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e50974ff9714e0888231d3ed8b3e814f",
+      "type": "tube",
+      "name": "tube 50",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "2f3f9a40b1c95277d7a5a09e8741b392",
+      "type": "sphere",
+      "name": "sphere 51",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "8e5df19bc9be3e63afa6738b14e01fea",
+      "type": "capsule",
+      "name": "capsule 52",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "947c84ad591eaa2a6a7436b9f48de65c",
+      "type": "nut",
+      "name": "nut 53",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "5065afd86399a0f218dc3de23da7474c",
+      "type": "washer",
+      "name": "washer 54",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e249f07383894a7ec9a258fb0e65f619",
+      "type": "bolt",
+      "name": "bolt 55",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "2d6cfe65e7ac7a7ba64b0b5811782e01",
+      "type": "cube",
+      "name": "cube 56",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "bf4a26d3328b4de905a2bbb9cd1c48b3",
+      "type": "cylinder",
+      "name": "cylinder 57",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a5fe684ef832437be6c040d76261809e",
+      "type": "tube",
+      "name": "tube 58",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "5b2954262ac379968e3f2a9f405f49a0",
+      "type": "sphere",
+      "name": "sphere 59",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "33de5a1d719288075de003652f10a15e",
+      "type": "capsule",
+      "name": "capsule 60",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "b73657bf8f87b257cf7c2536fc467c42",
+      "type": "nut",
+      "name": "nut 61",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "9695a32a2ffeccb9cedd8a63c34db0b8",
+      "type": "washer",
+      "name": "washer 62",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "9a8d6fe74c6d1b4af3d10a41f71a1733",
+      "type": "bolt",
+      "name": "bolt 63",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "01ae12f2946ebf3565fe3635102c9c24",
+      "type": "cube",
+      "name": "cube 64",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4258274c008a60947cd636a18e6de9be",
+      "type": "cylinder",
+      "name": "cylinder 65",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "5c28c8db63c3421aeed02606057e6922",
+      "type": "tube",
+      "name": "tube 66",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e068c4cfad92605808bae96f8dc1c1ae",
+      "type": "sphere",
+      "name": "sphere 67",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "85e015d3b77785153c4a22d69e0d4414",
+      "type": "capsule",
+      "name": "capsule 68",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "1ea5ace7d8aefac2f15b7d53fa789463",
+      "type": "nut",
+      "name": "nut 69",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "b8b210555c4a1135dec35fd87ef40047",
+      "type": "washer",
+      "name": "washer 70",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "12049cb77b4142e9834468aba15c9737",
+      "type": "bolt",
+      "name": "bolt 71",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4b065c11f2341f13c9c81adee5de133f",
+      "type": "cube",
+      "name": "cube 72",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e0010f972c56c5cb52ce65a92cbf9fe9",
+      "type": "cylinder",
+      "name": "cylinder 73",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "528064b386bebc4e3011c8959095518c",
+      "type": "tube",
+      "name": "tube 74",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "1eee7bc0655bdc0f88495c14baf35cde",
+      "type": "sphere",
+      "name": "sphere 75",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "80711eb5b7a99bb0f0f9bbde486a62d9",
+      "type": "capsule",
+      "name": "capsule 76",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "86f6358b412e5a224cbbd676f1da7a2a",
+      "type": "nut",
+      "name": "nut 77",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "fb488bd16553b1e5d2b3f101a98307cd",
+      "type": "washer",
+      "name": "washer 78",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "b0abf16a6b2696cad30b3fd6ea01e6f8",
+      "type": "bolt",
+      "name": "bolt 79",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "989c0edfdea321acdc3f7b9575698cba",
+      "type": "cube",
+      "name": "cube 80",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "abf2ef35df4b4702013b66ceb62935c6",
+      "type": "cylinder",
+      "name": "cylinder 81",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "37d0832e37fd6a6e44534ecb0e3ac49d",
+      "type": "tube",
+      "name": "tube 82",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "862a20cb29f3fc79d7d8c50d052c62f1",
+      "type": "sphere",
+      "name": "sphere 83",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "afef91767edc39a69383ccba0227c378",
+      "type": "capsule",
+      "name": "capsule 84",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "3c1fab9b998cbf38a78be3d5d335fadd",
+      "type": "nut",
+      "name": "nut 85",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "dc64ab3848b6e0140535a4f6b92cdfb9",
+      "type": "washer",
+      "name": "washer 86",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f079fee235ea697c55da5613bdb1f5e2",
+      "type": "bolt",
+      "name": "bolt 87",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4063662dcddb7b5bd8f536d91da297fb",
+      "type": "cube",
+      "name": "cube 88",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "d7448e86fed5c2e453a98d74a052c498",
+      "type": "cylinder",
+      "name": "cylinder 89",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e3afbd4a053a05a727e00e5261fe8d3b",
+      "type": "tube",
+      "name": "tube 90",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f039feb2a787a38a5cd69707879139be",
+      "type": "sphere",
+      "name": "sphere 91",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "91305f07a630f44205cd97d5052e778b",
+      "type": "capsule",
+      "name": "capsule 92",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "cb400c2b23795bc0d110213460cb4bd6",
+      "type": "nut",
+      "name": "nut 93",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "84a810c6d70539aed89ad2c103ed6fd9",
+      "type": "washer",
+      "name": "washer 94",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "16151e2fb571e85231ae4b3ca436cd95",
+      "type": "bolt",
+      "name": "bolt 95",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "defe77bfb94287c4df023c36f6cd4bed",
+      "type": "cube",
+      "name": "cube 96",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "3d322ffd78db41b0517b64484fdff297",
+      "type": "cylinder",
+      "name": "cylinder 97",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "64959b6ca8381dca9f513315ea35bf63",
+      "type": "tube",
+      "name": "tube 98",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "54cfb9062b473c28ffb6f6cf6ae3aad1",
+      "type": "sphere",
+      "name": "sphere 99",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "e50f120ea8158a40bceb29b039411b27",
+      "type": "capsule",
+      "name": "capsule 100",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f368def92830d0374fc68b341229a712",
+      "type": "nut",
+      "name": "nut 101",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f8c0e257b9c2974d82b018cc62b932ea",
+      "type": "washer",
+      "name": "washer 102",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "dfc6535cd7a443f82c9710f27f93ccfb",
+      "type": "bolt",
+      "name": "bolt 103",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "8e319a52821b7c08e283282860f536c1",
+      "type": "cube",
+      "name": "cube 104",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "417889ca8baa0e5edc6d225b5d85af51",
+      "type": "cylinder",
+      "name": "cylinder 105",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "6dddd192961dda2e9219eca18690c531",
+      "type": "tube",
+      "name": "tube 106",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a19c017008d67cda2b9f037824f2098b",
+      "type": "sphere",
+      "name": "sphere 107",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "1674b6fd217dd2255c7fb1e9f3a03298",
+      "type": "capsule",
+      "name": "capsule 108",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "85c80e12f3775b85550c6637dad27be7",
+      "type": "nut",
+      "name": "nut 109",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "540bf6acf47f863cdd7dc4d14b48030a",
+      "type": "washer",
+      "name": "washer 110",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "06462c0f58f1a64bc676b46e20a87995",
+      "type": "bolt",
+      "name": "bolt 111",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "b8fdb01d827817b6790f0fdb34c1161c",
+      "type": "cube",
+      "name": "cube 112",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f12dc79fa846d373258b1de01c0f9921",
+      "type": "cylinder",
+      "name": "cylinder 113",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "a4203421a64225449a86deeea60884fc",
+      "type": "tube",
+      "name": "tube 114",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "9761fe21bc8648548e19f85bdafc8d71",
+      "type": "sphere",
+      "name": "sphere 115",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "7f2f15a00d5be3cb7585c1d3e1b445d9",
+      "type": "capsule",
+      "name": "capsule 116",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "f1b5d1927621cd6fba69aa3f9f03b938",
+      "type": "nut",
+      "name": "nut 117",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "d6b4e3cd1f985f060b55eac91b11e5ab",
+      "type": "washer",
+      "name": "washer 118",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "fd3ffc8c53fc344d99b94891631aa0d7",
+      "type": "bolt",
+      "name": "bolt 119",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "d670db265afb8c708319900e9aa1aac0",
+      "type": "square",
+      "name": "square 0",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "e401cceb5493cd02f8493e8376b4ff9b",
+      "type": "circle",
+      "name": "circle 1",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "e446f8670c6ac8a9f4e05509ea206851",
+      "type": "polyhedron",
+      "name": "polyhedron 2",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "4b7b16159ed4d6a7c941f7f8f039b598",
+      "type": "text",
+      "name": "text 3",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "e0e65f86b196484dea55969cbdf6ed92",
+      "type": "helix",
+      "name": "helix 4",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "ef279c4e2efb2ba7ba6551d7d1eb83d0",
+      "type": "gear",
+      "name": "gear 5",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "83c7f2dee449b8be4d87d4789728ae6f",
+      "type": "pulley",
+      "name": "pulley 6",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "18f3036fc6d6626380dfd35d23d9d303",
+      "type": "spline",
+      "name": "spline 7",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "c1934aab57f9eb45000978ef118e0139",
+      "type": "square",
+      "name": "square 8",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "c61e1a64e405bde68b7e209844173554",
+      "type": "circle",
+      "name": "circle 9",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "5b245bdf12de7523a1ddaa5116689302",
+      "type": "polyhedron",
+      "name": "polyhedron 10",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "1e6cae4a01b18cd44e0d1cee40789f2b",
+      "type": "text",
+      "name": "text 11",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "2fb8ed97200281a7105e03f71c2990e1",
+      "type": "helix",
+      "name": "helix 12",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "89ffaf0a78544cefe6f6951c466cdc6e",
+      "type": "gear",
+      "name": "gear 13",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "25060750ad1627fc6241a5e4e494628e",
+      "type": "pulley",
+      "name": "pulley 14",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "d6d9e2dde37e984197957df96c5d5982",
+      "type": "spline",
+      "name": "spline 15",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "a9375b97c08a1ac2a6a2e7e77d82d87d",
+      "type": "square",
+      "name": "square 16",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "9f1d0d3f0a566b3f3948ba7af8927f75",
+      "type": "circle",
+      "name": "circle 17",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "c8f7333678fe7f8abc53df170aa13bd5",
+      "type": "polyhedron",
+      "name": "polyhedron 18",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "fae57463a122f73283a24ef1fef0f70f",
+      "type": "text",
+      "name": "text 19",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "3d5227e797c5145d5e97bfe2aa28b406",
+      "type": "helix",
+      "name": "helix 20",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "4752c8932abbbaa287028e73da6173e8",
+      "type": "gear",
+      "name": "gear 21",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "0bf9212bf84db7998deb9096ccb1c0f0",
+      "type": "pulley",
+      "name": "pulley 22",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "65ecebb63aa83ca83d144b0877cd2796",
+      "type": "spline",
+      "name": "spline 23",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "6b7a614d4536dce1ffdd6beb45a130f8",
+      "type": "square",
+      "name": "square 24",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "ca4e606743bc387325a68f56fd2239da",
+      "type": "circle",
+      "name": "circle 25",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "0b8e203aa71924f2a9be42e27da4b10c",
+      "type": "polyhedron",
+      "name": "polyhedron 26",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "998e865983b9e48679e7b3b7a665965f",
+      "type": "text",
+      "name": "text 27",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "b5cfa473087ed3abef2af8a830c22b90",
+      "type": "helix",
+      "name": "helix 28",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "6f3f74f8027da215c4dcabc71397376a",
+      "type": "gear",
+      "name": "gear 29",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "afe97cf5e56c854deca1e38c5dce4492",
+      "type": "pulley",
+      "name": "pulley 30",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "7fd13ec9e01ad6f7063653c5ad945e5d",
+      "type": "spline",
+      "name": "spline 31",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "f198380a700833316ac22d27c0265a6d",
+      "type": "square",
+      "name": "square 32",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "80cc641ebe9d457a26ad30ab2fcf4bc8",
+      "type": "circle",
+      "name": "circle 33",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "2cbbf759c32a7ac1715e878e2c338b66",
+      "type": "polyhedron",
+      "name": "polyhedron 34",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "73b5d2f6b39c4584d44fbbbe94c861a6",
+      "type": "text",
+      "name": "text 35",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "c445a941b4601670cfb47f53455952b0",
+      "type": "helix",
+      "name": "helix 36",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "2a6143424fc6ef81d4bd569cfec2c665",
+      "type": "gear",
+      "name": "gear 37",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "acc84e4023241f1caf0ed30b82a9d54c",
+      "type": "pulley",
+      "name": "pulley 38",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "75d433132abe1b82ef5041d6e1a06f31",
+      "type": "spline",
+      "name": "spline 39",
+      "parent": "64b0825a3d3640fd0b0084dbde36397c"
+    },
+    {
+      "hash": "1574cb8a1e1ed05aba850f300c5cb0fb",
+      "type": "render",
+      "name": "Zoo camera",
+      "parent": "4bedf5c62d3978dc9654748e18f30013"
+    },
+    {
+      "hash": "0ead8da5ac37b612a4ba774ed9e952e3",
+      "type": "target",
+      "name": "Camera target",
+      "parent": "1574cb8a1e1ed05aba850f300c5cb0fb"
+    },
+    {
+      "hash": "919de6343aaa4a1f430799ea0faeb771",
+      "type": "infinite",
+      "name": "Zoo infinite light",
+      "parent": "4bedf5c62d3978dc9654748e18f30013"
+    },
+    {
+      "hash": "b2656d0e898bfd6e9a3f6ba71816892c",
+      "type": "car",
+      "name": "Stock car",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4435681ece65d795bc19ff4e84ebe66d",
+      "type": "tree",
+      "name": "Stock tree",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "6048eae4ba2a94b647b4388891b4487c",
+      "type": "human",
+      "name": "Stock human",
+      "parent": "807c5b2325d597e8742637e9ee32dfab"
+    },
+    {
+      "hash": "4453bb61cf4934515e4673bc9c609386",
+      "type": "group",
+      "name": "Nested transform group 0",
+      "parent": "4bedf5c62d3978dc9654748e18f30013"
+    },
+    {
+      "hash": "d4c2d127b0a24386be70a15b9fd48224",
+      "type": "group",
+      "name": "Nested transform group 1",
+      "parent": "4453bb61cf4934515e4673bc9c609386"
+    },
+    {
+      "hash": "8ded4ec3bfdeb169d0ee73e7bd60a456",
+      "type": "group",
+      "name": "Nested transform group 2",
+      "parent": "d4c2d127b0a24386be70a15b9fd48224"
+    },
+    {
+      "hash": "12e77e22ac15f421b59a31a741a9a01c",
+      "type": "group",
+      "name": "Nested transform group 3",
+      "parent": "8ded4ec3bfdeb169d0ee73e7bd60a456"
+    },
+    {
+      "hash": "34b47da751162bdcf1ebedf19942d566",
+      "type": "group",
+      "name": "Nested transform group 4",
+      "parent": "12e77e22ac15f421b59a31a741a9a01c"
+    },
+    {
+      "hash": "a2e47130f63958647607e4733671445f",
+      "type": "group",
+      "name": "Nested transform group 5",
+      "parent": "34b47da751162bdcf1ebedf19942d566"
+    },
+    {
+      "hash": "8160233b7d3e21500cc1dd0cb9db30ec",
+      "type": "group",
+      "name": "Nested transform group 6",
+      "parent": "a2e47130f63958647607e4733671445f"
+    },
+    {
+      "hash": "e0741a253b18569a6247eea488c2dafd",
+      "type": "group",
+      "name": "Nested transform group 7",
+      "parent": "8160233b7d3e21500cc1dd0cb9db30ec"
+    },
+    {
+      "hash": "4369438f31ca53d34231c6ecdbf0c477",
+      "type": "cube",
+      "name": "Deep child cube",
+      "parent": "e0741a253b18569a6247eea488c2dafd"
+    },
+    {
+      "hash": "f0a1fcc993c5a7ecbbd0dc0e3e9c9b30",
+      "type": "instance",
+      "name": "Instance 0 of Dense Patch 00",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "eab00cf6cce3e9f6c830bf76dfd23761",
+      "type": "instance",
+      "name": "Instance 1 of Editable Patch 36",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7b17f5675f77fa195b33a5a507b0fef0",
+      "type": "instance",
+      "name": "Instance 2 of Editable Patch 73",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c83b5dfd07d495cfbc8e5b4b9ce34a8f",
+      "type": "instance",
+      "name": "Instance 3 of Extrude 20",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7ee217304e7aa89f5e989d4226685189",
+      "type": "instance",
+      "name": "Instance 4 of Sweep 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8917a8723b658638ec0399231b68ec8d",
+      "type": "instance",
+      "name": "Instance 5 of Symmetry 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "aed892c487883682baa68150ee050757",
+      "type": "instance",
+      "name": "Instance 6 of capsule 36",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0517eae59638504746a53ece8eb9a5d2",
+      "type": "instance",
+      "name": "Instance 7 of cylinder 73",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "feacaa4a62f8d3cdc78c4d0751487e7f",
+      "type": "instance",
+      "name": "Instance 8 of washer 110",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "78f8bd507b05a870e39c1cc3e8f235d1",
+      "type": "instance",
+      "name": "Instance 9 of Editable Patch 26",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a8f6c76f7a808d8d151f50ee14338e20",
+      "type": "instance",
+      "name": "Instance 10 of Editable Patch 63",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1716933af8213648bdcb41a4dde2d63a",
+      "type": "instance",
+      "name": "Instance 11 of Extrude 10",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "dd485af61b539398899449334d3b458a",
+      "type": "instance",
+      "name": "Instance 12 of Lathe 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c275c5f93aa26bf303bbcae9eec29eab",
+      "type": "instance",
+      "name": "Instance 13 of Cloner 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "193c950325bedddacd691a4589344abb",
+      "type": "instance",
+      "name": "Instance 14 of tube 26",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "be5eba7fbfb3877b7b56cf413fb914d0",
+      "type": "instance",
+      "name": "Instance 15 of bolt 63",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cf71091770b69735cf9a4f127207d55b",
+      "type": "instance",
+      "name": "Instance 16 of capsule 100",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b534fa9a6d07738e3437b7eb8fea7cfc",
+      "type": "instance",
+      "name": "Instance 17 of Editable Patch 16",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e6fe66463638df767034d214866c8aad",
+      "type": "instance",
+      "name": "Instance 18 of Editable Patch 53",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d21e35d500ec72441d2913356d599b7e",
+      "type": "instance",
+      "name": "Instance 19 of Extrude 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3fd34f7045d19d62a6226963923a4655",
+      "type": "instance",
+      "name": "Instance 20 of Extrude 37",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0e548873c27b8f0d2923c9845c64cc64",
+      "type": "instance",
+      "name": "Instance 21 of Boolean subtract 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5bad98cca3275fc8928aeed1e97e069c",
+      "type": "instance",
+      "name": "Instance 22 of cube 16",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4ffa88c530dc9e846f75fed39409aa82",
+      "type": "instance",
+      "name": "Instance 23 of nut 53",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b0f8b88fd7cb65e2f1cf3355a429297f",
+      "type": "instance",
+      "name": "Instance 24 of tube 90",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6aa244c7bb5025a1366bdc3d217c3d7f",
+      "type": "instance",
+      "name": "Instance 25 of Editable Patch 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "646e861a3755fe8323d1cd0bfe5a9635",
+      "type": "instance",
+      "name": "Instance 26 of Editable Patch 43",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3cb2afdc964119258d7dc12a676b3d15",
+      "type": "instance",
+      "name": "Instance 27 of Editable Patch 80",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f14d2ea4019d194fb6e4f705dbd1fd00",
+      "type": "instance",
+      "name": "Instance 28 of Extrude 27",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "412433868f5d78898ba37954b4537496",
+      "type": "instance",
+      "name": "Instance 29 of Sweep 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "af88d40c81a1a20f620922262dbe9bf0",
+      "type": "instance",
+      "name": "Instance 30 of washer 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8491e27036b6238a134aeda286a308f9",
+      "type": "instance",
+      "name": "Instance 31 of sphere 43",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7abd7f588567263cd0b52b7d804ec410",
+      "type": "instance",
+      "name": "Instance 32 of cube 80",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7a111b8563514cc12dc4a174bf8bf5a9",
+      "type": "instance",
+      "name": "Instance 33 of nut 117",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6ec5bbbbaf275c94852d39a7b7e7348d",
+      "type": "instance",
+      "name": "Instance 34 of Editable Patch 33",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "396abfaed4cc06dc4e807235fdd2561b",
+      "type": "instance",
+      "name": "Instance 35 of Editable Patch 70",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7e08504a2a1b5c4202f3565a53619cbe",
+      "type": "instance",
+      "name": "Instance 36 of Extrude 17",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c7a2827c1065abefd9d515e40ca50960",
+      "type": "instance",
+      "name": "Instance 37 of Lathe 14",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1c3c5c2edeb9feca7ed81b3ff4f0a5e9",
+      "type": "instance",
+      "name": "Instance 38 of Symmetry 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7afe5c1918babf2c6f71c6ab9c5b5e4e",
+      "type": "instance",
+      "name": "Instance 39 of cylinder 33",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fc43d6d728fcedfc7c8b1063c034aab3",
+      "type": "instance",
+      "name": "Instance 40 of washer 70",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "14731d253387118e61c4b8cdc7f8d494",
+      "type": "instance",
+      "name": "Instance 41 of sphere 107",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "012fc27deb3d653d2832730735355386",
+      "type": "instance",
+      "name": "Instance 42 of Editable Patch 23",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cb50746f300dd4d25e4de1e0c9b8d6e5",
+      "type": "instance",
+      "name": "Instance 43 of Editable Patch 60",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f9b5336e3907265151103683d9498157",
+      "type": "instance",
+      "name": "Instance 44 of Extrude 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "02cefe351e3e0e7dc069cd3e4d1cd52b",
+      "type": "instance",
+      "name": "Instance 45 of Lathe 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "706d89ea916343ef852547f11422ee9d",
+      "type": "instance",
+      "name": "Instance 46 of Cloner 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0b35c33eceb00407028dca6efcc3655e",
+      "type": "instance",
+      "name": "Instance 47 of bolt 23",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fd19a10654ee99620f6628ccfbb0dd07",
+      "type": "instance",
+      "name": "Instance 48 of capsule 60",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5ca33215015e2434929d93686a545338",
+      "type": "instance",
+      "name": "Instance 49 of cylinder 97",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "eb53da901122519df43ea3c38045f767",
+      "type": "instance",
+      "name": "Instance 50 of Editable Patch 13",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "15aa67de7f596446d38cd329a6814013",
+      "type": "instance",
+      "name": "Instance 51 of Editable Patch 50",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "341abf8228bca3f28c3e17f25c568d12",
+      "type": "instance",
+      "name": "Instance 52 of Editable Patch 87",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4b6cabebd0b2d30b22d8118318ec8e05",
+      "type": "instance",
+      "name": "Instance 53 of Extrude 34",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2882e34ec208772e7ee6643e4806191c",
+      "type": "instance",
+      "name": "Instance 54 of Boolean subtract 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0be88c905a8f90f54431a427b49c0bfa",
+      "type": "instance",
+      "name": "Instance 55 of nut 13",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "134393cbcab357c50852d0f30bf7c634",
+      "type": "instance",
+      "name": "Instance 56 of tube 50",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cf2677b4eef0d9346ffb17a269f10993",
+      "type": "instance",
+      "name": "Instance 57 of bolt 87",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1c2a007015e3db320ef2fd69963c2391",
+      "type": "instance",
+      "name": "Instance 58 of Editable Patch 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d86eba5b6fcaaed2dce9393120b94126",
+      "type": "instance",
+      "name": "Instance 59 of Editable Patch 40",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ddf109cac907e5638d34e3e99b0c7cf9",
+      "type": "instance",
+      "name": "Instance 60 of Editable Patch 77",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "08e2ad63c9676b028f6e9743e7f393a7",
+      "type": "instance",
+      "name": "Instance 61 of Extrude 24",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "71e4b2bb2bba5c31ea4a0ac2a27282c8",
+      "type": "instance",
+      "name": "Instance 62 of Sweep 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c34c57b1993e229690bea8fc45ebdaf9",
+      "type": "instance",
+      "name": "Instance 63 of sphere 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ef8eb44832d2e38f2287459b7e61de66",
+      "type": "instance",
+      "name": "Instance 64 of cube 40",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "edc0d5933644e76d53d8932bff362fc6",
+      "type": "instance",
+      "name": "Instance 65 of nut 77",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "92281cb6ffdcaf1abd550b6e57208004",
+      "type": "instance",
+      "name": "Instance 66 of tube 114",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fc679ef759a2a3fe7d1b215c87265163",
+      "type": "instance",
+      "name": "Instance 67 of Editable Patch 30",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2615ae424a4655fbdeb624d7001b4fa8",
+      "type": "instance",
+      "name": "Instance 68 of Editable Patch 67",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e27eda161a804e99437a9f87df345533",
+      "type": "instance",
+      "name": "Instance 69 of Extrude 14",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "53871c33c9dfd6636c2f02bef5651ea4",
+      "type": "instance",
+      "name": "Instance 70 of Lathe 11",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2cfc9e2f6451290d456b245025a4cc9b",
+      "type": "instance",
+      "name": "Instance 71 of Symmetry 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b1466fd854f2385b828292175b063cdc",
+      "type": "instance",
+      "name": "Instance 72 of washer 30",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "34d1b2d97c5d04214f2c42a065f56804",
+      "type": "instance",
+      "name": "Instance 73 of sphere 67",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1fdf5c2b480fa0a91c70d38a6f3fe25d",
+      "type": "instance",
+      "name": "Instance 74 of cube 104",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9613969312db24ef8a5ff5bd344ceb29",
+      "type": "instance",
+      "name": "Instance 75 of Editable Patch 20",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f131c31c3b3f33651a3b28aa41e2bf25",
+      "type": "instance",
+      "name": "Instance 76 of Editable Patch 57",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a17d542b4f00fe0d50620ef45ec1d42e",
+      "type": "instance",
+      "name": "Instance 77 of Extrude 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f5d5f3f9320eb7a3989be4d1d7a398d7",
+      "type": "instance",
+      "name": "Instance 78 of Lathe 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "be3340ce001661db128ca71a8b2121fa",
+      "type": "instance",
+      "name": "Instance 79 of Cloner 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5f851d780a79a226157d5fa23250b8ed",
+      "type": "instance",
+      "name": "Instance 80 of capsule 20",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "604bdbcfe7d4e4e506597635768c6b66",
+      "type": "instance",
+      "name": "Instance 81 of cylinder 57",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "92ebea2b55a8a5dc7f02f6b8d551d5db",
+      "type": "instance",
+      "name": "Instance 82 of washer 94",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1518ec9b7ef8498de808a66b0a417982",
+      "type": "instance",
+      "name": "Instance 83 of Editable Patch 10",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "aaafbd96c86a61de1b84206b0143aebb",
+      "type": "instance",
+      "name": "Instance 84 of Editable Patch 47",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c1ae86cb6f458c3571b4fd31750d4afd",
+      "type": "instance",
+      "name": "Instance 85 of Editable Patch 84",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7eb9dbb791282e3952b7ff85a80224fa",
+      "type": "instance",
+      "name": "Instance 86 of Extrude 31",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a15323f5c50271c571c7c3b85388c1e6",
+      "type": "instance",
+      "name": "Instance 87 of Boolean subtract 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "43e912996fe16a65ddf650b9e15e73c1",
+      "type": "instance",
+      "name": "Instance 88 of tube 10",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9572e660c21a32728f6063b32eba00bd",
+      "type": "instance",
+      "name": "Instance 89 of bolt 47",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "81aa8f092cdf4c6c8a57d3f455877a2c",
+      "type": "instance",
+      "name": "Instance 90 of capsule 84",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8bf3c6c458392663f4757ccd2bdf9b3b",
+      "type": "instance",
+      "name": "Instance 91 of Editable Patch 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9b6a8723a13fed558915afa8555fe578",
+      "type": "instance",
+      "name": "Instance 92 of Editable Patch 37",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4dc73f2c684fe1b7829d5eeaba388a99",
+      "type": "instance",
+      "name": "Instance 93 of Editable Patch 74",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e65a980fac875236e1bd39c77f7c7350",
+      "type": "instance",
+      "name": "Instance 94 of Extrude 21",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e3a39d609dc84d85a029e75822539953",
+      "type": "instance",
+      "name": "Instance 95 of Sweep 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "085919e61ffc206476f6aa093e807d20",
+      "type": "instance",
+      "name": "Instance 96 of cube 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "18e92e3b77c60aceb418d4211099f418",
+      "type": "instance",
+      "name": "Instance 97 of nut 37",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7cc262562a44d622bbd993da5d1e8125",
+      "type": "instance",
+      "name": "Instance 98 of tube 74",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9fa252744ce06de796e98bfa7436f1aa",
+      "type": "instance",
+      "name": "Instance 99 of bolt 111",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c7184446ad4ef9047e8892167edc2987",
+      "type": "instance",
+      "name": "Instance 100 of Editable Patch 27",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d780ce46196880dcb4a85551c7b3bb7c",
+      "type": "instance",
+      "name": "Instance 101 of Editable Patch 64",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2f615566d1ec70c59fd0a19275906aee",
+      "type": "instance",
+      "name": "Instance 102 of Extrude 11",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "98390decae81461a2480089901e8500b",
+      "type": "instance",
+      "name": "Instance 103 of Lathe 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d9e107e8fe4535078f31180462f61209",
+      "type": "instance",
+      "name": "Instance 104 of Symmetry 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "87ec915da848434764affd1fb4c24d4b",
+      "type": "instance",
+      "name": "Instance 105 of sphere 27",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d5e8015adbce1edd7552d948f01315f1",
+      "type": "instance",
+      "name": "Instance 106 of cube 64",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5fc04de4b8acf0e6d46fb5b4d8b5b582",
+      "type": "instance",
+      "name": "Instance 107 of nut 101",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f43cc769def04fe654ffc67c65bfff26",
+      "type": "instance",
+      "name": "Instance 108 of Editable Patch 17",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "24ee2fba51046724a7c37a3d39921c0d",
+      "type": "instance",
+      "name": "Instance 109 of Editable Patch 54",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f56c9e85b14b0a481d7f2939965e2b99",
+      "type": "instance",
+      "name": "Instance 110 of Extrude 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b0cbbed754a3c8408952b8c0f8166723",
+      "type": "instance",
+      "name": "Instance 111 of Extrude 38",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3db0dcfc58f6325c8d9186d49b625674",
+      "type": "instance",
+      "name": "Instance 112 of Cloner 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "42accb45b787c91aa1f2dc1bfa2368c4",
+      "type": "instance",
+      "name": "Instance 113 of cylinder 17",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8988afb0e94d82810c3ba146bae8ad51",
+      "type": "instance",
+      "name": "Instance 114 of washer 54",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ce6984603a8494092f27c3564561c5f2",
+      "type": "instance",
+      "name": "Instance 115 of sphere 91",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7b28127bcc09629adc6b459137d2dfb7",
+      "type": "instance",
+      "name": "Instance 116 of Editable Patch 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cd652832c4c0618d8d39ac4b8e2befdb",
+      "type": "instance",
+      "name": "Instance 117 of Editable Patch 44",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "168df30a38b2ecbd0a5183d0788a0b77",
+      "type": "instance",
+      "name": "Instance 118 of Editable Patch 81",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c21e70250e606b6af0b63d815c923011",
+      "type": "instance",
+      "name": "Instance 119 of Extrude 28",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "897d87cbe3bc48318f4785ff60b83036",
+      "type": "instance",
+      "name": "Instance 120 of Boolean subtract 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b9f6b2ac17cb845050dde5fb55ed65f0",
+      "type": "instance",
+      "name": "Instance 121 of bolt 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e335c79977f75010778fecd9668655a3",
+      "type": "instance",
+      "name": "Instance 122 of capsule 44",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5b10fb29ec41dc11e81eabbe3472122d",
+      "type": "instance",
+      "name": "Instance 123 of cylinder 81",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0043e142fe5c17b479e9325245605ac6",
+      "type": "instance",
+      "name": "Instance 124 of washer 118",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ac34409fd293b56114d1f9f18e5c053b",
+      "type": "instance",
+      "name": "Instance 125 of Editable Patch 34",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "64383c841585ee05d5cf15fd985c1218",
+      "type": "instance",
+      "name": "Instance 126 of Editable Patch 71",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d1808943c0ab34193a56bb5c61351cd0",
+      "type": "instance",
+      "name": "Instance 127 of Extrude 18",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "18223ad891fc42a2bc0e5b48405d7271",
+      "type": "instance",
+      "name": "Instance 128 of Sweep 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "326221df92a16a919750e0bb711800ec",
+      "type": "instance",
+      "name": "Instance 129 of Symmetry 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d0042f7874f56098f27fbd1c5ddb1b29",
+      "type": "instance",
+      "name": "Instance 130 of tube 34",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "031dc9016a7dcbb24d175a721353078a",
+      "type": "instance",
+      "name": "Instance 131 of bolt 71",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8b0a578cdf65c5aa49200b976c82d8aa",
+      "type": "instance",
+      "name": "Instance 132 of capsule 108",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "82286a760cf6a3ac1a848c1c876a6b0e",
+      "type": "instance",
+      "name": "Instance 133 of Editable Patch 24",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c86914ac74e6d49b8530422151b59b1f",
+      "type": "instance",
+      "name": "Instance 134 of Editable Patch 61",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d6433a79075bb333aa89486e8e5527df",
+      "type": "instance",
+      "name": "Instance 135 of Extrude 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d55ce6152390a15b3f0db9d60426d8fa",
+      "type": "instance",
+      "name": "Instance 136 of Lathe 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5f7d7f9c7278f2d9ccfc8bdc43f6af52",
+      "type": "instance",
+      "name": "Instance 137 of Cloner 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d720e987999bd00dc3ee6f20ee8cc7b5",
+      "type": "instance",
+      "name": "Instance 138 of cube 24",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "71ad5b4b054522229a46c26633ce1cfd",
+      "type": "instance",
+      "name": "Instance 139 of nut 61",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0149f710384e8a799545260b52d2bd9b",
+      "type": "instance",
+      "name": "Instance 140 of tube 98",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d7adc98350c8c9bc35ae90fbf562a4d8",
+      "type": "instance",
+      "name": "Instance 141 of Editable Patch 14",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "21d02f917c33efef4cfe7943a6edb5e1",
+      "type": "instance",
+      "name": "Instance 142 of Editable Patch 51",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3ecc7ec598f597db6564fcf5d7805678",
+      "type": "instance",
+      "name": "Instance 143 of Editable Patch 88",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9727d2fe0f88879acfb5205097c7354b",
+      "type": "instance",
+      "name": "Instance 144 of Extrude 35",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d8303cd3435ce69e85a5a1dce3305b7d",
+      "type": "instance",
+      "name": "Instance 145 of Boolean intersect 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b8f9187605e214765c1c12350a50a7de",
+      "type": "instance",
+      "name": "Instance 146 of washer 14",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "22deb4109de938e5dc740bb40be5ee52",
+      "type": "instance",
+      "name": "Instance 147 of sphere 51",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6bc3666f83b8ebe46dbaab2d37b2133a",
+      "type": "instance",
+      "name": "Instance 148 of cube 88",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b525e801af98d0696679c72e2eaa1256",
+      "type": "instance",
+      "name": "Instance 149 of Editable Patch 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "97f135db6860cb8605245a55bae549c9",
+      "type": "instance",
+      "name": "Instance 150 of Editable Patch 41",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ec2875f3189a9a274fda9dcf9bdb01cf",
+      "type": "instance",
+      "name": "Instance 151 of Editable Patch 78",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f699781c558fa62e5553e3c22b4e5177",
+      "type": "instance",
+      "name": "Instance 152 of Extrude 25",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c5cd58ba337f5e4756c24f68f8bb88d2",
+      "type": "instance",
+      "name": "Instance 153 of Sweep 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "73f49fe3b473b2337ad2aa803564ac63",
+      "type": "instance",
+      "name": "Instance 154 of capsule 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9c9bd5202358e3702c9d9831945b421b",
+      "type": "instance",
+      "name": "Instance 155 of cylinder 41",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "de623e244c5b6bfeab48d64e2c4c5f77",
+      "type": "instance",
+      "name": "Instance 156 of washer 78",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "bae6cc98721799ccd8fa884e5ffec093",
+      "type": "instance",
+      "name": "Instance 157 of sphere 115",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "48b7ba125cb28a841454208cc336f293",
+      "type": "instance",
+      "name": "Instance 158 of Editable Patch 31",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4b586f600a18276cb1a661210cdb9558",
+      "type": "instance",
+      "name": "Instance 159 of Editable Patch 68",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cad3228048ccfda47e947d5b606c6a5a",
+      "type": "instance",
+      "name": "Instance 160 of Extrude 15",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "bbe427fb1d8cec9d432fedeadf74e675",
+      "type": "instance",
+      "name": "Instance 161 of Lathe 12",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1f173f67e5009a5077991ca7b01a188d",
+      "type": "instance",
+      "name": "Instance 162 of Symmetry 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "619b94bf1cff7361ddf7fe0d824307fc",
+      "type": "instance",
+      "name": "Instance 163 of bolt 31",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1d0d5c36eac6b6524192796ffdcd7ec8",
+      "type": "instance",
+      "name": "Instance 164 of capsule 68",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6d5c66e8f281c1672b9b6086af53e2be",
+      "type": "instance",
+      "name": "Instance 165 of cylinder 105",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "21e81676324f5b07a87d268fb5a7b04d",
+      "type": "instance",
+      "name": "Instance 166 of Editable Patch 21",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "eee3046d3af2d5f698986fbf1138a99f",
+      "type": "instance",
+      "name": "Instance 167 of Editable Patch 58",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1f3a2eeb9b711b4e66823fb2e0276da2",
+      "type": "instance",
+      "name": "Instance 168 of Extrude 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2b8421d03f82611606f8a5547c1b0b85",
+      "type": "instance",
+      "name": "Instance 169 of Lathe 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7cfcc1930dff13edacb9535cfb61e250",
+      "type": "instance",
+      "name": "Instance 170 of Cloner 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9b68beda8a691bd4df9da262edade7f3",
+      "type": "instance",
+      "name": "Instance 171 of nut 21",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f3068c4a1246f58ea9d984ace2b86222",
+      "type": "instance",
+      "name": "Instance 172 of tube 58",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "daf6e6d64bda777f28e5f6fd34d78b7c",
+      "type": "instance",
+      "name": "Instance 173 of bolt 95",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c179f7ca515ad1b1e14e399122c17a0e",
+      "type": "instance",
+      "name": "Instance 174 of Editable Patch 11",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "424e2231418088412f4f41a9c0251ef4",
+      "type": "instance",
+      "name": "Instance 175 of Editable Patch 48",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7d3ca0fc9c94f783012b12168521cfd9",
+      "type": "instance",
+      "name": "Instance 176 of Editable Patch 85",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e9f6456fbd9493bba33f2aa3a1492f86",
+      "type": "instance",
+      "name": "Instance 177 of Extrude 32",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b764a1d0e7cf3f282eb5e856d20abfd1",
+      "type": "instance",
+      "name": "Instance 178 of Boolean intersect 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5ff4f71931a827ba47f83e6666b1988b",
+      "type": "instance",
+      "name": "Instance 179 of sphere 11",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "22eb934103cdea37a40f5234dad8365f",
+      "type": "instance",
+      "name": "Instance 180 of cube 48",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "48d6b57bb93e40fa6e2377383b82f099",
+      "type": "instance",
+      "name": "Instance 181 of nut 85",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5279aa7c88a4be1f8467f8a199b4d295",
+      "type": "instance",
+      "name": "Instance 182 of Editable Patch 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f0650e1972443ec14d9696295afaa138",
+      "type": "instance",
+      "name": "Instance 183 of Editable Patch 38",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a9701943f17b505a95bb207246a471d7",
+      "type": "instance",
+      "name": "Instance 184 of Editable Patch 75",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9387aa641a8965a0fcd06af9fdd9ea13",
+      "type": "instance",
+      "name": "Instance 185 of Extrude 22",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6cc14b28c1163c3791fb6f26d025ea1e",
+      "type": "instance",
+      "name": "Instance 186 of Sweep 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2e049968d9864081b4cffe87b8041457",
+      "type": "instance",
+      "name": "Instance 187 of cylinder 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c680f5d47eba514ae1428f9d21537e0c",
+      "type": "instance",
+      "name": "Instance 188 of washer 38",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8e4bab0de262c8b77bec74511a404e27",
+      "type": "instance",
+      "name": "Instance 189 of sphere 75",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "bebe76e0004996ab922f1012e91ce9cf",
+      "type": "instance",
+      "name": "Instance 190 of cube 112",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5dd06fb8c0803d8ffed9de5c89a18257",
+      "type": "instance",
+      "name": "Instance 191 of Editable Patch 28",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b6ee4bf722b86868d6b73334d4068250",
+      "type": "instance",
+      "name": "Instance 192 of Editable Patch 65",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "74419f74c9037ec58e5e7539147d31d6",
+      "type": "instance",
+      "name": "Instance 193 of Extrude 12",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ecfce9ea3bae0863b8c8e28bc8f7b033",
+      "type": "instance",
+      "name": "Instance 194 of Lathe 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "124df91d0827f1aea65b57c3bc778fdc",
+      "type": "instance",
+      "name": "Instance 195 of Symmetry 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "81099dd05de910d28fadc72ecf49f344",
+      "type": "instance",
+      "name": "Instance 196 of capsule 28",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "73572f363382c96798e2361c6eebbf98",
+      "type": "instance",
+      "name": "Instance 197 of cylinder 65",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9607118729a05fd13ed6388917f8e612",
+      "type": "instance",
+      "name": "Instance 198 of washer 102",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "cc4b92908c44acdc69a362bbe31a6400",
+      "type": "instance",
+      "name": "Instance 199 of Editable Patch 18",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "aee2a8f90bef017ff187224beb31c142",
+      "type": "instance",
+      "name": "Instance 200 of Editable Patch 55",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "51766af67e0ed749fcb70f279eeb641f",
+      "type": "instance",
+      "name": "Instance 201 of Extrude 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d8e5b78c8ad80cdccecab21d96704b96",
+      "type": "instance",
+      "name": "Instance 202 of Extrude 39",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "90153b91d5d56374bd6c9764e4bbc293",
+      "type": "instance",
+      "name": "Instance 203 of Cloner 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c5390501d6bda5a42d1d2c9e4ca5cafe",
+      "type": "instance",
+      "name": "Instance 204 of tube 18",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0ab106104fa8355f3ffd43918fb5fd4f",
+      "type": "instance",
+      "name": "Instance 205 of bolt 55",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5b8d642049ae7f175828a8dc80efb589",
+      "type": "instance",
+      "name": "Instance 206 of capsule 92",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c4b4aee770b661726a5f61115077a314",
+      "type": "instance",
+      "name": "Instance 207 of Editable Patch 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6c26e4d53cad94b82b0e6cf11024b399",
+      "type": "instance",
+      "name": "Instance 208 of Editable Patch 45",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b18f8561794b9ce593742ebb75e19e89",
+      "type": "instance",
+      "name": "Instance 209 of Editable Patch 82",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ed9a2a7c5da2718b329fb65f19855105",
+      "type": "instance",
+      "name": "Instance 210 of Extrude 29",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "37799ebe1683928c241cb52fd6f5b397",
+      "type": "instance",
+      "name": "Instance 211 of Boolean intersect 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "009c5e8dd76ed6b88df0fbcf97fe7ff1",
+      "type": "instance",
+      "name": "Instance 212 of cube 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e938c26a96d9ebf9fab629d48eb0be1c",
+      "type": "instance",
+      "name": "Instance 213 of nut 45",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "023a4e2afdd1826a61a5d7719096dd1c",
+      "type": "instance",
+      "name": "Instance 214 of tube 82",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0f12ceaba0c415c72436c0209a47b2b1",
+      "type": "instance",
+      "name": "Instance 215 of bolt 119",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e137ba7a200444db9bb350b3a0662e9a",
+      "type": "instance",
+      "name": "Instance 216 of Editable Patch 35",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8a0a03b16bd80a557f64239f60253c93",
+      "type": "instance",
+      "name": "Instance 217 of Editable Patch 72",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "31316e49b07957f6ffd464e1dae03957",
+      "type": "instance",
+      "name": "Instance 218 of Extrude 19",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "30fcf69bc33209657412b51c11d1bf43",
+      "type": "instance",
+      "name": "Instance 219 of Sweep 1",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6a730d83cb5c836493b468c96680af97",
+      "type": "instance",
+      "name": "Instance 220 of Symmetry 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3882313c74a04c7cc96fd1a9532affd9",
+      "type": "instance",
+      "name": "Instance 221 of sphere 35",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "43df98b8e35bfab1e5d2b08790e1ed91",
+      "type": "instance",
+      "name": "Instance 222 of cube 72",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "027a60eb798ccacabda055c67383c2fa",
+      "type": "instance",
+      "name": "Instance 223 of nut 109",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4fb9c9fff905bcee01bf96d961651ea9",
+      "type": "instance",
+      "name": "Instance 224 of Editable Patch 25",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "749684a6a74677be3e890eddf207c20e",
+      "type": "instance",
+      "name": "Instance 225 of Editable Patch 62",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "88059025f7abd86cfefbbd8496a09443",
+      "type": "instance",
+      "name": "Instance 226 of Extrude 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2bfabf245f30005c898136e186b8652d",
+      "type": "instance",
+      "name": "Instance 227 of Lathe 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f9ce4e32c4e9c524832c3446e28e3c9d",
+      "type": "instance",
+      "name": "Instance 228 of Cloner 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a9299cc98ac38969a1f18defd20ff1eb",
+      "type": "instance",
+      "name": "Instance 229 of cylinder 25",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3f4ee58f09d8ca8378149e1613b3ae06",
+      "type": "instance",
+      "name": "Instance 230 of washer 62",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a021b3a0d8edc16c5fcaeba422a4b342",
+      "type": "instance",
+      "name": "Instance 231 of sphere 99",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4de8d79b1fd4532571959b30f170d4f2",
+      "type": "instance",
+      "name": "Instance 232 of Editable Patch 15",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "69c6ba9e935a0734e1ff694d8f74f5f6",
+      "type": "instance",
+      "name": "Instance 233 of Editable Patch 52",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1f47f130f6da60cc8fbfeae75ebcafdc",
+      "type": "instance",
+      "name": "Instance 234 of Editable Patch 89",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "696843cd07fef07e1e0e0531427cb45e",
+      "type": "instance",
+      "name": "Instance 235 of Extrude 36",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a12a5f36fd1eccb3ed52bd099144c412",
+      "type": "instance",
+      "name": "Instance 236 of Boolean union 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9df660e8646790b93feb46575e8d2583",
+      "type": "instance",
+      "name": "Instance 237 of bolt 15",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "92b1c0b4da9cad2c2c1ec4828dc497df",
+      "type": "instance",
+      "name": "Instance 238 of capsule 52",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e7977225f896632e637e58f8e52ec014",
+      "type": "instance",
+      "name": "Instance 239 of cylinder 89",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "bd3d6c21771c764a718882818b6490fb",
+      "type": "instance",
+      "name": "Instance 240 of Editable Patch 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "04d450da727df6d78dd994e9ef7a6e4a",
+      "type": "instance",
+      "name": "Instance 241 of Editable Patch 42",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f46ef651e8cba285bdd63d5de558924f",
+      "type": "instance",
+      "name": "Instance 242 of Editable Patch 79",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0f2ce4c0b9a44a610eeb9e0f1be75f72",
+      "type": "instance",
+      "name": "Instance 243 of Extrude 26",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1d906e5b3a8e9bbd5736dee5a366488a",
+      "type": "instance",
+      "name": "Instance 244 of Sweep 8",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8e513643c3e606626473539209a205c4",
+      "type": "instance",
+      "name": "Instance 245 of nut 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f4f5d75ee48c8756f9ce51cc58bcb564",
+      "type": "instance",
+      "name": "Instance 246 of tube 42",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9b3ea89df06bb0f657228d61cea85d68",
+      "type": "instance",
+      "name": "Instance 247 of bolt 79",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b31b4f38be1f3180950a39606054906b",
+      "type": "instance",
+      "name": "Instance 248 of capsule 116",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "6e07c8789c4ad8d98e33b5ec0fe1bad6",
+      "type": "instance",
+      "name": "Instance 249 of Editable Patch 32",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a57e4c8b3b4c8204d71c4ea15ca55b19",
+      "type": "instance",
+      "name": "Instance 250 of Editable Patch 69",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "09268a65daab5e4f0b6591e56f8ed9de",
+      "type": "instance",
+      "name": "Instance 251 of Extrude 16",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a3aa1f5e20f030282194076412bc11eb",
+      "type": "instance",
+      "name": "Instance 252 of Lathe 13",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "120c030736eaf2ac75b998c49755797d",
+      "type": "instance",
+      "name": "Instance 253 of Symmetry 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7fe6a5d7a492a894f7980e2a35f432c6",
+      "type": "instance",
+      "name": "Instance 254 of cube 32",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0fabc64370d8d6f9ac911d275c5c9caf",
+      "type": "instance",
+      "name": "Instance 255 of nut 69",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2d9929835521480b312ab251e766374d",
+      "type": "instance",
+      "name": "Instance 256 of tube 106",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "338abdb6dc7f5048e802cf6646b09306",
+      "type": "instance",
+      "name": "Instance 257 of Editable Patch 22",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e6dc5908ac6a466230421ad5b44cacc9",
+      "type": "instance",
+      "name": "Instance 258 of Editable Patch 59",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f13026db8728830d37de742ab5c8b004",
+      "type": "instance",
+      "name": "Instance 259 of Extrude 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a8b4d49c47d079f2ee2c81363b0ba4eb",
+      "type": "instance",
+      "name": "Instance 260 of Lathe 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7685a467d11c5d27d94379fa2299b2e6",
+      "type": "instance",
+      "name": "Instance 261 of Cloner 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ca6a41b97c68d896c1901058bef71b26",
+      "type": "instance",
+      "name": "Instance 262 of washer 22",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d3c2616172235d5ebe95fc5724647b15",
+      "type": "instance",
+      "name": "Instance 263 of sphere 59",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a10903fef63405dc7a71fb09ad4a3e96",
+      "type": "instance",
+      "name": "Instance 264 of cube 96",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "79f41066df080ff936d021732cf33120",
+      "type": "instance",
+      "name": "Instance 265 of Editable Patch 12",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fc6db7d47aa1cde724ebcd94de07db96",
+      "type": "instance",
+      "name": "Instance 266 of Editable Patch 49",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e601c286d068ac677f306845470d8084",
+      "type": "instance",
+      "name": "Instance 267 of Editable Patch 86",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a299b53e63593d205433fa5bf5c0d4dd",
+      "type": "instance",
+      "name": "Instance 268 of Extrude 33",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "bdbead2843d0d5b5a44f854bb8c17202",
+      "type": "instance",
+      "name": "Instance 269 of Boolean union 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "1841d1b288ed569f1640cab1b60eaf18",
+      "type": "instance",
+      "name": "Instance 270 of capsule 12",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fef2c2048d38523a08e2fb449b237e94",
+      "type": "instance",
+      "name": "Instance 271 of cylinder 49",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3c9491af51d5e1f69e56751db3e50222",
+      "type": "instance",
+      "name": "Instance 272 of washer 86",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "315ab13e5bbef8ce27dd54b5ebbd7751",
+      "type": "instance",
+      "name": "Instance 273 of Editable Patch 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8274d5724bdc08be8f6f9c1fb289eb94",
+      "type": "instance",
+      "name": "Instance 274 of Editable Patch 39",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a2761e59360df8ee056b8e17847bc9c2",
+      "type": "instance",
+      "name": "Instance 275 of Editable Patch 76",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "31c8713709430744a12e8b3dcf644023",
+      "type": "instance",
+      "name": "Instance 276 of Extrude 23",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "80d5fca84935223fe14881051f76f941",
+      "type": "instance",
+      "name": "Instance 277 of Sweep 5",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9356a97165232dfdf7be676288db24bb",
+      "type": "instance",
+      "name": "Instance 278 of tube 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d76e362bda901e8d1d8b3f2c48afbdaa",
+      "type": "instance",
+      "name": "Instance 279 of bolt 39",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0704cfc48cb07ae6a43bf63bae789278",
+      "type": "instance",
+      "name": "Instance 280 of capsule 76",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2549e361f9a9af9ba7064d79c641f244",
+      "type": "instance",
+      "name": "Instance 281 of cylinder 113",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "55af132e9a965c158777d48ba1118169",
+      "type": "instance",
+      "name": "Instance 282 of Editable Patch 29",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "64bb5b4dba731f788ad35bd381bb34a8",
+      "type": "instance",
+      "name": "Instance 283 of Editable Patch 66",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "57bb51fb657720754db98bc1bfc5fe01",
+      "type": "instance",
+      "name": "Instance 284 of Extrude 13",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "81a3011f8ff265085294d2d3df197179",
+      "type": "instance",
+      "name": "Instance 285 of Lathe 10",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "534bf6898dfa1594628bf7c343490283",
+      "type": "instance",
+      "name": "Instance 286 of Symmetry 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e6d0ca4e87e639c40074b7530b9d7b52",
+      "type": "instance",
+      "name": "Instance 287 of nut 29",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a09cc12ccd225ee2d5f2e0287892d67a",
+      "type": "instance",
+      "name": "Instance 288 of tube 66",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "d9de5f186d043eec5bcd0e05616ebede",
+      "type": "instance",
+      "name": "Instance 289 of bolt 103",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "948b5b8f699b7834c0ff1727dce96f7d",
+      "type": "instance",
+      "name": "Instance 290 of Editable Patch 19",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "9f8c8cad3cfc2102a6ef97a04d8b8784",
+      "type": "instance",
+      "name": "Instance 291 of Editable Patch 56",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b5ea59f36d1a58fac375467db56cc7d5",
+      "type": "instance",
+      "name": "Instance 292 of Extrude 3",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "82dfaec040b34154aae17bf91c840613",
+      "type": "instance",
+      "name": "Instance 293 of Lathe 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "225301feb6331203158387f5bf062935",
+      "type": "instance",
+      "name": "Instance 294 of Cloner 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ac38304dcf54c3c495c4a77f1ba2c15f",
+      "type": "instance",
+      "name": "Instance 295 of sphere 19",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "65b30004f3ffc93b51b413b3638782d4",
+      "type": "instance",
+      "name": "Instance 296 of cube 56",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "214193023c0361a46a5ea65d553e5019",
+      "type": "instance",
+      "name": "Instance 297 of nut 93",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ba5e178f0ad4b59c117c7422513e75d6",
+      "type": "instance",
+      "name": "Instance 298 of Editable Patch 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "747df3eff31b900120b4dda63233831f",
+      "type": "instance",
+      "name": "Instance 299 of Editable Patch 46",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "dfe6a2f6d83566a5b8953863fb3ef102",
+      "type": "instance",
+      "name": "Instance 300 of Editable Patch 83",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2a506f4ed95635d28885666fa5dc279a",
+      "type": "instance",
+      "name": "Instance 301 of Extrude 30",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ad14016b4befdf354b80ed5ef57f6b07",
+      "type": "instance",
+      "name": "Instance 302 of Boolean union 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "18c27a83d51604993e47c79cb2c03d17",
+      "type": "instance",
+      "name": "Instance 303 of cylinder 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f14fe6d13074c8dca9303c6819016052",
+      "type": "instance",
+      "name": "Instance 304 of washer 46",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8afab807e5f8486723755cb6cfec2178",
+      "type": "instance",
+      "name": "Instance 305 of sphere 83",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "09522cce6c33175ae4bb0907d29c9293",
+      "type": "instance",
+      "name": "Instance 306 of Dense Patch 00",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "16d360cdd2c2e7388ce6636193baf241",
+      "type": "instance",
+      "name": "Instance 307 of Editable Patch 36",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f6481fb6c30820c58b7148f8dab97696",
+      "type": "instance",
+      "name": "Instance 308 of Editable Patch 73",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e88c051fc5130345313f0775ead566fb",
+      "type": "instance",
+      "name": "Instance 309 of Extrude 20",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5aa3cade643ad36efdb533a030af212e",
+      "type": "instance",
+      "name": "Instance 310 of Sweep 2",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8482e5110c53a93296da8b1dfab26c27",
+      "type": "instance",
+      "name": "Instance 311 of Symmetry 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a0b0070b3159b6f184cf05ca910af996",
+      "type": "instance",
+      "name": "Instance 312 of capsule 36",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "5b67a1b05d0c543d25e409f7c32c38e7",
+      "type": "instance",
+      "name": "Instance 313 of cylinder 73",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a78a2cd8ddea77a945283c866d16b25a",
+      "type": "instance",
+      "name": "Instance 314 of washer 110",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8eba536b9cddc2f3166783c57fd1fbc2",
+      "type": "instance",
+      "name": "Instance 315 of Editable Patch 26",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8783cb7d4ac00222b08adb62cd88a10d",
+      "type": "instance",
+      "name": "Instance 316 of Editable Patch 63",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "0f9a0bc5f34d2fd2ce1d99d4118df95c",
+      "type": "instance",
+      "name": "Instance 317 of Extrude 10",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ec5c718544c476af3da897b9ccccded7",
+      "type": "instance",
+      "name": "Instance 318 of Lathe 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7d7f357cc3fbaff7d12f7d98e0c0240c",
+      "type": "instance",
+      "name": "Instance 319 of Cloner 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "42e1a77b04a8ddd75b2d8ffa7c87d6d3",
+      "type": "instance",
+      "name": "Instance 320 of tube 26",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "ec5ff916c78f987dcca0eacfd39e47f7",
+      "type": "instance",
+      "name": "Instance 321 of bolt 63",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "527d4ad5a323aa3212f7c15ce2b993fa",
+      "type": "instance",
+      "name": "Instance 322 of capsule 100",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8a1afbabe10a2f6e390c90c5bf44ef6e",
+      "type": "instance",
+      "name": "Instance 323 of Editable Patch 16",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c97a86a813915aaf13cfbbbc92c29d7f",
+      "type": "instance",
+      "name": "Instance 324 of Editable Patch 53",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "4e90465bab0b379b3e29158367a88969",
+      "type": "instance",
+      "name": "Instance 325 of Extrude 0",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "f00f67258d46303e90d1c8fda65fce77",
+      "type": "instance",
+      "name": "Instance 326 of Extrude 37",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "95cb6f2df11453c100b0a8040e5ec748",
+      "type": "instance",
+      "name": "Instance 327 of Boolean subtract 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2a46dbced138bcd7550fcd17936c7835",
+      "type": "instance",
+      "name": "Instance 328 of cube 16",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "40729ba8c837bded92714579cb224014",
+      "type": "instance",
+      "name": "Instance 329 of nut 53",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2dacf967dbf5e78557c0144e04cd900f",
+      "type": "instance",
+      "name": "Instance 330 of tube 90",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "939f6aa94bd8623a0c1d49cc80303b80",
+      "type": "instance",
+      "name": "Instance 331 of Editable Patch 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "b9a2037328d8f23f07cd455b9d732143",
+      "type": "instance",
+      "name": "Instance 332 of Editable Patch 43",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "dc8a1bc51fd14150d1a0af4ce70462ad",
+      "type": "instance",
+      "name": "Instance 333 of Editable Patch 80",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a5f42ed54398bad2dd2f8ff6e89d8c17",
+      "type": "instance",
+      "name": "Instance 334 of Extrude 27",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3273aff0214d949d71cb1e0e007baf3c",
+      "type": "instance",
+      "name": "Instance 335 of Sweep 9",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "25b4edf396f7d85b17f29a533346367c",
+      "type": "instance",
+      "name": "Instance 336 of washer 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "28735a6cf227c4680dcd30e4d4177cf3",
+      "type": "instance",
+      "name": "Instance 337 of sphere 43",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "576865c7566df9e8d2b257f2e08b8998",
+      "type": "instance",
+      "name": "Instance 338 of cube 80",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "caf94a2c544a08f53d91aab40619e825",
+      "type": "instance",
+      "name": "Instance 339 of nut 117",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "77b2f262ec45d36094b815d823b7902b",
+      "type": "instance",
+      "name": "Instance 340 of Editable Patch 33",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "e2d05b0f43ae19a42d3d587846852a14",
+      "type": "instance",
+      "name": "Instance 341 of Editable Patch 70",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "369e54e53f532dd391a95d5ec08c5c90",
+      "type": "instance",
+      "name": "Instance 342 of Extrude 17",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "fea49fbe1cb38a2c714c4039b7f33993",
+      "type": "instance",
+      "name": "Instance 343 of Lathe 14",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a938bc07211f886967b08062d0df9e1f",
+      "type": "instance",
+      "name": "Instance 344 of Symmetry 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "09eea5747f469b7d74eb8997aa5f7b44",
+      "type": "instance",
+      "name": "Instance 345 of cylinder 33",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "eb6491723cd9ffa94545e1a1b9edeab6",
+      "type": "instance",
+      "name": "Instance 346 of washer 70",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "12ce20253aa16556917a903016a6b43c",
+      "type": "instance",
+      "name": "Instance 347 of sphere 107",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "baec72eb60e7dae56fdc92584f9e1514",
+      "type": "instance",
+      "name": "Instance 348 of Editable Patch 23",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "47f022c1edd94bdd6de9466e074b6fd4",
+      "type": "instance",
+      "name": "Instance 349 of Editable Patch 60",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "8b1d72b855f3bd580ec7a35a9f41b742",
+      "type": "instance",
+      "name": "Instance 350 of Extrude 7",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "096f1e2ee08240e9d5d63329100390c3",
+      "type": "instance",
+      "name": "Instance 351 of Lathe 4",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "63a705149426c73a51057c50bd60ba6b",
+      "type": "instance",
+      "name": "Instance 352 of Cloner 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "235ee8906f535c65fa558baa24453f49",
+      "type": "instance",
+      "name": "Instance 353 of bolt 23",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7c8f7bc04a309f3e272126592df2d97e",
+      "type": "instance",
+      "name": "Instance 354 of capsule 60",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "c921a6c82476ba50b4ccae149914a504",
+      "type": "instance",
+      "name": "Instance 355 of cylinder 97",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "7f2f85363a19ec20304c573975fffc03",
+      "type": "instance",
+      "name": "Instance 356 of Editable Patch 13",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "a77690644c399b50d7a580dba44cf4ce",
+      "type": "instance",
+      "name": "Instance 357 of Editable Patch 50",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "3a837566bf6eae195ef502be0b3c1819",
+      "type": "instance",
+      "name": "Instance 358 of Editable Patch 87",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "2b47b38dde2256135a2f7feb31130ecd",
+      "type": "instance",
+      "name": "Instance 359 of Extrude 34",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    },
+    {
+      "hash": "17ba4138c04cea9fe70fd6f8340cd2a6",
+      "type": "instance",
+      "name": "Instance 360 of Boolean subtract 6",
+      "parent": "a5f47e3433bd6840d0159571ed904a91"
+    }
+  ],
+  "count": 1000,
+  "counts": {
+    "group": 17,
+    "spline_patch": 91,
+    "spline": 194,
+    "extrude": 40,
+    "square": 19,
+    "circle": 31,
+    "lathe": 15,
+    "sweep": 10,
+    "boolean": 10,
+    "cube": 56,
+    "cloner": 10,
+    "symmetry": 10,
+    "cylinder": 15,
+    "tube": 15,
+    "sphere": 15,
+    "capsule": 15,
+    "nut": 15,
+    "washer": 15,
+    "bolt": 15,
+    "polyhedron": 5,
+    "text": 5,
+    "helix": 5,
+    "gear": 5,
+    "pulley": 5,
+    "render": 1,
+    "target": 1,
+    "infinite": 1,
+    "car": 1,
+    "tree": 1,
+    "human": 1,
+    "instance": 361
+  },
+  "handles": {
+    "root": "ec6edae84667ebcaef867ebb5eba1621",
+    "group": "8a3396d51f4db74b238324ef5c5e9653",
+    "densePatch": "a3fef4355d8beade7c480100038635d5",
+    "denseChildSpline": "1afbe8a73d812bc6630bdc284652c1db",
+    "densePatchChildren": [
+      "1afbe8a73d812bc6630bdc284652c1db",
+      "679475b789264f2c4df8d0b97e372d57",
+      "1439f516e98778ffc33d03c65a422445",
+      "758af3893e564acb3f2c30709069a9d2",
+      "26c67d6921b297c5b8bb29745c8d26a2",
+      "08ab3530518d2eeaeb26257eb2315188",
+      "c536fca5d5b8b605dc10604d076afef2",
+      "47feeed4c0b0978f5a81da5d68bf3a31",
+      "dd92d2e56a6c893a4afe628eca3c48f9",
+      "eb94fcd444c88afd844b0dc839b45f06",
+      "eea86a65ece262bbbf6406fdabb8ef78",
+      "239d4a0e0618d23911ebaa57848d102d",
+      "a347e65310043f87a61f4c142246a6d2",
+      "87d7269cc3ac10b9338ffcea91bcda2f",
+      "ec186aff667d5dacd639e926d5a632ee",
+      "c609e4e57f4d8e5672cf951ccde63445",
+      "dcfa0cbe1dc3703297f36f94d6d8d184",
+      "33dcea8dd12182823bb1e9604ccd5136",
+      "ca4331e8edce675898345c6a476c6b30",
+      "032f87ca8c921afa5febb2453af1c90d",
+      "f24643706e5fcb398035f1ff0938d313",
+      "43cc63a8c4a0c8cfd0a03405b80955b9",
+      "178a3eb6f5092d5bab5cb2b5f5117458",
+      "5f7387f094888a380ca555b6c993db68",
+      "a377958a1da27fade065ddae8a79a65e",
+      "187bc9af0044e556ea657f7353481858",
+      "07b53f0f52f203bd55fffa42050ec7a9",
+      "5f3cfd333c4f71492edb7c91edb90682",
+      "5b83555f982b7d9be732fe62b699120d",
+      "25c8ff30aee4f42ad0ac69f70408cd55",
+      "3dea92cb01c569c1f534546063c0398b",
+      "5c0908579668ccc1aa07bc20be8a312f",
+      "310fed5c535bdde7a98bb79920d0ea32",
+      "e8b75f362f36a18c80e5923999641da0",
+      "73e9d4b3e2b5a26288d75390b6a0bb3f",
+      "3350473e38b1cdace7e371af2baad4af",
+      "ae3d73845a941f6c5623fe9d68ce0096",
+      "db4cda6e31d048468731822615e5d033",
+      "2b78f03d7a108dd15988f0020f875f9f",
+      "561fb590bf51e931a0f43fc435a28d95",
+      "fbad08535e27ffb617a0510dba940db5",
+      "bbb1b80ab0090bb6bc6dd7356d78f4de",
+      "7828c9c76f7350d233d0e5c7dc512ad2",
+      "8de615449edf0b9c833a3070c8f50a87",
+      "8c5f9168895dc3b23ea2bf760594e80b",
+      "791be3f400532775fac993975788181c",
+      "8293aae3036f5067fd272d8823c4aa8a",
+      "4a053e7ada886e160c7419903b53bb59",
+      "6db6c5e13fe67023166f3da822a2933f",
+      "75841a26c111e732af359a89e52fc0fb",
+      "e77cd9d23a1892d0fa3bc71e6e28629d",
+      "6fbf2c21cbc8d1202c3b6e608a555e6a",
+      "10f0ffdd3bfe351f11bf428ed3673075",
+      "e26bb3b6950cb08bd14cd733c5a80132",
+      "612e6a271974013b6c1c3f7145120eba",
+      "b23eca056e53c8d556c2ca938173ffbf",
+      "c1d811f8248704a8f2e286ee85c7d2e7",
+      "30b5d169c6057f480e35249194b6d17d",
+      "2458c1284f85f2ae0a271dc1f2554c65",
+      "9945ab1d53c2c73005cc4b9e23dbe241",
+      "21bb4b02a55bfb0c63ebbe09ad15b2ae",
+      "c76c527220d3fc35e4d17e112341ad2e",
+      "9f60f7fa1a1b4a519f76b406af152055",
+      "2ed9030bbfa88398de347ce2feab37b8"
+    ],
+    "patch": "ce9cb6f00d8f86111146e36c9832ecd2",
+    "childSpline": "c880b384128d74670adca3121a6c1f96",
+    "extrude": "2b3dcc00f02ec348c8c62bdfe722d918",
+    "extrudeProfile": "2a74cb28ee6fa2fe4049cf46e0fd5ca0",
+    "lathe": "9f9d7a3626bfffeb80c8d49d5ec34634",
+    "sweep": "31e0c3d2495874904682ae32f96f4b4b",
+    "boolean": "f8057b88559f69213cd487dc0f26571f",
+    "booleanOperand": "0aa4e608059ad48311ec36d6d3b2b6cb",
+    "cloner": "0f71142a4837b4a8d2027084f714ffbf",
+    "clonerSource": "97d94ef3717eab5424cf91ba9de80c99",
+    "symmetry": "ad5113f67452ead7a97e8534f07dc627",
+    "primitive": "b0cd9f98c2b2f1a7ed3f837323dd345d",
+    "freeSpline": "18f3036fc6d6626380dfd35d23d9d303",
+    "camera": "1574cb8a1e1ed05aba850f300c5cb0fb",
+    "light": "919de6343aaa4a1f430799ea0faeb771",
+    "car": "b2656d0e898bfd6e9a3f6ba71816892c",
+    "tree": "4435681ece65d795bc19ff4e84ebe66d",
+    "human": "6048eae4ba2a94b647b4388891b4487c",
+    "deepChild": "4369438f31ca53d34231c6ecdbf0c477",
+    "deepGroup": "e0741a253b18569a6247eea488c2dafd",
+    "instance": "f0a1fcc993c5a7ecbbd0dc0e3e9c9b30",
+    "instanceSource": "a3fef4355d8beade7c480100038635d5",
+    "material": "5bbbbcdceab895884ea36e4f13ee9883",
+    "texturedMaterial": "c30986e2005ff3fd9e92e62ba66b192e"
+  },
+  "materials": 128,
+  "textures": 64,
+  "textureSize": 128,
+  "authoredPolygons": 0,
+  "stockPolygonObjects": 3,
+  "densePatches": 1,
+  "densePatchChildren": 64,
+  "excluded": [
+    "optional simulation plugins"
+  ],
+  "description": "Editable native workload. Display geometry is regenerated from authoring; three stock model references are the only polygon-based families. 64 independent embedded textures and 128 shared custom materials, plus stock materials.",
+  "bytes": 3878666,
+  "sha256": "a1f9a5efb4f13a49739562812b14e85b1f4d141762eb716d08a71c01ab98d3bd"
+}

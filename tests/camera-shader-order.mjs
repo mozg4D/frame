@@ -16,7 +16,7 @@ const scope=(s,anchor)=>{const i=s.indexOf(anchor);assert.ok(i>=0,anchor);const 
 function withoutComments(s){let out='',i=0;while(i<s.length){if(s.slice(i,i+2)==='//'){const end=s.indexOf('\n',i);i=end<0?s.length:end;out+=' ';continue;}if(s.slice(i,i+2)==='/*'){let n=1;i+=2;while(i<s.length&&n){if(s.slice(i,i+2)==='/*'){n++;i+=2;}else if(s.slice(i,i+2)==='*/'){n--;i+=2;}else i++;}assert.equal(n,0,'Unterminated WGSL comment');out+=' ';continue;}out+=s[i++];}return out;}
 export function directiveOrder(code){const clean=withoutComments(code),tokens=clean.match(/@[A-Za-z_][\w]*|[A-Za-z_][\w]*|[{}]/g)||[];let depth=0,declared=false;const directives=[];for(const token of tokens){if(token==='{'){depth++;continue;}if(token==='}'){depth--;continue;}if(depth!==0)continue;if(['fn','struct','var','override','const','alias','const_assert'].includes(token))declared=true;if(['enable','requires','diagnostic'].includes(token)){assert.equal(declared,false,'Global '+token+' directive follows a declaration');directives.push(token);}}assert.equal(depth,0,'Unbalanced WGSL braces');return directives;}
 function assemblies(html,plugins){
- const env={};for(const name of ['CAMERA_RELATIVE_WGSL','POSE_WGSL','ENVIRONMENT_WGSL'])env[name]=value(html,'const '+name+'=');
+ const env={splineWireHighlightWGSL:evaluate(scope(html,'function splineWireHighlightWGSL('))};for(const name of ['CAMERA_RELATIVE_WGSL','POSE_WGSL','ENVIRONMENT_WGSL'])env[name]=value(html,'const '+name+'=');
  const main=value(html,'const shaderSource =',env),r={shaderSource:main},out=[];
  const add=(name,code)=>{assert.equal(typeof code,'string',name);out.push({name,code});};
  add('core/surface-grid-id-edge',main);

@@ -5,14 +5,23 @@
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 19611,
-      "sha256": "a8580721db51e9e5465f22479678a59ea1a96284d9ad1ae86296d2d5face5236",
+      "bytes": 20088,
+      "sha256": "554eeffa6c2fe8346e4119453d5394e3c1729c2dd5640d92d37064d85f518a2c",
       "change": {
         "reason": "Native binary value records, history snapshots and bounded file readers are verified by the HASH and file gates.",
         "baseCommit": "0f18ab1",
         "beforeBytes": 8425,
         "beforeSHA256": "dd8a928b45a891b93f79f6d4b828804641db4a7cc6c716c04ecd12648c3de3ec",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Bounded native address lookup and validated direct identifier-byte conversion change the codec source span. This updates source identity only; historical change metadata and native qualifications remain separate.",
+        "previousBytes": 19611,
+        "previousSHA256": "a8580721db51e9e5465f22479678a59ea1a96284d9ad1ae86296d2d5face5236",
+        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -44,13 +53,22 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2288,
-      "sha256": "b7cef092c0f577483569bbec1d52ee369bce04132db1e8580beab3593ffdbfe2",
+      "bytes": 2261,
+      "sha256": "ea5eca76def3539819250ee676b0f8616f4c80b95267d636e0c5042890a8dcf7",
       "change": {
         "reason": "Undo/Redo reconciles unused texture shelf cards against restored material and environment references; encoded image resources remain retained for history.",
         "beforeBytes": 2216,
         "beforeSHA256": "45ebf6be354cc0b7f0dba9eb986fe04573bc6595d39f4e966e468a76a10d4135",
         "baseCommit": "339a95f"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Undo reuses material-thumbnail entries guarded by exact material/image identity instead of clearing the whole cache. Source identity only; historical change metadata and native qualifications remain separate.",
+        "previousBytes": 2288,
+        "previousSHA256": "b7cef092c0f577483569bbec1d52ee369bce04132db1e8580beab3593ffdbfe2",
+        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -84,24 +102,51 @@
     {
       "prefix": "    function syncMaterials(){",
       "nextPrefix": "    function refreshMaterialOwners(",
-      "bytes": 3273,
-      "sha256": "b7a618d0e716d06a299cf02be7960ee7de794a055f07ad3d208e1b207096c1eb",
+      "bytes": 3301,
+      "sha256": "78313ecb5ba592e1044ca441f60f0b3e3596a8e48876c8043fdaeed04de81484",
       "change": {
         "reason": "Current native material synchronization retains explicit library and owner identities.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Material synchronization invalidates the synchronous metadata read scope after publication. Source identity only; historical change metadata and native qualifications remain separate.",
+        "previousBytes": 3273,
+        "previousSHA256": "b7a618d0e716d06a299cf02be7960ee7de794a055f07ad3d208e1b207096c1eb",
+        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
       "prefix": "    async function undoObjectCopy(action){",
       "nextPrefix": "    async function redoObjectCopy(action){",
-      "bytes": 1644,
-      "sha256": "6fed3dfcd5d4509bf0b6c24fe9e4b7d82f3015f1f56704db93ab6f80025cbedb"
+      "bytes": 1659,
+      "sha256": "ad4e2cd9516b2845d612f8d81329f40cda19aa1aedd8647612f2a0ec891eed9d",
+      "sourceBindingUpdate": {
+        "reason": "The existing HEAD source already preserves navigated camera frames during object-copy history. This corrects its stale source binding without changing that source or importing separate working-tree historical proof. Source identity only; historical change metadata and native qualifications remain separate.",
+        "previousBytes": 1644,
+        "previousSHA256": "6fed3dfcd5d4509bf0b6c24fe9e4b7d82f3015f1f56704db93ab6f80025cbedb",
+        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
+      }
     },
     {
       "prefix": "    async function redoObjectCopy(action){",
       "nextPrefix": "    function releaseRedo(){",
-      "bytes": 1661,
-      "sha256": "a2c06ef0b0782d1787f7f0b8131cbceae506cb918a2271bc5896cb08b4cea32b"
+      "bytes": 1691,
+      "sha256": "01becf149a6af4b247da8d10be16f244f4ef786fba14c9198f2fcbc287bed9ed",
+      "sourceBindingUpdate": {
+        "reason": "The existing HEAD source already preserves navigated camera frames during object-copy history. This corrects its stale source binding without changing that source or importing separate working-tree historical proof. Source identity only; historical change metadata and native qualifications remain separate.",
+        "previousBytes": 1661,
+        "previousSHA256": "a2c06ef0b0782d1787f7f0b8131cbceae506cb918a2271bc5896cb08b4cea32b",
+        "sourceSHA256": "207b3ae8b2608f77d71eef1c40966926683f200315ce0e60321f23e3c6c09e93",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
+      }
     },
     {
       "prefix": "    async function decodeAppearancePlan(",
