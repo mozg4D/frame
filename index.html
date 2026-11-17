@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 17 nov 15:52">
+<meta name="frame-version" content="2026 17 nov 16:03">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11487,7 +11487,7 @@ const FrameScenePrograms=(()=>{
  let runtime=null,installed=false,hostActive=true,hostToken=crypto.randomUUID(),queued=false,nativeState=()=>({busy:true}),notifyVersion=0;
  const documentState=()=>({token:hostToken+':'+FrameAuthorData.documentToken,ready:installed&&hostActive&&FrameAuthorData.ready&&!FrameAuthorData.busy&&!nativeState().busy&&!frameUITransaction});
  const plans=createSceneProgramPlans({getDocument:documentState,owners:()=>FrameAuthorData.owners(),root:()=>FrameAuthorData.root()});
- const core={get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},window,document,definitions,control:FrameSceneControl,resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>{render();frameSyncEngineVisibility();},authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins};
+ const core={get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},window,document,definitions,control:FrameSceneControl,resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>render(),authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins};
  const capabilities=Object.freeze({version:1,contexts:['main','named-worker'],descriptor:{format:'frame.scene-control',version:1},arbitraryJavaScript:true,sandboxed:false,mainDOM:true,coreAccess:true,managedResources:true,jobExecution:true,structuredCloneMessaging:true,panel:true,customAttributes:false,fieldSubscriptions:false,frameLifecycle:false,testCopies:false});
  function changed(reason){plans.invalidate({document:reason==='document'});if(reason==='document'){FrameSceneControl.reset();runtime?.reconcile({reason});}if(queued)return;queued=true;queueMicrotask(()=>{queued=false;plans.invalidate();runtime?.reconcile({reason});});}
  FrameAuthorData.observe(changed);
