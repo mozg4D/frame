@@ -10,6 +10,35 @@ export async function splineSampleCacheExactChecks(){
  try{
   const kernel=html.match(/<script id="frame-spline-kernel"[^>]*>([\s\S]*?)<\/script>/)[1],scalar=Function(html.split('\n').find(l=>l.startsWith('function frameCubicNumber('))+';return frameCubicNumber;')(),factory=Function('return('+kernel+')')(),exact='const n=e[0],r=e.map(e=>e.map((e,t)=>e-n[t])),o=frameValueKey([t,r]);',unsafe='const n=e[0],r=e.map(e=>e.map((e,t)=>e-n[t])),s=Math.max(1e-30,...r.flat().map(Math.abs)),o=t+"|"+r.flat().map(e=>Math.abs(e)<1e-12*s?0:+(e/s).toPrecision(12)).join(",");';assert.ok(kernel.includes(exact));const legacy=Function('return('+kernel.replace(exact,unsafe)+')')(),debug=Function('return('+kernel.replace('sampleSplineSegment:Z,','sampleSplineSegment:Z,sampleCache:St,')+')')();assert.notEqual(kernel,kernel.replace('sampleSplineSegment:Z,',''));
   const fixture=H.values.decode(await readFile(new URL('./scenes/spline-sample-cache-cages.value',import.meta.url))),sweep=fixture.owners.find(n=>n.type==='sweep'),sample=(K,d,id)=>K.sampleSplineSegment(d,id).map(q=>({t:q.t,position:q.position,exactTangent:q.exactTangent}));assert.equal(fixture.owners.length,4);
+  await check('Stationary parameters equal the exhaustive grid and refinement for separated derivatives, cusps and near-zero controls',()=>{
+   const probe={},anchor='function stationaryParameters(points){';
+   assert.equal(kernel.split(anchor).length,2);
+   const instrumented=kernel.replace(anchor,'Object.assign(probe,{stationaryParameters,speed:(p,t)=>x(C(p,t)),distance:A});'+anchor);
+   Function('probe','return ('+instrumented+')')(probe)(scalar);
+   function exhaustive(points){
+    const speed=t=>probe.speed(points,t),tolerance=1e-9*Math.max(1,...points.slice(1).map((p,i)=>probe.distance(p,points[i])));
+    const result=[];let previous=speed(0);
+    for(let i=1;i<256;i++){
+     const current=speed(i/256),next=speed((i+1)/256);
+     if(current<=previous&&current<=next){
+      let lo=(i-1)/256,hi=(i+1)/256;
+      for(let j=0;j<40;j++){const a=lo+(hi-lo)/3,b=hi-(hi-lo)/3;if(speed(a)<speed(b))hi=b;else lo=a;}
+      const t=(lo+hi)/2;if(speed(t)<=tolerance&&!result.some(other=>Math.abs(other-t)<1e-6))result.push(t);
+     }
+     previous=current;
+    }
+    return result;
+   }
+   const curves=[[0,1,0,1],[0,1,1,0],[0,2,-1,1],[1,1,1,1],[0,1e-10,2e-10,2e-10]].map(xs=>xs.map(x=>[x,0,0]));
+   let seed=7369;const random=()=>((seed=(Math.imul(seed,1664525)+1013904223)>>>0)/2**32);
+   for(let i=0;i<384;i++){
+    const points=Array.from({length:4},()=>Array.from({length:3},()=>random()*4-2));
+    if(i%2===0)for(let k=0;k<4;k++)points[k][i%3]=k*(i%4?-1:1)+(i%7?0:1e12);
+    curves.push(points);
+   }
+   assert(exhaustive(curves[0]).length>0);
+   for(const points of curves)assert.deepEqual(probe.stationaryParameters(points),exhaustive(points));
+  });
   await check('Main-thread and worker keys match for native cages, numeric runs and validation boundaries',()=>{
    const mainKey=Function(keySource+'return frameValueKey;')(),workerKey=factory(scalar).valueKey;
    const values=[null,undefined,false,'0:;Ω',0,-0,NaN,Infinity,Number.MIN_VALUE,[],[3,'n3;',4,null,,false,[]],new Uint32Array([0,0xffffffff]),new Float64Array([0,-0,NaN,-Infinity]),Array.from({length:12000},(_,i)=>i+.125),...fixture.owners.map(o=>o.data)];

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 17 nov 18:54",
+  "version": "2026 18 nov 00:10",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -479,11 +479,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "3a1988850d888dc4bc674dc32428197c28160e5891f86d3fcd09cb2676477f63"
+      "sha256": "82ce550fdcab30381e8a57f09a4788373d685a61e8dff199064d82a06b6add24"
     },
     "index.html": {
-      "bytes": 2987122,
-      "sha256": "92ea4afa0584fbffe037f79686c999b361ad2df189f21ff306799cc9e7028a81"
+      "bytes": 3001465,
+      "sha256": "7414bebf6ff9dd088435a0f1fef62cf60a8afd33e1fac997a8aed051b6fd7591"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -542,8 +542,8 @@
       "sha256": "c700170ff25b7726ae819ea4b4d8b99c4f54832ec9caf1e233893a31307d61a3"
     },
     "tests/scene-control-data-review.mjs": {
-      "bytes": 49326,
-      "sha256": "c220a7919967b15b07db62f11f6b049970a414635624e06b6a856d6acc69a216"
+      "bytes": 49592,
+      "sha256": "57fa689a243c41f4dc843e35b67e19d0b393b98ac21e30f1d6169a74437784c9"
     },
     "tests/scene-control-data.mjs": {
       "bytes": 19932,
@@ -886,8 +886,8 @@
       "sha256": "5e227b4740701e1290f2ae42de260b83a1ab19386af7dc3b2e4507b53e9e1432"
     },
     "tests/animation-transaction.mjs": {
-      "bytes": 23435,
-      "sha256": "bfb10f9da43d8fe2179a9fa6909688bff282a65ccc236d397d15eda3abbb2f06"
+      "bytes": 24268,
+      "sha256": "ee91460fab4f7d006da28b0e9e9e3f813f6eef878ea98e5ff016692c6116b12c"
     },
     "tests/animation-transaction-browser.mjs": {
       "bytes": 9297,

@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 00:07">
+<meta name="frame-version" content="2026 18 nov 00:10">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -1165,12 +1165,37 @@ const n=r(e),s=r(t);if(!n||!s)return 0;const o=e.map(e=>e/n),a=t.map(e=>e/s);ret
 ;for(;c.length;){const t=c.pop(),s=t.p,d=[n(s[1],s[0]),n(s[2],s[1]),n(s[3],s[2])].filter(e=>r(e)>0);let p=0;for(let e=1;e<d.length;e++)p+=h(d[e-1],d[e]);const m=Math.max(...s.slice(1).map(e=>r(n(e,s[0]))));if(p>a&&t.depth<44&&m>o){
 const e=f(s[0],s[1]),n=f(s[1],s[2]),r=f(s[2],s[3]),o=f(e,n),a=f(n,r),i=f(o,a),l=.5*(t.a+t.b);c.push({p:[i,a,r,s[3]],a:l,b:t.b,depth:t.depth+1},{p:[s[0],e,o,i],a:t.a,b:l,depth:t.depth+1});continue}p>a&&(u=!0)
 ;const g=t.b,M=1===g?e[3].slice():T(i,g).map((t,n)=>t+e[0][n]),b=l.at(-1);if(1!==g&&r(n(M,b.position))<=o)u=!0;else{if(1===g)for(;l.length>1&&r(n(M,l.at(-1).position))<=o;)l.pop(),u=!0;l.push({t:g,position:M})}}
-for(const t of l)t.exactTangent=V(e,t.t),t.stationary=!1,t.precisionLimited=u;return l}(e,t);if(s)return H.set(n,s),H.size>2048&&H.delete(H.keys().next().value),s;let o=function(e){let t=function(e){
-let t=1e-9*Math.max(1,...e.slice(1).map((t,n)=>A(t,e[n]))),n=[],r=x(C(e,0));for(let s=1;s<256;s++){let o=x(C(e,s/256)),a=x(C(e,(s+1)/256));if(o<=r&&o<=a){let r=(s-1)/256,o=(s+1)/256;for(let t=0;t<40;t++){let t=r+(o-r)/3,n=o-(o-r)/3
-;x(C(e,t))<x(C(e,n))?o=n:r=t}let a=(r+o)/2;x(C(e,a))<=t&&!n.some(e=>Math.abs(e-a)<1e-6)&&n.push(a)}r=o}return n}(e),n=[0,...t,1].sort((e,t)=>e-t),r=[];for(let t=1;t<n.length;t++){let s=n[t-1],o=n[t];o-s>1e-12&&R(e,s,o,1e-9,0,B(e,s,o),r)}
+for(const t of l)t.exactTangent=V(e,t.t),t.stationary=!1,t.precisionLimited=u;return l}(e,t);if(s)return H.set(n,s),H.size>2048&&H.delete(H.keys().next().value),s;let o=function(e){let t=stationaryParameters(e),n=[0,...t,1].sort((e,t)=>e-t),r=[];for(let t=1;t<n.length;t++){let s=n[t-1],o=n[t];o-s>1e-12&&R(e,s,o,1e-9,0,B(e,s,o),r)}
 let s=0,o=[{t:0,theta:0}];for(let e of r)s+=e.theta,o.push({t:e.b,theta:s});return{table:o,total:s,stationary:t}}(e),a=t*Math.PI/180,i=Math.max(1,Math.ceil(o.total/a-1e-10)),l=[0];for(let t=1;t<i;t++)l.push(L(e,o,t*o.total/i))
 ;for(let e of o.stationary)e>1e-9&&e<1-1e-9&&!l.some(t=>Math.abs(t-e)<1e-7)&&l.push(e);l.push(1),l.sort((e,t)=>e-t);let c=l.map(t=>({t:t,position:T(e,t),exactTangent:V(e,t),stationary:o.stationary.some(e=>Math.abs(e-t)<1e-7)}))
-;return H.set(n,c),H.size>2048&&H.delete(H.keys().next().value),c}function Z(e,t,n=e.approximation){let r=P(e,t),s=e.segments[t];if(r&&s&&rt(r[0],r[3],s.ha,s.hb))return [0,1].map(parameter=>({t:parameter,stationary:false,precisionLimited:false,position:r[parameter?3:0].slice(),exactTangent:V(r,parameter),originalSpanID:t,hardOrSoft:s.soft?"soft":"hard"}));return r&&s?function(e,t){
+;return H.set(n,c),H.size>2048&&H.delete(H.keys().next().value),c}
+function stationaryParameters(points){
+  const tolerance=1e-9*Math.max(1,A(points[1],points[0]),A(points[2],points[1]),A(points[3],points[2]));
+  // The derivative is a quadratic Bezier with controls 3*(P[i+1]-P[i]).
+  // A separated component excludes every stationary candidate, including
+  // points within the sampler's speed tolerance. Keep ample rounding margin.
+  for(let axis=0;axis<3;axis++){
+    const a=points[1][axis]-points[0][axis],b=points[2][axis]-points[1][axis],c=points[3][axis]-points[2][axis];
+    if(Math.min(a,b,c)>tolerance||Math.max(a,b,c)<-tolerance)return [];
+  }
+  const roots=[],speed=t=>x(C(points,t));
+  let previous=speed(0),current=speed(1/256);
+  for(let i=1;i<256;i++){
+    const next=speed((i+1)/256);
+    if(current<=previous&&current<=next){
+      let lo=(i-1)/256,hi=(i+1)/256;
+      for(let j=0;j<40;j++){
+        const left=lo+(hi-lo)/3,right=hi-(hi-lo)/3;
+        if(speed(left)<speed(right))hi=right;else lo=left;
+      }
+      const t=(lo+hi)/2;
+      if(speed(t)<=tolerance&&!roots.some(other=>Math.abs(other-t)<1e-6))roots.push(t);
+    }
+    previous=current;current=next;
+  }
+  return roots;
+}
+function Z(e,t,n=e.approximation){let r=P(e,t),s=e.segments[t];if(r&&s&&rt(r[0],r[3],s.ha,s.hb))return [0,1].map(parameter=>({t:parameter,stationary:false,precisionLimited:false,position:r[parameter?3:0].slice(),exactTangent:V(r,parameter),originalSpanID:t,hardOrSoft:s.soft?"soft":"hard"}));return r&&s?function(e,t){
 const n=e[0],r=e.map(e=>e.map((e,t)=>e-n[t])),o=frameValueKey([t,r]);let a=St.get(o);return a||(a=U(r,t).map(e=>({t:e.t,
 stationary:e.stationary,precisionLimited:e.precisionLimited})),St.size>=2048&&St.delete(St.keys().next().value),St.set(o,a)),a.map(t=>({...t,position:T(e,t.t),exactTangent:V(e,t.t)}))
 }(r,Math.max(1,Math.round(+s.approximation?.angle||+n?.angle||10))).map(e=>({...e,position:e.position.slice(),exactTangent:e.exactTangent.slice(),originalSpanID:t,hardOrSoft:e.t<=1e-9||e.t>=1-1e-9?s.soft?"soft":"hard":"soft"})):[]}
@@ -6594,12 +6619,26 @@ function pieceCent(piece, pool) {
 }
 // Transient worker BVH bounds ray classification cost by intersected leaves, not the entire STL.
 function booleanRayTree(M){if(M.rayTree)return M.rayTree;const ids=Uint32Array.from({length:M.triCount},(_,i)=>i),nodes=[],p=M.pos,ix=M.triV;function build(start,end){const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(let i=start;i<end;i++)for(let j=0;j<3;j++){const v=ix[ids[i]*3+j]*3;for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[v+k]);max[k]=Math.max(max[k],p[v+k]);}}const node={min,max,start,end,left:-1,right:-1},index=nodes.length;nodes.push(node);if(end-start>24){const spans=max.map((v,k)=>v-min[k]),axis=spans.indexOf(Math.max(...spans)),middle=(min[axis]+max[axis])/2;let left=start,right=end-1;while(left<=right){const f=ids[left]*3,c=(p[ix[f]*3+axis]+p[ix[f+1]*3+axis]+p[ix[f+2]*3+axis])/3;if(c<middle)left++;else{const t=ids[left];ids[left]=ids[right];ids[right--]=t;}}const split=left===start||left===end?(start+end)>>1:left;node.left=build(start,split);node.right=build(split,end);}return index;}build(0,ids.length);return M.rayTree={ids,nodes};}
-function* booleanRayFaces(M,ox,oy,oz,dx,dy,dz){if(M.triCount<2048){for(let i=0;i<M.triCount;i++)yield i;return;}const {ids,nodes}=booleanRayTree(M),stack=[0],origin=[ox,oy,oz],direction=[dx,dy,dz];while(stack.length){const n=nodes[stack.pop()];let lo=0,hi=Infinity;for(let k=0;k<3;k++){const a=(n.min[k]-origin[k]-1e-12)/direction[k],b=(n.max[k]-origin[k]+1e-12)/direction[k];lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));}if(lo>hi)continue;if(n.left<0){for(let i=n.start;i<n.end;i++)yield ids[i];}else stack.push(n.left,n.right);}}
+function* booleanRayLeaves(tree,ox,oy,oz,dx,dy,dz){
+  const stack=[0],origin=[ox,oy,oz],direction=[dx,dy,dz];
+  while(stack.length){
+    const node=tree.nodes[stack.pop()];let lo=0,hi=Infinity;
+    for(let k=0;k<3;k++){
+      const a=(node.min[k]-origin[k]-1e-12)/direction[k],b=(node.max[k]-origin[k]+1e-12)/direction[k];
+      lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));
+    }
+    if(lo>hi)continue;
+    if(node.left<0)yield node;else stack.push(node.left,node.right);
+  }
+}
 function rayVote(M, ox, oy, oz, dx, dy, dz) {
   let dl = Math.hypot(dx, dy, dz);
   dx /= Math.max(dl, 1e-30), dy /= Math.max(dl, 1e-30), dz /= Math.max(dl, 1e-30);
   let hits = 0, eps = 1e-11, tv = M.triV, p = M.pos;
-  for (const t of booleanRayFaces(M,ox,oy,oz,dx,dy,dz)) {
+  const tree=M.triCount>=2048?booleanRayTree(M):null;
+  const leaves=tree?booleanRayLeaves(tree,ox,oy,oz,dx,dy,dz):[{start:0,end:M.triCount}];
+  for(const {start,end} of leaves) for(let i=start;i<end;i++){
+    const t=tree?tree.ids[i]:i;
     let o = t * 3, ia = tv[o] * 3, ib = tv[o + 1] * 3, ic = tv[o + 2] * 3, ax = p[ia], ay = p[ia + 1], az = p[ia + 2], e1x = p[ib] - ax, e1y = p[ib + 1] - ay, e1z = p[ib + 2] - az, e2x = p[ic] - ax, e2y = p[ic + 1] - ay, e2z = p[ic + 2] - az, px = dy * e2z - dz * e2y, py = dz * e2x - dx * e2z, pz = dx * e2y - dy * e2x, det = e1x * px + e1y * py + e1z * pz;
     if (Math.abs(det) < 1e-14) continue;
     let inv = 1 / det, sx = ox - ax, sy = oy - ay, sz = oz - az, u = (sx * px + sy * py + sz * pz) * inv;
@@ -12090,8 +12129,11 @@ function materialCleanupPlan(empty=new Set()){
   materials.forEach((m,i)=>{if(m.uid!==frameDefaultMaterials[0].uid&&!used.has(i))toDelete.add(i);});for(const i of toDelete)if(materials[i].uid===frameDefaultMaterials[0].uid)toDelete.delete(i);return {remap,toDelete};
 }
 function replaceMaterials(next,aliases=new Map()){
-  const index=old=>Math.max(0,next.indexOf(materials[aliases.get(old)??old]));
-  for(const n of nodes){for(const t of n.tags)if(t.kind==='material'){t.material=index(t.material||0);t.materialUID=next[t.material].uid;}if(n.librarySlots)for(const slot of n.librarySlots){const old=materials.findIndex(m=>m.uid===slot.materialUID);if(old>=0)slot.materialUID=next[index(old)].uid;}}
+  const positions=new Map(),oldSlots=new Map();
+  next.forEach((m,i)=>{if(!positions.has(m))positions.set(m,i);});
+  materials.forEach((m,i)=>{if(!oldSlots.has(m.uid))oldSlots.set(m.uid,i);});
+  const index=old=>positions.get(materials[aliases.get(old)??old])??0;
+  for(const n of nodes){for(const t of n.tags)if(t.kind==='material'){t.material=index(t.material||0);t.materialUID=next[t.material].uid;}if(n.librarySlots)for(const slot of n.librarySlots){const old=oldSlots.get(slot.materialUID);if(old!==undefined)slot.materialUID=next[index(old)].uid;}}
   activeMaterial=index(activeMaterial);selectedMaterials=new Set([...selectedMaterials].map(index));materials.splice(0,materials.length,...next);materialThumbnails.clear();
 }
 function insertMaterialCopies(records,index=1){if(!records.length)return;const copies=records.map(m=>({...m,uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial)}));commit(()=>{const next=[...materials];next.splice(index,0,...copies);replaceMaterials(next);activeMaterial=materialAnchor=index;selectedMaterials=new Set(copies.map((m,i)=>index+i));},false);renderMaterials();renderTree();syncMaterial();}
@@ -12104,9 +12146,21 @@ FrameViewWindows.onDocument('paste',e=>{if(selectionArea!=='materials'||editingT
 $('tabDelUnused').onclick=async()=>{try{const empty=new Set(await frameEngine.emptyMaterialMasks()),{remap,toDelete}=materialCleanupPlan(empty);if(!toDelete.size&&!empty.size)return;commit(()=>{for(const n of nodes)n.tags=n.tags.filter(t=>!empty.has(t.uid));const next=materials.filter((m,i)=>!toDelete.has(i));replaceMaterials(next.length?next:[{...frameDefaultMaterials[0],...frameMaterialDefaults}],remap);for(const n of nodes)n.tags=n.tags.filter((t,i,a)=>t.kind!=='material'||a.findLastIndex(other=>other.kind==='material'&&other.material===t.material&&other.mask===t.mask)===i);},false);renderMaterials();render();syncMaterial();}catch(error){fileOperationError(error);}};
 
 function frameMaterialInLibrary(m,i){return m.uid!==frameDefaultMaterials[0].uid&&(i!==0||m.name!=='Default');}
+let materialPreviewObserver;
+function paintMaterialCard(canvas){
+  const m=materials[+canvas.parentElement.dataset.material];
+  if(m)renderMatToCanvas(canvas.getContext('2d'),53,53,m,false);
+}
 function renderMaterials(){
+  materialPreviewObserver?.disconnect();
   $('matList').innerHTML=materials.map((m,i)=>!frameMaterialInLibrary(m,i)?'':`<div class="mat-card${selectedMaterials.has(i)?' sel':''}" data-material="${i}" role="button" tabindex="0" aria-pressed="${selectedMaterials.has(i)}" aria-label="${escapeHTML(m.name)} material"><canvas width="53" height="53" aria-label="${escapeHTML(m.name)} preview"></canvas><input aria-label="Material name ${i+1}" value="${escapeHTML(m.name)}" readonly spellcheck="false" autocomplete="off"></div>`).join('');
-  for(const [i,canvas]of all('.mat-card canvas').entries())renderMatToCanvas(canvas.getContext('2d'),53,53,materials[+canvas.closest('[data-material]').dataset.material],false);
+  const list=$('matList');
+  if(materials.length>64){
+    materialPreviewObserver??=new IntersectionObserver(entries=>{
+      for(const {isIntersecting,target}of entries)if(isIntersecting&&list.contains(target)){paintMaterialCard(target);materialPreviewObserver.unobserve(target);}
+    },{root:list,rootMargin:'80px'});
+    for(const canvas of list.querySelectorAll('canvas'))materialPreviewObserver.observe(canvas);
+  }else for(const canvas of list.querySelectorAll('canvas'))paintMaterialCard(canvas);
   for(const input of all('.mat-card input')){const i=+input.closest('[data-material]').dataset.material;
     input.onfocus=()=>input._before=snapshot();
     input.onblur=()=>{materials[i].name=input.value;input.readOnly=true;if(input._before)checkpoint(input._before);input._before=null;};
@@ -12219,7 +12273,8 @@ function frameValidateMorphKeys(keys){
   }
 }
 function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return !d||!Array.isArray(d)||!d.includes(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
-function frameUITags(tags){return (tags||[]).map(t=>t.kind==='material'?{...t,material:Math.max(0,materials.findIndex(m=>m.uid===t.materialUID)),params:{}}:{...t,params:{...t.params}});}
+function frameUIMaterialSlots(){const slots=new Map();materials.forEach((m,i)=>{if(!slots.has(m.uid))slots.set(m.uid,i);});return slots;}
+function frameUITags(tags,slots){return (tags||[]).map(t=>t.kind==='material'?{...t,material:slots.get(t.materialUID)??0,params:{}}:{...t,params:{...t.params}});}
 function frameMaterialOwner(n,selection=true){return selection&&n?.type==='spline'&&FrameSpline.selection(n.nativeHash).size?FrameSpline.patchOwner(n)||n:n;}
 function frameSetMaterialTag(n,index,mask=null,target=null){
   target??=!mask?n.tags.findLast(t=>t.kind==='material'&&!t.mask):null;
@@ -12692,7 +12747,7 @@ let frameEngineViewGesture=null;
 $('frame-engine-host').addEventListener('pointerdown',e=>{if(e.button===1)frameEngineViewGesture={x:e.clientX,y:e.clientY,time:performance.now(),distance:0,camera:frameEngine.viewCamera(activeView).camera};},true);
 $('frame-engine-host').addEventListener('pointerup',e=>{const g=frameEngineViewGesture;frameEngineViewGesture=null;if(g&&e.button===1&&performance.now()-g.time<=350&&Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y))<=(performance.now()-g.time<=180?72:24)){window.frameEngine.restoreViewState(g.camera);frameToggleViewLayout();}});
 $('frame-engine-host').addEventListener('pointercancel',()=>frameEngineViewGesture=null);$('frame-engine-host').addEventListener('pointermove',e=>{const g=frameEngineViewGesture;if(g)g.distance=Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y));});
-FrameViewWindows.onWindow('frame-engine-objects',e=>{const old=new Map(nodes.map(n=>[n.nativeHash,n])),next=[],byHash=new Map();for(const o of e.detail.objects){const n=old.get(o.hash)||create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.name=o.name;n.engineIndex=o.index;next.push(n);byHash.set(o.hash,n);}nodes=next;for(const o of e.detail.objects)byHash.get(o.hash).parent=byHash.get(o.parent)?.id||null;selected=new Set(e.detail.selection.map(h=>byHash.get(h)?.id).filter(Boolean));focusId=anchorId=[...selected][0]||null;renderTree();renderAttributes();syncHUD();window.FrameSpline?.request();});
+FrameViewWindows.onWindow('frame-engine-objects',e=>{const old=new Map(nodes.map(n=>[n.nativeHash,n])),next=[],byHash=new Map(),slots=frameUIMaterialSlots();for(const o of e.detail.objects){const n=old.get(o.hash)||create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.name=o.name;n.engineIndex=o.index;next.push(n);byHash.set(o.hash,n);}nodes=next;for(const o of e.detail.objects)byHash.get(o.hash).parent=byHash.get(o.parent)?.id||null;selected=new Set(e.detail.selection.map(h=>byHash.get(h)?.id).filter(Boolean));focusId=anchorId=[...selected][0]||null;renderTree();renderAttributes();syncHUD();window.FrameSpline?.request();});
 FrameViewWindows.onWindow('frame-engine-transform',()=>syncHUD());
 FrameViewWindows.onWindow('frame-engine-parents',e=>{const byHash=new Map(nodes.map(n=>[n.nativeHash,n]));let changed=false;for(const o of e.detail){const n=byHash.get(o.hash),parent=byHash.get(o.parent)?.id||null;if(n&&n.parent!==parent){n.parent=parent;changed=true;}}if(changed)renderTree();});
 FrameViewWindows.onWindow('frame-engine-mode',e=>{
@@ -12704,8 +12759,8 @@ FrameViewWindows.onWindow('frame-engine-scene',e=>{
   FrameAuthorData.invalidateDocument(false);
   FrameMorph.closePose(false);nodes=[];selected.clear();selectedTag=null;selectedTags.clear();focusId=anchorId=null;undoStack=[];redoStack=[];frameUIUndoSequence=[];frameUIRedoSequence=[];
   frameChannels.clear();frameChannelSelection=[];frameCurves.context=[];frameCurves.selection=[];frameCurves.signature='';frameCurves.editing=false;
-  frameInstallMaterialState(e.detail.appearance);const global=e.detail.timeline||{frame:0,total:120,materials:[]};timelineFrame=global.frame;timelineTotal=global.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);frameRestoreChannels(global.materials);const mapping=new Map();
-  for(const o of e.detail.objects.slice().reverse()){const n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
+  frameInstallMaterialState(e.detail.appearance);const global=e.detail.timeline||{frame:0,total:120,materials:[]};timelineFrame=global.frame;timelineTotal=global.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);frameRestoreChannels(global.materials);const mapping=new Map(),slots=frameUIMaterialSlots();
+  for(const o of e.detail.objects.slice().reverse()){const n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
   for(const o of e.detail.objects)mapping.get(o.hash).parent=mapping.get(o.parent)?.id||null;
   frameSetSceneFileName(e.detail.name.replace(/\.(obj|stl|gltf|glb|ply|step|stp|dxf)$/i,'.hash'));sceneFileHandle=null;
   render();FramePluginRecords.collect();
@@ -13844,14 +13899,65 @@ window.FrameSpline=(()=>{
   }
   async function rebuild(n){await flush();await call(0,'forget',{key:n.nativeHash+':'+n.type});const state=states.get(n.id);if(state)state.signature=null;request();await flush();}
   function shape(n){return (supported.has(n.type)||special.has(n.type))?{type:n.type,params:{...n.params,...['instance','cloner','target'].includes(n.type)?{object:n.type==='instance'&&n.params.file?'':objectReference(n.params.object,n)?.nativeHash||n.params.object}:{}},...n.splineData?{data:n.splineData}:{}}:null;}
+  // Compare native authoring scalars directly: serializing the same cage for
+  // every referencing generator and every asynchronous publication is costly.
+  // History can replace every JS node without changing its native identity.
+  // Keep authored and evaluated cages separate and retire them with the owner.
+  function createCageVersions(){
+    const owners=new Map(),objectStart=Symbol(),arrayStart=Symbol(),end=Symbol();
+    let revision=0;
+    function version(owner,data,output=false){
+      let slots=owners.get(owner.id);
+      if(!slots){slots=[];owners.set(owner.id,slots);}
+      const state=slots[+output]??={tokens:[],revision:0};
+      const tokens=state.tokens;let at=0,changed=false;
+      function token(value){
+        if(at>=tokens.length||!Object.is(tokens[at],value)){tokens[at]=value;changed=true;}
+        at++;
+      }
+      function visit(value,depth){
+        if(depth>128)throw Error('Value key depth limit');
+        if(value===null||typeof value!=='object'){token(value);return;}
+        if(Array.isArray(value)||ArrayBuffer.isView(value)){
+          token(Array.isArray(value)?arrayStart:value.constructor);token(value.length);
+          for(let i=0;i<value.length;i++){
+            const item=value[i];if(typeof item==='number')token(item);else visit(item,depth+1);
+          }
+        }else{
+          token(objectStart);
+          for(const key in value)if(Object.hasOwn(value,key)){
+            const item=value[key];if(typeof item==='function'||typeof item==='symbol')continue;
+            token(key);visit(item,depth+1);
+          }
+        }
+        token(end);
+      }
+      visit(data,0);
+      if(tokens.length!==at){tokens.length=at;changed=true;}
+      if(changed)state.revision=++revision;
+      return state.revision;
+    }
+    return {version,retain(alive){for(const id of owners.keys())if(!alive.has(id))owners.delete(id);},clear(){owners.clear();}};
+  }
+  const cageVersions=createCageVersions();
+  function evaluationShape(n){const value=shape(n);if(value?.data)value.data=cageVersions.version(n,value.data);return value;}
+  function inputVersion(row,data){return cageVersions.version(row.node,data,true);}
   function restore(n,s){if(!s)return;n.type=s.type;n.params={...defaults(definitions[s.type][2]),...(s.type==='bolt'?{type:'DIN 912'}:s.type==='cloner'?{type:'matrix'}:s.type==='sweep'?{movement:'tangent'}:{}),...s.params};if(n.type==='spline')n.params={'angle approximation':s.data?.approximation?.angle||n.params['angle approximation']||10};if(s.data)n.splineData=s.data;else delete n.splineData;bakedHashes.add(n.nativeHash);}
   const isEditing=()=>!!(edit?.drag||drawDrag||transformEdit||window.frameEngine?.transforming);
   function request(){if(!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;dirty=true;if(!timer&&!running)timer=setTimeout(()=>{timer=0;flush(true).catch(fileOperationError);},16);}
   function requireEvaluationScene(engine,space){if(engine.scene===space&&!space.gpu?.dead)return;const loss=space.gpu?.loss;throw new DOMException(loss?(loss.message||'GPU device was lost: '+loss.reason):'Native scene changed during spline evaluation','AbortError');}
   async function flush(live=false){await boxTask;if(!dirty&&!timer&&!running){window.frameEngine?.flushReplicaPublication?.();return;}if(isEditing()&&!live){dirty=true;window.frameEngine?.flushReplicaPublication?.();return;}if(running)return running;if(timer){clearTimeout(timer);timer=0;}const engine=window.frameEngine;if(!engine?.scene||!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;const evaluationSpace=engine.scene;
     if(engine.restoringSplines)beginColdBuilds();
-    running=(async()=>{do{requireEvaluationScene(engine,evaluationSpace);dirty=false;const alive=new Set(nodes.filter(n=>supported.has(n.type)).map(n=>n.id));for(const [id,s]of states)if(!alive.has(id)){engine.removeSpline(s.hash);states.delete(id);}
-      const seen=new Set(),evaluating=new Set(),pending=new Map(),graph=new Map();let parallel=!!coldBuilds,constructionSerial=Promise.resolve();
+    running=(async()=>{do{requireEvaluationScene(engine,evaluationSpace);dirty=false;const alive=new Set(nodes.filter(n=>supported.has(n.type)).map(n=>n.id));cageVersions.retain(alive);for(const [id,s]of states)if(!alive.has(id)){engine.removeSpline(s.hash);states.delete(id);}
+      const seen=new Set(),evaluating=new Set(),pending=new Map(),graph=new Map();let parallel=!!coldBuilds,constructionSerial=Promise.resolve(),publicationChanged=false;
+      // Collect the ordered profile links together in one synchronous hierarchy
+      // read. A new edit discards the scheduling hint. Publication independently
+      // checks live source identities, controls, pivots and relative frames.
+      const profiles=new Map();
+      if(!parallel)frameReadHierarchy(()=>{for(const n of nodes)if(generators.has(n.type)&&n.type!=='boolean'){
+        try{profiles.set(n,generatorSources(n));}catch{/* Report the error on its owning generator below. */}
+      }});
+      const sourceLinks=n=>!dirty&&profiles.has(n)?profiles.get(n):generatorSources(n);
       function dependenciesFor(n){if(graph.has(n.id))return graph.get(n.id);const out=new Set();if(n.type==='boolean'){const visited=new Set();function collect(q){if(!q||visited.has(q.id))return;visited.add(q.id);if(supported.has(q.type)){out.add(q);return;}if(q.type==='instance')collect(objectReference(q.params.object,q));else for(const c of children(q.id))collect(c);}for(const c of children(n.id))collect(c);}else if(generators.has(n.type))for(const row of generatorSources(n))out.add(row.node);const result=[...out];graph.set(n.id,result);return result;}
       if(parallel)try{const checked=new Set(),active=new Set();function check(n){if(active.has(n.id))throw Error('Instance/generator dependency cycle');if(checked.has(n.id))return;active.add(n.id);for(const q of dependenciesFor(n))check(q);active.delete(n.id);checked.add(n.id);}for(const n of nodes)if(supported.has(n.type))check(n);}catch{parallel=false;}
       async function evaluate(n){requireEvaluationScene(engine,evaluationSpace);
@@ -13867,21 +13973,25 @@ window.FrameSpline=(()=>{
             async function requireSource(q){if(!q||prepared.has(q.id))return;prepared.add(q.id);if(supported.has(q.type))await evaluate(q);else if(q.type==='instance')await requireSource(objectReference(q.params.object,q));else for(const child of children(q.id))await requireSource(child);}
             // Ordinary edits need the same current referenced geometry as a cold build.
             for(const q of occurrences)await requireSource(q);if(occurrences.length)engine.prepareBooleanReplicas(n,occurrences);
-            const state=await engine.evaluateBoolean(n,states.get(n.id),true);if(state)states.set(n.id,state);else dirty=true;delete n.splineError;return state?.data;
-          }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}
+            const prior=states.get(n.id),state=await engine.evaluateBoolean(n,prior,true);publicationChanged||=prior!==state||!!n.splineError;if(state)states.set(n.id,state);else dirty=true;delete n.splineError;return state?.data;
+          }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;publicationChanged=true;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}
         }
-        let dependencies=[];if(generators.has(n.type)){try{for(const row of generatorSources(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){const source=row.node.nativeHash,frame=engine.splineOccurrenceFrame(source,n.nativeHash,row.instances);
+        let dependencies=[];if(generators.has(n.type)){try{for(const row of sourceLinks(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){const source=row.node.nativeHash,frame=engine.splineOccurrenceFrame(source,n.nativeHash,row.instances);
               inputs.push(d);inputSources.push(row);inputFrames.push([source,row.instances.map(c=>c.nativeHash),frame]);
-              inputPivots.push(engine.splineOccurrencePivot(source,n.nativeHash,row.instances,frame));}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
-        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const staticSignature=!editingNow||old?.signature!=null?frameValueKey([n.enabled,shape(n),inputs,inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
+              inputPivots.push(engine.splineOccurrencePivot(source,n.nativeHash,row.instances,frame));}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;publicationChanged=true;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
+        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const staticSignature=!editingNow||old?.signature!=null?frameValueKey([n.enabled,evaluationShape(n),inputSources.map((row,i)=>inputVersion(row,inputs[i])),inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
         const changes=liveChanges.get(n);liveChanges.delete(n);const token=editingNow||n.type==='spline'?null:frameValueKey(shape(n)),state={hash:n.nativeHash,signature,liveVersion:editingNow?version:null,data:null};states.set(n.id,state);
-        try{if(generators.has(n.type)&&(!inputs.length||n.type==='sweep'&&inputs.length<2)&&!n.splineData){engine.removeSpline(n.nativeHash);delete n.engineIndex;delete n.splineError;state.empty=true;return null;}// Transform editable cages only after a changed dependency has admitted a build.
+        try{publicationChanged=true;if(generators.has(n.type)&&profiles.has(n)){
+            const live=generatorSources(n);
+            if(live.length!==dependencies.length||live.some((r,i)=>r.node!==dependencies[i].node||r.instances.length!==dependencies[i].instances.length||r.instances.some((v,j)=>v!==dependencies[i].instances[j]))){state.signature=null;dirty=true;return null;}
+          }
+          if(generators.has(n.type)&&(!inputs.length||n.type==='sweep'&&inputs.length<2)&&!n.splineData){engine.removeSpline(n.nativeHash);delete n.engineIndex;delete n.splineError;state.empty=true;return null;}// Transform editable cages only after a changed dependency has admitted a build.
           for(let i=0;i<inputs.length;i++){const [source,,matrix]=inputFrames[i];inputs[i]=engine.splineOccurrenceInFrame(inputs[i],source,n.nativeHash,inputSources[i].instances,matrix);}
           if(n.type==='text')await loadFont();const data=n.type==='spline_patch'&&n.splineData?(isEditing()?structuredClone(n.splineData):n.splineData):n.type==='spline_patch'&&inputs.length===1?inputs[0]:n.type==='spline_patch'?mergeData(inputs,true):generators.has(n.type)?await generate(n,inputs,old,inputPivots[0],construction):n.type==='spline'?(n.splineData??=K().createSplineData({angle:n.params['angle approximation']})):await call(construction?'cold:'+construction.group.id+':0':0,'primitive',{type:n.type,params:n.params});
           if(node(n.id)!==n||!editingNow&&n.type!=='spline'&&frameValueKey(shape(n))!==token){dirty=true;return null;}if(n.type==='spline')data.approximation={angle:Math.max(1,+n.params['angle approximation']||10)};state.data=data;state.sources=inputSources;
           let current=()=>node(n.id)===n&&(editingNow||n.type==='spline'?n.splineData===data||editingNow:frameValueKey(shape(n))===token);
           const generator=generators.has(n.type);if((generator||solids.has(n.type))&&n.enabled){const baked=old===undefined&&bakedHashes.delete(n.nativeHash)&&n.type!=='spline_patch'&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId===n.nativeHash;if(!baked){
-            const dependencyStamp=()=>frameValueKey([n.enabled,shape(n),generatorSources(n).map(({node:q,instances})=>[q.id,shape(q),instances.map(c=>[c.id,shape(c)]),engine.splineOccurrenceFrame(q.nativeHash,n.nativeHash,instances),engine.packLocalPivot(q.nativeHash)])]);
+            const dependencyStamp=()=>frameValueKey([n.enabled,evaluationShape(n),generatorSources(n).map(({node:q,instances})=>[q.id,evaluationShape(q),instances.map(c=>[c.id,evaluationShape(c)]),engine.splineOccurrenceFrame(q.nativeHash,n.nativeHash,instances),engine.packLocalPivot(q.nativeHash)])]);
             const validity=generator&&!editingNow?dependencyStamp():null;
             current=()=>node(n.id)===n&&(editingNow||n.enabled&&(generator?dependencyStamp()===validity:frameValueKey(shape(n))===token));
             const space=engine.scene,type=n.type,result=await build(data,n.nativeHash+':'+n.type,engine.scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.paged)?.splineToken,construction);await finishConstruction?.();const editing=isEditing();if(node(n.id)!==n||n.type!==type||engine.scene!==space||!editing&&!editingNow&&!current()){dirty=true;return null;}if(editing||editingNow){current=()=>node(n.id)===n&&n.type===type&&engine.scene===space;state.signature=null;if(!editing)dirty=true;}state.cellBindings=result.cellBindings;if(!result.unchanged&&!await engine.installSplineSurface(n,result,current)){state.signature=null;dirty=true;return null;}state.report=result.report;}}
@@ -13889,7 +13999,27 @@ window.FrameSpline=(()=>{
         }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;if(n.type==='extrude'&&old?.data)state.data=old.data;n.splineError=error.message;state.error=error.message;engine.setSplineError(n.nativeHash,error.message);if(current()===n)renderAttributes();}
         return state.data;
       }
-      for(const n of nodes)if(supported.has(n.type)&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId!==n.nativeHash){const i=engine.scene.meshes.findIndex(m=>m.hashId===n.nativeHash);if(i>=0)n.engineIndex=i;else delete n.engineIndex;}if(!isEditing())frameSyncEngineVisibility();const finishRecordBatch=engine.beginSplineRecordBatch();try{const roots=nodes.filter(n=>supported.has(n.type)&&!supported.has(node(n.parent)?.type));if(parallel){let cursor=0;const jobs=Array.from({length:coldBuilds.groups.length+1},async()=>{while(cursor<roots.length)await evaluate(roots[cursor++]);}),results=await Promise.allSettled(jobs),failed=results.find(r=>r.status==='rejected');if(failed)throw failed.reason;}else for(const n of roots)await evaluate(n);for(const n of nodes)if(supported.has(n.type)&&!seen.has(n.id))await evaluate(n);}finally{finishRecordBatch();if(engine.scene===evaluationSpace&&!evaluationSpace.gpu?.dead){if(!isEditing())frameSyncEngineVisibility();else engine.flushReplicaPublication();}}
+      let meshIndices;
+      for(const n of nodes)if(supported.has(n.type)&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId!==n.nativeHash){
+        if(!meshIndices){meshIndices=new Map();engine.scene.meshes.forEach((m,i)=>{if(!meshIndices.has(m.hashId))meshIndices.set(m.hashId,i);});}
+        if(meshIndices.has(n.nativeHash))n.engineIndex=meshIndices.get(n.nativeHash);else delete n.engineIndex;
+      }
+      let checkedAll=false;const syncedAtEntry=!isEditing();if(syncedAtEntry)frameSyncEngineVisibility();
+      const finishRecordBatch=engine.beginSplineRecordBatch();try{
+        const roots=nodes.filter(n=>supported.has(n.type)&&!supported.has(node(n.parent)?.type));
+        if(parallel){
+          let cursor=0;const jobs=Array.from({length:coldBuilds.groups.length+1},async()=>{while(cursor<roots.length)await evaluate(roots[cursor++]);});
+          const failed=(await Promise.allSettled(jobs)).find(r=>r.status==='rejected');if(failed)throw failed.reason;
+        }else for(const n of roots)await evaluate(n);
+        for(const n of nodes)if(supported.has(n.type)&&!seen.has(n.id))await evaluate(n);
+        checkedAll=true;
+      }finally{
+        finishRecordBatch();
+        if(engine.scene===evaluationSpace&&!evaluationSpace.gpu?.dead){
+          if(!isEditing()&&(!checkedAll||!syncedAtEntry||dirty||publicationChanged))frameSyncEngineVisibility();
+          else engine.flushReplicaPublication();
+        }
+      }
       requireEvaluationScene(engine,evaluationSpace);await engine.updateSplineVisibility();requireEvaluationScene(engine,evaluationSpace);if(!drawing&&selectionArea==='objects'&&[...selected].some(id=>supported.has(node(id)?.type)))await frameSelectEngineObjects(false);if(!isEditing())renderTree();
     }while(dirty);})().finally(()=>{endColdBuilds();running=null;if(dirty)request();});return running;
   }
@@ -14021,7 +14151,7 @@ if(drawing){let target=node(drawing.id);const draft=drawing.draft,before=snapsho
   FrameViewWindows.onWindow('keydown',e=>{if(e.target.closest?.('input,textarea,[contenteditable],#frame-curves'))return;if(frameShortcutKey(e)==='c'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&([...selected].some(id=>supported.has(node(id)?.type)||['mesh','group','instance','cloner','symmetry','car','tree','human'].includes(node(id)?.type)))){e.preventDefault();e.stopImmediatePropagation();connectObjects(treeOrder().filter(id=>selected.has(id)).map(node)).catch(fileOperationError);return;}if(frameShortcutKey(e)==='f'&&!e.ctrlKey&&supported.has(current()?.type)){e.preventDefault();window.frameEngine.focusSpline(current().nativeHash);return;}if((e.ctrlKey||e.metaKey)&&frameShortcutKey(e)==='a'&&(pointerInside||selectionArea==='viewport')&&editable()?.splineData&&canvas.dataset.elementMode!=='object'){e.preventDefault();e.stopImmediatePropagation();const n=editable();edit={hash:n.nativeHash,selection:new Set(canvas.dataset.elementMode==='polygon'?cells(n.splineData).map((c,i)=>'cell:'+i):Object.keys(canvas.dataset.elementMode==='edge'?n.splineData.segments:n.splineData.vertices))};refresh();return;}if(e.key==='Escape'||e.key==='Enter'){const wasDrawing=!!drawing;if(box)boxEnd(true);if(edit?.drag)up({pointerId:edit.drag.id},true);stopDraw();if(wasDrawing){e.preventDefault();e.stopImmediatePropagation();return;}}if(['Delete','Backspace'].includes(e.key)&&!e.target.closest?.('[data-field]')&&!$('matList').matches(':hover')&&supported.has(current()?.type)){if(!pointerInside||!editable()||canvas.dataset.elementMode==='object'){e.preventDefault();e.stopImmediatePropagation();remove();}else{e.preventDefault();e.stopImmediatePropagation();if(edit?.selection.size)command('delete');}}},true);
   const poseSignatures=new WeakMap();FrameViewWindows.onWindow('frame-engine-transform',()=>frameReadHierarchy(()=>{if(!states.size)return;if(dirty&&!isEditing())request();const engine=window.frameEngine;for(const n of nodes){if(!generators.has(n.type))continue;let value;try{value=frameValueKey(n.type==='boolean'?descendants(n.id).map(id=>[id,engine.splineLocalFrame(node(id).nativeHash)]):generatorSources(n).map(({node:q,instances})=>[q.id,instances.map(c=>c.id),engine.splineOccurrenceFrame(q.nativeHash,n.nativeHash,instances),engine.packLocalPivot(q.nativeHash)]));}catch{request();continue;}if(value!==poseSignatures.get(n)){poseSignatures.set(n,value);liveVersions.set(n,(liveVersions.get(n)||0)+1);request();}}}));
   FrameViewWindows.onWindow('frame-engine-selection',()=>{if(edit&&!nodes.some(n=>n.nativeHash===edit.hash&&isActive(n))){edit=null;refresh();}});
-  FrameViewWindows.onWindow('frame-engine-scene',()=>{const hashes=new Set(nodes.map(n=>n.nativeHash));for(const h of bakedHashes)if(!hashes.has(h))bakedHashes.delete(h);states.clear();normalizeHierarchy();edit=null;edits.clear();stopDraw();for(const n of nodes)if(FrameMorph.tagOf(n))FrameMorph.request(n).catch(fileOperationError);request();});
+  FrameViewWindows.onWindow('frame-engine-scene',()=>{const hashes=new Set(nodes.map(n=>n.nativeHash));for(const h of bakedHashes)if(!hashes.has(h))bakedHashes.delete(h);states.clear();cageVersions.clear();normalizeHierarchy();edit=null;edits.clear();stopDraw();for(const n of nodes)if(FrameMorph.tagOf(n))FrameMorph.request(n).catch(fileOperationError);request();});
   for(const [id,type]of [['btnSplinePatch','spline_patch'],['btnExtrude','extrude'],['btnLathe','lathe'],['btnSweep','sweep'],['btnBoolean','boolean']])$(id).onclick=()=>addGenerator(type);$('btnSpline').onclick=draw;
   FrameViewWindows.onDocument('click',e=>{if(drawing&&e.target.closest('#toolbar,#modelbar,#modelbar2,#obInner,.tabbtn')&&!e.target.closest('#btnSpline'))stopDraw();},true);
   return {lineCut,cutPlan:(data,options)=>call(0,'lineCut',{data,options}),cancelViewInput:()=>{clearHover();if(box)up({pointerId:box.id},true);if(drawDrag)up({pointerId:drawDrag.id},true);if(edit?.drag)up({pointerId:edit.drag.id},true);if(drawing)stopDraw();},loopAt,get edits(){return edits;},selectedControls,mergeData,prepareTransformTopology,isActive,patchOwner,cells,surfaceCells,componentEdges,componentVertices,editPlan,isEditing,rebuild,normalizeHierarchy,sourceNode,inputNode,acceptsInput,splineSources,generatorSources,consumesInput,profileNode,dependencyValid,K,isEditable,connected,weldSingle,setSelection,clearSelection,handleScale,menuItems,command,shape,restore,encodeShape:shapeCodec.encode,decodeShape:shapeCodec.decode,request,flush,build,toEditable,states,supported,generators,solids,selection,setSelections,refresh,beginTransform,applyTransform,finishTransform,get editingHash(){return edit?.hash;},drawDraft,get drawing(){return drawing;},get busy(){return !!running;},get workers(){return lanes.size;}};
@@ -15518,12 +15648,23 @@ window.frameEngine=(()=>{
     }
     function readGeometry(hash){
       const task=editSerial.catch(()=>{}).then(async()=>{const space=scene,mesh=typeof hash==='object'&&hash.replicaSource&&space.meshes.includes(hash.replicaSource)?hash.replicaSource:space.meshes.find(m=>typeof hash==='object'?m===hash:m.hashId===hash);if(!mesh)throw Error('Mesh is unavailable');
-        const vertexCount=mesh.vertexCount,triangleCount=mesh.triangleCount,positions=await nativeReadGPU(renderer,mesh.positions,vertexCount*3),indices=await nativeReadGPU(renderer,mesh.indices,triangleCount*3);if(scene!==space)throw new DOMException('Scene changed during geometry readback','AbortError');
+        const vertexCount=mesh.vertexCount,triangleCount=mesh.triangleCount,positionBytes=vertexCount*12,indexBytes=triangleCount*12,gpu=renderer;
+        if(!mesh.paged&&positionBytes&&indexBytes&&positionBytes+indexBytes<=4*1024*1024){
+          const d=gpu.device,read=makeGPUBuffer(d,{label:'paired geometry readback',size:positionBytes+indexBytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
+          try{
+            const e=d.createCommandEncoder();e.copyBufferToBuffer(mesh.positions,0,read,0,positionBytes);e.copyBufferToBuffer(mesh.indices,0,read,positionBytes,indexBytes);
+            d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);checkSession(gpu);
+            if(scene!==space)throw new DOMException('Scene changed during geometry readback','AbortError');
+            const bytes=read.getMappedRange();
+            return {vertices:new Float32Array(bytes,0,vertexCount*3).slice(),indices:new Uint32Array(bytes,positionBytes,triangleCount*3).slice(),vertexCount,triangleCount};
+          }finally{read.unmap();releaseGPU(read);}
+        }
+        const positions=await nativeReadGPU(gpu,mesh.positions,vertexCount*3),indices=await nativeReadGPU(gpu,mesh.indices,triangleCount*3);if(scene!==space)throw new DOMException('Scene changed during geometry readback','AbortError');
         return {vertices:new Float32Array(positions.buffer),indices:new Uint32Array(indices.buffer),vertexCount,triangleCount};
       });editSerial=task.then(()=>{},()=>{});return task;
     }
-    async function disjointBoolean(n,roots,op,current){
-      if(roots.some(c=>scene.meshes.filter(m=>m.hashId===c.nativeHash).length!==1))return null;const meshes=roots.map(c=>scene.meshes.find(m=>m.hashId===c.nativeHash));if(meshes.some(m=>!m||m.paged||m.materialTags?.length))return null;
+    async function disjointBoolean(n,rootMeshes,op,current){
+      if(rootMeshes.some(list=>list.length!==1))return null;const meshes=rootMeshes.map(list=>list[0]);if(meshes.some(m=>m.paged||m.materialTags?.length))return null;
       const [a,b]=meshes,pad=Math.max(1,...a.boundsMin.map(Math.abs),...a.boundsMax.map(Math.abs),...b.boundsMin.map(Math.abs),...b.boundsMax.map(Math.abs))*1e-6;
       if(![0,1,2].some(k=>a.boundsMax[k]+pad<b.boundsMin[k]||b.boundsMax[k]+pad<a.boundsMin[k]))return null;
       const matrices=meshes.map(m=>FM.mul(objectRelativeFrame(m.hashId,n.nativeHash),m.replicaMatrix||FM.I())),identity=FM.I();
@@ -15551,8 +15692,33 @@ window.frameEngine=(()=>{
     function bakeBooleanMaterials(hash){const mesh=scene.meshes.find(m=>m.hashId===hash),tags=mesh?.booleanMaterialTags||[];if(mesh)delete mesh.booleanMaterialTags;return tags.map(t=>{const set=polygonResources.get(t.mask);if(set)delete set.generatedOwner;return {uid:t.uid,kind:'material',material:Math.max(0,materials.findIndex(m=>m.uid===t.materialUID)),mask:t.mask,params:{}};});}
     function installBooleanMaterials(n,result,registry){
       const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh)return;for(const [token,set]of polygonResources)if(set.generatedOwner===mesh){releaseGPU(set.resource);polygonResources.delete(token);}
-      const tags=[];if(result.faceMaterials?.length){const count=result.faceMaterials.length,ids=new Set(result.faceMaterials);for(const id of ids){if(!id||!registry[id])continue;const tag={uid:FrameHash.newId(),kind:'material',materialUID:registry[id],params:{}},mask=FrameHash.newId(),byteLength=Math.ceil(count/8),words=new Uint32Array(Math.ceil(count/32));for(let f=0;f<count;f++)if(result.faceMaterials[f]===id)words[f>>5]|=1<<(f&31);const buffer=makeGPUBuffer(renderer.device,{label:'Boolean source material faces',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,byteLength);polygonResources.get(mask).generatedOwner=mesh;tag.mask=mask;tags.push(tag);}}
-      mesh.booleanMaterialTags=tags;if(result.report)result.report.materials=registry.slice(1).map((uid,i)=>({uid,triangles:result.faceMaterials?.reduce((sum,value)=>sum+(value===i+1?1:0),0)||0})).filter(m=>m.triangles);appearanceRevision++;
+      const tags=[],groups=new Map(),faces=result.faceMaterials;
+      if(faces?.length){
+        // Link each material's faces in one pass. All masks reuse a single upload
+        // array; writeBuffer snapshots it before the next material is prepared.
+        let previous=null;
+        for(let face=0;face<faces.length;face++){
+          const id=faces[face];if(!id||!registry[id])continue;
+          let group=groups.get(id);
+          if(!group){group={last:-1,count:0};groups.set(id,group);}
+          previous??=new Uint32Array(faces.length);
+          previous[face]=group.last+1;group.last=face;group.count++;
+        }
+        if(previous){
+          const byteLength=Math.ceil(faces.length/8),words=new Uint32Array(Math.ceil(faces.length/32));
+          for(const [id,group] of groups){
+            words.fill(0);
+            for(let face=group.last;face>=0;face=previous[face]-1)words[face>>>5]|=1<<(face&31);
+            const tag={uid:FrameHash.newId(),kind:'material',materialUID:registry[id],params:{}},mask=FrameHash.newId();
+            const buffer=makeGPUBuffer(renderer.device,{label:'Boolean source material faces',size:words.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+            renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,byteLength);
+            polygonResources.get(mask).generatedOwner=mesh;tag.mask=mask;tags.push(tag);
+          }
+        }
+      }
+      mesh.booleanMaterialTags=tags;
+      if(result.report)result.report.materials=registry.slice(1).map((uid,i)=>({uid,triangles:groups.get(i+1)?.count||0})).filter(m=>m.triangles);
+      appearanceRevision++;
       refreshMaterialOwners(scene.meshes.filter(row=>{for(let source=row;source;source=source.replicaSource)if(source===mesh)return true;return false;}));draw(true);
     }
     async function evaluateBoolean(n,state,publicationPrepared=false){
@@ -15564,10 +15730,47 @@ window.frameEngine=(()=>{
       });
       const key=signature();if(state?.signature===key)return state;
       const progress=frameBooleanProgress();try{const space=scene,hash=n.nativeHash,type=n.type,valid=()=>scene===space&&nodes.includes(n)&&n.type===type&&n.nativeHash===hash&&roots.every(r=>nodes.includes(r))&&children(n.id).filter(c=>c.enabled).map(c=>c.id).join(',')===roots.map(c=>c.id).join(',')&&signature()===key;
-      const op={union:0,subtract:1,intersect:2}[n.params.op],data=roots.map(root=>{const collect=c=>{if(!c.enabled)return [];if(['instance','cloner','symmetry'].includes(c.type)){const copies=[...scene.meshes.filter(m=>m.hashId===c.nativeHash&&m.replicaMatrix),...(scene.curveReplicas||[]).filter(m=>m.hashId===c.nativeHash)],data=[];let edges=0;for(const m of copies){let source=m;while(source.replicaSource)source=source.replicaSource;const n=frameNodeByHash(source.hashId),d=m.display?.data||FrameSpline.states.get(n?.id)?.data||n?.splineData;if(!d)continue;edges+=Object.keys(d.segments).length;if(edges>200000)return [];const matrix=FM.mul(objectRelativeFrame(m.hashId,root.nativeHash),m.replicaMatrix);data.push(FrameSpline.K().transformWholeSplineData(structuredClone(d),FrameSpline.K().matrix(matrix)));}return data;}const d=FrameSpline.states.get(c.id)?.data||c.splineData;if(d)return [splineInFrame(d,c.nativeHash,root.nativeHash)];if(c.type==='boolean')return [];return children(c.id).flatMap(collect);};const list=collect(root);return list.length?list.length===1?list[0]:FrameSpline.K().merge(list):null;}),surface=roots.map(r=>[r.id,...descendants(r.id)].map(node).some(c=>scene.meshes.some(m=>m.hashId===c.nativeHash)));
+      const op={union:0,subtract:1,intersect:2}[n.params.op];
+      const {rootMeshes,operands,contourData}=frameReadHierarchy(()=>{
+        const index=replicaPublicationIndex(),owned=c=>index.meshes.get(c.nativeHash)||[];
+        const surfaces=roots.map(root=>owned(root).length>0||descendants(root.id).some(id=>owned(node(id)).length>0));
+        if(surfaces.some(Boolean)){
+          if(!surfaces.every(Boolean))throw Error('Use two polygon/surface operands or two planar spline operands');
+          function collect(c,out){
+            if(!c.enabled||c.type==='boolean'&&FrameSpline.states.get(c.id)?.empty)return;
+            const meshes=owned(c);
+            if(meshes.length){for(const mesh of meshes)out.push(mesh);}else for(const child of children(c.id))collect(child,out);
+          }
+          return {rootMeshes:roots.map(owned),operands:roots.map(root=>{const out=[];collect(root,out);return out;})};
+        }
+        function contour(root){
+          function collect(c){
+            if(!c.enabled)return [];
+            if(['instance','cloner','symmetry'].includes(c.type)){
+              const data=[];let edges=0;
+              for(const m of index.curves.get(c.nativeHash)||[]){
+                let source=m;while(source.replicaSource)source=source.replicaSource;
+                const owner=frameNodeByHash(source.hashId),d=m.display?.data||FrameSpline.states.get(owner?.id)?.data||owner?.splineData;
+                if(!d)continue;
+                edges+=Object.keys(d.segments).length;if(edges>200000)return [];
+                const matrix=FM.mul(objectRelativeFrame(m.hashId,root.nativeHash),m.replicaMatrix);
+                data.push(FrameSpline.K().transformWholeSplineData(structuredClone(d),FrameSpline.K().matrix(matrix)));
+              }
+              return data;
+            }
+            const d=FrameSpline.states.get(c.id)?.data||c.splineData;
+            if(d)return [splineInFrame(d,c.nativeHash,root.nativeHash)];
+            return c.type==='boolean'?[]:children(c.id).flatMap(collect);
+          }
+          const list=collect(root);return list.length>1?FrameSpline.K().merge(list):list[0];
+        }
+        const contourData=roots.map(contour);
+        if(!contourData.every(Boolean))throw Error('Use two polygon/surface operands or two planar spline operands');
+        return {contourData};
+      });
       let result,cage=null;const materialRegistry=[null];
-      if(data.every(Boolean)&&surface.every(v=>!v)){
-        const transformed=data.map((d,i)=>splineInFrame(d,roots[i].nativeHash,n.nativeHash)),analysis=transformed.map(d=>Object.keys(d.segments).length?FrameGeometry.K().analyzeOutline(d,Object.keys(d.segments)):{ok:true,chains:[],plane:null});
+      if(contourData){
+        const transformed=contourData.map((d,i)=>splineInFrame(d,roots[i].nativeHash,n.nativeHash)),analysis=transformed.map(d=>Object.keys(d.segments).length?FrameGeometry.K().analyzeOutline(d,Object.keys(d.segments)):{ok:true,chains:[],plane:null});
         if(analysis.some(a=>!a.ok||a.chains.some(c=>!c.closed)))throw Error('Spline Boolean needs closed coplanar contours');
         const plane=analysis.find(a=>a.plane)?.plane||{origin:[0,0,0],normal:[0,1,0],u:[1,0,0],v:[0,0,-1]},extent=Math.max(1,...Object.values(transformed[0].vertices).map(p=>Math.hypot(...FM.sub(p,plane.origin))));
         if(analysis[1].plane&&Math.abs(FM.dot(plane.normal,analysis[1].plane.normal))<1-1e-7||Object.values(transformed[1].vertices).some(p=>Math.abs(FM.dot(FM.sub(p,plane.origin),plane.normal))>extent*1e-7))throw Error('Spline Boolean operands must lie in one plane');
@@ -15578,11 +15781,22 @@ window.frameEngine=(()=>{
         for(const contour of result.curveContours||[]){const cp=contour.map(c=>c.cp.map(lift)),q=K.addSplineSequence(cage,true),vertices=cp.map(c=>K.addSplineVertex(cage,c[0]));cp.forEach((c,i)=>{const id=K.addSplineSegment(cage,q,vertices[i],vertices[(i+1)%vertices.length],FM.sub(c[1],c[0]),FM.sub(c[2],c[3]));cage.segments[id].soft=!!contour[i].soft;});}
         if(!valid())return null;removeSpline(hash);await setSplineDisplay(hash,cage,false,valid);
       }else{
-        if(surface.some(v=>!v))throw Error('Use two polygon/surface operands or two planar spline operands');const fast=await disjointBoolean(n,roots,op,valid);if(fast)return {hash,signature:key,data:null,report:fast,empty:fast.empty};
-        const cagePoints=[],cageLines=[],geometryCache=new Map();async function operand(root){const list=[];async function collect(c){if(!c.enabled||c.type==='boolean'&&FrameSpline.states.get(c.id)?.empty)return;const meshes=scene.meshes.filter(m=>m.hashId===c.nativeHash);if(meshes.length){for(const mesh of meshes){let raw=geometryCache.get(mesh.positions);if(!raw){raw=await readGeometry(mesh);geometryCache.set(mesh.positions,raw);}const matrix=FM.mul(objectRelativeFrame(mesh.hashId,hash),mesh.replicaMatrix||FM.I()),lines=replicaDisplay(mesh)?.lineValues;
-          if(lines)for(let i=0;i<lines.length;i+=6){cageLines.push(cagePoints.length/3,2);cagePoints.push(...FM.point(matrix,lines.subarray(i,i+3)),...FM.point(matrix,lines.subarray(i+3,i+6)));}
-          list.push({positions:raw.vertices,indices:raw.indices,faceMaterials:await booleanFaceMaterials(mesh,materialRegistry),matrix:Array.from(matrix)});}return;}for(const ch of children(c.id))await collect(ch);}await collect(root);return list;}
-        const partsA=await operand(roots[0]),partsB=await operand(roots[1]),cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set);
+        const fast=await disjointBoolean(n,rootMeshes,op,valid);if(fast)return {hash,signature:key,data:null,report:fast,empty:fast.empty};
+        const cagePoints=[],cageLines=[],geometryCache=new Map();
+        async function operand(meshes){
+          const list=[];
+          for(const mesh of meshes){
+            let indexed=geometryCache.get(mesh.positions);
+            if(!indexed)geometryCache.set(mesh.positions,indexed=new Map());
+            let raw=indexed.get(mesh.indices);
+            if(!raw||raw.vertexCount!==mesh.vertexCount||raw.triangleCount!==mesh.triangleCount){raw=await readGeometry(mesh);indexed.set(mesh.indices,raw);}
+            const matrix=FM.mul(objectRelativeFrame(mesh.hashId,hash),mesh.replicaMatrix||FM.I()),lines=replicaDisplay(mesh)?.lineValues;
+            if(lines)for(let i=0;i<lines.length;i+=6){cageLines.push(cagePoints.length/3,2);cagePoints.push(...FM.point(matrix,lines.subarray(i,i+3)),...FM.point(matrix,lines.subarray(i+3,i+6)));}
+            list.push({positions:raw.vertices,indices:raw.indices,faceMaterials:await booleanFaceMaterials(mesh,materialRegistry),matrix:Array.from(matrix)});
+          }
+          return list;
+        }
+        const partsA=await operand(operands[0]),partsB=await operand(operands[1]),cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set);
         if(!result.report?.trusted)throw Error('Boolean topology could not be validated: '+JSON.stringify(result.report));if(!valid())return null;
         if(result.indices.length)await installSplineSurface(n,{vertices:result.positions,indices:result.indices,nativeExact:true,tasks:new Uint8Array(0),packets:new Float32Array(0),report:result.report},valid);else removeSpline(hash);installBooleanMaterials(n,result,materialRegistry);
         if(result.indices.length){const previous=splineDisplays.get(hash);if(previous){for(const b of previous.buffers)releaseGPU(b);splineDisplayLookup.delete(previous);splineDisplays.delete(hash);}const K=FrameSpline.K(),display=K.createSplineData();
@@ -15942,7 +16156,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       return r.materialState={source,module,layout,meshLayout,libraryLayout,pipelines:new Map(),pending:new Map(),sampler:d.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear'}),assetKey:'',signature:'',assetTicket:0};
     }
     function polygonWire(mesh){return shadingMode==='solid-wire'||shadingMode==='solid-isoparms';}
-    function classifiedSurfaceWire(mesh){return (mesh.parts||[mesh]).some(part=>!!part.splineWireEdges);}
+    function classifiedSurfaceWire(mesh){return mesh.parts?mesh.parts.some(part=>!!part.splineWireEdges):!!mesh.splineWireEdges;}
     function materialPipeline(r,mesh,transparent=false){
       const state=ensureMaterialState(r),grouped=!!mesh.materialBindings?.grouped,wire=polygonWire(mesh),classified=classifiedSurfaceWire(mesh),materialWireOverlay=wire&&!transparent&&classified&&!materialTransparent(mesh),key=[!!frameViewKind(viewIndex),mesh.posed,grouped,!!importedUV(mesh),wire,transparent,classified,materialWireOverlay].join(':');if(state.pipelines.has(key))return state.pipelines.get(key);
       if(!state.pending.has(key)){const constants={orthographic:!!frameViewKind(viewIndex),posed:mesh.posed,materialGroups:grouped,materialUV:!!importedUV(mesh),materialWire:wire,materialWireOverlay,plainSurfaceWire:!classified};const pending=r.device.createRenderPipelineAsync({label:'native material '+key,layout:state.layout,vertex:{module:state.module,entryPoint:'materialVS',constants},fragment:{module:state.module,entryPoint:transparent?'materialTransparentFS':wire?'materialWireFS':'materialFS',targets:transparent?[{format:'rgba16float',blend:{color:{srcFactor:'one',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one'}}},{format:'r16float',blend:{color:{srcFactor:'zero',dstFactor:'one-minus-src'},alpha:{srcFactor:'zero',dstFactor:'one'}}}]:wire?r.wireTargets:r.surfaceTargets,constants},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:!transparent,depthCompare:transparent?'less-equal':'less'}}).then(p=>{if(renderer===r&&!r.dead){state.pipelines.set(key,p);draw();}return p;}).catch(editError).finally(()=>state.pending.delete(key));state.pending.set(key,pending);}return null;
@@ -16440,13 +16654,36 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthReadOnly:true}});
       if(grid)drawViewGrid(pass,width,height);drawNativeSurfaceLines(r,pass,depth,ids||r.triangleIds,width,height,background,depth===r.depth?r.wirePlanes:passiveViews.get(viewIndex)?.wirePlanes);drawSplineDisplays(pass);pass.end();
     }
-    function opaqueMeshDraw(r,mesh,state={parts:[]}){
+    function opaqueMeshDraw(r,mesh,state={parts:[]},bundle=false){
+      // A ready single-part material draw can replay its compiled bindings.
+      // Check the actual native UV and projection records on each use: Undo
+      // can replace either without changing the mesh or its shading group.
+      if(bundle&&state.materialGuard&&sameBundleMaterial(r,mesh,state))return state;
       const pipelines=meshPipelines(r,mesh),material=materialMeshGPU(r,mesh),filter=pluginSurfaceFilter(mesh),filtered=filter?filteredSurfacePipeline(r,mesh,filter,material):null,pipeline=filtered?.pipeline||(material?materialPipeline(r,mesh):null),plain=polygonWire(mesh)&&!classifiedSurfaceWire(mesh)?plainWireSurfacePipeline(r,mesh):null;
       const active=!(filter&&!filtered),selectedPipeline=pipeline||plain||(polygonWire(mesh)?pipelines.wireSurfacePipeline:pipelines.pipeline),library=pipeline&&material?material.state.group:null,filterGroup=filtered?.group||null,indexed=!(polygonWire(mesh)||pipeline&&material&&(material.bindings.grouped||importedUV(mesh)));
       let changed=state.active!==active||state.pipeline!==selectedPipeline||state.library!==library||state.filter!==filterGroup||state.indexed!==indexed;state.active=active;state.pipeline=selectedPipeline;state.library=library;state.filter=filterGroup;state.indexed=indexed;
       const parts=mesh.parts||[mesh];if(state.parts.length!==parts.length){state.parts.length=parts.length;changed=true;}
       for(let i=0;i<parts.length;i++){const part=parts[i],group=pipeline&&material?material.bindings.groups.get(part).group:part.shadingBindGroup;let row=state.parts[i];if(!row)row=state.parts[i]={};if(row.part!==part||row.group!==group||row.indices!==part.renderIndices||row.count!==part.count){changed=true;row.part=part;row.group=group;row.indices=part.renderIndices;row.count=part.count;}}
+      state.materialGuard=null;
+      if(bundle&&material&&pipeline&&!filter&&!mesh.paged&&!mesh.parts&&mesh.materialBindings){
+        state.materialGuard={mesh,bindings:mesh.materialBindings,shading:mesh.shadingBindGroup,library:material.state,
+          order:scene.records.get(FrameHash.K.materials)?.value,posed:mesh.posed,wireEdges:mesh.splineWireEdges,
+          transparent:polygonWire()&&!!mesh.splineWireEdges&&materialTransparent(mesh)};
+      }
       if(changed)state.revision=(state.revision||0)+1;return state;
+    }
+    function sameBundleMaterial(r,mesh,draw){
+      const saved=draw.materialGuard,b=mesh.materialBindings,row=draw.parts[0];
+      if(saved.mesh!==mesh||saved.bindings!==b||saved.shading!==mesh.shadingBindGroup||!mesh.materialTags?.length||
+        mesh.parts||mesh.paged||saved.posed!==mesh.posed||saved.wireEdges!==mesh.splineWireEdges||
+        row.indices!==mesh.renderIndices||row.count!==mesh.count||b.positions!==mesh.positions||b.appearance!==mesh.appearanceKey)return false;
+      const library=materialLibraryGPU(r);
+      if(saved.library!==library||draw.library!==library.group||saved.order!==scene.records.get(FrameHash.K.materials)?.value||
+        b.libraryKey!==library.indicesKey||b.groups.get(mesh)?.group!==row.group)return false;
+      const lo=mesh.localBoundsMin||mesh.boundsMin,hi=mesh.localBoundsMax||mesh.boundsMax;
+      for(let k=0;k<3;k++)if(lo[k]!==b.bounds[k]||hi[k]!==b.bounds[k+3])return false;
+      return mesh.mappingUniform&&mesh.mappingProjectionSource===nativeValue(mesh.hashId,'projection')&&
+        b.uv===ensureImportedUV(mesh)?.resource&&saved.transparent===(polygonWire()&&!!mesh.splineWireEdges&&materialTransparent(mesh));
     }
     function issueOpaqueMesh(pass,state,mesh=null){
       if(!state.active)return;pass.setPipeline(state.pipeline);if(state.filter)pass.setBindGroup(3,state.filter);if(state.library)pass.setBindGroup(2,state.library);
@@ -16462,7 +16699,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           const mesh=scene.meshes[i],j=i-start;let row=block.rows[j];if(!row)row=block.rows[j]={};if(cache.order[i]!==mesh){cache.order[i]=mesh;membershipChanged=true;}
           const kind=batched.has(mesh)?2:mesh.paged||pluginSurfaceStyle(mesh)||pluginSurfaceFilter(mesh)?3:mesh.triangleCount&&mesh.frameVisible!==false?1:0;
           if(row.mesh!==mesh||row.kind!==kind){row.mesh=mesh;row.kind=kind;changed=true;}
-          if(kind===1){const prior=row.draw?.revision;row.draw=opaqueMeshDraw(r,mesh,row.draw);if(prior!==row.draw.revision)changed=true;for(let k=0;k<3;k++){if(row.min?.[k]!==mesh.boundsMin[k]||row.max?.[k]!==mesh.boundsMax[k])boundsChanged=true;}row.min??=[0,0,0];row.max??=[0,0,0];for(let k=0;k<3;k++){row.min[k]=mesh.boundsMin[k];row.max[k]=mesh.boundsMax[k];}}
+          if(kind===1){const prior=row.draw?.revision;row.draw=opaqueMeshDraw(r,mesh,row.draw,true);if(prior!==row.draw.revision)changed=true;for(let k=0;k<3;k++){if(row.min?.[k]!==mesh.boundsMin[k]||row.max?.[k]!==mesh.boundsMax[k])boundsChanged=true;}row.min??=[0,0,0];row.max??=[0,0,0];for(let k=0;k<3;k++){row.min[k]=mesh.boundsMin[k];row.max[k]=mesh.boundsMax[k];}}
         }
         if(changed){
           block.segments=[];let segment=null;
@@ -17029,14 +17266,14 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function renderFrameNow(){
       if(splineLoadBatch)return;
-      const cpuStart=performance.now();flushReplicaPublication();flushTransform();syncSplineHighlights();syncCameraView();FrameSpline.drawDraft();drawLightHelpers();drawMotionPaths();updateHandles();if(renderer&&scene&&!scene.meshes.some(materialTransparent))clearMaterialTransparency(renderer);if(!['wireframe','isoparms'].includes(shadingMode))clearWirePixels(renderer);if(renderer&&!movingMeshes())clearTransformBackgrounds(renderer);
+      const cpuStart=performance.now();flushReplicaPublication();flushTransform();syncSplineHighlights();syncCameraView();FrameSpline.drawDraft();drawLightHelpers();drawMotionPaths();updateHandles();if(renderer?.materialState?.oit&&scene&&!scene.meshes.some(materialTransparent))clearMaterialTransparency(renderer);if(!['wireframe','isoparms'].includes(shadingMode))clearWirePixels(renderer);if(renderer&&!movingMeshes())clearTransformBackgrounds(renderer);
       if(renderer&&scene?.meshes.some(m=>m.posed)){let wait=false;if((!single||FrameViewWindows.size||!frameViewKind(viewIndex))&&!renderer.posed){posedPipelines(renderer,false).catch(editError);wait=true;}if((!single||FrameViewWindows.size||frameViewKind(viewIndex))&&!renderer.posedOrtho){posedPipelines(renderer,true).catch(editError);wait=true;}if(wait)return;}
       if(renderer&&scene&&(!single||FrameViewWindows.size||frameViewKind(viewIndex))){ensureOrthoPipelines(renderer);if(frameViewKind(viewIndex)&&!renderer.ortho)return;}
       if(!renderer||!scene||!canvas.getClientRects().length)return;
       const r=renderer;updateViewportEnvironment(r);const device=r.device,dpr=Math.min(canvas.ownerDocument.defaultView?.devicePixelRatio||1,2);
       const width=Math.max(1,Math.min(device.limits.maxTextureDimension2D,Math.round(canvas.clientWidth*dpr))),height=Math.max(1,Math.min(device.limits.maxTextureDimension2D,Math.round(canvas.clientHeight*dpr)));
       if(width!==r.width||height!==r.height){canvas.width=r.width=width;canvas.height=r.height=height;makeRenderCache(r,width,height);sceneFrameDirty=true;}
-      const surfaceKey=[perspectiveFov,cameraRoll,viewIndex,zoom,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':');
+      const surfaceKey=elementMode!=='object'||r.surfaceRequested||r.surfaceScene===scene?[perspectiveFov,cameraRoll,viewIndex,zoom,width,height,yaw,pitch,panX,panY,...orbitOffset,...scene.center,scene.scale,...clippingPlanes(),...scene.meshes.map(m=>(m.version||0)+','+(m.frameVisible!==false))].join(':'):null;
       const full=sceneFrameDirty||r.cachedScene!==scene,id=++frameCount,mesh=scene,key=[elementMode,shadingMode,width,height,viewIndex,!!(gizmoSession?.moved||coreNumeric||editDrag)].join(':'),encoder=device.createCommandEncoder();
       const slot=full?r.frameMeter.slots.find(s=>!s.busy):null;if(slot)slot.busy=true;
       canvas.dataset.frameCount=String(id);canvas.dataset.elementMode=elementMode;canvas.dataset.shadingMode=shadingMode;
@@ -17151,9 +17388,16 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     function normalizedBox(space,mesh){return {min:mesh.boundsMin.map((v,i)=>(v-space.center[i])*space.scale-1e-5),max:mesh.boundsMax.map((v,i)=>(v-space.center[i])*space.scale+1e-5)};}
-    function rayBox(ray,box){
+    function rayBox(ray,space,part){
       let lo=ray.clip[0],hi=ray.clip[1];
-      for(let i=0;i<3;i++){const d=ray.direction[i],o=ray.origin[i];if(Math.abs(d)<1e-20){if(o<box.min[i]||o>box.max[i])return null;}else{const a=(box.min[i]-o)/d,b=(box.max[i]-o)/d;lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));if(lo>hi)return null;}}
+      // Typed bounds preserve the rounding of their native map operation.
+      const box=Array.isArray(part.boundsMin)&&Array.isArray(part.boundsMax)?null:normalizedBox(space,part);
+      for(let i=0;i<3;i++){
+        const min=box?box.min[i]:(part.boundsMin[i]-space.center[i])*space.scale-1e-5,max=box?box.max[i]:(part.boundsMax[i]-space.center[i])*space.scale+1e-5;
+        const d=ray.direction[i],o=ray.origin[i];
+        if(Math.abs(d)<1e-20){if(o<min||o>max)return null;}
+        else{const a=(min-o)/d,b=(max-o)/d;lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));if(lo>hi)return null;}
+      }
       return lo;
     }
     // A batch moves later occurrences to its first authored draw. Certify pixel
@@ -17187,7 +17431,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     let visibilityFrustum=null;
-    function replicaEditingSource(mesh,sources=null){if(!mesh.replicaMatrix)return false;let source=mesh;while(source.replicaSource)source=source.replicaSource;return sources?sources.includes(source):editingSource(source);}
+    function replicaEditingSource(mesh,sources=null){if(!mesh.replicaMatrix)return false;let source=mesh;while(source.replicaSource)source=source.replicaSource;return sources?sources.has(source):editingSource(source);}
     function editingSource(mesh){if(elementMode==='object'||mesh.replicaMatrix)return false;const n=frameNodeByHash(mesh.hashId);for(let p=n;p;p=node(p.parent))if(!p.visible)return false;return !!n&&frameSoloContains(n)&&(n.type==='mesh'||FrameSpline.isEditable(n)||n.type==='spline_patch')&&(selected.has(n.id)||selectedTag?.owner===n.id||FrameSpline.isActive(n));}
     function meshVisible(mesh){
       if(!mesh.triangleCount||mesh.frameVisible===false&&!editingSource(mesh))return false;
@@ -17201,8 +17445,16 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const d=gpu.device;let slot=gpu.pickPool.find(s=>!s.busy);
       if(!slot){slot={busy:false,groups:new Map(),closest:makeGPUBuffer(d,{label:'pooled pick result',size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC}),read:makeGPUBuffer(d,{label:'pooled pick readback',size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ})};gpu.pickPool.push(slot);}
       slot.busy=true;const initial=new ArrayBuffer(16);new Float32Array(initial)[0]=ray.clip[1];new Uint32Array(initial)[1]=0xffffffff;d.queue.writeBuffer(slot.closest,0,initial);
-      const editableSources=preferredSources||(target.meshes||[target]).filter(editingSource),candidates=(target.meshes||[target]).filter(mesh=>(!excludedHashes?.size||!excludedHashes.has(objectPickHash(mesh)))&&(mesh.frameVisible!==false||editableSources.includes(mesh))&&!replicaEditingSource(mesh,editableSources)).flatMap(mesh=>(mesh.parts||[mesh]).map(part=>({mesh,part,box:normalizedBox(target,part)}))).map(value=>({...value,distance:rayBox(ray,value.box)})).filter(value=>value.distance!==null).sort((a,b)=>a.distance-b.distance);
-      const groups=candidates.map(({mesh,part,box})=>{
+      const meshes=target.meshes||[target],editableSources=new Set(preferredSources||(elementMode==='object'?[]:meshes.filter(editingSource))),candidates=[];
+      for(const mesh of meshes){
+        if(excludedHashes?.size&&excludedHashes.has(objectPickHash(mesh))||mesh.frameVisible===false&&!editableSources.has(mesh)||editableSources.size&&replicaEditingSource(mesh,editableSources))continue;
+        for(let i=0;i<(mesh.parts?mesh.parts.length:1);i++){
+          const part=mesh.parts?mesh.parts[i]:mesh,distance=rayBox(ray,target,part);
+          if(distance!==null)candidates.push({mesh,part,distance});
+        }
+      }
+      candidates.sort((a,b)=>a.distance-b.distance);
+      const groups=candidates.map(({mesh,part})=>{
         let value=slot.groups.get(part);
         if(!value){const params=makeGPUBuffer(d,{label:'pooled mesh pick parameters',size:96,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});value={params,group:mesh.paged?pagedGroup(gpu,gpu.pagedPick,{0:mesh.positions,1:mesh.indices,2:params,3:slot.closest}):computeGroup(gpu,gpu.pickPipeline,[mesh.positions,mesh.indices,params,slot.closest])};if(mesh.paged)value.resolveGroup=pagedGroup(gpu,gpu.pagedPickResolve,{0:mesh.positions,1:mesh.indices,2:params,3:slot.closest});slot.groups.set(part,value);}
         const data=new ArrayBuffer(96),f=new Float32Array(data),u=new Uint32Array(data);const localRay=poseRay(mesh,ray);f.set([...localRay.origin,0,...localRay.direction,0,...target.center,target.scale]);u[12]=part.triangleCount;f[13]=ray.clip[0];f[14]=ray.clip[1];u[15]=(mesh.faceBase||0)+(part.faceStart||0);const localBox=normalizedBox(target,{boundsMin:part.localBoundsMin||mesh.localBoundsMin||part.boundsMin,boundsMax:part.localBoundsMax||mesh.localBoundsMax||part.boundsMax});f.set(localBox.min,16);u[19]=part.faceStart||0;f.set(localBox.max,20);d.queue.writeBuffer(value.params,0,data);
@@ -19757,7 +20009,15 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     let splineHighlightState=null;
     function syncSplineHighlights(){
-      if(!renderer||!scene)return;const displays=[...splineDisplays.values()],selectedHashes=new Set(objectSelection),edgeMode=['edge','polygon'].includes(elementMode),stamp=[scene,...scene.meshes,edgeMode?elementMode:null,edgeMode?splineHover:null];
+      if(!renderer||!scene)return;const edgeMode=elementMode==='edge'||elementMode==='polygon',last=splineHighlightState;
+      if(!edgeMode&&last&&last[0]===scene&&last.length===3+scene.meshes.length+3*splineDisplays.size&&last[1+scene.meshes.length]===null){
+        let at=1;for(const mesh of scene.meshes){if(last[at]!==mesh)break;at++;}
+        if(at===1+scene.meshes.length){
+          at+=2;for(const d of splineDisplays.values()){if(last[at]!==d||last[at+1]!==d.lineValues||last[at+2]!==d.wireTable)break;at+=3;}
+          if(at===last.length)return;
+        }
+      }
+      const displays=[...splineDisplays.values()],selectedHashes=new Set(objectSelection),stamp=[scene,...scene.meshes,edgeMode?elementMode:null,edgeMode?splineHover:null];
       for(const d of displays){stamp.push(d,d.lineValues,d.wireTable);if(edgeMode){stamp.push(d.selectionRevision,d.selection.size,FrameSpline.isActive(frameNodeByHash(d.hash)),selectedHashes.has(d.hash));for(const value of objectWorld(d.hash))stamp.push(value);}}
       if(splineHighlightState&&stamp.length===splineHighlightState.length&&stamp.every((v,i)=>v===splineHighlightState[i]))return;splineHighlightState=stamp;
       const active=new Map(),queue=renderer.device.queue;
@@ -19995,13 +20255,23 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       // subnormals. Twice this error also covers rounding each box corner.
       const error=(row,extra=0)=>up(up(up(up(Math.abs(m[row])*ax)+up(Math.abs(m[row+4])*ay))+up(Math.abs(m[row+8])*az))+up(Math.abs(m[row+12])+extra)),ex=up(up(error(0)*32*Number.EPSILON)+8*Number.MIN_VALUE),ey=up(up(error(1)*32*Number.EPSILON)+8*Number.MIN_VALUE),ez=up(up(error(2,3.2)*32*Number.EPSILON)+8*Number.MIN_VALUE);
       if(!Number.isFinite(ex)||!Number.isFinite(ey)||!Number.isFinite(ez))return box;
-      for(let i=0;i<8;i++){
-        const x=i&1?hi[0]:lo[0],y=i&2?hi[1]:lo[1],z=i&4?hi[2]:lo[2],nx=m[0]*x+m[4]*y+m[8]*z+m[12],ny=m[1]*x+m[5]*y+m[9]*z+m[13],depth=3.2-(m[2]*x+m[6]*y+m[10]*z+m[14]),near=down(depth-2*ez),far=up(depth+2*ez);
-        if(!Number.isFinite(nx)||!Number.isFinite(ny)||!Number.isFinite(depth)||!c.ortho&&!(near>0))return box;
-        const pLo=c.ortho?c.pixels:down(c.pixels/(c.pixels>=0?far:near)),pHi=c.ortho?c.pixels:up(c.pixels/(c.pixels>=0?near:far)),xLo=down(nx-2*ex),xHi=up(nx+2*ex),yLo=down(ny-2*ey),yHi=up(ny+2*ey),sxLo=down(c.cx+down(Math.min(xLo*pLo,xLo*pHi,xHi*pLo,xHi*pHi))),sxHi=up(c.cx+up(Math.max(xLo*pLo,xLo*pHi,xHi*pLo,xHi*pHi))),syLo=down(c.cy-up(Math.max(yLo*pLo,yLo*pHi,yHi*pLo,yHi*pHi))),syHi=up(c.cy-down(Math.min(yLo*pLo,yLo*pHi,yHi*pLo,yHi*pHi)));
-        if(!Number.isFinite(sxLo)||!Number.isFinite(sxHi)||!Number.isFinite(syLo)||!Number.isFinite(syHi))return box;box.minX=Math.min(box.minX,sxLo);box.maxX=Math.max(box.maxX,sxHi);box.minY=Math.min(box.minY,syLo);box.maxY=Math.max(box.maxY,syHi);
+      // Select the extrema of each affine row by the signs of its coefficients.
+      // Enclose the perspective divide once across the positive depth interval.
+      function extreme(row,maximum){
+        const a=m[row],b=m[row+4],d=m[row+8];
+        return a*((a>=0)===maximum?hi[0]:lo[0])+b*((b>=0)===maximum?hi[1]:lo[1])+d*((d>=0)===maximum?hi[2]:lo[2])+m[row+12];
       }
-      box.valid=true;return box;
+      let pLo=c.pixels,pHi=c.pixels;
+      if(!c.ortho){
+        const near=down(3.2-extreme(2,true)-2*ez),far=up(3.2-extreme(2,false)+2*ez);
+        if(!(near>0)||!Number.isFinite(far))return box;
+        pLo=down(c.pixels/(c.pixels>=0?far:near));pHi=up(c.pixels/(c.pixels>=0?near:far));
+      }
+      const xLo=down(extreme(0,false)-2*ex),xHi=up(extreme(0,true)+2*ex),yLo=down(extreme(1,false)-2*ey),yHi=up(extreme(1,true)+2*ey);
+      const min=(a,b)=>down(Math.min(a*pLo,a*pHi,b*pLo,b*pHi)),max=(a,b)=>up(Math.max(a*pLo,a*pHi,b*pLo,b*pHi));
+      box.minX=down(c.cx+min(xLo,xHi));box.maxX=up(c.cx+max(xLo,xHi));
+      box.minY=down(c.cy-max(yLo,yHi));box.maxY=up(c.cy-min(yLo,yHi));
+      box.valid=Number.isFinite(box.minX)&&Number.isFinite(box.maxX)&&Number.isFinite(box.minY)&&Number.isFinite(box.maxY);return box;
     }
     function splineNavigationBoxHit(d,cache,x,y,radius=8){
       if(!Number.isFinite(x)||!Number.isFinite(y))return true;const box=splineNavigationScreenBox(d,cache);if(!box.valid)return true;

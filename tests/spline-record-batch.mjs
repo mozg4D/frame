@@ -9,6 +9,24 @@ await check('Generated siblings publish GPU surfaces, materials, poses and frame
 await check('Nested scopes close once and old-document completion cannot release a current-document scope',async()=>{const f=fixture(),outer=f.api.beginSplineRecordBatch(),inner=f.api.beginSplineRecordBatch();assert.equal(f.api.getBatch().depth,2);inner();inner();assert.equal(f.api.getBatch().depth,1);f.env.scene={meshes:[]};const current=f.api.beginSplineRecordBatch();outer();assert.equal(f.api.getBatch().space,f.env.scene);current();assert.equal(f.api.getBatch(),null);});
 await check('Cold-load publication preserves its existing local-pose route',async()=>{const f=fixture();f.env.splineLoadBatch=true;const finish=f.api.beginSplineRecordBatch();await f.install();finish();assert.deepEqual(f.counters,{sync:0,pose:0,material:0,draw:0});});
 await check('A retired or replaced scene never creates a new renderer after an awaited publication queue',async()=>{for(const change of ['null','replace','retire']){const f=fixture();let release,renderers=0;f.env.selectionQueue=new Promise(resolve=>release=resolve);f.env.getRenderer=async()=>{renderers++;throw Error('A retired document must not acquire another renderer');};const pending=f.install();if(change==='null')f.env.scene=null;else if(change==='replace')f.env.scene={meshes:[]};else f.space.gpu={dead:true};release();assert.equal(await pending,false);assert.equal(renderers,0);assert.equal(f.space.meshes.length,0);assert.deepEqual(f.counters,{sync:0,pose:0,material:0,draw:0});}const f=fixture();f.env.scene=null;assert.equal(await f.install(),false);});
-const coordLine=html.split('\n').find(line=>line.includes('const finishRecordBatch=engine.beginSplineRecordBatch();'));assert(coordLine);const coordination=coordLine.slice(coordLine.indexOf('const finishRecordBatch='));
-await check('Actual evaluator coordinator performs its final record sync and releases the scope on success and rejection',async()=>{for(const reject of [false,true]){let depth=0,finalSync=0,evaluations=0;const rows=[{id:'a',type:'spline_patch'},{id:'b',type:'spline_patch'}],env={engine:{beginSplineRecordBatch(){depth++;return()=>depth--;}},nodes:rows,supported:new Set(['spline_patch']),node:()=>null,parallel:false,seen:new Set(),evaluate:async n=>{assert.equal(depth,1);evaluations++;if(reject)throw Error('rejected build');env.seen.add(n.id);},isEditing:()=>false,frameSyncEngineVisibility(){finalSync++;}};env.engine.scene=env.evaluationSpace={gpu:{dead:false}};const run=Function('env',`with(env){return(async()=>{${coordination}})();}`)(env);if(reject)await assert.rejects(run,/rejected build/);else await run;assert.equal(depth,0);assert.equal(finalSync,1);assert.equal(evaluations,reject?1:2);}});
+const start=html.indexOf('const finishRecordBatch=engine.beginSplineRecordBatch();');
+const end=html.indexOf('      requireEvaluationScene(engine,evaluationSpace);await engine.updateSplineVisibility();',start);
+assert(start>=0&&end>start);const coordination=html.slice(start,end);
+await check('Unchanged evaluation flushes replicas once; publication and failures resynchronize the native records',async()=>{
+ for(const outcome of ['unchanged','changed','rejected']){
+  let depth=0,finalSync=0,barriers=0,evaluations=0;
+  const rows=[{id:'a',type:'spline_patch'},{id:'b',type:'spline_patch'}],env={
+   checkedAll:false,syncedAtEntry:true,dirty:false,publicationChanged:outcome==='changed',
+   engine:{beginSplineRecordBatch(){depth++;return()=>depth--;},flushReplicaPublication(){barriers++;}},
+   nodes:rows,supported:new Set(['spline_patch']),node:()=>null,parallel:false,seen:new Set(),
+   evaluate:async n=>{assert.equal(depth,1);evaluations++;if(outcome==='rejected')throw Error('rejected build');env.seen.add(n.id);},
+   isEditing:()=>false,frameSyncEngineVisibility(){finalSync++;}
+  };
+  env.engine.scene=env.evaluationSpace={gpu:{dead:false}};
+  const run=Function('env',`with(env){return(async()=>{${coordination}})();}`)(env);
+  if(outcome==='rejected')await assert.rejects(run,/rejected build/);else await run;
+  assert.equal(depth,0);assert.equal(finalSync,outcome==='unchanged'?0:1);assert.equal(barriers,outcome==='unchanged'?1:0);
+  assert.equal(evaluations,outcome==='rejected'?1:2);
+ }
+});
 const report={pass:true,native:false,sourceSHA256:createHash('sha256').update(html).digest('hex'),checks};await mkdir(new URL('results/',import.meta.url),{recursive:true});await writeFile(new URL('results/spline-record-batch.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

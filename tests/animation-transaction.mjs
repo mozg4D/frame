@@ -52,7 +52,29 @@ export async function animationTransactionChecks(){
  await check('Snapshot failure never starts mutation and never leaks a busy barrier',()=>{const e=animationTransactionFixture();let ran=false;const err=Error('snapshot');e.snapshot=()=>{throw err;};assert.throws(()=>e.frameAnimationTransaction([],()=>ran=true),x=>x===err);assert.equal(ran,false);assert.equal(e.frameUITransaction,0);assert.equal(e.frameAnimationRevision,0);});
  await check('Normal attribute Set key remains functional and has one exact Undo/Redo',async()=>{const e=animationTransactionFixture();e.timelineFrame=7;const before=e.tracks();await e.frameAddAttributeKeys([{h:'a',path:'position',axes:[1]}]);const after=e.tracks();assert.ok(e.frameGetTrack('a','position').keys.has(7));assert.equal(e.undoStack.length,1);await e.frameUndoUI(true);assert.equal(e.tracks(),before);await e.frameUndoUI(false);assert.equal(e.tracks(),after);});
  await check('Delete key and Remove animation share atomic history without a second scene model',async()=>{for(const remove of [false,true]){const e=animationTransactionFixture(),before=e.tracks();e.timelineFrame=20;(remove?e.frameRemoveAttributeAnimation:e.frameDeleteAttributeKeys)([{h:'a',path:'position'}]);assert.equal(e.undoStack.length,1);assert.ok(remove?!e.frameGetTrack('a','position'):!e.frameGetTrack('a','position').keys.has(20));const after=e.tracks();await e.frameUndoUI(true);assert.equal(e.tracks(),before);await e.frameUndoUI(false);assert.equal(e.tracks(),after);}});
- await check('Actual embedded Boolean worker resolves generator in its own scope, small and BVH paths',()=>{const body=html.match(/<script id="frame-boolean-worker" type="text\/plain">([\s\S]*?)<\/script>/)[1],context={console,performance,self:{postMessage:()=>{}}};vm.createContext(context);vm.runInContext(body,context);for(const count of [1,2049]){const model={triCount:count,pos:new Float64Array([1,0,0,1,1,0,1,0,1]),triV:Uint32Array.from({length:count*3},(_,i)=>i%3)};const faces=[...context.booleanRayFaces(model,0,.2,.2,1,.001,.001)];assert.equal(faces.length,count);assert.equal(new Set(faces).size,count);assert.equal(context.rayVote(model,0,.2,.2,1,.001,.001),1);if(count>2048)assert.ok(model.rayTree.nodes.length>1);}});
+ await check('Embedded Boolean worker visits contiguous face ranges and matches exhaustive votes across BVH leaves',()=>{
+  const body=html.match(/<script id="frame-boolean-worker" type="text\/plain">([\s\S]*?)<\/script>/)[1];
+  const context={console,performance,self:{postMessage:()=>{}}};vm.createContext(context);vm.runInContext(body,context);
+  const start=body.indexOf('function rayVote('),end=body.indexOf('function classifyPoint(',start);
+  const code=body.slice(start,end),first=code.indexOf('  const tree='),inner=code.indexOf('    let o = t * 3',first);
+  assert(start>=0&&end>start&&first>=0&&inner>first);
+  const exhaustive=Function('return ('+code.slice(0,first)+'for(let t=0;t<M.triCount;t++){'+code.slice(inner)+')')();
+  for(const count of [1,65,2047,2048,4099]){
+   const pos=new Float64Array(count*9),triV=Uint32Array.from({length:count*3},(_,i)=>i);
+   for(let i=0;i<count;i++){
+    const x=i%11,y=i%7,z=i%13;pos.set([x,y,z,x,y+.75,z,x,y,z+.875],i*9);
+   }
+   const model={triCount:count,pos,triV};
+   for(const ray of [[-1,0,0,1,0,0],[-1,.2,.2,1,0,0],[0,0,0,-1,-1,-1],...Array.from({length:80},(_,i)=>[-2,i%9+.125,i%15+.25,1,(i%7-3)*.1,(i%11-5)*.01])]){
+    assert.equal(context.rayVote(model,...ray),exhaustive(model,...ray));
+   }
+   if(count>=2048){
+    assert(model.rayTree.nodes.length>1);
+    const leaves=[...context.booleanRayLeaves(model.rayTree,-1,.2,.2,1,.001,.001)];
+    assert(leaves.length>0);for(const leaf of leaves)assert(leaf.end>leaf.start&&leaf.end-leaf.start<=24);
+   }else assert.equal(model.rayTree,undefined);
+  }
+ });
  await check('Motion renderer already observes the shared revision and native track, no replacement helper',()=>{assert.ok(!html.includes('frameSyncMotionPath'));const draw=part(html,'    function drawMotionPaths(){','    function animationFinish(');assert.ok(draw.includes('frameAnimationRevision'));assert.ok(draw.includes('motionTrack(n)'));assert.ok(part(html,'    function animationFinish(').includes('draw(true)'));});
  await check('Rollback restores a preexisting nested native authoring busy depth',()=>{const e=animationTransactionFixture();e.frameUITransaction=2;assert.throws(()=>e.frameAnimationTransaction([],()=>{throw Error('nested');}),/nested/);assert.equal(e.frameUITransaction,2);});
  await check('10k polygon PLA captures and completed insertion/rollback meet CPU budgets',()=>{for(const mode of ['insert','rollback']){const e=animationTransactionFixture();for(let i=0;i<10000;i++)e.seed('pla:'+i);let reads=0,writes=0;e.window.frameEngine.animationVertex=(hash,index,value)=>{if(value)writes++;else reads++;return [index,1,2];};const start=performance.now();if(mode==='insert')e.insert(10);else assert.throws(()=>e.frameAnimationTransaction([],()=>{e.frameChannels.get('a').delete('pla:9999');throw Error('PLA budget abort');}),/PLA budget abort/);const ms=performance.now()-start,budgetMs=1500;timings.push({operation:mode+' with polygon PLA',tracks:10001,capturedPolygonTracks:reads,writtenPolygonTracks:writes,ms,budgetMs});assert.equal(reads,10000);assert.equal(writes,10000);assert.ok(ms<budgetMs,mode+': '+ms+' ms');}});
