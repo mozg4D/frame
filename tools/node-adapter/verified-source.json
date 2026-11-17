@@ -1,0 +1,23 @@
+{
+  "repository": "https://github.com/mozg4D/frame",
+  "commit": "275e729c9ff213256ed3776bdcbf4320ee0aea74",
+  "commitDate": "2026-11-17T15:56:03Z",
+  "files": {
+    "index.html": {
+      "sha256": "92ea4afa0584fbffe037f79686c999b361ad2df189f21ff306799cc9e7028a81",
+      "gitBlob": "488aa9cda3d7260f2f37ef6f391fefec4c734c36",
+      "bytes": 2987122
+    },
+    "AGENTS.md": {
+      "sha256": "05d084f47e0c36ba3930d770908ecc8a8d2ded5fe7b7cc44a5c241c1c014add4",
+      "gitBlob": "93814b304594d15db75a7e733af5bb1be395e979",
+      "bytes": 76722
+    },
+    "LICENSE": {
+      "sha256": "7b7aedb3e3a0d09df9fb0bfa8d1fbff101f03900a8f28a2207d31a8964c64d16",
+      "gitBlob": "955d89c88b5870e369443e0c679d6292dbc12690",
+      "bytes": 3878
+    }
+  },
+  "frameVersion": "2026 17 nov 18:54"
+}

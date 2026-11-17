@@ -1,0 +1,5 @@
+node_modules/
+.state/
+npm-cache/
+__pycache__/
+*.log

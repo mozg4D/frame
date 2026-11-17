@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "@napi-rs/canvas": "0.1.100",
+    "fake-indexeddb": "6.2.4",
+    "jsdom": "27.2.0",
+    "webgpu": "0.6.2"
+  },
+  "name": "frame-node-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "test": "python3 -m unittest discover -s tests -v",
+    "verify": "python3 run.py",
+    "check:main": "python3 run.py --ref main"
+  }
+}

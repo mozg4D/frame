@@ -1,0 +1,17 @@
+{
+  "version": "151.0.7922.34",
+  "platform": "linux64",
+  "url": "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/linux64/chrome-linux64.zip",
+  "archiveSha256": "ae8736ac28bc69278551500f219fc749575648263c43ec5990749eff43b9fcf8",
+  "archiveBytes": 193282658,
+  "files": {
+    "libvk_swiftshader.so": {
+      "sha256": "4d39038dd6d448a3a6b5cf6aefb583d50346fd75ea8879e2563d67844f460dd0",
+      "bytes": 4037592
+    },
+    "vk_swiftshader_icd.json": {
+      "sha256": "c9eef28b6b984fec220ef0abfecc40b502d46946706e47bfe97707027cb818bd",
+      "bytes": 107
+    }
+  }
+}

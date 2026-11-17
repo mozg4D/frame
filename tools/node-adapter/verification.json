@@ -1,0 +1,69 @@
+{
+  "recordedAt": "2026-11-17T16:53:35.694213+00:00",
+  "scope": "Bounded Node recovery; not browser/OS-image or full Frame qualification",
+  "sourceCommit": "275e729c9ff213256ed3776bdcbf4320ee0aea74",
+  "sourceSHA256": "92ea4afa0584fbffe037f79686c999b361ad2df189f21ff306799cc9e7028a81",
+  "frameVersion": "2026 17 nov 18:54",
+  "platform": {
+    "node": "v24.22.1",
+    "platform": "linux",
+    "arch": "x64",
+    "glibc": "2.41",
+    "dependencies": {
+      "@napi-rs/canvas": "0.1.100",
+      "fake-indexeddb": "6.2.4",
+      "jsdom": "27.2.0",
+      "webgpu": "0.6.2"
+    }
+  },
+  "installation": {
+    "npm": "11.9.0",
+    "freshNodeModules": true,
+    "freshNpmCache": true,
+    "clearedLegacyLibraryPaths": [
+      "NODE_PATH",
+      "NODE_OPTIONS",
+      "LD_LIBRARY_PATH"
+    ],
+    "driver": "Downloaded pinned Chrome for Testing archive, verified its digest, extracted SwiftShader; no system Chromium driver fallback",
+    "nativeDistributionVersion": "151.0.7922.34",
+    "nativeLibrarySHA256": "4d39038dd6d448a3a6b5cf6aefb583d50346fd75ea8879e2563d67844f460dd0",
+    "loadedDriverPathVerified": true,
+    "blankOperatingSystemProvisioningTested": false
+  },
+  "checks": {
+    "negativeUnitTests": 6,
+    "coldOnlineTwoProcessWorkflow": "passed",
+    "candidateMainTwoProcessWorkflow": "passed",
+    "cachedOfflineTwoProcessWorkflow": "passed",
+    "finiteIndexedGeometry": true,
+    "vertices": 9,
+    "triangles": 12,
+    "nativeVisibilityChangedPixels": 35201,
+    "PNG": [
+      512,
+      384
+    ],
+    "HASHGeometryDigestsPreserved": true,
+    "freshProcessOwnerHashesAndHierarchyPreserved": true,
+    "browserReopen": "not qualified; cloud browser has no WebGPU adapter"
+  },
+  "timingMs": {
+    "coldRuntimeCreate": 5438.598065,
+    "coldRuntimeFreshReopen": 6007.445834,
+    "scope": "Node runtime only; excludes installation/downloads"
+  },
+  "filesSHA256": {
+    ".gitignore": "cd633959839b18faf0e1a748c1b8b833bb478e57f56c3cab67b946ead40282bb",
+    ".nvmrc": "d9f318747a126ce2247661af67852b185def7789492eabfad7bba322be087c33",
+    "adapter.mjs": "0bcf26a0956ea2de2da3a633387a890bbcaea5d6935ce9185e238a24721b20d1",
+    "preflight.mjs": "72e62f53b7e2b280914cd1ed8cd8acbf166f8cab47689308bfbfd6883d70230c",
+    "run.py": "8b24208cd7b5d73d87b1e7f2048d1216219b45631d2cec16827547235ae256e9",
+    "README.md": "f1e11c6be518c1fb719f9d10c9b9c16fb3b535a6be16c07fe302ce69f0af191f",
+    "package.json": "2e8058032b2fb97a84f29c04fd368e5ce25bdea2db38cfa22dc4f370f07008b4",
+    "package-lock.json": "4033c07d64bb9d8a362bd88c602233d476fb8939d9c7d23c2df9ccaae1e983ea",
+    "verified-source.json": "ebf0dea93c6e95980246d05005f02618349a8fff7a5f2c938243bd6499ca84b9",
+    "swiftshader-lock.json": "f11146732745fb33f4d07b58172dd9a89541244460c6ed98742ab2b02e10324e",
+    "tests/test_recovery.py": "58ed1f575a292a85107adae1830aafeabf78955cf1d958338c97fff0c136f664"
+  }
+}
