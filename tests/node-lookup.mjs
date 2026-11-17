@@ -25,6 +25,13 @@ export async function nodeLookupChecks(){
   check('Insertion and deletion refresh structural membership',()=>{const added={id:'added',nativeHash:'c'.repeat(32),parent:'fresh'};nodes.push(added);assert.equal(get('added'),added);nodes.splice(1,1);assert.equal(get('added'),undefined);});
   check('Combined references resolve IDs and hashes before name fallbacks',()=>{assert.equal(get('fresh',null),nodes[0]);assert.equal(get(nodes[0].nativeHash,null),nodes[0]);assert.equal(get('absent',null),undefined);});
   check('Unassigned hashes retain Array.find first-match semantics',()=>{nodes=[{id:'a'},{id:'b'}];assert.equal(get(undefined,'nativeHash'),nodes[0]);assert.equal(get(null),undefined);});
+  const apiOwners=Array.from({length:10000},(_,i)=>({id:'n'+i,nativeHash:i.toString(16).padStart(32,'0')}));let apiReads=0;
+  const apiNodes=new Proxy(apiOwners,{get(target,key,receiver){if(typeof key==='string'&&/^\d+$/.test(key))assert.ok(++apiReads<=20000,'AI reference lookup exceeded 20000 owner-slot reads');return Reflect.get(target,key,receiver);}}),lookup=factory(()=>apiNodes);
+  const resolverStart=html.indexOf('      const resolve=ref=>'),resolverEnd=html.indexOf('\n',resolverStart);assert.ok(resolverStart>=0&&resolverEnd>resolverStart);
+  const api=Function('nodes','frameNodeByReference','fail',html.slice(resolverStart,resolverEnd)+';return {resolve,refs};')(apiNodes,ref=>lookup(ref,null),(code,message)=>{throw Object.assign(new Error(message),{code});});
+  lookup('n0',null);apiReads=0;
+  check('AI resolves 10000 mixed UI/native references with one owner-slot check each',()=>{const refs=apiOwners.map((n,i)=>i%2?n.id:n.nativeHash);assert.deepEqual(api.refs(refs),apiOwners);assert.equal(apiReads,apiOwners.length);timings.push({name:'AI batch resolves 10000 owners',numericArrayReads:apiReads});});
+  check('AI resolver preserves NOT_FOUND for missing references',()=>{apiReads=0;assert.throws(()=>api.resolve('missing'),e=>e.code==='NOT_FOUND'&&e.message==='Object not found: missing');});
   return {pass:true,checks,timings};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }
