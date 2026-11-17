@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 17 nov 16:03">
+<meta name="frame-version" content="2026 17 nov 16:50">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -13694,7 +13694,7 @@ window.FrameSpline=(()=>{
   const isEditing=()=>!!(edit?.drag||drawDrag||transformEdit||window.frameEngine?.transforming);
   function request(){if(!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;dirty=true;if(!timer&&!running)timer=setTimeout(()=>{timer=0;flush(true).catch(fileOperationError);},16);}
   function requireEvaluationScene(engine,space){if(engine.scene===space&&!space.gpu?.dead)return;const loss=space.gpu?.loss;throw new DOMException(loss?(loss.message||'GPU device was lost: '+loss.reason):'Native scene changed during spline evaluation','AbortError');}
-  async function flush(live=false){await boxTask;if(!dirty&&!timer&&!running){window.frameEngine?.flushReplicaPublication?.();return;}if(isEditing()&&!live){dirty=true;window.frameEngine?.flushReplicaPublication?.();return;}if(running){dirty=true;return running;}if(timer){clearTimeout(timer);timer=0;}const engine=window.frameEngine;if(!engine?.scene||!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;const evaluationSpace=engine.scene;
+  async function flush(live=false){await boxTask;if(!dirty&&!timer&&!running){window.frameEngine?.flushReplicaPublication?.();return;}if(isEditing()&&!live){dirty=true;window.frameEngine?.flushReplicaPublication?.();return;}if(running)return running;if(timer){clearTimeout(timer);timer=0;}const engine=window.frameEngine;if(!engine?.scene||!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;const evaluationSpace=engine.scene;
     if(engine.restoringSplines)beginColdBuilds();
     running=(async()=>{do{requireEvaluationScene(engine,evaluationSpace);dirty=false;const alive=new Set(nodes.filter(n=>supported.has(n.type)).map(n=>n.id));for(const [id,s]of states)if(!alive.has(id)){engine.removeSpline(s.hash);states.delete(id);}
       const seen=new Set(),evaluating=new Set(),pending=new Map(),graph=new Map();let parallel=!!coldBuilds,constructionSerial=Promise.resolve();
