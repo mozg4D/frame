@@ -106,28 +106,28 @@
       "filename": "human-female-1-sitting.hash",
       "source": "human-female-1-sitting.glb",
       "sourceSHA256": "48972a4d855146a9de4a8b28c94ac1ee2a9c4cdc6fbf67920acdf923b5bbad2b",
-      "sha256": "acb5ec69a979ec750bd731f7657969358f35ff335a02d87b953ac378231a1673",
-      "bytes": 12130,
+      "sha256": "71e9d84dc251011bc8afd86fb0f30a1eae763260ccbf26ad0bb37de222feb2b4",
+      "bytes": 14949,
       "sourceBytes": 28792,
-      "positionsSHA256": "0ab10a5a5780192eae8435e65d25a23a58a19af7a28822ce4338c7dc3a9fda7d",
-      "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
-      "triangles": 1260,
-      "vertices": 630,
+      "positionsSHA256": "733695d9decdd29bf152841bbdecbf79aaa5937c24ee976f65b079139687d7f2",
+      "indicesSHA256": "ce99a0745fd5c7fb70fe648cbd9dc64b78bfde189a1d2b1e47fee94c17f06797",
+      "triangles": 1358,
+      "vertices": 679,
       "bounds": {
         "min": [
-          -221.15798950195312,
+          -220.81759643554688,
           0,
-          -137.1435546875
+          -151.8828125
         ],
         "max": [
-          221.15798950195312,
+          219.04351806640625,
           1318.134521484375,
-          589.9287109375
+          586.5843505859375
         ],
         "center": [
-          0,
+          -0.8870391845703125,
           659.0672607421875,
-          226.392578125
+          217.35076904296875
         ]
       },
       "materials": [
@@ -163,9 +163,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
@@ -238,28 +238,28 @@
       "filename": "human-female-1-standing.hash",
       "source": "human-female-1-standing.glb",
       "sourceSHA256": "af5ba990988c6ac95f7a5a1bba60ba5a5f2a735af97ee7628aba0e4c26546707",
-      "sha256": "dbbd51cbe1bb5a8baf0730b2e672b5f6118d3fede4d87cc616cd487d984c950c",
-      "bytes": 12139,
+      "sha256": "96129abc62a217a00599ec62c9ef33f2b95a49faa0db21e3cc5b2dfce045bada",
+      "bytes": 15032,
       "sourceBytes": 28796,
-      "positionsSHA256": "7cc167023d4d73ffbef01f4d0b3dd6ba3621a357b3841f6a34d8e08549f8ddba",
-      "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
-      "triangles": 1260,
-      "vertices": 630,
+      "positionsSHA256": "caabb82eefd84607b061fab94767452c3a7442654afa7be27b6ab53e538258fe",
+      "indicesSHA256": "ce99a0745fd5c7fb70fe648cbd9dc64b78bfde189a1d2b1e47fee94c17f06797",
+      "triangles": 1358,
+      "vertices": 679,
       "bounds": {
         "min": [
-          -221.8838653564453,
+          -225.9661102294922,
           0,
-          -135.61965942382812
+          -129.73899841308594
         ],
         "max": [
-          221.8838653564453,
+          219.5438232421875,
           1798.134521484375,
-          133.5460968017578
+          131.44541931152344
         ],
         "center": [
-          0,
+          -3.2111434936523438,
           899.0672607421875,
-          -1.0367813110351562
+          0.85321044921875
         ]
       },
       "materials": [
@@ -295,9 +295,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
@@ -370,28 +370,28 @@
       "filename": "human-female-1-walking.hash",
       "source": "human-female-1-walking.glb",
       "sourceSHA256": "029a4c9440a943c826d350f80e57652c6ea9d51ccc4bcc32effafc5cea164b7d",
-      "sha256": "4edc1fb0efadc39fd6f08c861924c0f12addbb972a59fc52f1248e04cbeba413",
-      "bytes": 13211,
+      "sha256": "d1b09f63e06649d6e9e8a7442ddb50131f8de08d7c91eec209e7a205249af960",
+      "bytes": 15086,
       "sourceBytes": 28792,
-      "positionsSHA256": "4f6c3a2d7782e422d48a537728fc879ad983bbee61facee1900a198eb9387117",
-      "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
-      "triangles": 1260,
-      "vertices": 630,
+      "positionsSHA256": "21d332f6668f98f0990e5be0e8b79336bb8a31f509c6801fe2007525a756ac04",
+      "indicesSHA256": "ce99a0745fd5c7fb70fe648cbd9dc64b78bfde189a1d2b1e47fee94c17f06797",
+      "triangles": 1358,
+      "vertices": 679,
       "bounds": {
         "min": [
-          -221.8838653564453,
+          -223.32794189453125,
           0,
-          -605.12841796875
+          -603.2706909179688
         ],
         "max": [
-          221.8838653564453,
+          218.828857421875,
           1753.755859375,
-          479.755615234375
+          476.594482421875
         ],
         "center": [
-          0,
+          -2.249542236328125,
           876.8779296875,
-          -62.6864013671875
+          -63.338104248046875
         ]
       },
       "materials": [
@@ -427,9 +427,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
@@ -502,28 +502,28 @@
       "filename": "human-male-1-sitting.hash",
       "source": "human-male-1-sitting.glb",
       "sourceSHA256": "8a6ba3130bbe76a40dcf7cdadea673e90aac5b50b025e5dd52b6e440a2133ee4",
-      "sha256": "56503297c773742fea366012eca4271d2c1b502d2986da02cbd6723e097fc6a7",
-      "bytes": 12064,
+      "sha256": "25d844eb17d4341da6cb95b4bbfb9a53abbf38a69cc2ae01e89493e0646cbab9",
+      "bytes": 14965,
       "sourceBytes": 29932,
-      "positionsSHA256": "8ff9595aa942545828b7a388fe5cb8b22b94952e00188368d6eb55749b9806bc",
-      "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
-      "triangles": 1240,
-      "vertices": 618,
+      "positionsSHA256": "596ff66f232cb070393870f03c03dc171a4eb30b8e5217f204e1c37b1ec24efc",
+      "indicesSHA256": "43c9eb9258c5b0c6a5f92f1bd780d3a38bc0986ace90dc1200f4d5aa83e36199",
+      "triangles": 1338,
+      "vertices": 669,
       "bounds": {
         "min": [
-          -227.17796325683594,
+          -229.98516845703125,
           0,
-          -157.84228515625
+          -181.2808380126953
         ],
         "max": [
-          227.17796325683594,
+          229.4227752685547,
           1330.9261474609375,
-          621.1422119140625
+          616.6766357421875
         ],
         "center": [
-          0,
+          -0.28119659423828125,
           665.4630737304688,
-          231.64996337890625
+          217.6978988647461
         ]
       },
       "materials": [
@@ -559,9 +559,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
@@ -644,28 +644,28 @@
       "filename": "human-male-1-standing.hash",
       "source": "human-male-1-standing.glb",
       "sourceSHA256": "928deb12880c30cb5847c989bf86f8af0ee5440eb24ed53bd269b701d423ef34",
-      "sha256": "7dace8f28bd4f45de0a3ffab2c123f53896c7e6a64b9f5988a198fea2953b713",
-      "bytes": 12053,
+      "sha256": "4e640df91d60a9d418210d28030a6a6555c17af20c2ed9a6495bbb0d466e00e0",
+      "bytes": 15094,
       "sourceBytes": 29932,
-      "positionsSHA256": "ae99ba4711fa051e65c786f8ec50fdc9f3f4c7f1af6f775f491f74c102c96737",
-      "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
-      "triangles": 1240,
-      "vertices": 618,
+      "positionsSHA256": "6b403e29d5f4b2451c15a16821918dad529b165a69e1ebfdbed2831869e8b4a4",
+      "indicesSHA256": "43c9eb9258c5b0c6a5f92f1bd780d3a38bc0986ace90dc1200f4d5aa83e36199",
+      "triangles": 1338,
+      "vertices": 669,
       "bounds": {
         "min": [
-          -236.73800659179688,
+          -237.56227111816406,
           0,
-          -171.14218139648438
+          -168.62234497070312
         ],
         "max": [
-          236.73800659179688,
+          237.5618133544922,
           1780.9261474609375,
-          171.14218139648438
+          166.67459106445312
         ],
         "center": [
-          0,
+          -0.0002288818359375,
           890.4630737304688,
-          0
+          -0.973876953125
         ]
       },
       "materials": [
@@ -701,9 +701,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
@@ -786,28 +786,28 @@
       "filename": "human-male-1-walking.hash",
       "source": "human-male-1-walking.glb",
       "sourceSHA256": "bda327873f582a60ee0e49c00cc10e98f5586e3bfee28762a53136588e0a2e42",
-      "sha256": "82f8a32af0d33c6c01a75b05cd1f473fa0e248fc6d06e236f0ac7128ebf228b8",
-      "bytes": 12966,
+      "sha256": "ba97fcbf7328502e1d6adea03385519eaf37ee3cd7205a6ddfcc0a0688e7de0c",
+      "bytes": 15027,
       "sourceBytes": 29932,
-      "positionsSHA256": "110f6af6715f3873275a06fdf0938575db504729ea5868cfbdc4cc71a526f9e0",
-      "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
-      "triangles": 1240,
-      "vertices": 618,
+      "positionsSHA256": "81afafed36d7374280c258a30b1513eea449e417c35d45dd35836bcc51fb94d9",
+      "indicesSHA256": "43c9eb9258c5b0c6a5f92f1bd780d3a38bc0986ace90dc1200f4d5aa83e36199",
+      "triangles": 1338,
+      "vertices": 669,
       "bounds": {
         "min": [
-          -236.73800659179688,
+          -237.56320190429688,
           0,
-          -577.0661010742188
+          -573.6500854492188
         ],
         "max": [
-          236.73800659179688,
+          237.58016967773438,
           1741.807373046875,
-          513.9383544921875
+          509.8817138671875
         ],
         "center": [
-          0,
+          0.00848388671875,
           870.9036865234375,
-          -31.563873291015625
+          -31.884185791015625
         ]
       },
       "materials": [
@@ -843,9 +843,9 @@
         },
         {
           "name": "Eye white",
-          "h": 25.809944655106577,
-          "s": 23.04325297009668,
-          "l": 41.894312722349696,
+          "h": 35.57091977220882,
+          "s": 8.03895922423512,
+          "l": 55.49686976474143,
           "rough": 35,
           "metal": 0,
           "opac": 0,
