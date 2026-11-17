@@ -738,8 +738,8 @@
       "sha256": "41cd3e3daeebd081e5b18a644ffab1cd358d24168c3c82ea6109a94bc948bb2e"
     },
     "tests/perspective-clipping.mjs": {
-      "bytes": 22600,
-      "sha256": "529b51ed7cd8c59f828ddc1f461717aefd6fea5871f8c7b78fdd0d67a29d86d9"
+      "bytes": 22634,
+      "sha256": "20a7fb756153398a319a6dd93f51cbfb40908f396469bcdf11089270316aacb8"
     },
     "tests/perspective-clipping-browser.mjs": {
       "bytes": 11460,
@@ -854,8 +854,8 @@
       "sha256": "8808cb3686a109e7bd748d1f78944b6b72c031fcf2b056c50ebb170715419ad3"
     },
     "plugins/atomic/tests/display-bounds.mjs": {
-      "bytes": 25588,
-      "sha256": "b170b528c89a144a0ade66486003d8a625b850b232047fac270900b0f01a8ba2"
+      "bytes": 25622,
+      "sha256": "169eb1d951a9f74a0ad68d89a2b4cee32388d2413a775bdec1251f18c1f963d1"
     },
     "plugins/atomic/tests/material-readiness.mjs": {
       "bytes": 12817,
