@@ -46,7 +46,7 @@ function assemblies(html,plugins){
  for(const [path,s]of Object.entries(plugins)){
   if(path.startsWith('atomic')){for(const name of ['RENDER_SHADER','PICK_SHADER'])add('plugin/atomic/'+name,value(s.slice(s.indexOf('{code:context.viewport.cameraWGSL+'+name)),'{code:',{context,[name]:value(s,'const '+name+'=')}));}
   else if(path.startsWith('mill')){const millPreviewRender=value(s,'const millPreviewRender=');add('plugin/mill',evaluate(expression(s,"'Mill compact preview',"),{context,millPreviewRender}));}
-  else if(path.startsWith('3d-printer')){const previewShader=value(s,'const previewShader=');add('plugin/printer',value(s,"'Printer LDI coverage and axes',",{context,previewShader}));}
+  else if(path.startsWith('3d-printer')){const beadShader=value(s,'const beadShader='),previewShader=value(s,'const previewShader=',{beadShader});add('plugin/printer',value(s,"'Printer LDI coverage and axes',",{context,previewShader}));}
   else {const shader=value(s,'const shader=');add('plugin/'+path.split('/')[0],value(s,'code:',{context,shader}));}
  }
  return {out,env,feature};

@@ -6,9 +6,10 @@ import {resolve,sep} from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
-export async function panelLayoutBrowserChecks(page,{setZoom}={}){
+export async function panelLayoutBrowserChecks(page,{setZoom,reloadPage}={}){
  const checks=[],timings=[],call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
+ const reload=reloadPage||(async()=>{await page.reload();await ready(page);});
  const settle=()=>page.evaluate(()=>new Promise(ok=>requestAnimationFrame(()=>requestAnimationFrame(ok))));
  const state=()=>page.evaluate(()=>{const rect=id=>document.getElementById(id).getBoundingClientRect(),tree=rect('obWrap'),strip=rect('tabstrip');return {top:strip.top,height:tree.height,width:rect('panel').width,saved:localStorage.getItem('frame-ui.obwrap.h'),innerHeight,innerWidth,dpr:devicePixelRatio};});
  const drag=async(delta)=>{const r=await page.locator('#tabstrip').boundingBox();await page.mouse.move(r.x+r.width-8,r.y+1);await page.mouse.down();await page.mouse.move(r.x+r.width-8,r.y+1+delta,{steps:4});await page.mouse.up();await settle();};
@@ -20,11 +21,11 @@ export async function panelLayoutBrowserChecks(page,{setZoom}={}){
   await roundTrip('Window expansion/restoration',()=>page.setViewportSize({width:1400,height:1200}),()=>page.setViewportSize({width:1280,height:900}),base);
   await page.setViewportSize({width:900,height:480});await settle();const constrained=await state();check('Small window temporarily clamps the visible height',constrained.height<base.height&&constrained.saved===base.saved,constrained);
   await drag(0);check('A divider click while constrained preserves the preference',(await state()).saved===base.saved);
-  await page.reload();await ready(page);await settle();check('Reload while constrained preserves the saved preference',(await state()).saved===base.saved);await page.setViewportSize({width:1280,height:900});await settle();check('Expanding after constrained reload restores the original height',Math.abs((await state()).top-base.top)<.1,await state());
+  await reload();await settle();check('Reload while constrained preserves the saved preference',(await state()).saved===base.saved);await page.setViewportSize({width:1280,height:900});await settle();check('Expanding after constrained reload restores the original height',Math.abs((await state()).top-base.top)<.1,await state());
   if(setZoom)for(const zoom of [1.5,.8,1.25,.67,1.5]){
    await roundTrip('Browser page zoom '+zoom,async()=>{await setZoom(zoom);await page.waitForFunction(expected=>Math.abs(devicePixelRatio-expected)<.02,base.dpr*zoom);},async()=>{await setZoom(1);await page.waitForFunction(expected=>Math.abs(devicePixelRatio-expected)<.02,base.dpr);},base);
   }
-  await page.locator('#treeResize').press('ArrowDown');await settle();let keyed=await state();check('Keyboard adjustment is saved',Math.abs(keyed.height-base.height-8)<.1&&Math.abs(Number(keyed.saved)-keyed.height)<.1,keyed);await page.reload();await ready(page);await settle();check('Keyboard adjustment survives reload',Math.abs((await state()).top-keyed.top)<.1,await state());base=await state();
+  await page.locator('#treeResize').press('ArrowDown');await settle();let keyed=await state();check('Keyboard adjustment is saved',Math.abs(keyed.height-base.height-8)<.1&&Math.abs(Number(keyed.saved)-keyed.height)<.1,keyed);await reload();await settle();check('Keyboard adjustment survives reload',Math.abs((await state()).top-keyed.top)<.1,await state());base=await state();
   const back=await page.locator('#tabstrip').boundingBox();await page.mouse.move(back.x+back.width-8,back.y+1);await page.mouse.down();await page.mouse.move(back.x+back.width-8,back.y-39);await page.mouse.move(back.x+back.width-8,back.y+1);await page.mouse.up();await settle();check('Dragging away and back restores the gesture start',Math.abs((await state()).top-base.top)<.1,await state());
   const before=await state();await page.evaluate(async()=>{for(let i=0;i<45;i++)await frameAI.call('scene.create',{type:'group',name:'Browser row '+i});});await settle();const full=await state();check('Object Browser content does not move the divider',Math.abs(full.top-before.top)<.1&&full.saved===before.saved,{before,full});
   await call('scene.new');await settle();check('Clearing the Object Browser does not move the divider',Math.abs((await state()).top-before.top)<.1,await state());

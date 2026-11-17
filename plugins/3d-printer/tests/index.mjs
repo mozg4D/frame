@@ -2,6 +2,7 @@ import {beadJoinsGridChecks} from './bead-joins-grid.mjs';
 import {sectionLifecycleChecks} from './section-lifecycle.mjs';
 import {beadPreviewChecks} from './bead-preview.mjs';
 import {warningStyleChecks} from './warning-style.mjs';
+import {visibilityDepthChecks} from './visibility-depth.mjs';
 import {zooCases} from './generate-zoo.mjs';
 export async function pluginChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),check=(name,pass,detail)=>{checks.push({name:'3D Printer: '+name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},red=c=>c[0]>70&&c[0]-c[1]>40&&c[0]-c[2]>40;
@@ -29,6 +30,6 @@ export async function pluginChecks(page){
   for(const sign of [1,-1]){const c=(await call('scene.inspect')).view.camera,back=direction.map(v=>v*sign);c[0]=Math.atan2(-back[0],back[2]);c[1]=Math.asin(back[1]);await call('view.set',{index:0,single:true,camera:c,shading:'solid',focus:printer.hash});check('arbitrary printer rotation preserves '+(sign>0?'top':'underside')+' classification',red(await sample([20,20+sign*20,20]))===(sign<0));}
   await call('scene.update',{id:printer.hash,params:{'Overhang angle':90}});check('editable overhang angle immediately updates the shader',!red(await sample([20,0,20])));
   const cases=zooCases();check('adversarial fixture recipe covers width thresholds and damaged topology',cases.length===27&&[.6,1,1.5,1.6].every(w=>cases.some(c=>c.widthW===w))&&cases.some(c=>c.name==='Mixed winding cube')&&cases.some(c=>c.name==='Missing one triangle'));
-  for(const run of [sectionLifecycleChecks,beadPreviewChecks,beadJoinsGridChecks,warningStyleChecks]){const result=await run(page);checks.push(...result.checks);timings.push(...result.timings||[]);if(!result.pass)return {...result,checks,timings};}return {pass:true,checks,timings};
+  for(const run of [sectionLifecycleChecks,beadPreviewChecks,beadJoinsGridChecks,visibilityDepthChecks,warningStyleChecks]){const result=await run(page);checks.push(...result.checks);timings.push(...result.timings||[]);if(!result.pass)return {...result,checks,timings};}return {pass:true,checks,timings};
  }catch(e){return {pass:false,checks,timings,error:e.stack};}
 }

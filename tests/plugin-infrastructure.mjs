@@ -28,6 +28,7 @@ export async function pluginInfrastructureChecks(page){
  for(const manifest of catalogue.filter(path=>pluginEnabled(path.split('/')[0]))){
   const folder=new URL('../plugins/'+manifest.replace(/[^/]+$/,''),import.meta.url),entry=new URL('tests/index.mjs',folder);
   await access(fileURLToPath(new URL('AGENTS.md',folder)));await access(fileURLToPath(entry));
+  await page.evaluate(()=>frameAI.call('view.set',{index:0,single:true,mode:'object',shading:'solid',snap:false,quantize:false,pivot:false}));
   console.log('[tests] plugin '+manifest.split('/')[0]+' START');const started=performance.now();const {pluginChecks}=await import(entry.href),result=await pluginChecks(page);console.log('[tests] plugin '+manifest.split('/')[0]+' '+(result.pass?'PASS':'FAIL')+' '+((performance.now()-started)/1000).toFixed(1)+'s');
   checks.push(...result.checks);timings.push(...result.timings||[]);if(!result.pass)return {...result,checks,timings};
  }

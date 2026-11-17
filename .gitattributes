@@ -389,4 +389,6 @@ tests/replica-failed-path-browser.mjs text eol=lf
 tests/replica-publication.mjs text eol=lf
 tests/replica-publication-browser.mjs text eol=lf
 tests/repeated-cloner-renderer-browser.mjs text eol=lf
+tests/plugin-infrastructure.mjs text eol=lf
+plugins/3d-printer/tests/*.mjs text eol=lf
 tests/symmetry-selection.mjs text eol=lf
