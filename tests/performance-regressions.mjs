@@ -15,7 +15,7 @@ export const performanceCPUStages=[
  'selected-roots','selection-hierarchy-work','ai-selection-work','baked-cloner-selection',
  'affine-source-invalidation','boolean-signature-work','boolean-material-signature','instance-spline-sources','spline-sample-cache-exact','spline-worker-fanout',
  'spline-worker-single-message','worker-batch-profiling','spline-evaluation-session','spline-live-admission','cold-construction-pipeline','cold-construction-groups','cold-construction-token-ownership','spline-record-batch',
- 'replica-authoring-index','replica-failed-path','scoped-replica-sync','material-replica-batches','replica-batch-order',
+ 'replica-authoring-index','replica-failed-path','replica-publication','scoped-replica-sync','material-replica-batches','replica-batch-order',
  'native-line-batch-order','render-bundle-cache','transform-background-work','material-wire-specialization',
  'spline-wire-lifecycle'
 ];

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 17 nov 06:21",
+  "version": "2026 17 nov 10:06",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -463,11 +463,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 3960,
-      "sha256": "0209bf3da27061accd6f9e23eb21143be61d3c82b4f78e69afca53d8383f6fab"
+      "sha256": "188784f1c064f1fe9c4cfb2ff9aef55b2c722a35da09140de278051bb8a24add"
     },
     "index.html": {
-      "bytes": 2949186,
-      "sha256": "2adb398fff86dd1d010b4a8a420f58670c8a32ad7f1411d8f2bb4cb82a33d9aa"
+      "bytes": 2956325,
+      "sha256": "a0c2b0660bf80a20a7adf06aa50136bc9bfbad1e6870cf0ca3aa38326ce06a03"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -766,8 +766,8 @@
       "sha256": "4852a26c582f1ac59d10c87992d859e3cc5e0390d55f949994239e69cc24974b"
     },
     "tests/README.md": {
-      "bytes": 59781,
-      "sha256": "eb73601e72a17d034799d5894411027d5b72361617787497331921ef8f15d5c9"
+      "bytes": 60196,
+      "sha256": "746f8e7cc56c1960154776eb254b96f274b0e2846f887b05a02986147dd04b5a"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 6289,
@@ -1034,8 +1034,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 73565,
-      "sha256": "07017ae0a33824c314b6215f42c0adb1e4b6aa1edd242f7cc59f964014bb594e"
+      "bytes": 74012,
+      "sha256": "ee32823b5978092ecf7084c05fc4056a82d60c193500dc7ae8c81cb44a61cdd2"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 12642,
@@ -1090,8 +1090,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 15327,
-      "sha256": "e9948ddf9a447dd884faf1fcde5469a7e298bc28e43288ee07511a5bf0d1aed5"
+      "bytes": 15419,
+      "sha256": "de0988be5adfa21cd29b9915c250b3a7263b1124c774629759dbcb3d2129c151"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,

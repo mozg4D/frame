@@ -386,3 +386,5 @@ tests/replica-authoring-index.mjs text eol=lf
 tests/replica-failed-path.mjs text eol=lf
 tests/performance-renderer-factorial.mjs text eol=lf
 tests/replica-failed-path-browser.mjs text eol=lf
+tests/replica-publication.mjs text eol=lf
+tests/replica-publication-browser.mjs text eol=lf
