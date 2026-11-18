@@ -84,6 +84,7 @@
 
 ## Browser, copies, generators and stock assets
 
+- The fixed-width Attributes manager matches desktop character widths across platform fonts and orientations. Oversized groups wrap between whole buttons. The tree divider reserves the manager's CSS minimum height, and the sidebar scrolls when its fixed controls and both minima exceed the viewport.
 - Objects Browser divider retains the user's preferred tree height independently of viewport clamping. Zoom/resize may constrain the displayed height but never overwrite the preference; only accepted pointer/keyboard adjustments persist it. Measure available space from the panel and fixed controls, never tree contents. Cancelled divider drags restore the prior preference.
 - Eligible Objects Browser Enable controls always show the native 9px square in a 16px target: green when enabled, gray when disabled. Ineligible owners retain an empty spacer.
 - A new Instance inherits the exact source name (including empty names). Explicit API names win; unbound Instances retain their default name. Resolve API source aliases to the canonical source hash before inserting the namesake Instance. Names are copied at creation, not kept linked to later source renames.

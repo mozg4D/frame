@@ -6,6 +6,69 @@ import {resolve,sep} from 'node:path';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 
+// Measure the actual text fragments. A fixed-height row alone cannot reveal a wrapped or clipped caption.
+function attributeButtonLayout(){
+ const host=document.getElementById('attrContent'),panel=host.getBoundingClientRect(),issues=[],buttons=[];
+ for(const row of host.querySelectorAll('.attr-row')){
+  const bounds=row.getBoundingClientRect(),label=row.querySelector('.attr-lab');
+  const occupied=label?[label.getBoundingClientRect()]:[];
+  for(const button of row.querySelectorAll('.attr-btn')){
+   const box=button.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(button);
+   const lines=[...range.getClientRects()],caption=button.textContent;
+   if(lines.length!==1||lines[0].left<box.left-.1||lines[0].right>box.right+.1)issues.push('Caption: '+caption);
+   if(box.left<bounds.left-.1||box.right>bounds.right+.1||box.top<bounds.top-.1||box.bottom>bounds.bottom+.1)issues.push('Outside row: '+caption);
+   if(occupied.some(r=>r.left<box.right-.1&&box.left<r.right-.1&&r.top<box.bottom-.1&&box.top<r.bottom-.1))issues.push('Overlap: '+caption);
+   occupied.push(box);
+   buttons.push({caption,box:[box.left-panel.left,box.top-bounds.top,box.width,box.height,bounds.height]});
+  }
+ }
+ return {issues,buttons};
+}
+
+async function checkCameraLayout(page,check,timings){
+ const openCamera=async(target,touch)=>{
+  const press=locator=>touch?locator.tap():locator.click(),start=performance.now();
+  await press(target.getByRole('button',{name:'Add Camera',exact:true}));
+  const path=target.getByRole('button',{name:'Path tracer',exact:true});
+  await path.waitFor();
+  const name='Add Camera with '+(touch?'touch':'mouse'),ms=performance.now()-start;
+  timings.push({name,ms,budget:2500});check(name+' opens Attributes within 2500 ms',ms<2500,{ms});
+  await press(target.locator('[data-field="realtime"][data-value="off"]'));
+  await press(target.locator('[data-field="realtime during navigation"][data-value="false"]'));
+  await press(target.getByRole('button',{name:'Viewport',exact:true}));
+  check(name+' switches to Viewport',await path.getAttribute('aria-pressed')==='false');
+  await press(path);check(name+' switches back to Path tracer',await path.getAttribute('aria-pressed')==='true');
+ };
+ await openCamera(page,false);
+ const desktop=await page.evaluate(attributeButtonLayout);
+ check('Desktop Camera buttons fit their rows',!desktop.issues.length&&desktop.buttons.some(b=>b.caption==='Path tracer'),desktop.issues);
+ const mobile=await page.context().browser().newContext({isMobile:true,hasTouch:true,deviceScaleFactor:1,viewport:{width:390,height:844}});
+ try{
+  const phone=await mobile.newPage();await phone.goto(page.url());await ready(phone);
+  // Viewport emulation retains the host's fonts. Exercise the wider 0.6-em monospace advance found on phones.
+  await phone.addStyleTag({content:'#attrContent,#attrContent *{font-family:"Courier New","Liberation Mono","DejaVu Sans Mono",monospace!important}'});
+  await openCamera(phone,true);
+  for(const [width,height] of [[390,844],[844,390],[844,286],[320,568],[768,1024]]){
+   await phone.setViewportSize({width,height});
+   const viewport=phone.getByRole('button',{name:'Viewport',exact:true}),path=phone.getByRole('button',{name:'Path tracer',exact:true});
+   await viewport.tap({timeout:2500});const selected=await viewport.getAttribute('aria-pressed');
+   await path.tap({timeout:2500});
+   check('Renderer buttons receive taps at '+width+'x'+height,selected==='true'&&await path.getAttribute('aria-pressed')==='true');
+   const layout=await phone.evaluate(attributeButtonLayout);
+   const same=layout.buttons.length===desktop.buttons.length&&layout.buttons.every((button,i)=>{
+    const reference=desktop.buttons[i];return button.caption===reference.caption&&button.box.every((v,k)=>Math.abs(v-reference.box[k])<1);
+   });
+   check('Camera captions and bounds match desktop at '+width+'x'+height,!layout.issues.length&&same,same?layout.issues:{desktop,layout});
+  }
+  // Give an existing choice group captions that genuinely exceed the available line.
+  await phone.locator('[data-field="renderer"]').evaluateAll(buttons=>{
+   buttons[0].textContent='First rendering method';buttons[1].textContent='Second rendering method';
+  });
+  const long=await phone.evaluate(attributeButtonLayout),choices=long.buttons.filter(b=>b.caption.endsWith('rendering method'));
+  check('Oversized choices flow between intact buttons and expand their row',!long.issues.length&&choices.length===2&&choices[0].box[1]!==choices[1].box[1],{choices,issues:long.issues});
+ }finally{await mobile.close();}
+}
+
 export async function panelLayoutBrowserChecks(page,{setZoom,reloadPage}={}){
  const checks=[],timings=[],call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
@@ -30,6 +93,7 @@ export async function panelLayoutBrowserChecks(page,{setZoom,reloadPage}={}){
   const before=await state();await page.evaluate(async()=>{for(let i=0;i<45;i++)await frameAI.call('scene.create',{type:'group',name:'Browser row '+i});});await settle();const full=await state();check('Object Browser content does not move the divider',Math.abs(full.top-before.top)<.1&&full.saved===before.saved,{before,full});
   await call('scene.new');await settle();check('Clearing the Object Browser does not move the divider',Math.abs((await state()).top-before.top)<.1,await state());
   const r=await page.locator('#tabstrip').boundingBox();await page.mouse.move(r.x+r.width-8,r.y+1);await page.mouse.down();await page.mouse.move(r.x+r.width-8,r.y-49);await page.locator('#tabstrip').dispatchEvent('pointercancel',{pointerId:1});await page.mouse.up();await settle();const cancelled=await state();check('Cancelled divider drag restores the preference and visible position',Math.abs(cancelled.top-before.top)<.1&&cancelled.saved===before.saved,cancelled);
+  await checkCameraLayout(page,check,timings);
   return {pass:true,checks,timings,pageZoomTested:!!setZoom};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
  finally{if(setZoom)await setZoom(1);}
