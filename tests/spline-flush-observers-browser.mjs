@@ -26,7 +26,7 @@ try{
  });
  for(const observers of [1,8]){
   const sample=await page.evaluate(async observers=>{__flushCounts={};const at=performance.now();FrameSpline.request();await Promise.all(Array.from({length:observers},()=>FrameSpline.flush()));return {observers,ms:performance.now()-at,...__flushCounts};},observers);
-  report.timings.push(sample);check(observers+' pending observers share one unchanged evaluator pass',sample.passes===1&&sample.tree===1&&sample.sync===2&&!sample.install,sample);
+  report.timings.push(sample);check(observers+' pending observers share one unchanged evaluator pass and one entry sync',sample.passes===1&&sample.tree===1&&sample.sync===1&&!sample.install,sample);
  }
  await page.evaluate(()=>{__flushCounts={};window.__flushHold={entered:false};__flushHold.wait=new Promise(resolve=>__flushHold.release=resolve);window.__heldFlush=__flushHold;FrameSpline.request();window.__flushPending=FrameSpline.flush();});
  await page.waitForFunction(()=>__heldFlush.entered);

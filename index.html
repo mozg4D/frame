@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 20:15">
+<meta name="frame-version" content="2026 18 nov 21:15">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -550,9 +550,36 @@ const vt=bt,yt=(bt+2)%3,xt=(bt+1)%3,wt=v[bt][0],St=t(v[vt][3],wt),At=t(v[yt][0],
 const Nt=t(d(v[vt],q(vt,Ft)),wt),Ot=t(d(v[yt],q(yt,1-Ft)),wt),Pt=Qe(St,qt,At,Et,Nt);if(!Pt)continue;const Tt=o(t(Pt,Ot))/Math.max(1e-12,.5*(kt+zt));It+=Tt*Tt,jt++}if(jt){const Ct=Math.abs(kt-zt)/Math.max(kt,zt),Vt=Math.sqrt(It/jt+Ct*Ct)/.01
 ;Ke[bt]=1/(1+Vt*Vt*Vt*Vt)}}for(let Dt=0;Dt<3;Dt++){const Bt=Ke[Dt]*(1-Ke[(Dt+1)%3])*(1-Ke[(Dt+2)%3]);$e[Dt]=1-(1-$e[Dt])*(1-Bt)}
 const Ye=$e.reduce((e,t)=>e*(1-t),1),Xe=2e-4,Ge=Ye>Xe,_e=$e.map(e=>e>Xe),We=(Ge?Ye:0)+$e.reduce((e,t,n)=>e+(_e[n]?t:0),0),Je=Array.from({length:3},(e,t)=>_e[(t+2)%3]?He(t):null);J={NH:Ve,NQ:De,hTabs:Re,qTabs:Je,nativeTabs:Be,reg:Ye,
-weights:$e,den:We,activeH:Ge,active:_e}}}else{const Rt=W,Lt=Array.from({length:4},(e,t)=>X(t,Rt,!1)),Ht=new Float32Array(12*(Rt+1)),Ut=new Float32Array(12*(Rt+1)),Zt=(e,t,n,r,s)=>{for(let o=0;o<=Rt;o++){
-const a=o/Rt,i=G(Lt[t],Rt,r(a),6,K),l=G(Lt[n],Rt,s(a),6,Y),c=12*o;for(let t=0;t<3;t++){const n=i[t],r=l[t],s=i[t+3],o=l[t+3];e[c+4*t]=n,e[c+4*t+1]=s,e[c+4*t+2]=-3*n+3*r-2*s+o,e[c+4*t+3]=2*n-2*r+s-o}}};Zt(Ht,0,2,e=>e,e=>1-e),
-Zt(Ut,3,1,e=>1-e,e=>e),J={N:Rt,ac:Ht,db:Ut}}const ee=new Float64Array(6),te=new Float64Array(3),ne=new Float64Array(3),re=new Float64Array(3),se=new Float64Array(3),oe=new Float64Array(3),ae=new Float64Array(5);function ie(e,t,n,r,s){
+weights:$e,den:We,activeH:Ge,active:_e}}}else J={N:W,ac:null,db:null};
+function ribbonTable(axis,parameter){
+  const sides=axis==="ac"?[0,2]:[3,1],steps=J.N;
+  let table=J[axis];
+  if(!table){table=J[axis]=new Float32Array(12*(steps+1));table.ready=new Uint8Array(steps+1);}
+  const lo=parameter===undefined?0:Math.min(steps-1,Math.floor(c(parameter)*steps));
+  const hi=parameter===undefined?steps:lo+1;
+  for(let row=lo;row<=hi;row++){
+    if(table.ready[row])continue;
+    const t=row/steps,forward=axis==="ac"?t:1-t;
+    const sample=(side,u)=>{
+      const p=d(v[side],u),tangent=H(side,u);
+      const values=[...p,...tangent].map(Math.fround);
+      // At the last knot the original interpolator evaluates lerp(prev,last,1).
+      if(u===1){
+        const prev=1-1/steps,previous=[...d(v[side],prev),...H(side,prev)].map(Math.fround);
+        for(let j=0;j<6;j++)values[j]=previous[j]+(values[j]-previous[j]);
+      }
+      return values;
+    };
+    const first=sample(sides[0],forward),last=sample(sides[1],1-forward);
+    for(let k=0;k<3;k++){
+      const at=12*row+4*k,a=first[k],b=last[k],da=first[k+3],db=last[k+3];
+      table[at]=a;table[at+1]=da;table[at+2]=-3*a+3*b-2*da+db;table[at+3]=2*a-2*b+da-db;
+    }
+    table.ready[row]=1;
+  }
+  return table;
+}
+const ee=new Float64Array(6),te=new Float64Array(3),ne=new Float64Array(3),re=new Float64Array(3),se=new Float64Array(3),oe=new Float64Array(3),ae=new Float64Array(5);function ie(e,t,n,r,s){
 const o=(n=c(n))*t,a=Math.min(t-1,Math.floor(o)),i=o-a,l=13*a,u=l+13,h=e[l]+(e[u]-e[l])*i,f=e[l+1]+(e[u+1]-e[l+1])*i,d=e[l+2]+(e[u+2]-e[l+2])*i,p=e[l+3]+(e[u+3]-e[l+3])*i,m=e[l+4]+(e[u+4]-e[l+4])*i,g=e[l+5]+(e[u+5]-e[l+5])*i,M=e[l+6]+(e[u+6]-e[l+6])*i,b=e[l+7]+(e[u+7]-e[l+7])*i,v=e[l+8]+(e[u+8]-e[l+8])*i,y=e[l+9]+(e[u+9]-e[l+9])*i,x=e[l+10]+(e[u+10]-e[l+10])*i,w=e[l+11]+(e[u+11]-e[l+11])*i,S=r+(e[l+12]+(e[u+12]-e[l+12])*i)*r*(1-r)
 ;return s[0]=h+S*(p+S*(M+S*y)),s[1]=f+S*(m+S*(b+S*x)),s[2]=d+S*(g+S*(v+S*w)),s}function le(e,t,n){const r=(n=c(n))*t,s=Math.min(t-1,Math.floor(r)),o=r-s;return e[s]+(e[s+1]-e[s])*o}function ce(e,t,n){
 const r=(t+1)%3,s=(t+2)%3,o=e[t]+e[r],a=o>1e-14?e[r]/o:.5,i=e[s],l=J.NQ,c=J.qTabs[t],u=a*l,h=Math.min(l-1,Math.floor(u)),f=u-h,d=9*h,p=d+9,m=c[d]+(c[p]-c[d])*f,g=c[d+1]+(c[p+1]-c[d+1])*f,M=c[d+2]+(c[p+2]-c[d+2])*f,b=c[d+3]+(c[p+3]-c[d+3])*f,y=c[d+4]+(c[p+4]-c[d+4])*f,x=c[d+5]+(c[p+5]-c[d+5])*f,w=c[d+6]+(c[p+6]-c[d+6])*f,S=c[d+7]+(c[p+7]-c[d+7])*f,A=c[d+8]+(c[p+8]-c[d+8])*f,k=(1-a)*(1-le(J.nativeTabs[s],l,1-i))+a*le(J.nativeTabs[r],l,i),z=k*k,q=z*k,E=2*q-3*z+1,I=q-2*z+k,j=1-E,F=q-z,N=v[s][0]
@@ -565,8 +592,8 @@ n[2]=t[2],n}oe[0]=r,oe[1]=s,oe[2]=o;let i=0,l=0,c=0;if(J.activeH){ie(J.hTabs[0],
 ;i+=(te[0]*e+ne[0]*t+re[0]*n)*u,l+=(te[1]*e+ne[1]*t+re[1]*n)*u,c+=(te[2]*e+ne[2]*t+re[2]*n)*u}for(let e=0;e<3;e++)if(J.active[e]){ce(oe,(e+1)%3,se);const t=J.weights[e];i+=se[0]*t,l+=se[1]*t,c+=se[2]*t}const u=1/(J.den||1);return n[0]=i*u,
 n[1]=l*u,n[2]=c*u,n}(e,t,n);if(2===x){if(e<=0){const e=v[0][0];return n[0]=e[0],n[1]=e[1],n[2]=e[2],n}if(e>=1){const e=v[0][3];return n[0]=e[0],n[1]=e[1],n[2]=e[2],n}if(t<=1e-14){const t=d(v[0],q(0,e));return n[0]=t[0],n[1]=t[1],n[2]=t[2],n
 }if(t>=1-1e-14){const t=d(v[1],q(1,1-e));return n[0]=t[0],n[1]=t[1],n[2]=t[2],n}return _(J.coef,J.N,e,t,n)}if(4===x){if(t<=1e-14){const t=d(v[0],e);return n[0]=t[0],n[1]=t[1],n[2]=t[2],n}if(e>=1-1e-14){const e=d(v[1],t);return n[0]=e[0],
-n[1]=e[1],n[2]=e[2],n}if(t>=1-1e-14){const t=d(v[2],1-e);return n[0]=t[0],n[1]=t[1],n[2]=t[2],n}if(e<=1e-14){const e=d(v[3],1-t);return n[0]=e[0],n[1]=e[1],n[2]=e[2],n}const r=(e*(1-e))**2,s=(t*(1-t))**2;_(J.ac,J.N,e,t,te),
-_(J.db,J.N,t,e,ne);const o=r/(r+s||1);n[0]=ne[0]+(te[0]-ne[0])*o,n[1]=ne[1]+(te[1]-ne[1])*o,n[2]=ne[2]+(te[2]-ne[2])*o;return n}let r=1/0;for(let n=0;n<x;n++){const s=J.lines[n],o=Math.abs(s[0]*e+s[1]*t+s[2]);ae[n]=o,r=Math.min(r,o)}let s=0,o=0,a=0,i=0;for(let e=0;e<x;e++){
+n[1]=e[1],n[2]=e[2],n}if(t>=1-1e-14){const t=d(v[2],1-e);return n[0]=t[0],n[1]=t[1],n[2]=t[2],n}if(e<=1e-14){const e=d(v[3],1-t);return n[0]=e[0],n[1]=e[1],n[2]=e[2],n}const r=(e*(1-e))**2,s=(t*(1-t))**2;_(ribbonTable("ac",e),J.N,e,t,te),
+_(ribbonTable("db",t),J.N,t,e,ne);const o=r/(r+s||1);n[0]=ne[0]+(te[0]-ne[0])*o,n[1]=ne[1]+(te[1]-ne[1])*o,n[2]=ne[2]+(te[2]-ne[2])*o;return n}let r=1/0;for(let n=0;n<x;n++){const s=J.lines[n],o=Math.abs(s[0]*e+s[1]*t+s[2]);ae[n]=o,r=Math.min(r,o)}let s=0,o=0,a=0,i=0;for(let e=0;e<x;e++){
 const t=ae[(e+x-1)%x],l=t/(t+ae[(e+1)%x]||1),c=ae[e];if(c<1e-12){const t=d(v[e],q(e,l));return n[0]=t[0],n[1]=t[1],n[2]=t[2],n}const u=G(J.packets[e],J.N,l,6,ee),h=(r/c)**2,f=J.scale*c/(1+2*c);s+=(u[0]+u[3]*f)*h,o+=(u[1]+u[4]*f)*h,
 a+=(u[2]+u[5]*f)*h,i+=h}const l=1/(i||1);return n[0]=s*l,n[1]=o*l,n[2]=a*l,n}function he(e,t){const n=[0,0,0];return ue(e,t,n),n}function fe(s,o,a=!1){const i=a?3:6,l=[1-s-o,s,o],c=[-1,1,0],u=[-1,0,1],f=Array.from({length:i
 },()=>[0,0,0]),m=new Float64Array(i);for(let s=0;s<3;s++){const o=(s+1)%3,g=(s+2)%3,M=l[s],b=l[o],x=M+b;if(x<1e-14)continue;const w=c[s]+c[o],S=u[s]+u[o],A=b/x;let k=A,z=1;if(y.arcMaps){const e=y.arcMaps[s];let t=0,n=e.length-1
@@ -591,8 +618,8 @@ const t=9*$+e,n=H[t+3]+Q*(H[t+12]-H[t+3]),r=U*(H[t+12]-H[t+3]),o=H[t+6]+Q*(H[t+1
 p:Y[0],du:Y[1],dv:Y[2]}:{p:Y[0],du:Y[1],dv:Y[2],duu:Y[3],duv:Y[4],dvv:Y[5]}}function ge(e,t,n=!1){if(!J.active.some(Boolean))return fe(e,t,n);const r=n?["p","du","dv"]:["p","du","dv","duu","duv","dvv"],s={};for(const e of r)s[e]=[0,0,0]
 ;const o=(e,t)=>{for(const n of r)for(let r=0;r<3;r++)s[n][r]+=e[n][r]*t};J.activeH&&o(fe(e,t,n),J.reg/J.den);for(let r=0;r<3;r++)J.active[r]&&o(me(e,t,(r+1)%3,n),J.weights[r]/J.den);return s}return{evaluate:he,evaluateInto:ue,
 evaluateGrid:function(e,t,n,r){if(4!==x||C)return!1;if(e.length*t.length<(T?64:384))return!1;if(T){const s=Array.from(e,e=>d(v[0],e)),o=Array.from(t,e=>d(v[1],e)),a=v[0][3];for(let i=0;i<t.length;i++)for(let t=0;t<e.length;t++){
-const l=r+3*(i*e.length+t);for(let e=0;e<3;e++)n[l+e]=s[t][e]+o[i][e]-a[e];if(!Number.isFinite(n[l]+n[l+1]+n[l+2]))throw Error("SurfaceBuilder: non-finite grid position")}}else{const s=(e,t)=>Array.from(t,t=>{
-const n=new Float64Array(12),r=c(t)*J.N,s=Math.min(J.N-1,Math.floor(r)),o=r-s,a=12*s;for(let t=0;t<12;t++)n[t]=e[a+t]+(e[a+12+t]-e[a+t])*o;return n}),o=s(J.ac,e),a=s(J.db,t);for(let s=0;s<t.length;s++){const i=t[s],l=(i*(1-i))**2
+const l=r+3*(i*e.length+t);for(let e=0;e<3;e++)n[l+e]=s[t][e]+o[i][e]-a[e];if(!Number.isFinite(n[l]+n[l+1]+n[l+2]))throw Error("SurfaceBuilder: non-finite grid position")}}else{const s=(axis,t)=>Array.from(t,t=>{
+const e=ribbonTable(axis,t),n=new Float64Array(12),r=c(t)*J.N,s=Math.min(J.N-1,Math.floor(r)),o=r-s,a=12*s;for(let t=0;t<12;t++)n[t]=e[a+t]+(e[a+12+t]-e[a+t])*o;return n}),o=s("ac",e),a=s("db",t);for(let s=0;s<t.length;s++){const i=t[s],l=(i*(1-i))**2
 ;for(let t=0;t<e.length;t++){const c=e[t],u=(c*(1-c))**2,h=u/(u+l||1),f=r+3*(s*e.length+t),d=o[t],p=a[s];for(let e=0;e<3;e++){const t=4*e,r=d[t]+i*(d[t+1]+i*(d[t+2]+i*d[t+3])),s=p[t]+c*(p[t+1]+c*(p[t+2]+c*p[t+3]));n[f+e]=s+(r-s)*h}
 if(!Number.isFinite(n[f]+n[f+1]+n[f+2]))throw Error("SurfaceBuilder: non-finite grid position")}}}return!0},crossDirection:function(e,r){if(C){const{base:s}=C,o=(e-s+4)%4;if(o%2==0){const e=0===o?r:1-r,i=t(d(v[s+2],1-e),d(v[s],e))
 ;return a(n(i,0===o?1:-1))}const l=1===o?1:0,c=V(1===o?r:1-r),u=p(v[s],l),h=n(p(v[s+2],1-l),-1);return a(n(i(u,h,c),1===o?-1:1))}return R(e,r)},tangents:3===x?(e,t)=>ge(e,t,!0):null,differential:2===x?function(e,t){const r=[]
@@ -620,7 +647,7 @@ quadRuled:C,enclosure(){
   let tangent=0;for(const side of I)tangent=Math.max(tangent,diameter*(Math.max(side.rho0Perp,side.rho1Perp)+3*Math.max(Math.abs(side.shear0),Math.abs(side.shear1))));tangent*=1+1024*Number.EPSILON;
   const magnitude=Math.max(1,...lo.map(Math.abs),...hi.map(Math.abs)),padding=8/27*tangent+64*2**-24*(magnitude+tangent+1)+2**-100;
   for(let k=0;k<3;k++){lo[k]-=padding;hi[k]+=padding;}
- }else if(x===4){polynomial(J.ac,12);polynomial(J.db,12);}
+ }else if(x===4){polynomial(ribbonTable("ac"),12);polynomial(ribbonTable("db"),12);}
  else if(x===3){
   if(J.activeH)for(const table of J.hTabs)for(let j=0;j<table.length;j+=13)for(let k=0;k<3;k++){const limit=1+Math.abs(y.warp??1)/16;let low=table[j+k],high=low;for(let power=1;power<4;power++){const q=table[j+k+3*power]*limit**power;low+=Math.min(0,q);high+=Math.max(0,q);}include(k,low,high);}
   for(let side=0;side<3;side++)if(J.active[(side+2)%3]){const table=J.qTabs[side],corner=v[(side+2)%3][0];for(let j=0;j<table.length;j+=9)for(let k=0;k<3;k++){const guard=4/27*(Math.abs(table[j+3+k])+Math.abs(table[j+6+k]));include(k,Math.min(table[j+k],corner[k])-guard,Math.max(table[j+k],corner[k])+guard);}}
@@ -661,16 +688,28 @@ g[2][e]=-a.p[e]+l.p[e]+p*c.d[e]+t*i.d[e]-s,g[3][e]=m*a.dd[e]+n*l.dd[e],g[4][e]=-
 const{base:o,w:a}=e.quadRuled,i=o?r:t,l=o?1-t:r,c=1-l,u=3*c*c*l*a[1]+3*c*l*l*a[2]+l*l*l,h=3*c*c*a[1]+6*c*l*(a[2]-a[1])+3*l*l*(1-a[2]),f=6*c*(a[2]-2*a[1])+6*l*(1-2*a[2]+a[1]),d=s(e.edges[o],i),p=s(e.edges[o+2],1-i,-1),m=Array.from({length:6
 },()=>[0,0,0]);for(let e=0;e<3;e++)m[0][e]=d.p[e]+u*(p.p[e]-d.p[e]),m[1][e]=d.d[e]+u*(p.d[e]-d.d[e]),m[2][e]=h*(p.p[e]-d.p[e]),m[3][e]=d.dd[e]+u*(p.dd[e]-d.dd[e]),m[4][e]=h*(p.d[e]-d.d[e]),m[5][e]=f*(p.p[e]-d.p[e]);return o?{p:m[0],
 du:n(m[2],-1),dv:m[1],duu:m[5],duv:n(m[4],-1),dvv:m[3]}:{p:m[0],du:m[1],dv:m[2],duu:m[3],duv:m[4],dvv:m[5]}}function l(t){if(t.quadRuled)return(e,n)=>i(t,e,n);if(t.quadTranslation)return(e,n)=>o(t,e,n)
-;const r=t.edges,s=t.field,l=e.bez,c=e.deriv,u=t.options.edgeSamples.map((e,t)=>({samples:e,values:e.map(e=>s(t,e.t))}));function h(e,t){function o(e,t){if(e.pieces){const[r,s,a]=function(e,t){const n=e.knots;let r=0
-;for(;r<e.pieces.length-1&&t>=n[r+1];)r++;const s=n[r+1]-n[r];return[r,(t-n[r])/s,s]}(e,t);return n(o(e.pieces[r],s),1/(a*a))}return e[0].map((n,r)=>6*((1-t)*(e[2][r]-2*e[1][r]+e[0][r])+t*(e[3][r]-2*e[2][r]+e[1][r])))}function a(e,t){
-const n=u[e],r=n.samples;let s=0,o=r.length-1;for(;o-s>1;){const e=o+s>>1;r[e].t<=t?s=e:o=e}const a=r[o].t-r[s].t;return n.values[s].map((e,t)=>(n.values[o][t]-e)/a)}function i(e,t,i,u,h,f,d){
-const p=l(r[e],t),m=l(r[i],u),g=s(e,t),M=s(i,u),b=n(c(r[e],t),h),v=n(c(r[i],u),f),y=n(a(e,t),h),x=n(a(i,u),f),w=o(r[e],t),S=o(r[i],u),A=[2*d*d*d-3*d*d+1,-2*d*d*d+3*d*d,d*d*d-2*d*d+d,-d*d*d+d*d],k=[6*d*d-6*d,-6*d*d+6*d,3*d*d-4*d+1,-3*d*d+2*d],z=[12*d-6,-12*d+6,6*d-4,-6*d+2],q=Array.from({
+;const edges=t.edges,field=t.field,sides=t.options.edgeSamples.map((samples,i)=>({
+  samples,values:samples.map(q=>field(i,q.t)),jets:new Map()
+}));
+function boundaryJet(side,at,sign){
+  const state=sides[side],cached=state.jets.get(at);if(cached)return cached;
+  const curve=edges[side],samples=state.samples,values=state.values;let lo=0,hi=samples.length-1;
+  while(hi-lo>1){const m=(lo+hi)>>1;if(samples[m].t<=at)lo=m;else hi=m;}
+  const dt=samples[hi].t-samples[lo].t;
+  const jet={p:e.bez(curve,at),d:n(e.deriv(curve,at),sign),dd:r(curve,at),
+    tangent:field(side,at),slope:values[lo].map((v,k)=>(values[hi][k]-v)/dt*sign)};
+  if(state.jets.size<64)state.jets.set(at,jet);return jet;
+}
+function h(e,t){function i(e,t,i,u,h,f,d){
+const first=boundaryJet(e,t,h),last=boundaryJet(i,u,f),p=first.p,m=last.p,g=first.tangent,M=last.tangent,b=first.d,v=last.d,y=first.slope,x=last.slope,w=first.dd,S=last.dd,A=[2*d*d*d-3*d*d+1,-2*d*d*d+3*d*d,d*d*d-2*d*d+d,-d*d*d+d*d],k=[6*d*d-6*d,-6*d*d+6*d,3*d*d-4*d+1,-3*d*d+2*d],z=[12*d-6,-12*d+6,6*d-4,-6*d+2],q=Array.from({
 length:6},()=>[0,0,0]);for(let e=0;e<3;e++)q[0][e]=A[0]*p[e]+A[1]*m[e]+A[2]*g[e]+A[3]*M[e],q[1][e]=A[0]*b[e]+A[1]*v[e]+A[2]*y[e]+A[3]*x[e],q[2][e]=k[0]*p[e]+k[1]*m[e]+k[2]*g[e]+k[3]*M[e],q[3][e]=A[0]*w[e]+A[1]*S[e],
 q[4][e]=k[0]*b[e]+k[1]*v[e]+k[2]*y[e]+k[3]*x[e],q[5][e]=z[0]*p[e]+z[1]*m[e]+z[2]*g[e]+z[3]*M[e];return q}
 const h=i(0,e,2,1-e,1,-1,t),f=i(3,1-t,1,t,-1,1,e),d=[f[0],f[2],f[1],f[5],f[4],f[3]],p=(e*(1-e))**2,m=(t*(1-t))**2,g=p+m,M=2*e*(1-e)*(1-2*e),b=2*t*(1-t)*(1-2*t),v=2-12*e+12*e*e,y=2-12*t+12*t*t
 ;if(g<1e-25)throw Error("Quad differential requires a non-corner point");const x=p/g,w=M*m/(g*g),S=-p*b/(g*g),A=v*m/(g*g)-2*M*M*m/(g*g*g),k=-p*y/(g*g)+2*p*b*b/(g*g*g),z=M*b*(p-m)/(g*g*g),q=Array.from({length:6},()=>[0,0,0])
-;for(let e=0;e<3;e++){const t=h.map((t,n)=>t[e]-d[n][e]);q[0][e]=d[0][e]+x*t[0],q[1][e]=d[1][e]+w*t[0]+x*t[1],q[2][e]=d[2][e]+S*t[0]+x*t[2],q[3][e]=d[3][e]+A*t[0]+2*w*t[1]+x*t[3],q[4][e]=d[4][e]+z*t[0]+w*t[2]+S*t[1]+x*t[4],
-q[5][e]=d[5][e]+k*t[0]+2*S*t[2]+x*t[5]}return{p:q[0],du:q[1],dv:q[2],duu:q[3],duv:q[4],dvv:q[5]}}return h}return{differential:l,tangents:function(t){if(t.quadRuled)return(e,n)=>i(t,e,n);const{edges:r,field:s}=t,o=e.bez,a=e.deriv,c=t.options.edgeSamples.map((e,t)=>({samples:e,values:e.map(e=>s(t,e.t))}));function u(e,t){const n=c[e],r=n.samples;let s=0,o=r.length-1;for(;o-s>1;){
+;for(let e=0;e<3;e++){const dp=h[0][e]-d[0][e],du=h[1][e]-d[1][e],dv=h[2][e]-d[2][e];
+q[0][e]=d[0][e]+x*dp;q[1][e]=d[1][e]+w*dp+x*du;q[2][e]=d[2][e]+S*dp+x*dv;
+q[3][e]=d[3][e]+A*dp+2*w*du+x*(h[3][e]-d[3][e]);q[4][e]=d[4][e]+z*dp+w*dv+S*du+x*(h[4][e]-d[4][e]);
+q[5][e]=d[5][e]+k*dp+2*S*dv+x*(h[5][e]-d[5][e])}return{p:q[0],du:q[1],dv:q[2],duu:q[3],duv:q[4],dvv:q[5]}}return h}return{differential:l,tangents:function(t){if(t.quadRuled)return(e,n)=>i(t,e,n);const{edges:r,field:s}=t,o=e.bez,a=e.deriv,c=t.options.edgeSamples.map((e,t)=>({samples:e,values:e.map(e=>s(t,e.t))}));function u(e,t){const n=c[e],r=n.samples;let s=0,o=r.length-1;for(;o-s>1;){
 const e=o+s>>1;r[e].t<=t?s=e:o=e}const a=r[o].t-r[s].t;return[(n.values[o][0]-n.values[s][0])/a,(n.values[o][1]-n.values[s][1])/a,(n.values[o][2]-n.values[s][2])/a]}function h(e,t,i,l,c,h,f){
 const d=o(r[e],t),p=o(r[i],l),m=s(e,t),g=s(i,l),M=n(a(r[e],t),c),b=n(a(r[i],l),h),v=n(u(e,t),c),y=n(u(i,l),h),x=[2*f*f*f-3*f*f+1,-2*f*f*f+3*f*f,f*f*f-2*f*f+f,-f*f*f+f*f],w=[6*f*f-6*f,-6*f*f+6*f,3*f*f-4*f+1,-3*f*f+2*f],S=[[0,0,0],[0,0,0],[0,0,0]]
 ;for(let e=0;e<3;e++)S[0][e]=x[0]*d[e]+x[1]*p[e]+x[2]*m[e]+x[3]*g[e],S[1][e]=x[0]*M[e]+x[1]*b[e]+x[2]*v[e]+x[3]*y[e],S[2][e]=w[0]*d[e]+w[1]*p[e]+w[2]*m[e]+w[3]*g[e];return S}return function(e,t){
@@ -1000,10 +1039,13 @@ const c=l.find(e=>e.edge===d[0]),p=l.find(e=>e.edge===d[1]);if(!c||!p)continue;c
 },g=m(p.r),M=l.filter(e=>!d.includes(e.edge)).map(e=>m(e.r)),b=1e-7,v=g<=Math.PI+b&&!M.some(e=>e>b&&e<g-b),y=2*Math.PI-g<=Math.PI+b&&!M.some(e=>e>g+b&&e<2*Math.PI-b);if(!v&&!y)return!1}return!0}(b,e)))return
 ;const u=(e=>e.flat().map(e=>e>>1).sort((e,t)=>e-t).join(","))(e);if(A.has(u))return;if(S.length>=M.maxCandidates)return void(z=!0);A.add(u);const h=e.flat().map(e=>e>>1);if(new Set(h).size!==h.length)return;const f=h.length,d=f*f;S.push({
 loops:e,planar:i,area:l,sides:f,cost:d,edgeIds:h})}!function(s,a,l){const{edges:c,adj:u,plane:h,eps:f,from:d,to:p}=s,m=[],g=new Map,M=e=>{const t=e>>1;let n=g.get(t);return n||(n=s.samples(2*t),g.set(t,n)),1&e?n.slice().reverse():n
-},b=e=>.5*e.reduce((t,n,r)=>{const s=e[(r+1)%e.length];return t+n[0]*s[1]-n[1]*s[0]},0),v=new Map;for(let e=0;e<u.length;e++){const t=u[e];for(let n=0;n<t.length;n++)for(let r=n+1;r<t.length;r++){
-const s=h([...c[t[n]>>1].cp,...c[t[r]>>1].cp]);if(!s)continue;const o=s.n.map(e=>Math.floor(e/1e-6));let a=null;for(let e=-1;e<=1;e++)for(let t=-1;t<=1;t++)for(let n=-1;n<=1;n++){const r=v.get([o[0]+e,o[1]+t,o[2]+n].join(","))
+},b=e=>.5*e.reduce((t,n,r)=>{const s=e[(r+1)%e.length];return t+n[0]*s[1]-n[1]*s[0]},0),v=new Map;const origin=c[0].cp[0],axisPlane=[0,1,2].some(k=>c.every(edge=>edge.cp.every(p=>p[k]===origin[k])));
+for(let e=0;e<u.length;e++){const t=u[e];pairs:for(let n=0;n<t.length;n++)for(let r=n+1;r<t.length;r++){
+const s=h([...c[t[n]>>1].cp,...c[t[r]>>1].cp]);if(!s)continue;const firstPlane=m[0];
+if(firstPlane&&Math.abs(s.d-firstPlane.d)<f&&Math.hypot(s.n[0]-firstPlane.n[0],s.n[1]-firstPlane.n[1],s.n[2]-firstPlane.n[2])<1e-8){firstPlane.seeds.add(e);if(axisPlane)break pairs;continue;}
+const o=s.n.map(e=>Math.floor(e/1e-6));let a=null;for(let e=-1;e<=1;e++)for(let t=-1;t<=1;t++)for(let n=-1;n<=1;n++){const r=v.get([o[0]+e,o[1]+t,o[2]+n].join(","))
 ;if(r)for(const e of r)(!a||e.order<a.order)&&Math.hypot(s.n[0]-e.n[0],s.n[1]-e.n[1],s.n[2]-e.n[2])<1e-8&&Math.abs(s.d-e.d)<f&&(a=e)}if(!a){s.order=m.length,s.seeds=new Set,m.push(s);const e=o.join(",");v.has(e)||v.set(e,[]),
-v.get(e).push(s),a=s}a.seeds.add(e)}}let y=0,x=0;const w=(e,t)=>t.every(t=>{if(!function(e,t){let n=!1;for(let r=0,s=t.length-1;r<t.length;s=r++){const o=t[r],a=t[s]
+v.get(e).push(s),a=s}a.seeds.add(e);if(axisPlane)break pairs;}}let y=0,x=0;const w=(e,t)=>t.every(t=>{if(!function(e,t){let n=!1;for(let r=0,s=t.length-1;r<t.length;s=r++){const o=t[r],a=t[s]
 ;o[1]>e[1]!=a[1]>e[1]&&e[0]<(a[0]-o[0])*(e[1]-o[1])/(a[1]-o[1])+o[0]&&(n=!n)}return n}(t,e))return!1;for(let n=0;n<e.length;n++){
 const r=e[n],s=e[(n+1)%e.length],o=s[0]-r[0],a=s[1]-r[1],i=o*o+a*a,l=i?Math.max(0,Math.min(1,((t[0]-r[0])*o+(t[1]-r[1])*a)/i)):0;if(Math.hypot(t[0]-r[0]-l*o,t[1]-r[1]-l*a)<=f)return!1}return!0});for(const s of m){
 const l=new Set,h=new Set,m=new Map,g=[...s.seeds],v=new Set(g);for(;g.length;){const e=g.pop();for(const t of u[e]){const e=t>>1;if(h.has(e))continue;if(h.add(e),!c[e].cp.every(e=>Math.abs(r(s.n,e)-s.d)<=f))continue;l.add(e);const n=c[e]
@@ -1015,9 +1057,17 @@ const i=c[a>>1].cp,l=(1&a?i.slice().reverse():i).map(s.project),u=l.slice(1).map
 const n=t.filter(e=>!z.has(e>>1));n.length?m.set(e,n):m.delete(e)}const E=new Map;let I=0;for(const e of[...m.keys()].sort((e,t)=>e-t))if(!E.has(e)){const t=[e]
 ;for(E.set(e,I);t.length;)for(const e of m.get(t.pop()))E.has(p(e))||(E.set(p(e),I),t.push(p(e)));I++}const j=new Array(I).fill(!0);for(const[e,t]of m)2!==t.length&&(j[E.get(e)]=!1);const F=new Set,N=[]
 ;for(const e of[...l].sort((e,t)=>e-t))for(const t of[2*e,2*e+1])if(!z.has(e)&&!F.has(t)){const e=[];let n=t;for(;!F.has(n);){F.add(n),e.push(n);const t=m.get(p(n)),r=t.indexOf(1^n);n=t[(r+t.length-1)%t.length]}
-if(n!==t||e.length<2||new Set(e.map(e=>e>>1)).size!==e.length)continue;const r=e.flatMap(e=>M(e).slice(0,-1).map(s.project)),o=b(r);o>f*f&&N.push({loop:e,poly:r,area:o,component:E.get(d(t)),parent:-1})}for(let e=0;e<N.length;e++){let t=1/0
-;for(let n=0;n<N.length;n++)e!==n&&j[N[e].component]&&j[N[n].component]&&N[e].component!==N[n].component&&N[n].area>N[e].area&&N[n].area<t&&w(N[n].poly,N[e].poly)&&(N[e].parent=n,t=N[n].area)}for(let e=0;e<N.length;e++){
-let t=0,n=N[e].parent;for(;n>=0;)t++,n=N[n].parent;if(t%2)continue;const r=N.filter(t=>t.parent===e);a([N[e].loop,...r.map(e=>i(e.loop))],!0,N[e].area-r.reduce((e,t)=>e+t.area,0)),y++,x+=r.length}}Object.assign(l,{planes:m.length,
+if(n!==t||e.length<2||new Set(e.map(e=>e>>1)).size!==e.length)continue;const r=e.flatMap(e=>M(e).slice(0,-1).map(s.project)),o=b(r);o>f*f&&N.push({loop:e,poly:r,area:o,component:E.get(d(t)),parent:-1})}const simple=N.filter(region=>j[region.component]),children=new Map();
+for(const region of simple){let best=Infinity;
+  for(const candidate of simple)if(candidate.component!==region.component&&candidate.area>region.area&&candidate.area<best&&w(candidate.poly,region.poly)){
+    region.parentRegion=candidate;best=candidate.area;
+  }
+  if(region.parentRegion){let list=children.get(region.parentRegion);if(!list)children.set(region.parentRegion,list=[]);list.push(region);}
+}
+for(const region of N){let depth=0;for(let p=region.parentRegion;p;p=p.parentRegion)depth++;
+  if(depth%2)continue;const holes=children.get(region)||[];
+  a([region.loop,...holes.map(h=>i(h.loop))],true,region.area-holes.reduce((sum,h)=>sum+h.area,0));y++;x+=holes.length;
+}}Object.assign(l,{planes:m.length,
 planarRegions:y,planarHoles:x,planarRule:"even-odd"})}(b,q,k),b.plane(b.edges.flatMap(e=>e.cp))||S.length&&f(b,S,M,{})?(k.cycleVisits=0,k.cycleSearchComplete=!0,k.planarCycleShortcut=!0):function(e,t,n,s){
 const{adj:o,to:a,edges:i,plane:l}=e,h=o.map(e=>new Set(e.map(a)));let f=0,d=!1;for(let m=0;m<o.length&&!d;m++){const g=new Set([m]),M=[],b=new Set;function p(s){if(++f>t.maxCycleVisits)d=!0;else for(const t of o[s]){if(d)return
 ;const f=a(t),v=t>>1;if(b.has(v)||f<m)continue;if(M.length>=2&&h[s].has(m)&&f!==m)continue;if(f===m){if(M.length<1||M[0]>=(1^t))continue;const s=[...M,t];if(c(e,s)>5)continue;if(u(e,s))continue;const a=l(s.flatMap(e=>i[e>>1].cp));if(a){
@@ -1261,19 +1311,56 @@ if(!e.vertices[n]||!e.vertices[r]||n===r)throw new Error("invalid spline segment
 hb:m(o),sequence:t},a.segments.push(i),a.first||(a.first=n),i}function P(e,t){let n="string"==typeof t?e.segments[t]:t;if(!n)return null;let r=e.vertices[n.a],s=e.vertices[n.b];return r&&s?[r,g(r,n.ha),g(s,n.hb),s]:null}function T(e,t){
 let[n,r,s,o]=e,a=1-t,i=a*a,l=t*t;return[a*i*n[0]+3*i*t*r[0]+3*a*l*s[0]+l*t*o[0],a*i*n[1]+3*i*t*r[1]+3*a*l*s[1]+l*t*o[1],a*i*n[2]+3*i*t*r[2]+3*a*l*s[2]+l*t*o[2]]}function C(e,t){let[n,r,s,o]=e,a=1-t
 ;return[3*a*a*(r[0]-n[0])+6*a*t*(s[0]-r[0])+3*t*t*(o[0]-s[0]),3*a*a*(r[1]-n[1])+6*a*t*(s[1]-r[1])+3*t*t*(o[1]-s[1]),3*a*a*(r[2]-n[2])+6*a*t*(s[2]-r[2])+3*t*t*(o[2]-s[2])]}function V(e,t,n=0){let r=C(e,t),s=x(r);if(s>1e-11)return b(r,1/s)
-;let o=n||(t>=1?-1:1);for(let n=1e-8;n<=.01;n*=10)if(r=C(e,Math.max(0,Math.min(1,t+o*n))),s=x(r),s>1e-11)return b(r,1/s);return[0,0,0]}function D(e,t){let n=C(e,t),r=v(n,n);return r<1e-22?0:x(y(n,function(e,t){let[n,r,s,o]=e
-;return[6*((1-t)*(s[0]-2*r[0]+n[0])+t*(o[0]-2*s[0]+r[0])),6*((1-t)*(s[1]-2*r[1]+n[1])+t*(o[1]-2*s[1]+r[1])),6*((1-t)*(s[2]-2*r[2]+n[2])+t*(o[2]-2*s[2]+r[2]))]}(e,t)))/r}function B(e,t,n){let r=(t+n)/2;return(n-t)*(D(e,t)+4*D(e,r)+D(e,n))/6}
-function R(e,t,n,r,s=0,o=B(e,t,n),a=[]){let i=(t+n)/2,l=B(e,t,i),c=B(e,i,n),u=l+c;return s>=22||Math.abs(u-o)<=15*r?(a.push({a:t,b:n,theta:Math.max(0,u+(u-o)/15)}),a):(R(e,t,i,r/2,s+1,l,a),R(e,i,n,r/2,s+1,c,a),a)}function L(e,t,n){
-if(n<=0)return 0;if(n>=t.total)return 1;let r=0,s=t.table.length-1;for(;s-r>1;){let e=r+s>>1;t.table[e].theta<n?r=e:s=e}let o=t.table[r],a=t.table[s],i=o.theta,l=o.t,c=l,u=a.t,h=c+(u-c)*(n-i)/(a.theta-i);for(let t=0;t<24;t++){
-let t=i+R(e,l,h,1e-10,0,B(e,l,h),[]).reduce((e,t)=>e+t.theta,0)-n;if(Math.abs(t)<1e-10)return h;t>0?u=h:c=h;let r=D(e,h),s=r>1e-12?h-t/r:NaN;h=Number.isFinite(s)&&s>c&&s<u?s:(c+u)/2}return h}const H=new Map;function U(e,t){
+;let o=n||(t>=1?-1:1);for(let n=1e-8;n<=.01;n*=10)if(r=C(e,Math.max(0,Math.min(1,t+o*n))),s=x(r),s>1e-11)return b(r,1/s);return[0,0,0]}function cubicTurnRate(points){
+  const [p0,p1,p2,p3]=points,a=M(p1,p0),b=M(p2,p1),c=M(p3,p2);
+  const d=p0.map((v,k)=>p2[k]-2*p1[k]+v),e=p1.map((v,k)=>p3[k]-2*p2[k]+v);
+  return t=>{
+    const u=1-t,w0=3*u*u,w1=6*u*t,w2=3*t*t;
+    const x=w0*a[0]+w1*b[0]+w2*c[0],y=w0*a[1]+w1*b[1]+w2*c[1],z=w0*a[2]+w1*b[2]+w2*c[2],speed2=x*x+y*y+z*z;
+    if(speed2<1e-22)return 0;
+    const dx=6*(u*d[0]+t*e[0]),dy=6*(u*d[1]+t*e[1]),dz=6*(u*d[2]+t*e[2]);
+    return Math.hypot(y*dz-z*dy,z*dx-x*dz,x*dy-y*dx)/speed2;
+  };
+}
+// Reuse the endpoint and midpoint rates when bisecting a Simpson interval.
+// Accumulate accepted leaves in parameter order, including during inverse lookup.
+function splineTurnIntegral(rate,lo,hi,tolerance,intervals){
+  let total=0;
+  function visit(a,b,left,middle,right,whole,eps,depth){
+    const m=(a+b)/2,ml=rate((a+m)/2),mr=rate((m+b)/2);
+    const first=(m-a)*(left+4*ml+middle)/6,last=(b-m)*(middle+4*mr+right)/6,sum=first+last;
+    if(depth>=22||Math.abs(sum-whole)<=15*eps){
+      const theta=Math.max(0,sum+(sum-whole)/15);
+      total+=theta;if(intervals)intervals.push({b,theta});return;
+    }
+    visit(a,m,left,ml,middle,first,eps/2,depth+1);visit(m,b,middle,mr,right,last,eps/2,depth+1);
+  }
+  const left=rate(lo),middle=rate((lo+hi)/2),right=rate(hi);
+  visit(lo,hi,left,middle,right,(hi-lo)*(left+4*middle+right)/6,tolerance,0);return total;
+}
+function splineTurnParameter(rate,table,target){
+  if(target<=0)return 0;if(target>=table.total)return 1;
+  let first=0,last=table.table.length-1;
+  while(last-first>1){const m=(first+last)>>1;if(table.table[m].theta<target)first=m;else last=m;}
+  const start=table.table[first],end=table.table[last];let lo=start.t,hi=end.t,t=lo+(hi-lo)*(target-start.theta)/(end.theta-start.theta);
+  for(let i=0;i<24;i++){
+    const error=start.theta+splineTurnIntegral(rate,start.t,t,1e-10)-target;
+    if(Math.abs(error)<1e-10)return t;
+    if(error>0)hi=t;else lo=t;
+    const slope=rate(t),next=slope>1e-12?t-error/slope:NaN;
+    t=Number.isFinite(next)&&next>lo&&next<hi?next:(lo+hi)/2;
+  }
+  return t;
+}
+const H=new Map;function U(e,t){
 let n=t+"|"+frameValueKey(e),r=H.get(n);if(r)return H.delete(n),H.set(n,r),r;const s=function(e,t){const n=(e,t)=>[e[0]-t[0],e[1]-t[1],e[2]-t[2]],r=e=>Math.hypot(...e),s=Math.max(...e.slice(1).map(t=>r(n(t,e[0]))))
 ;if(!(s>0)||Math.min(r(n(e[1],e[0])),r(n(e[3],e[2])))>1e-5*s)return null;const o=64*Number.EPSILON*s,a=t*Math.PI/180,i=e.map(t=>n(t,e[0])),l=[{t:0,position:e[0].slice()}],c=[{p:i,a:0,b:1,depth:0}];let u=!1;const h=(e,t)=>{
 const n=r(e),s=r(t);if(!n||!s)return 0;const o=e.map(e=>e/n),a=t.map(e=>e/s);return Math.atan2(r([o[1]*a[2]-o[2]*a[1],o[2]*a[0]-o[0]*a[2],o[0]*a[1]-o[1]*a[0]]),o[0]*a[0]+o[1]*a[1]+o[2]*a[2])},f=(e,t)=>e.map((e,n)=>.5*(e+t[n]))
 ;for(;c.length;){const t=c.pop(),s=t.p,d=[n(s[1],s[0]),n(s[2],s[1]),n(s[3],s[2])].filter(e=>r(e)>0);let p=0;for(let e=1;e<d.length;e++)p+=h(d[e-1],d[e]);const m=Math.max(...s.slice(1).map(e=>r(n(e,s[0]))));if(p>a&&t.depth<44&&m>o){
 const e=f(s[0],s[1]),n=f(s[1],s[2]),r=f(s[2],s[3]),o=f(e,n),a=f(n,r),i=f(o,a),l=.5*(t.a+t.b);c.push({p:[i,a,r,s[3]],a:l,b:t.b,depth:t.depth+1},{p:[s[0],e,o,i],a:t.a,b:l,depth:t.depth+1});continue}p>a&&(u=!0)
 ;const g=t.b,M=1===g?e[3].slice():T(i,g).map((t,n)=>t+e[0][n]),b=l.at(-1);if(1!==g&&r(n(M,b.position))<=o)u=!0;else{if(1===g)for(;l.length>1&&r(n(M,l.at(-1).position))<=o;)l.pop(),u=!0;l.push({t:g,position:M})}}
-for(const t of l)t.exactTangent=V(e,t.t),t.stationary=!1,t.precisionLimited=u;return l}(e,t);if(s)return H.set(n,s),H.size>2048&&H.delete(H.keys().next().value),s;let o=function(e){let t=stationaryParameters(e),n=[0,...t,1].sort((e,t)=>e-t),r=[];for(let t=1;t<n.length;t++){let s=n[t-1],o=n[t];o-s>1e-12&&R(e,s,o,1e-9,0,B(e,s,o),r)}
-let s=0,o=[{t:0,theta:0}];for(let e of r)s+=e.theta,o.push({t:e.b,theta:s});return{table:o,total:s,stationary:t}}(e),a=t*Math.PI/180,i=Math.max(1,Math.ceil(o.total/a-1e-10)),l=[0];for(let t=1;t<i;t++)l.push(L(e,o,t*o.total/i))
+for(const t of l)t.exactTangent=V(e,t.t),t.stationary=!1,t.precisionLimited=u;return l}(e,t);if(s)return H.set(n,s),H.size>2048&&H.delete(H.keys().next().value),s;const rate=cubicTurnRate(e);let o=function(e){let t=stationaryParameters(e),n=[0,...t,1].sort((e,t)=>e-t),r=[];for(let t=1;t<n.length;t++){let s=n[t-1],o=n[t];o-s>1e-12&&splineTurnIntegral(rate,s,o,1e-9,r)}
+let s=0,o=[{t:0,theta:0}];for(let e of r)s+=e.theta,o.push({t:e.b,theta:s});return{table:o,total:s,stationary:t}}(e),a=t*Math.PI/180,i=Math.max(1,Math.ceil(o.total/a-1e-10)),l=[0];for(let t=1;t<i;t++)l.push(splineTurnParameter(rate,o,t*o.total/i))
 ;for(let e of o.stationary)e>1e-9&&e<1-1e-9&&!l.some(t=>Math.abs(t-e)<1e-7)&&l.push(e);l.push(1),l.sort((e,t)=>e-t);let c=l.map(t=>({t:t,position:T(e,t),exactTangent:V(e,t),stationary:o.stationary.some(e=>Math.abs(e-t)<1e-7)}))
 ;return H.set(n,c),H.size>2048&&H.delete(H.keys().next().value),c}
 function stationaryParameters(points){
@@ -1486,7 +1573,7 @@ const ConstructedSurface=(()=>{
  const reverse=loop=>loop.slice().reverse().map(r=>({...r,reversed:!r.reversed}));
  function normal(data,loop){const origin=data.vertices[data.segments[loop[0].edge].a],sum=[0,0,0],q=Math.sqrt(3/5);for(const ref of loop){let cp=P(data,ref.edge);if(ref.reversed)cp=cp.slice().reverse();cp=cp.map(p=>M(p,origin));for(const [t,weight]of [[(1-q)/2,5/18],[.5,4/9],[(1+q)/2,5/18]]){const c=y(T(cp,t),C(cp,t));for(let k=0;k<3;k++)sum[k]+=weight*c[k];}}return sum;}
  function caps(data,loops,planar=true){if(!loops.length)return null;if(!planar)return {planar:false,loops,surfaceKind:'general'};const n=normal(data,loops[0]),axis=n.findIndex(v=>Math.abs(v)>1e-12);if(axis<0)return null;const flip=n[axis]<0;if(flip)loops=[reverse(loops[0]),...loops.slice(1)];const outer=flip?b(n,-1):n;return {planar,planeNormal:outer,loops:loops.map((loop,i)=>i&&v(normal(data,loop),outer)>0?reverse(loop):loop),surfaceKind:planar?'planar':'general'};}
- function sourceCaps(profile){const key=frameValueKey(profile),cached=capPlans.get(key);if(cached){capPlans.delete(key);capPlans.set(key,cached);return cached.fills;}const plan=d.resolve(profile);if(plan.diagnostics.candidateCapReached||plan.diagnostics.cycleSearchComplete===false)return null;const bytes=key.length*2+frameValueKey(plan.fills).length*2;if(bytes<=16*1024*1024){capPlans.set(key,{fills:plan.fills,bytes});capPlanBytes+=bytes;while(capPlanBytes>16*1024*1024||capPlans.size>8){const oldest=capPlans.keys().next().value;capPlanBytes-=capPlans.get(oldest).bytes;capPlans.delete(oldest);}}return plan.fills;}
+ function sourceCaps(profile,key=frameValueKey(profile)){const cached=capPlans.get(key);if(cached){capPlans.delete(key);capPlans.set(key,cached);return cached.fills;}const plan=d.resolve(profile);if(plan.diagnostics.candidateCapReached||plan.diagnostics.cycleSearchComplete===false)return null;const bytes=key.length*2+frameValueKey(plan.fills).length*2;if(bytes<=16*1024*1024){capPlans.set(key,{fills:plan.fills,bytes});capPlanBytes+=bytes;while(capPlanBytes>16*1024*1024||capPlans.size>8){const oldest=capPlans.keys().next().value;capPlanBytes-=capPlans.get(oldest).bytes;capPlans.delete(oldest);}}return plan.fills;}
  function mappedCaps(data,profile,map,source=sourceCaps(profile)){if(!source)return null;const faces=[];for(const f of source){const loops=[];for(const loop of f.loops){const out=[];for(const ref of loop){const mapped=map.get(ref.edge);if(!mapped)return null;out.push(...(ref.reversed?reverse(mapped):mapped));}loops.push(out);}const face=caps(data,loops,f.planar);if(!face)return null;faces.push(face);}return faces;}
  function ringCaps(data,profile,rings,source=sourceCaps(profile)){if(!source)return null;const faces=[];for(const f of source){const loops=[];for(const loop of f.loops){const ids=new Set(loop.map(r=>r.edge)),matches=rings.filter(r=>r.sources.some(id=>ids.has(id)));if(matches.length!==1)return null;loops.push(matches[0].refs);}const face=caps(data,loops,f.planar);if(!face)return null;faces.push(face);}return faces;}
  function finish(data,input,family){
@@ -1834,14 +1921,25 @@ function cachedText(data,text){
  }return data;
 }
 
-const extrusionProfiles=new Map();let extrusionProfileBytes=0;
+const extrusionProfiles=new Map();let extrusionProfileBytes=0,extrusionProfileToken=0;
+function directExtrusionSettings(params){
+  return !(params['start cap']!==false&&+params['start fillet']||params['end cap']!==false&&+params['end fillet'])&&Math.abs(+params.offset||0)>1e-9;
+}
+function reusePlanarExtrusion(token,params){
+  if(!token||!directExtrusionSettings(params))return null;
+  for(const plan of extrusionProfiles.values())if(plan.token===token){
+    const delta=plan.normal.map(x=>x*params.offset);
+    return {delta,surface:extrusionMesh(plan,params,delta,true,performance.now())};
+  }
+  return null;
+}
 function planarExtrusion(profile,params){
- if(params['start cap']!==false&&+params['start fillet']||params['end cap']!==false&&+params['end fillet']||Math.abs(+params.offset||0)<=1e-9)return null;
- const points=[];for(const id of Object.keys(profile.segments))points.push(...P(profile,id));const plane=ne(points);if(!plane?.planar||v(profileNormal(profile),plane.normal)<1-1e-12)return null;
- let scale=1;for(const p of points)for(const x of p)scale=Math.max(scale,Math.abs(x));if(plane.maxError>128*Number.EPSILON*scale)return null;
+ if(!directExtrusionSettings(params))return null;
  const started=performance.now(),key=frameValueKey(profile);let plan=extrusionProfiles.get(key),reused=!!plan;
  if(!plan){
-  const fills=ConstructedSurface.sourceCaps(profile);if(!fills)return null;
+  const points=[];for(const id of Object.keys(profile.segments))points.push(...P(profile,id));const plane=ne(points);if(!plane?.planar||v(profileNormal(profile),plane.normal)<1-1e-12)return null;
+  let scale=1;for(const p of points)for(const x of p)scale=Math.max(scale,Math.abs(x));if(plane.maxError>128*Number.EPSILON*scale)return null;
+  const fills=ConstructedSurface.sourceCaps(profile,key);if(!fills)return null;
   const uses=new Map();for(const f of fills)for(const loop of f.loops)for(const ref of loop)uses.set(ref.edge,(uses.get(ref.edge)||0)+1);
   const unfilled=Object.keys(profile.segments).filter(id=>!uses.has(id)),degree=new Map();
   for(const e of Object.values(profile.segments))for(const id of [e.a,e.b])degree.set(id,(degree.get(id)||0)+1);
@@ -1863,17 +1961,26 @@ function planarExtrusion(profile,params){
   for(const id of unfilled){const ids=edgeIds.get(id);for(let i=1;i<ids.length;i++)walls.push(ids[i-1],ids[i]);}
   plan={positions:Float64Array.from(positions),indices:Uint32Array.from(indices),walls:Uint32Array.from(walls),normal:plane.normal,ends:[...degree].filter(([,n])=>n===1).map(([id])=>id),ranges,cells:Object.keys(profile.segments).length+2*fills.length};
   const bytes=key.length*2+plan.positions.byteLength+plan.indices.byteLength+plan.walls.byteLength;
-  if(bytes<=16*1024*1024){extrusionProfiles.set(key,{...plan,bytes});extrusionProfileBytes+=bytes;while(extrusionProfileBytes>16*1024*1024||extrusionProfiles.size>8){const oldest=extrusionProfiles.keys().next().value;extrusionProfileBytes-=extrusionProfiles.get(oldest).bytes;extrusionProfiles.delete(oldest);}}
+  if(bytes<=16*1024*1024){plan.token=++extrusionProfileToken;extrusionProfiles.set(key,{...plan,bytes});extrusionProfileBytes+=bytes;while(extrusionProfileBytes>16*1024*1024||extrusionProfiles.size>8){const oldest=extrusionProfiles.keys().next().value;extrusionProfileBytes-=extrusionProfiles.get(oldest).bytes;extrusionProfiles.delete(oldest);}}
  }
- const startCap=params['start cap']!==false,endCap=params['end cap']!==false,offset=+params.offset,delta=plan.normal.map(x=>x*offset),count=plan.positions.length/3,vertices=new Float32Array(count*6),indices=new Uint32Array(plan.indices.length*(Number(startCap)+Number(endCap))+plan.walls.length*3),boundsMin=[Infinity,Infinity,Infinity],boundsMax=[-Infinity,-Infinity,-Infinity];
- for(let layer=0;layer<2;layer++)for(let i=0;i<count;i++)for(let k=0;k<3;k++){const x=plan.positions[i*3+k]+layer*delta[k];vertices[(layer*count+i)*3+k]=x;boundsMin[k]=Math.min(boundsMin[k],x);boundsMax[k]=Math.max(boundsMax[k],x);}
- let at=0;const triangle=(a,b,c)=>{indices.set(offset<0?[a,c,b]:[a,b,c],at);at+=3;};
- for(let i=0;i<plan.indices.length;i+=3){const [a,b,c]=plan.indices.subarray(i,i+3);if(startCap)triangle(a,c,b);if(endCap)triangle(a+count,b+count,c+count);}
- for(let i=0;i<plan.walls.length;i+=2){const a=plan.walls[i],b=plan.walls[i+1];triangle(a,b,b+count);triangle(a,b+count,a+count);}
- const data=E(profile.approximation),top=I(profile);for(const p of Object.values(top.vertices))for(let k=0;k<3;k++)p[k]+=delta[k];vt(data,profile,'bottom:');vt(data,top,'top:');
- for(const id of Object.keys(profile.segments)){if(!startCap)data.segments['bottom:'+id].boundary=true;if(!endCap)data.segments['top:'+id].boundary=true;}
+ const delta=plan.normal.map(x=>x*params.offset),data=E(profile.approximation),top=I(profile);
+ for(const p of Object.values(top.vertices))for(let k=0;k<3;k++)p[k]+=delta[k];
+ vt(data,profile,'bottom:');vt(data,top,'top:');
+ for(const id of Object.keys(profile.segments)){if(params['start cap']===false)data.segments['bottom:'+id].boundary=true;if(params['end cap']===false)data.segments['top:'+id].boundary=true;}
  const ends=new Set(plan.ends);for(const id of Object.keys(profile.vertices)){const edge=O(data,N(data),'bottom:'+id,'top:'+id);data.segments[edge].boundary=ends.has(id);}
- return {data,surface:{vertices,indices,boundsMin,boundsMax,nativeExact:true,tasks:new Uint8Array(0),packets:new Float32Array(0),report:{backend:'planar-extrude',cells:plan.cells-(2-Number(startCap)-Number(endCap))*plan.ranges.length,gpuCells:0,cpuCells:0,vertices:vertices.length/3,triangles:indices.length/3,profileReused:reused,buildMs:performance.now()-started,diagnostics:{generatedFamily:'extrude',directPlanar:true,cycleSearchComplete:true,candidateCapReached:false}}}};
+ return {data,profileToken:plan.token,surface:extrusionMesh(plan,params,delta,reused,started)};
+}
+function extrusionMesh(plan,params,delta,reused,started){
+ const startCap=params['start cap']!==false,endCap=params['end cap']!==false,reverse=params.offset<0,count=plan.positions.length/3;
+ const vertices=new Float32Array(count*6),indices=new Uint32Array(plan.indices.length*(Number(startCap)+Number(endCap))+plan.walls.length*3),boundsMin=[Infinity,Infinity,Infinity],boundsMax=[-Infinity,-Infinity,-Infinity];
+ for(let at=0;at<plan.positions.length;at+=3)for(let k=0;k<3;k++){
+   const x=plan.positions[at+k],y=x+delta[k];vertices[at+k]=x;vertices[plan.positions.length+at+k]=y;
+   boundsMin[k]=Math.min(boundsMin[k],x,y);boundsMax[k]=Math.max(boundsMax[k],x,y);
+ }
+ let at=0;const triangle=(a,b,c)=>{indices[at++]=a;indices[at++]=reverse?c:b;indices[at++]=reverse?b:c;};
+ for(let i=0;i<plan.indices.length;i+=3){const a=plan.indices[i],b=plan.indices[i+1],c=plan.indices[i+2];if(startCap)triangle(a,c,b);if(endCap)triangle(a+count,b+count,c+count);}
+ for(let i=0;i<plan.walls.length;i+=2){const a=plan.walls[i],b=plan.walls[i+1];triangle(a,b,b+count);triangle(a,b+count,a+count);}
+ return {vertices,indices,boundsMin,boundsMax,nativeExact:true,tasks:new Uint8Array(0),packets:new Float32Array(0),report:{backend:'planar-extrude',cells:plan.cells-(2-Number(startCap)-Number(endCap))*plan.ranges.length,gpuCells:0,cpuCells:0,vertices:vertices.length/3,triangles:indices.length/3,profileReused:reused,buildMs:performance.now()-started,diagnostics:{generatedFamily:'extrude',directPlanar:true,independentSources:1,cycleSearchComplete:true,candidateCapReached:false}}};
 }
 const zt=new Set(["cube","cylinder","tube","sphere","capsule","nut","washer","bolt"]);function qt(e,t){return{...t,w:t["side 1"],h:t["side 2"],sizeX:t["size x"],sizeY:t["size y"],
 sizeZ:t["size z"],d1:t["outer diameter"],d2:t["inner diameter"],cylinderHeight:t["cylinder height"],totalHeight:t["total height"],startDiameter:t["start diameter"],endDiameter:t["end diameter"],boreDiameter:t["bore diameter"],
@@ -2009,7 +2116,7 @@ function weldSplineVertices(data,target,source){
   mergeEditedSplineSpans(data,changed);repairSplineSequences(data);
   return target;
 }
-return e&&(At=e),{planarExtrusion,primitivePivot,createSplineData:E,cloneSplineData:I,addSplineVertex:F,addSplineSequence:N,addSplineSegment:O,segmentPoints:P,cubicPoint:T,cubicDerivative:C,sampleSplineSegment:Z,approximateSpline:$,splitSplineSegment:Q,
+return e&&(At=e),{planarExtrusion,reusePlanarExtrusion,primitivePivot,createSplineData:E,cloneSplineData:I,addSplineVertex:F,addSplineSequence:N,addSplineSegment:O,segmentPoints:P,cubicPoint:T,cubicDerivative:C,sampleSplineSegment:Z,approximateSpline:$,splitSplineSegment:Q,
 deleteSplineElements,weldSplineVertices,setSplineSoft:function(e,t,n=!0,r=null){
 const s=new Set(t),o=new Map;for(const t of s)e.vertices[t]&&o.set(t,[]);for(const t of Object.values(e.segments))o.get(t.a)?.push({s:t,side:"a",incoming:!1,other:t.b,key:"ha"}),o.get(t.b)?.push({s:t,side:"b",incoming:!0,other:t.a,key:"hb"
 });for(const[t,s]of o){for(const e of s)e.s.soft=!!n;if(n)J(e,t,s,r);else for(const e of s)e.s[e.key]=[0,0,0]}},setSegmentsAsSequence:function(e,t){let n=[...new Set((t||[]).filter(t=>e.segments[t]))];if(!n.length)return{ok:!1,
@@ -2031,7 +2138,16 @@ valueKey:frameValueKey,classifySurfaceCell,takeGeneratedCells:data=>{const cells
 <script id="frame-spline-worker" type="text/plain">const K=FrameSplineKernel(typeof frameCubicNumber==='function'?frameCubicNumber:undefined),frameValueKey=K.valueKey;
 let active=null,generated=null,generationSequence=0,surfaceCacheBudget=64*1024*1024;
 addEventListener('message',e=>{if(['release','font'].includes(e.data.op)){if(e.data.op==='release'){active=null;generated=null;}else K.setFont(e.data.font);e.stopImmediatePropagation();postMessage({id:e.data.id,result:true});}});
-function transferables(value,out=new Set()){if(ArrayBuffer.isView(value))out.add(value.buffer);else if(value instanceof ArrayBuffer)out.add(value);else if(value&&typeof value==='object')for(const x of Object.values(value))transferables(x,out);return [...out];}
+function transferables(value){
+  const buffers=new Set();
+  function visit(item){
+    if(!item||typeof item!=='object')return;
+    if(ArrayBuffer.isView(item))buffers.add(item.buffer);
+    else if(item instanceof ArrayBuffer)buffers.add(item);
+    else for(const key in item)if(Object.hasOwn(item,key))visit(item[key]);
+  }
+  visit(value);return [...buffers];
+}
 // A family is detected from cubic control points only, using the original surface kernel's rules.
 function regularQuad(data,fill){if(!fill.generated)return K.classifySurfaceCell(data,fill);if(!fill.quad)return null;return {...fill.quad,edges:fill.loops[0].map(r=>{const cp=K.segmentPoints(data,r.edge);return r.reversed?cp.reverse():cp;})};}
 function quadPoint(q,u,v){if(q.mode===0){const a=K.cubicPoint(q.edges[0],u),b=K.cubicPoint(q.edges[1],v);return a.map((x,k)=>x+b[k]-q.edges[0][3][k]);}const x=q.base?v:u,y=q.base?1-u:v,w=K.scalarBezier(...q.w,y),a=K.cubicPoint(q.edges[q.base],x),b=K.cubicPoint(q.edges[q.base+2],1-x);return a.map((a,k)=>a+w*(b[k]-a));}
@@ -2111,10 +2227,33 @@ function sourceAccuracy(state){
  }
 
  function straightMonotone(cp){const points=cp.map(vector),d=sub(points[3],points[0]);return !zero(d)&&points.every(p=>zero(cross(sub(p,points[0]),d)))&&[0,1,2].every(i=>sub(points[i+1],points[i]).reduce((sum,x,k)=>sum+x*d[k],0n)>=0n);}
- function quadBound(q,fill){const E=q.edges,w=q.w||[0,0,1,1],net=Array.from({length:4},()=>Array(4)),exact=Array.from({length:4},()=>Array(4));for(let i=0;i<4;i++)for(let j=0;j<4;j++){
-   if(q.mode===0){net[i][j]=E[0][i].map((x,k)=>x+E[1][j][k]-E[0][3][k]);exact[i][j]=[0,1,2].map(k=>(integer(E[0][i][k])+integer(E[1][j][k])-integer(E[0][3][k]))*unit);}else{const x=q.base?j:i,y=q.base?3-i:j,A=E[q.base][x],B=E[q.base+2][3-x],W=integer(w[y]);net[i][j]=A.map((a,k)=>a+w[y]*(B[k]-a));exact[i][j]=A.map((a,k)=>integer(a)*(unit-W)+integer(B[k])*W);}
+ function quadBound(q,fill){
+  const E=q.edges,w=q.w||[0,0,1,1],net=Array.from({length:4},()=>Array(4));
+  const same=(a,b)=>a[0]===b[0]&&a[1]===b[1]&&a[2]===b[2];
+  if(fill.planar&&q.flat&&E.every(e=>same(e[0],e[1])&&same(e[2],e[3]))&&[0,1,2].some(k=>E.every(e=>e[0][k]===E[0][0][k]))&&fill.loops[0].every(ref=>state.params.get(ref.edge).length===2)){
+    // The four hard, coplanar edges give a bilinear net with weights 0 and 1.
+    let seam=0,scale=1;
+    for(let i=0;i<4;i++){
+      const a=E[0][i],b=E[2][3-i];seam=Math.max(seam,Math.hypot(...a.map((x,k)=>x+(b[k]-x)-b[k])));
+      for(let k=0;k<3;k++)scale=Math.max(scale,Math.abs(a[k]),Math.abs(b[k]));
+    }
+    return {shape:seam,numeric:128*2**-24*Math.sqrt(3)*scale+2**-110+1024*Number.EPSILON*scale,matched:true};
   }
-  const boundaries=[Array.from({length:4},(_,i)=>exact[i][0]),Array.from({length:4},(_,i)=>exact[3][i]),Array.from({length:4},(_,i)=>exact[3-i][3]),Array.from({length:4},(_,i)=>exact[0][3-i])];let matched=true,seam=0;for(let e=0;e<4;e++)for(let i=0;i<4;i++){if(boundaries[e][i].some((v,k)=>v!==integer(E[e][i][k])*unit))matched=false;const [u,v]=e===0?[i,0]:e===1?[3,i]:e===2?[3-i,3]:[0,3-i];seam=Math.max(seam,Math.hypot(...net[u][v].map((x,k)=>x-E[e][i][k])));}
+  let matched=true,seam=0;
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){
+    const x=q.base?j:i,y=q.base?3-i:j,A=q.mode===0?E[0][i]:E[q.base][x],B=q.mode===0?E[1][j]:E[q.base+2][3-x],origin=E[0][3],weight=w[y];
+    const point=net[i][j]=A.map((a,k)=>q.mode===0?a+B[k]-origin[k]:a+weight*(B[k]-a));
+    const boundary=j===0?E[0][i]:i===3?E[1][j]:j===3?E[2][3-i]:i===0?E[3][3-j]:null;
+    if(!boundary)continue;
+    seam=Math.max(seam,Math.hypot(...point.map((v,k)=>v-boundary[k])));
+    for(let k=0;k<3&&matched;k++){
+      const a=A[k],b=B[k],target=boundary[k];
+      if(q.mode===0)matched=a===origin[k]?b===target:b===origin[k]?a===target:integer(a)+integer(b)-integer(origin[k])===integer(target);
+      else if(weight===0||a===b)matched=a===target;
+      else if(weight===1)matched=b===target;
+      else matched=(integer(target)-integer(a))*unit===integer(weight)*(integer(b)-integer(a));
+    }
+  }
   let uu=0,vv=0,uv=0;for(let i=0;i<4;i++)for(let j=0;j<4;j++){if(i<2)uu=Math.max(uu,Math.hypot(...net[i][j].map((x,k)=>6*(net[i+2][j][k]-2*net[i+1][j][k]+x))));if(j<2)vv=Math.max(vv,Math.hypot(...net[i][j].map((x,k)=>6*(net[i][j+2][k]-2*net[i][j+1][k]+x))));if(i<3&&j<3)uv=Math.max(uv,Math.hypot(...net[i][j].map((x,k)=>9*(net[i+1][j+1][k]-net[i+1][j][k]-net[i][j+1][k]+x))));}
   // A monotone straight translation rail can use physical position as its
   // parameter. Its nonlinear cubic speed contributes no geometric deviation.
@@ -2146,14 +2285,14 @@ function sourceAccuracy(state){
 function cellSignedVolume(positions,indices,first,count,origin){
   let volume=0,correction=0;for(let i=first;i<first+count;i+=3){const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3,ax=positions[a]-origin[0],ay=positions[a+1]-origin[1],az=positions[a+2]-origin[2],bx=positions[b]-origin[0],by=positions[b+1]-origin[1],bz=positions[b+2]-origin[2],cx=positions[c]-origin[0],cy=positions[c+1]-origin[1],cz=positions[c+2]-origin[2],term=(ax*(by*cz-bz*cy)+ay*(bz*cx-bx*cz)+az*(bx*cy-by*cx))/6-correction,next=volume+term;correction=(next-volume)-term;volume=next;}return volume;
 }
-function orientFresh(state,parts,positions,indices,tasks,faceRanges){
+function orientFresh(state,parts,positions,indices,tasks,faceRanges,interiorQuads){
   const incidence=new Map();for(const fill of state.cells.fills)for(const ref of fill.loops.flat())incidence.set(ref.edge,(incidence.get(ref.edge)||0)+1);
   const closed=incidence.size>0&&[...incidence.values()].every(n=>n===2);
   state.orientation={closed,components:1,reverse:false};if(!closed)return;
   // Only this temporary validation view evaluates GPU interiors on the worker.
   // The uploaded positions and the native GPU evaluation remain unchanged.
-  const p=Float32Array.from(positions),quads=parts.filter(part=>part.quad).map(part=>state.quads[part.i]);
-  for(let i=0;i<tasks.length;i+=4)p.set(quadPoint(quads[tasks[i+1]],tasks[i+2],tasks[i+3]),tasks[i]*3);
+  const p=Float32Array.from(positions);
+  for(let i=0;i<tasks.length;i+=4)p.set(quadPoint(interiorQuads[tasks[i+1]],tasks[i+2],tasks[i+3]),tasks[i]*3);
   const origin=Array.from(p.subarray(0,3));for(const part of parts){const [start,count]=faceRanges[part.i];part.signedVolume=cellSignedVolume(p,indices,start*3,count*3,origin);}
   const faceGroups=state.cells.diagnostics.independentSources>1?new Int32Array(indices.length/3):null;
   if(faceGroups)for(const part of parts){const source=/^source:(\d+):/.exec(state.cells.fills[part.i].id);if(!source)throw Error('Independent surface source is missing');const [start,count]=faceRanges[part.i];faceGroups.fill(+source[1],start,start+count);}
@@ -2167,17 +2306,20 @@ function orientDelta(state){
   orientation.reverse=volume<0;orientation.report={...orientation.report,volume:Math.abs(volume)};return orientation;
 }
 function assembleFresh(state,parts){
-  const layouts=[],faceRanges=[];const started=performance.now(),positions=[],indices=[],keys=new Map(),tasks=[],packets=[],boundsMin=[Infinity,Infinity,Infinity],boundsMax=[-Infinity,-Infinity,-Infinity];let gpuCells=0;
+  const layouts=[],faceRanges=[],interiorQuads=[];const started=performance.now(),positions=[],indices=[],keys=new Map(),tasks=[],packets=[],boundsMin=[Infinity,Infinity,Infinity],boundsMax=[-Infinity,-Infinity,-Infinity];let gpuCells=0;
   const point=(key,p)=>{if(key!==null&&keys.has(key))return keys.get(key);const id=positions.length/3;positions.push(...p);if(key!==null)keys.set(key,id);for(let k=0;k<3;k++){boundsMin[k]=Math.min(boundsMin[k],p[k]);boundsMax[k]=Math.max(boundsMax[k],p[k]);}return id;};
   const edgeIds=new Map();for(const [sid,samples]of state.samples){const e=state.data.segments[sid];edgeIds.set(sid,samples.map((q,i)=>point(i===0?'v:'+e.a:i===samples.length-1?'v:'+e.b:'s:'+sid+':'+i,q.position)));}
   for(const part of parts){const faceStart=indices.length/3,fill=state.cells.fills[part.i];if(!part.quad){const cell=part.cell,vertexStart=positions.length/3,indexStart=indices.length,lookup=new Map(cell.boundary.map(([key,id])=>[id,key])),map=[];for(let i=0;i<cell.positions.length/3;i++)map.push(point(lookup.get(i)??null,Array.from(cell.positions.subarray(i*3,i*3+3))));for(const i of cell.indices)indices.push(map[i]);layouts[part.i]={vertexStart,vertexCount:positions.length/3-vertexStart,indexStart,indexCount:cell.indices.length,boundary:lookup.size};faceRanges[part.i]=[faceStart,cell.indices.length/3];continue;}
-    const q=state.quads[part.i],refs=fill.loops[0],lists=refs.map(r=>r.reversed?edgeIds.get(r.edge).slice().reverse():edgeIds.get(r.edge)),tx=quadParams(refs[0],state.params),ty=quadParams(refs[1],state.params),nx=tx.length,ny=ty.length,map=new Uint32Array(nx*ny),packet=gpuCells++;
+    const q=state.quads[part.i],refs=fill.loops[0],lists=refs.map(r=>r.reversed?edgeIds.get(r.edge).slice().reverse():edgeIds.get(r.edge)),tx=quadParams(refs[0],state.params),ty=quadParams(refs[1],state.params),nx=tx.length,ny=ty.length,packet=interiorQuads.length;gpuCells++;
+    if(nx===2&&ny===2){const a=lists[0][0],b=lists[0][1],c=lists[1][1],d=lists[2][1];indices.push(a,b,c,a,c,d);}else{const map=new Uint32Array(nx*ny);
     for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){let id;if(y===0)id=lists[0][x];else if(x===nx-1)id=lists[1][y];else if(y===ny-1)id=lists[2][nx-1-x];else if(x===0)id=lists[3][ny-1-y];else{id=point(null,[0,0,0]);tasks.push(id,packet,tx[x],ty[y]);}map[y*nx+x]=id;}
-    for(let y=0;y+1<ny;y++)for(let x=0;x+1<nx;x++){const a=map[y*nx+x],b=map[y*nx+x+1],c=map[(y+1)*nx+x+1],d=map[(y+1)*nx+x];indices.push(a,b,c,a,c,d);}
+    for(let y=0;y+1<ny;y++)for(let x=0;x+1<nx;x++){const a=map[y*nx+x],b=map[y*nx+x+1],c=map[(y+1)*nx+x+1],d=map[(y+1)*nx+x];indices.push(a,b,c,a,c,d);}}
     faceRanges[part.i]=[faceStart,indices.length/3-faceStart];for(const e of q.edges)for(const p of e)for(let k=0;k<3;k++){boundsMin[k]=Math.min(boundsMin[k],p[k]);boundsMax[k]=Math.max(boundsMax[k],p[k]);}
-    for(const e of q.edges)for(const p of e)packets.push(...p,0);packets.push(q.mode,q.base,q.w?.[1]||0,q.w?.[2]||0);
+    if(nx>2&&ny>2){
+      interiorQuads.push(q);for(const e of q.edges)for(const p of e)packets.push(...p,0);packets.push(q.mode,q.base,q.w?.[1]||0,q.w?.[2]||0);
+    }
   }
-  orientFresh(state,parts,positions,indices,tasks,faceRanges);
+  orientFresh(state,parts,positions,indices,tasks,faceRanges,interiorQuads);
   const work=new ArrayBuffer(tasks.length*4),u=new Uint32Array(work),f=new Float32Array(work);for(let i=0;i<tasks.length;i+=4){u[i]=tasks[i];u[i+1]=tasks[i+1];f[i+2]=tasks[i+2];f[i+3]=tasks[i+3];}
   state.layout=layouts.length===parts.length&&layouts.every(Boolean)?{token:++surfaceToken,keys:new Map(keys),cells:layouts,vertices:positions.length/3,reverse:state.orientation.reverse}:null;return {faceRanges,cellRanges:state.layout?.cells.map(c=>[c.vertexStart,c.vertexCount]),token:state.layout?.token,vertexCount:positions.length/3,triangleCount:indices.length/3,vertices:new Float32Array(positions),indices:new Uint32Array(indices),tasks:new Uint8Array(work),packets:new Float32Array(packets),boundsMin,boundsMax,report:{cells:state.cells.fills.length,gpuCells,cpuCells:state.cells.fills.length-gpuCells,vertices:positions.length/3,triangles:indices.length/3,resolveMs:state.resolveMs,assembleMs:performance.now()-started,diagnostics:state.cells.diagnostics}};
 }
@@ -2276,16 +2418,24 @@ function assemble(state,parts){for(const part of parts)state.parts[part.i]=part;
   const accuracyStarted=performance.now();result.sourceAccuracy=sourceAccuracy(state);result.report.sourceAccuracy=result.sourceAccuracy;result.report.sourceAccuracyMs=performance.now()-accuracyStarted;
   for(const part of state.parts)if(part.cell){const cell=part.cell;if(cell.positions){cell.vertexCount=cell.positions.length/3;cell.indexCount=cell.indices.length;delete cell.positions;delete cell.indices;}}
   result.report.cpuTriangleCacheBytes=0;
-  surfacePlans.delete(state.key);surfacePlans.set(state.key,state);let total=0;for(const [key,p]of [...surfacePlans].reverse()){let bytes=frameValueKey(p.data).length*2;for(const a of p.samples.values())bytes+=a.length*128;for(const part of p.parts)if(part.cell)bytes+=(part.cell.positions?.byteLength||0)+(part.cell.indices?.byteLength||0)+part.cell.boundary.length*64+(part.cell.planarAccuracy?256:0);total+=bytes;if(total>surfaceCacheBudget)surfacePlans.delete(key);}result.report.cacheBytes=Math.min(total,surfaceCacheBudget);return result;
+  let bytes=frameValueKey(state.data).length*2;for(const list of state.samples.values())bytes+=list.length*128;for(const part of state.parts)if(part.cell)bytes+=part.cell.boundary.length*64+(part.cell.planarAccuracy?256:0);
+  state.cacheBytes=bytes;surfacePlans.delete(state.key);surfacePlans.set(state.key,state);
+  let total=0;for(const [key,p]of [...surfacePlans].reverse()){
+    if(p.cacheBytes===undefined){surfacePlans.delete(key);continue;}
+    total+=p.cacheBytes;if(total>surfaceCacheBudget)surfacePlans.delete(key);
+  }
+  result.report.cacheBytes=Math.min(total,surfaceCacheBudget);return result;
 }
 
 
 function directExtrusions(inputs,params){
  const parts=[];for(const input of inputs){const part=K.planarExtrusion(input,params);if(!part)return null;parts.push(part);}
+ if(parts.length===1)return parts[0];
+ const boundsMin=[0,1,2].map(k=>parts.reduce((v,p)=>Math.min(v,p.surface.boundsMin[k]),Infinity)),boundsMax=[0,1,2].map(k=>parts.reduce((v,p)=>Math.max(v,p.surface.boundsMax[k]),-Infinity));
  const vertices=new Float32Array(parts.reduce((sum,p)=>sum+p.surface.vertices.length,0)),indices=new Uint32Array(parts.reduce((sum,p)=>sum+p.surface.indices.length,0));let v=0,i=0;
  for(const p of parts){vertices.set(p.surface.vertices,v);for(const id of p.surface.indices)indices[i++]=id+v/3;v+=p.surface.vertices.length;}
- const surface={...parts[0].surface,vertices,indices,report:{...parts[0].surface.report,cells:parts.reduce((n,p)=>n+p.surface.report.cells,0),vertices:vertices.length/3,triangles:indices.length/3,profileReused:parts.every(p=>p.surface.report.profileReused),diagnostics:{...parts[0].surface.report.diagnostics,independentSources:parts.length}}};
- return {data:parts.length===1?parts[0].data:K.merge(parts.map(p=>p.data)),sources:parts.length===1?undefined:parts.map(p=>p.data),surface };
+ const surface={...parts[0].surface,vertices,indices,boundsMin,boundsMax,report:{...parts[0].surface.report,cells:parts.reduce((n,p)=>n+p.surface.report.cells,0),vertices:vertices.length/3,triangles:indices.length/3,profileReused:parts.every(p=>p.surface.report.profileReused),diagnostics:{...parts[0].surface.report.diagnostics,independentSources:parts.length}}};
+ const sources=parts.map(p=>p.data);return {data:K.merge(sources),sources,surface};
 }
 // Evaluate an immutable published layout while its controls are held. Only
 // authored cells touching the changed edges enter the tessellator. A failed
@@ -2348,6 +2498,39 @@ function previewSurfaceCells(m){
   return {vertices,indices:new Uint32Array(indices),lines:new Uint32Array(pairs),masks,min,max,oldEdges:new Uint32Array(oldIds),
     original:new Int32Array(original),support,ranges,cells:old.cells.fills.length,dirty,source:m.baseToken};
 }
+const cellWorkers=[];let nestedCellWorkers=true;
+function dispatchSurfaceCells(index,job){
+  let worker=cellWorkers[index];
+  if(!worker){
+    try{worker=new Worker(self.location.href);cellWorkers[index]=worker;}
+    catch(error){nestedCellWorkers=false;throw error;}
+  }
+  return new Promise((resolve,reject)=>{
+    function close(){worker.onmessage=worker.onerror=worker.onmessageerror=null;}
+    function fail(error){nestedCellWorkers=false;close();worker.terminate();cellWorkers[index]=null;reject(error);}
+    worker.onerror=e=>{e.preventDefault();fail(Error(e.message));};
+    worker.onmessageerror=()=>fail(Error('Could not read spline cell batch'));
+    worker.onmessage=({data})=>{close();if(data.error)reject(Error(data.error));else resolve(data.result);};
+    try{worker.postMessage({op:'buildCells',...job});}catch(error){fail(error);}
+  });
+}
+async function completeSurfaceRequest(message,plan,state){
+  try{
+    const jobs=plan.jobs.map((job,i)=>Promise.resolve().then(()=>dispatchSurfaceCells(i,job)));
+    jobs.push(Promise.resolve().then(()=>buildBatch(state,plan.chunks[0])));
+    const batches=await Promise.allSettled(jobs);
+    // A browser may forbid nested workers. The host can still run the same plan.
+    if(!nestedCellWorkers){
+      for(const worker of cellWorkers)worker?.terminate();cellWorkers.length=0;
+      postMessage({id:message.id,result:plan});return;
+    }
+    const failure=batches.find(row=>row.status==='rejected');if(failure)throw failure.reason;
+    const completed=assemble(state,batches.flatMap(row=>row.value));active=null;
+    const result={completed,workerBudget:plan.workerBudget,cellBindings:plan.cellBindings,parallelWorkers:true};
+    postMessage({id:message.id,result},transferables(completed));
+  }catch(error){surfacePlans.delete(message.key);active=null;postMessage({id:message.id,error:error.message});}
+}
+function batchInput(m){const params=new Map(m.params),samples=new Map(),used=new Set(m.indices.flatMap(i=>m.cells.fills[i].loops.flatMap(l=>l.map(r=>r.edge))));for(const id of used){const list=params.get(id);const cp=K.segmentPoints(m.data,id);samples.set(id,list.map(t=>({t,bezierT:t,position:K.cubicPoint(cp,t),exactTangent:K.cubicDerivative(cp,t)})));}return {data:m.data,cells:m.cells,quads:m.quads,params,samples};}
 function prepareSurfaceRequest(m){
   surfaceCacheBudget=m.cacheLimit||64*1024*1024;const pending=m.generation&&generated?.token===m.generation?generated:null;if(m.generation&&!pending)return {missingGeneration:true};if(pending){m.data=pending.data;m.resolved=pending.resolved;generated=null;}
   if(m.patch){
@@ -2366,7 +2549,12 @@ function prepareSurfaceRequest(m){
   const jobs=chunks.slice(1).map(indices=>{const fills=Object.fromEntries(indices.map(i=>[i,state.cells.fills[i]])),used=new Set(indices.flatMap(i=>fills[i].loops.flatMap(loop=>loop.map(ref=>ref.edge)))),segments=Object.fromEntries([...used].map(id=>[id,state.data.segments[id]])),vertices=Object.fromEntries([...new Set(Object.values(segments).flatMap(edge=>[edge.a,edge.b]))].map(id=>[id,state.data.vertices[id]]));return {indices,cells:{fills},params:[...used].map(id=>[id,state.params.get(id)]),quads:Object.fromEntries(indices.map(i=>[i,!!state.quads[i]])),data:{vertices,segments,approximation:state.data.approximation}};});
   return {forceFull:state.forceFull,dirty:state.dirty,cellCount:state.cells.fills.length,diagnostics:state.cells.diagnostics,workerBudget:budget,chunks,jobs,...cellBindings?{cellBindings}:{}};
 }
-onmessage=({data:m})=>{try{let result;if(m.op==='lineCut')result=frameSplineLineCut(K,m.data,m.options);else if(m.op==='resetPlans'){surfacePlans.clear();result=true;}else if(m.op==='forget'){surfacePlans.delete(m.key);result=true;}else if(m.op==='previewCells')result=previewSurfaceCells(m);else if(m.op==='prepare')result=prepareSurfaceRequest(m);else if(m.op==='init'){const params=new Map(m.params),samples=new Map(),used=new Set(m.indices.flatMap(i=>m.cells.fills[i].loops.flatMap(l=>l.map(r=>r.edge))));for(const id of used){const list=params.get(id);const cp=K.segmentPoints(m.data,id);samples.set(id,list.map(t=>({t,bezierT:t,position:K.cubicPoint(cp,t),exactTangent:K.cubicDerivative(cp,t)})));}active={data:m.data,cells:m.cells,quads:m.quads,params,samples};result=true;}else if(m.op==='batch')result=buildBatch(active,m.indices);else if(m.op==='assemble')result=assemble(active,m.parts);else if(m.op==='generate'&&m.type==='extrude'&&m.direct&&(result=directExtrusions(m.inputs,m.params))){generated=null;}else if(m.op==='generate'){const independent=['extrude','lathe'].includes(m.type)&&m.inputs.length>1,sources=independent?m.inputs.map(input=>K.generate(m.type,[input],m.params)):null;result={data:sources?K.merge(sources):K.generate(m.type,m.inputs,m.params)};if(sources){result.sources=sources;const plans=sources.map(data=>K.takeGeneratedCells(data)||K.buildSplineSurface.resolve(data));result.resolved={fills:plans.flatMap((p,i)=>p.fills.map((f,j)=>({...f,id:'source:'+i+':'+j,loops:f.loops.map(loop=>loop.map(r=>({...r,edge:'c'+i+':'+r.edge})))}))),diagnostics:{generatedFamily:plans.every(p=>p.diagnostics.generatedFamily===m.type)?m.type:undefined,constructionSources:plans.filter(p=>p.diagnostics.generatedFamily).length,independentSources:sources.length,cycleSearchComplete:plans.every(p=>p.diagnostics.cycleSearchComplete),candidateCapReached:plans.some(p=>p.diagnostics.candidateCapReached)}};}else{const resolved=K.takeGeneratedCells(result.data);if(resolved)result.resolved=resolved;}generated={token:++generationSequence,data:result.data,resolved:result.resolved};result.resolved={generation:generated.token};}else if(m.op==='primitive')result=K.primitive(m.type,m.params);else if(m.op==='resolve')result=K.buildSplineSurface.resolve(m.data);else throw Error('Unknown spline operation');postMessage({id:m.id,result},transferables(result));}catch(e){if(m.op==='prepare'||m.op==='assemble'){surfacePlans.delete(m.key||active?.key);active=null;}postMessage({id:m.id,error:e.message,stack:e.stack});}};
+onmessage=({data:m})=>{try{let result;if(m.op==='lineCut')result=frameSplineLineCut(K,m.data,m.options);else if(m.op==='resetPlans'){surfacePlans.clear();result=true;}else if(m.op==='forget'){surfacePlans.delete(m.key);result=true;}else if(m.op==='previewCells')result=previewSurfaceCells(m);else if(m.op==='prepare'){
+  result=prepareSurfaceRequest(m);
+  if(m.completeParallel&&result.jobs?.length&&nestedCellWorkers&&typeof Worker==='function'){
+    void completeSurfaceRequest(m,result,active);return;
+  }
+}else if(m.op==='init'){active=batchInput(m);result=true;}else if(m.op==='buildCells')result=buildBatch(batchInput(m),m.indices);else if(m.op==='batch')result=buildBatch(active,m.indices);else if(m.op==='assemble')result=assemble(active,m.parts);else if(m.op==='extrusionOffset')result=K.reusePlanarExtrusion(m.token,m.params);else if(m.op==='generate'&&m.type==='extrude'&&m.direct&&(result=directExtrusions(m.inputs,m.params))){generated=null;}else if(m.op==='generate'){const independent=['extrude','lathe'].includes(m.type)&&m.inputs.length>1,sources=independent?m.inputs.map(input=>K.generate(m.type,[input],m.params)):null;result={data:sources?K.merge(sources):K.generate(m.type,m.inputs,m.params)};if(sources){result.sources=sources;const plans=sources.map(data=>K.takeGeneratedCells(data)||K.buildSplineSurface.resolve(data));result.resolved={fills:plans.flatMap((p,i)=>p.fills.map((f,j)=>({...f,id:'source:'+i+':'+j,loops:f.loops.map(loop=>loop.map(r=>({...r,edge:'c'+i+':'+r.edge})))}))),diagnostics:{generatedFamily:plans.every(p=>p.diagnostics.generatedFamily===m.type)?m.type:undefined,constructionSources:plans.filter(p=>p.diagnostics.generatedFamily).length,independentSources:sources.length,cycleSearchComplete:plans.every(p=>p.diagnostics.cycleSearchComplete),candidateCapReached:plans.some(p=>p.diagnostics.candidateCapReached)}};}else{const resolved=K.takeGeneratedCells(result.data);if(resolved)result.resolved=resolved;}generated={token:++generationSequence,data:result.data,resolved:result.resolved};result.resolved={generation:generated.token};}else if(m.op==='primitive')result=K.primitive(m.type,m.params);else if(m.op==='resolve')result=K.buildSplineSurface.resolve(m.data);else throw Error('Unknown spline operation');postMessage({id:m.id,result},transferables(result));}catch(e){if(m.op==='prepare'||m.op==='assemble'){surfacePlans.delete(m.key||active?.key);active=null;}postMessage({id:m.id,error:e.message,stack:e.stack});}};
 </script>
 
 <script id="frame-geometry-kernel" type="text/plain">function FrameGeometryKernel(K){const frameValueKey=K.valueKey;const {createSplineData,cloneSplineData,addSplineVertex,addSplineSequence,addSplineSegment,segmentPoints,cubicPoint,cubicDerivative,validateSpline,setSegmentsAsSequence}=K;
@@ -13694,11 +13882,17 @@ function createFrameSplineCodec(types){
     while(strings.size&&(strings.size>=8192||stringBytes+bytes.length>256*1024)){const first=strings.keys().next().value;stringBytes-=strings.get(first).length;strings.delete(first);}strings.set(value,bytes);stringBytes+=bytes.length;return bytes;
   }
   function encode(shape){
-    let buffer=new ArrayBuffer(1024),view=new DataView(buffer),at=0;
-    const ensure=n=>{if(at+n<=buffer.byteLength)return;const next=new ArrayBuffer(Math.max(at+n,buffer.byteLength*2));new Uint8Array(next).set(new Uint8Array(buffer));buffer=next;view=new DataView(buffer);};
-    const u8=x=>{ensure(1);view.setUint8(at++,x);},u16=x=>{ensure(2);view.setUint16(at,x,true);at+=2;},u32=x=>{if(!Number.isInteger(x)||x<0||x>0xffffffff)throw Error('Invalid spline index');ensure(4);view.setUint32(at,x,true);at+=4;},f64=x=>{if(!Number.isFinite(x))throw Error('Non-finite spline value');ensure(8);view.setFloat64(at,x,true);at+=8;},string=s=>{const bytes=splineTextBytes(s);if(bytes.length>65535)throw Error('Spline string is too long');u16(bytes.length);ensure(bytes.length);new Uint8Array(buffer,at,bytes.length).set(bytes);at+=bytes.length;},vector=p=>{if(!Array.isArray(p)||p.length!==3)throw Error('Invalid spline vector');p.forEach(f64);};
+    let buffer=new ArrayBuffer(1024),view=new DataView(buffer),output=new Uint8Array(buffer),at=0,largeCage=false;
+    const ensure=n=>{if(at+n<=buffer.byteLength)return;const next=new ArrayBuffer(Math.max(at+n,buffer.byteLength*2));const bytes=new Uint8Array(next);bytes.set(output);buffer=next;output=bytes;view=new DataView(buffer);};
+    const u8=x=>{ensure(1);view.setUint8(at++,x);},u16=x=>{ensure(2);view.setUint16(at,x,true);at+=2;},u32=x=>{if(!Number.isInteger(x)||x<0||x>0xffffffff)throw Error('Invalid spline index');ensure(4);view.setUint32(at,x,true);at+=4;},f64=x=>{if(!Number.isFinite(x))throw Error('Non-finite spline value');ensure(8);view.setFloat64(at,x,true);at+=8;},string=s=>{
+      if(largeCage&&typeof s==='string'&&s.length<=256){
+        ensure(2+s.length);let i=0;for(;i<s.length;i++){const code=s.charCodeAt(i);if(code>127)break;output[at+2+i]=code;}
+        if(i===s.length){view.setUint16(at,i,true);at+=2+i;return;}
+      }
+      const bytes=splineTextBytes(s);if(bytes.length>65535)throw Error('Spline string is too long');u16(bytes.length);ensure(bytes.length);output.set(bytes,at);at+=bytes.length;
+    },vector=p=>{if(!Array.isArray(p)||p.length!==3)throw Error('Invalid spline vector');p.forEach(f64);};
     const type=types.indexOf(shape.type);if(type<0)throw Error('Unknown spline type');u32(0x31504c53);u8(type);const def=defaults(definitions[shape.type][2]);if(shape.type==='bolt')def.type='DIN 912';if(shape.type==='cloner')def.type='matrix';if(shape.type==='sweep')def.movement='tangent';const fields=Object.entries(shape.params).filter(([k,v])=>v!==def[k]);u16(fields.length);for(const [key,value]of fields){string(key);if(typeof value==='number'){u8(0);f64(value);}else if(typeof value==='string'){u8(1);string(value);}else if(typeof value==='boolean'){u8(2);u8(+value);}else throw Error('Invalid spline parameter');}
-    const d=shape.data;u8(d?1:0);if(d){u16(d.sourceCells?4:d.version>=3?4:d.version||2);u32(d.next);f64(d.approximation.angle);const vertices=Object.entries(d.vertices),ids=new Map(vertices.map(([id],i)=>[id,i]));u32(vertices.length);for(const [id,p]of vertices){string(id);vector(p);}const segments=Object.entries(d.segments),sids=new Map(segments.map(([id],i)=>[id,i]));u32(segments.length);
+    const d=shape.data;u8(d?1:0);if(d){u16(d.sourceCells?4:d.version>=3?4:d.version||2);u32(d.next);f64(d.approximation.angle);const vertices=Object.entries(d.vertices),ids=new Map(vertices.map(([id],i)=>[id,i]));largeCage=vertices.length>4096;u32(vertices.length);for(const [id,p]of vertices){string(id);vector(p);}const segments=Object.entries(d.segments),sids=new Map(segments.map(([id],i)=>[id,i]));u32(segments.length);
       for(const [id,s]of segments){string(id);u32(ids.get(s.a));u32(ids.get(s.b));vector(s.ha);vector(s.hb);string(s.sequence||'');let flags=Object.hasOwn(s,'soft')?1|(+!!s.soft<<1):0;flags|=Object.hasOwn(s,'boundary')?4|(+!!s.boundary<<3):0;flags|=s.approximation?16:0;u8(flags);if(flags&16)f64(s.approximation.angle);}
       u32(d.sequences.length);for(const q of d.sequences){string(q.id);u8(+!!q.closed);u32(q.first==null?0xffffffff:ids.get(q.first));u32(q.segments.length);for(const id of q.segments)u32(sids.get(id));}const handles=Object.entries(d.freeHandles||{});u32(handles.length);for(const [id,h]of handles){u32(ids.get(id));vector(h.in);vector(h.out);}if(d.sourceCells||d.version>=3){const pairs=new Map(segments.map(([id,e])=>[[e.a,e.b].sort().join('|'),id]));u32(d.sourceCells?.length||0);for(const cell of d.sourceCells||[]){const loops=frameCellLoops(d,cell,pairs);u32(loops.length);for(const loop of loops){u32(loop.length);for(const ref of loop){u32(sids.get(ref.edge));u8(+ref.reversed);}}}}
     }const bytes=new Uint8Array(buffer.slice(0,at));cache.set(bytes,shape);return bytes;
@@ -14806,13 +15000,13 @@ function frameSplineLineCut(K,data,options){
 window.FrameSpline=(()=>{
   let kernel,workerURL,sequence=0,timer=0,running=null,dirty=false,drawing=null,edit=null,drawDrag=null,transformEdit=null,moveFrame=0,pendingMove=null,box=null,boxTask=null,pointerInside=false,hoverFrame=0,hoverPoint=null;
   const edits=new Map();
-  const directSurfaces=new WeakMap(),displayCages=new WeakMap();
+  const directSurfaces=new WeakMap(),displayCages=new WeakMap(),extrusionInputs=new WeakMap(),offsetDisplayBases=new WeakMap();
   const liveChanges=new WeakMap(),liveVersions=new WeakMap(),states=new Map(),bakedHashes=new Set(),lanes=new Map(),solids=new Set(['cube','cylinder','tube','sphere','capsule','nut','washer','bolt']),supported=new Set(['spline','square','circle','polyhedron','text','helix','gear','pulley','spline_patch','extrude','sweep','lathe','boolean',...solids]),generators=new Set(['spline_patch','extrude','sweep','lathe','boolean']);
   const special=new Set(['render','instance','cloner','symmetry','target']);const shapeCodec=createFrameSplineCodec([...supported,...special]);
   const source=()=>document.getElementById('frame-spline-kernel').textContent;
   const K=()=>kernel||(kernel=Function('scalar','return ('+source()+')(scalar)')(frameCubicNumber));
   let fontPromise;function loadFont(){return fontPromise??=(async()=>{const bytes=Uint8Array.from(atob(document.getElementById('frame-spline-font').textContent),c=>c.charCodeAt(0)),font=FrameHash.openSnapshot(new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()));K().setFont(font);await call(0,'font',{font});})();}
-  function lane(i){if(lanes.has(i))return lanes.get(i);workerURL??=URL.createObjectURL(new Blob(['const frameCubicNumber='+frameCubicNumber.toString()+';\n',source(),';\n',frameCellLoops.toString(),';\n',frameSplineLineCut.toString(),';\n',document.getElementById('frame-spline-worker').textContent],{type:'text/javascript'}));const worker=new Worker(workerURL),pending=new Map(),l={worker,pending};worker.onmessage=({data:m})=>{const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.result);};worker.onerror=e=>{for(const p of pending.values())p.reject(Error(e.message));pending.clear();worker.terminate();lanes.delete(i);};lanes.set(i,l);return l;}
+  function lane(i){if(lanes.has(i))return lanes.get(i);workerURL??=URL.createObjectURL(new Blob(['const frameCubicNumber='+frameCubicNumber.toString()+';\n',source(),';\n',frameCellLoops.toString(),';\n',frameSplineLineCut.toString(),';\n',document.getElementById('frame-spline-worker').textContent],{type:'text/javascript'}));const worker=new Worker(workerURL),pending=new Map(),l={worker,pending,identity:Symbol()};worker.onmessage=({data:m})=>{const p=pending.get(m.id);if(!p)return;pending.delete(m.id);m.error?p.reject(Error(m.error)):p.resolve(m.result);};worker.onerror=e=>{for(const p of pending.values())p.reject(Error(e.message));pending.clear();worker.terminate();lanes.delete(i);};lanes.set(i,l);return l;}
   function call(i,op,args={},transfers=[]){const l=lane(i),id=++sequence;return new Promise((resolve,reject)=>{l.pending.set(id,{resolve,reject});l.worker.postMessage({id,op,...args},transfers);});}
   const publishedCages=new WeakMap();
   let buildSerial=Promise.resolve(),coldBuilds=null;
@@ -14859,22 +15053,41 @@ window.FrameSpline=(()=>{
       const segments={},vertices={};
       for(const id of changed){const e=data.segments[id];if(!e){patch=null;break;}segments[id]=e;vertices[e.a]=data.vertices[e.a];vertices[e.b]=data.vertices[e.b];patch={segments,vertices,angle:data.approximation?.angle};}
     }
-    try{let plan=await run(0,'prepare',{key,baseToken,threads,displaySamples,completeSingle:true,cacheLimit:coldBuilds?.cacheLimit,...patch?{patch}:resolved?.generation?{generation:resolved.generation}:{data,resolved}});if(plan.missingBase||plan.missingGeneration)plan=await run(0,'prepare',{data,key,baseToken,threads,displaySamples,completeSingle:true,cacheLimit:coldBuilds?.cacheLimit});if(resolved?.generation)resolvedCages.delete(data);if(plan.completed){const result=plan.completed;result.cellBindings=plan.cellBindings;result.report.workers=result.unchanged?0:1;result.report.workerBudget=plan.workerBudget;result.report.singleMessage=true;result.report.buildMs=performance.now()-started;if(result.token)publishedCages.set(data,{key,token:result.token});return result;}const indices=plan.dirty,workers=plan.chunks.length,chunks=plan.chunks;
+    try{let plan=await run(0,'prepare',{key,baseToken,threads,displaySamples,completeSingle:true,completeParallel:true,cacheLimit:coldBuilds?.cacheLimit,...patch?{patch}:resolved?.generation?{generation:resolved.generation}:{data,resolved}});if(plan.missingBase||plan.missingGeneration)plan=await run(0,'prepare',{data,key,baseToken,threads,displaySamples,completeSingle:true,completeParallel:true,cacheLimit:coldBuilds?.cacheLimit});if(resolved?.generation)resolvedCages.delete(data);if(plan.completed){const result=plan.completed;result.cellBindings=plan.cellBindings;result.report.workers=result.unchanged?0:plan.workerBudget.threads;result.report.workerBudget=plan.workerBudget;result.report.singleMessage=true;if(plan.parallelWorkers)result.report.workerAssembly=true;result.report.buildMs=performance.now()-started;if(result.token)publishedCages.set(data,{key,token:result.token});return result;}const indices=plan.dirty,workers=plan.chunks.length,chunks=plan.chunks;
     if(!indices.length&&!plan.forceFull){await run(0,'release');return {unchanged:true,cellBindings:plan.cellBindings,report:{cells:plan.cellCount,affectedCells:0,cachedCells:plan.cellCount,builtCells:0,resolverReused:true,workers:0,diagnostics:plan.diagnostics,buildMs:performance.now()-started}};}
-    await Promise.all(plan.jobs.map((job,i)=>run(i+1,'init',job)));
-    const batches=await Promise.all(chunks.map((indices,i)=>run(i,'batch',{indices}))),parts=batches.flat(),buffers=[];for(const p of parts)if(p.cell)buffers.push(p.cell.positions.buffer,p.cell.indices.buffer);
-    const result=await run(0,'assemble',{parts},buffers);await Promise.all(chunks.map((_,i)=>run(i,'release')));result.cellBindings=plan.cellBindings;result.report.workers=workers;result.report.workerBudget=plan.workerBudget;result.report.buildMs=performance.now()-started;if(result.token)publishedCages.set(data,{key,token:result.token});return result;
+    const batches=await Promise.all([run(0,'batch',{indices:chunks[0]}),...plan.jobs.map((job,i)=>run(i+1,'buildCells',job))]);
+    const parts=batches.flat(),buffers=[];for(const p of parts)if(p.cell)buffers.push(p.cell.positions.buffer,p.cell.indices.buffer);
+    const result=await run(0,'assemble',{parts},buffers);await run(0,'release');result.cellBindings=plan.cellBindings;result.report.workers=workers;result.report.workerBudget=plan.workerBudget;result.report.buildMs=performance.now()-started;if(result.token)publishedCages.set(data,{key,token:result.token});return result;
     }catch(error){await run(0,'forget',{key}).catch(()=>{});throw error;}
   }
 
-  function generatedResult(n,inputs,result){
-    const data=result.data;if(result.surface)directSurfaces.set(data,result.surface);if(result.resolved)resolvedCages.set(data,result.resolved);if(result.sources)generatedSources.set(data,result.sources);
+  function generatedResult(n,inputs,result,profile=null){
+    const data=result.data;if(profile&&result.profileToken)extrusionInputs.set(data,{...profile,token:result.profileToken});if(result.surface)directSurfaces.set(data,result.surface);if(result.resolved)resolvedCages.set(data,result.resolved);if(result.sources)generatedSources.set(data,result.sources);
     if(n.type==='extrude'&&inputs.reduce((sum,d)=>sum+Object.keys(d.segments).length,0)>1000&&inputs.every(d=>d.sequences.filter(q=>q.segments.length).every(q=>q.closed))){const sequences=data.sequences.filter(q=>q.closed),ids=new Set(sequences.flatMap(q=>q.segments)),segments=Object.fromEntries(Object.entries(data.segments).filter(([id])=>ids.has(id)));displayCages.set(data,{...data,segments,sequences});}
     return data;
   }
-  async function generate(n,inputs,old,profilePivot,construction=null){
+  async function generate(n,inputs,old,profilePivot,construction=null,profileKey=null){
     const lane=construction?'cold:'+construction.group.id+':0':0;
-    try{const result=await call(lane,'generate',{type:n.type,inputs,direct:n.enabled,params:{...n.params,...n.type==='sweep'?{profilePivot}:{}}});if(n.type==='extrude')n.validFillet={...n.params};return generatedResult(n,inputs,result);}
+    try{
+      const prior=profileKey&&extrusionInputs.get(old?.data),worker=lanes.get(lane)?.identity;
+      if(profileKey&&prior?.key===profileKey&&worker&&worker===prior.worker){
+        const update=await call(lane,'extrusionOffset',{token:prior.token,params:n.params});
+        if(update){
+          const base=old.data,vertices={...base.vertices};
+          for(const id of Object.keys(base.vertices))if(id.startsWith('top:')){
+            const p=base.vertices['bottom:'+id.slice(4)];vertices[id]=p.map((v,k)=>v+update.delta[k]);
+          }
+          const data={...base,vertices},display=displayCages.get(base);
+          const nextDisplay=display?{...display,vertices}:data;
+          if(display)displayCages.set(data,nextDisplay);
+          offsetDisplayBases.set(nextDisplay,display||base);
+          extrusionInputs.set(data,prior);directSurfaces.set(data,update.surface);n.validFillet={...n.params};return data;
+        }
+      }
+      const result=await call(lane,'generate',{type:n.type,inputs,direct:n.enabled,params:{...n.params,...n.type==='sweep'?{profilePivot}:{}}});
+      if(n.type==='extrude')n.validFillet={...n.params};
+      return generatedResult(n,inputs,result,profileKey?{key:profileKey,worker:lanes.get(lane)?.identity}:null);
+    }
     catch(error){if(n.type!=='extrude'||!n.validFillet)throw error;const previous=n.validFillet,params={...n.params,'start fillet':previous['start fillet'],'end fillet':previous['end fillet']};if(params['start fillet type']===previous['start fillet type']&&params['end fillet type']===previous['end fillet type'])throw error;const result=await call(lane,'generate',{type:n.type,inputs,params});n.validFillet={...params};return generatedResult(n,inputs,result);}
   }
   async function rebuild(n){await flush();await call(0,'forget',{key:n.nativeHash+':'+n.type});const state=states.get(n.id);if(state)state.signature=null;request();await flush();}
@@ -14959,7 +15172,9 @@ window.FrameSpline=(()=>{
         let dependencies=[];if(generators.has(n.type)){try{for(const row of sourceLinks(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){const source=row.node.nativeHash,frame=engine.splineOccurrenceFrame(source,n.nativeHash,row.instances);
               inputs.push(d);inputSources.push(row);inputFrames.push([source,row.instances.map(c=>c.nativeHash),frame]);
               inputPivots.push(engine.splineOccurrencePivot(source,n.nativeHash,row.instances,frame));}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;publicationChanged=true;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
-        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const staticSignature=!editingNow||old?.signature!=null?frameValueKey([n.enabled,evaluationShape(n),inputSources.map((row,i)=>inputVersion(row,inputs[i])),inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
+        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const inputVersions=!editingNow||old?.signature!=null?inputSources.map((row,i)=>inputVersion(row,inputs[i])):null;
+        const staticSignature=inputVersions?frameValueKey([n.enabled,evaluationShape(n),inputVersions,inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
+        const profileKey=!editingNow&&n.enabled&&n.type==='extrude'&&inputs.length===1?frameValueKey([inputVersions,inputFrames,n.params['start cap']!==false,n.params['end cap']!==false]):null;
         const changes=liveChanges.get(n);liveChanges.delete(n);const token=editingNow||n.type==='spline'?null:frameValueKey(shape(n)),state={hash:n.nativeHash,signature,liveVersion:editingNow?version:null,data:null};states.set(n.id,state);
         try{publicationChanged=true;if(generators.has(n.type)&&profiles.has(n)){
             const live=generatorSources(n);
@@ -14967,7 +15182,7 @@ window.FrameSpline=(()=>{
           }
           if(generators.has(n.type)&&(!inputs.length||n.type==='sweep'&&inputs.length<2)&&!n.splineData){engine.removeSpline(n.nativeHash);delete n.engineIndex;delete n.splineError;state.empty=true;return null;}// Transform editable cages only after a changed dependency has admitted a build.
           for(let i=0;i<inputs.length;i++){const [source,,matrix]=inputFrames[i];inputs[i]=engine.splineOccurrenceInFrame(inputs[i],source,n.nativeHash,inputSources[i].instances,matrix);}
-          if(n.type==='text')await loadFont();const data=n.type==='spline_patch'&&n.splineData?(isEditing()?structuredClone(n.splineData):n.splineData):n.type==='spline_patch'&&inputs.length===1?inputs[0]:n.type==='spline_patch'?mergeData(inputs,true):generators.has(n.type)?await generate(n,inputs,old,inputPivots[0],construction):n.type==='spline'?(n.splineData??=K().createSplineData({angle:n.params['angle approximation']})):await call(construction?'cold:'+construction.group.id+':0':0,'primitive',{type:n.type,params:n.params});
+          if(n.type==='text')await loadFont();const data=n.type==='spline_patch'&&n.splineData?(isEditing()?structuredClone(n.splineData):n.splineData):n.type==='spline_patch'&&inputs.length===1?inputs[0]:n.type==='spline_patch'?mergeData(inputs,true):generators.has(n.type)?await generate(n,inputs,old,inputPivots[0],construction,profileKey):n.type==='spline'?(n.splineData??=K().createSplineData({angle:n.params['angle approximation']})):await call(construction?'cold:'+construction.group.id+':0':0,'primitive',{type:n.type,params:n.params});
           if(node(n.id)!==n||!editingNow&&n.type!=='spline'&&frameValueKey(shape(n))!==token){dirty=true;return null;}if(n.type==='spline')data.approximation={angle:Math.max(1,+n.params['angle approximation']||10)};state.data=data;state.sources=inputSources;
           let current=()=>node(n.id)===n&&(editingNow||n.type==='spline'?n.splineData===data||editingNow:frameValueKey(shape(n))===token);
           const generator=generators.has(n.type);if((generator||solids.has(n.type))&&n.enabled){const baked=old===undefined&&bakedHashes.delete(n.nativeHash)&&n.type!=='spline_patch'&&n.engineIndex!==undefined&&engine.scene.meshes[n.engineIndex]?.hashId===n.nativeHash;if(!baked){
@@ -14975,7 +15190,8 @@ window.FrameSpline=(()=>{
             const validity=generator&&!editingNow?dependencyStamp():null;
             current=()=>node(n.id)===n&&(editingNow||n.enabled&&(generator?dependencyStamp()===validity:frameValueKey(shape(n))===token));
             const space=engine.scene,type=n.type,result=await build(data,n.nativeHash+':'+n.type,engine.scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.paged)?.splineToken,construction,editingNow&&transformEdit&&n.type==='spline_patch'&&inputSources.length===1&&!inputSources[0].instances.length&&data===inputSources[0].node.splineData?changes:null);await finishConstruction?.();const editing=isEditing();if(node(n.id)!==n||n.type!==type||engine.scene!==space||!editing&&!editingNow&&!current()){dirty=true;return null;}if(editing||editingNow){current=()=>node(n.id)===n&&n.type===type&&engine.scene===space;state.signature=null;if(!editing)dirty=true;}state.cellBindings=result.cellBindings??old?.cellBindings;if(!result.cellBindings&&state.cellBindings)state.cellSources=old.cellSources;if(!result.unchanged&&!await engine.installSplineSurface(n,result,current)){state.signature=null;dirty=true;return null;}if(result.unchanged&&!editing&&!editingNow)engine.clearPatchPreview(engine.scene.meshes[n.engineIndex]);state.report=result.report;}}
-          await finishConstruction?.();directSurfaces.delete(data);if(!(editingNow&&isEditable(n)&&engine.splineDisplays.has(n.nativeHash))&&await engine.setSplineDisplay(n.nativeHash,displayCages.get(data)||data,generators.has(n.type)||solids.has(n.type),current,editingNow&&['spline','spline_patch'].includes(n.type)?changes:null)===false){state.signature=null;dirty=true;return null;}delete n.splineError;
+          await finishConstruction?.();directSurfaces.delete(data);const displayData=displayCages.get(data)||data,offsetBase=offsetDisplayBases.get(displayData);offsetDisplayBases.delete(displayData);
+          if(!(editingNow&&isEditable(n)&&engine.splineDisplays.has(n.nativeHash))&&await engine.setSplineDisplay(n.nativeHash,displayData,generators.has(n.type)||solids.has(n.type),current,editingNow&&['spline','spline_patch'].includes(n.type)?changes:null,offsetBase)===false){state.signature=null;dirty=true;return null;}delete n.splineError;
         }catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;if(n.type==='extrude'&&old?.data)state.data=old.data;n.splineError=error.message;state.error=error.message;engine.setSplineError(n.nativeHash,error.message);if(current()===n)renderAttributes();}
         return state.data;
       }
@@ -21981,14 +22197,29 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{for(const b of temporary)releaseGPU(b);}
     }
 
-    async function setSplineDisplay(hash,data,generated=false,current=()=>true,changes=null){
+    async function setSplineDisplay(hash,data,generated=false,current=()=>true,changes=null,offsetBase=null){
       const space=scene;if(!space||space.gpu?.dead||renderer?.dead)return false;if(current())freezeAncestorPivots([hash]);
-      const gpu=await getRenderer(),valid=()=>scene===space&&renderer===gpu&&!space.gpu?.dead&&!gpu.dead&&current();if(!valid())return false;await ensureSplinePipelines();if(!valid())return false;const prior=splineDisplays.get(hash);if(changes?.size&&prior&&Object.keys(data.segments).length===prior.ranges.size&&[...changes].every(id=>prior.ranges.has(id))){previewSplineData(hash,data,changes);await markSplineSurface(hash,prior,valid);return valid();}const topology=frameValueKey([Object.keys(data.vertices),Object.entries(data.segments).map(([id,e])=>[id,e.a,e.b,e.ha.some(v=>Math.abs(v)>1e-10),e.hb.some(v=>Math.abs(v)>1e-10)]),data.freeHandles]);const edgeKeys=new Map(Object.entries(data.segments).map(([id,e])=>[id,frameSplineSegmentKey(data,e)]));if(prior?.topology===topology){const changed=[...edgeKeys].filter(([id,key])=>prior.edgeKeys.get(id)!==key).map(([id])=>id);if(changed.length)previewSplineData(hash,data,changed,[],edgeKeys);splineDisplayLookup.set(prior,data);prior.edgeKeys=edgeKeys;for(let k=0;k<3;k++){let lo=Infinity,hi=-Infinity;for(let i=k;i<prior.controlValues.length;i+=3){lo=Math.min(lo,prior.controlValues[i]);hi=Math.max(hi,prior.controlValues[i]);}prior.min[k]=lo;prior.max[k]=hi;}await markSplineSurface(hash,prior,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());return true;}
+      const gpu=await getRenderer(),valid=()=>scene===space&&renderer===gpu&&!space.gpu?.dead&&!gpu.dead&&current();if(!valid())return false;await ensureSplinePipelines();if(!valid())return false;const prior=splineDisplays.get(hash);
+      if(offsetBase&&prior?.data===offsetBase){
+        // The bottom ring and all connectivity are identical. Refill top and rail samples from the current absolute controls.
+        const changed=[];for(const id of prior.ranges.keys())if(!id.startsWith('bottom:'))changed.push(id);
+        previewSplineData(hash,data,changed);updateDisplayBounds(prior);
+        await markSplineSurface(hash,prior,valid);if(!valid())return false;
+        if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());return true;
+      }
+      if(changes?.size&&prior&&Object.keys(data.segments).length===prior.ranges.size&&[...changes].every(id=>prior.ranges.has(id))){previewSplineData(hash,data,changes);await markSplineSurface(hash,prior,valid);return valid();}const topology=frameValueKey([Object.keys(data.vertices),Object.entries(data.segments).map(([id,e])=>[id,e.a,e.b,e.ha.some(v=>Math.abs(v)>1e-10),e.hb.some(v=>Math.abs(v)>1e-10)]),data.freeHandles]);const edgeKeys=new Map(Object.entries(data.segments).map(([id,e])=>[id,frameSplineSegmentKey(data,e)]));if(prior?.topology===topology){const changed=[...edgeKeys].filter(([id,key])=>prior.edgeKeys.get(id)!==key).map(([id])=>id);if(changed.length)previewSplineData(hash,data,changed,[],edgeKeys);splineDisplayLookup.set(prior,data);prior.edgeKeys=edgeKeys;updateDisplayBounds(prior);await markSplineSurface(hash,prior,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());return true;}
       const K=FrameSpline.K(),lines=[],control=[],handles=[],samples=new Map(),ranges=new Map(),vertexOffsets=new Map(),handleOffsets=new Map(),controlKeys=[],freeOffsets=new Map(),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];for(const [id,p]of Object.entries(data.vertices)){vertexOffsets.set(id,control.length);controlKeys.push(id);control.push(...p);for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[k]);max[k]=Math.max(max[k],p[k]);}}
       for(const [id,s]of Object.entries(data.segments)){const a=sampledDisplaySegment(data,id,edgeKeys.get(id));samples.set(id,a);const range={line:lines.length,length:Math.max(0,a.length-1)*6,handle:handles.length};ranges.set(id,range);for(let i=1;i<a.length;i++)lines.push(...a[i-1].position,...a[i].position);for(const [side,v]of [['ha',s.a],['hb',s.b]]){const p=data.vertices[v],h=s[side],end=p.map((x,k)=>x+h[k]*FrameSpline.handleScale);handles.push(...p,...end);if(h.some(x=>Math.abs(x)>1e-10)){handleOffsets.set(id+':'+side,control.length);controlKeys.push('h:'+id+':'+side);control.push(...end);}for(let k=0;k<3;k++){min[k]=Math.min(min[k],end[k]);max[k]=Math.max(max[k],end[k]);}}}
       for(const [v,h]of Object.entries(data.freeHandles||{})){const p=data.vertices[v];if(!p)continue;for(const side of ['in','out'])if(!Object.values(data.segments).some(e=>side==='in'?e.b===v:e.a===v)&&h[side]?.some(x=>Math.abs(x)>1e-12)){const end=p.map((x,k)=>x+h[side][k]*FrameSpline.handleScale);freeOffsets.set(v+':'+side,handles.length);handles.push(...p,...end);controlKeys.push('free:'+v+':'+side);control.push(...end);}}
       const incident=new Map(Object.keys(data.vertices).map(v=>[v,[]]));for(const [id,e]of Object.entries(data.segments)){incident.get(e.a).push(id);incident.get(e.b).push(id);}const display={hash,data,topology,edgeKeys,incident,freeOffsets,samples,ranges,vertexOffsets,handleOffsets,controlKeys,keyIndex:new Map(controlKeys.map((k,i)=>[k,i])),pointFlags:Uint32Array.from(controlKeys,k=>/^(h:|free:)/.test(k)?12:0),generated,buffers:[],min,max,count:lines.length/3,controlCount:control.length/3,handleCount:handles.length/3,selection:new Set(),groups:[],visible:true};
       const make=(label,array)=>{const b=makeGPUBuffer(gpu.device,{label,size:Math.max(4,array.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});display.buffers.push(b);if(array.length)gpu.device.queue.writeBuffer(b,0,array);return b;};const uniform=label=>{const buffer=makeGPUBuffer(gpu.device,{label,size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});display.buffers.push(buffer);return buffer;};try{display.lineValues=Float32Array.from(lines);display.controlValues=Float32Array.from(control);display.handleValues=Float32Array.from(handles);display.lines=make('spline sampled cage',display.lineValues);display.controls=make('spline control vertices',display.controlValues);display.handles=make('spline handle lines',display.handleValues);display.flags=make('spline point states',display.pointFlags);display.uniform=uniform('spline display frame');display.handleUniform=uniform('spline tangent frame');}catch(error){for(const buffer of display.buffers)releaseGPU(buffer);throw error;}if(!valid()){for(const buffer of display.buffers)releaseGPU(buffer);return false;}splineDisplays.set(hash,display);splineDisplayLookup.set(display);queueReplicaDisplaySource(hash);if(prior){splineDisplayLookup.delete(prior);for(const buffer of prior.buffers)releaseGPU(buffer);}sceneFrameDirty=true;display.emptyPointState={data:display.data,controls:display.controlKeys,flags:display.pointFlags,buffer:display.flags,hover:null};await markSplineSurface(hash,display,valid);if(!valid())return false;if(FrameSpline.editingHash===hash)refreshSplineSelection(hash,FrameSpline.selection());sceneFrameDirty=true;draw(true);
+    }
+    function updateDisplayBounds(display){
+      for(let k=0;k<3;k++){
+        let lo=Infinity,hi=-Infinity;
+        for(let i=k;i<display.controlValues.length;i+=3){lo=Math.min(lo,display.controlValues[i]);hi=Math.max(hi,display.controlValues[i]);}
+        display.min[k]=lo;display.max[k]=hi;
+      }
     }
     function previewSplineData(hash,data,segments,affectedVertices=[],edgeKeys=null){const d=splineDisplays.get(hash);if(!d)return;if([...segments].some(id=>!d.ranges.has(id))||[...affectedVertices].some(v=>!d.vertexOffsets.has(v))){setSplineDisplay(hash,data,d.generated).then(()=>refreshSplineSelection(hash,FrameSpline.selection()));return;}splineDisplayLookup.set(d,data);d.wireVersion=(d.wireVersion||0)+1;const queue=renderer.device.queue,vertices=new Set(affectedVertices),bulk=(segments.size??segments.length)>=256&&(segments.size??segments.length)>=d.ranges.size/4;let repack=false;
       for(const id of segments){const edge=data.segments[id],range=d.ranges.get(id);if(!edge||!range)continue;const key=edgeKeys?.get(id)??frameSplineSegmentKey(data,edge),samples=sampledDisplaySegment(data,id,key);d.edgeKeys.set(id,key);d.samples.set(id,samples);d.projected?.segments.delete(id);d.projected?.controls.delete(edge.a);d.projected?.controls.delete(edge.b);d.projected?.controls.delete('h:'+id+':ha');d.projected?.controls.delete('h:'+id+':hb');if((samples.length-1)*6!==range.length)repack=true;vertices.add(edge.a);vertices.add(edge.b);}
