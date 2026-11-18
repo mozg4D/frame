@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 18 nov 16:57",
+  "version": "2026 18 nov 17:32",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -407,7 +407,8 @@
       "tests/boolean-isoparms.mjs",
       "tests/engineering.mjs",
       "tests/boolean-gpu-grid.mjs",
-      "tests/boolean-kernel.mjs"
+      "tests/boolean-kernel.mjs",
+      "tests/boolean-threading.mjs"
     ],
     "meltus8-rod": [
       "index.html",
@@ -482,11 +483,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "21e95aae56fcb78502419e378ebafe802d35c58b38fe047015489024b85eb814"
+      "sha256": "844daae6d0a54bf511098b4d4fa0b31689d046d1b5f8b32c5c1fe42e18e378fd"
     },
     "index.html": {
-      "bytes": 3112247,
-      "sha256": "10c0a7778a2d6b8d627118d36fdba27b0021c94094c55a8d53c63a22c14c3f63"
+      "bytes": 3116551,
+      "sha256": "20f01d4c00b7a2426aa37311d9c7a3047f4a0370dadb201e69b116e65b62b136"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -681,8 +682,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 38229,
-      "sha256": "1ed4f7d5cf3ab4831c0b42c612e5288a3ce18438fd27def7fa612244094f080a"
+      "bytes": 38378,
+      "sha256": "0bed723b086dffb9c0b22a3b954d572f90b5997e48a9324ad6174a8524cf926b"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1053,8 +1054,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 80434,
-      "sha256": "bf0bfb721dd1cc4bf27c06610878d1f1d97a3dadd07f2d9414de5f0078e073af"
+      "bytes": 81070,
+      "sha256": "68f04dafca042e24514b374eb97c1a58b836fc9c66d4636bce7360c5f834405f"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1109,8 +1110,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 15978,
-      "sha256": "05072d73f4c67def881979e206366b095351cf2c6246cf6e76c6d998dbbebc7b"
+      "bytes": 16018,
+      "sha256": "e4e56c0d52b8352a84870b0460ad4ab2080394370c571a613b66fcaa006fe054"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1235,6 +1236,10 @@
     "tests/boolean-kernel.mjs": {
       "bytes": 4556,
       "sha256": "1654dc7847d6c159eed4c5afb258d06aabb60551d5a86e6e06c3d45b4ee79025"
+    },
+    "tests/boolean-threading.mjs": {
+      "bytes": 6121,
+      "sha256": "aaf52abbf9187b58adc8dfa601652f639de4ad1cdd283ca9c72bb93c5215afb7"
     }
   }
 }

@@ -51,6 +51,7 @@ import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
 import {booleanIsoparmsChecks} from './boolean-isoparms.mjs';
 import {booleanGpuGridChecks} from './boolean-gpu-grid.mjs';
 import {booleanKernelChecks} from './boolean-kernel.mjs';
+import {booleanThreadingChecks} from './boolean-threading.mjs';
 import {symmetrySelectionChecks} from './symmetry-selection.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
@@ -281,6 +282,7 @@ try{
   report.booleanPatchFeedback=await isolated('booleanPatchFeedback',booleanPatchFeedbackChecks);
   report.booleanIsoparms=await isolated('booleanIsoparms',booleanIsoparmsChecks);
   report.booleanGpuGrid=await isolated('booleanGpuGrid',booleanGpuGridChecks);
+  report.booleanThreading=await isolated('booleanThreading',booleanThreadingChecks);
   report.symmetrySelection=await isolated('symmetrySelection',symmetrySelectionChecks);
   report.instanceFiles=await isolated('instanceFiles',instanceFileChecks);report.instanceSymmetryCopy=await isolated('instanceSymmetryCopy',instanceSymmetryCopyChecks);
   report.planarExtrude=await isolated('planarExtrude',planarExtrudeChecks);

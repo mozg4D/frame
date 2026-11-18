@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 16:57">
+<meta name="frame-version" content="2026 18 nov 17:32">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -7486,13 +7486,22 @@ async function evaluate(positionsA, indicesA, positionsB, indicesB, op, options 
   const refinedA=refineBooleanOperand(positionsA,indicesA,options.faceMaterialsA,indicesB.length/3),refinedB=refineBooleanOperand(positionsB,indicesB,options.faceMaterialsB,indicesA.length/3);
   if(refinedA){positionsA=refinedA.positions;indicesA=refinedA.indices;options={...options,faceMaterialsA:refinedA.materials};}if(refinedB){positionsB=refinedB.positions;indicesB=refinedB.indices;options={...options,faceMaterialsB:refinedB.materials};}
 
-  let A = prepareMeshFlat(positionsA, indicesA, { profile: options.profile,faceMaterials:options.faceMaterialsA }), B = prepareMeshFlat(positionsB, indicesB, { profile: options.profile,faceMaterials:options.faceMaterialsB });
+  const startPrep=options.profile?performance.now():0,remote=options.parallelPreparation;
+  const prepA=()=>prepareMeshFlat(positionsA,indicesA,{profile:options.profile,faceMaterials:options.faceMaterialsA});
+  const prepB=()=>prepareMeshFlat(positionsB,indicesB,{profile:options.profile,faceMaterials:options.faceMaterialsB});
+  let A,B,prepared;
+  if(remote?.side==='A'&&!refinedA){
+    B=prepB();prepared=await remote.ready;A=prepared??prepA();
+  }else{
+    A=prepA();prepared=remote?.side==='B'&&!refinedB?await remote.ready:null;B=prepared??prepB();
+  }
+  const preflight={preflightA:A.stats,preflightB:B.stats,preparationWorkers:prepared?2:1,preflightWallMs:options.profile?performance.now()-startPrep:undefined};
   for(const [prepared,refined]of [[A,refinedA],[B,refinedB]])if(refined){prepared.mesh.sourceFaces=Uint32Array.from(prepared.mesh.sourceFaces,f=>refined.sources[f]);prepared.stats.refinedFrom=refined.originalFaces;}
   if(indicesA.length&&!A.mesh.faceCount||indicesB.length&&!B.mesh.faceCount)throw Error('Boolean operand collapsed during mesh preparation');
   if(!A.mesh.faceCount||!B.mesh.faceCount){
     const take=op===Operation.Union?(A.mesh.faceCount?A:B):op===Operation.Difference&&!B.mesh.faceCount?A:null;
     const bad=!!(take&&(take.stats.nonManifoldEdges||take.stats.windingConflicts||take.stats.shellNestingAmbiguous));
-    return {positions:take?take.mesh.pos:new Float64Array(0),indices:take?take.mesh.triV:new Uint32Array(0),triangleMaterials:take?Uint32Array.from(take.mesh.faceMaterial||[]):new Uint32Array(0),triangleSources:take?Int32Array.from(take.mesh.sourceFaces,f=>(take===A?1:-1)*(f+1)):new Int32Array(0),ambiguous:bad,topologyValid:!bad,preflightA:A.stats,preflightB:B.stats,stats:{emptyInput:true}};
+    return {positions:take?take.mesh.pos:new Float64Array(0),indices:take?take.mesh.triV:new Uint32Array(0),triangleMaterials:take?Uint32Array.from(take.mesh.faceMaterial||[]):new Uint32Array(0),triangleSources:take?Int32Array.from(take.mesh.sourceFaces,f=>(take===A?1:-1)*(f+1)):new Int32Array(0),ambiguous:bad,topologyValid:!bad,...preflight,stats:{emptyInput:true}};
   }
 
 
@@ -7502,11 +7511,11 @@ async function evaluate(positionsA, indicesA, positionsB, indicesB, op, options 
     const positions=new Float64Array(vertices),indices=new Uint32Array(faces),triangleMaterials=new Uint32Array(faces/3),triangleSources=new Int32Array(faces/3);let v=0,f=0;
     for(const q of parts){const M=q.mesh;positions.set(M.pos,v);for(let i=0;i<M.triV.length;i++)indices[f+i]=M.triV[i]+v/3;
       triangleMaterials.set(M.faceMaterial,f/3);for(let i=0;i<M.faceCount;i++)triangleSources[f/3+i]=(q===A?1:-1)*(M.sourceFaces[i]+1);v+=M.pos.length;f+=M.triV.length;}
-    return {positions,indices,triangleMaterials,triangleSources,ambiguous:false,topologyValid:true,preflightA:A.stats,preflightB:B.stats,stats:{disjointBounds:true}};
+    return {positions,indices,triangleMaterials,triangleSources,ambiguous:false,topologyValid:true,...preflight,stats:{disjointBounds:true}};
   }
   const result=await evaluatePrepared(A,B,op,options);
   if([A.stats,B.stats].some(q=>q.boundaryEdges||q.nonManifoldEdges))result.inputDefects=new Map([...booleanDefects(A.mesh.pos,A.mesh.triV),...booleanDefects(B.mesh.pos,B.mesh.triV)]);
-  return result;
+  return Object.assign(result,preflight);
 }
 
 
@@ -7531,11 +7540,9 @@ function toFloat32(array) {
 function toUint32(array) {
   return array instanceof Uint32Array ? array : Uint32Array.from(array || []);
 }
-function sumPreflightMs(result) {
-  return finiteNumber(result.preflightA?.timing?.total) + finiteNumber(result.preflightB?.timing?.total);
-}
 function makeDiagnostics(result) {
   let d = result.discovery || {}, s = result.stats || {}, pa = result.preflightA || {}, pb = result.preflightB || {}, t = s.timing || {}, topologyMs = finiteNumber(t.topology), classifyMs = finiteNumber(t.classify), bandMs = finiteNumber(t.band), assemblyMs = finiteNumber(t.assembly);
+  const preflightMs=finiteNumber(result.preflightWallMs,finiteNumber(pa.timing?.total)+finiteNumber(pb.timing?.total));
   return {
     backend: d.gpuFilter?"webgpu-grid-cpu":"frame-js-r6",...(d.gpuFilter?{gpuFilter:d.gpuFilter}:{}),crossingSeamVertices:s.crossingSeamVertices||0,splitFailure:s.splitFailure||null,
     topologyValid: !!result.topologyValid,
@@ -7571,12 +7578,12 @@ function makeDiagnostics(result) {
     droppedDuplicateB: count(pb.droppedDuplicate),
     qualityA: count(pa.quality),
     qualityB: count(pb.quality),
-    preflightMs: sumPreflightMs(result),
+    preflightMs,preparationWorkers:result.preparationWorkers??1,
     patchCacheMs: finiteNumber(t.planar),
     discoveryMs: finiteNumber(t.discovery),
     backendMs: topologyMs + finiteNumber(t.faceTopo) + classifyMs + bandMs + assemblyMs,
     compactMs: 0,
-    totalMs: finiteNumber(t.total) + sumPreflightMs(result),
+    totalMs: finiteNumber(t.total) + preflightMs,
     canonicalizeMs: finiteNumber(result.topology?.stats?.timing?.canonicalize, topologyMs),
     classifyMs,
     splitMs: finiteNumber(result.topology?.stats?.timing?.split, topologyMs),
@@ -7614,7 +7621,7 @@ async function handleBooleanWorkerMessage(data = {}) {
       return { message: { id: data.id, ok: !0, labels, wasmHeapBytes: 0 }, transfer: [labels.buffer] };
     }
     if (validateMesh(data.positionsA, data.indicesA, "Operand A",{nonEmpty:false}), validateMesh(data.positionsB, data.indicesB, "Operand B",{nonEmpty:false}), data.op !== Operation.Union && data.op !== Operation.Difference && data.op !== Operation.Intersection) throw new Error(`Unknown Boolean operation code: ${data.op}`);
-    postMessage({progress:'Intersections'});const started=performance.now(),result=await evaluate(data.positionsA,data.indicesA,data.positionsB,data.indicesB,data.op,{profile:true,p32Policy:'js',faceMaterialsA:data.faceMaterialsA,faceMaterialsB:data.faceMaterialsB,requestFilter:data.gpuFilter?requestBooleanFilter:null}),wallMilliseconds=performance.now()-started;
+    postMessage({progress:'Intersections'});const started=performance.now(),result=await evaluate(data.positionsA,data.indicesA,data.positionsB,data.indicesB,data.op,{profile:true,p32Policy:'js',faceMaterialsA:data.faceMaterialsA,faceMaterialsB:data.faceMaterialsB,parallelPreparation:data.parallelPreparation,requestFilter:data.gpuFilter?requestBooleanFilter:null}),wallMilliseconds=performance.now()-started;
     const seamPositions=toFloat32(result.seamPositions),seamIndices=toUint32(result.seamIndices),report=makeDiagnostics(result),rc=rcFor(result);
     postMessage({progress:'Topology'});const t=performance.now(),expectsClosed=!report.boundaryA&&!report.boundaryB,p=toFloat32(result.positions),ix=toUint32(result.indices),cleaned=inheritedBooleanMesh(p,ix,result)||cleanBooleanFloatMesh(p,ix,expectsClosed,result.triangleMaterials,result.triangleSources);
     const {positions,indices,triangleMaterials}=cleaned,transferTrusted=cleaned.inheritedDefects!==undefined?!cleaned.newDefects.length:!cleaned.nonManifoldEdges&&(!expectsClosed||cleaned.topologyValid);
@@ -7636,7 +7643,7 @@ async function handleBooleanWorkerMessage(data = {}) {
 let affineTransform;try{affineTransform=FrameAffineSIMD();}catch{}
 function nativeOperandParts(parts){const positions=new Float32Array(parts.reduce((s,p)=>s+p.positions.length,0)),indices=new Uint32Array(parts.reduce((s,p)=>s+p.indices.length,0)),faceMaterials=new Uint32Array(indices.length/3);let vertex=0,corner=0;for(const p of parts){const m=p.matrix,a=p.positions,transformed=a.length>=120000&&affineTransform?affineTransform(a,m,false,positions,vertex*3):null;if(transformed){}else for(let i=0;i<a.length;i+=3){const x=a[i],y=a[i+1],z=a[i+2];for(let k=0;k<3;k++)positions[vertex*3+i+k]=m[k]*x+m[k+4]*y+m[k+8]*z+m[k+12];}const determinant=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);for(let i=0;i<p.indices.length;i+=3){indices[corner+i]=p.indices[i]+vertex;indices[corner+i+1]=p.indices[i+(determinant<0?2:1)]+vertex;indices[corner+i+2]=p.indices[i+(determinant<0?1:2)]+vertex;}if(p.faceMaterials)faceMaterials.set(p.faceMaterials,corner/3);vertex+=a.length/3;corner+=p.indices.length;}return {positions,indices,faceMaterials};}
 // One Boolean evaluation owns this worker. Transfer temporary grid bounds only.
-let finishBooleanFilter;
+let finishBooleanFilter,finishBooleanPreparation;
 function requestBooleanFilter(boxes){
   return new Promise(resolve=>{
     finishBooleanFilter=resolve;
@@ -7644,6 +7651,18 @@ function requestBooleanFilter(boxes){
   });
 }
 self.onmessage = async (event) => {
+  const data=event.data;
+  if('preparedOperand' in data){const finish=finishBooleanPreparation;finishBooleanPreparation=null;finish?.(data.preparedOperand);return;}
+  if(data.cmd==='prepareOperand'){
+    try{
+      const {positions,indices,faceMaterials}=data.parts?nativeOperandParts(data.parts):data;
+      const prepared=prepareMeshFlat(positions,indices,{profile:true,faceMaterials});
+      const buffers=[...new Set(Object.values(prepared.mesh).filter(ArrayBuffer.isView).map(v=>v.buffer))];
+      self.postMessage({preparedOperand:prepared,buffers},buffers);
+    }catch{self.postMessage({preparedOperand:null});}
+    return;
+  }
+  if(data.parallelSide)data.parallelPreparation={side:data.parallelSide,ready:new Promise(resolve=>{finishBooleanPreparation=resolve;})};
   if('gridMasks' in event.data){const finish=finishBooleanFilter;finishBooleanFilter=null;finish?.(event.data.gridMasks);return;}
   if(event.data.partsA){try{const a=nativeOperandParts(event.data.partsA),b=nativeOperandParts(event.data.partsB);Object.assign(event.data,{positionsA:a.positions,indicesA:a.indices,faceMaterialsA:a.faceMaterials,positionsB:b.positions,indicesB:b.indices,faceMaterialsB:b.faceMaterials});delete event.data.partsA;delete event.data.partsB;}catch(error){postMessage({id:event.data.id,ok:false,error:error.message});return;}}
   let out = await handleBooleanWorkerMessage(event.data || {});
@@ -13325,22 +13344,82 @@ const FrameGeometry=(()=>{
   let kernel;
   const text=id=>document.getElementById(id).textContent;
   const K=()=>kernel??=Function('return ('+text('frame-geometry-kernel')+')')()(FrameSpline.K());
+  let booleanWorkers=0;
+  const waitingBooleanWorkers=[];
+  function reserveBooleanWorker(wait){
+    const limit=Math.max(1,(navigator.hardwareConcurrency||2)-1);
+    if(booleanWorkers<limit){booleanWorkers++;return true;}
+    return wait?new Promise(resolve=>waitingBooleanWorkers.push(resolve)):false;
+  }
+  function releaseBooleanWorker(){
+    // Hand the slot to the oldest waiting coordinator. Helpers only take idle slots.
+    const next=waitingBooleanWorkers.shift();
+    if(next)next(true);else booleanWorkers--;
+  }
+  function booleanHelperSide(args){
+    if(args.cmd!=='run')return null;
+    function size(side){
+      const parts=args['parts'+side]??[{positions:args['positions'+side],indices:args['indices'+side],faceMaterials:args['faceMaterials'+side]}];
+      let corners=0,bytes=0;
+      for(const p of parts){corners+=p.indices?.length||0;bytes+=(p.positions?.byteLength||0)+(p.indices?.byteLength||0)+(p.faceMaterials?.byteLength||0);}
+      return {corners,bytes};
+    }
+    const a=size('A'),b=size('B');
+    if(Math.min(a.corners,b.corners)<3*65536)return null;
+    const side=a.bytes<b.bytes?'A':'B';
+    // The helper temporarily owns a copy of one input alongside its topology scratch.
+    const copyBudget=Math.min(64,(navigator.deviceMemory||4)*8)*1024*1024;
+    return Math.min(a.bytes,b.bytes)<=copyBudget?side:null;
+  }
   async function worker(op,args,transfers=[],session=null,progress=null,booleanFilter=null){
-    const body=op==='boolean'?FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker'):
-      text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(d.op==='recognize'&&d.retainSource){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){if(d.op==='recognize'&&d.retainSource)send({recognitionError:e.message});else postMessage({error:e.message});}};`;
-    let w=session?.worker;if(!w){const url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));w=new Worker(url);URL.revokeObjectURL(url);if(session)session.worker=w;}
-    try{return await new Promise((resolve,reject)=>{
-      w.onerror=e=>reject(Error(e.message||'Geometry worker failed'));
-      w.onmessage=async({data:d})=>{
-        if(d.gridBoxes){
-          try{const masks=await booleanFilter(d.gridBoxes);w.postMessage({gridMasks:masks},masks?.map(m=>m.buffer)||[]);}
-          catch(error){reject(error);}return;
+    const boolean=op==='boolean',side=boolean?booleanHelperSide(args):null;
+    if(boolean){const slot=reserveBooleanWorker(true);if(slot!==true)await slot;}
+    let w=session?.worker,helper=null,helperSlot=false,url=null;
+    function releaseHelper(){
+      helper?.terminate();helper=null;
+      if(helperSlot){helperSlot=false;releaseBooleanWorker();}
+    }
+    try{
+      const body=op==='boolean'?FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker'):
+        text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(d.op==='recognize'&&d.retainSource){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){if(d.op==='recognize'&&d.retainSource)send({recognitionError:e.message});else postMessage({error:e.message});}};`;
+      helperSlot=!!side&&reserveBooleanWorker(false);
+      if(!w||helperSlot)url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));
+      if(!w){w=new Worker(url,boolean?{name:'Frame Boolean'}:undefined);if(session)session.worker=w;}
+      return await new Promise((resolve,reject)=>{
+        w.onerror=e=>reject(Error(e.message||'Geometry worker failed'));
+        w.onmessageerror=()=>reject(Error('Geometry worker message could not be read'));
+        w.onmessage=async({data:d})=>{
+          if(d.gridBoxes){
+            try{const masks=await booleanFilter(d.gridBoxes);w.postMessage({gridMasks:masks},masks?.map(m=>m.buffer)||[]);}
+            catch(error){reject(error);}return;
+          }
+          if(d.progress){progress?.(d.progress);return;}
+          d.error||d.ok===false?reject(Error(d.error)):resolve(op==='boolean'?d:d.result);
+        };
+        if(helperSlot){
+          function finish(prepared,buffers=[]){
+            if(!helper)return;
+            releaseHelper();
+            try{w.postMessage({preparedOperand:prepared},buffers);}
+            catch{try{w.postMessage({preparedOperand:null});}catch(error){reject(error);}}
+          }
+          try{
+            helper=new Worker(url,{name:'Frame Boolean operand'});
+            helper.onmessage=({data})=>finish(data.preparedOperand,data.buffers);
+            helper.onerror=e=>{e.preventDefault();finish(null);};
+            helper.onmessageerror=()=>finish(null);
+            // Clone before transferring the originals to the coordinator. It can retry locally.
+            helper.postMessage({cmd:'prepareOperand',parts:args['parts'+side],positions:args['positions'+side],indices:args['indices'+side],faceMaterials:args['faceMaterials'+side]});
+          }catch{releaseHelper();}
         }
-        if(d.progress){progress?.(d.progress);return;}
-        d.error||d.ok===false?reject(Error(d.error)):resolve(op==='boolean'?d:d.result);
-      };
-      w.postMessage(op==='boolean'?{...args,id:1,prepareRender:false,gpuFilter:!!booleanFilter}:{op,...args},transfers);
-    });}finally{if(!session)w.terminate();}
+        if(url){URL.revokeObjectURL(url);url=null;}
+        w.postMessage(boolean?{...args,id:1,prepareRender:false,gpuFilter:!!booleanFilter,parallelSide:helper?side:null}:{op,...args},transfers);
+      });
+    }finally{
+      if(!session)w?.terminate();
+      releaseHelper();if(url)URL.revokeObjectURL(url);
+      if(boolean)releaseBooleanWorker();
+    }
   }
   async function outline(n,distance,segments,inner=false){
     n=FrameSpline.sourceNode(n)||n;if(!FrameSpline.isEditable(n)||!n.splineData)throw Error('Choose an editable spline');
