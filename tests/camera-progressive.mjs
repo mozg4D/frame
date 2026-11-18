@@ -15,13 +15,13 @@ export async function cameraProgressiveChecks(page){
       const script=document.querySelector('#frame-pathtracer');
       window.progressiveFixture={factory:Function('return ('+script.textContent+')')()};
       script.textContent=script.textContent.replace('return new FrameRenderer(container,changed);',
-        'return progressiveFixture.camera=new FrameRenderer(container,changed);');
+        'progressiveFixture.distribution=environmentDistribution;return progressiveFixture.camera=new FrameRenderer(container,changed);');
     });
     await call('scene.new');
     const car=await call('scene.create',{type:'car'});
     await call('view.set',{index:0,single:true,focus:car.hash});
-    await call('scene.create',{type:'render',params:{realtime:'off',samples:1,environment:'default'}});
-    for(const scene of ['opaque','transmission','unlit sky']){
+    const cameraNode=await call('scene.create',{type:'render',params:{realtime:'off',samples:1,environment:'default'}});
+    for(const scene of ['opaque','orthographic','inside bounds','sky and sun','transmission','unlit sky']){
       if(scene==='transmission'){
         const glass=await call('material.create',{params:{opac:60,rough:12,h:190,s:35,l:65}});
         await call('material.assign',{id:car.hash,material:glass.uid});
@@ -30,13 +30,16 @@ export async function cameraProgressiveChecks(page){
       assert.equal(initial.phase,'complete',JSON.stringify(initial.errors));
       await call('render.stop');
       const result=await page.evaluate(async scene=>{
-        const cached=scene==='opaque',sky=scene==='unlit sky';
+        const sky=scene==='unlit sky',cached=!sky&&scene!=='transmission';
         const {factory,camera}=progressiveFixture;
         const options={...camera.options,outputSize:[157,101],sampleLimit:cached?19:sky?143:145,
           frameSeed:4231,sampler:cached?'sobol':'random',viewKey:'fixed',previewPresentation:false};
-        if(sky){
+        if(scene==='orthographic')options.camera={...options.camera,ortho:camera.scene.scale*1.1};
+        if(scene==='inside bounds')options.camera={...options.camera,position:[...camera.scene.center]};
+        if(sky||scene==='sky and sun'){
           options.camera={...options.camera,forward:options.camera.forward.map(v=>-v)};
-          options.environment={...options.environment,mode:'off',infiniteLights:[]};
+          const sun={direction:options.camera.forward,angle:.16,color:[.4,.7,1],intensity:1};
+          options.environment={...options.environment,mode:'off',infiniteLights:sky?[]:[sun]};
         }
         async function render(serial,interrupt){
           const host=document.createElement('div');document.body.append(host);
@@ -66,7 +69,7 @@ export async function cameraProgressiveChecks(page){
                 }
               };
             }
-            const settings={...options,legacyScheduling:serial,previewPresentation:serial};
+            const settings={...options,optimize:!serial,legacyScheduling:serial,previewPresentation:serial};
             await tracer.start(settings);
             if(interrupt){
               if(!checkpoint||tracer.completed)throw Error('Expected partial film');
@@ -77,6 +80,7 @@ export async function cameraProgressiveChecks(page){
               throw Error(JSON.stringify({phase:stats.phase,reuse:stats.lightingReuse,samples:stats.samples,errors:stats.errors}));
             const film=await tracer.readFilm(),image=await tracer.readImage();
             return {film,image,checkpoint,meters,ms:performance.now()-started,queueBuilds:stats.queueBuilds,
+              tiles:cached?[tracer.surfaceTileCount,tracer.skyTileCount]:null,
               submissions:stats.performance.submissions,samples:stats.newCameraSamples};
           }finally{tracer.dispose();host.remove();}
         }
@@ -94,7 +98,7 @@ export async function cameraProgressiveChecks(page){
           if(reference.image.rgba[i]!==packed.image.rgba[i]||reference.image.rgba[i]!==resumed.image.rgba[i])
             throw Error('Display mismatch at byte '+i);
         }
-        return {scene,min,max,range:high-low,queueBuilds:packed.queueBuilds,samples:packed.samples,
+        return {scene,min,max,range:high-low,tiles:packed.tiles,queueBuilds:packed.queueBuilds,samples:packed.samples,
           meters:[reference.meters,packed.meters,resumed.meters],
           referenceSamples:reference.samples,resumedSamples:resumed.samples,checkpoint:resumed.checkpoint,
           serial:reference.submissions,packed:packed.submissions,ms:packed.ms};
@@ -109,13 +113,69 @@ export async function cameraProgressiveChecks(page){
         assert.equal(result.meters[0],21);assert.ok(result.queueBuilds>0);
       }else{
         assert.ok(result.range>.1);
-        if(scene==='opaque'){assert.equal(result.min,19);assert.equal(result.max,19);}
+        if(result.tiles){
+          assert.equal(result.min,19);assert.equal(result.max,19);
+          const [surface,sky]=result.tiles;
+          assert.equal(surface+sky,Math.ceil(157/16)*Math.ceil(101/16));
+          if(scene==='opaque')assert.ok(surface>0&&sky>0);
+          if(scene==='sky and sun')assert.equal(surface,0);
+        }
         else{assert.ok(result.min>=128&&result.min<result.max&&result.max===145);assert.ok(result.queueBuilds>0);}
       }
     }
+    const distribution=await page.evaluate(async()=>{
+      const width=64,height=32,cells=width*height,data=new Float32Array(cells*4);
+      data.fill(1);data.set([1e12,1e12,1e12],(cells>>1)*4);
+      const table=await progressiveFixture.distribution({width,height,data});
+      function sample(value,low,high){
+        while(low<high){const mid=(low+high)>>>1;if(table[mid*4]<value)low=mid+1;else high=mid;}
+        return low;
+      }
+      const f=new Float32Array(1),bits=new Uint32Array(f.buffer);
+      let duplicates=0,narrow=0,probes=0;
+      for(let k=0;k<cells;k++){
+        const cdf=table[k*4];
+        if(k&&cdf===table[(k-1)*4])duplicates++;
+        if(table[k*4+3]-table[k*4+2]<2)narrow++;
+        f[0]=cdf;bits[0]--;const below=f[0];bits[0]+=2;
+        for(const value of [below,cdf,f[0],k/cells,(k+.5)/cells]){
+          if(!(value>=0&&value<=1))continue;
+          const at=Math.min(cells-1,Math.floor(value*cells))*4;
+          if(sample(value,0,cells-1)!==sample(value,table[at+2],table[at+3]))
+            throw Error('Environment CDF mismatch at '+value);
+          probes++;
+        }
+      }
+      return {duplicates,narrow,probes};
+    });
+    assert.ok(distribution.duplicates>0&&distribution.narrow>1000&&distribution.probes>8000);
+    const material=await call('material.create',{params:{h:24,s:65,l:48}});
+    await call('material.assign',{id:car.hash,material:material.uid});
+    const normalMap=await page.evaluate(()=>{
+      const canvas=document.createElement('canvas');canvas.width=canvas.height=4;
+      const context=canvas.getContext('2d');context.fillStyle='rgb(128,230,204)';context.fillRect(0,0,4,4);
+      return canvas.toDataURL().split(',')[1];
+    });
+    for(const samples of [1,12]){
+      await call('scene.update',{id:cameraNode.hash,params:{samples}});
+      await page.evaluate(()=>{delete progressiveFixture.untexturedPipeline;});
+      const variants=[];
+      for(const edit of [null,{base64:normalMap},{remove:true}]){
+        if(edit)await call('material.texture',{material:material.uid,slot:'normal',...edit});
+        const frame=await call('render.start');
+        assert.equal(frame.phase,'complete',JSON.stringify(frame.errors));
+        variants.push(await page.evaluate(()=>{
+          const {camera}=progressiveFixture;
+          progressiveFixture.untexturedPipeline??=camera.gatherIrradiance;
+          return [camera.scene.materialMaps,camera.gatherIrradiance===progressiveFixture.untexturedPipeline];
+        }));
+        await call('render.stop');
+      }
+      assert.deepEqual(variants,[[false,true],[true,false],[false,true]]);
+    }
     const validation=await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message);
     assert.equal(validation,undefined);assert.deepEqual(errors,[]);
-    return {pass:true,cases};
+    return {pass:true,cases,distribution};
   }catch(error){return {pass:false,error:error.stack,cases,errors};}
 }
 
