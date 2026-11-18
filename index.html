@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 18:35">
+<meta name="frame-version" content="2026 18 nov 19:07">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -9910,7 +9910,7 @@ class FrameRenderer {
   }
   markPresented(started) {
     if(this.lastImage?.texture!==this.output)this.lastImage?.texture.destroy();
-    this.lastImage={texture:this.output,width:this.width,height:this.height};this.hasImage=true;this.filmDirty=false;
+    this.lastImage={texture:this.output,width:this.width,height:this.height,viewKey:this.options.viewKey,viewport:this.options.previewPresentation===true};this.hasImage=true;this.filmDirty=false;
     this.canvas.style.display='block';this.presentedAt=performance.now();this.stats.presentedFrames++;
     if(this.stats.firstImageMs===null)this.stats.firstImageMs=this.presentedAt-started;
     if(!this.options.interactivePreview)this.pollLightingStats();
@@ -9986,6 +9986,7 @@ class FrameRenderer {
         const ratio=Math.max(.5,Math.min(2,16*occupancy/Math.max(.25,elapsed)));
         this.progressiveBudget=Math.max(16384,Math.min(maxPixels,Math.round(meta.budget*ratio/64)*64));
       }
+      if(stats.samples!==meta.completed)this.options.onSamples?.(meta.completed);
       stats.samples=meta.completed;stats.elapsedMs=performance.now()-elapsedOrigin;
       this.filmDirty=true;if(meta.completed>0)this.imageReady=true;
       if(meta.present)this.markPresented(started);
@@ -10105,10 +10106,12 @@ class FrameRenderer {
     const encoder=this.device.createCommandEncoder();encoder.copyTextureToBuffer({texture},{buffer:read,bytesPerRow:row},[width,height]);this.device.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);
     const mapped=new Uint8Array(read.getMappedRange()),rgba=new Uint8ClampedArray(width*height*4);for(let y=0;y<height;y++)rgba.set(mapped.subarray(y*row,y*row+width*4),y*width*4);read.unmap();read.destroy();return {width,height,rgba};
   }
-  async save(filename='frame-render.png') {
+  async save(filename='frame-render.png',size,current=()=>true) {
     const {width,height,rgba}=await this.readImage();const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;canvas.getContext('2d').putImageData(new ImageData(rgba,width,height),0,0);
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('Could not encode the rendered image.');
-    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);return {width,height,bytes:blob.size};
+    let output=canvas;
+    if(size&&(size[0]!==width||size[1]!==height)){output=document.createElement('canvas');[output.width,output.height]=size;output.getContext('2d').drawImage(canvas,0,0,...size);}
+    const blob=await new Promise(resolve=>output.toBlob(resolve,'image/png'));if(!current())return;if(!blob)throw Error('Could not encode the rendered image.');
+    const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),10000);return {width:output.width,height:output.height,bytes:blob.size};
   }
   dispose() {if(this.disposed)return;this.disposed=true;this.stop(true);this._releaseCameraAttempt(this.initAttempt);this.initializing=null;this.canvas.remove();}
 }
@@ -12547,7 +12550,7 @@ function renderAttributes(){
     html=list.map(([k,spec])=>!tag&&n.type==='extrude'&&k==='start cap'?capRow():!tag&&n.type==='pulley'&&k==='profile'?'<div class="attr-row"><span class="attr-lab">profile</span><div class="attr-ctrl">'+spec.map(v=>`<button class="attr-btn${values[k]===v?' on':''}" data-field="profile" data-value="${v}" aria-pressed="${values[k]===v}">${v}</button>`).join('')+'</div></div>':fieldRow(tag?.kind==='morph'&&k==='mode'?'':k,values[k],spec,k)).join('');
     if(!tag&&n.type==='render')html='<div class="attr-row"><span class="attr-lab">resolution</span><div class="attr-ctrl">'+['resolution x','resolution y'].map((key,i)=>`<input class="attr-inp" data-field="${key}" aria-label="Output ${i?'height':'width'}" value="${values[key]}">`).join('')+'</div></div>'+list.filter(([key])=>!['resolution x','resolution y'].includes(key)).map(([key,spec])=>fieldRow(key,values[key],spec)).join('');
 
-    if(!tag&&n.type==='render')html+='<div class="attr-row"><span class="attr-lab">render</span><div class="attr-ctrl">'+(values.renderer==='Viewport'?'':'<button class="attr-btn" id="frameRenderToggle" aria-label="Render">view</button>')+'<button class="attr-btn" id="frameRenderImage">image</button><button class="attr-btn" id="frameRenderVideo">video</button></div></div>';
+    if(!tag&&n.type==='render')html+='<div class="attr-row"><span class="attr-lab" id="frameRenderSamples">render</span><div class="attr-ctrl">'+(values.renderer==='Viewport'?'':'<button class="attr-btn" id="frameRenderToggle" aria-label="Save viewport image">view</button>')+'<button class="attr-btn" id="frameRenderImage">image</button><button class="attr-btn" id="frameRenderVideo">video</button></div></div>';
     if(tag?.kind==='morph'&&values.mode==='Edit')html+='<button class="attr-btn" id="addMorph">Add Morph</button>';
   }
   if(!tag&&n.type==='instance'&&!n.params.file&&objectReference(values.object)?.browserHidden)html='';
@@ -12564,7 +12567,8 @@ function renderAttributes(){
   for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'?renderAttributes:()=>{});}
   for(const label of all('.attr-lab',content)){const key=label.dataset.animate,spec=fields[key],row=label.closest('.attr-row');if(!Array.isArray(spec)||row.querySelector('[data-cycle]'))continue;bindChoiceScrub(label,spec,()=>values[key],v=>update(key,v),()=>{for(const button of all('[data-value]',row)){const on=String(values[key])===button.dataset.value;button.classList.toggle('on',on);button.ariaPressed=String(on);}});}
   for(const field of all('.cloner-object-drop',content))field.onkeydown=e=>{if(['Delete','Backspace'].includes(e.key)){e.preventDefault();e.stopPropagation();frameSetObjectReference(field);}};
-  if($('frameRenderToggle')){$('frameRenderToggle').onclick=()=>toggleCameraRender(n);window.frameEngine?.renderStatus();}
+  if($('frameRenderToggle'))$('frameRenderToggle').onclick=()=>toggleCameraRender(n);
+  if($('frameRenderSamples'))window.frameEngine?.renderStatus();
   for(const [id,kind]of [['frameRenderImage','image'],['frameRenderVideo','video']])if($(id))$(id).onclick=()=>{if(window.frameEngine.renderState().exportKind===kind){window.frameEngine.renderStop();return;}frameEnableCamera(n);window.frameEngine.renderExport(kind).catch(fileOperationError);};
   if($('addMorph'))$('addMorph').onclick=()=>{const key='Morph '+(Object.keys(values).filter(k=>k!=='mode').length+1);commit(()=>values[key]=50,false);renderAttributes();};
   frameBindAnimationUI();frameRefreshAnimationUI();
@@ -12764,7 +12768,8 @@ $('objectsPanel').onclick=e=>{const type=e.target.closest('[data-type]')?.datase
 for(const [id,type]of Object.entries({btnInstance:'instance',btnBoolean:'boolean',btnSymmetry:'symmetry',btnCloner:'cloner',btnRender:'render',btnTarget:'target',btnInfinite:'infinite',btnSpline:'spline',btnExtrude:'extrude',btnLathe:'lathe',btnSweep:'sweep',btnSplinePatch:'spline_patch'}))$(id).onclick=()=>add(type);
 $('btnRender').onclick=()=>{window.frameEngine.renderStop();add('render');};
 function frameEnableCamera(n){if(!n.enabled)commit(()=>{for(const camera of nodes)if(camera.type==='render')camera.enabled=camera===n;});}
-function toggleCameraRender(n){const engine=window.frameEngine,state=engine.renderState();if(n.enabled&&(state.running&&state.manual||state.visible)){engine.renderStop();return;}frameEnableCamera(n);engine.renderStart().catch(fileOperationError);}
+function cameraRenderBusy(state,camera){return state.running||state.manual||state.phase==='preview'&&camera.params.realtime==='on';}
+function toggleCameraRender(n){const engine=window.frameEngine,state=engine.renderState();if(state.exportKind)return;if(n.enabled&&cameraRenderBusy(state,n)){engine.renderStop(false);return;}frameEnableCamera(n);engine.renderStart(true).catch(fileOperationError);}
 $('btnInfinite').onclick=()=>{const engine=window.frameEngine,placement=engine?.infinitePlacement();engine?.setViewerMode('element','object');add('infinite');engine?.initializeLight(node(focusId).nativeHash,placement);frameSelectEngineObjects();};
 $('btnSpline').onclick=()=>{const existing=selected.has(focusId)&&node(focusId)?.type==='spline'?focusId:[...selected].find(id=>node(id)?.type==='spline');if(existing)selectRow(existing);else add('spline');for(const id of ['btnVertexMode','btnEdgeMode','btnPolygonMode'])$(id).classList.toggle('on',id==='btnVertexMode');};
 function setBrowserIcon(){$('btnBrowser').innerHTML=icons[treeAllFolded?'ICO_BROWSER_FOLDED':'ICO_BROWSER_UNFOLDED'];}
@@ -15034,6 +15039,7 @@ window.frameEngine=(()=>{
     // A one-shot rAF coalesces input events. It never reschedules itself.
     let navigationScene=null,frameNavigation=null,navigationRevision=0;
     function draw(full=true,local=false,cameraOnly=false){
+      if(cameraOnly&&viewIndex===0&&renderPose&&(drag||touchNavigation||wheelBusy))pauseMovedRender();
       if(full&&!cameraOnly){navigationScene=null;navigationRevision++;}
       if(splineLoadBatch){sceneFrameDirty=true;return Promise.resolve();}
       if(full){sceneFrameDirty=true;if(!local)viewRevision++;}
@@ -16712,7 +16718,7 @@ window.frameEngine=(()=>{
     }
 
     let pathtracer=null,renderTimer=0,renderManual=false,manualGeneration=0,renderSignature='',renderBlocked='',renderScene=null,renderConfigKey='';
-    let realtimeRequest=null,previewSignature='',renderGeometryRevision=0;
+    let realtimeRequest=null,previewSignature='',renderGeometryRevision=0,renderPose='',motionTimer=0,cameraMoving=false;
     const renderGeometryState=[];
     function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:!pathtracer.canvas.hidden&&pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
     function renderOverlayActive(){if(['off','wireframe','isoparms'].includes(viewShadings[0]))return false;const s=renderState();return s.running||s.visible||!!s.exportKind;}
@@ -16738,17 +16744,48 @@ window.frameEngine=(()=>{
     function syncCameraView(){if(cameraNavigationOwned())cancelCameraNavigation();const n=cameraConfig();if(!n||!nativeValue(n.nativeHash,'type')){if(cameraRoll){const active=viewIndex,saved=captureCamera();viewIndex=0;restoreCamera(active?viewStates[0]||defaultCamera(0):saved);const eye=inverseView([-panX-orbitOffset[0],-panY-orbitOffset[1],3.2-orbitOffset[2]]);cameraRoll=0;const p=rotatePoint(eye);orbitOffset=[-panX-p[0],-panY-p[1],3.2-p[2]];viewStates[0]=captureCamera();if(active){viewIndex=active;restoreCamera(saved);}sceneFrameDirty=true;viewRevision++;}cameraViewKey='';perspectiveFov=45;return;}const m=FM.rigid(objectWorld(n.nativeHash)),key=[n.nativeHash,...m,...scene.center,scene.scale].join(':');if(key===cameraViewKey)return;cameraViewKey=key;perspectiveFov=45;const back=Array.from(m.slice(0,3),v=>-v),right=Array.from(m.slice(8,11)),a=Math.atan2(right[2],-right[0]),b=Math.atan2(back[1],-back[0]*Math.sin(a)-back[2]*Math.cos(a));cameraRoll=0;const active=viewIndex,saved=captureCamera();viewIndex=0;yaw=a;pitch=b;zoom=1;panX=panY=0;const eye=Array.from(m.slice(12,15),(v,i)=>(v-scene.center[i])*scene.scale),p=rotatePoint(eye);orbitOffset=[-p[0],-p[1],3.2-p[2]];orbitDepth=Math.max(.001,Math.hypot(...eye));orbitPivot=FM.add(eye,FM.scale(back,-orbitDepth));viewStates[0]=captureCamera();if(active){viewIndex=active;restoreCamera(saved);}sceneFrameDirty=true;viewRevision++;}
     function storeCameraNavigation(){if(cameraNavigationOwned())return;const n=cameraConfig();if(viewIndex||!n||!nativeValue(n.nativeHash,'type'))return;const placement=cameraPlacement();if(!placement)return;const parent=transformParent(n.nativeHash),world=FM.unpack(placement.matrix);putFrame(n.nativeHash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),world):world);cameraNavigationRevisions.set(n.nativeHash,(cameraNavigationRevisions.get(n.nativeHash)||0)+1);if(navigationScene?.camera===n&&objectDescendants(n.nativeHash).length===1){poseWorlds.delete(n.nativeHash);measurementCache=null;}else syncPoseWorld();const actual=FM.rigid(objectWorld(n.nativeHash));cameraViewKey=FM.equal(actual,FM.rigid(world))?[n.nativeHash,...actual,...scene.center,scene.scale].join(':'):'';viewStates[0]=captureCamera();notifyTransformUI();}
 
-    function renderStatus(){const state=renderState(),c=cameraConfig(),button=$('frameRenderToggle');if(button){button.title=button.ariaLabel=current()===c&&(state.running&&state.manual||state.visible)?'Stop render':'Render';button.textContent='view';}for(const [id,kind]of [['frameRenderImage','image'],['frameRenderVideo','video']]){const b=$(id),on=state.exportKind===kind;if(b){b.textContent=on?'stop':kind;b.ariaLabel=on?'Stop '+kind+' render':kind;b.disabled=!!state.exportKind&&!on;}}drawLightHelpers();drawMotionPaths();}
+    function renderSampleLabel(count,target){const label=$('frameRenderSamples'),value=target?count+' / '+target:'render';if(label&&label.textContent!==value)label.textContent=value;}
+    function renderStatus(){
+      const state=renderState(),camera=cameraConfig(),active=camera&&current()===camera;
+      const button=$('frameRenderToggle');
+      if(button){
+        const stop=active&&!state.exportKind&&cameraRenderBusy(state,camera);
+        button.title=button.ariaLabel=stop?'Stop render':'Save viewport image';
+        button.textContent=stop?'stop':'view';button.disabled=!!state.exportKind;
+      }
+      renderSampleLabel(state.samples||0,active&&(state.running||state.phase==='preview')?camera.params.samples||128:0);
+      for(const [id,kind]of [['frameRenderImage','image'],['frameRenderVideo','video']]){
+        const b=$(id),on=state.exportKind===kind;if(!b)continue;
+        b.textContent=on?'stop':kind;b.ariaLabel=on?'Stop '+kind+' render':kind;b.disabled=!!state.exportKind&&!on;
+      }
+      drawLightHelpers();drawMotionPaths();
+    }
+    function pauseMovedRender(){
+      const view=renderView(),pose=view?frameValueKey(view.camera):'';
+      if(pose===renderPose)return;
+      if(!cameraMoving){renderStop(true);renderBlocked=renderSignature='';}
+      renderPose=pose;cameraMoving=true;clearTimeout(motionTimer);
+      motionTimer=setTimeout(()=>{motionTimer=0;scheduleRenderPreview();},100);
+    }
     function scheduleRenderPreview(){
       if(pathtracer)pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
-      if(renderManual||renderExporting||!renderer||!scene||renderTimer)return;
+      if(!renderer||!scene)return;
+      // Movie playback advances its camera intentionally. A user's navigation cancels the export.
+      if(renderPose&&(renderManual||pathtracer?.running&&!pathtracer.options?.interactivePreview)&&(!renderExporting||drag||wheelBusy||touchNavigation)){
+        pauseMovedRender();
+      }
+      if(cameraMoving){
+        if(motionTimer||heldPointers.size||touchNavigation||wheelBusy)return;
+        cameraMoving=false;
+      }
+      if(renderManual||renderExporting||renderTimer)return;
       if(!pathtracer&&!cameraConfig())return;
       renderTimer=setTimeout(()=>{
         renderTimer=0;if(renderManual||renderExporting)return;
         renderTick().catch(error=>{renderBlocked=renderSignature;if(pathtracer)pathtracer.fail(error);renderStatus();});
       },0);
     }
-    function renderStop(hide=true){viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}manualGeneration++;renderManual=false;realtimeRequest=null;previewSignature='';renderBlocked=null;clearTimeout(renderTimer);renderTimer=0;pathtracer?.stop(hide);renderStatus();draw(false);return renderState();}
+    function renderStop(hide=true){clearTimeout(motionTimer);motionTimer=0;cameraMoving=false;if(hide)renderPose='';viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}manualGeneration++;renderManual=false;realtimeRequest=null;previewSignature='';renderBlocked=!hide&&renderSignature?renderSignature:null;clearTimeout(renderTimer);renderTimer=0;pathtracer?.stop(hide);renderStatus();draw(false);return renderState();}
     function renderView(){
       if(!frameViewVisible(0)||frameViewElement(0)?.ownerDocument.hidden)return null;const c=viewIndex===0?canvas:frameViewCanvases.get(0);if(!c?.getClientRects().length)return null;
       const active=viewIndex,saved=captureCamera();try{viewIndex=0;restoreCamera(active===0?saved:viewStates[0]||defaultCamera(0));const r=c.getBoundingClientRect(),host=frameViewElement(0).getBoundingClientRect(),eye=inverseView([-panX-orbitOffset[0],-panY-orbitOffset[1],3.2-orbitOffset[2]]).map((v,i)=>v/scene.scale+scene.center[i]);return {rect:{x:r.left-host.left,y:r.top-host.top,w:r.width,h:r.height},camera:{position:eye,right:inverseView([1,0,0]),up:inverseView([0,1,0]),forward:inverseView([0,0,-1]),fov:perspectiveFov,aspect:r.width/r.height}};}finally{viewIndex=active;restoreCamera(saved);}
@@ -16817,7 +16854,7 @@ window.frameEngine=(()=>{
       if(changed||at!==renderGeometryState.length)renderGeometryRevision++;
       renderGeometryState.length=at;return renderGeometryRevision;
     }
-    async function renderTick(manual=false,exporting=false){
+    async function renderTick(manual=false,exporting=false,saveOwner=0){
       if(!renderer||!scene)return;
       const config=cameraConfig(),configKey=config?frameValueKey([config.nativeHash,config.params]):'';
       if(configKey!==renderConfigKey){renderConfigKey=configKey;renderSignature=renderBlocked=previewSignature='';realtimeRequest=null;pathtracer?.stop(config?.params.realtime!=='on'||config.params.renderer==='Viewport');}
@@ -16837,14 +16874,18 @@ window.frameEngine=(()=>{
         if(renderBlocked===null)renderBlocked=signature;
         if(signature===renderBlocked||signature===renderSignature&&!refine)return;
       }
+      renderPose=frameValueKey(view.camera);
+      const viewSize=[Math.max(8,Math.round(view.rect.w)),Math.max(8,Math.round(view.rect.h))];
+      const saveView=()=>pathtracer.save('frame-view.png',viewSize,()=>manualGeneration===saveOwner);
+      if(saveOwner&&pathtracer?.canvas.style.display==='block'&&pathtracer.lastImage?.viewport&&pathtracer.lastImage.viewKey===signature)return saveView();
       renderSignature=signature;renderBlocked=previewSignature='';
       if(!manual&&!realtime){pathtracer?.stop(true);return;}
       pathtracer??=Function('return ('+document.getElementById('frame-pathtracer').textContent+')')()(frameViewElement(0),renderer.device,renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
       const interactive=!manual&&!refine,pixels=view.rect.w*view.rect.h,scale=Math.min(1,Math.sqrt(160000/Math.max(1,pixels)));
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
       const samples=Math.max(1,Math.round(config.params.samples||128));
-      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,previewPresentation:!exporting,...exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
-      if(!interactive){realtimeRequest=null;return job;}
+      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,onSamples:count=>{if(current()===config)renderSampleLabel(count,samples);},previewPresentation:!exporting,...saveOwner?{outputSize:viewSize}:exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
+      if(!interactive){realtimeRequest=null;await job;if(saveOwner&&manualGeneration===saveOwner&&pathtracer?.completed&&pathtracer.lastImage?.viewKey===signature)await saveView();return;}
       const tracer=pathtracer,epoch=tracer.epoch;
       realtimeRequest=job;
       try{await job;}finally{
@@ -16896,7 +16937,7 @@ window.frameEngine=(()=>{
       }catch(error){if(error.name!=='AbortError')throw error;return {kind,cancelled:true,elapsedMs:performance.now()-started};}finally{if(encoder&&encoder.state!=='closed')encoder.close();renderExportJob=null;renderManual=renderExporting=false;renderStatus();if(kind==='video'){setTimelineFrame(savedFrame);await animationSerial;await FrameMorph.flush();await FrameSpline.flush();syncCameraView();}if(job.cancelled)renderBlocked=renderSignature;else renderSignature='';if(wasPlaying)setTimelinePlaying(true);if(!job.cancelled)scheduleRenderPreview();}
     }
 
-    async function renderStart(){if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}if(single&&viewIndex!==0){activateFrameView(0);renderViews();}syncCameraView();const owner=++manualGeneration;renderManual=true;renderBlocked='';try{await renderTick(true);return renderState();}finally{if(owner===manualGeneration)renderManual=false;}}
+    async function renderStart(saveView=false){if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}if(single&&viewIndex!==0){activateFrameView(0);renderViews();}syncCameraView();const owner=++manualGeneration;renderManual=true;renderBlocked='';renderStatus();try{await renderTick(true,false,saveView?owner:0);return renderState();}finally{if(owner===manualGeneration){renderManual=false;renderStatus();scheduleRenderPreview();}}}
     FrameViewWindows.onDocument('visibilitychange',()=>{if(frameViewElement(0)?.ownerDocument.hidden)pathtracer?.stop(true);else{renderSignature='';scheduleRenderPreview();}});
 
     // BEGIN native-environment
@@ -19131,10 +19172,10 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function isIdle(){return !heldPointers.size&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!drag&&!boxDrag&&!selectionBusy&&!button.disabled&&!undoBusy&&!wheelBusy&&!pendingWheel&&performance.now()>=(renderer?.hoverReadyAt||0)&&performance.now()-lastActivity>=IDLE_DELAY-2;}
     for(const type of ['pointerdown','pointermove','pointerup','pointercancel','wheel','keydown'])FrameViewWindows.onWindow(type,e=>{
       if(type==='pointerdown')heldPointers.add(e.pointerId);
-      if(type==='pointerup'||type==='pointercancel'){heldPointers.delete(e.pointerId);if(previewSignature)scheduleRenderPreview();}
+      if(type==='pointerup'||type==='pointercancel'){heldPointers.delete(e.pointerId);if(previewSignature||cameraMoving)scheduleRenderPreview();}
       if(type!=='pointermove'||e.buttons||editDrag||drag)touchActivity();if(type==='wheel')deferHoverMaps(120);if(type==='pointerup'||type==='pointercancel')deferHoverMaps();
     },{capture:true,passive:true});
-    FrameViewWindows.onWindow('blur',()=>{heldPointers.clear();touchActivity();if(previewSignature)scheduleRenderPreview();});
+    FrameViewWindows.onWindow('blur',()=>{heldPointers.clear();touchActivity();if(previewSignature||cameraMoving)scheduleRenderPreview();});
     function editError(error){if(error.name==='AbortError')return;canvas.dataset.operationError=error.message;canvas.dataset.operationStack=error.stack||error.message;}
     async function getEditPipelines(){
       if(editInit)return editInit;const gpu=renderer,d=gpu.device;

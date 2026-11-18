@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 18 nov 18:35",
+  "version": "2026 18 nov 19:07",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -491,16 +491,23 @@
       "frame-sw.js",
       "tests/run.mjs",
       "tests/camera-progressive.mjs"
+    ],
+    "camera-controls": [
+      "index.html",
+      "frame-sw.js",
+      "tests/camera-view.mjs",
+      "tests/camera-view-state.mjs",
+      "tests/camera-realtime-frame.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "1d770e280eb801236b9fb9fe13b8e343ce2cedabf73776bbfa22fd6c335b4849"
+      "sha256": "7c6ee5daaee203406825e66301d177bac8f68b8fa23927ab0b44cfd35dd2262a"
     },
     "index.html": {
-      "bytes": 3124449,
-      "sha256": "768f6976d955d6d47ae5ac557fb5a9fd4da8d4079c55ec7050314c77d952be53"
+      "bytes": 3127480,
+      "sha256": "0b8f3b1c6b5767bf53e0c1d5ba3ff2c8b820bdba5d6ddf674f9ab5b1e23737c2"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1067,8 +1074,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 82230,
-      "sha256": "36ee40caaef085917781b6dea61cd998902b7b4de542f5001c6ea7dc65fa038a"
+      "bytes": 82523,
+      "sha256": "1ef88e8344cfdd2d135ce3a73e940c05be05b3ebafa88bdb650626281ab2a0f9"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1255,16 +1262,20 @@
       "sha256": "aaf52abbf9187b58adc8dfa601652f639de4ad1cdd283ca9c72bb93c5215afb7"
     },
     "tests/camera-realtime-frame.mjs": {
-      "bytes": 7737,
-      "sha256": "6755fc1ac044e8d3605bdc11219df07dab05d03e032f86830e9445aa1dda6048"
+      "bytes": 7495,
+      "sha256": "2c6bb2b666ce6c071913031efb1a502a2d68570f84d14c5c74415f854c6f4451"
     },
     "tests/camera-view-state.mjs": {
-      "bytes": 6637,
-      "sha256": "f1a91cb862bff76587f7d4be19f485d39ed8702f0d47cd1cb46b65776358c310"
+      "bytes": 6409,
+      "sha256": "0f05ea515f3e2fd3ee6a66491ab81e0190204ed7ac8ff49877bd8f5c418e960b"
     },
     "tests/camera-progressive.mjs": {
       "bytes": 7389,
       "sha256": "04034ccfc4328059bf8bf23bbee3869a8b89409de4a86320ab27f034dd8b03fe"
+    },
+    "tests/camera-view.mjs": {
+      "bytes": 13192,
+      "sha256": "7a0dcb32783bdfeb05a9d9a19e6b3238b0b1fbbcaf4e40baffd89d82cf913a42"
     }
   }
 }

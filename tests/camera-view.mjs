@@ -15,18 +15,27 @@ export function standardCameraFilmValid(pixels,samples=128){
  return foreground.slice(0,3).every((v,k)=>v>=.99&&v-background[k]>=.5)&&neutral.every(v=>v>=.034)&&Math.max(...neutral)-Math.min(...neutral)<1e-5;
 }
 
+async function saveViewport(page){
+ const download=page.waitForEvent('download',{timeout:25000});
+ await page.locator('#frameRenderToggle').click();
+ const file=await download;
+ assert.equal(file.suggestedFilename(),'frame-view.png');
+ const png=await readFile(await file.path()),rect=await page.locator('#frame-render-canvas').boundingBox();
+ assert.deepEqual([png.readUInt32BE(16),png.readUInt32BE(20)],[Math.round(rect.width),Math.round(rect.height)]);
+ await page.waitForFunction(()=>!frameEngine.renderState().manual);
+}
 export async function cameraViewChecks(page){
  const checks=[],timings=[],observations=[],call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
  const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+': '+JSON.stringify(detail));};
  const inspect=()=>page.evaluate(()=>({render:frameEngine.renderState(),active:activeView,main:mainActiveView,single,visible:[...frameViewSections.keys()].filter(frameViewVisible),overlay:document.querySelector('#frame-render-canvas')?.outerHTML,error:document.querySelector('#frame-engine-canvas')?.dataset.operationError}));
  const clickView=async label=>{
-  await page.locator('#tabAttributes').click();observations.push({label,before:await inspect()});const t=performance.now();await page.locator('#frameRenderToggle').click();
+  await page.locator('#tabAttributes').click();observations.push({label,before:await inspect()});const t=performance.now();await saveViewport(page);
   await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.phase==='complete'&&s.hasImage&&s.visible||s.phase==='error';},{},{timeout:20000});
   const actual=await inspect(),ms=performance.now()-t;observations.push({label,after:actual});timings.push({name:label,ms,budgetMs:20000});
   check(label+' completes a visible shared-device image',actual.render.phase==='complete'&&actual.render.hasImage&&actual.render.visible&&actual.render.sharedDevice&&!actual.render.errors?.length,actual);
   check(label+' latency',ms<20000,{ms,budgetMs:20000});
   const pixels=await call('render.pixels',{points:[[.5,.5],[.03,.03]],linear:true});check(label+' renders the emissive foreground and dark background',pixels.colors.length===2&&pixels.colors.flat().every(Number.isFinite)&&pixels.colors[0].slice(0,3).every(v=>v>.1)&&pixels.colors[1].slice(0,3).every(v=>v<.01),pixels);
-  await page.locator('#frameRenderToggle').click();check(label+' second click stops and hides',!(await inspect()).render.visible);
+  await saveViewport(page);check(label+' saves the displayed film again',(await inspect()).render.epoch===actual.render.epoch);
  };
  try{
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-60,0,60,-60,0,0,60,0,0,0,60],indices:[0,2,1,0,1,3,0,3,2,1,2,3]});
@@ -40,6 +49,17 @@ export async function cameraViewChecks(page){
   const saved=await call('scene.export',{includeData:true});await call('scene.new');check('New scene stops and hides preview',!(await inspect()).render.visible&&!(await inspect()).render.running);
   await call('scene.open',{name:'camera-view.hash',base64:saved.base64});await call('scene.select',{ids:[camera.hash]});await clickView('Native View after HASH reopen');
   const frame=await call('diagnostics.frame',{frames:5});check('Native CPU/GPU frames stay bounded',frame.timestampQueries&&frame.frames.every(f=>f.cpuMs<50&&f.gpuMs<100),frame);
+  await call('scene.update',{id:camera.hash,params:{samples:100000}});
+  await call('view.set',{index:0,single:true});await call('scene.select',{ids:[camera.hash]});
+  const downloads=[];page.on('download',file=>downloads.push(file.suggestedFilename()));
+  await page.locator('#frameRenderToggle').click();
+  await page.waitForFunction(()=>/^[1-9][0-9]* \/ 100000$/.test(document.querySelector('#frameRenderSamples')?.textContent));
+  check('Manual View becomes Stop',await page.locator('#frameRenderToggle').textContent()==='stop');
+  const box=await page.locator('#frame-engine-canvas').boundingBox(),x=box.x+box.width*.6,y=box.y+box.height*.55;
+  await page.mouse.move(x,y);await page.mouse.down();await page.mouse.move(x+55,y+10,{steps:8});
+  await page.waitForFunction(()=>!frameEngine.renderState().running&&!frameEngine.renderState().visible);
+  await page.mouse.up();await page.waitForTimeout(200);
+  check('Orbit cancels manual View and its pending download',!downloads.length&&!(await inspect()).render.running&&await page.locator('#frameRenderSamples').textContent()==='render');
   return {pass:true,checks,timings,observations,frame};
  }catch(error){observations.push({failure:await inspect().catch(()=>null)});return {pass:false,checks,timings,observations,error:error.stack};}
  finally{await call('render.stop').catch(()=>{});}
@@ -53,14 +73,16 @@ export async function cameraRealtimeChecks(page){
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-60,0,60,-60,0,0,60,0,0,0,60],indices:[0,2,1,0,1,3,0,3,2,1,2,3]});const m=await call('material.create',{params:{h:0,s:0,l:100,emm:100}});await call('material.assign',{id:mesh.hash,material:m.uid});await call('view.set',{index:0,single:true,focus:mesh.hash});await page.locator('#tabAttributes').click();
   await page.locator('#btnRender').click();await page.waitForFunction(()=>frameEngine.renderState().running||frameEngine.renderState().phase==='error',{},{timeout:20000});observations.push({label:'Native toolbar Camera, before first image',state:await state()});
   const defaults=(await state()).camera.params;check('Native toolbar Camera retains realtime on, default studio and 128 samples',defaults.realtime==='on'&&defaults.environment==='default'&&defaults.samples===128,defaults);
-  const started=performance.now();await page.locator('#frameRenderToggle').click();observations.push({label:'First View click while automatic preparation is running',state:await state()});
-  await page.waitForTimeout(250);observations.push({label:'250ms after first View click',state:await state()});
-  const stopped=await state();check('First View promotes automatic preparation instead of leaving no image',stopped.render.running&&stopped.render.manual||stopped.render.hasImage&&stopped.render.visible,stopped);
+  const button=page.locator('#frameRenderToggle');
+  check('Automatic accumulation offers Stop',(await button.textContent())==='stop');
+  check('Render label reports samples',/^[0-9]+ \/ 128$/.test(await page.locator('#frameRenderSamples').textContent()));
+  await button.click();await page.waitForTimeout(250);
+  check('Stop suppresses stationary realtime',!(await state()).render.running&&(await button.textContent())==='view');
+  const started=performance.now();await saveViewport(page);
   await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.phase==='complete'&&s.hasImage&&s.visible||s.phase==='error';},{},{timeout:25000});const ms=performance.now()-started;timings.push({name:'First View completes standard realtime Camera',ms,budgetMs:25000});check('First View completed-operation latency',ms<25000,{ms,budgetMs:25000});
   observations.push({label:'Completed standard camera',state:await state()});let s=await state();check('Standard realtime camera produces a complete visible shared-device image',s.render.phase==='complete'&&!s.render.running&&s.render.hasImage&&s.render.visible&&s.actualVisible&&s.render.sharedDevice&&!s.render.errors?.length,s);
   const pixels=await call('render.pixels',{points:[[.5,.5],[.03,.03]],linear:true});check('Standard realtime View resolves full-sample emitter and positive neutral studio background',standardCameraFilmValid(pixels,defaults.samples),pixels);
-  await page.locator('#frameRenderToggle').click();check('View stops completed realtime camera',!(await state()).render.visible);
-  for(const index of [2,0]){await call('view.set',{index,single:true});await page.locator('#frameRenderToggle').click();await page.waitForFunction(()=>{const s=frameEngine.renderState();return s.phase==='complete'&&s.hasImage&&s.visible||s.phase==='error';},{},{timeout:25000});s=await state();observations.push({label:'View with realtime on from '+index,state:s});check('Realtime View from '+index+' completes',s.render.phase==='complete'&&s.render.visible,s);await page.locator('#frameRenderToggle').click();}
+  const epoch=s.render.epoch;await saveViewport(page);check('Saving a completed realtime image reuses its film',(await state()).render.epoch===epoch);
   return {pass:true,checks,observations,timings};
  }catch(error){observations.push({failure:await state().catch(()=>null)});return {pass:false,checks,observations,timings,error:error.stack};}
  finally{await call('render.stop').catch(()=>{});}

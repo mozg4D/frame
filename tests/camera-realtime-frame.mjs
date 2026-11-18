@@ -35,14 +35,11 @@ try{
   const rect=await page.locator('#frame-engine-canvas').boundingBox(),x=rect.x+rect.width*.64,y=rect.y+rect.height*.53;
   await page.mouse.move(x,y);await page.mouse.down();
   for(let i=1;i<=24;i++)await page.mouse.move(x+i*3,y+Math.sin(i*.15)*14);
-  await page.waitForFunction(()=>cameraTest.frames.filter(f=>f.mode).length>=2,null,{timeout:3000});
+  await page.waitForFunction(()=>!frameEngine.renderState().visible&&!frameEngine.renderState().running);
   const held=await page.evaluate(()=>cameraTest.frames.slice());
-  assert.ok(held.every(f=>f.mode&&f.submissions===1&&f.builds===before.state.sceneBuilds),'orbit reuses its BVH and only presents interactive frames');
-  assert.ok(new Set(held.map(f=>f.eye.join(','))).size>=2,'camera actually moved');
   const idleEpoch=await page.evaluate(()=>cameraTest.tracer.epoch);
   await page.waitForTimeout(150);
-  const idle=await page.evaluate(()=>cameraTest.tracer.epoch);
-  assert.ok(idle-idleEpoch<=1,'unchanged held pose does not loop');
+  assert.equal(await page.evaluate(()=>cameraTest.tracer.epoch),idleEpoch,'held camera keeps the path tracer stopped');
   await page.mouse.up();await settled();
   const after=await call('render.inspect');
   assert.equal(after.samples,4);assert.equal(after.sceneBuilds,before.state.sceneBuilds);

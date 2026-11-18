@@ -10,10 +10,10 @@ function fixture(html){
  const camera={id:'camera',type:'render',enabled:true,params:{renderer:'Path tracer'}},button={},device={},actions=[];
  const e={frameNavigation:null,navigationScene:null,nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
   current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
- e.manualGeneration=0;
+ e.manualGeneration=0;e.scheduleRenderPreview=()=>{};e.label={};e.$=id=>id==='frameRenderToggle'?button:id==='frameRenderSamples'?e.label:null;
  vm.createContext(e);
- const names=['frameEnableCamera','toggleCameraRender','cameraConfig','renderState','renderStatus','renderStart'];
- for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);vm.runInContext(html.slice(start,html.indexOf('\n',start)),e);}
+ const names=['frameEnableCamera','toggleCameraRender','cameraRenderBusy','cameraConfig','renderState','renderSampleLabel','renderStatus','renderStart'];
+ for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);const firstEnd=html.indexOf('\n',start);const end=html[firstEnd-1]==='}'?firstEnd:html.indexOf('\n    }',firstEnd)+6;vm.runInContext(html.slice(start,end),e);}
  e.window.frameEngine={renderState:e.renderState,renderStop:()=>actions.push('stop'),renderStart:()=>{actions.push('start');return Promise.resolve();}};
  return e;
 }
@@ -21,9 +21,8 @@ function fixture(html){
 export async function cameraViewStateChecks(html){
  html??=await readFile(new URL('../index.html',import.meta.url),'utf8');
  const checks=[],test=async(name,fn)=>{try{await fn();checks.push({name,pass:true});}catch(error){checks.push({name,pass:false,error:error.stack});}};
- await test('First View promotes unseen automatic preparation instead of stopping it',()=>{const e=fixture(html);e.renderStatus();assert.equal(e.button.ariaLabel,'Render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
- await test('View still stops explicit manual preparation before the first image',()=>{const e=fixture(html);e.renderManual=true;assert.equal(e.renderState().manual,true);e.renderStatus();assert.equal(e.button.ariaLabel,'Stop render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);});
- await test('View stops an already visible automatic image',()=>{const e=fixture(html);e.pathtracer.canvas.style.display='block';e.pathtracer.hasImage=true;e.renderStatus();assert.equal(e.button.ariaLabel,'Stop render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);});
+ await test('Automatic and manual accumulation show Stop and the completed sample count',()=>{for(const manual of [true,false]){const e=fixture(html);e.camera.params.samples=64;e.renderManual=manual;e.pathtracer.stats.samples=7;e.renderStatus();assert.equal(e.button.textContent,'stop');assert.equal(e.label.textContent,'7 / 64');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);}});
+ await test('A visible completed film offers View and restores the render label',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.pathtracer.canvas.style.display='block';e.renderStatus();assert.equal(e.button.textContent,'view');assert.equal(e.label.textContent,'render');e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
  await test('View restarts a stopped hidden image',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
  await test('View enables the selected disabled camera and starts it',()=>{const e=fixture(html),selected={id:'other',type:'render',enabled:false,params:{renderer:'Path tracer'}};e.nodes.push(selected);e.toggleCameraRender(selected);assert.equal(e.camera.enabled,false);assert.equal(selected.enabled,true);assert.deepEqual(e.actions,['start']);});
  await test('Idle and Viewport diagnostics expose the native manual flag',()=>{const e=fixture(html);e.pathtracer=null;assert.equal(e.renderState().manual,false);e.renderManual=true;assert.equal(e.renderState().manual,true);e.camera.params.renderer='Viewport';assert.equal(e.renderState().manual,true);});
@@ -36,9 +35,6 @@ export async function cameraViewStateChecks(html){
    jobs[0]();await old;assert.equal(e.renderManual,true);
    jobs[1]();await current;assert.equal(e.renderManual,false);
  });
- // The old native predicate must fail the exact regression, independently of GPU timing.
- await test('Negative control restores the first-click cancellation bug',()=>{const old=html.replace('if(n.enabled&&(state.running&&state.manual||state.visible))','if(n.enabled&&(state.running||state.visible))');assert.notEqual(old,html);const e=fixture(old);e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);});
-
  const film=(foreground=[1.5,1.5,1.5,128],background=[.13,.13,.13,128])=>({width:744,height:760,colors:[foreground,background]});
  await test('Default studio and unit emissive foreground have resolved physical contrast',()=>assert.equal(standardCameraFilmValid(film()),true));
  await test('Black background cannot substitute for the enabled default environment',()=>assert.equal(standardCameraFilmValid(film(undefined,[0,0,0,128])),false));
