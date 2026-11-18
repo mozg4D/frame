@@ -22,6 +22,7 @@ import {polygonLineMaskContractChecks} from './polygon-line-mask-contract.mjs';
 import {animationTransactionChecks} from './animation-transaction.mjs';
 import {animationTransactionBrowserChecks} from './animation-transaction-browser.mjs';
 import {splinePlanarContractChecks} from './spline-planar-contracts.mjs';
+import {splineTopologyEditChecks,splineTopologyBrowserChecks} from './spline-topology-edits.mjs';
 import {numericDisplayChecks} from './numeric-display.mjs';
 import {numericDisplayBrowserChecks} from './numeric-display-browser.mjs';
 import {sceneCreateNameCPUChecks} from './scene-create-name.mjs';
@@ -254,6 +255,7 @@ try{
   report.splineDepthBrowser=await isolated('splineDepthBrowser',splineDepthBrowserChecks);
   report.plainPolygonLinesBrowser=await isolated('plainPolygonLinesBrowser',plainPolygonLinesBrowserChecks);
   report.splinePlanarContracts=await runStage('splinePlanarContracts',splinePlanarContractChecks);
+  report.splineTopologyEdits=await runStage('splineTopologyEdits',splineTopologyEditChecks);
   report.creationSanityCPU=await runStage('creationSanityCPU',creationSanityCPUChecks);
   report.creationSanityBrowser=await isolated('creationSanityBrowser',creationSanityBrowserChecks);
   report.numericDisplayBrowser=await isolated('numericDisplayBrowser',numericDisplayBrowserChecks);
@@ -329,6 +331,7 @@ try{
   report.surfaceCorrectness=await isolated('surfaceCorrectness',surfaceCorrectnessChecks);
   report.largeDelete=await isolated('largeDelete',largeDeleteChecks);
   report.deleteContext=await isolated('deleteContext',deleteContextChecks);
+  report.splineTopologyBrowser=await isolated('splineTopologyBrowser',splineTopologyBrowserChecks);
   report.modelingPlugins=await isolated('modelingPlugins',modelingPluginChecks);
   report.octoberFeedback=await isolated('octoberFeedback',octoberChecks);
   report.userFeedback=await isolated('userFeedback',userFeedbackChecks);

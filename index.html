@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 04:49">
+<meta name="frame-version" content="2026 18 nov 15:27">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -1107,11 +1107,118 @@ maxVertices:25e4});if(x&&(x.prepared=s.prepared),s.boundaryCount!==e.length)thro
 m.push(s.positions[3*t],s.positions[3*t+1],s.positions[3*t+2]);for(let t=0;t<s.indices.length;t++)g.push(e[s.indices[t]]);for(let t=0;t<e.length;t++)v[2*e[t]]=s.uv[2*t],v[2*e[t]+1]=s.uv[2*t+1];return{builder:"surface-builder-r12",
 version:n.version,algorithm:s.meta.algorithm,sides:q,loops:1,boundary:s.boundaryCount,interior:m.length/3-S,triangles:s.indices.length/3,angleMax:s.meta.angleMax,probeBudget:64,probes:s.field.probes?.length||0,
 parameterization:s.prepared.parameterization,boundaryPrecisionLimited:I.some(e=>e.some(e=>e.precisionLimited)),limited:!!s.meta.limited,underresolved:!!s.meta.underresolved,qualityGuaranteed:!1,qualityStage:x?.preview?"preview":"built",
-timing:s.timing,plan:s.meta}}}(e,r,h,new Map,v,m,g,[],f,y);return{positions:new Float64Array(m),indices:new Uint32Array(g),boundary:[...v],report:x,enclosure:y.prepared?.surface?.kernel?.enclosure?.()||null}}function x(e,t){const n=function(e){
-const t=Object.entries(e.vertices||{}).filter(([,e])=>Array.isArray(e)&&3===e.length&&e.every(Number.isFinite)).map(([e,t])=>({id:e,p:t.slice()})),n=new Set(t.map(e=>e.id));return{nodes:t,
-edges:Object.values(e.segments||{}).filter(t=>n.has(t.a)&&n.has(t.b)&&t.a!==t.b&&c(o(e.vertices[t.a],e.vertices[t.b]))>1e-9&&[t.ha,t.hb].every(e=>!e||3===e.length&&e.every(Number.isFinite))).map(e=>({id:e.id,a:e.a,b:e.b,
-boundary:!!e.boundary,ta:a(e.ha||[0,0,0],3),tb:a(e.hb||[0,0,0],-3)}))}}(e);if(!n.nodes.length||!n.edges.length)return{status:"unresolved",fills:[],holes:[],shell:[],discarded:[],boundaryEdges:[],unusedEdges:[],diagnostics:{
-reason:"no-edges",supportedSides:[2,3,4,5]}};const s=r(n,{previous:t});return s.diagnostics.supportedSides=[2,3,4,5],s.diagnostics.planarRule="even-odd",s.diagnostics.planarSideLimit=null,s}return v.cell=y,v.resolve=x,v.orient=orientSurface,v}const d=f(h(),p(),n)
+timing:s.timing,plan:s.meta}}}(e,r,h,new Map,v,m,g,[],f,y);return{positions:new Float64Array(m),indices:new Uint32Array(g),boundary:[...v],report:x,enclosure:y.prepared?.surface?.kernel?.enclosure?.()||null}}
+// A vertex shared by two closed fans can put the spokes of one fan across
+// the planar faces of the other. The ordinary planar walk then sees triangles.
+// Recover the two vertex links only when alternating spokes split coplanar
+// triangle pairs and the separated links resolve to a complete oriented shell.
+function resolvePinchedFans(data,input,result){
+  const diagnostics=result.diagnostics;
+  if(result.sourceClosed||!result.boundaryEdges?.length||!diagnostics.cycleSearchComplete||
+     !diagnostics.selectionSearchComplete||diagnostics.candidateCapReached||diagnostics.planes<=1)return result;
+  let triangles=0;
+  for(const face of result.shell)if(face.planar&&face.sides===3&&++triangles===6)break;
+  if(triangles<6)return result;
+  const incident=new Map();
+  for(const edge of input.edges)for(const v of [edge.a,edge.b]){
+    if(!incident.has(v))incident.set(v,[]);incident.get(v).push(edge.id);
+  }
+  const stars=new Map();
+  for(const [id,edges] of incident)if(edges.length>=6&&edges.length%2===0)stars.set(id,new Map(edges.map(edge=>[edge,[]])));
+  if(!stars.size)return result;
+  const origin=ref=>data.segments[ref.edge][ref.reversed?'b':'a'],open=new Set(result.boundaryEdges),exposed=new Set();
+  for(const face of result.shell)for(const loop of face.loops)for(let k=0;k<loop.length;k++){
+    const id=origin(loop[k]),star=stars.get(id);if(!star)continue;
+    const rim=loop[(k+1)%loop.length].edge;
+    if(face.loops.length!==1||loop.length!==3||!face.planar||open.has(rim)&&data.segments[rim].boundary){stars.delete(id);continue;}
+    if(open.has(rim))exposed.add(id);
+    star.get(loop[k].edge).push(origin(loop[(k+2)%3]));
+    star.get(loop[(k+2)%3].edge).push(origin(loop[(k+1)%3]));
+  }
+  const sectors=new Map(),nodes=input.nodes.slice(),neighbors=new Map();
+  for(const [id,star] of stars){
+    if(!exposed.has(id))continue;
+    const p=data.vertices[id],link=new Map(),witnesses=[];
+    for(const [sid,opposite] of star){
+      const edge=data.segments[sid],other=edge.a===id?edge.b:edge.a;
+      if(opposite.length!==2||!rt(p,data.vertices[other],edge.a===id?edge.ha:edge.hb,edge.a===id?edge.hb:edge.ha))break;
+      link.set(other,opposite);
+      const axis=o(data.vertices[other],p),normals=opposite.map(v=>l(axis,o(data.vertices[v],p))),[n0,n1]=normals;
+      if(i(n0,n1)<0&&c(l(n0,n1))<=1e-9*c(n0)*c(n1))witnesses.push(other);
+    }
+    if(link.size!==star.size||!witnesses.length)continue;
+    // Each triangular sector joins one spoke from each of the two links.
+    // Walk this ring once; all available planar witnesses must agree.
+    const diagonals=new Set(),visited=new Set();let previous=null,current=witnesses[0];
+    while(link.has(current)&&!visited.has(current)){
+      if(visited.size%2===0)diagonals.add(current);
+      visited.add(current);const next=link.get(current).find(v=>v!==previous);
+      previous=current;current=next;
+    }
+    if(current!==witnesses[0]||visited.size!==star.size||witnesses.some(v=>!diagonals.has(v)))continue;
+    const virtual=Symbol();nodes.push({id:virtual,p});neighbors.set(id,visited);
+    sectors.set(id,{virtual,diagonals});
+  }
+  if(!sectors.size)return result;
+  const endpoint=(id,other)=>sectors.get(id)?.diagonals.has(other)?sectors.get(id).virtual:id;
+  const recovered=r({nodes,edges:input.edges.map(edge=>({...edge,a:endpoint(edge.a,edge.b),b:endpoint(edge.b,edge.a)}))});
+  if(!recovered.diagnostics.vertexManifold||recovered.diagnostics.ambiguousSelection||
+     !recovered.diagnostics.selectionSearchComplete||!recovered.diagnostics.cycleSearchComplete||recovered.diagnostics.candidateCapReached)return result;
+  if(!recovered.sourceClosed){
+    // Other components of this cage may be intentionally open. Certify both
+    // directed uses of every affected edge before replacing their local cells.
+    const uses=new Map();
+    for(const face of recovered.shell)for(const loop of face.loops)for(const ref of loop){
+      const counts=uses.get(ref.edge)||[0,0];counts[Number(ref.reversed)]++;uses.set(ref.edge,counts);
+    }
+    const visited=new Set(sectors.keys()),pending=[...visited];
+    while(pending.length){
+      const vertex=pending.pop();
+      for(const id of incident.get(vertex)){
+        const counts=uses.get(id);if(counts?.[0]!==1||counts[1]!==1)return result;
+        const edge=data.segments[id],other=edge.a===vertex?edge.b:edge.a;
+        if(!visited.has(other)){visited.add(other);pending.push(other);}
+      }
+    }
+  }
+  // The shell, filled and discarded cells share their loops. Pick the opposite
+  // tessellation diagonal when the default one would reuse a cage edge.
+  for(const face of recovered.shell){
+    const loop=face.loops[0];if(!face.planar||face.loops.length!==1||loop.length!==4)continue;
+    const a=origin(loop[0]),b=origin(loop[2]);
+    if(neighbors.get(a)?.has(b)||neighbors.get(b)?.has(a))loop.push(loop.shift());
+  }
+  recovered.diagnostics.pinchedVertices=sectors.size;recovered.diagnostics.vertexManifold=false;
+  if(recovered.diagnostics.eulerCharacteristic!==null)recovered.diagnostics.eulerCharacteristic-=sectors.size;
+  recovered.diagnostics.genus=null;
+  return recovered;
+}
+function x(data,previous){
+  const nodes=Object.entries(data.vertices||{}).filter(([,p])=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)).map(([id,p])=>({id,p:p.slice()}));
+  const index=new Map(nodes.map((v,i)=>[v.id,i])),edges=[],pairs=new Map(),parallel=new Map(),duplicates=[];
+  for(const edge of Object.values(data.segments||{})){
+    const aIndex=index.get(edge.a),bIndex=index.get(edge.b);
+    if(aIndex===undefined||bIndex===undefined||aIndex===bIndex||c(o(nodes[aIndex].p,nodes[bIndex].p))<=1e-9||
+       ![edge.ha,edge.hb].every(h=>!h||h.length===3&&h.every(Number.isFinite)))continue;
+    const pair=Math.min(aIndex,bIndex)*nodes.length+Math.max(aIndex,bIndex),first=pairs.get(pair);
+    const row={id:edge.id,a:edge.a,b:edge.b,boundary:!!edge.boundary,ta:a(edge.ha||[0,0,0],3),tb:a(edge.hb||[0,0,0],-3)};
+    if(first){
+      let loci=parallel.get(pair);
+      if(!loci){loci=new Map([[splineSpanKey(data,data.segments[first.id]),first]]);parallel.set(pair,loci);}
+      const key=splineSpanKey(data,edge),existing=loci.get(key);
+      if(existing){existing.boundary||=!!edge.boundary;duplicates.push(edge.id);continue;}
+      loci.set(key,row);
+    }else pairs.set(pair,row);
+    edges.push(row);
+  }
+  if(!edges.length)return {status:'unresolved',fills:[],holes:[],shell:[],discarded:[],boundaryEdges:[],unusedEdges:[],diagnostics:{reason:'no-edges',supportedSides:[2,3,4,5]}};
+  const input={nodes,edges},reuse=duplicates.length||previous?.diagnostics?.coincidentSpans?null:previous;
+  const result=resolvePinchedFans(data,input,r(input,{previous:reuse}));
+  if(duplicates.length){result.unusedEdges=result.unusedEdges.concat(duplicates);result.diagnostics.coincidentSpans=duplicates.length;}
+  result.diagnostics.supportedSides=[2,3,4,5];result.diagnostics.planarRule='even-odd';result.diagnostics.planarSideLimit=null;
+  return result;
+}
+return v.cell=y,v.resolve=x,v.orient=orientSurface,v}const d=f(h(),p(),n)
 ;function p(){function e(e,t,n,r,s){let o,a;if(s===function(e,t,n,r){let s=0;for(let o=t,a=n-r;o<n;o+=r)s+=(e[a]-e[o])*(e[o+1]+e[a+1]),a=o;return s
 }(e,t,n,r)>0)for(o=t;o<n;o+=r)a=x(o,e[o],e[o+1],a);else for(o=n-r;o>=t;o-=r)a=x(o,e[o],e[o+1],a);return a&&m(a,a.next)&&(w(a),a=a.next),a}function t(e,t){if(!e)return e;t||(t=e);let n,r=e;do{if(n=!1,
 r.steiner||!m(r,r.next)&&0!==p(r.prev,r,r.next))r=r.next;else{if(w(r),r=t=r.prev,r===r.next)break;n=!0}}while(n||r!==t);return t}function n(e,i,l,c,h,f,d){if(!e)return;!d&&f&&function(e,t,n,r){let s=e;do{0===s.z&&(s.z=u(s.x,s.y,t,n,r)),
@@ -1775,13 +1882,135 @@ standard:"washer"===e?String(t.type).replaceAll(" ",""):Object.keys(ge).find(e=>
 ;const tables={hex:we,flange:ke,nyloc:Se,high:Ae,rivet:ze,rivet_csk:qe,tslide:Ie,tswivel:je,insert:Ee};return{sizes:e,size:r,dimensions:{...(tables[n.kind||"hex"]||we)[r]}}}if("washer"===e){const e=Ue(n.standard),r=e.includes(t.size)?t.size:e.includes("M6")?"M6":e[0];return{sizes:e,size:r,dimensions:{...(Fe[n.standard]||Fe.DIN125)[r]}}}return"bolt"===e?(ye(n),{sizes:be(n.standard),size:n.size,lengths:ve(n),length:n.length,dimensions:Object.fromEntries(["d","head","h","drive","depth","pitch"].map((k,i)=>[k,ge[n.standard].rows[n.size][i]]))}):null}
 let It=null;function primitivePivot(type,params){
 if(['spline','square','circle','polyhedron','text','helix','gear','pulley','cube','cylinder','tube','sphere','capsule','nut','washer','bolt','car','tree','human'].includes(type))return [0,0,0];return null;}
+// Keep each surviving directed run in order. A removed span can cut a sequence
+// in two, including across the stored start of a closed loop.
+function repairSplineSequences(data,replacements=new Map()){
+  const sequences=[];
+  for(const seq of data.sequences){
+    const runs=[];let last=null;
+    for(const old of seq.segments){
+      const id=replacements.get(old)||old,edge=data.segments[id];
+      if(!edge)continue;
+      if(!last||last.b!==edge.a)runs.push([]);
+      runs.at(-1).push(id);last=edge;
+    }
+    if(!runs.length)continue;
+    if(seq.closed&&runs.length>1&&last.b===data.segments[runs[0][0]].a)runs[0]=runs.pop().concat(runs[0]);
+    for(const [i,segments] of runs.entries()){
+      const next=i?{id:j(data,'q')}:seq;
+      next.segments=segments;sequences.push(next);
+      for(const id of segments)data.segments[id].sequence=next.id;
+    }
+  }
+  data.sequences=sequences;K(data);
+}
+function splineSpanKey(data,edge){
+  const {a,b,ha=[0,0,0],hb=[0,0,0]}=edge,forward=a<b,ends=forward?[a,b]:[b,a];
+  if(!rt(data.vertices[a],data.vertices[b],ha,hb))ends.push(...(forward?[ha,hb]:[hb,ha]));
+  return JSON.stringify(ends);
+}
+function mergeEditedSplineSpans(data,changed){
+  if(!changed.size)return;
+  // Parallel cubic arcs can bound a real lens. Merge only equal control nets
+  // (up to reversal), or two monotone parameterizations of the same line.
+  const endpoints=new Set(),known=new Map();
+  for(const id of changed){const edge=data.segments[id];endpoints.add(edge.a);endpoints.add(edge.b);}
+  for(const edge of Object.values(data.segments)){
+    if(!changed.has(edge.id)&&endpoints.has(edge.a)&&endpoints.has(edge.b))known.set(splineSpanKey(data,edge),edge);
+  }
+  for(const id of changed){
+    const edge=data.segments[id],identity=splineSpanKey(data,edge),prior=known.get(identity);
+    if(!prior){known.set(identity,edge);continue;}
+    if(edge.boundary)prior.boundary=true;
+    if(edge.soft)prior.soft=true;
+    const angle=Math.min(edge.approximation?.angle??data.approximation.angle,prior.approximation?.angle??data.approximation.angle);
+    if(angle!==(prior.approximation?.angle??data.approximation.angle))prior.approximation={angle};
+    delete data.segments[id];
+  }
+}
+// Invert a de Casteljau subdivision when the two spans really are portions of
+// one cubic. At a stationary join use the second or third derivative ratio.
+function unsplitCubic(left,right){
+  const origin=left[0],L=left.map(p=>M(p,origin)),R=right.map(p=>M(p,origin));
+  const scale=Math.max(...L.map(x),...R.map(x)),tolerance=128*Number.EPSILON*scale;
+  let leftDiff=L,rightDiff=R;
+  for(let order=1;order<=3;order++){
+    leftDiff=leftDiff.slice(1).map((p,i)=>M(p,leftDiff[i]));
+    rightDiff=rightDiff.slice(1).map((p,i)=>M(p,rightDiff[i]));
+    const incoming=x(leftDiff.at(-1)),outgoing=x(rightDiff[0]);
+    if(Math.min(incoming,outgoing)<=tolerance)continue;
+    const l=incoming**(1/order),r=outgoing**(1/order),t=l/(l+r);
+    if(!(t>0&&t<1))continue;
+    const ha=b(L[1],1/t),hb=b(M(R[2],R[3]),1/(1-t));
+    const candidate=[L[0],ha,g(R[3],hb),R[3]],[p,q]=oe(candidate,t);
+    if(p.every((v,k)=>A(v,L[k])<=tolerance)&&q.every((v,k)=>A(v,R[k])<=tolerance))
+      return [left[0],g(left[0],ha),g(right[3],hb),right[3]];
+  }
+  return null;
+}
+function deleteSplineElements(data,{vertices=[],segments=[]}={}){
+  const selected=new Set(vertices),cuts=new Set(segments),remove=new Set(cuts),stars=new Map(),starts=[];
+  for(const id of selected)stars.set(id,[]);
+  for(const edge of Object.values(data.segments)){
+    if(!selected.has(edge.a)&&!selected.has(edge.b))continue;
+    remove.add(edge.id);stars.get(edge.a)?.push(edge);stars.get(edge.b)?.push(edge);
+    if(selected.has(edge.a)!==selected.has(edge.b))starts.push(edge);
+  }
+  const visited=new Set(),replacements=new Map(),created=new Set();
+  for(const first of starts){
+    if(visited.has(first.id)||cuts.has(first.id))continue;
+    const forward=selected.has(first.b),start=forward?first.a:first.b;
+    let edge=first,end=forward?first.b:first.a,boundary=!!edge.boundary,soft=!!edge.soft,angle=edge.approximation?.angle??data.approximation.angle;
+    let cubic=first.ha.some(Boolean)||first.hb.some(Boolean)?P(data,first):null;
+    if(cubic&&!forward)cubic.reverse();
+    while(selected.has(end)){
+      const star=stars.get(end);
+      if(star.length!==2)break;
+      const next=star[0]===edge?star[1]:star[0];
+      if(cuts.has(next.id))break;
+      if(cubic){const points=P(data,next);cubic=unsplitCubic(cubic,next.a===end?points:points.reverse());}
+      edge=next;end=edge.a===end?edge.b:edge.a;
+      boundary||=!!edge.boundary;soft||=!!edge.soft;
+      angle=Math.min(angle,edge.approximation?.angle??data.approximation.angle);
+    }
+    if(selected.has(end)||end===start)continue;
+    visited.add(edge.id);
+    const id=j(data,'s'),handle=edge.a===end?edge.ha:edge.hb;
+    const bridge=forward?{...first,id,b:end,hb:handle.slice()}:{...first,id,a:end,ha:handle.slice()};
+    if(cubic){
+      if(!forward)cubic.reverse();
+      bridge.ha=M(cubic[1],cubic[0]);bridge.hb=M(cubic[2],cubic[3]);
+    }
+    Object.assign(bridge,{boundary,soft,approximation:{angle}});
+    data.segments[id]=bridge;replacements.set(first.id,id);created.add(id);
+  }
+  for(const id of remove)delete data.segments[id];
+  mergeEditedSplineSpans(data,created);
+  repairSplineSequences(data,replacements);
+  return {vertices:[...selected],segments:[...remove]};
+}
+function weldSplineVertices(data,target,source){
+  if(target===source||!data.vertices[target]||!data.vertices[source])return target;
+  // A cubic returning to its start can enclose area when its handles are
+  // independent. Split it before welding so the lobe has two valid endpoints.
+  data.vertices[source]=data.vertices[target].slice();
+  for(const edge of Object.values(data.segments)){
+    if(!(edge.a===source&&edge.b===target||edge.a===target&&edge.b===source))continue;
+    if(x(y(edge.ha,edge.hb))>128*Number.EPSILON*x(edge.ha)*x(edge.hb))Q(data,edge.id,.5);
+  }
+  const changed=new Set();
+  for(const edge of Object.values(data.segments)){
+    if(edge.a!==source&&edge.b!==source)continue;
+    if(edge.a===source)edge.a=target;
+    if(edge.b===source)edge.b=target;
+    if(edge.a===edge.b)delete data.segments[edge.id];else changed.add(edge.id);
+  }
+  if(data.freeHandles?.[source]&&!data.freeHandles[target])data.freeHandles[target]=data.freeHandles[source];
+  mergeEditedSplineSpans(data,changed);repairSplineSequences(data);
+  return target;
+}
 return e&&(At=e),{planarExtrusion,primitivePivot,createSplineData:E,cloneSplineData:I,addSplineVertex:F,addSplineSequence:N,addSplineSegment:O,segmentPoints:P,cubicPoint:T,cubicDerivative:C,sampleSplineSegment:Z,approximateSpline:$,splitSplineSegment:Q,
-deleteSplineElements:function(e,{vertices:t=[],segments:n=[]}={}){let r=new Set(t),s=new Set(n);for(let[t,n]of Object.entries(e.segments))(r.has(n.a)||r.has(n.b))&&s.add(t);for(let t of s)delete e.segments[t];for(let t of e.sequences){
-let n=[],r=[];for(let e of t.segments)s.has(e)?(r.length&&n.push(r),r=[]):r.push(e);if(r.length&&n.push(r),t.closed&&n.length>1&&t.segments.length&&s.size){let e=t.segments[0],r=t.segments[t.segments.length-1]
-;!s.has(e)&&!s.has(r)&&(n[0]=n[n.length-1].concat(n[0]),n.pop())}t.segments=n.shift()||[],t.closed=!1;for(let t of n){let n={id:j(e,"q"),segments:t,closed:!1,first:e.segments[t[0]]?.a||null};for(let r of t)e.segments[r].sequence=n.id
-;e.sequences.push(n)}}for(let t of r)delete e.vertices[t];return K(e),{vertices:[...r],segments:[...s]}},weldSplineVertices:function(e,t,n){if(t===n||!e.vertices[t]||!e.vertices[n])return t
-;for(let r of Object.values(e.segments))r.a===n&&(r.a=t),r.b===n&&(r.b=t);for(let r of e.sequences)r.first===n&&(r.first=t);e.freeHandles?.[n]&&!e.freeHandles[t]&&(e.freeHandles[t]=e.freeHandles[n]),e.freeHandles&&delete e.freeHandles[n],
-delete e.vertices[n];for(let[t,n]of Object.entries(e.segments))if(n.a===n.b){delete e.segments[t];for(let n of e.sequences)n.segments=n.segments.filter(e=>e!==t)}return K(e),t},setSplineSoft:function(e,t,n=!0,r=null){
+deleteSplineElements,weldSplineVertices,setSplineSoft:function(e,t,n=!0,r=null){
 const s=new Set(t),o=new Map;for(const t of s)e.vertices[t]&&o.set(t,[]);for(const t of Object.values(e.segments))o.get(t.a)?.push({s:t,side:"a",incoming:!1,other:t.b,key:"ha"}),o.get(t.b)?.push({s:t,side:"b",incoming:!0,other:t.a,key:"hb"
 });for(const[t,s]of o){for(const e of s)e.s.soft=!!n;if(n)J(e,t,s,r);else for(const e of s)e.s[e.key]=[0,0,0]}},setSegmentsAsSequence:function(e,t){let n=[...new Set((t||[]).filter(t=>e.segments[t]))];if(!n.length)return{ok:!1,
 reason:"no-segments"};let r=new Set(n),s=new Map,o=(e,t)=>{let n=s.get(e);n||s.set(e,n=[]),n.push(t)};for(let t of n){let n=e.segments[t];o(n.a,t),o(n.b,t)}if([...s.values()].some(e=>e.length>2))return{ok:!1,reason:"branched-selection"}
@@ -14293,7 +14522,29 @@ if(drawing){let target=node(drawing.id);const draft=drawing.draft,before=snapsho
   function loopAt(x,y,apply=false){const h=window.frameEngine.hitSpline(x,y,false,false,true),n=h&&frameNodeByHash(h.hash),d=n?.splineData;if(!d||!isEditable(n)||!isActive(n)||!h.segment)return null;const star=new Map();for(const [id,e]of Object.entries(d.segments))for(const v of [e.a,e.b]){if(!star.has(v))star.set(v,[]);star.get(v).push(id);}const chosen=new Set([h.segment]),seed=d.segments[h.segment],outgoing=(id,v)=>{const e=d.segments[id],a=e.a===v?e.ha:e.hb;return Math.hypot(...a)>1e-12?a:d.vertices[e.a===v?e.b:e.a].map((x,k)=>x-d.vertices[v][k]);};for(const first of [seed.a,seed.b]){let vertex=first,edge=h.segment;while(true){const a=outgoing(edge,vertex),len=Math.hypot(...a),candidates=(star.get(vertex)||[]).filter(id=>id!==edge).map(id=>{const b=outgoing(id,vertex);return {id,score:a.reduce((sum,x,k)=>sum+x*b[k],0)/(len*Math.hypot(...b)||1)};}).sort((a,b)=>a.score-b.score),next=candidates[0];if(!next||candidates.length>1&&next.score>-.7071||chosen.has(next.id))break;chosen.add(next.id);const e=d.segments[next.id];vertex=e.a===vertex?e.b:e.a;edge=next.id;}}const vertices=new Set([...chosen].flatMap(id=>[d.segments[id].a,d.segments[id].b])),paths=[...chosen].map(id=>K().sampleSplineSegment(d,id).map(q=>window.frameEngine.projectSplinePoint(n.nativeHash,q.position,frameViewportAt(x,y)??+canvas.dataset.viewIndex)));if(apply){edit={hash:n.nativeHash,selection:canvas.dataset.elementMode==='vertex'?vertices:chosen};selectionArea='viewport';refresh();}return {hash:n.nativeHash,paths,edges:[...chosen],vertices:[...vertices]};}
   function borderTargets(){if(edit)edits.set(edit.hash,edit);return [...edits].flatMap(([hash,row])=>{const n=frameNodeByHash(hash),segments=n?.splineData?[...componentEdges(n.splineData,row.selection)]:[];return isActive(n)&&segments.length?[{n,segments}]:[];});}
   function toggleBorder(){const targets=borderTargets(),enabled=targets.some(({n,segments})=>segments.some(id=>!n.splineData.segments[id].boundary));if(!targets.length)return;commit(()=>{for(const {n,segments}of targets){for(const id of segments)n.splineData.segments[id].boundary=enabled;delete n.splineData.sourceCells;n.splineData.version=2;cellCache.delete(n.splineData);FrameMorph.afterEdit(n);}});request();refresh();}
-  function command(kind,vertices=null){if(kind==='border'){toggleBorder();return;}const n=editable(),d=n?.splineData;if(!d)return;commit(()=>{const vs=['soft','hard','equal'].includes(kind)?vertices||tangentVertices():[...selection()].filter(k=>d.vertices[k]),es=[...componentEdges(d,selection())];if(kind==='delete'){K().deleteSplineElements(d,{vertices:vs,segments:es});for(const key of edit.selection)if(key.startsWith('h:')){const [,id,side]=key.match(/^h:(.+):(h[ab])$/);if(d.segments[id])d.segments[id][side]=[0,0,0];}edit.selection.clear();if(!Object.keys(d.segments).length){nodes=nodes.filter(q=>q!==n);window.frameEngine.removeSpline(n.nativeHash);states.delete(n.id);edits.delete(n.nativeHash);edit=null;selected.delete(n.id);if(focusId===n.id)focusId=anchorId=null;}}else if(kind==='soft')K().setSplineSoft(d,vs,true);else if(kind==='hard'){K().setSplineSoft(d,vs,false);for(const v of vs)if(d.freeHandles[v])d.freeHandles[v]={in:[0,0,0],out:[0,0,0]};}else if(kind==='equal')equalTangents(d,vs);else if(kind==='split')for(const id of es)K().splitSplineSegment(d,id,.5);else if(kind==='connect'&&vs.length===2)K().addSplineSegment(d,K().addSplineSequence(d),...vs);FrameMorph.afterEdit(n);});cellCache.delete(d);request();refresh();}
+  function deleteComponents(n,keys){
+    const base=n.splineData,vertices=[...keys].filter(key=>Object.hasOwn(base.vertices,key)),segments=[...componentEdges(base,keys)];
+    const morph=FrameMorph.tagOf(n)||FrameMorph.tagOf(node(n.parent));
+    if(morph&&morph.params.mode!=='Modelling')throw Error('Spline topology changes require Morph Modelling mode');
+    commit(()=>{
+      const data=structuredClone(base);n.splineData=data;
+      if(vertices.length||segments.length)K().deleteSplineElements(data,{vertices,segments});
+      for(const key of keys){
+        const handle=/^h:(.+):(h[ab])$/.exec(key),free=/^free:(.+):(in|out)$/.exec(key);
+        if(handle&&data.segments[handle[1]])data.segments[handle[1]][handle[2]]=[0,0,0];
+        if(free&&data.freeHandles?.[free[1]])data.freeHandles[free[1]][free[2]]=[0,0,0];
+      }
+      edits.get(n.nativeHash)?.selection.clear();if(edit?.hash===n.nativeHash)edit.selection.clear();
+      if(!Object.keys(data.segments).length){
+        nodes=nodes.filter(q=>q!==n);window.frameEngine.removeSpline(n.nativeHash);states.delete(n.id);
+        edits.delete(n.nativeHash);if(edit?.hash===n.nativeHash)edit=null;
+        selected.delete(n.id);if(focusId===n.id)focusId=anchorId=null;
+      }
+      FrameMorph.afterEdit(n);
+    });
+    cellCache.delete(base);request();refresh();
+  }
+  function command(kind,vertices=null){if(kind==='border'){toggleBorder();return;}const n=editable(),d=n?.splineData;if(!d)return;if(kind==='delete')return deleteComponents(n,selection(n.nativeHash));commit(()=>{const vs=['soft','hard','equal'].includes(kind)?vertices||tangentVertices():[...selection()].filter(k=>d.vertices[k]),es=[...componentEdges(d,selection())];if(kind==='soft')K().setSplineSoft(d,vs,true);else if(kind==='hard'){K().setSplineSoft(d,vs,false);for(const v of vs)if(d.freeHandles[v])d.freeHandles[v]={in:[0,0,0],out:[0,0,0]};}else if(kind==='equal')equalTangents(d,vs);else if(kind==='split')for(const id of es)K().splitSplineSegment(d,id,.5);else if(kind==='connect'&&vs.length===2)K().addSplineSegment(d,K().addSplineSequence(d),...vs);FrameMorph.afterEdit(n);});cellCache.delete(d);request();refresh();}
   function tangentVertices(){const d=editable()?.splineData,vs=new Set();if(!d)return [];for(const key of selection())if(d.vertices[key])vs.add(key);else if(key.startsWith('free:'))vs.add(key.match(/^free:(.+):(in|out)$/)[1]);else if(key.startsWith('h:')){const [,id,side]=key.match(/^h:(.+):(h[ab])$/),e=d.segments[id];if(e)vs.add(side==='ha'?e.a:e.b);}return [...vs];}
   function lineCut(n,result){if(!result.changed)return result;commit(()=>{n.splineData=result.data;edit={hash:n.nativeHash,selection:new Set(canvas.dataset.elementMode==='edge'?result.segments:canvas.dataset.elementMode==='vertex'?result.vertices:[])};edits.clear();FrameMorph.afterEdit(n);});cellCache.delete(n.splineData);request();refresh();return result;}
   function tangentStar(d,v){const out=[];for(const e of Object.values(d.segments)){if(e.a===v)out.push([e,'ha']);if(e.b===v)out.push([e,'hb']);}if(d.freeHandles[v])for(const key of ['in','out'])if(!Object.values(d.segments).some(e=>key==='in'?e.b===v:e.a===v))out.push([d.freeHandles[v],key]);return out;}
@@ -14324,7 +14575,7 @@ if(drawing){let target=node(drawing.id);const draft=drawing.draft,before=snapsho
   FrameViewWindows.onWindow('frame-engine-scene',()=>{const hashes=new Set(nodes.map(n=>n.nativeHash));for(const h of bakedHashes)if(!hashes.has(h))bakedHashes.delete(h);states.clear();cageVersions.clear();normalizeHierarchy();edit=null;edits.clear();stopDraw();for(const n of nodes)if(FrameMorph.tagOf(n))FrameMorph.request(n).catch(fileOperationError);request();});
   for(const [id,type]of [['btnSplinePatch','spline_patch'],['btnExtrude','extrude'],['btnLathe','lathe'],['btnSweep','sweep'],['btnBoolean','boolean']])$(id).onclick=()=>addGenerator(type);$('btnSpline').onclick=draw;
   FrameViewWindows.onDocument('click',e=>{if(drawing&&e.target.closest('#toolbar,#modelbar,#modelbar2,#obInner,.tabbtn')&&!e.target.closest('#btnSpline'))stopDraw();},true);
-  return {lineCut,cutPlan:(data,options)=>call(0,'lineCut',{data,options}),cancelViewInput:()=>{clearHover();if(box)up({pointerId:box.id},true);if(drawDrag)up({pointerId:drawDrag.id},true);if(edit?.drag)up({pointerId:edit.drag.id},true);if(drawing)stopDraw();},loopAt,get edits(){return edits;},selectedControls,mergeData,prepareTransformTopology,isActive,patchOwner,cells,surfaceCells,componentEdges,componentVertices,editPlan,isEditing,rebuild,normalizeHierarchy,sourceNode,inputNode,acceptsInput,splineSources,generatorSources,consumesInput,profileNode,dependencyValid,K,isEditable,connected,weldSingle,setSelection,clearSelection,handleScale,menuItems,command,shape,restore,encodeShape:shapeCodec.encode,decodeShape:shapeCodec.decode,request,flush,build,toEditable,states,supported,generators,solids,selection,setSelections,refresh,beginTransform,applyTransform,finishTransform,get editingHash(){return edit?.hash;},drawDraft,get drawing(){return drawing;},get busy(){return !!running;},get workers(){return lanes.size;}};
+  return {deleteComponents,lineCut,cutPlan:(data,options)=>call(0,'lineCut',{data,options}),cancelViewInput:()=>{clearHover();if(box)up({pointerId:box.id},true);if(drawDrag)up({pointerId:drawDrag.id},true);if(edit?.drag)up({pointerId:edit.drag.id},true);if(drawing)stopDraw();},loopAt,get edits(){return edits;},selectedControls,mergeData,prepareTransformTopology,isActive,patchOwner,cells,surfaceCells,componentEdges,componentVertices,editPlan,isEditing,rebuild,normalizeHierarchy,sourceNode,inputNode,acceptsInput,splineSources,generatorSources,consumesInput,profileNode,dependencyValid,K,isEditable,connected,weldSingle,setSelection,clearSelection,handleScale,menuItems,command,shape,restore,encodeShape:shapeCodec.encode,decodeShape:shapeCodec.decode,request,flush,build,toEditable,states,supported,generators,solids,selection,setSelections,refresh,beginTransform,applyTransform,finishTransform,get editingHash(){return edit?.hash;},drawDraft,get drawing(){return drawing;},get busy(){return !!running;},get workers(){return lanes.size;}};
 })();
 
 // The imported scene owns the initial Objects Browser contents.
@@ -21673,6 +21924,14 @@ function FramePolygonKernel(d){
       register('spline.inspect','Read one authored/evaluated spline cage; optional cells returns freshly resolved editable cell loops.',required(obj({id:str,cells:bool}),'id'),true,a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner,d=n.splineData||FrameSpline.states.get(n.id)?.data;if(!d)fail('UNSUPPORTED','Object has no spline cage');return {owner:owner.nativeHash,id:n.nativeHash,editable:FrameSpline.isEditable(n),sources:children(n.id).filter(c=>FrameSpline.supported.has(c.type)).map(c=>c.nativeHash),data:copy(d),...a.cells?{cells:copy(FrameSpline.cells(d))}:{},report:FrameSpline.states.get(owner.id)?.report||FrameSpline.states.get(n.id)?.report||null,display:(()=>{const d=splineDisplays.get(n.nativeHash);return d?{vertices:d.vertexOffsets.size,visible:splineShown(d),sourceConsumed:!!d.consumed,hover:splineHover?.hash===n.nativeHash?splineHover.key:null,visibleHandles:d.controlKeys.filter((key,i)=>/^(h:|free:)/.test(key)&&!(d.pointFlags[i]&8))}:null;})()};});
       register('spline.replace','Replace an editable spline/patch cage in one Undo transaction. Validated by the HASH codec and shared spline kernel.',required(obj({id:str,data:anyParams}),'id','data'),false,async a=>{const owner=resolve(a.id);let n=owner;if(n.type==='spline_patch'&&children(n.id).length&&!FrameSpline.sourceNode(n))fail('INVALID_ARGUMENT','Address one editable source spline');if(!['spline','spline_patch'].includes(n.type))fail('UNSUPPORTED','Convert to an editable spline/patch first');if(!a.data.vertices||!a.data.segments||!Array.isArray(a.data.sequences))fail('INVALID_ARGUMENT','Expected vertices, segments and sequences');if(Object.keys(a.data.vertices).length>100000||Object.keys(a.data.segments).length>200000)fail('LIMIT','Cage exceeds inline limits');let data;try{data=FrameSpline.decodeShape(FrameSpline.encodeShape({type:n.type,params:n.params,data:a.data})).data;const validation=FrameSpline.K().validateSpline(data);if(!validation.ok)fail('INVALID_ARGUMENT',validation.errors.join('; '));}catch(e){fail('INVALID_ARGUMENT',e.message);}commit(()=>{if(n.type==='spline_patch')n=FrameSpline.sourceNode(n,true);n.splineData=data;n.params['angle approximation']=data.approximation?.angle||10;FrameMorph.afterEdit(n);});await settle();return describe(owner);});
       register('spline.rebuild','Rebuild a surface from source with a fresh resolver; diagnostic oracle, no source or Undo changes.',required(obj({id:str}),'id'),false,async a=>{const n=resolve(a.id);if(!FrameSpline.generators.has(n.type)&&!FrameSpline.solids.has(n.type))fail('UNSUPPORTED','A generated spline surface is required');await FrameSpline.rebuild(n);return describe(n);});
+      register('spline.delete','Dissolve spline vertices along unbranched paths or cut explicit segments in one Undo.',required(obj({id:str,vertices:array(str,100000),segments:array(str,200000)}),'id'),false,async a=>{
+        const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner;
+        if(!FrameSpline.isEditable(n)||!n.splineData)fail('UNSUPPORTED','Choose an editable spline or one Spline Patch source');
+        const vertices=a.vertices||[],segments=a.segments||[];
+        if(!vertices.length&&!segments.length||vertices.some(id=>!Object.hasOwn(n.splineData.vertices,id))||segments.some(id=>!Object.hasOwn(n.splineData.segments,id)))fail('INVALID_ARGUMENT','Choose existing spline vertices or segments');
+        FrameSpline.deleteComponents(n,new Set([...vertices,...segments]));await settle();
+        return {id:n.nativeHash,removed:!nodes.includes(n)};
+      });
       register('spline.border','Set or clear geometric border segments and resolve the smaller fill region out of the surface.',required(obj({id:str,segments:array(str,200000),enabled:bool}),'id','segments','enabled'),false,async a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))fail('UNSUPPORTED','An editable spline is required');if(!a.segments.length||a.segments.some(id=>!n.splineData.segments[id]))fail('INVALID_ARGUMENT','Choose valid spline segments');commit(()=>{n.splineData=structuredClone(n.splineData);for(const id of a.segments)n.splineData.segments[id].boundary=a.enabled;delete n.splineData.sourceCells;n.splineData.version=2;});await settle();return describe(owner);});
       register('spline.tangents','Set Soft/Hard/Equal Tangents on explicit authored vertex IDs; uses the UI spline command.',required(obj({id:str,vertices:array(str,100000),action:choice('soft','hard','equal')}),'id','vertices','action'),false,async a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))fail('UNSUPPORTED','An editable spline is required');for(const v of a.vertices)if(!n.splineData.vertices[v])fail('INVALID_ARGUMENT','Unknown spline vertex');await choose([n]);FrameSpline.command(a.action,a.vertices);await settle();return {id:n.nativeHash,vertices:a.vertices};});
       async function targetTransform(ids,coordinates){if(ids===undefined)return;const targets=refs(ids);if(!targets.length||new Set(targets).size!==targets.length)fail('INVALID_ARGUMENT','Provide distinct transform targets');await choose(targets);setViewerMode('element','object');setTransformOptions({coordinates:coordinates||'world',pivot:false});await selectionQueue;}
