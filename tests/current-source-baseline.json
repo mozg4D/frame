@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 18 nov 23:54",
+  "version": "2026 19 nov 00:22",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -503,16 +503,22 @@
       "index.html",
       "frame-sw.js",
       "tests/camera-progressive.mjs"
+    ],
+    "camera-antialias": [
+      "index.html",
+      "frame-sw.js",
+      "tests/run.mjs",
+      "tests/camera-antialias.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "cea5627f11c81c970bc53b36ca2d6ea5ec8837a0f1d7f77b8820b75ca568e6d5"
+      "sha256": "6def1c25c8db89e9e7c0bfd55c5b07683ee1e842358ee2f6f30437211f3b9173"
     },
     "index.html": {
-      "bytes": 3149111,
-      "sha256": "57bd70964748091040dd3e83eaa135efa8872d3e55e1ee0acf8536beae17da0d"
+      "bytes": 3155707,
+      "sha256": "88c79c76f181575421806190846656bc36f3dec8430fc64fefea59892d02e446"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -707,8 +713,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 38697,
-      "sha256": "cfff22d30ac8aeff6d1cea6a404222007b99ec46fedf8eb531a6ebeec8d28634"
+      "bytes": 38841,
+      "sha256": "81fd21e118f89d4c08ba595540447c15e968f71688e149d5450b019f0e4ab76d"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1079,8 +1085,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 84035,
-      "sha256": "39af4bd04c842cb76eae0684c281a5a33c00a1c438fc6bc6ee732fc097111ac6"
+      "bytes": 84590,
+      "sha256": "24c9255d2983263be443b44382669e993c5446af2f7d2fe30dc049fe1def99c0"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1135,8 +1141,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 16103,
-      "sha256": "07aba2cc5319332c941eb66db48fd386fe8c3d6003715174b6e9451295fc1382"
+      "bytes": 16142,
+      "sha256": "ff675ad828879623cc1b61d1e3cb248333244ad212e4e503a12f3218a6c244a2"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1281,6 +1287,10 @@
     "tests/camera-view.mjs": {
       "bytes": 13192,
       "sha256": "7a0dcb32783bdfeb05a9d9a19e6b3238b0b1fbbcaf4e40baffd89d82cf913a42"
+    },
+    "tests/camera-antialias.mjs": {
+      "bytes": 9063,
+      "sha256": "76cdd4c3868b8570a1f320cbce4ab5d8d517f4ee8f865e678b308dee4aee5cd5"
     }
   }
 }

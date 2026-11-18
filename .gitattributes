@@ -76,6 +76,7 @@ tests/current-source-baseline-test.mjs text eol=lf
 tests/current-source-baseline.json text eol=lf
 tests/camera-realtime-frame.mjs text eol=lf
 tests/camera-progressive.mjs text eol=lf
+tests/camera-antialias.mjs text eol=lf
 tests/current-source-baseline.mjs text eol=lf
 tests/help-f1-state.mjs text eol=lf
 tests/scene-authoring-startup.mjs text eol=lf

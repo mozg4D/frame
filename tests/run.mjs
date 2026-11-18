@@ -78,6 +78,7 @@ import {hashParentMembershipChecks} from './hash-parent-membership.mjs';
 import {cameraViewChecks,cameraRealtimeChecks} from './camera-view.mjs';
 import {cameraRealtimeFrameChecks} from './camera-realtime-frame.mjs';
 import {cameraProgressiveChecks} from './camera-progressive.mjs';
+import {cameraAntialiasChecks} from './camera-antialias.mjs';
 import {cameraViewStateChecks} from './camera-view-state.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
@@ -324,6 +325,7 @@ try{
   report.cameraRealtime=await isolated('cameraRealtime',cameraRealtimeChecks);
   report.cameraRealtimeFrame=await isolated('cameraRealtimeFrame',cameraRealtimeFrameChecks);
   report.cameraProgressive=await isolated('cameraProgressive',cameraProgressiveChecks);
+  report.cameraAntialias=await isolated('cameraAntialias',cameraAntialiasChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);
   report.editorFinal=await isolated('editorFinal',editorFinalChecks);
