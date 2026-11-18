@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 19:57">
+<meta name="frame-version" content="2026 18 nov 20:15">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11779,7 +11779,7 @@ const definitions = {
   car:['Car','car',{'color preset':['red','gold','blue','silver','graphite','green','white','violet','beige','black']}],
   tree:['Tree','tree',{type:['bush','spruce','oak','poplar'],detail:['low','high']}],
   human:['Human','human',{type:['man','woman'],pose:['stand','sit','walk']}],
-  render:['Camera','camera',{renderer:['Path tracer','Viewport'],'resolution x':1920,'resolution y':1080,samples:128,realtime:['on','off'],environment:['off','default','image'],'environment image':''}],
+  render:['Camera','camera',{renderer:['Path tracer','Viewport'],'resolution x':1920,'resolution y':1080,samples:128,realtime:['on','off'],'realtime during navigation':true,environment:['off','default','image'],'environment image':''}],
   target:['Target','target',{object:''}],
   infinite:['Infinite light','light',{intensity:100,'temperature K':6500,'angular size':30}],
 
@@ -16998,10 +16998,17 @@ window.frameEngine=(()=>{
       }
       drawLightHelpers();drawMotionPaths();
     }
+    function liveCameraNavigation(){
+      const params=cameraConfig()?.params;
+      return params?.realtime==='on'&&params.renderer!=='Viewport'&&params['realtime during navigation']!==false;
+    }
     function pauseMovedRender(){
       const view=renderView(),pose=view?frameValueKey(view.camera):'';
       if(pose===renderPose)return;
-      if(!cameraMoving){renderStop(true);renderBlocked=renderSignature='';}
+      const live=liveCameraNavigation();
+      if(renderManual||renderExporting||!cameraMoving&&(!live||!realtimeRequest)){
+        renderStop(!live);renderBlocked=renderSignature='';
+      }
       renderPose=pose;cameraMoving=true;clearTimeout(motionTimer);
       motionTimer=setTimeout(()=>{motionTimer=0;scheduleRenderPreview();},100);
     }
@@ -17013,8 +17020,8 @@ window.frameEngine=(()=>{
         pauseMovedRender();
       }
       if(cameraMoving){
-        if(motionTimer||heldPointers.size||touchNavigation||wheelBusy)return;
-        cameraMoving=false;
+        if(!(motionTimer||heldPointers.size||touchNavigation||wheelBusy))cameraMoving=false;
+        else if(!liveCameraNavigation())return;
       }
       if(renderManual||renderExporting||renderTimer)return;
       if(!pathtracer&&!cameraConfig())return;
@@ -17106,7 +17113,7 @@ window.frameEngine=(()=>{
       const sceneKey=cameraSceneRevision(),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
       view.camera.fov=45;updateViewportEnvironment(renderer);environment.lobes=renderer.environment?.sources||[];if(environment.mode==='default')environment.infiniteLights=[];if(environment.mode==='image'&&!environment.image)throw Error('Set the Camera environment image URL');if(environment.infiniteLights.length>16)throw Error('Path tracing supports up to 16 enabled infinite lights');
       const signature=frameValueKey([sceneKey,view,configKey,environment]);
-      const moving=!!(playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());
+      const moving=!!(cameraMoving||playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());
       const refine=signature===previewSignature&&!moving;
       if(!manual){
         if(renderBlocked===null)renderBlocked=signature;
