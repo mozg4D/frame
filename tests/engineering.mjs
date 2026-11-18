@@ -3,7 +3,7 @@ import {engineeringFixtures,binarySTL,revolve} from './engineering-fixtures.mjs'
 import {mkdir,writeFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {root} from '../tools/browser.mjs';
-function closedRevolve(profile,segments){const input=revolve(profile,segments),vertices=[],map=new Map(),ids=[];for(let i=0;i<input.vertices.length;i+=3){const p=input.vertices.slice(i,i+3),key=p.map(v=>Math.round(v*1e6)).join(':');let id=map.get(key);if(id===undefined){id=vertices.length/3;map.set(key,id);vertices.push(...p);}ids.push(id);}const indices=[];for(let i=0;i<input.indices.length;i+=3){const tri=input.indices.slice(i,i+3).map(v=>ids[v]);if(new Set(tri).size===3)indices.push(...tri);}return {vertices,indices};}
+export function closedRevolve(profile,segments){const input=revolve(profile,segments),vertices=[],map=new Map(),ids=[];for(let i=0;i<input.vertices.length;i+=3){const p=input.vertices.slice(i,i+3),key=p.map(v=>Math.round(v*1e6)).join(':');let id=map.get(key);if(id===undefined){id=vertices.length/3;map.set(key,id);vertices.push(...p);}ids.push(id);}const indices=[];for(let i=0;i<input.indices.length;i+=3){const tri=input.indices.slice(i,i+3).map(v=>ids[v]);if(new Set(tri).size===3)indices.push(...tri);}return {vertices,indices};}
 export async function engineeringChecks(page){
  const checks=[],timings=[],call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name);};
  try{

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 18 nov 15:27",
+  "version": "2026 18 nov 15:51",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -404,7 +404,9 @@
       "tests/run.mjs",
       "tests/boolean-patch-feedback.mjs",
       "tests/scenes/boolean-meltus8.hash",
-      "tests/boolean-isoparms.mjs"
+      "tests/boolean-isoparms.mjs",
+      "tests/engineering.mjs",
+      "tests/boolean-gpu-grid.mjs"
     ],
     "meltus8-rod": [
       "index.html",
@@ -479,11 +481,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "213be1407efaa4de7a8f88003d346f8b7086ee33d5a4e623344a730bea2e87f6"
+      "sha256": "8632781860098301f2b24c8e487a8b45a85d38653fe5f8a644d0970d21586daf"
     },
     "index.html": {
-      "bytes": 3102524,
-      "sha256": "c0a61f7004b4b9cea7cb961c554a18a8337756b07ccaf178090d92b99b8fd98d"
+      "bytes": 3111085,
+      "sha256": "30a4b52c1bff31c65f20952861a7d5dde1b3adb8ff7bb684510b66f3e8c9a528"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -678,8 +680,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 37949,
-      "sha256": "32fcb6a43c9065f2c966279481496585b189de8d5ea72118db7d18ac40f55518"
+      "bytes": 38089,
+      "sha256": "4a91ae2434bd02bc0416b72b8aee6e0d37b976be5327848f07a199b1a0aea9cb"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1050,8 +1052,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 79351,
-      "sha256": "146232519e8cf7198cba3f05a5aa9e3f212feb20e87182c4f56bfcd1621755a2"
+      "bytes": 79985,
+      "sha256": "136bc7f11a8fd10abd5f1caf587418ce277e0362f3261a11ff44c518af07331d"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1106,8 +1108,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 15868,
-      "sha256": "67a1e56dc1bda22d3fe48cc983a880ef27b2c060b6d89e3277ae09de463a55f1"
+      "bytes": 15941,
+      "sha256": "4c3a4b362e1d8de10bc7fda1fe8884104b586934dc49c7db052e56482f118ec7"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1220,6 +1222,14 @@
     "tests/instance-symmetry-copy.mjs": {
       "bytes": 4025,
       "sha256": "aeed5e4ec1a8062ec35343790d4f6c884fa20051b0cffd5ebef4e490039e431f"
+    },
+    "tests/engineering.mjs": {
+      "bytes": 5026,
+      "sha256": "84fb0e4aea0cd1b890e230475ba0c1a8455f34750af0e8bbbfcde430d5de0abc"
+    },
+    "tests/boolean-gpu-grid.mjs": {
+      "bytes": 7573,
+      "sha256": "e0e49f8ab2bc4c0b8d19dd59feb2a4673dd733eaa4d94dca2c18fda9a6cb80cf"
     }
   }
 }

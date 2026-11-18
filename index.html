@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 15:27">
+<meta name="frame-version" content="2026 18 nov 15:51">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -4774,13 +4774,13 @@ function pairFrame(A, B) {
     mid[d] = (lo0[d] + hi0[d]) * 0.5, half[d] = Math.max(1e-12, (hi0[d] - lo0[d]) * 0.5);
   return { mid, half };
 }
-function encode(m, f) {
-  let n = m.triCount, p = new Float64Array(n * 9), ed = new Float64Array(n * 9), nr = new Float64Array(n * 3), lo = new Float32Array(n * 3), hi = new Float32Array(n * 3), s24 = new Uint16Array(n), planeLo = new Float64Array(n), planeHi = new Float64Array(n), glo = new Float64Array([1e300, 1e300, 1e300]), ghi = new Float64Array([-1e300, -1e300, -1e300]), thin = 0, src = m.pos, tv = m.triV, m0 = f.mid, h0 = f.half;
+function encode(m, f, candidates=null) {
+  let n = candidates?.length ?? m.triCount, p = new Float64Array(n * 9), ed = new Float64Array(n * 9), nr = new Float64Array(n * 3), lo = new Float32Array(n * 3), hi = new Float32Array(n * 3), s24 = new Uint16Array(n), planeLo = new Float64Array(n), planeHi = new Float64Array(n), glo = new Float64Array([1e300, 1e300, 1e300]), ghi = new Float64Array([-1e300, -1e300, -1e300]), thin = 0, src = m.pos, tv = m.triV, m0 = f.mid, h0 = f.half;
   for (let i = 0; i < n; i++) {
-    let to = i * 3, k = i * 9, ia = tv[to] * 3, ib = tv[to + 1] * 3, ic = tv[to + 2] * 3, x0 = (src[ia] - m0[0]) / h0[0], y0 = (src[ia + 1] - m0[1]) / h0[1], z0 = (src[ia + 2] - m0[2]) / h0[2], x1 = (src[ib] - m0[0]) / h0[0], y1 = (src[ib + 1] - m0[1]) / h0[1], z1 = (src[ib + 2] - m0[2]) / h0[2], x2 = (src[ic] - m0[0]) / h0[0], y2 = (src[ic + 1] - m0[1]) / h0[1], z2 = (src[ic + 2] - m0[2]) / h0[2];
+    let to = i * 3, k = i * 9, source = candidates ? candidates[i]*3 : to, ia = tv[source] * 3, ib = tv[source + 1] * 3, ic = tv[source + 2] * 3, x0 = (src[ia] - m0[0]) / h0[0], y0 = (src[ia + 1] - m0[1]) / h0[1], z0 = (src[ia + 2] - m0[2]) / h0[2], x1 = (src[ib] - m0[0]) / h0[0], y1 = (src[ib + 1] - m0[1]) / h0[1], z1 = (src[ib + 2] - m0[2]) / h0[2], x2 = (src[ic] - m0[0]) / h0[0], y2 = (src[ic + 1] - m0[1]) / h0[1], z2 = (src[ic + 2] - m0[2]) / h0[2];
     p[k] = x0, p[k + 1] = y0, p[k + 2] = z0, p[k + 3] = x1, p[k + 4] = y1, p[k + 5] = z1, p[k + 6] = x2, p[k + 7] = y2, p[k + 8] = z2;
-    let l = Math.min(x0, x1, x2) - 2e-7, h = Math.max(x0, x1, x2) + 2e-7;
-    lo[to] = F32(l), hi[to] = F32(h), l < glo[0] && (glo[0] = l), h > ghi[0] && (ghi[0] = h), l = Math.min(y0, y1, y2) - 2e-7, h = Math.max(y0, y1, y2) + 2e-7, lo[to + 1] = F32(l), hi[to + 1] = F32(h), l < glo[1] && (glo[1] = l), h > ghi[1] && (ghi[1] = h), l = Math.min(z0, z1, z2) - 2e-7, h = Math.max(z0, z1, z2) + 2e-7, lo[to + 2] = F32(l), hi[to + 2] = F32(h), l < glo[2] && (glo[2] = l), h > ghi[2] && (ghi[2] = h);
+    let l = Math.min(x0, x1, x2) - booleanBoxPadding, h = Math.max(x0, x1, x2) + booleanBoxPadding;
+    lo[to] = F32(l), hi[to] = F32(h), l < glo[0] && (glo[0] = l), h > ghi[0] && (ghi[0] = h), l = Math.min(y0, y1, y2) - booleanBoxPadding, h = Math.max(y0, y1, y2) + booleanBoxPadding, lo[to + 1] = F32(l), hi[to + 1] = F32(h), l < glo[1] && (glo[1] = l), h > ghi[1] && (ghi[1] = h), l = Math.min(z0, z1, z2) - booleanBoxPadding, h = Math.max(z0, z1, z2) + booleanBoxPadding, lo[to + 2] = F32(l), hi[to + 2] = F32(h), l < glo[2] && (glo[2] = l), h > ghi[2] && (ghi[2] = h);
     let ax = x1 - x0, ay = y1 - y0, az = z1 - z0, bx = x2 - x0, by = y2 - y0, bz = z2 - z0, nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
     nr[to] = nx, nr[to + 1] = ny, nr[to + 2] = nz;
     let dx = x2 - x1, dy = y2 - y1, dz = z2 - z1, ex = x0 - x2, ey = y0 - y2, ez = z0 - z2;
@@ -4983,9 +4983,54 @@ function triSegmentFast(A, ia, B, ib, W) {
   }
   return best >= 1e-18;
 }
-function discover(A0, B0, { forceP32 = -1, profile = !1, p32Policy = "js", maxDenseOffsetBytes = 64 * 1024 * 1024, planarA = null, planarB = null } = {}) {
-  let timing = profile ? {} : null, t0 = profile ? performance.now() : 0, f = pairFrame(A0, B0), t1 = profile ? performance.now() : 0, A = encode(A0, f), B = encode(B0, f), t2 = profile ? performance.now() : 0, stats = { class: "N", mode: "AABB", g: 0, postingsA: 0, postingsB: 0, rawVisits: 0, uniquePairs: 0, aabbPairs: 0, facePairs: 0, exactPairs: 0, segmentHits: 0, coplanarExact: 0, coplanarSuppressed: 0, p32: !1, ids16: !1, stampResets: 0, activePages: 0 };
-  if (!objectOverlap(A, B)) return { hitPairs: new Uint32Array(0), coplanarTriPairs: new Uint32Array(0), coplanarPairs: [], activeFacesA: new Uint32Array(0), activeFacesB: new Uint32Array(0), stats };
+// Use exactly the padded bounds used by encode. Quantization can add candidates,
+// but a shared point of two boxes always maps to a cell occupied by both.
+const booleanBoxPadding=2e-7;
+function booleanUsedBounds(mesh,frame){
+  const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];
+  for(const vertex of mesh.triV)for(let k=0;k<3;k++){
+    const x=mesh.pos[vertex*3+k];lo[k]=Math.min(lo[k],x);hi[k]=Math.max(hi[k],x);
+  }
+  return {lo:lo.map((v,k)=>(v-frame.mid[k])/frame.half[k]-booleanBoxPadding),
+          hi:hi.map((v,k)=>(v-frame.mid[k])/frame.half[k]+booleanBoxPadding)};
+}
+function booleanGridBoxes(mesh,frame,other){
+  const boxes=new Uint32Array(mesh.triCount*2),active=makeU32Grow(1024),p=mesh.pos,ix=mesh.triV;
+  for(let i=0;i<mesh.triCount;i++){
+    const a=ix[i*3]*3,b=ix[i*3+1]*3,c=ix[i*3+2]*3;
+    let low=0,high=0,inside=true;
+    for(let k=0;k<3;k++){
+      const lo=Math.fround((Math.min(p[a+k],p[b+k],p[c+k])-frame.mid[k])/frame.half[k]-booleanBoxPadding);
+      const hi=Math.fround((Math.max(p[a+k],p[b+k],p[c+k])-frame.mid[k])/frame.half[k]+booleanBoxPadding);
+      if(lo>other.hi[k]||hi<other.lo[k])inside=false;
+      low|=clampCell(Math.floor((lo+1)*64),128)<<(7*k);
+      high|=clampCell(Math.floor((hi+1)*64),128)<<(7*k);
+    }
+    boxes[2*i]=low;boxes[2*i+1]=high;
+    if(inside)active.push(mesh.triFace[i]);
+  }
+  return {boxes,active:active.finish()};
+}
+async function booleanCandidateFilter(A,B,request){
+  const total=A.triCount+B.triCount;
+  if(!request||total<32768||total>4*1024*1024)return null;
+  const start=performance.now(),frame=pairFrame(A,B);
+  const a=booleanGridBoxes(A,frame,booleanUsedBounds(B,frame)),b=booleanGridBoxes(B,frame,booleanUsedBounds(A,frame));
+  const masks=await request([a.boxes,b.boxes]);
+  if(!masks)return null;
+  function unpack(mask,count){
+    const ids=makeU32Grow(Math.min(count,1024));
+    for(let i=0;i<count;i++)if(mask[i>>>5]>>>(i&31)&1)ids.push(i);
+    return ids.finish();
+  }
+  const idsA=unpack(masks[0],A.triCount),idsB=unpack(masks[1],B.triCount);
+  return {frame,idsA,idsB,activeA:a.active,activeB:b.active,report:{inputTriangles:total,candidateTriangles:idsA.length+idsB.length,
+    readbackBytes:masks[0].byteLength+masks[1].byteLength,milliseconds:performance.now()-start}};
+}
+function discover(A0, B0, { forceP32 = -1, profile = !1, p32Policy = "js", maxDenseOffsetBytes = 64 * 1024 * 1024, planarA = null, planarB = null, filter=null } = {}) {
+  let timing = profile ? {} : null, t0 = profile ? performance.now() : 0, f = filter?.frame ?? pairFrame(A0, B0), t1 = profile ? performance.now() : 0, A = encode(A0, f, filter?.idsA), B = encode(B0, f, filter?.idsB), t2 = profile ? performance.now() : 0, stats = { class: "N", mode: "AABB", g: 0, postingsA: 0, postingsB: 0, rawVisits: 0, uniquePairs: 0, aabbPairs: 0, facePairs: 0, exactPairs: 0, segmentHits: 0, coplanarExact: 0, coplanarSuppressed: 0, p32: !1, ids16: !1, stampResets: 0, activePages: 0 };
+  if(filter)stats.gpuFilter=filter.report;
+  if (!A.n || !B.n || !objectOverlap(A, B)) return { hitPairs: new Uint32Array(0), coplanarTriPairs: new Uint32Array(0), coplanarPairs: [], activeFacesA: filter?.activeA ?? new Uint32Array(0), activeFacesB: filter?.activeB ?? new Uint32Array(0), stats };
   let m = meta(A, B);
   stats.class = m.cls, stats.mode = m.cls === "N" ? "AABB" : m.cls === "M" ? "R8" : "ALL", stats.g = chooseG(A, B, m);
   let ca = cells(A, stats.g, stats.mode, m.medA), cb = cells(B, stats.g, stats.mode, m.medB), t3 = profile ? performance.now() : 0;
@@ -5056,9 +5101,10 @@ function discover(A0, B0, { forceP32 = -1, profile = !1, p32Policy = "js", maxDe
         let a = rev ? q : id, b = rev ? id : q;
         if (!aabbOv(A, a, B, b)) continue;
         stats.aabbPairs++;
+        const sourceA=filter?filter.idsA[a]:a,sourceB=filter?filter.idsB[b]:b;
         let pa = -1, pb = -1;
         if (usePlanar) {
-          let fa = A0.triFace[a], fb = B0.triFace[b];
+          let fa = A0.triFace[sourceA], fb = B0.triFace[sourceB];
           if (fa < planarA.facePatch.length && fb < planarB.facePatch.length && (pa = planarA.facePatch[fa], pb = planarB.facePatch[fb], pa >= 0 && pb >= 0 && cpSeen.has(pa, pb))) {
             stats.coplanarSuppressed++;
             continue;
@@ -5075,10 +5121,10 @@ function discover(A0, B0, { forceP32 = -1, profile = !1, p32Policy = "js", maxDe
                 coplanarPairs.push({ patchA: pa, patchB: pb, planeKey: planarA.planeKey[pa], sameOrientation: na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2] > 0 });
               }
             } else
-              copPairs.push(a), copPairs.push(b);
+              copPairs.push(sourceA), copPairs.push(sourceB);
             continue;
           }
-          triSegmentFast(A0, a, B0, b, W) && (pairs.push(a), pairs.push(b), stats.segmentHits++);
+          triSegmentFast(A0, sourceA, B0, sourceB, W) && (pairs.push(sourceA), pairs.push(sourceB), stats.segmentHits++);
         }
       }
     }
@@ -5102,9 +5148,9 @@ function discover(A0, B0, { forceP32 = -1, profile = !1, p32Policy = "js", maxDe
       }
     }
   }
-  active(A0, A, B, activeA), active(B0, B, A, activeB);
+  if(!filter){active(A0, A, B, activeA);active(B0, B, A, activeB);}
   let t6 = profile ? performance.now() : 0;
-  return profile && (timing.frame = t1 - t0, timing.encode = t2 - t1, timing.cells = t3 - t2, timing.postings = t4 - t3, timing.query = t5 - t4, timing.tail = t6 - t5, timing.total = t6 - t0, stats.timing = timing), coplanarPairs.length && coplanarPairs.sort((x, y) => x.patchA - y.patchA || x.patchB - y.patchB), { hitPairs, coplanarTriPairs: copPairs.finish(), coplanarPairs, activeFacesA: activeA.finish(), activeFacesB: activeB.finish(), stats };
+  return profile && (timing.frame = t1 - t0, timing.encode = t2 - t1, timing.cells = t3 - t2, timing.postings = t4 - t3, timing.query = t5 - t4, timing.tail = t6 - t5, timing.total = t6 - t0, stats.timing = timing), coplanarPairs.length && coplanarPairs.sort((x, y) => x.patchA - y.patchA || x.patchB - y.patchB), { hitPairs, coplanarTriPairs: copPairs.finish(), coplanarPairs, activeFacesA: filter?.activeA ?? activeA.finish(), activeFacesB: filter?.activeB ?? activeB.finish(), stats };
 }
 
 
@@ -7251,8 +7297,10 @@ function combineDisplaySeam(a, cp) {
   }
   return { seamPositions: Float64Array.from(pos), seamIndices: idx2 };
 }
-function evaluatePrepared(Aprep, Bprep, op, { profile = !1, forceP32 = -1, p32Policy = "js", tolerantConfidence = 0.6, twoSidedEpsilonRel = 1e-6, classifier = null } = {}) {
-  let A = Aprep.mesh ?? Aprep, B = Bprep.mesh ?? Bprep, timing = profile ? {} : null, t0 = profile ? performance.now() : 0, pca = buildPlanarCacheFast(A,B), pcb = buildPlanarCacheFast(B,A), t1 = profile ? performance.now() : 0, disc = discover(A, B, { forceP32, p32Policy, profile, planarA: pca, planarB: pcb });
+async function evaluatePrepared(Aprep, Bprep, op, { profile = !1, forceP32 = -1, p32Policy = "js", tolerantConfidence = 0.6, twoSidedEpsilonRel = 1e-6, classifier = null, requestFilter=null } = {}) {
+  let A = Aprep.mesh ?? Aprep, B = Bprep.mesh ?? Bprep, timing = profile ? {} : null, t0 = profile ? performance.now() : 0, pca = buildPlanarCacheFast(A,B), pcb = buildPlanarCacheFast(B,A), t1 = profile ? performance.now() : 0;
+  const filter=await booleanCandidateFilter(A,B,requestFilter);
+  const disc=discover(A, B, { forceP32, p32Policy, profile, planarA: pca, planarB: pcb, filter });
   disc.stats.coplanarPairs = disc.coplanarPairs.length;
   let t2 = profile ? performance.now() : 0, hits = buildDetailedHits(A, B, disc.hitPairs), t3 = profile ? performance.now() : 0, cp = null;
   if (disc.coplanarPairs.length) {
@@ -7343,7 +7391,7 @@ function refineBooleanOperand(positions,indices,materials,otherFaces){
   for(let level=0;level<4&&ix.length/3<3072;level++){const V=p.length/3,edges=new Map(),out=[],nextSource=[],nextMat=[],mid=(a,b)=>{const key=Math.min(a,b)*V+Math.max(a,b);let v=edges.get(key);if(v===undefined){v=p.length/3;for(let k=0;k<3;k++)p.push((p[a*3+k]+p[b*3+k])*.5);edges.set(key,v);}return v;};for(let f=0;f<ix.length/3;f++){const a=ix[f*3],b=ix[f*3+1],c=ix[f*3+2],ab=mid(a,b),bc=mid(b,c),ca=mid(c,a);out.push(a,ab,ca,ab,b,bc,ca,bc,c,ab,bc,ca);for(let k=0;k<4;k++){nextSource.push(source[f]);nextMat.push(mat[f]);}}ix=out;source=nextSource;mat=nextMat;}
   return {positions:Float64Array.from(p),indices:Uint32Array.from(ix),materials:Uint32Array.from(mat),sources:Uint32Array.from(source),originalFaces:faces};
 }
-function evaluate(positionsA, indicesA, positionsB, indicesB, op, options = {}) {
+async function evaluate(positionsA, indicesA, positionsB, indicesB, op, options = {}) {
   const refinedA=refineBooleanOperand(positionsA,indicesA,options.faceMaterialsA,indicesB.length/3),refinedB=refineBooleanOperand(positionsB,indicesB,options.faceMaterialsB,indicesA.length/3);
   if(refinedA){positionsA=refinedA.positions;indicesA=refinedA.indices;options={...options,faceMaterialsA:refinedA.materials};}if(refinedB){positionsB=refinedB.positions;indicesB=refinedB.indices;options={...options,faceMaterialsB:refinedB.materials};}
 
@@ -7365,7 +7413,7 @@ function evaluate(positionsA, indicesA, positionsB, indicesB, op, options = {}) 
       triangleMaterials.set(M.faceMaterial,f/3);for(let i=0;i<M.faceCount;i++)triangleSources[f/3+i]=(q===A?1:-1)*(M.sourceFaces[i]+1);v+=M.pos.length;f+=M.triV.length;}
     return {positions,indices,triangleMaterials,triangleSources,ambiguous:false,topologyValid:true,preflightA:A.stats,preflightB:B.stats,stats:{disjointBounds:true}};
   }
-  const result=evaluatePrepared(A,B,op,options);
+  const result=await evaluatePrepared(A,B,op,options);
   if([A.stats,B.stats].some(q=>q.boundaryEdges||q.nonManifoldEdges))result.inputDefects=new Map([...booleanDefects(A.mesh.pos,A.mesh.triV),...booleanDefects(B.mesh.pos,B.mesh.triV)]);
   return result;
 }
@@ -7398,7 +7446,7 @@ function sumPreflightMs(result) {
 function makeDiagnostics(result) {
   let d = result.discovery || {}, s = result.stats || {}, pa = result.preflightA || {}, pb = result.preflightB || {}, t = s.timing || {}, topologyMs = finiteNumber(t.topology), classifyMs = finiteNumber(t.classify), bandMs = finiteNumber(t.band), assemblyMs = finiteNumber(t.assembly);
   return {
-    backend: "frame-js-r6",crossingSeamVertices:s.crossingSeamVertices||0,splitFailure:s.splitFailure||null,
+    backend: d.gpuFilter?"webgpu-grid-cpu":"frame-js-r6",...(d.gpuFilter?{gpuFilter:d.gpuFilter}:{}),crossingSeamVertices:s.crossingSeamVertices||0,splitFailure:s.splitFailure||null,
     topologyValid: !!result.topologyValid,
     ambiguous: !!result.ambiguous,
     grid: count(d.g),
@@ -7475,7 +7523,7 @@ async function handleBooleanWorkerMessage(data = {}) {
       return { message: { id: data.id, ok: !0, labels, wasmHeapBytes: 0 }, transfer: [labels.buffer] };
     }
     if (validateMesh(data.positionsA, data.indicesA, "Operand A",{nonEmpty:false}), validateMesh(data.positionsB, data.indicesB, "Operand B",{nonEmpty:false}), data.op !== Operation.Union && data.op !== Operation.Difference && data.op !== Operation.Intersection) throw new Error(`Unknown Boolean operation code: ${data.op}`);
-    postMessage({progress:'Intersections'});const started=performance.now(),result=evaluate(data.positionsA,data.indicesA,data.positionsB,data.indicesB,data.op,{profile:true,p32Policy:'js',faceMaterialsA:data.faceMaterialsA,faceMaterialsB:data.faceMaterialsB}),wallMilliseconds=performance.now()-started;
+    postMessage({progress:'Intersections'});const started=performance.now(),result=await evaluate(data.positionsA,data.indicesA,data.positionsB,data.indicesB,data.op,{profile:true,p32Policy:'js',faceMaterialsA:data.faceMaterialsA,faceMaterialsB:data.faceMaterialsB,requestFilter:data.gpuFilter?requestBooleanFilter:null}),wallMilliseconds=performance.now()-started;
     const seamPositions=toFloat32(result.seamPositions),seamIndices=toUint32(result.seamIndices),report=makeDiagnostics(result),rc=rcFor(result);
     postMessage({progress:'Topology'});const t=performance.now(),expectsClosed=!report.boundaryA&&!report.boundaryB,p=toFloat32(result.positions),ix=toUint32(result.indices),cleaned=inheritedBooleanMesh(p,ix,result)||cleanBooleanFloatMesh(p,ix,expectsClosed,result.triangleMaterials,result.triangleSources);
     const {positions,indices,triangleMaterials}=cleaned,transferTrusted=cleaned.inheritedDefects!==undefined?!cleaned.newDefects.length:!cleaned.nonManifoldEdges&&(!expectsClosed||cleaned.topologyValid);
@@ -7496,7 +7544,16 @@ async function handleBooleanWorkerMessage(data = {}) {
 
 let affineTransform;try{affineTransform=FrameAffineSIMD();}catch{}
 function nativeOperandParts(parts){const positions=new Float32Array(parts.reduce((s,p)=>s+p.positions.length,0)),indices=new Uint32Array(parts.reduce((s,p)=>s+p.indices.length,0)),faceMaterials=new Uint32Array(indices.length/3);let vertex=0,corner=0;for(const p of parts){const m=p.matrix,a=p.positions,transformed=a.length>=120000&&affineTransform?affineTransform(a,m,false,positions,vertex*3):null;if(transformed){}else for(let i=0;i<a.length;i+=3){const x=a[i],y=a[i+1],z=a[i+2];for(let k=0;k<3;k++)positions[vertex*3+i+k]=m[k]*x+m[k+4]*y+m[k+8]*z+m[k+12];}const determinant=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);for(let i=0;i<p.indices.length;i+=3){indices[corner+i]=p.indices[i]+vertex;indices[corner+i+1]=p.indices[i+(determinant<0?2:1)]+vertex;indices[corner+i+2]=p.indices[i+(determinant<0?1:2)]+vertex;}if(p.faceMaterials)faceMaterials.set(p.faceMaterials,corner/3);vertex+=a.length/3;corner+=p.indices.length;}return {positions,indices,faceMaterials};}
+// One Boolean evaluation owns this worker. Transfer temporary grid bounds only.
+let finishBooleanFilter;
+function requestBooleanFilter(boxes){
+  return new Promise(resolve=>{
+    finishBooleanFilter=resolve;
+    self.postMessage({gridBoxes:boxes},boxes.map(b=>b.buffer));
+  });
+}
 self.onmessage = async (event) => {
+  if('gridMasks' in event.data){const finish=finishBooleanFilter;finishBooleanFilter=null;finish?.(event.data.gridMasks);return;}
   if(event.data.partsA){try{const a=nativeOperandParts(event.data.partsA),b=nativeOperandParts(event.data.partsB);Object.assign(event.data,{positionsA:a.positions,indicesA:a.indices,faceMaterialsA:a.faceMaterials,positionsB:b.positions,indicesB:b.indices,faceMaterialsB:b.faceMaterials});delete event.data.partsA;delete event.data.partsB;}catch(error){postMessage({id:event.data.id,ok:false,error:error.message});return;}}
   let out = await handleBooleanWorkerMessage(event.data || {});
   out && self.postMessage(out.message, out.transfer);
@@ -13177,11 +13234,22 @@ const FrameGeometry=(()=>{
   let kernel;
   const text=id=>document.getElementById(id).textContent;
   const K=()=>kernel??=Function('return ('+text('frame-geometry-kernel')+')')()(FrameSpline.K());
-  async function worker(op,args,transfers=[],session=null,progress=null){
+  async function worker(op,args,transfers=[],session=null,progress=null,booleanFilter=null){
     const body=op==='boolean'?FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker'):
       text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(d.op==='recognize'&&d.retainSource){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){if(d.op==='recognize'&&d.retainSource)send({recognitionError:e.message});else postMessage({error:e.message});}};`;
     let w=session?.worker;if(!w){const url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));w=new Worker(url);URL.revokeObjectURL(url);if(session)session.worker=w;}
-    try{return await new Promise((resolve,reject)=>{w.onerror=e=>reject(Error(e.message||'Geometry worker failed'));w.onmessage=({data:d})=>{if(d.progress){progress?.(d.progress);return;}d.error||d.ok===false?reject(Error(d.error)):resolve(op==='boolean'?d:d.result);};w.postMessage(op==='boolean'?{...args,id:1,prepareRender:false}:{op,...args},transfers);});}finally{if(!session)w.terminate();}
+    try{return await new Promise((resolve,reject)=>{
+      w.onerror=e=>reject(Error(e.message||'Geometry worker failed'));
+      w.onmessage=async({data:d})=>{
+        if(d.gridBoxes){
+          try{const masks=await booleanFilter(d.gridBoxes);w.postMessage({gridMasks:masks},masks?.map(m=>m.buffer)||[]);}
+          catch(error){reject(error);}return;
+        }
+        if(d.progress){progress?.(d.progress);return;}
+        d.error||d.ok===false?reject(Error(d.error)):resolve(op==='boolean'?d:d.result);
+      };
+      w.postMessage(op==='boolean'?{...args,id:1,prepareRender:false,gpuFilter:!!booleanFilter}:{op,...args},transfers);
+    });}finally{if(!session)w.terminate();}
   }
   async function outline(n,distance,segments,inner=false){
     n=FrameSpline.sourceNode(n)||n;if(!FrameSpline.isEditable(n)||!n.splineData)throw Error('Choose an editable spline');
@@ -16109,6 +16177,75 @@ window.frameEngine=(()=>{
         return {vertices:new Float32Array(positions.buffer),indices:new Uint32Array(indices.buffer),vertexCount,triangleCount};
       });editSerial=task.then(()=>{},()=>{});return task;
     }
+    const booleanGridShader=`
+      @group(0) @binding(0) var<storage,read> boxes:array<vec2u>;
+      @group(0) @binding(1) var<storage,read_write> cells:array<atomic<u32>>;
+      @group(0) @binding(2) var<storage,read_write> candidates:array<atomic<u32>>;
+      fn coords(word:u32)->vec3u{return vec3u(word,word>>7u,word>>14u)&vec3u(127u);}
+      fn large(lo:vec3u,hi:vec3u)->bool{return (hi.y-lo.y+1u)*(hi.z-lo.z+1u)>64u;}
+      // Each fine row has four 32-bit words. Large boxes use the trailing
+      // 8³ grid, bounding the work even for a triangle spanning the scene.
+      fn visit(low:vec3u,high:vec3u,coarse:bool,write:bool)->bool{
+        let shift=select(0u,4u,coarse);
+        let lo=low>>vec3u(shift);let hi=high>>vec3u(shift);
+        let width=select(128u,8u,coarse);
+        let base=select(0u,65536u,coarse);
+        for(var z=lo.z;z<=hi.z;z++){for(var y=lo.y;y<=hi.y;y++){
+          let row=(z*width+y)*width;
+          let first=row+lo.x;let last=row+hi.x;
+          for(var w=first>>5u;w<=last>>5u;w++){
+            let left=select(0xffffffffu,0xffffffffu<<(first&31u),w==first>>5u);
+            let right=select(0xffffffffu,0xffffffffu>>(31u-(last&31u)),w==last>>5u);
+            let bits=left&right;
+            if(write){atomicOr(&cells[base+w],bits);}
+            else if((atomicLoad(&cells[base+w])&bits)!=0u){return true;}
+          }
+        }}
+        return false;
+      }
+      @compute @workgroup_size(128) fn mark(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let i=id.x+id.y*groups.x*128u;if(i>=arrayLength(&boxes)){return;}
+        let lo=coords(boxes[i].x);let hi=coords(boxes[i].y);_=visit(lo,hi,large(lo,hi),true);
+      }
+      @compute @workgroup_size(128) fn query(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let i=id.x+id.y*groups.x*128u;if(i>=arrayLength(&boxes)){return;}
+        let lo=coords(boxes[i].x);let hi=coords(boxes[i].y);
+        if(large(lo,hi)||visit(lo,hi,true,false)||visit(lo,hi,false,false)){atomicOr(&candidates[i>>5u],1u<<(i&31u));}
+      }`;
+    async function booleanGridMasks(gpu,boxes){
+      const d=gpu.device,usage=GPUBufferUsage,owned=[];
+      if(boxes.some(b=>b.byteLength>d.limits.maxStorageBufferBindingSize))return null;
+      function allocate(label,size,flags){
+        const buffer=makeGPUBuffer(d,{label:'Boolean '+label,size,usage:flags});owned.push(buffer);return buffer;
+      }
+      try{
+        if(!gpu.booleanGridPipelines){
+          const module=d.createShaderModule({label:'Boolean candidate grid',code:booleanGridShader});
+          gpu.booleanGridPipelines=Promise.all(['mark','query'].map(entryPoint=>d.createComputePipelineAsync({layout:'auto',compute:{module,entryPoint}}))).catch(error=>{gpu.booleanGridPipelines=null;throw error;});
+        }
+        const [mark,query]=await gpu.booleanGridPipelines;
+        checkSession(gpu);
+        const counts=boxes.map(b=>b.length/2),sizes=counts.map(n=>Math.ceil(n/32)*4);
+        d.pushErrorScope('out-of-memory');d.pushErrorScope('internal');d.pushErrorScope('validation');
+        let read,errors;
+        try{
+          const inputs=boxes.map(b=>{const buf=allocate('triangle grid bounds',b.byteLength,usage.STORAGE|usage.COPY_DST);d.queue.writeBuffer(buf,0,b);return buf;});
+          const grids=boxes.map(()=>allocate('occupancy grid',(65536+16)*4,usage.STORAGE));
+          const masks=sizes.map(size=>allocate('candidate mask',size,usage.STORAGE|usage.COPY_SRC));
+          read=allocate('candidate readback',sizes[0]+sizes[1],usage.COPY_DST|usage.MAP_READ);
+          const e=d.createCommandEncoder();
+          for(let i=0;i<2;i++)dispatchOn(gpu,e,mark,computeGroup(gpu,mark,[inputs[i],grids[i]]),counts[i]);
+          for(let i=0;i<2;i++)dispatchOn(gpu,e,query,computeGroup(gpu,query,[inputs[i],grids[1-i],masks[i]]),counts[i]);
+          for(let i=0;i<2;i++)e.copyBufferToBuffer(masks[i],0,read,i?sizes[0]:0,sizes[i]);
+          d.queue.submit([e.finish()]);
+        }finally{errors=Promise.all([d.popErrorScope(),d.popErrorScope(),d.popErrorScope()]);}
+        if((await errors).some(Boolean))return null;
+        await read.mapAsync(GPUMapMode.READ);checkSession(gpu);
+        const bytes=read.getMappedRange();
+        return sizes.map((size,i)=>new Uint32Array(bytes,i?sizes[0]:0,size/4).slice());
+      }catch{checkSession(gpu);return null;}
+      finally{for(const buffer of owned)releaseGPU(buffer);}
+    }
     async function disjointBoolean(n,rootMeshes,op,current){
       if(rootMeshes.some(list=>list.length!==1))return null;const meshes=rootMeshes.map(list=>list[0]);if(meshes.some(m=>m.paged||m.materialTags?.length))return null;
       const [a,b]=meshes,pad=Math.max(1,...a.boundsMin.map(Math.abs),...a.boundsMax.map(Math.abs),...b.boundsMin.map(Math.abs),...b.boundsMax.map(Math.abs))*1e-6;
@@ -16175,7 +16312,7 @@ window.frameEngine=(()=>{
         return frameValueKey([n.params,roots.map(r=>[r.id,[r.id,...descendants(r.id)].map(id=>{const c=node(id);return [c.nativeHash,c.enabled,c.visible,FrameSpline.shape(c),Array.from(objectLocal(c.nativeHash)),c.tags.map(t=>{if(t.kind!=='material')return t;const {material,materialUID,...tag}=t;return [(materials[material||0]||materials[0]).uid,tag];}),(byOwner.get(c.nativeHash)||[]).map(m=>{let source=m;while(source.replicaSource)source=source.replicaSource;return [m.replicaKey,m.appearanceKey,(source.version||0)-(source.frameRevision||0),pluginIdentity(source.positions),pluginIdentity(source.indices),m.vertexCount,m.triangleCount,Array.from(objectRelativeFrame(m.hashId,n.nativeHash)),m.replicaMatrix&&Array.from(m.replicaMatrix)];})];})])]);
       });
       const key=signature();if(state?.signature===key)return state;
-      const progress=frameBooleanProgress();try{const space=scene,hash=n.nativeHash,type=n.type,valid=()=>scene===space&&nodes.includes(n)&&n.type===type&&n.nativeHash===hash&&roots.every(r=>nodes.includes(r))&&children(n.id).filter(c=>c.enabled).map(c=>c.id).join(',')===roots.map(c=>c.id).join(',')&&signature()===key;
+      const progress=frameBooleanProgress();try{const space=scene,gpu=renderer,hash=n.nativeHash,type=n.type,valid=()=>scene===space&&renderer===gpu&&nodes.includes(n)&&n.type===type&&n.nativeHash===hash&&roots.every(r=>nodes.includes(r))&&children(n.id).filter(c=>c.enabled).map(c=>c.id).join(',')===roots.map(c=>c.id).join(',')&&signature()===key;
       const op={union:0,subtract:1,intersect:2}[n.params.op];
       const {rootMeshes,operands,contourData}=frameReadHierarchy(()=>{
         const index=replicaPublicationIndex(),owned=c=>index.meshes.get(c.nativeHash)||[];
@@ -16242,7 +16379,14 @@ window.frameEngine=(()=>{
           }
           return list;
         }
-        const partsA=await operand(operands[0]),partsB=await operand(operands[1]),cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set);
+        const partsA=await operand(operands[0]),partsB=await operand(operands[1]),cageP=Float32Array.from(cagePoints),cageL=Uint32Array.from(cageLines),transfers=[...new Set([...partsA,...partsB].flatMap(p=>[p.positions.buffer,p.indices.buffer,p.faceMaterials.buffer]))];
+        result=await FrameGeometry.worker('boolean',{cmd:'run',op,partsA,partsB,cagePoints:cageP,cageLines:cageL},transfers.concat([cageP.buffer,cageL.buffer]),null,progress.set,async boxes=>{
+          checkSession(gpu);
+          if(scene!==space)throw new DOMException('Boolean scene changed','AbortError');
+          const masks=await booleanGridMasks(gpu,boxes);
+          if(scene!==space)throw new DOMException('Boolean scene changed','AbortError');
+          return masks;
+        });
         if(!result.report?.trusted)throw Error('Boolean topology could not be validated: '+JSON.stringify(result.report));if(!valid())return null;
         if(result.indices.length)await installSplineSurface(n,{vertices:result.positions,indices:result.indices,nativeExact:true,tasks:new Uint8Array(0),packets:new Float32Array(0),report:result.report},valid);else removeSpline(hash);installBooleanMaterials(n,result,materialRegistry);
         if(result.indices.length){const previous=splineDisplays.get(hash);if(previous){for(const b of previous.buffers)releaseGPU(b);splineDisplayLookup.delete(previous);splineDisplays.delete(hash);}const K=FrameSpline.K(),display=K.createSplineData();
