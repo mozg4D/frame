@@ -30,3 +30,38 @@ for(const [name,line] of [
   }
   assert.equal(incidence,2);assert.deepEqual(areas,[5000,5000]);console.log('PASS '+name);
 }
+
+for(const firstReversed of [false,true]){
+  const indices=firstReversed?[1,0,3,0,1,2]:[0,1,2,1,0,3];
+  const U=firstReversed?uv.slice(6).concat(uv.slice(0,6)):uv;
+  const split=cut({op:'addPoint',vertices,indices,uv:U,edge:'0:1',t:.19});
+  assert.deepEqual(Array.from(split.vertices.slice(-3)),[19,0,0]);
+  for(let i=0;i<split.indices.length;i++)if(split.indices[i]===split.createdVertex){
+    const source=split.sourceFaces[Math.floor(i/3)],offset=firstReversed===!!source?0:10;
+    assert.ok(Math.abs(split.uv[i*2]-(offset+.19))<1e-6);assert.equal(split.uv[i*2+1],0);
+  }
+  console.log('PASS asymmetric Add Point, winding and UV seam '+firstReversed);
+}
+{
+  // An unrelated pinched boundary must not disable a well-formed hole.
+  const vertices=[-2,-2,0,2,-2,0,0,2,0,0,0,-3, 10,0,0,11,0,0,11,1,0,9,0,0,9,-1,0];
+  const indices=[1,0,3,2,1,3,0,2,3,4,5,6,4,7,8];
+  assert.equal(cut({op:'availability',vertices,indices}).closeHole,true);
+  assert.deepEqual(cut({op:'boundary',vertices,indices,edge:'0:1'}).edges.sort(),['0:1','0:2','1:2']);
+  const cap=cut({op:'closeHole',vertices,indices,edge:'0:1'});assert.deepEqual(Array.from(cap.indices.slice(-3)).sort(),[0,1,2]);
+  assert.throws(()=>cut({op:'closeHole',vertices,indices,edge:'0:3'}),/closed boundary/);
+  assert.throws(()=>cut({op:'closeHole',vertices,indices:[0,1,2]}),/already covered/);
+  assert.deepEqual(cut({op:'boundary',vertices,indices:[0,1,2],edge:'0:1'}).edges,[]);
+  console.log('PASS distinct closed holes, branched components and occupied boundaries');
+}
+{
+  const vertices=[-10,0,0,0,0,0,1000,0,0,8,6,0],indices=[0,1,3,1,2,3];
+  assert.deepEqual(cut({op:'loop',vertices,indices,edge:'0:1'}).edges,['0:1','1:2']);
+  console.log('PASS unequal mesh edge lengths do not stop a straight loop');
+}
+for(const scale of [1e-11,1,1e10]){
+  const vertices=[-1,-1,0,1,-1,0,1,1,0,-1,1,0,0,0,-1].map(v=>v*scale);
+  const indices=[1,0,4,2,1,4,3,2,4,0,3,4],r=cut({op:'closeHole',vertices,indices});
+  assert.equal(r.triangleCount,6);assert.equal(new Set(r.indices.slice(12)).size,4);
+  console.log('PASS quadrilateral cap at scale '+scale);
+}
