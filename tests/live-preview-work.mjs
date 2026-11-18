@@ -19,6 +19,7 @@ export function reconstructLegacySource(current,morph,gizmo){
   // immutable fixture retains its historical opacity; no old proof is relabelled.
   const oldOpacity="name==='P'?'.6':name==='SR'?'.55':'.5'",sharedOpacity="name==='P'?frameGizmoOpacity.plane:name==='SR'?frameGizmoOpacity.rotation:frameGizmoOpacity.normal";
   if(gizmo.drawGizmo.split(oldOpacity).length!==2)throw Error('Legacy gizmo opacity anchor missing or ambiguous');
+  legacy=replaceBlock(legacy,'function singleSelectedControl(','function gizmoPart(',gizmo.singleSelectedControl+'\n    ');
   return replaceBlock(legacy,'function drawGizmo(','function pointerWorld(',gizmo.drawGizmo.replace(oldOpacity,sharedOpacity)+'\n    ');
 }
 export async function livePreviewWorkChecks(){

@@ -28,7 +28,7 @@ function splinePreview(html,n,native,selectionKeys){
       FrameMorph={previewEdit:(...args)=>state.native.call(...args)},
       FrameMorphMath={points:data=>{state.pointsCalls++;return points(data);}},
       selection=()=>state.selectionKeys,liveVersions=new WeakMap(),liveChanges=new WeakMap(),states=new Map(),node=()=>null,
-      window={frameEngine:{previewSplineData:()=>state.fallback++}},refresh=()=>state.refresh++,request=()=>state.request++;
+      window={frameEngine:{previewSplineData:()=>state.fallback++}},previewIncidentCells=()=>false,refresh=()=>state.refresh++,request=()=>state.request++;
     ${section(html,'  function preview(n,segments,vertices=[])','  function tangentBase(')}
     preview(state.n,new Set(['edge']),new Set(['a']));return state;
   `);

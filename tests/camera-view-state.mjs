@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 
 function fixture(html){
  const camera={id:'camera',type:'render',enabled:true,params:{renderer:'Path tracer'}},button={},device={},actions=[];
- const e={nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
+ const e={frameNavigation:null,navigationScene:null,nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
   current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
  vm.createContext(e);
  const names=['frameEnableCamera','toggleCameraRender','cameraConfig','renderState','renderStatus','renderStart'];

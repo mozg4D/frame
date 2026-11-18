@@ -8,9 +8,9 @@ import {resolve} from 'node:path';
 import {launch,ready} from '../tools/browser.mjs';
 
 export function instrumentNavigationBounds(source){
- const guard='if(!splineNavigationBoxHit(d,cache,x,y))continue;',pickGuard='if(!splineNavigationBoxHit(d,cache,x,y,12))continue;',expose='    function splineSnapPoint(';
+ const guard='if(!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;',pickGuard='if(!splineNavigationBoxHit(d,cache,x,y,12))continue;',expose='    function splineSnapPoint(';
  for(const marker of [guard,expose])assert.equal(source.split(marker).length,2,marker);
- return source.replace(guard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y))continue;').replace(pickGuard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y,12))continue;').replace(expose,`    const __navOriginalProjected=projectedSplineSegment;
+ return source.replace('function navigationDisplays(x,y,key){','function navigationDisplays(x,y,key){if(window.__navReference)return splineDisplays.values();').replace('function navigationSegmentRows(d,cache,x,y,pixels=8,frontOnly=true){','function navigationSegmentRows(d,cache,x,y,pixels=8,frontOnly=true){if(window.__navReference)return d.samples;').replace(guard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;').replace(pickGuard,'if(!window.__navReference&&!splineNavigationBoxHit(d,cache,x,y,12))continue;').replace(expose,`    const __navOriginalProjected=projectedSplineSegment;
     window.__navProbe={point:splineNavigationPoint,localBox:splineNavigationSampleBox,projection:splineProjection,project:projectSplineCached,key:splineProjectionKey,
       countSegments:enabled=>{projectedSplineSegment=enabled?function(...args){window.__navSegmentCalls=(window.__navSegmentCalls||0)+1;return __navOriginalProjected(...args);}:__navOriginalProjected;},
       clearProjection:()=>{for(const d of splineDisplays.values())d.projected=null;},

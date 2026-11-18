@@ -5,8 +5,8 @@
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 20088,
-      "sha256": "554eeffa6c2fe8346e4119453d5394e3c1729c2dd5640d92d37064d85f518a2c",
+      "bytes": 20382,
+      "sha256": "d6c2152daed2957140db80233b29c016f0b58664a3ba1b009bf80f0098c55b7a",
       "change": {
         "reason": "Native binary value records, history snapshots and bounded file readers are verified by the HASH and file gates.",
         "baseCommit": "0f18ab1",
@@ -22,6 +22,12 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "verifiedBaseline": {
+        "commit": "12db7c16045ec15dfb16cc9cab9d19d90ba49722",
+        "reason": "The published HASH reader caches aligned pages during large range reads.",
+        "previousBytes": 20088,
+        "previousSHA256": "554eeffa6c2fe8346e4119453d5394e3c1729c2dd5640d92d37064d85f518a2c"
       }
     },
     {
@@ -91,8 +97,14 @@
     {
       "prefix": "function replaceMaterials(",
       "nextPrefix": "function insertMaterialCopies(records,index=1){",
-      "bytes": 605,
-      "sha256": "288624f215c55e953447a68f2e5e06b8ac52a336df4d051a8dcbc60631135c23"
+      "bytes": 781,
+      "sha256": "0e0c96c1594a008a264a1e5633f1298eb199440b50af2a16ed4b62b275dbe3dc",
+      "verifiedBaseline": {
+        "commit": "12db7c16045ec15dfb16cc9cab9d19d90ba49722",
+        "reason": "The published material remapper indexes old slots and new material positions once.",
+        "previousBytes": 605,
+        "previousSHA256": "288624f215c55e953447a68f2e5e06b8ac52a336df4d051a8dcbc60631135c23"
+      }
     },
     {
       "prefix": "function copySelectedMaterials(",

@@ -8,7 +8,19 @@ const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
 const fragment=(a,b='\n')=>{const at=html.indexOf(a),end=html.indexOf(b,at+a.length);assert.ok(at>=0&&end>at,a);return html.slice(at,end);};
 const A='a'.repeat(32),B='b'.repeat(32),C='c'.repeat(32);
 const deferred=()=>{let resolve;return {promise:new Promise(r=>resolve=r),resolve:()=>resolve()};};
-const tick=async()=>{for(let i=0;i<30;i++)await new Promise(r=>setImmediate(r));};
+async function waitForAdmission(editor,session,requestId){
+ const deadline=performance.now()+1500;
+ for(;;){
+  try{
+   const receipt=await editor.call('collab.request',{session,requestId});
+   assert.equal(receipt.state,'pending');
+   return receipt;
+  }catch(error){
+   if(error.code!=='NOT_FOUND'||performance.now()>=deadline)throw error;
+  }
+  await new Promise(resolve=>setImmediate(resolve));
+ }
+}
 function environment(){
  const hooks={time:1000,wait:null,effects:0};
  const code=`
@@ -53,10 +65,10 @@ export async function collaborationChecks(){
  });
  await check('Heartbeat, idle expiry, leave and pending work cleanup use no background timer',async()=>{
   const e=environment(),a=await join(e,'A',1);await e.call('collab.claim',{session:a,ids:[A]});e.hooks.time+=900;await e.call('collab.update',{session:a});e.hooks.time+=900;assert.equal((await e.call('collab.participants')).total,1);
-  const gate=deferred();e.hooks.wait=gate.promise;const pending=run(e,a,'pending');await tick();e.hooks.time+=3000;assert.equal((await e.call('collab.participants')).total,1);gate.resolve();await pending;e.hooks.time+=1001;assert.equal((await e.call('collab.participants')).total,0);assert.equal((await e.call('collab.claims')).total,0);await assert.rejects(run(e,a,'expired'),x=>x.code==='SESSION_EXPIRED');assert.equal((await e.call('collab.leave',{session:a})).left,false);
+  const gate=deferred();e.hooks.wait=gate.promise;const pending=run(e,a,'pending');await waitForAdmission(e,a,'pending');e.hooks.time+=3000;assert.equal((await e.call('collab.participants')).total,1);gate.resolve();await pending;e.hooks.time+=1001;assert.equal((await e.call('collab.participants')).total,0);assert.equal((await e.call('collab.claims')).total,0);await assert.rejects(run(e,a,'expired'),x=>x.code==='SESSION_EXPIRED');assert.equal((await e.call('collab.leave',{session:a})).left,false);
  });
  await check('In-flight duplicate requests share one execution; changed arguments cannot reuse an ID',async()=>{
-  const e=environment(),a=await join(e),gate=deferred();e.hooks.wait=gate.promise;const one=run(e,a,'same'),two=run(e,a,'same');await tick();const status=await e.call('collab.request',{session:a,requestId:'same'});assert.equal(status.state,'pending');gate.resolve();const [x,y]=await Promise.all([one,two]);assert.deepEqual(x,y);assert.equal(e.hooks.effects,1);await run(e,a,'same');assert.equal(e.hooks.effects,1);
+  const e=environment(),a=await join(e),gate=deferred();e.hooks.wait=gate.promise;const one=run(e,a,'same'),two=run(e,a,'same');const status=await waitForAdmission(e,a,'same');assert.equal(status.state,'pending');gate.resolve();const [x,y]=await Promise.all([one,two]);assert.deepEqual(x,y);assert.equal(e.hooks.effects,1);await run(e,a,'same');assert.equal(e.hooks.effects,1);
   await assert.rejects(run(e,a,'same','scene.update',{id:A,name:'different'}),x=>x.code==='REQUEST_ID_REUSED');
   await run(e,a,'same','scene.update',{name:'same',id:A});assert.equal(e.hooks.effects,1);
   await assert.rejects(run(e,a,'binary','scene.update',{id:A,name:new Date()}),x=>x.code==='INVALID_ARGUMENT');
@@ -66,7 +78,7 @@ export async function collaborationChecks(){
   const toB=await e.call('collab.events',{session:b,stream:start.stream,after:start.cursor}),toC=await e.call('collab.events',{session:c,stream:start.stream,after:start.cursor});assert.ok(toB.events.some(e=>e.type==='message'));assert.ok(!toC.events.some(e=>e.type==='message'));assert.equal(toC.nextCursor,toB.nextCursor);e.block(false);
  });
  await check('Queued old-document work is fenced; receipts survive replacement and claims do not',async()=>{
-  const e=environment(),a=await join(e),gate=deferred();await e.call('collab.claim',{session:a,ids:[A]});e.hooks.wait=gate.promise;const busy=run(e,a,'busy');await tick();const replace=e.call('scene.new'),stale=run(e,a,'stale');await tick();gate.resolve();await busy;await replace;assert.equal((await stale).error.code,'CONFLICT');assert.equal(e.hooks.effects,1);assert.equal((await e.call('collab.claims')).total,0);assert.equal((await run(e,a,'busy')).state,'complete');
+  const e=environment(),a=await join(e),gate=deferred();await e.call('collab.claim',{session:a,ids:[A]});e.hooks.wait=gate.promise;const busy=run(e,a,'busy');await waitForAdmission(e,a,'busy');const replace=e.call('scene.new'),stale=run(e,a,'stale');await waitForAdmission(e,a,'stale');gate.resolve();await busy;await replace;assert.equal((await stale).error.code,'CONFLICT');assert.equal(e.hooks.effects,1);assert.equal((await e.call('collab.claims')).total,0);assert.equal((await run(e,a,'busy')).state,'complete');
  });
  await check('Optional scene CAS rejects stale edits while independent unguarded work remains allowed',async()=>{
   const e=environment(),a=await join(e),observed=(await e.call('collab.participants')).document;await e.call('scene.update',{id:C,name:'Other edit'});const stale=await run(e,a,'cas','scene.update',{id:A,name:'Stale'},{document:observed.id,expected:{epoch:observed.epoch,revision:observed.revision}});assert.equal(stale.error.code,'CONFLICT');assert.equal(e.nodes[0].name,undefined);assert.equal((await run(e,a,'allowed')).state,'complete');
@@ -79,7 +91,7 @@ export async function collaborationChecks(){
   const e=environment(),a=await join(e);const r=await run(e,a,'replace-batch','api.batch',{commands:[{name:'scene.new'},{name:'scene.update',args:{id:A,name:'new document'}}]});assert.equal(r.result.completed,2);assert.notEqual(r.document,r.finalDocument);assert.equal(e.nodes[0].name,'new document');
  });
  await check('Leaving fences queued commands without claiming rollback of admitted work',async()=>{
-  const e=environment(),a=await join(e),b=await join(e),gate=deferred();e.hooks.wait=gate.promise;const active=run(e,b,'hold');await tick();const queued=run(e,a,'queued');await tick();await e.call('collab.leave',{session:a});gate.resolve();await active;assert.equal((await queued).error.code,'SESSION_EXPIRED');assert.equal(e.hooks.effects,1);
+  const e=environment(),a=await join(e),b=await join(e),gate=deferred();e.hooks.wait=gate.promise;const active=run(e,b,'hold');await waitForAdmission(e,b,'hold');const queued=run(e,a,'queued');await waitForAdmission(e,a,'queued');await e.call('collab.leave',{session:a});gate.resolve();await active;assert.equal((await queued).error.code,'SESSION_EXPIRED');assert.equal(e.hooks.effects,1);
  });
  await check('Large and evicted results retain ID tombstones and never execute again',async()=>{
   const e=environment(),a=await join(e);const large=await run(e,a,'large','scene.large',{});assert.equal(large.result.length,300000);assert.equal((await run(e,a,'large','scene.large',{})).resultAvailable,false);assert.equal(e.hooks.effects,1);

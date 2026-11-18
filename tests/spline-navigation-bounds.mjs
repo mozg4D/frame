@@ -8,12 +8,12 @@ import {fileURLToPath} from 'node:url';
 function runtime(html){
  const a=html.indexOf('    const splineNavigationSampleBoxes='),b=html.indexOf('    function splineSnapPoint(',a),p=html.indexOf('    function projectSplineCached('),q=html.indexOf('    function curveReplicaDisplays(',p);assert(a>=0&&b>a&&p>=0&&q>p);
  const fm=html.indexOf('const FM='),FM=Function('return '+html.slice(fm+9,html.indexOf('\n    })();',fm)+11))();
- const env={scene:{center:[0,0,0],scale:1},splineDisplays:new Map(),viewIndex:0,shadingMode:'isoparms',elementMode:'object',selected:new Set(),projectionCalls:0,reference:false,FM,
+ const env={scene:{center:[0,0,0],scale:1},splineDisplays:new Map(),viewIndex:0,shadingMode:'isoparms',elementMode:'object',selected:new Set(),projectionCalls:0,reference:false,navigationScene:null,FM,
   frameNodeByHash:hash=>({id:hash}),splineShown:d=>d.visible!==false,FrameSpline:{isEditable:()=>true},objectWorld:hash=>env.splineDisplays.get(hash).world,splineProjectionKey:()=>'',splineProjection:d=>d.cache,frameViewKind:()=>env.ortho?2:0,
   cameraRay:(x,y)=>env.ortho?{origin:[x,-y,3.2],direction:[0,0,-1]}:{origin:[0,0,3.2],direction:[x,-y,-1]}};
- let source=html.slice(p,q)+html.slice(a,b);assert.equal(source.split('if(!splineNavigationBoxHit(d,cache,x,y))continue;').length,2);
- source=source.replace('if(!splineNavigationBoxHit(d,cache,x,y))continue;','if(!reference&&!splineNavigationBoxHit(d,cache,x,y))continue;').replace('function projectedSplineSegment(cache,id,samples){','function projectedSplineSegment(cache,id,samples){projectionCalls++;');
- const api=Function('env',`with(env){${source};return {point:splineNavigationPoint,box:splineNavigationSampleBox,screen:splineNavigationScreenBox,hit:splineNavigationBoxHit,round:splineNavigationRound,project:projectSplineCached};}`)(env);
+ let source=html.slice(p,q)+html.slice(a,b);assert.equal(source.split('if(!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;').length,2);
+ source=source.replace('if(!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;','if(!reference&&!splineNavigationBoxHit(d,cache,x,y,8,undefined,true))continue;').replace('of navigationSegmentRows(d,cache,x,y)','of (reference?d.samples:navigationSegmentRows(d,cache,x,y))').replace('function projectedSplineSegment(cache,id,samples){','function projectedSplineSegment(cache,id,samples){projectionCalls++;');
+ const api=Function('env',`with(env){${source};return {point:splineNavigationPoint,box:splineNavigationSampleBox,screen:splineNavigationScreenBox,hit:splineNavigationBoxHit,round:splineNavigationRound,project:projectSplineCached,tree:navigationTree,query:queryNavigationTree};}`)(env);
  const cache=(frame=FM.I(),options={})=>({frame,cx:0,cy:0,pixels:1,ortho:true,segments:new Map(),controls:new Map(),...options});
  const display=(hash,points,c=cache())=>({hash,world:c.frame,wireVersion:0,lineValues:new Float32Array(Math.max(0,points.length-1)*6),samples:new Map([['edge',points.map((position,i)=>({t:i/Math.max(1,points.length-1),position:[...position]}))]]),cache:c});
  const parity=(displays,x,y)=>{env.splineDisplays=new Map(displays.map(d=>[d.hash,d]));env.ortho=displays[0]?.cache.ortho;env.reference=true;env.projectionCalls=0;const original=api.point(x,y),before=env.projectionCalls;env.reference=false;env.projectionCalls=0;const fast=api.point(x,y),after=env.projectionCalls;assert.deepEqual(fast,original,'exact hash/segment/point/depth/distance');return {original,before,after};};
@@ -22,6 +22,18 @@ function runtime(html){
 
 export async function splineNavigationBoundsChecks(){
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),f=runtime(html),checks=[],details={},check=(name,fn)=>{fn();checks.push({name,pass:true});};
+ check('Median partitions retain authored hit order, tied boxes and conservative nonfinite leaves',()=>{
+  const points=Array.from({length:8193},(_,i)=>[i%7===0?0:i%53,i%3===0?0:i%17,0]);points.at(-1)[0]=NaN;
+  const rows=points.map((p,order)=>({min:p,max:p,order,value:order})),leaves=[];
+  const tree=f.api.tree(rows.slice(),(node,entries)=>{assert(entries.length<=8);leaves.push(node);});
+  assert.equal(leaves.reduce((sum,leaf)=>sum+leaf.rows.length,0),rows.length);
+  for(const leaf of leaves){let depth=0;for(let n=leaf;n.parent;n=n.parent)depth++;assert(depth<=11);}
+  for(let x=0;x<55;x+=3){
+   const hit=b=>b.max[0]>=x&&b.min[0]<=x+4&&b.max[1]>=3&&b.min[1]<=11;
+   const accepts=id=>!Number.isFinite(points[id][0])||hit(rows[id]);
+   assert.deepEqual(f.api.query(tree,hit).filter(accepts),rows.map(r=>r.value).filter(accepts));
+  }
+ });
  check('Outward Float64 steps enclose the adjacent representable number including subnormals and cancellation scales',()=>{
   const data=new DataView(new ArrayBuffer(8)),adjacent=(value,up)=>{if(value===0)return up?Number.MIN_VALUE:-Number.MIN_VALUE;data.setFloat64(0,value);let bits=data.getBigUint64(0);bits+=(value>0)===up?1n:-1n;data.setBigUint64(0,bits);return data.getFloat64(0);};
   for(const n of [0,-0,Number.MIN_VALUE,-Number.MIN_VALUE,1,-1,1e-300,-1e-300,1e20,-1e20,Number.MAX_VALUE,-Number.MAX_VALUE]){assert(f.api.round(n,1)>=adjacent(n,true));assert(f.api.round(n,-1)<=adjacent(n,false));}
@@ -34,6 +46,7 @@ export async function splineNavigationBoundsChecks(){
  });
  check('Perspective near-eye crossing, uncertain depth and non-finite values fail open',()=>{
   for(const points of [[[0,0,3],[1,1,4]],[[0,0,3.2-Number.EPSILON*4],[1,1,3.2-Number.EPSILON*8]],[[Infinity,0,0],[1,1,0]]]){const d=f.display('eye',points,f.cache(f.FM.I(),{ortho:false,pixels:500}));assert.equal(f.api.hit(d,d.cache,1e6,-1e6),true);assert.equal(f.api.screen(d,d.cache).valid,false);}
+  const rear=f.display('behind',[[0,0,5],[1,1,6]],f.cache(f.FM.I(),{ortho:false,pixels:500}));assert.equal(f.api.hit(rear,rear.cache,0,0,8,undefined,true),false);assert.equal(f.parity([rear],0,0).original,null);
   const d=f.display('nonfinite',[[0,0,0],[1,1,0]]);d.cache.frame[0]=NaN;assert.equal(f.api.hit(d,d.cache,1e6,1e6),true);assert.equal(f.api.hit(d,d.cache,NaN,0),true);
  });
  check('Display revision, line identity/length, sample-map replacement and mutable previews invalidate exact local bounds',()=>{
