@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 19 nov 00:22",
+  "version": "2026 19 nov 01:47",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -514,11 +514,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "6def1c25c8db89e9e7c0bfd55c5b07683ee1e842358ee2f6f30437211f3b9173"
+      "sha256": "6792cd86280eb96d93382e80b1ab2da282917aa8a8e27e8dba72ac51b4a0a132"
     },
     "index.html": {
-      "bytes": 3155707,
-      "sha256": "88c79c76f181575421806190846656bc36f3dec8430fc64fefea59892d02e446"
+      "bytes": 3171266,
+      "sha256": "87f26133bf690c4731febc240f85d32befcc9c74189199f5b88867311d0d04e8"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -629,8 +629,8 @@
       "sha256": "618123b2f0586af64a734bea272d78c5fd1b2b9a8bd26e7197e4faa6742d3200"
     },
     "tests/viewport-pointer-priority.mjs": {
-      "bytes": 5548,
-      "sha256": "58d0e0be3aa7915edebe56fc37119bde22d9a0cd29b825298c03fc4bb821dff0"
+      "bytes": 5700,
+      "sha256": "bd2a4c4d0495821b6d5a9dfa6a0687460578a9189b43443c936facef2fd4212d"
     },
     "plugins/atomic/plugin.js": {
       "bytes": 3914087,
@@ -709,8 +709,8 @@
       "sha256": "bbb74bf7e6cc52974603a9e97f405b22b287fa6e5d3c5d1d82b46f3f6620118f"
     },
     "package.json": {
-      "bytes": 9051,
-      "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
+      "bytes": 9232,
+      "sha256": "3a8f48566f1625f9be6705dc15d555ced2bc4baf8f702bcfdcbb620ccf886749"
     },
     "tests/run.mjs": {
       "bytes": 38841,
@@ -1085,8 +1085,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 84590,
-      "sha256": "24c9255d2983263be443b44382669e993c5446af2f7d2fe30dc049fe1def99c0"
+      "bytes": 85611,
+      "sha256": "d8f35ebeebe0a74cdc6ad83d470be94046093403d3a08f677e02808d70b19f9d"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,

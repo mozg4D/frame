@@ -82,6 +82,7 @@
     "test:selection-gizmo": "node tests/selection-gizmo-state.mjs && node tests/current-source-baseline.mjs --scope gizmo && node tests/selection-gizmo-browser.mjs --headless",
     "test:thermal:ui:cpu": "node --test plugins/thermal/tests/fan-ui.mjs && node tests/current-source-baseline.mjs --scope thermal-ui",
     "test:current-source": "node tests/current-source-baseline.mjs && node tests/current-source-baseline-test.mjs",
+    "test:polygon-tools": "node tests/polygon-cut-topology.mjs && node tests/spline-line-cut.mjs && node tests/polygon-tool-gestures.mjs && node tests/spline-line-cut-browser.mjs",
     "test:viewport-pointer:cpu": "node tests/viewport-pointer-priority.mjs",
     "test:object-click-selection": "node tests/object-click-selection.mjs",
     "test:plugin-overlay:cpu": "node tests/plugin-overlay-refresh.mjs",

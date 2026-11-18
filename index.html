@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 00:22">
+<meta name="frame-version" content="2026 19 nov 01:47">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -13179,7 +13179,7 @@ function viewportContext(x,y){if(FramePlugins.dispatch('contextMenu',x,y))return
     if(['spline','square','circle','polyhedron','text','helix','gear','pulley','spline_patch'].includes(current().type))labels=['Line Cut','Bevel','Outline','Soft','Equal Tangents','Toggle Border','Select Connected (U)'];
     else labels=mode==='btnVertexMode'?['Line Cut','Loop Selection','Soft Selection','Close Polygonal Hole','Select Connected (U)']:mode==='btnEdgeMode'?['Line Cut','Bridge','Loop Selection','Close Polygonal Hole','Select Connected (U)']:['Line Cut','Close Polygonal Hole','Select Connected (U)'];
     const spline=['spline','square','circle','polyhedron','text','helix','gear','pulley','spline_patch'].includes(current().type);
-    showMenu(x,y,[...labels.map(label=>[label,()=>{const commands={'Add Point':'addPoint','Line Cut':'lineCut','Loop Selection':'loop','Soft Selection':'soft','Close Polygonal Hole':'closeHole','Bridge':'bridge'};if(commands[label])frameEngine.polygonTool(commands[label]);else if(label==='Bridge')frameAI.call('mesh.edit',{id:current().nativeHash,op:'bridge'}).catch(fileOperationError);else if(label==='Bevel')FrameGeometry.bevelDialog(current());else frameEngine.selectConnected(x,y);},!spline||label==='Line Cut'&&FrameSpline.isEditable(FrameSpline.sourceNode(current())||current())]),...animationItems()]);
+    showMenu(x,y,[...labels.map(label=>[label,()=>{const commands={'Add Point':'addPoint','Line Cut':'lineCut','Loop Selection':'loop','Soft Selection':'soft','Close Polygonal Hole':'closeHole','Bridge':'bridge'};if(commands[label])frameEngine.polygonTool(commands[label]);else if(label==='Bevel')FrameGeometry.bevelDialog(current());else frameEngine.selectConnected(x,y);},!spline||label==='Line Cut'&&FrameSpline.isEditable(FrameSpline.sourceNode(current())||current())]),...animationItems()]);
   }else objectMenu(x,y);
 }
 FrameViewWindows.onDocument('contextmenu',e=>e.preventDefault());
@@ -15081,14 +15081,39 @@ function frameSplineLineCut(K,data,options){
     const fills=options.cells?.length===0?[]:K.buildSplineSurface.resolve(data).fills.filter((_,i)=>!options.cells||options.cells.includes(i));
     for(const fill of fills){
       const edges=new Set(fill.loops.flat().map(r=>r.edge));
-      const inside=p=>{let crossings=0;for(const loop of fill.loops)for(const r of loop){const {cp,h}=curves.get(r.edge);for(const t of roots(h.map(q=>q[1]-p[1]*q[2]))){const point=K.cubicPoint(cp,t),q=project(point);if(q[3]<c.near||q[3]>c.far||q[0]/q[2]<=p[0])continue;const derivative=K.cubicDerivative(cp,t),step=project(point.map((v,k)=>v+derivative[k])),dy=(step[1]*q[2]-q[1]*step[2]);if(Math.abs(dy)<1e-10)continue;if(t<=1e-7?dy>0:t>=1-1e-7?dy<0:true)crossings++;}}return !!(crossings&1);};
-      // Interior polyline endpoints lie on the cell's geometric plane. Boundary
-      // intersections also support nonplanar cells without flattening their cage.
-      const unproject=p=>{if(!fill.planar)return null;const vertices=[...edges].flatMap(id=>curves.get(id).cp),origin=vertices[0];let normal=null;for(let i=1;i<vertices.length&&!normal;i++)for(let j=i+1;j<vertices.length;j++){const a=vertices[i].map((v,k)=>v-origin[k]),b=vertices[j].map((v,k)=>v-origin[k]),n=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],size=Math.hypot(...n);if(size>1e-12){normal=n.map(v=>v/size);break;}}if(!normal)return null;
+      const inside=p=>{
+        let crossings=0;
+        for(const loop of fill.loops)for(const r of loop){
+          const {cp,h}=curves.get(r.edge),level=h.map(q=>q[1]-p[1]*q[2]),ts=roots(level);
+          const above=t=>{const u=1-t;return u*u*u*level[0]+3*u*u*t*level[1]+3*u*t*t*level[2]+t*t*t*level[3]>0;};
+          for(let i=0;i<ts.length;i++){
+            const t=ts[i],q=project(K.cubicPoint(cp,t));if(q[3]<c.near||q[3]>c.far||q[0]/q[2]<=p[0])continue;
+            // One-sided signs also classify straight cubics with zero endpoint derivatives.
+            const before=t>1e-12&&above(((ts[i-1]??0)+t)/2),after=t<1-1e-12&&above((t+(ts[i+1]??1))/2);
+            if(before!==after)crossings++;
+          }
+        }
+        return !!(crossings&1);
+      };
+      let surface=null;
+      const onSurface=p=>{
+        surface??=K.buildSplineSurface.cell(data,fill,data.approximation?.angle||10);
+        const {positions,indices}=surface;let best=null,depth=Infinity;
+        for(let i=0;i<indices.length;i+=3){
+          const local=[0,1,2].map(k=>positions.subarray(3*indices[i+k],3*indices[i+k]+3)),q=local.map(project);
+          const xy=q.map(h=>[h[0]/h[2],h[1]/h[2]]),orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),det=orient(...xy);if(!det)continue;
+          const bary=xy.map((_,k)=>orient(xy[(k+1)%3],xy[(k+2)%3],p)/det);if(bary.some(w=>w<-1e-9))continue;
+          const weights=bary.map((w,k)=>w/q[k][2]),sum=weights.reduce((a,b)=>a+b),point=[0,1,2].map(k=>weights.reduce((a,w,j)=>a+w*local[j][k],0)/sum),z=project(point)[3];
+          if(z>=c.near&&z<=c.far&&z<depth){best=point;depth=z;}
+        }return best;
+      };
+      const unproject=p=>{if(!fill.planar)return onSurface(p);const vertices=[...edges].flatMap(id=>curves.get(id).cp),origin=vertices[0];let normal=null;for(let i=1;i<vertices.length&&!normal;i++)for(let j=i+1;j<vertices.length;j++){const a=vertices[i].map((v,k)=>v-origin[k]),b=vertices[j].map((v,k)=>v-origin[k]),n=[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],size=Math.hypot(...n);if(size>1e-12){normal=n.map(v=>v/size);break;}}if(!normal)return null;
         const base=project([0,0,0]),axes=[[1,0,0],[0,1,0],[0,0,1]].map(project),row=axis=>axes.map(q=>(q[axis]-base[axis])-p[axis]*(q[2]-base[2])),a=row(0),b=row(1),cross=(u,v)=>[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]],dot=(u,v)=>u.reduce((s,x,k)=>s+x*v[k],0),bc=cross(b,normal),ca=cross(normal,a),ab=cross(a,b),det=dot(a,bc);if(Math.abs(det)<1e-15)return null;const rhs=[p[0]*base[2]-base[0],p[1]*base[2]-base[1],dot(normal,origin)];return bc.map((v,k)=>(v*rhs[0]+ca[k]*rhs[1]+ab[k]*rhs[2])/det);};
       const endpoints=new Map();for(let piece=0;piece<line.length-1;piece++){
         const a=line[piece],b=line[piece+1],events=hits.filter(h=>h.event&&h.piece===piece&&edges.has(h.segment)).map(h=>({u:h.u,index:h.index}));
-        for(const [u,key,p]of [[0,piece,a],[1,piece+1,b]])if(!events.some(h=>Math.abs(h.u-u)<1e-7)&&inside(p)){let index=endpoints.get(key);if(index===undefined){const point=unproject(p);if(!point)continue;index=addPoint(point);endpoints.set(key,index);}events.push({u,index});}
+        for(const [u,key,p]of [[0,piece,a],[1,piece+1,b]])if(!events.some(h=>Math.abs(h.u-u)<1e-7)&&inside(p)){let index=endpoints.get(key);if(index===undefined){const point=unproject(p);if(!point)continue;
+            const existing=hits.find(h=>h.event&&h.piece===piece&&Math.abs(h.u-u)<1e-7&&point.every((v,k)=>Math.abs(v-points[h.index][k])<=128*Number.EPSILON*Math.max(1,Math.abs(v),Math.abs(points[h.index][k]))));
+            index=existing?.index??addPoint(point);endpoints.set(key,index);}events.push({u,index});}
         events.sort((a,b)=>a.u-b.u);for(let i=1;i<events.length;i++){const A=events[i-1],B=events[i];if(B.u-A.u<1e-7||A.index===B.index)continue;const t=(A.u+B.u)/2,xy=a.map((v,k)=>v+(b[k]-v)*t);if(inside(xy)){const midpoint=unproject(xy)||points[A.index].map((v,k)=>(v+points[B.index][k])/2);bridges.push({a:A.index,b:B.index,probe:addPoint(midpoint)});}}
       }
     }
@@ -16203,8 +16228,8 @@ window.frameEngine=(()=>{
     function powerOfTwoBelow(n){let p=1;while(p*2<=n)p*=2;return p;}
     function powerOfTwoAbove(n){let p=1;while(p<n)p*=2;return p;}
     function needsPagedMesh(gpu,input){const c=input.indices.length,limit=gpu.device.limits.maxStorageBufferBindingSize;return location.search.includes('force-paged')||Math.max(input.vertices.byteLength,c*8,powerOfTwoAbove(Math.max(1,c*1.5))*4,powerOfTwoAbove(Math.max(1,input.vertexCount*2))*4)>limit;}
-    async function pagedReadCounters(gpu,encoder,buffer,bytes=32){
-      const slot=acquireBounds(gpu,0);try{encoder.copyBufferToBuffer(buffer,0,slot.read,0,bytes);gpu.device.queue.submit([encoder.finish()]);await slot.read.mapAsync(GPUMapMode.READ);const data=Array.from(new Uint32Array(slot.read.getMappedRange(),0,bytes/4));slot.read.unmap();checkSession(gpu);return data;}finally{slot.busy=false;}
+    async function pagedReadCounters(gpu,encoder,buffer,bytes=32,offset=0){
+      const slot=acquireBounds(gpu,0);try{encoder.copyBufferToBuffer(buffer,offset,slot.read,0,bytes);gpu.device.queue.submit([encoder.finish()]);await slot.read.mapAsync(GPUMapMode.READ);const data=Array.from(new Uint32Array(slot.read.getMappedRange(),0,bytes/4));slot.read.unmap();checkSession(gpu);return data;}finally{slot.busy=false;}
     }
     async function uploadPagedArray(gpu,array,target){
       const pipeline=await pagedPipeline(gpu,'paged upload',`
@@ -20149,11 +20174,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
       }finally{releaseGPU(pick);}
     }
     function selectElement(clientX,clientY,operation='replace'){const task=selectionPending.catch(()=>{}).then(()=>selectElementNow(clientX,clientY,operation));selectionPending=task.catch(editError);return task;}
-    async function selectElementNow(clientX,clientY,operation='replace'){if(await FramePlugins.dispatch('pick',clientX,clientY,operation))return;FramePlugins.dispatch('clearSelection');clearMotionSelection();const helper=pickPluginHelper(clientX,clientY);if(helper){objectPickCycle=null;return selectObjectHashes([helper],operation);}if(elementMode==='object')return selectObjectAt(clientX,clientY,operation);objectPickCycle=null;if(elementMode!=='object'){const h=elementMode==='polygon'?await pickSplineCell(clientX,clientY)||hitSpline(clientX,clientY,false,false,false,false):hitSpline(clientX,clientY,false,false),n=h&&frameNodeByHash(h.hash);if(n&&FrameSpline.isActive(n)&&h.object&&['vertex','edge'].includes(elementMode)){if(elementMode==='edge'&&operation==='replace')FrameSpline.setSelection(h.hash,[]);return;}if(n&&(!FrameSpline.isActive(n)||h.object||elementMode==='polygon'&&!FrameSpline.patchOwner(n))){FrameSpline.setSelection(null);const owner=FrameSpline.isEditable(n)?FrameSpline.patchOwner(n)||n:n;selectRow(owner.id,{shiftKey:operation==='add',ctrlKey:operation==='toggle'});return frameSelectEngineObjects();}if(!h&&operation==='replace'&&[...FrameSpline.edits.values()].some(e=>e.selection.size)){if(await selectGeneratedAt(clientX,clientY,operation))return;FrameSpline.setSelection(null);return selectObjectAt(clientX,clientY,operation);}const key=elementMode==='vertex'?h?.handle||h?.vertex:elementMode==='edge'?h?.segment:h?.cell;if(n&&key&&!h.object&&FrameSpline.isEditable(n)){if(elementMode==='edge'&&h.segment){const p=FrameSpline.K().cubicPoint(FrameSpline.K().segmentPoints(n.splineData,h.segment),h.t??.5);if(!(await visibleSplinePoints(h.hash,[p]))[0])return;}const prior=new Set(FrameSpline.edits.get(h.hash)?.selection||[]);if(!FrameSpline.isActive(n)||elementMode==='polygon'&&current()?.type==='spline_patch'){selectRow(n.id);await selectionQueue;}selectionArea='viewport';FrameSpline.setSelection(h.hash,frameMergeSelection(prior,[key],operation));return;}}if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return selectObjectHashes([],operation);if(operation==='toggle'&&elementMode==='vertex'&&current()?.type==='mesh'&&!await componentSeed(renderer,clientX,clientY)){const hit=await polygonHit(clientX,clientY);if(hit){await polygonEdit(hit.n,{op:'addPoint',...(hit.edge?{edge:hit.edge.id,t:hit.edge.t}:{face:hit.face,barycentric:hit.barycentric})});return;}}
-      if(elementMode==='vertex'&&!await componentSeed(renderer,clientX,clientY)&&await selectObjectAt(clientX,clientY,operation,true))return;
-      if(elementMode==='vertex'&&!await componentSeed(renderer,clientX,clientY)){const activeMeshes=new Set(currentSelectionMeshes()),activeOwners=new Set();for(const n of nodes)if(selected.has(n.id))activeOwners.add(n.nativeHash);if(scene.meshes.some(m=>!m.splineGenerated&&!activeOwners.has(m.hashId)&&!activeMeshes.has(m)&&meshVisible(m))&&await selectObjectAt(clientX,clientY,operation,true))return;}
-      if(elementMode==='vertex'&&selectionScope==='components'&&renderer.boxSelection?.mode==='vertex'&&renderer.boxSelection.counts.some(Boolean)&&!await componentSeed(renderer,clientX,clientY)&&await selectObjectAt(clientX,clientY,operation,true))return;
-      if(elementMode==='edge'&&!await componentSeed(renderer,clientX,clientY)&&await selectObjectAt(clientX,clientY,operation,true))return;if(elementMode==='polygon'&&await selectObjectAt(clientX,clientY,operation,'switch'))return;if(!componentMeshes().length)return;
+    async function selectElementNow(clientX,clientY,operation='replace'){if(await FramePlugins.dispatch('pick',clientX,clientY,operation))return;FramePlugins.dispatch('clearSelection');clearMotionSelection();const helper=pickPluginHelper(clientX,clientY);if(helper){objectPickCycle=null;return selectObjectHashes([helper],operation);}if(elementMode==='object')return selectObjectAt(clientX,clientY,operation);objectPickCycle=null;if(elementMode!=='object'){const h=elementMode==='polygon'?await pickSplineCell(clientX,clientY)||hitSpline(clientX,clientY,false,false,false,false):hitSpline(clientX,clientY,false,false),n=h&&frameNodeByHash(h.hash);if(n&&FrameSpline.isActive(n)&&h.object&&['vertex','edge'].includes(elementMode)){if(operation==='replace')FrameSpline.setSelection(h.hash,[]);return;}if(n&&(!FrameSpline.isActive(n)||h.object||elementMode==='polygon'&&!FrameSpline.patchOwner(n))){FrameSpline.setSelection(null);const owner=FrameSpline.isEditable(n)?FrameSpline.patchOwner(n)||n:n;selectRow(owner.id,{shiftKey:operation==='add',ctrlKey:operation==='toggle'});return frameSelectEngineObjects();}if(!h&&operation==='replace'&&[...FrameSpline.edits.values()].some(e=>e.selection.size)){if(await selectGeneratedAt(clientX,clientY,operation))return;FrameSpline.setSelection(null);return selectObjectAt(clientX,clientY,operation);}const key=elementMode==='vertex'?h?.handle||h?.vertex:elementMode==='edge'?h?.segment:h?.cell;if(n&&key&&!h.object&&FrameSpline.isEditable(n)){if(elementMode==='edge'&&h.segment){const p=FrameSpline.K().cubicPoint(FrameSpline.K().segmentPoints(n.splineData,h.segment),h.t??.5);if(!(await visibleSplinePoints(h.hash,[p]))[0])return;}const prior=new Set(FrameSpline.edits.get(h.hash)?.selection||[]);if(!FrameSpline.isActive(n)||elementMode==='polygon'&&current()?.type==='spline_patch'){selectRow(n.id);await selectionQueue;}selectionArea='viewport';FrameSpline.setSelection(h.hash,frameMergeSelection(prior,[key],operation));return;}}if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return selectObjectHashes([],operation);if(operation==='toggle'&&elementMode==='vertex'&&current()?.type==='mesh'&&!await componentSeed(renderer,clientX,clientY)){const hit=await polygonHit(clientX,clientY);if(hit){await polygonEdit(hit.n,{op:'addPoint',...(hit.edge?{edge:hit.edge.id,t:hit.edge.t}:{face:hit.face,barycentric:hit.barycentric})});return;}}
+      if((elementMode==='vertex'||elementMode==='edge')&&!await componentSeed(renderer,clientX,clientY)&&await selectObjectAt(clientX,clientY,operation,operation==='replace'?'switch':true))return;
+      if(elementMode==='polygon'&&await selectObjectAt(clientX,clientY,operation,'switch'))return;if(!componentMeshes().length)return;
       selectionScope='components';objectSelection=[];componentPivot=null;measurementCache=null;
       if(!scene||selectionBusy||editDrag||editFinishing||undoBusy||button.disabled)return;const gpu=renderer,space=scene,generation=++selectionGeneration,mode=elementMode;selectionBusy=true;touchActivity();orbitGeneration++;pendingWheel=null;
       selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
@@ -20165,7 +20188,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
           else{const data=new ArrayBuffer(32);new Int32Array(data).set([x,y,1,elementIds[mode]]);new Float32Array(data).set([gpu.width/rect.width,gpu.height/rect.height,(clientX-rect.left)*gpu.width/rect.width,(clientY-rect.top)*gpu.height/rect.height],4);gpu.device.queue.writeBuffer(gpu.hoverPresentation.uniform,0,data);const p=e.beginComputePass();p.setPipeline(gpu.featureHover.search);p.setBindGroup(0,gpu.featureHover.searchGroup);p.dispatchWorkgroups(1);p.end();e.copyBufferToBuffer(gpu.hoverPresentation.winner,0,s.hit,0,32);}
           const p=e.beginComputePass();p.setPipeline(gpu.boxPipelines.clickSelect);p.setBindGroup(0,boxGlobalGroup(gpu));for(const entry of s.entries){p.setBindGroup(1,entry.writeGroup);p.dispatchWorkgroups(1);}p.end();await finishElementState(gpu,s,e);if(mode==='polygon'&&valid()){const hit=new Uint32Array((await nativeReadGPU(gpu,s.hit,1)).buffer)[0],mesh=scene.meshes.find(m=>hit>m.faceBase&&hit<=m.faceBase+m.triangleCount);if(mesh)await selectFaceMaterial(mesh,hit-mesh.faceBase-1);}const merged=await mergeSelectionBits(gpu,previous,operation);previous=null;s.counts=merged.counts;if(!valid())return;await draw();canvas.dataset.clickSelection=JSON.stringify({mode,count:s.counts.reduce((a,b)=>a+b,0),objects:selectedMeshes.length});
         }catch(error){if(valid())editError(error);}finally{releaseGPU(previous);if(generation===selectionGeneration){selectionBusy=false;touchActivity();}}
-      });
+      });return selectionQueue;
     }
 
     function topologyEditPipelines(gpu){
@@ -20322,24 +20345,61 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     let snapQueue=Promise.resolve(),snapTicket=0;
     async function gpuVertexSnap(x,y,g){
-      const gpu=renderer,space=scene,d=gpu.device;if(!space)return null;const source=splineSnapPoint(x,y,null,null,null,g);if(source)return source;const ticket=++snapTicket;
+      const gpu=renderer,space=scene,d=gpu.device;if(!space)return null;const source=splineSnapPoint(x,y,null,null,null,g);if(source&&g.scope!=='components')return source;const ticket=++snapTicket;
       if(!gpu.vertexSnapInit)gpu.vertexSnapInit=(async()=>{
-        const code=`${CAMERA_RELATIVE_WGSL}struct Params{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};${POSE_WGSL} struct Search{cursor:vec4f,range:vec4u};@group(0) @binding(0) var<uniform> camera:Params;@group(0) @binding(1) var depth:texture_depth_2d;@group(0) @binding(2) var<storage,read_write> winner:array<atomic<u32>>;@group(1) @binding(0) var<storage,read> positions:array<f32>;@group(1) @binding(1) var pages:texture_2d_array<u32>;@group(1) @binding(2) var<storage,read> selected:array<u32>;@group(1) @binding(3) var<uniform> pose:ObjectFrame;@group(1) @binding(4) var<uniform> search:Search;
-          fn coordinate(i:u32)->f32{if(search.range.z==0u){return positions[i];}let d=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x);}
+        const code=`${CAMERA_RELATIVE_WGSL}struct Params{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};${POSE_WGSL} struct Search{cursor:vec4f,range:vec4u,faces:vec4u};
+          @group(0) @binding(0) var<uniform> camera:Params;@group(0) @binding(1) var depth:texture_depth_2d;
+          @group(0) @binding(2) var<storage,read_write> winner:array<atomic<u32>>;@group(0) @binding(3) var surfaceIds:texture_2d<u32>;
+          @group(1) @binding(0) var<storage,read> positions:array<f32>;@group(1) @binding(1) var pages:texture_2d_array<u32>;
+          @group(1) @binding(2) var<storage,read> selected:array<u32>;@group(1) @binding(3) var<uniform> pose:ObjectFrame;
+          @group(1) @binding(4) var<uniform> search:Search;@group(1) @binding(5) var<storage,read> indices:array<u32>;@group(1) @binding(6) var indexPages:texture_2d_array<u32>;
+          fn word(p:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(p);return textureLoad(p,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x;}
+          fn coordinate(i:u32)->f32{if(search.range.z==0u){return positions[i];}return bitcast<f32>(word(pages,i));}
+          fn vertex(i:u32)->u32{if(search.range.z==0u){return indices[i];}return word(indexPages,i);}
           fn world(v:u32)->vec3f{return objectPoint(vec3f(coordinate(v*3u),coordinate(v*3u+1u),coordinate(v*3u+2u)),pose);}
-          fn score(v:u32)->u32{if(v>=search.range.x||(search.range.w!=0u&&((selected[v>>5u]>>(v&31u))&1u)!=0u)){return 0xffffffffu;}let p=frameCameraRelative(camera.rotation)*vec4f((world(v)-camera.centerScale.xyz)*camera.centerScale.w,1);let xy=p.xy+camera.viewport.zw;let z=-p.z;var ndc=xy*vec2f(camera.clip.w/camera.viewport.x,camera.clip.w)/z;var projectedDepth=(camera.clip.y*z-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x)/z;if(camera.clip.z!=0.){ndc=xy*vec2f(camera.viewport.y/camera.viewport.x,camera.viewport.y);projectedDepth=(z-camera.clip.x)/(camera.clip.y-camera.clip.x);}if((camera.clip.z==0.&&z<=0.)||projectedDepth<0.||projectedDepth>1.){return 0xffffffffu;}let pixel=(ndc*vec2f(.5,-.5)+.5)*camera.frame.xy;let delta=(pixel-search.cursor.xy)/search.cursor.zw;let distance=dot(delta,delta);if(distance>100.){return 0xffffffffu;}let at=vec2i(pixel);let size=vec2i(textureDimensions(depth));if(any(at<vec2i(0))||any(at>=size)||projectedDepth>textureLoad(depth,at,0)+.000002){return 0xffffffffu;}return u32(round(distance*4096.));}
-          @compute @workgroup_size(128) fn nearest(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let v=id.x+id.y*groups.x*128u;let s=score(v);atomicMin(&winner[0],s);}
-          @compute @workgroup_size(128) fn choose(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let v=id.x+id.y*groups.x*128u;if(v<search.range.x&&score(v)==atomicLoad(&winner[0])&&atomicLoad(&winner[0])!=0xffffffffu){atomicMin(&winner[1],search.range.y+v);}}
-          @compute @workgroup_size(128) fn resolve(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let v=id.x+id.y*groups.x*128u;if(v<search.range.x&&search.range.y+v==atomicLoad(&winner[1])){let p=world(v);atomicStore(&winner[2],bitcast<u32>(p.x));atomicStore(&winner[3],bitcast<u32>(p.y));atomicStore(&winner[4],bitcast<u32>(p.z));}}`;
-        const module=d.createShaderModule({label:'GPU nearest vertex snapping',code}),stages=GPUShaderStage.COMPUTE,global=d.createBindGroupLayout({entries:[{binding:0,visibility:stages,buffer:{type:'uniform'}},{binding:1,visibility:stages,texture:{sampleType:'depth'}},{binding:2,visibility:stages,buffer:{type:'storage'}}]}),meshLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:stages,buffer:{type:'read-only-storage'}},{binding:1,visibility:stages,texture:{sampleType:'uint',viewDimension:'2d-array'}},{binding:2,visibility:stages,buffer:{type:'read-only-storage'}},{binding:3,visibility:stages,buffer:{type:'uniform'}},{binding:4,visibility:stages,buffer:{type:'uniform'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[global,meshLayout]}),pipelines=[];
-        for(const entryPoint of ['nearest','choose','resolve'])pipelines.push(await d.createComputePipelineAsync({layout,compute:{module,entryPoint}}));return gpu.vertexSnap={pipelines,global,meshLayout,winner:makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),read:makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),params:new Map()};})();
+          fn visible(v:u32,pixel:vec2f,z:f32)->bool{
+            let origin=vec2i(floor(pixel-.5));let size=vec2i(textureDimensions(depth));
+            for(var y=0;y<2;y++){for(var x=0;x<2;x++){let at=origin+vec2i(x,y);
+              if(any(at<vec2i(0))||any(at>=size)){continue;}
+              if(z<=textureLoad(depth,at,0)+.0000002){return true;}
+              if(camera.modes.w!=0.){let face=textureLoad(surfaceIds,at,0).x;
+                if(face>search.faces.x&&face-search.faces.x<=search.faces.y){
+                  let c=(face-search.faces.x-1u)*3u;if(vertex(c)==v||vertex(c+1u)==v||vertex(c+2u)==v){return true;}
+                }}
+            }}return false;
+          }
+          fn score(v:u32)->vec2u{
+            let miss=vec2u(0xffffffffu);
+            if(v>=search.range.x||(search.range.w!=0u&&((selected[v>>5u]>>(v&31u))&1u)!=0u)){return miss;}
+            let p=frameCameraRelative(camera.rotation)*vec4f((world(v)-camera.centerScale.xyz)*camera.centerScale.w,1);
+            let xy=p.xy+camera.viewport.zw;let z=-p.z;
+            var ndc=xy*vec2f(camera.clip.w/camera.viewport.x,camera.clip.w)/z;
+            var projectedDepth=(camera.clip.y*z-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x)/z;
+            if(camera.clip.z!=0.){ndc=xy*vec2f(camera.viewport.y/camera.viewport.x,camera.viewport.y);projectedDepth=(z-camera.clip.x)/(camera.clip.y-camera.clip.x);}
+            if((camera.clip.z==0.&&z<=0.)||projectedDepth<0.||projectedDepth>1.){return miss;}
+            let pixel=(ndc*vec2f(.5,-.5)+.5)*camera.frame.xy;let delta=(pixel-search.cursor.xy)/search.cursor.zw;let distance=dot(delta,delta);
+            if(distance>100.||!visible(v,pixel,projectedDepth)){return miss;}
+            return vec2u(u32(round(distance*4096.)),bitcast<u32>(max(0.,projectedDepth)));
+          }
+          @compute @workgroup_size(128) fn nearest(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+            let v=id.x+id.y*groups.x*128u;atomicMin(&winner[0],score(v).x);}
+          @compute @workgroup_size(128) fn nearestDepth(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+            let s=score(id.x+id.y*groups.x*128u);if(s.x==atomicLoad(&winner[0])){atomicMin(&winner[1],s.y);}}
+          @compute @workgroup_size(128) fn choose(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+            let v=id.x+id.y*groups.x*128u;let s=score(v);
+            if(s.x!=0xffffffffu&&all(s==vec2u(atomicLoad(&winner[0]),atomicLoad(&winner[1])))){atomicMin(&winner[2],search.range.y+v);}}
+          @compute @workgroup_size(1) fn resolve(){
+            let v=atomicLoad(&winner[2])-search.range.y;if(v>=search.range.x){return;}let p=world(v);
+            atomicStore(&winner[3],bitcast<u32>(p.x));atomicStore(&winner[4],bitcast<u32>(p.y));atomicStore(&winner[5],bitcast<u32>(p.z));}`;
+        const module=d.createShaderModule({label:'GPU nearest vertex snapping',code}),stages=GPUShaderStage.COMPUTE,global=d.createBindGroupLayout({entries:[{binding:0,visibility:stages,buffer:{type:'uniform'}},{binding:1,visibility:stages,texture:{sampleType:'depth'}},{binding:2,visibility:stages,buffer:{type:'storage'}},{binding:3,visibility:stages,texture:{sampleType:'uint'}}]}),meshLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:stages,buffer:{type:'read-only-storage'}},{binding:1,visibility:stages,texture:{sampleType:'uint',viewDimension:'2d-array'}},{binding:2,visibility:stages,buffer:{type:'read-only-storage'}},{binding:3,visibility:stages,buffer:{type:'uniform'}},{binding:4,visibility:stages,buffer:{type:'uniform'}},{binding:5,visibility:stages,buffer:{type:'read-only-storage'}},{binding:6,visibility:stages,texture:{sampleType:'uint',viewDimension:'2d-array'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[global,meshLayout]}),pipelines=[];
+        for(const entryPoint of ['nearest','nearestDepth','choose','resolve'])pipelines.push(await d.createComputePipelineAsync({layout,compute:{module,entryPoint}}));return gpu.vertexSnap={pipelines,global,meshLayout,winner:makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),read:makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),params:new Map()};})();
       const s=await gpu.vertexSnapInit;if(scene!==space||gizmoSession!==g)return null;
       const rect=canvas.getBoundingClientRect(),px=(x-rect.left)*gpu.width/rect.width,py=(y-rect.top)*gpu.height/rect.height,excluded=g.scope==='objects'?new Set(currentSelectionMeshes()):g.scope==='spline'?new Set(space.meshes.filter(m=>m.splineGenerated&&(m.hashId===g.spline.n.nativeHash||FrameSpline.sourceNode(frameNodeByHash(m.hashId))===g.spline.n))):new Set(),entries=[];let base=1;
       for(const mesh of space.meshes){const first=base;base+=mesh.vertexCount;if(mesh.frameVisible===false||excluded.has(mesh)||!boxIntersectsMesh(mesh,[px-10*gpu.width/rect.width,py-10*gpu.height/rect.height,px+10*gpu.width/rect.width,py+10*gpu.height/rect.height]))continue;
-        let p=s.params.get(mesh);if(!p){p=makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});s.params.set(mesh,p);}const a=new ArrayBuffer(32);new Float32Array(a).set([px,py,gpu.width/rect.width,gpu.height/rect.height]);new Uint32Array(a).set([mesh.vertexCount,first,mesh.paged?1:0,g.scope==='components'?1:0],4);d.queue.writeBuffer(p,0,a);
-        const group=d.createBindGroup({layout:s.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:mesh.connected.flags}},{binding:3,resource:{buffer:mesh.objectFrame}},{binding:4,resource:{buffer:p}}]});entries.push({mesh,group});
+        let p=s.params.get(mesh);if(!p){p=makeGPUBuffer(d,{size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});s.params.set(mesh,p);}const a=new ArrayBuffer(48);new Float32Array(a).set([px,py,gpu.width/rect.width,gpu.height/rect.height]);new Uint32Array(a).set([mesh.vertexCount,first,mesh.paged?1:0,g.scope==='components'&&selectedMeshes.includes(mesh)?1:0,mesh.faceBase||0,mesh.triangleCount],4);d.queue.writeBuffer(p,0,a);
+        const group=d.createBindGroup({layout:s.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:mesh.connected.flags}},{binding:3,resource:{buffer:mesh.objectFrame}},{binding:4,resource:{buffer:p}},{binding:5,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.indices}},{binding:6,resource:(mesh.paged?mesh.indices:gpu.dummyTexture).view}]});entries.push({mesh,group});
       }
-      d.queue.writeBuffer(s.winner,0,new Uint32Array([0xffffffff,0xffffffff,0,0,0,0,0,0]));const global=d.createBindGroup({layout:s.global,entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:gpu.depth.createView()},{binding:2,resource:{buffer:s.winner}}]}),encoder=d.createCommandEncoder();for(const pipeline of s.pipelines){const pass=encoder.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,global);for(const {mesh,group}of entries){pass.setBindGroup(1,group);const n=Math.ceil(mesh.vertexCount/128),nx=Math.min(n,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(nx,Math.ceil(n/nx));}pass.end();}encoder.copyBufferToBuffer(s.winner,0,s.read,0,32);d.queue.submit([encoder.finish()]);await s.read.mapAsync(GPUMapMode.READ);const range=s.read.getMappedRange(),u=new Uint32Array(range),p=u[1]===0xffffffff?null:Array.from(new Float32Array(range).slice(2,5));s.read.unmap();canvas.dataset.snap=JSON.stringify({point:p,candidates:entries.length,gpu:true,ticket});return scene===space?p:null;
+      d.queue.writeBuffer(s.winner,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));const global=d.createBindGroup({layout:s.global,entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:gpu.depth.createView()},{binding:2,resource:{buffer:s.winner}},{binding:3,resource:gpu.triangleIds.createView()}]}),encoder=d.createCommandEncoder();for(const pipeline of s.pipelines){const pass=encoder.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,global);for(const {mesh,group}of entries){pass.setBindGroup(1,group);const n=pipeline===s.pipelines.at(-1)?1:Math.ceil(mesh.vertexCount/128),nx=Math.min(n,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(nx,Math.ceil(n/nx));}pass.end();}encoder.copyBufferToBuffer(s.winner,0,s.read,0,32);d.queue.submit([encoder.finish()]);await s.read.mapAsync(GPUMapMode.READ);const range=s.read.getMappedRange(),u=new Uint32Array(range),p=u[2]===0xffffffff?null:Array.from(new Float32Array(range).slice(3,6));s.read.unmap();canvas.dataset.snap=JSON.stringify({point:p,candidates:entries.length,gpu:true,ticket});if(scene!==space)return null;if(!source)return p;if(!p)return source;const a=worldScreen(p),b=worldScreen(source);return Math.hypot(b[0]-x,b[1]-y)<Math.hypot(a[0]-x,a[1]-y)?source:p;
     }
     function queueVertexSnap(x,y,g){const sequence=g.snapSequence;return snapQueue=snapQueue.catch(()=>{}).then(async()=>{if(gizmoSession!==g||sequence!==g.snapSequence)return null;const native=await gpuVertexSnap(x,y,g),plugin=await FramePlugins.dispatch('snap',x,y,g);if(gizmoSession!==g||sequence!==g.snapSequence)return null;if(!plugin)return native;if(!native)return plugin;const a=worldScreen(native),b=worldScreen(plugin);return Math.hypot(a[0]-x,a[1]-y)<=Math.hypot(b[0]-x,b[1]-y)?native:plugin;});}
 
@@ -20401,7 +20461,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function hideGizmo(){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}}
     function drawGizmo(){
       FramePlugins.drawOverlays();
-      const frame=selectionFrame();if(!frame||handles.hidden||polygonTools.mode==='loop'){hideGizmo();return;}
+      const frame=selectionFrame();if(!frame||handles.hidden||['loop','lineCut','bridge'].includes(polygonTools.mode)){hideGizmo();return;}
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas,pivot=Array.from(frame.slice(12,15)),basis=gizmoBasis();lastGizmoState=null;
       handles.style.cssText='left:0;top:0;width:0;height:0;transform:none';handles.dataset.pivot=JSON.stringify(pivot);
       try{for(const i of frameViewSections.keys()){
@@ -20446,6 +20506,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         let displacement=constrainMove(g,FM.sub(point,g.hit));if(quantize){const step=quantStepForView();displacement=g.axes.reduce((out,axis)=>FM.add(out,FM.scale(axis,Math.round(FM.dot(displacement,axis)/step)*step)),[0,0,0]);}
         let target=FM.add(g.pivot,displacement);
         if(snapping){
+          g.snapSearch=worldScreen(target);
           let candidate;if(g.snap){const p=g.screenPlane&&!frameViewKind(viewIndex)?g.snap:FM.add(g.pivot,constrainMove(g,FM.sub(g.snap,g.pivot))),a=worldScreen(p),b=worldScreen(target);if(Math.hypot(a[0]-b[0],a[1]-b[1])<=10)candidate=p;}
           if(!candidate&&(frameViewKind(viewIndex)||!g.screenPlane&&g.axes.length>0)){const step=frameViewKind(viewIndex)?quantStepForView():snapGuideStep(g.pivot),p=frameViewKind(viewIndex)?orthographicGridCandidate(g,target,step):FM.add(g.pivot,g.axes.reduce((out,axis)=>FM.add(out,FM.scale(axis,Math.round(FM.dot(target,axis)/step)*step-FM.dot(g.pivot,axis))),[0,0,0])),a=worldScreen(p),b=worldScreen(target);if(Math.hypot(a[0]-b[0],a[1]-b[1])<10)candidate=p;}
           if(candidate)target=candidate;
@@ -20471,7 +20532,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       else{
         let s=g.drag;if(!s){const mesh=selectedMesh;s=g.drag={gpu:renderer,kind:'gizmo',mesh,meshes:currentSelectionMeshes(),box:selectionBox,pivot:g.pivot,originalBounds:{min:[...mesh.boundsMin],max:[...mesh.boundsMax]},topologyKind:g.ctrl?(elementMode==='edge'?'edge-extrude':elementMode==='vertex'?'vertex-copy':'copy'):g.shift?(elementMode==='polygon'?'face-extrude':elementMode==='edge'?'edge-extrude':elementMode==='vertex'?'vertex-extrude':null):null,ready:false,preparing:false,dirty:true,changed:true,released:false,cancel:false,frameBefore:g.before,customMatrix:g.delta};editDrag=s;prepareTransform(s);}s.customMatrix=g.delta;s.dirty=true;componentPivot=FM.rigid(FM.mul(g.delta,g.frame));draw();
       }
-      if(snapping&&g.kind==='move'&&!g.snapApplying){const p=FM.point(g.delta,g.pivot),xy=worldScreen(p),sequence=++g.snapSequence;g.snapPromise=queueVertexSnap(xy[0],xy[1],g).then(hit=>{if(gizmoSession!==g||sequence!==g.snapSequence)return;g.snap=hit;g.snapApplying=true;applyGizmoEvent(g,g.event);g.snapApplying=false;}).catch(editError);}
+      if(snapping&&g.kind==='move'&&g.snapSearch&&!g.snapApplying){const sequence=++g.snapSequence;g.snapPromise=queueVertexSnap(...g.snapSearch,g).then(hit=>{if(gizmoSession!==g||sequence!==g.snapSequence||g.event!==event)return;g.snap=hit;g.snapApplying=true;applyGizmoEvent(g,event);g.snapApplying=false;}).catch(editError);}
     }
     function gizmoPointerDown(event){
       const part=event.target.closest('[data-part]')?.dataset.part;if(event.button!==0||!part||!selectionBox||gizmoSession||coreNumeric||editDrag||editFinishing||selectionBusy||nativeIOBusy)return;event.preventDefault();event.stopImmediatePropagation();if(!activateFrameView(+event.currentTarget.dataset.view))return;selectionArea='viewport';drawGizmo();
@@ -20481,7 +20542,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const hit=pointerWorld(event,pivot,normal);if(!hit)return;const g=gizmoSession={...t,camera:captureCamera(),pivot,basis,kind,axis,axes,normal,other,hit,editPivot:pivotEditing,uniform:part==='scale',screenPlane:part==='move',extent:part==='scale'?Math.max(...t.state.size):t.state.size[indices[0]||0],at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind!=='skew')lastGizmoOperation=kind;if(kind==='scale'){g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!g.uniform)g.scaleRate=scaleResponse(axis,pivot,g.extent);}gizmoSvg.setPointerCapture(event.pointerId);hoverCursor.inside=false;deferHoverMaps();
     }
     let gizmoRAF=0;
-    function gizmoPointerMove(event){const g=gizmoSession;if(!g)return;g.event=event;if(gizmoRAF)return;
+    function gizmoPointerMove(event){const g=gizmoSession;if(!g||g.ending)return;g.event=event;if(gizmoRAF)return;
       // Dispatch the first position immediately so cell evaluation overlaps
       // the current frame. Coalesce any later positions before the next paint.
       const local=(g.scope==='spline'||g.scope==='objects')&&!g.ctrl&&!g.shift&&!g.editPivot&&!snapping;
@@ -20489,7 +20550,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
       gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g&&(!local||g.event!==event))applyGizmoEvent(g,g.event);});
     }
     async function finishGizmo(event,cancel=false){
-      const g=gizmoSession;if(!g||event.pointerId!==g.id)return;if(g.ending){if(cancel)g.cancelRequested=true;return;}if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;}if(!cancel&&Number.isFinite(event.clientX))applyGizmoEvent(g,event);const finalPoseScope=!cancel&&!g.copyPromise&&g.scope==='objects'?g.before?.poseScope?.work:null;g.ending=true;if(g.copyPromise)await g.copyPromise;if(g.copyError)cancel=true;if(!cancel&&g.snapPromise)await g.snapPromise;if(gizmoSession!==g)return;cancel ||= g.cancelRequested;gizmoSession=null;
+      const g=gizmoSession;if(!g||event.pointerId!==g.id)return;
+      if(g.ending){if(cancel)g.cancelRequested=true;return g.completion;}
+      return g.completion=completeGizmo(g,event,cancel);
+    }
+    async function completeGizmo(g,event,cancel){
+      if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;}if(!cancel&&Number.isFinite(event.clientX))applyGizmoEvent(g,event);const finalPoseScope=!cancel&&!g.copyPromise&&g.scope==='objects'?g.before?.poseScope?.work:null;g.ending=true;if(g.copyPromise)await g.copyPromise;if(g.copyError)cancel=true;if(!cancel&&g.snapPromise)await g.snapPromise;if(gizmoSession!==g)return;cancel ||= g.cancelRequested;gizmoSession=null;
       if(g.scope==='plugin'){await g.plugin.finish(!cancel);if(g.editPivot&&!cancel)commitFrames(g.before);}else if(g.scope==='motion'){finishMotion(g.motion,cancel);}else if(g.scope==='spline'){const pivot=componentPivot;FrameSpline.finishTransform(g.spline,!cancel);if(!cancel){componentPivot=!g.editPivot&&(g.spline.items||[g.spline]).some(t=>FrameMorph.tagOf(t.n)?.params.mode==='Solve')?null:pivot;if(g.editPivot)commitFrames(g.before);}else componentPivot=g.before.componentPivot;}else if(g.drag){const s=g.drag;s.released=true;s.cancel=cancel;if(s.ready)editSerial=editSerial.then(()=>endTransform(s)).catch(editError);else if(!s.preparing){editDrag=null;restoreFrames(g.before);}}
       else if(g.copyCreated){if(cancel)await cancelObjectCopy(g);else commitObjectCopy(g);}else if(cancel)restoreFrames(g.before);else if(g.moved)commitFrames(g.before);if(pivotKey?.gesture){setTransformOptions({pivot:pivotKey.before});pivotKey=null;}notifyTransformUI(finalPoseScope);deferHoverMaps();
     }
@@ -20815,8 +20881,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const t=transformTransaction(prepared),pivot=Array.from(t.frame.slice(12,15)),normal=FM.unit(inverseView([0,0,1])),hit=pointerWorld(event,pivot,normal);if(!hit)return false;
       const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
     }
-    canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
-    canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;if(!g.moved){finishGizmo(event).catch(editError);selectElement(event.clientX,event.clientY,frameSelectionOperation(event));return;}finishGizmo(event).catch(editError);});
+    canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag||g.ending)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
+    canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;const click=!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6;finishGizmo(event).catch(editError);if(click)selectElement(event.clientX,event.clientY,frameSelectionOperation(event));});
     canvas.addEventListener('pointercancel',event=>{if(gizmoSession?.viewDrag)finishGizmo(event,true).catch(editError);});
     const pluginHost=$('frame-engine-host');
     pluginHost.addEventListener('contextmenu',e=>{if(!navigationMenuSuppressed&&FramePlugins.dispatch('contextMenu',e.clientX,e.clientY)){e.preventDefault();e.stopImmediatePropagation();}},true);
@@ -20891,6 +20957,24 @@ fn occupied(p:vec2i,channel:u32)->bool{
     canvas.addEventListener('pointerleave',()=>{if(hoverCursor.inside){hoverCursor.inside=false;if(scene)draw(false);}});
     canvas.addEventListener('pointerdown',()=>{canvas.focus({preventScroll:true});if(scene)draw(false);});
     FrameViewWindows.onWindow('blur',()=>{hoverCursor.inside=false;if(scene)draw(false);});
+    // Accept a new click while the preceding GPU selection or vertex weld is settling.
+    let queuedComponentPress=null;
+    canvas.addEventListener('pointerdown',event=>{
+      if(event.button!==0||elementMode==='object'||!(selectionBusy||gizmoSession?.ending||editDrag?.released||editFinishing||drag?.vertexPending&&drag.releaseEvent))return;
+      queuedComponentPress={id:event.pointerId,x:event.clientX,y:event.clientY,space:scene,view:viewIndex,mode:elementMode,operation:frameSelectionOperation(event)};
+      canvas.setPointerCapture(event.pointerId);event.stopImmediatePropagation();
+    },true);
+    canvas.addEventListener('pointerup',event=>{
+      const press=queuedComponentPress;if(!press||press.id!==event.pointerId)return;
+      queuedComponentPress=null;event.stopImmediatePropagation();
+      if(Math.hypot(event.clientX-press.x,event.clientY-press.y)>3)return;
+      const {clientX:x,clientY:y}=event;
+      selectionPending=selectionPending.catch(editError).then(async()=>{
+        await gizmoSession?.completion;await editSerial;await selectionQueue;
+        if(scene===press.space&&viewIndex===press.view&&elementMode===press.mode){await selectElementNow(x,y,press.operation);await selectionQueue;}
+      }).catch(editError);
+    },true);
+    canvas.addEventListener('pointercancel',()=>{queuedComponentPress=null;},true);
     canvas.addEventListener('pointerdown',async event=>{
       if((event.button!==0&&event.button!==1&&event.button!==2)||!scene||selectionBusy||boxDrag||gizmoSession||coreNumeric||editDrag||editFinishing)return;
       event.preventDefault();
@@ -22724,7 +22808,7 @@ function FramePolygonKernel(d){
   let p=Array.from(d.vertices),ix=Array.from(d.indices),sources=Array.from({length:ix.length/3},(_,i)=>i),uv=d.uv?Array.from(d.uv):null;
   const point=i=>p.slice(i*3,i*3+3),sub=(a,b)=>a.map((x,k)=>x-b[k]),dot=(a,b)=>a.reduce((s,x,k)=>s+x*b[k],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],length=a=>Math.hypot(...a),key=(a,b)=>Math.min(a,b)+':'+Math.max(a,b),add=point=>{const id=p.length/3;p.push(...point);return id;};
   function cutCandidate(indices,at,line=d.line){const a=indices[at]*3,b=indices[at+1]*3,c=indices[at+2]*3,q=d.screen,x0=Math.min(q[a],q[b],q[c]),x1=Math.max(q[a],q[b],q[c]),y0=Math.min(q[a+1],q[b+1],q[c+1]),y1=Math.max(q[a+1],q[b+1],q[c+1]);for(let i=1;i<line.length;i++){const A=line[i-1],B=line[i];if(Math.max(A[0],B[0])+.001>=x0&&Math.min(A[0],B[0])-.001<=x1&&Math.max(A[1],B[1])+.001>=y0&&Math.min(A[1],B[1])-.001<=y1)return true;}return false;}
-  function topology(){const edges=new Map(),adj=d.op==='lineCut'?null:Array.from({length:p.length/3},()=>new Set());for(let i=0;i<ix.length;i+=3){if(d.op==='lineCut'&&!cutCandidate(ix,i))continue;for(let k=0;k<3;k++){const a=ix[i+k],b=ix[i+(k+1)%3],id=key(a,b);let e=edges.get(id);if(!e)edges.set(id,e={a,b,faces:[]});e.faces.push(i/3);if(adj){adj[a].add(b);adj[b].add(a);}}}return {edges,adj};}
+  function topology(){const edges=new Map(),adj=d.op==='loop'||d.op==='soft'?Array.from({length:p.length/3},()=>new Set()):null;for(let i=0;i<ix.length;i+=3){if(d.op==='lineCut'&&!cutCandidate(ix,i))continue;for(let k=0;k<3;k++){const a=ix[i+k],b=ix[i+(k+1)%3],id=key(a,b);let e=edges.get(id);if(!e)edges.set(id,e={a,b,faces:[]});e.faces.push(i/3);if(adj){adj[a].add(b);adj[b].add(a);}}}return {edges,adj};}
   if(d.projection){const q=d.projection,m=q.matrix,r=q.rect,o=q.offset;d.screen=new Float64Array(d.vertices.length);for(let i=0;i<d.vertices.length;i+=3){const x=d.vertices[i],y=d.vertices[i+1],z=d.vertices[i+2],X=m[0]*x+m[3]*y+m[6]*z+m[9],Y=m[1]*x+m[4]*y+m[7]*z+m[10],Z=m[2]*x+m[5]*y+m[8]*z+m[11],depth=3.2-Z-o[2],pixels=r[3]*.5*(q.orthographic?q.zoom:q.focal/depth);d.screen[i]=r[0]+r[2]*.5+(X+o[0])*pixels;d.screen[i+1]=r[1]+r[3]*.5-(Y+o[1])*pixels;d.screen[i+2]=q.orthographic?1:depth;}}
   const {edges,adj}=d.op==='lineCut'?{edges:new Map(),adj:null}:topology();
   function triangulate(loop){if(loop.length<3)throw Error('Boundary needs three vertices');const normal=[0,0,0];for(let i=0;i<loop.length;i++){const a=point(loop[i]),b=point(loop[(i+1)%loop.length]);for(let k=0;k<3;k++)normal[k]+=(a[(k+1)%3]-b[(k+1)%3])*(a[(k+2)%3]+b[(k+2)%3]);}const axis=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),axes=[0,1,2].filter(k=>k!==axis),xy=loop.map(i=>axes.map(k=>p[i*3+k])),area=xy.reduce((s,a,i)=>{const b=xy[(i+1)%xy.length];return s+a[0]*b[1]-a[1]*b[0];},0),sign=Math.sign(area),turn=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]),remaining=loop.map((_,i)=>i),out=[];if(!sign)throw Error('Degenerate boundary');while(remaining.length>3){let clipped=false;for(let i=0;i<remaining.length;i++){const a=remaining[(i+remaining.length-1)%remaining.length],b=remaining[i],c=remaining[(i+1)%remaining.length];if(turn(xy[a],xy[b],xy[c])*sign<=1e-18)continue;if(remaining.some(k=>k!==a&&k!==b&&k!==c&&turn(xy[a],xy[b],xy[k])*sign>=-1e-18&&turn(xy[b],xy[c],xy[k])*sign>=-1e-18&&turn(xy[c],xy[a],xy[k])*sign>=-1e-18))continue;out.push([loop[a],loop[b],loop[c]]);remaining.splice(i,1);clipped=true;break;}if(!clipped)throw Error('Boundary cannot be triangulated');}out.push(remaining.map(i=>loop[i]));return out;}
@@ -22732,14 +22816,39 @@ function FramePolygonKernel(d){
   function chains(chosen){const inc=new Map();for(const [i,e]of chosen.entries())for(const v of [e.a,e.b]){if(!inc.has(v))inc.set(v,[]);inc.get(v).push(i);}if([...inc.values()].some(a=>a.length>2))throw Error('Choose unbranched boundary chains');const unused=new Set(chosen.map((_,i)=>i)),out=[];while(unused.size){const first=[...unused].find(i=>[chosen[i].a,chosen[i].b].some(v=>inc.get(v).length===1))??unused.values().next().value,e=chosen[first],start=inc.get(e.a).length===1?e.a:inc.get(e.b).length===1?e.b:e.a,ids=[start];let cur=start;while(true){const id=inc.get(cur).find(i=>unused.has(i));if(id===undefined)break;unused.delete(id);const q=chosen[id];cur=q.a===cur?q.b:q.a;if(cur===start)break;ids.push(cur);}out.push({ids,closed:cur===start});}return out;}
   function bridgePair(chosen){
     if(chosen.length!==2||chosen[0]===chosen[1]||chosen.some(e=>!e||e.faces.length!==1))throw Error('Choose two different boundary edges');
-    const [a,b]=chosen,A=[a.b,a.a],B=[b.a,b.b],triangles=[[A[0],A[1],B[1]],[A[0],B[1],B[0]]].filter(t=>new Set(t).size===3);
-    if(!triangles.length||triangles.some(t=>!length(cross(sub(point(t[1]),point(t[0])),sub(point(t[2]),point(t[0]))))))throw Error('Bridge needs a nondegenerate surface');
-    const winding=new Map();for(const tri of triangles)for(let k=0;k<3;k++){const v=tri[k],w=tri[(k+1)%3];winding.set(v+':'+w,(winding.get(v+':'+w)||0)+1);}
-    if(chosen.some(e=>!winding.has(e.b+':'+e.a)))throw Error('Boundary directions do not form an oriented bridge');
-    if(triangles.some(t=>{const ids=t.slice().sort((a,b)=>a-b).join(':');return [a,b].some(e=>e.faces.some(f=>ix.slice(f*3,f*3+3).sort((a,b)=>a-b).join(':')===ids));}))throw Error('Bridge face already exists');
-    return triangles;
+    const [a,b]=chosen,ring=[a.b,a.a,b.b,b.a],layouts=[[[0,1,2],[0,2,3]],[[0,1,3],[1,2,3]]];
+    for(const layout of layouts){
+      const triangles=layout.map(t=>t.map(i=>ring[i])).filter(t=>new Set(t).size===3),directed=new Set();
+      for(const tri of triangles)for(let k=0;k<3;k++)directed.add(tri[k]+':'+tri[(k+1)%3]);
+      if(chosen.some(e=>!directed.has(e.b+':'+e.a)))continue;
+      if(triangles.some(t=>t.some((v,i)=>{const w=t[(i+1)%3],edge=edges.get(key(v,w));return edge&&(edge.faces.length>1||edge.a===v);})))continue;
+      const faces=triangles.map(t=>t.map(point));
+      if(faces.every((face,i)=>fits(face,faces[i+1])))return triangles;
+    }
+    throw Error('Bridge needs two boundary edges with room for a new face');
+
+    function fits(face,other){
+      const normal=cross(sub(face[1],face[0]),sub(face[2],face[0])),magnitude=length(normal);if(!magnitude)return false;
+      const axis=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),u=(axis+1)%3,v=(axis+2)%3;
+      const min=[0,1,2].map(k=>Math.min(...face.map(q=>q[k]))),max=[0,1,2].map(k=>Math.max(...face.map(q=>q[k])));
+      function overlaps(test){
+        if(test.some(q=>{const delta=sub(q,face[0]);return Math.abs(dot(delta,normal))>64*Number.EPSILON*magnitude*length(delta);}))return false;
+        const side=(a,b,c)=>{
+          const left=(b[u]-a[u])*(c[v]-a[v]),right=(b[v]-a[v])*(c[u]-a[u]);
+          return Math.abs(left-right)<=32*Number.EPSILON*(Math.abs(left)+Math.abs(right))?0:Math.sign(left-right);
+        };
+        // Contact at a shared point or edge has zero area in the common plane.
+        const separated=(tri,against)=>{const sign=side(...tri);return !sign||tri.some((p,k)=>against.every(q=>side(p,tri[(k+1)%3],q)*sign<=0));};
+        return !separated(face,test)&&!separated(test,face);
+      }
+      if(other&&overlaps(other))return false;
+      for(let i=0;i<ix.length;i+=3){
+        const a=ix[i]*3,b=ix[i+1]*3,c=ix[i+2]*3;
+        if(min.some((lo,k)=>Math.max(p[a+k],p[b+k],p[c+k])<lo||Math.min(p[a+k],p[b+k],p[c+k])>max[k]))continue;
+        if(overlaps([point(ix[i]),point(ix[i+1]),point(ix[i+2])]))return false;
+      }return true;
+    }
   }
-  if(d.op==='bridgePreview'){const chosen=(d.edges||[]).map(id=>edges.get(id));if(chosen.length===1)return {edges:chosen[0]?.faces.length===1?d.edges:[]};try{bridgePair(chosen);return {edges:d.edges};}catch{return {edges:d.edges.slice(0,1)};}}
   if(d.op==='boundary'||d.op==='availability'){
     const boundary=[...edges.values()].filter(e=>e.faces.length===1);let parts=[];try{parts=chains(boundary);}catch{}
     if(d.op==='availability'){return {closeHole:parts.some(c=>c.closed),bridge:boundary.length>=2};}
@@ -22773,10 +22882,60 @@ function FramePolygonKernel(d){
         for(const {tri,U}of cells)append(tri,source,U);
       }
       d.screen=screen;let next=topology();edges.clear();for(const [id,e]of next.edges)edges.set(id,e);
-      for(const [id,e]of edges){if(cutEdges&&!cutEdges.has(id))continue;const a=screenPoint(e.a),b=screenPoint(e.b),den=dx*(b[1]-a[1])-dy*(b[0]-a[0]);if(Math.abs(den)<1e-12)continue;const x=a[0]-S[0],y=a[1]-S[1],t=(x*(b[1]-a[1])-y*(b[0]-a[0]))/den,u=(x*dy-y*dx)/den;if(t<-endpointEps||t>1+endpointEps||u<=1e-7||u>=1-1e-7||screen[e.a*3+2]<=0||screen[e.b*3+2]<=0||!e.faces.some(f=>visible(sources[f],t)))continue;const wa=screen[e.a*3+2],wb=screen[e.b*3+2],local=u*wa/((1-u)*wb+u*wa),v=add(point(e.a).map((x,k)=>x+(point(e.b)[k]-x)*local));screen.push(a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,wa+(wb-wa)*local);cuts.set(id,{v,t:local,a:e.a,b:e.b});if(cutEdges){cutEdges.delete(id);cutEdges.add(key(e.a,v));cutEdges.add(key(v,e.b));}}
-      if(!cuts.size)continue;const split=ix,splitSources=sources,splitUV=uv;ix=[];sources=[];if(uv)uv=[];
-      for(let f=0;f<split.length/3;f++){if(!cutCandidate(split,f*3,[S,T])){ix.push(split[f*3],split[f*3+1],split[f*3+2]);sources.push(splitSources[f]);if(uv)uv.push(...splitUV.slice(f*6,f*6+6));continue;}const tri=split.slice(f*3,f*3+3),U=splitUV?.slice(f*6,f*6+6),poly=[],corner=new Map(),marks=[];for(let i=0;i<3;i++){poly.push(tri[i]);if(U)corner.set(tri[i],U.slice(i*2,i*2+2));const cut=cuts.get(key(tri[i],tri[(i+1)%3]));if(cut){marks.push(cut.v);poly.push(cut.v);const t=cut.a===tri[i]?cut.t:1-cut.t;if(U)corner.set(cut.v,[0,1].map(k=>U[i*2+k]*(1-t)+U[((i+1)%3)*2+k]*t));}else if(Math.abs(turn(S,T,screenPoint(tri[i])))<1e-7)marks.push(tri[i]);}
-        let polys=[poly];if(marks.length>=2&&visible(splitSources[f],(parameter(screenPoint(marks[0]))+parameter(screenPoint(marks[1])))/2)){const a=poly.indexOf(marks[0]),b=poly.indexOf(marks[1]),lo=Math.min(a,b),hi=Math.max(a,b);polys=[poly.slice(lo,hi+1),poly.slice(hi).concat(poly.slice(0,lo+1))].filter(p=>p.length>=3);}for(const q of polys)for(const t of q.length===3?[q]:triangulate(q))append(t,splitSources[f],U&&t.flatMap(i=>corner.get(i)));}
+      for(const [id,e]of edges){
+        if(cutEdges&&!cutEdges.has(id))continue;
+        const a=screenPoint(e.a),b=screenPoint(e.b),ex=b[0]-a[0],ey=b[1]-a[1],den=dx*ey-dy*ex;
+        const wa=screen[e.a*3+2],wb=screen[e.b*3+2];if(wa<=0||wb<=0)continue;
+        const parameters=[];
+        if(Math.abs(den)>1e-12){
+          const x=a[0]-S[0],y=a[1]-S[1],t=(x*ey-y*ex)/den;
+          if(t>=-endpointEps&&t<=1+endpointEps&&e.faces.some(f=>visible(sources[f],t)))parameters.push((x*dy-y*dx)/den);
+        }else if(Math.abs(turn(S,T,a))<1e-7){
+          // A finite endpoint can fall on an existing edge or on a spoke just
+          // created by the first interior point. Both incident faces need its ID.
+          const ta=parameter(a),tb=parameter(b);
+          if(Math.abs(tb-ta)>1e-12)for(const face of e.faces){
+            const source=sources[face];if(cutFaces&&!cutFaces.has(source))continue;
+            for(const interval of ranges?ranges.get(source)||[]:[[0,1]])for(const t of interval)parameters.push((t-ta)/(tb-ta));
+          }
+        }
+        const splits=[];let previous=-1;
+        for(const u of parameters.sort((x,y)=>x-y)){
+          if(u<=1e-7||u>=1-1e-7||u-previous<1e-7)continue;
+          previous=u;const local=u*wa/((1-u)*wb+u*wa),v=add(point(e.a).map((x,k)=>x+(p[e.b*3+k]-x)*local));
+          screen.push(a[0]+ex*u,a[1]+ey*u,wa+(wb-wa)*local);splits.push({v,t:local});
+        }
+        if(splits.length){
+          cuts.set(id,{a:e.a,splits});
+          if(cutEdges){cutEdges.delete(id);let last=e.a;for(const {v} of splits){cutEdges.add(key(last,v));last=v;}cutEdges.add(key(last,e.b));}
+        }
+      }
+      if(!cuts.size)continue;
+      const split=ix,splitSources=sources,splitUV=uv;ix=[];sources=[];if(uv)uv=[];
+      for(let f=0;f<split.length/3;f++){
+        if(!cutCandidate(split,f*3,[S,T])){ix.push(split[f*3],split[f*3+1],split[f*3+2]);sources.push(splitSources[f]);if(uv)uv.push(...splitUV.slice(f*6,f*6+6));continue;}
+        const tri=split.slice(f*3,f*3+3),U=splitUV?.slice(f*6,f*6+6),source=splitSources[f];
+        const incident=tri.map((v,i)=>cuts.get(key(v,tri[(i+1)%3])));
+        if(!incident.some(Boolean)){append(tri,source,U);continue;}
+        const poly=[],corner=new Map(),marks=[];let alongSide=false;
+        for(let i=0;i<3;i++){
+          const v=tri[i],j=(i+1)%3,on=Math.abs(turn(S,T,screenPoint(v)))<1e-7;
+          poly.push(v);if(U)corner.set(v,U.slice(i*2,i*2+2));
+          if(on){marks.push(v);alongSide||=Math.abs(turn(S,T,screenPoint(tri[j])))<1e-7;}
+          const edge=incident[i];if(!edge)continue;
+          const forward=edge.a===v;
+          for(const cut of forward?edge.splits:edge.splits.slice().reverse()){
+            poly.push(cut.v);marks.push(cut.v);const t=forward?cut.t:1-cut.t;
+            if(U)corner.set(cut.v,[0,1].map(k=>U[i*2+k]*(1-t)+U[j*2+k]*t));
+          }
+        }
+        let polys=[poly];
+        if(!alongSide&&marks.length===2&&visible(source,(parameter(screenPoint(marks[0]))+parameter(screenPoint(marks[1])))/2)){
+          const a=poly.indexOf(marks[0]),b=poly.indexOf(marks[1]),lo=Math.min(a,b),hi=Math.max(a,b);
+          polys=[poly.slice(lo,hi+1),poly.slice(hi).concat(poly.slice(0,lo+1))].filter(loop=>loop.length>=3);
+        }
+        for(const loop of polys)for(const face of loop.length===3?[loop]:triangulate(loop))append(face,source,U&&face.flatMap(v=>corner.get(v)));
+      }
     }
   }else throw Error('Unknown polygon operation');
   return {vertices:Float32Array.from(p),indices:Uint32Array.from(ix),uv:uv?Float32Array.from(uv):null,sourceFaces:Int32Array.from(sources),vertexCount:p.length/3,triangleCount:ix.length/3,nativeExact:true,createdVertex:d.createdVertex};
@@ -22790,9 +22949,9 @@ function FramePolygonKernel(d){
       renderer.device.queue.writeBuffer(state.bits,0,bits);await selectionFromFlags(renderer,saved.mode,state.bits);componentPivot=saved.pivot&&Float64Array.from(saved.pivot);selectionArea=saved.area;coordinateCache=measurementCache=null;notifyTransformUI();await draw(true);
     }).catch(editError);return selectionQueue;}
     let bridgeGesture=null;let polygonToolGeneration=0;let loopPreview=null,loopSerial=Promise.resolve(),loopCursor=null,loopRevision=0;
-    function endPolygonTool(){const wasLoop=['loop','lineCut'].includes(polygonTools.mode);if(bridgeGesture){try{polygonHost.releasePointerCapture(bridgeGesture.id);}catch{}bridgeGesture=null;}polygonToolGeneration++;polygonTools.pendingPoints=0;polygonClickGesture=null;polygonTools.mode=null;polygonTools.line=[];loopPreview=null;loopRevision++;loopCursor=null;drawPolygonGuide();if(wasLoop)drawGizmo();}
+    function endPolygonTool(){const hadToolGizmo=['loop','lineCut','bridge'].includes(polygonTools.mode);if(bridgeGesture){try{polygonHost.releasePointerCapture(bridgeGesture.id);}catch{}bridgeGesture=null;}if(polygonTools.cutPress){try{polygonHost.releasePointerCapture(polygonTools.cutPress.id);}catch{}}polygonToolGeneration++;polygonTools.bridgeAnchor=null;polygonTools.bridgeHover=null;polygonTools.cutPress=null;polygonTools.cutOwner=null;polygonTools.cutUndo=0;polygonTools.pendingPoints=0;polygonClickGesture=null;polygonTools.mode=null;polygonTools.line=[];loopPreview=null;loopRevision++;loopCursor=null;drawPolygonGuide();if(hadToolGizmo)drawGizmo();}
     let polygonGuide=null;function drawPolygonGuide(cursor){if(!polygonTools.line.length||polygonTools.mode!=='lineCut'){polygonGuide?.remove();polygonGuide=null;return;}if(!polygonGuide){polygonGuide=document.createElementNS('http://www.w3.org/2000/svg','svg');polygonGuide.id='frame-polygon-guide';polygonGuide.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:8';const line=document.createElementNS(polygonGuide.namespaceURI,'polyline');line.setAttribute('stroke','#00d4df');line.setAttribute('stroke-width','1.5');line.setAttribute('fill','none');polygonGuide.append(line);$('frame-engine-canvas').ownerDocument.body.append(polygonGuide);}polygonGuide.firstChild.setAttribute('points',[...polygonTools.line,...cursor?[cursor]:[]].map(p=>p.join(',')).join(' '));}
-    canvas.addEventListener('pointermove',e=>{if(polygonTools.mode==='lineCut')drawPolygonGuide([e.clientX,e.clientY]);});
+    $('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='lineCut')drawPolygonGuide([e.clientX,e.clientY]);});
     async function polygonLoop(n,edge){const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh||n.type!=='mesh')throw Error('Convert to an editable polygon object');const version=mesh.version,raw=await readGeometry(mesh),result=await polygonWorker({...raw,op:'loop',edge});if(!nodes.includes(n)||mesh.version!==version)throw Error('Geometry changed during Loop Selection');selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();selectionArea='viewport';renderTree();await polygonSelect(mesh,elementMode==='vertex'?'vertex':'edge',elementMode==='vertex'?result.vertices:result.edges);return result;}
     async function visiblePolygonLines(mesh,line){
       const gpu=renderer,d=gpu.device;if(frameViewKind(viewIndex))await ensureOrthoPipelines(gpu);if(scene.meshes.some(m=>m.posed))await posedPipelines(gpu,!!frameViewKind(viewIndex));gpu.surfaceRequested=true;await draw(true);const rect=canvas.getBoundingClientRect(),requests=[],ranges=[];
@@ -22806,14 +22965,14 @@ function FramePolygonKernel(d){
     async function componentSnapshot(list){
       const value=FrameHash.openSnapshot(snapshot());if(elementMode==='object')return FrameHash.snapshot(value);const rows=[];for(const n of list){const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh)continue;let ids=[];if(elementMode==='polygon'){const token=await capturePolygonSelection(n.nativeHash),set=token&&polygonSet(token);if(set){try{const bits=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);for(let f=0;f<mesh.triangleCount;f++)if(bits[f>>5]>>>(f&31)&1)ids.push(f);}finally{polygonResources.delete(token);releaseGPU(set.resource);}}}else{const selection=await polygonSelection(mesh);ids=elementMode==='edge'?selection.edges:selection.vertices;}if(ids.length)rows.push({hash:n.nativeHash,ids});}value.nativeComponents={mode:elementMode,area:selectionArea,pivot:componentPivot&&Array.from(componentPivot),rows};return FrameHash.snapshot(value);
     }
-    async function polygonEdit(n,options){if(n.type!=='mesh')throw Error('Use an editable polygon object');const morphBefore=await FrameMorph.topologyState(n);const hash=n.nativeHash,space=scene,mesh=scene.meshes.find(m=>m.hashId===hash),version=mesh?.version;if(!mesh)throw Error('Object has no mesh');if(options.op==='delete'){
+    async function polygonEdit(n,options,active=()=>true){if(n.type!=='mesh')throw Error('Use an editable polygon object');const morphBefore=await FrameMorph.topologyState(n);const hash=n.nativeHash,space=scene,mesh=scene.meshes.find(m=>m.hashId===hash),version=mesh?.version;if(!mesh)throw Error('Object has no mesh');if(options.op==='delete'){
       options={...options,mode:options.mode||elementMode,removeVertices:options.vertices||[],removeEdges:options.edges||[],removeFaces:options.faces||[]};delete options.vertices;
       if(!['vertex','edge','polygon'].includes(options.mode)||options.removeVertices.some(v=>!Number.isInteger(v)||v<0||v>=mesh.vertexCount)||options.removeFaces.some(v=>!Number.isInteger(v)||v<0||v>=mesh.triangleCount)||options.removeEdges.some(e=>!/^\d+:\d+$/.test(e)||e.split(':').some(v=>+v>=mesh.vertexCount)))throw Error('Invalid polygon deletion selection');
     }const raw=options.op==='replace'?{}:await readGeometry(mesh),U=importedUV(mesh);if(U&&options.op!=='replace')raw.uv=new Float32Array((await nativeReadGPU(renderer,U.resource,U.count)).buffer);if(options.op==='bridge'&&!options.edges?.length)options={...options,edges:(await polygonSelection(mesh)).edges};if(options.op==='lineCut'){
         if(options.faces?.some(f=>!Number.isSafeInteger(f)||f<0||f>=mesh.triangleCount)||options.edges?.some(e=>!/^\d+:\d+$/.test(e)||e.split(':').some(v=>+v>=mesh.vertexCount)))throw Error('Invalid Line Cut selection');
-        if(options.faces?.length)raw.cutFaces=options.faces;else if(options.edges?.length)raw.cutEdges=options.edges;else if(elementMode==='polygon'){const token=await capturePolygonSelection(hash),set=token&&polygonSet(token);if(set){try{const bits=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);raw.cutFaces=[];for(let f=0;f<mesh.triangleCount;f++)if(bits[f>>5]>>(f&31)&1)raw.cutFaces.push(f);}finally{polygonResources.delete(token);releaseGPU(set.resource);}}}else if(elementMode==='edge')raw.cutEdges=(await polygonSelection(mesh)).edges;
+        if(options.faces?.length)raw.cutFaces=options.faces;else if(options.edges?.length)raw.cutEdges=options.edges;else if(options.useSelection!==false&&elementMode==='polygon'){const token=await capturePolygonSelection(hash),set=token&&polygonSet(token);if(set){try{const bits=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);raw.cutFaces=[];for(let f=0;f<mesh.triangleCount;f++)if(bits[f>>5]>>(f&31)&1)raw.cutFaces.push(f);}finally{polygonResources.delete(token);releaseGPU(set.resource);}}}else if(options.useSelection!==false&&elementMode==='edge')raw.cutEdges=(await polygonSelection(mesh)).edges;
         if(options.visibleOnly)raw.visibleLines=await visiblePolygonLines(mesh,options.line);const world=objectWorld(hash),project=p=>rotatePoint(FM.point(world,p).map((v,k)=>(v-scene.center[k])*scene.scale)),origin=project([0,0,0]),matrix=[...[[1,0,0],[0,1,0],[0,0,1]].flatMap(p=>project(p).map((v,k)=>v-origin[k])),...origin],rect=canvas.getBoundingClientRect();raw.projection={matrix,rect:[rect.left,rect.top,rect.width,rect.height],offset:[orbitOffset[0]+panX,orbitOffset[1]+panY,orbitOffset[2]],orthographic:!!frameViewKind(viewIndex),zoom,focal:cameraFocal()};}
-      const masks=[];for(const t of n.tags.filter(t=>t.kind==='material'&&t.mask)){const set=polygonSet(t.mask);if(set)masks.push([t.mask,new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer)]);}const result=options.op==='replace'?{...options,vertexCount:options.vertices.length/3,triangleCount:options.indices.length/3,nativeExact:true}:await polygonWorker({...raw,...options});if(scene!==space||n.nativeHash!==hash||mesh.version!==version||!nodes.includes(n))throw Error('Geometry changed during polygon operation');if(options.op!=='replace'&&result.vertexCount===mesh.vertexCount&&result.triangleCount===mesh.triangleCount)return {id:hash,changed:false};if(result.triangleCount===0){const before=snapshot();n.creationFrame=Array.from(FM.pack(objectLocal(hash)));n.creationPivot=Array.from(FM.pack(objectPivot(hash)));n.nativeHash=FrameHash.newId();for(const q of nodes)if(q.params.object===hash)q.params.object=n.nativeHash;delete n.engineIndex;n.emptyMesh=true;n.tags=n.tags.filter(t=>t.kind!=='uv'&&!t.mask);if(morphBefore)await FrameMorph.adaptPolygon(n,morphBefore,{vertices:new Float32Array(),indices:new Uint32Array()});if(!frameUITransaction)checkpoint(before);render();await selectObjects([],{objectHashes:[n.nativeHash],flash:false});return {id:n.nativeHash,changed:true,vertices:0,triangles:0};}const gpu=renderer,next=await (mesh.paged?uploadPagedAndCompute:uploadAndCompute)(gpu,result),before=options.op==='replace'?await componentSnapshot([n]):snapshot(),frame=FM.pack(objectLocal(hash)),pivot=FM.pack(objectPivot(hash));try{n.creationPivot=Array.from(pivot);n.nativeHash=FrameHash.newId();for(const q of nodes)if(q.params.object===hash)q.params.object=n.nativeHash;n.creationFrame=Array.from(frame);next.hashId=n.nativeHash;scene.meshes.push(next);n.engineIndex=scene.meshes.length-1;n.tags=n.tags.filter(t=>t.kind!=='uv').map(t=>({...t}));for(const t of n.tags)if(t.kind==='material'){t.uid=FrameHash.newId();if(t.mask){const bits=masks.find(([token])=>token===t.mask)?.[1];if(bits){const words=new Uint32Array(Math.ceil(result.triangleCount/32));for(let f=0;f<result.triangleCount;f++){const source=result.sourceFaces[f];if(source>=0&&(bits[source>>5]>>(source&31)&1))words[f>>5]|=1<<(f&31);}const token=FrameHash.newId(),buffer=makeGPUBuffer(gpu.device,{size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});gpu.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(token,buffer,Math.ceil(result.triangleCount/8));t.mask=token;}}}
+      const masks=[];for(const t of n.tags.filter(t=>t.kind==='material'&&t.mask)){const set=polygonSet(t.mask);if(set)masks.push([t.mask,new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer)]);}const result=options.op==='replace'?{...options,vertexCount:options.vertices.length/3,triangleCount:options.indices.length/3,nativeExact:true}:await polygonWorker({...raw,...options});if(scene!==space||n.nativeHash!==hash||mesh.version!==version||!nodes.includes(n))throw Error('Geometry changed during polygon operation');if(!active())return {id:hash,changed:false};if(options.op!=='replace'&&result.vertexCount===mesh.vertexCount&&result.triangleCount===mesh.triangleCount)return {id:hash,changed:false};if(result.triangleCount===0){const before=snapshot();n.creationFrame=Array.from(FM.pack(objectLocal(hash)));n.creationPivot=Array.from(FM.pack(objectPivot(hash)));n.nativeHash=FrameHash.newId();for(const q of nodes)if(q.params.object===hash)q.params.object=n.nativeHash;delete n.engineIndex;n.emptyMesh=true;n.tags=n.tags.filter(t=>t.kind!=='uv'&&!t.mask);if(morphBefore)await FrameMorph.adaptPolygon(n,morphBefore,{vertices:new Float32Array(),indices:new Uint32Array()});if(!frameUITransaction)checkpoint(before);render();await selectObjects([],{objectHashes:[n.nativeHash],flash:false});return {id:n.nativeHash,changed:true,vertices:0,triangles:0};}const gpu=renderer,next=await (mesh.paged?uploadPagedAndCompute:uploadAndCompute)(gpu,result),before=options.op==='replace'||['bridge','lineCut'].includes(options.op)&&selectionScope==='components'&&selectedMeshes.includes(mesh)?await componentSnapshot([n]):snapshot(),frame=FM.pack(objectLocal(hash)),pivot=FM.pack(objectPivot(hash));if(!active()||scene!==space||n.nativeHash!==hash||mesh.version!==version||!nodes.includes(n)){disposeMesh(next);return {id:hash,changed:false};}try{n.creationPivot=Array.from(pivot);n.nativeHash=FrameHash.newId();for(const q of nodes)if(q.params.object===hash)q.params.object=n.nativeHash;n.creationFrame=Array.from(frame);next.hashId=n.nativeHash;scene.meshes.push(next);n.engineIndex=scene.meshes.length-1;n.tags=n.tags.filter(t=>t.kind!=='uv').map(t=>({...t}));for(const t of n.tags)if(t.kind==='material'){t.uid=FrameHash.newId();if(t.mask){const bits=masks.find(([token])=>token===t.mask)?.[1];if(bits){const words=new Uint32Array(Math.ceil(result.triangleCount/32));for(let f=0;f<result.triangleCount;f++){const source=result.sourceFaces[f];if(source>=0&&(bits[source>>5]>>(source&31)&1))words[f>>5]|=1<<(f&31);}const token=FrameHash.newId(),buffer=makeGPUBuffer(gpu.device,{size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});gpu.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(token,buffer,Math.ceil(result.triangleCount/8));t.mask=token;}}}
 
         if(result.uv){const uid=FrameHash.newId();putAppearance(uid,'uv',FrameHash.T.float32,uploadImportedUV(gpu,next,result.uv));n.tags.push({uid,kind:'uv',params:{}});}publishTopology(gpu,[]);if(morphBefore)await FrameMorph.adaptPolygon(n,morphBefore,await readGeometry(next));if(!frameUITransaction)checkpoint(before);render();await selectObjects([n.engineIndex],{objectHashes:[n.nativeHash],flash:false});return {id:n.nativeHash,changed:true,vertices:result.vertexCount,triangles:result.triangleCount,createdVertex:result.createdVertex};}catch(error){if(n.nativeHash===hash)disposeMesh(next);throw error;}}
     async function deletePolygonComponents(){
@@ -22821,49 +22980,188 @@ function FramePolygonKernel(d){
       if(!rows.length)return;const before=FrameHash.snapshot({...FrameHash.openSnapshot(snapshot()),nativeComponents:{mode:elementMode,area:selectionArea,pivot:componentPivot&&Array.from(componentPivot),rows:rows.map(({n,options})=>({hash:n.nativeHash,ids:options[elementMode==='vertex'?'vertices':elementMode==='edge'?'edges':'faces']}))}});frameHistoryPins.add(before);frameUITransaction++;try{for(const row of rows)await polygonEdit(row.n,row.options);checkpoint(before);}catch(error){restore(before);throw error;}finally{frameUITransaction--;frameHistoryPins.delete(before);}
     }
     FrameViewWindows.onWindow('keydown',e=>{if(!['Delete','Backspace'].includes(e.key)||!FrameViewWindows.hovered()||elementMode==='object'||e.target.closest?.('input,textarea,select,[contenteditable],[data-field]')||!componentMeshes().some(m=>nodes.some(n=>n.nativeHash===m.hashId&&n.type==='mesh')))return;e.preventDefault();e.stopImmediatePropagation();objectActionQueue=objectActionQueue.catch(()=>{}).then(async()=>{await selectionPending;await selectionQueue;await deletePolygonComponents();}).catch(fileOperationError);},true);
-    function polygonTool(mode){endPolygonTool();FrameGeometry.endBevel();FrameGeometry.endOutline();polygonTools.mode=mode;polygonTools.view=viewIndex;if(['loop','lineCut'].includes(mode))hideGizmo();if(mode==='soft'){polygonTools.soft=!polygonTools.soft;polygonTools.mode=null;if(!polygonTools.soft)for(const mesh of scene.meshes)releaseSoftOverlay(mesh);}activateTab('tabAttributes');renderAttributes();notifyTransformUI();draw(true);return {...polygonTools};}
-    function polygonAttributes(content,n){if(n?.type!=='mesh'||!polygonTools.mode&&(!polygonTools.soft||elementMode!=='vertex'))return false;const t=polygonTools;content.replaceChildren();if(t.mode==='lineCut'){content.innerHTML='<div class="attr-row"><span class="attr-lab">visible only</span><div class="attr-ctrl"><button class="attr-btn" aria-label="Line cut visible only" aria-pressed="'+t.visibleOnly+'">'+(t.visibleOnly?'on':'off')+'</button></div></div>';content.querySelector('button').onclick=()=>{t.visibleOnly=!t.visibleOnly;renderAttributes();};}else if(!t.mode&&t.soft){content.innerHTML='<div class="attr-row"><span class="attr-lab">radius</span><div class="attr-ctrl"><input class="attr-inp" aria-label="Soft selection radius"></div></div>';bindNumber(content.querySelector('input'),{length:true,min:1e-9,get:()=>t.radius,set:v=>{t.radius=v;draw(true);},stepFixed:1});}return true;}
+    function polygonTool(mode){endPolygonTool();FrameGeometry.endBevel();FrameGeometry.endOutline();polygonTools.mode=mode;polygonTools.view=viewIndex;if(['loop','lineCut','bridge'].includes(mode))hideGizmo();if(mode==='bridge')startBridge();if(mode==='soft'){polygonTools.soft=!polygonTools.soft;polygonTools.mode=null;if(!polygonTools.soft)for(const mesh of scene.meshes)releaseSoftOverlay(mesh);}activateTab('tabAttributes');renderAttributes();notifyTransformUI();draw(true);return {...polygonTools};}
+    function polygonAttributes(content,n){if(n?.type!=='mesh'&&!(polygonTools.mode==='lineCut'&&n&&FrameSpline.isEditable(FrameSpline.sourceNode(n)||n))||!polygonTools.mode&&(!polygonTools.soft||elementMode!=='vertex'))return false;const t=polygonTools;content.replaceChildren();if(t.mode==='lineCut'){content.innerHTML='<div class="attr-row"><span class="attr-lab">visible only</span><div class="attr-ctrl"><button class="attr-btn" aria-label="Line cut visible only" aria-pressed="'+t.visibleOnly+'">'+(t.visibleOnly?'on':'off')+'</button></div></div>';content.querySelector('button').onclick=()=>{t.visibleOnly=!t.visibleOnly;renderAttributes();};}else if(!t.mode&&t.soft){content.innerHTML='<div class="attr-row"><span class="attr-lab">radius</span><div class="attr-ctrl"><input class="attr-inp" aria-label="Soft selection radius"></div></div>';bindNumber(content.querySelector('input'),{length:true,min:1e-9,get:()=>t.radius,set:v=>{t.radius=v;draw(true);},stepFixed:1});}return true;}
 
     async function polygonHit(x,y){const pick=createRayPick(renderer,scene,cameraRay(x,y));try{const e=renderer.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);renderer.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const bytes=pick.read.getMappedRange(),t=new Float32Array(bytes)[0],face=new Uint32Array(bytes)[1];pick.read.unmap();if(face===0xffffffff||!(t<pick.ray.clip[1]))return null;const mesh=scene.meshes.find(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount),n=frameNodeByHash(mesh?.hashId);if(!n||n.type!=='mesh'||!selected.has(n.id))return null;const raw=await readGeometry(mesh),ids=Array.from(raw.indices.subarray((face-mesh.faceBase)*3,(face-mesh.faceBase+1)*3)),world=pick.ray.origin.map((v,i)=>(v+pick.ray.direction[i]*t)/scene.scale+scene.center[i]),point=FM.point(FM.inv(objectWorld(mesh.hashId)),world),P=ids.map(v=>Array.from(raw.vertices.subarray(v*3,v*3+3))),xy=P.map(p=>projectOrbitPoint(FM.point(objectWorld(mesh.hashId),p).map((v,k)=>(v-scene.center[k])*scene.scale)));let edge=null,best=100,vertex=ids[0],distance=Infinity;for(let k=0;k<3;k++){const a=xy[k],b=xy[(k+1)%3],dx=b[0]-a[0],dy=b[1]-a[1],u=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1))),dist=(a[0]+u*dx-x)**2+(a[1]+u*dy-y)**2;if(dist<best){best=dist;const A=P[k],B=P[(k+1)%3],v=FM.sub(B,A),local=Math.max(.00001,Math.min(.99999,FM.dot(FM.sub(point,A),v)/FM.dot(v,v)));edge={id:Math.min(ids[k],ids[(k+1)%3])+':'+Math.max(ids[k],ids[(k+1)%3]),t:ids[k]<ids[(k+1)%3]?local:1-local};}const distV=(x-a[0])**2+(y-a[1])**2;if(distV<distance){distance=distV;vertex=ids[k];}}const v0=FM.sub(P[1],P[0]),v1=FM.sub(P[2],P[0]),v2=FM.sub(point,P[0]),a=FM.dot(v0,v0),b=FM.dot(v0,v1),c=FM.dot(v1,v1),den=a*c-b*b,v=(c*FM.dot(v2,v0)-b*FM.dot(v2,v1))/den,w=(a*FM.dot(v2,v1)-b*FM.dot(v2,v0))/den;return {n,edge,vertex,face:face-mesh.faceBase,barycentric:[1-v-w,v,w]};}finally{pick.destroy();}}
-    async function polygonAvailability(n){const mesh=scene.meshes.find(m=>m.hashId===n?.nativeHash);if(n?.type!=='mesh'||!mesh)return {};if(mesh.edgeCounts?.[2]===0)return {closeHole:false,bridge:false};const selection=await polygonSelection(mesh),key=[mesh.version,selection.edges.join(',')].join(':');if(mesh.toolAvailability?.key===key)return mesh.toolAvailability.value;const raw=await readGeometry(mesh),value=await polygonWorker({...raw,op:'availability',edges:selection.edges});mesh.toolAvailability={key,value};return value;}
+    async function polygonAvailability(n){
+      const mesh=scene.meshes.find(m=>m.hashId===n?.nativeHash);if(n?.type!=='mesh'||!mesh)return {};
+      if(mesh.edgeCounts?.[2]===0)return {closeHole:false,bridge:false};
+      const version=mesh.version,cached=mesh.toolAvailability;if(cached&&cached.version===version)return cached.task;
+      const task=readGeometry(mesh).then(raw=>polygonWorker({...raw,op:'availability'}));
+      mesh.toolAvailability={version,task};
+      try{return await task;}catch(error){if(mesh.toolAvailability?.task===task)delete mesh.toolAvailability;throw error;}
+    }
     let polygonClick=Promise.resolve();
     function showLoopPreview(hit,result,raw){drawPolygonGuide();if(!hit||!result)return;if(!polygonGuide){polygonGuide=document.createElementNS('http://www.w3.org/2000/svg','svg');polygonGuide.id='frame-polygon-guide';polygonGuide.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:8';$('frame-engine-canvas').ownerDocument.body.append(polygonGuide);}const path=document.createElementNS(polygonGuide.namespaceURI,'path');path.setAttribute('stroke','#8affab');path.setAttribute('stroke-width','2');path.setAttribute('fill','none');path.setAttribute('d',result.edges.map(key=>{const points=key.split(':').map(Number).map(v=>worldScreen(FM.point(objectWorld(hit.n.nativeHash),Array.from(raw.vertices.subarray(v*3,v*3+3)))));return 'M'+points[0].join(',')+'L'+points[1].join(',');}).join(''));polygonGuide.replaceChildren(path);}
-    function showSplineLoopPreview(result){drawPolygonGuide();if(!polygonGuide){polygonGuide=document.createElementNS(svgNS,'svg');polygonGuide.id='frame-polygon-guide';polygonGuide.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:8';$('frame-engine-canvas').ownerDocument.body.append(polygonGuide);}const path=document.createElementNS(svgNS,'path');path.setAttribute('fill','none');path.setAttribute('stroke','#8affab');path.setAttribute('stroke-width','2');path.setAttribute('d',result.paths.map(points=>'M'+points.map(p=>p.join(',')).join('L')).join(''));polygonGuide.replaceChildren(path);}
+    function showGuidePaths(paths){drawPolygonGuide();if(!polygonGuide){polygonGuide=document.createElementNS(svgNS,'svg');polygonGuide.id='frame-polygon-guide';polygonGuide.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:8';$('frame-engine-canvas').ownerDocument.body.append(polygonGuide);}const path=document.createElementNS(svgNS,'path');path.setAttribute('fill','none');path.setAttribute('stroke','#8affab');path.setAttribute('stroke-width','2');path.setAttribute('d',paths.map(points=>'M'+points.map(p=>p.join(',')).join('L')).join(''));polygonGuide.replaceChildren(path);}
     async function polygonLoopHit(x,y){const hit=await polygonHit(x,y);if(hit?.edge)return hit;for(const [dx,dy]of [[0,-6],[0,6],[-6,0],[6,0]]){const h=await polygonHit(x+dx,y+dy);if(h?.edge)return h;}return null;}
-    function previewPolygonLoop(x,y){loopCursor=[x,y];const revision=++loopRevision;loopSerial=loopSerial.catch(()=>{}).then(async()=>{if(revision!==loopRevision||!['loop','closeHole'].includes(polygonTools.mode))return;const mode=polygonTools.mode;if(mode==='loop'){const spline=FrameSpline.loopAt(x,y);if(spline){loopPreview={spline,x,y};showSplineLoopPreview(spline);return;}}const hit=await polygonLoopHit(x,y);if(revision!==loopRevision||polygonTools.mode!==mode)return;if(!hit?.edge){loopPreview=null;drawPolygonGuide();return;}if(loopPreview?.hash===hit.n.nativeHash&&loopPreview.edge===hit.edge.id){loopPreview.x=x;loopPreview.y=y;return;}const mesh=scene.meshes.find(m=>m.hashId===hit.n.nativeHash),version=mesh.version,raw=await readGeometry(mesh),result=await polygonWorker({vertices:raw.vertices.slice(),indices:raw.indices.slice(),op:mode==='closeHole'?'boundary':'loop',edge:hit.edge.id});if(revision!==loopRevision||polygonTools.mode!==mode||mesh.version!==version)return;loopPreview=result.edges.length?{hash:hit.n.nativeHash,edge:hit.edge.id,result,x,y}:null;showLoopPreview(hit,result,raw);}).catch(fileOperationError);}
+    function previewPolygonLoop(x,y){loopCursor=[x,y];const revision=++loopRevision;loopSerial=loopSerial.catch(()=>{}).then(async()=>{if(revision!==loopRevision||!['loop','closeHole'].includes(polygonTools.mode))return;const mode=polygonTools.mode;if(mode==='loop'){const spline=FrameSpline.loopAt(x,y);if(spline){loopPreview={spline,x,y};showGuidePaths(spline.paths);return;}}const hit=await polygonLoopHit(x,y);if(revision!==loopRevision||polygonTools.mode!==mode)return;if(!hit?.edge){loopPreview=null;drawPolygonGuide();return;}if(loopPreview?.hash===hit.n.nativeHash&&loopPreview.edge===hit.edge.id){loopPreview.x=x;loopPreview.y=y;return;}const mesh=scene.meshes.find(m=>m.hashId===hit.n.nativeHash),version=mesh.version,raw=await readGeometry(mesh),result=await polygonWorker({vertices:raw.vertices.slice(),indices:raw.indices.slice(),op:mode==='closeHole'?'boundary':'loop',edge:hit.edge.id});if(revision!==loopRevision||polygonTools.mode!==mode||mesh.version!==version)return;loopPreview=result.edges.length?{hash:hit.n.nativeHash,edge:hit.edge.id,result,x,y}:null;showLoopPreview(hit,result,raw);}).catch(fileOperationError);}
+    async function bridgeHit(x,y){
+      if(elementMode!=='edge')return null;
+      const hit=await componentSeed(renderer,x,y);if(!hit)return null;
+      const {draw}=hit,mesh=draw.mesh,n=frameNodeByHash(mesh.hashId);
+      if(n?.type!=='mesh'||!selected.has(n.id))return null;
+      const cached=polygonTools.bridgeHover;
+      if(cached?.draw===draw&&cached.feature===hit.id&&cached.version===mesh.version)return cached.edge;
+      const edge=await boundaryEdge(draw,hit.id,n);
+      if(polygonTools.mode==='bridge')polygonTools.bridgeHover={draw,feature:hit.id,version:mesh.version,edge};
+      return edge;
+    }
+    async function boundaryEdge(draw,feature,n,ids=null){
+      const mesh=draw.mesh;
+      // Resolve the hovered unique edge from the same ID map that paints it. Its
+      // incident corner list classifies the boundary without a mesh readback.
+      const gpu=renderer,paged=!!mesh.paged,device=gpu.device;
+      const pipelines=gpu.bridgeBoundaryPipelines??=[];
+      if(!pipelines[+paged]){
+        const declarations=paged?'var indices:texture_2d_array<u32>;@group(0) @binding(2) var heads:texture_2d_array<u32>;@group(0) @binding(3) var links:texture_2d_array<u32>;':'var<storage,read> indices:array<u32>;@group(0) @binding(2) var<storage,read> heads:array<u32>;@group(0) @binding(3) var<storage,read> links:array<u32>;';
+      const module=device.createShaderModule({label:'Bridge boundary edge',code:`fn scalar(tex:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(tex);return textureLoad(tex,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i/(d.x*d.y),0).x;}
+        @group(0) @binding(0) var<storage,read> lines:array<vec2u>;
+        @group(0) @binding(1) ${declarations}
+        @group(0) @binding(4) var<storage,read_write> query:array<u32>;
+        @compute @workgroup_size(1) fn main(){
+          var edge=vec2u(query[1],query[2]);if(query[3]==0u){edge=lines[query[0]];}var entry=${paged?'scalar(heads,edge.x)':'heads[edge.x]'};var degree=0u;
+          while(entry!=0u){let c=entry-1u;let base=c/3u*3u;let next=base+(c+1u)%3u;let prev=base+(c+2u)%3u;
+            if(${paged?'scalar(indices,next)==edge.y||scalar(indices,prev)==edge.y':'indices[next]==edge.y||indices[prev]==edge.y'}){degree++;if(degree>1u){break;}}
+            entry=${paged?'scalar(links,c*4u+1u)':'links[c]'};}
+          query[0]=degree;query[1]=edge.x;query[2]=edge.y;
+        }`});
+        pipelines[+paged]=device.createComputePipelineAsync({layout:'auto',compute:{module,entryPoint:'main'}}).catch(error=>{delete pipelines[+paged];throw error;});
+      }
+      const pipeline=await pipelines[+paged];
+      const query=makeGPUBuffer(device,{label:'Bridge edge query',size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+      let values;try{
+        device.queue.writeBuffer(query,0,Uint32Array.of(feature-draw.edgeBase,ids?.[0]||0,ids?.[1]||0,ids?1:0));
+        const encoder=device.createCommandEncoder(),group=pagedGroup(gpu,pipeline,{0:draw.part.lines,1:mesh.indices,2:mesh.heads,3:paged?mesh.corners:mesh.next,4:query});
+        dispatchOn(gpu,encoder,pipeline,group,1);values=await pagedReadCounters(gpu,encoder,query,16);
+      }finally{releaseGPU(query);}
+      if(values[0]!==1)return null;
+      const a=values[1],b=values[2],vertices=await animationReadVertices(mesh,[a,b]);
+      return {mesh,n,id:Math.min(a,b)+':'+Math.max(a,b),points:vertices.map(([,p])=>p)};
+    }
+    function drawBridgeEdges(edges){
+      if(!edges.length){drawPolygonGuide();return;}
+      showGuidePaths(edges.map(edge=>edge.points.map(p=>worldScreen(FM.point(objectWorld(edge.mesh.hashId),p)))));
+    }
+    async function joinBridge(n,edges,generation){
+      if(generation!==polygonToolGeneration)return;
+      const result=await polygonEdit(n,{op:'bridge',edges},()=>generation===polygonToolGeneration);
+      if(result.changed&&generation===polygonToolGeneration){endPolygonTool();renderAttributes();}
+    }
+    function startBridge(){
+      const generation=polygonToolGeneration;
+      polygonClick=polygonClick.then(async()=>{
+        await selectionPending;await selectionQueue;
+        if(generation!==polygonToolGeneration||selectionScope!=='components'||renderer.boxSelection?.mode!=='edge'||!renderer.boxSelection.counts.some(Boolean))return;
+        const n=current(),mesh=scene.meshes.find(m=>m.hashId===n?.nativeHash);if(!mesh)return;
+        const {edges}=await polygonSelection(mesh);if(generation!==polygonToolGeneration)return;
+        if(edges.length>=2)return joinBridge(n,edges,generation);
+        if(edges.length===1){const draw=featureDrawGroups(renderer).find(d=>d.mesh===mesh),anchor=await boundaryEdge(draw,draw.edgeBase,n,edges[0].split(':').map(Number));if(anchor&&generation===polygonToolGeneration){polygonTools.bridgeAnchor=anchor;drawBridgeEdges([anchor]);}}
+      }).catch(fileOperationError);
+    }
     function previewBridge(x,y){const revision=++loopRevision,g=bridgeGesture;loopSerial=loopSerial.catch(()=>{}).then(async()=>{
-      if(revision!==loopRevision||polygonTools.mode!=='bridge')return;const from=g?await g.from:null,hit=await polygonLoopHit(x,y);if(revision!==loopRevision||polygonTools.mode!=='bridge')return;
-      const owner=from||hit;if(!owner?.edge){drawPolygonGuide();return;}const mesh=scene.meshes.find(m=>m.hashId===owner.n.nativeHash),version=mesh.version,raw=await readGeometry(mesh),edges=[owner.edge.id];if(from&&hit?.n===from.n&&hit.edge&&hit.edge.id!==from.edge.id)edges.push(hit.edge.id);
-      const result=await polygonWorker({vertices:raw.vertices.slice(),indices:raw.indices.slice(),op:'bridgePreview',edges});if(revision!==loopRevision||polygonTools.mode!=='bridge'||mesh.version!==version)return;showLoopPreview(owner,result,raw);
+      if(revision!==loopRevision||polygonTools.mode!=='bridge')return;
+      const from=(g&&await g.from)||polygonTools.bridgeAnchor,hit=await bridgeHit(x,y);
+      if(revision!==loopRevision||polygonTools.mode!=='bridge')return;
+      drawBridgeEdges(from?[from,...hit?.mesh===from.mesh&&hit.id!==from.id?[hit]:[]]:hit?[hit]:[]);
     }).catch(fileOperationError);}
+    function releaseBridge(event){
+      const g=bridgeGesture,generation=polygonToolGeneration,x=event.clientX,y=event.clientY;
+      const moved=Math.hypot(x-g.x,y-g.y)>3;
+      bridgeGesture=null;loopRevision++;if(polygonHost.hasPointerCapture(g.id))polygonHost.releasePointerCapture(g.id);
+      event.preventDefault();event.stopImmediatePropagation();
+      polygonClick=polygonClick.then(async()=>{
+        if(generation!==polygonToolGeneration)return;
+        const pressed=await g.from,target=moved?await bridgeHit(x,y):pressed;
+        if(generation!==polygonToolGeneration)return;
+        const first=(moved&&pressed)||polygonTools.bridgeAnchor,anchor=first||pressed;
+        if(anchor){polygonTools.bridgeAnchor=anchor;drawBridgeEdges([anchor]);}
+        if(first&&target?.mesh===first.mesh&&target.id!==first.id)return joinBridge(first.n,[first.id,target.id],generation);
+      }).catch(fileOperationError);
+    }
     $('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='bridge')previewBridge(e.clientX,e.clientY);else if(['loop','closeHole'].includes(polygonTools.mode)&&!e.buttons)previewPolygonLoop(e.clientX,e.clientY);},true);
     let polygonClickGesture=null,lineCutMenuUntil=0;
     function cancelPolygonTools(){lineCutMenuUntil=0;endPolygonTool();polygonTools.soft=false;for(const mesh of scene?.meshes||[])releaseSoftOverlay(mesh);renderAttributes();draw(true);}
-    function commitLineCut(){const n=current(),line=polygonTools.line,visibleOnly=polygonTools.visibleOnly;endPolygonTool();renderAttributes();if(n&&line.length>1)polygonClick=polygonClick.then(()=>n.type==='mesh'?polygonEdit(n,{op:'lineCut',line,visibleOnly}):cutSpline(n,line,visibleOnly)).catch(fileOperationError);}
-    async function cutSpline(owner,line,visibleOnly=true,segments){
-      const n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))throw Error('Choose an editable spline or one Spline Patch source');const morph=FrameMorph.tagOf(owner)||FrameMorph.tagOf(n)||FrameMorph.tagOf(node(n.parent));if(morph&&morph.params.mode!=='Modelling')throw Error('Spline topology changes require Morph Modelling mode');
-      const data=n.splineData,space=scene,stamp=frameValueKey(data),display=splineDisplays.get(n.nativeHash);if(!display)throw Error('Spline display is not ready');const projectionKey=splineProjectionKey(),cache=splineProjection(display,projectionKey),clip=clippingPlanes(),projection={frame:Array.from(cache.frame),cx:cache.cx,cy:cache.cy,pixels:canvas.clientHeight*.5*(cache.ortho?zoom:cameraFocal()),ortho:cache.ortho,near:clip[0],far:clip[1]},chosen=FrameSpline.selection(n.nativeHash),cells=elementMode==='polygon'?[...chosen].filter(k=>k.startsWith('cell:')).map(k=>+k.slice(5)):null;
-      const restricted=segments||(elementMode==='edge'&&chosen.size||cells?.length?[...FrameSpline.componentEdges(data,chosen)]:undefined),options={line,projection,...restricted?{segments:restricted,cells:[]}:{},...cells?.length?{cells}:{}},plan=await FrameSpline.cutPlan(data,{...options,planOnly:true}),visible=visibleOnly?await visibleSplinePoints(n.nativeHash,plan.points):null;
-      const result=await FrameSpline.cutPlan(data,{plan,visible});if(scene!==space||!nodes.includes(n)||splineProjectionKey()!==projectionKey||frameValueKey(n.splineData)!==stamp)throw Error('Spline changed during Line Cut');FrameSpline.lineCut(n,result);await FrameSpline.flush();return {id:n.nativeHash,changed:result.changed,vertices:result.vertices,segments:result.segments};
+    function addCutPoint(x,y){
+      const n=polygonTools.cutOwner??=current(),generation=polygonToolGeneration,line=polygonTools.line,previous=line.at(-1),point=[x,y];
+      if(!n)return;
+      line.push(point);polygonTools.pendingPoints++;drawPolygonGuide();
+      polygonClick=polygonClick.then(async()=>{
+        const active=()=>polygonToolGeneration===generation&&nodes.includes(n);
+        if(!active())return;
+        const snapped=await cutPoint(x,y,n);if(!active())return;
+        [point[0],point[1]]=snapped;drawPolygonGuide();
+        if(!previous||Math.hypot(point[0]-previous[0],point[1]-previous[1])<1e-6)return;
+        const span=[previous,point],visibleOnly=polygonTools.visibleOnly,before=transformSequence;
+        const result=n.type==='mesh'?await polygonEdit(n,{op:'lineCut',line:span,visibleOnly,useSelection:false},active):await cutSpline(n,span,visibleOnly,undefined,false,active);
+        if(!result.changed||!active())return;
+        // Preserve the first Undo snapshot of a continuous stroke. Interleaved
+        // edits, or a snapshot evicted by the history budget, end the group.
+        const sequence=frameUIUndoSequence.at(-1);
+        if(sequence===before+1&&sequence===transformSequence){
+          if(before===polygonTools.cutUndo&&frameUIUndoSequence.at(-2)===before){undoStack.pop();frameUIUndoSequence.splice(-2,1);}
+          polygonTools.cutUndo=sequence;
+        }
+      }).catch(fileOperationError).finally(()=>{
+        if(generation!==polygonToolGeneration)return;
+        polygonTools.pendingPoints--;if(previous&&line[0]===previous)line.shift();drawPolygonGuide();
+      });
     }
-    function cutPoint(x,y){if(elementMode!=='vertex')return Promise.resolve([x,y]);const source=FrameSpline.sourceNode(current())||current();if(FrameSpline.isEditable(source)){const hit=hitSpline(x,y,false,false,true);return Promise.resolve(hit?.vertex?projectSplinePoint(hit.hash,source.splineData.vertices[hit.vertex]):[x,y]);}return componentSeed(renderer,x,y).then(async hit=>{if(!hit||elementMode!=='vertex')return [x,y];const mesh=hit.draw.mesh,v=hit.id-hit.draw.vertexBase,[[,p]]=await animationReadVertices(mesh,[v]);return worldScreen(FM.point(objectWorld(mesh.hashId),p));});}
+    function finishCutInput(){
+      const generation=polygonToolGeneration;
+      polygonClick=polygonClick.then(()=>{if(generation===polygonToolGeneration){endPolygonTool();renderAttributes();}}).catch(fileOperationError);
+    }
+    async function cutSpline(owner,line,visibleOnly=true,segments,useSelection=true,active=()=>true){
+      const n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))throw Error('Choose an editable spline or one Spline Patch source');const morph=FrameMorph.tagOf(owner)||FrameMorph.tagOf(n)||FrameMorph.tagOf(node(n.parent));if(morph&&morph.params.mode!=='Modelling')throw Error('Spline topology changes require Morph Modelling mode');
+      const data=n.splineData,space=scene,stamp=frameValueKey(data),display=splineDisplays.get(n.nativeHash);if(!display)throw Error('Spline display is not ready');const projectionKey=splineProjectionKey(),cache=splineProjection(display,projectionKey),clip=clippingPlanes(),projection={frame:Array.from(cache.frame),cx:cache.cx,cy:cache.cy,pixels:canvas.clientHeight*.5*(cache.ortho?zoom:cameraFocal()),ortho:cache.ortho,near:clip[0],far:clip[1]},chosen=useSelection?FrameSpline.selection(n.nativeHash):new Set(),cells=elementMode==='polygon'?[...chosen].filter(k=>k.startsWith('cell:')).map(k=>+k.slice(5)):null;
+      const restricted=segments||(elementMode==='edge'&&chosen.size||cells?.length?[...FrameSpline.componentEdges(data,chosen)]:undefined),options={line,projection,...restricted?{segments:restricted,cells:[]}:{},...cells?.length?{cells}:{}},plan=await FrameSpline.cutPlan(data,{...options,planOnly:true}),visible=visibleOnly?await visibleSplinePoints(n.nativeHash,plan.points):null;
+      const result=await FrameSpline.cutPlan(data,{plan,visible});if(!active())return {id:n.nativeHash,changed:false};if(scene!==space||!nodes.includes(n)||splineProjectionKey()!==projectionKey||frameValueKey(n.splineData)!==stamp)throw Error('Spline changed during Line Cut');FrameSpline.lineCut(n,result);await FrameSpline.flush();return {id:n.nativeHash,changed:result.changed,vertices:result.vertices,segments:result.segments};
+    }
+    async function cutPoint(x,y,n){
+      const mode=elementMode;if(mode!=='vertex'&&mode!=='edge')return [x,y];
+      const source=FrameSpline.sourceNode(n)||n;
+      if(FrameSpline.isEditable(source)){
+        const hit=hitSpline(x,y,false,false,true);if(hit?.hash!==source.nativeHash)return [x,y];
+        if(mode==='vertex'&&hit.vertex)return projectSplinePoint(hit.hash,source.splineData.vertices[hit.vertex]);
+        if(mode==='edge'&&hit.segment&&Number.isFinite(hit.t)){const K=FrameSpline.K();return projectSplinePoint(hit.hash,K.cubicPoint(K.segmentPoints(source.splineData,hit.segment),hit.t));}
+        return [x,y];
+      }
+      const hit=await componentSeed(renderer,x,y);if(!hit||hit.draw.mesh.hashId!==n.nativeHash||elementMode!==mode)return [x,y];
+      const {draw,id}=hit,mesh=draw.mesh,ids=mode==='vertex'?[id-draw.vertexBase]:await pagedReadCounters(renderer,renderer.device.createCommandEncoder(),draw.part.lines,8,(id-draw.edgeBase)*8);
+      const vertices=await animationReadVertices(mesh,ids),[a,b]=vertices.map(([,p])=>worldScreen(FM.point(objectWorld(mesh.hashId),p)));
+      if(!b)return a;
+      const dx=b[0]-a[0],dy=b[1]-a[1],t=Math.min(1,Math.max(0,((x-a[0])*dx+(y-a[1])*dy)/(dx*dx+dy*dy||1)));
+      return [a[0]+t*dx,a[1]+t*dy];
+    }
     const polygonHost=$('frame-engine-host');
     polygonHost.addEventListener('pointerdown',event=>{
-      if(event.button===2&&(polygonTools.mode||polygonTools.soft)){const cut=polygonTools.mode==='lineCut',started=cut&&(polygonTools.line.length>0||polygonTools.pendingPoints>0);if(started){lineCutMenuUntil=performance.now()+400;event.preventDefault();event.stopImmediatePropagation();polygonClick=polygonClick.then(commitLineCut);}else cancelPolygonTools();return;}
+      if(event.button===2&&(polygonTools.mode||polygonTools.soft)){const cut=polygonTools.mode==='lineCut',started=cut&&(polygonTools.line.length>0||polygonTools.pendingPoints>0);if(started){lineCutMenuUntil=performance.now()+400;event.preventDefault();event.stopImmediatePropagation();finishCutInput();}else cancelPolygonTools();return;}
       if(event.button!==0||!polygonTools.mode||event.altKey)return;
       const mode=polygonTools.mode,x=event.clientX,y=event.clientY;
-      if(mode==='bridge'){event.preventDefault();event.stopImmediatePropagation();selectionArea='viewport';bridgeGesture={id:event.pointerId,from:polygonLoopHit(x,y)};polygonHost.setPointerCapture(event.pointerId);return;}
+      if(mode==='bridge'){event.preventDefault();event.stopImmediatePropagation();selectionArea='viewport';bridgeGesture={id:event.pointerId,x,y,from:bridgeHit(x,y)};polygonHost.setPointerCapture(event.pointerId);return;}
       if(['loop','closeHole'].includes(mode)){polygonClickGesture={id:event.pointerId,mode,x,y,moved:false,preview:loopPreview};return;}
       event.preventDefault();event.stopImmediatePropagation();selectionArea='viewport';
-      if(mode==='lineCut'){const generation=polygonToolGeneration,index=polygonTools.line.length;polygonTools.line.push([x,y]);drawPolygonGuide();polygonTools.pendingPoints++;polygonClick=polygonClick.then(async()=>{try{const p=await cutPoint(x,y);if(polygonTools.mode!=='lineCut'||polygonToolGeneration!==generation)return;polygonTools.line[index]=p;drawPolygonGuide();}finally{if(polygonToolGeneration===generation)polygonTools.pendingPoints--;}}).catch(fileOperationError);return;}
+      if(mode==='lineCut'){polygonTools.cutPress={id:event.pointerId,x,y};polygonHost.setPointerCapture(event.pointerId);addCutPoint(x,y);return;}
       polygonClick=polygonClick.then(async()=>{const hit=await polygonHit(x,y);if(hit)await polygonEdit(hit.n,{op:'addPoint',...(hit.edge?{edge:hit.edge.id,t:hit.edge.t}:{face:hit.face,barycentric:hit.barycentric})});}).catch(fileOperationError);
     },true);
     polygonHost.addEventListener('pointermove',event=>{const g=polygonClickGesture;if(g&&event.pointerId===g.id&&Math.hypot(event.clientX-g.x,event.clientY-g.y)>3){g.moved=true;loopRevision++;loopPreview=null;drawPolygonGuide();}if(event.buttons&&['loop','closeHole'].includes(polygonTools.mode)){loopRevision++;drawPolygonGuide();}},true);
-    polygonHost.addEventListener('pointerup',event=>{if(bridgeGesture?.id===event.pointerId){const g=bridgeGesture,x=event.clientX,y=event.clientY;event.preventDefault();event.stopImmediatePropagation();endPolygonTool();renderAttributes();polygonClick=polygonClick.then(async()=>{const from=await g.from,to=await polygonLoopHit(x,y);if(from?.edge&&to?.edge&&from.n===to.n&&from.edge.id!==to.edge.id)await polygonEdit(from.n,{op:'bridge',edges:[from.edge.id,to.edge.id]});}).catch(fileOperationError);return;}const g=polygonClickGesture;if(!g||event.pointerId!==g.id)return;polygonClickGesture=null;if(g.moved||Math.hypot(event.clientX-g.x,event.clientY-g.y)>3)return;event.preventDefault();event.stopImmediatePropagation();finishDrag(event,true);if(g.mode==='closeHole'){endPolygonTool();renderAttributes();}const preview=g.preview;if(!preview||Math.hypot(g.x-preview.x,g.y-preview.y)>12)return;selectionArea='viewport';polygonClick=polygonClick.then(async()=>{if(g.mode==='loop'&&preview.spline){FrameSpline.loopAt(g.x,g.y,true);return;}const hit=await polygonLoopHit(g.x,g.y);if(!hit)return;if(g.mode==='loop'&&hit.edge)await polygonLoop(hit.n,hit.edge.id);else if(g.mode==='closeHole')await polygonEdit(hit.n,{op:'closeHole',vertex:hit.vertex});}).catch(fileOperationError);},true);
-    polygonHost.addEventListener('pointercancel',()=>{polygonClickGesture=null;if(bridgeGesture){endPolygonTool();renderAttributes();}},true);
+    polygonHost.addEventListener('pointerup',event=>{
+      const press=polygonTools.cutPress;
+      if(press?.id===event.pointerId){polygonTools.cutPress=null;event.preventDefault();event.stopImmediatePropagation();if(Math.hypot(event.clientX-press.x,event.clientY-press.y)>3)addCutPoint(event.clientX,event.clientY);return;}
+      if(bridgeGesture?.id===event.pointerId){releaseBridge(event);return;}const g=polygonClickGesture;if(!g||event.pointerId!==g.id)return;polygonClickGesture=null;if(g.moved||Math.hypot(event.clientX-g.x,event.clientY-g.y)>3)return;event.preventDefault();event.stopImmediatePropagation();finishDrag(event,true);if(g.mode==='closeHole'){endPolygonTool();renderAttributes();}const preview=g.preview;if(!preview||Math.hypot(g.x-preview.x,g.y-preview.y)>12)return;selectionArea='viewport';polygonClick=polygonClick.then(async()=>{if(g.mode==='loop'&&preview.spline){FrameSpline.loopAt(g.x,g.y,true);return;}const hit=await polygonLoopHit(g.x,g.y);if(!hit)return;if(g.mode==='loop'&&hit.edge)await polygonLoop(hit.n,hit.edge.id);else if(g.mode==='closeHole')await polygonEdit(hit.n,{op:'closeHole',vertex:hit.vertex});}).catch(fileOperationError);},true);
+    function cancelToolPress(event){
+      if(event.type==='lostpointercapture'&&event.target!==polygonHost)return;
+      if(event.type==='pointercancel')polygonClickGesture=null;
+      const press=bridgeGesture||polygonTools.cutPress;
+      if(press&&(event.type==='blur'||press.id===event.pointerId)){endPolygonTool();renderAttributes();}
+    }
+    polygonHost.addEventListener('pointercancel',cancelToolPress,true);
+    polygonHost.addEventListener('lostpointercapture',cancelToolPress,true);
+    FrameViewWindows.onWindow('blur',cancelToolPress);
     polygonHost.addEventListener('contextmenu',event=>{if(performance.now()<lineCutMenuUntil){lineCutMenuUntil=0;event.preventDefault();event.stopImmediatePropagation();}},true);
-    FrameViewWindows.onWindow('keydown',event=>{if(event.key!=='Escape'&&event.target.closest?.('input,textarea,select,[contenteditable]'))return;if(event.key==='Escape'&&(polygonTools.mode||polygonTools.soft)){cancelPolygonTools();event.preventDefault();event.stopImmediatePropagation();}else if(event.key==='Enter'&&polygonTools.mode==='lineCut'){polygonClick=polygonClick.then(commitLineCut);event.preventDefault();event.stopImmediatePropagation();}else if(polygonTools.mode&&!['Control','Meta','Shift','Alt'].includes(event.key)){endPolygonTool();renderAttributes();}},true);
-    FrameViewWindows.onDocument('pointerdown',e=>{if(polygonTools.mode&&(!e.target.closest('#frame-engine-host'))){endPolygonTool();renderAttributes();}},true);
+    FrameViewWindows.onWindow('keydown',event=>{if(event.key!=='Escape'&&event.target.closest?.('input,textarea,select,[contenteditable]'))return;if(event.key==='Escape'&&(polygonTools.mode||polygonTools.soft)){if(polygonTools.mode==='lineCut'&&!polygonTools.cutPress&&polygonTools.line.length>=2&&polygonTools.pendingPoints)finishCutInput();else cancelPolygonTools();event.preventDefault();event.stopImmediatePropagation();}else if(event.key==='Enter'&&polygonTools.mode==='lineCut'){finishCutInput();event.preventDefault();event.stopImmediatePropagation();}else if(polygonTools.mode&&!['Control','Meta','Shift','Alt'].includes(event.key)){endPolygonTool();renderAttributes();}},true);
+    FrameViewWindows.onDocument('pointerdown',e=>{if(polygonTools.mode&&!e.target.closest('#frame-engine-host')&&!(polygonTools.mode==='lineCut'&&e.target.closest('[aria-label="Line cut visible only"]'))){endPolygonTool();renderAttributes();}},true);
 
     async function softWeightData(mesh){const selection=await polygonSelection(mesh);if(!selection.vertices.length)return null;const raw={vertices:new Float32Array((await nativeReadGPU(renderer,mesh.positions,mesh.vertexCount*3)).buffer),indices:new Uint32Array((await nativeReadGPU(renderer,mesh.indices,mesh.count)).buffer)},r=await polygonWorker({...raw,op:'soft',seeds:selection.vertices,radius:polygonTools.radius,matrix:Array.from(objectWorld(mesh.hashId))});return r.weights;}
     async function softTransformWeights(mesh){if(!polygonTools.soft||elementMode!=='vertex')return null;const weights=await softWeightData(mesh);if(!weights)return null;const buffer=makeGPUBuffer(renderer.device,{label:'Soft Selection surface weights',size:weights.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});renderer.device.queue.writeBuffer(buffer,0,weights);return buffer;}
@@ -22985,7 +23283,7 @@ function FramePolygonKernel(d){
       register('plugins.command','Run a registered plugin operation after schema validation. Slice starts a background job; status observes completion.',required(obj({id:str,operation:str,args:{type:'object',properties:{},additionalProperties:true}}),'id','operation'),false,async(a,interruption)=>{const n=resolve(a.id);await FramePlugins.ensureType(n.type);const operation=FramePlugins.owner(n)?.operations?.get(a.operation);if(!operation)fail('UNKNOWN_TOOL','Unknown plugin operation: '+a.operation);validate(operation.inputSchema,a.args||{});return operation.run(n.nativeHash,a.args||{},interruption);});
       register('plugins.create','Load one installed plugin and add its object using native Undo.',required(obj({plugin:str,type:str}),'plugin'),false,async a=>{const n=await FramePlugins.create(a.plugin,a.type);await settle();return describe(n);});
       const resolve=ref=>frameNodeByReference(ref)||fail('NOT_FOUND','Object not found: '+ref),refs=ids=>ids.map(resolve),copy=v=>structuredClone(v),meshOf=n=>scene.meshes.find(m=>m.hashId===n.nativeHash);
-      async function settle(allowGesture=false){await api.ready;await FramePlugins.loadUsed();await objectActionQueue;await clipboardSerial;await FrameMorph.flush();if(canvas.dataset.ready==='error'||!scene)fail('NOT_READY',canvas.dataset.operationError||'WebGPU is unavailable');await loadLibraryObjects();let pending;do{pending=selectionPending;await pending;await selectionQueue;}while(pending!==selectionPending);await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag){if(allowGesture)return;fail('BUSY','Finish the active editor gesture first');}let click;do{click=polygonClick;await click;}while(click!==polygonClick);await loopSerial;await FrameFileSources.flush();await FrameGeometry.flush();await FrameSpline.flush();await replicaQueue;await animationSerial;await FramePlugins.flush();for(const n of nodes)if(n.type==='mesh'&&n.tags.some(t=>t.kind==='morph'&&t.params.mode==='Solve'))await FrameMorph.apply(n);await selectionQueue;await editSerial;await appearanceQueue;await measureQueue;const started=performance.now();while(wheelBusy||pendingWheel){if(performance.now()-started>30000)fail('BUSY','Navigation has not settled');await new Promise(requestAnimationFrame);}}
+      async function settle(allowGesture=false){await api.ready;await FramePlugins.loadUsed();await objectActionQueue;await clipboardSerial;await FrameMorph.flush();if(canvas.dataset.ready==='error'||!scene)fail('NOT_READY',canvas.dataset.operationError||'WebGPU is unavailable');await loadLibraryObjects();let pending;do{pending=selectionPending;await pending;await selectionQueue;}while(pending!==selectionPending);await gizmoSession?.completion;await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag){if(allowGesture)return;fail('BUSY','Finish the active editor gesture first');}let click;do{click=polygonClick;await click;}while(click!==polygonClick);await loopSerial;await FrameFileSources.flush();await FrameGeometry.flush();await FrameSpline.flush();await replicaQueue;await animationSerial;await FramePlugins.flush();for(const n of nodes)if(n.type==='mesh'&&n.tags.some(t=>t.kind==='morph'&&t.params.mode==='Solve'))await FrameMorph.apply(n);await selectionQueue;await editSerial;await appearanceQueue;await measureQueue;const started=performance.now();while(wheelBusy||pendingWheel){if(performance.now()-started>30000)fail('BUSY','Navigation has not settled');await new Promise(requestAnimationFrame);}}
       function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(FrameSpline.inputNode).map(c=>c.nativeHash),params:copy(n.params),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!m.splineGenerated,visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
       function inspectionIndex(){const index=boundsOwnerIndex();index.children=new Map();for(const n of nodes){let list=index.children.get(n.parent);if(!list)index.children.set(n.parent,list=[]);list.push(n);}return index;}
       function describeMany(list){const inspection=inspectionIndex();return list.map(n=>describe(n,inspection));}
@@ -23103,7 +23401,7 @@ function FramePolygonKernel(d){
       register('material.assign','Assign a material to an owner, explicit triangle IDs, or the current polygon/Spline Patch cell selection.',required(obj({id:str,material:str,selection:bool,faces:{...array(integer,500000),minItems:1}}),'id','material'),false,async a=>{const picked=resolve(a.id),n=frameMaterialOwner(picked,!!a.selection),index=materials.findIndex(m=>m.uid===a.material);if(a.selection&&a.faces)fail('INVALID_ARGUMENT','Choose selection or explicit faces');if(index<0)fail('NOT_FOUND','Material UID not found');if(!meshOf(n)&&n.type!=='group'&&!FrameSpline.generators.has(n.type)&&!FramePlugins.owner(n))fail('UNSUPPORTED','A mesh, native generator, group or plugin material owner is required');if(a.faces){const mesh=meshOf(n);if(!mesh||a.faces.some(f=>f>=mesh.triangleCount))fail('INVALID_ARGUMENT','Faces must address the current mesh');const words=new Uint32Array(Math.ceil(mesh.triangleCount/32));for(const f of a.faces)words[f>>5]|=1<<(f&31);const buffer=makeGPUBuffer(renderer.device,{label:'explicit material face mask',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),mask=FrameHash.newId();renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,Math.ceil(mesh.triangleCount/8));commit(()=>frameSetMaterialTag(n,index,mask));}else if(a.selection){const mask=await capturePolygonSelection(n.nativeHash);if(!mask)fail('INVALID_ARGUMENT','Select polygons or Spline Patch cells first');commit(()=>frameSetMaterialTag(n,index,mask));}else{await choose([n]);setViewerMode('element','object');await frameAssignMaterial(n.id,index);}await settle();return describe(n);});
       register('material.remove','Remove material tags from an object through the native tag deletion transaction. Omit tag to remove all its material tags.',required(obj({id:str,tag:str}),'id'),false,async a=>{const n=resolve(a.id),tags=n.tags.filter(t=>t.kind==='material'&&(!a.tag||t.uid===a.tag));if(a.tag&&!tags.length)fail('NOT_FOUND','Material tag UID not found on this object');if(tags.length){selectedTags=new Set(tags.map(t=>tagKey(n.id,n.tags.indexOf(t))));selectedTag={owner:n.id,index:n.tags.indexOf(tags[0])};remove();await settle();}return describe(n);});
       register('spline.outline','Offset segments whose two endpoints are selected, or explicitly supplied cubic segments, on a Float64 worker with one Undo transaction.',required(obj({id:str,distance:num,segments:array(str,200000),inner:bool}),'id','distance'),false,async a=>FrameGeometry.outline(resolve(a.id),a.distance,a.segments,a.inner));
-      register('spline.lineCut','Cut editable cubic splines with a finite screen polyline, preserving curves and connecting intersections inside filled cells in one Undo. Explicit segments restrict subdivision to those edges.',required(obj({id:str,line:{...array({...array(num,2),minItems:2},1000),minItems:2},visibleOnly:bool,segments:array(str,200000)}),'id','line'),false,async a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))fail('UNSUPPORTED','Choose an editable spline or one Spline Patch source');if(a.segments?.some(id=>!n.splineData.segments[id]))fail('INVALID_ARGUMENT','Unknown spline segment');const result=await cutSpline(owner,a.line,a.visibleOnly??true,a.segments);await settle();return result;});
+      register('spline.lineCut','Cut editable cubic splines with a finite screen polyline, preserving curves and connecting intersections inside filled cells in one Undo. Explicit segments restrict subdivision to those edges. Set useSelection to false to cut across the editable surface.',required(obj({id:str,line:{...array({...array(num,2),minItems:2},1000),minItems:2},visibleOnly:bool,useSelection:bool,segments:array(str,200000)}),'id','line'),false,async a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner;if(!FrameSpline.isEditable(n))fail('UNSUPPORTED','Choose an editable spline or one Spline Patch source');if(a.segments?.some(id=>!n.splineData.segments[id]))fail('INVALID_ARGUMENT','Unknown spline segment');const result=await cutSpline(owner,a.line,a.visibleOnly??true,a.segments,a.useSelection??true);await settle();return result;});
       register('mesh.inspect','Read explicit native vertex/triangle IDs and positions (up to 32 MiB). Optional topology reports exact-position welded edge incidence and dihedral angles; no cached CPU mesh.',required(obj({id:str,vertices:array(integer,10000),faces:array(integer,10000),topology:bool,angle:{...num,minimum:0,maximum:180}}),'id'),true,async a=>{
         const started=performance.now(),n=resolve(a.id),mesh=meshOf(n);if(!mesh)fail('UNSUPPORTED','Object has no mesh');if((mesh.vertexCount*3+mesh.count)*4>32*1024*1024||a.topology&&mesh.triangleCount>100000)fail('LIMIT','Inspection exceeds bounded readback/topology limits');if(a.vertices?.some(v=>v>=mesh.vertexCount)||a.faces?.some(f=>f>=mesh.triangleCount))fail('INVALID_ARGUMENT','IDs must address the current mesh');if(!a.vertices&&!a.faces&&(mesh.vertexCount>10000||mesh.triangleCount>10000))fail('LIMIT','Request explicit IDs for large meshes');
         const raw=await readGeometry(mesh),p=raw.vertices,ix=raw.indices,vertices=a.vertices||(!a.faces?Array.from({length:mesh.vertexCount},(_,i)=>i):[]),faces=a.faces||(!a.vertices?Array.from({length:mesh.triangleCount},(_,i)=>i):[]),point=i=>Array.from(p.subarray(i*3,i*3+3)),result={id:n.nativeHash,vertices:vertices.map(id=>({id,position:point(id)})),faces:faces.map(id=>({id,vertices:Array.from(ix.subarray(id*3,id*3+3))})),vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount};
@@ -23112,7 +23410,7 @@ function FramePolygonKernel(d){
       register('mesh.replace','Replace an editable polygon mesh through native topology publication and one Undo. sourceFaces maps each new triangle to its old material selection; -1 is unassigned. Existing UV requires explicit new corner UVs. Morph owners reject.',required(obj({id:str,vertices:array(num,750000),indices:array(integer,1500000),sourceFaces:array({type:'integer',minimum:-1},500000),uv:array(num,3000000)}),'id','vertices','indices'),false,async a=>{
         const n=resolve(a.id),mesh=meshOf(n);if(n.type!=='mesh'||!mesh||n.tags.some(t=>t.kind==='morph'))fail('UNSUPPORTED','Choose editable polygons without Morph');const p=Float32Array.from(a.vertices),ix=Uint32Array.from(a.indices),T=ix.length/3;if(!p.length||p.length%3||ix.length%3||!p.every(Number.isFinite)||ix.some(i=>i>=p.length/3)||a.indices.some(i=>i>0xffffffff))fail('INVALID_ARGUMENT','Invalid Float32 triangle geometry');if(a.sourceFaces&&(a.sourceFaces.length!==T||a.sourceFaces.some(f=>f>=mesh.triangleCount)))fail('INVALID_ARGUMENT','sourceFaces must map every triangle to an old face or -1');if(!a.sourceFaces&&n.tags.some(t=>t.mask))fail('INVALID_ARGUMENT','Material selections require sourceFaces');if(a.uv&&(a.uv.length!==T*6||!Float32Array.from(a.uv).every(Number.isFinite))||importedUV(mesh)&&!a.uv)fail('INVALID_ARGUMENT','Provide finite UVs for every new triangle corner');const started=performance.now(),result=await polygonEdit(n,{op:'replace',vertices:p,indices:ix,sourceFaces:a.sourceFaces?Int32Array.from(a.sourceFaces):new Int32Array(T).fill(-1),...a.uv?{uv:Float32Array.from(a.uv)}:{}});await settle();return {...result,object:describe(n),completedMs:performance.now()-started};
       });
-      register('mesh.edit','Edit native polygon topology in one Undo transaction. Add Point uses an edge and t or face and barycentric. Line Cut takes CSS screen points in the active view. Bridge requires boundary edge keys min:max. Delete removes selected vertex/edge incident faces or selected polygons.',required(obj({id:str,op:choice('addPoint','lineCut','bridge','closeHole','delete'),mode:choice('vertex','edge','polygon'),vertices:array(integer,100000),faces:array(integer,500000),edge:str,t:{...num,exclusiveMinimum:0,exclusiveMaximum:1},face:integer,barycentric:vector,visibleOnly:bool,edges:array(str,200000),vertex:integer,line:{...array({...array(num,2),minItems:2},1000),minItems:2}}),'id','op'),false,async a=>{const n=resolve(a.id);const result=await polygonEdit(n,a);await settle();return {...result,object:describe(n)};});
+      register('mesh.edit','Edit native polygon topology in one Undo transaction. Add Point uses an edge and t or face and barycentric. Line Cut takes CSS screen points in the active view. Set useSelection to false to ignore the current component selection. Bridge requires boundary edge keys min:max. Delete removes selected vertex/edge incident faces or selected polygons.',required(obj({id:str,op:choice('addPoint','lineCut','bridge','closeHole','delete'),mode:choice('vertex','edge','polygon'),vertices:array(integer,100000),faces:array(integer,500000),edge:str,t:{...num,exclusiveMinimum:0,exclusiveMaximum:1},face:integer,barycentric:vector,visibleOnly:bool,useSelection:bool,edges:array(str,200000),vertex:integer,line:{...array({...array(num,2),minItems:2},1000),minItems:2}}),'id','op'),false,async a=>{const n=resolve(a.id);const result=await polygonEdit(n,a);await settle();return {...result,object:describe(n)};});
       register('selection.loop','Follow a polygon edge loop using the Frame direction/length rule. Edge keys are minVertex:maxVertex.',required(obj({id:str,edge:str}),'id','edge'),false,a=>polygonLoop(resolve(a.id),a.edge));
       register('selection.soft','Enable surface-distance cosine falloff for vertex transforms. Radius is in world millimetres.',required(obj({enabled:bool,radius:{...num,exclusiveMinimum:0}}),'enabled'),false,a=>{if(a.radius!==undefined&&!(a.radius>0))fail('INVALID_ARGUMENT','Radius must be positive');polygonTools.soft=a.enabled;if(a.radius!==undefined)polygonTools.radius=a.radius;renderAttributes();return {enabled:polygonTools.soft,radius:polygonTools.radius};});
       register('geometry.bevel' ,'Bevel selected authored spline vertices/edges using the original Float64 profile kernel. Polygon mesh Bevel is unavailable.',required(obj({id:str,size:num,edges:array(str,200000),vertices:array(str,200000),round:bool}),'id','size'),false,async a=>{if(a.edges&&a.vertices)fail('INVALID_ARGUMENT','Choose either vertices or edges');const n=resolve(a.id);if(!(FrameSpline.sourceNode(n)||n)?.splineData)fail('UNSUPPORTED','Bevel requires an editable spline cage');const result=await FrameGeometry.bevel(n,a.size,a.edges,a.round,null,a.vertices);await settle();return {...result,object:describe(resolve(result.id))};});

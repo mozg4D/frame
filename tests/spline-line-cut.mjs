@@ -13,6 +13,20 @@ test('Multiple intersections on a straight edge keep their exact positions',()=>
 test('Hole remains empty and gets no bridging segment',()=>{const d=square();loop(d,[[-15,-15,0],[15,-15,0],[15,15,0],[-15,15,0]]);const r=cut(K,d,{projection,line:[[0,-100],[0,100]]});assert.equal(r.vertices.length,4);assert.equal(r.segments.length,2);for(const id of r.segments){const e=r.data.segments[id],y=(r.data.vertices[e.a][1]+r.data.vertices[e.b][1])/2;assert.ok(Math.abs(y)>15);}assert.equal(cells(r.data).reduce((s,c)=>s+c.area,0),9100);});
 test('Cubic split preserves every sampled point and inherited segment flags',()=>{const d=K.createSplineData(),q=K.addSplineSequence(d),a=K.addSplineVertex(d,[-60,-10,0]),b=K.addSplineVertex(d,[60,10,0]),edge=K.addSplineSegment(d,q,a,b,[35,60,0],[-35,-30,0]);d.segments[edge].boundary=true;const cp=K.segmentPoints(d,edge),plan=cut(K,d,{projection,line:[[0,-100],[0,100]],planOnly:true}),r=cut(K,d,{plan});assert.equal(r.vertices.length,1);const t=plan.hits[0].t,right=Object.keys(r.data.segments).find(id=>id!==edge);for(let i=0;i<=100;i++){const u=i/100,p=K.cubicPoint(cp,u),actual=K.cubicPoint(K.segmentPoints(r.data,u<=t?edge:right),u<=t?u/t:(u-t)/(1-t));assert.ok(p.every((v,k)=>Math.abs(v-actual[k])<1e-9));}assert.equal(r.data.segments[right].boundary,true);});
 test('Explicit segment restriction subdivides only requested edge',()=>{const d=square(),edge=Object.keys(d.segments)[0],r=cut(K,d,{projection,line:[[0,-100],[0,100]],segments:[edge],cells:[]});assert.equal(r.vertices.length,1);assert.equal(r.segments.length,0);assert.equal(cells(r.data).length,1);});
+test('Two existing corners connect directly and continued interior strokes reuse the bend',()=>{
+  const d=square(),diag=cut(K,d,{projection,line:[[-50,-50],[50,50]]});
+  assert.equal(diag.vertices.length,0);assert.equal(diag.segments.length,1);assert.equal(cells(diag.data).length,2);
+  const first=cut(K,d,{projection,line:[[-50,6],[0,10]]}),second=cut(K,first.data,{projection,line:[[0,10],[50,17]]});
+  const at=Object.entries(second.data.vertices).filter(([,p])=>Math.hypot(p[0],p[1]+10,p[2])<1e-7);
+  assert.equal(at.length,1);assert.equal(Object.values(second.data.segments).filter(e=>[e.a,e.b].includes(at[0][0])).length,2);assert.equal(cells(second.data).length,2);
+});
+test('Interior endpoints on a spatial quad lie on its resolved surface',()=>{
+  const d=K.createSplineData();loop(d,[[-1,-1,0],[1,-1,.4],[1,1,1],[-1,1,-.4]]);
+  assert.equal(cells(d).length,1);assert.equal(cells(d)[0].planar,false);
+  const r=cut(K,d,{projection,line:[[-.4,.2],[.4,-.2]]});
+  assert.equal(r.vertices.length,2);assert.equal(r.segments.length,1);
+  for(const [i,id] of r.vertices.entries()){const p=r.data.vertices[id];assert.ok(Math.abs(p[0]-(i?.4:-.4))<1e-5);assert.ok(Math.abs(p[1]-(i?.2:-.2))<1e-5);assert.ok(p[2]>=-.4&&p[2]<=1);}
+});
 test('Visibility filters prevent hidden edits and bridges',()=>{const d=square(),plan=cut(K,d,{projection,line:[[0,-100],[0,100]],planOnly:true}),r=cut(K,d,{plan,visible:plan.points.map(()=>0)});assert.equal(r.changed,false);assert.deepEqual(r.data,d);});
 test('Perspective homogeneous projection cuts a depth-varying cubic',()=>{const d=K.createSplineData(),q=K.addSplineSequence(d),a=K.addSplineVertex(d,[-2,0,-2]),b=K.addSplineVertex(d,[2,0,1]);K.addSplineSegment(d,q,a,b,[1,1,1],[-1,-1,-1]);const r=cut(K,d,{projection:{...projection,ortho:false},line:[[0,-100],[0,100]]});assert.equal(r.vertices.length,1);assert.ok(Math.abs(r.data.vertices[r.vertices[0]][0])<1e-8);});
 console.log(JSON.stringify({pass:true,checks:checks.length}));
