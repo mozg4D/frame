@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 18:04">
+<meta name="frame-version" content="2026 18 nov 18:35">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -8142,8 +8142,8 @@ fn finishWork(local:u32) {
   }
   if(local==0u){if(optimizedSums[0].x>0u){atomicAdd(&frame.counters[14],optimizedSums[0].x);}if(optimizedSums[0].y>0u){atomicAdd(&frame.counters[15],optimizedSums[0].y);}for(var k=0u;k<4u;k++){if(workSums[0][k]>0u){atomicAdd(&frame.counters[k],workSums[0][k]);}if(workSums2[0][k]>0u){atomicAdd(&frame.counters[k+4u],workSums2[0][k]);}}}
 }
-override realtimeFilm:bool=false;
-fn reuseEnabled()->bool{return !realtimeFilm&&(params.reuse.x&1u)!=0u;}
+override cachedFilm:bool=false;
+fn reuseEnabled()->bool{return cachedFilm;}
 fn cameraRay(pixel:u32,jitter:vec2f)->CameraRay {
   let xy=vec2u(pixel%params.image.x,pixel/params.image.x);
   let uv=(vec2f(xy)+jitter)/vec2f(params.image.xy)*2.-1.;
@@ -8353,29 +8353,30 @@ fn invalidateIrradiance(@builtin(global_invocation_id) id:vec3u) {
   if(irradiance[slot].info.x==0u&&irradiance[slot].normal.w==0.){irradiance[slot].info.z=0u;}
 }
 @compute @workgroup_size(64)
-fn preparePrimary(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
-  if(id.x<params.image.x*params.image.y){
-    let ray=cameraRay(id.x,vec2f(.5));let hit=intersect(ray.origin,ray.direction,1e20,true);
-    atomicStore(&frame.pixelIndices[id.x],hit.triangle);
+fn preparePrimary(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32,@builtin(num_workgroups) grid:vec3u) {
+  let pixel=id.x+id.y*grid.x*64u;
+  if(pixel<params.image.x*params.image.y){
+    let ray=cameraRay(pixel,vec2f(.5));let hit=intersect(ray.origin,ray.direction,1e20,true);
+    atomicStore(&frame.pixelIndices[pixel],hit.triangle);
     // The first camera sample uses this exact centered ray. Keep its full hit,
     // including barycentrics, instead of tracing it again in gatherPixel.
-    let primaryAt=primaryBufferIndex(id.x);
+    let primaryAt=primaryBufferIndex(pixel);
     atomicStore(&frame.pixelIndices[primaryAt],bitcast<u32>(hit.distance));
     atomicStore(&frame.pixelIndices[primaryAt+1u],hit.triangle);
     atomicStore(&frame.pixelIndices[primaryAt+2u],bitcast<u32>(hit.u));
     atomicStore(&frame.pixelIndices[primaryAt+3u],bitcast<u32>(hit.v));
-    if(hit.triangle==0xffffffffu){guides[id.x]=Guide(vec4f(ray.direction,0.),vec4f(.5,.5,.5,1.));}
+    if(hit.triangle==0xffffffffu){guides[pixel]=Guide(vec4f(ray.direction,0.),vec4f(.5,.5,.5,1.));}
     else{
       let p=renderHitPoint(hit);let s=surface(hit,p,ray.direction,0u);let t=renderTriangle(hit.triangle);
       let kind=s.rough+select(0.,2.,s.metal>.5)+select(0.,4.,s.transmission>.1)+select(0.,8.,max3(s.emission)>0.);
-      guides[id.x]=Guide(vec4f(s.normal,select(hit.distance,0.,t.nc.w>0.)),vec4f(s.color,kind));
+      guides[pixel]=Guide(vec4f(s.normal,select(hit.distance,0.,t.nc.w>0.)),vec4f(s.color,kind));
     }
   }
   finishWork(local);
 }
 @compute @workgroup_size(64)
-fn requestIrradiance(@builtin(global_invocation_id) id:vec3u) {
-  let pixel=id.x;if(pixel>=params.image.x*params.image.y){return;}
+fn requestIrradiance(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) grid:vec3u) {
+  let pixel=id.x+id.y*grid.x*64u;if(pixel>=params.image.x*params.image.y){return;}
   let triangle=atomicLoad(&frame.pixelIndices[pixel]);if(triangle==0xffffffffu){return;}
   let g=guides[pixel];if(g.normal.w<=0.||!cacheSafe(pixel,triangle,g.normal.xyz)){return;}
   let ray=cameraRay(pixel,vec2f(.5));let p=ray.origin+ray.direction*g.normal.w;
@@ -8454,7 +8455,11 @@ fn updateProbe(slot:u32) {
 }
 @compute @workgroup_size(64)
 fn updateIrradiance(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
-  let index=params.image.w+id.x;if(id.x<params.batch.x&&index<atomicLoad(&frame.probeCount)){updateProbe(atomicLoad(&frame.pixelIndices[probeQueueBase()+index]));}finishWork(local);
+  if(id.x<atomicLoad(&frame.probeCount)){
+    let slot=atomicLoad(&frame.pixelIndices[probeQueueBase()+id.x]);
+    for(var i=0u;i<params.infiniteCount.w;i++){updateProbe(slot);}
+  }
+  finishWork(local);
 }
 
 // View-independent DIRECT irradiance. It is kept apart from reflected irradiance
@@ -8794,6 +8799,14 @@ fn direct(s:Surface,p:vec3f,v:vec3f,seed:ptr<function,Sampler>,bounce:u32)->Dire
   }
   return DirectLight(value,diffuse);
 }
+fn cameraBackground(d:vec3f)->vec3f {
+  var color=environment(d);
+  for(var i=0u;i<params.infiniteCount.x;i++){
+    let light=params.infiniteLights[i];let angle=light.direction.w;let c=cos(angle);
+    if(angle>1e-5&&dot(d,light.direction.xyz)>c){color+=light.color.rgb*(1./max(2.*PI*(1.-c),1e-12));}
+  }
+  return color;
+}
 fn trace(origin:vec3f,direction:vec3f,seed:ptr<function,Sampler>,pixel:u32,first:bool,primaryHit:Hit)->TraceResult {
   var o=origin;var d=direction;var throughput=vec3f(1.);var radiance=vec3f(0.);var primary=vec3f(0.);var previousPDF=0.;var deltaEvent=true;var background=true;
   var primaryDiffuse=vec3f(0.);var firstDiffuseFraction=vec3f(0.);
@@ -8805,9 +8818,13 @@ fn trace(origin:vec3f,direction:vec3f,seed:ptr<function,Sampler>,pixel:u32,first
     (*seed).dimension=16u+bounce*64u;
     var hit=primaryHit;if(traversal>0u||!reuseEnabled()){hit=intersect(o,d,1e20,background);}
     if(hit.triangle==0xffffffffu){
+      if(bounce==0u){
+        if(first){guides[pixel]=Guide(vec4f(d,0.),vec4f(.5,.5,.5,1.));}
+        return TraceResult(cameraBackground(d),vec3f(0.),vec3f(0.));
+      }
       let w=select(power(previousPDF,envPDF(d)),1.,deltaEvent);let sky=environment(d)*w;radiance+=throughput*sky;gi+=emissionGI*sky;
       for(var lightIndex=0u;lightIndex<params.infiniteCount.x;lightIndex++){let light=params.infiniteLights[lightIndex];let angle=light.direction.w;let cosAngle=cos(angle);if(angle>1e-5&&dot(d,light.direction.xyz)>cosAngle){let pdf=1./max(2.*PI*(1.-cosAngle),1e-12);let sunlight=light.color.rgb*pdf*select(power(previousPDF,pdf),1.,deltaEvent);radiance+=throughput*sunlight;gi+=emissionGI*sunlight;}}
-      if(bounce==0u){primary=radiance;if(first){guides[pixel]=Guide(vec4f(d,0.),vec4f(.5,.5,.5,1.));}}break;
+      break;
     }
     let p=renderHitPoint(hit);let s=surface(hit,p,d,bounce);if(s.coverage<.99999){var alphaSeed=*seed;alphaSeed.dimension=512u+traversal;if(random(&alphaSeed)>=s.coverage){o=p+d*EPS*2.;continue;}}let tri=renderTriangle(hit.triangle);
     if(tri.nc.w>0.){radiance+=throughput*(s.color+s.emission);if(bounce==0u){primary=radiance;if(first){guides[pixel]=Guide(vec4f(d,0.),vec4f(s.color,0.));}}break;}
@@ -8855,41 +8872,53 @@ fn trace(origin:vec3f,direction:vec3f,seed:ptr<function,Sampler>,pixel:u32,first
   let diffuse=primaryDiffuse+(indirect+gi*(params.tuning.x-1.))*bound*firstDiffuseFraction;
   return TraceResult(primary+indirect*bound,gi*bound,diffuse);
 }
-fn needsSample(p:Pixel)->bool {
-  if(reuseEnabled()||(params.batch.z&1u)!=0u||p.value.w<128.||params.image.z%8u==0u){return true;}
+fn needsSample(p:Pixel,sampleIndex:u32)->bool {
+  if((params.batch.z&1u)!=0u||p.value.w<128.||sampleIndex%8u==0u){return true;}
   let error=sqrt(max3(max(vec3f(0.),p.variance.xyz))/max(1.,p.value.w-1.)/p.value.w);
   return error>=.001/max(frame.exposure.x,.1)+.01*max3(p.value.rgb);
 }
 @compute @workgroup_size(64)
-fn selectPixels(@builtin(global_invocation_id) id:vec3u) {
-  if(id.x>=params.image.x*params.image.y){return;}
-  if(needsSample(pixels[id.x])){let at=atomicAdd(&frame.activeCount,1u);atomicStore(&frame.pixelIndices[at],id.x);}
+fn selectPixels(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) grid:vec3u) {
+  let pixel=id.x+id.y*grid.x*64u;if(pixel>=params.image.x*params.image.y){return;}
+  if(needsSample(pixels[pixel],params.image.z)){let at=atomicAdd(&frame.activeCount,1u);atomicStore(&frame.pixelIndices[at],pixel);}
 }
 fn primaryBufferIndex(pixel:u32)->u32{return params.image.x*params.image.y+params.reuse.y+pixel*4u;}
 fn loadPrimaryHit(pixel:u32)->Hit {
   let at=primaryBufferIndex(pixel);
   return Hit(bitcast<f32>(atomicLoad(&frame.pixelIndices[at])),atomicLoad(&frame.pixelIndices[at+1u]),bitcast<f32>(atomicLoad(&frame.pixelIndices[at+2u])),bitcast<f32>(atomicLoad(&frame.pixelIndices[at+3u])));
 }
-fn cameraSampler(index:u32,count:f32)->Sampler {
+fn cameraSampler(index:u32,count:f32,sampleIndex:u32)->Sampler {
   let filmSeed=params.batch.w^params.infiniteCount.y;
-  return Sampler(index*1973u+select(u32(count),params.image.z,!realtimeFilm&&(params.batch.z&2u)!=0u)*9277u+filmSeed*26699u+89173u,0u,sampleHash(index^(filmSeed*26699u)),u32(count));
+  return Sampler(index*1973u+select(u32(count),sampleIndex,(params.batch.z&2u)!=0u)*9277u+filmSeed*26699u+89173u,0u,sampleHash(index^(filmSeed*26699u)),u32(count));
 }
 fn gatherPixel(index:u32) {
   let old=pixels[index];let count=old.value.w;
-  var seed=cameraSampler(index,count);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
+  var seed=cameraSampler(index,count,params.image.z);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
   let ray=cameraRay(index,jitter);var hit:Hit;
   if(count==0.&&params.cacheConfig.w>0.&&reuseEnabled()){
     hit=loadPrimaryHit(index);primaryReuseWork++;
   }else{hit=intersect(ray.origin,ray.direction,1e20,true);}
-  let at=primaryBufferIndex(index);atomicStore(&frame.pixelIndices[at],bitcast<u32>(hit.distance));atomicStore(&frame.pixelIndices[at+1u],hit.triangle);atomicStore(&frame.pixelIndices[at+2u],bitcast<u32>(hit.u));atomicStore(&frame.pixelIndices[at+3u],bitcast<u32>(hit.v));
-  var result=CachedGI(vec3f(0.),0.,0.,-1,vec3f(0.),0.);var s=Surface();if(hit.triangle!=0xffffffffu){s=surface(hit,renderHitPoint(hit),ray.direction,0u);}
-  if(hit.triangle!=0xffffffffu&&renderTriangle(hit.triangle).nc.w==0.){
-    let p=renderHitPoint(hit);
+  if(hit.triangle==0xffffffffu){
+    // Jitter can move an edge pixel between surface and sky. Keep its previous
+    // irradiance and variance in the running mean, including this zero GI sample.
+    applyIrradiance(index,CachedGI(vec3f(0.),0.,0.,-1,vec3f(0.),0.));
+    prepareCameraSample(index);
+    accumulatePrimaryTrace(index,TraceResult(cameraBackground(ray.direction),vec3f(0.),vec3f(0.)));
+    return;
+  }
+  let p=renderHitPoint(hit);let s=surface(hit,p,ray.direction,0u);
+  var result=CachedGI(vec3f(0.),0.,0.,-1,vec3f(0.),0.);
+  if(renderTriangle(hit.triangle).nc.w==0.){
     result=primaryGI(s,p,-ray.direction,hit,index,&seed);
   }
   if(result.slot == -2){pixels[index].cacheInfo.w=1.;let at=atomicAdd(&frame.activeCount,1u);atomicStore(&frame.pixelIndices[fallbackQueueBase()+at],index);}
   else{applyIrradiance(index,result);}
-  prepareCameraSample(index,ray,hit,s);
+  prepareCameraSample(index);
+  let fresh=needsFreshPrimary(index,count,ray,hit,s);
+  if(fresh||result.slot == -2){
+    let at=primaryBufferIndex(index);atomicStore(&frame.pixelIndices[at],bitcast<u32>(hit.distance));atomicStore(&frame.pixelIndices[at+1u],hit.triangle);atomicStore(&frame.pixelIndices[at+2u],bitcast<u32>(hit.u));atomicStore(&frame.pixelIndices[at+3u],bitcast<u32>(hit.v));
+  }
+  if(fresh){let at=atomicAdd(&frame.specCount,1u);atomicStore(&frame.pixelIndices[specularQueueBase()+at],index);}
 }
 fn applyIrradiance(index:u32,result:CachedGI) {
   let old=pixels[index];let n=old.cacheInfo.x;let count=n+1.;let boost=params.tuning.x;
@@ -8923,7 +8952,7 @@ fn gatherIrradiance(@builtin(global_invocation_id) id:vec3u,@builtin(local_invoc
 
 fn traceFallbackPixel(index:u32) {
   if(pixels[index].cacheInfo.w<.5){return;}
-  let count=pixels[index].value.w-1.;var seed=cameraSampler(index,count);
+  let count=pixels[index].value.w-1.;var seed=cameraSampler(index,count,params.image.z);
   var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
   let ray=cameraRay(index,jitter);let hit=loadPrimaryHit(index);
   let p=renderHitPoint(hit);let s=surface(hit,p,ray.direction,0u);
@@ -8944,7 +8973,7 @@ fn fallbackQueueBase()->u32{return params.image.x*params.image.y*5u+params.reuse
 fn specularQueueBase()->u32{return params.image.x*params.image.y*6u+params.reuse.y;}
 fn needsFreshPrimary(index:u32,count:f32,ray:CameraRay,hit:Hit,s:Surface)->bool {
   if(params.cacheConfig.y>.5||hit.triangle==0xffffffffu||renderTriangle(hit.triangle).nc.w>0.||max3(s.emission)>0.||s.transmission>0.||s.metal>.95){return true;}
-  var seed=cameraSampler(index,count);let j0=random(&seed);let j1=random(&seed);
+  var seed=cameraSampler(index,count,params.image.z);let j0=random(&seed);let j1=random(&seed);
   let chance=clamp(specProbability(s,-ray.direction),.2,1.);var gate=seed;gate.dimension=8u;
   if(random(&gate)<chance){return true;}
   // Exactly the choices trace() makes when its primary NEE roulette is skipped.
@@ -8952,7 +8981,7 @@ fn needsFreshPrimary(index:u32,count:f32,ray:CameraRay,hit:Hit,s:Surface)->bool 
   seed.dimension=select(48u,56u,params.batch.y>6u);let transmissionChoice=random(&seed);
   return random(&seed)<=specProbability(s,-ray.direction);
 }
-fn prepareCameraSample(index:u32,ray:CameraRay,hit:Hit,s:Surface) {
+fn prepareCameraSample(index:u32) {
   let old=pixels[index];let count=old.value.w;let keep=count/(count+1.);let boost=params.tuning.x;
   let cache=old.cached.rgb*boost+old.cachedDirect.rgb;
   let before=old.value.rgb-cache;let diffuse=old.diffuse.rgb-cache;let specular=before-diffuse;
@@ -8964,19 +8993,21 @@ fn prepareCameraSample(index:u32,ray:CameraRay,hit:Hit,s:Surface) {
   // roulette events; cache reads never increase this count.
   pixels[index]=Pixel(vec4f(mean+cache,count+1.),old.variance+vec4f(before*mean,lum(specular)*lum(smean)),(old.lighting-physical)*keep+physical,vec4f(dmean+cache,old.diffuse.w+lum(diffuse)*lum(dmean)),old.cached,old.cacheInfo,old.cachedDirect);
   cameraWork++;
-  if(needsFreshPrimary(index,count,ray,hit,s)){let at=atomicAdd(&frame.specCount,1u);atomicStore(&frame.pixelIndices[specularQueueBase()+at],index);}
 }
 @compute @workgroup_size(1)
 fn prepareIndirect() {
   frame.pad0=(atomicLoad(&frame.activeCount)+63u)/64u;frame.pad1=1u;frame.pad2=1u;
   frame.sx=(atomicLoad(&frame.specCount)+63u)/64u;frame.sy=1u;frame.sz=1u;
-  frame.px=(atomicLoad(&frame.probeCount)+63u)/64u;frame.py=1u;frame.pz=1u;
 }
 fn addPrimaryTrace(index:u32) {
-  let old=pixels[index];let total=old.value.w;let count=total-1.;let keep=count/total;
-  var seed=cameraSampler(index,count);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
+  let count=pixels[index].value.w-1.;
+  var seed=cameraSampler(index,count,params.image.z);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
   let ray=cameraRay(index,jitter);let hit=loadPrimaryHit(index);
-  let traced=trace(ray.origin,ray.direction,&seed,index,count==0.,hit);let boost=params.tuning.x;
+  let traced=trace(ray.origin,ray.direction,&seed,index,count==0.,hit);
+  accumulatePrimaryTrace(index,traced);
+}
+fn accumulatePrimaryTrace(index:u32,traced:TraceResult) {
+  let old=pixels[index];let total=old.value.w;let keep=(total-1.)/total;let boost=params.tuning.x;
   let color=traced.color+traced.gi*(boost-1.);let d=traced.diffuse;let sp=color-d;
   let cache=old.cached.rgb*boost+old.cachedDirect.rgb;let mean0=old.value.rgb-cache;let d0=old.diffuse.rgb-cache;let s0=mean0-d0;
   // Replace the zero sample without a scratch RGB buffer or racing atomics.
@@ -8986,9 +9017,9 @@ fn addPrimaryTrace(index:u32) {
   pixels[index].diffuse=vec4f(old.diffuse.rgb+d/total,max(0.,old.diffuse.w+lum(d)*(lum(d)*keep-2.*lum(d0))));
   pixels[index].lighting=old.lighting+vec4f(traced.gi,lum(traced.color))/total;
 }
-fn cameraFilmSample(index:u32,old:Pixel)->Pixel {
+fn cameraFilmSample(index:u32,old:Pixel,sampleIndex:u32)->Pixel {
   let count=old.value.w;
-  var seed=cameraSampler(index,count);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
+  var seed=cameraSampler(index,count,sampleIndex);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
   let ray=cameraRay(index,jitter);
   let traced=trace(ray.origin,ray.direction,&seed,index,count==0.,Hit(1e20,0xffffffffu,0.,0.));
   let boost=params.tuning.x;let color=traced.color+traced.gi*(boost-1.);
@@ -9004,11 +9035,14 @@ fn cameraFilmSample(index:u32,old:Pixel)->Pixel {
   return Pixel(vec4f(mean+old.cached.rgb*boost+old.cachedDirect.rgb,count+1.),old.variance+vec4f((color-previous)*(color-mean),specularChange*(lum(specular)-lum(specularMean))),lighting+vec4f(old.cached.rgb,lum(old.cached.rgb+old.cachedDirect.rgb)),vec4f(diffuseMean+old.cached.rgb*boost+old.cachedDirect.rgb,old.diffuse.w+diffuseChange*(lum(traced.diffuse)-lum(diffuseMean))),old.cached,old.cacheInfo,old.cachedDirect);
 }
 fn integratePixel(id:u32) {
-  if(reuseEnabled()){if(id<atomicLoad(&frame.specCount)){addPrimaryTrace(atomicLoad(&frame.pixelIndices[specularQueueBase()+id]));}return;}
   let slot=params.image.w+id;if(id>=params.batch.x||slot>=params.image.x*params.image.y){return;}
-  let index=select(slot,atomicLoad(&frame.pixelIndices[slot]),(params.batch.z&4u)!=0u);
-  let old=pixels[index];if(!needsSample(old)){return;}cameraWork++;
-  pixels[index]=cameraFilmSample(index,old);
+  var index=slot;if((params.batch.z&4u)!=0u){index=atomicLoad(&frame.pixelIndices[slot]);}
+  var film=pixels[index];
+  for(var i=0u;i<params.infiniteCount.z;i++){
+    let sampleIndex=params.image.z+i;
+    if(needsSample(film,sampleIndex)){film=cameraFilmSample(index,film,sampleIndex);cameraWork++;}
+  }
+  if(cameraWork>0u){pixels[index]=film;}
 }
 // One invocation owns both camera paths and writes the complete fresh film pixel.
 @compute @workgroup_size(8,8)
@@ -9017,7 +9051,7 @@ fn renderRealtime(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocat
     let index=id.y*params.image.x+id.x;
     guides[index]=Guide();
     var film=Pixel();
-    for(var s=0u;s<params.batch.x;s++){film=cameraFilmSample(index,film);}
+    for(var s=0u;s<params.batch.x;s++){film=cameraFilmSample(index,film,s);}
     pixels[index]=film;cameraWork=params.batch.x;
   }
   finishWork(local);
@@ -9025,6 +9059,11 @@ fn renderRealtime(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocat
 @compute @workgroup_size(64)
 fn integrate(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
   integratePixel(id.x);finishWork(local);
+}
+@compute @workgroup_size(64)
+fn traceSpecular(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
+  if(id.x<atomicLoad(&frame.specCount)){addPrimaryTrace(atomicLoad(&frame.pixelIndices[specularQueueBase()+id.x]));}
+  finishWork(local);
 }
 // Meter physical light, so exposure does not cancel the deliberate GI lift.
 // Visible lamps and empty background do not dictate exposure of scene surfaces.
@@ -9096,8 +9135,8 @@ fn worldPoint(xy:vec2i,depth:f32)->vec3f{
   return params.origin.xyz+select(vec3f(0.),shift,params.forward.w>0.)+d*depth;
 }
 @compute @workgroup_size(64)
-fn reconstruct(@builtin(global_invocation_id) id:vec3u){
-  let index=id.x;let size=vec2i(params.image.xy);if(index>=params.image.x*params.image.y){return;}
+fn reconstruct(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) grid:vec3u){
+  let index=id.x+id.y*grid.x*64u;let size=vec2i(params.image.xy);if(index>=params.image.x*params.image.y){return;}
   let xy=vec2i(i32(index%params.image.x),i32(index/params.image.x));
   let center=sampleValue(index);let guide=guides[index];let position=worldPoint(xy,guide.normal.w);
   // Preserve visible emission and background. Specular is filtered only at the
@@ -9475,11 +9514,12 @@ function frameFastYield(){
   return new Promise(resolve=>{frameYieldPort.q.push(resolve);frameYieldPort.port.postMessage(0);});
 }
 
+const cameraParameterWords=200,cameraPacketCapacity=8;
 class FrameRenderer {
   constructor(container,onChange=()=>{}) {
     this.container=container;this.onChange=onChange;this.epoch=0;this.running=false;this.completed=false;this.hasImage=false;this.sceneKey=null;this.environmentKey=null;
     this.stats={backend:'WebGPU',phase:'idle',samples:0,dispatches:0,errors:[]};
-    this.runtime={optimize:true,queueDepth:2,profileGPU:false};this.renderBatchSize=16384;this.giBatchSize=16384;
+    this.runtime={optimize:true,queueDepth:2,profileGPU:false};this.progressiveBudget=262144;
     this.canvas=document.createElement('canvas');this.canvas.id='frame-render-canvas';this.canvas.setAttribute('aria-label','Rendered perspective');
     this.canvas.style.cssText='position:absolute;pointer-events:none;display:none;z-index:4;';container.appendChild(this.canvas);
     this.onLost=()=>{};this.resources=[];this.sceneResources=[];this.imageResources=[];this.disposed=false;this.gpuLease=null;this.initResources=null;this.initAttempt=null;
@@ -9504,16 +9544,11 @@ class FrameRenderer {
     if(this.epoch===epoch&&this.stats.performance){this.stats.performance.yieldCalls++;this.stats.performance.yieldMs+=performance.now()-t;}
   }
   performanceReport(){
-    return {application:'FRAME r82',date:new Date().toISOString(),userAgent:navigator.userAgent,
+    return {application:'Frame',date:new Date().toISOString(),userAgent:navigator.userAgent,
       secureContext:globalThis.isSecureContext,hardwareConcurrency:navigator.hardwareConcurrency,
       settings:{...this.runtime},stats:{...this.stats},gpuPasses:this.profiler?.snapshot()||{supported:false},
-      quality:{model:'r78 unchanged',samples:this.options?.sampleLimit,maxBounces:this.options?.maxBounces,lightingReuse:this.reuseLighting(),denoise:this.options?.denoise!==false},
-      notes:['Dispatch latency includes earlier submissions and browser scheduling; it is not GPU-only execution time.',
-      'GPU timestamps are sampled passes, not extrapolated frame totals. Timings are opt-in.',
-      'The A/B reference uses r78 submission scheduling with the same shaders, seed, samples and resolution.',
-      'Any-hit uses conservative full-segment invalidation and is enabled only when all uploaded materials are opaque. Mixed/transmissive scenes retain r77 ordered visibility.',
-      'r79 amortizes command submission with larger initial batches and queue-occupancy-aware adaptation. legacyScheduling is available for same-integrator comparisons.',
-      'No reduction of SPP, resolution, bounce count, material accuracy or denoising has been introduced.']};
+      quality:{samples:this.options?.sampleLimit,maxBounces:this.options?.maxBounces,lightingReuse:this.reuseLighting(),denoise:this.options?.denoise!==false},
+      notes:['Submission latency includes earlier GPU work and browser scheduling. GPU timestamps measure sampled passes.']};
   }
 
   _releaseCameraAttempt(attempt) {
@@ -9526,10 +9561,10 @@ class FrameRenderer {
     attempt.lease?.release();
     if(!current)return;
     attempt.context?.unconfigure?.();this.initAttempt=null;this.initializing=null;this.gpuLease=null;this.device=null;
-    for(const key of ['layout','compute','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue','previewBlit','previewSampler','uniform','exposure','sampler','envSampler','indirect','context','profiler'])this[key]=null;
+    for(const key of ['layout','integrate','traceSpecular','renderRealtime','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue','previewBlit','previewSampler','uniform','packetParameters','exposure','sampler','envSampler','indirect','context','profiler'])this[key]=null;
     this.resources=[];this.sceneResources=[];this.imageResources=[];this.initResources=null;this.envTexture=null;this.cache=null;this.cacheSlots=0;
     this.sceneKey=null;this.environmentKey=null;this.imageDependencies=null;this.materialTexture=null;this.materialTextureCache=null;
-    this.realtimePipeline=null;this.emptyCache=null;this.realtimeInit=null;this.progressiveInit=null;this.lightingModule=null;this.computeLayout=null;
+    this.emptyCache=null;this.cameraPipelines=null;this.lightingModule=null;this.computeLayout=null;
   }
   reuseLighting(){return !this.options?.interactivePreview&&this.coverageOpaque!==false&&this.options?.lightingReuse!==false;}
   async init() {
@@ -9574,32 +9609,33 @@ class FrameRenderer {
         catch(error){attempt.freed.add(b);b.destroy();throw error;}
       };
       state.previewSampler=device.createSampler({minFilter:'linear',magFilter:'linear'});
-      state.uniform=buffer(new Float32Array(200),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+      state.uniform=buffer(new Float32Array(cameraParameterWords),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
       state.exposure=buffer(new Float32Array([1,0,0,0,0,0,0,0,0,0,0,0]));
       state.sampler=device.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear',mipmapFilter:'linear'});
       state.envSampler=device.createSampler({addressModeU:'repeat',addressModeV:'clamp-to-edge',magFilter:'linear',minFilter:'linear'});
       state.indirect=buffer(new Uint32Array(12),GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST);check();
       state.emptyCache=buffer(new Uint32Array(120));
-      state.resources=[state.uniform,state.exposure,state.indirect,state.emptyCache];Object.assign(this,state);
+      state.packetParameters=buffer(new Uint32Array(cameraPacketCapacity*cameraParameterWords),GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST);
+      state.cameraPipelines=new Map();
+      state.resources=[state.uniform,state.exposure,state.indirect,state.emptyCache,state.packetParameters];Object.assign(this,state);
       this.stats.adapter={vendor:info.vendor||'',architecture:info.architecture||'',device:info.device||'',description:info.description||''};
     })();this.initializing=operation;
     try{await operation;}catch(error){this._releaseCameraAttempt(attempt);throw error;}finally{if(this.initializing===operation)this.initializing=null;}
   }
-  async initCameraPipelines(interactive) {
-    if(interactive?this.realtimePipeline:this.compute)return;
-    const pending=interactive?'realtimeInit':'progressiveInit';
-    if(this[pending])return this[pending];
+  async initCameraPipelines(mode) {
+    const jobs=this.cameraPipelines;if(jobs.has(mode))return jobs.get(mode);
     const attempt=this.initAttempt,layout=this.computeLayout,module=this.lightingModule;
-    const entries=interactive?['renderRealtime']:['integrate','selectPixels','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance',
-      'updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'];
-    const constants=interactive?{realtimeFilm:true}:{};
-    const operation=Promise.all(entries.map(entryPoint=>this.device.createComputePipelineAsync({layout,compute:{module,entryPoint,constants}}))).then(pipelines=>{
+    const entries=mode==='realtime'?['renderRealtime']:mode==='independent'?['integrate','selectPixels']:
+      ['invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','buildProbeQueue','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','traceSpecular'];
+    const operation=Promise.all(entries.map(entryPoint=>{
+      const constants=entryPoint==='traceSpecular'||entryPoint==='gatherIrradiance'?{cachedFilm:true}:{};
+      return this.device.createComputePipelineAsync({layout,compute:{module,entryPoint,constants}});
+    })).then(pipelines=>{
       if(this.initAttempt!==attempt||!attempt.lease.isCurrent())throw new DOMException('Camera device changed','AbortError');
-      if(interactive)this.realtimePipeline=pipelines[0];
-      else entries.forEach((name,i)=>{this[name==='integrate'?'compute':name]=pipelines[i];});
+      entries.forEach((name,i)=>{this[name]=pipelines[i];});
     });
-    this[pending]=operation;
-    try{await operation;}finally{if(this[pending]===operation)this[pending]=null;}
+    jobs.set(mode,operation);
+    try{await operation;}catch(error){jobs.delete(mode);throw error;}
   }
 
   buffer(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC) {
@@ -9618,7 +9654,7 @@ class FrameRenderer {
     this.stats.phase=this.hasImage?'stopped':'idle';if(hide)this.canvas.style.display='none';this.onChange();
   }
   async buildScene(input,epoch) {
-    this.stats.sceneBuilds=(this.stats.sceneBuilds||0)+1;this.renderBatchSize=16384;this.giBatchSize=16384;
+    this.stats.sceneBuilds=(this.stats.sceneBuilds||0)+1;this.progressiveBudget=262144;
     const url=URL.createObjectURL(new Blob([FrameAffineSIMD.toString(),`
 (${sceneWorker.toString()})()`],{type:'text/javascript'}));
     const release=await frameComputeBudget.acquire('native');let result;try{if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');result=await new Promise((resolve,reject)=>{
@@ -9728,50 +9764,33 @@ class FrameRenderer {
     words.set(new Uint32Array(environment.buffer,environment.byteOffset,environment.length),lightCount*4+table.length);
     const previous=this.lights;this.lights=this.buffer(words);this.sceneResources=this.sceneResources.filter(r=>r!==previous);this.sceneResources.push(this.lights);previous?.destroy();
   }
+  dispatchPixels(pass,count) {
+    const groups=Math.ceil(count/64),rows=Math.ceil(groups/this.device.limits.maxComputeWorkgroupsPerDimension);
+    pass.dispatchWorkgroups(Math.ceil(groups/rows),rows);
+  }
   async prepareLighting(epoch) {
     if(epoch!==this.epoch)return;
     this.device.queue.writeBuffer(this.uniform,0,this.parameters(this.options.camera,this.options.environment,0,0,0,this.options.denoise!==false));
     const read=this.device.createBuffer({size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
     try{
-      const prepStarted=performance.now(),encoder=this.measuredEncoder('Prepare lighting',true);encoder.clearBuffer(this.exposure,112,16);
-      for(const [pipeline,count] of [[this.invalidateIrradiance,this.cacheSlots],[this.preparePrimary,this.width*this.height],...Array.from({length:4},()=>[[this.requestIrradiance,this.width*this.height],[this.claimIrradiance,this.cacheSlots]]).flat(),[this.buildProbeQueue,this.cacheSlots],[this.prepareIndirect,1]]){
-        const pass=this.computePass(encoder,pipeline===this.preparePrimary?'Primary hits':pipeline===this.invalidateIrradiance?'Invalidate cache':pipeline===this.requestIrradiance?'Request probes':pipeline===this.claimIrradiance?'Claim probes':pipeline===this.buildProbeQueue?'Build probe queue':'Indirect args');pass.setPipeline(pipeline);pass.setBindGroup(0,this.computeGroup);pass.dispatchWorkgroups(pipeline===this.prepareIndirect?1:Math.ceil(count/64));pass.end();
+      const prepStarted=performance.now(),encoder=this.measuredEncoder('Prepare lighting',true);
+      encoder.clearBuffer(this.exposure,112,16);encoder.clearBuffer(this.exposure,84,4);
+      const dispatch=(pipeline,label,count)=>{
+        const pass=this.computePass(encoder,label);pass.setPipeline(pipeline);pass.setBindGroup(0,this.computeGroup);
+        this.dispatchPixels(pass,count);pass.end();
+      };
+      const pixels=this.width*this.height;
+      dispatch(this.invalidateIrradiance,'Invalidate cache',this.cacheSlots);
+      dispatch(this.preparePrimary,'Primary hits',pixels);
+      for(let i=0;i<4;i++){
+        dispatch(this.requestIrradiance,'Request probes',pixels);dispatch(this.claimIrradiance,'Claim probes',this.cacheSlots);
       }
+      dispatch(this.buildProbeQueue,'Build probe queue',this.cacheSlots);
       encoder.copyBufferToBuffer(this.exposure,112,read,0,16);encoder.copyBufferToBuffer(this.exposure,84,read,16,4);this.submitCommands(encoder);await read.mapAsync(GPUMapMode.READ);
       if(epoch===this.epoch)this.stats.performance.prepareLightingWallMs+=performance.now()-prepStarted;
       const values=new Uint32Array(read.getMappedRange());const requested=values[0],updates=values[4];read.unmap();
       if(epoch===this.epoch){this.probeQueueCount=requested;this.probeUpdatesRemaining=updates;this.pendingDirty.fill(0);this.hardInvalidation=false;this.stats.lightingFrame=this.cacheFrame;}
     }finally{read.destroy();}
-  }
-  async lightingDispatch(pipeline,total,sample,epoch) {
-    let batch=this.optimized()&&!this.options?.legacyScheduling?this.giBatchSize:8192;
-    const window=new FrameWorkWindow(this,epoch,this.queueDepth(),'GI',(meta,elapsed,occupancy)=>{
-      const dispatchLatency=elapsed;
-      if(this.optimized()&&!this.options?.legacyScheduling)elapsed/=occupancy;
-      this.stats.giDispatches=(this.stats.giDispatches||0)+1;
-      this.stats.maxGIDispatchMs=Math.max(this.stats.maxGIDispatchMs||0,dispatchLatency);
-      if(meta.count===meta.batch){batch=Math.max(256,Math.min(!this.optimized()||this.options.legacyBatchLimit||this.options.legacyScheduling?65536:262144,Math.round(meta.batch*Math.max(.5,Math.min(1.5,8/Math.max(elapsed,.2)))/64)*64));}
-      if(this.optimized())this.giBatchSize=batch;
-    });
-    for(let offset=0;offset<total;){
-      if(epoch!==this.epoch)return;
-      const count=Math.min(batch,total-offset),t=performance.now();
-      this.device.queue.writeBuffer(this.uniform,0,this.parameters(this.options.camera,this.options.environment,sample,offset,count,this.options.denoise!==false));
-      const encoder=this.measuredEncoder('Update lighting'),pass=this.computePass(encoder,'Update irradiance');
-      pass.setPipeline(pipeline);pass.setBindGroup(0,this.computeGroup);pass.dispatchWorkgroups(Math.ceil(count/64));pass.end();
-      this.stats.performance.encodeMs+=performance.now()-t;window.submit(encoder,{count,batch});offset+=count;
-      if(window.pending.length>=window.depth){if(!await window.retire())return;await this.renderYield(epoch);}
-    }
-    await window.drain();
-  }
-  async updateLighting(sample,epoch) {
-
-
-    for(let bootstrap=0;bootstrap<(sample===0?4:2)&&(this.probeUpdatesRemaining||0)>0;bootstrap++){
-      await this.lightingDispatch(this.updateIrradiance,this.probeQueueCount||0,sample,epoch);if(epoch!==this.epoch)return;this.probeUpdatesRemaining--;
-    }
-
-    if(epoch===this.epoch&&((this.probeQueueCount||0)>0||(this.stats.retainedProbes||0)>0))this.cacheHasData=true;
   }
   pollLightingStats() {
     if((!this.statsRead||this.statsReadEpoch!==this.epoch)&&performance.now()-(this.statsReadAt||0)>150)this.readLightingStats().catch(error=>{if(this.device)console.warn('FRAME lighting counters:',error.message);});
@@ -9808,7 +9827,7 @@ class FrameRenderer {
 
   allocateImage(width,height) {
     const realtime=this.options.interactivePreview;
-    const queueBytes=realtime?144:128+(width*height*7+this.cacheSlots*2)*4;
+    const queueBytes=realtime?144:128+(this.reuseLighting()?width*height*7+this.cacheSlots*2:width*height)*4;
     const dependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,this.cache||this.emptyCache,this.envTexture,this.exposure];
     if(this.width===width&&this.height===height&&this.pixels&&this.exposure.size>=queueBytes){
       if(!dependencies.every((x,i)=>x===this.imageDependencies?.[i]))this.bindImageScene();
@@ -9845,7 +9864,7 @@ class FrameRenderer {
     this.imageDependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,cache,this.envTexture,this.exposure];
   }
   parameters(camera,environment,sample,offset,count,denoise,queued=false) {
-    const f=new Float32Array(200),u=new Uint32Array(f.buffer),{center,scale}=this.scene;
+    const f=new Float32Array(cameraParameterWords),u=new Uint32Array(f.buffer),{center,scale}=this.scene;
     f.set(camera.position.map((v,i)=>(v-center[i])/scale),0);
     const tan=camera.ortho?camera.ortho/(2*scale):Math.tan(camera.fov*Math.PI/360);f.set([...camera.right,tan*camera.aspect],4);f.set([...camera.up,tan],8);f.set([...camera.forward,camera.ortho?1:0],12);
     u.set([this.width,this.height,sample,offset],16);u.set([this.scene.triangleCount,this.scene.nodeCount,this.scene.lightCount,environment.mode==='off'?0:1],20);
@@ -9857,12 +9876,15 @@ class FrameRenderer {
     u.set([(this.reuseLighting()?1:0)|(this.hardInvalidation?2:0),this.cacheSlots,this.cacheFrame,Math.max(4,Math.min(256,(this.options.sampleLimit||128)*2))],176);
     u.set(this.pendingDirty,180);f.set([this.options.cacheFootprint??3,(environment.infiniteLights||[]).some(q=>q.angle<1e-5)?1:0,(this.optimized()&&this.sceneOpaque)?1:0,this.optimized()?1:0],196);return f;
   }
-  displayFrame(encoder) {
+  meterExposure(encoder) {
+    const meter=this.computePass(encoder,'Exposure meter');meter.setPipeline(this.meter);meter.setBindGroup(0,this.computeGroup);meter.dispatchWorkgroups(1);meter.end();
+  }
+  displayFrame(encoder,meter=true) {
     const canvasWidth=this.options.previewPresentation?Math.max(8,Math.round(this.options.rect.w)):this.width,canvasHeight=this.options.previewPresentation?Math.max(8,Math.round(this.options.rect.h)):this.height;
     if(this.canvas.width!==canvasWidth)this.canvas.width=canvasWidth;
     if(this.canvas.height!==canvasHeight)this.canvas.height=canvasHeight;
-    const meter=this.computePass(encoder,'Exposure meter');meter.setPipeline(this.meter);meter.setBindGroup(0,this.computeGroup);meter.dispatchWorkgroups(1);meter.end();
-    if(this.options.denoise!==false)for(const group of this.filterGroups){const filter=this.computePass(encoder,'Reconstruction');filter.setPipeline(this.reconstruct);filter.setBindGroup(0,group);filter.dispatchWorkgroups(Math.ceil(this.width*this.height/64));filter.end();}
+    if(meter)this.meterExposure(encoder);
+    if(this.options.denoise!==false)for(const group of this.filterGroups){const filter=this.computePass(encoder,'Reconstruction');filter.setPipeline(this.reconstruct);filter.setBindGroup(0,group);this.dispatchPixels(filter,this.width*this.height);filter.end();}
     if(this.options.localExposure!==false)for(const group of this.localGroups){const local=this.computePass(encoder,'Local exposure');local.setPipeline(this.localExposure);local.setBindGroup(0,group);local.dispatchWorkgroups(Math.ceil(this.localCount/64));local.end();}
     const pass=encoder.beginRenderPass({...this.profiler?.descriptor(encoder,'Display'),colorAttachments:[{view:this.output.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
     pass.setPipeline(this.display);pass.setBindGroup(0,this.displayGroup);pass.draw(3);pass.end();
@@ -9878,7 +9900,7 @@ class FrameRenderer {
     const {camera,environment}=this.options;
     this.device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,sample,0,0,this.options.denoise!==false));
     const encoder=this.device.createCommandEncoder();encoder.clearBuffer(this.exposure,16,16);
-    const pass=encoder.beginComputePass();pass.setPipeline(this.selectPixels);pass.setBindGroup(0,this.computeGroup);pass.dispatchWorkgroups(Math.ceil(this.width*this.height/64));pass.end();
+    const pass=encoder.beginComputePass();pass.setPipeline(this.selectPixels);pass.setBindGroup(0,this.computeGroup);this.dispatchPixels(pass,this.width*this.height);pass.end();
     encoder.copyBufferToBuffer(this.exposure,16,read,0,16);this.device.queue.submit([encoder.finish()]);
     try{
       await read.mapAsync(GPUMapMode.READ);const count=new Uint32Array(read.getMappedRange())[0];read.unmap();
@@ -9896,7 +9918,7 @@ class FrameRenderer {
   }
   async presentLatest(epoch,started) {
     if(!this.imageReady||!this.filmDirty||epoch!==this.epoch)return;
-    const encoder=this.measuredEncoder('Present',true);this.displayFrame(encoder);this.submitCommands(encoder);
+    const encoder=this.measuredEncoder('Present',true);this.displayFrame(encoder,false);this.submitCommands(encoder);
     await this.device.queue.onSubmittedWorkDone();if(epoch===this.epoch)this.markPresented(started);
   }
   async renderRealtimeFrame(width,height,epoch,started) {
@@ -9910,7 +9932,7 @@ class FrameRenderer {
       const encoder=this.measuredEncoder('Realtime camera frame',true);
       encoder.clearBuffer(this.exposure,32,64);
       const pass=this.computePass(encoder,'Realtime camera paths');
-      pass.setPipeline(this.realtimePipeline);pass.setBindGroup(0,this.computeGroup);
+      pass.setPipeline(this.renderRealtime);pass.setBindGroup(0,this.computeGroup);
       pass.dispatchWorkgroups(Math.ceil(width/8),Math.ceil(height/8));pass.end();
       this.displayFrame(encoder);
       encoder.copyBufferToBuffer(this.exposure,32,counters,0,64);
@@ -9928,29 +9950,120 @@ class FrameRenderer {
       this.markPresented(started);
     }finally{if(counters.mapState==='mapped')counters.unmap();counters.destroy();}
   }
+  encodeProgressiveSample(encoder,cached,count,updates) {
+    const dispatch=(pipeline,label,groups,indirectOffset)=>{
+      const pass=this.computePass(encoder,label);pass.setPipeline(pipeline);pass.setBindGroup(0,this.computeGroup);
+      if(indirectOffset===undefined)pass.dispatchWorkgroups(groups);
+      else pass.dispatchWorkgroupsIndirect(this.indirect,indirectOffset);
+      pass.end();
+    };
+    if(!cached){dispatch(this.integrate,'Independent camera paths',Math.ceil(count/64));return;}
+    if(updates)dispatch(this.updateIrradiance,'Update irradiance',Math.ceil(this.probeQueueCount/64));
+    encoder.clearBuffer(this.exposure,16,16);encoder.clearBuffer(this.exposure,96,16);
+    dispatch(this.gatherIrradiance,'Camera gather',Math.ceil(count/64));
+    dispatch(this.prepareIndirect,'Indirect args',1);
+    encoder.copyBufferToBuffer(this.exposure,20,this.indirect,0,12);
+    encoder.copyBufferToBuffer(this.exposure,100,this.indirect,16,12);
+    dispatch(this.traceDiffuseFallback,'Diffuse misses',0,0);
+    dispatch(this.traceSpecular,'Camera specular paths',0,16);
+  }
+  async accumulateStage(stage,progress,epoch,started,elapsedOrigin,deadline) {
+    const options=this.options,cached=this.reuseLighting(),total=this.width*this.height;
+    const serial=!this.optimized()||options.legacyScheduling,capacity=serial?1:cameraPacketCapacity;
+    const maxPixels=this.device.limits.maxComputeWorkgroupsPerDimension*64;
+    const adaptive=!cached&&options.adaptive!==false&&options.workQueue!==false;
+    const base=this.parameters(options.camera,options.environment,0,0,0,options.denoise!==false);
+    const template=new Uint32Array(base.buffer),packed=new Uint32Array(capacity*template.length);
+    const interval=1000/Math.max(1,options.displayHz??30);
+    let sample=progress.sample,offset=progress.offset,lastDisplay=0;
+    const window=new FrameWorkWindow(this,epoch,this.queueDepth(),'Camera',(meta,elapsed,occupancy)=>{
+      const stats=this.stats;
+      stats.dispatches+=meta.dispatches;stats.scheduledPixels+=meta.work;
+      stats.lastDispatchMs=elapsed;stats.maxDispatchMs=Math.max(stats.maxDispatchMs,elapsed);
+      if(stats.dispatchTimes.length<4096)stats.dispatchTimes.push(elapsed);
+      if(meta.updates){stats.giDispatches+=meta.updates;stats.maxGIDispatchMs=Math.max(stats.maxGIDispatchMs,elapsed);}
+      if(meta.work>=meta.budget*.75){
+        const ratio=Math.max(.5,Math.min(2,16*occupancy/Math.max(.25,elapsed)));
+        this.progressiveBudget=Math.max(16384,Math.min(maxPixels,Math.round(meta.budget*ratio/64)*64));
+      }
+      stats.samples=meta.completed;stats.elapsedMs=performance.now()-elapsedOrigin;
+      this.filmDirty=true;if(meta.completed>0)this.imageReady=true;
+      if(meta.present)this.markPresented(started);
+    });
+    while(sample<stage.samples){
+      if(epoch!==this.epoch)return;
+      if(!offset&&sample>0&&performance.now()>=deadline)break;
+      const budget=serial?16384:this.progressiveBudget;
+      let queued=adaptive&&sample>=this.nextQueueCheck&&sample%8!==0;
+      let workCount=queued?await this.selectActivePixels(sample,epoch):total;
+      if(epoch!==this.epoch)return;
+      if(queued&&workCount>total*.8){queued=false;workCount=total;this.nextQueueCheck=(Math.floor(sample/8)+8)*8+1;}
+      this.stats.activePixels=workCount;
+      // Once adaptive selection starts, preserve its per-sample refresh and exposure checks.
+      const nextMeter=sample<8?2**Math.ceil(Math.log2(sample+1)):(Math.floor(sample/8)+1)*8;
+      const blockSteps=cached||sample===0||adaptive&&sample>=128?1:
+        Math.min(capacity,stage.samples-sample,nextMeter-sample);
+      const encodedAt=performance.now(),encoder=this.measuredEncoder('Progressive camera',sample===0&&offset===0);
+      let slots=0,work=0,updates=0,present=false;
+      while(slots<capacity&&work<budget&&sample<stage.samples){
+        if(workCount){
+          const count=Math.min(workCount-offset,maxPixels,Math.max(64,Math.floor((budget-work)/blockSteps/64)*64));
+          const at=slots*template.length;packed.set(template,at);
+          packed[at+18]=sample;packed[at+19]=offset;packed[at+36]=count;
+          if(queued)packed[at+38]|=4;
+          packed[at+46]=blockSteps;
+          const probeSteps=cached&&!offset?Math.min(sample===0?4:2,this.probeUpdatesRemaining):0;
+          packed[at+47]=probeSteps;
+          encoder.copyBufferToBuffer(this.packetParameters,at*4,this.uniform,0,base.byteLength);
+          this.encodeProgressiveSample(encoder,cached,count,probeSteps);
+          if(probeSteps){updates++;this.probeUpdatesRemaining-=probeSteps;this.cacheHasData=true;}
+          slots++;work+=count*blockSteps;offset+=count;
+          if(offset!==workCount)break;
+          offset=0;sample+=blockSteps;
+        }else{
+          // This queue stays empty until the next mandatory full-image sample.
+          sample=Math.min(nextMeter,stage.samples);
+        }
+        const final=sample===stage.samples;
+        present=final||sample===1||(!options.presentationSamplesOnly&&options.previewPresentation!==false&&encodedAt-lastDisplay>=interval);
+        // Meter at the same sample counts for View and export, independent of queue speed.
+        if(final||sample===1||sample===2||sample===4||sample%8===0)this.meterExposure(encoder);
+        if(present){this.displayFrame(encoder,false);lastDisplay=encodedAt;}
+        if(present||!cached||adaptive||serial||performance.now()>=deadline)break;
+      }
+      if(slots)this.device.queue.writeBuffer(this.packetParameters,0,packed,0,slots*template.length);
+      const elapsed=performance.now()-elapsedOrigin;
+      Object.assign(progress,{sample,offset,elapsed});this.progress=progress;
+      this.stats.performance.encodeMs+=performance.now()-encodedAt;
+      window.submit(encoder,{work,dispatches:slots,updates,budget,completed:sample,present});
+      if(window.pending.length>=window.depth){if(!await window.retire())return;await this.renderYield(epoch);}
+    }
+    if(!await window.drain())return;
+    await this.presentLatest(epoch,started);
+  }
   async start(options) {
 
     options={...this.runtime,...options,giStrength:Math.max(0,Math.min(4,Number.isFinite(options.giStrength)?options.giStrength:1.2)),maxBounces:Math.max(1,Math.min(64,Math.round(options.maxBounces||8)))};
-    const samplingKey=frameValueKey([options.giStrength,options.maxBounces,options.seed??1,options.lightCandidates??4,options.adaptive!==false,options.sampler??'sobol',options.workQueue!==false,options.lightingReuse!==false,options.cacheFootprint??3,options.sampleLimit||Infinity,options.optimize!==false,options.queueDepth||2,options.outputSize||null,options.interactivePreview===true]);
+    const samplingKey=frameValueKey([options.giStrength,options.maxBounces,options.seed??1,options.frameSeed??null,options.lightCandidates??4,options.adaptive!==false,options.sampler??'sobol',options.workQueue!==false,options.lightingReuse!==false,options.cacheFootprint??3,options.sampleLimit||Infinity,options.optimize!==false,options.legacyScheduling===true,options.queueDepth||2,options.outputSize||null,options.interactivePreview===true]);
     this.options=options;this.stats.interactivePreview=!!options.interactivePreview;
     const resume=!!(this.progress&&this.progress.key===options.viewKey&&this.progress.samplingKey===samplingKey&&!this.completed&&this.pixels&&this.sceneKey===options.sceneKey);
     if(!options.interactivePreview&&this.scene?.refitted)this.sceneKey=null;
     if(!resume){this.progress=null;this.cacheFrame++;this.cacheStatsTotals.fill(0);this.cacheStatsLast.fill(0);this.statsReadAt=0;Object.assign(this.stats,{newCameraSamples:0,newGIProbes:0,newDirectProbes:0,invalidatedDirectProbes:0,retainedDirectProbes:0,giCacheLookups:0,giFallbackPaths:0,rayQueries:0,directEvaluations:0,primarySpecularPaths:0,invalidatedProbes:0,requestedProbes:0,retainedProbes:0,giCacheHitRate:0,giDispatches:0,maxGIDispatchMs:0});}
     this.stop(false);const epoch=this.epoch;this.running=true;this.completed=false;this.stats.phase='preparing';this.stats.errors=[];this.stats.dispatches=0;this.stats.queueBuilds=0;this.stats.activePixels=0;this.stats.scheduledPixels=0;this.stats.presentedFrames=0;this.stats.maxDispatchMs=0;this.stats.firstImageMs=null;this.stats.samples=resume?this.progress.sample:0;this.stats.elapsedMs=resume?this.progress.elapsed:0;this.onChange();
     const started=performance.now();
-    this.stats.performance={version:'r82',optimized:options.optimize!==false,queueDepth:this.queueDepth(),submissions:0,maxInFlight:0,waitCalls:0,awaitMs:0,yieldCalls:0,yieldMs:0,encodeMs:0,prepareLightingWallMs:0,renderStartBatch:this.optimized()&&!options.legacyScheduling?this.renderBatchSize:2048};
+    this.stats.performance={version:'progressive',optimized:options.optimize!==false,queueDepth:this.queueDepth(),submissions:0,maxInFlight:0,waitCalls:0,awaitMs:0,yieldCalls:0,yieldMs:0,encodeMs:0,prepareLightingWallMs:0,renderStartBatch:this.progressiveBudget};
     this.stats.primaryHitsReused=0;this.stats.opaqueShadowQueries=0;
     this.profiler?.reset();
     try{
       const sceneInput=this.sceneKey!==options.sceneKey?Promise.resolve(options.getScene(()=>epoch!==this.epoch)):null;sceneInput?.catch(()=>{});
       this.stats.stage='Preparing WebGPU…';this.onChange();await this.init();if(epoch!==this.epoch)return;
-      await this.initCameraPipelines(options.interactivePreview);if(epoch!==this.epoch)return;
       this.stats.stage='Preparing scene…';this.onChange();if(!options.interactivePreview)await this.device.queue.onSubmittedWorkDone();if(epoch!==this.epoch)return;
 
 
 
       if(resume){this.filmDirty=true;if(this.progress.sample>0)this.imageReady=true;}
       if(this.sceneKey!==options.sceneKey){const input=await (sceneInput||options.getScene(()=>epoch!==this.epoch));if(epoch!==this.epoch)return;this.stats.snapshot=input.snapshot;await this.buildScene(input,epoch);if(epoch!==this.epoch)return;this.sceneKey=options.sceneKey;}
+      await this.initCameraPipelines(options.interactivePreview?'realtime':this.reuseLighting()?'cached':'independent');if(epoch!==this.epoch)return;
       await this.prepareEnvironment(options.environment,epoch);if(epoch!==this.epoch)return;
       const {rect}=options;Object.assign(this.canvas.style,{left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',height:rect.h+'px'});
       const lightingKey=frameValueKey([this.environmentRevision,options.environment.mode,options.environment.infiniteLights,options.maxBounces,options.seed??1,options.lightCandidates??4,options.sampler??'sobol']);
@@ -9959,72 +10072,29 @@ class FrameRenderer {
       const scale=Math.min(1,Math.sqrt(Math.min(1500000,Math.floor(this.device.limits.maxStorageBufferBindingSize/112)*.99)/(rect.w*rect.h))),finalWidth=options.outputSize?Math.round(options.outputSize[0]):Math.max(8,Math.round(rect.w*scale)),finalHeight=options.outputSize?Math.round(options.outputSize[1]):Math.max(8,Math.round(rect.h*scale));
       if(finalWidth<8||finalHeight<8||finalWidth>this.device.limits.maxTextureDimension2D||finalHeight>this.device.limits.maxTextureDimension2D||finalWidth*finalHeight*112>this.device.limits.maxStorageBufferBindingSize)throw Error('Output resolution exceeds this GPU’s buffer limit. Choose a smaller image.');
       if(options.interactivePreview){await this.renderRealtimeFrame(finalWidth,finalHeight,epoch,started);return;}
-      this.ensureLightingCache(finalWidth,finalHeight);
+      if(this.reuseLighting())this.ensureLightingCache(finalWidth,finalHeight);
       const warm=this.reuseLighting()&&this.cacheHasData&&!this.hardInvalidation;
       const coarseScale=warm?1:Math.min(1,256/finalWidth),coarse=[Math.max(8,Math.round(finalWidth*coarseScale)),Math.max(8,Math.round(finalHeight*coarseScale))];
       const stages=resume&&this.progress.stages?this.progress.stages:!options.outputSize&&coarseScale<.85?[{size:coarse,samples:3},{size:[finalWidth,finalHeight],samples:options.sampleLimit||Infinity}]:[{size:[finalWidth,finalHeight],samples:options.sampleLimit||Infinity}];
       const previousElapsed=resume?this.progress.elapsed:0;
-      const displayInterval=1000/Math.max(1,options.displayHz??30);
-      const renderStarted=performance.now(),deadline=options.timeLimit>0?renderStarted+Math.max(0,options.timeLimit*1000-previousElapsed):Infinity;
-      this.stats.preparationMs=renderStarted-started;this.stats.phase='rendering';this.stats.dispatchTimes=[];let batchSize=this.optimized()&&!options.legacyScheduling?this.renderBatchSize:2048;this.stats.performance.renderStartBatch=batchSize;
-      const resumeStage=resume?this.progress.stage:0,resumeSample=resume?this.progress.sample:0,resumeOffset=resume?this.progress.offset:0;
+      const renderStarted=performance.now(),elapsedOrigin=renderStarted-previousElapsed;
+      const deadline=options.timeLimit>0?elapsedOrigin+options.timeLimit*1000:Infinity;
+      const resumeStage=resume?this.progress.stage:0;
+      this.stats.preparationMs=renderStarted-started;this.stats.phase='rendering';this.stats.dispatchTimes=[];
       for(let stageIndex=resumeStage;stageIndex<stages.length;stageIndex++){
-        const stage=stages[stageIndex];
-        if(epoch!==this.epoch||(performance.now()>=deadline&&(!options.outputSize||this.hasImage)))break;
-        if(!resume||stageIndex!==resumeStage){
+        const stage=stages[stageIndex],continuing=resume&&stageIndex===resumeStage;
+        if(epoch!==this.epoch)return;
+        if(stageIndex>resumeStage&&performance.now()>=deadline)break;
+        if(!continuing){
+          this.progress=null;
           this.allocateImage(...stage.size);
           if(stageIndex===0){const clear=this.device.createCommandEncoder();clear.clearBuffer(this.exposure,32,64);this.device.queue.submit([clear.finish()]);}
           if(this.reuseLighting())await this.prepareLighting(epoch);
           if(epoch!==this.epoch)return;
         }
-        const total=this.width*this.height;this.stats.width=this.width;this.stats.height=this.height;
-        for(let sample=stageIndex===resumeStage?resumeSample:0;sample<stage.samples;sample++){
-          if(epoch!==this.epoch)return;
-          if(performance.now()>=deadline&&(!options.outputSize||this.hasImage))break;
-          if(this.reuseLighting())await this.updateLighting(sample,epoch);if(epoch!==this.epoch)return;
-          let queued=!this.reuseLighting()&&options.adaptive!==false&&options.workQueue!==false&&sample>=this.nextQueueCheck&&sample%8!==0;
-          let workCount=queued?await this.selectActivePixels(sample,epoch):total;
-
-
-          if(queued&&workCount>total*.8){queued=false;workCount=total;this.nextQueueCheck=(Math.floor(sample/8)+8)*8+1;}
-          if(epoch!==this.epoch)return;
-          if(!queued)this.stats.activePixels=total;
-          const workWindow=new FrameWorkWindow(this,epoch,this.queueDepth(),'Camera',(meta,elapsed,occupancy)=>{
-            const dispatchLatency=elapsed;
-            if(this.optimized()&&!this.options?.legacyScheduling)elapsed/=occupancy;
-            this.stats.dispatches++;this.stats.scheduledPixels+=meta.count;this.filmDirty=true;
-            this.stats.maxDispatchMs=Math.max(this.stats.maxDispatchMs,dispatchLatency);this.stats.lastDispatchMs=dispatchLatency;
-            if(this.stats.dispatchTimes.length<4096)this.stats.dispatchTimes.push(dispatchLatency);
-            if(meta.count===meta.batch){batchSize=Math.max(256,Math.min(!this.optimized()||this.options.legacyBatchLimit||this.options.legacyScheduling?65536:262144,Math.round(meta.batch*Math.max(.5,Math.min(1.3,5/Math.max(elapsed,.2)))/64)*64));}
-            if(this.optimized())this.renderBatchSize=batchSize;
-            if(meta.last){this.imageReady=true;this.stats.samples=sample+1;this.stats.elapsedMs=previousElapsed+performance.now()-renderStarted;if(meta.present)this.markPresented(started);}
-          });
-          for(let offset=resume&&stageIndex===resumeStage&&sample===resumeSample?resumeOffset:0;offset<workCount;){
-            if(epoch!==this.epoch)return;
-            if(performance.now()>=deadline&&this.hasImage){if(!await workWindow.drain())return;await this.presentLatest(epoch,started);if(epoch!==this.epoch)return;await this.readLightingStats(true);this.running=false;this.completed=true;this.stats.phase='complete';this.stats.elapsedMs=previousElapsed+performance.now()-renderStarted;this.onChange();return;}
-            const encodedAt=performance.now(),count=Math.min(batchSize,workCount-offset),parameters=this.parameters(options.camera,options.environment,sample,offset,count,options.denoise!==false,queued);
-            this.device.queue.writeBuffer(this.uniform,0,parameters);
-            const encoder=this.measuredEncoder('Camera slice',sample===0&&offset===0);
-            const dispatch=(pipeline,groups,indirect)=>{const pass=this.computePass(encoder,pipeline===this.gatherIrradiance?'Camera gather':pipeline===this.prepareIndirect?'Indirect args':pipeline===this.traceDiffuseFallback?'Diffuse misses':'Camera specular / integrate');pass.setPipeline(pipeline);pass.setBindGroup(0,this.computeGroup);if(indirect!==undefined)pass.dispatchWorkgroupsIndirect(this.indirect,indirect);else pass.dispatchWorkgroups(groups);pass.end();};
-            if(this.reuseLighting()){
-              encoder.clearBuffer(this.exposure,16,16);encoder.clearBuffer(this.exposure,96,16);
-              dispatch(this.gatherIrradiance,Math.ceil(count/64));dispatch(this.prepareIndirect,1);
-              encoder.copyBufferToBuffer(this.exposure,20,this.indirect,0,12);encoder.copyBufferToBuffer(this.exposure,100,this.indirect,16,12);
-              dispatch(this.traceDiffuseFallback,0,0);dispatch(this.compute,0,16);
-            }else{dispatch(this.compute,Math.ceil(count/64));}
-            const last=offset+count===workCount;
-            const present=last&&(sample+1===stage.samples||!options.interactivePreview&&(sample===0||!options.presentationSamplesOnly&&performance.now()-(this.presentedAt||0)>=displayInterval));
-            if(present)this.displayFrame(encoder);
-            this.progress={key:options.viewKey,samplingKey,stages,stage:stageIndex,sample:last?sample+1:sample,offset:last?0:offset+count,elapsed:previousElapsed+performance.now()-renderStarted};
-            this.stats.performance.encodeMs+=performance.now()-encodedAt;
-            workWindow.submit(encoder,{count,batch:batchSize,last,present});offset+=count;
-            if(workWindow.pending.length>=workWindow.depth){if(!await workWindow.retire())return;await this.renderYield(epoch);}
-          }
-          if(!await workWindow.drain())return;
-
-          if(workCount===0){this.progress={key:options.viewKey,samplingKey,stages,stage:stageIndex,sample:sample+1,offset:0,elapsed:previousElapsed+performance.now()-renderStarted};this.stats.samples=sample+1;}
-        }
-        await this.presentLatest(epoch,started);if(epoch!==this.epoch)return;
+        this.stats.width=this.width;this.stats.height=this.height;
+        const progress=continuing?this.progress:{key:options.viewKey,samplingKey,stages,stage:stageIndex,sample:0,offset:0};
+        await this.accumulateStage(stage,progress,epoch,started,elapsedOrigin,deadline);
       }
       if(epoch===this.epoch){await this.readLightingStats(true);if(epoch!==this.epoch)return;this.running=false;this.completed=true;this.stats.phase='complete';this.stats.elapsedMs=previousElapsed+performance.now()-renderStarted;this.onChange();}
     }catch(error){if(epoch===this.epoch&&error.name!=='AbortError')this.fail(error);}
