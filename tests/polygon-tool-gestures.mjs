@@ -291,17 +291,17 @@ try{
       }
     }finally{await call('scene.update',{id:cam.hash,params:{realtime:'off'}});await call('render.stop');}
   });
-  await test('manual Image render permits Ctrl Add Point and Undo at the displayed Camera',async()=>{
+  for(const output of ['Image','Video'])await test('manual '+output+' render permits Ctrl Add Point and Undo at the displayed Camera',async()=>{
     const n=await fixture(quad,'vertex','texture',0),cam=await call('scene.create',{type:'render',params:{realtime:'off',samples:4096,'resolution x':512,'resolution y':320}});
-    await call('scene.select',{ids:[cam.hash]});await page.locator('#frameRenderImage').click();
+    await call('scene.select',{ids:[cam.hash]});await page.locator('#tabAttributes').click();await page.locator('#frameRender'+output).click();
     try{
-      await page.waitForFunction(()=>{const r=frameEngine.renderState();return r.exportKind==='image'&&r.running&&r.samples>0;});
+      await page.waitForFunction(kind=>{const r=frameEngine.renderState();return r.exportKind===kind&&r.running&&r.samples>0;},output.toLowerCase());
       await call('scene.select',{ids:[n.hash],mode:'vertex',components:[]});const before=(await state()).view,at=await project(n.hash,[-24,17,0]);
       await page.keyboard.down('Control');await page.mouse.click(...at);await page.keyboard.up('Control');
       const owner=(await state()).objects.find(o=>o.id===n.id);assert.equal(owner.mesh.vertices,5);
       await historyKey('Control+z');const after=await state();assert.deepEqual(await geometry(n.hash),quad);
       assert.deepEqual(after.view.frame,before.frame);assert.deepEqual(after.view.camera,before.camera);
-      const film=await call('render.inspect');assert.equal(film.exportKind,'image');assert.ok(film.running);
+      const film=await call('render.inspect');assert.equal(film.exportKind,output.toLowerCase());assert.ok(film.running);
     }finally{await call('render.stop');await page.waitForFunction(()=>!frameEngine.renderState().exportKind);}
   });
   await test('rapid Undo and Redo still restore two authored Camera moves',async()=>{
