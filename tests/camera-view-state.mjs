@@ -10,6 +10,7 @@ function fixture(html){
  const camera={id:'camera',type:'render',enabled:true,params:{renderer:'Path tracer'}},button={},device={},actions=[];
  const e={frameNavigation:null,navigationScene:null,nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
   current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
+ e.manualGeneration=0;
  vm.createContext(e);
  const names=['frameEnableCamera','toggleCameraRender','cameraConfig','renderState','renderStatus','renderStart'];
  for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);vm.runInContext(html.slice(start,html.indexOf('\n',start)),e);}
@@ -28,6 +29,13 @@ export async function cameraViewStateChecks(html){
  await test('Idle and Viewport diagnostics expose the native manual flag',()=>{const e=fixture(html);e.pathtracer=null;assert.equal(e.renderState().manual,false);e.renderManual=true;assert.equal(e.renderState().manual,true);e.camera.params.renderer='Viewport';assert.equal(e.renderState().manual,true);});
  await test('Native renderStart owns the complete awaited operation and releases on success',async()=>{const e=fixture(html);let finish;e.renderTick=async manual=>{assert.equal(manual,true);assert.equal(e.renderManual,true);await new Promise(resolve=>finish=resolve);};const pending=e.renderStart();assert.equal(e.renderManual,true);finish();await pending;assert.equal(e.renderManual,false);});
  await test('Native renderStart releases manual ownership on failure',async()=>{const e=fixture(html);e.renderTick=async()=>{throw Error('test render failure');};await assert.rejects(e.renderStart(),/test render failure/);assert.equal(e.renderManual,false);});
+ await test('A superseded manual completion keeps the newer View protected',async()=>{
+   const e=fixture(html),jobs=[];
+   e.renderTick=()=>new Promise(resolve=>jobs.push(resolve));
+   const old=e.renderStart(),current=e.renderStart();
+   jobs[0]();await old;assert.equal(e.renderManual,true);
+   jobs[1]();await current;assert.equal(e.renderManual,false);
+ });
  // The old native predicate must fail the exact regression, independently of GPU timing.
  await test('Negative control restores the first-click cancellation bug',()=>{const old=html.replace('if(n.enabled&&(state.running&&state.manual||state.visible))','if(n.enabled&&(state.running||state.visible))');assert.notEqual(old,html);const e=fixture(old);e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['stop']);});
 

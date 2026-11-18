@@ -76,6 +76,7 @@ import {livePreviewWorkChecks} from './live-preview-work.mjs';
 import {morphInputSettlementChecks} from './morph-input-settlement.mjs';
 import {hashParentMembershipChecks} from './hash-parent-membership.mjs';
 import {cameraViewChecks,cameraRealtimeChecks} from './camera-view.mjs';
+import {cameraRealtimeFrameChecks} from './camera-realtime-frame.mjs';
 import {cameraViewStateChecks} from './camera-view-state.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
@@ -320,6 +321,7 @@ try{
   report.october24Render=await isolated('october24Render',october24RenderChecks);
   report.cameraView=await isolated('cameraView',cameraViewChecks);
   report.cameraRealtime=await isolated('cameraRealtime',cameraRealtimeChecks);
+  report.cameraRealtimeFrame=await isolated('cameraRealtimeFrame',cameraRealtimeFrameChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);
   report.editorFinal=await isolated('editorFinal',editorFinalChecks);

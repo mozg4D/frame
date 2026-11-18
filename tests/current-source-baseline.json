@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 18 nov 17:32",
+  "version": "2026 18 nov 18:04",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -478,16 +478,23 @@
       "tools/file-host-client.mjs",
       "tests/instance-files-browser.mjs",
       "tests/instance-symmetry-copy.mjs"
+    ],
+    "camera-realtime": [
+      "index.html",
+      "frame-sw.js",
+      "tests/run.mjs",
+      "tests/camera-realtime-frame.mjs",
+      "tests/camera-view-state.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "844daae6d0a54bf511098b4d4fa0b31689d046d1b5f8b32c5c1fe42e18e378fd"
+      "sha256": "49037daa3ba98accd298ebe75fb82a7a19c1a81d7a96a111f4c8bcb7f689a0e6"
     },
     "index.html": {
-      "bytes": 3116551,
-      "sha256": "20f01d4c00b7a2426aa37311d9c7a3047f4a0370dadb201e69b116e65b62b136"
+      "bytes": 3124150,
+      "sha256": "56e5dcc8bc1a731eeb1fc048c2c1e13946eca2677152d6229401104c431f8b1c"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -682,8 +689,8 @@
       "sha256": "1e46ab6ad03c191f4f32028d8397505d48945da1d2da2d5d7c0272a4fe139199"
     },
     "tests/run.mjs": {
-      "bytes": 38378,
-      "sha256": "0bed723b086dffb9c0b22a3b954d572f90b5997e48a9324ad6174a8524cf926b"
+      "bytes": 38543,
+      "sha256": "87ba5dbc018d3ec36027b1c04c29bbb62e82ab26af5490eaa1121d9ca22064ab"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1054,8 +1061,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 81070,
-      "sha256": "68f04dafca042e24514b374eb97c1a58b836fc9c66d4636bce7360c5f834405f"
+      "bytes": 81721,
+      "sha256": "a323bccd9fd1db2d0e5c618d0b6a2307823e0a43f162d7d88f024f08525e2b9c"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1110,8 +1117,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 16018,
-      "sha256": "e4e56c0d52b8352a84870b0460ad4ab2080394370c571a613b66fcaa006fe054"
+      "bytes": 16062,
+      "sha256": "40cd000c2d1107cdfb45f59d456b5107238a96cbb3f118b8806a9b139d56674c"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1240,6 +1247,14 @@
     "tests/boolean-threading.mjs": {
       "bytes": 6121,
       "sha256": "aaf52abbf9187b58adc8dfa601652f639de4ad1cdd283ca9c72bb93c5215afb7"
+    },
+    "tests/camera-realtime-frame.mjs": {
+      "bytes": 7737,
+      "sha256": "6755fc1ac044e8d3605bdc11219df07dab05d03e032f86830e9445aa1dda6048"
+    },
+    "tests/camera-view-state.mjs": {
+      "bytes": 6637,
+      "sha256": "f1a91cb862bff76587f7d4be19f485d39ed8702f0d47cd1cb46b65776358c310"
     }
   }
 }

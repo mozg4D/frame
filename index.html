@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 18 nov 17:32">
+<meta name="frame-version" content="2026 18 nov 18:04">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -7685,17 +7685,16 @@ function sceneWorker() {function frameValueKey(input){
   visit(input,0);return parts.join('');
 }
   let affine;try{affine=FrameAffineSIMD();}catch{}
-  function build(data){
+  function build(data,emission=data.materials.map(m=>m.emission[0]*.2126+m.emission[1]*.7152+m.emission[2]*.0722)){
     try{
       const started=performance.now(),{meshes,materials}=data;
-      const emission=materials.map(m=>m.emission[0]*.2126+m.emission[1]*.7152+m.emission[2]*.0722);
       const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity],sceneLo=lo.slice(),sceneHi=hi.slice(),records=[];
       let triangleCount=0,visibleCount=0;
 
 
       for(const mesh of meshes){
-        if(!mesh.visible&&(mesh.background||!mesh.materialIds.some(id=>emission[id]>0)))continue;
-        const {positions:p,normals:n,indices:ix,matrix:m,normalMatrix:nm,groups,materialIds}=mesh;
+        if(!mesh.visible&&(mesh.background||!mesh.groups.some(g=>emission[g.materialIndex]>0)))continue;
+        const {positions:p,normals:n,indices:ix,matrix:m,normalMatrix:nm,groups}=mesh;
         const count=ix?ix.length:p.length/3,first=mesh.start||0,end=Math.min(count,mesh.end??count),capacity=Math.max(0,Math.ceil((end-first)/3));
         if(!capacity)continue;
         const transformed=p.length>=120000&&affine?affine(p,m):null,world=transformed||new Float64Array(p.length),normals=n?new Float32Array(n.length):null;
@@ -7705,7 +7704,7 @@ function sceneWorker() {function frameValueKey(input){
         const faces=new Uint32Array(capacity),mids=new Uint32Array(capacity),areas=new Float64Array(capacity);let used=0,groupIndex=0;
         for(let i=first;i<end;i+=3){
           while(groupIndex+1<groups.length&&i>=groups[groupIndex].start+groups[groupIndex].count)groupIndex++;
-          const mid=materialIds[groups[groupIndex]?.materialIndex||0]??materialIds[0];
+          const mid=groups[groupIndex]?.materialIndex??mesh.materialBase??0;
           if(!mesh.visible&&emission[mid]<=0)continue;
           const a=(ix?ix[i]:i)*3,b=(ix?ix[i+1]:i+1)*3,c=(ix?ix[i+2]:i+2)*3;
           const ax=world[a],ay=world[a+1],az=world[a+2],bx=world[b],by=world[b+1],bz=world[b+2],cx=world[c],cy=world[c+1],cz=world[c+2];
@@ -7726,7 +7725,7 @@ function sceneWorker() {function frameValueKey(input){
       const previous=data.normalization,keep=previous&&triangleCount&&naturalScale>=previous.scale*.25&&lo.every((v,k)=>(v-previous.center[k])/previous.scale>-.95&&(hi[k]-previous.center[k])/previous.scale<.95);
       const center=keep?previous.center:naturalCenter,scale=keep?previous.scale:naturalScale,scale2=scale*scale;
       const meshStates=records.map(r=>({id:r.mesh.surfaceId||1,revision:r.mesh.revision||'',bounds:[...r.recordLo.map((v,k)=>(v-center[k])/scale),...r.recordHi.map((v,k)=>(v-center[k])/scale)]}));
-      const lightSignature=frameValueKey(records.filter(r=>!r.mesh.background&&r.mesh.materialIds.some(i=>emission[i]>0)).map(r=>[r.mesh.surfaceId||1,r.mesh.revision||'']));
+      const lightSignature=frameValueKey(records.filter(r=>!r.mesh.background&&r.mesh.groups.some(g=>emission[g.materialIndex]>0)).map(r=>[r.mesh.surfaceId||1,r.mesh.revision||'']));
 
       const raw=new Float32Array(Math.max(1,triangleCount)*32),bounds=new Float32Array(visibleCount*6),order=new Uint32Array(visibleCount);
 
@@ -7835,7 +7834,8 @@ function sceneWorker() {function frameValueKey(input){
     if(![...groups.values()].some(g=>g.copies.length>1))return build(data);
     const identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1],point=(m,p,w=1)=>[0,1,2].map(k=>m[k]*p[0]+m[k+4]*p[1]+m[k+8]*p[2]+w*m[k+12]),mul=(a,b)=>{const r=new Float64Array(16);for(let j=0;j<4;j++)for(let k=0;k<4;k++)for(let i=0;i<4;i++)r[j*4+k]+=a[i*4+k]*b[j*4+i];return r;},inverse=m=>{const a=m[0],b=m[4],c=m[8],d=m[1],e=m[5],f=m[9],g=m[2],h=m[6],i=m[10],det=a*(e*i-f*h)-b*(d*i-f*g)+c*(d*h-e*g),r=new Float64Array(identity);if(!Number.isFinite(det)||Math.abs(det)<1e-30)throw Error('Invalid render instance transform');r.set([(e*i-f*h)/det,(f*g-d*i)/det,(d*h-e*g)/det],0);r.set([(c*h-b*i)/det,(a*i-c*g)/det,(b*g-a*h)/det],4);r.set([(b*f-c*e)/det,(c*d-a*f)/det,(a*e-b*d)/det],8);r.set(point(r,Array.from(m.slice(12,15)),0).map(v=>-v),12);return r;},box=(m,lo,hi)=>{const a=[Infinity,Infinity,Infinity],b=a.map(v=>-v);for(let mask=0;mask<8;mask++){const p=point(m,lo.map((v,k)=>mask>>k&1?hi[k]:v));for(let k=0;k<3;k++){a[k]=Math.min(a[k],p[k]);b[k]=Math.max(b[k],p[k]);}}return {lo:a,hi:b};};
     let uniqueTriangles=0,virtualCount=0;const lo=[Infinity,Infinity,Infinity],hi=lo.map(v=>-v),allLo=lo.slice(),allHi=hi.slice();
-    for(const geometry of groups.values()){const mesh=geometry.mesh,r=build({meshes:[{...mesh,matrix:identity,normalMatrix:[1,0,0,0,1,0,0,0,1],visible:true,background:false,surfaceId:1}],materials:data.materials});geometry.data=r;geometry.count=r.triangleCount;geometry.offset=uniqueTriangles;uniqueTriangles+=r.triangleCount;for(let t=0;t<r.triangleCount;t++)r.triangles[t*32+3]-=mesh.materialBase||0;}
+    const emission=data.materials.map(m=>m.emission[0]*.2126+m.emission[1]*.7152+m.emission[2]*.0722);
+    for(const geometry of groups.values()){const mesh=geometry.mesh,r=build({meshes:[{...mesh,matrix:identity,normalMatrix:[1,0,0,0,1,0,0,0,1],visible:true,background:false,surfaceId:1}],materials:data.materials},emission);geometry.data=r;geometry.count=r.triangleCount;geometry.offset=uniqueTriangles;uniqueTriangles+=r.triangleCount;for(let t=0;t<r.triangleCount;t++)r.triangles[t*32+3]-=mesh.materialBase||0;}
     for(let i=occurrences.length-1;i>=0;i--)if(!occurrences[i].geometry.count)occurrences.splice(i,1);if(!occurrences.length)return build(data);
     for(const o of occurrences){const g=o.geometry,r=g.data,denormalize=new Float64Array(identity);denormalize[0]=denormalize[5]=denormalize[10]=r.scale;denormalize.set(r.center,12);o.world=mul(o.mesh.matrix,denormalize);o.bounds=box(o.world,Array.from(r.bvh.slice(0,3)),Array.from(r.bvh.slice(4,7)));o.first=virtualCount;virtualCount+=g.count;if(virtualCount>=0xffffffff)throw Error('Render instance hit IDs exceed 32 bits');for(let k=0;k<3;k++){allLo[k]=Math.min(allLo[k],o.bounds.lo[k]);allHi[k]=Math.max(allHi[k],o.bounds.hi[k]);if(!o.mesh.background){lo[k]=Math.min(lo[k],o.bounds.lo[k]);hi[k]=Math.max(hi[k],o.bounds.hi[k]);}}}
     if(!Number.isFinite(lo[0])){lo.splice(0,3,...allLo);hi.splice(0,3,...allHi);}const naturalScale=Math.max(...hi.map((v,k)=>v-lo[k]),1e-8),naturalCenter=lo.map((v,k)=>(v+hi[k])*.5),prior=data.normalization,keep=prior&&naturalScale>=prior.scale*.25&&lo.every((v,k)=>(v-prior.center[k])/prior.scale>-.95&&(hi[k]-prior.center[k])/prior.scale<.95),center=keep?prior.center:naturalCenter,scale=keep?prior.scale:naturalScale,normalize=new Float64Array(identity);normalize[0]=normalize[5]=normalize[10]=1/scale;normalize.set(center.map(v=>-v/scale),12);
@@ -7847,7 +7847,7 @@ function sceneWorker() {function frameValueKey(input){
     triangles[1]=powerSum;const lights=new Float32Array(Math.max(1,emitters.length)*4),lightBits=new Uint32Array(lights.buffer);let cumulative=0;emitters.forEach((e,i)=>{cumulative+=e.power/powerSum;lightBits[i*4]=e.id;lights.set([cumulative,e.power/powerSum,e.area],i*4+1);});if(emitters.length)lights[(emitters.length-1)*4+1]=1;
     const tree=[],visible=occurrences.map((o,i)=>i).filter(i=>occurrences[i].mesh.visible);function tlas(list){const index=tree.length/8,lo=[Infinity,Infinity,Infinity],hi=lo.map(v=>-v);for(const i of list)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],occurrences[i].normalizedBounds.lo[k]);hi[k]=Math.max(hi[k],occurrences[i].normalizedBounds.hi[k]);}tree.push(...lo,0,...hi,0);if(list.length===1){tree[index*8+3]=-list[0]-1;return index;}const axis=hi.map((v,k)=>v-lo[k]).indexOf(Math.max(...hi.map((v,k)=>v-lo[k])));list.sort((a,b)=>{const A=occurrences[a].normalizedBounds,B=occurrences[b].normalizedBounds;return A.lo[axis]+A.hi[axis]-B.lo[axis]-B.hi[axis];});const middle=list.length>>1;tree[index*8+3]=tlas(list.slice(0,middle));tree[index*8+7]=tlas(list.slice(middle));return index;}if(visible.length)tlas(visible);else tree.push(0,0,0,-1,0,0,0,0);
     let nodeCount=tree.length/8;for(const g of groups.values()){g.nodeOffset=nodeCount;nodeCount+=g.data.nodeCount;}const bvh=new Float32Array(nodeCount*8);bvh.set(tree);for(const g of groups.values()){const src=g.data.bvh;for(let i=0;i<g.data.nodeCount;i++){const at=(g.nodeOffset+i)*8,q=i*8;bvh.set(src.subarray(q,q+8),at);if(src[q+7]<0)bvh[at+3]+=g.offset;else{bvh[at+3]+=g.nodeOffset;bvh[at+7]+=g.nodeOffset;}}}for(let i=0;i<occurrences.length;i++)bits[(1+i*2)*32+3]=occurrences[i].geometry.nodeOffset;
-    const lightSignature=frameValueKey(occurrences.filter(o=>o.mesh.materialIds.some(i=>data.materials[i]?.emission.some(v=>v>0))).map(o=>[o.mesh.surfaceId,o.mesh.revision]));return {triangles,bvh,lights,center,scale,naturalScale,normalizationRetained:!!keep,meshStates,lightSignature,triangleCount:virtualCount,nodeCount,lightCount:emitters.length,order:new Uint32Array(),faceLayout:new Uint32Array(),referenceCost:0,refitted:false,buildMs:performance.now()-started,packMs:0,bvhMs:0,reorderMs:0,instances:descriptorCount,uniqueGeometry:groups.size,storedTriangles:uniqueTriangles,triangleStorageBytes:triangles.byteLength,bvhStorageBytes:bvh.byteLength};
+    const lightSignature=frameValueKey(occurrences.filter(o=>o.mesh.groups.some(g=>data.materials[g.materialIndex].emission.some(v=>v>0))).map(o=>[o.mesh.surfaceId,o.mesh.revision]));return {triangles,bvh,lights,center,scale,naturalScale,normalizationRetained:!!keep,meshStates,lightSignature,triangleCount:virtualCount,nodeCount,lightCount:emitters.length,order:new Uint32Array(),faceLayout:new Uint32Array(),referenceCost:0,refitted:false,buildMs:performance.now()-started,packMs:0,bvhMs:0,reorderMs:0,instances:descriptorCount,uniqueGeometry:groups.size,storedTriangles:uniqueTriangles,triangleStorageBytes:triangles.byteLength,bvhStorageBytes:bvh.byteLength};
   }
   self.onmessage=({data})=>{try{const result=buildInstances(data);self.postMessage(result,[result.triangles.buffer,result.bvh.buffer,result.lights.buffer,result.order.buffer,result.faceLayout.buffer]);}catch(error){self.postMessage({error:error.message||String(error)});}};
 }
@@ -8142,7 +8142,8 @@ fn finishWork(local:u32) {
   }
   if(local==0u){if(optimizedSums[0].x>0u){atomicAdd(&frame.counters[14],optimizedSums[0].x);}if(optimizedSums[0].y>0u){atomicAdd(&frame.counters[15],optimizedSums[0].y);}for(var k=0u;k<4u;k++){if(workSums[0][k]>0u){atomicAdd(&frame.counters[k],workSums[0][k]);}if(workSums2[0][k]>0u){atomicAdd(&frame.counters[k+4u],workSums2[0][k]);}}}
 }
-fn reuseEnabled()->bool{return (params.reuse.x&1u)!=0u;}
+override realtimeFilm:bool=false;
+fn reuseEnabled()->bool{return !realtimeFilm&&(params.reuse.x&1u)!=0u;}
 fn cameraRay(pixel:u32,jitter:vec2f)->CameraRay {
   let xy=vec2u(pixel%params.image.x,pixel/params.image.x);
   let uv=(vec2f(xy)+jitter)/vec2f(params.image.xy)*2.-1.;
@@ -8871,7 +8872,7 @@ fn loadPrimaryHit(pixel:u32)->Hit {
 }
 fn cameraSampler(index:u32,count:f32)->Sampler {
   let filmSeed=params.batch.w^params.infiniteCount.y;
-  return Sampler(index*1973u+select(u32(count),params.image.z,(params.batch.z&2u)!=0u)*9277u+filmSeed*26699u+89173u,0u,sampleHash(index^(filmSeed*26699u)),u32(count));
+  return Sampler(index*1973u+select(u32(count),params.image.z,!realtimeFilm&&(params.batch.z&2u)!=0u)*9277u+filmSeed*26699u+89173u,0u,sampleHash(index^(filmSeed*26699u)),u32(count));
 }
 fn gatherPixel(index:u32) {
   let old=pixels[index];let count=old.value.w;
@@ -8985,16 +8986,11 @@ fn addPrimaryTrace(index:u32) {
   pixels[index].diffuse=vec4f(old.diffuse.rgb+d/total,max(0.,old.diffuse.w+lum(d)*(lum(d)*keep-2.*lum(d0))));
   pixels[index].lighting=old.lighting+vec4f(traced.gi,lum(traced.color))/total;
 }
-fn integratePixel(id:u32) {
-  if(reuseEnabled()){if(id<atomicLoad(&frame.specCount)){addPrimaryTrace(atomicLoad(&frame.pixelIndices[specularQueueBase()+id]));}return;}
-  let slot=params.image.w+id;if(id>=params.batch.x||slot>=params.image.x*params.image.y){return;}
-  let index=select(slot,atomicLoad(&frame.pixelIndices[slot]),(params.batch.z&4u)!=0u);
-  let old=pixels[index];let count=old.value.w;
-  if(!needsSample(old)){return;}cameraWork++;
+fn cameraFilmSample(index:u32,old:Pixel)->Pixel {
+  let count=old.value.w;
   var seed=cameraSampler(index,count);var jitter=vec2f(random(&seed),random(&seed));if(count==0.){jitter=vec2f(.5);}
-  let ray=cameraRay(index,jitter);var primaryHit=Hit(1e20,0xffffffffu,0.,0.);
-  if(reuseEnabled()){primaryHit=loadPrimaryHit(index);}
-  let traced=trace(ray.origin,ray.direction,&seed,index,count==0.,primaryHit);
+  let ray=cameraRay(index,jitter);
+  let traced=trace(ray.origin,ray.direction,&seed,index,count==0.,Hit(1e20,0xffffffffu,0.,0.));
   let boost=params.tuning.x;let color=traced.color+traced.gi*(boost-1.);
   let previous=old.value.rgb-old.cached.rgb*boost-old.cachedDirect.rgb;
   let previousDiffuse=old.diffuse.rgb-old.cached.rgb*boost-old.cachedDirect.rgb;
@@ -9005,7 +9001,26 @@ fn integratePixel(id:u32) {
   let specularChange=lum(specular)-lum(previous-previousDiffuse);
   let oldLighting=old.lighting-vec4f(old.cached.rgb,lum(old.cached.rgb+old.cachedDirect.rgb));
   let lighting=oldLighting+(vec4f(traced.gi,lum(traced.color))-oldLighting)/(count+1.);
-  pixels[index]=Pixel(vec4f(mean+old.cached.rgb*boost+old.cachedDirect.rgb,count+1.),old.variance+vec4f((color-previous)*(color-mean),specularChange*(lum(specular)-lum(specularMean))),lighting+vec4f(old.cached.rgb,lum(old.cached.rgb+old.cachedDirect.rgb)),vec4f(diffuseMean+old.cached.rgb*boost+old.cachedDirect.rgb,old.diffuse.w+diffuseChange*(lum(traced.diffuse)-lum(diffuseMean))),old.cached,old.cacheInfo,old.cachedDirect);
+  return Pixel(vec4f(mean+old.cached.rgb*boost+old.cachedDirect.rgb,count+1.),old.variance+vec4f((color-previous)*(color-mean),specularChange*(lum(specular)-lum(specularMean))),lighting+vec4f(old.cached.rgb,lum(old.cached.rgb+old.cachedDirect.rgb)),vec4f(diffuseMean+old.cached.rgb*boost+old.cachedDirect.rgb,old.diffuse.w+diffuseChange*(lum(traced.diffuse)-lum(diffuseMean))),old.cached,old.cacheInfo,old.cachedDirect);
+}
+fn integratePixel(id:u32) {
+  if(reuseEnabled()){if(id<atomicLoad(&frame.specCount)){addPrimaryTrace(atomicLoad(&frame.pixelIndices[specularQueueBase()+id]));}return;}
+  let slot=params.image.w+id;if(id>=params.batch.x||slot>=params.image.x*params.image.y){return;}
+  let index=select(slot,atomicLoad(&frame.pixelIndices[slot]),(params.batch.z&4u)!=0u);
+  let old=pixels[index];if(!needsSample(old)){return;}cameraWork++;
+  pixels[index]=cameraFilmSample(index,old);
+}
+// One invocation owns both camera paths and writes the complete fresh film pixel.
+@compute @workgroup_size(8,8)
+fn renderRealtime(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
+  if(all(id.xy<params.image.xy)){
+    let index=id.y*params.image.x+id.x;
+    guides[index]=Guide();
+    var film=Pixel();
+    for(var s=0u;s<params.batch.x;s++){film=cameraFilmSample(index,film);}
+    pixels[index]=film;cameraWork=params.batch.x;
+  }
+  finishWork(local);
 }
 @compute @workgroup_size(64)
 fn integrate(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) local:u32) {
@@ -9504,7 +9519,7 @@ class FrameRenderer {
   _releaseCameraAttempt(attempt) {
     if(!attempt)return;attempt.cancelled=true;
     const current=this.initAttempt===attempt;
-    const resources=current?[...attempt.resources,...this.resources,...this.sceneResources,...this.imageResources,this.envTexture,this.cache]:attempt.resources;
+    const resources=current?[...attempt.resources,...this.resources,...this.sceneResources,...this.imageResources,this.lastImage?.texture,this.envTexture,this.cache]:attempt.resources;
     for(const resource of new Set(resources))if(resource&&!attempt.freed.has(resource)){attempt.freed.add(resource);resource.destroy();}
     if(attempt.profiler&&!attempt.profilerDestroyed){attempt.profilerDestroyed=true;attempt.profiler.destroy();}
     if(attempt.errorListener)attempt.device?.removeEventListener('uncapturederror',attempt.errorListener);
@@ -9514,11 +9529,12 @@ class FrameRenderer {
     for(const key of ['layout','compute','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue','previewBlit','previewSampler','uniform','exposure','sampler','envSampler','indirect','context','profiler'])this[key]=null;
     this.resources=[];this.sceneResources=[];this.imageResources=[];this.initResources=null;this.envTexture=null;this.cache=null;this.cacheSlots=0;
     this.sceneKey=null;this.environmentKey=null;this.imageDependencies=null;this.materialTexture=null;this.materialTextureCache=null;
+    this.realtimePipeline=null;this.emptyCache=null;this.realtimeInit=null;this.progressiveInit=null;this.lightingModule=null;this.computeLayout=null;
   }
-  reuseLighting(){return this.coverageOpaque!==false&&this.options?.lightingReuse!==false;}
+  reuseLighting(){return !this.options?.interactivePreview&&this.coverageOpaque!==false&&this.options?.lightingReuse!==false;}
   async init() {
     if(this.disposed)throw Error('Camera renderer disposed');
-    if(this.device&&this.compute&&this.display&&this.gpuLease?.isCurrent())return;
+    if(this.device&&this.display&&this.gpuLease?.isCurrent())return;
     if(this.initializing)return this.initializing;
     const attempt={resources:[],freed:new Set(),cancelled:false,lease:null,device:null,profiler:null};this.initAttempt=attempt;
     const check=()=>{if(this.disposed||this.initAttempt!==attempt||attempt.cancelled||!attempt.lease?.isCurrent())throw new DOMException('Camera initialization superseded','AbortError');};
@@ -9540,17 +9556,14 @@ class FrameRenderer {
       for(const info of compilation){const errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>`${e.lineNum}:${e.linePos} ${e.message}`).join('\n'));}
       const storage=(binding,readOnly=true)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:readOnly?'read-only-storage':'storage'}});
       state.layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},storage(1),storage(2),storage(3),storage(4),storage(5,false),storage(6,false),storage(7,false),{binding:8,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}},{binding:9,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:10,visibility:GPUShaderStage.COMPUTE,texture:{}},storage(11,false),{binding:12,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:13,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}}]});
-      const layout=device.createPipelineLayout({bindGroupLayouts:[state.layout]});
-      const names=['compute','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'];
-      const pipelines=await Promise.all([
-        device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'integrate'}}),
+      const layout=state.computeLayout=device.createPipelineLayout({bindGroupLayouts:[state.layout]});
+      state.lightingModule=shader;
+      [state.meter,state.reconstruct,state.localExposure,state.display]=await Promise.all([
         device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'meter'}}),
-        device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'selectPixels'}}),
         device.createComputePipelineAsync({layout:'auto',compute:{module:reconstruction,entryPoint:'reconstruct'}}),
         device.createComputePipelineAsync({layout:'auto',compute:{module:localExposure,entryPoint:'localExposure'}}),
-        device.createRenderPipelineAsync({layout:'auto',vertex:{module:display,entryPoint:'vertexMain'},fragment:{module:display,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}}),
-        ...['invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'].map(entryPoint=>device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint}}))
-      ]);check();names.forEach((name,i)=>state[name]=pipelines[i]);
+        device.createRenderPipelineAsync({layout:'auto',vertex:{module:display,entryPoint:'vertexMain'},fragment:{module:display,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}})
+      ]);check();
       const blit=device.createShaderModule({code:previewBlitShader,label:'FRAME preview presentation'});
       const blitInfo=await blit.getCompilationInfo();check();if(blitInfo.messages.some(m=>m.type==='error'))throw Error(blitInfo.messages.map(m=>m.message).join('\n'));
       state.previewBlit=await device.createRenderPipelineAsync({layout:'auto',vertex:{module:blit,entryPoint:'vertexMain'},fragment:{module:blit,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});check();
@@ -9566,10 +9579,27 @@ class FrameRenderer {
       state.sampler=device.createSampler({addressModeU:'repeat',addressModeV:'repeat',magFilter:'linear',minFilter:'linear',mipmapFilter:'linear'});
       state.envSampler=device.createSampler({addressModeU:'repeat',addressModeV:'clamp-to-edge',magFilter:'linear',minFilter:'linear'});
       state.indirect=buffer(new Uint32Array(12),GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST);check();
-      state.resources=[state.uniform,state.exposure,state.indirect];Object.assign(this,state);
+      state.emptyCache=buffer(new Uint32Array(120));
+      state.resources=[state.uniform,state.exposure,state.indirect,state.emptyCache];Object.assign(this,state);
       this.stats.adapter={vendor:info.vendor||'',architecture:info.architecture||'',device:info.device||'',description:info.description||''};
     })();this.initializing=operation;
     try{await operation;}catch(error){this._releaseCameraAttempt(attempt);throw error;}finally{if(this.initializing===operation)this.initializing=null;}
+  }
+  async initCameraPipelines(interactive) {
+    if(interactive?this.realtimePipeline:this.compute)return;
+    const pending=interactive?'realtimeInit':'progressiveInit';
+    if(this[pending])return this[pending];
+    const attempt=this.initAttempt,layout=this.computeLayout,module=this.lightingModule;
+    const entries=interactive?['renderRealtime']:['integrate','selectPixels','invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance',
+      'updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','buildProbeQueue'];
+    const constants=interactive?{realtimeFilm:true}:{};
+    const operation=Promise.all(entries.map(entryPoint=>this.device.createComputePipelineAsync({layout,compute:{module,entryPoint,constants}}))).then(pipelines=>{
+      if(this.initAttempt!==attempt||!attempt.lease.isCurrent())throw new DOMException('Camera device changed','AbortError');
+      if(interactive)this.realtimePipeline=pipelines[0];
+      else entries.forEach((name,i)=>{this[name==='integrate'?'compute':name]=pipelines[i];});
+    });
+    this[pending]=operation;
+    try{await operation;}finally{if(this[pending]===operation)this[pending]=null;}
   }
 
   buffer(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC) {
@@ -9601,11 +9631,13 @@ class FrameRenderer {
     }finally{URL.revokeObjectURL(url);release();}
     if(epoch!==this.epoch)throw new DOMException('Render cancelled','AbortError');
     const previousScene=this.scene;
+    this.sceneKey=null;
     if(previousScene){
       if(previousScene.scale!==result.scale||previousScene.center.some((v,k)=>v!==result.center[k]))this.resetLighting('scene normalization');
       else{const changes=renderTransportChanges(previousScene.meshStates,result.meshStates);for(let k=0;k<16;k++)this.pendingDirty[k]|=changes.mask[k];if(changes.outside)this.resetLighting('dependency domain');this.stats.changedSurfaces=changes.count;}
-      if(previousScene.lightSignature!==result.lightSignature)this.resetLighting('emissive geometry/material');
+      if(previousScene.lightSignature!==result.lightSignature||previousScene.appearanceRevision!==input.appearanceRevision)this.resetLighting('scene materials or emitters');
     }
+    result.appearanceRevision=input.appearanceRevision;
     this.scene=result;this.stats.triangles=result.triangleCount;this.stats.instances=result.instances||0;this.stats.uniqueGeometry=result.uniqueGeometry||input.meshes.length;this.stats.storedTriangles=result.storedTriangles??result.triangleCount;this.stats.triangleStorageBytes=result.triangleStorageBytes||result.triangles.byteLength;this.stats.bvhStorageBytes=result.bvhStorageBytes||result.bvh.byteLength;this.stats.emitters=result.lightCount;this.stats.buildMs=result.buildMs;this.stats.bvhMs=result.bvhMs;this.stats.bvhRefitted=!!result.refitted;if(result.refitted)this.stats.sceneRefits=(this.stats.sceneRefits||0)+1;
     this.stats.normalization={centerMillimetres:result.center.slice(),scaleMillimetres:result.scale,extentMillimetres:result.naturalScale,retained:result.normalizationRetained,minLightCellMillimetres:result.scale/65536,rayEpsilonMillimetres:result.scale*0.000002};
 
@@ -9756,14 +9788,17 @@ class FrameRenderer {
         if(epoch!==this.epoch)return;
 
 
-        for(let i=0;i<16;i++){this.cacheStatsTotals[i]+=(raw[i]-this.cacheStatsLast[i])>>>0;this.cacheStatsLast[i]=raw[i];}
-        const q=this.cacheStatsTotals;
-        Object.assign(this.stats,{newCameraSamples:q[0],newGIProbes:q[1],newDirectProbes:q[7],invalidatedDirectProbes:q[11],retainedDirectProbes:q[12],giCacheLookups:q[2],giFallbackPaths:q[3],rayQueries:q[4],directEvaluations:q[5],primarySpecularPaths:q[6],invalidatedProbes:q[8],requestedProbes:q[9],retainedProbes:q[10],giCacheHitRate:q[2]/Math.max(1,q[2]+q[3]),lightingReuse:this.reuseLighting(),cacheCapacity:this.cacheSlots,cacheBytes:this.cacheSlots*480,primaryHitsReused:q[14],opaqueShadowQueries:q[15]});
-        return q;
+        return this.recordLightingStats(raw);
       }finally{read.destroy();}
     })();
     this.statsRead=operation;this.statsReadEpoch=epoch;
     try{return await operation;}finally{if(this.statsRead===operation)this.statsRead=null;}
+  }
+  recordLightingStats(raw) {
+    for(let i=0;i<16;i++){this.cacheStatsTotals[i]+=(raw[i]-this.cacheStatsLast[i])>>>0;this.cacheStatsLast[i]=raw[i];}
+    const q=this.cacheStatsTotals;
+    Object.assign(this.stats,{newCameraSamples:q[0],newGIProbes:q[1],newDirectProbes:q[7],invalidatedDirectProbes:q[11],retainedDirectProbes:q[12],giCacheLookups:q[2],giFallbackPaths:q[3],rayQueries:q[4],directEvaluations:q[5],primarySpecularPaths:q[6],invalidatedProbes:q[8],requestedProbes:q[9],retainedProbes:q[10],giCacheHitRate:q[2]/Math.max(1,q[2]+q[3]),lightingReuse:this.reuseLighting(),cacheCapacity:this.cacheSlots,cacheBytes:this.cacheSlots*480,primaryHitsReused:q[14],opaqueShadowQueries:q[15]});
+    return q;
   }
   async readFilm() {
     if(!this.pixels)throw Error('Render an image before reading the linear film.');
@@ -9772,14 +9807,16 @@ class FrameRenderer {
   }
 
   allocateImage(width,height) {
-    const dependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,this.cache,this.envTexture,this.exposure];
-    if(this.width===width&&this.height===height&&this.pixels&&dependencies.every((x,i)=>x===this.imageDependencies?.[i])){
-      const clear=this.device.createCommandEncoder();for(const b of [this.pixels,this.guides,this.filterA,this.filterB,this.localA,this.localB])clear.clearBuffer(b);this.device.queue.submit([clear.finish()]);
+    const realtime=this.options.interactivePreview;
+    const queueBytes=realtime?144:128+(width*height*7+this.cacheSlots*2)*4;
+    const dependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,this.cache||this.emptyCache,this.envTexture,this.exposure];
+    if(this.width===width&&this.height===height&&this.pixels&&this.exposure.size>=queueBytes){
+      if(!dependencies.every((x,i)=>x===this.imageDependencies?.[i]))this.bindImageScene();
+      if(!realtime){const clear=this.device.createCommandEncoder();for(const b of [this.pixels,this.guides,this.filterA,this.filterB,this.localA,this.localB])clear.clearBuffer(b);this.device.queue.submit([clear.finish()]);}
       this.activeQueue=null;this.nextQueueCheck=128;this.imageReady=false;this.filmDirty=false;this.stats.reusedImageBuffers=(this.stats.reusedImageBuffers||0)+1;return;
     }
     for(const resource of this.imageResources)if(resource!==this.lastImage?.texture)resource.destroy();
     this.width=width;this.height=height;this.activeQueue=null;this.nextQueueCheck=128;this.imageReady=false;this.filmDirty=false;
-    const queueBytes=128+(width*height*7+this.cacheSlots*2)*4;
     if(this.exposure.size<queueBytes){
       const previous=this.exposure;
       this.exposure=this.device.createBuffer({size:queueBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST|GPUBufferUsage.INDIRECT});
@@ -9797,11 +9834,15 @@ class FrameRenderer {
     this.localA=this.device.createBuffer({size:this.localCount*32,usage});this.localB=this.device.createBuffer({size:this.localCount*32,usage});
     this.imageResources=[this.pixels,this.guides,this.output,this.filterA,this.filterB,this.localA,this.localB];
     const bind=(binding,buffer)=>({binding,resource:{buffer}});
-    this.computeGroup=this.device.createBindGroup({layout:this.layout,entries:[bind(0,this.uniform),bind(1,this.nodes),bind(2,this.triangles),bind(3,this.materials),bind(4,this.lights),bind(5,this.pixels),bind(6,this.guides),bind(7,this.cache),{binding:8,resource:this.materialTexture.createView({dimension:'2d-array'})},{binding:9,resource:this.sampler},{binding:10,resource:this.envTexture.createView()},bind(11,this.exposure),{binding:12,resource:this.envSampler},{binding:13,resource:this.materialTexture.createView({dimension:'2d-array',format:'rgba8unorm'})}]});
+    this.bindImageScene();
     this.filterGroups=[1,2,4].map((stride,i)=>{const config=this.buffer(new Uint32Array([stride,i?1:0,0,0]),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);this.imageResources.push(config);return this.device.createBindGroup({layout:this.reconstruct.getBindGroupLayout(0),entries:[bind(0,this.uniform),bind(1,this.pixels),bind(2,this.guides),bind(3,i%2?this.filterB:this.filterA),bind(4,i%2?this.filterA:this.filterB),bind(5,config)]});});
     this.localGroups=[0,1,2].map(i=>{const config=this.buffer(new Uint32Array([i,0,0,0]),GPUBufferUsage.UNIFORM);this.imageResources.push(config);return this.device.createBindGroup({layout:this.localExposure.getBindGroupLayout(0),entries:[bind(0,this.uniform),bind(1,this.pixels),bind(2,this.guides),bind(3,this.filterB),bind(4,this.exposure),bind(5,i===1?this.localA:this.localB),bind(6,i===1?this.localB:this.localA),bind(7,config)]});});
     this.displayGroup=this.device.createBindGroup({layout:this.display.getBindGroupLayout(0),entries:[bind(0,this.uniform),bind(1,this.pixels),bind(2,this.guides),bind(3,this.exposure),bind(4,this.filterB),bind(5,this.localA)]});
-    this.imageDependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,this.cache,this.envTexture,this.exposure];
+  }
+  bindImageScene() {
+    const cache=this.cache||this.emptyCache,bind=(binding,buffer)=>({binding,resource:{buffer}});
+    this.computeGroup=this.device.createBindGroup({layout:this.layout,entries:[bind(0,this.uniform),bind(1,this.nodes),bind(2,this.triangles),bind(3,this.materials),bind(4,this.lights),bind(5,this.pixels),bind(6,this.guides),bind(7,cache),{binding:8,resource:this.materialTexture.createView({dimension:'2d-array'})},{binding:9,resource:this.sampler},{binding:10,resource:this.envTexture.createView()},bind(11,this.exposure),{binding:12,resource:this.envSampler},{binding:13,resource:this.materialTexture.createView({dimension:'2d-array',format:'rgba8unorm'})}]});
+    this.imageDependencies=[this.nodes,this.triangles,this.materials,this.lights,this.materialTexture,cache,this.envTexture,this.exposure];
   }
   parameters(camera,environment,sample,offset,count,denoise,queued=false) {
     const f=new Float32Array(200),u=new Uint32Array(f.buffer),{center,scale}=this.scene;
@@ -9812,7 +9853,7 @@ class FrameRenderer {
     const altitude=environment.altitude*Math.PI/180,azimuth=environment.azimuth*Math.PI/180;
     f.set([Math.cos(altitude)*Math.sin(azimuth),Math.sin(altitude),Math.cos(altitude)*Math.cos(azimuth),0],28);
     f.set([...temperatureRGB(environment.temperature),0],32);u.set([count,this.options.lightCandidates??4,(this.options.adaptive===false?1:0)|(this.options.sampler==='random'?2:0)|(queued?4:0),this.options.seed??1],36);f.set([this.options.giStrength,this.options.maxBounces,this.options.localExposure===false?0:1,this.localCell],40);const direct=environment.infiniteLights||[];u[44]=Math.min(16,direct.length);for(let i=0;i<u[44];i++){const light=direct[i];f.set([...light.direction,light.angle],48+i*8);f.set([...light.color.map(v=>v*light.intensity*2),0],52+i*8);}
-    u[45]=this.options.frameSeed??renderSeedHash(this.cacheFrame);
+    u[45]=this.options.frameSeed??renderSeedHash(this.options.interactivePreview?0:this.cacheFrame);
     u.set([(this.reuseLighting()?1:0)|(this.hardInvalidation?2:0),this.cacheSlots,this.cacheFrame,Math.max(4,Math.min(256,(this.options.sampleLimit||128)*2))],176);
     u.set(this.pendingDirty,180);f.set([this.options.cacheFootprint??3,(environment.infiniteLights||[]).some(q=>q.angle<1e-5)?1:0,(this.optimized()&&this.sceneOpaque)?1:0,this.optimized()?1:0],196);return f;
   }
@@ -9849,18 +9890,49 @@ class FrameRenderer {
     if(this.lastImage?.texture!==this.output)this.lastImage?.texture.destroy();
     this.lastImage={texture:this.output,width:this.width,height:this.height};this.hasImage=true;this.filmDirty=false;
     this.canvas.style.display='block';this.presentedAt=performance.now();this.stats.presentedFrames++;
-    if(this.stats.firstImageMs===null)this.stats.firstImageMs=this.presentedAt-started;this.pollLightingStats();this.onChange();
+    if(this.stats.firstImageMs===null)this.stats.firstImageMs=this.presentedAt-started;
+    if(!this.options.interactivePreview)this.pollLightingStats();
+    this.onChange();
   }
   async presentLatest(epoch,started) {
     if(!this.imageReady||!this.filmDirty||epoch!==this.epoch)return;
     const encoder=this.measuredEncoder('Present',true);this.displayFrame(encoder);this.submitCommands(encoder);
     await this.device.queue.onSubmittedWorkDone();if(epoch===this.epoch)this.markPresented(started);
   }
+  async renderRealtimeFrame(width,height,epoch,started) {
+    const {camera,environment,denoise,sampleLimit}=this.options;
+    const samples=Math.min(2,Math.max(1,sampleLimit)),pixels=width*height;
+    const encodedAt=performance.now(),perf=this.stats.performance;
+    this.allocateImage(width,height);
+    const counters=this.device.createBuffer({size:64,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    try{
+      this.device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,0,0,samples,denoise!==false));
+      const encoder=this.measuredEncoder('Realtime camera frame',true);
+      encoder.clearBuffer(this.exposure,32,64);
+      const pass=this.computePass(encoder,'Realtime camera paths');
+      pass.setPipeline(this.realtimePipeline);pass.setBindGroup(0,this.computeGroup);
+      pass.dispatchWorkgroups(Math.ceil(width/8),Math.ceil(height/8));pass.end();
+      this.displayFrame(encoder);
+      encoder.copyBufferToBuffer(this.exposure,32,counters,0,64);
+      this.submitCommands(encoder);
+      const submitted=performance.now();
+      Object.assign(perf,{encodeMs:submitted-encodedAt,submissions:1,maxInFlight:1,waitCalls:1});
+      Object.assign(this.stats,{phase:'rendering',stage:'Rendering realtime frame…',width,height,preparationMs:encodedAt-started});
+      await counters.mapAsync(GPUMapMode.READ);
+      if(epoch!==this.epoch)return;
+      this.recordLightingStats(new Uint32Array(counters.getMappedRange()));
+      const done=performance.now();perf.awaitMs=done-submitted;
+      this.running=false;this.completed=true;this.imageReady=true;
+      Object.assign(this.stats,{phase:'preview',samples,dispatches:1,activePixels:pixels,scheduledPixels:pixels*samples,
+        lastDispatchMs:perf.awaitMs,maxDispatchMs:perf.awaitMs,dispatchTimes:[perf.awaitMs],elapsedMs:done-encodedAt});
+      this.markPresented(started);
+    }finally{if(counters.mapState==='mapped')counters.unmap();counters.destroy();}
+  }
   async start(options) {
 
     options={...this.runtime,...options,giStrength:Math.max(0,Math.min(4,Number.isFinite(options.giStrength)?options.giStrength:1.2)),maxBounces:Math.max(1,Math.min(64,Math.round(options.maxBounces||8)))};
     const samplingKey=frameValueKey([options.giStrength,options.maxBounces,options.seed??1,options.lightCandidates??4,options.adaptive!==false,options.sampler??'sobol',options.workQueue!==false,options.lightingReuse!==false,options.cacheFootprint??3,options.sampleLimit||Infinity,options.optimize!==false,options.queueDepth||2,options.outputSize||null,options.interactivePreview===true]);
-    this.options=options;
+    this.options=options;this.stats.interactivePreview=!!options.interactivePreview;
     const resume=!!(this.progress&&this.progress.key===options.viewKey&&this.progress.samplingKey===samplingKey&&!this.completed&&this.pixels&&this.sceneKey===options.sceneKey);
     if(!options.interactivePreview&&this.scene?.refitted)this.sceneKey=null;
     if(!resume){this.progress=null;this.cacheFrame++;this.cacheStatsTotals.fill(0);this.cacheStatsLast.fill(0);this.statsReadAt=0;Object.assign(this.stats,{newCameraSamples:0,newGIProbes:0,newDirectProbes:0,invalidatedDirectProbes:0,retainedDirectProbes:0,giCacheLookups:0,giFallbackPaths:0,rayQueries:0,directEvaluations:0,primarySpecularPaths:0,invalidatedProbes:0,requestedProbes:0,retainedProbes:0,giCacheHitRate:0,giDispatches:0,maxGIDispatchMs:0});}
@@ -9872,12 +9944,13 @@ class FrameRenderer {
     try{
       const sceneInput=this.sceneKey!==options.sceneKey?Promise.resolve(options.getScene(()=>epoch!==this.epoch)):null;sceneInput?.catch(()=>{});
       this.stats.stage='Preparing WebGPU…';this.onChange();await this.init();if(epoch!==this.epoch)return;
-      this.stats.stage='Preparing scene…';this.onChange();await this.device.queue.onSubmittedWorkDone();if(epoch!==this.epoch)return;
+      await this.initCameraPipelines(options.interactivePreview);if(epoch!==this.epoch)return;
+      this.stats.stage='Preparing scene…';this.onChange();if(!options.interactivePreview)await this.device.queue.onSubmittedWorkDone();if(epoch!==this.epoch)return;
 
 
 
       if(resume){this.filmDirty=true;if(this.progress.sample>0)this.imageReady=true;}
-      if(this.sceneKey!==options.sceneKey){const input=await (sceneInput||options.getScene(()=>epoch!==this.epoch));if(epoch!==this.epoch)return;this.stats.snapshot=input.snapshot;await this.buildScene(input,epoch);this.sceneKey=options.sceneKey;}
+      if(this.sceneKey!==options.sceneKey){const input=await (sceneInput||options.getScene(()=>epoch!==this.epoch));if(epoch!==this.epoch)return;this.stats.snapshot=input.snapshot;await this.buildScene(input,epoch);if(epoch!==this.epoch)return;this.sceneKey=options.sceneKey;}
       await this.prepareEnvironment(options.environment,epoch);if(epoch!==this.epoch)return;
       const {rect}=options;Object.assign(this.canvas.style,{left:rect.x+'px',top:rect.y+'px',width:rect.w+'px',height:rect.h+'px'});
       const lightingKey=frameValueKey([this.environmentRevision,options.environment.mode,options.environment.infiniteLights,options.maxBounces,options.seed??1,options.lightCandidates??4,options.sampler??'sobol']);
@@ -9885,6 +9958,7 @@ class FrameRenderer {
       if(!resume&&this.hardInvalidation)this.device.queue.writeBuffer(this.exposure,0,new Float32Array([1,0,0,0]));
       const scale=Math.min(1,Math.sqrt(Math.min(1500000,Math.floor(this.device.limits.maxStorageBufferBindingSize/112)*.99)/(rect.w*rect.h))),finalWidth=options.outputSize?Math.round(options.outputSize[0]):Math.max(8,Math.round(rect.w*scale)),finalHeight=options.outputSize?Math.round(options.outputSize[1]):Math.max(8,Math.round(rect.h*scale));
       if(finalWidth<8||finalHeight<8||finalWidth>this.device.limits.maxTextureDimension2D||finalHeight>this.device.limits.maxTextureDimension2D||finalWidth*finalHeight*112>this.device.limits.maxStorageBufferBindingSize)throw Error('Output resolution exceeds this GPU’s buffer limit. Choose a smaller image.');
+      if(options.interactivePreview){await this.renderRealtimeFrame(finalWidth,finalHeight,epoch,started);return;}
       this.ensureLightingCache(finalWidth,finalHeight);
       const warm=this.reuseLighting()&&this.cacheHasData&&!this.hardInvalidation;
       const coarseScale=warm?1:Math.min(1,256/finalWidth),coarse=[Math.max(8,Math.round(finalWidth*coarseScale)),Math.max(8,Math.round(finalHeight*coarseScale))];
@@ -12950,7 +13024,7 @@ $('tlCur').ariaLabel='Current frame';$('tlTotal').ariaLabel='Total frames';
 bindNumber($('tlCur'),{int:true,stepFixed:1,min:0,get:()=>timelineFrame,set:v=>{setTimelineFrame(v);}});
 bindNumber($('tlTotal'),{int:true,stepFixed:1,min:1,get:()=>timelineTotal,set:v=>{timelineTotal=v;timelineFrame=Math.min(timelineFrame,v);$('tlCur')._sync?.();}});
 function timelineStatus(){return {frame:timelineFrame,total:timelineTotal,fps:FRAME_FPS,playing:!!playing,speed:timelineSpeed,loop:timelineLoop};}
-function stop(){clearTimeout(timelineTimer);timelineTimer=0;playing=0;$('tlPlay').innerHTML=icons.ICO_TL_PLAY;$('tlPlay').setAttribute('aria-pressed','false');$('tlSpeed').textContent='frame';}
+function stop(){const wasPlaying=playing;clearTimeout(timelineTimer);timelineTimer=0;playing=0;$('tlPlay').innerHTML=icons.ICO_TL_PLAY;$('tlPlay').setAttribute('aria-pressed','false');$('tlSpeed').textContent='frame';if(wasPlaying)window.frameEngine?.draw(false);}
 function playTimeline(){
   if(playing)return;const epoch=playing=++timelineEpoch;$('tlPlay').innerHTML=icons.ICO_TL_PAUSE;$('tlPlay').setAttribute('aria-pressed','true');
   const tick=async()=>{
@@ -14892,11 +14966,10 @@ window.frameEngine=(()=>{
     function draw(full=true,local=false,cameraOnly=false){
       if(full&&!cameraOnly){navigationScene=null;navigationRevision++;}
       if(splineLoadBatch){sceneFrameDirty=true;return Promise.resolve();}
-      scheduleRenderPreview();
       if(full){sceneFrameDirty=true;if(!local)viewRevision++;}
       if(pendingFrame)return pendingFrame;
       pendingFrame=new Promise((resolve,reject)=>FrameViewWindows.frame(()=>{
-        pendingFrame=null;try{renderFrame();resolve();}catch(error){reject(error);fileOperationError(error);}
+        pendingFrame=null;try{renderFrame();scheduleRenderPreview();resolve();}catch(error){reject(error);fileOperationError(error);}
       }));
       return pendingFrame;
     }
@@ -16330,9 +16403,9 @@ window.frameEngine=(()=>{
       if(!r.orthoGrid||r.orthoGrid.size<data.byteLength){releaseGPU(r.orthoGrid);r.orthoGrid=makeGPUBuffer(r.device,{label:'adaptive 2D grid',size:Math.max(16384,2**Math.ceil(Math.log2(data.byteLength))),usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});}
       r.device.queue.writeBuffer(r.orthoGrid,0,data);pass.setPipeline(r.orthoGridPipeline);pass.setVertexBuffer(0,r.orthoGrid);pass.draw(data.length/6);
     }
-    function readGeometry(hash){
+    function readGeometry(hash,{positionsOnly=false}={}){
       const task=editSerial.catch(()=>{}).then(async()=>{const space=scene,mesh=typeof hash==='object'&&hash.replicaSource&&space.meshes.includes(hash.replicaSource)?hash.replicaSource:space.meshes.find(m=>typeof hash==='object'?m===hash:m.hashId===hash);if(!mesh)throw Error('Mesh is unavailable');
-        const vertexCount=mesh.vertexCount,triangleCount=mesh.triangleCount,positionBytes=vertexCount*12,indexBytes=triangleCount*12,gpu=renderer;
+        const vertexCount=mesh.vertexCount,triangleCount=mesh.triangleCount,positionBytes=vertexCount*12,indexBytes=positionsOnly?0:triangleCount*12,gpu=renderer;
         if(!mesh.paged&&positionBytes&&indexBytes&&positionBytes+indexBytes<=4*1024*1024){
           const d=gpu.device,read=makeGPUBuffer(d,{label:'paired geometry readback',size:positionBytes+indexBytes,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
           try{
@@ -16343,7 +16416,7 @@ window.frameEngine=(()=>{
             return {vertices:new Float32Array(bytes,0,vertexCount*3).slice(),indices:new Uint32Array(bytes,positionBytes,triangleCount*3).slice(),vertexCount,triangleCount};
           }finally{read.unmap();releaseGPU(read);}
         }
-        const positions=await nativeReadGPU(gpu,mesh.positions,vertexCount*3),indices=await nativeReadGPU(gpu,mesh.indices,triangleCount*3);if(scene!==space)throw new DOMException('Scene changed during geometry readback','AbortError');
+        const positions=await nativeReadGPU(gpu,mesh.positions,vertexCount*3),indices=positionsOnly?new Uint8Array(0):await nativeReadGPU(gpu,mesh.indices,triangleCount*3);if(scene!==space)throw new DOMException('Scene changed during geometry readback','AbortError');
         return {vertices:new Float32Array(positions.buffer),indices:new Uint32Array(indices.buffer),vertexCount,triangleCount};
       });editSerial=task.then(()=>{},()=>{});return task;
     }
@@ -16568,7 +16641,9 @@ window.frameEngine=(()=>{
       return {hash,signature:key,data:cage,report:result.report,empty:cage?!Object.keys(cage.segments).length:!result.indices.length};}finally{progress.end();}
     }
 
-    let pathtracer=null,renderTimer=0,renderManual=false,renderSignature='',renderBlocked='',renderScene=null,lastRealtime=false,renderConfigKey='';
+    let pathtracer=null,renderTimer=0,renderManual=false,manualGeneration=0,renderSignature='',renderBlocked='',renderScene=null,renderConfigKey='';
+    let realtimeRequest=null,previewSignature='',renderGeometryRevision=0;
+    const renderGeometryState=[];
     function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:!pathtracer.canvas.hidden&&pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
     function renderOverlayActive(){if(['off','wireframe','isoparms'].includes(viewShadings[0]))return false;const s=renderState();return s.running||s.visible||!!s.exportKind;}
     function cameraConfig(){if(frameNavigation)return frameNavigation.camera;if(navigationScene?.ready&&(drag||touchNavigation||wheelNavigation))return navigationScene.cameras.find(n=>n.enabled);return nodes.find(n=>n.type==='render'&&n.enabled);}
@@ -16594,8 +16669,16 @@ window.frameEngine=(()=>{
     function storeCameraNavigation(){if(cameraNavigationOwned())return;const n=cameraConfig();if(viewIndex||!n||!nativeValue(n.nativeHash,'type'))return;const placement=cameraPlacement();if(!placement)return;const parent=transformParent(n.nativeHash),world=FM.unpack(placement.matrix);putFrame(n.nativeHash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),world):world);cameraNavigationRevisions.set(n.nativeHash,(cameraNavigationRevisions.get(n.nativeHash)||0)+1);if(navigationScene?.camera===n&&objectDescendants(n.nativeHash).length===1){poseWorlds.delete(n.nativeHash);measurementCache=null;}else syncPoseWorld();const actual=FM.rigid(objectWorld(n.nativeHash));cameraViewKey=FM.equal(actual,FM.rigid(world))?[n.nativeHash,...actual,...scene.center,scene.scale].join(':'):'';viewStates[0]=captureCamera();notifyTransformUI();}
 
     function renderStatus(){const state=renderState(),c=cameraConfig(),button=$('frameRenderToggle');if(button){button.title=button.ariaLabel=current()===c&&(state.running&&state.manual||state.visible)?'Stop render':'Render';button.textContent='view';}for(const [id,kind]of [['frameRenderImage','image'],['frameRenderVideo','video']]){const b=$(id),on=state.exportKind===kind;if(b){b.textContent=on?'stop':kind;b.ariaLabel=on?'Stop '+kind+' render':kind;b.disabled=!!state.exportKind&&!on;}}drawLightHelpers();drawMotionPaths();}
-    function scheduleRenderPreview(){if(pathtracer)pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);if(renderManual||renderExporting||!renderer||!scene)return;const config=cameraConfig(),key=config?frameValueKey([config.nativeHash,config.params]):'';if(key!==renderConfigKey){renderConfigKey=key;renderSignature=renderBlocked='';lastRealtime=config?.params.realtime==='on';}if(renderTimer)return;renderTimer=setTimeout(()=>{renderTimer=0;if(renderManual)return;renderTick().catch(error=>{renderBlocked=renderSignature;if(pathtracer){pathtracer.stats.phase='error';pathtracer.stats.errors=[error.message];pathtracer.stop(true);}renderStatus();});},32);}
-    function renderStop(hide=true){viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}renderManual=false;renderBlocked=renderSignature;clearTimeout(renderTimer);renderTimer=0;pathtracer?.stop(hide);renderStatus();draw(false);return renderState();}
+    function scheduleRenderPreview(){
+      if(pathtracer)pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
+      if(renderManual||renderExporting||!renderer||!scene||renderTimer)return;
+      if(!pathtracer&&!cameraConfig())return;
+      renderTimer=setTimeout(()=>{
+        renderTimer=0;if(renderManual||renderExporting)return;
+        renderTick().catch(error=>{renderBlocked=renderSignature;if(pathtracer)pathtracer.fail(error);renderStatus();});
+      },0);
+    }
+    function renderStop(hide=true){viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}manualGeneration++;renderManual=false;realtimeRequest=null;previewSignature='';renderBlocked=null;clearTimeout(renderTimer);renderTimer=0;pathtracer?.stop(hide);renderStatus();draw(false);return renderState();}
     function renderView(){
       if(!frameViewVisible(0)||frameViewElement(0)?.ownerDocument.hidden)return null;const c=viewIndex===0?canvas:frameViewCanvases.get(0);if(!c?.getClientRects().length)return null;
       const active=viewIndex,saved=captureCamera();try{viewIndex=0;restoreCamera(active===0?saved:viewStates[0]||defaultCamera(0));const r=c.getBoundingClientRect(),host=frameViewElement(0).getBoundingClientRect(),eye=inverseView([-panX-orbitOffset[0],-panY-orbitOffset[1],3.2-orbitOffset[2]]).map((v,i)=>v/scene.scale+scene.center[i]);return {rect:{x:r.left-host.left,y:r.top-host.top,w:r.width,h:r.height},camera:{position:eye,right:inverseView([1,0,0]),up:inverseView([0,1,0]),forward:inverseView([0,0,-1]),fov:perspectiveFov,aspect:r.width/r.height}};}finally{viewIndex=active;restoreCamera(saved);}
@@ -16604,38 +16687,102 @@ window.frameEngine=(()=>{
       const ids=new Uint32Array(mesh.triangleCount);ids.fill(material(null));for(const tag of mesh.materialTags||[]){const id=material(tag.materialUID);if(!tag.mask)ids.fill(id);else{const set=polygonSet(tag.mask);if(set){let bits=masks?.get(set.resource);if(!bits){bits=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);masks?.set(set.resource,bits);}for(let f=0;f<ids.length;f++)if(bits[f>>5]>>(f&31)&1)ids[f]=id;}}}return ids;
     }
     async function renderSnapshot(cancelled){
-      const started=performance.now(),input={meshes:[],materials:[],textures:[],textureKeys:[]},space=scene,canonical=new Map(),attributes=new Map(),uvCache=new Map(),maskCache=new Map(),normalImages=scene.meshes.some(m=>m.materialTags?.length)?await materialNormalImages(renderer):new Map();
+      const started=performance.now(),input={meshes:[],materials:[],textures:[],textureKeys:[],appearanceRevision},space=scene,canonical=new Map(),attributes=new Map(),uvCache=new Map(),maskCache=new Map(),normalImages=scene.meshes.some(m=>m.materialTags?.length)?await materialNormalImages(renderer):new Map();
       const textureID=asset=>{if(!asset)return -1;const image=normalImages.get(asset)||textureImages.get(frameMaterialAssets.get(asset)?.url)||materials.find(m=>m.colorAsset===asset)?.map;if(!image)return -1;let id=input.textures.indexOf(image);if(id<0){id=input.textures.length;input.textures.push(image);input.textureKeys.push(asset);}return id;};
       for(const mesh of nativeSurfaceOccurrences()){if(mesh.frameVisible===false)continue;if(cancelled()||scene!==space)throw new DOMException('Render superseded','AbortError');
-        let raw=canonical.get(mesh.positions);if(!raw){raw=await readGeometry(mesh);canonical.set(mesh.positions,raw);}const world=mesh.frameWorld||objectWorld(mesh.hashId),inv=FM.inv(world),normalMatrix=[inv[0],inv[4],inv[8],inv[1],inv[5],inv[9],inv[2],inv[6],inv[10]],base=input.materials.length;
+        let raw=canonical.get(mesh.positions);if(!raw){raw=await readGeometry(mesh,{positionsOnly:true});canonical.set(mesh.positions,raw);}const world=mesh.frameWorld||objectWorld(mesh.hashId),inv=FM.inv(world),normalMatrix=[inv[0],inv[4],inv[8],inv[1],inv[5],inv[9],inv[2],inv[6],inv[10]],base=input.materials.length;
         const projection=Array.from(FM.inv(FM.mul(world,projectionMatrix(mesh)))),normalProjection=Array.from(FM.mul(projectionNormalMatrix(projectionMatrix(mesh)),Float64Array.from({length:16},(_,i)=>world[(i%4)*4+(i>>2)]))),addMaterial=uid=>{const m=uid&&appearanceValue(uid,'parameters'),maps=uid&&appearanceValue(uid,'maps')||[],color=m?hsl2rgb(m[0],m[1]/100,m[2]/100).map(v=>v**2.2):[.21763764,.21763764,.21763764],id=input.materials.length;input.materials.push({name:uid?nativeValue(uid,'name'):'Default',alphaMode:(m&&m[6]>0||m?.[12]!==1&&renderer.materialState?.alphaAssets?.get(maps[0]))?'BLEND':'OPAQUE',color,rough:m?m[4]/100:.5,metal:m?m[5]/100:0,emission:color.map(v=>v*(m?m[3]/100:0)),transmission:m&&m[12]!==2&&m[12]!==3?m[6]/100:0,coverageFactor:m&&(m[12]===2||m[12]===3)?1-m[6]/100:1,bump:m?m[7]/100:0,heightBump:(m?.[15]??0)/100,normalY:maps[6]&&maps[6]!==FrameHash.K.zero?m?.[16]??1:1,cubic:!importedUV(mesh),texture:textureID(maps[0]),opacityTexture:textureID(maps[1]),emissionTexture:textureID(maps[2]),metalRoughTexture:textureID(maps[3]),roughTexture:textureID(maps[4]),metalTexture:textureID(maps[5]),normalTexture:textureID(maps[6]&&maps[6]!==FrameHash.K.zero?maps[6]:'normal:'+maps[0]),aoTexture:textureID(maps[7]),channels:[m?.[8]??4,m?.[9]??0,m?.[10]??0,m?.[11]??0],alphaModeCode:m?.[12]??0,alphaCutoff:(m?.[13]??50)/100,aoStrength:(m?.[14]??100)/100,projection,normalProjection});return id;};
-        const faceIds=await meshMaterialIds(mesh,addMaterial,maskCache);
+        const tags=mesh.materialTags||[],masked=tags.some(tag=>tag.mask);
+        const faceIds=masked?await meshMaterialIds(mesh,addMaterial,maskCache):null;
+        const uniformMaterial=masked?null:addMaterial(tags.at(-1)?.materialUID);
         for(const part of mesh.parts||[mesh]){
           let geometry=attributes.get(part.normals);if(!geometry||geometry.positionsResource!==mesh.positions||geometry.indicesResource!==part.renderIndices){
-            const packedBytes=await nativeReadGPU(renderer,part.normals,part.normalCount*2),packed=new Uint32Array(packedBytes.buffer),aliasesBytes=await nativeReadGPU(renderer,part.renderIndices,part.count),indices=new Uint32Array(aliasesBytes.buffer),positions=new Float32Array(part.normalCount*3),normals=new Float32Array(part.normalCount*3);
-            const snorm=v=>Math.max(-1,(v<<16>>16)/32767);for(let i=0;i<part.normalCount;i++){positions.set(raw.vertices.subarray(packed[i*2]*3,packed[i*2]*3+3),i*3);const bits=packed[i*2+1];let x=snorm(bits&65535),y=snorm(bits>>>16),z=1-Math.abs(x)-Math.abs(y);if(z<0){const a=x;x=(1-Math.abs(y))*(a>=0?1:-1);y=(1-Math.abs(a))*(y>=0?1:-1);}const length=Math.hypot(x,y,z)||1;normals.set([x/length,y/length,z/length],i*3);}geometry={positionsResource:mesh.positions,indicesResource:part.renderIndices,positions,normals,indices};attributes.set(part.normals,geometry);
+            const [packedBytes,aliasesBytes]=await Promise.all([nativeReadGPU(renderer,part.normals,part.normalCount*2),nativeReadGPU(renderer,part.renderIndices,part.count)]);
+            const packed=new Uint32Array(packedBytes.buffer),indices=new Uint32Array(aliasesBytes.buffer),positions=new Float32Array(part.normalCount*3),normals=new Float32Array(part.normalCount*3);
+            const snorm=v=>Math.max(-1,(v<<16>>16)/32767);
+            for(let i=0;i<part.normalCount;i++){
+              const at=i*3,source=packed[i*2]*3,bits=packed[i*2+1];
+              positions[at]=raw.vertices[source];positions[at+1]=raw.vertices[source+1];positions[at+2]=raw.vertices[source+2];
+              let x=snorm(bits&65535),y=snorm(bits>>>16),z=1-Math.abs(x)-Math.abs(y);
+              if(z<0){const a=x;x=(1-Math.abs(y))*(a>=0?1:-1);y=(1-Math.abs(a))*(y>=0?1:-1);}
+              const length=Math.hypot(x,y,z)||1;normals[at]=x/length;normals[at+1]=y/length;normals[at+2]=z/length;
+            }
+            geometry={positionsResource:mesh.positions,indicesResource:part.renderIndices,positions,normals,indices};attributes.set(part.normals,geometry);
           }
           const U=importedUV(mesh);let uv=null;if(U){let values=uvCache.get(U.resource);if(!values){values=new Float32Array((await nativeReadGPU(renderer,U.resource,U.count)).buffer);uvCache.set(U.resource,values);}uv=values.subarray((part.faceStart||0)*6,((part.faceStart||0)+part.triangleCount)*6);}
           const {positions,normals,indices:aliases}=geometry;
-          const groups=[];let start=0,previous=faceIds[part.faceStart||0];for(let f=1;f<=part.triangleCount;f++){const id=faceIds[(part.faceStart||0)+f];if(f===part.triangleCount||id!==previous){groups.push({start:start*3,count:(f-start)*3,materialIndex:previous});start=f;previous=id;}}
-          input.meshes.push({hash:mesh.hashId,name:frameNodeByHash(mesh.hashId)?.name||'Mesh',positions,normals,uv,indices:aliases,materialBase:base,matrix:Array.from(world),normalMatrix,groups,materialIds:input.materials.map((_,i)=>i),visible:true,background:false,surfaceId:input.meshes.length+1,revision:mesh.version||0});
+          const groups=[];
+          if(faceIds){
+            const first=part.faceStart||0;let start=0;
+            for(let f=1;f<=part.triangleCount;f++)if(f===part.triangleCount||faceIds[first+f]!==faceIds[first+start]){
+              groups.push({start:start*3,count:(f-start)*3,materialIndex:faceIds[first+start]});start=f;
+            }
+          }else groups.push({start:0,count:part.triangleCount*3,materialIndex:uniformMaterial});
+          const revision=frameValueKey([mesh.hashId,mesh.version,mesh.replicaSource?.version,part.faceStart||0,world]);
+          input.meshes.push({positions,normals,uv,indices:aliases,materialBase:base,matrix:Array.from(world),normalMatrix,groups,visible:true,background:false,surfaceId:input.meshes.length+1,revision});
         }
       }
       input.snapshot={meshes:input.meshes.length,geometry:attributes.size,positions:canonical.size,uv:uvCache.size,masks:maskCache.size,elapsedMs:performance.now()-started};return input;
     }
+    function cameraSceneRevision(){
+      // Compare authored order, resource identity and affine values directly.
+      // Camera poses only carry the resulting scalar revision through the scheduler.
+      let at=0,changed=false;
+      function field(value){if(renderGeometryState[at]!==value){changed=true;renderGeometryState[at]=value;}at++;}
+      function matrix(values){for(const value of values)field(value);}
+      function geometry(mesh){field(mesh.hashId);field(mesh.positions);field(mesh.version);field(mesh.replicaSource?.version);field(mesh.vertexCount);field(mesh.triangleCount);}
+      field(appearanceRevision);
+      for(const mesh of scene.meshes){
+        if(mesh.frameVisible===false)continue;
+        geometry(mesh);matrix(mesh.frameWorld||objectWorld(mesh.hashId));matrix(projectionMatrix(mesh));
+      }
+      for(const owner of cloudRows()){
+        if(!helperShown(owner.nativeHash)||!lightShown(owner.nativeHash)||!frameSoloContains(owner))continue;
+        field(owner.nativeHash);matrix(objectWorld(owner.nativeHash));matrix(nativeValue(owner.nativeHash,'projection')||[]);
+        for(const row of owner.instanceCloud){
+          const source=scene.meshes.find(m=>m.hashId===row.source&&!m.replicaMatrix);if(!source)continue;
+          geometry(source);field(owner.pluginRecords?.[row.field]?.value);
+        }
+      }
+      if(changed||at!==renderGeometryState.length)renderGeometryRevision++;
+      renderGeometryState.length=at;return renderGeometryRevision;
+    }
     async function renderTick(manual=false,exporting=false){
-      if(!renderer||!scene)return;const config=cameraConfig(),view=renderView(),realtime=config?.params.realtime==='on';if(realtime!==lastRealtime){lastRealtime=realtime;renderBlocked='';if(realtime)renderSignature='';}if(!config||!view){pathtracer?.stop(true);return;}
-      if(config.params.renderer==='Viewport'){pathtracer?.stop(true);return;}if(!manual&&!renderManual&&config.params.realtime!=='on'&&!pathtracer?.hasImage)return;
-      const sceneKey=frameValueKey([scene.meshes.filter(m=>m.frameVisible).map(m=>[m.hashId,m.version,m.vertexCount,m.triangleCount,Array.from(objectWorld(m.hashId)),Array.from(projectionMatrix(m))]),appearanceRevision]),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})},signature=frameValueKey([sceneKey,view,config.params,environment]);
+      if(!renderer||!scene)return;
+      const config=cameraConfig(),configKey=config?frameValueKey([config.nativeHash,config.params]):'';
+      if(configKey!==renderConfigKey){renderConfigKey=configKey;renderSignature=renderBlocked=previewSignature='';realtimeRequest=null;pathtracer?.stop(config?.params.realtime!=='on'||config.params.renderer==='Viewport');}
+      const view=config&&renderView(),realtime=config?.params.realtime==='on';
+      if(renderScene!==scene||!config){pathtracer?.dispose();pathtracer=null;renderSignature=previewSignature='';realtimeRequest=null;renderGeometryState.length=0;renderScene=config?scene:null;}
+      if(!view||config.params.renderer==='Viewport'){realtimeRequest=null;renderSignature=previewSignature='';if(pathtracer?.running||pathtracer?.canvas.style.display==='block')pathtracer.stop(true);return;}
+      if(!manual&&!realtime&&!pathtracer?.hasImage)return;
+      // The owner of the in-flight preview schedules a fresh read of the latest
+      // camera after presentation. Drag events never queue intermediate poses.
+      if(!manual&&realtimeRequest)return;
+      const sceneKey=cameraSceneRevision(),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
       view.camera.fov=45;updateViewportEnvironment(renderer);environment.lobes=renderer.environment?.sources||[];if(environment.mode==='default')environment.infiniteLights=[];if(environment.mode==='image'&&!environment.image)throw Error('Set the Camera environment image URL');if(environment.infiniteLights.length>16)throw Error('Path tracing supports up to 16 enabled infinite lights');
-      if(renderScene!==scene){pathtracer?.dispose();pathtracer=null;renderSignature='';renderScene=scene;}
-      if(signature===renderSignature&&!manual)return;if(signature===renderBlocked&&!manual)return;renderSignature=signature;renderBlocked='';
-      if(!manual&&!renderManual&&config.params.realtime!=='on'){pathtracer?.stop(true);return;}
+      const signature=frameValueKey([sceneKey,view,configKey,environment]);
+      const moving=!!(playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());
+      const refine=signature===previewSignature&&!moving;
+      if(!manual){
+        if(renderBlocked===null)renderBlocked=signature;
+        if(signature===renderBlocked||signature===renderSignature&&!refine)return;
+      }
+      renderSignature=signature;renderBlocked=previewSignature='';
+      if(!manual&&!realtime){pathtracer?.stop(true);return;}
       pathtracer??=Function('return ('+document.getElementById('frame-pathtracer').textContent+')')()(frameViewElement(0),renderer.device,renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
-      const moving=!exporting&&!!(heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing()),pixels=view.rect.w*view.rect.h,scale=Math.min(1,Math.sqrt(160000/Math.max(1,pixels)));
+      const interactive=!manual&&!refine,pixels=view.rect.w*view.rect.h,scale=Math.min(1,Math.sqrt(160000/Math.max(1,pixels)));
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
-      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:moving?2:Math.max(1,Math.round(config.params.samples||128)),giStrength:1,displayHz:FRAME_FPS,denoise:true,previewPresentation:!exporting,...exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:moving?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
-      if(moving)job.then(()=>{renderSignature='';scheduleRenderPreview();});return job;
+      const samples=Math.max(1,Math.round(config.params.samples||128));
+      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,previewPresentation:!exporting,...exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
+      if(!interactive){realtimeRequest=null;return job;}
+      const tracer=pathtracer,epoch=tracer.epoch;
+      realtimeRequest=job;
+      try{await job;}finally{
+        if(realtimeRequest===job){
+          realtimeRequest=null;
+          if(tracer===pathtracer&&tracer.epoch===epoch&&tracer.completed){previewSignature=signature;scheduleRenderPreview();}
+        }
+      }
     }
     function renderMP4(chunks,config,description){
       const bytes=(...values)=>Uint8Array.from(values),text=s=>new TextEncoder().encode(s),u16=n=>bytes(n>>>8,n),u32=n=>bytes(n>>>24,n>>>16,n>>>8,n),join=parts=>{const out=new Uint8Array(parts.reduce((n,p)=>n+p.length,0));let at=0;for(const p of parts){out.set(p,at);at+=p.length;}return out;},box=(name,...parts)=>{const data=join(parts);if(data.length>0xfffffff0)throw Error('Video exceeds the MP4 chunk size');return join([u32(data.length+8),text(name),data]);},full=(name,flags,...parts)=>box(name,u32(flags),...parts),zeros=n=>new Uint8Array(n),matrix=join([u32(65536),u32(0),u32(0),u32(0),u32(65536),u32(0),u32(0),u32(0),u32(0x40000000)]);
@@ -16679,7 +16826,7 @@ window.frameEngine=(()=>{
       }catch(error){if(error.name!=='AbortError')throw error;return {kind,cancelled:true,elapsedMs:performance.now()-started};}finally{if(encoder&&encoder.state!=='closed')encoder.close();renderExportJob=null;renderManual=renderExporting=false;renderStatus();if(kind==='video'){setTimelineFrame(savedFrame);await animationSerial;await FrameMorph.flush();await FrameSpline.flush();syncCameraView();}if(job.cancelled)renderBlocked=renderSignature;else renderSignature='';if(wasPlaying)setTimelinePlaying(true);if(!job.cancelled)scheduleRenderPreview();}
     }
 
-    async function renderStart(){if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}if(single&&viewIndex!==0){activateFrameView(0);renderViews();}syncCameraView();renderManual=true;renderBlocked='';try{await renderTick(true);return renderState();}finally{renderManual=false;}}
+    async function renderStart(){if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}if(single&&viewIndex!==0){activateFrameView(0);renderViews();}syncCameraView();const owner=++manualGeneration;renderManual=true;renderBlocked='';try{await renderTick(true);return renderState();}finally{if(owner===manualGeneration)renderManual=false;}}
     FrameViewWindows.onDocument('visibilitychange',()=>{if(frameViewElement(0)?.ownerDocument.hidden)pathtracer?.stop(true);else{renderSignature='';scheduleRenderPreview();}});
 
     // BEGIN native-environment
@@ -18908,16 +19055,16 @@ fn occupied(p:vec2i,channel:u32)->bool{
       selectedMesh=null;selectionBox=null;editDrag=null;editFinishing=false;editPipelines=null;editInit=null;
       undoGPU=null;undoRAM=[];undoBytes=0;undoReservedBytes=0;undoBusy=false;window.frameProgramRefresh?.('history-ready');archiveTask=null;lazyTask=null;maintenanceBusy=false;creaseJobs.clear();
       editSerial=Promise.resolve();selectionQueue=Promise.resolve();pendingWheel=null;wheelBusy=false;wheelNavigation=null;
-      pathtracer?.dispose();pathtracer=null;clearTimeout(renderTimer);renderTimer=0;renderScene=null;renderSignature='';scene=null;renderer=null;rendererPromise=null;gpuAllocations.clear();allocatedBytes=0;gpuAllocationPeak=0;handles.hidden=true;updateMemoryStats();
+      pathtracer?.dispose();pathtracer=null;clearTimeout(renderTimer);renderTimer=0;renderScene=null;renderSignature=previewSignature='';realtimeRequest=null;renderGeometryState.length=0;scene=null;renderer=null;rendererPromise=null;gpuAllocations.clear();allocatedBytes=0;gpuAllocationPeak=0;handles.hidden=true;updateMemoryStats();
     }
     function touchActivity(){activity++;lastActivity=performance.now();clearTimeout(idleTimer);idleTimer=setTimeout(idleMaintenance,IDLE_DELAY);}
     function isIdle(){return !heldPointers.size&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!drag&&!boxDrag&&!selectionBusy&&!button.disabled&&!undoBusy&&!wheelBusy&&!pendingWheel&&performance.now()>=(renderer?.hoverReadyAt||0)&&performance.now()-lastActivity>=IDLE_DELAY-2;}
     for(const type of ['pointerdown','pointermove','pointerup','pointercancel','wheel','keydown'])FrameViewWindows.onWindow(type,e=>{
       if(type==='pointerdown')heldPointers.add(e.pointerId);
-      if(type==='pointerup'||type==='pointercancel')heldPointers.delete(e.pointerId);
+      if(type==='pointerup'||type==='pointercancel'){heldPointers.delete(e.pointerId);if(previewSignature)scheduleRenderPreview();}
       if(type!=='pointermove'||e.buttons||editDrag||drag)touchActivity();if(type==='wheel')deferHoverMaps(120);if(type==='pointerup'||type==='pointercancel')deferHoverMaps();
     },{capture:true,passive:true});
-    FrameViewWindows.onWindow('blur',()=>{heldPointers.clear();touchActivity();});
+    FrameViewWindows.onWindow('blur',()=>{heldPointers.clear();touchActivity();if(previewSignature)scheduleRenderPreview();});
     function editError(error){if(error.name==='AbortError')return;canvas.dataset.operationError=error.message;canvas.dataset.operationStack=error.stack||error.message;}
     async function getEditPipelines(){
       if(editInit)return editInit;const gpu=renderer,d=gpu.device;
