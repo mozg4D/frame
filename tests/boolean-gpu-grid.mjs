@@ -46,6 +46,7 @@ export async function booleanGpuGridChecks(page,{dense=false,rounds=1}={}){
       check(layout+' '+op+' '+(enabled?'GPU':'CPU')+' publishes within budget',!owner.buildError&&report?.trusted&&report.watertight&&ms<45000,{ms,error:owner.buildError,report:report?.postTransfer});
       check('Selected '+(enabled===true?'hybrid':'CPU')+' backend',report.backend===(enabled===true?'webgpu-grid-cpu':'frame-js-r6'),report.backend);
       if(layout==='coplanar')check('Coplanar patches enter the exact resolver',report.coplanarPairs>0,report.coplanarPairs);
+      else check('Curved or contained operands skip the planar cache',report.coplanarPairs===0&&report.patchCacheMs===0,{pairs:report.coplanarPairs,ms:report.patchCacheMs});
       if(enabled===true&&layout==='contained')check('Containment survives an empty candidate set',report.gpuFilter.candidateTriangles===0,report.gpuFilter);
       const hashes=await page.evaluate(async()=>{
         const result=__gridTest.result;

@@ -50,6 +50,7 @@ import {splinePatchNormalChecks} from './spline-patch-normals.mjs';
 import {booleanPatchFeedbackChecks} from './boolean-patch-feedback.mjs';
 import {booleanIsoparmsChecks} from './boolean-isoparms.mjs';
 import {booleanGpuGridChecks} from './boolean-gpu-grid.mjs';
+import {booleanKernelChecks} from './boolean-kernel.mjs';
 import {symmetrySelectionChecks} from './symmetry-selection.mjs';
 import {objectEnableChecks} from './object-enable.mjs';
 import {filePermissionActivationChecks} from './file-permission-activation.mjs';
@@ -219,6 +220,7 @@ try{
   report.diagnosticPixelsContractCPU=await runStage('diagnosticPixelsContractCPU',()=>diagnosticPixelsContractChecks());
   report.splineCornerEvidenceCPU=await runStage('splineCornerEvidenceCPU',()=>splineCornerEvidenceContractChecks());
   report.animationTransactionCPU=await runStage('animationTransactionCPU',()=>animationTransactionChecks());
+  report.booleanKernelCPU=await runStage('booleanKernelCPU',booleanKernelChecks);
   report.motionPathPerspectiveCPU=await runStage('motionPathPerspectiveCPU',()=>motionPathPerspectiveChecks());
   report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
     context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime requested: '+id);}});
