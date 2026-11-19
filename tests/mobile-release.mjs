@@ -1,4 +1,5 @@
 import {launch,ready} from '../tools/browser.mjs';
+import {isOrthoWirePixel} from './diagnostic-pixels.mjs';
 import {readFile,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -28,7 +29,7 @@ export async function mobileReleaseChecks(page){
   const fixedPoint=(await call('view.project',{point:[-100,0,0]})).screen;
   for(const shading of ['wireframe','isoparms']){await call('view.set',{shading});await call('diagnostics.frame',{frames:3});const points=Array.from({length:7},(_,i)=>[fixedPoint[0]+i-3,fixedPoint[1]]),before=(await call('diagnostics.pixels',{points})).colors;
    await page.evaluate(()=>{window.__gridNumeric=frameEngine.beginNumeric();frameEngine.applyNumeric('position',0,frameEngine.transformState.position[0]+10);return frameEngine.draw(true);});const during=(await call('diagnostics.pixels',{points})).colors;
-   check(shading+' moving cache keeps the grid below stationary edges',JSON.stringify(before)===JSON.stringify(during)&&before.some(c=>c.slice(0,3).every(v=>v===(shading==='wireframe'?128:0))),{before,during});await page.evaluate(()=>frameEngine.finishNumeric(__gridNumeric,true));await state();
+   check(shading+' moving cache keeps the grid below stationary edges',JSON.stringify(before)===JSON.stringify(during)&&before.some(isOrthoWirePixel),{before,during});await page.evaluate(()=>frameEngine.finishNumeric(__gridNumeric,true));await state();
   }
   await clear();n=await call('mesh.create',{vertices:[-40,-40,0,40,-40,0,0,40,0],indices:[0,1,2]});await call('scene.select',{ids:[n.hash]});await call('view.set',{index:2,single:true,mode:'object',shading:'solid',focus:n.hash});
   // Move beyond the old camera origin, keeping the same XY projection and camera.

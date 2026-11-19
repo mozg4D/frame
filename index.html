@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 23:22">
+<meta name="frame-version" content="2026 19 nov 23:45">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -14640,6 +14640,7 @@ for(const area of [$('matList'),$('texScroll')])area.addEventListener('pointerdo
 // Native WebGPU guides. World coordinates are millimeters, independent of display units.
 // Keep the import.html camera convention: Y up, yaw .4, pitch .65, FOV 45 degrees.
 const frameViewportClear=[16/255,16/255,16/255,1],frameViewportGridScale=20/29;
+const frameOrthoMajorGrid=.28*frameViewportGridScale;
 function frameViewportGuides(){
   const data=[],grid=[.21,.22,.23].map(value=>value*frameViewportGridScale);
   const line=(a,b,color)=>data.push(...a,...color,...b,...color);
@@ -19674,8 +19675,8 @@ window.frameEngine=(()=>{
       const line=(x1,y1,x2,y2,color)=>data.push(x1,y1,z,...color,x2,y2,z,...color);
       // Generate viewport-local positions in double precision, then upload small NDC offsets.
       // Integer loop indices and a bounded screen density avoid accumulation and far-origin Float32 jitter.
-      for(const [step,color]of [[minor,[.19,.19,.19]],[major,[.28,.28,.28]]])for(const [c,half,vertical]of [[u,halfW,true],[v,halfH,false]]){
-        const phase=c%step,first=Math.ceil((-half+phase)/step),last=Math.floor((half+phase)/step),shade=color.map(value=>value*frameViewportGridScale);
+      for(const [step,level]of [[minor,.19*frameViewportGridScale],[major,frameOrthoMajorGrid]])for(const [c,half,vertical]of [[u,halfW,true],[v,halfH,false]]){
+        const phase=c%step,first=Math.ceil((-half+phase)/step),last=Math.floor((half+phase)/step),shade=[level,level,level];
         for(let n=first;n<=last;n++){
           const position=(n*step-phase)/half;
           if(vertical)line(position,-1,position,1,shade);else line(-1,position,1,position,shade);
@@ -20938,9 +20939,30 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       })().catch(editError);return r.wireRasterInit;
     }
     function clearWirePixels(r){if(r?.wireRaster){releaseGPU(r.wireRaster.pixels);r.wireRaster.pixels=null;}}
+    const orthoWireColors=new WeakMap();
+    function orthoWireColor(mesh,material){
+      const key=mesh.replicaKey||mesh.hashId||'',cached=orthoWireColors.get(mesh);
+      if(cached&&cached.key===key&&cached.material===material)return cached.color;
+      let hue;
+      if(material&&material[1]*(1-Math.abs(material[2]/50-1))>2)hue=material[0];
+      else{
+        // Authored hashes and occurrence paths survive a HASH round trip.
+        let seed=2166136261;
+        for(let i=0;i<key.length;i++)seed=Math.imul(seed^key.charCodeAt(i),16777619);
+        // Mix the final bits so successive occurrence indices get independent hues.
+        seed=Math.imul(seed^(seed>>>16),0x85ebca6b);
+        hue=((seed^(seed>>>13))>>>0)%360;
+      }
+      const rgb=hsl2rgb(hue,1,.5),spread=.14;
+      const base=frameOrthoMajorGrid+.09-spread*(.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2]);
+      const color=[base+spread*rgb[0],base+spread*rgb[1],base+spread*rgb[2],1];
+      orthoWireColors.set(mesh,{key,material,color});return color;
+    }
     function meshWireColor(mesh){
-      if(shadingMode!=='wireframe')return [0,0,0,1];
+      const ortho=frameViewKind(viewIndex);
+      if(!ortho&&shadingMode!=='wireframe')return [0,0,0,1];
       const uid=mesh.materialTags?.findLast(t=>!t.mask)?.materialUID,material=uid&&appearanceValue(uid,'parameters');
+      if(ortho)return orthoWireColor(mesh,material);
       if(!material)return [.5,.5,.5,1];
       const rgb=hsl2rgb(material[0],material[1]/100,material[2]/100);
       const luma=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2],minimum=frameViewportClear[0]+.14;
@@ -20951,7 +20973,8 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       if(!['wireframe','isoparms'].includes(shadingMode)||width*height*4>r.device.limits.maxStorageBufferBindingSize)return null;ensureWireRaster(r);const wire=r.wireRaster;if(!wire)return null;
       if(!wire.pixels||wire.width!==width||wire.height!==height){clearWirePixels(r);wire.width=width;wire.height=height;wire.pixels=makeGPUBuffer(r.device,{label:'wire coverage pixels',size:width*height*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});const entries=[{binding:0,resource:{buffer:r.uniform}},{binding:1,resource:{buffer:wire.pixels}}];wire.paint=r.device.createBindGroup({layout:wire.present.getBindGroupLayout(0),entries});wire.global=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(0),entries});}
       encoder.clearBuffer(wire.pixels);const pass=encoder.beginComputePass();pass.setPipeline(wire.compute);pass.setBindGroup(0,wire.global);let visible=0;
-      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;const flags=(mesh.paged?1:0)|(shadingMode==='isoparms'?2:0)|(mesh.splineHighlightActive?4:0),rgb=meshWireColor(mesh),color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
+      const markCage=shadingMode==='isoparms'&&(!frameViewKind(viewIndex)||elementMode!=='object');
+      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;const flags=(mesh.paged?1:0)|(markCage?2:0)|(mesh.splineHighlightActive?4:0),rgb=meshWireColor(mesh),color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
         if(!state||state.positions!==mesh.positions||state.lines!==part.lines||state.edges!==edges||state.frame!==mesh.objectFrame||state.mask!==part.splineWireEdges){if(state&&mesh.buffers.includes(state.counts)){releaseGPU(state.counts);mesh.buffers=mesh.buffers.filter(b=>b!==state.counts);}const counts=makeGPUBuffer(r.device,{label:'wire raster counts',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});mesh.buffers.push(counts);r.device.queue.writeBuffer(counts,0,new Uint32Array([edges,flags,color,part.count/3]));const group=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(1),entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:part.lines}},{binding:2,resource:{buffer:mesh.objectFrame}},{binding:3,resource:{buffer:counts}},{binding:4,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:5,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});state=part.wireRaster={positions:mesh.positions,lines:part.lines,frame:mesh.objectFrame,mask:part.splineWireEdges,edges,counts,group};}
         if(state.color!==color||state.flags!==flags){r.device.queue.writeBuffer(state.counts,4,new Uint32Array([flags,color]));state.color=color;state.flags=flags;}const groups=Math.ceil(edges/128),nx=Math.min(groups,r.device.limits.maxComputeWorkgroupsPerDimension);if(nx){pass.setBindGroup(1,state.group);pass.dispatchWorkgroups(nx,Math.ceil(groups/nx));}
       }}pass.end();return {wire,visible};
@@ -25801,15 +25824,12 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     });}
 
     function replicaDisplay(mesh){for(let source=mesh;source;source=source.replicaSource){const display=source.display||splineDisplays.get(source.hashId);if(display)return display;}return null;}
-    const splineUniformValues=new WeakMap();
-    function writeSplineDisplayFrame(buffer,matrix,tangent=false){
+    const splineUniformValues=new WeakMap(),splineCageColor=[.18095,.3542,.4158,1],splineTangentColor=[.435,.51,.565,1];
+    function writeSplineDisplayFrame(buffer,matrix,color=splineCageColor){
       let values=splineUniformValues.get(buffer);
-      if(values&&matrix.every((v,i)=>Object.is(Math.fround(v),values[i])))return;
-      if(!values){
-        values=new Float32Array(20);values.set(tangent?[.435,.51,.565,1]:[.18095,.3542,.4158,1],16);
-        splineUniformValues.set(buffer,values);
-      }
-      values.set(matrix);renderer.device.queue.writeBuffer(buffer,0,values);
+      if(values&&color.every((v,i)=>Math.fround(v)===values[16+i])&&matrix.every((v,i)=>Object.is(Math.fround(v),values[i])))return;
+      if(!values)splineUniformValues.set(buffer,values=new Float32Array(20));
+      values.set(matrix);values.set(color,16);renderer.device.queue.writeBuffer(buffer,0,values);
     }
     function drawSplineDisplays(pass){
       if(shadingMode==='off'||!splinePipelines)return;
@@ -25840,8 +25860,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     function encodeSplineDisplays(pass,retain=false){
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms',solidCages=!wire||shadingMode==='wireframe'&&!!renderer.wireRaster?.pixels;
-      const ortho=!!frameViewKind(viewIndex),pipelines=splinePipelines[ortho?1:0],surfaces=new Set();
-      if(splineDisplays.size)for(const m of scene.meshes)if(!m.replicaMatrix&&m.frameVisible!==false)surfaces.add(m.hashId);
+      const ortho=!!frameViewKind(viewIndex),tintParts=ortho&&wire&&elementMode==='object',pipelines=splinePipelines[ortho?1:0],surfaces=new Map();
+      if(splineDisplays.size)for(const m of scene.meshes)if(!m.replicaMatrix&&m.frameVisible!==false)surfaces.set(m.hashId,m);
       const selectedHashes=splineDisplays.size?new Set(objectSelection):null;
       for(const d of splineDisplays.values()){
         if(!d.visible||!d.controlCount)continue;
@@ -25849,12 +25869,12 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const active=FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
         const selected=selectedHashes.has(d.hash)||active,editable=FrameSpline.isEditable(owner);
         const showControls=editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
-        const parent=node(owner.parent),covered=d.consumed||surfaces.has(d.hash)||parent?.type==='spline_patch'&&surfaces.has(parent.nativeHash);
+        const parent=node(owner.parent),surface=surfaces.get(d.hash)||(parent?.type==='spline_patch'?surfaces.get(parent.nativeHash):undefined),covered=d.consumed||surface;
         const drawCage=!solidCages||!covered;
         const highlights=!drawCage&&shadingMode==='solid'&&selected&&editable&&['edge','polygon'].includes(elementMode)&&d.lineHighlightRuns?.length;
         if(!drawCage&&!showControls&&!highlights||FrameSpline.sourceNode(owner))continue;
-        const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix);
-        if(showControls)writeSplineDisplayFrame(d.handleUniform,matrix,true);
+        const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix,tintParts&&surface?meshWireColor(surface):splineCageColor);
+        if(showControls)writeSplineDisplayFrame(d.handleUniform,matrix,splineTangentColor);
         const group=(pipeline,buffer)=>{
           const key=(ortho?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();
           if(!cache.has(buffer)){
@@ -25874,7 +25894,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);
         if(!retain&&!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))return;
         m.curveUniform??=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-        writeSplineDisplayFrame(m.curveUniform,matrix);
+        writeSplineDisplayFrame(m.curveUniform,matrix,tintParts&&!m.curve?meshWireColor(m):splineCageColor);
         m.curveGroups??=[];const key=ortho?1:0;let cache=m.curveGroups[key];
         if(cache?.lines!==d.lines){
           const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}},{binding:3,resource:{buffer:renderer.dummyReadBuffer}}]});

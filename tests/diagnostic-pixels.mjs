@@ -1,5 +1,9 @@
 // Test-only adapter. Keep the shipped diagnostics.pixels API limit unchanged.
 export const DIAGNOSTIC_PIXEL_LIMIT=64;
+export function isOrthoWirePixel([r,g,b]){
+ const luma=.2126*r+.7152*g+.0722*b,spread=Math.max(r,g,b)-Math.min(r,g,b);
+ return luma>68&&luma<76&&spread>=28&&spread<=40;
+}
 // diagnostics.pixels accepts CSS coordinates; visit adjacent physical pixels.
 export function physicalPixelNeighborhoods(screens,rect,backing){
  const stepX=rect.width/backing.width,stepY=rect.height/backing.height;
