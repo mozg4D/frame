@@ -288,12 +288,14 @@ constexpr int sides[6][4]={{0,3,2,1},{4,5,6,7},{0,1,5,4},{3,7,6,2},{0,4,7,3},{1,
 struct Pattern { int count=0; int loop[12]{}; bool simple=false; };
 struct Tables {
     int sideEdges[6][4]{};
+    int commonSide[12][12]{};
     Pattern patterns[256];
     Tables(){
         for(int s=0;s<6;++s)for(int j=0;j<4;++j){
             int a=sides[s][j],b=sides[s][(j+1)%4];
             for(int e=0;e<12;++e)if((a==edges[e][0]&&b==edges[e][1])||(a==edges[e][1]&&b==edges[e][0]))sideEdges[s][j]=e;
         }
+        for(int s=0;s<6;++s)for(int a:sideEdges[s])for(int b:sideEdges[s])if(a!=b)commonSide[a][b]=s;
         for(int mask=1;mask<255;++mask){
             int next[12];std::fill(next,next+12,-1);
             bool ambiguous=false;int segmentCount=0,first=-1;
@@ -319,18 +321,25 @@ const Tables tables;
 struct Surface {
     Vertices vertices{4096};
     std::vector<U> indices;
-    U regular=0,ambiguous=0;
+    U regular=0,ambiguous=0,referenceFaces=0,patches=0,fittedCells=0,omittedCrossings=0,fallbackTiles=0;
 };
 #include "unite-surface.h"
 static double fraction(double a,double b){
     return std::clamp(std::abs(a)/(std::abs(a)+std::abs(b)),1.0/96,95.0/96);
 }
+struct Axes {
+    D origin; double pitch; const double* knots[3];
+    double coordinate(int axis,int i,double t=0) const {
+        if(!knots[axis])return at(origin,axis)+pitch*(i+t);
+        const auto* k=knots[axis];return t==0?k[i]:(t==1?k[i+1]:k[i]+t*(k[i+1]-k[i]));
+    }
+};
 struct Cell {
-    int x,y,z; double h; D origin;
+    int x,y,z; const Axes& axes;
     int f[8]; V cut[12], spoke[8]; bool ready[12]{}, spokeReady[8]{};
     Surface& layer; bool invalid=false;
     V world(double dx,double dy,double dz) const {
-        return {float(origin.x+h*(x+dx)),float(origin.y+h*(y+dy)),float(origin.z+h*(z+dz))};
+        return {float(axes.coordinate(0,x,dx)),float(axes.coordinate(1,y,dy)),float(axes.coordinate(2,z,dz))};
     }
     V crossing(int e){
         if(!ready[e]){
@@ -405,8 +414,12 @@ API void surface_counts(Surface* s,U* stats){
     stats[0]=U(s->vertices.points.size());stats[1]=U(s->indices.size());
     stats[2]=s->regular;stats[3]=s->ambiguous;
 }
+#include "unite-contour.h"
 API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int firstZ,
-                     double ox,double oy,double oz,double pitch){
+                     double ox,double oy,double oz,double pitch,unsigned optimize,
+                     const double* xs,const double* ys,const double* zs){
+    Axes axes{{ox,oy,oz},pitch,{xs,ys,zs}};
+    if(optimize)return unite_contour::adaptive(*s,field,nx,ny,nz,firstZ,axes,optimize);
     const int plane=nx*ny;
     for(int z=0;z<nz-1;++z)for(int y=0;y<ny-1;++y){
         const auto row=field+size_t(z)*plane+size_t(y)*nx;
@@ -419,7 +432,7 @@ API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int fi
             int right=sideMask(x+1);
             if((left|right)!=0 && (left&right)!=15){
                 const auto q=row+x;
-                Cell c{x,y,firstZ+z,pitch,{ox,oy,oz},
+                Cell c{x,y,firstZ+z,axes,
                     {q[0],q[1],q[nx+1],q[nx],q[plane],q[plane+1],q[plane+nx+1],q[plane+nx]},
                     {},{},{},{},*s};
                 int mask=0;for(int k=0;k<8;++k)mask|=int(c.f[k]>0)<<k;
