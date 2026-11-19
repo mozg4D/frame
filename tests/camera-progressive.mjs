@@ -13,9 +13,14 @@ export async function cameraProgressiveChecks(page){
       if(device.adapterInfo.isFallbackAdapter)throw Error('Hardware adapter required');
       device.pushErrorScope('validation');
       const script=document.querySelector('#frame-pathtracer');
-      window.progressiveFixture={factory:Function('return ('+script.textContent+')')()};
-      script.textContent=script.textContent.replace('return new FrameRenderer(container,changed);',
-        'progressiveFixture.distribution=environmentDistribution;return progressiveFixture.camera=new FrameRenderer(container,changed);');
+      window.progressiveFixture={factory:Function('return ('+script.textContent+')')(),startup:[]};
+      script.textContent=script.textContent.replace('return new FrameRenderer(container,changed);',`
+        progressiveFixture.distribution=environmentDistribution;
+        const camera=progressiveFixture.camera=new FrameRenderer(container,changed);
+        const build=camera.buildScene.bind(camera),compile=camera.initCameraPipelines.bind(camera);
+        camera.buildScene=async(...args)=>{await build(...args);progressiveFixture.startup.push('scene ready');};
+        camera.initCameraPipelines=(...args)=>{progressiveFixture.startup.push('compile');return compile(...args);};
+        return camera;`);
     });
     await call('scene.new');
     const car=await call('scene.create',{type:'car'});
@@ -28,6 +33,10 @@ export async function cameraProgressiveChecks(page){
       }
       const initial=await call('render.start');
       assert.equal(initial.phase,'complete',JSON.stringify(initial.errors));
+      if(scene==='opaque'){
+        assert.deepEqual(await page.evaluate(()=>progressiveFixture.startup),['compile','scene ready']);
+        assert.ok(initial.snapshot.bufferBatches>0,'Camera reads the stock mesh and its material masks in a single batch');
+      }
       await call('render.stop');
       const result=await page.evaluate(async scene=>{
         const sky=scene==='unlit sky',cached=!sky&&scene!=='transmission';
@@ -162,8 +171,11 @@ export async function cameraProgressiveChecks(page){
       const variants=[];
       for(const edit of [null,{base64:normalMap},{remove:true}]){
         if(edit)await call('material.texture',{material:material.uid,slot:'normal',...edit});
+        await page.evaluate(()=>{progressiveFixture.startup.length=0;});
         const frame=await call('render.start');
         assert.equal(frame.phase,'complete',JSON.stringify(frame.errors));
+        if(edit)assert.deepEqual(await page.evaluate(()=>progressiveFixture.startup),['compile','scene ready'],
+          'Material specialization starts before geometry and texture uploads finish at '+samples+' samples');
         variants.push(await page.evaluate(()=>{
           const {camera}=progressiveFixture;
           progressiveFixture.untexturedPipeline??=camera.gatherIrradiance;

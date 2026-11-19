@@ -69,16 +69,20 @@ try{
   // Hold an actual cold scene snapshot open across Stop. Resolving the old work
   // must not reveal the overlay or enqueue a refinement for the stopped camera.
   await page.evaluate(()=>{
-    const tracer=cameraTest.tracer,start=tracer.start.bind(tracer);
+    const tracer=cameraTest.tracer,start=tracer.start.bind(tracer),compile=tracer.initCameraPipelines.bind(tracer);
+    tracer.initCameraPipelines=(mode,...args)=>{
+      if(mode==='realtime')cameraTest.previewPipelineRequested=true;
+      return compile(mode,...args);
+    };
     tracer.start=opts=>start({...opts,getScene:async cancelled=>{
       await new Promise(resolve=>cameraTest.unblock=resolve);
       if(cancelled())throw new DOMException('Stopped','AbortError');
       return opts.getScene(cancelled);
     }});
-    cameraTest.restore=()=>{tracer.start=start;};
+    cameraTest.restore=()=>{tracer.start=start;tracer.initCameraPipelines=compile;};
   });
   const sphere=await call('scene.create',{type:'sphere',params:{diameter:100}});
-  await page.waitForFunction(()=>!!cameraTest.unblock);
+  await page.waitForFunction(()=>!!cameraTest.unblock&&cameraTest.previewPipelineRequested,null,{timeout:5000});
   await call('render.stop');
   await page.evaluate(()=>{cameraTest.restore();cameraTest.unblock();});
   await page.waitForTimeout(150);
