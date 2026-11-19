@@ -7,7 +7,8 @@ import {fileURLToPath} from 'node:url';
 // unrelated editor/rendering ownership is inert; no replacement naming algorithm.
 function harness(html){
  const kernel=Function('return ('+html.match(/<script id="frame-spline-kernel" type="text\/plain">([\s\S]*?)<\/script>/)[1]+')')()();
- const definitionSource=html.match(/^const boltLabels = .*$/m)[0]+'\n'+html.slice(html.indexOf('const approximation ='),html.indexOf('const generatorTypes'))+'\n'+html.match(/^const defaults = .*$/m)[0];
+ const defaultsStart=html.indexOf('const defaults = fields =>');
+ const definitionSource=html.match(/^const boltLabels = .*$/m)[0]+'\n'+html.slice(html.indexOf('const approximation ='),html.indexOf('const generatorTypes'))+'\n'+html.slice(defaultsStart,html.indexOf('\n\n',defaultsStart));
  const factorySource=html.slice(html.indexOf('function hardwareName('),html.indexOf('function demo()'));
  const parameterSource=html.slice(html.indexOf('      function parameters('),html.indexOf('\n',html.indexOf('      function parameters(')));
  const handlerSource=html.slice(html.indexOf("      register('scene.create'"),html.indexOf("      register('morph.edit'"));

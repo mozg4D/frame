@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 12:30">
+<meta name="frame-version" content="2026 19 nov 13:35">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12091,6 +12091,9 @@ const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;'
 // A field is a number, text, boolean, or a short list of choices. No scene geometry.
 const approximation = {'angle approximation':10};
 const hardware = {size:['M6','M3','M4','M5','M8','M10','M12','M16'],'angle approximation':20};
+const stockCarAssets={hatchback:'car-hatchback-1',sedan:'car-sedan-1'};
+// Choice indices are stored in animation tracks.
+const carPaintPresets={red:[10,33,44],gold:[52,100,37],blue:[217,40,42],silver:[0,0,50],graphite:[0,0,25],green:[82,100,22],white:[0,0,91],violet:[250,50,40],beige:[40,30,60],black:[0,0,8]};
 const definitions = {
   group:['Group','ICO_BROWSER_UNFOLDED',{}],
   mesh:['Polygon object','ICO_POLYGON_OBJECT',{}],
@@ -12118,7 +12121,7 @@ const definitions = {
   symmetry:['Symmetry','ICO_SYMMETRY',{'Morph symmetry':true,X:true,Y:false,Z:false}],
   cloner:['Cloner','ICO_CLONER',{type:['radial','matrix','object'],count:5,radius:100,angle:360,'count x':3,'count y':3,'count z':3,'spacing x':100,'spacing y':100,'spacing z':100,object:'Drop object',step:100,offset:0,align:['parallel','tangent'],'random position x':0,'random position y':0,'random position z':0,'random angle x':0,'random angle y':0,'random angle z':0,'uniform scale':true,'random scale x':0,'random scale y':0,'random scale z':0,seed:1}],
   instance:['Instance','ICO_INSTANCE',{object:'',file:''}],
-  car:['Car','car',{'color preset':['red','gold','blue','silver','graphite','green','white','violet','beige','black']}],
+  car:['Car','car',{'color preset':Object.keys(carPaintPresets)}],
   tree:['Tree','tree',{type:['bush','spruce','oak','poplar'],detail:['low','high']}],
   human:['Human','human',{type:['man','woman'],pose:['stand','sit','walk']}],
   render:['Camera','camera',{renderer:['Path tracer','Viewport'],'resolution x':1920,'resolution y':1080,samples:128,realtime:['on','off'],'realtime during navigation':true,environment:['off','default','image'],'environment image':''}],
@@ -12201,7 +12204,11 @@ function frameLoadNodes(){if(!window.frameEngine?.nativeLoading){frameLoadNodeIn
 const children = id => frameReadNodeIndex?.nodes===nodes&&frameReadNodeIndex.count===nodes.length?frameReadNodeIndex.byParent.get(id)||[]:frameLoadNodes()?.byParent.get(id)||(!window.frameEngine?.nativeLoading?nodes.filter(n=>n.parent===id):[]);
 const node = id => frameLookupNode(id);
 const current = () => node(selectedTag?.owner||(selected.has(focusId)?focusId:[...selected][0]));
-const defaults = fields => Object.fromEntries(Object.entries(fields).map(([k,v]) => [k,Array.isArray(v)?v[0]:v]));
+const defaults = fields => {
+  const values=Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]));
+  if(fields===definitions.car[2])values['color preset']='blue';
+  return values;
+};
 
 // Immutable native record leases. UI history stores small IDs; binary authoring
 // values share the native chronological history and its existing RAM budget.
@@ -13533,8 +13540,20 @@ function frameInstallMaterialState(data,prepared){
   const list=data?.library?.length?data.library:frameDefaultMaterials;
   materials.splice(0,materials.length,...list.map(m=>{const copy={...m,map:null,opacityMap:null};for(const [field,slot,path]of [['colorAsset','map','texture'],['opacityAsset','opacityMap','opacityTexture']]){const a=frameMaterialAssets.get(copy[field]);if(a){copy[path]=a.url;const img=frameMaterialImage(a.url);if(!img.complete||!img.naturalWidth)img.onload=()=>{materialThumbnails.clear();syncMaterial();renderTree();};copy[slot]=img;}}return copy;}));activeMaterial=0;selectedMaterials=new Set([0]);materialThumbnails.clear();renderMaterials();syncMaterial();if(activeTab==='tabTextures')renderTextures();
 }
-function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,params:n.params,slots:n.tags.filter(t=>t.librarySlot).map(t=>({uid:t.uid,materialUID:materials[t.material]?.uid||t.materialUID}))}}:{})}:null;}
-function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library){n.type=a.library.type;n.params={...defaults(definitions[n.type][2]),...a.library.params};n.librarySlots=structuredClone(a.library.slots||[]);if(n.type==='car')n.libraryPreset=n.params['color preset'];}for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
+function stockMaterialSlots(n){
+  return n.tags.filter(t=>t.librarySlot).map(t=>({uid:t.uid,materialUID:materials[t.material]?.uid||t.materialUID,...Number.isInteger(t.libraryIndex)?{index:t.libraryIndex}:{}}));
+}
+function restoreStockAuthoring(n,library){
+  n.type=library.type;n.params={...defaults(definitions[n.type][2]),...library.params};n.librarySlots=structuredClone(library.slots);
+  if(n.type==='car'){
+    // Early compact scenes reference the sedan and its polygon and material indices.
+    n.libraryAsset=library.asset||stockCarAssets.sedan;
+    if(n.libraryAsset===stockCarAssets.sedan&&!Object.hasOwn(library.params,'color preset'))n.params['color preset']='red';
+    n.libraryPreset=n.params['color preset'];
+  }
+}
+function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:n.libraryAsset||stockCarAssets.hatchback}:{},params:n.params,slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
+function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library)restoreStockAuthoring(n,a.library);for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
 function frameValidateMorphRegions(regions){
   const vector=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
   if(!Array.isArray(regions)||regions.length>10000)throw Error('Invalid Morph regions');
@@ -13546,7 +13565,16 @@ function frameValidateMorphKeys(keys){
     for(const r of key.regions){const f=r?.frame,a=f?.anchor;if(!Array.isArray(r?.ids)||!r.ids.length||r.ids.some(id=>typeof id!=='string')||!Array.isArray(f?.axes)||f.axes.length!==3||f.axes.some(id=>typeof id!=='string')||!Array.isArray(a?.ids)||a.ids.some(id=>typeof id!=='string')||!vec(a.w,a.ids.length)||a.offset!==undefined&&!vec(a.offset,3)||!vec(r.r,4)||Math.abs(Math.hypot(...r.r)-1)>1e-5||!vec(r.t,3)||!vec(r.s,3)||r.s.some(v=>v<=0))throw Error('Invalid Morph region key');}
   }
 }
-function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return !d||!Array.isArray(d)||!d.includes(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
+function validateStockCar(library){
+  if(library.asset!==undefined&&library.asset!==stockCarAssets.hatchback&&library.asset!==stockCarAssets.sedan)throw Error('Unknown stock car asset');
+  const seen=new Set();
+  for(const [ordinal,slot] of library.slots.entries()){
+    const index=slot.index??ordinal;
+    if(!Number.isInteger(index)||index<0||index>=10000||seen.has(index))throw Error('Invalid library slot index');
+    seen.add(index);
+  }
+}
+function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return !d||!Array.isArray(d)||!d.includes(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');if(a.library?.type==='car')validateStockCar(a.library);for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
 function frameUIMaterialSlots(){const slots=new Map();materials.forEach((m,i)=>{if(!slots.has(m.uid))slots.set(m.uid,i);});return slots;}
 function frameUITags(tags,slots){return (tags||[]).map(t=>t.kind==='material'?{...t,material:slots.get(t.materialUID)??0,params:{}}:{...t,params:{...t.params}});}
 function frameMaterialOwner(n,selection=true){return selection&&n?.type==='spline'&&FrameSpline.selection(n.nativeHash).size?FrameSpline.patchOwner(n)||n:n;}
@@ -22414,7 +22442,23 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       requestMaterialPipeline(r,materialProgram(r),{posed,grouped:true,uv:!!raw.uv,wire:polygonWire(),mapped});
       if(posed)posedPipelines(r,!!frameViewKind(viewIndex)).catch(editError);
     }
-    function importedAppearance(raw,mesh,catalog){const tags=[];for(const [material,groups]of Map.groupBy(raw.ranges.filter(r=>r.material!==undefined&&r.count),r=>r.material)){const uid=FrameHash.newId(),mask=FrameHash.newId(),words=new Uint32Array(Math.ceil(mesh.triangleCount/32));for(const r of groups)for(let f=r.start;f<r.start+r.count;f++)words[f>>5]|=1<<(f&31);const buffer=makeGPUBuffer(renderer.device,{label:'imported material polygon set',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,Math.ceil(mesh.triangleCount/8));tags.push({uid,kind:'material',materialUID:catalog[material].uid,mask,params:{}});}if(raw.uv){const uid=FrameHash.newId();putAppearance(uid,'uv',FrameHash.T.float32,uploadImportedUV(renderer,mesh,raw.uv));tags.push({uid,kind:'uv',params:{}});}return tags;}
+    function importedAppearance(raw,mesh,catalog,indexedSlots=false){
+      const tags=[];
+      function addMaterial(index,mask){
+        tags.push({uid:FrameHash.newId(),kind:'material',materialUID:catalog[index].uid,params:{},
+          ...mask?{mask}:{},...indexedSlots?{libraryIndex:index}:{}});
+      }
+      if(raw.baseMaterial!==undefined)addMaterial(raw.baseMaterial);
+      const ranges=raw.ranges.filter(r=>r.count&&r.material!==undefined&&r.material!==raw.baseMaterial);
+      for(const [material,groups] of Map.groupBy(ranges,r=>r.material)){
+        const mask=FrameHash.newId(),words=new Uint32Array(Math.ceil(mesh.triangleCount/32));
+        for(const r of groups)for(let f=r.start;f<r.start+r.count;f++)words[f>>5]|=1<<(f&31);
+        const buffer=makeGPUBuffer(renderer.device,{label:'imported material polygon set',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+        renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,Math.ceil(mesh.triangleCount/8));addMaterial(material,mask);
+      }
+      if(raw.uv){const uid=FrameHash.newId();putAppearance(uid,'uv',FrameHash.T.float32,uploadImportedUV(renderer,mesh,raw.uv));tags.push({uid,kind:'uv',params:{}});}
+      return tags;
+    }
     async function importedCatalog(data){const catalog=data.materials.map(m=>({...m,uid:FrameHash.newId(),map:null}));for(const m of catalog)if(m.emissionImage!==undefined&&m.emissionFactor?.some(v=>v!==1)){const image=await createImageBitmap(new Blob([data.images[m.emissionImage]])),canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);image.close();const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);for(let i=0;i<pixels.data.length;i+=4)for(let k=0;k<3;k++)pixels.data[i+k]=255*frameEncodeSRGB(frameDecodeSRGB(pixels.data[i+k]/255)*m.emissionFactor[k]);ctx.putImageData(pixels,0,0);m.emissionImage=data.images.length;data.images.push(new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer()));}return catalog;}
     function installImportedCatalog(data,catalog){const {K,T}=FrameHash;rememberAppearance(K.materials,T.ids,catalog.map(m=>m.uid));const assets=[],images=new Map();for(const m of catalog){putAppearance(m.uid,'name',T.text,m.name);putAppearance(m.uid,'parameters',T.float64,Float64Array.from(materialKeys.map(k=>materialNumber(m,k))));const maps=[m.image,m.alphaMode===2||m.alphaMode===3?m.image:undefined,m.emissionImage,m.metalRoughImage,m.metalRoughImage,m.metalRoughImage,m.normalImage,m.aoImage].map(image=>{if(image===undefined)return K.zero;if(images.has(image))return images.get(image);const bytes=data.images[image];if(!bytes)throw Error('Unknown glTF image');const asset=FrameHash.newId();images.set(image,asset);assets.push(asset);putAppearance(asset,'image',T.bytes,bytes);return asset;});if(maps.some(id=>id!==K.zero))putAppearance(m.uid,'maps',T.ids,maps);}if(assets.length)rememberAppearance(K.assets,T.ids,assets);}
     function unwrapSingleImport(data){
@@ -22442,14 +22486,102 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{preparedImages?.release();if(!published)for(const m of meshes)disposeMesh(m);nativeIOEnd();}
     }
     let libraryQueue=Promise.resolve(),libraryTimer=0;const libraryKeys=new Map();
-    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);if(!mesh)throw Error('Library geometry is not ready');commit(()=>{n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;for(const t of n.tags)delete t.librarySlot;removeSpline(n.nativeHash,true);libraryKeys.delete(n.nativeHash);});return n;}
+    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);if(!mesh)throw Error('Library geometry is not ready');commit(()=>{n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryAsset;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;}removeSpline(n.nativeHash,true);libraryKeys.delete(n.nativeHash);});return n;}
     function requestLibrary(){if(!libraryTimer&&nodes.some(n=>['tree','human','car'].includes(n.type)))libraryTimer=setTimeout(()=>{libraryTimer=0;loadLibraryObjects().catch(fileOperationError);},16);}
-    function libraryFilename(type,params){return type==='car'?'car-sedan-1':type==='tree'?'tree-'+params.type+'-1-'+(params.detail==='high'?1:0):'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);}
-    async function libraryData(file){const plan=await nativeDecodePlan(file);if(plan.objects.length!==1||!plan.objects[0].p||plan.records.get(FrameHash.K.assets)?.value?.length)throw Error('Invalid stock model');const o=plan.objects[0],raw=await nativeDecodeMesh(file,o);validatePolygonSets(plan,o,raw);if(o.matrix&&!FM.equal(FM.unpack(o.matrix),FM.I()))throw Error('Stock model must use its authored local coordinates');const ids=plan.records.get(FrameHash.K.materials)?.value||[],get=(h,f)=>plan.records.get(FrameHash.address(h,f))?.value,catalog=ids.map(uid=>({uid:FrameHash.newId(),name:get(uid,'name'),...Object.fromEntries(materialKeys.map((k,i)=>[k,get(uid,'parameters')[i]??frameMaterialDefaults[k]??0])),map:null})),faces=new Uint32Array(raw.triangleCount);for(const uid of get(o.hash,'tags')||[]){const refs=get(uid,'material');if(!refs)continue;const index=ids.indexOf(refs[0]),bits=get(uid,'faces');if(!bits)faces.fill(index);else for(let f=0;f<faces.length;f++)if(bits[f>>3]>>(f&7)&1)faces[f]=index;}
+    function libraryFilename({type,params,libraryAsset}){return type==='car'?(libraryAsset||stockCarAssets.hatchback):type==='tree'?'tree-'+params.type+'-1-'+(params.detail==='high'?1:0):'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);}
+    async function libraryData(file){const plan=await nativeDecodePlan(file);if(plan.objects.length!==1||!plan.objects[0].p||plan.records.get(FrameHash.K.assets)?.value?.length)throw Error('Invalid stock model');const o=plan.objects[0],raw=await nativeDecodeMesh(file,o);validatePolygonSets(plan,o,raw);if(o.matrix&&!FM.equal(FM.unpack(o.matrix),FM.I()))throw Error('Stock model must use its authored local coordinates');const ids=plan.records.get(FrameHash.K.materials)?.value||[],get=(h,f)=>plan.records.get(FrameHash.address(h,f))?.value,catalog=ids.map(uid=>({uid:FrameHash.newId(),name:get(uid,'name'),...Object.fromEntries(materialKeys.map((k,i)=>[k,get(uid,'parameters')[i]??frameMaterialDefaults[k]??0])),map:null})),faces=new Uint32Array(raw.triangleCount);for(const uid of get(o.hash,'tags')||[]){const refs=get(uid,'material');if(!refs)continue;const index=ids.indexOf(refs[0]),bits=get(uid,'faces');if(!bits){raw.baseMaterial=index;faces.fill(index);}else for(let f=0;f<faces.length;f++)if(bits[f>>3]>>(f&7)&1)faces[f]=index;}
       raw.ranges=[];let start=0;for(let f=1;f<=faces.length;f++)if(f===faces.length||faces[f]!==faces[start]){raw.ranges.push({start,count:f-start,material:faces[start]});start=f;}return {raw,catalog};}
-    function loadLibraryObjects(){clearTimeout(libraryTimer);libraryTimer=0;const task=libraryQueue.catch(()=>{}).then(async()=>{for(const n of nodes.filter(n=>['tree','human','car'].includes(n.type))){if(n.librarySlots&&scene.meshes.some(m=>m.hashId===n.nativeHash)){const slots=new Set(n.librarySlots.map(s=>s.uid));for(const tag of n.tags)if(slots.has(tag.uid))tag.librarySlot=true;delete n.librarySlots;}const key=FrameValue.key([n.type,n.params]),mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),previous=libraryKeys.get(n.nativeHash);if(mesh&&previous===key)continue;const filename=libraryFilename(n.type,n.params),old=previous&&FrameValue.decode(Uint8Array.from(previous,c=>c.charCodeAt(0))),sameAsset=!!n.librarySlots||!previous&&n.tags.some(t=>t.librarySlot)||old&&libraryFilename(...old)===filename,slots=n.librarySlots||n.tags.filter(t=>t.librarySlot).map(t=>({uid:t.uid,materialUID:materials[t.material]?.uid||t.materialUID})),paint=n.type==='car'?{red:[10,33,44],gold:[52,100,37],blue:[217,40,42],silver:[0,0,50],graphite:[0,0,25],green:[82,100,22],white:[0,0,91],violet:[250,50,40],beige:[40,30,60],black:[0,0,8]}[n.params['color preset']]:null;
-        if(mesh&&sameAsset&&paint){const material=slots.map(s=>materials.find(m=>m.uid===s.materialUID)).find(m=>m&&/paint/i.test(m.name));if(material){if(n.libraryPreset!==n.params['color preset'])[material.h,material.s,material.l]=paint;n.libraryPreset=n.params['color preset'];libraryKeys.set(n.nativeHash,key);frameSyncMaterials();continue;}}
-        const response=await fetch('models/'+filename+'.hash');if(!response.ok)throw Error('Model HTTP '+response.status);const {raw,catalog:defaults}=await libraryData(await response.blob()),catalog=defaults.map((m,i)=>sameAsset&&materials.find(q=>q.uid===slots[i]?.materialUID)||m);if(paint){const m=catalog.find(m=>/paint/i.test(m.name));if(m&&defaults.includes(m))[m.h,m.s,m.l]=paint;}if(!nodes.includes(n)||key!==FrameValue.key([n.type,n.params]))continue;warmImportedSurface(renderer,raw,catalog,objectWorld(n.nativeHash));await installSplineSurface(n,{...raw,tasks:[],packets:[],report:{library:filename}});removeSpline(n.nativeHash,true);for(const material of catalog)if(!materials.includes(material))materials.push(material);const tags=importedAppearance(raw,scene.meshes.find(m=>m.hashId===n.nativeHash),catalog).map((t,i)=>({...t,...sameAsset&&slots[i]?{uid:slots[i].uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true}));n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;if(paint)n.libraryPreset=n.params['color preset'];libraryKeys.set(n.nativeHash,key);frameSyncMaterials();frameSyncEngineVisibility();renderTree();}});libraryQueue=task;return task;}
+    // Resolve paint roles against the bundled material names, before any user overrides.
+    const stockCarFinishes=new Map();
+    function rememberCarFinish(filename,catalog){
+      if(stockCarFinishes.has(filename))return;
+      const body=catalog.find(m=>/paint/i.test(m.name));
+      if(!body)throw Error('Stock car body paint is missing');
+      const finish=catalog.flatMap((m,slot)=>m===body||m.name==='Blue accent: body seams and recess surrounds'
+        ?[{slot,authored:[m.h,m.s,m.l],shade:m.l/body.l}]:[]);
+      stockCarFinishes.set(filename,finish);
+    }
+    function applyCarPreset(filename,preset,materialAt){
+      const [h,s,l]=carPaintPresets[preset];
+      for(const {slot,authored,shade} of stockCarFinishes.get(filename)){
+        const m=materialAt(slot);
+        if(m)[m.h,m.s,m.l]=filename===stockCarAssets.hatchback&&preset==='blue'?authored:[h,s,l*shade];
+      }
+    }
+    function stockMaterialUseCounts(){
+      const counts=new Map(),use=uid=>counts.set(uid,(counts.get(uid)||0)+1);
+      for(const owner of nodes){
+        for(const tag of owner.tags)if(tag.kind==='material')use(materials[tag.material??0]?.uid||tag.materialUID);
+        for(const slot of owner.librarySlots||[])use(slot.materialUID);
+      }
+      return counts;
+    }
+    function carPaintForEdit(n,slot,uses){
+      const tag=slot&&n.tags.find(t=>t.uid===slot.uid),material=tag&&materials[tag.material??0];
+      if(!material)return null;
+      const count=uses.get(material.uid)||0;
+      if(count<2&&material.uid!==frameDefaultMaterials[0].uid)return material;
+      const copy={...material,uid:FrameHash.newId()};
+      tag.material=materials.push(copy)-1;tag.materialUID=copy.uid;
+      uses.set(material.uid,count-1);uses.set(copy.uid,1);
+      const channels=FrameMorph.sceneChannels(),tracks=channels.get('mat:'+material.uid);
+      if(tracks)channels.set('mat:'+copy.uid,structuredClone(tracks));
+      return copy;
+    }
+    function loadLibraryObjects(){
+      clearTimeout(libraryTimer);libraryTimer=0;
+      const task=libraryQueue.catch(()=>{}).then(async()=>{
+        let uses;
+        for(const n of nodes.filter(n=>['tree','human','car'].includes(n.type))){
+          const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),isCar=n.type==='car';
+          if(n.librarySlots&&mesh){
+            const slotsByUID=new Map(n.librarySlots.map((s,i)=>[s.uid,s.index??i]));
+            for(const tag of n.tags)if(slotsByUID.has(tag.uid)){
+              tag.librarySlot=true;if(isCar)tag.libraryIndex=slotsByUID.get(tag.uid);
+            }
+            delete n.librarySlots;
+          }
+          const filename=libraryFilename(n),key=FrameValue.key(n.params),previous=libraryKeys.get(n.nativeHash);
+          if(mesh&&previous?.filename===filename&&previous.key===key)continue;
+          const sameAsset=!!n.librarySlots||previous?.filename===filename||!previous&&n.tags.some(t=>t.librarySlot);
+          const slots=new Map((n.librarySlots||stockMaterialSlots(n)).map((slot,i)=>[slot.index??i,slot]));
+          const materialAt=i=>{const slot=slots.get(i);return slot&&materials.find(m=>m.uid===slot.materialUID);};
+          const preset=n.params['color preset'];
+          if(mesh&&sameAsset&&isCar&&stockCarFinishes.has(filename)){
+            if(n.libraryPreset!==preset){
+              uses??=stockMaterialUseCounts();
+              const before=materials.length;
+              applyCarPreset(filename,preset,i=>carPaintForEdit(n,slots.get(i),uses));
+              if(materials.length!==before){frameSyncEngineVisibility();renderTree();}
+              if(activeTab==='tabMaterials')renderMaterials();
+              if(activeTab==='tabMaterialMgr')syncMaterial();
+            }
+            n.libraryPreset=preset;libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();continue;
+          }
+          uses=null;
+          const response=await fetch('models/'+filename+'.hash');
+          if(!response.ok)throw Error('Model HTTP '+response.status);
+          const {raw,catalog:defaults}=await libraryData(await response.blob());
+          if(!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params))continue;
+          const catalog=defaults.map((m,i)=>sameAsset&&materialAt(i)||m);
+          if(isCar){
+            rememberCarFinish(filename,defaults);
+            applyCarPreset(filename,preset,i=>catalog[i]===defaults[i]?catalog[i]:null);
+          }
+          warmImportedSurface(renderer,raw,catalog,objectWorld(n.nativeHash));
+          await installSplineSurface(n,{...raw,tasks:[],packets:[],report:{library:filename}});removeSpline(n.nativeHash,true);
+          for(const material of catalog)if(!materials.includes(material))materials.push(material);
+          const tags=importedAppearance(raw,scene.meshes.find(m=>m.hashId===n.nativeHash),catalog,isCar).map((t,i)=>{
+            const slot=sameAsset&&slots.get(t.libraryIndex??i);
+            return {...t,...slot?{uid:slot.uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true};
+          });
+          n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
+          if(isCar)n.libraryPreset=preset;
+          libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();frameSyncEngineVisibility();renderTree();
+        }
+      });
+      libraryQueue=task;return task;
+    }
 
 
     // END native-obj
