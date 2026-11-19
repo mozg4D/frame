@@ -184,15 +184,29 @@ static U improveDiagonals(const std::vector<V>& p,std::vector<U>& t,const Refere
     return changed;
 }
 
+#include "unite-regions.h"
 }
-API unsigned refine_contour(Surface* s,const Volume* volume,double ox,double oy,double oz,double pitch,unsigned percent){
+API unsigned refine_contour(Surface* s,const Volume* volume,double ox,double oy,double oz,double pitch,unsigned percent,U* regionCounts){
+    if(regionCounts)regionCounts[0]=regionCounts[1]=0;
     if(s->indices.empty())return 0;
     using namespace unite_surface;
     auto& p=s->vertices.points;auto& t=s->indices;
     if(!s->referenceFaces)s->referenceFaces=U(t.size()/3);
-    Rings ring(p.size(),t);Features features(p,t);
     Reference field{volume?&volume->field():nullptr,{ox,oy,oz},pitch};
-    unsigned removed=optimize(p,t,ring,features,field,percent);
+    unsigned removed,planar;
+    {
+        RegionMesher regions(p,t,field,percent);
+        regions.simplifyPlanes();planar=regions.planarRemoved;
+    }
+    {
+        Rings ring(p.size(),t);Features features(p,t);
+        removed=optimize(p,t,ring,features,field,percent);
+    }
+    {
+        RegionMesher regions(p,t,field,percent);
+        regions.build();
+        if(regionCounts){regionCounts[0]=planar+regions.planarRemoved;regionCounts[1]=regions.stripRemoved;}
+    }
     improveDiagonals(p,t,field,percent>0);
     return removed;
 }

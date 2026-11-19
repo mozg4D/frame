@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {basename,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
+import {regionKernelChecks,regionBrowserChecks} from './unite-regions.mjs';
 import {surfaceDeviation} from './unite-deviation.mjs';
 import {upperToolbarChecks} from './file-controls.mjs';
 
@@ -430,6 +431,7 @@ async function surfaceControls(page,call){
   console.log('Sub-cell solids, retained cavities and ribs, numeric attributes, field smoothing and adaptive tessellation passed',
     {before:before.faces,after:after.faces,noise,afterNoise});
   await cornerChecks(page,call);
+  await regionKernelChecks();await regionBrowserChecks(page,call);
 }
 if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
   const session=await launch({headless:process.argv.includes('--headless')}),{page}=session,errors=[];
