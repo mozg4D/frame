@@ -51,8 +51,8 @@
     {
       "prefix": "function checkpoint(before)",
       "nextPrefix": "function commit(action, refresh=true){",
-      "bytes": 1328,
-      "sha256": "6c15f554d4dafa32227631039aed4d229cc77e66a99104d1f72db8045b264e7d",
+      "bytes": 1474,
+      "sha256": "d7f6fb2c42efeb8a6f38d483486f7cf6ec4e99125b01f4b85525ecac5aa60008",
       "change": {
         "reason": "Native snapshots preserve camera state and deletion-scoped material history.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
@@ -62,6 +62,14 @@
         "reason": "A history checkpoint records whether the edit changed the timeline frame or duration.",
         "previousBytes": 1092,
         "previousSHA256": "44dbe1fd578b82a85d2bce4013bf77bfe5d84a797d192585d51e35dd2fbdb014"
+      },
+      "sourceBindingUpdate": {
+        "reason": "A material transaction coalesces matching bindings before recording history.",
+        "previousBytes": 1328,
+        "previousSHA256": "6c15f554d4dafa32227631039aed4d229cc77e66a99104d1f72db8045b264e7d",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -73,8 +81,8 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2395,
-      "sha256": "03456c4345f54dbe6448d91347cd6d3eede44e6cc419920d2bd4d4965ddb2fea",
+      "bytes": 2425,
+      "sha256": "ef4f84072ddbfd25090fde0f972dd0a2dfbf5962f11b51c8743f794071e87ce8",
       "change": {
         "reason": "Undo/Redo reconciles unused texture shelf cards against restored material and environment references; encoded image resources remain retained for history.",
         "beforeBytes": 2216,
@@ -82,9 +90,9 @@
         "baseCommit": "339a95f"
       },
       "sourceBindingUpdate": {
-        "reason": "Linked Instance persistence and history reconciliation; source identity only. Native qualification is recorded separately.",
-        "previousBytes": 2261,
-        "previousSHA256": "ea5eca76def3539819250ee676b0f8616f4c80b95267d636e0c5042890a8dcf7",
+        "reason": "Restoring history clears pending material edits.",
+        "previousBytes": 2395,
+        "previousSHA256": "03456c4345f54dbe6448d91347cd6d3eede44e6cc419920d2bd4d4965ddb2fea",
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
@@ -109,13 +117,21 @@
     {
       "prefix": "function replaceMaterials(",
       "nextPrefix": "function insertMaterialCopies(records,index=1){",
-      "bytes": 781,
-      "sha256": "0e0c96c1594a008a264a1e5633f1298eb199440b50af2a16ed4b62b275dbe3dc",
+      "bytes": 818,
+      "sha256": "a178165dca746c126ed5d95c6b9e715860f3900a160673a44c35e2abc598b828",
       "verifiedBaseline": {
         "commit": "12db7c16045ec15dfb16cc9cab9d19d90ba49722",
         "reason": "The published material remapper indexes old slots and new material positions once.",
         "previousBytes": 605,
         "previousSHA256": "288624f215c55e953447a68f2e5e06b8ac52a336df4d051a8dcbc60631135c23"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Palette remapping keeps the active selection anchor on its material.",
+        "previousBytes": 781,
+        "previousSHA256": "0e0c96c1594a008a264a1e5633f1298eb199440b50af2a16ed4b62b275dbe3dc",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -125,10 +141,18 @@
       "sha256": "3c4a66cb7d72177077694905e52f10307c442109de093a1b87946b5e16ac5bee"
     },
     {
-      "prefix": "    function appearanceLibrary(){",
+      "prefix": "    function appearanceLibrary(records=scene.records){",
       "nextPrefix": "    function syncMaterials(){",
-      "bytes": 857,
-      "sha256": "19910057a774ed666308564b191476db437858aaacb158c01c37a8aff69ead88"
+      "bytes": 2241,
+      "sha256": "ec7a8b6215c166b40ce9267bc65f285964ca85a379359e90940ff5e7eb346418",
+      "sourceBindingUpdate": {
+        "reason": "Scene imports compare and remap material definitions, images and animation before binding owners.",
+        "previousBytes": 857,
+        "previousSHA256": "19910057a774ed666308564b191476db437858aaacb158c01c37a8aff69ead88",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
+      }
     },
     {
       "prefix": "    function syncMaterials(){",

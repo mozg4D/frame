@@ -101,6 +101,7 @@ import {october28Checks} from './october28-feedback.mjs';
 import {axisConsistencyChecks} from './axis-consistency.mjs';
 import {fileControlsChecks} from './file-controls.mjs';
 import {materialInteractionChecks} from './material-interaction.mjs';
+import {materialSharingChecks} from './material-sharing.mjs';
 import {mapsToolsChecks} from './october26-maps-tools.mjs';
 import {viewportPrinterRevisionChecks} from './viewport-printer-revision.mjs';
 import {october26EditorChecks} from './october26-editor.mjs';
@@ -310,6 +311,7 @@ try{
   report.polygonFeedback=await isolated("polygonFeedback",polygonFeedbackChecks);
   report.october25=await isolated('october25',october25Checks);
   report.materialInteraction=await isolated('materialInteraction',materialInteractionChecks);
+  report.materialSharing=await isolated('materialSharing',materialSharingChecks);
   report.mapsTools=await isolated('mapsTools',mapsToolsChecks);
   report.viewportPrinterRevision=await isolated('viewportPrinterRevision',viewportPrinterRevisionChecks);
   report.october26Editor=await isolated('october26Editor',october26EditorChecks);

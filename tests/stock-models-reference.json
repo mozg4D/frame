@@ -4,8 +4,8 @@
       "filename": "car-hatchback-1.hash",
       "source": "hatchback_final(1) (1).hash",
       "sourceSHA256": "b75d2b841bea3d215f5c42f2fe106620e882e8da3b6c40cc1745509c8237fb00",
-      "sha256": "b75d2b841bea3d215f5c42f2fe106620e882e8da3b6c40cc1745509c8237fb00",
-      "bytes": 11832,
+      "sha256": "26a1eaea0a764bfc50bf92c264d8f6135da7cd7dd2529c81a6d53cb07157b76e",
+      "bytes": 11383,
       "sourceBytes": 11832,
       "positionsSHA256": "5a867a784283168bd68cadfaa9123d2eacd2a005e2813dc9316c79b03e845105",
       "indicesSHA256": "b295233af00b075ad55e176cee4cce796e44b8093a4f1df25e335dd3216581e6",
@@ -30,7 +30,7 @@
       },
       "materials": [
         {
-          "name": "Body paint",
+          "name": "Paint",
           "h": 202.10526315789474,
           "s": 21.348314606741578,
           "l": 44.5,
@@ -42,7 +42,7 @@
           "sampleFace": 0
         },
         {
-          "name": "Dark rubber and trim",
+          "name": "Trim",
           "h": 205.38461538461542,
           "s": 12.037037037037036,
           "l": 5.4,
@@ -50,11 +50,11 @@
           "metal": 0,
           "opac": 0,
           "emm": 0,
-          "triangles": 778,
+          "triangles": 794,
           "sampleFace": 23
         },
         {
-          "name": "Headlamp lens",
+          "name": "Lamp F",
           "h": 200,
           "s": 17.647058823529427,
           "l": 74.5,
@@ -66,7 +66,7 @@
           "sampleFace": 29
         },
         {
-          "name": "Tinted automotive glass",
+          "name": "Glass",
           "h": 198.46153846153845,
           "s": 22.03389830508475,
           "l": 14.75,
@@ -78,7 +78,7 @@
           "sampleFace": 168
         },
         {
-          "name": "Dark registration plates",
+          "name": "Plate",
           "h": 195,
           "s": 4.0000000000000036,
           "l": 50,
@@ -90,7 +90,7 @@
           "sampleFace": 228
         },
         {
-          "name": "Blue accent: body seams and recess surrounds",
+          "name": "Seams",
           "h": 202.10526315789474,
           "s": 21.34831460674157,
           "l": 37.824999999999996,
@@ -98,11 +98,11 @@
           "metal": 0,
           "opac": 0,
           "emm": 0,
-          "triangles": 110,
+          "triangles": 170,
           "sampleFace": 230
         },
         {
-          "name": "Rear lamp lens",
+          "name": "Lamp R",
           "h": 357.43589743589746,
           "s": 89.31297709923663,
           "l": 32.75,
@@ -114,19 +114,7 @@
           "sampleFace": 327
         },
         {
-          "name": "Graphite gray: lamp perimeter and handles",
-          "h": 204,
-          "s": 9.803921568627459,
-          "l": 25.5,
-          "rough": 57.99999999999999,
-          "metal": 8,
-          "opac": 0,
-          "emm": 0,
-          "triangles": 76,
-          "sampleFace": 419
-        },
-        {
-          "name": "Reflective mirror glass",
+          "name": "Mirror",
           "h": 206.66666666666666,
           "s": 25.714285714285666,
           "l": 82.5,
@@ -138,7 +126,7 @@
           "sampleFace": 465
         },
         {
-          "name": "Satin alloy and hardware",
+          "name": "Alloy",
           "h": 204,
           "s": 5.154639175257737,
           "l": 48.5,
@@ -150,7 +138,7 @@
           "sampleFace": 580
         },
         {
-          "name": "Front indicators",
+          "name": "Signal",
           "h": 32.83018867924529,
           "s": 58.24175824175825,
           "l": 45.49999999999999,

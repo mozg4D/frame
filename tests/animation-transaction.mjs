@@ -15,6 +15,7 @@ export function animationTransactionFixture({source=html,oldTransaction=false,ol
  const e=authoringStampFixture(),counts={evaluate:0,refresh:0,draw:0,selection:0},transforms={position:[0,0,0],rotation:[0,0,0],scale:[1,1,1]};
  Object.assign(e,{frameCurves:{selection:[],context:[],editing:false},frameAnimationRevision:0,counts,activeTab:'tabAttributes',playing:false,FRAME_TRANSFORM_FIELDS:['position','rotation','scale'],lastAttrKey:null,selectionArea:'objects',FrameSpline:{sourceNode:n=>n,request:()=>{}},syncHUD:()=>{},frameDrawCurves:()=>counts.draw++,renderAttributes:()=>{},current:()=>e.nodes[0],node:id=>e.nodes.find(n=>n.id===id),numberOptions:()=>({}),frameCurvesChannels:()=>[],frameCurvesBeginSelection:()=>counts.selection++,frameRefreshAnimationUI:()=>counts.refresh++,FramePluginTags:{params:()=>{}},throwEvaluation:0,throwEvaluationAlways:false});
  e.materials.push({uid:'default',rough:10},{uid:'material',rough:30});
+ e.frameDefaultMaterials=[e.materials[0]];e.frameShareBoundMaterials=()=>{};
  // Execute the actual editor restoration too: ordinary restore clears ephemeral Curves selection.
  e.selectionVersion=0;e.frameShowCurves=()=>{};e.FrameMorph.restoreEditor=vm.runInContext('('+part(source,'function restoreEditor(','  function sceneChannels(')+')',e);
  e.window.frameEngine.animationTransform=(hash,path,value)=>{if(value!==undefined)transforms[path]=structuredClone(value);return structuredClone(transforms[path]);};

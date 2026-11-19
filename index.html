@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 14:54">
+<meta name="frame-version" content="2026 19 nov 15:33">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -85,7 +85,7 @@ dialog{width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding
 
 :root{--text-dim:#a4a4a4;--text-edit:#d6d6d6}body,body *{color:var(--text-dim)!important}button:not(:disabled),input:not(:disabled),textarea,select,.ob-name,.cloner-object-drop,.uval{color:var(--text-edit)!important}.ob-name{color:var(--object-color)!important}.frame-psr-head button,.frame-psr-head button:hover{color:var(--text-dim)!important}button:disabled{opacity:1;color:var(--text-dim)!important}
 input,textarea,select,.attr-cycle{background:transparent!important;border:0!important;outline:0!important;box-shadow:none!important}.cloner-object-drop{background:transparent;border:0;text-align:right;outline:0}.ob-row.dim .ob-name,.ob-row.dim .ob-tags{opacity:1}
-#materialsPanel{background:repeating-conic-gradient(#1d1d1d 0 25%,#171717 0 50%) 0/16px 16px}#matList{width:100%;height:100%;min-height:100%;overflow:auto;scrollbar-width:none}.mat-card input[readonly]{pointer-events:none;user-select:none}.mat-card:focus{outline:none}.mat-card.sel:focus{outline:1px solid #5a8aff;outline-offset:-1px}
+#materialsPanel{background:repeating-conic-gradient(#1d1d1d 0 25%,#171717 0 50%) 0/16px 16px}#matList{width:100%;height:100%;min-height:100%;overflow:auto;scrollbar-width:none}.mat-card input[readonly]{user-select:none;cursor:default}.mat-card:focus{outline:none}.mat-card.sel:focus{outline:1px solid #5a8aff;outline-offset:-1px}
 #shareNotice{position:fixed;z-index:100;pointer-events:none;background:#303030;border:1px solid #555;border-radius:4px;padding:6px 10px;color:var(--text-edit)!important;top:46px;right:16px}#dragInfo{position:fixed;z-index:100;pointer-events:none;width:53px;height:53px;border-radius:50%;opacity:.85}.material-dragging,.material-dragging *{cursor:var(--material-cursor)!important}
 #menu{width:max-content;min-width:0;flex-direction:column}.obm-item{height:20px;line-height:16px;padding:2px 12px;white-space:nowrap;cursor:pointer;color:var(--text-edit)!important}.obm-item:hover{background:#3a3a3a}.numeric-row{cursor:nesw-resize}.numeric-row .attr-lab,.numeric-row .frame-hsl-label,.numeric-row .me-plab{cursor:inherit}input[data-numeric]{cursor:text!important;user-select:text!important}input[data-numeric].scrub-zone{cursor:nesw-resize!important}input[data-numeric]:disabled{cursor:default!important}.number-dragging,.number-dragging *{cursor:nesw-resize!important}
 #frame-curves{position:relative;flex:0 0 auto;width:100%;background:#202020;outline:none}#frame-curves-divider{height:1px;background:#000;position:relative;cursor:ns-resize;z-index:15}#frame-curves-divider::after{content:'';position:absolute;left:0;right:0;top:-3px;bottom:-3px}#frame-curves-canvas{width:100%;height:calc(100% - 1px);display:block;touch-action:pinch-zoom;outline:none}
@@ -112,6 +112,9 @@ body [data-animatable].frame-animated{color:#d29cff!important}body [data-animata
 .mat-card input{width:55px;background:transparent;border:0;color:#aaa;font:14px/16px ui-monospace,Menlo,Consolas,monospace;
 padding:0;text-align:center;outline:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;margin:3px auto 0}
 .mat-card input:focus{background:#111;color:#fff;cursor:text}
+#matName{display:block;width:100%;height:20px;margin:3px 0;padding:0 3px;box-sizing:border-box;background:transparent;border:0;color:#aaa;font:inherit;text-overflow:ellipsis}
+#matName:not([readonly]),.mat-card input:not([readonly]){color:#fff;background:#111;outline:1px solid #5a8aff;text-overflow:clip;cursor:text}
+#materialNameTip{position:fixed;z-index:2147483647;pointer-events:none;max-width:min(420px,calc(100vw - 16px));padding:4px 7px;overflow-wrap:anywhere;color:#eee;background:#272727;border:1px solid #555;border-radius:3px;font:12px/1.35 system-ui}
 
 .frame-attribute-group{margin-top:8px}.frame-attribute-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(26px,1fr));gap:2px;grid-auto-rows:20px}.frame-attribute-grid>.attr-btn{width:100%;height:20px;min-width:0;padding:0;box-sizing:border-box;text-align:center}
 .frame-attribute-button{display:inline-flex;align-items:center;justify-content:center;min-height:16px;background:#333;border-radius:4px;box-shadow:inset 0 0 0 1px #666;cursor:pointer!important}.attr-lab.frame-attribute-button{padding:0 5px;height:20px}.frame-attribute-button:hover{background:#444}.frame-attribute-button[aria-pressed=true]{background:#293747!important;box-shadow:inset 0 0 0 1px #6681ad}.frame-attribute-button:active{background:#3c4b63}.number-dragging input[data-numeric]{cursor:nesw-resize!important;user-select:none!important}
@@ -202,6 +205,7 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 </div>
 </div>
 </div>
+<input id="matName" aria-label="Material name" readonly spellcheck="false" autocomplete="off">
 <div class="me-bottom">
 <div class="me-pal" id="mePal"></div>
 <div class="me-params">
@@ -11324,7 +11328,7 @@ function frameTarget(h){return h.startsWith('mat:')?materials.find(m=>m.uid===h.
 function frameParameter(target,path){if(path.startsWith('tag:')){const [,id,...parts]=path.split(':'),tag=target.tags.find(t=>t.uid===id),key=parts.join(':');return tag?{container:tag.params,key,spec:tagDefinitions[tag.kind]?.fields[key]??(tag.kind==='morph'?0:undefined),tagSpec:tagDefinitions[tag.kind]?.plugin?tagDefinitions[tag.kind]:null}:null;}const key=path.slice(6);return {container:target.params,key,spec:definitions[target.type]?.[2][key]};}
 function frameAttributeKind(h,path){const target=frameTarget(h);if(!target||FRAME_TRANSFORM_FIELDS.includes(path)||path.startsWith('material:')||frameIsPLAPath(path)||path.startsWith('pose:'))return 'number';const field=frameParameter(target,path);return typeof field?.spec==='boolean'||Array.isArray(field?.spec)?'discrete':numberOptions(target.type,field?.key||'').int?'integer':'number';}
 function frameReadAttribute(h,path){const target=frameTarget(h);if(!target||FramePlugins.dispatch('forbidAnimation',target,path))return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])return d.vertices[key].slice();const match=key.match(/^h:(.+):(h[ab])$/);return match&&d.segments[match[1]]?.[match[2]].slice();}return window.frameEngine?.animationVertex(target.nativeHash,+key)||frameGetTrack(h,path)?.base;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0)return window.frameEngine?.animationTransform(target.nativeHash,path);if(path.startsWith('material:')){const value=target[path.slice(9)];return typeof value==='number'?value:undefined;}const field=frameParameter(target,path);if(!field||field.spec===undefined)return;const value=field.container[field.key],spec=field.spec;return typeof value==='boolean'?+value:Array.isArray(spec)?spec.indexOf(value):typeof value==='number'?value:undefined;}
-function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target!==materials[0])target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});container[key]=next;}
+function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid)target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});container[key]=next;}
 function frameDescriptor(h,path,extra={}){if(FramePlugins.dispatch('forbidAnimation',frameTarget(h),path))return null;return frameReadAttribute(h,path)===undefined?null:{h,path,...extra};}
 function frameCurrentDescriptors(){if(frameCurves.morphPose)return FrameMorph.descriptors();if(frameChannelSelection.length)return frameChannelSelection;if(selectionArea==='viewport'&&FrameSpline.editingHash&&FrameSpline.selection().size){const n=frameNodeByHash(FrameSpline.editingHash);if(n)return [...FrameSpline.selection()].filter(k=>n.splineData?.vertices[k]||k.startsWith('h:')).map(k=>({h:n.id,path:'pla:'+k}));}return [...selected].flatMap(h=>(node(h)?.type==='target'?['position']:FRAME_TRANSFORM_FIELDS).map(path=>frameDescriptor(h,path)).filter(Boolean));}
 function frameCaptureAnimation(){return {channels:frameSerializeChannels(),held:[...frameChannels].flatMap(([h,tracks])=>[...tracks].map(([path])=>({h,path,value:structuredClone(frameReadAttribute(h,path))}))),before:snapshot()};}
@@ -11341,10 +11345,11 @@ function frameAnimationTransaction(ds,mutate){
       try{restore(before,held);}catch(rollbackError){throw new AggregateError([error,rollbackError],'Animation edit failed and rollback did not complete');}
       throw error;
     }
+    for(const {h} of ds)if(h.startsWith('mat:'))frameChangedMaterials.add(h.slice(4));
     checkpoint(before);frameRefreshAnimationUI();return true;
   }finally{frameUITransaction--;}
 }
-async function frameAddAttributeKeys(ds=frameCurrentDescriptors()){if(frameCurves.morphPose){const n=node(frameCurves.morphPose.owner),before=snapshot();await FrameMorph.capture(n,undefined,ds);checkpoint(before);frameCurvesChooseContext(frameChannelSelection);frameRefreshAnimationUI();return;}if(!frameChannelSelection.length&&selectionArea==='viewport'&&$('frame-engine-canvas').dataset.elementMode!=='object'&&!FrameSpline.editingHash){const rows=await frameEngine.animationSelection();if(rows.length)ds=rows;}if(!ds.length)return;frameAnimationTransaction(ds,()=>{const defaultOwner='mat:'+materials[0].uid;if(ds.some(d=>d.h===defaultOwner)){const owner='mat:'+editableMaterial(materials[0]).uid;ds=ds.map(d=>d.h===defaultOwner?{...d,h:owner}:d);}for(const d of ds){const value=frameReadAttribute(d.h,d.path);if(value===undefined)continue;let tracks=frameChannels.get(d.h);if(!tracks)frameChannels.set(d.h,tracks=new Map());let t=tracks.get(d.path);if(!t){t={kind:frameAttributeKind(d.h,d.path),dimensions:Array.isArray(value)?value.length:1,base:structuredClone(value),keys:new Map()};tracks.set(d.path,t);}const values=Array.isArray(value)?value:[value];for(const axis of d.axes||values.map((v,i)=>i)){const old=frameAxisRecord(t,timelineFrame,axis),soft=FRAME_TRANSFORM_FIELDS.includes(d.path)||frameIsPLAPath(d.path);framePutAxisRecord(t,timelineFrame,axis,{...(old||{}),value:values[axis],mode:old?.mode||(soft?'soft':'hard'),auto:old?.auto??soft});}}});}
+async function frameAddAttributeKeys(ds=frameCurrentDescriptors()){if(frameCurves.morphPose){const n=node(frameCurves.morphPose.owner),before=snapshot();await FrameMorph.capture(n,undefined,ds);checkpoint(before);frameCurvesChooseContext(frameChannelSelection);frameRefreshAnimationUI();return;}if(!frameChannelSelection.length&&selectionArea==='viewport'&&$('frame-engine-canvas').dataset.elementMode!=='object'&&!FrameSpline.editingHash){const rows=await frameEngine.animationSelection();if(rows.length)ds=rows;}if(!ds.length)return;frameAnimationTransaction(ds,()=>{const defaultOwner='mat:'+frameDefaultMaterials[0].uid;if(ds.some(d=>d.h===defaultOwner)){const owner='mat:'+editableMaterial(materials[0]).uid;ds=ds.map(d=>d.h===defaultOwner?{...d,h:owner}:d);}for(const d of ds){const value=frameReadAttribute(d.h,d.path);if(value===undefined)continue;let tracks=frameChannels.get(d.h);if(!tracks)frameChannels.set(d.h,tracks=new Map());let t=tracks.get(d.path);if(!t){t={kind:frameAttributeKind(d.h,d.path),dimensions:Array.isArray(value)?value.length:1,base:structuredClone(value),keys:new Map()};tracks.set(d.path,t);}const values=Array.isArray(value)?value:[value];for(const axis of d.axes||values.map((v,i)=>i)){const old=frameAxisRecord(t,timelineFrame,axis),soft=FRAME_TRANSFORM_FIELDS.includes(d.path)||frameIsPLAPath(d.path);framePutAxisRecord(t,timelineFrame,axis,{...(old||{}),value:values[axis],mode:old?.mode||(soft?'soft':'hard'),auto:old?.auto??soft});}}});}
 function frameDeleteAttributeKeys(ds=frameCurrentDescriptors()){frameAnimationTransaction(ds,()=>{for(const d of ds){const t=frameGetTrack(d.h,d.path);if(!t)continue;if(d.axes)d.axes.forEach(a=>frameDeleteAxisKey(t,timelineFrame,a));else t.keys.delete(timelineFrame);delete t._frames;}});}
 function frameRemoveAttributeAnimation(ds){frameAnimationTransaction(ds,()=>{for(const d of ds){const t=frameGetTrack(d.h,d.path);if(!t)continue;if(d.axes)for(const a of d.axes)for(const f of [...t.keys.keys()])frameDeleteAxisKey(t,f,a);else frameChannels.get(d.h).delete(d.path);}});}
 function animationMenuItems(ds){const tracked=ds.filter(frameDescriptorAnimated);return [...ds.length?[['Set key',()=>frameAddAttributeKeys(ds)]]:[],...tracked.some(frameDescriptorKeyed)&&tracked.some(d=>{const t=frameGetTrack(d.h,d.path);return (d.axes||Array.from({length:frameCurveDimensions(t)},(_,i)=>i)).some(a=>frameSortedFrames(t,a).some(f=>f!==timelineFrame));})?[['Delete key',()=>frameDeleteAttributeKeys(ds)]]:[],...tracked.length?[['Remove animation',()=>frameRemoveAttributeAnimation(ds)]]:[]];}
@@ -12361,7 +12366,7 @@ const FramePlugins=(()=>{
       select:(hash,area='viewport')=>{const n=own(hash);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();selectionArea=area;if(area==='objects')activateTab('tabAttributes');refreshSelection();},
       remove:hash=>{const n=own(hash),ids=new Set([n.id,...descendants(n.id)]);nodes=nodes.filter(q=>!ids.has(q.id));for(const id of ids)frameChannels.delete(id);},
       editMaterial:hash=>{const n=own(hash);frameSelectObjectMaterial(n);activateTab('tabMaterialMgr');syncMaterial();},
-      materialize:(hash,color)=>{const n=own(hash);if(n.tags.some(t=>t.kind==='material'))return;const hi=Math.max(...color),lo=Math.min(...color),d=hi-lo,l=(hi+lo)/2;let h=0;if(d)h=(hi===color[0]?(color[1]-color[2])/d+(color[1]<color[2]?6:0):hi===color[1]?(color[2]-color[0])/d+2:(color[0]-color[1])/d+4)*60;materials.push({...frameDefaultMaterials[0],...frameMaterialDefaults,uid:FrameHash.newId(),name:n.name,h,s:d?d/(1-Math.abs(2*l-1))*100:0,l:l*100});n.tags.push({uid:FrameHash.newId(),kind:'material',material:materials.length-1,params:{}});},
+      materialize:(hash,color)=>{const n=own(hash);if(!n.tags.some(t=>t.kind==='material'))frameBindColorMaterial(n,n.name,color);},
       material:hash=>{let n=own(hash),tag;for(;n&&!tag;n=node(n.parent))tag=n.tags.findLast(t=>t.kind==='material');const m=materials[tag?.material??0]||materials[0];return {uid:m.uid,color:hsl2rgb(m.h,m.s/100,m.l/100),emission:m.emm||0,opacity:1-(m.opac||0)/100,custom:!!tag};}
     }),
     editor:Object.freeze({register:editor=>{entry.editor=editor;},componentsChanged:(hash,bounds)=>window.frameEngine.pluginComponents(hash,bounds),view:()=>window.frameEngine.pluginView(),project:p=>window.frameEngine.pluginProject(p),plane:(x,y,hash)=>window.frameEngine.pluginPlane(x,y,hash),menu:showMenu,beginDrag:e=>window.frameEngine.startViewTransform(e,true),selectOwner:hash=>{const n=own(hash);selected=new Set([n.id]);focusId=n.id;selectionArea='objects';refreshSelection();return frameSelectEngineObjects();}})
@@ -12867,9 +12872,9 @@ window.frameUIUndoBytes=()=>[...undoStack,...redoStack].reduce((sum,s)=>sum+s.by
 function frameTrimUIUndo(){const snapshotBytes=()=>[...undoStack,...redoStack].reduce((sum,s)=>sum+s.byteLength,0);let total=window.frameUIUndoBytes(),limit=window.frameEngine?.reserveUIUndo?.(total)??256*1024*1024;for(const [stack,sequences]of [[undoStack,frameUIUndoSequence],[redoStack,frameUIRedoSequence]])while(stack.length&&(snapshotBytes()>64*1024*1024||total>limit)){stack.shift();sequences.shift();total=window.frameUIUndoBytes();}while(total>limit&&window.frameEngine?.retirePluginHistory?.()){total=window.frameUIUndoBytes();limit=window.frameEngine.reserveUIUndo(total);}FramePluginRecords.collect();}
 
 let frameUITransaction=0,frameBatchDepth=0;const frameHistoryPins=new Set();
-function checkpoint(before){if(frameBatchDepth)return;const old=FrameHash.openSnapshot(before);framePruneRemovedMaterials(old);const after=snapshot();if(FrameHash.sameSnapshotContent(before,after))return;FrameAuthorData.changed();const timeline=old.timeline;if(timeline&&timeline.frame!==timelineFrame)timeline.restoreFrame=true;if(timeline&&timeline.total!==timelineTotal)timeline.restoreTotal=true;const cameras=old.nodes.filter(n=>n.type==='render'&&nodes.some(q=>q.nativeHash===n.nativeHash));if(cameras.length){const nativeFrames=window.frameEngine?.uiFrames?.();old.preserveCameraFrames=cameras.filter(n=>old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation!==nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation||frameValueKey(old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)===frameValueKey(nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)).map(n=>n.nativeHash);}if(cameras.length||timeline?.restoreFrame||timeline?.restoreTotal)before=FrameHash.snapshot(old);undoStack.push(before);frameUIUndoSequence.push(window.frameEngine?.noteUIUndo?.()||0);if(undoStack.length>50){undoStack.shift();frameUIUndoSequence.shift();}redoStack=[];frameUIRedoSequence=[];frameTrimUIUndo();frameSyncMaterials();window.FrameSpline?.request();window.frameEngine?.requestLibrary();window.frameEngine?.draw(false);}
+function checkpoint(before){if(frameBatchDepth)return;const old=FrameHash.openSnapshot(before),aliases=frameChangedMaterials.size?frameShareBoundMaterials(frameChangedMaterials):undefined;frameChangedMaterials.clear();framePruneRemovedMaterials(old);const after=snapshot();if(FrameHash.sameSnapshotContent(before,after))return aliases;FrameAuthorData.changed();const timeline=old.timeline;if(timeline&&timeline.frame!==timelineFrame)timeline.restoreFrame=true;if(timeline&&timeline.total!==timelineTotal)timeline.restoreTotal=true;const cameras=old.nodes.filter(n=>n.type==='render'&&nodes.some(q=>q.nativeHash===n.nativeHash));if(cameras.length){const nativeFrames=window.frameEngine?.uiFrames?.();old.preserveCameraFrames=cameras.filter(n=>old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation!==nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation||frameValueKey(old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)===frameValueKey(nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)).map(n=>n.nativeHash);}if(cameras.length||timeline?.restoreFrame||timeline?.restoreTotal)before=FrameHash.snapshot(old);undoStack.push(before);frameUIUndoSequence.push(window.frameEngine?.noteUIUndo?.()||0);if(undoStack.length>50){undoStack.shift();frameUIUndoSequence.shift();}redoStack=[];frameUIRedoSequence=[];frameTrimUIUndo();frameSyncMaterials();window.FrameSpline?.request();window.frameEngine?.requestLibrary();window.frameEngine?.draw(false);return aliases;}
 function commit(action, refresh=true){const before=snapshot();frameUITransaction++;try{action();checkpoint(before);if(refresh)render();}catch(error){FrameAuthorData.changed();throw error;}finally{frameUITransaction--;}}
-function restore(value,heldAnimation=null){FrameAuthorData.reset();frameUITransaction++;try{const priorAnimation=frameSerializeChannels(),priorMaterials=materials.slice(),s=FrameHash.openSnapshot(value,FramePluginRecords.reviver),restoredAuthorData=FrameAuthorData.history(s.authorData,FrameAuthorData.root());const restoredNodes=window.frameFiles?.withRuntimeNodes(FrameAuthorData.restoreNodes(s.nodes,nodes))||FrameAuthorData.restoreNodes(s.nodes,nodes),publishAuthorData=FrameAuthorData.reserveNodes(restoredNodes,nodes,restoredAuthorData);nodes=restoredNodes;FrameAuthorData.setRoot(restoredAuthorData);publishAuthorData();selected=new Set(s.selection);focusId=s.focusId;selectedTag=s.selectedTag;selectedTags=new Set(s.selectedTags||[]);if(s.materials)materials.splice(0,materials.length,...(window.frameFiles?.restoreMaterials(s.materials)||s.materials).map(m=>({...m,map:textureImages.get(m.texture)||null,opacityMap:textureImages.get(m.opacityTexture)||null})));frameChannels=new Map();frameRestoreChannels(s.animation||[]);if(s.timeline){timelineFrame=s.timeline.frame;timelineTotal=s.timeline.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);}FrameMorph.restoreEditor(s.morphEditor);for(const [h,path,t]of priorAnimation)if(frameIsPLAPath(path)&&!frameGetTrack(h,path))frameWriteAttribute(h,path,t.base);frameChannelSelection=frameChannelSelection.filter(d=>frameTarget(d.h));activeMaterial=Math.min(s.activeMaterial??activeMaterial,materials.length-1);selectedMaterials=new Set(s.selectedMaterials||[activeMaterial]);renderMaterials();render();window.frameEngine?.restoreUIFrames?.(s.nativeFrames?.filter(f=>!s.preserveCameraFrames?.includes(f.hash)),s.nativePivot);syncMaterial();framePruneTextureCards(priorMaterials);if(heldAnimation!==null){for(const q of heldAnimation)if(q.value!==undefined)frameWriteAttribute(q.h,q.path,q.value);window.frameEngine?.animationFinish();syncHUD();renderAttributes();frameDrawCurves();}else frameEvaluateAnimation(timelineFrame);for(const n of nodes)if(n.tags.some(t=>t.kind==='morph'))FrameMorph.request(n);frameRefreshAnimationUI();if($('frame-engine-canvas').dataset.elementMode==='object')frameSelectEngineObjects();FramePlugins.dispatch('restored');if(s.nativeComponents)window.frameEngine?.restoreComponents(s.nativeComponents);}finally{frameUITransaction--;}}
+function restore(value,heldAnimation=null){frameChangedMaterials.clear();FrameAuthorData.reset();frameUITransaction++;try{const priorAnimation=frameSerializeChannels(),priorMaterials=materials.slice(),s=FrameHash.openSnapshot(value,FramePluginRecords.reviver),restoredAuthorData=FrameAuthorData.history(s.authorData,FrameAuthorData.root());const restoredNodes=window.frameFiles?.withRuntimeNodes(FrameAuthorData.restoreNodes(s.nodes,nodes))||FrameAuthorData.restoreNodes(s.nodes,nodes),publishAuthorData=FrameAuthorData.reserveNodes(restoredNodes,nodes,restoredAuthorData);nodes=restoredNodes;FrameAuthorData.setRoot(restoredAuthorData);publishAuthorData();selected=new Set(s.selection);focusId=s.focusId;selectedTag=s.selectedTag;selectedTags=new Set(s.selectedTags||[]);if(s.materials)materials.splice(0,materials.length,...(window.frameFiles?.restoreMaterials(s.materials)||s.materials).map(m=>({...m,map:textureImages.get(m.texture)||null,opacityMap:textureImages.get(m.opacityTexture)||null})));frameChannels=new Map();frameRestoreChannels(s.animation||[]);if(s.timeline){timelineFrame=s.timeline.frame;timelineTotal=s.timeline.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);}FrameMorph.restoreEditor(s.morphEditor);for(const [h,path,t]of priorAnimation)if(frameIsPLAPath(path)&&!frameGetTrack(h,path))frameWriteAttribute(h,path,t.base);frameChannelSelection=frameChannelSelection.filter(d=>frameTarget(d.h));activeMaterial=Math.min(s.activeMaterial??activeMaterial,materials.length-1);selectedMaterials=new Set(s.selectedMaterials||[activeMaterial]);renderMaterials();render();window.frameEngine?.restoreUIFrames?.(s.nativeFrames?.filter(f=>!s.preserveCameraFrames?.includes(f.hash)),s.nativePivot);syncMaterial();framePruneTextureCards(priorMaterials);if(heldAnimation!==null){for(const q of heldAnimation)if(q.value!==undefined)frameWriteAttribute(q.h,q.path,q.value);window.frameEngine?.animationFinish();syncHUD();renderAttributes();frameDrawCurves();}else frameEvaluateAnimation(timelineFrame);for(const n of nodes)if(n.tags.some(t=>t.kind==='morph'))FrameMorph.request(n);frameRefreshAnimationUI();if($('frame-engine-canvas').dataset.elementMode==='object')frameSelectEngineObjects();FramePlugins.dispatch('restored');if(s.nativeComponents)window.frameEngine?.restoreComponents(s.nativeComponents);}finally{frameUITransaction--;}}
 // UI metadata and GPU edits share one chronological command sequence.
 function frameSnapshotContent(value){const data=value instanceof Uint8Array?FrameHash.openSnapshot(value):{...value};delete data.nativeFrames;delete data.nativePivot;delete data.preserveCameraFrames;return frameValueKey(data);}
 let frameUIUndoSequence=[],frameUIRedoSequence=[];
@@ -13430,9 +13435,88 @@ function renderMatToCanvas(ctx,w,h,m,showBump=true){
   if(!mask){mask=document.createElement('canvas');mask.width=mask.height=53;const mc=mask.getContext('2d',{willReadFrequently:true});mc.drawImage(m.opacityMap,0,0,53,53);const pixels=mc.getImageData(0,0,53,53),a=pixels.data;for(let i=0;i<a.length;i+=4){a[i+3]=255*framePixelChannel(a,i,channel);a[i]=a[i+1]=a[i+2]=255;}mc.putImageData(pixels,0,0);masks.set(channel,mask);}
   const layer=previewLayer.getContext('2d',{willReadFrequently:true});renderBaseMatToCanvas(layer,53,53,m,showBump);layer.save();layer.globalCompositeOperation='destination-in';layer.drawImage(mask,0,0);layer.restore();ctx.clearRect(0,0,w,h);ctx.drawImage(previewLayer,0,0,w,h);
 }
+// Material names are shared labels. Appearance, image content and animated channels determine equality.
+function frameMaterialTracks(uid){
+  const tracks=FrameMorph.sceneChannels().get('mat:'+uid);
+  return tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[];
+}
+function frameMaterialPool(){
+  const signatures=new Map(),assets=new Map(),buckets=new Map();
+  function asset(source){
+    if(assets.has(source.uid))return assets.get(source.uid);
+    const bytes=source.bytes,n=bytes?.length||0;
+    const bucket=bytes?['bytes',n,bytes[0],bytes[n>>1],bytes[n-1]].join('/'):'path/'+source.path;
+    const group=buckets.get(bucket)||[],same=group.find(candidate=>frameSameMaterialAsset(source,candidate));
+    if(!same){group.push(source);buckets.set(bucket,group);}
+    const id=same?.uid||source.uid;assets.set(source.uid,id);return id;
+  }
+  function signature(m,tracks=frameMaterialTracks(m.uid)){
+    const maps=frameMapFields.map((field,i)=>{
+      const url=i===0?m.texture:i===1?m.opacityTexture:null,id=(url&&frameAssetURLs.get(url))||m[field];
+      if(!id)return url||null;
+      if(assets.has(id))return assets.get(id);
+      const source=frameMaterialAssets.get(id)||frameTextureSources.get(id);
+      return source?asset(source):id;
+    });
+    const channels=tracks.length?[...tracks].sort(([a],[b])=>a<b?-1:a>b?1:0):null;
+    return frameValueKey([frameMaterialKeys.map(k=>m[k]??frameMaterialDefaults[k]??0),maps,channels]);
+  }
+  function intern(m,tracks){
+    const key=signature(m,tracks),same=signatures.get(key);
+    if(same)return same;
+    signatures.set(key,m);return m;
+  }
+  return {asset,signature,intern};
+}
+function frameMaterialUses(){
+  const counts=new Map(),use=uid=>counts.set(uid,(counts.get(uid)||0)+1);
+  for(const owner of nodes){
+    const mounted=owner.librarySlots&&new Set();
+    for(const tag of owner.tags)if(tag.kind==='material'){use(materials[tag.material??0]?.uid||tag.materialUID);mounted?.add(tag.uid);}
+    for(const slot of owner.librarySlots||[])if(!mounted.has(slot.uid))use(slot.materialUID);
+  }
+  return counts;
+}
+const frameChangedMaterials=new Set();
+let frameEditingMaterialTag=null;
+function frameShareBoundMaterials(changed){
+  const used=frameMaterialUses();if(used.size<2)return;
+  const pool=frameMaterialPool(),aliases=new Map(),channelAliases=new Map();
+  const slots=new Map(materials.map((m,i)=>[m.uid,i]));
+  const bind=(uid)=>{
+    if(!used.has(uid)||!slots.has(uid))return;
+    const index=slots.get(uid),m=materials[index],same=pool.intern(m);
+    if(same===m)return;
+    aliases.set(index,slots.get(same.uid));channelAliases.set('mat:'+uid,'mat:'+same.uid);
+  };
+  // An edited or incoming material rejoins a previously bound one, retaining the existing UID and name.
+  if(used.has(frameDefaultMaterials[0].uid))bind(frameDefaultMaterials[0].uid);
+  for(const uid of used.keys())if(!changed?.has(uid))bind(uid);
+  if(changed)for(const uid of changed)bind(uid);
+  if(!aliases.size)return;
+  const remap=d=>channelAliases.has(d.h)?{...d,h:channelAliases.get(d.h)}:d;
+  frameChannelSelection=frameChannelSelection.map(remap);frameCurves.context=frameCurves.context.map(remap);
+  for(const key of channelAliases.keys())FrameMorph.sceneChannels().delete(key);
+  replaceMaterials(materials.filter((m,i)=>!aliases.has(i)),aliases);
+  renderMaterials();return channelAliases;
+}
+function frameBindColorMaterial(owner,name,rgb){
+  const hi=Math.max(...rgb),lo=Math.min(...rgb),delta=hi-lo,l=(hi+lo)/2;
+  let h=0;if(delta)h=(hi===rgb[0]?(rgb[1]-rgb[2])/delta+(rgb[1]<rgb[2]?6:0):hi===rgb[1]?(rgb[2]-rgb[0])/delta+2:(rgb[0]-rgb[1])/delta+4)*60;
+  const material={...frameDefaultMaterials[0],...frameMaterialDefaults,uid:FrameHash.newId(),name,h,s:delta?delta/(1-Math.abs(2*l-1))*100:0,l:l*100};
+  frameSetMaterialTag(owner,materials.push(material)-1);
+}
+function frameCopyMaterial(m){
+  const copy={...m,uid:FrameHash.newId()},channels=FrameMorph.sceneChannels(),tracks=channels.get('mat:'+m.uid);
+  if(tracks)channels.set('mat:'+copy.uid,structuredClone(tracks));
+  materials.push(copy);return copy;
+}
 function materialCleanupPlan(empty=new Set()){
   const used=new Set(nodes.flatMap(n=>n.tags.filter(t=>t.kind==='material'&&!empty.has(t.uid)).map(t=>t.material||0))),groups=new Map(),remap=new Map(),toDelete=new Set();
-  materials.forEach((m,i)=>{const signature=frameValueKey([m.h,m.s,m.l,m.emm,m.rough,m.metal,m.opac,m.bump,m.texture||'',m.opacityTexture||'',...frameMapFields.slice(2).map(k=>m[k]||''),...frameMaterialKeys.slice(8).map(k=>m[k]??frameMaterialDefaults[k])]);if(!groups.has(signature))groups.set(signature,[]);groups.get(signature).push(i);});
+  const slots=frameUIMaterialSlots();
+  for(const n of nodes)for(const slot of n.librarySlots||[])if(slots.has(slot.materialUID))used.add(slots.get(slot.materialUID));
+  const pool=frameMaterialPool();
+  materials.forEach((m,i)=>{const signature=pool.signature(m);if(!groups.has(signature))groups.set(signature,[]);groups.get(signature).push(i);});
   for(const group of groups.values()){const canonical=group.find(i=>materials[i].uid===frameDefaultMaterials[0].uid)??group.find(i=>used.has(i))??group[0];for(const i of group)if(i!==canonical){remap.set(i,canonical);toDelete.add(i);}}
   materials.forEach((m,i)=>{if(m.uid!==frameDefaultMaterials[0].uid&&!used.has(i))toDelete.add(i);});for(const i of toDelete)if(materials[i].uid===frameDefaultMaterials[0].uid)toDelete.delete(i);return {remap,toDelete};
 }
@@ -13442,7 +13526,7 @@ function replaceMaterials(next,aliases=new Map()){
   materials.forEach((m,i)=>{if(!oldSlots.has(m.uid))oldSlots.set(m.uid,i);});
   const index=old=>positions.get(materials[aliases.get(old)??old])??0;
   for(const n of nodes){for(const t of n.tags)if(t.kind==='material'){t.material=index(t.material||0);t.materialUID=next[t.material].uid;}if(n.librarySlots)for(const slot of n.librarySlots){const old=oldSlots.get(slot.materialUID);if(old!==undefined)slot.materialUID=next[index(old)].uid;}}
-  activeMaterial=index(activeMaterial);selectedMaterials=new Set([...selectedMaterials].map(index));materials.splice(0,materials.length,...next);materialThumbnails.clear();
+  activeMaterial=index(activeMaterial);materialAnchor=index(materialAnchor);selectedMaterials=new Set([...selectedMaterials].map(index));materials.splice(0,materials.length,...next);materialThumbnails.clear();
 }
 function insertMaterialCopies(records,index=1){if(!records.length)return;const copies=records.map(m=>({...m,uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial)}));commit(()=>{const next=[...materials];next.splice(index,0,...copies);replaceMaterials(next);activeMaterial=materialAnchor=index;selectedMaterials=new Set(copies.map((m,i)=>index+i));},false);renderMaterials();renderTree();syncMaterial();}
 function deleteSelectedMaterials(){const deleted=new Set([...selectedMaterials].filter(i=>materials[i]?.uid!==frameDefaultMaterials[0].uid));if(!deleted.size)return;commit(()=>{for(const i of deleted)frameChannels.delete('mat:'+materials[i].uid);for(const n of nodes)n.tags=n.tags.filter(t=>t.kind!=='material'||!deleted.has(t.material||0));const next=materials.filter((m,i)=>!deleted.has(i));replaceMaterials(next.length?next:[{...frameDefaultMaterials[0],...frameMaterialDefaults}]);selectedMaterials.clear();},false);renderMaterials();render();syncMaterial();}
@@ -13459,7 +13543,63 @@ function paintMaterialCard(canvas){
   const m=materials[+canvas.parentElement.dataset.material];
   if(m)renderMatToCanvas(canvas.getContext('2d'),53,53,m,false);
 }
+function renameMaterial(material,value){
+  const name=FrameFields.validate('name',value.trim());
+  if(!name||material.uid===frameDefaultMaterials[0].uid)throw Error('Choose an editable material and a nonempty name');
+  if(name!==material.name){
+    commit(()=>material.name=name,false);
+    renderMaterials();renderTree();syncMaterial();
+  }
+  return material.name;
+}
+function editMaterialName(input,material){
+  if(!input.readOnly||!material||material.uid===frameDefaultMaterials[0].uid)return;
+  hideMaterialNameTip();input.readOnly=false;input.focus();input.select();
+  const finish=cancel=>{
+    if(input.readOnly)return;
+    input.readOnly=true;
+    if(!cancel&&input.value.trim()&&materials.includes(material)){
+      try{renameMaterial(material,input.value);}catch(error){input.readOnly=false;input.setCustomValidity(error.message);input.reportValidity();return;}
+    }
+    input.onblur=input.onkeydown=input.oninput=null;input.readOnly=true;input.value=material.name;
+    if(input===input.ownerDocument.activeElement)input.blur();
+  };
+  input.oninput=()=>input.setCustomValidity('');
+  input.onblur=()=>finish(false);
+  input.onkeydown=e=>{e.stopPropagation();if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();finish(e.key==='Escape');}};
+}
+const materialNameTip=document.createElement('div');
+materialNameTip.id='materialNameTip';materialNameTip.setAttribute('role','tooltip');materialNameTip.hidden=true;document.body.append(materialNameTip);
+let materialNameHover=null,materialNameTimer=0,materialNameX=0,materialNameY=0;
+function hideMaterialNameTip(){
+  clearTimeout(materialNameTimer);materialNameHover?.removeAttribute('aria-describedby');materialNameHover=null;materialNameTip.hidden=true;
+}
+function positionMaterialNameTip(){
+  const {innerWidth:w,innerHeight:h}=materialNameTip.ownerDocument.defaultView;
+  materialNameTip.style.left=Math.max(4,Math.min(materialNameX+12,w-materialNameTip.offsetWidth-4))+'px';
+  const below=materialNameY+18;
+  materialNameTip.style.top=Math.max(4,below+materialNameTip.offsetHeight<h?below:materialNameY-materialNameTip.offsetHeight-5)+'px';
+}
+function hoverMaterialName(e){
+  materialNameX=e.clientX;materialNameY=e.clientY;
+  const input=e.target.closest('.mat-card')?.querySelector('input')||e.target.closest('#matName');
+  if(e.buttons||!input?.readOnly){hideMaterialNameTip();return;}
+  if(materialNameHover===input){if(!materialNameTip.hidden)positionMaterialNameTip();return;}
+  hideMaterialNameTip();materialNameHover=input;
+  materialNameTimer=setTimeout(()=>{
+    if(!input.isConnected||input.scrollWidth<=input.clientWidth)return;
+    materialNameTip.textContent=input.value;input.setAttribute('aria-describedby',materialNameTip.id);
+    materialNameTip.hidden=false;positionMaterialNameTip();
+  },550);
+}
+for(const host of [$('matList'),$('matName')]){
+  host.addEventListener('pointermove',hoverMaterialName);host.addEventListener('pointerleave',hideMaterialNameTip);
+  host.addEventListener('pointerdown',hideMaterialNameTip);host.addEventListener('scroll',hideMaterialNameTip);
+}
+FrameViewWindows.onDocument('keydown',hideMaterialNameTip);FrameViewWindows.onWindow('blur',hideMaterialNameTip);
+$('matName').ondblclick=e=>editMaterialName(e.currentTarget,materials[activeMaterial]);
 function renderMaterials(){
+  hideMaterialNameTip();
   materialPreviewObserver?.disconnect();
   $('matList').innerHTML=materials.map((m,i)=>!frameMaterialInLibrary(m,i)?'':`<div class="mat-card${selectedMaterials.has(i)?' sel':''}" data-material="${i}" role="button" tabindex="0" aria-pressed="${selectedMaterials.has(i)}" aria-label="${escapeHTML(m.name)} material"><canvas width="53" height="53" aria-label="${escapeHTML(m.name)} preview"></canvas><input aria-label="Material name ${i+1}" value="${escapeHTML(m.name)}" readonly spellcheck="false" autocomplete="off"></div>`).join('');
   const list=$('matList');
@@ -13469,11 +13609,6 @@ function renderMaterials(){
     },{root:list,rootMargin:'80px'});
     for(const canvas of list.querySelectorAll('canvas'))materialPreviewObserver.observe(canvas);
   }else for(const canvas of list.querySelectorAll('canvas'))paintMaterialCard(canvas);
-  for(const input of all('.mat-card input')){const i=+input.closest('[data-material]').dataset.material;
-    input.onfocus=()=>input._before=snapshot();
-    input.onblur=()=>{materials[i].name=input.value;input.readOnly=true;if(input._before)checkpoint(input._before);input._before=null;};
-    input.onkeydown=e=>{if(input.readOnly)return;e.stopPropagation();if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){input.value=materials[i].name;input.blur();}};
-  }
   refreshTabActions();
 }
 const materialFields={inpH:'h',inpS:'s',inpL:'l',inpEmm:'emm',inpRough:'rough',inpMetal:'metal',inpOpac:'opac',inpBump:'bump'};
@@ -13483,10 +13618,38 @@ $('tabAddMaterial').onclick=()=>{
   frameObjectSelectionAction();frameCurves.selection=[];frameCurves.context=[];frameCurves.signature='';frameCurves.activeId=null;
   renderMaterials();renderTree();syncMaterial();
 };
-function editableMaterial(material=materials[activeMaterial]){if(material.uid!==frameDefaultMaterials[0].uid)return material;const copy={...material,uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial)};materials.push(copy);frameChannelSelection=frameChannelSelection.map(d=>d.h==='mat:'+material.uid?{...d,h:'mat:'+copy.uid}:d);activeMaterial=materialAnchor=materials.length-1;selectedMaterials=new Set([activeMaterial]);if(selectedTag){const tag=node(selectedTag.owner)?.tags[selectedTag.index];if(tag?.kind==='material'&&(tag.material||0)===0)tag.material=activeMaterial;}return copy;}
+function frameMaterialEditTarget(material){
+  if(!['objects','viewport'].includes(selectionArea)||material!==materials[activeMaterial])return null;
+  const owner=selectedTag?node(selectedTag.owner):selected.size===1?node([...selected][0]):null;
+  if(!owner)return null;
+  const tag=selectedTag?owner.tags[selectedTag.index]:owner.tags.find(t=>t.kind==='material'&&!t.mask)||owner.tags.find(t=>t.kind==='material');
+  if(tag)return tag.kind==='material'&&materials[tag.material??0]===material?{owner,tag}:null;
+  if(selectedTag)return null;
+  for(let p=node(owner.parent);p;p=node(p.parent)){
+    const inherited=p.tags.find(t=>t.kind==='material'&&!t.mask)||p.tags.find(t=>t.kind==='material');
+    if(inherited)return materials[inherited.material??0]===material?{owner,tag:null}:null;
+  }
+  return material===materials[0]?{owner,tag:null}:null;
+}
+function editableMaterial(material=materials[activeMaterial],target=frameMaterialEditTarget(material)){
+  const immutable=material.uid===frameDefaultMaterials[0].uid;
+  const ongoing=target?.tag===frameEditingMaterialTag&&frameChangedMaterials.has(material.uid)&&!frameBatchDepth;
+  const shared=target?.tag&&!ongoing&&frameMaterialUses().get(material.uid)>1;
+  if(!immutable&&!shared&&(!target||target.tag)){
+    frameEditingMaterialTag=target?.tag;
+    frameChangedMaterials.add(material.uid);return material;
+  }
+  const copy=frameCopyMaterial(material);
+  if(immutable)copy.name='mat'+(++materialSerial);
+  activeMaterial=materialAnchor=materials.length-1;selectedMaterials=new Set([activeMaterial]);
+  if(target)frameEditingMaterialTag=frameSetMaterialTag(target.owner,activeMaterial,null,target.tag);
+  frameChannelSelection=frameChannelSelection.map(d=>d.h==='mat:'+material.uid?{...d,h:'mat:'+copy.uid}:d);
+  frameChangedMaterials.add(copy.uid);return copy;
+}
 function frameSyncMaterialUV(){const available=!!materials[activeMaterial]&&frameMaterialUV();for(const id of ['btnAOTex','aoLab','aoSpace'])$(id).hidden=!available;}
 function syncMaterial(){
   const m=materials[activeMaterial];if(!m)return;
+  if($('matName').readOnly)$('matName').value=m.name;
   for(const id of Object.keys(materialFields))$(id).disabled=false;
   for(const el of [...all('.sw',$('mePal')),...all('.me-tex-btn')])el.disabled=false;
   for(const el of all('.me-grad'))el.style.pointerEvents='';
@@ -13519,6 +13682,7 @@ for(const [id,key,sensitivity,span,max,wrap]of [['gradH','h',4,30,360,true],['gr
 $('mePal').innerHTML=PAL.map(([h,s,l],i)=>`<button class="sw" data-palette="${i}" style="background:hsl(${h},${s}%,${l}%)" aria-label="Palette color ${i+1}"></button>`).join('');
 $('mePal').onclick=e=>{const sw=e.target.closest('[data-palette]');if(!sw)return;commit(()=>{const [h,s,l]=PAL[+sw.dataset.palette];Object.assign(editableMaterial(),{h,s,l});},false);syncMaterial();};
 $('matList').onclick=e=>{
+  if(e.target.matches('input:not([readonly])'))return;
   if(suppressMaterialClick){suppressMaterialClick=false;return;}const card=e.target.closest('[data-material]');if(!card){selectedMaterials.clear();refreshMaterialSelection();return;}const index=+card.dataset.material;
   if(e.shiftKey){const a=Math.min(materialAnchor,index),b=Math.max(materialAnchor,index);for(let i=a;i<=b;i++)selectedMaterials.add(i);}
   else if(e.ctrlKey||e.metaKey){selectedMaterials.has(index)?selectedMaterials.delete(index):selectedMaterials.add(index);}else selectedMaterials=new Set([index]);
@@ -13526,11 +13690,12 @@ $('matList').onclick=e=>{
 };
 $('matList').ondblclick=e=>{
   const card=e.target.closest('[data-material]');
+  if(card&&e.target.matches('input')){editMaterialName(e.target,materials[+card.dataset.material]);return;}
   if(card){activeMaterial=+card.dataset.material;selectedMaterials=new Set([activeMaterial]);if($('frame-engine-canvas').dataset.elementMode==='polygon')window.frameEngine.selectMaterialPolygons(materials[activeMaterial].uid).catch(fileOperationError);activateTab('tabMaterialMgr');syncMaterial();}
   else{commit(()=>{materials.push({...frameDefaultMaterials[0],...frameMaterialDefaults,...Object.fromEntries(frameMapFields.map(k=>[k,null])),uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial)});activeMaterial=materialAnchor=materials.length-1;selectedMaterials=new Set([activeMaterial]);},false);renderMaterials();syncMaterial();document.querySelector(`[data-material="${activeMaterial}"]`).scrollIntoView({block:'nearest'});}
 };
 function materialDropIndex(x,y){const target=document.elementFromPoint(x,y)?.closest('.mat-card');return target?Math.max(1,+target.dataset.material+(x>=target.getBoundingClientRect().left+target.offsetWidth/2?1:0)):materials.length;}
-function captureMaterialGesture(e){document.activeElement?.blur();materialGesture.pointerId=e.pointerId;materialGesture.source=e.target.closest?.('.mat-card')||e.currentTarget;materialGesture.source.setPointerCapture(e.pointerId);}
+function captureMaterialGesture(e){document.activeElement?.blur();materialGesture.pointerId=e.pointerId;materialGesture.source=e.target.matches('input[readonly]')?e.target:e.target.closest?.('.mat-card')||e.currentTarget;materialGesture.source.setPointerCapture(e.pointerId);}
 function clearMaterialDrop(){for(const el of document.querySelectorAll('.ob-row.material-drop,.me-tex-btn.material-drop'))el.classList.remove('material-drop');}
 function finishMaterialGesture(e,cancel=false){const g=materialGesture;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;materialGesture=null;try{g.source.releasePointerCapture(g.pointerId);}catch{}clearMaterialDrop();g.box?.remove();$('dragInfo')?.remove();document.body.classList.remove('material-dragging');if(!g.moved)return;suppressMaterialClick=true;if(cancel)return;if(g.kind==='marquee'){if(selectedMaterials.size)activeMaterial=[...selectedMaterials][0];syncMaterial();return;}const hit=document.elementFromPoint(e.clientX,e.clientY),owner=hit?.closest('.ob-row')?.dataset.id;if(g.kind==='texture'){if(g.material&&(!materials.includes(g.material)||g.material[frameTextureSlots[g.slot][0]]!==g.asset))return;if(hit?.closest('#texturesPanel,#tabTextures')){frameAddTexture(g.texture,g.preview?.alt||'Texture');return;}const slot=hit?.closest('.me-tex-btn')?.dataset.slot;if(slot){if(g.material===materials[activeMaterial]&&g.slot===slot)return;(g.asset?instanceMaterialTexture(g.asset,slot):loadMaterialTexture(g.texture,slot)).catch(fileOperationError);return;}if(owner)assignTexture(owner,g.texture);else if(frameViewportAt(e.clientX,e.clientY)!==null){const documentNodes=nodes;window.frameEngine.materialDropTarget(e.clientX,e.clientY).then(hash=>{if(nodes!==documentNodes||g.material&&(!materials.includes(g.material)||g.material[frameTextureSlots[g.slot][0]]!==g.asset))return;const n=frameNodeByHash(hash);if(n)return assignTexture(n.id,g.texture);}).catch(fileOperationError);}return;}if(hit?.closest('#matList')){if(g.copy||e.ctrlKey||e.metaKey)insertMaterialCopies(g.indices.map(i=>materials[i]),materialDropIndex(e.clientX,e.clientY));}else if(owner)frameAssignMaterial(owner,g.indices[0],g.fromEditor,hit?.closest('.ob-tag')?+hit.closest('.ob-tag').dataset.tag:null).catch(fileOperationError);else if(frameViewportAt(e.clientX,e.clientY)!==null)frameDropMaterial(e.clientX,e.clientY,g.indices[0],g.fromEditor).catch(fileOperationError);else if(hit?.closest('.me-preview')){activeMaterial=g.indices[0];syncMaterial();}}
 $('matList').onpointerdown=e=>{if(e.button!==0||e.target.matches('input:not([readonly])'))return;suppressMaterialClick=false;e.preventDefault();const card=e.target.closest('.mat-card'),index=card?+card.dataset.material:null;card?.focus({preventScroll:true});materialGesture={kind:card?'drag':'marquee',x:e.clientX,y:e.clientY,moved:false,copy:e.ctrlKey||e.metaKey,add:e.ctrlKey||e.metaKey||e.shiftKey,base:new Set(selectedMaterials),indices:card?(selectedMaterials.has(index)?[...selectedMaterials].sort((a,b)=>a-b):[index]):[]};captureMaterialGesture(e);};
@@ -13633,14 +13798,17 @@ function frameUIMaterialSlots(){const slots=new Map();materials.forEach((m,i)=>{
 function frameUITags(tags,slots){return (tags||[]).map(t=>t.kind==='material'?{...t,material:slots.get(t.materialUID)??0,params:{}}:{...t,params:{...t.params}});}
 function frameMaterialOwner(n,selection=true){return selection&&n?.type==='spline'&&FrameSpline.selection(n.nativeHash).size?FrameSpline.patchOwner(n)||n:n;}
 function frameSetMaterialTag(n,index,mask=null,target=null){
+  frameEditingMaterialTag=null;
   target??=!mask?n.tags.findLast(t=>t.kind==='material'&&!t.mask):null;
   if(target?.kind==='material')target.material=index;else{target={kind:'material',uid:crypto.randomUUID().replaceAll('-',''),material:index,mask,params:{}};n.tags.push(target);}
+  target.materialUID=materials[index].uid;frameChangedMaterials.add(target.materialUID);
+  const compact=n.librarySlots?.find(slot=>slot.uid===target.uid);if(compact)compact.materialUID=target.materialUID;
   if(!target.mask)n.tags=n.tags.filter(t=>t.kind!=='material'||t.mask||t===target);return target;
 }
 async function frameAssignMaterial(owner,index,fromEditor=false,targetIndex=null){
   const picked=node(owner),n=frameMaterialOwner(picked,targetIndex===null),material=materials[index];if(!n?.nativeHash||!material)return;let target=targetIndex===null?null:n.tags[targetIndex];
   const mask=target?.kind==='material'?target.mask:await window.frameEngine?.capturePolygonSelection(n.nativeHash);if(node(owner)!==picked||!nodes.includes(n)||!materials.includes(material))return;
-  commit(()=>{index=materials.indexOf(material);if(fromEditor&&index===0)index=materials.indexOf(editableMaterial(material));const pluginTarget=FramePlugins.dispatch('materialTarget',n,index);frameSetMaterialTag(pluginTarget?.()||n,index,mask||null,target);});syncMaterial();
+  commit(()=>{index=materials.indexOf(material);if(fromEditor&&material.uid===frameDefaultMaterials[0].uid)index=materials.indexOf(editableMaterial(material,null));const pluginTarget=FramePlugins.dispatch('materialTarget',n,index);frameSetMaterialTag(pluginTarget?.()||n,index,mask||null,target);});syncMaterial();
 }
 async function frameDropMaterial(x,y,index,fromEditor=false){const hash=await window.frameEngine?.materialDropTarget(x,y),n=frameNodeByHash(hash);if(n)await frameAssignMaterial(n.id,index,fromEditor);}
 function frameMaterialTagControls(){ $('frameMaterialSelection')?.remove(); }
@@ -13666,18 +13834,19 @@ function renderTextures(){
 }
 $('texGrid').onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();const card=e.target.closest('.tex-card');if(card?.dataset.pending!==undefined)return;if(card)materialGesture={kind:'texture',x:e.clientX,y:e.clientY,moved:false,texture:card.dataset.texture,preview:card.querySelector('img')};if(card)captureMaterialGesture(e);};
 
-async function instanceMaterialTexture(asset,slot,material=materials[activeMaterial],channel=null,packed=false){
+async function instanceMaterialTexture(asset,slot,material=materials[activeMaterial],channel=null,packed=false,target=frameMaterialEditTarget(material)){
   const source=frameMaterialAssets.get(asset);if(!source)throw Error('Missing material image');if(!frameTextureSlots[slot])throw Error('Unknown texture slot');
   const [field,ch]=frameTextureSlots[slot];if(material[field]===asset&&(!ch||channel===null||material[ch]===channel)&&!packed)return;
-  return loadMaterialTexture(source.url,slot,material,channel??(ch?material[ch]??frameMaterialDefaults[ch]:null),packed,true);
+  return loadMaterialTexture(source.url,slot,material,channel??(ch?material[ch]??frameMaterialDefaults[ch]:null),packed,true,target);
 }
-async function loadMaterialTexture(url,slot='map',material=materials[activeMaterial],channel=null,packed=false,instance=false){
+async function loadMaterialTexture(url,slot='map',material=materials[activeMaterial],channel=null,packed=false,instance=false,target=frameMaterialEditTarget(material)){
   if(!frameTextureSlots[slot])throw Error('Unknown texture slot');if(slot==='aoAsset'&&!frameMaterialUV(material))throw Error('AO requires a UV tag');
   const img=frameMaterialImage(url);if(!img.complete||!img.naturalWidth)await frameDecodeMaterialImage(url,img);
+  if(target&&(!nodes.includes(target.owner)||target.tag&&(!target.owner.tags.includes(target.tag)||materials[target.tag.material??0]!==material)))return;
   if(!materials.includes(material))return;textureImages.set(url,img);const asset=frameMaterialAsset(url),[field,ch]=frameTextureSlots[slot],alpha=!instance&&slot==='map'&&frameHasAlpha(img),previousColor=material.colorAsset,previousNormal=material.normalAsset;
-  commit(()=>{const m=editableMaterial(material);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}m[field]=asset;if(ch)m[ch]=channel??(slot==='opacityMap'?4:0);if(slot==='map'){m.texture=url;m.map=img;if(!instance){m.alphaMode=0;if(alpha&&(!m.opacityAsset||m.opacityAsset===previousColor)){m.opacityTexture=url;m.opacityMap=img;m.opacityAsset=asset;m.opacityChannel=3;}else if(m.opacityAsset===previousColor){m.opacityTexture=null;m.opacityMap=null;delete m.opacityAsset;}}}if(slot==='opacityMap'){m.opacityTexture=url;m.opacityMap=img;}if(slot==='normalAsset'&&!m.bump&&(!instance||!previousNormal))m.bump=100;if(packed){m.roughAsset=m.metalAsset=asset;m.roughChannel=1;m.metalChannel=2;if(frameMaterialUV(m)){m.aoAsset=asset;m.aoChannel=0;}delete m.metalRoughAsset;}},false);frameTextureRefresh();
+  commit(()=>{const m=editableMaterial(material,target);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}m[field]=asset;if(ch)m[ch]=channel??(slot==='opacityMap'?4:0);if(slot==='map'){m.texture=url;m.map=img;if(!instance){m.alphaMode=0;if(alpha&&(!m.opacityAsset||m.opacityAsset===previousColor)){m.opacityTexture=url;m.opacityMap=img;m.opacityAsset=asset;m.opacityChannel=3;}else if(m.opacityAsset===previousColor){m.opacityTexture=null;m.opacityMap=null;delete m.opacityAsset;}}}if(slot==='opacityMap'){m.opacityTexture=url;m.opacityMap=img;}if(slot==='normalAsset'&&!m.bump&&(!instance||!previousNormal))m.bump=100;if(packed){m.roughAsset=m.metalAsset=asset;m.roughChannel=1;m.metalChannel=2;if(frameMaterialUV(m)){m.aoAsset=asset;m.aoChannel=0;}delete m.metalRoughAsset;}},false);frameTextureRefresh();
 }
-function removeMaterialTexture(slot){const m=materials[activeMaterial],previous=[{...m}],[field]=frameTextureSlots[slot];commit(()=>{if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}if(slot==='opacityMap'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3)m.alphaMode=1;if(slot==='map'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3){delete m.opacityAsset;m.opacityTexture=null;m.opacityMap=null;}delete m[field];if(slot==='map'){m.texture=null;m.map=null;}if(slot==='opacityMap'){m.opacityTexture=null;m.opacityMap=null;}},false);framePruneTextureCards(previous);frameTextureRefresh();}
+function removeMaterialTexture(slot,target=frameMaterialEditTarget(materials[activeMaterial])){const material=materials[activeMaterial],previous=[{...material}],[field]=frameTextureSlots[slot];commit(()=>{const m=editableMaterial(material,target);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}if(slot==='opacityMap'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3)m.alphaMode=1;if(slot==='map'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3){delete m.opacityAsset;m.opacityTexture=null;m.opacityMap=null;}delete m[field];if(slot==='map'){m.texture=null;m.map=null;}if(slot==='opacityMap'){m.opacityTexture=null;m.opacityMap=null;}},false);framePruneTextureCards(previous);frameTextureRefresh();}
 function assignMaterial(owner,index,fromEditor=false){return frameAssignMaterial(owner,index,fromEditor).catch(fileOperationError);}
 async function assignTexture(owner,url){
   const n=frameMaterialOwner(node(owner)),documentNodes=nodes;if(!n)return;const img=frameMaterialImage(url);if(!img.complete||!img.naturalWidth)await frameDecodeMaterialImage(url,img);if(nodes!==documentNodes||!nodes.includes(n))return;const uid=await window.frameEngine?.capturePolygonSelection(n.nativeHash);if(nodes!==documentNodes||!nodes.includes(n))return;
@@ -14125,6 +14294,7 @@ FrameViewWindows.onWindow('frame-engine-scene',e=>{
   frameInstallMaterialState(e.detail.appearance,e.detail.preparedImages);const global=e.detail.timeline||{frame:0,total:120,materials:[]};timelineFrame=global.frame;timelineTotal=global.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);frameRestoreChannels(global.materials);const mapping=new Map(),slots=frameUIMaterialSlots();
   for(const o of e.detail.objects.slice().reverse()){const n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
   for(const o of e.detail.objects)mapping.get(o.hash).parent=mapping.get(o.parent)?.id||null;
+  frameChangedMaterials.clear();frameShareBoundMaterials();
   frameSetSceneFileName(e.detail.name.replace(/\.(obj|stl|gltf|glb|ply|step|stp|dxf)$/i,'.hash'));sceneFileHandle=null;
   render();FramePluginRecords.collect();
   window.frameDocumentation?.reset();
@@ -18382,9 +18552,35 @@ window.frameEngine=(()=>{
     function rememberAppearance(id,type,value){invalidateRenderMaterials();scene.appearanceIds??=new Set();scene.appearanceIds.add(id);scene.records.set(id,nativeRecord(id,type,value));return id;}
     function putAppearance(h,f,type,value){if(f==='uv'&&value?.kind==='imported-uv')uvResources.set(h,value);return rememberAppearance(appearanceId(h,f),type,value);}
     function appearanceTags(hash){return (appearanceValue(hash,'tags')||[]).map(uid=>{const refs=appearanceValue(uid,'material'),mask=appearanceValue(uid,'faces');return refs?{uid,kind:'material',materialUID:refs[0],mask:mask?.token||null,params:{}}:{uid,kind:'uv',params:{}};});}
-    function appearanceLibrary(){
-      const {K}=FrameHash,library=(scene.records.get(K.materials)?.value||[]).map(uid=>{const values=appearanceValue(uid,'parameters'),maps=appearanceValue(uid,'maps')||[];return {uid,name:nativeValue(uid,'name')||'Material',...frameMaterialDefaults,...Object.fromEntries(materialKeys.flatMap((k,i)=>values[i]===undefined?[]:[[k,values[i]]])),...Object.fromEntries(frameMapFields.map((k,i)=>[k,maps[i]&&maps[i]!==K.zero?maps[i]:null])),...(maps[3]&&maps[3]!==K.zero?{roughAsset:maps[4]&&maps[4]!==K.zero?maps[4]:maps[3],metalAsset:maps[5]&&maps[5]!==K.zero?maps[5]:maps[3],roughChannel:values[9]??1,metalChannel:values[10]??2}:{})};});
-      const assets=(scene.records.get(K.assets)?.value||[]).map(uid=>({uid,path:appearanceValue(uid,'path')||'',bytes:appearanceValue(uid,'image')||null}));return {library,assets};
+    function appearanceLibrary(records=scene.records){
+      const {K}=FrameHash,get=(uid,field)=>records.get(FrameHash.address(uid,field))?.value;
+      const library=(records.get(K.materials)?.value||[]).map(uid=>{const values=get(uid,'parameters'),maps=get(uid,'maps')||[];return {uid,name:get(uid,'name')||'Material',...frameMaterialDefaults,...Object.fromEntries(materialKeys.flatMap((k,i)=>values[i]===undefined?[]:[[k,values[i]]])),...Object.fromEntries(frameMapFields.map((k,i)=>[k,maps[i]&&maps[i]!==K.zero?maps[i]:null])),...(maps[3]&&maps[3]!==K.zero?{roughAsset:maps[4]&&maps[4]!==K.zero?maps[4]:maps[3],metalAsset:maps[5]&&maps[5]!==K.zero?maps[5]:maps[3],roughChannel:values[9]??1,metalChannel:values[10]??2}:{})};});
+      const assets=(records.get(K.assets)?.value||[]).map(uid=>({uid,path:get(uid,'path')||'',bytes:get(uid,'image')||null}));return {library,assets};
+    }
+    function importMaterialPool(){
+      const current=appearanceLibrary(),pool=frameMaterialPool();
+      for(const a of current.assets)pool.asset(a);
+      for(const m of current.library)pool.intern(m);
+      return pool;
+    }
+    function matchHashMaterials(records,mapping,newTracks){
+      const pool=importMaterialPool(),incoming=appearanceLibrary(records),reused=new Set(),tracks=new Map();
+      for(const [owner,path,t]of records.get(FrameHash.K.parameters)?.value?.materials||[]){
+        if(!tracks.has(owner))tracks.set(owner,[]);
+        tracks.get(owner).push([path,framePackTrack(frameUnpackTrack(t),false)]);
+      }
+      for(const a of incoming.assets){
+        const uid=mapping.get(a.uid),canonical=pool.asset({...a,uid});
+        if(canonical!==uid){mapping.set(a.uid,canonical);reused.add(a.uid);}
+      }
+      for(const m of incoming.library){
+        const uid=mapping.get(m.uid),candidate={...m,uid},animation=tracks.get('mat:'+m.uid)||[];
+        for(const field of frameMapFields)candidate[field]=mapping.get(m[field])||null;
+        const canonical=pool.intern(candidate,animation).uid;
+        if(canonical!==uid){mapping.set(m.uid,canonical);reused.add(m.uid);}
+        else if(animation.length)newTracks.set('mat:'+uid,new Map(animation.map(([path,t])=>[path,frameUnpackTrack(t)])));
+      }
+      return reused;
     }
     function syncMaterials(){
       if(!scene||nativeIOBusy||!window.frameMaterialState)return;const state=window.frameMaterialState(),{K,T}=FrameHash;
@@ -19011,7 +19207,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       `}),layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]}),pipelineLayout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),layout]});r.cloudPipelines=[];r.cloudWirePipelines=[];await Promise.all([false,true].flatMap(orthographic=>[false,true].map(async wire=>{(wire?r.cloudWirePipelines:r.cloudPipelines)[+orthographic]=await d.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:'cloudVS',constants:{orthographic,posed:true}},fragment:{module,entryPoint:wire?'cloudWireFS':'cloudFS',targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});})));r.cloudLayout=layout;draw(true);})();return r.cloudReady;}
     function drawCloudInstances(r,pass){const clouds=cloudRows();if(!clouds.length)return 0;if(!r.cloudLayout){cloudPipeline(r).catch(editError);return 0;}r.cloudInstances??=new Map();const alive=new Set();let count=0;for(const n of clouds){if(!helperShown(n.nativeHash)||!lightShown(n.nativeHash)||!frameSoloContains(n))continue;for(const row of n.instanceCloud){const source=scene.meshes.find(m=>m.hashId===row.source&&!m.replicaMatrix),points=n.pluginRecords?.[row.field]?.value;if(!source||!points?.length)continue;const key=n.nativeHash+row.field;alive.add(key);let state=r.cloudInstances.get(key);if(!state||state.points!==points){if(state){releaseGPU(state.buffer);releaseGPU(state.uniform);}const buffer=makeGPUBuffer(r.device,{label:'native compact instance centers/radii',size:points.length*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),uniform=makeGPUBuffer(r.device,{size:160,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});r.device.queue.writeBuffer(buffer,0,new Float32Array(points));state={points,buffer,uniform,group:r.device.createBindGroup({layout:r.cloudLayout,entries:[{binding:0,resource:{buffer}},{binding:1,resource:{buffer:uniform}}]})};r.cloudInstances.set(key,state);}const world=objectWorld(n.nativeHash),inverse=FM.inv(world),v=new Float32Array(40),words=new Uint32Array(v.buffer),sign=Math.sign(FM.determinant(world));v.set(world);for(let j=0;j<3;j++)for(let k=0;k<3;k++)v[16+j*4+k]=inverse[k*4+j]*sign;words[28]=words[29]=1;let material;for(let p=n;p&&!material;p=node(p.parent))material=p.tags.findLast(t=>t.kind==='material');const sourceNode=frameNodeByHash(row.source);material??=sourceNode?.tags.findLast(t=>t.kind==='material');const m=materials[material?.material||0];v.set([...hsl2rgb(m.h,m.s/100,m.l/100),1-m.opac/100],32);v.set([m.rough/100,m.metal/100,m.emm/100,0],36);r.device.queue.writeBuffer(state.uniform,0,v);pass.setPipeline((polygonWire()?r.cloudWirePipelines:r.cloudPipelines)[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(1,source.shadingBindGroup);pass.setBindGroup(2,state.group);pass.draw(source.count,points.length/4);count+=points.length/4;}}for(const [key,state]of r.cloudInstances)if(!alive.has(key)){releaseGPU(state.buffer);releaseGPU(state.uniform);r.cloudInstances.delete(key);}return count;}
     async function detachInstances(n,atoms){
-      if(!n||!atoms.length||atoms.some(a=>!a.position?.every(Number.isFinite)||!(a.radius>0)))throw Error('Invalid native instances');const before=snapshot(),created=[];try{const groups=new Map();for(const a of atoms){const key=a.species+':'+a.color.join(',');let members=groups.get(key);if(!members)groups.set(key,members=[]);members.push(a);}n.type='group';n.params={};delete n.pluginRecords;delete n.instanceCloud;n.tags=n.tags.filter(t=>t.kind!=='material');let group=0;for(const members of groups.values()){const owner=groups.size===1?n:create('group',n.id,members[0].name);owner.nativeHash??=FrameHash.newId();const template=create('mesh',owner.id,members[0].name||'Sphere');template.nativeHash=FrameHash.newId();template.browserHidden=true;template.visible=false;const t=(1+Math.sqrt(5))/2,unit=Math.hypot(1,t),raw={vertices:new Float32Array([-1,t,0,1,t,0,-1,-t,0,1,-t,0,0,-1,t,0,1,t,0,-1,-t,0,1,-t,t,0,-1,t,0,1,-t,0,-1,-t,0,1].map(v=>v/unit)),indices:new Uint32Array([0,11,5,0,5,1,0,1,7,0,7,10,0,10,11,1,5,9,5,11,4,11,10,2,10,7,6,7,1,8,3,9,4,3,4,2,3,2,6,3,6,8,3,8,9,4,9,5,2,4,11,6,2,10,8,6,7,9,8,1]),vertexCount:12,triangleCount:20,nativeExact:true},mesh=await uploadAndCompute(renderer,raw);mesh.hashId=template.nativeHash;created.push(mesh);scene.meshes.push(mesh);template.engineIndex=scene.meshes.length-1;const rgb=members[0].color,hi=Math.max(...rgb),lo=Math.min(...rgb),delta=hi-lo,l=(hi+lo)/2;let h=0;if(delta)h=(hi===rgb[0]?(rgb[1]-rgb[2])/delta+(rgb[1]<rgb[2]?6:0):hi===rgb[1]?(rgb[2]-rgb[0])/delta+2:(rgb[0]-rgb[1])/delta+4)*60;const material={...frameDefaultMaterials[0],...frameMaterialDefaults,uid:FrameHash.newId(),name:template.name,h,s:delta?delta/(1-Math.abs(2*l-1))*100:0,l:l*100};materials.push(material);owner.tags=[{uid:FrameHash.newId(),kind:'material',material:materials.length-1,params:{}}];
+      if(!n||!atoms.length||atoms.some(a=>!a.position?.every(Number.isFinite)||!(a.radius>0)))throw Error('Invalid native instances');const before=snapshot(),created=[];try{const groups=new Map();for(const a of atoms){const key=a.species+':'+a.color.join(',');let members=groups.get(key);if(!members)groups.set(key,members=[]);members.push(a);}n.type='group';n.params={};delete n.pluginRecords;delete n.instanceCloud;n.tags=n.tags.filter(t=>t.kind!=='material');let group=0;for(const members of groups.values()){const owner=groups.size===1?n:create('group',n.id,members[0].name);owner.nativeHash??=FrameHash.newId();const template=create('mesh',owner.id,members[0].name||'Sphere');template.nativeHash=FrameHash.newId();template.browserHidden=true;template.visible=false;const t=(1+Math.sqrt(5))/2,unit=Math.hypot(1,t),raw={vertices:new Float32Array([-1,t,0,1,t,0,-1,-t,0,1,-t,0,0,-1,t,0,1,t,0,-1,-t,0,1,-t,t,0,-1,t,0,1,-t,0,-1,-t,0,1].map(v=>v/unit)),indices:new Uint32Array([0,11,5,0,5,1,0,1,7,0,7,10,0,10,11,1,5,9,5,11,4,11,10,2,10,7,6,7,1,8,3,9,4,3,4,2,3,2,6,3,6,8,3,8,9,4,9,5,2,4,11,6,2,10,8,6,7,9,8,1]),vertexCount:12,triangleCount:20,nativeExact:true},mesh=await uploadAndCompute(renderer,raw);mesh.hashId=template.nativeHash;created.push(mesh);scene.meshes.push(mesh);template.engineIndex=scene.meshes.length-1;frameBindColorMaterial(owner,template.name,members[0].color);
         if(atoms.length<=128){for(const a of members){const instance=create('instance',owner.id,a.name||'Sphere');instance.nativeHash=FrameHash.newId();instance.params.object=template.nativeHash;const m=FM.I();m[0]=m[5]=m[10]=a.radius;m.set(a.position,12);instance.creationFrame=Array.from(FM.pack(m));}}
         else{const field=(BigInt('0x'+CLOUD_POINTS)+BigInt(group)).toString(16).padStart(32,'0');owner.pluginRecords={[field]:{type:6,value:members.flatMap(a=>[...a.position,a.radius])}};owner.instanceCloud=[{field,source:template.nativeHash}];owner.folded=true;}group++;}
       delete n.creationFrame;frameSyncEngineVisibility();syncReplicas();render();checkpoint(before);await draw(true);return n;
@@ -22471,11 +22667,12 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const resource of release)if(!baseline.has(resource)&&gpuAllocations.has(resource))releaseGPU(resource);
     }
     async function mergeFile(file,options={}){await selectionQueue;await editSerial;await appearanceQueue;syncMaterials();
-      const progress=nativeIOStart('Reading scene…'),space=scene,gpu=renderer,created=[],guard=()=>{if(scene!==space||renderer!==gpu)throw Error('Scene or GPU changed during Merge');};let before,specs=[],plan,catalog,data,preparedImages,published=false,importedDocumentation='',documentationMapping=new Map(),importedAuthorData=null,rootMapping=new Map(),authorMapping=new Map(),authorPublished=false;
+      const progress=nativeIOStart('Reading scene…'),space=scene,gpu=renderer,created=[],newTracks=new Map(),guard=()=>{if(scene!==space||renderer!==gpu)throw Error('Scene or GPU changed during Merge');};let before,specs=[],plan,catalog,data,preparedImages,published=false,importedDocumentation='',documentationMapping=new Map(),importedAuthorData=null,rootMapping=new Map(),authorMapping=new Map(),authorPublished=false;
       try{
         before={objects:poseObjects().map(o=>({...o,matrix:o.matrix?.slice(),pivot:o.pivot?.slice()})),selection:[...objectSelection],frames:snapshotFrames(),appearance:captureMergeAppearance(space),meshes:new Set(space.meshes),authorData:FrameAuthorData.root()};
         if(/\.hash$/i.test(file.name)){
           plan=await nativeDecodePlan(file);guard();if(options.readResource){for(const uid of plan.records.get(FrameHash.K.assets)?.value||[]){const address=FrameHash.address(uid,'path'),path=plan.records.get(address)?.value;if(path){const image=await options.readResource(path);guard();plan.records.delete(address);plan.appearance.ids.delete(address);const id=FrameHash.address(uid,'image');plan.records.set(id,nativeRecord(id,FrameHash.T.bytes,image));plan.appearance.ids.add(id);}}}if(options.clipboard)for(const o of plan.objects){const ref=o.spline?.params.object;if(ref&&ref!=='Drop object'&&!plan.objects.some(p=>p.hash===ref)&&!poseObjects().some(p=>p.hash===ref))throw Error('Clipboard references an object absent from this scene');}const {K,T}=FrameHash,get=(h,f)=>plan.records.get(FrameHash.address(h,f))?.value,ids=[...plan.objects.map(o=>o.hash),...plan.records.get(K.materials)?.value||[],...plan.records.get(K.assets)?.value||[],...plan.objects.flatMap(o=>get(o.hash,'tags')||[]),...plan.objects.flatMap(o=>o.authoring?.library?.slots.map(slot=>slot.uid)||[]),...plan.objects.flatMap(o=>o.authoring?.tags?.flatMap(t=>[t.uid,...t.kind==='morph'&&!t.referencesUnresolved?t.poses.map(p=>p.id):[]])||[])].filter(Boolean),mapping=new Map(ids.map(h=>[h,FrameHash.newId()])),remap=x=>typeof x==='string'?mapping.get(x)||x.replace(/^(pose|tag|mat):([^:]+)(.*)$/,(all,prefix,id,tail)=>mapping.has(id)?prefix+':'+mapping.get(id)+tail:all):Array.isArray(x)?x.map(remap):x&&typeof x==='object'?Object.fromEntries(Object.entries(x).map(([k,v])=>[k,remap(v)])):x;
+          const reused=matchHashMaterials(plan.records,mapping,newTracks);
           importedAuthorData=(plan.records.get(K.parameters)?.value||{}).authorData||null;authorMapping=new Map(plan.objects.map(o=>[o.hash,mapping.get(o.hash)]));rootMapping=new Map((importedAuthorData?.records||[]).map(r=>[r.id,FrameHash.newId()]));if(!options.fileSource)FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);
           if(!options.clipboard){importedDocumentation=(plan.records.get(K.parameters)?.value||{}).documentation||'';documentationMapping=new Map(plan.objects.map(o=>[o.hash,mapping.get(o.hash)]));FrameDocumentation.merge(window.frameDocumentation.get().text,importedDocumentation,documentationMapping);}
           specs=plan.objects.map(o=>({...o,hash:mapping.get(o.hash),parent:mapping.get(o.parent)||null,spline:remap(o.spline),authoring:FramePlugins.remapAuthoring(o.authoring,mapping,remap,rootMapping,authorMapping),tags:(get(o.hash,'tags')||[]).map(uid=>{const refs=get(uid,'material');return refs?{uid:mapping.get(uid),kind:'material',materialUID:mapping.get(refs[0]),mask:get(uid,'faces')?mapping.get(uid):null,params:{}}:{uid:mapping.get(uid),kind:'uv',params:{}};})}));
@@ -22483,23 +22680,23 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           FrameAuthorData.reserveObjects(specs,options.fileSource?FrameAuthorData.root():FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping));
           for(let i=0;i<plan.objects.length;i++){const o=plan.objects[i];if(o.p){const input=await nativeDecodeMesh(file,o);guard();validatePolygonSets(plan,o,input);const mesh=await uploadAndCompute(gpu,input);created.push(mesh);guard();mesh.hashId=specs[i].hash;if(input.uv)uploadImportedUV(gpu,mesh,input.uv);specs[i].index=space.meshes.length+created.length-1;progress('Merging HASH · '+created.length+' / '+plan.meshes);}}
           // Appearance keys are re-addressed once; canonical geometry never crosses the CPU.
-          for(const uid of ids)for(const field of ['name','parameters','maps','path','image','material','tags']){const record=plan.records.get(FrameHash.address(uid,field));if(!record||plan.objects.some(o=>o.hash===uid)&&field!=='tags')continue;const value=record.type===T.ids?record.value.map(remap):record.value;putAppearance(mapping.get(uid),field,record.type,value);}
-          for(const field of ['materials','assets']){const current=scene.records.get(K[field])?.value||[],extra=(plan.records.get(K[field])?.value||[]).map(remap);if(extra.length)rememberAppearance(K[field],T.ids,[...current,...extra]);}
+          for(const uid of new Set(ids))if(!reused.has(uid))for(const field of ['name','parameters','maps','path','image','material','tags']){const record=plan.records.get(FrameHash.address(uid,field));if(!record||plan.objects.some(o=>o.hash===uid)&&field!=='tags')continue;const value=record.type===T.ids?record.value.map(remap):record.value;putAppearance(mapping.get(uid),field,record.type,value);}
+          for(const field of ['materials','assets']){const current=scene.records.get(K[field])?.value||[],extra=(plan.records.get(K[field])?.value||[]).map(remap);if(extra.length)rememberAppearance(K[field],T.ids,[...new Set([...current,...extra])]);}
           plan.appearance.faces=plan.appearance.faces.map(f=>({...f,uid:mapping.get(f.uid),owner:mapping.get(f.owner)}));plan.appearance.uvs=plan.appearance.uvs.map(f=>({...f,uid:mapping.get(f.uid),owner:mapping.get(f.owner)}));
         }else if(/\.(gltf|glb|3mf|svg|step|stp|dxf)$/i.test(file.name)){
-          data=await (/\.dxf$/i.test(file.name)?decodeDXF(file):/\.(step|stp)$/i.test(file.name)?decodeSTEP(file):/\.svg$/i.test(file.name)?decodeSVG(file):/\.3mf$/i.test(file.name)?decode3MF(file):decodeGLTF(file,options));guard();unwrapSingleImport(data);catalog=await importedCatalog(data);guard();specs=data.objects;preparedImages=frameStageMaterialImages(data.images.filter(Boolean));warmImportedSurfaces(gpu,specs,catalog);for(const o of specs)if(o.raw){o.index=space.meshes.length+created.length;const mesh=await uploadAndCompute(gpu,o.raw);created.push(mesh);guard();mesh.hashId=o.hash;}const oldMaterials=scene.records.get(FrameHash.K.materials)?.value||[],oldAssets=scene.records.get(FrameHash.K.assets)?.value||[];installImportedCatalog(data,catalog);rememberAppearance(FrameHash.K.materials,FrameHash.T.ids,[...oldMaterials,...catalog.map(m=>m.uid)]);rememberAppearance(FrameHash.K.assets,FrameHash.T.ids,[...oldAssets,...scene.records.get(FrameHash.K.assets)?.value||[]]);for(const o of specs)if(o.raw)o.tags=importedAppearance(o.raw,created[o.index-space.meshes.length],catalog);
+          data=await (/\.dxf$/i.test(file.name)?decodeDXF(file):/\.(step|stp)$/i.test(file.name)?decodeSTEP(file):/\.svg$/i.test(file.name)?decodeSVG(file):/\.3mf$/i.test(file.name)?decode3MF(file):decodeGLTF(file,options));guard();unwrapSingleImport(data);catalog=await importedCatalog(data);guard();specs=data.objects;preparedImages=frameStageMaterialImages(data.images.filter(Boolean));warmImportedSurfaces(gpu,specs,catalog);for(const o of specs)if(o.raw){o.index=space.meshes.length+created.length;const mesh=await uploadAndCompute(gpu,o.raw);created.push(mesh);guard();mesh.hashId=o.hash;}installImportedCatalog(data,catalog);for(const o of specs)if(o.raw)o.tags=importedAppearance(o.raw,created[o.index-space.meshes.length],catalog);
         }else{
           const raw=await parseInWorker(meshFileParser(file.name),await file.arrayBuffer());guard();const mesh=await uploadAndCompute(gpu,raw);created.push(mesh);guard();const hash=FrameHash.newId(),uid=raw.uv?FrameHash.newId():null;mesh.hashId=hash;specs=[{hash,type:1,index:space.meshes.length,name:file.name.replace(/\.[^.]+$/,''),flags:3,parent:null,tags:uid?[{uid,kind:'uv',params:{}}]:[]}];if(raw.uv)putAppearance(uid,'uv',FrameHash.T.float32,uploadImportedUV(gpu,mesh,raw.uv));
         }
         if(options.fileSource){const f=options.fileSource,rootData=FrameAuthorData.remap(importedAuthorData,authorMapping,rootMapping);if(rootData){for(const r of rootData.records){r.id=rootMapping.get(r.id)||r.id;for(const ref of r.refs)if(ref.owner==='scene')ref.owner=f.root;}if(rootData.retired)rootData.retired=rootData.retired.map(id=>rootMapping.get(id)||id);}for(const o of specs){o.authoring={version:1,tags:[],animation:[],...o.authoring,fileSource:f.token};for(const record of o.authoring.authorData?.records||[])for(const ref of record.refs)if(ref.owner==='scene')ref.owner=f.root;if(!o.parent)o.parent=f.root;if(o.spline?.type==='render'||o.type===2)o.flags&=~2;}specs.unshift({hash:f.root,type:0,name:f.name,parent:null,flags:2,matrix:FM.pack(FM.I()),pivot:FM.pack(FM.I()),authoring:{version:1,tags:[],animation:[],browserHidden:true,fileSource:f.token,...rootData?{authorData:rootData}:{}}});importedDocumentation='';importedAuthorData=null;}
-        guard();await selectionQueue;guard();await editSerial;guard();await appearanceQueue;guard();space.meshes.push(...created);published=true;if(plan)uploadPolygonSets(plan,gpu);frameInstallMaterialState(appearanceLibrary(),preparedImages);
+        guard();await selectionQueue;guard();await editSerial;guard();await appearanceQueue;guard();space.meshes.push(...created);published=true;if(plan)uploadPolygonSets(plan,gpu);for(const [h,tracks]of newTracks)FrameMorph.sceneChannels().set(h,tracks);frameInstallMaterialState(appearanceLibrary(),preparedImages);
         // Preserve the current active camera when an imported scene also contains cameras.
         if(cameraConfig())for(const o of specs)if(o.spline?.type==='render')o.flags&=~2;
         const roots=specs.filter(o=>!o.parent).map(o=>o.hash);await restoreStructure([...specs,...before.objects],options.fileSource?before.selection:roots);guard();FrameSpline.request();await FrameSpline.flush();guard();if(options.fileSource){status.hidden=true;return roots;}const mergedDocumentation=FrameDocumentation.merge(window.frameDocumentation.get().text,importedDocumentation,documentationMapping);const g={copyBefore:{objects:before.objects,selection:before.selection,frames:before.frames},copyCreated:created};g.copyBefore.authorData=before.authorData;const mergedAuthorData=FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);FrameAuthorData.setRoot(mergedAuthorData);authorPublished=true;commitObjectCopy(g);window.frameDocumentation.importText(mergedDocumentation);nativeSceneStats(file.name);lastImportReport=plan?.importReport||data?.importReport||null;status.hidden=true;return roots;
       }catch(error){
         if(!before)throw error;
         const same=scene===space&&renderer===gpu,discard=new Set(created);if(same&&published){for(const mesh of space.meshes)if(!before.meshes.has(mesh))discard.add(mesh);space.meshes=space.meshes.filter(m=>!discard.has(m));}
-        try{if(same){if(authorPublished)FrameAuthorData.setRoot(before.authorData);releaseMergeAppearance(before.appearance,[...discard],true);restoreMergeAppearance(space,gpu,before.appearance);if(published){await restoreStructure(before.objects,before.selection);guard();restoreFrames(before.frames);}activeMaterial=before.appearance.activeMaterial;selectedMaterials=new Set(before.appearance.selectedMaterials);renderMaterials();syncMaterial();refreshMaterialOwners();draw();}}
+        try{if(same){for(const h of newTracks.keys())FrameMorph.sceneChannels().delete(h);if(authorPublished)FrameAuthorData.setRoot(before.authorData);releaseMergeAppearance(before.appearance,[...discard],true);restoreMergeAppearance(space,gpu,before.appearance);if(published){await restoreStructure(before.objects,before.selection);guard();restoreFrames(before.frames);}activeMaterial=before.appearance.activeMaterial;selectedMaterials=new Set(before.appearance.selectedMaterials);renderMaterials();syncMaterial();refreshMaterialOwners();draw();}}
         catch(rollback){error=new AggregateError([error,rollback],'Merge failed and rollback failed',{cause:error});}
         finally{releaseMergeAppearance(before.appearance,[...discard],false);for(const mesh of discard)if(!scene?.meshes.includes(mesh))disposeMesh(mesh);}
         throw error;
@@ -22998,7 +23195,28 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       return tags;
     }
     async function importedCatalog(data){const catalog=data.materials.map(m=>({...m,uid:FrameHash.newId(),map:null}));for(const m of catalog)if(m.emissionImage!==undefined&&m.emissionFactor?.some(v=>v!==1)){const image=await createImageBitmap(new Blob([data.images[m.emissionImage]])),canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);image.close();const pixels=ctx.getImageData(0,0,canvas.width,canvas.height);for(let i=0;i<pixels.data.length;i+=4)for(let k=0;k<3;k++)pixels.data[i+k]=255*frameEncodeSRGB(frameDecodeSRGB(pixels.data[i+k]/255)*m.emissionFactor[k]);ctx.putImageData(pixels,0,0);m.emissionImage=data.images.length;data.images.push(new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer()));}return catalog;}
-    function installImportedCatalog(data,catalog){const {K,T}=FrameHash;rememberAppearance(K.materials,T.ids,catalog.map(m=>m.uid));const assets=[],images=new Map();for(const m of catalog){putAppearance(m.uid,'name',T.text,m.name);putAppearance(m.uid,'parameters',T.float64,Float64Array.from(materialKeys.map(k=>materialNumber(m,k))));const maps=[m.image,m.alphaMode===2||m.alphaMode===3?m.image:undefined,m.emissionImage,m.metalRoughImage,m.metalRoughImage,m.metalRoughImage,m.normalImage,m.aoImage].map(image=>{if(image===undefined)return K.zero;if(images.has(image))return images.get(image);const bytes=data.images[image];if(!bytes)throw Error('Unknown glTF image');const asset=FrameHash.newId();images.set(image,asset);assets.push(asset);putAppearance(asset,'image',T.bytes,bytes);return asset;});if(maps.some(id=>id!==K.zero))putAppearance(m.uid,'maps',T.ids,maps);}if(assets.length)rememberAppearance(K.assets,T.ids,assets);}
+    function installImportedCatalog(data,catalog){
+      const {K,T}=FrameHash,pool=importMaterialPool(),images=new Map();
+      const assets=[...scene.records.get(K.assets)?.value||[]],library=[...scene.records.get(K.materials)?.value||[]];
+      function imageID(index){
+        if(index===undefined)return K.zero;
+        if(images.has(index))return images.get(index);
+        const bytes=data.images[index];if(!bytes)throw Error('Unknown imported image');
+        const uid=FrameHash.newId(),id=pool.asset({uid,path:'',bytes});
+        if(id===uid){assets.push(id);putAppearance(id,'image',T.bytes,bytes);}
+        images.set(index,id);return id;
+      }
+      for(const m of catalog){
+        const maps=[m.image,m.alphaMode===2||m.alphaMode===3?m.image:undefined,m.emissionImage,m.metalRoughImage,m.metalRoughImage,m.metalRoughImage,m.normalImage,m.aoImage].map(imageID);
+        for(const [i,field]of frameMapFields.entries())m[field]=maps[i]===K.zero?null:maps[i];
+        const same=pool.intern(m,[]);
+        if(same!==m){m.uid=same.uid;continue;}
+        library.push(m.uid);putAppearance(m.uid,'name',T.text,m.name);
+        putAppearance(m.uid,'parameters',T.float64,Float64Array.from(materialKeys.map(k=>materialNumber(m,k))));
+        if(maps.some(id=>id!==K.zero))putAppearance(m.uid,'maps',T.ids,maps);
+      }
+      rememberAppearance(K.materials,T.ids,library);if(assets.length)rememberAppearance(K.assets,T.ids,assets);
+    }
     function unwrapSingleImport(data){
       const owners=data.objects.filter(o=>o.raw||o.spline||o.type===2);if(owners.length!==1)return data;
       const o=owners[0],byHash=new Map(data.objects.map(o=>[o.hash,o]));let matrix=FM.unpack(o.matrix),parent=byHash.get(o.parent),flags=o.flags;
@@ -23035,7 +23253,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       if(stockCarFinishes.has(filename))return;
       const body=catalog.find(m=>/paint/i.test(m.name));
       if(!body)throw Error('Stock car body paint is missing');
-      const finish=catalog.flatMap((m,slot)=>m===body||m.name==='Blue accent: body seams and recess surrounds'
+      const finish=catalog.flatMap((m,slot)=>m===body||m.name==='Seams'
         ?[{slot,authored:[m.h,m.s,m.l],shade:m.l/body.l}]:[]);
       stockCarFinishes.set(filename,finish);
     }
@@ -23046,24 +23264,14 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(m)[m.h,m.s,m.l]=filename===stockCarAssets.hatchback&&preset==='blue'?authored:[h,s,l*shade];
       }
     }
-    function stockMaterialUseCounts(){
-      const counts=new Map(),use=uid=>counts.set(uid,(counts.get(uid)||0)+1);
-      for(const owner of nodes){
-        for(const tag of owner.tags)if(tag.kind==='material')use(materials[tag.material??0]?.uid||tag.materialUID);
-        for(const slot of owner.librarySlots||[])use(slot.materialUID);
-      }
-      return counts;
-    }
     function carPaintForEdit(n,slot,uses){
       const tag=slot&&n.tags.find(t=>t.uid===slot.uid),material=tag&&materials[tag.material??0];
       if(!material)return null;
       const count=uses.get(material.uid)||0;
       if(count<2&&material.uid!==frameDefaultMaterials[0].uid)return material;
-      const copy={...material,uid:FrameHash.newId()};
-      tag.material=materials.push(copy)-1;tag.materialUID=copy.uid;
+      const copy=frameCopyMaterial(material);
+      tag.material=materials.length-1;tag.materialUID=copy.uid;
       uses.set(material.uid,count-1);uses.set(copy.uid,1);
-      const channels=FrameMorph.sceneChannels(),tracks=channels.get('mat:'+material.uid);
-      if(tracks)channels.set('mat:'+copy.uid,structuredClone(tracks));
       return copy;
     }
     function loadLibraryObjects(){
@@ -23087,10 +23295,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           const preset=n.params['color preset'];
           if(mesh&&sameAsset&&isCar&&stockCarFinishes.has(filename)){
             if(n.libraryPreset!==preset){
-              uses??=stockMaterialUseCounts();
-              const before=materials.length;
-              applyCarPreset(filename,preset,i=>carPaintForEdit(n,slots.get(i),uses));
-              if(materials.length!==before){frameSyncEngineVisibility();renderTree();}
+              uses??=frameMaterialUses();
+              const before=materials.length,changed=new Set();
+              applyCarPreset(filename,preset,i=>{const m=carPaintForEdit(n,slots.get(i),uses);if(m)changed.add(m.uid);return m;});
+              const shared=frameShareBoundMaterials(changed);
+              if(shared||materials.length!==before){uses=null;frameSyncEngineVisibility();renderTree();}
               if(activeTab==='tabMaterials')renderMaterials();
               if(activeTab==='tabMaterialMgr')syncMaterial();
             }
@@ -23108,12 +23317,17 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           }
           warmImportedSurface(renderer,raw,catalog,objectWorld(n.nativeHash));
           await installSplineSurface(n,{...raw,tasks:[],packets:[],report:{library:filename}});removeSpline(n.nativeHash,true);
-          for(const material of catalog)if(!materials.includes(material))materials.push(material);
+          if(!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params))continue;
+          const pool=frameMaterialPool();
+          for(const m of materials)pool.intern(m);
+          for(let i=0;i<catalog.length;i++)if(catalog[i]===defaults[i]){
+            const m=pool.intern(catalog[i]);if(m===catalog[i])materials.push(m);catalog[i]=m;
+          }
           const tags=importedAppearance(raw,scene.meshes.find(m=>m.hashId===n.nativeHash),catalog,isCar).map((t,i)=>{
             const slot=sameAsset&&slots.get(t.libraryIndex??i);
             return {...t,...slot?{uid:slot.uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true};
           });
-          n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
+          frameEditingMaterialTag=null;n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
           if(isCar)n.libraryPreset=preset;
           libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();frameSyncEngineVisibility();renderTree();
         }
@@ -24605,8 +24819,8 @@ function FramePolygonKernel(d){
         checkpoint(before);frameSyncEngineVisibility();await settle();return {object:describe(n),tag:copy(t),...result?{result}:{}};
       });
 
-      const animationOwner=id=>{if(!id.startsWith('mat:'))return resolve(id);const m=materials.find(m=>m.uid===id.slice(4));if(!m||m===materials[0])fail('INVALID_ARGUMENT','Address an editable material');return {id,nativeHash:m.uid};};
-      register('animation.key','Set a native PSR or numeric attribute key using the shared curve editor and editor Undo.',required(obj({id:str,path:str,frame:integer,value:{type:['number','array'],items:num,maxItems:3},interpolation:choice('soft','hard')}),'id','path','frame','value'),false,async a=>{const n=animationOwner(a.id);if(FramePlugins.dispatch('forbidAnimation',n,a.path))fail('INVALID_ARGUMENT','Only Fixed selections can animate internal transforms');if(frameIsPLAPath(a.path)&&!n.splineData&&!FrameSpline.sourceNode(n))await animationSelection(n,[+a.path.slice(4)]);const value=frameReadAttribute(n.id,a.path);if(frameCurves.morphPose&&a.path.startsWith('pose:')&&(a.frame<0||a.frame>100))fail('INVALID_ARGUMENT','Morph pose keys use frames 0..100');if(value===undefined||Array.isArray(value)!==Array.isArray(a.value)||Array.isArray(value)&&value.length!==a.value.length)fail('INVALID_ARGUMENT','Unknown attribute or wrong key dimensions');if(frameAttributeKind(n.id,a.path)==='discrete'){const spec=frameParameter(frameTarget(n.id),a.path).spec,limit=Array.isArray(spec)?spec.length-1:1;if(!Number.isInteger(a.value)||a.value<0||a.value>limit)fail('INVALID_ARGUMENT','Invalid discrete attribute key');}if(a.path==='scale'&&a.value.some(v=>Math.abs(v)<1e-9))fail('INVALID_ARGUMENT','Scale must be nonzero');const before=snapshot();let tracks=frameChannels.get(n.id);if(!tracks)frameChannels.set(n.id,tracks=new Map());let t=tracks.get(a.path);if(!t){t={kind:frameAttributeKind(n.id,a.path),dimensions:Array.isArray(a.value)?a.value.length:1,base:structuredClone(value),keys:new Map()};tracks.set(a.path,t);}const values=Array.isArray(a.value)?a.value:[a.value];for(let i=0;i<values.length;i++)framePutAxisRecord(t,a.frame,i,{value:values[i],mode:a.interpolation||(FRAME_TRANSFORM_FIELDS.includes(a.path)?'soft':'hard'),auto:(a.interpolation||'soft')==='soft'});frameAnimationRevision++;timelineTotal=Math.max(timelineTotal,a.frame);frameEvaluateAnimation(timelineFrame);checkpoint(before);frameSyncEngineVisibility();await settle();return {id:n.nativeHash,path:a.path,track:framePackTrack(frameGetTrack(n.id,a.path))};});
+      const animationOwner=id=>{if(!id.startsWith('mat:'))return resolve(id);const m=materials.find(m=>m.uid===id.slice(4));if(!m||m.uid===frameDefaultMaterials[0].uid)fail('INVALID_ARGUMENT','Address an editable material');return {id,nativeHash:m.uid};};
+      register('animation.key','Set a native PSR or numeric attribute key using the shared curve editor and editor Undo.',required(obj({id:str,path:str,frame:integer,value:{type:['number','array'],items:num,maxItems:3},interpolation:choice('soft','hard')}),'id','path','frame','value'),false,async a=>{const n=animationOwner(a.id);if(FramePlugins.dispatch('forbidAnimation',n,a.path))fail('INVALID_ARGUMENT','Only Fixed selections can animate internal transforms');if(frameIsPLAPath(a.path)&&!n.splineData&&!FrameSpline.sourceNode(n))await animationSelection(n,[+a.path.slice(4)]);const value=frameReadAttribute(n.id,a.path);if(frameCurves.morphPose&&a.path.startsWith('pose:')&&(a.frame<0||a.frame>100))fail('INVALID_ARGUMENT','Morph pose keys use frames 0..100');if(value===undefined||Array.isArray(value)!==Array.isArray(a.value)||Array.isArray(value)&&value.length!==a.value.length)fail('INVALID_ARGUMENT','Unknown attribute or wrong key dimensions');if(frameAttributeKind(n.id,a.path)==='discrete'){const spec=frameParameter(frameTarget(n.id),a.path).spec,limit=Array.isArray(spec)?spec.length-1:1;if(!Number.isInteger(a.value)||a.value<0||a.value>limit)fail('INVALID_ARGUMENT','Invalid discrete attribute key');}if(a.path==='scale'&&a.value.some(v=>Math.abs(v)<1e-9))fail('INVALID_ARGUMENT','Scale must be nonzero');const before=snapshot();let tracks=frameChannels.get(n.id);if(!tracks)frameChannels.set(n.id,tracks=new Map());let t=tracks.get(a.path);if(!t){t={kind:frameAttributeKind(n.id,a.path),dimensions:Array.isArray(a.value)?a.value.length:1,base:structuredClone(value),keys:new Map()};tracks.set(a.path,t);}const values=Array.isArray(a.value)?a.value:[a.value];for(let i=0;i<values.length;i++)framePutAxisRecord(t,a.frame,i,{value:values[i],mode:a.interpolation||(FRAME_TRANSFORM_FIELDS.includes(a.path)?'soft':'hard'),auto:(a.interpolation||'soft')==='soft'});frameAnimationRevision++;timelineTotal=Math.max(timelineTotal,a.frame);frameEvaluateAnimation(timelineFrame);if(n.id.startsWith('mat:'))frameChangedMaterials.add(n.nativeHash);const canonical=checkpoint(before)?.get(n.id)||n.id;frameSyncEngineVisibility();await settle();return {id:canonical.startsWith('mat:')?canonical.slice(4):n.nativeHash,path:a.path,track:framePackTrack(frameGetTrack(canonical,a.path))};});
       register('animation.seek','Evaluate all native transform, parameter, material and tag curves at a frame.',required(obj({frame:integer}),'frame'),false,async a=>{if(frameCurves.morphPose&&a.frame>100)fail('INVALID_ARGUMENT','Morph pose frames use 0..100');timelineTotal=Math.max(timelineTotal,a.frame);setTimelineFrame(a.frame);await settle();return {frame:timelineFrame,objects:describeMany(nodes)};});
       register('animation.trajectory','Read position key vertices, spatial tangent vectors and evaluated world positions without creating scene objects.',required(obj({id:str,frame:integer}),'id'),true,a=>{const n=resolve(a.id),t=motionTrack(n);return {...motionInfo(n),...(a.frame!==undefined&&t?.keys.size?{sample:{frame:a.frame,position:frameSampleRaw(t,a.frame),world:motionPoint(n,t,a.frame)}}:{})};});
       register('animation.tangent','Edit a native position key spatial tangent in parent coordinates, preserving its time handles and editor Undo.',required(obj({id:str,frame:integer,side:choice('in','out'),vector,independent:bool}),'id','frame','side','vector'),false,async a=>{const n=resolve(a.id),t=motionTrack(n);if(!t?.keys.has(a.frame))fail('INVALID_ARGUMENT','Address an existing position key');const before=snapshot();for(let axis=0;axis<3;axis++)frameFreezeAxis(t,axis);motionEdit(t,a.frame,a.side,a.vector,a.independent);frameAnimationRevision++;frameEvaluateAnimation(timelineFrame);checkpoint(before);frameRefreshAnimationUI();await settle();return motionInfo(n);});
@@ -24640,12 +24854,18 @@ function FramePolygonKernel(d){
       register('selection.invert','Invert vertices, edges or polygons within the active editable objects.',obj({}),false,async()=>{await invertSelection();return selectionInfo();});
       register('selection.rectangle','Select the objects/components inside a CSS rectangle using the native GPU marquee operation.',required(obj({rect:{...array(num,4),minItems:4},operation:choice('replace','add','toggle')}),'rect'),false,async a=>{const [x,y,u,v]=a.rect,index=frameViewportAt(x,y);if(index===null||x>=u||y>=v||frameViewportAt(u,v)!==index)fail('INVALID_ARGUMENT','Rectangle must stay inside one viewport');if(!activateFrameView(index))fail('BUSY','Cannot switch viewport during a gesture');selectionArea='viewport';await selectRectangle(a.rect,a.operation||'replace');await selectionQueue;return {...selectionInfo(),rectangle:canvas.dataset.boxSelection?JSON.parse(canvas.dataset.boxSelection):null};});
       register('selection.pick','Pick at CSS client coordinates in the main window or the specified view window, optionally select the connected component. Object Replace clicks within 8 CSS pixels cycle through transparent owners; with Solid off, only displayed lines are hit. Selection mode comes from view.set or scene.select.',required(obj({x:num,y:num,view:integer,connected:bool,operation:choice('replace','add','toggle')}),'x','y'),false,async a=>{if(a.view!==undefined&&!frameViewSections.has(a.view))fail('INVALID_ARGUMENT','Unknown view instance');const index=frameViewportAt(a.x,a.y,a.view===undefined?document:frameViewElement(a.view).ownerDocument);if(index===null)fail('INVALID_ARGUMENT','Point is outside viewports');activateFrameView(index);selectionArea='viewport';if(a.connected)await selectConnected(a.x,a.y,a.operation||'replace');else await selectElement(a.x,a.y,a.operation||'replace');await selectionQueue;return {...selectionInfo(),connected:a.connected&&canvas.dataset.connected?JSON.parse(canvas.dataset.connected):null};});
+      register('material.rename','Rename a shared material in one Undo step.',required(obj({material:str,name:str}),'material','name'),false,async a=>{
+        const m=materials.find(m=>m.uid===a.material);if(!m)fail('NOT_FOUND','Material UID not found');
+        if(m.uid===frameDefaultMaterials[0].uid||!a.name.trim())fail('INVALID_ARGUMENT','Choose an editable material and a nonempty name');
+        let name;try{name=FrameFields.validate('name',a.name.trim());}catch(error){fail('INVALID_ARGUMENT',error.message);}
+        return {uid:m.uid,name:renameMaterial(m,name)};
+      });
       register('material.create','Create a material with native percentage parameters h/s/l/emm/rough/metal/opac/bump/heightBump, normalY (+1 OpenGL / -1 DirectX) and native Undo. Without a normal image, bump controls OpenGL normals estimated from base color.',obj({name:str,params:anyParams}),false,async a=>{
         for(const [key,value]of Object.entries(a.params||{}))if(key==='normalY'?![1,-1].includes(value):!(key==='heightBump'||Object.values(materialFields).includes(key))||typeof value!=='number'||!Number.isFinite(value)||key!=='heightBump'&&value<0||value>(key==='h'?360:key==='emm'||key==='bump'||key==='heightBump'?Infinity:100))fail('INVALID_ARGUMENT','Invalid material parameter: '+key);
         let material;commit(()=>{material={...frameDefaultMaterials[0],...frameMaterialDefaults,...Object.fromEntries(frameMapFields.map(k=>[k,null])),...a.params,uid:FrameHash.newId(),name:a.name||'Material',map:null,opacityMap:null,texture:null,opacityTexture:null};materials.push(material);activeMaterial=materials.length-1;selectedMaterials=new Set([activeMaterial]);});renderMaterials();frameSyncMaterials();await settle();return {uid:material.uid,name:material.name};
       });
       register('material.texture','Load, instance or remove a material image through the editor. asset reuses an existing image UID and preserves target slot settings. Packed ORM shares one asset; channel selects R/G/B/A or luminance.',required(obj({material:str,slot:choice('baseColor','emissive','roughness','metalness','opacity','normal','ao'),url:str,asset:str,base64:{type:'string',maxLength:24*1024*1024},name:str,channel:choice('r','g','b','a','luminance'),packed:bool,remove:bool}),'material','slot'),false,async a=>{
-        const m=materials.find(m=>m.uid===a.material);if(!m)fail('NOT_FOUND','Material UID not found');if(a.packed&&!['roughness','metalness','ao'].includes(a.slot)||a.channel&&!['roughness','metalness','opacity','ao'].includes(a.slot))fail('INVALID_ARGUMENT','This slot does not take a packed/channel option');const slot={baseColor:'map',emissive:'emissionAsset',roughness:'roughAsset',metalness:'metalAsset',opacity:'opacityMap',normal:'normalAsset',ao:'aoAsset'}[a.slot];if(slot==='aoAsset'&&!frameMaterialUV(m))fail('INVALID_ARGUMENT','AO requires a UV tag');if(a.remove){if(a.url!==undefined||a.base64!==undefined||a.asset!==undefined||a.packed||a.channel)fail('INVALID_ARGUMENT','Remove takes no texture source');activeMaterial=materials.indexOf(m);removeMaterialTexture(slot);}else{if([a.url,a.base64,a.asset].filter(v=>v!==undefined).length!==1)fail('INVALID_ARGUMENT','Provide exactly one texture URL, base64 or asset UID');if(a.asset!==undefined){if(!frameMaterialAssets.has(a.asset))fail('NOT_FOUND','Texture asset UID not found');activeMaterial=materials.indexOf(m);await instanceMaterialTexture(a.asset,slot,m,a.channel===undefined?null:['r','g','b','a','luminance'].indexOf(a.channel),a.packed);}else{let bytes,libraryPath=null;if(a.url){const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin texture URLs are supported');const library=textureFiles.find(name=>new URL('textures/'+name,location.href).href===u.href);if(library)libraryPath='textures/'+library;const r=await fetch(u);if(!r.ok)fail('IO_ERROR','Texture HTTP '+r.status);bytes=new Uint8Array(await r.arrayBuffer());}else{try{bytes=Uint8Array.from(atob(a.base64),c=>c.charCodeAt(0));}catch{fail('INVALID_ARGUMENT','Invalid base64 image');}}if(bytes.length>16*1024*1024)fail('LIMIT','Image exceeds 16 MiB');let image;try{image=await createImageBitmap(new Blob([bytes]));image.close();}catch{fail('INVALID_ARGUMENT','Invalid image');}const url=libraryPath||URL.createObjectURL(new Blob([bytes]));frameMaterialAsset(url,libraryPath?null:bytes);activeMaterial=materials.indexOf(m);await loadMaterialTexture(url,slot,m,a.channel===undefined?null:['r','g','b','a','luminance'].indexOf(a.channel),a.packed);}}await settle();await materialLibraryGPU(renderer).assetsReady;await draw();return {material:materials[activeMaterial].uid,slot:a.slot,assets:frameMapFields.map(k=>materials[activeMaterial][k]||null)};
+        const m=materials.find(m=>m.uid===a.material);if(!m)fail('NOT_FOUND','Material UID not found');if(a.packed&&!['roughness','metalness','ao'].includes(a.slot)||a.channel&&!['roughness','metalness','opacity','ao'].includes(a.slot))fail('INVALID_ARGUMENT','This slot does not take a packed/channel option');const slot={baseColor:'map',emissive:'emissionAsset',roughness:'roughAsset',metalness:'metalAsset',opacity:'opacityMap',normal:'normalAsset',ao:'aoAsset'}[a.slot];if(slot==='aoAsset'&&!frameMaterialUV(m))fail('INVALID_ARGUMENT','AO requires a UV tag');if(a.remove){if(a.url!==undefined||a.base64!==undefined||a.asset!==undefined||a.packed||a.channel)fail('INVALID_ARGUMENT','Remove takes no texture source');activeMaterial=materials.indexOf(m);removeMaterialTexture(slot,null);}else{if([a.url,a.base64,a.asset].filter(v=>v!==undefined).length!==1)fail('INVALID_ARGUMENT','Provide exactly one texture URL, base64 or asset UID');if(a.asset!==undefined){if(!frameMaterialAssets.has(a.asset))fail('NOT_FOUND','Texture asset UID not found');activeMaterial=materials.indexOf(m);await instanceMaterialTexture(a.asset,slot,m,a.channel===undefined?null:['r','g','b','a','luminance'].indexOf(a.channel),a.packed,null);}else{let bytes,libraryPath=null;if(a.url){const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin texture URLs are supported');const library=textureFiles.find(name=>new URL('textures/'+name,location.href).href===u.href);if(library)libraryPath='textures/'+library;const r=await fetch(u);if(!r.ok)fail('IO_ERROR','Texture HTTP '+r.status);bytes=new Uint8Array(await r.arrayBuffer());}else{try{bytes=Uint8Array.from(atob(a.base64),c=>c.charCodeAt(0));}catch{fail('INVALID_ARGUMENT','Invalid base64 image');}}if(bytes.length>16*1024*1024)fail('LIMIT','Image exceeds 16 MiB');let image;try{image=await createImageBitmap(new Blob([bytes]));image.close();}catch{fail('INVALID_ARGUMENT','Invalid image');}const url=libraryPath||URL.createObjectURL(new Blob([bytes]));frameMaterialAsset(url,libraryPath?null:bytes);activeMaterial=materials.indexOf(m);await loadMaterialTexture(url,slot,m,a.channel===undefined?null:['r','g','b','a','luminance'].indexOf(a.channel),a.packed,false,null);}}await settle();await materialLibraryGPU(renderer).assetsReady;await draw();return {material:materials[activeMaterial].uid,slot:a.slot,assets:frameMapFields.map(k=>materials[activeMaterial][k]||null)};
       });
       register('material.assign','Assign a material to an owner, explicit triangle IDs, or the current polygon/Spline Patch cell selection.',required(obj({id:str,material:str,selection:bool,faces:{...array(integer,500000),minItems:1}}),'id','material'),false,async a=>{const picked=resolve(a.id),n=frameMaterialOwner(picked,!!a.selection),index=materials.findIndex(m=>m.uid===a.material);if(a.selection&&a.faces)fail('INVALID_ARGUMENT','Choose selection or explicit faces');if(index<0)fail('NOT_FOUND','Material UID not found');if(!meshOf(n)&&n.type!=='group'&&!FrameSpline.generators.has(n.type)&&!FramePlugins.owner(n))fail('UNSUPPORTED','A mesh, native generator, group or plugin material owner is required');if(a.faces){const mesh=meshOf(n);if(!mesh||a.faces.some(f=>f>=mesh.triangleCount))fail('INVALID_ARGUMENT','Faces must address the current mesh');const words=new Uint32Array(Math.ceil(mesh.triangleCount/32));for(const f of a.faces)words[f>>5]|=1<<(f&31);const buffer=makeGPUBuffer(renderer.device,{label:'explicit material face mask',size:Math.max(4,words.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),mask=FrameHash.newId();renderer.device.queue.writeBuffer(buffer,0,words);setPolygonRecord(mask,buffer,Math.ceil(mesh.triangleCount/8));commit(()=>frameSetMaterialTag(n,index,mask));}else if(a.selection){const mask=await capturePolygonSelection(n.nativeHash);if(!mask)fail('INVALID_ARGUMENT','Select polygons or Spline Patch cells first');commit(()=>frameSetMaterialTag(n,index,mask));}else{await choose([n]);setViewerMode('element','object');await frameAssignMaterial(n.id,index);}await settle();return describe(n);});
       register('material.remove','Remove material tags from an object through the native tag deletion transaction. Omit tag to remove all its material tags.',required(obj({id:str,tag:str}),'id'),false,async a=>{const n=resolve(a.id),tags=n.tags.filter(t=>t.kind==='material'&&(!a.tag||t.uid===a.tag));if(a.tag&&!tags.length)fail('NOT_FOUND','Material tag UID not found on this object');if(tags.length){selectedTags=new Set(tags.map(t=>tagKey(n.id,n.tags.indexOf(t))));selectedTag={owner:n.id,index:n.tags.indexOf(tags[0])};remove();await settle();}return describe(n);});

@@ -1,6 +1,6 @@
 import {launch,ready} from '../tools/browser.mjs';import {readFile,writeFile} from 'node:fs/promises';import {createHash} from 'node:crypto';import {fileURLToPath} from 'node:url';
 async function checkHatchbackPaint(page,call,check,car,materials,reference){
-  const body=materials.find(m=>m.name==='Body paint'),seams=materials.find(m=>m.name.startsWith('Blue accent:'));
+  const body=materials.find(m=>m.name==='Paint'),seams=materials.find(m=>m.name==='Seams');
   const hsl=m=>[m.h,m.s,m.l],near=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<1e-9);
   const finishes=reference.materials,lookup=(rows,uid)=>rows.find(m=>m.uid===uid);
   const catalogue=await call('scene.catalogue',{type:'car'});
@@ -12,11 +12,15 @@ async function checkHatchbackPaint(page,call,check,car,materials,reference){
   const base=masks.materials.find(m=>m.material===body.uid),overlays=masks.materials.filter(m=>m!==base);
   check('The body paint supplies the whole-object and wire colour',base.triangles===car.mesh.triangles&&
     car.tags.some(t=>t.librarySlot&&t.materialUID===body.uid&&!t.mask),base);
-  check('All eleven materials cover their authored polygons',masks.materials.length===finishes.length&&finishes.every((ref,i)=>{
+  check('All ten materials cover their authored polygons',finishes.length===10&&masks.materials.length===finishes.length&&finishes.every((ref,i)=>{
     const effective=masks.materials.findLast(m=>m.samples[i].selected);
     const count=effective===base?base.triangles-overlays.reduce((sum,m)=>sum+m.triangles,0):effective?.triangles;
     return effective&&lookup(materials,effective.material)?.name===ref.name&&count===ref.triangles;
   }),masks);
+  const samples=[806,817,828,845,1652,1663,1674,1691,419,423,1265,1269];
+  const rims=await call('diagnostics.appearance',{id:car.hash,faces:samples}),trim=materials.find(m=>m.name==='Trim');
+  check('Both headlamp and tail lamp rims share the door seams and all four handles share the trim',
+    samples.every((_,i)=>rims.materials.findLast(m=>m.samples[i].selected)?.material===(i<8?seams:trim).uid),rims);
   await page.locator('#tabAttributes').click();
   const field=page.locator('#attrContent [data-field="color preset"]');
   await field.focus();await field.press('ArrowUp');
@@ -41,7 +45,7 @@ async function checkHatchbackPaint(page,call,check,car,materials,reference){
 async function checkCopyPaint(call,check,operation,sourceId,copyId){
   function finish(state,id){
     const n=state.objects.find(o=>o.hash===id),slots=n.tags.filter(t=>t.librarySlot).map(t=>state.materials.find(m=>m.uid===t.materialUID));
-    return {preset:n.params['color preset'],body:slots.find(m=>m.name==='Body paint'),seams:slots.find(m=>m.name.startsWith('Blue accent:'))};
+    return {preset:n.params['color preset'],body:slots.find(m=>m.name==='Paint'),seams:slots.find(m=>m.name==='Seams')};
   }
   const before=await call('scene.inspect'),source=finish(before,sourceId),copy=finish(before,copyId);
   const independent=state=>{
