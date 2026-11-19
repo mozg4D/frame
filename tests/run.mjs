@@ -129,6 +129,7 @@ import {october23Checks} from './october23-feedback.mjs';
 import {pwaChecks} from './pwa.mjs';
 import {mobileReleaseChecks} from './mobile-release.mjs';
 import {stepImportChecks} from './step-import.mjs';
+import {surfaceRecognitionChecks} from './surface-recognition.mjs';
 import {printFormatChecks} from './print-formats.mjs';
 import {svgImportChecks} from './svg-import.mjs';
 import {dxfImportChecks} from './dxf-import.mjs';
@@ -347,6 +348,7 @@ try{
   report.svgImport=await isolated('svgImport',svgImportChecks);
   report.dxfImport=await isolated('dxfImport',dxfImportChecks);
   report.stepImport=await isolated('stepImport',stepImportChecks);
+  report.surfaceRecognition=await isolated('surfaceRecognition',surfaceRecognitionChecks);
   report.surfaceCorrectness=await isolated('surfaceCorrectness',surfaceCorrectnessChecks);
   report.largeDelete=await isolated('largeDelete',largeDeleteChecks);
   report.deleteContext=await isolated('deleteContext',deleteContextChecks);

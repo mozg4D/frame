@@ -44,6 +44,7 @@
     "test:obj": "node tests/obj-import.mjs",
     "test:print-formats": "node tests/print-formats.mjs",
     "test:step": "node tests/step-import.mjs",
+    "test:surface-recognition": "node tests/surface-recognition.mjs",
     "test:svg": "node tests/svg-import.mjs",
     "test:dxf": "node tests/dxf-import.mjs",
     "test:surfaces": "node tests/surface-correctness.mjs",

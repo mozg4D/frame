@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 18:31">
+<meta name="frame-version" content="2026 19 nov 19:27">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -3324,77 +3324,364 @@ function createEngineeringRecognition(){
   function nice(x,t){if(!Number.isFinite(x))return x;if(Math.abs(x)<=t)return 0;const start=10**Math.ceil(Math.log10(Math.max(Math.abs(x),t)));for(let g=start;g>=t*.1;g/=10)for(const step of [g,g/2]){const v=Math.round(x/step)*step;if(Math.abs(v-x)<=t)return +v.toPrecision(14);}return x;}
   const cleanPoint=(p,t)=>p.map(x=>nice(x,t));
   function cleanAxis(n,span,t){n=canonical(n);for(let i=0;i<3;i++){const a=[0,0,0];a[i]=1;if(length(cross(n,a))*span<t)return a;}return n;}
-  function plane(points,t){const c=mean(points),e=eigen(points,c),n=cleanAxis(e[0].vector,Math.sqrt(e[2].value/points.length)*4,t*.25),d=nice(dot(n,c),t*.2),error=points.map(p=>Math.abs(dot(n,p)-d));return maximum(error)<=t?{kind:'plane',n,d,error:maximum(error)}:null;}
+  function plane(points,t){
+    const c=mean(points),e=eigen(points,c),raw=canonical(e[0].vector),offset=dot(raw,c);
+    const residual=(n,d)=>points.reduce((error,p)=>Math.max(error,Math.abs(dot(n,p)-d)),0);
+    const rawError=residual(raw,offset),snap=Math.min(t*.2,Math.max(t*.001,rawError)),n=cleanAxis(raw,Math.sqrt(e[2].value/points.length)*4,snap),d=nice(dot(n,c),snap),error=residual(n,d);
+    if(error<=t)return {kind:'plane',n,d,error};
+    return rawError<=t?{kind:'plane',n:raw,d:offset,error:rawError}:null;
+  }
   function circle(points,t){if(points.length<5)return null;const p=plane(points,t);if(!p)return null;const c=mean(points),[u,v]=basis(p.n),xy=points.map(p=>[dot(sub(p,c),u),dot(sub(p,c),v)]),fit=least(xy.map(([x,y])=>[2*x,2*y,1]),xy.map(([x,y])=>x*x+y*y));if(!fit)return null;let center=add(c,add(mul(u,fit[0]),mul(v,fit[1]))),r=Math.sqrt(fit[2]+fit[0]**2+fit[1]**2);center=cleanPoint(center,t*.2);r=nice(r,t*.2);if(!(r>t*3)||points.some(p=>Math.abs(distance(p,center)-r)>t))return null;return {kind:'circle',center,r,n:p.n,u,v};}
   function sphere(points,t){if(points.length<12)return null;const c=mean(points),ps=points.map(p=>sub(p,c)),s=least(ps.map(p=>[...mul(p,2),1]),ps.map(p=>dot(p,p)));if(!s)return null;let center=cleanPoint(add(c,s.slice(0,3)),t*.2),r=nice(Math.sqrt(s[3]+dot(s.slice(0,3),s.slice(0,3))),t*.2);if(!(r>t*4)||points.some(p=>Math.abs(distance(p,center)-r)>t))return null;return {kind:'sphere',center,r,error:maximum(points.map(p=>Math.abs(distance(p,center)-r)))};}
   function revolution(points,normals,t){
-    if(points.length<12)return null;const origin=mean(points),ps=points.map(p=>sub(p,origin)),span=maximum(ps.map(length)),axes=eigen(normals).map(e=>canonical(e.vector));
+    if(points.length<12)return null;const origin=mean(points),ps=points.map(p=>sub(p,origin)),span=ps.reduce((s,p)=>Math.max(s,length(p)),0),axes=eigen(normals).map(e=>canonical(e.vector));
+    // Fit on a bounded stratified sample, then check the candidate against every vertex.
+    const count=Math.min(256,ps.length),sample=[];
+    for(let i=0;i<count;i++){const start=Math.floor(i*ps.length/count),end=Math.floor((i+1)*ps.length/count);sample.push(ps[start+((Math.imul(i+1,2654435761)>>>0)%(end-start))]);}
     let best=null;
     for(const seed of axes){
-      let [u,v]=basis(seed),xy=ps.map(p=>[dot(p,u),dot(p,v)]),f=least(xy.map(([x,y])=>[2*x,2*y,1]),xy.map(([x,y])=>x*x+y*y));if(!f)continue;
-      let center=add(mul(u,f[0]),mul(v,f[1])),heights=ps.map(p=>dot(p,seed)),radii=ps.map(p=>length(sub(sub(p,center),mul(seed,dot(sub(p,center),seed))))),line=least(heights.map(x=>[1,x]),radii);if(!line)continue;
-
-
+      const [u,v]=basis(seed),local=sample.map(p=>[dot(p,u),dot(p,v),dot(p,seed)]),f=least(local.map(([x,y])=>[2*x,2*y,1]),local.map(([x,y])=>x*x+y*y));if(!f)continue;
+      const line=least(local.map(p=>[1,p[2]]),local.map(([x,y])=>Math.hypot(x-f[0],y-f[1])));if(!line)continue;
       let x=[f[0],f[1],0,0,line[0],line[1]],lambda=1e-4;
-      const params=q=>({axis:unit(add(seed,add(mul(u,q[2]),mul(v,q[3])))),center:add(mul(u,q[0]),mul(v,q[1])),r:q[4],s:q[5]});
-      const residual=(p,q)=>{const m=params(q),d=sub(p,m.center),z=dot(d,m.axis);return (length(sub(d,mul(m.axis,z)))-m.r-m.s*z)/Math.sqrt(1+m.s*m.s);};
-      const sample=ps.filter((p,i)=>i%Math.max(1,Math.floor(ps.length/1600))===0);
-      let loss=sample.reduce((s,p)=>s+residual(p,x)**2,0);
-      for(let iter=0;iter<24;iter++){
+      function objective([cx,cy,tx,ty,r,s],A,b){
+        const inv=1/Math.hypot(tx,ty,1),ax=tx*inv,ay=ty*inv,normalizer=1/Math.hypot(1,s),J=new Float64Array(6);let loss=0;
+        for(const p of local){
+          const dx=p[0]-cx,dy=p[1]-cy,h=dx*ax+dy*ay+p[2]*inv,rx=dx-h*ax,ry=dy-h*ay,rz=p[2]-h*inv,R=Math.hypot(rx,ry,rz);
+          const error=(R-r-s*h)*normalizer;loss+=error*error;if(!A)continue;
+          const radial=R>span*1e-14?1/R:0,tilt=-(h*radial+s)*inv*normalizer;
+          J[0]=(s*ax-rx*radial)*normalizer;J[1]=(s*ay-ry*radial)*normalizer;
+          J[2]=tilt*rx;J[3]=tilt*ry;J[4]=-normalizer;J[5]=-h*normalizer-error*s*normalizer*normalizer;
+          for(let i=0;i<6;i++){b[i]-=J[i]*error;for(let j=0;j<6;j++)A[i][j]+=J[i]*J[j];}
+        }
+        return loss;
+      }
+      let loss=objective(x);
+      for(let iter=0;iter<24&&loss>count*(t*1e-5)**2;iter++){
         const A=Array.from({length:6},()=>Array(6).fill(0)),b=Array(6).fill(0);
-        for(const p of sample){const r=residual(p,x),J=x.map((a,i)=>{const q=x.slice(),h=(i===2||i===3||i===5?1:span)*1e-5;q[i]+=h;return (residual(p,q)-r)/h;});for(let i=0;i<6;i++){b[i]-=J[i]*r;for(let j=0;j<6;j++)A[i][j]+=J[i]*J[j];}}
-        for(let i=0;i<6;i++)A[i][i]+=lambda*Math.max(1,A[i][i]);const d=solve(A,b);if(!d)break;const next=x.map((a,i)=>a+d[i]),score=sample.reduce((s,p)=>s+residual(p,next)**2,0);
+        objective(x,A,b);
+        for(let i=0;i<6;i++)A[i][i]+=lambda*Math.max(1,A[i][i]);const d=solve(A,b);if(!d)break;const next=x.map((a,i)=>a+d[i]),score=objective(next);
         if(score<loss){x=next;if(loss-score<t*t*1e-7)break;loss=score;lambda*=.3;}else lambda*=10;
       }
-      let m=params(x);m.axis=cleanAxis(m.axis,span,t*.15);m.center=add(origin,m.center);
-
+      const axis=unit(add(seed,add(mul(u,x[2]),mul(v,x[3])))),m={axis:cleanAxis(axis,span,t*.15),center:add(origin,add(mul(u,x[0]),mul(v,x[1]))),r:x[4],s:x[5]};
+      if(dot(axis,m.axis)<0)m.s=-m.s;
       const shift=dot(m.center,m.axis);m.center=sub(m.center,mul(m.axis,shift));m.r-=m.s*shift;
       m.center=cleanPoint(m.center,t*.1);if(Math.abs(m.s)*span<t*.25)m.s=0;m.r=nice(m.r,t*.1);
-      const err=points.map(p=>{const d=sub(p,m.center),z=dot(d,m.axis);return Math.abs(length(sub(d,mul(m.axis,z)))-m.r-m.s*z)/Math.sqrt(1+m.s*m.s);}),max=maximum(err);
-      if(max>t||!Number.isFinite(max)||points.some(p=>m.r+m.s*dot(sub(p,m.center),m.axis)<-t))continue;
+      let max=0;const norm=Math.hypot(1,m.s);
+      for(const p of points){const d=sub(p,m.center),z=dot(d,m.axis),radius=m.r+m.s*z;max=radius< -t?Infinity:Math.max(max,Math.abs(length(sub(d,mul(m.axis,z)))-radius)/norm);if(max>t)break;}
+      if(!(max<=t))continue;
       const [bu,bv]=basis(m.axis),angles=points.map(p=>Math.atan2(dot(sub(p,m.center),bv),dot(sub(p,m.center),bu))),spread=angularRange(angles);
       if(spread.size<Math.PI/180||new Set(angles.map(a=>Math.round(a*100))).size<3)continue;
-      const candidate={...m,kind:m.s===0?'cylinder':'cone',u:bu,v:bv,error:max};if(!best||candidate.error<best.error)best=candidate;
+      const candidate={...m,kind:m.s===0?'cylinder':'cone',u:bu,v:bv,error:max};if(max<=t*.001)return candidate;if(!best||candidate.error<best.error)best=candidate;
     }return best;
   }
   function angularRange(angles){const a=[...angles].map(x=>(x%TAU+TAU)%TAU).sort((a,b)=>a-b);let gap=0,at=0;for(let i=0;i<a.length;i++){const d=(i+1<a.length?a[i+1]:a[0]+TAU)-a[i];if(d>gap){gap=d;at=i;}}return {start:a[(at+1)%a.length],size:TAU-gap,gap};}
+  function pointIndex(ids,point){
+    const sorted=[0,1,2].map(k=>ids.slice().sort((a,b)=>point(a)[k]-point(b)[k]));
+    function bound(k,value,upper){const row=sorted[k];let lo=0,hi=row.length;while(lo<hi){const mid=(lo+hi)>>>1,x=point(row[mid])[k];if(x<value||upper&&x===value)lo=mid+1;else hi=mid;}return lo;}
+    return (lo,hi,visit)=>{let axis=0,first=0,last=ids.length;
+      for(let k=0;k<3;k++){const a=bound(k,lo[k],false),b=bound(k,hi[k],true);if(b-a<last-first){axis=k;first=a;last=b;}}
+      for(let i=first;i<last;i++){const id=sorted[axis][i],p=point(id);if(p.every((v,k)=>v>=lo[k]&&v<=hi[k]))visit(id,p);}
+    };
+  }
   function topology(positions,indices,t,repair=true){
-    const points=[],map=[],buckets=new Map(),w=Math.max(t*1e-3,1e-10),bad={degenerate:0,duplicates:0,nonManifold:0};
-    for(let i=0;i<positions.length;i+=3){const p=Array.from(positions.slice(i,i+3));if(!p.every(Number.isFinite))throw Error('Mesh has non-finite coordinates');const k=p.map(x=>Math.round(x/w)).join(':');let j=buckets.get(k);if(j===undefined){j=points.length;buckets.set(k,j);points.push(p);}map.push(j);}
-    const faces=[],edges=new Map(),seen=new Set(),ix=indices||Array.from({length:map.length},(_,i)=>i),key=(a,b)=>a<b?a+':'+b:b+':'+a;
+    const points=[],map=new Uint32Array(positions.length/3),buckets=new Map(),w=Math.max(t*1e-3,1e-10),bad={degenerate:0,duplicates:0,nonManifold:0};
+    for(let i=0;i<positions.length;i+=3){const p=[positions[i],positions[i+1],positions[i+2]];if(!p.every(Number.isFinite))throw Error('Mesh has non-finite coordinates');const k=p.map(x=>Math.round(x/w)).join(':');let j=buckets.get(k);if(j===undefined){j=points.length;buckets.set(k,j);points.push(p);}map[i/3]=j;}
+    const faces=[],edges=new Map(),seen=new Set(),ix=indices||Array.from({length:map.length},(_,i)=>i),count=points.length,key=count<=Math.sqrt(Number.MAX_SAFE_INTEGER)?(a,b)=>Math.min(a,b)*count+Math.max(a,b):(a,b)=>a<b?a+':'+b:b+':'+a;
     for(let i=0;i+2<ix.length;i+=3){const vs=[map[ix[i]],map[ix[i+1]],map[ix[i+2]]];if(vs.some(v=>v===undefined))throw Error('Mesh index out of range');const normal=cross(sub(points[vs[1]],points[vs[0]]),sub(points[vs[2]],points[vs[0]])),area=length(normal)*.5;if(area<w*w){bad.degenerate++;continue;}const k=[...vs].sort((a,b)=>a-b).join(':');if(seen.has(k)){bad.duplicates++;continue;}seen.add(k);const face={vs,normal:unit(normal),area,neighbors:[],region:-1,source:i/3},f=faces.length;faces.push(face);for(let j=0;j<3;j++){const a=vs[j],b=vs[(j+1)%3],k=key(a,b);if(!edges.has(k))edges.set(k,{a,b,faces:[]});edges.get(k).faces.push(f);}}
     // Tessellated adjacent STEP faces may meet at unsplit edge T junctions.
     const open=repair?[...edges.values()].filter(e=>e.faces.length===1):[],ends=[...new Set(open.flatMap(e=>[e.a,e.b]))],splits=new Map();
-    if(open.length*ends.length<2e7)for(const e of open){const a=points[e.a],d=sub(points[e.b],a),dd=dot(d,d),cuts=[];for(const v of ends){if(v===e.a||v===e.b)continue;const x=dot(sub(points[v],a),d)/dd;if(x>1e-7&&x<1-1e-7&&distance(points[v],add(a,mul(d,x)))<=w*2)cuts.push({v,x});}if(cuts.length)splits.set(key(e.a,e.b),cuts.sort((a,b)=>a.x-b.x).map(c=>c.v));}
+    if(open.length){const near=pointIndex(ends,i=>points[i]);for(const e of open){
+      const a=points[e.a],b=points[e.b],d=sub(b,a),dd=dot(d,d),cuts=[];
+      near(a.map((v,k)=>Math.min(v,b[k])-2*w),a.map((v,k)=>Math.max(v,b[k])+2*w),(id,p)=>{
+        if(id===e.a||id===e.b)return;const x=dot(sub(p,a),d)/dd;
+        if(x>1e-7&&x<1-1e-7&&distance(p,add(a,mul(d,x)))<=w*2)cuts.push({v:id,x});
+      });
+      if(cuts.length)splits.set(key(e.a,e.b),cuts.sort((a,b)=>a.x-b.x).map(c=>c.v));
+    }}
     if(splits.size){const ix=[],sources=[];for(const f of faces){let triangles=[f.vs];for(let j=0;j<3;j++){const a=f.vs[j],b=f.vs[(j+1)%3],cuts=splits.get(key(a,b));if(!cuts)continue;const e=edges.get(key(a,b)),path=[a,...(e.a===a?cuts:cuts.slice().reverse()),b];triangles=triangles.flatMap(vs=>{const k=vs.findIndex((v,k)=>v===a&&vs[(k+1)%3]===b);return k<0?[vs]:path.slice(1).map((v,i)=>[path[i],v,vs[(k+2)%3]]);});}for(const triangle of triangles){ix.push(...triangle);sources.push(f.source);}}const out=topology(Float64Array.from(points.flat()),Uint32Array.from(ix),t,false);out.faces.forEach(f=>f.source=sources[f.source]);for(const k of Object.keys(bad))out.bad[k]+=bad[k];return out;}
     for(const e of edges.values())if(e.faces.length===2){const [a,b]=e.faces;faces[a].neighbors.push(b);faces[b].neighbors.push(a);}else if(e.faces.length>2)bad.nonManifold++;
     return {points,faces,edges,bad};
   }
-  function chains(edges){const at=new Map(),out=[],unused=new Set(edges);for(const e of edges)for(const v of [e.a,e.b]){if(!at.has(v))at.set(v,[]);at.get(v).push(e);}while(unused.size){const first=unused.values().next().value,start=[first.a,first.b].find(v=>at.get(v).length!==2)??first.a,ids=[start];let v=start,e=first;while(e){unused.delete(e);v=e.a===v?e.b:e.a;ids.push(v);if(v===start||at.get(v).length!==2)break;e=at.get(v).find(e=>unused.has(e));}out.push({ids,closed:v===start});}return out;}
+  function chains(edges){
+    const at=new Map(),out=[],unused=new Set(edges);
+    for(const e of edges)for(const v of [e.a,e.b]){if(!at.has(v))at.set(v,[]);at.get(v).push(e);}
+    function trace(start,e){
+      const ids=[start];let v=start;
+      while(e&&unused.delete(e)){v=e.a===v?e.b:e.a;ids.push(v);if(v===start||at.get(v).length!==2)break;e=at.get(v).find(edge=>unused.has(edge));}
+      out.push({ids,closed:v===start});
+    }
+    for(const [v,incident] of at)if(incident.length!==2)for(const e of incident)if(unused.has(e))trace(v,e);
+    for(const e of edges)if(unused.has(e))trace(e.a,e);
+    return out;
+  }
+  function closedMeshTopology(points,faces,edges){
+    if(edges.size*2!==faces.length*3)return null;
+    const seen=new Uint8Array(faces.length),used=new Uint8Array(points.length),queue=new Uint32Array(faces.length);let components=0,vertices=0;
+    for(let i=0;i<faces.length;i++)if(!seen[i]){
+      components++;seen[i]=1;queue[0]=i;let end=1;
+      for(let pos=0;pos<end;pos++){const f=faces[queue[pos]];for(const v of f.vs)if(!used[v]){used[v]=1;vertices++;}for(const j of f.neighbors)if(!seen[j]){seen[j]=1;queue[end++]=j;}}
+    }
+    return {components,eulerCharacteristic:vertices-edges.size+faces.length};
+  }
+  // Use the same fitted spans on both ends of a translated profile. The four
+  // Bernstein coefficients of (subcurve - source chord) bound the error over
+  // the entire interval in both directions, including between mesh vertices.
+  function extrusionProfile(ps,t,cosCorner){
+    const n=ps.length,at=i=>ps[(i+n)%n],directions=ps.map((p,i)=>unit(sub(at(i+1),p))),corners=[];
+    for(let i=0;i<n;i++)if(dot(directions[(i+n-1)%n],directions[i])<cosCorner)corners.push(i);
+    const isCorner=new Set(corners),breaks=corners.length?corners.slice():[0];
+    let freeform=false;
+    for(let i=0;i<breaks.length;i++){
+      const a=breaks[i],b=i+1<breaks.length?breaks[i+1]:breaks[0]+n;
+      if(b-a<4)continue;
+      const run=Array.from({length:Math.min(b-a+1,n)},(_,j)=>at(a+j)),d=sub(run.at(-1),run[0]),len=length(d);
+      if((!len||run.some(p=>length(cross(sub(p,run[0]),d))>len*t*.015))&&!circle(run,t*.015)){freeform=true;break;}
+    }
+    while(breaks.length<4&&breaks.length<n){
+      let longest=0,mid=0;
+      for(let i=0;i<breaks.length;i++){const a=breaks[i],b=i+1<breaks.length?breaks[i+1]:breaks[0]+n;if(b-a>longest){longest=b-a;mid=Math.floor((a+b)/2)%n;}}
+      breaks.push(mid);breaks.sort((a,b)=>a-b);
+    }
+    const arcLength=[0];for(let i=0;i<n*2;i++)arcLength.push(arcLength[i]+distance(at(i),at(i+1)));
+    const tolerance=Math.min(t*.2,arcLength[n]*.0004),spans=[];
+    const tangent=(i,first)=>isCorner.has(i%n)?directions[(first?i:i+n-1)%n]:unit(add(directions[(i+n-1)%n],directions[i%n]));
+    function fit(a,b){
+      const p=at(a),q=at(b),total=arcLength[b]-arcLength[a],param=i=>(arcLength[i]-arcLength[a])/total;
+      let linear=true;
+      for(let i=a+1;i<b&&linear;i++)linear=distance(at(i),lerp(p,q,param(i)))<=tolerance;
+      if(linear){spans.push({a:a%n,b:b%n});return;}
+      const samples=[],count=Math.min(32,b-a-1);
+      for(let j=1;j<=count;j++){const i=a+Math.round(j*(b-a)/(count+1));samples.push({p:at(i),t:param(i)});}
+      const cp=FrameCubicFit.fit(p,q,tangent(a,true),tangent(b,false),samples,{iterations:0}).cp;
+      let prev=p,derivative=cubicDerivative(cp,0),s=0,valid=true;
+      for(let i=a+1;i<=b&&valid;i++){
+        const u=param(i),dt=(u-s)/3,next=cubicPoint(cp,u),d=cubicDerivative(cp,u),l=at(i-1),r=at(i);
+        valid=distance(next,r)<=tolerance&&distance(add(prev,mul(derivative,dt)),lerp(l,r,1/3))<=tolerance&&distance(sub(next,mul(d,dt)),lerp(l,r,2/3))<=tolerance;
+        prev=next;derivative=d;s=u;
+      }
+      if(valid){spans.push({a:a%n,b:b%n,ha:sub(cp[1],p),hb:sub(cp[2],q)});return;}
+      const mid=Math.floor((a+b)/2);fit(a,mid);fit(mid,b);
+    }
+    for(let i=0;i<breaks.length;i++)fit(breaks[i],i+1<breaks.length?breaks[i+1]:breaks[0]+n);
+    return {points:ps,spans,freeform,tolerance};
+  }
+
+  function translatedSolid({faces,edges,points,bad},t,options){
+    if(bad.duplicates||faces.length<12)return null;
+    // A cap triangle supplies the axis normal. A wall triangle supplies an
+    // axial edge. These four hypotheses suffice for a triangulated strip.
+    const seed=faces.reduce((a,b)=>a.area>b.area?a:b),origin=points[seed.vs[0]],axes=[seed.normal,...seed.vs.map((v,i)=>unit(sub(points[seed.vs[(i+1)%3]],points[v])))];
+    const precision=t*.01;
+    function tryAxis(axis){
+      const heights=new Float64Array(points.length);let lo=Infinity,hi=-Infinity;
+      for(let i=0;i<points.length;i++){const h=heights[i]=dot(sub(points[i],origin),axis);lo=Math.min(lo,h);hi=Math.max(hi,h);}
+      const height=hi-lo;if(height<precision*8)return null;
+      const side=new Int8Array(faces.length);let bottoms=0,tops=0;
+      for(let i=0;i<faces.length;i++){
+        const [a,b,c]=faces[i].vs,x=heights[a],y=heights[b],z=heights[c];
+        if(Math.max(x,y,z)<=lo+precision){side[i]=-1;bottoms++;}
+        else if(Math.min(x,y,z)>=hi-precision){side[i]=1;tops++;}
+        else if(Math.abs(dot(faces[i].normal,axis))>.01)return null;
+      }
+      if(!bottoms||!tops)return null;
+      const bottom=[],top=[];
+      for(const e of edges.values()){
+        const [a,b]=e.faces,sa=side[a],sb=side[b];if(sa===sb)continue;if(sa&&sb)return null;
+        (sa+sb<0?bottom:top).push(e);
+      }
+      if(!bottom.length||bottom.length!==top.length)return null;
+      const loops=chains(bottom),columns=new Map(),contours=[],[u,v]=basis(axis);
+      for(const loop of loops){
+        if(!loop.closed||loop.ids.length<4)return null;
+        const ids=loop.ids.slice(0,-1);
+        // Choose a geometric seam and direction independent of triangle order.
+        const compare=(a,b)=>{const p=points[a],q=points[b];return p[0]-q[0]||p[1]-q[1]||p[2]-q[2];};
+        let start=0;for(let i=1;i<ids.length;i++)if(compare(ids[i],ids[start])<0)start=i;
+        const n=ids.length,dir=compare(ids[(start+1)%n],ids[(start+n-1)%n])<0?1:-1,ps=[];
+        for(let i=0;i<n;i++){
+          const id=ids[(start+dir*i+n)%n];if(columns.has(id))return null;
+          const p=sub(points[id],mul(axis,heights[id]-lo));columns.set(id,p);ps.push(p);
+        }
+        contours.push({ps,first:ids[start]});
+      }
+      // A common cap plane matters even for two nominally coaxial cylinders.
+      // Independently fitted normals can turn a through hole into two disks.
+      function circularProfile({ps,first}){
+        const c=circle(ps,precision);if(!c)return null;
+        const center=sub(c.center,mul(axis,dot(sub(c.center,origin),axis)-lo));
+        const angles=ps.map(p=>{const d=sub(p,center);return Math.atan2(dot(d,v),dot(d,u));});let sweep=0,gap=0;
+        for(let i=0;i<angles.length;i++){const a=angles[(i+1)%angles.length]-angles[i],step=Math.atan2(Math.sin(a),Math.cos(a));if(sweep*step<0)return null;sweep+=step;gap=Math.max(gap,Math.abs(step));}
+        const error=precision+c.r*(1-Math.cos(gap/2)+.000273);
+        if(Math.abs(Math.abs(sweep)-TAU)>1e-6||gap>(options.featureAngle||28)*Math.PI/180||error>t*.5)return null;
+        const radial=[u,v,mul(u,-1),mul(v,-1)],points=radial.map(d=>add(center,mul(d,c.r))),handle=c.r*4/3*Math.tan(Math.PI/8);
+        const spans=radial.map((d,a)=>({a,b:(a+1)%4,ha:mul(radial[(a+1)%4],handle),hb:mul(d,handle)}));
+        return {first,points,spans,center,r:c.r,error,tolerance:Math.min(t*.2,c.r*.005)};
+      }
+      let profiles=contours.map(circularProfile);const circular=profiles.every(Boolean);
+      if(circular){
+        const intervals=profiles.map(p=>{const x=dot(sub(p.center,origin),u);return {p,lo:x-p.r-p.error,hi:x+p.r+p.error};}).sort((a,b)=>a.lo-b.lo);
+        for(let i=0;i<intervals.length;i++)for(let j=i+1;j<intervals.length&&intervals[j].lo<=intervals[i].hi;j++){
+          const a=intervals[i].p,b=intervals[j].p,d=distance(a.center,b.center);
+          if(Math.max(d-a.r-b.r,Math.abs(a.r-b.r)-d)<=a.error+b.error)return null;
+        }
+      }else{
+        profiles=contours.map(({ps,first})=>({...extrusionProfile(ps,t,Math.cos((options.featureAngle||28)*Math.PI/180)),first}));
+        if(!profiles.some(p=>p.freeform)||!separateProfiles(profiles,origin,u,v))return null;
+      }
+      const bins=new Map(),bin=(p,d)=>Math.floor(dot(sub(p,origin),d)/precision);
+      for(const [id,p] of columns){const key=bin(p,u)+':'+bin(p,v);if(!bins.has(key))bins.set(key,[]);bins.get(key).push(id);}
+      const column=new Int32Array(points.length).fill(-1);for(const id of columns.keys())column[id]=id;
+      function project(id){
+        if(column[id]>=0)return column[id];
+        const p=sub(points[id],mul(axis,heights[id]-lo)),x=bin(p,u),y=bin(p,v);let match=-1;
+        for(let i=x-1;i<=x+1;i++)for(let j=y-1;j<=y+1;j++)for(const c of bins.get(i+':'+j)||[]){
+          if(distance(p,columns.get(c))>precision)continue;if(match>=0)return -1;match=c;
+        }
+        column[id]=match;return match;
+      }
+      const bands=new Map(),key=(a,b)=>Math.min(a,b)+':'+Math.max(a,b);
+      for(const e of bottom)bands.set(key(e.a,e.b),{a:e.a,b:e.b,base:e,cover:[0,0],sign:0});
+      const topVertices=new Map();
+      for(const e of top){
+        const a=project(e.a),b=project(e.b),band=bands.get(key(a,b));if(!band||band.top)return null;band.top=e;
+        for(const [c,id] of [[a,e.a],[b,e.b]]){if(topVertices.has(c)&&topVertices.get(c)!==id)return null;topVertices.set(c,id);}
+      }
+      // Within each source strip every triangle has a vertical edge on one
+      // column and its third vertex on the other. Check winding and the full
+      // height on both columns, even for staggered rows or swapped diagonals.
+      for(let i=0;i<faces.length;i++)if(!side[i]){
+        const vs=faces[i].vs,c=vs.map(project);if(c.includes(-1))return null;
+        const j=c[0]===c[1]?0:c[1]===c[2]?1:c[2]===c[0]?2:-1;if(j<0)return null;
+        const a=c[j],b=c[(j+2)%3],band=bands.get(key(a,b));if(!band)return null;
+        const k=a===band.a?0:1,dz=heights[vs[(j+1)%3]]-heights[vs[j]],sign=Math.sign(k?-dz:dz);
+        if(!sign||band.sign&&sign!==band.sign)return null;band.sign=sign;band.cover[k]+=Math.abs(dz);
+      }
+      for(const band of bands.values())if(!band.top||band.cover.some(h=>Math.abs(h-height)>precision*3))return null;
+      // Recover the cap-to-hole membership from input triangles and verify it
+      // on the ordinary editable cage before accepting the approximation.
+      const owner=new Int32Array(faces.length),caps=[];let capCount=0;
+      for(let i=0;i<faces.length;i++)if(side[i]&&!owner[i]){
+        const ids=[i],id=++capCount,sign=Math.sign(dot(faces[i].normal,axis));owner[i]=id;caps[id]=[];
+        for(let j=0;j<ids.length;j++){const f=faces[ids[j]];if(Math.sign(dot(f.normal,axis))!==sign)return null;for(const k of f.neighbors)if(side[k]===side[i]&&!owner[k]){owner[k]=id;ids.push(k);}}
+      }
+      const data=createSplineData({angle:options.angle||10}),expected=new Set(),curves=[],lift=mul(axis,height);
+      const edge=(a,b,ha,hb)=>addSplineSegment(data,addSplineSequence(data),a,b,ha,hb),loopKey=ids=>ids.slice().sort().join(','),cellKey=loops=>loops.map(loopKey).sort().join('|');
+      const capOf=e=>owner[e.faces[0]]||owner[e.faces[1]],ends=new Map();
+      for(const band of bands.values()){
+        const pair=[capOf(band.base),capOf(band.top)];
+        for(const id of [band.a,band.b]){const prev=ends.get(id);if(prev&&(prev[0]!==pair[0]||prev[1]!==pair[1]))return null;ends.set(id,pair);}
+      }
+      for(const profile of profiles){
+        const {spans,points:ps}=profile,base=[],lid=[],rails=[],lowEdges=[],highEdges=[];
+        for(const {a} of spans){base[a]=addSplineVertex(data,ps[a]);lid[a]=addSplineVertex(data,add(ps[a],lift));rails[a]=edge(base[a],lid[a]);}
+        for(const {a,b,ha,hb} of spans){
+          const low=edge(base[a],base[b],ha,hb),high=edge(lid[a],lid[b],ha,hb);
+          if(ha)curves.push({id:low,tolerance:profile.tolerance*.65});
+          lowEdges.push(low);highEdges.push(high);expected.add(cellKey([[low,high,rails[a],rails[b]]]));
+        }
+        const [lower,upper]=ends.get(profile.first);caps[lower].push(lowEdges);caps[upper].push(highEdges);
+      }
+      for(let i=1;i<caps.length;i++){if(!caps[i].length)return null;expected.add(cellKey(caps[i]));}
+      function displayFits({id,tolerance}){
+        const cp=segmentPoints(data,data.segments[id]),samples=K.sampleSplineSegment(data,id);
+        for(let i=1;i<samples.length;i++){
+          const a=samples[i-1],b=samples[i],d=sub(b.position,a.position),dd=dot(d,d);
+          const part=cubicSubsegment(cp,a.t,b.t);
+          for(const p of [part[1],part[2]]){const x=Math.max(0,Math.min(1,dot(sub(p,a.position),d)/(dd||1)));if(distance(p,add(a.position,mul(d,x)))>tolerance)return false;}
+        }
+        return true;
+      }
+      while(!curves.every(displayFits)){
+        if(options.angle||data.approximation.angle<=1)return null;
+        data.approximation.angle=Math.max(1,Math.floor(data.approximation.angle/2));
+      }
+      const resolved=K.buildSplineSurface.resolve(data);
+      if(resolved.status!=='closed-candidate'||!resolved.diagnostics.vertexManifold||!resolved.diagnostics.cycleSearchComplete||!resolved.diagnostics.selectionSearchComplete||resolved.diagnostics.candidateCapReached||resolved.fills.length!==expected.size)return null;
+      for(const f of resolved.fills)if(!expected.delete(cellKey(f.loops.map(loop=>loop.map(s=>s.edge)))))return null;
+      return {data,report:{planes:capCount,extrudedContours:profiles.length,profileTolerance:maximum(profiles.map(p=>p.tolerance)),cylinders:circular?profiles.length:0,cones:0,spheres:0,unrecognizedTriangles:0}};
+    }
+    for(const axis of axes){const result=tryAxis(canonical(axis));if(result)return result;}return null;
+  }
+
+  // Bound the entire deformation from each source polyline to its cubic by
+  // their common convex hull. This also protects narrow slots between loops.
+  function separateProfiles(profiles,origin,u,v){
+    const spans=[],project=p=>{const d=sub(p,origin);return [dot(d,u),dot(d,v)];};
+    for(const {points,spans:pieces} of profiles){
+      const ps=points.map(project),n=ps.length;
+      for(const {a,b,ha,hb} of pieces){
+        const start=ps[a],end=ps[b],support=[start],dir=unit(sub(end,start));let prev=start;
+        for(let i=(a+1)%n;;i=(i+1)%n){
+          if(dot(sub(ps[i],prev),dir)<=0)return false;support.push(ps[i]);prev=ps[i];if(i===b)break;
+        }
+        if(ha){
+          const h1=project(add(points[a],ha)),h2=project(add(points[b],hb));
+          if(dot(sub(h1,start),dir)<0||dot(sub(h2,h1),dir)<0||dot(sub(end,h2),dir)<0)return false;
+          if(distance(h1,start)>0)support.push(h1);if(distance(h2,end)>0)support.push(h2);
+        }
+        const lo=[Infinity,Infinity],hi=[-Infinity,-Infinity];
+        for(const p of support)for(let k=0;k<2;k++){lo[k]=Math.min(lo[k],p[k]);hi[k]=Math.max(hi[k],p[k]);}
+        spans.push({start,end,support,dir,lo,hi});
+      }
+    }
+    spans.sort((a,b)=>a.lo[0]-b.lo[0]);
+    for(let i=0;i<spans.length;i++)for(let j=i+1;j<spans.length;j++){
+      const a=spans[i],b=spans[j];if(b.lo[0]>a.hi[0])break;if(a.lo[1]>b.hi[1]||a.hi[1]<b.lo[1])continue;
+      const joint=[a.start,a.end].find(p=>p===b.start||p===b.end);
+      if(joint){
+        const away=s=>s.start===joint?s.dir:mul(s.dir,-1),axis=sub(away(a),away(b));
+        if(!a.support.every(p=>p===joint||dot(sub(p,joint),axis)>0)||!b.support.every(p=>p===joint||dot(sub(p,joint),axis)<0))return false;
+      }else{
+        const axes=[a.dir,b.dir,sub(add(a.start,a.end),add(b.start,b.end))];
+        const apart=axis=>{let lowA=Infinity,highA=-Infinity,lowB=Infinity,highB=-Infinity;for(const p of a.support){const x=dot(p,axis);lowA=Math.min(lowA,x);highA=Math.max(highA,x);}for(const p of b.support){const x=dot(p,axis);lowB=Math.min(lowB,x);highB=Math.max(highB,x);}return highA<lowB||highB<lowA;};
+        if(!axes.some(d=>apart(d)||apart([-d[1],d[0]])))return false;
+      }
+    }
+    return true;
+  }
+
   function recognize(positions,indices,options={}){
     if(!positions?.length)throw Error('Empty mesh');const started=performance.now(),lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<positions.length;i++) {lo[i%3]=Math.min(lo[i%3],positions[i]);hi[i%3]=Math.max(hi[i%3],positions[i]);}
     const scale=distance(lo,hi),t=Number.isFinite(options.tolerance)&&options.tolerance>0?options.tolerance:Math.max(scale*.003,1e-7),T=topology(positions,indices,t,!options.groups),{points,faces,edges}=T;
     if(!faces.length)throw Error('Mesh contains no usable triangles');
-    const regions=[],smooth=[],visited=new Set(),cos=Math.cos((options.featureAngle||28)*Math.PI/180);
-
-    if(options.groups){if(options.groups.length!==indices.length/3)throw Error('Invalid recognition face groups');const grouped=new Map();for(let i=0;i<faces.length;i++){const group=options.groups[faces[i].source];if(!Number.isInteger(group)||group<0)throw Error('Invalid recognition face group');if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(i);}smooth.push(...grouped.values());}else for(let seed=0;seed<faces.length;seed++)if(!visited.has(seed)){const ids=[seed];visited.add(seed);for(let k=0;k<ids.length;k++)for(const j of faces[ids[k]].neighbors)if(!visited.has(j)&&dot(faces[ids[k]].normal,faces[j].normal)>=cos){visited.add(j);ids.push(j);}smooth.push(ids);}
-    const supportPoints=ids=>[...new Set(ids.flatMap(i=>faces[i].vs))].map(i=>points[i]);
+    if(T.bad.nonManifold)return {data:null,report:{...T.bad,tolerance:t,inputTriangles:faces.length,unrecognizedTriangles:faces.length,milliseconds:performance.now()-started,reason:'Mesh has '+T.bad.nonManifold+' non-manifold edges shared by more than two faces'}};
+    const regions=[],smooth=[],cos=Math.cos((options.featureAngle||28)*Math.PI/180);
+    if(options.groups){if(options.groups.length!==indices.length/3)throw Error('Invalid recognition face groups');const grouped=new Map();for(let i=0;i<faces.length;i++){const group=options.groups[faces[i].source];if(!Number.isInteger(group)||group<0)throw Error('Invalid recognition face group');if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(i);}for(const group of grouped.values())smooth.push(group);}
+    const sourceTopology=closedMeshTopology(points,faces,edges);
+    const extruded=sourceTopology&&translatedSolid(T,t,options);
+    if(extruded){Object.assign(extruded.report,T.bad,{sourceTopology,inputTriangles:faces.length,tolerance:t,vertices:Object.keys(extruded.data.vertices).length,segments:Object.keys(extruded.data.segments).length,milliseconds:performance.now()-started});return extruded;}
+    if(!options.groups){const visited=new Uint8Array(faces.length);for(let seed=0;seed<faces.length;seed++)if(!visited[seed]){const ids=[seed];visited[seed]=1;for(let k=0;k<ids.length;k++)for(const j of faces[ids[k]].neighbors)if(!visited[j]&&dot(faces[ids[k]].normal,faces[j].normal)>=cos){visited[j]=1;ids.push(j);}smooth.push(ids);}}
+    function supportVertices(ids){const vs=new Set();for(const i of ids)for(const v of faces[i].vs)vs.add(v);return Array.from(vs);}
+    const supportPoints=ids=>supportVertices(ids).map(i=>points[i]);
     const fit=ids=>{const ps=supportPoints(ids),flat=plane(ps,t);if(flat&&flat.error<t*.02)return flat;const round=revolution(ps,ids.map(i=>faces[i].normal),flat?t*.1:t);return round&&(!flat||round.error<flat.error*.1)?round:flat||round||sphere(ps,t);};
-    function store(ids,model){if(!ids.length)return;const rid=regions.length,vs=[...new Set(ids.flatMap(i=>faces[i].vs))];for(const i of ids)faces[i].region=rid;regions.push({ids,vs,model});}
+    function store(ids,model){if(!ids.length)return;const rid=regions.length,vs=supportVertices(ids);for(const i of ids)faces[i].region=rid;regions.push({ids,vs,model,boundary:[]});}
     function connected(ids){const left=new Set(ids),out=[];while(left.size){const seed=left.values().next().value,group=[seed];left.delete(seed);for(let k=0;k<group.length;k++)for(const j of faces[group[k]].neighbors)if(left.delete(j))group.push(j);out.push(group);}return out;}
     for(const ids of smooth){const model=fit(ids);if(model){store(ids,model);continue;}if(options.groups&&options.requireComplete){store(ids,null);continue;}
 
 
       let left=ids.slice();for(let pass=0;pass<24&&left.length>=8;pass++){
-        let best=[];const step=Math.max(1,Math.floor(left.length/64));
-        for(let k=0;k<left.length;k+=step){const seed=faces[left[k]],n=seed.normal,d=dot(n,points[seed.vs[0]]),support=left.filter(i=>Math.abs(dot(n,faces[i].normal))>.96&&faces[i].vs.every(v=>Math.abs(dot(n,points[v])-d)<=t));if(support.length>best.length)best=support;}
+        const sample=left.length<=1024?left:Array.from({length:1024},(_,k)=>left[Math.floor((k+.5)*left.length/1024)]);
+        const step=Math.max(1,Math.floor(left.length/64)),seeds=[];
+        const supports=(i,n,d)=>Math.abs(dot(n,faces[i].normal))>.96&&faces[i].vs.every(v=>Math.abs(dot(n,points[v])-d)<=t);
+        for(let k=0;k<left.length;k+=step){const seed=faces[left[k]],n=seed.normal,d=dot(n,points[seed.vs[0]]);let count=0;for(const i of sample)if(supports(i,n,d))count++;seeds.push({n,d,count});}
+        seeds.sort((a,b)=>b.count-a.count);let best=[];
+        for(const {n,d} of seeds.slice(0,sample===left?1:3)){const support=left.filter(i=>supports(i,n,d));if(support.length>best.length)best=support;}
         if(best.length<Math.max(4,left.length*.025))break;const p=plane(supportPoints(best),t);if(!p)break;for(const group of connected(best))store(group,p);const used=new Set(best);left=left.filter(i=>!used.has(i));
       }
       for(const group of connected(left))store(group,fit(group));
     }
     // Opposite triangulation winding must not leave a seam inside one plane.
-    if(!options.groups){const parent=regions.map((_,i)=>i),root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};for(const e of edges.values())if(e.faces.length===2){const a=root(faces[e.faces[0]].region),b=root(faces[e.faces[1]].region),x=regions[a].model,y=regions[b].model;if(a!==b&&x?.kind==='plane'&&y?.kind==='plane'&&Math.abs(dot(x.n,y.n))>1-1e-10&&regions[b].vs.every(v=>Math.abs(dot(x.n,points[v])-x.d)<t*.02))parent[b]=a;}const merged=new Map();for(let i=0;i<regions.length;i++){const k=root(i);if(!merged.has(k))merged.set(k,{ids:[],model:regions[k].model});merged.get(k).ids.push(...regions[i].ids);}regions.length=0;for(const r of merged.values())store(r.ids,r.model);}
-    const data={version:2,next:1,approximation:{angle:options.angle||10},vertices:{},segments:{},sequences:[],freeHandles:{}},vertexBuckets=new Map(),edgeSet=new Set(),arcModels=new Map(),report={tolerance:t,inputTriangles:faces.length,planes:0,cylinders:0,cones:0,spheres:0,unrecognizedTriangles:0,...T.bad};
+    if(!options.groups){
+      const parent=regions.map((_,i)=>i),root=i=>{while(parent[i]!==i){parent[i]=parent[parent[i]];i=parent[i];}return i;};let changed=false;
+      for(const e of edges.values())if(e.faces.length===2){const a=root(faces[e.faces[0]].region),b=root(faces[e.faces[1]].region),x=regions[a].model,y=regions[b].model;if(a!==b&&x?.kind==='plane'&&y?.kind==='plane'&&Math.abs(dot(x.n,y.n))>1-1e-10&&regions[b].vs.every(v=>Math.abs(dot(x.n,points[v])-x.d)<t*.02)){parent[b]=a;changed=true;}}
+      if(changed){const merged=new Map();for(let i=0;i<regions.length;i++){const k=root(i);if(!merged.has(k))merged.set(k,{ids:[],model:regions[k].model});const ids=merged.get(k).ids;for(const face of regions[i].ids)ids.push(face);}regions.length=0;for(const r of merged.values())store(r.ids,r.model);}
+    }
+    for(const e of edges.values()){
+      const a=faces[e.faces[0]].region;
+      if(e.faces.length===2){const b=faces[e.faces[1]].region;if(a!==b){regions[a].boundary.push(e);regions[b].boundary.push(e);}}
+      else for(const id of new Set(e.faces.map(i=>faces[i].region)))regions[id].boundary.push(e);
+    }
+    const data={version:2,next:1,approximation:{angle:options.angle||10},vertices:{},segments:{},sequences:[],freeHandles:{}},vertexBuckets=new Map(),edgeSet=new Set(),arcModels=new Map(),report={tolerance:t,inputTriangles:faces.length,planes:0,cylinders:0,cones:0,spheres:0,unrecognizedTriangles:0,sourceTopology,...T.bad};
     function vertex(p){const w=t*.65,key=p.map(x=>Math.round(x/w)),near=[];for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)for(let c=-1;c<=1;c++)near.push([key[0]+a,key[1]+b,key[2]+c].join(':'));for(const k of near)for(const id of vertexBuckets.get(k)||[])if(distance(data.vertices[id],p)<=w)return id;const id='v'+data.next++;data.vertices[id]=p.map(x=>Math.abs(x)<1e-12?0:x);const k=key.join(':');if(!vertexBuckets.has(k))vertexBuckets.set(k,[]);vertexBuckets.get(k).push(id);return id;}
     function segment(a,b,ha=[0,0,0],hb=[0,0,0],model=null){const va=vertex(a),vb=vertex(b);if(va===vb)return;const forward=va<vb,key=(forward?[va,vb,...ha,...hb]:[vb,va,...hb,...ha]).map(x=>typeof x==='number'?Math.round(x/(t*.65)):x).join(':');if(edgeSet.has(key))return;edgeSet.add(key);const q='q'+data.next++,id='s'+data.next++;data.segments[id]={id,a:va,b:vb,ha,hb,sequence:q};if(model)arcModels.set(id,model);data.sequences.push({id:q,first:va,closed:false,segments:[id]});}
     function arc(c,r,u,v,a,b){const k=4/3*Math.tan((b-a)/4)*r,point=x=>add(c,add(mul(u,r*Math.cos(x)),mul(v,r*Math.sin(x)))),tan=x=>add(mul(u,-Math.sin(x)),mul(v,Math.cos(x)));segment(point(a),point(b),mul(tan(a),k),mul(tan(b),-k),{c,r,u,v,a,b});}
@@ -3409,9 +3696,8 @@ function createEngineeringRecognition(){
       const m=stable?candidate:circle(ps,t);if(m){const angles=ps.map(p=>Math.atan2(dot(sub(p,m.center),m.v),dot(sub(p,m.center),m.u)));let a=angles[0],b=a;for(let i=1;i<angles.length;i++){let d=angles[i]-angles[i-1];while(d>Math.PI)d-=TAU;while(d<-Math.PI)d+=TAU;b+=d;}if(Math.abs(b-a)<TAU+.01){if(b<a)[a,b]=[b,a];circleArcs(m,a,b-a);return;}}
       if(ps.length===2){segment(...ps);return;}const a=ps[0],d=sub(ps.at(-1),a),l=length(d);let at=Math.floor(ps.length/2),max=0;for(let i=1;i<ps.length-1;i++){const e=l?length(cross(sub(ps[i],a),d))/l:distance(ps[i],a);if(e>max){max=e;at=i;}}fitChain(ps.slice(0,at+1));fitChain(ps.slice(at));
     }
-    function boundary(r){const set=new Set(r.ids);return [...edges.values()].filter(e=>e.faces.some(i=>set.has(i))&&(e.faces.length!==2||e.faces.some(i=>!set.has(i))));}
     function roundRegion(r){
-      const m=r.model,ps=r.vs.map(i=>points[i]),boundaryEdges=boundary(r),loops=chains(boundaryEdges),rings=[];
+      const m=r.model,ps=r.vs.map(i=>points[i]),boundaryEdges=r.boundary,loops=chains(boundaryEdges),rings=[];
       if(m.kind==='sphere'&&!boundaryEdges.length){for(const [u,v] of [[[1,0,0],[0,1,0]],[[1,0,0],[0,0,1]],[[0,1,0],[0,0,1]]])circleArcs({center:m.center,r:m.r,u,v});return true;}
       for(const loop of loops){if(!loop.closed)return false;const c=circle(loop.ids.slice(0,-1).map(i=>points[i]),t*1.1);if(c&&(m.kind==='sphere'||length(cross(c.n,m.axis))<1e-4&&length(cross(sub(c.center,m.center),m.axis))<t&&Math.abs(c.r-m.r-m.s*dot(sub(c.center,m.center),m.axis))<t))rings.push(c);}
       if(m.kind==='sphere'){
@@ -3464,13 +3750,13 @@ function createEngineeringRecognition(){
 
     for(const r of regions)if(r.model&&r.model.kind!=='plane'){if(roundRegion(r)){report[r.model.kind==='sphere'?'spheres':r.model.kind==='cone'?'cones':'cylinders']++;r.done=true;}else r.model=null;}
     for(const r of regions){if(r.done)continue;if(r.model?.kind==='plane'){
-        const es=boundary(r),m=r.model,groups=new Map();for(const e of es){if(e.faces.some(i=>!regions[faces[i].region].model)){segment(points[e.a],points[e.b]);continue;}const key=e.faces.map(i=>faces[i].region).sort((a,b)=>a-b).join(':');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(e);}for(const group of groups.values())for(const loop of chains(group)){
+        const es=r.boundary,m=r.model,groups=new Map();for(const e of es){if(e.faces.some(i=>!regions[faces[i].region].model))continue;const key=e.faces.map(i=>faces[i].region).sort((a,b)=>a-b).join(':');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(e);}for(const group of groups.values())for(const loop of chains(group)){
           const ps=loop.ids.map(i=>sub(points[i],mul(m.n,dot(m.n,points[i])-m.d))),other=group[0].faces.map(i=>regions[faces[i].region]).find(q=>q!==r)?.model;let circleModel=null;
           if(other&&(other.kind==='cylinder'||other.kind==='cone')&&length(cross(other.axis,m.n))<1e-4){const z=dot(sub(mean(ps),other.center),other.axis);circleModel={center:add(other.center,mul(other.axis,z)),r:other.r+other.s*z,u:other.u,v:other.v};}
           else if(other?.kind==='sphere'){const offset=dot(m.n,other.center)-m.d,radius=Math.sqrt(other.r*other.r-offset*offset),[u,v]=basis(m.n);if(radius>t)circleModel={center:sub(other.center,mul(m.n,offset)),r:radius,u,v};}
           if(circleModel)circleChain(ps,circleModel,loop.closed);else fitChain(ps,loop.closed);
         }report.planes++;
-      }else{report.unrecognizedTriangles+=r.ids.length;if(options.requireComplete)continue;for(const i of r.ids){const vs=faces[i].vs;for(let j=0;j<3;j++)segment(points[vs[j]],points[vs[(j+1)%3]]);}}
+      }else report.unrecognizedTriangles+=r.ids.length;
     }
 
 
@@ -3485,11 +3771,16 @@ function createEngineeringRecognition(){
     }
 
 
-    const allVertices=Object.entries(data.vertices),originalSegments=Object.values(data.segments);
-    if(allVertices.length*originalSegments.length<2e7)for(const s of originalSegments){
+    const near=pointIndex(Object.keys(data.vertices),id=>data.vertices[id]),originalSegments=Object.values(data.segments);
+    for(const s of originalSegments){
       const a=data.vertices[s.a],b=data.vertices[s.b],m=arcModels.get(s.id),cuts=[];
-      if(m){const n=cross(m.u,m.v);for(const [id,p] of allVertices){if(id===s.a||id===s.b)continue;const d=sub(p,m.c);if(Math.abs(dot(d,n))>t*.3||Math.abs(length(d)-m.r)>t*.3)continue;let angle=Math.atan2(dot(d,m.v),dot(d,m.u));while(angle<m.a-1e-8)angle+=TAU;const x=(angle-m.a)/(m.b-m.a);if(x>1e-5&&x<1-1e-5)cuts.push({x,angle,p});}}
-      else if(length(s.ha)+length(s.hb)<1e-10){const d=sub(b,a),dd=dot(d,d);for(const [id,p] of allVertices){if(id===s.a||id===s.b)continue;const x=dot(sub(p,a),d)/dd;if(x>1e-5&&x<1-1e-5&&distance(p,add(a,mul(d,x)))<t*.3)cuts.push({x,p});}}
+      if(m){
+        const n=cross(m.u,m.v),extent=m.u.map((v,k)=>m.r*Math.hypot(v,m.v[k])+t);
+        near(sub(m.c,extent),add(m.c,extent),(id,p)=>{if(id===s.a||id===s.b)return;const d=sub(p,m.c);if(Math.abs(dot(d,n))>t*.3||Math.abs(length(d)-m.r)>t*.3)return;let angle=Math.atan2(dot(d,m.v),dot(d,m.u));while(angle<m.a-1e-8)angle+=TAU;const x=(angle-m.a)/(m.b-m.a);if(x>1e-5&&x<1-1e-5)cuts.push({x,angle,p});});
+      }else if(length(s.ha)+length(s.hb)<1e-10){
+        const d=sub(b,a),dd=dot(d,d);
+        near(a.map((v,k)=>Math.min(v,b[k])-t*.3),a.map((v,k)=>Math.max(v,b[k])+t*.3),(id,p)=>{if(id===s.a||id===s.b)return;const x=dot(sub(p,a),d)/dd;if(x>1e-5&&x<1-1e-5&&distance(p,add(a,mul(d,x)))<t*.3)cuts.push({x,p});});
+      }
       if(!cuts.length)continue;cuts.sort((a,b)=>a.x-b.x);delete data.segments[s.id];
       if(m){const angles=[m.a,...cuts.map(c=>c.angle),m.b];for(let i=1;i<angles.length;i++)if(angles[i]-angles[i-1]>1e-7)arc(m.c,m.r,m.u,m.v,angles[i-1],angles[i]);}else{const ps=[a,...cuts.map(c=>c.p),b];for(let i=1;i<ps.length;i++)segment(ps[i-1],ps[i]);}
     }
@@ -14555,19 +14846,43 @@ for(const type of ['pointerup','pointercancel'])outlineCanvas.addEventListener(t
 FrameViewWindows.onWindow('keydown',e=>{if(!bevelTool||!['Enter','Escape'].includes(e.key)||e.target.closest?.('input,textarea'))return;const t=bevelTool;if(bevelDrag){const g=bevelDrag;Promise.resolve(t.pending).then(()=>restore(g.before));}endBevel();e.preventDefault();e.stopImmediatePropagation();},true);
 FrameViewWindows.onDocument('pointerdown',e=>{if(!e.target.closest('#frame-engine-host,#attrContent,#menu')){endBevel();endOutline();}},true);
 
+  function preservesSourceTopology(source,diagnostics){
+    return !source||diagnostics?.components===source.components&&diagnostics.eulerCharacteristic===source.eulerCharacteristic&&diagnostics.unresolvedBoundary?.length===0;
+  }
+  function hasSourceTriangles(data,built){
+    // A resolver with unused cage diagonals may leave Euler unspecified even
+    // when its evaluated triangles reproduce the entire polygon surface.
+    const cells=data.sourceCells;
+    if(!cells||cells.length!==built.triangleCount||built.tasks?.byteLength)return false;
+    const byPosition=new Map(),points=[];
+    for(const [id,p] of Object.entries(data.vertices))byPosition.set(p.map(Math.fround).join(','),id);
+    for(let i=0;i<built.vertices.length;i+=3){
+      const id=byPosition.get(built.vertices[i]+','+built.vertices[i+1]+','+built.vertices[i+2]);if(!id)return false;points.push(id);
+    }
+    const expected=new Set(cells.map(cell=>cell.slice().sort().join(',')));
+    for(let i=0;i<built.indices.length;i+=3){
+      const ids=[points[built.indices[i]],points[built.indices[i+1]],points[built.indices[i+2]]];
+      if(!expected.delete(ids.sort().join(',')))return false;
+    }
+    return expected.size===0;
+  }
   async function toPatch(n){
     if(n.type==='spline_patch')return n;if(n.type!=='mesh'&&(!FrameSpline.supported.has(n.type)||polygonGenerator(n.type)))throw Error('Choose a polygon mesh or a spline object');if(n.type==='mesh'&&children(n.id).length)throw Error('Convert a mesh without child objects');
     if(n.type!=='mesh'){FrameSpline.toEditable(n,true);await FrameSpline.flush();return n;}
     const engine=window.frameEngine,space=engine.scene,hash=n.nativeHash,mesh=space.meshes.find(m=>m.hashId===hash);if(!mesh)throw Error('Choose a polygon mesh');
     const version=mesh.version,raw=await engine.readGeometry(hash),result=await worker('recognize',{positions:raw.vertices,indices:raw.indices,options:{}},[raw.vertices.buffer,raw.indices.buffer]);
-    if(engine.scene!==space||!nodes.includes(n)||n.nativeHash!==hash||mesh.version!==version)throw Error('Mesh changed during recognition');
-    if(!Object.keys(result.data.segments).length)throw Error('No reconstructible surface boundaries');await FrameSpline.build(result.data,'recognize:'+hash);
+    function verifySource(){if(engine.scene!==space||!nodes.includes(n)||n.type!=='mesh'||n.nativeHash!==hash||mesh.version!==version||!space.meshes.includes(mesh))throw Error('Mesh changed during recognition');}
+    verifySource();
+    if(!result.data||!Object.keys(result.data.segments).length)throw Error(result.report?.reason||'No reconstructible surface boundaries');
+    const built=await FrameSpline.build(result.data,'recognize:'+hash);
+    if(!preservesSourceTopology(result.report.sourceTopology,built.report.diagnostics)&&!(result.report.fallback==='source-triangles'&&hasSourceTriangles(result.data,built)))throw Error('The reconstructed cage does not preserve the closed mesh topology');
+    verifySource();
     // The existing hidden-mesh/history owner retains the exact imported GPU source for Undo.
     // A new surface owner is required because recognition changes topology and logical IDs.
     const frame=engine.packLocalFrame(hash);commit(()=>{n.nativeHash=FrameHash.newId();n.creationFrame=frame;delete n.engineIndex;n.type='spline_patch';n.params={};n.tags=n.tags.filter(t=>t.kind==='material'&&!t.mask);const source=FrameSpline.sourceNode(n,true);source.splineData=result.data;source.params['angle approximation']=result.data.approximation?.angle||10;});
     FrameSpline.request();await FrameSpline.flush();return n;
   }
-  return {endBevel,endOutline,bevel,bevelDialog,bevelAttributes,K,worker,outline,outlineDialog,outlineSegments,attributes,toPatch,flush:()=>Promise.all([tool?.pending,...bevelTasks])};
+  return {endBevel,endOutline,bevel,bevelDialog,bevelAttributes,K,worker,outline,outlineDialog,outlineSegments,attributes,toPatch,preservesSourceTopology,flush:()=>Promise.all([tool?.pending,...bevelTasks])};
 })();
 
 
@@ -23146,7 +23461,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const parsed=await parseInWorker(parseSTEP,await file.arrayBuffer()),objects=[];
       for(const part of parsed.parts){
         const result=await FrameGeometry.worker('recognize',{positions:part.raw.vertices,indices:part.raw.indices,retainSource:true,options:{angle:5,tolerance:.001,groups:part.raw.groups,requireComplete:true}},[part.raw.vertices.buffer,part.raw.indices.buffer,part.raw.groups.buffer]),data=result.data,hash=FrameHash.newId();let spline=null;
-        if(data&&!result.report.unrecognizedTriangles)try{const topology=FrameSpline.K().buildSplineSurface.resolve(data);if((!part.closed||topology.status==='closed-candidate')&&topology.diagnostics.cycleSearchComplete&&!topology.diagnostics.candidateCapReached){delete data.sourceCells;data.version=2;if(FrameSpline.K().validateSpline(data).ok){await FrameSpline.build(data,'step-preflight');spline={type:'spline',params:{'angle approximation':5},data};FrameSpline.encodeShape(spline);}}}catch{/* Keep the original surface when native cage reconstruction fails. */}
+        if(data&&!result.report.unrecognizedTriangles)try{const topology=FrameSpline.K().buildSplineSurface.resolve(data);if((!part.closed||topology.status==='closed-candidate')&&topology.diagnostics.cycleSearchComplete&&!topology.diagnostics.candidateCapReached&&FrameGeometry.preservesSourceTopology(result.report.sourceTopology,topology.diagnostics)){delete data.sourceCells;data.version=2;if(FrameSpline.K().validateSpline(data).ok){await FrameSpline.build(data,'step-preflight');spline={type:'spline',params:{'angle approximation':5},data};FrameSpline.encodeShape(spline);}}}catch{/* Keep the original surface when native cage reconstruction fails. */}
         if(spline)objects.push({hash,name:part.name,parent:null,type:0,flags:3,spline:{type:'spline_patch',params:{}}},{hash:FrameHash.newId(),name:'Spline',parent:hash,type:0,flags:3,spline});
         else{const raw=result.source;raw.vertexCount=raw.vertices.length/3;raw.triangleCount=raw.indices.length/3;raw.nativeExact=true;raw.ranges=[];objects.push({hash,name:part.name,parent:null,type:1,flags:3,raw});}
       }

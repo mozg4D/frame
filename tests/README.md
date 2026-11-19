@@ -192,6 +192,8 @@ Regenerate the ignored `scenes/release-1000-10m.hash` with `node tests/scenes/ge
 
 `node tests/component-feedback.mjs --headless` covers the supplied planar square, owner/body clicks, vertex Bevel selection and Ctrl-copy topology/Undo. The printer adaptive-LDNI checks run through its catalogue-discovered tests/index.mjs, including an independent convex-union area oracle and bounded ray overflow refinement. Printer performance distinguishes cold compilation (1.5 s) from warm completion (1 s) on the 4000-layer fixture.
 
+`npm run test:surface-recognition -- --headless` exercises To Spline Patch on an oblique lobed cam with an elliptical bore, a two-bore plate, and a dense rotated sleeve. It measures completed command latency, samples the rebuilt cam section in both directions, checks volume and mesh edge incidence, and covers exact Undo/Redo, HASH, a bulged wall and an invalid three-face edge.
+
 `node tests/viewport-printer-revision.mjs --headless` checks native Top-to-Perspective vertex IDs and pixels, including a rotated/scaled editable Car, retained body-click gizmos, degree-gated Vertex Bevel, lower-right Front axes, and sk30 STEP To Spline Patch topology/volume/Undo/Redo/HASH. Standard and stress profiles include this module.
 
 `node tests/material-interaction.mjs` verifies material-colored wire pixels, first Ctrl/Shift component drag completion, immediate visibility paint, folder-image drops, root-only texture requests and OpenGL/DirectX normal rendering/export. It is included in standard/stress runs.
