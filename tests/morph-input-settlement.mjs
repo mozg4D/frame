@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 
 const oldAnchor='await editSerial;await appearanceQueue;await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag)';
 const newAnchor='await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag)';
-function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,session=true,ending=false}={}){
+function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,session=true,ending=false,history=Promise.resolve()}={}){
  const start=html.indexOf('      async function settle(allowGesture=false){'),end=html.indexOf('\n      function describe(',start);
  assert.ok(start>=0&&end>start,'Actual API settlement source is present');
  const settle=html.slice(start,end),moveStart=html.indexOf('    function gizmoPointerMove(event){'),moveEnd=html.indexOf('\n    async function finishGizmo(',moveStart);
@@ -19,7 +19,7 @@ function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,se
   let gizmoSession=state.session?{event:{weight:state.target},ending:state.ending}:null;
   const api={ready:Promise.resolve(),get transforming(){return state.active;}};
   const canvas={dataset:{ready:'true'}},scene={},nodes=[];
-  const objectActionQueue=Promise.resolve(),clipboardSerial=Promise.resolve(),appearanceQueue=Promise.resolve();
+  const historySerial=state.history,objectActionQueue=Promise.resolve(),clipboardSerial=Promise.resolve(),appearanceQueue=Promise.resolve();
   let selectionPending=Promise.resolve(),selectionQueue=Promise.resolve(),editSerial=Promise.resolve();
   const heldPointers=new Set(state.active?[1]:[]),boxDrag=null,drag=null,polygonClick=Promise.resolve();
   const loopSerial=Promise.resolve(),replicaQueue=Promise.resolve(),animationSerial=Promise.resolve(),measureQueue=Promise.resolve();
@@ -32,13 +32,23 @@ function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,se
   ${move}
   ${settle}
   return {settle,move:weight=>gizmoPointerMove({weight}),state,runFrame:async()=>{const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f();await editSerial;flushTransform();await FrameMorph.flush();},pending:()=>frames.size,gizmoRAF:()=>gizmoRAF,clearSession:()=>{gizmoSession=null;},drainFrameOnly:()=>{const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f();}};
- `)({active,ready,dirty,weight,target,session,ending,applied:0,transforms:0});
+ `)({active,ready,dirty,weight,target,session,ending,history,applied:0,transforms:0});
 }
 export async function morphInputSettlementChecks(html=null){
  html??=await readFile(process.env.FRAME_MORPH_SOURCE?pathToFileURL(process.env.FRAME_MORPH_SOURCE):new URL('../index.html',import.meta.url),'utf8');
  const checks=[],timings=[],check=async(name,fn)=>{await fn();checks.push({name,pass:true});};
  await check('Latest coalesced move is solved before gesture-permitted observation, without releasing the gesture',async()=>{
   const p=harness(html);p.move(50);assert.equal(p.pending(),1);await p.settle(true);assert.equal(p.state.weight,50);assert.equal(p.state.active,true);assert.equal(p.pending(),0);assert.equal(p.state.applied,1);assert.equal(p.state.transforms,1);p.drainFrameOnly();assert.equal(p.state.applied,1);
+ });
+ await check('A pending history operation settles before the queued gizmo move is observed',async()=>{
+  let finishHistory;
+  const history=new Promise(resolve=>{finishHistory=resolve;}),p=harness(html,{history});
+  p.move(50);
+  const observation=p.settle(true);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(p.state.applied,0);assert.equal(p.pending(),1);
+  finishHistory();await observation;
+  assert.equal(p.state.applied,1);assert.equal(p.state.weight,50);
  });
  await check('Four rendered steps plus a pending fifth reproduce the original40 to expected50 transition',async()=>{
   const p=harness(html,{weight:0});for(const value of [10,20,30,40]){p.move(value);await p.runFrame();}assert.equal(p.state.weight,40);p.move(50);await p.settle(true);assert.equal(p.state.weight,50);assert.equal(p.state.applied,5);assert.equal(p.state.transforms,5);

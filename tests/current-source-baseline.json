@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 19 nov 02:30",
+  "version": "2026 19 nov 03:16",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -514,11 +514,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "727663074aa44f3dea02a3ae4d27ed11a137d0bda2ae88a20939e1f20f937589"
+      "sha256": "5abe4918cbc76ff7821eb84da6f04b61c8779c0f38c9e773a9c894dc00471c79"
     },
     "index.html": {
-      "bytes": 3183412,
-      "sha256": "9b23253d79698cdba6aa8932b51161a534875a3bf9f0d1a5b782d245a75b0943"
+      "bytes": 3184503,
+      "sha256": "ee226c79c6389dea1e1e8ee2935bb837aa5842fe76023b841bf928d6f52821f7"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -853,8 +853,8 @@
       "sha256": "5bb96cac60506a2a7978bf70400aac3168e32c715346d6a5348c08770762a6dd"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 16549,
-      "sha256": "51e71d712b7b6279880a543c0b6456bfbf3da5c127227b1e0aa6c8cfd645012c"
+      "bytes": 17215,
+      "sha256": "b4519257c417415a84ac12e9a3c0a5e163b7ac53956239e2734887318e2e0b76"
     },
     "tests/texture-slot-drag-browser.mjs": {
       "bytes": 19714,
@@ -1085,8 +1085,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 86270,
-      "sha256": "182e836f7d38e8827ce05fd401d0d7e247fd72cd18fd775d0481636d645c41f8"
+      "bytes": 86633,
+      "sha256": "ef70393706778a739144987fc89256f70e62faf1fc080551602dac0988080cd1"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1173,8 +1173,8 @@
       "sha256": "62ad52a0bbc4125c5086854db77b263286678c50f361d1e5e01cfec39a867a30"
     },
     "tests/spline-patch-normals.mjs": {
-      "bytes": 12515,
-      "sha256": "c71bf9cee8c6941fdcbe096d6a40da6c21b99dec0bf952ab3f78ada253aebdef"
+      "bytes": 12535,
+      "sha256": "5ce55ca31093ca3ab15412d9cb04d9ed4409bb3f9a44286aeda54b46c8431221"
     },
     "tests/scenes/hgr15-normal-bug.hash": {
       "bytes": 14145,
@@ -1193,8 +1193,8 @@
       "sha256": "e81bc3277e40ae7cbdb56e075c596d4136b591b677dd989f3d3d2a3249f7b479"
     },
     "tests/suite.js": {
-      "bytes": 17851,
-      "sha256": "7159d1bb3361d737b1440b2a48bcd81d7bf5c9e353d82890c7302828e23d9c57"
+      "bytes": 18719,
+      "sha256": "9b8fe366be6633a8cccad49741906b3b9ae934a0d427fd79786bfe4a69a9f2c3"
     },
     "tests/ai-collaboration.mjs": {
       "bytes": 12868,

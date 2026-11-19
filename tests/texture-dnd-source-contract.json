@@ -51,11 +51,17 @@
     {
       "prefix": "function checkpoint(before)",
       "nextPrefix": "function commit(action, refresh=true){",
-      "bytes": 1092,
-      "sha256": "44dbe1fd578b82a85d2bce4013bf77bfe5d84a797d192585d51e35dd2fbdb014",
+      "bytes": 1328,
+      "sha256": "6c15f554d4dafa32227631039aed4d229cc77e66a99104d1f72db8045b264e7d",
       "change": {
         "reason": "Native snapshots preserve camera state and deletion-scoped material history.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "verifiedBaseline": {
+        "commit": "39bd82c25f60b82e4ca954e5e89f9c4edfb5a476",
+        "reason": "A history checkpoint records whether the edit changed the timeline frame or duration.",
+        "previousBytes": 1092,
+        "previousSHA256": "44dbe1fd578b82a85d2bce4013bf77bfe5d84a797d192585d51e35dd2fbdb014"
       }
     },
     {
@@ -87,11 +93,17 @@
     {
       "prefix": "async function frameUndoUI(",
       "nextPrefix": "function history(back){",
-      "bytes": 637,
-      "sha256": "88bc76f054f375eb2b5985527462e12895f9c10ada1f7d8b0b595e2496eee4c9",
+      "bytes": 1109,
+      "sha256": "316683472182b0e0a9c33864cb6ff0421ab40bc060a810e94f4624d9b5aca72d",
       "change": {
         "reason": "UI Undo/Redo decode native binary snapshot records.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
+      },
+      "verifiedBaseline": {
+        "commit": "39bd82c25f60b82e4ca954e5e89f9c4edfb5a476",
+        "reason": "Undo and Redo preserve the current playhead and duration across edits to other scene state.",
+        "previousBytes": 637,
+        "previousSHA256": "88bc76f054f375eb2b5985527462e12895f9c10ada1f7d8b0b595e2496eee4c9"
       }
     },
     {

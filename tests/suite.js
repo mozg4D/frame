@@ -32,7 +32,22 @@ export async function runSuite(api,options={}){
   });
   await test('Spline editing and connected selection',async()=>{
     let n=await call('scene.create',{type:'circle'});n=await call('scene.convert',{id:n.hash});let cage=await call('spline.inspect',{id:n.hash}),keys=Object.keys(cage.data.vertices);await call('spline.tangents',{id:n.hash,vertices:keys,action:'hard'});cage=await call('spline.inspect',{id:n.hash});check('Hard clears tangents',Object.values(cage.data.segments).every(e=>[...e.ha,...e.hb].every(v=>v===0)));await call('spline.tangents',{id:n.hash,vertices:keys,action:'soft'});cage=await call('spline.inspect',{id:n.hash});check('Soft restores nonzero tangents',Object.values(cage.data.segments).every(e=>Math.hypot(...e.ha)>0&&Math.hypot(...e.hb)>0));await call('view.set',{index:2,focus:n.hash,mode:'edge'});const e=Object.values(cage.data.segments)[0],A=cage.data.vertices[e.a],B=cage.data.vertices[e.b],mid=A.map((v,k)=>(v+B[k])/2+3/8*(e.ha[k]+e.hb[k])),p=(await call('view.project',{id:n.hash,point:mid})).screen;await call('selection.pick',{x:p[0],y:p[1],connected:true});check('spline Edge connected selects graph',(await inspect()).selection.components.length===4);
-    const target=keys[1],moving=keys[0],world=(await call('view.project',{id:n.hash,point:cage.data.vertices[target]})).point;await call('scene.select',{ids:[n.hash],mode:'vertex',components:[moving]});for(let axis=0;axis<3;axis++)await call('transform.set',{channel:'position',axis,value:world[axis],coordinates:'world'});const welded=await call('spline.inspect',{id:n.hash});check('single spline vertex welds on coincidence',Object.keys(welded.data.vertices).length===3);await call('edit.history',{action:'undo'});check('spline weld Undo restores source',(await call('spline.inspect',{id:n.hash})).data.vertices[moving]!==undefined);
+    const target=keys[1],moving=keys[0],destination=cage.data.vertices[target];
+    const world=(await call('view.project',{id:n.hash,point:destination})).point;
+    await call('scene.select',{ids:[n.hash],mode:'vertex',components:[moving]});
+    for(let axis=0;axis<3;axis++)await call('transform.set',{channel:'position',axis,value:world[axis],coordinates:'world'});
+    const {data:welded}=await call('spline.inspect',{id:n.hash}),edges=Object.values(welded.segments);
+    check('single spline vertex welds into the stationary vertex',!Object.hasOwn(welded.vertices,moving)
+      &&keys.filter(id=>id!==moving).every(id=>welded.vertices[id]?.every((v,k)=>v===cage.data.vertices[id][k]))
+      &&edges.every(edge=>edge.a!==moving&&edge.b!==moving));
+    const split=Object.keys(welded.vertices).filter(id=>!Object.hasOwn(cage.data.vertices,id));
+    const span=Object.values(cage.data.segments).find(edge=>edge.a===moving&&edge.b===target||edge.b===moving&&edge.a===target);
+    const midpoint=destination.map((v,k)=>v+3/8*(span.ha[k]+span.hb[k]));
+    check('weld preserves the curved lobe through its cubic midpoint',split.length===1
+      &&welded.vertices[split[0]].every((v,k)=>Math.abs(v-midpoint[k])<1e-9)
+      &&edges.some(edge=>edge.a===target&&edge.b===split[0])&&edges.some(edge=>edge.a===split[0]&&edge.b===target));
+    await call('edit.history',{action:'undo'});
+    check('spline weld Undo restores source',(await call('spline.inspect',{id:n.hash})).data.vertices[moving]!==undefined);
   });
   await test('Patch source aliases',async()=>{let a=await call('scene.create',{type:'circle'}),b=await call('scene.create',{type:'circle'});a=await call('scene.convert',{id:a.hash});b=await call('scene.convert',{id:b.hash});await call('scene.select',{ids:[b.hash]});await call('transform.set',{channel:'position',axis:0,value:150,coordinates:'world'});const patch=await call('scene.create',{type:'spline_patch',inputs:[a.hash,b.hash]}),cage=await call('spline.inspect',{id:patch.hash});check('multi-source patch inspect returns combined cage',patch.sources.length===2&&cage.id===patch.hash&&Object.keys(cage.data.vertices).length===8);await rejected('ambiguous source replacement rejects before mutation','spline.replace',{id:patch.hash,data:(await call('spline.inspect',{id:a.hash})).data});check('ambiguous replacement preserves both sources',(await inspect()).objects.find(n=>n.hash===patch.hash).sources.length===2);});
   await test('Authored cage replacement',async()=>{

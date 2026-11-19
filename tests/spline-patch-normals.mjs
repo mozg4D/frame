@@ -18,7 +18,7 @@ export function normalOracle({positions:p,indices:ix,aliases,normals}){
 export async function shading(page,id){return page.evaluate(async hash=>{
  const {scene,renderer}=frameEngine,mesh=scene.meshes.find(m=>m.hashId===hash&&!m.replicaMatrix),d=renderer.device;
  async function read(b,n){const r=d.createBuffer({size:n*4,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),e=d.createCommandEncoder();e.copyBufferToBuffer(b,0,r,0,n*4);d.queue.submit([e.finish()]);await r.mapAsync(GPUMapMode.READ);const a=new Uint32Array(r.getMappedRange()).slice();r.unmap();r.destroy();return a;}
- const raw=await frameEngine.readGeometry(mesh),aliases=[],normals=[];for(const part of mesh.parts||[mesh]){const offset=normals.length/2,a=await read(part.renderIndices,part.count),n=await read(part.normals,part.normalCount*2);for(const x of a)aliases.push(x+offset);normals.push(...n);}
+ const raw=await frameEngine.readGeometry(mesh),aliases=[],normals=[];for(const part of mesh.parts||[mesh]){const offset=normals.length/2,a=await read(part.renderIndices,part.count),n=await read(part.normals,part.normalCount*2);for(const x of a)aliases.push(x+offset);for(const word of n)normals.push(word);}
  return {positions:Array.from(raw.vertices),indices:Array.from(raw.indices),aliases,normals};
  },id);}
 

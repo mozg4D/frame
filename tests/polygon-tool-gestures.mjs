@@ -34,6 +34,13 @@ function vertexAt(g,p,tolerance=.001){
   for(let i=0;i<g.vertices.length;i+=3)if(Math.hypot(...p.map((x,k)=>x-g.vertices[i+k]))<tolerance)return i/3;
   return -1;
 }
+async function checkPointGizmo(owner,g){
+  const id=g.vertices.length/3-1,point=g.vertices.slice(-3);
+  const selected=await page.evaluate(h=>frameEngine.polygonSelection(h),owner.hash);
+  const xy=await project(owner.hash,point),gizmo=await page.evaluate(()=>frameEngine.gizmoState?.at);
+  assert.deepEqual(selected.vertices,[id],'the added vertex is the only component selected');
+  assert.ok(gizmo&&Math.hypot(gizmo[0]-xy[0],gizmo[1]-xy[1])<1,'added vertex '+xy+' and gizmo '+gizmo);
+}
 // The two endpoints must be connected by actual mesh edges on the finite segment.
 function seam(g,a,b,tolerance=.001){
   const start=vertexAt(g,a,tolerance),end=vertexAt(g,b,tolerance),dir=b.map((x,k)=>x-a[k]),length=dir.reduce((s,x)=>s+x*x,0);
@@ -65,11 +72,11 @@ try{
         await page.keyboard.down('Control');await page.mouse.click(...at);await page.keyboard.up('Control');
         const edited=(await state()).objects.find(o=>o.id===n.id),g=await geometry(edited.hash);
         assert.equal(g.vertices.length,15,where);assert.equal(g.indices.length/3,triangles,where);
-        const screen=await project(edited.hash,g.vertices.slice(-3));
+        await checkPointGizmo(edited,g);const screen=await project(edited.hash,g.vertices.slice(-3));
         assert.ok(Math.hypot(screen[0]-at[0],screen[1]-at[1])<1.5,where+' click '+at+' created '+screen);
         await call('edit.history',{action:'undo'});assert.deepEqual(await geometry(n.hash),data);
         assert.deepEqual((await page.evaluate(h=>frameEngine.polygonSelection(h),n.hash)).vertices,[3]);
-        await call('edit.history',{action:'redo'});assert.deepEqual(await geometry(edited.hash),g);
+        await call('edit.history',{action:'redo'});assert.deepEqual(await geometry(edited.hash),g);await checkPointGizmo(edited,g);
       }
     });
     await test(storage+' Ctrl Add Point on a transformed mesh',async()=>{
@@ -78,7 +85,13 @@ try{
       await call('view.set',{index:0,focus:n.hash,mode:'vertex'});await call('scene.select',{ids:[n.hash],mode:'vertex',components:[]});
       const target=await project(n.hash,[-32,-32,0]);await page.keyboard.down('Control');await page.mouse.click(...target);await page.keyboard.up('Control');
       const owner=(await state()).objects.find(o=>o.id===n.id),g=await geometry(owner.hash);assert.equal(g.indices.length,12);
-      assert.ok(vertexAt(g,[-32,-32,0],.6)>=0);await call('edit.history',{action:'undo'});assert.deepEqual(await geometry(n.hash),quad);
+      assert.ok(vertexAt(g,[-32,-32,0],.6)>=0);await checkPointGizmo(owner,g);
+      await call('edit.history',{action:'undo'});assert.deepEqual(await geometry(n.hash),quad);
+      await call('edit.history',{action:'redo'});await checkPointGizmo(owner,g);
+      const start=await project(owner.hash,g.vertices.slice(-3)),view=(await state()).view.camera;
+      await drag(start,[start[0]+19,start[1]-15]);await state();const moved=await geometry(owner.hash);
+      assert.deepEqual(moved.vertices.slice(0,-3),g.vertices.slice(0,-3));assert.notDeepEqual(moved.vertices.slice(-3),g.vertices.slice(-3));
+      assert.deepEqual((await state()).view.camera,view);
     });
     await test(storage+' Ctrl click through a gizmo handle and just inside an edge',async()=>{
       const n=await fixture(quad,'vertex',storage);await call('scene.select',{ids:[n.hash],mode:'vertex',components:[0,1,2,3]});await call('diagnostics.frame',{frames:1});
@@ -252,6 +265,81 @@ try{
     const saved=await call('scene.export',{includeData:true});await call('scene.open',{name:'welded.hash',base64:saved.base64});
     assert.deepEqual(await geometry(n.hash),g);const loaded=await appearance(n.hash,[0,1,2],[0]);
     assert.deepEqual(loaded.uv.samples,after.uv.samples);assert.deepEqual(loaded.materials.map(m=>m.samples),after.materials.map(m=>m.samples));
+  });
+  await test('Perspective orbit keeps visible inside-corner vertices and hides covered vertices',async()=>{
+    const folded={vertices:[],indices:[]};
+    for(const y of [-60,0,60])for(const x of [-60,0,60])folded.vertices.push(x,y,-Math.abs(x));
+    for(const i of [0,1,3,4])folded.indices.push(i,i+1,i+4,i,i+4,i+3);
+    const n=await fixture(folded,'vertex','auto',0);
+    const cover=await call('mesh.create',{vertices:[-80,-80,-30,80,-80,-30,80,80,-30,-80,80,-30],indices:[0,1,2,0,2,3]});
+    const bounds=await page.locator('#frame-engine-canvas').boundingBox(),start=[bounds.x+bounds.width*.13,bounds.y+bounds.height*.24];
+    for(const shading of ['solid-wire','solid'])for(const selected of [false,true]){
+      for(const covered of [false,true]){
+        await call('scene.update',{id:cover.hash,visible:covered});
+        await call('view.set',{index:0,single:true,mode:'vertex',shading,camera:[0,0,1,0,0,0,0,0,0,0,-300,300]});
+        await call('scene.select',{ids:[n.hash],mode:'vertex',components:selected?[4]:[]});
+        await page.mouse.move(...start);await page.mouse.down();
+        const wrong=[],angles=new Set();
+        try{for(let i=1;i<=18;i++){
+          await page.mouse.move(start[0]+i*3,start[1]+Math.sin(i/3)*3);
+          const p=await project(n.hash,[0,0,0]),color=(await call('diagnostics.pixels',{points:[p]})).colors[0];
+          const marker=selected?color[0]>248&&Math.abs(color[1]-122)<=2&&color[2]<25:[153,163,179].every((v,k)=>Math.abs(color[k]-v)<=2);
+          angles.add(await page.evaluate(()=>frameEngine.viewCamera(0).camera[0]));
+          if(marker===covered)wrong.push({frame:i,color,point:p});
+        }}finally{await page.mouse.up();}
+        assert.ok(angles.size>=12,'native drag must orbit the camera');
+        assert.equal(wrong.length,0,JSON.stringify({shading,selected,covered,wrong}));
+      }
+    }
+  });
+  await test('Perspective framing survives polygon cuts, vertex moves and Undo key repeats',async()=>{
+    async function checkViewDuringShortcut(keys){
+      await page.evaluate(()=>{
+        const read=()=>[...frameEngine.viewCamera(0).camera,...frameEngine.pluginProject([23,17,5])];
+        const before=read();let changed=null,frames=0,ticket;
+        function sample(){const view=read();frames++;if(!changed&&view.some((v,k)=>v!==before[k]))changed=view;}
+        function tick(){sample();ticket=requestAnimationFrame(tick);}
+        ticket=requestAnimationFrame(tick);
+        window.finishHistoryViewSample=()=>{cancelAnimationFrame(ticket);sample();return {before,changed,frames};};
+      });
+      const start=performance.now();let sample;
+      try{
+        await keys();await page.waitForFunction(()=>frameEngine.idle);
+        await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+      }finally{sample=await page.evaluate(()=>{const result=window.finishHistoryViewSample();delete window.finishHistoryViewSample;return result;});}
+      assert.ok(performance.now()-start<2500,'camera and polygon history must settle within 2500 ms');
+      assert.ok(sample.frames>=2);assert.equal(sample.changed,null,JSON.stringify(sample));
+    }
+    const cutOwner=await fixture(quad,'polygon','auto',0);
+    const a=await project(cutOwner.hash,[-32,12,0]),b=await project(cutOwner.hash,[23,20,0]);
+    await choose(a,'Line Cut');await page.mouse.click(...a);await page.mouse.click(...b);
+    await checkViewDuringShortcut(()=>page.keyboard.press('Control+z'));
+    assert.equal((await state()).objects.find(o=>o.id===cutOwner.id)?.hash,cutOwner.hash,'immediate Undo must keep the original editable mesh');
+    assert.deepEqual(await geometry(cutOwner.hash),quad);
+    await checkViewDuringShortcut(()=>page.keyboard.press('Control+Shift+z'));
+    const cut=(await state()).objects.find(o=>o.id===cutOwner.id);
+    assert.ok((await geometry(cut.hash)).indices.length>quad.indices.length);
+
+    const source=[-34,-11,0],target=[23.4,16.6,9];
+    const mesh={vertices:[...source,-70,-18,0,-48,-52,0,...target,51,8,-15,33,52,-10],indices:[0,1,2,3,4,5]};
+    const owner=await fixture(mesh,'vertex','auto',0),original=await geometry(owner.hash);
+    await call('scene.select',{ids:[owner.hash],mode:'vertex',components:[0]});await call('view.set',{snap:true});
+    const from=await project(owner.hash,source),to=await project(owner.hash,target);
+    await drag(from,[to[0]+7,to[1]-4]);await state();
+    assert.equal((await geometry(owner.hash)).vertices.length,15);
+    await checkViewDuringShortcut(async()=>{
+      await page.keyboard.down('Control');await page.keyboard.down('z');await page.keyboard.up('Control');
+      // A held key repeats with the current modifiers after Control is released.
+      await page.keyboard.down('z');await page.keyboard.up('z');
+    });
+    assert.deepEqual(await geometry(owner.hash),original);
+    await call('view.set',{snap:false});await call('scene.select',{ids:[owner.hash],mode:'vertex',components:[0]});
+    await drag(from,[from[0]+22,from[1]-19]);
+    await checkViewDuringShortcut(()=>page.keyboard.press('Control+z'));
+    assert.deepEqual(await geometry(owner.hash),original);
+    const beforeFocus=(await state()).view.frame;
+    await page.keyboard.press('z');
+    assert.notDeepEqual((await state()).view.frame,beforeFocus,'a fresh Z press must still frame the selection');
   });
   await test('immediate Undo after Ctrl Add Point leaves the Camera and navigation intact',async()=>{
     const n=await fixture(quad,'vertex','auto',0),cam=await call('scene.create',{type:'render',params:{realtime:'off'}});
