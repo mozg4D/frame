@@ -4,21 +4,21 @@
       "filename": "car-hatchback-1.hash",
       "source": "hatchback_final(1) (1).hash",
       "sourceSHA256": "b75d2b841bea3d215f5c42f2fe106620e882e8da3b6c40cc1745509c8237fb00",
-      "sha256": "26a1eaea0a764bfc50bf92c264d8f6135da7cd7dd2529c81a6d53cb07157b76e",
-      "bytes": 11383,
+      "sha256": "0af184dc6ab64cd797a2975f3cfa3503a3dd9be02f7045752f0e6ca072dbc2f9",
+      "bytes": 11387,
       "sourceBytes": 11832,
-      "positionsSHA256": "5a867a784283168bd68cadfaa9123d2eacd2a005e2813dc9316c79b03e845105",
+      "positionsSHA256": "7a5144655abba27eb0af159a7283053ed0a9d23446deaf44d43efabe219838c2",
       "indicesSHA256": "b295233af00b075ad55e176cee4cce796e44b8093a4f1df25e335dd3216581e6",
       "triangles": 1692,
       "vertices": 916,
       "bounds": {
         "min": [
-          -1009.597900390625,
+          -990.109619140625,
           0,
           -2098.435546875
         ],
         "max": [
-          1009.597900390625,
+          990.109619140625,
           1519.9520263671875,
           2095.913330078125
         ],
