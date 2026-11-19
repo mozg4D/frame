@@ -657,8 +657,8 @@
       "sha256": "408a26f13bcff1c30266168bdbd18e8d076749fd344f16a4a0d127ed87ab74da"
     },
     "plugins/atomic/plugin.js": {
-      "bytes": 3914087,
-      "sha256": "164df74d0727ca59421a5d361f0add79f3a4c0ba0375b53491ab9ea1c42bfed6"
+      "bytes": 3917395,
+      "sha256": "0cd60cc055d779e9ba0c3fc84c7c3130f43c5f2cbfd3fa789f6d32bfdf2932ee"
     },
     "plugins/atomic/tests/feedback.mjs": {
       "bytes": 8810,
@@ -929,12 +929,12 @@
       "sha256": "c4000f5ce9501213123a97ab40be1539f3e55ab967d0d03654f70fe46a840443"
     },
     "plugins/atomic/tests/display-bounds.mjs": {
-      "bytes": 25674,
-      "sha256": "f4375e42ad76cf2e3a160797ef022bfb86895e6fe4494f38c82efeddc0c03053"
+      "bytes": 26926,
+      "sha256": "b4039bb2f559ca8d7f1fa80163fc968cc6462ba44db407d7ae5a0d6969766320"
     },
     "plugins/atomic/tests/material-readiness.mjs": {
-      "bytes": 12817,
-      "sha256": "15739f3ab211564aa5e9bd28cadbe6e773b217734eecb780e1e1d4888ff56557"
+      "bytes": 13306,
+      "sha256": "39a28321ba42aba4a27f35300bb7b40bf4f36ac561b9bc7e675929c10ef24ace"
     },
     "tests/camera-animation-navigation.mjs": {
       "bytes": 28624,
@@ -1073,8 +1073,8 @@
       "sha256": "1cb7911708be9558a7876acf0471a74ae2f677ee7eacaecac46babc7cf0a851b"
     },
     "plugins/atomic/AGENTS.md": {
-      "bytes": 5228,
-      "sha256": "eca6fd433b5812bf2e56238c6daf4833ad4938f12d4ece3b83a47ca93077c745"
+      "bytes": 5466,
+      "sha256": "df2624c65e6b06150edc5ff2afec530c416cfe4f975fc07315834fd53eb6aa63"
     },
     "plugins/structural/AGENTS.md": {
       "bytes": 3772,

@@ -763,7 +763,7 @@ class GPUCarbon {
  }
  commitDisplayBounds(state,bounds){
   if(this.boundsState!==state||(this.displayGeneration||0)!==state.generation)throw new DOMException('Atomic display retired','AbortError');
-  const names=['displayAtoms','displayBonds','displayControl','displayArgs'],prior=Object.fromEntries(names.map(k=>[k,this[k]])),serial=this.displaySerial,retired=this.retiredBuffers.length,encoder=this.device.createCommandEncoder();try{this.publishDisplay(encoder);const command=encoder.finish();this.device.queue.submit([command]);this.displayBounds=bounds;}catch(error){for(const k of names){if(this[k]&&this[k]!==prior[k])this[k].destroy();this[k]=prior[k];}this.displaySerial=serial;this.retiredBuffers.length=retired;throw error;}
+  const names=['displayAtoms','displayBonds','displayControl','displayArgs'],prior=Object.fromEntries(names.map(k=>[k,this[k]])),serial=this.displaySerial,retired=this.retiredBuffers.length,encoder=this.device.createCommandEncoder();try{this.publishDisplay(encoder,this.bondCount);const command=encoder.finish();this.device.queue.submit([command]);this.displayBounds=bounds;}catch(error){for(const k of names){if(this[k]&&this[k]!==prior[k])this[k].destroy();this[k]=prior[k];}this.displaySerial=serial;this.retiredBuffers.length=retired;throw error;}
  }
  async publishDisplaySnapshot(encoder=null){
   if(!this.n){this.displayBounds=null;return;}const state=await this.prepareDisplayBounds();encoder??=this.device.createCommandEncoder();this.encodeDisplayBounds(encoder,state);this.device.queue.submit([encoder.finish()]);const bounds=await this.readDisplayBounds(state);this.commitDisplayBounds(state,bounds);
@@ -789,7 +789,14 @@ class GPUCarbon {
   this.buffers=sizes.map((size,i)=>i===3&&this.radialTable?this.radialTable:this.device.createBuffer({size,usage:(i===6?GPUBufferUsage.UNIFORM:GPUBufferUsage.STORAGE)|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC}));this.radialTable=this.buffers[3];this.tableKey=tableKey;if(copyTable){const e=this.device.createCommandEncoder();e.copyBufferToBuffer(copyTable,0,this.radialTable,0,this.lutBytes);this.device.queue.submit([e.finish()]);await this.device.queue.onSubmittedWorkDone();copyTable.destroy();}this.drawArgs=this.device.createBuffer({size:32,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});this.readback=this.device.createBuffer({size:this.queryOffset+16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});this.targets=this.device.createBuffer({size:16*this.n,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});this.residentBytes+=16*this.n;this.readbackBytes=this.queryOffset+16;
   const data=new Float32Array(16*this.n),ids=new Uint32Array(data.buffer);for(let i=0;i<this.n;i++){const a=this.atoms[i],o=16*i;for(let k=0;k<3;k++){data[o+k]=a.p[k]-this.origin[k];data[o+4+k]=a.v[k];}data[o+3]=2*GPUCarbon.elementTypes.get(a.z)+(a.fixed?1:0);ids[o+7]=a.id;}
   const ctrl=new Uint32Array(16);new Float32Array(ctrl.buffer)[6]=1;ctrl[11]=1;if(options.clock){ctrl[8]=options.clock.steps||0;new Float32Array(ctrl.buffer)[9]=options.clock.time||0;}const par=new ArrayBuffer(96),iv=new Uint32Array(par),fv=new Float32Array(par);iv.set([this.n,this.heads,this.stride,this.bcap]);fv[4]=dt;fv[5]=this.dampingRate;fv[6]=this.grabStiffness;iv[7]=this.paused?1:0;fv[12]=6.3;iv[13]=this.modelOffset;iv[14]=this.activeTypes;iv[15]=this.lutSegments;fv[16]=this.temperatureK;iv[17]=this.thermalSeed;const model=this.model.slice();for(let t=0;t<75;t++)model[8*t+7]=this.activeZ.indexOf(model[8*t+5]);for(let a=0;a<this.activeTypes;a++)model[8*a]=GPUCarbon.elementTypes.get(this.activeZ[a]);this.device.queue.writeBuffer(this.buffers[2],4*this.modelOffset,model);this.device.queue.writeBuffer(this.buffers[0],0,data);this.device.queue.writeBuffer(this.buffers[4],0,ctrl);this.device.queue.writeBuffer(this.buffers[6],0,par);if(this.trackDisplayBounds)await this.publishDisplaySnapshot();else{const firstDisplay=this.device.createCommandEncoder();this.publishDisplay(firstDisplay);this.device.queue.submit([firstDisplay.finish()]);}this.visualDirty=true;options.onSceneReady?.();await this.ensureMaterialKernels();this.bindPhysicsGroups();this.asleep=false;
-  const initial=options.deferForces?['checkRebuild','clearGrid','insertGrid','findNeighbors','buildNeighborMap','finishNeighbors']: [...this.forceSequence,'initialRest'];await this.execute([...(initTable&&this.activeTypes?['initRadialTable']:[]),...initial]);if(!options.deferForces)await this.tuneKernels();
+   const initializeTable=initTable&&this.activeTypes?['initRadialTable']:[];
+   if(options.deferForces){
+    if(initializeTable.length)await this.execute(initializeTable,false);
+    this.dirtyPhysics=true;
+    return;
+   }
+   await this.execute([...initializeTable,...this.forceSequence,'initialRest']);
+   await this.tuneKernels();
  }
  parseState(bytes,offset=0){const state=new Float32Array(bytes,offset,16*this.n);if(this.strain.length!==this.n)this.strain=new Float64Array(this.n);this.forces=Array(this.n);let energy=0;for(let i=0;i<this.n;i++){const a=this.atoms[i],o=16*i;for(let k=0;k<3;k++){const p=state[o+k]+this.origin[k],v=state[o+4+k];if(!Number.isFinite(p+v+state[o+8+k]))throw Error('GPU non-finite result');a.p[k]=p;a.v[k]=v;}this.forces[i]=[state[o+8],state[o+9],state[o+10]];this.strain[i]=state[o+11];energy+=state[o+15];}this.energy=energy;this.snapshotSerial++;}
  configureKernels(){
@@ -837,7 +844,8 @@ class GPUCarbon {
    // selection avoids switching for small, noisy timing differences.
    profiles[phase]=samples;this.kernelModes[phase]=samples.cooperative[1]<samples.serial[1]*.85;this.configureKernels();
   }}finally{if(this.readback.mapState==='mapped')this.readback.unmap();const error=await d.popErrorScope();if(error)throw Error(error.message);}
-  this.kernelProfiles=profiles;await this.evaluate(false,true);
+  // Profiles modify descriptor/force scratch, but the existing neighbors still match the positions.
+  this.kernelProfiles=profiles;await this.evaluate();
  }
  async execute(names,visual=true,preserveParameters=false){
   if(this.lost)throw Error(this.lost);if(names.includes('beginGrabForces'))visual=false;const d=this.device,metadataRead=this.readback,start=performance.now();let failure=null,first=true,lastYield=start,encoder=null,pass=null,queuedMs=0,displayState=null,displayBounds=null;const workBudget=Math.max(.25,Math.min(8,this.workBudgetMs||4)),yieldBudget=Math.max(.5,Math.min(6,this.yieldBudgetMs||6));
@@ -876,7 +884,7 @@ class GPUCarbon {
    const bytes=metadataRead.getMappedRange(),meta=new Uint32Array(bytes,0,16),values=new Float32Array(bytes,0,16),guard=meta[0];this.asleep=!!meta[1];this.stepsDone=meta[8];this.simTime=values[9];this.stepFs=values[5];this.maxForce=values[2];this.maxSpeed=values[3];this.lastPairs=meta[10];this.bondCount=meta[4];this.rebuilds=meta[14];if(this.query){const t=new BigUint64Array(bytes,64,2);this.gpuMs=Number(t[1]-t[0])/1e6;}
    if(guard){const error=Error('GPU capacity/numerical guard '+guard);error.guard=guard;throw error;}
   }catch(e){failure=e;}finally{if(metadataRead.mapState==='mapped')metadataRead.unmap();const e=await d.popErrorScope();if(e&&!failure)failure=Error(e.message);}
-  if(failure){if([1,8,16].includes(failure.guard)){await this.growCapacity(failure.guard);this.configureKernels();d.queue.writeBuffer(this.packetUniform,8,new Uint32Array([this.stride,this.bcap]));d.queue.writeBuffer(this.packetUniform,52,new Uint32Array([this.modelOffset]));const partial=[1,16].includes(failure.guard)&&names.includes('driftAtoms');await this.execute(failure.guard===8?[]:[...this.forceSequence,partial?'endStep':'initialRest'],true,true);this.lastMs=performance.now()-start;return;}throw failure;}
+  if(failure){if([1,8,16].includes(failure.guard)){await this.growCapacity(failure.guard);this.configureKernels();d.queue.writeBuffer(this.packetUniform,8,new Uint32Array([this.stride,this.bcap]));d.queue.writeBuffer(this.packetUniform,52,new Uint32Array([this.modelOffset]));const partial=[1,16].includes(failure.guard)&&names.includes('driftAtoms');await this.execute(failure.guard===8?[]:[...this.forceSequence,partial?'endStep':'initialRest'],visual,true);this.lastMs=performance.now()-start;return;}throw failure;}
   if(displayState)this.commitDisplayBounds(displayState,displayBounds);this.visualDirty=!visual;this.lastMs=performance.now()-start;
   if(names.includes('beginStep')&&rawEstimate>0){const observed=Math.max(.0625,Math.min(64,(this.gpuMs||this.lastMs)/rawEstimate));this.costScale=costScale*.8+observed*.2;}
  }
@@ -899,7 +907,7 @@ class GPUCarbon {
  async snapshotFull(){if(!this.n)return;const size=this.stateBytes,b=this.device.createBuffer({size,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{const encoder=this.device.createCommandEncoder();encoder.copyBufferToBuffer(this.buffers[0],0,b,0,size);this.device.queue.submit([encoder.finish()]);await b.mapAsync(GPUMapMode.READ);this.parseState(b.getMappedRange());}finally{if(b.mapState==='mapped')b.unmap();b.destroy();}}
 
 
- publishDisplay(encoder){
+ publishDisplay(encoder,bondCount=this.bcap){
   const d=this.device;
   const ensure=(name,size,usage)=>{if(this[name]&&this[name].size>=size)return;if(this[name])this.retiredBuffers.push(this[name]);this[name]=d.createBuffer({size,usage:usage|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});};
   ensure('displayAtoms',this.stateBytes,GPUBufferUsage.STORAGE);
@@ -907,7 +915,8 @@ class GPUCarbon {
   ensure('displayControl',64,GPUBufferUsage.STORAGE);
   ensure('displayArgs',16,GPUBufferUsage.INDIRECT);
   encoder.copyBufferToBuffer(this.buffers[0],0,this.displayAtoms,0,this.stateBytes);
-  encoder.copyBufferToBuffer(this.buffers[5],0,this.displayBonds,0,16*this.bcap);
+  // Once the solver metadata has mapped, only the indirect draw's active range is needed.
+  if(bondCount)encoder.copyBufferToBuffer(this.buffers[5],0,this.displayBonds,0,16*bondCount);
   encoder.copyBufferToBuffer(this.buffers[4],0,this.displayControl,0,64);
   encoder.copyBufferToBuffer(this.drawArgs,0,this.displayArgs,0,16);
   this.displaySerial=(this.displaySerial||0)+1;
@@ -922,7 +931,7 @@ class GPUCarbon {
  async moveGrab(delta,pose=false){if(!this.n)return;this.updateGrabDelta(delta);if(pose){const ctrl=new Uint32Array(11);ctrl[8]=this.stepsDone||0;new Float32Array(ctrl.buffer)[6]=1;new Float32Array(ctrl.buffer)[9]=this.simTime||0;this.device.queue.writeBuffer(this.buffers[4],0,ctrl);this.device.queue.writeBuffer(this.buffers[4],44,new Uint32Array([1]));this.asleep=false;await this.execute(['poseSelected']);}else await this.evaluate(true);}
 
  async endGrab(){if(!this.n)return;const wasPose=this.grabPose;this.grabPose=false;const e=this.device.createCommandEncoder();e.clearBuffer(this.targets);this.device.queue.submit([e.finish()]);for(const i of this.grabIndices||[]){this.atoms[i].held=false;delete this.atoms[i].grabTarget;}this.grabIndices=[];this.updateGrabDelta([0,0,0]);if(wasPose)await this.execute([]);else await this.evaluate(true);}
- async step(count){this.lastSteps=0;if(this.asleep||this.paused){this.lastMs=0;return;}const before=this.stepsDone,sequence=this.stepSequence;await this.execute(Array.from({length:Math.min(512,count)},()=>sequence).flat());this.lastSteps=this.stepsDone-before;}
+ async step(count,visual=true){this.lastSteps=0;if(this.asleep||this.paused){this.lastMs=0;return;}const before=this.stepsDone,sequence=this.stepSequence;await this.execute(Array.from({length:Math.min(512,count)},()=>sequence).flat(),visual);this.lastSteps=this.stepsDone-before;}
 }
 
 GPUCarbon.elementTypes=new Map([[6, 0], [14, 1], [8, 2], [1, 3], [7, 4], [13, 5], [29, 6], [22, 7], [26, 8], [28, 9], [24, 10], [12, 11], [3, 12], [11, 13], [19, 14], [20, 15], [15, 16], [16, 17], [9, 18], [17, 19], [30, 20], [5, 21], [32, 22], [31, 23], [33, 24], [49, 25], [50, 26], [47, 27], [79, 28], [78, 29], [46, 30], [72, 31], [40, 32], [73, 33], [74, 34], [42, 35], [41, 36], [23, 37], [25, 38], [27, 39], [21, 40], [39, 41], [38, 42], [56, 43], [4, 44], [48, 45], [51, 46], [34, 47], [52, 48], [35, 49], [53, 50], [44, 51], [45, 52], [77, 53], [76, 54], [75, 55], [82, 56], [83, 57], [57, 58], [58, 59], [59, 60], [60, 61], [62, 62], [64, 63], [2, 64], [10, 65], [18, 66], [36, 67], [37, 68], [43, 69], [54, 70], [55, 71], [80, 72], [81, 73], [89, 74]]);
@@ -1092,8 +1101,43 @@ export async function activate(context) {
   const identities=new WeakMap();let identitySerial=0;const identity=value=>{if(!value||typeof value!=='object')return value;if(!identities.has(value))identities.set(value,++identitySerial);return identities.get(value);};const EMPTY=Object.freeze([]),val=(n,k)=>n?.pluginRecords?.[k]?.value||EMPTY,record=(n,k,v,type=6)=>D.setRecord(n.nativeHash,k,type,v),isRow=n=>n?.type?.startsWith('atomic_'),allRows=()=>D.nodes.filter(isRow),find=h=>D.nodes.find(n=>n.nativeHash===h),byId=id=>D.nodes.find(n=>n.id===id);
   const ancestor=n=>{for(let p=n;p;p=byId(p.parent))if(p.type==='atomic')return p;return null;};
   const own=h=>{const n=find(h);if(!n||n.type!=='atomic')throw Error('An Atomic owner is required');return n;};
-  const list=n=>{const p=val(n,P),z=val(n,Z),ids=val(n,IDS);if(p.length!==3*z.length||ids.length!==z.length||new Set(ids).size!==ids.length||p.some(x=>!Number.isFinite(x))||z.some(z=>!elements.has(z)))throw Error('Invalid Atomic records');return z.map((z,i)=>({id:ids[i],z,p:p.slice(i*3,i*3+3),v:[0,0,0]}));};
-  function saveList(n,atoms){record(n,P,atoms.flatMap(a=>a.p));record(n,Z,atoms.map(a=>a.z),3);record(n,IDS,atoms.map(a=>a.id),3);syncElements(n);}
+  const validatedAtomRecords=new WeakMap();
+  function atomRecords(n){
+    const positions=val(n,P),species=val(n,Z),ids=val(n,IDS);
+    const speciesId=identity(species),idsId=identity(ids),validated=validatedAtomRecords.get(positions);
+    if(!validated||validated.speciesId!==speciesId||validated.idsId!==idsId){
+      if(positions.length!==3*species.length||ids.length!==species.length||new Set(ids).size!==ids.length||
+          positions.some(x=>!Number.isFinite(x))||species.some(z=>!elements.has(z)))throw Error('Invalid Atomic records');
+      validatedAtomRecords.set(positions,{speciesId,idsId});
+    }
+    return {positions,species,ids};
+  }
+  function list(n){
+    const {positions,species,ids}=atomRecords(n);
+    return species.map((z,i)=>({id:ids[i],z,p:positions.slice(i*3,i*3+3),v:[0,0,0]}));
+  }
+  function saveAtomRecords(n,positions,species,ids){
+    record(n,P,positions);record(n,Z,species,3);record(n,IDS,ids,3);syncElements(n);
+  }
+  function saveList(n,atoms){
+    const positions=new Array(3*atoms.length),species=new Array(atoms.length),ids=new Array(atoms.length);
+    for(let i=0;i<atoms.length;i++){
+      const atom=atoms[i],offset=3*i;
+      positions[offset]=atom.p[0];positions[offset+1]=atom.p[1];positions[offset+2]=atom.p[2];
+      species[i]=atom.z;ids[i]=atom.id;
+    }
+    saveAtomRecords(n,positions,species,ids);
+  }
+  function extendAtomRecords(n,count){
+    const positions=val(n,P).slice(),species=val(n,Z).slice(),ids=val(n,IDS).slice();
+    const start=ids.length,total=start+count;
+    let nextId=1;
+    for(const id of ids)nextId=Math.max(nextId,id+1);
+    if(nextId+count>0xffffffff)throw Error('Atom ID capacity exceeded');
+    positions.length=3*total;species.length=total;ids.length=total;
+    for(let i=start;i<total;i++)ids[i]=nextId++;
+    return {positions,species,ids,start};
+  }
   function elementRows(n){return allRows().filter(r=>r.type==='atomic_element'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash);}
   function syncElements(n){const species=new Set(val(n,Z)),rows=elementRows(n);for(const z of species)if(!rows.some(r=>val(r,Z)[0]===z)){const e=elements.get(z),r=D.create('atomic_element',n.nativeHash,e.sym);r.nativeHash??=crypto.randomUUID().replaceAll('-','');record(r,Z,[z],3);record(r,OWNER,[n.nativeHash],4);D.materialize(r.nativeHash,e.color);}for(const r of rows)if(!species.has(val(r,Z)[0]))D.remove(r.nativeHash);}
   const rgb=color=>'#'+color.map(v=>Math.round(Math.max(0,Math.min(1,v))*255).toString(16).padStart(2,'0')).join('');
@@ -1106,7 +1150,7 @@ export async function activate(context) {
   const isPlaying=w=>D.playing&&computes(w.node);
   const boundsCache=new WeakMap();function bounds(n,ids=null){const saved=!ids&&boundsCache.get(val(n,P));if(saved)return saved;const p=val(n,P),keys=val(n,IDS),min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let count=0;for(let i=0;i<keys.length;i++)if(!ids||ids.has(keys[i])){count++;for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[3*i+k]);max[k]=Math.max(max[k],p[3*i+k]);}}if(!count)return {min:[-1,-1,-1],max:[1,1,1]};const result={min,max};if(!ids){let margin=0;for(const z of new Set(val(n,Z)))margin=Math.max(margin,.68*elements.get(z).r);for(let k=0;k<3;k++){result.min[k]-=margin;result.max[k]+=margin;}boundsCache.set(p,result);}return result;}
   const rowBoundsCache=new Map(),indexCache=new WeakMap();function rowBounds(row){const n=ancestor(row);if(!n)return null;const points=val(n,P),world=D.world(n.nativeHash),inverse=M.inv(D.world(row.nativeHash)),key=context.hash.values.key([identity(val(n,Z)),identity(val(n,IDS)),world,Array.from(inverse),allRows().map(r=>[r.parent,identity(val(r,MEMBERS))])]),old=rowBoundsCache.get(row.nativeHash);if(old?.points===points&&old.key===key)return old.bounds;const members=membership(row);let indices=indexCache.get(val(n,IDS));if(!indices){indices=new Map(val(n,IDS).map((id,i)=>[id,i]));indexCache.set(val(n,IDS),indices);}const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity],matrix=M.mul(inverse,world);for(const id of members){const i=indices.get(id);if(i===undefined)continue;const p=M.point(matrix,points.slice(3*i,3*i+3));for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[k]);max[k]=Math.max(max[k],p[k]);}}const result=Number.isFinite(min[0])?{min,max}:{min:[-1,-1,-1],max:[1,1,1]};rowBoundsCache.set(row.nativeHash,{points,key,bounds:result});return result;}
-  function world(h){let w=worlds.get(h);if(!w){const n=own(h);list(n);w={hash:h,node:n,token:null,gpu:null,busy:Promise.resolve(),timeFs:0,steps:0,generation:0,selected:null,error:null};worlds.set(h,w);}return w;}
+  function world(h){let w=worlds.get(h);if(!w){const n=own(h);atomRecords(n);w={hash:h,node:n,token:null,gpu:null,busy:Promise.resolve(),timeFs:0,steps:0,generation:0,selected:null,error:null};worlds.set(h,w);}return w;}
   function serial(w,fn){const task=w.busy.then(fn);w.busy=task.catch(e=>{w.error=String(e.message||e);D.pause();context.requestAttributes();});return task;}
   function pause(w){D.pause();context.requestAttributes();}
   function selectionChanged(n){active=n?.nativeHash||null;if(n){pause(world(active));D.select(selectedRow||active,selectedRow?'objects':'viewport');E.componentsChanged(active,selection.size?bounds(n,selection):null);uploadSelection(world(active));}context.requestAttributes();context.requestDraw();}
@@ -1123,7 +1167,7 @@ export async function activate(context) {
     if(w.token!==val(n,P)||w.speciesToken!==val(n,Z)||!w.gpu.n&&val(n,Z).length){
       const atoms=list(n),old=new Map((w.gpu.atoms||[]).map(a=>[a.id,a.v]));for(const [id,v]of w.pendingVelocities||[])old.set(id,v);w.pendingVelocities=null;for(const a of atoms)a.v=old.get(a.id)?.slice()||[0,0,0];
       const fixed=new Set(allRows().filter(r=>r.type==='atomic_fixed'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash&&computes(r)).flatMap(r=>val(r,MEMBERS)));for(const a of atoms)a.fixed=fixed.has(a.id);
-      w.initialPositions??=val(n,P);w.maxStepFs=atoms.some(a=>a.z===1)?.25:atoms.some(a=>a.z<=10)?.5:1;if(!physics&&!w.gpu.shaderModule){const prior=w.gpu;w.gpu=await preview(atoms,prior);prior.release();}else{w.gpu.setPaused(true);await w.gpu.set(atoms,w.maxStepFs,n.params.Damping,{temperatureK:n.params.Temperature+273.15,origin:w.gpu.n?w.gpu.origin:undefined,clock:{steps:w.steps,time:w.timeFs}});w.gpu.setPaused(false);}w.confinementStamp=null;w.constraintStamp=null;w.appearanceToken=null;w.token=val(n,P);w.speciesToken=val(n,Z);w.selected=null;w.visual=null;await constraints(w);uploadSelection(w);
+      w.initialPositions??=val(n,P);w.maxStepFs=atoms.some(a=>a.z===1)?.25:atoms.some(a=>a.z<=10)?.5:1;if(!physics&&!w.gpu.shaderModule){const prior=w.gpu;w.gpu=await preview(atoms,prior);prior.release();}else{w.gpu.setPaused(true);await w.gpu.set(atoms,w.maxStepFs,n.params.Damping,{temperatureK:n.params.Temperature+273.15,origin:w.gpu.n?w.gpu.origin:undefined,clock:{steps:w.steps,time:w.timeFs},deferForces:physics});w.gpu.setPaused(false);}w.confinementStamp=null;w.constraintStamp=null;w.appearanceToken=null;w.token=val(n,P);w.speciesToken=val(n,Z);w.selected=null;w.visual=null;await constraints(w);uploadSelection(w);
     }
     if(!w.gpu.preview&&w.gpu.n){w.gpu.setThermostat(Math.max(0,n.params.Temperature+273.15),Math.max(0,n.params.Damping));const center=Array.from(D.pivot(w.hash).slice(12,15)),values=[...center.map((v,k)=>v-w.gpu.origin[k]),Math.max(0,n.params.Confinement)];const stamp=values.join();if(w.confinementStamp!==stamp){device.queue.writeBuffer(w.gpu.buffers[6],80,new Float32Array(values));w.confinementStamp=stamp;w.gpu.dirtyPhysics=true;}}
     return w;
@@ -1132,42 +1176,139 @@ export async function activate(context) {
   let constraintPipeline=null;
   async function preview(atoms,old){const origin=old.n?old.origin.slice():atoms[0]?.p.slice()||[0,0,0];const g=new GPUCarbon(device);g.preview=true;g.trackDisplayBounds=true;g.strain=new Float64Array(0);g.n=atoms.length;g.origin=origin;g.atoms=atoms;g.byId=new Map(atoms.map((a,i)=>[a.id,i]));g.stateBytes=Math.max(64,atoms.length*64);g.displayAtoms=device.createBuffer({size:g.stateBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});g.displayBonds=device.createBuffer({size:16,usage:GPUBufferUsage.STORAGE});g.displayArgs=device.createBuffer({size:16,usage:GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST});g.displayControl=device.createBuffer({size:64,usage:GPUBufferUsage.STORAGE});g.buffers=[g.displayAtoms];const data=new Float32Array(g.stateBytes/4),bits=new Uint32Array(data.buffer);for(let i=0;i<atoms.length;i++){const a=atoms[i];for(let k=0;k<3;k++){data[16*i+k]=a.p[k]-origin[k];data[16*i+4+k]=a.v?.[k]||0;}data[16*i+3]=2*GPUCarbon.elementTypes.get(a.z);bits[16*i+7]=a.id;}device.queue.writeBuffer(g.displayAtoms,0,data);g.residentBytes=g.stateBytes+96;g.publishDisplay=encoder=>{if(g.buffers[0]!==g.displayAtoms)encoder.copyBufferToBuffer(g.buffers[0],0,g.displayAtoms,0,g.stateBytes);g.displaySerial=(g.displaySerial||0)+1;};g.execute=async()=>{await g.publishDisplaySnapshot();};g.release=()=>{g.releaseDisplayBounds();for(const b of new Set([...g.buffers,g.displayAtoms,g.displayBonds,g.displayArgs,g.displayControl].filter(Boolean)))b.destroy();g.buffers=[];g.displayAtoms=g.displayBonds=g.displayArgs=g.displayControl=null;};try{if(g.n)await g.publishDisplaySnapshot();return g;}catch(error){g.release();throw error;}}
   async function constraints(w,initialize=false){
-    const n=w.node,g=w.gpu;if(!g?.n||g.preview)return;const rows=allRows().filter(r=>ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash&&computes(r)),stamp=context.hash.values.key(rows.map(r=>[r.nativeHash,r.type,r.params,identity(val(r,MEMBERS)),D.world(r.nativeHash),D.pivot(r.nativeHash)]));if(!initialize&&stamp===w.constraintStamp)return;
+    const n=w.node,g=w.gpu;if(!g?.n||g.preview)return;
+    const rows=allRows().filter(r=>ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash&&computes(r));
+    const physical=rows.filter(r=>r.type==='atomic_fixed'||r.type==='atomic_force'||r.type==='atomic_velocity');
+    const stamp=context.hash.values.key(physical.length?rows.map(r=>[r.nativeHash,r.type,r.params,identity(val(r,MEMBERS)),D.world(r.nativeHash),D.pivot(r.nativeHash)]):[]);
+    if(stamp===w.constraintStamp&&(!initialize||!physical.length))return;
+    if(!physical.length&&w.constraintStamp===null){w.constraintStamp=stamp;return;}
     const targets=new Float32Array(g.n*4),metadata=new Float32Array(g.n*4);for(let i=0;i<g.n;i++)metadata[4*i+3]=2*GPUCarbon.elementTypes.get(g.atoms[i].z);
-    for(const r of rows){const frame=M.mul(M.inv(D.world(n.nativeHash)),M.mul(D.world(r.nativeHash),D.pivot(r.nativeHash))),axis=M.unit(Array.from(frame.slice(0,3)));for(const id of membership(r)){const i=g.byId.get(id);if(i===undefined)continue;if(r.type==='atomic_fixed')metadata[4*i+3]=Number(metadata[4*i+3])|1;if(r.type==='atomic_force'){const vector=M.point(M.rigid(frame),['x','y','z'].map(k=>r.params['Force '+k]||0),0);for(let k=0;k<3;k++)targets[4*i+k]+=vector[k];targets[4*i+3]=targets[4*i+3]?Math.min(targets[4*i+3],r.params['Speed limit']):r.params['Speed limit'];}if(initialize&&r.type==='atomic_velocity'){const vector=M.point(M.rigid(frame),['x','y','z'].map(k=>r.params['Velocity '+k]||0),0);for(let k=0;k<3;k++)metadata[4*i+k]=vector[k];metadata[4*i+3]=(Number(metadata[4*i+3])%512)+512;}}}
+    for(const r of physical){
+      if(r.type==='atomic_velocity'&&!initialize)continue;
+      let vector;
+      if(r.type!=='atomic_fixed'){
+        const key=r.type==='atomic_force'?'Force':'Velocity';
+        const frame=M.mul(M.inv(D.world(n.nativeHash)),M.mul(D.world(r.nativeHash),D.pivot(r.nativeHash)));
+        vector=M.point(M.rigid(frame),['x','y','z'].map(k=>r.params[key+' '+k]||0),0);
+      }
+      for(const id of membership(r)){
+        const i=g.byId.get(id);if(i===undefined)continue;
+        const offset=4*i;
+        if(r.type==='atomic_fixed'){
+          metadata[offset+3]|=1;
+        }else if(r.type==='atomic_force'){
+          for(let k=0;k<3;k++)targets[offset+k]+=vector[k];
+          const limit=r.params['Speed limit'];
+          targets[offset+3]=targets[offset+3]?Math.min(targets[offset+3],limit):limit;
+        }else{
+          metadata.set(vector,offset);
+          metadata[offset+3]=(metadata[offset+3]%512)+512;
+        }
+      }
+    }
     device.queue.writeBuffer(g.targets,0,targets);if(!w.constraintBuffer||w.constraintBuffer.size<metadata.byteLength){w.constraintBuffer?.destroy();w.constraintBuffer=device.createBuffer({size:metadata.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});}device.queue.writeBuffer(w.constraintBuffer,0,metadata);constraintPipeline??=await device.createComputePipelineAsync({layout:'auto',compute:{module:device.createShaderModule({code:CONSTRAINT_SHADER}),entryPoint:'apply'}});const group=device.createBindGroup({layout:constraintPipeline.getBindGroupLayout(0),entries:[g.buffers[0],w.constraintBuffer].map((buffer,binding)=>({binding,resource:{buffer}}))}),encoder=device.createCommandEncoder(),pass=encoder.beginComputePass();pass.setPipeline(constraintPipeline);pass.setBindGroup(0,group);pass.dispatchWorkgroups(Math.ceil(g.n/128));pass.end();device.queue.submit([encoder.finish()]);w.constraintStamp=stamp;g.dirtyPhysics=true;
+  }
+
+  async function refreshForces(g){
+    if(!g.dirtyPhysics)return;
+    const paused=g.paused;
+    g.setPaused(true);
+    try{
+      await g.evaluate(false,true);
+      await g.tuneKernels();
+      g.dirtyPhysics=false;
+    }finally{g.setPaused(paused);}
   }
 
   async function advance(w,interval){
     if(!Number.isFinite(interval)||interval<0)throw Error('Time interval must be finite and nonnegative');if(interval===0)return status(w);await ensure(w,true);if(!w.gpu.n)return;
-    const g=w.gpu;await applyFixed(w);await constraints(w,!w.initialized);w.initialized=true;if(g.dirtyPhysics){g.setPaused(true);await g.evaluate(false,true);g.setPaused(false);g.dirtyPhysics=false;}let elapsed=0,steps=0;
-    while(elapsed<interval){const remaining=interval-elapsed;if(remaining<=Math.max(1e-14,interval*1e-14))break;let dt=Math.fround(Math.min(remaining,w.maxStepFs));if(dt>remaining){const bits=new Uint32Array(new Float32Array([dt]).buffer);bits[0]--;dt=new Float32Array(bits.buffer)[0];}if(!(dt>0))throw Error('Time interval is below solver precision');device.queue.writeBuffer(g.buffers[6],16,new Float32Array([dt]));if(g.asleep){g.asleep=false;device.queue.writeBuffer(g.buffers[4],4,new Uint32Array([0]));}await g.step(1);const h=g.lastSteps?g.stepFs:0;if(!(h>0)||h>remaining+Math.max(1e-6,remaining*1e-6))throw Error('Solver did not advance the requested interval');elapsed+=h;steps+=g.lastSteps;w.steps+=g.lastSteps;if(steps%32===0)await g.yieldGpuWork();}
+    const g=w.gpu;
+    await applyFixed(w,false);
+    await constraints(w,!w.initialized);
+    w.initialized=true;
+    await refreshForces(g);
+    let elapsed=0,steps=0;
+    const tolerance=Math.max(1e-14,interval*1e-14);
+    while(elapsed<interval){
+      const remaining=interval-elapsed;
+      if(remaining<=tolerance)break;
+      let dt=Math.fround(Math.min(remaining,w.maxStepFs));
+      if(dt>remaining){const bits=new Uint32Array(new Float32Array([dt]).buffer);bits[0]--;dt=new Float32Array(bits.buffer)[0];}
+      if(!(dt>0))throw Error('Time interval is below solver precision');
+      device.queue.writeBuffer(g.buffers[6],16,new Float32Array([dt]));
+      if(g.asleep){g.asleep=false;device.queue.writeBuffer(g.buffers[4],4,new Uint32Array([0]));}
+      // The GPU may shorten dt further. Only skip display work when another substep is certain.
+      await g.step(1,remaining-dt<=tolerance);
+      const h=g.lastSteps?g.stepFs:0;
+      if(!(h>0)||h>remaining+Math.max(1e-6,remaining*1e-6))throw Error('Solver did not advance the requested interval');
+      elapsed+=h;steps+=g.lastSteps;w.steps+=g.lastSteps;
+      if(steps%32===0)await g.yieldGpuWork();
+    }
     w.timeFs+=interval;w.lastPhysicalAdvanceFs=elapsed;w.lastAdvanceFs=interval;w.lastSubsteps=steps;w.visual=null;if(w.node.params.Color==='Charge')await charges(w);context.requestDraw();return status(w);
   }
   async function charges(w){if(w.gpu.n>GPUCharges.limit){w.chargeStatus={status:'limit',limit:GPUCharges.limit};w.chargeSerial=w.gpu.displaySerial;w.chargeAt=performance.now();return;}w.charge??=await GPUCharges.create(device,CHARGE_SHADER,CHARGE_PARAMETERS,Object.fromEntries(ELEMENTS.map(e=>[e.z,e.r])));w.chargeStatus=await w.charge.solve(w.gpu,w.gpu.atoms);w.chargeAt=performance.now();w.chargeSerial=w.gpu.displaySerial;w.visual=null;}
-  async function visualState(w){await ensure(w,computes(w.node)&&w.node.params.Color!=='Element');if(!computes(w.node))return;const g=w.gpu;if(w.node.params.Color!=='Element'&&g.dirtyPhysics){g.setPaused(true);await g.evaluate(false,true);g.setPaused(false);g.dirtyPhysics=false;}if(w.node.params.Color==='Charge'&&w.chargeSerial!==g.displaySerial&&(!isPlaying(w)||!w.chargeAt||performance.now()-w.chargeAt>200))await charges(w);}
-  function status(w){return {stored:val(w.node,STORED_IDS).length>0&&val(w.node,STORED_IDS).length===val(w.node,IDS).length&&val(w.node,STORED_IDS).every((id,i)=>id===val(w.node,IDS)[i]),atoms:val(w.node,Z).length,playing:isPlaying(w),initializing:!!w.starting,timeFs:w.timeFs,steps:w.steps,lastAdvanceFs:w.lastAdvanceFs||0,lastPhysicalAdvanceFs:w.lastPhysicalAdvanceFs||0,lastSubsteps:w.lastSubsteps||0,dtFs:w.gpu?.stepFs||0,simulationMs:w.gpu?.lastMs||0,gpuMs:w.gpu?.gpuMs??null,residentBytes:w.gpu?.residentBytes||0,kernelModes:w.gpu?.kernelModes||null,kernelProfiles:w.gpu?.kernelProfiles||null,packetBudgetMs:w.gpu?.workBudgetMs||8,maxQueuedPackets:w.gpu?.maxQueuedPackets||4,queueWaits:w.gpu?.queueWaits||0,selected:active===w.hash?Array.from(selection).slice(0,4096):[],selectedCount:active===w.hash?selection.size:0,selectedTruncated:active===w.hash&&selection.size>4096,error:w.error,charge:w.chargeStatus||null};}
-  async function edit(n,fn){const w=world(n.nativeHash);pause(w);await serial(w,async()=>{await ensure(w);await snapshot(w,true);D.transaction(()=>{fn(n,w);w.initialPositions=null;updateFixedReference(w,new Set(val(n,IDS)));});refresh(w);await ensure(w);});if(selectedRow&&!find(selectedRow))selectedRow=null;if(active===n.nativeHash)selectionChanged(n);return status(w);}
+  async function visualState(w){await ensure(w,computes(w.node)&&w.node.params.Color!=='Element');if(!computes(w.node))return;const g=w.gpu;if(w.node.params.Color!=='Element')await refreshForces(g);if(w.node.params.Color==='Charge'&&w.chargeSerial!==g.displaySerial&&(!isPlaying(w)||!w.chargeAt||performance.now()-w.chargeAt>200))await charges(w);}
+  function hasStoredState(w){
+    const ids=val(w.node,IDS),stored=val(w.node,STORED_IDS),idsId=identity(ids),storedId=identity(stored);
+    if(w.storedState?.idsId===idsId&&w.storedState.storedId===storedId)return w.storedState.valid;
+    const valid=stored.length>0&&stored.length===ids.length&&stored.every((id,i)=>id===ids[i]);
+    w.storedState={idsId,storedId,valid};
+    return valid;
+  }
+  function status(w){
+    const selectedCount=active===w.hash?selection.size:0,selected=[];
+    if(selectedCount)for(const id of selection){selected.push(id);if(selected.length===4096)break;}
+    return {stored:hasStoredState(w),atoms:val(w.node,Z).length,playing:isPlaying(w),initializing:!!w.starting,timeFs:w.timeFs,steps:w.steps,lastAdvanceFs:w.lastAdvanceFs||0,lastPhysicalAdvanceFs:w.lastPhysicalAdvanceFs||0,lastSubsteps:w.lastSubsteps||0,dtFs:w.gpu?.stepFs||0,simulationMs:w.gpu?.lastMs||0,gpuMs:w.gpu?.gpuMs??null,residentBytes:w.gpu?.residentBytes||0,kernelModes:w.gpu?.kernelModes||null,kernelProfiles:w.gpu?.kernelProfiles||null,packetBudgetMs:w.gpu?.workBudgetMs||8,maxQueuedPackets:w.gpu?.maxQueuedPackets||4,queueWaits:w.gpu?.queueWaits||0,selected,selectedCount,selectedTruncated:selectedCount>selected.length,error:w.error,charge:w.chargeStatus||null};
+  }
+  async function edit(n,fn){const w=world(n.nativeHash);pause(w);await serial(w,async()=>{await ensure(w);await snapshot(w,true);D.transaction(()=>{fn(n,w);w.initialPositions=null;updateFixedReference(w);});refresh(w);await ensure(w);});if(selectedRow&&!find(selectedRow))selectedRow=null;if(active===n.nativeHash)selectionChanged(n);return status(w);}
   function idsArg(n,a){const ids=a.ids||[...selection],set=new Set(val(n,IDS));if(ids.some(i=>!set.has(i))||new Set(ids).size!==ids.length)throw Error('Invalid atom IDs');return ids;}
-  function addAtoms(n,atoms){if(!Array.isArray(atoms)||atoms.some(a=>!elements.has(a.species)||!Array.isArray(a.position)||a.position.length!==3||a.position.some(v=>!Number.isFinite(v))))throw Error('Invalid atoms');const current=list(n);let next=Math.max(0,...current.slice(-1).map(a=>a.id))+1;if(current.length)for(const a of current)next=Math.max(next,a.id+1);if(next+atoms.length>0xffffffff)throw Error('Atom ID capacity exceeded');const added=atoms.map(a=>({id:next++,z:a.species,p:a.position.slice(),v:[0,0,0]}));saveList(n,[...current,...added]);return added.map(a=>a.id);}
+  function addAtoms(n,atoms){
+    if(!Array.isArray(atoms)||atoms.some(a=>!elements.has(a.species)||!Array.isArray(a.position)||
+        a.position.length!==3||a.position.some(v=>!Number.isFinite(v))))throw Error('Invalid atoms');
+    const {positions,species,ids,start}=extendAtomRecords(n,atoms.length);
+    for(let i=0;i<atoms.length;i++){
+      const atom=atoms[i],index=start+i,offset=3*index;
+      positions[offset]=atom.position[0];positions[offset+1]=atom.position[1];positions[offset+2]=atom.position[2];
+      species[index]=atom.species;
+    }
+    saveAtomRecords(n,positions,species,ids);
+    return ids.slice(start);
+  }
   function removeAtoms(n,ids){const set=new Set(ids);saveList(n,list(n).filter(a=>!set.has(a.id)));for(const r of allRows().filter(r=>ancestor(r)===n)){const members=val(r,MEMBERS),rest=val(r,REST),kept=members.map((id,i)=>({id,i})).filter(a=>!set.has(a.id));record(r,MEMBERS,kept.map(a=>a.id),3);record(r,REST,kept.flatMap(a=>rest.slice(a.i*3,a.i*3+3)));}for(const id of ids)selection.delete(id);}
   function createSelection(n,a){const ids=idsArg(n,a);if(!ids.length)throw Error('Select atoms first');const parent=a.parent?find(a.parent):n;if(parent!==n&&ancestor(parent)!==n)throw Error('Invalid selection parent');const r=D.create('atomic_'+(a.tag||'selection').toLowerCase(),parent.nativeHash,a.name||a.tag||'Selection');r.nativeHash??=crypto.randomUUID().replaceAll('-','');record(r,MEMBERS,ids,3);record(r,OWNER,[n.nativeHash],4);const center=bounds(n,new Set(ids));const placement=M.I();placement.set(M.point(M.inv(D.world(parent.nativeHash)),M.point(D.world(n.nativeHash),center.min.map((v,k)=>(v+center.max[k])/2))),12);r.creationFrame=Array.from(M.pack(placement));let indices=indexCache.get(val(n,IDS));if(!indices){indices=new Map(val(n,IDS).map((id,i)=>[id,i]));indexCache.set(val(n,IDS),indices);}record(r,REST,ids.flatMap(id=>{const i=indices.get(id);return val(n,P).slice(3*i,3*i+3);}));record(r,FRAME,Array.from(M.I()));return r;}
   let fixedPipeline=null,fixedCapturePipeline=null;
-  function updateFixedReference(w,changed){const n=w.node,positions=val(n,P),lookup=new Map(val(n,IDS).map((id,i)=>[id,i]));for(const r of allRows().filter(r=>r.type==='atomic_fixed'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash)){const ids=val(r,MEMBERS),rest=val(r,REST).slice(),baseline=val(r,FRAME);if(!baseline.length||r.creationFrame)continue;const delta=M.mul(M.mul(M.inv(D.world(n.nativeHash)),D.world(r.nativeHash)),M.inv(baseline)),inverse=M.inv(delta);let edited=false;for(let j=0;j<ids.length;j++)if(changed.has(ids[j])){const i=lookup.get(ids[j]);if(i===undefined)continue;const p=M.point(inverse,positions.slice(i*3,i*3+3));rest.splice(j*3,3,...p);edited=true;}if(edited)record(r,REST,rest);}}
-  async function applyFixed(w){const n=w.node,g=w.gpu;if(!g?.n)return;const depth=r=>{let d=0;for(let p=byId(r.parent);p&&p!==n;p=byId(p.parent))d++;return d;},all=allRows().filter(r=>r.type==='atomic_fixed'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash),rows=all.filter(computes).reverse().sort((a,b)=>depth(a)-depth(b)),alive=new Set(all.map(r=>r.nativeHash));w.fixedResources??=new Map();w.fixedDisabled??=new Set();for(const r of all)if(!computes(r))w.fixedDisabled.add(r.nativeHash);let changed=false;
+  function updateFixedReference(w,changed=null){
+    const n=w.node,rows=allRows().filter(r=>r.type==='atomic_fixed'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash&&val(r,FRAME).length&&!r.creationFrame);
+    if(!rows.length)return;
+    const positions=val(n,P),lookup=new Map(),atomIds=val(n,IDS);
+    for(let i=0;i<atomIds.length;i++)lookup.set(atomIds[i],i);
+    for(const r of rows){
+      const ids=val(r,MEMBERS),rest=val(r,REST).slice(),baseline=val(r,FRAME);
+      const delta=M.mul(M.mul(M.inv(D.world(n.nativeHash)),D.world(r.nativeHash)),M.inv(baseline)),inverse=M.inv(delta);
+      let edited=false;
+      for(let j=0;j<ids.length;j++)if(!changed||changed.has(ids[j])){
+        const i=lookup.get(ids[j]);
+        if(i===undefined)continue;
+        const p=M.point(inverse,positions.slice(i*3,i*3+3));
+        rest.splice(j*3,3,...p);edited=true;
+      }
+      if(edited)record(r,REST,rest);
+    }
+  }
+  async function applyFixed(w,visual=true){const n=w.node,g=w.gpu;if(!g?.n)return;const depth=r=>{let d=0;for(let p=byId(r.parent);p&&p!==n;p=byId(p.parent))d++;return d;},all=allRows().filter(r=>r.type==='atomic_fixed'&&ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash),rows=all.filter(computes).reverse().sort((a,b)=>depth(a)-depth(b)),alive=new Set(all.map(r=>r.nativeHash));w.fixedResources??=new Map();w.fixedDisabled??=new Set();for(const r of all)if(!computes(r))w.fixedDisabled.add(r.nativeHash);let changed=false;
     for(const [hash,state]of w.fixedResources)if(!alive.has(hash)||state.gpu!==g){for(const b of state.buffers)b.destroy();w.fixedResources.delete(hash);}
     for(const r of rows){const baseline=val(r,FRAME);if(!baseline.length)continue;const matrix=M.mul(M.inv(D.world(n.nativeHash)),D.world(r.nativeHash)),ids=val(r,MEMBERS),rest=val(r,REST),key=context.hash.values.key([Array.from(matrix),identity(ids),identity(rest)]);let state=w.fixedResources.get(r.nativeHash);const capture=w.fixedDisabled.delete(r.nativeHash);if(!capture&&state?.ids===ids&&state.rest===rest&&state.matrix&&M.equal(state.matrix,matrix))continue;
       g.prepareDisplayWrite();fixedPipeline??=await device.createComputePipelineAsync({layout:'auto',compute:{module:device.createShaderModule({code:FIXED_SHADER}),entryPoint:'apply'}});if(!state||state.ids!==ids||state.rest!==rest){if(state)for(const b of state.buffers)b.destroy();const valid=[];for(let i=0;i<ids.length;i++){const target=g.byId.get(ids[i]);if(target!==undefined)valid.push({target,index:i});}if(!valid.length)continue;const indices=device.createBuffer({size:valid.length*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),reference=device.createBuffer({size:valid.length*16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),uniform=device.createBuffer({size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),points=new Float32Array(valid.length*4);for(let i=0;i<valid.length;i++)for(let k=0;k<3;k++)points[4*i+k]=rest[3*valid[i].index+k]-g.origin[k];device.queue.writeBuffer(indices,0,new Uint32Array(valid.map(r=>r.target)));device.queue.writeBuffer(reference,0,points);state={gpu:g,ids,rest,indices,reference,uniform,count:valid.length,buffers:[indices,reference,uniform]};state.group=device.createBindGroup({layout:fixedPipeline.getBindGroupLayout(0),entries:[g.buffers[0],indices,reference,uniform].map((buffer,binding)=>({binding,resource:{buffer}}))});w.fixedResources.set(r.nativeHash,state);}
       if(capture){fixedCapturePipeline??=await device.createComputePipelineAsync({layout:'auto',compute:{module:device.createShaderModule({code:FIXED_SHADER}),entryPoint:'capture'}});const group=device.createBindGroup({layout:fixedCapturePipeline.getBindGroupLayout(0),entries:[g.buffers[0],state.indices,state.reference].map((buffer,binding)=>({binding,resource:{buffer}}))}),encoder=device.createCommandEncoder(),pass=encoder.beginComputePass();pass.setPipeline(fixedCapturePipeline);pass.setBindGroup(0,group);pass.dispatchWorkgroups(Math.ceil(state.count/128));pass.end();device.queue.submit([encoder.finish()]);state.basis=Array.from(matrix);}
       const delta=M.mul(matrix,M.inv(state.basis||baseline)),values=new Float32Array(20);values.set(delta);values.set(g.origin,16);device.queue.writeBuffer(state.uniform,0,values);const encoder=device.createCommandEncoder(),pass=encoder.beginComputePass();pass.setPipeline(fixedPipeline);pass.setBindGroup(0,state.group);pass.dispatchWorkgroups(Math.ceil(state.count/128));pass.end();device.queue.submit([encoder.finish()]);state.key=key;state.matrix=Array.from(matrix);changed=true;
-    }if(changed){g.dirtyPhysics=true;if(g.preview)w.dirtyIds=new Set(rows.flatMap(r=>val(r,MEMBERS)));if(!g.preview)device.queue.writeBuffer(g.buffers[4],44,new Uint32Array([1]));await g.execute([]);}
+    }if(changed){g.dirtyPhysics=true;if(g.preview)w.dirtyIds=new Set(rows.flatMap(r=>val(r,MEMBERS)));if(!g.preview)device.queue.writeBuffer(g.buffers[4],44,new Uint32Array([1]));if(visual)await g.execute([]);}
   }
 
   function retire(h){if(addMode?.hash===h)addMode=null;if(overlayOwner===h)overlayOwner=null;const w=worlds.get(h);if(!w)return;pause(w);w.generation++;w.busy.finally(()=>{w.gpu?.release();w.gpu?.query?.destroy();w.gpu?.queryBuffer?.destroy();for(const state of w.fixedResources?.values()||[])for(const b of state.buffers)b.destroy();w.mask?.destroy();w.constraintBuffer?.destroy();w.visualUniform?.destroy();w.palette?.destroy();w.zeroCharge?.destroy();w.transformSource?.destroy();w.charge?.release();});worlds.delete(h);}
   function flush(options={}){const task=flushTask.then(()=>flushWorlds(options));flushTask=task.catch(()=>{});return task;}
   async function flushWorlds(options={}){
     for(const [h,w]of worlds){if(!find(h)||find(h).type!=='atomic'){retire(h);continue;}w.node=find(h);await w.busy;if(w.gpu)await serial(w,async()=>{await ensure(w);await applyFixed(w);await constraints(w);});if(options.author)await serial(w,async()=>{await ensure(w);await snapshot(w,true);});if(options.render)await serial(w,()=>visualState(w));}
-      if(options.reset)for(const n of D.nodes.filter(n=>n.type==='atomic'&&computes(n))){const w=world(n.nativeHash);await resetWorld(w,status(w).stored?val(n,STORED):w.initialPositions||val(n,P));}
+      if(options.reset)for(const n of D.nodes.filter(n=>n.type==='atomic'&&computes(n))){const w=world(n.nativeHash);await resetWorld(w,hasStoredState(w)?val(n,STORED):w.initialPositions||val(n,P));}
       if(options.simulation){const intervals=D.nodes.filter(n=>n.type==='atomic'&&computes(n)).map(n=>({w:world(n.nativeHash),interval:n.params['Time scale']/60}));for(const {w,interval}of intervals){w.starting=true;try{await serial(w,()=>advance(w,interval));}finally{w.starting=false;}}await context.device.queue.onSubmittedWorkDone();}
       if(options.render||[...worlds.values()].some(w=>w.gpu?.n))await prepareRenderer();
   }
@@ -1191,7 +1332,7 @@ export async function activate(context) {
   const obj=properties=>({type:'object',properties,additionalProperties:false}),number={type:'number'},integer={type:'integer',minimum:0},str={type:'string'},vector={type:'array',items:number,minItems:3,maxItems:3},ids={type:'array',items:integer,maxItems:10000000};
   const operations=[];function op(id,description,properties,run,readOnly=false,required=[],interrupt=null){operations.push({id,description,readOnly,inputSchema:{...obj(properties),required},...interrupt?{interrupt:(h,a)=>interrupt(own(h),a)}:{},run:async(h,a,interruption)=>run(own(h),a,interruption)});}
   op('status','Inspect atoms, runtime timing and GPU diagnostics.',{},n=>status(world(n.nativeHash)),true);
-  op('inspect','Read at most 4096 current atoms with bounded GPU readback.',{offset:integer,count:{...integer,maximum:4096},runtime:{type:'boolean'},forces:{type:'boolean'}},async(n,a)=>{const w=world(n.nativeHash);await w.busy;return serial(w,async()=>{await ensure(w,!!a.forces);if(a.forces){await applyFixed(w);await constraints(w);const g=w.gpu;if(g.dirtyPhysics){g.setPaused(true);await g.evaluate(false,true);g.setPaused(false);g.dirtyPhysics=false;}}return readAtoms(w,a.offset||0,a.count??256,a.runtime,a.forces);});},true);
+  op('inspect','Read at most 4096 current atoms with bounded GPU readback.',{offset:integer,count:{...integer,maximum:4096},runtime:{type:'boolean'},forces:{type:'boolean'}},async(n,a)=>{const w=world(n.nativeHash);await w.busy;return serial(w,async()=>{await ensure(w,!!a.forces);if(a.forces){await applyFixed(w,false);await constraints(w);await refreshForces(w.gpu);}return readAtoms(w,a.offset||0,a.count??256,a.runtime,a.forces);});},true);
   op('visualization','Inspect a bounded range of effective display colors/radii without changing physics.',{offset:integer,count:{...integer,maximum:4096}},async(n,a)=>{const w=world(n.nativeHash);return serial(w,async()=>{await ensure(w);await prepareRenderer();appearance(w);const first=Math.min(w.gpu.n,a.offset||0),count=Math.min(a.count??32,w.gpu.n-first);if(!count)return {colors:[]};const read=device.createBuffer({size:count*16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{const e=device.createCommandEncoder();e.copyBufferToBuffer(w.palette,first*16,read,0,count*16);device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const data=new Float32Array(read.getMappedRange());return {colors:Array.from({length:count},(_,i)=>Array.from(data.subarray(i*4,i*4+4))),materials:allRows().filter(r=>ancestor(r)===n).map(r=>({hash:r.nativeHash,material:D.material(r.nativeHash),ids:val(r,MEMBERS).slice(0,32)}))};}finally{if(read.mapState==='mapped')read.unmap();read.destroy();}});},true);
   op('create-atoms','Create arbitrary atomic structures in local angstroms.',{atoms:{type:'array',maxItems:10000000,items:{...obj({species:{type:'integer',minimum:1,maximum:118},position:vector}),required:['species','position']}}},(n,a)=>edit(n,()=>addAtoms(n,a.atoms)),false,['atoms']);
   op('delete-atoms','Delete atoms and remove their memberships in one Undo.',{ids},(n,a)=>{const selected=idsArg(n,a);return edit(n,()=>removeAtoms(n,selected));});
@@ -1202,15 +1343,34 @@ export async function activate(context) {
   op('selection','Rename, delete or reparent a named selection using native hierarchy.',{selection:str,name:str,parent:str,delete:{type:'boolean'},params:obj({...Object.fromEntries(['Velocity','Force'].flatMap(v=>['x','y','z'].map(k=>[v+' '+k,number]))),'Speed limit':{...number,exclusiveMinimum:0}})},async(n,a)=>{const r=find(a.selection);if(!isRow(r)||ancestor(r)!==n)throw Error('Unknown selection');const parent=a.parent?find(a.parent):n;if(a.parent!==undefined&&(!parent||parent===r||ancestor(parent)!==n&&parent!==n))throw Error('Invalid parent');for(let p=parent;p;p=byId(p.parent))if(p===r)throw Error('Hierarchy cycle');if(a.params&&Object.keys(a.params).some(k=>!Object.hasOwn(r.params,k)))throw Error('Invalid selection attribute');return edit(n,()=>{if(a.delete){D.remove(r.nativeHash);return;}if(a.name!==undefined)r.name=a.name;if(a.parent!==undefined)r.parent=parent.id;Object.assign(r.params,a.params);});},false,['selection']);
   op('store-state','Store current positions in an independent native HASH record.',{},async n=>{const w=world(n.nativeHash);await w.busy;await serial(w,async()=>{await ensure(w);await snapshot(w,true);D.transaction(()=>{record(n,STORED,val(n,P));record(n,STORED_IDS,val(n,IDS),3);});});context.requestAttributes();return status(w);});
   async function resetWorld(w,positions){await w.busy;record(w.node,P,positions);w.gpu?.release();w.gpu=null;w.token=null;w.timeFs=0;w.steps=0;w.initialized=false;w.charge?.release();w.charge=null;w.fixedDisabled=null;w.initialPositions=positions;await serial(w,()=>ensure(w));context.requestDraw();}
-  op('restore-state','Restore stored positions and reset velocities, clock and derived state.',{},async n=>{const w=world(n.nativeHash);if(!status(w).stored)throw Error('Stored state has a different atom count');await resetWorld(w,val(n,STORED));context.requestAttributes();return status(w);});
+  op('restore-state','Restore stored positions and reset velocities, clock and derived state.',{},async n=>{const w=world(n.nativeHash);if(!hasStoredState(w))throw Error('Stored state has a different atom count');await resetWorld(w,val(n,STORED));context.requestAttributes();return status(w);});
   op('settings','Set standard Atomic attributes in one native transaction.',context.parameters.schema('atomic'),async(n,a)=>{context.update(n.nativeHash,a);const w=world(n.nativeHash);await serial(w,async()=>{await visualState(w);});return status(w);});
   op('step','Advance an exact physical interval, with adaptive stable internal substeps.',{timeFs:{...number,minimum:0}},async(n,a)=>{const w=world(n.nativeHash);pause(w);return serial(w,()=>computes(n)?advance(w,a.timeFs??n.params['Time scale']/60):status(w));});
   op('add-mode','Toggle native viewport placement of one element.',{species:{type:'integer',minimum:1,maximum:118}},(n,a)=>{if(!elements.has(a.species))throw Error('Unsupported species');pause(world(n.nativeHash));addMode=addMode?.hash===n.nativeHash&&addMode.species===a.species?null:{hash:n.nativeHash,species:a.species};D.select(n.nativeHash,'objects');context.requestAttributes();D.refresh();return {adding:addMode?.species||null};},false,['species']);
   op('create-molecule','Create a molecule from supplied species/positions, or a built-in water, hydrogen, carbon dioxide or methane structure.',{name:{type:'string',enum:['water','hydrogen','carbon-dioxide','methane']},position:vector,atoms:{type:'array',maxItems:100000,items:{...obj({species:integer,position:vector}),required:['species','position']}}},(n,a)=>{const molecule=a.atoms||({water:[{species:8,position:[0,0,0]},{species:1,position:[.9572,0,0]},{species:1,position:[-.239987, .926627,0]}],hydrogen:[{species:1,position:[-.3705,0,0]},{species:1,position:[.3705,0,0]}],'carbon-dioxide':[{species:6,position:[0,0,0]},{species:8,position:[-1.16,0,0]},{species:8,position:[1.16,0,0]}],methane:[{species:6,position:[0,0,0]},...[ [1,1,1],[1,-1,-1],[-1,1,-1],[-1,-1,1]].map(p=>({species:1,position:p.map(v=>v*1.09/Math.sqrt(3))}))]})[a.name||'water'];return edit(n,()=>addAtoms(n,molecule.map(b=>({...b,position:b.position.map((v,k)=>v+(a.position?.[k]||0))}))));});
-  op('create-crystal','Create a simple, BCC, FCC or diamond unit-cell lattice in angstroms.',{species:{type:'integer',minimum:1,maximum:118},lattice:{...number,exclusiveMinimum:0},cells:{type:'array',items:{type:'integer',minimum:1,maximum:1000},minItems:3,maxItems:3},structure:{type:'string',enum:['simple','bcc','fcc','diamond']},position:vector},(n,a)=>{if(!elements.has(a.species))throw Error('Unsupported species');const cell=a.cells||[1,1,1],fcc=[[0,0,0],[0,.5,.5],[.5,0,.5],[.5,.5,0]],base=a.structure==='bcc'?[[0,0,0],[.5,.5,.5]]:a.structure==='fcc'?fcc:a.structure==='diamond'?[...fcc,...fcc.map(p=>p.map(v=>v+.25))]:[[0,0,0]];if(cell.reduce((a,b)=>a*b,base.length)>10000000)throw Error('Crystal capacity exceeded');const atoms=[];for(let z=0;z<cell[2];z++)for(let y=0;y<cell[1];y++)for(let x=0;x<cell[0];x++)for(const p of base)atoms.push({species:a.species,position:p.map((v,k)=>(v+[x,y,z][k])*a.lattice+(a.position?.[k]||0))});return edit(n,()=>addAtoms(n,atoms));},false,['species','lattice']);
+  op('create-crystal','Create a simple, BCC, FCC or diamond unit-cell lattice in angstroms.',{species:{type:'integer',minimum:1,maximum:118},lattice:{...number,exclusiveMinimum:0},cells:{type:'array',items:{type:'integer',minimum:1,maximum:1000},minItems:3,maxItems:3},structure:{type:'string',enum:['simple','bcc','fcc','diamond']},position:vector},(n,a)=>{
+    if(!elements.has(a.species))throw Error('Unsupported species');
+    const [nx,ny,nz]=a.cells||[1,1,1],fcc=[[0,0,0],[0,.5,.5],[.5,0,.5],[.5,.5,0]];
+    const basis=a.structure==='bcc'?[[0,0,0],[.5,.5,.5]]:a.structure==='fcc'?fcc:a.structure==='diamond'?[...fcc,...fcc.map(p=>p.map(v=>v+.25))]:[[0,0,0]];
+    const count=nx*ny*nz*basis.length;
+    if(count>10000000)throw Error('Crystal capacity exceeded');
+    const [ox=0,oy=0,oz=0]=a.position||[];
+    return edit(n,()=>{
+      const {positions,species,ids,start}=extendAtomRecords(n,count);
+      let i=start;
+      for(let z=0;z<nz;z++)for(let y=0;y<ny;y++)for(let x=0;x<nx;x++)for(const [bx,by,bz] of basis){
+        const offset=3*i;
+        positions[offset]=(bx+x)*a.lattice+ox;
+        positions[offset+1]=(by+y)*a.lattice+oy;
+        positions[offset+2]=(bz+z)*a.lattice+oz;
+        species[i++]=a.species;
+      }
+      saveAtomRecords(n,positions,species,ids);
+    });
+  },false,['species','lattice']);
   op('elements','Toggle the shared periodic table in the active viewport.',{},n=>{elementsVisible=!elementsVisible;overlayOwner=n.nativeHash;context.requestAttributes();context.requestDraw();return {visible:elementsVisible};});
   context.operations.register(operations);
-  context.attributes.register(h=>{const n=find(h);if(['atomic_velocity','atomic_force'].includes(n?.type)){const key=n.type==='atomic_velocity'?'Velocity':'Force';return {vectors:[{label:key,fields:['x','y','z'].map(k=>key+' '+k),unit:key==='Velocity'?'Å/fs':'eV/Å'}],units:{'Speed limit':'Å/fs'},ranges:{'Speed limit':{min:1e-9}}};}if(n?.type!=='atomic')return null;const w=world(h);return {actions:[{id:'elements',label:'Elements',active:elementsVisible},{id:'store-state',label:'store',row:'state'},{id:'restore-state',label:'restore',row:'state',disabled:!status(w).stored}],};});
+  context.attributes.register(h=>{const n=find(h);if(['atomic_velocity','atomic_force'].includes(n?.type)){const key=n.type==='atomic_velocity'?'Velocity':'Force';return {vectors:[{label:key,fields:['x','y','z'].map(k=>key+' '+k),unit:key==='Velocity'?'Å/fs':'eV/Å'}],units:{'Speed limit':'Å/fs'},ranges:{'Speed limit':{min:1e-9}}};}if(n?.type!=='atomic')return null;const w=world(h);return {actions:[{id:'elements',label:'Elements',active:elementsVisible},{id:'store-state',label:'store',row:'state'},{id:'restore-state',label:'restore',row:'state',disabled:!hasStoredState(w)}],};});
 
   async function prepareRenderer(){if(pipelineReady)return pipelineReady;device=context.device;pipelineReady=(async()=>{const module=device.createShaderModule({code:context.viewport.cameraWGSL+RENDER_SHADER}),pickModule=device.createShaderModule({code:context.viewport.cameraWGSL+PICK_SHADER});const errors=[...(await module.getCompilationInfo()).messages,...(await pickModule.getCompilationInfo()).messages].filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(e=>e.message).join('\n'));const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:3,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:4,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:5,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:6,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:7,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}}]}),pipelineLayout=device.createPipelineLayout({bindGroupLayouts:[layout]}),format=navigator.gpu.getPreferredCanvasFormat();pipelines={layout,atoms:[],bonds:[],pick:await device.createComputePipelineAsync({layout:'auto',compute:{module:pickModule,entryPoint:'pick'}})};await Promise.all([false,true].flatMap(orthographic=>['atoms','bonds'].map(async kind=>{pipelines[kind][+orthographic]=await device.createRenderPipelineAsync({layout:pipelineLayout,vertex:{module,entryPoint:kind==='atoms'?'vs':'bondVS',constants:{orthographic}},fragment:{module,entryPoint:kind==='atoms'?'fs':'bondFS',constants:{orthographic},targets:[{format,...kind==='bonds'?{blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}:{}}]},primitive:{topology:'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:kind==='atoms',depthCompare:'less-equal'}});})));return pipelines;})().catch(e=>{pipelineReady=null;throw e;});return pipelineReady;}
   function appearance(w,capture=false){const n=w.node,g=w.gpu,base=D.material(w.hash),rows=allRows().filter(r=>ancestor(r)===n&&val(r,OWNER)[0]===n.nativeHash).reverse().sort((a,b)=>{const depth=r=>{let d=0;for(let p=byId(r.parent);p&&p!==n;p=byId(p.parent))d++;return d;};return (a.type==='atomic_element'?0:1)-(b.type==='atomic_element'?0:1)||depth(a)-depth(b);}).map(r=>({node:r,material:D.material(r.nativeHash)})),stamp=context.hash.values.key([base,...rows.map(r=>[r.node.nativeHash,identity(val(r.node,MEMBERS)),r.material,eligible(r.node)])]);if(capture||w.appearanceToken!==val(n,Z)||w.appearanceStamp!==stamp||!w.palette){const colors=new Float32Array(g.n*4);for(let i=0;i<g.n;i++){const e=elements.get(g.atoms[i].z);colors.set([...(base.custom?base.color:e.color),.68*e.r],4*i);}const byId=g.byId;for(const {node:r,material:m}of rows)if(r.tags.some(t=>t.kind==='material')||!eligible(r))for(const id of membership(r)){const i=byId.get(id);if(i!==undefined){if(m.custom)colors.set(m.color,4*i);if(!eligible(r))colors[4*i+3]=0;}}if(!w.palette||w.palette.size<colors.byteLength){w.palette?.destroy();w.palette=device.createBuffer({size:Math.max(16,colors.byteLength),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});}device.queue.writeBuffer(w.palette,0,colors);w.appearanceToken=val(n,Z);w.appearanceStamp=stamp;if(capture)return colors;}return base;}
