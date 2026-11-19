@@ -12,6 +12,7 @@ tests/boolean-kernel.mjs text eol=lf
 tests/boolean-threading.mjs text eol=lf
 tests/engineering.mjs text eol=lf
 tests/surface-recognition.mjs text eol=lf
+tests/step-import.mjs text eol=lf
 tests/hash-best-effort-browser.mjs text eol=lf
 tests/quad-patch-materials-browser.mjs text eol=lf
 tests/scene-field-writes-browser.mjs text eol=lf

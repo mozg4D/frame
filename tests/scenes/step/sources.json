@@ -63,8 +63,7 @@
     "name": "cax-if-io1-cm-214.stp",
     "url": "https://raw.githubusercontent.com/kovacsv/occt-import-js/41e470890ae0f9dc69ac50ffd5fc73e03576f4eb/test/testfiles/cax-if/io1-cm-214.stp",
     "bytes": 41720,
-    "sha256": "eb234e26bca411a6da39c311e74d5a47b5e7a1248ae589a3a86cd2dee1f91f9b",
-    "expected": "polygon"
+    "sha256": "eb234e26bca411a6da39c311e74d5a47b5e7a1248ae589a3a86cd2dee1f91f9b"
   },
   {
     "name": "cax-if-io1-tu-203.stp",

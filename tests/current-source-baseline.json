@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 19 nov 20:32",
+  "version": "2026 19 nov 21:25",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -528,17 +528,18 @@
       "index.html",
       "frame-sw.js",
       "tests/surface-recognition.mjs",
+      "tests/step-import.mjs",
       "tests/run.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "6f460e4d96b29723071f6fd79b2f16e07c2529501dc57ab7642a0e48b6fc9f43"
+      "sha256": "9d94d543ef0fe2b2231a03c40a00afb859ad1dad20aafaeda588ff127b3966a8"
     },
     "index.html": {
-      "bytes": 3450853,
-      "sha256": "77f2f6569da4a0a19194f97f250a5e39e2ed42690b207acbcbb1e0b9a0bba8e7"
+      "bytes": 3475592,
+      "sha256": "f1aff1b744be713a7da7ff3dc05ed777ffd7eced151ceb854babc598d22d15aa"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -837,8 +838,8 @@
       "sha256": "4852a26c582f1ac59d10c87992d859e3cc5e0390d55f949994239e69cc24974b"
     },
     "tests/README.md": {
-      "bytes": 61382,
-      "sha256": "480e3c2590520671ba8a29db962f6a7aa00acfd88e65adf1fc2e4032942f9244"
+      "bytes": 61696,
+      "sha256": "53320988c54f8dd9384cc870c725b32757fa79fbfa555d9727086594241b34ac"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 6505,
@@ -1105,8 +1106,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 91321,
-      "sha256": "6e40c049c9af8aee1b64d27f2422ea88a9a8b56d4ef0bf017149af9b3a5bb257"
+      "bytes": 91557,
+      "sha256": "dde7403087171fed2341fb8ca954614a535f8cc8100ded47037cb03fbdc75d90"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1161,8 +1162,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 16487,
-      "sha256": "7988628d6eecbe57de9a780740fcfb9a19aa636d30e1b262c8e0f565e9790af2"
+      "bytes": 16521,
+      "sha256": "53ba6db98fd2534af29c93c0cbbcd9407e6de4ad76778727929042bbf03ec238"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1337,8 +1338,8 @@
       "sha256": "c8389d8c432daabb494cdec58daebf4025f8e3a23edc1bc7380e9b01e90c3ec4"
     },
     "tests/surface-recognition.mjs": {
-      "bytes": 11983,
-      "sha256": "c09cc735b0d2bbba7ca934e501a4c352f5e58152000dd721f8cc0c972b6cb69b"
+      "bytes": 21084,
+      "sha256": "6c90322dfe95f0805bfd3d9c7a73585f15864537eea9d803d6b181bc5b8c6b9a"
     },
     "tests/project-file-fixture.mjs": {
       "bytes": 769,
@@ -1347,6 +1348,10 @@
     "tests/project-files-browser.mjs": {
       "bytes": 13826,
       "sha256": "ce71c3d0f7f56fcaed74debec243c0bd255d4cb86a2ef49403be45357e5b7dd8"
+    },
+    "tests/step-import.mjs": {
+      "bytes": 19578,
+      "sha256": "32ca19048fe380b085640fb83ff5f1c3640dd4af89c05cdb1bb856faa0c54475"
     }
   }
 }

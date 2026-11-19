@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 20:32">
+<meta name="frame-version" content="2026 19 nov 21:25">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -134,7 +134,7 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 #frame-engine-canvas{touch-action:none;outline:none;cursor:default}
 #frameMaterialSelection[hidden]{display:none!important}#frame-engine-stats{position:absolute;top:8px;left:8px;pointer-events:none;line-height:20px;text-shadow:0 1px 3px #000}
 #frame-engine-stats output{display:none}
-#frame-engine-status,#frame-file-progress,#frame-boolean-progress{position:absolute;top:8px;left:8px;right:8px;margin:0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;text-shadow:0 1px 3px #000}
+#frame-engine-status,#frame-file-progress,#frame-boolean-progress,#frame-recognition-notice{position:absolute;top:8px;left:8px;right:8px;margin:0;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:20px;text-shadow:0 1px 3px #000}
 #frame-engine-handles{position:fixed;width:0;height:0;display:block;z-index:35;pointer-events:none}.frame-gizmo{position:fixed;z-index:35;overflow:hidden;touch-action:none;pointer-events:none}.frame-gizmo [data-part]{pointer-events:visiblePainted;cursor:pointer}.frame-gizmo [data-part]:hover{opacity:1}#frame-engine-handles>button{position:absolute;opacity:0;pointer-events:none;width:18px;height:18px}
 @keyframes frame-bounds-flash{from{opacity:1}to{opacity:0}}.frame-bounds-flash{animation:frame-bounds-flash .35s ease-out forwards;pointer-events:none}
 #frame-engine-handles button{width:22px;height:22px;padding:0;border-radius:2px;border:1px solid #aaa;touch-action:none;color:#111!important;cursor:default}
@@ -3307,6 +3307,15 @@ function splineHandlesDescribeLine(a,b,ha,hb){
   const parallel=h=>{const cx=y*h[2]-z*h[1],cy=z*h[0]-x*h[2],cz=x*h[1]-y*h[0];return cx*cx+cy*cy+cz*cz<=limit*Math.max(l2,h[0]*h[0]+h[1]*h[1]+h[2]*h[2]);};
   return parallel(ha)&&parallel(hb);
 }
+function recognitionSubset(positions,indices,ids){
+  const map=new Map(),xyz=[],ix=new Uint32Array(ids.length*3);
+  for(let j=0;j<ids.length;j++)for(let k=0;k<3;k++){
+    const corner=3*ids[j]+k,old=indices?indices[corner]:corner;
+    if(!map.has(old)){map.set(old,xyz.length/3);xyz.push(positions[old*3],positions[old*3+1],positions[old*3+2]);}
+    ix[3*j+k]=map.get(old);
+  }
+  return {vertices:positions instanceof Float32Array?Float32Array.from(xyz):Float64Array.from(xyz),indices:ix,vertexCount:xyz.length/3,triangleCount:ids.length};
+}
 function createEngineeringRecognition(){
   const add=(a,b)=>a.map((x,i)=>x+b[i]),sub=(a,b)=>a.map((x,i)=>x-b[i]),mul=(a,s)=>a.map(x=>x*s),dot=(a,b)=>a.reduce((s,x,i)=>s+x*b[i],0),cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]],length=a=>Math.hypot(...a),unit=a=>mul(a,1/(length(a)||1)),distance=(a,b)=>length(sub(a,b)),mean=p=>mul(p.reduce(add,[0,0,0]),1/p.length),TAU=Math.PI*2;
   const maximum=values=>values.reduce((a,b)=>Math.max(a,b),-Infinity),minimum=values=>values.reduce((a,b)=>Math.min(a,b),Infinity);
@@ -3425,8 +3434,39 @@ function createEngineeringRecognition(){
   // Use the same fitted spans on both ends of a translated profile. The four
   // Bernstein coefficients of (subcurve - source chord) bound the error over
   // the entire interval in both directions, including between mesh vertices.
+  function analyticProfile(ps,t,cosCorner,closed){
+    const n=ps.length,point=i=>ps[i%n],count=closed?n:n-1,cuts=closed?[]:[0];
+    const lengths=[],directions=[];
+    for(let i=0;i<count;i++){const d=sub(point(i+1),point(i));lengths.push(length(d));directions.push(unit(d));}
+    const bends=directions.map((d,i)=>!i&&!closed?0:length(cross(directions[(i+count-1)%count],d)));
+    for(let i=closed?0:1;i<count;i++){
+      const prev=(i+count-1)%count,a=lengths[prev],b=lengths[i];
+      if(dot(directions[prev],directions[i])<cosCorner||Math.max(a,b)>4*Math.min(a,b)||
+        (bends[i]>1e-4&&(bends[prev]<1e-6&&(closed||prev>0)||bends[(i+1)%count]<1e-6&&(closed||i+1<count))))cuts.push(i);
+    }
+    if(!closed)cuts.push(n-1);
+    if(closed&&cuts.length<2)return null;
+    const spans=[],intervals=closed?cuts.length:cuts.length-1;
+    for(let k=0;k<intervals;k++){
+      const a=cuts[k],b=k+1<cuts.length?cuts[k+1]:cuts[0]+n,path=Array.from({length:b-a+1},(_,j)=>point(a+j));
+      const dir=sub(path.at(-1),path[0]),size=length(dir),fitTol=t*.12;
+      if(size&&path.every((p,j)=>length(cross(sub(p,path[0]),dir))<=size*t*.001&&(!j||dot(sub(p,path[j-1]),dir)>0))){spans.push({a:a%n,b:b%n});continue;}
+      const c=circle(path,fitTol);if(!c)return null;
+      const rad=path.map(p=>unit(sub(p,c.center))),angles=[0];let sign=0,gap=0;
+      for(let j=1;j<rad.length;j++){const d=Math.atan2(dot(cross(rad[j-1],rad[j]),c.n),dot(rad[j-1],rad[j]));if(sign*d<0)return null;sign=Math.sign(d)||sign;gap=Math.max(gap,Math.abs(d));angles.push(angles[j-1]+d);}
+      if(!sign||c.r*(1-Math.cos(gap/2)+.000273)>t*.5)return null;
+      let start=0;
+      while(start<b-a){let end=start+1;while(end+1<=b-a&&Math.abs(angles[end+1]-angles[start])<=Math.PI/2+1e-6)end++;
+        const h=c.r*4/3*Math.tan((angles[end]-angles[start])/4);
+        spans.push({a:(a+start)%n,b:(a+end)%n,ha:mul(cross(c.n,rad[start]),h),hb:mul(cross(c.n,rad[end]),-h)});start=end;
+      }
+    }
+    return spans;
+  }
   function extrusionProfile(ps,t,cosCorner){
     const n=ps.length,at=i=>ps[(i+n)%n],directions=ps.map((p,i)=>unit(sub(at(i+1),p))),corners=[];
+    const analytic=analyticProfile(ps,t,cosCorner,true);
+    if(analytic?.some(s=>s.ha))return {points:ps,spans:analytic,freeform:true,tolerance:t*.2};
     for(let i=0;i<n;i++)if(dot(directions[(i+n-1)%n],directions[i])<cosCorner)corners.push(i);
     const isCorner=new Set(corners),breaks=corners.length?corners.slice():[0];
     let freeform=false;
@@ -3639,15 +3679,225 @@ function createEngineeringRecognition(){
     return true;
   }
 
+  // Planar shoulders split a mechanical part into wall bands. Each band is
+  // certified from its own triangles, so a groove, a bore and a roundover can
+  // meet the same cap without sharing a radius or an extrusion height.
+  function layeredSolid(T,t,options){
+    const {points,faces,edges}=T,axes=[],precision=t*.002,cellBudget=2048,cosCorner=Math.cos((options.featureAngle||28)*Math.PI/180);
+    const ranked=new Map();
+    for(const f of faces){const n=canonical(f.normal),key=n.map(x=>Math.round(x*1000)).join(','),entry=ranked.get(key);if(entry)entry.area+=f.area;else ranked.set(key,{axis:n,area:f.area});}
+    for(const {axis} of Array.from(ranked.values()).sort((a,b)=>b.area-a.area)){if(axes.every(n=>Math.abs(dot(n,axis))<.9999))axes.push(axis);if(axes.length===3)break;}
+    function tryAxis(axis){
+      const origin=points[faces[0].vs[0]],[u,v]=basis(axis),height=points.map(p=>dot(sub(p,origin),axis)),regions=[],owner=new Int32Array(faces.length).fill(-1);
+      const cap=faces.map(f=>Math.abs(dot(f.normal,axis))>1-1e-7&&Math.max(...f.vs.map(i=>height[i]))-Math.min(...f.vs.map(i=>height[i]))<precision);
+      let capMin=Infinity,capMax=-Infinity;
+      for(let i=0;i<cap.length;i++)if(cap[i]){const h=height[faces[i].vs[0]];capMin=Math.min(capMin,h);capMax=Math.max(capMax,h);}
+      if(capMax-capMin<precision)return null;
+      for(let i=0;i<faces.length;i++)if(owner[i]<0){
+        const group={ids:[i],cap:cap[i],boundary:[],loops:[]},id=regions.length;owner[i]=id;regions.push(group);
+        for(let j=0;j<group.ids.length;j++)for(const k of faces[group.ids[j]].neighbors)if(owner[k]<0&&cap[k]===cap[i]){owner[k]=id;group.ids.push(k);}
+      }
+      const caps=regions.filter(r=>r.cap),walls=regions.filter(r=>!r.cap);
+      if(caps.length<2||!walls.length||regions.length>cellBudget)return null;
+      const faceEdges=faces.map(()=>[]);
+      for(const edge of edges.values()){const [a,b]=edge.faces;if(b===undefined)return null;faceEdges[a].push(edge);faceEdges[b].push(edge);const r=regions[owner[a]],s=regions[owner[b]];if(r!==s){r.boundary.push(edge);s.boundary.push(edge);}}
+      for(const r of caps){const h=height[faces[r.ids[0]].vs[0]];if(r.ids.some(i=>faces[i].vs.some(k=>Math.abs(height[k]-h)>precision)))return null;r.h=h;}
+      const data=createSplineData({angle:options.angle||5}),expected=new Set(),cellKey=loops=>loops.map(l=>l.slice().sort().join(',')).sort().join('|');
+      const edge=(a,b,ha,hb)=>addSplineSegment(data,addSplineSequence(data),a,b,ha,hb);
+      function ring(ps,spans){
+        const controls=spans.map(s=>addSplineVertex(data,ps[s.a]));
+        return {controls,edges:spans.map((s,i)=>edge(controls[i],controls[(i+1)%spans.length],s.ha,s.hb))};
+      }
+      function bridge(a,b,handles){
+        const rails=a.controls.map((id,i)=>edge(id,b.controls[i],...handles(i)));
+        for(let i=0;i<rails.length;i++)expected.add(cellKey([[a.edges[i],b.edges[i],rails[i],rails[(i+1)%rails.length]]]));
+      }
+      let revolved=0,translated=0,faceted=0;
+      for(const wall of walls){
+        const incident=new Map();for(const e of wall.boundary){const other=e.faces.map(i=>regions[owner[i]]).find(r=>r.cap);if(!other)return null;for(const k of [e.a,e.b]){if(incident.has(k)&&incident.get(k)!==other)return null;incident.set(k,other);}}
+        const contours=chains(wall.boundary);if(contours.some(l=>!l.closed||l.ids.length<4))return null;
+        function planarWall(){
+          const patches=[],local=new Map(),visitedEdges=new Set(),borders=new Map(),degree=new Map(),keys=new Map(),emitted=new Map();
+          const pair=(a,b)=>Math.min(a,b)+':'+Math.max(a,b);
+          for(const i of wall.ids)if(!local.has(i)){
+            if(expected.size+caps.length+patches.length>=cellBudget)return false;
+            const f=faces[i],base=points[f.vs[0]],id=patches.length,q=[i];local.set(i,id);patches.push([]);
+            for(let j=0;j<q.length;j++)for(const k of faces[q[j]].neighbors)if(regions[owner[k]]===wall&&!local.has(k)&&dot(f.normal,faces[k].normal)>1-1e-7&&faces[k].vs.every(v=>Math.abs(dot(sub(points[v],base),f.normal))<precision)){local.set(k,id);q.push(k);}
+          }
+          if(patches.length>Math.max(16,wall.ids.length*.55))return false;
+          for(const i of wall.ids)for(const e of faceEdges[i])if(!visitedEdges.has(e)){
+            visitedEdges.add(e);const [a,b]=e.faces.map(f=>local.has(f)?local.get(f):-owner[f]-1);if(a===b)continue;
+            const key=pair(a,b);if(!borders.has(key))borders.set(key,[]);borders.get(key).push(e);
+            for(const id of [a,b])if(id>=0)patches[id].push(e);
+            degree.set(e.a,(degree.get(e.a)||0)+1);degree.set(e.b,(degree.get(e.b)||0)+1);keys.set(pair(e.a,e.b),e);
+          }
+          const vertices=new Map(),pos=i=>incident.has(i)?add(points[i],mul(axis,incident.get(i).h-height[i])):points[i];
+          const vertex=i=>{if(!vertices.has(i))vertices.set(i,addSplineVertex(data,pos(i)));return vertices.get(i);};
+          for(const list of borders.values())for(const chain of chains(list)){
+            const ids=chain.ids;let start=0;
+            for(let j=1;j<ids.length;j++){
+              if(j+1<ids.length&&degree.get(ids[j])===2){
+                const a=pos(ids[start]),b=pos(ids[j+1]),d=sub(b,a),l=length(d);
+                if(l&&dot(sub(pos(ids[j]),a),d)>0&&dot(sub(b,pos(ids[j])),d)>0&&length(cross(sub(pos(ids[j]),a),d))<l*precision)continue;
+              }
+              if(ids[start]===ids[j])return false;
+              const s=edge(vertex(ids[start]),vertex(ids[j]));for(let k=start;k<j;k++)emitted.set(keys.get(pair(ids[k],ids[k+1])),s);start=j;
+            }
+          }
+          function loopEdges(chain){const list=chain.ids.slice(1).map((b,j)=>emitted.get(keys.get(pair(chain.ids[j],b))));return [...new Set(list)];}
+          for(const border of patches){const loops=chains(border);if(loops.some(l=>!l.closed))return false;expected.add(cellKey(loops.map(loopEdges)));}
+          for(const c of contours)incident.get(c.ids[0]).loops.push(loopEdges(c));
+          faceted+=patches.length;return true;
+        }
+        if(contours.length!==2){if(!planarWall())return null;continue;}
+        const ends=contours.map(l=>{const ids=l.ids.slice(0,-1),cap=incident.get(ids[0]);return {cap,ps:ids.map(i=>add(points[i],mul(axis,cap.h-height[i])))};}).sort((a,b)=>a.cap.h-b.cap.h);
+        const [low,high]=ends,h0=low.cap.h,h1=high.cap.h,depth=h1-h0;if(depth<=precision)return null;
+        const ids=Array.from(new Set(wall.ids.flatMap(i=>faces[i].vs))),flatten=(p,h)=>sub(p,mul(axis,h-h0));
+        function translatedWall(){
+          if(wall.ids.some(i=>Math.abs(dot(faces[i].normal,axis))>.002))return false;
+          const ps=low.ps,segments=ps.map((p,i)=>{const d=sub(ps[(i+1)%ps.length],p);return {p,d,dd:dot(d,d)};}),perimeter=segments.reduce((s,e)=>s+Math.sqrt(e.dd),0);
+          const tolerance=Math.min(t*.15,perimeter*.0004),width=Math.max(tolerance*4,perimeter/Math.sqrt(ps.length)/4),bins=new Map();
+          const xy=p=>[dot(sub(p,origin),u),dot(sub(p,origin),v)];
+          for(const e of segments){const a=xy(e.p),b=xy(add(e.p,e.d));for(let x=Math.floor((Math.min(a[0],b[0])-tolerance)/width);x<=Math.floor((Math.max(a[0],b[0])+tolerance)/width);x++)for(let y=Math.floor((Math.min(a[1],b[1])-tolerance)/width);y<=Math.floor((Math.max(a[1],b[1])+tolerance)/width);y++){const k=x+':'+y;if(!bins.has(k))bins.set(k,[]);bins.get(k).push(e);}}
+          function near(p){const [x,y]=xy(p);return (bins.get(Math.floor(x/width)+':'+Math.floor(y/width))||[]).some(({p:a,d,dd})=>{const s=Math.max(0,Math.min(1,dot(sub(p,a),d)/dd));return distance(p,add(a,mul(d,s)))<=tolerance;});}
+          if(ids.some(i=>height[i]<h0-precision||height[i]>h1+precision||!near(flatten(points[i],height[i]))))return false;
+          let area=0;for(const i of wall.ids){const f=faces[i];area+=f.area;const q=f.vs.map(k=>flatten(points[k],height[k]));if(!near(mean(q))||q.some((p,j)=>!near(lerp(p,q[(j+1)%3],.5))))return false;}
+          if(Math.abs(area-perimeter*depth)>Math.max(tolerance*depth,area*.003))return false;
+          const profile=extrusionProfile(ps,t,cosCorner);
+          if(!separateProfiles([profile],origin,u,v))return false;
+          const a=ring(ps,profile.spans),b=ring(ps.map(p=>add(p,mul(axis,depth))),profile.spans);bridge(a,b,()=>[]);
+          low.cap.loops.push(a.edges);high.cap.loops.push(b.edges);translated++;return true;
+        }
+        function revolvedWall(){
+          const c=circle(low.ps,t*.03);if(!c)return false;
+          const center=flatten(c.center,dot(sub(c.center,origin),axis)),polar=p=>{const d=sub(p,center),x=dot(d,u),y=dot(d,v);return {r:Math.hypot(x,y),a:Math.atan2(y,x)};};
+          const samples=ids.map(i=>({id:i,h:height[i],...polar(points[i])})).sort((a,b)=>a.h-b.h);
+          function buildRings(profile,spans){
+            const radial=[u,v,mul(u,-1),mul(v,-1)],rings=new Map(),handle=4/3*Math.tan(Math.PI/8);
+            function level(j){if(!rings.has(j)){const [r,h]=profile[j],o=add(center,mul(axis,h-h0)),ps=radial.map(d=>add(o,mul(d,r))),arcs=radial.map((d,i)=>({a:i,b:(i+1)%4,ha:mul(radial[(i+1)%4],handle*r),hb:mul(d,handle*r)}));rings.set(j,ring(ps,arcs));}return rings.get(j);}
+            for(const s of spans){const a=level(s.a),b=level(s.b);bridge(a,b,i=>s.ha?[s.ha,s.hb].map(d=>add(mul(radial[i],d[0]),mul(axis,d[1]))):[]);}
+            low.cap.loops.push(level(0).edges);high.cap.loops.push(level(profile.length-1).edges);revolved++;return true;
+          }
+          function regularRings(){
+            const levels=[],where=new Map();
+            for(const p of samples){let l=levels.at(-1);if(!l||p.h-l.first>precision){l={first:p.h,h:0,r:0,samples:[]};levels.push(l);}l.h+=p.h;l.r+=p.r;l.samples.push(p);where.set(p.id,levels.length-1);}
+            if(levels.length<2)return false;
+            for(const l of levels){l.h/=l.samples.length;l.r/=l.samples.length;if(l.samples.length<8||l.r<=precision||l.samples.some(p=>Math.abs(p.r-l.r)>t*.04))return false;
+              const range=angularRange(l.samples.map(p=>p.a));if(range.gap>Math.acos(cosCorner)+1e-6||l.r*(1-Math.cos(range.gap/2))>t*.45)return false;}
+            levels[0].h=h0;levels.at(-1).h=h1;
+            const strips=Array.from({length:levels.length-1},()=>[0,0]);let winding=0;
+            for(const i of wall.ids){const f=faces[i],levelsAt=f.vs.map(k=>where.get(k)),min=Math.min(...levelsAt),max=Math.max(...levelsAt);if(max!==min+1)return false;
+              const j=levelsAt.findIndex((x,k)=>x===levelsAt[(k+1)%3]),p=points[f.vs[j]],q=points[f.vs[(j+1)%3]],pa=polar(p).a,qa=polar(q).a,da=Math.atan2(Math.sin(qa-pa),Math.cos(qa-pa));
+              const direction=Math.sign(da)*(levelsAt[j]===min?1:-1);if(!direction||winding&&direction!==winding)return false;winding=direction;
+              if(Math.abs(da)>Math.acos(cosCorner)+1e-6)return false;strips[min][levelsAt[j]-min]+=da;
+              const third=polar(points[f.vs[(j+2)%3]]).a;for(const a of [pa,qa])if(Math.abs(Math.atan2(Math.sin(third-a),Math.cos(third-a)))>Math.acos(cosCorner)+1e-6)return false;
+            }
+            if(strips.some(([a,b])=>Math.abs(Math.abs(a)-TAU)>1e-5||Math.abs(a+b)>1e-5))return false;
+            const profile=levels.map(l=>[l.r,l.h,0]),spans=analyticProfile(profile,t,cosCorner,false);if(!spans)return false;
+            return buildRings(profile,spans);
+          }
+          // An irregular triangulation of a cone or cylinder need not have complete
+          // rings between its caps. Certify the radial profile in cylindrical coordinates.
+          function linearMeridian(){
+            const roundTrip=a=>Math.atan2(Math.sin(a),Math.cos(a)),tolerance=t*.035;
+            for(const end of ends){
+              const ring=end.ps.map(p=>polar(p)),radius=ring[0].r;let turn=0;
+              for(let i=0;i<ring.length;i++){const da=roundTrip(ring[(i+1)%ring.length].a-ring[i].a);if(da*turn<0||Math.abs(ring[i].r-radius)>tolerance)return false;turn+=da;}
+              if(Math.abs(Math.abs(turn)-TAU)>1e-5)return false;
+            }
+            const profile=[[c.r,h0,0]],last=[polar(high.ps[0]).r,h1,0];
+            function split(lo,hi,a,b,depth){
+              if(b[1]-a[1]<precision||depth>5||profile.length>12)return false;
+              const slope=(b[0]-a[0])/(b[1]-a[1]);let worst=tolerance,at=-1;
+              for(let j=lo;j<hi;j++){const p=samples[j],error=Math.abs(p.r-a[0]-slope*(p.h-a[1]));if(error>worst){worst=error;at=j;}}
+              if(at<0){profile.push(b);return true;}
+              const p=samples[at],mid=[p.r,p.h,0];return split(lo,at,a,mid,depth+1)&&split(at+1,hi,mid,b,depth+1);
+            }
+            if(!split(0,samples.length,profile[0],last,0))return false;
+            const byId=new Map(samples.map(p=>[p.id,p]));let positive=0,negative=0;
+            for(const i of wall.ids){
+              const ps=faces[i].vs.map(k=>byId.get(k)),a=ps[0],b=ps[1],c=ps[2],db=roundTrip(b.a-a.a),dc=roundTrip(c.a-a.a);
+              const signed=(db*(c.h-a.h)-dc*(b.h-a.h))*.5;
+              if(signed>0)positive+=signed;else negative-=signed;
+              for(let j=0;j<3;j++){
+                const p=ps[j],q=ps[(j+1)%3],da=Math.abs(roundTrip(q.a-p.a));
+                if(da>Math.acos(cosCorner)||Math.max(p.r,q.r)*(1-Math.cos(da/2))>t*.5)return false;
+                for(let k=1;k+1<profile.length;k++){const [r,h]=profile[k];if((p.h-h)*(q.h-h)<0&&Math.abs(p.r+(q.r-p.r)*(h-p.h)/(q.h-p.h)-r)>tolerance)return false;}
+              }
+            }
+            const domain=TAU*depth;
+            if(Math.abs(Math.abs(positive-negative)-domain)>domain*1e-6||Math.min(positive,negative)>domain*1e-6)return false;
+            return buildRings(profile,profile.slice(1).map((_,i)=>({a:i,b:i+1})));
+          }
+          return regularRings()||linearMeridian();
+        }
+        if(!revolvedWall()&&!translatedWall()&&!planarWall())return null;
+      }
+      if(expected.size+caps.length>cellBudget)return null;
+      for(const r of caps){if(!r.loops.length)return null;expected.add(cellKey(r.loops));}
+      // Use the source mesh's coordinate precision at shared ring endpoints. Tangencies
+      // between neighbouring holes must also triangulate at the native display precision.
+      for(const [id,p] of Object.entries(data.vertices))data.vertices[id]=p.map(Math.fround);
+      const plan=K.buildSplineSurface.resolve(data);
+      if(plan.status!=='closed-candidate'||!plan.diagnostics.vertexManifold||!plan.diagnostics.cycleSearchComplete||plan.diagnostics.candidateCapReached||plan.fills.length!==expected.size)return null;
+      if(plan.fills.some(f=>!expected.delete(cellKey(f.loops.map(l=>l.map(e=>e.edge))))))return null;
+      return {data,report:{planes:caps.length+faceted,revolvedBands:revolved,extrudedContours:translated,unrecognizedTriangles:0}};
+    }
+    for(const axis of axes){const result=tryAxis(axis);if(result)return result;}return null;
+  }
+  function recognizeParts(T,positions,indices,options){
+    const {faces,edges,points}=T,seen=new Uint8Array(faces.length),singular=new Map(),visitedEdges=new Set(),bodies=[];
+    // Faces that meet at a non-manifold edge belong to the same unresolved piece.
+    for(const e of edges.values())if(e.faces.length>2)for(const f of e.faces){
+      if(!singular.has(f))singular.set(f,[]);singular.get(f).push(e);
+    }
+    for(let seed=0;seed<faces.length;seed++)if(!seen[seed]){
+      const queue=[seed];seen[seed]=1;
+      const visit=i=>{if(!seen[i]){seen[i]=1;queue.push(i);}};
+      let invalid=false;
+      for(let j=0;j<queue.length;j++){
+        const i=queue[j];for(const k of faces[i].neighbors)visit(k);
+        for(const e of singular.get(i)||[]){invalid=true;if(!visitedEdges.has(e)){visitedEdges.add(e);for(const k of e.faces)visit(k);}}
+      }
+      if(queue.length===faces.length)return null;
+      if(bodies.length>=2048)return {data:null,report:{reason:'Too many separate mesh components',unrecognizedTriangles:faces.length}};
+      const lo=[Infinity,Infinity,Infinity],hi=lo.map(()=>-Infinity),o=points[faces[seed].vs[0]];let volume=0;
+      for(const i of queue){
+        const ps=faces[i].vs.map(k=>points[k]);volume+=dot(sub(ps[0],o),cross(sub(ps[1],o),sub(ps[2],o)));
+        for(const p of ps)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],p[k]);hi[k]=Math.max(hi[k],p[k]);}
+      }
+      bodies.push({queue,lo,hi,volume,invalid});
+    }
+    // Publishing nested shells of opposite winding independently would fill a cavity.
+    for(const a of bodies)for(const b of bodies)if(a.volume*b.volume<0&&a.lo.every((v,k)=>v<=b.lo[k]&&a.hi[k]>=b.hi[k]))a.invalid=b.invalid=true;
+    const faceCount=(indices?.length||positions.length/3)/3,parts=[];let accepted=0;
+    for(const body of bodies){
+      if(body.invalid)continue;
+      const ids=[...new Set(body.queue.map(i=>faces[i].source))].sort((a,b)=>a-b),raw=recognitionSubset(positions,indices,ids);
+      try{
+        const part=recognize(raw.vertices,raw.indices,{...options,groups:options.groups&&ids.map(i=>options.groups[i]),splitParts:false,requireComplete:true});
+        if(!part.data)continue;
+        const candidate=K.buildSplineSurface.resolve(part.data),d=candidate.diagnostics,source=part.report.sourceTopology;
+        if(!d.vertexManifold||!d.cycleSearchComplete||d.candidateCapReached||d.components!==1||d.unresolvedBoundary.length)continue;
+        if(source){if(candidate.status!=='closed-candidate'||d.eulerCharacteristic!==source.eulerCharacteristic)continue;}
+        else if(!part.report.planarLoops||candidate.fills.length!==1||!candidate.fills[0].planar||candidate.fills[0].loops.length!==part.report.planarLoops)continue;
+        parts.push({data:part.data,closed:!!source,faces:Uint32Array.from(ids)});accepted+=ids.length;
+      }catch{continue;} // Keep this component's original triangles in the remainder.
+    }
+    const report={inputTriangles:faceCount,components:bodies.length,recognizedComponents:parts.length,unrecognizedTriangles:faceCount-accepted};
+    if(!parts.length)return {data:null,report:{...report,reason:'No component could be reconstructed'}};
+    return {parts,report};
+  }
   function recognize(positions,indices,options={}){
     if(!positions?.length)throw Error('Empty mesh');const started=performance.now(),lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<positions.length;i++) {lo[i%3]=Math.min(lo[i%3],positions[i]);hi[i%3]=Math.max(hi[i%3],positions[i]);}
     const scale=distance(lo,hi),t=Number.isFinite(options.tolerance)&&options.tolerance>0?options.tolerance:Math.max(scale*.003,1e-7),T=topology(positions,indices,t,!options.groups),{points,faces,edges}=T;
     if(!faces.length)throw Error('Mesh contains no usable triangles');
+    if(options.splitParts!==false){const result=recognizeParts(T,positions,indices,options);if(result){result.report.milliseconds=performance.now()-started;return result;}}
     if(T.bad.nonManifold)return {data:null,report:{...T.bad,tolerance:t,inputTriangles:faces.length,unrecognizedTriangles:faces.length,milliseconds:performance.now()-started,reason:'Mesh has '+T.bad.nonManifold+' non-manifold edges shared by more than two faces'}};
     const regions=[],smooth=[],cos=Math.cos((options.featureAngle||28)*Math.PI/180);
     if(options.groups){if(options.groups.length!==indices.length/3)throw Error('Invalid recognition face groups');const grouped=new Map();for(let i=0;i<faces.length;i++){const group=options.groups[faces[i].source];if(!Number.isInteger(group)||group<0)throw Error('Invalid recognition face group');if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(i);}for(const group of grouped.values())smooth.push(group);}
     const sourceTopology=closedMeshTopology(points,faces,edges);
-    const extruded=sourceTopology&&translatedSolid(T,t,options);
+    const extruded=sourceTopology&&(translatedSolid(T,t,options)||layeredSolid(T,t,options));
     if(extruded){Object.assign(extruded.report,T.bad,{sourceTopology,inputTriangles:faces.length,tolerance:t,vertices:Object.keys(extruded.data.vertices).length,segments:Object.keys(extruded.data.segments).length,milliseconds:performance.now()-started});return extruded;}
     if(!options.groups){const visited=new Uint8Array(faces.length);for(let seed=0;seed<faces.length;seed++)if(!visited[seed]){const ids=[seed];visited[seed]=1;for(let k=0;k<ids.length;k++)for(const j of faces[ids[k]].neighbors)if(!visited[j]&&dot(faces[ids[k]].normal,faces[j].normal)>=cos){visited[j]=1;ids.push(j);}smooth.push(ids);}}
     function supportVertices(ids){const vs=new Set();for(const i of ids)for(const v of faces[i].vs)vs.add(v);return Array.from(vs);}
@@ -3761,7 +4011,7 @@ function createEngineeringRecognition(){
 
 
     if(report.unrecognizedTriangles){
-      if(options.requireComplete)return {data:null,report};
+      if(options.requireComplete||report.unrecognizedTriangles===faces.length||faces.length>1024)return {data:null,report:{...report,reason:'Some surfaces could not be reconstructed'}};
       report.candidateSurfaces={planes:report.planes,cylinders:report.cylinders,cones:report.cones,spheres:report.spheres};report.planes=report.cylinders=report.cones=report.spheres=0;report.fallback='source-triangles';report.retainedTriangles=faces.length;
       data.vertices={};data.segments={};data.sequences=[];data.next=1;
       const used=new Set(faces.flatMap(f=>f.vs)),ids=new Map();for(const i of used){const id='v'+data.next++;ids.set(i,id);data.vertices[id]=points[i].slice();}
@@ -3794,6 +4044,9 @@ function createEngineeringRecognition(){
       if(onCircle||onEdges)s.boundary=true;
     }
     report.regions=regions.map(r=>({kind:r.done?r.model.kind:r.model?.kind||'linear',triangles:r.ids.length,error:r.model?.error??null}));
+    if(options.splitParts===false&&!sourceTopology&&regions.length===1&&report.planes===1){
+      const loops=chains(openEdges);if(loops.every(l=>l.closed))report.planarLoops=loops.length;
+    }
     report.vertices=Object.keys(data.vertices).length;report.segments=Object.keys(data.segments).length;report.milliseconds=performance.now()-started;
     return {data,report};
   }
@@ -4394,7 +4647,7 @@ function applySplineVertexBevels(data,tags){
 function bevel(args){if(args.data&&args.curve){const data=applySplineVertexBevels(args.data,[{type:2,id:'bevel',domain:'vertex',targets:args.vertices?.length?args.vertices:Object.keys(args.data.vertices),profile:args.round?'round':'flat',radius:args.size}]);return {data,selection:Object.keys(data.vertices).filter(v=>!args.data.vertices[v]||args.vertices?.includes(v)),report:{amount:args.size,vertices:Object.keys(data.vertices).length,curve:true}};}const source=args.data?bevelSource(args.data):polygonBevelSource(args.positions,args.indices,args.edges),prepared=prepareEdgeBevel(source.source||source,args.edges?.length?args.edges:source.selected||Object.keys(source.edges)),result=applyEdgeBevel(prepared,args.size,{round:args.round}),data=createSplineData({angle:args.data?.approximation?.angle||10}),vertices=new Map();for(const [id,p]of Object.entries(result.vertices))vertices.set(id,addSplineVertex(data,p));const emap=new Map();for(const e of Object.values(result.edges)){const a=vertices.get(e.a),b=vertices.get(e.b);if(a===b)continue;emap.set(e.id,addSplineSegment(data,addSplineSequence(data),a,b,sub(e.cp[1],e.cp[0]),sub(e.cp[2],e.cp[3])));}data.version=4;const groups=new Map();for(const face of result.faces){const key=face.planarGroup||face.id;if(!groups.has(key))groups.set(key,[]);groups.get(key).push(face);}data.sourceCells=[...groups.values()].map(faces=>({loops:faces.sort((a,b)=>+!!a.hole-+!!b.hole).map(f=>f.edges.map((id,i)=>({edge:emap.get(id),reversed:result.edges[id].a!==f.vertices[i]})))}));return {data,report:{amount:result.amount,limit:prepared.limit,edges:result.generatedEdges.length,faces:result.faces.length}};}
 
 function distribute(positions,indices,count,seed){const cumulative=new Float64Array(indices.length/3);let total=0;for(let i=0;i<indices.length;i+=3){const a=Array.from(positions.subarray(indices[i]*3,indices[i]*3+3)),b=Array.from(positions.subarray(indices[i+1]*3,indices[i+1]*3+3)),c=Array.from(positions.subarray(indices[i+2]*3,indices[i+2]*3+3));total+=len(cross(sub(b,a),sub(c,a)))*.5;cumulative[i/3]=total;}if(!(total>0))throw Error('Object Cloner needs nondegenerate surface triangles');const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;},out=[];for(let i=0;i<count;i++){const area=(i+rand())/count*total;let lo=0,hi=cumulative.length-1;while(lo<hi){const m=(lo+hi)>>>1;if(cumulative[m]<area)lo=m+1;else hi=m;}const at=lo*3,a=Array.from(positions.subarray(indices[at]*3,indices[at]*3+3)),b=Array.from(positions.subarray(indices[at+1]*3,indices[at+1]*3+3)),c=Array.from(positions.subarray(indices[at+2]*3,indices[at+2]*3+3)),u=Math.sqrt(rand()),v=rand();out.push({point:a.map((x,k)=>x*(1-u)+b[k]*u*(1-v)+c[k]*u*v),normal:norm(cross(sub(b,a),sub(c,a)))});}return out;}
-return {distribute,bevel,outline:applySplineOutline,prepareOutline:prepareSplineOutlineFlexible,analyzeOutline:analyzeSplineOutline,recognize:createEngineeringRecognition().recognize};}</script>
+return {distribute,bevel,recognitionSubset,outline:applySplineOutline,prepareOutline:prepareSplineOutlineFlexible,analyzeOutline:analyzeSplineOutline,recognize:createEngineeringRecognition().recognize};}</script>
 
 <script id="frame-boolean-worker" type="text/plain"> 
 
@@ -13588,7 +13841,7 @@ function objectMenu(x,y,id=focusId,tagIndex=null,action=null){
   showMenu(x,y,[
     ['Group',()=>groupObjects()],
     ...children(id).length?[['Select children',()=>{selected=new Set(children(id).map(n=>n.id));selectedTag=null;selectedTags.clear();focusId=[...selected][0]||null;refreshSelection();frameSelectEngineObjects();}]]:[],
-    ...targets.every(n=>n.type==='mesh')?[['To Spline Patch',()=>{(async()=>{for(const n of targets)await FrameGeometry.toPatch(n);})().catch(fileOperationError);}]]:[],
+    ...targets.every(n=>n.type==='mesh')?[['To Spline Patch',()=>{(async()=>{for(const n of targets)try{await FrameGeometry.toPatch(n);}catch(error){fileOperationError(error);}})();}]]:[],
     ...convertible?[['Connect / To Editable (C)',()=>connectObjects(targets).catch(fileOperationError)]]:[],
     ...FramePlugins.tagMenu(targets),
     ...morphable?[['Morph Tag',async()=>{const before=snapshot();try{let last;for(const n of targets)last={n,t:await FrameMorph.ensure(n)};checkpoint(before);render();if(last)selectTag(last.n.id,last.n.tags.indexOf(last.t));}catch(e){fileOperationError(e);}}]]:[]
@@ -15137,7 +15390,7 @@ const FrameGeometry=(()=>{
     }
     try{
       const body=op==='boolean'?FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker'):
-        text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(d.op==='recognize'&&d.retainSource){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){if(d.op==='recognize'&&d.retainSource)send({recognitionError:e.message});else postMessage({error:e.message});}};`;
+        text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(r.parts&&d.op==='recognize'){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);for(const part of r.parts)transfers.push(part.faces.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){postMessage({error:e.message});}};`;
       helperSlot=!!side&&reserveBooleanWorker(false);
       if(!w||helperSlot)url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));
       if(!w){w=new Worker(url,boolean?{name:'Frame Boolean'}:undefined);if(session)session.worker=w;}
@@ -15255,21 +15508,72 @@ FrameViewWindows.onDocument('pointerdown',e=>{if(!e.target.closest('#frame-engin
     }
     return expected.size===0;
   }
-  async function toPatch(n){
+  async function recognizeMesh(n){
     if(n.type==='spline_patch')return n;if(n.type!=='mesh'&&(!FrameSpline.supported.has(n.type)||polygonGenerator(n.type)))throw Error('Choose a polygon mesh or a spline object');if(n.type==='mesh'&&children(n.id).length)throw Error('Convert a mesh without child objects');
     if(n.type!=='mesh'){FrameSpline.toEditable(n,true);await FrameSpline.flush();return n;}
     const engine=window.frameEngine,space=engine.scene,hash=n.nativeHash,mesh=space.meshes.find(m=>m.hashId===hash);if(!mesh)throw Error('Choose a polygon mesh');
     const version=mesh.version,raw=await engine.readGeometry(hash),result=await worker('recognize',{positions:raw.vertices,indices:raw.indices,options:{}},[raw.vertices.buffer,raw.indices.buffer]);
-    function verifySource(){if(engine.scene!==space||!nodes.includes(n)||n.type!=='mesh'||n.nativeHash!==hash||mesh.version!==version||!space.meshes.includes(mesh))throw Error('Mesh changed during recognition');}
+    function verifySource(){if(engine.scene!==space||!nodes.includes(n)||n.type!=='mesh'||n.nativeHash!==hash||mesh.version!==version||!space.meshes.includes(mesh)||children(n.id).length)throw Error('Mesh changed during recognition');}
     verifySource();
-    if(!result.data||!Object.keys(result.data.segments).length)throw Error(result.report?.reason||'No reconstructible surface boundaries');
-    const built=await FrameSpline.build(result.data,'recognize:'+hash);
-    if(!preservesSourceTopology(result.report.sourceTopology,built.report.diagnostics)&&!(result.report.fallback==='source-triangles'&&hasSourceTriangles(result.data,built)))throw Error('The reconstructed cage does not preserve the closed mesh topology');
+    const batches=[];let remaining=null;
+    if(result.parts){
+      const accepted=new Uint8Array(result.source.indices.length/3);
+      // Preflight the same independent cages the Patch owner will build. Isolate a
+      // failed batch so one invalid tessellation cannot discard other components.
+      async function preflight(rows){
+        verifySource();
+        try{
+          const data=rows.length===1?rows[0].data:FrameSpline.mergeData(rows.map(r=>r.data),true);
+          const built=await FrameSpline.build(data,'recognize:'+hash+':'+rows[0].faces[0]+':'+rows.length);
+          if(!built.triangleCount)throw Error('Empty reconstructed component');
+        }catch(error){
+          verifySource();if(error.name==='AbortError')throw error;
+          if(rows.length>1){const mid=Math.floor(rows.length/2);await preflight(rows.slice(0,mid));await preflight(rows.slice(mid));}return;
+        }
+        batches.push(rows.map(row=>row.data));for(const row of rows)for(const id of row.faces)accepted[id]=1;
+      }
+      // Open sheets and orientable solids use different native assembly rules.
+      for(const closed of [true,false]){const rows=result.parts.filter(part=>part.closed===closed);if(rows.length)await preflight(rows);}
+      if(!batches.length)throw Error('No component could be reconstructed');
+      const faces=[];for(let i=0;i<accepted.length;i++)if(!accepted[i])faces.push(i);
+      if(faces.length)remaining={...K().recognitionSubset(result.source.vertices,result.source.indices,faces),faces};
+    }else{
+      if(!result.data||!Object.keys(result.data.segments).length)throw Error(result.report?.reason||'No reconstructible surface boundaries');
+      const built=await FrameSpline.build(result.data,'recognize:'+hash);
+      if(!built.triangleCount||!preservesSourceTopology(result.report.sourceTopology,built.report.diagnostics)&&!(result.report.fallback==='source-triangles'&&hasSourceTriangles(result.data,built)))throw Error('The reconstructed cage does not preserve the mesh topology');
+      batches.push([result.data]);
+    }
     verifySource();
-    // The existing hidden-mesh/history owner retains the exact imported GPU source for Undo.
-    // A new surface owner is required because recognition changes topology and logical IDs.
-    const frame=engine.packLocalFrame(hash);commit(()=>{n.nativeHash=FrameHash.newId();n.creationFrame=frame;delete n.engineIndex;n.type='spline_patch';n.params={};n.tags=n.tags.filter(t=>t.kind==='material'&&!t.mask);const source=FrameSpline.sourceNode(n,true);source.splineData=result.data;source.params['angle approximation']=result.data.approximation?.angle||10;});
-    FrameSpline.request();await FrameSpline.flush();return n;
+    const appearance=remaining&&JSON.stringify(n.tags),remainder=remaining&&await engine.prepareRecognitionRemainder(mesh,remaining,n.tags);
+    try{
+      verifySource();if(remaining&&appearance!==JSON.stringify(n.tags))throw Error('Mesh appearance changed during recognition');
+      const frame=engine.packLocalFrame(hash),pivot=engine.packLocalPivot(hash),materials=n.tags.filter(t=>t.kind==='material'&&!t.mask),grouped=!!remainder||batches.length>1;
+      commit(()=>{
+        n.nativeHash=FrameHash.newId();n.creationFrame=frame;n.creationPivot=pivot;delete n.engineIndex;n.params={};n.tags=grouped?[]:materials;
+        n.type=grouped?'group':'spline_patch';remainder?.attach(n);
+        for(const [j,parts] of batches.entries()){
+          const patch=grouped?create('spline_patch',n.id,batches.length===1?'Recognized':'Recognized '+(j+1)):n;
+          if(grouped){patch.nativeHash=FrameHash.newId();patch.tags=materials.map(t=>({...structuredClone(t),uid:FrameHash.newId()}));}
+          for(let i=parts.length-1;i>=0;i--){
+            const data=parts[i],source=create('spline',patch.id,parts.length===1?'Spline':'Part '+(i+1));source.nativeHash=FrameHash.newId();
+            source.splineData=data;source.params['angle approximation']=data.approximation?.angle||10;
+          }
+        }
+      });
+    }finally{remainder?.release();}
+    FrameSpline.request();await FrameSpline.flush();
+    if(remainder)recognitionNotice('Partial');else if(result.report.fallback==='source-triangles')recognitionNotice('Faceted');
+    return n;
+  }
+  let noticeTimer;
+  function recognitionNotice(message){
+    let notice=$('frame-recognition-notice');
+    if(!notice){notice=document.createElement('div');notice.id='frame-recognition-notice';notice.setAttribute('role','status');$('frame-engine-host').append(notice);}
+    clearTimeout(noticeTimer);notice.textContent=message;noticeTimer=setTimeout(()=>notice.remove(),1000);
+  }
+  async function toPatch(n){
+    try{return await recognizeMesh(n);}
+    catch(error){recognitionNotice('Failed');throw error;}
   }
   return {endBevel,endOutline,bevel,bevelDialog,bevelAttributes,K,worker,outline,outlineDialog,outlineSegments,attributes,toPatch,preservesSourceTopology,flush:()=>Promise.all([tool?.pending,...bevelTasks])};
 })();
@@ -22408,11 +22712,32 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function geometryAppearance(meshes){return meshes.flatMap(mesh=>{const n=frameNodeByHash(mesh.hashId);return n?[{hash:n.nativeHash,tags:structuredClone(n.tags.filter(t=>t.kind==='material'||t.kind==='uv'))}]:[];});}
     function restoreGeometryAppearance(record){for(const row of record.appearance||[]){const n=frameNodeByHash(row.hash);if(n)n.tags=[...structuredClone(row.tags),...n.tags.filter(t=>t.kind!=='material'&&t.kind!=='uv')];}if(record.appearance?.length){renderTree();syncMaterials();}}
-    async function remapTopologyAppearance(mesh,next){
-      const map=next.cornerSources,alternate=next.alternateSources,n=frameNodeByHash(mesh.hashId),d=renderer.device;if(!map)return;
+    async function remapTopologyAppearance(mesh,next,n=frameNodeByHash(mesh.hashId),staged=null){
+      const install=(resource,put)=>{if(staged)staged.push({resource,put});else put();};
+      const map=next.cornerSources,alternate=next.alternateSources,d=renderer.device;if(!map)return;
       try{if(!n?.tags.some(t=>t.kind==='uv'||t.kind==='material'&&t.mask))return;const maskPipeline=await pagedPipeline(renderer,'remap topology material polygons',`@group(0) @binding(4) var alternate:texture_2d_array<u32>;fn member(oldFace:u32)->bool{return oldFace/32u<arrayLength(&old)&&((old[oldFace>>5u]>>(oldFace&31u))&1u)!=0u;}@group(0) @binding(0) var corners:texture_2d_array<u32>;@group(0) @binding(1) var<storage,read> old:array<u32>;@group(0) @binding(2) var<storage,read_write> out:array<u32>;@group(0) @binding(3) var<uniform> n:vec4u;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let w=linear(id,groups);if(w>=(n.x+31u)/32u){return;}var bits=0u;for(var b=0u;b<32u;b++){let f=w*32u+b;if(f<n.x){let c=scalar(corners,f*3u);if(c!=0u){let source=(c-1u)/3u;let size=textureDimensions(alternate);var other=0u;if(f<size.x*size.y*textureNumLayers(alternate)){other=scalar(alternate,f);}if(member(source)||(other!=0u&&member(other-1u))){bits|=1u<<b;}}}}out[w]=bits;}`),uvPipeline=await pagedPipeline(renderer,'remap topology UV corners',`@group(0) @binding(0) var corners:texture_2d_array<u32>;@group(0) @binding(1) var<storage,read> old:array<u32>;@group(0) @binding(2) var<storage,read_write> out:array<u32>;@group(0) @binding(3) var<uniform> n:vec4u;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i<n.y){let c=scalar(corners,i/2u);if(c!=0u){out[i]=old[(c-1u)*2u+i%2u];}}}`),settings=makeGPUBuffer(d,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),temporary=[];
-        try{d.queue.writeBuffer(settings,0,new Uint32Array([next.triangleCount,next.count*2,0,0]));const e=d.createCommandEncoder();n.tags=n.tags.map(t=>{if(t.kind==='material'&&t.mask){const old=polygonSet(t.mask);if(!old)return t;const words=Math.ceil(next.triangleCount/32),buffer=makeGPUBuffer(d,{size:Math.max(16,words*4),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});dispatchOn(renderer,e,maskPipeline,pagedGroup(renderer,maskPipeline,{0:map,1:old.resource,2:buffer,3:settings,4:alternate}),words);return {...t,mask:setPolygonRecord(FrameHash.newId(),buffer,Math.ceil(next.triangleCount/8))};}if(t.kind==='uv'){const old=appearanceValue(t.uid,'uv');if(!old)return t;const uid=FrameHash.newId(),resource=makeGPUBuffer(d,{size:next.count*8,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});dispatchOn(renderer,e,uvPipeline,pagedGroup(renderer,uvPipeline,{0:map,1:old.resource,2:resource,3:settings}),next.count*2);putAppearance(uid,'uv',FrameHash.T.float32,{kind:'imported-uv',gpu:true,resource,count:next.count*2});return {...t,uid};}return t;});d.queue.submit([e.finish()]);}finally{releaseGPU(settings);for(const b of temporary)releaseGPU(b);}
+        try{d.queue.writeBuffer(settings,0,new Uint32Array([next.triangleCount,next.count*2,0,0]));const e=d.createCommandEncoder();n.tags=n.tags.map(t=>{if(t.kind==='material'&&t.mask){const old=polygonSet(t.mask);if(!old)return t;const words=Math.ceil(next.triangleCount/32),buffer=makeGPUBuffer(d,{size:Math.max(16,words*4),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});dispatchOn(renderer,e,maskPipeline,pagedGroup(renderer,maskPipeline,{0:map,1:old.resource,2:buffer,3:settings,4:alternate}),words);const uid=FrameHash.newId();install(buffer,()=>setPolygonRecord(uid,buffer,Math.ceil(next.triangleCount/8)));return {...t,mask:uid};}if(t.kind==='uv'){const old=appearanceValue(t.uid,'uv');if(!old)return t;const uid=FrameHash.newId(),resource=makeGPUBuffer(d,{size:next.count*8,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});dispatchOn(renderer,e,uvPipeline,pagedGroup(renderer,uvPipeline,{0:map,1:old.resource,2:resource,3:settings}),next.count*2);install(resource,()=>putAppearance(uid,'uv',FrameHash.T.float32,{kind:'imported-uv',gpu:true,resource,count:next.count*2}));return {...t,uid};}return t;});d.queue.submit([e.finish()]);}finally{releaseGPU(settings);for(const b of temporary)releaseGPU(b);}
       }finally{next.buffers=next.buffers.filter(b=>b!==map&&b!==alternate);delete next.cornerSources;delete next.alternateSources;releaseGPU(map);releaseGPU(alternate);}
+    }
+    async function prepareRecognitionRemainder(source,raw,tags){
+      const gpu=renderer,space=scene,input={...raw,nativeExact:true};
+      const next=source.paged?await uploadPagedAndCompute(gpu,input,source.partOptions||{}):await uploadAndCompute(gpu,input);
+      const owner={tags:structuredClone(tags.filter(t=>t.kind==='material'||t.kind==='uv'))},staged=[];
+      const release=()=>{if(!space.meshes.includes(next)){disposeMesh(next);for(const item of staged)releaseGPU(item.resource);}};
+      for(const t of owner.tags)if(t.kind==='material')t.uid=FrameHash.newId();
+      try{
+        if(owner.tags.some(t=>t.kind==='uv'||t.mask)){
+          const corners=Uint32Array.from({length:raw.indices.length},(_,i)=>raw.faces[Math.floor(i/3)]*3+i%3+1);
+          next.cornerSources=makePagedTexture(gpu,'recognition source corners',corners.length);next.buffers.push(next.cornerSources);
+          next.alternateSources=makePagedTexture(gpu,'empty alternate faces',1);next.buffers.push(next.alternateSources);
+          await uploadPagedArray(gpu,corners,next.cornerSources);
+          await remapTopologyAppearance(source,next,owner,staged);
+        }
+        return {attach(parent){
+          const n=create('mesh',parent.id,'Unrecognized');n.nativeHash=next.hashId=FrameHash.newId();n.tags=owner.tags;
+          n.engineIndex=space.meshes.length;space.meshes.push(next);for(const item of staged)item.put();publishTopology(gpu,[]);
+        },release};
+      }catch(error){release();throw error;}
     }
     async function beginTopology(s){
       const gpu=s.gpu,replacements=[];if(lazyTask)await lazyTask;if(archiveTask)await archiveTask;checkSession(gpu);
@@ -23847,16 +24172,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     function packageXML(bytes){const text=new TextDecoder('utf-8',{fatal:true}).decode(bytes);if(/<!DOCTYPE|<!ENTITY/i.test(text))throw Error('Unsupported XML declaration');const doc=new DOMParser().parseFromString(text,'application/xml');if(doc.getElementsByTagName('parsererror').length)throw Error('Invalid package XML');return doc.documentElement;}
     async function decodeSTEP(file){
-      const parsed=await parseInWorker(parseSTEP,await file.arrayBuffer()),objects=[];
-      for(const part of parsed.parts){
-        const result=await FrameGeometry.worker('recognize',{positions:part.raw.vertices,indices:part.raw.indices,retainSource:true,options:{angle:5,tolerance:.001,groups:part.raw.groups,requireComplete:true}},[part.raw.vertices.buffer,part.raw.indices.buffer,part.raw.groups.buffer]),data=result.data,hash=FrameHash.newId();let spline=null;
-        if(data&&!result.report.unrecognizedTriangles)try{const topology=FrameSpline.K().buildSplineSurface.resolve(data);if((!part.closed||topology.status==='closed-candidate')&&topology.diagnostics.cycleSearchComplete&&!topology.diagnostics.candidateCapReached&&FrameGeometry.preservesSourceTopology(result.report.sourceTopology,topology.diagnostics)){delete data.sourceCells;data.version=2;if(FrameSpline.K().validateSpline(data).ok){await FrameSpline.build(data,'step-preflight');spline={type:'spline',params:{'angle approximation':5},data};FrameSpline.encodeShape(spline);}}}catch{/* Keep the original surface when native cage reconstruction fails. */}
-        if(spline)objects.push({hash,name:part.name,parent:null,type:0,flags:3,spline:{type:'spline_patch',params:{}}},{hash:FrameHash.newId(),name:'Spline',parent:hash,type:0,flags:3,spline});
-        else{const raw=result.source;raw.vertexCount=raw.vertices.length/3;raw.triangleCount=raw.indices.length/3;raw.nativeExact=true;raw.ranges=[];objects.push({hash,name:part.name,parent:null,type:1,flags:3,raw});}
-      }
+      const {parts}=await parseInWorker(parseSTEP,await file.arrayBuffer());
+      const objects=parts.map(({name,raw})=>({hash:FrameHash.newId(),name,parent:null,type:1,flags:3,raw:{...raw,vertexCount:raw.vertices.length/3,triangleCount:raw.indices.length/3,nativeExact:true,ranges:[]}}));
       return {objects,materials:[],images:[]};
     }
-    // STEP Part 21 -> temporary polygons -> the shared To Spline Patch recognizer.
+    // Tessellate STEP Part 21 into editable polygon parts in the parser worker.
     function parseSTEP(buffer){
       if(buffer.byteLength>512*1024*1024)throw Error('STEP: file exceeds 512 MiB');const K=FrameSplineKernel(),text=new TextDecoder().decode(buffer),entities=new Map();let at=0,tokens=0;
       const bad=message=>{throw Error('STEP: '+message);},space=()=>{for(;;){while(/\s/.test(text[at]||'')&&at<text.length)at++;if(text.startsWith('/*',at)){const end=text.indexOf('*/',at+2);if(end<0)bad('unterminated comment');at=end+2;}else break;}},take=s=>{space();if(!text.startsWith(s,at))bad('expected '+s+' at '+at);at+=s.length;},word=()=>{space();const m=/^[A-Z_][A-Z_0-9]*/i.exec(text.slice(at));if(!m)bad('expected entity at '+at);at+=m[0].length;return m[0].toUpperCase();};
@@ -23881,13 +24201,13 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const surfaceCache=new Map();function surface(r){if(surfaceCache.has(r.ref))return surfaceCache.get(r.ref);const type=kind(r),a=get(r);let s;if(has(r,'B_SPLINE_SURFACE')||type==='B_SPLINE_SURFACE_WITH_KNOTS'){s=bspline(r,true);s.inverse=p=>{let uv=[0,0],error=Infinity;for(let i=0;i<=12;i++)for(let j=0;j<=12;j++){const u=s.range[0]+(s.range[1]-s.range[0])*i/12,v=s.vRange[0]+(s.vRange[1]-s.vRange[0])*j/12,d=dist(p,s.evaluate(u,v));if(d<error){error=d;uv=[u,v];}}for(let k=0;k<30;k++){const [u,v]=uv,P=s.evaluate(u,v),du=(s.range[1]-s.range[0])*1e-5,dv=(s.vRange[1]-s.vRange[0])*1e-5,A=mul(sub(s.evaluate(u+du,v),s.evaluate(u-du,v)),1/(2*du)),B=mul(sub(s.evaluate(u,v+dv),s.evaluate(u,v-dv)),1/(2*dv)),D=sub(P,p),aa=dot(A,A),ab=dot(A,B),bb=dot(B,B),det=aa*bb-ab*ab;if(det<1e-24)break;uv=[Math.max(s.range[0],Math.min(s.range[1],u-(bb*dot(A,D)-ab*dot(B,D))/det)),Math.max(s.vRange[0],Math.min(s.vRange[1],v-(aa*dot(B,D)-ab*dot(A,D))/det))];}if(dist(s.evaluate(...uv),p)>tolerance*2)bad('surface inversion failed');return uv;};}else{const f=placement(a[1]),R=a[2];if(type==='PLANE')s={evaluate:(u,v)=>f.world([u,v,0]),inverse:p=>f.local(p).slice(0,2),planar:true};else if(type==='CYLINDRICAL_SURFACE')s={evaluate:(u,v)=>f.world([R*Math.cos(u),R*Math.sin(u),v]),inverse:p=>{const q=f.local(p);return [Math.atan2(q[1],q[0]),q[2]];},period:2*Math.PI};else if(type==='CONICAL_SURFACE'){const angle=num(a[3]),sin=Math.sin(angle),cos=Math.cos(angle);s={evaluate:(u,v)=>f.world([(R+v*sin)*Math.cos(u),(R+v*sin)*Math.sin(u),v*cos]),inverse:p=>{const q=f.local(p);return [Math.atan2(q[1],q[0]),q[2]/cos];},period:2*Math.PI};}else if(type==='SPHERICAL_SURFACE')s={evaluate:(u,v)=>f.world([R*Math.cos(v)*Math.cos(u),R*Math.cos(v)*Math.sin(u),R*Math.sin(v)]),inverse:p=>{const q=f.local(p);return [Math.atan2(q[1],q[0]),Math.atan2(q[2],Math.hypot(q[0],q[1]))];},period:2*Math.PI};else if(type==='TOROIDAL_SURFACE'){const minor=num(a[3]);s={evaluate:(u,v)=>f.world([(R+minor*Math.cos(v))*Math.cos(u),(R+minor*Math.cos(v))*Math.sin(u),minor*Math.sin(v)]),inverse:p=>{const q=f.local(p);return [Math.atan2(q[1],q[0]),Math.atan2(q[2],Math.hypot(q[0],q[1])-R)];},period:2*Math.PI,vPeriod:2*Math.PI};}else bad('unsupported surface '+type+' #'+r.ref);}s.type=type;surfaceCache.set(r.ref,s);return s;}
       for(const [id,e]of entities){if(e.some(c=>c.type==='MAPPED_ITEM'))bad('mapped assemblies are not supported yet');const transform=e.find(c=>c.type==='ITEM_DEFINED_TRANSFORMATION');if(transform){const a=placement(transform.args[2]),b=placement(transform.args[3]);if(dist(a.origin,b.origin)>tolerance||['x','y','z'].some(k=>dist(a[k],b[k])>1e-10))bad('transformed assemblies are not supported yet');}}
       const parts=[],solids=[...entities].filter(([,e])=>e.some(c=>['MANIFOLD_SOLID_BREP','BREP_WITH_VOIDS','SHELL_BASED_SURFACE_MODEL','FACE_BASED_SURFACE_MODEL'].includes(c.type)));if(!solids.length)bad('no supported B-rep solids or surface shells');
-      for(const [solidId]of solids){const solid={ref:solidId},solidType=kind(solid),a=get(solid),shells=solidType==='BREP_WITH_VOIDS'?[a[1],...a[2].map(r=>get(r,'ORIENTED_CLOSED_SHELL')[3])]:Array.isArray(a[1])?a[1]:[a[1]],faces=shells.flatMap(r=>get(r)[1]);const data={version:2,approximation:{angle:5},next:1,vertices:{},segments:{},sequences:[],freeHandles:{}},vertices=new Map(),edges=new Map(),sourceEdges=new Map(),uses=new Map(),curves=new Map(),surfaces=[],surfaceFaces=[],cells=[],domains=[];
+      for(const [solidId]of solids){const solid={ref:solidId},solidType=kind(solid),a=get(solid),shells=solidType==='BREP_WITH_VOIDS'?[a[1],...a[2].map(r=>get(r,'ORIENTED_CLOSED_SHELL')[3])]:Array.isArray(a[1])?a[1]:[a[1]],faces=shells.flatMap(r=>get(r)[1]);const data={version:2,approximation:{angle:5},next:1,vertices:{},segments:{},sequences:[],freeHandles:{}},vertices=new Map(),edges=new Map(),sourceEdges=new Map(),uses=new Map(),curves=new Map(),surfaces=[],cells=[],domains=[];
         const vertex=p=>{const P=mm(p),key=P.map(x=>Math.round(x/1e-7)).join(',');if(vertices.has(key)){const id=vertices.get(key);if(dist(data.vertices[id],P)>2e-7)bad('vertex precision collision');return id;}const id='v'+data.next++;data.vertices[id]=P;vertices.set(key,id);return id;},segment=(cp,fn,a0=0,b0=1)=>{const a=vertex(cp[0]),b=vertex(cp[3]);if(a===b)bad('degenerate patch edge');const C=cp.map(mm),key=[a,b].sort().join('|'),list=edges.get(key)||[],found=list.find(id=>{const s=data.segments[id],P=[data.vertices[s.a],add(data.vertices[s.a],s.ha),add(data.vertices[s.b],s.hb),data.vertices[s.b]];return (s.a===a?P:P.reverse()).every((p,i)=>dist(p,C[i])<1e-5);});if(found)return {edge:found,reversed:data.segments[found].a!==a};const id='s'+data.next++,q='q'+data.next++;data.segments[id]={id,a,b,ha:sub(C[1],C[0]),hb:sub(C[2],C[3]),sequence:q};data.sequences.push({id:q,segments:[id],closed:false,first:a});list.push(id);edges.set(key,list);if(fn)curves.set(id,{fn,a:a0,b:b0});return {edge:id,reversed:false};},fit=(fn,a,b)=>{const P=fn(a),Q=fn(b),A=fn(a+(b-a)/3),B=fn(a+2*(b-a)/3),D=sub(sub(mul(A,27),mul(P,8)),Q),E=sub(sub(mul(B,27),P),mul(Q,8));return [P,mul(sub(mul(D,2),E),1/18),mul(sub(mul(E,2),D),1/18),Q];},bezier=(cp,t)=>{const u=1-t;return cp[0].map((p,k)=>u*u*u*p+3*u*u*t*cp[1][k]+3*u*t*t*cp[2][k]+t*t*t*cp[3][k]);};
         function fitPieces(fn,a,b,out=[],depth=0){const cp=fit(fn,a,b),error=Math.max(...[.125,.25,.5,.75,.875].map(t=>dist(bezier(cp,t),fn(a+(b-a)*t))));if(error>tolerance*.1||dist(cp[0],cp[3])<tolerance*.01){if(depth>=16||out.length>200000)bad('curve approximation limit');const mid=(a+b)/2;fitPieces(fn,a,mid,out,depth+1);fitPieces(fn,mid,b,out,depth+1);}else out.push({a,b,cp,ref:segment(cp,fn,a,b)});return out;}
         function edge(r){if(sourceEdges.has(r.ref))return sourceEdges.get(r.ref);const e=get(r,'EDGE_CURVE'),P=point(get(e[1],'VERTEX_POINT')[1]),Q=point(get(e[2],'VERTEX_POINT')[1]),c=curve(e[3]),forward=truth(e[4]);let a=closest(c,P),b=closest(c,Q);if(c.period){if(forward){while(b<=a+1e-10)b+=c.period;}else while(b>=a-1e-10)b-=c.period;}if(dist(c.evaluate(a),P)>tolerance||dist(c.evaluate(b),Q)>tolerance)bad('edge endpoints disagree with curve #'+r.ref);const pieces=fitPieces(c.evaluate,a,b);sourceEdges.set(r.ref,pieces);return pieces;}
         const reverse=loop=>loop.slice().reverse().map(r=>({edge:r.edge,reversed:!r.reversed})),faceList=[];
-        for(const r of faces){const f=get(r,'ADVANCED_FACE'),s=surface(f[2]),bounds=f[1].map(b=>{const a=get(b),l=get(a[1],'EDGE_LOOP')[1];let refs=l.flatMap(oriented=>{const e=get(oriented,'ORIENTED_EDGE'),pieces=edge(e[3]).map(p=>p.ref);return truth(e[4])?pieces:reverse(pieces);});if(!truth(a[2]))refs=reverse(refs);return {refs,outer:has(b,'FACE_OUTER_BOUND')};});const area=bound=>{let sum=[0,0,0],origin=null;for(const ref of bound.refs){const cp=K.segmentPoints(data,ref.edge);if(ref.reversed)cp.reverse();origin??=cp[0];let a=cp[0];for(let i=1;i<=8;i++){const b=bezier(cp,i/8);sum=add(sum,cross(sub(a,origin),sub(b,origin)));a=b;}}return length(sum);};bounds.sort((a,b)=>+b.outer-+a.outer||(s.planar?area(b)-area(a):0));const loops=bounds.map(b=>b.refs);for(const loop of loops)for(let i=0;i<loop.length;i++){const a=data.segments[loop[i].edge],b=data.segments[loop[(i+1)%loop.length].edge];if((loop[i].reversed?a.a:a.b)!==(loop[(i+1)%loop.length].reversed?b.b:b.a))bad('disconnected face boundary #'+r.ref);}faceList.push({id:r.ref,group:faceList.length,s,loops,forward:truth(f[3])});}
-        for(const face of faceList){const {s,loops,forward}=face;if(s.planar){cells.push({loops});surfaces.push(s);surfaceFaces.push(face.group);domains.push(null);continue;}
+        for(const r of faces){const f=get(r,'ADVANCED_FACE'),s=surface(f[2]),bounds=f[1].map(b=>{const a=get(b),l=get(a[1],'EDGE_LOOP')[1];let refs=l.flatMap(oriented=>{const e=get(oriented,'ORIENTED_EDGE'),pieces=edge(e[3]).map(p=>p.ref);return truth(e[4])?pieces:reverse(pieces);});if(!truth(a[2]))refs=reverse(refs);return {refs,outer:has(b,'FACE_OUTER_BOUND')};});const area=bound=>{let sum=[0,0,0],origin=null;for(const ref of bound.refs){const cp=K.segmentPoints(data,ref.edge);if(ref.reversed)cp.reverse();origin??=cp[0];let a=cp[0];for(let i=1;i<=8;i++){const b=bezier(cp,i/8);sum=add(sum,cross(sub(a,origin),sub(b,origin)));a=b;}}return length(sum);};bounds.sort((a,b)=>+b.outer-+a.outer||(s.planar?area(b)-area(a):0));const loops=bounds.map(b=>b.refs);for(const loop of loops)for(let i=0;i<loop.length;i++){const a=data.segments[loop[i].edge],b=data.segments[loop[(i+1)%loop.length].edge];if((loop[i].reversed?a.a:a.b)!==(loop[(i+1)%loop.length].reversed?b.b:b.a))bad('disconnected face boundary #'+r.ref);}faceList.push({id:r.ref,s,loops,forward:truth(f[3])});}
+        for(const face of faceList){const {s,loops,forward}=face;if(s.planar){cells.push({loops});surfaces.push(s);domains.push(null);continue;}
           // Rectangular parameter trims are converted to a shared isocurve network.
           // Other trims reject atomically rather than filling holes or projecting a mesh.
           const samples=loops.map(loop=>loop.map(ref=>{const e=data.segments[ref.edge],P=data.vertices[ref.reversed?e.b:e.a];return s.inverse([P[0]/scale,-P[2]/scale,P[1]/scale]);}));
@@ -23899,7 +24219,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           for(const list of samples)for(let i=0;i<list.length;i++){const a=list[i],b=list[(i+1)%list.length];if(!(near(a[0],u0)&&near(b[0],u0)||near(a[0],u1)&&near(b[0],u1)||near(a[1],v0)&&near(b[1],v0)||near(a[1],v1)&&near(b[1],v1)))bad('non-rectangular trimmed '+s.type+' face #'+face.id);}
           const unique=a=>a.sort((a,b)=>a-b).filter((v,i,a)=>!i||!near(v,a[i-1])),U=unique([u0,u1,...all.filter(p=>near(p[1],v0)||near(p[1],v1)).map(p=>p[0])]),V=unique([v0,v1,...all.filter(p=>near(p[0],u0)||near(p[0],u1)).map(p=>p[1])]);
           // Keep native cell boundaries cubic and shared; check actual native patch interiors below.
-          for(let i=0;i+1<U.length;i++)for(let j=0;j+1<V.length;j++){const corners=[[U[i],V[j]],[U[i+1],V[j]],[U[i+1],V[j+1]],[U[i],V[j+1]]],refs=[],cp=[];for(let k=0;k<4;k++){const a=corners[k],b=corners[(k+1)%4],C=fit(t=>s.evaluate(...lerp(a,b,t)),0,1);cp.push(C);refs.push(segment(C,t=>s.evaluate(...lerp(a,b,t))));}if(!forward)refs.reverse().forEach(ref=>ref.reversed=!ref.reversed);cells.push({loops:[refs]});surfaces.push(s);surfaceFaces.push(face.group);domains.push([U[i],U[i+1],V[j],V[j+1]]);}
+          for(let i=0;i+1<U.length;i++)for(let j=0;j+1<V.length;j++){const corners=[[U[i],V[j]],[U[i+1],V[j]],[U[i+1],V[j+1]],[U[i],V[j+1]]],refs=[],cp=[];for(let k=0;k<4;k++){const a=corners[k],b=corners[(k+1)%4],C=fit(t=>s.evaluate(...lerp(a,b,t)),0,1);cp.push(C);refs.push(segment(C,t=>s.evaluate(...lerp(a,b,t))));}if(!forward)refs.reverse().forEach(ref=>ref.reversed=!ref.reversed);cells.push({loops:[refs]});surfaces.push(s);domains.push([U[i],U[i+1],V[j],V[j+1]]);}
         }
         // Parameter grids can add vertices to a shared B-rep edge. Split its other
         // incident face boundaries on the original curve, so caps never acquire T-junctions.
@@ -23912,8 +24232,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         // Drop source seams superseded by the isocurve network, retaining only authored cell edges.
         for(const cell of cells)for(const loop of cell.loops)for(const ref of loop)uses.set(ref.edge,(uses.get(ref.edge)||0)+1);data.segments=Object.fromEntries(Object.entries(data.segments).filter(([id])=>uses.has(id)));data.sequences=data.sequences.filter(q=>uses.has(q.segments[0]));const usedVertices=new Set(Object.values(data.segments).flatMap(e=>[e.a,e.b]));data.vertices=Object.fromEntries(Object.entries(data.vertices).filter(([id])=>usedVertices.has(id)));if(cells.length>100000||Object.keys(data.segments).length>200000)bad('patch limit');
         function triangleDistance(P,a,b,c){const u=sub(b,a),v=sub(c,a),w=sub(P,a),uu=dot(u,u),vv=dot(v,v),uv=dot(u,v),wu=dot(w,u),wv=dot(w,v),den=uu*vv-uv*uv;if(den>1e-30){const x=(wu*vv-wv*uv)/den,y=(wv*uu-wu*uv)/den;if(x>=0&&y>=0&&x+y<=1){const n=cross(u,v);return Math.abs(dot(w,n))/length(n);}}const edge=(a,b)=>{const d=sub(b,a),t=Math.max(0,Math.min(1,dot(sub(P,a),d)/(dot(d,d)||1)));return dist(P,add(a,mul(d,t)));};return Math.min(edge(a,b),edge(b,c),edge(c,a));}
-        const positions=[],indices=[],groups=[],canonical=new Map();for(let i=0;i<cells.length;i++){const cell=cells[i],surface=surfaces[i],raw=K.buildSplineSurface.cell(data,{id:i,loops:cell.loops,planar:!!surface.planar,sides:cell.loops.reduce((n,l)=>n+l.length,0)},3),boundary=new Map(raw.boundary.map(([key,id])=>[id,key])),map=[];for(let j=0;j<raw.positions.length/3;j++){const key=boundary.get(j);if(key!==undefined&&canonical.has(key)){map.push(canonical.get(key));continue;}let P=Array.from(raw.positions.subarray(j*3,j*3+3));if(!surface.planar&&!boundary.has(j)){const uv=surface.inverse([P[0]/scale,-P[2]/scale,P[1]/scale]);P=mm(surface.evaluate(...uv));}const id=positions.length/3;positions.push(...P);map.push(id);if(key!==undefined)canonical.set(key,id);}if(domains[i]){const [u0,u1,v0,v1]=domains[i],local=map.map(id=>positions.slice(id*3,id*3+3)),origin=local[0],span=Math.max(...local.map(p=>dist(p,origin))),limit=Math.max(.003,span*.001);for(const u of [.25,.5,.75])for(const v of [.25,.5,.75]){const P=mm(surface.evaluate(u0+(u1-u0)*u,v0+(v1-v0)*v));let error=Infinity;for(let j=0;j<raw.indices.length;j+=3)error=Math.min(error,triangleDistance(P,...Array.from(raw.indices.subarray(j,j+3),k=>local[k])));if(!P.every(Number.isFinite)||error>limit)bad('surface interior cannot be tessellated with a bounded error');}}for(const index of raw.indices)indices.push(map[index]);for(let j=0;j<raw.indices.length;j+=3)groups.push(surfaceFaces[i]);if(indices.length>6000000)bad('polygon tessellation limit');}
-        if(parts.length>=50000)bad('part limit');parts.push({name:a[0]||'STEP part '+(parts.length+1),closed:shells.every(r=>kind(r)==='CLOSED_SHELL'),raw:{vertices:new Float32Array(positions),indices:new Uint32Array(indices),groups:new Uint32Array(groups)}});
+        const positions=[],indices=[],canonical=new Map();for(let i=0;i<cells.length;i++){const cell=cells[i],surface=surfaces[i],raw=K.buildSplineSurface.cell(data,{id:i,loops:cell.loops,planar:!!surface.planar,sides:cell.loops.reduce((n,l)=>n+l.length,0)},3),boundary=new Map(raw.boundary.map(([key,id])=>[id,key])),map=[];for(let j=0;j<raw.positions.length/3;j++){const key=boundary.get(j);if(key!==undefined&&canonical.has(key)){map.push(canonical.get(key));continue;}let P=Array.from(raw.positions.subarray(j*3,j*3+3));if(!surface.planar&&!boundary.has(j)){const uv=surface.inverse([P[0]/scale,-P[2]/scale,P[1]/scale]);P=mm(surface.evaluate(...uv));}const id=positions.length/3;positions.push(...P);map.push(id);if(key!==undefined)canonical.set(key,id);}if(domains[i]){const [u0,u1,v0,v1]=domains[i],local=map.map(id=>positions.slice(id*3,id*3+3)),origin=local[0],span=Math.max(...local.map(p=>dist(p,origin))),limit=Math.max(.003,span*.001);for(const u of [.25,.5,.75])for(const v of [.25,.5,.75]){const P=mm(surface.evaluate(u0+(u1-u0)*u,v0+(v1-v0)*v));let error=Infinity;for(let j=0;j<raw.indices.length;j+=3)error=Math.min(error,triangleDistance(P,...Array.from(raw.indices.subarray(j,j+3),k=>local[k])));if(!P.every(Number.isFinite)||error>limit)bad('surface interior cannot be tessellated with a bounded error');}}for(const index of raw.indices)indices.push(map[index]);if(indices.length>6000000)bad('polygon tessellation limit');}
+        if(parts.length>=50000)bad('part limit');parts.push({name:a[0]||'STEP part '+(parts.length+1),raw:{vertices:new Float32Array(positions),indices:new Uint32Array(indices)}});
       }
       return {parts};
     }
@@ -25938,7 +26258,7 @@ function FramePolygonKernel(d){
       register('selection.loop','Follow a polygon edge loop using the Frame direction/length rule. Edge keys are minVertex:maxVertex.',required(obj({id:str,edge:str}),'id','edge'),false,a=>polygonLoop(resolve(a.id),a.edge));
       register('selection.soft','Enable surface-distance cosine falloff for vertex transforms. Radius is in world millimetres.',required(obj({enabled:bool,radius:{...num,exclusiveMinimum:0}}),'enabled'),false,a=>{if(a.radius!==undefined&&!(a.radius>0))fail('INVALID_ARGUMENT','Radius must be positive');polygonTools.soft=a.enabled;if(a.radius!==undefined)polygonTools.radius=a.radius;renderAttributes();return {enabled:polygonTools.soft,radius:polygonTools.radius};});
       register('geometry.bevel' ,'Bevel selected authored spline vertices/edges using the original Float64 profile kernel. Polygon mesh Bevel is unavailable.',required(obj({id:str,size:num,edges:array(str,200000),vertices:array(str,200000),round:bool}),'id','size'),false,async a=>{if(a.edges&&a.vertices)fail('INVALID_ARGUMENT','Choose either vertices or edges');const n=resolve(a.id);if(!(FrameSpline.sourceNode(n)||n)?.splineData)fail('UNSUPPORTED','Bevel requires an editable spline cage');const result=await FrameGeometry.bevel(n,a.size,a.edges,a.round,null,a.vertices);await settle();return {...result,object:describe(resolve(result.id))};});
-      register('mesh.toSplinePatch','Recognize imported polygon surfaces and create an editable source cage. Exact imported mesh remains available to Undo.',required(obj({id:str}),'id'),false,async a=>{const n=await FrameGeometry.toPatch(resolve(a.id));await settle();return describe(n);});
+      register('mesh.toSplinePatch','Recognize polygon surfaces as editable spline cages. A partial result groups the recognized patch and the remaining polygon mesh.',required(obj({id:str}),'id'),false,async a=>{const n=await FrameGeometry.toPatch(resolve(a.id));await settle();return n.type==='group'?{...describe(n),children:describeMany(children(n.id))}:describe(n);});
       register('render.start','Path trace the perspective on the shared WebGPU device using the enabled Camera settings.',obj({}),false,async()=>{if(!cameraConfig())fail('INVALID_ARGUMENT','Create an enabled Camera first');return renderStart();});
       register('render.export','Render the current frame as AVIF/WebP or the inclusive animation range as HEVC/AV1/H.264 MP4 at Camera output resolution.',required(obj({kind:choice('image','video'),start:integer,end:integer,download:bool}),'kind'),false,async a=>{if(!cameraConfig()||a.start!==undefined&&a.start>timelineTotal||a.end!==undefined&&a.end>timelineTotal||a.end!==undefined&&a.end<(a.start??0))fail('INVALID_ARGUMENT','Invalid Camera or render range');return renderExport(a.kind,a);});
       register('render.stop','Stop the path tracer and hide its preview.',obj({}),false,()=>renderStop());
@@ -25948,7 +26268,7 @@ function FramePolygonKernel(d){
       register('render.inspect','Read path tracer progress, errors and performance without a geometry readback.',obj({}),true,()=>renderState());
       register('scene.group','Group selected roots at the first browser row, preserving hierarchy and world transforms.',required(obj({ids:array(str,100000)}),'ids'),false,async a=>{const ns=refs(a.ids);if(!ns.length)fail('INVALID_ARGUMENT','Choose objects');const n=groupObjects(ns.map(n=>n.id));await settle();return describe(n);});
       register('scene.connect','Convert one stage and connect compatible selected object families.',required(obj({ids:array(str,100000)}),'ids'),false,async a=>{const ns=refs(a.ids);if(!ns.length||ns.some(n=>!FrameSpline.supported.has(n.type)&&!['mesh','group','instance','cloner','symmetry','car','tree','human'].includes(n.type)))fail('UNSUPPORTED','Choose convertible geometry');await choose(ns);const out=await connectObjects(ns);await settle();return {objects:describeMany(out)};});
-      register('scene.convert','One To Editable step: Unite -> evaluated polygon mesh; parametric solid -> spline patch -> polygon mesh; parametric curve -> editable spline; Instance -> independent authored hierarchy; Group, Cloner or Symmetry -> named group of editable evaluated objects.',required(obj({id:str}),'id'),false,async a=>{const n=resolve(a.id);if(n.type==='instance'){await choose([n]);const local=await unpackInstance(n);await settle();return {...describe(local),children:describeMany(children(local.id))};}if(['group','cloner','symmetry'].includes(n.type)){await choose([n]);await bakeCloner(n);await settle();return {...describe(n),children:describeMany(children(n.id))};}if(n.type==='mesh'){await choose([n]);const result=await FrameGeometry.toPatch(n);await settle();return describe(result);}if(!FrameSpline.supported.has(n.type)&&!['car','tree','human'].includes(n.type))fail('UNSUPPORTED','Object cannot be converted');await choose([n]);await FrameSpline.toEditable(n);await settle();await choose([n]);return describe(n);});
+      register('scene.convert','One To Editable step: Unite -> evaluated polygon mesh; parametric solid -> spline patch -> polygon mesh; parametric curve -> editable spline; Instance -> independent authored hierarchy; Group, Cloner or Symmetry -> named group of editable evaluated objects.',required(obj({id:str}),'id'),false,async a=>{const n=resolve(a.id);if(n.type==='instance'){await choose([n]);const local=await unpackInstance(n);await settle();return {...describe(local),children:describeMany(children(local.id))};}if(['group','cloner','symmetry'].includes(n.type)){await choose([n]);await bakeCloner(n);await settle();return {...describe(n),children:describeMany(children(n.id))};}if(n.type==='mesh'){await choose([n]);const result=await FrameGeometry.toPatch(n);await settle();return result.type==='group'?{...describe(result),children:describeMany(children(result.id))}:describe(result);}if(!FrameSpline.supported.has(n.type)&&!['car','tree','human'].includes(n.type))fail('UNSUPPORTED','Object cannot be converted');await choose([n]);await FrameSpline.toEditable(n);await settle();await choose([n]);return describe(n);});
       register('spline.inspect','Read one authored/evaluated spline cage; optional cells returns freshly resolved editable cell loops.',required(obj({id:str,cells:bool}),'id'),true,a=>{const owner=resolve(a.id),n=FrameSpline.sourceNode(owner)||owner,d=n.splineData||FrameSpline.states.get(n.id)?.data;if(!d)fail('UNSUPPORTED','Object has no spline cage');return {owner:owner.nativeHash,id:n.nativeHash,editable:FrameSpline.isEditable(n),sources:children(n.id).filter(c=>FrameSpline.supported.has(c.type)).map(c=>c.nativeHash),data:copy(d),...a.cells?{cells:copy(FrameSpline.cells(d))}:{},report:FrameSpline.states.get(owner.id)?.report||FrameSpline.states.get(n.id)?.report||null,display:(()=>{const d=splineDisplays.get(n.nativeHash);return d?{vertices:d.vertexOffsets.size,visible:splineShown(d),sourceConsumed:!!d.consumed,hover:splineHover?.hash===n.nativeHash?splineHover.key:null,visibleHandles:d.controlKeys.filter((key,i)=>/^(h:|free:)/.test(key)&&!(d.pointFlags[i]&8))}:null;})()};});
       register('spline.replace','Replace an editable spline/patch cage in one Undo transaction. Validated by the HASH codec and shared spline kernel.',required(obj({id:str,data:anyParams}),'id','data'),false,async a=>{const owner=resolve(a.id);let n=owner;if(n.type==='spline_patch'&&children(n.id).length&&!FrameSpline.sourceNode(n))fail('INVALID_ARGUMENT','Address one editable source spline');if(!['spline','spline_patch'].includes(n.type))fail('UNSUPPORTED','Convert to an editable spline/patch first');if(!a.data.vertices||!a.data.segments||!Array.isArray(a.data.sequences))fail('INVALID_ARGUMENT','Expected vertices, segments and sequences');if(Object.keys(a.data.vertices).length>100000||Object.keys(a.data.segments).length>200000)fail('LIMIT','Cage exceeds inline limits');let data;try{data=FrameSpline.decodeShape(FrameSpline.encodeShape({type:n.type,params:n.params,data:a.data})).data;const validation=FrameSpline.K().validateSpline(data);if(!validation.ok)fail('INVALID_ARGUMENT',validation.errors.join('; '));}catch(e){fail('INVALID_ARGUMENT',e.message);}commit(()=>{if(n.type==='spline_patch')n=FrameSpline.sourceNode(n,true);n.splineData=data;n.params['angle approximation']=data.approximation?.angle||10;FrameMorph.afterEdit(n);});await settle();return describe(owner);});
       register('spline.rebuild','Rebuild a surface from source with a fresh resolver; diagnostic oracle, no source or Undo changes.',required(obj({id:str}),'id'),false,async a=>{const n=resolve(a.id);if(!FrameSpline.generators.has(n.type)&&!FrameSpline.solids.has(n.type))fail('UNSUPPORTED','A generated spline surface is required');await FrameSpline.rebuild(n);return describe(n);});
@@ -26091,7 +26411,7 @@ function FramePolygonKernel(d){
       documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()});
     }
 
-    const api={get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
+    const api={get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
       pluginHistoryRecords:()=>[...metaUndo,...metaRedo].flatMap(action=>[...action.before?.objects||[],...action.after?.objects||[]].flatMap(o=>Object.values(o.authoring?.recordValues||{}))),retirePluginHistory:()=>{const stack=metaUndo.length?metaUndo:metaRedo;if(!stack.length)return false;releaseMetadataAction(stack.shift());return true;},detachInstances,pluginPivot:hash=>Array.from(objectPivot(hash)),pluginSetPivot:(hash,m)=>{putFrame(hash,'pivot',Float64Array.from(m));notifyTransformUI();draw(true);},pluginMath:FM,pluginWorld:hash=>Array.from(objectWorld(hash)),pluginLocal:hash=>Array.from(objectLocal(hash)),pluginSetLocal:(hash,m)=>{putFrame(hash,'matrix',Float64Array.from(m));syncPoseWorld();},get pluginExporting(){return renderExporting;},
       pluginComponents:(hash,bounds)=>{selectionGeneration++;selectionScope='components';objectSelection=[];selectedMeshes=[];selectedMesh=null;componentPivot=null;measurementCache=coordinateCache=null;selectionBox=bounds?transformedBox(bounds,objectWorld(hash)):null;notifyTransformUI();draw(true);},
       pluginProject:p=>worldScreen(p),pluginView:()=>({index:frameViewKind(viewIndex),instance:viewIndex,depth:renderer.depth,camera:Array.from(new Float32Array(cameraUniform(renderer.width,renderer.height))),rect:(()=>{const r=canvas.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};})()}),
