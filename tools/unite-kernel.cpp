@@ -77,6 +77,7 @@ struct Box {
         lo={std::min(lo.x,q.x),std::min(lo.y,q.y),std::min(lo.z,q.z)};
         hi={std::max(hi.x,q.x),std::max(hi.y,q.y),std::max(hi.z,q.z)};
     }
+    double span() const {return std::max({hi.x-lo.x,hi.y-lo.y,hi.z-lo.z});}
     bool contains(const Box& b) const {
         return lo.x<=b.lo.x && lo.y<=b.lo.y && lo.z<=b.lo.z && hi.x>=b.hi.x && hi.y>=b.hi.y && hi.z>=b.hi.z;
     }
@@ -160,8 +161,10 @@ struct Tree {
     }
 };
 // stats: retained, duplicates, degenerate, open edges, multi edges, orientation
-// conflicts, patches, closed patches, cavity patches, changed winding, nested comparisons.
-API int prepare(V* soup,U n,U* levels,U* stats) {
+// conflicts, patches, closed patches, cavity patches, changed winding, nested
+// comparisons, discarded sub-cell solid clusters and discarded input triangles.
+API int prepare(V* soup,U n,U* levels,U* stats,U resolution,double* cellSize) {
+        *cellSize=0;
         Vertices vt(n/2+8);std::vector<F> faces,keys;faces.reserve(n);keys.reserve(n);
         std::vector<U> seen(capacity(size_t(n)*2+1),none);
         for(U i=0;i<n;++i){
@@ -235,8 +238,26 @@ API int prepare(V* soup,U n,U* levels,U* stats) {
             if(--indegree[child]==0)queue.push_back(child);
         }
         if(queue.size()!=shells.size())return -3;
-        for(U i=0;i<shells.size();++i)shells[i].depth=depth[clusters.find(i)];
-        for(auto& s:shells){
+        std::vector<Box> bounds(shells.size()),openBounds;Box inputBounds;
+        for(U i=0;i<shells.size();++i){
+            U root=clusters.find(i);const auto& b=shells[i].box;
+            bounds[root].add(b.lo);bounds[root].add(b.hi);inputBounds.add(b.lo);inputBounds.add(b.hi);
+            if(shells[i].broken)openBounds.push_back(b);
+            shells[i].depth=depth[root];
+        }
+        *cellSize=inputBounds.span()/resolution;
+        std::vector<bool> discard(shells.size(),false);
+        for(U root:queue){
+            if(clusters.find(root)!=root)continue;
+            if(!discard[root]&&!shells[root].broken&&depth[root]%2==0&&bounds[root].span()<*cellSize){
+                // Defer uncertain open-chart contacts to the output component test.
+                bool uncertain=std::any_of(openBounds.begin(),openBounds.end(),[&](const Box& b){return b.overlaps(bounds[root]);});
+                if(!uncertain){discard[root]=true;++stats[11];}
+            }
+            if(discard[root])for(U child:children[root])discard[child]=true;
+        }
+        for(U i=0;i<shells.size();++i){auto& s=shells[i];
+            if(discard[clusters.find(i)]){for(U j:s.faces)levels[j]=none;stats[12]+=U(s.faces.size());continue;}
             bool cavity=(s.depth%2)!=0;if(cavity)++stats[8];
             // Open charts have no intrinsic solid volume. Preserve their area-majority
             // source winding after local repair. The six independent ray votes resolve gaps.
@@ -247,6 +268,14 @@ API int prepare(V* soup,U n,U* levels,U* stats) {
                 auto f=faces[j];if(flip)std::swap(f.v[1],f.v[2]);
                 for(int k=0;k<3;++k)soup[size_t(j)*3+k]=vt.points[f.v[k]];
             }
+        }
+        if(stats[12]){
+            U kept=0;
+            for(U j=0;j<count;++j)if(levels[j]!=none){
+                if(kept!=j){std::memcpy(soup+size_t(kept)*3,soup+size_t(j)*3,3*sizeof(V));levels[kept]=levels[j];}
+                ++kept;
+            }
+            stats[0]=kept;
         }
         return 0;
 }
@@ -292,6 +321,7 @@ struct Surface {
     std::vector<U> indices;
     U regular=0,ambiguous=0;
 };
+#include "unite-surface.h"
 static double fraction(double a,double b){
     return std::clamp(std::abs(a)/(std::abs(a)+std::abs(b)),1.0/96,95.0/96);
 }

@@ -2,6 +2,7 @@
 index.html text eol=lf
 tools/build-unite.mjs text eol=lf
 tools/unite-kernel.cpp text eol=lf
+tools/unite-surface.h text eol=lf
 tests/unite-generator.mjs text eol=lf
 tests/boolean-patch-feedback.mjs text eol=lf
 tests/boolean-isoparms.mjs text eol=lf
