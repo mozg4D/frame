@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 21:25">
+<meta name="frame-version" content="2026 19 nov 22:06">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -3431,9 +3431,56 @@ function createEngineeringRecognition(){
     }
     return {components,eulerCharacteristic:vertices-edges.size+faces.length};
   }
-  // Use the same fitted spans on both ends of a translated profile. The four
-  // Bernstein coefficients of (subcurve - source chord) bound the error over
-  // the entire interval in both directions, including between mesh vertices.
+  // A triangulator can insert extra vertices anywhere on an existing chord.
+  // Fit its original bends, then measure the proposed circle against every chord.
+  function rimCorners(ps,t){
+    const n=ps.length,keep=[];
+    for(let i=0;i<n;i++){
+      const a=ps[(i+n-1)%n],p=ps[i],b=ps[(i+1)%n],u=sub(p,a),v=sub(b,p),bend=length(cross(u,v));
+      if(dot(u,v)<=0||bend>Math.min(.003*length(u)*length(v),t*.002*distance(a,b)))keep.push(i);
+    }
+    if(keep.length<3||keep.length===n)return ps;
+    const out=[];
+    for(let j=0;j<keep.length;j++){
+      const a=keep[j],b=j+1<keep.length?keep[j+1]:keep[0]+n,d=sub(ps[b%n],ps[a]),l=length(d);let straight=true;
+      for(let i=a+1;i<b&&straight;i++)straight=dot(sub(ps[i%n],ps[(i-1)%n]),d)>0&&length(cross(sub(ps[i%n],ps[a]),d))<=t*.002*l;
+      out.push(ps[a]);if(!straight)for(let i=a+1;i<b;i++)out.push(ps[i%n]);
+    }
+    return out;
+  }
+  function circularContour(ps,axis,t,cosCorner,assemblyTolerance=t){
+    const corners=rimCorners(ps,t);if(corners.length<16)return null;
+    const fit=circle(corners,t*.015);if(!fit)return null;
+    const center=sub(fit.center,mul(axis,dot(sub(fit.center,ps[0]),axis))),r=fit.r,[u,v]=basis(axis);
+    let turn=0,error=0;const maxStep=Math.min(Math.acos(cosCorner),Math.PI/8)+1e-5;
+    for(let i=0;i<ps.length;i++){
+      const a=sub(ps[i],center),b=sub(ps[(i+1)%ps.length],center),d=sub(b,a),dd=dot(d,d);
+      if(!dd)return null;const angle=Math.atan2(dot(axis,cross(a,b)),dot(a,b));
+      if(Math.abs(angle)>maxStep||angle*turn<0)return null;turn+=angle;
+      const near=add(a,mul(d,Math.max(0,Math.min(1,-dot(a,d)/dd))));
+      error=Math.max(error,Math.abs(length(a)-r),Math.abs(length(near)-r));
+    }
+    error+=r*.000273;
+    if(Math.abs(Math.abs(turn)-TAU)>1e-5||error>Math.max(t,Math.min(assemblyTolerance,r*.012)))return null;
+    const radial=[u,v,mul(u,-1),mul(v,-1)],points=radial.map(d=>add(center,mul(d,r))),handle=r*4/3*Math.tan(Math.PI/8);
+    const spans=radial.map((d,a)=>({a,b:(a+1)%4,ha:mul(radial[(a+1)%4],handle),hb:mul(d,handle)}));
+    return {points,spans,center,r,error,sampleAngle:360/corners.length,tolerance:Math.min(t*.2,r*.005),freeform:true};
+  }
+  function arcSpans(path,model,offset,n,tolerance){
+    const radial=path.map(p=>unit(sub(p,model.center))),angles=[0];let sign=0,gap=0;
+    for(let i=1;i<radial.length;i++){
+      const d=Math.atan2(dot(cross(radial[i-1],radial[i]),model.n),dot(radial[i-1],radial[i]));
+      if(sign*d<0)return null;sign=Math.sign(d)||sign;gap=Math.max(gap,Math.abs(d));angles.push(angles[i-1]+d);
+    }
+    if(!sign||model.r*(1-Math.cos(gap/2)+.000273)>tolerance)return null;
+    const spans=[];
+    for(let first=0;first+1<path.length;){
+      let end=first+1;while(end+1<path.length&&Math.abs(angles[end+1]-angles[first])<=Math.PI/2+1e-6)end++;
+      const h=model.r*4/3*Math.tan((angles[end]-angles[first])/4);
+      spans.push({a:(offset+first+n)%n,b:(offset+end+n)%n,ha:mul(cross(model.n,radial[first]),h),hb:mul(cross(model.n,radial[end]),-h)});first=end;
+    }
+    return spans;
+  }
   function analyticProfile(ps,t,cosCorner,closed){
     const n=ps.length,point=i=>ps[i%n],count=closed?n:n-1,cuts=closed?[]:[0];
     const lengths=[],directions=[];
@@ -3451,32 +3498,62 @@ function createEngineeringRecognition(){
       const a=cuts[k],b=k+1<cuts.length?cuts[k+1]:cuts[0]+n,path=Array.from({length:b-a+1},(_,j)=>point(a+j));
       const dir=sub(path.at(-1),path[0]),size=length(dir),fitTol=t*.12;
       if(size&&path.every((p,j)=>length(cross(sub(p,path[0]),dir))<=size*t*.001&&(!j||dot(sub(p,path[j-1]),dir)>0))){spans.push({a:a%n,b:b%n});continue;}
-      const c=circle(path,fitTol);if(!c)return null;
-      const rad=path.map(p=>unit(sub(p,c.center))),angles=[0];let sign=0,gap=0;
-      for(let j=1;j<rad.length;j++){const d=Math.atan2(dot(cross(rad[j-1],rad[j]),c.n),dot(rad[j-1],rad[j]));if(sign*d<0)return null;sign=Math.sign(d)||sign;gap=Math.max(gap,Math.abs(d));angles.push(angles[j-1]+d);}
-      if(!sign||c.r*(1-Math.cos(gap/2)+.000273)>t*.5)return null;
-      let start=0;
-      while(start<b-a){let end=start+1;while(end+1<=b-a&&Math.abs(angles[end+1]-angles[start])<=Math.PI/2+1e-6)end++;
-        const h=c.r*4/3*Math.tan((angles[end]-angles[start])/4);
-        spans.push({a:(a+start)%n,b:(a+end)%n,ha:mul(cross(c.n,rad[start]),h),hb:mul(cross(c.n,rad[end]),-h)});start=end;
-      }
+      const model=circle(path,fitTol),arc=model&&arcSpans(path,model,a,n,t*.5);if(!arc)return null;
+      for(const s of arc)spans.push(s);
     }
     return spans;
   }
+  // Consecutive chords of a circular arc have the same circumcentre. A tangent
+  // line or a fillet of a different radius breaks the run without a sharp corner.
+  function circularRuns(ps,t,cosCorner){
+    const n=ps.length,at=i=>ps[(i+n)%n],local=ps.map((p,i)=>{
+      const a=sub(at(i-1),p),b=sub(at(i+1),p),normal=cross(a,b),nn=dot(normal,normal),aa=dot(a,a),bb=dot(b,b);
+      const bend=Math.sqrt(nn/(aa*bb));
+      if(!(bend>.015)||-dot(a,b)<cosCorner*Math.sqrt(aa*bb))return null;
+      const offset=mul(add(mul(cross(b,normal),aa),mul(cross(normal,a),bb)),.5/nn);
+      return {c:add(p,offset),r:length(offset),n:unit(normal),bend};
+    });
+    function matches(a,b){
+      if(!a||!b||dot(a.n,b.n)<.999)return false;
+      const r=Math.min(a.r,b.r),uncertainty=t*.001/Math.min(a.bend,b.bend)**2;
+      return distance(a.c,b.c)<Math.min(r*.045,Math.max(r*.003,uncertainty));
+    }
+    const start=local.findIndex((x,i)=>!matches(x,local[(i+n-1)%n]));if(start<0)return [];
+    const runs=[];
+    for(let j=start;j<start+n;){
+      const i=j++;while(j<start+n&&matches(local[(j-1)%n],local[j%n]))j++;
+      if(j-i>=3)runs.push([i-1,j]);
+    }
+    runs.sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]));
+    const used=new Uint8Array(n),spans=[];
+    for(let [a,b] of runs){
+      while(a<b&&used[(a+n)%n])a++;while(b>a&&used[(b-1+n)%n])b--;
+      if(b-a<4)continue;
+      const path=Array.from({length:b-a+1},(_,k)=>at(a+k)),model=circle(path,t*.002),arc=model&&arcSpans(path,model,a,n,t);
+      if(!arc)continue;for(const s of arc)spans.push(s);
+      for(let i=a;i<b;i++)used[(i+n)%n]=1;
+    }
+    return spans;
+  }
+  // Use the same fitted spans on both ends of a translated profile. The four
+  // Bernstein coefficients of (subcurve - source chord) bound the error over
+  // the entire interval in both directions, including between mesh vertices.
   function extrusionProfile(ps,t,cosCorner){
     const n=ps.length,at=i=>ps[(i+n)%n],directions=ps.map((p,i)=>unit(sub(at(i+1),p))),corners=[];
     const analytic=analyticProfile(ps,t,cosCorner,true);
     if(analytic?.some(s=>s.ha))return {points:ps,spans:analytic,freeform:true,tolerance:t*.2};
+    const arcs=circularRuns(ps,t,cosCorner);
     for(let i=0;i<n;i++)if(dot(directions[(i+n-1)%n],directions[i])<cosCorner)corners.push(i);
-    const isCorner=new Set(corners),breaks=corners.length?corners.slice():[0];
-    let freeform=false;
+    const isCorner=new Set(corners),breaks=Array.from(new Set([...corners,...arcs.flatMap(s=>[s.a,s.b])])).sort((a,b)=>a-b),arcAt=new Map(arcs.map(s=>[s.a,s]));
+    if(!breaks.length)breaks.push(0);
+    let freeform=arcs.length>0;
     for(let i=0;i<breaks.length;i++){
       const a=breaks[i],b=i+1<breaks.length?breaks[i+1]:breaks[0]+n;
       if(b-a<4)continue;
       const run=Array.from({length:Math.min(b-a+1,n)},(_,j)=>at(a+j)),d=sub(run.at(-1),run[0]),len=length(d);
       if((!len||run.some(p=>length(cross(sub(p,run[0]),d))>len*t*.015))&&!circle(run,t*.015)){freeform=true;break;}
     }
-    while(breaks.length<4&&breaks.length<n){
+    while(!arcs.length&&breaks.length<4&&breaks.length<n){
       let longest=0,mid=0;
       for(let i=0;i<breaks.length;i++){const a=breaks[i],b=i+1<breaks.length?breaks[i+1]:breaks[0]+n;if(b-a>longest){longest=b-a;mid=Math.floor((a+b)/2)%n;}}
       breaks.push(mid);breaks.sort((a,b)=>a-b);
@@ -3485,6 +3562,7 @@ function createEngineeringRecognition(){
     const tolerance=Math.min(t*.2,arcLength[n]*.0004),spans=[];
     const tangent=(i,first)=>isCorner.has(i%n)?directions[(first?i:i+n-1)%n]:unit(add(directions[(i+n-1)%n],directions[i%n]));
     function fit(a,b){
+      const arc=arcAt.get(a%n);if(arc&&arc.b===b%n){spans.push(arc);return;}
       const p=at(a),q=at(b),total=arcLength[b]-arcLength[a],param=i=>(arcLength[i]-arcLength[a])/total;
       let linear=true;
       for(let i=a+1;i<b&&linear;i++)linear=distance(at(i),lerp(p,q,param(i)))<=tolerance;
@@ -3545,18 +3623,8 @@ function createEngineeringRecognition(){
       }
       // A common cap plane matters even for two nominally coaxial cylinders.
       // Independently fitted normals can turn a through hole into two disks.
-      function circularProfile({ps,first}){
-        const c=circle(ps,precision);if(!c)return null;
-        const center=sub(c.center,mul(axis,dot(sub(c.center,origin),axis)-lo));
-        const angles=ps.map(p=>{const d=sub(p,center);return Math.atan2(dot(d,v),dot(d,u));});let sweep=0,gap=0;
-        for(let i=0;i<angles.length;i++){const a=angles[(i+1)%angles.length]-angles[i],step=Math.atan2(Math.sin(a),Math.cos(a));if(sweep*step<0)return null;sweep+=step;gap=Math.max(gap,Math.abs(step));}
-        const error=precision+c.r*(1-Math.cos(gap/2)+.000273);
-        if(Math.abs(Math.abs(sweep)-TAU)>1e-6||gap>(options.featureAngle||28)*Math.PI/180||error>t*.5)return null;
-        const radial=[u,v,mul(u,-1),mul(v,-1)],points=radial.map(d=>add(center,mul(d,c.r))),handle=c.r*4/3*Math.tan(Math.PI/8);
-        const spans=radial.map((d,a)=>({a,b:(a+1)%4,ha:mul(radial[(a+1)%4],handle),hb:mul(d,handle)}));
-        return {first,points,spans,center,r:c.r,error,tolerance:Math.min(t*.2,c.r*.005)};
-      }
-      let profiles=contours.map(circularProfile);const circular=profiles.every(Boolean);
+      const cosCorner=Math.cos((options.featureAngle||28)*Math.PI/180);
+      let profiles=contours.map(({ps})=>circularContour(ps,axis,t,cosCorner,options.assemblyTolerance));const circular=profiles.every(Boolean);
       if(circular){
         const intervals=profiles.map(p=>{const x=dot(sub(p.center,origin),u);return {p,lo:x-p.r-p.error,hi:x+p.r+p.error};}).sort((a,b)=>a.lo-b.lo);
         for(let i=0;i<intervals.length;i++)for(let j=i+1;j<intervals.length&&intervals[j].lo<=intervals[i].hi;j++){
@@ -3564,9 +3632,10 @@ function createEngineeringRecognition(){
           if(Math.max(d-a.r-b.r,Math.abs(a.r-b.r)-d)<=a.error+b.error)return null;
         }
       }else{
-        profiles=contours.map(({ps,first})=>({...extrusionProfile(ps,t,Math.cos((options.featureAngle||28)*Math.PI/180)),first}));
+        profiles=profiles.map((p,i)=>p||extrusionProfile(rimCorners(contours[i].ps,t),t,cosCorner));
         if(!profiles.some(p=>p.freeform)||!separateProfiles(profiles,origin,u,v))return null;
       }
+      profiles.forEach((p,i)=>p.first=contours[i].first);
       const bins=new Map(),bin=(p,d)=>Math.floor(dot(sub(p,origin),d)/precision);
       for(const [id,p] of columns){const key=bin(p,u)+':'+bin(p,v);if(!bins.has(key))bins.set(key,[]);bins.get(key).push(id);}
       const column=new Int32Array(points.length).fill(-1);for(const id of columns.keys())column[id]=id;
@@ -3685,8 +3754,9 @@ function createEngineeringRecognition(){
   function layeredSolid(T,t,options){
     const {points,faces,edges}=T,axes=[],precision=t*.002,cellBudget=2048,cosCorner=Math.cos((options.featureAngle||28)*Math.PI/180);
     const ranked=new Map();
-    for(const f of faces){const n=canonical(f.normal),key=n.map(x=>Math.round(x*1000)).join(','),entry=ranked.get(key);if(entry)entry.area+=f.area;else ranked.set(key,{axis:n,area:f.area});}
-    for(const {axis} of Array.from(ranked.values()).sort((a,b)=>b.area-a.area)){if(axes.every(n=>Math.abs(dot(n,axis))<.9999))axes.push(axis);if(axes.length===3)break;}
+    for(const f of faces){const n=canonical(f.normal),key=n.map(x=>Math.round(x*1000)).join(','),entry=ranked.get(key),weighted=mul(n,f.area);
+      if(entry){entry.sum=add(entry.sum,weighted);entry.area+=f.area;}else ranked.set(key,{sum:weighted,area:f.area});}
+    for(const {sum} of Array.from(ranked.values()).sort((a,b)=>b.area-a.area)){const axis=cleanAxis(sum,1,1e-6);if(axes.every(n=>Math.abs(dot(n,axis))<.9999))axes.push(axis);if(axes.length===3)break;}
     function tryAxis(axis){
       const origin=points[faces[0].vs[0]],[u,v]=basis(axis),height=points.map(p=>dot(sub(p,origin),axis)),regions=[],owner=new Int32Array(faces.length).fill(-1);
       const cap=faces.map(f=>Math.abs(dot(f.normal,axis))>1-1e-7&&Math.max(...f.vs.map(i=>height[i]))-Math.min(...f.vs.map(i=>height[i]))<precision);
@@ -3763,18 +3833,27 @@ function createEngineeringRecognition(){
           if(ids.some(i=>height[i]<h0-precision||height[i]>h1+precision||!near(flatten(points[i],height[i]))))return false;
           let area=0;for(const i of wall.ids){const f=faces[i];area+=f.area;const q=f.vs.map(k=>flatten(points[k],height[k]));if(!near(mean(q))||q.some((p,j)=>!near(lerp(p,q[(j+1)%3],.5))))return false;}
           if(Math.abs(area-perimeter*depth)>Math.max(tolerance*depth,area*.003))return false;
-          const profile=extrusionProfile(ps,t,cosCorner);
+          const profile=circularContour(ps,axis,t,cosCorner,options.assemblyTolerance)||extrusionProfile(rimCorners(ps,t),t,cosCorner);
           if(!separateProfiles([profile],origin,u,v))return false;
-          const a=ring(ps,profile.spans),b=ring(ps.map(p=>add(p,mul(axis,depth))),profile.spans);bridge(a,b,()=>[]);
+          const a=ring(profile.points,profile.spans),b=ring(profile.points.map(p=>add(p,mul(axis,depth))),profile.spans);bridge(a,b,()=>[]);
           low.cap.loops.push(a.edges);high.cap.loops.push(b.edges);translated++;return true;
         }
         function revolvedWall(){
-          const c=circle(low.ps,t*.03);if(!c)return false;
+          const lowFit=circularContour(low.ps,axis,t,cosCorner,options.assemblyTolerance),highFit=circularContour(high.ps,axis,t,cosCorner,options.assemblyTolerance);
+          const c=lowFit||highFit;if(!c)return false;
           const center=flatten(c.center,dot(sub(c.center,origin),axis)),polar=p=>{const d=sub(p,center),x=dot(d,u),y=dot(d,v);return {r:Math.hypot(x,y),a:Math.atan2(y,x)};};
+          if(lowFit&&highFit&&distance(flatten(highFit.center,h1),center)>t*.035)return false;
           const samples=ids.map(i=>({id:i,h:height[i],...polar(points[i])})).sort((a,b)=>a.h-b.h);
           function buildRings(profile,spans){
             const radial=[u,v,mul(u,-1),mul(v,-1)],rings=new Map(),handle=4/3*Math.tan(Math.PI/8);
-            function level(j){if(!rings.has(j)){const [r,h]=profile[j],o=add(center,mul(axis,h-h0)),ps=radial.map(d=>add(o,mul(d,r))),arcs=radial.map((d,i)=>({a:i,b:(i+1)%4,ha:mul(radial[(i+1)%4],handle*r),hb:mul(d,handle*r)}));rings.set(j,ring(ps,arcs));}return rings.get(j);}
+            // On a coarse circular bore, matching its angular sampling also
+            // preserves the volume of thin stock around the editable curve.
+            const sampleAngle=!options.angle&&lowFit&&highFit&&spans.every(s=>!s.ha)?Math.min(8,Math.floor(Math.min(lowFit.sampleAngle,highFit.sampleAngle))):0;
+            function level(j){
+              if(!rings.has(j)){const [r,h]=profile[j],o=add(center,mul(axis,h-h0)),ps=radial.map(d=>add(o,mul(d,r))),arcs=radial.map((d,i)=>({a:i,b:(i+1)%4,ha:mul(radial[(i+1)%4],handle*r),hb:mul(d,handle*r)}));
+                const row=ring(ps,arcs);if(sampleAngle>data.approximation.angle)for(const id of row.edges)data.segments[id].approximation={angle:sampleAngle};rings.set(j,row);}
+              return rings.get(j);
+            }
             for(const s of spans){const a=level(s.a),b=level(s.b);bridge(a,b,i=>s.ha?[s.ha,s.hb].map(d=>add(mul(radial[i],d[0]),mul(axis,d[1]))):[]);}
             low.cap.loops.push(level(0).edges);high.cap.loops.push(level(profile.length-1).edges);revolved++;return true;
           }
@@ -3782,8 +3861,16 @@ function createEngineeringRecognition(){
             const levels=[],where=new Map();
             for(const p of samples){let l=levels.at(-1);if(!l||p.h-l.first>precision){l={first:p.h,h:0,r:0,samples:[]};levels.push(l);}l.h+=p.h;l.r+=p.r;l.samples.push(p);where.set(p.id,levels.length-1);}
             if(levels.length<2)return false;
-            for(const l of levels){l.h/=l.samples.length;l.r/=l.samples.length;if(l.samples.length<8||l.r<=precision||l.samples.some(p=>Math.abs(p.r-l.r)>t*.04))return false;
-              const range=angularRange(l.samples.map(p=>p.a));if(range.gap>Math.acos(cosCorner)+1e-6||l.r*(1-Math.cos(range.gap/2))>t*.45)return false;}
+            for(const l of levels){
+              l.h/=l.samples.length;l.r/=l.samples.length;if(l.samples.length<8||l.r<=precision)return false;
+              const gap=angularRange(l.samples.map(p=>p.a)).gap;
+              if(gap>Math.acos(cosCorner)+1e-6||l.r*(1-Math.cos(gap/2))>Math.max(t,Math.min(options.assemblyTolerance||t,l.r*.012)))return false;
+              if(l.samples.some(p=>Math.abs(p.r-l.r)>t*.04)){
+                const ordered=l.samples.slice().sort((a,b)=>a.a-b.a).map(s=>add(points[s.id],mul(axis,l.h-s.h)));
+                const fit=circularContour(ordered,axis,t,cosCorner,options.assemblyTolerance);
+                if(!fit||distance(flatten(fit.center,l.h),center)>t*.035)return false;l.r=fit.r;
+              }
+            }
             levels[0].h=h0;levels.at(-1).h=h1;
             const strips=Array.from({length:levels.length-1},()=>[0,0]);let winding=0;
             for(const i of wall.ids){const f=faces[i],levelsAt=f.vs.map(k=>where.get(k)),min=Math.min(...levelsAt),max=Math.max(...levelsAt);if(max!==min+1)return false;
@@ -3805,7 +3892,7 @@ function createEngineeringRecognition(){
               for(let i=0;i<ring.length;i++){const da=roundTrip(ring[(i+1)%ring.length].a-ring[i].a);if(da*turn<0||Math.abs(ring[i].r-radius)>tolerance)return false;turn+=da;}
               if(Math.abs(Math.abs(turn)-TAU)>1e-5)return false;
             }
-            const profile=[[c.r,h0,0]],last=[polar(high.ps[0]).r,h1,0];
+            const profile=[[lowFit?.r??polar(low.ps[0]).r,h0,0]],last=[highFit?.r??polar(high.ps[0]).r,h1,0];
             function split(lo,hi,a,b,depth){
               if(b[1]-a[1]<precision||depth>5||profile.length>12)return false;
               const slope=(b[0]-a[0])/(b[1]-a[1]);let worst=tolerance,at=-1;
@@ -3829,7 +3916,82 @@ function createEngineeringRecognition(){
             if(Math.abs(Math.abs(positive-negative)-domain)>domain*1e-6||Math.min(positive,negative)>domain*1e-6)return false;
             return buildRings(profile,profile.slice(1).map((_,i)=>({a:i,b:i+1})));
           }
-          return regularRings()||linearMeridian();
+          // Creased latitude rings delimit pieces of a lathe profile even when
+          // a triangulator has placed its other vertices at irregular heights.
+          function sectionMeridian(){
+            const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a)),byId=new Map(samples.map(p=>[p.id,p]));
+            const median=a=>a.sort((x,y)=>x-y)[a.length>>1],band=Math.min(depth*.01,t*.4);
+            const budget=Math.min(c.r*.018,Math.max(t*.65,Math.min((options.assemblyTolerance||t)*.27,t*1.6))),fitTol=Math.min(t*.55,budget/3);
+            function endRadius(end,fit){
+              if(fit)return fit.r;const ps=end.ps.map(polar),r=median(ps.map(p=>p.r));let total=0;
+              if(ps.length<16||ps.some(p=>Math.abs(p.r-r)>fitTol))return 0;
+              for(let i=0;i<ps.length;i++){const d=wrap(ps[(i+1)%ps.length].a-ps[i].a);
+                if(total*d<0||Math.abs(d)>Math.PI/8||r*(1-Math.cos(d/2))>budget)return 0;total+=d;}
+              return Math.abs(Math.abs(total)-TAU)<1e-5?r:0;
+            }
+            const bottom=endRadius(low,lowFit),top=endRadius(high,highFit);if(!bottom||!top)return false;
+            const creases=[],seen=new Set();
+            for(const i of wall.ids)for(const edge of faceEdges[i]){
+              if(seen.has(edge))continue;seen.add(edge);
+              const [left,right]=edge.faces;if(owner[left]!==owner[right]||dot(faces[left].normal,faces[right].normal)>=cosCorner)continue;
+              const a=byId.get(edge.a),b=byId.get(edge.b),h=(a.h+b.h)/2;
+              if(Math.abs(a.h-b.h)<=band&&h>h0+band&&h<h1-band)creases.push({h,r:(a.r+b.r)/2,a:a.a,span:Math.abs(wrap(a.a-b.a))});
+            }
+            creases.sort((a,b)=>a.h-b.h);
+            const knots=[[bottom,h0,0]];
+            for(let i=0;i<creases.length;){
+              const first=i++;while(i<creases.length&&creases[i].h-creases[first].h<=band)i++;
+              const row=creases.slice(first,i);
+              if(row.reduce((s,p)=>s+p.span,0)>.45*TAU&&angularRange(row.map(p=>p.a)).size>Math.PI)
+                knots.push([median(row.map(p=>p.r)),median(row.map(p=>p.h)),0]);
+            }
+            knots.push([top,h1,0]);if(knots.length>16)return false;
+            const profile=[knots[0]],spans=[],pieces=[];
+            for(let k=1;k<knots.length;k++){
+              const a=knots[k-1],b=knots[k],dr=b[0]-a[0],dh=b[1]-a[1],row=samples.filter(p=>p.h>a[1]+band&&p.h<b[1]-band);
+              if(dh<=band)return false;
+              let radius=h=>a[0]+dr*(h-a[1])/dh;
+              if(row.every(p=>Math.abs(p.r-radius(p.h))<=fitTol)){spans.push({a:profile.length-1,b:profile.length});profile.push(b);}
+              else{
+                // The centre of a circle through the two ends lies on their
+                // perpendicular bisector. The remaining samples determine its offset.
+                const len=Math.hypot(dr,dh),nr=dh/len,nh=-dr/len,mr=(a[0]+b[0])/2,mh=(a[1]+b[1])/2;
+                let sum=0,weight=0;for(const p of row){const x=p.r-mr,y=p.h-mh,z=x*nr+y*nh;sum+=z*(x*x+y*y-len*len/4);weight+=2*z*z;}
+                if(!weight)return false;
+                const offset=sum/weight,cr=mr+nr*offset,ch=mh+nh*offset,R=Math.hypot(len/2,offset),side=Math.sign(a[0]-cr);
+                if(!side||Math.sign(b[0]-cr)!==side)return false;
+                radius=h=>cr+side*Math.sqrt(Math.max(0,R*R-(h-ch)**2));
+                if(row.length<3||row.some(p=>Math.abs(p.r-radius(p.h))>fitTol))return false;
+                const start=Math.atan2(a[1]-ch,a[0]-cr),sweep=wrap(Math.atan2(b[1]-ch,b[0]-cr)-start);
+                if(!sweep||Math.sign(sweep)!==side)return false;
+                const n=Math.ceil(Math.abs(sweep)/(Math.PI/2)),step=sweep/n,handle=R*4/3*Math.tan(step/4);
+                for(let j=0;j<n;j++){
+                  const x=start+j*step,y=x+step,at=profile.length;
+                  spans.push({a:at-1,b:at,ha:[-Math.sin(x)*handle,Math.cos(x)*handle],hb:[Math.sin(y)*handle,-Math.cos(y)*handle]});
+                  profile.push(j+1===n?b:[cr+R*Math.cos(y),ch+R*Math.sin(y),0]);
+                }
+              }
+              pieces.push({hi:b[1],radius});
+            }
+            const check=(r,h)=>Math.abs(r-(pieces.find(s=>h<=s.hi)||pieces.at(-1)).radius(h))<=budget;
+            if(samples.some(p=>p.h<h0-precision||p.h>h1+precision||!check(p.r,p.h)))return false;
+            let area=0,fold=0;
+            for(const i of wall.ids){
+              const vs=faces[i].vs,ps=vs.map(k=>byId.get(k)),[a,b,c]=ps,db=wrap(b.a-a.a),dc=wrap(c.a-a.a);
+              const signed=(db*(c.h-a.h)-dc*(b.h-a.h))*.5;area+=signed;fold+=Math.abs(signed);
+              if(!check(polar(mean(vs.map(k=>points[k]))).r,(a.h+b.h+c.h)/3))return false;
+              for(let j=0;j<3;j++){
+                const p=ps[j],q=ps[(j+1)%3],da=Math.abs(wrap(p.a-q.a));
+                if(da>Math.acos(cosCorner)||Math.max(p.r,q.r)*(1-Math.cos(da/2))>budget)return false;
+                const at=s=>polar(lerp(points[p.id],points[q.id],s)).r;
+                if(!check(at(.5),(p.h+q.h)/2))return false;
+                for(let k=1;k+1<knots.length;k++){const h=knots[k][1];if((p.h-h)*(q.h-h)<0&&!check(at((h-p.h)/(q.h-p.h)),h))return false;}
+              }
+            }
+            const domain=TAU*depth;if(Math.abs(Math.abs(area)-domain)>domain*1e-6||fold-Math.abs(area)>domain*.0001)return false;
+            return buildRings(profile,spans);
+          }
+          return regularRings()||linearMeridian()||sectionMeridian();
         }
         if(!revolvedWall()&&!translatedWall()&&!planarWall())return null;
       }
@@ -3846,27 +4008,40 @@ function createEngineeringRecognition(){
     for(const axis of axes){const result=tryAxis(axis);if(result)return result;}return null;
   }
   function recognizeParts(T,positions,indices,options){
-    const {faces,edges,points}=T,seen=new Uint8Array(faces.length),singular=new Map(),visitedEdges=new Set(),bodies=[];
-    // Faces that meet at a non-manifold edge belong to the same unresolved piece.
-    for(const e of edges.values())if(e.faces.length>2)for(const f of e.faces){
-      if(!singular.has(f))singular.set(f,[]);singular.get(f).push(e);
+    const {faces,edges,points}=T,sheet=new Int32Array(faces.length).fill(-1),sheets=[],bodies=[];
+    for(let seed=0;seed<faces.length;seed++)if(sheet[seed]<0){
+      const id=sheets.length,q=[seed];sheet[seed]=id;sheets.push(q);
+      for(let j=0;j<q.length;j++)for(const k of faces[q[j]].neighbors)if(sheet[k]<0){sheet[k]=id;q.push(k);}
     }
-    for(let seed=0;seed<faces.length;seed++)if(!seen[seed]){
-      const queue=[seed];seen[seed]=1;
-      const visit=i=>{if(!seen[i]){seen[i]=1;queue.push(i);}};
-      let invalid=false;
-      for(let j=0;j<queue.length;j++){
-        const i=queue[j];for(const k of faces[i].neighbors)visit(k);
-        for(const e of singular.get(i)||[]){invalid=true;if(!visitedEdges.has(e)){visitedEdges.add(e);for(const k of e.faces)visit(k);}}
-      }
-      if(queue.length===faces.length)return null;
-      if(bodies.length>=2048)return {data:null,report:{reason:'Too many separate mesh components',unrecognizedTriangles:faces.length}};
-      const lo=[Infinity,Infinity,Infinity],hi=lo.map(()=>-Infinity),o=points[faces[seed].vs[0]];let volume=0;
+    if(sheets.length===1)return null;
+    const parent=sheets.map((_,i)=>i),root=i=>{while(i!==parent[i]){parent[i]=parent[parent[i]];i=parent[i];}return i;};
+    function join(ids){const a=root(ids[0]);for(let i=1;i<ids.length;i++)parent[root(ids[i])]=a;}
+    // A welded edge can be shared by several otherwise closed shells. Pair only
+    // incidences whose continuation is already determined by the rest of a sheet.
+    const contacts=[];
+    function incidence(edge){
+      const uses=new Map();for(const i of edge.faces){const id=root(sheet[i]),vs=faces[i].vs,sign=vs[(vs.indexOf(edge.a)+1)%3]===edge.b?1:-1;
+        const entry=uses.get(id)||{count:0,winding:0};entry.count++;entry.winding+=sign;uses.set(id,entry);}
+      return uses;
+    }
+    if(T.bad.nonManifold){
+      for(const edge of edges.values())if(edge.faces.length>2)contacts.push(edge);
+      for(const edge of contacts){const uses=incidence(edge),loose=[...uses].filter(([,v])=>v.count!==2||v.winding!==0).map(([id])=>id);
+        if(edge.faces.length%2)join([...uses.keys()]);else if(loose.length>1)join(loose);}
+      // A source triangle split while repairing a T-junction remains indivisible.
+      const sourceOwner=new Map();for(let i=0;i<faces.length;i++){const f=faces[i].source,prior=sourceOwner.get(f);if(prior===undefined)sourceOwner.set(f,sheet[i]);else join([prior,sheet[i]]);}
+    }
+    const invalidRoots=new Set();for(const edge of contacts)for(const [id,v] of incidence(edge))if(v.count!==2||v.winding!==0)invalidRoots.add(id);
+    const queues=new Map();for(let i=0;i<sheets.length;i++){const id=root(i),q=queues.get(id);if(q){for(const face of sheets[i])q.push(face);}else queues.set(id,sheets[i]);}
+    if(queues.size===1)return null;
+    if(queues.size>2048)return {data:null,report:{reason:'Too many separate mesh components',unrecognizedTriangles:faces.length}};
+    for(const [id,queue] of queues){
+      const lo=[Infinity,Infinity,Infinity],hi=lo.map(()=>-Infinity),o=points[faces[queue[0]].vs[0]];let volume=0;
       for(const i of queue){
         const ps=faces[i].vs.map(k=>points[k]);volume+=dot(sub(ps[0],o),cross(sub(ps[1],o),sub(ps[2],o)));
         for(const p of ps)for(let k=0;k<3;k++){lo[k]=Math.min(lo[k],p[k]);hi[k]=Math.max(hi[k],p[k]);}
       }
-      bodies.push({queue,lo,hi,volume,invalid});
+      bodies.push({queue,lo,hi,volume,invalid:invalidRoots.has(id)});
     }
     // Publishing nested shells of opposite winding independently would fill a cavity.
     for(const a of bodies)for(const b of bodies)if(a.volume*b.volume<0&&a.lo.every((v,k)=>v<=b.lo[k]&&a.hi[k]>=b.hi[k]))a.invalid=b.invalid=true;
@@ -3892,7 +4067,7 @@ function createEngineeringRecognition(){
     if(!positions?.length)throw Error('Empty mesh');const started=performance.now(),lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity];for(let i=0;i<positions.length;i++) {lo[i%3]=Math.min(lo[i%3],positions[i]);hi[i%3]=Math.max(hi[i%3],positions[i]);}
     const scale=distance(lo,hi),t=Number.isFinite(options.tolerance)&&options.tolerance>0?options.tolerance:Math.max(scale*.003,1e-7),T=topology(positions,indices,t,!options.groups),{points,faces,edges}=T;
     if(!faces.length)throw Error('Mesh contains no usable triangles');
-    if(options.splitParts!==false){const result=recognizeParts(T,positions,indices,options);if(result){result.report.milliseconds=performance.now()-started;return result;}}
+    if(options.splitParts!==false){const result=recognizeParts(T,positions,indices,{...options,assemblyTolerance:t});if(result){result.report.milliseconds=performance.now()-started;return result;}}
     if(T.bad.nonManifold)return {data:null,report:{...T.bad,tolerance:t,inputTriangles:faces.length,unrecognizedTriangles:faces.length,milliseconds:performance.now()-started,reason:'Mesh has '+T.bad.nonManifold+' non-manifold edges shared by more than two faces'}};
     const regions=[],smooth=[],cos=Math.cos((options.featureAngle||28)*Math.PI/180);
     if(options.groups){if(options.groups.length!==indices.length/3)throw Error('Invalid recognition face groups');const grouped=new Map();for(let i=0;i<faces.length;i++){const group=options.groups[faces[i].source];if(!Number.isInteger(group)||group<0)throw Error('Invalid recognition face group');if(!grouped.has(group))grouped.set(group,[]);grouped.get(group).push(i);}for(const group of grouped.values())smooth.push(group);}
@@ -16704,7 +16879,12 @@ window.FrameSpline=(()=>{
         let dependencies=[];if(generators.has(n.type)){try{for(const row of sourceLinks(n)){const d=await evaluate(row.node);requireEvaluationScene(engine,evaluationSpace);dependencies.push(row);if(d&&Object.keys(d.segments||{}).length&&(n.type!=='sweep'||inputs.length<2)){const source=row.node.nativeHash,frame=engine.splineOccurrenceFrame(source,n.nativeHash,row.instances);
               inputs.push(d);inputSources.push(row);inputFrames.push([source,row.instances.map(c=>c.nativeHash),frame]);
               inputPivots.push(engine.splineOccurrencePivot(source,n.nativeHash,row.instances,frame));}}}catch(error){requireEvaluationScene(engine,evaluationSpace);if(error.name==='AbortError')throw error;publicationChanged=true;engine.removeSpline(n.nativeHash);states.delete(n.id);n.splineError=error.message;engine.setSplineError(n.nativeHash,error.message);return null;}}
-        if(n.type==='spline'&&n.splineData){delete n.splineData.sourceCells;n.splineData.version=2;const angle=Math.max(1,+n.params['angle approximation']||10);n.splineData.approximation={angle};for(const edge of Object.values(n.splineData.segments))edge.approximation={angle};}const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const inputVersions=!editingNow||old?.signature!=null?inputSources.map((row,i)=>inputVersion(row,inputs[i])):null;
+        if(n.type==='spline'&&n.splineData){
+          const data=n.splineData,angle=Math.max(1,+n.params['angle approximation']||10),changed=data.approximation?.angle!==angle;
+          delete data.sourceCells;data.version=2;data.approximation={angle};
+          for(const edge of Object.values(data.segments))if(changed||!edge.approximation)edge.approximation={angle};
+        }
+        const editingNow=isEditing(),version=liveVersions.get(n)||0,old=states.get(n.id);if(editingNow&&old?.liveVersion===version&&!dependencies.some(row=>row.instances.length))return old.data;const inputVersions=!editingNow||old?.signature!=null?inputSources.map((row,i)=>inputVersion(row,inputs[i])):null;
         const staticSignature=inputVersions?frameValueKey([n.enabled,evaluationShape(n),inputVersions,inputPivots,inputFrames]):null;if(staticSignature!==null&&old?.signature===staticSignature){if(editingNow)old.liveVersion=version;return old.data;}const signature=editingNow?null:staticSignature;
         const profileKey=!editingNow&&n.enabled&&n.type==='extrude'&&inputs.length===1?frameValueKey([inputVersions,inputFrames,n.params['start cap']!==false,n.params['end cap']!==false]):null;
         const changes=liveChanges.get(n);liveChanges.delete(n);const token=editingNow||n.type==='spline'?null:frameValueKey(shape(n)),state={hash:n.nativeHash,signature,liveVersion:editingNow?version:null,data:null};states.set(n.id,state);

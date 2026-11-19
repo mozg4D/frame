@@ -33,6 +33,35 @@ export function camMesh(steps,rows,{circular=false,bulge=0,shuffle=false}={}){
   return {vertices:Float32Array.from(vertices),indices:Uint32Array.from(indices)};
 }
 
+function touchingOctagons(){
+  const vertices=[],indices=[];
+  for(const x of [0,2]){
+    const base=vertices.length/3;
+    for(const z of [0,1])for(let i=0;i<8;i++){const a=i*Math.PI/4;vertices.push(x+Math.cos(a),Math.sin(a),z);}
+    for(let i=1;i<7;i++)indices.push(base,base+i+1,base+i,base+8,base+8+i,base+9+i);
+    for(let i=0;i<8;i++){const a=base+i,b=base+(i+1)%8;indices.push(a,b,b+8,a,b+8,a+8);}
+  }
+  return {vertices,indices};
+}
+
+// Evaluate the authored cubics, including between anchors. Straight chords
+// with endpoints on the right circle must fail this measurement.
+function circularSpans(data,axis,h,center,r,epsilon){
+  const dims=[0,1,2].filter(k=>k!==axis),polar=p=>dims.map((k,i)=>p[k]-center[i]),ids=new Set();
+  let count=0,degrees=0,error=0;
+  for(const e of Object.values(data.segments)){
+    const a=data.vertices[e.a],b=data.vertices[e.b],p=polar(a),q=polar(b);
+    if([a,b].some(v=>Math.abs(v[axis]-h)>epsilon)||[p,q].some(v=>Math.abs(Math.hypot(...v)-r)>epsilon))continue;
+    count++;ids.add(e.a);ids.add(e.b);
+    degrees+=Math.abs(Math.atan2(p[0]*q[1]-p[1]*q[0],p[0]*q[0]+p[1]*q[1]))*180/Math.PI;
+    for(let j=0;j<=64;j++){
+      const t=j/64,u=1-t,s=a.map((x,k)=>u**3*x+3*u*u*t*(x+e.ha[k])+3*u*t*t*(b[k]+e.hb[k])+t**3*b[k]);
+      error=Math.max(error,Math.abs(Math.hypot(...polar(s))-r),Math.abs(s[axis]-h));
+    }
+  }
+  return {count,degrees,error,closed:count===ids.size};
+}
+
 function twoBorePlate(){
   const vertices=[],indices=[],ids=new Map(),steps=128;
   function vertex(p){const key=p.join(':');if(!ids.has(key)){ids.set(key,vertices.length/3);vertices.push(...p);}return ids.get(key);}
@@ -154,6 +183,10 @@ export async function surfaceRecognitionChecks(page){
     const sharpCorners=Object.values(plateCage.data.vertices).filter(([x,y,z])=>Math.abs(x)===32&&Math.abs(y)===16&&(z===0||z===6));
     check('Make Editable reconstructs two different bores and preserves all eight sharp plate corners',converted.spline.cells<60&&sharpCorners.length===8&&plateCage.report.diagnostics.genus===2&&plateCage.report.diagnostics.planarHoles===4,{cells:converted.spline.cells,sharpCorners:sharpCorners.length,genus:plateCage.report.diagnostics.genus});
     await call('scene.new');
+    const contact=await call('mesh.create',touchingOctagons()),separated=await call('mesh.toSplinePatch',{id:contact.hash});
+    const contactScene=await call('scene.inspect'),cages=await Promise.all(contactScene.objects.filter(n=>n.type==='spline'&&n.parent===separated.hash).map(n=>call('spline.inspect',{id:n.hash})));
+    check('Two closed octagonal prisms meeting along an edge retain all flats in two editable cages',separated.type==='spline_patch'&&separated.spline.cells===20&&cages.length===2&&cages.every(c=>Object.values(c.data.segments).every(s=>Math.hypot(...s.ha,...s.hb)===0)),separated.spline);
+    await call('scene.new');
     const invalid=await call('mesh.create',{vertices:[0,0,0,10,0,0,0,10,0,0,-10,0,0,0,10],indices:[0,1,2,1,0,3,0,1,4]}),original=await call('diagnostics.mesh',{id:invalid.hash,geometry:true});let reason='';
     try{await call('mesh.toSplinePatch',{id:invalid.hash});}catch(error){reason=error.message;}
     const preserved=await call('diagnostics.mesh',{id:invalid.hash,geometry:true});
@@ -202,8 +235,35 @@ export async function surfaceRecognitionChecks(page){
       if(genus!==null){
         const cage=await call('spline.inspect',{id:patch.hash,cells:true});
         check(name+' preserves the holes in one closed patch',!remainder&&cage.report.diagnostics.genus===genus&&cage.data.version===2&&!cage.data.sourceCells,cage.report.diagnostics.genus);
+        const circle=(axis,h,center,r,epsilon)=>{
+          const s=circularSpans(cage.data,axis,h,center,r,epsilon);
+          return s.closed&&s.count===4&&Math.abs(s.degrees-360)<.01&&s.error<=epsilon+r*.00028;
+        };
+        if(name==='fixed_top'){
+          check('The main bore and both sides of its chamfer each consist of four circular arcs',[[0,50],[9.603125,50],[10,50.396875]].every(([h,r])=>circle(1,h,[0,0],r,.002)));
+          const bolts=[[44.66003,34.26886],[7.34768,-55.81117],[-52.0077,21.5423]];
+          check('Both rims of all six small bolt holes are round',bolts.every(c=>[c,c.map(x=>-x)].every(center=>[0,10].every(h=>circle(1,h,center,2.01929,.0025)))));
+          const tooth=circularSpans(cage.data,1,0,[-14.7915,55.2026],3.175,.001);
+          check('A scallop retains over 240 degrees of its own radius on three cubic spans',tooth.count===3&&tooth.degrees>240&&tooth.error<.0015,tooth);
+          const saved=await call('scene.export',{includeData:true});await call('scene.open',{name:'round-rims.hash',base64:saved.base64});
+          const restored=await call('diagnostics.mesh',{id:patch.hash,geometry:true});
+          check('The bore tessellation is identical after HASH reload',restored.positionsSHA256===after.positionsSHA256&&restored.indicesSHA256===after.indicesSHA256);
+          const source=scene.objects.find(n=>n.parent===patch.hash&&n.type==='spline');await call('scene.update',{id:source.hash,params:{'angle approximation':3}});
+          const finer=await call('spline.inspect',{id:source.hash}),evaluated=await call('diagnostics.mesh',{id:patch.hash,geometry:true});
+          check('Changing the source approximation resamples the recognized arcs',evaluated.triangles>after.triangles&&Object.values(finer.data.segments).every(s=>s.approximation?.angle===3));
+        }else if(name==='octagonal_pocket'){
+          check('The original 36-sided through bore has two four-arc rims', [0,.015875].every(h=>circle(2,h,[.2032,.0254],.01905,2e-7)));
+          const fillet=circularSpans(cage.data,2,.00635,[.0466779,.0254],.003175,2e-7);
+          check('The tangent pocket fillet is a single 60-degree circular arc',fillet.count===1&&Math.abs(fillet.degrees-60)<.01&&fillet.error<4e-7,fillet);
+        }
       }else{
-        check('Cycloidal splits independent cages and the polygon remainder under the original placement',root.type==='group'&&root.name===mesh.name&&patch.parent===root.hash&&remainder?.parent===root.hash&&patch.sources.length>=50&&JSON.stringify(await page.evaluate(h=>frameEngine.packLocalFrame(h),root.hash))===JSON.stringify(placement),entry);
+        check('Cycloidal rebuilds more than 90 percent of the source triangles',patch.sources.length>=69&&entry.retainedTriangles<=4152&&entry.retainedTriangles<.10*entry.inputTriangles,entry);
+        check('Cycloidal splits independent cages and the polygon remainder under the original placement',root.type==='group'&&root.name===mesh.name&&patch.parent===root.hash&&remainder?.parent===root.hash&&JSON.stringify(await page.evaluate(h=>frameEngine.packLocalFrame(h),root.hash))===JSON.stringify(placement),entry);
+        const raceId=await page.evaluate(id=>children(id).find(s=>Object.values(s.splineData?.vertices||{}).some(([x,y,z])=>Math.hypot(x-1.401887,y-.609443,z-1.164362)<.00003))?.nativeHash,patch.id);
+        const race=raceId&&(await call('spline.inspect',{id:raceId})).data,shoulders=[[1.136584,.203983],[1.164362,.220009],[1.192140,.203983]];
+        const groove=race&&shoulders.map(([h,r])=>circularSpans(race,2,h,[1.181878,.609443],r,.00002));
+        const meridians=race&&Object.values(race.segments).filter(e=>Math.abs(race.vertices[e.a][2]-race.vertices[e.b][2])>.01&&Math.hypot(...e.ha)>0&&Math.hypot(...e.hb)>0);
+        check('An irregularly meshed bearing groove retains both shoulders and its curved meridians',groove?.every(s=>s.closed&&s.count===4&&s.error<.00009)&&meridians.length===8,groove);
         const d=await call('diagnostics.mesh',{id:remainder.hash,geometry:true}),rest=await readMesh(remainder.hash);volume+=d.signedVolume;parts.push(rest);
         function triangle(mesh,i){return mesh.indices.slice(i,i+3).flatMap(v=>mesh.vertices.slice(v*3,v*3+3)).join(',');}
         let j=0;for(let i=0;i<raw.indices.length&&j<rest.indices.length;i+=3)if(triangle(raw,i)===triangle(rest,j))j+=3;

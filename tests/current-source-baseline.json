@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 19 nov 21:25",
+  "version": "2026 19 nov 22:06",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -535,11 +535,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "9d94d543ef0fe2b2231a03c40a00afb859ad1dad20aafaeda588ff127b3966a8"
+      "sha256": "c4734fc648f0eaa4b679017ec244120a8585609ed57ba5039d78781a9f001676"
     },
     "index.html": {
-      "bytes": 3475592,
-      "sha256": "f1aff1b744be713a7da7ff3dc05ed777ffd7eced151ceb854babc598d22d15aa"
+      "bytes": 3487327,
+      "sha256": "3dd00ff0a6e1675fe778178ae6406d1bcdd1bcfecf03e35d3e129043ba9ac002"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -838,8 +838,8 @@
       "sha256": "4852a26c582f1ac59d10c87992d859e3cc5e0390d55f949994239e69cc24974b"
     },
     "tests/README.md": {
-      "bytes": 61696,
-      "sha256": "53320988c54f8dd9384cc870c725b32757fa79fbfa555d9727086594241b34ac"
+      "bytes": 61863,
+      "sha256": "7416ff267b7faac9dea705940ace0b25aefb16be5d52cfc2d36a6aef12ca3e36"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 6505,
@@ -1106,8 +1106,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 91557,
-      "sha256": "dde7403087171fed2341fb8ca954614a535f8cc8100ded47037cb03fbdc75d90"
+      "bytes": 91665,
+      "sha256": "ba7784a71d6e0ffecb4e2e2b439b8109165fdfdbb0f3c9d8079285e0563585e3"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1338,8 +1338,8 @@
       "sha256": "c8389d8c432daabb494cdec58daebf4025f8e3a23edc1bc7380e9b01e90c3ec4"
     },
     "tests/surface-recognition.mjs": {
-      "bytes": 21084,
-      "sha256": "6c90322dfe95f0805bfd3d9c7a73585f15864537eea9d803d6b181bc5b8c6b9a"
+      "bytes": 26369,
+      "sha256": "3ccd47969e21d80c025c09076c22b3d65f6154568b4bca96ab3935f0de387c40"
     },
     "tests/project-file-fixture.mjs": {
       "bytes": 769,
