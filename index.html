@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 17:44">
+<meta name="frame-version" content="2026 19 nov 18:31">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -17911,7 +17911,7 @@ window.frameEngine=(()=>{
       r[key+'Init']=(async()=>{const d=r.device,module=r.shader,constants={orthographic,posed:true},vertex=entryPoint=>({module,entryPoint,constants}),surface=(vs,fs)=>d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex(vs),fragment:{module,entryPoint:fs,constants,targets:fs==='wireSurfaceFS'?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const [pipeline,wireSurfacePipeline,edgePipeline,idPipeline]=await Promise.all([
           surface('vs','fs'),surface('wireSurfaceVS','wireSurfaceFS'),
-          d.createRenderPipelineAsync({layout:r.edgeLayout,vertex:vertex('meshEdgeVS'),fragment:{module,entryPoint:'gridFS',targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}),
+          d.createRenderPipelineAsync({layout:r.edgeLayout,vertex:vertex('meshEdgeVS'),fragment:{module,entryPoint:'gridFS',targets:r.edgeTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}),
           d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex('idVS'),fragment:{module,entryPoint:'idFS',targets:[{format:'r32uint'}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}})
         ]);
         if(renderer===r&&!r.dead){r[key]={pipeline,wireSurfacePipeline,edgePipeline,idPipeline};draw(true,false,true);}return r[key];})();return r[key+'Init'];
@@ -18985,10 +18985,10 @@ fn perturbNormal(input:MaterialOutput,n:vec3f,uv:vec2f,q:vec3f,strength:f32)->ve
 fn mappedNormal(input:MaterialOutput,n:vec3f,layer:f32,strength:f32,normalY:f32)->vec3f{if(materialUV){let q=(textureSampleLevel(materialImages,materialSampler,input.uv,i32(layer),0).rgb*2.-1.)*vec3f(1,normalY,1);return perturbNormal(input,n,input.uv,q,strength);}let w=cubeWeights(input.localNormal);var result=vec3f(0);for(var axis=0u;axis<3u;axis++){if(w[axis]>0.){let uv=cubeAxisUV(input.localPosition,input.localNormal,axis);let q=(textureSampleLevel(materialImages,materialSampler,uv,i32(layer),0).rgb*2.-1.)*vec3f(1,-normalY,1);result+=perturbNormal(input,n,uv,q,strength)*w[axis];}}return normalize(result);}
 fn heightNormal(input:MaterialOutput,n:vec3f,uv:vec2f,layer:f32,strength:f32)->vec3f{let step=1./vec2f(textureDimensions(materialImages));let h=dot(textureSampleLevel(materialImages,materialSampler,uv,i32(layer),0).rgb,vec3f(.299,.587,.114));let hx=dot(textureSampleLevel(materialImages,materialSampler,uv+vec2f(step.x,0),i32(layer),0).rgb,vec3f(.299,.587,.114));let hy=dot(textureSampleLevel(materialImages,materialSampler,uv+vec2f(0,step.y),i32(layer),0).rgb,vec3f(.299,.587,.114));return perturbNormal(input,n,uv,vec3f((h-hx)/step.x,(h-hy)/step.y,1.),strength);}
 fn mappedBump(input:MaterialOutput,n:vec3f,layer:f32,strength:f32)->vec3f{if(materialUV){return heightNormal(input,n,input.uv,layer,strength);}let w=cubeWeights(input.localNormal);var result=vec3f(0);for(var axis=0u;axis<3u;axis++){if(w[axis]>0.){result+=heightNormal(input,n,cubeAxisUV(input.localPosition,input.localNormal,axis),layer,strength)*w[axis];}}return normalize(result);}
-fn materialBaseShade(input:MaterialOutput,front:bool)->vec4f{
- var result:vec4f;var alpha=1.;
- if(input.material==0u){result=shade(Output(input.position,input.normal,input.viewPosition,input.selected,input.bary,input.wireEdges,input.triangleID,0u),front);}
- else{let m=materialLibrary[input.material];var base=m.colorEmission.rgb;alpha=m.surface.z;
+struct ShadedMaterial{color:vec4f,lightWire:bool}
+fn materialBaseShade(input:MaterialOutput,front:bool)->ShadedMaterial{
+ if(input.material==0u){return ShadedMaterial(shade(Output(input.position,input.normal,input.viewPosition,input.selected,input.bary,input.wireEdges,input.triangleID,0u),front),false);}
+ let m=materialLibrary[input.material];var base=m.colorEmission.rgb;var alpha=m.surface.z;
  var n=normalize(input.normal);if(front==(params.clip.z<=1.)){n=-n;}
  var rough=m.surface.x;var metal=m.surface.y;var emission=vec3f(0);var ao=1.;
  if(materialMaps){
@@ -19003,12 +19003,18 @@ fn materialBaseShade(input:MaterialOutput,front:bool)->vec4f{
    if(materialUV&&m.extra.w>0.){ao=mix(1.,mapChannel(mappedImage(input,m.extra.w),m.channels.w),m.options.x);}
  }
  if(m.options.y==2.){alpha=select(0.,1.,alpha>=m.options.z);}if(input.selected!=0u){base=vec3f(.95,.48,.12);}
- result=vec4f(environmentShade(base,n,normalize(-input.viewPosition),clamp(rough,0.,1.),clamp(metal,0.,1.),0.,input.position.xy)*ao+base*m.colorEmission.a+emission,alpha);}
- return result;
+ let color=environmentShade(base,n,normalize(-input.viewPosition),clamp(rough,0.,1.),clamp(metal,0.,1.),0.,input.position.xy)*ao+base*m.colorEmission.a+emission;
+ // Use linear albedo before lighting, so a moving reflection never reverses an edge.
+ return ShadedMaterial(vec4f(color,alpha),materialWire && dot(base,wireLuma)<.09);
 }
 fn materialShade(input:MaterialOutput,front:bool)->vec4f{
- var result=materialBaseShade(input,front);
- if(materialWire&&!materialWireOverlay){if(plainSurfaceWire){result=vec4f(plainSurfaceWireColor(result.rgb,input.bary,input.position.w),result.a);}else{result=vec4f(surfaceWireColor(result.rgb,input.bary,input.wireEdges,input.position.w,(input.triangleID-faceBase.x)*3u),result.a);}}return result;
+ let shaded=materialBaseShade(input,front);
+ if(!materialWire){return shaded.color;}
+ var color=polygonWireColor(shaded.color,input.bary,input.position.w,input.wireEdges,shaded.lightWire);
+ if(!plainSurfaceWire&&!materialWireOverlay&&(input.wireEdges&7u)!=0u){
+   color=vec4f(surfaceCageColor(color.rgb,input.bary,input.wireEdges,input.position.w,(input.triangleID-faceBase.x)*3u),color.a);
+ }
+ return color;
 }
 
 @fragment fn materialWireFS(input:MaterialOutput,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=materialShade(input,front);if(color.a<.999){discard;}if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}
@@ -19317,11 +19323,20 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       })().catch(editError);return r.wireRasterInit;
     }
     function clearWirePixels(r){if(r?.wireRaster){releaseGPU(r.wireRaster.pixels);r.wireRaster.pixels=null;}}
+    function meshWireColor(mesh){
+      if(shadingMode!=='wireframe')return [0,0,0,1];
+      const uid=mesh.materialTags?.findLast(t=>!t.mask)?.materialUID,material=uid&&appearanceValue(uid,'parameters');
+      if(!material)return [.5,.5,.5,1];
+      const rgb=hsl2rgb(material[0],material[1]/100,material[2]/100);
+      const luma=.2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2],minimum=frameViewportClear[0]+.14;
+      if(luma<minimum){const lift=(minimum-luma)/(1-luma);for(let i=0;i<3;i++)rgb[i]+=(1-rgb[i])*lift;}
+      rgb.push(1);return rgb;
+    }
     function encodeWireRaster(r,encoder,width,height,include=()=>true){
       if(!['wireframe','isoparms'].includes(shadingMode)||width*height*4>r.device.limits.maxStorageBufferBindingSize)return null;ensureWireRaster(r);const wire=r.wireRaster;if(!wire)return null;
       if(!wire.pixels||wire.width!==width||wire.height!==height){clearWirePixels(r);wire.width=width;wire.height=height;wire.pixels=makeGPUBuffer(r.device,{label:'wire coverage pixels',size:width*height*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});const entries=[{binding:0,resource:{buffer:r.uniform}},{binding:1,resource:{buffer:wire.pixels}}];wire.paint=r.device.createBindGroup({layout:wire.present.getBindGroupLayout(0),entries});wire.global=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(0),entries});}
       encoder.clearBuffer(wire.pixels);const pass=encoder.beginComputePass();pass.setPipeline(wire.compute);pass.setBindGroup(0,wire.global);let visible=0;
-      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;const flags=(mesh.paged?1:0)|(shadingMode==='isoparms'?2:0)|(mesh.splineHighlightActive?4:0),uid=mesh.materialTags?.findLast(t=>!t.mask)?.materialUID,material=uid&&appearanceValue(uid,'parameters'),rgb=shadingMode==='wireframe'?(material?hsl2rgb(material[0],material[1]/100,material[2]/100):[.5,.5,.5]):[0,0,0],color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
+      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;const flags=(mesh.paged?1:0)|(shadingMode==='isoparms'?2:0)|(mesh.splineHighlightActive?4:0),rgb=meshWireColor(mesh),color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
         if(!state||state.positions!==mesh.positions||state.lines!==part.lines||state.edges!==edges||state.frame!==mesh.objectFrame||state.mask!==part.splineWireEdges){if(state&&mesh.buffers.includes(state.counts)){releaseGPU(state.counts);mesh.buffers=mesh.buffers.filter(b=>b!==state.counts);}const counts=makeGPUBuffer(r.device,{label:'wire raster counts',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});mesh.buffers.push(counts);r.device.queue.writeBuffer(counts,0,new Uint32Array([edges,flags,color,part.count/3]));const group=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(1),entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:part.lines}},{binding:2,resource:{buffer:mesh.objectFrame}},{binding:3,resource:{buffer:counts}},{binding:4,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:5,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});state=part.wireRaster={positions:mesh.positions,lines:part.lines,frame:mesh.objectFrame,mask:part.splineWireEdges,edges,counts,group};}
         if(state.color!==color||state.flags!==flags){r.device.queue.writeBuffer(state.counts,4,new Uint32Array([flags,color]));state.color=color;state.flags=flags;}const groups=Math.ceil(edges/128),nx=Math.min(groups,r.device.limits.maxComputeWorkgroupsPerDimension);if(nx){pass.setBindGroup(1,state.group);pass.dispatchWorkgroups(nx,Math.ceil(groups/nx));}
       }}pass.end();return {wire,visible};
@@ -19381,7 +19396,7 @@ fn project(v:u32,instance:u32)->vec4f{return projectFrame(v,frameAt(instance));}
 ${NATIVE_LINE_VARYINGS}
 ${NATIVE_STROKE_ORDER}
 ${splineWireHighlightWGSL("splineEdges")}
-fn lineVertex(v:u32,instance:u32)->Line{let edge=v/2u;let pair=lines[edge];let ab=select(pair,pair.yx,reverseStroke(point(pair.x),point(pair.y)));let marked=splineEdges[0]!=0u&&((splineEdges[1u+draw[0].w+(edge>>5u)]>>(edge&31u))&1u)!=0u;var out:Line;out.edge=ab;out.base=select(draw[1].x,frameAt(instance).flags.z,nativeInstances);out.instance=instance;out.world=(frameAt(instance).matrix*vec4f(point(select(ab.x,ab.y,(v&1u)!=0u)),1)).xyz;out.color=select(vec3f(0),vec3f(.18095,.3542,.4158),marked);if(marked&&select(draw[1].w,frameAt(instance).flags.w,nativeInstances)!=0u){var state=splineLineHighlight(edge,draw[0].w,draw[0].x);if(state==4u){state=splineHighlight(point(ab.x),point(ab.y));}out.color=splineHighlightColor(state);}if(draw[1].z!=0u&&splineEdges[0]!=0u&&!marked){out.position=vec4f(2,2,2,1);return out;}out.position=project(select(ab.x,ab.y,(v&1u)!=0u),instance);return out;}
+fn lineVertex(v:u32,instance:u32)->Line{let edge=v/2u;let pair=lines[edge];let ab=select(pair,pair.yx,reverseStroke(point(pair.x),point(pair.y)));let marked=splineEdges[0]!=0u&&((splineEdges[1u+draw[0].w+(edge>>5u)]>>(edge&31u))&1u)!=0u;var out:Line;out.edge=ab;out.base=select(draw[1].x,frameAt(instance).flags.z,nativeInstances);out.instance=instance;out.world=(frameAt(instance).matrix*vec4f(point(select(ab.x,ab.y,(v&1u)!=0u)),1)).xyz;out.color=vec3f(.18095,.3542,.4158);if(marked&&select(draw[1].w,frameAt(instance).flags.w,nativeInstances)!=0u){var state=splineLineHighlight(edge,draw[0].w,draw[0].x);if(state==4u){state=splineHighlight(point(ab.x),point(ab.y));}out.color=splineHighlightColor(state);}if(!marked){out.position=vec4f(2,2,2,1);return out;}out.position=project(select(ab.x,ab.y,(v&1u)!=0u),instance);return out;}
 @vertex fn vs(@builtin(vertex_index) v:u32,@builtin(instance_index) instance:u32)->Line{return lineVertex(v,instance);}
 fn linePoint(v:u32,instance:u32)->vec3f{return point(v);}
 fn lineLogical(corner:u32,instance:u32)->u32{return normals[aliases[corner]].x;}
@@ -19408,7 +19423,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       const resources=[mesh.positions,part.lines,mesh.objectFrame,part.splineWireEdges,part.renderIndices,part.normals,mesh.indices,edges,part.count,mesh.vertexCount,mesh.rep];if(!row||row.owner!==mesh||resources.some((value,i)=>row.resources[i]!==value)){
         if(row?.owner===mesh){for(const resource of [row.counts])if(resource){releaseGPU(resource);mesh.buffers=mesh.buffers.filter(b=>b!==resource);}}const counts=meshAllocator(r,mesh)('native line draw',32,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST),entries=[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:part.lines}},{binding:2,resource:{buffer:mesh.objectFrame}},{binding:3,resource:{buffer:counts}},{binding:4,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:5,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}},{binding:6,resource:{buffer:part.renderIndices}},{binding:7,resource:{buffer:part.normals}}];row=part.nativeSurfaceLines={owner:mesh,resources,counts,group:r.device.createBindGroup({layout:state.pipeline.getBindGroupLayout(1),entries})};
       }
-      const values=[edges,mesh.paged?1:0,(part.faceStart||0)*3,part.count/3,(mesh.faceBase||0)+(part.faceStart||0)+1,state.depthGuard?1:0,shadingMode==='solid-isoparms'?1:0,mesh.splineHighlightActive?1:0],key=values.join(':');if(row.key!==key){r.device.queue.writeBuffer(row.counts,0,new Uint32Array(values));row.key=key;}return row;
+      const values=[edges,mesh.paged?1:0,(part.faceStart||0)*3,part.count/3,(mesh.faceBase||0)+(part.faceStart||0)+1,state.depthGuard?1:0,0,mesh.splineHighlightActive?1:0],key=values.join(':');if(row.key!==key){r.device.queue.writeBuffer(row.counts,0,new Uint32Array(values));row.key=key;}return row;
     }
     function nativeLineGlobal(r,state,depth,ids,planes){
       let global=state.globals.get(depth);if(!global||global.ids!==ids||global.planes!==planes){global={ids,planes,group:r.device.createBindGroup({layout:state.pipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:r.uniform}},{binding:1,resource:ids.createView()},{binding:2,resource:depth.createView()},{binding:3,resource:planes.createView()}]})};state.globals.set(depth,global);}return global.group;
@@ -19494,9 +19509,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         var out=surfaceVertexFrame(renderAliases[corner],f);let role=corner%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));return out;
       }
       fn cloudShade(input:Output,front:bool)->vec4f{
-        let dx=dpdx(input.bary);let dy=dpdy(input.bary);let distances=input.bary/max(sqrt(dx*dx+dy*dy),vec3f(1e-8));let edge=min(distances.x,min(distances.y,distances.z));if(params.modes.y==0.&&edge>.7){discard;}
-        var n=normalize(input.normal);if(front==(params.clip.z<=1.)){n=-n;}var c=environmentShade(pow(cloud.color.rgb,vec3f(2.2)),n,normalize(-input.viewPosition),cloud.material.x,cloud.material.y,cloud.material.z,input.position.xy);if(params.modes.y==2.&&edge<.7){c=vec3f(0);}
-        return vec4f(c,cloud.color.a);
+        if(params.modes.y==0.){let dx=dpdx(input.bary);let dy=dpdy(input.bary);let distances=input.bary/max(sqrt(dx*dx+dy*dy),vec3f(1e-8));if(min(distances.x,min(distances.y,distances.z))>.7){discard;}}
+        var n=normalize(input.normal);if(front==(params.clip.z<=1.)){n=-n;}
+        let base=pow(cloud.color.rgb,vec3f(2.2));
+        let color=vec4f(environmentShade(base,n,normalize(-input.viewPosition),cloud.material.x,cloud.material.y,cloud.material.z,input.position.xy),cloud.color.a);
+        if(params.modes.y==2.){return polygonWireColor(color,input.bary,input.position.w,0u,dot(base,wireLuma)<.09);}
+        return color;
       }
       @fragment fn cloudFS(input:Output,@builtin(front_facing) front:bool)->@location(0) vec4f{return cloudShade(input,front);}
       @fragment fn cloudWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{return WireSurfaceOutput(cloudShade(input,front),0u,vec4f(0));}
@@ -19511,7 +19529,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
 
     function replicaPipeline(r,mesh){
-      const wire=polygonWire(),plain=wire&&!classifiedSurfaceWire(mesh),key=(frameViewKind(viewIndex)?'replicaOrtho':'replicaPerspective')+(wire?'Wire':'')+(plain?'Plain':'');if(r[key])return r[key];if(!r[key+'Pending']){const orthographic=!!frameViewKind(viewIndex);r[key+'Pending']=(async()=>{const d=r.device,module=d.createShaderModule({label:'shared geometry instanced surface',code:r.shaderSource+'\n@group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>; @vertex fn replicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) i:u32)->Output{var id=v;if('+wire+'){id=renderAliases[v];}var out=surfaceVertexFrame(id,replicaFrames[i]);if('+wire+'){let role=v%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));out.wireEdges=surfaceWireEdges(v);out.triangleID=replicaFrames[i].flags.z+v/3u;out.instance=i;}return out;}'+(wire?'\n@fragment fn replicaWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let frame=replicaFrames[input.instance];let color=shade(input,front);if(plainSurfaceWire){return WireSurfaceOutput(vec4f(plainSurfaceWireColor(color.rgb,input.bary,input.position.w),color.a),input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}':'' )}),instances=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),instances]}),pipeline=await d.createRenderPipelineAsync({label:key,layout,vertex:{module,entryPoint:'replicaVS',constants:{orthographic,posed:true,plainSurfaceWire:plain}},fragment:{module,entryPoint:wire?'replicaWireFS':'fs',constants:{orthographic,posed:true,plainSurfaceWire:plain},targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});if(renderer===r&&!r.dead){r[key]={pipeline,instances};draw(true);}return r[key];})().catch(editError);}return null;
+      const wire=polygonWire(),plain=wire&&!classifiedSurfaceWire(mesh),key=(frameViewKind(viewIndex)?'replicaOrtho':'replicaPerspective')+(wire?'Wire':'')+(plain?'Plain':'');if(r[key])return r[key];if(!r[key+'Pending']){const orthographic=!!frameViewKind(viewIndex);r[key+'Pending']=(async()=>{const d=r.device,module=d.createShaderModule({label:'shared geometry instanced surface',code:r.shaderSource+'\n@group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>; @vertex fn replicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) i:u32)->Output{var id=v;if('+wire+'){id=renderAliases[v];}var out=surfaceVertexFrame(id,replicaFrames[i]);if('+wire+'){let role=v%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));out.wireEdges=surfaceWireEdges(v);out.triangleID=replicaFrames[i].flags.z+v/3u;out.instance=i;}return out;}'+(wire?'\n@fragment fn replicaWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let frame=replicaFrames[input.instance];let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}':'' )}),instances=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),instances]}),pipeline=await d.createRenderPipelineAsync({label:key,layout,vertex:{module,entryPoint:'replicaVS',constants:{orthographic,posed:true,plainSurfaceWire:plain}},fragment:{module,entryPoint:wire?'replicaWireFS':'fs',constants:{orthographic,posed:true,plainSurfaceWire:plain},targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});if(renderer===r&&!r.dead){r[key]={pipeline,instances};draw(true);}return r[key];})().catch(editError);}return null;
     }
     function materialReplicaPipeline(r,mesh,material){
       const library=material.state,wire=polygonWire(mesh),plain=!classifiedSurfaceWire(mesh),grouped=material.bindings.grouped,uv=!!importedUV(mesh),key=[!!frameViewKind(viewIndex),wire,plain,grouped,uv].join(':');
@@ -19605,10 +19623,13 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             let inverseRotation=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz));
             let world=inverseRotation*view/params.centerScale.w+params.centerScale.xyz;
             let crossNormal=cross(dpdx(input.viewPosition),dpdy(input.viewPosition));let lengthNormal=length(crossNormal);
-            // Blend beneath inline polygon strokes; leave native raster/cage stroke pixels intact.
-            var opacity=1.;var lineColor=vec3f(1);if(pluginWarningLines){if(plainSurfaceWire&&!pluginWarningWireOnly){lineColor=plainSurfaceWireColor(vec3f(1),input.bary,input.position.w);}else{opacity=1.-smoothstep(0.,.15,surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,pluginWarningCagesOnly).x);}}
             if(lengthNormal<=1e-20){discard;}let normal=-crossNormal/lengthNormal;
-            let warning=pluginSurface((plugin.inverse*vec4f(world,1)).xyz,inverseRotation*normal,normalize(plugin.matrix[1].xyz),plugin.settings);return vec4f(warning.rgb*lineColor,warning.a*opacity);
+            let warning=pluginSurface((plugin.inverse*vec4f(world,1)).xyz,inverseRotation*normal,normalize(plugin.matrix[1].xyz),plugin.settings);
+            if(!pluginWarningLines){return warning;}
+            let coverage=surfaceWireCoverage(input.bary,input.wireEdges,input.position.w,pluginWarningCagesOnly);
+            if(pluginWarningWireOnly){return vec4f(warning.rgb,warning.a*(1.-smoothstep(0.,.15,coverage.x)));}
+            let color=polygonWireColor(warning,input.bary,input.position.w,input.wireEdges,dot(warning.rgb,wireLuma)<.33);
+            return vec4f(color.rgb,color.a*(1.-smoothstep(0.,.15,coverage.y)));
           }`;
         const surfaceModule=d.createShaderModule({label:entry.manifest.id+' surface overlay',code:fragment});
         const lineModule=d.createShaderModule({label:entry.manifest.id+' helper lines',code:CAMERA_RELATIVE_WGSL+uniform+`
@@ -19683,7 +19704,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       r.surfaceFilters??=new WeakMap();let state=r.surfaceFilters.get(filter);
       if(!state){const entries=filter.buffers.map((b,binding)=>({binding,visibility:GPUShaderStage.FRAGMENT,buffer:{type:b.type||'read-only-storage'}})),layout=r.device.createBindGroupLayout({entries}),group=r.device.createBindGroup({layout,entries:filter.buffers.map((b,binding)=>({binding,resource:{buffer:b.buffer}}))});state={layout,group,pipelines:new Map(),pending:new Set()};r.surfaceFilters.set(filter,state);}
       const nativeWire=polygonWire(mesh)&&!style&&!transparent,classified=classifiedSurfaceWire(mesh),materialWireOverlay=!!material&&nativeWire&&classified&&!materialTransparent(mesh);const key=[!!frameViewKind(viewIndex),!!mesh.posed,!!material,!!style,!!style?.topmost,!!transparent,!!mesh.materialBindings?.grouped,!!importedUV(mesh),polygonWire(mesh),classified,materialWireOverlay].join(':');let pipeline=state.pipelines.get(key);
-      if(!pipeline&&!state.pending.has(key)){state.pending.add(key);const d=r.device,source=material?material.state.source:r.shaderSource,constants={orthographic:!!frameViewKind(viewIndex),posed:!!mesh.posed,plainSurfaceWire:!classified,...material?{materialGroups:!!mesh.materialBindings?.grouped,materialUV:!!importedUV(mesh),materialWire:polygonWire(mesh),materialWireOverlay}:{}},input=material?'MaterialOutput':'Output',shade=material?'materialShade(input,front)':style?'vec4f(pluginStyle.rgb*(.55+.45*abs(normalize(input.normal).z)),pluginStyle.a)':'shade(input,front)',body=transparent?`let color=${shade};let alpha=clamp(color.a,0.,1.);if(alpha<=0.||alpha>=.999){discard;}let weight=clamp(.03/(.01+pow(input.position.z,4.)),.03,8.);return MaterialTransparency(vec4f(color.rgb*alpha*weight,alpha*weight),alpha);`:`let color=${shade};${material?'if(color.a<.999){discard;}':''}${nativeWire?`if(plainSurfaceWire){return WireSurfaceOutput(${material?'color':'vec4f(plainSurfaceWireColor(color.rgb,input.bary,input.position.w),color.a)'},input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));`:'return color;'}`,code='diagnostic(off, derivative_uniformity);\n'+source+'\n'+filter.shader+(style?'\n@group(2) @binding(0) var<uniform> pluginStyle:vec4f;':'')+`\n@fragment fn filteredFS(input:${input},@builtin(front_facing) front:bool)->${transparent?'MaterialTransparency':nativeWire?'WireSurfaceOutput':'@location(0) vec4f'}{let view=vec3f(input.viewPosition.xy-params.viewport.zw,input.viewPosition.z)-frameCameraRelative(params.rotation)[3].xyz;let world=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz))*view/params.centerScale.w+params.centerScale.xyz;if(!pluginSurfaceKeep(world)){discard;}${body}}`,module=d.createShaderModule({label:'native filtered surface',code}),empty=d.createBindGroupLayout({entries:[]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),material?material.state.meshLayout:r.pipeline.getBindGroupLayout(1),material?material.state.libraryLayout:style?r.pluginSurfaceStyles.layout:empty,state.layout]});
+      if(!pipeline&&!state.pending.has(key)){state.pending.add(key);const d=r.device,source=material?material.state.source:r.shaderSource,constants={orthographic:!!frameViewKind(viewIndex),posed:!!mesh.posed,plainSurfaceWire:!classified,...material?{materialGroups:!!mesh.materialBindings?.grouped,materialUV:!!importedUV(mesh),materialWire:polygonWire(mesh),materialWireOverlay}:{}},input=material?'MaterialOutput':'Output',shade=material?'materialShade(input,front)':style?'vec4f(pluginStyle.rgb*(.55+.45*abs(normalize(input.normal).z)),pluginStyle.a)':nativeWire?'polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false)':'shade(input,front)',body=transparent?`let color=${shade};let alpha=clamp(color.a,0.,1.);if(alpha<=0.||alpha>=.999){discard;}let weight=clamp(.03/(.01+pow(input.position.z,4.)),.03,8.);return MaterialTransparency(vec4f(color.rgb*alpha*weight,alpha*weight),alpha);`:`let color=${shade};${material?'if(color.a<.999){discard;}':''}${nativeWire?`if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));`:'return color;'}`,code='diagnostic(off, derivative_uniformity);\n'+source+'\n'+filter.shader+(style?'\n@group(2) @binding(0) var<uniform> pluginStyle:vec4f;':'')+`\n@fragment fn filteredFS(input:${input},@builtin(front_facing) front:bool)->${transparent?'MaterialTransparency':nativeWire?'WireSurfaceOutput':'@location(0) vec4f'}{let view=vec3f(input.viewPosition.xy-params.viewport.zw,input.viewPosition.z)-frameCameraRelative(params.rotation)[3].xyz;let world=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz))*view/params.centerScale.w+params.centerScale.xyz;if(!pluginSurfaceKeep(world)){discard;}${body}}`,module=d.createShaderModule({label:'native filtered surface',code}),empty=d.createBindGroupLayout({entries:[]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),material?material.state.meshLayout:r.pipeline.getBindGroupLayout(1),material?material.state.libraryLayout:style?r.pluginSurfaceStyles.layout:empty,state.layout]});
         d.createRenderPipelineAsync({label:'native filtered '+key,layout,vertex:{module,entryPoint:material?'materialVS':polygonWire(mesh)?'wireSurfaceVS':'vs',constants},fragment:{module,entryPoint:'filteredFS',constants,targets:transparent?[{format:'rgba16float',blend:{color:{srcFactor:'one',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one'}}},{format:'r16float',blend:{color:{srcFactor:'zero',dstFactor:'one-minus-src'},alpha:{srcFactor:'zero',dstFactor:'one-minus-src'}}}]:nativeWire?r.wireTargets:[{format:r.format,...style?{blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}:{}}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:!style&&!transparent,depthCompare:style?.topmost?'always':style||transparent?'less-equal':'less'}}).then(value=>{if(renderer===r&&!r.dead){state.pipelines.set(key,value);draw(true);}}).catch(editError).finally(()=>state.pending.delete(key));}
       return pipeline?{pipeline,group:state.group}:null;
     }
@@ -19774,10 +19795,11 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         return MaterialOutput(frameProject(p.xyz),(params.rotation*vec4f(n,0)).xyz,vec3f(p.xy+params.viewport.zw,p.z),0u,bary,local,localNormal,draw.info.z,vec2f(0),mask,draw.info.y+f,instance);
       }
       @fragment fn navFS(input:MaterialOutput,@builtin(front_facing) front:bool)->@location(0) vec4f{
-        let color=materialBaseShade(input,front);if(color.a<.999){discard;}return color;}
+        let color=materialBaseShade(input,front).color;if(color.a<.999){discard;}return color;}
       @fragment fn navWireFS(input:MaterialOutput,@builtin(front_facing) front:bool)->WireSurfaceOutput{
-        var color=materialBaseShade(input,front);if(color.a<.999){discard;}let draw=navDraws[input.instance];
-        if((draw.info.w&2u)==0u){color=vec4f(plainSurfaceWireColor(color.rgb,input.bary,input.position.w),color.a);return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}
+        let shaded=materialBaseShade(input,front);if(shaded.color.a<.999){discard;}let draw=navDraws[input.instance];
+        let color=polygonWireColor(shaded.color,input.bary,input.position.w,input.wireEdges,shaded.lightWire);
+        if((draw.info.w&2u)==0u){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}
         return WireSurfaceOutput(color,input.triangleID,navPlane((input.triangleID-draw.info.y)*3u,draw));}
     `;
     function navigationPipeline(r,library,wire=polygonWire(),ortho=!!frameViewKind(viewIndex)){
@@ -19929,7 +19951,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       }finally{for(const b of temp)releaseGPU(b);}
     }
     function issueDenseNavigationLines(r,pass,plan,depth,ids,planes){
-      const atlas=plan.atlas;if(!atlas||shadingMode!=='solid-isoparms')return false;
+      const atlas=plan.atlas;if(!atlas)return false;
       const groups=visibleNavigationRows(plan),count=groups.reduce((n,g)=>n+g.rows.length,0);if(count<512||count*2<atlas.packed.size)return false;
       const system=packedLineSystem(r);if(!system)return false;
       const state=r.nativeSurfaceLines;state.depthGuard=false;
@@ -20083,7 +20105,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       const batched=!wire&&!bundledScene&&scene.meshes.some(m=>m.replicaMatrix)?drawReplicaBatches(r,pass,include,cages?'scene':'background'):new Set();if(fullScene&&bundledScene)r.replicaDraws?.set(viewIndex,{instances:0,calls:0});visible+=batched.size;
       if(!wire){const bundled=fullScene?tryRenderGeometryBundles(r,pass,batched):null;if(bundled!==null)visible+=bundled-batched.size;else for(const mesh of scene.meshes){if(batched.draw?.(mesh))continue;if(r.patchPreview?.base===mesh&&include(mesh)){issuePatchRegion(r,pass,r.patchPreview);visible++;continue;}if(batched.has(mesh)||pluginSurfaceStyle(mesh)||!include(mesh)||!meshVisible(mesh))continue;visible++;issueOpaqueMesh(pass,opaqueMeshDraw(r,mesh),mesh);}}
       if(grid&&!deferLines)drawViewGrid(pass,width,height);if(cages&&!deferLines)drawSplineDisplays(pass);
-      if(wire&&mask){pass.setPipeline(mask.wire.present);pass.setBindGroup(0,mask.wire.paint);pass.draw(3);visible=mask.visible;}else if(wire){pass.setBindGroup(0,r.edgeUniforms);for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;pass.setPipeline(meshPipelines(r,mesh).edgePipeline);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.edgeBindGroup);pass.setIndexBuffer(part.lines,'uint32');pass.drawIndexed((mesh.paged?part.edgeCount:mesh.edgeCounts[0])*2);}}}return visible;
+      if(wire&&mask){pass.setPipeline(mask.wire.present);pass.setBindGroup(0,mask.wire.paint);pass.draw(3);visible=mask.visible;}else if(wire){pass.setBindGroup(0,r.edgeUniforms);for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;pass.setPipeline(meshPipelines(r,mesh).edgePipeline);pass.setBlendConstant(meshWireColor(mesh));for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.edgeBindGroup);pass.setIndexBuffer(part.lines,'uint32');pass.drawIndexed((mesh.paged?part.edgeCount:mesh.edgeCounts[0])*2);}}}return visible;
     }
     function makeWireIDTarget(r,width,height,label){const texture=r.device.createTexture({label,size:[width,height],format:'r32uint',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(texture,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return texture;}
     function makeWirePlaneTarget(r,width,height){const texture=r.device.createTexture({label:'visible geometric planes',size:[width,height],format:'rgba32float',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(texture,width*height*16);allocatedBytes+=width*height*16;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return texture;}
@@ -20141,7 +20163,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const d=r.device,module=r.shader,vertex=entryPoint=>({module,entryPoint,constants:{orthographic:true}}),fragment=entryPoint=>({module,entryPoint,targets:entryPoint==='wireSurfaceFS'?r.wireTargets:r.surfaceTargets});
         const surface=(vs,fs)=>d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex(vs),fragment:fragment(fs),primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const pipeline=await surface('vs','fs'),wireSurfacePipeline=await surface('wireSurfaceVS','wireSurfaceFS');
-        const edgePipeline=await d.createRenderPipelineAsync({layout:r.edgeLayout,vertex:vertex('meshEdgeVS'),fragment:fragment('gridFS'),primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
+        const edgePipeline=await d.createRenderPipelineAsync({layout:r.edgeLayout,vertex:vertex('meshEdgeVS'),fragment:{...fragment('gridFS'),targets:r.edgeTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
         const idPipeline=await d.createRenderPipelineAsync({layout:r.surfaceLayout,vertex:vertex('idVS'),fragment:{module,entryPoint:'idFS',targets:[{format:'r32uint'}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const grid=d.createShaderModule({label:'viewport-local adaptive grid',code:`struct Line{@builtin(position) p:vec4f,@location(0) color:vec3f};@vertex fn vs(@location(0) p:vec3f,@location(1) color:vec3f)->Line{return Line(vec4f(p,1),color);}@fragment fn fs(l:Line)->@location(0) vec4f{return vec4f(l.color,1);}`});
         const orthoGridPipeline=await d.createRenderPipelineAsync({layout:'auto',vertex:{module:grid,entryPoint:'vs',buffers:[{arrayStride:24,attributes:[{shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'}]}]},fragment:{module:grid,entryPoint:'fs',targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
@@ -20261,26 +20283,40 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             let blue=select(vec3f(0),coverage,cyan);let cyanCoverage=max(blue.x,max(blue.y,blue.z));
             return vec2f(allCoverage,cyanCoverage);
           }
-          fn surfaceWireColor(base:vec3f,bary:vec3f,flags:u32,reciprocalW:f32,corner:u32)->vec3f{
+          fn surfaceCageColor(base:vec3f,bary:vec3f,flags:u32,reciprocalW:f32,corner:u32)->vec3f{
             let coverage=surfaceWireCoverage(bary,flags,reciprocalW,params.modes.y==3.);let screen=bary*reciprocalW;let distance=abs(screen)/max(sqrt(dpdx(screen)*dpdx(screen)+dpdy(screen)*dpdy(screen)),vec3f(1e-20));
             var selected=0.;var hovered=0.;if(objectFrame.flags.w!=0u&&coverage.y>0.){for(var i=0u;i<3u;i++){if((flags&(1u<<i))!=0u){let a=loadPositionRaw(packedNormals[renderAliases[corner+(i+1u)%3u]].x);let b=loadPositionRaw(packedNormals[renderAliases[corner+(i+2u)%3u]].x);let state=splineHighlight(a,b);let weight=1.-smoothstep(params.frame.z,params.frame.z+.5,distance[i]);if((state&1u)!=0u){selected=max(selected,weight);}if((state&2u)!=0u){hovered=max(hovered,weight);}}}}
-            return base*(1.-coverage.x)+vec3f(.18095,.3542,.4158)*max(0.,coverage.y-max(selected,hovered))+vec3f(.396,.929,.525)*max(0.,selected-hovered)+vec3f(.541,1,.671)*hovered;
+            return base*(1.-coverage.y)+vec3f(.18095,.3542,.4158)*max(0.,coverage.y-max(selected,hovered))+vec3f(.396,.929,.525)*max(0.,selected-hovered)+vec3f(.541,1,.671)*hovered;
           }
           // Derivatives describe the covered polygon without refetching its corners.
           fn fragmentSurfacePlane(position:vec3f)->vec4f{
             var n=cross(dpdx(position),dpdy(position));n/=max(max(abs(n.x),max(abs(n.y),abs(n.z))),1e-30);
             return vec4f(n,-dot(n,vec3f(position.xy-params.viewport.zw,position.z)));
           }
-          fn plainSurfaceWireColor(base:vec3f,bary:vec3f,reciprocalW:f32)->vec3f{
+          const wireLuma=vec3f(.2126,.7152,.0722);
+          fn polygonWireColor(color:vec4f,bary:vec3f,reciprocalW:f32,cageEdges:u32,lightWire:bool)->vec4f{
             let screen=bary*reciprocalW;
-            // Normalize by the dominant pixel axis without square roots. Cap
-            // contrast at 50%, preserving the antialiased silhouette footprint.
             let span=max(abs(dpdx(screen)),abs(dpdy(screen)));
-            let fade=clamp(abs(screen)/max(span,vec3f(1e-20))-.25,vec3f(.5),vec3f(1));
-            return base*min(fade.x,min(fade.y,fade.z));
+            // Distances and triangle spacing use the same existing physical-pixel derivatives.
+            var distance=abs(screen)/max(span,vec3f(1e-20));
+            if(!plainSurfaceWire){
+              if((cageEdges&8u)!=0u && params.modes.y==3.){return color;}
+              let marked=(vec3u(cageEdges)&vec3u(1u,2u,4u))!=vec3u(0u);
+              distance=select(distance,vec3f(2.),marked);
+            }
+            let coverage=clamp(2.5-2.*min(distance.x,min(distance.y,distance.z)),0.,1.);
+            if(coverage==0.){return color;}
+            let frequency=max(span.x,max(span.y,span.z))/max(abs(reciprocalW),1e-20);
+            let strength=coverage*(1.-.55*clamp(1.5*frequency-.5,0.,1.));
+            // The viewport already encodes light for display. A bounded mix toward
+            // black or white gives roughly nine lightness points on neutral surfaces.
+            let display=clamp(color.rgb,vec3f(0),vec3f(1));let luma=dot(display,wireLuma);
+            let ink=select(0.,1.,lightWire);let amount=(.073+.035*luma)/max(abs(ink-luma),.2);
+            let stroke=mix(display,vec3f(ink),amount);
+            return vec4f(mix(color.rgb,stroke,strength),color.a);
           }
           struct WireSurfaceOutput{@location(0) color:vec4f,@location(1) triangleID:u32,@location(2) plane:vec4f}
-          @fragment fn wireSurfaceFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=shade(input,front);if(plainSurfaceWire){return WireSurfaceOutput(vec4f(plainSurfaceWireColor(color.rgb,input.bary,input.position.w),color.a),input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}
+          @fragment fn wireSurfaceFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));}
           fn projectWorld(point:vec3f)->vec4f {
             let p=frameCameraRelative(params.rotation)*vec4f((point-params.centerScale.xyz)*params.centerScale.w,1);
             let xy=p.xy+params.viewport.zw;let z=p.z;let focal=params.clip.w;
@@ -20292,7 +20328,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           @vertex fn meshEdgeVS(@builtin(vertex_index) v:u32)->GridOutput {
             let p=v*3u;var out:GridOutput;
             out.position=projectWorld(loadPosition(v));out.position.z-=2e-6*out.position.w;
-            out.color=vec3f(0);return out;
+            out.color=vec3f(1);return out;
           }
 
         `;const shader=device.createShaderModule({code:shaderSource});
@@ -20302,7 +20338,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},...[1,2].map(binding=>({binding,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'float',viewDimension:'cube'}})),{binding:3,visibility:GPUShaderStage.FRAGMENT,sampler:{type:'filtering'}}]}),
           device.createBindGroupLayout({entries:[...[0,2,3,4,5].map(binding=>({binding,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}})),{binding:13,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}},{binding:6,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,texture:{sampleType:'uint',viewDimension:'2d-array'}},{binding:7,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:8,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}},{binding:9,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]})
         ]});
-        const surfaceTargets=[{format}],lineTargets=[{format}],wireTargets=[{format},{format:'r32uint'},{format:'rgba32float'}];
+        const surfaceTargets=[{format}],lineTargets=[{format}],edgeTargets=[{format,blend:{color:{srcFactor:'constant',dstFactor:'zero'},alpha:{srcFactor:'one',dstFactor:'zero'}}}],wireTargets=[{format},{format:'r32uint'},{format:'rgba32float'}];
         const pipeline = await device.createRenderPipelineAsync({
           layout: surfaceLayout,
           vertex: { module: shader, entryPoint: 'vs' },
@@ -20325,7 +20361,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
 
         const wireSurfacePipeline=await device.createRenderPipelineAsync({layout:surfaceLayout,vertex:{module:shader,entryPoint:'wireSurfaceVS'},fragment:{module:shader,entryPoint:'wireSurfaceFS',targets:wireTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const edgeLayout=device.createPipelineLayout({bindGroupLayouts:[device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]}),device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:6,visibility:GPUShaderStage.VERTEX,texture:{sampleType:'uint',viewDimension:'2d-array'}},{binding:7,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},{binding:9,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]})]});
-        const edgePipeline=await device.createRenderPipelineAsync({layout:edgeLayout,vertex:{module:shader,entryPoint:'meshEdgeVS'},fragment:{module:shader,entryPoint:'gridFS',targets:lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
+        const edgePipeline=await device.createRenderPipelineAsync({layout:edgeLayout,vertex:{module:shader,entryPoint:'meshEdgeVS'},fragment:{module:shader,entryPoint:'gridFS',targets:edgeTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}});
         const edgeUniforms=device.createBindGroup({layout:edgePipeline.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:uniform}}]});
         const idPipeline=await device.createRenderPipelineAsync({label:'visible triangle IDs',layout:surfaceLayout,vertex:{module:shader,entryPoint:'idVS'},fragment:{module:shader,entryPoint:'idFS',targets:[{format:'r32uint'}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
         const hoverPresentation=await createHoverPresentation(device,format);
@@ -20383,7 +20419,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const pickPipeline=await device.createComputePipelineAsync({layout:pickLayout,compute:{module:pickShader,entryPoint:'main'}});
         const pickResolvePipeline=await device.createComputePipelineAsync({layout:pickLayout,compute:{module:pickShader,entryPoint:'resolve'}});
 
-        renderer = { environment,shader, shaderSource, surfaceLayout, edgeLayout, surfaceTargets, wireTargets, lineTargets, format, epoch:++gpuEpoch,dead:false,device, context, pipeline, wireSurfacePipeline, primitiveIndex, idPipeline, hoverPresentation, featureHover, featureDraws:[], frameMeter, frameSamples:[], uniform, bindGroup, gridPipeline, gridBindGroup, edgePipeline, edgeUniforms, compute, connected, normalPacking, normalPackCounter, boundsAll, boundsSelected, pickPool:[], boundsPool:[], pickPipeline, pickResolvePipeline, depth: null, width: 0, height: 0 };
+        renderer = { environment,shader, shaderSource, surfaceLayout, edgeLayout, surfaceTargets, wireTargets, lineTargets, edgeTargets, format, epoch:++gpuEpoch,dead:false,device, context, pipeline, wireSurfacePipeline, primitiveIndex, idPipeline, hoverPresentation, featureHover, featureDraws:[], frameMeter, frameSamples:[], uniform, bindGroup, gridPipeline, gridBindGroup, edgePipeline, edgeUniforms, compute, connected, normalPacking, normalPackCounter, boundsAll, boundsSelected, pickPool:[], boundsPool:[], pickPipeline, pickResolvePipeline, depth: null, width: 0, height: 0 };
         renderer.dummyBuffer=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.STORAGE});
         renderer.dummyReadBuffer=makeGPUBuffer(device,{size:16,usage:GPUBufferUsage.STORAGE});
         renderer.dummyTexture=makePagedTexture(renderer,'unused position texture',1);
@@ -23935,7 +23971,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{if(!installed){if(mesh)disposeMesh(mesh);if(!same&&staticLines)releaseGPU(staticLines);}}
     }
     function issueNativeLineEdges(pass,part,edgeCount){
-      const stream=shadingMode==='solid-isoparms'&&splineLineStreams.get(part.splineWireEdges);
+      const stream=splineLineStreams.get(part.splineWireEdges);
       if(stream){pass.setIndexBuffer(stream,'uint32',20);pass.drawIndexedIndirect(stream,0);}
       else pass.draw(edgeCount*2);
     }

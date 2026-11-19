@@ -11,7 +11,7 @@ export async function polygonLineMask(page){
  const capture=phase=>page.evaluate(async phase=>{
   await frameEngine.draw(true);const r=frameEngine.renderer,d=r.device,width=r.width,height=r.height,stride=Math.ceil(width*4/256)*256,read=d.createBuffer({size:stride*height,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
   try{const e=d.createCommandEncoder();e.copyTextureToBuffer({texture:r.cachedColor},{buffer:read,bytesPerRow:stride},[width,height]);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const bytes=new Uint8Array(read.getMappedRange());if(phase==='lines'){window.__polygonLineCapture={bytes:bytes.slice(),draws:JSON.parse(document.querySelector('#frame-engine-canvas').dataset.surfaceLines||'null')};return;}
-   const lines=window.__polygonLineCapture,pixels=[];for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=y*stride+x*4;if([0,1,2].some(k=>bytes[i+k]-lines.bytes[i+k]>8))pixels.push(y*width+x);}return {width,height,pixels,draws:lines.draws};
+   const lines=window.__polygonLineCapture,pixels=[];for(let y=0;y<height;y++)for(let x=0;x<width;x++){const i=y*stride+x*4;if([0,1,2].some(k=>Math.abs(bytes[i+k]-lines.bytes[i+k])>8))pixels.push(y*width+x);}return {width,height,pixels,draws:lines.draws};
   }finally{read.unmap();read.destroy();}
  },phase);
  const call=(n,a={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[n,a]),shading=(await call('view.set')).shading;
