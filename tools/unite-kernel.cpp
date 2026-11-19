@@ -9,6 +9,8 @@
 #include <memory>
 #include <numeric>
 #include <vector>
+#include <unordered_map>
+#include "vendor/earcut/earcut.hpp"
 
 #define API extern "C"
 using U = uint32_t;
@@ -35,8 +37,8 @@ struct Vertices {
     explicit Vertices(size_t guess):slots(capacity(guess*2),none) {points.reserve(guess);}
     static U64 hash(V p) {return hash3(bits(p.x),bits(p.y),bits(p.z));}
     U insert(V p) {
-        if(points.size()*4 >= slots.size()*3) {
-            slots.assign(slots.size()*2,none);
+        if(slots.empty()||points.size()*4 >= slots.size()*3) {
+            slots.assign(slots.empty()?capacity(2*points.size()+1):slots.size()*2,none);
             for(U j=0;j<points.size();++j) {
                 size_t k=hash(points[j])&(slots.size()-1);
                 while(slots[k]!=none) k=(k+1)&(slots.size()-1);
@@ -96,12 +98,19 @@ struct Geometry {
     Box box(U id) const {Box b;for(auto q:tri(id)) b.add(q);return b;}
 };
 // Conservative triangle SAT, including in-plane separating axes for coplanar faces.
-static bool touch(const Triangle& a,const Triangle& b) {
+static bool touch(const Triangle& a,const Triangle& b,bool guarded=false) {
     auto sep=[&](D axis) {
         double amin=INFINITY,amax=-INFINITY,bmin=INFINITY,bmax=-INFINITY;
         for(auto p:a) {double s=dot(sub(p,a[0]),axis);amin=std::min(amin,s);amax=std::max(amax,s);}
         for(auto p:b) {double s=dot(sub(p,a[0]),axis);bmin=std::min(bmin,s);bmax=std::max(bmax,s);}
-        return amax<bmin || bmax<amin;
+        double margin=0;
+        if(guarded){
+            for(const auto& t:{a,b})for(D q:t){
+                D d=sub(q,a[0]);margin=std::max(margin,std::abs(d.x*axis.x)+std::abs(d.y*axis.y)+std::abs(d.z*axis.z));
+            }
+            margin*=1.e-12;
+        }
+        return amax+margin<bmin || bmax+margin<amin;
     };
     D e[3],f[3];for(int i=0;i<3;++i){e[i]=sub(a[(i+1)%3],a[i]);f[i]=sub(b[(i+1)%3],b[i]);}
     D n=cross(e[0],e[1]),m=cross(f[0],f[1]);
@@ -160,11 +169,12 @@ struct Tree {
         return false;
     }
 };
+#include "unite-planes.h"
 // stats: retained, duplicates, degenerate, open edges, multi edges, orientation
 // conflicts, patches, closed patches, cavity patches, changed winding, nested
 // comparisons, discarded sub-cell solid clusters and discarded input triangles.
 API int prepare(V* soup,U n,U* levels,U* stats,U resolution,double* cellSize) {
-        *cellSize=0;
+        unite_planes::supports.clear();*cellSize=0;
         Vertices vt(n/2+8);std::vector<F> faces,keys;faces.reserve(n);keys.reserve(n);
         std::vector<U> seen(capacity(size_t(n)*2+1),none);
         for(U i=0;i<n;++i){
@@ -277,6 +287,7 @@ API int prepare(V* soup,U n,U* levels,U* stats,U resolution,double* cellSize) {
             }
             stats[0]=kept;
         }
+        unite_planes::propose(soup,stats[0],inputBounds.lo,*cellSize);
         return 0;
 }
 
@@ -321,6 +332,7 @@ const Tables tables;
 struct Surface {
     Vertices vertices{4096};
     std::vector<U> indices;
+    U perimeterCells=0,perimeterPatches=0,perimeterHoles=0,perimeterInterior=0,perimeterRimSkipped=0;
     U regular=0,ambiguous=0,referenceFaces=0,patches=0,fittedCells=0,omittedCrossings=0,fallbackTiles=0;
 };
 #include "unite-surface.h"
@@ -414,6 +426,13 @@ API void surface_counts(Surface* s,U* stats){
     stats[0]=U(s->vertices.points.size());stats[1]=U(s->indices.size());
     stats[2]=s->regular;stats[3]=s->ambiguous;
 }
+API void perimeter_counts(const Surface* s,U* p){
+    p[0]=s->perimeterPatches;p[1]=s->perimeterHoles;p[2]=s->perimeterCells;p[3]=s->perimeterInterior;p[4]=s->perimeterRimSkipped;
+}
+#include "unite-perimeter.h"
+#include "unite-box-outlines.h"
+#include "unite-facets.h"
+#include "unite-field-outlines.h"
 #include "unite-contour.h"
 static int regular_grid(Surface* s,const int16_t* field,int nx,int ny,int nz,int firstX,int firstY,int firstZ,const Axes& axes){
     const int plane=nx*ny;
@@ -450,3 +469,4 @@ API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int fi
 
 #include "unite-field.h"
 #include "unite-quality.h"
+#include "unite-rims.h"

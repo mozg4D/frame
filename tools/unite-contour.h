@@ -53,6 +53,9 @@ struct Tile {
     std::vector<unsigned char> edgeDirections;
     std::vector<size_t> occupied;
     int generation=0;D origin;
+    const unite_outline::Picks* picks=nullptr;
+    std::vector<unsigned char> maskOwned,seamLock;std::vector<U64> seams;
+
 
     Tile(Surface& s,const int16_t* f,int nx,int ny,const Axes& a,int block,double error,unsigned percent)
       :surface(s),field(f),axes(a),row(nx),plane(nx*ny),stride{1,block+1,(block+1)*(block+1)},
@@ -245,7 +248,7 @@ struct Tile {
                     const auto a=corners[edges[edge][0]];int v[]={x+a[0],y+a[1],z+a[2]};
                     head[e]=emitted[e]=-1;border[e]=0;marks[e]=0;planes[e]={};
                     for(int k=0;k<3;++k)if(k!=edge/4&&(v[k]==0||v[k]==size[k]))border[e]|=1u<<(2*k+(v[k]!=0));
-                    locked[e]=border[e]!=0;
+                    locked[e]=border[e]!=0||(!seamLock.empty()&&seamLock[e]);
                 }return e;
             };
             if(!p.simple){
@@ -368,7 +371,8 @@ struct Tile {
         for(size_t k:occupied){
             auto a=points[edgeKeys[k]>>32],b=points[U(edgeKeys[k])];
             bool border=(a.x==b.x&&(a.x==lo[0]||a.x==hi[0]))||(a.y==b.y&&(a.y==lo[1]||a.y==hi[1]))||(a.z==b.z&&(a.z==lo[2]||a.z==hi[2]));
-            if(border==(edgeDirections[k]==3))return false;
+            bool rim=border||(!seams.empty()&&std::binary_search(seams.begin(),seams.end(),edgeKeys[k]));
+            if(rim==(edgeDirections[k]==3))return false;
         }
         return true;
     }
@@ -382,7 +386,7 @@ struct Tile {
         return true;
     }
     bool build(){
-        patches.clear();bool active=false;
+        patches.clear();seamLock.clear();seams.clear();bool active=false;
         for(int z=0;z<size[2];++z)for(int y=0;y<size[1];++y){
             auto p=field+z*plane+y*row;
             auto side=[&](int x){return (p[x]>0)|((p[x+row]>0)<<1)|((p[x+plane]>0)<<2)|((p[x+plane+row]>0)<<3);};
@@ -400,6 +404,31 @@ struct Tile {
         if(!active)return true;
         std::fill(positions.begin(),positions.end(),D{NAN,0,0});
         origin={axes.coordinate(0,first[0]),axes.coordinate(1,first[1]),axes.coordinate(2,first[2])};
+        if(picks&&picks->touches(first[0],first[1],first[2],size[0],size[1],size[2])){
+            maskOwned.assign(masks.size(),0);bool any=false;
+            for(int z=0;z<size[2];++z)for(int y=0;y<size[1];++y)for(int x=0;x<size[0];++x){
+                int i=index(x,y,z);
+                if(masks[i]&&picks->has(first[0]+x,first[1]+y,first[2]+z)){maskOwned[i]=1;any=true;}
+            }
+            if(any){
+                seamLock.assign(stamp.size(),0);++generation;used.clear();
+                bool remainder=false;
+                for(int z=0;z<size[2];++z)for(int y=0;y<size[1];++y)for(int x=0;x<size[0];++x){
+                    int i=index(x,y,z);if(!maskOwned[i]){remainder|=masks[i]!=0;continue;}
+                    const auto& p=tables.patterns[masks[i]];int xyz[]={x,y,z};
+                    for(int j=0;j<p.count;++j){
+                        int a=p.loop[j],b=p.loop[(j+1)%p.count],side=tables.commonSide[a][b],d=2-side/2,step=(side&1)?1:-1;
+                        if(xyz[d]+step<0||xyz[d]+step>=size[d]||maskOwned[i+step*stride[d]])continue;
+                        int A=cut(x,y,z,a),B=cut(x,y,z,b);seamLock[A]=seamLock[B]=1;
+                        seams.push_back(unite_outline::edgeKey(surface.vertices.insert(world[A]),surface.vertices.insert(world[B])));
+                    }
+                    masks[i]=0;
+                }
+                std::sort(seams.begin(),seams.end());
+                return !remainder||(strength?graph():uniform());
+            }
+        }
+        if(!strength)return uniform();
         Bounds bounds{{0,0,0},{size[0],size[1],size[2]}};
         if(axes.knots[0])partition(bounds);
         else if(!fit(bounds))return graph();

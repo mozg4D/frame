@@ -91,12 +91,13 @@ export async function uniteGeneratorChecks(page){
   await call('scene.update',{id:island.hash,parent:g.hash});
   let u=await call('scene.create',{type:'unite',inputs:[a.hash,b.hash,cavity.hash,g.hash],params:{resolution:64}});
   assert.ifError(u.buildError);assert.equal(u.evaluation?.report?.nestingLevels,3,JSON.stringify(u));
-  assert.equal(u.evaluation.report.backend,'Exact rectilinear');assert.ok(u.evaluation.report.triangles<1000);
+  assert.equal(u.evaluation.report.backend,'Exact rectilinear');
+  assert.ok(u.evaluation.report.perimeterPatches>0&&u.evaluation.report.triangles<u.evaluation.report.rawTriangles);
   const probes=[[1,3.123,4.27],[6.5,4.13,5.24],[7.3,4.31,5.11],[8,4.97,5.31],[12,4.53,4.71],[16,4.23,5.36]];
   const expected=[true,true,false,true,true,false];
   const result=await audit(page,u.hash,probes);assert.ok(result.manifold);assert.deepEqual(result.inside,expected);
   const coplanar=await call('scene.update',{id:u.hash,params:{fast:false}});
-  assert.ifError(coplanar.buildError);assert.ok(coplanar.evaluation.report.triangles<result.faces);
+  assert.ifError(coplanar.buildError);assert.ok(coplanar.evaluation.report.triangles===result.faces);
   const compact=await audit(page,u.hash,probes);
   assert.ok(compact.manifold&&Math.abs(compact.volume-result.volume)<1e-5);assert.deepEqual(compact.inside,expected);
   await call('scene.update',{id:u.hash,params:{fast:true}});
@@ -108,7 +109,7 @@ export async function uniteGeneratorChecks(page){
   const exactOptimized=await call('scene.update',{id:u.hash,params:{optimize:75}});
   assert.ifError(exactOptimized.buildError);
   const planar=await audit(page,u.hash,probes);assert.deepEqual(planar.inside,expected);
-  assert.ok(planar.manifold&&planar.faces<result.faces&&Math.abs(planar.volume-result.volume)<.001);
+  assert.ok(planar.manifold&&planar.faces===result.faces&&Math.abs(planar.volume-result.volume)<.001);
   u=exactOptimized;
   const created=u.evaluation.report.totalMs;
   await call('transform.apply',{ids:[u.hash],position:[17,3,2]});
@@ -446,7 +447,7 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
       const name=basename(path),url=session.url+'/unite-fixture.stl';
       await page.route(url,route=>route.fulfill({path:resolve(path),contentType:'application/octet-stream'}));
       await page.evaluate(({url,name})=>frameAI.call('scene.open',{url,name}),{url,name});
-      let owner=null,pitch=0,fastFaces=0;
+      let owner=null,pitch=0,fastFaces=0,warm=null;
       const compare=process.argv.includes('--compare');
       const modes=compare?['default','fast','qualityWarm','reference','qualityCold']:['default'];
       await page.evaluate(()=>{window.__uniteMeasurements={};});
@@ -502,6 +503,11 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
         if(mode==='fast'){fastFaces=result.triangles;assert.equal(result.reusedVolume,false);}
         if(mode==='qualityWarm'){
           assert.equal(result.reusedVolume,true);assert.equal(result.reusedField,true);assert.ok(result.triangles<=fastFaces);
+          warm=result;
+        }
+        if(mode==='qualityCold'){
+          for(const k of ['triangles','perimeterPatches','perimeterCells','interiorCrossingsSkipped'])
+            assert.equal(result[k],warm[k],name+' cold and cached '+k);
         }
         console.log('STL',JSON.stringify(result));
         assert.equal(result.badEdges,0,'Every edge has two opposing faces in '+name);

@@ -155,16 +155,18 @@ API void finish_filter(Volume* v){
 }
 
 API size_t volume_bytes(const Volume* v){return v->raw.bytes()+(v->filtered?v->filtered->bytes():0);}
-API int contour_volume(Surface* s,const Volume* v,double ox,double oy,double oz,double pitch,unsigned optimization){
+static int contourMaterial(Surface* s,const Volume* v,double ox,double oy,double oz,double pitch,unsigned optimization,bool usePlanes){
     const auto& g=v->field();
     int width=optimization?unite_contour::blockSize(optimization):16;
     int row=width+1;std::vector<int16_t> samples(row*row*row);
     Axes axes{{ox,oy,oz},pitch,{nullptr,nullptr,nullptr}};
+    unite_outline::FieldOutlines<unite_field::Grid> outlines(g,axes,g.size[0],g.size[1],g.size[2],optimization,!v->filtered);if(usePlanes)outlines.find();
     std::unique_ptr<unite_contour::Tile> tile;
-    if(optimization){
+    if(optimization||!outlines.caps.empty()){
         double t=optimization/100.;
         tile=std::make_unique<unite_contour::Tile>(*s,samples.data(),row,row,axes,width,.006+.64*t*t,optimization);
     }
+    if(!outlines.caps.empty())tile->picks=&outlines.picks;
     for(int z=0;z<g.size[2]-1;z+=width)for(int y=0;y<g.size[1]-1;y+=width)for(int x=0;x<g.size[0]-1;x+=width){
         if(!g.different(x,y,z,width+1,0))continue;
         int nx=std::min(row,g.size[0]-x),ny=std::min(row,g.size[1]-y),nz=std::min(row,g.size[2]-z);
@@ -185,5 +187,10 @@ API int contour_volume(Surface* s,const Volume* v,double ox,double oy,double oz,
             if(!tile->emit())return 1;
         }else if(regular_grid(s,samples.data(),nx,ny,nz,x,y,z,axes))return 1;
     }
-    return 0;
+    return outlines.finish(*s)?0:2;
+}
+API int contour_volume(Surface* s,const Volume* v,double ox,double oy,double oz,double pitch,unsigned optimization){
+    int result=contourMaterial(s,v,ox,oy,oz,pitch,optimization,s->indices.empty());
+    if(result!=2)return result;
+    *s=Surface{};return contourMaterial(s,v,ox,oy,oz,pitch,optimization,false);
 }

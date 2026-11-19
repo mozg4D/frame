@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {facetedKernelChecks,facetChecks} from './unite-facets.mjs';
 import {surfaceDeviation} from './unite-deviation.mjs';
 
 // A gridded plate with two through-holes and an open notch. All coordinates of
@@ -86,7 +87,7 @@ async function nativeFit(){
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
   const bytes=Buffer.from(html.match(/<script id="frame-unite-wasm"[^>]*>([^<]+)/)[1],'base64');
   const {instance}=await WebAssembly.instantiate(bytes,{env:{emscripten_notify_memory_growth(){}},wasi_snapshot_preview1:{fd_write:()=>8,fd_seek:()=>8,fd_close:()=>8}});
-  const api=instance.exports;api._initialize();
+  const api=instance.exports;api._initialize();facetedKernelChecks(api);
   return (input,pitch,optimize)=>{
     const s=api.begin_surface(),ptr=api.malloc(24);
     try{
@@ -124,10 +125,11 @@ function measurePlate(mesh){
   const p=mesh.vertices,t=mesh.indices,xy=[],holes=[[8,12,20,30],[34,16,46,36],[62,28,72,40]];
   const clearance=(x,y)=>Math.min(x,y,72-x,48-y,...holes.map(([a,b,c,d])=>
     Math.hypot(Math.max(0,a-x,x-c),Math.max(0,b-y,y-d))));
-  let inner=0;
+  let inner=0,inner3mm=0;
   for(let i=0;i<p.length;i+=3){
     const X=p[i],Y=p[i+1],Z=p[i+2],z=(Z-.125*X+.28125*Y)/1.01953125,y=Y-.125*z,x=X-.25*y-.125*z;
-    xy.push([x,y,z]);if(Math.min(Math.abs(z),Math.abs(z-5))<.1&&clearance(x,y)>6)inner++;
+    xy.push([x,y,z]);
+    if(Math.min(Math.abs(z),Math.abs(z-5))<.1){const d=clearance(x,y);if(d>3)inner3mm++;if(d>6)inner++;}
   }
   function hits(x,y){
     const z=[];
@@ -149,7 +151,7 @@ function measurePlate(mesh){
   }
   for(const [x,y] of [[14,21],[40,26],[67,34]])assert.equal(hits(x,y).length,0,'Both holes and the notch stay open');
   assert.ok(audit(mesh)>0);
-  return {inner,faces:t.length/3,samples,maxFlatErrorMm};
+  return {inner,inner3mm,faces:t.length/3,samples,maxFlatErrorMm};
 }
 // Build through normal Frame entry points as well: the sampled slanted plate
 // exposes grid-phase noise which the purely planar kernel proof cannot exercise.
@@ -168,5 +170,13 @@ export async function regionBrowserChecks(page,call){
   console.log('Sampled slanted plate',JSON.stringify({fast,quality,planar:report.planarVerticesRemoved,strips:report.stripVerticesRemoved}));
   assert.ok(report.reusedField&&report.reusedTessellation&&report.planarVerticesRemoved>0&&report.stripVerticesRemoved>0);
   assert.equal(quality.inner,0,'Keep every remaining vertex near a contour or a rounded transition');
-  assert.ok(fast.inner>100&&quality.faces<fast.faces&&quality.samples>500&&quality.maxFlatErrorMm<.05);
+  const preview=owner.evaluation.report;
+  assert.equal(preview.globalCollapses,0);assert.ok(preview.perimeterPatches>=2&&preview.perimeterHoles>=4);
+  assert.ok(preview.interiorCrossingsSkipped>5000&&preview.perimeterRimSkipped>0);
+  assert.equal(fast.inner3mm,0);assert.equal(quality.inner3mm,0);
+  assert.ok(quality.faces<fast.faces&&quality.samples>500&&quality.maxFlatErrorMm<.05&&fast.maxFlatErrorMm<.002);
+  console.log('Field perimeters',JSON.stringify({patches:preview.perimeterPatches,holes:preview.perimeterHoles,cells:preview.perimeterCells,
+    crossings:preview.interiorCrossingsSkipped,rim:preview.perimeterRimSkipped}));
+
+  await facetChecks(page,call,audit);
 }
