@@ -124,6 +124,12 @@ export async function facetChecks(page,call,audit){
     angle+=Math.atan2(det,Math.hypot(...a)*Math.hypot(...b)*Math.hypot(...c)+dot(a,b)*Math.hypot(...c)+dot(b,c)*Math.hypot(...a)+dot(c,a)*Math.hypot(...b));
   }
   assert.ok(Math.abs(angle)>Math.PI,'The volume extends above the original facet inside its clipped perimeter');
+  await call('scene.new');
+  const many=triangularShell(64),large=await call('mesh.create',many);
+  const broad=await call('scene.create',{type:'unite',inputs:[large.hash],params:{resolution:1024,smoothing:0,optimize:0}});
+  assert.ifError(broad.buildError);assert.equal(broad.evaluation.report.backend,'Exact faceted');
+  assert.equal(broad.evaluation.report.triangles,many.indices.length/3);
+  const largeMesh=await geometry(broad.hash);assert.equal(largeMesh.vertices.length,many.vertices.length);assert.ok(audit(largeMesh)>0);
   console.log('Oblique triangular facets',JSON.stringify({source:200,split:600,exact:raw.indices.length/3,fast:mesh.indices.length/3,final:q.indices.length/3,
-    fastInterior:fi.inner,finalInterior:qi.inner,patches:fast.perimeterPatches,skipped:fast.interiorCrossingsSkipped,overlapPatches:cut.evaluation.report.perimeterPatches,overlapRawPatches:info.perimeterPatches,overlapRawSkipped:info.interiorCrossingsSkipped}));
+    fastInterior:fi.inner,finalInterior:qi.inner,patches:fast.perimeterPatches,skipped:fast.interiorCrossingsSkipped,overlapPatches:cut.evaluation.report.perimeterPatches,overlapRawPatches:info.perimeterPatches,overlapRawSkipped:info.interiorCrossingsSkipped,largeExact:broad.evaluation.report.triangles}));
 }

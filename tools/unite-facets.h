@@ -49,7 +49,7 @@ static bool embedded(const Geometry& g){
 }
 API int faceted_perimeters(Surface* surface,const V* soup,U count,double pitch){
     using namespace unite_facets;
-    if(!count||count>16384||!(pitch>0))return 0;
+    if(!count||!(pitch>0))return 0;
     Surface original;std::vector<F> faces(count);
     for(U i=0;i<count;++i)for(int j=0;j<3;++j){
         U v=original.vertices.insert(soup[3*i+j]);faces[i].v[j]=v;original.indices.push_back(v);
@@ -69,7 +69,7 @@ API int faceted_perimeters(Surface* surface,const V* soup,U count,double pitch){
         U f=c/3,j=c%3,a=faces[f].v[j],b=faces[f].v[(j+1)%3];auto [it,fresh]=edges.emplace(edgeKey(a,b),c);
         if(!fresh){U e=it->second;mate[c]=e;mate[e]=c;shells.join(f,e/3);}
     }
-    if(shells.parent[shells.root(0)]!=-int(count)||!embedded(geometry))return 0;
+    if(shells.parent[shells.root(0)]!=-int(count))return 0;
     // Compare the entire region to one well-conditioned source plane. STL
     // decimals rounded to Float32 can split an otherwise flat facet.
     std::vector<std::vector<U>> components(count);
@@ -88,7 +88,7 @@ API int faceted_perimeters(Surface* surface,const V* soup,U count,double pitch){
         double twice=0;for(U f:patch)twice+=std::sqrt(area[f]);totalArea+=twice;
         if(twice>=80*pitch*pitch)broadArea+=twice;
     }
-    if(broadArea<.5*totalArea)return 0;
+    if(broadArea<.5*totalArea||!embedded(geometry))return 0;
     struct Patch {Outline cap;std::vector<U> ids;int axis,sign;};
     std::vector<Patch> patches;std::vector<unsigned char> keep(geometry.p.size());std::vector<F> isolated;
     U skipped=0;

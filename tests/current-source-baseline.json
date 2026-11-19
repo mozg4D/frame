@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 20 nov 01:23",
+  "version": "2026 20 nov 01:29",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -549,11 +549,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "c4624f23117e3c32dfa3d8e6bdd86ad6933ec2a248e8c81ccce25684bdd33bc9"
+      "sha256": "a522a1680cd639122fdfd2e644211fcc79c38f1274236db6799f4babc6fc0f4c"
     },
     "index.html": {
-      "bytes": 3732937,
-      "sha256": "604adedf4484edcf952759fc0586cec0f3bcc91ac2c18938cb2d291d71e8d530"
+      "bytes": 3733192,
+      "sha256": "4e926bbe0ad33522203b6c4b177ff4241574368e36721f9bd8cf1da121918f78"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -852,8 +852,8 @@
       "sha256": "4852a26c582f1ac59d10c87992d859e3cc5e0390d55f949994239e69cc24974b"
     },
     "tests/README.md": {
-      "bytes": 63037,
-      "sha256": "8712a26b0f05efca1c064eec9044cf34329ddd19349a066734420a0ef027b0a5"
+      "bytes": 63112,
+      "sha256": "056a9f29d2e2199872606c4650057d4588c3702b7991c5c1819007761fe0b031"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 6505,
@@ -1408,8 +1408,8 @@
       "sha256": "8e79464340ea48a7b4c7c162fdfd4e01f051a3a024b08ab65193798e1f0b6fd6"
     },
     "tools/unite-facets.h": {
-      "bytes": 8332,
-      "sha256": "79d06ab8c95121b4bb9521361b37f2e498c0966303af6ee11a8eca6a3f10ed81"
+      "bytes": 8319,
+      "sha256": "635d6ddc8f2ae30720710890aeccdd7260cd492be78e60704723579d738c6a01"
     },
     "tools/vendor/earcut/earcut.hpp": {
       "bytes": 25024,
@@ -1420,8 +1420,8 @@
       "sha256": "828f2aed51b6526881a236758ec9b08cd69928fbfc70346d9d44a0b3a3444fe1"
     },
     "tests/unite-facets.mjs": {
-      "bytes": 8675,
-      "sha256": "27be13e4757d303e43622c94cd6b6e996433eecd2afe9183d5999080f8a18257"
+      "bytes": 9251,
+      "sha256": "15b44094dd0955f811c5a04e2a89777c4f75cd60eaec03c18b44f80d2d83e3d8"
     }
   }
 }
