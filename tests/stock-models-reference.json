@@ -1,16 +1,16 @@
 {
   "entries": [
     {
-      "filename": "car-hatchback-1.hash",
-      "source": "hatchback_final(1) (1).hash",
-      "sourceSHA256": "b75d2b841bea3d215f5c42f2fe106620e882e8da3b6c40cc1745509c8237fb00",
-      "sha256": "c0c0be8f84ab12e0ee2f17137f2128414fcf5f466ec880fbf1553bd152dfaedb",
-      "bytes": 11396,
-      "sourceBytes": 11832,
-      "positionsSHA256": "cbaabfe7832ee9063b442787c7f0245b231224e7212c5fc406876ac4d1720717",
-      "indicesSHA256": "b295233af00b075ad55e176cee4cce796e44b8093a4f1df25e335dd3216581e6",
-      "triangles": 1692,
-      "vertices": 916,
+      "filename": "car-hatchback-2.hash",
+      "source": "car-refined.hash",
+      "sourceSHA256": "eb7c017d2f9672cef84e4f0c49175f4058cfd307c952b2579ba259eebbd7e147",
+      "sha256": "b73f1ccdb1ee13f1869bb6d5313cca93d6a63d384ce3a59ea23da72f02d49f99",
+      "bytes": 11654,
+      "sourceBytes": 11963,
+      "positionsSHA256": "f46cb2af1e33c49d85555176e75d79197a7cbd83708bc55190bdf8474a834d4a",
+      "indicesSHA256": "7140507adb3e5ee6fdb3d144cfd03946a47f5d310bbb5df8f39e84ca6ad424ea",
+      "triangles": 1744,
+      "vertices": 934,
       "bounds": {
         "min": [
           -2098.435546875,
@@ -38,7 +38,7 @@
           "metal": 0,
           "opac": 0,
           "emm": 0,
-          "triangles": 442,
+          "triangles": 440,
           "sampleFace": 0
         },
         {
@@ -50,7 +50,7 @@
           "metal": 0,
           "opac": 0,
           "emm": 0,
-          "triangles": 794,
+          "triangles": 816,
           "sampleFace": 23
         },
         {
@@ -75,7 +75,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 50,
-          "sampleFace": 168
+          "sampleFace": 167
         },
         {
           "name": "Plate",
@@ -87,7 +87,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 8,
-          "sampleFace": 228
+          "sampleFace": 226
         },
         {
           "name": "Seams",
@@ -99,7 +99,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 170,
-          "sampleFace": 230
+          "sampleFace": 228
         },
         {
           "name": "Lamp R",
@@ -111,7 +111,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 18,
-          "sampleFace": 327
+          "sampleFace": 325
         },
         {
           "name": "Mirror",
@@ -123,7 +123,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 12,
-          "sampleFace": 465
+          "sampleFace": 459
         },
         {
           "name": "Alloy",
@@ -134,8 +134,8 @@
           "metal": 70,
           "opac": 0,
           "emm": 0,
-          "triangles": 176,
-          "sampleFace": 580
+          "triangles": 208,
+          "sampleFace": 465
         },
         {
           "name": "Signal",
@@ -147,7 +147,7 @@
           "opac": 0,
           "emm": 0,
           "triangles": 14,
-          "sampleFace": 804
+          "sampleFace": 500
         }
       ]
     },

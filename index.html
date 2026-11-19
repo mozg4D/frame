@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 23:45">
+<meta name="frame-version" content="2026 19 nov 23:51">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12878,7 +12878,7 @@ const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;'
 // A field is a number, text, boolean, or a short list of choices. No scene geometry.
 const approximation = {'angle approximation':10};
 const hardware = {size:['M6','M3','M4','M5','M8','M10','M12','M16'],'angle approximation':20};
-const stockCarAssets={hatchback:'car-hatchback-1',sedan:'car-sedan-1'};
+const stockCarAssets={hatchback:'car-hatchback-2',originalHatchback:'car-hatchback-1',sedan:'car-sedan-1'};
 // Choice indices are stored in animation tracks.
 const carPaintPresets={red:[10,33,44],gold:[52,100,37],blue:[217,40,42],silver:[0,0,50],graphite:[0,0,25],green:[82,100,22],white:[0,0,91],violet:[250,50,40],beige:[40,30,60],black:[0,0,8]};
 const definitions = {
@@ -14562,7 +14562,7 @@ function frameValidateMorphKeys(keys){
   }
 }
 function validateStockCar(library){
-  if(library.asset!==undefined&&library.asset!==stockCarAssets.hatchback&&library.asset!==stockCarAssets.sedan)throw Error('Unknown stock car asset');
+  if(library.asset!==undefined&&!Object.values(stockCarAssets).includes(library.asset))throw Error('Unknown stock car asset');
   const seen=new Set();
   for(const [ordinal,slot] of library.slots.entries()){
     const index=slot.index??ordinal;
@@ -25266,7 +25266,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const [h,s,l]=carPaintPresets[preset];
       for(const {slot,authored,shade} of stockCarFinishes.get(filename)){
         const m=materialAt(slot);
-        if(m)[m.h,m.s,m.l]=filename===stockCarAssets.hatchback&&preset==='blue'?authored:[h,s,l*shade];
+        if(m)[m.h,m.s,m.l]=filename!==stockCarAssets.sedan&&preset==='blue'?authored:[h,s,l*shade];
       }
     }
     function carPaintForEdit(n,slot,uses){
