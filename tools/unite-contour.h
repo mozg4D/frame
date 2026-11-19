@@ -128,7 +128,7 @@ struct Tile {
         for(int id:used)center=add(center,positions[id]);
         center=scale(center,1./used.size());
         double nearest=INFINITY,offset=0,lo=0,hi=0;
-        const double fitError=std::min(tolerance,.16*smallestStep);
+        const double fitError=std::min(tolerance,axes.knots[0] ? .16*smallestStep : .045);
         for(int id:used){
             if(planeAxis>=0&&std::abs(at(positions[id],planeAxis)-planeValue)>1e-7)return false;
             D v=sub(positions[id],center);double d=dot(v,n);lo=std::min(lo,d);hi=std::max(hi,d);
@@ -417,19 +417,25 @@ struct Tile {
         }
         return true;
     }
+    bool emit(){
+        auto& s=surface;
+        size_t start=s.indices.size();U regular=s.regular,ambiguous=s.ambiguous,raw=s.referenceFaces,patches=s.patches,cells=s.fittedCells,omitted=s.omittedCrossings;
+        if(!build()||(start!=s.indices.size()&&!validBoundary(start))){
+            s.indices.resize(start);s.regular=regular;s.ambiguous=ambiguous;s.referenceFaces=raw;s.patches=patches;
+            s.fittedCells=cells;s.omittedCrossings=omitted;++s.fallbackTiles;if(!uniform())return false;
+        }
+        return true;
+    }
 };
+static int blockSize(unsigned strength){return strength<20?2:(strength<45?4:(strength<65?8:16));}
 static int adaptive(Surface& s,const int16_t* f,int nx,int ny,int nz,int firstZ,const Axes& axes,unsigned strength){
-    int block=strength<20?2:(strength<45?4:(strength<65?8:16));
+    int block=blockSize(strength);
     double t=strength/100.;Tile tile(s,f,nx,ny,axes,block,.006+.64*t*t,strength);
     for(int z=0;z<nz-1;z+=block)for(int y=0;y<ny-1;y+=block)for(int x=0;x<nx-1;x+=block){
         tile.field=f+z*nx*ny+y*nx+x;
         tile.first[0]=x;tile.first[1]=y;tile.first[2]=firstZ+z;
         tile.size[0]=std::min(block,nx-1-x);tile.size[1]=std::min(block,ny-1-y);tile.size[2]=std::min(block,nz-1-z);
-        size_t start=s.indices.size();U regular=s.regular,ambiguous=s.ambiguous,raw=s.referenceFaces,patches=s.patches,cells=s.fittedCells,omitted=s.omittedCrossings;
-        if(!tile.build()||(start!=s.indices.size()&&!tile.validBoundary(start))){
-            s.indices.resize(start);s.regular=regular;s.ambiguous=ambiguous;s.referenceFaces=raw;s.patches=patches;
-            s.fittedCells=cells;s.omittedCrossings=omitted;++s.fallbackTiles;if(!tile.uniform())return 1;
-        }
+        if(!tile.emit())return 1;
     }
     return 0;
 }

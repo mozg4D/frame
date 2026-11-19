@@ -415,11 +415,7 @@ API void surface_counts(Surface* s,U* stats){
     stats[2]=s->regular;stats[3]=s->ambiguous;
 }
 #include "unite-contour.h"
-API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int firstZ,
-                     double ox,double oy,double oz,double pitch,unsigned optimize,
-                     const double* xs,const double* ys,const double* zs){
-    Axes axes{{ox,oy,oz},pitch,{xs,ys,zs}};
-    if(optimize)return unite_contour::adaptive(*s,field,nx,ny,nz,firstZ,axes,optimize);
+static int regular_grid(Surface* s,const int16_t* field,int nx,int ny,int nz,int firstX,int firstY,int firstZ,const Axes& axes){
     const int plane=nx*ny;
     for(int z=0;z<nz-1;++z)for(int y=0;y<ny-1;++y){
         const auto row=field+size_t(z)*plane+size_t(y)*nx;
@@ -432,7 +428,7 @@ API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int fi
             int right=sideMask(x+1);
             if((left|right)!=0 && (left&right)!=15){
                 const auto q=row+x;
-                Cell c{x,y,firstZ+z,axes,
+                Cell c{firstX+x,firstY+y,firstZ+z,axes,
                     {q[0],q[1],q[nx+1],q[nx],q[plane],q[plane+1],q[plane+nx+1],q[plane+nx]},
                     {},{},{},{},*s};
                 int mask=0;for(int k=0;k<8;++k)mask|=int(c.f[k]>0)<<k;
@@ -443,3 +439,14 @@ API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int fi
     }
     return 0;
 }
+
+API int contour_slab(Surface* s,const int16_t* field,int nx,int ny,int nz,int firstZ,
+                     double ox,double oy,double oz,double pitch,unsigned optimize,
+                     const double* xs,const double* ys,const double* zs){
+    Axes axes{{ox,oy,oz},pitch,{xs,ys,zs}};
+    if(optimize)return unite_contour::adaptive(*s,field,nx,ny,nz,firstZ,axes,optimize);
+    return regular_grid(s,field,nx,ny,nz,0,0,firstZ,axes);
+}
+
+#include "unite-field.h"
+#include "unite-quality.h"

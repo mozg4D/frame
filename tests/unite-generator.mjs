@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {basename,resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
+import {surfaceDeviation} from './unite-deviation.mjs';
 import {upperToolbarChecks} from './file-controls.mjs';
 
 function box(lo,hi,storage='auto'){
@@ -35,7 +36,7 @@ export async function uniteGeneratorChecks(page){
   for(const tab of ['#tabObjects','#tabMaterials']){
     await page.locator(tab).click();await page.locator('#btnUnite').click();
     assert.equal(await page.locator('#tabAttributes').getAttribute('aria-selected'),'true');
-    assert.deepEqual(await controls.evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize']);
+    assert.deepEqual(await controls.evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize','fast']);
     assert.ok(await controls.first().isVisible());
   }
   await call('scene.new');
@@ -69,7 +70,7 @@ export async function uniteGeneratorChecks(page){
   await page.locator('#btnUnite').click();
   rows=await inspect();const empty=rows.find(r=>r.type==='unite');assert.equal(empty.params.resolution,512);assert.equal(empty.sources.length,0);
   assert.equal(await page.locator('#tabAttributes').getAttribute('aria-selected'),'true');
-  assert.deepEqual(await page.locator('#attrContent input[data-field]').evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize']);
+  assert.deepEqual(await page.locator('#attrContent input[data-field]').evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize','fast']);
   assert.ok(!/cell size/i.test(await page.locator('#attrContent').innerText()));
   assert.ok(rows.every(r=>!r.parent));assert.equal(await page.locator('#btnBoolean + #btnUnite').count(),1);
   const operand=await call('mesh.create',{name:'Dragged box',...box([0,0,0],[5,5,5])});
@@ -93,6 +94,11 @@ export async function uniteGeneratorChecks(page){
   const probes=[[1,3.123,4.27],[6.5,4.13,5.24],[7.3,4.31,5.11],[8,4.97,5.31],[12,4.53,4.71],[16,4.23,5.36]];
   const expected=[true,true,false,true,true,false];
   const result=await audit(page,u.hash,probes);assert.ok(result.manifold);assert.deepEqual(result.inside,expected);
+  const coplanar=await call('scene.update',{id:u.hash,params:{fast:false}});
+  assert.ifError(coplanar.buildError);assert.ok(coplanar.evaluation.report.triangles<result.faces);
+  const compact=await audit(page,u.hash,probes);
+  assert.ok(compact.manifold&&Math.abs(compact.volume-result.volume)<1e-5);assert.deepEqual(compact.inside,expected);
+  await call('scene.update',{id:u.hash,params:{fast:true}});
   const volume=1000+5*8.2*8.9-2*6*6+1*2*2;
   assert.ok(Math.abs(result.volume-volume)<.001);
   let visible=await page.evaluate(()=>frameEngine.scene.meshes.filter(m=>m.frameVisible!==false).map(m=>m.hashId));
@@ -164,6 +170,7 @@ export async function uniteGeneratorChecks(page){
 async function copyInputs(page,call,owner,input){
   // Read only the already published result. An API settle/flush here could
   // accidentally make the test itself schedule the missing rebuild.
+  await call('scene.update',{id:owner.hash,params:{fast:false,optimize:75}});
   const published=n=>page.waitForFunction(({hash,n})=>{
     const u=frameNodeByHash(hash);
     return FrameSpline.states.get(u.id)?.report?.inputTriangles===n;
@@ -185,10 +192,14 @@ async function copyInputs(page,call,owner,input){
     await page.mouse.move(...handle);await page.mouse.down();await page.mouse.move(handle[0]+65,handle[1],{steps:8});
     await page.waitForFunction(()=>current()?.name==='Dragged box'&&nodes.filter(n=>n.name==='Dragged box').length===4);
     await page.mouse.move(handle[0]+87,handle[1],{steps:3});
-    await page.evaluate(()=>new Promise(ok=>setTimeout(ok,75))); // evaluator runs while the drag is held
+    await page.waitForFunction(id=>{
+      const u=frameNodeByHash(id),r=FrameSpline.states.get(u.id)?.report;
+      return r?.inputTriangles===48&&r.fast===true&&u.params.fast===false;
+    },owner.hash,{timeout:12000});
     await page.mouse.up();
   }finally{await page.keyboard.up('Control');}
   await published(48);
+  await page.waitForFunction(id=>FrameSpline.states.get(frameNodeByHash(id).id)?.report?.fast===false,owner.hash);
   const extent=await page.evaluate(async id=>{
     const {vertices}=await frameEngine.readGeometry(id);let lo=Infinity,hi=-Infinity;
     for(let i=0;i<vertices.length;i+=3){lo=Math.min(lo,vertices[i]);hi=Math.max(hi,vertices[i]);}return hi-lo;
@@ -238,7 +249,7 @@ async function cornerChecks(page,call){
   assert.deepEqual((await audit(page,u.hash,probes)).inside,[true,true,false,false]);
   const flat=[[4.131,9.731],[8.473,7.217],[17.236,15.491]],edge=[[.12,9.731]];
   const cut=[];
-  for(const smoothing of [25,50,100]){
+  for(const smoothing of [.16,.32,.65]){
     const result=await call('scene.update',{id:u.hash,params:{smoothing,optimize:75}});assert.ifError(result.buildError);
     const [x]=await frontAt(page,u.hash,edge);cut.push(x);
     for(const v of await frontAt(page,u.hash,flat))assert.ok(Math.abs(v)<1e-6,'Flat plane drift '+v);
@@ -247,22 +258,54 @@ async function cornerChecks(page,call){
   assert.deepEqual(rounded.inside,[false,true,true,false]);assert.ok(cut[2]>cut[1]&&cut[1]>cut[0]&&cut[2]<.81,JSON.stringify(cut));
   const [nearTangent,onPlane]=await frontAt(page,u.hash,[[.60,9.731],[.80,9.731]]);
   assert.ok(nearTangent>=-1e-6&&nearTangent<.015&&Math.abs(onPlane)<1e-6,JSON.stringify({nearTangent,onPlane}));
+  const physical=[];
+  for(const resolution of [32,96]){
+    const settings=await call('scene.update',{id:u.hash,params:{smoothing:1.4,resolution}});
+    assert.ifError(settings.buildError);physical.push(...await frontAt(page,u.hash,[[.18,9.731]]));
+  }
+  assert.ok(physical[0]>.3&&Math.abs(physical[0]-physical[1])<.015,JSON.stringify(physical));
   await call('scene.new');
   const wedge=box([0,0,0],[20,20,20]);for(let i=0;i<wedge.vertices.length;i+=3)wedge.vertices[i]+=.37*wedge.vertices[i+1]+.21*wedge.vertices[i+2];
   const w=await call('mesh.create',wedge),sampled=await call('scene.create',{type:'unite',inputs:[w.hash],params:{resolution:64}});
   const ray=[[4.136,8.241],[8.713,9.532],[13.247,7.847],[15.131,15.349]];
-  const pitch=sampled.evaluation.report.pitch,wedgeEdge=[[pitch*.16,9.731],[pitch*.28,9.731]];
-  const originalEdge=await frontAt(page,sampled.hash,wedgeEdge);
-  await call('scene.update',{id:sampled.hash,params:{smoothing:100}});
-  const smoothEdge=await frontAt(page,sampled.hash,wedgeEdge);
-  assert.ok(smoothEdge.some((x,i)=>x>originalEdge[i]+pitch*.015),JSON.stringify({originalEdge,smoothEdge}));
-  assert.ok(smoothEdge.every((x,i)=>Math.abs(x-originalEdge[i])<pitch*.65),JSON.stringify({originalEdge,smoothEdge}));
-  const trial=await call('scene.update',{id:sampled.hash,params:{smoothing:100,optimize:75}});
-  assert.ifError(trial.buildError);assert.ok(trial.evaluation.report.adaptivePatches>0);
-  const hits=await frontAt(page,sampled.hash,ray),error=Math.max(...hits.map((x,i)=>Math.abs(x-.37*ray[i][0]-.21*ray[i][1])));
-  assert.ok(error<trial.evaluation.report.pitch*.025,'Oblique plane deviation '+error);
-  assert.ok((await audit(page,sampled.hash,[])).manifold);
-  console.log('Flat faces, monotone convex rounding and concave cavity rounding passed',{cut,obliquePlaneError:error,originalEdge,smoothEdge});
+  const curves=[];
+  for(const resolution of [64,128]){
+    const raw=await call('scene.update',{id:sampled.hash,params:{smoothing:0,resolution,optimize:0}});
+    const pitch=raw.evaluation.report.pitch,wedgeEdge=[[.20,9.731],[.45,9.731]];
+    const originalEdge=await frontAt(page,sampled.hash,wedgeEdge);
+    const filtered=await call('scene.update',{id:sampled.hash,params:{smoothing:2,optimize:0}});
+    assert.ifError(filtered.buildError);
+    const curve=await frontAt(page,sampled.hash,wedgeEdge);curves.push(curve);
+    assert.ok(curve.every((v,i)=>v>originalEdge[i]+.05),JSON.stringify({originalEdge,curve}));
+    let fastFaces;
+    for(const fast of [true,false]){
+      const trial=await call('scene.update',{id:sampled.hash,params:{smoothing:2,optimize:75,fast}});
+      assert.ifError(trial.buildError);assert.ok(trial.evaluation.report.reusedVolume&&trial.evaluation.report.reusedField);
+      if(fast)fastFaces=trial.evaluation.report.triangles;else assert.ok(trial.evaluation.report.triangles<fastFaces);
+      const hits=await frontAt(page,sampled.hash,ray);
+      const error=Math.max(...hits.map((x,i)=>Math.abs(x-.37*ray[i][0]-.21*ray[i][1])));
+      assert.ok(error<pitch*.10,'Oblique plane deviation '+error);assert.ok((await audit(page,sampled.hash,[])).manifold);
+    }
+  }
+  assert.ok(curves[0].every((v,i)=>Math.abs(v-curves[1][i])<.22),JSON.stringify(curves));
+  console.log('Physical rounding on convex, concave and oblique faces',JSON.stringify({cut,physical,curves}));
+  await call('scene.new');
+  const shear=([x,y,z])=>[x+.27*y+.11*z,y,z];
+  const shells=[];
+  for(const [lo,hi] of [[[0,0,0],[20,16,10]],[[5,7,2],[15,7.8,8]],[[0,18,0],[20,18.75,10]]]){
+    const b=box(lo,hi);for(let i=0;i<b.vertices.length;i+=3)b.vertices.splice(i,3,...shear(b.vertices.slice(i,i+3)));
+    shells.push((await call('mesh.create',b)).hash);
+  }
+  const thin=await call('scene.create',{type:'unite',inputs:shells,params:{resolution:128}});
+  const points=[[10,6.8,5],[10,7.4,5],[10,8,5],[10,17.8,5],[10,18.35,5],[10,18.95,5]].map(shear);
+  for(const smoothing of [0,.75,2.5]){
+    for(const fast of [true,false]){
+      const state=await call('scene.update',{id:thin.hash,params:{smoothing,optimize:75,fast}});
+      assert.ifError(state.buildError);const result=await audit(page,thin.hash,points);
+      assert.ok(result.manifold);assert.deepEqual(result.inside,[true,false,true,false,true,false]);
+    }
+  }
+  console.log('Thin wall and slit retained in both modes at 0, 0.75 and 2.5 mm');
 }
 
 async function surfaceControls(page,call){
@@ -306,31 +349,43 @@ async function surfaceControls(page,call){
   assert.deepEqual(raw.inside,inside);assert.ok(raw.manifold);
   await page.locator('#tabAttributes').click();
   for(const key of ['smoothing','optimize']){
-    const input=page.locator('#attrContent input[data-field="'+key+'"]');await input.fill('100');await input.press('Enter');
+    const input=page.locator('#attrContent input[data-field="'+key+'"]');await input.fill(key==='smoothing'?'.45':'100');await input.press('Enter');
   }
   const owner=(await call('scene.inspect')).objects.find(n=>n.hash===initial.hash);
-  assert.deepEqual(owner.params,{resolution:16,smoothing:100,optimize:100});assert.ifError(owner.buildError);
+  assert.deepEqual(owner.params,{resolution:16,smoothing:.45,optimize:100,fast:true});assert.ifError(owner.buildError);
   for(const name of ['smoothing','optimize']){
-    const field=await call('fields.read',{owner:owner.hash,field:'param:'+name});assert.equal(field.unit,'%');assert.equal(field.access,'read-write');
+    const field=await call('fields.read',{owner:owner.hash,field:'param:'+name});assert.equal(field.unit,name==='smoothing'?'mm':'%');assert.equal(field.access,'read-write');
   }
   await page.locator('#attrContent input:focus').evaluateAll(es=>es.forEach(e=>e.blur()));
   await page.keyboard.press('Control+z');await page.waitForFunction(id=>frameNodeByHash(id).params.optimize===0,owner.hash);
-  assert.equal((await call('scene.inspect')).objects.find(n=>n.hash===owner.hash).params.smoothing,100);
+  assert.equal((await call('scene.inspect')).objects.find(n=>n.hash===owner.hash).params.smoothing,.45);
   await page.keyboard.press('Control+y');await page.waitForFunction(id=>frameNodeByHash(id).params.optimize===100,owner.hash);
   const redone=(await call('scene.inspect')).objects.find(n=>n.hash===owner.hash);
   assert.ifError(redone.buildError);assert.ok(redone.evaluation.report.adaptivePatches>0);
   const exact=await audit(page,owner.hash,probes);assert.ok(exact.manifold);assert.deepEqual(exact.inside,inside);
   assert.ok(Math.abs(raw.volume-exact.volume)<raw.volume*.012,JSON.stringify({raw,exact}));assert.equal(exact.faces,redone.evaluation.report.triangles);
   assert.ok(exact.faces<redone.evaluation.report.rawTriangles);
+  const toggle=page.getByRole('checkbox',{name:'Fast',exact:true});
+  assert.ok(await toggle.isChecked());await toggle.uncheck();
+  const final=(await call('scene.inspect')).objects.find(n=>n.hash===owner.hash);
+  assert.equal(final.params.fast,false);assert.ok(final.evaluation.report.reusedField);
+  assert.ok(final.evaluation.report.triangles<=exact.faces);assert.ok((await audit(page,owner.hash,probes)).manifold);
   const file=await call('scene.export',{includeData:true});await call('scene.open',{name:'unite-controls.hash',base64:file.base64});
-  const loaded=(await call('scene.inspect')).objects.find(n=>n.type==='unite');assert.deepEqual(loaded.params,owner.params);
+  const loaded=(await call('scene.inspect')).objects.find(n=>n.type==='unite');assert.deepEqual(loaded.params,final.params);
   await assert.rejects(call('scene.update',{id:loaded.hash,params:{optimize:101}}));
   const oldFile=await page.evaluate(async id=>{
     const n=frameNodeByHash(id);n.params={resolution:n.params.resolution};frameSyncEngineVisibility();
     return (await frameAI.call('scene.export',{includeData:true})).base64;
   },loaded.hash);
   await call('scene.open',{name:'legacy-unite.hash',base64:oldFile});
-  assert.deepEqual((await call('scene.inspect')).objects.find(n=>n.type==='unite').params,{resolution:16,smoothing:0,optimize:0});
+  assert.deepEqual((await call('scene.inspect')).objects.find(n=>n.type==='unite').params,{resolution:16,smoothing:0,optimize:0,fast:true});
+  const percentFile=await page.evaluate(async()=>{
+    const n=nodes.find(n=>n.type==='unite');n.params={resolution:16,smoothing:50,optimize:25};frameSyncEngineVisibility();
+    return (await frameAI.call('scene.export',{includeData:true})).base64;
+  });
+  await call('scene.open',{name:'percent-unite.hash',base64:percentFile});
+  const migrated=(await call('scene.inspect')).objects.find(n=>n.type==='unite');
+  assert.equal(migrated.params.fast,true);assert.ok(Math.abs(migrated.params.smoothing-.325)<1e-8,JSON.stringify(migrated.params));
   await call('scene.new');
   const dust=await call('mesh.create',combine([box([0,0,0],[.4,.4,.4]),box([16,0,0],[16.4,.4,.4])]));
   const cleared=await call('scene.create',{type:'unite',inputs:[dust.hash],params:{resolution:8}});
@@ -364,7 +419,7 @@ async function surfaceControls(page,call){
     return Math.sqrt(sum/degree.length);
   },id);
   const before=await audit(page,u.hash,[]),noise=await roughness(u.hash);
-  const rounded=await call('scene.update',{id:u.hash,params:{smoothing:100}});
+  const rounded=await call('scene.update',{id:u.hash,params:{smoothing:.50}});
   assert.ifError(rounded.buildError);assert.ok(rounded.evaluation.report.triangles>0);
   const afterNoise=await roughness(u.hash);assert.ok(afterNoise<noise,'roughness '+noise+' -> '+afterNoise);
   const reduced=await call('scene.update',{id:u.hash,params:{optimize:75}});
@@ -389,10 +444,16 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
       const name=basename(path),url=session.url+'/unite-fixture.stl';
       await page.route(url,route=>route.fulfill({path:resolve(path),contentType:'application/octet-stream'}));
       await page.evaluate(({url,name})=>frameAI.call('scene.open',{url,name}),{url,name});
-      let owner=null;
-      const settings=process.argv.includes('--compare')?[{smoothing:0,optimize:0},{smoothing:50,optimize:75}]:[{}];
-      for(const params of settings){
-        const result=await page.evaluate(async({name,params,owner})=>{
+      let owner=null,pitch=0,fastFaces=0;
+      const compare=process.argv.includes('--compare');
+      const modes=compare?['default','fast','qualityWarm','reference','qualityCold']:['default'];
+      await page.evaluate(()=>{window.__uniteMeasurements={};});
+      for(const mode of modes){
+        if(mode==='fast'||mode==='qualityCold'){
+          await page.evaluate(({url,name})=>frameAI.call('scene.open',{url,name}),{url,name});owner=null;
+        }
+        const params=mode==='default'?{}:{smoothing:1.5*pitch,optimize:mode==='reference'?0:75,fast:!mode.startsWith('quality')};
+        const result=await page.evaluate(async({name,params,owner,mode})=>{
           const objects=(await frameAI.call('scene.inspect')).objects;
           const start=performance.now(),u=owner?await frameAI.call('scene.update',{id:owner,params}):
             await frameAI.call('scene.create',{type:'unite',inputs:objects.filter(o=>!o.parent).map(o=>o.hash),params});
@@ -401,7 +462,7 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
           const {vertices:v,indices}=await frameEngine.readGeometry(u.hash),nv=v.length/3,invalid=0xffffffff;
           const slots=new Uint32Array(2**Math.ceil(Math.log2(Math.max(4,indices.length)))),mate=new Uint32Array(indices.length);
           const next=c=>c%3===2?c-2:c+1;
-          let sixVolume=0;
+          let sixVolume=0,thinTriangles=0;
           for(let i=0;i<indices.length;i+=3){
             for(let j=0;j<3;j++){
               const c=i+j,a=indices[c],b=indices[next(c)],lo=Math.min(a,b),hi=Math.max(a,b);
@@ -419,6 +480,9 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
             }
             const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
             const bx=v[b]-v[a],by=v[b+1]-v[a+1],bz=v[b+2]-v[a+2],cx=v[c]-v[a],cy=v[c+1]-v[a+1],cz=v[c+2]-v[a+2];
+            const ab=bx*bx+by*by+bz*bz,ac=cx*cx+cy*cy+cz*cz,bc=(bx-cx)**2+(by-cy)**2+(bz-cz)**2;
+            const area2=(by*cz-bz*cy)**2+(bz*cx-bx*cz)**2+(bx*cy-by*cx)**2;
+            if(area2<.030153689608*Math.max(ab*ac,ab*bc,ac*bc))thinTriangles++; // minimum angle < 10 degrees
             sixVolume+=(v[a]-v[0])*(by*cz-bz*cy)+(v[a+1]-v[1])*(bz*cx-bx*cz)+(v[a+2]-v[2])*(bx*cy-by*cx);
           }
           let badEdges=0,badVertexLinks=0;
@@ -430,11 +494,26 @@ if(fileURLToPath(import.meta.url)===resolve(process.argv[1])){
               let c=i;do{seen[c]=1;c=next(mate[c]-1);}while(!seen[c]);
             }
           }
-          return {owner:u.hash,name,ms,badEdges,badVertexLinks,volume:sixVolume/6,...u.evaluation.report};
-        },{name,params,owner});owner=result.owner;console.log('STL',JSON.stringify(result));
+          if(['fast','qualityWarm','reference'].includes(mode))window.__uniteMeasurements[mode]={vertices:v,indices};
+          return {owner:u.hash,name,mode,ms,thinTriangles,badEdges,badVertexLinks,volume:sixVolume/6,...u.evaluation.report};
+        },{name,params,owner,mode});owner=result.owner;pitch=result.pitch;
+        if(mode==='fast'){fastFaces=result.triangles;assert.equal(result.reusedVolume,false);}
+        if(mode==='qualityWarm'){
+          assert.equal(result.reusedVolume,true);assert.equal(result.reusedField,true);assert.ok(result.triangles<=fastFaces);
+        }
+        console.log('STL',JSON.stringify(result));
         assert.equal(result.badEdges,0,'Every edge has two opposing faces in '+name);
         assert.equal(result.badVertexLinks,0,'Every vertex has one closed fan in '+name);assert.ok(result.volume>0);
       }
+      if(compare){
+        for(const model of ['fast','qualityWarm']){
+          const forward=await page.evaluate(surfaceDeviation,{from:'reference',to:model,pitch});
+          const reverse=await page.evaluate(surfaceDeviation,{from:model,to:'reference',pitch});
+          console.log('Deviation',JSON.stringify({name,model,pitch,referenceToMesh:forward,meshToReference:reverse}));
+          assert.ok(Math.max(forward.distanceMm.p99,reverse.distanceMm.p99)<pitch*.5,'Sampled 99th percentile deviation exceeds half a cell');
+        }
+      }
+      await page.evaluate(()=>{delete window.__uniteMeasurements;});
       await page.unroute(url);
     }
     assert.deepEqual(await page.evaluate(()=>__uniteGpuErrors),[]);assert.deepEqual(errors,[]);
