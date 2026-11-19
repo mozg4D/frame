@@ -44,7 +44,16 @@ export async function cameraProgressiveChecks(page){
         const options={...camera.options,outputSize:[157,101],sampleLimit:cached?19:sky?143:145,
           frameSeed:4231,sampler:cached?'sobol':'random',viewKey:'fixed',previewPresentation:false};
         if(scene==='orthographic')options.camera={...options.camera,ortho:camera.scene.scale*1.1};
-        if(scene==='inside bounds')options.camera={...options.camera,position:[...camera.scene.center]};
+        if(scene==='inside bounds'){
+          // Stay inside the root BVH but outside the stock car's enclosed cabin.
+          const {center,scale,meshStates}=camera.scene,direction=options.camera.position.map((v,i)=>v-center[i]);
+          const entry=Math.min(...direction.map((d,i)=>{
+            if(!d)return Infinity;
+            const faces=meshStates.map(m=>m.bounds[d>0?i+3:i]);
+            return (d>0?Math.max(...faces):Math.min(...faces))*scale/d;
+          }));
+          options.camera={...options.camera,position:center.map((v,i)=>v+.98*entry*direction[i])};
+        }
         if(sky||scene==='sky and sun'){
           options.camera={...options.camera,forward:options.camera.forward.map(v=>-v)};
           const sun={direction:options.camera.forward,angle:.16,color:[.4,.7,1],intensity:1};

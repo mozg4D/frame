@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 15:33">
+<meta name="frame-version" content="2026 19 nov 16:02">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -7921,7 +7921,7 @@ fn cameraEdgeColor(xy:vec2i,centerColor:vec3f)->vec3f{
   return mix(centerColor,aaColor(xy+normal),coverage);
 }
 </script>
-<script id="frame-pathtracer" type="text/plain">function createFramePathtracer(container,device,changed){function frameValueKey(input){
+<script id="frame-pathtracer" type="text/plain">function createFramePathtracer(container,device,changed,shared={}){function frameValueKey(input){
   // Collision-free structural cache keys; no document serialization or numeric rounding.
   const parts=[],active=new Set();
   function visit(v,depth){if(depth>128)throw Error('Value key depth limit');if(v===null){parts.push('z');return;}const type=typeof v;if(type==='undefined'){parts.push('u');return;}if(type==='boolean'){parts.push(v?'t':'f');return;}if(type==='number'){parts.push('n',Object.is(v,-0)?'-0':String(v),';');return;}if(type==='string'){parts.push('s',String(v.length),':',v);return;}if(type!=='object'||active.has(v))throw Error('Invalid value key');active.add(v);if(ArrayBuffer.isView(v)){parts.push('v',v.constructor.name,':',String(v.length),':');for(const x of v)visit(x,depth+1);}else if(Array.isArray(v)){parts.push('a',String(v.length),':');for(const x of v)visit(x,depth+1);}else{const keys=Object.keys(v).filter(k=>typeof v[k]!=='function'&&typeof v[k]!=='symbol');parts.push('o',String(keys.length),':');for(const k of keys){visit(k,depth+1);visit(v[k],depth+1);}}active.delete(v);}
@@ -8677,7 +8677,7 @@ fn prepareCameraTiles(@builtin(global_invocation_id) id:vec3u,@builtin(num_workg
   atomicStore(&frame.pixelIndices[tileOrderBase()+slot],at);
 }
 fn pixelTileRoot(pixel:u32)->u32{
-  if(variableSceneFeatures!=0u||params.cacheConfig.w==0.){return 0u;}
+  if(!cameraTiles||params.cacheConfig.w<2.){return 0u;}
   let tile=vec2u(pixel%params.image.x,pixel/params.image.x)/cameraTileSide;
   return atomicLoad(&frame.pixelIndices[tileRootBase()+tile.y*tileColumns()+tile.x]);
 }
@@ -8884,6 +8884,7 @@ const materialMaps=${cameraSceneFlags.materialMaps}u;
 const opaqueShadows=${cameraSceneFlags.opaqueShadows}u;
 override sceneFeatures:u32=0u;
 override variableSceneFeatures:u32=0u;
+override cameraTiles:bool=false;
 fn hasSceneFeature(flag:u32)->bool{
   if((variableSceneFeatures&flag)!=0u){return (u32(params.cacheConfig.z)&flag)!=0u;}
   return (sceneFeatures&flag)!=0u;
@@ -9413,7 +9414,7 @@ fn gatherIrradiance(@builtin(workgroup_id) group:vec3u,@builtin(local_invocation
   var inBounds=offset<params.batch.x&&pixel<params.image.x*params.image.y;
   // Four workgroup rows cover a whole surface tile. A single row covers
   // a linear range of a partial sample, including a resumed submission.
-  if(variableSceneFeatures==0u&&grid.y==4u){
+  if(cameraTiles&&grid.y==4u){
     let tile=atomicLoad(&frame.pixelIndices[tileOrderBase()+group.x]);
     let xy=tileBlockOrigin(tile,group.y)+lane.xy;
     pixel=xy.y*params.image.x+xy.x;inBounds=all(xy<params.image.xy);
@@ -10039,6 +10040,63 @@ function frameFastYield(){
 }
 
 const cameraParameterWords=200,cameraPacketCapacity=8;
+const allCameraFeatures=cameraSceneFlags.instances|cameraSceneFlags.materialMaps|cameraSceneFlags.opaqueShadows;
+function cameraProgramGroup(entries,compile){
+  const jobs=new Map(),pipelines={};
+  function request(entry){
+    let job=jobs.get(entry);
+    if(!job){
+      job=Promise.resolve().then(()=>compile(entry)).then(pipeline=>{pipelines[entry]=pipeline;return pipeline;})
+        .catch(error=>{jobs.delete(entry);throw error;});
+      jobs.set(entry,job);
+    }
+    return job;
+  }
+  return {
+    get started(){return jobs.size>0;},
+    get ready(){return Object.keys(pipelines).length===entries.length;},
+    async all(){if(!this.ready)await Promise.all(entries.map(request));return pipelines;},
+    next(){const entry=entries.find(name=>!Object.hasOwn(pipelines,name));return entry?request(entry):null;}
+  };
+}
+function cameraPrograms(){
+  if(shared.programs)return shared.programs;
+  const module=(label,code)=>device.createShaderModule({label,code});
+  const lighting=module('FRAME lighting',renderShader),display=module('FRAME display',displayShader),
+    reconstruction=module('FRAME variance reconstruction',reconstructShader),exposure=module('FRAME local exposure',localExposureShader),
+    blit=module('FRAME preview presentation',previewBlitShader);
+  const storage=(binding,readOnly=true)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:readOnly?'read-only-storage':'storage'}});
+  const layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},storage(1),storage(2),storage(3),storage(4),storage(5,false),storage(6,false),storage(7,false),{binding:8,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}},{binding:9,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:10,visibility:GPUShaderStage.COMPUTE,texture:{}},storage(11,false),{binding:12,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:13,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}}]});
+  const computeLayout=device.createPipelineLayout({bindGroupLayouts:[layout]});
+  const commonModules={meter:lighting,reconstruct:reconstruction,localExposure:exposure,display,previewBlit:blit};
+  const common=cameraProgramGroup(Object.keys(commonModules),async entry=>{
+    const module=commonModules[entry];
+    try{
+      if(entry==='display'||entry==='previewBlit')return await device.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vertexMain'},fragment:{module,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}});
+      return await device.createComputePipelineAsync({layout:entry==='meter'?computeLayout:'auto',compute:{module,entryPoint:entry}});
+    }catch(error){
+      const report=await module.getCompilationInfo(),messages=report.messages.filter(m=>m.type==='error').map(m=>m.lineNum+':'+m.linePos+' '+m.message);
+      throw messages.length?Error(messages.join('\n')):error;
+    }
+  });
+  const variants=new Map();
+  function variant(mode,features,variableSceneFeatures,cache=variants){
+    const sceneFeatures=features&~variableSceneFeatures,key=[mode,sceneFeatures,variableSceneFeatures].join('/');
+    if(cache.has(key))return cache.get(key);
+    const cameraTiles=mode==='cached'&&variableSceneFeatures!==cameraSceneFlags.instances;
+    const entries=mode==='realtime'?['renderRealtime']:mode==='independent'?['integrate','selectPixels']:
+      ['invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','buildProbeQueue','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','traceSpecular'];
+    if(cameraTiles)entries.push('prepareCameraTiles','gatherSkyTiles');
+    const group=cameraProgramGroup(entries,entryPoint=>{
+      const cachedFilm=entryPoint==='traceSpecular'||entryPoint==='gatherIrradiance';
+      return device.createComputePipelineAsync({layout:computeLayout,compute:{module:lighting,entryPoint,constants:{sceneFeatures,variableSceneFeatures,cachedFilm,cameraTiles}}});
+    });
+    cache.set(key,group);return group;
+  }
+  const universal=mode=>variant(mode,0,allCameraFeatures);
+  const warm=[common,universal('realtime'),universal('cached'),universal('independent')];
+  return shared.programs={layout,common,variant,universal,next(){for(const group of warm){const job=group.next();if(job)return job;}return null;}};
+}
 class FrameRenderer {
   constructor(container,onChange=()=>{}) {
     this.container=container;this.onChange=onChange;this.epoch=0;this.running=false;this.completed=false;this.hasImage=false;this.sceneKey=null;this.environmentKey=null;
@@ -10088,7 +10146,7 @@ class FrameRenderer {
     for(const key of ['layout','integrate','traceSpecular','renderRealtime','meter','selectPixels','reconstruct','localExposure','display','invalidateIrradiance','prepareCameraTiles','preparePrimary','requestIrradiance','claimIrradiance','updateIrradiance','gatherIrradiance','gatherSkyTiles','traceDiffuseFallback','prepareIndirect','buildProbeQueue','previewBlit','previewSampler','uniform','packetParameters','exposure','sampler','envSampler','indirect','context','profiler'])this[key]=null;
     this.resources=[];this.sceneResources=[];this.imageResources=[];this.initResources=null;this.envTexture=null;this.cache=null;this.cacheSlots=0;
     this.sceneKey=null;this.environmentKey=null;this.imageDependencies=null;this.materialTexture=null;this.materialTextureCache=null;
-    this.emptyCache=null;this.cameraPipelines=null;this.lightingModule=null;this.computeLayout=null;
+    this.emptyCache=null;this.programs=null;this.cameraPipelines=null;this.specialization=null;
   }
   reuseLighting(scene=this.scene){return !this.options?.interactivePreview&&scene?.coverageOpaque!==false&&this.options?.lightingReuse!==false;}
   async init() {
@@ -10110,23 +10168,8 @@ class FrameRenderer {
       });
       state.context=attempt.context=this.canvas.getContext('webgpu');if(!state.context)throw Error('Cannot create the WebGPU canvas context.');
       state.context.configure({device,format:'rgba8unorm',alphaMode:'opaque',usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_DST});
-      const shader=device.createShaderModule({code:renderShader,label:'FRAME lighting'}),display=device.createShaderModule({code:displayShader,label:'FRAME display'}),reconstruction=device.createShaderModule({code:reconstructShader,label:'FRAME variance reconstruction'}),localExposure=device.createShaderModule({code:localExposureShader,label:'FRAME local exposure'}),blit=device.createShaderModule({code:previewBlitShader,label:'FRAME preview presentation'});
-      const storage=(binding,readOnly=true)=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:readOnly?'read-only-storage':'storage'}});
-      state.layout=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},storage(1),storage(2),storage(3),storage(4),storage(5,false),storage(6,false),storage(7,false),{binding:8,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}},{binding:9,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:10,visibility:GPUShaderStage.COMPUTE,texture:{}},storage(11,false),{binding:12,visibility:GPUShaderStage.COMPUTE,sampler:{type:'filtering'}},{binding:13,visibility:GPUShaderStage.COMPUTE,texture:{viewDimension:'2d-array'}}]});
-      const layout=state.computeLayout=device.createPipelineLayout({bindGroupLayouts:[state.layout]});
-      state.lightingModule=shader;
-      [state.meter,state.reconstruct,state.localExposure,state.display,state.previewBlit]=await Promise.all([
-        device.createComputePipelineAsync({layout,compute:{module:shader,entryPoint:'meter'}}),
-        device.createComputePipelineAsync({layout:'auto',compute:{module:reconstruction,entryPoint:'reconstruct'}}),
-        device.createComputePipelineAsync({layout:'auto',compute:{module:localExposure,entryPoint:'localExposure'}}),
-        device.createRenderPipelineAsync({layout:'auto',vertex:{module:display,entryPoint:'vertexMain'},fragment:{module:display,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}}),
-        device.createRenderPipelineAsync({layout:'auto',vertex:{module:blit,entryPoint:'vertexMain'},fragment:{module:blit,entryPoint:'fragmentMain',targets:[{format:'rgba8unorm'}]},primitive:{topology:'triangle-list'}})
-      ]).catch(async error=>{
-        const modules=[shader,reconstruction,localExposure,display,blit];
-        const reports=await Promise.all(modules.map(module=>module.getCompilationInfo()));
-        const messages=reports.flatMap(info=>info.messages.filter(m=>m.type==='error').map(m=>m.lineNum+':'+m.linePos+' '+m.message));
-        throw messages.length?Error(messages.join('\n')):error;
-      });check();
+      state.programs=cameraPrograms();state.layout=state.programs.layout;state.cameraPipelines=new Map();
+      Object.assign(state,await state.programs.common.all());check();
       const buffer=(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC)=>{
         check();const size=Math.max(16,(data.byteLength+3)&~3);if(size>device.limits.maxBufferSize||(usage&GPUBufferUsage.STORAGE)&&size>device.limits.maxStorageBufferBindingSize)throw Error('This scene exceeds the GPU buffer limit.');
         const b=device.createBuffer({size,usage,mappedAtCreation:true});attempt.resources.push(b);
@@ -10141,7 +10184,6 @@ class FrameRenderer {
       state.indirect=buffer(new Uint32Array(12),GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST);check();
       state.emptyCache=buffer(new Uint32Array(120));
       state.packetParameters=buffer(new Uint32Array(cameraPacketCapacity*cameraParameterWords),GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST);
-      state.cameraPipelines=new Map();
       state.resources=[state.uniform,state.exposure,state.indirect,state.emptyCache,state.packetParameters];Object.assign(this,state);
       this.stats.adapter={vendor:info.vendor||'',architecture:info.architecture||'',device:info.device||'',description:info.description||''};
     })();this.initializing=operation;
@@ -10153,30 +10195,35 @@ class FrameRenderer {
       (this.optimized()&&scene.opaqueShadows?cameraSceneFlags.opaqueShadows:0);
   }
   useCameraTiles(){return !this.options.interactivePreview&&(this.options.sampleLimit||Infinity)>cameraPacketCapacity;}
+  cameraProgramSelection(mode,features,tiled){
+    const universal=this.programs.universal(mode);
+    const exact=mode==='realtime'?universal:this.programs.variant(mode,features,tiled?0:cameraSceneFlags.instances,this.cameraPipelines);
+    return {exact,group:universal.started&&!exact.ready?universal:exact};
+  }
   async initCameraPipelines(mode,epoch,features) {
-    // The interactive shader serves every layout. Short progressive renders
-    // share a material variant across flat geometry and instances. Longer
-    // accumulations amortize specializing the traversal as well.
-    const {instances,materialMaps,opaqueShadows}=cameraSceneFlags;
-    const variableSceneFeatures=mode==='realtime'?instances|materialMaps|opaqueShadows:this.useCameraTiles()?0:instances;
-    const sceneFeatures=features&~variableSceneFeatures;
-    const jobs=this.cameraPipelines,key=[mode,sceneFeatures,variableSceneFeatures].join('/');
-    let job=jobs.get(key);
-    if(!job){
-      const layout=this.computeLayout,module=this.lightingModule;
-      const entries=mode==='realtime'?['renderRealtime']:mode==='independent'?['integrate','selectPixels']:
-        ['invalidateIrradiance','preparePrimary','requestIrradiance','claimIrradiance','buildProbeQueue','updateIrradiance','gatherIrradiance','traceDiffuseFallback','prepareIndirect','traceSpecular'];
-      if(mode==='cached'&&variableSceneFeatures===0)entries.push('prepareCameraTiles','gatherSkyTiles');
-      job=Promise.all(entries.map(async entryPoint=>{
-        const cachedFilm=entryPoint==='traceSpecular'||entryPoint==='gatherIrradiance';
-        const pipeline=await this.device.createComputePipelineAsync({layout,compute:{module,entryPoint,constants:{sceneFeatures,variableSceneFeatures,cachedFilm}}});
-        return [entryPoint,pipeline];
-      })).then(Object.fromEntries);
-      jobs.set(key,job);
+    const programs=this.programs,selection=this.cameraProgramSelection(mode,features,this.useCameraTiles()),exact=selection.exact;
+    let group=selection.group,pipelines;
+    try{pipelines=await group.all();}catch(error){
+      if(group===exact||this.epoch!==epoch)throw error;
+      group=exact;pipelines=await exact.all();
     }
-    let pipelines;
-    try{pipelines=await job;}catch(error){if(jobs.get(key)===job)jobs.delete(key);throw error;}
-    if(this.epoch===epoch&&this.cameraPipelines===jobs)Object.assign(this,pipelines);
+    if(this.epoch!==epoch||this.programs!==programs)return;
+    Object.assign(this,pipelines);
+    // Start sampling with the warmed variant. Specialize long films only after showing a sample.
+    this.specialization=group!==exact&&this.useCameraTiles()?exact:null;
+  }
+  async prepareCameraPrograms(group,epoch,install=false){
+    try{
+      while(this.running&&this.epoch===epoch&&this.options.stationary?.()!==false){
+        const next=group.next();
+        if(next){await next;continue;}
+        if(install){
+          const pipelines=await group.all();
+          if(this.epoch===epoch)Object.assign(this,pipelines);
+        }
+        return;
+      }
+    }catch{/* The foreground request owns compilation errors and retries. */}
   }
 
   buffer(data,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC) {
@@ -10191,7 +10238,7 @@ class FrameRenderer {
     this.stop(true);this.sceneKey=null;this.progress=null;this.stats.phase='error';this.onChange();console.error('FRAME render:',error);
   }
   stop(hide=false) {
-    this.epoch++;this.running=false;this.worker?.terminate();this.worker=null;this.cancelBuild?.();this.cancelBuild=null;
+    this.epoch++;this.running=false;this.specialization=null;this.worker?.terminate();this.worker=null;this.cancelBuild?.();this.cancelBuild=null;
     this.stats.phase=this.hasImage?'stopped':'idle';if(hide)this.canvas.style.display='none';this.onChange();
   }
   async buildScene(input,epoch,features,onLayout) {
@@ -10422,7 +10469,9 @@ class FrameRenderer {
     f.set([...temperatureRGB(environment.temperature),0],32);u.set([count,this.options.lightCandidates??4,(this.options.adaptive===false?1:0)|(this.options.sampler==='random'?2:0)|(queued?4:0),this.options.seed??1],36);f.set([this.options.giStrength,this.options.maxBounces,this.options.localExposure===false?0:1,this.localCell],40);const direct=environment.infiniteLights||[];u[44]=Math.min(16,direct.length);for(let i=0;i<u[44];i++){const light=direct[i];f.set([...light.direction,light.angle],48+i*8);f.set([...light.color.map(v=>v*light.intensity*2),0],52+i*8);}
     u[45]=this.options.frameSeed??renderSeedHash(this.options.interactivePreview?0:this.cacheFrame);
     u.set([(this.reuseLighting()?1:0)|(this.hardInvalidation?2:0)|(this.scene.materialMaps?cameraMappedCoverageFlag:0),this.cacheSlots,this.cacheFrame,Math.max(4,Math.min(256,(this.options.sampleLimit||128)*2))],176);
-    u.set(this.pendingDirty,180);f.set([this.options.cacheFootprint??3,(environment.infiniteLights||[]).some(q=>q.angle<1e-5)?1:0,this.sceneFeatureBits(),this.optimized()?1:0],196);return f;
+    // An optimized film may use linear packets (1) or include precomputed tile roots (2).
+    const cacheMode=this.optimized()?1+Number(this.useCameraTiles()):0;
+    u.set(this.pendingDirty,180);f.set([this.options.cacheFootprint??3,(environment.infiniteLights||[]).some(q=>q.angle<1e-5)?1:0,this.sceneFeatureBits(),cacheMode],196);return f;
   }
   meterExposure(encoder) {
     const meter=this.computePass(encoder,'Exposure meter');meter.setPipeline(this.meter);meter.setBindGroup(0,this.computeGroup);meter.dispatchWorkgroups(1);meter.end();
@@ -10461,6 +10510,7 @@ class FrameRenderer {
     this.lastImage={texture:this.output,width:this.width,height:this.height,viewKey:this.options.viewKey,viewport:this.options.previewPresentation===true};this.hasImage=true;this.filmDirty=false;
     this.canvas.style.display='block';this.presentedAt=performance.now();this.stats.presentedFrames++;
     if(this.stats.firstImageMs===null)this.stats.firstImageMs=this.presentedAt-started;
+    if(this.specialization){const group=this.specialization;this.specialization=null;void this.prepareCameraPrograms(group,this.epoch,true);}
     if(!this.options.interactivePreview)this.pollLightingStats();
     this.onChange();
   }
@@ -10653,6 +10703,12 @@ class FrameRenderer {
         const features=workerLayout?await Promise.race([workerLayout,sceneReady]):snapshot?(await snapshot).features:this.scene;
         if(epoch===this.epoch)return this.initCameraPipelines(this.reuseLighting(features)?'cached':'independent',epoch,this.sceneFeatureBits(features));
       })();
+      if(options.interactivePreview&&options.refinementSamples)sceneReady.then(scene=>{
+        if(this.epoch!==epoch||!scene)return;
+        const mode=scene.coverageOpaque!==false&&options.lightingReuse!==false?'cached':'independent';
+        const {group}=this.cameraProgramSelection(mode,this.sceneFeatureBits(scene),options.refinementSamples>cameraPacketCapacity);
+        return this.prepareCameraPrograms(group,epoch);
+      }).catch(()=>{}); // Scene preparation errors are reported by the preview itself.
       await Promise.all([sceneReady,pipelinesReady,this.prepareEnvironment(options.environment,epoch)]);if(epoch!==this.epoch)return;
       if(this.lightTableDirty){this.rebuildLightTable();this.lightTableDirty=false;}
       if(resume){this.filmDirty=true;if(this.progress.sample>0)this.imageReady=true;}
@@ -10711,6 +10767,7 @@ class FrameRenderer {
 
 
 
+if(!container)return cameraPrograms();
 return new FrameRenderer(container,changed);}</script>
 <script id="frame-normal-map-kernel" type="text/plain">
 // Perceptual color -> estimated height -> tangent-space normal. No scene dependencies.
@@ -18171,9 +18228,42 @@ window.frameEngine=(()=>{
       renderPose=pose;cameraMoving=true;clearTimeout(motionTimer);
       motionTimer=setTimeout(()=>{motionTimer=0;scheduleRenderPreview();},100);
     }
+    function createCameraRenderer(gpu,container,changed){
+      const source=document.getElementById('frame-pathtracer').textContent;
+      return Function('return ('+source+')')()(container,gpu.device,changed,gpu.cameraShaders??={});
+    }
+    const cameraQuietDelay=1200;
+    function scheduleCameraWarmup(gpu,delay=cameraQuietDelay){
+      if(gpu.dead||document.hidden)return;
+      const warm=gpu.cameraWarmup??={timer:0,idle:0,busy:false,done:false};
+      if(warm.done||warm.error||warm.timer||warm.idle||warm.busy)return;
+      async function prepare(){
+        warm.idle=0;
+        if(gpu!==renderer||gpu.dead||document.hidden)return;
+        if(!scene||canvas.dataset.ready!=='true'||!isIdle()||performance.now()-lastActivity<cameraQuietDelay||
+          nativeIOBusy||maintenanceBusy||playing||renderManual||renderExporting||pathtracer?.running||FrameSpline.isEditing()){
+          scheduleCameraWarmup(gpu);return;
+        }
+        warm.busy=true;
+        try{
+          // Only modules, layouts and pipelines. A foreground request joins any entry already compiling.
+          const programs=gpu.cameraShaders?.programs||createCameraRenderer(gpu,null);
+          const next=programs.next();
+          if(next)await next;else warm.done=true;
+        }catch(error){warm.error=error.message||String(error);} // A camera retries through the normal render error path.
+        finally{warm.busy=false;if(gpu===renderer&&!gpu.dead&&!warm.done&&!warm.error)scheduleCameraWarmup(gpu,32);}
+      }
+      warm.timer=setTimeout(()=>{
+        warm.timer=0;
+        if(gpu!==renderer||gpu.dead||document.hidden)return;
+        if(window.requestIdleCallback)warm.idle=window.requestIdleCallback(prepare);
+        else void prepare();
+      },delay);
+    }
     function scheduleRenderPreview(){
       if(pathtracer)pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
       if(!renderer||!scene)return;
+      scheduleCameraWarmup(renderer);
       // Movie playback advances its camera intentionally. A user's navigation cancels the export.
       if(renderPose&&(renderManual||pathtracer?.running&&!pathtracer.options?.interactivePreview)&&(!renderExporting||drag||wheelBusy||touchNavigation)){
         pauseMovedRender();
@@ -18310,6 +18400,7 @@ window.frameEngine=(()=>{
       if(changed||at!==renderGeometryState.length)renderGeometryRevision++;
       renderGeometryState.length=at;return renderGeometryRevision;
     }
+    function stationaryCamera(){return !(cameraMoving||playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());}
     async function renderTick(manual=false,exporting=false,saveOwner=0){
       if(!renderer||!scene)return;
       const config=cameraConfig(),configKey=cameraRenderConfigKey(config);
@@ -18324,7 +18415,7 @@ window.frameEngine=(()=>{
       const sceneKey=cameraSceneRevision(),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
       view.camera.fov=45;updateViewportEnvironment(renderer);environment.lobes=renderer.environment?.sources||[];if(environment.mode==='default')environment.infiniteLights=[];if(environment.mode==='image'&&!environment.image)throw Error('Set the Camera environment image URL');if(environment.infiniteLights.length>16)throw Error('Path tracing supports up to 16 enabled infinite lights');
       const signature=frameValueKey([sceneKey,view,configKey,environment]);
-      const moving=!!(cameraMoving||playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());
+      const moving=!stationaryCamera();
       const refine=signature===previewSignature&&!moving;
       if(!manual){
         if(renderBlocked===null)renderBlocked=signature;
@@ -18336,11 +18427,11 @@ window.frameEngine=(()=>{
       if(saveOwner&&pathtracer?.canvas.style.display==='block'&&pathtracer.lastImage?.viewport&&pathtracer.lastImage.viewKey===signature)return saveView();
       renderSignature=signature;renderBlocked=previewSignature='';
       if(!manual&&!realtime){pathtracer?.stop(true);return;}
-      pathtracer??=Function('return ('+document.getElementById('frame-pathtracer').textContent+')')()(frameViewElement(0),renderer.device,renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
+      pathtracer??=createCameraRenderer(renderer,frameViewElement(0),renderStatus);pathtracer.canvas.hidden=['off','wireframe','isoparms'].includes(viewShadings[0]);
       const interactive=!manual&&!refine,pixels=view.rect.w*view.rect.h,scale=Math.min(1,Math.sqrt(160000/Math.max(1,pixels)));
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
       const samples=Math.max(1,Math.round(config.params.samples||128));
-      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,onSamples:count=>{if(current()===config)renderSampleLabel(count,samples);},previewPresentation:!exporting,...saveOwner?{outputSize:viewSize}:exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
+      const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,stationary:stationaryCamera,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,onSamples:count=>{if(current()===config)renderSampleLabel(count,samples);},previewPresentation:!exporting,...saveOwner?{outputSize:viewSize}:exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,refinementSamples:moving?0:samples,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
       if(!interactive){realtimeRequest=null;await job;if(saveOwner&&manualGeneration===saveOwner&&pathtracer?.completed&&pathtracer.lastImage?.viewKey===signature)await saveView();return;}
       const tracer=pathtracer,epoch=tracer.epoch;
       realtimeRequest=job;
@@ -20858,6 +20949,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
       gpu.normalWorkspace=null;gpu.connectedWorkspace=null;gpu.importCleanup=null;gpu.compute=null;gpu.normalPacking=null;
     }
     function resetGPUSession(gpu){
+      if(gpu.cameraWarmup){clearTimeout(gpu.cameraWarmup.timer);window.cancelIdleCallback?.(gpu.cameraWarmup.idle);}
+      gpu.cameraShaders=null;
       gpu.dead=true;selectionBusy=false;selectedMeshes=[];hideMarquee();hoverCursor.inside=false;sceneFrameDirty=true;selectionGeneration++;orbitGeneration++;activity++;clearTimeout(idleTimer);heldPointers.clear();
       if(scene?.gpu===gpu)disposeScene(scene);disposeSessionResources(gpu);
       selectedMesh=null;selectionBox=null;editDrag=null;editFinishing=false;editPipelines=null;editInit=null;
