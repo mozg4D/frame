@@ -7,6 +7,7 @@
     "test:panel-layout": "node tests/panel-layout-browser.mjs",
     "test:collaboration:cpu": "node tests/ai-collaboration.mjs",
     "test:collaboration": "node tests/ai-collaboration.mjs && node tests/ai-collaboration-browser.mjs",
+    "test:project-files": "node tests/project-files-browser.mjs",
     "test:ai-workflows": "node tests/syntax.mjs && node tests/ai-workflows-browser.mjs",
     "test:hash:cpu": "node tests/hash-native-state.mjs && node tests/hash-bulk-reader.mjs && node tests/hash-binary-contract.mjs && node tests/hash-save-streaming.mjs",
     "test:hash": "npm run test:hash:cpu && node tests/hash-native-state-browser.mjs",

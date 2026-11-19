@@ -20,6 +20,6 @@ check('Keyboard key fallback',()=>{run({code:''});assert.equal(dialog.open,true)
 check('Physical F1 code fallback',()=>{run({key:'Unidentified'});assert.equal(dialog.open,true);dialog.open=false;});
 check('Editable values are not read or modified by the shortcut handler',()=>{const target=new Proxy({}, {get(){throw Error('Handler must not alter editable control state');}});run({target});assert.equal(dialog.open,true);});
 check('Scene Control replaces the Help toolbar button',()=>{assert.ok(!html.includes('id="btnHelp"'));assert.ok(html.includes("$('btnControl').onclick=()=>FrameSceneControl.open();"));});
-check('Tooltip, accessibility shortcut and Help text advertise F1',()=>{assert.ok(html.includes('<kbd>F1</kbd> Help'));});
+check('F1 gives people and assistants the shared project workflow',()=>{assert.match(html,/id="frame-help-people">Unsure how to use a tool\? Ask AI\./);assert.match(html,/id="frame-help-ai">Start with <code>app\.describe<\/code>/);assert.ok(html.includes('Instance → File'));});
 const sha=s=>createHash('sha256').update(s).digest('hex');
 console.log(JSON.stringify({pass:true,checks:checks.length,names:checks,indexSHA256:sha(rawHTML),sourceMode:'actual current bytes'}));

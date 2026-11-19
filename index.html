@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 19:27">
+<meta name="frame-version" content="2026 19 nov 20:32">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -80,6 +80,8 @@ dialog{width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding
 .ob-dropline{position:absolute;height:2px;background:#5a8aff;pointer-events:none;z-index:30}.ob-dropvert{position:absolute;width:2px;height:16px;background:#5a8aff;pointer-events:none;z-index:30}.ob-marquee{position:fixed;border:1px solid #6394ff;background:transparent;pointer-events:none;z-index:70}.ob-row.drop-child{background:#2a3a4a}
 .attr-group-header{height:var(--row-height);padding:2px 0;line-height:var(--row-line)}
 #helpDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid #000;border-radius:6px;background:#222;color:#d8d8d8;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:auto}
+#frame-project-notice:not([hidden]){display:flex;position:absolute;z-index:5;bottom:8px;left:8px;max-width:calc(100% - 16px);align-items:center;gap:6px;flex-wrap:wrap;background:#222;color:#eee;border:1px solid #555;border-radius:4px;padding:4px 8px;font:12px/17px ui-monospace,monospace}
+#frame-project-notice button{color:inherit;background:#383838;border:1px solid #666;border-radius:3px;cursor:pointer}
 #helpDialog::backdrop{background:rgba(0,0,0,.38)}
 .help-card{margin:0}.help-body{padding:10px 12px 12px;user-select:text}.help-body p{margin:6px 0}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
 
@@ -149,6 +151,11 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <div id="app">
 <main id="frame-views" aria-label="Workspace">
 <div id="vp" aria-label="Viewports"><div id="frame-engine-host">
+<div id="frame-project-notice" role="status" hidden><span id="frame-project-message"></span>
+<button type="button" id="frame-project-folder" hidden>Choose project folder</button>
+<button type="button" id="frame-project-copy" hidden>Save a copy</button>
+<button type="button" id="frame-project-reload" hidden title="Discard this draft and load the reviewed disk version">Reload from disk</button>
+<button type="button" id="frame-project-dismiss" aria-label="Dismiss file update">×</button></div>
 <canvas id="frame-engine-canvas" class="frame-viewport-canvas" tabindex="0" aria-label="Perspective: drag to orbit, middle drag to pan, right drag or wheel to zoom, Alt drag to select; double click for connected elements"></canvas>
 <div id="frame-engine-stats" aria-label="Scene statistics"><output id="frame-engine-triangles">Triangles: 0</output><output id="frame-engine-memory">GPU memory: —</output></div>
 <p id="frame-engine-status" role="status" hidden></p>
@@ -284,18 +291,10 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <dialog id="dialog"><div class="dialog-head"><span id="dialogTitle"></span><button id="dialogClose" aria-label="Close">×</button></div><div class="dialog-body" id="dialogBody"></div><div class="dialog-actions"><button id="dialogCancel">Cancel</button><button id="dialogOK">OK</button></div></dialog><dialog id="helpDialog" aria-label="FRAME Help">
   <div class="help-card">
     <div class="help-body">
-      <p><kbd>F1</kbd> Help · <kbd>Esc</kbd> close Help</p>
-      <p><kbd>E</kbd> Move · <kbd>R</kbd> Rotate · <kbd>T</kbd> Scale (next selection drag)</p>
-      <p><kbd>Q</kbd> Quantize · <kbd>S</kbd> Snap · <kbd>W</kbd> World/Object · <kbd>P</kbd> Pivot</p>
-      <p><kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd> Vertex/Edge/Face · <kbd>Esc</kbd> finish or cancel the active tool</p>
-      <p>Perspective: left drag orbits around the surface under the cursor. Middle drag pans; middle click switches Quad / Single view. Wheel or right drag zooms toward the cursor.</p>
-      <p>Alt + left drag selects a rectangle. In Perspective, click a vertex before dragging it; in orthographic views, press-drag grabs it immediately. Click selects an element; double click or <kbd>U</kbd> selects connected elements. Drag the selection handles to move, rotate or scale. Hold Ctrl to copy, Shift to extrude. <kbd>Ctrl Z</kbd> undoes the edit.</p>
-      <p>Open reads native HASH scenes and binary STL. Save and Save As write HASH; Download saves a HASH copy.</p>
-      <p>Native HASH currently preserves independent triangle meshes, object groups and names, visibility, hierarchy and the perspective camera.</p>
-      <p>Viewport touch: drag one finger to orbit; drag two to pan, or pinch to zoom the camera. Hold then drag to select a rectangle. Hold without dragging and release for the context menu. Double tap: Quad / Single view.</p>
-      <p>Pinch with a finger in the right panel to zoom the page. To switch from an active viewport gesture to page zoom, lift your fingers and start a new pinch.</p>
-      <p>Touch: hold for a context menu. In Objects Browser, drag a name or row to move it; drop between rows to reorder, on a row to make a child. Scroll with two fingers, or drag empty space / the left indentation. Release outside the tree to cancel.</p>
-    <p>Morph modes: Solve adjusts morph values when dragging points; Edit opens pose keys on a separate 0–100 timeline; Modelling disables deformation and edits the reference. Set keys with the animation toolbar. Curves show the selected point's X/Y/Z; drag their tangent handles to adjust motion.</p>
+      <strong>For people</strong>
+      <p id="frame-help-people">Unsure how to use a tool? Ask AI. Try asking Codex, “Help me model a phone stand in the Frame window I have open.” If you’ve already started a model, save it and tell Codex where to find it.</p>
+      <strong>For AI assistants</strong>
+      <p id="frame-help-ai">Start with <code>app.describe</code> and <code>scene.inspect</code>. Give each parallel task its own project file (<code>.hash</code>) and link parts with <strong>Instance → File</strong>. Save to share progress. Use <code>scene.file.wait</code> for updates. On conflict, keep the draft and review <code>scene.file.changes</code>.</p>
     </div>
   </div>
 </dialog>
@@ -11298,7 +11297,7 @@ function createFrameHashCodec(){
       let best=await gzip(raw);if(best.size<data.size){data=best;type=record.type|ZIP;}
       if(record.type===T.float32||record.type===T.uint32){best=await gzip(prepare(raw,record.type));if(best.size<data.size){data=best;type=record.type|ZIP|PREDICT;}}
     }
-    return {blob:new Blob([header(type,record.id,data.size),data]),storedBytes:data.size,rawBytes:raw.length,type};
+    return {blob:new Blob([header(type,record.id,data.size),data]),storedBytes:data.size,rawBytes:raw.length,type,inline:raw.length<128?raw:null};
   }
   function reader(file){
     if(!file||!Number.isSafeInteger(file.size)||file.size<0)throw Error('Invalid HASH file');
@@ -12613,7 +12612,7 @@ const FrameAuthorData=(()=>{
  function merge(current,incoming,mapping,rootMapping){const a=envelope(current),b=remap(incoming,mapping,rootMapping);if(!b?.records.length)return a;const records=[...a?.records||[],...b.records.map(r=>({...r,id:rootMapping.get(r.id)||r.id}))];return envelope({version:1,revision:(a?.revision||0)+1,records,...a?.retired?{retired:a.retired}:{}});}
  function closure(root,objects){root=envelope(root);if(!root)return null;const records=new Map(root.records.map(r=>[r.id,r])),keep=new Set(),visit=r=>{for(const ref of r.refs)if(!ref.unresolved&&ref.kind==='record'&&ref.owner==='scene'&&records.has(ref.id)&&!keep.has(ref.id)){keep.add(ref.id);visit(records.get(ref.id));}};for(const o of objects)for(const r of o.authoring?.authorData?.records||[])visit(r);return keep.size?{...root,records:root.records.filter(r=>keep.has(r.id))}:null;}
  let documentToken=crypto.randomUUID(),lifecycle=()=>{};const notify=reason=>{busy++;try{lifecycle(reason);}catch(error){console.error('Scene program lifecycle failed',error);}finally{busy--;}};
- let epoch=crypto.randomUUID(),generation=0,busy=0,documentReady=false,readRoot=()=>null,writeRoot=()=>error('Native scene not ready','NOT_READY');
+ let epoch=crypto.randomUUID(),generation=0,fileRevision=0,busy=0,documentReady=false,readRoot=()=>null,writeRoot=()=>error('Native scene not ready','NOT_READY');
  const empty=()=>({version:1,revision:0,records:[]});
 
  const reservationLimits=Object.freeze({owners:4096,ids:65536,ownerIds:4608});let allocations=new Map();
@@ -12637,7 +12636,7 @@ const FrameAuthorData=(()=>{
  }
  function availability(ref,context=null){reference(ref);if(ref.unresolved)return {status:'unresolved-reference'};if(ref.owner==='scene'){const present=context?context.root.has(ref.id):root()?.records.some(r=>r.id===ref.id);return {status:present?'available':'missing-record'};}const matches=context?context.owners.get(ref.owner)||[]:nodes.filter(n=>n.nativeHash===ref.owner);if(matches.length!==1)return {status:matches.length?'ambiguous-owner':'missing-owner'};const n=matches[0];if(ref.kind==='object')return {status:'available'};if(ref.kind==='record'){let ids=context?.records.get(n);if(context&&!ids){ids=new Set(n.authorData?.records.map(r=>r.id)||[]);context.records.set(n,ids);}return {status:(ids?ids.has(ref.id):n.authorData?.records.some(r=>r.id===ref.id))?'available':'missing-record'};}return {status:FrameFields.descriptor(n,ref.field).availability};}
  function inspect(value){const state=get(value),context={owners:owners(),records:new Map(),root:new Set((value==='scene'?state.data:root())?.records.map(r=>r.id)||[])};return {...state,references:state.data.records.flatMap(r=>r.refs.map((ref,index)=>({record:r.id,index,ref,...availability(ref,context)})))};}
- return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,inspect,availability,root,setRoot,history,restoreNodes,restoreObjects,preflightHistory,reservationLimits,reserveNodes,reserveObjects,preflightDocument,restoreRoot(value){setRoot(history(value,root()));},preflightObjects(value,current){const rootValue=history(value.authorData,root()),target=restoreObjects(value.objects,current);reservationPlan([['scene',rootValue],...entriesObjects(current),...entriesObjects(target)]);},resolveOwner,owners,error,rev,retireFileOwners(owners){const live=new Set(nodes);for(const n of owners)if(n.fileSource&&live.has(n))allocations.delete(n.nativeHash);},get ready(){return documentReady;},get documentToken(){return documentToken;},observe(fn){lifecycle=fn;return ()=>{if(lifecycle===fn)lifecycle=()=>{};};},invalidateDocument(replace=true){documentReady=false;documentToken=crypto.randomUUID();epoch=crypto.randomUUID();generation=0;if(replace)allocations=new Map();notify('document');},installed(){reserveNodes(nodes)();documentReady=true;notify('installed');},begin(){busy++;let done=false;return ()=>{if(!done){done=true;busy--;if(!busy)notify('native-ready');}};},get busy(){return busy>0;},changed(){if(generation>=Number.MAX_SAFE_INTEGER-1){epoch=crypto.randomUUID();generation=0;}else generation++;notify('changed');},get generation(){return generation;},reset(){epoch=crypto.randomUUID();generation=0;notify('history');},get epoch(){return epoch;},attach(read,write){readRoot=read;writeRoot=write;}});
+ return Object.freeze({limits,json,envelope,remap,merge,closure,reference,get,replace,inspect,availability,root,setRoot,history,restoreNodes,restoreObjects,preflightHistory,reservationLimits,reserveNodes,reserveObjects,preflightDocument,restoreRoot(value){setRoot(history(value,root()));},preflightObjects(value,current){const rootValue=history(value.authorData,root()),target=restoreObjects(value.objects,current);reservationPlan([['scene',rootValue],...entriesObjects(current),...entriesObjects(target)]);},resolveOwner,owners,error,rev,retireFileOwners(owners){const live=new Set(nodes);for(const n of owners)if(n.fileSource&&live.has(n))allocations.delete(n.nativeHash);},get ready(){return documentReady;},get documentToken(){return documentToken;},observe(fn){lifecycle=fn;return ()=>{if(lifecycle===fn)lifecycle=()=>{};};},invalidateDocument(replace=true){documentReady=false;documentToken=crypto.randomUUID();epoch=crypto.randomUUID();generation=0;if(replace)allocations=new Map();notify('document');},installed(){reserveNodes(nodes)();documentReady=true;notify('installed');},begin(){busy++;let done=false;return ()=>{if(!done){done=true;busy--;if(!busy)notify('native-ready');}};},get busy(){return busy>0;},get fileRevision(){return fileRevision;},changed(runtime=false){if(!runtime)++fileRevision;if(generation>=Number.MAX_SAFE_INTEGER-1){epoch=crypto.randomUUID();generation=0;}else generation++;notify('changed');},get generation(){return generation;},reset(runtime=false){if(!runtime)++fileRevision;epoch=crypto.randomUUID();generation=0;notify('history');},get epoch(){return epoch;},attach(read,write){readRoot=read;writeRoot=write;}});
 })();
 const FrameParameters=(()=>{
  const own=(o,k)=>{const d=o&&typeof o==='object'?Object.getOwnPropertyDescriptor(o,k):null;return d&&Object.hasOwn(d,'value')&&d.enumerable?d.value:undefined;};
@@ -14345,25 +14344,380 @@ async function connectFrameFileHost({url,token}){
   window.__frameFileHost=host;window.__frameFileHostConnection=connection;window.addEventListener('pagehide',hide,{once:true});
   return {connected:true,url:endpoint.href};
 }
+// A compact index of persisted HASH records. No vertex buffers or full project copies are retained.
+function createFrameFileIndex() {
+  const records = new Map(), names = new Map(), positions = new Map();
+  let owners = [];
+  const hex = bytes => Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  async function signature(type, size, read) {
+    if (size < 128) return type + ':' + hex(await read(0, size));
+    const block = 4 * 1024 * 1024, digests = [];
+    for (let offset = 0; offset < size; offset += block) {
+      const bytes = await read(offset, Math.min(block, size - offset));
+      digests.push(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
+    }
+    if (digests.length === 1) return type + ':' + size + ':' + hex(digests[0]);
+    const joined = new Uint8Array(digests.length * 32);
+    digests.forEach((part, i) => joined.set(part, i * 32));
+    return type + ':' + size + ':' + hex(new Uint8Array(await crypto.subtle.digest('SHA-256', joined)));
+  }
+  async function finish() {
+    const parts = [...records].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0);
+    const encoder = new TextEncoder(), groups = [];
+    for (let i = 0; i < parts.length; i += 2048) {
+      const bytes = encoder.encode(parts.slice(i,i+2048).map(([id,value]) => id+'='+value).join('\n'));
+      groups.push(hex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))));
+    }
+    const version = hex(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(groups.join('')))));
+    return {records, owners, names, positions, version};
+  }
+  return {
+    async read(file) {
+      const reader = FrameHash.reader(file), rows = await reader.index();
+      const all = rows.get(FrameHash.K.all);
+      if (!all || all.type !== FrameHash.T.ids) throw Error('Missing HASH object list');
+      owners = await reader.read(all);
+      if (owners.length > 100000) throw Error('HASH object limit exceeded');
+      const labels = new Map(), matrices = new Map();
+      for (const owner of owners) {
+        labels.set(FrameHash.address(owner,'name'),owner);
+        matrices.set(FrameHash.address(owner,'matrix'),owner);
+      }
+      // Read record groups sequentially so large files always have bounded transient memory.
+      for (const row of rows.values()) {
+        records.set(row.id,await signature(row.encoding,row.length,(at,size)=>reader.range(row.offset+at,size)));
+        if (labels.has(row.id)) names.set(labels.get(row.id), await reader.read(row));
+        if (matrices.has(row.id)) positions.set(matrices.get(row.id),Array.from((await reader.read(row)).slice(9,12)));
+      }
+      return finish();
+    },
+    async record(record, packed, value) {
+      if (record.id === FrameHash.K.all) owners = Array.from(value);
+      if (record.type === FrameHash.T.text) names.set(record.id,value);
+      if (record.type === FrameHash.T.float64 && value.length === 12) positions.set(record.id,Array.from(value.slice(9,12)));
+      records.set(record.id, await signature(packed.type,packed.blob.size-26,(offset,size)=>
+        packed.inline || packed.blob.slice(26+offset,26+offset+size).arrayBuffer().then(b=>new Uint8Array(b))));
+    },
+    async written() {
+      const labels = new Map(names), frames = new Map(positions);
+      names.clear(); positions.clear();
+      for (const owner of owners) {
+        const name = labels.get(FrameHash.address(owner,'name')), p = frames.get(FrameHash.address(owner,'matrix'));
+        if (name !== undefined) names.set(owner,name);
+        if (p) positions.set(owner,p);
+      }
+      return finish();
+    }
+  };
+}
+function frameCompareFileIndexes(before, after) {
+  const changed = new Set();
+  for (const [id, signature] of after.records) if (before.records.get(id) !== signature) changed.add(id);
+  for (const id of before.records.keys()) if (!after.records.has(id)) changed.add(id);
+  const oldOwners = new Set(before.owners), newOwners = new Set(after.owners), result = [];
+  const fields = ['type','name','parent','flags','matrix','pivot','parameters','spline','tags','positions','indices','projection','light'];
+  for (const owner of new Set([...before.owners,...after.owners])) {
+    const changes = fields.filter(field => changed.delete(FrameHash.address(owner,field)));
+    const action = !newOwners.has(owner) ? 'removed' : !oldOwners.has(owner) ? 'added' : 'modified';
+    if (!changes.length && action === 'modified') continue;
+    const row = {id:owner,name:after.names.get(owner) ?? before.names.get(owner) ?? '',action,fields:changes};
+    if (action==='modified' && changes.includes('name')) row.previousName=before.names.get(owner)??'';
+    if (changes.includes('matrix')) {
+      row.previousPosition = before.positions.get(owner) ?? null;
+      row.position = after.positions.get(owner) ?? null;
+    }
+    result.push(row);
+  }
+  const globals = new Map(Object.entries(FrameHash.K).map(([field,id])=>[id,field]));
+  for (const id of changed) result.push({id,action:'record',field:globals.get(id)||'asset or property'});
+  return result;
+}
+
+
+// The open project and its external changes belong to this editor session.
+const FrameProjectFile = (() => {
+  let binding = null, pending = null, lastChange = null, serial = 0, timer = null, checking = false;
+  let lastError = '', opening = null, refreshing = false;
+  const waiters = new Set(), history = [];
+  const mark = () => window.frameEngine?.fileEditStamp;
+  const dirty = () => !!binding && binding.mark !== mark();
+  const fail = (message,code='FILE_CONFLICT') => Object.assign(Error(message),{code});
+  const nativeStamp = file => file.size + ':' + file.lastModified;
+  const stamp = async handle => handle.frameHostPath ? (await handle.stat()).version : nativeStamp(await handle.getFile());
+  async function read(handle, file) {
+    file ??= await handle.getFile();
+    const signature = handle.frameHostPath ? handle.lastReceipt.version : nativeStamp(file);
+    const index = await createFrameFileIndex().read(file);
+    return {index,signature,file};
+  }
+  function samePath(a,b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (!a.frameHostPath || !b.frameHostPath) return false;
+    const key=path=>{
+      const windows=/^[a-z]:|^[/\\]{2}/i.test(path);
+      const parts=(windows?path.toLowerCase().replaceAll('\\','/'):path).split('/');
+      const normalized=[];
+      for(const part of parts){
+        if(part==='.'||(!part&&normalized.length)) continue;
+        if(part==='..'&&normalized.length>1) normalized.pop();
+        else normalized.push(part);
+      }
+      return normalized.join('/');
+    };
+    return key(a.frameHostPath) === key(b.frameHostPath);
+  }
+  async function sameFile(a,b) {
+    return samePath(a,b) || !!(a && b && !a.frameHostPath && !b.frameHostPath && await a.isSameEntry?.(b));
+  }
+  function status(offset=0,limit=50) {
+    return report(lastChange,offset,limit);
+  }
+  function page(event,offset,limit) {
+    if (!event) return null;
+    const {rows,...info}=event;
+    return {...info,offset,changes:rows.slice(offset,offset+limit),truncated:rows.length<event.total};
+  }
+  function changes(offset=0,limit=50,cursor) {
+    if (cursor===undefined) return status(offset,limit);
+    const event=cursor===lastChange?.cursor?lastChange:history.find(e=>e.cursor===cursor);
+    return {...report(event,offset,limit),missed:!event};
+  }
+  function report(event,offset=0,limit=50) {
+    return {state:opening||refreshing?'updating':pending?'conflict':lastError?'error':binding?'current':'unbound',
+      dirty:dirty(),baseVersion:binding?.index.version??null,diskVersion:pending?.index.version??binding?.index.version??null,
+      cursor:event?.cursor??serial,latestCursor:serial,error:lastError||null,conflict:page(pending?.event,offset,limit),lastChange:page(event,offset,limit)};
+  }
+  function paint() {
+    const panel = $('frame-project-notice'), message = $('frame-project-message');
+    if (!panel) return;
+    const folder = !!binding && !!window.frameFiles?.needsProjectFolder;
+    $('frame-project-folder').hidden=!folder;
+    const visible = folder || !!pending || !!lastError || !!lastChange && ['updated','linked'].includes(lastChange.kind);
+    panel.hidden = !visible;
+    if (!visible) return;
+    const sample = ((pending?.event||lastChange)?.rows || []).filter(r=>r.action!=='record').slice(0,3).map(r=>r.name||r.id);
+    message.textContent = pending?'File changed on disk. Your draft is open.'+(sample.length?' Changed: '+sample.join(', '):''):lastError || (folder?'Choose the folder containing this project to load its linked parts.':'') ||
+      ('Updated '+lastChange.file+(sample.length?' · '+sample.join(', '):''));
+    $('frame-project-reload').hidden = !pending;
+    $('frame-project-copy').hidden = !pending&&!lastError;
+    $('frame-project-dismiss').hidden = !!pending;
+  }
+  function publish(kind,file,previousVersion,version,rows=[]) {
+    if (lastChange) {
+      history.push({...lastChange,rows:lastChange.rows.slice(0,128)});
+      if (history.length>31) history.shift();
+    }
+    lastChange = {cursor:++serial,kind,file,previousVersion,version,total:rows.length,rows};
+    if (kind==='conflict') pending.event=lastChange;
+    paint();
+    for (const done of [...waiters]) done();
+  }
+  function reset() {
+    if (refreshing) return;
+    binding=null; pending=null; lastError=''; lastChange=null; history.length=0;
+    if (timer) clearInterval(timer);
+    timer=null; ++serial; paint();
+    for (const done of [...waiters]) done();
+  }
+  async function load(handle,snapshot) {
+    opening=handle;
+    try {
+      await window.frameEngine.loadFile(snapshot.file);
+      if (!$('frame-engine-status').hidden) throw Error($('frame-engine-status').textContent||'HASH import failed');
+      const loadedMark=mark();
+      await window.frameFiles?.flush();
+      return loadedMark;
+    } finally { opening=null; }
+  }
+  function bind(handle,index,signature,savedMark) {
+    sceneFileHandle=handle; frameSetSceneFileName(handle.name);
+    binding={handle,index,signature,mark:savedMark}; pending=null;lastError='';
+    timer??=setInterval(()=>void poll(),1500);
+  }
+  async function open(handle,file) {
+    file??=await handle.getFile();
+    let snapshot,loadedMark;
+    try {
+      snapshot=await read(handle,file);
+      await window.frameFiles?.prepareProject(handle);
+      loadedMark=await load(handle,snapshot);
+    } catch(error) {reset();sceneFileHandle=null;throw error;}
+    bind(handle,snapshot.index,snapshot.signature,loadedMark);
+    publish('opened',handle.name,null,snapshot.index.version);
+  }
+  function conflict(current,snapshot) {
+    const rows=frameCompareFileIndexes(current.index,snapshot.index);
+    pending={index:snapshot.index,signature:snapshot.signature};
+    lastError='';
+    publish('conflict',current.handle.name,current.index.version,snapshot.index.version,rows);
+  }
+  async function sync(options={}) {
+    const current=binding,draftAtStart=mark();
+    if (!current) return status();
+    const signature=await stamp(current.handle);
+    if (binding!==current) return status();
+    if (!options.reload && !options.verify && !lastError && signature===(pending||current).signature) return status();
+    const snapshot=await read(current.handle);
+    if (binding!==current) return status();
+    const matches=current.index.version===snapshot.index.version;
+    if (options.reload && (options.version!==snapshot.index.version || options.baseVersion!==current.index.version)) {
+      if (!matches && pending?.index.version!==snapshot.index.version) conflict(current,snapshot);
+      throw fail('Disk or open version changed. Review the current file before reloading.');
+    }
+    if (matches && !(options.reload && dirty())) {
+      const recovered=!!pending||!!lastError;
+      current.signature=snapshot.signature; pending=null; lastError='';
+      if (recovered) publish('current',current.handle.name,current.index.version,current.index.version);
+      return status();
+    }
+    if (!window.frameEngine.canDetachView() || frameUITransaction || numericSession || treeGesture ||
+        FrameViewWindows.inputDocument?.activeElement?.matches('input:not([readonly]),textarea:not([readonly]),[contenteditable=true]'))
+      throw fail('Finish the current edit first.','BUSY');
+    if (!options.reload && dirty()) {
+      // Selection, history traversal and evaluated file Instances can advance editor revisions.
+      // Verify persisted authoring only when an external revision actually needs to replace it.
+      const observed=mark(), live=createFrameFileIndex();
+      await window.frameEngine.saveHash({indexRecord:live.record,write:async()=>{},close:async()=>{},abort:async()=>{}});
+      if (binding!==current) return status();
+      const edits=frameCompareFileIndexes(current.index,await live.written());
+      if (mark()===observed && edits.every(r=>r.id===FrameHash.K.camera)) current.mark=observed;
+    }
+    if (!options.reload && dirty()) {
+      if (pending?.index.version!==snapshot.index.version) conflict(current,snapshot);
+      return status();
+    }
+    const rows=frameCompareFileIndexes(current.index,snapshot.index);
+    if (options.reload && draftAtStart!==mark()) throw fail('Your draft changed while reviewing the file. Retry when ready.','BUSY');
+    const camera=window.frameEngine.viewState, selection=[...selected].map(id=>node(id)?.nativeHash);
+    refreshing=true;
+    try {
+      const loadedMark=await load(current.handle,snapshot);
+      window.frameEngine.restoreProjectCamera(camera);
+      const ids=new Set(selection);
+      selected=new Set(nodes.filter(n=>ids.has(n.nativeHash)).map(n=>n.id));
+      focusId=anchorId=[...selected][0]||null;
+      await frameSelectEngineObjects(false); refreshSelection();
+      bind(current.handle,snapshot.index,snapshot.signature,loadedMark);
+      refreshing=false;
+      publish('updated',current.handle.name,current.index.version,snapshot.index.version,rows);
+    } finally { refreshing=false; }
+    return status();
+  }
+  async function poll() {
+    if (checking || !binding || document.hidden && !waiters.size || !window.frameAI) return;
+    const current=binding; checking=true;
+    try {
+      const signature=await stamp(current.handle);
+      if (binding!==current) return;
+      if (lastError || signature!==(pending||current).signature)
+        await window.frameAI.call('scene.file.sync');
+    } catch (error) {
+      if (binding===current && error.code!=='BUSY' && error.message!==lastError) {
+        lastError=error.message; publish('error',current.handle.name,current.index.version,null);
+      }
+    } finally { checking=false; }
+  }
+  async function save(handle,{createOnly=false}={}) {
+    const current=binding, same=await sameFile(current?.handle,handle);
+    if (same) handle=current.handle;
+    const expected=same?current:null;
+    async function verify() {
+      if (!expected) return;
+      const remote=await read(handle);
+      if (remote.index.version!==expected.index.version) {
+        conflict(expected,remote); throw fail('File changed on disk. Keep your draft and review the newer version.');
+      }
+      expected.signature=remote.signature;
+    }
+    if (expected && handle.frameHostPath && await stamp(handle)!==expected.signature) await verify();
+    const index=createFrameFileIndex();
+    let stream,aborted=false;
+    const abort=async()=>{if(stream&&!aborted){aborted=true;await stream.abort();}};
+    try {
+      stream=handle.frameHostPath ? await handle.createWritable(createOnly?null:expected?.signature) :
+        await handle.createWritable({mode:'exclusive'});
+      if (!handle.frameHostPath) await verify();
+      let written,signature,savedMark;
+      const sink={
+        indexRecord:index.record,
+        write:bytes=>stream.write(bytes),
+        abort,
+        async close() {
+          savedMark=mark();written=await index.written();
+          if (!handle.frameHostPath && expected && await stamp(handle)!==expected.signature) await verify();
+          await stream.close();
+          signature=handle.frameHostPath?handle.lastReceipt.version:null;
+        }
+      };
+      await window.frameEngine.saveHash(sink);
+      const rows=expected?frameCompareFileIndexes(expected.index,written):[];
+      if (!same) await window.frameFiles?.prepareProject(handle);
+      bind(handle,written,signature,savedMark);
+      if (!expected || expected.index.version!==written.version) publish('saved',handle.name,expected?.index.version??null,written.version,rows);
+      else paint();
+    } catch (error) {
+      await abort().catch(()=>{});
+      if (error.code==='FILE_CONFLICT' && expected && !pending) await verify();
+      throw error;
+    }
+  }
+  function wait(after,timeoutMs,signal) {
+    const next=()=>{
+      const event=history.find(e=>e.cursor>after)||(lastChange?.cursor>after?lastChange:null);
+      return {...report(event||lastChange),missed:after>serial||after<serial&&event?.cursor!==after+1,timedOut:after===serial};
+    };
+    if (after!==serial || !timeoutMs || signal?.aborted) return Promise.resolve(next());
+    return new Promise(resolve=>{
+      const finish=()=>{clearTimeout(deadline);waiters.delete(finish);signal?.removeEventListener('abort',finish);
+        resolve(next());};
+      const deadline=setTimeout(finish,timeoutMs);
+      waiters.add(finish);signal?.addEventListener('abort',finish,{once:true});
+      void poll();void FrameFileSources.check().catch(()=>{});
+    });
+  }
+  $('frame-project-folder').onclick=async()=>{
+    const current=binding;
+    if (!current) return;
+    try {
+      const folder=await showDirectoryPicker({id:'frame-project',mode:'read'});
+      if (binding!==current) return;
+      if (!await folder.resolve(current.handle)) throw Error('Choose a folder containing '+current.handle.name);
+      await FrameFileSources.attachDirectory(folder);await FrameFileSources.prepareProject(current.handle);
+      await window.frameAI.call('instance.files');lastError='';paint();
+    } catch(error) {if(error.name!=='AbortError'){lastError=error.message;paint();}}
+  };
+  $('frame-project-reload').onclick=()=>{if(pending)void window.frameAI.call('scene.file.reload',{
+    baseVersion:binding.index.version,version:pending.index.version}).catch(fileOperationError);};
+  $('frame-project-copy').onclick=()=>void saveSceneFile({as:true,format:'hash'});
+  $('frame-project-dismiss').onclick=()=>{$('frame-project-notice').hidden=true;};
+  window.addEventListener('focus',poll);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});
+  return {open,save,sync,status,changes,reset,wait,get opening(){return opening;},get waiting(){return waiters.size>0;},
+    linked:(path,from,to,rows)=>publish('linked',path,from,to,rows)};
+})();
+
+
 function frameHostFileHandle(path,name=path.split(/[\\/]/).pop()){
   const host=async args=>{if(typeof window.__frameFileHost!=='function')throw Object.assign(Error('No filesystem host is connected to this document. Start tools/file-host.mjs with exact --allow-file grants, then use scene.host.connect. No scene reload is required.'),{code:'FILE_BRIDGE_REQUIRED'});return window.__frameFileHost(args);};
   return {frameHostPath:path,name,lastReceipt:null,
+    stat:()=>host({op:'stat',path}),
     async getFile(){const transfer=await host({op:'beginRead',path}),parts=[];try{let chunk;do{chunk=await host({op:'read',id:transfer.id});parts.push(Uint8Array.from(atob(chunk.base64),c=>c.charCodeAt(0)));}while(!chunk.done);this.lastReceipt=await host({op:'finish',id:transfer.id});return new File(parts,transfer.name);}catch(error){await host({op:'abort',id:transfer.id}).catch(()=>{});throw error;}},
-    async createWritable(){const transfer=await host({op:'beginWrite',path}),handle=this;let closed=false;return {
+    async createWritable(expectedVersion){const transfer=await host({op:'beginWrite',path,...expectedVersion!==undefined?{expectedVersion}:{}}),handle=this;let closed=false;return {
       async write(data){if(closed)throw Error('File transfer is closed');const blob=data instanceof Blob?data:new Blob([data]);for(let i=0;i<blob.size;i+=1024*1024){const bytes=new Uint8Array(await blob.slice(i,i+1024*1024).arrayBuffer()),parts=[];for(let j=0;j<bytes.length;j+=16384)parts.push(String.fromCharCode(...bytes.subarray(j,j+16384)));await host({op:'write',id:transfer.id,base64:btoa(parts.join(''))});}},
       async close(){if(closed)throw Error('File transfer is closed');handle.lastReceipt=await host({op:'finish',id:transfer.id});closed=true;},
       async abort(){if(!closed){closed=true;await host({op:'abort',id:transfer.id});}}
     };}
   };
 }
-function frameFileInfo(){return {name:sceneFileName,path:sceneFileHandle?.frameHostPath||null,bound:!!sceneFileHandle,host:typeof window.__frameFileHost==='function',hostBound:!!sceneFileHandle?.frameHostPath,hostURL:window.__frameFileHostConnection?.url||null,request:typeof frameFilePermissionRequest==='undefined'||!frameFilePermissionRequest?null:{...frameFilePermissionRequest},...sceneFileHandle?.lastReceipt||{}};}
+function frameFileInfo(){return {sync:FrameProjectFile.status(),name:sceneFileName,path:sceneFileHandle?.frameHostPath||null,bound:!!sceneFileHandle,host:typeof window.__frameFileHost==='function',hostBound:!!sceneFileHandle?.frameHostPath,hostURL:window.__frameFileHostConnection?.url||null,request:typeof frameFilePermissionRequest==='undefined'||!frameFilePermissionRequest?null:{...frameFilePermissionRequest},...sceneFileHandle?.lastReceipt||{}};}
 function frameSetSceneFileName(name){sceneFileName=name.split(/[\\/]/).pop();document.title='Frame - '+sceneFileName;}
-async function frameSaveBoundFile(path,selectedHandle){
+async function frameSaveBoundFile(path,selectedHandle,options){
   if(path!==undefined&&(typeof path!=='string'||!path.trim()))throw Object.assign(Error('A nonempty local path is required'),{code:'INVALID_ARGUMENT'});
   const handle=selectedHandle||(path!==undefined?frameHostFileHandle(path):sceneFileHandle);if(!handle)throw Object.assign(Error('No current file; use scene.file.request with action saveAs, or scene.saveAs with an authorized .hash path'),{code:'FILE_TARGET_REQUIRED'});
   if(!/\.hash$/i.test(handle.name))throw Object.assign(Error('Project target must end in .hash'),{code:'INVALID_ARGUMENT'});
-  const writable=await handle.createWritable();try{await window.frameEngine.saveHash(writable);}catch(error){await writable.abort?.().catch(()=>{});throw error;}
-  sceneFileHandle=handle;frameSetSceneFileName(handle.name);lastSavedFormat='hash';await rememberSceneFile(handle);return frameFileInfo();
+  await FrameProjectFile.save(handle,options);
+  lastSavedFormat='hash';await rememberSceneFile(handle);return frameFileInfo();
 }
 
 let frameNativeFileTask=async()=>{throw Error('Frame is not ready');};
@@ -14378,18 +14732,44 @@ const FrameFileSources=(()=>{
   const file=n.params.file;if(typeof file!=='string'||!file||!formats.test(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');
   const containing=definitions.get(n.fileSource)?.descriptor;
   if(/^https?:/i.test(file)){const u=new URL(file);if(u.origin!==location.origin)throw Error('Linked URLs must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}
+  const handle=FrameProjectFile.opening||sceneFileHandle,project=handle?.frameHostPath;
+  if(file.startsWith('/')&&!file.startsWith('//')&&(containing?.kind==='host'||project?.startsWith('/'))){const path=decodeURIComponent(new URL('file://'+file).pathname);return {kind:'host',path,key:'host:'+path};}
   if(hostPath(file)){const slash=file.replaceAll('\\','/'),unc=slash.startsWith('//'),u=new URL(unc?'file:'+slash:'file:///'+slash),path=(unc?'\\\\'+u.hostname:'')+decodeURIComponent(u.pathname).replace(/^\/(?=[a-z]:)/i,'').replaceAll('/','\\');return {kind:'host',path,key:'host:'+path.toLowerCase()};}
   if(/^[a-z][a-z0-9+.-]*:/i.test(file))throw Error('Unsupported linked-file URL scheme');
   if(containing){if(containing.kind==='url')return descriptor({params:{file:new URL(file,containing.path).href}});if(containing.kind==='host')return descriptor({params:{file:parent(containing.path)+file}});const path=normalize(parent(containing.path)+file);return {kind:'native',mount:containing.mount,path,key:'native:'+containing.mount+':'+path};}
-  const mount=n.fileMount||defaultMount;if(mount){const path=normalize(file);return {kind:'native',mount,path,key:'native:'+mount+':'+path};}
-  if(sceneFileHandle?.frameHostPath)return descriptor({params:{file:parent(sceneFileHandle.frameHostPath)+file}});
+  if(project)return descriptor({params:{file:parent(project)+file}});
+  if(handle && !n.fileMount && projectFolder?.handle===handle){
+    const {mount,prefix}=projectFolder,path=normalize(prefix+file);
+    return {kind:'native',mount,path,key:'native:'+mount+':'+path};
+  }
+  const mount=mounts.has(n.fileMount)?n.fileMount:handle?projectFolder?.mount:n.fileMount||defaultMount;
+  if(mount||handle){const path=normalize(file);return {kind:'native',mount,path,key:'native:'+mount+':'+path};}
   return descriptor({params:{file:new URL(file,location.href).href}});
  }
  function watch(){const linked=nodes.some(n=>!n.fileSource&&n.type==='instance'&&n.params.file);if(linked&&!watcher)watcher=setInterval(()=>void poll().catch(()=>{}),1500);else if(!linked&&watcher){clearInterval(watcher);watcher=null;}}
- function entry(n){if(!watcher&&!n.fileSource)watcher=setInterval(()=>void poll().catch(()=>{}),1500);const d=descriptor(n);if(d.kind==='native'&&!n.fileSource&&!n.fileMount)n.fileMount=d.mount;let e=entries.get(d.key);if(!e){e={descriptor:d,root:null,token:null,version:null,signature:null,dependencies:[],error:null,dirty:true};entries.set(d.key,e);}return e;}
+ function entry(n){if(!watcher&&!n.fileSource)watcher=setInterval(()=>void poll().catch(()=>{}),1500);const d=descriptor(n);if(d.kind==='native'&&!n.fileSource&&!n.fileMount&&!sceneFileHandle&&!FrameProjectFile.opening)n.fileMount=d.mount;let e=entries.get(d.key);if(!e){e={descriptor:d,root:null,token:null,version:null,signature:null,dependencies:[],error:null,dirty:true};entries.set(d.key,e);}return e;}
  function source(n){try{const e=entry(n);return e.root?frameNodeByHash(e.root)||null:null;}catch{return null;}}
  function state(n){try{const e=entry(n);return {file:n.params.file,source:e.descriptor.key,status:e.error?'error':e.root?'ready':'pending',error:e.error,version:e.version,root:e.root};}catch(error){return {file:n.params.file,status:'error',error:errorText(error)};}}
  function paint(){watch();for(const n of nodes){if(n.type!=='instance'||!n.params.file){delete n.fileError;continue;}const s=state(n);n.fileError=s.error||null;const label=document.getElementById('row-'+n.id)?.querySelector('.ob-name');if(label){label.style.setProperty('--object-color',n.fileError?'#ff5555':objectColor(n.type));label.title=n.fileError||n.name;}}}
+ let projectFolder=null;
+ async function prepareProject(handle){
+  projectFolder=null;
+  if(!handle||handle.frameHostPath||handle.kind!=='file')return;
+  await mountsReady;
+  for(const [mount,dir] of mounts){
+   try{if(await dir.queryPermission({mode:'read'})!=='granted')continue;
+    const path=await dir.resolve(handle);
+    if(path?.length){projectFolder={handle,mount,prefix:path.slice(0,-1).map(p=>p+'/').join('')};return;}}
+   catch{/* The browser may have revoked this directory. */}
+  }
+ }
+ function needsProjectFolder(){
+  const h=FrameProjectFile.opening||sceneFileHandle;
+  return !!h&&!h.frameHostPath&&typeof window.showDirectoryPicker==='function'&&nodes.some(n=>{
+   if(n.fileSource||n.type!=='instance'||!n.params.file)return false;
+   try{const d=descriptor(n);return d.kind==='native'&&(!mounts.has(d.mount)||entries.get(d.key)?.permissionDenied);}catch{return false;}
+  });
+ }
  async function attachDirectory(handle){if(handle?.kind!=='directory')throw Error('A granted project directory is required');await mountsReady;for(const [id,old]of mounts)if(await old.isSameEntry(handle)){defaultMount=id;return id;}const id=crypto.randomUUID();mounts.set(id,handle);defaultMount=id;const db=await database;if(db)await new Promise((resolve,reject)=>{const t=db.transaction('mounts','readwrite');t.objectStore('mounts').put({id,handle},id);t.oncomplete=resolve;t.onerror=()=>reject(t.error);});return id;}
  async function choose(n){
   if(typeof showDirectoryPicker!=='function'||typeof showOpenFilePicker!=='function')throw Error('Native file access requires Chrome or Edge');
@@ -14409,19 +14789,20 @@ const FrameFileSources=(()=>{
  async function ensure(e,ancestry,visited){
   if(ancestry.has(e.descriptor.key))throw Error('Cyclic linked-file dependency: '+e.descriptor.path);if(visited.has(e))return;
   const chain=new Set(ancestry);chain.add(e.descriptor.key);if(!e.dirty&&e.root){for(const n of nodes.filter(n=>n.fileSource===e.token&&n.type==='instance'&&n.params.file))await ensure(entry(n),chain,visited);visited.add(e);return;}
-  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,signature:e.signature,dependencies:e.dependencies},document=FrameAuthorData.documentToken;
+  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,signature:e.signature,dependencies:e.dependencies,index:e.index},document=FrameAuthorData.documentToken;
   try{
-   const signature=await metadata(d),file=await fileAt(d),version=await fingerprint(file);if(e.root&&version===e.version&&!e.dependencies.length){e.signature=signature;e.dirty=false;e.error=null;visited.add(e);return;}
+   const signature=await metadata(d),file=await fileAt(d),fileIndex=/\.hash$/i.test(file.name)?await createFrameFileIndex().read(file):null,version=fileIndex?.version??await fingerprint(file);if(e.root&&version===e.version&&!e.dependencies.length){e.signature=signature;e.dirty=false;e.error=null;visited.add(e);return;}
    const definition={descriptor:d,root:FrameHash.newId(),key:d.key};definitions.set(token,definition);const dependencies=[];
    const readResource=async uri=>{const rd=resourceDescriptor(d,uri);if(!rd){const r=await fetch(uri);return new Uint8Array(await r.arrayBuffer());}const f=await fileAt(rd);dependencies.push({descriptor:rd,signature:await metadata(rd)});return new Uint8Array(await f.arrayBuffer());};
    const imported=await window.frameEngine.loadFileSource(file,{token,root:definition.root,name:file.name,readResource});for(const id of imported.materials)ownedMaterials.add(id);for(const id of imported.assets)ownedAssets.add(id);
    for(const n of nodes.filter(n=>n.fileSource===token&&n.type==='instance'&&n.params.file))await ensure(entry(n),chain,visited);
    await window.frameEngine.loadLibraryObjects();FrameSpline.request();await FrameSpline.flush();const failed=nodes.find(n=>n.fileSource===token&&n.splineError);if(failed)throw Error(failed.name+': '+failed.splineError);
    const now=await metadata(d);if(signature!==now)throw Error('Linked file changed while loading; retrying');if(document!==FrameAuthorData.documentToken)throw new DOMException('Source document changed','AbortError');
-   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.signature=now;e.dependencies=dependencies;e.error=null;e.dirty=false;visited.add(e);
+   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.signature=now;e.dependencies=dependencies;e.error=null;e.permissionDenied=false;e.dirty=false;visited.add(e);
    frameSyncEngineVisibility();FrameSpline.request();await FrameSpline.flush();await window.frameEngine.replicaQueue;
    if(old){window.frameEngine.retireFileSource(old);definitions.delete(old);}await window.frameEngine.draw(false);
-  }catch(error){Object.assign(e,prior);if(document===FrameAuthorData.documentToken&&nodes.some(n=>n.fileSource===token))window.frameEngine.retireFileSource(token);definitions.delete(token);e.error=errorText(error);e.dirty=true;throw error;}
+   e.index=fileIndex;if(old)FrameProjectFile.linked(d.path,prior.version,version,fileIndex&&prior.index?frameCompareFileIndexes(prior.index,fileIndex):[]);
+  }catch(error){Object.assign(e,prior);if(document===FrameAuthorData.documentToken&&nodes.some(n=>n.fileSource===token))window.frameEngine.retireFileSource(token);definitions.delete(token);e.error=errorText(error);e.permissionDenied=error.name==='NotAllowedError';e.dirty=true;throw error;}
  }
  async function flush(){
   if(busy||!window.frameEngine?.scene||FrameAuthorData.ready===false)return;busy=true;
@@ -14432,7 +14813,7 @@ const FrameFileSources=(()=>{
   }finally{busy=false;}
  }
  function request(){if(busy||queued||!window.frameAI||!entries.size&&!nodes.some(n=>n.type==='instance'&&n.params.file))return;queued=true;queueMicrotask(()=>{window.frameAI.call('instance.files').catch(()=>{}).finally(()=>{queued=false;});});}
- async function poll(){if(busy||queued||document.hidden||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies)if(await metadata(resource.descriptor)!==resource.signature)dirty=true;if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
+ async function poll(force=false){if(busy||queued||document.hidden&&!force&&!FrameProjectFile.waiting||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies)if(await metadata(resource.descriptor)!==resource.signature)dirty=true;if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});window.addEventListener('focus',()=>void poll());
  const persistentNodes=list=>list.filter(n=>!n.fileSource),withRuntimeNodes=list=>[...list.filter(n=>!n.fileSource),...nodes.filter(n=>n.fileSource)];
  const mergeRuntimeObjects=(list,current)=>{const out=list.filter(o=>!o.authoring?.fileSource||definitions.has(o.authoring.fileSource)),ids=new Set(out.map(o=>o.hash));return [...out,...current.filter(o=>o.authoring?.fileSource&&definitions.has(o.authoring.fileSource)&&!ids.has(o.hash))];};
@@ -14457,7 +14838,7 @@ const FrameFileSources=(()=>{
   return [...records.values()].filter(r=>!blocked.has(r.id)).map(r=>r.id===K.all?{...r,value:persist.map(n=>n.nativeHash)}:r.id===K.materials?{...r,value:materialIDs}:r.id===K.assets?{...r,value:assetIDs}:r);
  }
  function inspect(){return {mounts:[...mounts].map(([id,h])=>({id,name:h.name})),instances:nodes.filter(n=>!n.fileSource&&n.type==='instance'&&n.params.file).map(n=>({hash:n.nativeHash,...state(n)}))};}
- const api={source,state,paint,choose,attachDirectory,flush,request,inspect,persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0')||!formats.test(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
+ const api={source,state,paint,choose,attachDirectory,prepareProject,get needsProjectFolder(){return needsProjectFolder();},flush,request,inspect,check:()=>poll(true),persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0')||!formats.test(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
 })();
 
 // Native browser pickers own consent. Pending requests reuse the existing toolbar.
@@ -14493,10 +14874,7 @@ function frameRequestFileAccess({action,name}){
       await frameNativeFileTask(async()=>{
         guard();request.state='running';
         if(action==='open'){
-          const file=await chosen.getFile();guard();sceneFileHandle=null;
-          await window.frameEngine.loadFile(file);
-          if(!$('frame-engine-status').hidden)fail('IO_ERROR',$('frame-engine-status').textContent||'Import failed');
-          sceneFileHandle=chosen;frameSetSceneFileName(chosen.name);await rememberSceneFile(chosen);
+          const file=await chosen.getFile();guard();await FrameProjectFile.open(chosen,file);await rememberSceneFile(chosen);
         }else await frameSaveBoundFile(undefined,chosen);
       },{replace:action==='open',prepare:async()=>{
         const value=await selected;guard();
@@ -14525,9 +14903,10 @@ function rememberSceneFile(source,name=source.name,files=[]){recentSceneFiles.se
 async function forgetSceneFile(name,source){if(recentSceneFiles.get(name)!==source)return;recentSceneFiles.delete(name);recentFileCompanions.delete(name);const i=recentFileNames.indexOf(name);if(i>=0)recentFileNames.splice(i,1);await persistRecentFiles();}
 async function openScenePlaceholder(name){await recentFilesReady;const source=recentSceneFiles.get(name);try{if(!source||source.queryPermission&&await source.queryPermission({mode:'read'})!=='granted'&&await source.requestPermission({mode:'read'})!=='granted'){await forgetSceneFile(name,source);return;}if(await openSceneFile(source.getFile?await source.getFile():source,recentFileCompanions.get(name)||[],false,source)===false)await forgetSceneFile(name,source);}catch(error){if(error.name!=='AbortError')await forgetSceneFile(name,source);fileOperationError(error);}}
 function fileOperationError(error){if(error.name==='AbortError')return;$('frame-engine-canvas').dataset.operationError=error.message;$('frame-engine-canvas').dataset.operationStack=error.stack||error.message;}
-async function openSceneFile(file,files=[],merge=false,source=file){try{await frameNativeFileTask(async()=>{if(!merge)sceneFileHandle=null;await window.frameEngine.loadFile(file,{files,merge});if(!$('frame-engine-status').hidden)throw Error($('frame-engine-status').textContent||'Import failed');if(!merge&&source.getFile&&/\.hash$/i.test(source.name)){sceneFileHandle=source;frameSetSceneFileName(source.name);}await rememberSceneFile(source,source.name,files);},{replace:!merge});return true;}catch(error){fileOperationError(error);if(error.name==='AbortError')return null;return false;}}
+async function openSceneFile(file,files=[],merge=false,source=file){try{await frameNativeFileTask(async()=>{if(!merge&&source.getFile&&/\.hash$/i.test(source.name))await FrameProjectFile.open(source,file);
+else{await window.frameEngine.loadFile(file,{files,merge});if(!$('frame-engine-status').hidden)throw Error($('frame-engine-status').textContent||'Import failed');}await rememberSceneFile(source,source.name,files);},{replace:!merge});return true;}catch(error){fileOperationError(error);if(error.name==='AbortError')return null;return false;}}
 FrameViewWindows.onWindow('dragover',e=>{if([...e.dataTransfer.types].includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';if(!e.dataTransfer.items?.length||[...e.dataTransfer.items].some(item=>item.kind==='file'&&(!item.type||item.type.startsWith('image/'))))frameTextureDragTab(e.target);}},true);
-FrameViewWindows.onWindow('drop',async e=>{const files=[...e.dataTransfer.files];if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();closeMenu();const supported=files.filter(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));if(supported.length){const open=async merge=>{for(let i=0;i<supported.length;i++)await openSceneFile(supported[i],files,merge||i>0);};if(nodes.length)showMenu(e.clientX,e.clientY,[['Open',()=>open(false)],['Merge',()=>open(true)]]);else await open(false);return;}const library=!!e.target.closest?.('#texturesPanel,#tabTextures'),material=materials[activeMaterial],slot=e.target.closest?.('.me-tex-btn')?.dataset.slot||'map',targetOwner=e.target.closest?.('.ob-row')?.dataset.id,viewport=!e.target.closest?.('#matEditorContent')&&!library&&frameViewportAt(e.clientX,e.clientY)!==null,documentNodes=nodes,pick=viewport&&!targetOwner?window.frameEngine?.materialDropTarget(e.clientX,e.clientY).then(hash=>({hash}),error=>({error})):null,anchor=$('texGrid').firstChild,imports=files.filter(f=>f.type.startsWith('image/')).map(file=>({file,ready:frameImportTexture(file,anchor).then(url=>({url}),error=>({error}))}));for(const {file,ready}of imports){try{const result=await ready;if(result.error)throw result.error;const url=result.url;if(library||nodes!==documentNodes)continue;let owner=targetOwner;if(pick){const target=await pick;if(target.error)throw target.error;if(nodes!==documentNodes)continue;owner=frameNodeByHash(target.hash)?.id;}if(owner)await assignTexture(owner,url);else if(!viewport)await loadMaterialTexture(url,slot,material,null,/(?:^|[_. -])(?:orm|arm)(?:[_. -]|$)/i.test(file.name));}catch(error){fileOperationError(error);}}},true);
+FrameViewWindows.onWindow('drop',async e=>{const files=[...e.dataTransfer.files];if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();closeMenu();const supported=files.filter(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));if(supported.length){const handles=[...e.dataTransfer.items].filter(item=>item.kind==='file').map(item=>item.getAsFileSystemHandle?.().catch(()=>null));const open=async merge=>{for(let i=0;i<supported.length;i++){const f=supported[i],handle=await handles[files.indexOf(f)];await openSceneFile(f,files,merge||i>0,handle?.kind==='file'?handle:f);}};if(nodes.length)showMenu(e.clientX,e.clientY,[['Open',()=>open(false)],['Merge',()=>open(true)]]);else await open(false);return;}const library=!!e.target.closest?.('#texturesPanel,#tabTextures'),material=materials[activeMaterial],slot=e.target.closest?.('.me-tex-btn')?.dataset.slot||'map',targetOwner=e.target.closest?.('.ob-row')?.dataset.id,viewport=!e.target.closest?.('#matEditorContent')&&!library&&frameViewportAt(e.clientX,e.clientY)!==null,documentNodes=nodes,pick=viewport&&!targetOwner?window.frameEngine?.materialDropTarget(e.clientX,e.clientY).then(hash=>({hash}),error=>({error})):null,anchor=$('texGrid').firstChild,imports=files.filter(f=>f.type.startsWith('image/')).map(file=>({file,ready:frameImportTexture(file,anchor).then(url=>({url}),error=>({error}))}));for(const {file,ready}of imports){try{const result=await ready;if(result.error)throw result.error;const url=result.url;if(library||nodes!==documentNodes)continue;let owner=targetOwner;if(pick){const target=await pick;if(target.error)throw target.error;if(nodes!==documentNodes)continue;owner=frameNodeByHash(target.hash)?.id;}if(owner)await assignTexture(owner,url);else if(!viewport)await loadMaterialTexture(url,slot,material,null,/(?:^|[_. -])(?:orm|arm)(?:[_. -]|$)/i.test(file.name));}catch(error){fileOperationError(error);}}},true);
 sceneInput.onchange=()=>{const files=[...sceneInput.files],file=files.find(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));sceneInput.value='';if(file)openSceneFile(file,files);};
 function frameEnvironmentURL(value){return frameMaterialAssets.get(value)?.url||value||'';}
 function frameChooseEnvironment(n){const input=document.createElement('input');input.type='file';input.accept='image/*,.hdr,.rgbe';input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const bytes=new Uint8Array(await file.arrayBuffer());if(bytes.length>16*1024*1024)throw Error('Environment image exceeds 16 MiB');if(!/\.(hdr|rgbe)$/i.test(file.name)){const bitmap=await createImageBitmap(file);bitmap.close();}if(!nodes.includes(n))return;const url=URL.createObjectURL(file),asset=frameMaterialAsset(url,bytes);commit(()=>{n.params.environment='image';n.params['environment image']=asset;});renderAttributes();}catch(error){fileOperationError(error);}};input.click();}
@@ -14540,13 +14919,23 @@ async function saveSceneFile({as=false,incremental=false,download=false,format}=
     const selectedHandle=Promise.resolve(handle);selectedHandle.catch(()=>{});
     await frameNativeFileTask(async()=>{
     frameSyncEngineVisibility();const save=/\.vtk$/i.test(handle?.name||name)?window.frameEngine.saveVTK:/\.3mf$/i.test(handle?.name||name)?window.frameEngine.save3MF:/\.ply$/i.test(handle?.name||name)?window.frameEngine.savePLY:/\.stl$/i.test(handle?.name||name)?window.frameEngine.saveSTL:/\.glb$/i.test(handle?.name||name)?window.frameEngine.saveGLB:window.frameEngine.saveHash;
-    if(handle&&!download){const writable=await handle.createWritable();try{await save(writable);}catch(error){try{await writable.abort?.(error);}catch{}throw error;}sceneFileHandle=handle;frameSetSceneFileName(handle.name);lastSavedFormat=handle.name.split('.').pop().toLowerCase();await rememberSceneFile(handle);}
-    else{const blob=await save(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.hidden=true;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);frameSetSceneFileName(name);sceneFileHandle=null;lastSavedFormat=format;await rememberSceneFile(new File([blob],name,{type:blob.type}));}
+    if(handle&&!download&&save===window.frameEngine.saveHash){await frameSaveBoundFile(undefined,handle);}
+    else if(handle&&!download){const writable=await handle.createWritable();try{await save(writable);}catch(error){try{await writable.abort?.(error);}catch{}throw error;}FrameProjectFile.reset();sceneFileHandle=handle;frameSetSceneFileName(handle.name);lastSavedFormat=handle.name.split('.').pop().toLowerCase();await rememberSceneFile(handle);}
+    else{const blob=await save(),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.hidden=true;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);frameSetSceneFileName(name);sceneFileHandle=null;FrameProjectFile.reset();lastSavedFormat=format;await rememberSceneFile(new File([blob],name,{type:blob.type}));}
     },{prepare:async()=>{handle=await selectedHandle;}});
   }catch(error){fileOperationError(error);}
 }
 $('btnNew').onclick=()=>{closeMenu();window.frameAI.call('scene.new').then(()=>{if(frameUpdateReady){const url=new URL(location.href);url.search='';url.hash='';location.replace(url.href);}}).catch(fileOperationError);};
-$('btnOpen').onclick=()=>{closeMenu();if(frameContinueFileRequest('btnOpen'))return;sceneInput.click();};
+$('btnOpen').onclick=async()=>{
+  closeMenu();if(frameContinueFileRequest('btnOpen'))return;
+  if(typeof window.showOpenFilePicker!=='function'){sceneInput.click();return;}
+  try{
+    const handles=await showOpenFilePicker({multiple:true,id:'frame-open'});
+    const files=await Promise.all(handles.map(h=>h.getFile()));
+    const i=files.findIndex(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));
+    if(i>=0)await openSceneFile(files[i],files,false,handles[i]);
+  }catch(error){if(error.name==='SecurityError')sceneInput.click();else fileOperationError(error);}
+};
 $('btnSave').onclick=()=>{closeMenu();if(!frameContinueFileRequest('btnSave'))saveSceneFile();};
 let saveFormatsLeaveTimer;
 function showSaveFormats(focus=false){const r=$('btnSave').getBoundingClientRect();showMenu(r.left,r.bottom,[['Frame scene (.hash)',()=>saveSceneFile({as:true,format:'hash'})],['Save incremental (+1)',()=>saveSceneFile({incremental:true})],['STL mesh (.stl)',()=>saveSceneFile({as:true,format:'stl'})],['glTF binary (.glb)',()=>saveSceneFile({as:true,format:'glb'})],['PLY mesh (.ply)',()=>saveSceneFile({as:true,format:'ply'})],['VTK surface (.vtk)',()=>saveSceneFile({as:true,format:'vtk'})],['3MF print model (.3mf)',()=>saveSceneFile({as:true,format:'3mf'})]],focus);$('menu').dataset.owner='save-formats';$('menu').querySelector('button').setAttribute('aria-current','true');}
@@ -14637,7 +15026,7 @@ FrameViewWindows.onWindow('frame-engine-scene',e=>{
   for(const o of e.detail.objects.slice().reverse()){const n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
   for(const o of e.detail.objects)mapping.get(o.hash).parent=mapping.get(o.parent)?.id||null;
   frameChangedMaterials.clear();frameShareBoundMaterials();
-  frameSetSceneFileName(e.detail.name.replace(/\.(obj|stl|gltf|glb|ply|step|stp|dxf)$/i,'.hash'));sceneFileHandle=null;
+  FrameProjectFile.reset();frameSetSceneFileName(e.detail.name.replace(/\.(obj|stl|gltf|glb|ply|step|stp|dxf)$/i,'.hash'));sceneFileHandle=null;
   render();FramePluginRecords.collect();
   window.frameDocumentation?.reset();
   FrameAuthorData.installed();
@@ -21625,9 +22014,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
       canvas.dataset.transform=JSON.stringify({kind:s.kind,translation,scale,angle,matrix:Array.from(matrix),gpu:true,objects:(s.targets||[s]).length});
     }
     function canonicalMeshIndices(){const indices=new Map();for(let i=0;i<scene.meshes.length;i++){const mesh=scene.meshes[i];if(!mesh.replicaMatrix)indices.set(mesh.hashId,i);}return indices;}
-    function notifyObjects(){FrameAuthorData.changed();const indices=canonicalMeshIndices();window.dispatchEvent(new CustomEvent('frame-engine-objects',{detail:{objects:poseObjects().map(o=>({...o,index:indices.get(o.hash)})),selection:[...objectSelection]}}));appearanceSignature='';syncMaterials();}
-    async function restoreStructure(objects,selection,preserveCameras=false){FrameAuthorData.reset();objects=window.frameFiles?.mergeRuntimeObjects(objects,poseObjects())||objects;objects=FrameAuthorData.restoreObjects(objects,poseObjects());if(preserveCameras){const cameras=new Set(nodes.filter(n=>n.type==='render').map(n=>n.nativeHash));objects=objects.map(o=>cameras.has(o.hash)&&nativeValue(o.hash,'type')?{...o,matrix:nativeValue(o.hash,'matrix')?.slice()||FM.pack(FM.I())}:o);}
-      const index=canonicalMeshIndices();installNativeRecords(objects.map(o=>({...o,index:index.get(o.hash)})),scene.records.get(FrameHash.K.camera)?.value);publishTopology(renderer,[]);objectSelection=[...selection];selectionScope='objects';notifyObjects();syncReplicas();const hashes=new Set(selection.flatMap(h=>objectDescendants(h)));await selectObjects(scene.meshes.map((m,i)=>hashes.has(m.hashId)?i:-1).filter(i=>i>=0),{objectHashes:selection});draw();
+    function notifyObjects(runtime=false){FrameAuthorData.changed(runtime);const indices=canonicalMeshIndices();window.dispatchEvent(new CustomEvent('frame-engine-objects',{detail:{objects:poseObjects().map(o=>({...o,index:indices.get(o.hash)})),selection:[...objectSelection]}}));appearanceSignature='';syncMaterials();}
+    async function restoreStructure(objects,selection,preserveCameras=false,runtime=false){FrameAuthorData.reset(runtime);objects=window.frameFiles?.mergeRuntimeObjects(objects,poseObjects())||objects;objects=FrameAuthorData.restoreObjects(objects,poseObjects());if(preserveCameras){const cameras=new Set(nodes.filter(n=>n.type==='render').map(n=>n.nativeHash));objects=objects.map(o=>cameras.has(o.hash)&&nativeValue(o.hash,'type')?{...o,matrix:nativeValue(o.hash,'matrix')?.slice()||FM.pack(FM.I())}:o);}
+      const index=canonicalMeshIndices();installNativeRecords(objects.map(o=>({...o,index:index.get(o.hash)})),scene.records.get(FrameHash.K.camera)?.value);publishTopology(renderer,[]);objectSelection=[...selection];selectionScope='objects';notifyObjects(runtime);syncReplicas();const hashes=new Set(selection.flatMap(h=>objectDescendants(h)));await selectObjects(scene.meshes.map((m,i)=>hashes.has(m.hashId)?i:-1).filter(i=>i>=0),{objectHashes:selection});draw();
     }
     async function duplicateGizmoObjects(g){const finishAuthoring=FrameAuthorData.begin();try{
       await FramePlugins.flush({author:true});
@@ -23271,7 +23660,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         for(const record of records){
           if(scene!==space)throw Error('Scene changed during HASH Save.');let value=record.value;
           if(value?.gpu){const reference=value.field==='positions'&&morphStates.get(value.mesh?.hashId)?.base;const raw=await nativeReadGPU(gpu,reference||value.resource,value.count);value=record.type===FrameHash.T.float32?new Float32Array(raw.buffer):record.type===FrameHash.T.bytes?raw.subarray(0,value.byteLength):new Uint32Array(raw.buffer);}
-          const packed=await FrameHash.pack({...record,value});rawBytes+=packed.rawBytes;storedBytes+=packed.blob.size;
+          const packed=await FrameHash.pack({...record,value});if(writable?.indexRecord)await writable.indexRecord(record,packed,value);rawBytes+=packed.rawBytes;storedBytes+=packed.blob.size;
           if(writable){if(batchBytes+packed.blob.size>batchLimit)await flush();if(packed.blob.size>batchLimit)await writable.write(packed.blob);else{batch.push(packed.blob);batchBytes+=packed.blob.size;}}else parts.push(packed.blob);
           progress('Saving HASH · '+(++done)+' / '+records.length);
           if(performance.now()-lastYield>=16){await new Promise(r=>setTimeout(r,0));lastYield=performance.now();}
@@ -23358,7 +23747,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         guard();await selectionQueue;guard();await editSerial;guard();await appearanceQueue;guard();space.meshes.push(...created);published=true;if(plan)uploadPolygonSets(plan,gpu);for(const [h,tracks]of newTracks)FrameMorph.sceneChannels().set(h,tracks);frameInstallMaterialState(appearanceLibrary(),preparedImages);
         // Preserve the current active camera when an imported scene also contains cameras.
         if(cameraConfig())for(const o of specs)if(o.spline?.type==='render')o.flags&=~2;
-        const roots=specs.filter(o=>!o.parent).map(o=>o.hash);if(options.pasteParent)parentClipboardRoots(specs,options.pasteParent);await restoreStructure([...specs,...before.objects],options.fileSource?before.selection:roots);guard();FrameSpline.request();await FrameSpline.flush();guard();if(options.fileSource){status.hidden=true;return roots;}const mergedDocumentation=FrameDocumentation.merge(window.frameDocumentation.get().text,importedDocumentation,documentationMapping);const g={copyBefore:{objects:before.objects,selection:before.selection,frames:before.frames},copyCreated:created};g.copyBefore.authorData=before.authorData;const mergedAuthorData=FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);FrameAuthorData.setRoot(mergedAuthorData);authorPublished=true;commitObjectCopy(g);window.frameDocumentation.importText(mergedDocumentation);nativeSceneStats(file.name);lastImportReport=plan?.importReport||data?.importReport||null;status.hidden=true;return roots;
+        const roots=specs.filter(o=>!o.parent).map(o=>o.hash);if(options.pasteParent)parentClipboardRoots(specs,options.pasteParent);await restoreStructure([...specs,...before.objects],options.fileSource?before.selection:roots,false,!!options.fileSource);guard();FrameSpline.request();await FrameSpline.flush();guard();if(options.fileSource){status.hidden=true;return roots;}const mergedDocumentation=FrameDocumentation.merge(window.frameDocumentation.get().text,importedDocumentation,documentationMapping);const g={copyBefore:{objects:before.objects,selection:before.selection,frames:before.frames},copyCreated:created};g.copyBefore.authorData=before.authorData;const mergedAuthorData=FrameAuthorData.merge(FrameAuthorData.root(),importedAuthorData,authorMapping,rootMapping);FrameAuthorData.setRoot(mergedAuthorData);authorPublished=true;commitObjectCopy(g);window.frameDocumentation.importText(mergedDocumentation);nativeSceneStats(file.name);lastImportReport=plan?.importReport||data?.importReport||null;status.hidden=true;return roots;
       }catch(error){
         if(!before)throw error;
         const same=scene===space&&renderer===gpu,discard=new Set(created);if(same&&published){for(const mesh of space.meshes)if(!before.meshes.has(mesh))discard.add(mesh);space.meshes=space.meshes.filter(m=>!discard.has(m));}
@@ -25443,7 +25832,7 @@ function FramePolygonKernel(d){
       dataTool('fields.readBatch','Read up to 128 ordered native fields in one synchronous epoch/frame observation; per-item availability, bounded output, no settlement.',required(obj({reads:{...array(required(obj({owner:dataOwner,field:{type:'string',maxLength:128}}),'owner','field'),128),minItems:1},epoch:str}),'reads'),true,a=>FrameFields.readBatch(a.reads,a.epoch));
       dataTool('fields.write','Write metadata and declared non-animated scalar parameters with epoch/revision CAS; preflight every target before one native Undo transaction.',required(obj({writes:{...array(required(obj({owner:dataOwner,field:str,value:dataJSON,epoch:str,revision:dataRevision}),'owner','field','value','epoch','revision'),128),minItems:1}}),'writes'),false,a=>FrameFields.write(a.writes));
 
-      register('app.describe','Discover API version, supported object parameters, units and limitations.',obj({}),true,()=>({version,applicationVersion:document.querySelector('meta[name=frame-version]').content,units:'millimetres; rotation degrees; screen CSS pixels',objects:Object.fromEntries([...FramePlugins.list().flatMap(p=>p.types),...FrameSpline.supported,'car','tree','human','group','target','infinite','render','instance','cloner','symmetry'].map(type=>[type,{name:definitions[type][0],parameters:definitions[type][2]}])),notes:['Object hash is stable across HASH save/open; UI id is session-local.','collab.join/claim/events/run coordinate chats with advisory notes, attributed requests and retry receipts; no object locks. Use explicit transform ids or api.batch for selection-dependent commands.','Calls are serialized; ordinary commands settle GPU/editor work, while authorData and fields data-only reads observe current metadata without settlement.','Use the same Undo/Redo as the UI. No arbitrary JavaScript tool.','The diagnostics.mesh geometry digest is explicit and limited to 32 MiB; topology deletion has no such cutoff.','The Plugins tab discovers static manifests; JavaScript loads only for plugins used by the scene.','glTF/GLB 2.0 uses native UV corners and per-primitive material masks; skinning/compressed extensions require baked or decompressed input.','Boolean preserves inherited nonmanifold defects and reports orientation warnings; new seam gaps still reject.','VTK uses legacy POLYDATA surfaces. 3MF supports ZIP/ZIP64, core assemblies, production part references, base materials and uniform colors; texture/gradient properties require baking.','DXF reads ASCII/binary modelspace curves and polygon surfaces, expands blocks and converts physical units/OCS; diagnostics.import lists omitted entities and approximations. Text, ACIS solids and proprietary proxy geometry require outlining or tessellation.','SVG imports native editable XZ contours in Top orientation in millimeters; text, raster images and clipping/filter effects require outlined or baked vectors.']}));
+      register('app.describe','Discover API version, supported object parameters, units and limitations.',obj({}),true,()=>({version,help:{people:$('frame-help-people').textContent,assistants:$('frame-help-ai').textContent},applicationVersion:document.querySelector('meta[name=frame-version]').content,units:'millimetres; rotation degrees; screen CSS pixels',objects:Object.fromEntries([...FramePlugins.list().flatMap(p=>p.types),...FrameSpline.supported,'car','tree','human','group','target','infinite','render','instance','cloner','symmetry'].map(type=>[type,{name:definitions[type][0],parameters:definitions[type][2]}])),notes:['Object hash is stable across HASH save/open; UI id is session-local.','collab.join/claim/events/run coordinate chats with advisory notes, attributed requests and retry receipts; no object locks. Use explicit transform ids or api.batch for selection-dependent commands.','Calls are serialized; ordinary commands settle GPU/editor work, while authorData and fields data-only reads observe current metadata without settlement.','Use the same Undo/Redo as the UI. No arbitrary JavaScript tool.','The diagnostics.mesh geometry digest is explicit and limited to 32 MiB; topology deletion has no such cutoff.','The Plugins tab discovers static manifests; JavaScript loads only for plugins used by the scene.','glTF/GLB 2.0 uses native UV corners and per-primitive material masks; skinning/compressed extensions require baked or decompressed input.','Boolean preserves inherited nonmanifold defects and reports orientation warnings; new seam gaps still reject.','VTK uses legacy POLYDATA surfaces. 3MF supports ZIP/ZIP64, core assemblies, production part references, base materials and uniform colors; texture/gradient properties require baking.','DXF reads ASCII/binary modelspace curves and polygon surfaces, expands blocks and converts physical units/OCS; diagnostics.import lists omitted entities and approximations. Text, ACIS solids and proprietary proxy geometry require outlining or tessellation.','SVG imports native editable XZ contours in Top orientation in millimeters; text, raster images and clipping/filter effects require outlined or baked vectors.']}));
       register('view.solo','Isolate the selected objects and descendants without changing saved visibility flags. An empty selection cannot enable Solo.',required(obj({enabled:bool}),'enabled'),false,a=>({enabled:frameSetSolo(a.enabled)}));
       register('diagnostics.import','Read the last successful import report, including HASH unavailable plugins/tags and omitted extension records, or interchange omissions and approximations. No geometry readback.',obj({}),true,()=>copy(lastImportReport));
       register('diagnostics.softSelection','Read actual soft influence weights for selected mesh vertex IDs without retaining CPU geometry.',required(obj({id:str,vertices:array(integer,1000)}),'id','vertices'),true,async a=>{const n=resolve(a.id),mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh||a.vertices.some(v=>v>=mesh.vertexCount))fail('INVALID_ARGUMENT','Address mesh vertex IDs');const state=requestSoftOverlay(mesh);await state?.task;if(!state?.weights)return {enabled:polygonTools.soft,influenced:0,weights:a.vertices.map(()=>0)};const d=renderer.device,read=makeGPUBuffer(d,{size:Math.max(4,a.vertices.length*4),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{const e=d.createCommandEncoder();a.vertices.forEach((v,i)=>e.copyBufferToBuffer(state.weights,v*4,read,i*4,4));d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const weights=Array.from(new Float32Array(read.getMappedRange()).slice(0,a.vertices.length));read.unmap();return {enabled:true,influenced:state.count,weights};}finally{releaseGPU(read);}});
@@ -25598,7 +25987,7 @@ function FramePolygonKernel(d){
           return bytes;
         }catch{fail('INVALID_ARGUMENT','Invalid base64');}
       }
-      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path),file=await handle.getFile();sceneFileHandle=null;await api.loadFile(file);if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();sceneFileHandle=handle;frameSetSceneFileName(handle.name);await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');file=new File([sceneBase64Bytes(a.base64)],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
+      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path);await FrameProjectFile.open(handle);await settle();await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');file=new File([sceneBase64Bytes(a.base64)],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
       register('scene.share','Return a portable v1 scene link containing gzip-compressed HASH, without uploading or changing clipboard.',obj({}),true,async()=>({url:await frameShareURL()}));
       register('diagnostics.pixels','Read up to 64 RGBA pixels at active-view CSS coordinates. presentation includes native component hover; SVG overlays are excluded.',required(obj({points:array({...array(num,2),minItems:2},64),presentation:bool}),'points'),true,async a=>{
         const before=renderer.lastFrameRaw?.id??-1,start=performance.now();do{await draw(true);if(renderer.materialState?.pending.size){await Promise.all([...renderer.materialState.pending.values()]);await draw(true);}await renderer.device.queue.onSubmittedWorkDone();await new Promise(r=>setTimeout(r,0));if(performance.now()-start>30000)fail('TIMEOUT','No fresh pixel frame');}while((renderer.lastFrameRaw?.id??-1)<=before);const rect=canvas.getBoundingClientRect(),d=renderer.device,sample=a.presentation?d.createTexture({label:'AI presented hover pixels',size:[renderer.width,renderer.height],format:renderer.format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}):null,read=makeGPUBuffer(d,{label:'AI pixel samples',size:Math.max(256,a.points.length*256),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),e=d.createCommandEncoder();
@@ -25606,6 +25995,9 @@ function FramePolygonKernel(d){
       });
 
       register('scene.file','Inspect the current project file binding, browser permission request and last host receipt.',obj({}),true,()=>frameFileInfo());
+      register('scene.file.sync','Check the saved project version. A clean scene follows disk changes; a dirty scene retains its draft. Set verify to check the content even if metadata is unchanged.',obj({verify:bool}),false,a=>FrameProjectFile.sync(a));
+      register('scene.file.reload','Replace this draft with the reviewed disk version. Obtain both versions from scene.file first.',required(obj({baseVersion:str,version:str}),'baseVersion','version'),false,a=>FrameProjectFile.sync({...a,reload:true}));
+      register('scene.file.changes','Read saved changes by event cursor, with paged objects and properties. Omit cursor for the latest change.',obj({offset:integer,limit:{...integer,minimum:1,maximum:1000},cursor:integer}),true,a=>FrameProjectFile.changes(a.offset,a.limit,a.cursor));
       register('scene.file.request','Use the native browser picker for HASH open/saveAs, or renew permission and save. With browser activation it starts immediately; otherwise returns pending with an existing toolbar button target. Inspect scene.file for completion.',required(obj({action:choice('open','saveAs','save'),name:{type:'string',maxLength:255}}),'action'),false,a=>frameRequestFileAccess(a));
       register('scene.file.cancel','Cancel a pending file request before its native picker starts.',obj({}),false,()=>frameCancelFileRequest());
       register('scene.host.connect','Attach an authorized local filesystem host to this PWA document without reload. Use the URL and ephemeral token printed by tools/file-host.mjs.',required(obj({url:str,token:str}),'url','token'),false,a=>connectFrameFileHost(a));
@@ -25628,10 +26020,11 @@ function FramePolygonKernel(d){
         const blob=await(a.ids?exportPartHash(a.ids):format==='vtk'?saveVTK():format==='3mf'?save3MF():format==='ply'?savePLY():format==='stl'?saveSTL():format==='glb'?saveGLB():saveHash()),bytes=new Uint8Array(await blob.arrayBuffer()),sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join(''),result={name,format,bytes:blob.size,sha256};if(a.includeData)result.base64=encodeBase64(bytes);
         if(a.transfer||a.download){const id=crypto.randomUUID(),url=URL.createObjectURL(blob);exportTransfers.set(id,{blob,url,name});result.transfer={id,url,chunkBytes:1024*1024};if(a.download){const link=document.createElement('a');link.href=url;link.download=name;link.click();result.downloadRequested=true;}}return result;
       }
-      register('scene.saveAs','Save HASH to an authorized local path and bind it, OR omit path to hand a named HASH file to the AI as a chunk-readable Blob transfer. ids exports a part with descendants/dependencies; download optionally requests a browser download. No picker or 16 MiB limit.',obj({path:str,name:str,ids:exportIds,includeData:bool,download:bool}),false,a=>{if(a.path!==undefined){if(Object.keys(a).some(k=>k!=='path'))fail('INVALID_ARGUMENT','Provide path alone for a bound Save As');return frameSaveBoundFile(a.path);}return exportAsset({...a,format:'hash',transfer:true});});
+      register('scene.saveAs','Save HASH to an authorized local path and bind it. Set createOnly to require a new file. Omit path to hand a named HASH file to the AI as a chunk-readable Blob transfer. ids exports a part with descendants/dependencies; download optionally requests a browser download. No picker or 16 MiB limit.',obj({path:str,name:str,ids:exportIds,includeData:bool,download:bool,createOnly:bool}),false,a=>{if(a.path!==undefined){if(Object.keys(a).some(k=>!['path','createOnly'].includes(k)))fail('INVALID_ARGUMENT','Provide path and optional createOnly for a bound Save As');return frameSaveBoundFile(a.path,undefined,{createOnly:a.createOnly});}if(a.createOnly!==undefined)fail('INVALID_ARGUMENT','createOnly requires an authorized path');return exportAsset({...a,format:'hash',transfer:true});});
       register('scene.export','Serialize HASH (default) or visible evaluated STL/PLY/VTK/3MF/GLB. ids exports only HASH parts, descendants and declared dependencies in world placement. includeData returns uncapped base64; transfer returns a Blob URL and chunk reader for large files. Release transfers after saving.',obj({includeData:bool,format:choice('hash','stl','glb','ply','vtk','3mf'),ids:exportIds,name:str,transfer:bool,download:bool}),true,exportAsset);
       register('scene.export.read','Read a retained export transfer as base64, up to 1 MiB per call. Pass the byte offset from the previous nextOffset. File length has no 16 MiB cap.',required(obj({id:str,offset:integer,length:{...integer,minimum:1,maximum:1024*1024}}),'id'),true,async a=>{const t=exportTransfers.get(a.id);if(!t)fail('NOT_FOUND','Export transfer not found');const offset=a.offset||0;if(offset>t.blob.size)fail('INVALID_ARGUMENT','Offset exceeds file size');const end=Math.min(t.blob.size,offset+(a.length||1024*1024));return {id:a.id,offset,nextOffset:end,bytes:end-offset,totalBytes:t.blob.size,eof:end===t.blob.size,base64:encodeBase64(new Uint8Array(await t.blob.slice(offset,end).arrayBuffer()))};});
       register('scene.export.release','Release an AI export Blob and revoke its download URL after the receiving chat has saved the file. Safe to repeat.',required(obj({id:str}),'id'),true,a=>{const t=exportTransfers.get(a.id);if(t){URL.revokeObjectURL(t.url);exportTransfers.delete(a.id);}return {released:!!t};});
+      tools.get('scene.file').dataOnly=tools.get('scene.file.changes').dataOnly=true;
       tools.get('scene.export.read').dataOnly=tools.get('scene.export.release').dataOnly=true;
       register('diagnostics.replicas','Inspect shared derived occurrences and placement matrices without geometry readback.',required(obj({id:str,limit:{...integer,maximum:1000}}),'id'),true,a=>{const n=resolve(a.id),copies=[...scene.meshes.filter(m=>m.hashId===n.nativeHash&&m.replicaMatrix),...(scene.curveReplicas||[]).filter(m=>m.hashId===n.nativeHash)];const surfaces=copies.filter(m=>!m.curve),own=new Set(copies.flatMap(m=>m.buffers)),bytes=resources=>[...resources].reduce((s,b)=>s+(gpuAllocations.get(b)||b.size||0),0);return {id:n.nativeHash,count:copies.length,visible:copies.filter(m=>m.frameVisible).length,distribution:replicaPlacements.get(n.id)?.sampler?{pending:!!replicaPlacements.get(n.id).pending,preparations:replicaPlacements.get(n.id).sampler.preparations,requests:replicaPlacements.get(n.id).sampler.requests,readbackBytes:replicaPlacements.get(n.id).sampler.readbackBytes}:null,resources:{positions:new Set(surfaces.map(m=>m.positions)).size,indices:new Set(surfaces.map(m=>m.indices)).size,normals:new Set(surfaces.map(m=>m.normals)).size,selectionMasks:new Set(surfaces.map(m=>m.connected.flags)).size,materialTables:new Set(surfaces.map(m=>m.materialTable).filter(Boolean)).size,ownedBuffers:own.size,ownedBytes:bytes(own),sceneAllocatedBytes:allocatedBytes,batchedDraws:renderer.replicaDraws?.get(viewIndex)||null},copies:copies.slice(0,a.limit??64).map(m=>{let source=m;while(source.replicaSource)source=source.replicaSource;return {source:source.hashId,curve:!!m.curve,visible:!!m.frameVisible,matrix:Array.from(m.replicaMatrix),worldMatrix:Array.from(m.curve?FM.mul(objectWorld(m.hashId),m.replicaMatrix):m.frameWorld),vertices:m.vertexCount||0,triangles:m.triangleCount||0};})};});
       async function settleDiagnosticSurface(id){
@@ -25657,10 +26050,11 @@ function FramePolygonKernel(d){
         try{setViewerMode('element','object');commit(()=>{n=create('mesh',null,a.name||'Polygon object');n.nativeHash=FrameHash.newId();mesh.hashId=n.nativeHash;n.engineIndex=scene.meshes.length;scene.meshes.push(mesh);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});publishTopology(gpu,[]);nativeSceneStats('AI mesh');await choose([n]);return describe(n);}catch(e){if(!scene.meshes.includes(mesh))disposeMesh(mesh);throw e;}
       });
       register('diagnostics.frame','Render frames and collect CPU/GPU timing; no selection or scene changes.',obj({frames:{...integer,minimum:1,maximum:120}}),true,async a=>{const frames=[];for(let i=0;i<(a.frames||3);i++){const before=renderer.lastFrameRaw?.id??-1,started=performance.now();do{await draw(true);await renderer.device.queue.onSubmittedWorkDone();await new Promise(resolve=>setTimeout(resolve,0));if(performance.now()-started>30000)fail('TIMEOUT','No fresh rendered frame was measured');}while(!renderer.lastFrameRaw||renderer.lastFrameRaw.id<=before);frames.push({...renderer.lastFrameRaw});}return {frames,width:renderer.width,height:renderer.height,adapter:renderer.device.adapterInfo?Object.fromEntries(['vendor','architecture','device','description'].map(k=>[k,renderer.device.adapterInfo[k]])):null,timestampQueries:renderer.device.features.has('timestamp-query')};});
-      async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false){sessionGuard?.();const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=copy(args);if(tool.coordination){sessionGuard?.();return copy(await tool.run(input,null,{bridgeGuard,sessionGuard}));}if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}const execute=async seal=>{bridgeGuard?.();sessionGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export','scene.save','scene.saveAs'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();sessionGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{sessionGuard?.();value=await tool.run(input,interruption,{bridgeGuard,sessionGuard});handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=copy(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:copy(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}};return admitted?execute():enqueueCommand(execute,{documentation:['scene.new','scene.open'].includes(name)||name==='api.batch'&&input.commands.some(c=>['scene.new','scene.open'].includes(c.name))?'replace':['scene.share','scene.export','scene.save','scene.saveAs','api.batch'].includes(name)?'save':null,bridge:!!bridgeGuard});}
+      async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false,signal=null){sessionGuard?.();const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=copy(args);if(nativeIOBusy&&['scene.file','scene.file.changes'].includes(name))return copy(await tool.run(input));if(tool.coordination){sessionGuard?.();return copy(await tool.run(input,null,{bridgeGuard,sessionGuard,signal}));}if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}const execute=async seal=>{bridgeGuard?.();sessionGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export','scene.save','scene.saveAs'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();sessionGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{sessionGuard?.();value=await tool.run(input,interruption,{bridgeGuard,sessionGuard});handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=copy(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:copy(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}};return admitted?execute():enqueueCommand(execute,{documentation:['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(name)||name==='api.batch'&&input.commands.some(c=>['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(c.name))?'replace':['scene.share','scene.export','scene.save','scene.saveAs','api.batch'].includes(name)?'save':null,bridge:!!bridgeGuard});}
       const collaboration=createFrameCollaboration({getDocument:()=>({id:FrameAuthorData.documentToken,epoch:FrameAuthorData.epoch,revision:FrameAuthorData.generation,ready:FrameAuthorData.ready}),getOwners:()=>nodes.map(n=>({id:n.id,hash:n.nativeHash,parent:n.parent})),invoke:(name,args,guard)=>call(name,args,null,guard),key:frameValueKey});
       const participantId={type:'string',maxLength:64},requestId={type:'string',maxLength:128},taskText={type:'string',maxLength:4096},ttlSeconds={...integer,minimum:1,maximum:86400},paging={offset:integer,limit:{...integer,minimum:1,maximum:1000}};
       const coordination=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);tools.get(name).coordination=true;};
+      coordination('scene.file.wait','Wait for a saved project or linked-file change after a cursor from scene.file. Returns immediately on a missed update and releases the editor while waiting.',required(obj({after:integer,timeoutMs:{...integer,maximum:60000}}),'after'),true,(a,_,context)=>FrameProjectFile.wait(a.after,a.timeoutMs??30000,context.signal));
       coordination('collab.join','Join this Frame page as a chat/agent. Presence, notes and messages are ephemeral and advisory; no objects are locked. Keep the returned participant ID for later calls.',required(obj({name:{type:'string',maxLength:256},task:taskText,ttlSeconds}),'name'),false,a=>collaboration.join(a));
       coordination('collab.update','Heartbeat or update participant/task. Attributed requests also renew presence. Default idle expiry is 30 minutes; active requests do not expire.',required(obj({session:participantId,name:{type:'string',maxLength:256},task:taskText,ttlSeconds}),'session'),false,a=>collaboration.update(a));
       coordination('collab.leave','Leave and remove this participant\'s advisory notes. Queued requests recheck presence; already admitted effects are not rolled back. Safe to repeat.',required(obj({session:participantId}),'session'),false,a=>collaboration.leave(a));
@@ -25676,6 +26070,23 @@ function FramePolygonKernel(d){
 
       const listTools=()=>Array.from(tools.values(),({run,...descriptor})=>copy(descriptor));
       window.frameAI=Object.freeze({version,listTools,call:(name,args)=>call(name,args),batch:(commands,options={})=>call('api.batch',{...options,commands}),ready:api.ready});
+      const modelContext=document.modelContext;
+      if(typeof modelContext?.registerTool==='function'){
+        const families=new Set(['app','scene','instance','transform','measure','spline','mesh','geometry','material','selection','edit','view','animation','morph','tag','collab']);
+        const replacesOrWrites=new Set(['scene.new','scene.open','scene.save','scene.saveAs','scene.file.reload']);
+        for(const tool of tools.values()){
+          if(!families.has(tool.name.split('.')[0])||tool.name==='collab.run')continue;
+          const name=tool.name.replaceAll('.','_');
+          const definition={name,description:tool.name+' — '+tool.description,inputSchema:tool.inputSchema,
+            annotations:{readOnlyHint:tool.annotations.readOnlyHint,untrustedContentHint:tool.name!=='app.describe',consequentialHint:replacesOrWrites.has(tool.name)},
+            async execute(args,{signal}={}){
+              try{return await call(tool.name,args,null,null,false,signal);}
+              catch(error){return {error:{code:error.code||'COMMAND_FAILED',message:error.message}};}
+            }};
+          try{Promise.resolve(modelContext.registerTool(definition)).catch(error=>console.warn('WebMCP '+name,error.message));}
+          catch(error){console.warn('WebMCP '+name,error.message);}
+        }
+      }
       FrameScenePrograms.install({call:(name,args,guard)=>call(name,args,null,guard),listTools,state:()=>({busy:nativeIOBusy||undoBusy}),ready:api.ready});
       documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()});
     }
@@ -25689,6 +26100,8 @@ function FramePolygonKernel(d){
       viewResources:()=>({passiveContexts:passiveViews.size,activePluginDepthBytes:renderer?.pluginDepth?(renderer.width||0)*(renderer.height||0)*4:0,passivePluginDepthBytes:[...passiveViews.values()].reduce((n,v)=>n+(v.pluginDepth?(v.width||0)*(v.height||0)*4:0),0),passiveDepthBytes:[...passiveViews.values()].reduce((n,v)=>n+(v.depth?(v.width||0)*(v.height||0)*4:0),0),passiveWireIDBytes:[...passiveViews.values()].reduce((n,v)=>n+(v.wireIds?(v.width||0)*(v.height||0)*4:0),0),activeWirePlaneBytes:renderer?.wirePlanes?(renderer.width||0)*(renderer.height||0)*16:0,passiveWirePlaneBytes:[...passiveViews.values()].reduce((n,v)=>n+(v.wirePlanes?(v.width||0)*(v.height||0)*16:0),0),trackedGPUBytes:allocatedBytes}),
       cancelViewInput:index=>{if(index===viewIndex){FrameSpline.cancelViewInput();if(polygonTools.mode){endPolygonTool();renderAttributes();}}},
       canDetachView:()=>!polygonTools.mode&&!drag&&!boxDrag&&!editDrag&&!gizmoSession&&!coreNumeric&&!editFinishing&&!selectionBusy&&!nativeIOBusy&&!wheelBusy&&!pendingWheel&&!FrameSpline.isEditing(),
+      get fileEditStamp(){return [FrameAuthorData.documentToken,FrameAuthorData.fileRevision,transformSequence,displayUnitIndex,rescaleUnitIndex,timelineTotal,window.frameDocumentation?.get().version].join(':');},
+      restoreProjectCamera(value){if(value&&validNativeCamera(value)){applyNativeCamera(value);draw(true);}},
       get viewState(){return scene?nativeCamera():null;},get selectionPivot(){return componentPivot&&Array.from(componentPivot);},
       restoreViewState:value=>{if(!scene||nativeIOBusy||drag||boxDrag||editDrag||editFinishing||selectionBusy||wheelBusy||pendingWheel)return false;const v=Array.from(value);if(v.length!==12||v.some(n=>!Number.isFinite(n))||v[2]<=0||v[11]<=0)return false;restoreCamera(v);viewStates[viewIndex]=captureCamera();deferHoverMaps();draw(true,true);return true;},
       loadFile:(file,options)=>options?.merge?mergeFile(file,options):/\.hash$/i.test(file.name)?loadHash(file,file.name):/\.(gltf|glb|3mf|svg|step|stp|dxf)$/i.test(file.name)?loadGLTF(file,options):/\.(obj|ply|vtk)$/i.test(file.name)?loadOBJ(file):runImport(file.name,()=>file.arrayBuffer()),
@@ -25710,7 +26123,7 @@ function FramePolygonKernel(d){
 (()=>{
   const version=document.querySelector('meta[name="frame-version"]').content;
   let launchSerial=Promise.resolve();
-  if('launchQueue' in window)launchQueue.setConsumer(({files})=>{const task=launchSerial.then(async()=>{for(const handle of files||[]){try{await frameEngine.ready;const file=await handle.getFile();if(!/\.hash$/i.test(file.name))continue;const merge=nodes.length>0;await frameNativeFileTask(async()=>{await frameEngine.loadFile(file,{merge});await rememberSceneFile(handle);if(!merge&&files.length===1){sceneFileHandle=handle;frameSetSceneFileName(file.name);}},{replace:!merge});}catch(error){fileOperationError(error);}}});launchSerial=task.catch(fileOperationError);return task;});
+  if('launchQueue' in window)launchQueue.setConsumer(({files})=>{const task=launchSerial.then(async()=>{for(const handle of files||[]){try{await frameEngine.ready;const file=await handle.getFile();if(!/\.hash$/i.test(file.name))continue;const merge=nodes.length>0;await frameNativeFileTask(async()=>{if(!merge&&files.length===1)await FrameProjectFile.open(handle,file);else await frameEngine.loadFile(file,{merge});await rememberSceneFile(handle);},{replace:!merge});}catch(error){fileOperationError(error);}}});launchSerial=task.catch(fileOperationError);return task;});
   if(!('serviceWorker' in navigator)||!isSecureContext)return;
   let registration;
   const check=()=>{if(registration&&document.visibilityState==='visible'&&navigator.onLine)registration.update().catch(()=>{});};

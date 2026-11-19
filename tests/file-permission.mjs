@@ -2,11 +2,13 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {setImmediate} from 'node:timers/promises';
 import vm from 'node:vm';
+import {installProjectFileFixture} from './project-file-fixture.mjs';
 import {fileURLToPath} from 'node:url';
 export async function filePermissionChecks(){
  const source=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=performance.now(),checks=[],listeners=new Map(),status={hidden:true,textContent:''},activation={isActive:false};
  const check=(name,pass)=>{assert.ok(pass,name);checks.push(name);};
  const c=vm.createContext({document:{title:"Frame"},Blob,File,DOMException,console,Error,crypto,sceneFileName:'current.hash',sceneFileHandle:null,lastSavedFormat:'hash',FrameAuthorData:{epoch:'one'},FrameViewWindows:{onWindow:(type,fn)=>listeners.set(type,fn)},window:{navigator:{userActivation:activation}},$:()=>status,rememberSceneFile:async()=>{},fileOperationError:()=>{},frameNativeFileTask:async(run,{prepare}={})=>{await prepare?.();return run();}});
+ installProjectFileFixture(c,source);
  vm.runInContext(source.slice(source.indexOf('function frameFileInfo('),source.indexOf('let frameNativeFileTask='))+source.slice(source.indexOf('// Native browser pickers own consent.'),source.indexOf('const recentFilesDB=')),c);
  const evalc=s=>vm.runInContext(s,c),request=a=>{c.args=a;return evalc('frameRequestFileAccess(args)');},info=()=>evalc('frameFileInfo()'),resume=()=>evalc('frameFilePermissionStart()'),cancel=()=>evalc('frameCancelFileRequest()');
  for(const name of ['scenes/current.hash','C:\\projects\\current.hash']){c.filename=name;evalc('frameSetSceneFileName(filename)');check('Document title uses only the filename from '+name,c.document.title==='Frame - current.hash'&&info().name==='current.hash');}
@@ -29,7 +31,7 @@ export async function filePermissionChecks(){
  c.window.showOpenFilePicker=undefined;assert.throws(()=>request({action:'open'}),e=>e.code==='UNSUPPORTED');check('Unsupported browser fails without a pending request',info().request.state==='failed');
  let release;c.window.showSaveFilePicker=()=>new Promise(r=>release=r);request({action:'saveAs'});assert.throws(cancel,e=>e.code==='BUSY');release(second);await setImmediate();check('Open browser picker is cancelled in native UI rather than silently bypassed',info().request.state==='completed');
  const helper=source.slice(source.indexOf('// Native browser pickers own consent.'),source.indexOf('const recentFilesDB='));check('No app dialog or event trust filter is present',!helper.includes('createElement')&&!helper.includes('isTrusted')&&!source.includes('frameFilePermissionDialog'));
- check('Only explicit pending requests redirect existing Open/Save handlers',source.includes("if(frameContinueFileRequest('btnOpen'))return;sceneInput.click()")&&source.includes("if(!frameContinueFileRequest('btnSave'))saveSceneFile()"));
+ check('Only explicit pending requests redirect existing Open/Save handlers',source.includes("if(frameContinueFileRequest('btnOpen'))return;")&&source.includes("if(!frameContinueFileRequest('btnSave'))saveSceneFile()"));
  const elapsedMs=performance.now()-start;check('Completed permission and 17 MiB cases remain under 1000 ms',elapsedMs<1000);return {pass:true,checks,elapsedMs,budgetMs:1000};
 }
 if(process.argv[1]===fileURLToPath(import.meta.url))console.log(JSON.stringify(await filePermissionChecks(),null,2));

@@ -22,6 +22,9 @@ export async function fileControlsChecks(page,{reloadPage}={}){
   await persist();await page.locator('#btnOpen').hover();await page.waitForTimeout(220);check('Empty recent list shows no popup or placeholder',await page.locator('#menu').isHidden()&&!(await page.locator('body').textContent()).includes('(no recent files)'));
   await page.locator('#btnOpen').focus();await page.keyboard.press('ArrowDown');check('Empty recent keyboard action shows no menu',await page.locator('#menu').isHidden());
   const cube=await call('scene.create',{type:'cube',name:'Persistent recent cube'}),exported=await call('scene.export',{includeData:true}),payload=Buffer.from(exported.base64,'base64');
+  // Exercise the File fallback and its recents in a browser without native pickers.
+  // The project-files suite covers the normal picker, directory grants and live handle.
+  await page.evaluate(()=>{window.showOpenFilePicker=undefined;});
   const chooserPromise=page.waitForEvent('filechooser');await page.locator('#btnOpen').click();const chooser=await chooserPromise;await timed('Open and persist a native selected HASH file',2000,async()=>{await chooser.setFiles({name:'persistent-recent.hash',mimeType:'application/octet-stream',buffer:payload});await page.waitForFunction(()=>recentFileNames[0]==='persistent-recent.hash');await call('scene.inspect');await persist();});
   check('Successful Open registers its actual filename',await page.evaluate(()=>recentFileNames[0]==='persistent-recent.hash'));
   await page.mouse.move(20,450);await page.locator('#tlCur').focus();await page.locator('#btnOpen').hover();await page.locator('#menu').waitFor({state:'visible'});check('Open hover shows the saved name without stealing input focus',await page.evaluate(()=>document.activeElement.id==='tlCur'&&document.querySelector('#menu').dataset.owner==='recents'));
