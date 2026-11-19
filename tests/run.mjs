@@ -88,6 +88,7 @@ import {authoringStampCPUChecks} from './authoring-stamp.mjs';
 import {authoringStampBrowserChecks} from './authoring-stamp-browser.mjs';
 import {pointerReturnChecks,pointerReturnNegatives} from './pointer-return.mjs';
 import {removedVolumeChecks} from './removed-volume.mjs';
+import {uniteGeneratorChecks} from './unite-generator.mjs';
 import {handWorkflowChecks} from './hand-workflow.mjs';
 import {november3Checks} from './november3-feedback.mjs';
 import {filePlaybackChecks} from './file-playback-feedback.mjs';
@@ -274,6 +275,7 @@ try{
   report.authoringStampBrowser=await isolated('authoringStampBrowser',authoringStampBrowserChecks);
   report.splineDisplaySamples=await isolated('splineDisplaySamples',page=>splineDisplaySampleChecks(page,{expectReuse:true}));
   report.removedVolume=await isolated('removedVolume',removedVolumeChecks);
+  report.uniteGenerator=await isolated('uniteGenerator',uniteGeneratorChecks);
   report.handWorkflow=await isolated('handWorkflow',handWorkflowChecks);
   report.november3=await isolated('november3',november3Checks);
   report.textPresets=await runStage('textPresets',textPresetChecks);

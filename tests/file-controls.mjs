@@ -5,7 +5,7 @@ import {createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 export async function upperToolbarChecks(page,check){
  const shifted=await page.locator('#modelbar>button').evaluateAll(es=>{const r=es[0].parentElement.getBoundingClientRect();return es.map(e=>({id:e.id,x:e.getBoundingClientRect().left-r.left,y:e.getBoundingClientRect().top-r.top}));});
- check('Upper toolbar keeps shifted controls and ends with Solo',shifted.map(e=>e.id).join()==='btnInstance,btnBoolean,btnSymmetry,btnCloner,btnRender,btnTarget,btnInfinite,btnSolo'&&shifted.every((e,i)=>e.x===i*32&&e.y===0),shifted);
+ check('Upper toolbar keeps shifted controls and ends with Solo',shifted.map(e=>e.id).join()==='btnInstance,btnBoolean,btnUnite,btnSymmetry,btnCloner,btnRender,btnInfinite,btnSolo'&&shifted.every((e,i)=>e.x===i*32&&e.y===0),shifted);
  const lower=await page.locator('#toolbar>button').evaluateAll(es=>{const r=es[0].parentElement.getBoundingClientRect();return es.map(e=>({id:e.id,x:e.getBoundingClientRect().left-r.left,y:e.getBoundingClientRect().top-r.top}));});
  check('Lower toolbar starts with adjacent Solid and Lines in the slots freed by Solo',lower.map(e=>e.id).join()==='btnSolid,btnShading,btnQuant,btnSnap,coordBtn,btnPivot,btnLocal,btnUV'&&lower.every((e,i)=>e.x===i*32&&e.y===0),lower);
 }

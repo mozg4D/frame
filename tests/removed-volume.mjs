@@ -8,7 +8,7 @@ import {box,waitForSlice} from '../plugins/3d-printer/tests/slicer.mjs';
 export async function removedVolumeSourceChecks(){
  const checks=[],check=(name,pass)=>{checks.push({name,pass:!!pass});if(!pass)throw Error(name);};
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),worker=await readFile(new URL('../frame-sw.js',import.meta.url),'utf8'),printer=pluginEnabled('3d-printer')?await readFile(new URL('../plugins/3d-printer/plugin.js',import.meta.url),'utf8'):null;
- check('Removed polygon union has no runtime names, engine entry points or WASM loader',!(/\bunite\w*\b|prepareVolume|frame-volume|volumeBakeShader|volumeQueryShader|volumeJob|volumeBinary/i.test(html)));
+ check('Legacy direct polygon union engine and normalized-volume loader are absent',!(/\buniteMeshes\b|prepareVolume|frame-volume|volumeBakeShader|volumeQueryShader|volumeJob|volumeBinary/i.test(html)));
  if(printer!==null)check('Printer owns only its direct LDI path',!(/prepareVolume|prepare-volume|normalizedVolume|volumeStatus|acquireVolume|disposeVolume/.test(printer)));
  check('Offline core no longer requests the removed WASM asset',!worker.includes('kernels/'));
  for(const path of ['tests/unite-fixtures.mjs','tests/unite-run.mjs','tools/build-volume.ps1','kernels/volume-0e3a6b442b66860e3000.wasm']){let exists=true;try{await access(new URL('../'+path,import.meta.url));}catch{exists=false;}check('Removed dependency is absent: '+path,!exists);}
