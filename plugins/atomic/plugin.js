@@ -761,9 +761,9 @@ class GPUCarbon {
  async readDisplayBounds(state){
   try{await state.read.mapAsync(GPUMapMode.READ,0,32);if(this.boundsState!==state||(this.displayGeneration||0)!==state.generation)throw new DOMException('Atomic display retired','AbortError');const values=new Float32Array(state.read.getMappedRange(0,32)),min=Array.from(values.subarray(0,3)),max=Array.from(values.subarray(4,7));if(values[3]||values[7]||!min.every((v,k)=>Number.isFinite(v)&&Number.isFinite(max[k])&&v<=max[k]))throw Error('Invalid Atomic display bounds');return Object.freeze({min:Object.freeze(min),max:Object.freeze(max)});}finally{if(state.read.mapState==='mapped')state.read.unmap();}
  }
- commitDisplayBounds(state,bounds){
+ commitDisplayBounds(state,bounds,bondCount){
   if(this.boundsState!==state||(this.displayGeneration||0)!==state.generation)throw new DOMException('Atomic display retired','AbortError');
-  const names=['displayAtoms','displayBonds','displayControl','displayArgs'],prior=Object.fromEntries(names.map(k=>[k,this[k]])),serial=this.displaySerial,retired=this.retiredBuffers.length,encoder=this.device.createCommandEncoder();try{this.publishDisplay(encoder,this.bondCount);const command=encoder.finish();this.device.queue.submit([command]);this.displayBounds=bounds;}catch(error){for(const k of names){if(this[k]&&this[k]!==prior[k])this[k].destroy();this[k]=prior[k];}this.displaySerial=serial;this.retiredBuffers.length=retired;throw error;}
+  const names=['displayAtoms','displayBonds','displayControl','displayArgs'],prior=Object.fromEntries(names.map(k=>[k,this[k]])),serial=this.displaySerial,retired=this.retiredBuffers.length,encoder=this.device.createCommandEncoder();try{this.publishDisplay(encoder,bondCount);const command=encoder.finish();this.device.queue.submit([command]);this.displayBounds=bounds;}catch(error){for(const k of names){if(this[k]&&this[k]!==prior[k])this[k].destroy();this[k]=prior[k];}this.displaySerial=serial;this.retiredBuffers.length=retired;throw error;}
  }
  async publishDisplaySnapshot(encoder=null){
   if(!this.n){this.displayBounds=null;return;}const state=await this.prepareDisplayBounds();encoder??=this.device.createCommandEncoder();this.encodeDisplayBounds(encoder,state);this.device.queue.submit([encoder.finish()]);const bounds=await this.readDisplayBounds(state);this.commitDisplayBounds(state,bounds);
@@ -885,7 +885,7 @@ class GPUCarbon {
    if(guard){const error=Error('GPU capacity/numerical guard '+guard);error.guard=guard;throw error;}
   }catch(e){failure=e;}finally{if(metadataRead.mapState==='mapped')metadataRead.unmap();const e=await d.popErrorScope();if(e&&!failure)failure=Error(e.message);}
   if(failure){if([1,8,16].includes(failure.guard)){await this.growCapacity(failure.guard);this.configureKernels();d.queue.writeBuffer(this.packetUniform,8,new Uint32Array([this.stride,this.bcap]));d.queue.writeBuffer(this.packetUniform,52,new Uint32Array([this.modelOffset]));const partial=[1,16].includes(failure.guard)&&names.includes('driftAtoms');await this.execute(failure.guard===8?[]:[...this.forceSequence,partial?'endStep':'initialRest'],visual,true);this.lastMs=performance.now()-start;return;}throw failure;}
-  if(displayState)this.commitDisplayBounds(displayState,displayBounds);this.visualDirty=!visual;this.lastMs=performance.now()-start;
+  if(displayState)this.commitDisplayBounds(displayState,displayBounds,this.bondCount);this.visualDirty=!visual;this.lastMs=performance.now()-start;
   if(names.includes('beginStep')&&rawEstimate>0){const observed=Math.max(.0625,Math.min(64,(this.gpuMs||this.lastMs)/rawEstimate));this.costScale=costScale*.8+observed*.2;}
  }
 

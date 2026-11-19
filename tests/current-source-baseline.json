@@ -657,8 +657,8 @@
       "sha256": "408a26f13bcff1c30266168bdbd18e8d076749fd344f16a4a0d127ed87ab74da"
     },
     "plugins/atomic/plugin.js": {
-      "bytes": 3917395,
-      "sha256": "0cd60cc055d779e9ba0c3fc84c7c3130f43c5f2cbfd3fa789f6d32bfdf2932ee"
+      "bytes": 3917415,
+      "sha256": "154a8bfe3cb0fefb41778b6d3be6f6d352923bd66d569b99eeb8ab04c2c862eb"
     },
     "plugins/atomic/tests/feedback.mjs": {
       "bytes": 8810,
@@ -929,8 +929,8 @@
       "sha256": "c4000f5ce9501213123a97ab40be1539f3e55ab967d0d03654f70fe46a840443"
     },
     "plugins/atomic/tests/display-bounds.mjs": {
-      "bytes": 26926,
-      "sha256": "b4039bb2f559ca8d7f1fa80163fc968cc6462ba44db407d7ae5a0d6969766320"
+      "bytes": 27103,
+      "sha256": "b32c8c63f126468a74aec6d352cfec0f2fba42393a35b7039b0f2fa42b3ec8af"
     },
     "plugins/atomic/tests/material-readiness.mjs": {
       "bytes": 13306,
@@ -1073,8 +1073,8 @@
       "sha256": "1cb7911708be9558a7876acf0471a74ae2f677ee7eacaecac46babc7cf0a851b"
     },
     "plugins/atomic/AGENTS.md": {
-      "bytes": 5466,
-      "sha256": "df2624c65e6b06150edc5ff2afec530c416cfe4f975fc07315834fd53eb6aa63"
+      "bytes": 5484,
+      "sha256": "17192002b914420b6639e38acb10d77091fc4aff659b9b467cbc3eec741e9a22"
     },
     "plugins/structural/AGENTS.md": {
       "bytes": 3772,
