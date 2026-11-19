@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 19 nov 22:06">
+<meta name="frame-version" content="2026 19 nov 22:33">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -23,7 +23,7 @@ button,input,select,textarea{font:inherit}button{color:inherit;cursor:pointer}bu
 #panel{position:relative;flex:0 0 256px;width:256px;min-width:256px;max-width:256px;height:100%;padding:0;gap:0;display:flex;flex-direction:column;background:#1c1c1c;overflow:auto;scrollbar-width:none}#filebar,.trow,#toolbar{display:flex;flex-wrap:wrap;flex-shrink:0}.tbtn{position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px}.tbtn:hover{background:#4d4d4d}.tbtn.on{background:#293747;box-shadow:inset 0 0 0 1px #6681ad}.tbtn svg,.tabbtn svg,.obj-lib-item svg{width:32px;height:32px}#btnBrowser{margin-left:auto}
 #obWrap{flex:0 0 38vh;min-height:68px;position:relative;overflow:hidden;background:#222}#obScroll{position:absolute;inset:0;overflow:auto;scrollbar-width:none;scrollbar-color:#424242 #222}#obInner{min-height:100%;outline:none}.ob-row{height:17px;display:flex;align-items:center;white-space:nowrap;cursor:default}.ob-row:hover{background:#2c2c2c}.ob-row.sel{background:#33405a}.ob-row.dim .ob-name,.ob-row.dim .ob-tags{opacity:.4}.ob-row.drop-before{box-shadow:inset 0 2px #8fb8ff}.ob-row.drop-after{box-shadow:inset 0 -2px #8fb8ff}.ob-row.drop-child{background:#2a3a4a}.ob-foldcell,.ob-foldhole,.ob-show,.ob-enable{flex:0 0 16px;width:16px;height:16px}.ob-foldcell svg,.ob-show svg,.ob-enable svg{width:16px;height:16px}.ob-foldcell:hover,.ob-show:hover,.ob-enable:hover{background:#444}.ob-name{min-width:0;overflow:hidden;padding:0 2px}.ob-spacer{flex:1}.ob-tags{display:flex;flex-shrink:0}.ob-tag{width:16px;height:16px;overflow:hidden;margin-left:1px;flex-shrink:0;border-radius:3px;color:#ddd;text-align:center;font-size:14px;line-height:16px}.ob-tag.material{border-radius:50%;background:#8b877e}.ob-tag.bevel{background:#7045a8;font-weight:700}.ob-tag.morph{background:#3d616b;color:#c7e3e8}.ob-tag.sel{outline:1px solid #fff;outline-offset:-1px}.ob-tag:hover{box-shadow:inset 0 0 0 1px #aaa}.ob-rename{width:100%;height:17px;padding:0 2px;background:#111;color:#fff;border:0;outline:none;user-select:text}
 #tabstrip{position:relative;flex:0 0 36px;height:36px;background:#000;display:flex;justify-content:space-between}#treeResize{position:absolute;top:-3px;left:0;right:0;height:6px;cursor:ns-resize;z-index:21;touch-action:none}.tabgrp,.tabact{display:flex;padding-top:4px}.tabbtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px 6px 0 0;background:#000;flex-shrink:0}.tabbtn:hover{background:#111}.tabbtn.on{background:#222;box-shadow:inset 0 1px #8fb8ff}.actbtn{border-radius:6px}
-#panels{position:relative;flex:1;min-height:100px;background:#222}.panel-content{position:absolute;inset:0;overflow:auto;background:#222;scrollbar-width:none;scrollbar-color:#444 #222}#attrContent,#matEditorContent{padding:4px;overflow:auto;height:100%;scrollbar-width:none}.attr-row{display:flex;align-items:center;min-height:20px;gap:4px}.attr-lab{color:#8a8a8a;white-space:nowrap}.attr-ctrl{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:2px}.attr-btn{background:#1a1a1a;border-radius:5px;color:#888;padding:2px 5px;font-size:14px;line-height:14px}.attr-btn:hover{background:#333;color:#ddd}.attr-btn.on{background:#293747;color:#fff;box-shadow:inset 0 0 0 1px #6681ad}.attr-inp,.attr-cycle{flex:1;min-width:40px;width:70px;height:18px;background:linear-gradient(to left,#111 0,#111 48px,#1110 100%);border:0;border-radius:5px;color:#d8d8d8;padding:0 4px;text-align:right;outline:none;user-select:text}.attr-cycle{cursor:pointer}.attr-inp[type=number]{appearance:textfield;cursor:nesw-resize}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{appearance:none}.attr-ta{width:100%;height:57px;resize:none;background:#111;border:0;border-radius:5px;color:#ddd;padding:4px;user-select:text}.attr-row.attr-text-row{height:auto;min-height:57px;align-items:flex-start;margin:3px 0}.attr-group-header{color:#aaa;padding:6px 0 4px}.attr-status{color:#94aaa5;font-size:14px;padding:3px 0}
+#panels{position:relative;flex:1;min-height:100px;background:#222}.panel-content{position:absolute;inset:0;overflow:auto;background:#222;scrollbar-width:none;scrollbar-color:#444 #222}#attrContent,#matEditorContent{padding:4px;overflow:auto;height:100%;scrollbar-width:none}.attr-row{display:flex;align-items:center;min-height:20px;gap:4px}.attr-lab{color:#8a8a8a;white-space:nowrap}.attr-ctrl{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:2px}.attr-btn{background:#1a1a1a;border-radius:5px;color:#888;padding:2px 5px;font-size:14px;line-height:14px}.attr-btn:hover{background:#333;color:#ddd}.attr-btn.on{background:#293747;color:#fff;box-shadow:inset 0 0 0 1px #6681ad}.attr-inp,.attr-cycle{flex:1;min-width:40px;width:70px;height:18px;background:linear-gradient(to left,#111 0,#111 48px,#1110 100%);border:0;border-radius:5px;color:#d8d8d8;padding:0 4px;text-align:right;outline:none;user-select:text}.attr-cycle{cursor:pointer}[data-instance-file]{cursor:pointer!important}[data-instance-file]::after{display:none}.attr-inp[type=number]{appearance:textfield;cursor:nesw-resize}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{appearance:none}.attr-ta{width:100%;height:57px;resize:none;background:#111;border:0;border-radius:5px;color:#ddd;padding:4px;user-select:text}.attr-row.attr-text-row{height:auto;min-height:57px;align-items:flex-start;margin:3px 0}.attr-group-header{color:#aaa;padding:6px 0 4px}.attr-status{color:#94aaa5;font-size:14px;padding:3px 0}
 .obj-lib-grid{display:grid;grid-template-columns:repeat(8,32px)}.obj-lib-item{display:flex;width:32px;height:32px;align-items:center;justify-content:center}.obj-lib-item:hover{background:#3a3a3a}.obj-lib-item.empty{pointer-events:none}
 #matEditorContent{--h:0;--s:0%;--l:80%}.me-layout{display:grid;grid-template-columns:53px 1fr;column-gap:8px;align-items:start}
 #matPreview{width:53px;height:53px;border-radius:50%;cursor:pointer;flex:0 0 auto;display:block}
@@ -79,11 +79,11 @@ dialog{width:min(460px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding
 .cloner-object-drop{flex:1;min-width:0;background:#111;border:1px solid #555;border-radius:4px;color:#ccc;line-height:18px;height:20px;padding:0 4px;overflow:hidden;white-space:nowrap}.cloner-object-drop.drag-over{border-color:#8fb8ff;background:#293747}.cloner-random-head{display:grid;grid-template-columns:1fr repeat(3,var(--field-width));column-gap:2px;height:var(--row-height);align-items:center;text-align:right}.attr-inp3{background:#111;border:0;border-radius:5px;color:#ddd;text-align:right;padding:0 3px;outline:none}
 .ob-dropline{position:absolute;height:2px;background:#5a8aff;pointer-events:none;z-index:30}.ob-dropvert{position:absolute;width:2px;height:16px;background:#5a8aff;pointer-events:none;z-index:30}.ob-marquee{position:fixed;border:1px solid #6394ff;background:transparent;pointer-events:none;z-index:70}.ob-row.drop-child{background:#2a3a4a}
 .attr-group-header{height:var(--row-height);padding:2px 0;line-height:var(--row-line)}
-#helpDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:1px solid #000;border-radius:6px;background:#222;color:#d8d8d8;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:auto}
+#helpDialog{width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 24px);padding:0;border:0;outline:none;border-radius:6px;background:#222;color:#d8d8d8;font:14px/20px ui-monospace,Menlo,Consolas,monospace;overflow:auto}
 #frame-project-notice:not([hidden]){display:flex;position:absolute;z-index:5;bottom:8px;left:8px;max-width:calc(100% - 16px);align-items:center;gap:6px;flex-wrap:wrap;background:#222;color:#eee;border:1px solid #555;border-radius:4px;padding:4px 8px;font:12px/17px ui-monospace,monospace}
 #frame-project-notice button{color:inherit;background:#383838;border:1px solid #666;border-radius:3px;cursor:pointer}
 #helpDialog::backdrop{background:rgba(0,0,0,.38)}
-.help-card{margin:0}.help-body{padding:10px 12px 12px;user-select:text}.help-body p{margin:6px 0}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
+.help-card{margin:0}.help-body{padding:10px 12px 12px;user-select:text}.help-body>strong{display:block}.help-body p{margin:4px 0 0}.help-body p+strong{margin-top:12px}.help-body kbd{background:#111;border:1px solid #555;border-radius:3px;padding:0 4px}
 
 :root{--text-dim:#a4a4a4;--text-edit:#d6d6d6}body,body *{color:var(--text-dim)!important}button:not(:disabled),input:not(:disabled),textarea,select,.ob-name,.cloner-object-drop,.uval{color:var(--text-edit)!important}.ob-name{color:var(--object-color)!important}.frame-psr-head button,.frame-psr-head button:hover{color:var(--text-dim)!important}button:disabled{opacity:1;color:var(--text-dim)!important}
 input,textarea,select,.attr-cycle{background:transparent!important;border:0!important;outline:0!important;box-shadow:none!important}.cloner-object-drop{background:transparent;border:0;text-align:right;outline:0}.ob-row.dim .ob-name,.ob-row.dim .ob-tags{opacity:1}
@@ -13880,7 +13880,7 @@ function fieldRow(label,value,spec,key=label){
   }else if(typeof spec==='boolean')control=`<button class="attr-btn${value?' on':''}" ${attrs} aria-label="${safe}" data-value="${!value}" aria-pressed="${value}">${value?'on':'off'}</button>`;
   else if(FramePlugins.owner(current())?.manifest.objects.find(o=>o.type===current().type)?.textFields?.includes(key))control=`<textarea class="attr-ta" ${attrs} aria-label="${safe}">${escapeHTML(value)}</textarea>`;
   else if(label==='text')return `<textarea class="attr-ta" ${attrs} aria-label="${safe}">${escapeHTML(value)}</textarea>`;
-  else if(current()?.type==='instance'&&key==='file')control=`<button class="attr-cycle" type="button" data-instance-file aria-label="Choose instance file" title="${escapeHTML(value||'Choose a file from the project folder')}">${escapeHTML(value||'Choose file…')}</button>`;
+  else if(current()?.type==='instance'&&key==='file')control=`<button class="attr-cycle" type="button" data-instance-file aria-label="Choose instance file" title="${escapeHTML(value||'Choose a model file')}">${escapeHTML(value||'Choose file…')}</button>`;
   else if(typeof spec==='string'&&key==='environment image')control=`<input class="attr-inp" data-textfield ${attrs} aria-label="Environment image URL" value="${escapeHTML(value)}">`;
   else if(typeof spec==='string')control=`<div class="cloner-object-drop" tabindex="0" role="button" data-owner="${current().id}" data-field="${escapeHTML(key)}">${escapeHTML(objectReference(value)?.name||'Drop object')}</div>`;
   else control=`<input class="attr-inp" ${attrs} aria-label="${safe}" inputmode="decimal" value="${escapeHTML(value)}">`;
@@ -13931,7 +13931,13 @@ function renderAttributes(){
     if(tag?.kind==='morph'&&values.mode==='Edit')html+='<button class="attr-btn" id="addMorph">Add Morph</button>';
   }
   if(!tag&&n.type==='instance'&&!n.params.file&&objectReference(values.object)?.browserHidden)html='';
+  if(!tag&&n.type==='instance'&&html)html+='<button class="attr-btn" type="button" data-instance-folder hidden></button>';
   content.innerHTML=html;
+  const folderButton=content.querySelector('[data-instance-folder]');
+  if(folderButton){
+    FrameFileSources.paintFolderButton(folderButton,n);
+    folderButton.onclick=()=>FrameFileSources.chooseSourceFolder(n).catch(error=>{if(error.name!=='AbortError')fileOperationError(error);});
+  }
   content.querySelector('[data-instance-file]')?.addEventListener('click',()=>FrameFileSources.choose(n).catch(error=>{if(error.name!=='AbortError')fileOperationError(error);}));
   content.querySelector('[data-instance-file]')?.addEventListener('keydown',e=>{if(['Delete','Backspace'].includes(e.key)){e.preventDefault();e.stopPropagation();commit(()=>{n.params.file='';delete n.fileMount;});FrameFileSources.request();}});
   const pluginFields=!tag?FramePlugins.attributes(n):null;
@@ -14753,7 +14759,9 @@ $('tlPrevKey').onclick=()=>frameJumpKey(-1);$('tlNextKey').onclick=()=>frameJump
 FrameViewWindows.onDocument('visibilitychange',()=>{if(FrameViewWindows.allHidden())stop();});
 
 // Native binary HASH IO. All Save controls call the same GPU-aware serializer.
-const sceneInput=document.createElement('input');sceneInput.id='frameSceneFile';sceneInput.type='file';sceneInput.accept='.hash,.stl,.obj,.gltf,.glb,.ply,.vtk,.3mf,.svg,.step,.stp,.dxf,.bin,image/*';sceneInput.multiple=true;sceneInput.hidden=true;document.body.append(sceneInput);
+const frameModelExtensions=['.hash','.stl','.obj','.gltf','.glb','.ply','.vtk','.3mf','.svg','.step','.stp','.dxf'];
+function frameIsModelFile(name){return typeof name==='string'&&frameModelExtensions.includes(name.slice(name.lastIndexOf('.')).toLowerCase());}
+const sceneInput=document.createElement('input');sceneInput.id='frameSceneFile';sceneInput.type='file';sceneInput.accept=[...frameModelExtensions,'.bin','image/*'].join(',');sceneInput.multiple=true;sceneInput.hidden=true;document.body.append(sceneInput);
 let sceneFileName='scene.hash',sceneFileHandle=null,lastSavedFormat='hash',frameUpdateReady=false;const recentFileNames=[],recentSceneFiles=new Map(),recentFileCompanions=new Map();
 // The trusted host grants exact paths. These descriptors convey no permission.
 async function connectFrameFileHost({url,token}){
@@ -14925,7 +14933,7 @@ const FrameProjectFile = (() => {
     panel.hidden = !visible;
     if (!visible) return;
     const sample = ((pending?.event||lastChange)?.rows || []).filter(r=>r.action!=='record').slice(0,3).map(r=>r.name||r.id);
-    message.textContent = pending?'File changed on disk. Your draft is open.'+(sample.length?' Changed: '+sample.join(', '):''):lastError || (folder?'Choose the folder containing this project to load its linked parts.':'') ||
+    message.textContent = pending?'File changed on disk. Your draft is open.'+(sample.length?' Changed: '+sample.join(', '):''):lastError || (folder?'Choose the project folder for relative file links.':'') ||
       ('Updated '+lastChange.file+(sample.length?' · '+sample.join(', '):''));
     $('frame-project-reload').hidden = !pending;
     $('frame-project-copy').hidden = !pending&&!lastError;
@@ -15066,9 +15074,11 @@ const FrameProjectFile = (() => {
       stream=handle.frameHostPath ? await handle.createWritable(createOnly?null:expected?.signature) :
         await handle.createWritable({mode:'exclusive'});
       if (!handle.frameHostPath) await verify();
+      const destination=same?FrameFileSources.boundFolder(handle):await FrameFileSources.findProjectFolder(handle);
+      const projectPaths=await FrameFileSources.projectPaths(destination,same);
       let written,signature,savedMark;
       const sink={
-        indexRecord:index.record,
+        indexRecord:index.record,projectPaths,
         write:bytes=>stream.write(bytes),
         abort,
         async close() {
@@ -15080,8 +15090,9 @@ const FrameProjectFile = (() => {
       };
       await window.frameEngine.saveHash(sink);
       const rows=expected?frameCompareFileIndexes(expected.index,written):[];
-      if (!same) await window.frameFiles?.prepareProject(handle);
+      if (!same) await FrameFileSources.prepareProject(handle,destination?.mount);
       bind(handle,written,signature,savedMark);
+      if(projectPaths.length){FrameFileSources.applyPaths(projectPaths);renderAttributes();FrameFileSources.request();}
       if (!expected || expected.index.version!==written.version) publish('saved',handle.name,expected?.index.version??null,written.version,rows);
       else paint();
     } catch (error) {
@@ -15111,7 +15122,8 @@ const FrameProjectFile = (() => {
       const folder=await showDirectoryPicker({id:'frame-project',mode:'read'});
       if (binding!==current) return;
       if (!await folder.resolve(current.handle)) throw Error('Choose a folder containing '+current.handle.name);
-      await FrameFileSources.attachDirectory(folder);await FrameFileSources.prepareProject(current.handle);
+      if(binding!==current)return;
+      await FrameFileSources.linkProjectFolder(current.handle,folder);
       await window.frameAI.call('instance.files');lastError='';paint();
     } catch(error) {if(error.name!=='AbortError'){lastError=error.message;paint();}}
   };
@@ -15121,7 +15133,9 @@ const FrameProjectFile = (() => {
   $('frame-project-dismiss').onclick=()=>{$('frame-project-notice').hidden=true;};
   window.addEventListener('focus',poll);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});
-  return {open,save,sync,status,changes,reset,wait,get opening(){return opening;},get waiting(){return waiters.size>0;},
+  return {open,save,sync,status,changes,reset,wait,refreshFolder(){
+    if(binding&&$('frame-project-folder').hidden===!!window.frameFiles?.needsProjectFolder)paint();
+  },get opening(){return opening;},get waiting(){return waiters.size>0;},
     linked:(path,from,to,rows)=>publish('linked',path,from,to,rows)};
 })();
 
@@ -15151,86 +15165,322 @@ async function frameSaveBoundFile(path,selectedHandle,options){
 let frameNativeFileTask=async()=>{throw Error('Frame is not ready');};
 // Linked documents share the existing native scene/device. Only their references persist.
 const FrameFileSources=(()=>{
- const formats=/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i,entries=new Map(),definitions=new Map(),mounts=new Map(),ownedMaterials=new Set(),ownedAssets=new Set();let busy=false,queued=false,defaultMount=null,documentToken=null,watcher=null;
+ const entries=new Map(),definitions=new Map(),mounts=new Map(),picked=new Map(),ownedMaterials=new Set(),ownedAssets=new Set();let busy=false,queued=false,defaultMount=null,documentToken=null,watcher=null;
  const database=new Promise(resolve=>{const r=indexedDB.open('frame-file-sources:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('mounts');r.onerror=()=>resolve(null);r.onsuccess=()=>resolve(r.result);});
- const mountsReady=database.then(db=>db?new Promise(resolve=>{const r=db.transaction('mounts').objectStore('mounts').getAll();r.onsuccess=()=>{for(const row of r.result)mounts.set(row.id,row.handle);resolve();};r.onerror=()=>resolve();}):null);
- const normalize=path=>{const out=[];for(const p of path.replaceAll('\\','/').split('/')){if(!p||p==='.')continue;if(p==='..'){if(!out.length)throw Error('File reference leaves its project folder');out.pop();}else out.push(p);}return out.join('/');};
+ const mountsReady=database.then(db=>db?new Promise(resolve=>{const r=db.transaction('mounts').objectStore('mounts').getAll();r.onsuccess=()=>{for(const row of r.result){
+  if(row.handle.kind==='directory')mounts.set(row.id,row.handle);else picked.set(row.id,row);
+ }resolve();};r.onerror=()=>resolve();}):null);
+ const normalize=path=>{const out=[];for(const p of path.replaceAll('\\','/').split('/')){if(!p||p==='.')continue;if(p==='..'){if(!out.length)throw Object.assign(Error('Choose a project folder containing the linked file'),{code:'SOURCE_OUTSIDE_FOLDER'});out.pop();}else out.push(p);}return out.join('/');};
  const hostPath=path=>/^(?:[a-z]:[\\/]|\\\\)/i.test(path),parent=path=>path.replace(/[^/\\]*$/,''),errorText=e=>e.message||String(e);
+ function local(kind,mount,path){return {kind,mount,path,key:kind+':'+mount+':'+path};}
+ function fromPicked(n){
+  const row=picked.get(n.fileMount);
+  if(!row||n.params.file!==row.handle.name)return null;
+  return row.location?local('native',row.location.mount,row.location.path):local('picked',row.id,row.handle.name);
+ }
+ function relativeLocal(d,file){
+  try{return local(d.kind,d.mount,normalize(parent(d.path)+file));}
+  catch(error){if(d.kind==='picked')throw folderRequired(picked.get(d.mount));throw error;}
+ }
  function descriptor(n){
-  const file=n.params.file;if(typeof file!=='string'||!file||!formats.test(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');
+  const file=n.params.file;if(typeof file!=='string'||!frameIsModelFile(file)&&!frameIsModelFile(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');
   const containing=definitions.get(n.fileSource)?.descriptor;
   if(/^https?:/i.test(file)){const u=new URL(file);if(u.origin!==location.origin)throw Error('Linked URLs must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}
   const handle=FrameProjectFile.opening||sceneFileHandle,project=handle?.frameHostPath;
   if(file.startsWith('/')&&!file.startsWith('//')&&(containing?.kind==='host'||project?.startsWith('/'))){const path=decodeURIComponent(new URL('file://'+file).pathname);return {kind:'host',path,key:'host:'+path};}
   if(hostPath(file)){const slash=file.replaceAll('\\','/'),unc=slash.startsWith('//'),u=new URL(unc?'file:'+slash:'file:///'+slash),path=(unc?'\\\\'+u.hostname:'')+decodeURIComponent(u.pathname).replace(/^\/(?=[a-z]:)/i,'').replaceAll('/','\\');return {kind:'host',path,key:'host:'+path.toLowerCase()};}
   if(/^[a-z][a-z0-9+.-]*:/i.test(file))throw Error('Unsupported linked-file URL scheme');
-  if(containing){if(containing.kind==='url')return descriptor({params:{file:new URL(file,containing.path).href}});if(containing.kind==='host')return descriptor({params:{file:parent(containing.path)+file}});const path=normalize(parent(containing.path)+file);return {kind:'native',mount:containing.mount,path,key:'native:'+containing.mount+':'+path};}
-  if(project)return descriptor({params:{file:parent(project)+file}});
-  if(handle && !n.fileMount && projectFolder?.handle===handle){
-    const {mount,prefix}=projectFolder,path=normalize(prefix+file);
-    return {kind:'native',mount,path,key:'native:'+mount+':'+path};
+  if(containing){
+   if(containing.kind==='url')return descriptor({params:{file:new URL(file,containing.path).href}});
+   if(containing.kind==='host')return descriptor({params:{file:parent(containing.path)+file}});
+   const direct=containing.kind==='picked'&&fromPicked(n);
+   return direct||relativeLocal(containing,file);
   }
-  const mount=mounts.has(n.fileMount)?n.fileMount:handle?projectFolder?.mount:n.fileMount||defaultMount;
-  if(mount||handle){const path=normalize(file);return {kind:'native',mount,path,key:'native:'+mount+':'+path};}
+  const direct=fromPicked(n);if(direct)return direct;
+  if(mounts.has(n.fileMount))return local('native',n.fileMount,normalize(file));
+  if(project)return descriptor({params:{file:parent(project)+file}});
+  if(handle&&projectFolder?.handle===handle)return local('native',projectFolder.mount,normalize(projectFolder.prefix+file));
+  const mount=!handle&&(n.fileMount||defaultMount);
+  if(mount||handle)return local('native',mount||null,mount?normalize(file):file);
   return descriptor({params:{file:new URL(file,location.href).href}});
  }
  function watch(){const linked=nodes.some(n=>!n.fileSource&&n.type==='instance'&&n.params.file);if(linked&&!watcher)watcher=setInterval(()=>void poll().catch(()=>{}),1500);else if(!linked&&watcher){clearInterval(watcher);watcher=null;}}
  function entry(n){if(!watcher&&!n.fileSource)watcher=setInterval(()=>void poll().catch(()=>{}),1500);const d=descriptor(n);if(d.kind==='native'&&!n.fileSource&&!n.fileMount&&!sceneFileHandle&&!FrameProjectFile.opening)n.fileMount=d.mount;let e=entries.get(d.key);if(!e){e={descriptor:d,root:null,token:null,version:null,signature:null,dependencies:[],error:null,dirty:true};entries.set(d.key,e);}return e;}
  function source(n){try{const e=entry(n);return e.root?frameNodeByHash(e.root)||null:null;}catch{return null;}}
- function state(n){try{const e=entry(n);return {file:n.params.file,source:e.descriptor.key,status:e.error?'error':e.root?'ready':'pending',error:e.error,version:e.version,root:e.root};}catch(error){return {file:n.params.file,status:'error',error:errorText(error)};}}
- function paint(){watch();for(const n of nodes){if(n.type!=='instance'||!n.params.file){delete n.fileError;continue;}const s=state(n);n.fileError=s.error||null;const label=document.getElementById('row-'+n.id)?.querySelector('.ob-name');if(label){label.style.setProperty('--object-color',n.fileError?'#ff5555':objectColor(n.type));label.title=n.fileError||n.name;}}}
- let projectFolder=null;
- async function prepareProject(handle){
-  projectFolder=null;
-  if(!handle||handle.frameHostPath||handle.kind!=='file')return;
-  await mountsReady;
-  for(const [mount,dir] of mounts){
-   try{if(await dir.queryPermission({mode:'read'})!=='granted')continue;
+ function state(n){try{const e=entry(n);return {file:n.params.file,source:e.descriptor.key,status:e.error?'error':e.root?'ready':'pending',error:e.error,version:e.version,root:e.root,...e.folderGrant?{folderGrant:e.folderGrant}:{}};}catch(error){return {file:n.params.file,status:'error',error:errorText(error)};}}
+ function paintFolderButton(button,n){
+  if(!button)return;
+  const grant=n?.params.file&&state(n).folderGrant,row=picked.get(grant);
+  button.hidden=!row;
+  if(row)button.textContent=row.handle.kind==='file'&&typeof window.showDirectoryPicker==='function'?'Choose source folder…':'Choose related files…';
+ }
+ function paint(){watch();for(const n of nodes){if(n.type!=='instance'||!n.params.file){delete n.fileError;continue;}const s=state(n);n.fileError=s.error||null;const label=document.getElementById('row-'+n.id)?.querySelector('.ob-name');if(label){label.style.setProperty('--object-color',n.fileError?'#ff5555':objectColor(n.type));label.title=n.fileError||n.name;}}paintFolderButton(document.querySelector('[data-instance-folder]'),current());FrameProjectFile.refreshFolder();}
+ let projectFolder=null,folderRequest=0;
+ async function findProjectFolder(handle,preferredMount){
+  if(!handle||handle.frameHostPath||handle.kind!=='file')return null;
+  await mountsReady;let best=null,depth=0;
+  for(const mount of new Set([preferredMount,...mounts.keys()])){
+   const dir=mounts.get(mount);if(!dir)continue;
+   try{
+    if(await dir.queryPermission({mode:'read'})!=='granted')continue;
     const path=await dir.resolve(handle);
-    if(path?.length){projectFolder={handle,mount,prefix:path.slice(0,-1).map(p=>p+'/').join('')};return;}}
-   catch{/* The browser may have revoked this directory. */}
+    if(path?.length>depth){
+     best={handle,mount,prefix:path.slice(0,-1).map(p=>p+'/').join('')};depth=path.length;
+     if(mount===preferredMount)break;
+    }
+   }catch{/* The browser may have revoked this directory. */}
   }
+  return best;
+ }
+ async function prepareProject(handle,preferredMount){
+  const request=++folderRequest;projectFolder=null;
+  const folder=await findProjectFolder(handle,preferredMount);
+  if(request===folderRequest)projectFolder=folder;
  }
  function needsProjectFolder(){
   const h=FrameProjectFile.opening||sceneFileHandle;
   return !!h&&!h.frameHostPath&&typeof window.showDirectoryPicker==='function'&&nodes.some(n=>{
    if(n.fileSource||n.type!=='instance'||!n.params.file)return false;
-   try{const d=descriptor(n);return d.kind==='native'&&(!mounts.has(d.mount)||entries.get(d.key)?.permissionDenied);}catch{return false;}
+   try{
+    const d=descriptor(n);
+    if(d.kind==='picked')return picked.get(d.mount)?.handle.kind==='file';
+    return d.kind==='native'&&(!projectFolder||d.mount!==projectFolder.mount||!mounts.has(d.mount)||entries.get(d.key)?.permissionDenied);
+   }catch(error){return error.code==='SOURCE_OUTSIDE_FOLDER';}
   });
  }
- async function attachDirectory(handle){if(handle?.kind!=='directory')throw Error('A granted project directory is required');await mountsReady;for(const [id,old]of mounts)if(await old.isSameEntry(handle)){defaultMount=id;return id;}const id=crypto.randomUUID();mounts.set(id,handle);defaultMount=id;const db=await database;if(db)await new Promise((resolve,reject)=>{const t=db.transaction('mounts','readwrite');t.objectStore('mounts').put({id,handle},id);t.oncomplete=resolve;t.onerror=()=>reject(t.error);});return id;}
- async function choose(n){
-  if(typeof showDirectoryPicker!=='function'||typeof showOpenFilePicker!=='function')throw Error('Native file access requires Chrome or Edge');
-  await mountsReady;let mount=n.fileMount||defaultMount,folder=mounts.get(mount);if(!folder||await folder.queryPermission({mode:'read'})!=='granted'){folder=await showDirectoryPicker({mode:'read'});mount=await attachDirectory(folder);}
-  const [handle]=await showOpenFilePicker({startIn:folder,multiple:false,types:[{description:'Frame supported files',accept:{'application/octet-stream':['.hash','.obj','.stl','.gltf','.glb','.ply','.vtk','.3mf','.svg','.step','.stp','.dxf']}}]}),path=await folder.resolve(handle);
-  if(!path)throw Error('Choose the linked file inside the granted project folder');if(!nodes.includes(n))return;
-  commit(()=>{n.fileMount=mount;n.params.file=path.join('/');n.params.object='';});request();
+ async function persistGrant(row){
+  const db=await database;
+  if(db)await new Promise((resolve,reject)=>{
+   const tx=db.transaction('mounts','readwrite');
+   tx.objectStore('mounts').put(row,row.id);
+   tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);
+  });
  }
- async function fileAt(d){if(d.kind==='host')return frameHostFileHandle(d.path).getFile();if(d.kind==='url'){const r=await fetch(d.path,{cache:'no-store',headers:{'X-Frame-Source':'1'}});if(!r.ok)throw Error('Linked file HTTP '+r.status);return new File([await r.blob()],decodeURIComponent(new URL(d.path).pathname.split('/').pop()));}await mountsReady;let dir=mounts.get(d.mount);if(!dir)throw Error('Project folder access is unavailable; choose the file again');const parts=normalize(d.path).split('/');for(const p of parts.slice(0,-1))dir=await dir.getDirectoryHandle(p);return (await dir.getFileHandle(parts.at(-1))).getFile();}
+ async function sameEntry(a,b){try{return await a.isSameEntry(b);}catch{return false;}}
+ async function attachDirectory(handle){
+  if(handle?.kind!=='directory')throw Error('A granted project directory is required');
+  await mountsReady;
+  for(const [id,dir] of mounts)if(await sameEntry(dir,handle)){defaultMount=id;return id;}
+  const id=crypto.randomUUID();await persistGrant({id,handle});mounts.set(id,handle);defaultMount=id;return id;
+ }
+ async function containingFolder(handle){
+  if(handle.kind!=='file')return null;
+  for(const mount of new Set([projectFolder?.mount,defaultMount,...mounts.keys()])){
+   const dir=mounts.get(mount);if(!dir)continue;
+   try{
+    if(await dir.queryPermission({mode:'read'})!=='granted')continue;
+    const path=await dir.resolve(handle);
+    if(path?.length)return {mount,path:path.join('/')};
+   }catch{/* Ignore a grant the browser has since revoked. */}
+  }
+  return null;
+ }
+ async function rememberPicked(handle,companions){
+  let previous;
+  if(handle.kind==='file')for(const row of picked.values()){
+   if(row.handle.kind==='file'&&row.handle.name===handle.name&&await sameEntry(handle,row.handle)){previous=row;break;}
+  }
+  const row={id:previous?.id||crypto.randomUUID(),handle,companions};
+  await persistGrant(row);picked.set(row.id,row);return row;
+ }
+ function chooseWithInput(){
+  return new Promise(resolve=>{
+   const input=document.createElement('input');input.type='file';input.multiple=true;input.accept=sceneInput.accept;
+   input.onchange=()=>resolve([...input.files]);input.oncancel=()=>resolve([]);input.click();
+  });
+ }
+ function pickerTarget(n){
+  const doc=FrameAuthorData.documentToken,{file,object}=n.params,mount=n.fileMount;
+  return ()=>{
+   const current=node(n.id);
+   return FrameAuthorData.documentToken===doc&&current?.type==='instance'&&current.params.file===file&&
+    current.params.object===object&&current.fileMount===mount?current:null;
+  };
+ }
+ function assignFile(n,file,mount){
+  commit(()=>{n.params.file=file;n.params.object='';if(mount)n.fileMount=mount;else delete n.fileMount;});request();
+ }
+ function relativePath(prefix,path){
+  const from=prefix.split('/').filter(Boolean),to=path.split('/');
+  let common=0;while(common<from.length&&common<to.length&&from[common]===to[common])common++;
+  return [...from.slice(common).map(()=>'..'),...to.slice(common)].join('/');
+ }
+ function useLocation(n,location){
+  if(projectFolder&&projectFolder.handle===sceneFileHandle&&projectFolder.mount===location.mount){
+   assignFile(n,relativePath(projectFolder.prefix,location.path));
+  }else assignFile(n,location.path,location.mount);
+ }
+ async function linkProjectFolder(handle,dir){
+  const mount=await attachDirectory(dir);
+  if(sceneFileHandle!==handle)return;
+  await prepareProject(handle,mount);
+  const project=projectFolder;
+  if(!project||project.mount!==mount||sceneFileHandle!==handle)return;
+  const edits=await projectPaths(project);
+  if(projectFolder!==project||sceneFileHandle!==handle)return;
+  if(edits.length)commit(()=>applyPaths(edits));
+ }
+ async function projectPaths(project,mountedOnly=false){
+  if(!project)return [];
+  const dir=mounts.get(project.mount),edits=[];
+  for(const n of nodes.filter(n=>!n.fileSource&&n.type==='instance'&&n.params.file&&(!mountedOnly||n.fileMount))){
+   const target=pickerTarget(n);
+   try{
+    const source=descriptor(n);let path;
+    if(source.kind==='native'&&source.mount===project.mount)path=source.path;
+    else{
+     const handle=source.kind==='picked'?pickedFile(source):source.kind==='native'?await nativeHandle(source):null;
+     if(handle?.kind==='file')path=(await dir.resolve(handle))?.join('/');
+    }
+    if(!path)continue;
+    const file=relativePath(project.prefix,path);
+    if(n.fileMount||file!==n.params.file)edits.push({target,file});
+   }catch{/* Keep the existing reference when the source is outside the grant or missing. */}
+  }
+  return edits;
+ }
+ function applyPaths(edits){
+  for(const {target,file} of edits){const n=target();if(n){n.params.file=file;delete n.fileMount;}}
+ }
+ async function choose(n){
+  const target=pickerTarget(n),start=picked.get(n.fileMount)?.handle||mounts.get(n.fileMount)||mounts.get(projectFolder?.mount)||mounts.get(defaultMount);
+  // Opening the picker is the first asynchronous operation of the trusted click.
+  let files;
+  if(typeof window.showOpenFilePicker==='function'){
+   try{files=await window.showOpenFilePicker({id:'frame-instance',multiple:false,...(start?.kind?{startIn:start}:{}),
+    types:[{description:'Frame model files',accept:{'application/octet-stream':frameModelExtensions}}]});}
+   catch(error){if(error.name!=='SecurityError')throw error;files=await chooseWithInput();}
+  }else files=await chooseWithInput();
+  if(!files.length||!target())return;
+  const handle=files.find(f=>frameIsModelFile(f.name));
+  if(!handle)throw Error('Choose a supported model file');
+  await mountsReady;
+  const location=await containingFolder(handle);
+  if(location){const current=target();if(current)useLocation(current,location);return;}
+  const row=await rememberPicked(handle,files.filter(f=>f!==handle)),current=target();
+  if(current){
+   const old=entries.get('picked:'+row.id+':'+handle.name);if(old){old.dirty=true;old.signature=null;}
+   assignFile(current,handle.name,row.id);
+  }
+ }
+ async function chooseSourceFolder(n){
+  const target=pickerTarget(n),row=picked.get(state(n).folderGrant);
+  if(!row)return;
+  if(row.handle.kind!=='file'||typeof window.showDirectoryPicker!=='function'){
+   const files=await chooseWithInput();if(!files.length||!target())return;
+   const companions=[...(row.companions||[]).filter(f=>!files.some(next=>next.name===f.name)),...files.filter(f=>f.name!==row.handle.name)];
+   const updated={...row,companions};await persistGrant(updated);picked.set(row.id,updated);
+   for(const entry of entries.values())if(entry.descriptor.mount===row.id)entry.dirty=true;
+   request();return;
+  }
+  const dir=await window.showDirectoryPicker({id:'frame-instance-folder',mode:'read',startIn:row.handle});
+  const path=await dir.resolve(row.handle);
+  if(!path?.length)throw Error('Choose a folder containing '+row.handle.name);
+  if(!target())return;
+  const mount=await attachDirectory(dir),location={mount,path:path.join('/')};
+  const updated={...row,location};await persistGrant(updated);picked.set(row.id,updated);
+  if(sceneFileHandle&&!sceneFileHandle.frameHostPath)await prepareProject(sceneFileHandle,mount);
+  const current=target();if(!current)return;
+  if(current.fileMount===row.id)useLocation(current,location);else request();
+ }
+ function pickedFile(d){
+  const row=picked.get(d.mount);
+  if(!row)throw Error('File access is unavailable. Choose the source file again.');
+  if(d.path===row.handle.name)return row.handle;
+  const companions=row.companions||[];
+  const exact=companions.filter(f=>(f.webkitRelativePath||f.name)===d.path);
+  if(exact.length===1)return exact[0];
+  const leaf=d.path.split('/').pop(),candidates=companions.filter(f=>f.name===leaf);
+  if(candidates.length===1)return candidates[0];
+  throw folderRequired(row);
+ }
+ function folderRequired(row){
+  return Object.assign(Error(row?.handle.kind==='file'&&typeof window.showDirectoryPicker==='function'
+   ?'Choose the source folder to read files referenced by '+row.handle.name
+   :'Choose the files referenced by '+row.handle.name),{code:'SOURCE_FOLDER_REQUIRED',grant:row?.id});
+ }
+ async function nativeHandle(d){
+  await mountsReady;let dir=mounts.get(d.mount);
+  if(!dir)throw Error('Project folder access is unavailable. Choose the project folder or the file again.');
+  const parts=normalize(d.path).split('/');
+  for(const p of parts.slice(0,-1))dir=await dir.getDirectoryHandle(p);
+  return dir.getFileHandle(parts.at(-1));
+ }
+ async function fileAt(d){
+  if(d.kind==='picked'){const item=pickedFile(d);return item.kind==='file'?item.getFile():item;}
+  if(d.kind==='native')return (await nativeHandle(d)).getFile();
+  if(d.kind==='host')return frameHostFileHandle(d.path).getFile();
+  const response=await fetch(d.path,{cache:'no-store',headers:{'X-Frame-Source':'1'}});
+  if(!response.ok)throw Error('Linked file HTTP '+response.status);
+  return new File([await response.blob()],decodeURIComponent(new URL(d.path).pathname.split('/').pop()));
+ }
  async function metadata(d){
   if(d.kind==='host'){if(typeof window.__frameFileHost!=='function')throw Error('Local file host is disconnected');const s=await window.__frameFileHost({op:'stat',path:d.path});return s.version;}
-  if(d.kind==='native'){const f=await fileAt(d);return f.size+':'+f.lastModified;}
+  if(d.kind==='native'||d.kind==='picked'){const f=await fileAt(d);return f.size+':'+f.lastModified;}
   const r=await fetch(d.path,{method:'HEAD',cache:'no-store',headers:{'X-Frame-Source':'1'}});if(!r.ok&&r.status!==405&&r.status!==501)throw Error('Linked file HTTP '+r.status);return r.ok&&(r.headers.get('etag')||r.headers.get('last-modified'))?[r.headers.get('etag'),r.headers.get('last-modified'),r.headers.get('content-length')].join(':'):null;
  }
- function resourceDescriptor(d,path){if(/^(data:|blob:)/i.test(path))return null;if(/^https?:/i.test(path)){const u=new URL(path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='url'){const u=new URL(path,d.path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='host'){const absolute=hostPath(path)?path:parent(d.path)+path;return {kind:'host',path:absolute,key:'host:'+absolute.toLowerCase()};}const p=normalize(parent(d.path)+decodeURIComponent(path));return {kind:'native',mount:d.mount,path:p,key:'native:'+d.mount+':'+p};}
- async function fingerprint(file){const parts=[];for(let at=0;at<file.size;at+=4194304)parts.push(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.slice(at,at+4194304).arrayBuffer())));const bytes=new Uint8Array(parts.length*32);parts.forEach((p,i)=>bytes.set(p,i*32));const hash=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(hash)].map(x=>x.toString(16).padStart(2,'0')).join('');}
+ function resourceDescriptor(d,path){if(/^(data:|blob:)/i.test(path))return null;if(/^https?:/i.test(path)){const u=new URL(path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='url'){const u=new URL(path,d.path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='host'){const absolute=hostPath(path)?path:parent(d.path)+path;return {kind:'host',path:absolute,key:'host:'+absolute.toLowerCase()};}return relativeLocal(d,decodeURIComponent(path));}
+ async function sha256(bytes){
+  const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+  return [...hash].map(x=>x.toString(16).padStart(2,'0')).join('');
+ }
+ async function readDependency(descriptor,uri,signature){
+  const file=await fileAt(descriptor),bytes=new Uint8Array(await file.arrayBuffer());
+  return {bytes,dependency:{uri,descriptor,signature,digest:await sha256(bytes)}};
+ }
+ async function ensureChildren(token,chain,visited){
+  for(const n of nodes)if(n.fileSource===token&&n.type==='instance'&&n.params.file)await ensure(entry(n),chain,visited);
+ }
+ async function fingerprint(file){const parts=[];for(let at=0;at<file.size;at+=4194304)parts.push(new Uint8Array(await crypto.subtle.digest('SHA-256',await file.slice(at,at+4194304).arrayBuffer())));const bytes=new Uint8Array(parts.length*32);parts.forEach((p,i)=>bytes.set(p,i*32));return sha256(bytes);}
  async function ensure(e,ancestry,visited){
   if(ancestry.has(e.descriptor.key))throw Error('Cyclic linked-file dependency: '+e.descriptor.path);if(visited.has(e))return;
-  const chain=new Set(ancestry);chain.add(e.descriptor.key);if(!e.dirty&&e.root){for(const n of nodes.filter(n=>n.fileSource===e.token&&n.type==='instance'&&n.params.file))await ensure(entry(n),chain,visited);visited.add(e);return;}
-  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,signature:e.signature,dependencies:e.dependencies,index:e.index},document=FrameAuthorData.documentToken;
+  if(e.waitingGrant&&e.waitingGrant.row===picked.get(e.descriptor.mount)&&await metadata(e.descriptor)===e.waitingGrant.signature)
+   throw folderRequired(e.waitingGrant.row);
+  const chain=new Set(ancestry);chain.add(e.descriptor.key);
+  if(!e.dirty&&e.root){
+   try{await ensureChildren(e.token,chain,visited);e.error=null;e.folderGrant=null;visited.add(e);}
+   catch(error){e.error=errorText(error);e.folderGrant=error.grant||null;throw error;}
+   return;
+  }
+  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,primaryVersion:e.primaryVersion,signature:e.signature,dependencies:e.dependencies,index:e.index},document=FrameAuthorData.documentToken;
+  let signature;
   try{
-   const signature=await metadata(d),file=await fileAt(d),fileIndex=/\.hash$/i.test(file.name)?await createFrameFileIndex().read(file):null,version=fileIndex?.version??await fingerprint(file);if(e.root&&version===e.version&&!e.dependencies.length){e.signature=signature;e.dirty=false;e.error=null;visited.add(e);return;}
-   const definition={descriptor:d,root:FrameHash.newId(),key:d.key};definitions.set(token,definition);const dependencies=[];
-   const readResource=async uri=>{const rd=resourceDescriptor(d,uri);if(!rd){const r=await fetch(uri);return new Uint8Array(await r.arrayBuffer());}const f=await fileAt(rd);dependencies.push({descriptor:rd,signature:await metadata(rd)});return new Uint8Array(await f.arrayBuffer());};
+   signature=await metadata(d);const file=await fileAt(d),fileIndex=/\.hash$/i.test(file.name)?await createFrameFileIndex().read(file):null;
+   const primaryVersion=fileIndex?.version??await fingerprint(file),reads=new Map();
+   if(e.root&&!e.error&&primaryVersion===e.primaryVersion){
+    // A timestamp change or an unavailable HEAD validator need not rebuild a heavy model.
+    let same=true;const observed=[];
+    for(const dep of e.dependencies){
+     const stamp=await metadata(dep.descriptor);
+     if(stamp!==null&&stamp===dep.signature){observed.push(dep);continue;}
+     const read=await readDependency(dep.descriptor,dep.uri,stamp);reads.set(dep.uri,read);
+     observed.push(read.dependency);if(read.dependency.digest!==dep.digest)same=false;
+    }
+    if(same){
+     await ensureChildren(e.token,chain,visited);e.signature=signature;e.dependencies=observed;e.dirty=false;visited.add(e);return;
+    }
+   }
+   const definition={descriptor:d,root:FrameHash.newId(),key:d.key};definitions.set(token,definition);const used=new Map();
+   const readResource=async uri=>{
+    const rd=resourceDescriptor(d,uri);
+    if(!rd){const r=await fetch(uri);return new Uint8Array(await r.arrayBuffer());}
+    if(!reads.has(uri))reads.set(uri,metadata(rd).then(stamp=>readDependency(rd,uri,stamp)));
+    const read=await reads.get(uri);used.set(uri,read.dependency);return read.bytes;
+   };
    const imported=await window.frameEngine.loadFileSource(file,{token,root:definition.root,name:file.name,readResource});for(const id of imported.materials)ownedMaterials.add(id);for(const id of imported.assets)ownedAssets.add(id);
-   for(const n of nodes.filter(n=>n.fileSource===token&&n.type==='instance'&&n.params.file))await ensure(entry(n),chain,visited);
+   await ensureChildren(token,chain,visited);
    await window.frameEngine.loadLibraryObjects();FrameSpline.request();await FrameSpline.flush();const failed=nodes.find(n=>n.fileSource===token&&n.splineError);if(failed)throw Error(failed.name+': '+failed.splineError);
+   const dependencies=[...used.values()].sort((a,b)=>a.uri<b.uri?-1:a.uri>b.uri?1:0);
+   for(const dep of dependencies)if(dep.signature!==await metadata(dep.descriptor))throw Error('Linked resource changed while loading; retrying');
+   const version=dependencies.length?await sha256(new TextEncoder().encode(JSON.stringify([primaryVersion,...dependencies.map(r=>[r.uri,r.digest])]))):primaryVersion;
    const now=await metadata(d);if(signature!==now)throw Error('Linked file changed while loading; retrying');if(document!==FrameAuthorData.documentToken)throw new DOMException('Source document changed','AbortError');
-   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.signature=now;e.dependencies=dependencies;e.error=null;e.permissionDenied=false;e.dirty=false;visited.add(e);
+   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.primaryVersion=primaryVersion;e.signature=now;e.dependencies=dependencies;e.error=null;e.folderGrant=null;e.waitingGrant=null;e.permissionDenied=false;e.dirty=false;visited.add(e);
    frameSyncEngineVisibility();FrameSpline.request();await FrameSpline.flush();await window.frameEngine.replicaQueue;
    if(old){window.frameEngine.retireFileSource(old);definitions.delete(old);}await window.frameEngine.draw(false);
-   e.index=fileIndex;if(old)FrameProjectFile.linked(d.path,prior.version,version,fileIndex&&prior.index?frameCompareFileIndexes(prior.index,fileIndex):[]);
-  }catch(error){Object.assign(e,prior);if(document===FrameAuthorData.documentToken&&nodes.some(n=>n.fileSource===token))window.frameEngine.retireFileSource(token);definitions.delete(token);e.error=errorText(error);e.permissionDenied=error.name==='NotAllowedError';e.dirty=true;throw error;}
+   e.index=fileIndex;if(old&&prior.version!==version)FrameProjectFile.linked(d.path,prior.version,version,fileIndex&&prior.index?frameCompareFileIndexes(prior.index,fileIndex):[]);
+  }catch(error){Object.assign(e,prior);if(document===FrameAuthorData.documentToken&&nodes.some(n=>n.fileSource===token))window.frameEngine.retireFileSource(token);definitions.delete(token);e.error=errorText(error);e.folderGrant=error.grant||null;
+   e.waitingGrant=d.kind==='picked'&&error.grant===d.mount&&signature!=null?{row:picked.get(d.mount),signature}:null;
+   e.permissionDenied=error.name==='NotAllowedError';e.dirty=true;throw error;}
  }
  async function flush(){
   if(busy||!window.frameEngine?.scene||FrameAuthorData.ready===false)return;busy=true;
@@ -15241,7 +15491,7 @@ const FrameFileSources=(()=>{
   }finally{busy=false;}
  }
  function request(){if(busy||queued||!window.frameAI||!entries.size&&!nodes.some(n=>n.type==='instance'&&n.params.file))return;queued=true;queueMicrotask(()=>{window.frameAI.call('instance.files').catch(()=>{}).finally(()=>{queued=false;});});}
- async function poll(force=false){if(busy||queued||document.hidden&&!force&&!FrameProjectFile.waiting||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies)if(await metadata(resource.descriptor)!==resource.signature)dirty=true;if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
+ async function poll(force=false){if(busy||queued||document.hidden&&!force&&!FrameProjectFile.waiting||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);if(e.waitingGrant&&e.waitingGrant.row===picked.get(e.descriptor.mount)&&e.waitingGrant.signature===signature)continue;let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies){const stamp=await metadata(resource.descriptor);if(stamp===null||stamp!==resource.signature)dirty=true;}if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});window.addEventListener('focus',()=>void poll());
  const persistentNodes=list=>list.filter(n=>!n.fileSource),withRuntimeNodes=list=>[...list.filter(n=>!n.fileSource),...nodes.filter(n=>n.fileSource)];
  const mergeRuntimeObjects=(list,current)=>{const out=list.filter(o=>!o.authoring?.fileSource||definitions.has(o.authoring.fileSource)),ids=new Set(out.map(o=>o.hash));return [...out,...current.filter(o=>o.authoring?.fileSource&&definitions.has(o.authoring.fileSource)&&!ids.has(o.hash))];};
@@ -15254,7 +15504,22 @@ const FrameFileSources=(()=>{
   const indices=new Map(keep.map((m,i)=>[m.uid,i]));for(const n of nodes)for(const t of n.tags)if(t.kind==='material')t.material=indices.get(prior[t.material||0]?.uid||t.materialUID)??0;
   activeMaterial=indices.get(prior[activeMaterial]?.uid)??0;selectedMaterials=new Set([...selectedMaterials].map(i=>indices.get(prior[i]?.uid)).filter(i=>i!==undefined));materials.splice(0,materials.length,...keep);for(const m of prior)if(!indices.has(m.uid))ownedMaterials.delete(m.uid);renderMaterials();syncMaterial();frameSyncMaterials();
  }
- function serialization(records){
+ function serialization(records,paths){
+  if(paths?.length){
+   // Save As stages relative references in the outgoing HASH until the file closes successfully.
+   records=new Map(records);
+   for(const {target,file} of paths){
+    const n=target();if(!n)continue;
+    const shapeId=FrameHash.address(n.nativeHash,'spline'),shape=records.get(shapeId);if(!shape)continue;
+    const value=FrameSpline.decodeShape(shape.value);value.params.file=file;
+    records.set(shapeId,{...shape,value:FrameSpline.encodeShape(value)});
+    const id=FrameHash.address(n.nativeHash,'parameters'),record=records.get(id);
+    if(record?.value.fileMount){
+     const authoring=frameAuthoring({...n,fileMount:null});
+     if(authoring)records.set(id,{...record,value:authoring});else records.delete(id);
+    }
+   }
+  }
   if(!nodes.some(n=>n.fileSource)&&!ownedMaterials.size)return [...records.values()];const {K}=FrameHash,blocked=new Set(),persist=nodes.filter(n=>!n.fileSource),usedMaterials=new Set(),usedAssets=new Set();
   const exclude=(owner,fields)=>{for(const field of fields)blocked.add(FrameHash.address(owner,field));};
   for(const n of nodes.filter(n=>n.fileSource)){exclude(n.nativeHash,['type','name','parent','flags','matrix','pivot','projection','light','spline','parameters','tags','positions','indices',...Object.keys(n.pluginRecords||{})]);for(const t of n.tags)exclude(t.uid,['material','faces','uv']);}
@@ -15266,7 +15531,7 @@ const FrameFileSources=(()=>{
   return [...records.values()].filter(r=>!blocked.has(r.id)).map(r=>r.id===K.all?{...r,value:persist.map(n=>n.nativeHash)}:r.id===K.materials?{...r,value:materialIDs}:r.id===K.assets?{...r,value:assetIDs}:r);
  }
  function inspect(){return {mounts:[...mounts].map(([id,h])=>({id,name:h.name})),instances:nodes.filter(n=>!n.fileSource&&n.type==='instance'&&n.params.file).map(n=>({hash:n.nativeHash,...state(n)}))};}
- const api={source,state,paint,choose,attachDirectory,prepareProject,get needsProjectFolder(){return needsProjectFolder();},flush,request,inspect,check:()=>poll(true),persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0')||!formats.test(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
+ const api={source,state,paint,choose,chooseSourceFolder,paintFolderButton,attachDirectory,prepareProject,linkProjectFolder,findProjectFolder,boundFolder:h=>projectFolder?.handle===h?projectFolder:null,projectPaths,applyPaths,get needsProjectFolder(){return needsProjectFolder();},flush,request,inspect,check:()=>poll(true),persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0'))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
 })();
 
 // Native browser pickers own consent. Pending requests reuse the existing toolbar.
@@ -15334,8 +15599,8 @@ function fileOperationError(error){if(error.name==='AbortError')return;$('frame-
 async function openSceneFile(file,files=[],merge=false,source=file){try{await frameNativeFileTask(async()=>{if(!merge&&source.getFile&&/\.hash$/i.test(source.name))await FrameProjectFile.open(source,file);
 else{await window.frameEngine.loadFile(file,{files,merge});if(!$('frame-engine-status').hidden)throw Error($('frame-engine-status').textContent||'Import failed');}await rememberSceneFile(source,source.name,files);},{replace:!merge});return true;}catch(error){fileOperationError(error);if(error.name==='AbortError')return null;return false;}}
 FrameViewWindows.onWindow('dragover',e=>{if([...e.dataTransfer.types].includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';if(!e.dataTransfer.items?.length||[...e.dataTransfer.items].some(item=>item.kind==='file'&&(!item.type||item.type.startsWith('image/'))))frameTextureDragTab(e.target);}},true);
-FrameViewWindows.onWindow('drop',async e=>{const files=[...e.dataTransfer.files];if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();closeMenu();const supported=files.filter(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));if(supported.length){const handles=[...e.dataTransfer.items].filter(item=>item.kind==='file').map(item=>item.getAsFileSystemHandle?.().catch(()=>null));const open=async merge=>{for(let i=0;i<supported.length;i++){const f=supported[i],handle=await handles[files.indexOf(f)];await openSceneFile(f,files,merge||i>0,handle?.kind==='file'?handle:f);}};if(nodes.length)showMenu(e.clientX,e.clientY,[['Open',()=>open(false)],['Merge',()=>open(true)]]);else await open(false);return;}const library=!!e.target.closest?.('#texturesPanel,#tabTextures'),material=materials[activeMaterial],slot=e.target.closest?.('.me-tex-btn')?.dataset.slot||'map',targetOwner=e.target.closest?.('.ob-row')?.dataset.id,viewport=!e.target.closest?.('#matEditorContent')&&!library&&frameViewportAt(e.clientX,e.clientY)!==null,documentNodes=nodes,pick=viewport&&!targetOwner?window.frameEngine?.materialDropTarget(e.clientX,e.clientY).then(hash=>({hash}),error=>({error})):null,anchor=$('texGrid').firstChild,imports=files.filter(f=>f.type.startsWith('image/')).map(file=>({file,ready:frameImportTexture(file,anchor).then(url=>({url}),error=>({error}))}));for(const {file,ready}of imports){try{const result=await ready;if(result.error)throw result.error;const url=result.url;if(library||nodes!==documentNodes)continue;let owner=targetOwner;if(pick){const target=await pick;if(target.error)throw target.error;if(nodes!==documentNodes)continue;owner=frameNodeByHash(target.hash)?.id;}if(owner)await assignTexture(owner,url);else if(!viewport)await loadMaterialTexture(url,slot,material,null,/(?:^|[_. -])(?:orm|arm)(?:[_. -]|$)/i.test(file.name));}catch(error){fileOperationError(error);}}},true);
-sceneInput.onchange=()=>{const files=[...sceneInput.files],file=files.find(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));sceneInput.value='';if(file)openSceneFile(file,files);};
+FrameViewWindows.onWindow('drop',async e=>{const files=[...e.dataTransfer.files];if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();closeMenu();const supported=files.filter(f=>frameIsModelFile(f.name));if(supported.length){const handles=[...e.dataTransfer.items].filter(item=>item.kind==='file').map(item=>item.getAsFileSystemHandle?.().catch(()=>null));const open=async merge=>{for(let i=0;i<supported.length;i++){const f=supported[i],handle=await handles[files.indexOf(f)];await openSceneFile(f,files,merge||i>0,handle?.kind==='file'?handle:f);}};if(nodes.length)showMenu(e.clientX,e.clientY,[['Open',()=>open(false)],['Merge',()=>open(true)]]);else await open(false);return;}const library=!!e.target.closest?.('#texturesPanel,#tabTextures'),material=materials[activeMaterial],slot=e.target.closest?.('.me-tex-btn')?.dataset.slot||'map',targetOwner=e.target.closest?.('.ob-row')?.dataset.id,viewport=!e.target.closest?.('#matEditorContent')&&!library&&frameViewportAt(e.clientX,e.clientY)!==null,documentNodes=nodes,pick=viewport&&!targetOwner?window.frameEngine?.materialDropTarget(e.clientX,e.clientY).then(hash=>({hash}),error=>({error})):null,anchor=$('texGrid').firstChild,imports=files.filter(f=>f.type.startsWith('image/')).map(file=>({file,ready:frameImportTexture(file,anchor).then(url=>({url}),error=>({error}))}));for(const {file,ready}of imports){try{const result=await ready;if(result.error)throw result.error;const url=result.url;if(library||nodes!==documentNodes)continue;let owner=targetOwner;if(pick){const target=await pick;if(target.error)throw target.error;if(nodes!==documentNodes)continue;owner=frameNodeByHash(target.hash)?.id;}if(owner)await assignTexture(owner,url);else if(!viewport)await loadMaterialTexture(url,slot,material,null,/(?:^|[_. -])(?:orm|arm)(?:[_. -]|$)/i.test(file.name));}catch(error){fileOperationError(error);}}},true);
+sceneInput.onchange=()=>{const files=[...sceneInput.files],file=files.find(f=>frameIsModelFile(f.name));sceneInput.value='';if(file)openSceneFile(file,files);};
 function frameEnvironmentURL(value){return frameMaterialAssets.get(value)?.url||value||'';}
 function frameChooseEnvironment(n){const input=document.createElement('input');input.type='file';input.accept='image/*,.hdr,.rgbe';input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const bytes=new Uint8Array(await file.arrayBuffer());if(bytes.length>16*1024*1024)throw Error('Environment image exceeds 16 MiB');if(!/\.(hdr|rgbe)$/i.test(file.name)){const bitmap=await createImageBitmap(file);bitmap.close();}if(!nodes.includes(n))return;const url=URL.createObjectURL(file),asset=frameMaterialAsset(url,bytes);commit(()=>{n.params.environment='image';n.params['environment image']=asset;});renderAttributes();}catch(error){fileOperationError(error);}};input.click();}
 async function saveSceneFile({as=false,incremental=false,download=false,format}={}){
@@ -15360,7 +15625,7 @@ $('btnOpen').onclick=async()=>{
   try{
     const handles=await showOpenFilePicker({multiple:true,id:'frame-open'});
     const files=await Promise.all(handles.map(h=>h.getFile()));
-    const i=files.findIndex(f=>/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(f.name));
+    const i=files.findIndex(f=>frameIsModelFile(f.name));
     if(i>=0)await openSceneFile(files[i],files,false,handles[i]);
   }catch(error){if(error.name==='SecurityError')sceneInput.click();else fileOperationError(error);}
 };
@@ -24161,7 +24426,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       try{
         await selectionQueue;await editSerial;if(lazyTask)await lazyTask;checkSession(gpu);
         for(const mesh of scene.meshes)ensureImportedUV(mesh);nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());if(displayUnitIndex!==2||rescaleUnitIndex!==2)nativePut(scene.records,FrameHash.K.units,null,FrameHash.T.bytes,new Uint8Array([displayUnitIndex,rescaleUnitIndex]));else scene.records.delete(FrameHash.K.units);const stock=nodes.filter(n=>!n.fileSource&&['car','tree','human'].includes(n.type)),excluded=new Set(stock.flatMap(n=>[...['positions','indices'].map(f=>FrameHash.address(n.nativeHash,f)),...n.tags.filter(t=>t.librarySlot).flatMap(t=>['material','faces','uv'].map(f=>FrameHash.address(t.uid,f)))])),stockTypes=new Set(stock.map(n=>FrameHash.address(n.nativeHash,'type'))),stockTags=new Map(stock.map(n=>[FrameHash.address(n.nativeHash,'tags'),new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid))]));
-        const records=(window.frameFiles?.serialization(scene.records)||[...scene.records.values()]).filter(r=>!stockTypes.has(r.id)&&!excluded.has(r.id)&&(!scene.appearanceIds?.has(r.id)||scene.appearanceActive?.has(r.id))&&!(r.value?.gpu&&r.value.mesh?.splineGenerated&&['positions','indices'].includes(r.value.field))).flatMap(r=>{const slots=stockTags.get(r.id);if(slots){const value=r.value.filter(id=>!slots.has(id));return value.length?[{...r,value}]:[];}return [r];});records.push(...stock.map(n=>nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0]))));let done=0;
+        const records=(window.frameFiles?.serialization(scene.records,writable?.projectPaths)||[...scene.records.values()]).filter(r=>!stockTypes.has(r.id)&&!excluded.has(r.id)&&(!scene.appearanceIds?.has(r.id)||scene.appearanceActive?.has(r.id))&&!(r.value?.gpu&&r.value.mesh?.splineGenerated&&['positions','indices'].includes(r.value.field))).flatMap(r=>{const slots=stockTags.get(r.id);if(slots){const value=r.value.filter(id=>!slots.has(id));return value.length?[{...r,value}]:[];}return [r];});records.push(...stock.map(n=>nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0]))));let done=0;
         for(const record of records){
           if(scene!==space)throw Error('Scene changed during HASH Save.');let value=record.value;
           if(value?.gpu){const reference=value.field==='positions'&&morphStates.get(value.mesh?.hashId)?.base;const raw=await nativeReadGPU(gpu,reference||value.resource,value.count);value=record.type===FrameHash.T.float32?new Float32Array(raw.buffer):record.type===FrameHash.T.bytes?raw.subarray(0,value.byteLength):new Uint32Array(raw.buffer);}
@@ -26478,7 +26743,7 @@ function FramePolygonKernel(d){
       register('view.set','Set active view, single/quad, shading, selection mode and transform options; focus an object if requested.',obj({index:integer,single:bool,camera:array(num,27),shading:choice('solid','wireframe','solid-wire','isoparms','solid-isoparms','off'),mode:choice('object','vertex','edge','polygon'),coordinates:choice('world','object'),snap:bool,quantize:bool,pivot:bool,uv:bool,focus:str,focusSelection:bool}),false,async a=>{if(a.index!==undefined&&(!frameViewSections.has(a.index)||a.index>=4&&!FrameViewWindows.available(a.index)))fail('INVALID_ARGUMENT','Unknown view instance');if(a.focus&&a.focusSelection)fail('INVALID_ARGUMENT','Choose object focus or current selection');if(a.camera&&!validNativeCamera(a.camera))fail('INVALID_ARGUMENT','Invalid camera record');if(a.camera&&cameraNavigationOwned(0))fail('INVALID_ARGUMENT','Camera animation owns the main view');if(a.camera)applyNativeCamera(a.camera);if(a.focus)resolve(a.focus);if(a.index!==undefined&&!activateFrameView(a.index))fail('BUSY','Cannot switch view during a gesture');if(a.single!==undefined)frameSetViewLayout(a.single);if(a.mode)setViewerMode('element',a.mode);if(a.shading)setViewerMode('shading',a.shading);setTransformOptions(a);if(a.focus){const n=resolve(a.focus);await focusSpline(n.nativeHash);}if(a.focusSelection)await focusSpline(null);if(a.uv!==undefined)await setUVEditing(a.uv,a.focus?resolve(a.focus).nativeHash:null);await draw(true);return {index:viewIndex,single:FrameViewWindows.single(viewIndex),shading:shadingMode,mode:elementMode,camera:Array.from(nativeCamera())};});
       register('view.project','Project a world point (or local point on an object) to CSS screen coordinates in the active view.',required(obj({point:vector,id:str}),'point'),true,a=>{const p=a.id?FM.point(objectWorld(resolve(a.id).nativeHash),a.point):a.point;return {point:p,screen:worldScreen(p)};});
       register('view.pick','Read navigation world-space target under a CSS screen point: native mesh, plugin surface, visible spline or finite XZ guide fallback.',required(obj({x:num,y:num}),'x','y'),true,async a=>({point:await pickWorldPoint(a.x,a.y)}));
-      register('scene.merge','Merge a same-origin scene URL into the current scene using native import and one Undo.',required(obj({url:str}),'url'),false,async a=>{const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol)||!/\.(hash|stl|obj|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('INVALID_ARGUMENT','Expected same-origin scene URL');const r=await fetch(u);if(!r.ok)fail('IO_ERROR','HTTP '+r.status);const roots=await mergeFile(new File([await r.blob()],decodeURIComponent(u.pathname.split('/').pop())),{baseURL:u.href});await settle();return {objects:roots.map(h=>describe(resolve(h)))};});
+      register('scene.merge','Merge a same-origin scene URL into the current scene using native import and one Undo.',required(obj({url:str}),'url'),false,async a=>{const u=new URL(a.url,location.href);if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol)||!frameIsModelFile(u.pathname))fail('INVALID_ARGUMENT','Expected same-origin scene URL');const r=await fetch(u);if(!r.ok)fail('IO_ERROR','HTTP '+r.status);const roots=await mergeFile(new File([await r.blob()],decodeURIComponent(u.pathname.split('/').pop())),{baseURL:u.href});await settle();return {objects:roots.map(h=>describe(resolve(h)))};});
       function sceneBase64Bytes(value){
         try{
           if(Uint8Array.fromBase64)return Uint8Array.fromBase64(value);
@@ -26487,7 +26752,7 @@ function FramePolygonKernel(d){
           return bytes;
         }catch{fail('INVALID_ARGUMENT','Invalid base64');}
       }
-      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path);await FrameProjectFile.open(handle);await settle();await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!/\.(hash|obj|stl|gltf|glb|ply|vtk|3mf|svg|step|stp|dxf)$/i.test(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');file=new File([sceneBase64Bytes(a.base64)],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
+      register('scene.open','Open an authorized local HASH path through the file host, or a same-origin HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF URL, or base64 + filename (no inline file-size cap). Replaces the current scene using the normal importer.',obj({path:str,url:{type:'string'},base64:{type:'string'},name:str}),false,async a=>{if(a.path!==undefined){if(!a.path.trim())fail('INVALID_ARGUMENT','A nonempty local path is required');if(a.url||a.base64||a.name)fail('INVALID_ARGUMENT','Provide path alone');if(!/\.hash$/i.test(a.path))fail('INVALID_ARGUMENT','Local project path must end in .hash');const handle=frameHostFileHandle(a.path);await FrameProjectFile.open(handle);await settle();await rememberSceneFile(handle);return {objects:describeMany(nodes),file:frameFileInfo()};}if(!!a.url===!!a.base64)fail('INVALID_ARGUMENT','Provide exactly one of url/base64');let file,baseURL;if(a.url){const u=new URL(a.url,location.href),shared=new URLSearchParams(u.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');await settle();return {objects:describeMany(nodes)};}if(u.origin!==location.origin||!['http:','https:'].includes(u.protocol))fail('INVALID_ARGUMENT','Only same-origin scene URLs are supported');baseURL=u.href;if(!frameIsModelFile(u.pathname))fail('UNSUPPORTED','Expected HASH, OBJ, STL, glTF, GLB, PLY, VTK, 3MF, SVG, STEP or DXF');const response=await fetch(u);if(!response.ok)fail('IO_ERROR','HTTP '+response.status);file=new File([await response.blob()],decodeURIComponent(u.pathname.split('/').pop()));}else{if(!a.name||!frameIsModelFile(a.name))fail('INVALID_ARGUMENT','A HASH/OBJ/STL/glTF/GLB/PLY/VTK/3MF/SVG/STEP/DXF filename is required');file=new File([sceneBase64Bytes(a.base64)],a.name);}sceneFileHandle=null;await api.loadFile(file,{baseURL});if(!status.hidden)fail('IO_ERROR',status.textContent||'Import failed');await settle();return {objects:describeMany(nodes)};});
       register('scene.share','Return a portable v1 scene link containing gzip-compressed HASH, without uploading or changing clipboard.',obj({}),true,async()=>({url:await frameShareURL()}));
       register('diagnostics.pixels','Read up to 64 RGBA pixels at active-view CSS coordinates. presentation includes native component hover; SVG overlays are excluded.',required(obj({points:array({...array(num,2),minItems:2},64),presentation:bool}),'points'),true,async a=>{
         const before=renderer.lastFrameRaw?.id??-1,start=performance.now();do{await draw(true);if(renderer.materialState?.pending.size){await Promise.all([...renderer.materialState.pending.values()]);await draw(true);}await renderer.device.queue.onSubmittedWorkDone();await new Promise(r=>setTimeout(r,0));if(performance.now()-start>30000)fail('TIMEOUT','No fresh pixel frame');}while((renderer.lastFrameRaw?.id??-1)<=before);const rect=canvas.getBoundingClientRect(),d=renderer.device,sample=a.presentation?d.createTexture({label:'AI presented hover pixels',size:[renderer.width,renderer.height],format:renderer.format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.COPY_SRC}):null,read=makeGPUBuffer(d,{label:'AI pixel samples',size:Math.max(256,a.points.length*256),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),e=d.createCommandEncoder();
