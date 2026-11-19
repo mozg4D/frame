@@ -33,7 +33,7 @@ function assemblies(html,plugins){
  const box=scope(html,'async function createBoxPipelines('),common=value(box,'const common=',env),raster=value(box,'const raster=',env);
  for(const label of ['vertex mask and element reconstruction','GPU element selection overlay','object rectangle geometry intersection'])add('core/box/'+label,value(box,"label:'"+label+"',code:",{...env,common,raster}));
  add('core/cage',value(scope(html,'async function ensureSplinePipelines('),"label:'spline cage display',code:",env));
- const material=value(scope(html,'function ensureMaterialState('),'const source=',{...env,r});add('core/material',material);
+ const material=value(scope(html,'function materialProgram('),'const source=',{...env,r});add('core/material',material);
  add('core/navigation-surfaces',material+value(html,'const NAVIGATION_GEOMETRY_WGSL=',env));
  add('core/navigation-lines',value(html,'const NAVIGATION_LINES_WGSL=',env));
  add('core/connected-patch-lines',value(scope(html,'async function patchLineState('),"label:'connected local patch lines',code:",env));

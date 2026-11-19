@@ -142,6 +142,7 @@ import {userFeedbackChecks} from './user-feedback.mjs';
 import {ensureHeavyScene} from './scenes/generate-heavy.mjs';
 import {materialEditorChecks} from './material-editor.mjs';
 import {automaticNormalBrowserChecks} from './automatic-normal-browser.mjs';
+import {materialStartupChecks} from './material-startup-browser.mjs';
 import {materialsSelectionChecks} from './materials-selection-feedback.mjs';
 import {editorRevisionChecks} from './editor-revision.mjs';
 import {pointerLockChecks} from './pointer-lock.mjs';
@@ -353,6 +354,7 @@ try{
   report.textureSlotDrag=await isolated('textureSlotDrag',textureSlotDragBrowserChecks);
   report.materialEditor=await isolated('materialEditor',materialEditorChecks);
   report.automaticNormal=await isolated('automaticNormal',automaticNormalBrowserChecks);
+  report.materialStartup=await isolated('materialStartup',materialStartupChecks);
   report.materialsSelection=await isolated('materialsSelection',materialsSelectionChecks);
   report.editorRevision=await isolated('editorRevision',editorRevisionChecks);
   report.pointerLock=await isolated('pointerLock',pointerLockChecks,true);
