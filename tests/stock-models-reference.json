@@ -4,28 +4,28 @@
       "filename": "car-hatchback-1.hash",
       "source": "hatchback_final(1) (1).hash",
       "sourceSHA256": "b75d2b841bea3d215f5c42f2fe106620e882e8da3b6c40cc1745509c8237fb00",
-      "sha256": "0af184dc6ab64cd797a2975f3cfa3503a3dd9be02f7045752f0e6ca072dbc2f9",
-      "bytes": 11387,
+      "sha256": "c0c0be8f84ab12e0ee2f17137f2128414fcf5f466ec880fbf1553bd152dfaedb",
+      "bytes": 11396,
       "sourceBytes": 11832,
-      "positionsSHA256": "7a5144655abba27eb0af159a7283053ed0a9d23446deaf44d43efabe219838c2",
+      "positionsSHA256": "cbaabfe7832ee9063b442787c7f0245b231224e7212c5fc406876ac4d1720717",
       "indicesSHA256": "b295233af00b075ad55e176cee4cce796e44b8093a4f1df25e335dd3216581e6",
       "triangles": 1692,
       "vertices": 916,
       "bounds": {
         "min": [
-          -990.109619140625,
+          -2098.435546875,
           0,
-          -2098.435546875
+          -990.109619140625
         ],
         "max": [
-          990.109619140625,
+          2095.913330078125,
           1519.9520263671875,
-          2095.913330078125
+          990.109619140625
         ],
         "center": [
-          0,
+          -1.2611083984375,
           759.9760131835938,
-          -1.2611083984375
+          0
         ]
       },
       "materials": [
@@ -155,28 +155,28 @@
       "filename": "human-female-1-sitting.hash",
       "source": "human-female-1-sitting.glb",
       "sourceSHA256": "48972a4d855146a9de4a8b28c94ac1ee2a9c4cdc6fbf67920acdf923b5bbad2b",
-      "sha256": "acb5ec69a979ec750bd731f7657969358f35ff335a02d87b953ac378231a1673",
-      "bytes": 12130,
+      "sha256": "2429dd1980021086f4f785f0f3be83a8b1a4496e7ff80649679f7a229e2b7de8",
+      "bytes": 11820,
       "sourceBytes": 28792,
-      "positionsSHA256": "0ab10a5a5780192eae8435e65d25a23a58a19af7a28822ce4338c7dc3a9fda7d",
+      "positionsSHA256": "55bf8d1ee729977883eb6e6bc23fc4b363141a1a72ff628837a8bd6bb485d9d0",
       "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
       "triangles": 1260,
       "vertices": 630,
       "bounds": {
         "min": [
-          -221.15798950195312,
+          -137.1435546875,
           0,
-          -137.1435546875
+          -221.15798950195312
         ],
         "max": [
-          221.15798950195312,
+          589.9287109375,
           1318.134521484375,
-          589.9287109375
+          221.15798950195312
         ],
         "center": [
-          0,
+          226.392578125,
           659.0672607421875,
-          226.392578125
+          0
         ]
       },
       "materials": [
@@ -287,28 +287,28 @@
       "filename": "human-female-1-standing.hash",
       "source": "human-female-1-standing.glb",
       "sourceSHA256": "af5ba990988c6ac95f7a5a1bba60ba5a5f2a735af97ee7628aba0e4c26546707",
-      "sha256": "dbbd51cbe1bb5a8baf0730b2e672b5f6118d3fede4d87cc616cd487d984c950c",
-      "bytes": 12139,
+      "sha256": "f7928cb62486a7b3bf571bd81ab29c29723b71ccc2c352f7fcd26fade1029fcb",
+      "bytes": 11829,
       "sourceBytes": 28796,
-      "positionsSHA256": "7cc167023d4d73ffbef01f4d0b3dd6ba3621a357b3841f6a34d8e08549f8ddba",
+      "positionsSHA256": "4b80f61de80445efced6e7a1debba835851ffd45d3387b4cd89abf5d21109e33",
       "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
       "triangles": 1260,
       "vertices": 630,
       "bounds": {
         "min": [
-          -221.8838653564453,
+          -135.61965942382812,
           0,
-          -135.61965942382812
+          -221.8838653564453
         ],
         "max": [
-          221.8838653564453,
+          133.5460968017578,
           1798.134521484375,
-          133.5460968017578
+          221.8838653564453
         ],
         "center": [
-          0,
+          -1.0367813110351562,
           899.0672607421875,
-          -1.0367813110351562
+          0
         ]
       },
       "materials": [
@@ -419,28 +419,28 @@
       "filename": "human-female-1-walking.hash",
       "source": "human-female-1-walking.glb",
       "sourceSHA256": "029a4c9440a943c826d350f80e57652c6ea9d51ccc4bcc32effafc5cea164b7d",
-      "sha256": "4edc1fb0efadc39fd6f08c861924c0f12addbb972a59fc52f1248e04cbeba413",
-      "bytes": 13211,
+      "sha256": "d9a92484259cf07eecc277fd051c41ca5b665041e5d36d1d4232d9392616105a",
+      "bytes": 13062,
       "sourceBytes": 28792,
-      "positionsSHA256": "4f6c3a2d7782e422d48a537728fc879ad983bbee61facee1900a198eb9387117",
+      "positionsSHA256": "b948810168bec6b87ec9a247c73b9c5be2887179c5ab72ad16f7353892cdacd9",
       "indicesSHA256": "814257bb18d9985a1420de4d84d2c0e881cb5d764891621cb4febedaeeb2640b",
       "triangles": 1260,
       "vertices": 630,
       "bounds": {
         "min": [
-          -221.8838653564453,
+          -605.12841796875,
           0,
-          -605.12841796875
+          -221.8838653564453
         ],
         "max": [
-          221.8838653564453,
+          479.755615234375,
           1753.755859375,
-          479.755615234375
+          221.8838653564453
         ],
         "center": [
-          0,
+          -62.6864013671875,
           876.8779296875,
-          -62.6864013671875
+          0
         ]
       },
       "materials": [
@@ -551,28 +551,28 @@
       "filename": "human-male-1-sitting.hash",
       "source": "human-male-1-sitting.glb",
       "sourceSHA256": "8a6ba3130bbe76a40dcf7cdadea673e90aac5b50b025e5dd52b6e440a2133ee4",
-      "sha256": "56503297c773742fea366012eca4271d2c1b502d2986da02cbd6723e097fc6a7",
-      "bytes": 12064,
+      "sha256": "4e1829cd76feb7e34f5b376b567da370a0b2c07ec349abd4d85d7edd9887fc2d",
+      "bytes": 11600,
       "sourceBytes": 29932,
-      "positionsSHA256": "8ff9595aa942545828b7a388fe5cb8b22b94952e00188368d6eb55749b9806bc",
+      "positionsSHA256": "a29653161ac76256fb4b6423d14050f11f9565efbdeb39298f6dd6b928f5c3b3",
       "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
       "triangles": 1240,
       "vertices": 618,
       "bounds": {
         "min": [
-          -227.17796325683594,
+          -157.84228515625,
           0,
-          -157.84228515625
+          -227.17796325683594
         ],
         "max": [
-          227.17796325683594,
+          621.1422119140625,
           1330.9261474609375,
-          621.1422119140625
+          227.17796325683594
         ],
         "center": [
-          0,
+          231.64996337890625,
           665.4630737304688,
-          231.64996337890625
+          0
         ]
       },
       "materials": [
@@ -693,23 +693,23 @@
       "filename": "human-male-1-standing.hash",
       "source": "human-male-1-standing.glb",
       "sourceSHA256": "928deb12880c30cb5847c989bf86f8af0ee5440eb24ed53bd269b701d423ef34",
-      "sha256": "7dace8f28bd4f45de0a3ffab2c123f53896c7e6a64b9f5988a198fea2953b713",
-      "bytes": 12053,
+      "sha256": "8418c6db66e677914953f983d76bd46942c74719934bf25c2cdb339caa924cf2",
+      "bytes": 11602,
       "sourceBytes": 29932,
-      "positionsSHA256": "ae99ba4711fa051e65c786f8ec50fdc9f3f4c7f1af6f775f491f74c102c96737",
+      "positionsSHA256": "233ca606f6861346833e1fbdc775269467c07185fcd84e9426f27010bdd94054",
       "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
       "triangles": 1240,
       "vertices": 618,
       "bounds": {
         "min": [
-          -236.73800659179688,
+          -171.14218139648438,
           0,
-          -171.14218139648438
+          -236.73800659179688
         ],
         "max": [
-          236.73800659179688,
+          171.14218139648438,
           1780.9261474609375,
-          171.14218139648438
+          236.73800659179688
         ],
         "center": [
           0,
@@ -835,28 +835,28 @@
       "filename": "human-male-1-walking.hash",
       "source": "human-male-1-walking.glb",
       "sourceSHA256": "bda327873f582a60ee0e49c00cc10e98f5586e3bfee28762a53136588e0a2e42",
-      "sha256": "82f8a32af0d33c6c01a75b05cd1f473fa0e248fc6d06e236f0ac7128ebf228b8",
-      "bytes": 12966,
+      "sha256": "ded4c7fefa950c14e80c91a586131d2fb4b19d4e74868e23655051ad547a0be1",
+      "bytes": 12725,
       "sourceBytes": 29932,
-      "positionsSHA256": "110f6af6715f3873275a06fdf0938575db504729ea5868cfbdc4cc71a526f9e0",
+      "positionsSHA256": "b7066f45c6e65fc31c5a7eccc62a01a99a4260be15ca3a39466452f7b7e98aa9",
       "indicesSHA256": "919a1282f613e86f3e25687c1b25a47b4d79f3b3942009f94813783d2850afff",
       "triangles": 1240,
       "vertices": 618,
       "bounds": {
         "min": [
-          -236.73800659179688,
+          -577.0661010742188,
           0,
-          -577.0661010742188
+          -236.73800659179688
         ],
         "max": [
-          236.73800659179688,
+          513.9383544921875,
           1741.807373046875,
-          513.9383544921875
+          236.73800659179688
         ],
         "center": [
-          0,
+          -31.563873291015625,
           870.9036865234375,
-          -31.563873291015625
+          0
         ]
       },
       "materials": [
