@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 20:40">
+<meta name="frame-version" content="2026 20 nov 23:46">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -185,6 +185,7 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <button type="button" class="tabbtn" id="tabMaterials" aria-label="Materials"   title="Materials"></button>
 <button type="button" class="tabbtn" id="tabTextures" aria-label="Textures library"    title="Textures library"></button>
 <button type="button" class="tabbtn" id="tabPlugins" aria-label="Plugins" title="Plugins"></button>
+<button type="button" class="tabbtn" id="tabShaders" aria-label="Shaders" title="Shaders"></button>
 
 </div>
 <div class="tabact">
@@ -196,6 +197,7 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <div id="panels">
 <div id="attributesPanel" class="panel-content" style="display:none"><div id="attrContent"></div></div>
 <div id="pluginsPanel" class="panel-content" style="display:none"><div class="obj-lib-grid" id="pluginsGrid"></div></div>
+<div id="shadersPanel" class="panel-content" style="display:none"></div>
 <div id="objectsPanel" class="panel-content" style="display:none"></div>
 <div id="matEditorPanel" class="panel-content" style="display:none">
 <div id="matEditorContent">
@@ -11993,6 +11995,7 @@ const frameGizmoOpacity=Object.freeze({normal:.4,plane:.5,rotation:.45});
 
 const icons = {
 ICO_CONTROL:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="#aaa"><path d="M8.5 6.5v19M16.5 6.5v19M24.5 6.5v19" fill="none" stroke="#aaa" stroke-width="1" shape-rendering="crispEdges"/><circle cx="8.5" cy="12.5" r="2.5"/><circle cx="16.5" cy="21.5" r="2.5"/><circle cx="24.5" cy="9.5" r="2.5"/></svg>',
+ICO_SHADERS:'<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true" stroke-linecap="round" stroke-linejoin="round"><defs><linearGradient id="frameShadersTone" x1="0%" y1="0%" x2="100%" y2="100%"><stop stop-color="#84b9c0"/><stop offset="1" stop-color="#263f4e"/></linearGradient></defs><path d="M5.5 12.5c4.8 1.8 7.7-3 12.5-5.5 3-1.5 5.8-.9 8.5 0v13c-4.8-1.8-7.7 3-12.5 5.5-3 1.5-5.8.9-8.5 0Z" fill="url(#frameShadersTone)" stroke="#a0bfc3" stroke-width="1"/><path d="M6 19c4.8 1.8 7.2-3 12-5.5 3-1.5 5.3-.9 8 0M12 11.7v13.6M20.5 6.5v13.6" fill="none" stroke="#c3dade" stroke-opacity=".62" stroke-width="1"/></svg>',
 ICO_PLUGINS:'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges" fill="#626872"><rect x="5" y="5" width="9" height="9"/><rect x="18" y="5" width="9" height="9"/><rect x="5" y="18" width="9" height="9"/><path fill="#a0a7b2" d="M22 18h1v4h4v1h-4v4h-1v-4h-4v-1h4z"/></svg>',
 
   "ICO_GRID": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"#9a9a9a\" stroke-width=\"1\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"5.5\" y1=\"4.5\" x2=\"5.5\" y2=\"27.5\"/><line x1=\"12.5\" y1=\"4.5\" x2=\"12.5\" y2=\"27.5\"/><line x1=\"19.5\" y1=\"4.5\" x2=\"19.5\" y2=\"27.5\"/><line x1=\"26.5\" y1=\"4.5\" x2=\"26.5\" y2=\"27.5\"/><line x1=\"4.5\" y1=\"5.5\" x2=\"27.5\" y2=\"5.5\"/><line x1=\"4.5\" y1=\"12.5\" x2=\"27.5\" y2=\"12.5\"/><line x1=\"4.5\" y1=\"19.5\" x2=\"27.5\" y2=\"19.5\"/><line x1=\"4.5\" y1=\"26.5\" x2=\"27.5\" y2=\"26.5\"/><circle cx=\"19.5\" cy=\"12.5\" r=\"2.5\" fill=\"#f08a1d\" stroke-width=\"0\"/></svg>",
@@ -14268,9 +14271,9 @@ const tagDefinitions = {
   morph:{name:'Morph Tag',text:'M',fields:{mode:['Solve','Modelling','Edit']}}
 };
 const materials = [{uid:crypto.randomUUID().replaceAll('-',''),name:'Default',h:0,s:0,l:50,emm:0,rough:50,metal:0,opac:0,bump:0,heightBump:0,map:null}];
-const tabs = {tabPlugins:'pluginsPanel',tabAttributes:'attributesPanel',tabObjects:'objectsPanel',tabMaterialMgr:'matEditorPanel',tabMaterials:'materialsPanel',tabTextures:'texturesPanel'};
+const tabs = {tabPlugins:'pluginsPanel',tabShaders:'shadersPanel',tabAttributes:'attributesPanel',tabObjects:'objectsPanel',tabMaterialMgr:'matEditorPanel',tabMaterials:'materialsPanel',tabTextures:'texturesPanel'};
 icons.newFile='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="square" stroke-linejoin="miter"><path d="M9.5 6.5h8l5 5v14h-13zM17.5 6.5v5h5M13.5 18.5h6M16.5 15.5v6"/></svg>';
-const buttonIcons = {tabPlugins:'ICO_PLUGINS',
+const buttonIcons = {tabPlugins:'ICO_PLUGINS',tabShaders:'ICO_SHADERS',
   btnNew:'newFile',btnOpen:'ICO_OPEN',btnSave:'ICO_SAVE',btnShare:'share',btnDownload:'ICO_DOWNLOAD',btnBrowser:'ICO_BROWSER_UNFOLDED',
   tabAttributes:'ICO_TAB_ATTRIBUTES',tabObjects:'ICO_TAB_OBJECTS',tabMaterialMgr:'ICO_TAB_MATERIAL_MGR',tabMaterials:'ICO_TAB_MATERIALS',tabTextures:'ICO_TAB_TEXTURES',tabAddMaterial:'ICO_TAB_ADD_TEXTURE',tabDelUnused:'ICO_TAB_DELETE_UNUSED',
   btnControl:'ICO_CONTROL',btnInstance:'ICO_INSTANCE',btnBoolean:'ICO_BOOLEAN',btnUnite:'ICO_UNITE',btnSymmetry:'ICO_SYMMETRY',btnCloner:'ICO_CLONER',btnRender:'camera',btnInfinite:'light',btnVertexMode:'ICO_MODE_VERTEX',btnEdgeMode:'ICO_MODE_EDGE',btnPolygonMode:'ICO_MODE_FACE',btnSpline:'ICO_SPLINE',btnExtrude:'ICO_EXTRUDE',btnLathe:'ICO_LATHE',btnSweep:'ICO_SWEEP',btnSplinePatch:'ICO_SPLINE_PATCH',
