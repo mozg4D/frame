@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 00:16">
+<meta name="frame-version" content="2026 21 nov 00:22">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -197,7 +197,7 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 <div id="panels">
 <div id="attributesPanel" class="panel-content" style="display:none"><div id="attrContent"></div></div>
 <div id="pluginsPanel" class="panel-content" style="display:none"><div class="obj-lib-grid" id="pluginsGrid"></div></div>
-<div id="shadersPanel" class="panel-content" style="display:none"><div class="attr-row"><button type="button" id="btnEdgeAngles" class="attr-btn" title="Color a polygon surface by the unsigned angle between adjacent faces" aria-pressed="false">Edge Angles</button><output id="edgeAnglesRange" aria-live="polite"></output></div></div>
+<div id="shadersPanel" class="panel-content" style="display:none"><div class="obj-lib-grid"><button type="button" id="shaderCurvature" class="obj-lib-item" aria-label="Curvature" title="Curvature" style="cursor:grab;touch-action:none"></button></div></div>
 <div id="objectsPanel" class="panel-content" style="display:none"></div>
 <div id="matEditorPanel" class="panel-content" style="display:none">
 <div id="matEditorContent">
@@ -15363,7 +15363,40 @@ for(const [i,id]of ['px','rx','sx','py','ry','sy','pz','rz','sz'].entries()){
 function refreshTabActions(){$('tabAddMaterial').style.display=activeTab==='tabMaterialMgr'?'':'none';$('tabDelUnused').style.display=activeTab==='tabMaterials'&&(materialCleanupPlan().toDelete.size||nodes.some(n=>n.tags.some(t=>t.kind==='material'&&t.mask)))?'':'none';}
 function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tabs)){const on=tab===id;$(tab).classList.toggle('on',on);$(tab).setAttribute('role','tab');$(tab).ariaSelected=String(on);$(tab).setAttribute('aria-controls',panel);$(panel).style.display=on?'block':'none';$(panel).setAttribute('role','tabpanel');$(panel).setAttribute('aria-labelledby',tab);}refreshTabActions();if(id==='tabMaterials')selectionArea='materials';else if(id==='tabTextures')selectionArea='textures';else if(id==='tabObjects')selectionArea='objects';if(id==='tabAttributes')renderAttributes();if(id==='tabTextures')renderTextures();if(id==='tabPlugins')FramePlugins.show().catch(fileOperationError);}
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
-$('btnEdgeAngles').onclick=()=>window.frameEngine?.toggleEdgeAngles();
+const curvatureIcon=$('shaderCurvature');
+let curvatureDrag=null,curvatureDropTicket=0;
+curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M5.5 17.5l8.5-9 12.5 6-8.5 9z" fill="#244157" stroke="#64879a" stroke-linejoin="round"/><path d="M5.5 17.5l10-4.5 11 1.5-8.5 9z" fill="#276665" stroke="#69a5a2" stroke-linejoin="round"/><path d="M5.5 17.5l10-4.5 11 1.5" fill="none" stroke="#e59859" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
+function finishCurvatureDrag(e,cancel=false){
+  const g=curvatureDrag;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;
+  curvatureDrag=null;g.row?.classList.remove('material-drop');g.ghost?.remove();
+  if(g.source.hasPointerCapture(g.pointerId))g.source.releasePointerCapture(g.pointerId);
+  if(cancel||!g.ghost)return;
+  const row=curvatureDropRow(e),n=row&&node(row.dataset.id),engine=window.frameEngine,ticket=++curvatureDropTicket;
+  if(!engine?.renderer)return;
+  if(n){engine.dropCurvature(n.nativeHash);return;}
+  if(frameViewportAt(e.clientX,e.clientY,e.target.ownerDocument)===null)return;
+  engine.materialDropTarget(e.clientX,e.clientY).then(hash=>{if(hash&&ticket===curvatureDropTicket)engine.dropCurvature(hash);}).catch(()=>{});
+}
+curvatureIcon.onpointerdown=e=>{
+  if(e.button!==0||curvatureDrag)return;
+  e.preventDefault();curvatureDropTicket++;curvatureIcon.setPointerCapture(e.pointerId);
+  curvatureDrag={pointerId:e.pointerId,source:curvatureIcon,x:e.clientX,y:e.clientY,ghost:null,row:null};
+};
+FrameViewWindows.onDocument('pointermove',e=>{
+  const g=curvatureDrag;if(!g||e.pointerId!==g.pointerId)return;
+  if(!g.ghost){if(Math.hypot(e.clientX-g.x,e.clientY-g.y)<=3)return;
+    const ghost=g.source.firstElementChild.cloneNode(true);
+    ghost.style.cssText='position:fixed;z-index:100;pointer-events:none;opacity:.85';g.ghost=ghost;document.body.append(ghost);
+  }
+  const row=curvatureDropRow(e);if(row!==g.row){g.row?.classList.remove('material-drop');g.row=row;row?.classList.add('material-drop');}
+  g.ghost.style.left=e.clientX+10+'px';g.ghost.style.top=e.clientY+10+'px';e.preventDefault();
+});
+FrameViewWindows.onDocument('pointerup',e=>finishCurvatureDrag(e));
+FrameViewWindows.onDocument('pointercancel',e=>finishCurvatureDrag(e,true));
+FrameViewWindows.onDocument('lostpointercapture',e=>finishCurvatureDrag(e,true));
+FrameViewWindows.onWindow('blur',()=>finishCurvatureDrag({},true));
+FrameViewWindows.onDocument('keydown',e=>{if(e.key==='Escape'&&curvatureDrag){finishCurvatureDrag(e,true);e.preventDefault();}});
 
 function closeMenu(){if($('menu').dataset.owner==='camera-tools')$('btnRender').setAttribute('aria-expanded','false');$('menu').hidden=true;delete $('menu').dataset.owner;}
 let frameMenuPress=null,frameMenuReleased=null;
@@ -21232,13 +21265,9 @@ function frameBendAngles(vertices,indices,metric){
       const terms=[d(0,0),d(0,3),d(0,6),d(3,3),d(3,6),d(6,6)],scale=Math.max(terms[0],terms[3],terms[5])||1;
       return {a,key:terms.map(t=>Math.round(t/scale*1e9)).join(':')};
     }
-    function bendStatus(text,pressed){
-      const b=$('btnEdgeAngles');b.ariaPressed=String(pressed);b.classList.toggle('on',pressed);
-      $('edgeAnglesRange').textContent=text;
-    }
     function retireBend(){
       if(!bendPreview)return;
-      const old=bendPreview;bendPreview=null;old.cancel?.();if(old.buffer)releaseGPU(old.buffer);bendStatus('',false);
+      const old=bendPreview;bendPreview=null;old.cancel?.();if(old.buffer)releaseGPU(old.buffer);
     }
     function bendValid(mesh){
       const b=bendPreview;return !!(b&&b.scene===scene&&b.renderer===renderer&&b.buffer&&b.mesh===mesh&&b.revision===(mesh.geometryRevision||0)&&b.positions===mesh.positions&&b.indices===mesh.indices&&b.metricKey===bendMetric(mesh).key);
@@ -21302,9 +21331,8 @@ function frameBendAngles(vertices,indices,metric){
         try{d.queue.writeBuffer(buffer,0,result.values);group=d.createBindGroup({layout:pipelines.bind,entries:[{binding:0,resource:{buffer}}]});}catch(e){releaseGPU(buffer);throw e;}
         if(b.buffer)releaseGPU(b.buffer);
         Object.assign(b,{mesh,positions,indices,revision,buffer,group,pipelines:pipelines.p,metricKey:key,maxDegrees:result.maxDegrees});
-        bendStatus('0° – '+(result.maxDegrees<1e-4?'0':+result.maxDegrees.toFixed(1))+'°',true);
       })().catch(e=>{
-        if(b===bendPreview){retireBend();bendStatus('Edge angles unavailable',false);fileOperationError(e);}
+        if(b===bendPreview)retireBend();
       }).finally(()=>{b.pending=false;if(b===bendPreview||b.scene===scene)draw(true);});
     }
     function edgeAngleStatus(){
@@ -21316,12 +21344,11 @@ function frameBendAngles(vertices,indices,metric){
       const mesh=scene?.meshes.find(m=>m.hashId===hash);
       if(!renderer||!mesh||mesh.replicaSource||mesh.replicaMatrix||mesh.paged||mesh.parts||!mesh.triangleCount||mesh.triangleCount>150000)throw Error('Select a single polygon surface (up to 150k triangles)');
       if(bendPreview?.hash===hash&&bendPreview.scene===scene&&bendPreview.renderer===renderer)return edgeAngleStatus();
-      retireBend();bendPreview={hash,scene,renderer};bendStatus('Calculating…',true);requestBend();draw(true);return edgeAngleStatus();
+      retireBend();bendPreview={hash,scene,renderer};requestBend();draw(true);return edgeAngleStatus();
     }
-    function toggleEdgeAngles(){
-      const hash=current()?.nativeHash;
-      try{setEdgeAngles(hash,!(bendPreview&&(!hash||bendPreview.hash===hash)));}
-      catch(e){bendStatus(e.message,!!bendPreview);}
+    function dropCurvature(hash){
+      if(!hash)return;
+      try{setEdgeAngles(hash,bendPreview?.hash!==hash);}catch{}
     }
     function readGeometry(hash,{positionsOnly=false}={}){
       const task=editSerial.catch(()=>{}).then(async()=>{const space=scene,mesh=typeof hash==='object'&&hash.replicaSource&&space.meshes.includes(hash.replicaSource)?hash.replicaSource:space.meshes.find(m=>typeof hash==='object'?m===hash:m.hashId===hash);if(!mesh)throw Error('Mesh is unavailable');
@@ -29662,7 +29689,7 @@ function FramePolygonKernel(d){
       documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()});
     }
 
-    const api={toggleEdgeAngles,get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
+    const api={dropCurvature,get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
       pluginHistoryRecords:()=>[...metaUndo,...metaRedo].flatMap(action=>[...action.before?.objects||[],...action.after?.objects||[]].flatMap(o=>Object.values(o.authoring?.recordValues||{}))),retirePluginHistory:()=>{const stack=metaUndo.length?metaUndo:metaRedo;if(!stack.length)return false;releaseMetadataAction(stack.shift());return true;},detachInstances,pluginPivot:hash=>Array.from(objectPivot(hash)),pluginSetPivot:(hash,m)=>{putFrame(hash,'pivot',Float64Array.from(m));notifyTransformUI();draw(true);},pluginMath:FM,pluginWorld:hash=>Array.from(objectWorld(hash)),pluginLocal:hash=>Array.from(objectLocal(hash)),pluginSetLocal:(hash,m)=>{putFrame(hash,'matrix',Float64Array.from(m));syncPoseWorld();},get pluginExporting(){return renderExporting;},
       pluginComponents:(hash,bounds)=>{selectionGeneration++;selectionScope='components';objectSelection=[];selectedMeshes=[];selectedMesh=null;componentPivot=null;measurementCache=coordinateCache=null;selectionBox=bounds?transformedBox(bounds,objectWorld(hash)):null;notifyTransformUI();draw(true);},
       pluginProject:p=>worldScreen(p),pluginView:()=>({index:frameViewKind(viewIndex),instance:viewIndex,depth:renderer.depth,camera:Array.from(new Float32Array(cameraUniform(renderer.width,renderer.height))),rect:(()=>{const r=canvas.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};})()}),
