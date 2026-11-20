@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 01:09">
+<meta name="frame-version" content="2026 21 nov 01:19">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -14267,6 +14267,7 @@ const generatorTypes = ['spline_patch','extrude','lathe','sweep','boolean','unit
 const tagDefinitions = {
   material:{name:'Material',text:'',fields:{}},
   uv:{name:'Imported UV',text:'UV',fields:{}},
+  curvature:{name:'Curvature',text:'C',fields:{}},
   bevel:{name:'Bevel',text:'B',fields:{size:5}},
   morph:{name:'Morph Tag',text:'M',fields:{mode:['Solve','Modelling','Edit']}}
 };
@@ -15099,8 +15100,10 @@ function materialThumbnail(index){
   if(cached&&stamp.length===cached.stamp.length&&stamp.every((v,i)=>v===cached.stamp[i]))return cached.url;
   const canvas=document.createElement('canvas');canvas.width=canvas.height=53;renderMatToCanvas(canvas.getContext('2d',{willReadFrequently:true}),53,53,m);const url=canvas.toDataURL();materialThumbnails.set(key,{stamp,url});return url;
 }
+let frameCurvatureOwners=new Set();
 function renderTree(){
-  const width=$('obScroll').clientWidth,parents=new Set(nodes.map(n=>n.parent)),childCounts=new Map();for(const n of nodes)childCounts.set(n.parent,(childCounts.get(n.parent)||0)+1);measureContext.font=getComputedStyle($('obInner')).font;
+  const curvatureOwners=new Set();
+  const width=$('obScroll').clientWidth,parents=new Set(nodes.map(n=>n.parent)),childCounts=new Map();for(const n of nodes){childCounts.set(n.parent,(childCounts.get(n.parent)||0)+1);if(n.tags.some(t=>t.kind==='curvature'))curvatureOwners.add(n.nativeHash);}frameCurvatureOwners=curvatureOwners;measureContext.font=getComputedStyle($('obInner')).font;
   $('obInner').innerHTML=visibleRows().map(({n,depth})=>{
     const limited=browserChildrenLimited(n,childCounts.get(n.id)||0),hasChildren=parents.has(n.id)||limited,enabled=generatorTypes.includes(n.type)&&n.type!=='instance'||['render','infinite','target'].includes(n.type)||FramePlugins.canDisable(n);
     const nameNeed=measureContext.measureText(n.name).width+4,tagNeed=n.tags.length*17,space=Math.max(0,width-depth*14-48);
@@ -15337,7 +15340,7 @@ function renderAttributes(){
   }
   attributesNumberOwner=n;attributesNumberTag=tag;attributesRefreshPending=false;
   if(frameCurvesRenderAttributes())return;
-  if(!n){content.replaceChildren();return;}
+  if(!n||tag?.kind==='curvature'){content.replaceChildren();return;}
   if(!selectedTag&&(FrameGeometry.bevelAttributes(content,n)||FrameGeometry.attributes(content,n)||window.frameEngine?.polygonAttributes(content,n)))return;
   if(!selectedTag&&[...selected].some(id=>node(id)?.type!==n.type)){content.replaceChildren();return;}
   const values=tag?tag.params:n.params;if(FrameMorph.attributes(content,n,tag))return;if(frameSelectionAttributes(n,tag,content))return;
@@ -15404,7 +15407,7 @@ function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tab
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 const curvatureIcon=$('shaderCurvature');
 let curvatureDrag=null,curvatureDropTicket=0;
-curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><image width="32" height="32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFaklEQVR4nO2WS6xdVRnHf9/ae699Xvecc09v23svRCMOaOwEwagkWIwDRr4GaEQd+EgRw8CBkjggQKKYoCYmCjFIYowkJSYyMDrwMSjigxrTRKCQSnutLZTbe297e557n73XXutzcKql9l5ISQwOuiY72cla32/913/91yfXfeBTvJXDvKXVrwJcBQDiNzXLmL1izAhjXhZQVYUQ0BBA9X8AIIKxKdHc3NviTvf7Ubv5sahuERtNRHhWq/BnP61+58f5U344LKvBgJBnqPdvvPTr5oAIUaNJsnMXdvfCZ5KF+g9rXZlbaDqW7JT5yGFQRiFmzdVYy21/MpTH3Wb5cLk+eMmtr1EN+mhVXTmAJAnJwi7S5UUT1cJDtZ752js6BfvaA25KR+wocpLSA0qVRAzTlONRhz9UO3l+0vGjcxwo18t7i9X1U+7MKj7LgMuPZ0sAk9awi0uk1yxJO/Qf/cFdd+w3wDTPGPb7bLx8kump4/TWXuTGrietGapmjOtYzsy1OOgXeWq6k81zZlKu+wfK1bPfK1497f14dJlHLgOQxGJ3L5Jeew12V/rt2Izu2Zck7I4dLRRrWzQ6O7n+XdfTmmvx1z8eQv7yKz64NMV3LG7ecqLR4ddumUNZj+ysUm5Uh4rTa58tz5xeCVl2Sb1LTWgMcbtD3NtB3LZfiFtyz0KvwbJd49Zojd4wI+mX6Lpj5U8Vh2rXseejt7N08wP84mdP8J7BERbmlHlKrjUZXTtH0UiImtH7k/nu4ZBNvuiK8kn1Fz1xSQ4Ya4laLaJm/d0m5RFjhYbxpHgE0EjQRIjqhj2LMbe3/kn7l9/h4OM/5n0f+Tiv7L2DI2cNASFCSU3AJIKxYGq2YxqNn5s0/e5rN34R4MJVk7TWkDg6IEZqCFRqGGvCeSw+jfCNmKqZULVi3FzC0qLlw70TPP/kw3R3LNC+eT8HV2oMNKHQCBREBCKDSWwu1k4QsVsoIBBFiJGHgD0aFK2UYYhZ1RonQ5P1uE7RslTthKpjcV2L66b4ruWWPSX9Z3/Cuf55brnt8xw7BsMqIlSKeoXAM8ANiNyPSLaFAoDyIfXhbvUBrSCUkJeGf/gWR32bI6HL8ajNRqPJqF0n69TIuimjdp21WhNZ7vK3k0/zwvETfONLdxP+vkEolOB4RCt/q/rqJVQvuQkXTahaV189pq4ULSpCEeGnisRwVixH0g4DTVg1dXZIQUsqLAFVKDRiqAkbIeXVXp3fnz7GM4+dIotTdKr3hkIfDEVJKArUuW0BnLrytjCdvtPn2V5Jk/dKLPu8sIzCZpUwTtu8Ejdoi6MpnoSAAgURY40ZhISJi/ApPBcUJfmmn+iDIXf4yYQwzQmu3PYaVlq6lZBnK35sfytxjEhTVM2N6uXTxsnnQiG9MknYjBMkAiP8R9HgQSsllDqTvdADIdf7fFZRDUf48YiQZTMFtgFAg8fn2cyMIhCCRr55WF182JTcZxK9SxL5usQsiJGZbwCCop6Zb5wSSn0ulLo/ZKX68Rg/Gs4ApvkbJyGAsSmm2SRqtmbfehNTSzHWILHMS8S3MHIncsHEAfTfEE6zULibwnR61E8mhGw8kz+bbPk6bvkch7JAQ0CdwxQFoZ5j0homTZEkOS9x9GUx5glEforydlUF79GqIpTlV0MxPRqmU0KeE6YZoSgghK1Kbd8PaOXwk4pQFpg8m4WUTZA4QeIYjHlaRG5Q5Udo+ITOAH6jzj2qZUEoS7QseW3sXhHAjELRssQ7R8hzJI4uhFUExiAifeCTGsJXCOF+9f5O9ZWq99vu+L/H6zck286Sy/+p9oDNK13qzfWEW/d9V1wc/g+64qsAVwH+BTpR2QOnR5tPAAAAAElFTkSuQmCC"/></svg>';
+curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="frameCurvatureSurface"><path d="M2.5 18.02C2.96 17.36 4.33 15.26 5.24 14.05C6.15 12.84 7.07 11.71 7.98 10.77C8.89 9.83 9.81 9.08 10.72 8.41C11.63 7.74 13 7.03 13.46 6.75C14.13 6.86 16.13 7.07 17.47 7.4C18.81 7.74 20.14 8.15 21.48 8.75C22.82 9.35 24.15 10.15 25.49 11.02C26.83 11.89 28.83 13.49 29.5 13.98C29.04 14.26 27.67 14.97 26.76 15.64C25.85 16.31 24.93 17.06 24.02 18C23.11 18.94 22.19 20.07 21.28 21.28C20.37 22.49 19 24.59 18.54 25.25C17.87 24.76 15.87 23.16 14.53 22.29C13.19 21.42 11.86 20.62 10.52 20.02C9.18 19.42 7.85 19.01 6.51 18.67C5.17 18.34 3.17 18.13 2.5 18.02Z"/></clipPath></defs><path fill="#24445f" d="M2.5 18.02C2.96 17.36 4.33 15.26 5.24 14.05C6.15 12.84 7.07 11.71 7.98 10.77C8.89 9.83 9.81 9.08 10.72 8.41C11.63 7.74 13 7.03 13.46 6.75C14.13 6.86 16.13 7.07 17.47 7.4C18.81 7.74 20.14 8.15 21.48 8.75C22.82 9.35 24.15 10.15 25.49 11.02C26.83 11.89 28.83 13.49 29.5 13.98C29.04 14.26 27.67 14.97 26.76 15.64C25.85 16.31 24.93 17.06 24.02 18C23.11 18.94 22.19 20.07 21.28 21.28C20.37 22.49 19 24.59 18.54 25.25C17.87 24.76 15.87 23.16 14.53 22.29C13.19 21.42 11.86 20.62 10.52 20.02C9.18 19.42 7.85 19.01 6.51 18.67C5.17 18.34 3.17 18.13 2.5 18.02Z"/><g clip-path="url(#frameCurvatureSurface)"><path fill="#285673" d="M23.16 8.22C25.63 9.33 27.93 11.7 28.48 13.72C29.03 15.73 28.17 18.57 26.48 20.31C24.8 22.05 21.29 23.69 18.35 24.13C15.41 24.57 11.31 24.06 8.84 22.95C6.37 21.84 4.07 19.47 3.52 17.45C2.97 15.44 3.83 12.59 5.52 10.86C7.2 9.12 10.71 7.47 13.65 7.03C16.59 6.59 20.69 7.1 23.16 8.22Z"/><path fill="#2c6886" d="M22.71 8.36C25.02 9.4 27.16 11.62 27.68 13.51C28.2 15.4 27.39 18.06 25.81 19.68C24.23 21.31 20.95 22.85 18.2 23.26C15.44 23.67 11.61 23.2 9.29 22.15C6.98 21.11 4.84 18.89 4.32 17.01C3.8 15.12 4.61 12.46 6.19 10.83C7.77 9.21 11.05 7.67 13.8 7.25C16.56 6.84 20.39 7.32 22.71 8.36Z"/><path fill="#317895" d="M22.29 8.49C24.45 9.47 26.47 11.55 26.95 13.32C27.44 15.09 26.68 17.58 25.2 19.11C23.72 20.63 20.64 22.08 18.06 22.46C15.48 22.85 11.88 22.4 9.71 21.42C7.55 20.45 5.53 18.37 5.05 16.6C4.56 14.83 5.32 12.34 6.8 10.81C8.28 9.29 11.36 7.84 13.94 7.46C16.52 7.07 20.12 7.52 22.29 8.49Z"/><path fill="#348497" d="M21.89 8.62C23.92 9.54 25.81 11.48 26.26 13.14C26.72 14.8 26.01 17.14 24.62 18.56C23.23 19.99 20.35 21.35 17.93 21.71C15.51 22.07 12.14 21.65 10.11 20.73C8.08 19.82 6.19 17.87 5.74 16.21C5.28 14.56 5.99 12.22 7.38 10.79C8.77 9.36 11.65 8.01 14.07 7.65C16.49 7.28 19.86 7.7 21.89 8.62Z"/><path fill="#378f98" d="M21.51 8.74C23.41 9.6 25.17 11.42 25.6 12.97C26.02 14.52 25.36 16.71 24.06 18.04C22.77 19.38 20.07 20.65 17.81 20.98C15.54 21.32 12.39 20.93 10.49 20.07C8.59 19.22 6.83 17.39 6.4 15.84C5.98 14.29 6.64 12.11 7.94 10.77C9.23 9.44 11.93 8.17 14.19 7.83C16.46 7.49 19.61 7.88 21.51 8.74Z"/><path fill="#3b9a99" d="M21.14 8.86C22.91 9.66 24.56 11.36 24.95 12.81C25.35 14.25 24.74 16.29 23.52 17.54C22.31 18.78 19.8 19.97 17.68 20.28C15.57 20.6 12.63 20.23 10.86 19.43C9.09 18.63 7.44 16.93 7.05 15.49C6.65 14.04 7.26 12 8.48 10.75C9.69 9.51 12.2 8.33 14.32 8.01C16.43 7.69 19.37 8.06 21.14 8.86Z"/><path fill="#3ea69b" d="M20.78 8.98C22.43 9.72 23.95 11.3 24.32 12.65C24.69 13.99 24.12 15.88 22.99 17.04C21.87 18.2 19.53 19.3 17.57 19.59C15.6 19.89 12.87 19.55 11.22 18.8C9.57 18.06 8.05 16.48 7.68 15.14C7.31 13.79 7.88 11.9 9.01 10.74C10.13 9.58 12.47 8.48 14.43 8.19C16.4 7.9 19.13 8.24 20.78 8.98Z"/><path fill="#5dab90" d="M20.42 9.1C21.94 9.79 23.35 11.25 23.69 12.49C24.04 13.73 23.51 15.49 22.46 16.56C21.42 17.63 19.26 18.64 17.45 18.92C15.63 19.19 13.11 18.87 11.58 18.19C10.06 17.5 8.65 16.04 8.31 14.79C7.96 13.55 8.49 11.8 9.54 10.73C10.58 9.66 12.74 8.64 14.55 8.37C16.37 8.1 18.89 8.41 20.42 9.1Z"/><path fill="#86ae82" d="M20.06 9.23C21.46 9.86 22.75 11.2 23.07 12.34C23.38 13.48 22.89 15.09 21.94 16.08C20.98 17.06 18.99 17.99 17.33 18.24C15.66 18.49 13.34 18.2 11.94 17.57C10.54 16.94 9.25 15.6 8.93 14.46C8.62 13.32 9.11 11.71 10.06 10.72C11.02 9.74 13.01 8.81 14.67 8.56C16.34 8.31 18.66 8.6 20.06 9.23Z"/><path fill="#b0b173" d="M19.69 9.37C20.96 9.94 22.14 11.16 22.43 12.2C22.71 13.24 22.27 14.7 21.4 15.59C20.53 16.49 18.72 17.34 17.21 17.56C15.69 17.79 13.58 17.53 12.31 16.95C11.04 16.38 9.86 15.16 9.57 14.12C9.29 13.08 9.73 11.62 10.6 10.73C11.47 9.83 13.28 8.98 14.79 8.76C16.31 8.53 18.42 8.79 19.69 9.37Z"/><path fill="#d9b465" d="M19.31 9.52C20.45 10.04 21.51 11.13 21.77 12.06C22.02 12.99 21.63 14.31 20.85 15.11C20.07 15.91 18.45 16.68 17.09 16.88C15.73 17.08 13.83 16.85 12.69 16.33C11.55 15.82 10.49 14.72 10.23 13.79C9.98 12.86 10.37 11.54 11.15 10.74C11.93 9.94 13.55 9.18 14.91 8.97C16.27 8.77 18.17 9.01 19.31 9.52Z"/><path fill="#e2a85e" d="M18.91 9.7C19.92 10.15 20.85 11.12 21.08 11.94C21.3 12.76 20.95 13.91 20.27 14.62C19.58 15.32 18.15 15.99 16.96 16.17C15.76 16.35 14.09 16.15 13.09 15.69C12.08 15.24 11.15 14.27 10.92 13.45C10.7 12.64 11.05 11.48 11.73 10.77C12.42 10.07 13.85 9.4 15.04 9.22C16.24 9.04 17.91 9.25 18.91 9.7Z"/><path fill="#e69b59" d="M18.49 9.91C19.34 10.3 20.14 11.12 20.33 11.82C20.52 12.52 20.22 13.5 19.64 14.11C19.05 14.71 17.83 15.28 16.81 15.43C15.79 15.59 14.37 15.41 13.51 15.02C12.66 14.64 11.86 13.81 11.67 13.12C11.48 12.42 11.78 11.43 12.36 10.83C12.95 10.23 14.17 9.65 15.19 9.5C16.21 9.35 17.63 9.53 18.49 9.91Z"/><path fill="#ea8e54" d="M18 10.19C18.69 10.5 19.33 11.16 19.48 11.72C19.64 12.28 19.4 13.08 18.93 13.56C18.45 14.05 17.48 14.51 16.66 14.63C15.83 14.75 14.69 14.61 14 14.3C13.31 13.99 12.67 13.33 12.52 12.76C12.36 12.2 12.6 11.41 13.07 10.92C13.55 10.44 14.52 9.98 15.34 9.86C16.17 9.73 17.31 9.88 18 10.19Z"/><path fill="#ee814f" d="M17.39 10.59C17.87 10.8 18.32 11.26 18.43 11.66C18.53 12.05 18.37 12.6 18.04 12.94C17.71 13.28 17.03 13.6 16.46 13.68C15.88 13.77 15.09 13.67 14.61 13.45C14.13 13.24 13.68 12.78 13.57 12.38C13.47 11.99 13.63 11.44 13.96 11.1C14.29 10.76 14.97 10.44 15.54 10.36C16.12 10.27 16.91 10.37 17.39 10.59Z"/></g><g fill="none" stroke-linecap="round"><path d="M9.34 10.73C9.71 10.74 10.82 10.71 11.56 10.76C12.3 10.82 13.04 10.89 13.78 11.06C14.52 11.23 15.26 11.47 16 11.8C16.74 12.13 17.48 12.57 18.22 13.06C18.96 13.55 19.7 14.15 20.44 14.76C21.18 15.37 22.29 16.4 22.66 16.73" stroke="#24354b" stroke-opacity=".85" stroke-width="1.94"/><path d="M9.34 10.73C9.71 10.74 10.82 10.71 11.56 10.76C12.3 10.82 13.04 10.89 13.78 11.06C14.52 11.23 15.26 11.47 16 11.8C16.74 12.13 17.48 12.57 18.22 13.06C18.96 13.55 19.7 14.15 20.44 14.76C21.18 15.37 22.29 16.4 22.66 16.73" stroke="#f8fff9" stroke-width="1.17"/></g></svg>';
 function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
 function finishCurvatureDrag(e,cancel=false){
   const g=curvatureDrag;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;
@@ -15414,8 +15417,12 @@ function finishCurvatureDrag(e,cancel=false){
   const row=curvatureDropRow(e),n=row&&node(row.dataset.id),engine=window.frameEngine,ticket=++curvatureDropTicket;
   if(!engine?.renderer)return;
   if(n){engine.dropCurvature(n.nativeHash);return;}
-  if(frameViewportAt(e.clientX,e.clientY,e.target.ownerDocument)===null)return;
-  engine.materialDropTarget(e.clientX,e.clientY).then(hash=>{if(hash&&ticket===curvatureDropTicket)engine.dropCurvature(hash);}).catch(()=>{});
+  const doc=e.target.ownerDocument;
+  if(frameViewportAt(e.clientX,e.clientY,doc)===null)return;
+  const space=engine.scene;
+  engine.materialDropTarget(e.clientX,e.clientY,{surfaceOnly:true,document:doc}).then(hash=>{
+    if(hash&&ticket===curvatureDropTicket&&space===engine.scene)engine.dropCurvature(hash);
+  }).catch(()=>{});
 }
 curvatureIcon.onpointerdown=e=>{
   if(e.button!==0||curvatureDrag)return;
@@ -15426,7 +15433,8 @@ FrameViewWindows.onDocument('pointermove',e=>{
   const g=curvatureDrag;if(!g||e.pointerId!==g.pointerId)return;
   if(!g.ghost){if(Math.hypot(e.clientX-g.x,e.clientY-g.y)<=3)return;
     const ghost=g.source.firstElementChild.cloneNode(true);
-    ghost.style.cssText='position:fixed;z-index:100;pointer-events:none;opacity:.85';g.ghost=ghost;document.body.append(ghost);
+    ghost.innerHTML=ghost.innerHTML.replaceAll('frameCurvature','frameCurvatureDrag');
+    ghost.style.cssText='position:fixed;z-index:100;pointer-events:none;opacity:.85';g.ghost=ghost;g.source.ownerDocument.body.append(ghost);
   }
   const row=curvatureDropRow(e);if(row!==g.row){g.row?.classList.remove('material-drop');g.row=row;row?.classList.add('material-drop');}
   g.ghost.style.left=e.clientX+10+'px';g.ghost.style.top=e.clientY+10+'px';e.preventDefault();
@@ -20183,7 +20191,7 @@ window.frameEngine=(()=>{
     }
     function releaseBorrowed(mesh){for(const b of mesh.borrowed||[]){const q=gpuLeases.get(b);if(q&&!--q.count){gpuLeases.delete(b);if(q.retired)releaseGPU(b);}}mesh.borrowed=[];if(mesh.cowReadToken){mesh.cowReadToken.count--;mesh.cowReadToken=null;}mesh.cowShared=false;}
     function disposeMesh(mesh){clearPatchPreview(mesh);releaseMaterialTable(mesh);for(const b of mesh.buffers)releaseGPU(b);mesh.buffers=[];releaseBorrowed(mesh);}
-    function disposeScene(value){if(bendPreview?.scene===value)retireBend();if(renderer?.orderedReplicas?.scene===value)retireOrderedReplicas(renderer);if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
+    function disposeScene(value){for(const b of bendStates.values())if(b.scene===value)retireBend(b);if(renderer?.orderedReplicas?.scene===value)retireOrderedReplicas(renderer);if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
 
     async function createNormalPacking(device){
       const module=device.createShaderModule({label:'dense shading records',code:computeCommon+`
@@ -21294,22 +21302,30 @@ function frameBendAngles(vertices,indices,metric){
   }
   return {values:output,maxDegrees:max*180/Math.PI};
 }
-    let bendPreview=null;
-    function bendMesh(){
-      if(!scene||!bendPreview||bendPreview.scene!==scene||bendPreview.renderer!==renderer)return null;
-      return scene.meshes.find(m=>m.hashId===bendPreview.hash&&!m.replicaSource&&!m.replicaMatrix&&!m.paged&&!m.parts)||null;
+    const bendStates=new Map(),bendTriangleCap=150000;
+    let lastBendHash=null,bendJob=null,bendOwners=null,bendOwnerScene=null,bendOwnerRenderer=null;
+    function bendMesh(hash){
+      const m=scene?.meshes.find(m=>m.hashId===hash&&!m.replicaSource&&!m.replicaMatrix&&!m.paged&&!m.parts);
+      return m&&m.triangleCount>0&&m.triangleCount<=bendTriangleCap?m:null;
+    }
+    function syncBendTags(){
+      const owners=frameCurvatureOwners;
+      if(bendOwners===owners&&bendOwnerScene===scene&&bendOwnerRenderer===renderer)return;
+      for(const b of bendStates.values())if(!owners.has(b.hash)||b.scene!==scene||b.renderer!==renderer)retireBend(b);
+      bendOwners=owners;bendOwnerScene=scene;bendOwnerRenderer=renderer;
+      if(!scene||!renderer)return;
+      for(const hash of owners)if(!bendStates.has(hash))bendStates.set(hash,{hash,scene,renderer});
     }
     function bendMetric(mesh){
       const m=mesh.frameWorld||FM.I(),a=[m[0],m[1],m[2],m[4],m[5],m[6],m[8],m[9],m[10]],d=(i,j)=>a[i]*a[j]+a[i+1]*a[j+1]+a[i+2]*a[j+2];
       const terms=[d(0,0),d(0,3),d(0,6),d(3,3),d(3,6),d(6,6)],scale=Math.max(terms[0],terms[3],terms[5])||1;
       return {a,key:terms.map(t=>Math.round(t/scale*1e9)).join(':')};
     }
-    function retireBend(){
-      if(!bendPreview)return;
-      const old=bendPreview;bendPreview=null;old.cancel?.();if(old.buffer)releaseGPU(old.buffer);
+    function retireBend(b){
+      bendStates.delete(b.hash);bendOwners=null;b.cancel?.();if(b.buffer)releaseGPU(b.buffer);
     }
-    function bendValid(mesh){
-      const b=bendPreview;return !!(b&&b.scene===scene&&b.renderer===renderer&&b.buffer&&b.mesh===mesh&&b.revision===(mesh.geometryRevision||0)&&b.positions===mesh.positions&&b.indices===mesh.indices&&b.metricKey===bendMetric(mesh).key);
+    function bendValid(mesh,b=bendStates.get(mesh.hashId)){
+      return !!(b&&b.scene===scene&&b.renderer===renderer&&b.buffer&&b.mesh===mesh&&b.revision===(mesh.geometryRevision||0)&&b.positions===mesh.positions&&b.indices===mesh.indices&&b.metricKey===bendMetric(mesh).key);
     }
     function beginBendPipelines(r){
       if(r.bendPipelines)return r.bendPipelines;
@@ -21356,38 +21372,57 @@ function frameBendAngles(vertices,indices,metric){
       });
     }
     function requestBend(){
-      const b=bendPreview;if(!b||b.pending)return;
-      const mesh=bendMesh();
-      if(!mesh||!mesh.triangleCount||mesh.triangleCount>150000){retireBend();return;}
-      if(bendValid(mesh))return;
-      b.pending=true;const {a,key}=bendMetric(mesh),{positions,indices}=mesh,revision=mesh.geometryRevision||0;
-      (async()=>{
-        const raw=await readGeometry(mesh);if(b!==bendPreview)return;
-        const [result,pipelines]=await Promise.all([bendFit(b,raw,a),beginBendPipelines(b.renderer)]);
-        if(b!==bendPreview)return;
-        if(bendMesh()!==mesh||positions!==mesh.positions||indices!==mesh.indices||revision!==(mesh.geometryRevision||0)||key!==bendMetric(mesh).key)return;
-        const d=b.renderer.device,buffer=makeGPUBuffer(d,{label:'Edge angles per face',size:result.values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});let group;
-        try{d.queue.writeBuffer(buffer,0,result.values);group=d.createBindGroup({layout:pipelines.bind,entries:[{binding:0,resource:{buffer}}]});}catch(e){releaseGPU(buffer);throw e;}
-        if(b.buffer)releaseGPU(b.buffer);
-        Object.assign(b,{mesh,positions,indices,revision,buffer,group,pipelines:pipelines.p,metricKey:key,maxDegrees:result.maxDegrees});
-      })().catch(e=>{
-        if(b===bendPreview)retireBend();
-      }).finally(()=>{b.pending=false;if(b===bendPreview||b.scene===scene)draw(true);});
+      if(bendJob)return;
+      for(const b of bendStates.values()){
+        const mesh=bendMesh(b.hash);
+        if(!mesh){if(b.buffer){releaseGPU(b.buffer);Object.assign(b,{mesh:null,positions:null,indices:null,buffer:null,group:null});}b.failed=null;continue;}
+        if(bendValid(mesh,b))continue;
+        const {a,key}=bendMetric(mesh),{positions,indices}=mesh,revision=mesh.geometryRevision||0;
+        const f=b.failed;if(f&&f.positions===positions&&f.indices===indices&&f.revision===revision&&f.key===key)continue;
+        bendJob=b;b.pending=true;
+        (async()=>{
+          const raw=await readGeometry(mesh);if(bendStates.get(b.hash)!==b)return;
+          const [result,pipelines]=await Promise.all([bendFit(b,raw,a),beginBendPipelines(b.renderer)]);
+          if(bendStates.get(b.hash)!==b)return;
+          if(bendMesh(b.hash)!==mesh||positions!==mesh.positions||indices!==mesh.indices||revision!==(mesh.geometryRevision||0)||key!==bendMetric(mesh).key)return;
+          const d=b.renderer.device,buffer=makeGPUBuffer(d,{label:'Edge angles per face',size:result.values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});let group;
+          try{d.queue.writeBuffer(buffer,0,result.values);group=d.createBindGroup({layout:pipelines.bind,entries:[{binding:0,resource:{buffer}}]});}catch(e){releaseGPU(buffer);throw e;}
+          if(b.buffer)releaseGPU(b.buffer);
+          Object.assign(b,{mesh,positions,indices,revision,buffer,group,pipelines:pipelines.p,metricKey:key,maxDegrees:result.maxDegrees,failed:null});
+        })().catch(()=>{
+          if(bendStates.get(b.hash)===b)b.failed={positions,indices,revision,key};
+        }).finally(()=>{b.pending=false;bendJob=null;if(bendStates.size||b.scene===scene)draw(true);});
+        break;
+      }
     }
-    function edgeAngleStatus(){
-      const b=bendPreview;
-      return {enabled:!!b,id:b?.hash??null,pending:!!b?.pending,maxDegrees:b?.maxDegrees??null};
+    function edgeAngleStatus(hash){
+      syncBendTags();
+      const b=hash?bendStates.get(hash):bendStates.get(lastBendHash)||bendStates.values().next().value,mesh=b&&bendMesh(b.hash),valid=mesh&&bendValid(mesh,b);
+      return {enabled:!!b,id:b?.hash??null,pending:!!(b?.pending||mesh&&!valid&&!b.failed),maxDegrees:valid?b.maxDegrees:null};
     }
     function setEdgeAngles(hash,enabled){
-      if(!enabled){retireBend();draw(true);return edgeAngleStatus();}
-      const mesh=scene?.meshes.find(m=>m.hashId===hash);
-      if(!renderer||!mesh||mesh.replicaSource||mesh.replicaMatrix||mesh.paged||mesh.parts||!mesh.triangleCount||mesh.triangleCount>150000)throw Error('Select a single polygon surface (up to 150k triangles)');
-      if(bendPreview?.hash===hash&&bendPreview.scene===scene&&bendPreview.renderer===renderer)return edgeAngleStatus();
-      retireBend();bendPreview={hash,scene,renderer};requestBend();draw(true);return edgeAngleStatus();
+      const n=hash&&frameNodeByHash(hash),tagged=!!n?.tags.some(t=>t.kind==='curvature');
+      if(enabled&&!tagged&&(!n||!renderer||!bendMesh(hash)))throw Error('Choose a single polygon surface (up to 150k triangles)');
+      if(!n||enabled===tagged)return edgeAngleStatus(hash);
+      commit(()=>{
+        if(enabled)n.tags.push({kind:'curvature',uid:FrameHash.newId(),params:{}});
+        else{
+          // Remove through the native tag selection bookkeeping.
+          const tagUIDs=new Set([...selectedTags].filter(k=>k.startsWith(n.id+':')).map(k=>n.tags[+k.split(':')[1]]?.uid));
+          const selectedUID=selectedTag?.owner===n.id?n.tags[selectedTag.index]?.uid:null;
+          n.tags=n.tags.filter(t=>t.kind!=='curvature');
+          for(const k of selectedTags)if(k.startsWith(n.id+':'))selectedTags.delete(k);
+          for(const [i,t] of n.tags.entries())if(tagUIDs.has(t.uid))selectedTags.add(tagKey(n.id,i));
+          if(selectedUID){const i=n.tags.findIndex(t=>t.uid===selectedUID);selectedTag=i<0?null:{owner:n.id,index:i};}
+          if(anchorTag?.owner===n.id)anchorTag=null;
+        }
+      });
+      if(enabled)lastBendHash=hash;
+      syncBendTags();requestBend();draw(true);return edgeAngleStatus(hash);
     }
     function dropCurvature(hash){
       if(!hash)return;
-      try{setEdgeAngles(hash,bendPreview?.hash!==hash);}catch{}
+      try{setEdgeAngles(hash,!edgeAngleStatus(hash).enabled);}catch{}
     }
     function readGeometry(hash,{positionsOnly=false}={}){
       const task=editSerial.catch(()=>{}).then(async()=>{const space=scene,mesh=typeof hash==='object'&&hash.replicaSource&&space.meshes.includes(hash.replicaSource)?hash.replicaSource:space.meshes.find(m=>typeof hash==='object'?m===hash:m.hashId===hash);if(!mesh)throw Error('Mesh is unavailable');
@@ -22337,9 +22372,10 @@ function frameBendAngles(vertices,indices,metric){
     function emptyMaterialMasks(){const task=async()=>{await selectionQueue;await editSerial;const empty=[],cache=new Map();for(const n of nodes){const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);if(!mesh)continue;for(const tag of n.tags){if(tag.kind!=='material'||!tag.mask)continue;const set=polygonSet(tag.mask);if(!set)continue;let words=cache.get(set.resource);if(!words){words=new Uint32Array((await nativeReadGPU(renderer,set.resource,set.count)).buffer);cache.set(set.resource,words);}const count=Math.min(mesh.triangleCount,set.byteLength*8),full=count>>5,tail=count&31;let used=false;for(let w=0;w<full&&!used;w++)used=words[w]!==0;if(tail)used ||= !!(words[full]&(2**tail-1));if(!used&&nodes.includes(n)&&n.tags.includes(tag)&&tag.mask===set.token)empty.push(tag.uid);}}return empty;};return appearanceQueue=appearanceQueue.catch(()=>{}).then(task);}
     function copyPolygonSet(from,to){const set=polygonSet(from);if(!set)return;const resource=duplicateResource(renderer,set.resource,'copied polygon set'),encoder=renderer.device.createCommandEncoder();copyResource(encoder,set.resource,resource);renderer.device.queue.submit([encoder.finish()]);return setPolygonRecord(to,resource,set.byteLength);}
 
-    async function materialDropTarget(x,y){const plugin=await FramePlugins.dispatch('materialHit',x,y);if(plugin)return plugin;const cloud=pickCloud(x,y);if(cloud)return cloud;
-      const index=frameViewportAt(x,y);if(index===null)return null;if(!activateFrameView(index)||!scene||nativeIOBusy)return null;
-      await draw(false);const gpu=renderer,space=scene,preferred=elementMode==='polygon'?currentSelectionMeshes().filter(m=>editableComponentMesh(m)&&nodes.some(n=>n.nativeHash===m.hashId&&(selected.has(n.id)||selectedTag?.owner===n.id))):null,pick=createRayPick(gpu,space,cameraRay(x,y),preferred?.length?preferred:null);try{const e=gpu.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);gpu.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const face=new Uint32Array(pick.read.getMappedRange())[1];pick.read.unmap();if(space!==scene)return null;return space.meshes.find(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount)?.hashId||null;}finally{releaseGPU(pick);}
+    async function materialDropTarget(x,y,{surfaceOnly=false,document:doc}={}){
+      if(!surfaceOnly){const plugin=await FramePlugins.dispatch('materialHit',x,y);if(plugin)return plugin;const cloud=pickCloud(x,y);if(cloud)return cloud;}
+      const index=frameViewportAt(x,y,doc);if(index===null)return null;if(!activateFrameView(index)||!scene||nativeIOBusy)return null;
+      await draw(false);const gpu=renderer,space=scene,preferred=!surfaceOnly&&elementMode==='polygon'?currentSelectionMeshes().filter(m=>editableComponentMesh(m)&&nodes.some(n=>n.nativeHash===m.hashId&&(selected.has(n.id)||selectedTag?.owner===n.id))):null,pick=createRayPick(gpu,space,cameraRay(x,y),preferred?.length?preferred:null);try{const e=gpu.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);gpu.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const face=new Uint32Array(pick.read.getMappedRange())[1];pick.read.unmap();if(space!==scene)return null;return space.meshes.find(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount)?.hashId||null;}finally{releaseGPU(pick);}
     }
     async function decodeAppearancePlan(read,map,objects,records){
       const {K,T}=FrameHash,before=new Set(records.keys()),library=await read(K.materials,T.ids),assets=await read(K.assets,T.ids),faces=[],uvs=[],tagOwners=new Set(),objectIDs=new Set(objects.map(o=>o.hash)),limit=ids=>ids&&ids.length<=100000&&new Set(ids).size===ids.length&&ids.every(id=>id!==K.zero&&!objectIDs.has(id));
@@ -23473,7 +23509,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     function opaqueMeshDraw(r,mesh,state={parts:[]},bundle=false){
       if(bendValid(mesh)){
-        const b=bendPreview,wire=polygonWire(mesh),key=[!!frameViewKind(viewIndex),!!mesh.posed,wire,wire&&!classifiedSurfaceWire(mesh)].join(':'),pipeline=b.pipelines.get(key);
+        const b=bendStates.get(mesh.hashId),wire=polygonWire(mesh),key=[!!frameViewKind(viewIndex),!!mesh.posed,wire,wire&&!classifiedSurfaceWire(mesh)].join(':'),pipeline=b.pipelines.get(key);
         if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);
         const group=mesh.shadingBindGroup,prev=state.parts[0],changed=!state.active||state.pipeline!==pipeline||state.library!==b.group||state.indexed||state.filter||prev?.group!==group||prev?.count!==mesh.count;
         Object.assign(state,{active:true,pipeline,library:b.group,indexed:false,filter:null,materialGuard:null,parts:[{part:mesh,group,indices:mesh.renderIndices,count:mesh.count}]});
@@ -23877,7 +23913,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       return true;
     }
     function transformBackground(r,encoder,width,height,slot=null){
-      if(r.patchPreview||frameNavigation||bendPreview||shadingMode==='off')return null;
+      if(r.patchPreview||frameNavigation||bendStates.size||shadingMode==='off')return null;
       const moving=movingMeshes();if(!moving?.size||scene.meshes.some(m=>materialTransparent(m)))return null;
       // Touching meshes stay in scene order, including coplanar surface/wire ties.
       const epsilon=Math.max(...scene.boundsMax.map((n,i)=>n-scene.boundsMin[i]))*1e-6;if(!expandTransformTouching(scene.meshes,moving,epsilon))return null;
@@ -24455,7 +24491,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function renderFrameNow(){
       if(splineLoadBatch)return;
-      if(bendPreview&&!gizmoSession&&!coreNumeric&&!editDrag)requestBend();
+      syncBendTags();
+      if(bendStates.size&&!gizmoSession&&!coreNumeric&&!editDrag)requestBend();
       const cpuStart=performance.now();flushReplicaPublication();flushTransform();if(!frameNavigation?.ready)syncSplineHighlights();if(!frameNavigation||frameNavigation.camera)syncCameraView();FrameSpline.drawDraft();if(!frameNavigation?.ready||frameNavigation.helpers)drawLightHelpers();drawMotionPaths();updateHandles();if(renderer?.materialState?.oit&&scene&&!(frameNavigation?.transparent??scene.meshes.some(m=>materialTransparent(m,true))))clearMaterialTransparency(renderer);if(!['wireframe','isoparms'].includes(shadingMode))clearWirePixels(renderer);if(renderer?.transformBackgrounds?.size&&!movingMeshes())clearTransformBackgrounds(renderer);
       if(renderer&&!renderer.assemblyViewsReady&&scene?.meshes.length>=256)warmAssemblyViews(renderer);
       if(renderer&&(frameNavigation?.posed??scene?.meshes.some(m=>m.posed))){let wait=false;if((!single||FrameViewWindows.size||!frameViewKind(viewIndex))&&!renderer.posed){posedPipelines(renderer,false).catch(editError);wait=true;}if((!single||FrameViewWindows.size||frameViewKind(viewIndex))&&!renderer.posedOrtho){posedPipelines(renderer,true).catch(editError);wait=true;}if(wait)return;}
@@ -29467,7 +29504,7 @@ function FramePolygonKernel(d){
       dataTool('fields.write','Write metadata and declared non-animated scalar parameters with epoch/revision CAS; preflight every target before one native Undo transaction.',required(obj({writes:{...array(required(obj({owner:dataOwner,field:str,value:dataJSON,epoch:str,revision:dataRevision}),'owner','field','value','epoch','revision'),128),minItems:1}}),'writes'),false,a=>FrameFields.write(a.writes));
 
       register('app.describe','Discover API version, supported object parameters, units and limitations.',obj({}),true,()=>({version,help:{people:$('frame-help-people').textContent,assistants:$('frame-help-ai').textContent},applicationVersion:document.querySelector('meta[name=frame-version]').content,units:'millimetres; rotation degrees; screen CSS pixels',objects:Object.fromEntries([...FramePlugins.list().flatMap(p=>p.types),...FrameSpline.supported,'car','tree','human','group','target','infinite','render','instance','cloner','symmetry'].map(type=>[type,{name:definitions[type][0],parameters:definitions[type][2]}])),notes:['Object hash is stable across HASH save/open; UI id is session-local.','collab.join/claim/events/run coordinate chats with advisory notes, attributed requests and retry receipts; no object locks. Use explicit transform ids or api.batch for selection-dependent commands.','Calls are serialized; ordinary commands settle GPU/editor work, while authorData and fields data-only reads observe current metadata without settlement.','Use the same Undo/Redo as the UI. No arbitrary JavaScript tool.','The diagnostics.mesh geometry digest is explicit and limited to 32 MiB; topology deletion has no such cutoff.','The Plugins tab discovers static manifests; JavaScript loads only for plugins used by the scene.','glTF/GLB 2.0 uses native UV corners and per-primitive material masks; skinning/compressed extensions require baked or decompressed input.','Boolean preserves inherited nonmanifold defects and reports orientation warnings; new seam gaps still reject.','VTK uses legacy POLYDATA surfaces. 3MF supports ZIP/ZIP64, core assemblies, production part references, base materials and uniform colors; texture/gradient properties require baking.','DXF reads ASCII/binary modelspace curves and polygon surfaces, expands blocks and converts physical units/OCS; diagnostics.import lists omitted entities and approximations. Text, ACIS solids and proprietary proxy geometry require outlining or tessellation.','SVG imports native editable XZ contours in Top orientation in millimeters; text, raster images and clipping/filter effects require outlined or baked vectors.']}));
-      register('view.edgeAngles','Toggle a temporary Edge Angles preview for one native polygon surface; no saved materials or geometry are changed. Omit enabled to inspect status.',obj({id:str,enabled:bool}),false,a=>a.enabled===undefined?edgeAngleStatus():setEdgeAngles(a.enabled?(a.id?resolve(a.id):current())?.nativeHash:null,a.enabled));
+      register('view.edgeAngles','Set or inspect the Curvature tag. The heatmap overrides display materials without changing them. Omit enabled to inspect status.',obj({id:str,enabled:bool}),false,a=>{const hash=a.id?resolve(a.id).nativeHash:null;return a.enabled===undefined?edgeAngleStatus(hash):setEdgeAngles(hash||(a.enabled?current()?.nativeHash:edgeAngleStatus().id),a.enabled);});
       register('view.solo','Isolate the selected objects and descendants without changing saved visibility flags. An empty selection cannot enable Solo.',required(obj({enabled:bool}),'enabled'),false,a=>({enabled:frameSetSolo(a.enabled)}));
       register('diagnostics.import','Read the last successful import report, including HASH unavailable plugins/tags and omitted extension records, or interchange omissions and approximations. No geometry readback.',obj({}),true,()=>copy(lastImportReport));
       register('diagnostics.softSelection','Read actual soft influence weights for selected mesh vertex IDs without retaining CPU geometry.',required(obj({id:str,vertices:array(integer,1000)}),'id','vertices'),true,async a=>{const n=resolve(a.id),mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh||a.vertices.some(v=>v>=mesh.vertexCount))fail('INVALID_ARGUMENT','Address mesh vertex IDs');const state=requestSoftOverlay(mesh);await state?.task;if(!state?.weights)return {enabled:polygonTools.soft,influenced:0,weights:a.vertices.map(()=>0)};const d=renderer.device,read=makeGPUBuffer(d,{size:Math.max(4,a.vertices.length*4),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});try{const e=d.createCommandEncoder();a.vertices.forEach((v,i)=>e.copyBufferToBuffer(state.weights,v*4,read,i*4,4));d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const weights=Array.from(new Float32Array(read.getMappedRange()).slice(0,a.vertices.length));read.unmap();return {enabled:true,influenced:state.count,weights};}finally{releaseGPU(read);}});

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-const a=html.indexOf('function frameBendAngles('),b=html.indexOf('    let bendPreview=null;',a);
+const a=html.indexOf('function frameBendAngles('),b=html.indexOf('    const bendStates=',a);
 assert(a>=0&&b>a);
 const fit=Function(html.slice(a,b)+';return frameBendAngles;')();
 const identity=[1,0,0,0,1,0,0,0,1], test=(name,fn)=>{fn();console.log('PASS',name);};
