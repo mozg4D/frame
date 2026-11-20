@@ -40,7 +40,7 @@ function environment(){
  register('scene.fail','fixture',obj({}),false,()=>{throw Object.assign(Error('fixture failure'),{code:'FIXTURE'});});
  register('scene.large','fixture',obj({}),false,()=>{hooks.effects++;return 'x'.repeat(300000);});
  ${fragment('    function createFrameCollaboration(', '    function initializeFrameAI(').replace('clock=Date.now','clock=()=>hooks.time')}
- ${fragment('      async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false)')}
+ ${fragment('      async function call(name,args={},bridgeGuard=')}
  ${fragment('      const collaboration=createFrameCollaboration(', '      const listTools=')}
  return {call,nodes,data:FrameAuthorData,block:v=>nativeIOBusy=v};
  `;

@@ -10,7 +10,7 @@ function fixture(html){
  const camera={id:'camera',type:'render',enabled:true,params:{renderer:'Path tracer'}},button={},device={},actions=[];
  const e={frameNavigation:null,navigationScene:null,nodes:[camera],camera,button,actions,renderer:{device},renderManual:false,renderExportJob:null,pathtracer:{stats:{phase:'preparing'},running:true,hasImage:false,canvas:{style:{display:'none'}},device},lastViewportOutput:null,viewportPreview:false,single:false,viewIndex:0,renderBlocked:'',
   current:()=>camera,$:id=>id==='frameRenderToggle'?button:null,drawLightHelpers:()=>{},drawMotionPaths:()=>{},commit:fn=>fn(),fileOperationError:error=>{throw error;},syncCameraView:()=>{},renderViews:()=>{},activateFrameView:()=>{},FramePlugins:{flush:async()=>{}},draw:async()=>{},window:{frameEngine:null}};
- e.manualGeneration=0;e.scheduleRenderPreview=()=>{};e.label={};e.$=id=>id==='frameRenderToggle'?button:id==='frameRenderSamples'?e.label:null;
+ e.scene={};e.manualGeneration=0;e.manualSceneKey=null;e.cameraSceneRevision=()=>1;e.flushCameraGeometry=async()=>{};e.scheduleRenderPreview=()=>{};e.label={};e.$=id=>id==='frameRenderToggle'?button:id==='frameRenderSamples'?e.label:null;
  vm.createContext(e);
  const names=['frameEnableCamera','toggleCameraRender','cameraRenderBusy','cameraConfig','renderState','renderSampleLabel','renderStatus','renderStart'];
  for(const name of names){const start=html.indexOf((name==='renderStart'?'async ':'')+'function '+name+'(');assert.ok(start>=0,name);const firstEnd=html.indexOf('\n',start);const end=html[firstEnd-1]==='}'?firstEnd:html.indexOf('\n    }',firstEnd)+6;vm.runInContext(html.slice(start,end),e);}
@@ -26,12 +26,13 @@ export async function cameraViewStateChecks(html){
  await test('View restarts a stopped hidden image',()=>{const e=fixture(html);e.pathtracer.running=false;e.pathtracer.hasImage=true;e.toggleCameraRender(e.camera);assert.deepEqual(e.actions,['start']);});
  await test('View enables the selected disabled camera and starts it',()=>{const e=fixture(html),selected={id:'other',type:'render',enabled:false,params:{renderer:'Path tracer'}};e.nodes.push(selected);e.toggleCameraRender(selected);assert.equal(e.camera.enabled,false);assert.equal(selected.enabled,true);assert.deepEqual(e.actions,['start']);});
  await test('Idle and Viewport diagnostics expose the native manual flag',()=>{const e=fixture(html);e.pathtracer=null;assert.equal(e.renderState().manual,false);e.renderManual=true;assert.equal(e.renderState().manual,true);e.camera.params.renderer='Viewport';assert.equal(e.renderState().manual,true);});
- await test('Native renderStart owns the complete awaited operation and releases on success',async()=>{const e=fixture(html);let finish;e.renderTick=async manual=>{assert.equal(manual,true);assert.equal(e.renderManual,true);await new Promise(resolve=>finish=resolve);};const pending=e.renderStart();assert.equal(e.renderManual,true);finish();await pending;assert.equal(e.renderManual,false);});
+ await test('Native renderStart owns the complete awaited operation and releases on success',async()=>{const e=fixture(html);let started,finish;const rendering=new Promise(resolve=>started=resolve);e.renderTick=async manual=>{assert.equal(manual,true);assert.equal(e.renderManual,true);started();await new Promise(resolve=>finish=resolve);};const pending=e.renderStart();assert.equal(e.renderManual,true);await rendering;finish();await pending;assert.equal(e.renderManual,false);});
  await test('Native renderStart releases manual ownership on failure',async()=>{const e=fixture(html);e.renderTick=async()=>{throw Error('test render failure');};await assert.rejects(e.renderStart(),/test render failure/);assert.equal(e.renderManual,false);});
  await test('A superseded manual completion keeps the newer View protected',async()=>{
-   const e=fixture(html),jobs=[];
-   e.renderTick=()=>new Promise(resolve=>jobs.push(resolve));
-   const old=e.renderStart(),current=e.renderStart();
+   const e=fixture(html),jobs=[];let started;
+   e.renderTick=()=>new Promise(resolve=>{jobs.push(resolve);started();});
+   let rendering=new Promise(resolve=>started=resolve);const old=e.renderStart();await rendering;
+   rendering=new Promise(resolve=>started=resolve);const current=e.renderStart();await rendering;
    jobs[0]();await old;assert.equal(e.renderManual,true);
    jobs[1]();await current;assert.equal(e.renderManual,false);
  });

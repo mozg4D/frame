@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 01:29">
+<meta name="frame-version" content="2026 20 nov 01:57">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -13679,7 +13679,12 @@ function frameSelectionRoots(ids,parentOf){
 }
 function treeOrder(parent=null){return children(parent).flatMap(n=>[n.id,...treeOrder(n.id)]);}
 function objectColor(type){const p=frameObjectPalette,plugin=FramePlugins.owner({type});if(plugin)return plugin.manifest.color||p.plugin;return type==='spline_patch'?p.patch:type==='group'?p.group:['instance','cloner','symmetry'].includes(type)?p.distribution:generatorTypes.includes(type)?p.operation:['spline','square','circle','polyhedron','text','helix','gear','pulley'].includes(type)?p.curve:['human','car','tree'].includes(type)?p.asset:type==='render'?p.camera:type==='target'?p.target:type==='infinite'?p.light:type==='mesh'?p.mesh:p.primitive;}
-function add(type){frameObjectSelectionAction();selectionArea='objects';numericSession?.input.blur();numericSession?.finish(true);commit(()=>{const source=node(treeOrder().find(id=>selected.has(id))||focusId),n=create(type);if(isSplineObject(n))window.frameEngine?.initializeSplineCreation(n);if(type==='instance'&&source){n.name=source.name;n.params.object=source.nativeHash;n.creationFrame=window.frameEngine.instanceCreationFrame(source.nativeHash);}if(type==='render')for(const other of nodes)if(other!==n&&other.type==='render')other.enabled=false;selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');$('obScroll').scrollTop=0;}
+function add(type){
+  frameObjectSelectionAction();selectionArea='objects';numericSession?.input.blur();numericSession?.finish(true);
+  if($('frame-engine-canvas').dataset.elementMode!=='object')window.frameEngine?.setViewerMode('element','object');
+  commit(()=>{const source=node(treeOrder().find(id=>selected.has(id))||focusId),n=create(type);if(isSplineObject(n))window.frameEngine?.initializeSplineCreation(n);if(type==='instance'&&source){n.name=source.name;n.params.object=source.nativeHash;n.creationFrame=window.frameEngine.instanceCreationFrame(source.nativeHash);}if(type==='render')for(const other of nodes)if(other!==n&&other.type==='render')other.enabled=false;selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});
+  frameSelectEngineObjects(false);activateTab('tabAttributes');$('obScroll').scrollTop=0;
+}
 function cloneBranch(id,parent,map=new Map()){const original=node(id),list=children(id).map(n=>n.id),copy=structuredClone(original);copy.id='n'+(++serial);map.set(id,copy.id);copy.parent=parent;nodes.push(copy);for(const child of list)cloneBranch(child,copy.id,map);return copy.id;}
 function duplicate(){if(window.frameEngine?.scene)return window.frameEngine.duplicateSelection().catch(fileOperationError);commit(()=>{const ids=roots(selected).map(id=>cloneBranch(id,node(id).parent));selected=new Set(ids);focusId=ids[0];selectedTag=null;});}
 function framePruneRemovedMaterials(before){
@@ -14375,7 +14380,12 @@ for(const host of [$('matList'),$('matName')]){
 }
 FrameViewWindows.onDocument('keydown',hideMaterialNameTip);FrameViewWindows.onWindow('blur',hideMaterialNameTip);
 $('matName').ondblclick=e=>editMaterialName(e.currentTarget,materials[activeMaterial]);
+let materialShelfFrame=0;
+function requestMaterialShelf(){
+  if(!materialShelfFrame)materialShelfFrame=FrameViewWindows.frame(()=>{materialShelfFrame=0;renderMaterials();});
+}
 function renderMaterials(){
+  if(materialShelfFrame){FrameViewWindows.cancelFrame(materialShelfFrame);materialShelfFrame=0;}
   hideMaterialNameTip();
   materialPreviewObserver?.disconnect();
   $('matList').innerHTML=materials.map((m,i)=>!frameMaterialInLibrary(m,i)?'':`<div class="mat-card${selectedMaterials.has(i)?' sel':''}" data-material="${i}" role="button" tabindex="0" aria-pressed="${selectedMaterials.has(i)}" aria-label="${escapeHTML(m.name)} material"><canvas width="53" height="53" aria-label="${escapeHTML(m.name)} preview"></canvas><input aria-label="Material name ${i+1}" value="${escapeHTML(m.name)}" readonly spellcheck="false" autocomplete="off"></div>`).join('');
@@ -14437,7 +14447,7 @@ function syncMaterial(){
   frameSyncMaterialUV();
   for(const button of all('.me-tex-btn')){const slot=button.dataset.map||'map',[field,channel]=frameTextureSlots[slot],id=m[field],asset=frameMaterialAssets.get(id);button.innerHTML=id?'':icons[button.closest('.me-params')?'ICO_TEX_LOAD_SMALL':'ICO_TEX_LOAD'];button.style.backgroundImage=asset?'url("'+asset.url+'")':'';button.dataset.slot=slot;if(id)button.dataset.asset=id;else delete button.dataset.asset;const ch=channel?m[channel]??frameMaterialDefaults[channel]:null;if(id&&ch!==null)button.dataset.channel=['R','G','B','A','L'][ch];else delete button.dataset.channel;button.title=button.ariaLabel=(id?'Remove ':'Load ')+(slot==='map'?'Base color':button.nextElementSibling?.textContent||slot)+' texture';}
 
-  if(all('.mat-card',$('matList')).length!==materials.filter(frameMaterialInLibrary).length)renderMaterials();
+  if(all('.mat-card',$('matList')).length!==materials.filter(frameMaterialInLibrary).length)requestMaterialShelf();
   const card=document.querySelector(`[data-material="${activeMaterial}"] canvas`);if(card)renderMatToCanvas(card.getContext('2d'),53,53,m,false);
   const thumbnail=materialThumbnail(activeMaterial);
   for(const row of all('.ob-row',$('obInner')))for(const chip of all('.ob-tag.material',row))if((node(row.dataset.id)?.tags[+chip.dataset.tag]?.material||0)===activeMaterial)chip.style.backgroundImage=`url(${thumbnail})`;
@@ -17403,8 +17413,18 @@ if(drawing){let target=node(drawing.id);const draft=drawing.draft,before=snapsho
   canvas.addEventListener('contextmenu',e=>{if(window.frameEngine?.navigationMenuSuppressed){e.preventDefault();e.stopImmediatePropagation();return;}if(drawing){stopDraw();e.preventDefault();e.stopImmediatePropagation();return;}selectionArea='viewport';const n=editable(),mode=canvas.dataset.elementMode,h=window.frameEngine.hitSpline(e.clientX,e.clientY,false,false,true),items=[];if(!n)return;if(isActive(n)){const key=h?.vertex||h?.handle;if(mode==='vertex'&&key&&h.hash===n.nativeHash&&!selection().has(key)){edit={hash:h.hash,selection:new Set([key])};refresh();}if(mode==='object')edit=null;let vertices=tangentVertices();if(mode==='object'||!vertices.length&&mode==='vertex')vertices=Object.keys(n.splineData.vertices);items.push(...menuItems(vertices));}if(mode==='edge'||mode==='polygon')items.push(['Toggle Border',()=>command('border'),borderTargets().length>0]);if(mode!=='object')items.push(['Line Cut',()=>window.frameEngine.polygonTool('lineCut')],['Select Connected',()=>window.frameEngine.selectConnected(e.clientX,e.clientY)],['Invert Selection (I)',()=>window.frameEngine.invertSelection().catch(fileOperationError)]);if(['vertex','edge'].includes(mode)&&Object.keys(n.splineData.segments).length)items.push(['Loop Selection',()=>window.frameEngine.polygonTool('loop')]);if(n){const vertices=[...selection()].filter(v=>n.splineData.vertices[v]),eligible=mode==='vertex'&&vertices.length>0&&vertices.length===selection().size&&vertices.every(v=>Object.values(n.splineData.segments).filter(s=>s.a===v||s.b===v).length===2);if(mode!=='vertex'||eligible)items.unshift(['Bevel',()=>FrameGeometry.bevelDialog(n),!!selection().size]);items.unshift(['Outline',()=>FrameGeometry.outlineDialog(),FrameGeometry.outlineSegments(n).length>0]);}if(items.length){e.preventDefault();e.stopImmediatePropagation();showMenu(e.clientX,e.clientY,items);}},true);
   function clearHover(){if(hoverFrame)FrameViewWindows.cancelFrame(hoverFrame);hoverFrame=0;hoverPoint=null;pointerInside=false;window.frameEngine?.hoverSplineAt(-1,-1);}
   function currentHover(){return hoverPoint&&hoverPoint.doc===FrameViewWindows.inputDocument&&frameViewportAt(hoverPoint.x,hoverPoint.y,hoverPoint.doc)===hoverPoint.view;}
-  FrameViewWindows.onDocument('pointermove',e=>{const doc=e.currentTarget,view=frameViewportAt(e.clientX,e.clientY,doc);pointerInside=view!==null;if(!pointerInside){if(hoverPoint?.doc===doc)clearHover();return;}if(e.buttons||isEditing()||!states.size)return;hoverPoint={x:e.clientX,y:e.clientY,ctrl:e.ctrlKey||e.metaKey,doc,view};if(!hoverFrame)hoverFrame=FrameViewWindows.frame(()=>{hoverFrame=0;if(currentHover())window.frameEngine?.hoverSplineAt(hoverPoint.x,hoverPoint.y,hoverPoint.ctrl);else clearHover();});},true);
-  for(const type of ['keydown','keyup'])FrameViewWindows.onWindow(type,e=>{if(['Control','Meta','Shift'].includes(e.key)&&pendingMove&&(edit?.drag?.plan.handles.length||edit?.drag?.plan.free.length)){FrameViewWindows.cancelFrame(moveFrame);moveFrame=0;const p=pendingMove;pendingMove=null;move(p);}if(type==='keyup'&&['Control','Meta'].includes(e.key)&&drawing?.temporary){if(drawDrag)drawing.releasePending=true;else stopDraw();}if(currentHover()&&(e.key==='Control'||e.key==='Meta')){hoverPoint.ctrl=type==='keydown';window.frameEngine?.hoverSplineAt(hoverPoint.x,hoverPoint.y,hoverPoint.ctrl);}});
+  FrameViewWindows.onDocument('pointermove',e=>{
+    const doc=e.currentTarget,view=frameViewportAt(e.clientX,e.clientY,doc);pointerInside=view!==null;
+    if(!pointerInside){if(hoverPoint?.doc===doc)clearHover();return;}
+    if(e.buttons||isEditing()||!states.size&&!(canvas.dataset.elementMode==='vertex'&&current()?.type==='mesh'))return;
+    const previousCtrl=hoverPoint?.ctrl;hoverPoint={x:e.clientX,y:e.clientY,ctrl:(e.ctrlKey||e.metaKey)&&!e.altKey,doc,view};
+    if(!states.size&&!hoverPoint.ctrl&&!previousCtrl)return;
+    if(!hoverFrame)hoverFrame=FrameViewWindows.frame(()=>{hoverFrame=0;if(currentHover())window.frameEngine?.hoverSplineAt(hoverPoint.x,hoverPoint.y,hoverPoint.ctrl);else clearHover();});
+  },true);
+  function clearInsertHover(){if(hoverPoint?.ctrl)clearHover();}
+  FrameViewWindows.onWindow('frame-engine-mode',clearInsertHover);
+  FrameViewWindows.onDocument('pointerdown',clearInsertHover,true);
+  for(const type of ['keydown','keyup'])FrameViewWindows.onWindow(type,e=>{if(['Control','Meta','Shift'].includes(e.key)&&pendingMove&&(edit?.drag?.plan.handles.length||edit?.drag?.plan.free.length)){FrameViewWindows.cancelFrame(moveFrame);moveFrame=0;const p=pendingMove;pendingMove=null;move(p);}if(type==='keyup'&&['Control','Meta'].includes(e.key)&&drawing?.temporary){if(drawDrag)drawing.releasePending=true;else stopDraw();}if(currentHover()&&['Control','Meta','Alt'].includes(e.key)){hoverPoint.ctrl=(e.ctrlKey||e.metaKey)&&!e.altKey;window.frameEngine?.hoverSplineAt(hoverPoint.x,hoverPoint.y,hoverPoint.ctrl);}});
   FrameViewWindows.onDocument('pointerout',e=>{if(!e.relatedTarget&&hoverPoint?.doc===e.currentTarget)clearHover();});
   FrameViewWindows.onWindow('blur',e=>{if(hoverPoint?.doc.defaultView===e.currentTarget)clearHover();});
   FrameViewWindows.onWindow('keydown',e=>{if(e.target.closest?.('input,textarea,[contenteditable],#frame-curves'))return;if(frameShortcutKey(e)==='c'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&([...selected].some(id=>supported.has(node(id)?.type)||['mesh','group','instance','cloner','symmetry','car','tree','human'].includes(node(id)?.type)))){e.preventDefault();e.stopImmediatePropagation();connectObjects(treeOrder().filter(id=>selected.has(id)).map(node)).catch(fileOperationError);return;}if(frameShortcutKey(e)==='f'&&!e.ctrlKey&&supported.has(current()?.type)){e.preventDefault();window.frameEngine.focusSpline(current().nativeHash);return;}if((e.ctrlKey||e.metaKey)&&frameShortcutKey(e)==='a'&&(pointerInside||selectionArea==='viewport')&&editable()?.splineData&&canvas.dataset.elementMode!=='object'){e.preventDefault();e.stopImmediatePropagation();const n=editable();edit={hash:n.nativeHash,selection:new Set(canvas.dataset.elementMode==='polygon'?cells(n.splineData).map((c,i)=>'cell:'+i):Object.keys(canvas.dataset.elementMode==='edge'?n.splineData.segments:n.splineData.vertices))};refresh();return;}if(e.key==='Escape'||e.key==='Enter'){const wasDrawing=!!drawing;if(box)boxEnd(true);if(edit?.drag)up({pointerId:edit.drag.id},true);stopDraw();if(wasDrawing){e.preventDefault();e.stopImmediatePropagation();return;}}if(['Delete','Backspace'].includes(e.key)&&!e.target.closest?.('[data-field]')&&!$('matList').matches(':hover')&&supported.has(current()?.type)){if(!pointerInside||!editable()||canvas.dataset.elementMode==='object'){e.preventDefault();e.stopImmediatePropagation();remove();}else{e.preventDefault();e.stopImmediatePropagation();if(edit?.selection.size)command('delete');}}},true);
@@ -19970,7 +19990,7 @@ window.frameEngine=(()=>{
     }
 
     let pathtracer=null,renderTimer=0,renderManual=false,manualGeneration=0,renderSignature='',renderBlocked='',renderScene=null,renderConfigKey='';
-    let realtimeRequest=null,previewSignature='',renderGeometryRevision=0,renderPose='',motionTimer=0,cameraMoving=false;
+    let realtimeRequest=null,previewSignature='',renderGeometryRevision=0,manualSceneKey=null,renderPose='',motionTimer=0,cameraMoving=false;
     const renderGeometryState=[];
     function renderState(){if(cameraConfig()?.params.renderer==='Viewport')return {renderer:'Viewport',phase:lastViewportOutput||viewportPreview?'complete':'idle',running:false,hasImage:!!lastViewportOutput,visible:viewportPreview,sharedDevice:true,width:lastViewportOutput?.width,height:lastViewportOutput?.height,exportKind:renderExportJob?.kind||null,manual:renderManual};const exporting={exportKind:renderExportJob?.kind||null,manual:renderManual};return pathtracer?{...pathtracer.stats,epoch:pathtracer.epoch,running:pathtracer.running,hasImage:pathtracer.hasImage,visible:!pathtracer.canvas.hidden&&pathtracer.canvas.style.display!=='none',sharedDevice:pathtracer.device===renderer?.device,...exporting}:{phase:'idle',running:false,hasImage:false,sharedDevice:true,...exporting};}
     function renderOverlayActive(){if(['off','wireframe','isoparms'].includes(viewShadings[0]))return false;const s=renderState();return s.running||s.visible||!!s.exportKind;}
@@ -20066,6 +20086,7 @@ window.frameEngine=(()=>{
       if(renderPose&&(renderManual||pathtracer?.running&&!pathtracer.options?.interactivePreview)&&(!renderExporting||drag||wheelBusy||touchNavigation)){
         pauseMovedRender();
       }
+      if(renderManual&&!renderExporting&&manualSceneKey!==null&&pathtracer?.running&&cameraSceneRevision()!==manualSceneKey)pathtracer.stop(false);
       if(cameraMoving){
         if(!(motionTimer||heldPointers.size||touchNavigation||wheelBusy))cameraMoving=false;
         else if(!liveCameraNavigation())return;
@@ -20081,7 +20102,7 @@ window.frameEngine=(()=>{
     function renderStop(hide=true){
       clearTimeout(motionTimer);motionTimer=0;cameraMoving=false;if(hide)renderPose='';
       viewportPreview=false;if(renderExportJob){renderExportJob.cancelled=true;renderExportJob.abort?.();}
-      manualGeneration++;renderManual=false;realtimeRequest=null;previewSignature='';
+      manualGeneration++;renderManual=false;manualSceneKey=null;realtimeRequest=null;previewSignature='';
       // Settings may have changed since the last scheduled render tick.
       const configKey=cameraRenderConfigKey(cameraConfig());
       if(configKey!==renderConfigKey){renderConfigKey=configKey;renderSignature='';}
@@ -20199,6 +20220,12 @@ window.frameEngine=(()=>{
       renderGeometryState.length=at;return renderGeometryRevision;
     }
     function stationaryCamera(){return !(cameraMoving||playing||heldPointers.size||editDrag||gizmoSession||wheelBusy||pendingWheel||FrameSpline.isEditing());}
+    async function flushCameraGeometry(){
+      await objectActionQueue;
+      if(nodes.some(n=>n.type==='instance'&&n.params.file))await FrameFileSources.flush();
+      await loadLibraryObjects();await FrameGeometry.flush();await FrameMorph.flush();
+      await FrameSpline.flush();await replicaQueue;await animationSerial;await appearanceQueue;flushReplicaPublication();
+    }
     async function renderTick(manual=false,exporting=false,saveOwner=0){
       if(!renderer||!scene)return;
       const config=cameraConfig(),configKey=cameraRenderConfigKey(config);
@@ -20213,6 +20240,7 @@ window.frameEngine=(()=>{
       const sceneKey=cameraSceneRevision(),environment={mode:config.params.environment||'default',image:frameEnvironmentURL(config.params['environment image']),distant:0,temperature:6500,angularSize:0,altitude:0,azimuth:0,infiniteLights:(scene.lightObjects||[]).filter(lightShown).map(hash=>{const v=nativeValue(hash,'light')||[100,6500,30];return {direction:FM.unit(FM.point(objectWorld(hash),[-1,0,0],0)),intensity:v[0]/100,color:temperatureRGB(v[1]),angle:v[2]*Math.PI/360};})};
       view.camera.fov=45;updateViewportEnvironment(renderer);environment.lobes=renderer.environment?.sources||[];if(environment.mode==='default')environment.infiniteLights=[];if(environment.mode==='image'&&!environment.image)throw Error('Set the Camera environment image URL');if(environment.infiniteLights.length>16)throw Error('Path tracing supports up to 16 enabled infinite lights');
       const signature=frameValueKey([sceneKey,view,configKey,environment]);
+      if(manual&&!exporting)manualSceneKey=sceneKey;
       const moving=!stationaryCamera();
       const refine=signature===previewSignature&&!moving;
       if(!manual){
@@ -20221,7 +20249,7 @@ window.frameEngine=(()=>{
       }
       renderPose=frameValueKey(view.camera);
       const viewSize=[Math.max(8,Math.round(view.rect.w)),Math.max(8,Math.round(view.rect.h))];
-      const saveView=()=>pathtracer.save('frame-view.png',viewSize,()=>manualGeneration===saveOwner);
+      const saveView=()=>pathtracer.save('frame-view.png',viewSize,()=>manualGeneration===saveOwner&&cameraSceneRevision()===sceneKey);
       if(saveOwner&&pathtracer?.canvas.style.display==='block'&&pathtracer.lastImage?.viewport&&pathtracer.lastImage.viewKey===signature)return saveView();
       renderSignature=signature;renderBlocked=previewSignature='';
       if(!manual&&!realtime){pathtracer?.stop(true);return;}
@@ -20230,7 +20258,7 @@ window.frameEngine=(()=>{
       if(exporting)view.camera.aspect=config.params['resolution x']/config.params['resolution y'];
       const samples=Math.max(1,Math.round(config.params.samples||128));
       const job=pathtracer.start({sceneKey,viewKey:signature,getScene:renderSnapshot,stationary:stationaryCamera,environment,...view,sampleLimit:interactive?Math.min(2,samples):samples,giStrength:1,displayHz:FRAME_FPS,denoise:true,onSamples:count=>{if(current()===config)renderSampleLabel(count,samples);},previewPresentation:!exporting,...saveOwner?{outputSize:viewSize}:exporting?{outputSize:[Math.round(config.params['resolution x']),Math.round(config.params['resolution y'])]}:interactive?{interactivePreview:true,refinementSamples:moving?0:samples,outputSize:[Math.max(8,Math.round(view.rect.w*scale)),Math.max(8,Math.round(view.rect.h*scale))]}:{}});
-      if(!interactive){realtimeRequest=null;await job;if(saveOwner&&manualGeneration===saveOwner&&pathtracer?.completed&&pathtracer.lastImage?.viewKey===signature)await saveView();return;}
+      if(!interactive){realtimeRequest=null;await job;if(saveOwner&&manualGeneration===saveOwner){await flushCameraGeometry();if(manualGeneration===saveOwner&&cameraSceneRevision()===sceneKey&&pathtracer?.completed&&pathtracer.lastImage?.viewKey===signature)await saveView();}return;}
       const tracer=pathtracer,epoch=tracer.epoch;
       realtimeRequest=job;
       try{await job;}finally{
@@ -20317,6 +20345,7 @@ window.frameEngine=(()=>{
       const savedFrame=timelineFrame,wasPlaying=!!playing,started=performance.now();stop();await timelineWork;renderStop();renderManual=renderExporting=true;const job=renderExportJob={kind,cancelled:false},cancelled=new Promise(resolve=>job.abort=resolve),check=()=>{if(job.cancelled)throw new DOMException('Render cancelled','AbortError');};renderStatus();let blob;
       try{
         const first=kind==='image'?savedFrame:start,last=kind==='image'?savedFrame:end;
+        await flushCameraGeometry();check();
         if(kind==='video')await FramePlugins.flush({reset:true});
         for(let frame=kind==='video'?0:first;frame<=last;frame++){
           check();if(kind==='video'){setTimelineFrame(frame);await animationSerial;await FrameMorph.flush();await FrameSpline.flush();syncCameraView();}
@@ -20330,7 +20359,19 @@ window.frameEngine=(()=>{
       }catch(error){if(error.name!=='AbortError')throw error;return {kind,cancelled:true,elapsedMs:performance.now()-started};}finally{if(encoder&&encoder.state!=='closed')encoder.close();renderExportJob=null;renderManual=renderExporting=false;renderStatus();if(kind==='video'){setTimelineFrame(savedFrame);await animationSerial;await FrameMorph.flush();await FrameSpline.flush();syncCameraView();}if(job.cancelled)renderBlocked=renderSignature;else renderSignature='';if(wasPlaying)setTimelinePlaying(true);if(!job.cancelled)scheduleRenderPreview();}
     }
 
-    async function renderStart(saveView=false){if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}if(single&&viewIndex!==0){activateFrameView(0);renderViews();}syncCameraView();const owner=++manualGeneration;renderManual=true;renderBlocked='';renderStatus();try{await renderTick(true,false,saveView?owner:0);return renderState();}finally{if(owner===manualGeneration){renderManual=false;renderStatus();scheduleRenderPreview();}}}
+    async function renderStart(saveView=false){
+      if(cameraConfig()?.params.renderer==='Viewport'){viewportPreview=!viewportPreview;pathtracer?.stop(true);syncCameraView();await flushCameraGeometry();await FramePlugins.flush({render:true});await draw(true);renderStatus();return renderState();}
+      if(single&&viewIndex!==0){activateFrameView(0);renderViews();}
+      syncCameraView();const owner=++manualGeneration,space=scene;renderManual=true;manualSceneKey=null;renderBlocked='';renderStatus();
+      try{
+        do{
+          await flushCameraGeometry();if(owner!==manualGeneration||scene!==space)break;
+          manualSceneKey=null;await renderTick(true,false,saveView?owner:0);
+          if(owner===manualGeneration&&scene===space&&!saveView)await flushCameraGeometry();
+        }while(owner===manualGeneration&&scene===space&&manualSceneKey!==null&&manualSceneKey!==cameraSceneRevision());
+        return renderState();
+      }finally{if(owner===manualGeneration){renderManual=false;manualSceneKey=null;renderStatus();scheduleRenderPreview();}}
+    }
     FrameViewWindows.onDocument('visibilitychange',()=>{if(frameViewElement(0)?.ownerDocument.hidden)pathtracer?.stop(true);else{renderSignature='';scheduleRenderPreview();}});
 
     // BEGIN native-environment
@@ -20629,10 +20670,11 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     }
     function materialPipeline(r,mesh,transparent=false){
       const state=ensureMaterialState(r),wire=polygonWire(mesh),classified=classifiedSurfaceWire(mesh);
-      return requestMaterialPipeline(r,state,{posed:!!mesh.posed,grouped:!!mesh.materialBindings?.grouped,uv:!!importedUV(mesh),wire,transparent,classified,materialWireOverlay:wire&&!transparent&&classified&&!materialTransparent(mesh),mapped:meshUsesMaterialMaps(state,mesh)});
+      return requestMaterialPipeline(r,state,{grouped:!!mesh.materialBindings?.grouped,uv:!!importedUV(mesh),wire,transparent,classified,materialWireOverlay:wire&&!transparent&&classified&&!materialTransparent(mesh),mapped:meshUsesMaterialMaps(state,mesh)});
     }
-    function requestMaterialPipeline(r,state,{posed,grouped,uv,wire,transparent=false,classified=false,materialWireOverlay=false,mapped}){
-      const orthographic=!!frameViewKind(viewIndex),key=[orthographic,posed,grouped,uv,wire,transparent,classified,!!mapped,materialWireOverlay].join(':');
+    function requestMaterialPipeline(r,state,{orthographic=!!frameViewKind(viewIndex),grouped,uv,wire,transparent=false,classified=false,materialWireOverlay=false,mapped},wait=false){
+      // The same object-frame binding contains identity at rest and the authored affine frame during motion.
+      const posed=true,key=[orthographic,posed,grouped,uv,wire,transparent,classified,!!mapped,materialWireOverlay].join(':');
       if(state.pipelines.has(key))return state.pipelines.get(key);
       if(!state.pending.has(key)){
         const constants={orthographic,posed,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay,plainSurfaceWire:!classified,materialMaps:!!mapped};
@@ -20641,7 +20683,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
           .then(p=>{if(renderer===r&&!r.dead){state.pipelines.set(key,p);draw();}return p;}).catch(editError).finally(()=>state.pending.delete(key));
         state.pending.set(key,pending);
       }
-      return null;
+      return wait?state.pending.get(key):null;
     }
     function materialLibraryBindings(r,state){
       if(!state.group||state.groupData!==state.data||state.groupAtlas!==state.atlas||state.groupSampler!==state.sampler||state.groupLayout!==state.libraryLayout){
@@ -22703,12 +22745,17 @@ fn occupied(p:vec2i,channel:u32)->bool{
     async function selectGeneratedAt(x,y,operation='replace'){if(!scene?.meshes.some(m=>m.splineGenerated)||elementMode==='object'||selectionBusy)return false;const gpu=renderer,space=scene,pick=createRayPick(gpu,space,cameraRay(x,y));selectionBusy=true;try{const e=gpu.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);gpu.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const face=new Uint32Array(pick.read.getMappedRange())[1];pick.read.unmap();if(scene!==space)return true;const index=space.meshes.findIndex(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount);selectionBusy=false;if(index>=0&&space.meshes[index].splineGenerated){const owner=nodes.find(n=>n.nativeHash===space.meshes[index].hashId),source=FrameSpline.sourceNode(owner)||owner;if(['vertex','edge'].includes(elementMode)&&FrameSpline.isActive(source)){if(elementMode==='edge'&&operation==='replace')FrameSpline.setSelection(source.nativeHash,[]);return true;}await selectObjectHashes([space.meshes[index].hashId],operation);return true;}return false;}finally{releaseGPU(pick);selectionBusy=false;}}
     let objectPickCycle=null;
     function objectCurveHit(x,y,linesOnly,excludedHashes=null){
-      if(shadingMode==='off'||!splineDisplays.size&&!scene.curveReplicas?.length)return null;const surfaces=new Set(scene.meshes.filter(m=>m.frameVisible!==false).map(m=>m.hashId)),owners=new Map(nodes.map(n=>[n.nativeHash,n])),displays=[...splineDisplays.values(),...curveReplicaDisplays()];
-      if(shadingMode==='isoparms')for(const m of scene.meshes){if(!m.replicaMatrix||!m.frameVisible)continue;const d=replicaDisplay(m);if(!d)continue;displays.push(replicaHitDisplay(m));}
+      if(shadingMode==='off'||!splineDisplays.size&&!scene.curveReplicas?.length)return null;const surfaces=new Map(scene.meshes.filter(m=>m.frameVisible!==false&&!m.replicaMatrix).map(m=>[m.hashId,m])),owners=new Map(nodes.map(n=>[n.nativeHash,n])),displays=[...splineDisplays.values(),...curveReplicaDisplays()];
+      for(const m of scene.meshes){if(!m.replicaMatrix||!m.frameVisible||shadingMode!=='isoparms'&&!m.patchCage)continue;const d=replicaHitDisplay(m);if(d)displays.push(d);}
       let winner=null;const key=splineProjectionKey(),[near,far]=clippingPlanes();
-      for(const d of displays){const n=owners.get(d.hash);if(!n||!d.visible||d.consumed&&!FrameSpline.isActive(n)||FrameSpline.sourceNode(n))continue;const surface=surfaces.has(d.hash)||d.consumed||surfaces.has(node(n.parent)?.nativeHash);if(surface&&(!linesOnly||shadingMode==='wireframe'&&renderer.wireRaster?.pixels))continue;
+      for(const d of displays){const n=owners.get(d.hash);if(!n||!d.visible||d.consumed&&!FrameSpline.isActive(n)||FrameSpline.sourceNode(n))continue;
+        const surface=surfaces.get(d.hash)||surfaces.get(FrameSpline.patchOwner(n)?.nativeHash),coverage=d.patchSurface?.patchCage||surface?.patchCage;
+        const source=coverage&&(d.patchSurface?coverage.generated:d.hash===surface.hashId?coverage.instances:coverage.sources.get(d.hash));
+        const solidCages=!linesOnly||shadingMode==='wireframe'&&renderer.wireRaster?.pixels;
+        const partial=!d.consumed&&source&&(solidCages||source.allowed)?patchCageLines(d.source||d,source,solidCages?'loose':'all'):null;
+        if(partial?!partial.runs.length:(surface||d.consumed)&&solidCages)continue;
         const cache=splineProjection(d,key),owner=FrameSpline.isEditable(n)?FrameSpline.patchOwner(n)||n:n,hash=d.pickHash||owner.nativeHash;if(excludedHashes?.has(hash))continue;
-        for(const [segment,samples]of d.samples){const p=projectedSplineSegment(cache,segment,samples);for(let i=3;i<p.length;i+=3){let lo=0,hi=1;const za=p[i-1],zb=p[i+2];if(za<near&&zb<near||za>far&&zb>far)continue;if(za<near||zb<near){const t=(near-za)/(zb-za);if(za<near)lo=t;else hi=t;}if(za>far||zb>far){const t=(far-za)/(zb-za);if(za>far)lo=Math.max(lo,t);else hi=Math.min(hi,t);}if(lo>hi)continue;
+        for(const [segment,samples]of d.samples){if(partial&&!partial.segments.has(segment))continue;const p=projectedSplineSegment(cache,segment,samples);for(let i=3;i<p.length;i+=3){let lo=0,hi=1;const za=p[i-1],zb=p[i+2];if(za<near&&zb<near||za>far&&zb>far)continue;if(za<near||zb<near){const t=(near-za)/(zb-za);if(za<near)lo=t;else hi=t;}if(za>far||zb>far){const t=(far-za)/(zb-za);if(za>far)lo=Math.max(lo,t);else hi=Math.min(hi,t);}if(lo>hi)continue;
           const ax=p[i-3],ay=p[i-2],dx=p[i]-ax,dy=p[i+1]-ay,t=Math.max(lo,Math.min(hi,((x-ax)*dx+(y-ay)*dy)/(dx*dx+dy*dy||1))),distance=(ax+t*dx-x)**2+(ay+t*dy-y)**2,depth=cache.ortho?za+(zb-za)*t:1/((1-t)/za+t/zb);if(distance<=64&&(!winner||distance<winner.distance-1/256||Math.abs(distance-winner.distance)<=1/256&&depth<winner.depth))winner={hash,distance,depth,occurrence:d.pickOccurrence};
         }}
       }return winner;
@@ -24243,7 +24290,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const gpu=renderer,space=scene,generation=++selectionGeneration;selectionBusy=true;touchActivity();
       selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
         if(scene!==space||renderer!==gpu||generation!==selectionGeneration)return;
-        preserveSelectionTags=!!options.preserveTags;applyObjectSelection(indices,options);if(selectionScope==='objects'&&indices.length){posedPipelines(gpu,false).catch(editError);posedPipelines(gpu,true).catch(editError);ensureTransformBackground(gpu);}if(uvEditing&&!objectSelection.includes(window.frameUVTarget)){uvEditing=false;document.getElementById('btnUV').classList.remove('on');document.getElementById('btnUV').ariaPressed='false';}
+        preserveSelectionTags=!!options.preserveTags;applyObjectSelection(indices,options);if(selectionScope==='objects'&&objectSelection.length){posedPipelines(gpu,false).catch(editError);posedPipelines(gpu,true).catch(editError);ensureTransformBackground(gpu);}if(uvEditing&&!objectSelection.includes(window.frameUVTarget)){uvEditing=false;document.getElementById('btnUV').classList.remove('on');document.getElementById('btnUV').ariaPressed='false';}
         await draw();preserveSelectionTags=false;
       }).catch(editError).finally(()=>{if(generation===selectionGeneration){selectionBusy=false;draw(false);}});return selectionQueue;
     }
@@ -24430,7 +24477,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         mesh.hitDisplayVersion=display.wireVersion;
         hit=mesh.hitDisplay={...display,source:display,hash:mesh.hashId,visible:true,consumed:false,projected:null,...curve?{generated:false}:{}};
       }
-      hit.selection=display.selection;hit.pointFlags=display.pointFlags;hit.replicaMatrix=mesh.replicaMatrix;hit.pickHash=objectPickHash(mesh);hit.pickOccurrence=objectPickOccurrence(mesh);return hit;
+      hit.selection=display.selection;hit.pointFlags=display.pointFlags;hit.replicaMatrix=mesh.replicaMatrix;hit.patchSurface=mesh.patchCage?mesh:null;hit.pickHash=objectPickHash(mesh);hit.pickOccurrence=objectPickOccurrence(mesh);return hit;
     }
 
     function syncReplicas(requested=null){
@@ -25143,7 +25190,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const id of roots)visit(id,null);if(!objects.length)throw Error('glTF scene is empty');return {objects,materials:importedMaterials,images,importReport:{format:'glTF',missingImages}};
     }
     function warmImportedSurfaces(r,objects,catalog){
-      if(!catalog.length||!shadingMode.startsWith('solid'))return;
+      if(!catalog.length)return;
       const worlds=new Map();
       for(const o of objects){
         const local=o.matrix?FM.unpack(o.matrix):FM.I(),world=worlds.has(o.parent)?FM.mul(worlds.get(o.parent),local):local;
@@ -25151,13 +25198,21 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }
     }
     function warmImportedSurface(r,raw,catalog,world){
-      if(shadingMode!=='solid'&&!polygonWire())return;
-      const slots=new Set(raw.ranges.filter(range=>range.count&&range.material!==undefined).map(range=>catalog[range.material]));
+      const ranges=raw.ranges.filter(range=>range.count&&range.material!==undefined);
+      const slots=new Set(ranges.map(range=>catalog[range.material]));
       if(!slots.size)return;
-      const posed=!FM.equal(world,FM.I()),mapped=[...slots].some(m=>frameMapFields.some(key=>m[key])||
+      const grouped=ranges.some(range=>range.material!==raw.baseMaterial),mapped=[...slots].some(m=>frameMapFields.some(key=>m[key])||
         [m.image,m.normalImage,m.emissionImage,m.metalRoughImage,m.aoImage].some(index=>index!==undefined));
-      requestMaterialPipeline(r,materialProgram(r),{posed,grouped:true,uv:!!raw.uv,wire:polygonWire(),mapped});
-      if(posed)posedPipelines(r,!!frameViewKind(viewIndex)).catch(editError);
+      const transparent=[...slots].some(m=>m.opac>0||m.opacityAsset||m.alphaMode!==1&&(m.colorAsset||m.image!==undefined));
+      const jobs=[];
+      for(const i of frameViewSections.keys()){
+        const shading=viewShadings[i];if(!frameViewVisible(i)||!shading?.startsWith('solid'))continue;
+        const orthographic=!!frameViewKind(i),options={orthographic,grouped,uv:!!raw.uv,wire:shading!=='solid',mapped};
+        jobs.push(requestMaterialPipeline(r,materialProgram(r),options,true));
+        if(transparent)jobs.push(requestMaterialPipeline(r,materialProgram(r),{...options,transparent:true},true));
+        if(!FM.equal(world,FM.I()))posedPipelines(r,orthographic).catch(editError);
+      }
+      return Promise.all(jobs);
     }
     function importedAppearance(raw,mesh,catalog,indexedSlots=false){
       const tags=[];
@@ -25297,21 +25352,32 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             rememberCarFinish(filename,defaults);
             applyCarPreset(filename,preset,i=>catalog[i]===defaults[i]?catalog[i]:null);
           }
-          warmImportedSurface(renderer,raw,catalog,objectWorld(n.nativeHash));
-          await installSplineSurface(n,{...raw,tasks:[],packets:[],report:{library:filename}});removeSpline(n.nativeHash,true);
-          if(!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params))continue;
+          const space=scene,gpu=renderer,appearance=warmImportedSurface(gpu,raw,catalog,objectWorld(n.nativeHash));
+          const next=await uploadAndCompute(gpu,{...raw});
+          await appearance;await selectionQueue;await editSerial;
+          if(scene!==space||gpu.dead||!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params)){disposeMesh(next);continue;}
+          freezeAncestorPivots([n.nativeHash]);
           const pool=frameMaterialPool();
           for(const m of materials)pool.intern(m);
           for(let i=0;i<catalog.length;i++)if(catalog[i]===defaults[i]){
             const m=pool.intern(catalog[i]);if(m===catalog[i])materials.push(m);catalog[i]=m;
           }
-          const tags=importedAppearance(raw,scene.meshes.find(m=>m.hashId===n.nativeHash),catalog,isCar).map((t,i)=>{
+          const tags=importedAppearance(raw,next,catalog,isCar).map((t,i)=>{
             const slot=sameAsset&&slots.get(t.libraryIndex??i);
             return {...t,...slot?{uid:slot.uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true};
           });
           frameEditingMaterialTag=null;n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
           if(isCar)n.libraryPreset=preset;
-          libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();frameSyncEngineVisibility();renderTree();
+          next.hashId=n.nativeHash;next.version=(mesh?.version||0)+1;next.frameVisible=true;
+          if(mesh)publishTopology(gpu,[{mesh,next}]);else{scene.meshes.push(next);publishTopology(gpu,[]);}
+          n.engineIndex=scene.meshes.indexOf(mesh||next);
+          libraryKeys.set(n.nativeHash,{filename,key});
+          if(splineLoadBatch)poseSplineLoadMesh(mesh||next,objectWorld(n.nativeHash));
+          frameSyncMaterials();frameSyncEngineVisibility();deferHoverMaps();await draw(true);
+          if(scene===space&&nodes.includes(n)){
+            if(current()===n&&!selectedTag)frameSelectObjectMaterial(n);else renderMaterials();
+            renderTree();
+          }
         }
       });
       libraryQueue=task;return task;
@@ -25367,6 +25433,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       await selectionQueue;await editSerial;if(scene!==space||space.gpu?.dead||!nodes.includes(n)||!current())return false;const gpu=await getRenderer();checkSession(gpu);if(!nodes.includes(n)||scene!==space||!current())return false;
       const oldSurface=scene.meshes.find(m=>m.hashId===n.nativeHash);if(result.delta&&(!oldSurface||oldSurface.paged||oldSurface.splineToken!==result.delta.source))return false;const input=result.gpuInput|| (result.delta?await splineDeltaInput(gpu,result,oldSurface):await splineSurfaceInput(gpu,result)),next=await uploadAndCompute(gpu,input);await editSerial;if(!nodes.includes(n)||scene!==space||!current()){disposeMesh(next);return false;}
       const old=scene.meshes.find(m=>m.hashId===n.nativeHash);next.hashId=n.nativeHash;next.splineToken=result.token;next.sourceAccuracy=result.sourceAccuracy||null;next.splineCells=result.cellRanges;next.splineFaceRanges=result.faceRanges;next.splineCellSources=FrameSpline.surfaceCells(n);next.version=(oldSurface?.version||0)+1;next.splineGenerated=true;next.frameVisible=true;await remapSplineMaterials(n,old,next);const display=splineDisplays.get(n.nativeHash);if(display)await markSplineSurface(n.nativeHash,display,current,next);if(scene!==space||!current()){disposeMesh(next);return false;}
+      if(n.type==='spline_patch')next.patchCage=patchCageCoverage(n,next);
       if(old)publishTopology(gpu,[{mesh:old,next}]);else{scene.meshes.push(next);publishTopology(gpu,[]);}n.engineIndex=scene.meshes.findIndex(m=>m.hashId===n.nativeHash);
       if(splineLoadBatch){poseSplineLoadMesh(old||next,objectWorld(n.nativeHash));return true;}
       syncMaterials();if(splineRecordBatch?.space!==space&&(!old||!FrameSpline.isEditing()))frameSyncEngineVisibility();syncPoseWorld();nativeSceneStats('Spline surface');canvas.dataset.splineBuild=JSON.stringify(result.report);deferHoverMaps();await draw(true);return true;
@@ -25835,6 +25902,36 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         for(const side of ['in','out']){const offset=d.freeOffsets.get(vertex+':'+side);if(offset!==undefined)pass.draw(2,1,offset/3);}
       }
     }
+    function patchCageCoverage(owner,mesh){
+      const state=FrameSpline.states.get(owner.id),rows=state?.sources||[];
+      const sources=new Map(),generated={filled:new Set()},instances={filled:generated.filled,allowed:new Set()};
+      for(const [i,row] of rows.entries()){
+        if(!row.instances.length){sources.set(row.node.nativeHash,{filled:new Set()});continue;}
+        const data=FrameSpline.states.get(row.node.id)?.data;
+        for(const id of Object.keys(data?.segments||{}))instances.allowed.add((rows.length>1?'c'+i+':':'')+id);
+      }
+      for(const [i,cell] of (state?.cellBindings||[]).entries()){
+        if(!mesh.splineFaceRanges?.[i]?.[1])continue;
+        for(const id of cell.edges)generated.filled.add(id);
+        for(const key of mesh.splineCellSources[i]?.edges||[]){
+          const split=key.indexOf('|');
+          sources.get(key.slice(0,split))?.filled.add(key.slice(split+1));
+        }
+      }
+      return {sources,generated,instances};
+    }
+    function patchCageLines(display,coverage,part='loose'){
+      if(!coverage)return null;
+      const cache=coverage.cache??=new WeakMap(),entry=cache.get(display)||{},cached=entry[part];
+      if(cached?.values===display.lineValues)return cached;
+      const runs=[],segments=new Set();
+      for(const [id,r] of display.ranges){
+        if(!r.length||coverage.allowed&&!coverage.allowed.has(id)||part!=='all'&&coverage.filled.has(id)!==(part==='filled'))continue;
+        segments.add(id);const first=r.line/3,end=(r.line+r.length)/3,previous=runs.at(-1);
+        if(previous?.[1]===first)previous[1]=end;else runs.push([first,end]);
+      }
+      entry[part]={values:display.lineValues,runs,segments};cache.set(display,entry);return entry[part];
+    }
     function encodeSplineDisplays(pass,retain=false){
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms',solidCages=!wire||shadingMode==='wireframe'&&!!renderer.wireRaster?.pixels;
       const ortho=!!frameViewKind(viewIndex),tintParts=ortho&&wire&&elementMode==='object',pipelines=splinePipelines[ortho?1:0],surfaces=new Map();
@@ -25846,40 +25943,62 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const active=FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
         const selected=selectedHashes.has(d.hash)||active,editable=FrameSpline.isEditable(owner);
         const showControls=editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
-        const parent=node(owner.parent),surface=surfaces.get(d.hash)||(parent?.type==='spline_patch'?surfaces.get(parent.nativeHash):undefined),covered=d.consumed||surface;
-        const drawCage=!solidCages||!covered;
+        const surface=surfaces.get(d.hash)||surfaces.get(FrameSpline.patchOwner(owner)?.nativeHash),covered=d.consumed||surface;
+        const coverage=surface?.patchCage,source=coverage&&(d.hash===surface.hashId?coverage.instances:coverage.sources.get(d.hash));
+        const loose=tintParts&&!solidCages&&!d.consumed&&source?patchCageLines(d,source):null;
+        const separateTint=!!loose?.runs.length;
+        const partial=!d.consumed&&source&&(solidCages||source.allowed||separateTint)?patchCageLines(d,source,solidCages?'loose':separateTint?'filled':'all'):null;
+        const drawCage=!partial&&(!solidCages||!covered);
         const highlights=!drawCage&&shadingMode==='solid'&&selected&&editable&&['edge','polygon'].includes(elementMode)&&d.lineHighlightRuns?.length;
-        if(!drawCage&&!showControls&&!highlights||FrameSpline.sourceNode(owner))continue;
-        const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix,tintParts&&surface?meshWireColor(surface):splineCageColor);
+        if(!drawCage&&!partial?.runs.length&&!separateTint&&!showControls&&!highlights||FrameSpline.sourceNode(owner))continue;
+        const matrix=objectWorld(d.hash);writeSplineDisplayFrame(d.uniform,matrix,tintParts&&surface&&!(solidCages&&source)?meshWireColor(surface):splineCageColor);
         if(showControls)writeSplineDisplayFrame(d.handleUniform,matrix,splineTangentColor);
-        const group=(pipeline,buffer)=>{
-          const key=(ortho?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();
+        const group=(pipeline,buffer,looseLines=false)=>{
+          const key=(looseLines?6:0)+(ortho?3:0)+pipelines.indexOf(pipeline),cache=d.groups[key]??=new Map();
           if(!cache.has(buffer)){
-            const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:buffer===d.handles?d.handleUniform:d.uniform}},{binding:2,resource:{buffer}},{binding:3,resource:{buffer:pipeline!==pipelines[0]?d.flags:buffer===d.lines?d.lineFlags:renderer.dummyReadBuffer}}];
+            const uniform=looseLines?d.looseUniform:buffer===d.handles?d.handleUniform:d.uniform;
+            const entries=[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:uniform}},{binding:2,resource:{buffer}},{binding:3,resource:{buffer:pipeline!==pipelines[0]?d.flags:buffer===d.lines?d.lineFlags:renderer.dummyReadBuffer}}];
             cache.set(buffer,renderer.device.createBindGroup({layout:pipeline.getBindGroupLayout(0),entries}));
           }
           return cache.get(buffer);
         };
-        if(drawCage||highlights){
+        if(drawCage||partial?.runs.length||highlights){
           pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.lines));
-          if(drawCage)pass.draw(d.count);else for(const [start,end]of d.lineHighlightRuns)pass.draw((end-start)*2,1,start*2);
+          if(drawCage)pass.draw(d.count);
+          if(partial)for(const [start,end] of partial.runs)pass.draw(end-start,1,start);
+          if(highlights)for(const [start,end]of d.lineHighlightRuns)pass.draw((end-start)*2,1,start*2);
+        }
+        if(separateTint){
+          if(!d.looseUniform){d.looseUniform=makeGPUBuffer(renderer.device,{label:'unfilled spline spans',size:80,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});d.buffers.push(d.looseUniform);}
+          writeSplineDisplayFrame(d.looseUniform,matrix,splineCageColor);pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.lines,true));
+          for(const [start,end] of loose.runs)pass.draw(end-start,1,start);
         }
         if(showControls){pass.setPipeline(pipelines[0]);pass.setBindGroup(0,group(pipelines[0],d.handles));drawSelectedSplineHandles(pass,d);const points=pipelines[shadingMode==='wireframe'||shadingMode==='isoparms'?1:2];pass.setPipeline(points);pass.setBindGroup(0,group(points,d.controls));pass.draw(6,d.controlCount);}
       }
-      function drawCopy(m){
+      function drawCopy(m,partial=null,looseLines=false){
         if(!m.frameVisible)return;const d=replicaDisplay(m);if(!d)return;
+        if(partial&&!partial.runs.length)return;
         const matrix=FM.mul(objectWorld(m.hashId),m.replicaMatrix),box=transformedBox({min:d.min,max:d.max},matrix);
         if(!retain&&!meshVisible({triangleCount:1,boundsMin:box.min,boundsMax:box.max}))return;
         m.curveUniform??=m.uniform||meshAllocator(renderer,m)('replica isoparms frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-        writeSplineDisplayFrame(m.curveUniform,matrix,tintParts&&!m.curve?meshWireColor(m):splineCageColor);
-        m.curveGroups??=[];const key=ortho?1:0;let cache=m.curveGroups[key];
+        m.curveGroups??=[];const separate=looseLines&&tintParts,uniform=separate?(m.curveGroups.looseUniform??=meshAllocator(renderer,m)('replica unfilled spans',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST)):m.curveUniform;
+        writeSplineDisplayFrame(uniform,matrix,tintParts&&!looseLines&&!m.curve?meshWireColor(m):splineCageColor);
+        const key=(separate?2:0)+(ortho?1:0);let cache=m.curveGroups[key];
         if(cache?.lines!==d.lines){
-          const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:m.curveUniform}},{binding:2,resource:{buffer:d.lines}},{binding:3,resource:{buffer:renderer.dummyReadBuffer}}]});
+          const group=renderer.device.createBindGroup({layout:pipelines[0].getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:renderer.uniform}},{binding:1,resource:{buffer:uniform}},{binding:2,resource:{buffer:d.lines}},{binding:3,resource:{buffer:renderer.dummyReadBuffer}}]});
           cache=m.curveGroups[key]={lines:d.lines,group};
         }
-        pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);pass.draw(d.count);
+        pass.setPipeline(pipelines[0]);pass.setBindGroup(0,cache.group);
+        if(partial){for(const [start,end] of partial.runs)pass.draw(end-start,1,start);}else pass.draw(d.count);
       }
-      if(wire&&!solidCages)for(const m of scene.meshes)if(m.replicaMatrix)drawCopy(m);
+      for(const m of scene.meshes)if(m.replicaMatrix&&m.frameVisible){
+        const d=m.patchCage&&replicaDisplay(m);
+        if(wire&&!solidCages){
+          const loose=tintParts&&d?patchCageLines(d,m.patchCage.generated):null;
+          if(loose?.runs.length){drawCopy(m,patchCageLines(d,m.patchCage.generated,'filled'));drawCopy(m,loose,true);}
+          else drawCopy(m);
+        }else if(d)drawCopy(m,patchCageLines(d,m.patchCage.generated),true);
+      }
       for(const m of scene.curveReplicas||[])drawCopy(m);
     }
     function selectedId(id){return selected.has(id);}
@@ -25960,11 +26079,41 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }return winner;
     }finally{if(saved){viewIndex=saved[0];canvas=saved[1];restoreCamera(saved[2]);}}}
     let splineHover=null,splineHoverRequest=0,splineHoverPending=false,splineHoverPoint=null;const insertMarker=document.createElement('div');insertMarker.id='frame-spline-insert';insertMarker.hidden=true;insertMarker.style.cssText='position:fixed;pointer-events:none;z-index:25;width:7px;height:7px;border:1px solid #8affab;border-radius:50%;background:#294b3a;transform:translate(-50%,-50%)';document.body.append(insertMarker);
+    function showInsertMarker(screen,view){
+      framePlaceOverlay(insertMarker,view);insertMarker.style.left=screen[0]+'px';insertMarker.style.top=screen[1]+'px';insertMarker.hidden=false;
+    }
+    let polygonInsertPending=false,polygonInsertTarget=null;
+    async function previewPolygonPoint(x,y,view){
+      const request=splineHoverRequest,owner=current(),space=scene,doc=FrameViewWindows.inputDocument;
+      if(polygonInsertTarget?.view!==view||polygonInsertTarget.owner!==owner||polygonInsertTarget.doc!==doc||polygonInsertTarget.space!==space){
+        polygonInsertTarget={view,owner,doc,space};insertMarker.hidden=true;
+      }
+      if(polygonInsertPending)return;
+      const target=polygonInsertTarget;
+      const valid=()=>polygonInsertTarget===target&&space===scene&&doc===FrameViewWindows.inputDocument&&owner===current()&&elementMode==='vertex'&&!polygonTools.mode&&!heldPointers.size;
+      polygonInsertPending=true;
+      try{
+        const hit=await polygonInsertionHit(x,y,view,valid);
+        if(!valid())return;
+        const vertex=hit&&(view===viewIndex?await componentSeed(renderer,x,y):hit.nearVertex);
+        if(valid()){if(hit&&!vertex)showInsertMarker(hit.screen,view);else insertMarker.hidden=true;}
+      }finally{
+        polygonInsertPending=false;
+        if(request!==splineHoverRequest&&splineHoverPoint?.[2])hoverSplineAt(...splineHoverPoint);
+      }
+    }
     function hoverSplineAt(x,y,ctrl=false,cellHit=undefined){
+      let polygonPreview=false,splinePreview=false;
       if(cellHit===undefined){splineHoverPoint=[x,y,ctrl];++splineHoverRequest;
         if(elementMode==='polygon'&&!FrameSpline.drawing){if(frameViewportAt(x,y)===null){hoverSplineAt(x,y,ctrl,null);return;}if(!splineHoverPending){const request=splineHoverRequest,key=splineProjectionKey(),doc=FrameViewWindows.inputDocument;splineHoverPending=true;pickSplineCell(x,y).then(hit=>{if(request===splineHoverRequest&&doc===FrameViewWindows.inputDocument&&elementMode==='polygon'&&key===splineProjectionKey())hoverSplineAt(x,y,ctrl,hit);}).catch(editError).finally(()=>{splineHoverPending=false;if(request!==splineHoverRequest&&splineHoverPoint)hoverSplineAt(...splineHoverPoint);});}return;}
       }
-      insertMarker.hidden=true;if(ctrl&&elementMode==='vertex'&&!FrameSpline.drawing){const h=hitSpline(x,y,false,false,true);if(h?.segment){const owner=frameNodeByHash(h.hash);if(FrameSpline.isEditable(owner)&&FrameSpline.isActive(owner)){const q=h.screen;insertMarker.style.left=q[0]+'px';insertMarker.style.top=q[1]+'px';framePlaceOverlay(insertMarker,viewIndex);insertMarker.hidden=false;}}}const hit=cellHit!==undefined?cellHit:hitSpline(x,y,!!FrameSpline.drawing,!['edge','polygon'].includes(elementMode)),closing=FrameSpline.drawing,next=hit&&(!closing||hit.vertex===closing.first&&closing.last!==closing.first)&&(hit.vertex||hit.handle||elementMode==='edge'&&hit.segment&&!hit.object||elementMode==='polygon'&&hit.cell)?{hash:hit.hash,key:hit.vertex||hit.handle||hit.segment||hit.cell,segment:!!hit.segment,cell:!!hit.cell}:null;if(next?.hash===splineHover?.hash&&next?.key===splineHover?.key)return;for(const h of [splineHover,next]){const d=h&&splineDisplays.get(h.hash),i=d?.keyIndex.get(h.key);if(i!==undefined){d.pointFlags[i]=(d.pointFlags[i]&12)|(d.selection.has(h.key)?1:0)|(h===next?2:0);renderer.device.queue.writeBuffer(d.flags,i*4,d.pointFlags,i,1);}}splineHover=next;sceneFrameDirty=true;draw(true);}
+      if(ctrl&&elementMode==='vertex'&&!FrameSpline.drawing&&!polygonTools.mode){
+        const view=frameViewportAt(x,y),h=hitSpline(x,y,false,false,true),owner=h&&frameNodeByHash(h.hash);
+        if(view!==null&&h?.segment&&FrameSpline.isEditable(owner)&&FrameSpline.isActive(owner)){splinePreview=true;showInsertMarker(h.screen,view);}
+        else if(view!==null&&!h&&current()?.type==='mesh'&&viewShadings[view]!=='off'){polygonPreview=true;previewPolygonPoint(x,y,view).catch(editError);}
+      }
+      if(!polygonPreview){polygonInsertTarget=null;if(!splinePreview)insertMarker.hidden=true;}
+      const hit=cellHit!==undefined?cellHit:hitSpline(x,y,!!FrameSpline.drawing,!['edge','polygon'].includes(elementMode)),closing=FrameSpline.drawing,next=hit&&(!closing||hit.vertex===closing.first&&closing.last!==closing.first)&&(hit.vertex||hit.handle||elementMode==='edge'&&hit.segment&&!hit.object||elementMode==='polygon'&&hit.cell)?{hash:hit.hash,key:hit.vertex||hit.handle||hit.segment||hit.cell,segment:!!hit.segment,cell:!!hit.cell}:null;if(next?.hash===splineHover?.hash&&next?.key===splineHover?.key)return;for(const h of [splineHover,next]){const d=h&&splineDisplays.get(h.hash),i=d?.keyIndex.get(h.key);if(i!==undefined){d.pointFlags[i]=(d.pointFlags[i]&12)|(d.selection.has(h.key)?1:0)|(h===next?2:0);renderer.device.queue.writeBuffer(d.flags,i*4,d.pointFlags,i,1);}}splineHover=next;sceneFrameDirty=true;draw(true);}
     const splineNavigationSampleBoxes=new WeakMap();
     function splineNavigationSampleBox(d){
       let box=splineNavigationSampleBoxes.get(d);const length=d.lineValues?.length;
@@ -26362,21 +26511,29 @@ function FramePolygonKernel(d){
         gpu.device.queue.submit([encoder.finish()]);await slot.read.mapAsync(GPUMapMode.READ);const ids=Array.from(new Uint32Array(slot.read.getMappedRange(),0,3));slot.read.unmap();return ids;
       }finally{slot.busy=false;}
     }
-    async function polygonHit(x,y,radius=10,sampleX=x,sampleY=y){
-      const gpu=renderer,space=scene,view=viewIndex,ray=cameraRay(sampleX,sampleY),pick=createRayPick(gpu,space,ray);
+    function inViewCamera(view,read){
+      if(view===viewIndex)return read();
+      const active=viewIndex,activeCanvas=canvas,saved=captureCamera();
+      try{viewIndex=view;canvas=frameViewCanvases.get(view);restoreCamera(viewStates[view]||defaultCamera(view));return read();}
+      finally{viewIndex=active;canvas=activeCanvas;restoreCamera(saved);}
+    }
+    async function polygonHit(x,y,radius=10,sampleX=x,sampleY=y,view=viewIndex){
+      const gpu=renderer,space=scene,epoch=orbitGeneration,topology=space.topologyRevision;
+      const valid=()=>space===scene&&epoch===orbitGeneration&&space.topologyRevision===topology&&frameViewVisible(view);
+      const ray=inViewCamera(view,()=>cameraRay(sampleX,sampleY)),pick=createRayPick(gpu,space,ray);
       let mesh,face;
       try{
         const encoder=gpu.device.createCommandEncoder();pick.encode(encoder,true);
         const [,id]=await pagedReadCounters(gpu,encoder,pick.closest,8);
-        if(id===0xffffffff||space!==scene||view!==viewIndex)return null;
+        if(id===0xffffffff||!valid())return null;
         mesh=space.meshes.find(m=>id>=m.faceBase&&id<m.faceBase+m.triangleCount);if(!mesh)return null;face=id-mesh.faceBase;
       }finally{pick.destroy();}
       const n=frameNodeByHash(mesh.hashId),version=mesh.version;
       if(n?.type!=='mesh'||!selected.has(n.id))return null;
       const ids=await polygonFaceIndices(mesh,face),vertices=await animationReadVertices(mesh,ids);
-      if(space!==scene||view!==viewIndex||mesh.version!==version||!nodes.includes(n)||n.nativeHash!==mesh.hashId)return null;
+      if(!valid()||mesh.version!==version||!nodes.includes(n)||!selected.has(n.id)||n.nativeHash!==mesh.hashId)return null;
       const world=objectWorld(mesh.hashId),points=vertices.map(([,p])=>FM.point(world,p));
-      const screen=points.map(p=>{const q=p.map((v,k)=>(v-space.center[k])*space.scale);return [...projectOrbitPoint(q),frameViewKind(view)?1:3.2-rotatePoint(q)[2]-orbitOffset[2]];});
+      const screen=inViewCamera(view,()=>points.map(p=>{const q=p.map((v,k)=>(v-space.center[k])*space.scale);return [...projectOrbitPoint(q),frameViewKind(view)?1:3.2-rotatePoint(q)[2]-orbitOffset[2]];}));
       let edge=null,best=radius*radius;
       for(let k=0;k<3;k++){
         const j=(k+1)%3,a=screen[k],b=screen[j],dx=b[0]-a[0],dy=b[1]-a[1],squared=dx*dx+dy*dy;
@@ -26384,20 +26541,23 @@ function FramePolygonKernel(d){
         const u=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/squared)),dist=(a[0]+u*dx-x)**2+(a[1]+u*dy-y)**2;
         if(dist>best)continue;
         const t=u*a[2]/((1-u)*b[2]+u*a[2]);best=dist;
-        edge={id:Math.min(ids[k],ids[j])+':'+Math.max(ids[k],ids[j]),t:ids[k]<ids[j]?t:1-t};
+        edge={id:Math.min(ids[k],ids[j])+':'+Math.max(ids[k],ids[j]),t:ids[k]<ids[j]?t:1-t,screen:[a[0]+u*dx,a[1]+u*dy]};
       }
       // Intersect the click ray with the picked triangle in double precision.
       const [A,B,C]=points,ab=FM.sub(B,A),ac=FM.sub(C,A),cross=FM.cross(ray.direction,ac),det=FM.dot(ab,cross);
       if(!det)return null;
       const origin=ray.origin.map((v,k)=>v/space.scale+(space.center[k]-A[k])),q=FM.cross(origin,ab);
       const v=FM.dot(origin,cross)/det,w=FM.dot(ray.direction,q)/det;
-      return {n,edge,face,barycentric:[1-v-w,v,w]};
+      return {n,edge,face,barycentric:[1-v-w,v,w],screen:edge?.screen||[x,y],nearVertex:screen.some(p=>p[2]>0&&Math.hypot(p[0]-x,p[1]-y)<=10)};
+    }
+    async function polygonInsertionHit(x,y,view=viewIndex,valid=()=>true){
+      // Within the rendered line footprint the edge wins. Otherwise insert on the actual face.
+      const radius=1.5;let hit=await polygonHit(x,y,radius,x,y,view);
+      if(!hit)for(const [dx,dy]of [[0,-1],[0,1],[-1,0],[1,0]]){if(!valid())return null;const near=await polygonHit(x,y,radius,x+dx,y+dy,view);if(near?.edge){hit=near;break;}}
+      return hit?.edge&&(hit.edge.t<=0||hit.edge.t>=1)?null:hit;
     }
     async function addPolygonPoint(x,y){
-      // Within the rendered line footprint the edge wins. Otherwise insert on the actual face.
-      const radius=1.5;let hit=await polygonHit(x,y,radius);
-      if(!hit)for(const [dx,dy]of [[0,-1],[0,1],[-1,0],[1,0]]){const near=await polygonHit(x,y,radius,x+dx,y+dy);if(near?.edge){hit=near;break;}}
-      if(!hit||hit.edge&&(hit.edge.t<=0||hit.edge.t>=1))return false;
+      const hit=await polygonInsertionHit(x,y);if(!hit)return false;
       await polygonEdit(hit.n,{op:'addPoint',...(hit.edge?{edge:hit.edge.id,t:hit.edge.t}:{face:hit.face,barycentric:hit.barycentric})});return true;
     }
     async function polygonAvailability(n){

@@ -5,8 +5,8 @@
     {
       "prefix": "function createFrameHashCodec(){",
       "nextPrefix": "const FrameHash=createFrameHashCodec();",
-      "bytes": 20382,
-      "sha256": "d6c2152daed2957140db80233b29c016f0b58664a3ba1b009bf80f0098c55b7a",
+      "bytes": 20413,
+      "sha256": "9610cee194fedb1a7012cd6f6f82fb3e5dcdbcb1fb7c6cb58ea1186f02d0636e",
       "change": {
         "reason": "Native binary value records, history snapshots and bounded file readers are verified by the HASH and file gates.",
         "baseCommit": "0f18ab1",
@@ -22,6 +22,12 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "publishedProjectFiles": {
+        "commit": "a1f65e78e16ffda7935f04fc6a437eadd947aac7",
+        "reason": "Native records expose small payloads to the project index.",
+        "previousBytes": 20382,
+        "previousSHA256": "d6c2152daed2957140db80233b29c016f0b58664a3ba1b009bf80f0098c55b7a"
       },
       "verifiedBaseline": {
         "commit": "12db7c16045ec15dfb16cc9cab9d19d90ba49722",
@@ -212,8 +218,8 @@
     {
       "prefix": "    async function saveHash(",
       "nextPrefix": "    async function nativeDecodePlan(file){",
-      "bytes": 3774,
-      "sha256": "abaf2e24ee89d54cbe7a0f04ffb771ac6c3646cfd8f9eefbf0ae8e40fdf86cd1",
+      "bytes": 3870,
+      "sha256": "235922f7fd4d844265b0b9d144463a9b203d3810ccceeec0d907c0b0c489620b",
       "change": {
         "reason": "Bounded ordered HASH writes and elapsed-work yielding remove per-record host/timer latency; native bytes, IO errors and large-file budgets are checked separately.",
         "beforeBytes": 3248,
@@ -227,25 +233,37 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "publishedProjectFiles": {
+        "commit": "a1f65e78e16ffda7935f04fc6a437eadd947aac7",
+        "reason": "Native saves serialize portable project paths and index the packed records.",
+        "previousBytes": 3774,
+        "previousSHA256": "abaf2e24ee89d54cbe7a0f04ffb771ac6c3646cfd8f9eefbf0ae8e40fdf86cd1"
       }
     },
     {
       "prefix": "async function saveSceneFile(",
       "nextPrefix": "function showSaveFormats(focus=false){",
-      "bytes": 3119,
-      "sha256": "abe6d76bc5c7077f4db745c592be970f3fdfb8fddcdd6d9ea3ce7e808b8fe106",
+      "bytes": 3723,
+      "sha256": "4e485bd040742b6ae098d06f7bbd1593f1faed36f1500e473ff2047eec4c933b",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 3101,
         "beforeSHA256": "dda3dabeea0a0a8877dd4985df9b6b2ff310b1e3a74d722733ab78c6dd29e9ad",
         "baseCommit": "b84f684"
+      },
+      "publishedProjectFiles": {
+        "commit": "a1f65e78e16ffda7935f04fc6a437eadd947aac7",
+        "reason": "Bound HASH saves use project revisions and file handles, including Save As.",
+        "previousBytes": 3119,
+        "previousSHA256": "abe6d76bc5c7077f4db745c592be970f3fdfb8fddcdd6d9ea3ce7e808b8fe106"
       }
     },
     {
       "prefix": "async function frameSaveBoundFile(",
       "nextPrefix": "function frameCancelFileRequest(){",
-      "bytes": 18493,
-      "sha256": "fdc9ab09b83563a6bb65a8c848aaa7df821193476d98f4269339629828fb7cb0",
+      "bytes": 31371,
+      "sha256": "104fe09ce1c050882e38efe1d5f630dc4423e6d36b0e914e367bb01798700408",
       "change": {
         "reason": "File lifecycle uses frameSetSceneFileName to update the current filename and document title only after a successful Open or Save.",
         "beforeBytes": 1122,
@@ -259,6 +277,12 @@
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
+      },
+      "publishedProjectFiles": {
+        "commit": "a1f65e78e16ffda7935f04fc6a437eadd947aac7",
+        "reason": "Linked model file handles and project saves persist portable references.",
+        "previousBytes": 18493,
+        "previousSHA256": "fdc9ab09b83563a6bb65a8c848aaa7df821193476d98f4269339629828fb7cb0"
       }
     }
   ],

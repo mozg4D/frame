@@ -10,7 +10,8 @@ export async function booleanGpuGridChecks(page,{dense=false,rounds=1}={}){
   const check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});assert.ok(pass,name+' '+JSON.stringify(detail));};
   const call=(name,args)=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
   const adapter=await page.evaluate(()=>{const a=frameEngine.renderer.device.adapterInfo;return {vendor:a.vendor,architecture:a.architecture,hardware:!a.isFallbackAdapter,dpr:devicePixelRatio};});
-  check('Hardware WebGPU at DPR 1',adapter.hardware&&adapter.dpr===1,adapter);
+  const dpr=Number(process.env.FRAME_DPR||1);
+  check('Hardware WebGPU at DPR '+dpr,adapter.hardware&&adapter.dpr===dpr,adapter);
   const rings=dense?128:48,steps=dense?1536:192;
   const profile=Array.from({length:rings+1},(_,i)=>[40*Math.sin(Math.PI*i/rings),40*Math.cos(Math.PI*i/rings)]);
   const mesh=closedRevolve(profile,steps);

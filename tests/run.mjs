@@ -147,6 +147,7 @@ import {ensureHeavyScene} from './scenes/generate-heavy.mjs';
 import {materialEditorChecks} from './material-editor.mjs';
 import {automaticNormalBrowserChecks} from './automatic-normal-browser.mjs';
 import {materialStartupChecks} from './material-startup-browser.mjs';
+import {sceneInsertionChecks} from './scene-insertion-browser.mjs';
 import {materialsSelectionChecks} from './materials-selection-feedback.mjs';
 import {editorRevisionChecks} from './editor-revision.mjs';
 import {pointerLockChecks} from './pointer-lock.mjs';
@@ -234,7 +235,12 @@ try{
   report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
     context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime requested: '+id);}});
     await context.route(/\/plugins\/([^/]+)\/plugin\.js(?:\?.*)?$/,route=>{const id=/\/plugins\/([^/]+)\/plugin\.js/.exec(route.request().url())[1];return pluginEnabled(id)?route.continue():route.abort('blockedbyclient');});
-  };for(const context of session.browser.contexts())await observeContext(context);const newContext=session.browser.newContext.bind(session.browser);session.browser.newContext=async(...args)=>{const context=await newContext(...args);await observeContext(context);return context;};const {page}=session;page.on('pageerror',e=>report.errors.push(e.stack||e.message));page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());else if(m.text().startsWith('[tests]'))console.log(m.text());});await ready(page);
+  };
+  for(const context of session.browser.contexts())await observeContext(context);
+  const newContext=session.browser.newContext.bind(session.browser);
+  session.browser.newContext=async options=>{const context=await newContext({deviceScaleFactor:report.dpr,...options});await observeContext(context);return context;};
+  const {page}=session;page.on('pageerror',e=>report.errors.push(e.stack||e.message));page.on('console',m=>{if(m.type()==='error')report.consoleErrors.push(m.text());else if(m.text().startsWith('[tests]'))console.log(m.text());});await ready(page);
+  report.browserDpr=await page.evaluate(()=>devicePixelRatio);if(report.browserDpr!==report.dpr)throw Error('Browser DPR differs from the requested test density');
   await page.evaluate(()=>{window.__frameGPU=[];window.__frameGPUDevice=frameEngine.renderer.device;window.__frameGPULost=null;__frameGPUDevice.lost.then(info=>window.__frameGPULost={reason:info.reason,message:info.message});__frameGPUDevice.addEventListener('uncapturederror',e=>__frameGPU.push(e.error.message));__frameGPUDevice.pushErrorScope('validation');});
   // One validation scope spans shared stages: asynchronous native work owns nested device scopes.
 
@@ -255,7 +261,7 @@ try{
       await fixture.goto(browserSession.url+'/index.html');await ready(fixture);await arm();const result=await (delegateReload?fn(fixture,{reloadPage:async()=>{await fixture.reload();return documents.at(-1);}}):fn(fixture));await collect();
       const consoleResult=consumeExpectedHostConsoleErrors(fixtureConsole,result.expectedConsoleErrors);result.expectedNetworkConsole=consoleResult.matched;report.consoleErrors.push(...consoleResult.unexpected.map(m=>name+': '+m.text));
       result.gpu={validation:documents.map(d=>d.validation).filter(Boolean).join('\n')||null,uncaptured:documents.flatMap(d=>d.uncaptured),documents,documentCount:documents.length};
-      if(reloads)result.checks.push({name:'GPU validation covers every reloaded document',pass:documents.length===reloads+1});
+      if(reloads)(result.checks??=[]).push({name:'GPU validation covers every reloaded document',pass:documents.length===reloads+1});
       if(documents.some(failed)||result.checks?.some(c=>c.pass===false)){result.pass=false;result.error||=JSON.stringify(result.gpu);}return result;
     }finally{if(fixture&&originalReload)fixture.reload=originalReload;await context.close();await lockSession?.close();}
   });
@@ -363,6 +369,7 @@ try{
   report.materialEditor=await isolated('materialEditor',materialEditorChecks);
   report.automaticNormal=await isolated('automaticNormal',automaticNormalBrowserChecks);
   report.materialStartup=await isolated('materialStartup',materialStartupChecks);
+  report.sceneInsertion=await isolated('sceneInsertion',sceneInsertionChecks);
   report.materialsSelection=await isolated('materialsSelection',materialsSelectionChecks);
   report.editorRevision=await isolated('editorRevision',editorRevisionChecks);
   report.pointerLock=await isolated('pointerLock',pointerLockChecks,true);

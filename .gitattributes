@@ -428,5 +428,6 @@ tools/file-host-client.mjs text eol=lf
 tests/instance-files-browser.mjs text eol=lf
 tests/project-file-fixture.mjs text eol=lf
 tests/project-files-browser.mjs text eol=lf
+tests/scene-insertion-browser.mjs text eol=lf
 tests/instance-symmetry-copy.mjs text eol=lf
 tests/current-source-baseline.json text eol=lf

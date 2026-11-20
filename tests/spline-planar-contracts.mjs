@@ -20,7 +20,7 @@ function historyRuntime(html,data){
  const noop=()=>{},author={root:()=>({}),reset:noop,changed:noop,history:a=>a,restoreNodes:a=>a,reserveNodes:()=>noop,setRoot:noop,preflightHistory:noop};
  const c={nodes:[{id:'source',nativeHash:'source-hash',type:'spline',params:{},tags:[],splineData:data}],
   window:{},FrameHash,frameValueKey:FrameHash.values.key,framePruneRemovedMaterials:noop,framePruneTextureCards:noop,FrameAuthorData:author,FrameMorph:{historyState:()=>null,restoreEditor:noop},FramePluginRecords:{bytes:()=>0,collect:noop,replacer:(_k,v)=>v,reviver:(_k,v)=>v},
-  timelineFrame:0,timelineTotal:100,selected:new Set(),focusId:null,selectedTag:null,selectedTags:new Set(),activeMaterial:0,selectedMaterials:new Set(),materials:[],
+  timelineFrame:0,timelineTotal:100,selected:new Set(),focusId:null,selectedTag:null,selectedTags:new Set(),activeMaterial:0,selectedMaterials:new Set(),materials:[],frameChangedMaterials:new Set(),
   frameSerializeChannels:()=>[],frameRestoreChannels:noop,frameChannelSelection:[],frameChannels:new Map(),frameTarget:()=>null,frameIsPLAPath:()=>false,frameGetTrack:()=>null,
   textureImages:new Map(),materialThumbnails:new Map(),renderMaterials:noop,render:noop,syncMaterial:noop,frameEvaluateAnimation:noop,frameRefreshAnimationUI:noop,
   FramePlugins:{dispatch:noop},frameSyncMaterials:noop,frameSelectEngineObjects:noop,$:()=>({dataset:{elementMode:'vertex'}}),undoStack:[],redoStack:[],fileOperationError:e=>{throw e;}};

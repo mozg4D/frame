@@ -1,6 +1,7 @@
 import {launch,ready} from '../tools/browser.mjs';
 import {writeFile} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
+import {installTestSavePicker} from './project-file-fixture.mjs';
 
 export async function filePlaybackChecks(page){
  const checks=[],timings=[],check=(name,pass,detail)=>{checks.push({name,pass:!!pass,detail});if(!pass)throw Error(name+': '+JSON.stringify(detail));},call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]),timed=async(name,budget,fn)=>{const start=performance.now();await fn();const ms=performance.now()-start;timings.push({name,ms,budget});check(name+' latency',ms<budget,{ms,budget});},menu=async()=>{await page.mouse.move(400,500);await page.locator('#btnSave').hover();};
@@ -13,19 +14,19 @@ export async function filePlaybackChecks(page){
   check('Save hover highlights its actual HASH format',await current.count()===1&&await current.textContent()==='Frame scene (.hash)'&&await current.evaluate(e=>getComputedStyle(e).backgroundColor==='rgb(58, 58, 58)'));
   await page.keyboard.press('Escape');await page.locator('#btnSave').focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('ArrowDown');
   check('Incremental menu remains keyboard accessible',await page.evaluate(()=>document.activeElement.textContent==='Save incremental (+1)'));await page.keyboard.press('Escape');
-  await page.evaluate(()=>{window.__fileSaves=[];window.__filePickers=[];window.__cancelSave=false;window.showSaveFilePicker=async options=>{__filePickers.push(options);if(__cancelSave)throw new DOMException('Cancelled','AbortError');return {name:options.suggestedName,createWritable:async()=>{const record={name:options.suggestedName};__fileSaves.push(record);return {write:async()=>{},close:async()=>{record.closed=true;}};}};};});
-  await timed('First HASH Save to completed write',1500,async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__fileSaves.length===1&&__fileSaves[0].closed);});
-  for(let i=0;i<2;i++)await timed('Explicit HASH Save As '+(i+1),1500,async()=>{await menu();await page.getByRole('menuitem',{name:'Frame scene (.hash)',exact:true}).click();await page.waitForFunction(n=>__fileSaves.length===n&&__fileSaves.at(-1).closed,i+2);});
+  await page.evaluate(installTestSavePicker);
+  await timed('First HASH Save to completed write',1500,async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__saves.length===1&&__saves[0].closed);});
+  for(let i=0;i<2;i++)await timed('Explicit HASH Save As '+(i+1),1500,async()=>{await menu();await page.getByRole('menuitem',{name:'Frame scene (.hash)',exact:true}).click();await page.waitForFunction(n=>__saves.length===n&&__saves.at(-1).closed,i+2);});
   check('Every explicit HASH selection opens a fresh chooser',await page.evaluate(()=>__filePickers.length===3));
-  await timed('Plain Save reuses HASH handle',1000,async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__fileSaves.length===4&&__fileSaves.at(-1).closed);});check('Plain Save does not reopen the chooser',await page.evaluate(()=>__filePickers.length===3));
-  await timed('Dropdown incremental HASH Save',1500,async()=>{await menu();await page.getByRole('menuitem',{name:'Save incremental (+1)',exact:true}).click();await page.waitForFunction(()=>__fileSaves.length===5&&__fileSaves.at(-1).closed);});
+  await timed('Plain Save reuses HASH handle',1000,async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__saves.length===4&&__saves.at(-1).closed);});check('Plain Save does not reopen the chooser',await page.evaluate(()=>__filePickers.length===3));
+  await timed('Dropdown incremental HASH Save',1500,async()=>{await menu();await page.getByRole('menuitem',{name:'Save incremental (+1)',exact:true}).click();await page.waitForFunction(()=>__saves.length===5&&__saves.at(-1).closed);});
   check('Incremental dropdown advances native filename',await page.evaluate(()=>sceneFileName==='scene_001.hash'&&__filePickers.length===4));
-  await call('mesh.create',{vertices:[0,0,0,10,0,0,0,10,0],indices:[0,1,2]});await menu();await page.getByRole('menuitem',{name:'STL mesh (.stl)',exact:true}).click();await page.waitForFunction(()=>__fileSaves.length===6&&__fileSaves.at(-1).closed);await menu();
+  await call('mesh.create',{vertices:[0,0,0,10,0,0,0,10,0],indices:[0,1,2]});await menu();await page.getByRole('menuitem',{name:'STL mesh (.stl)',exact:true}).click();await page.waitForFunction(()=>__saves.length===6&&__saves.at(-1).closed);await menu();
   check('Save still highlights HASH after an STL export',await page.locator('#menu button[aria-current=true]').textContent()==='Frame scene (.hash)');
-  await timed('Dropdown incremental STL Save',1500,async()=>{await page.getByRole('menuitem',{name:'Save incremental (+1)',exact:true}).click();await page.waitForFunction(()=>__fileSaves.length===7&&__fileSaves.at(-1).closed);});
+  await timed('Dropdown incremental STL Save',1500,async()=>{await page.getByRole('menuitem',{name:'Save incremental (+1)',exact:true}).click();await page.waitForFunction(()=>__saves.length===7&&__saves.at(-1).closed);});
   check('Incremental retains the last completed export format',await page.evaluate(()=>sceneFileName==='scene_002.stl'&&lastSavedFormat==='stl'));
   await page.evaluate(()=>__cancelSave=true);await menu();await page.getByRole('menuitem',{name:'Frame scene (.hash)',exact:true}).click();await page.waitForFunction(()=>__filePickers.length===7);
-  check('Cancelled Save As retains the target and format',await page.evaluate(()=>sceneFileName==='scene_002.stl'&&lastSavedFormat==='stl'&&__fileSaves.length===7));
+  check('Cancelled Save As retains the target and format',await page.evaluate(()=>sceneFileName==='scene_002.stl'&&lastSavedFormat==='stl'&&__saves.length===7));
   await call('scene.new');
   for(const populated of [false,true]){
    if(populated)await call('scene.create',{type:'group'});
