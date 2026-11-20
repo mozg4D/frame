@@ -5,6 +5,14 @@ import {launch,ready} from '../tools/browser.mjs';
 const source=await readFile(new URL('../index.html',import.meta.url),'utf8');
 const plants=new Function(source.slice(source.indexOf('const FramePlants='),source.indexOf('const definitions = {'))+'return FramePlants;')();
 const classify=new Function(source.slice(source.indexOf('function polygonCreaseData('),source.indexOf('function prepareBooleanRender('))+'return polygonCreaseData;')();
+function* foliageCards(raw){
+  for(let i=raw.ranges[0].count*3;i<raw.indices.length;){
+    const root=raw.indices[i];let last=root,end=i;
+    do{last=Math.max(last,...raw.indices.subarray(end,end+3));end+=3;}
+    while(end<raw.indices.length&&raw.indices[end]<=last);
+    yield {root,last,triangles:(end-i)/3};i=end;
+  }
+}
 function geometry(type,overrides={}){
   const p=plants.settings({...plants.fields,...plants.presets[type],type,...overrides});
   const raw=plants.makePlant(p),wood=raw.ranges[0].count,verts=raw.vertices;
@@ -38,21 +46,24 @@ function geometry(type,overrides={}){
     total++;
   }
   let cards=0;
-  for(let start=wood*3;!grid&&start<raw.indices.length;){
-    const root=raw.indices[start];let last=root,end=start;
-    do{last=Math.max(last,...raw.indices.subarray(end,end+3));end+=3;}
-    while(end<raw.indices.length&&raw.indices[end]<=last);
+  for(const {root,last,triangles} of grid?[]:foliageCards(raw)){
     const spans=(last-root+1)/2;
     assert.ok([2,4,6].includes(spans));
-    assert.equal((end-start)/3,2*spans-2);
-    if(type==='fern')assert.equal(spans,6,'Five interior bends run across each fern frond');
+    assert.equal(triangles,2*spans-2);
+    if(type==='fern'&&p.growth===100)assert.equal(spans,6,'A mature frond has five bends');
+    if(type==='shrub'||type==='fern')assert.equal(verts[root*3+1],0,'Every shoot starts in the soil');
     const point=id=>Array.from(verts.subarray(3*id,3*id+3)),centers=[point(root)];
     for(let j=root+1;j<last;j+=2)centers.push(point(j).map((x,k)=>(x+verts[(j+1)*3+k])/2));
     centers.push(point(last));
     const distance=(a,b)=>Math.hypot(...a.map((x,k)=>x-b[k]));
     const arc=centers.slice(1).reduce((s,p,i)=>s+distance(p,centers[i]),0);
     if(arc>1.002*distance(centers[0],centers.at(-1)))bent++;
-    cards++;start=end;
+    if(type==='fern'&&p.growth===100){
+      const tangents=centers.slice(1).map((p,i)=>p.map((x,k)=>(x-centers[i][k])/distance(p,centers[i])));
+      const angles=tangents.slice(1).map((t,i)=>Math.acos(t.reduce((s,x,k)=>s+x*tangents[i][k],0))*180/Math.PI);
+      assert.ok(angles.every(a=>a>9&&a<19)&&Math.max(...angles)-Math.min(...angles)<5,'Smooth rachis from base to tip: '+angles);
+    }
+    cards++;
   }
   if(wood&&type!=='palm'&&p.habit===0&&total){
     assert.ok(sky/total>.8&&upward/total>.20&&sideways/total>.07,'Deciduous sprays cover elevated and oblique views');
@@ -61,6 +72,8 @@ function geometry(type,overrides={}){
   if(type==='pine'&&!Object.keys(overrides).length){
     const diameter=2*Math.hypot(verts[0],verts[2]);
     assert.ok(Math.abs(diameter-600)<25,'Mature basal diameter in mm: '+diameter);
+    const x=verts.filter((_,i)=>i%3===0),width=(Math.max(...x)-Math.min(...x))/Math.max(...y);
+    assert.ok(width>.6&&width<.89,'Compact mature pine width to height: '+width);
   }
   if(grid){
     assert.equal(raw.triangleCount,4*Math.ceil((type==='grass'?16:9)*p.density/100),'Density sets the crossed clump count');
@@ -74,6 +87,33 @@ function geometry(type,overrides={}){
 for(const type of Object.keys(plants.presets)){
   console.log(type,geometry(type));
   for(const options of [{seed:0,trunks:8,crookedness:100},{seed:99999,growth:1},{spread:0,'conifer shape':51},{spread:100,height:100}])geometry(type,options);
+}
+
+function groundAnchors(raw,type){
+  const v=raw.vertices;
+  if(type==='fern'||type==='shrub')return [...foliageCards(raw)].flatMap(({root})=>[v[root*3],v[root*3+2]]);
+  const roots=[];
+  for(let i=0;i<v.length;i+=12)roots.push(v[i],v[i+2],v[i+3],v[i+5]);
+  return roots;
+}
+for(const type of Object.keys(plants.presets).filter(plants.isGround)){
+  const p=plants.settings({...plants.fields,...plants.presets[type],type}),adult=plants.makePlant(p);
+  const anchors=groundAnchors(adult,type);
+  for(const growth of [1,12,40,75]){
+    const raw=plants.makePlant({...p,growth});
+    assert.deepEqual(groundAnchors(raw,type),anchors,type+' grows from the same roots');
+    if(type==='grass'||type==='tall-grass')for(let i=0;i<raw.vertices.length;i++){
+      const expected=i%3===1?adult.vertices[i]*growth/100:adult.vertices[i];
+      assert.ok(Math.abs(raw.vertices[i]-expected)<.0001,'Grass elongates only in Y');
+    }
+  }
+}
+const spruce=plants.settings({...plants.fields,...plants.presets.spruce,type:'spruce'});
+for(const growth of [1,5,15,35]){
+  const sapling=plants.makePlant({...spruce,growth}),v=sapling.vertices,x=v.filter((_,i)=>i%3===0);
+  const height=spruce.height*10*growth,roots=[...foliageCards(sapling)].map(c=>v[c.root*3+1]/height);
+  assert.ok(Math.max(...x)-Math.min(...x)>.30*height,'A young spruce has lateral growth');
+  assert.ok([.22,.55,.85].every(at=>roots.some(y=>Math.abs(y-at)<.18)),'Needle sprays along the growing leader');
 }
 
 const session=await launch({headless:true}),page=session.page,errors=[];
@@ -106,6 +146,16 @@ try{
   let state=await inspect(),tree=state.objects.find(n=>n.type==='tree'),id=tree.hash;
   assert.equal(tree.params.detail,'procedural');assert.equal(tree.name,'Oak');
   const original=assertMaps(state,tree),sun=await appearance(id),summerMesh=await digest(id);
+  const barkSlot=tree.tags.find(t=>t.libraryIndex===0),barkMaterial=state.materials.find(m=>m.uid===barkSlot.materialUID);
+  const contrast=await page.evaluate(async uid=>{
+    const asset=frameMaterialState().assets.find(a=>a.uid===uid),image=await createImageBitmap(new Blob([asset.bytes]));
+    const canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);image.close();
+    const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
+    let sum=0,squares=0;const count=rgba.length/4;
+    for(let i=0;i<rgba.length;i+=4){const l=.299*rgba[i]+.587*rgba[i+1]+.114*rgba[i+2];sum+=l;squares+=l*l;}
+    return Math.sqrt(squares/count-(sum/count)**2);
+  },barkMaterial.colorAsset);
+  assert.ok(contrast>10&&contrast<17,'Finer bark has moderate luminance variation: '+contrast);
   assert.equal(sun.uv.corners,tree.mesh.triangles*3);assert.equal(tree.tags.filter(t=>t.kind==='uv').length,1);
   assert.equal(sun.materials[1].triangles,plants.makePlant(plants.settings(tree.params)).ranges[1].count);
   const presets=await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>[...row.children].map(button=>[button.offsetWidth,button.offsetHeight])));
@@ -192,6 +242,15 @@ try{
   }
   const shrub=await call('scene.update',{id:fern.hash,params:{type:'shrub'}});
   assert.deepEqual(shrub.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
+  const grass=await call('scene.update',{id:fern.hash,params:{type:'tall-grass',growth:18}});
+  const horizontal=()=>page.evaluate(async id=>Array.from((await frameEngine.readGeometry(id)).vertices).filter((_,i)=>i%3!==1),grass.hash);
+  const tuft=await horizontal(),youngGrass=await appearance(grass.hash),grassAsset=assertMaps(await inspect(),grass).colorAsset;
+  await call('scene.update',{id:grass.hash,params:{growth:95}});
+  assert.deepEqual(await horizontal(),tuft,'Established grass blades keep their ground footprint');
+  assert.notEqual((await appearance(grass.hash)).uv.sha256,youngGrass.uv.sha256,'Later tall grass develops seed heads');
+  assert.equal(assertMaps(await inspect(),await object(grass.hash)).colorAsset,grassAsset);
+  await call('edit.history',{action:'undo'});
+  assert.equal((await appearance(grass.hash)).uv.sha256,youngGrass.uv.sha256);
   const flower=await call('scene.update',{id:fern.hash,params:{type:'poppy',growth:18}});
   const young=await appearance(flower.hash),flowerAsset=assertMaps(await inspect(),flower).colorAsset;
   const start=performance.now();

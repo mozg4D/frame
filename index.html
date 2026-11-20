@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 18:36">
+<meta name="frame-version" content="2026 20 nov 19:30">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12948,12 +12948,13 @@ function settings(p){
 }
 const isGround=form=>Object.hasOwn(garden,form);
 const isFlower=form=>['daisy','poppy','lavender','iris'].includes(form);
+const stagedFoliage=form=>form==='tall-grass'||isFlower(form);
 const empty=params=>params.growth===0||isGround(params.type)&&params['leaf density']===0;
 const geometryKey=p=>[p.form,p.height,p.trunks,p.spread,p.habit,p.branching,p.kink,p.thickness,p.seed,p.growth,isGround(p.form)?p.density:''].join('/');
 const usesGardenFoliage=form=>form==='palm'||isGround(form)&&form!=='shrub';
 function foliageKey(p){
   // Growth unfolds shoots in the mesh; flower cards select stages in a shared image.
-  const parts=['canopy',p.form,p.day];
+  const parts=[usesGardenFoliage(p.form)&&p.form!=='palm'?'grounded':'canopy',p.form,p.day];
   if(p.form==='palm')parts.push(p.density);
   if(!usesGardenFoliage(p.form))parts.push(p.habit,isGround(p.form)?1:p.density,p.thinness,p.twigThickness);
   return parts.join('/');
@@ -13043,9 +13044,9 @@ function sampleStem(path,t) {
 }
 function makePlantPreview(sleeves,cardPoints,cardUV,footprints,scale,wood){
   const positions=[],uvs=[],triangles=[];
-  const vertex=(point,uv)=>{
+  const vertex=(point,uv,units=scale)=>{
     const id=positions.length/3;
-    positions.push(point[0]*scale,Math.max(0,point[1])*scale,point[2]*scale);uvs.push(...uv);
+    positions.push(point[0]*units,Math.max(0,point[1])*units,point[2]*units);uvs.push(...uv);
     return id;
   };
   // Continuous tapered stems with fewer sections and sides at small projected sizes.
@@ -13069,7 +13070,7 @@ function makePlantPreview(sleeves,cardPoints,cardUV,footprints,scale,wood){
     const corners=footprints[Math.floor((i+.5)*cards/count)],base=positions.length/3;
     for(const j of corners){
       const at3=j*3,at2=j*2;
-      vertex(cardPoints.slice(at3,at3+3),cardUV.slice(at2,at2+2));
+      vertex(cardPoints.slice(at3,at3+3),cardUV.slice(at2,at2+2),1);
     }
     triangles.push([base,base+1,base+2,wood],[base,base+2,base+3,wood]);
   }
@@ -13085,8 +13086,8 @@ function makePlantPreview(sleeves,cardPoints,cardUV,footprints,scale,wood){
 }
 function makePlant(p,withPreview=false) {
   const mesh={sleeves:[],cards:[]};
-  const age=(p.growth??100)/100;
-  if(!age||isGround(p.form)&&!p.density)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
+  const age=(p.growth??100)/100,ground=isGround(p.form),fern=p.form==='fern';
+  if(!age||ground&&!p.density)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
   const rand=(i,k)=>noise(p.seed,i,k);
   const n=p.trunks,spread=p.spread/100,h=p.habit/100,b=p.branching/100,kink=p.kink/100,thick=p.thickness/100;
   const broad=1-ease(0.32,0.89,h),pine=ease(0.16,0.86,h);
@@ -13103,11 +13104,13 @@ function makePlant(p,withPreview=false) {
     const f=norm(direction),horizontal=Math.abs(f[1])>0.9999?azimuth(rand(id,95)*TAU):norm(cross(UP,f));
     const upper=norm(cross(f,horizontal)),side=plus(times(horizontal,Math.cos(roll)),times(upper,Math.sin(roll)));
     const normal=norm(cross(f,side));
-    const spans=2*Math.min(3,Math.max(1,Math.ceil(Math.atan(4*Math.abs(bend))/(Math.PI/7))));
+    const spans=2*Math.min(3,Math.max(1,Math.ceil(Math.atan(4*Math.abs(bend))/(fern?Math.PI/12:Math.PI/7))));
+    // Raising the widest section would introduce a crease across the fern rachis.
+    const cup=fern?0:layer>=2?.018+.035*rand(id,96):.045+.075*rand(id,96);
     mesh.cards.push(...root,layer,...times(f,length),spans,
-      ...times(side,length*width),length*twist,...times(normal,length*bend),length*(layer>=2?0.018+0.035*rand(id,96):0.045+0.075*rand(id,96)));
+      ...times(side,length*width),length*twist,...times(normal,length*bend),length*cup);
   }
-  const patch=isGround(p.form)&&p.form!=='fern'&&p.form!=='shrub';
+  const patch=ground&&!fern&&p.form!=='shrub';
   const patchCards=[],patchStages=[];
   if(patch){
     const grass=p.form==='grass',flower=isFlower(p.form);
@@ -13116,41 +13119,45 @@ function makePlant(p,withPreview=false) {
     for(let id=0;id<count;id++){
       // A fixed low-discrepancy sequence keeps established clumps as Density rises.
       const x=((rand(0,20)+.754877666*id)%1-.5)*span,z=((rand(0,21)+.569840291*id)%1-.5)*span;
-      const root=[x/age,0,z/age],stage=sat((age-.12*rand(id,12))/(1-.12*rand(id,12)));
+      const root=[x,0,z],start=.12*rand(id,12),stage=sat((age-start)/(1-start));
       const height=id?lerp(.62,.96,rand(id,4))*(flower?.69+.31*stage:1):1,angle=phase+id*GOLDEN;
-      const width=(grass?.63:p.form==='iris'?.45:.41)*(.85+.28*rand(id,5))*(flower?lerp(1.65,1,age):1);
+      const width=(grass?.63:p.form==='iris'?.45:.41)*(.85+.28*rand(id,5));
       for(let side=0;side<2;side++){
         const across=times(azimuth(angle+side*Math.PI/2),width/2);
-        const top=along(along(root,UP,height),azimuth(angle+1),height*(flower?lerp(.31,.10,age):.14)*(rand(id,7)-.27));
+        const top=along(along(root,UP,height),azimuth(angle+1),height*(flower?lerp(.02,.10,stage):.14)*(rand(id,7)-.27));
         patchCards.push(minus(root,across),plus(root,across),plus(top,across),minus(top,across));
         patchStages.push(stage<.32?0:stage<.57?1:stage<.78?2:3);
       }
     }
-  }else if(p.form==='fern'){
+  }else if(fern){
     const count=Math.ceil(14*p.density/100);
     for(let i=0;i<count;i++){
       const dir=azimuth(i*GOLDEN+rand(3,1)*TAU+(rand(i,1)-.5)*.45);
       const tier=(i*.618033989+.18)%1,root=times(dir,.012+.018*rand(i,2));
-      card(root,[dir[0],lerp(.075,1.32,tier),dir[2]],lerp(1.17,.85,tier)*(.91+.17*rand(i,3)),.31,(rand(i,5)-.5)*.53,.35,
-        (rand(i,6)-.5)*.12,i%2,i);
+      const open=ease(.035+.13*tier,.76+.17*tier,age);
+      const elevation=lerp(1.36+.12*tier,Math.atan(lerp(.075,1.32,tier)),open);
+      const heading=[dir[0]*Math.cos(elevation),Math.sin(elevation),dir[2]*Math.cos(elevation)];
+      const length=lerp(1.17,.85,tier)*(.91+.17*rand(i,3))*lerp(.64+.30*tier,1,open);
+      card(root,heading,length,lerp(.075,.31,open),(rand(i,5)-.5)*.53,lerp(.06,.19,open),
+        (rand(i,6)-.5)*.12*open,i%2,i);
     }
   }else if(p.form==='shrub'){
     const shoots=Math.max(1,Math.ceil(n*p.density/100));
+    const sprays=Math.max(1,Math.ceil((5+5*b)*p.density/100)),phase=rand(3,1)*TAU;
     for(let i=0;i<shoots;i++){
-      const angle=rand(3,1)*TAU+i*GOLDEN,dir=azimuth(angle),base=times(dir,.025+.071*rand(i,2));
-      const tall=lerp(.56,.87,rand(i,3)),reach=(.19+.52*spread)*lerp(.99,.44,(tall-.56)/.31);
-      const stem=[base];
-      for(let j=1;j<=4;j++){
-        const t=j/4,point=along(base,dir,reach*t**1.4);
-        point[1]=tall*t;
-        stem.push(along(point,azimuth(angle+Math.PI/2),kink*.075*Math.sin(Math.PI*t)*(rand(i,7)-.5)));
-      }
-      const sprays=Math.max(1,Math.ceil((5+5*b)*p.density/100));
+      const angle=phase+i*GOLDEN,ring=Math.sqrt((rand(3,2)+i*.754877666)%1);
+      const base=times(azimuth(angle),ring*(.12+.22*spread));
       for(let j=0;j<sprays;j++){
-        const id=103+i*64+j,t=j===0?0:((j*.618033989+i*.21)%1)*.95;
-        const out=azimuth(angle+(j%2?-1:1)*lerp(.33,1.75,rand(id,3)));
-        const root=sampleStem(stem,t*lerp(.32,1,age));
-        leafFan(root,out,(.37+.28*spread)*lerp(.78,1.10,rand(id,8))*(1-.24*t),.54,id,j%2,t);
+        const id=103+i*64+j,bearing=angle+j*GOLDEN+(rand(id,2)-.5)*.55;
+        const root=along(base,azimuth(bearing),.025+.065*rand(id,3));
+        const open=ease(.04+.13*rand(id,4),.70+.23*rand(id,6),age);
+        const tall=.65+.31*rand(id,5)+.12*(1-ring),reach=(.20+.51*spread)*(.46+.62*rand(id,7)+.16*ring);
+        const out=azimuth(angle+.95*Math.sin(bearing-angle));
+        const slope=lerp(1.40,Math.atan2(tall,reach),open),horizontal=Math.cos(slope);
+        const heading=[out[0]*horizontal,Math.sin(slope),out[2]*horizontal];
+        const vigor=lerp(.54+.40*rand(id,8),1,open),length=j===0?1:.43+.48*rand(id,9);
+        card(root,heading,Math.hypot(tall,reach)*vigor*length,lerp(.13,.32,open),
+          (rand(id,10)-.5)*1.38,(.055+.055*kink)*open,.065*(rand(id,11)-.5),j%2,id);
       }
     }
   }
@@ -13261,7 +13268,7 @@ function makePlant(p,withPreview=false) {
           const bud=tier+j*12,angle=phase+i*GOLDEN+TAU*(j+.34*(rand(bud,1)-.5))/rays;
           const t=level+(rand(bud,2)-.5)*.064,start=sampleStem(path,t);
           const mature=lerp(.18,1,ease(.08+.24*t,.42+.35*t,age));
-          const reach=(.20+.29*spread)*(.85+.27*Math.sin(Math.PI*q)-.55*q*q)*(.71+.48*rand(bud,3))*stature*mature;
+          const reach=(.145+.205*spread)*(.85+.27*Math.sin(Math.PI*q)-.55*q*q)*(.71+.48*rand(bud,3))*stature*mature;
           const dir=azimuth(angle),sweep=azimuth(angle+(rand(bud,4)-.5)*.78);
           const elbow=along(start,dir,.44*reach),tip=along(elbow,sweep,.56*reach);
           elbow[1]+=reach*lerp(-.17,.13,q);tip[1]+=reach*(.13+.20*q+.14*rand(bud,5));
@@ -13283,17 +13290,20 @@ function makePlant(p,withPreview=false) {
         card(sampleStem(path,.94+i*.01),heading,.14*stature*lerp(.26,1,age),.38,.35*(i%3-1),-.12,.02,2+i%2,id+2400+i);
       }
     }else if(pine>0.025){
-      const tiers=Math.max(2,Math.round((6+8*b)*pine/(1+0.25*(n-1))));
-      for(let i=0;i<tiers;i++){
-        const tier=id+1200+i*103,q=(i+0.18)/tiers,spruce=p.form==='spruce',t=lerp(spruce?.155:.44,.989,q);
-        const mature=ease(0.02+0.29*t,0.30+0.40*t,age);
+      const tiers=Math.max(2,Math.round((6+8*b)*pine/(1+0.25*(n-1)))),spruce=p.form==='spruce';
+      const sapling=spruce?1-ease(.16,.60,age):0;
+      // A growing leader adds whorls at its tip above established lower branches.
+      const visible=spruce?lerp(Math.min(tiers,1.85+1.65*ease(0,.09,age)),tiers,ease(0,.82,age)):tiers;
+      for(let i=0;i<visible;i++){
+        const tier=id+1200+i*103,q=Math.min(1,(i+.18)/visible),t=lerp(spruce?.155:.44,.989,q);
+        const mature=spruce?ease(0,.90,visible-i):ease(.02+.29*t,.30+.40*t,age);
         if(mature<0.045)continue;
         const rays=Math.max(3,Math.round((4+3.5*b-q*2+(spruce?1.4*q*q:0))/(1+.13*(n-1))));
         for(let j=0;j<rays;j++){
           const bud=tier+3*j,at=t+(rand(bud,0)-0.5)*0.049;
           const angle=phase+i*GOLDEN+TAU*(j+0.24*(rand(bud,1)-0.5))/rays;
           const anchor=sampleStem(path,at),dir=azimuth(angle);
-          dir[1]=(spruce?lerp(-.16,.16,q**3):lerp(.11,.66,q*q))+.12*(rand(bud,2)-.5);
+          dir[1]=(spruce?lerp(-.16,.16,q**3)+(.58+.30*q)*sapling:lerp(.11,.66,q*q))+.12*(rand(bud,2)-.5);
           const crown=spruce?(1-.89*q)**.78:.70+.32*Math.sin(Math.PI*q)-.63*q**5;
           const size=(0.14+0.45*spread)*crown*(0.87+0.22*rand(bud,3))*stature*pine*mature;
           const roll=spruce?(j%2?1:-1)*(.31+.68*rand(bud,5)):(rand(bud,5)-.5)*1.12;
@@ -13305,14 +13315,16 @@ function makePlant(p,withPreview=false) {
             const side=plus(times(horizontal,Math.cos(roll)),times(cross(forward,horizontal),Math.sin(roll)));
             const origin=along(along(anchor,forward,size*f),norm(cross(forward,side)),-0.095*size*4*f*(1-f));
             const sign=(j+k)%2?1:-1,lateral=azimuth(angle+sign*(0.40+0.41*rand(bud,k+8)));
-            lateral[1]=lerp(spruce?-.27:-.53,spruce?.07:.35,q)+.11*(rand(bud,k+14)-.5);
-            card(origin,lateral,size*(k?0.63:0.80),0.49,sign*(spruce?.40+.58*rand(bud,k+9):.45+.48*rand(bud,k+9)),-0.065,0.045,2+(j+i+k+1)%2,bud+k+1);
+            lateral[1]=lerp(spruce?-.27:-.53,spruce?.07:.35,q)+.58*sapling+.11*(rand(bud,k+14)-.5);
+            card(origin,lateral,size*(k?0.63:0.80)*(1-.58*sapling),0.49,sign*(spruce?.40+.58*rand(bud,k+9):.45+.48*rand(bud,k+9)),-0.065,0.045,2+(j+i+k+1)%2,bud+k+1);
           }
         }
       }
-      for(let j=0;j<(p.form==='spruce'?8:5);j++){
+      for(let j=0;j<(spruce?8:5);j++){
         const dir=azimuth(phase+j*GOLDEN);dir[1]=1.25+(j%5)*.47;
-        card(sampleStem(path,.921+j*.010),dir,0.085*stature*pine*lerp(0.19,1,age),0.31,0.22*j,-0.03,0.02,2+(j%2),id+2450+j);
+        const at=lerp(.921+j*.010,.62+j*.046,sapling);
+        const size=lerp(.085*lerp(.19,1,age),.15,sapling)*stature*pine;
+        card(sampleStem(path,at),dir,size,.31,.22*j,-.03,.02,2+(j%2),id+2450+j);
       }
     }
   }
@@ -13345,7 +13357,7 @@ function makePlant(p,withPreview=false) {
     vertex(1,0);cardIndices.push(tip-2,tip,tip-1);
     if(withPreview)footprints.push([base,base+spans-1,tip,base+spans]);
   }
-  const scale=1000*p.height*age/high;
+  const heightMM=1000*p.height,scale=heightMM*age/high;
   for(const {surface,points,radii,grounded} of mesh.sleeves){
     let sides=6,shell=shadeSleeve(surface,scale);
     for(const count of [8,10,12,16]){
@@ -13371,16 +13383,26 @@ function makePlant(p,withPreview=false) {
     }
   }
   const wood=indices.length/3,base=positions.length/3;
-  for(let i=0;i<cardPoints.length;i++)positions.push((i%3===1?Math.max(0,cardPoints[i]):cardPoints[i])*scale);
+  // Ground shoots grow about their individual soil anchors. Tree sprays belong to the crown.
+  for(let i=0,j=0;i<d.length;i+=16){
+    const dx=ground?d[i]*(heightMM-scale):0,dz=ground?d[i+2]*(heightMM-scale):0;
+    const end=j+6*d[i+7];
+    for(;j<end;j+=3){
+      cardPoints[j]=cardPoints[j]*scale+dx;cardPoints[j+1]=Math.max(0,cardPoints[j+1])*scale;cardPoints[j+2]=cardPoints[j+2]*scale+dz;
+      positions.push(cardPoints[j],cardPoints[j+1],cardPoints[j+2]);
+    }
+  }
   for(const j of cardIndices){indices.push(base+j);uv.push(cardUV[j*2],cardUV[j*2+1]);}
   for(let i=0;i<patchCards.length;i+=4){
     const at=positions.length/3;
-    for(const point of patchCards.slice(i,i+4))positions.push(...times(point,scale));
+    for(let k=i;k<i+4;k++){
+      const [x,y,z]=patchCards[k];positions.push(x*heightMM,y*scale,z*heightMM);
+    }
     for(const j of [0,1,2,0,2,3]){
       indices.push(at+j);
       const u=j===1||j===2?1:0;
       const x=i%8===0?u:1-u,y=j<2?1:0;
-      if(isFlower(p.form)){
+      if(stagedFoliage(p.form)){
         const stage=patchStages[i/4];uv.push(((stage&1)+x)*.5,((stage>>1)+y)*.5);
       }else uv.push(x,y);
     }
@@ -13855,7 +13877,7 @@ function needlePatches(variant,day,density,slender,thickness) {
 
 const foliageSize=384,broadPatch=broadGenerator(0),foliageDevices=new WeakMap();
 async function gardenFoliage(p){
-  const flowers=isFlower(p.form),side=foliageSize*(flowers?2:1);
+  const staged=stagedFoliage(p.form),side=foliageSize*(staged?2:1);
   const canvas=new OffscreenCanvas(side,side),ctx=canvas.getContext('2d');
   ctx.setTransform(foliageSize,0,0,-foliageSize,0,foliageSize);
   const rand=(i,k)=>noise(213,i,k),palm=p.form==='palm';
@@ -13915,7 +13937,7 @@ async function gardenFoliage(p){
     }
   }
   if(palm||p.form==='fern'){
-    const axis=t=>[.021+.943*t+.022*Math.sin(Math.PI*t),.021+.943*t-.026*Math.sin(Math.PI*t)];
+    const axis=t=>{const v=lerp(palm?.021:0,.964,t),s=Math.sin(Math.PI*t);return [v+.022*s,v-.026*s];};
     const count=palm?24:16;
     stem(axis(0),[.52,.45],axis(1),palm?.017:.012,palm?'#68713d':'#687848');
     for(let i=0;i<count;i++)for(const sign of [-1,1]){
@@ -13946,11 +13968,11 @@ async function gardenFoliage(p){
   }else{
     const grass=p.form==='grass'||p.form==='tall-grass',tall=p.form==='tall-grass';
     const count=grass?(tall?17:36):7;
-    for(let stage=0;stage<(flowers?4:1);stage++){
+    for(let stage=0;stage<(staged?4:1);stage++){
       ctx.save();ctx.setTransform(foliageSize,0,0,-foliageSize,(stage&1)*foliageSize,((stage>>1)+1)*foliageSize);
       ctx.beginPath();ctx.rect(0,0,1,1);ctx.clip();
       for(let i=0;i<count;i++){
-        const root=[.06+.88*(i+rand(i,1))/count,.008+.034*rand(i,3)];
+        const root=[.06+.88*(i+rand(i,1))/count,0];
         const reach=(rand(i,0)-.5)*(grass?.45:.19);
         const top=[Math.max(.025,Math.min(.975,root[0]+reach)),(grass&&!tall?.36:.52)+(grass&&!tall?.58:.35)*rand(i,2)];
         const mid=[lerp(root[0],top[0],.24),lerp(root[1],top[1],.60)];
@@ -13958,7 +13980,7 @@ async function gardenFoliage(p){
           const width=(tall?.020:.019)*(.49+rand(i,4));
           blade(root,top,width,reach*.31,green(i,-6),green(i,tall?8:13));
           stem(root,mid,top,.0015,green(i,9));
-          if(tall&&i%3===0)for(let k=0;k<8;k++){
+          if(tall&&stage>=2&&i%3===0)for(let k=0;k<(stage===2?4:8);k++){
             const at=.73+k*.030,base=[lerp(mid[0],top[0],at),lerp(mid[1],top[1],at)];
             blade(base,[base[0]+(k%2?-1:1)*(.032-.002*k),base[1]+.035+rand(i*8+k,5)*.016],.008,.005,'#82704e','#b4a27c');
           }
@@ -13971,7 +13993,8 @@ async function gardenFoliage(p){
         const leaves=sword?5:p.form==='lavender'?7:4;
         for(let k=0;k<leaves;k++){
           const flip=k%2?-1:1,f=(k+.35)/leaves;
-          const a=[lerp(root[0],top[0],f*f),root[1]+stalk*rise*(sword?.13:.08+.52*f)];
+          const t=stage?(sword?.13:.08+.52*f):0;
+          const a=[lerp(root[0],top[0],t),root[1]+stalk*rise*t];
           const b=[Math.max(.014,Math.min(.986,a[0]+flip*(.052+.06*rand(i*8+k,10)))),a[1]+rise*(sword?.58:.14+.12*rand(i*8+k,11))];
           blade(a,b,p.form==='poppy'?.023:.012,flip*.021,green(i,-4),green(i,8));
         }
@@ -14007,11 +14030,11 @@ function bark(){
     const u=x/size,v=y/size,w=u+0.039*grain(u,v,5,3,11)+0.012*grain(u,v,11,8,8);
     const furrow=Math.abs(2*grain(w,v,19,4,13)-1),fibre=grain(w,v,63,9,4),fine=grain(u,v,89,59,17);
     const h=.64*ease(.08,.48,furrow)+.23*fibre+.13*fine,i=y*size+x;
-    height[i]=h;color.set([36+91*h+7*fine,31+77*h+6*fine,26+63*h+5*fine,255],4*i);
+    height[i]=h;color.set([55+57*h+4*fine,47+48*h+4*fine,39+40*h+3*fine,255],4*i);
   }
   const at=(x,y)=>height[((y+size)%size)*size+(x+size)%size];
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const v=norm([1.4*(at(x-1,y)-at(x+1,y)),1.4*(at(x,y-1)-at(x,y+1)),1]);
+    const v=norm([.90*(at(x-1,y)-at(x+1,y)),.90*(at(x,y-1)-at(x,y+1)),1]);
     normal.set([...v.map(c=>Math.round((0.5+0.5*c)*255)),255],4*(y*size+x));
   }
   barkImages=Promise.all([encodePixels(color,size,size),encodePixels(normal,size,size)]).catch(e=>{barkImages=null;throw e;});
