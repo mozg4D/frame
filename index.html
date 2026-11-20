@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 00:22">
+<meta name="frame-version" content="2026 21 nov 00:38">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15365,7 +15365,7 @@ function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tab
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 const curvatureIcon=$('shaderCurvature');
 let curvatureDrag=null,curvatureDropTicket=0;
-curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M5.5 17.5l8.5-9 12.5 6-8.5 9z" fill="#244157" stroke="#64879a" stroke-linejoin="round"/><path d="M5.5 17.5l10-4.5 11 1.5-8.5 9z" fill="#276665" stroke="#69a5a2" stroke-linejoin="round"/><path d="M5.5 17.5l10-4.5 11 1.5" fill="none" stroke="#e59859" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 17.9 13.5 6.8 29 14.2 18.5 25.3Z" fill="#31566d"/><path d="M3 17.9 15.4 12.35 29 14.2 18.5 25.3Z" fill="#3f8183"/></svg>';
 function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
 function finishCurvatureDrag(e,cancel=false){
   const g=curvatureDrag;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;
