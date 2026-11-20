@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
-const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('    function drawReplicaBatches('),end=html.indexOf('// Shared viewport bridge:',start);assert.ok(start>0&&end>start);
+const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('    function issueReplicaSurface('),end=html.indexOf('    function retireOrderedReplicas(',start);assert.ok(start>0&&end>start);
 const source=html.slice(start,end),identity=()=>Float64Array.from([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
 function fixture(){
  const scene={meshes:[]},record={writes:[],draws:[],bindings:[],released:[]},state={pipeline:{},instances:{}},materialState={...state,material:true},library={group:{}},r={device:{queue:{writeBuffer(buffer,offset,data){buffer.data=new Uint8Array(data.buffer,data.byteOffset,data.byteLength).slice();record.writes.push(buffer);}},createBindGroup:descriptor=>descriptor}},pass={setPipeline(){},setBindGroup(...args){record.bindings.push(args);},setIndexBuffer(){},draw(count,instances){record.draws.push({count,instances,indexed:false});},drawIndexed(count,instances){record.draws.push({count,instances,indexed:true});}},options={safe:true,pending:false};

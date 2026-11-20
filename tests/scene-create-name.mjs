@@ -35,7 +35,7 @@ export async function sceneCreateNameCPUChecks(){
    {type:'nut',params:{type:'high',size:'M10'},label:'Nut',auto:'high M10'},
    {type:'washer',params:{type:'DIN 9021',size:'M10'},label:'Washer',auto:'DIN 9021 M10'},
    {type:'bolt',params:{type:'DIN 912',size:'M10',length:40},label:'Bolt',auto:'DIN 912 M10*40'},
-   {type:'tree',params:{type:'oak'},label:'Tree',auto:'Oak'},
+   {type:'tree',params:{type:'poplar'},label:'Tree',auto:'Poplar'},
    {type:'cube',params:{'size x':17},label:'Cube',auto:'Cube'}
   ];
   for(const c of cases){
@@ -45,7 +45,7 @@ export async function sceneCreateNameCPUChecks(){
    }
    const n=await h.call({type:c.type,params:c.params});check(c.type+' omitted name follows final parameters',()=>assert.equal(n.name,c.auto));
   }
-  for(const [type,expected]of [['nut','regular M6'],['washer','DIN 125 M6'],['bolt','DIN 912 M6*20'],['tree','Bush']])check('Native UI '+type+' default name is unchanged',()=>assert.equal(h.ui(type).name,expected));
+  for(const [type,expected]of [['nut','regular M6'],['washer','DIN 125 M6'],['bolt','DIN 912 M6*20'],['tree','Oak']])check('Native UI '+type+' default name is unchanged',()=>assert.equal(h.ui(type).name,expected));
   const before=h.count();await assert.rejects(h.call({type:'nut',name:'Nut',params:{type:'high',size:'M999'}}),/not listed/);check('Invalid hardware parameters reject before creation',()=>assert.equal(h.count(),before));
   const defaults=await h.call({type:'nut',name:'Nut'}),automatic=await h.call({type:'nut'});
   check('Explicit label without parameters overrides only the name',()=>{assert.equal(defaults.name,'Nut');assert.deepEqual(defaults.params,automatic.params);assert.equal(automatic.name,'regular M6');});
@@ -65,7 +65,7 @@ export async function sceneCreateNameCPUChecks(){
   check('Repeated explicit names remain exact on distinct metadata owners',()=>{assert.ok(repeated.every(n=>n.name==='Nut'));assert.equal(new Set(repeated.map(n=>n.id)).size,3);});
   const fixed='n.name=a.name??(hardwareName(n)||n.name);';assert.ok(html.includes(fixed));
   const legacy=harness(html.replace(fixed,'if(a.name===undefined)n.name=hardwareName(n)||n.name;'));
-  for(const [c,wrong]of [[cases[0],'regular M6'],[cases[1],'DIN 125 M6'],[cases[2],'DIN 912 M6*20'],[cases[3],'Bush']]){
+  for(const [c,wrong]of [[cases[0],'regular M6'],[cases[1],'DIN 125 M6'],[cases[2],'DIN 912 M6*20'],[cases[3],'Oak']]){
    const n=await legacy.call({type:c.type,name:c.label,params:c.params});check('Historical '+c.type+' handler fails the explicit-name oracle',()=>{assert.equal(n.name,wrong);assert.notEqual(n.name,c.label);});
   }
   const at=performance.now();for(let i=0;i<2000;i++){h.reset();const n=await h.call({type:'nut',name:'Nut',params:{type:'high',size:'M10'}});assert.equal(n.name,'Nut');}const ms=performance.now()-at;

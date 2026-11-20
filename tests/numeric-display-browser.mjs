@@ -77,7 +77,32 @@ export async function numericDisplayBrowserChecks(page){
   const saved=await call('scene.export',{includeData:true}),beforeSave=pose(await selected(square.hash));await call('scene.open',{name:'numeric-display.hash',base64:saved.base64});await call('view.set',{mode:'object',coordinates:'world'});await call('scene.select',{ids:[square.hash]});check('HASH preserves exact geometry and pose while displaying planar zero',pose(await selected(square.hash))===beforeSave&&JSON.stringify((await call('spline.inspect',{id:square.hash})).data)===cage&&(await state()).fields.sy==='0');
   await call('scene.new');await call('view.set',{index:2,single:true,mode:'object',coordinates:'world'});const tiny=await call('scene.create',{type:'square',params:{'side 1':1e-6,'side 2':2e-6}}),small=await state();check('A genuinely tiny independent source keeps both meaningful dimensions',Number(small.fields.sx)>0&&Number(small.fields.sy)>0,small);await call('transform.set',{channel:'rotation',axis:0,value:90});const smallRotated=await state();check('Tiny planar dimensions use their own scale rather than a fixed threshold',Number(smallRotated.fields.sx)>0&&Number(smallRotated.fields.sz)>0&&smallRotated.fields.sy==='0',smallRotated);
   await call('scene.new');const light=await call('scene.create',{type:'infinite'});await page.locator('#tabAttributes').click();const intensity=page.locator('input[data-field="intensity"]');await intensity.fill('1e-16');await intensity.press('Enter');check('An authored tiny scalar is not mistaken for transform roundoff',(await selected(light.hash)).params.intensity===1e-16&&await intensity.inputValue()==='1e-16');await intensity.focus();await intensity.press('Enter');check('Viewing the tiny scalar preserves it exactly',(await selected(light.hash)).params.intensity===1e-16);await intensity.fill('0');await intensity.press('Enter');check('Typing zero is still an explicit scalar edit',(await selected(light.hash)).params.intensity===0);await call('edit.history',{action:'undo'});check('Tiny scalar Undo restores its full value',(await selected(light.hash)).params.intensity===1e-16);
-  await trustedNumericInteractions(page,call,check,timed);await call('scene.new');return {pass:true,checks,timings,deviceScaleFactor:await page.evaluate(()=>devicePixelRatio)};
+  await trustedNumericInteractions(page,call,check,timed);
+  await call('scene.new');
+  const cube=await call('scene.create',{type:'cube'}),cloner=await call('scene.create',{type:'cloner',inputs:[cube.hash],params:{'count x':5,'count y':1,'count z':1}});
+  await page.locator('#tabAttributes').click();
+  const count=page.locator('#attrContent input[data-field="count x"]');
+  const countState=()=>page.evaluate(id=>({value:nodes.find(n=>n.nativeHash===id).params['count x'],copies:frameEngine.scene.meshes.filter(m=>m.hashId===id).length}),cloner.hash);
+  await count.click();
+  await count.press('ControlOrMeta+A');
+  await page.keyboard.type('10',{delay:100});
+  await page.evaluate(()=>{window.__countInput=document.activeElement;refreshAttributesPanel();});
+  await page.keyboard.type('0',{delay:100});
+  check('Slow three-digit Cloner typing keeps the original focused textbox after a panel refresh',await count.evaluate(e=>e===__countInput&&e===document.activeElement&&e.value==='100'));
+  check('Cloner text does not rebuild intermediate counts',JSON.stringify(await countState())===JSON.stringify({value:5,copies:5}));
+  await timed('Cloner Count typed commit',async()=>{await count.press('Tab');await call('scene.inspect');});
+  check('Tab applies 100 copies and advances to the next Count field',(await countState()).copies===100&&
+    await page.locator('#attrContent input[data-field="count y"]').evaluate(e=>e===document.activeElement));
+  await page.locator('#coordBtn').focus();
+  await call('edit.history',{action:'undo'});
+  check('One Undo restores the original Cloner Count',(await countState()).copies===5);
+  await call('edit.history',{action:'redo'});
+  check('Redo restores all 100 copies',(await countState()).copies===100);
+  await count.fill('20 +');
+  await count.press('Enter');
+  check('Incomplete Cloner Count restores the committed number',await count.inputValue()==='100'&&(await countState()).copies===100);
+  await page.evaluate(()=>delete window.__countInput);
+  await call('scene.new');return {pass:true,checks,timings,deviceScaleFactor:await page.evaluate(()=>devicePixelRatio)};
  }catch(error){return {pass:false,checks,timings,error:error.stack};}
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){

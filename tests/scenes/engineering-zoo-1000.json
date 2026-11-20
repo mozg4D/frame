@@ -6164,6 +6164,6 @@
     3000000
   ],
   "description": "Stylized excavator-like engineering workload; approximate fabrication assemblies, not dimensioned product CAD. Unique curved sheets, variable-section members, routed pipes/wires and nested cuts dominate. Standard hardware and repeated standard contours use native Instances.",
-  "bytes": 14202129,
-  "sha256": "f440d0cb8866c7bbf5f645b5df6155fa4333276cad788a77162d352e0594689f"
+  "bytes": 14202160,
+  "sha256": "05287811f30de40143ef568dc9acf3e7c1db1eba95195b2d788094062a94d3e3"
 }

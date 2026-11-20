@@ -16,7 +16,7 @@ export async function sceneCreateNameBrowserChecks(page){
    {type:'nut',params:{type:'high',size:'M10'},name:'Nut',auto:'high M10'},
    {type:'washer',params:{type:'DIN 9021',size:'M10'},name:'Washer',auto:'DIN 9021 M10'},
    {type:'bolt',params:{type:'DIN 912',size:'M10',length:40},name:'Bolt',auto:'DIN 912 M10*40'},
-   {type:'tree',params:{type:'oak',detail:'low'},name:'Tree',auto:'Oak'}
+   {type:'tree',params:{type:'oak'},name:'Tree',auto:'Oak'}
   ];
   for(const c of cases){
    await call('scene.new');

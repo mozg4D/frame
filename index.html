@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 11:03">
+<meta name="frame-version" content="2026 20 nov 15:13">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12886,18 +12886,19 @@ const escapeHTML = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;'
 // A field is a number, text, boolean, or a short list of choices. No scene geometry.
 const approximation = {'angle approximation':10};
 const hardware = {size:['M6','M3','M4','M5','M8','M10','M12','M16'],'angle approximation':20};
-const stockCarAssets={hatchback:'car-hatchback-2',originalHatchback:'car-hatchback-1',sedan:'car-sedan-1'};
+// The HASH asset identity survives renaming the bundled file.
+const stockCarAsset='car-hatchback-2';
 // Choice indices are stored in animation tracks.
 const carPaintPresets={red:[10,33,44],gold:[52,100,37],blue:[217,40,42],silver:[0,0,50],graphite:[0,0,25],green:[82,100,22],white:[0,0,91],violet:[250,50,40],beige:[40,30,60],black:[0,0,8]};
 const FramePlants=(()=>{
-// The choice order of the original stock Tree fields is part of its animation format.
+// The Tree type choice order is part of its animation format.
 const presets={
   oak:   {height:10000,trunks:1,spread:86,'conifer shape':0,branching:76,crookedness:61,'trunk thickness':74,seed:29},
   poplar:{height:17000,trunks:1,spread:19,'conifer shape':0,branching:79,crookedness:29,'trunk thickness':43,seed:63},
   bush:  {height:1800,trunks:5,spread:92,'conifer shape':0,branching:73,crookedness:66,'trunk thickness':31,seed:14},
   spruce:{height:12000,trunks:1,spread:47,'conifer shape':100,branching:74,crookedness:18,'trunk thickness':41,seed:38}
 };
-const fields={type:['bush','spruce','oak','poplar'],detail:['low','high','procedural'],...presets.oak,
+const fields={type:['bush','spruce','oak','poplar'],detail:['procedural'],...presets.oak,
   growth:100,'day of year':172,'twig thickness':43,'leaf density':88,'leaf slenderness':40};
 const percent={minimum:0,maximum:100,unit:'%',access:'read-write'};
 const integer=(minimum,maximum)=>({minimum,maximum,integer:true,access:'read-write'});
@@ -12906,7 +12907,7 @@ const options={type:{access:'read-write'},detail:{access:'read-write'},height:{m
   seed:integer(0,99999),growth:percent,'day of year':integer(1,365),'twig thickness':percent,'leaf density':percent,'leaf slenderness':percent};
 function presetPatch(current,changes){
   const type=changes.type??current.type;
-  return type!==current.type||changes.detail==='procedural'&&current.detail!=='procedural'?{...presets[type],...changes}:changes;
+  return type!==current.type?{...presets[type],...changes}:changes;
 }
 function settings(p){
   return {form:p.type,height:p.height/1000,trunks:p.trunks,spread:p.spread,habit:p['conifer shape'],branching:p.branching,
@@ -13017,7 +13018,48 @@ function sampleStem(path,t) {
   const x=sat(t)*(path.length-1),i=Math.min(path.length-2,Math.floor(x));
   return mix3(path[i],path[i+1],x-i);
 }
-function makePlant(p) {
+function makePlantPreview(sleeves,cardPoints,cardUV,scale,ground,wood){
+  const positions=[],uvs=[],triangles=[];
+  const vertex=(point,uv)=>{
+    const id=positions.length/3;
+    positions.push(point[0]*scale,(point[1]-ground)*scale,point[2]*scale);uvs.push(...uv);
+    return id;
+  };
+  // Continuous tapered stems with fewer sections and sides at small projected sizes.
+  for(const {points,radii} of sleeves){
+    const last=points.length-1,steps=last>=5?[0,Math.round(last/2),last]:[0,last];
+    const axis=norm(minus(points[last],points[0])),side=norm(cross(Math.abs(axis[0])<0.8?[1,0,0]:UP,axis));
+    const other=cross(axis,side),base=positions.length/3,start=points[0],circumference=TAU*radii[0];
+    for(const i of steps)for(let j=0;j<=3;j++){
+      const a=j%3*TAU/3,p=along(along(points[i],side,Math.cos(a)*radii[i]),other,Math.sin(a)*radii[i]);
+      vertex(p,[j/3,dot(minus(points[i],start),axis)/circumference]);
+    }
+    for(let i=1;i<steps.length;i++)for(let j=0;j<3;j++){
+      const a=base+(i-1)*4+j,b=a+4;
+      triangles.push([a,a+1,b+1,0],[a,b+1,b,0]);
+    }
+  }
+  // Sample across the whole crown. The quad uses the original card footprint and atlas tile.
+  const cards=cardPoints.length/27,count=Math.min(cards,40);
+  for(let i=0;i<count;i++){
+    const at=Math.floor((i+.5)*cards/count)*9,base=positions.length/3;
+    for(const j of [0,2,8,6]){
+      const at3=(at+j)*3,at2=(at+j)*2;
+      vertex(cardPoints.slice(at3,at3+3),cardUV.slice(at2,at2+2));
+    }
+    triangles.push([base,base+1,base+2,wood],[base,base+2,base+3,wood]);
+  }
+  const floats=new Float32Array(triangles.length*27),words=new Uint32Array(floats.buffer);
+  for(let i=0;i<triangles.length;i++){
+    const [a,b,c,face]=triangles[i],point=id=>positions.slice(id*3,id*3+3),pa=point(a);
+    const n=norm(cross(minus(point(b),pa),minus(point(c),pa)));
+    for(const [j,id] of [a,b,c].entries()){
+      const at=i*27+j*9;floats.set(point(id),at);floats.set(n,at+3);floats.set(uvs.slice(id*2,id*2+2),at+6);words[at+8]=face;
+    }
+  }
+  return floats;
+}
+function makePlant(p,withPreview=false) {
   const mesh={sleeves:[],cards:[]};
   const age=(p.growth??100)/100;
   if(!age)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
@@ -13221,7 +13263,8 @@ function makePlant(p) {
     indices.push(base+i+j);uv.push(cardUV[(i+j)*2],cardUV[(i+j)*2+1]);
   }
   const triangleCount=indices.length/3;
-  return {vertices:Float32Array.from(positions),indices:Uint32Array.from(indices),uv:Float32Array.from(uv),nativeExact:true,
+  const preview=withPreview?makePlantPreview(mesh.sleeves,cardPoints,cardUV,scale,low,wood):null;
+  return {vertices:Float32Array.from(positions),indices:Uint32Array.from(indices),uv:Float32Array.from(uv),nativeExact:true,preview,
     vertexCount:positions.length/3,triangleCount,baseMaterial:0,ranges:[{start:0,count:wood,material:0},{start:wood,count:triangleCount-wood,material:1}]};
 }
 
@@ -13908,7 +13951,7 @@ const node = id => frameLookupNode(id);
 const current = () => node(selectedTag?.owner||(selected.has(focusId)?focusId:[...selected][0]));
 const defaults = fields => {
   const values=Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]));
-  if(fields===definitions.tree[2])Object.assign(values,{type:'oak',detail:'procedural'});
+  if(fields===definitions.tree[2])Object.assign(values,{type:'oak'});
   if(fields===definitions.car[2])values['color preset']='blue';
   return values;
 };
@@ -14727,7 +14770,7 @@ function bindNumber(input,o){
   const begin=()=>{if(numericSession?.input!==input)numericSession?.finish(true);if(before===null){before=snapshot();customBefore=o.snap?.();textEdited=false;}numericSession={input,finish};};
   function display(force=false){if(force||document.activeElement!==input&&!drag?.moved){input.value=o.multiple?.()?'':format(o.get());input.placeholder=o.multiple?.()?'multiple':'';}}
   function apply(value,round=false){value=clamp(value);if(o.int)value=Math.round(value);else if(round&&o.prec!=null)value=Math.round(value*10**o.prec)/10**o.prec;o.set(value);o.update?.();return o.get();}
-  function finish(accept){if(framePointerLock?.element===input)frameUnlockPointer();if(before===null)return;const saved=before;before=null;if(numericSession?.input===input)numericSession=null;drag=null;document.body.classList.remove('number-dragging');if(accept){o.finish?.();if(o.commit)o.commit(customBefore);else checkpoint(saved);}else if(o.revert)o.revert(customBefore);else restore(saved);customBefore=null;}
+  function finish(accept){if(framePointerLock?.element===input)frameUnlockPointer();if(before===null)return;const saved=before;before=null;if(numericSession?.input===input)numericSession=null;drag=null;document.body.classList.remove('number-dragging');if(accept){o.finish?.();if(o.commit)o.commit(customBefore);else checkpoint(saved);}else if(o.revert)o.revert(customBefore);else restore(saved);customBefore=null;resumeAttributesAfterNumber();}
   function typed(){const parsed=numericExpressionValue(input.value);if(parsed!==null&&!o.deferText)apply(parsed);}
   input.addEventListener('focus',begin);
   input._scrubStart=e=>{input._scrubPointerId=e.pointerId;begin();const parsed=numericExpressionValue(input.value);if(document.activeElement===input&&textEdited&&parsed!==null)apply(parsed);textEdited=false;drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false,accum:0,crossing:stepFor(o.get()),range:o.get()};try{input.setPointerCapture(e.pointerId);}catch{}};
@@ -14743,9 +14786,9 @@ function bindNumber(input,o){
   input._scrubEnd=(e={})=>{if(!drag||e.pointerId!==undefined&&e.pointerId!==drag.id)return false;const {moved,id}=drag;drag=null;try{if(input.hasPointerCapture(id))input.releasePointerCapture(id);}catch{}input.style.userSelect='';document.body.classList.remove('number-dragging');finish(true);display(true);return moved;};
   input.addEventListener('lostpointercapture',e=>{if(numericDragInput===input&&framePointerLock?.element!==input)finishNumericDrag(e);});
   input.addEventListener('dblclick',e=>{e.preventDefault();input.focus();input.select();});
-  input.addEventListener('input',()=>{begin();textEdited=true;writing=true;typed();writing=false;});
+  input.addEventListener('input',e=>{begin();textEdited=true;if(e.isComposing)return;writing=true;try{typed();}finally{writing=false;}});
   input.addEventListener('blur',()=>{if(drag?.moved||writing||cancelling)return;if(before===null){display(true);return;}const raw=input.value,parsed=numericExpressionValue(raw);if(textEdited&&parsed!==null)apply(parsed);const actual=o.get();input.value=format(actual);finish(true);});
-  input.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();begin();const parsed=textEdited?numericExpressionValue(input.value):null,value=parsed??o.get(),step=(o.keyStep??o.stepFixed??1)*(e.shiftKey?10:e.altKey&&!o.int?.1:1);apply(value+(e.key==='ArrowUp'?step:-step),true);textEdited=false;input.value=format(o.get());}else if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();cancelling=true;finish(false);input.blur();cancelling=false;display(true);}});
+  input.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing)return;if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();begin();const parsed=textEdited?numericExpressionValue(input.value):null,value=parsed??o.get(),step=(o.keyStep??o.stepFixed??1)*(e.shiftKey?10:e.altKey&&!o.int?.1:1);apply(value+(e.key==='ArrowUp'?step:-step),true);textEdited=false;input.value=format(o.get());}else if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();cancelling=true;finish(false);input.blur();cancelling=false;display(true);}});
   input._stepWheel=e=>{begin();const step=stepFor(o.get()),value=apply(o.get()+(e.deltaY<0?step:-step),true);input.value=format(value);finish(true);};
   input._sync=display;display(true);
 }
@@ -14822,12 +14865,27 @@ function bindCycle(button,items,get,set,format=String,complete=()=>{}){
     bindChoiceScrub(handle,items,get,set,refresh,complete);
   }
 }
+let attributesNumberOwner=null,attributesNumberTag=null,attributesRefreshPending=false,attributesRefreshFrame=0;
+function resumeAttributesAfterNumber(){
+  if(!attributesRefreshPending||attributesRefreshFrame)return;
+  // Tab can focus another field in this same panel before the next frame.
+  attributesRefreshFrame=requestAnimationFrame(()=>{
+    attributesRefreshFrame=0;
+    if(attributesRefreshPending&&!$('attrContent').contains(numericSession?.input))renderAttributes();
+  });
+}
 function renderAttributes(){
+  const n=node(selectedTag?.owner)||current(),content=$('attrContent'),tag=selectedTag?node(selectedTag.owner)?.tags[selectedTag.index]:null;
+  if(content.contains(numericSession?.input)&&n===attributesNumberOwner&&tag===attributesNumberTag){
+    attributesRefreshPending=true;
+    return;
+  }
+  attributesNumberOwner=n;attributesNumberTag=tag;attributesRefreshPending=false;
   if(frameCurvesRenderAttributes())return;
-  const n=node(selectedTag?.owner)||current(),content=$('attrContent');if(!n){content.replaceChildren();return;}
+  if(!n){content.replaceChildren();return;}
   if(!selectedTag&&(FrameGeometry.bevelAttributes(content,n)||FrameGeometry.attributes(content,n)||window.frameEngine?.polygonAttributes(content,n)))return;
   if(!selectedTag&&[...selected].some(id=>node(id)?.type!==n.type)){content.replaceChildren();return;}
-  const tag=selectedTag?node(selectedTag.owner)?.tags[selectedTag.index]:null,values=tag?tag.params:n.params;if(FrameMorph.attributes(content,n,tag))return;if(frameSelectionAttributes(n,tag,content))return;
+  const values=tag?tag.params:n.params;if(FrameMorph.attributes(content,n,tag))return;if(frameSelectionAttributes(n,tag,content))return;
   let fields=tag?tag.kind==='morph'?{...tagDefinitions.morph.fields,...Object.fromEntries(Object.keys(tag.params).filter(k=>k!=='mode').map(k=>[k,0]))}:tagDefinitions[tag.kind].fields:definitions[n.type][2];
   if(!tag&&['nut','washer','bolt'].includes(n.type)&&window.FrameSpline){const options=FrameSpline.K().catalogue(n.type,values);values.size=options.size;if(options.length)values.length=options.length;fields={...fields,size:options.sizes,...options.lengths?{length:options.lengths}:{}};}
   let list=Object.entries(fields).filter(([k])=>tag||n.type!=='render'||k!=='environment image'),html='';
@@ -14843,7 +14901,7 @@ function renderAttributes(){
     html+=triple('pos',['random position x','random position y','random position z'])+triple('angle',['random angle x','random angle y','random angle z'])+row('uniform scale')+(values['uniform scale']?fieldRow('scale %',values['random scale x'],fields['random scale x'],'random scale x'):triple('scale %',['random scale x','random scale y','random scale z']))+row('seed');
   }else if(!tag&&n.type==='symmetry')html=(descendants(n.id).some(id=>node(id)?.tags.some(t=>t.kind==='morph'))?`<div class="attr-row"><span class="attr-lab">Morph</span><div class="attr-ctrl"><button class="attr-btn${values['Morph symmetry']?' on':''}" data-field="Morph symmetry" data-value="${!values['Morph symmetry']}" aria-pressed="${values['Morph symmetry']}">symmetry</button></div></div>`:'')+'<div class="attr-row"><span class="attr-lab">axis</span><div class="attr-ctrl">'+['X','Y','Z'].map(k=>`<button class="attr-btn${values[k]?' on':''}" data-field="${k}" data-value="${!values[k]}" aria-pressed="${values[k]}">${k}</button>`).join('')+'</div></div>';
   else{
-    if(!tag&&n.type==='tree'&&values.detail!=='procedural')list=list.filter(([key])=>key==='type'||key==='detail');
+    if(!tag&&n.type==='tree')list=list.filter(([key])=>key!=='detail');
     if(!tag&&n.type==='extrude')list=list.filter(([k])=>k!=='end cap'&&(!k.includes('fillet')||values[k.split(' ')[0]+' cap']!==false&&(!k.endsWith('fillet type')||values[k.replace(' type','')]!==0)));
     if(tag?.kind==='morph'&&values.mode==='Modelling')list=list.filter(([k])=>k==='mode');
     html=list.map(([k,spec])=>!tag&&n.type==='extrude'&&k==='start cap'?capRow():!tag&&n.type==='pulley'&&k==='profile'?'<div class="attr-row"><span class="attr-lab">profile</span><div class="attr-ctrl">'+spec.map(v=>`<button class="attr-btn${values[k]===v?' on':''}" data-field="profile" data-value="${v}" aria-pressed="${values[k]===v}">${v}</button>`).join('')+'</div></div>':fieldRow(tag?.kind==='morph'&&k==='mode'?'':k,values[k],spec,k)).join('');
@@ -14867,7 +14925,7 @@ function renderAttributes(){
   if(!tag)for(const key of FramePlugins.owner(n)?.manifest.objects.find(o=>o.type===n.type)?.breakAfter||[]){const input=[...content.querySelectorAll('[data-field]')].find(el=>el.dataset.field===key);if(input)input.closest('.attr-row').style.marginBottom='8px';}
   const update=(key,value)=>{if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
   for(const input of all('input[type=checkbox][data-field]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.checked),false);
-  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
+  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
   for(const input of all('textarea,[data-textfield]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.value),false);
   for(const button of all('[data-value]',content)){button.onclick=()=>{const key=button.dataset.field;if(!tag&&n.type==='render'&&key==='environment'&&button.dataset.value==='image'){frameChooseEnvironment(n);return;}commit(()=>update(key,typeof fields[key]==='boolean'?button.dataset.value==='true':tagDefinitions[tag?.kind]?.plugin&&Array.isArray(fields[key])?fields[key].find(v=>String(v)===button.dataset.value):button.dataset.value),false);renderAttributes();};button.onkeydown=e=>{if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key))return;const key=button.dataset.field,spec=fields[key],direction=['ArrowUp','ArrowRight'].includes(e.key)?1:-1;if(typeof spec!=='boolean'&&!Array.isArray(spec))return;e.preventDefault();e.stopPropagation();const value=typeof spec==='boolean'?direction>0:spec[(spec.indexOf(values[key])+direction+spec.length)%spec.length];commit(()=>update(key,value),false);renderAttributes();const candidates=all('[data-field]',content).filter(el=>el.dataset.field===key);(candidates.find(el=>el.getAttribute('aria-pressed')==='true')||candidates[0])?.focus();};}
   for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'||n.type==='tree'?renderAttributes:()=>{});}
@@ -15472,7 +15530,6 @@ function frameInstallMaterialState(data,prepared){
   const list=data?.library?.length?data.library:frameDefaultMaterials;
   materials.splice(0,materials.length,...list.map(m=>{const copy={...m,map:null,opacityMap:null};for(const [field,slot,path]of [['colorAsset','map','texture'],['opacityAsset','opacityMap','opacityTexture']]){const a=frameMaterialAssets.get(copy[field]);if(a){copy[path]=a.url;const img=frameMaterialImage(a.url);if(!img.complete||!img.naturalWidth)img.onload=()=>{materialThumbnails.clear();syncMaterial();renderTree();};copy[slot]=img;}}return copy;}));activeMaterial=0;selectedMaterials=new Set([0]);materialThumbnails.clear();renderMaterials();syncMaterial();if(activeTab==='tabTextures')renderTextures();
 }
-function stockParams(n){return n.type==='tree'&&n.params.detail!=='procedural'?{type:n.params.type,detail:n.params.detail}:n.params;}
 function stockMaterialSlots(n){
   return n.tags.filter(t=>t.librarySlot&&t.kind==='material').map(t=>{
     const m=materials[t.material],materialUID=m?.uid||t.materialUID;
@@ -15481,15 +15538,11 @@ function stockMaterialSlots(n){
   });
 }
 function restoreStockAuthoring(n,library){
-  n.type=library.type;n.params={...defaults(definitions[n.type][2]),...n.type==='tree'?{...FramePlants.presets[library.params.type||'bush'],type:'bush',detail:'low'}:{},...library.params};n.librarySlots=structuredClone(library.slots);
-  if(n.type==='car'){
-    // Early compact scenes reference the sedan and its polygon and material indices.
-    n.libraryAsset=library.asset||stockCarAssets.sedan;
-    if(n.libraryAsset===stockCarAssets.sedan&&!Object.hasOwn(library.params,'color preset'))n.params['color preset']='red';
-    n.libraryPreset=n.params['color preset'];
-  }
+  n.type=library.type;n.params={...defaults(definitions[n.type][2]),...n.type==='tree'?FramePlants.presets[library.params.type||'oak']:{},...library.params};
+  n.librarySlots=structuredClone(library.slots);
+  if(n.type==='car')n.libraryPreset=n.params['color preset'];
 }
-function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:n.libraryAsset||stockCarAssets.hatchback}:{},params:stockParams(n),slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
+function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:stockCarAsset}:{},params:n.params,slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
 function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library)restoreStockAuthoring(n,a.library);for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
 function frameValidateMorphRegions(regions){
   const vector=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
@@ -15503,7 +15556,7 @@ function frameValidateMorphKeys(keys){
   }
 }
 function validateStockCar(library){
-  if(library.asset!==undefined&&!Object.values(stockCarAssets).includes(library.asset))throw Error('Unknown stock car asset');
+  if(library.asset!==stockCarAsset)throw Error('Unknown stock car asset');
   const seen=new Set();
   for(const [ordinal,slot] of library.slots.entries()){
     const index=slot.index??ordinal;
@@ -19587,7 +19640,7 @@ window.frameEngine=(()=>{
     }
     function releaseBorrowed(mesh){for(const b of mesh.borrowed||[]){const q=gpuLeases.get(b);if(q&&!--q.count){gpuLeases.delete(b);if(q.retired)releaseGPU(b);}}mesh.borrowed=[];if(mesh.cowReadToken){mesh.cowReadToken.count--;mesh.cowReadToken=null;}mesh.cowShared=false;}
     function disposeMesh(mesh){clearPatchPreview(mesh);releaseMaterialTable(mesh);for(const b of mesh.buffers)releaseGPU(b);mesh.buffers=[];releaseBorrowed(mesh);}
-    function disposeScene(value){if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
+    function disposeScene(value){if(renderer?.orderedReplicas?.scene===value)retireOrderedReplicas(renderer);if(renderer?.validatedNavigation?.scene===value)renderer.validatedNavigation=null;if(renderer?.cageNavigation?.scene===value)renderer.cageNavigation=null;if(renderer?.navigationCurves?.space===value)renderer.navigationCurves=null;if(renderer?.navigationAtlas?.scene===value)retireNavigationAtlas(renderer);if(renderer?.patchPreview&&value===scene)clearPatchPreview();if(replicaAuthoringIndexCache?.space===value)replicaAuthoringIndexCache=null;cancelReplicaPublication(value);objectPickCycle=null;objectSelectionOccurrence=null;if(value&&value===scene)FrameAuthorData.invalidateDocument();navigationSurfaces.clear();animationPending.clear();animationSamples.clear();if(value)for(const m of value.curveReplicas||[])for(const b of m.buffers)releaseGPU(b);replicaPlacements.clear();for(const state of surfaceSamplers.values())disposeSurfaceSampler(state);surfaceSamplers.clear();for(const state of morphStates.values())for(const b of state.buffers)releaseGPU(b);morphStates.clear();clearSplineDisplays();if(!value)return;releaseAppearance(value);if(value.gpu){if(value.gpu.geometryBundles?.scene===value)value.gpu.geometryBundles=null;if(value.gpu.boxSelection?.space===value)clearBoxSelection(value.gpu);clearPickGroups(value.gpu);if(value.gpu.featureScene===value)clearFeatureDraws(value.gpu);}for(const mesh of value.meshes)disposeMesh(mesh);releaseGPU(value.grid);}
 
     async function createNormalPacking(device){
       const module=device.createShaderModule({label:'dense shading records',code:computeCommon+`
@@ -20057,7 +20110,12 @@ window.frameEngine=(()=>{
       const groups=[0,1].map(phase=>{const params=make('connected settings',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);d.queue.writeBuffer(params,0,new Uint32Array([mesh.vertexCount,d.limits.maxComputeWorkgroupsPerDimension,phase,1-phase]));return {prepare:computeGroup(gpu,gpu.connected.prepare,[w.control,w.args[1-phase],params]),wave:pagedGroup(gpu,wave,{0:mesh.indices,1:mesh.heads,2:mesh.corners,3:flags,4:phase===0?w.a:w.b,5:phase===0?w.b:w.a,6:w.control,7:params})};});
       return {flags,range,a:w.a,b:w.b,control:w.control,args:w.args,groups,seed,wave,workspace:w,owned:owned.filter(b=>b!==flags)};
     }
-    function connectedSeedGroup(gpu,mesh,pick){return mesh.paged?pagedGroup(gpu,mesh.connected.seed,{0:mesh.indices,1:pick.closest,2:mesh.connected.flags,3:mesh.connected.a,4:mesh.connected.control,5:mesh.connected.range}):computeGroup(gpu,gpu.connected.init,[mesh.indices,pick.closest,mesh.connected.flags,mesh.connected.a,mesh.connected.control,mesh.connected.range]);}
+    function connectedSeedGroup(gpu,mesh,pick){
+      if(!mesh.connected.range){
+        mesh.connected.range=meshAllocator(gpu,mesh)('instance face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+        gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));
+      }
+      return mesh.paged?pagedGroup(gpu,mesh.connected.seed,{0:mesh.indices,1:pick.closest,2:mesh.connected.flags,3:mesh.connected.a,4:mesh.connected.control,5:mesh.connected.range}):computeGroup(gpu,gpu.connected.init,[mesh.indices,pick.closest,mesh.connected.flags,mesh.connected.a,mesh.connected.control,mesh.connected.range]);}
     async function uploadPagedAndCompute(gpu,input,options={}){
       const d=gpu.device,start=performance.now(),profile={},mesh={gpu,paged:true,buffers:[],vertexCount:input.vertexCount,triangleCount:input.triangleCount,count:input.triangleCount*3,faceBase:0,version:0,parts:[]},make=meshAllocator(gpu,mesh),storage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
       if(mesh.vertexCount>0x55555554||mesh.count>0x3fffffff)throw Error('The mesh exceeds the 32-bit canonical-coordinate limit.');d.pushErrorScope('out-of-memory');d.pushErrorScope('validation');let scopes=2;
@@ -20225,16 +20283,20 @@ window.frameEngine=(()=>{
       const parent=transformParent(h);let m=parent?FM.mul(objectWorld(parent,seen),objectLocal(h)):objectLocal(h);poseWorlds.set(h,m);const constraint=poseConstraints.get(h);if(constraint&&!seen.has(constraint.nativeHash)){const goal=FM.point(objectWorld(constraint.nativeHash,new Set(seen)),[0,0,0]),pivot=FM.point(m,FM.point(objectPivot(h),[0,0,0])),delta=FM.sub(goal,pivot);if(Math.hypot(...delta)>1e-10){const x=FM.unit(delta),oldX=FM.unit(FM.point(FM.mul(m,objectPivot(h)),[1,0,0],0)),cross=FM.cross(oldX,x),angle=Math.atan2(Math.hypot(...cross),Math.max(-1,Math.min(1,FM.dot(oldX,x)))),axis=Math.hypot(...cross)>1e-10?FM.unit(cross):FM.unit(FM.cross(oldX,Math.abs(oldX[1])<.9?[0,1,0]:[0,0,1]));const rotate=FM.rotation(axis,angle);m=FM.mul(FM.about(rotate,pivot),m);}}if(frameLoadNodes()?frameLoadNodes().byHash.get(h)?.type==='render':(frameNodeByHash(h)?.type==='render')){const rigid=FM.rigid(m),x=Array.from(rigid.slice(0,3)),cross=FM.cross(x,[0,1,0]),z=Math.hypot(...cross)>1e-10?FM.scale(FM.unit(cross),FM.dot(cross,Array.from(rigid.slice(8,11)))<0?-1:1):Array.from(rigid.slice(8,11)),y=FM.unit(FM.cross(z,x)),level=FM.I();level.set(x,0);level.set(y,4);level.set(z,8);level.set(m.slice(12,15),12);m=FM.mul(level,FM.mul(FM.inv(rigid),m));}poseWorlds.set(h,m);return m;
     }
     function poseSplineLoadMesh(mesh,m){
-      mesh.localBoundsMin??=[...mesh.boundsMin];mesh.localBoundsMax??=[...mesh.boundsMax];poseUniform(renderer,mesh);writePoseUniform(mesh,m);const box=transformedBox(localMeshBox(mesh),m);mesh.boundsMin=box.min;mesh.boundsMax=box.max;
+      mesh.localBoundsMin??=[...mesh.boundsMin];mesh.localBoundsMax??=[...mesh.boundsMax];if(!mesh.replicaMatrix)poseUniform(renderer,mesh);writePoseUniform(mesh,m);const box=transformedBox(localMeshBox(mesh),m);mesh.boundsMin=box.min;mesh.boundsMax=box.max;
       for(const p of mesh.parts||[]){p.owner=mesh;p.localBoundsMin??=[...p.boundsMin];p.localBoundsMax??=[...p.boundsMax];const b=transformedBox({min:p.localBoundsMin,max:p.localBoundsMax},m);p.boundsMin=b.min;p.boundsMax=b.max;}refreshMaterialOwners([mesh]);
     }
     function poseUniform(gpu,mesh){
-      if(!mesh.objectFrame){mesh.objectFrame=makeGPUBuffer(gpu.device,{label:'object affine frame',size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});mesh.buffers.push(mesh.objectFrame);writePoseUniform(mesh,FM.I());}
+      if(!mesh.objectFrame){
+        mesh.objectFrame=makeGPUBuffer(gpu.device,{label:'object affine frame',size:128,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+        mesh.buffers.push(mesh.objectFrame);
+        if(mesh.frameWords)gpu.device.queue.writeBuffer(mesh.objectFrame,0,mesh.frameWords);else writePoseUniform(mesh,FM.I());
+      }
       return mesh.objectFrame;
     }
     function writePoseUniform(mesh,m){
       mesh.frameWorld=new Float64Array(m);mesh.frameGenerated=!!mesh.splineGenerated;mesh.frameInverse=FM.inv(m);mesh.posed=!FM.equal(m,FM.I());const data=new ArrayBuffer(128),f=new Float32Array(data),u=new Uint32Array(data),v=mesh.frameInverse,sign=Math.sign(FM.determinant(m));f.set(m);
-      for(let j=0;j<3;j++)for(let i=0;i<3;i++)f[16+j*4+i]=v[i*4+j]*sign;u[28]=mesh.posed?1:0;u[29]=mesh.splineGenerated?1:0;u[31]=mesh.splineHighlightActive?1:0;mesh.frameWords=new Uint32Array(data);mesh.gpu.device.queue.writeBuffer(mesh.objectFrame,0,data);
+      for(let j=0;j<3;j++)for(let i=0;i<3;i++)f[16+j*4+i]=v[i*4+j]*sign;u[28]=mesh.posed?1:0;u[29]=mesh.splineGenerated?1:0;u[31]=mesh.splineHighlightActive?1:0;mesh.frameWords=new Uint32Array(data);if(mesh.objectFrame)mesh.gpu.device.queue.writeBuffer(mesh.objectFrame,0,data);
     }
     function localMeshBox(mesh){return {min:mesh.localBoundsMin||mesh.boundsMin,max:mesh.localBoundsMax||mesh.boundsMax};}
     const animationSamples=new Map(),animationPending=new Map();let animationSerial=Promise.resolve(),animationGather;
@@ -20349,9 +20411,9 @@ window.frameEngine=(()=>{
       let deformed=null;if(meshes.length&&editDrag?.ready){deformed=new Map();for(const target of editDrag.targets||[editDrag])if(!target.morph&&target.mesh?.boundsMin&&target.mesh?.boundsMax)deformed.set(target.mesh,transformedBox({min:target.mesh.boundsMin,max:target.mesh.boundsMax},target.mesh.frameInverse||FM.I()));}
       if(owners){for(const h of owners)poseWorlds.delete(h);}else{poseWorlds.clear();const constraints=nodes.filter(n=>n.type==='target'&&n.enabled);poseConstraints=new Map(constraints.map(n=>[objectReference(n.params.object,n)?.nativeHash,n]));}let geometryChanged=false;const changedSources=new Set();
       for(const mesh of meshes){
-        poseUniform(mesh.gpu,mesh);const owner=mesh.hashId?objectWorld(mesh.hashId):FM.I(),m=mesh.replicaMatrix?FM.mul(owner,mesh.replicaMatrix):owner;
+        if(!mesh.replicaMatrix)poseUniform(mesh.gpu,mesh);const owner=mesh.hashId?objectWorld(mesh.hashId):FM.I(),m=mesh.replicaMatrix?FM.mul(owner,mesh.replicaMatrix):owner;
         mesh.localBoundsMin??=[...mesh.boundsMin];mesh.localBoundsMax??=[...mesh.boundsMax];
-        const changed=!FM.equal(m,mesh.frameWorld||FM.I())||mesh.frameGenerated!==!!mesh.splineGenerated;if(changed){geometryChanged=true;changedSources.add(mesh.hashId);writePoseUniform(mesh,m);mesh.version=(mesh.version||0)+1;mesh.frameRevision=(mesh.frameRevision||0)+1;}
+        const changed=!mesh.frameWorld||!FM.equal(m,mesh.frameWorld)||mesh.frameGenerated!==!!mesh.splineGenerated;if(changed){geometryChanged=true;changedSources.add(mesh.hashId);writePoseUniform(mesh,m);mesh.version=(mesh.version||0)+1;mesh.frameRevision=(mesh.frameRevision||0)+1;}
         if(changed){const b=transformedBox(localMeshBox(mesh),m);mesh.boundsMin=b.min;mesh.boundsMax=b.max;
         for(const part of mesh.parts||[]){part.localBoundsMin??=[...part.boundsMin];part.localBoundsMax??=[...part.boundsMax];const p=transformedBox({min:part.localBoundsMin,max:part.localBoundsMax},m);part.boundsMin=p.min;part.boundsMax=p.max;}}
         let source=mesh;if(deformed)while(source&&!deformed.has(source))source=source.replicaSource;const conservative=deformed?.get(source);
@@ -20407,9 +20469,10 @@ window.frameEngine=(()=>{
     function gizmoBasis(){const f=selectionFrame()||FM.I();const r=coordinateMode==='world'?FM.I():FM.rigid(f);return [0,4,8].map(i=>Array.from(r.slice(i,i+3)));}
     function coordinateState(){
       const aux=auxiliaryState();if(aux)return auxiliaryCoordinates(aux);
-      const cacheKey=[poseEpoch,selectionGeneration,selectionScope,coordinateMode,pivotEditing,componentPivot?.join(','),...currentSelectionMeshes().map(m=>m.version||0)].join(':');if(coordinateCache?.key===cacheKey)return coordinateCache.value;
+      const geometryKey=selectionScope==='objects'?scene?.topologyRevision:currentSelectionMeshes().map(m=>m.version||0).join(',');
+      const cacheKey=[poseEpoch,selectionGeneration,selectionScope,coordinateMode,pivotEditing,componentPivot?.join(','),geometryKey].join(':');if(coordinateCache?.key===cacheKey)return coordinateCache.value;
       const frame=selectionFrame();if(!frame)return null;const ref=referenceFrame(),relative=FM.mul(FM.inv(ref),frame),position=Array.from(relative.slice(12,15)),rotation=FM.euler(relative).map(v=>v*180/Math.PI);
-      const basis=coordinateMode==='world'?FM.I():FM.rigid(frame),occurrence=objectOccurrenceTransform(),measurementBasis=occurrence?FM.mul(FM.inv(occurrence),basis):basis,key=[poseEpoch,selectionGeneration,coordinateMode,...measurementBasis,...currentSelectionMeshes().map(m=>m.version||0)].join(':');
+      const basis=coordinateMode==='world'?FM.I():FM.rigid(frame),occurrence=objectOccurrenceTransform(),measurementBasis=occurrence?FM.mul(FM.inv(occurrence),basis):basis,key=[poseEpoch,selectionGeneration,coordinateMode,...measurementBasis,geometryKey].join(':');
       const splineSize=selectionScope==='components'?splineSelectionSize(basis):null;if(splineSize){const value={position,rotation,size:splineSize,frame,basis,scope:selectionScope,editingPivot:pivotEditing};coordinateCache={key:cacheKey,value};return value;}
       let size=selectionBox.max.map((n,i)=>n-selectionBox.min[i]);if(measurementCache?.key===key)size=measurementCache.size;
       else{requestMeasurements(key,measurementBasis);if(measurementCache?.key===key)size=measurementCache.size;}
@@ -20456,7 +20519,7 @@ window.frameEngine=(()=>{
         ]);
         if(renderer===r&&!r.dead){r[key]={pipeline,wireSurfacePipeline,edgePipeline,idPipeline};draw(true,false,true);}return r[key];})();return r[key+'Init'];
     }
-    function meshPipelines(r,mesh){return mesh.posed?(frameViewKind(viewIndex)?r.posedOrtho:r.posed):(frameViewKind(viewIndex)?r.ortho:r);}
+    function meshPipelines(r,mesh){if(mesh.replicaMatrix&&!mesh.parts&&!mesh.shadingBindGroup)meshRenderGroups(r,mesh);return mesh.posed?(frameViewKind(viewIndex)?r.posedOrtho:r.posed):(frameViewKind(viewIndex)?r.ortho:r);}
 
     // Ordinary polygons shade their edges in the surface pass. No cage masks,
     // per-edge visibility walk, compaction, or camera-dependent derived streams.
@@ -20469,9 +20532,35 @@ window.frameEngine=(()=>{
 
     let measureQueue=Promise.resolve(),frameMeasureQueue=Promise.resolve(),pendingMeasurementKey=null;
     function measureFrameBounds(...args){const job=frameMeasureQueue.catch(()=>{}).then(()=>measureFrameBoundsNow(...args));frameMeasureQueue=job.catch(()=>{});return job;}
+    function extremeFrameMeshes(meshes,reference){
+      const leastUpper=[Infinity,Infinity,Infinity],greatestLower=[-Infinity,-Infinity,-Infinity],bounds=new Float64Array(meshes.length*6);
+      for(let i=0;i<meshes.length;i++){
+        const mesh=meshes[i],box=localMeshBox(mesh),m=FM.mul(reference,mesh.frameWorld||FM.I());
+        for(let axis=0;axis<3;axis++){
+          let lo=Math.fround(m[12+axis]),hi=lo,magnitude=Math.abs(lo),span=0;
+          for(let k=0;k<3;k++){
+            const w=Math.fround(m[k*4+axis]),a=w*box.min[k],b=w*box.max[k];
+            lo+=Math.min(a,b);hi+=Math.max(a,b);magnitude+=Math.max(Math.abs(a),Math.abs(b));span=Math.max(span,Math.abs(b-a));
+          }
+          if(!Number.isFinite(magnitude))return meshes;
+          const pad=magnitude*2**-20+2**-140,at=i*6+axis;
+          bounds[at]=lo-pad;bounds[at+3]=hi+pad;
+          // Each local axis extreme is attained by at least one canonical vertex.
+          leastUpper[axis]=Math.min(leastUpper[axis],hi-span+pad);
+          greatestLower[axis]=Math.max(greatestLower[axis],lo+span-pad);
+        }
+      }
+      return meshes.filter((_,i)=>leastUpper.some((limit,axis)=>bounds[i*6+axis]<=limit||bounds[i*6+axis+3]>=greatestLower[axis]));
+    }
     async function measureFrameBoundsNow(meshes,reference=FM.I(),selected=true){
+      if(!selected&&meshes.length>=512&&!meshes.some(m=>m.frameConservative))meshes=extremeFrameMeshes(meshes,reference);
       const gpu=renderer,d=gpu.device,space=scene,owners=meshes.map(mesh=>({mesh,positions:mesh.positions,flags:mesh.connected.flags}));let total=null;
-      const current=()=>scene===space&&owners.every(o=>space?.meshes.includes(o.mesh)&&o.mesh.buffers.length&&o.mesh.positions===o.positions&&o.mesh.connected.flags===o.flags);
+      let indexedMeshes,liveMeshes;
+      const current=()=>{
+        if(scene!==space)return false;
+        if(indexedMeshes!==space.meshes){indexedMeshes=space.meshes;liveMeshes=new Set(indexedMeshes);}
+        return owners.every(o=>liveMeshes.has(o.mesh)&&(o.mesh.replicaMatrix||o.mesh.buffers.length)&&o.mesh.positions===o.positions&&o.mesh.connected.flags===o.flags);
+      };
       if(!current())return null;
       const code=`struct Config{matrix:mat4x4f,counts:vec4u};@group(0) @binding(0) var<storage,read> positions:array<f32>;@group(0) @binding(1) var pages:texture_2d_array<u32>;@group(0) @binding(2) var<storage,read> bits:array<u32>;@group(0) @binding(3) var<storage,read_write> partial:array<vec4f>;@group(0) @binding(4) var<storage,read_write> result:array<vec4f>;@group(0) @binding(5) var<uniform> cfg:Config;
         fn coordinate(i:u32)->f32{if(cfg.counts.z==0u){return positions[i];}let d=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x);}
@@ -21401,7 +21490,7 @@ window.frameEngine=(()=>{
     const materialKeys=frameMaterialKeys,materialNumber=(m,k)=>m[k]??frameMaterialDefaults[k]??0;
     const polygonResources=new Map(),uvResources=new Map();
     let renderMaterialCache=null,renderMaterialEpoch=0;
-    function createRenderMaterialCache(){return {scene,renderer,records:scene?.records,epoch:renderMaterialEpoch,values:new Map(),uvTags:new Map(),uv:new WeakMap(),ensuredUV:new WeakMap(),materials:new WeakMap(),transparent:new WeakMap(),transparentMaterials:new Map(),transparentState:renderer?.materialState,transparentAlpha:renderer?.materialState?.alphaAssets};}
+    function createRenderMaterialCache(){return {scene,renderer,records:scene?.records,epoch:renderMaterialEpoch,values:new Map(),uvTags:new Map(),uv:new WeakMap(),ensuredUV:new WeakMap(),materials:new WeakMap(),transparent:new WeakMap(),blend:new WeakMap(),transparentMaterials:new Map(),transparentState:renderer?.materialState,transparentAlpha:renderer?.materialState?.alphaAssets};}
     function currentRenderMaterialCache(){if(!renderMaterialCache)return null;const c=renderMaterialCache;if(c.scene!==scene||c.renderer!==renderer||c.records!==scene?.records||c.epoch!==renderMaterialEpoch)renderMaterialCache=createRenderMaterialCache();return renderMaterialCache;}
     function invalidateRenderMaterials(){if(renderMaterialCache){renderMaterialEpoch++;renderMaterialCache=createRenderMaterialCache();}}
     function withRenderMaterials(read){const previous=renderMaterialCache;renderMaterialCache=createRenderMaterialCache();try{return read();}finally{renderMaterialCache=previous;}}
@@ -21458,7 +21547,36 @@ window.frameEngine=(()=>{
       refreshMaterialOwners();
       invalidateRenderMaterials();appearanceRevision++;if(renderer?.materialState)renderer.materialState.signature='';draw(shadingMode!=='wireframe');
     }
-    function refreshMaterialOwners(meshes=scene.meshes){for(const mesh of meshes){let chain=appearanceTags(mesh.hashId).filter(t=>t.kind==='material');if(!chain.length&&mesh.replicaSource)chain=mesh.replicaSource.materialTags||[];let h=nativeValue(mesh.hashId,'parent')?.[0],seen=new Set([mesh.hashId]);while(!chain.length&&h&&!seen.has(h)){seen.add(h);chain=appearanceTags(h).filter(t=>t.kind==='material'&&!t.mask);h=nativeValue(h,'parent')?.[0];}if(mesh.booleanMaterialTags?.length&&!mesh.replicaSource)chain=[...mesh.booleanMaterialTags,...chain];const key=frameValueKey(chain);if(mesh.appearanceKey!==key){invalidateRenderMaterials();releaseMaterialTable(mesh);mesh.appearanceKey=key;mesh.materialTags=chain;mesh.materialBindings=null;}}}
+    function refreshMaterialOwners(meshes=scene.meshes){
+      const owners=new Map(),sources=new WeakMap(),row=chain=>({chain,key:frameValueKey(chain)});
+      let changed=false;
+      for(const mesh of meshes){
+        const hash=mesh.hashId;
+        let owner=owners.get(hash);
+        if(!owner){
+          const own=appearanceTags(hash).filter(t=>t.kind==='material');
+          let parent=nativeValue(hash,'parent')?.[0],inherited=[];
+          const seen=new Set([hash]);
+          while(!own.length&&!inherited.length&&parent&&!seen.has(parent)){
+            seen.add(parent);inherited=appearanceTags(parent).filter(t=>t.kind==='material'&&!t.mask);
+            parent=nativeValue(parent,'parent')?.[0];
+          }
+          owner={own:row(own),inherited:row(inherited)};owners.set(hash,owner);
+        }
+        let entry=owner.own;
+        if(!entry.chain.length&&mesh.replicaSource?.materialTags?.length){
+          const source=mesh.replicaSource;
+          entry=sources.get(source);
+          if(!entry){entry=row(source.materialTags);sources.set(source,entry);}
+        }
+        if(!entry.chain.length)entry=owner.inherited;
+        if(mesh.booleanMaterialTags?.length&&!mesh.replicaSource)entry=row([...mesh.booleanMaterialTags,...entry.chain]);
+        if(mesh.appearanceKey!==entry.key){
+          changed=true;releaseMaterialTable(mesh);mesh.appearanceKey=entry.key;mesh.materialTags=entry.chain;mesh.materialBindings=null;
+        }
+      }
+      if(changed)invalidateRenderMaterials();
+    }
     function releaseAppearance(space){invalidateRenderMaterials();for(const set of polygonResources.values())releaseGPU(set.resource);polygonResources.clear();for(const uv of uvResources.values())releaseGPU(uv.resource);uvResources.clear();if(space?.gpu)releaseMaterialState(space.gpu);}
     async function polygonSetPipelines(gpu){
       if(gpu.polygonSets)return gpu.polygonSets;if(gpu.polygonSetsInit)return gpu.polygonSetsInit;
@@ -21811,7 +21929,8 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     function releaseMaterialTable(mesh){const entry=mesh.materialTableEntry;if(!entry)return;entry.users.delete(mesh);mesh.materialTableEntry=null;mesh.materialTable=null;if(!entry.users.size){releaseGPU(entry.buffer);entry.pool.delete(entry.key);}}
     function materialMeshGPU(r,mesh){const cache=currentRenderMaterialCache();if(cache?.materials.has(mesh)){const cached=cache.materials.get(mesh);if(!cached||cached.state===r.materialState&&cached.bindings===mesh.materialBindings)return cached;}const value=materialMeshGPUNow(r,mesh);currentRenderMaterialCache()?.materials.set(mesh,value);return value;}
     function materialMeshGPUNow(r,mesh){
-      if(!mesh.materialTags?.length){releaseMaterialTable(mesh);return null;}const state=materialLibraryGPU(r),library=scene.records.get(FrameHash.K.materials)?.value,uv=ensureImportedUV(mesh),box=localMeshBox(mesh);let bindings=mesh.materialBindings;
+      if(!mesh.materialTags?.length){releaseMaterialTable(mesh);return null;}
+      if(mesh.replicaMatrix&&!mesh.shadingBindGroup)meshRenderGroups(r,mesh);const state=materialLibraryGPU(r),library=scene.records.get(FrameHash.K.materials)?.value,uv=ensureImportedUV(mesh),box=localMeshBox(mesh);let bindings=mesh.materialBindings;
       if(state.indicesSource!==library||!state.indices){const ordering=(library||[]).join(',');if(state.indicesKey!==ordering||!state.indices){state.indices=new Map((library||[]).map((uid,i)=>[uid,i+1]));state.indicesKey=ordering;}state.indicesSource=library;}
       const changed=!bindings||bindings.appearance!==mesh.appearanceKey||bindings.libraryKey!==state.indicesKey||bindings.positions!==mesh.positions||bindings.uv!==uv?.resource||box.min.some((v,i)=>v!==bindings.bounds[i])||box.max.some((v,i)=>v!==bindings.bounds[i+3]);
       let key=bindings?.key,base=0,tags=[];
@@ -21827,29 +21946,40 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       for(const part of mesh.parts||[mesh]){const old=bindings.groups.get(part),idBase=mesh.drawIds.get(part.faceStart||0);if(old?.source===part.shadingBindGroup)continue;const group=r.device.createBindGroup({layout:state.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:3,resource:{buffer:part.normals}},{binding:4,resource:{buffer:mesh.connected.flags}},{binding:5,resource:{buffer:part.renderIndices}},{binding:6,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:7,resource:{buffer:mesh.paged?r.meshModePaged:r.meshModeBuffer}},{binding:8,resource:{buffer:idBase}},{binding:9,resource:{buffer:mesh.objectFrame}},{binding:10,resource:{buffer:mesh.materialTable}},{binding:11,resource:{buffer:uv?.resource||r.dummyReadBuffer}},{binding:12,resource:{buffer:mesh.mappingUniform}},{binding:13,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});bindings.groups.set(part,{source:part.shadingBindGroup,group});}return {state,bindings};
     }
     function releaseMaterialState(r){invalidateRenderMaterials();clearMaterialTransparency(r);if(r?.materialState){releaseGPU(r.materialState.data);releaseGPU(r.materialState.atlas);r.materialState.assetTicket++;r.materialState=null;}}
-    function materialTransparent(mesh){
-      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;const cache=currentRenderMaterialCache(),state=renderer?.materialState;if(cache){if(cache.transparentState!==state||cache.transparentAlpha!==state?.alphaAssets){cache.transparentState=state;cache.transparentAlpha=state?.alphaAssets;cache.transparent=new WeakMap();cache.transparentMaterials.clear();}if(cache.transparent.has(mesh))return cache.transparent.get(mesh);}const value=materialTransparentNow(mesh);currentRenderMaterialCache()?.transparent.set(mesh,value);return value;
-    }
-    function materialTransparentNow(mesh){
-      const tags=mesh.materialTags;if(shadingMode==='wireframe'||shadingMode==='isoparms'||!tags?.length)return false;
-      const cache=currentRenderMaterialCache()?.transparentMaterials,state=renderer?.materialState;
+    function materialTransparent(mesh,blendOnly=false){
+      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;
+      const cache=currentRenderMaterialCache(),state=renderer?.materialState;
+      if(cache&&(cache.transparentState!==state||cache.transparentAlpha!==state?.alphaAssets)){
+        cache.transparentState=state;cache.transparentAlpha=state?.alphaAssets;
+        cache.transparent=new WeakMap();cache.blend=new WeakMap();cache.transparentMaterials.clear();
+      }
+      const items=blendOnly?cache?.blend:cache?.transparent;
+      if(items?.has(mesh))return items.get(mesh);
+      const tags=mesh.materialTags,bit=blendOnly?2:1;
+      let transparent=false;
       for(let i=tags.length-1;i>=0;i--){
         const tag=tags[i];if(tag.mask&&!polygonSet(tag.mask))continue;
-        const uid=tag.materialUID;let transparent=cache?.get(uid);
-        if(transparent===undefined){
+        const uid=tag.materialUID;
+        let flags=cache?.transparentMaterials.get(uid);
+        if(flags===undefined){
           const values=appearanceValue(uid,'parameters'),maps=appearanceValue(uid,'maps');
-          transparent=!!(values?.[6]>0||maps?.[1]&&maps[1]!==FrameHash.K.zero||values?.[12]!==1&&maps?.[0]&&maps[0]!==FrameHash.K.zero&&state?.alphaAssets?.get(maps[0])!==false);
-          cache?.set(uid,transparent);
+          const coverage=values?.[6]>0||maps?.[1]&&maps[1]!==FrameHash.K.zero||
+            values?.[12]!==1&&maps?.[0]&&maps[0]!==FrameHash.K.zero&&state?.alphaAssets?.get(maps[0])!==false;
+          // MASK coverage is binary. Its holes still affect picking and line overlays.
+          flags=coverage?(values?.[12]===2?1:3):0;
+          cache?.transparentMaterials.set(uid,flags);
         }
-        if(transparent)return true;if(!tag.mask)break;
+        if(flags&bit){transparent=true;break;}
+        if(!tag.mask)break;
       }
-      return false;
+      items?.set(mesh,transparent);
+      return transparent;
     }
     function clearMaterialTransparency(r){const oit=r?.materialState?.oit;if(oit){releaseGPU(oit.accum);releaseGPU(oit.reveal);r.materialState.oit=null;}}
     function renderMaterialTransparency(r,encoder,color,depth,width,height){
       if(frameNavigation&&!frameNavigation.transparent)return;
       if(shadingMode==='off')return;
-      const meshes=scene.meshes.filter(m=>materialTransparent(m)&&meshVisible(m));if(!meshes.length)return;const state=ensureMaterialState(r),d=r.device;
+      const meshes=scene.meshes.filter(m=>materialTransparent(m,true)&&meshVisible(m));if(!meshes.length)return;const state=ensureMaterialState(r),d=r.device;
       if(!state.composeInit){state.composeInit=(async()=>{const module=d.createShaderModule({code:`@group(0) @binding(0) var accum:texture_2d<f32>;@group(0) @binding(1) var reveal:texture_2d<f32>;@vertex fn vs(@builtin(vertex_index) v:u32)->@builtin(position) vec4f{return vec4f(f32((v<<1u)&2u)*2.-1.,f32(v&2u)*2.-1.,0,1);}@fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f{let a=textureLoad(accum,vec2i(p.xy),0);let alpha=1.-textureLoad(reveal,vec2i(p.xy),0).x;if(a.a<=1e-8||alpha<=0.){discard;}return vec4f(a.rgb/max(a.a,1e-8),alpha);}`}),pipeline=await d.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list'}});if(renderer===r&&r.materialState===state){state.compose=pipeline;draw();}})().catch(editError);}
       for(const mesh of meshes){materialMeshGPU(r,mesh);materialPipeline(r,mesh,true);}if(!state.compose)return;
       if(!state.oit||state.oit.width!==width||state.oit.height!==height){clearMaterialTransparency(r);const make=(format,bytes,label)=>{const texture=d.createTexture({label,size:[width,height],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(texture,width*height*bytes);allocatedBytes+=width*height*bytes;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return texture;},accum=make('rgba16float',8,'material transparency accumulation'),reveal=make('r16float',2,'material transparency revealage');state.oit={width,height,accum,reveal,group:d.createBindGroup({layout:state.compose.getBindGroupLayout(0),entries:[{binding:0,resource:accum.createView()},{binding:1,resource:reveal.createView()}]})};}
@@ -21924,7 +22054,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       if(!wire.pixels||wire.width!==width||wire.height!==height){clearWirePixels(r);wire.width=width;wire.height=height;wire.pixels=makeGPUBuffer(r.device,{label:'wire coverage pixels',size:width*height*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});const entries=[{binding:0,resource:{buffer:r.uniform}},{binding:1,resource:{buffer:wire.pixels}}];wire.paint=r.device.createBindGroup({layout:wire.present.getBindGroupLayout(0),entries});wire.global=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(0),entries});}
       encoder.clearBuffer(wire.pixels);const pass=encoder.beginComputePass();pass.setPipeline(wire.compute);pass.setBindGroup(0,wire.global);let visible=0;
       const markCage=shadingMode==='isoparms'&&(!frameViewKind(viewIndex)||elementMode!=='object');
-      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;const flags=(mesh.paged?1:0)|(markCage?2:0)|(mesh.splineHighlightActive?4:0),rgb=meshWireColor(mesh),color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
+      for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode!=='wireframe'&&mesh.splineGenerated&&replicaDisplay(mesh)&&!replicaDisplay(mesh).booleanSeamOnly)continue;visible++;if(!mesh.objectFrame)poseUniform(r,mesh);const flags=(mesh.paged?1:0)|(markCage?2:0)|(mesh.splineHighlightActive?4:0),rgb=meshWireColor(mesh),color=(0x7f000000|(Math.round(rgb[2]*255)<<16)|(Math.round(rgb[1]*255)<<8)|Math.round(rgb[0]*255))>>>0;for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let state=part.wireRaster;
         if(!state||state.positions!==mesh.positions||state.lines!==part.lines||state.edges!==edges||state.frame!==mesh.objectFrame||state.mask!==part.splineWireEdges){if(state&&mesh.buffers.includes(state.counts)){releaseGPU(state.counts);mesh.buffers=mesh.buffers.filter(b=>b!==state.counts);}const counts=makeGPUBuffer(r.device,{label:'wire raster counts',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});mesh.buffers.push(counts);r.device.queue.writeBuffer(counts,0,new Uint32Array([edges,flags,color,part.count/3]));const group=r.device.createBindGroup({layout:wire.compute.getBindGroupLayout(1),entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:part.lines}},{binding:2,resource:{buffer:mesh.objectFrame}},{binding:3,resource:{buffer:counts}},{binding:4,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:5,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});state=part.wireRaster={positions:mesh.positions,lines:part.lines,frame:mesh.objectFrame,mask:part.splineWireEdges,edges,counts,group};}
         if(state.color!==color||state.flags!==flags){r.device.queue.writeBuffer(state.counts,4,new Uint32Array([flags,color]));state.color=color;state.flags=flags;}const groups=Math.ceil(edges/128),nx=Math.min(groups,r.device.limits.maxComputeWorkgroupsPerDimension);if(nx){pass.setBindGroup(1,state.group);pass.dispatchWorkgroups(nx,Math.ceil(groups/nx));}
       }}pass.end();return {wire,visible};
@@ -22007,7 +22137,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       row={pipeline:null};state.filters.set(filter,row);const d=r.device,module=d.createShaderModule({label:'native filtered surface lines',code:state.source+'\n'+filter.shader+'\n@fragment fn filteredLineFS(input:Line)->@location(0) vec4f{if(!pluginSurfaceKeep(input.world)){discard;}return lineColor(input);}'}),layout=d.createPipelineLayout({bindGroupLayouts:[state.globalLayout,state.meshLayout,state.instanceLayout,surface.layout]});
       d.createRenderPipelineAsync({label:'native filtered surface lines',layout,vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'filteredLineFS',targets:r.lineTargets},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'always'}}).then(p=>{if(renderer===r&&!r.dead&&state.filters.get(filter)===row){row.pipeline=p;draw();}}).catch(editError);return null;
     }
-    function nativeSurfaceLineRow(r,state,mesh,part){const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let row=part.nativeSurfaceLines;
+    function nativeSurfaceLineRow(r,state,mesh,part){const edges=mesh.paged?part.edgeCount:mesh.edgeCounts[0];let row=part.nativeSurfaceLines;if(!mesh.objectFrame)poseUniform(r,mesh);
       const resources=[mesh.positions,part.lines,mesh.objectFrame,part.splineWireEdges,part.renderIndices,part.normals,mesh.indices,edges,part.count,mesh.vertexCount,mesh.rep];if(!row||row.owner!==mesh||resources.some((value,i)=>row.resources[i]!==value)){
         if(row?.owner===mesh){for(const resource of [row.counts])if(resource){releaseGPU(resource);mesh.buffers=mesh.buffers.filter(b=>b!==resource);}}const counts=meshAllocator(r,mesh)('native line draw',32,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST),entries=[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:part.lines}},{binding:2,resource:{buffer:mesh.objectFrame}},{binding:3,resource:{buffer:counts}},{binding:4,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:5,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}},{binding:6,resource:{buffer:part.renderIndices}},{binding:7,resource:{buffer:part.normals}}];row=part.nativeSurfaceLines={owner:mesh,resources,counts,group:r.device.createBindGroup({layout:state.pipeline.getBindGroupLayout(1),entries})};
       }
@@ -22116,20 +22246,57 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       }catch(e){scene.meshes=scene.meshes.filter(m=>!created.includes(m));for(const m of created)disposeMesh(m);restore(before);throw e;}
     }
 
-    function replicaPipeline(r,mesh){
-      const wire=polygonWire(),plain=wire&&!classifiedSurfaceWire(mesh),key=(frameViewKind(viewIndex)?'replicaOrtho':'replicaPerspective')+(wire?'Wire':'')+(plain?'Plain':'');if(r[key])return r[key];if(!r[key+'Pending']){const orthographic=!!frameViewKind(viewIndex);r[key+'Pending']=(async()=>{const d=r.device,module=d.createShaderModule({label:'shared geometry instanced surface',code:r.shaderSource+'\n@group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>; @vertex fn replicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) i:u32)->Output{var id=v;if('+wire+'){id=renderAliases[v];}var out=surfaceVertexFrame(id,replicaFrames[i]);if('+wire+'){let role=v%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));out.wireEdges=surfaceWireEdges(v);out.triangleID=replicaFrames[i].flags.z+v/3u;out.instance=i;}return out;}'+(wire?'\n@fragment fn replicaWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let frame=replicaFrames[input.instance];let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}':'' )}),instances=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),instances]}),pipeline=await d.createRenderPipelineAsync({label:key,layout,vertex:{module,entryPoint:'replicaVS',constants:{orthographic,posed:true,plainSurfaceWire:plain}},fragment:{module,entryPoint:wire?'replicaWireFS':'fs',constants:{orthographic,posed:true,plainSurfaceWire:plain},targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});if(renderer===r&&!r.dead){r[key]={pipeline,instances};draw(true);}return r[key];})().catch(editError);}return null;
+    function replicaFrameLayout(r){
+      return r.replicaFrameLayout??=r.device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]});
     }
-    function materialReplicaPipeline(r,mesh,material){
-      const library=material.state,wire=polygonWire(mesh),plain=!classifiedSurfaceWire(mesh),grouped=material.bindings.grouped,uv=!!importedUV(mesh),key=[!!frameViewKind(viewIndex),wire,plain,grouped,uv].join(':');
-      library.replicaPipelines??=new Map();library.replicaPending??=new Set();if(library.replicaPipelines.has(key))return library.replicaPipelines.get(key);
-      if(!library.replicaPending.has(key)){
-        library.replicaPending.add(key);const d=r.device,module=d.createShaderModule({label:'native instanced material',code:library.source+`
+    function replicaPipeline(r,mesh){
+      const wire=polygonWire(),plain=wire&&!classifiedSurfaceWire(mesh),key=(frameViewKind(viewIndex)?'replicaOrtho':'replicaPerspective')+(wire?'Wire':'')+(plain?'Plain':'');if(r[key])return r[key];if(!r[key+'Pending']){const orthographic=!!frameViewKind(viewIndex);r[key+'Pending']=(async()=>{const d=r.device,module=d.createShaderModule({label:'shared geometry instanced surface',code:r.shaderSource+'\n@group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>; @vertex fn replicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) i:u32)->Output{var id=v;if('+wire+'){id=renderAliases[v];}var out=surfaceVertexFrame(id,replicaFrames[i]);if('+wire+'){let role=v%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));out.wireEdges=surfaceWireEdges(v);out.triangleID=replicaFrames[i].flags.z+v/3u;out.instance=i;}return out;}'+(wire?'\n@fragment fn replicaWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let frame=replicaFrames[input.instance];let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}':'' )}),instances=replicaFrameLayout(r),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),instances]}),pipeline=await d.createRenderPipelineAsync({label:key,layout,vertex:{module,entryPoint:'replicaVS',constants:{orthographic,posed:true,plainSurfaceWire:plain}},fragment:{module,entryPoint:wire?'replicaWireFS':'fs',constants:{orthographic,posed:true,plainSurfaceWire:plain},targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});if(renderer===r&&!r.dead){r[key]={pipeline,instances};draw(true);}return r[key];})().catch(editError);}return null;
+    }
+    function materialReplicaPipeline(r,mesh,material,preview=false){
+      return requestMaterialReplicaPipeline(r,{wire:polygonWire(mesh),plain:!classifiedSurfaceWire(mesh),
+        grouped:material.bindings.grouped,uv:!!importedUV(mesh),orthographic:!!frameViewKind(viewIndex),preview});
+    }
+    function requestMaterialReplicaPipeline(r,{wire,plain,grouped,uv,orthographic,preview=false},wait=false){
+      const program=materialProgram(r),key=[orthographic,wire,plain,grouped,uv,preview].join(':');
+      program.replicaPipelines??=new Map();program.replicaPending??=new Map();
+      if(program.replicaPipelines.has(key))return program.replicaPipelines.get(key);
+      let pending=program.replicaPending.get(key);
+      if(!pending){
+        const d=r.device,module=program.replicaModule??=d.createShaderModule({label:'native instanced material',code:program.source+`
 @group(3) @binding(0) var<storage,read> materialReplicaFrames:array<ObjectFrame>;
 @vertex fn materialReplicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) instance:u32)->MaterialOutput{let frame=materialReplicaFrames[instance];return materialVertexFrame(v,frame,frame.flags.z,instance);}
+@vertex fn plantPreviewVS(@location(0) raw:vec3f,@location(1) normal:vec3f,@location(2) uv:vec2f,@location(3) face:u32,@builtin(instance_index) instance:u32)->MaterialOutput{
+  let frame=materialReplicaFrames[instance];
+  let world=(frame.matrix*vec4f(raw,1)).xyz;
+  let view=(frameCameraRelative(params.rotation)*vec4f((world-params.centerScale.xyz)*params.centerScale.w,1)).xyz;
+  let n=(params.rotation*vec4f(mat3x3f(frame.nx.xyz,frame.ny.xyz,frame.nz.xyz)*normal,0)).xyz;
+  return MaterialOutput(frameProject(view),n,vec3f(view.xy+params.viewport.zw,view.z),0u,vec3f(0),raw,normal,faceMaterial(face),uv,0u,0u,instance);
+}
 @fragment fn materialReplicaWireFS(input:MaterialOutput,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=materialShade(input,front);if(color.a<.999){discard;}if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}let frame=materialReplicaFrames[input.instance];return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}
-`}),instances=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]}),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),library.meshLayout,library.libraryLayout,instances]}),constants={orthographic:!!frameViewKind(viewIndex),posed:true,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay:wire&&!plain,plainSurfaceWire:plain};
-        d.createRenderPipelineAsync({label:'native instanced material '+key,layout,vertex:{module,entryPoint:'materialReplicaVS',constants},fragment:{module,entryPoint:wire?'materialReplicaWireFS':'materialFS',constants,targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(pipeline=>{if(renderer===r&&!r.dead&&r.materialState===library){library.replicaPipelines.set(key,{pipeline,instances,material:true});draw(true);}}).catch(editError).finally(()=>library.replicaPending.delete(key));
-      }return null;
+`}),instances=replicaFrameLayout(r),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),program.meshLayout,program.libraryLayout,instances]}),constants={orthographic,posed:true,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay:wire&&!plain,plainSurfaceWire:plain};
+        const vertex={module,entryPoint:preview?'plantPreviewVS':'materialReplicaVS',constants};
+        if(preview)vertex.buffers=[{arrayStride:36,attributes:[
+          {shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},
+          {shaderLocation:2,offset:24,format:'float32x2'},{shaderLocation:3,offset:32,format:'uint32'}
+        ]}];
+        pending=d.createRenderPipelineAsync({label:'native instanced material '+key,layout,vertex,fragment:{module,entryPoint:wire?'materialReplicaWireFS':'materialFS',constants,targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(pipeline=>{
+          if(renderer===r&&!r.dead){const state={pipeline,instances};program.replicaPipelines.set(key,state);draw(true);return state;}
+        }).catch(editError).finally(()=>program.replicaPending.delete(key));
+        program.replicaPending.set(key,pending);
+      }
+      return wait?pending:null;
+    }
+    function issueReplicaSurface(pass,first,material,state,frames,count,start=0,preview=null){
+      pass.setPipeline(state.pipeline);
+      if(material){
+        pass.setBindGroup(2,material.state.group);pass.setBindGroup(3,frames);pass.setBindGroup(1,material.bindings.groups.get(first).group);
+      }else{
+        if(!first.shadingBindGroup)meshRenderGroups(first.gpu,first);
+        pass.setBindGroup(2,frames);pass.setBindGroup(1,first.shadingBindGroup);
+      }
+      if(preview){pass.setVertexBuffer(0,preview.buffer);pass.draw(preview.vertices,count,0,start);}
+      else if(polygonWire(first)||material&&(material.bindings.grouped||material.bindings.uv))pass.draw(first.count,count,0,start);
+      else{pass.setIndexBuffer(first.renderIndices,'uint32');pass.drawIndexed(first.count,count,0,0,start);}
     }
     function drawReplicaBatches(r,pass,include,slot){
       r.replicaDraws??=new Map();r.replicaResourceIds??=new WeakMap();r.replicaResourceSerial??=0;
@@ -22149,11 +22316,133 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         if(batch.list?.length!==list.length||list.some((mesh,i)=>batch.list[i]!==mesh||batch.worlds[i]!==mesh.frameWorld||batch.faceBases[i]!==mesh.faceBase||batch.highlights[i]!==!!mesh.splineHighlightActive)){
           const values=new Float32Array(list.length*32),words=new Uint32Array(values.buffer);for(let i=0;i<list.length;i++){const mesh=list[i],inverse=mesh.frameInverse,sign=Math.sign(FM.determinant(mesh.frameWorld)),at=i*32;values.set(mesh.frameWorld,at);for(let j=0;j<3;j++)for(let k=0;k<3;k++)values[at+16+j*4+k]=inverse[k*4+j]*sign;words[at+28]=1;words[at+29]=mesh.splineGenerated?1:0;words[at+30]=mesh.faceBase+1;words[at+31]=mesh.splineHighlightActive?1:0;}r.device.queue.writeBuffer(batch.buffer,0,values);batch.list=list.slice();batch.worlds=list.map(mesh=>mesh.frameWorld);batch.faceBases=list.map(mesh=>mesh.faceBase);batch.highlights=list.map(mesh=>!!mesh.splineHighlightActive);
         }
-        firsts.set(first,()=>{pass.setPipeline(state.pipeline);if(material){pass.setBindGroup(2,material.state.group);pass.setBindGroup(3,batch.group);pass.setBindGroup(1,material.bindings.groups.get(first).group);}else{pass.setBindGroup(2,batch.group);pass.setBindGroup(1,first.shadingBindGroup);}if(polygonWire(first)||material&&(material.bindings.grouped||material.bindings.uv))pass.draw(first.count,list.length);else{pass.setIndexBuffer(first.renderIndices,'uint32');pass.drawIndexed(first.count,list.length);}statistics.calls++;batch.surfaceFrame=frameCount;});
+        firsts.set(first,()=>{issueReplicaSurface(pass,first,material,state,batch.group,list.length);statistics.calls++;batch.surfaceFrame=frameCount;});
         for(const mesh of list)drawn.add(mesh);
       }
       for(const source of scene.meshes){if(source.replicaMatrix||!source.replicaBatches)continue;for(const [key,batch]of source.replicaBatches)if(batch.viewIndex===viewIndex&&batch.slot===slot&&!live.get(source)?.has(key))retire(source,key,batch);}
       statistics.instances=drawn.size;r.replicaDraws.set(viewIndex,statistics);drawn.draw=mesh=>{const issue=firsts.get(mesh);if(!issue)return false;issue();return true;};return drawn;
+    }
+
+    function retireOrderedReplicas(r){
+      if(!r?.orderedReplicas)return;
+      releaseGPU(r.orderedReplicas.buffer);
+      r.orderedReplicas=null;
+    }
+    function orderedReplicaPlan(r){
+      const meshes=scene.meshes,prior=r.orderedReplicas,topology=scene.topologyRevision;
+      if(prior?.meshes===meshes&&prior.epoch===poseEpoch&&prior.topology===topology)return prior;
+      const plan={scene,meshes,epoch:poseEpoch,topology,runs:[],instances:0,ordinary:0};
+      for(let i=0;i<meshes.length;){
+        const first=meshes[i],source=first.replicaSource;
+        let end=i+1;
+        if(source&&!first.paged&&!classifiedSurfaceWire(first)&&first.triangleCount){
+          for(;end<meshes.length;end++){
+            const mesh=meshes[end];
+            if(mesh.replicaSource!==source||mesh.hashId!==first.hashId||mesh.frameVisible!==first.frameVisible||
+              mesh.positions!==first.positions||mesh.indices!==first.indices||mesh.normals!==first.normals||
+              mesh.renderIndices!==first.renderIndices||mesh.splineWireEdges!==first.splineWireEdges)break;
+          }
+        }
+        if(end-i<32){
+          plan.ordinary+=end-i;
+          if(plan.ordinary>128)break;
+          for(;i<end;i++)plan.runs.push({first:meshes[i]});
+          continue;
+        }
+        plan.runs.push({first,source,from:i,to:end,start:plan.instances,blocks:[]});
+        plan.instances+=end-i;i=end;
+      }
+      if(plan.instances<256||plan.ordinary>128){
+        retireOrderedReplicas(r);plan.runs=[];return r.orderedReplicas=plan;
+      }
+      const values=new Uint32Array(plan.instances*32);
+      for(const run of plan.runs){
+        if(!run.source)continue;
+        for(let i=run.from;i<run.to;){
+          const end=Math.min(i+128,run.to),start=run.start+i-run.from;
+          const block={from:i,start,count:end-i,boundsMin:[Infinity,Infinity,Infinity],boundsMax:[-Infinity,-Infinity,-Infinity],triangleCount:1,diameter:0};
+          for(let at=start*32;i<end;i++,at+=32){
+            const mesh=meshes[i];values.set(mesh.frameWords,at);values[at+30]=mesh.faceBase+1;
+            block.diameter=Math.max(block.diameter,Math.hypot(mesh.boundsMax[0]-mesh.boundsMin[0],mesh.boundsMax[1]-mesh.boundsMin[1],mesh.boundsMax[2]-mesh.boundsMin[2]));
+            for(let axis=0;axis<3;axis++){
+              block.boundsMin[axis]=Math.min(block.boundsMin[axis],mesh.boundsMin[axis]);
+              block.boundsMax[axis]=Math.max(block.boundsMax[axis],mesh.boundsMax[axis]);
+            }
+          }
+          run.blocks.push(block);
+        }
+      }
+      if(prior?.scene===scene&&prior.buffer?.size>=values.byteLength){
+        plan.buffer=prior.buffer;plan.group=prior.group;
+      }else{
+        retireOrderedReplicas(r);
+        plan.buffer=makeGPUBuffer(r.device,{label:'ordered occurrence frames',size:values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+        plan.group=r.device.createBindGroup({layout:replicaFrameLayout(r),entries:[{binding:0,resource:{buffer:plan.buffer}}]});
+      }
+      r.device.queue.writeBuffer(plan.buffer,0,values);
+      return r.orderedReplicas=plan;
+    }
+    function smallPlantBlock(block,pixels){
+      const diameter=block.diameter*scene.scale;
+      if(frameViewKind(viewIndex))return diameter*zoom*pixels<=12;
+      const [x,y,z]=visibilityFrustum.planes[4][0];
+      const depth=3.2-orbitOffset[2]-scene.scale*(
+        x*((x>0?block.boundsMax[0]:block.boundsMin[0])-scene.center[0])+
+        y*((y>0?block.boundsMax[1]:block.boundsMin[1])-scene.center[1])+
+        z*((z>0?block.boundsMax[2]:block.boundsMin[2])-scene.center[2]));
+      const focal=cameraFocal(),aspect=canvas.clientWidth/Math.max(1,canvas.clientHeight);
+      return depth>Math.max(diameter,clippingPlanes()[0])&&diameter*(focal+Math.hypot(aspect,1))*pixels/depth<=12;
+    }
+    function replicaPlantPreview(mesh,material){
+      if(shadingMode!=='solid'||!material)return null;
+      let source=mesh.replicaSource;
+      while(source?.replicaSource)source=source.replicaSource;
+      const preview=source?.plantPreview,tags=mesh.materialTags;
+      return preview&&material.bindings.uv===preview.uv&&tags.length===2&&!tags[0].mask&&tags[1].mask&&
+        polygonSet(tags[1].mask)===preview.foliage?preview:null;
+    }
+    function drawOrderedReplicas(r,pass,height){
+      if(elementMode!=='object'||scene.meshes.length<256||r.patchPreview)return null;
+      const plan=orderedReplicaPlan(r);
+      if(!plan.buffer)return null;
+      const prepared=[];
+      for(const run of plan.runs){
+        const {first,source}=run;
+        if(first.frameVisible===false)continue;
+        if(!source){prepared.push(run);continue;}
+        if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first)||materialTransparent(first,true))return null;
+        const material=first.materialTags?.length?materialMeshGPU(r,first):null;
+        if(material&&!material.state.group)return null;
+        const state=material?materialReplicaPipeline(r,first,material):replicaPipeline(r,first);
+        if(!state)return null;
+        const preview=replicaPlantPreview(first,material),previewState=preview&&materialReplicaPipeline(r,first,material,true);
+        prepared.push({run,material,state,preview,previewState});
+      }
+      let visible=0,calls=0,instances=0,previewInstances=0;
+      for(const item of prepared){
+        if(!item.run){
+          const m=item.first;if(meshVisible(m)&&!pluginSurfaceStyle(m)){issueOpaqueMesh(pass,opaqueMeshDraw(r,m),m);visible++;}
+          continue;
+        }
+        const {run,material,state,preview,previewState}=item;
+        let start=0,count=0,simplified=false;
+        const issue=()=>{
+          if(!count)return;
+          issueReplicaSurface(pass,run.first,material,simplified?previewState:state,plan.group,count,start,simplified?preview:null);
+          calls++;instances+=count;if(simplified)previewInstances+=count;count=0;
+        };
+        for(const block of run.blocks){
+          if(!meshVisible(block)){issue();continue;}
+          const small=!!previewState&&smallPlantBlock(block,height*.5);
+          if(count&&small!==simplified)issue();
+          if(!count)start=block.start;
+          count+=block.count;simplified=small;
+        }
+        issue();
+      }
+      r.replicaDraws??=new Map();r.replicaDraws.set(viewIndex,{instances,calls,previewInstances});
+      if(frameNavigation)frameNavigation.orderedReplicas=plan;
+      return visible+instances;
     }
 
 // Shared viewport bridge: plugins own helper geometry, bounds and warning semantics.
@@ -22255,9 +22544,9 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           let row=state.nodes.get(hash);if(!row){const uniform=makeGPUBuffer(r.device,{label:entry.manifest.id+' viewport frame',size:160,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});row={uniform,group:r.device.createBindGroup({layout:state.layout,entries:[{binding:0,resource:{buffer:uniform}}]})};state.nodes.set(hash,row);}
           const values=new Float32Array(40),world=objectWorld(hash),settings=v.settings(n.params);values.set(world);values.set(FM.inv(world),16);values.set(v.colorFor?.(hash,n.params,selected.has(n.id))||(selected.has(n.id)?v.selectedColor:v.color),32);values.set(settings,36);r.device.queue.writeBuffer(row.uniform,0,values);
           const helper=pluginHelper(n),warning=drawHelpers&&shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
-          if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
+          if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({label:entry.manifest.id+' viewport '+stage,colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
-          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms'].includes(shadingMode)?2:1;pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
+          if(warning){pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,row.group);const protectLines=v.surfaceWarningBlend&&['solid-wire','solid-isoparms','wireframe','isoparms'].includes(shadingMode);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;const index=(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0),kind=!classifiedSurfaceWire(mesh)?(['wireframe','isoparms'].includes(shadingMode)?3:0):['isoparms','solid-isoparms'].includes(shadingMode)?2:1;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);pass.setPipeline(protectLines?state.warningLines[index*4+kind]:state.surfaces[index]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);if(protectLines)pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}}
           if(drawHelpers&&helper.lines.length){pass.setPipeline(state.lines[frameViewKind(viewIndex)?1:0]);pass.setBindGroup(0,state.camera);pass.setBindGroup(1,row.group);pass.setVertexBuffer(0,state.vertices);pass.draw(helper.lines.length/3,1,state.helperOffsets.get(helper));}const render=drawCallback,renderState={camera:r.uniform,frame:row.uniform,orthographic:!!frameViewKind(viewIndex),hash,params:n.params,device:r.device,format:r.format};if(render&&!v.independentDepth)v.render({...renderState,pass});pass.end();if(render&&v.independentDepth){const target=depth===r.depth?r:passiveViews.get(viewIndex);if(!target.pluginDepth){const width=depth.width,height=depth.height;target.pluginDepth=r.device.createTexture({label:'plugin independent overlay depth',size:[width,height],format:'depth24plus',usage:GPUTextureUsage.RENDER_ATTACHMENT});gpuAllocations.set(target.pluginDepth,width*height*4);allocatedBytes+=width*height*4;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);}const ownPass=encoder.beginRenderPass({label:entry.manifest.id+' independent overlay',colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:target.pluginDepth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});v.render({...renderState,pass:ownPass});ownPass.end();}
         }
       }
@@ -22303,7 +22592,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       let state=r.pluginSurfaceStyles;if(!state){const d=r.device,module=d.createShaderModule({label:'native plugin fallback surface',code:r.shaderSource+'\n@group(2) @binding(0) var<uniform> pluginStyle:vec4f; @fragment fn pluginStyleFS(input:Output)->@location(0) vec4f{let shade=.55+.45*abs(normalize(input.normal).z);return vec4f(pluginStyle.rgb*shade,pluginStyle.a);}'}),layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});state=r.pluginSurfaceStyles={module,layout,plan:d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),layout]}),pipelines:new Map(),pending:new Set(),colors:new Map()};}
       const pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});pass.setBindGroup(0,r.bindGroup);
       for(const {mesh,style}of rows){const filter=pluginSurfaceFilter(mesh),filtered=filter?filteredSurfacePipeline(r,mesh,filter,null,style):null;if(filter&&!filtered)continue;const key=[!!frameViewKind(viewIndex),!!mesh.posed,!!style.topmost].join(':');let pipeline=state.pipelines.get(key);if(!pipeline){if(!state.pending.has(key)){state.pending.add(key);const constants={orthographic:!!frameViewKind(viewIndex),posed:!!mesh.posed};r.device.createRenderPipelineAsync({label:'plugin fallback '+key,layout:state.plan,vertex:{module:state.module,entryPoint:'vs',constants},fragment:{module:state.module,entryPoint:'pluginStyleFS',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:style.topmost?'always':'less-equal'}}).then(p=>{if(renderer===r&&!r.dead){state.pipelines.set(key,p);draw(true);}}).catch(editError).finally(()=>state.pending.delete(key));}continue;}
-        const stamp=style.color.join(',');let colorGroup=state.colors.get(stamp);if(!colorGroup){const buffer=makeGPUBuffer(r.device,{label:'plugin fallback color',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});r.device.queue.writeBuffer(buffer,0,new Float32Array(style.color));colorGroup={buffer,group:r.device.createBindGroup({layout:state.layout,entries:[{binding:0,resource:{buffer}}]})};state.colors.set(stamp,colorGroup);}pass.setPipeline(filtered?.pipeline||pipeline);if(filtered)pass.setBindGroup(3,filtered.group);pass.setBindGroup(2,colorGroup.group);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}
+        const stamp=style.color.join(',');let colorGroup=state.colors.get(stamp);if(!colorGroup){const buffer=makeGPUBuffer(r.device,{label:'plugin fallback color',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});r.device.queue.writeBuffer(buffer,0,new Float32Array(style.color));colorGroup={buffer,group:r.device.createBindGroup({layout:state.layout,entries:[{binding:0,resource:{buffer}}]})};state.colors.set(stamp,colorGroup);}pass.setPipeline(filtered?.pipeline||pipeline);if(filtered)pass.setBindGroup(3,filtered.group);pass.setBindGroup(2,colorGroup.group);if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.shadingBindGroup);pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}
       pass.end();
     }
 
@@ -22689,9 +22978,15 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       const deferLines=cages&&(polygonWire()||deferPluginSceneLines(r));
       if(shadingMode==='off'){if(grid&&!deferLines)drawViewGrid(pass,width,height);return 0;}
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms';let visible=wire?0:drawCloudInstances(r,pass);pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
-      const bundledScene=fullScene&&elementMode==='object'&&scene.meshes.length>=256&&!!r.device.createRenderBundleEncoder;
-      const batched=!wire&&!bundledScene&&scene.meshes.some(m=>m.replicaMatrix)?drawReplicaBatches(r,pass,include,cages?'scene':'background'):new Set();if(fullScene&&bundledScene)r.replicaDraws?.set(viewIndex,{instances:0,calls:0});visible+=batched.size;
-      if(!wire){const bundled=fullScene?tryRenderGeometryBundles(r,pass,batched):null;if(bundled!==null)visible+=bundled-batched.size;else for(const mesh of scene.meshes){if(batched.draw?.(mesh))continue;if(r.patchPreview?.base===mesh&&include(mesh)){issuePatchRegion(r,pass,r.patchPreview);visible++;continue;}if(batched.has(mesh)||pluginSurfaceStyle(mesh)||!include(mesh)||!meshVisible(mesh))continue;visible++;issueOpaqueMesh(pass,opaqueMeshDraw(r,mesh),mesh);}}
+      const ordered=fullScene&&!wire?drawOrderedReplicas(r,pass,height):null;
+      if(ordered!==null)visible+=ordered;
+      else if(!wire){
+        if(frameNavigation)frameNavigation.orderedReplicas=null;
+        const bundledScene=fullScene&&elementMode==='object'&&scene.meshes.length>=256&&!!r.device.createRenderBundleEncoder;
+        const batched=!bundledScene&&scene.meshes.some(m=>m.replicaMatrix)?drawReplicaBatches(r,pass,include,cages?'scene':'background'):new Set();
+        if(bundledScene)r.replicaDraws?.set(viewIndex,{instances:0,calls:0});
+        visible+=batched.size;
+        const bundled=fullScene?tryRenderGeometryBundles(r,pass,batched):null;if(bundled!==null)visible+=bundled-batched.size;else for(const mesh of scene.meshes){if(batched.draw?.(mesh))continue;if(r.patchPreview?.base===mesh&&include(mesh)){issuePatchRegion(r,pass,r.patchPreview);visible++;continue;}if(batched.has(mesh)||pluginSurfaceStyle(mesh)||!include(mesh)||!meshVisible(mesh))continue;visible++;issueOpaqueMesh(pass,opaqueMeshDraw(r,mesh),mesh);}}
       if(grid&&!deferLines)drawViewGrid(pass,width,height);if(cages&&!deferLines)drawSplineDisplays(pass);
       if(wire&&mask){pass.setPipeline(mask.wire.present);pass.setBindGroup(0,mask.wire.paint);pass.draw(3);visible=mask.visible;}else if(wire){pass.setBindGroup(0,r.edgeUniforms);for(const mesh of scene.meshes){if(!include(mesh)||!meshVisible(mesh)||shadingMode==='isoparms'&&mesh.splineGenerated&&splineDisplays.has(mesh.hashId)&&!splineDisplays.get(mesh.hashId).booleanSeamOnly)continue;visible++;pass.setPipeline(meshPipelines(r,mesh).edgePipeline);pass.setBlendConstant(meshWireColor(mesh));for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,part.edgeBindGroup);pass.setIndexBuffer(part.lines,'uint32');pass.drawIndexed((mesh.paged?part.edgeCount:mesh.edgeCounts[0])*2);}}}return visible;
     }
@@ -22711,7 +23006,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     function transformBackground(r,encoder,width,height,slot=null){
       if(r.patchPreview||frameNavigation||shadingMode==='off')return null;
-      const moving=movingMeshes();if(!moving?.size||scene.meshes.some(materialTransparent))return null;
+      const moving=movingMeshes();if(!moving?.size||scene.meshes.some(m=>materialTransparent(m)))return null;
       // Touching meshes stay in scene order, including coplanar surface/wire ties.
       const epsilon=Math.max(...scene.boundsMax.map((n,i)=>n-scene.boundsMin[i]))*1e-6;if(!expandTransformTouching(scene.meshes,moving,epsilon))return null;
       ensureTransformBackground(r);
@@ -23269,12 +23564,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
           plan={scene,meshes:scene.meshes,count:scene.meshes.length,nodes,nodeCount:nodes.length,view:viewIndex,mode:shadingMode,
             epoch:poseEpoch,hierarchy:frameReadNodeIndex,camera:cameras.find(n=>n.enabled),cameras,helperNodes:nodes.filter(n=>n.type==='render'||n.type==='target'),geometry:null,
             helpers:!!scene.lightObjects?.length||cameras.length>0||nodes.some(n=>n.type==='target'),
-            transparent:scene.meshes.some(materialTransparent),posed:scene.meshes.some(m=>m.posed)};
+            transparent:scene.meshes.some(m=>materialTransparent(m,true)),posed:scene.meshes.some(m=>m.posed)};
         }
         frameNavigation=plan;
         try{
           const result=withRenderMaterials(()=>renderFrameNow());
-          if(plan&&revision===navigationRevision&&!sceneFrameDirty&&renderer.cachedScene===scene&&plan.geometry){
+          if(plan&&revision===navigationRevision&&!sceneFrameDirty&&renderer.cachedScene===scene&&(plan.geometry||plan.orderedReplicas)){
             plan.depth=renderer.depth;plan.ready=true;navigationScene=plan;if(!plan.curves)prepareNavigationCurves(plan);
           }
           return result;
@@ -23283,7 +23578,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function renderFrameNow(){
       if(splineLoadBatch)return;
-      const cpuStart=performance.now();flushReplicaPublication();flushTransform();if(!frameNavigation?.ready)syncSplineHighlights();if(!frameNavigation||frameNavigation.camera)syncCameraView();FrameSpline.drawDraft();if(!frameNavigation?.ready||frameNavigation.helpers)drawLightHelpers();drawMotionPaths();updateHandles();if(renderer?.materialState?.oit&&scene&&!(frameNavigation?.transparent??scene.meshes.some(materialTransparent)))clearMaterialTransparency(renderer);if(!['wireframe','isoparms'].includes(shadingMode))clearWirePixels(renderer);if(renderer?.transformBackgrounds?.size&&!movingMeshes())clearTransformBackgrounds(renderer);
+      const cpuStart=performance.now();flushReplicaPublication();flushTransform();if(!frameNavigation?.ready)syncSplineHighlights();if(!frameNavigation||frameNavigation.camera)syncCameraView();FrameSpline.drawDraft();if(!frameNavigation?.ready||frameNavigation.helpers)drawLightHelpers();drawMotionPaths();updateHandles();if(renderer?.materialState?.oit&&scene&&!(frameNavigation?.transparent??scene.meshes.some(m=>materialTransparent(m,true))))clearMaterialTransparency(renderer);if(!['wireframe','isoparms'].includes(shadingMode))clearWirePixels(renderer);if(renderer?.transformBackgrounds?.size&&!movingMeshes())clearTransformBackgrounds(renderer);
       if(renderer&&!renderer.assemblyViewsReady&&scene?.meshes.length>=256)warmAssemblyViews(renderer);
       if(renderer&&(frameNavigation?.posed??scene?.meshes.some(m=>m.posed))){let wait=false;if((!single||FrameViewWindows.size||!frameViewKind(viewIndex))&&!renderer.posed){posedPipelines(renderer,false).catch(editError);wait=true;}if((!single||FrameViewWindows.size||frameViewKind(viewIndex))&&!renderer.posedOrtho){posedPipelines(renderer,true).catch(editError);wait=true;}if(wait)return;}
       if(renderer&&scene&&(!single||FrameViewWindows.size||frameViewKind(viewIndex))){ensureOrthoPipelines(renderer);if(frameViewKind(viewIndex)&&!renderer.ortho)return;}
@@ -23472,6 +23767,19 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function clearPickGroups(gpu){if(gpu.vertexSnap){for(const p of gpu.vertexSnap.params.values())releaseGPU(p);gpu.vertexSnap.params.clear();}for(const slot of gpu.pickPool||[]){for(const value of slot.groups.values())releaseGPU(value.params);slot.groups.clear();}}
     function rayPickMeshes(target,ray){
+      const ordered=renderer?.orderedReplicas;
+      if(elementMode==='object'&&ordered?.buffer&&ordered.scene===target&&ordered.meshes===target.meshes&&
+        ordered.epoch===poseEpoch&&ordered.topology===target.topologyRevision){
+        const candidates=[];
+        for(const run of ordered.runs){
+          if(!run.source){candidates.push(run.first);continue;}
+          if(run.first.frameVisible===false)continue;
+          for(const block of run.blocks)if(rayBox(ray,target,block)!==null){
+            for(let i=block.from;i<block.from+block.count;i++)candidates.push(target.meshes[i]);
+          }
+        }
+        return candidates;
+      }
       const p=navigationScene;if(target!==scene||!p?.ready||p.scene!==target||p.epoch!==poseEpoch||!p.surfaceTree||elementMode!=='object')return target.meshes||[target];
       return queryNavigationTree(p.surfaceTree,box=>{
         let lo=ray.clip[0],hi=ray.clip[1];for(let k=0;k<3;k++){
@@ -23873,7 +24181,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     let selectionSignature='',transformHudSignature='';
     function updateHandles(){
       const aux=auxiliaryState();if(aux)selectionBox=aux.box;
-      const indices=scene?currentSelectionMeshes().map(mesh=>scene.meshes.indexOf(mesh)):[],signature=selectionScope+':'+objectSelection.join(',')+':'+indices.join(',');
+      const indices=scene&&selectionScope==='components'?currentSelectionMeshes().map(mesh=>scene.meshes.indexOf(mesh)):[],signature=selectionScope+':'+objectSelection.join(',')+':'+indices.join(',');
       if(signature!==selectionSignature){selectionSignature=signature;window.dispatchEvent(new CustomEvent('frame-engine-selection',{detail:{indices,scope:selectionScope,hashes:objectSelection,preserveTags:preserveSelectionTags}}));}
       handles.hidden=!!window.FrameSpline?.drawing||(!selectedMesh&&aux?.kind!=='light'&&!objectSelection.length&&!splineComponentHash()&&!FramePlugins.dispatch('selection'))||!selectionBox||button.disabled||!scene;if(handles.hidden){hideGizmo();return;}
       drawGizmo();const hs=[selectionGeneration,poseEpoch,coordinateMode,pivotEditing,...selectionBox.min,...selectionBox.max].join(':');if(hs!==transformHudSignature){transformHudSignature=hs;notifyTransformUI(null,true);}
@@ -23934,7 +24242,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         for(const {key}of o.authoring?.pluginRecords||[])capture(scene.records.get(FrameHash.address(o.hash,key)));for(const slot of o.authoring?.library?.slots||[])materialIds.add(slot.materialUID);
         for(const tag of o.tags||[]){if(!derivedStockTags?.has(tag.uid))tagIds.add(tag.uid);if(tag.materialUID)materialIds.add(tag.materialUID);}
         if(o.type===1&&!(derivedStockTags&&o.authoring?.library)&&!clip.resources.get(o.hash).generated){const r=clip.resources.get(o.hash);for(const [field,type,resource,count]of [['positions',T.float32,r.morphBase||r.positions,r.vertexCount*3],['indices',T.uint32,r.indices,r.triangleCount*3]])put(FrameHash.address(o.hash,field),type,{gpu:true,resource,count});}
-        if(clip.roots.includes(o.hash)&&!o.tags?.some(t=>t.kind==='material')&&!(o.authoring?.library?.type==='tree'&&o.authoring.library.params.detail==='procedural')&&materials[0]){let parent=nativeValue(o.hash,'parent')?.[0],inherited=[];while(parent&&!inherited.length){inherited=appearanceTags(parent).filter(t=>t.kind==='material');parent=nativeValue(parent,'parent')?.[0];}const tags=[...(records.get(FrameHash.address(o.hash,'tags'))?.value||[])];for(const tag of inherited.length?inherited:[{materialUID:materials[0].uid}]){const uid=FrameHash.newId();tags.push(uid);put(FrameHash.address(uid,'material'),T.ids,[tag.materialUID]);materialIds.add(tag.materialUID);}put(FrameHash.address(o.hash,'tags'),T.ids,tags);}
+        if(clip.roots.includes(o.hash)&&!o.tags?.some(t=>t.kind==='material')&&o.authoring?.library?.type!=='tree'&&materials[0]){let parent=nativeValue(o.hash,'parent')?.[0],inherited=[];while(parent&&!inherited.length){inherited=appearanceTags(parent).filter(t=>t.kind==='material');parent=nativeValue(parent,'parent')?.[0];}const tags=[...(records.get(FrameHash.address(o.hash,'tags'))?.value||[])];for(const tag of inherited.length?inherited:[{materialUID:materials[0].uid}]){const uid=FrameHash.newId();tags.push(uid);put(FrameHash.address(uid,'material'),T.ids,[tag.materialUID]);materialIds.add(tag.materialUID);}put(FrameHash.address(o.hash,'tags'),T.ids,tags);}
       }
       for(const uid of tagIds)for(const field of ['material','faces','uv'])capture(scene.records.get(FrameHash.address(uid,field)));
       const assets=new Set();for(const uid of materialIds){for(const field of ['name','parameters','maps'])capture(scene.records.get(FrameHash.address(uid,field)));if(!records.has(FrameHash.address(uid,'parameters'))){const m=materials.find(m=>m.uid===uid);if(m){put(FrameHash.address(uid,'name'),T.text,m.name);put(FrameHash.address(uid,'parameters'),T.float64,new Float64Array(materialKeys.map(k=>materialNumber(m,k))));}}for(const id of scene.records.get(FrameHash.address(uid,'maps'))?.value||[])if(id!==K.zero)assets.add(id);}
@@ -24287,13 +24595,13 @@ fn occupied(p:vec2i,channel:u32)->bool{
       return value;
     }
     function publishTopology(gpu,replacements,retained=new Set()){
-      scene.topologyRevision=(scene.topologyRevision||0)+1;clearBoxSelection(gpu);clearFeatureDraws(gpu);clearPickGroups(gpu);
+      scene.topologyRevision=(scene.topologyRevision||0)+1;retireOrderedReplicas(gpu);clearBoxSelection(gpu);clearFeatureDraws(gpu);clearPickGroups(gpu);
       for(const {mesh,next}of replacements){
         clearPatchPreview(mesh);const old=mesh.buffers,nativeId=mesh.hashId,frameVisible=mesh.frameVisible,frameWorld=mesh.frameWorld;releaseBorrowed(mesh);releaseMaterialTable(mesh);creaseJobs.delete(mesh);for(const key of Object.keys(mesh))delete mesh[key];Object.assign(mesh,next,{hashId:nativeId,frameVisible});mesh.localBoundsMin=[...mesh.boundsMin];mesh.localBoundsMax=[...mesh.boundsMax];writePoseUniform(mesh,frameWorld||FM.I());const worldBounds=transformedBox(localMeshBox(mesh),mesh.frameWorld);mesh.boundsMin=worldBounds.min;mesh.boundsMax=worldBounds.max;for(const p of mesh.parts||[]){p.owner=mesh;p.localBoundsMin=[...p.boundsMin];p.localBoundsMax=[...p.boundsMax];const b=transformedBox({min:p.localBoundsMin,max:p.localBoundsMax},mesh.frameWorld);p.boundsMin=b.min;p.boundsMax=b.max;}
         for(const value of old)if(!retained.has(value))releaseGPU(value);
       }
       if(splineLoadBatch)return;
-      let faceBase=0;for(const mesh of scene.meshes){mesh.faceBase=faceBase;faceBase+=mesh.triangleCount;gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));meshRenderGroups(gpu,mesh);}
+      let faceBase=0;for(const mesh of scene.meshes){mesh.faceBase=faceBase;faceBase+=mesh.triangleCount;if(mesh.connected.range)gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));if(!mesh.replicaMatrix||mesh.objectFrame)meshRenderGroups(gpu,mesh);}
       scene.triangleCount=faceBase;$('frame-engine-triangles').textContent='Triangles: '+faceBase.toLocaleString('en-US');canvas.dataset.scene=JSON.stringify({objects:scene.meshes.length,triangles:faceBase,vertices:scene.meshes.reduce((sum,m)=>sum+m.vertexCount,0)});updateSceneBounds();updateMemoryStats();appearanceSignature='';refreshMaterialOwners();
     }
     function geometryAppearance(meshes){return meshes.flatMap(mesh=>{const n=frameNodeByHash(mesh.hashId);return n?[{hash:n.nativeHash,tags:structuredClone(n.tags.filter(t=>t.kind==='material'||t.kind==='uv'))}]:[];});}
@@ -24428,7 +24736,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const rect=canvas.getBoundingClientRect(),px=(x-rect.left)*gpu.width/rect.width,py=(y-rect.top)*gpu.height/rect.height,excluded=g.scope==='objects'?new Set(currentSelectionMeshes()):g.scope==='spline'?new Set(space.meshes.filter(m=>m.splineGenerated&&(m.hashId===g.spline.n.nativeHash||FrameSpline.sourceNode(frameNodeByHash(m.hashId))===g.spline.n))):new Set(),entries=[];let base=1;
       for(const mesh of space.meshes){const first=base;base+=mesh.vertexCount;if(mesh.frameVisible===false||excluded.has(mesh)||!boxIntersectsMesh(mesh,[px-10*gpu.width/rect.width,py-10*gpu.height/rect.height,px+10*gpu.width/rect.width,py+10*gpu.height/rect.height]))continue;
         let p=s.params.get(mesh);if(!p){p=makeGPUBuffer(d,{size:48,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});s.params.set(mesh,p);}const a=new ArrayBuffer(48);new Float32Array(a).set([px,py,gpu.width/rect.width,gpu.height/rect.height]);new Uint32Array(a).set([mesh.vertexCount,first,mesh.paged?1:0,g.scope==='components'&&selectedMeshes.includes(mesh)?1:0,mesh.faceBase||0,mesh.triangleCount],4);d.queue.writeBuffer(p,0,a);
-        const group=d.createBindGroup({layout:s.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:mesh.connected.flags}},{binding:3,resource:{buffer:mesh.objectFrame}},{binding:4,resource:{buffer:p}},{binding:5,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.indices}},{binding:6,resource:(mesh.paged?mesh.indices:gpu.dummyTexture).view}]});entries.push({mesh,group});
+        const group=d.createBindGroup({layout:s.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:mesh.connected.flags}},{binding:3,resource:{buffer:poseUniform(gpu,mesh)}},{binding:4,resource:{buffer:p}},{binding:5,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.indices}},{binding:6,resource:(mesh.paged?mesh.indices:gpu.dummyTexture).view}]});entries.push({mesh,group});
       }
       d.queue.writeBuffer(s.winner,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));const global=d.createBindGroup({layout:s.global,entries:[{binding:0,resource:{buffer:gpu.uniform}},{binding:1,resource:gpu.depth.createView()},{binding:2,resource:{buffer:s.winner}},{binding:3,resource:gpu.triangleIds.createView()}]}),encoder=d.createCommandEncoder();for(const pipeline of s.pipelines){const pass=encoder.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,global);for(const {mesh,group}of entries){pass.setBindGroup(1,group);const n=pipeline===s.pipelines.at(-1)?1:Math.ceil(mesh.vertexCount/128),nx=Math.min(n,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(nx,Math.ceil(n/nx));}pass.end();}encoder.copyBufferToBuffer(s.winner,0,s.read,0,32);d.queue.submit([encoder.finish()]);await s.read.mapAsync(GPUMapMode.READ);const range=s.read.getMappedRange(),u=new Uint32Array(range),p=u[2]===0xffffffff?null:Array.from(new Float32Array(range).slice(3,6));s.read.unmap();canvas.dataset.snap=JSON.stringify({point:p,candidates:entries.length,gpu:true,ticket});if(scene!==space)return null;if(!source)return p;if(!p)return source;const a=worldScreen(p),b=worldScreen(source);return Math.hypot(b[0]-x,b[1]-y)<Math.hypot(a[0]-x,a[1]-y)?source:p;
     }
@@ -24493,11 +24801,13 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function drawGizmo(){
       FramePlugins.drawOverlays();
       const frame=selectionFrame();if(!frame||handles.hidden||['loop','lineCut','bridge','closeHole'].includes(polygonTools.mode)){hideGizmo();return;}
+      const roots=selectionScope==='objects'&&selectedRoots(),camera=cameraConfig();
+      const cameraGizmo=roots?.length===1&&camera?.nativeHash===roots[0];
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas,pivot=Array.from(frame.slice(12,15)),basis=gizmoBasis();lastGizmoState=null;
       handles.style.cssText='left:0;top:0;width:0;height:0;transform:none';handles.dataset.pivot=JSON.stringify(pivot);
       try{for(const i of frameViewSections.keys()){
         const svg=framePlaceOverlay(createViewGizmo(i)||gizmoViews.get(i),i);svg.id=i===active?'frame-gizmo':'frame-gizmo-'+i;
-        if(!frameViewVisible(i)){svg.style.display='none';gizmoViewStates.delete(i);continue;}
+        if(!frameViewVisible(i)||i===0&&cameraGizmo){svg.style.display='none';if(gizmoViewStates.delete(i))svg.replaceChildren();continue;}
         canvas=i===active?activeCanvas:frameViewCanvases.get(i);if(!canvas?.getClientRects().length){svg.style.display='none';continue;}
         viewIndex=i;restoreCamera(i===active?saved:viewStates[i]||defaultCamera(i));
         const rect=canvas.getBoundingClientRect(),rotate=rotatePoint,project=p=>{
@@ -24877,7 +25187,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const mesh=draw.mesh,part=draw.part,mode=elementIds[s.mode],count=mode===0?mesh.vertexCount:mode===1?draw.edgeCount:part.triangleCount;
       const settings=makeGPUBuffer(gpu.device,{label:'rectangle element range',size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),data=new ArrayBuffer(64);
       new Float32Array(data).set(rect);new Uint32Array(data).set([mode,count,part.faceStart||0,mode===0?draw.vertexBase:mode===1?draw.edgeBase:(mesh.faceBase||0)+(part.faceStart||0)+1,mesh.paged?1:0,mesh.faceBase||0,mesh.triangleCount,meshIndex,mesh.vertexCount,0,0,0],4);gpu.device.queue.writeBuffer(settings,0,data);
-      const entries=[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.indices}},{binding:2,resource:{buffer:part.lines}},{binding:3,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:4,resource:(mesh.paged?mesh.indices:gpu.dummyTexture).view},{binding:5,resource:{buffer:settings}},{binding:6,resource:{buffer:s.bits}},{binding:11,resource:{buffer:mesh.objectFrame}}];
+      const entries=[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.indices}},{binding:2,resource:{buffer:part.lines}},{binding:3,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:4,resource:(mesh.paged?mesh.indices:gpu.dummyTexture).view},{binding:5,resource:{buffer:settings}},{binding:6,resource:{buffer:s.bits}},{binding:11,resource:{buffer:poseUniform(gpu,mesh)}}];
       return {draw,settings,count,meshIndex,readGroup:gpu.device.createBindGroup({layout:gpu.boxPipelines.readLayout,entries}),writeGroup:gpu.device.createBindGroup({layout:gpu.boxPipelines.writeLayout,entries:[...entries,{binding:7,resource:{buffer:mesh.connected.flags}},{binding:8,resource:{buffer:s.counters}},{binding:9,resource:{buffer:gpu.boxVertexMask}},{binding:10,resource:{buffer:s.hit||gpu.dummyReadBuffer}}]})};
     }
     function boxIntersectsMesh(mesh,rect){
@@ -25229,7 +25539,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function setVisibility(records){
       if(!scene)return;let changed=false;
       const visibility=new Map(records.map(record=>[record.index,record]));
-      for(const [index,mesh]of scene.meshes.entries()){const record=visibility.get(index),visible=record?.visible??false;mesh.frameSourceConsumed=!!record?.sourceConsumed;if(mesh.frameVisible!==visible){mesh.frameVisible=visible;changed=true;}}
+      for(const [index,mesh]of scene.meshes.entries()){if(mesh.replicaMatrix)continue;const record=visibility.get(index),visible=record?.visible??false;mesh.frameSourceConsumed=!!record?.sourceConsumed;if(mesh.frameVisible!==visible){mesh.frameVisible=visible;changed=true;}}
       if(changed){deferHoverMaps();draw();}
     }
     // Canonical scene records own metadata and GPU-backed geometry descriptors.
@@ -25308,7 +25618,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     async function bakeCloner(n){
       await FrameSpline.flush();await replicaQueue;syncReplicas();const {surfaces,curves}=evaluatedGeometry(n),before=snapshot(),created=[],sourceNodes=new Map(nodes.map(n=>[n.nativeHash,n])),removed=new Set(descendants(n.id));
       try{for(const [index,source]of [...surfaces,...curves].entries()){let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;const authored=sourceNodes.get(canonical.hashId),child=create(source.curve?'spline':'mesh',n.id,(authored?.name||'Object')+' '+(index+1));created.push(child);child.nativeHash=FrameHash.newId();child.creationFrame=Array.from(FM.pack(FM.mul(FM.inv(objectWorld(n.nativeHash)),source.replicaMatrix?FM.mul(objectWorld(source.hashId),source.replicaMatrix):objectWorld(source.hashId))));if(source.curve){child.splineData=structuredClone(source.display.data);child.params={'angle approximation':child.splineData.approximation?.angle||10};continue;}
-        const token=canonical.cowToken??=canonical.cowReadToken||{count:0};token.count++;const mesh={...canonical,hashId:child.nativeHash,buffers:[],borrowed:replicaResources(canonical),replicaSource:null,replicaMatrix:null,replicaKey:null,splineGenerated:false,splineWireEdges:null,splineHighlightOffset:0,splineHighlightActive:false,wireDisplay:null,wireDisplayVersion:null,wireHighlightDisplay:null,wireHighlightTable:null,splineWireRevision:0,splineToken:null,splineCells:null,splineFaceRanges:null,splineCellSources:null,splineCellEdges:null,cowToken:null,cowShared:true,cowReadToken:token,objectFrame:null,drawIds:new Map(),curveUniform:null,curveGroups:null,materialTable:null,materialTableEntry:null,materialTables:null,materialBindings:null,appearanceKey:null,mappingUniform:null,mappingSignature:null,replicaBatches:null,frameWorld:null,frameInverse:null,localBoundsMin:[...(canonical.localBoundsMin||canonical.boundsMin)],localBoundsMax:[...(canonical.localBoundsMax||canonical.boundsMax)]};for(const b of mesh.borrowed){let lease=gpuLeases.get(b);if(!lease)gpuLeases.set(b,lease={count:0,retired:false});lease.count++;}const make=meshAllocator(renderer,mesh);mesh.connected={...canonical.connected,workspace:null,groups:null,flags:make('editable object selection',Math.max(16,Math.ceil(mesh.vertexCount/32)*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST),range:make('editable face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST)};if(canonical.parts)mesh.parts=canonical.parts.map(p=>({...p,owner:mesh,splineWireEdges:null,splineHighlightOffset:0}));scene.meshes.push(mesh);child.engineIndex=scene.meshes.length-1;meshRenderGroups(renderer,mesh);putFrame(child.nativeHash,'pivot',objectPivot(canonical.hashId));
+        const token=canonical.cowToken??=canonical.cowReadToken||{count:0};token.count++;const mesh={...canonical,hashId:child.nativeHash,buffers:[],borrowed:replicaResources(canonical),replicaSource:null,replicaMatrix:null,replicaKey:null,plantPreview:null,splineGenerated:false,splineWireEdges:null,splineHighlightOffset:0,splineHighlightActive:false,wireDisplay:null,wireDisplayVersion:null,wireHighlightDisplay:null,wireHighlightTable:null,splineWireRevision:0,splineToken:null,splineCells:null,splineFaceRanges:null,splineCellSources:null,splineCellEdges:null,cowToken:null,cowShared:true,cowReadToken:token,objectFrame:null,drawIds:new Map(),curveUniform:null,curveGroups:null,materialTable:null,materialTableEntry:null,materialTables:null,materialBindings:null,appearanceKey:null,mappingUniform:null,mappingSignature:null,replicaBatches:null,frameWorld:null,frameInverse:null,localBoundsMin:[...(canonical.localBoundsMin||canonical.boundsMin)],localBoundsMax:[...(canonical.localBoundsMax||canonical.boundsMax)]};for(const b of mesh.borrowed){let lease=gpuLeases.get(b);if(!lease)gpuLeases.set(b,lease={count:0,retired:false});lease.count++;}const make=meshAllocator(renderer,mesh);mesh.connected={...canonical.connected,workspace:null,groups:null,flags:make('editable object selection',Math.max(16,Math.ceil(mesh.vertexCount/32)*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST),range:make('editable face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST)};if(canonical.parts)mesh.parts=canonical.parts.map(p=>({...p,owner:mesh,splineWireEdges:null,splineHighlightOffset:0}));scene.meshes.push(mesh);child.engineIndex=scene.meshes.length-1;meshRenderGroups(renderer,mesh);putFrame(child.nativeHash,'pivot',objectPivot(canonical.hashId));
         child.tags=(source.materialTags||[]).map(tag=>({uid:FrameHash.newId(),kind:'material',material:Math.max(0,materials.findIndex(m=>m.uid===tag.materialUID)),mask:tag.mask,params:{}}));const uv=importedUV(source);if(uv){const uid=FrameHash.newId();putAppearance(uid,'uv',FrameHash.T.float32,uv);child.tags.push({uid,kind:'uv',params:{}});}
       }
       nodes=nodes.filter(c=>!removed.has(c.id));for(const id of removed)frameChannels.delete(id);n.type='group';n.params={};n.enabled=true;delete n.splineData;delete n.engineIndex;selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();publishTopology(renderer,[]);render();checkpoint(before);FrameSpline.request();await FrameSpline.flush();await frameSelectEngineObjects(false);return n;
@@ -25323,7 +25633,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const id of removed){FrameSpline.states.delete(id);frameChannels.delete(id);}nodes=nodes.filter(q=>!removed.has(q.id));n.type='mesh';n.params={};n.enabled=true;n.nativeHash=FrameHash.newId();n.creationFrame=local;n.creationPivot=pivot;n.tags=[...combined.tags,...n.tags.filter(t=>!['material','uv'].includes(t.kind))];delete n.splineData;
       for(const q of nodes)if(q.params.object===oldHash)q.params.object=n.nativeHash;combined.mesh.hashId=n.nativeHash;scene.meshes.push(combined.mesh);n.engineIndex=scene.meshes.length-1;publishTopology(renderer,[]);render();return n;
     }
-    function replicaResources(source){const privateBuffers=new Set([source.objectFrame,source.mappingUniform,source.curveUniform,source.connected?.range,...(source.parts||[source]).flatMap(p=>[p.wireRaster?.counts,p.nativeSurfaceLines?.counts]),...source.drawIds?.values()||[],...[...source.replicaBatches?.values()||[]].map(b=>b.buffer)]);return [...new Set([...source.buffers,...source.borrowed||[]])].filter(b=>!privateBuffers.has(b));}
+    function replicaResources(source){const privateBuffers=new Set([source.objectFrame,source.mappingUniform,source.curveUniform,source.connected?.range,source.plantPreview?.buffer,...(source.parts||[source]).flatMap(p=>[p.wireRaster?.counts,p.nativeSurfaceLines?.counts]),...source.drawIds?.values()||[],...[...source.replicaBatches?.values()||[]].map(b=>b.buffer)]);return [...new Set([...source.buffers,...source.borrowed||[]])].filter(b=>!privateBuffers.has(b));}
     let replicaAuthoringIndexCache=null;
     function replicaAuthoringIndexes(space,list){
       const previous=replicaAuthoringIndexCache;
@@ -25426,8 +25736,109 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(!inputs){inputs=new Map();let count=0;for(const row of FrameSpline.generatorSources(owner,sourceChildren)){const data=FrameSpline.states.get(row.node.id)?.data;if(!data||!Object.keys(data.segments||{}).length)continue;if(owner.type==='sweep'&&count++>=2)break;const id=(row.instances[0]||row.node).id;let hashes=inputs.get(id);if(!hashes)inputs.set(id,hashes=new Set());hashes.add(row.node.nativeHash);}consumedInputs.set(owner,inputs);}
         let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;return inputs.get(c.id)?.has(source.curve?source.display.hash:canonical.hashId)||false;
       }
-      function matrix(n){const p=n.params,out=[],axes=['X','Y','Z'];if(n.type==='instance')out.push(FM.I());else if(n.type==='symmetry'){let list=[FM.I()];for(let a=0;a<3;a++)if(p[axes[a]])list=list.flatMap(m=>{const q=FM.I();q[a*5]=-1;return [m,FM.mul(q,m)];});out.push(...list);}else if(p.type==='radial'){for(let i=0;i<Math.min(100000,Math.max(1,Math.round(p.count)));i++){const angle=i*p.angle*Math.PI/180/Math.max(1,p.count),m=placementFrame([0,0,0],[-Math.sin(angle),0,Math.cos(angle)]);m[12]=p.radius*Math.cos(angle);m[14]=p.radius*Math.sin(angle);out.push(m);}}else if(p.type==='matrix'){const c=axes.map(a=>Math.max(1,Math.round(p['count '+a.toLowerCase()])));if(c[0]*c[1]*c[2]>100000)throw Error('Cloner exceeds 100000 instances');for(let z=0;z<c[2];z++)for(let y=0;y<c[1];y++)for(let x=0;x<c[0];x++)out.push(FM.translation([x,y,z].map((v,k)=>(v-(c[k]-1)/2)*p['spacing '+axes[k].toLowerCase()])));}else{const target=objectReference(p.object);if(!target||target===n||sourceDescendant(n.id,target.id))throw Error('Object Cloner requires an independent source');out.push(...objectPlacements(n,target));}return out;}
-      function evaluate(n){if(wanted.has(n.nativeHash))return wanted.get(n.nativeHash);if(seen.has(n.id))throw Error('Instance dependency cycle');seen.add(n.id);if(scopedCounts)scopedRemaining-=scopedCounts.get(n.nativeHash)||0;let sources=[],families=new Map();function collect(c,root=c,consumer=null){if(!c?.enabled||c!==root&&!c.visible)return;const own=ownerSet.has(c)?evaluate(c):sourceByHash.get(c.nativeHash)||[];for(const source of own)if(!consumer||!consumedInput(consumer,c,source)){sources.push(source);families.set(source,root);}if(ownerSet.has(c)||polygonGenerator(c.type)&&own.some(m=>!m.curve)&&!c.splineError)return;const next=own.some(m=>!m.curve)&&!c.splineError&&FrameSpline.generators.has(c.type)?c:c.type==='group'?consumer:null;for(const child of sourceChildren.get(c.id)||[])collect(child,root,next);}if(n.enabled){if(n.type==='instance'){const source=objectReference(n.params.object,n);if(!source||source===n||sourceDescendant(n.id,source.id))throw Error('Instance requires an independent source');collect(source);}else for(const child of sourceChildren.get(n.id)||[])collect(child);}const result=[],transforms=n.enabled?matrix(n):[];let seed=(n.params.seed||1)>>>0;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;},randoms=transforms.map(()=>{const p=n.params,r=['x','y','z'].map(a=>rand()*(p['random angle '+a]||0)*Math.PI/180),m=FM.fromEuler(r),scale=['x','y','z'].map(a=>Math.max(1e-6,1+rand()*(p['random scale '+a]||0)/100));if(p['uniform scale'])scale.fill(scale[0]);for(let j=0;j<3;j++)for(let k=0;k<3;k++)m[j*4+k]*=scale[j];return {matrix:m,position:['x','y','z'].map(a=>rand()*(p['random position '+a]||0))};});const choices=[...new Set(sources.map(source=>families.get(source)))];for(const source of sources){const sourceFrame=target=>FM.mul(objectRelativeFrame(source.hashId,target),source.replicaMatrix||FM.I()),reference=n.type==='instance'?objectReference(n.params.object,n):null;const relative=reference?FM.mul(FM.inv(objectPivot(reference.nativeHash)),sourceFrame(reference.nativeHash)):sourceFrame(n.nativeHash);for(let i=0;i<transforms.length;i++){if(n.type==='cloner'&&choices[i%choices.length]!==families.get(source))continue;if(scopedRemaining+built.length+builtCurves.length>=100000)throw Error('Scene replica limit: 100000 copies');let local=FM.mul(transforms[i],relative);if(n.type==='cloner'){if(n.params.type==='object'){let root=nodeByHash.get(source.hashId);while(root?.parent&&root.parent!==n.id)root=node(root.parent);const geometry=root?FM.mul(FM.inv(objectPivot(root.nativeHash)),sourceFrame(root.nativeHash)):sourceFrame(source.hashId);local=FM.mul(FM.mul(transforms[i],randoms[i].matrix),geometry);}else{let root=nodeByHash.get(source.hashId);while(root?.parent&&root.parent!==n.id)root=node(root.parent);const rootHash=root?.nativeHash||source.hashId,geometry=FM.mul(FM.inv(objectPivot(rootHash)),sourceFrame(rootHash));local=FM.mul(FM.mul(transforms[i],randoms[i].matrix),geometry);}for(let k=0;k<3;k++)local[12+k]+=randoms[i].position[k];}const key=n.nativeHash+':'+(source.replicaKey||source.hashId)+':'+i,signature=source.version;if(source.curve){let m=curveByKey.get(key);if(!m){m={curve:true,hashId:n.nativeHash,replicaKey:key,replicaSource:source,replicaMatrix:local,display:source.display,buffers:[]};m.uniform=meshAllocator(renderer,m)('instance curve frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);}if(m.display!==source.display){m.hitDisplay=null;m.hitDisplayVersion=undefined;}m.replicaSource=source;m.display=source.display;m.replicaMatrix=local;m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n);result.push(m);builtCurves.push(m);continue;}let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;let m=byKey.get(key);if(m&&(m.replicaSource!==source||m.indices!==source.indices||m.count!==source.count||m.replicaPositions!==source.positions||m.replicaNormals!==source.normals||m.renderIndices!==source.renderIndices||m.splineWireRevision!==source.splineWireRevision||m.parts!==undefined&&m.replicaParts!==source.parts))m=null;if(!m){if(!canonical.replicaFlags)canonical.replicaFlags=meshAllocator(renderer,canonical)('shared replica selection',Math.max(16,Math.ceil(canonical.vertexCount/32)*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC);m={...source,buffers:[],borrowed:replicaResources(canonical),objectFrame:null,curveUniform:null,curveGroups:null,mappingUniform:null,mappingSignature:null,materialTable:null,materialTableEntry:null,drawIds:new Map(),hashId:n.nativeHash,splineGenerated:true,materialBindings:null,appearanceKey:null,replicaMatrix:local,replicaSource:source,replicaVersion:signature,replicaPositions:source.positions,replicaNormals:source.normals,replicaParts:source.parts,replicaKey:key,frameWorld:null,frameInverse:null,localBoundsMin:[...(source.localBoundsMin||source.boundsMin)],localBoundsMax:[...(source.localBoundsMax||source.boundsMax)]};for(const b of m.borrowed){let q=gpuLeases.get(b);if(!q)gpuLeases.set(b,q={count:0,retired:false});q.count++;}const make=meshAllocator(renderer,m);m.connected={...source.connected,flags:canonical.replicaFlags,range:make('instance face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST)};if(source.parts)m.parts=source.parts.map(p=>({...p,owner:m}));meshRenderGroups(renderer,m);changed=true;}m.replicaVersion=signature;m.version=signature;m.normalCount=source.normalCount;m.replicaMatrix=local;const lo=source.localBoundsMin||source.boundsMin,hi=source.localBoundsMax||source.boundsMax;if(m.replicaBoundsRevision!==source.geometryRevision||lo.some((v,k)=>v!==m.localBoundsMin[k])||hi.some((v,k)=>v!==m.localBoundsMax[k])){m.localBoundsMin=[...lo];m.localBoundsMax=[...hi];for(const [j,part]of (m.parts||[]).entries()){const p=source.parts[j];part.localBoundsMin=[...(p.localBoundsMin||p.boundsMin)];part.localBoundsMax=[...(p.localBoundsMax||p.boundsMax)];}m.replicaBoundsRevision=source.geometryRevision;m.frameGenerated=undefined;}m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n);result.push(m);built.push(m);}}wanted.set(n.nativeHash,result);seen.delete(n.id);delete n.splineError;return result;}
+      function matrix(n){
+        const p=n.params,out=[],axes=['x','y','z'];
+        if(n.type==='instance')return [FM.I()];
+        if(n.type==='symmetry'){
+          let list=[FM.I()];
+          for(let a=0;a<3;a++)if(p[axes[a].toUpperCase()])list=list.flatMap(m=>{const q=FM.I();q[a*5]=-1;return [m,FM.mul(q,m)];});
+          return list;
+        }
+        if(p.type==='radial'){
+          const count=Math.min(100000,Math.max(1,Math.round(p.count)));
+          for(let i=0;i<count;i++){
+            const angle=i*p.angle*Math.PI/180/Math.max(1,p.count),s=Math.sin(angle),c=Math.cos(angle);
+            const m=placementFrame([0,0,0],[-s,0,c]);m[12]=p.radius*c;m[14]=p.radius*s;out.push(m);
+          }
+        }else if(p.type==='matrix'){
+          const count=axes.map(a=>Math.max(1,Math.round(p['count '+a]))),spacing=axes.map(a=>p['spacing '+a]),center=count.map(n=>(n-1)/2);
+          if(count[0]*count[1]*count[2]>100000)throw Error('Cloner exceeds 100000 instances');
+          for(let z=0;z<count[2];z++)for(let y=0;y<count[1];y++)for(let x=0;x<count[0];x++){
+            const frame=FM.I();frame[12]=(x-center[0])*spacing[0];frame[13]=(y-center[1])*spacing[1];frame[14]=(z-center[2])*spacing[2];out.push(frame);
+          }
+        }else{
+          const target=objectReference(p.object);
+          if(!target||target===n||sourceDescendant(n.id,target.id))throw Error('Object Cloner requires an independent source');
+          return objectPlacements(n,target);
+        }
+        return out;
+      }
+      function evaluate(n){if(wanted.has(n.nativeHash))return wanted.get(n.nativeHash);if(seen.has(n.id))throw Error('Instance dependency cycle');seen.add(n.id);if(scopedCounts)scopedRemaining-=scopedCounts.get(n.nativeHash)||0;let sources=[],families=new Map();function collect(c,root=c,consumer=null){if(!c?.enabled||c!==root&&!c.visible)return;const own=ownerSet.has(c)?evaluate(c):sourceByHash.get(c.nativeHash)||[];for(const source of own)if(!consumer||!consumedInput(consumer,c,source)){sources.push(source);families.set(source,root);}if(ownerSet.has(c)||polygonGenerator(c.type)&&own.some(m=>!m.curve)&&!c.splineError)return;const next=own.some(m=>!m.curve)&&!c.splineError&&FrameSpline.generators.has(c.type)?c:c.type==='group'?consumer:null;for(const child of sourceChildren.get(c.id)||[])collect(child,root,next);}if(n.enabled){if(n.type==='instance'){const source=objectReference(n.params.object,n);if(!source||source===n||sourceDescendant(n.id,source.id))throw Error('Instance requires an independent source');collect(source);}else for(const child of sourceChildren.get(n.id)||[])collect(child);}const result=[],transforms=n.enabled?matrix(n):[],cloner=n.type==='cloner',p=n.params,axes=['x','y','z'];
+      const randomAngle=axes.map(a=>p['random angle '+a]||0),randomScale=axes.map(a=>p['random scale '+a]||0),randomPosition=axes.map(a=>p['random position '+a]||0);
+      let seed=(p.seed||1)>>>0;
+      const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
+      const randoms=cloner&&[...randomAngle,...randomScale,...randomPosition].some(Boolean)?transforms.map(()=>{
+        const m=FM.fromEuler(randomAngle.map(v=>rand()*v*Math.PI/180)),scale=randomScale.map(v=>Math.max(1e-6,1+rand()*v/100));
+        if(p['uniform scale'])scale.fill(scale[0]);
+        for(let j=0;j<3;j++)for(let k=0;k<3;k++)m[j*4+k]*=scale[j];
+        return {matrix:m,position:randomPosition.map(v=>rand()*v)};
+      }):null;
+      const choices=[...new Set(families.values())],reference=n.type==='instance'?objectReference(p.object,n):null;
+      for(const source of sources){
+        const sourceFrame=target=>{
+          const frame=objectRelativeFrame(source.hashId,target);
+          return source.replicaMatrix?FM.mul(frame,source.replicaMatrix):frame;
+        };
+        let relative;
+        if(reference)relative=FM.mul(FM.inv(objectPivot(reference.nativeHash)),sourceFrame(reference.nativeHash));
+        else if(cloner){
+          let root=nodeByHash.get(source.hashId);
+          while(root?.parent&&root.parent!==n.id)root=node(root.parent);
+          const hash=root?.nativeHash||source.hashId;
+          relative=p.type==='object'&&!root?sourceFrame(hash):FM.mul(FM.inv(objectPivot(hash)),sourceFrame(hash));
+        }else relative=sourceFrame(n.nativeHash);
+        const first=cloner?choices.indexOf(families.get(source)):0,step=cloner?choices.length:1;
+        let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;
+        const lazyBindings=!source.curve&&!source.paged&&!classifiedSurfaceWire(source)&&transforms.length>=256*step;
+        let sharedBuffers;
+        for(let i=first;i<transforms.length;i+=step){
+          if(scopedRemaining+built.length+builtCurves.length>=100000)throw Error('Scene replica limit: 100000 copies');
+          const variation=randoms?.[i],local=FM.mul(variation?FM.mul(transforms[i],variation.matrix):transforms[i],relative);
+          if(variation)for(let k=0;k<3;k++)local[12+k]+=variation.position[k];
+          const key=n.nativeHash+':'+(source.replicaKey||source.hashId)+':'+i,signature=source.version;
+          if(source.curve){
+            let m=curveByKey.get(key);
+            if(!m){
+              m={curve:true,hashId:n.nativeHash,replicaKey:key,replicaSource:source,replicaMatrix:local,display:source.display,buffers:[]};
+              m.uniform=meshAllocator(renderer,m)('instance curve frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+            }
+            if(m.display!==source.display){m.hitDisplay=null;m.hitDisplayVersion=undefined;}
+            m.replicaSource=source;m.display=source.display;m.replicaMatrix=local;
+            result.push(m);builtCurves.push(m);continue;
+          }
+          let m=byKey.get(key);
+          if(m&&(m.replicaSource!==source||m.indices!==source.indices||m.count!==source.count||
+            m.replicaPositions!==source.positions||m.replicaNormals!==source.normals||m.renderIndices!==source.renderIndices||
+            m.splineWireRevision!==source.splineWireRevision||m.parts!==undefined&&m.replicaParts!==source.parts))m=null;
+          if(!m){
+            if(!canonical.replicaFlags)canonical.replicaFlags=meshAllocator(renderer,canonical)('shared replica selection',Math.max(16,Math.ceil(canonical.vertexCount/32)*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC);
+            m={...source,buffers:[],borrowed:sharedBuffers??=replicaResources(canonical),objectFrame:null,frameWords:null,
+              shadingBindGroup:null,edgeBindGroup:null,curveUniform:null,curveGroups:null,mappingUniform:null,mappingSignature:null,
+              materialTable:null,materialTableEntry:null,drawIds:new Map(),hashId:n.nativeHash,splineGenerated:true,materialBindings:null,
+              appearanceKey:null,replicaMatrix:local,replicaSource:source,replicaVersion:signature,replicaPositions:source.positions,
+              replicaNormals:source.normals,replicaParts:source.parts,replicaKey:key,frameWorld:null,frameInverse:null,
+              localBoundsMin:[...(source.localBoundsMin||source.boundsMin)],localBoundsMax:[...(source.localBoundsMax||source.boundsMax)]};
+            for(const b of m.borrowed){let lease=gpuLeases.get(b);if(!lease)gpuLeases.set(b,lease={count:0,retired:false});lease.count++;}
+            const range=lazyBindings?null:meshAllocator(renderer,m)('instance face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+            m.connected={...source.connected,flags:canonical.replicaFlags,range};
+            if(source.parts)m.parts=source.parts.map(p=>({...p,owner:m}));
+            if(!lazyBindings)meshRenderGroups(renderer,m);
+            changed=true;
+          }
+          m.replicaVersion=signature;m.version=signature;m.normalCount=source.normalCount;m.replicaMatrix=local;
+          const lo=source.localBoundsMin||source.boundsMin,hi=source.localBoundsMax||source.boundsMax;
+          if(m.replicaBoundsRevision!==source.geometryRevision||lo.some((v,k)=>v!==m.localBoundsMin[k])||hi.some((v,k)=>v!==m.localBoundsMax[k])){
+            m.localBoundsMin=[...lo];m.localBoundsMax=[...hi];
+            for(const [j,part] of (m.parts||[]).entries()){
+              const p=source.parts[j];part.localBoundsMin=[...(p.localBoundsMin||p.boundsMin)];part.localBoundsMax=[...(p.localBoundsMax||p.boundsMax)];
+            }
+            m.replicaBoundsRevision=source.geometryRevision;m.frameGenerated=undefined;
+          }
+          result.push(m);built.push(m);
+        }
+      }
+      wanted.set(n.nativeHash,result);seen.delete(n.id);delete n.splineError;return result;
+      }
       function failReplicaOwners(requestedOwner,error){
         const failed=new Set([requestedOwner]);for(const id of seen){const owner=node(id);if(owner&&ownerSet.has(owner))failed.add(owner);}
         const hashes=new Set();for(const owner of failed){owner.splineError=error.message;hashes.add(owner.nativeHash);wanted.set(owner.nativeHash,[]);}
@@ -25436,7 +25847,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         for(let i=builtCurves.length-1;i>=0;i--)if(hashes.has(builtCurves[i].hashId)){const curve=builtCurves.splice(i,1)[0];if(!priorCurves.has(curve))for(const buffer of curve.buffers)releaseGPU(buffer);}
         seen.clear();
       }
-      for(const n of requested?owners.filter(n=>requested.has(n.id)):owners)try{evaluate(n);}catch(e){failReplicaOwners(n,e);}if(requested&&splineLoadBatch){const alive=existing.filter(m=>!wanted.has(m.hashId));for(const m of existing)if(wanted.has(m.hashId)&&!built.includes(m))disposeMesh(m);const curves=oldCurves.filter(m=>!wanted.has(m.hashId));for(const m of oldCurves)if(wanted.has(m.hashId)&&!builtCurves.includes(m))for(const b of m.buffers)releaseGPU(b);scene.meshes=[...raw,...alive,...built];scene.curveReplicas=[...curves,...builtCurves];for(const m of built)poseSplineLoadMesh(m,FM.mul(objectWorld(m.hashId),m.replicaMatrix));return changed;}
+      for(const n of requested?owners.filter(n=>requested.has(n.id)):owners)try{evaluate(n);}catch(e){failReplicaOwners(n,e);}if(requested&&splineLoadBatch){const alive=existing.filter(m=>!wanted.has(m.hashId)),retainedMeshes=new Set(built);for(const m of existing)if(wanted.has(m.hashId)&&!retainedMeshes.has(m))disposeMesh(m);const curves=oldCurves.filter(m=>!wanted.has(m.hashId)),retainedCurves=new Set(builtCurves);for(const m of oldCurves)if(wanted.has(m.hashId)&&!retainedCurves.has(m))for(const b of m.buffers)releaseGPU(b);scene.meshes=[...raw,...alive,...built];scene.curveReplicas=[...curves,...builtCurves];for(const m of [...built,...builtCurves]){const n=nodeByHash.get(m.hashId);m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n);}
+      for(const m of built)poseSplineLoadMesh(m,FM.mul(objectWorld(m.hashId),m.replicaMatrix));return changed;}
       const scopedMeshes=requested?built.slice():undefined;
       const occurrenceCount=hash=>{const list=wanted.get(hash);return list?list.length:scopedCounts?.get(hash)||0;};
       if(requested){
@@ -25447,7 +25859,9 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const merged=mergeOwners(existing,built),curves=mergeOwners(oldCurves,builtCurves);built.length=0;for(const m of merged)built.push(m);builtCurves.length=0;for(const m of curves)builtCurves.push(m);
         // Unchanged owner rows keep their existing order; their counts are already in scopedCounts.
       }
-      const keep=new Set(built),keepCurves=new Set(builtCurves);for(const m of existing)if(!keep.has(m)){disposeMesh(m);changed=true;}for(const m of oldCurves)if(!keepCurves.has(m))for(const b of m.buffers)releaseGPU(b);const ownerByHash=nodeByHash;for(const m of [...built,...builtCurves]){const n=ownerByHash.get(m.hashId);let hidden=false,p=node(n.parent);while(p){if(p.type==='unite'&&m.curve&&!FrameSpline.consumesInput(p,n)){p=node(p.parent);continue;}if(p.enabled&&(polygonGenerator(p.type)||!FrameSpline.generators.has(p.type)||consumedInput(p,n,m))&&(FrameSpline.generators.has(p.type)&&FrameSpline.states.get(p.id)?.data&&!FrameSpline.states.get(p.id)?.empty&&!p.splineError||polygonGenerator(p.type)&&FrameSpline.states.get(p.id)?.signature||['cloner','symmetry'].includes(p.type)&&occurrenceCount(p.nativeHash))){hidden=true;break;}p=node(p.parent);}m.frameSourceConsumed=hidden;m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n)&&!hidden;}scene.curveReplicas=builtCurves;scene.meshes=[...raw,...built];const distributors=new Set(owners.filter(n=>n.type==='cloner'&&n.params.type==='object').map(n=>n.id));for(const id of replicaPlacements.keys())if(!distributors.has(id))replicaPlacements.delete(id);const usedSamplers=new Set([...replicaPlacements.values()].map(c=>c.sampler));for(const [source,state]of surfaceSamplers)if(!usedSamplers.has(state)){disposeSurfaceSampler(state);surfaceSamplers.delete(source);}for(const m of raw){const n=nodeByHash.get(m.hashId);m.frameSourceConsumed=false;let parent=node(n?.parent);while(parent){if(parent.enabled&&(polygonGenerator(parent.type)&&FrameSpline.states.get(parent.id)?.signature||['cloner','symmetry'].includes(parent.type)&&occurrenceCount(parent.nativeHash))){m.frameSourceConsumed=true;m.frameVisible=false;}parent=node(parent.parent);}}if(selectionScope==='objects'){const hashes=new Set(objectSelection.flatMap(h=>objectDescendants(h)));selectedMeshes=scene.meshes.filter(m=>hashes.has(m.hashId));selectedMesh=selectedMeshes[0]||null;}if(changed){const layoutChanged=existing.length!==built.length||existing.some((m,i)=>m.replicaKey!==built[i]?.replicaKey||m.triangleCount!==built[i]?.triangleCount);if(layoutChanged)publishTopology(renderer,[]);else{clearFeatureDraws(renderer);clearPickGroups(renderer);for(const m of built){m.faceBase=byKey.get(m.replicaKey).faceBase;renderer.device.queue.writeBuffer(m.connected.range,0,new Uint32Array([m.faceBase,m.triangleCount,0,0]));}refreshMaterialOwners();}}const posed=syncPoseWorld(scopedMeshes);if(selectionScope==='objects'&&objectSelection.length)selectionBox=objectBoundsUnion();if(changed){appearanceSignature='';deferHoverMaps();}return changed||posed;}finally{replicaBuilding=false;}
+      const keep=new Set(built),keepCurves=new Set(builtCurves);for(const m of existing)if(!keep.has(m)){disposeMesh(m);changed=true;}for(const m of oldCurves)if(!keepCurves.has(m))for(const b of m.buffers)releaseGPU(b);let visibilityChanged=false;const ownerByHash=nodeByHash;for(const m of [...built,...builtCurves]){const n=ownerByHash.get(m.hashId);let hidden=false,p=node(n.parent);while(p){if(p.type==='unite'&&m.curve&&!FrameSpline.consumesInput(p,n)){p=node(p.parent);continue;}if(p.enabled&&(polygonGenerator(p.type)||!FrameSpline.generators.has(p.type)||consumedInput(p,n,m))&&(FrameSpline.generators.has(p.type)&&FrameSpline.states.get(p.id)?.data&&!FrameSpline.states.get(p.id)?.empty&&!p.splineError||polygonGenerator(p.type)&&FrameSpline.states.get(p.id)?.signature||['cloner','symmetry'].includes(p.type)&&occurrenceCount(p.nativeHash))){hidden=true;break;}p=node(p.parent);}m.frameSourceConsumed=hidden;const visible=vis(n)&&n.enabled&&frameSoloContains(n)&&!hidden;visibilityChanged||=m.frameVisible!==visible;m.frameVisible=visible;}if(oldCurves.length!==builtCurves.length||oldCurves.some((m,i)=>m!==builtCurves[i]))scene.curveReplicas=builtCurves;
+      if(raw.some((m,i)=>scene.meshes[i]!==m)||existing.length!==built.length||existing.some((m,i)=>m!==built[i]))scene.meshes=[...raw,...built];
+      const distributors=new Set(owners.filter(n=>n.type==='cloner'&&n.params.type==='object').map(n=>n.id));for(const id of replicaPlacements.keys())if(!distributors.has(id))replicaPlacements.delete(id);const usedSamplers=new Set([...replicaPlacements.values()].map(c=>c.sampler));for(const [source,state]of surfaceSamplers)if(!usedSamplers.has(state)){disposeSurfaceSampler(state);surfaceSamplers.delete(source);}for(const m of raw){const n=nodeByHash.get(m.hashId);m.frameSourceConsumed=false;let parent=node(n?.parent);while(parent){if(parent.enabled&&(polygonGenerator(parent.type)&&FrameSpline.states.get(parent.id)?.signature||['cloner','symmetry'].includes(parent.type)&&occurrenceCount(parent.nativeHash))){m.frameSourceConsumed=true;m.frameVisible=false;}parent=node(parent.parent);}}if(selectionScope==='objects'){const hashes=new Set(objectSelection.flatMap(h=>objectDescendants(h)));selectedMeshes=scene.meshes.filter(m=>hashes.has(m.hashId));selectedMesh=selectedMeshes[0]||null;}if(changed){const layoutChanged=existing.length!==built.length||existing.some((m,i)=>m.replicaKey!==built[i]?.replicaKey||m.triangleCount!==built[i]?.triangleCount);if(layoutChanged)publishTopology(renderer,[]);else{clearFeatureDraws(renderer);clearPickGroups(renderer);for(const m of built){m.faceBase=byKey.get(m.replicaKey).faceBase;if(m.connected.range)renderer.device.queue.writeBuffer(m.connected.range,0,new Uint32Array([m.faceBase,m.triangleCount,0,0]));}refreshMaterialOwners();}}const posed=syncPoseWorld(scopedMeshes);if(selectionScope==='objects'&&objectSelection.length)selectionBox=objectBoundsUnion();if(changed)appearanceSignature='';if(changed||visibilityChanged)deferHoverMaps();if(visibilityChanged)draw();return changed||posed||visibilityChanged;}finally{replicaBuilding=false;}
     }
     function syncNativeObjects(objects){
       if(!scene||nativeIOBusy&&!splineLoadFinalizing)return;FramePlugins.dispatch('sync');const lightBefore=viewportLightingSignature();
@@ -25705,7 +26119,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(plan.objects.length>=256)warmAssemblyViews(gpu);
         if(scene){disposeScene(scene);scene=null;}clearFeatureDraws(gpu);clearPickGroups(gpu);sceneFrameDirty=true;canvas.dataset.ready='loading';preparedImages?.start?.();
         i=0;for(const o of plan.objects)if(o.p){const input=await nativeDecodeMesh(file,o),mesh=await uploadAndCompute(gpu,input);mesh.hashId=o.hash;if(input.uv)uploadImportedUV(gpu,mesh,input.uv);newMeshes.push(mesh);o.index=i++;progress('Opening HASH · '+i+' / '+plan.meshes+' meshes');await new Promise(r=>setTimeout(r,0));}
-        let base=0;for(const mesh of newMeshes){mesh.faceBase=base;base+=mesh.triangleCount;gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));meshRenderGroups(gpu,mesh);}
+        let base=0;for(const mesh of newMeshes){mesh.faceBase=base;base+=mesh.triangleCount;if(mesh.connected.range)gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));meshRenderGroups(gpu,mesh);}
         FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,newMeshes);published=true;scene.materialPrefetch=preparedImages?.prefetch;scene.appearanceIds=plan.appearance.ids;scene.records=plan.records;installNativeRecords(plan.objects,plan.camera);const timeline=plan.records.get(FrameHash.K.parameters);if(timeline)scene.records.set(timeline.id,timeline);else scene.records.delete(FrameHash.K.parameters);uploadPolygonSets(plan,gpu);[displayUnitIndex,rescaleUnitIndex]=plan.savedUnits||[2,2];document.getElementById('dV').textContent=units[displayUnitIndex];selectionScope='components';objectSelection=[];componentPivot=null;metaUndo=[];metaRedo=[];resetView();applyNativeCamera(plan.camera);selectionSignature='';
         const byId=new Map(plan.objects.map(o=>[o.hash,o])),shown=o=>(o.flags&3)===3&&(!o.parent||shown(byId.get(o.parent)));
         setVisibility(plan.objects.filter(o=>o.index!==undefined).map(o=>({index:o.index,visible:shown(o)})));
@@ -26135,8 +26549,14 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       if(!slots.size)return;
       const grouped=ranges.some(range=>range.material!==raw.baseMaterial),mapped=[...slots].some(m=>frameMapFields.some(key=>m[key])||
         [m.image,m.normalImage,m.emissionImage,m.metalRoughImage,m.aoImage].some(index=>index!==undefined));
-      const transparent=[...slots].some(m=>m.opac>0||m.opacityAsset||m.alphaMode!==1&&(m.colorAsset||m.image!==undefined));
+      const transparent=[...slots].some(m=>m.alphaMode!==2&&(m.opac>0||m.opacityAsset||m.alphaMode!==1&&(m.colorAsset||m.image!==undefined)));
       const jobs=[];
+      if(raw.preview)for(const orthographic of [false,true]){
+        const options={orthographic,plain:true,grouped,uv:true};
+        jobs.push(requestMaterialReplicaPipeline(r,{...options,wire:false},true),
+          requestMaterialReplicaPipeline(r,{...options,wire:true},true),
+          requestMaterialReplicaPipeline(r,{...options,wire:false,preview:true},true));
+      }
       for(const i of frameViewSections.keys()){
         const shading=viewShadings[i];if(!frameViewVisible(i)||!shading?.startsWith('solid'))continue;
         const orthographic=!!frameViewKind(i),options={orthographic,grouped,uv:!!raw.uv,wire:shading!=='solid',mapped};
@@ -26211,7 +26631,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{preparedImages?.release();if(!published)for(const m of meshes)disposeMesh(m);nativeIOEnd();}
     }
     let libraryQueue=Promise.resolve(),libraryTimer=0;const libraryKeys=new Map();
-    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&n.params.detail==='procedural'&&n.params.growth===0;if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryAsset;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh)delete mesh.plantGeometryKey;libraryKeys.delete(n.nativeHash);});return n;}
+    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&n.params.growth===0;if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh){delete mesh.plantGeometryKey;if(mesh.plantPreview){const {buffer}=mesh.plantPreview;mesh.buffers=mesh.buffers.filter(b=>b!==buffer);releaseGPU(buffer);delete mesh.plantPreview;}}libraryKeys.delete(n.nativeHash);});return n;}
     let libraryRequested=false,libraryBuilding=false;
     function requestLibrary(){
       if(libraryBuilding){libraryRequested=true;return;}
@@ -26222,7 +26642,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         finally{libraryBuilding=false;if(libraryRequested){libraryRequested=false;requestLibrary();}}
       },16);
     }
-    function libraryFilename({type,params,libraryAsset}){return type==='car'?(libraryAsset||stockCarAssets.hatchback):type==='tree'?(params.detail==='procedural'?'procedural-tree':'tree-'+params.type+'-1-'+(params.detail==='high'?1:0)):'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);}
+    function libraryFilename({type,params}){
+      if(type==='car')return 'car';
+      if(type==='tree')return 'procedural-tree';
+      return 'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);
+    }
     async function libraryData(file){const plan=await nativeDecodePlan(file);if(plan.objects.length!==1||!plan.objects[0].p||plan.records.get(FrameHash.K.assets)?.value?.length)throw Error('Invalid stock model');const o=plan.objects[0],raw=await nativeDecodeMesh(file,o);validatePolygonSets(plan,o,raw);if(o.matrix&&!FM.equal(FM.unpack(o.matrix),FM.I()))throw Error('Stock model must use its authored local coordinates');const ids=plan.records.get(FrameHash.K.materials)?.value||[],get=(h,f)=>plan.records.get(FrameHash.address(h,f))?.value,catalog=ids.map(uid=>({uid:FrameHash.newId(),name:get(uid,'name'),...Object.fromEntries(materialKeys.map((k,i)=>[k,get(uid,'parameters')[i]??frameMaterialDefaults[k]??0])),map:null})),faces=new Uint32Array(raw.triangleCount);for(const uid of get(o.hash,'tags')||[]){const refs=get(uid,'material');if(!refs)continue;const index=ids.indexOf(refs[0]),bits=get(uid,'faces');if(!bits){raw.baseMaterial=index;faces.fill(index);}else for(let f=0;f<faces.length;f++)if(bits[f>>3]>>(f&7)&1)faces[f]=index;}
       raw.ranges=[];let start=0;for(let f=1;f<=faces.length;f++)if(f===faces.length||faces[f]!==faces[start]){raw.ranges.push({start,count:f-start,material:faces[start]});start=f;}return {raw,catalog};}
     // Resolve paint roles against the bundled material names, before any user overrides.
@@ -26239,7 +26663,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const [h,s,l]=carPaintPresets[preset];
       for(const {slot,authored,shade} of stockCarFinishes.get(filename)){
         const m=materialAt(slot);
-        if(m)[m.h,m.s,m.l]=filename!==stockCarAssets.sedan&&preset==='blue'?authored:[h,s,l*shade];
+        if(m)[m.h,m.s,m.l]=preset==='blue'?authored:[h,s,l*shade];
       }
     }
     function carPaintForEdit(n,slot,uses){
@@ -26318,7 +26742,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       const task=libraryQueue.catch(()=>{}).then(async()=>{
         let uses;
         for(const n of nodes.filter(n=>['tree','human','car'].includes(n.type))){
-          const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),isCar=n.type==='car',plant=n.type==='tree'&&n.params.detail==='procedural';
+          const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),isCar=n.type==='car',plant=n.type==='tree';
           if(n.librarySlots&&mesh){
             const slotsByUID=new Map(n.librarySlots.map((s,i)=>[s.uid,s.index??i]));
             for(const tag of n.tags)if(slotsByUID.has(tag.uid)){
@@ -26328,11 +26752,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             if(plant){const uv=n.tags.find(t=>t.kind==='uv');if(uv)uv.librarySlot=true;}
             delete n.librarySlots;
           }
-          const filename=libraryFilename(n),key=FrameValue.key(stockParams(n)),previous=libraryKeys.get(n.nativeHash);
+          const filename=libraryFilename(n),key=FrameValue.key(n.params),previous=libraryKeys.get(n.nativeHash);
           if(previous?.filename===filename&&previous.key===key&&(mesh&&(!plant||mesh.plantGeometryKey)||plant&&!mesh&&n.params.growth===0))continue;
           if(plant&&n.params.growth===0){
             const space=scene;await selectionQueue;await editSerial;
-            if(space===scene&&nodes.includes(n)&&key===FrameValue.key(stockParams(n)))emptyPlant(n,mesh,filename,key);
+            if(space===scene&&nodes.includes(n)&&key===FrameValue.key(n.params))emptyPlant(n,mesh,filename,key);
             continue;
           }
           const sameAsset=!!n.librarySlots||previous?.filename===filename||!previous&&n.tags.some(t=>t.librarySlot);
@@ -26356,7 +26780,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           const shape=plant?FramePlants.geometryKey(p):null,foliage=plant?FramePlants.atlasKey(p):null;
           const sameGeometry=plant&&mesh&&mesh.plantGeometryKey===shape&&slots.has(0)&&slots.has(1)&&n.tags.some(t=>t.librarySlot&&t.kind==='uv');
           const bindings=plant?FrameValue.key(n.librarySlots||stockMaterialSlots(n)):null;
-          const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===FrameValue.key(stockParams(n))
+          const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===FrameValue.key(n.params)
             &&(!plant||bindings===FrameValue.key(n.librarySlots||stockMaterialSlots(n)));
           let raw,defaults,catalog,managed=false;
           if(plant){
@@ -26369,7 +26793,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             if(!bark)rememberPlantMaps('bark',catalog[0]);
             if(managed)rememberPlantMaps(foliage,catalog[1]);
             defaults=catalog.slice();
-            if(!sameGeometry)raw=FramePlants.makePlant(p);
+            if(!sameGeometry)raw=FramePlants.makePlant(p,true);
           }else{
             const response=await fetch('models/'+filename+'.hash');
             if(!response.ok)throw Error('Model HTTP '+response.status);
@@ -26406,7 +26830,15 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             });
             n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
             next.hashId=n.nativeHash;next.version=(mesh?.version||0)+1;next.frameVisible=true;
-            if(plant)next.plantGeometryKey=shape;
+            if(plant){
+              next.plantGeometryKey=shape;
+              const leaves=tags.find(t=>t.libraryIndex===1);
+              if(leaves?.mask&&raw.preview?.length){
+                const buffer=meshAllocator(gpu,next)('small projected tree geometry',raw.preview.byteLength,GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST);
+                gpu.device.queue.writeBuffer(buffer,0,raw.preview);
+                next.plantPreview={buffer,vertices:raw.preview.length/9,uv:next.uvSource.resource,foliage:polygonSet(leaves.mask)};
+              }
+            }
             if(mesh)publishTopology(gpu,[{mesh,next}]);else{scene.meshes.push(next);publishTopology(gpu,[]);}
             n.engineIndex=scene.meshes.indexOf(mesh||next);
           }else{
@@ -27937,7 +28369,7 @@ function FramePolygonKernel(d){
       register('plugins.create','Load one installed plugin and add its object using native Undo.',required(obj({plugin:str,type:str}),'plugin'),false,async a=>{const n=await FramePlugins.create(a.plugin,a.type);await settle();return describe(n);});
       const resolve=ref=>frameNodeByReference(ref)||fail('NOT_FOUND','Object not found: '+ref),refs=ids=>ids.map(resolve),copy=v=>structuredClone(v),meshOf=n=>scene.meshes.find(m=>m.hashId===n.nativeHash);
       async function settle(allowGesture=false){await api.ready;await historySerial;await FramePlugins.loadUsed();await objectActionQueue;await clipboardSerial;await FrameMorph.flush();if(canvas.dataset.ready==='error'||!scene)fail('NOT_READY',canvas.dataset.operationError||'WebGPU is unavailable');await loadLibraryObjects();let pending;do{pending=selectionPending;await pending;await selectionQueue;}while(pending!==selectionPending);await gizmoSession?.completion;await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag){if(allowGesture)return;fail('BUSY','Finish the active editor gesture first');}let click;do{click=polygonClick;await click;}while(click!==polygonClick);await loopSerial;await FrameFileSources.flush();await FrameGeometry.flush();await FrameSpline.flush();await replicaQueue;await animationSerial;await FramePlugins.flush();for(const n of nodes)if(n.type==='mesh'&&n.tags.some(t=>t.kind==='morph'&&t.params.mode==='Solve'))await FrameMorph.apply(n);await selectionQueue;await editSerial;await appearanceQueue;await measureQueue;const started=performance.now();while(wheelBusy||pendingWheel){if(performance.now()-started>30000)fail('BUSY','Navigation has not settled');await new Promise(requestAnimationFrame);}}
-      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash),params:copy(stockParams(n)),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!(m.splineGenerated||m.plantGeometryKey),visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
+      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash),params:copy(n.params),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!(m.splineGenerated||m.plantGeometryKey),visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
       function inspectionIndex(){const index=boundsOwnerIndex();index.children=new Map();for(const n of nodes){let list=index.children.get(n.parent);if(!list)index.children.set(n.parent,list=[]);list.push(n);}return index;}
       function describeMany(list){const inspection=inspectionIndex();return list.map(n=>describe(n,inspection));}
       function selectionInfo(){const occurrence=objectOccurrenceTransform();return {occurrence:occurrence?{source:objectSelectionOccurrence.hash,key:objectSelectionOccurrence.key,curve:objectSelectionOccurrence.curve,matrix:Array.from(occurrence)}:null,tool:polygonTools.mode,preview:loopPreview?{hash:loopPreview.hash||loopPreview.spline?.hash,edges:loopPreview.result?.edges||loopPreview.spline?.edges||[]}:null,scope:selectionScope,mode:elementMode,objects:[...selected].map(id=>node(id)?.nativeHash||id),nativeObjects:[...objectSelection],spline:FrameSpline.editingHash,components:[...FrameSpline.selection()],counts:renderer?.boxSelection?.counts||[],bounds:selectionBox};}

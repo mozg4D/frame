@@ -41,6 +41,14 @@ export async function cameraViewChecks(page){
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-60,0,60,-60,0,0,60,0,0,0,60],indices:[0,2,1,0,1,3,0,3,2,1,2,3]});
   const material=await call('material.create',{params:{h:0,s:0,l:100,emm:100}});await call('material.assign',{id:mesh.hash,material:material.uid});await call('view.set',{index:0,single:true,focus:mesh.hash});
   const camera=await call('scene.create',{type:'render',params:{realtime:'off',samples:1,environment:'off'}});await call('scene.select',{ids:[camera.hash]});
+  await call('view.set',{index:0,single:false,mode:'object'});
+  const gizmos=await page.evaluate(()=>({
+    active:frameEngine.gizmoState,views:frameEngine.gizmoStates.map(s=>s.view),
+    mainHidden:getComputedStyle(document.querySelector('.frame-gizmo[data-view="0"]')).display==='none',
+    mainChildren:document.querySelector('.frame-gizmo[data-view="0"]').childElementCount
+  }));
+  check('The viewed Camera suppresses its Perspective SVG and hit geometry',!gizmos.active&&gizmos.mainHidden&&gizmos.mainChildren===0,gizmos);
+  check('The same selected Camera keeps its orthographic gizmos',gizmos.views.length===3&&gizmos.views.every(i=>i>0&&i<4),gizmos);
   for(const index of [0,1,2,3]){await call('view.set',{index,single:true});await clickView('Native View from single viewport '+index);check('Single View reveals main Perspective '+index,(await inspect()).main===0);}
   await call('view.set',{index:2,single:false});await clickView('Native View from quad orthographic');check('Quad View retains active orthographic',(await inspect()).active===2);
   const opened=await call('view.window',{action:'open',index:0}),extra=opened.opened;check('Additional Perspective opens',Number.isInteger(extra)&&extra>=4,opened);

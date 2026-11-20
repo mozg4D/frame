@@ -13,6 +13,7 @@ function fixture(count=513){
  let serial=0;const resource=()=>({id:++serial}),pipeline=resource(),posed=resource(),wire=resource(),plain=resource(),ortho=resource(),library=resource(),materialPipeline={...resource(),material:true};
  const meshes=Array.from({length:count},(_,i)=>({id:i,triangleCount:2,count:6,renderIndices:resource(),shadingBindGroup:resource(),boundsMin:[i,0,0],boundsMax:[i+1,1,1]}));
  const env={frameNavigation:null,elementMode:'object',shadingMode:'solid',viewIndex:0,scene:{meshes},builds:0,clip:Infinity,replicaCalls:0,drawCloudInstances:()=>0,deferPluginSceneLines:()=>false,drawViewGrid:()=>{},drawSplineDisplays:()=>{},splineDisplays:new Map()};
+ env.drawOrderedReplicas=()=>null;
  env.drawReplicaBatches=()=>{env.replicaCalls++;return batches();};
  const record=()=>{const state={groups:[],pipeline:null,index:null},draws=[];return {draws,setPipeline(p){state.pipeline=p;},setBindGroup(n,g){state.groups[n]=g;},setIndexBuffer(b){state.index=b;},draw(n){draws.push({pipeline:state.pipeline,groups:[...state.groups],index:null,count:n});},drawIndexed(n){draws.push({pipeline:state.pipeline,groups:[...state.groups],index:state.index,count:n});},executeBundles(bundles){for(const bundle of bundles)draws.push(...bundle);state.groups=[];state.pipeline=null;state.index=null;},finish(){return draws;}};};
  const r={bindGroup:resource(),surfaceTargets:[{format:'bgra8unorm'}],wireTargets:[{format:'bgra8unorm'},{format:'r32uint'},{format:'rgba32float'}],device:{createRenderBundleEncoder(){env.builds++;return record();}}};

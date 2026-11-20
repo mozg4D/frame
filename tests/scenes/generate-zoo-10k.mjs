@@ -81,7 +81,7 @@ export function buildZooScene({count=10000}={}){
  }
  const camera=add('render','Zoo camera',sections[7],{renderer:'Viewport','resolution x':1280,'resolution y':900,samples:8},[0,300,0]);camera.enabled=false;handles.camera=camera.hash;
  add('target','Camera target',camera,{object:handles.patch});const light=add('infinite','Zoo infinite light',sections[7],{intensity:100,'temperature K':6500,'angular size':30});handles.light=light.hash;
- for(const [type,params,scale]of [['car',{'color preset':'blue'},.018],['tree',{type:'oak',detail:'low'},.012],['human',{type:'man',pose:'stand'},.045]]){
+ for(const [type,params,scale]of [['car',{'color preset':'blue'},.018],['tree',{type:'oak'},.012],['human',{type:'man',pose:'stand'},.045]]){
   const n=add(type,'Stock '+type,sections[5],params,place());n.matrix[0]=n.matrix[4]=n.matrix[8]=scale;handles[type]=n.hash;
  }
  for(let depth=0,parent=sections[7];depth<8;depth++){parent=add('group','Nested transform group '+depth,parent,{},[5,3,2]);if(depth===7){const n=add('cube','Deep child cube',parent,{'size x':20,'size y':20,'size z':20});handles.deepChild=n.hash;handles.deepGroup=parent.hash;}}
@@ -111,7 +111,7 @@ export async function ensureZooScene({output,metadataOutput,count=10000,force=fa
   const isSurface=['cube','cylinder','tube','sphere','capsule','nut','washer','bolt','spline_patch','extrude','lathe','sweep','boolean'].includes(n.type),nativeType=n.type==='infinite'?2:isSurface?1:0;
   field(n.hash,'type',T.bytes,new Uint8Array([nativeType]));field(n.hash,'name',T.text,n.name);if(n.parent)field(n.hash,'parent',T.ids,[n.parent]);field(n.hash,'matrix',T.float64,n.matrix);field(n.hash,'flags',T.bytes,new Uint8Array([n.enabled===false?5:7]));
   if(supported.includes(n.type))field(n.hash,'spline',T.bytes,S.encode({type:n.type,params:n.params,...n.data?{data:n.data}:{}}));
-  if(['car','tree','human'].includes(n.type))field(n.hash,'parameters',T.value,{version:1,tags:[],animation:[],library:{type:n.type,params:n.params,slots:[]}});
+  if(['car','tree','human'].includes(n.type))field(n.hash,'parameters',T.value,{version:1,tags:[],animation:[],library:{type:n.type,...n.type==='car'?{asset:'car-hatchback-2'}:{},params:n.params,slots:[]}});
   if(n.type==='infinite')field(n.hash,'light',T.float64,Float64Array.from([100,6500,30]));
   if(n.tags.length)field(n.hash,'tags',T.ids,n.tags.map(t=>t.uid));
  }

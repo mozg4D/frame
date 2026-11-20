@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 20 nov 01:57",
+  "version": "2026 20 nov 15:13",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -550,11 +550,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "56f1b35ba8059e6bfd026b33d583a2331ab9b2b88cd789596d1e90fdc31d9cab"
+      "sha256": "1318549f35633e9ef286d24b4ff85bfa682477c2895933a74c078bc99b6a1f81"
     },
     "index.html": {
-      "bytes": 3743458,
-      "sha256": "289fcaf158184de83954ac87d1805341e9ebb840eaa33f2ab692d3b3ae2d37bd"
+      "bytes": 3822016,
+      "sha256": "9a655303f29b098ef2e0fbbdc78c35c962fd325bae0a2aef7ce9864d2d333662"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -853,8 +853,8 @@
       "sha256": "4852a26c582f1ac59d10c87992d859e3cc5e0390d55f949994239e69cc24974b"
     },
     "tests/README.md": {
-      "bytes": 63112,
-      "sha256": "056a9f29d2e2199872606c4650057d4588c3702b7991c5c1819007761fe0b031"
+      "bytes": 63223,
+      "sha256": "19d0e89b7d49bc648ad0d8826a6c3688b6ef39384e4384d81167d8c4024ce8cc"
     },
     "tests/selection-bounds-flash.mjs": {
       "bytes": 6505,
@@ -869,8 +869,8 @@
       "sha256": "29c1752fdbcc7d33416ee259dc987ee0123d11ea2f02d77c2cd6a1b83b3519b8"
     },
     "tests/gizmo-query-work.mjs": {
-      "bytes": 19121,
-      "sha256": "c8375764d019b13cea809386d6ff0ed179a8f10ab0827ef1e7ae2682ee6a27c3"
+      "bytes": 19181,
+      "sha256": "2834e296e61ddcd76e3e61cc40b52e003decd951f9c4406ce1a5ec845a9c22c9"
     },
     "plugins/cfd/icon.svg": {
       "bytes": 345,
@@ -913,20 +913,20 @@
       "sha256": "1af3d427e784aaa17a74a4edb1aed1c1129c3147415c0a0ab84d6ce2c7325cb6"
     },
     "tests/scene-create-name.mjs": {
-      "bytes": 7128,
-      "sha256": "feb42148c604f1ccc893a79f9f927ece3eb194984e4a8920b96cd36cd4d443dd"
+      "bytes": 7132,
+      "sha256": "20376cf8edb4e4cc9ef24c7b78c9e2546e378df40d7f5948b1a914734b0c0e85"
     },
     "tests/scene-create-name-browser.mjs": {
-      "bytes": 13363,
-      "sha256": "5d5af539bbfc29fe4d0b1290e4938047999bcaebf3f8359f382a288a6128341c"
+      "bytes": 13350,
+      "sha256": "1f7e48d793677f548ec2573fc96ae39ef6ead1bb25eec915fa24280d06ec6a62"
     },
     "tests/numeric-display.mjs": {
-      "bytes": 18877,
-      "sha256": "3fea5cfa782c95806f3c82c9acdc5d66ab92fba0402ccc839d31f9f7e6829ada"
+      "bytes": 18912,
+      "sha256": "1c1ab16a6278d39b1e77d5852a5259e7242478f5e0d79b4d8487da42fca891f8"
     },
     "tests/numeric-display-browser.mjs": {
-      "bytes": 18505,
-      "sha256": "caa38d684d203b65d86e47e2e98a98f199d0769003983a1995d1d358cbbee1c4"
+      "bytes": 20446,
+      "sha256": "729937a7d0a05522ecbe3a30a68554a06886ca7af7471dd7de497da80902182e"
     },
     "tests/spline-depth-browser.mjs": {
       "bytes": 16259,
@@ -1002,7 +1002,7 @@
     },
     "tests/camera-relative-depth.mjs": {
       "bytes": 13449,
-      "sha256": "eed2c3f8ec8066e1ffa24967ed9ce5a2b16de0b053d19c184c28d5f8f2319511"
+      "sha256": "7a9215b5685ea4111a3b266cefd1be105a46cdd2c51c1ce885352cf559330c7f"
     },
     "tests/camera-shader-order.mjs": {
       "bytes": 11099,
@@ -1121,8 +1121,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 93749,
-      "sha256": "9c1b2ebb435144d93483dd9ffa9879a80c9df44bcaab86dace16c79d4558750c"
+      "bytes": 95116,
+      "sha256": "a15b286ee21e8def292192743138b616b3d6d2f845a48ddcd0d8f349c2c61cea"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1321,8 +1321,8 @@
       "sha256": "b3ce4aa2b76c60f366c007605db441ab34ff46ef3806415c4b04b009b804047b"
     },
     "tests/camera-view.mjs": {
-      "bytes": 13192,
-      "sha256": "7a0dcb32783bdfeb05a9d9a19e6b3238b0b1fbbcaf4e40baffd89d82cf913a42"
+      "bytes": 13853,
+      "sha256": "1a23fd6e13cf91f5ab2990d0ac99d0c5f5af0a1c57940c91a1b767288bbdf751"
     },
     "tests/camera-antialias.mjs": {
       "bytes": 9063,
