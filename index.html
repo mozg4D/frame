@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 01:57">
+<meta name="frame-version" content="2026 20 nov 11:03">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12103,7 +12103,15 @@ function frameTarget(h){return h.startsWith('mat:')?materials.find(m=>m.uid===h.
 function frameParameter(target,path){if(path.startsWith('tag:')){const [,id,...parts]=path.split(':'),tag=target.tags.find(t=>t.uid===id),key=parts.join(':');return tag?{container:tag.params,key,spec:tagDefinitions[tag.kind]?.fields[key]??(tag.kind==='morph'?0:undefined),tagSpec:tagDefinitions[tag.kind]?.plugin?tagDefinitions[tag.kind]:null}:null;}const key=path.slice(6);return {container:target.params,key,spec:definitions[target.type]?.[2][key]};}
 function frameAttributeKind(h,path){const target=frameTarget(h);if(!target||FRAME_TRANSFORM_FIELDS.includes(path)||path.startsWith('material:')||frameIsPLAPath(path)||path.startsWith('pose:'))return 'number';const field=frameParameter(target,path);return typeof field?.spec==='boolean'||Array.isArray(field?.spec)?'discrete':numberOptions(target.type,field?.key||'').int?'integer':'number';}
 function frameReadAttribute(h,path){const target=frameTarget(h);if(!target||FramePlugins.dispatch('forbidAnimation',target,path))return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])return d.vertices[key].slice();const match=key.match(/^h:(.+):(h[ab])$/);return match&&d.segments[match[1]]?.[match[2]].slice();}return window.frameEngine?.animationVertex(target.nativeHash,+key)||frameGetTrack(h,path)?.base;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0)return window.frameEngine?.animationTransform(target.nativeHash,path);if(path.startsWith('material:')){const value=target[path.slice(9)];return typeof value==='number'?value:undefined;}const field=frameParameter(target,path);if(!field||field.spec===undefined)return;const value=field.container[field.key],spec=field.spec;return typeof value==='boolean'?+value:Array.isArray(spec)?spec.indexOf(value):typeof value==='number'?value:undefined;}
-function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid)target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});container[key]=next;}
+function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid)target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});
+  if(target.type==='tree'&&container===target.params){
+    const opt=FramePlants.options[key],v=typeof next==='number'&&opt?Math.min(opt.maximum,Math.max(opt.minimum,opt.integer?Math.round(next):next)):next;
+    if(container[key]!==v){
+      const auto=target.name===hardwareName(target);
+      for(const [k,value]of Object.entries(FramePlugins.parameterPatch(target,{[key]:v})))if(k===key||!frameGetTrack(target.id,'param:'+k)?.keys.size)container[k]=value;
+      if(auto)target.name=hardwareName(target);window.frameEngine?.requestLibrary();
+    }
+  }else container[key]=next;}
 function frameDescriptor(h,path,extra={}){if(FramePlugins.dispatch('forbidAnimation',frameTarget(h),path))return null;return frameReadAttribute(h,path)===undefined?null:{h,path,...extra};}
 function frameCurrentDescriptors(){if(frameCurves.morphPose)return FrameMorph.descriptors();if(frameChannelSelection.length)return frameChannelSelection;if(selectionArea==='viewport'&&FrameSpline.editingHash&&FrameSpline.selection().size){const n=frameNodeByHash(FrameSpline.editingHash);if(n)return [...FrameSpline.selection()].filter(k=>n.splineData?.vertices[k]||k.startsWith('h:')).map(k=>({h:n.id,path:'pla:'+k}));}return [...selected].flatMap(h=>(node(h)?.type==='target'?['position']:FRAME_TRANSFORM_FIELDS).map(path=>frameDescriptor(h,path)).filter(Boolean));}
 function frameCaptureAnimation(){return {channels:frameSerializeChannels(),held:[...frameChannels].flatMap(([h,tracks])=>[...tracks].map(([path])=>({h,path,value:structuredClone(frameReadAttribute(h,path))}))),before:snapshot()};}
@@ -12881,6 +12889,911 @@ const hardware = {size:['M6','M3','M4','M5','M8','M10','M12','M16'],'angle appro
 const stockCarAssets={hatchback:'car-hatchback-2',originalHatchback:'car-hatchback-1',sedan:'car-sedan-1'};
 // Choice indices are stored in animation tracks.
 const carPaintPresets={red:[10,33,44],gold:[52,100,37],blue:[217,40,42],silver:[0,0,50],graphite:[0,0,25],green:[82,100,22],white:[0,0,91],violet:[250,50,40],beige:[40,30,60],black:[0,0,8]};
+const FramePlants=(()=>{
+// The choice order of the original stock Tree fields is part of its animation format.
+const presets={
+  oak:   {height:10000,trunks:1,spread:86,'conifer shape':0,branching:76,crookedness:61,'trunk thickness':74,seed:29},
+  poplar:{height:17000,trunks:1,spread:19,'conifer shape':0,branching:79,crookedness:29,'trunk thickness':43,seed:63},
+  bush:  {height:1800,trunks:5,spread:92,'conifer shape':0,branching:73,crookedness:66,'trunk thickness':31,seed:14},
+  spruce:{height:12000,trunks:1,spread:47,'conifer shape':100,branching:74,crookedness:18,'trunk thickness':41,seed:38}
+};
+const fields={type:['bush','spruce','oak','poplar'],detail:['low','high','procedural'],...presets.oak,
+  growth:100,'day of year':172,'twig thickness':43,'leaf density':88,'leaf slenderness':40};
+const percent={minimum:0,maximum:100,unit:'%',access:'read-write'};
+const integer=(minimum,maximum)=>({minimum,maximum,integer:true,access:'read-write'});
+const options={type:{access:'read-write'},detail:{access:'read-write'},height:{minimum:100,maximum:100000,unit:'mm',access:'read-write'},
+  trunks:integer(1,8),spread:percent,'conifer shape':percent,branching:percent,crookedness:percent,'trunk thickness':percent,
+  seed:integer(0,99999),growth:percent,'day of year':integer(1,365),'twig thickness':percent,'leaf density':percent,'leaf slenderness':percent};
+function presetPatch(current,changes){
+  const type=changes.type??current.type;
+  return type!==current.type||changes.detail==='procedural'&&current.detail!=='procedural'?{...presets[type],...changes}:changes;
+}
+function settings(p){
+  return {form:p.type,height:p.height/1000,trunks:p.trunks,spread:p.spread,habit:p['conifer shape'],branching:p.branching,
+    kink:p.crookedness,thickness:p['trunk thickness'],seed:p.seed,growth:p.growth,day:p['day of year'],
+    twigThickness:p['twig thickness'],density:p['leaf density'],thinness:p['leaf slenderness']};
+}
+const geometryKey=p=>[p.height,p.trunks,p.spread,p.habit,p.branching,p.kink,p.thickness,p.seed,p.growth].join('/');
+// Pure broadleaf and evergreen crowns use four variations of the same family. Mixed crowns share one atlas.
+const family=p=>p.habit<=16?'broad':p.habit>=89?'pine':'mixed';
+function atlasKey(p){
+  const kind=family(p),parts=[kind,p.day,p.density,p.thinness,p.twigThickness];
+  if(kind!=='pine')parts.push(p.form,p.growth);
+  return parts.join('/');
+}
+
+const TAU = 2 * Math.PI, GOLDEN = Math.PI * (3 - Math.sqrt(5)), UP = [0,1,0];
+const sat = x => Math.max(0,Math.min(1,x));
+const lerp = (a,b,t) => a+(b-a)*t;
+const ease = (a,b,x) => {const v=sat((x-a)/(b-a));return v*v*(3-2*v);};
+const plus = (a,b) => [a[0]+b[0],a[1]+b[1],a[2]+b[2]];
+const minus = (a,b) => [a[0]-b[0],a[1]-b[1],a[2]-b[2]];
+const times = (a,k) => [a[0]*k,a[1]*k,a[2]*k];
+const dot = (a,b) => a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const cross = (a,b) => [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const norm = a => times(a,1/(Math.hypot(...a)||1));
+const along = (p,axis,d) => [p[0]+axis[0]*d,p[1]+axis[1]*d,p[2]+axis[2]*d];
+const mix3 = (a,b,t) => [lerp(a[0],b[0],t),lerp(a[1],b[1],t),lerp(a[2],b[2],t)];
+const azimuth = a => [Math.cos(a),0,Math.sin(a)];
+function noise(seed,id,channel) {
+  let n=Math.imul(seed+1,0x369dea0f)^Math.imul(id+1,0x1f123bb5)^Math.imul(channel+11,0x05491333);
+  n=Math.imul(n^(n>>>16),0x7feb352d); n=Math.imul(n^(n>>>15),0x846ca68b);
+  return ((n^(n>>>16))>>>0)/4294967296;
+}
+const creaseLimit = 43.8, minCos = Math.cos(creaseLimit*Math.PI/180);
+const sleevePatterns = new Map();
+function sleevePattern(sides,rings) {
+  const key=rings*32+sides;
+  if(sleevePatterns.has(key))return sleevePatterns.get(key);
+  const ids=[],ring=(j,i)=>1+j*sides+(i+sides)%sides,tip=1+sides*rings;
+  for(let i=0;i<sides;i++)ids.push(0,ring(0,i+1),ring(0,i));
+  for(let j=0;j<rings-1;j++)for(let i=0;i<sides;i++){
+    const mid=i+(j&1);
+    ids.push(ring(j,i),ring(j,i+1),ring(j+1,mid),ring(j,i),ring(j+1,mid),ring(j+1,mid-1));
+  }
+  for(let i=0;i<sides;i++)ids.push(ring(rings-1,i),ring(rings-1,i+1),tip);
+  const pairs=[],open=new Map(),n=tip+1;
+  for(let t=0;t<ids.length;t+=3)for(let e=0;e<3;e++){
+    const a=ids[t+e],b=ids[t+(e+1)%3],k=Math.min(a,b)*n+Math.max(a,b);
+    if(open.has(k)){pairs.push(open.get(k),t);open.delete(k);}else open.set(k,t);
+  }
+  if(open.size) throw Error('Open woody sleeve');
+  const pattern={ids:Uint16Array.from(ids),pairs:Uint16Array.from(pairs)};
+  sleevePatterns.set(key,pattern);return pattern;
+}
+function roundedSleeve(points,radii,sides) {
+  const last=points.length-1;
+  const tangents=points.map((p,i)=>{
+    if(i===0)return norm(minus(points[1],p));
+    if(i===last)return norm(minus(p,points[i-1]));
+    return norm(plus(norm(minus(p,points[i-1])),norm(minus(points[i+1],p))));
+  });
+  const rings=[];
+  function cap(i,angle) {
+    const r=angle*Math.PI/180;
+    rings.push({p:along(points[i],tangents[i],radii[i]*Math.sin(r)),r:radii[i]*Math.cos(r),axis:tangents[i]});
+  }
+  cap(0,-60);cap(0,-30);
+  for(let i=0;i<=last;i++)rings.push({p:points[i],r:radii[i],axis:tangents[i]});
+  cap(last,30);cap(last,60);
+  const pattern=sleevePattern(sides,rings.length);
+  const pos=new Float64Array((rings.length*sides+2)*3);
+  pos.set(along(points[0],tangents[0],-radii[0]));
+  let u=norm(cross(Math.abs(tangents[0][0])<0.8?[1,0,0]:UP,tangents[0]));
+  for(let i=0;i<rings.length;i++){
+    const {p,r,axis}=rings[i];
+    u=norm(along(u,axis,-dot(u,axis)));
+    const v=cross(axis,u);
+    for(let j=0;j<sides;j++){
+      const phase=TAU*(j+(i&1)*0.5)/sides,c=r*Math.cos(phase),s=r*Math.sin(phase);
+      const at=(1+i*sides+j)*3;
+      for(let k=0;k<3;k++)pos[at+k]=p[k]+u[k]*c+v[k]*s;
+    }
+  }
+  pos.set(along(points[last],tangents[last],radii[last]),pos.length-3);
+  return {pos,pattern};
+}
+function shadeSleeve(surface,scale,ground) {
+  const {ids,pairs}=surface.pattern,pos=Float32Array.from(surface.pos,(x,i)=>(x-(i%3===1?ground:0))*scale);
+  const face=new Float32Array(ids.length);
+  for(let t=0;t<ids.length;t+=3){
+    const a=ids[t]*3,b=ids[t+1]*3,c=ids[t+2]*3;
+    const dx=pos[b]-pos[a],dy=pos[b+1]-pos[a+1],dz=pos[b+2]-pos[a+2];
+    const ex=pos[c]-pos[a],ey=pos[c+1]-pos[a+1],ez=pos[c+2]-pos[a+2];
+    const x=dy*ez-dz*ey,y=dz*ex-dx*ez,z=dx*ey-dy*ex,inv=1/Math.hypot(x,y,z);
+    face[t]=x*inv;face[t+1]=y*inv;face[t+2]=z*inv;
+  }
+  let worst=1;
+  for(let i=0;i<pairs.length;i+=2){
+    const a=pairs[i],b=pairs[i+1];
+    worst=Math.min(worst,face[a]*face[b]+face[a+1]*face[b+1]+face[a+2]*face[b+2]);
+  }
+  return {pos,ids,worst};
+}
+function appendSleeve(mesh,points,radii) {
+  mesh.sleeves.push({points,radii,surface:roundedSleeve(points,radii,6)});
+}
+function sampleStem(path,t) {
+  const x=sat(t)*(path.length-1),i=Math.min(path.length-2,Math.floor(x));
+  return mix3(path[i],path[i+1],x-i);
+}
+function makePlant(p) {
+  const mesh={sleeves:[],cards:[]};
+  const age=(p.growth??100)/100;
+  if(!age)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
+  const rand=(i,k)=>noise(p.seed,i,k);
+  const n=p.trunks,spread=p.spread/100,h=p.habit/100,b=p.branching/100,kink=p.kink/100,thick=p.thickness/100;
+  const broad=1-ease(0.32,0.89,h),pine=ease(0.16,0.86,h);
+  const clump = n>1 ? 1-1/n : 0;
+  function leafFan(root,heading,size,width,id,layer,exposure) {
+    // Twigs keep their own headings. Their display surfaces open towards the sky.
+    // Outer buds bank more than shaded inner leaves, keeping a readable side silhouette.
+    const slope=lerp(0.08,0.48,exposure)+(rand(id,83)-0.5)*0.45;
+    const direction=[heading[0],slope,heading[2]];
+    const roll=(rand(id,84)-0.5)*(0.65+0.62*exposure);
+    const arch=(0.08+0.095*rand(id,85))*(rand(id,86)<0.19?-0.72:1);
+    card(root,direction,size,width,roll,arch,(rand(id,87)-0.5)*0.25,layer,id);
+  }
+  function card(root,direction,length,width,roll,bend,twist,layer,id) {
+    const f=norm(direction),horizontal=Math.abs(f[1])>0.9999?azimuth(rand(id,95)*TAU):norm(cross(UP,f));
+    const upper=norm(cross(f,horizontal)),side=plus(times(horizontal,Math.cos(roll)),times(upper,Math.sin(roll)));
+    const normal=norm(cross(f,side));
+    mesh.cards.push(...root,layer,...times(f,length),0.82+0.34*rand(id,93),
+      ...times(side,length*width),length*twist,...times(normal,length*bend),length*(layer>=2?0.018+0.035*rand(id,96):0.045+0.075*rand(id,96)));
+  }
+  for(let stem=0;stem<n;stem++){
+    const id=100+stem*4000,phase=rand(11,1)*TAU+stem*GOLDEN+(rand(id,2)-0.5)*0.32;
+    const rad=azimuth(phase),side=azimuth(phase+Math.PI/2);
+    const ring=n===1?0:Math.sqrt(stem/(n-1));
+    const leader=stem===0?1:lerp(0.71,0.96,rand(id,3))*(1-0.15*ring*broad*spread);
+    const dome=lerp(0.92,0.72,ring*ring)*(0.97+0.055*rand(id,7));
+    const stature=lerp(leader,dome,broad*spread*clump);
+    const top=stature*lerp(0.87,0.995,pine);
+    const spreadBase=n===1?0:(0.014+0.083*spread)*ring;
+    const base=times(rad,spreadBase);
+    const lean=(n===1?0.025+0.12*spread*spread*broad:0.036+ring*(0.14+(0.42+0.19*broad)*spread))*(1-0.55*pine);
+    const wobble=(0.005+0.043*kink)*(1-0.72*pine);
+    const stemRadius=(0.012+0.028*thick)*stature*lerp(0.38,1,age)/Math.sqrt(1+0.39*(n-1));
+    const path=[],radii=[],steps=n===1?7:5;
+    for(let j=0;j<=steps;j++){
+      const t=j/steps,elbow=Math.sin(Math.PI*t)*(2*rand(id,5)-1)+0.42*Math.sin(TAU*t)*(2*rand(id,6)-1);
+      const joint=0.024*kink*(1-0.74*pine)*Math.sin(Math.PI*t)*stature;
+      let point=along(base,rad,lean*t*(0.55+0.45*t)+wobble*Math.sin(Math.PI*t)*(2*rand(id,4)-1)+joint*(2*rand(id+20,j)-1));
+      point=along(point,side,wobble*elbow+joint*(2*rand(id+21,j)-1));point[1]=top*t;
+      path.push(point);radii.push(stemRadius*(0.055+0.945*(1-t)**0.82)*(1+0.13*(1-t)**7));
+    }
+    const trunk=roundedSleeve(path,radii,6);
+    let floor=Infinity;
+    for(let j=1;j<trunk.pos.length;j+=3)floor=Math.min(floor,trunk.pos[j]);
+    for(const point of path)point[1]-=floor;
+    for(let j=1;j<trunk.pos.length;j+=3)trunk.pos[j]-=floor;
+    mesh.sleeves.push({points:path,radii,surface:trunk});
+    const narrow=1-spread, multi=1/Math.sqrt(1+0.40*(n-1));
+    if(broad>0.025){
+      const limbs=Math.max(1,Math.round((5+8*b)*broad/(1+0.52*(n-1))));
+      for(let i=0;i<limbs;i++){
+        const limb=id+60+48*i,q=(i+0.23+0.42*rand(limb,0))/limbs;
+        const t=lerp(n===1?0.22:0.12,0.91,q),start=sampleStem(path,t);
+        const mature=ease(0.035+0.41*t,0.35+0.47*t,age);
+        if(mature<0.055)continue;
+        const spiral=phase+(i+1)*GOLDEN+(rand(limb,1)-0.5)*0.75;
+        const a=spiral+clump*ring*0.72*Math.sin(phase-spiral);
+        const radial=azimuth(a),across=azimuth(a+Math.PI/2);
+        const crown=(0.45+0.55*Math.sin(Math.PI*(0.17+0.78*q))**0.8)*(1-0.27*q);
+        const reach=(0.046+0.49*spread)*crown*(0.83+0.29*rand(limb,4))*stature*(0.72+0.28*multi)*broad*mature;
+        const rise=(0.18+0.22*narrow+0.15*rand(limb,3)+0.19*spread*(1-clump)*(i%3===1?1:0))*(1-0.53*q)*stature*broad*mature;
+        const crooked=(rand(limb,5)-0.5)*0.36*kink, limbPath=[],limbR=[];
+        const r=stemRadius*(0.57-0.33*t)*(0.8+0.28*rand(limb,6))*Math.sqrt(broad)*mature;
+        for(let j=0;j<=3;j++){
+          const u=j/3,at=along(along(start,radial,reach*u),across,reach*crooked*Math.sin(Math.PI*u));
+          at[1]+=rise*(1.16*u-0.16*u*u+0.13*Math.sin(TAU*u)*spread);limbPath.push(at);limbR.push(r*(1-0.91*u)**0.9);
+        }
+        appendSleeve(mesh,limbPath,limbR);
+        const sprays=Math.round((5+7*b)*(0.79+0.21*multi));
+        for(let j=0;j<sprays;j++){
+          const bud=limb+j+10,f=(j+0.38+0.28*rand(bud,1))/sprays;
+          const onset=lerp(0.20,1,f),anchor=sampleStem(limbPath,onset);
+          const da=(j%2?1:-1)*(0.28+0.96*rand(bud,2))*(1-0.26*f);
+          const dir=azimuth(a+da);
+          const size=(0.165+0.15*spread)*(0.72+0.44*rand(bud,4))*(1-0.24*q)*stature*(0.80+0.20*multi)*broad*mature;
+          leafFan(anchor,dir,size,0.39+rand(bud,6)*0.20,bud,rand(bud,10)<0.5?0:1,0.18+0.72*f);
+          // Two neighbouring buds form a leaf cluster with different tip heights.
+          if(j%3===1 && b>0.35){
+            const tip=sampleStem(limbPath,Math.min(1,onset+0.065));
+            leafFan(tip,azimuth(a+da+(j%2?0.68:-0.68)),size*0.71,0.47,bud+9000,j%2,0.87);
+          }
+        }
+        if(spread*broad>0.38&&(n<=2?i%2===0:stem===0&&i===1)&&q<0.88){
+          const fork=limb+34,base=sampleStem(limbPath,0.43),turn=a+(i%4?1:-1)*(0.69+0.32*rand(fork,0));
+          const dir=azimuth(turn),length=reach*(0.61+0.21*rand(fork,1)),top=along(base,dir,length);
+          top[1]+=(0.78+0.48*rand(fork,2))*rise;const mid=mix3(base,top,0.54);mid[1]-=0.035*length;
+          const forkPath=[base,mid,top];appendSleeve(mesh,forkPath,[r*0.49,r*0.29,r*0.065]);
+          for(let j=0;j<5;j++){
+            const bid=fork+j+1,root=sampleStem(forkPath,0.22+0.18*j),out=azimuth(turn+(j%2?1:-1)*(0.32+0.52*rand(bid,3)));
+            leafFan(root,out,(0.185+0.095*rand(bid,5))*stature*broad*mature,0.46,bid,j%2,0.38+0.11*j);
+          }
+        }
+      }
+      const apex=Math.round((5+6*b)*broad*(0.44+0.56*multi));
+      for(let j=0;j<apex;j++){
+        const bud=id+760+j,a=phase+j*GOLDEN,anchor=sampleStem(path,lerp(0.67,1,(j+0.5)/apex));
+        leafFan(anchor,azimuth(a),(0.16+0.11*spread)*(0.8+0.4*rand(bud,2))*stature*broad*lerp(0.22,1,age),
+          0.47,bud,rand(bud,3)<0.5?0:1,0.84);
+      }
+      // Inward and tangential side buds overlap neighbouring canes under the shrub's outer canopy.
+      if(n>1&&stem>0)for(let j=0;j<Math.round((3+2*b)*broad);j++){
+        const bud=id+840+j,t=0.47+0.089*j,heading=phase+Math.PI+(j%2?1:-1)*(0.47+0.83*rand(bud,0));
+        leafFan(sampleStem(path,t),azimuth(heading),(0.19+0.11*spread)*stature*broad*lerp(0.12,1,age),0.51,bud,j%2,0.34);
+      }
+      if(n>1)for(let j=0;j<Math.round((4+2*b)*broad);j++){
+        const bud=id+820+j,at=lerp(0.09,0.55,(j+0.4)/6),dir=azimuth(phase+(j%2?1:-1)*(0.32+0.88*rand(bud,0)));
+        leafFan(sampleStem(path,at),dir,(0.22+0.22*spread)*broad*stature*lerp(0.16,1,age),0.51,bud,j%2,0.38);
+      }
+    }
+    if(pine>0.025){
+      const tiers=Math.max(2,Math.round((6+8*b)*pine/(1+0.25*(n-1))));
+      for(let i=0;i<tiers;i++){
+        const tier=id+1200+i*103,q=(i+0.18)/tiers,t=lerp(0.155,0.989,q);
+        const mature=ease(0.02+0.29*t,0.30+0.40*t,age);
+        if(mature<0.045)continue;
+        const rays=Math.max(3,Math.round((4+3.5*b-q*2)/(1+0.13*(n-1))));
+        for(let j=0;j<rays;j++){
+          const bud=tier+3*j,at=t+(rand(bud,0)-0.5)*0.049;
+          const angle=phase+i*GOLDEN+TAU*(j+0.24*(rand(bud,1)-0.5))/rays;
+          const anchor=sampleStem(path,at),dir=azimuth(angle);
+          dir[1]=lerp(-0.14,0.70,q*q)+0.14*(rand(bud,2)-0.5);
+          const size=(0.14+0.45*spread)*(1-0.89*q)**0.78*(0.87+0.22*rand(bud,3))*stature*pine*mature;
+          const roll=(rand(bud,5)-0.5)*1.38;
+          card(anchor,dir,size,0.44+(rand(bud,4)-0.5)*0.14,roll,
+            -0.095,0.04*(rand(bud,6)-0.5),2+(j+i)%2,bud);
+          const fans=(b>0.54&&q<0.95&&rand(bud,11)<multi)?2:(b>0.19&&rand(bud,12)<0.41+0.59*multi?1:0);
+          for(let k=0;k<fans;k++){
+            const f=k===0?0.25:0.48,forward=norm(dir),horizontal=norm(cross(UP,forward));
+            const side=plus(times(horizontal,Math.cos(roll)),times(cross(forward,horizontal),Math.sin(roll)));
+            // The central diagonal of the card has one interior vertex at t=0.5.
+            const origin=along(along(anchor,forward,size*f),norm(cross(forward,side)),-0.095*size*(2*f));
+            const sign=(j+k)%2?1:-1,lateral=azimuth(angle+sign*(0.40+0.41*rand(bud,k+8)));
+            lateral[1]=lerp(-1.13,0.18,q)+0.19*(rand(bud,k+14)-0.5);
+            card(origin,lateral,size*(k?0.63:0.80),0.49,sign*(0.66+0.50*rand(bud,k+9)),-0.065,0.045,2+(j+i+k+1)%2,bud+k+1);
+          }
+        }
+      }
+      for(let j=0;j<5;j++){
+        const dir=azimuth(phase+j*GOLDEN);dir[1]=1.35+j*0.55;
+        card(sampleStem(path,0.938+j*0.011),dir,0.085*stature*pine*lerp(0.19,1,age),0.31,0.22*j,-0.03,0.02,2+(j%2),id+2450+j);
+      }
+    }
+  }
+  const faces=[0,1,4,0,4,3,1,2,4,2,5,4,3,4,6,4,7,6,4,5,8,4,8,7];
+  const positions=[],indices=[],uv=[],cardPoints=[],cardUV=[];
+  let low=Infinity,high=-Infinity;
+  function measure(y){low=Math.min(low,y);high=Math.max(high,y);}
+  for(const shell of mesh.sleeves)for(let j=1;j<shell.surface.pos.length;j+=3)measure(shell.surface.pos[j]);
+  const habit=family(p);
+  for(let i=0;i<mesh.cards.length;i+=16){
+    const d=mesh.cards,up=norm(cross(d.slice(i+4,i+7),d.slice(i+8,i+11)));
+    const top=d[i+1],distance=Math.hypot(d[i],d[i+2]);
+    const shade=habit==='pine'?d[i+7]<0.99:top*0.48+distance*0.69+(d[i+7]-0.82)*1.9<0.76;
+    const tile=habit==='mixed'?d[i+3]:(d[i+3]%2)+(shade?2:0);
+    for(let j=0;j<9;j++){
+      const u=(j%3)*0.5,v=Math.floor(j/3)*0.5,t=(u+v)*0.5,s=v-u;
+      const bend=4*t*(1-t),warp=d[i+11]*s*t+d[i+15]*s*s;
+      const point=[0,1,2].map(k=>d[i+k]+d[i+4+k]*t+d[i+8+k]*s+d[i+12+k]*bend+up[k]*warp);
+      cardPoints.push(...point);measure(point[1]);
+      // Match the two-pixel gutter and Frame's imported, top-left image coordinates.
+      const margin=2/tileSize,local=x=>margin+x*(1-2*margin);
+      cardUV.push(((tile&1)+local(u))*0.5,((tile>>1)+local(1-v))*0.5);
+    }
+  }
+  const scale=1000*p.height*age/(high-low);
+  for(const {surface,points,radii} of mesh.sleeves){
+    let sides=6,shell=shadeSleeve(surface,scale,low);
+    for(const count of [8,10,12]){
+      if(shell.worst>=minCos)break;
+      sides=count;shell=shadeSleeve(roundedSleeve(points,radii,sides),scale,low);
+    }
+    if(!(shell.worst>=minCos))throw Error('Tree stem exceeds the smoothing angle');
+    const offset=positions.length/3;
+    for(const x of shell.pos)positions.push(x);
+    // Staggered rings have different angular origins. Unwrap only the corners of seam triangles.
+    const rings=(shell.pos.length/3-2)/sides,last=shell.pos.length/3-1,height=[0];
+    for(let i=0;i<points.length-1;i++)height.push(height.at(-1)+Math.hypot(...minus(points[i+1],points[i])));
+    const circumference=TAU*radii[0];
+    const tex=idx=>{
+      if(idx===0||idx===last)return [0,idx===0?-radii[0]/circumference:(height.at(-1)+radii.at(-1))/circumference];
+      const ring=Math.floor((idx-1)/sides),j=(idx-1)%sides;
+      const y=ring<2?-radii[0]*Math.sin((2-ring)*Math.PI/6):ring>=rings-2?height.at(-1)+radii.at(-1)*Math.sin((ring-rings+3)*Math.PI/6):height[ring-2];
+      return [(j+(ring&1)*0.5)/sides,y/circumference];
+    };
+    const coords=Array.from({length:last+1},(_,i)=>tex(i));
+    for(let t=0;t<shell.ids.length;t+=3){
+      const a=shell.ids[t],b=shell.ids[t+1],c=shell.ids[t+2],ids=[a,b,c];
+      const us=ids.map(i=>coords[i][0]),ringUV=ids.flatMap((id,k)=>id!==0&&id!==last?[us[k]]:[]);
+      if(Math.max(...ringUV)-Math.min(...ringUV)>0.5)for(let k=0;k<3;k++)if(us[k]<0.5)us[k]++;
+      const cap=ids.findIndex(i=>i===0||i===last);
+      if(cap>=0)us[cap]=(us[(cap+1)%3]+us[(cap+2)%3])*0.5;
+      for(let k=0;k<3;k++){indices.push(offset+ids[k]);uv.push(us[k],coords[ids[k]][1]);}
+    }
+  }
+  const wood=indices.length/3,base=positions.length/3;
+  for(let i=0;i<cardPoints.length;i++)positions.push((cardPoints[i]-(i%3===1?low:0))*scale);
+  for(let i=0;i<cardPoints.length/3;i+=9)for(const j of faces){
+    indices.push(base+i+j);uv.push(cardUV[(i+j)*2],cardUV[(i+j)*2+1]);
+  }
+  const triangleCount=indices.length/3;
+  return {vertices:Float32Array.from(positions),indices:Uint32Array.from(indices),uv:Float32Array.from(uv),nativeExact:true,
+    vertexCount:positions.length/3,triangleCount,baseMaterial:0,ranges:[{start:0,count:wood,material:0},{start:wood,count:triangleCount-wood,material:1}]};
+}
+
+function broadGenerator(salt) {
+    const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
+    const mix = (a, b, t) => a + (b - a) * t;
+    const smooth = (a, b, value) => {
+      const x = clamp((value - a) / (b - a));
+      return x * x * (3 - 2 * x);
+    };
+    const add = ([x, y], [u, v], scale) => [x + u * scale, y + v * scale];
+    const rotate = ([x, y], angle) => {
+      const c = Math.cos(angle), s = Math.sin(angle);
+      return [x * c - y * s, x * s + y * c];
+    };
+    const delta = ([x, y], [u, v]) => [u - x, v - y];
+    const unit = ([x, y]) => { const length = Math.hypot(x, y); return [x / length, y / length]; };
+    const shapeStride = 16;
+
+    function random(seed, property) {
+      let n = Math.imul((seed ^ salt) + 1, 0x1f123bb5) ^ Math.imul(property + 11, 0x05491333);
+      n = Math.imul(n ^ (n >>> 16), 0x7feb352d);
+      n = Math.imul(n ^ (n >>> 15), 0x846ca68b);
+      return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+    }
+
+    function branchPath(start, end, segments, angularity, seed) {
+      const direction = delta(start, end);
+      const across = [-direction[1], direction[0]];
+      const path = [{ t: 0, point: start }];
+      for (let i = 1; i < segments; i++) {
+        const t = (i + (random(seed, 29 + i) - 0.5) * 0.52) / segments;
+        const elbow = (random(seed, 48 + i) * 2 - 1) * angularity * 0.105 * Math.sin(Math.PI * t) ** 0.65;
+        const p = add(add(start, direction, t), across, elbow);
+        path.push({ t, point: p.map(axis => clamp(axis, 0.012, 0.988)) });
+      }
+      path.push({ t: 1, point: end });
+      path[0].radius = 1;
+      for (let i = 1; i < path.length; i++) {
+        const a = path[i - 1].point, b = path[i];
+        b.dx = b.point[0] - a[0];
+        b.dy = b.point[1] - a[1];
+        b.length = Math.hypot(b.dx, b.dy);
+        b.axis = b.length ? [b.dx / b.length, b.dy / b.length] : unit(direction);
+        b.radius = taper(b.t);
+      }
+      return path;
+    }
+
+    function samplePath(path, t) {
+      let i = 1;
+      while (path[i].t < t) i++;
+      const a = path[i - 1];
+      const b = path[i];
+      const fraction = (t - a.t) / (b.t - a.t);
+      return { point: [a.point[0] + b.dx * fraction, a.point[1] + b.dy * fraction], axis: b.axis };
+    }
+
+    function fitLength(origin, direction, length, margin) {
+      for (let axis = 0; axis < 2; axis++) {
+        if (direction[axis] > 0.00001) length = Math.min(length, (1 - margin - origin[axis]) / direction[axis]);
+        if (direction[axis] < -0.00001) length = Math.min(length, (margin - origin[axis]) / direction[axis]);
+      }
+      return Math.max(0, length);
+    }
+
+    const taper = t => mix(0.12, 1, (1 - t) ** 0.87);
+    const restAngularity = 0.54;
+
+    function makeShoots(branchiness, angularity, rest) {
+      const main = {
+        path: branchPath([0, 0], [0.891, 0.896], 7, angularity, 19), seed: 19,
+        birth: 0, span: 0.76, radius: 1, order: 0.46, activation: 0,
+        leafCount: 14, leafStart: 0.16, leafScale: 0.85,
+      };
+      const shoots = [main];
+      function sideShoot(parent, t, anchor, tip, seed, secondary, activation) {
+        const length = Math.hypot(tip[0] - anchor[0], tip[1] - anchor[1]);
+        const template = rest?.get(seed);
+        if (rest ? !template || length < 0.0001 : length < 0.035) return null;
+        const segments = template ? template.path.length - 1 : clamp(Math.round(length * 9), 2, 5);
+        const shoot = {
+          path: branchPath(anchor, tip, segments, angularity, seed), seed, length, activation,
+          birth: parent.birth + parent.span * t + 0.035,
+          span: secondary ? mix(0.11, 0.21, clamp(length / 0.25)) : mix(0.15, 0.30, clamp(length / 0.62)),
+          radius: parent.radius * taper(t) * mix(0.38, 0.69, random(seed, 19)),
+          order: parent.order + mix(-0.023, 0.032, random(seed, 20)),
+          leafStart: secondary ? 0.22 : 0.19, leafScale: secondary ? 0.67 : mix(1.05, 0.82, t),
+          leafCount: template?.leafCount ?? (secondary ? 5 : clamp(Math.round(length * 25), 5, 16)),
+        };
+        shoots.push(shoot);
+        return shoot;
+      }
+
+      const priorities = [0.67, 0.08, 0.21, 0.73, 0.12, 0.11, 0.34, 0.16, 0.87, 0.27, 0.47, 0.93, 0.62];
+      for (let i = 0; i < priorities.length; i++) {
+        if (branchiness <= priorities[i]) continue;
+        const seed = i + 3;
+        const t = mix(0.137, 0.907, (i + random(seed, 11) * 0.63) / priorities.length);
+        const side = i % 2 ? 1 : -1;
+        const outward = mix(0.37, 0.922, smooth(0.11, 0.51, t)) + (random(seed, 12) - 0.5) * 0.068;
+        const inward = mix(0.079, 0.79, smooth(0.34, 0.94, t)) + (random(seed, 16) - 0.5) * 0.052;
+        const tip = side > 0 ? [inward, outward] : [outward, inward];
+        const shoot = sideShoot(main, t, samplePath(main.path, t).point, tip, seed, false, priorities[i]);
+        if (!shoot) continue;
+        for (let j = 0; j < 3; j++) {
+          const twigSeed = seed * 97 + j;
+          const activation = Math.max(priorities[i], mix(0.29, 0.96, random(twigSeed, 14)));
+          if (branchiness <= activation) continue;
+          const at = 0.30 + 0.60 * (j + random(twigSeed, 15) * 0.5) / 3;
+          const anchor = samplePath(shoot.path, at);
+          const sign = j % 2 ? side : -side;
+          const direction = rotate(anchor.axis, sign * mix(0.65, 1.39, random(twigSeed, 17)));
+          const reach = fitLength(anchor.point, direction, shoot.length * mix(0.25, 0.45, random(twigSeed, 21)), 0.061);
+          sideShoot(shoot, at, anchor.point, add(anchor.point, direction, reach), twigSeed, true, activation);
+        }
+      }
+      return shoots;
+    }
+
+    function makeLeaf(shoot, t, side, seed, scale, terminal) {
+      const root = samplePath(shoot.path, t);
+      const angle = terminal ? 0.16 : mix(0.53, 1.43, random(seed, 3));
+      const axis = rotate(root.axis, side * angle);
+      const pitch = clamp(mix(-0.35, 0.42, random(seed, 25)) + (random(shoot.seed, 26) - 0.5) * 0.31 + (t - 0.5) * 0.16, -0.68, 0.70);
+      const roll = clamp(side * mix(0.08, 0.73, random(seed, 22)) + (random(shoot.seed, 23) - 0.5) * 0.48
+        + (random(seed, 24) - 0.5) * 0.22, -1.14, 1.14);
+      const cosPitch = Math.cos(pitch), cosRoll = Math.cos(roll);
+      const petiole = mix(0.11, 0.23, random(seed, 5));
+      const projectedScale = mix(cosPitch, 1, petiole);
+      const fullLength = scale * mix(0.064, 0.146, random(seed, 4));
+      const maxLength = fitLength(root.point, axis, fullLength * projectedScale, 0.025) / projectedScale;
+      return {
+        root: root.point, axis, fullLength, maxLength, petiole, projectedScale,
+        rank: random(seed, 0), birth: shoot.birth + shoot.span * t,
+        sprout: 88 + random(seed, 1) * 43, fall: 267 + random(seed, 2) * 60,
+        widthFactor: mix(0.84, 1.15, random(seed, 6)) / Math.sqrt(cosRoll),
+        color: random(seed, 7), order: shoot.order - 0.033 + 0.23 * random(seed, 8), grain: random(seed, 9),
+        pose: [cosPitch, Math.sin(pitch), cosRoll, Math.sin(roll)],
+      };
+    }
+
+    let restShoots, cachedStructure;
+    function branchStructure(branchiness, angularity, withLeaves) {
+      if (!cachedStructure || cachedStructure.branchiness !== branchiness || cachedStructure.angularity !== angularity) {
+        // Only segment and bud counts come from the resting skeleton, so bending cannot reshuffle the foliage.
+        if (!restShoots) restShoots = new Map(makeShoots(1, restAngularity).map(shoot => [shoot.seed, shoot]));
+        const shoots = angularity === restAngularity
+          ? Array.from(restShoots.values()).filter(shoot => shoot.activation === 0 || branchiness > shoot.activation)
+          : makeShoots(branchiness, angularity, restShoots);
+        shoots.sort((a, b) => a.order - b.order);
+        const segments = shoots.reduce((count, shoot) => count + shoot.path.length - 1, 0);
+        cachedStructure = { branchiness, angularity, shoots, segments, parts: null, capacity: segments };
+      }
+      if (withLeaves && !cachedStructure.parts) {
+        const parts = [...cachedStructure.shoots];
+        for (const shoot of cachedStructure.shoots) {
+          const base = shoot.seed * 31;
+          for (let i = 0; i < shoot.leafCount; i++) {
+            const seed = base + i + 2;
+            const t = mix(shoot.leafStart, 0.974, (i + random(seed, 10) * 0.75) / shoot.leafCount);
+            parts.push(makeLeaf(shoot, t, (i + shoot.seed) % 2 ? 1 : -1, seed, shoot.leafScale, false));
+          }
+          parts.push(makeLeaf(shoot, 1, 1, base + 1, shoot.leafScale * 0.89, true));
+        }
+        cachedStructure.capacity += (parts.length - cachedStructure.shoots.length) * 2;
+        cachedStructure.parts = parts.sort((a, b) => a.order - b.order);
+      }
+      return cachedStructure;
+    }
+
+    function buildBranch({ growth, day, branchiness, angularity, thickness, thinness, density }) {
+      if (growth <= 0) return new Float32Array();
+      const withLeaves = density > 0 && day > 88 && day < 327;
+      const structure = branchStructure(branchiness, angularity, withLeaves);
+      const trunkRadius = mix(0.003, 0.024, thickness ** 1.18) * mix(0.52, 1, growth);
+      const widthRatio = mix(0.37, 0.12, thinness);
+      const values = new Float32Array((withLeaves ? structure.capacity : structure.segments) * shapeStride);
+      let offset = 0;
+      function wood(ax, ay, bx, by, r0, r1, shade, phase, tip) {
+        values.set([ax, ay, bx, by, r0, r1, 0, Number(tip), shade, phase, 0, 0, 1, 0, 1, 0], offset);
+        offset += shapeStride;
+      }
+      for (const part of withLeaves ? structure.parts : structure.shoots) {
+        if (part.path) {
+          const length = clamp((growth - part.birth) / part.span);
+          const radius = part.radius * trunkRadius;
+          const shade = random(part.seed, 13);
+          let distance = 0;
+          for (let i = 1; i < part.path.length && part.path[i - 1].t < length; i++) {
+            const a = part.path[i - 1], b = part.path[i];
+            if (!b.length) continue;
+            const to = Math.min(length, b.t);
+            const fraction = (to - a.t) / (b.t - a.t);
+            const finalSegment = length <= b.t;
+            const tipScale = finalSegment && length < 1 ? 0.38 : 1;
+            const tipRadius = to === b.t ? b.radius : taper(to);
+            wood(a.point[0], a.point[1], a.point[0] + b.dx * fraction, a.point[1] + b.dy * fraction,
+                 radius * a.radius, radius * tipRadius * tipScale, shade, distance, finalSegment);
+            distance += b.length * fraction;
+          }
+          continue;
+        }
+        const leaf = part;
+        if (leaf.rank >= density || day <= leaf.sprout || day >= leaf.fall || growth <= leaf.birth) continue;
+        const spring = smooth(leaf.sprout, leaf.sprout + 25, day);
+        const autumn = smooth(leaf.fall - 47, leaf.fall - 7, day);
+        const length = Math.min(leaf.maxLength, leaf.fullLength * spring * smooth(0, 0.16, growth - leaf.birth));
+        if (length < 0.004) continue;
+        const stalkLength = length * leaf.petiole, tipLength = length * leaf.projectedScale;
+        const sx = leaf.root[0] + leaf.axis[0] * stalkLength, sy = leaf.root[1] + leaf.axis[1] * stalkLength;
+        const tx = leaf.root[0] + leaf.axis[0] * tipLength, ty = leaf.root[1] + leaf.axis[1] * tipLength;
+        const stem = Math.max(0.00032, length * 0.011);
+        const width = length * widthRatio * leaf.widthFactor;
+        wood(leaf.root[0], leaf.root[1], sx, sy, stem, stem * 0.51, leaf.color, 0, true);
+        values.set([sx, sy, tx, ty, width, width, 1, thinness, leaf.color, spring, autumn, leaf.grain, ...leaf.pose], offset);
+        offset += shapeStride;
+      }
+      return values.subarray(0, offset);
+    }
+
+
+
+  return buildBranch;
+}
+
+const materialWGSL = /* wgsl */ `
+      const PI: f32 = 3.14159265;
+      struct Shape { ends: vec4f, profile: vec4f, appearance: vec4f, pose: vec4f };
+      struct Patch {
+        @builtin(position) position: vec4f,
+        @location(0) local: vec2f,
+        @location(1) @interpolate(flat) axisLength: vec4f,
+        @location(2) @interpolate(flat) profile: vec4f,
+        @location(3) @interpolate(flat) appearance: vec4f,
+        @location(4) @interpolate(flat) tangent: vec3f,
+        @location(5) @interpolate(flat) bitangent: vec3f,
+      };
+      struct Maps { @location(0) albedo: vec4f, @location(1) normal: vec4f };
+      @group(0) @binding(0) var<storage, read> shapes: array<Shape>;
+      @group(0) @binding(1) var<uniform> atlasScale: vec4f; // texel width, usable tile width, blade profile, tile size
+
+      // Pose contains cosine and sine for pitch, followed by cosine and sine for roll.
+      // Both projection and relief use this orthonormal frame in card tangent space.
+      fn surfaceFrame(axis: vec2f, pose: vec4f) -> mat3x3f {
+        let tangent = vec3f(axis * pose.x, pose.y);
+        let across = vec3f(-axis.y, axis.x, 0);
+        let pitchedNormal = vec3f(-axis * pose.y, pose.x);
+        let bitangent = across * pose.z + pitchedNormal * pose.w;
+        return mat3x3f(tangent, bitangent, cross(tangent, bitangent));
+      }
+
+      @vertex fn patchVertex(@builtin(vertex_index) vertex: u32, @builtin(instance_index) index: u32) -> Patch {
+        let s = shapes[index];
+        let ab = s.ends.zw - s.ends.xy;
+        let axis = normalize(ab);
+        let frame = surfaceFrame(axis, s.pose);
+        let len = length(ab) / s.pose.x;
+        let radius = max(s.profile.x, s.profile.y);
+        let side = f32(vertex & 1u) * 2.0 - 1.0;
+        let slice = vertex >> 1u;
+        var local: vec2f;
+        if (s.profile.z != 1) {
+          let pad = radius + 2.0 * atlasScale.x;
+          local = vec2f(select(-pad, len + pad, slice > 0u), side * (radius + 3.0 * atlasScale.x));
+        } else {
+          // Conservative slices of the serrated outline: axial position, half-width, midrib offset.
+          let sections = array<vec3f, 5>(vec3f(0, 0.19, 0), vec3f(0.18, 0.95, 0.536),
+            vec3f(0.48, 1.18, 0.998), vec3f(0.78, 0.69, 0.637), vec3f(1, 0.07, 0));
+          let section = sections[slice];
+          let pad = select(0.0, -2.5 * atlasScale.x, slice == 0u) + select(0.0, 2.5 * atlasScale.x, slice == 4u);
+          let center = radius * (s.appearance.w - 0.5) * 0.52 * section.z;
+          local = vec2f(section.x * len + pad, center + side * (radius * section.y + 3.0 * atlasScale.x));
+        }
+        let uv = s.ends.xy + local.x * frame[0].xy + local.y * frame[1].xy;
+        return Patch(vec4f(uv * 2.0 - 1.0, 0.0, 1.0), local, vec4f(axis, len, 1.0 / len),
+                     s.profile, s.appearance, frame[0], frame[1]);
+      }
+
+      fn pack(color: vec3f, normal: vec3f, alpha: f32) -> Maps {
+        return Maps(vec4f(pow(clamp(color, vec3f(0), vec3f(1)), vec3f(2.2)) * alpha, alpha),
+                    vec4f((normal * 0.5 + 0.5) * alpha, alpha));
+      }
+
+      fn hash(cell: vec2f) -> f32 {
+        let p = fract(vec3f(cell.xyx) * 0.1031);
+        let q = p + dot(p, p.yzx + 33.33);
+        return fract((q.x + q.y) * q.z);
+      }
+
+      fn grain(point: vec2f) -> f32 {
+        let cell = floor(point);
+        let f = fract(point);
+        let t = f * f * (3.0 - 2.0 * f);
+        return mix(mix(hash(cell), hash(cell + vec2f(1, 0)), t.x),
+                   mix(hash(cell + vec2f(0, 1)), hash(cell + vec2f(1, 1)), t.x), t.y);
+      }
+
+      fn bark(p: vec2f, len: f32, axis: vec2f, across: vec2f, s: Patch) -> Maps {
+        let x = clamp(p.x, 0.0, len);
+        let radius = mix(s.profile.x, s.profile.y, x * s.axisLength.w);
+        let radial = vec2f(p.x - x, p.y);
+        let aa = 0.75 * atlasScale.x;
+        let distance = length(radial);
+        let alpha = smoothstep(-aa, aa, distance + radius) - smoothstep(-aa, aa, distance - radius);
+        if (alpha <= 0.0) { discard; }
+        let u = clamp(p.y / radius, -1.0, 1.0);
+        let phase = s.appearance.x * 50.0;
+        let axial = p.x + s.appearance.y;
+        let fiber = grain(vec2f(u * 10.0 + phase, axial * 37.0));
+        let pore = grain(vec2f(u * 24.0 - phase, axial * 185.0));
+        let color = mix(vec3f(0.28, 0.195, 0.127), vec3f(0.57, 0.42, 0.27), fiber * 0.74 + pore * 0.25);
+        // Overlapping segments share a cylindrical normal. Round only the free tip.
+        let endBevel = select(0.0, max(0.0, radial.x), s.profile.w > 0.5);
+        let bevel = clamp(vec2f(endBevel, radial.y) / radius, vec2f(-1), vec2f(1));
+        let n = normalize(vec3f(across * (bevel.y + (fiber - 0.5) * 0.16) + axis * (bevel.x + (pore - 0.5) * 0.13),
+                                 sqrt(max(0.036, 1.0 - dot(bevel, bevel)))));
+        return pack(color, n, alpha);
+      }
+
+      fn bladeProfile(t: f32, width: f32, seed: f32) -> vec2f {
+        var lobe = pow(max(0.0, sin(PI * pow(t, 0.79))), 0.82);
+        if(atlasScale.z==1.0){
+          let lobes=0.70+0.30*cos((4.8*t+seed*0.12)*2.0*PI);
+          lobe*=mix(1.0,lobes,smoothstep(0.04,0.22,t)*(1.0-smoothstep(0.80,1.0,t)));
+        }else if(atlasScale.z==2.0){
+          lobe=min(lobe,1.22*min(t/0.24,(1.0-t)/0.76));
+        }
+        let teeth = 1.0 + 0.057 * sin((12.0 * t + seed) * 2.0 * PI + sin(t * 19.0));
+        let spine = width * (seed - 0.5) * 0.52 * sin(PI * t);
+        return vec2f(width * lobe * teeth, spine);
+      }
+
+      // Periodic narrow ridges. Match the width and crest of the original cosine powers.
+      fn ridge(phase: f32, sharpness: f32) -> f32 {
+        let d = fract(phase + 0.5) - 0.5;
+        let q = max(0.0, 1.0 - sharpness * d * d);
+        let q2 = q * q;
+        return q2 * q2;
+      }
+
+      fn leafRelief(t: f32, y: f32, profile: vec2f, width: f32, seed: f32, thin: f32) -> vec4f {
+        let section = clamp(y / max(profile.x, width * 0.04), -1.04, 1.04);
+        let edge = abs(section);
+        let envelope = sin(PI * t);
+        let rib = exp(-abs(y) / max(width * 0.046, 0.00035)) * envelope;
+        let veinCount = mix(7.1, 10.0, seed);
+        let stagger = (0.14 + 0.34 * seed) * section;
+        let rows = t * veinCount - edge * (1.21 + 0.84 * t) + stagger + seed * 0.48;
+        let veins = ridge(rows, 59.5);
+        let vein = veins * smoothstep(0.0, 0.18, edge) * (1.0 - smoothstep(0.58, 1.0, edge)) * envelope;
+        let veinsFine = ridge(t * 22.0 + edge * 2.2 + seed, 43.5);
+        let pleat = 0.039 * sin(t * 47.0 - edge * 7.6) * edge;
+        let cup = (1.0 - section * section) * (0.26 - thin * 0.10);
+        let relief = width * ((cup + pleat) * envelope + rib * 0.086 + vein * 0.042 + veinsFine * 0.009);
+        return vec4f(relief, rib, vein, edge);
+      }
+
+      fn leafColor(p: vec2f, t: f32, s: Patch, relief: vec4f) -> vec3f {
+        let width = s.profile.x;
+        let seed = s.appearance.w;
+        let fleck = grain(p * 898.0 + seed * 80.0);
+        let mottle = grain(vec2f(t * 9.0, p.y / width * 3.4 + seed * 73.0));
+        let young = vec3f(0.57, 0.69, 0.25);
+        let summer = mix(vec3f(0.224, 0.43, 0.11), vec3f(0.433, 0.58, 0.218), s.appearance.x);
+        let fall = mix(vec3f(0.72, 0.299, 0.079), vec3f(0.89, 0.711, 0.235), seed);
+        let autumn = clamp(s.appearance.z + (mottle - 0.5) * 0.41 * sin(PI * s.appearance.z), 0.0, 1.0);
+        let color = mix(mix(young, summer, s.appearance.y), fall, autumn);
+        let veins = 0.22 * relief.y + 0.11 * relief.z;
+        let variation = 0.84 + 0.16 * mottle + 0.097 * fleck - relief.w * 0.09;
+        let sky=select(vec3f(0.81,0.91,0.91),vec3f(1.13,1.08,0.94),s.position.y<atlasScale.w);
+        return color * sky * variation + veins * vec3f(0.36, 0.37, 0.18);
+      }
+
+      @fragment fn patchFragment(s: Patch) -> Maps {
+        let axis = s.axisLength.xy;
+        let len = s.axisLength.z;
+        let p = s.local;
+        let t = clamp(p.x * s.axisLength.w, 0.0, 1.0);
+        var dist = 0.0;
+        var relief = vec4f(0);
+        if (s.profile.z == 1) {
+          let profile = bladeProfile(t, s.profile.x, s.appearance.w);
+          let y = p.y - profile.y;
+          dist = max(abs(y) - profile.x, max(-p.x, p.x - len));
+          relief = leafRelief(t, y, profile, s.profile.x, s.appearance.w, s.profile.w);
+        }
+        // Raster Y points down, while the card's V axis points up. Evaluate quad derivatives before any discard.
+        let slope = vec2f(dpdxFine(relief.x), -dpdyFine(relief.x)) * atlasScale.y;
+        let aa = max(0.45 * atlasScale.x, 0.5 * fwidth(dist));
+        if (s.profile.z == 0) { return bark(p, len, axis, vec2f(-axis.y, axis.x), s); }
+
+        if (s.profile.z == 2) {
+          let width = s.profile.x * (0.26 + 0.74 * sin(PI * pow(t, 0.79)));
+          let d = max(abs(p.y) - width, max(-p.x, p.x - len));
+          let feather = 0.7 * atlasScale.x;
+          let cover = 1.0 - smoothstep(-feather, feather, d);
+          if (cover <= 0.0) { discard; }
+          let r = clamp(p.y / max(width, 0.0001), -1.0, 1.0);
+          let n = normalize(s.bitangent * (0.71 * r) + cross(s.tangent, s.bitangent) * (1.0 - 0.38 * abs(r)));
+          let young = smoothstep(0.52, 1.0, s.appearance.z) * (0.42 + 0.45 * s.appearance.y);
+          let base = mix(vec3f(0.205, 0.39, 0.305), vec3f(0.36, 0.535, 0.382), s.appearance.x);
+          let color = mix(base, vec3f(0.49, 0.66, 0.44), young * 0.62) * (0.89 + 0.11 * (1.0 - abs(r)));
+          return pack(color, n, cover);
+        }
+        let alpha = 1.0 - smoothstep(-aa, aa, dist);
+        if (alpha <= 0.0) { discard; }
+        let tilt = -0.82 * vec2f(dot(slope, s.tangent.xy), dot(slope, s.bitangent.xy));
+        let normal = normalize(s.tangent * tilt.x + s.bitangent * tilt.y + cross(s.tangent, s.bitangent));
+        return pack(leafColor(p, t, s, relief), normal, alpha);
+      }
+    `;
+
+function needlePatches(variant,day,density,slender,thickness) {
+  const wood=[],needles=[];
+  const rnd=(id,k)=>noise(823+variant*51,id,k);
+  const uv=(t,s)=>[t+0.5*s,t-0.5*s];
+  const bend=t=>0.033*(variant?1:-1)*Math.sin(t*Math.PI);
+  const mix2=(a,b,f)=>[lerp(a[0],b[0],f),lerp(a[1],b[1],f)];
+  const summer=0.5+0.5*Math.cos((day-174)*TAU/365);
+  function shaft(a,b,r0,r1,id) {
+    const gain=0.57+thickness;
+    wood.push(...a,...b,r0*gain,r1*gain,0,1,0.26+rnd(id,3)*0.36,0,0,0,1,0,1,0);
+  }
+  function spray(a,b,count,size,id) {
+    const vx=b[0]-a[0],vy=b[1]-a[1],m=Math.hypot(vx,vy),x=vx/m,y=vy/m;
+    for(let i=0;i<count;i++)for(let j=0;j<2;j++){
+      const key=id*241+i*2+j;if(rnd(key,9)>density)continue;
+      const t=(i+0.2+0.39*rnd(key,0))/count,root=mix2(a,b,t);
+      const angle=(j?1:-1)*(0.48+0.80*rnd(key,1)),c=Math.cos(angle),s=Math.sin(angle);
+      const dx=x*c-y*s,dy=y*c+x*s,len=size*(0.63+0.54*rnd(key,2))*(1-0.39*t);
+      const tip=[root[0]+dx*len,root[1]+dy*len];
+      if(tip.some(v=>v<=0.003||v>=0.997))continue;
+      const pitch=(rnd(key,4)-0.5)*0.9,roll=(rnd(key,5)-0.5)*1.86;
+      const width=len*lerp(0.177,0.069,slender);
+      needles.push(...root,...tip,width,width,2,0,rnd(key,6),summer,t,rnd(key,7),Math.cos(pitch),Math.sin(pitch),Math.cos(roll),Math.sin(roll));
+    }
+  }
+  for(let i=0;i<7;i++){
+    const a=i/7,b=(i+1)/7,from=uv(a,bend(a)),to=uv(0.982*b,bend(b));
+    const root=i?uv(0.982*a,bend(a)):from;
+    shaft(root,to,lerp(0.008,0.001,a),lerp(0.008,0.001,b),i);
+    spray(root,to,10,0.045*(1-0.40*a),i+10);
+  }
+  for(let i=0;i<10;i++)for(let j=0;j<2;j++){
+    const id=32+i*2+j,t=0.075+0.083*i+0.025*rnd(id,0),sg=j?1:-1;
+    const root=uv(t,bend(t)),tipT=Math.min(0.973,t+0.08+0.067*rnd(id,1));
+    const width=Math.min(2*Math.min(tipT,1-tipT)-0.053,(0.25+0.58*Math.sin(Math.PI*t)**0.64)*(0.83+0.15*rnd(id,2)));
+    const tip=uv(tipT,sg*width),middle=mix2(root,tip,0.53);
+    middle[0]-=0.018;middle[1]-=0.018;
+    shaft(root,middle,0.0048,0.003,id);shaft(middle,tip,0.003,0.0008,id+1);
+    spray(root,middle,12,0.073,id+80);spray(middle,tip,13,0.066,id+160);
+    for(let k=0;k<4;k++){
+      const at=(k+0.85)/5,base=at<0.53?mix2(root,middle,at/0.53):mix2(middle,tip,(at-0.53)/0.47);
+      const u=lerp(t,tipT,at)+0.065+0.045*rnd(id,k+6);
+      const side=lerp(bend(t),sg*width,at)+(k%2?-1:1)*sg*(0.034+0.045*rnd(id,k+12));
+      const end=uv(u,side);if(end.some(v=>v<0.025||v>0.975))continue;
+      shaft(base,end,0.0021,0.00065,id+k);spray(base,end,8,0.047,id*7+k+255);
+    }
+  }
+  return Float32Array.from([...wood,...needles]);
+}
+
+const tileSize=384,atlasSize=tileSize*2;
+const variants=[0,139,61,233].map(broadGenerator);
+const atlasDevices=new WeakMap();
+async function encodePixels(bytes,width,height){
+  const canvas=new OffscreenCanvas(width,height);
+  canvas.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(bytes.buffer,bytes.byteOffset,bytes.byteLength),width,height),0,0);
+  return new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer());
+}
+let barkImages;
+function bark(){
+  if(barkImages)return barkImages;
+  const size=192,height=new Float32Array(size*size),color=new Uint8Array(height.length*4),normal=new Uint8Array(color.length);
+  // Periodic, elongated noise describes discontinuous furrows; the gradient drives the matching relief.
+  function grain(x,y,nx,ny,seed){
+    const xx=x*nx,yy=y*ny,ix=Math.floor(xx),iy=Math.floor(yy),a=ease(0,1,xx-ix),b=ease(0,1,yy-iy);
+    const at=(i,j)=>noise(seed,((ix+i)%nx+nx)%nx,((iy+j)%ny+ny)%ny);
+    return lerp(lerp(at(0,0),at(1,0),a),lerp(at(0,1),at(1,1),a),b);
+  }
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const u=x/size,v=y/size,w=u+0.039*grain(u,v,5,3,11)+0.012*grain(u,v,11,8,8);
+    const furrow=Math.abs(2*grain(w,v,19,4,13)-1),fibre=grain(w,v,63,9,4),fine=grain(u,v,89,59,17);
+    const h=0.57*ease(0.045,0.47,furrow)+0.26*fibre+0.17*fine,i=y*size+x;
+    height[i]=h;color.set([53+68*h+8*fine,45+58*h+7*fine,36+48*h+6*fine,255],4*i);
+  }
+  const at=(x,y)=>height[((y+size)%size)*size+(x+size)%size];
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const v=norm([1.4*(at(x-1,y)-at(x+1,y)),1.4*(at(x,y-1)-at(x,y+1)),1]);
+    normal.set([...v.map(c=>Math.round((0.5+0.5*c)*255)),255],4*(y*size+x));
+  }
+  barkImages=Promise.all([encodePixels(color,size,size),encodePixels(normal,size,size)]).catch(e=>{barkImages=null;throw e;});
+  return barkImages;
+}
+async function atlasPipelines(device){
+  const shader=device.createShaderModule({label:'Tree branch maps',code:materialWGSL});
+  const resolve=device.createShaderModule({label:'Tree map encoding',code:`
+    @group(0) @binding(0) var pigment:texture_2d<f32>;
+    @group(0) @binding(1) var normals:texture_2d<f32>;
+    struct Maps {@location(0) albedo:vec4f,@location(1) normal:vec4f}
+    @vertex fn vertex(@builtin(vertex_index) i:u32)->@builtin(position) vec4f {
+      return vec4f(vec2f(f32((i<<1u)&2u),f32(i&2u))*2.-1.,0.,1.);
+    }
+    @fragment fn fragment(@builtin(position) p:vec4f)->Maps{
+      let at=vec2i(p.xy);let c=textureLoad(pigment,at,0);let n=textureLoad(normals,at,0);
+      if(c.a<0.001){return Maps(vec4f(0),vec4f(0.5,0.5,1,1));}
+      let v=normalize(n.rgb/max(n.a,0.001)*2.-1.)*vec3f(1,-1,1);
+      return Maps(vec4f(c.rgb/c.a,c.a),vec4f(v*0.5+0.5,1));
+    }`});
+  const formats=['rgba8unorm-srgb','rgba8unorm'],over={srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'};
+  const [patch,finish]=await Promise.all([
+    device.createRenderPipelineAsync({layout:'auto',primitive:{topology:'triangle-strip'},vertex:{module:shader,entryPoint:'patchVertex'},
+      fragment:{module:shader,entryPoint:'patchFragment',targets:formats.map(format=>({format,blend:{color:over,alpha:over}}))}}),
+    device.createRenderPipelineAsync({layout:'auto',vertex:{module:resolve,entryPoint:'vertex'},
+      fragment:{module:resolve,entryPoint:'fragment',targets:formats.map(format=>({format}))}})
+  ]);
+  return {patch,finish,formats};
+}
+async function renderAtlas(device,p,pipelines){
+  const {patch,finish,formats}=await pipelines,resources=[],keep=r=>(resources.push(r),r);
+  try{
+    const patches=[],draws=[],kind=family(p);
+    for(let tile=0;tile<4;tile++){
+      const pine=kind==='pine'||kind==='mixed'&&tile>=2;
+      const data=pine?needlePatches(kind==='mixed'?tile-2:tile,p.day,p.density/100,p.thinness/100,p.twigThickness/100)
+        :variants[tile]({growth:p.growth/100,day:p.day,branchiness:[0.81,0.72,0.75,0.64][tile],angularity:[0.51,0.65,0.45,0.58][tile],
+          thickness:p.twigThickness/100,thinness:p.thinness/100,density:p.density/100});
+      draws.push({start:patches.length/16,count:data.length/16});
+      for(const v of data)patches.push(v);
+    }
+    const buffer=(size,usage)=>keep(device.createBuffer({size,usage}));
+    const data=Float32Array.from(patches),instances=buffer(Math.max(64,data.byteLength),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
+    if(data.length)device.queue.writeBuffer(instances,0,data);
+    const scale=buffer(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+    device.queue.writeBuffer(scale,0,new Float32Array([1/(tileSize-4),tileSize-4,p.form==='oak'?1:p.form==='poplar'?2:0,tileSize]));
+    const maps=usage=>formats.map(format=>keep(device.createTexture({size:[atlasSize,atlasSize],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|usage})));
+    const sources=maps(GPUTextureUsage.TEXTURE_BINDING),outputs=maps(GPUTextureUsage.COPY_SRC);
+    const encoder=device.createCommandEncoder(),passFor=maps=>encoder.beginRenderPass({colorAttachments:maps.map(t=>({
+      view:t.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}))});
+    const pass=passFor(sources);pass.setPipeline(patch);
+    pass.setBindGroup(0,device.createBindGroup({layout:patch.getBindGroupLayout(0),entries:[
+      {binding:0,resource:{buffer:instances}},{binding:1,resource:{buffer:scale}}]}));
+    draws.forEach(({start,count},tile)=>{
+      const x=(tile&1)*tileSize+2,y=(tile>>1)*tileSize+2;
+      pass.setViewport(x,y,tileSize-4,tileSize-4,0,1);pass.setScissorRect(x,y,tileSize-4,tileSize-4);
+      if(count)pass.draw(10,count,0,start);
+    });
+    pass.end();
+    const straight=passFor(outputs);straight.setPipeline(finish);
+    straight.setBindGroup(0,device.createBindGroup({layout:finish.getBindGroupLayout(0),entries:sources.map((t,binding)=>({binding,resource:t.createView()}))}));
+    straight.draw(3);straight.end();
+    const bytes=atlasSize*atlasSize*4,read=buffer(bytes*2,GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST);
+    outputs.forEach((texture,i)=>encoder.copyTextureToBuffer({texture},{buffer:read,offset:bytes*i,bytesPerRow:atlasSize*4},[atlasSize,atlasSize]));
+    device.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);
+    const pixels=new Uint8Array(read.getMappedRange());
+    return await Promise.all([0,1].map(i=>encodePixels(pixels.subarray(i*bytes,(i+1)*bytes),atlasSize,atlasSize)));
+  }finally{for(const r of resources)r.destroy();}
+}
+function bakeAtlas(device,p){
+  let state=atlasDevices.get(device);
+  if(!state){state={pipelines:atlasPipelines(device),cache:new Map()};atlasDevices.set(device,state);}
+  const key=atlasKey(p),cache=state.cache;
+  let result=cache.get(key);
+  if(result)cache.delete(key);
+  else result=Promise.all([bark(),renderAtlas(device,p,state.pipelines)]).catch(error=>{cache.delete(key);throw error;});
+  cache.set(key,result);if(cache.size>8)cache.delete(cache.keys().next().value);
+  return result;
+}
+  return {fields,options,presets,presetPatch,settings,geometryKey,atlasKey,makePlant,bakeAtlas};
+})();
+
 const definitions = {
   group:['Group','ICO_BROWSER_UNFOLDED',{}],
   mesh:['Polygon object','ICO_POLYGON_OBJECT',{}],
@@ -12910,7 +13823,7 @@ const definitions = {
   cloner:['Cloner','ICO_CLONER',{type:['radial','matrix','object'],count:5,radius:100,angle:360,'count x':3,'count y':3,'count z':3,'spacing x':100,'spacing y':100,'spacing z':100,object:'Drop object',step:100,offset:0,align:['parallel','tangent'],'random position x':0,'random position y':0,'random position z':0,'random angle x':0,'random angle y':0,'random angle z':0,'uniform scale':true,'random scale x':0,'random scale y':0,'random scale z':0,seed:1}],
   instance:['Instance','ICO_INSTANCE',{object:'',file:''}],
   car:['Car','car',{'color preset':Object.keys(carPaintPresets)}],
-  tree:['Tree','tree',{type:['bush','spruce','oak','poplar'],detail:['low','high']}],
+  tree:['Tree','tree',FramePlants.fields,FramePlants.options],
   human:['Human','human',{type:['man','woman'],pose:['stand','sit','walk']}],
   render:['Camera','camera',{renderer:['Path tracer','Viewport'],'resolution x':1920,'resolution y':1080,samples:128,realtime:['on','off'],'realtime during navigation':true,environment:['off','default','image'],'environment image':''}],
   target:['Target','target',{object:''}],
@@ -12995,6 +13908,7 @@ const node = id => frameLookupNode(id);
 const current = () => node(selectedTag?.owner||(selected.has(focusId)?focusId:[...selected][0]));
 const defaults = fields => {
   const values=Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,Array.isArray(v)?v[0]:v]));
+  if(fields===definitions.tree[2])Object.assign(values,{type:'oak',detail:'procedural'});
   if(fields===definitions.car[2])values['color preset']='blue';
   return values;
 };
@@ -13208,7 +14122,7 @@ let creating=Promise.resolve();
       attributes:Object.freeze({register:attributes=>{if(typeof attributes!=='function')throw Error('Invalid plugin attributes');entry.attributes=attributes;}}),
       update:(hash,params)=>{const n=frameNodeByHash(hash);if(owner(n)!==entry)throw Error('Plugin object retired');for(const [key,value]of Object.entries(params))if(!Object.hasOwn(n.params,key)||typeof value!==typeof n.params[key]||typeof value==='number'&&!Number.isFinite(value))throw Error('Invalid plugin parameter update');commit(()=>Object.assign(n.params,parameterPatch(n,params)),false);if(current()===n)renderAttributes();},
       requestAttributes:()=>{refreshAttributes(entry);if(entry.editor?.overlay)drawOverlays(entry);},requestDraw:()=>window.frameEngine?.draw(true)}));entry.loaded=true;errors.delete(entry.manifest.id);}).catch(e=>{errors.set(entry.manifest.id,e.message);entry.pending=null;throw e;});return entry.pending;}
-  function parameterPatch(n,changes={}){FrameParameters.validate(n.type,changes);const patch={...changes,...owner(n)?.editor?.parameters?.(n,changes)};if(n.type==='instance'){if(patch.file&&patch.object)throw Error('Choose either Object or File');if(patch.file){FrameFileSources.validate(patch.file,n);patch.object='';}else if(patch.object)patch.file='';}const rules=owner(n)?.manifest.objects.find(o=>o.type===n.type)?.parameterResets;for(const [key,value]of Object.entries(changes))if(n.params[key]!==value)for(const [k,v]of Object.entries(rules?.[key]||{}))if(!Object.hasOwn(changes,k))patch[k]=v;return patch;}
+  function parameterPatch(n,changes={}){FrameParameters.validate(n.type,changes);if(n.type==='tree')return FramePlants.presetPatch(n.params,changes);const patch={...changes,...owner(n)?.editor?.parameters?.(n,changes)};if(n.type==='instance'){if(patch.file&&patch.object)throw Error('Choose either Object or File');if(patch.file){FrameFileSources.validate(patch.file,n);patch.object='';}else if(patch.object)patch.file='';}const rules=owner(n)?.manifest.objects.find(o=>o.type===n.type)?.parameterResets;for(const [key,value]of Object.entries(changes))if(n.params[key]!==value)for(const [k,v]of Object.entries(rules?.[key]||{}))if(!Object.hasOwn(changes,k))patch[k]=v;return patch;}
   function attributes(n){const shared=FrameParameters.attributes(n.type),state=owner(n)?.attributes?.(n.nativeHash);return {...state,units:{...state?.units,...shared.units},ranges:{...state?.ranges,...shared.ranges}};}
   function refreshAttributes(entry){const n=current();if(owner(n)!==entry)return;const state=attributes(n);for(const input of $('attrContent').querySelectorAll('input[data-numeric][data-field]')){const range=state?.ranges?.[input.dataset.field];if(range)input._numericRange=range;input._sync?.();}for(const button of $('attrContent').querySelectorAll('[data-plugin-action-button]')){const action=state?.actions?.find(a=>a.id===button.dataset.pluginActionButton);if(!action)continue;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.classList.toggle('on',!!action.active);button.setAttribute('aria-pressed',String(!!action.active));button.setAttribute('aria-busy',String(!!action.busy));const progress=button.previousElementSibling;if(progress?.hasAttribute('data-plugin-progress'))progress.textContent=String(action.progress||'').slice(0,32);}}
   function renderActions(n,content){const state=attributes(n);for(const key of state?.hiddenFields||[])content.querySelector('[data-field="'+key+'"]')?.closest('.attr-row')?.remove();for(const [key,label]of Object.entries(state?.labels||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field&&typeof label==='string')field.closest('.attr-row').querySelector('.attr-lab').textContent=label;}for(const [key,unit]of Object.entries(state?.units||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field){const label=field.closest('.attr-row').querySelector('.attr-lab');label.textContent+=' ('+unit+')';}}for(const vector of state?.vectors||[]){const fields=vector.fields.map(key=>content.querySelector('[data-field="'+key+'"]'));if(fields.some(f=>!f))continue;const row=fields[0].closest('.attr-row'),controls=row.querySelector('.attr-ctrl');row.querySelector('.attr-lab').textContent=vector.label+(vector.unit?' ('+vector.unit+')':'');fields.forEach((field,i)=>{field.classList.add('ax-'+['x','y','z'][i]);field.style.cssText='width:38px;min-width:0;flex:1';if(i){field.closest('.attr-row').remove();controls.append(field);}});}for(const group of state?.groups||[]){const section=document.createElement('div');section.className='frame-attribute-group';section.dataset.pluginGroup=group.label;const heading=document.createElement('div');heading.className='attr-row';const label=document.createElement('span');label.className='attr-lab';label.textContent=group.label;heading.append(label);const controls=document.createElement('div');controls.className='frame-attribute-grid';for(const action of group.actions){const button=document.createElement('button');button.className='attr-btn'+(action.active?' on':'');button.textContent=action.label;button.setAttribute('aria-pressed',String(!!action.active));button.dataset.pluginElement=action.label;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:action.id,args:action.args||{}}).catch(fileOperationError);controls.append(button);}section.append(heading,controls);content.append(section);}for(const action of [...state?.actions||[]].reverse()){const row=document.createElement('div');row.className='attr-row';row.dataset.pluginAction=action.id;if(action.row){row.dataset.pluginActionRow=action.row;const label=document.createElement('span');label.className='attr-lab';label.textContent=action.row;row.append(label);}const controls=document.createElement('div');controls.className='attr-ctrl';const progress=document.createElement('span');progress.dataset.pluginProgress='';if(action.progressAlign==='left')progress.style.cssText='flex:1;text-align:left';progress.textContent=String(action.progress||'').slice(0,32);const button=document.createElement('button');button.className='attr-btn frame-attribute-button'+(action.active?' on':'');button.setAttribute('aria-pressed',String(!!action.active));button.textContent=action.label;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.setAttribute('aria-busy',String(!!action.busy));button.dataset.pluginActionButton=action.id;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:(attributes(n)?.actions?.find(a=>a.id===action.id)?.busy&&action.cancel)||action.id,args:{}}).catch(fileOperationError);controls.append(progress,button);row.append(controls);if(action.row){const existing=content.querySelector('[data-plugin-action-row="'+action.row+'"]');if(existing){existing.querySelector('.attr-ctrl').prepend(...controls.children);continue;}}if(action.placement==='bottom')content.append(row);else content.prepend(row);}}
@@ -13861,6 +14775,7 @@ function numberOptions(type,key){
   if(type==='lathe'&&key==='angle')Object.assign(o,{min:0,max:360,prec:1});
   if(type==='helix'&&key==='turns')Object.assign(o,{min:.001,prec:3});
   if(type==='gear'&&key==='module')Object.assign(o,{min:.01,prec:3});
+  if(type==='tree'&&FramePlants.options[key]?.integer)o.int=true;
   if(type==='unite'&&key==='smoothing')Object.assign(o,{min:0,prec:6});
   if(type==='printer'){
     delete o.length;
@@ -13928,6 +14843,7 @@ function renderAttributes(){
     html+=triple('pos',['random position x','random position y','random position z'])+triple('angle',['random angle x','random angle y','random angle z'])+row('uniform scale')+(values['uniform scale']?fieldRow('scale %',values['random scale x'],fields['random scale x'],'random scale x'):triple('scale %',['random scale x','random scale y','random scale z']))+row('seed');
   }else if(!tag&&n.type==='symmetry')html=(descendants(n.id).some(id=>node(id)?.tags.some(t=>t.kind==='morph'))?`<div class="attr-row"><span class="attr-lab">Morph</span><div class="attr-ctrl"><button class="attr-btn${values['Morph symmetry']?' on':''}" data-field="Morph symmetry" data-value="${!values['Morph symmetry']}" aria-pressed="${values['Morph symmetry']}">symmetry</button></div></div>`:'')+'<div class="attr-row"><span class="attr-lab">axis</span><div class="attr-ctrl">'+['X','Y','Z'].map(k=>`<button class="attr-btn${values[k]?' on':''}" data-field="${k}" data-value="${!values[k]}" aria-pressed="${values[k]}">${k}</button>`).join('')+'</div></div>';
   else{
+    if(!tag&&n.type==='tree'&&values.detail!=='procedural')list=list.filter(([key])=>key==='type'||key==='detail');
     if(!tag&&n.type==='extrude')list=list.filter(([k])=>k!=='end cap'&&(!k.includes('fillet')||values[k.split(' ')[0]+' cap']!==false&&(!k.endsWith('fillet type')||values[k.replace(' type','')]!==0)));
     if(tag?.kind==='morph'&&values.mode==='Modelling')list=list.filter(([k])=>k==='mode');
     html=list.map(([k,spec])=>!tag&&n.type==='extrude'&&k==='start cap'?capRow():!tag&&n.type==='pulley'&&k==='profile'?'<div class="attr-row"><span class="attr-lab">profile</span><div class="attr-ctrl">'+spec.map(v=>`<button class="attr-btn${values[k]===v?' on':''}" data-field="profile" data-value="${v}" aria-pressed="${values[k]===v}">${v}</button>`).join('')+'</div></div>':fieldRow(tag?.kind==='morph'&&k==='mode'?'':k,values[k],spec,k)).join('');
@@ -13949,12 +14865,12 @@ function renderAttributes(){
   const pluginFields=!tag?FramePlugins.attributes(n):null;
   if(!tag)FramePlugins.renderActions(n,content);
   if(!tag)for(const key of FramePlugins.owner(n)?.manifest.objects.find(o=>o.type===n.type)?.breakAfter||[]){const input=[...content.querySelectorAll('[data-field]')].find(el=>el.dataset.field===key);if(input)input.closest('.attr-row').style.marginBottom='8px';}
-  const update=(key,value)=>{if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
+  const update=(key,value)=>{if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
   for(const input of all('input[type=checkbox][data-field]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.checked),false);
   for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
   for(const input of all('textarea,[data-textfield]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.value),false);
   for(const button of all('[data-value]',content)){button.onclick=()=>{const key=button.dataset.field;if(!tag&&n.type==='render'&&key==='environment'&&button.dataset.value==='image'){frameChooseEnvironment(n);return;}commit(()=>update(key,typeof fields[key]==='boolean'?button.dataset.value==='true':tagDefinitions[tag?.kind]?.plugin&&Array.isArray(fields[key])?fields[key].find(v=>String(v)===button.dataset.value):button.dataset.value),false);renderAttributes();};button.onkeydown=e=>{if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key))return;const key=button.dataset.field,spec=fields[key],direction=['ArrowUp','ArrowRight'].includes(e.key)?1:-1;if(typeof spec!=='boolean'&&!Array.isArray(spec))return;e.preventDefault();e.stopPropagation();const value=typeof spec==='boolean'?direction>0:spec[(spec.indexOf(values[key])+direction+spec.length)%spec.length];commit(()=>update(key,value),false);renderAttributes();const candidates=all('[data-field]',content).filter(el=>el.dataset.field===key);(candidates.find(el=>el.getAttribute('aria-pressed')==='true')||candidates[0])?.focus();};}
-  for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'?renderAttributes:()=>{});}
+  for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'||n.type==='tree'?renderAttributes:()=>{});}
   for(const label of all('.attr-lab',content)){const key=label.dataset.animate,spec=fields[key],row=label.closest('.attr-row');if(!Array.isArray(spec)||row.querySelector('[data-cycle]'))continue;bindChoiceScrub(label,spec,()=>values[key],v=>update(key,v),()=>{for(const button of all('[data-value]',row)){const on=String(values[key])===button.dataset.value;button.classList.toggle('on',on);button.ariaPressed=String(on);}});}
   for(const field of all('.cloner-object-drop',content))field.onkeydown=e=>{if(['Delete','Backspace'].includes(e.key)){e.preventDefault();e.stopPropagation();frameSetObjectReference(field);}};
   if($('frameRenderToggle'))$('frameRenderToggle').onclick=()=>toggleCameraRender(n);
@@ -14537,20 +15453,35 @@ function frameSameMaterialAsset(a,b){
   for(let i=0;i<x.length;i++)if(x[i]!==y[i])return false;
   return true;
 }
+function frameImageRetention(){
+  const shelf=new Set([...$('texGrid').children].map(card=>card.dataset.texture)),history=[...undoStack,...redoStack,...frameHistoryPins],nativeHistory=window.frameEngine?.materialHistoryReferences?.()||new Set(),clipboardRefs=new Set(materialClipboard.flatMap(m=>[m.texture,m.opacityTexture,...frameMapFields.map(k=>m[k])])),historyPinned=a=>nativeHistory.has(a.uid)||nativeHistory.has(a.url)||history.some(s=>FrameHash.references(s).has(a.uid)||FrameHash.references(s).has(a.url)),pinned=a=>clipboardRefs.has(a.uid)||clipboardRefs.has(a.url)||historyPinned(a);
+  return {shelf,clipboardRefs,historyPinned,pinned};
+}
+function frameForgetImage(a){
+  if(a.url?.startsWith('blob:'))URL.revokeObjectURL(a.url);
+  textureImages.delete(a.url);if(frameTextureSources.get(a.uid)===a)frameTextureSources.delete(a.uid);
+  if(frameAssetURLs.get(a.url)===a.uid)frameAssetURLs.delete(a.url);
+  if(frameMaterialAssets.get(a.uid)===a)frameMaterialAssets.delete(a.uid);
+}
 function frameInstallMaterialState(data,prepared){
-  const prior=[...frameTextureSources.values()],incoming=data?.assets||[],shelf=new Set([...$('texGrid').children].map(card=>card.dataset.texture)),history=[...undoStack,...redoStack,...frameHistoryPins],nativeHistory=window.frameEngine?.materialHistoryReferences?.()||new Set(),clipboardRefs=new Set(materialClipboard.flatMap(m=>[m.texture,m.opacityTexture,...frameMapFields.map(k=>m[k])])),historyPinned=a=>nativeHistory.has(a.uid)||nativeHistory.has(a.url)||history.some(s=>FrameHash.references(s).has(a.uid)||FrameHash.references(s).has(a.url)),pinned=a=>clipboardRefs.has(a.uid)||clipboardRefs.has(a.url)||historyPinned(a),changed=new Set();
+  const prior=[...frameTextureSources.values()],incoming=data?.assets||[],{shelf,clipboardRefs,historyPinned,pinned}=frameImageRetention(),changed=new Set();
   for(const a of incoming){const old=frameTextureSources.get(a.uid);if(old&&frameSameMaterialAsset(old,a))continue;if(old&&historyPinned(old))throw Error('Material image identity conflicts with retained history');changed.add(a.uid);}
   const installed=new Map();for(const a of incoming){const old=frameTextureSources.get(a.uid);let source=old;if(changed.has(a.uid)){if(old&&(shelf.has(old.url)||clipboardRefs.has(old.uid)||clipboardRefs.has(old.url))){const retained={...old,uid:crypto.randomUUID().replaceAll('-','')};frameTextureSources.set(retained.uid,retained);frameAssetURLs.set(retained.url,retained.uid);for(const m of materialClipboard)for(const field of frameMapFields)if(m[field]===old.uid)m[field]=retained.uid;}const url=a.bytes?(prepared?.take(a.bytes)||URL.createObjectURL(new Blob([a.bytes]))):a.path;source={...a,url};frameTextureSources.set(a.uid,source);frameAssetURLs.set(url,a.uid);}installed.set(a.uid,source);}
-  const live=new Set([...installed.values()].map(a=>a.url));for(const a of prior)if(!live.has(a.url)&&!shelf.has(a.url)&&!pinned(a)){if(a.url?.startsWith('blob:'))URL.revokeObjectURL(a.url);textureImages.delete(a.url);if(frameTextureSources.get(a.uid)===a)frameTextureSources.delete(a.uid);if(frameAssetURLs.get(a.url)===a.uid)frameAssetURLs.delete(a.url);}
+  const live=new Set([...installed.values()].map(a=>a.url));for(const a of prior)if(!live.has(a.url)&&!shelf.has(a.url)&&!pinned(a)){frameForgetImage(a);}
   frameMaterialAssets.clear();for(const [id,asset]of installed)frameMaterialAssets.set(id,asset);
   const list=data?.library?.length?data.library:frameDefaultMaterials;
   materials.splice(0,materials.length,...list.map(m=>{const copy={...m,map:null,opacityMap:null};for(const [field,slot,path]of [['colorAsset','map','texture'],['opacityAsset','opacityMap','opacityTexture']]){const a=frameMaterialAssets.get(copy[field]);if(a){copy[path]=a.url;const img=frameMaterialImage(a.url);if(!img.complete||!img.naturalWidth)img.onload=()=>{materialThumbnails.clear();syncMaterial();renderTree();};copy[slot]=img;}}return copy;}));activeMaterial=0;selectedMaterials=new Set([0]);materialThumbnails.clear();renderMaterials();syncMaterial();if(activeTab==='tabTextures')renderTextures();
 }
+function stockParams(n){return n.type==='tree'&&n.params.detail!=='procedural'?{type:n.params.type,detail:n.params.detail}:n.params;}
 function stockMaterialSlots(n){
-  return n.tags.filter(t=>t.librarySlot).map(t=>({uid:t.uid,materialUID:materials[t.material]?.uid||t.materialUID,...Number.isInteger(t.libraryIndex)?{index:t.libraryIndex}:{}}));
+  return n.tags.filter(t=>t.librarySlot&&t.kind==='material').map(t=>{
+    const m=materials[t.material],materialUID=m?.uid||t.materialUID;
+    const auto=t.foliage&&m&&t.foliageUID===m.uid&&t.foliageColor===m.colorAsset&&t.foliageNormal===m.normalAsset&&m.opacityAsset===m.colorAsset;
+    return {uid:t.uid,materialUID,...Number.isInteger(t.libraryIndex)?{index:t.libraryIndex}:{},...auto?{foliage:t.foliage}:{}};
+  });
 }
 function restoreStockAuthoring(n,library){
-  n.type=library.type;n.params={...defaults(definitions[n.type][2]),...library.params};n.librarySlots=structuredClone(library.slots);
+  n.type=library.type;n.params={...defaults(definitions[n.type][2]),...n.type==='tree'?{...FramePlants.presets[library.params.type||'bush'],type:'bush',detail:'low'}:{},...library.params};n.librarySlots=structuredClone(library.slots);
   if(n.type==='car'){
     // Early compact scenes reference the sedan and its polygon and material indices.
     n.libraryAsset=library.asset||stockCarAssets.sedan;
@@ -14558,7 +15489,7 @@ function restoreStockAuthoring(n,library){
     n.libraryPreset=n.params['color preset'];
   }
 }
-function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:n.libraryAsset||stockCarAssets.hatchback}:{},params:n.params,slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
+function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));return n.authorData||tags.length||animation.length||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:n.libraryAsset||stockCarAssets.hatchback}:{},params:stockParams(n),slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
 function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library)restoreStockAuthoring(n,a.library);for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
 function frameValidateMorphRegions(regions){
   const vector=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
@@ -14580,7 +15511,7 @@ function validateStockCar(library){
     seen.add(index);
   }
 }
-function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return !d||!Array.isArray(d)||!d.includes(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');if(a.library?.type==='car')validateStockCar(a.library);for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
+function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return Array.isArray(d)?!d.includes(value):a.library.type!=='tree'||typeof d!=='number'||!Number.isFinite(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');if(a.library?.type==='tree'){FrameParameters.validate('tree',a.library.params);for(const slot of a.library.slots)if(slot.foliage!==undefined&&(typeof slot.foliage!=='string'||slot.foliage.length>256))throw Error('Invalid foliage recipe');}if(a.library?.type==='car')validateStockCar(a.library);for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
 function frameUIMaterialSlots(){const slots=new Map();materials.forEach((m,i)=>{if(!slots.has(m.uid))slots.set(m.uid,i);});return slots;}
 function frameUITags(tags,slots){return (tags||[]).map(t=>t.kind==='material'?{...t,material:slots.get(t.materialUID)??0,params:{}}:{...t,params:{...t.params}});}
 function frameMaterialOwner(n,selection=true){return selection&&n?.type==='spline'&&FrameSpline.selection(n.nativeHash).size?FrameSpline.patchOwner(n)||n:n;}
@@ -22995,14 +23926,15 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(data?.kind==='request'&&nativeClipboard?.token===data.token){clipboardChannel.postMessage({kind:'ack',request:data.request});try{const blob=await clipboardBlob(nativeClipboard);clipboardChannel.postMessage({kind:'reply',request:data.request,blob});}catch(error){clipboardChannel.postMessage({kind:'reply',request:data.request,error:error.message});}}
       else if(data?.kind==='ack')clipboardRequests.get(data.request)?.ack();else if(data?.kind==='reply')clipboardRequests.get(data.request)?.finish(data);
     };}catch{}
-    function clipboardRecords(clip){
+    function clipboardRecords(clip,derivedStockTags=null){
       const {K,T}=FrameHash,records=new Map(),owned=clip.appearanceResources=[],encoder=renderer.device.createCommandEncoder(),put=(id,type,value)=>records.set(id,{id,type,value});
       const capture=record=>{if(!record)return;let value=record.value;if(value?.gpu){const resource=duplicateResource(renderer,value.resource,'clipboard appearance');copyResource(encoder,value.resource,resource);owned.push(resource);value={gpu:true,resource,count:value.count,byteLength:value.byteLength};}else value=structuredClone(value);put(record.id,record.type,value);};
       put(K.version,T.uint32,new Uint32Array([1]));put(K.all,T.ids,clip.objects.map(o=>o.hash));const authorData=FrameAuthorData.closure(FrameAuthorData.root(),clip.objects);if(authorData)put(K.parameters,T.value,{version:1,frame:0,total:120,materials:[],authorData});const materialIds=new Set(),tagIds=new Set();
       for(const o of clip.objects){for(const field of ['type','name','parent','flags','matrix','pivot','projection','light','spline','parameters','tags'])capture(scene.records.get(FrameHash.address(o.hash,field)));if(!o.parent)records.delete(FrameHash.address(o.hash,'parent'));if(o.matrix)put(FrameHash.address(o.hash,'matrix'),T.float64,o.matrix.slice());
-        for(const {key}of o.authoring?.pluginRecords||[])capture(scene.records.get(FrameHash.address(o.hash,key)));for(const tag of o.tags||[]){tagIds.add(tag.uid);if(tag.materialUID)materialIds.add(tag.materialUID);}
-        if(o.type===1&&!clip.resources.get(o.hash).generated){const r=clip.resources.get(o.hash);for(const [field,type,resource,count]of [['positions',T.float32,r.morphBase||r.positions,r.vertexCount*3],['indices',T.uint32,r.indices,r.triangleCount*3]])put(FrameHash.address(o.hash,field),type,{gpu:true,resource,count});}
-        if(clip.roots.includes(o.hash)&&!o.tags?.some(t=>t.kind==='material')&&materials[0]){let parent=nativeValue(o.hash,'parent')?.[0],inherited=[];while(parent&&!inherited.length){inherited=appearanceTags(parent).filter(t=>t.kind==='material');parent=nativeValue(parent,'parent')?.[0];}const tags=[...(records.get(FrameHash.address(o.hash,'tags'))?.value||[])];for(const tag of inherited.length?inherited:[{materialUID:materials[0].uid}]){const uid=FrameHash.newId();tags.push(uid);put(FrameHash.address(uid,'material'),T.ids,[tag.materialUID]);materialIds.add(tag.materialUID);}put(FrameHash.address(o.hash,'tags'),T.ids,tags);}
+        for(const {key}of o.authoring?.pluginRecords||[])capture(scene.records.get(FrameHash.address(o.hash,key)));for(const slot of o.authoring?.library?.slots||[])materialIds.add(slot.materialUID);
+        for(const tag of o.tags||[]){if(!derivedStockTags?.has(tag.uid))tagIds.add(tag.uid);if(tag.materialUID)materialIds.add(tag.materialUID);}
+        if(o.type===1&&!(derivedStockTags&&o.authoring?.library)&&!clip.resources.get(o.hash).generated){const r=clip.resources.get(o.hash);for(const [field,type,resource,count]of [['positions',T.float32,r.morphBase||r.positions,r.vertexCount*3],['indices',T.uint32,r.indices,r.triangleCount*3]])put(FrameHash.address(o.hash,field),type,{gpu:true,resource,count});}
+        if(clip.roots.includes(o.hash)&&!o.tags?.some(t=>t.kind==='material')&&!(o.authoring?.library?.type==='tree'&&o.authoring.library.params.detail==='procedural')&&materials[0]){let parent=nativeValue(o.hash,'parent')?.[0],inherited=[];while(parent&&!inherited.length){inherited=appearanceTags(parent).filter(t=>t.kind==='material');parent=nativeValue(parent,'parent')?.[0];}const tags=[...(records.get(FrameHash.address(o.hash,'tags'))?.value||[])];for(const tag of inherited.length?inherited:[{materialUID:materials[0].uid}]){const uid=FrameHash.newId();tags.push(uid);put(FrameHash.address(uid,'material'),T.ids,[tag.materialUID]);materialIds.add(tag.materialUID);}put(FrameHash.address(o.hash,'tags'),T.ids,tags);}
       }
       for(const uid of tagIds)for(const field of ['material','faces','uv'])capture(scene.records.get(FrameHash.address(uid,field)));
       const assets=new Set();for(const uid of materialIds){for(const field of ['name','parameters','maps'])capture(scene.records.get(FrameHash.address(uid,field)));if(!records.has(FrameHash.address(uid,'parameters'))){const m=materials.find(m=>m.uid===uid);if(m){put(FrameHash.address(uid,'name'),T.text,m.name);put(FrameHash.address(uid,'parameters'),T.float64,new Float64Array(materialKeys.map(k=>materialNumber(m,k))));}}for(const id of scene.records.get(FrameHash.address(uid,'maps'))?.value||[])if(id!==K.zero)assets.add(id);}
@@ -25279,9 +26211,18 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{preparedImages?.release();if(!published)for(const m of meshes)disposeMesh(m);nativeIOEnd();}
     }
     let libraryQueue=Promise.resolve(),libraryTimer=0;const libraryKeys=new Map();
-    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);if(!mesh)throw Error('Library geometry is not ready');commit(()=>{n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryAsset;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;}removeSpline(n.nativeHash,true);libraryKeys.delete(n.nativeHash);});return n;}
-    function requestLibrary(){if(!libraryTimer&&nodes.some(n=>['tree','human','car'].includes(n.type)))libraryTimer=setTimeout(()=>{libraryTimer=0;loadLibraryObjects().catch(fileOperationError);},16);}
-    function libraryFilename({type,params,libraryAsset}){return type==='car'?(libraryAsset||stockCarAssets.hatchback):type==='tree'?'tree-'+params.type+'-1-'+(params.detail==='high'?1:0):'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);}
+    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&n.params.detail==='procedural'&&n.params.growth===0;if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryAsset;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh)delete mesh.plantGeometryKey;libraryKeys.delete(n.nativeHash);});return n;}
+    let libraryRequested=false,libraryBuilding=false;
+    function requestLibrary(){
+      if(libraryBuilding){libraryRequested=true;return;}
+      if(libraryTimer||!nodes.some(n=>['tree','human','car'].includes(n.type)))return;
+      libraryTimer=setTimeout(async()=>{
+        libraryTimer=0;libraryBuilding=true;
+        try{await loadLibraryObjects();}catch(error){fileOperationError(error);}
+        finally{libraryBuilding=false;if(libraryRequested){libraryRequested=false;requestLibrary();}}
+      },16);
+    }
+    function libraryFilename({type,params,libraryAsset}){return type==='car'?(libraryAsset||stockCarAssets.hatchback):type==='tree'?(params.detail==='procedural'?'procedural-tree':'tree-'+params.type+'-1-'+(params.detail==='high'?1:0)):'human-'+(params.type==='woman'?'female':'male')+'-1-'+({stand:'standing',sit:'sitting',walk:'walking'}[params.pose]);}
     async function libraryData(file){const plan=await nativeDecodePlan(file);if(plan.objects.length!==1||!plan.objects[0].p||plan.records.get(FrameHash.K.assets)?.value?.length)throw Error('Invalid stock model');const o=plan.objects[0],raw=await nativeDecodeMesh(file,o);validatePolygonSets(plan,o,raw);if(o.matrix&&!FM.equal(FM.unpack(o.matrix),FM.I()))throw Error('Stock model must use its authored local coordinates');const ids=plan.records.get(FrameHash.K.materials)?.value||[],get=(h,f)=>plan.records.get(FrameHash.address(h,f))?.value,catalog=ids.map(uid=>({uid:FrameHash.newId(),name:get(uid,'name'),...Object.fromEntries(materialKeys.map((k,i)=>[k,get(uid,'parameters')[i]??frameMaterialDefaults[k]??0])),map:null})),faces=new Uint32Array(raw.triangleCount);for(const uid of get(o.hash,'tags')||[]){const refs=get(uid,'material');if(!refs)continue;const index=ids.indexOf(refs[0]),bits=get(uid,'faces');if(!bits){raw.baseMaterial=index;faces.fill(index);}else for(let f=0;f<faces.length;f++)if(bits[f>>3]>>(f&7)&1)faces[f]=index;}
       raw.ranges=[];let start=0;for(let f=1;f<=faces.length;f++)if(f===faces.length||faces[f]!==faces[start]){raw.ranges.push({start,count:f-start,material:faces[start]});start=f;}return {raw,catalog};}
     // Resolve paint roles against the bundled material names, before any user overrides.
@@ -25311,21 +26252,89 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       uses.set(material.uid,count-1);uses.set(copy.uid,1);
       return copy;
     }
+    const plantImageIDs=new WeakMap(),generatedPlantImages=new Set(),residentPlantMaps=new Map();
+    function rememberPlantMaps(key,m){
+      residentPlantMaps.set(key,[m.colorAsset,m.normalAsset]);
+    }
+    function plantMaps(device,p,key){
+      const images=k=>residentPlantMaps.get(k)?.map(uid=>frameTextureSources.get(uid)?.bytes);
+      const wood=images('bark'),leaves=images(key);
+      return wood?.every(Boolean)&&leaves?.every(Boolean)?[wood,leaves]:FramePlants.bakeAtlas(device,p);
+    }
+    function retirePlantImages(){
+      const used=new Set(materials.flatMap(m=>frameMapFields.map(k=>m[k])));
+      for(const n of nodes)if(n.type==='render')used.add(n.params['environment image']);
+      let retention;
+      for(const id of generatedPlantImages){
+        const a=frameTextureSources.get(id);
+        if(!a){generatedPlantImages.delete(id);continue;}
+        if(used.has(id))continue;
+        retention??=frameImageRetention();
+        if(retention.shelf.has(a.url)||retention.pinned(a))continue;
+        frameForgetImage(a);generatedPlantImages.delete(id);
+      }
+      for(const [key,ids]of residentPlantMaps)if(!ids.every(uid=>frameTextureSources.has(uid)))residentPlantMaps.delete(key);
+    }
+    function plantImage(bytes){
+      const known=frameTextureSources.get(plantImageIDs.get(bytes));
+      if(known)return known;
+      // An opened HASH may already own the same PNG under a different UID.
+      const incoming={path:'',bytes};
+      let asset;
+      for(const other of frameTextureSources.values())if(frameSameMaterialAsset(other,incoming)){asset=other;break;}
+      if(!asset){
+        const url=URL.createObjectURL(new Blob([bytes],{type:'image/png'}));
+        asset=frameTextureSources.get(frameMaterialAsset(url,bytes,false));generatedPlantImages.add(asset.uid);
+      }
+      plantImageIDs.set(bytes,asset.uid);return asset;
+    }
+    function plantMaterial(maps,foliage,prior){
+      const [color,normal]=maps.map(plantImage);
+      const m={...frameMaterialDefaults,h:0,s:0,l:100,emm:0,metal:0,opac:0,rough:foliage?77:91,bump:foliage?86:38,
+        name:foliage?'Foliage':'Bark',alphaMode:foliage?2:1,alphaCutoff:24,opacityChannel:3,...prior,uid:FrameHash.newId()};
+      m.texture=color.url;m.map=frameMaterialImage(color.url);m.colorAsset=color.uid;m.normalAsset=normal.uid;
+      if(foliage){m.opacityAsset=color.uid;m.opacityTexture=color.url;m.opacityMap=m.map;}
+      return m;
+    }
+    function markPlantFoliage(tag,key,material){
+      if(key){tag.foliage=key;tag.foliageUID=material.uid;tag.foliageColor=material.colorAsset;tag.foliageNormal=material.normalAsset;}
+    }
+    function emptyPlant(n,mesh,filename,key){
+      n.librarySlots=n.librarySlots||stockMaterialSlots(n);n.tags=n.tags.filter(t=>!t.librarySlot);
+      if(mesh){
+        freezeAncestorPivots([n.nativeHash]);scene.meshes.splice(scene.meshes.indexOf(mesh),1);disposeMesh(mesh);
+        delete n.engineIndex;
+        for(const owner of nodes)if(owner.engineIndex!==undefined){
+          const index=scene.meshes.findIndex(m=>m.hashId===owner.nativeHash&&!m.replicaMatrix);
+          if(index>=0)owner.engineIndex=index;
+        }
+        publishTopology(renderer,[]);
+      }
+      libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();frameSyncEngineVisibility();renderTree();draw(true);
+    }
+
     function loadLibraryObjects(){
       clearTimeout(libraryTimer);libraryTimer=0;
       const task=libraryQueue.catch(()=>{}).then(async()=>{
         let uses;
         for(const n of nodes.filter(n=>['tree','human','car'].includes(n.type))){
-          const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),isCar=n.type==='car';
+          const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash),isCar=n.type==='car',plant=n.type==='tree'&&n.params.detail==='procedural';
           if(n.librarySlots&&mesh){
             const slotsByUID=new Map(n.librarySlots.map((s,i)=>[s.uid,s.index??i]));
             for(const tag of n.tags)if(slotsByUID.has(tag.uid)){
-              tag.librarySlot=true;if(isCar)tag.libraryIndex=slotsByUID.get(tag.uid);
+              tag.librarySlot=true;if(isCar||plant)tag.libraryIndex=slotsByUID.get(tag.uid);
+              if(plant&&tag.libraryIndex===1){const slot=n.librarySlots.find(s=>s.uid===tag.uid),m=materials[tag.material];if(slot.foliage&&m)markPlantFoliage(tag,slot.foliage,m);}
             }
+            if(plant){const uv=n.tags.find(t=>t.kind==='uv');if(uv)uv.librarySlot=true;}
             delete n.librarySlots;
           }
-          const filename=libraryFilename(n),key=FrameValue.key(n.params),previous=libraryKeys.get(n.nativeHash);
-          if(mesh&&previous?.filename===filename&&previous.key===key)continue;
+          const filename=libraryFilename(n),key=FrameValue.key(stockParams(n)),previous=libraryKeys.get(n.nativeHash);
+          if(previous?.filename===filename&&previous.key===key&&(mesh&&(!plant||mesh.plantGeometryKey)||plant&&!mesh&&n.params.growth===0))continue;
+          if(plant&&n.params.growth===0){
+            const space=scene;await selectionQueue;await editSerial;
+            if(space===scene&&nodes.includes(n)&&key===FrameValue.key(stockParams(n)))emptyPlant(n,mesh,filename,key);
+            continue;
+          }
           const sameAsset=!!n.librarySlots||previous?.filename===filename||!previous&&n.tags.some(t=>t.librarySlot);
           const slots=new Map((n.librarySlots||stockMaterialSlots(n)).map((slot,i)=>[slot.index??i,slot]));
           const materialAt=i=>{const slot=slots.get(i);return slot&&materials.find(m=>m.uid===slot.materialUID);};
@@ -25343,36 +26352,78 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             n.libraryPreset=preset;libraryKeys.set(n.nativeHash,{filename,key});frameSyncMaterials();continue;
           }
           uses=null;
-          const response=await fetch('models/'+filename+'.hash');
-          if(!response.ok)throw Error('Model HTTP '+response.status);
-          const {raw,catalog:defaults}=await libraryData(await response.blob());
-          if(!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params))continue;
-          const catalog=defaults.map((m,i)=>sameAsset&&materialAt(i)||m);
+          const space=scene,gpu=renderer,p=plant?FramePlants.settings(n.params):null;
+          const shape=plant?FramePlants.geometryKey(p):null,foliage=plant?FramePlants.atlasKey(p):null;
+          const sameGeometry=plant&&mesh&&mesh.plantGeometryKey===shape&&slots.has(0)&&slots.has(1)&&n.tags.some(t=>t.librarySlot&&t.kind==='uv');
+          const bindings=plant?FrameValue.key(n.librarySlots||stockMaterialSlots(n)):null;
+          const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===FrameValue.key(stockParams(n))
+            &&(!plant||bindings===FrameValue.key(n.librarySlots||stockMaterialSlots(n)));
+          let raw,defaults,catalog,managed=false;
+          if(plant){
+            const bark=sameAsset&&materialAt(0),leaf=sameAsset&&materialAt(1),bound=slots.get(1)?.foliage;
+            managed=!leaf||!!bound;
+            const changeLeaf=!leaf||managed&&bound!==foliage;
+            const images=(!bark||changeLeaf)?await plantMaps(gpu.device,p,foliage):null;
+            if(!alive())continue;
+            catalog=[bark||plantMaterial(images[0],false),changeLeaf?plantMaterial(images[1],true,leaf||null):leaf];
+            if(!bark)rememberPlantMaps('bark',catalog[0]);
+            if(managed)rememberPlantMaps(foliage,catalog[1]);
+            defaults=catalog.slice();
+            if(!sameGeometry)raw=FramePlants.makePlant(p);
+          }else{
+            const response=await fetch('models/'+filename+'.hash');
+            if(!response.ok)throw Error('Model HTTP '+response.status);
+            ({raw,catalog:defaults}=await libraryData(await response.blob()));
+            if(!alive())continue;
+            catalog=defaults.map((m,i)=>sameAsset&&materialAt(i)||m);
+          }
           if(isCar){
             rememberCarFinish(filename,defaults);
             applyCarPreset(filename,preset,i=>catalog[i]===defaults[i]?catalog[i]:null);
           }
-          const space=scene,gpu=renderer,appearance=warmImportedSurface(gpu,raw,catalog,objectWorld(n.nativeHash));
-          const next=await uploadAndCompute(gpu,{...raw});
+          const appearance=raw&&warmImportedSurface(gpu,raw,catalog,objectWorld(n.nativeHash));
+          const next=raw?await uploadAndCompute(gpu,{...raw}):null;
           await appearance;await selectionQueue;await editSerial;
-          if(scene!==space||gpu.dead||!nodes.includes(n)||filename!==libraryFilename(n)||key!==FrameValue.key(n.params)){disposeMesh(next);continue;}
-          freezeAncestorPivots([n.nativeHash]);
-          const pool=frameMaterialPool();
-          for(const m of materials)pool.intern(m);
-          for(let i=0;i<catalog.length;i++)if(catalog[i]===defaults[i]){
-            const m=pool.intern(catalog[i]);if(m===catalog[i])materials.push(m);catalog[i]=m;
+          if(!alive()){if(next)disposeMesh(next);continue;}
+          if(next)freezeAncestorPivots([n.nativeHash]);
+          let pool;
+          for(let i=0;i<catalog.length;i++)if(catalog[i]===defaults[i]&&!materials.includes(catalog[i])){
+            if(!pool){pool=frameMaterialPool();for(const m of materials)pool.intern(m);}
+            const prior=plant&&managed&&i===1?materialAt(i):null;
+            const m=pool.intern(catalog[i],prior?frameMaterialTracks(prior.uid):undefined);
+            if(m===catalog[i]&&!materials.includes(m)){
+              materials.push(m);const tracks=prior&&FrameMorph.sceneChannels().get('mat:'+prior.uid);
+              if(tracks)FrameMorph.sceneChannels().set('mat:'+m.uid,structuredClone(tracks));
+            }
+            catalog[i]=m;
           }
-          const tags=importedAppearance(raw,next,catalog,isCar).map((t,i)=>{
-            const slot=sameAsset&&slots.get(t.libraryIndex??i);
-            return {...t,...slot?{uid:slot.uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true};
-          });
-          frameEditingMaterialTag=null;n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
-          if(isCar)n.libraryPreset=preset;
-          next.hashId=n.nativeHash;next.version=(mesh?.version||0)+1;next.frameVisible=true;
-          if(mesh)publishTopology(gpu,[{mesh,next}]);else{scene.meshes.push(next);publishTopology(gpu,[]);}
-          n.engineIndex=scene.meshes.indexOf(mesh||next);
+          if(next){
+            const tags=importedAppearance(raw,next,catalog,isCar||plant).map((t,i)=>{
+              if(t.kind==='uv')return {...t,librarySlot:true};
+              const slot=sameAsset&&slots.get(t.libraryIndex??i);
+              if(plant&&managed&&t.libraryIndex===1)markPlantFoliage(t,foliage,catalog[1]);
+              return {...t,...slot?{uid:slot.uid}:{},material:materials.findIndex(m=>m.uid===t.materialUID),librarySlot:true};
+            });
+            n.tags=[...tags,...n.tags.filter(t=>!t.librarySlot)];delete n.librarySlots;
+            next.hashId=n.nativeHash;next.version=(mesh?.version||0)+1;next.frameVisible=true;
+            if(plant)next.plantGeometryKey=shape;
+            if(mesh)publishTopology(gpu,[{mesh,next}]);else{scene.meshes.push(next);publishTopology(gpu,[]);}
+            n.engineIndex=scene.meshes.indexOf(mesh||next);
+          }else{
+            for(const tag of n.tags.filter(t=>t.librarySlot&&t.kind==='material')){
+              const m=catalog[tag.libraryIndex];tag.material=materials.indexOf(m);tag.materialUID=m.uid;
+              if(managed&&tag.libraryIndex===1)markPlantFoliage(tag,foliage,m);
+            }
+          }
+          if(slots.get(1)?.foliage){
+            const old=slots.get(1).materialUID;
+            if(old!==catalog[1]?.uid&&!frameMaterialUses().has(old)&&!frameMaterialTracks(old).length)
+              replaceMaterials(materials.filter(m=>m.uid!==old));
+          }
+          if(plant)retirePlantImages();
+          frameEditingMaterialTag=null;if(isCar)n.libraryPreset=preset;
           libraryKeys.set(n.nativeHash,{filename,key});
-          if(splineLoadBatch)poseSplineLoadMesh(mesh||next,objectWorld(n.nativeHash));
+          if(splineLoadBatch&&next)poseSplineLoadMesh(mesh||next,objectWorld(n.nativeHash));
           frameSyncMaterials();frameSyncEngineVisibility();deferHoverMaps();await draw(true);
           if(scene===space&&nodes.includes(n)){
             if(current()===n&&!selectedTag)frameSelectObjectMaterial(n);else renderMaterials();
@@ -26886,7 +27937,7 @@ function FramePolygonKernel(d){
       register('plugins.create','Load one installed plugin and add its object using native Undo.',required(obj({plugin:str,type:str}),'plugin'),false,async a=>{const n=await FramePlugins.create(a.plugin,a.type);await settle();return describe(n);});
       const resolve=ref=>frameNodeByReference(ref)||fail('NOT_FOUND','Object not found: '+ref),refs=ids=>ids.map(resolve),copy=v=>structuredClone(v),meshOf=n=>scene.meshes.find(m=>m.hashId===n.nativeHash);
       async function settle(allowGesture=false){await api.ready;await historySerial;await FramePlugins.loadUsed();await objectActionQueue;await clipboardSerial;await FrameMorph.flush();if(canvas.dataset.ready==='error'||!scene)fail('NOT_READY',canvas.dataset.operationError||'WebGPU is unavailable');await loadLibraryObjects();let pending;do{pending=selectionPending;await pending;await selectionQueue;}while(pending!==selectionPending);await gizmoSession?.completion;await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag){if(allowGesture)return;fail('BUSY','Finish the active editor gesture first');}let click;do{click=polygonClick;await click;}while(click!==polygonClick);await loopSerial;await FrameFileSources.flush();await FrameGeometry.flush();await FrameSpline.flush();await replicaQueue;await animationSerial;await FramePlugins.flush();for(const n of nodes)if(n.type==='mesh'&&n.tags.some(t=>t.kind==='morph'&&t.params.mode==='Solve'))await FrameMorph.apply(n);await selectionQueue;await editSerial;await appearanceQueue;await measureQueue;const started=performance.now();while(wheelBusy||pendingWheel){if(performance.now()-started>30000)fail('BUSY','Navigation has not settled');await new Promise(requestAnimationFrame);}}
-      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash),params:copy(n.params),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!m.splineGenerated,visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
+      function describe(n,inspection=null){inspection=inspection?.meshes?inspection:null;const m=inspection?inspection.meshes.get(n.nativeHash)?.[0]:meshOf(n),state=FrameSpline.states.get(n.id),d=n.splineData||state?.data;return {id:n.id,hash:n.nativeHash||null,type:n.type,name:n.name,buildError:n.fileError||n.splineError||null,...n.type==='instance'&&n.params.file?{file:FrameFileSources.state(n)}:{},parent:node(n.parent)?.nativeHash||n.parent,visible:n.visible,enabled:n.enabled,selected:selected.has(n.id),editable:n.type==='mesh'||FrameSpline.isEditable(n),sources:n.type==='extrude'||n.type==='spline_patch'?[...new Set(FrameSpline.generatorSources(n,inspection?.children).map(row=>(row.instances[0]||row.node).nativeHash))]:(inspection?inspection.children.get(n.id)||[]:children(n.id)).filter(c=>n.type==='unite'||FrameSpline.inputNode(c)).map(c=>c.nativeHash),params:copy(stockParams(n)),evaluation:state?.report?{report:copy(state.report),empty:!!state.empty}:null,matrix:n.nativeHash?Array.from(FM.pack(objectLocal(n.nativeHash))):null,pivot:n.nativeHash?Array.from(FM.pack(objectPivot(n.nativeHash,inspection))):null,worldMatrix:n.nativeHash?Array.from(objectWorld(n.nativeHash)):null,bounds:n.nativeHash?nodeBounds(n.nativeHash,inspection):null,mesh:m?{vertices:m.vertexCount,triangles:m.triangleCount,storage:m.paged?'texture':'buffer',generated:!!(m.splineGenerated||m.plantGeometryKey),visible:m.frameVisible!==false}:null,spline:d?{vertices:Object.keys(d.vertices).length,segments:Object.keys(d.segments).length,cells:state?.report?.cells??null}:null,tags:copy(n.tags),...n.ignoredAuthoring?{ignored:{plugin:n.ignoredAuthoring.plugin?{id:n.ignoredAuthoring.plugin.id,type:n.ignoredAuthoring.plugin.type,referencesUnresolved:!!n.ignoredAuthoring.pluginReferencesUnresolved}:null,tags:n.ignoredAuthoring.tags.map(t=>({uid:t.uid||null,kind:t.kind,referencesUnresolved:!!t.referencesUnresolved})),animationPaths:n.ignoredAuthoring.animation.map(row=>row[0])}}:{}};}
       function inspectionIndex(){const index=boundsOwnerIndex();index.children=new Map();for(const n of nodes){let list=index.children.get(n.parent);if(!list)index.children.set(n.parent,list=[]);list.push(n);}return index;}
       function describeMany(list){const inspection=inspectionIndex();return list.map(n=>describe(n,inspection));}
       function selectionInfo(){const occurrence=objectOccurrenceTransform();return {occurrence:occurrence?{source:objectSelectionOccurrence.hash,key:objectSelectionOccurrence.key,curve:objectSelectionOccurrence.curve,matrix:Array.from(occurrence)}:null,tool:polygonTools.mode,preview:loopPreview?{hash:loopPreview.hash||loopPreview.spline?.hash,edges:loopPreview.result?.edges||loopPreview.spline?.edges||[]}:null,scope:selectionScope,mode:elementMode,objects:[...selected].map(id=>node(id)?.nativeHash||id),nativeObjects:[...objectSelection],spline:FrameSpline.editingHash,components:[...FrameSpline.selection()],counts:renderer?.boxSelection?.counts||[],bounds:selectionBox};}
@@ -27097,7 +28148,9 @@ function FramePolygonKernel(d){
         const invalid=nodes.find(n=>wanted.has(n.nativeHash)&&n.splineError);if(invalid)fail('NOT_READY',invalid.name+': '+invalid.splineError);
         const objects=structuredClone(all.filter(o=>wanted.has(o.hash))),roots=objects.filter(o=>!wanted.has(o.parent)).map(o=>o.hash),resources=new Map(),clip={gpu:renderer,objects,roots,resources};
         for(const o of objects){if(roots.includes(o.hash)){o.matrix=FM.pack(objectWorld(o.hash));o.parent=null;}if(o.type===1){const mesh=scene.meshes.find(m=>m.hashId===o.hash&&!m.replicaMatrix);if(!mesh)fail('NOT_READY','Part geometry is unavailable');resources.set(o.hash,{positions:mesh.positions,indices:mesh.indices,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount,generated:mesh.splineGenerated,morphBase:morphStates.get(o.hash)?.base});}}
-        frameSyncMaterials();nativeIOStart('Saving HASH…');try{clip.records=clipboardRecords(clip);for(const n of nodes.filter(n=>wanted.has(n.nativeHash)&&['car','tree','human'].includes(n.type))){clip.records.set(FrameHash.address(n.nativeHash,'type'),nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0])));for(const field of ['positions','indices'])clip.records.delete(FrameHash.address(n.nativeHash,field));const tags=clip.records.get(FrameHash.address(n.nativeHash,'tags')),slots=new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid));if(tags)tags.value=tags.value.filter(id=>!slots.has(id));}return await clipboardBlob(clip);}finally{for(const resource of clip.appearanceResources||[])releaseGPU(resource);nativeIOEnd();}
+        frameSyncMaterials();nativeIOStart('Saving HASH…');try{const stock=nodes.filter(n=>wanted.has(n.nativeHash)&&['car','tree','human'].includes(n.type));
+          clip.records=clipboardRecords(clip,new Set(stock.flatMap(n=>n.tags.filter(t=>t.librarySlot).map(t=>t.uid))));
+          for(const n of stock){clip.records.set(FrameHash.address(n.nativeHash,'type'),nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0])));for(const field of ['positions','indices'])clip.records.delete(FrameHash.address(n.nativeHash,field));const tags=clip.records.get(FrameHash.address(n.nativeHash,'tags')),slots=new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid));if(tags)tags.value=tags.value.filter(id=>!slots.has(id));}return await clipboardBlob(clip);}finally{for(const resource of clip.appearanceResources||[])releaseGPU(resource);nativeIOEnd();}
       }
       async function exportAsset(a){
         const format=a.format||'hash',name=a.name||sceneFileName.replace(/\.[^.]*$/,'')+'.'+format;if(!name||/[\x00-\x1f\\/]/.test(name)||!name.toLowerCase().endsWith('.'+format))fail('INVALID_ARGUMENT','Expected a filename ending in .'+format);if(a.ids&&format!=='hash')fail('INVALID_ARGUMENT','Part export currently requires HASH');if(a.transfer&&exportTransfers.size>=8)fail('LIMIT','Release an export transfer before creating another');if(a.ids)refs(a.ids);
