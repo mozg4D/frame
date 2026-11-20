@@ -20,30 +20,35 @@ export async function textureSlotDragBrowserChecks(page){
   const normalBefore=await page.evaluate(()=>frameEngine.renderer.materialState.normalGenerations||0);
   for(const [button,field]of [['#btnLoadTex','colorAsset'],['#btnEmissiveTex','emissionAsset'],['#btnOpacityTex','opacityAsset'],['#btnNormalTex','normalAsset'],['#btnAOTex','aoAsset']]){await measure('Native slot drag '+field,async()=>{await drag('#btnRoughnessTex',button);if(field==='colorAsset')await page.evaluate(()=>frameEngine.renderer.materialState.assetsReady);});m=await material(src.uid);check('Target shares source asset '+field,m[field]===asset&&m.roughAsset===asset,m);if(field==='colorAsset'){const derived=await page.evaluate(asset=>{const s=frameEngine.renderer.materialState;return {layer:s.layers.get('normal:'+asset),generations:s.normalGenerations};},asset);check('First base-color use prepares one shared derived normal',derived.layer>0&&derived.generations===normalBefore+1&&!m.normalAsset,derived);await gpuInstance(asset,true);}else await checkGPU('Existing image instance '+field,asset);}check('Scalar channels and normal convention remain independent',m.opacityChannel===4&&m.roughChannel===1&&m.normalY===-1&&m.bump===35,m);await checkGPU('All slot assignments',asset);
   await call('material.texture',{material:dst.uid,slot:'baseColor',asset});await call('material.texture',{material:dst.uid,slot:'opacity',asset,channel:'a'});check('Cross-material API preserves common asset UID',(await material(dst.uid)).colorAsset===asset&&(await material(dst.uid)).opacityAsset===asset);check('Shared references use the same cached image object',await page.evaluate(([a,b])=>{const s=frameMaterialState(),x=s.library.find(m=>m.uid===a),y=s.library.find(m=>m.uid===b);return x.map===y.map&&y.map===y.opacityMap&&s.assets.filter(a=>a.uid===x.colorAsset).length===1;},[src.uid,dst.uid]));
-  const secondOwner=await call('scene.create',{type:'cube',name:'Shared texture second owner'});await call('material.assign',{id:secondOwner.hash,material:dst.uid});await checkGPU('Cross-material assignment on two rendered owners',asset);await measure('Repeated same-asset native assignments',async()=>{for(let i=0;i<5;i++)await call('material.texture',{material:dst.uid,slot:'baseColor',asset});},2000);await checkGPU('Repeated identical bindings',asset);
+  const secondOwner=await call('scene.create',{type:'cube',name:'Shared texture second owner'});
+  await call('transform.apply',{ids:[secondOwner.hash],size:[200,400,800]});
+  await call('material.assign',{id:secondOwner.hash,material:dst.uid});await checkGPU('Cross-material assignment on two rendered owners',asset);await measure('Repeated same-asset native assignments',async()=>{for(let i=0;i<5;i++)await call('material.texture',{material:dst.uid,slot:'baseColor',asset});},2000);await checkGPU('Repeated identical bindings',asset);
   const nativeUV=p=>page.evaluate(({id,p})=>{
     const mesh=frameEngine.scene.meshes.find(m=>m.hashId===id),matrix=new Float32Array(mesh.mappingWords.buffer);
     return [0,1,2].map(i=>matrix[i]*p[0]+matrix[4+i]*p[1]+matrix[8+i]*p[2]+matrix[12+i]);
   },{id:secondOwner.hash,p});
-  const at40mm=await nativeUV([40,40,40]);
-  await call('transform.apply',{ids:[secondOwner.hash],size:[200,400,800]});
+  const pointOnCube=[20,10,5],at40mm=await nativeUV(pointOnCube);
+  check('Texture on a pre-scaled object starts at one repeat per metre',at40mm.every(v=>Math.abs(v-.04)<1e-7),at40mm);
+  await call('transform.apply',{ids:[secondOwner.hash],size:[400,800,1600]});
   await call('diagnostics.frame',{frames:1});
-  const afterScale=await nativeUV([20,10,5]);
-  check('Cubic texture projection stays at one repeat per metre under object scaling',
-    afterScale.every((v,i)=>Math.abs(v-at40mm[i])<1e-7&&Math.abs(v-.04)<1e-7),{at40mm,afterScale});
+  const afterScale=await nativeUV(pointOnCube);
+  check('Later object scaling carries the texture with the same surface point',afterScale.every((v,i)=>Math.abs(v-at40mm[i])<1e-7),afterScale);
   await call('view.set',{index:1,single:true,mode:'object',shading:'solid',focus:secondOwner.hash,uv:true});
   const projectionOutline=()=>page.locator('.frame-projection-cube:visible').getAttribute('d');
   const boxBefore=await projectionOutline();
   await call('transform.set',{channel:'size',axis:0,value:250});
   await call('diagnostics.frame',{frames:1});
-  const boxAfter=await projectionOutline(),uvAfter=await nativeUV([20,10,5]);
-  check('UV scaling changes the mapping while its gizmo keeps the same shape',boxBefore===boxAfter&&
-    Math.abs(uvAfter[0]-.16)<1e-7,{boxBefore,boxAfter,uvAfter});
+  const boxAfter=await projectionOutline(),uvAfter=await nativeUV(pointOnCube);
+  check('The UV cube stretches with the physical repeat',boxBefore!==boxAfter&&Math.abs(uvAfter[0]-.32)<1e-7,{boxBefore,boxAfter,uvAfter});
+  await call('edit.history',{action:'undo'});
+  await call('diagnostics.frame',{frames:1});check('Undo restores the attached cubic frame',(await nativeUV(pointOnCube)).every((v,i)=>Math.abs(v-afterScale[i])<1e-7));
+  await call('edit.history',{action:'redo'});
   await call('view.set',{index:0,uv:false});
   await select(src.uid);await page.locator('#btnRoughnessTex').click();await inspect();m=await material(src.uid);check('Click still removes only its slot, other instances survive',!m.roughAsset&&m.metalAsset===asset&&(await material(dst.uid)).colorAsset===asset,m);await checkGPU('Removing one shared reference',asset);await call('edit.history',{action:'undo'});await checkGPU('Restoring one shared reference with Undo',asset);
   const saved=await measure('Shared texture HASH save',()=>call('scene.export',{includeData:true}),5000);await measure('Shared texture HASH open',()=>call('scene.open',{name:'texture-instances.hash',base64:saved.base64}),5000);check('HASH restores asset identity across materials',(await material(src.uid)).roughAsset===asset&&(await material(dst.uid)).colorAsset===asset);check('HASH reload shares one decoded image',await page.evaluate(([a,b])=>{const s=frameMaterialState(),x=s.library.find(m=>m.uid===a),y=s.library.find(m=>m.uid===b);return x.map===y.map&&y.map===y.opacityMap;},[src.uid,dst.uid]));
   check('HASH Open shows the current filename in the application title',await page.title()==='Frame - texture-instances.hash');
   await page.locator('#tabTextures').click();
+  await call('diagnostics.frame',{frames:1});check('HASH retains the edited cubic frame',(await nativeUV(pointOnCube)).every((v,i)=>Math.abs(v-uvAfter[i])<1e-7));
   const shelf=()=>page.evaluate(()=>{const cards=[...document.querySelectorAll('#texGrid .tex-card')],assets=new Set(materials.flatMap(m=>frameMapFields.map(k=>m[k])).filter(Boolean));return {count:cards.length,assets:assets.size,valid:[...assets].every(id=>{const a=frameMaterialAssets.get(id),matches=cards.filter(c=>c.dataset.texture===a.url);return matches.length===1&&matches[0].querySelector('img')===textureImages.get(a.url);})};});
   const restoredShelf=await shelf();check('HASH images appear once in Textures and reuse the decoded material images',restoredShelf.assets>0&&restoredShelf.valid,restoredShelf);
   await page.evaluate(()=>{renderTextures();renderTextures();});check('Repeated Textures rendering adds no duplicate cards',(await shelf()).count===restoredShelf.count);

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 20 nov 15:13",
+  "version": "2026 20 nov 18:36",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -550,11 +550,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "1318549f35633e9ef286d24b4ff85bfa682477c2895933a74c078bc99b6a1f81"
+      "sha256": "7a63a583acee90c9a64fb03000831ec93c9e124c596de50f3cec7a82d85b55fa"
     },
     "index.html": {
-      "bytes": 3822016,
-      "sha256": "9a655303f29b098ef2e0fbbdc78c35c962fd325bae0a2aef7ce9864d2d333662"
+      "bytes": 3854429,
+      "sha256": "4bad7ebd8ba01a6446c2914d1cc9e94a1bc434ff2917892c090b892eb6b1724d"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -885,24 +885,24 @@
       "sha256": "e97371feb4398a39313426de259a9a8133e2ddead2362ca97cea515be1e62d16"
     },
     "tests/texture-history-fixture.mjs": {
-      "bytes": 5168,
-      "sha256": "f6cdcca3e9a6b32f8b94f8f23a188157a4b058b997aec13d7ad9784faf33f673"
+      "bytes": 5204,
+      "sha256": "24c538ba49968016a88dbe0e15acde143673b9d1e6f78699004ddf34c79d7dfd"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 19539,
-      "sha256": "da434da5d5dd022c8a507eab844176b1aba6e9be0b5f9200b0a9afedac3539bf"
+      "bytes": 20310,
+      "sha256": "942c7e9feea77fcc6350bfb53c8d9419ef395623b564cadd0bb75ff4c38a4f47"
     },
     "tests/texture-slot-drag-browser.mjs": {
-      "bytes": 19714,
-      "sha256": "9e32df450a3743e68dc8c7958eb455f5145fb21a098c1b491439f73cfd02f1b9"
+      "bytes": 21910,
+      "sha256": "1627e7b49185d555612e048acc985a4cd87442edb6b9f7c41d3b0686896eec9d"
     },
     "tools/README.md": {
       "bytes": 38035,
       "sha256": "13800abe1485268096b8bed41a7ecd0e223423c85200d2e4ab4ced32a83001bc"
     },
     "tests/texture-slot-drag.mjs": {
-      "bytes": 48268,
-      "sha256": "dd90db047095e06809d8dfc9638ebf68193b50eaebe562100b87563cba514809"
+      "bytes": 48885,
+      "sha256": "b5929c998bb223c007a20d71f1ad412d97dfb13b32bd822464fa33f9f176e95b"
     },
     "tests/fixtures/icon-main-42f64a46.json": {
       "bytes": 3126,
@@ -1121,8 +1121,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 95116,
-      "sha256": "a15b286ee21e8def292192743138b616b3d6d2f845a48ddcd0d8f349c2c61cea"
+      "bytes": 96726,
+      "sha256": "2c3343785ec60949f21a549bb75c89d4e16c29dfb9e1ebf2d395648543c2810f"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,

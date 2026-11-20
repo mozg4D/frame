@@ -66,6 +66,73 @@ async function forestEdgePan(id){
   await page.waitForFunction(()=>!document.pointerLockElement&&!framePointerLock);
 }
 
+async function forestPanWhileGPUIsBusy(){
+  const rect=await page.locator('#frame-engine-canvas').boundingBox(),x=Math.round(rect.x+rect.width*.40),y=Math.round(rect.y+rect.height*.48);
+  await page.mouse.move(x,y);await page.mouse.down({button:'middle'});
+  const state=()=>page.evaluate(()=>({camera:Array.from(frameEngine.viewState).slice(0,12),frames:frameEngine.renderer.geometryFrames}));
+  await page.evaluate(()=>{
+    const queue=frameEngine.renderer.device.queue,native=queue.onSubmittedWorkDone.bind(queue);
+    const slow=new Promise(resolve=>{window.__releaseNavFence=()=>{delete queue.onSubmittedWorkDone;resolve();};});
+    queue.onSubmittedWorkDone=()=>Promise.all([native(),slow]);
+  });
+  try{
+    await page.mouse.move(x+12,y);await page.waitForFunction(()=>!!frameEngine.renderer.navigationFrameFence);
+    const initial=await state();
+    for(const dx of [28,48,70,93,108]){
+      await page.mouse.move(x+dx,y);await page.evaluate(()=>new Promise(requestAnimationFrame));
+    }
+    const latest=await state();
+    assert.equal(latest.frames,initial.frames,'Busy GPU receives no intermediate pan frames');
+    assert.notDeepEqual(latest.camera,initial.camera,'Camera input advances while the GPU is busy');
+    await page.mouse.up({button:'middle'});
+    await page.evaluate(()=>__releaseNavFence());
+    await page.waitForFunction(n=>frameEngine.renderer.geometryFrames>n,latest.frames);
+    assert.deepEqual((await state()).camera,latest.camera,'Only the released pose is presented');
+  }finally{
+    await page.evaluate(()=>{window.__releaseNavFence?.();delete window.__releaseNavFence;});
+    await page.mouse.up({button:'middle'});
+  }
+}
+
+async function forestNavigationWithDelayedPick(){
+  const canvas=page.locator('#frame-engine-canvas'),rect=await canvas.boundingBox();
+  const x=Math.round(rect.x+rect.width*.38),y=Math.round(rect.y+rect.height*.45);
+  const camera=()=>page.evaluate(()=>Array.from(frameEngine.viewState).slice(0,12));
+  for(const gesture of ['left','right','wheel']){
+    await page.mouse.move(x,y);
+    await page.evaluate(()=>{
+      const original=GPUBuffer.prototype.mapAsync;
+      let release;
+      const held=new Promise(resolve=>{release=resolve;});
+      window.__forestPick={reads:0,release:()=>{GPUBuffer.prototype.mapAsync=original;release();}};
+      GPUBuffer.prototype.mapAsync=function(...args){
+        const mapped=original.apply(this,args);
+        if(this.label!=='pooled pick readback')return mapped;
+        __forestPick.reads++;
+        return Promise.all([mapped,held]).then(()=>{});
+      };
+    });
+    try{
+      const start=await camera();
+      if(gesture==='wheel'){
+        await page.evaluate(()=>{frameEngine.renderer.lastFrameRaw.gpuMs=32;});
+        await page.mouse.wheel(0,-60);
+      }else await page.mouse.down({button:gesture});
+      await page.waitForFunction(()=>__forestPick.reads>0);
+      if(gesture!=='wheel')await page.mouse.move(x+61,y+22,{steps:3});
+      await page.waitForFunction(before=>before.some((v,i)=>v!==frameEngine.viewState[i]),start,{timeout:2000});
+      if(gesture!=='wheel')await page.mouse.up({button:gesture});
+      const last=await camera();
+      await page.evaluate(()=>__forestPick.release());
+      await page.waitForFunction(()=>frameEngine.renderer.pickPool.every(s=>!s.busy));
+      assert.deepEqual(await camera(),last,'Delayed surface pick leaves completed '+gesture+' navigation in place');
+    }finally{
+      await page.evaluate(()=>{__forestPick.release();delete window.__forestPick;});
+      if(gesture!=='wheel')await page.mouse.up({button:gesture});
+    }
+  }
+}
+
 try{
   page.on('pageerror',e=>errors.push(e.stack));
   page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -126,6 +193,8 @@ try{
   assert.equal(placement.triangles,tree.mesh.triangles*50000);
   assert.equal(placement.distribution.preparations,1);
   await forestEdgePan(forest.hash);
+  await forestPanWhileGPUIsBusy();
+  await forestNavigationWithDelayedPick();
   await call('view.set',{focus:forest.hash});
 
   await call('view.set',{shading:'solid-isoparms'});

@@ -37,18 +37,33 @@ function geometry(type,overrides={}){
     if(ny>0)sky++;
     total++;
   }
-  for(let i=stemVerts;!grid&&i<verts.length/3;i+=6){
-    const distance=(a,b)=>Math.hypot(...[0,1,2].map(k=>verts[(i+a)*3+k]-verts[(i+b)*3+k]));
-    if(distance(0,1)+distance(1,2)+distance(2,3)>1.002*distance(0,3))bent++;
-    const face=wood*3+(i-stemVerts)*3;
-    assert.deepEqual(Array.from(raw.indices.subarray(face,face+18),id=>id-i),[0,4,1,1,4,2,2,4,3,0,1,5,1,2,5,2,3,5]);
+  let cards=0;
+  for(let start=wood*3;!grid&&start<raw.indices.length;){
+    const root=raw.indices[start];let last=root,end=start;
+    do{last=Math.max(last,...raw.indices.subarray(end,end+3));end+=3;}
+    while(end<raw.indices.length&&raw.indices[end]<=last);
+    const spans=(last-root+1)/2;
+    assert.ok([2,4,6].includes(spans));
+    assert.equal((end-start)/3,2*spans-2);
+    if(type==='fern')assert.equal(spans,6,'Five interior bends run across each fern frond');
+    const point=id=>Array.from(verts.subarray(3*id,3*id+3)),centers=[point(root)];
+    for(let j=root+1;j<last;j+=2)centers.push(point(j).map((x,k)=>(x+verts[(j+1)*3+k])/2));
+    centers.push(point(last));
+    const distance=(a,b)=>Math.hypot(...a.map((x,k)=>x-b[k]));
+    const arc=centers.slice(1).reduce((s,p,i)=>s+distance(p,centers[i]),0);
+    if(arc>1.002*distance(centers[0],centers.at(-1)))bent++;
+    cards++;start=end;
   }
   if(wood&&type!=='palm'&&p.habit===0&&total){
-    assert.ok(sky/total>.76&&upward/total>.12&&sideways/total>.16,'Deciduous foliage spans the upper hemisphere');
-    assert.ok(bent>total/6*.67,'Most deciduous cards must have a curved diagonal');
+    assert.ok(sky/total>.8&&upward/total>.20&&sideways/total>.07,'Deciduous sprays cover elevated and oblique views');
+    assert.ok(bent>cards*.67,'Most deciduous cards have a curved spine');
+  }
+  if(type==='pine'&&!Object.keys(overrides).length){
+    const diameter=2*Math.hypot(verts[0],verts[2]);
+    assert.ok(Math.abs(diameter-600)<25,'Mature basal diameter in mm: '+diameter);
   }
   if(grid){
-    assert.equal(raw.triangleCount,type==='grass'?36:16,'Each clump uses two crossed quads');
+    assert.equal(raw.triangleCount,4*Math.ceil((type==='grass'?16:9)*p.density/100),'Density sets the crossed clump count');
     const ground=new Set();
     for(let i=0;i<verts.length;i+=12)ground.add(verts.slice(i,i+6).join(','));
     assert.equal(ground.size,raw.triangleCount/2);
@@ -92,7 +107,7 @@ try{
   assert.equal(tree.params.detail,'procedural');assert.equal(tree.name,'Oak');
   const original=assertMaps(state,tree),sun=await appearance(id),summerMesh=await digest(id);
   assert.equal(sun.uv.corners,tree.mesh.triangles*3);assert.equal(tree.tags.filter(t=>t.kind==='uv').length,1);
-  assert.ok(sun.materials[1].triangles>0&&sun.materials[1].triangles%6===0);
+  assert.equal(sun.materials[1].triangles,plants.makePlant(plants.settings(tree.params)).ranges[1].count);
   const presets=await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>[...row.children].map(button=>[button.offsetWidth,button.offsetHeight])));
   assert.deepEqual(presets,Array.from({length:2},()=>Array.from({length:8},()=>[32,32])));
   assert.deepEqual(await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>new Set([...row.children].map(button=>button.offsetTop)).size)),[1,1]);
@@ -166,9 +181,27 @@ try{
   const still=await call('scene.create',{type:'tree',params:{growth:0}});
   assert.equal((await call('scene.convert',{id:still.hash})).type,'mesh');
   const fern=await call('scene.create',{type:'tree',params:{type:'fern'}});
-  assert.equal(fern.mesh.triangles,66);
+  assert.equal(fern.mesh.triangles,10*Math.ceil(14*fern.params['leaf density']/100));
   assert.deepEqual(fern.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
   assertMaps(await inspect(),fern);
+  for(const type of ['shrub','fern','grass','tall-grass','daisy','poppy','lavender','iris']){
+    let p=plants.settings({...plants.fields,...plants.presets[type],type}),sparse=plants.makePlant({...p,density:20}),dense=plants.makePlant(p);
+    assert.equal(dense.ranges[0].count,0);
+    assert.ok(dense.triangleCount>sparse.triangleCount);
+    assert.equal(plants.makePlant({...p,density:0}).triangleCount,0);
+  }
+  const shrub=await call('scene.update',{id:fern.hash,params:{type:'shrub'}});
+  assert.deepEqual(shrub.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
+  const flower=await call('scene.update',{id:fern.hash,params:{type:'poppy',growth:18}});
+  const young=await appearance(flower.hash),flowerAsset=assertMaps(await inspect(),flower).colorAsset;
+  const start=performance.now();
+  const grown=await call('scene.update',{id:flower.hash,params:{growth:100}});
+  assert.ok(performance.now()-start<500,'Completed flower Growth update under 500 ms');
+  assert.equal(assertMaps(await inspect(),grown).colorAsset,flowerAsset);
+  assert.notEqual((await appearance(grown.hash)).uv.sha256,young.uv.sha256,'Rosettes and open flowers select different atlas regions');
+  assert.equal((await call('scene.update',{id:grown.hash,params:{'leaf density':0}})).mesh,null);
+  await call('edit.history',{action:'undo'});
+  assert.equal((await object(grown.hash)).mesh.triangles,grown.mesh.triangles);
   assert.deepEqual(errors,[]);
   console.log('Native Tree toolbar, presets, undo, shared foliage images, seasons, compact HASH and editable geometry passed.');
 }finally{await session.close();}

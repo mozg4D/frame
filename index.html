@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 17:11">
+<meta name="frame-version" content="2026 20 nov 18:36">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12946,16 +12946,18 @@ function settings(p){
     kink:p.crookedness,thickness:p['trunk thickness'],seed:p.seed,growth:p.growth,day:p['day of year'],
     twigThickness:p['twig thickness'],density:p['leaf density'],thinness:p['leaf slenderness']};
 }
-const geometryKey=p=>[p.form,p.height,p.trunks,p.spread,p.habit,p.branching,p.kink,p.thickness,p.seed,p.growth].join('/');
-const isGround=form=>Object.hasOwn(garden,form)&&form!=='shrub';
-const usesGardenFoliage=form=>form==='palm'||isGround(form);
+const isGround=form=>Object.hasOwn(garden,form);
+const isFlower=form=>['daisy','poppy','lavender','iris'].includes(form);
+const empty=params=>params.growth===0||isGround(params.type)&&params['leaf density']===0;
+const geometryKey=p=>[p.form,p.height,p.trunks,p.spread,p.habit,p.branching,p.kink,p.thickness,p.seed,p.growth,isGround(p.form)?p.density:''].join('/');
+const usesGardenFoliage=form=>form==='palm'||isGround(form)&&form!=='shrub';
 function foliageKey(p){
-  if(usesGardenFoliage(p.form))return ['foliage',p.form,p.day,p.density].join('/');
-  const parts=['foliage',p.form,p.habit,p.day,p.density,p.thinness,p.twigThickness];
-  if(p.habit<89)parts.push(p.growth);
+  // Growth unfolds shoots in the mesh; flower cards select stages in a shared image.
+  const parts=['canopy',p.form,p.day];
+  if(p.form==='palm')parts.push(p.density);
+  if(!usesGardenFoliage(p.form))parts.push(p.habit,isGround(p.form)?1:p.density,p.thinness,p.twigThickness);
   return parts.join('/');
 }
-
 const TAU = 2 * Math.PI, GOLDEN = Math.PI * (3 - Math.sqrt(5)), UP = [0,1,0];
 const sat = x => Math.max(0,Math.min(1,x));
 const lerp = (a,b,t) => a+(b-a)*t;
@@ -13039,8 +13041,7 @@ function sampleStem(path,t) {
   const x=sat(t)*(path.length-1),i=Math.min(path.length-2,Math.floor(x));
   return mix3(path[i],path[i+1],x-i);
 }
-const cardVertexCount=6;
-function makePlantPreview(sleeves,cardPoints,cardUV,scale,wood){
+function makePlantPreview(sleeves,cardPoints,cardUV,footprints,scale,wood){
   const positions=[],uvs=[],triangles=[];
   const vertex=(point,uv)=>{
     const id=positions.length/3;
@@ -13063,11 +13064,11 @@ function makePlantPreview(sleeves,cardPoints,cardUV,scale,wood){
     }
   }
   // Sample across the whole crown and retain the original card footprint.
-  const cards=cardPoints.length/(3*cardVertexCount),count=Math.min(cards,28);
+  const cards=footprints.length,count=Math.min(cards,28);
   for(let i=0;i<count;i++){
-    const at=Math.floor((i+.5)*cards/count)*cardVertexCount,base=positions.length/3;
-    for(const j of [0,4,3,5]){
-      const at3=(at+j)*3,at2=(at+j)*2;
+    const corners=footprints[Math.floor((i+.5)*cards/count)],base=positions.length/3;
+    for(const j of corners){
+      const at3=j*3,at2=j*2;
       vertex(cardPoints.slice(at3,at3+3),cardUV.slice(at2,at2+2));
     }
     triangles.push([base,base+1,base+2,wood],[base,base+2,base+3,wood]);
@@ -13085,52 +13086,57 @@ function makePlantPreview(sleeves,cardPoints,cardUV,scale,wood){
 function makePlant(p,withPreview=false) {
   const mesh={sleeves:[],cards:[]};
   const age=(p.growth??100)/100;
-  if(!age)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
+  if(!age||isGround(p.form)&&!p.density)return {nativeExact:true,vertexCount:0,triangleCount:0,vertices:new Float32Array(),indices:new Uint32Array(),uv:new Float32Array(),ranges:[]};
   const rand=(i,k)=>noise(p.seed,i,k);
   const n=p.trunks,spread=p.spread/100,h=p.habit/100,b=p.branching/100,kink=p.kink/100,thick=p.thickness/100;
   const broad=1-ease(0.32,0.89,h),pine=ease(0.16,0.86,h);
   const clump = n>1 ? 1-1/n : 0;
   function leafFan(root,heading,size,width,id,layer,exposure) {
-    const slope=lerp(-0.62,1.32,rand(id,83))+0.22*exposure;
+    const slope=lerp(-.46,.88,rand(id,83))+.20*exposure;
     const direction=[heading[0],slope,heading[2]];
-    // Sample from shallow to nearly vertical surfaces, with both banks and all azimuths.
-    const roll=(rand(id,84)<0.5?-1:1)*Math.acos(lerp(.16,.99,rand(id,88)));
-    const arch=(0.045+0.063*rand(id,85))*(rand(id,86)<0.30?-1:1);
+    // Distribute fixed normals between the zenith and the crown's outward slopes.
+    const roll=(rand(id,84)<.5?-1:1)*Math.acos(lerp(.48,.98,rand(id,88)));
+    const arch=(.083+.035*rand(id,85))*(rand(id,86)<.24?-1:1);
     card(root,direction,size,width,roll,arch,(rand(id,87)-0.5)*0.25,layer,id);
   }
   function card(root,direction,length,width,roll,bend,twist,layer,id) {
     const f=norm(direction),horizontal=Math.abs(f[1])>0.9999?azimuth(rand(id,95)*TAU):norm(cross(UP,f));
     const upper=norm(cross(f,horizontal)),side=plus(times(horizontal,Math.cos(roll)),times(upper,Math.sin(roll)));
     const normal=norm(cross(f,side));
-    mesh.cards.push(...root,layer,...times(f,length),0.82+0.34*rand(id,93),
+    const spans=2*Math.min(3,Math.max(1,Math.ceil(Math.atan(4*Math.abs(bend))/(Math.PI/7))));
+    mesh.cards.push(...root,layer,...times(f,length),spans,
       ...times(side,length*width),length*twist,...times(normal,length*bend),length*(layer>=2?0.018+0.035*rand(id,96):0.045+0.075*rand(id,96)));
   }
-  const patch=isGround(p.form)&&p.form!=='fern';
-  const patchCards=[];
+  const patch=isGround(p.form)&&p.form!=='fern'&&p.form!=='shrub';
+  const patchCards=[],patchStages=[];
   if(patch){
-    // Cross two quads at each clump, distributing their roots across a small patch.
-    const spacing=p.form==='grass'?.63:p.form==='iris'?.43:.38,phase=rand(0,1)*TAU;
-    const rows=p.form==='grass'?3:2;
-    for(let z=0;z<rows;z++)for(let x=0;x<rows;x++){
-      const id=x+z*rows,root=[(x-(rows-1)/2+(rand(id,2)-.5)*.44)*spacing,0,(z-(rows-1)/2+(rand(id,3)-.5)*.44)*spacing];
-      const height=.68+.32*rand(id,4),angle=phase+id*GOLDEN;
+    const grass=p.form==='grass',flower=isFlower(p.form);
+    const maxClumps=grass?16:9,count=Math.ceil(p.density/100*maxClumps);
+    const phase=rand(0,1)*TAU,span=grass?1.8:p.form==='iris'?.84:1.0;
+    for(let id=0;id<count;id++){
+      // A fixed low-discrepancy sequence keeps established clumps as Density rises.
+      const x=((rand(0,20)+.754877666*id)%1-.5)*span,z=((rand(0,21)+.569840291*id)%1-.5)*span;
+      const root=[x/age,0,z/age],stage=sat((age-.12*rand(id,12))/(1-.12*rand(id,12)));
+      const height=id?lerp(.62,.96,rand(id,4))*(flower?.69+.31*stage:1):1,angle=phase+id*GOLDEN;
+      const width=(grass?.63:p.form==='iris'?.45:.41)*(.85+.28*rand(id,5))*(flower?lerp(1.65,1,age):1);
       for(let side=0;side<2;side++){
-        const width=(spacing*.83+.14)*(.88+.24*rand(id,5+side));
         const across=times(azimuth(angle+side*Math.PI/2),width/2);
-        const top=along(along(root,UP,height),azimuth(angle+1),height*.14*(rand(id,7)-.27));
+        const top=along(along(root,UP,height),azimuth(angle+1),height*(flower?lerp(.31,.10,age):.14)*(rand(id,7)-.27));
         patchCards.push(minus(root,across),plus(root,across),plus(top,across),minus(top,across));
+        patchStages.push(stage<.32?0:stage<.57?1:stage<.78?2:3);
       }
     }
   }else if(p.form==='fern'){
-    const count=11;
+    const count=Math.ceil(14*p.density/100);
     for(let i=0;i<count;i++){
       const dir=azimuth(i*GOLDEN+rand(3,1)*TAU+(rand(i,1)-.5)*.45);
-      const tier=i/(count-1),root=times(dir,.02+.03*rand(i,2));
-      card(root,[dir[0],lerp(.05,1.12,tier),dir[2]],1.06*(.76+.28*rand(i,3)),.43,(rand(i,5)-.5)*.65,.34,
+      const tier=(i*.618033989+.18)%1,root=times(dir,.012+.018*rand(i,2));
+      card(root,[dir[0],lerp(.075,1.32,tier),dir[2]],lerp(1.17,.85,tier)*(.91+.17*rand(i,3)),.31,(rand(i,5)-.5)*.53,.35,
         (rand(i,6)-.5)*.12,i%2,i);
     }
   }else if(p.form==='shrub'){
-    for(let i=0;i<n;i++){
+    const shoots=Math.max(1,Math.ceil(n*p.density/100));
+    for(let i=0;i<shoots;i++){
       const angle=rand(3,1)*TAU+i*GOLDEN,dir=azimuth(angle),base=times(dir,.025+.071*rand(i,2));
       const tall=lerp(.56,.87,rand(i,3)),reach=(.19+.52*spread)*lerp(.99,.44,(tall-.56)/.31);
       const stem=[base];
@@ -13139,14 +13145,12 @@ function makePlant(p,withPreview=false) {
         point[1]=tall*t;
         stem.push(along(point,azimuth(angle+Math.PI/2),kink*.075*Math.sin(Math.PI*t)*(rand(i,7)-.5)));
       }
-      const radius=.009+.015*thick;
-      const radii=[1,.82,.60,.41,.18].map(r=>radius*r);
-      mesh.sleeves.push({points:stem,radii,grounded:true,surface:openSleeve(stem,radii,6,true)});
-      const sprays=Math.round(4+4*b);
+      const sprays=Math.max(1,Math.ceil((5+5*b)*p.density/100));
       for(let j=0;j<sprays;j++){
-        const id=103+i*64+j,t=.27+.73*j/(sprays-1);
+        const id=103+i*64+j,t=j===0?0:((j*.618033989+i*.21)%1)*.95;
         const out=azimuth(angle+(j%2?-1:1)*lerp(.33,1.75,rand(id,3)));
-        leafFan(sampleStem(stem,t),out,(.31+.21*spread)*lerp(.78,1.10,rand(id,8))*(1-.3*t),.47,id,j%2,t);
+        const root=sampleStem(stem,t*lerp(.32,1,age));
+        leafFan(root,out,(.37+.28*spread)*lerp(.78,1.10,rand(id,8))*(1-.24*t),.54,id,j%2,t);
       }
     }
   }
@@ -13161,16 +13165,16 @@ function makePlant(p,withPreview=false) {
     const spreadBase=n===1?0:(0.014+0.083*spread)*ring;
     const base=times(rad,spreadBase);
     const lean=(n===1?0.025+0.12*spread*spread*broad:0.036+ring*(0.14+(0.42+0.19*broad)*spread))*(1-0.55*pine);
-    const wobble=(0.005+0.043*kink)*(1-0.72*pine);
-    const stemRadius=(0.012+0.028*thick)*stature*lerp(0.38,1,age)/Math.sqrt(1+0.39*(n-1));
+    const wobble=(0.005+0.043*kink)*(p.form==='pine'?.82:1-.72*pine);
+    const stemRadius=(p.form==='pine'?.019*(.51+thick):.012+.028*thick)*stature*lerp(.38,1,age)/Math.sqrt(1+.39*(n-1));
     const path=[],radii=[],steps=n===1?7:5;
     for(let j=0;j<=steps;j++){
-      const t=j/steps,elbow=Math.sin(Math.PI*t)*(2*rand(id,5)-1)+0.42*Math.sin(TAU*t)*(2*rand(id,6)-1);
+      const t=p.form==='palm'&&j>=steps-2?1-[.14,.065,0][j-steps+2]:j/steps,elbow=Math.sin(Math.PI*t)*(2*rand(id,5)-1)+0.42*Math.sin(TAU*t)*(2*rand(id,6)-1);
       const joint=0.024*kink*(1-0.74*pine)*Math.sin(Math.PI*t)*stature;
       let point=along(base,rad,lean*t*(0.55+0.45*t)+wobble*Math.sin(Math.PI*t)*(2*rand(id,4)-1)+joint*(2*rand(id+20,j)-1));
       point=along(point,side,wobble*elbow+joint*(2*rand(id+21,j)-1));point[1]=top*t;
       path.push(point);
-      const taper=p.form==='palm'?.73+.27*(1-t)**5+.09*t**8:.055+.945*(1-t)**0.82;
+      const taper=p.form==='palm'?(.74+.26*(1-t)**5)*(1-.97*ease(.85,1,t)):.055+.945*(1-t)**0.82;
       radii.push(stemRadius*taper*(1+0.13*(1-t)**7));
     }
     mesh.sleeves.push({points:path,radii,grounded:true,surface:openSleeve(path,radii,6,true)});
@@ -13179,8 +13183,10 @@ function makePlant(p,withPreview=false) {
         const tier=i/22,angle=phase+i*GOLDEN,dir=azimuth(angle);
         dir[1]=lerp(-.62,1.20,tier**1.5)+(rand(i,53)-.5)*.37;
         const length=(.37+.25*spread)*lerp(1.10,.62,tier)*(.86+.25*rand(i,54));
-        card(sampleStem(path,.945+.055*tier),dir,length,.45,(rand(i,55)-.5)*.86,.33-.11*tier,.09*(rand(i,56)-.5),i%2,i);
+        card(sampleStem(path,.81+.17*tier),dir,length,.40,(rand(i,55)-.5)*.80,.35-.07*tier,.09*(rand(i,56)-.5),i%2,i);
       }
+      const spear=azimuth(phase+.8);spear[1]=4;
+      card(path.at(-2),spear,.21,.17,.18,.06,.01,1,id+2300);
       continue;
     }
     const narrow=1-spread, multi=1/Math.sqrt(1+0.40*(n-1));
@@ -13246,13 +13252,43 @@ function makePlant(p,withPreview=false) {
         leafFan(sampleStem(path,at),dir,(0.22+0.22*spread)*broad*stature*lerp(0.16,1,age),0.51,bud,j%2,0.38);
       }
     }
-    if(pine>0.025){
+    if(p.form==='pine'&&pine>.025){
+      const tiers=Math.round(4+4*b),crownBase=lerp(.22,.45,age);
+      for(let i=0;i<tiers;i++){
+        const q=i/(tiers-1),tier=id+1200+i*90,level=lerp(crownBase,.94,q);
+        const rays=Math.round(lerp(4.8,3.4,q)+rand(tier,1));
+        for(let j=0;j<rays;j++){
+          const bud=tier+j*12,angle=phase+i*GOLDEN+TAU*(j+.34*(rand(bud,1)-.5))/rays;
+          const t=level+(rand(bud,2)-.5)*.064,start=sampleStem(path,t);
+          const mature=lerp(.18,1,ease(.08+.24*t,.42+.35*t,age));
+          const reach=(.20+.29*spread)*(.85+.27*Math.sin(Math.PI*q)-.55*q*q)*(.71+.48*rand(bud,3))*stature*mature;
+          const dir=azimuth(angle),sweep=azimuth(angle+(rand(bud,4)-.5)*.78);
+          const elbow=along(start,dir,.44*reach),tip=along(elbow,sweep,.56*reach);
+          elbow[1]+=reach*lerp(-.17,.13,q);tip[1]+=reach*(.13+.20*q+.14*rand(bud,5));
+          const radius=stemRadius*lerp(.34,.12,q)*mature;
+          const bough=[start,mix3(mix3(start,elbow,.5),mix3(elbow,tip,.5),.5),tip];
+          appendSleeve(mesh,bough,[radius,radius*.54,radius*.10]);
+          // Old boughs expose wood near the trunk and support fans of needles at their tips.
+          for(let k=0;k<4;k++){
+            const f=[.38,.59,.81,1][k],at=sampleStem(bough,f);
+            const heading=azimuth(angle+[.81,-.82,.49,-.30][k]+(rand(bud+k,6)-.5)*.53);
+            heading[1]=.14+.45*q+.29*rand(bud+k,7);
+            card(at,heading,reach*(.46+.21*rand(bud+k,8)),.43+(k%2)*.055,(k%2?1:-1)*(.28+.52*rand(bud+k,9)),
+              -.16-.023*rand(bud+k,10),.027,2+k%2,bud+k);
+          }
+        }
+      }
+      for(let i=0;i<6;i++){
+        const heading=azimuth(phase+GOLDEN*i);heading[1]=1.1+.18*i;
+        card(sampleStem(path,.94+i*.01),heading,.14*stature*lerp(.26,1,age),.38,.35*(i%3-1),-.12,.02,2+i%2,id+2400+i);
+      }
+    }else if(pine>0.025){
       const tiers=Math.max(2,Math.round((6+8*b)*pine/(1+0.25*(n-1))));
       for(let i=0;i<tiers;i++){
         const tier=id+1200+i*103,q=(i+0.18)/tiers,spruce=p.form==='spruce',t=lerp(spruce?.155:.44,.989,q);
         const mature=ease(0.02+0.29*t,0.30+0.40*t,age);
         if(mature<0.045)continue;
-        const rays=Math.max(3,Math.round((4+3.5*b-q*2)/(1+0.13*(n-1))));
+        const rays=Math.max(3,Math.round((4+3.5*b-q*2+(spruce?1.4*q*q:0))/(1+.13*(n-1))));
         for(let j=0;j<rays;j++){
           const bud=tier+3*j,at=t+(rand(bud,0)-0.5)*0.049;
           const angle=phase+i*GOLDEN+TAU*(j+0.24*(rand(bud,1)-0.5))/rays;
@@ -13260,7 +13296,7 @@ function makePlant(p,withPreview=false) {
           dir[1]=(spruce?lerp(-.16,.16,q**3):lerp(.11,.66,q*q))+.12*(rand(bud,2)-.5);
           const crown=spruce?(1-.89*q)**.78:.70+.32*Math.sin(Math.PI*q)-.63*q**5;
           const size=(0.14+0.45*spread)*crown*(0.87+0.22*rand(bud,3))*stature*pine*mature;
-          const roll=(rand(bud,5)-0.5)*(spruce?.34:1.12);
+          const roll=spruce?(j%2?1:-1)*(.31+.68*rand(bud,5)):(rand(bud,5)-.5)*1.12;
           card(anchor,dir,size,0.44+(rand(bud,4)-0.5)*0.14,roll,
             -0.095,0.04*(rand(bud,6)-0.5),2+(j+i)%2,bud);
           const fans=(b>0.54&&q<0.95&&rand(bud,11)<multi)?2:(b>0.19&&rand(bud,12)<0.41+0.59*multi?1:0);
@@ -13270,34 +13306,44 @@ function makePlant(p,withPreview=false) {
             const origin=along(along(anchor,forward,size*f),norm(cross(forward,side)),-0.095*size*4*f*(1-f));
             const sign=(j+k)%2?1:-1,lateral=azimuth(angle+sign*(0.40+0.41*rand(bud,k+8)));
             lateral[1]=lerp(spruce?-.27:-.53,spruce?.07:.35,q)+.11*(rand(bud,k+14)-.5);
-            card(origin,lateral,size*(k?0.63:0.80),0.49,sign*(spruce?.10+.20*rand(bud,k+9):.45+.48*rand(bud,k+9)),-0.065,0.045,2+(j+i+k+1)%2,bud+k+1);
+            card(origin,lateral,size*(k?0.63:0.80),0.49,sign*(spruce?.40+.58*rand(bud,k+9):.45+.48*rand(bud,k+9)),-0.065,0.045,2+(j+i+k+1)%2,bud+k+1);
           }
         }
       }
-      for(let j=0;j<5;j++){
-        const dir=azimuth(phase+j*GOLDEN);dir[1]=1.35+j*0.55;
-        card(sampleStem(path,0.938+j*0.011),dir,0.085*stature*pine*lerp(0.19,1,age),0.31,0.22*j,-0.03,0.02,2+(j%2),id+2450+j);
+      for(let j=0;j<(p.form==='spruce'?8:5);j++){
+        const dir=azimuth(phase+j*GOLDEN);dir[1]=1.25+(j%5)*.47;
+        card(sampleStem(path,.921+j*.010),dir,0.085*stature*pine*lerp(0.19,1,age),0.31,0.22*j,-0.03,0.02,2+(j%2),id+2450+j);
       }
     }
   }
-  // Three spans along the twig join the two opposite corners.
-  const faces=[0,4,1,1,4,2,2,4,3,0,1,5,1,2,5,2,3,5];
-  const corners=[[0,0],[1/3,1/3],[2/3,2/3],[1,1],[1,0],[0,1]];
-  const positions=[],indices=[],uv=[],cardPoints=[],cardUV=[];
+  // Section edges cross the full lamina. Both the spine and the silhouette
+  // follow the arch, with an exact atlas corner on either side at mid-length.
+  const positions=[],indices=[],uv=[],cardPoints=[],cardUV=[],cardIndices=[],footprints=[];
   let high=0;
   function measure(y){high=Math.max(high,y);}
   for(const shell of mesh.sleeves)for(let j=1;j<shell.surface.pos.length;j+=3)measure(shell.surface.pos[j]);
   for(const point of patchCards)measure(point[1]);
-  for(let i=0;i<mesh.cards.length;i+=16){
-    const d=mesh.cards,up=norm(cross(d.slice(i+4,i+7),d.slice(i+8,i+11)));
-    for(const [u,v] of corners){
-      const t=(u+v)*0.5,s=v-u;
-      const bend=4*t*(1-t),warp=d[i+11]*s*t+d[i+15]*s*s;
-      const point=[0,1,2].map(k=>d[i+k]+d[i+4+k]*t+d[i+8+k]*s+d[i+12+k]*bend+up[k]*warp);
-      cardPoints.push(...point);measure(point[1]);
-      // Swap across the twig axis for an alternate silhouette from the same image.
+  const d=mesh.cards;
+  for(let i=0;i<d.length;i+=16){
+    const up=norm(cross(d.slice(i+4,i+7),d.slice(i+8,i+11))),spans=d[i+7],base=cardPoints.length/3;
+    function vertex(t,s){
+      const u=t-s*.5,v=t+s*.5,bend=4*t*(1-t),warp=d[i+11]*s*t+d[i+15]*s*s;
+      for(let k=0;k<3;k++){
+        const x=d[i+k]+d[i+4+k]*t+d[i+8+k]*s+d[i+12+k]*bend+up[k]*warp;
+        cardPoints.push(x);if(k===1)measure(x);
+      }
       cardUV.push(d[i+3]%2?v:u,1-(d[i+3]%2?u:v));
     }
+    vertex(0,0);
+    for(let j=1;j<spans;j++){
+      const t=j/spans,r=2*Math.min(t,1-t),left=cardPoints.length/3;
+      vertex(t,-r);vertex(t,r);
+      if(j===1)cardIndices.push(base,left,left+1);
+      else cardIndices.push(left-2,left,left-1,left-1,left,left+1);
+    }
+    const tip=cardPoints.length/3;
+    vertex(1,0);cardIndices.push(tip-2,tip,tip-1);
+    if(withPreview)footprints.push([base,base+spans-1,tip,base+spans]);
   }
   const scale=1000*p.height*age/high;
   for(const {surface,points,radii,grounded} of mesh.sleeves){
@@ -13321,25 +13367,26 @@ function makePlant(p,withPreview=false) {
       const a=shell.ids[t],b=shell.ids[t+1],c=shell.ids[t+2],ids=[a,b,c];
       const us=ids.map(i=>coords[i][0]);
       if(Math.max(...us)-Math.min(...us)>0.5)for(let k=0;k<3;k++)if(us[k]<0.5)us[k]++;
-      for(let k=0;k<3;k++){indices.push(offset+ids[k]);uv.push(us[k],coords[ids[k]][1]);}
+      for(let k=0;k<3;k++){indices.push(offset+ids[k]);uv.push(us[k]*2,coords[ids[k]][1]*2);}
     }
   }
   const wood=indices.length/3,base=positions.length/3;
   for(let i=0;i<cardPoints.length;i++)positions.push((i%3===1?Math.max(0,cardPoints[i]):cardPoints[i])*scale);
-  for(let i=0;i<cardPoints.length/3;i+=cardVertexCount)for(const j of faces){
-    indices.push(base+i+j);uv.push(cardUV[(i+j)*2],cardUV[(i+j)*2+1]);
-  }
+  for(const j of cardIndices){indices.push(base+j);uv.push(cardUV[j*2],cardUV[j*2+1]);}
   for(let i=0;i<patchCards.length;i+=4){
     const at=positions.length/3;
     for(const point of patchCards.slice(i,i+4))positions.push(...times(point,scale));
     for(const j of [0,1,2,0,2,3]){
       indices.push(at+j);
       const u=j===1||j===2?1:0;
-      uv.push(i%8===0?u:1-u,j<2?1:0);
+      const x=i%8===0?u:1-u,y=j<2?1:0;
+      if(isFlower(p.form)){
+        const stage=patchStages[i/4];uv.push(((stage&1)+x)*.5,((stage>>1)+y)*.5);
+      }else uv.push(x,y);
     }
   }
   const triangleCount=indices.length/3;
-  const preview=withPreview&&!patch?makePlantPreview(mesh.sleeves,cardPoints,cardUV,scale,wood):null;
+  const preview=withPreview&&!patch?makePlantPreview(mesh.sleeves,cardPoints,cardUV,footprints,scale,wood):null;
   return {vertices:Float32Array.from(positions),indices:Uint32Array.from(indices),uv:Float32Array.from(uv),nativeExact:true,preview,
     vertexCount:positions.length/3,triangleCount,baseMaterial:wood?0:1,ranges:[{start:0,count:wood,material:0},{start:wood,count:triangleCount-wood,material:1}]};
 }
@@ -13666,7 +13713,7 @@ const materialWGSL = /* wgsl */ `
         let axial = p.x + s.appearance.y;
         let fiber = grain(vec2f(u * 10.0 + phase, axial * 37.0));
         let pore = grain(vec2f(u * 24.0 - phase, axial * 185.0));
-        let color = mix(vec3f(0.28, 0.195, 0.127), vec3f(0.57, 0.42, 0.27), fiber * 0.74 + pore * 0.25);
+        let color = mix(vec3f(.030,.022,.016), vec3f(.155,.114,.078), fiber*.70 + pore*.30);
         return vec4f(color * alpha, alpha);
       }
 
@@ -13713,14 +13760,15 @@ const materialWGSL = /* wgsl */ `
         let seed = s.appearance.w;
         let fleck = grain(p * 898.0 + seed * 80.0);
         let mottle = grain(vec2f(t * 9.0, p.y / width * 3.4 + seed * 73.0));
-        let young = vec3f(0.57, 0.69, 0.25);
-        let summer = mix(vec3f(0.224, 0.43, 0.11), vec3f(0.433, 0.58, 0.218), s.appearance.x);
+        let young = vec3f(.37,.49,.145);
+        let summer = mix(vec3f(.114,.254,.058),vec3f(.263,.407,.125),s.appearance.x);
         let fall = mix(vec3f(0.72, 0.299, 0.079), vec3f(0.89, 0.711, 0.235), seed);
         let autumn = clamp(s.appearance.z + (mottle - 0.5) * 0.41 * sin(PI * s.appearance.z), 0.0, 1.0);
         let color = mix(mix(young, summer, s.appearance.y), fall, autumn);
         let veins = 0.22 * relief.y + 0.11 * relief.z;
         let variation = 0.84 + 0.16 * mottle + 0.097 * fleck - relief.w * 0.09;
-        return color * variation + veins * vec3f(0.36, 0.37, 0.18);
+        let pigment=color*variation+veins*vec3f(.20,.23,.11);
+        return pigment * select(1.,.66,foliageScale.z==3.);
       }
 
       @fragment fn patchFragment(s: Patch) -> @location(0) vec4f {
@@ -13745,7 +13793,7 @@ const materialWGSL = /* wgsl */ `
           let cover = 1.0 - smoothstep(-feather, feather, d);
           if (cover <= 0.0) { discard; }
           let r = clamp(p.y / max(width, 0.0001), -1.0, 1.0);
-          let shade = mix(vec3f(.11,.143,.046),vec3f(.19,.252,.112),s.appearance.x)*(.73+.28*(1.-abs(r))+.13*t);
+          let shade = mix(vec3f(.040,.084,.053),vec3f(.109,.177,.101),s.appearance.x)*(.70+.29*(1.-abs(r))+.15*t);
           return vec4f(shade * cover, cover);
         }
         let alpha = 1.0 - smoothstep(-aa, aa, dist);
@@ -13769,13 +13817,13 @@ function needlePatches(variant,day,density,slender,thickness) {
     const vx=b[0]-a[0],vy=b[1]-a[1],m=Math.hypot(vx,vy),x=vx/m,y=vy/m;
     for(let i=0;i<count;i++)for(let j=0;j<2;j++){
       const key=id*241+i*2+j;if(rnd(key,9)>density)continue;
-      const t=(i+0.2+0.39*rnd(key,0))/count,root=mix2(a,b,t);
-      const angle=(j?1:-1)*(0.48+0.80*rnd(key,1)),c=Math.cos(angle),s=Math.sin(angle);
-      const dx=x*c-y*s,dy=y*c+x*s,len=size*(0.63+0.54*rnd(key,2))*(1-0.39*t);
+      const t=(i+.2+.39*rnd(key,0))/count,root=mix2(a,b,variant?.16+.83*t:t);
+      const angle=variant?(i%2?1:-1)*(.43+.72*rnd(id*241+i,1)+j*.18):(j?1:-1)*(.48+.80*rnd(key,1)),c=Math.cos(angle),s=Math.sin(angle);
+      const dx=x*c-y*s,dy=y*c+x*s,len=size*(variant?1.72:1)*(.63+.54*rnd(key,2))*(1-.39*t);
       const tip=[root[0]+dx*len,root[1]+dy*len];
       if(tip.some(v=>v<=0.003||v>=0.997))continue;
       const pitch=(rnd(key,4)-0.5)*0.9,roll=(rnd(key,5)-0.5)*1.86;
-      const width=len*lerp(0.177,0.069,slender);
+      const width=len*lerp(variant?.069:.177,variant?.032:.069,slender);
       needles.push(...root,...tip,width,width,2,0,rnd(key,6),summer,t,rnd(key,7),Math.cos(pitch),Math.sin(pitch),Math.cos(roll),Math.sin(roll));
     }
   }
@@ -13783,11 +13831,12 @@ function needlePatches(variant,day,density,slender,thickness) {
     const a=i/7,b=(i+1)/7,from=uv(a,bend(a)),to=uv(0.982*b,bend(b));
     const root=i?uv(0.982*a,bend(a)):from;
     shaft(root,to,lerp(0.008,0.001,a),lerp(0.008,0.001,b),i);
-    spray(root,to,10,0.045*(1-0.40*a),i+10);
+    if(!variant||i>=4)spray(root,to,10,.045*(1-.40*a),i+10);
   }
-  for(let i=0;i<10;i++)for(let j=0;j<2;j++){
-    const id=32+i*2+j,t=0.075+0.083*i+0.025*rnd(id,0),sg=j?1:-1;
-    const root=uv(t,bend(t)),tipT=Math.min(0.973,t+0.08+0.067*rnd(id,1));
+  const forks=variant?7:10;
+  for(let i=0;i<forks;i++)for(let j=0;j<2;j++){
+    const id=32+i*2+j,t=variant?.14+.115*i+.06*rnd(id,0):.075+.083*i+.025*rnd(id,0),sg=j?1:-1;
+    const root=uv(t,bend(t)),tipT=Math.min(.973,t+.08+(variant?.13:.067)*rnd(id,1));
     const width=Math.min(2*Math.min(tipT,1-tipT)-0.053,(0.25+0.58*Math.sin(Math.PI*t)**0.64)*(0.83+0.15*rnd(id,2)));
     const tip=uv(tipT,sg*width),middle=mix2(root,tip,0.53);
     middle[0]-=0.018;middle[1]-=0.018;
@@ -13806,9 +13855,10 @@ function needlePatches(variant,day,density,slender,thickness) {
 
 const foliageSize=384,broadPatch=broadGenerator(0),foliageDevices=new WeakMap();
 async function gardenFoliage(p){
-  const canvas=new OffscreenCanvas(foliageSize,foliageSize),ctx=canvas.getContext('2d');
+  const flowers=isFlower(p.form),side=foliageSize*(flowers?2:1);
+  const canvas=new OffscreenCanvas(side,side),ctx=canvas.getContext('2d');
   ctx.setTransform(foliageSize,0,0,-foliageSize,0,foliageSize);
-  const rand=(i,k)=>noise(213,i,k),density=p.density/100,palm=p.form==='palm';
+  const rand=(i,k)=>noise(213,i,k),palm=p.form==='palm';
   const season=.5+.5*Math.cos((p.day-174)*TAU/365);
   function green(id,value=0){
     const dry=1-season,shade=rand(id,12);
@@ -13839,81 +13889,101 @@ async function gardenFoliage(p){
       stem([x,y-.041],[x-.004,y+.041],[x+.009,y+.119],.004,green(id));
       for(let row=0;row<8;row++)for(const flip of [-1,1]){
         const t=row/8,reach=.045*(1-.67*t),a=[x+.008*t,y+.105*t];
-        blade(a,[a[0]+reach*flip,a[1]+.013],.013*(1-.48*t),flip*.004,'#554360',row%2?'#a98ab8':'#8b70ab');
+        blade(a,[a[0]+reach*flip,a[1]+.013],.013*(1-.48*t),flip*.004,'#4f4955',row%2?'#95869c':'#82768d');
       }
       return;
     }
     if(p.form==='iris'){
       for(let petal=0;petal<3;petal++){
         const a=petal*TAU/3+phase,side=Math.cos(a),lift=Math.sin(a);
-        blade([x,y],[x+.067*side,y+.049+.039*lift],.037,.012*side,'#dbc0e4','#694397');
-        blade([x,y],[x+.103*side,y-.036+.034*lift],.031,-.009*side,'#ad85c4','#51407e');
-        stem([x,y-.004],[x+.020*side,y-.007],[x+.040*side,y-.014+.014*lift],.006,'#dbb96d');
+        blade([x,y],[x+.067*side,y+.049+.039*lift],.037,.012*side,'#b6a8c1','#69557e');
+        blade([x,y],[x+.103*side,y-.036+.034*lift],.031,-.009*side,'#9685a6','#594e70');
+        stem([x,y-.004],[x+.020*side,y-.007],[x+.040*side,y-.014+.014*lift],.006,'#b09b6e');
       }
       return;
     }
     const daisy=p.form==='daisy',count=daisy?13:4,r=(daisy?.071:.093)*(.82+.27*rand(id,14));
     for(let k=0;k<count;k++){
       const a=phase+k*TAU/count,side=Math.cos(a),lift=Math.sin(a);
-      blade([x,y],[x+r*side,y+r*tilt*lift+(daisy?0:.020)],daisy?.017:r*.60,r*side*.09,daisy?'#d8d0ad':'#842a27',
-        daisy?(k%2?'#f2eddb':'#e9e4d4'):(k%2?'#c75643':'#d06753'));
+      blade([x,y],[x+r*side,y+r*tilt*lift+(daisy?0:.020)],daisy?.017:r*.60,r*side*.09,daisy?'#c7c4b1':'#743833',
+        daisy?(k%2?'#deddd1':'#d4d1c4'):(k%2?'#aa5f52':'#b76a59'));
     }
     disk(x,y,r*(daisy?.27:.23),r*.22*tilt,daisy?'#ac762c':'#352e32');
     for(let k=0;k<10;k++){
       const a=k*GOLDEN,d=r*.17*Math.sqrt(k/10);
-      disk(x+Math.cos(a)*d,y+Math.sin(a)*d*tilt,.0026,.0022,daisy?'#dfac49':'#82734e');
+      disk(x+Math.cos(a)*d,y+Math.sin(a)*d*tilt,.0026,.0022,daisy?'#c49b55':'#766b54');
     }
   }
   if(palm||p.form==='fern'){
     const axis=t=>[.021+.943*t+.022*Math.sin(Math.PI*t),.021+.943*t-.026*Math.sin(Math.PI*t)];
-    const count=palm?24:19;
+    const count=palm?24:16;
     stem(axis(0),[.52,.45],axis(1),palm?.017:.012,palm?'#68713d':'#687848');
     for(let i=0;i<count;i++)for(const sign of [-1,1]){
-      const id=i*2+(sign+1)/2;if(rand(id,8)>=density)continue;
-      const f=(i+.22+.42*rand(id,0))/count,t=lerp(palm?.21:.14,.958,f),root=axis(t);
-      const reach=(palm?.34:.32)*Math.sin(Math.PI*f**.81)**.83*(.85+.18*rand(id,3));
-      const advance=(palm?.09:.060)*(1-.54*f),tip=[root[0]+advance+reach*sign,root[1]+advance-reach*sign];
+      const id=i*2+(sign+1)/2;
+      if(palm&&rand(id,8)>=p.density/100)continue;
+      const f=(i+.28+(sign+1)*.14+.18*rand(id,0))/count,t=lerp(palm?.21:.115,.97,f),root=axis(t);
+      const reach=(palm?.34:.38)*(palm?Math.sin(Math.PI*f**.81)**.83:(.39+.70*Math.sin(Math.PI*f**.70)**.8)*(1-.65*f))*(.90+.12*rand(id,3));
+      const advance=(palm?.09:.115)*(1-.55*f),tip=[root[0]+advance+reach*sign,root[1]+advance-reach*sign];
       if(palm){
         blade(root,tip,.014*(.85+.25*rand(id,5)),.019*sign,green(id),green(id,11));
         stem(root,[(root[0]+tip[0])*.5+.007,(root[1]+tip[1])*.5+.007],tip,.0016,green(id,16));
       }else{
-        stem(root,[lerp(root[0],tip[0],.47),lerp(root[1],tip[1],.47)],tip,.004,green(id,9));
-        for(let k=0;k<6;k++)for(const side of [-1,1]){
-          const at=(k+.42)/6,a=[lerp(root[0],tip[0],at),lerp(root[1],tip[1],at)];
-          const spread=(.021+.020*(1-f))*Math.sin(Math.PI*at)**.62;
-          blade(a,[a[0]+side*spread+sign*.025,a[1]+side*spread-sign*.025],.0075*(1-.53*at),side*.004,green(id),green(id,9));
+        // Paired pinnae leave the rachis obliquely. Each carries two ranks of
+        // pointed pinnules with a broad base, shortening toward its own tip.
+        const pinna=t=>[lerp(root[0],tip[0],t)+.013*Math.sin(Math.PI*t),lerp(root[1],tip[1],t)+.013*Math.sin(Math.PI*t)];
+        const dx=tip[0]-root[0],dy=tip[1]-root[1],d=Math.hypot(dx,dy),across=[-dy/d,dx/d];
+        blade(root,tip,.005+.008*(1-f),.009*sign,green(id,-4),green(id,4));
+        const pairs=Math.max(3,Math.round(5+reach*16));
+        for(let k=0;k<pairs;k++)for(const flank of [-1,1]){
+          const at=(k+.20+.18*(flank+1))/pairs,a=pinna(at);
+          const w=(.012+.024*(1-f))*(1-at)**.64*(.76+.24*Math.sin(Math.PI*at));
+          const end=pinna(Math.min(1,at+.12));
+          blade(a,[end[0]+flank*across[0]*w,end[1]+flank*across[1]*w],(.005+.004*(1-f))*(1-.52*at),flank*.003,
+            green(id,-5),green(id,3+k%3));
         }
       }
     }
   }else{
     const grass=p.form==='grass'||p.form==='tall-grass',tall=p.form==='tall-grass';
-    const count=grass?(tall?17:36):9;
-    for(let i=0;i<count;i++){
-      if(rand(i,8)>=density)continue;
-      const root=[.06+.88*(i+rand(i,1))/count,.008+.034*rand(i,3)];
-      const reach=(rand(i,0)-.5)*(grass?.45:.19);
-      const top=[Math.max(.025,Math.min(.975,root[0]+reach)),(grass&&!tall?.36:.52)+(grass&&!tall?.58:.35)*rand(i,2)];
-      const mid=[lerp(root[0],top[0],.24),lerp(root[1],top[1],.60)];
-      if(grass){
-        const width=(tall?.020:.019)*(.49+rand(i,4));
-        blade(root,top,width,reach*.31,green(i,-6),green(i,tall?8:13));
-        stem(root,mid,top,.0015,green(i,9));
-        if(tall&&i%3===0)for(let k=0;k<8;k++){
-          const at=.73+k*.030,base=[lerp(mid[0],top[0],at),lerp(mid[1],top[1],at)];
-          blade(base,[base[0]+(k%2?-1:1)*(.032-.002*k),base[1]+.035+rand(i*8+k,5)*.016],.008,.005,'#82704e','#b4a27c');
+    const count=grass?(tall?17:36):7;
+    for(let stage=0;stage<(flowers?4:1);stage++){
+      ctx.save();ctx.setTransform(foliageSize,0,0,-foliageSize,(stage&1)*foliageSize,((stage>>1)+1)*foliageSize);
+      ctx.beginPath();ctx.rect(0,0,1,1);ctx.clip();
+      for(let i=0;i<count;i++){
+        const root=[.06+.88*(i+rand(i,1))/count,.008+.034*rand(i,3)];
+        const reach=(rand(i,0)-.5)*(grass?.45:.19);
+        const top=[Math.max(.025,Math.min(.975,root[0]+reach)),(grass&&!tall?.36:.52)+(grass&&!tall?.58:.35)*rand(i,2)];
+        const mid=[lerp(root[0],top[0],.24),lerp(root[1],top[1],.60)];
+        if(grass){
+          const width=(tall?.020:.019)*(.49+rand(i,4));
+          blade(root,top,width,reach*.31,green(i,-6),green(i,tall?8:13));
+          stem(root,mid,top,.0015,green(i,9));
+          if(tall&&i%3===0)for(let k=0;k<8;k++){
+            const at=.73+k*.030,base=[lerp(mid[0],top[0],at),lerp(mid[1],top[1],at)];
+            blade(base,[base[0]+(k%2?-1:1)*(.032-.002*k),base[1]+.035+rand(i*8+k,5)*.016],.008,.005,'#82704e','#b4a27c');
+          }
+          continue;
         }
-        continue;
+        const rise=top[1]-root[1],sword=p.form==='iris';
+        const stalk=stage===0?.16:stage===1?.56:stage===2?.85:1;
+        top[1]=root[1]+stalk*rise;
+        if(stage)stem(root,[mid[0],root[1]+stalk*(mid[1]-root[1])],top,.005,green(i,-2));
+        const leaves=sword?5:p.form==='lavender'?7:4;
+        for(let k=0;k<leaves;k++){
+          const flip=k%2?-1:1,f=(k+.35)/leaves;
+          const a=[lerp(root[0],top[0],f*f),root[1]+stalk*rise*(sword?.13:.08+.52*f)];
+          const b=[Math.max(.014,Math.min(.986,a[0]+flip*(.052+.06*rand(i*8+k,10)))),a[1]+rise*(sword?.58:.14+.12*rand(i*8+k,11))];
+          blade(a,b,p.form==='poppy'?.023:.012,flip*.021,green(i,-4),green(i,8));
+        }
+        if(season>.30&&stage){
+          if(stage===1)blade([top[0],top[1]-.016],[top[0]+.011,top[1]+.034],.016,.004,green(i,-4),green(i,5));
+          else{
+            ctx.save();ctx.translate(...top);const scale=stage===2?.52+.18*rand(i,11):1;
+            ctx.scale(scale,scale);bloom(0,0,i);ctx.restore();
+          }
+        }
       }
-      const rise=top[1]-root[1],sword=p.form==='iris';
-      stem(root,mid,top,.005,green(i,-2));
-      const leaves=sword?5:p.form==='lavender'?7:4;
-      for(let k=0;k<leaves;k++){
-        const flip=k%2?-1:1,f=(k+.35)/leaves;
-        const a=[lerp(root[0],top[0],f*f),root[1]+rise*(sword?.13:.12+.55*f)];
-        const b=[Math.max(.014,Math.min(.986,a[0]+flip*(.052+.06*rand(i*8+k,10)))),a[1]+rise*(sword?.58:.14+.12*rand(i*8+k,11))];
-        blade(a,b,p.form==='poppy'?.023:.012,flip*.021,green(i,-4),green(i,8));
-      }
-      if(season>.30)bloom(top[0],top[1],i);
+      ctx.restore();
     }
   }
   return new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer());
@@ -13936,8 +14006,8 @@ function bark(){
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
     const u=x/size,v=y/size,w=u+0.039*grain(u,v,5,3,11)+0.012*grain(u,v,11,8,8);
     const furrow=Math.abs(2*grain(w,v,19,4,13)-1),fibre=grain(w,v,63,9,4),fine=grain(u,v,89,59,17);
-    const h=0.57*ease(0.045,0.47,furrow)+0.26*fibre+0.17*fine,i=y*size+x;
-    height[i]=h;color.set([53+68*h+8*fine,45+58*h+7*fine,36+48*h+6*fine,255],4*i);
+    const h=.64*ease(.08,.48,furrow)+.23*fibre+.13*fine,i=y*size+x;
+    height[i]=h;color.set([36+91*h+7*fine,31+77*h+6*fine,26+63*h+5*fine,255],4*i);
   }
   const at=(x,y)=>height[((y+size)%size)*size+(x+size)%size];
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
@@ -13972,9 +14042,9 @@ async function renderFoliage(device,p,pipelines){
   try{
     const density=p.density/100,thinness=p.thinness/100,thickness=p.twigThickness/100;
     const conifer=ease(16,89,p.habit);
-    const deciduous=conifer<1?broadPatch({growth:p.growth/100,day:p.day,branchiness:p.form==='shrub'?.92:.81,angularity:.58,
-      thickness,thinness,density:density*(1-conifer)}):null;
-    const needles=conifer>0?needlePatches(0,p.day,density*conifer,thinness,thickness):null;
+    const deciduous=conifer<1?broadPatch({growth:1,day:p.day,branchiness:p.form==='shrub'?.92:.81,angularity:.58,
+      thickness,thinness,density:(p.form==='shrub'?.90:density)*(1-conifer)}):null;
+    const needles=conifer>0?needlePatches(p.form==='pine'?1:0,p.day,density*conifer,thinness,thickness):null;
     const data=new Float32Array((needles?.length||0)+(deciduous?.length||0));
     if(needles)data.set(needles);
     if(deciduous)data.set(deciduous,needles?.length||0);
@@ -13982,7 +14052,7 @@ async function renderFoliage(device,p,pipelines){
     const instances=buffer(Math.max(64,data.byteLength),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
     if(data.length)device.queue.writeBuffer(instances,0,data);
     const scale=buffer(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-    device.queue.writeBuffer(scale,0,new Float32Array([1/foliageSize,0,p.form==='oak'?1:p.form==='poplar'?2:0,0]));
+    device.queue.writeBuffer(scale,0,new Float32Array([1/foliageSize,0,p.form==='oak'?1:p.form==='poplar'?2:p.form==='shrub'?3:0,0]));
     const image=usage=>keep(device.createTexture({size:[foliageSize,foliageSize],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|usage}));
     const source=image(GPUTextureUsage.TEXTURE_BINDING),output=image(GPUTextureUsage.COPY_SRC);
     const encoder=device.createCommandEncoder(),passFor=texture=>encoder.beginRenderPass({colorAttachments:[{
@@ -14021,7 +14091,7 @@ function bakeFoliage(device,p){
   cache.set(key,result);if(cache.size>8)cache.delete(cache.keys().next().value);
   return result;
 }
-  return {fields,options,presets,names,presetButtons,presetPatch,settings,geometryKey,foliageKey,makePlant,bakeFoliage,bark,warmFoliage,isGround};
+  return {fields,options,presets,names,presetButtons,presetPatch,settings,geometryKey,foliageKey,makePlant,bakeFoliage,bark,warmFoliage,isGround,empty};
 })();
 
 const definitions = {
@@ -19451,16 +19521,35 @@ window.frameEngine=(()=>{
       updateMemoryStats();
     }
     // A one-shot rAF coalesces input events. It never reschedules itself.
-    let navigationScene=null,frameNavigation=null,navigationRevision=0;
+    let navigationScene=null,frameNavigation=null,navigationRevision=0,cameraFrameRequested=false;
     function draw(full=true,local=false,cameraOnly=false){
       if(cameraOnly&&viewIndex===0&&renderPose&&(drag||touchNavigation||wheelBusy))pauseMovedRender();
       if(full&&!cameraOnly){navigationScene=null;navigationRevision++;}
       if(splineLoadBatch){sceneFrameDirty=true;return Promise.resolve();}
       if(full){sceneFrameDirty=true;if(!local)viewRevision++;}
+      if(cameraOnly)cameraFrameRequested=true;
       if(pendingFrame)return pendingFrame;
-      pendingFrame=new Promise((resolve,reject)=>FrameViewWindows.frame(()=>{
-        pendingFrame=null;try{renderFrame();scheduleRenderPreview();resolve();}catch(error){reject(error);fileOperationError(error);}
-      }));
+      pendingFrame=new Promise((resolve,reject)=>{
+        function present(){
+          const gpu=renderer,fence=gpu?.navigationFrameFence;
+          if(cameraFrameRequested&&fence&&fence.scene===scene){
+            fence.done.then(()=>FrameViewWindows.frame(present));return;
+          }
+          const navigation=cameraFrameRequested;
+          pendingFrame=null;cameraFrameRequested=false;
+          try{
+            renderFrame();scheduleRenderPreview();
+            if(navigation&&gpu&&renderer===gpu){
+              const submitted={scene};
+              const clear=()=>{if(gpu.navigationFrameFence===submitted)gpu.navigationFrameFence=null;};
+              submitted.done=gpu.device.queue.onSubmittedWorkDone().then(clear,clear);
+              gpu.navigationFrameFence=submitted;
+            }
+            resolve();
+          }catch(error){reject(error);fileOperationError(error);}
+        }
+        FrameViewWindows.frame(present);
+      });
       return pendingFrame;
     }
 
@@ -20639,7 +20728,12 @@ window.frameEngine=(()=>{
         if(conservative||mesh.frameConservative){const box=transformedBox(conservative||localMeshBox(mesh),m);mesh.boundsMin=box.min;mesh.boundsMax=box.max;for(const part of mesh.parts||[]){const b=conservative?box:transformedBox({min:part.localBoundsMin,max:part.localBoundsMax},m);part.boundsMin=b.min;part.boundsMax=b.max;}if(!!mesh.frameConservative!==!!conservative)geometryChanged=true;mesh.frameConservative=!!conservative;}
       }
       if(!owners){const pluginFrames=renderer.pluginFrames??=new Map(),alivePlugins=new Set();for(const n of nodes.filter(pluginViewport)){const h=n.nativeHash,world=objectWorld(h);alivePlugins.add(h);if(!pluginFrames.has(h)||!FM.equal(world,pluginFrames.get(h))){pluginFrames.set(h,new Float64Array(world));geometryChanged=true;}}for(const h of pluginFrames.keys())if(!alivePlugins.has(h)){pluginFrames.delete(h);geometryChanged=true;}}
-      if(oldBounds)updateMovedSceneBounds(meshes,oldBounds);else updateSceneBounds();if(geometryChanged&&!independent&&!replicaBuilding&&scene.meshes.some(m=>{for(let q=m.replicaSource;q;q=q.replicaSource)if(changedSources.has(q.hashId))return true;return false;}))syncReplicas();poseEpoch++;measurementCache=null;return geometryChanged;
+      if(oldBounds)updateMovedSceneBounds(meshes,oldBounds);else updateSceneBounds();
+      if(geometryChanged&&!replicaBuilding&&(movesSurfacePlacements(changedSources)||!independent&&scene.meshes.some(m=>{
+        for(let q=m.replicaSource;q;q=q.replicaSource)if(changedSources.has(q.hashId))return true;
+        return false;
+      })))syncReplicas();
+      poseEpoch++;measurementCache=null;return geometryChanged;
     }
     function objectDescendants(h,objects=poseObjects()){let children=objects===poseRecordCache?.objects?poseRecordCache.children:null;if(!children){children=new Map();for(const o of objects){if(!children.has(o.parent))children.set(o.parent,[]);children.get(o.parent).push(o.hash);}if(objects===poseRecordCache?.objects)poseRecordCache.children=children;}const out=[h],seen=new Set(out);for(let i=0;i<out.length;i++)for(const hash of children.get(out[i])||[])if(!seen.has(hash)){seen.add(hash);out.push(hash);}return out;}
     function selectedRoots(){return objectSelection.length<2?objectSelection.slice():frameSelectionRoots(new Set(objectSelection),transformParent);}
@@ -20680,7 +20774,7 @@ window.frameEngine=(()=>{
       const h=FramePlugins.dispatch('selection')?.hash||splineComponentHash()||selectedMesh?.hashId,m=coordinateMode==='object'&&h?FM.rigid(objectWorld(h)):FM.I();m.set(selectionBox.center,12);return m;
     }
     function referenceFrame(){
-      const aux=auxiliaryState();if(aux?.kind==='mapping')return coordinateMode==='world'?FM.I():FM.rigid(objectWorld(aux.hash));
+      const aux=auxiliaryState();if(aux?.kind==='mapping')return coordinateMode==='world'?FM.I():FM.rigid(aux.world);
       if(coordinateMode==='world')return FM.I();
       const h=selectionScope==='objects'?selectedRoots()[0]:FramePlugins.dispatch('selection')?.hash||splineComponentHash()||selectedMesh?.hashId;
       const ref=selectionScope==='objects'?transformParent(h):h;return ref?FM.rigid(objectWorld(ref)):FM.I();
@@ -20711,7 +20805,7 @@ window.frameEngine=(()=>{
       // A moved Target can rotate an unrelated constrained branch. Plugins can
       // observe external frames. Use the complete pose walk in those cases.
       const work=nodes.some(n=>pluginViewport(n)||n.type==='target'&&owners.has(n.nativeHash))?null:{owners,meshes:scene.meshes.filter(m=>owners.has(m.hashId))};
-      if(work)work.retain=work.meshes.length>0&&work.meshes.length<=256&&owners.size<=256&&
+      if(work)work.retain=work.meshes.length>0&&work.meshes.length<=256&&owners.size<=256&&!movesSurfacePlacements(owners)&&
         ![...owners].some(h=>splineDisplays.has(h)||['render','infinite','target'].includes(frameNodeByHash(h)?.type))&&
         !scene.curveReplicas?.some(c=>owners.has(c.hashId))&&!scene.meshes.some(m=>{for(let q=m.replicaSource;q;q=q.replicaSource)if(owners.has(q.hashId))return true;return false;});
       if(work?.retain){const byOwner=new Map();for(const mesh of work.meshes){let rows=byOwner.get(mesh.hashId);if(!rows)byOwner.set(mesh.hashId,rows=[]);rows.push(mesh);}work.bounds={meshes:byOwner,curves:new Map()};}
@@ -20812,7 +20906,7 @@ window.frameEngine=(()=>{
       measurementCache=null;notifyTransformUI();draw(false);frameDrawCurves();
     }
     function quantStepForView(){if(frameViewKind(viewIndex))return 10**Math.ceil(Math.log10(120*2/(zoom*scene.scale*Math.max(1,canvas.clientHeight))))/10;return unitMillimeters[displayUnitIndex];}
-    function transformTransaction(prepared=null){const plugin=FramePlugins.dispatch('beginTransform');if(plugin)return {plugin,before:snapshotFrames(),state:coordinateState(),frame:selectionFrame(),scope:'plugin'};const aux=auxiliaryState(),spline=aux?.kind!=='motion'&&elementMode!=='object'&&window.FrameSpline?.beginTransform(prepared),roots=selectedRoots();return {motion:aux?.kind==='motion'?motionTransaction():null,spline,mapping:aux?.kind==='mapping'?{hash:aux.hash,frame:new Float64Array(aux.frame)}:null,before:spline&&!pivotEditing?{componentPivot:componentPivot&&new Float64Array(componentPivot)}:!aux&&!spline&&selectionScope==='objects'?objectTransformSnapshot(roots):snapshotFrames(),state:coordinateState(),frame:selectionFrame(),roots,occurrence:objectOccurrenceTransform(),scope:aux?.kind==='motion'?'motion':spline?'spline':aux?.kind==='mapping'?'mapping':selectionScope};}
+    function transformTransaction(prepared=null){const plugin=FramePlugins.dispatch('beginTransform');if(plugin)return {plugin,before:snapshotFrames(),state:coordinateState(),frame:selectionFrame(),scope:'plugin'};const aux=auxiliaryState(),spline=aux?.kind!=='motion'&&elementMode!=='object'&&window.FrameSpline?.beginTransform(prepared),roots=selectedRoots();return {motion:aux?.kind==='motion'?motionTransaction():null,spline,mapping:aux?.kind==='mapping'?{hash:aux.hash,world:aux.world.slice(),frame:aux.frame.slice()}:null,before:spline&&!pivotEditing?{componentPivot:componentPivot&&new Float64Array(componentPivot)}:!aux&&!spline&&selectionScope==='objects'?objectTransformSnapshot(roots):snapshotFrames(),state:coordinateState(),frame:selectionFrame(),roots,occurrence:objectOccurrenceTransform(),scope:aux?.kind==='motion'?'motion':spline?'spline':aux?.kind==='mapping'?'mapping':selectionScope};}
     function minimumScaleSize(){let rest=0;for(const mesh of currentSelectionMeshes()){const box=localMeshBox(mesh);for(const value of [...box.min,...box.max])rest=Math.max(rest,Math.abs(value));}const world=Math.max(...selectionBox.min.map(Math.abs),...selectionBox.max.map(Math.abs));return Math.max(1e-20,rest,world)*2**-20;}
     function scaleResponse(axis,pivot,extent){if(auxiliaryState()?.kind==='mapping')return 2;const occurrence=objectOccurrenceTransform(),displayPoint=p=>occurrence?FM.point(occurrence,p):p;let distance=0;if(selectionScope==='components'&&splineComponentHash()){for(const d of splineDisplays.values())for(const p of FrameSpline.selectedControls(d.data,d.selection))distance=Math.max(distance,Math.abs(FM.dot(FM.sub(FM.point(objectWorld(d.hash),p),pivot),axis)));if(distance>1e-12)return extent/distance;return 2;}for(const mesh of currentSelectionMeshes()){const b=localMeshBox(mesh);for(let mask=0;mask<8;mask++){const p=FM.point(mesh.frameWorld,b.min.map((n,i)=>mask>>i&1?b.max[i]:n));distance=Math.max(distance,Math.abs(FM.dot(FM.sub(p,pivot),axis)));}}if(selectionScope==='objects'){const hashes=new Set(selectedRoots().flatMap(h=>objectDescendants(h)));for(const d of splineDisplays.values())if(hashes.has(d.hash)){const matrix=objectWorld(d.hash);for(let mask=0;mask<8;mask++)distance=Math.max(distance,Math.abs(FM.dot(FM.sub(displayPoint(FM.point(matrix,d.min.map((v,k)=>mask>>k&1?d.max[k]:v))),pivot),axis)));}if(!(distance>1e-12))for(const h of selectedRoots()){const b=nodeBounds(h);for(let mask=0;mask<8;mask++)distance=Math.max(distance,Math.abs(FM.dot(FM.sub(displayPoint(b.min.map((v,k)=>mask>>k&1?b.max[k]:v)),pivot),axis)));}}return distance>1e-12?extent/distance:2;}
     function beginNumeric(){if(!scene||!selectionBox||editFinishing||nativeIOBusy)return null;const t=transformTransaction();coreNumeric=t;return t;}
@@ -21703,41 +21797,51 @@ window.frameEngine=(()=>{
 
     // BEGIN native-mapping
     let uvEditing=false;
-    function projectionNormalMatrix(matrix){const inverse=FM.inv(matrix),m=FM.I();for(let i=0;i<3;i++){const row=FM.unit([inverse[i],inverse[4+i],inverse[8+i]]);for(let j=0;j<3;j++)m[j*4+i]=row[j];}return m;}
-    const cubeProjectionPeriod=1000; // Millimeters per repeat.
-    function projectionMatrix(mesh){
-      const saved=nativeValue(mesh.hashId,'projection');
-      if(saved)return FM.unpack(saved);
-      const m=FM.I();m[0]=m[5]=m[10]=cubeProjectionPeriod;return m;
+    function projectionNormalMatrix(matrix){
+      // A surface normal is a covector. Pull it back to cube coordinates so the
+      // same local face remains dominant after a nonuniform object transform.
+      const m=FM.I(),scale=Math.max(...[0,4,8].map(k=>Math.hypot(...matrix.subarray(k,k+3))));
+      for(let i=0;i<3;i++)for(let j=0;j<3;j++)m[j*4+i]=matrix[i*4+j]/scale;
+      return m;
     }
-    function worldProjection(mesh,world){return FM.mul(FM.rigid(world),projectionMatrix(mesh));}
-    function localProjectionWords(mesh,world){
-      const objectAxes=FM.rigid(world),projection=projectionMatrix(mesh);
-      // Work in the rigid object frame so translation never enters the texture coordinates.
-      const linear=new Float64Array(world);linear.fill(0,12,15);objectAxes.fill(0,12,15);
-      const stretch=FM.mul(FM.inv(objectAxes),linear);
-      const inverse=FM.mul(FM.inv(projection),stretch),stretchInverse=FM.inv(stretch);
-      const normalTransform=FM.I();
-      for(let i=0;i<3;i++)for(let j=0;j<3;j++)normalTransform[j*4+i]=stretchInverse[i*4+j];
-      const normals=FM.mul(projectionNormalMatrix(projection),normalTransform),data=new Float32Array(32);
-      data.set(inverse);data.set(normals.subarray(0,12),16);
+    const cubeProjectionPeriod=1000,cubeProjectionBounds={min:[-.5,-.5,-.5],max:[.5,.5,.5]};
+    function initialProjection(world){
+      const linear=world.slice();linear.fill(0,12,15);
+      const axes=FM.rigid(linear);
+      for(let i=0;i<12;i++)axes[i]*=cubeProjectionPeriod;
+      return FM.mul(FM.inv(linear),axes);
+    }
+    function storedProjection(mesh){
+      for(let source=mesh;source;source=source.replicaSource){
+        const saved=nativeValue(source.hashId,'projection');
+        if(saved)return saved;
+      }
+    }
+    function projectionMatrix(mesh){
+      const saved=storedProjection(mesh);
+      return saved?FM.unpack(saved):initialProjection(mesh.frameWorld||objectWorld(mesh.hashId));
+    }
+    function worldProjection(mesh,world){return FM.mul(world,projectionMatrix(mesh));}
+    function localProjectionWords(mesh){
+      const projection=projectionMatrix(mesh),data=new Float32Array(32);
+      data.set(FM.inv(projection));data.set(projectionNormalMatrix(projection).subarray(0,12),16);
       return data;
     }
     function projectionOwner(){const hash=window.frameUVTarget||objectSelection[0]||selectedMesh?.hashId;return scene?.meshes.find(m=>m.hashId===hash);}
     function auxiliaryState(){
-      if(!scene)return null;const motion=motionState();if(motion)return motion;const mesh=uvEditing?projectionOwner():null;if(mesh&&!importedUV(mesh)){const world=objectWorld(mesh.hashId),frame=worldProjection(mesh,world),displayFrame=FM.rigid(frame);
-        const b=transformedBox(localMeshBox(mesh),world),radius=Math.max(1e-6,...b.max.map((n,i)=>n-b.min[i]))*.5;
-        const extent={min:[-radius,-radius,-radius],max:[radius,radius,radius]};
-        return {kind:'mapping',hash:mesh.hashId,mesh,frame,displayFrame,radius,box:transformedBox(extent,displayFrame)};}
+      if(!scene)return null;const motion=motionState();if(motion)return motion;const mesh=uvEditing?projectionOwner():null;if(mesh&&!importedUV(mesh)){const world=mesh.frameWorld||objectWorld(mesh.hashId),frame=worldProjection(mesh,world);
+        return {kind:'mapping',hash:mesh.hashId,mesh,world,frame,box:transformedBox(cubeProjectionBounds,frame)};}
       if(selectionScope==='objects'&&objectSelection.length===1&&(nativeValue(objectSelection[0],'type')?.[0]===2||frameNodeByHash(objectSelection[0])?.type==='render')){const hash=objectSelection[0],frame=objectWorld(hash),p=Array.from(frame.slice(12,15)),radius=Math.max(1e-6,worldPerPixel(p)*24);return {kind:'light',hash,frame,box:{min:p.map(n=>n-radius),max:p.map(n=>n+radius),center:p}};}return null;
     }
-    function auxiliaryCoordinates(aux){const frame=aux.frame,ref=coordinateMode==='world'?FM.I():aux.kind==='mapping'?FM.rigid(objectWorld(aux.hash)):nativeValue(aux.hash,'parent')?.[0]?FM.rigid(objectWorld(nativeValue(aux.hash,'parent')[0])):FM.I(),relative=FM.mul(FM.inv(ref),frame);return {position:Array.from(relative.slice(12,15)),rotation:FM.euler(relative).map(n=>n*180/Math.PI),size:aux.kind==='mapping'?[0,4,8].map(i=>Math.hypot(...frame.slice(i,i+3))):[1,1,1],frame,basis:coordinateMode==='world'?FM.I():FM.rigid(frame),scope:aux.kind,editingPivot:false};}
+    function auxiliaryCoordinates(aux){const frame=aux.frame,ref=coordinateMode==='world'?FM.I():aux.kind==='mapping'?FM.rigid(aux.world):nativeValue(aux.hash,'parent')?.[0]?FM.rigid(objectWorld(nativeValue(aux.hash,'parent')[0])):FM.I(),relative=FM.mul(FM.inv(ref),frame);return {position:Array.from(relative.slice(12,15)),rotation:FM.euler(relative).map(n=>n*180/Math.PI),size:aux.kind==='mapping'?[0,4,8].map(i=>Math.hypot(...frame.slice(i,i+3))):[1,1,1],frame,basis:coordinateMode==='world'?FM.I():FM.rigid(frame),scope:aux.kind,editingPivot:false};}
     async function setUVEditing(on,hash=null){if(!scene||nativeIOBusy||gizmoSession||editDrag||coreNumeric)return false;if(on){const mesh=scene.meshes.find(m=>m.hashId===(hash||selectedMesh?.hashId));if(!mesh||importedUV(mesh))return false;window.frameUVTarget=mesh.hashId;await selectObjects([scene.meshes.indexOf(mesh)],{objectHashes:[mesh.hashId]});pivotEditing=false;}uvEditing=!!on;const b=document.getElementById('btnUV');b.classList.toggle('on',uvEditing);b.ariaPressed=String(uvEditing);coordinateCache=null;gizmoSignature='';notifyTransformUI();draw(false);return true;}
-    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(FM.rigid(t.before.worlds.get(h))),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
-    function drawAuxiliaryShape(svg,project,rect){const aux=auxiliaryState();if(!aux||aux.kind==='light'||aux.kind==='motion')return;const path=document.createElementNS(svgNS,'path');path.classList.add(aux.kind==='mapping'?'frame-projection-cube':'frame-infinite-direction');path.setAttribute('fill','none');path.setAttribute('stroke',aux.kind==='mapping'?'#83d9e9':'#ffe5a1');path.setAttribute('stroke-width','1');path.setAttribute('pointer-events','none');let points,edges;
-      if(aux.kind==='mapping'){points=Array.from({length:8},(_,mask)=>FM.point(aux.displayFrame,[0,1,2].map(i=>mask>>i&1?aux.radius:-aux.radius)));edges=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];path.setAttribute('stroke-dasharray','4 3');}
-      else{const p=Array.from(aux.frame.slice(12,15)),length=worldPerPixel(p)*90,z=FM.unit(FM.point(aux.frame,[0,0,1],0)),x=FM.unit(FM.point(aux.frame,[1,0,0],0)),tip=FM.add(p,FM.scale(z,length));points=[p,tip,FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,length*.08)),FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,-length*.08))];edges=[[0,1],[1,2],[1,3]];}
-      const xy=points.map(p=>project(p).map((v,i)=>v-(i?rect.top:rect.left)));path.setAttribute('d',edges.map(([a,b])=>'M'+xy[a].join(',')+'L'+xy[b].join(',')).join(''));svg.append(path);
+    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(t.mapping.world),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
+    function drawAuxiliaryShape(svg,rect){
+      const aux=auxiliaryState();if(aux?.kind!=='mapping')return;
+      const path=document.createElementNS(svgNS,'path');path.classList.add('frame-projection-cube');
+      path.setAttribute('fill','none');path.setAttribute('stroke','#83d9e9');path.setAttribute('stroke-width','1');
+      path.setAttribute('pointer-events','none');path.setAttribute('stroke-dasharray','4 3');
+      path.setAttribute('d',projectedBoundsFlash(cubeProjectionBounds,rect,clippingPlanes(),aux.frame));svg.append(path);
     }
 
     function infinitePlacement(){return {point:[0,0,0],direction:FM.scale(FM.unit((scene?.lightObjects?.length||0)%2?[.7,.5,-.4]:[-.4,.65,1]),-1)};}
@@ -21810,7 +21914,7 @@ window.frameEngine=(()=>{
       invalidateRenderMaterials();appearanceRevision++;if(renderer?.materialState)renderer.materialState.signature='';draw(shadingMode!=='wireframe');
     }
     function refreshMaterialOwners(meshes=scene.meshes){
-      const owners=new Map(),sources=new WeakMap(),row=chain=>({chain,key:frameValueKey(chain)});
+      const owners=new Map(),sources=new WeakMap(),projectionOwners=new Set(),row=chain=>({chain,key:frameValueKey(chain)});
       let changed=false;
       for(const mesh of meshes){
         const hash=mesh.hashId;
@@ -21833,6 +21937,12 @@ window.frameEngine=(()=>{
         }
         if(!entry.chain.length)entry=owner.inherited;
         if(mesh.booleanMaterialTags?.length&&!mesh.replicaSource)entry=row([...mesh.booleanMaterialTags,...entry.chain]);
+        if(entry.chain.length&&(!mesh.replicaSource||owner.own.chain.length)&&!projectionOwners.has(hash)){
+          projectionOwners.add(hash);
+          if(!nativeValue(hash,'projection')&&!importedUV(mesh)&&entry.chain.some(t=>appearanceValue(t.materialUID,'maps'))){
+            putFrame(hash,'projection',initialProjection(objectWorld(hash)));
+          }
+        }
         if(mesh.appearanceKey!==entry.key){
           changed=true;releaseMaterialTable(mesh);mesh.appearanceKey=entry.key;mesh.materialTags=entry.chain;mesh.materialBindings=null;
         }
@@ -22219,9 +22329,9 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         key=[mesh.appearanceKey,state.indicesKey,...box.min,...box.max].join(':');
       }
       if(changed){releaseMaterialTable(mesh);let canonical=mesh;while(canonical.replicaSource)canonical=canonical.replicaSource;const pool=canonical.materialTables??=new Map();let entry=pool.get(key);if(!entry){const words=16+tags.length*4+tags.reduce((n,t)=>n+t.set.count,0),data=new Uint32Array(words),floats=new Float32Array(data.buffer);data.set([base,tags.length,0,0]);floats.set(box.min,4);floats.set(box.max.map((n,i)=>1/Math.max(n-box.min[i],1e-20)),8);let at=16+tags.length*4;tags.forEach((t,i)=>{data.set([t.material,at,Math.min(mesh.triangleCount,t.set.byteLength*8),0],16+i*4);t.offset=at;at+=t.set.count;});const buffer=makeGPUBuffer(r.device,{label:'shared compiled material tags',size:Math.max(16,words*4),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});r.device.queue.writeBuffer(buffer,0,data);if(tags.length){const e=r.device.createCommandEncoder();for(const t of tags)e.copyBufferToBuffer(t.set.resource,0,buffer,t.offset*4,t.set.count*4);r.device.queue.submit([e.finish()]);}entry={buffer,users:new Set(),pool,key};pool.set(key,entry);}entry.users.add(mesh);mesh.materialTableEntry=entry;mesh.materialTable=entry.buffer;bindings=mesh.materialBindings={key,base,appearance:mesh.appearanceKey,library,libraryKey:state.indicesKey,bounds:[...box.min,...box.max],positions:mesh.positions,uv:uv?.resource,grouped:tags.length>0,groups:new Map()};}
-      const projectionSource=uv?null:nativeValue(mesh.hashId,'projection'),world=uv?null:mesh.frameWorld;
+      const projectionSource=uv?null:storedProjection(mesh),world=uv||projectionSource?null:mesh.frameWorld||objectWorld(mesh.hashId);
       if(!mesh.mappingUniform||mesh.mappingProjectionSource!==projectionSource||mesh.mappingFrameSource!==world){
-        const data=world?localProjectionWords(mesh,world):new Float32Array(32),signature=data.join(',');
+        const data=uv?new Float32Array(32):localProjectionWords(mesh),signature=data.join(',');
         if(!mesh.mappingUniform){
           mesh.mappingUniform=meshAllocator(r,mesh)('cube projection frame',128,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
           mesh.mappingSignature=null;
@@ -23015,7 +23125,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         b.libraryKey!==library.indicesKey||b.groups.get(mesh)?.group!==row.group)return false;
       const lo=mesh.localBoundsMin||mesh.boundsMin,hi=mesh.localBoundsMax||mesh.boundsMax;
       for(let k=0;k<3;k++)if(lo[k]!==b.bounds[k]||hi[k]!==b.bounds[k+3])return false;
-      return mesh.mappingUniform&&(b.uv||mesh.mappingProjectionSource===nativeValue(mesh.hashId,'projection')&&mesh.mappingFrameSource===mesh.frameWorld)&&
+      return mesh.mappingUniform&&(b.uv||mesh.mappingProjectionSource===storedProjection(mesh)&&(mesh.mappingProjectionSource||mesh.mappingFrameSource===mesh.frameWorld))&&
         b.uv===ensureImportedUV(mesh)?.resource&&saved.transparent===(polygonWire()&&!!mesh.splineWireEdges&&materialTransparent(mesh));
     }
     function issueOpaqueMesh(pass,state,mesh=null){
@@ -24208,8 +24318,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function navigationMiss(x,y){const navigationSurface=navigationSurfaces.get(viewIndex);if(!frameViewKind(viewIndex)&&navigationSurface&&poseObjects().some(o=>o.type===1||splineDisplays.has(o.hash)))return pointerWorld({clientX:x,clientY:y},navigationSurface,FM.unit(inverseView([0,0,1])));return emptyGridPoint(x,y);}
     function navigationHit(point){if(!frameViewKind(viewIndex))navigationSurfaces.set(viewIndex,point.slice());return point;}
     function emptyGridPoint(x,y){if(!scene||frameViewKind(viewIndex))return null;const ray=cameraRay(x,y),origin=ray.origin.map((n,i)=>n/scene.scale+scene.center[i]),direction=ray.direction,den=direction[1];if(Math.abs(den)<1e-12)return null;const t=-origin[1]/den;if(!(t>0))return null;const p=origin.map((v,i)=>v+direction[i]*t);return Math.abs(p[0])<=1000&&Math.abs(p[2])<=1000?[p[0],0,p[2]]:null;}
-    async function pickWorldPoint(x,y){
-      if(!renderer||!scene)return null;const instance=viewIndex,generation=orbitGeneration,gpu=renderer,space=scene,section=frameViewElement(instance),current=()=>viewIndex===instance&&orbitGeneration===generation&&renderer===gpu&&scene===space&&frameViewElement(instance)===section&&frameViewVisible(instance);const plugin=await FramePlugins.dispatch('navigation',x,y);if(!current())return null;const ray=plugin&&cameraRay(x,y),surface=plugin&&{depth:plugin.depth,point:ray.origin.map((v,i)=>(v+ray.direction[i]*plugin.depth)/scene.scale+scene.center[i])},spline=splineNavigationPoint(x,y),curve=surface&&(!spline||surface.depth<spline.depth)?surface:spline;if(!space.meshes.some(m=>m.frameVisible!==false))return curve?navigationHit(curve.point):navigationMiss(x,y);
+    async function pickWorldPoint(x,y,valid=()=>true){
+      if(!renderer||!scene)return null;const instance=viewIndex,generation=orbitGeneration,gpu=renderer,space=scene,section=frameViewElement(instance),current=()=>valid()&&viewIndex===instance&&orbitGeneration===generation&&renderer===gpu&&scene===space&&frameViewElement(instance)===section&&frameViewVisible(instance);const plugin=await FramePlugins.dispatch('navigation',x,y);if(!current())return null;const ray=plugin&&cameraRay(x,y),surface=plugin&&{depth:plugin.depth,point:ray.origin.map((v,i)=>(v+ray.direction[i]*plugin.depth)/scene.scale+scene.center[i])},spline=splineNavigationPoint(x,y),curve=surface&&(!spline||surface.depth<spline.depth)?surface:spline;if(!space.meshes.some(m=>m.frameVisible!==false))return curve?navigationHit(curve.point):navigationMiss(x,y);
       const pick=createRayPick(gpu,space,cameraRay(x,y)),read=pick.read;
       try{const e=gpu.device.createCommandEncoder();pick.encode(e);e.copyBufferToBuffer(pick.closest,0,read,0,4);gpu.device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const t=new Float32Array(read.getMappedRange())[0];read.unmap();checkSession(gpu);if(!current())return null;if(curve&&curve.depth<=t)return navigationHit(curve.point);if(!(t<Math.fround(pick.ray.clip[1])))return curve?navigationHit(curve.point):navigationMiss(x,y);return navigationHit(pick.ray.origin.map((v,i)=>(v+pick.ray.direction[i]*t)/space.scale+space.center[i]));}finally{releaseGPU(pick);}
     }
@@ -24239,16 +24349,31 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     let pendingWheel=null,wheelBusy=false,wheelNavigation=null;
+    async function wheelSurfacePoint(x,y){
+      const gpu=renderer;
+      if(gpu.wheelSurfacePick)return null;
+      if(!gpu.navigationFrameFence&&!(gpu.lastFrameRaw?.gpuMs>16.7))return pickWorldPoint(x,y);
+      let active=true,timer;
+      const pick=pickWorldPoint(x,y,()=>active);
+      gpu.wheelSurfacePick=pick;
+      const clear=()=>{if(gpu.wheelSurfacePick===pick)gpu.wheelSurfacePick=null;};
+      pick.then(clear,clear);
+      try{return await Promise.race([pick,new Promise(resolve=>{timer=setTimeout(()=>resolve(null),16);})]);}
+      finally{active=false;clearTimeout(timer);}
+    }
     async function processWheel() {
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}if(wheelBusy)return;const session=renderer,navigation={cancelled:false,changed:false};wheelNavigation=navigation;wheelBusy=true;
       try{
         while(pendingWheel&&renderer===session&&!navigation.cancelled){
           const job=pendingWheel;pendingWheel=null;
           const mesh=scene,generation=orbitGeneration;
-          const point=frameViewKind(viewIndex)?null:await pickWorldPoint(job.x,job.y);
+          const point=frameViewKind(viewIndex)?null:await wheelSurfacePoint(job.x,job.y);
           if(scene!==mesh||generation!==orbitGeneration||!frameViewVisible(viewIndex)||drag||navigation.cancelled)continue;
           if(cameraNavigationOwned()){cancelCameraNavigation();break;}
-          zoomAt(point||fallbackZoomPoint(job.x,job.y),job.x,job.y,zoom*Math.exp(-Math.max(-1000,Math.min(1000,job.delta))*(frameViewKind(viewIndex)?.004:.0015)));navigation.changed=true;
+          // Wheel ticks at the same anchor share the first surface readback.
+          let delta=Math.max(-1000,Math.min(1000,job.delta));
+          if(pendingWheel&&pendingWheel.x===job.x&&pendingWheel.y===job.y){delta+=Math.max(-1000,Math.min(1000,pendingWheel.delta));pendingWheel=null;}
+          zoomAt(point||fallbackZoomPoint(job.x,job.y),job.x,job.y,zoom*Math.exp(-delta*(frameViewKind(viewIndex)?.004:.0015)));navigation.changed=true;
         }
       }catch(error){canvas.dataset.zoomError=error.message;}
       finally{if(renderer===session){wheelBusy=false;wheelNavigation=null;if(navigation.changed&&!navigation.cancelled)storeCameraNavigation();deferHoverMaps();if(pendingWheel)processWheel();}}
@@ -25132,9 +25257,10 @@ fn occupied(p:vec2i,channel:u32)->bool{
 
     let lastGizmoOperation='move',gizmoSession=null,gizmoSignature='',lastGizmoState=null,pivotKey=null,boundsFlash=0,boundsFlashUntil=0;
     function flashObjectBounds(){boundsFlash++;boundsFlashUntil=performance.now()+350;}
-    function projectedBoundsFlash(box,rect,clip){
+    function projectedBoundsFlash(box,rect,clip,frame=null){
       const ortho=!!frameViewKind(viewIndex),f=ortho?zoom:cameraFocal(),aspect=rect.width/rect.height;
-      const corners=Array.from({length:8},(_,mask)=>{const r=rotatePoint(box.min.map((v,k)=>(((mask>>k)&1?box.max[k]:v)-scene.center[k])*scene.scale)),depth=3.2-r[2]-orbitOffset[2];return [(r[0]+orbitOffset[0]+panX)*f/aspect,(r[1]+orbitOffset[1]+panY)*f,depth,ortho?1:depth];});
+      const corners=Array.from({length:8},(_,mask)=>{const local=box.min.map((v,k)=>(mask>>k)&1?box.max[k]:v),world=frame?FM.point(frame,local):local;
+        const r=rotatePoint(world.map((v,k)=>(v-scene.center[k])*scene.scale)),depth=3.2-r[2]-orbitOffset[2];return [(r[0]+orbitOffset[0]+panX)*f/aspect,(r[1]+orbitOffset[1]+panY)*f,depth,ortho?1:depth];});
       const planes=p=>[p[3]+p[0],p[3]-p[0],p[3]+p[1],p[3]-p[1],p[2]-clip[0],clip[1]-p[2]],screen=p=>[(p[0]/p[3]+1)*rect.width*.5,(1-p[1]/p[3])*rect.height*.5];let path='';
       for(const [a,b]of [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]]){
         const p=corners[a],q=corners[b];if(!p.every(Number.isFinite)||!q.every(Number.isFinite))continue;const A=planes(p),B=planes(q);let lo=0,hi=1;
@@ -25206,7 +25332,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         const eye=cameraRay(rect.left+rect.width/2,rect.top+rect.height/2).origin.map((n,j)=>n/scene.scale+scene.center[j]),frozen=gizmoSession?.signsPerView?.get(i),signs=mode3D?(frozen||basis.map(a=>FM.dot(FM.sub(eye,pivot),a)>=0?1:-1)):[1,1,1];
         const singleControl=singleSelectedControl();
         const signature=[rect.left,rect.top,rect.width,rect.height,scene.scale,...scene.center,...objectSelection,selectionBox?.min.join(','),selectionBox?.max.join(','),...captureCamera(),perspectiveFov,cameraRoll,...pivot,...basis.flat(),...signs,pivotEditing,singleControl,coordinateMode,boundsFlash,uvEditing,quantize,snapping,gizmoSession?.kind,...gizmoSession?.delta||[],auxiliaryState()?.frame.join(','),gizmoSession?.kind==='rotate'?gizmoSession.event?.clientX:'',gizmoSession?.kind==='rotate'?gizmoSession.event?.clientY:''].join(':');
-        const prior=gizmoViewStates.get(i);if(prior?.signature===signature){if(i===active)lastGizmoState=prior;continue;}const previousFlash=svg.querySelector('.frame-bounds-flash');svg.replaceChildren();drawAuxiliaryShape(svg,project,rect);
+        const prior=gizmoViewStates.get(i);if(prior?.signature===signature){if(i===active)lastGizmoState=prior;continue;}const previousFlash=svg.querySelector('.frame-bounds-flash');svg.replaceChildren();drawAuxiliaryShape(svg,rect);
         if(selectionScope==='objects'&&performance.now()<boundsFlashUntil){const path=previousFlash?.dataset.flash===String(boundsFlash)?previousFlash:document.createElementNS(svgNS,'path');path.classList.add('frame-bounds-flash');path.dataset.flash=boundsFlash;path.setAttribute('fill','none');path.setAttribute('stroke','#ffda00');path.setAttribute('stroke-width','1');const clip=clippingPlanes();const boundsIndex=objectSelection.length>8?boundsOwnerIndex():null;path.setAttribute('d',objectSelection.map(h=>projectedBoundsFlash(objectSelectionBounds(h,boundsIndex),rect,clip)).join(''));svg.append(path);}
         const state={view:i,pivot,basis,signs,unit,at,mode3D,rect:{left:rect.left,top:rect.top,right:rect.right,bottom:rect.bottom},signature,shapes:[],parts:[],handles:[]},size=75*unit/(mode3D?10:3.35),world=p=>mode3D?FM.add(pivot,basis.reduce((v,a,j)=>FM.add(v,FM.scale(a,p[j]*signs[j]*size)),[0,0,0])):FM.add(pivot,FM.scale(p,size));
         const shape=(name,color,geo,projectPoint=p=>project(world(p)))=>{
@@ -25740,6 +25866,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
     FrameViewWindows.onWindow('keydown',e=>{if(e.key==='Escape'&&touchPointers.size)cancelTouchNavigation();});
     FrameViewWindows.onDocument('visibilitychange',()=>{if(document.hidden){cancelTouchNavigation();cancelledTouchPointers.clear();}});
 
+    function useDragAnchor(state,point){
+      state.pivot=point.map((value,i)=>(value-scene.center[i])*scene.scale);
+      orbitPivot=[...state.pivot];state.zoomPoint=point;
+      state.anchor=rotatePoint(state.pivot,state.yaw,state.pitch).map((v,i)=>v+state.offset[i]);
+      orbitDepth=Math.max(.01,3.2-state.anchor[2]);state.pending=false;
+    }
     function applyOrbit(state) {
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}
       yaw=state.yaw+(state.x-state.startX)*0.008;
@@ -25801,13 +25933,13 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}
       if(frameViewKind(viewIndex)){state.pending=false;state.zoomPoint=fallbackZoomPoint(state.startX,state.startY);return;}
       let point=null;
-      try{point=await pickWorldPoint(state.startX,state.startY);}
+      try{point=await pickWorldPoint(state.startX,state.startY,()=>!state.released&&!state.usedFallback);}
       catch(error){canvas.dataset.orbitPickError=error.message;}
       if(state.generation!==orbitGeneration||state.mesh!==scene||state.released)return;
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}
       // A surface found after the first pan can anchor the next gesture, but changing
       // depth now would rescale the entire displacement already applied from the press.
-      if(state.middlePan)return;
+      if(state.middlePan||state.usedFallback)return;
       if(point){
         state.pivot=point.map((value,i)=>(value-scene.center[i])*scene.scale);
         orbitPivot=[...state.pivot];
@@ -25827,7 +25959,11 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(!drag)return;if(!drag.navigationBlocked&&cameraNavigationOwned()){cancelCameraNavigation();return;}
       const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
       drag.x=event.clientX;drag.y=event.clientY;if(drag.button===2&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>3)navigationMenuSuppressed=true;
-      if(drag.vertexPending||drag.navigationBlocked)return;frameEdgePointer(event,canvas);if(drag.button===1||drag.button===0&&frameViewKind(viewIndex)&&(polygonClickGesture?.moved||FramePlugins.dispatch('interceptsPointer'))){
+      if(drag.vertexPending||drag.navigationBlocked)return;frameEdgePointer(event,canvas);
+      if(drag.pending&&!frameViewKind(viewIndex)&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>3){
+        drag.usedFallback=true;useDragAnchor(drag,fallbackZoomPoint(drag.startX,drag.startY));
+      }
+      if(drag.button===1||drag.button===0&&frameViewKind(viewIndex)&&(polygonClickGesture?.moved||FramePlugins.dispatch('interceptsPointer'))){
         drag.middlePan=drag.button===1;
         const unitsPerPixel=(frameViewKind(viewIndex)?2/zoom:2*orbitDepth/cameraFocal())/Math.max(1,canvas.clientHeight);
         panX=drag.panX+(drag.x-drag.startX)*unitsPerPixel;panY=drag.panY-(drag.y-drag.startY)*unitsPerPixel;deferHoverMaps();draw(true,true,true);
@@ -25976,10 +26112,96 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     const replicaPlacements=new Map();let replicaQueue=Promise.resolve(),replicaBuilding=false;
     function placementFrame(point,direction,normal=false){const x=FM.unit(direction),up=Math.abs(x[1])<.95?[0,1,0]:[0,0,1],z=FM.unit(FM.cross(x,up)),y=FM.cross(z,x),m=FM.I();m.set(normal?y:x,0);m.set(normal?x:y,4);m.set(normal?FM.scale(z,-1):z,8);m.set(point,12);return m;}
     const surfaceSamplers=new Map();
-    function surfaceWorker(){let positions,indices,cumulative,total=0;onmessage=({data:d})=>{try{if(d.op==='prepare'){positions=d.positions;indices=d.indices;cumulative=new Float64Array(indices.length/3);total=0;for(let i=0;i<indices.length;i+=3){const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3,ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2],vx=positions[c]-positions[a],vy=positions[c+1]-positions[a+1],vz=positions[c+2]-positions[a+2];total+=Math.hypot(uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx)*.5;cumulative[i/3]=total;}if(!(total>0))throw Error('Object Cloner needs a nondegenerate surface');postMessage({id:d.id,result:{triangles:indices.length/3}});return;}let seed=d.seed>>>0;const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;},out=new Float64Array(d.count*6);for(let i=0;i<d.count;i++){const area=rand()*total;let lo=0,hi=cumulative.length-1;while(lo<hi){const m=(lo+hi)>>>1;if(cumulative[m]<area)lo=m+1;else hi=m;}const a=indices[lo*3]*3,b=indices[lo*3+1]*3,c=indices[lo*3+2]*3,u=Math.sqrt(rand()),v=rand(),ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2],vx=positions[c]-positions[a],vy=positions[c+1]-positions[a+1],vz=positions[c+2]-positions[a+2],normal=[uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx],length=Math.hypot(...normal)||1;for(let k=0;k<3;k++){out[i*6+k]=positions[a+k]*(1-u)+positions[b+k]*u*(1-v)+positions[c+k]*u*v;out[i*6+3+k]=normal[k]/length;}}postMessage({id:d.id,result:out},[out.buffer]);}catch(e){postMessage({id:d.id,error:e.message});}};}
+    // The cofactor maps a triangle's oriented area vector into world space.
+    // A common scale cancels from every sampling probability.
+    function surfaceAreaMeasure(world){
+      const axes=[0,4,8].map(k=>world.subarray(k,k+3));
+      const columns=axes.map((_,i)=>FM.cross(axes[(i+1)%3],axes[(i+2)%3]));
+      const lengths=columns.map(v=>Math.hypot(...v)),largest=Math.max(...lengths);
+      const ratios=lengths.map(n=>n/largest),unit=columns.map((v,i)=>FM.scale(v,1/lengths[i]));
+      const cosines=unit.map((v,i)=>FM.dot(v,unit[(i+1)%3]));
+      const key=[...ratios,...cosines.map(v=>Math.abs(v)<1e-14?0:v)].map(v=>v.toPrecision(13)).join('/');
+      return {key,columns:columns.flatMap(v=>v.map(x=>x/largest))};
+    }
+    function surfaceWorker(){
+      let positions,indices,cumulative,measureKey,total;
+      function updateAreas(measure){
+        if(measure.key===measureKey)return;
+        const m=measure.columns;
+        total=0;
+        for(let i=0;i<indices.length;i+=3){
+          const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
+          const ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2];
+          const vx=positions[c]-positions[a],vy=positions[c+1]-positions[a+1],vz=positions[c+2]-positions[a+2];
+          const x=uy*vz-uz*vy,y=uz*vx-ux*vz,z=ux*vy-uy*vx;
+          total+=Math.hypot(m[0]*x+m[3]*y+m[6]*z,m[1]*x+m[4]*y+m[7]*z,m[2]*x+m[5]*y+m[8]*z);
+          cumulative[i/3]=total;
+        }
+        if(!(total>0))throw Error('Object Cloner needs a nondegenerate surface');
+        measureKey=measure.key;
+      }
+      onmessage=({data:d})=>{try{
+        if(d.op==='prepare'){
+          positions=d.positions;indices=d.indices;cumulative=new Float64Array(indices.length/3);
+          postMessage({id:d.id,result:{triangles:cumulative.length}});return;
+        }
+        updateAreas(d.measure);
+        let seed=d.seed>>>0;
+        const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+        const out=new Float64Array(d.count*6);
+        for(let i=0;i<d.count;i++){
+          const area=rand()*total;
+          let lo=0,hi=cumulative.length-1;
+          while(lo<hi){const mid=(lo+hi)>>>1;if(cumulative[mid]<=area)lo=mid+1;else hi=mid;}
+          const a=indices[lo*3]*3,b=indices[lo*3+1]*3,c=indices[lo*3+2]*3,u=Math.sqrt(rand()),v=rand();
+          const ux=positions[b]-positions[a],uy=positions[b+1]-positions[a+1],uz=positions[b+2]-positions[a+2];
+          const vx=positions[c]-positions[a],vy=positions[c+1]-positions[a+1],vz=positions[c+2]-positions[a+2];
+          const normal=[uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx],length=Math.hypot(...normal);
+          for(let k=0;k<3;k++){out[i*6+k]=positions[a+k]*(1-u)+positions[b+k]*u*(1-v)+positions[c+k]*u*v;out[i*6+3+k]=normal[k]/length;}
+        }
+        postMessage({id:d.id,result:out},[out.buffer]);
+      }catch(e){postMessage({id:d.id,error:e.message});}};
+    }
     function disposeSurfaceSampler(state){state.disposed=true;state.worker.terminate();for(const p of state.pending.values())p.reject(new DOMException('Surface sampler retired','AbortError'));state.pending.clear();}
-    function surfaceSampler(mesh){let source=mesh;while(source.replicaSource)source=source.replicaSource;const revision=source.geometryRevision||0,old=surfaceSamplers.get(source);if(old&&old.positions===source.positions&&old.indices===source.indices&&old.revision===revision)return old;if(old)disposeSurfaceSampler(old);const url=URL.createObjectURL(new Blob(['('+surfaceWorker.toString()+')()'],{type:'text/javascript'})),worker=new Worker(url);URL.revokeObjectURL(url);const state={worker,pending:new Map(),serial:0,positions:source.positions,indices:source.indices,revision,preparations:1,requests:0,readbackBytes:0},request=(op,args,transfer=[])=>new Promise((resolve,reject)=>{if(state.disposed){reject(new DOMException('Surface sampler retired','AbortError'));return;}const id=++state.serial;state.pending.set(id,{resolve,reject});worker.postMessage({id,op,...args},transfer);});worker.onmessage=({data:d})=>{const p=state.pending.get(d.id);if(!p)return;state.pending.delete(d.id);d.error?p.reject(Error(d.error)):p.resolve(d.result);};worker.onerror=e=>{for(const p of state.pending.values())p.reject(Error(e.message));state.pending.clear();};surfaceSamplers.set(source,state);state.ready=readGeometry(source).then(raw=>{state.readbackBytes=raw.vertices.byteLength+raw.indices.byteLength;return request('prepare',{positions:raw.vertices,indices:raw.indices},[raw.vertices.buffer,raw.indices.buffer]);});state.sample=async(count,seed)=>{await state.ready;state.requests++;return request('sample',{count,seed});};return state;}
-    function objectPlacements(n,target){const p=n.params,mesh=scene.meshes.find(m=>m.hashId===target.nativeHash),data=target.splineData||FrameSpline.states.get(target.id)?.data,relative=FM.mul(FM.inv(objectWorld(n.nativeHash)),objectWorld(target.nativeHash));if(mesh){const sampler=surfaceSampler(mesh),old=replicaPlacements.get(n.id),key=[target.nativeHash,p.count,p.seed].join(':');if(old?.key!==key||old?.sampler!==sampler){const cache={key,pending:true,frames:old?.frames||[],sampler};replicaPlacements.set(n.id,cache);const space=scene;replicaQueue=replicaQueue.then(async()=>{if(scene!==space||replicaPlacements.get(n.id)!==cache)return;const samples=await sampler.sample(Math.max(1,Math.min(100000,Math.round(p.count))),p.seed|0);if(scene!==space||replicaPlacements.get(n.id)!==cache)return;cache.frames=[];for(let i=0;i<samples.length;i+=6)cache.frames.push(placementFrame(Array.from(samples.subarray(i,i+3)),Array.from(samples.subarray(i+3,i+6)),true));cache.pending=false;syncReplicas();draw(true);}).catch(e=>{cache.pending=false;if(scene===space&&replicaPlacements.get(n.id)===cache)n.splineError=e.message;});return cache.frames.map(m=>FM.mul(relative,m));}return old.frames.map(m=>FM.mul(relative,m));}if(!data)throw Error('Object Cloner requires a spline or surface');const result=[],step=Math.max(1e-6,+p.step||100),offset=+p.offset||0;for(const seq of data.sequences){const points=[];for(const sid of seq.segments){const samples=FrameSpline.K().sampleSplineSegment(data,sid);for(const q of samples){const point=FM.point(relative,q.position);if(!points.length||Math.hypot(...FM.sub(point,points.at(-1)))>1e-10)points.push(point);}}if(points.length<2)continue;const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...FM.sub(points[i],points[i-1])));const length=lengths.at(-1),count=Math.max(1,seq.closed?Math.floor(length/step+1e-10):Math.floor(length/step+1e-10)+1);if(result.length+count>100000)throw Error('Cloner exceeds 100000 copies; increase step');for(let i=0;i<count;i++){let distance=i*step+offset;if(seq.closed)distance=((distance%length)+length)%length;else if(distance<0||distance>length+1e-9)continue;let lo=1,hi=points.length-1;while(lo<hi){const m=(lo+hi)>>>1;if(lengths[m]<distance)lo=m+1;else hi=m;}const t=(distance-lengths[lo-1])/(lengths[lo]-lengths[lo-1]||1),point=points[lo-1].map((v,k)=>v+(points[lo][k]-v)*t);result.push(p.align==='tangent'?placementFrame(point,FM.sub(points[lo],points[lo-1])):FM.translation(point));}}return result;}
+    function surfaceSampler(mesh){let source=mesh;while(source.replicaSource)source=source.replicaSource;const revision=source.geometryRevision||0,old=surfaceSamplers.get(source);if(old&&old.positions===source.positions&&old.indices===source.indices&&old.revision===revision)return old;if(old)disposeSurfaceSampler(old);const url=URL.createObjectURL(new Blob(['('+surfaceWorker.toString()+')()'],{type:'text/javascript'})),worker=new Worker(url);URL.revokeObjectURL(url);const state={worker,pending:new Map(),serial:0,positions:source.positions,indices:source.indices,revision,preparations:1,requests:0,readbackBytes:0},request=(op,args,transfer=[])=>new Promise((resolve,reject)=>{if(state.disposed){reject(new DOMException('Surface sampler retired','AbortError'));return;}const id=++state.serial;state.pending.set(id,{resolve,reject});worker.postMessage({id,op,...args},transfer);});worker.onmessage=({data:d})=>{const p=state.pending.get(d.id);if(!p)return;state.pending.delete(d.id);d.error?p.reject(Error(d.error)):p.resolve(d.result);};worker.onerror=e=>{for(const p of state.pending.values())p.reject(Error(e.message));state.pending.clear();};surfaceSamplers.set(source,state);state.ready=readGeometry(source).then(raw=>{state.readbackBytes=raw.vertices.byteLength+raw.indices.byteLength;return request('prepare',{positions:raw.vertices,indices:raw.indices},[raw.vertices.buffer,raw.indices.buffer]);});state.sample=async(count,seed,measure)=>{await state.ready;state.requests++;return request('sample',{count,seed,measure});};return state;}
+    function movesSurfacePlacements(hashes){
+      for(const placement of replicaPlacements.values())if(hashes.has(placement.targetHash)||hashes.has(placement.ownerHash))return true;
+      return false;
+    }
+    function surfacePlacements(n,target,mesh){
+      const targetWorld=objectWorld(target.nativeHash),world=mesh.replicaMatrix?FM.mul(targetWorld,mesh.replicaMatrix):targetWorld;
+      const distributor=objectWorld(n.nativeHash);
+      const sampler=surfaceSampler(mesh),measure=surfaceAreaMeasure(world),p=n.params;
+      const key=[target.nativeHash,p.count,p.seed,measure.key].join(':');
+      let cache=replicaPlacements.get(n.id);
+      if(cache?.key!==key||cache.sampler!==sampler){
+        cache={key,sampler,targetHash:target.nativeHash,ownerHash:n.nativeHash,pending:true,frames:cache?.frames||[]};
+        replicaPlacements.set(n.id,cache);
+        const space=scene,current=()=>scene===space&&replicaPlacements.get(n.id)===cache;
+        replicaQueue=replicaQueue.then(async()=>{
+          if(!current())return;
+          const samples=await sampler.sample(Math.max(1,Math.min(100000,Math.round(p.count))),p.seed|0,measure);
+          if(!current())return;
+          cache.samples=samples;cache.pending=false;syncReplicas();draw(true);
+        }).catch(e=>{if(current()){cache.pending=false;n.splineError=e.message;}});
+      }
+      if(!cache.samples||cache.world&&FM.equal(cache.world,world)&&FM.equal(cache.distributor,distributor))return cache.frames;
+      const samples=cache.samples,frames=[],inverse=FM.inv(world),toCloner=FM.inv(distributor);
+      for(let i=0;i<samples.length;i+=6){
+        const point=FM.point(world,samples.subarray(i,i+3)),normal=samples.subarray(i+3,i+6);
+        const y=FM.unit([0,4,8].map(j=>FM.dot(normal,inverse.subarray(j,j+3))));
+        const tangent=placementFrame([0,0,0],normal,true).subarray(0,3);
+        const z=FM.unit(FM.cross(FM.point(world,tangent,0),y)),frame=FM.I();
+        frame.set(FM.cross(y,z),0);frame.set(y,4);frame.set(z,8);frame.set(point,12);
+        frames.push(FM.mul(toCloner,frame));
+      }
+      cache.world=world.slice();cache.distributor=distributor.slice();cache.frames=frames;
+      return frames;
+    }
+    function objectPlacements(n,target){const p=n.params,mesh=scene.meshes.find(m=>m.hashId===target.nativeHash);
+      if(mesh)return surfacePlacements(n,target,mesh);
+      const data=target.splineData||FrameSpline.states.get(target.id)?.data,relative=FM.mul(FM.inv(objectWorld(n.nativeHash)),objectWorld(target.nativeHash));
+      if(!data)throw Error('Object Cloner requires a spline or surface');const result=[],step=Math.max(1e-6,+p.step||100),offset=+p.offset||0;for(const seq of data.sequences){const points=[];for(const sid of seq.segments){const samples=FrameSpline.K().sampleSplineSegment(data,sid);for(const q of samples){const point=FM.point(relative,q.position);if(!points.length||Math.hypot(...FM.sub(point,points.at(-1)))>1e-10)points.push(point);}}if(points.length<2)continue;const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...FM.sub(points[i],points[i-1])));const length=lengths.at(-1),count=Math.max(1,seq.closed?Math.floor(length/step+1e-10):Math.floor(length/step+1e-10)+1);if(result.length+count>100000)throw Error('Cloner exceeds 100000 copies; increase step');for(let i=0;i<count;i++){let distance=i*step+offset;if(seq.closed)distance=((distance%length)+length)%length;else if(distance<0||distance>length+1e-9)continue;let lo=1,hi=points.length-1;while(lo<hi){const m=(lo+hi)>>>1;if(lengths[m]<distance)lo=m+1;else hi=m;}const t=(distance-lengths[lo-1])/(lengths[lo]-lengths[lo-1]||1),point=points[lo-1].map((v,k)=>v+(points[lo][k]-v)*t);result.push(p.align==='tangent'?placementFrame(point,FM.sub(points[lo],points[lo-1])):FM.translation(point));}}return result;}
 
     async function ensureIndependentGeometry(mesh){if(!mesh.cowShared&&!mesh.cowToken?.count)return;const gpu=renderer,positions=duplicateResource(gpu,mesh.positions,'editable copy positions'),indices=duplicateResource(gpu,mesh.indices,'editable copy indices'),e=gpu.device.createCommandEncoder();copyResource(e,mesh.positions,positions);copyResource(e,mesh.indices,indices);gpu.device.queue.submit([e.finish()]);const input={gpuCanonical:true,nativeExact:true,vertices:positions,indices,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount},next=mesh.paged?await uploadPagedAndCompute(gpu,input,mesh.partOptions||{}):await uploadAndCompute(gpu,input),copy=gpu.device.createCommandEncoder();copy.copyBufferToBuffer(mesh.connected.flags,0,next.connected.flags,0,Math.min(mesh.connected.flags.size,next.connected.flags.size));gpu.device.queue.submit([copy.finish()]);publishTopology(gpu,[{mesh,next}]);syncReplicas();}
     function evaluatedGeometry(n){flushReplicaPublication();const surfaces=[],curves=[];function visit(q){if(!q||!q.enabled)return;const own=scene.meshes.filter(m=>m.hashId===q.nativeHash),lines=(scene.curveReplicas||[]).filter(m=>m.hashId===q.nativeHash);if(own.length||lines.length){surfaces.push(...own);curves.push(...lines);return;}const display=splineDisplays.get(q.nativeHash);if(display){curves.push({curve:true,hashId:q.nativeHash,display});return;}for(const child of children(q.id))visit(child);}visit(n);return {surfaces,curves};}
@@ -27036,7 +27258,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{preparedImages?.release();if(!published)for(const m of meshes)disposeMesh(m);nativeIOEnd();}
     }
     let libraryQueue=Promise.resolve(),libraryTimer=0;const libraryKeys=new Map();
-    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&n.params.growth===0;if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh){delete mesh.plantGeometryKey;if(mesh.plantPreview){const {buffer}=mesh.plantPreview;mesh.buffers=mesh.buffers.filter(b=>b!==buffer);releaseGPU(buffer);delete mesh.plantPreview;}}libraryKeys.delete(n.nativeHash);});return n;}
+    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&FramePlants.empty(n.params);if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params={};delete n.librarySlots;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh){delete mesh.plantGeometryKey;if(mesh.plantPreview){const {buffer}=mesh.plantPreview;mesh.buffers=mesh.buffers.filter(b=>b!==buffer);releaseGPU(buffer);delete mesh.plantPreview;}}libraryKeys.delete(n.nativeHash);});return n;}
     let libraryRequested=false,libraryBuilding=false;
     function requestLibrary(){
       if(libraryBuilding){libraryRequested=true;return;}
@@ -27196,8 +27418,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             delete n.librarySlots;
           }
           const filename=libraryFilename(n),key=FrameValue.key(n.params),previous=libraryKeys.get(n.nativeHash);
-          if(previous?.filename===filename&&previous.key===key&&(mesh&&(!plant||mesh.plantGeometryKey)||plant&&!mesh&&n.params.growth===0))continue;
-          if(plant&&n.params.growth===0){
+          if(previous?.filename===filename&&previous.key===key&&(mesh&&(!plant||mesh.plantGeometryKey)||plant&&!mesh&&FramePlants.empty(n.params)))continue;
+          if(plant&&FramePlants.empty(n.params)){
             const space=scene;await selectionQueue;await editSerial;
             if(space===scene&&nodes.includes(n)&&key===FrameValue.key(n.params))emptyPlant(n,mesh,filename,key);
             continue;
