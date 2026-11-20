@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+const a=html.indexOf('function frameBendAngles('),b=html.indexOf('    let bendPreview=null;',a);
+assert(a>=0&&b>a);
+const fit=Function(html.slice(a,b)+';return frameBendAngles;')();
+const identity=[1,0,0,0,1,0,0,0,1], test=(name,fn)=>{fn();console.log('PASS',name);};
+const verts=[0,0,0, 1,0,0, 0,1,0, 0,-1,0], idx=[0,1,2, 1,0,3];
+const near=(a,b)=>assert.ok(Math.abs(a-b)<1e-5,a+' != '+b);
+test('flat joint and open border are neutral',()=>{const x=fit(verts,idx,identity);near(x.maxDegrees,0);assert(x.values.every(v=>v===0));});
+const crease=degree=>[...verts.slice(0,9),0,-Math.cos(degree*Math.PI/180),Math.sin(degree*Math.PI/180)];
+for(const d of [15,30,44,45,75,90,120,179])test(d+'° hinge in both adjacent faces',()=>{const x=fit(crease(d),idx,identity);near(x.maxDegrees,d);assert.deepEqual([...x.values],[0,0,1,1,0,0,1,1]);});
+test('object scaling evaluates the world angle',()=>near(fit(crease(45),idx,[1,0,0,0,2,0,0,0,1]).maxDegrees,Math.atan(.5)*180/Math.PI));
+test('rigid rotation/reflection preserve angle',()=>near(fit(crease(45),idx,[0,1,0,1,0,0,0,0,1]).maxDegrees,45));
+test('nonmanifold and invalid winding are not reported as folds',()=>{near(fit([...crease(90),0,0,-1],[...idx,0,1,4],identity).maxDegrees,0);near(fit(crease(90),[0,1,2,0,1,3],identity).maxDegrees,0);});
+test('degenerate triangles do not induce false angles',()=>near(fit(crease(90),[0,1,0,1,0,3],identity).maxDegrees,0));
