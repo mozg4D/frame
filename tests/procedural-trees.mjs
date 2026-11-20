@@ -24,25 +24,36 @@ function geometry(type,overrides={}){
     const grounded=[...edgeCount].filter(([key,count])=>count===1&&key.split(':').every(id=>verts[id*3+1]===0));
     assert.ok(grounded.length>=6*p.trunks,'Each trunk starts with an open planar ring at zero');
   }
-  let upward=0,bent=0,total=0;
+  const grid=['grass','tall-grass','daisy','poppy','lavender','iris'].includes(type);
+  let upward=0,sideways=0,sky=0,bent=0,total=0;
   for(let i=wood*3;i<raw.indices.length;i+=3){
     const [a,b,c]=raw.indices.subarray(i,i+3).map(v=>v*3);
     const x=verts[b]-verts[a],y=verts[b+1]-verts[a+1],z=verts[b+2]-verts[a+2];
     const u=verts[c]-verts[a],v=verts[c+1]-verts[a+1],w=verts[c+2]-verts[a+2];
     const ny=z*u-x*w,mag=Math.hypot(y*w-z*v,ny,x*v-y*u);
-    assert.ok(mag>0);if(ny/mag>Math.cos(Math.PI/4))upward++;total++;
+    assert.ok(mag>0);
+    if(ny/mag>Math.cos(Math.PI/4))upward++;
+    if(ny/mag>=0&&ny/mag<.45)sideways++;
+    if(ny>0)sky++;
+    total++;
   }
-  for(let i=stemVerts;i<verts.length/3;i+=6){
+  for(let i=stemVerts;!grid&&i<verts.length/3;i+=6){
     const distance=(a,b)=>Math.hypot(...[0,1,2].map(k=>verts[(i+a)*3+k]-verts[(i+b)*3+k]));
     if(distance(0,1)+distance(1,2)+distance(2,3)>1.002*distance(0,3))bent++;
     const face=wood*3+(i-stemVerts)*3;
     assert.deepEqual(Array.from(raw.indices.subarray(face,face+18),id=>id-i),[0,4,1,1,4,2,2,4,3,0,1,5,1,2,5,2,3,5]);
   }
   if(wood&&type!=='palm'&&p.habit===0&&total){
-    assert.ok(upward/total>0.65,'Most deciduous card triangles must face the sky');
-    assert.ok(bent>total/6*0.80,'Most deciduous cards must have a curved diagonal');
+    assert.ok(sky/total>.76&&upward/total>.12&&sideways/total>.16,'Deciduous foliage spans the upper hemisphere');
+    assert.ok(bent>total/6*.67,'Most deciduous cards must have a curved diagonal');
   }
-  if(Object.keys(plants.presets).indexOf(type)>=8)assert.equal(wood,0);
+  if(grid){
+    assert.equal(raw.triangleCount,type==='grass'?36:16,'Each clump uses two crossed quads');
+    const ground=new Set();
+    for(let i=0;i<verts.length;i+=12)ground.add(verts.slice(i,i+6).join(','));
+    assert.equal(ground.size,raw.triangleCount/2);
+  }
+  if(plants.isGround(type))assert.equal(wood,0);
   return {triangles:raw.triangleCount,upward:total?Math.round(100*upward/total):0};
 }
 for(const type of Object.keys(plants.presets)){
@@ -65,7 +76,7 @@ async function mergePart(name,data){
 const leaf=n=>n.tags.find(t=>t.kind==='material'&&t.libraryIndex===1);
 function assertMaps(a,n){
   const m=a.materials.find(m=>m.uid===leaf(n).materialUID);
-  assert.ok(m.colorAsset&&m.normalAsset&&m.normalAsset!==m.colorAsset);
+  assert.ok(m.colorAsset&&!m.normalAsset,'Foliage uses one linked color and coverage image');
   assert.equal(m.opacityAsset,m.colorAsset);assert.equal(m.alphaMode,2);
   assert.equal(m.translucency,50);
   return m;
@@ -99,12 +110,14 @@ try{
   await page.evaluate(id=>{const mesh=frameEngine.scene.meshes.find(m=>m.hashId===id);window.treePositions=mesh.positions;window.treeVersion=mesh.version;},id);
   tree=await call('scene.update',{id,params:{'day of year':16}});state=await inspect();
   const winter=assertMaps(state,tree);assert.notEqual(winter.colorAsset,original.colorAsset);
+  assert.ok(await page.evaluate(uid=>frameEngine.renderer.materialState.layers.has(uid),winter.colorAsset),'Seasonal binding is published with its GPU layer ready');
   assert.equal(leaf(await object(twin.hash)).materialUID,original.uid);
   assert.equal((await digest(id)).positionsSHA256,summerMesh.positionsSHA256);assert.equal((await appearance(id)).uv.sha256,sun.uv.sha256);
   assert.ok(await page.evaluate(id=>{const m=frameEngine.scene.meshes.find(m=>m.hashId===id);return m.positions===window.treePositions&&m.version===window.treeVersion;},id));
   const coverage=await page.evaluate(async ids=>Promise.all(ids.map(async uid=>{
     const a=window.frameMaterialState().assets.find(a=>a.uid===uid);
     const img=await createImageBitmap(new Blob([a.bytes])),canvas=new OffscreenCanvas(img.width,img.height),ctx=canvas.getContext('2d');
+    if(img.width!==384||img.height!==384)throw Error('Expected a single foliage image');
     ctx.drawImage(img,0,0);img.close();const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
     let pixels=0;for(let i=3;i<rgba.length;i+=4)if(rgba[i]>96)pixels++;return pixels;
   })),[original.colorAsset,winter.colorAsset]);
@@ -135,7 +148,8 @@ try{
   assert.equal((await digest(id)).positionsSHA256,built.positionsSHA256);assert.equal((await appearance(id)).uv.sha256,mapped.uv.sha256);
   const glb=Buffer.from((await call('scene.export',{format:'glb',includeData:true})).base64,'base64');
   const document=JSON.parse(glb.toString('utf8',20,20+glb.readUInt32LE(12)));
-  assert.ok(document.materials.some(m=>m.alphaMode==='MASK'&&m.doubleSided&&m.normalTexture&&m.pbrMetallicRoughness.baseColorTexture));
+  assert.ok(document.materials.some(m=>m.alphaMode==='MASK'&&m.doubleSided&&m.pbrMetallicRoughness.baseColorTexture));
+  assert.ok(document.materials.some(m=>m.name==='Bark'&&m.normalTexture));
   assert.ok(document.meshes.some(m=>m.primitives.some(p=>p.attributes.TEXCOORD_0!==undefined)));
   const animated=twin.hash;
   for(const [frame,value] of [[0,1],[10,4]])await call('animation.key',{id:animated,path:'param:trunks',frame,value});
@@ -145,15 +159,16 @@ try{
   await call('animation.seek',{frame:0});await call('animation.seek',{frame:10});let keyed=await object(animated);
   assert.equal(keyed.params.type,'spruce');assert.equal(keyed.params.height,plants.presets.spruce.height);assert.equal(keyed.params.trunks,4);
   const custom=leaf(keyed).materialUID;
-  await call('material.texture',{material:custom,slot:'normal',remove:true});
+  const normalImage=await page.evaluate(()=>textureFiles.find(name=>!name.includes('/')));
+  await call('material.texture',{material:custom,slot:'normal',url:'textures/'+normalImage});
   keyed=await call('scene.update',{id:animated,params:{'day of year':136}});
-  assert.equal(leaf(keyed).materialUID,custom);assert.ok(!(await inspect()).materials.find(m=>m.uid===custom).normalAsset);
+  assert.equal(leaf(keyed).materialUID,custom);assert.ok((await inspect()).materials.find(m=>m.uid===custom).normalAsset);
   const still=await call('scene.create',{type:'tree',params:{growth:0}});
   assert.equal((await call('scene.convert',{id:still.hash})).type,'mesh');
   const fern=await call('scene.create',{type:'tree',params:{type:'fern'}});
-  assert.equal(fern.mesh.triangles,60);
+  assert.equal(fern.mesh.triangles,66);
   assert.deepEqual(fern.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
   assertMaps(await inspect(),fern);
   assert.deepEqual(errors,[]);
-  console.log('Native Tree toolbar, presets, undo, shared atlases, seasons, compact HASH and editable geometry passed.');
+  console.log('Native Tree toolbar, presets, undo, shared foliage images, seasons, compact HASH and editable geometry passed.');
 }finally{await session.close();}

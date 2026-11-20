@@ -87,8 +87,8 @@
     {
       "prefix": "function restore(value,heldAnimation=null){",
       "nextPrefix": "function frameSnapshotContent(value){",
-      "bytes": 2425,
-      "sha256": "ef4f84072ddbfd25090fde0f972dd0a2dfbf5962f11b51c8743f794071e87ce8",
+      "bytes": 2378,
+      "sha256": "75bf69ef24a73acea8b7b4c9486c5d9f6d3f0132ce58a0b01e8d94547b2263b0",
       "change": {
         "reason": "Undo/Redo reconciles unused texture shelf cards against restored material and environment references; encoded image resources remain retained for history.",
         "beforeBytes": 2216,
@@ -96,9 +96,9 @@
         "baseCommit": "339a95f"
       },
       "sourceBindingUpdate": {
-        "reason": "Restoring history clears pending material edits.",
-        "previousBytes": 2395,
-        "previousSHA256": "03456c4345f54dbe6448d91347cd6d3eede44e6cc419920d2bd4d4965ddb2fea",
+        "reason": "Scene history restores bindings and leaves assigned images on the Textures shelf.",
+        "previousBytes": 2425,
+        "previousSHA256": "ef4f84072ddbfd25090fde0f972dd0a2dfbf5962f11b51c8743f794071e87ce8",
         "sourceBindingOnly": true,
         "browserVerified": false,
         "gpuVerified": false
@@ -107,8 +107,8 @@
     {
       "prefix": "async function frameUndoUI(",
       "nextPrefix": "function history(back){",
-      "bytes": 1109,
-      "sha256": "316683472182b0e0a9c33864cb6ff0421ab40bc060a810e94f4624d9b5aca72d",
+      "bytes": 1312,
+      "sha256": "c49320219d1ab9f53522cc4b7fc96c4330cf012da9140ec9ccb939f1ac70dee5",
       "change": {
         "reason": "UI Undo/Redo decode native binary snapshot records.",
         "reviewedAgainstCommit": "d620a07a1f17a8de1f18f8ee680a54e1dc3a3d09"
@@ -118,6 +118,14 @@
         "reason": "Undo and Redo preserve the current playhead and duration across edits to other scene state.",
         "previousBytes": 637,
         "previousSHA256": "88bc76f054f375eb2b5985527462e12895f9c10ada1f7d8b0b595e2496eee4c9"
+      },
+      "sourceBindingUpdate": {
+        "reason": "Redo of an explicit slot removal reconciles the shelf using the original removal intent.",
+        "previousBytes": 1109,
+        "previousSHA256": "316683472182b0e0a9c33864cb6ff0421ab40bc060a810e94f4624d9b5aca72d",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
       }
     },
     {
@@ -212,8 +220,16 @@
     {
       "prefix": "    async function decodeAppearancePlan(",
       "nextPrefix": "    function validatePolygonSets(plan,o,input){",
-      "bytes": 3041,
-      "sha256": "0c4c1e457c6053f9a27f8d80a890d64cf563bc1031c705cda10aa3db2cd54fa2"
+      "bytes": 3047,
+      "sha256": "731d585151edb2f8d651ae8790ae8d37bd5bf20f22ee3ec9593ec1be474c698a",
+      "sourceBindingUpdate": {
+        "reason": "The current main baseline validates the foliage translucency material attribute.",
+        "previousBytes": 3041,
+        "previousSHA256": "0c4c1e457c6053f9a27f8d80a890d64cf563bc1031c705cda10aa3db2cd54fa2",
+        "sourceBindingOnly": true,
+        "browserVerified": false,
+        "gpuVerified": false
+      }
     },
     {
       "prefix": "    async function saveHash(",

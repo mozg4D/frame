@@ -38,6 +38,33 @@ async function frames(name,id){
   console.log(JSON.stringify({name,cpuMs:sample.cpuMs,gpuMs:sample.gpuMs,draws:sample.counts?.batchedDraws}));
   return sample;
 }
+async function forestEdgePan(id){
+  await call('scene.select',{ids:[]});
+  await call('view.set',{index:0,single:true,mode:'object',shading:'solid',focus:id});
+  const vp=await page.locator('#frame-engine-canvas').boundingBox(),x=Math.round(vp.x+vp.width*.6),y=Math.round(vp.y+vp.height*.43);
+  const screenEdge=page.evaluate(()=>new Promise(resolve=>document.addEventListener('pointermove',e=>{
+    resolve((screen.availLeft||0)+screen.availWidth-2-(e.screenX-e.clientX));
+  },{once:true,capture:true})));
+  await page.mouse.move(x,y);
+  const edge=await screenEdge;
+  await page.mouse.down({button:'middle'});
+  try{
+    await page.mouse.move(edge,y);
+    await page.waitForFunction(()=>document.pointerLockElement?.id==='frame-engine-canvas'&&framePointerLock&&!framePointerLock.pending);
+    const atEdge=await page.evaluate(()=>[framePointerLock.x,framePointerLock.y]);
+    assert.deepEqual(atEdge,[edge,y],'Acquiring pointer lock preserves the virtual cursor at the screen edge');
+    const a=(await call('scene.inspect')).view.camera;
+    await page.mouse.move(edge+16,y+8);
+    const b=(await call('scene.inspect')).view.camera,unit=2*a[11]*Math.tan(Math.PI/8)/vp.height;
+    const after=await page.evaluate(()=>[framePointerLock.x,framePointerLock.y]);
+    assert.deepEqual(after,[edge+16,y+8],'Dense forest retains the first pointer delta after lock');
+    const delta=[b[3]-a[3],b[4]-a[4]],expected=[16*unit,-8*unit];
+    assert.ok(delta.every((v,i)=>Math.abs(v-expected[i])<1e-6),JSON.stringify({delta,expected,a,b,vp}));
+  }finally{
+    await page.mouse.up({button:'middle'});
+  }
+  await page.waitForFunction(()=>!document.pointerLockElement&&!framePointerLock);
+}
 
 try{
   page.on('pageerror',e=>errors.push(e.stack));
@@ -98,6 +125,8 @@ try{
   report.treeTriangles=tree.mesh.triangles;report.forestTriangles=placement.triangles;report.diskTriangles=disk.mesh.triangles;
   assert.equal(placement.triangles,tree.mesh.triangles*50000);
   assert.equal(placement.distribution.preparations,1);
+  await forestEdgePan(forest.hash);
+  await call('view.set',{focus:forest.hash});
 
   await call('view.set',{shading:'solid-isoparms'});
   const lines=await frames('50000 trees exact Solid + Isoparms',forest.hash);

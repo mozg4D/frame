@@ -16,7 +16,7 @@ export function pointerReturnChecks(source){
   const edge=extra=>{scope.e={...base,...extra};scope.el=element;vm.runInContext('frameEdgePointer(e,el)',scope);};
   const locked=()=>{edge();fire('pointerlockchange');};
   const move=(x,y)=>fire('mousemove',{movementX:x,movementY:y,isTrusted:false});
-  const sample=(list,stamp=2)=>{fire('pointermove',{timeStamp:stamp,getCoalescedEvents:()=>list.map(([movementX,movementY])=>({movementX,movementY}))});fire('mousemove',{timeStamp:stamp,movementX:list.reduce((n,p)=>n+p[0],0),movementY:list.reduce((n,p)=>n+p[1],0)});};
+  const sample=(list,stamp=2,mouseStamp=stamp)=>{fire('pointermove',{timeStamp:stamp,getCoalescedEvents:()=>list.map(([movementX,movementY])=>({movementX,movementY}))});fire('mousemove',{timeStamp:mouseStamp,movementX:list.reduce((n,p)=>n+p[0],0),movementY:list.reduce((n,p)=>n+p[1],0)});};
   return {scope,element,document,events,fire,edge,locked,move,sample,get:()=>vm.runInContext('framePointerLock',scope),count:()=>({requests,exits}),windowHandlers};
  }
  for(const offset of [[0,0],[-1600,-200]]){
@@ -67,6 +67,13 @@ export function pointerReturnChecks(source){
  {
   const s=setup();s.locked();s.sample([[8,-4]]);check('First ordinary movement is not discarded',s.get().x===1506&&s.get().y===296);s.sample([[-698,150]],3);check('Later large motion is not filtered as an initial warp',s.get().x===808&&s.get().y===446);
  }
+ {
+  const s=setup();s.edge();
+  s.sample([[8,-4],[-699,155],[11,2]],2,2.4);
+  check('A delayed lock notification and motion on both sides of the warp preserve the virtual cursor',s.get().x===1516&&s.get().y===303);
+  s.fire('pointerlockchange');s.sample([[-698,150]],3);
+  check('A delayed lock notification does not re-arm the warp filter',s.get().x===818&&s.get().y===453);
+ }
  for(const dpr of [1,2]){
   const s=setup({width:984,height:665,nativeX:435,nativeY:1572,screenX:1043,screenY:2159,dpr});s.locked();
   // Physical Windows trace: first DOM sample already combines center warp and motion.
@@ -93,7 +100,9 @@ export function pointerReturnNegatives(source){
   ['unlock on virtual screen return',s=>s.replace('if(dx||dy){lock.x+=dx;lock.y+=dy;frameLockedEvent(\'pointermove\',lock,e);}',"if(dx||dy){lock.x+=dx;lock.y+=dy;frameLockedEvent('pointermove',lock,e);document.exitPointerLock();}")],
   ['missing release',s=>s.replace('if(doc.pointerLockElement)doc.exitPointerLock();','')],
   ['lost pending movement',s=>s.replace('lock.x+=e.clientX-lock.nativeX;','')],
-  ['discard first ordinary sample',s=>s.replace('if(sample){lock.recenter=false;','if(sample){lock.recenter=false;return;')],
+  ['discard first ordinary sample',s=>s.replace('      lock.recenter=false;','      lock.recenter=false;return;')],
+  ['inspect only the first sample',s=>s.replace('for(const sample of moves)','for(const sample of moves.slice(0,1))')],
+  ['re-arm on delayed lock notification',s=>s.replace('if(lock.pending){lock.pending=false;lock.recenter=true;}','lock.pending=false;lock.recenter=true;')],
   ['discard mixed residual',s=>s.replace('dx-=rx;dy-=ry;','if(best<Infinity){dx=0;dy=0;}')],
   ['unexpected loss ignored',s=>s.replace('else if(lock&&!lock.pending){','else if(false){')]
  ];

@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 20 nov 16:11">
+<meta name="frame-version" content="2026 20 nov 17:11">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12912,7 +12912,7 @@ const FramePlants=(()=>{
 const presets={
   oak:   {height:10000,trunks:1,spread:86,'conifer shape':0,branching:76,crookedness:61,'trunk thickness':74,seed:29},
   poplar:{height:17000,trunks:1,spread:19,'conifer shape':0,branching:79,crookedness:29,'trunk thickness':43,seed:63},
-  bush:  {height:1800,trunks:5,spread:92,'conifer shape':0,branching:73,crookedness:66,'trunk thickness':31,seed:14},
+  bush:  {height:2900,trunks:7,spread:95,'conifer shape':0,branching:83,crookedness:66,'trunk thickness':23,seed:14},
   spruce:{height:12000,trunks:1,spread:47,'conifer shape':100,branching:74,crookedness:18,'trunk thickness':41,seed:38},
   pine:  {height:15500,trunks:1,spread:68,'conifer shape':100,branching:55,crookedness:47,'trunk thickness':49,seed:52},
   birch: {height:13000,trunks:1,spread:41,'conifer shape':0,branching:69,crookedness:24,'trunk thickness':31,seed:75,'leaf slenderness':65},
@@ -12920,9 +12920,9 @@ const presets={
   willow:{height:9500,trunks:1,spread:96,'conifer shape':0,branching:93,crookedness:65,'trunk thickness':69,seed:81,'leaf slenderness':86}
 };
 const garden={
-  fern:['Fern',850,10,.68,.22],shrub:['Shrub',950,18,.74,.17],grass:['Grass',310,18,.30,.32],
-  'tall-grass':['Tall Grass',1450,14,.22,.27],daisy:['Daisies',520,11,.23,.10],poppy:['Poppies',730,9,.27,.15],
-  lavender:['Lavender',840,14,.23,.14],iris:['Irises',695,11,.31,.19]
+  fern:['Fern',850],shrub:['Shrub',1250],grass:['Grass',310],
+  'tall-grass':['Tall Grass',1450],daisy:['Daisies',520],poppy:['Poppies',730],
+  lavender:['Lavender',840],iris:['Irises',695]
 };
 const rows=[['spruce','pine','oak','birch','poplar','palm','bush','willow'],Object.keys(garden)];
 const names={bush:'Large Bush',spruce:'Spruce',oak:'Oak',poplar:'Poplar',pine:'Pine',birch:'Birch',palm:'Palm',willow:'Willow',
@@ -12931,6 +12931,7 @@ const fields={type:['bush','spruce','oak','poplar','pine','birch','palm','willow
   growth:100,'day of year':172,'twig thickness':43,'leaf density':88,'leaf slenderness':40};
 for(const id of Object.keys(presets))presets[id]={'leaf slenderness':fields['leaf slenderness'],...presets[id]};
 for(const [id,[,height]] of Object.entries(garden))presets[id]={...presets.oak,height,seed:19};
+Object.assign(presets.shrub,{trunks:6,spread:72,branching:58,'trunk thickness':16});
 const percent={minimum:0,maximum:100,unit:'%',access:'read-write'};
 const integer=(minimum,maximum)=>({minimum,maximum,integer:true,access:'read-write'});
 const options={type:{access:'read-write'},detail:{access:'read-write'},height:{minimum:100,maximum:100000,unit:'mm',access:'read-write'},
@@ -12946,12 +12947,12 @@ function settings(p){
     twigThickness:p['twig thickness'],density:p['leaf density'],thinness:p['leaf slenderness']};
 }
 const geometryKey=p=>[p.form,p.height,p.trunks,p.spread,p.habit,p.branching,p.kink,p.thickness,p.seed,p.growth].join('/');
-// Pure broadleaf and evergreen crowns use four variations of the same family. Mixed crowns share one atlas.
-const family=p=>p.habit<=16?'broad':p.habit>=89?'pine':'mixed';
-function atlasKey(p){
-  if(garden[p.form]||p.form==='palm')return [p.form,p.day,p.density].join('/');
-  const kind=family(p),parts=[kind,p.day,p.density,p.thinness,p.twigThickness];
-  if(kind!=='pine')parts.push(p.form,p.growth);
+const isGround=form=>Object.hasOwn(garden,form)&&form!=='shrub';
+const usesGardenFoliage=form=>form==='palm'||isGround(form);
+function foliageKey(p){
+  if(usesGardenFoliage(p.form))return ['foliage',p.form,p.day,p.density].join('/');
+  const parts=['foliage',p.form,p.habit,p.day,p.density,p.thinness,p.twigThickness];
+  if(p.habit<89)parts.push(p.growth);
   return parts.join('/');
 }
 
@@ -13061,7 +13062,7 @@ function makePlantPreview(sleeves,cardPoints,cardUV,scale,wood){
       triangles.push([a,a+1,b+1,0],[a,b+1,b,0]);
     }
   }
-  // Sample across the whole crown. The quad uses the original card footprint and atlas tile.
+  // Sample across the whole crown and retain the original card footprint.
   const cards=cardPoints.length/(3*cardVertexCount),count=Math.min(cards,28);
   for(let i=0;i<count;i++){
     const at=Math.floor((i+.5)*cards/count)*cardVertexCount,base=positions.length/3;
@@ -13090,12 +13091,11 @@ function makePlant(p,withPreview=false) {
   const broad=1-ease(0.32,0.89,h),pine=ease(0.16,0.86,h);
   const clump = n>1 ? 1-1/n : 0;
   function leafFan(root,heading,size,width,id,layer,exposure) {
-    // Twigs keep their own headings. Their display surfaces open towards the sky.
-    // Outer buds bank more than shaded inner leaves, keeping a readable side silhouette.
-    const slope=lerp(0.16,0.57,exposure)+(rand(id,83)-0.5)*0.31;
+    const slope=lerp(-0.62,1.32,rand(id,83))+0.22*exposure;
     const direction=[heading[0],slope,heading[2]];
-    const roll=(rand(id,84)-0.5)*(0.65+0.62*exposure);
-    const arch=(0.08+0.095*rand(id,85))*(rand(id,86)<0.19?-0.72:1);
+    // Sample from shallow to nearly vertical surfaces, with both banks and all azimuths.
+    const roll=(rand(id,84)<0.5?-1:1)*Math.acos(lerp(.16,.99,rand(id,88)));
+    const arch=(0.045+0.063*rand(id,85))*(rand(id,86)<0.30?-1:1);
     card(root,direction,size,width,roll,arch,(rand(id,87)-0.5)*0.25,layer,id);
   }
   function card(root,direction,length,width,roll,bend,twist,layer,id) {
@@ -13105,13 +13105,49 @@ function makePlant(p,withPreview=false) {
     mesh.cards.push(...root,layer,...times(f,length),0.82+0.34*rand(id,93),
       ...times(side,length*width),length*twist,...times(normal,length*bend),length*(layer>=2?0.018+0.035*rand(id,96):0.045+0.075*rand(id,96)));
   }
-  if(garden[p.form]){
-    const [, ,count,reach,bend]=garden[p.form],upright=!['fern','shrub'].includes(p.form);
+  const patch=isGround(p.form)&&p.form!=='fern';
+  const patchCards=[];
+  if(patch){
+    // Cross two quads at each clump, distributing their roots across a small patch.
+    const spacing=p.form==='grass'?.63:p.form==='iris'?.43:.38,phase=rand(0,1)*TAU;
+    const rows=p.form==='grass'?3:2;
+    for(let z=0;z<rows;z++)for(let x=0;x<rows;x++){
+      const id=x+z*rows,root=[(x-(rows-1)/2+(rand(id,2)-.5)*.44)*spacing,0,(z-(rows-1)/2+(rand(id,3)-.5)*.44)*spacing];
+      const height=.68+.32*rand(id,4),angle=phase+id*GOLDEN;
+      for(let side=0;side<2;side++){
+        const width=(spacing*.83+.14)*(.88+.24*rand(id,5+side));
+        const across=times(azimuth(angle+side*Math.PI/2),width/2);
+        const top=along(along(root,UP,height),azimuth(angle+1),height*.14*(rand(id,7)-.27));
+        patchCards.push(minus(root,across),plus(root,across),plus(top,across),minus(top,across));
+      }
+    }
+  }else if(p.form==='fern'){
+    const count=11;
     for(let i=0;i<count;i++){
-      const dir=azimuth(i*GOLDEN+rand(3,1)*TAU+(rand(i,1)-.5)*.38);
-      const root=times(dir,.02+.05*rand(i,2)),length=.69+.31*rand(i,3);
-      card(root,[dir[0]*reach,upright?.90:.55+.3*rand(i,4),dir[2]*reach],length,
-        upright?.25:.46,(rand(i,5)-.5)*.42,bend,0,i%4,i);
+      const dir=azimuth(i*GOLDEN+rand(3,1)*TAU+(rand(i,1)-.5)*.45);
+      const tier=i/(count-1),root=times(dir,.02+.03*rand(i,2));
+      card(root,[dir[0],lerp(.05,1.12,tier),dir[2]],1.06*(.76+.28*rand(i,3)),.43,(rand(i,5)-.5)*.65,.34,
+        (rand(i,6)-.5)*.12,i%2,i);
+    }
+  }else if(p.form==='shrub'){
+    for(let i=0;i<n;i++){
+      const angle=rand(3,1)*TAU+i*GOLDEN,dir=azimuth(angle),base=times(dir,.025+.071*rand(i,2));
+      const tall=lerp(.56,.87,rand(i,3)),reach=(.19+.52*spread)*lerp(.99,.44,(tall-.56)/.31);
+      const stem=[base];
+      for(let j=1;j<=4;j++){
+        const t=j/4,point=along(base,dir,reach*t**1.4);
+        point[1]=tall*t;
+        stem.push(along(point,azimuth(angle+Math.PI/2),kink*.075*Math.sin(Math.PI*t)*(rand(i,7)-.5)));
+      }
+      const radius=.009+.015*thick;
+      const radii=[1,.82,.60,.41,.18].map(r=>radius*r);
+      mesh.sleeves.push({points:stem,radii,grounded:true,surface:openSleeve(stem,radii,6,true)});
+      const sprays=Math.round(4+4*b);
+      for(let j=0;j<sprays;j++){
+        const id=103+i*64+j,t=.27+.73*j/(sprays-1);
+        const out=azimuth(angle+(j%2?-1:1)*lerp(.33,1.75,rand(id,3)));
+        leafFan(sampleStem(stem,t),out,(.31+.21*spread)*lerp(.78,1.10,rand(id,8))*(1-.3*t),.47,id,j%2,t);
+      }
     }
   }
   else for(let stem=0;stem<n;stem++){
@@ -13133,14 +13169,17 @@ function makePlant(p,withPreview=false) {
       const joint=0.024*kink*(1-0.74*pine)*Math.sin(Math.PI*t)*stature;
       let point=along(base,rad,lean*t*(0.55+0.45*t)+wobble*Math.sin(Math.PI*t)*(2*rand(id,4)-1)+joint*(2*rand(id+20,j)-1));
       point=along(point,side,wobble*elbow+joint*(2*rand(id+21,j)-1));point[1]=top*t;
-      path.push(point);radii.push(stemRadius*(0.055+0.945*(1-t)**0.82)*(1+0.13*(1-t)**7));
+      path.push(point);
+      const taper=p.form==='palm'?.73+.27*(1-t)**5+.09*t**8:.055+.945*(1-t)**0.82;
+      radii.push(stemRadius*taper*(1+0.13*(1-t)**7));
     }
     mesh.sleeves.push({points:path,radii,grounded:true,surface:openSleeve(path,radii,6,true)});
     if(p.form==='palm'){
-      for(let i=0;i<18;i++){
-        const angle=phase+i*GOLDEN,dir=azimuth(angle);
-        dir[1]=lerp(-.18,.65,i/18);
-        card(sampleStem(path,.93+.07*i/18),dir,.36+.12*rand(i,54),.38,(rand(i,55)-.5)*.45,-.22,0,i%4,i);
+      for(let i=0;i<23;i++){
+        const tier=i/22,angle=phase+i*GOLDEN,dir=azimuth(angle);
+        dir[1]=lerp(-.62,1.20,tier**1.5)+(rand(i,53)-.5)*.37;
+        const length=(.37+.25*spread)*lerp(1.10,.62,tier)*(.86+.25*rand(i,54));
+        card(sampleStem(path,.945+.055*tier),dir,length,.45,(rand(i,55)-.5)*.86,.33-.11*tier,.09*(rand(i,56)-.5),i%2,i);
       }
       continue;
     }
@@ -13241,27 +13280,23 @@ function makePlant(p,withPreview=false) {
       }
     }
   }
-  // Three spans along the twig join the two opposite atlas corners.
+  // Three spans along the twig join the two opposite corners.
   const faces=[0,4,1,1,4,2,2,4,3,0,1,5,1,2,5,2,3,5];
   const corners=[[0,0],[1/3,1/3],[2/3,2/3],[1,1],[1,0],[0,1]];
   const positions=[],indices=[],uv=[],cardPoints=[],cardUV=[];
   let high=0;
   function measure(y){high=Math.max(high,y);}
   for(const shell of mesh.sleeves)for(let j=1;j<shell.surface.pos.length;j+=3)measure(shell.surface.pos[j]);
-  const habit=family(p);
+  for(const point of patchCards)measure(point[1]);
   for(let i=0;i<mesh.cards.length;i+=16){
     const d=mesh.cards,up=norm(cross(d.slice(i+4,i+7),d.slice(i+8,i+11)));
-    const top=d[i+1],distance=Math.hypot(d[i],d[i+2]);
-    const shade=habit==='pine'?d[i+7]<0.99:top*0.48+distance*0.69+(d[i+7]-0.82)*1.9<0.76;
-    const tile=garden[p.form]||p.form==='palm'||habit==='mixed'?d[i+3]:(d[i+3]%2)+(shade?2:0);
     for(const [u,v] of corners){
       const t=(u+v)*0.5,s=v-u;
       const bend=4*t*(1-t),warp=d[i+11]*s*t+d[i+15]*s*s;
       const point=[0,1,2].map(k=>d[i+k]+d[i+4+k]*t+d[i+8+k]*s+d[i+12+k]*bend+up[k]*warp);
       cardPoints.push(...point);measure(point[1]);
-      // Match the two-pixel gutter and Frame's imported, top-left image coordinates.
-      const margin=2/tileSize,local=x=>margin+x*(1-2*margin);
-      cardUV.push(((tile&1)+local(u))*0.5,((tile>>1)+local(1-v))*0.5);
+      // Swap across the twig axis for an alternate silhouette from the same image.
+      cardUV.push(d[i+3]%2?v:u,1-(d[i+3]%2?u:v));
     }
   }
   const scale=1000*p.height*age/high;
@@ -13294,8 +13329,17 @@ function makePlant(p,withPreview=false) {
   for(let i=0;i<cardPoints.length/3;i+=cardVertexCount)for(const j of faces){
     indices.push(base+i+j);uv.push(cardUV[(i+j)*2],cardUV[(i+j)*2+1]);
   }
+  for(let i=0;i<patchCards.length;i+=4){
+    const at=positions.length/3;
+    for(const point of patchCards.slice(i,i+4))positions.push(...times(point,scale));
+    for(const j of [0,1,2,0,2,3]){
+      indices.push(at+j);
+      const u=j===1||j===2?1:0;
+      uv.push(i%8===0?u:1-u,j<2?1:0);
+    }
+  }
   const triangleCount=indices.length/3;
-  const preview=withPreview?makePlantPreview(mesh.sleeves,cardPoints,cardUV,scale,wood):null;
+  const preview=withPreview&&!patch?makePlantPreview(mesh.sleeves,cardPoints,cardUV,scale,wood):null;
   return {vertices:Float32Array.from(positions),indices:Uint32Array.from(indices),uv:Float32Array.from(uv),nativeExact:true,preview,
     vertexCount:positions.length/3,triangleCount,baseMaterial:wood?0:1,ranges:[{start:0,count:wood,material:0},{start:wood,count:triangleCount-wood,material:1}]};
 }
@@ -13552,18 +13596,15 @@ const materialWGSL = /* wgsl */ `
       struct Patch {
         @builtin(position) position: vec4f,
         @location(0) local: vec2f,
-        @location(1) @interpolate(flat) axisLength: vec4f,
+        @location(1) @interpolate(flat) length: vec2f,
         @location(2) @interpolate(flat) profile: vec4f,
         @location(3) @interpolate(flat) appearance: vec4f,
-        @location(4) @interpolate(flat) tangent: vec3f,
-        @location(5) @interpolate(flat) bitangent: vec3f,
       };
-      struct Maps { @location(0) albedo: vec4f, @location(1) normal: vec4f };
       @group(0) @binding(0) var<storage, read> shapes: array<Shape>;
-      @group(0) @binding(1) var<uniform> atlasScale: vec4f; // texel width, usable tile width, blade profile, tile size
+      @group(0) @binding(1) var<uniform> foliageScale: vec4f; // Texel width and blade profile
 
       // Pose contains cosine and sine for pitch, followed by cosine and sine for roll.
-      // Both projection and relief use this orthonormal frame in card tangent space.
+      // Project pitched and rolled leaves into the cutout silhouette.
       fn surfaceFrame(axis: vec2f, pose: vec4f) -> mat3x3f {
         let tangent = vec3f(axis * pose.x, pose.y);
         let across = vec3f(-axis.y, axis.x, 0);
@@ -13583,25 +13624,19 @@ const materialWGSL = /* wgsl */ `
         let slice = vertex >> 1u;
         var local: vec2f;
         if (s.profile.z != 1) {
-          let pad = radius + 2.0 * atlasScale.x;
-          local = vec2f(select(-pad, len + pad, slice > 0u), side * (radius + 3.0 * atlasScale.x));
+          let pad = radius + 2.0 * foliageScale.x;
+          local = vec2f(select(-pad, len + pad, slice > 0u), side * (radius + 3.0 * foliageScale.x));
         } else {
           // Conservative slices of the serrated outline: axial position, half-width, midrib offset.
           let sections = array<vec3f, 5>(vec3f(0, 0.19, 0), vec3f(0.18, 0.95, 0.536),
             vec3f(0.48, 1.18, 0.998), vec3f(0.78, 0.69, 0.637), vec3f(1, 0.07, 0));
           let section = sections[slice];
-          let pad = select(0.0, -2.5 * atlasScale.x, slice == 0u) + select(0.0, 2.5 * atlasScale.x, slice == 4u);
+          let pad = select(0.0, -2.5 * foliageScale.x, slice == 0u) + select(0.0, 2.5 * foliageScale.x, slice == 4u);
           let center = radius * (s.appearance.w - 0.5) * 0.52 * section.z;
-          local = vec2f(section.x * len + pad, center + side * (radius * section.y + 3.0 * atlasScale.x));
+          local = vec2f(section.x * len + pad, center + side * (radius * section.y + 3.0 * foliageScale.x));
         }
         let uv = s.ends.xy + local.x * frame[0].xy + local.y * frame[1].xy;
-        return Patch(vec4f(uv * 2.0 - 1.0, 0.0, 1.0), local, vec4f(axis, len, 1.0 / len),
-                     s.profile, s.appearance, frame[0], frame[1]);
-      }
-
-      fn pack(color: vec3f, normal: vec3f, alpha: f32) -> Maps {
-        return Maps(vec4f(pow(clamp(color, vec3f(0), vec3f(1)), vec3f(2.2)) * alpha, alpha),
-                    vec4f((normal * 0.5 + 0.5) * alpha, alpha));
+        return Patch(vec4f(uv * 2.0 - 1.0, 0.0, 1.0), local, vec2f(len, 1.0 / len), s.profile, s.appearance);
       }
 
       fn hash(cell: vec2f) -> f32 {
@@ -13618,11 +13653,11 @@ const materialWGSL = /* wgsl */ `
                    mix(hash(cell + vec2f(0, 1)), hash(cell + vec2f(1, 1)), t.x), t.y);
       }
 
-      fn bark(p: vec2f, len: f32, axis: vec2f, across: vec2f, s: Patch) -> Maps {
+      fn bark(p: vec2f, len: f32, s: Patch) -> vec4f {
         let x = clamp(p.x, 0.0, len);
-        let radius = mix(s.profile.x, s.profile.y, x * s.axisLength.w);
+        let radius = mix(s.profile.x, s.profile.y, x * s.length.y);
         let radial = vec2f(p.x - x, p.y);
-        let aa = 0.75 * atlasScale.x;
+        let aa = 0.75 * foliageScale.x;
         let distance = length(radial);
         let alpha = smoothstep(-aa, aa, distance + radius) - smoothstep(-aa, aa, distance - radius);
         if (alpha <= 0.0) { discard; }
@@ -13632,20 +13667,15 @@ const materialWGSL = /* wgsl */ `
         let fiber = grain(vec2f(u * 10.0 + phase, axial * 37.0));
         let pore = grain(vec2f(u * 24.0 - phase, axial * 185.0));
         let color = mix(vec3f(0.28, 0.195, 0.127), vec3f(0.57, 0.42, 0.27), fiber * 0.74 + pore * 0.25);
-        // Overlapping segments share a cylindrical normal. Round only the free tip.
-        let endBevel = select(0.0, max(0.0, radial.x), s.profile.w > 0.5);
-        let bevel = clamp(vec2f(endBevel, radial.y) / radius, vec2f(-1), vec2f(1));
-        let n = normalize(vec3f(across * (bevel.y + (fiber - 0.5) * 0.16) + axis * (bevel.x + (pore - 0.5) * 0.13),
-                                 sqrt(max(0.036, 1.0 - dot(bevel, bevel)))));
-        return pack(color, n, alpha);
+        return vec4f(color * alpha, alpha);
       }
 
       fn bladeProfile(t: f32, width: f32, seed: f32) -> vec2f {
         var lobe = pow(max(0.0, sin(PI * pow(t, 0.79))), 0.82);
-        if(atlasScale.z==1.0){
+        if(foliageScale.z==1.0){
           let lobes=0.70+0.30*cos((4.8*t+seed*0.12)*2.0*PI);
           lobe*=mix(1.0,lobes,smoothstep(0.04,0.22,t)*(1.0-smoothstep(0.80,1.0,t)));
-        }else if(atlasScale.z==2.0){
+        }else if(foliageScale.z==2.0){
           lobe=min(lobe,1.22*min(t/0.24,(1.0-t)/0.76));
         }
         let teeth = 1.0 + 0.057 * sin((12.0 * t + seed) * 2.0 * PI + sin(t * 19.0));
@@ -13690,15 +13720,13 @@ const materialWGSL = /* wgsl */ `
         let color = mix(mix(young, summer, s.appearance.y), fall, autumn);
         let veins = 0.22 * relief.y + 0.11 * relief.z;
         let variation = 0.84 + 0.16 * mottle + 0.097 * fleck - relief.w * 0.09;
-        let sky=select(vec3f(0.81,0.91,0.91),vec3f(1.13,1.08,0.94),s.position.y<atlasScale.w);
-        return color * sky * variation + veins * vec3f(0.36, 0.37, 0.18);
+        return color * variation + veins * vec3f(0.36, 0.37, 0.18);
       }
 
-      @fragment fn patchFragment(s: Patch) -> Maps {
-        let axis = s.axisLength.xy;
-        let len = s.axisLength.z;
+      @fragment fn patchFragment(s: Patch) -> @location(0) vec4f {
+        let len = s.length.x;
         let p = s.local;
-        let t = clamp(p.x * s.axisLength.w, 0.0, 1.0);
+        let t = clamp(p.x * s.length.y, 0.0, 1.0);
         var dist = 0.0;
         var relief = vec4f(0);
         if (s.profile.z == 1) {
@@ -13707,41 +13735,22 @@ const materialWGSL = /* wgsl */ `
           dist = max(abs(y) - profile.x, max(-p.x, p.x - len));
           relief = leafRelief(t, y, profile, s.profile.x, s.appearance.w, s.profile.w);
         }
-        // Raster Y points down, while the card's V axis points up. Evaluate quad derivatives before any discard.
-        let slope = vec2f(dpdxFine(relief.x), -dpdyFine(relief.x)) * atlasScale.y;
-        let aa = max(0.45 * atlasScale.x, 0.5 * fwidth(dist));
-        if (s.profile.z == 0) { return bark(p, len, axis, vec2f(-axis.y, axis.x), s); }
+        let aa = max(0.45 * foliageScale.x, 0.5 * fwidth(dist));
+        if (s.profile.z == 0) { return bark(p, len, s); }
 
         if (s.profile.z == 2) {
           let width = s.profile.x * (0.26 + 0.74 * sin(PI * pow(t, 0.79)));
           let d = max(abs(p.y) - width, max(-p.x, p.x - len));
-          let feather = 0.7 * atlasScale.x;
+          let feather = 0.7 * foliageScale.x;
           let cover = 1.0 - smoothstep(-feather, feather, d);
           if (cover <= 0.0) { discard; }
           let r = clamp(p.y / max(width, 0.0001), -1.0, 1.0);
-          let n = normalize(s.bitangent * (0.71 * r) + cross(s.tangent, s.bitangent) * (1.0 - 0.38 * abs(r)));
-          let young = smoothstep(0.52, 1.0, s.appearance.z) * (0.42 + 0.45 * s.appearance.y);
-          let base = mix(vec3f(0.205, 0.39, 0.305), vec3f(0.36, 0.535, 0.382), s.appearance.x);
-          let color = mix(base, vec3f(0.49, 0.66, 0.44), young * 0.62) * (0.89 + 0.11 * (1.0 - abs(r)));
-          return pack(color, n, cover);
-        }
-        if (s.profile.z >= 3.) {
-          let width = mix(s.profile.x, s.profile.y, t);
-          let blade = width * pow(max(0., sin(PI*t)), .66);
-          let radius = select(width, blade, s.profile.w > 0.);
-          let distance = max(abs(p.y) - radius, max(-p.x, p.x - len));
-          let coverage = 1. - smoothstep(-atlasScale.x, atlasScale.x, distance);
-          if (coverage <= 0.) { discard; }
-          let ridge = clamp(p.y / max(radius, atlasScale.x), -1., 1.);
-          let n = normalize(s.bitangent * (.63 * ridge) + cross(s.tangent, s.bitangent));
-          let tint = s.appearance.rgb * (.74 + .26 * (1. - abs(ridge)) + .10 * t);
-          return pack(tint, n, coverage);
+          let shade = mix(vec3f(.11,.143,.046),vec3f(.19,.252,.112),s.appearance.x)*(.73+.28*(1.-abs(r))+.13*t);
+          return vec4f(shade * cover, cover);
         }
         let alpha = 1.0 - smoothstep(-aa, aa, dist);
         if (alpha <= 0.0) { discard; }
-        let tilt = -0.82 * vec2f(dot(slope, s.tangent.xy), dot(slope, s.bitangent.xy));
-        let normal = normalize(s.tangent * tilt.x + s.bitangent * tilt.y + cross(s.tangent, s.bitangent));
-        return pack(leafColor(p, t, s, relief), normal, alpha);
+        return vec4f(leafColor(p,t,s,relief)*alpha, alpha);
       }
     `;
 
@@ -13795,56 +13804,119 @@ function needlePatches(variant,day,density,slender,thickness) {
   return Float32Array.from([...wood,...needles]);
 }
 
-const tileSize=384,atlasSize=tileSize*2;
-const variants=[0,139,61,233].map(broadGenerator);
-const atlasDevices=new WeakMap();
-function gardenPatches(p,tile){
-  const data=[],rand=(i,k)=>noise(213+143*tile,i,k),density=p.density/100;
+const foliageSize=384,broadPatch=broadGenerator(0),foliageDevices=new WeakMap();
+async function gardenFoliage(p){
+  const canvas=new OffscreenCanvas(foliageSize,foliageSize),ctx=canvas.getContext('2d');
+  ctx.setTransform(foliageSize,0,0,-foliageSize,0,foliageSize);
+  const rand=(i,k)=>noise(213,i,k),density=p.density/100,palm=p.form==='palm';
   const season=.5+.5*Math.cos((p.day-174)*TAU/365);
-  const green=[lerp(.53,.25,season),lerp(.48,.56,season),.13];
-  const flowers={daisy:[.97,.96,.83],poppy:[.91,.18,.16],lavender:[.61,.39,.80],iris:[.48,.45,.86]};
-  const uv=(t,s)=>[t+s*.5,t-s*.5].map(v=>Math.max(.012,Math.min(.988,v)));
-  function draw(a,b,width,tip,color,blade=true){
-    if(Math.hypot(b[0]-a[0],b[1]-a[1])<.003)return;
-    data.push(...a,...b,width,tip,3,Number(blade),...color,0,1,0,1,0);
+  function green(id,value=0){
+    const dry=1-season,shade=rand(id,12);
+    return 'hsl('+lerp(palm?91:98,49,dry*.88+shade*.11)+' '+(25+18*shade)+'% '+(19+14*shade+8*dry+value)+'%)';
   }
-  const longGrass=p.form==='tall-grass';
-  const stems=p.form==='palm'||p.form==='fern'?1:p.form==='shrub'?4:longGrass?5:7;
-  for(let i=0;i<stems;i++){
-    if(rand(i,8)>=density)continue;
-    const end=stems===1?.96:.56+.35*rand(i,0);
-    const sway=stems===1?.07*(2*rand(i,3)-1):(.10+.32*rand(i,1))*(i%2?1:-1);
-    const curve=t=>uv(end*t,.014*(i%3-1)*(1-t)+sway*t**1.55);
-    const grass=p.form==='grass'||longGrass,flare=p.form==='shrub',bloom=flowers[p.form];
-    const width=grass?.016+.024*rand(i,7):flare?.008:.005;
-    for(let j=0;j<6;j++){
-      const t=j/6,next=(j+1)/6;
-      draw(curve(t),curve(next),width*(1-.95*t),width*(1-.95*next),green,false);
+  function stem(a,b,c,width,color){
+    ctx.beginPath();ctx.moveTo(...a);ctx.quadraticCurveTo(...b,...c);
+    ctx.strokeStyle=color;ctx.lineCap='round';ctx.lineWidth=width;ctx.stroke();
+  }
+  function blade(a,b,width,curve,base,tip){
+    const dx=b[0]-a[0],dy=b[1]-a[1],d=Math.hypot(dx,dy),u=-dy/d,v=dx/d;
+    const [x,y]=a,[ex,ey]=b;
+    const pigment=ctx.createLinearGradient(x,y,ex,ey);
+    pigment.addColorStop(0,base);pigment.addColorStop(1,tip);
+    ctx.beginPath();ctx.moveTo(x,y);
+    ctx.bezierCurveTo(x+.26*dx+u*(width+curve),y+.26*dy+v*(width+curve),
+      x+.76*dx+u*(width*.62+curve),y+.76*dy+v*(width*.62+curve),ex,ey);
+    ctx.bezierCurveTo(x+.64*dx+u*(curve-width*.56),y+.64*dy+v*(curve-width*.56),
+      x+.21*dx+u*(curve-width),y+.21*dy+v*(curve-width),x,y);
+    ctx.fillStyle=pigment;ctx.fill();
+  }
+  function disk(x,y,rx,ry,color){
+    ctx.beginPath();ctx.ellipse(x,y,rx,ry,0,0,TAU);ctx.fillStyle=color;ctx.fill();
+  }
+  function bloom(x,y,id){
+    const tilt=.39+rand(id,15)*.56,phase=rand(id,9)*TAU;
+    if(p.form==='lavender'){
+      stem([x,y-.041],[x-.004,y+.041],[x+.009,y+.119],.004,green(id));
+      for(let row=0;row<8;row++)for(const flip of [-1,1]){
+        const t=row/8,reach=.045*(1-.67*t),a=[x+.008*t,y+.105*t];
+        blade(a,[a[0]+reach*flip,a[1]+.013],.013*(1-.48*t),flip*.004,'#554360',row%2?'#a98ab8':'#8b70ab');
+      }
+      return;
     }
-    if(grass&&!longGrass)continue;
-    const pairs=p.form==='palm'?18:p.form==='fern'?12:longGrass?4:flare?8:3;
-    for(let j=0;j<pairs;j++)for(const sign of [-1,1]){
-      if(rand(30+i*pairs+j,sign+5)>density)continue;
-      const along=lerp(.18,bloom?.62:.94,(j+.5)/pairs),t=end*along,s=sway*along**1.55;
-      const fan=Math.sin(Math.PI*along)**.77;
-      const width=(p.form==='palm'?.62:p.form==='fern'?.55:flare?.33:.21)*fan*(.76+.28*rand(i*13+j,sign+3));
-      const leaf=p.form==='palm'?.013:p.form==='fern'?.020:flare?.043:.022;
-      draw(curve(along),uv(t+(p.form==='palm'?.11:.065)+.06*rand(j,4),s+sign*width),leaf,leaf*.55,green);
+    if(p.form==='iris'){
+      for(let petal=0;petal<3;petal++){
+        const a=petal*TAU/3+phase,side=Math.cos(a),lift=Math.sin(a);
+        blade([x,y],[x+.067*side,y+.049+.039*lift],.037,.012*side,'#dbc0e4','#694397');
+        blade([x,y],[x+.103*side,y-.036+.034*lift],.031,-.009*side,'#ad85c4','#51407e');
+        stem([x,y-.004],[x+.020*side,y-.007],[x+.040*side,y-.014+.014*lift],.006,'#dbb96d');
+      }
+      return;
     }
-    if(!bloom||season<.30)continue;
-    const head=curve(.96),petals=p.form==='daisy'?11:p.form==='iris'?5:6;
-    const layers=p.form==='lavender'?4:1;
-    for(let row=0;row<layers;row++){
-      const center=layers===1?head:curve(.97-row*.055);
-      for(let k=0;k<petals;k++){
-        const a=TAU*k/petals+rand(i,6),radius=p.form==='poppy'?.105:p.form==='lavender'?.041:.077;
-        const tip=center.map((v,l)=>Math.max(.025,Math.min(.975,v+radius*(l?Math.sin(a):Math.cos(a)))));
-        draw(center,tip,radius*(p.form==='daisy'?.21:.48),radius*.19,bloom);
+    const daisy=p.form==='daisy',count=daisy?13:4,r=(daisy?.071:.093)*(.82+.27*rand(id,14));
+    for(let k=0;k<count;k++){
+      const a=phase+k*TAU/count,side=Math.cos(a),lift=Math.sin(a);
+      blade([x,y],[x+r*side,y+r*tilt*lift+(daisy?0:.020)],daisy?.017:r*.60,r*side*.09,daisy?'#d8d0ad':'#842a27',
+        daisy?(k%2?'#f2eddb':'#e9e4d4'):(k%2?'#c75643':'#d06753'));
+    }
+    disk(x,y,r*(daisy?.27:.23),r*.22*tilt,daisy?'#ac762c':'#352e32');
+    for(let k=0;k<10;k++){
+      const a=k*GOLDEN,d=r*.17*Math.sqrt(k/10);
+      disk(x+Math.cos(a)*d,y+Math.sin(a)*d*tilt,.0026,.0022,daisy?'#dfac49':'#82734e');
+    }
+  }
+  if(palm||p.form==='fern'){
+    const axis=t=>[.021+.943*t+.022*Math.sin(Math.PI*t),.021+.943*t-.026*Math.sin(Math.PI*t)];
+    const count=palm?24:19;
+    stem(axis(0),[.52,.45],axis(1),palm?.017:.012,palm?'#68713d':'#687848');
+    for(let i=0;i<count;i++)for(const sign of [-1,1]){
+      const id=i*2+(sign+1)/2;if(rand(id,8)>=density)continue;
+      const f=(i+.22+.42*rand(id,0))/count,t=lerp(palm?.21:.14,.958,f),root=axis(t);
+      const reach=(palm?.34:.32)*Math.sin(Math.PI*f**.81)**.83*(.85+.18*rand(id,3));
+      const advance=(palm?.09:.060)*(1-.54*f),tip=[root[0]+advance+reach*sign,root[1]+advance-reach*sign];
+      if(palm){
+        blade(root,tip,.014*(.85+.25*rand(id,5)),.019*sign,green(id),green(id,11));
+        stem(root,[(root[0]+tip[0])*.5+.007,(root[1]+tip[1])*.5+.007],tip,.0016,green(id,16));
+      }else{
+        stem(root,[lerp(root[0],tip[0],.47),lerp(root[1],tip[1],.47)],tip,.004,green(id,9));
+        for(let k=0;k<6;k++)for(const side of [-1,1]){
+          const at=(k+.42)/6,a=[lerp(root[0],tip[0],at),lerp(root[1],tip[1],at)];
+          const spread=(.021+.020*(1-f))*Math.sin(Math.PI*at)**.62;
+          blade(a,[a[0]+side*spread+sign*.025,a[1]+side*spread-sign*.025],.0075*(1-.53*at),side*.004,green(id),green(id,9));
+        }
       }
     }
-    if(layers===1)draw([head[0]-.011,head[1]],[head[0]+.012,head[1]],.017,.017,p.form==='poppy'?[.19,.10,.14]:[.97,.69,.12]);
+  }else{
+    const grass=p.form==='grass'||p.form==='tall-grass',tall=p.form==='tall-grass';
+    const count=grass?(tall?17:36):9;
+    for(let i=0;i<count;i++){
+      if(rand(i,8)>=density)continue;
+      const root=[.06+.88*(i+rand(i,1))/count,.008+.034*rand(i,3)];
+      const reach=(rand(i,0)-.5)*(grass?.45:.19);
+      const top=[Math.max(.025,Math.min(.975,root[0]+reach)),(grass&&!tall?.36:.52)+(grass&&!tall?.58:.35)*rand(i,2)];
+      const mid=[lerp(root[0],top[0],.24),lerp(root[1],top[1],.60)];
+      if(grass){
+        const width=(tall?.020:.019)*(.49+rand(i,4));
+        blade(root,top,width,reach*.31,green(i,-6),green(i,tall?8:13));
+        stem(root,mid,top,.0015,green(i,9));
+        if(tall&&i%3===0)for(let k=0;k<8;k++){
+          const at=.73+k*.030,base=[lerp(mid[0],top[0],at),lerp(mid[1],top[1],at)];
+          blade(base,[base[0]+(k%2?-1:1)*(.032-.002*k),base[1]+.035+rand(i*8+k,5)*.016],.008,.005,'#82704e','#b4a27c');
+        }
+        continue;
+      }
+      const rise=top[1]-root[1],sword=p.form==='iris';
+      stem(root,mid,top,.005,green(i,-2));
+      const leaves=sword?5:p.form==='lavender'?7:4;
+      for(let k=0;k<leaves;k++){
+        const flip=k%2?-1:1,f=(k+.35)/leaves;
+        const a=[lerp(root[0],top[0],f*f),root[1]+rise*(sword?.13:.12+.55*f)];
+        const b=[Math.max(.014,Math.min(.986,a[0]+flip*(.052+.06*rand(i*8+k,10)))),a[1]+rise*(sword?.58:.14+.12*rand(i*8+k,11))];
+        blade(a,b,p.form==='poppy'?.023:.012,flip*.021,green(i,-4),green(i,8));
+      }
+      if(season>.30)bloom(top[0],top[1],i);
+    }
   }
-  return data;
+  return new Uint8Array(await (await canvas.convertToBlob({type:'image/png'})).arrayBuffer());
 }
 async function encodePixels(bytes,width,height){
   const canvas=new OffscreenCanvas(width,height);
@@ -13875,81 +13947,81 @@ function bark(){
   barkImages=Promise.all([encodePixels(color,size,size),encodePixels(normal,size,size)]).catch(e=>{barkImages=null;throw e;});
   return barkImages;
 }
-async function atlasPipelines(device){
-  const shader=device.createShaderModule({label:'Tree branch maps',code:materialWGSL});
-  const resolve=device.createShaderModule({label:'Tree map encoding',code:`
+async function foliagePipelines(device){
+  const shader=device.createShaderModule({label:'Plant foliage',code:materialWGSL});
+  const resolve=device.createShaderModule({label:'Plant cutout encoding',code:`
     @group(0) @binding(0) var pigment:texture_2d<f32>;
-    @group(0) @binding(1) var normals:texture_2d<f32>;
-    struct Maps {@location(0) albedo:vec4f,@location(1) normal:vec4f}
     @vertex fn vertex(@builtin(vertex_index) i:u32)->@builtin(position) vec4f {
       return vec4f(vec2f(f32((i<<1u)&2u),f32(i&2u))*2.-1.,0.,1.);
     }
-    @fragment fn fragment(@builtin(position) p:vec4f)->Maps{
-      let at=vec2i(p.xy);let c=textureLoad(pigment,at,0);let n=textureLoad(normals,at,0);
-      if(c.a<0.001){return Maps(vec4f(0),vec4f(0.5,0.5,1,1));}
-      let v=normalize(n.rgb/max(n.a,0.001)*2.-1.)*vec3f(1,-1,1);
-      return Maps(vec4f(c.rgb/c.a,c.a),vec4f(v*0.5+0.5,1));
+    @fragment fn fragment(@builtin(position) p:vec4f)->@location(0) vec4f{
+      let c=textureLoad(pigment,vec2i(p.xy),0);
+      return vec4f(c.rgb/max(c.a,.001),c.a);
     }`});
-  const formats=['rgba8unorm-srgb','rgba8unorm'],over={srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'};
+  const format='rgba8unorm-srgb',over={srcFactor:'one',dstFactor:'one-minus-src-alpha',operation:'add'};
   const [patch,finish]=await Promise.all([
     device.createRenderPipelineAsync({layout:'auto',primitive:{topology:'triangle-strip'},vertex:{module:shader,entryPoint:'patchVertex'},
-      fragment:{module:shader,entryPoint:'patchFragment',targets:formats.map(format=>({format,blend:{color:over,alpha:over}}))}}),
+      fragment:{module:shader,entryPoint:'patchFragment',targets:[{format,blend:{color:over,alpha:over}}]}}),
     device.createRenderPipelineAsync({layout:'auto',vertex:{module:resolve,entryPoint:'vertex'},
-      fragment:{module:resolve,entryPoint:'fragment',targets:formats.map(format=>({format}))}})
+      fragment:{module:resolve,entryPoint:'fragment',targets:[{format}]}})
   ]);
-  return {patch,finish,formats};
+  return {patch,finish,format};
 }
-async function renderAtlas(device,p,pipelines){
-  const {patch,finish,formats}=await pipelines,resources=[],keep=r=>(resources.push(r),r);
+async function renderFoliage(device,p,pipelines){
+  const {patch,finish,format}=await pipelines,resources=[],keep=r=>(resources.push(r),r);
   try{
-    const patches=[],draws=[],kind=family(p);
-    for(let tile=0;tile<4;tile++){
-      const pine=kind==='pine'||kind==='mixed'&&tile>=2;
-      const data=garden[p.form]||p.form==='palm'?gardenPatches(p,tile):pine?needlePatches(kind==='mixed'?tile-2:tile,p.day,p.density/100,p.thinness/100,p.twigThickness/100)
-        :variants[tile]({growth:p.growth/100,day:p.day,branchiness:[0.81,0.72,0.75,0.64][tile],angularity:[0.51,0.65,0.45,0.58][tile],
-          thickness:p.twigThickness/100,thinness:p.thinness/100,density:p.density/100});
-      draws.push({start:patches.length/16,count:data.length/16});
-      for(const v of data)patches.push(v);
-    }
+    const density=p.density/100,thinness=p.thinness/100,thickness=p.twigThickness/100;
+    const conifer=ease(16,89,p.habit);
+    const deciduous=conifer<1?broadPatch({growth:p.growth/100,day:p.day,branchiness:p.form==='shrub'?.92:.81,angularity:.58,
+      thickness,thinness,density:density*(1-conifer)}):null;
+    const needles=conifer>0?needlePatches(0,p.day,density*conifer,thinness,thickness):null;
+    const data=new Float32Array((needles?.length||0)+(deciduous?.length||0));
+    if(needles)data.set(needles);
+    if(deciduous)data.set(deciduous,needles?.length||0);
     const buffer=(size,usage)=>keep(device.createBuffer({size,usage}));
-    const data=Float32Array.from(patches),instances=buffer(Math.max(64,data.byteLength),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
+    const instances=buffer(Math.max(64,data.byteLength),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST);
     if(data.length)device.queue.writeBuffer(instances,0,data);
     const scale=buffer(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
-    device.queue.writeBuffer(scale,0,new Float32Array([1/(tileSize-4),tileSize-4,p.form==='oak'?1:p.form==='poplar'?2:0,tileSize]));
-    const maps=usage=>formats.map(format=>keep(device.createTexture({size:[atlasSize,atlasSize],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|usage})));
-    const sources=maps(GPUTextureUsage.TEXTURE_BINDING),outputs=maps(GPUTextureUsage.COPY_SRC);
-    const encoder=device.createCommandEncoder(),passFor=maps=>encoder.beginRenderPass({colorAttachments:maps.map(t=>({
-      view:t.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}))});
-    const pass=passFor(sources);pass.setPipeline(patch);
+    device.queue.writeBuffer(scale,0,new Float32Array([1/foliageSize,0,p.form==='oak'?1:p.form==='poplar'?2:0,0]));
+    const image=usage=>keep(device.createTexture({size:[foliageSize,foliageSize],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|usage}));
+    const source=image(GPUTextureUsage.TEXTURE_BINDING),output=image(GPUTextureUsage.COPY_SRC);
+    const encoder=device.createCommandEncoder(),passFor=texture=>encoder.beginRenderPass({colorAttachments:[{
+      view:texture.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}]});
+    const pass=passFor(source);pass.setPipeline(patch);
     pass.setBindGroup(0,device.createBindGroup({layout:patch.getBindGroupLayout(0),entries:[
       {binding:0,resource:{buffer:instances}},{binding:1,resource:{buffer:scale}}]}));
-    draws.forEach(({start,count},tile)=>{
-      const x=(tile&1)*tileSize+2,y=(tile>>1)*tileSize+2;
-      pass.setViewport(x,y,tileSize-4,tileSize-4,0,1);pass.setScissorRect(x,y,tileSize-4,tileSize-4);
-      if(count)pass.draw(10,count,0,start);
-    });
+    if(data.length)pass.draw(10,data.length/16);
     pass.end();
-    const straight=passFor(outputs);straight.setPipeline(finish);
-    straight.setBindGroup(0,device.createBindGroup({layout:finish.getBindGroupLayout(0),entries:sources.map((t,binding)=>({binding,resource:t.createView()}))}));
+    const straight=passFor(output);straight.setPipeline(finish);
+    straight.setBindGroup(0,device.createBindGroup({layout:finish.getBindGroupLayout(0),entries:[{binding:0,resource:source.createView()}]}));
     straight.draw(3);straight.end();
-    const bytes=atlasSize*atlasSize*4,read=buffer(bytes*2,GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST);
-    outputs.forEach((texture,i)=>encoder.copyTextureToBuffer({texture},{buffer:read,offset:bytes*i,bytesPerRow:atlasSize*4},[atlasSize,atlasSize]));
+    const side=foliageSize,read=buffer(side*side*4,GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST);
+    encoder.copyTextureToBuffer({texture:output},{buffer:read,bytesPerRow:side*4},[side,side]);
     device.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ);
-    const pixels=new Uint8Array(read.getMappedRange());
-    return await Promise.all([0,1].map(i=>encodePixels(pixels.subarray(i*bytes,(i+1)*bytes),atlasSize,atlasSize)));
+    return await encodePixels(new Uint8Array(read.getMappedRange()),side,side);
   }finally{for(const r of resources)r.destroy();}
 }
-function bakeAtlas(device,p){
-  let state=atlasDevices.get(device);
-  if(!state){state={pipelines:atlasPipelines(device),cache:new Map()};atlasDevices.set(device,state);}
-  const key=atlasKey(p),cache=state.cache;
+function foliageDevice(device){
+  let state=foliageDevices.get(device);
+  if(!state){state={pipelines:null,cache:new Map()};foliageDevices.set(device,state);}
+  return state;
+}
+function warmFoliage(device){
+  const state=foliageDevice(device);
+  return state.pipelines??=foliagePipelines(device).catch(error=>{state.pipelines=null;throw error;});
+}
+function bakeFoliage(device,p){
+  const {cache}=foliageDevice(device),key=foliageKey(p);
   let result=cache.get(key);
   if(result)cache.delete(key);
-  else result=Promise.all([bark(),renderAtlas(device,p,state.pipelines)]).catch(error=>{cache.delete(key);throw error;});
+  else{
+    const draw=usesGardenFoliage(p.form)?gardenFoliage(p):renderFoliage(device,p,warmFoliage(device));
+    result=draw.then(color=>[color]).catch(error=>{if(cache.get(key)===result)cache.delete(key);throw error;});
+  }
   cache.set(key,result);if(cache.size>8)cache.delete(cache.keys().next().value);
   return result;
 }
-  return {fields,options,presets,names,presetButtons,presetPatch,settings,geometryKey,atlasKey,makePlant,bakeAtlas,isGround:form=>Object.hasOwn(garden,form)};
+  return {fields,options,presets,names,presetButtons,presetPatch,settings,geometryKey,foliageKey,makePlant,bakeFoliage,bark,warmFoliage,isGround};
 })();
 
 const definitions = {
@@ -14721,13 +14793,14 @@ function frameTrimUIUndo(){const snapshotBytes=()=>[...undoStack,...redoStack].r
 let frameUITransaction=0,frameBatchDepth=0;const frameHistoryPins=new Set();
 function checkpoint(before){if(frameBatchDepth)return;const old=FrameHash.openSnapshot(before),aliases=frameChangedMaterials.size?frameShareBoundMaterials(frameChangedMaterials):undefined;frameChangedMaterials.clear();framePruneRemovedMaterials(old);const after=snapshot();if(FrameHash.sameSnapshotContent(before,after))return aliases;FrameAuthorData.changed();const timeline=old.timeline;if(timeline&&timeline.frame!==timelineFrame)timeline.restoreFrame=true;if(timeline&&timeline.total!==timelineTotal)timeline.restoreTotal=true;const cameras=old.nodes.filter(n=>n.type==='render'&&nodes.some(q=>q.nativeHash===n.nativeHash));if(cameras.length){const nativeFrames=window.frameEngine?.uiFrames?.();old.preserveCameraFrames=cameras.filter(n=>old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation!==nativeFrames?.find(f=>f.hash===n.nativeHash)?.navigation||frameValueKey(old.nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)===frameValueKey(nativeFrames?.find(f=>f.hash===n.nativeHash)?.matrix)).map(n=>n.nativeHash);}if(cameras.length||timeline?.restoreFrame||timeline?.restoreTotal)before=FrameHash.snapshot(old);undoStack.push(before);frameUIUndoSequence.push(window.frameEngine?.noteUIUndo?.()||0);if(undoStack.length>50){undoStack.shift();frameUIUndoSequence.shift();}redoStack=[];frameUIRedoSequence=[];frameTrimUIUndo();frameSyncMaterials();window.FrameSpline?.request();window.frameEngine?.requestLibrary();window.frameEngine?.draw(false);return aliases;}
 function commit(action, refresh=true){const before=snapshot();frameUITransaction++;try{action();checkpoint(before);if(refresh)render();}catch(error){FrameAuthorData.changed();throw error;}finally{frameUITransaction--;}}
-function restore(value,heldAnimation=null){frameChangedMaterials.clear();FrameAuthorData.reset();frameUITransaction++;try{const priorAnimation=frameSerializeChannels(),priorMaterials=materials.slice(),s=FrameHash.openSnapshot(value,FramePluginRecords.reviver),restoredAuthorData=FrameAuthorData.history(s.authorData,FrameAuthorData.root());const restoredNodes=window.frameFiles?.withRuntimeNodes(FrameAuthorData.restoreNodes(s.nodes,nodes))||FrameAuthorData.restoreNodes(s.nodes,nodes),publishAuthorData=FrameAuthorData.reserveNodes(restoredNodes,nodes,restoredAuthorData);nodes=restoredNodes;FrameAuthorData.setRoot(restoredAuthorData);publishAuthorData();selected=new Set(s.selection);focusId=s.focusId;selectedTag=s.selectedTag;selectedTags=new Set(s.selectedTags||[]);if(s.materials)materials.splice(0,materials.length,...(window.frameFiles?.restoreMaterials(s.materials)||s.materials).map(m=>({...m,map:textureImages.get(m.texture)||null,opacityMap:textureImages.get(m.opacityTexture)||null})));frameChannels=new Map();frameRestoreChannels(s.animation||[]);if(s.timeline){timelineFrame=s.timeline.frame;timelineTotal=s.timeline.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);}FrameMorph.restoreEditor(s.morphEditor);for(const [h,path,t]of priorAnimation)if(frameIsPLAPath(path)&&!frameGetTrack(h,path))frameWriteAttribute(h,path,t.base);frameChannelSelection=frameChannelSelection.filter(d=>frameTarget(d.h));activeMaterial=Math.min(s.activeMaterial??activeMaterial,materials.length-1);selectedMaterials=new Set(s.selectedMaterials||[activeMaterial]);renderMaterials();render();window.frameEngine?.restoreUIFrames?.(s.nativeFrames?.filter(f=>!s.preserveCameraFrames?.includes(f.hash)),s.nativePivot);syncMaterial();framePruneTextureCards(priorMaterials);if(heldAnimation!==null){for(const q of heldAnimation)if(q.value!==undefined)frameWriteAttribute(q.h,q.path,q.value);window.frameEngine?.animationFinish();syncHUD();renderAttributes();frameDrawCurves();}else frameEvaluateAnimation(timelineFrame);for(const n of nodes)if(n.tags.some(t=>t.kind==='morph'))FrameMorph.request(n);frameRefreshAnimationUI();if($('frame-engine-canvas').dataset.elementMode==='object')frameSelectEngineObjects();FramePlugins.dispatch('restored');if(s.nativeComponents)window.frameEngine?.restoreComponents(s.nativeComponents);}finally{frameUITransaction--;}}
+function restore(value,heldAnimation=null){frameChangedMaterials.clear();FrameAuthorData.reset();frameUITransaction++;try{const priorAnimation=frameSerializeChannels(),s=FrameHash.openSnapshot(value,FramePluginRecords.reviver),restoredAuthorData=FrameAuthorData.history(s.authorData,FrameAuthorData.root());const restoredNodes=window.frameFiles?.withRuntimeNodes(FrameAuthorData.restoreNodes(s.nodes,nodes))||FrameAuthorData.restoreNodes(s.nodes,nodes),publishAuthorData=FrameAuthorData.reserveNodes(restoredNodes,nodes,restoredAuthorData);nodes=restoredNodes;FrameAuthorData.setRoot(restoredAuthorData);publishAuthorData();selected=new Set(s.selection);focusId=s.focusId;selectedTag=s.selectedTag;selectedTags=new Set(s.selectedTags||[]);if(s.materials)materials.splice(0,materials.length,...(window.frameFiles?.restoreMaterials(s.materials)||s.materials).map(m=>({...m,map:textureImages.get(m.texture)||null,opacityMap:textureImages.get(m.opacityTexture)||null})));frameChannels=new Map();frameRestoreChannels(s.animation||[]);if(s.timeline){timelineFrame=s.timeline.frame;timelineTotal=s.timeline.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);}FrameMorph.restoreEditor(s.morphEditor);for(const [h,path,t]of priorAnimation)if(frameIsPLAPath(path)&&!frameGetTrack(h,path))frameWriteAttribute(h,path,t.base);frameChannelSelection=frameChannelSelection.filter(d=>frameTarget(d.h));activeMaterial=Math.min(s.activeMaterial??activeMaterial,materials.length-1);selectedMaterials=new Set(s.selectedMaterials||[activeMaterial]);renderMaterials();render();window.frameEngine?.restoreUIFrames?.(s.nativeFrames?.filter(f=>!s.preserveCameraFrames?.includes(f.hash)),s.nativePivot);syncMaterial();framePruneTextureCards();if(heldAnimation!==null){for(const q of heldAnimation)if(q.value!==undefined)frameWriteAttribute(q.h,q.path,q.value);window.frameEngine?.animationFinish();syncHUD();renderAttributes();frameDrawCurves();}else frameEvaluateAnimation(timelineFrame);for(const n of nodes)if(n.tags.some(t=>t.kind==='morph'))FrameMorph.request(n);frameRefreshAnimationUI();if($('frame-engine-canvas').dataset.elementMode==='object')frameSelectEngineObjects();FramePlugins.dispatch('restored');if(s.nativeComponents)window.frameEngine?.restoreComponents(s.nativeComponents);}finally{frameUITransaction--;}}
 // UI metadata and GPU edits share one chronological command sequence.
 function frameSnapshotContent(value){const data=value instanceof Uint8Array?FrameHash.openSnapshot(value):{...value};delete data.nativeFrames;delete data.nativePivot;delete data.preserveCameraFrames;return frameValueKey(data);}
 let frameUIUndoSequence=[],frameUIRedoSequence=[];
+const frameTextureRemovalHistory=new WeakSet();
 window.frameClearUIRedo=()=>{redoStack=[];frameUIRedoSequence=[];};
 window.frameHistorySequence=back=>(back?frameUIUndoSequence:frameUIRedoSequence).at(-1)||0;
-async function frameUndoUI(back){const from=back?undoStack:redoStack,to=back?redoStack:undoStack,a=back?frameUIUndoSequence:frameUIRedoSequence,b=back?frameUIRedoSequence:frameUIUndoSequence;if(!from.length)return;const target=from.at(-1);FrameAuthorData.preflightHistory(target);const state=FrameHash.openSnapshot(target),opposite=FrameHash.openSnapshot(state.nativeComponents&&window.frameEngine?.snapshotComponents?await window.frameEngine.snapshotComponents():snapshot());from.pop();opposite.preserveCameraFrames=state.preserveCameraFrames;if(state.timeline?.restoreFrame)opposite.timeline.restoreFrame=true;if(state.timeline?.restoreTotal)opposite.timeline.restoreTotal=true;to.push(FrameHash.snapshot(opposite));b.push(a.pop()||0);let next=target;if(state.timeline){const total=state.timeline.restoreTotal?state.timeline.total:timelineTotal,frame=Math.min(total,state.timeline.restoreFrame?state.timeline.frame:timelineFrame);if(total!==state.timeline.total||frame!==state.timeline.frame){state.timeline={...state.timeline,total,frame};next=FrameHash.snapshot(state);}}restore(next);frameTrimUIUndo();}
+async function frameUndoUI(back){const from=back?undoStack:redoStack,to=back?redoStack:undoStack,a=back?frameUIUndoSequence:frameUIRedoSequence,b=back?frameUIRedoSequence:frameUIUndoSequence;if(!from.length)return;const target=from.at(-1);FrameAuthorData.preflightHistory(target);const state=FrameHash.openSnapshot(target),opposite=FrameHash.openSnapshot(state.nativeComponents&&window.frameEngine?.snapshotComponents?await window.frameEngine.snapshotComponents():snapshot());from.pop();opposite.preserveCameraFrames=state.preserveCameraFrames;if(state.timeline?.restoreFrame)opposite.timeline.restoreFrame=true;if(state.timeline?.restoreTotal)opposite.timeline.restoreTotal=true;const reverse=FrameHash.snapshot(opposite),removal=frameTextureRemovalHistory.has(target),prior=!back&&removal?materials.slice():null;to.push(reverse);if(removal)frameTextureRemovalHistory.add(reverse);b.push(a.pop()||0);let next=target;if(state.timeline){const total=state.timeline.restoreTotal?state.timeline.total:timelineTotal,frame=Math.min(total,state.timeline.restoreFrame?state.timeline.frame:timelineFrame);if(total!==state.timeline.total||frame!==state.timeline.frame){state.timeline={...state.timeline,total,frame};next=FrameHash.snapshot(state);}}restore(next);if(prior)framePruneTextureCards(prior);frameTrimUIUndo();}
 function history(back){if(window.frameEngine?.scene)return (back?window.frameEngine.undoEdit():window.frameEngine.redoEdit()).catch(fileOperationError);frameUndoUI(back);}
 
 function descendants(id){
@@ -14846,26 +14919,47 @@ function frameEdgePointer(e,element){
   const failed=lock.failed=()=>{if(framePointerLock===lock)framePointerLock=null;};try{const request=element.requestPointerLock();request?.catch(failed);}catch{failed();}
 }
 function frameLockedEvent(type,lock,e){lock.element.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,pointerId:lock.id,pointerType:'mouse',isPrimary:true,clientX:lock.x,clientY:lock.y,button:e?.button??0,buttons:type==='pointermove'?lock.buttons:0,ctrlKey:e?.ctrlKey,shiftKey:e?.shiftKey,altKey:e?.altKey,metaKey:e?.metaKey}));}
+function framePointerLockAcquired(lock){
+  if(lock.pending){lock.pending=false;lock.recenter=true;}
+}
 FrameViewWindows.onDocument('pointerdown',()=>{framePointerLockBlocked=false;framePointerMenuBlocked=false;},true);
 FrameViewWindows.onDocument('contextmenu',e=>{if(framePointerMenuBlocked){framePointerMenuBlocked=false;e.preventDefault();e.stopImmediatePropagation();}},true);
 FrameViewWindows.onDocument('pointermove',e=>{
   const lock=framePointerLock;if(!e.isTrusted||!lock||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();
-  if(e.currentTarget.pointerLockElement===lock.element){if(lock.recenter){lock.samples=e.getCoalescedEvents?.();lock.sampleTime=e.timeStamp;}return;}
+  if(e.currentTarget.pointerLockElement===lock.element){
+    framePointerLockAcquired(lock);
+    if(lock.recenter){lock.samples=e.getCoalescedEvents?.();lock.sampleTime=e.timeStamp;}
+    return;
+  }
   if(lock.pending){lock.x+=e.clientX-lock.nativeX;lock.y+=e.clientY-lock.nativeY;lock.nativeX=e.clientX;lock.nativeY=e.clientY;frameLockedEvent('pointermove',lock,e);}
 },true);
 FrameViewWindows.onDocument('mousemove',e=>{
   const lock=framePointerLock,document=e.currentTarget;if(!lock||document.pointerLockElement!==lock.element)return;let dx=e.movementX,dy=e.movementY;
-  // Windows Chromium can combine its initial center warp with actual movement.
-  // Inspect the first nonzero sample, not the entire coalesced frame. Subtract a
-  // matching center offset and preserve its residual and all subsequent samples.
-  if(lock.recenter&&e.isTrusted){const samples=lock.sampleTime===e.timeStamp&&lock.samples?.length?lock.samples:[e];lock.samples=null;const sample=samples.find(p=>p.movementX||p.movementY);if(sample){lock.recenter=false;const w=document.defaultView,wx=Math.floor(w.innerWidth/2)-lock.nativeX,wy=Math.floor(w.innerHeight/2)-lock.nativeY;let best=Infinity,rx=0,ry=0;for(const scale of [1,w.devicePixelRatio||1]){const x=wx*scale,y=wy*scale,distance=Math.hypot(sample.movementX-x,sample.movementY-y);if(distance<best&&distance<=Math.max(2,Math.hypot(x,y)/8)){best=distance;rx=x;ry=y;}}dx-=rx;dy-=ry;}}
+  framePointerLockAcquired(lock);
+  // Under load Chromium can batch motion on both sides of the initial center warp.
+  if(lock.recenter&&e.isTrusted){
+    const samples=lock.samples;lock.samples=null;
+    const matched=samples?.length&&(lock.sampleTime===e.timeStamp||
+      samples.reduce((sum,p)=>sum+p.movementX,0)===dx&&samples.reduce((sum,p)=>sum+p.movementY,0)===dy);
+    const moves=matched?samples:[e];
+    if(moves.some(p=>p.movementX||p.movementY)){
+      lock.recenter=false;
+      const w=document.defaultView,wx=Math.floor(w.innerWidth/2)-lock.nativeX,wy=Math.floor(w.innerHeight/2)-lock.nativeY;
+      let best=Infinity,rx=0,ry=0;
+      for(const sample of moves)for(const scale of [1,w.devicePixelRatio||1]){
+        const x=wx*scale,y=wy*scale,distance=Math.hypot(sample.movementX-x,sample.movementY-y);
+        if(distance<best&&distance<=Math.max(2,Math.hypot(x,y)/8)){best=distance;rx=x;ry=y;}
+      }
+      dx-=rx;dy-=ry;
+    }
+  }
   if(dx||dy){lock.x+=dx;lock.y+=dy;frameLockedEvent('pointermove',lock,e);}
   // Keep the native lock for the rest of this held gesture. Unlocking outside a
   // window can stop OS delivery even when DOM pointer capture reports success.
 },true);
 for(const type of ['pointerup','mouseup','pointercancel'])FrameViewWindows.onDocument(type,e=>{const lock=framePointerLock;if(!lock||!e.isTrusted||e.currentTarget!==lock.element.ownerDocument)return;e.stopImmediatePropagation();frameUnlockPointer();frameLockedEvent(type==='pointercancel'?'pointercancel':'pointerup',lock,e);},true);
 FrameViewWindows.onDocument('pointerlockchange',e=>{
-  const lock=framePointerLock,document=e.currentTarget;if(lock&&document!==lock.element.ownerDocument)return;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else{lock.pending=false;lock.recenter=true;}}
+  const lock=framePointerLock,document=e.currentTarget;if(lock&&document!==lock.element.ownerDocument)return;if(document.pointerLockElement){if(!lock)document.exitPointerLock();else if(document.pointerLockElement===lock.element)framePointerLockAcquired(lock);}
   else if(lock&&!lock.pending){framePointerLock=null;frameLockedEvent('pointercancel',lock);}
 });
 FrameViewWindows.onDocument('pointerlockerror',e=>{const lock=framePointerLock;if(lock?.pending&&e.currentTarget===lock.element.ownerDocument)lock.failed();});
@@ -15706,9 +15800,11 @@ function frameSelectionAttributes(){return false;}
 function textureCard(id,name){const card=document.createElement('div');card.className='tex-card';card.dataset.texture=id;card.title=name;const img=frameMaterialImage(id);img.className='tex-img';img.alt=name;img.draggable=false;card.append(img);return card;}
 function frameAddTexture(url,name,before=$('texGrid').firstChild){const grid=$('texGrid'),card=[...grid.children].find(el=>el.dataset.texture===url)||textureCard(url,name);grid.insertBefore(card,before===card?card.nextSibling:before);$('texScroll').scrollTop=0;return card;}
 function framePruneTextureCards(previous){
-  const urls=list=>new Set(list.flatMap(m=>[m.texture,m.opacityTexture,...frameMapFields.map(field=>(frameMaterialAssets.get(m[field])||frameTextureSources.get(m[field]))?.url)]).filter(Boolean)),removed=urls(previous),used=urls(materials);
-  for(const n of nodes)if(n.type==='render'){const id=n.params['environment image'];used.add((frameMaterialAssets.get(id)||frameTextureSources.get(id))?.url||id);}
-  for(const card of [...$('texGrid').children])if(removed.has(card.dataset.texture)&&!used.has(card.dataset.texture))card.remove();
+  if(previous?.length){
+    const urls=list=>new Set(list.flatMap(m=>[m.texture,m.opacityTexture,...frameMapFields.map(field=>(frameMaterialAssets.get(m[field])||frameTextureSources.get(m[field]))?.url)]).filter(Boolean)),removed=urls(previous),used=urls(materials);
+    for(const n of nodes)if(n.type==='render'){const id=n.params['environment image'];used.add((frameMaterialAssets.get(id)||frameTextureSources.get(id))?.url||id);}
+    for(const card of [...$('texGrid').children])if(removed.has(card.dataset.texture)&&!used.has(card.dataset.texture))card.remove();
+  }
   if(activeTab==='tabTextures')renderTextures();
 }
 function frameTextureDragTab(hit){const tab=hit?.closest?.('#tabMaterialMgr,#tabTextures');if(tab&&activeTab!==tab.id){activateTab(tab.id);if(tab.id==='tabMaterialMgr')syncMaterial();}}
@@ -15720,6 +15816,12 @@ function renderTextures(){
 }
 $('texGrid').onpointerdown=e=>{if(e.button!==0)return;e.preventDefault();const card=e.target.closest('.tex-card');if(card?.dataset.pending!==undefined)return;if(card)materialGesture={kind:'texture',x:e.clientX,y:e.clientY,moved:false,texture:card.dataset.texture,preview:card.querySelector('img')};if(card)captureMaterialGesture(e);};
 
+function retainTextureCard(url,name){
+  const grid=$('texGrid');
+  if([...grid.children].some(card=>card.dataset.texture===url))return;
+  const firstBuiltIn=[...grid.children].find(card=>card.dataset.texture?.startsWith('textures/'))||null;
+  grid.insertBefore(textureCard(url,name),firstBuiltIn);
+}
 async function instanceMaterialTexture(asset,slot,material=materials[activeMaterial],channel=null,packed=false,target=frameMaterialEditTarget(material)){
   const source=frameMaterialAssets.get(asset);if(!source)throw Error('Missing material image');if(!frameTextureSlots[slot])throw Error('Unknown texture slot');
   const [field,ch]=frameTextureSlots[slot];if(material[field]===asset&&(!ch||channel===null||material[ch]===channel)&&!packed)return;
@@ -15730,12 +15832,14 @@ async function loadMaterialTexture(url,slot='map',material=materials[activeMater
   const img=frameMaterialImage(url);if(!img.complete||!img.naturalWidth)await frameDecodeMaterialImage(url,img);
   if(target&&(!nodes.includes(target.owner)||target.tag&&(!target.owner.tags.includes(target.tag)||materials[target.tag.material??0]!==material)))return;
   if(!materials.includes(material))return;textureImages.set(url,img);const asset=frameMaterialAsset(url),[field,ch]=frameTextureSlots[slot],alpha=!instance&&slot==='map'&&frameHasAlpha(img),previousColor=material.colorAsset,previousNormal=material.normalAsset;
+  retainTextureCard(url,'Texture');
   commit(()=>{const m=editableMaterial(material,target);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}m[field]=asset;if(ch)m[ch]=channel??(slot==='opacityMap'?4:0);if(slot==='map'){m.texture=url;m.map=img;if(!instance){m.alphaMode=0;if(alpha&&(!m.opacityAsset||m.opacityAsset===previousColor)){m.opacityTexture=url;m.opacityMap=img;m.opacityAsset=asset;m.opacityChannel=3;}else if(m.opacityAsset===previousColor){m.opacityTexture=null;m.opacityMap=null;delete m.opacityAsset;}}}if(slot==='opacityMap'){m.opacityTexture=url;m.opacityMap=img;}if(slot==='normalAsset'&&!m.bump&&(!instance||!previousNormal))m.bump=100;if(packed){m.roughAsset=m.metalAsset=asset;m.roughChannel=1;m.metalChannel=2;if(frameMaterialUV(m)){m.aoAsset=asset;m.aoChannel=0;}delete m.metalRoughAsset;}},false);frameTextureRefresh();
 }
-function removeMaterialTexture(slot,target=frameMaterialEditTarget(materials[activeMaterial])){const material=materials[activeMaterial],previous=[{...material}],[field]=frameTextureSlots[slot];commit(()=>{const m=editableMaterial(material,target);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}if(slot==='opacityMap'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3)m.alphaMode=1;if(slot==='map'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3){delete m.opacityAsset;m.opacityTexture=null;m.opacityMap=null;}delete m[field];if(slot==='map'){m.texture=null;m.map=null;}if(slot==='opacityMap'){m.opacityTexture=null;m.opacityMap=null;}},false);framePruneTextureCards(previous);frameTextureRefresh();}
+function removeMaterialTexture(slot,target=frameMaterialEditTarget(materials[activeMaterial])){const material=materials[activeMaterial],previous=[{...material}],[field]=frameTextureSlots[slot],before=undoStack.at(-1);commit(()=>{const m=editableMaterial(material,target);if((slot==='roughAsset'||slot==='metalAsset')&&m.metalRoughAsset){m.roughAsset??=m.metalRoughAsset;m.metalAsset??=m.metalRoughAsset;m.roughChannel??=1;m.metalChannel??=2;delete m.metalRoughAsset;}if(slot==='opacityMap'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3)m.alphaMode=1;if(slot==='map'&&m.opacityAsset===m.colorAsset&&m.opacityChannel===3){delete m.opacityAsset;m.opacityTexture=null;m.opacityMap=null;}delete m[field];if(slot==='map'){m.texture=null;m.map=null;}if(slot==='opacityMap'){m.opacityTexture=null;m.opacityMap=null;}},false);const entry=undoStack.at(-1);if(entry&&entry!==before)frameTextureRemovalHistory.add(entry);framePruneTextureCards(previous);frameTextureRefresh();}
 function assignMaterial(owner,index,fromEditor=false){return frameAssignMaterial(owner,index,fromEditor).catch(fileOperationError);}
 async function assignTexture(owner,url){
   const n=frameMaterialOwner(node(owner)),documentNodes=nodes;if(!n)return;const img=frameMaterialImage(url);if(!img.complete||!img.naturalWidth)await frameDecodeMaterialImage(url,img);if(nodes!==documentNodes||!nodes.includes(n))return;const uid=await window.frameEngine?.capturePolygonSelection(n.nativeHash);if(nodes!==documentNodes||!nodes.includes(n))return;
+  retainTextureCard(url,'Texture');
   commit(()=>{let index=materials.findIndex(m=>m.texture===url&&(!m.opacityTexture||m.opacityTexture===url&&m.opacityChannel===3)&&!frameMapFields.slice(2).some(k=>m[k])&&!frameChannels.has('mat:'+m.uid)&&Object.values(materialFields).every(key=>m[key]===(key==='l'?100:frameDefaultMaterials[0][key])));if(index<0){materials.push({...frameDefaultMaterials[0],...frameMaterialDefaults,l:100,...Object.fromEntries(frameMapFields.map(k=>[k,null])),uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial),texture:url,map:img,alphaMode:0,opacityTexture:frameHasAlpha(img)?url:null,opacityMap:frameHasAlpha(img)?img:null,...frameHasAlpha(img)?{opacityAsset:frameMaterialAsset(url),opacityChannel:3}:{}});index=materials.length-1;}frameSetMaterialTag(n,index,uid||null);activeMaterial=materialAnchor=index;selectedMaterials=new Set([index]);},false);
   renderMaterials();renderTree();syncMaterial();
 }
@@ -21312,9 +21416,9 @@ window.frameEngine=(()=>{
         let vertices=canonical.get(mesh.positions);if(!vertices){
           const packed=batch?.get(mesh.positions);vertices=packed?new Float32Array(packed.buffer):(await readGeometry(mesh,{positionsOnly:true})).vertices;canonical.set(mesh.positions,vertices);
         }
-        const base=input.materials.length,localProjection=U?null:projectionMatrix(mesh);
-        const projection=Array.from(U?FM.I():FM.inv(FM.mul(world,localProjection)));
-        const normalProjection=Array.from(U?FM.I():FM.mul(projectionNormalMatrix(localProjection),Float64Array.from({length:16},(_,i)=>world[(i%4)*4+(i>>2)])));
+        const base=input.materials.length,projectionFrame=U?null:worldProjection(mesh,world);
+        const projection=Array.from(U?FM.I():FM.inv(projectionFrame));
+        const normalProjection=Array.from(U?FM.I():projectionNormalMatrix(projectionFrame));
         const addMaterial=uid=>{const m=uid&&appearanceValue(uid,'parameters'),maps=uid&&appearanceValue(uid,'maps')||[],color=m?hsl2rgb(m[0],m[1]/100,m[2]/100).map(v=>v**2.2):[.21763764,.21763764,.21763764],id=input.materials.length;input.materials.push({name:uid?nativeValue(uid,'name'):'Default',alphaMode:(m&&m[6]>0||m?.[12]!==1&&renderer.materialState?.alphaAssets?.get(maps[0]))?'BLEND':'OPAQUE',color,rough:m?m[4]/100:.5,metal:m?m[5]/100:0,emission:color.map(v=>v*(m?m[3]/100:0)),transmission:m&&m[12]!==2&&m[12]!==3?m[6]/100:0,coverageFactor:m&&(m[12]===2||m[12]===3)?1-m[6]/100:1,bump:m?m[7]/100:0,heightBump:(m?.[15]??0)/100,normalY:maps[6]&&maps[6]!==FrameHash.K.zero?m?.[16]??1:1,translucency:(m?.[17]??0)/100,cubic:!U,texture:textureID(maps[0]),opacityTexture:textureID(maps[1]),emissionTexture:textureID(maps[2]),metalRoughTexture:textureID(maps[3]),roughTexture:textureID(maps[4]),metalTexture:textureID(maps[5]),normalTexture:textureID(maps[6]&&maps[6]!==FrameHash.K.zero?maps[6]:'normal:'+maps[0]),aoTexture:textureID(maps[7]),channels:[m?.[8]??4,m?.[9]??0,m?.[10]??0,m?.[11]??0],alphaModeCode:m?.[12]??0,alphaCutoff:(m?.[13]??50)/100,aoStrength:(m?.[14]??100)/100,projection,normalProjection});return id;};
         const tags=mesh.materialTags||[],masked=tags.some(tag=>tag.mask);
         const faceIds=masked?await meshMaterialIds(mesh,addMaterial,maskCache):null;
@@ -21600,17 +21704,38 @@ window.frameEngine=(()=>{
     // BEGIN native-mapping
     let uvEditing=false;
     function projectionNormalMatrix(matrix){const inverse=FM.inv(matrix),m=FM.I();for(let i=0;i<3;i++){const row=FM.unit([inverse[i],inverse[4+i],inverse[8+i]]);for(let j=0;j<3;j++)m[j*4+i]=row[j];}return m;}
-    function projectionMatrix(mesh){const saved=nativeValue(mesh.hashId,'projection');if(saved)return FM.unpack(saved);const b=localMeshBox(mesh),m=FM.I();for(let i=0;i<3;i++){m[i*5]=Math.max(b.max[i]-b.min[i],1e-6);m[12+i]=(b.min[i]+b.max[i])/2;}return m;}
+    const cubeProjectionPeriod=1000; // Millimeters per repeat.
+    function projectionMatrix(mesh){
+      const saved=nativeValue(mesh.hashId,'projection');
+      if(saved)return FM.unpack(saved);
+      const m=FM.I();m[0]=m[5]=m[10]=cubeProjectionPeriod;return m;
+    }
+    function worldProjection(mesh,world){return FM.mul(FM.rigid(world),projectionMatrix(mesh));}
+    function localProjectionWords(mesh,world){
+      const objectAxes=FM.rigid(world),projection=projectionMatrix(mesh);
+      // Work in the rigid object frame so translation never enters the texture coordinates.
+      const linear=new Float64Array(world);linear.fill(0,12,15);objectAxes.fill(0,12,15);
+      const stretch=FM.mul(FM.inv(objectAxes),linear);
+      const inverse=FM.mul(FM.inv(projection),stretch),stretchInverse=FM.inv(stretch);
+      const normalTransform=FM.I();
+      for(let i=0;i<3;i++)for(let j=0;j<3;j++)normalTransform[j*4+i]=stretchInverse[i*4+j];
+      const normals=FM.mul(projectionNormalMatrix(projection),normalTransform),data=new Float32Array(32);
+      data.set(inverse);data.set(normals.subarray(0,12),16);
+      return data;
+    }
     function projectionOwner(){const hash=window.frameUVTarget||objectSelection[0]||selectedMesh?.hashId;return scene?.meshes.find(m=>m.hashId===hash);}
     function auxiliaryState(){
-      if(!scene)return null;const motion=motionState();if(motion)return motion;const mesh=uvEditing?projectionOwner():null;if(mesh&&!importedUV(mesh)){const frame=FM.mul(objectWorld(mesh.hashId),projectionMatrix(mesh));return {kind:'mapping',hash:mesh.hashId,mesh,frame,box:transformedBox({min:[-.5,-.5,-.5],max:[.5,.5,.5]},frame)};}
+      if(!scene)return null;const motion=motionState();if(motion)return motion;const mesh=uvEditing?projectionOwner():null;if(mesh&&!importedUV(mesh)){const world=objectWorld(mesh.hashId),frame=worldProjection(mesh,world),displayFrame=FM.rigid(frame);
+        const b=transformedBox(localMeshBox(mesh),world),radius=Math.max(1e-6,...b.max.map((n,i)=>n-b.min[i]))*.5;
+        const extent={min:[-radius,-radius,-radius],max:[radius,radius,radius]};
+        return {kind:'mapping',hash:mesh.hashId,mesh,frame,displayFrame,radius,box:transformedBox(extent,displayFrame)};}
       if(selectionScope==='objects'&&objectSelection.length===1&&(nativeValue(objectSelection[0],'type')?.[0]===2||frameNodeByHash(objectSelection[0])?.type==='render')){const hash=objectSelection[0],frame=objectWorld(hash),p=Array.from(frame.slice(12,15)),radius=Math.max(1e-6,worldPerPixel(p)*24);return {kind:'light',hash,frame,box:{min:p.map(n=>n-radius),max:p.map(n=>n+radius),center:p}};}return null;
     }
     function auxiliaryCoordinates(aux){const frame=aux.frame,ref=coordinateMode==='world'?FM.I():aux.kind==='mapping'?FM.rigid(objectWorld(aux.hash)):nativeValue(aux.hash,'parent')?.[0]?FM.rigid(objectWorld(nativeValue(aux.hash,'parent')[0])):FM.I(),relative=FM.mul(FM.inv(ref),frame);return {position:Array.from(relative.slice(12,15)),rotation:FM.euler(relative).map(n=>n*180/Math.PI),size:aux.kind==='mapping'?[0,4,8].map(i=>Math.hypot(...frame.slice(i,i+3))):[1,1,1],frame,basis:coordinateMode==='world'?FM.I():FM.rigid(frame),scope:aux.kind,editingPivot:false};}
     async function setUVEditing(on,hash=null){if(!scene||nativeIOBusy||gizmoSession||editDrag||coreNumeric)return false;if(on){const mesh=scene.meshes.find(m=>m.hashId===(hash||selectedMesh?.hashId));if(!mesh||importedUV(mesh))return false;window.frameUVTarget=mesh.hashId;await selectObjects([scene.meshes.indexOf(mesh)],{objectHashes:[mesh.hashId]});pivotEditing=false;}uvEditing=!!on;const b=document.getElementById('btnUV');b.classList.toggle('on',uvEditing);b.ariaPressed=String(uvEditing);coordinateCache=null;gizmoSignature='';notifyTransformUI();draw(false);return true;}
-    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(t.before.worlds.get(h)),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
+    function applyProjectionDelta(delta,t){const h=t.mapping.hash,m=FM.mul(FM.inv(FM.rigid(t.before.worlds.get(h))),FM.mul(delta,t.mapping.frame));putFrame(h,'projection',m);poseEpoch++;coordinateCache=null;selectionBox=auxiliaryState()?.box||selectionBox;notifyTransformUI();draw();}
     function drawAuxiliaryShape(svg,project,rect){const aux=auxiliaryState();if(!aux||aux.kind==='light'||aux.kind==='motion')return;const path=document.createElementNS(svgNS,'path');path.classList.add(aux.kind==='mapping'?'frame-projection-cube':'frame-infinite-direction');path.setAttribute('fill','none');path.setAttribute('stroke',aux.kind==='mapping'?'#83d9e9':'#ffe5a1');path.setAttribute('stroke-width','1');path.setAttribute('pointer-events','none');let points,edges;
-      if(aux.kind==='mapping'){points=Array.from({length:8},(_,mask)=>FM.point(aux.frame,[0,1,2].map(i=>mask>>i&1?.5:-.5)));edges=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];path.setAttribute('stroke-dasharray','4 3');}
+      if(aux.kind==='mapping'){points=Array.from({length:8},(_,mask)=>FM.point(aux.displayFrame,[0,1,2].map(i=>mask>>i&1?aux.radius:-aux.radius)));edges=[[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];path.setAttribute('stroke-dasharray','4 3');}
       else{const p=Array.from(aux.frame.slice(12,15)),length=worldPerPixel(p)*90,z=FM.unit(FM.point(aux.frame,[0,0,1],0)),x=FM.unit(FM.point(aux.frame,[1,0,0],0)),tip=FM.add(p,FM.scale(z,length));points=[p,tip,FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,length*.08)),FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,-length*.08))];edges=[[0,1],[1,2],[1,3]];}
       const xy=points.map(p=>project(p).map((v,i)=>v-(i?rect.top:rect.left)));path.setAttribute('d',edges.map(([a,b])=>'M'+xy[a].join(',')+'L'+xy[b].join(',')).join(''));svg.append(path);
     }
@@ -21881,12 +22006,16 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     function trackMaterialResource(resource,size){
       gpuAllocations.set(resource,size);allocatedBytes+=size;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);
     }
-    function materialImageUsage(materials,mapsFor){
+    function materialImageUsage(materials,mapsFor,parametersFor){
       const used=new Set(),normals=new Set(),mapped=new Set(),has=id=>id&&id!==FrameHash.K.zero;
       for(const uid of materials){
         const maps=mapsFor(uid);if(!maps?.some(has))continue;
         mapped.add(uid);for(const id of maps)if(has(id))used.add(id);
-        if(has(maps[0])&&!has(maps[6]))normals.add(maps[0]);
+        if(has(maps[0])&&!has(maps[6])){
+          const p=parametersFor(uid);
+          // A linked color/coverage cutout with zero relief already has all its maps.
+          if(maps[0]!==maps[1]||p?.[12]!==2||p[7]||p[15])normals.add(maps[0]);
+        }
       }
       return {used,normals,mapped};
     }
@@ -21997,40 +22126,52 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         complete=true;return {atlas,layers:indices,sources,alphaAssets,normalSettings};
       }finally{if(workerURL)URL.revokeObjectURL(workerURL);if(!complete)releaseGPU(atlas);}
     }
+    async function prepareMaterialNormalLayers(r,images,entries,normalIds,current,state){
+      const {atlas,layers:newLayers}=images,side=atlas.width;
+      images.normalImages=new Map();
+      let normalCount=0;
+      for(const uid of normalIds){
+        if(!current())return;
+        const key='normal:'+uid,layer=entries.length+1+normalCount++,prior=state.layers?.get(key),encoder=r.device.createCommandEncoder();
+        if(prior&&state.atlas.width===side&&!images.normalSettings.has(uid)){
+          encoder.copyTextureToTexture({texture:state.atlas,origin:[0,0,prior]},{texture:atlas,origin:[0,0,layer]},[side,side]);r.device.queue.submit([encoder.finish()]);
+          if(state.normalImages?.has(key))images.normalImages.set(key,state.normalImages.get(key));
+        }else{
+          const source=atlas.createView({dimension:'2d',baseArrayLayer:newLayers.get(uid),arrayLayerCount:1});
+          const normal=await FrameNormalMaps.generate(r.device,source,side,images.normalSettings.get(uid),trackMaterialResource,releaseGPU);
+          try{if(!current())return;encoder.copyTextureToTexture({texture:normal},{texture:atlas,origin:[0,0,layer]},[side,side]);r.device.queue.submit([encoder.finish()]);state.normalGenerations=(state.normalGenerations||0)+1;}finally{releaseGPU(normal);}
+        }
+        newLayers.set(key,layer);
+      }
+      if(!current())return;
+      return true;
+    }
+    function installMaterialImages(state,images,normalIds,key){
+      releaseGPU(state.atlas);
+      const {atlas,layers,sources,alphaAssets,normalImages}=images;
+      Object.assign(state,{atlas,layers,sources,alphaAssets,normalImages,autoNormalIds:normalIds,assetKey:key,signature:'',failedAssetKey:null});
+    }
     function materialLibraryGPU(r){
       const state=ensureMaterialState(r);if(state.libraryMeshes===scene.meshes&&state.libraryRevision===appearanceRevision&&state.libraryAppearance===appearanceSignature&&state.libraryAsset===state.assetKey&&state.signature&&state.group)return state;
       const library=scene.records.get(FrameHash.K.materials)?.value||[],owners=new Set(),has=id=>id&&id!==FrameHash.K.zero;
       for(const mesh of scene.meshes)for(const tag of mesh.materialTags||[])owners.add(tag.materialUID);
-      const {used,normals:normalIds,mapped}=materialImageUsage(owners,uid=>appearanceValue(uid,'maps'));state.mappedMaterials=mapped;
+      const {used,normals:normalIds,mapped}=materialImageUsage(owners,uid=>appearanceValue(uid,'maps'),uid=>appearanceValue(uid,'parameters'));state.mappedMaterials=mapped;
       // Keep a prepared estimate while its source is live in any material slot.
       for(const key of state.layers?.keys()||[])if(key.startsWith('normal:')&&used.has(key.slice(7)))normalIds.add(key.slice(7));
       const assetKey=materialAssetKey(used,normalIds);
+      const staged=state.plantImageSuperset&&[...used].every(uid=>state.layers.has(uid))&&[...normalIds].every(uid=>state.layers.has('normal:'+uid));
       if(state.loadingKey&&state.loadingKey!==assetKey){state.assetTicket++;state.loadingKey=null;}
       if(!state.atlas){const atlas=r.device.createTexture({label:'empty material image',size:[1,1,1],format:'rgba8unorm',viewFormats:['rgba8unorm-srgb'],usage:GPUTextureUsage.TEXTURE_BINDING|GPUTextureUsage.COPY_DST|GPUTextureUsage.COPY_SRC|GPUTextureUsage.RENDER_ATTACHMENT});r.device.queue.writeTexture({texture:atlas},new Uint8Array([255,255,255,255]),{bytesPerRow:4},[1,1,1]);state.atlas=atlas;trackMaterialResource(atlas,4);state.layers=new Map();}
-      if(assetKey!==state.assetKey&&assetKey!==state.loadingKey&&assetKey!==state.failedAssetKey){
+      if(!staged&&assetKey!==state.assetKey&&assetKey!==state.loadingKey&&assetKey!==state.failedAssetKey){
         state.loadingKey=assetKey;const ticket=++state.assetTicket,space=scene,current=()=>renderer===r&&r.materialState===state&&scene===space&&ticket===state.assetTicket;let pendingAtlas=null;
         state.assetsReady=(async()=>{
           const entries=[...used].map(uid=>{const asset=frameMaterialAssets.get(uid);if(!asset)throw Error('Missing material image');return {uid,image:frameMaterialImage(asset.url),asset};});
           const prepared=space.materialPrefetch?.take(assetKey,current)??prepareMaterialAtlas(r,entries,normalIds,current,state);
           const images=await prepared;if(!images)return;
-          const atlas=pendingAtlas=images.atlas,newLayers=images.layers,alphaAssets=images.alphaAssets,normalImages=new Map(),side=atlas.width;
-          if(!current())return;
-          let normalCount=0;
-          for(const uid of normalIds){
-            if(!current())return;
-            const key='normal:'+uid,layer=entries.length+1+normalCount++,prior=state.layers.get(key),encoder=r.device.createCommandEncoder();
-            if(prior&&state.atlas.width===side&&!images.normalSettings.has(uid)){
-              encoder.copyTextureToTexture({texture:state.atlas,origin:[0,0,prior]},{texture:atlas,origin:[0,0,layer]},[side,side]);r.device.queue.submit([encoder.finish()]);
-              if(state.normalImages?.has(key))normalImages.set(key,state.normalImages.get(key));
-            }else{
-              const source=atlas.createView({dimension:'2d',baseArrayLayer:newLayers.get(uid),arrayLayerCount:1});
-              const normal=await FrameNormalMaps.generate(r.device,source,side,images.normalSettings.get(uid),trackMaterialResource,releaseGPU);
-              try{if(!current())return;encoder.copyTextureToTexture({texture:normal},{texture:atlas,origin:[0,0,layer]},[side,side]);r.device.queue.submit([encoder.finish()]);state.normalGenerations=(state.normalGenerations||0)+1;}finally{releaseGPU(normal);}
-            }
-            newLayers.set(key,layer);
-          }
-          if(!current())return;
-          releaseGPU(state.atlas);state.atlas=atlas;pendingAtlas=null;state.layers=newLayers;state.sources=images.sources;state.alphaAssets=alphaAssets;state.normalImages=normalImages;state.autoNormalIds=normalIds;state.assetKey=assetKey;state.signature='';state.failedAssetKey=null;draw();
+          pendingAtlas=images.atlas;
+          if(!await prepareMaterialNormalLayers(r,images,entries,normalIds,current,state)||!current())return;
+          installMaterialImages(state,images,normalIds,assetKey);state.plantImageSuperset=false;
+          pendingAtlas=null;draw();
         })().catch(error=>{if(current()){state.failedAssetKey=assetKey;editError(error);}}).finally(()=>{if(pendingAtlas)releaseGPU(pendingAtlas);if(state.assetTicket===ticket)state.loadingKey=null;});
       }
       const signature=appearanceSignature+'|'+state.assetKey;state.libraryMeshes=scene.meshes;state.libraryRevision=appearanceRevision;state.libraryAppearance=appearanceSignature;state.libraryAsset=state.assetKey;if(state.signature===signature&&state.group)return state;
@@ -22078,9 +22219,17 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
         key=[mesh.appearanceKey,state.indicesKey,...box.min,...box.max].join(':');
       }
       if(changed){releaseMaterialTable(mesh);let canonical=mesh;while(canonical.replicaSource)canonical=canonical.replicaSource;const pool=canonical.materialTables??=new Map();let entry=pool.get(key);if(!entry){const words=16+tags.length*4+tags.reduce((n,t)=>n+t.set.count,0),data=new Uint32Array(words),floats=new Float32Array(data.buffer);data.set([base,tags.length,0,0]);floats.set(box.min,4);floats.set(box.max.map((n,i)=>1/Math.max(n-box.min[i],1e-20)),8);let at=16+tags.length*4;tags.forEach((t,i)=>{data.set([t.material,at,Math.min(mesh.triangleCount,t.set.byteLength*8),0],16+i*4);t.offset=at;at+=t.set.count;});const buffer=makeGPUBuffer(r.device,{label:'shared compiled material tags',size:Math.max(16,words*4),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});r.device.queue.writeBuffer(buffer,0,data);if(tags.length){const e=r.device.createCommandEncoder();for(const t of tags)e.copyBufferToBuffer(t.set.resource,0,buffer,t.offset*4,t.set.count*4);r.device.queue.submit([e.finish()]);}entry={buffer,users:new Set(),pool,key};pool.set(key,entry);}entry.users.add(mesh);mesh.materialTableEntry=entry;mesh.materialTable=entry.buffer;bindings=mesh.materialBindings={key,base,appearance:mesh.appearanceKey,library,libraryKey:state.indicesKey,bounds:[...box.min,...box.max],positions:mesh.positions,uv:uv?.resource,grouped:tags.length>0,groups:new Map()};}
-      const projectionSource=nativeValue(mesh.hashId,'projection');
-      if(!mesh.mappingUniform||mesh.mappingProjectionSource!==projectionSource||!projectionSource&&(box.min.some((v,i)=>v!==mesh.mappingBounds?.[i])||box.max.some((v,i)=>v!==mesh.mappingBounds?.[i+3]))){
-        const projection=projectionMatrix(mesh),signature=Array.from(projection).join(',');if(!mesh.mappingUniform){mesh.mappingUniform=meshAllocator(r,mesh)('cube projection frame',128,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);mesh.mappingSignature=null;}if(mesh.mappingSignature!==signature){const data=new Float32Array(32),inverse=FM.inv(projection),planes=[0,1,2].map(i=>FM.unit([inverse[i],inverse[4+i],inverse[8+i]]));data.set(inverse);for(let j=0;j<3;j++)for(let i=0;i<3;i++)data[16+j*4+i]=planes[i][j];r.device.queue.writeBuffer(mesh.mappingUniform,0,data);mesh.mappingWords=new Uint32Array(data.buffer);mesh.mappingSignature=signature;}mesh.mappingProjectionSource=projectionSource;mesh.mappingBounds=[...box.min,...box.max];
+      const projectionSource=uv?null:nativeValue(mesh.hashId,'projection'),world=uv?null:mesh.frameWorld;
+      if(!mesh.mappingUniform||mesh.mappingProjectionSource!==projectionSource||mesh.mappingFrameSource!==world){
+        const data=world?localProjectionWords(mesh,world):new Float32Array(32),signature=data.join(',');
+        if(!mesh.mappingUniform){
+          mesh.mappingUniform=meshAllocator(r,mesh)('cube projection frame',128,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+          mesh.mappingSignature=null;
+        }
+        if(mesh.mappingSignature!==signature){
+          r.device.queue.writeBuffer(mesh.mappingUniform,0,data);mesh.mappingWords=new Uint32Array(data.buffer);mesh.mappingSignature=signature;
+        }
+        mesh.mappingProjectionSource=projectionSource;mesh.mappingFrameSource=world;
       }
       for(const part of mesh.parts||[mesh]){const old=bindings.groups.get(part),idBase=mesh.drawIds.get(part.faceStart||0);if(old?.source===part.shadingBindGroup)continue;const group=r.device.createBindGroup({layout:state.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:3,resource:{buffer:part.normals}},{binding:4,resource:{buffer:mesh.connected.flags}},{binding:5,resource:{buffer:part.renderIndices}},{binding:6,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:7,resource:{buffer:mesh.paged?r.meshModePaged:r.meshModeBuffer}},{binding:8,resource:{buffer:idBase}},{binding:9,resource:{buffer:mesh.objectFrame}},{binding:10,resource:{buffer:mesh.materialTable}},{binding:11,resource:{buffer:uv?.resource||r.dummyReadBuffer}},{binding:12,resource:{buffer:mesh.mappingUniform}},{binding:13,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});bindings.groups.set(part,{source:part.shadingBindGroup,group});}return {state,bindings};
     }
@@ -22638,6 +22787,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first)||materialTransparent(first,true))return null;
         const material=first.materialTags?.length?materialMeshGPU(r,first):null;
         if(material&&!material.state.group)return null;
+        if(material&&!material.bindings.uv&&meshUsesMaterialMaps(material.state,first)){
+          // An ordered batch owns one projection uniform. Scaled occurrences need their own.
+          run.sharedProjection??=scene.meshes.slice(run.from,run.to).every(mesh=>
+            [0,1,2,4,5,6,8,9,10].every(i=>mesh.frameWorld[i]===first.frameWorld[i]));
+          if(!run.sharedProjection)return null;
+        }
         const state=material?materialReplicaPipeline(r,first,material):replicaPipeline(r,first);
         if(!state)return null;
         const preview=replicaPlantPreview(first,material),previewState=preview&&materialReplicaPipeline(r,first,material,true);
@@ -22860,7 +23015,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         b.libraryKey!==library.indicesKey||b.groups.get(mesh)?.group!==row.group)return false;
       const lo=mesh.localBoundsMin||mesh.boundsMin,hi=mesh.localBoundsMax||mesh.boundsMax;
       for(let k=0;k<3;k++)if(lo[k]!==b.bounds[k]||hi[k]!==b.bounds[k+3])return false;
-      return mesh.mappingUniform&&mesh.mappingProjectionSource===nativeValue(mesh.hashId,'projection')&&
+      return mesh.mappingUniform&&(b.uv||mesh.mappingProjectionSource===nativeValue(mesh.hashId,'projection')&&mesh.mappingFrameSource===mesh.frameWorld)&&
         b.uv===ensureImportedUV(mesh)?.resource&&saved.transparent===(polygonWire()&&!!mesh.splineWireEdges&&materialTransparent(mesh));
     }
     function issueOpaqueMesh(pass,state,mesh=null){
@@ -23543,7 +23698,9 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           if(renderer!==session)return;
           canvas.dataset.operationError=event.error.message;
         });
-        await ensureNativeSurfaceLines(renderer);return renderer;
+        await ensureNativeSurfaceLines(renderer);
+        warmPlantSurfaces(session);
+        return renderer;
       })();
       try { return await rendererPromise; }
       catch (error) { rendererPromise = null; throw error; }
@@ -25648,6 +25805,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
       catch(error){canvas.dataset.orbitPickError=error.message;}
       if(state.generation!==orbitGeneration||state.mesh!==scene||state.released)return;
       if(cameraNavigationOwned()){cancelCameraNavigation();return;}
+      // A surface found after the first pan can anchor the next gesture, but changing
+      // depth now would rescale the entire displacement already applied from the press.
+      if(state.middlePan)return;
       if(point){
         state.pivot=point.map((value,i)=>(value-scene.center[i])*scene.scale);
         orbitPivot=[...state.pivot];
@@ -26321,7 +26481,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const o of plan.objects)for(const tag of get(o.hash,'tags')||[]){
         const uid=get(tag,'material')?.[0];if(uid)materials.add(uid);
       }
-      const {used,normals}=materialImageUsage(materials,uid=>get(uid,'maps'));
+      const {used,normals}=materialImageUsage(materials,uid=>get(uid,'maps'),uid=>get(uid,'parameters'));
       const entries=[...used].map(uid=>{
         const bytes=get(uid,'image'),asset={bytes,path:''},old=frameTextureSources.get(uid);
         return {uid,asset,image:bytes&&old&&frameSameMaterialAsset(old,asset)?frameMaterialImage(old.url):null};
@@ -26774,6 +26934,20 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         worlds.set(o.hash,world);if(o.raw)warmImportedSurface(r,o.raw,catalog,world);
       }
     }
+    function warmPlantSurfaces(r){
+      FramePlants.warmFoliage(r.device).then(()=>{
+        if(renderer!==r||r.dead)return;
+        const p=FramePlants.settings(FramePlants.fields);
+        return Promise.all([FramePlants.bark(),FramePlants.bakeFoliage(r.device,p)]);
+      }).catch(editError);
+      // Queue the default tree first. Each compiled pipeline is shared by later edits.
+      for(const grouped of [true,false])for(const wire of [false,true])for(const orthographic of [false,true]){
+        const options={orthographic,wire,grouped,uv:true};
+        requestMaterialPipeline(r,materialProgram(r),{...options,mapped:true});
+        requestMaterialReplicaPipeline(r,{...options,plain:true});
+        if(!wire)requestMaterialReplicaPipeline(r,{...options,plain:true,preview:true});
+      }
+    }
     function warmImportedSurface(r,raw,catalog,world){
       const ranges=raw.ranges.filter(range=>range.count&&range.material!==undefined);
       const slots=new Set(ranges.map(range=>catalog[range.material]));
@@ -26909,12 +27083,50 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     const plantImageIDs=new WeakMap(),generatedPlantImages=new Set(),residentPlantMaps=new Map();
     function rememberPlantMaps(key,m){
-      residentPlantMaps.set(key,[m.colorAsset,m.normalAsset]);
+      residentPlantMaps.set(key,[m.colorAsset,...m.normalAsset?[m.normalAsset]:[]]);
     }
     function plantMaps(device,p,key){
-      const images=k=>residentPlantMaps.get(k)?.map(uid=>frameTextureSources.get(uid)?.bytes);
-      const wood=images('bark'),leaves=images(key);
-      return wood?.every(Boolean)&&leaves?.every(Boolean)?[wood,leaves]:FramePlants.bakeAtlas(device,p);
+      const resident=residentPlantMaps.get(key)?.map(uid=>frameTextureSources.get(uid)?.bytes);
+      if(resident?.every(Boolean))return resident;
+      return key==='bark'?FramePlants.bark():FramePlants.bakeFoliage(device,p);
+    }
+    async function preparePlantAppearance(gpu,catalog,alive){
+      const state=ensureMaterialState(gpu);
+      while(alive()){
+        if(state!==gpu.materialState)return preparePlantAppearance(gpu,catalog,alive);
+        if(state.loadingKey)await state.assetsReady;
+        if(!alive())break;
+        const revision=appearanceRevision,ticket=state.assetTicket,atlas=state.atlas;
+        const prospective=new Map(catalog.filter(Boolean).map(m=>[m.uid,m]));
+        const usage=owners=>materialImageUsage(owners,uid=>{
+          const m=prospective.get(uid);
+          return m?frameMapFields.map(field=>m[field]):appearanceValue(uid,'maps');
+        },uid=>{
+          const m=prospective.get(uid);
+          return m?materialKeys.map(k=>materialNumber(m,k)):appearanceValue(uid,'parameters');
+        });
+        const current=()=>alive()&&gpu.materialState===state&&appearanceRevision===revision&&state.assetTicket===ticket&&state.atlas===atlas;
+        const incoming=usage(prospective.keys());
+        if([...incoming.used].every(uid=>state.layers?.has(uid))&&[...incoming.normals].every(uid=>state.layers?.has('normal:'+uid)))return {current};
+        const bound=new Set(prospective.keys());
+        for(const mesh of scene.meshes)for(const tag of mesh.materialTags||[])bound.add(tag.materialUID);
+        const {used,normals}=usage(bound);
+        const entries=[...used].map(uid=>{
+          const asset=frameTextureSources.get(uid);
+          if(!asset)throw Error('Missing material image');
+          return {uid,asset,image:frameMaterialImage(asset.url)};
+        });
+        const images=await prepareMaterialAtlas(gpu,entries,normals,current,state);
+        if(!images)continue;
+        let transferred=false;
+        try{
+          if(await prepareMaterialNormalLayers(gpu,images,entries,normals,current,state)&&current()){
+            transferred=true;
+            return {images,normals,key:materialAssetKey(used,normals),state,current};
+          }
+        }finally{if(!transferred)releaseGPU(images.atlas);}
+      }
+      return null;
     }
     function retirePlantImages(){
       const used=new Set(materials.flatMap(m=>frameMapFields.map(k=>m[k])));
@@ -26945,9 +27157,9 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     function plantMaterial(maps,foliage,prior){
       const [color,normal]=maps.map(plantImage);
-      const m={...frameMaterialDefaults,h:0,s:0,l:100,emm:0,metal:0,opac:0,rough:foliage?77:91,bump:foliage?86:38,
+      const m={...frameMaterialDefaults,h:0,s:0,l:100,emm:0,metal:0,opac:0,rough:foliage?77:91,bump:foliage?0:38,
         name:foliage?'Foliage':'Bark',alphaMode:foliage?2:1,alphaCutoff:24,opacityChannel:3,...prior,translucency:foliage?50:0,uid:FrameHash.newId()};
-      m.texture=color.url;m.map=frameMaterialImage(color.url);m.colorAsset=color.uid;m.normalAsset=normal.uid;
+      m.texture=color.url;m.map=frameMaterialImage(color.url);m.colorAsset=color.uid;m.normalAsset=normal?.uid;if(foliage)m.bump=0;
       if(foliage){m.opacityAsset=color.uid;m.opacityTexture=color.url;m.opacityMap=m.map;}
       return m;
     }
@@ -27008,7 +27220,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           }
           uses=null;
           const space=scene,gpu=renderer,p=plant?FramePlants.settings(n.params):null;
-          const shape=plant?FramePlants.geometryKey(p):null,foliage=plant?FramePlants.atlasKey(p):null;
+          const shape=plant?FramePlants.geometryKey(p):null,foliage=plant?FramePlants.foliageKey(p):null;
           const sameGeometry=plant&&mesh&&mesh.plantGeometryKey===shape&&slots.has(1)&&n.tags.some(t=>t.librarySlot&&t.kind==='uv');
           const bindings=plant?FrameValue.key(n.librarySlots||stockMaterialSlots(n)):null;
           const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===FrameValue.key(n.params)
@@ -27018,13 +27230,15 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             const woody=!FramePlants.isGround(p.form),bark=sameAsset&&materialAt(0),leaf=sameAsset&&materialAt(1),bound=slots.get(1)?.foliage;
             managed=!leaf||!!bound;
             const changeLeaf=!leaf||managed&&(bound!==foliage||!leaf.translucency);
-            const images=(woody&&!bark||changeLeaf)?await plantMaps(gpu.device,p,foliage):null;
+            if(!sameGeometry)raw=FramePlants.makePlant(p,true);
+            const [woodMaps,leafMaps]=await Promise.all([
+              woody&&!bark&&plantMaps(gpu.device,p,'bark'),changeLeaf&&plantMaps(gpu.device,p,foliage)
+            ]);
             if(!alive())continue;
-            catalog=[woody?(bark||plantMaterial(images[0],false)):null,changeLeaf?plantMaterial(images[1],true,leaf||null):leaf];
+            catalog=[woody?(bark||plantMaterial(woodMaps,false)):null,changeLeaf?plantMaterial(leafMaps,true,leaf||null):leaf];
             if(woody&&!bark)rememberPlantMaps('bark',catalog[0]);
             if(managed)rememberPlantMaps(foliage,catalog[1]);
             defaults=catalog.slice();
-            if(!sameGeometry)raw=FramePlants.makePlant(p,true);
           }else{
             const response=await fetch('models/'+filename+'.hash');
             if(!response.ok)throw Error('Model HTTP '+response.status);
@@ -27037,9 +27251,26 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             applyCarPreset(filename,preset,i=>catalog[i]===defaults[i]?catalog[i]:null);
           }
           const appearance=raw&&warmImportedSurface(gpu,raw,catalog,objectWorld(n.nativeHash));
-          const next=raw?await uploadAndCompute(gpu,{...raw}):null;
-          await appearance;await selectionQueue;await editSerial;
-          if(!alive()){if(next)disposeMesh(next);continue;}
+          const imageWork=plant?preparePlantAppearance(gpu,catalog,alive):null;
+          const geometry=raw?uploadAndCompute(gpu,{...raw}):null;
+          const jobs=await Promise.allSettled([imageWork,geometry,appearance]);
+          let staged=jobs[0].value;
+          const next=jobs[1].value;
+          try{
+            const failure=jobs.find(job=>job.status==='rejected');
+            if(failure)throw failure.reason;
+            await selectionQueue;await editSerial;
+            while(alive()&&staged&&!staged.current()){
+              releaseGPU(staged.images?.atlas);staged=null;staged=await preparePlantAppearance(gpu,catalog,alive);
+              await selectionQueue;await editSerial;
+            }
+            if(!alive()){if(next)disposeMesh(next);continue;}
+            if(staged?.images){
+              const {state,images,normals,key}=staged;
+              installMaterialImages(state,images,normals,key);state.plantImageSuperset=true;staged=null;
+            }
+          }catch(error){if(next)disposeMesh(next);throw error;}
+          finally{if(staged?.images)releaseGPU(staged.images.atlas);}
           if(next)freezeAncestorPivots([n.nativeHash]);
           let pool;
           for(let i=0;i<catalog.length;i++)if(catalog[i]&&catalog[i]===defaults[i]&&!materials.includes(catalog[i])){
