@@ -58,10 +58,11 @@ function geometry(type,overrides={}){
     const distance=(a,b)=>Math.hypot(...a.map((x,k)=>x-b[k]));
     const arc=centers.slice(1).reduce((s,p,i)=>s+distance(p,centers[i]),0);
     if(arc>1.002*distance(centers[0],centers.at(-1)))bent++;
-    if(type==='fern'&&p.growth===100){
+    if(type==='palm'||type==='fern'&&p.growth===100){
       const tangents=centers.slice(1).map((p,i)=>p.map((x,k)=>(x-centers[i][k])/distance(p,centers[i])));
       const angles=tangents.slice(1).map((t,i)=>Math.acos(t.reduce((s,x,k)=>s+x*tangents[i][k],0))*180/Math.PI);
-      assert.ok(angles.every(a=>a>9&&a<19)&&Math.max(...angles)-Math.min(...angles)<5,'Smooth rachis from base to tip: '+angles);
+      if(type==='palm')assert.ok(Math.max(...angles)-Math.min(...angles)<.15,'Palm joints turn uniformly: '+angles);
+      else assert.ok(angles.every(a=>a>9&&a<19)&&Math.max(...angles)-Math.min(...angles)<5,'Smooth rachis from base to tip: '+angles);
     }
     cards++;
   }
@@ -128,6 +129,17 @@ async function mergePart(name,data){
   await page.route(route,r=>r.fulfill({body:Buffer.from(data.base64,'base64'),contentType:'application/octet-stream'}));
   try{return await call('scene.merge',{url:name});}finally{await page.unroute(route);}
 }
+const mapStats=uid=>page.evaluate(async uid=>{
+  const asset=frameMaterialState().assets.find(a=>a.uid===uid),image=await createImageBitmap(new Blob([asset.bytes]));
+  const canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);image.close();
+  const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data,count=rgba.length/4;
+  let sum=0,squares=0,covered=0;
+  for(let i=0;i<rgba.length;i+=4){
+    const l=.299*rgba[i]+.587*rgba[i+1]+.114*rgba[i+2];sum+=l;squares+=l*l;
+    if(rgba[i+3]>=.24*255)covered++;
+  }
+  return {mean:sum/count,contrast:Math.sqrt(squares/count-(sum/count)**2),coverage:covered/count};
+},uid);
 const leaf=n=>n.tags.find(t=>t.kind==='material'&&t.libraryIndex===1);
 function assertMaps(a,n){
   const m=a.materials.find(m=>m.uid===leaf(n).materialUID);
@@ -147,15 +159,8 @@ try{
   assert.equal(tree.params.detail,'procedural');assert.equal(tree.name,'Oak');
   const original=assertMaps(state,tree),sun=await appearance(id),summerMesh=await digest(id);
   const barkSlot=tree.tags.find(t=>t.libraryIndex===0),barkMaterial=state.materials.find(m=>m.uid===barkSlot.materialUID);
-  const contrast=await page.evaluate(async uid=>{
-    const asset=frameMaterialState().assets.find(a=>a.uid===uid),image=await createImageBitmap(new Blob([asset.bytes]));
-    const canvas=new OffscreenCanvas(image.width,image.height),ctx=canvas.getContext('2d');ctx.drawImage(image,0,0);image.close();
-    const rgba=ctx.getImageData(0,0,canvas.width,canvas.height).data;
-    let sum=0,squares=0;const count=rgba.length/4;
-    for(let i=0;i<rgba.length;i+=4){const l=.299*rgba[i]+.587*rgba[i+1]+.114*rgba[i+2];sum+=l;squares+=l*l;}
-    return Math.sqrt(squares/count-(sum/count)**2);
-  },barkMaterial.colorAsset);
-  assert.ok(contrast>10&&contrast<17,'Finer bark has moderate luminance variation: '+contrast);
+  const bark=await mapStats(barkMaterial.colorAsset);
+  assert.ok(bark.mean>73&&bark.mean<79&&bark.contrast>6&&bark.contrast<10,'Subtle bark grain at the original brightness: '+JSON.stringify(bark));
   assert.equal(sun.uv.corners,tree.mesh.triangles*3);assert.equal(tree.tags.filter(t=>t.kind==='uv').length,1);
   assert.equal(sun.materials[1].triangles,plants.makePlant(plants.settings(tree.params)).ranges[1].count);
   const presets=await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>[...row.children].map(button=>[button.offsetWidth,button.offsetHeight])));
@@ -233,7 +238,8 @@ try{
   const fern=await call('scene.create',{type:'tree',params:{type:'fern'}});
   assert.equal(fern.mesh.triangles,10*Math.ceil(14*fern.params['leaf density']/100));
   assert.deepEqual(fern.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
-  assertMaps(await inspect(),fern);
+  const fernStats=await mapStats(assertMaps(await inspect(),fern).colorAsset);
+  assert.ok(fernStats.coverage>.36&&fernStats.coverage<.49,'Broad pinnules with open gaps: '+fernStats.coverage);
   for(const type of ['shrub','fern','grass','tall-grass','daisy','poppy','lavender','iris']){
     let p=plants.settings({...plants.fields,...plants.presets[type],type}),sparse=plants.makePlant({...p,density:20}),dense=plants.makePlant(p);
     assert.equal(dense.ranges[0].count,0);
@@ -261,6 +267,22 @@ try{
   assert.equal((await call('scene.update',{id:grown.hash,params:{'leaf density':0}})).mesh,null);
   await call('edit.history',{action:'undo'});
   assert.equal((await object(grown.hash)).mesh.triangles,grown.mesh.triangles);
+  await call('scene.new');
+  const pair=[];
+  for(let i=0;i<2;i++)pair.push(await call('scene.create',{type:'tree',params:{type:'palm'}}));
+  await page.locator('#tabTextures').click();
+  const urls=await page.evaluate(()=>[...new Set(frameMaterialState().assets.map(a=>a.url))]);
+  const shelf=()=>page.locator('#texGrid .tex-card').evaluateAll(cards=>cards.map(c=>c.dataset.texture));
+  assert.equal(urls.length,3);
+  await call('scene.delete',{ids:[pair[0].hash]});
+  const shared=await shelf();assert.ok(urls.every(url=>shared.includes(url)));
+  await call('scene.delete',{ids:[pair[1].hash]});
+  const cleared=await shelf();assert.ok(urls.every(url=>!cleared.includes(url)));
+  assert.equal(cleared.filter(url=>url.startsWith('textures/')).length,32);
+  await call('edit.history',{action:'undo'});
+  const restored=await shelf();assert.ok(urls.every(url=>restored.includes(url)));
+  await call('edit.history',{action:'redo'});
+  const redone=await shelf();assert.ok(urls.every(url=>!redone.includes(url)));
   assert.deepEqual(errors,[]);
   console.log('Native Tree toolbar, presets, undo, shared foliage images, seasons, compact HASH and editable geometry passed.');
 }finally{await session.close();}

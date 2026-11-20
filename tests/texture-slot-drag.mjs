@@ -73,6 +73,22 @@ export async function textureSlotDragChecks(){
    await c.frameUndoUI(true);c.renderTextures();assert.ok(present());assert.equal(c.materials[1][slots[slot]],asset);assert.equal(c.textureImages.get('blob:removed'),img);await c.frameUndoUI(false);assert.equal(present(),false);
   }
  });
+ await test('Deleting owners prunes only their last images and keeps the built-in shelf across history',async()=>{
+  for(const tab of ['tabTextures','tabMaterialMgr']){
+   const c=fixture(html),a=c.materials[1],b=c.addMaterial(),first=c.object(1,1),second=c.object(2,2);
+   await c.loadMaterialTexture('blob:leaves','map',a);await c.instanceMaterialTexture(a.colorAsset,'roughAsset',b);
+   await c.loadMaterialTexture('textures/one.png','normalAsset',b);
+   const camera=c.object(3,0,'render');camera.params['environment image']=a.colorAsset;
+   c.frameAddTexture('blob:unassigned','Unassigned');c.renderTextures();c.activeTab=tab;
+   const shelf=()=>Array.from(c.$('texGrid').children,card=>card.dataset.texture);
+   const original=shelf();c.del([first.id]);c.del([second.id]);
+   assert.deepEqual(shelf(),original,'The environment still owns the shared image');
+   c.del([camera.id]);const pruned=original.filter(url=>url!=='blob:leaves');
+   assert.deepEqual(shelf(),pruned);
+   await c.frameUndoUI(true);assert.deepEqual(shelf(),original);
+   await c.frameUndoUI(false);assert.deepEqual(shelf(),pruned);
+  }
+ });
  await test('Shared slots, materials, source URLs and environment references preserve the shelf card',async()=>{
   for(const kind of ['slot','material','url','environment-id','environment-url']){
    const c=fixture(html),m=c.materials[1];await c.loadMaterialTexture('blob:shared','roughAsset');const asset=m.roughAsset;

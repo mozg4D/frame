@@ -115,12 +115,13 @@ async function forestNavigationWithDelayedPick(){
     try{
       const start=await camera();
       if(gesture==='wheel'){
-        await page.evaluate(()=>{frameEngine.renderer.lastFrameRaw.gpuMs=32;});
+        await page.evaluate(()=>window.addEventListener('wheel',()=>{frameEngine.renderer.lastFrameRaw.gpuMs=32;},{capture:true,once:true}));
         await page.mouse.wheel(0,-60);
       }else await page.mouse.down({button:gesture});
       await page.waitForFunction(()=>__forestPick.reads>0);
       if(gesture!=='wheel')await page.mouse.move(x+61,y+22,{steps:3});
-      await page.waitForFunction(before=>before.some((v,i)=>v!==frameEngine.viewState[i]),start,{timeout:2000});
+      await page.waitForFunction(before=>before.some((v,i)=>v!==frameEngine.viewState[i]),start,{timeout:2000})
+        .catch(e=>{throw Error(gesture+' navigation waited for the delayed surface pick',{cause:e});});
       if(gesture!=='wheel')await page.mouse.up({button:gesture});
       const last=await camera();
       await page.evaluate(()=>__forestPick.release());
@@ -185,6 +186,7 @@ try{
   assert.equal(solid.counts.positions,1);assert.equal(solid.counts.normals,1);assert.equal(solid.counts.indices,1);
   assert.equal(solid.counts.batchedDraws.instances,50000);
   assert.ok(solid.counts.batchedDraws.calls<=128);
+  assert.ok(solid.counts.batchedDraws.previewInstances>=45000,'Rotation alone does not inflate the projected tree diameter');
   assert.ok(solid.counts.ownedBuffers<128,'Viewport never requires separate GPU uniform objects for all copies');
   assert.ok(solid.cpuMs<12&&solid.gpuMs<55);
   assert.ok((await pixels()).green>2000,'The shared wood and cutout foliage are painted in the distant view');
@@ -195,6 +197,10 @@ try{
   await forestEdgePan(forest.hash);
   await forestPanWhileGPUIsBusy();
   await forestNavigationWithDelayedPick();
+  await call('view.set',{focus:tree.hash});
+  await call('diagnostics.frame',{frames:1});
+  const close=(await call('diagnostics.replicas',{id:forest.hash,limit:0})).resources.batchedDraws;
+  assert.ok(close.instances>0&&close.previewInstances<close.instances,'Visible nearby trees retain their full geometry');
   await call('view.set',{focus:forest.hash});
 
   await call('view.set',{shading:'solid-isoparms'});

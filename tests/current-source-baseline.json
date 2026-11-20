@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 20 nov 19:30",
+  "version": "2026 20 nov 20:40",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -550,11 +550,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "a9247eb9f2e386209800161294762a2ee73e77a96f02abec549e994983cbbee1"
+      "sha256": "e9fab7c550f46d1666bcd757e9f6ae8dca85bc8098b1144fb2971bb1f8768eb0"
     },
     "index.html": {
-      "bytes": 3856029,
-      "sha256": "39b9b276452ca4148763881a55d423303837163c8d99608349aab3b5a6362129"
+      "bytes": 3860952,
+      "sha256": "dfce0e8ff27b80837f0e513b34aeaa7e8db99407a9d3e02e21a96eb1486d9ef7"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -889,8 +889,8 @@
       "sha256": "24c538ba49968016a88dbe0e15acde143673b9d1e6f78699004ddf34c79d7dfd"
     },
     "tests/texture-dnd-source-contract.json": {
-      "bytes": 20310,
-      "sha256": "942c7e9feea77fcc6350bfb53c8d9419ef395623b564cadd0bb75ff4c38a4f47"
+      "bytes": 20330,
+      "sha256": "b2d8c02045f484773cc3ec5a8abd9b36f74c0d66e56e17f4f50bfae108cfc191"
     },
     "tests/texture-slot-drag-browser.mjs": {
       "bytes": 21910,
@@ -901,8 +901,8 @@
       "sha256": "13800abe1485268096b8bed41a7ecd0e223423c85200d2e4ab4ced32a83001bc"
     },
     "tests/texture-slot-drag.mjs": {
-      "bytes": 48885,
-      "sha256": "b5929c998bb223c007a20d71f1ad412d97dfb13b32bd822464fa33f9f176e95b"
+      "bytes": 50002,
+      "sha256": "374004e89569b26c9d12db83e8e497319e0bf0cb3717e1e6a6a7fd74c9858f77"
     },
     "tests/fixtures/icon-main-42f64a46.json": {
       "bytes": 3126,
@@ -1121,8 +1121,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 96977,
-      "sha256": "56e5d45fe9a9afa0f7ad2747aef5184f94e78f3ade1147334820fa4dca50d1dd"
+      "bytes": 97471,
+      "sha256": "97b0e7102d379a4ebe3db41a09acd6b422b6f43248824ef163a3dd7cca6bcdc7"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
