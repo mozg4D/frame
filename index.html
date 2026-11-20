@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 00:38">
+<meta name="frame-version" content="2026 21 nov 00:50">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15365,7 +15365,7 @@ function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tab
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 const curvatureIcon=$('shaderCurvature');
 let curvatureDrag=null,curvatureDropTicket=0;
-curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><path d="M3 17.9 13.5 6.8 29 14.2 18.5 25.3Z" fill="#31566d"/><path d="M3 17.9 15.4 12.35 29 14.2 18.5 25.3Z" fill="#3f8183"/></svg>';
+curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><image width="32" height="32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFMElEQVR4nO2WW4hdZxXHf99lX85tZs7JkMllahsT0LQS6qVILAHRGrwUkV7Ey5NQLX0TSX0SfBCk2Ad98EH7oH3xxVZBSInaokXQtEWLWNEpSMw0UyfpTGbmzJk5e+9v728tH47SNp1JWxDiQz7Yb/tb67f+a61vLfPOE5/jWh57Tb1fB7gO8P8A4N/yn8ZgkgSb5XfYPH/Yptmy8f4smKc1Ns9ICLWUBVqVSF2DyP8GwDiH7fbw/UGa9Gce8lP5V13HG5vZW43jExjQyFAqfSKOm5/EzepX9cYwNmuXiVsjtK6vbn/Xh8gYXKdLsneOdO+evckg/3kyY2+f6TbMZyXzbkzfBgww1ISXmzauM89w7BYXzq1+r14Lj4SVtXH9yiWa0eauiuysgHUk/QHp/v2kc9M3Te/Ln+zNyJGjySofciscjpt0q4ALEQCZ2kP9nk9S5H2ePvfCjavz+t31bv5125n7pmu3f1QtL8dmbRVtmrcAYC1Jv0964ADp3PQN6az9zceP3XDoowcPMG0jSTnCLf2dZHEBf/E8cd8RqlvuIr/wJ9KV5zjezqlbc/zW7d2/Yv0jxvS+AuZ+VJ9v1lbRGK8O4Nod/GAW3+/N+Cl7Jpsyh1aXn2d4+QyzqnhmMcmA+v2fIWQd1Ke0n/wxuvFPmqmUWavc2lrnkuY82xuglf2AVJ1npdzzkFTlt+JoM6D6aryvS7v3uG4P1+s513I/dS1zSy+J7LMFM1pgR5dxF14g/ctTZGd/ASL4VxYpPvx5ZP5mjCi2EaYJzNmSXtJgc4NtWe+63W+4bves8f7duypgkhSb59g0+bbxfMw4cEZBocEi3iKppekPqE/cRfbM47iXX6Q5eIRw251QvA956ZcELKqT6IwD48GkHpvm7zVJcp/W9amdFXAOrLsTax4EUIFSLWuaclFblHlC000Jx+/FLP8VHZ2jmUqQ4iXsHx9FEku87QE2WvOsakahDhVAAWP+hbUnjXWnXuvzihrQg6g8qlGMNqC1Mq4di67DTKzxTjh8+ChZamHlD4RBNrnlDDGBrcUzDMvjHLj5HvyLf6ZY2kCCoA2/10buRuKl1+b/DQAa4/c1hD1aBSQkxBJMoizZFiYF3x7wjv23s/S3x2m3OqRMervCsqEpF2PO4tIS5fA5pjv7acbrSKk/k0q/KFVVSQhX7wKt67ulLI/G8fYJm2cfid6fNFanKwzn223ueNcxfnfhHBe2EnpmjoyJsRLHpiasSM6lmDG6OKYZ/4O4rY/FsX4hFnUj29tIWaB1eB3AG15C2+7gZ/r4/gA/3Utdx510LfMl1zKfbncTL06wTkit4M1EzkYNVbTUjUGCEktFCn0qjvVTcbsJzXCTZn2NZriOFMXuCgBIWRBHDmMMiAaN3dNaJ6clcOOoCKdsar5svMkKZ8H899KkYLUWpFakYkFKuSeO6xBHI5rhBnG0iZTlle52ngXGOWyrjet2cZ0ettvFtXJs5jDe3GS8+Y6x3ItlUuEKGhWNIEE3JTQflHGxELe3iFtbxK0RUhY7zoMdZ4HGSNzeQpsaqSpsMSa2Wtgsx6bpeZP4zxprT2LMD4BDqgpRkLpGQ7hPymJBygIpCuJ4PMn7FdV/VYAJhSJliYYaKcaYNMOmGSZJMN5jnPs1xhwDHkbkfo3RaNP8UOvwmISAhGoyit9kL3jTfUAlomWEqkKsBecw1mGsBWO2gAdU9TQSH9QoX0MiKrJrxG8b4FUSnfRwjOxg+on/fG/7XPOd8DrAdYBrDvBv9iCZyCwVPMcAAAAASUVORK5CYII="/></svg>';
 function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
 function finishCurvatureDrag(e,cancel=false){
   const g=curvatureDrag;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;
