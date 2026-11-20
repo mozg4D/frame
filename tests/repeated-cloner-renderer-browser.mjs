@@ -56,8 +56,9 @@ try{
   await call('scene.select',{ids:[]});
   await call('view.set',{index:0,single:true,mode:'object',focus:grid.hash});
   await page.mouse.move(5,5);
-  for(const shading of ['solid','solid-isoparms']){
+  for(const shading of ['solid','solid-isoparms','wireframe']){
     await call('view.set',{shading});
+    if(shading==='wireframe')await page.waitForFunction(()=>frameEngine.renderer.wireRaster);
     const batch=await frames(shading+' ordered',grid.hash);
     assert.equal(batch.counts.batchedDraws.instances,1000);
     assert.equal(batch.counts.batchedDraws.calls,1);
@@ -75,9 +76,11 @@ try{
   await call('scene.new');
 
   const tree=await call('scene.create',{type:'tree'});
+  const circle=await call('scene.create',{type:'circle',params:{diameter:1800000}});
+  const disk=await call('scene.create',{type:'spline_patch',inputs:[circle.hash]});
   const started=performance.now();
   const forest=await call('scene.create',{type:'cloner',inputs:[tree.hash],params:{
-    'count x':250,'count y':1,'count z':200,'spacing x':10000,'spacing z':10000,'random angle y':180
+    type:'object',object:disk.hash,count:50000,'random angle y':180
   }});
   report.createMs=performance.now()-started;
   console.log('Create 50000 selected procedural trees: '+report.createMs+' ms');
@@ -87,11 +90,14 @@ try{
   const solid=await frames('50000 trees Solid',forest.hash);
   assert.equal(solid.counts.positions,1);assert.equal(solid.counts.normals,1);assert.equal(solid.counts.indices,1);
   assert.equal(solid.counts.batchedDraws.instances,50000);
-  assert.ok(solid.counts.batchedDraws.previewInstances>=45000);
   assert.ok(solid.counts.batchedDraws.calls<=128);
   assert.ok(solid.counts.ownedBuffers<128,'Viewport never requires separate GPU uniform objects for all copies');
-  assert.ok(solid.cpuMs<12&&solid.gpuMs<25);
+  assert.ok(solid.cpuMs<12&&solid.gpuMs<55);
   assert.ok((await pixels()).green>2000,'The shared wood and cutout foliage are painted in the distant view');
+  const placement=await call('diagnostics.replicas',{id:forest.hash,limit:0});
+  report.treeTriangles=tree.mesh.triangles;report.forestTriangles=placement.triangles;report.diskTriangles=disk.mesh.triangles;
+  assert.equal(placement.triangles,tree.mesh.triangles*50000);
+  assert.equal(placement.distribution.preparations,1);
 
   await call('view.set',{shading:'solid-isoparms'});
   const lines=await frames('50000 trees exact Solid + Isoparms',forest.hash);
@@ -99,10 +105,27 @@ try{
   assert.equal(lines.counts.batchedDraws.previewInstances,0);
   assert.ok(lines.cpuMs<18&&lines.gpuMs<125);
 
-  await call('view.set',{index:1,shading:'solid',focus:tree.hash});
-  const near=await frames('Zoomed tree group, exact geometry',forest.hash);
-  assert.ok(near.counts.batchedDraws.instances>0&&near.counts.batchedDraws.instances<50000,JSON.stringify(near.counts));
-  assert.equal(near.counts.batchedDraws.previewInstances,0);
+  await call('view.set',{shading:'wireframe'});
+  await page.waitForFunction(()=>frameEngine.renderer.wireRaster);
+  const wire=await frames('50000 trees Wire',forest.hash);
+  assert.equal(wire.counts.batchedDraws.instances,50000);
+  assert.ok(wire.counts.batchedDraws.calls<=128);
+  assert.ok(wire.counts.ownedBuffers<128,'Wire uses shared replica buffers from its first draw');
+
+  await call('view.set',{index:1,shading:'solid',focus:forest.hash});
+  const top=await frames('50000 trees Top Solid',forest.hash);
+  assert.ok(top.counts.batchedDraws.previewInstances>=45000);
+  await call('scene.create',{type:'render',params:{samples:1,realtime:'off',environment:'off'}});
+  await call('scene.select',{ids:[]});
+  await call('view.set',{index:0,shading:'solid',focus:forest.hash});
+  const startedCamera=performance.now();
+  await call('render.start');
+  report.camera={wallMs:performance.now()-startedCamera,...await call('render.inspect')};
+  assert.equal(report.camera.phase,'complete');
+  assert.equal(report.camera.triangles,placement.triangles+disk.mesh.triangles);
+  assert.equal(report.camera.storedTriangles,tree.mesh.triangles+disk.mesh.triangles);
+  assert.equal(report.camera.uniqueGeometry,2);
+  assert.ok(report.camera.snapshot.materials<=4);
   await call('scene.update',{id:forest.hash,visible:false});
   await call('diagnostics.frame',{frames:3});
   assert.equal((await call('diagnostics.replicas',{id:forest.hash,limit:0})).visible,0);

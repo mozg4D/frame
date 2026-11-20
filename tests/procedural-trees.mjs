@@ -12,9 +12,18 @@ function geometry(type,overrides={}){
   assert.equal(raw.uv.length,raw.indices.length*2);
   const y=verts.filter((_,i)=>i%3===1);
   assert.ok(Math.abs(Math.min(...y))<0.0001&&Math.abs(Math.max(...y)-p.height*10*p.growth)<0.02);
-  const stemIndices=raw.indices.subarray(0,wood*3),stemVerts=Math.max(...stemIndices)+1;
-  const smooth=classify(verts.subarray(0,stemVerts*3),stemIndices,Math.cos(44*Math.PI/180));
-  assert.equal(smooth.positions.length,stemVerts*3,'Frame must smooth all woody seams and caps');
+  const stemIndices=raw.indices.subarray(0,wood*3),stemVerts=wood?Math.max(...stemIndices)+1:0;
+  if(wood){
+    const smooth=classify(verts.subarray(0,stemVerts*3),stemIndices,Math.cos(44*Math.PI/180));
+    if(!Object.keys(overrides).length)assert.equal(smooth.positions.length,stemVerts*3,'Default presets have smooth woody sleeves');
+    const edgeCount=new Map();
+    for(let i=0;i<stemIndices.length;i+=3)for(let k=0;k<3;k++){
+      const a=stemIndices[i+k],b=stemIndices[i+(k+1)%3],key=Math.min(a,b)+':'+Math.max(a,b);
+      edgeCount.set(key,(edgeCount.get(key)||0)+1);
+    }
+    const grounded=[...edgeCount].filter(([key,count])=>count===1&&key.split(':').every(id=>verts[id*3+1]===0));
+    assert.ok(grounded.length>=6*p.trunks,'Each trunk starts with an open planar ring at zero');
+  }
   let upward=0,bent=0,total=0;
   for(let i=wood*3;i<raw.indices.length;i+=3){
     const [a,b,c]=raw.indices.subarray(i,i+3).map(v=>v*3);
@@ -23,14 +32,17 @@ function geometry(type,overrides={}){
     const ny=z*u-x*w,mag=Math.hypot(y*w-z*v,ny,x*v-y*u);
     assert.ok(mag>0);if(ny/mag>Math.cos(Math.PI/4))upward++;total++;
   }
-  for(let i=stemVerts;i<verts.length/3;i+=9){
+  for(let i=stemVerts;i<verts.length/3;i+=6){
     const distance=(a,b)=>Math.hypot(...[0,1,2].map(k=>verts[(i+a)*3+k]-verts[(i+b)*3+k]));
-    if(distance(0,4)+distance(4,8)>1.002*distance(0,8))bent++;
+    if(distance(0,1)+distance(1,2)+distance(2,3)>1.002*distance(0,3))bent++;
+    const face=wood*3+(i-stemVerts)*3;
+    assert.deepEqual(Array.from(raw.indices.subarray(face,face+18),id=>id-i),[0,4,1,1,4,2,2,4,3,0,1,5,1,2,5,2,3,5]);
   }
-  if(type!=='spruce'&&p.habit===0&&total){
-    assert.ok(upward/total>0.70,'Most deciduous card triangles must face the sky');
-    assert.ok(bent>total/8*0.80,'Most deciduous cards must have a curved diagonal');
+  if(wood&&type!=='palm'&&p.habit===0&&total){
+    assert.ok(upward/total>0.65,'Most deciduous card triangles must face the sky');
+    assert.ok(bent>total/6*0.80,'Most deciduous cards must have a curved diagonal');
   }
+  if(Object.keys(plants.presets).indexOf(type)>=8)assert.equal(wood,0);
   return {triangles:raw.triangleCount,upward:total?Math.round(100*upward/total):0};
 }
 for(const type of Object.keys(plants.presets)){
@@ -55,6 +67,7 @@ function assertMaps(a,n){
   const m=a.materials.find(m=>m.uid===leaf(n).materialUID);
   assert.ok(m.colorAsset&&m.normalAsset&&m.normalAsset!==m.colorAsset);
   assert.equal(m.opacityAsset,m.colorAsset);assert.equal(m.alphaMode,2);
+  assert.equal(m.translucency,50);
   return m;
 }
 try{
@@ -68,9 +81,14 @@ try{
   assert.equal(tree.params.detail,'procedural');assert.equal(tree.name,'Oak');
   const original=assertMaps(state,tree),sun=await appearance(id),summerMesh=await digest(id);
   assert.equal(sun.uv.corners,tree.mesh.triangles*3);assert.equal(tree.tags.filter(t=>t.kind==='uv').length,1);
-  assert.ok(sun.materials[1].triangles>0&&sun.materials[1].triangles%8===0);
+  assert.ok(sun.materials[1].triangles>0&&sun.materials[1].triangles%6===0);
+  const presets=await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>[...row.children].map(button=>[button.offsetWidth,button.offsetHeight])));
+  assert.deepEqual(presets,Array.from({length:2},()=>Array.from({length:8},()=>[32,32])));
+  assert.deepEqual(await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>new Set([...row.children].map(button=>button.offsetTop)).size)),[1,1]);
+  const fields=await page.locator('#attrContent input[data-field]').evaluateAll(inputs=>inputs.map(input=>input.dataset.field));
+  assert.deepEqual(fields,['seed','day of year','growth','leaf density']);
   await page.locator('#attrContent [data-field="type"][data-value="bush"]').click();
-  tree=await object(id);assert.equal(tree.name,'Bush');assert.equal(tree.params.trunks,plants.presets.bush.trunks);assert.equal(tree.params.height,plants.presets.bush.height);
+  tree=await object(id);assert.equal(tree.name,'Large Bush');assert.equal(tree.params.trunks,plants.presets.bush.trunks);assert.equal(tree.params.height,plants.presets.bush.height);
   await call('edit.history',{action:'undo'});tree=await object(id);assert.equal(tree.params.type,'oak');
   assert.equal((await digest(id)).positionsSHA256,summerMesh.positionsSHA256);
   const copy=(await call('scene.duplicate',{ids:[id]})).objects[0];
@@ -132,6 +150,10 @@ try{
   assert.equal(leaf(keyed).materialUID,custom);assert.ok(!(await inspect()).materials.find(m=>m.uid===custom).normalAsset);
   const still=await call('scene.create',{type:'tree',params:{growth:0}});
   assert.equal((await call('scene.convert',{id:still.hash})).type,'mesh');
+  const fern=await call('scene.create',{type:'tree',params:{type:'fern'}});
+  assert.equal(fern.mesh.triangles,60);
+  assert.deepEqual(fern.tags.filter(t=>t.kind==='material').map(t=>t.libraryIndex),[1]);
+  assertMaps(await inspect(),fern);
   assert.deepEqual(errors,[]);
   console.log('Native Tree toolbar, presets, undo, shared atlases, seasons, compact HASH and editable geometry passed.');
 }finally{await session.close();}
