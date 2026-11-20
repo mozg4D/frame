@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 00:50">
+<meta name="frame-version" content="2026 21 nov 00:58">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -14507,17 +14507,56 @@ let creating=Promise.resolve();
     cataloguePending=(async()=>{const response=await fetch(new URL('plugins/index.json',location.href));if(!response.ok)throw Error('Plugin catalogue HTTP '+response.status);const paths=await response.json();if(!Array.isArray(paths)||paths.length>256||new Set(paths).size!==paths.length||paths.some(path=>typeof path!=='string'||!/^([a-z0-9][a-z0-9-]*)\/plugin\.json$/.test(path)))throw Error('Invalid plugin catalogue');return installed=(await Promise.all(paths.map(async path=>{try{return await discover(path.split('/')[0]);}catch(error){errors.set(path,error.message);return null;}}))).filter(Boolean);})();
     cataloguePending.catch(()=>cataloguePending=null);return cataloguePending;
   }
-  function icon(entry){
-    if(entry.iconPending)return entry.iconPending;
-    entry.iconPending=(async()=>{const response=await fetch(entry.icon);if(!response.ok)throw Error('Plugin icon HTTP '+response.status);const svg=await response.text();icons['plugin:'+entry.manifest.id]=svg;return svg;})();
-    entry.iconPending.catch(()=>entry.iconPending=null);return entry.iconPending;
+  const pluginIconBytes=new Map(),pluginButtons=new Map();
+  let iconCataloguePending=null;
+  function readPluginIcon(url,background=false){
+    if(pluginIconBytes.has(url))return pluginIconBytes.get(url);
+    const pending=(async()=>{const response=await fetch(url,background?{priority:'low'}:undefined);if(!response.ok)throw Error('Plugin icon HTTP '+response.status);return await response.text();})();
+    pluginIconBytes.set(url,pending);pending.catch(()=>{if(pluginIconBytes.get(url)===pending)pluginIconBytes.delete(url);});return pending;
   }
-  function show(){
-    if(panelPending)return panelPending;
-    panelPending=(async()=>{const installed=await catalogue();await Promise.all(installed.map(async entry=>{try{const svg=await icon(entry);if($('pluginsGrid').querySelector('[data-plugin="'+entry.manifest.id+'"]'))return;const button=document.createElement('button');button.className='obj-lib-item';button.dataset.plugin=entry.manifest.id;button.title=entry.manifest.name;button.ariaLabel=entry.manifest.name;const image=new Image();image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);image.width=image.height=32;image.alt='';button.append(image);button.onclick=()=>{creating=creating.then(()=>createObject(entry.manifest.id)).catch(fileOperationError);};entry.button=button;}catch(error){errors.set(entry.manifest.id,error.message);}}));for(const entry of installed)if(entry.button&&!entry.button.isConnected)$('pluginsGrid').append(entry.button);})();
-    panelPending.catch(()=>panelPending=null);return panelPending;
+  async function icon(entry){
+    const svg=await readPluginIcon(entry.icon);icons['plugin:'+entry.manifest.id]=svg;return svg;
   }
-  function open(){if(!panelPending)activateTab('tabPlugins');return show();}
+  function iconCatalogue(background){
+    if(iconCataloguePending)return iconCataloguePending;
+    const base=new URL('plugins/',location.href);
+    const pending=(async()=>{
+      const response=await fetch(new URL('icons.json',base),background?{priority:'low'}:undefined);
+      if(!response.ok)throw Error('Plugin icon catalogue HTTP '+response.status);
+      const rows=await response.json(),ids=new Set();
+      if(!Array.isArray(rows)||rows.length>256)throw Error('Invalid plugin icon catalogue');
+      return rows.map(row=>{
+        if(!row||typeof row.id!=='string'||!/^[a-z0-9][a-z0-9-]*$/.test(row.id)||ids.has(row.id)||typeof row.name!=='string'||!row.name.trim()||typeof row.icon!=='string'||!row.icon.startsWith(row.id+'/')||!row.icon.endsWith('.svg'))throw Error('Invalid plugin icon entry');
+        ids.add(row.id);return {id:row.id,name:row.name,icon:local(base,row.icon)};
+      });
+    })();
+    iconCataloguePending=pending;pending.catch(()=>{if(iconCataloguePending===pending)iconCataloguePending=null;});return pending;
+  }
+  function show(background=false){
+    if(panelPending)return background?panelPending:panelPending.catch(()=>show(false));
+    const task=(async()=>{
+      let rows;try{rows=await iconCatalogue(background);}catch(error){if(background)throw error;rows=(await catalogue()).map(e=>({id:e.manifest.id,name:e.manifest.name,icon:e.icon}));}
+      const tiles=await Promise.all(rows.map(async row=>{
+        if(pluginButtons.has(row.id))return pluginButtons.get(row.id);
+        try{
+          const svg=await readPluginIcon(row.icon,background);icons['plugin:'+row.id]=svg;
+          const button=document.createElement('button');button.className='obj-lib-item';button.dataset.plugin=row.id;button.title=row.name;button.ariaLabel=row.name;
+          const image=new Image();image.width=image.height=32;image.alt='';image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(svg);if(image.decode)await image.decode();
+          button.append(image);button.onclick=()=>{creating=creating.then(()=>createObject(row.id)).catch(fileOperationError);};
+          pluginButtons.set(row.id,button);return button;
+        }catch(error){errors.set(row.id,error.message);return null;}
+      }));
+      const grid=$('pluginsGrid');
+      // Append in catalogue order only after thumbnails are decoded.
+      for(const button of tiles)if(button)grid.append(button);
+      return tiles.every(Boolean);
+    })();
+    panelPending=task;
+    task.then(complete=>{if(!complete&&panelPending===task)panelPending=null;},()=>{if(panelPending===task)panelPending=null;});
+    return task;
+  }
+  function warmIcons(){return show(true);}
+  function open(){if(!panelPending)activateTab('tabPlugins');return Promise.all([show(),catalogue()]).then(()=>undefined);}
   async function prepareAuthoring(objects){
     const authoring=objects.map(o=>o.authoring).filter(a=>a&&(a.plugin||a.tags.some(t=>!Object.hasOwn(tagDefinitions,t.kind)||tagOwners.has(t.kind)))),ids=new Set(authoring.filter(a=>a.plugin&&!a.pluginReferencesUnresolved).map(a=>a.plugin.id));
     await Promise.all([...ids].map(async id=>{try{await discover(id);}catch(error){errors.set(id,error.message);}}));
@@ -14560,10 +14599,10 @@ let creating=Promise.resolve();
   function renderActions(n,content){const state=attributes(n);for(const key of state?.hiddenFields||[])content.querySelector('[data-field="'+key+'"]')?.closest('.attr-row')?.remove();for(const [key,label]of Object.entries(state?.labels||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field&&typeof label==='string')field.closest('.attr-row').querySelector('.attr-lab').textContent=label;}for(const [key,unit]of Object.entries(state?.units||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field){const label=field.closest('.attr-row').querySelector('.attr-lab');label.textContent+=' ('+unit+')';}}for(const vector of state?.vectors||[]){const fields=vector.fields.map(key=>content.querySelector('[data-field="'+key+'"]'));if(fields.some(f=>!f))continue;const row=fields[0].closest('.attr-row'),controls=row.querySelector('.attr-ctrl');row.querySelector('.attr-lab').textContent=vector.label+(vector.unit?' ('+vector.unit+')':'');fields.forEach((field,i)=>{field.classList.add('ax-'+['x','y','z'][i]);field.style.cssText='width:38px;min-width:0;flex:1';if(i){field.closest('.attr-row').remove();controls.append(field);}});}for(const group of state?.groups||[]){const section=document.createElement('div');section.className='frame-attribute-group';section.dataset.pluginGroup=group.label;const heading=document.createElement('div');heading.className='attr-row';const label=document.createElement('span');label.className='attr-lab';label.textContent=group.label;heading.append(label);const controls=document.createElement('div');controls.className='frame-attribute-grid';for(const action of group.actions){const button=document.createElement('button');button.className='attr-btn'+(action.active?' on':'');button.textContent=action.label;button.setAttribute('aria-pressed',String(!!action.active));button.dataset.pluginElement=action.label;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:action.id,args:action.args||{}}).catch(fileOperationError);controls.append(button);}section.append(heading,controls);content.append(section);}for(const action of [...state?.actions||[]].reverse()){const row=document.createElement('div');row.className='attr-row';row.dataset.pluginAction=action.id;if(action.row){row.dataset.pluginActionRow=action.row;const label=document.createElement('span');label.className='attr-lab';label.textContent=action.row;row.append(label);}const controls=document.createElement('div');controls.className='attr-ctrl';const progress=document.createElement('span');progress.dataset.pluginProgress='';if(action.progressAlign==='left')progress.style.cssText='flex:1;text-align:left';progress.textContent=String(action.progress||'').slice(0,32);const button=document.createElement('button');button.className='attr-btn frame-attribute-button'+(action.active?' on':'');button.setAttribute('aria-pressed',String(!!action.active));button.textContent=action.label;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.setAttribute('aria-busy',String(!!action.busy));button.dataset.pluginActionButton=action.id;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:(attributes(n)?.actions?.find(a=>a.id===action.id)?.busy&&action.cancel)||action.id,args:{}}).catch(fileOperationError);controls.append(progress,button);row.append(controls);if(action.row){const existing=content.querySelector('[data-plugin-action-row="'+action.row+'"]');if(existing){existing.querySelector('.attr-ctrl').prepend(...controls.children);continue;}}if(action.placement==='bottom')content.append(row);else content.prepend(row);}}
   async function operations(id){if(!entries.has(id))await open();const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');await use(entry);return [...entry.operations?.values()||[]].map(({run,interrupt,...o})=>({...o,interruptible:typeof interrupt==='function'}));}
   async function loadUsed(){await creating;await Promise.all([...new Set(nodes.flatMap(n=>[owner(n),...n.tags.map(t=>tagOwners.get(t.kind))]).filter(Boolean))].map(use));}
-  async function createObject(id,type){if(!entries.has(id))await open();const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
+  async function createObject(id,type){const entry=await discover(id);const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
   FrameViewWindows.onWindow('frame-engine-scene',()=>loadUsed().then(()=>window.frameEngine?.draw(true)).catch(fileOperationError));
   function drawOverlays(only=null){if(!only)for(const n of nodes)if(owner(n)){const color=dispatch('rowColor',n),el=$('row-'+n.id)?.querySelector('.ob-name');if(el)el.style.setProperty('--object-color',color||objectColor(n.type));}for(const entry of only?[only]:entries.values()){const data=entry.editor?.overlay?.(),id='frame-plugin-overlay-'+entry.manifest.id;let panel=$(id);if(!data){panel?.remove();continue;}const view=window.frameEngine.pluginView(),stamp=frameValueKey([data,view.instance,view.rect]);if(panel)framePlaceOverlay(panel,view.instance);if(panel?.dataset.stamp===stamp)continue;if(!panel){panel=document.createElement('div');panel.id=id;panel.className='frame-plugin-overlay';framePlaceOverlay(panel,view.instance);}panel.dataset.stamp=stamp;panel.style.cssText='position:fixed;z-index:15;display:grid;grid-template-columns:repeat('+data.columns+',20px);grid-auto-rows:20px;gap:1px;right:'+(panel.ownerDocument.defaultView.innerWidth-view.rect.left-view.rect.width+36)+'px;top:'+(view.rect.top+6)+'px';panel.replaceChildren();for(const cell of data.cells){const button=document.createElement('button');button.textContent=cell.label;button.dataset.pluginElement=cell.label;button.style.cssText='grid-column:'+cell.column+';grid-row:'+cell.row+';border:0;padding:0;background:transparent;font:12px Arial;cursor:pointer;color:'+cell.color;button.style.setProperty('color',cell.color,'important');button.classList.toggle('on',!!cell.active);button.setAttribute('aria-pressed',String(!!cell.active));button.onclick=()=>window.frameAI.call('plugins.command',{id:data.hash,operation:cell.action,args:cell.args||{}}).catch(fileOperationError);panel.append(button);}}}
-  return {drawOverlays,show,open,prepareAuthoring,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{if(!definitions[type])await open();const entry=types.get(type);if(entry)await use(entry);},create:createObject};
+  return {drawOverlays,show,warmIcons,open,prepareAuthoring,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{if(!definitions[type])await open();const entry=types.get(type);if(entry)await use(entry);},create:createObject};
 })();window.framePlugins=Object.freeze({version:1,get ready(){return FramePlugins.open();},list:FramePlugins.list,create:FramePlugins.create});
 
 
@@ -15365,7 +15404,7 @@ function activateTab(id){activeTab=id;for(const [tab,panel]of Object.entries(tab
 for(const id of Object.keys(tabs))$(id).onclick=()=>activateTab(id);
 const curvatureIcon=$('shaderCurvature');
 let curvatureDrag=null,curvatureDropTicket=0;
-curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><image width="32" height="32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFMElEQVR4nO2WW4hdZxXHf99lX85tZs7JkMllahsT0LQS6qVILAHRGrwUkV7Ey5NQLX0TSX0SfBCk2Ad98EH7oH3xxVZBSInaokXQtEWLWNEpSMw0UyfpTGbmzJk5e+9v728tH47SNp1JWxDiQz7Yb/tb67f+a61vLfPOE5/jWh57Tb1fB7gO8P8A4N/yn8ZgkgSb5XfYPH/Yptmy8f4smKc1Ns9ICLWUBVqVSF2DyP8GwDiH7fbw/UGa9Gce8lP5V13HG5vZW43jExjQyFAqfSKOm5/EzepX9cYwNmuXiVsjtK6vbn/Xh8gYXKdLsneOdO+evckg/3kyY2+f6TbMZyXzbkzfBgww1ISXmzauM89w7BYXzq1+r14Lj4SVtXH9yiWa0eauiuysgHUk/QHp/v2kc9M3Te/Ln+zNyJGjySofciscjpt0q4ALEQCZ2kP9nk9S5H2ePvfCjavz+t31bv5125n7pmu3f1QtL8dmbRVtmrcAYC1Jv0964ADp3PQN6az9zceP3XDoowcPMG0jSTnCLf2dZHEBf/E8cd8RqlvuIr/wJ9KV5zjezqlbc/zW7d2/Yv0jxvS+AuZ+VJ9v1lbRGK8O4Nod/GAW3+/N+Cl7Jpsyh1aXn2d4+QyzqnhmMcmA+v2fIWQd1Ke0n/wxuvFPmqmUWavc2lrnkuY82xuglf2AVJ1npdzzkFTlt+JoM6D6aryvS7v3uG4P1+s513I/dS1zSy+J7LMFM1pgR5dxF14g/ctTZGd/ASL4VxYpPvx5ZP5mjCi2EaYJzNmSXtJgc4NtWe+63W+4bves8f7duypgkhSb59g0+bbxfMw4cEZBocEi3iKppekPqE/cRfbM47iXX6Q5eIRw251QvA956ZcELKqT6IwD48GkHpvm7zVJcp/W9amdFXAOrLsTax4EUIFSLWuaclFblHlC000Jx+/FLP8VHZ2jmUqQ4iXsHx9FEku87QE2WvOsakahDhVAAWP+hbUnjXWnXuvzihrQg6g8qlGMNqC1Mq4di67DTKzxTjh8+ChZamHlD4RBNrnlDDGBrcUzDMvjHLj5HvyLf6ZY2kCCoA2/10buRuKl1+b/DQAa4/c1hD1aBSQkxBJMoizZFiYF3x7wjv23s/S3x2m3OqRMervCsqEpF2PO4tIS5fA5pjv7acbrSKk/k0q/KFVVSQhX7wKt67ulLI/G8fYJm2cfid6fNFanKwzn223ueNcxfnfhHBe2EnpmjoyJsRLHpiasSM6lmDG6OKYZ/4O4rY/FsX4hFnUj29tIWaB1eB3AG15C2+7gZ/r4/gA/3Utdx510LfMl1zKfbncTL06wTkit4M1EzkYNVbTUjUGCEktFCn0qjvVTcbsJzXCTZn2NZriOFMXuCgBIWRBHDmMMiAaN3dNaJ6clcOOoCKdsar5svMkKZ8H899KkYLUWpFakYkFKuSeO6xBHI5rhBnG0iZTlle52ngXGOWyrjet2cZ0ettvFtXJs5jDe3GS8+Y6x3ItlUuEKGhWNIEE3JTQflHGxELe3iFtbxK0RUhY7zoMdZ4HGSNzeQpsaqSpsMSa2Wtgsx6bpeZP4zxprT2LMD4BDqgpRkLpGQ7hPymJBygIpCuJ4PMn7FdV/VYAJhSJliYYaKcaYNMOmGSZJMN5jnPs1xhwDHkbkfo3RaNP8UOvwmISAhGoyit9kL3jTfUAlomWEqkKsBecw1mGsBWO2gAdU9TQSH9QoX0MiKrJrxG8b4FUSnfRwjOxg+on/fG/7XPOd8DrAdYBrDvBv9iCZyCwVPMcAAAAASUVORK5CYII="/></svg>';
+curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" aria-hidden="true"><image width="32" height="32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAFR0lEQVR4nO2WXYhdVxXHf2vvc/a59565M3cmk2TGlBZTFEkb/CioRduCD3kRES2WYvtQhBTFBxEVfCjqgxVCBVFapAo+WEgfFATfRKjFBy1KKBVjY7FNP0wmnWSauXfuPeeej72WDzfapDMTSUHqQ/bL4WzYe/3W2mv915KDd9zLO7ncO2r9OsB1ACB5W6ecu0Wc28K51wTMzEAVUwWz/wGACC5k+H7/xmRh8CM/n3/adwMS/ESE56zVP8Rp+9s4Lp+Oo1HdDodoWWAx/verr6oDIvheTrp3H2H/8n3pcvfHnYH0l/OG1TBl0Tc4jC1NeL3p0Mhgs2v5EyefP/tovT58oVl/nXa4ibXttQNImpIu7yM7sOrC/vxYd1m+/t75gjvSdW61TZaqkrSOgKGLK/jDnySsvp9nTv+NH/7pZNza4Hi9Xj9Ura2/2pxbIxYFsP15dgRwWYewskp2YFXC/vB4fy9Hb+9tcCRZ46bJiLBZ4Sctrlbk0O24u+4lvvxnypeeYi1VfhdXeHq6lzc23KRej9+p1y78oDp7Jsbx1rYc2ZYDkoZZyFdXSJfDsWxJjt7aHXJncp4bp1uko5pkq8GXEXf4Lvj4Z9BfPYpd+Ad+PrB/MfCR3gUuZoFnBku5tf4Ri3vu1qa932L7ohbFlc5e+edI5hdIlvaQzIcvJHPyjUG35aAfs09KXKNIa2Ag7z4MH/sU9uQj8NrfZ3vRkNZYpOYGVzAIDb4n+Nx/NF0cnEjmB3eLT3YHcCHg5+bwefeDLuMxF4Sei2REBDAvWCrYYABH7kOfeoI4OkvseDTzaHCYFxTBY2ROcangArhOWHC93i9dln3/8si/iXOp1CTr9CTxx8VJB4HWHGNLuUign9W4XkK47R7aV54lnn8e+imWODQ4Yjeh7SRskDG0lMr8LDIi4B0uDaWEMKEsAmbtW3JAwHvEyTHgfaaGtcZIE9aswyua00kiqwcPwdIK1XO/wAYBkJnXwdGEhHOuy+mY80/tMYoJ2hoWDZQ/Ag8g8gIi/0nG5HL7GJ+wqF+2qFjr0BrK2vGSmyOgkHS54dBnWT/1a+g5fLcDAq14xiSsW4dXY48Xtc/pmFNVglaKNjxmbfyqxbbB7IpKeBPArGux/ak1tVjVopUnTg1J4IIE/potcOjAezizNeLEuQ3mZA8BxQwq84ws5bxmnLUuZ9ou48oTC0On9pBW9rBWNVpVWNPsCtBYUx/R6fTmWBa3SJZ+WBK5MwrvwmAzBuYWDvCzk88yaZfJJZKiGFDhGVvCUFMmjSdWEEsjlvrdWNjDWjbEyQSdlmhTX1n2lwuROI/v9/ELA5LBIkk/F9dzH/Id+bzryAMuyJJLBUlAPLhLT2kGGsFaQ2vQytDKjmtp98eitXY4oh1uEoebxGKySwQA00gsi1kyioCq+ZifsCY54Wq+5VL7oqTyTUlYFiezvAFQwyJYC9oYWttftLajWtQWx2Pi1og43kKn5TYl3FmKQ4bLc3w+N/t2c1wnwwWHJLIonu/h5EHkko4o2L8hGiu0am7T6fRUnEzQYjwLfzHZsTvu2I61rjBVrGlwVYV2S1zWwWUZkqYXJfFfEueeROTnGDeZGcSItS1a11/TanpKp1O0LNFpgVYVqO5kavd5wNqGOGnRusKVxUykQookKZIk4NzvReQDZvwE08/ZDOA31jSPW12hdY3VNRZ3b8VXBZhRGFbXxKZByxJJ/CWx8uAcIrIJ3GOqX0H12xbjgxZbsxh39fit6+oDya6nZPue2RLwxrVe9fZmwp3nvms2Dv8HU/F1gOsA/wKJjcMDHhlyxAAAAABJRU5ErkJggg=="/></svg>';
 function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
 function finishCurvatureDrag(e,cancel=false){
   const g=curvatureDrag;if(!g||e.pointerId!==undefined&&e.pointerId!==g.pointerId)return;
@@ -29722,6 +29761,12 @@ function FramePolygonKernel(d){
   const version=document.querySelector('meta[name="frame-version"]').content;
   let launchSerial=Promise.resolve();
   if('launchQueue' in window)launchQueue.setConsumer(({files})=>{const task=launchSerial.then(async()=>{for(const handle of files||[]){try{await frameEngine.ready;const file=await handle.getFile();if(!/\.hash$/i.test(file.name))continue;const merge=nodes.length>0;await frameNativeFileTask(async()=>{if(!merge&&files.length===1)await FrameProjectFile.open(handle,file);else await frameEngine.loadFile(file,{merge});await rememberSceneFile(handle);},{replace:!merge});}catch(error){fileOperationError(error);}}});launchSerial=task.catch(fileOperationError);return task;});
+  addEventListener('load',()=>{
+    void frameEngine.ready.then(()=>{
+      const warm=()=>FramePlugins.warmIcons().catch(()=>{});
+      if(window.requestIdleCallback)window.requestIdleCallback(warm);else setTimeout(warm,0);
+    });
+  },{once:true});
   if(!('serviceWorker' in navigator)||!isSecureContext)return;
   let registration;
   const check=()=>{if(registration&&document.visibilityState==='visible'&&navigator.onLine)registration.update().catch(()=>{});};

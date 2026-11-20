@@ -1,0 +1,57 @@
+[
+  {
+    "id": "3d-printer",
+    "name": "3D Printer",
+    "icon": "3d-printer/icon.svg"
+  },
+  {
+    "id": "atomic",
+    "name": "Atomic",
+    "icon": "atomic/icon.svg"
+  },
+  {
+    "id": "mill",
+    "name": "Mill",
+    "icon": "mill/icon.svg"
+  },
+  {
+    "id": "thermal",
+    "name": "Thermal",
+    "icon": "thermal/icon.svg"
+  },
+  {
+    "id": "structural",
+    "name": "Structural",
+    "icon": "structural/icon.svg"
+  },
+  {
+    "id": "circuit",
+    "name": "Circuit",
+    "icon": "circuit/icon.svg"
+  },
+  {
+    "id": "cfd",
+    "name": "CFD",
+    "icon": "cfd/icon.svg"
+  },
+  {
+    "id": "magneto",
+    "name": "Magneto (unfinished)",
+    "icon": "magneto/icon.svg"
+  },
+  {
+    "id": "cut",
+    "name": "Cut (authoring preview)",
+    "icon": "cut/icon.svg"
+  },
+  {
+    "id": "rf",
+    "name": "RF",
+    "icon": "rf/icon.svg"
+  },
+  {
+    "id": "optics",
+    "name": "Optics (unfinished)",
+    "icon": "optics/icon.svg"
+  }
+]
