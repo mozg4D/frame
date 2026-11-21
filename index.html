@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 13:46">
+<meta name="frame-version" content="2026 21 nov 15:52">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11991,7 +11991,7 @@ function createFrameHashCodec(){
   }
   async function index(file,range=reader(file).range,cooperate=null){
     const map=new Map();let at=0;
-    while(at<file.size){if(file.size-at<26||map.size>=1000000)throw Error('Truncated HASH header or record limit');const h=await range(at,26),v=new DataView(h.buffer,h.byteOffset,h.byteLength),type=v.getUint16(0,true),base=type&255,id=hex(h.subarray(2,18)),large=v.getBigUint64(18,true);
+    while(at<file.size){if(file.size-at<26)throw Error('Truncated HASH header');const h=await range(at,26),v=new DataView(h.buffer,h.byteOffset,h.byteLength),type=v.getUint16(0,true),base=type&255,id=hex(h.subarray(2,18)),large=v.getBigUint64(18,true);
       const unsupported=!Object.values(T).includes(base)||!!(type&~(255|ZIP|PREDICT))||!!((type&PREDICT)&&(!(type&ZIP)||![T.uint32,T.float32].includes(base)));
       if(large>BigInt(file.size-at-26)||large>BigInt(MAX_RECORD*2+64))throw Error('Invalid HASH record size');if(map.has(id))throw Error('Duplicate HASH property');const length=Number(large);
       map.set(id,{id,type:base,encoding:type,offset:at+26,length,...unsupported?{unsupported:true}:{}});at+=26+length;
