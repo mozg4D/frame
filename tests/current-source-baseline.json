@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 04:27",
+  "version": "2026 21 nov 10:24",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "681d8ca777115cddfc778468b02d4433044e2084c3897b0bc45bcb80b361137e"
+      "sha256": "74669147a0df4807186bfdac3e264a7989356b34d17fd654bf03e4fd8c29fee1"
     },
     "index.html": {
-      "bytes": 3923374,
-      "sha256": "76f1d1989642bb6dd0d5d4e3e9c182cbd0d34bdfe7cf70de09f058f9c828299f"
+      "bytes": 3923600,
+      "sha256": "bb6648be243cdd5053c863e6907f16d7bb573e6a5db9a5266015f15709e0f314"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1433,8 +1433,8 @@
       "sha256": "a957f95cd4aad16fc68a3416535cd8f9581175756b47515f2ff19956d0551092"
     },
     "tests/polygon-crease-angle-browser.mjs": {
-      "bytes": 6790,
-      "sha256": "5266cb28c128ba7ea6a7f0c472e71795388fff7f69700f68ff91fab647caa0d8"
+      "bytes": 9461,
+      "sha256": "ac54133e4faf854c190c23f5a08363366e579fa2bfb0a8dde5aeaf8c27458a76"
     },
     "tests/curvature-prediction-browser.mjs": {
       "bytes": 9478,

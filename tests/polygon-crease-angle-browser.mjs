@@ -47,6 +47,53 @@ try{
       for(const k of [c+3,c+4])near(got.get(k),normal(smooth?angle/2:angle),label+' second face '+angle);
     }
   }
+
+ const input=page.locator('#attrContent input[data-field="crease angle"]');
+ async function waitViewportCrease(ids,angle,counts,label){
+   try{
+     const h=await page.waitForFunction(({ids,angle,counts})=>ids.every((id,i)=>{
+       const m=frameEngine.scene.meshes.find(m=>m.hashId===id);
+       return m?.creaseAngle===angle&&m.normalCount===counts[i];
+     }),{ids,angle,counts},{timeout:4500});
+     await h.dispose();
+   }catch(error){
+     const native=await page.evaluate(ids=>ids.map(id=>{
+       const m=frameEngine.scene.meshes.find(m=>m.hashId===id);
+       return {authored:frameNodeByHash(id)?.params['crease angle'],gpu:m?.creaseAngle,normals:m?.normalCount,state:document.querySelector('#frame-engine-canvas').dataset.creases};
+     }),ids);
+     throw Error(label+': '+JSON.stringify(native),{cause:error});
+   }
+ }
+ for(const storage of ['auto','texture']){
+   await call('scene.new');
+   const mesh=await call('mesh.create',{name:'Crease only',vertices,indices,storage});
+   const shading=storage==='auto'?'solid':'solid-wire';
+   assert.equal((await call('view.set',{index:0,single:true,mode:'object',shading,focus:mesh.hash})).shading,shading);
+   await call('scene.select',{ids:[mesh.hash]});
+   await page.locator('#tabAttributes').click();
+   await waitViewportCrease([mesh.hash],44,[14],storage+' initial 44° native aliases');
+   assert.equal(Number(await input.inputValue()),44);
+   await input.fill('50');
+   await input.press('Enter');
+   // No API call after entering the value. Its settle phase can refresh the
+   // native scene and hide a broken Attributes-to-viewport update.
+   await waitViewportCrease([mesh.hash],50,[12],storage+' UI Enter 50° smooths all 3 folds');
+   await input.fill('40');
+   await page.locator('#tabAttributes').click();
+   await waitViewportCrease([mesh.hash],40,[18],storage+' UI blur 40° splits all 3 folds');
+   await input.fill('50');
+   await input.press('Escape');
+   await waitViewportCrease([mesh.hash],40,[18],storage+' Escape retains committed angle');
+   assert.equal(Number(await input.inputValue()),40);
+   await checkNormals(mesh.hash,40,storage+' live UI result');
+   const second=await call('mesh.create',{name:'Crease second selection',vertices,indices,storage});
+   await call('scene.select',{ids:[mesh.hash,second.hash]});
+   assert.equal(await input.getAttribute('placeholder'),'multiple');
+   await input.fill('50');
+   await input.press('Enter');
+   await waitViewportCrease([mesh.hash,second.hash],50,[12,12],storage+' UI multi-selection rebuilds both meshes');
+ }
+
   for(const storage of ['auto','texture']){
     await call('scene.new');
     // Creation without an override exercises the 44-degree default.
@@ -84,6 +131,7 @@ try{
     const input=page.locator('#attrContent input[data-field="crease angle"]');
     assert.equal(Number(await input.inputValue()),40);
     await input.fill('50');await input.press('Enter');
+    await waitViewportCrease([id,...instances],50,[12,12,12],storage+' UI updates source and both native occurrences');
     await checkAll(50,storage+' Attributes 50');
     await call('edit.history',{action:'undo'});
     await checkAll(40,storage+' undo');
