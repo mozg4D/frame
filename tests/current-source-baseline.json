@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 12:00",
+  "version": "2026 21 nov 12:30",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "5a892d69f9cd6fbe8497070033ec4aea822941159418c9033870406f6370629c"
+      "sha256": "45ca40cb99a2e1c87d2d70b89497b49dd07ee6d6dc2ac502f2a8657a2924846a"
     },
     "index.html": {
-      "bytes": 3956515,
-      "sha256": "967b1d073037514e599cfb85ff8ad4d2a6c2f68907a74f2b3c69b94b7633a28d"
+      "bytes": 3965485,
+      "sha256": "0653e661b173996e172266f330abd0faae503d6a0e91c3e33c88334b13f279d0"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1181,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18008,
-      "sha256": "8c9e071ba7b1befbf524710284e5ac4b1d9b5676c1b598be555dc3dd8918d600"
+      "bytes": 18114,
+      "sha256": "d5a2e61d9126db2fc4b1e87686a10eefd184db19847792ca921ea10479d1db75"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1465,8 +1465,8 @@
       "sha256": "695b337f3bd91cf50b5a7a3d57cb78b0cd634b492397e90f421f2b5c727ee6c1"
     },
     "tests/curvature-derived-groups-cpu.mjs": {
-      "bytes": 11457,
-      "sha256": "640b27880b139b74de7226e461c1d16b65d779b933f8b1159fa5e583b09474d1"
+      "bytes": 11547,
+      "sha256": "bd64bf385cdbce6daaf17a110cc901af558ced1712f73125cfc08608a4039e66"
     },
     "tests/curvature-derived-groups-browser.mjs": {
       "bytes": 7790,
@@ -1499,6 +1499,14 @@
     "tests/cloner-device-capacity-browser.mjs": {
       "bytes": 4388,
       "sha256": "07231d1fe09c456fe3055e746b3fd4ff610063c9a7b88084557891f75c39a64f"
+    },
+    "tests/curvature-ordered-shared-cpu.mjs": {
+      "bytes": 9654,
+      "sha256": "70f78366aabd648b5f1a888219b5271ab3f8bc6282f6669b77dcbf2a157a2065"
+    },
+    "tests/curvature-ordered-shared-browser.mjs": {
+      "bytes": 13799,
+      "sha256": "4d0d5a1fa06e72a256ed17b8efa826c06ccd9bc996ed8e6da5ca42e4a8e61830"
     }
   }
 }

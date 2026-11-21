@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 12:00">
+<meta name="frame-version" content="2026 21 nov 12:30">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -14386,7 +14386,9 @@ function frameCurvatureLimitText(reason){
   if(reason==='vertex-limit')return 'Limit: '+frameCurvatureVertexLimit.toLocaleString('en-US')+' vertices';
   if(reason==='patch-seams-unavailable')return 'Spline Patch seam data is unavailable';
   if(reason==='occurrence-unsupported')return 'Curvature is unavailable for these derived surfaces';
-  if(reason==='occurrence-limit')return 'Curvature limit: 128 occurrences';
+  if(reason==='occurrence-limit')return 'Large Curvature groups require one shared nonpaged surface fit';
+  if(reason==='compact-material')return 'Shared Curvature currently requires an opaque surface';
+  if(reason==='compact-pipeline')return 'Shared Curvature is unavailable in this viewport';
   if(reason==='fit-limit')return 'Curvature limit: 16 distinct surface fits';
   if(reason==='color-budget')return 'Curvature preview memory is full';
   if(reason==='fit-failed')return 'Curvature could not fit this surface';
@@ -21919,23 +21921,34 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const old=b?.groupCandidate;
       if(old&&old.reason!=='occurrence-unsupported'&&bendGroupCurrent(old,mode))return old;
       const meshes=scene?.meshes||[],p={scene,meshes,length:meshes.length,topology:scene?.topologyRevision,pose:poseEpoch,mode,
-        group:true,records:[],members:new Map(),triangles:0,vertices:0,bytes:0,count:0,reason:null};
+        group:true,records:[],members:new Map(),triangles:0,vertices:0,bytes:0,count:0,reason:null,compact:true,sharedViews:new Map()};
       const memberSources=new Set(),bySource=new Map(),hash=owner.nativeHash;
-      for(const m of meshes)if(m.hashId===hash&&m.replicaMatrix&&m.triangleCount){
-        if(++p.count>bendMaxOccurrences){p.reason='occurrence-limit';break;}
-        const source=bendOccurrenceSource(m);
+      let last=-1;
+      for(let i=0;i<meshes.length;i++){
+        const m=meshes[i];if(m.hashId!==hash||!m.replicaMatrix||!m.triangleCount)continue;
+        ++p.count;
+        if(m.paged||m.parts||classifiedSurfaceWire(m)||p.mesh&&(i!==last+1||
+          m.frameVisible!==p.mesh.frameVisible||m.positions!==p.mesh.positions||m.indices!==p.mesh.indices||
+          m.normals!==p.mesh.normals||m.renderIndices!==p.mesh.renderIndices))p.compact=false;
+        last=i;
+        if(p.count>bendMaxOccurrences&&(!p.compact||p.records.length!==1)){p.reason='occurrence-limit';break;}
+        const first=p.records[0],source=p.compact&&first&&m.replicaSource===p.mesh.replicaSource?first.source:bendOccurrenceSource(m);
+        if(first&&source!==first.source)p.compact=false;
         if(!source){p.reason='occurrence-unsupported';break;}
         if(!memberSources.has(source)){
           if(!meshes.includes(source)||!frameNodeByHash(source.hashId)){p.reason='occurrence-unsupported';break;}
           memberSources.add(source);
         }
-        const input=bendInput(m,source);
+        const a=first?.input.a,world=m.frameWorld;
+        const sameAffine=p.compact&&a&&world&&a.every((value,j)=>value===world[j+Math.floor(j/3)]);
+        const input=sameAffine?first.input:bendInput(m,source);
         if(input.patch&&(source.creasePolicy!==2||!(input.hardEdges instanceof Uint32Array))){
           p.reason='patch-seams-unavailable';p.blocker=bendGroupStamp(source,input,m);break;
         }
         let fits=bySource.get(source);if(!fits)bySource.set(source,fits=new Map());
         let f=fits.get(input.key);
         if(!f){
+          if(p.count>bendMaxOccurrences){p.reason='occurrence-limit';p.blocker=bendGroupStamp(source,input,m);break;}
           const triangles=p.triangles+source.triangleCount,vertices=p.vertices+source.vertexCount;
           const limit=p.records.length===bendMaxFits?'fit-limit':triangles>frameCurvatureTriangleLimit?'triangle-limit':
             vertices>frameCurvatureVertexLimit?'vertex-limit':null;
@@ -21944,9 +21957,13 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           f={...bendGroupStamp(source,input,m),count:0};
           p.records.push(f);fits.set(input.key,f);
         }
-        f.count++;p.members.set(m,f);p.mesh??=m;
+        f.count++;
+        if(p.count<=bendMaxOccurrences)p.members.set(m,f);else if(p.members.size)p.members.clear();
+        p.mesh??=m;
       }
       if(!p.mesh)p.reason??='mesh-unavailable';
+      p.compact=!!(!p.reason&&p.compact&&p.records.length===1);
+      p.compactOnly=p.compact&&p.count>bendMaxOccurrences;
       if(b)b.groupCandidate=p;
       return p;
     }
@@ -21993,7 +22010,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       if(!b||b.scene!==scene||b.renderer!==renderer)return null;
       if(b.groupPlan){
         const p=b.groupPlan;
-        if(!p.ready)return null;
+        if(!p.ready||p.compactOnly)return null;
         // A whole group's render publication is atomic. Validate its shared
         // source stamps once per rendered frame, not once per copy.
         if(p.renderProofFrame!==frameCount){
@@ -22011,14 +22028,30 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       return b.metricKey===input.key&&bendStampValid(b,source,input.hardEdges)?b:null;
     }
     function bendValid(mesh,b){return !!bendReadyFit(mesh,b);}
-    function beginBendPipelines(r){
-      if(r.bendPipelines)return r.bendPipelines;
-      const device=r.device,bind=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]});
-      const layout=device.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),bind]});
-      const code=r.shaderSource+`
-        @group(2) @binding(0) var<storage,read> faceBend:array<vec4f>;
-        fn bendColor(input:Output)->vec4f{
-          let angles=faceBend[faceBase.y+input.triangleID-faceBase.x];
+    function bendOrderedGroup(mesh){return bendStates.get(mesh.hashId)?.groupCandidate;}
+    function bendNeedsSharedViewport(){
+      for(const b of bendStates.values())if(b.groupCandidate?.compactOnly&&b.groupCandidate.mesh?.frameVisible!==false)return true;
+      return false;
+    }
+    function bendOrderedLayouts(){
+      let owners;
+      for(const b of bendStates.values()){
+        const p=b.groupCandidate;
+        if(p?.compact&&bendGroupCurrent(p,bendMode(frameNodeByHash(b.hash)))){
+          owners??=new Map();owners.set(b.hash,p.records[0].source);
+        }
+      }
+      return owners;
+    }
+    function bendOrderedFit(mesh){
+      const b=bendStates.get(mesh.hashId),p=b?.groupPlan;
+      if(!p?.compact||!p.ready||b.scene!==scene||b.renderer!==renderer||
+        !bendGroupCurrent(p,bendMode(frameNodeByHash(b.hash))))return null;
+      const fit=p.records[0];
+      return fit.buffer&&bendOccurrenceSource(mesh)===fit.source?fit:null;
+    }
+    const bendColorWGSL=`
+        fn bendColor(input:Output,angles:vec4f)->vec4f{
           var t=0.;
           if(angles.w<0.){
             let known=angles.xyz>=vec3f(0.);
@@ -22036,9 +22069,17 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           let color=select(mix(cold,mid,2.*t),mix(mid,hot,2.*t-1.),t>.5);
           return vec4f(color,1.);
         }
-        @fragment fn bendFS(input:Output)->@location(0) vec4f{return bendColor(input);}
+`;
+    function beginBendPipelines(r){
+      if(r.bendPipelines)return r.bendPipelines;
+      const device=r.device,bind=device.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,buffer:{type:'read-only-storage'}}]});
+      const layout=device.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),bind]});
+      const code=r.shaderSource+`
+        @group(2) @binding(0) var<storage,read> faceBend:array<vec4f>;
+        ${bendColorWGSL}
+        @fragment fn bendFS(input:Output)->@location(0) vec4f{return bendColor(input,faceBend[faceBase.y+input.triangleID-faceBase.x]);}
         @fragment fn bendWireFS(input:Output)->WireSurfaceOutput{
-          let color=polygonWireColor(bendColor(input),input.bary,input.position.w,input.wireEdges,false);
+          let color=polygonWireColor(bendColor(input,faceBend[faceBase.y+input.triangleID-faceBase.x]),input.bary,input.position.w,input.wireEdges,false);
           if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}
           return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-faceBase.x)*3u,objectFrame));
         }`;
@@ -22052,6 +22093,58 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         await Promise.all(builds);return {bind,p};
       })();
       r.bendPipelines=task;task.catch(()=>{if(r.bendPipelines===task)r.bendPipelines=null;});return task;
+    }
+    function beginBendReplicaPipelines(r){
+      if(r.bendReplicaPipelines)return r.bendReplicaPipelines;
+      const row={pipelines:null,error:null};
+      r.bendReplicaPipelines=row;
+      (async()=>{
+        const {bind}=await beginBendPipelines(r),device=r.device;
+        const layout=device.createPipelineLayout({bindGroupLayouts:[
+          r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),replicaFrameLayout(r),bind
+        ]});
+        const code=r.shaderSource+`
+          @group(2) @binding(0) var<storage,read> bendFrames:array<ObjectFrame>;
+          @group(3) @binding(0) var<storage,read> bendFaces:array<vec4f>;
+          ${bendColorWGSL}
+          @vertex fn bendReplicaVS(@builtin(vertex_index) corner:u32,@builtin(instance_index) instance:u32)->Output{
+            let frame=bendFrames[instance];
+            var out=surfaceVertexFrame(renderAliases[corner],frame);
+            let role=corner%3u;
+            out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));
+            out.wireEdges=surfaceWireEdges(corner);
+            out.triangleID=frame.flags.z+corner/3u;
+            out.instance=instance;
+            return out;
+          }
+          fn bendReplicaColor(input:Output)->vec4f{
+            return bendColor(input,bendFaces[input.triangleID-bendFrames[input.instance].flags.z]);
+          }
+          @fragment fn bendReplicaFS(input:Output)->@location(0) vec4f{return bendReplicaColor(input);}
+          @fragment fn bendReplicaWireFS(input:Output)->WireSurfaceOutput{
+            let color=polygonWireColor(bendReplicaColor(input),input.bary,input.position.w,input.wireEdges,false);
+            return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));
+          }`;
+        const module=device.createShaderModule({label:'Shared occurrence Curvature',code}),pipelines=new Map();
+        const errors=(await module.getCompilationInfo()).messages.filter(message=>message.type==='error');
+        if(errors.length)throw Error(errors.map(message=>message.message).join('; '));
+        await Promise.all([false,true].flatMap(orthographic=>[false,true].map(async wire=>{
+          const vertex={module,entryPoint:'bendReplicaVS',constants:{orthographic,posed:true,plainSurfaceWire:true}};
+          const pipeline=await device.createRenderPipelineAsync({label:'Shared Curvature '+orthographic+':'+wire,layout,vertex,
+            fragment:{module,entryPoint:wire?'bendReplicaWireFS':'bendReplicaFS',
+              constants:{orthographic,posed:true,plainSurfaceWire:true},targets:wire?r.wireTargets:r.surfaceTargets},
+            primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});
+          pipelines.set(orthographic+':'+wire,pipeline);
+        })));
+        if(renderer===r&&!r.dead){row.pipelines=pipelines;draw(true);}
+      })().catch(error=>{if(renderer===r&&!r.dead){row.error=error;draw(true);}});
+      return row;
+    }
+    function issueBendReplicaSurface(pass,first,fit,pipeline,frames,count,start){
+      if(!first.shadingBindGroup)meshRenderGroups(first.gpu,first);
+      pass.setPipeline(pipeline);
+      pass.setBindGroup(1,first.shadingBindGroup);pass.setBindGroup(2,frames);pass.setBindGroup(3,fit.group);
+      pass.draw(first.count,count,0,start);
     }
     function bendFit(b,raw,{a,mode,angle,patch,hardEdges}){
       const url=URL.createObjectURL(new Blob([mode===curvatureModes[1]?framePredictBend.toString():frameBendAngles.toString(),';onmessage=e=>{try{const d=e.data,r=(d.surface?framePredictBend:frameBendAngles)(d.vertices,d.indices,d.metric,d.creaseAngle,d.options);postMessage(r,[r.values.buffer]);}catch(error){postMessage({error:String(error)});}}'],{type:'text/javascript'}));
@@ -22103,11 +22196,14 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const current=()=>bendStates.get(b.hash)===b&&b.groupPlan===p&&bendGroupCurrent(p,bendMode(frameNodeByHash(b.hash)));
       b.pending=true;bendJob=b;
       (async()=>{
-        let raw=scratch.raw.get(bendSource);
-        if(!raw){raw=await readGeometry(bendSource);if(!current())return;scratch.raw.set(bendSource,raw);}
+        const single=p.records.length===1;
+        let raw=single?null:scratch.raw.get(bendSource);
+        if(!raw){raw=await readGeometry(bendSource);if(!current())return;if(!single)scratch.raw.set(bendSource,raw);}
         if(!current())return;
-        const copy={vertices:raw.vertices.slice(),indices:raw.indices.slice()};
-        const [result,pipelines]=await Promise.all([bendFit(b,copy,f.input),beginBendPipelines(b.renderer)]);
+        // A single shared fit can transfer its readback directly; nothing
+        // else can use these bytes. Preserve the legacy multi-fit cache.
+        const work=single?raw:{vertices:raw.vertices.slice(),indices:raw.indices.slice()};
+        const [result,pipelines]=await Promise.all([bendFit(b,work,f.input),beginBendPipelines(b.renderer)]);
         if(!current())return;
         Object.assign(f,buildBendColors(b.renderer,result,pipelines));
         p.ready=p.records.every(record=>record.buffer);
@@ -22149,12 +22245,17 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function bendEffectiveReason(admission,b){
       return admission?.reason||(admission?.group?(b?.blockedPlan===admission?'color-budget':admission.failed?'fit-failed':null):b?.colorBudget?'color-budget':null);
     }
-    function bendNoticeReason(hash){return bendEffectiveReason(bendAdmission(hash),bendStates.get(hash));}
+    function bendNoticeReason(hash){
+      const p=bendAdmission(hash);
+      return bendEffectiveReason(p,bendStates.get(hash))||(p.compactOnly&&p.sharedViews.get(viewIndex)!=='ready'?p.sharedViews.get(viewIndex):null);
+    }
     function bendGroupSummary(b,p){
       const reason=bendEffectiveReason(p,b),ready=!!(b&&b.groupPlan===p&&p.ready),extreme=(key,which)=>{const ns=ready?p.records.map(f=>f[key]).filter(Number.isFinite):[];return ns.length?Math[which](...ns):null;};
       const policies=new Set(ready?p.records.flatMap(f=>f.prediction?[f.prediction.policy]:[]):[]);
       return {enabled:!!b,id:b?.hash??null,mode:b?p.mode:null,
-        pending:!!(b&&!ready&&!reason),reason,displaySuspended:false,
+        pending:!!(b&&!ready&&!reason),reason,
+        displaySuspended:!!(p.compactOnly&&p.sharedViews.get(viewIndex)!=='ready'),
+        displayReason:p.compactOnly&&p.sharedViews.get(viewIndex)!=='ready'?p.sharedViews.get(viewIndex)||null:null,
         maxDegrees:extreme('maxDegrees','max'),maxCurvature:extreme('maxCurvature','max'),minCurvature:extreme('minCurvature','min'),
         prediction:policies.size?{policy:policies.size===1?policies.values().next().value:'mixed'}:null,
         triangleCount:p.triangles,triangleLimit:frameCurvatureTriangleLimit,vertexCount:p.vertices,vertexLimit:frameCurvatureVertexLimit,
@@ -22840,7 +22941,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           canvas={clientWidth:width,clientHeight:height,getBoundingClientRect:()=>({left:0,top:0,width,height}),dataset:{}};
           viewIndex=0;shadingMode='solid';const orderedDraw=prepareOrderedReplicaDraw(r);d.queue.writeBuffer(r.uniform,0,cameraUniform(width,height));
           const encoder=d.createCommandEncoder(),pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),clearValue:frameViewportClear,loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
-          renderGeometry(r,pass,width,height,undefined,false,null,false,orderedDraw);pass.end();
+          renderGeometry(r,pass,width,height,undefined,false,null,false,orderedDraw,false);pass.end();
           renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,depth,'opaque'));
           renderMaterialTransparency(r,encoder,color,depth,width,height,orderedDraw);renderPluginSurfaceStyles(r,encoder,color,depth);
           renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,depth));renderPluginSurfaceStyles(r,encoder,color,depth,true);
@@ -23519,9 +23620,9 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       for(const part of mesh.parts||[mesh]){const old=bindings.groups.get(part),idBase=mesh.drawIds.get(part.faceStart||0);if(old?.source===part.shadingBindGroup)continue;const group=r.device.createBindGroup({layout:state.meshLayout,entries:[{binding:0,resource:{buffer:mesh.paged?r.dummyBuffer:mesh.positions}},{binding:3,resource:{buffer:part.normals}},{binding:4,resource:{buffer:mesh.connected.flags}},{binding:5,resource:{buffer:part.renderIndices}},{binding:6,resource:(mesh.paged?mesh.positions:r.dummyTexture).view},{binding:7,resource:{buffer:mesh.paged?r.meshModePaged:r.meshModeBuffer}},{binding:8,resource:{buffer:idBase}},{binding:9,resource:{buffer:mesh.objectFrame}},{binding:10,resource:{buffer:mesh.materialTable}},{binding:11,resource:{buffer:uv?.resource||r.dummyReadBuffer}},{binding:12,resource:{buffer:mesh.mappingUniform}},{binding:13,resource:{buffer:part.splineWireEdges||r.dummyReadBuffer}}]});bindings.groups.set(part,{source:part.shadingBindGroup,group});}return {state,bindings};
     }
     function releaseMaterialState(r){invalidateRenderMaterials();clearMaterialTransparency(r);if(r?.materialState){releaseGPU(r.materialState.data);releaseGPU(r.materialState.atlas);r.materialState.assetTicket++;r.materialState=null;}}
-    function materialTransparent(mesh,blendOnly=false){
-      if(bendValid(mesh))return false;
-      if(shadingMode==='wireframe'||shadingMode==='isoparms'||!mesh.materialTags?.length)return false;
+    function materialTransparent(mesh,blendOnly=false,nativeOnly=false){
+      if(!nativeOnly&&bendValid(mesh))return false;
+      if(!mesh.materialTags?.length||!nativeOnly&&(shadingMode==='wireframe'||shadingMode==='isoparms'))return false;
       const cache=currentRenderMaterialCache(),state=renderer?.materialState;
       if(cache&&(cache.transparentState!==state||cache.transparentAlpha!==state?.alphaAssets)){
         cache.transparentState=state;cache.transparentAlpha=state?.alphaAssets;
@@ -24008,16 +24109,19 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       return bytes;
     }
     function orderedReplicaPlan(r){
-      const meshes=scene.meshes,prior=r.orderedReplicas,topology=scene.topologyRevision;
-      if(prior?.meshes===meshes&&prior.epoch===poseEpoch&&prior.topology===topology)return prior;
-      const plan={scene,meshes,epoch:poseEpoch,topology,runs:[],instances:0,ordinary:0};
+      const meshes=scene.meshes,prior=r.orderedReplicas,topology=scene.topologyRevision,
+        minimum=bendNeedsSharedViewport()?bendMaxOccurrences+1:256,shared=bendStates.size?bendOrderedLayouts():null,
+        sharedKey=shared?appearanceRevision+':'+[...shared.keys()].join(':'):'';
+      if(prior?.meshes===meshes&&prior.epoch===poseEpoch&&prior.topology===topology&&prior.minimum===minimum&&prior.sharedKey===sharedKey)return prior;
+      const plan={scene,meshes,epoch:poseEpoch,topology,minimum,sharedKey,runs:[],instances:0,ordinary:0};
       for(let i=0;i<meshes.length;){
-        const first=meshes[i],source=first.replicaSource;
+        const first=meshes[i],sharedSource=shared?.get(first.hashId),source=sharedSource||first.replicaSource;
         let end=i+1;
         if(source&&!first.paged&&!classifiedSurfaceWire(first)&&first.triangleCount){
           for(;end<meshes.length;end++){
             const mesh=meshes[end];
-            if(mesh.replicaSource!==source||mesh.hashId!==first.hashId||mesh.frameVisible!==first.frameVisible||
+            if(mesh.hashId!==first.hashId||mesh.frameVisible!==first.frameVisible||!mesh.replicaSource||
+              (sharedSource?mesh.appearanceKey!==first.appearanceKey:mesh.replicaSource!==source)||
               mesh.positions!==first.positions||mesh.indices!==first.indices||mesh.normals!==first.normals||
               mesh.renderIndices!==first.renderIndices||mesh.splineWireEdges!==first.splineWireEdges)break;
           }
@@ -24031,7 +24135,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         plan.runs.push({first,source,from:i,to:end,start:plan.instances,blocks:[]});
         plan.instances+=end-i;i=end;
       }
-      if(plan.instances<256||plan.ordinary>128){
+      if(plan.instances<minimum||plan.ordinary>128){
         retireOrderedReplicas(r);plan.runs=[];return r.orderedReplicas=plan;
       }
       const bytes=orderedReplicaFrameBytes(plan.instances,r.device.limits);
@@ -24118,49 +24222,70 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       }
     }
     function prepareOrderedReplicaDraw(r){
-      if(elementMode!=='object'||scene.meshes.length<256||r.patchPreview)return null;
-      // The standard ordered pipeline cannot bind curvature storage per occurrence.
-      if(bendStates.size&&scene.meshes.some(m=>m.replicaMatrix&&bendValid(m)))return null;
+      const protect=bendNeedsSharedViewport(),minimum=protect?bendMaxOccurrences+1:256;
+      const unsupported=()=>{if(protect)throw frameReplicaCapacityError('This viewport cannot batch the expanded Curvature group with the current surfaces');return null;};
+      if(elementMode!=='object'||scene.meshes.length<minimum||r.patchPreview)return unsupported();
       const plan=orderedReplicaPlan(r);
-      if(!plan.buffer)return null;
+      if(!plan.buffer)return unsupported();
       const prepared=[];let pending=false;
       for(const run of plan.runs){
         const {first,source}=run;
         if(first.frameVisible===false)continue;
         if(!source){prepared.push(run);continue;}
-        if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first))return null;
+        const fit=bendStates.size?bendOrderedFit(first):null,group=bendStates.size?bendOrderedGroup(first):null;
+        let displayReason=null;
+        if(fit&&run.to-run.from===fit.count){
+          if(!materialTransparent(first,false,true)&&!pluginSurfaceFilter(first)&&
+            (first.materialTags?.length||!FramePlugins.dispatch('surfaceStyle',first.hashId))){
+            const shaders=beginBendReplicaPipelines(r),bend=shaders.pipelines?.get(!!frameViewKind(viewIndex)+':'+polygonWire(first));
+            if(bend){prepared.push({run,bend,fit,group});continue;}
+            if(shaders.error)displayReason='compact-pipeline';
+          }else displayReason='compact-material';
+        }else if(fit)displayReason='compact-pipeline';
+        // Existing non-shared groups retain their small, bounded surface path.
+        // They must not make unrelated runs lose ordered/OIT batching.
+        if(bendStates.size&&bendValid(first)){prepared.push({run,directBend:true});continue;}
+        if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first))return unsupported();
         const material=first.materialTags?.length?materialMeshGPU(r,first):null;
         if(material&&!material.state.group){pending=true;continue;}
         if(material&&!material.bindings.uv&&meshUsesMaterialMaps(material.state,first)){
           // An ordered batch owns one projection uniform. Scaled occurrences need their own.
           run.sharedProjection??=scene.meshes.slice(run.from,run.to).every(mesh=>
             [0,1,2,4,5,6,8,9,10].every(i=>mesh.frameWorld[i]===first.frameWorld[i]));
-          if(!run.sharedProjection)return null;
+          if(!run.sharedProjection)return unsupported();
         }
         const state=material?materialReplicaPipeline(r,first,material):replicaPipeline(r,first);
         if(!state){pending=true;continue;}
         const blend=material&&materialTransparent(first,true),oitState=blend?materialReplicaPipeline(r,first,material,false,true):null;
         if(blend){ensureMaterialTransparencyCompose(r,material.state);if(!oitState||!material.state.compose){pending=true;continue;}}
         const preview=blend?null:replicaPlantPreview(first,material),previewState=preview&&materialReplicaPipeline(r,first,material,true);
-        prepared.push({run,material,state,preview,previewState,oitState});
+        prepared.push({run,material,state,preview,previewState,oitState,group,displayReason});
       }
       return pending?orderedReplicasPending:{plan,prepared};
     }
-    function drawOrderedReplicas(r,pass,height,order=prepareOrderedReplicaDraw(r)){
+    function drawOrderedReplicas(r,pass,height,order=prepareOrderedReplicaDraw(r),publishShared=true){
       if(order===orderedReplicasPending)throw Error("Dense replica shaders are still preparing; retry once the viewport settles.");
       if(!order)return null;
       const {plan,prepared}=order;
-      let visible=0,calls=0,instances=0,previewInstances=0;
+      let visible=0,calls=0,instances=0,previewInstances=0,curvatureInstances=0,curvatureCalls=0;
       for(const item of prepared){
         if(!item.run){
           const m=item.first;if(meshVisible(m)&&!pluginSurfaceStyle(m)){issueOpaqueMesh(pass,opaqueMeshDraw(r,m),m);visible++;}
           continue;
         }
-        const {run,material,state,preview,previewState}=item;
+        const {run,material,state,preview,previewState,bend,fit,group,displayReason}=item;
+        if(item.directBend){
+          for(let i=run.from;i<run.to;i++){
+            const m=plan.meshes[i];if(!meshVisible(m))continue;
+            issueOpaqueMesh(pass,opaqueMeshDraw(r,m),m);visible++;
+          }
+          continue;
+        }
         let start=0,count=0,simplified=false;
         const issue=()=>{
           if(!count)return;
-          issueReplicaSurface(pass,run.first,material,simplified?previewState:state,plan.group,count,start,simplified?preview:null);
+          if(bend){issueBendReplicaSurface(pass,run.first,fit,bend,plan.group,count,start);curvatureCalls++;curvatureInstances+=count;}
+          else issueReplicaSurface(pass,run.first,material,simplified?previewState:state,plan.group,count,start,simplified?preview:null);
           calls++;instances+=count;if(simplified)previewInstances+=count;count=0;
         };
         for(const block of run.blocks){
@@ -24171,8 +24296,16 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           count+=block.count;simplified=small;
         }
         issue();
+        // Preparation can run for a cached presentation or an offscreen
+        // export. Only the actual live view may publish its display status.
+        if(publishShared&&group?.compactOnly){
+          if(bend)group.sharedViews.set(viewIndex,'ready');
+          else if(displayReason)group.sharedViews.set(viewIndex,displayReason);
+          else group.sharedViews.delete(viewIndex);
+        }
       }
-      r.replicaDraws??=new Map();r.replicaDraws.set(viewIndex,{instances,calls,previewInstances});
+      const curvaturePacked=prepared.reduce((count,item)=>count+(item.bend?item.run.to-item.run.from:0),0);
+      r.replicaDraws??=new Map();r.replicaDraws.set(viewIndex,{instances,calls,previewInstances,curvatureInstances,curvatureCalls,curvaturePacked,packed:plan.instances});
       if(frameNavigation)frameNavigation.orderedReplicas=plan;
       return visible+instances;
     }
@@ -24717,12 +24850,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         if(state.indexed){pass.setIndexBuffer(row.indices,'uint32');pass.drawIndexed(count,1,start);}else pass.draw(count,1,start);}
       let cursor=0;for(const [first,length,localFirst,localCount]of preview.ranges){range(base,cursor,first-cursor);range(local,localFirst,localCount);cursor=first+length;}range(base,cursor,preview.base.count-cursor);
     }
-    function renderGeometry(r,pass,width,height,include,grid=true,mask=null,cages=true,orderedDraw){
+    function renderGeometry(r,pass,width,height,include,grid=true,mask=null,cages=true,orderedDraw,publishShared=true){
       const fullScene=!include;include??=()=>true;
       const deferLines=cages&&(polygonWire()||deferPluginSceneLines(r));
       if(shadingMode==='off'){if(grid&&!deferLines)drawViewGrid(pass,width,height);return 0;}
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms';let visible=wire?0:drawCloudInstances(r,pass);pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
-      const ordered=fullScene&&!wire?drawOrderedReplicas(r,pass,height,orderedDraw):null;
+      const ordered=fullScene&&!wire?drawOrderedReplicas(r,pass,height,orderedDraw,publishShared):null;
       if(ordered!==null)visible+=ordered;
       else if(!wire){
         if(frameNavigation)frameNavigation.orderedReplicas=null;

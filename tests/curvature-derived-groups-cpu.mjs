@@ -15,6 +15,7 @@ const implementation=new Function('world',`
  let poseEpoch=0,frameCount=0;
  const {scene,rows,stats,FM}=world;
  let frameCurvatureOwners=world.frameCurvatureOwners;
+ const classifiedSurfaceWire=m=>!!m.splineWireEdges,viewIndex=0;
  const frameCurvatureTriangleLimit=150000,frameCurvatureVertexLimit=450000,frameDefaultCreaseAngle=44,
    curvatureModes=['Angle','Surface Prediction'],frameCurvatureAttributeNotice=null,
    frameNodeByHash=key=>rows.get(key),draw=()=>{},
@@ -134,7 +135,7 @@ await drain(whole);
 assert.ok(whole.bendReadyFit(pair[0]));assert.ok(whole.bendReadyFit(pair[1]));
 
 const overflow=createWorld(),small=source(overflow,'base'),oversize=implementation(overflow);
-owner(overflow,'many','cloner',small,Array.from({length:129},I));
+owner(overflow,'many','cloner',small,Array.from({length:129},I)).forEach(m=>m.paged=true);
 owner(overflow,'unique','cloner',small,Array.from({length:17},(_,i)=>s({x:1+i/10})));
 oversize.syncBendTags();const large=oversize.bendAdmission('many');assert.equal(large.reason,'occurrence-limit');
 assert.equal(oversize.bendAdmission('many'),large,'Stable rejected plan must not rescan the scene');

@@ -450,3 +450,5 @@ tests/cloner-large-counts-browser.mjs text eol=lf
 tests/cloner-dense-paint-browser.mjs text eol=lf
 tests/cloner-warning-browser.mjs text eol=lf
 tests/cloner-device-capacity-browser.mjs text eol=lf
+tests/curvature-ordered-shared-cpu.mjs text eol=lf
+tests/curvature-ordered-shared-browser.mjs text eol=lf
