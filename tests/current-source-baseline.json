@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 12:57",
+  "version": "2026 21 nov 13:37",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "1ab89503bee910bcc96d6255743f7415c54c70888d61b723e9939afe3e9071c7"
+      "sha256": "9f72b16d4e6d4e62c3fd4930d34a527274acd14d46dd438618c64b8ccce78a95"
     },
     "index.html": {
-      "bytes": 3971946,
-      "sha256": "ac870f049487093d682a74828fffa559e619b4f2506ff948e79235377e586ef7"
+      "bytes": 3983713,
+      "sha256": "6499324449b364b8cd9449f0e06f4f1f22cb784135b308233b93ba36003b2eac"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -621,8 +621,8 @@
       "sha256": "857db2641a067a7b0f656e88613eb3c63beee73de2a4b16c629e7d55c12fcceb"
     },
     "tests/scene-control-data.mjs": {
-      "bytes": 20026,
-      "sha256": "9c3abe7dec61cf600adb8503126b630e5525c0ae5d7741ca5b35802380021773"
+      "bytes": 20187,
+      "sha256": "61564ca5206bd3c5574b0281d038a2bab4008a13c41cb4f9165962f6a241476d"
     },
     "tests/scene-data-docs-barrier.mjs": {
       "bytes": 6678,
@@ -1181,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18207,
-      "sha256": "219c92d1ea18d3473e9b7d9da9ca174bff77c948b6e88c847a1c40d72b65b1b6"
+      "bytes": 18307,
+      "sha256": "ef4fba52eb7897a38bf8e662aa3cac320c73af7900df4332eeae2707c9deb1c4"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1515,6 +1515,26 @@
     "tests/export-streaming-sha256-cpu.mjs": {
       "bytes": 9365,
       "sha256": "55a3fa9c264291e60fe2f9737bb95e6fa4998c6887be2a56fedfedf9ff5a51f4"
+    },
+    "tests/hash-address-cache.mjs": {
+      "bytes": 4126,
+      "sha256": "d66b929d9a4c1ad4114b6024b5b98d667684ecdb0eabe466e81e25d558d20c4a"
+    },
+    "tests/hash-identifier-codec.mjs": {
+      "bytes": 3213,
+      "sha256": "bd1ee62c22a3eb79a9ff000754e701fa4251f57e966c694bf88c000711fab107"
+    },
+    "tests/hash-parent-membership.mjs": {
+      "bytes": 8712,
+      "sha256": "251e62afad44e077da11fd2c1ac2552c8da49ea902df119c7323163f89388094"
+    },
+    "tests/hash-object-browser-fixtures.mjs": {
+      "bytes": 1943,
+      "sha256": "4381f0099aa20181e2ba6e38a0e69d0ac094e5d42ffc18cb7bd9beda329f63db"
+    },
+    "tests/hash-object-browser-native.mjs": {
+      "bytes": 14386,
+      "sha256": "309b1b4b9b95227c3815281a479f496c0b1660cf9cbb566fc4fcdca7735794f7"
     }
   }
 }

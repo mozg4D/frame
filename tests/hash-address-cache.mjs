@@ -17,4 +17,12 @@ check('FIFO eviction bounds 140000 distinct owners and recreates retired owner r
 check('Owner eviction during a new field lookup publishes the new row and keeps remaining fields reachable',()=>{
  const owner=id(999999);H.address(owner,'matrix');for(let i=140001;i<271073;i++)H.address(id(i),'matrix');assert.equal(H.address(owner,'pivot'),oracle(owner,H.K.pivot));assert.equal(H.address(owner,'matrix'),oracle(owner,H.K.matrix));assert.equal(H.address(owner,'pivot'),oracle(owner,H.K.pivot));
 });
+check('Scoped address calculation reuses exact known masks and validates arbitrary declared field IDs',()=>{
+ const fields=['type','name','parent','flags','matrix','pivot','parameters','spline','tags','positions','indices','projection','light',id(281732)];
+ for(let i=0;i<1000;i++){
+  const owner=id(i*104729+1),address=H.addressOwner(owner);
+  for(const field of fields){const key=H.K[field]||field;assert.equal(address(field),oracle(owner,key));assert.equal(address(key),oracle(owner,key));}
+ }
+ for(const bad of ['',null,'u'.repeat(32),'A'.repeat(32),id(0)+'0']){assert.throws(()=>H.addressOwner(bad),/Invalid HASH identifier/);assert.throws(()=>H.addressOwner(id(10))(bad),/Invalid HASH identifier/);}
+});
 const report={pass:true,checks,indexSHA256:createHash('sha256').update(html).digest('hex')};await mkdir(new URL('./results/',import.meta.url),{recursive:true});await writeFile(new URL('./results/hash-address-cache.json',import.meta.url),JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));

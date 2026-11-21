@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 12:57">
+<meta name="frame-version" content="2026 21 nov 13:37">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -21,7 +21,7 @@ button,input,select,textarea{font:inherit}button{color:inherit;cursor:pointer}bu
 #app{position:fixed;inset:0;display:flex}#frame-views{flex:1;min-width:0;display:flex;flex-direction:column}#vp{flex:1;min-height:90px;display:grid;gap:1px;background:#000}#vp{position:relative}#vp.quad{grid-template:1fr 1fr/1fr 1fr}#vp.quad::before,#vp.quad::after{content:"";position:absolute;background:#000;z-index:100;pointer-events:none}#vp.quad::before{top:0;bottom:0;left:calc(50% - .5px);width:1px}#vp.quad::after{left:0;right:0;top:calc(50% - .5px);height:1px}.view{position:relative;background:#1d1d1d;outline:0;touch-action:none}
 
 #panel{position:relative;flex:0 0 256px;width:256px;min-width:256px;max-width:256px;height:100%;padding:0;gap:0;display:flex;flex-direction:column;background:#1c1c1c;overflow:auto;scrollbar-width:none}#filebar,.trow,#toolbar{display:flex;flex-wrap:wrap;flex-shrink:0}.tbtn{position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px}.tbtn:hover{background:#4d4d4d}.tbtn.on{background:#293747;box-shadow:inset 0 0 0 1px #6681ad}.tbtn svg,.tabbtn svg,.obj-lib-item svg{width:32px;height:32px}#btnBrowser{margin-left:auto}
-#obWrap{flex:0 0 38vh;min-height:68px;position:relative;overflow:hidden;background:#222}#obScroll{position:absolute;inset:0;overflow:auto;scrollbar-width:none;scrollbar-color:#424242 #222}#obInner{min-height:100%;outline:none}.ob-row{height:17px;display:flex;align-items:center;white-space:nowrap;cursor:default}.ob-row:hover{background:#2c2c2c}.ob-row.sel{background:#33405a}.ob-row.dim .ob-name,.ob-row.dim .ob-tags{opacity:.4}.ob-row.drop-before{box-shadow:inset 0 2px #8fb8ff}.ob-row.drop-after{box-shadow:inset 0 -2px #8fb8ff}.ob-row.drop-child{background:#2a3a4a}.ob-foldcell,.ob-foldhole,.ob-show,.ob-enable{flex:0 0 16px;width:16px;height:16px}.ob-foldcell svg,.ob-show svg,.ob-enable svg{width:16px;height:16px}.ob-foldcell:hover,.ob-show:hover,.ob-enable:hover{background:#444}.ob-name{min-width:0;overflow:hidden;padding:0 2px}.ob-spacer{flex:1}.ob-tags{display:flex;flex-shrink:0}.ob-tag{width:16px;height:16px;overflow:hidden;margin-left:1px;flex-shrink:0;border-radius:3px;color:#ddd;text-align:center;font-size:14px;line-height:16px}.ob-tag.material{border-radius:50%;background:#8b877e}.ob-tag.bevel{background:#7045a8;font-weight:700}.ob-tag.morph{background:#3d616b;color:#c7e3e8}.ob-tag.sel{outline:1px solid #fff;outline-offset:-1px}.ob-tag:hover{box-shadow:inset 0 0 0 1px #aaa}.ob-rename{width:100%;height:17px;padding:0 2px;background:#111;color:#fff;border:0;outline:none;user-select:text}
+#obWrap{flex:0 0 38vh;min-height:68px;position:relative;overflow:hidden;background:#222}#obScroll{position:absolute;inset:0;overflow:auto;scrollbar-width:none;scrollbar-color:#424242 #222}#obInner{min-height:100%;outline:none}#obInner.ob-window{position:relative;overflow-anchor:none}#obInner.ob-window>.ob-row{position:absolute;left:0;right:0}.ob-row{height:17px;display:flex;align-items:center;white-space:nowrap;cursor:default}.ob-row:hover{background:#2c2c2c}.ob-row.sel{background:#33405a}.ob-row.dim .ob-name,.ob-row.dim .ob-tags{opacity:.4}.ob-row.drop-before{box-shadow:inset 0 2px #8fb8ff}.ob-row.drop-after{box-shadow:inset 0 -2px #8fb8ff}.ob-row.drop-child{background:#2a3a4a}.ob-foldcell,.ob-foldhole,.ob-show,.ob-enable{flex:0 0 16px;width:16px;height:16px}.ob-foldcell svg,.ob-show svg,.ob-enable svg{width:16px;height:16px}.ob-foldcell:hover,.ob-show:hover,.ob-enable:hover{background:#444}.ob-name{min-width:0;overflow:hidden;padding:0 2px}.ob-spacer{flex:1}.ob-tags{display:flex;flex-shrink:0}.ob-tag{width:16px;height:16px;overflow:hidden;margin-left:1px;flex-shrink:0;border-radius:3px;color:#ddd;text-align:center;font-size:14px;line-height:16px}.ob-tag.material{border-radius:50%;background:#8b877e}.ob-tag.bevel{background:#7045a8;font-weight:700}.ob-tag.morph{background:#3d616b;color:#c7e3e8}.ob-tag.sel{outline:1px solid #fff;outline-offset:-1px}.ob-tag:hover{box-shadow:inset 0 0 0 1px #aaa}.ob-rename{width:100%;height:17px;padding:0 2px;background:#111;color:#fff;border:0;outline:none;user-select:text}
 #tabstrip{position:relative;flex:0 0 36px;height:36px;background:#000;display:flex;justify-content:space-between}#treeResize{position:absolute;top:-3px;left:0;right:0;height:6px;cursor:ns-resize;z-index:21;touch-action:none}.tabgrp,.tabact{display:flex;padding-top:4px}.tabbtn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px 6px 0 0;background:#000;flex-shrink:0}.tabbtn:hover{background:#111}.tabbtn.on{background:#222;box-shadow:inset 0 1px #8fb8ff}.actbtn{border-radius:6px}
 #panels{position:relative;flex:1;min-height:100px;background:#222}.panel-content{position:absolute;inset:0;overflow:auto;background:#222;scrollbar-width:none;scrollbar-color:#444 #222}#attrContent,#matEditorContent{padding:4px;overflow:auto;height:100%;scrollbar-width:none}.attr-row{display:flex;align-items:center;min-height:20px;gap:4px}.attr-lab{color:#8a8a8a;white-space:nowrap}.attr-ctrl{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:2px}.attr-btn{background:#1a1a1a;border-radius:5px;color:#888;padding:2px 5px;font-size:14px;line-height:14px}.attr-btn:hover{background:#333;color:#ddd}.attr-btn.on{background:#293747;color:#fff;box-shadow:inset 0 0 0 1px #6681ad}.attr-inp,.attr-cycle{flex:1;min-width:40px;width:70px;height:18px;background:linear-gradient(to left,#111 0,#111 48px,#1110 100%);border:0;border-radius:5px;color:#d8d8d8;padding:0 4px;text-align:right;outline:none;user-select:text}.attr-cycle{cursor:pointer}[data-instance-file]{cursor:pointer!important}[data-instance-file]::after{display:none}.attr-inp[type=number]{appearance:textfield;cursor:nesw-resize}input::-webkit-inner-spin-button,input::-webkit-outer-spin-button{appearance:none}.attr-ta{width:100%;height:57px;resize:none;background:#111;border:0;border-radius:5px;color:#ddd;padding:4px;user-select:text}.attr-row.attr-text-row{height:auto;min-height:57px;align-items:flex-start;margin:3px 0}.attr-group-header{color:#aaa;padding:6px 0 4px}.attr-status{color:#94aaa5;font-size:14px;padding:3px 0}
 .obj-lib-grid{display:grid;grid-template-columns:repeat(8,32px)}.obj-lib-item{display:flex;width:32px;height:32px;align-items:center;justify-content:center}.obj-lib-item:hover{background:#3a3a3a}.obj-lib-item.empty{pointer-events:none}
@@ -11908,6 +11908,21 @@ function createFrameHashCodec(){
     if(addressCache.size>=131072){let oldest=addressOldest.next();if(oldest.done){addressOldest=addressCache.keys();oldest=addressOldest.next();}const entry=oldest.value,row=addressOwners.get(entry.id);row.delete(entry.field);if(!row.size)addressOwners.delete(entry.id);addressCache.delete(entry);}
     if(!addressOwners.has(id)){owner=new Map();addressOwners.set(id,owner);}const entry={id,field:f,value};owner.set(f,entry);addressCache.set(entry,true);return value;
   }
+  // Cold bulk reads use one validated 128-bit owner per row and do not
+  // churn the shared LRU. Only the small fixed field masks are retained.
+  const addressMask=new Map(Object.values(K).map(id=>[id,BigInt('0x'+id)])),addressID=/^[0-9a-f]{32}$/;
+  function addressOwner(id){
+    if(typeof id!=='string'||!addressID.test(id))throw Error('Invalid HASH identifier');
+    const owner=BigInt('0x'+id);
+    return field=>{
+      const f=K[field]||field;let mask=addressMask.get(f);
+      if(mask===undefined){
+        if(typeof f!=='string'||!addressID.test(f))throw Error('Invalid HASH identifier');
+        mask=BigInt('0x'+f);
+      }
+      return (owner^mask).toString(16).padStart(32,'0');
+    };
+  }
   const newId=()=>hex(crypto.getRandomValues(new Uint8Array(16)));
   const bytes=value=>new Uint8Array(value.buffer,value.byteOffset,value.byteLength);
   function header(type,id,length){if(!Number.isSafeInteger(length)||length<0)throw Error('Invalid HASH payload length');const h=new Uint8Array(26),v=new DataView(h.buffer);v.setUint16(0,type,true);h.set(idBytes(id),2);v.setBigUint64(18,BigInt(length),true);return h;}
@@ -11964,22 +11979,31 @@ function createFrameHashCodec(){
       try{return (await page).subarray(offset,offset+length);}
       catch(error){if(pages.get(start)===page)pages.delete(start);throw error;}
     }
-    return {file,range,read:record=>read(file,record,range),index:()=>index(file,range)};
+    return {file,range,read:record=>read(file,record,range),index:cooperate=>index(file,range,cooperate),ownerIds:rows=>ownerIds(file,rows,whole?range:undefined)};
   }
-  async function index(file,range=reader(file).range){
+  async function index(file,range=reader(file).range,cooperate=null){
     const map=new Map();let at=0;
     while(at<file.size){if(file.size-at<26||map.size>=1000000)throw Error('Truncated HASH header or record limit');const h=await range(at,26),v=new DataView(h.buffer,h.byteOffset,h.byteLength),type=v.getUint16(0,true),base=type&255,id=hex(h.subarray(2,18)),large=v.getBigUint64(18,true);
       const unsupported=!Object.values(T).includes(base)||!!(type&~(255|ZIP|PREDICT))||!!((type&PREDICT)&&(!(type&ZIP)||![T.uint32,T.float32].includes(base)));
       if(large>BigInt(file.size-at-26)||large>BigInt(MAX_RECORD*2+64))throw Error('Invalid HASH record size');if(map.has(id))throw Error('Duplicate HASH property');const length=Number(large);
       map.set(id,{id,type:base,encoding:type,offset:at+26,length,...unsupported?{unsupported:true}:{}});at+=26+length;
+      if(cooperate&&(map.size&255)===0){const pause=cooperate();if(pause)await pause;}
     }
     if(!map.size)throw Error('Empty HASH file');return map;
   }
-  async function read(file,record,range){
-    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');let raw;
-    if(range){const packed=await range(record.offset,record.length);raw=record.encoding&ZIP?await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),MAX_RECORD*2+64):packed.slice();}
-    else{const blob=file.slice(record.offset,record.offset+record.length);raw=record.encoding&ZIP?await collect(blob.stream().pipeThrough(new DecompressionStream('gzip')),MAX_RECORD*2+64):new Uint8Array(await blob.arrayBuffer());}
-    if(record.encoding&PREDICT)raw=restore(raw,record.type);if(raw.length>MAX_RECORD)throw Error('HASH decoded record limit');const width={0:1,3:4,4:16,5:4,6:8,7:1,8:1}[record.type];if(raw.length%width)throw Error('Invalid HASH typed length');
+  async function ownerIds(file,rows,range){
+    const all=rows.get(K.all);
+    if(!all||all.type!==T.ids)throw Error('Missing HASH object list');
+    // Every valid owner has a type, position or spline witness. Each field
+    // address is injective within that field, even if different fields alias.
+    // Bound decoding by indexed evidence, not by a fixed number of objects.
+    return read(file,all,range,Math.min(MAX_RECORD,rows.size*3*16));
+  }
+  async function read(file,record,range,maxDecoded=MAX_RECORD){
+    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');if(!(record.encoding&ZIP)&&record.length>maxDecoded)throw Error('HASH decoded record limit');const compressedLimit=maxDecoded===MAX_RECORD?MAX_RECORD*2+64:maxDecoded;let raw;
+    if(range){const packed=await range(record.offset,record.length);raw=record.encoding&ZIP?await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):packed.slice();}
+    else{const blob=file.slice(record.offset,record.offset+record.length);raw=record.encoding&ZIP?await collect(blob.stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):new Uint8Array(await blob.arrayBuffer());}
+    if(record.encoding&PREDICT)raw=restore(raw,record.type);if(raw.length>maxDecoded)throw Error('HASH decoded record limit');const width={0:1,3:4,4:16,5:4,6:8,7:1,8:1}[record.type];if(raw.length%width)throw Error('Invalid HASH typed length');
     if(record.type===T.value)return values.decode(raw);if(record.type===T.text)return dec.decode(raw);if(record.type===T.ids)return Array.from({length:raw.length/16},(_,i)=>hex(raw.subarray(i*16,i*16+16)));
     if(raw.byteOffset%width)raw=raw.slice();return record.type===T.bytes?raw:record.type===T.uint32?new Uint32Array(raw.buffer,raw.byteOffset,raw.length/4):record.type===T.float32?new Float32Array(raw.buffer,raw.byteOffset,raw.length/4):new Float64Array(raw.buffer,raw.byteOffset,raw.length/8);
   }
@@ -11994,7 +12018,7 @@ function createFrameHashCodec(){
   function openSnapshot(bytes,reviver){const root=snapshotRecord(bytes);if(root.id!==K.parameters)throw Error('Invalid HASH snapshot root');const value=values.decode(root.data,reviver),seen=new Set();let at=root.end;while(at<bytes.length){const row=snapshotRecord(bytes,at),field=snapshotFields.find(([,id])=>id===row.id)?.[0];if(!field||seen.has(field)||!Array.isArray(value?.nodes))throw Error('Invalid HASH snapshot field');seen.add(field);value[field]=values.decode(row.data,reviver);at=row.end;}return value;}
   function sameSnapshotContent(a,b){return values.equal(snapshotPayload(a),snapshotPayload(b));}
   function references(bytes){let refs=snapshotReferences.get(bytes);if(!refs){refs=values.strings(snapshotPayload(bytes));snapshotReferences.set(bytes,refs);}return refs;}
-  return Object.freeze({K,T,ZIP,PREDICT,address,newId,pack,index,read,reader,prepare,restore,MAX_RECORD,values,snapshot,openSnapshot,references,sameSnapshotContent});
+  return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,pack,index,read,reader,prepare,restore,MAX_RECORD,values,snapshot,openSnapshot,references,sameSnapshotContent});
 }
 const FrameHash=createFrameHashCodec();
 const FrameValue=FrameHash.values;
@@ -15150,10 +15174,10 @@ const FrameScenePrograms=(()=>{
 })();
 
 function hardwareName(n){if(n.type==='tree')return FramePlants.names[n.params.type];return ['bolt','nut','washer'].includes(n.type)?n.params.type+' '+n.params.size+(n.type==='bolt'?'*'+n.params.length:''):null;}
-function create(type, parent=null, name=definitions[type][0]) {
+function create(type, parent=null, name=definitions[type][0], append=false) {
   const n={id:'n'+(++serial),type,name,parent,folded:false,visible:true,enabled:true,tags:[],params:defaults(definitions[type][2]),transform:[0,0,1,0,0,1,0,0,1]};
   if(FramePlugins.owner(n))n.nativeHash=crypto.randomUUID().replaceAll('-','');if(type==='bolt')n.params.type='DIN 912';if(type==='cloner')n.params.type='matrix';if(type==='sweep')n.params.movement='tangent';if(type==='render'){n.params.environment='default';const placement=window.frameEngine?.cameraPlacement(node(parent)?.nativeHash);if(placement){n.creationFrame=placement.matrix;}for(const other of nodes)if(other.type==='render')other.enabled=false;}
-  if(name===definitions[type][0])n.name=hardwareName(n)||name;nodes.unshift(n);FramePlugins.dispatch('created',n);return n;
+  if(name===definitions[type][0])n.name=hardwareName(n)||name;if(append)nodes.push(n);else nodes.unshift(n);FramePlugins.dispatch('created',n);return n;
 }
 function demo() {
   nodes=[];frameChannels.clear();frameChannelSelection=[];frameCurves.editing=false;frameCurves.context=[];frameCurves.selection=[];frameCurves.signature='';selectedTag=null;selectedTags.clear();treeAllFolded=false;foldSnapshot=null;setBrowserIcon();
@@ -15232,7 +15256,19 @@ function framePruneRemovedMaterials(before){
 function remove(){commit(()=>{if(selectedTags.size){for(const n of nodes)n.tags=n.tags.filter((t,i)=>!selectedTags.has(tagKey(n.id,i)));selectedTags.clear();selectedTag=null;return;}const ids=new Set(roots(selected).flatMap(id=>[id,...descendants(id)]));nodes=nodes.filter(n=>!ids.has(n.id));for(const id of ids)frameChannels.delete(id);frameChannelSelection=frameChannelSelection.filter(d=>!ids.has(d.h));frameCurves.context=frameCurves.context.filter(d=>!ids.has(d.h));frameCurves.editing=false;frameCurves.selection=[];selected.clear();focusId=null;});}
 const BROWSER_CHILD_LIMIT=128;
 function browserChildrenLimited(n,count=null){return (count??nodes.filter(c=>c.parent===n.id).length)>BROWSER_CHILD_LIMIT||(n.instanceCloud?.reduce((sum,row)=>sum+(n.pluginRecords?.[row.field]?.value.length||0)/4,0)||0)>BROWSER_CHILD_LIMIT;}
-function visibleRows(parent=null,depth=0){const byParent=new Map(),out=[];for(const n of nodes){if(!byParent.has(n.parent))byParent.set(n.parent,[]);byParent.get(n.parent).push(n);}const visit=(id,d)=>{for(const n of byParent.get(id)||[]){if(n.browserHidden)continue;out.push({n,depth:d});if(!n.folded&&!browserChildrenLimited(n,byParent.get(n.id)?.length||0))visit(n.id,d+1);}};visit(parent,depth);return out;}
+function visibleRows(parent=null,depth=0){
+  const {byParent}=frameReadNodeIndex?.nodes===nodes&&frameReadNodeIndex.count===nodes.length?frameReadNodeIndex:frameHierarchyIndex();
+  const out=[],stack=[{list:byParent.get(parent)||[],i:0}];
+  while(stack.length){
+    const frame=stack[stack.length-1];
+    if(frame.i===frame.list.length){stack.pop();continue;}
+    const n=frame.list[frame.i++];if(n.browserHidden)continue;
+    out.push({n,depth:depth+stack.length-1});
+    const children=byParent.get(n.id);
+    if(!n.folded&&children?.length&&!browserChildrenLimited(n,children.length))stack.push({list:children,i:0});
+  }
+  return out;
+}
 const measureContext=document.createElement('canvas').getContext('2d');
 measureContext.font='14px ui-monospace,Menlo,Consolas,monospace';
 function frameMaterialThumbnailStamp(m){return [m.h,m.s,m.l,m.emm,m.rough,m.metal,m.opac,m.bump,m.opacityChannel??4,...[m.map,m.opacityMap].flatMap(image=>[image,image?.complete,image?.naturalWidth,image?.naturalHeight,image?.currentSrc,image?.src])];}
@@ -15242,22 +15278,80 @@ function materialThumbnail(index){
   const canvas=document.createElement('canvas');canvas.width=canvas.height=53;renderMatToCanvas(canvas.getContext('2d',{willReadFrequently:true}),53,53,m);const url=canvas.toDataURL();materialThumbnails.set(key,{stamp,url});return url;
 }
 let frameCurvatureOwners=new Set();
-function renderTree(){
-  const curvatureOwners=new Set();
-  const width=$('obScroll').clientWidth,parents=new Set(nodes.map(n=>n.parent)),childCounts=new Map();for(const n of nodes){childCounts.set(n.parent,(childCounts.get(n.parent)||0)+1);if(n.tags.some(t=>t.kind==='curvature'))curvatureOwners.add(n.nativeHash);}frameCurvatureOwners=curvatureOwners;measureContext.font=getComputedStyle($('obInner')).font;
-  $('obInner').innerHTML=visibleRows().map(({n,depth})=>{
-    const limited=browserChildrenLimited(n,childCounts.get(n.id)||0),hasChildren=parents.has(n.id)||limited,enabled=generatorTypes.includes(n.type)&&n.type!=='instance'||['render','infinite','target'].includes(n.type)||FramePlugins.canDisable(n);
-    const nameNeed=measureContext.measureText(n.name).width+4,tagNeed=n.tags.length*17,space=Math.max(0,width-depth*14-48);
-    const tagWidth=Math.max(0,Math.min(tagNeed,space-Math.min(nameNeed,Math.max(56,space*.4)))),nameWidth=Math.max(0,space-tagWidth);
-    const namePan=Math.max(-Math.max(0,nameNeed-nameWidth),Math.min(0,n.namePan||0)),tagPan=Math.max(-Math.max(0,tagNeed-tagWidth),Math.min(0,n.tagPan??-(tagNeed-tagWidth)));
+
+const FRAME_BROWSER_WINDOW_AT=384, FRAME_BROWSER_ROW_HEIGHT=17, FRAME_BROWSER_OVERSCAN=16;
+let frameBrowserWindow=null,frameBrowserRename=null;
+function frameBrowserRowLayout(n,depth,width){
+  const nameNeed=measureContext.measureText(n.name).width+4,tagNeed=n.tags.length*17,space=Math.max(0,width-depth*14-48);
+  const tagWidth=Math.max(0,Math.min(tagNeed,space-Math.min(nameNeed,Math.max(56,space*.4)))),nameWidth=Math.max(0,space-tagWidth);
+  const namePan=Math.max(-Math.max(0,nameNeed-nameWidth),Math.min(0,n.namePan||0)),tagPan=Math.max(-Math.max(0,tagNeed-tagWidth),Math.min(0,n.tagPan??-(tagNeed-tagWidth)));
+  return {nameWidth,tagWidth,namePan,tagPan};
+}
+function frameBrowserActive(){
+  const inner=$('obInner'),id=focusId&&'row-'+focusId;
+  if(id&&node(focusId)&&(!frameBrowserWindow||frameBrowserWindow.mounted.has(frameBrowserWindow.index.get(focusId))))inner.setAttribute('aria-activedescendant',id);
+  else inner.removeAttribute('aria-activedescendant');
+}
+function frameBrowserLogicalRows(){return frameBrowserWindow?.rows||visibleRows();}
+function frameBrowserLogicalIndex(id,rows){return frameBrowserWindow?.index.get(id)??(frameBrowserWindow?-1:rows.findIndex(r=>r.n.id===id));}
+function frameBrowserMounted(force=false){
+  const w=frameBrowserWindow;if(!w)return;
+  const box=$('obScroll'),inner=$('obInner'),width=box.clientWidth,h=FRAME_BROWSER_ROW_HEIGHT;
+  const start=Math.max(0,Math.floor(box.scrollTop/h)-FRAME_BROWSER_OVERSCAN);
+  const end=Math.min(w.rows.length,Math.ceil((box.scrollTop+box.clientHeight)/h)+FRAME_BROWSER_OVERSCAN);
+  if(!force&&start===w.start&&end===w.end&&width===w.width){frameBrowserRename?.place();return;}
+  const active=inner.ownerDocument.activeElement,lost=active?.closest('.ob-row');
+  const replace=force||width!==w.width;
+  for(const [i,row] of w.mounted)if(replace||i<start||i>=end){row.remove();w.mounted.delete(i);}
+  const template=inner.ownerDocument.createElement('template');let html='';
+  for(let i=start;i<end;i++)if(!w.mounted.has(i))html+=frameBrowserRowHTML(w.rows[i],width,w.childCounts);
+  template.innerHTML=html;
+  let cursor=inner.firstElementChild;
+  for(let i=start;i<end;i++){
+    let row=w.mounted.get(i);
+    if(!row){row=template.content.firstElementChild;row.style.top=i*h+'px';w.mounted.set(i,row);inner.insertBefore(row,cursor);}
+    cursor=row.nextElementSibling;
+  }
+  if(lost&&!lost.isConnected)inner.focus({preventScroll:true});
+  w.start=start;w.end=end;w.width=width;
+  frameBrowserActive();frameBrowserRename?.place();
+}
+$('obScroll').addEventListener('scroll',()=>{frameBrowserMounted();if(frameBrowserWindow&&treeGesture?.moved&&['node','tag'].includes(treeGesture.kind))updateTreeDrop(treeGesture,treeGesture.pointer||treeGesture.original);},{passive:true});
+new ResizeObserver(()=>frameBrowserMounted()).observe($('obScroll'));
+function frameBrowserRowHTML({n,depth},width,childCounts){
+    const limited=browserChildrenLimited(n,childCounts.get(n.id)||0),hasChildren=childCounts.has(n.id)||limited,enabled=generatorTypes.includes(n.type)&&n.type!=='instance'||['render','infinite','target'].includes(n.type)||FramePlugins.canDisable(n);
+    const {nameWidth,tagWidth,namePan,tagPan}=frameBrowserRowLayout(n,depth,width);
     n.namePan=namePan;n.tagPan=tagPan;
     const tags=n.tags.map((t,i)=>`<button class="ob-tag ${t.kind}${selectedTags.has(tagKey(n.id,i))?' sel':''}" data-tag="${i}" title="${tagDefinitions[t.kind].name}" aria-label="${escapeHTML(n.name)}: ${tagDefinitions[t.kind].name}"${t.kind==='material'?` style="background-image:url(${materialThumbnail(t.material||0)});background-size:cover"`:''}>${tagDefinitions[t.kind].text}</button>`).join('');
     return `<div class="ob-row${selected.has(n.id)?' sel':''}" id="row-${n.id}" data-id="${n.id}" data-type="${n.type}" role="treeitem" aria-level="${depth+1}" aria-selected="${selected.has(n.id)}"${hasChildren?` aria-expanded="${!n.folded&&!limited}"`:''}>
       <span class="ob-indent" style="width:${depth*14}px"></span>${hasChildren?`<button class="ob-foldcell${limited?' ob-limited':''}" data-action="fold" title="${n.folded?'Expand':'Collapse'} ${escapeHTML(n.name)}">${icons[n.folded||limited?'ICO_TREE_PLUS':'ICO_TREE_MINUS']}</button>`:'<span class="ob-foldhole"></span>'}
       <span class="ob-namebox" style="width:${nameWidth}px"><span class="ob-name" style="--object-color:${n.fileError?'#ff5555':FramePlugins.dispatch('rowColor',n)||objectColor(n.type)};transform:translateX(${namePan}px)" title="${escapeHTML(n.name)}">${escapeHTML(n.name)}</span></span><span class="ob-spacer"></span><span class="ob-tagbox" style="width:${tagWidth}px"><span class="ob-tags" style="transform:translateX(${tagPan}px)">${tags}</span></span>
       <span class="ob-rightgroup"><button class="ob-show" data-action="visible" title="${n.visible?'Hide':'Show'} ${escapeHTML(n.name)}" aria-pressed="${n.visible}">${icons[n.visible?'ICO_TREE_SHOW':'ICO_TREE_HIDE']}</button>${enabled?`<button class="ob-enable" data-action="enabled" title="${n.enabled?'Disable':'Enable'} ${escapeHTML(n.name)}" aria-pressed="${n.enabled}">${icons[n.enabled?'ICO_TREE_ENABLE':'ICO_TREE_DISABLE']}</button>`:'<span class="ob-foldhole"></span>'}</span></div>`;
-  }).join('');
-  $('obInner').setAttribute('aria-activedescendant',node(focusId)?'row-'+focusId:'');browserSelection=new Set(selected);browserTags=new Set(selectedTags);
+
+}
+function renderTree(){
+  const curvatureOwners=new Set();
+  const inner=$('obInner'),box=$('obScroll'),width=box.clientWidth,childCounts=new Map();
+  for(const n of nodes){childCounts.set(n.parent,(childCounts.get(n.parent)||0)+1);if(n.tags.some(t=>t.kind==='curvature'))curvatureOwners.add(n.nativeHash);}
+  frameCurvatureOwners=curvatureOwners;measureContext.font=getComputedStyle(inner).font;
+  const rows=visibleRows();
+  if(rows.length<=FRAME_BROWSER_WINDOW_AT){
+    if(frameBrowserWindow){frameBrowserWindow=null;inner.classList.remove('ob-window');inner.style.height='';}
+    inner.innerHTML=rows.map(row=>frameBrowserRowHTML(row,width,childCounts)).join('');
+  }else{
+    const previous=frameBrowserWindow,top=box.scrollTop;
+    const retained=previous?.rows[Math.floor(top/FRAME_BROWSER_ROW_HEIGHT)]?.n.id;
+    const index=new Map();for(let i=0;i<rows.length;i++)index.set(rows[i].n.id,i);
+    frameBrowserWindow={rows,index,childCounts,mounted:new Map()};
+    inner.classList.add('ob-window');inner.style.height=rows.length*FRAME_BROWSER_ROW_HEIGHT+'px';
+    const active=inner.ownerDocument.activeElement;
+    if(active!==inner&&inner.contains(active))inner.focus({preventScroll:true});
+    inner.replaceChildren();
+    box.scrollTop=retained&&index.has(retained)?index.get(retained)*FRAME_BROWSER_ROW_HEIGHT+top%FRAME_BROWSER_ROW_HEIGHT:top;
+    frameBrowserMounted(true);
+    if(treeGesture?.moved&&['node','tag'].includes(treeGesture.kind))updateTreeDrop(treeGesture,treeGesture.pointer||treeGesture.original);
+  }
+  frameBrowserActive();frameBrowserRename?.place();browserSelection=new Set(selected);browserTags=new Set(selectedTags);
 }
 function frameSelectObjectMaterial(n){
   let tag;for(let p=n;p&&!tag;p=node(p.parent))tag=p.tags.find(t=>t.kind==='material'&&!t.mask)||p.tags.find(t=>t.kind==='material');
@@ -15265,24 +15359,43 @@ function frameSelectObjectMaterial(n){
 }
 let browserSelection=new Set(),browserTags=new Set();
 function refreshSelection(keepAttributes=false){
+  if(frameBrowserWindow){
+    for(const row of frameBrowserWindow.mounted.values()){
+      const id=row.dataset.id,value=selected.has(id);
+      row.classList.toggle('sel',value);row.setAttribute('aria-selected',String(value));
+      for(const el of row.querySelectorAll('.ob-tag'))el.classList.toggle('sel',selectedTags.has(tagKey(id,el.dataset.tag)));
+    }
+    frameBrowserActive();if(!keepAttributes)renderAttributes();syncHUD();return;
+  }
   for(const id of new Set([...browserSelection,...selected]))if(browserSelection.has(id)!==selected.has(id)){const row=$('row-'+id);if(row){row.classList.toggle('sel',selected.has(id));row.setAttribute('aria-selected',String(selected.has(id)));}}
   for(const key of new Set([...browserTags,...selectedTags]))if(browserTags.has(key)!==selectedTags.has(key)){const [id,index]=key.split(':');$('row-'+id)?.querySelector('[data-tag="'+index+'"]')?.classList.toggle('sel',selectedTags.has(key));}browserSelection=new Set(selected);browserTags=new Set(selectedTags);
-  $('obInner').setAttribute('aria-activedescendant',node(focusId)?'row-'+focusId:'');if(!keepAttributes)renderAttributes();syncHUD();
+  frameBrowserActive();if(!keepAttributes)renderAttributes();syncHUD();
 }
 function frameSelectionOperation(event={}){return event.ctrlKey||event.metaKey?'toggle':event.shiftKey?'add':'replace';}
 function frameMergeSelection(base,hits,operation='replace'){const out=new Set(operation==='replace'?[]:base);for(const key of hits)if(operation==='toggle'&&out.has(key))out.delete(key);else out.add(key);return out;}
 function selectRow(id,event={}){
   if(FramePlugins.dispatch('rowSelect',node(id),event))return;FramePlugins.dispatch('clearSelection');
   if(!node(id))return;frameObjectSelectionAction();selectionArea='objects';selectedTags.clear();selectedTag=null;
-  if(event.shiftKey&&!event.ctrlKey&&!event.metaKey){const rows=visibleRows().map(r=>r.n.id),a=rows.indexOf(anchorId),b=rows.indexOf(id);if(a<0)selected.add(id);else for(const key of rows.slice(Math.min(a,b),Math.max(a,b)+1))selected.add(key);}
+  if(event.shiftKey&&!event.ctrlKey&&!event.metaKey){const rows=frameBrowserLogicalRows(),a=frameBrowserLogicalIndex(anchorId,rows),b=frameBrowserLogicalIndex(id,rows);if(a<0||b<0)selected.add(id);else for(let i=Math.min(a,b);i<=Math.max(a,b);i++)selected.add(rows[i].n.id);}
   else if(event.ctrlKey||event.metaKey){if(selected.has(id))selected.delete(id);else{selected.add(id);anchorId=id;}}
   else{selected=new Set([id]);anchorId=id;}
   focusId=id;frameSelectObjectMaterial(node(id));activateTab('tabAttributes');refreshSelection();frameSelectEngineObjects();
+}
+function frameBrowserSelectTagRange(anchor,owner,index){
+  const w=frameBrowserWindow,first=w.index.get(anchor.owner),last=w.index.get(owner);
+  if(first===undefined||last===undefined||!w.rows[first].n.tags[anchor.index]||!w.rows[last].n.tags[index])return;
+  const x=(i,j)=>{const {n,depth}=w.rows[i],{tagWidth,tagPan}=frameBrowserRowLayout(n,depth,w.width);return Math.max(depth*14+16,w.width-32-tagWidth)+tagPan+1+j*17;};
+  const a=x(first,anchor.index),b=x(last,index),left=Math.min(a,b),right=Math.max(a,b);
+  for(let i=Math.min(first,last);i<=Math.max(first,last);i++){
+    const n=w.rows[i].n;if(!n.tags.length)continue;
+    const x0=x(i,0);for(let j=Math.max(0,Math.ceil((left-x0-1/64)/17));j<n.tags.length&&x0+j*17<=right+1/64;j++)selectedTags.add(tagKey(n.id,j));
+  }
 }
 function selectTag(owner,index,event={}){
   frameObjectSelectionAction();selectionArea='objects';
   const n=node(owner),tag=n.tags[index],key=tagKey(owner,index);selected.clear();
   if(event.ctrlKey||event.metaKey){selectedTags.has(key)?selectedTags.delete(key):selectedTags.add(key);}
+  else if(event.shiftKey&&anchorTag&&frameBrowserWindow){selectedTags.clear();frameBrowserSelectTagRange(anchorTag,owner,index);}
   else if(event.shiftKey&&anchorTag){const a=document.querySelector(`[data-id="${anchorTag.owner}"] [data-tag="${anchorTag.index}"]`)?.getBoundingClientRect(),b=document.querySelector(`[data-id="${owner}"] [data-tag="${index}"]`)?.getBoundingClientRect();selectedTags.clear();if(a&&b)for(const el of all('.ob-tag',$('obInner'))){const r=el.getBoundingClientRect();if(r.x>=Math.min(a.x,b.x)&&r.x<=Math.max(a.x,b.x)&&r.y>=Math.min(a.y,b.y)&&r.y<=Math.max(a.y,b.y))selectedTags.add(tagKey(el.closest('.ob-row').dataset.id,+el.dataset.tag));}}
   else selectedTags=new Set([key]);
   focusId=owner;selectedTag=selectedTags.size===1?(()=>{const [owner,index]=[...selectedTags][0].split(':');return {owner,index:+index};})():null;anchorTag={owner,index};
@@ -15290,11 +15403,27 @@ function selectTag(owner,index,event={}){
   if(tag.kind!=='uv'&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey)activateTab(tag.kind==='material'?'tabMaterialMgr':'tabAttributes');refreshSelection();syncMaterial();
 }
 function render(){FramePlugins.dispatch('documentChanged');frameReadHierarchy(()=>{renderTree();renderAttributes();frameSyncMaterialUV();syncHUD();refreshTabActions();frameRefreshAnimationUI();});frameSyncEngineVisibility();frameSyncMaterials();window.FrameSpline?.request();window.frameEngine?.requestLibrary();window.frameEngine?.draw(false);window.frameFiles?.request();}
-function scrollToFocus(){document.getElementById('row-'+focusId)?.scrollIntoView({block:'nearest'});}
+function frameBrowserReveal(id){
+  const w=frameBrowserWindow;if(!w)return;
+  const i=w.index.get(id);if(i===undefined)return;
+  const box=$('obScroll'),top=i*FRAME_BROWSER_ROW_HEIGHT,bottom=top+FRAME_BROWSER_ROW_HEIGHT;
+  if(top<box.scrollTop)box.scrollTop=top;
+  else if(bottom>box.scrollTop+box.clientHeight)box.scrollTop=bottom-box.clientHeight;
+  frameBrowserMounted();
+}
+function scrollToFocus(){if(frameBrowserWindow)frameBrowserReveal(focusId);else document.getElementById('row-'+focusId)?.scrollIntoView({block:'nearest'});}
 function rename(id){
+  frameBrowserReveal(id);
   const row=document.getElementById('row-'+id),n=node(id);if(!row||!n)return;
   const name=row.querySelector('.ob-namebox'),input=document.createElement('input'),r=name.getBoundingClientRect(),w=$('obWrap').getBoundingClientRect();input.className='ob-rename';input.value=n.name;input.ariaLabel='Object name';Object.assign(input.style,{position:'absolute',zIndex:40,left:r.left-w.left+'px',top:r.top-w.top+'px',width:Math.max(48,r.width)+'px'});$('obWrap').append(input);input.focus();input.select();
-  let done=false;const finish=cancel=>{if(done)return;let value;if(!cancel&&input.value.trim())try{value=FrameFields.validate('name',input.value.trim());}catch(error){input.setCustomValidity?.(error.message);input.reportValidity?.();input.focus();fileOperationError(error);return;}input.setCustomValidity?.('');done=true;input.remove();if(value!==undefined)commit(()=>n.name=value);else renderTree();};
+  if(frameBrowserWindow)frameBrowserRename={place(){
+    const nx=frameBrowserWindow?.index.get(id),box=$('obScroll'),nr=$('row-'+id)?.querySelector('.ob-namebox').getBoundingClientRect();
+    if(nx===undefined&&!nr){if(node(id)!==n)finish(true);else input.style.top='-100px';return;}
+    const rect=box.getBoundingClientRect(),wrap=$('obWrap').getBoundingClientRect();
+    input.style.top=(nr?.top??rect.top+nx*FRAME_BROWSER_ROW_HEIGHT-box.scrollTop)-wrap.top+'px';
+    if(nr){input.style.left=nr.left-wrap.left+'px';input.style.width=Math.max(48,nr.width)+'px';}
+  },input};
+  let done=false;const finish=cancel=>{if(done)return;let value;if(!cancel&&input.value.trim())try{value=FrameFields.validate('name',input.value.trim());}catch(error){input.setCustomValidity?.(error.message);input.reportValidity?.();input.focus();fileOperationError(error);return;}input.setCustomValidity?.('');done=true;if(frameBrowserRename?.input===input)frameBrowserRename=null;input.remove();if(value!==undefined)commit(()=>n.name=value);else renderTree();};
   input.onkeydown=e=>{e.stopPropagation();if(e.key==='Enter')finish(false);if(e.key==='Escape')finish(true);};input.onblur=()=>finish(false);
 }
 
@@ -15699,6 +15828,14 @@ async function moveRows(ids,target,mode,copy){const reparentBefore=snapshot();le
     const parent=target?(mode==='child'?target.id:target.parent):null;
     const beforeSelection=[...selected],mapping=new Map(),moved=copy?ids.map(id=>cloneBranch(id,parent,mapping)):ids;
     for(const id of moved)node(id).parent=parent;
+    if(frameBrowserWindow){
+      const branches=new Set();frameReadHierarchy(()=>{for(const id of moved){branches.add(id);for(const child of descendants(id))branches.add(child);}});
+      const records=[],rest=[];for(const n of nodes)(branches.has(n.id)?records:rest).push(n);
+      const index=target?(mode==='child'||mode==='after'?rest.indexOf(target)+1:rest.indexOf(target)):rest.length;
+      nodes=rest.slice(0,index).concat(records,rest.slice(index));if(target)target.folded=false;
+      const preserved=beforeSelection.map(id=>copy?mapping.get(id):id).filter(id=>branches.has(id));
+      selected=new Set(preserved.length?preserved:moved);focusId=anchorId=moved[0];selectedTag=null;selectedTags.clear();return;
+    }
     const branches=moved.flatMap(id=>[id,...descendants(id)]),records=nodes.filter(n=>branches.includes(n.id));
     nodes=nodes.filter(n=>!branches.includes(n.id));
     const index=target?(mode==='child'||mode==='after'?nodes.indexOf(target)+1:nodes.indexOf(target)):nodes.length;
@@ -15726,7 +15863,7 @@ function treeAutoScroll(g,e){
   const box=$('obScroll'),r=box.getBoundingClientRect(),previous=g.pointer||{clientX:g.x,clientY:g.y},p={clientX:e.clientX,clientY:e.clientY};g.pointer=p;
   if(p.clientX>=r.left&&p.clientX<=r.right&&p.clientY>=r.top&&p.clientY<=r.bottom)g.scrollExit=null;
   else if(!g.scrollExit){const dx=p.clientX-previous.clientX,dy=p.clientY-previous.clientY,tx=p.clientX<r.left?(r.left-previous.clientX)/dx:p.clientX>r.right?(r.right-previous.clientX)/dx:Infinity,ty=p.clientY<r.top?(r.top-previous.clientY)/dy:p.clientY>r.bottom?(r.bottom-previous.clientY)/dy:Infinity;g.scrollExit=tx<=ty?'side':'vertical';}
-  if(treeScrollFrame)return;let last=performance.now();const tick=now=>{treeScrollFrame=0;if(treeGesture!==g||!g.moved||!['node','tag'].includes(g.kind)||g.scrollExit==='side')return;const r=box.getBoundingClientRect(),p=g.pointer,d=p.clientY<r.top+24?p.clientY-r.top-24:p.clientY>r.bottom-24?p.clientY-r.bottom+24:0;if(!d)return;const speed=Math.sign(d)*Math.min(2000,Math.abs(d)*12),top=box.scrollTop;box.scrollTop+=speed*Math.min(40,now-last)/1000;last=now;if(box.scrollTop!==top)updateTreeDrop(g,p);treeScrollFrame=FrameViewWindows.frame(tick);};treeScrollFrame=FrameViewWindows.frame(tick);
+  if(treeScrollFrame)return;let last=performance.now();const tick=now=>{treeScrollFrame=0;if(treeGesture!==g||!g.moved||!['node','tag'].includes(g.kind)||g.scrollExit==='side')return;const r=box.getBoundingClientRect(),p=g.pointer,d=p.clientY<r.top+24?p.clientY-r.top-24:p.clientY>r.bottom-24?p.clientY-r.bottom+24:0;if(!d)return;const speed=Math.sign(d)*Math.min(2000,Math.abs(d)*12),top=box.scrollTop;box.scrollTop+=speed*Math.min(40,now-last)/1000;last=now;if(box.scrollTop!==top){frameBrowserMounted();updateTreeDrop(g,p);}treeScrollFrame=FrameViewWindows.frame(tick);};treeScrollFrame=FrameViewWindows.frame(tick);
 }
 function endTreeCursor(){FrameViewWindows.cancelFrame(treeScrollFrame);treeScrollFrame=0;$('obWrap').classList.remove('ob-dragging');$('obWrap').style.removeProperty('--ob-cur');}
 function updateTreeDrop(g,e){
@@ -15740,9 +15877,14 @@ function updateTreeDrop(g,e){
     const chips=all('.ob-tag',row),x=i<chips.length?chips[i].getBoundingClientRect().left:chips.length?chips.at(-1).getBoundingClientRect().right:row.querySelector('.ob-tagbox').getBoundingClientRect().left;
     const marker=dropMarker();marker.className='ob-dropvert';marker.style.left=(x-bounds.left)+'px';marker.style.top=(r.top-$('obInner').getBoundingClientRect().top+.5)+'px';g.drop={target,index:i};return;
   }
-  if(target&&g.ids.some(id=>id===target.id||descendants(id).includes(target.id)))return;
-  if(target){const r=row.getBoundingClientRect(),y=e.clientY-r.top;g.drop={target,mode:y<4?'before':y<12||children(target.id).length?'child':'after'};setTreeCursor(g.drop.mode==='child'?CUR_CHILD:CUR_LINE);if(g.drop.mode==='child'){row.classList.add('drop-child');return;}const marker=dropMarker();marker.className='ob-dropline';marker.style.left=(+row.getAttribute('aria-level')*14+2)+'px';marker.style.right='32px';marker.style.top=(r.top-$('obInner').getBoundingClientRect().top+(g.drop.mode==='after'?r.height:0)-1)+'px';}
-  else{setTreeCursor(CUR_LINE);g.drop={target:null,mode:'after'};const marker=dropMarker();marker.className='ob-dropline';marker.style.left='16px';marker.style.right='32px';marker.style.top=(visibleRows().length*17-1)+'px';}
+  if(target){
+    if(frameBrowserWindow){
+      g.rootSet??=new Set(g.ids);
+      for(let p=target;p;p=p.parent==null?null:node(p.parent))if(g.rootSet.has(p.id))return;
+    }else if(g.ids.some(id=>id===target.id||descendants(id).includes(target.id)))return;
+  }
+  if(target){const r=row.getBoundingClientRect(),y=e.clientY-r.top;g.drop={target,mode:y<4?'before':y<12||(frameBrowserWindow?frameBrowserWindow.childCounts.get(target.id):children(target.id).length)?'child':'after'};setTreeCursor(g.drop.mode==='child'?CUR_CHILD:CUR_LINE);if(g.drop.mode==='child'){row.classList.add('drop-child');return;}const marker=dropMarker();marker.className='ob-dropline';marker.style.left=(+row.getAttribute('aria-level')*14+2)+'px';marker.style.right='32px';marker.style.top=(r.top-$('obInner').getBoundingClientRect().top+(g.drop.mode==='after'?r.height:0)-1)+'px';}
+  else{setTreeCursor(CUR_LINE);g.drop={target:null,mode:'after'};const marker=dropMarker();marker.className='ob-dropline';marker.style.left='16px';marker.style.right='32px';marker.style.top=(frameBrowserLogicalRows().length*FRAME_BROWSER_ROW_HEIGHT-1)+'px';}
 }
 function finishTreeMarquee(g,cancel=false){
   if(g?.kind!=='marquee'||!g.moved)return;
@@ -15848,8 +15990,8 @@ function toggleCameraRender(n){const engine=window.frameEngine,state=engine.rend
 $('btnInfinite').onclick=()=>{const engine=window.frameEngine,placement=engine?.infinitePlacement();engine?.setViewerMode('element','object');add('infinite');engine?.initializeLight(node(focusId).nativeHash,placement);frameSelectEngineObjects();};
 $('btnSpline').onclick=()=>{const existing=selected.has(focusId)&&node(focusId)?.type==='spline'?focusId:[...selected].find(id=>node(id)?.type==='spline');if(existing)selectRow(existing);else add('spline');for(const id of ['btnVertexMode','btnEdgeMode','btnPolygonMode'])$(id).classList.toggle('on',id==='btnVertexMode');};
 function setBrowserIcon(){$('btnBrowser').innerHTML=icons[treeAllFolded?'ICO_BROWSER_FOLDED':'ICO_BROWSER_UNFOLDED'];}
-function toggleFold(n){if(browserChildrenLimited(n))return;const was=n.folded;n.folded=!was;if(was&&treeAllFolded){treeAllFolded=false;setBrowserIcon();}renderTree();}
-$('btnBrowser').onclick=()=>{if(!treeAllFolded){foldSnapshot=new Map(nodes.filter(n=>children(n.id).length).map(n=>[n.id,n.folded]));for(const n of nodes)if(children(n.id).length)n.folded=true;treeAllFolded=true;}else{for(const [id,folded]of foldSnapshot||[])if(node(id))node(id).folded=folded;treeAllFolded=false;}setBrowserIcon();renderTree();};
+function toggleFold(n){if(browserChildrenLimited(n,frameBrowserWindow?(frameBrowserWindow.childCounts.get(n.id)||0):null))return;const was=n.folded;n.folded=!was;if(was&&treeAllFolded){treeAllFolded=false;setBrowserIcon();}renderTree();}
+$('btnBrowser').onclick=()=>{if(!treeAllFolded){const counts=frameBrowserWindow?.childCounts,has=n=>counts?counts.has(n.id):children(n.id).length;foldSnapshot=new Map(nodes.filter(has).map(n=>[n.id,n.folded]));for(const n of nodes)if(has(n))n.folded=true;treeAllFolded=true;}else{for(const [id,folded]of foldSnapshot||[])if(node(id))node(id).folded=folded;treeAllFolded=false;}setBrowserIcon();renderTree();};
 
 let selectedMaterials=new Set([0]),materialAnchor=0,texturesLoaded=false,materialClipboard=[],materialGesture=null,suppressMaterialClick=false;
 let materialSerial=0;
@@ -16511,10 +16653,8 @@ function createFrameFileIndex() {
   return {
     async read(file) {
       const reader = FrameHash.reader(file), rows = await reader.index();
-      const all = rows.get(FrameHash.K.all);
-      if (!all || all.type !== FrameHash.T.ids) throw Error('Missing HASH object list');
-      owners = await reader.read(all);
-      if (owners.length > 100000) throw Error('HASH object limit exceeded');
+      owners = await reader.ownerIds(rows);
+      if(new Set(owners).size!==owners.length)throw Error('Invalid HASH objects');
       const labels = new Map(), matrices = new Map();
       for (const owner of owners) {
         labels.set(FrameHash.address(owner,'name'),owner);
@@ -17392,7 +17532,7 @@ FrameViewWindows.onDocument('keydown',e=>{
   if((e.key==='Delete'||e.key==='Backspace')&&!e.target.closest?.('[data-field]')){e.preventDefault();remove();}if(e.key==='F2'&&selectionArea==='objects'){e.preventDefault();rename(focusId);}if(e.key==='Escape'){stop();selected.clear();selectedTag=null;focusId=null;render();frameSelectEngineObjects(false);}
   if(key==='z'&&!ctrl&&!e.altKey){e.preventDefault();if(!e.repeat)window.frameEngine?.focusSelection();return;}
   const shortcut={q:'btnQuant',s:'btnSnap',w:'coordBtn',p:'btnPivot',l:'btnPivot'}[key];if(shortcut&&!ctrl&&!e.altKey)$(shortcut).click();
-  if(e.target.closest('#obInner')&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const rows=visibleRows().map(r=>r.n.id),i=rows.indexOf(focusId),n=current();if(e.key==='ArrowLeft'&&n){if(children(n.id).length&&!n.folded)toggleFold(n);else if(n.parent)selectRow(n.parent);}else if(e.key==='ArrowRight'&&n){if(n.folded)toggleFold(n);else if(children(n.id).length)selectRow(children(n.id)[0].id);}else selectRow(rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))],e);scrollToFocus();}
+  if(e.target.closest('#obInner')&&['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const rows=frameBrowserLogicalRows(),i=frameBrowserLogicalIndex(focusId,rows),n=current();if(e.key==='ArrowLeft'&&n){if((frameBrowserWindow?frameBrowserWindow.childCounts.get(n.id):children(n.id).length)&&!n.folded)toggleFold(n);else if(n.parent)selectRow(n.parent);}else if(e.key==='ArrowRight'&&n){if(n.folded)toggleFold(n);else if(frameBrowserWindow){const next=rows[frameBrowserLogicalIndex(n.id,rows)+1];if(next?.n.parent===n.id)selectRow(next.n.id);}else if(children(n.id).length)selectRow(children(n.id)[0].id);}else{const next=rows[e.key==='Home'?0:e.key==='End'?rows.length-1:Math.max(0,Math.min(rows.length-1,i+(e.key==='ArrowDown'?1:-1)))];if(next)selectRow(next.n.id,e);}scrollToFocus();}
 });
 FrameViewWindows.onDocument('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role=button]:not(button)')){e.preventDefault();e.target.click();}});
 
@@ -17417,8 +17557,14 @@ FrameViewWindows.onWindow('frame-engine-scene',e=>{
   FrameMorph.closePose(false);nodes=[];selected.clear();selectedTag=null;selectedTags.clear();focusId=anchorId=null;undoStack=[];redoStack=[];frameUIUndoSequence=[];frameUIRedoSequence=[];
   frameChannels.clear();frameChannelSelection=[];frameCurves.context=[];frameCurves.selection=[];frameCurves.signature='';frameCurves.editing=false;
   frameInstallMaterialState(e.detail.appearance,e.detail.preparedImages);const global=e.detail.timeline||{frame:0,total:120,materials:[]};timelineFrame=global.frame;timelineTotal=global.total;$('tlCur')._sync?.(true);$('tlTotal')._sync?.(true);frameRestoreChannels(global.materials);const mapping=new Map(),slots=frameUIMaterialSlots();
-  for(const o of e.detail.objects.slice().reverse()){const n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
-  for(const o of e.detail.objects)mapping.get(o.hash).parent=mapping.get(o.parent)?.id||null;
+  const authored=e.detail.objects;
+  // Plain Nulls have no restore side effects. Keep reverse creation for stable
+  // local IDs, but append then reverse once instead of shifting every prefix.
+  // A create observer must continue seeing the legacy prefix and order.
+  const append=authored.every(o=>o.type===0&&!o.spline&&!o.authoring&&!o.tags?.length)&&!FramePlugins.hooks().some(h=>h.created!=null);
+  for(let i=authored.length-1;i>=0;i--){const o=authored[i],n=create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name,append);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.visible=!!(o.flags&1);n.enabled=!!(o.flags&2);n.folded=!!(o.flags&4);if(o.index!==undefined)n.engineIndex=o.index;mapping.set(o.hash,n);}
+  if(append)nodes.reverse();
+  for(const o of authored)mapping.get(o.hash).parent=mapping.get(o.parent)?.id||null;
   frameChangedMaterials.clear();frameShareBoundMaterials();
   FrameProjectFile.reset();frameSetSceneFileName(e.detail.name.replace(/\.(obj|stl|gltf|glb|ply|step|stp|dxf)$/i,'.hash'));sceneFileHandle=null;
   render();FramePluginRecords.collect();
@@ -23251,13 +23397,13 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const index=frameViewportAt(x,y,doc);if(index===null)return null;if(!activateFrameView(index)||!scene||nativeIOBusy)return null;
       await draw(false);const gpu=renderer,space=scene,preferred=!surfaceOnly&&elementMode==='polygon'?currentSelectionMeshes().filter(m=>editableComponentMesh(m)&&nodes.some(n=>n.nativeHash===m.hashId&&(selected.has(n.id)||selectedTag?.owner===n.id))):null,pick=createRayPick(gpu,space,cameraRay(x,y),preferred?.length?preferred:null);try{const e=gpu.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);gpu.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const face=new Uint32Array(pick.read.getMappedRange())[1];pick.read.unmap();if(space!==scene)return null;return space.meshes.find(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount)?.hashId||null;}finally{releaseGPU(pick);}
     }
-    async function decodeAppearancePlan(read,map,objects,records){
+    async function decodeAppearancePlan(read,map,objects,records,cooperate=null,ownerAddress=null){
       const {K,T}=FrameHash,before=new Set(records.keys()),library=await read(K.materials,T.ids),assets=await read(K.assets,T.ids),faces=[],uvs=[],tagOwners=new Set(),objectIDs=new Set(objects.map(o=>o.hash)),limit=ids=>ids&&ids.length<=100000&&new Set(ids).size===ids.length&&ids.every(id=>id!==K.zero&&!objectIDs.has(id));
       if(library&&!limit(library)||assets&&!limit(assets))throw Error('Invalid HASH material library');const matIDs=new Set(library||[]),assetIDs=new Set(assets||[]);if([...matIDs].some(id=>assetIDs.has(id)))throw Error('Conflicting HASH appearance identifiers');
       const validName=name=>name===undefined||typeof name==='string'&&name.length<=16384&&!name.includes('\0');
       for(const uid of library||[]){const values=await read(appearanceId(uid,'parameters'),T.float64),name=await read(appearanceId(uid,'name'),T.text),maps=await read(appearanceId(uid,'maps'),T.ids);if(!values||![8,15,16,17,materialKeys.length].includes(values.length)||values.some(n=>!Number.isFinite(n))||values[0]<0||values[0]>360||[1,2,4,5,6].some(i=>values[i]<0||values[i]>100)||values[3]<0||values[7]<0||[8,9,10,11].some(i=>values[i]!==undefined&&(!Number.isInteger(values[i])||values[i]<0||values[i]>4))||values[12]!==undefined&&(!Number.isInteger(values[12])||values[12]<0||values[12]>3)||[13,14,17].some(i=>values[i]!==undefined&&(values[i]<0||values[i]>100))||values[16]!==undefined&&![1,-1].includes(values[16])||!validName(name)||maps&&(![2,4,8].includes(maps.length)||maps.some(id=>id!==K.zero&&!assetIDs.has(id))))throw Error('Invalid HASH material parameters');}
       for(const uid of assets||[]){const path=await read(appearanceId(uid,'path'),T.text),image=await read(appearanceId(uid,'image'),T.bytes);if((path!==undefined)===(image!==undefined)||path!==undefined&&(!path||path.length>16384||path.includes('\0')||/^(blob:|javascript:|data:)/i.test(path))||image&&!image.length)throw Error('Invalid HASH texture source');}
-      for(const o of objects){const tags=await read(appearanceId(o.hash,'tags'),T.ids);if(!tags)continue;if(tags.length>10000||new Set(tags).size!==tags.length)throw Error('Invalid HASH tag list');let hasUV=false;for(const uid of tags){if(tagOwners.has(uid)||matIDs.has(uid)||assetIDs.has(uid)||objectIDs.has(uid)||uid===K.zero)throw Error('Conflicting HASH tag identifier');tagOwners.add(uid);const refs=await read(appearanceId(uid,'material'),T.ids),mask=await read(appearanceId(uid,'faces'),T.bytes),uv=map.get(appearanceId(uid,'uv'));
+      let scanned=0;for(const o of objects){if(cooperate&&(++scanned&255)===0){const pause=cooperate();if(pause)await pause;}const tags=await read(ownerAddress?ownerAddress(o.hash)('tags'):appearanceId(o.hash,'tags'),T.ids);if(!tags)continue;if(tags.length>10000||new Set(tags).size!==tags.length)throw Error('Invalid HASH tag list');let hasUV=false;for(const uid of tags){if(tagOwners.has(uid)||matIDs.has(uid)||assetIDs.has(uid)||objectIDs.has(uid)||uid===K.zero)throw Error('Conflicting HASH tag identifier');tagOwners.add(uid);const refs=await read(appearanceId(uid,'material'),T.ids),mask=await read(appearanceId(uid,'faces'),T.bytes),uv=map.get(appearanceId(uid,'uv'));
         if(refs){if(refs.length!==1||!matIDs.has(refs[0])||uv||mask&&(o.type!==1||!mask.length))throw Error('Invalid HASH material tag');if(mask)faces.push({uid,owner:o.hash,bytes:mask});}
         else if(uv&&uv.type===T.float32&&o.type===1&&!mask&&!hasUV){hasUV=true;records.set(uv.id,{...uv,gpu:true});o.uv={uid,record:uv};uvs.push({uid,owner:o.hash});}
         else throw Error('Invalid HASH UV tag');
@@ -27500,24 +27646,27 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function nativeRecord(id,type,value){return {id,type,value};}
     function nativePut(map,id,field,type,value){if(map===scene?.records&&(field||id===FrameHash.K.all)){if(['matrix','pivot','projection'].includes(field)&&poseRecordCache?.records===map){const byHash=poseRecordCache.byHash??=new Map(poseRecordCache.objects.map(o=>[o.hash,o])),o=byHash.get(id);if(o)o[field]=value;}else poseRecordCache=null;}const key=field?FrameHash.address(id,field):id;map.set(key,nativeRecord(key,type,value));}
     function nativeObjects(records=scene.records){
-      const {K,T}=FrameHash,get=(h,f)=>records.get(FrameHash.address(h,f))?.value,ids=records.get(K.all)?.value||[];
-      return ids.map(hash=>{const type=get(hash,'type')?.[0]??1;return {hash,type,name:get(hash,'name')??(type===0?'Scene':'Mesh'),parent:get(hash,'parent')?.[0]??null,flags:get(hash,'flags')?.[0]??3,matrix:get(hash,'matrix'),pivot:get(hash,'pivot'),projection:get(hash,'projection'),light:get(hash,'light'),spline:get(hash,'spline')?FrameSpline.decodeShape(get(hash,'spline')):null,tags:appearanceTags(hash),authoring:(()=>{const a=frameValidateAuthoring(get(hash,'parameters'));if(a?.pluginRecords)a.recordValues=Object.fromEntries(a.pluginRecords.map(({key,type})=>[key,{type,value:get(hash,key)||[]}]));return a;})()};});
+      const {K,T}=FrameHash,ids=records.get(K.all)?.value||[],ownerAddress=ids.length>=4096?FrameHash.addressOwner:null;
+      return ids.map(hash=>{const address=ownerAddress?ownerAddress(hash):field=>FrameHash.address(hash,field),get=f=>records.get(address(f))?.value,type=get('type')?.[0]??1;return {hash,type,name:get('name')??(type===0?'Scene':'Mesh'),parent:get('parent')?.[0]??null,flags:get('flags')?.[0]??3,matrix:get('matrix'),pivot:get('pivot'),projection:get('projection'),light:get('light'),spline:get('spline')?FrameSpline.decodeShape(get('spline')):null,tags:appearanceTags(hash),authoring:(()=>{const a=frameValidateAuthoring(get('parameters'));if(a?.pluginRecords)a.recordValues=Object.fromEntries(a.pluginRecords.map(({key,type})=>[key,{type,value:get(key)||[]}]));return a;})()};});
     }
     function installNativeRecords(objects,camera=null){
       const publishAuthorData=FrameAuthorData.reserveObjects(objects);
       const {K,T}=FrameHash,prior=scene.records,records=new Map();for(const id of scene.appearanceIds||[])if(prior?.has(id))records.set(id,prior.get(id));nativePut(records,K.version,null,T.uint32,new Uint32Array([1]));nativePut(records,K.all,null,T.ids,objects.map(o=>o.hash));const global={version:1,frame:frameCurves.morphPose?.saved.frame??timelineFrame,total:frameCurves.morphPose?.saved.total??timelineTotal,materials:[...FrameMorph.sceneChannels()].flatMap(([h,tracks])=>[...tracks].filter(()=>h.startsWith('mat:')).map(([path,t])=>[h,path,framePackTrack(t,false)]))};if(prior?.has(K.parameters)){const saved=prior.get(K.parameters).value;if(saved.authorData)global.authorData=FrameAuthorData.envelope(saved.authorData);}
       const previousGlobal=prior?.get(K.parameters)?.value;const documentation=previousGlobal?.documentation;if(typeof documentation==='string'&&FrameDocumentation.normalize(documentation))global.documentation=FrameDocumentation.normalize(documentation);if(global.authorData||global.frame||global.total!==120||global.materials.length||global.documentation)nativePut(records,K.parameters,null,T.value,global);
+      const ownerAddress=objects.length>=4096?FrameHash.addressOwner:null;
       for(const o of objects){
-        if(o.authoring){const {recordValues,...authoring}=o.authoring;for(const [key,r]of Object.entries(recordValues||{})){const ctor={0:Uint8Array,3:Uint32Array,5:Float32Array,6:Float64Array}[r.type];nativePut(records,o.hash,key,r.type,ctor?r.value instanceof ctor?r.value:new ctor(r.value):r.value);}nativePut(records,o.hash,'parameters',T.value,authoring);}else if(o.authoring===undefined&&prior?.has(FrameHash.address(o.hash,'parameters')))records.set(FrameHash.address(o.hash,'parameters'),prior.get(FrameHash.address(o.hash,'parameters')));
-        const spline=o.spline===undefined?prior?.get(FrameHash.address(o.hash,'spline'))?.value:o.spline?FrameSpline.encodeShape(o.spline):null;if(spline)nativePut(records,o.hash,'spline',T.bytes,spline);
-        if(o.tags?.length){nativePut(records,o.hash,'tags',T.ids,o.tags.map(t=>t.uid));scene.appearanceIds??=new Set();scene.appearanceIds.add(appearanceId(o.hash,'tags'));for(const t of o.tags)if(t.kind==='material'){nativePut(records,t.uid,'material',T.ids,[t.materialUID]);scene.appearanceIds.add(appearanceId(t.uid,'material'));const set=t.mask&&polygonSet(t.mask);if(set){nativePut(records,t.uid,'faces',T.bytes,set);scene.appearanceIds.add(appearanceId(t.uid,'faces'));}}}
-        for(const field of ['matrix','pivot','projection','light']){const value=o[field]??prior?.get(FrameHash.address(o.hash,field))?.value;if(value&&!(field==='matrix'&&FM.equal(FM.unpack(value),FM.I()))&&!(field==='light'&&value[0]===100&&value[1]===6500&&value[2]===30))nativePut(records,o.hash,field,T.float64,value);}
-        if(o.type!==1)nativePut(records,o.hash,'type',T.bytes,new Uint8Array([o.type]));
-        if(o.name!==(o.type===0?'Scene':'Mesh'))nativePut(records,o.hash,'name',T.text,o.name);
-        if(o.parent)nativePut(records,o.hash,'parent',T.ids,[o.parent]);
-        if(o.flags!==3)nativePut(records,o.hash,'flags',T.bytes,new Uint8Array([o.flags]));
+        const cold=ownerAddress?.(o.hash),key=field=>cold?cold(field):FrameHash.address(o.hash,field),
+          write=(field,type,value)=>{if(!cold)return nativePut(records,o.hash,field,type,value);const id=key(field);records.set(id,nativeRecord(id,type,value));};
+        if(o.authoring){const {recordValues,...authoring}=o.authoring;for(const [key,r]of Object.entries(recordValues||{})){const ctor={0:Uint8Array,3:Uint32Array,5:Float32Array,6:Float64Array}[r.type];write(key,r.type,ctor?r.value instanceof ctor?r.value:new ctor(r.value):r.value);}write('parameters',T.value,authoring);}else if(o.authoring===undefined&&prior?.has(key('parameters')))records.set(key('parameters'),prior.get(key('parameters')));
+        const spline=o.spline===undefined?prior?.get(key('spline'))?.value:o.spline?FrameSpline.encodeShape(o.spline):null;if(spline)write('spline',T.bytes,spline);
+        if(o.tags?.length){write('tags',T.ids,o.tags.map(t=>t.uid));scene.appearanceIds??=new Set();scene.appearanceIds.add(appearanceId(o.hash,'tags'));for(const t of o.tags)if(t.kind==='material'){nativePut(records,t.uid,'material',T.ids,[t.materialUID]);scene.appearanceIds.add(appearanceId(t.uid,'material'));const set=t.mask&&polygonSet(t.mask);if(set){nativePut(records,t.uid,'faces',T.bytes,set);scene.appearanceIds.add(appearanceId(t.uid,'faces'));}}}
+        for(const field of ['matrix','pivot','projection','light']){const value=o[field]??prior?.get(key(field))?.value;if(value&&!(field==='matrix'&&FM.equal(FM.unpack(value),FM.I()))&&!(field==='light'&&value[0]===100&&value[1]===6500&&value[2]===30))write(field,T.float64,value);}
+        if(o.type!==1)write('type',T.bytes,new Uint8Array([o.type]));
+        if(o.name!==(o.type===0?'Scene':'Mesh'))write('name',T.text,o.name);
+        if(o.parent)write('parent',T.ids,[o.parent]);
+        if(o.flags!==3)write('flags',T.bytes,new Uint8Array([o.flags]));
         if(o.type===1&&o.index!==undefined){const mesh=scene.meshes[o.index];mesh.hashId=o.hash;mesh.splineGenerated=!!spline;
-          for(const [field,type]of [['positions',T.float32],['indices',T.uint32]])nativePut(records,o.hash,field,type,{gpu:true,mesh,field,get count(){return field==='positions'?mesh.vertexCount*3:mesh.count;},get resource(){return mesh[field];}});
+          for(const [field,type]of [['positions',T.float32],['indices',T.uint32]])write(field,type,{gpu:true,mesh,field,get count(){return field==='positions'?mesh.vertexCount*3:mesh.count;},get resource(){return mesh[field];}});
         }
       }
       if(camera)nativePut(records,K.camera,null,T.float64,camera);const unit=prior?.get(K.units);if(unit)records.set(K.units,unit);scene.records=records;publishAuthorData();scene.lightObjects=objects.filter(o=>o.type===2).map(o=>o.hash);syncPoseWorld();return records;
@@ -28151,10 +28300,10 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }
       viewIndex=activeView=mainActiveView=v.length>=23?v[21]:0;if(v.length>=23)single=!!v[22];viewShadings.splice(0,4,...(v.length===27?Array.from(v.slice(23),i=>viewShadingNames[i]):defaultViewShadings));shadingMode=viewShadings[viewIndex];restoreCamera(viewStates[viewIndex]||defaultCamera(viewIndex));orbitGeneration++;renderViews();window.dispatchEvent(new CustomEvent('frame-engine-mode',{detail:{elementMode,shadingMode}}));
     }
-    function nativeSceneEvent(name,preparedImages){FrameAuthorData.reset();splineMaterialOrigins.clear();endPolygonTool();polygonTools.soft=false;frameSoloIds=null;$('btnSolo').classList.remove('on');$('btnSolo').ariaPressed='false';clearSplineDisplays();
+    function nativeSceneEvent(name,preparedImages,validatedGroups=null){FrameAuthorData.reset();splineMaterialOrigins.clear();endPolygonTool();polygonTools.soft=false;frameSoloIds=null;$('btnSolo').classList.remove('on');$('btnSolo').ariaPressed='false';clearSplineDisplays();
       appearanceSignature='';
-      const specs=nativeObjects(),indices=canonicalMeshIndices();
-      window.dispatchEvent(new CustomEvent('frame-engine-scene',{detail:{name,timeline:scene.records.get(FrameHash.K.parameters)?.value,appearance:appearanceLibrary(),preparedImages,objects:specs.map(o=>({...o,index:indices.get(o.hash)})),meshes:scene.meshes.map((m,index)=>({index,triangles:m.triangleCount,vertices:m.vertexCount}))}}));if(!FrameAuthorData.ready)throw Error('Native authoring document installation failed');
+      const specs=validatedGroups||nativeObjects(),indices=validatedGroups?null:canonicalMeshIndices();
+      window.dispatchEvent(new CustomEvent('frame-engine-scene',{detail:{name,timeline:scene.records.get(FrameHash.K.parameters)?.value,appearance:appearanceLibrary(),preparedImages,objects:specs.map(o=>({...o,index:indices?.get(o.hash)})),meshes:scene.meshes.map((m,index)=>({index,triangles:m.triangleCount,vertices:m.vertexCount}))}}));if(!FrameAuthorData.ready)throw Error('Native authoring document installation failed');
     }
     function nativeSceneStats(name){
       $('frame-engine-triangles').textContent='Triangles: '+scene.triangleCount.toLocaleString('en-US');
@@ -28239,34 +28388,53 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         return writable?null:new Blob(parts,{type:'application/x-frame-hash'});
       }catch(error){if(writable)await writable.abort().catch(()=>{});throw error;}finally{nativeIOEnd();}
     }
+    function nativePlanningYield(){
+      let slice=performance.now();
+      return ()=>{if(performance.now()-slice<12)return null;
+        const resume=typeof globalThis.scheduler?.yield==='function'?globalThis.scheduler.yield():new Promise(resolve=>setTimeout(resolve,0));
+        return resume.then(()=>{slice=performance.now();});
+      };
+    }
     async function nativeDecodePlan(file){
-      const input=FrameHash.reader(file),map=await input.index(),records=new Map(),pluginAddresses=new Map(),{K,T}=FrameHash,read=async(id,type)=>{const record=map.get(id);if(!record)return undefined;if(record.type!==type)throw Error(type===T.value&&record.type===T.text?'JSON parameters are not supported in HASH; use native binary records':'Wrong HASH property type');const value=await input.read(record);records.set(id,nativeRecord(id,type,value));return value;};
+      const cooperate=nativePlanningYield(),input=FrameHash.reader(file),map=await input.index(cooperate),records=new Map(),pluginAddresses=new Map(),{K,T}=FrameHash,read=async(id,type)=>{const record=map.get(id);if(!record)return undefined;if(record.type!==type)throw Error(type===T.value&&record.type===T.text?'JSON parameters are not supported in HASH; use native binary records':'Wrong HASH property type');const value=await input.read(record);records.set(id,nativeRecord(id,type,value));return value;};
       const version=await read(K.version,T.uint32);if(version?.length!==1||version[0]!==1)throw Error('Unsupported HASH schema');
-      const ids=await read(K.all,T.ids);if(!ids||ids.length>100000)throw Error('Invalid HASH objects');const ownerIDs=new Set(ids);if(ownerIDs.size!==ids.length)throw Error('Invalid HASH objects');
-      const objects=[];let meshes=0;
+      const ids=await input.ownerIds(map);records.set(K.all,nativeRecord(K.all,T.ids,ids));const ownerIDs=new Set(ids);if(ownerIDs.size!==ids.length)throw Error('Invalid HASH objects');
+      const objects=[],ownerAddress=ids.length>=4096?FrameHash.addressOwner:null;let meshes=0;
       for(let first=0;first<ids.length;first+=16){const batch=await Promise.all(ids.slice(first,first+16).map(async hash=>{
-        const type=await read(FrameHash.address(hash,'type'),T.bytes),name=await read(FrameHash.address(hash,'name'),T.text),parent=await read(FrameHash.address(hash,'parent'),T.ids),flags=await read(FrameHash.address(hash,'flags'),T.bytes);
+        const address=ownerAddress?ownerAddress(hash):field=>FrameHash.address(hash,field);
+        const type=await read(address('type'),T.bytes),name=await read(address('name'),T.text),parent=await read(address('parent'),T.ids),flags=await read(address('flags'),T.bytes);
         if(type&&(type.length!==1||![0,1,2].includes(type[0]))||parent&&(parent.length!==1||!ownerIDs.has(parent[0]))||flags&&(flags.length!==1||flags[0]>7)||name!==undefined&&(name.length>16384||name.includes('\0')))throw Error('Invalid HASH object metadata');
-        const matrix=await read(FrameHash.address(hash,'matrix'),T.float64),pivot=await read(FrameHash.address(hash,'pivot'),T.float64);for(const value of [matrix,pivot])if(value&&(value.length!==12||value.some(v=>!Number.isFinite(v))||FM.determinant(FM.unpack(value))===0))throw Error('Invalid HASH affine frame');
-        const projection=await read(FrameHash.address(hash,'projection'),T.float64),light=await read(FrameHash.address(hash,'light'),T.float64);if(projection&&(projection.length!==12||projection.some(n=>!Number.isFinite(n))||FM.determinant(FM.unpack(projection))===0)||light&&(light.length!==3||light.some(n=>!Number.isFinite(n))||light[0]<0||light[1]<1000||light[1]>40000||light[2]<0||light[2]>180))throw Error('Invalid HASH projection or light');
-        const splineBytes=await read(FrameHash.address(hash,'spline'),T.bytes),spline=splineBytes?FrameSpline.decodeShape(splineBytes):null;
-        const authoring=frameValidateAuthoring(await read(FrameHash.address(hash,'parameters'),T.value));if(authoring?.fileSource)throw Error('Runtime file source records cannot be imported');
+        const matrix=await read(address('matrix'),T.float64),pivot=await read(address('pivot'),T.float64);for(const value of [matrix,pivot])if(value&&(value.length!==12||value.some(v=>!Number.isFinite(v))||FM.determinant(FM.unpack(value))===0))throw Error('Invalid HASH affine frame');
+        const projection=await read(address('projection'),T.float64),light=await read(address('light'),T.float64);if(projection&&(projection.length!==12||projection.some(n=>!Number.isFinite(n))||FM.determinant(FM.unpack(projection))===0)||light&&(light.length!==3||light.some(n=>!Number.isFinite(n))||light[0]<0||light[1]<1000||light[1]>40000||light[2]<0||light[2]>180))throw Error('Invalid HASH projection or light');
+        const splineBytes=await read(address('spline'),T.bytes),spline=splineBytes?FrameSpline.decodeShape(splineBytes):null;
+        const authoring=frameValidateAuthoring(await read(address('parameters'),T.value));if(authoring?.fileSource)throw Error('Runtime file source records cannot be imported');
         if(authoring&&Object.hasOwn(authoring,'recordValues'))throw Error('Inline plugin record values are not supported');
-        if(authoring?.pluginRecords){if(!Array.isArray(authoring.pluginRecords)||authoring.pluginRecords.length>64||new Set(authoring.pluginRecords.map(r=>r.key)).size!==authoring.pluginRecords.length)throw Error('Invalid plugin records');authoring.recordValues={};for(const r of authoring.pluginRecords){if(!/^[0-9a-f]{32}$/.test(r.key)||![0,3,4,5,6,7].includes(r.type))throw Error('Invalid plugin record');const address=FrameHash.address(hash,r.key);if(pluginAddresses.has(address))throw Error('Plugin records have conflicting owners');pluginAddresses.set(address,hash);const v=await read(address,r.type);if(v===undefined||v.some?.(v=>typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin record value');authoring.recordValues[r.key]={type:r.type,value:v};}}
-        const kind=type?.[0]??1,p=map.get(FrameHash.address(hash,'positions')),ix=map.get(FrameHash.address(hash,'indices'));
+        if(authoring?.pluginRecords){if(!Array.isArray(authoring.pluginRecords)||authoring.pluginRecords.length>64||new Set(authoring.pluginRecords.map(r=>r.key)).size!==authoring.pluginRecords.length)throw Error('Invalid plugin records');authoring.recordValues={};for(const r of authoring.pluginRecords){if(!/^[0-9a-f]{32}$/.test(r.key)||![0,3,4,5,6,7].includes(r.type))throw Error('Invalid plugin record');const address=address(r.key);if(pluginAddresses.has(address))throw Error('Plugin records have conflicting owners');pluginAddresses.set(address,hash);const v=await read(address,r.type);if(v===undefined||v.some?.(v=>typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin record value');authoring.recordValues[r.key]={type:r.type,value:v};}}
+        const kind=type?.[0]??1,p=map.get(address('positions')),ix=map.get(address('indices'));
         if(authoring?.creaseAngle!==undefined&&(spline||authoring.plugin||!authoring.library&&kind!==1&&!authoring.emptyMesh))throw Error('Crease Angle belongs to polygon geometry');
         if(kind!==1&&!authoring?.library&&projection||kind!==2&&light)throw Error('Invalid HASH property owner');
         if(kind===1&&((!p||!ix)&&!spline||p&&p.type!==T.float32||ix&&ix.type!==T.uint32||!!p!==!!ix)||kind!==1&&(p||ix))throw Error('Invalid HASH mesh properties');
         if(p){records.set(p.id,{...p,gpu:true});records.set(ix.id,{...ix,gpu:true});meshes++;}
         return {hash,type:kind,name:name??(kind===0?'Scene':'Mesh'),parent:parent?.[0]??null,flags:flags?.[0]??3,matrix,pivot,projection,light,spline,authoring,p,ix};
-      }));objects.push(...batch);}
-      const byId=new Map(objects.map(o=>[o.hash,o]));for(const o of objects){const seen=new Set([o.hash]);let h=o.parent;while(h){if(seen.has(h)||!byId.has(h))throw Error('Invalid HASH hierarchy');seen.add(h);h=byId.get(h).parent;}}
+      }));objects.push(...batch);if((first&255)===240){const pause=cooperate();if(pause)await pause;}}
+      // Iterative tri-color validation is linear even when children precede
+      // parents and the loaded file contains a deeply nested hierarchy.
+      const byId=new Map(objects.map((o,i)=>[o.hash,i])),visited=new Uint8Array(objects.length),path=[];
+      for(let i=0;i<objects.length;i++){
+        if(visited[i])continue;let at=i;
+        while(at!==null&&visited[at]!==2){
+          if(visited[at]===1)throw Error('Invalid HASH hierarchy');
+          visited[at]=1;path.push(at);const parent=objects[at].parent;
+          at=parent===null?null:byId.get(parent);if(at===undefined)throw Error('Invalid HASH hierarchy');
+        }
+        while(path.length)visited[path.pop()]=2;
+      }
       const globalValue=await read(K.parameters,T.value);if(globalValue!==undefined){const g=globalValue;if(g.authorData!==undefined)g.authorData=FrameAuthorData.envelope(g.authorData);if(g.version!==1||!Number.isInteger(g.frame)||g.frame<0||!Number.isInteger(g.total)||g.total<g.frame||!Array.isArray(g.materials)||g.materials.some(r=>!r[0]?.startsWith('mat:'))||g.documentation!==undefined&&(typeof g.documentation!=='string'||g.documentation.length>FrameDocumentation.limit))throw Error('Invalid scene author metadata');if(g.documentation!==undefined){const text=FrameDocumentation.normalize(g.documentation);if(text)g.documentation=text;else delete g.documentation;records.set(K.parameters,{...records.get(K.parameters),value:g});}}
       const savedUnits=await read(K.units,T.bytes);if(savedUnits&&(savedUnits.length!==2||savedUnits.some(v=>v>6)))throw Error('Invalid HASH units');
       const camera=await read(K.camera,T.float64);if(camera&&!validNativeCamera(camera))throw Error('Invalid HASH camera');
-      const appearance=await decodeAppearancePlan(read,map,objects,records);const materialIDs=records.get(K.materials)?.value||[];for(const o of objects)if(o.authoring?.library?.slots.some(slot=>!materialIDs.includes(slot.materialUID)))throw Error('Unknown library slot material');// Only declared records have ownership/reference semantics. Other records are omitted, never guessed.
+      const appearance=await decodeAppearancePlan(read,map,objects,records,cooperate,ownerAddress);const materialIDs=records.get(K.materials)?.value||[];for(const o of objects)if(o.authoring?.library?.slots.some(slot=>!materialIDs.includes(slot.materialUID)))throw Error('Unknown library slot material');// Only declared records have ownership/reference semantics. Other records are omitted, never guessed.
       // Addressing is XOR: reject collisions with any native owner/field, including fields not yet authored.
-      const nativeGlobals=new Set(['version','all','parameters','camera','units','materials','assets'].map(field=>K[field])),nativeSpaces=[[ids,['type','name','parent','flags','matrix','pivot','projection','light','spline','parameters','tags','positions','indices']],[materialIDs,['name','parameters','maps']],[records.get(K.assets)?.value||[],['image','path']],[objects.flatMap(o=>records.get(FrameHash.address(o.hash,'tags'))?.value||[]),['material','faces','uv']]].map(([owners,fields])=>({owners:new Set(owners.map(id=>BigInt('0x'+id))),fields:fields.map(field=>BigInt('0x'+K[field]))}));for(const address of pluginAddresses.keys()){const value=BigInt('0x'+address);if(nativeGlobals.has(address)||nativeSpaces.some(space=>space.fields.some(field=>space.owners.has(value^field))))throw Error('Plugin record overlaps a native property');}
+      if(pluginAddresses.size){const nativeGlobals=new Set(['version','all','parameters','camera','units','materials','assets'].map(field=>K[field])),nativeSpaces=[[ids,['type','name','parent','flags','matrix','pivot','projection','light','spline','parameters','tags','positions','indices']],[materialIDs,['name','parameters','maps']],[records.get(K.assets)?.value||[],['image','path']],[objects.flatMap(o=>records.get(FrameHash.address(o.hash,'tags'))?.value||[]),['material','faces','uv']]].map(([owners,fields])=>({owners:new Set(owners.map(id=>BigInt('0x'+id))),fields:fields.map(field=>BigInt('0x'+K[field]))}));for(const address of pluginAddresses.keys()){const value=BigInt('0x'+address);if(nativeGlobals.has(address)||nativeSpaces.some(space=>space.fields.some(field=>space.owners.has(value^field))))throw Error('Plugin record overlaps a native property');}}
       await FramePlugins.prepareAuthoring(objects);
       const unavailablePlugins=[],unavailableTags=[];for(const o of objects){const a=o.authoring,p=a?.plugin;if(p&&(FramePlugins.owner({type:p.type})?.manifest.id!==p.id||a.pluginReferencesUnresolved))unavailablePlugins.push({hash:o.hash,id:p.id,type:p.type,reason:a.pluginReferencesUnresolved?'unresolved-references':'not-installed'});for(const t of a?.tags||[])if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)unavailableTags.push({hash:o.hash,uid:t.uid||null,kind:t.kind,reason:t.referencesUnresolved?'unresolved-references':'not-installed'});}const ignoredExtensionRecords=[...map.keys()].filter(id=>!records.has(id)),importReport={format:'hash',unavailablePlugins,unavailableTags,ignoredExtensionRecords,opaqueData:'Unavailable declared authoring is preserved but not evaluated. Unknown extension records are omitted. After identity remapping, unavailable plugin/tag payloads stay inactive because their reference schema is unknown.'};
       FrameAuthorData.preflightDocument(objects,(records.get(K.parameters)?.value||{}).authorData);
@@ -28366,13 +28534,18 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(scene){disposeScene(scene);scene=null;}clearFeatureDraws(gpu);clearPickGroups(gpu);sceneFrameDirty=true;canvas.dataset.ready='loading';preparedImages?.start?.();
         i=0;for(const o of plan.objects)if(o.p){const input=await nativeDecodeMesh(file,o),mesh=await uploadAndCompute(gpu,input);mesh.hashId=o.hash;if(input.uv)uploadImportedUV(gpu,mesh,input.uv);newMeshes.push(mesh);o.index=i++;progress('Opening HASH · '+i+' / '+plan.meshes+' meshes');await new Promise(r=>setTimeout(r,0));}
         let base=0;for(const mesh of newMeshes){mesh.faceBase=base;base+=mesh.triangleCount;if(mesh.connected.range)gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));meshRenderGroups(gpu,mesh);}
-        FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,newMeshes);published=true;scene.materialPrefetch=preparedImages?.prefetch;scene.appearanceIds=plan.appearance.ids;scene.records=plan.records;installNativeRecords(plan.objects,plan.camera);const timeline=plan.records.get(FrameHash.K.parameters);if(timeline)scene.records.set(timeline.id,timeline);else scene.records.delete(FrameHash.K.parameters);uploadPolygonSets(plan,gpu);[displayUnitIndex,rescaleUnitIndex]=plan.savedUnits||[2,2];document.getElementById('dV').textContent=units[displayUnitIndex];selectionScope='components';objectSelection=[];componentPivot=null;metaUndo=[];metaRedo=[];resetView();applyNativeCamera(plan.camera);selectionSignature='';
+        // Validated plain Null descriptors have no shape, appearance or GPU
+        // attachments to reconstruct from the freshly installed record map.
+        const validatedGroups=!plan.meshes&&!plan.appearance.ids.size&&plan.objects.every(o=>o.type===0&&!o.spline&&!o.authoring)?
+          plan.objects.map(({hash,type,name,parent,flags,matrix,pivot,projection,light})=>({hash,type,name,parent,flags,matrix,pivot,projection,light,spline:null,tags:[],authoring:null})):null;
+        const installing=performance.now();FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,newMeshes);published=true;scene.materialPrefetch=preparedImages?.prefetch;scene.appearanceIds=plan.appearance.ids;scene.records=plan.records;installNativeRecords(plan.objects,plan.camera);if(validatedGroups)poseRecordCache={records:scene.records,objects:validatedGroups};const timeline=plan.records.get(FrameHash.K.parameters);if(timeline)scene.records.set(timeline.id,timeline);else scene.records.delete(FrameHash.K.parameters);uploadPolygonSets(plan,gpu);[displayUnitIndex,rescaleUnitIndex]=plan.savedUnits||[2,2];document.getElementById('dV').textContent=units[displayUnitIndex];selectionScope='components';objectSelection=[];componentPivot=null;metaUndo=[];metaRedo=[];resetView();applyNativeCamera(plan.camera);selectionSignature='';
         const byId=new Map(plan.objects.map(o=>[o.hash,o])),shown=o=>(o.flags&3)===3&&(!o.parent||shown(byId.get(o.parent)));
         setVisibility(plan.objects.filter(o=>o.index!==undefined).map(o=>({index:o.index,visible:shown(o)})));
         // Scene event also installs the persisted hierarchy in the Objects Browser.
-        splineLoadBatch=true;nativeSceneEvent(name,preparedImages);await FramePlugins.loadUsed();lastImportReport=plan.importReport;stages.restoreMs=performance.now()-started-stages.decodeMs;
+        stages.installRecordsMs=performance.now()-installing;
+        const emitting=performance.now();splineLoadBatch=true;nativeSceneEvent(name,preparedImages,validatedGroups);await FramePlugins.loadUsed();stages.nativeEventMs=performance.now()-emitting;lastImportReport=plan.importReport;stages.restoreMs=performance.now()-started-stages.decodeMs;
         const evaluated=performance.now();await window.FrameSpline?.flush();stages.evaluateMs=performance.now()-evaluated;
-        splineLoadBatch=false;splineLoadFinalizing=true;publishTopology(gpu,[]);syncPoseWorld();frameSyncEngineVisibility();await replicaQueue;await updateSplineVisibility();nativeSceneStats(name);if(scene.materialPrefetch&&shadingMode.startsWith('solid')&&scene.meshes.some(m=>m.frameVisible!==false&&m.materialTags?.length))materialLibraryGPU(gpu);button.disabled=false;await draw();button.disabled=true;await gpu.device.queue.onSubmittedWorkDone();
+        const finalizing=performance.now();splineLoadBatch=false;splineLoadFinalizing=true;publishTopology(gpu,[]);syncPoseWorld();frameSyncEngineVisibility();await replicaQueue;await updateSplineVisibility();nativeSceneStats(name);if(scene.materialPrefetch&&shadingMode.startsWith('solid')&&scene.meshes.some(m=>m.frameVisible!==false&&m.materialTags?.length))materialLibraryGPU(gpu);stages.finalizeSyncMs=performance.now()-finalizing;const firstDraw=performance.now();button.disabled=false;await draw();button.disabled=true;await gpu.device.queue.onSubmittedWorkDone();stages.firstDrawMs=performance.now()-firstDraw;
         canvas.dataset.hashLoad=JSON.stringify({objects:scene.meshes.length,triangles:scene.triangleCount,fileBytes:file.size,elapsedMs:performance.now()-started,stages});canvas.dataset.ready='true';status.hidden=true;
       }catch(error){if(!published){for(const mesh of newMeshes)disposeMesh(mesh);}fileOperationError(error);throw error;}finally{if(preparedImages?.prefetch&&scene?.materialPrefetch===preparedImages.prefetch)delete scene.materialPrefetch;preparedImages?.prefetch?.release();preparedImages?.release();splineLoadBatch=false;splineLoadFinalizing=false;nativeIOEnd();}
     }

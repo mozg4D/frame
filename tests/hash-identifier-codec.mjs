@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
-const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('function createFrameHashCodec(){'),end=html.indexOf('const FrameHash=createFrameHashCodec();',start),source=html.slice(start,end),exposed=source.replace('return Object.freeze({K,T,ZIP,PREDICT,address,newId,','return Object.freeze({idBytes,hex,K,T,ZIP,PREDICT,address,newId,');
+const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('function createFrameHashCodec(){'),end=html.indexOf('const FrameHash=createFrameHashCodec();',start),source=html.slice(start,end),exposed=source.replace('return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,','return Object.freeze({idBytes,hex,K,T,ZIP,PREDICT,address,addressOwner,newId,');
 assert.notEqual(source,exposed);const H=Function(exposed+';return createFrameHashCodec();')(),checks=[];
 const check=async(name,fn)=>{await fn();checks.push({name,pass:true});},oldBytes=id=>Uint8Array.from({length:16},(_,i)=>parseInt(id.slice(i*2,i*2+2),16)),oldHex=bytes=>Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
 await check('Every byte and10000 mixed lowercase identifiers preserve the native hexadecimal representation',()=>{assert.equal(H.hex(Uint8Array.from({length:256},(_,i)=>i)),oldHex(Uint8Array.from({length:256},(_,i)=>i)));for(let i=0;i<10000;i++){const id=(Math.imul(i+1,31312813)>>>0).toString(16).padStart(8,'0').repeat(4);assert.deepEqual(H.idBytes(id),oldBytes(id));assert.equal(H.hex(H.idBytes(id)),id);}assert.equal(H.hex(new Uint8Array()),'');});
