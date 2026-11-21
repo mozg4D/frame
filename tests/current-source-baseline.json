@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 10:57",
+  "version": "2026 21 nov 12:00",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "01c13b4f66463ad0467f10dc493aa1f7ca696c83ba8ae473aa2c510811a567b8"
+      "sha256": "5a892d69f9cd6fbe8497070033ec4aea822941159418c9033870406f6370629c"
     },
     "index.html": {
-      "bytes": 3938198,
-      "sha256": "9d805c9cbf0740b29ca1a06cc7eba5a4b7cadfbc52de58beee3ea07b2aba2dc7"
+      "bytes": 3956515,
+      "sha256": "967b1d073037514e599cfb85ff8ad4d2a6c2f68907a74f2b3c69b94b7633a28d"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1181,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 17676,
-      "sha256": "1450e5ef1ec19b3cd21eaaf366ed9278f6333248333206add88bf7e63b6a75e4"
+      "bytes": 18008,
+      "sha256": "8c9e071ba7b1befbf524710284e5ac4b1d9b5676c1b598be555dc3dd8918d600"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1471,6 +1471,34 @@
     "tests/curvature-derived-groups-browser.mjs": {
       "bytes": 7790,
       "sha256": "c37c5042f24e2620ac7a78ae95130a2086da14b57d5f97fb356c497a9e39f971"
+    },
+    "tests/cloner-copy-capacity-cpu.mjs": {
+      "bytes": 4994,
+      "sha256": "35c29831ac588d4888664e93a06cf7c8f9e2dd561897252f1af959a43239f062"
+    },
+    "tests/cloner-copy-rollback-cpu.mjs": {
+      "bytes": 5003,
+      "sha256": "7eca162f866a657cc39f2f27c18e627730dc7f72c2e1aeadb842a208a67155a5"
+    },
+    "tests/cloner-warning-dom.mjs": {
+      "bytes": 6357,
+      "sha256": "3ef7b751df0e9756399c31bdf16c5bb87230baa7a758b0c29efe8306046a90c1"
+    },
+    "tests/cloner-large-counts-browser.mjs": {
+      "bytes": 6236,
+      "sha256": "6dcd9e9dea91a972d9c07d8fcf6c8ec3b7e0770b99a5df340666bb8de805e559"
+    },
+    "tests/cloner-dense-paint-browser.mjs": {
+      "bytes": 10887,
+      "sha256": "747a5011075e598ea13c37aa10e509cb6692a9b4ff1faa396ddbb9750bbfc39d"
+    },
+    "tests/cloner-warning-browser.mjs": {
+      "bytes": 2639,
+      "sha256": "3b5da04545a7d0df4e17c5ff82e4be985e8d44f01a3d1cdc5e143701730d4ff9"
+    },
+    "tests/cloner-device-capacity-browser.mjs": {
+      "bytes": 4388,
+      "sha256": "07231d1fe09c456fe3055e746b3fd4ff610063c9a7b88084557891f75c39a64f"
     }
   }
 }

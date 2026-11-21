@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 10:57">
+<meta name="frame-version" content="2026 21 nov 12:00">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -15353,7 +15353,7 @@ function frameCancelPointer(){const lock=framePointerLock;frameUnlockPointer();i
 FrameViewWindows.onDocument('keydown',e=>{if(e.key==='Escape'&&framePointerLock){e.preventDefault();e.stopImmediatePropagation();frameCancelPointer();}},true);
 FrameViewWindows.onWindow('blur',frameCancelPointer);FrameViewWindows.onDocument('visibilitychange',e=>{if(e.currentTarget.hidden&&e.currentTarget===framePointerLock?.element.ownerDocument)frameCancelPointer();});
 function bindNumber(input,o){
-  if(o.length){const get=o.get,set=o.set,unit=unitMillimeters[displayUnitIndex];o={...o,get:()=>get()/unit,set:v=>set(v*unit)};}
+  if(o.length){const get=o.get,set=o.set,stage=o.stage,unit=unitMillimeters[displayUnitIndex];o={...o,get:()=>get()/unit,set:v=>set(v*unit),stage:stage?(v,apply)=>stage(v*unit,apply):null};}
   input.type='text';input.inputMode='decimal';input.spellcheck=false;input.autocomplete='off';input.dataset.numeric='';
   input.closest('.attr-row,.row,.me-hsl,.me-params,#timeline')?.classList.add('numeric-row');
   const clamp=v=>{const range=input._numericRange||o;return Math.max(range.min??-Infinity,Math.min(range.max??Infinity,v));};
@@ -15361,30 +15361,31 @@ function bindNumber(input,o){
   const stepFor=v=>o.stepFixed??(o.int?Math.max(1,Math.round(nice(v))):Math.max(o.minStep??1e-6,o.prec==null?0:10**-o.prec,nice(v)));
   const format=v=>compactNumberText(o.int?Math.round(v):o.prec==null?v:Math.round(v*10**o.prec)/10**o.prec,8,o.zeroTolerance?.()??0);
   // A rounded display is never written back without an explicit text edit.
-  let before=null,customBefore=null,drag=null,writing=false,cancelling=false,textEdited=false;
-  const begin=()=>{if(numericSession?.input!==input)numericSession?.finish(true);if(before===null){before=snapshot();customBefore=o.snap?.();textEdited=false;}numericSession={input,finish};};
-  function display(force=false){if(force||document.activeElement!==input&&!drag?.moved){input.value=o.multiple?.()?'':format(o.get());input.placeholder=o.multiple?.()?'multiple':'';}}
-  function apply(value,round=false){value=clamp(value);if(o.int)value=Math.round(value);else if(round&&o.prec!=null)value=Math.round(value*10**o.prec)/10**o.prec;o.set(value);o.update?.();return o.get();}
-  function finish(accept){if(framePointerLock?.element===input)frameUnlockPointer();if(before===null)return;const saved=before;before=null;if(numericSession?.input===input)numericSession=null;drag=null;document.body.classList.remove('number-dragging');if(accept){o.finish?.();if(o.commit)o.commit(customBefore);else checkpoint(saved);}else if(o.revert)o.revert(customBefore);else restore(saved);customBefore=null;resumeAttributesAfterNumber();}
+  let before=null,customBefore=null,drag=null,writing=false,cancelling=false,textEdited=false,stagedValue;
+   const read=()=>stagedValue??o.get();
+  const begin=()=>{if(numericSession?.input!==input)numericSession?.finish(true);if(before===null){before=o.stage?true:snapshot();customBefore=o.snap?.();textEdited=false;}numericSession={input,finish};};
+  function display(force=false){if(force||document.activeElement!==input&&!drag?.moved){input.value=o.multiple?.()?'':format(read());input.placeholder=o.multiple?.()?'multiple':'';}}
+  function apply(value,round=false){value=clamp(value);if(o.int)value=Math.round(value);else if(round&&o.prec!=null)value=Math.round(value*10**o.prec)/10**o.prec;if(o.stage){stagedValue=value;return value;}o.set(value);o.update?.();return o.get();}
+  function finish(accept){if(framePointerLock?.element===input)frameUnlockPointer();if(before===null)return;const saved=before;before=null;if(numericSession?.input===input)numericSession=null;drag=null;document.body.classList.remove('number-dragging');if(o.stage){const value=stagedValue;stagedValue=undefined;customBefore=null;resumeAttributesAfterNumber();if(accept&&value!==undefined){const apply=()=>{const prior=snapshot();o.set(value);o.update?.();o.finish?.();checkpoint(prior);display(true);};try{Promise.resolve(o.stage(value,apply)).catch(fileOperationError);}catch(error){fileOperationError(error);}}display(true);return;}if(accept){o.finish?.();if(o.commit)o.commit(customBefore);else checkpoint(saved);}else if(o.revert)o.revert(customBefore);else restore(saved);customBefore=null;resumeAttributesAfterNumber();}
   function typed(){const parsed=numericExpressionValue(input.value);if(parsed!==null&&!o.deferText)apply(parsed);}
   input.addEventListener('focus',begin);
-  input._scrubStart=e=>{input._scrubPointerId=e.pointerId;begin();const parsed=numericExpressionValue(input.value);if(document.activeElement===input&&textEdited&&parsed!==null)apply(parsed);textEdited=false;drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false,accum:0,crossing:stepFor(o.get()),range:o.get()};try{input.setPointerCapture(e.pointerId);}catch{}};
+  input._scrubStart=e=>{input._scrubPointerId=e.pointerId;begin();const parsed=numericExpressionValue(input.value);if(document.activeElement===input&&textEdited&&parsed!==null)apply(parsed);textEdited=false;drag={id:e.pointerId,x:e.clientX,y:e.clientY,moved:false,accum:0,crossing:stepFor(read()),range:read()};try{input.setPointerCapture(e.pointerId);}catch{}};
   input._scrubMove=e=>{
     if(!drag||drag.id!==e.pointerId)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;drag.x=e.clientX;drag.y=e.clientY;
     if(!drag.moved){if(Math.abs(dx)+Math.abs(dy)<2)return;drag.moved=true;input.blur();document.body.classList.add('number-dragging');}
     e.preventDefault();frameEdgePointer(e,input);input.style.userSelect='none';
-    if(o.scrubRange){const [lo,hi]=o.scrubRange();if(hi>lo){drag.range=Math.max(lo,Math.min(hi,drag.range+(dx-dy)*(hi-lo)/1500));apply(drag.range);}input.value=format(o.get());return;}
-    drag.accum+=o.diagonal?(dx-dy)/Math.SQRT2:dx-dy;const q=Math.trunc(drag.accum/6);if(!q)return;drag.accum-=q*6;let value=o.get();
+    if(o.scrubRange){const [lo,hi]=o.scrubRange();if(hi>lo){drag.range=Math.max(lo,Math.min(hi,drag.range+(dx-dy)*(hi-lo)/1500));apply(drag.range);}input.value=format(read());return;}
+    drag.accum+=o.diagonal?(dx-dy)/Math.SQRT2:dx-dy;const q=Math.trunc(drag.accum/6);if(!q)return;drag.accum-=q*6;let value=read();
     for(let i=0;i<Math.abs(q);i++){const step=o.diagonal||value===0?drag.crossing:stepFor(value);drag.crossing=step;value=clamp(value+Math.sign(q)*step);value=o.int?Math.round(value):o.prec==null?Number(value.toPrecision(12)):Math.round(value*10**o.prec)/10**o.prec;}
-    apply(value);input.value=format(o.get());getSelection()?.removeAllRanges();
+    apply(value);input.value=format(read());getSelection()?.removeAllRanges();
   };
   input._scrubEnd=(e={})=>{if(!drag||e.pointerId!==undefined&&e.pointerId!==drag.id)return false;const {moved,id}=drag;drag=null;try{if(input.hasPointerCapture(id))input.releasePointerCapture(id);}catch{}input.style.userSelect='';document.body.classList.remove('number-dragging');finish(true);display(true);return moved;};
   input.addEventListener('lostpointercapture',e=>{if(numericDragInput===input&&framePointerLock?.element!==input)finishNumericDrag(e);});
   input.addEventListener('dblclick',e=>{e.preventDefault();input.focus();input.select();});
   input.addEventListener('input',e=>{begin();textEdited=true;if(e.isComposing)return;writing=true;try{typed();}finally{writing=false;}});
-  input.addEventListener('blur',()=>{if(drag?.moved||writing||cancelling)return;if(before===null){display(true);return;}const raw=input.value,parsed=numericExpressionValue(raw);if(textEdited&&parsed!==null)apply(parsed);const actual=o.get();input.value=format(actual);finish(true);});
-  input.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing)return;if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();begin();const parsed=textEdited?numericExpressionValue(input.value):null,value=parsed??o.get(),step=(o.keyStep??o.stepFixed??1)*(e.shiftKey?10:e.altKey&&!o.int?.1:1);apply(value+(e.key==='ArrowUp'?step:-step),true);textEdited=false;input.value=format(o.get());}else if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();cancelling=true;finish(false);input.blur();cancelling=false;display(true);}});
-  input._stepWheel=e=>{begin();const step=stepFor(o.get()),value=apply(o.get()+(e.deltaY<0?step:-step),true);input.value=format(value);finish(true);};
+  input.addEventListener('blur',()=>{if(drag?.moved||writing||cancelling)return;if(before===null){display(true);return;}const raw=input.value,parsed=numericExpressionValue(raw);if(textEdited&&parsed!==null)apply(parsed);const actual=read();input.value=format(actual);finish(true);});
+  input.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing)return;if(e.key==='ArrowUp'||e.key==='ArrowDown'){e.preventDefault();begin();const parsed=textEdited?numericExpressionValue(input.value):null,value=parsed??read(),step=(o.keyStep??o.stepFixed??1)*(e.shiftKey?10:e.altKey&&!o.int?.1:1);apply(value+(e.key==='ArrowUp'?step:-step),true);textEdited=false;input.value=format(read());}else if(e.key==='Enter'){e.preventDefault();input.blur();}else if(e.key==='Escape'){e.preventDefault();cancelling=true;finish(false);input.blur();cancelling=false;display(true);}});
+  input._stepWheel=e=>{begin();const step=stepFor(read()),value=apply(read()+(e.deltaY<0?step:-step),true);input.value=format(value);finish(true);};
   input._sync=display;display(true);
 }
 FrameViewWindows.onDocument('pointerdown',e=>{if(numericSession&&!numericSession.input.contains(e.target)){numericSession.input.blur();numericSession?.finish(true);}},{capture:true});
@@ -15525,7 +15526,7 @@ function renderAttributes(){
   if(!tag)for(const key of FramePlugins.owner(n)?.manifest.objects.find(o=>o.type===n.type)?.breakAfter||[]){const input=[...content.querySelectorAll('[data-field]')].find(el=>el.dataset.field===key);if(input)input.closest('.attr-row').style.marginBottom='8px';}
   const update=(key,value)=>{if(!tag&&key===frameCreaseAngleKey&&framePolygonCreaseType(n.type)){if(!validFrameCreaseAngle(value))return;values[key]=value;for(const id of selected){const other=node(id);if(other?.type===n.type)other.params[key]=value;}return;}if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
   for(const input of all('input[type=checkbox][data-field]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.checked),false);
-  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&framePolygonCreaseType(n.type)&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type===n.type)window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
+  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),stage:!tag&&n.type==='cloner'&&frameClonerCountFields.has(key)?(value,apply)=>frameClonerApproveDraft(n,key,value,apply):null,get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&framePolygonCreaseType(n.type)&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type===n.type)window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
   for(const input of all('textarea,[data-textfield]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.value),false);
   for(const button of all('[data-value]',content)){button.onclick=()=>{const key=button.dataset.field;if(!tag&&n.type==='render'&&key==='environment'&&button.dataset.value==='image'){frameChooseEnvironment(n);return;}commit(()=>update(key,typeof fields[key]==='boolean'?button.dataset.value==='true':tagDefinitions[tag?.kind]?.plugin&&Array.isArray(fields[key])?fields[key].find(v=>String(v)===button.dataset.value):button.dataset.value),false);renderAttributes();};button.onkeydown=e=>{if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key))return;const key=button.dataset.field,spec=fields[key],direction=['ArrowUp','ArrowRight'].includes(e.key)?1:-1;if(typeof spec!=='boolean'&&!Array.isArray(spec))return;e.preventDefault();e.stopPropagation();const value=typeof spec==='boolean'?direction>0:spec[(spec.indexOf(values[key])+direction+spec.length)%spec.length];commit(()=>update(key,value),false);renderAttributes();const candidates=all('[data-field]',content).filter(el=>el.dataset.field===key);(candidates.find(el=>el.getAttribute('aria-pressed')==='true')||candidates[0])?.focus();};}
   for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'||n.type==='tree'?renderAttributes:()=>{});}
@@ -15623,6 +15624,30 @@ function showMenu(x,y,items,focus=true){
   menu.hidden=false;menu.style.left=Math.min(x,Math.max(0,menuWindow.innerWidth-menu.offsetWidth))+'px';menu.style.top=Math.min(y,Math.max(0,menuWindow.innerHeight-menu.offsetHeight))+'px';if(focus)menu.querySelector('button:not(:disabled)')?.focus();
 }
 function openDialog(title,html,accept=null,ok='OK'){FrameViewWindows.placeUI($('dialog'));$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;$('dialogOK').textContent=ok;$('dialogCancel').hidden=!accept;$('dialogOK').onclick=()=>{accept?.();$('dialog').close();};if(!$('dialog').open)$('dialog').showModal();}
+function frameConfirmLimit(title,message){
+  const dialog=$('dialog'),cancel=$('dialogCancel');if(dialog.open)return Promise.resolve(false);
+  return new Promise(resolve=>{let accepted=false;const label=cancel.textContent;
+    dialog.addEventListener('close',()=>{cancel.textContent=label;resolve(accepted);},{once:true});
+    cancel.textContent='No';openDialog(title,escapeHTML(message),()=>{accepted=true;},'Yes');
+  });
+}
+const frameClonerCountFields=new Set(['count','count x','count y','count z','step','offset']),frameClonerWarningLimit=10000000n;
+function frameClonerApproveDraft(owner,key,value,apply){
+  const engine=window.frameEngine,space=engine?.scene,selection=[...selected],targets=[...new Set([owner.id,...selection])].map(node)
+    .filter(n=>n?.type==='cloner'&&n.params[key]!==value).map(n=>({n,params:n.params,previous:frameValueKey(n.params)}));
+  if(!targets.length)return;
+  const changes={[key]:value},estimate=n=>engine.clonerPlacementCount(n.nativeHash,changes);
+  let largest=0n;
+  for(const t of targets){t.count=estimate(t.n);if(t.count!==null&&t.count>largest)largest=t.count;}
+  const commit=verify=>{
+    if(window.frameEngine!==engine||engine.scene!==space||selected.size!==selection.length||selection.some(id=>!selected.has(id))||
+      targets.some(({n,params,previous,count})=>node(n.id)!==n||n.params!==params||frameValueKey(params)!==previous||verify&&estimate(n)!==count))
+      throw Error('The Cloner changed before confirmation. No count was changed.');
+    apply();
+  };
+  if(largest<=frameClonerWarningLimit)return commit(false);
+  return frameConfirmLimit('Large Cloner','Frame will attempt '+largest.toLocaleString('en-US')+' copies in one Cloner. This may make the scene unresponsive. Continue?').then(yes=>{if(yes)commit(true);});
+}
 $('dialogClose').onclick=$('dialogCancel').onclick=()=>$('dialog').close();
 $('dialog').onclick=e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('dialog').close();}};
 FrameViewWindows.onDocument('pointerdown',e=>{if(!e.target.closest('#menu,#btnOpen,#btnSave'))closeMenu();},true);for(const type of ['wheel','resize'])FrameViewWindows.onWindow(type,closeMenu,{capture:true,passive:true});FrameViewWindows.onWindow('blur',e=>{if(e.target===window)closeMenu();},true);FrameViewWindows.onDocument('visibilitychange',()=>{if(document.hidden)closeMenu();});
@@ -20915,7 +20940,8 @@ window.frameEngine=(()=>{
     }
     function duplicateResource(gpu,source,label){return source.kind==='texture'?makePagedTexture(gpu,label,source.count,source.format):makeGPUBuffer(gpu.device,{label,size:source.size,usage:source.usage|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});}
     function sceneFromMeshes(gpu,meshes){
-      const boundsMin=[0,1,2].map(axis=>meshes.length?Math.min(...meshes.map(m=>m.boundsMin[axis])):-50),boundsMax=[0,1,2].map(axis=>meshes.length?Math.max(...meshes.map(m=>m.boundsMax[axis])):50);
+      let boundsMin=meshes.length?[Infinity,Infinity,Infinity]:[-50,-50,-50],boundsMax=meshes.length?[-Infinity,-Infinity,-Infinity]:[50,50,50];
+      for(const m of meshes)for(let k=0;k<3;k++){boundsMin[k]=Math.min(boundsMin[k],m.boundsMin[k]);boundsMax[k]=Math.max(boundsMax[k],m.boundsMax[k]);}
       const center=boundsMin.map((v,i)=>(v+boundsMax[i])/2),scale=2/Math.max(1e-20,Math.hypot(...boundsMin.map((v,i)=>boundsMax[i]-v)));
       const result={gpu,meshes,center,scale,boundsMin,boundsMax,triangleCount:meshes.reduce((sum,m)=>sum+m.triangleCount,0)},grid=frameViewportGuides();
       result.grid=makeGPUBuffer(gpu.device,{label:'scene grid',size:grid.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});gpu.device.queue.writeBuffer(result.grid,0,grid);result.gridCount=grid.length/6;return result;
@@ -22812,11 +22838,11 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         try{
           activateFrameView(0);syncCameraView();
           canvas={clientWidth:width,clientHeight:height,getBoundingClientRect:()=>({left:0,top:0,width,height}),dataset:{}};
-          viewIndex=0;shadingMode='solid';d.queue.writeBuffer(r.uniform,0,cameraUniform(width,height));
+          viewIndex=0;shadingMode='solid';const orderedDraw=prepareOrderedReplicaDraw(r);d.queue.writeBuffer(r.uniform,0,cameraUniform(width,height));
           const encoder=d.createCommandEncoder(),pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),clearValue:frameViewportClear,loadOp:'clear',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
-          renderGeometry(r,pass,width,height,undefined,false,null,false);pass.end();
+          renderGeometry(r,pass,width,height,undefined,false,null,false,orderedDraw);pass.end();
           renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,depth,'opaque'));
-          renderMaterialTransparency(r,encoder,color,depth,width,height);renderPluginSurfaceStyles(r,encoder,color,depth);
+          renderMaterialTransparency(r,encoder,color,depth,width,height,orderedDraw);renderPluginSurfaceStyles(r,encoder,color,depth);
           renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,depth));renderPluginSurfaceStyles(r,encoder,color,depth,true);
           const resolve=encoder.beginRenderPass({label:'Camera output coverage',colorAttachments:[{view:output.createView(),clearValue:frameViewportClear,loadOp:'clear',storeOp:'store'}]});
           resolve.setPipeline(aa);resolve.setBindGroup(0,d.createBindGroup({layout:aa.getBindGroupLayout(0),entries:[{binding:0,resource:color.createView()}]}));
@@ -23239,6 +23265,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       }
       return !!bindings.mapped;
     }
+    function materialOITTargets(){return [{format:'rgba16float',blend:{color:{srcFactor:'one',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one'}}},{format:'r16float',blend:{color:{srcFactor:'zero',dstFactor:'one-minus-src'},alpha:{srcFactor:'zero',dstFactor:'one'}}}];}
     function materialPipeline(r,mesh,transparent=false){
       const state=ensureMaterialState(r),wire=polygonWire(mesh),classified=classifiedSurfaceWire(mesh);
       return requestMaterialPipeline(r,state,{grouped:!!mesh.materialBindings?.grouped,uv:!!importedUV(mesh),wire,transparent,classified,materialWireOverlay:wire&&!transparent&&classified&&!materialTransparent(mesh),mapped:meshUsesMaterialMaps(state,mesh)});
@@ -23249,7 +23276,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       if(state.pipelines.has(key))return state.pipelines.get(key);
       if(!state.pending.has(key)){
         const constants={orthographic,posed,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay,plainSurfaceWire:!classified,materialMaps:!!mapped};
-        const targets=transparent?[{format:'rgba16float',blend:{color:{srcFactor:'one',dstFactor:'one'},alpha:{srcFactor:'one',dstFactor:'one'}}},{format:'r16float',blend:{color:{srcFactor:'zero',dstFactor:'one-minus-src'},alpha:{srcFactor:'zero',dstFactor:'one'}}}]:wire?r.wireTargets:r.surfaceTargets;
+        const targets=transparent?materialOITTargets():wire?r.wireTargets:r.surfaceTargets;
         const pending=r.device.createRenderPipelineAsync({label:'native material '+key,layout:state.layout,vertex:{module:state.module,entryPoint:'materialVS',constants},fragment:{module:state.module,entryPoint:transparent?'materialTransparentFS':wire?'materialWireFS':'materialFS',targets,constants},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:!transparent,depthCompare:transparent?'less-equal':'less'}})
           .then(p=>{if(renderer===r&&!r.dead){state.pipelines.set(key,p);draw();}return p;}).catch(editError).finally(()=>state.pending.delete(key));
         state.pending.set(key,pending);
@@ -23523,14 +23550,24 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       return transparent;
     }
     function clearMaterialTransparency(r){const oit=r?.materialState?.oit;if(oit){releaseGPU(oit.accum);releaseGPU(oit.reveal);r.materialState.oit=null;}}
-    function renderMaterialTransparency(r,encoder,color,depth,width,height){
+    function ensureMaterialTransparencyCompose(r,state){
+      const d=r.device;
+      if(!state.composeInit){state.composeInit=(async()=>{const module=d.createShaderModule({code:`@group(0) @binding(0) var accum:texture_2d<f32>;@group(0) @binding(1) var reveal:texture_2d<f32>;@vertex fn vs(@builtin(vertex_index) v:u32)->@builtin(position) vec4f{return vec4f(f32((v<<1u)&2u)*2.-1.,f32(v&2u)*2.-1.,0,1);}@fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f{let a=textureLoad(accum,vec2i(p.xy),0);let alpha=1.-textureLoad(reveal,vec2i(p.xy),0).x;if(a.a<=1e-8||alpha<=0.){discard;}return vec4f(a.rgb/max(a.a,1e-8),alpha);}`}),pipeline=await d.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list'}});if(renderer===r&&r.materialState===state){state.compose=pipeline;draw();}})().catch(editError);}
+    }
+    function renderMaterialTransparency(r,encoder,color,depth,width,height,orderedDraw){
       if(frameNavigation&&!frameNavigation.transparent)return;
       if(shadingMode==='off')return;
-      const meshes=scene.meshes.filter(m=>materialTransparent(m,true)&&meshVisible(m));if(!meshes.length)return;const state=ensureMaterialState(r),d=r.device;
-      if(!state.composeInit){state.composeInit=(async()=>{const module=d.createShaderModule({code:`@group(0) @binding(0) var accum:texture_2d<f32>;@group(0) @binding(1) var reveal:texture_2d<f32>;@vertex fn vs(@builtin(vertex_index) v:u32)->@builtin(position) vec4f{return vec4f(f32((v<<1u)&2u)*2.-1.,f32(v&2u)*2.-1.,0,1);}@fragment fn fs(@builtin(position) p:vec4f)->@location(0) vec4f{let a=textureLoad(accum,vec2i(p.xy),0);let alpha=1.-textureLoad(reveal,vec2i(p.xy),0).x;if(a.a<=1e-8||alpha<=0.){discard;}return vec4f(a.rgb/max(a.a,1e-8),alpha);}`}),pipeline=await d.createRenderPipelineAsync({layout:'auto',vertex:{module,entryPoint:'vs'},fragment:{module,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'triangle-list'}});if(renderer===r&&r.materialState===state){state.compose=pipeline;draw();}})().catch(editError);}
+      const batches=new Map();for(const item of orderedDraw?.prepared||[])if(item.oitState)batches.set(item.run.from,item);
+      const meshes=[];for(let i=0;i<scene.meshes.length;){const item=batches.get(i);if(item){i=item.run.to;continue;}const m=scene.meshes[i++];if(materialTransparent(m,true)&&meshVisible(m))meshes.push(m);}
+      if(!meshes.length&&!batches.size)return;const state=ensureMaterialState(r),d=r.device;ensureMaterialTransparencyCompose(r,state);
       for(const mesh of meshes){materialMeshGPU(r,mesh);materialPipeline(r,mesh,true);}if(!state.compose)return;
       if(!state.oit||state.oit.width!==width||state.oit.height!==height){clearMaterialTransparency(r);const make=(format,bytes,label)=>{const texture=d.createTexture({label,size:[width,height],format,usage:GPUTextureUsage.RENDER_ATTACHMENT|GPUTextureUsage.TEXTURE_BINDING});gpuAllocations.set(texture,width*height*bytes);allocatedBytes+=width*height*bytes;gpuAllocationPeak=Math.max(gpuAllocationPeak,allocatedBytes);return texture;},accum=make('rgba16float',8,'material transparency accumulation'),reveal=make('r16float',2,'material transparency revealage');state.oit={width,height,accum,reveal,group:d.createBindGroup({layout:state.compose.getBindGroupLayout(0),entries:[{binding:0,resource:accum.createView()},{binding:1,resource:reveal.createView()}]})};}
       const pass=encoder.beginRenderPass({colorAttachments:[{view:state.oit.accum.createView(),loadOp:'clear',storeOp:'store',clearValue:[0,0,0,0]},{view:state.oit.reveal.createView(),loadOp:'clear',storeOp:'store',clearValue:[1,1,1,1]}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});pass.setBindGroup(0,r.bindGroup);pass.setBindGroup(2,state.group);
+      // The OIT shader's weighted color/revealage is order-independent. Batches retain the same shader, depths, source flags and blend targets.
+      for(const {run,material,oitState} of batches.values()){
+        let start=0,count=0;const issue=()=>{if(count){issueReplicaSurface(pass,run.first,material,oitState,orderedDraw.plan.group,count,start);count=0;}};
+        for(const block of run.blocks){if(!meshVisible(block)){issue();continue;}if(!count)start=block.start;count+=block.count;}issue();
+      }
       for(const mesh of meshes){const material=materialMeshGPU(r,mesh),filter=pluginSurfaceFilter(mesh),filtered=filter?filteredSurfacePipeline(r,mesh,filter,material,null,true):null,pipeline=filtered?.pipeline||materialPipeline(r,mesh,true);if(!pipeline||filter&&!filtered)continue;pass.setPipeline(pipeline);if(filtered)pass.setBindGroup(3,filtered.group);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;pass.setBindGroup(1,mesh.materialBindings.groups.get(part).group);if(polygonWire(mesh)||mesh.materialBindings.grouped||importedUV(mesh))pass.draw(part.count);else{pass.setIndexBuffer(part.renderIndices,'uint32');pass.drawIndexed(part.count);}}}pass.end();const compose=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}]});compose.setPipeline(state.compose);compose.setBindGroup(0,state.oit.group);compose.draw(3);compose.end();
     }
 
@@ -23882,12 +23919,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     function replicaPipeline(r,mesh){
       const wire=polygonWire(),plain=wire&&!classifiedSurfaceWire(mesh),key=(frameViewKind(viewIndex)?'replicaOrtho':'replicaPerspective')+(wire?'Wire':'')+(plain?'Plain':'');if(r[key])return r[key];if(!r[key+'Pending']){const orthographic=!!frameViewKind(viewIndex);r[key+'Pending']=(async()=>{const d=r.device,module=d.createShaderModule({label:'shared geometry instanced surface',code:r.shaderSource+'\n@group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>; @vertex fn replicaVS(@builtin(vertex_index) v:u32,@builtin(instance_index) i:u32)->Output{var id=v;if('+wire+'){id=renderAliases[v];}var out=surfaceVertexFrame(id,replicaFrames[i]);if('+wire+'){let role=v%3u;out.bary=vec3f(select(0.,1.,role==0u),select(0.,1.,role==1u),select(0.,1.,role==2u));out.wireEdges=surfaceWireEdges(v);out.triangleID=replicaFrames[i].flags.z+v/3u;out.instance=i;}return out;}'+(wire?'\n@fragment fn replicaWireFS(input:Output,@builtin(front_facing) front:bool)->WireSurfaceOutput{let frame=replicaFrames[input.instance];let color=polygonWireColor(shade(input,front),input.bary,input.position.w,input.wireEdges,false);if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}':'' )}),instances=replicaFrameLayout(r),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),r.pipeline.getBindGroupLayout(1),instances]}),pipeline=await d.createRenderPipelineAsync({label:key,layout,vertex:{module,entryPoint:'replicaVS',constants:{orthographic,posed:true,plainSurfaceWire:plain}},fragment:{module,entryPoint:wire?'replicaWireFS':'fs',constants:{orthographic,posed:true,plainSurfaceWire:plain},targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}});if(renderer===r&&!r.dead){r[key]={pipeline,instances};draw(true);}return r[key];})().catch(editError);}return null;
     }
-    function materialReplicaPipeline(r,mesh,material,preview=false){
+    function materialReplicaPipeline(r,mesh,material,preview=false,transparent=false){
       return requestMaterialReplicaPipeline(r,{wire:polygonWire(mesh),plain:!classifiedSurfaceWire(mesh),
-        grouped:material.bindings.grouped,uv:!!importedUV(mesh),orthographic:!!frameViewKind(viewIndex),preview});
+        grouped:material.bindings.grouped,uv:!!importedUV(mesh),orthographic:!!frameViewKind(viewIndex),preview,transparent});
     }
-    function requestMaterialReplicaPipeline(r,{wire,plain,grouped,uv,orthographic,preview=false},wait=false){
-      const program=materialProgram(r),key=[orthographic,wire,plain,grouped,uv,preview].join(':');
+    function requestMaterialReplicaPipeline(r,{wire,plain,grouped,uv,orthographic,preview=false,transparent=false},wait=false){
+      const program=materialProgram(r),key=[orthographic,wire,plain,grouped,uv,preview,transparent].join(':');
       program.replicaPipelines??=new Map();program.replicaPending??=new Map();
       if(program.replicaPipelines.has(key))return program.replicaPipelines.get(key);
       let pending=program.replicaPending.get(key);
@@ -23903,13 +23940,13 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
   return MaterialOutput(frameProject(view),n,vec3f(view.xy+params.viewport.zw,view.z),0u,vec3f(0),raw,normal,faceMaterial(face),uv,0u,0u,instance);
 }
 @fragment fn materialReplicaWireFS(input:MaterialOutput,@builtin(front_facing) front:bool)->WireSurfaceOutput{let color=materialShade(input,front);if(color.a<.999){discard;}if(plainSurfaceWire){return WireSurfaceOutput(color,input.triangleID,fragmentSurfacePlane(input.viewPosition));}let frame=materialReplicaFrames[input.instance];return WireSurfaceOutput(color,input.triangleID,surfacePlane((input.triangleID-frame.flags.z)*3u,frame));}
-`}),instances=replicaFrameLayout(r),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),program.meshLayout,program.libraryLayout,instances]}),constants={orthographic,posed:true,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay:wire&&!plain,plainSurfaceWire:plain};
+`}),instances=replicaFrameLayout(r),layout=d.createPipelineLayout({bindGroupLayouts:[r.pipeline.getBindGroupLayout(0),program.meshLayout,program.libraryLayout,instances]}),constants={orthographic,posed:true,materialGroups:grouped,materialUV:uv,materialWire:wire,materialWireOverlay:wire&&!plain&&!transparent,plainSurfaceWire:plain};
         const vertex={module,entryPoint:preview?'plantPreviewVS':'materialReplicaVS',constants};
         if(preview)vertex.buffers=[{arrayStride:36,attributes:[
           {shaderLocation:0,offset:0,format:'float32x3'},{shaderLocation:1,offset:12,format:'float32x3'},
           {shaderLocation:2,offset:24,format:'float32x2'},{shaderLocation:3,offset:32,format:'uint32'}
         ]}];
-        pending=d.createRenderPipelineAsync({label:'native instanced material '+key,layout,vertex,fragment:{module,entryPoint:wire?'materialReplicaWireFS':'materialFS',constants,targets:wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less'}}).then(pipeline=>{
+        pending=d.createRenderPipelineAsync({label:'native instanced material '+key,layout,vertex,fragment:{module,entryPoint:transparent?'materialTransparentFS':wire?'materialReplicaWireFS':'materialFS',constants,targets:transparent?materialOITTargets():wire?r.wireTargets:r.surfaceTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:!transparent,depthCompare:transparent?'less-equal':'less'}}).then(pipeline=>{
           if(renderer===r&&!r.dead){const state={pipeline,instances};program.replicaPipelines.set(key,state);draw(true);return state;}
         }).catch(editError).finally(()=>program.replicaPending.delete(key));
         program.replicaPending.set(key,pending);
@@ -23965,6 +24002,11 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       const xy=Math.abs(m[0]*m[4]+m[1]*m[5]+m[2]*m[6]),xz=Math.abs(m[0]*m[8]+m[1]*m[9]+m[2]*m[10]),yz=Math.abs(m[4]*m[8]+m[5]*m[9]+m[6]*m[10]);
       return local*Math.sqrt(Math.max(xx+xy+xz,yy+xy+yz,zz+xz+yz));
     }
+    function orderedReplicaFrameBytes(instances,limits){
+      const bytes=instances*128,available=Math.min(limits.maxBufferSize,limits.maxStorageBufferBindingSize);
+      if(!Number.isSafeInteger(bytes)||bytes>available)throw frameReplicaCapacityError("GPU replica frames require "+bytes.toLocaleString("en-US")+" bytes; this device can bind "+available.toLocaleString("en-US")+" bytes.");
+      return bytes;
+    }
     function orderedReplicaPlan(r){
       const meshes=scene.meshes,prior=r.orderedReplicas,topology=scene.topologyRevision;
       if(prior?.meshes===meshes&&prior.epoch===poseEpoch&&prior.topology===topology)return prior;
@@ -23992,7 +24034,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       if(plan.instances<256||plan.ordinary>128){
         retireOrderedReplicas(r);plan.runs=[];return r.orderedReplicas=plan;
       }
-      const values=new Uint32Array(plan.instances*32);
+      const bytes=orderedReplicaFrameBytes(plan.instances,r.device.limits);
+      const values=new Uint32Array(bytes/4);
       for(const run of plan.runs){
         if(!run.source)continue;
         let source=run.source;while(source.replicaSource)source=source.replicaSource;
@@ -24014,15 +24057,19 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           run.blocks.push(block);
         }
       }
-      if(prior?.scene===scene&&prior.buffer?.size>=values.byteLength){
+      if(prior?.scene===scene&&prior.buffer?.size>=bytes){
         plan.buffer=prior.buffer;plan.group=prior.group;
+        r.device.queue.writeBuffer(plan.buffer,0,values);
         releaseGPU(prior.wire?.offsets);releaseGPU(prior.wire?.colors);
       }else{
+        // Do not retire a still-presented plan until its replacement can be recorded.
+        plan.buffer=makeGPUBuffer(r.device,{label:'ordered occurrence frames',size:bytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+        try{
+          plan.group=r.device.createBindGroup({layout:replicaFrameLayout(r),entries:[{binding:0,resource:{buffer:plan.buffer}}]});
+          r.device.queue.writeBuffer(plan.buffer,0,values);
+        }catch(error){releaseGPU(plan.buffer);throw error;}
         retireOrderedReplicas(r);
-        plan.buffer=makeGPUBuffer(r.device,{label:'ordered occurrence frames',size:values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-        plan.group=r.device.createBindGroup({layout:replicaFrameLayout(r),entries:[{binding:0,resource:{buffer:plan.buffer}}]});
       }
-      r.device.queue.writeBuffer(plan.buffer,0,values);
       return r.orderedReplicas=plan;
     }
     function smallPlantBlock(block,pixels){
@@ -24045,20 +24092,45 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       return preview&&material.bindings.uv===preview.uv&&
         (preview.foliage?tags.length===2&&!tags[0].mask&&polygonSet(tags[1].mask)===preview.foliage:tags.length===1&&!tags[0].mask)?preview:null;
     }
-    function drawOrderedReplicas(r,pass,height){
+    const orderedReplicasPending=Symbol("ordered replica pipelines pending"),orderedReplicasUnavailable=Symbol("ordered replica capacity unavailable");
+    function frameReplicaViewportStale(index=viewIndex){return frameViewElement(index)?.dataset.replicaDrawError||null;}
+    function frameOrderedReplicaNotice(error){
+      const section=frameViewElement(viewIndex),notice=section?.querySelector(".frame-view-notice");
+      if(error){
+        if(section)section.dataset.replicaDrawError=error.message;
+        canvas.dataset.replicaDrawError=error.message;
+        if(notice){notice.dataset.replicaDrawError="";notice.textContent="Showing previous frame. "+error.message;notice.hidden=false;}
+      }else{
+        if(section)delete section.dataset.replicaDrawError;
+        delete canvas.dataset.replicaDrawError;
+        if(notice&&Object.hasOwn(notice.dataset,"replicaDrawError")){delete notice.dataset.replicaDrawError;notice.hidden=true;}
+      }
+    }
+    function prepareOrderedReplicaFrame(r){
+      try{
+        const solid=shadingMode.startsWith("solid"),order=solid?prepareOrderedReplicaDraw(r):null;
+        if(!solid&&r.wireRaster&&["wireframe","isoparms"].includes(shadingMode)&&elementMode==="object"&&scene.meshes.length>=256)orderedReplicaPlan(r);
+        if(order!==orderedReplicasPending)frameOrderedReplicaNotice(null);
+        return order;
+      }catch(error){
+        if(!frameReplicaRecoverable(error))throw error;
+        frameOrderedReplicaNotice(error);return orderedReplicasUnavailable;
+      }
+    }
+    function prepareOrderedReplicaDraw(r){
       if(elementMode!=='object'||scene.meshes.length<256||r.patchPreview)return null;
       // The standard ordered pipeline cannot bind curvature storage per occurrence.
       if(bendStates.size&&scene.meshes.some(m=>m.replicaMatrix&&bendValid(m)))return null;
       const plan=orderedReplicaPlan(r);
       if(!plan.buffer)return null;
-      const prepared=[];
+      const prepared=[];let pending=false;
       for(const run of plan.runs){
         const {first,source}=run;
         if(first.frameVisible===false)continue;
         if(!source){prepared.push(run);continue;}
-        if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first)||materialTransparent(first,true))return null;
+        if(pluginSurfaceStyle(first)||pluginSurfaceFilter(first))return null;
         const material=first.materialTags?.length?materialMeshGPU(r,first):null;
-        if(material&&!material.state.group)return null;
+        if(material&&!material.state.group){pending=true;continue;}
         if(material&&!material.bindings.uv&&meshUsesMaterialMaps(material.state,first)){
           // An ordered batch owns one projection uniform. Scaled occurrences need their own.
           run.sharedProjection??=scene.meshes.slice(run.from,run.to).every(mesh=>
@@ -24066,10 +24138,18 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           if(!run.sharedProjection)return null;
         }
         const state=material?materialReplicaPipeline(r,first,material):replicaPipeline(r,first);
-        if(!state)return null;
-        const preview=replicaPlantPreview(first,material),previewState=preview&&materialReplicaPipeline(r,first,material,true);
-        prepared.push({run,material,state,preview,previewState});
+        if(!state){pending=true;continue;}
+        const blend=material&&materialTransparent(first,true),oitState=blend?materialReplicaPipeline(r,first,material,false,true):null;
+        if(blend){ensureMaterialTransparencyCompose(r,material.state);if(!oitState||!material.state.compose){pending=true;continue;}}
+        const preview=blend?null:replicaPlantPreview(first,material),previewState=preview&&materialReplicaPipeline(r,first,material,true);
+        prepared.push({run,material,state,preview,previewState,oitState});
       }
+      return pending?orderedReplicasPending:{plan,prepared};
+    }
+    function drawOrderedReplicas(r,pass,height,order=prepareOrderedReplicaDraw(r)){
+      if(order===orderedReplicasPending)throw Error("Dense replica shaders are still preparing; retry once the viewport settles.");
+      if(!order)return null;
+      const {plan,prepared}=order;
       let visible=0,calls=0,instances=0,previewInstances=0;
       for(const item of prepared){
         if(!item.run){
@@ -24637,12 +24717,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         if(state.indexed){pass.setIndexBuffer(row.indices,'uint32');pass.drawIndexed(count,1,start);}else pass.draw(count,1,start);}
       let cursor=0;for(const [first,length,localFirst,localCount]of preview.ranges){range(base,cursor,first-cursor);range(local,localFirst,localCount);cursor=first+length;}range(base,cursor,preview.base.count-cursor);
     }
-    function renderGeometry(r,pass,width,height,include,grid=true,mask=null,cages=true){
+    function renderGeometry(r,pass,width,height,include,grid=true,mask=null,cages=true,orderedDraw){
       const fullScene=!include;include??=()=>true;
       const deferLines=cages&&(polygonWire()||deferPluginSceneLines(r));
       if(shadingMode==='off'){if(grid&&!deferLines)drawViewGrid(pass,width,height);return 0;}
       const wire=shadingMode==='wireframe'||shadingMode==='isoparms';let visible=wire?0:drawCloudInstances(r,pass);pass.setBindGroup(0,wire?r.edgeUniforms:r.bindGroup);
-      const ordered=fullScene&&!wire?drawOrderedReplicas(r,pass,height):null;
+      const ordered=fullScene&&!wire?drawOrderedReplicas(r,pass,height,orderedDraw):null;
       if(ordered!==null)visible+=ordered;
       else if(!wire){
         if(frameNavigation)frameNavigation.orderedReplicas=null;
@@ -24692,6 +24772,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const dpr=Math.min(canvas.ownerDocument.defaultView?.devicePixelRatio||1,2),width=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(canvas.clientWidth*dpr))),height=Math.max(1,Math.min(d.limits.maxTextureDimension2D,Math.round(canvas.clientHeight*dpr)));
         const state=viewStates[i]||defaultCamera(i),key=[viewRevision,width,height,viewShadings[i],...state].join(':');if(v.scene===scene&&v.key===key)continue;
         viewIndex=i;shadingMode=viewShadings[i];restoreCamera(state);
+        const orderedDraw=prepareOrderedReplicaFrame(r);
+        if(orderedDraw===orderedReplicasPending||orderedDraw===orderedReplicasUnavailable)continue;
         if(scene.meshes.length>=256&&['wireframe','isoparms'].includes(shadingMode)&&!r.wireRaster&&width*height*4<=d.limits.maxStorageBufferBindingSize){
           ensureWireRaster(r);continue;
         }
@@ -24700,8 +24782,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         const uniforms=cameraUniform(width,height);uniforms[35]=polygonWire()?1:0;d.queue.writeBuffer(r.uniform,0,uniforms);
         const encoder=d.createCommandEncoder(),color=v.context.getCurrentTexture(),background=transformBackground(r,encoder,width,height),mask=encodeWireRaster(r,encoder,width,height,background?m=>background.moving.has(m):undefined),pass=encoder.beginRenderPass({colorAttachments:[{view:color.createView(),clearValue:frameViewportClear,loadOp:'clear',storeOp:'store'},...polygonWire()?[{view:v.wireIds.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'},{view:v.wirePlanes.createView(),clearValue:[0,0,0,0],loadOp:'clear',storeOp:'store'}]:[]],depthStencilAttachment:{view:v.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}});
         if(background)restoreTransformBackground(r,pass,background);
-        renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask);
-        pass.end();renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,v.depth,'opaque'));renderDeferredSceneLines(r,encoder,color,v.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode),v.wireIds,background);renderMaterialTransparency(r,encoder,color,v.depth,width,height);renderPluginSurfaceStyles(r,encoder,color,v.depth);renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,v.depth));renderPluginSurfaceStyles(r,encoder,color,v.depth,true);renderPolygonVertices(r,encoder,color,v.depth,v.wireIds||r.triangleIds);renderBoxSelection(r,encoder,color,v.depth,v.wireIds||r.triangleIds);d.queue.submit([encoder.finish()]);v.scene=scene;v.key=key;canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);
+        renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask,true,orderedDraw);
+        pass.end();renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,v.depth,'opaque'));renderDeferredSceneLines(r,encoder,color,v.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode),v.wireIds,background);renderMaterialTransparency(r,encoder,color,v.depth,width,height,orderedDraw);renderPluginSurfaceStyles(r,encoder,color,v.depth);renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,color,v.depth));renderPluginSurfaceStyles(r,encoder,color,v.depth,true);renderPolygonVertices(r,encoder,color,v.depth,v.wireIds||r.triangleIds);renderBoxSelection(r,encoder,color,v.depth,v.wireIds||r.triangleIds);d.queue.submit([encoder.finish()]);v.scene=scene;v.key=key;canvas.dataset.frames=String((+canvas.dataset.frames||0)+1);
       }}finally{canvas=activeCanvas;viewIndex=activeIndex;shadingMode=activeShading;restoreCamera(camera);r.device.queue.writeBuffer(r.uniform,0,cameraUniform(r.width||1,r.height||1));}
     }
     function warmAssemblyViews(r){
@@ -25109,6 +25191,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       hoverPresentationGroup(gpu);
     }
     function featureDrawGroups(gpu){
+      frameReplicaFeatureExtent(scene);
       if(gpu.featureScene!==scene)clearFeatureDraws(gpu);gpu.featureScene=scene;let vertexBase=1,edgeBase=1,index=0;
       const draws=gpu.featureDraws;
       for(const mesh of scene.meshes){let first=true;for(const part of mesh.parts||[mesh]){
@@ -25255,6 +25338,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(renderer&&scene&&(!single||FrameViewWindows.size||frameViewKind(viewIndex))){ensureOrthoPipelines(renderer);if(frameViewKind(viewIndex)&&!renderer.ortho)return;}
       if(!renderer||!scene||!canvas.getClientRects().length)return;
       const r=renderer;updateViewportEnvironment(r);const device=r.device,dpr=Math.min(canvas.ownerDocument.defaultView?.devicePixelRatio||1,2);
+      const orderedDraw=prepareOrderedReplicaFrame(r);
+      if(orderedDraw===orderedReplicasPending||orderedDraw===orderedReplicasUnavailable)return;
       const width=Math.max(1,Math.min(device.limits.maxTextureDimension2D,Math.round(canvas.clientWidth*dpr))),height=Math.max(1,Math.min(device.limits.maxTextureDimension2D,Math.round(canvas.clientHeight*dpr)));
       if(scene.meshes.length>=256&&['wireframe','isoparms'].includes(shadingMode)&&!r.wireRaster&&width*height*4<=device.limits.maxStorageBufferBindingSize){
         ensureWireRaster(r);return;
@@ -25278,9 +25363,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
           depthStencilAttachment:{view:r.depth.createView(),depthClearValue:1,depthLoadOp:'clear',depthStoreOp:'store'}
         });
         if(background)restoreTransformBackground(r,pass,background);
-        const visibleMeshes=(background?.cache.visible||0)+renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask);
+        const visibleMeshes=(background?.cache.visible||0)+renderGeometry(r,pass,width,height,background?m=>background.moving.has(m):undefined,!background||!['wireframe','isoparms'].includes(shadingMode),mask,true,orderedDraw);
         canvas.dataset.transformBackground=JSON.stringify(background?{moving:background.moving.size,built:background.built,builds:background.cache.builds}:null);
-        pass.end();renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,r.cachedColor,r.depth,'opaque'));renderDeferredSceneLines(r,encoder,r.cachedColor,r.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode),r.triangleIds,background);renderMaterialTransparency(r,encoder,r.cachedColor,r.depth,width,height);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth);renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,r.cachedColor,r.depth));renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth,true);canvas.dataset.visibleMeshes=String(visibleMeshes);
+        pass.end();renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,r.cachedColor,r.depth,'opaque'));renderDeferredSceneLines(r,encoder,r.cachedColor,r.depth,width,height,!background||!['wireframe','isoparms'].includes(shadingMode),r.triangleIds,background);renderMaterialTransparency(r,encoder,r.cachedColor,r.depth,width,height,orderedDraw);renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth);renderMaterialPluginPass(r,()=>renderPluginViewports(r,encoder,r.cachedColor,r.depth));renderPluginSurfaceStyles(r,encoder,r.cachedColor,r.depth,true);canvas.dataset.visibleMeshes=String(visibleMeshes);
         // Only edited-source copies differ from the component ID map. Ordinary
         // Solid+Lines IDs stay reusable without another full geometry pass.
         if(elementMode!=='object'&&polygonWire()&&scene.meshes.some(m=>replicaEditingSource(m))){r.surfaceScene=null;r.surfaceKey=null;}
@@ -25495,7 +25580,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     function navigationHit(point){if(!frameViewKind(viewIndex))navigationSurfaces.set(viewIndex,point.slice());return point;}
     function emptyGridPoint(x,y){if(!scene||frameViewKind(viewIndex))return null;const ray=cameraRay(x,y),origin=ray.origin.map((n,i)=>n/scene.scale+scene.center[i]),direction=ray.direction,den=direction[1];if(Math.abs(den)<1e-12)return null;const t=-origin[1]/den;if(!(t>0))return null;const p=origin.map((v,i)=>v+direction[i]*t);return Math.abs(p[0])<=1000&&Math.abs(p[2])<=1000?[p[0],0,p[2]]:null;}
     async function pickWorldPoint(x,y,valid=()=>true){
-      if(!renderer||!scene)return null;const instance=viewIndex,generation=orbitGeneration,gpu=renderer,space=scene,section=frameViewElement(instance),current=()=>valid()&&viewIndex===instance&&orbitGeneration===generation&&renderer===gpu&&scene===space&&frameViewElement(instance)===section&&frameViewVisible(instance);const plugin=await FramePlugins.dispatch('navigation',x,y);if(!current())return null;const ray=plugin&&cameraRay(x,y),surface=plugin&&{depth:plugin.depth,point:ray.origin.map((v,i)=>(v+ray.direction[i]*plugin.depth)/scene.scale+scene.center[i])},spline=splineNavigationPoint(x,y),curve=surface&&(!spline||surface.depth<spline.depth)?surface:spline;if(!space.meshes.some(m=>m.frameVisible!==false))return curve?navigationHit(curve.point):navigationMiss(x,y);
+      if(!renderer||!scene||frameReplicaViewportStale())return null;const instance=viewIndex,generation=orbitGeneration,gpu=renderer,space=scene,section=frameViewElement(instance),current=()=>valid()&&viewIndex===instance&&orbitGeneration===generation&&renderer===gpu&&scene===space&&frameViewElement(instance)===section&&frameViewVisible(instance);const plugin=await FramePlugins.dispatch('navigation',x,y);if(!current())return null;const ray=plugin&&cameraRay(x,y),surface=plugin&&{depth:plugin.depth,point:ray.origin.map((v,i)=>(v+ray.direction[i]*plugin.depth)/scene.scale+scene.center[i])},spline=splineNavigationPoint(x,y),curve=surface&&(!spline||surface.depth<spline.depth)?surface:spline;if(!space.meshes.some(m=>m.frameVisible!==false))return curve?navigationHit(curve.point):navigationMiss(x,y);
       const pick=createRayPick(gpu,space,cameraRay(x,y)),read=pick.read;
       try{const e=gpu.device.createCommandEncoder();pick.encode(e);e.copyBufferToBuffer(pick.closest,0,read,0,4);gpu.device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const t=new Float32Array(read.getMappedRange())[0];read.unmap();checkSession(gpu);if(!current())return null;if(curve&&curve.depth<=t)return navigationHit(curve.point);if(!(t<Math.fround(pick.ray.clip[1])))return curve?navigationHit(curve.point):navigationMiss(x,y);return navigationHit(pick.ray.origin.map((v,i)=>(v+pick.ray.direction[i]*t)/space.scale+space.center[i]));}finally{releaseGPU(pick);}
     }
@@ -25697,6 +25782,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       }finally{for(const resource of resources)releaseGPU(resource);}
     }
     async function selectObjectAt(x,y,operation='replace',inactiveOnly=false){
+      if(frameReplicaViewportStale())return;
       const cloud=pickCloud(x,y);if(cloud&&!inactiveOnly){objectPickCycle=null;await selectObjectHashes([cloud],operation);return true;}
       if(!scene||selectionBusy||editDrag||editFinishing||undoBusy||button.disabled)return;const gpu=renderer,space=scene,objectMode=elementMode==='object'&&!inactiveOnly,linesOnly=['wireframe','isoparms'].includes(shadingMode),key=objectMode?splineProjectionKey()+':'+appearanceRevision+':'+shadingMode:null,prior=objectPickCycle;
       const repeat=objectMode&&operation==='replace'&&prior?.space===space&&prior.key===key&&prior.hash&&objectSelection.length===1&&objectSelection[0]===prior.hash&&Math.hypot(x-prior.x,y-prior.y)<=8,excluded=repeat&&prior.transparent?new Set([...prior.excluded,prior.hash]):new Set();let pick=null;selectionBusy=true;
@@ -25733,7 +25819,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     function selectConnected(clientX,clientY,operation='replace'){const task=selectionPending.catch(()=>{}).then(()=>selectConnectedNow(clientX,clientY,operation));selectionPending=task.catch(editError);return task;}
-    async function selectConnectedNow(clientX,clientY,operation='replace'){await selectionQueue;await editSerial;const splineHit=elementMode==='polygon'?await pickSplineCell(clientX,clientY):hitSpline(clientX,clientY,false,false,true)||await pickSplineCell(clientX,clientY);if(FrameSpline.connected(clientX,clientY,operation,splineHit))return;if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return;
+    async function selectConnectedNow(clientX,clientY,operation='replace'){await selectionQueue;await editSerial;if(frameReplicaViewportStale())return;const splineHit=elementMode==='polygon'?await pickSplineCell(clientX,clientY):hitSpline(clientX,clientY,false,false,true)||await pickSplineCell(clientX,clientY);if(FrameSpline.connected(clientX,clientY,operation,splineHit))return;if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return;
       if(elementMode!=='object'){const seed=elementMode==='polygon'?null:await componentSeed(renderer,clientX,clientY);if(!seed&&!await polygonHit(clientX,clientY)){if(!await selectObjectAt(clientX,clientY,'replace','switch')||!componentMeshes().length)return;}}
       if(elementMode==='object')return selectObjectAt(clientX,clientY,operation);
       selectionScope='components';objectSelection=[];componentPivot=null;measurementCache=null;
@@ -26168,9 +26254,15 @@ fn occupied(p:vec2i,channel:u32)->bool{
       finally{if(renderer===gpu){maintenanceBusy=false;if((undoGPU&&!undoGPU.ramBlocked)||creaseJobs.size)idleTimer=setTimeout(idleMaintenance,IDLE_DELAY);}}
     }
     async function createElementState(gpu,mode,meshes=scene.meshes,existingBits=null){
-      await createBoxPipelines(gpu);if(existingBits&&gpu.boxSelection?.bits===existingBits)gpu.boxSelection.bits=null;clearBoxSelection(gpu);const draws=featureDrawGroups(gpu),last=draws.at(-1),total=mode==='vertex'?last.vertexBase+last.mesh.vertexCount:mode==='edge'?last.edgeBase+last.edgeCount:scene.triangleCount+1,d=gpu.device,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
-      const bytes=Math.max(16,...meshes.map(m=>Math.ceil(m.vertexCount/32)*4));if(!gpu.boxVertexMask||gpu.boxVertexMask.size<bytes){releaseGPU(gpu.boxVertexMask);gpu.boxVertexMask=makeGPUBuffer(d,{size:bytes,usage});}
-      const s=gpu.boxSelection={mode,space:scene,rect:[0,0,gpu.width,gpu.height],entries:[],counts:[],bits:existingBits||makeGPUBuffer(d,{label:'selected elements',size:Math.max(16,Math.ceil(total/32)*4),usage}),counters:makeGPUBuffer(d,{size:Math.max(16,scene.meshes.length*4),usage}),read:makeGPUBuffer(d,{size:Math.max(16,scene.meshes.length*4),usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),hit:makeGPUBuffer(d,{size:32,usage})};
+      const d=gpu.device,usage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST,
+        range=frameReplicaFeatureExtent(scene),total=mode==='vertex'?range.vertices:mode==='edge'?range.edges:scene.triangleCount+1;
+      if(!Number.isSafeInteger(total)||total>0xffffffff)throw frameReplicaCapacityError('Native component IDs exceed the 32-bit viewport range');
+      let vertexWords=0;for(const m of meshes)vertexWords=Math.max(vertexWords,Math.ceil(m.vertexCount/32));
+      const bytes=frameReplicaSelectionBytes(vertexWords,d.limits),bitBytes=frameReplicaSelectionBytes(Math.ceil(total/32),d.limits),
+        countBytes=frameReplicaSelectionBytes(scene.meshes.length,d.limits);
+      await createBoxPipelines(gpu);if(existingBits&&gpu.boxSelection?.bits===existingBits)gpu.boxSelection.bits=null;clearBoxSelection(gpu);const draws=featureDrawGroups(gpu);
+      if(!gpu.boxVertexMask||gpu.boxVertexMask.size<bytes){releaseGPU(gpu.boxVertexMask);gpu.boxVertexMask=makeGPUBuffer(d,{size:bytes,usage});}
+      const s=gpu.boxSelection={mode,space:scene,rect:[0,0,gpu.width,gpu.height],entries:[],counts:[],bits:existingBits||makeGPUBuffer(d,{label:'selected elements',size:bitBytes,usage}),counters:makeGPUBuffer(d,{size:countBytes,usage}),read:makeGPUBuffer(d,{size:countBytes,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),hit:makeGPUBuffer(d,{size:32,usage})};
       for(const draw of draws)if(meshes.includes(draw.mesh)&&(mode!=='vertex'||draw.first))s.entries.push(boxEntry(gpu,s,draw,scene.meshes.indexOf(draw.mesh),s.rect));return s;
     }
     async function finishElementState(gpu,s,encoder){
@@ -26198,7 +26290,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       }finally{releaseGPU(pick);}
     }
     function selectElement(clientX,clientY,operation='replace'){const task=selectionPending.catch(()=>{}).then(()=>selectElementNow(clientX,clientY,operation));selectionPending=task.catch(editError);return task;}
-    async function selectElementNow(clientX,clientY,operation='replace'){if(await FramePlugins.dispatch('pick',clientX,clientY,operation))return;FramePlugins.dispatch('clearSelection');clearMotionSelection();const helper=pickPluginHelper(clientX,clientY);if(helper){objectPickCycle=null;return selectObjectHashes([helper],operation);}if(elementMode==='object')return selectObjectAt(clientX,clientY,operation);objectPickCycle=null;if(elementMode!=='object'){const h=elementMode==='polygon'?await pickSplineCell(clientX,clientY)||hitSpline(clientX,clientY,false,false,false,false):hitSpline(clientX,clientY,false,false),n=h&&frameNodeByHash(h.hash);if(n&&FrameSpline.isActive(n)&&h.object&&['vertex','edge'].includes(elementMode)){if(operation==='replace')FrameSpline.setSelection(h.hash,[]);return;}if(n&&(!FrameSpline.isActive(n)||h.object||elementMode==='polygon'&&!FrameSpline.patchOwner(n))){FrameSpline.setSelection(null);const owner=FrameSpline.isEditable(n)?FrameSpline.patchOwner(n)||n:n;selectRow(owner.id,{shiftKey:operation==='add',ctrlKey:operation==='toggle'});return frameSelectEngineObjects();}if(!h&&operation==='replace'&&[...FrameSpline.edits.values()].some(e=>e.selection.size)){if(await selectGeneratedAt(clientX,clientY,operation))return;FrameSpline.setSelection(null);return selectObjectAt(clientX,clientY,operation);}const key=elementMode==='vertex'?h?.handle||h?.vertex:elementMode==='edge'?h?.segment:h?.cell;if(n&&key&&!h.object&&FrameSpline.isEditable(n)){if(elementMode==='edge'&&h.segment){const p=FrameSpline.K().cubicPoint(FrameSpline.K().segmentPoints(n.splineData,h.segment),h.t??.5);if(!(await visibleSplinePoints(h.hash,[p]))[0])return;}const prior=new Set(FrameSpline.edits.get(h.hash)?.selection||[]);if(!FrameSpline.isActive(n)||elementMode==='polygon'&&current()?.type==='spline_patch'){selectRow(n.id);await selectionQueue;}selectionArea='viewport';FrameSpline.setSelection(h.hash,frameMergeSelection(prior,[key],operation));return;}}if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return selectObjectHashes([],operation);if(operation==='toggle'&&elementMode==='vertex'&&current()?.type==='mesh'&&!await componentSeed(renderer,clientX,clientY)){if(await addPolygonPoint(clientX,clientY))return;}
+    async function selectElementNow(clientX,clientY,operation='replace'){if(frameReplicaViewportStale())return;if(await FramePlugins.dispatch('pick',clientX,clientY,operation))return;FramePlugins.dispatch('clearSelection');clearMotionSelection();const helper=pickPluginHelper(clientX,clientY);if(helper){objectPickCycle=null;return selectObjectHashes([helper],operation);}if(elementMode==='object')return selectObjectAt(clientX,clientY,operation);objectPickCycle=null;if(elementMode!=='object'){const h=elementMode==='polygon'?await pickSplineCell(clientX,clientY)||hitSpline(clientX,clientY,false,false,false,false):hitSpline(clientX,clientY,false,false),n=h&&frameNodeByHash(h.hash);if(n&&FrameSpline.isActive(n)&&h.object&&['vertex','edge'].includes(elementMode)){if(operation==='replace')FrameSpline.setSelection(h.hash,[]);return;}if(n&&(!FrameSpline.isActive(n)||h.object||elementMode==='polygon'&&!FrameSpline.patchOwner(n))){FrameSpline.setSelection(null);const owner=FrameSpline.isEditable(n)?FrameSpline.patchOwner(n)||n:n;selectRow(owner.id,{shiftKey:operation==='add',ctrlKey:operation==='toggle'});return frameSelectEngineObjects();}if(!h&&operation==='replace'&&[...FrameSpline.edits.values()].some(e=>e.selection.size)){if(await selectGeneratedAt(clientX,clientY,operation))return;FrameSpline.setSelection(null);return selectObjectAt(clientX,clientY,operation);}const key=elementMode==='vertex'?h?.handle||h?.vertex:elementMode==='edge'?h?.segment:h?.cell;if(n&&key&&!h.object&&FrameSpline.isEditable(n)){if(elementMode==='edge'&&h.segment){const p=FrameSpline.K().cubicPoint(FrameSpline.K().segmentPoints(n.splineData,h.segment),h.t??.5);if(!(await visibleSplinePoints(h.hash,[p]))[0])return;}const prior=new Set(FrameSpline.edits.get(h.hash)?.selection||[]);if(!FrameSpline.isActive(n)||elementMode==='polygon'&&current()?.type==='spline_patch'){selectRow(n.id);await selectionQueue;}selectionArea='viewport';FrameSpline.setSelection(h.hash,frameMergeSelection(prior,[key],operation));return;}}if(scene?.meshes.some(m=>m.splineGenerated)&&await selectGeneratedAt(clientX,clientY,operation))return;if(!scene?.meshes.length)return selectObjectHashes([],operation);if(operation==='toggle'&&elementMode==='vertex'&&current()?.type==='mesh'&&!await componentSeed(renderer,clientX,clientY)){if(await addPolygonPoint(clientX,clientY))return;}
       if((elementMode==='vertex'||elementMode==='edge')&&!await componentSeed(renderer,clientX,clientY)&&await selectObjectAt(clientX,clientY,operation,operation==='replace'?'switch':true))return;
       if(elementMode==='polygon'&&await selectObjectAt(clientX,clientY,operation,'switch'))return;if(!componentMeshes().length)return;
       selectionScope='components';objectSelection=[];componentPivot=null;measurementCache=null;
@@ -26301,7 +26393,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
       return value;
     }
     function publishTopology(gpu,replacements,retained=new Set()){
-      scene.topologyRevision=(scene.topologyRevision||0)+1;retireOrderedReplicas(gpu);clearBoxSelection(gpu);clearFeatureDraws(gpu);clearPickGroups(gpu);
+      // Retain the last ordered table until a replacement passes capacity checks.
+      // Readers require the actual topology revision before using its ranges.
+      scene.topologyRevision=(scene.topologyRevision||0)+1;clearBoxSelection(gpu);clearFeatureDraws(gpu);clearPickGroups(gpu);
       for(const {mesh,next}of replacements){
         clearPatchPreview(mesh);const old=mesh.buffers,nativeId=mesh.hashId,frameVisible=mesh.frameVisible,frameWorld=mesh.frameWorld;releaseBorrowed(mesh);releaseMaterialTable(mesh);creaseJobs.delete(mesh);for(const key of Object.keys(mesh))delete mesh[key];Object.assign(mesh,next,{hashId:nativeId,frameVisible});mesh.localBoundsMin=[...mesh.boundsMin];mesh.localBoundsMax=[...mesh.boundsMax];writePoseUniform(mesh,frameWorld||FM.I());const worldBounds=transformedBox(localMeshBox(mesh),mesh.frameWorld);mesh.boundsMin=worldBounds.min;mesh.boundsMax=worldBounds.max;for(const p of mesh.parts||[]){p.owner=mesh;p.localBoundsMin=[...p.boundsMin];p.localBoundsMax=[...p.boundsMax];const b=transformedBox({min:p.localBoundsMin,max:p.localBoundsMax},mesh.frameWorld);p.boundsMin=b.min;p.boundsMax=b.max;}
         for(const value of old)if(!retained.has(value))releaseGPU(value);
@@ -26930,6 +27024,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       return objects.filter(o=>hits.has(o.hash)&&helperShown(o.hash)).map(o=>o.hash);
     }
     function selectObjectRectangle(cssRect,operation){
+      if(frameReplicaViewportStale())return;
       if(!scene||selectionBusy||editDrag||editFinishing||undoBusy||button.disabled)return selectionQueue;
       const gpu=renderer,space=scene,generation=++selectionGeneration,requested=performance.now();selectionBusy=true;orbitGeneration++;pendingWheel=null;touchActivity();
       selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{
@@ -26989,7 +27084,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function currentSelectionMeshes(){return selectedMeshes.includes(selectedMesh)?selectedMeshes:selectedMesh?[selectedMesh]:[];}
     async function refreshSelectionBounds(){const boxes=[];for(const mesh of currentSelectionMeshes()){const box=await readBounds(mesh,true);if(box)boxes.push(box);}selectionBox=unionSelectionBounds(boxes);}
-    function unionSelectionBounds(boxes){if(!boxes.length)return null;const min=[0,1,2].map(i=>Math.min(...boxes.map(b=>b.min[i]))),max=[0,1,2].map(i=>Math.max(...boxes.map(b=>b.max[i])));return {min,max,center:min.map((v,i)=>(v+max[i])/2)};}
+    function unionSelectionBounds(boxes){
+      if(!boxes.length)return null;
+      const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+      for(const b of boxes)for(let i=0;i<3;i++){min[i]=Math.min(min[i],b.min[i]);max[i]=Math.max(max[i],b.max[i]);}
+      return {min,max,center:min.map((v,i)=>(v+max[i])/2)};
+    }
     function renderBoxSelection(gpu,encoder,color=gpu.cachedColor,depth=gpu.depth,ids=gpu.triangleIds){
       if(shadingMode==='off')return;
       const s=gpu.boxSelection;if(s?.mode==='vertex'&&gpu.vertexDisplay?.get(viewIndex)?.screenRaster)return;if(!s||s.mode!==elementMode||s.space!==scene||!s.counts.some(Boolean))return;
@@ -27341,7 +27441,10 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         updateAreas(d.measure);
         let seed=d.seed>>>0;
         const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
-        const out=new Float64Array(d.count*6);
+        if(!Number.isSafeInteger(d.count)||d.count<0||!Number.isSafeInteger(d.count*48))throw Error('Cloner sample storage exceeds addressable bytes');
+        let out;
+        try{out=new Float64Array(d.count*6);}
+        catch(error){if(error instanceof RangeError)throw Error('Could not allocate Cloner surface sample storage');throw error;}
         for(let i=0;i<d.count;i++){
           const area=rand()*total;
           let lo=0,hi=cumulative.length-1;
@@ -27361,6 +27464,62 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const placement of replicaPlacements.values())if(hashes.has(placement.targetHash)||hashes.has(placement.ownerHash))return true;
       return false;
     }
+    // The actual JavaScript array and 32-bit viewport identifier ranges.
+    // Component selection stores the one-past-end extent (faces+1) in u32.
+    const frameReplicaArrayMax=0xffffffff,frameReplicaFaceMax=0xfffffffe;
+    function frameReplicaCapacityError(message){
+      return Object.assign(new RangeError(message),{frameReplicaCapacity:true});
+    }
+    function frameReplicaRecoverable(error){
+      return !!(error?.frameReplicaCapacity||error?.name==='GPUOutOfMemoryError'||error instanceof RangeError||
+        /out.of.memory|could not allocate/i.test(error?.message||''));
+    }
+    function frameReplicaCount(value,label){
+      if(!Number.isFinite(value)||!Number.isSafeInteger(Math.round(value)))throw frameReplicaCapacityError(label+' is not a finite safe count');
+      return Math.max(1,Math.round(value));
+    }
+    function frameReplicaPlacementCount(count){
+      if(!Number.isSafeInteger(count)||count<0||count>frameReplicaArrayMax)throw frameReplicaCapacityError('Cloner placements exceed the JavaScript array length');
+      return count;
+    }
+    function frameClonerPlacementCount(params){
+      const values=params.type==='matrix'?['count x','count y','count z']:[ 'count' ];
+      return values.reduce((n,key)=>n*BigInt(frameReplicaCount(params[key],'Cloner '+key)),1n);
+    }
+    function frameReplicaLayout(layout,add){
+      const meshes=layout.meshes+add.meshes,curves=layout.curves+add.curves,faces=layout.faces+add.faces;
+      if(!Number.isSafeInteger(meshes)||!Number.isSafeInteger(curves)||meshes>frameReplicaArrayMax||curves>frameReplicaArrayMax)
+        throw frameReplicaCapacityError('Native occurrences exceed the JavaScript array length');
+      if(!Number.isSafeInteger(faces)||faces>frameReplicaFaceMax)throw frameReplicaCapacityError('Native occurrence faces exceed 32-bit viewport IDs');
+      return {meshes,curves,faces};
+    }
+    const frameReplicaFeatureLayouts=new WeakMap();
+    function frameReplicaFeatureExtent(space){
+      const old=frameReplicaFeatureLayouts.get(space),{meshes,topologyRevision}=space;
+      if(old?.meshes===meshes&&old.length===meshes.length&&old.topologyRevision===topologyRevision)return old;
+      let vertices=1,edges=1;
+      for(const m of meshes){
+        vertices+=m.vertexCount;
+        if(m.paged){for(const part of m.parts)edges+=part.edgeCount;}else edges+=m.edgeCounts[0];
+      }
+      if(!Number.isSafeInteger(vertices)||!Number.isSafeInteger(edges)||vertices>0xffffffff||edges>0xffffffff)
+        throw frameReplicaCapacityError('Native component IDs exceed the 32-bit viewport range');
+      const result={meshes,length:meshes.length,topologyRevision,vertices,edges};
+      frameReplicaFeatureLayouts.set(space,result);return result;
+    }
+    function frameReplicaSelectionBytes(words,limits){
+      const bytes=Math.max(16,words*4);
+      if(!Number.isSafeInteger(bytes)||bytes>Math.min(limits.maxStorageBufferBindingSize,limits.maxBufferSize))
+        throw frameReplicaCapacityError('Native component selection exceeds the GPU storage limit');
+      return bytes;
+    }
+    function frameReplicaRandomJump(steps){
+      // Each placement consumes nine draws of this original 32-bit LCG.
+      let a=1664525,b=1013904223,ma=1,mb=0;
+      for(let n=steps>>>0;n;n>>>=1){if(n&1){mb=(Math.imul(a,mb)+b)>>>0;ma=Math.imul(a,ma)>>>0;}
+        b=(Math.imul(a,b)+b)>>>0;a=Math.imul(a,a)>>>0;}
+      return seed=>(Math.imul(ma,seed)+mb)>>>0;
+    }
     function surfacePlacements(n,target,mesh){
       const targetWorld=objectWorld(target.nativeHash),world=mesh.replicaMatrix?FM.mul(targetWorld,mesh.replicaMatrix):targetWorld;
       const distributor=objectWorld(n.nativeHash);
@@ -27373,11 +27532,14 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const space=scene,current=()=>scene===space&&replicaPlacements.get(n.id)===cache;
         replicaQueue=replicaQueue.then(async()=>{
           if(!current())return;
-          const samples=await sampler.sample(Math.max(1,Math.min(100000,Math.round(p.count))),p.seed|0,measure);
+          const count=frameReplicaPlacementCount(Number(frameClonerPlacementCount(p)));
+          const samples=await sampler.sample(count,p.seed|0,measure);
           if(!current())return;
           cache.samples=samples;cache.pending=false;syncReplicas();draw(true);
-        }).catch(e=>{if(current()){cache.pending=false;n.splineError=e.message;}});
+        }).catch(e=>{if(current()){cache.pending=false;cache.error=/Cloner (?:sample storage|surface sample storage)|Could not allocate Cloner/.test(e.message)?
+            frameReplicaCapacityError(e.message):e;syncReplicas(new Set([n.id]));draw(true);}});
       }
+      if(cache.error)throw cache.error;
       if(!cache.samples||cache.world&&FM.equal(cache.world,world)&&FM.equal(cache.distributor,distributor))return cache.frames;
       const samples=cache.samples,frames=[],inverse=FM.inv(world),toCloner=FM.inv(distributor);
       for(let i=0;i<samples.length;i+=6){
@@ -27391,13 +27553,72 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       cache.world=world.slice();cache.distributor=distributor.slice();cache.frames=frames;
       return frames;
     }
-    function objectPlacements(n,target){const p=n.params,mesh=scene.meshes.find(m=>m.hashId===target.nativeHash);
-      if(mesh)return surfacePlacements(n,target,mesh);
-      const data=target.splineData||FrameSpline.states.get(target.id)?.data,relative=FM.mul(FM.inv(objectWorld(n.nativeHash)),objectWorld(target.nativeHash));
-      if(!data)throw Error('Object Cloner requires a spline or surface');const result=[],step=Math.max(1e-6,+p.step||100),offset=+p.offset||0;for(const seq of data.sequences){const points=[];for(const sid of seq.segments){const samples=FrameSpline.K().sampleSplineSegment(data,sid);for(const q of samples){const point=FM.point(relative,q.position);if(!points.length||Math.hypot(...FM.sub(point,points.at(-1)))>1e-10)points.push(point);}}if(points.length<2)continue;const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...FM.sub(points[i],points[i-1])));const length=lengths.at(-1),count=Math.max(1,seq.closed?Math.floor(length/step+1e-10):Math.floor(length/step+1e-10)+1);if(result.length+count>100000)throw Error('Cloner exceeds 100000 copies; increase step');for(let i=0;i<count;i++){let distance=i*step+offset;if(seq.closed)distance=((distance%length)+length)%length;else if(distance<0||distance>length+1e-9)continue;let lo=1,hi=points.length-1;while(lo<hi){const m=(lo+hi)>>>1;if(lengths[m]<distance)lo=m+1;else hi=m;}const t=(distance-lengths[lo-1])/(lengths[lo]-lengths[lo-1]||1),point=points[lo-1].map((v,k)=>v+(points[lo][k]-v)*t);result.push(p.align==='tangent'?placementFrame(point,FM.sub(points[lo],points[lo-1])):FM.translation(point));}}return result;}
+    function frameClonerPathIndices(length,step,offset,closed){
+      const count=Math.max(1,Math.floor(length/step+1e-10)+(closed?0:1));
+      if(!Number.isSafeInteger(count))throw frameReplicaCapacityError('Cloner spline placement indices exceed safe integer precision');
+      if(closed)return [0,count];
+      // The old loop kept i*step+offset in [0,length+1e-9]. Solve the
+      // monotone inequalities using the exact same floating-point expression.
+      const boundary=test=>{
+        let lo=0,hi=count;
+        while(lo<hi){const i=lo+Math.floor((hi-lo)/2);if(test(i*step+offset))hi=i;else lo=i+1;}
+        return lo;
+      };
+      return [boundary(v=>v>=0),boundary(v=>v>length+1e-9)];
+    }
+    function frameClonerPathPlan(n,target,p){
+      const data=target.splineData||FrameSpline.states.get(target.id)?.data;
+      if(!data)throw Error('Object Cloner requires a spline or surface');
+      const relative=FM.mul(FM.inv(objectWorld(n.nativeHash)),objectWorld(target.nativeHash)),
+        step=Number(p.step??100),offset=Number(p.offset??0),rows=[];
+      if(!(step>0&&Number.isFinite(step)&&Number.isFinite(offset)))throw frameReplicaCapacityError('Cloner spline Step must be finite and positive and Offset finite');
+      let length=0n;
+      for(const seq of data.sequences){
+        const points=[];
+        for(const sid of seq.segments)for(const q of FrameSpline.K().sampleSplineSegment(data,sid)){
+          const point=FM.point(relative,q.position);
+          if(!points.length||Math.hypot(...FM.sub(point,points.at(-1)))>1e-10)points.push(point);
+        }
+        if(points.length<2)continue;
+        const lengths=[0];for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...FM.sub(points[i],points[i-1])));
+        const distance=lengths.at(-1);
+        if(!(distance>0&&Number.isFinite(distance)))throw frameReplicaCapacityError('Cloner spline placement path length is not finite and positive');
+        const [first,end]=frameClonerPathIndices(distance,step,offset,seq.closed),count=end-first;
+        if(count){rows.push({points,lengths,distance,closed:seq.closed,first,start:length});length+=BigInt(count);}
+      }
+      return {length,at(index){
+        const i=BigInt(index);
+        let a=0,b=rows.length-1;while(a<b){const j=a+Math.ceil((b-a)/2);if(rows[j].start<=i)a=j;else b=j-1;}
+        const row=rows[a],{lengths,points}=row;
+        let distance=(row.first+Number(i-row.start))*step+offset;
+        if(row.closed)distance=((distance%row.distance)+row.distance)%row.distance;
+        let lo=1,hi=points.length-1;while(lo<hi){const j=lo+Math.floor((hi-lo)/2);if(lengths[j]<distance)lo=j+1;else hi=j;}
+        const t=(distance-lengths[lo-1])/(lengths[lo]-lengths[lo-1]||1),
+          point=points[lo-1].map((v,k)=>v+(points[lo][k]-v)*t);
+        return p.align==='tangent'?placementFrame(point,FM.sub(points[lo],points[lo-1])):FM.translation(point);
+      }};
+    }
+    function estimateClonerPlacementCount(hash,changes={}){
+      const n=frameNodeByHash(hash);if(n?.type!=='cloner'||!scene)return null;
+      const p={...n.params,...changes};
+      if(p.type!=='object')return frameClonerPlacementCount(p);
+      const target=objectReference(p.object);if(!target||target===n)return null;
+      if(scene.meshes.some(m=>m.hashId===target.nativeHash))return frameClonerPlacementCount(p);
+      if(!target.splineData&&!FrameSpline.states.get(target.id)?.data)return null;
+      return frameClonerPathPlan(n,target,p).length;
+    }
+    function objectPlacements(n,target){
+      const mesh=scene.meshes.find(m=>m.hashId===target.nativeHash);
+      if(mesh){
+        const list=surfacePlacements(n,target,mesh);
+        return {length:list.length,at:i=>list[i]};
+      }
+      const plan=frameClonerPathPlan(n,target,n.params);
+      return {length:frameReplicaPlacementCount(Number(plan.length)),at:plan.at};
+    }
 
     async function ensureIndependentGeometry(mesh){if(!mesh.cowShared&&!mesh.cowToken?.count)return;const gpu=renderer,positions=duplicateResource(gpu,mesh.positions,'editable copy positions'),indices=duplicateResource(gpu,mesh.indices,'editable copy indices'),e=gpu.device.createCommandEncoder();copyResource(e,mesh.positions,positions);copyResource(e,mesh.indices,indices);gpu.device.queue.submit([e.finish()]);const input={...inheritCreaseSettings(mesh),gpuCanonical:true,nativeExact:true,vertices:positions,indices,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount},next=mesh.paged?await uploadPagedAndCompute(gpu,input,mesh.partOptions||{}):await uploadAndCompute(gpu,input),copy=gpu.device.createCommandEncoder();copy.copyBufferToBuffer(mesh.connected.flags,0,next.connected.flags,0,Math.min(mesh.connected.flags.size,next.connected.flags.size));gpu.device.queue.submit([copy.finish()]);publishTopology(gpu,[{mesh,next}]);syncReplicas();}
-    function evaluatedGeometry(n){flushReplicaPublication();const surfaces=[],curves=[];function visit(q){if(!q||!q.enabled)return;const own=scene.meshes.filter(m=>m.hashId===q.nativeHash),lines=(scene.curveReplicas||[]).filter(m=>m.hashId===q.nativeHash);if(own.length||lines.length){surfaces.push(...own);curves.push(...lines);return;}const display=splineDisplays.get(q.nativeHash);if(display){curves.push({curve:true,hashId:q.nativeHash,display});return;}for(const child of children(q.id))visit(child);}visit(n);return {surfaces,curves};}
+    function evaluatedGeometry(n){flushReplicaPublication();const surfaces=[],curves=[];function visit(q){if(!q||!q.enabled)return;const own=scene.meshes.filter(m=>m.hashId===q.nativeHash),lines=(scene.curveReplicas||[]).filter(m=>m.hashId===q.nativeHash);if(own.length||lines.length){for(const m of own)surfaces.push(m);for(const m of lines)curves.push(m);return;}const display=splineDisplays.get(q.nativeHash);if(display){curves.push({curve:true,hashId:q.nativeHash,display});return;}for(const child of children(q.id))visit(child);}visit(n);return {surfaces,curves};}
     async function loadFileSource(file,options){const before=new Set(materials.map(m=>m.uid)),assets=new Set(frameMaterialAssets.keys());await mergeFile(file,{fileSource:options,readResource:options.readResource});return {root:options.root,materials:materials.filter(m=>!before.has(m.uid)).map(m=>m.uid),assets:[...frameMaterialAssets.keys()].filter(id=>!assets.has(id))};}
     function retireFileSource(token){
       if(!scene)return;const dead=nodes.filter(n=>n.fileSource===token),hashes=new Set(dead.map(n=>n.nativeHash)),ids=new Set(dead.map(n=>n.id));
@@ -27531,8 +27752,21 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     function syncReplicas(requested=null){
       if(!scene||!renderer||replicaBuilding)return;acknowledgeReplicaPublication(requested);replicaBuilding=true;try{const {owners,ownerSet,nodeByHash,sourceChildren}=replicaAuthoringIndexes(scene,nodes),wanted=new Map(),visibility=new WeakMap(),seen=new Set();let changed=false;
       function vis(n,child=false){if(!n)return false;const slot=child?2:1,cached=visibility.get(n)||0;if(cached&slot)return !!(cached&(slot<<2));const value=!!(n.visible&&(n.enabled||FramePlugins.owner(n)?.viewport?.enabledAffectsVisibility===false||child&&(window.FrameSpline?.generators.has(n.type)||['cloner','symmetry'].includes(n.type)))&&(!n.parent||vis(node(n.parent),true)));visibility.set(n,(visibility.get(n)||0)|slot|(value?slot<<2:0));return value;}
-      const raw=scene.meshes.filter(m=>!m.replicaMatrix),rawHashes=new Set(raw.map(m=>m.hashId)),curveSources=[...splineDisplays.values()].filter(d=>!rawHashes.has(d.hash)).map(d=>({curve:true,hashId:d.hash,display:d})),oldCurves=scene.curveReplicas||[],curveByKey=new Map(oldCurves.map(m=>[m.replicaKey,m])),builtCurves=[],existing=scene.meshes.filter(m=>m.replicaMatrix),byKey=new Map(existing.map(m=>[m.replicaKey,m])),built=[],sourceByHash=new Map();for(const m of [...raw,...curveSources]){let list=sourceByHash.get(m.hashId);if(!list)sourceByHash.set(m.hashId,list=[]);list.push(m);}
-      const scopedCounts=requested&&!splineLoadBatch?new Map():null;let scopedRemaining=0;if(scopedCounts)for(const m of [...existing,...oldCurves])if(ownerSet.has(nodeByHash.get(m.hashId))){scopedCounts.set(m.hashId,(scopedCounts.get(m.hashId)||0)+1);scopedRemaining++;}
+      const raw=scene.meshes.filter(m=>!m.replicaMatrix),rawHashes=new Set(raw.map(m=>m.hashId)),curveSources=[...splineDisplays.values()].filter(d=>!rawHashes.has(d.hash)).map(d=>({curve:true,hashId:d.hash,display:d})),oldCurves=scene.curveReplicas||[],curveByKey=new Map(oldCurves.map(m=>[m.replicaKey,m])),existing=scene.meshes.filter(m=>m.replicaMatrix),byKey=new Map(existing.map(m=>[m.replicaKey,m])),sourceByHash=new Map();let built=[],builtCurves=[];for(const m of [...raw,...curveSources]){let list=sourceByHash.get(m.hashId);if(!list)sourceByHash.set(m.hashId,list=[]);list.push(m);}
+      const scopedCounts=requested&&!splineLoadBatch?new Map():null,priorLayout=new Map(),chargedPrior=new Set();
+      let layout={meshes:raw.length,curves:0,faces:raw.reduce((n,m)=>n+m.triangleCount,0)};
+      // Account for still-live independent owners while preparing a replacement.
+      for(const [list,curve]of [[existing,false],[oldCurves,true]])for(const m of list)if(ownerSet.has(nodeByHash.get(m.hashId))){
+        let prior=priorLayout.get(m.hashId);if(!prior){priorLayout.set(m.hashId,prior={meshes:0,curves:0,faces:0,rows:[],paths:[]});chargedPrior.add(m.hashId);}
+        if(curve){prior.paths.push(m);prior.curves++;layout.curves++;}
+        else{prior.rows.push(m);prior.meshes++;layout.meshes++;prior.faces+=m.triangleCount;layout.faces+=m.triangleCount;}
+        if(scopedCounts)scopedCounts.set(m.hashId,(scopedCounts.get(m.hashId)||0)+1);
+      }
+      function takePriorLayout(hash){
+        if(!chargedPrior.delete(hash))return;
+        const prior=priorLayout.get(hash);
+        layout={meshes:layout.meshes-prior.meshes,curves:layout.curves-prior.curves,faces:layout.faces-prior.faces};
+      }
       // Only evaluated cage inputs are replaced by a generated surface; other descendants remain occurrences.
       const consumedInputs=new Map();
       function sourceDescendant(root,id){const children=sourceChildren.get(root);if(!children?.length)return false;const stack=children.slice(),visited=new Set([root]);while(stack.length){const child=stack.pop();if(visited.has(child.id))continue;visited.add(child.id);if(child.id===id)return true;for(const next of sourceChildren.get(child.id)||[])stack.push(next);}return false;}
@@ -27542,44 +27776,54 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(!inputs){inputs=new Map();let count=0;for(const row of FrameSpline.generatorSources(owner,sourceChildren)){const data=FrameSpline.states.get(row.node.id)?.data;if(!data||!Object.keys(data.segments||{}).length)continue;if(owner.type==='sweep'&&count++>=2)break;const id=(row.instances[0]||row.node).id;let hashes=inputs.get(id);if(!hashes)inputs.set(id,hashes=new Set());hashes.add(row.node.nativeHash);}consumedInputs.set(owner,inputs);}
         let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;return inputs.get(c.id)?.has(source.curve?source.display.hash:canonical.hashId)||false;
       }
+      const placementArray=list=>({length:list.length,at:i=>list[i]});
       function matrix(n){
-        const p=n.params,out=[],axes=['x','y','z'];
-        if(n.type==='instance')return [FM.I()];
+        const p=n.params,axes=['x','y','z'];
+        if(n.type==='instance')return placementArray([FM.I()]);
         if(n.type==='symmetry'){
           let list=[FM.I()];
           for(let a=0;a<3;a++)if(p[axes[a].toUpperCase()])list=list.flatMap(m=>{const q=FM.I();q[a*5]=-1;return [m,FM.mul(q,m)];});
-          return list;
+          return placementArray(list);
         }
         if(p.type==='radial'){
-          const count=Math.min(100000,Math.max(1,Math.round(p.count)));
-          for(let i=0;i<count;i++){
+          const count=frameReplicaPlacementCount(Number(frameClonerPlacementCount(p)));
+          if(!Number.isFinite(p.radius)||!Number.isFinite(p.angle)||!Number.isFinite(count*p.angle*Math.PI/180))
+            throw frameReplicaCapacityError('Cloner radial placement coordinates are not finite');
+          return {length:count,at(i){
             const angle=i*p.angle*Math.PI/180/Math.max(1,p.count),s=Math.sin(angle),c=Math.cos(angle);
-            const m=placementFrame([0,0,0],[-s,0,c]);m[12]=p.radius*c;m[14]=p.radius*s;out.push(m);
-          }
-        }else if(p.type==='matrix'){
-          const count=axes.map(a=>Math.max(1,Math.round(p['count '+a]))),spacing=axes.map(a=>p['spacing '+a]),center=count.map(n=>(n-1)/2);
-          if(count[0]*count[1]*count[2]>100000)throw Error('Cloner exceeds 100000 instances');
-          for(let z=0;z<count[2];z++)for(let y=0;y<count[1];y++)for(let x=0;x<count[0];x++){
-            const frame=FM.I();frame[12]=(x-center[0])*spacing[0];frame[13]=(y-center[1])*spacing[1];frame[14]=(z-center[2])*spacing[2];out.push(frame);
-          }
-        }else{
-          const target=objectReference(p.object);
-          if(!target||target===n||sourceDescendant(n.id,target.id))throw Error('Object Cloner requires an independent source');
-          return objectPlacements(n,target);
+            const m=placementFrame([0,0,0],[-s,0,c]);m[12]=p.radius*c;m[14]=p.radius*s;return m;
+          }};
         }
-        return out;
+        if(p.type==='matrix'){
+          const count=axes.map(a=>frameReplicaCount(p['count '+a],'Cloner Count '+a)),spacing=axes.map(a=>p['spacing '+a]),center=count.map(n=>(n-1)/2);
+          const length=frameReplicaPlacementCount(Number(frameClonerPlacementCount(p))),plane=count[0]*count[1];
+          if(spacing.some((value,i)=>!Number.isFinite(value)||!Number.isFinite(value*center[i])))
+            throw frameReplicaCapacityError('Cloner matrix placement coordinates are not finite');
+          return {length,at(i){
+            const x=i%count[0],y=Math.floor(i/count[0])%count[1],z=Math.floor(i/plane),frame=FM.I();
+            frame[12]=(x-center[0])*spacing[0];frame[13]=(y-center[1])*spacing[1];frame[14]=(z-center[2])*spacing[2];return frame;
+          }};
+        }
+        const target=objectReference(p.object);
+        if(!target||target===n||sourceDescendant(n.id,target.id))throw Error('Object Cloner requires an independent source');
+        return objectPlacements(n,target);
       }
-      function evaluate(n){if(wanted.has(n.nativeHash))return wanted.get(n.nativeHash);if(seen.has(n.id))throw Error('Instance dependency cycle');seen.add(n.id);if(scopedCounts)scopedRemaining-=scopedCounts.get(n.nativeHash)||0;let sources=[],families=new Map();function collect(c,root=c,consumer=null){if(!c?.enabled||c!==root&&!c.visible)return;const own=ownerSet.has(c)?evaluate(c):sourceByHash.get(c.nativeHash)||[];for(const source of own)if(!consumer||!consumedInput(consumer,c,source)){sources.push(source);families.set(source,root);}if(ownerSet.has(c)||polygonGenerator(c.type)&&own.some(m=>!m.curve)&&!c.splineError)return;const next=own.some(m=>!m.curve)&&!c.splineError&&FrameSpline.generators.has(c.type)?c:c.type==='group'?consumer:null;for(const child of sourceChildren.get(c.id)||[])collect(child,root,next);}if(n.enabled){if(n.type==='instance'){const source=objectReference(n.params.object,n);if(!source||source===n||sourceDescendant(n.id,source.id))throw Error('Instance requires an independent source');collect(source);}else for(const child of sourceChildren.get(n.id)||[])collect(child);}const result=[],transforms=n.enabled?matrix(n):[],cloner=n.type==='cloner',p=n.params,axes=['x','y','z'];
+      function evaluate(n){if(wanted.has(n.nativeHash))return wanted.get(n.nativeHash);if(seen.has(n.id))throw Error('Instance dependency cycle');seen.add(n.id);takePriorLayout(n.nativeHash);let sources=[],families=new Map();function collect(c,root=c,consumer=null){if(!c?.enabled||c!==root&&!c.visible)return;const own=ownerSet.has(c)?evaluate(c):sourceByHash.get(c.nativeHash)||[];for(const source of own)if(!consumer||!consumedInput(consumer,c,source)){sources.push(source);families.set(source,root);}if(ownerSet.has(c)||polygonGenerator(c.type)&&own.some(m=>!m.curve)&&!c.splineError)return;const next=own.some(m=>!m.curve)&&!c.splineError&&FrameSpline.generators.has(c.type)?c:c.type==='group'?consumer:null;for(const child of sourceChildren.get(c.id)||[])collect(child,root,next);}if(n.enabled){if(n.type==='instance'){const source=objectReference(n.params.object,n);if(!source||source===n||sourceDescendant(n.id,source.id))throw Error('Instance requires an independent source');collect(source);}else for(const child of sourceChildren.get(n.id)||[])collect(child);}const result=[],updates=[],transforms=n.enabled?matrix(n):placementArray([]),cloner=n.type==='cloner',p=n.params,axes=['x','y','z'];
       const randomAngle=axes.map(a=>p['random angle '+a]||0),randomScale=axes.map(a=>p['random scale '+a]||0),randomPosition=axes.map(a=>p['random position '+a]||0);
-      let seed=(p.seed||1)>>>0;
-      const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
-      const randoms=cloner&&[...randomAngle,...randomScale,...randomPosition].some(Boolean)?transforms.map(()=>{
-        const m=FM.fromEuler(randomAngle.map(v=>rand()*v*Math.PI/180)),scale=randomScale.map(v=>Math.max(1e-6,1+rand()*v/100));
-        if(p['uniform scale'])scale.fill(scale[0]);
-        for(let j=0;j<3;j++)for(let k=0;k<3;k++)m[j*4+k]*=scale[j];
-        return {matrix:m,position:randomPosition.map(v=>rand()*v)};
-      }):null;
-      const choices=[...new Set(families.values())],reference=n.type==='instance'?objectReference(p.object,n):null;
+      const hasRandom=cloner&&[...randomAngle,...randomScale,...randomPosition].some(Boolean),initialSeed=(p.seed||1)>>>0;
+      if(hasRandom&&[...randomAngle,...randomScale,...randomPosition].some(v=>!Number.isFinite(v)))
+        throw frameReplicaCapacityError('Cloner random displacement parameters must be finite');
+      const choices=[...new Set(families.values())],familyIndices=new Map(choices.map((family,i)=>[family,i])),
+        reference=n.type==='instance'?objectReference(p.object,n):null,step=cloner?choices.length:1,
+        firstFor=source=>cloner?familyIndices.get(families.get(source)):0;
+      let planned=layout,ownerCount=0;
+      for(const source of sources){
+        const first=firstFor(source),count=first<transforms.length?1+Math.floor((transforms.length-1-first)/step):0;
+        ownerCount=frameReplicaPlacementCount(ownerCount+count);
+        planned=frameReplicaLayout(planned,source.curve?{meshes:0,curves:count,faces:0}:
+          {meshes:count,curves:0,faces:count*source.triangleCount});
+      }
+      const advance=hasRandom&&step?frameReplicaRandomJump((step-1)*9):null;
       for(const source of sources){
         const sourceFrame=target=>{
           const frame=objectRelativeFrame(source.hashId,target);
@@ -27593,29 +27837,43 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           const hash=root?.nativeHash||source.hashId;
           relative=p.type==='object'&&!root?sourceFrame(hash):FM.mul(FM.inv(objectPivot(hash)),sourceFrame(hash));
         }else relative=sourceFrame(n.nativeHash);
-        const first=cloner?choices.indexOf(families.get(source)):0,step=cloner?choices.length:1;
+        const first=firstFor(source);
+        let seed=hasRandom?frameReplicaRandomJump(first*9)(initialSeed):0;
+        const rand=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2147483648-1;};
         let canonical=source;while(canonical.replicaSource)canonical=canonical.replicaSource;
         const lazyBindings=!source.curve&&!source.paged&&!classifiedSurfaceWire(source)&&transforms.length>=256*step;
         let sharedBuffers;
         for(let i=first;i<transforms.length;i+=step){
-          if(scopedRemaining+built.length+builtCurves.length>=100000)throw Error('Scene replica limit: 100000 copies');
-          const variation=randoms?.[i],local=FM.mul(variation?FM.mul(transforms[i],variation.matrix):transforms[i],relative);
-          if(variation)for(let k=0;k<3;k++)local[12+k]+=variation.position[k];
+          const frame=transforms.at(i);
+          let local;
+          if(hasRandom){
+            const variation=FM.fromEuler(randomAngle.map(v=>rand()*v*Math.PI/180)),scale=randomScale.map(v=>Math.max(1e-6,1+rand()*v/100));
+            if(p['uniform scale'])scale.fill(scale[0]);
+            for(let j=0;j<3;j++)for(let k=0;k<3;k++)variation[j*4+k]*=scale[j];
+            local=FM.mul(FM.mul(frame,variation),relative);
+            for(let k=0;k<3;k++)local[12+k]+=rand()*randomPosition[k];
+            seed=advance(seed);
+          }else local=FM.mul(frame,relative);
+          if(!local.every(Number.isFinite))throw Error('Cloner occurrence transform is not finite');
           const key=n.nativeHash+':'+(source.replicaKey||source.hashId)+':'+i,signature=source.version;
           if(source.curve){
             let m=curveByKey.get(key);
             if(!m){
               m={curve:true,hashId:n.nativeHash,replicaKey:key,replicaSource:source,replicaMatrix:local,display:source.display,buffers:[]};
+              builtCurves.push(m);
               m.uniform=meshAllocator(renderer,m)('instance curve frame',80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
+            }else{
+              if(m.display!==source.display||m.replicaSource!==source||!FM.equal(m.replicaMatrix,local))
+                updates.push({curve:true,m,source,local});
+              builtCurves.push(m);
             }
-            if(m.display!==source.display){m.hitDisplay=null;m.hitDisplayVersion=undefined;}
-            m.replicaSource=source;m.display=source.display;m.replicaMatrix=local;
-            result.push(m);builtCurves.push(m);continue;
+            result.push(m);continue;
           }
           let m=byKey.get(key);
           if(m&&(m.replicaSource!==source||m.indices!==source.indices||m.count!==source.count||
             m.replicaPositions!==source.positions||m.replicaNormals!==source.normals||m.renderIndices!==source.renderIndices||
             m.splineWireRevision!==source.splineWireRevision||m.parts!==undefined&&m.replicaParts!==source.parts))m=null;
+          const reused=!!m;
           if(!m){
             if(!canonical.replicaFlags)canonical.replicaFlags=meshAllocator(renderer,canonical)('shared replica selection',Math.max(16,Math.ceil(canonical.vertexCount/32)*4),GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC);
             m={...source,buffers:[],borrowed:sharedBuffers??=replicaResources(canonical),objectFrame:null,frameWords:null,
@@ -27625,32 +27883,61 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
               replicaNormals:source.normals,replicaParts:source.parts,replicaKey:key,frameWorld:null,frameInverse:null,
               localBoundsMin:[...(source.localBoundsMin||source.boundsMin)],localBoundsMax:[...(source.localBoundsMax||source.boundsMax)]};
             for(const b of m.borrowed){let lease=gpuLeases.get(b);if(!lease)gpuLeases.set(b,lease={count:0,retired:false});lease.count++;}
+            built.push(m);
             const range=lazyBindings?null:meshAllocator(renderer,m)('instance face range',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
             m.connected={...source.connected,flags:canonical.replicaFlags,range};
             if(source.parts)m.parts=source.parts.map(p=>({...p,owner:m}));
             if(!lazyBindings)meshRenderGroups(renderer,m);
             changed=true;
           }
-          m.replicaVersion=signature;m.version=signature;m.normalCount=source.normalCount;m.replicaMatrix=local;
           const lo=source.localBoundsMin||source.boundsMin,hi=source.localBoundsMax||source.boundsMax;
-          if(m.replicaBoundsRevision!==source.geometryRevision||lo.some((v,k)=>v!==m.localBoundsMin[k])||hi.some((v,k)=>v!==m.localBoundsMax[k])){
-            m.localBoundsMin=[...lo];m.localBoundsMax=[...hi];
-            for(const [j,part] of (m.parts||[]).entries()){
-              const p=source.parts[j];part.localBoundsMin=[...(p.localBoundsMin||p.boundsMin)];part.localBoundsMax=[...(p.localBoundsMax||p.boundsMax)];
-            }
-            m.replicaBoundsRevision=source.geometryRevision;m.frameGenerated=undefined;
-          }
-          result.push(m);built.push(m);
+          const bounds=m.replicaBoundsRevision!==source.geometryRevision||lo.some((v,k)=>v!==m.localBoundsMin[k])||hi.some((v,k)=>v!==m.localBoundsMax[k]);
+          if(reused){
+            if(bounds||m.replicaVersion!==signature||m.version!==signature||m.normalCount!==source.normalCount||!FM.equal(m.replicaMatrix,local))
+              updates.push({m,source,local,signature,box:bounds?prepareReplicaBox(m,source,lo,hi):null});
+            built.push(m);
+          }else applyReplicaUpdate(m,source,local,signature,bounds?prepareReplicaBox(m,source,lo,hi):null);
+          result.push(m);
         }
       }
-      wanted.set(n.nativeHash,result);seen.delete(n.id);delete n.splineError;return result;
+      // Newly allocated staging rows are complete. Only now modify reused
+      // objects which may still be the visible last-good layout.
+      for(const {curve,m,source,local,signature,box}of updates){
+        if(curve){
+          if(m.display!==source.display){m.hitDisplay=null;m.hitDisplayVersion=undefined;}
+          m.replicaSource=source;m.display=source.display;m.replicaMatrix=local;
+        }else applyReplicaUpdate(m,source,local,signature,box);
+      }
+      layout=planned;wanted.set(n.nativeHash,result);seen.delete(n.id);delete n.splineError;return result;
+      }
+      function prepareReplicaBox(m,source,lo,hi){
+        return {lo:[...lo],hi:[...hi],parts:(m.parts||[]).map((_,j)=>{
+          const p=source.parts[j];return {lo:[...(p.localBoundsMin||p.boundsMin)],hi:[...(p.localBoundsMax||p.boundsMax)]};
+        })};
+      }
+      function applyReplicaUpdate(m,source,local,signature,box){
+        m.replicaVersion=signature;m.version=signature;m.normalCount=source.normalCount;m.replicaMatrix=local;
+        if(box){
+          m.localBoundsMin=box.lo;m.localBoundsMax=box.hi;
+          box.parts.forEach(({lo,hi},j)=>{m.parts[j].localBoundsMin=lo;m.parts[j].localBoundsMax=hi;});
+          m.replicaBoundsRevision=source.geometryRevision;m.frameGenerated=undefined;
+        }
       }
       function failReplicaOwners(requestedOwner,error){
         const failed=new Set([requestedOwner]);for(const id of seen){const owner=node(id);if(owner&&ownerSet.has(owner))failed.add(owner);}
-        const hashes=new Set();for(const owner of failed){owner.splineError=error.message;hashes.add(owner.nativeHash);wanted.set(owner.nativeHash,[]);}
+        const hashes=new Set();for(const owner of failed){takePriorLayout(owner.nativeHash);owner.splineError=error.message;hashes.add(owner.nativeHash);wanted.set(owner.nativeHash,[]);}
         const priorMeshes=new Set(existing),priorCurves=new Set(oldCurves);
-        for(let i=built.length-1;i>=0;i--)if(hashes.has(built[i].hashId)){const mesh=built.splice(i,1)[0];if(!priorMeshes.has(mesh))disposeMesh(mesh);}
-        for(let i=builtCurves.length-1;i>=0;i--)if(hashes.has(builtCurves[i].hashId)){const curve=builtCurves.splice(i,1)[0];if(!priorCurves.has(curve))for(const buffer of curve.buffers)releaseGPU(buffer);}
+        built=built.filter(mesh=>{if(!hashes.has(mesh.hashId))return true;if(!priorMeshes.has(mesh))disposeMesh(mesh);return false;});
+        builtCurves=builtCurves.filter(curve=>{if(!hashes.has(curve.hashId))return true;if(!priorCurves.has(curve))for(const buffer of curve.buffers)releaseGPU(buffer);return false;});
+        if(frameReplicaRecoverable(error))for(const owner of failed){
+          const hash=owner.nativeHash,prior=priorLayout.get(hash);if(!prior)continue;
+          // Preflight or a staging allocation failed; keep this owner's live
+          // rows unchanged and expose the actual representation/resource error.
+          try{layout=frameReplicaLayout(layout,prior);}catch{continue;}
+          const rows=[];for(const m of prior.rows){rows.push(m);built.push(m);}
+          for(const m of prior.paths){rows.push(m);builtCurves.push(m);}
+          wanted.set(hash,rows);
+        }
         seen.clear();
       }
       for(const n of requested?owners.filter(n=>requested.has(n.id)):owners)try{evaluate(n);}catch(e){failReplicaOwners(n,e);}if(requested&&splineLoadBatch){const alive=existing.filter(m=>!wanted.has(m.hashId)),retainedMeshes=new Set(built);for(const m of existing)if(wanted.has(m.hashId)&&!retainedMeshes.has(m))disposeMesh(m);const curves=oldCurves.filter(m=>!wanted.has(m.hashId)),retainedCurves=new Set(builtCurves);for(const m of oldCurves)if(wanted.has(m.hashId)&&!retainedCurves.has(m))for(const b of m.buffers)releaseGPU(b);scene.meshes=[...raw,...alive,...built];scene.curveReplicas=[...curves,...builtCurves];for(const m of [...built,...builtCurves]){const n=nodeByHash.get(m.hashId);m.frameVisible=vis(n)&&n.enabled&&frameSoloContains(n);}
@@ -27662,7 +27949,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         // owner blocks in place so scoped evaluation cannot reorder coplanar
         // surfaces, retire their buffers, or lose their source-consumption state.
         function mergeOwners(previous,next){const groups=new Map(),emitted=new Set(),merged=[];for(const m of next){let list=groups.get(m.hashId);if(!list)groups.set(m.hashId,list=[]);list.push(m);}for(const m of previous){if(!ownerSet.has(nodeByHash.get(m.hashId)))continue;if(!wanted.has(m.hashId))merged.push(m);else if(!emitted.has(m.hashId)){for(const row of groups.get(m.hashId)||[])merged.push(row);emitted.add(m.hashId);}}for(const [hash,list]of groups)if(!emitted.has(hash))for(const row of list)merged.push(row);return merged;}
-        const merged=mergeOwners(existing,built),curves=mergeOwners(oldCurves,builtCurves);built.length=0;for(const m of merged)built.push(m);builtCurves.length=0;for(const m of curves)builtCurves.push(m);
+        built=mergeOwners(existing,built);builtCurves=mergeOwners(oldCurves,builtCurves);
         // Unchanged owner rows keep their existing order; their counts are already in scopedCounts.
       }
       const keep=new Set(built),keepCurves=new Set(builtCurves);for(const m of existing)if(!keep.has(m)){disposeMesh(m);changed=true;}for(const m of oldCurves)if(!keepCurves.has(m))for(const b of m.buffers)releaseGPU(b);let visibilityChanged=false;const ownerByHash=nodeByHash;for(const m of [...built,...builtCurves]){const n=ownerByHash.get(m.hashId);let hidden=false,p=node(n.parent);while(p){if(p.type==='unite'&&m.curve&&!FrameSpline.consumesInput(p,n)){p=node(p.parent);continue;}if(p.enabled&&(polygonGenerator(p.type)||!FrameSpline.generators.has(p.type)||consumedInput(p,n,m))&&(FrameSpline.generators.has(p.type)&&FrameSpline.states.get(p.id)?.data&&!FrameSpline.states.get(p.id)?.empty&&!p.splineError||polygonGenerator(p.type)&&FrameSpline.states.get(p.id)?.signature||['cloner','symmetry'].includes(p.type)&&occurrenceCount(p.nativeHash))){hidden=true;break;}p=node(p.parent);}m.frameSourceConsumed=hidden;const visible=vis(n)&&n.enabled&&frameSoloContains(n)&&!hidden;visibilityChanged||=m.frameVisible!==visible;m.frameVisible=visible;}if(oldCurves.length!==builtCurves.length||oldCurves.some((m,i)=>m!==builtCurves[i]))scene.curveReplicas=builtCurves;
@@ -29823,10 +30110,10 @@ function FramePolygonKernel(d){
 }
 
     function polygonWorker(args){const url=URL.createObjectURL(new Blob([FramePolygonKernel.toString(),';onmessage=({data})=>{try{const r=FramePolygonKernel(data);postMessage(r,Object.values(r).filter(ArrayBuffer.isView).map(v=>v.buffer));}catch(e){postMessage({error:e.message});}}'],{type:'text/javascript'})),worker=new Worker(url);URL.revokeObjectURL(url);return new Promise((resolve,reject)=>{worker.onmessage=({data})=>{worker.terminate();data.error?reject(Error(data.error)):resolve(data);};worker.onerror=e=>{worker.terminate();reject(Error(e.message));};worker.postMessage(args,Object.values(args).filter(ArrayBuffer.isView).map(v=>v.buffer));});}
-    async function polygonSelection(mesh){const flags=new Uint32Array((await nativeReadGPU(renderer,mesh.connected.flags,Math.ceil(mesh.vertexCount/32))).buffer),vertices=[];for(let i=0;i<mesh.vertexCount;i++)if(flags[i>>5]>>(i&31)&1)vertices.push(i);const edges=[];if(elementMode==='edge'){const selected=renderer.boxSelection,explicit=selected?.mode==='edge'&&selected.space===scene,bits=explicit?new Uint32Array((await nativeReadGPU(renderer,selected.bits,selected.bits.size/4)).buffer):null;for(const draw of featureDrawGroups(renderer).filter(d=>d.mesh===mesh)){const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++){const a=lines[i*2],b=lines[i*2+1],id=draw.edgeBase+i;if(bits?bits[id>>5]>>(id&31)&1:(flags[a>>5]>>(a&31)&1)&&(flags[b>>5]>>(b&31)&1))edges.push(Math.min(a,b)+':'+Math.max(a,b));}}}return {vertices,edges};}
-    async function polygonSelect(mesh,mode,ids){selectionGeneration++;selectionScope='components';objectSelection=[];componentPivot=coordinateCache=measurementCache=null;const d=renderer.device,e=d.createCommandEncoder();for(const m of scene.meshes)e.clearBuffer(m.connected.flags);d.queue.submit([e.finish()]);setViewerMode('element',mode);if(mode==='vertex'){const words=new Uint32Array(Math.ceil(mesh.vertexCount/32));for(const v of ids)words[v>>5]|=1<<(v&31);d.queue.writeBuffer(mesh.connected.flags,0,words);await selectionFromFlags(renderer,mode);}else{const state=await createElementState(renderer,mode),bits=new Uint32Array(state.bits.size/4),keys=new Set(ids);for(const draw of featureDrawGroups(renderer).filter(d=>d.mesh===mesh)){const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++)if(keys.has(Math.min(lines[i*2],lines[i*2+1])+':'+Math.max(lines[i*2],lines[i*2+1]))){const v=draw.edgeBase+i;bits[v>>5]|=1<<(v&31);}}d.queue.writeBuffer(state.bits,0,bits);await selectionFromFlags(renderer,mode,state.bits);}notifyTransformUI();await draw();}
+    async function polygonSelection(mesh){const flags=new Uint32Array((await nativeReadGPU(renderer,mesh.connected.flags,Math.ceil(mesh.vertexCount/32))).buffer),vertices=[];for(let i=0;i<mesh.vertexCount;i++)if(flags[i>>5]>>(i&31)&1)vertices.push(i);const edges=[];if(elementMode==='edge'){const selected=renderer.boxSelection,explicit=selected?.mode==='edge'&&selected.space===scene,bits=explicit?new Uint32Array((await nativeReadGPU(renderer,selected.bits,selected.bits.size/4)).buffer):null;for(const draw of featureDrawGroups(renderer).filter(d=>d.mesh===mesh)){const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++){const a=lines[i*2],b=lines[i*2+1],id=draw.edgeBase+i;if(bits?bits[id>>>5]>>(id&31)&1:(flags[a>>5]>>(a&31)&1)&&(flags[b>>5]>>(b&31)&1))edges.push(Math.min(a,b)+':'+Math.max(a,b));}}}return {vertices,edges};}
+    async function polygonSelect(mesh,mode,ids){selectionGeneration++;selectionScope='components';objectSelection=[];componentPivot=coordinateCache=measurementCache=null;const d=renderer.device,e=d.createCommandEncoder();for(const m of scene.meshes)e.clearBuffer(m.connected.flags);d.queue.submit([e.finish()]);setViewerMode('element',mode);if(mode==='vertex'){const words=new Uint32Array(Math.ceil(mesh.vertexCount/32));for(const v of ids)words[v>>5]|=1<<(v&31);d.queue.writeBuffer(mesh.connected.flags,0,words);await selectionFromFlags(renderer,mode);}else{const state=await createElementState(renderer,mode),bits=new Uint32Array(state.bits.size/4),keys=new Set(ids);for(const draw of featureDrawGroups(renderer).filter(d=>d.mesh===mesh)){const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++)if(keys.has(Math.min(lines[i*2],lines[i*2+1])+':'+Math.max(lines[i*2],lines[i*2+1]))){const v=draw.edgeBase+i;bits[v>>>5]|=1<<(v&31);}}d.queue.writeBuffer(state.bits,0,bits);await selectionFromFlags(renderer,mode,state.bits);}notifyTransformUI();await draw();}
     function restoreComponents(saved){const space=scene;selectionQueue=selectionQueue.catch(()=>{}).then(async()=>{if(scene!==space)return;setViewerMode('element',saved.mode);selectionGeneration++;selectionScope='components';objectSelection=[];const state=await createElementState(renderer,saved.mode),bits=new Uint32Array(state.bits.size/4),draws=featureDrawGroups(renderer);
-      for(const row of saved.rows){const mesh=scene.meshes.find(m=>m.hashId===row.hash);if(!mesh)continue;const ids=new Set(row.ids);if(saved.mode==='polygon'){for(const id of ids){const bit=mesh.faceBase+1+id;bits[bit>>5]|=1<<(bit&31);}}else for(const draw of draws.filter(d=>d.mesh===mesh)){if(saved.mode==='vertex'){if(draw.first)for(const id of ids){const bit=draw.vertexBase+id;bits[bit>>5]|=1<<(bit&31);}}else{const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++)if(ids.has(Math.min(lines[i*2],lines[i*2+1])+':'+Math.max(lines[i*2],lines[i*2+1]))){const bit=draw.edgeBase+i;bits[bit>>5]|=1<<(bit&31);}}}}
+      for(const row of saved.rows){const mesh=scene.meshes.find(m=>m.hashId===row.hash);if(!mesh)continue;const ids=new Set(row.ids);if(saved.mode==='polygon'){for(const id of ids){const bit=mesh.faceBase+1+id;bits[bit>>>5]|=1<<(bit&31);}}else for(const draw of draws.filter(d=>d.mesh===mesh)){if(saved.mode==='vertex'){if(draw.first)for(const id of ids){const bit=draw.vertexBase+id;bits[bit>>>5]|=1<<(bit&31);}}else{const lines=new Uint32Array((await nativeReadGPU(renderer,draw.part.lines,draw.edgeCount*2)).buffer);for(let i=0;i<draw.edgeCount;i++)if(ids.has(Math.min(lines[i*2],lines[i*2+1])+':'+Math.max(lines[i*2],lines[i*2+1]))){const bit=draw.edgeBase+i;bits[bit>>>5]|=1<<(bit&31);}}}}
       renderer.device.queue.writeBuffer(state.bits,0,bits);await selectionFromFlags(renderer,saved.mode,state.bits);componentPivot=saved.pivot&&Float64Array.from(saved.pivot);selectionArea=saved.area;coordinateCache=measurementCache=null;notifyTransformUI();await draw(true);
     }).catch(editError);return selectionQueue;}
     let bridgeGesture=null;let polygonToolGeneration=0;let loopPreview=null,loopSerial=Promise.resolve(),loopCursor=null,loopRevision=0;
@@ -30360,8 +30647,8 @@ function FramePolygonKernel(d){
         selectionArea=mode==='object'?'objects':'viewport';await draw(true);return selectionInfo();
       });
       register('selection.invert','Invert vertices, edges or polygons within the active editable objects.',obj({}),false,async()=>{await invertSelection();return selectionInfo();});
-      register('selection.rectangle','Select the objects/components inside a CSS rectangle using the native GPU marquee operation.',required(obj({rect:{...array(num,4),minItems:4},operation:choice('replace','add','toggle')}),'rect'),false,async a=>{const [x,y,u,v]=a.rect,index=frameViewportAt(x,y);if(index===null||x>=u||y>=v||frameViewportAt(u,v)!==index)fail('INVALID_ARGUMENT','Rectangle must stay inside one viewport');if(!activateFrameView(index))fail('BUSY','Cannot switch viewport during a gesture');selectionArea='viewport';await selectRectangle(a.rect,a.operation||'replace');await selectionQueue;return {...selectionInfo(),rectangle:canvas.dataset.boxSelection?JSON.parse(canvas.dataset.boxSelection):null};});
-      register('selection.pick','Pick at CSS client coordinates in the main window or the specified view window, optionally select the connected component. Object Replace clicks within 8 CSS pixels cycle through transparent owners; with Solid off, only displayed lines are hit. Selection mode comes from view.set or scene.select.',required(obj({x:num,y:num,view:integer,connected:bool,operation:choice('replace','add','toggle')}),'x','y'),false,async a=>{if(a.view!==undefined&&!frameViewSections.has(a.view))fail('INVALID_ARGUMENT','Unknown view instance');const index=frameViewportAt(a.x,a.y,a.view===undefined?document:frameViewElement(a.view).ownerDocument);if(index===null)fail('INVALID_ARGUMENT','Point is outside viewports');activateFrameView(index);selectionArea='viewport';if(a.connected)await selectConnected(a.x,a.y,a.operation||'replace');else await selectElement(a.x,a.y,a.operation||'replace');await selectionQueue;return {...selectionInfo(),connected:a.connected&&canvas.dataset.connected?JSON.parse(canvas.dataset.connected):null};});
+      register('selection.rectangle','Select the objects/components inside a CSS rectangle using the native GPU marquee operation.',required(obj({rect:{...array(num,4),minItems:4},operation:choice('replace','add','toggle')}),'rect'),false,async a=>{const [x,y,u,v]=a.rect,index=frameViewportAt(x,y);if(index===null||x>=u||y>=v||frameViewportAt(u,v)!==index)fail('INVALID_ARGUMENT','Rectangle must stay inside one viewport');if(!activateFrameView(index))fail('BUSY','Cannot switch viewport during a gesture');if(frameReplicaViewportStale())fail('BUSY','The viewport retains its previous frame: '+frameReplicaViewportStale());selectionArea='viewport';await selectRectangle(a.rect,a.operation||'replace');await selectionQueue;return {...selectionInfo(),rectangle:canvas.dataset.boxSelection?JSON.parse(canvas.dataset.boxSelection):null};});
+      register('selection.pick','Pick at CSS client coordinates in the main window or the specified view window, optionally select the connected component. Object Replace clicks within 8 CSS pixels cycle through transparent owners; with Solid off, only displayed lines are hit. Selection mode comes from view.set or scene.select.',required(obj({x:num,y:num,view:integer,connected:bool,operation:choice('replace','add','toggle')}),'x','y'),false,async a=>{if(a.view!==undefined&&!frameViewSections.has(a.view))fail('INVALID_ARGUMENT','Unknown view instance');const index=frameViewportAt(a.x,a.y,a.view===undefined?document:frameViewElement(a.view).ownerDocument);if(index===null)fail('INVALID_ARGUMENT','Point is outside viewports');activateFrameView(index);if(frameReplicaViewportStale())fail('BUSY','The viewport retains its previous frame: '+frameReplicaViewportStale());selectionArea='viewport';if(a.connected)await selectConnected(a.x,a.y,a.operation||'replace');else await selectElement(a.x,a.y,a.operation||'replace');await selectionQueue;return {...selectionInfo(),connected:a.connected&&canvas.dataset.connected?JSON.parse(canvas.dataset.connected):null};});
       register('material.rename','Rename a shared material in one Undo step.',required(obj({material:str,name:str}),'material','name'),false,async a=>{
         const m=materials.find(m=>m.uid===a.material);if(!m)fail('NOT_FOUND','Material UID not found');
         if(m.uid===frameDefaultMaterials[0].uid||!a.name.trim())fail('INVALID_ARGUMENT','Choose an editable material and a nonempty name');
@@ -30569,6 +30856,7 @@ function FramePolygonKernel(d){
     window.frameEngine=api;
     setViewerMode('element','object');setViewerMode('shading','solid-isoparms');
     api.bendNoticeReason=bendNoticeReason;
+    api.clonerPlacementCount=estimateClonerPlacementCount;
     api.ready=start().catch(error=>{canvas.dataset.ready='error';fileOperationError(error);});
     initializeFrameAI();
     return api;
