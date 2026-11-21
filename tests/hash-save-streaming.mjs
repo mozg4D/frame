@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomBytes,createHash} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
-import {H} from './hash-codec-fixture.mjs';
+import {H,codecSource} from './hash-codec-fixture.mjs';
+
+const createFrameHashWriteBatch=Function(codecSource+'return createFrameHashWriteBatch;')();
 
 export async function hashSaveStreamingChecks(){
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('async function saveHash(writable=null){'),end=html.indexOf('async function nativeDecodePlan(',start),source=html.slice(start,end);
@@ -11,7 +13,7 @@ export async function hashSaveStreamingChecks(){
  const checks=[],check=(name,pass)=>{assert(pass,name);checks.push({name,pass:true});};
  function harness(){
   let clock=0,yields=0,locks=0,unlocks=0,readbacks=0;
-  const scene={records:new Map(rows.map(r=>[r.id,r])),meshes:[]},context={scene,renderer:{},nodes:[],FrameHash:H,FramePlugins:{flush:async()=>{}},FrameMorph:{flush:async()=>{}},window:{FrameSpline:{flush:async()=>{}}},animationSerial:Promise.resolve(),appearanceQueue:Promise.resolve(),selectionQueue:Promise.resolve(),editSerial:Promise.resolve(),lazyTask:null,frameSyncEngineVisibility(){},frameSyncMaterials(){},checkSession(){},ensureImportedUV(){},nativeCamera:()=>new Float64Array([1,2,3]),nativePut:(map,key,unused,type,value)=>map.set(key,{id:key,type,value}),nativeRecord:(id,type,value)=>({id,type,value}),displayUnitIndex:2,rescaleUnitIndex:2,morphStates:new Map([['mesh',{base:'rest'}]]),nativeReadGPU:async(gpu,resource,count)=>{assert.equal(resource,'rest');assert.equal(count,3);readbacks++;return new Uint8Array(base.slice().buffer);},performance:{now:()=>clock+=.25},setTimeout:fn=>{yields++;queueMicrotask(fn);},nativeIOStart:()=>{locks++;return ()=>{};},nativeIOEnd:()=>unlocks++,canvas:{dataset:{}}};
+  const scene={records:new Map(rows.map(r=>[r.id,r])),meshes:[]},context={scene,renderer:{},nodes:[],FrameHash:H,createFrameHashWriteBatch,FramePlugins:{flush:async()=>{}},FrameMorph:{flush:async()=>{}},window:{FrameSpline:{flush:async()=>{}}},animationSerial:Promise.resolve(),appearanceQueue:Promise.resolve(),selectionQueue:Promise.resolve(),editSerial:Promise.resolve(),lazyTask:null,frameSyncEngineVisibility(){},frameSyncMaterials(){},checkSession(){},ensureImportedUV(){},nativeCamera:()=>new Float64Array([1,2,3]),nativePut:(map,key,unused,type,value)=>map.set(key,{id:key,type,value}),nativeRecord:(id,type,value)=>({id,type,value}),displayUnitIndex:2,rescaleUnitIndex:2,morphStates:new Map([['mesh',{base:'rest'}]]),nativeReadGPU:async(gpu,resource,count)=>{assert.equal(resource,'rest');assert.equal(count,3);readbacks++;return new Uint8Array(base.slice().buffer);},performance:{now:()=>clock+=.25},setTimeout:fn=>{yields++;queueMicrotask(fn);},nativeIOStart:()=>{locks++;return ()=>{};},nativeIOEnd:()=>unlocks++,canvas:{dataset:{}}};
   const save=Function('context','with(context){return '+source+';}')(context);
   return {context,save,stats:()=>({yields,locks,unlocks,readbacks})};
  }

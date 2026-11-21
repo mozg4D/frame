@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 13:37">
+<meta name="frame-version" content="2026 21 nov 13:46">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11953,8 +11953,16 @@ function createFrameHashCodec(){
     if(at!==raw.length)throw Error('Trailing HASH integer prediction');return out;
   }
   async function collect(stream,limit){const reader=stream.getReader(),parts=[];let total=0;try{for(;;){const {value,done}=await reader.read();if(done)break;total+=value.length;if(total>limit)throw Error('HASH record exceeds decoded limit');parts.push(value);}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}const out=new Uint8Array(total);let at=0;for(const part of parts){out.set(part,at);at+=part.length;}return out;}
-  async function pack(record){
-    const raw=typed(record.type,record.value);if(raw.length>MAX_RECORD)throw Error('HASH record exceeds size limit');let data=new Blob([raw]),type=record.type;
+  function packForWrite(record){
+    const raw=typed(record.type,record.value);
+    if(raw.length>=128)return pack(record,raw);
+    // Keep inline bytes stable across an asynchronous sink callback or batch rollover.
+    const inline=record.type===T.value||record.type===T.text||record.type===T.ids?raw:raw.slice();
+    return {head:header(record.type,record.id,raw.length),inline,type:record.type,rawBytes:raw.length,storedBytes:raw.length,
+      get blob(){return new Blob([this.head,this.inline]);}};
+  }
+  async function pack(record,encoded){
+    const raw=encoded??typed(record.type,record.value);if(raw.length>MAX_RECORD)throw Error('HASH record exceeds size limit');let data=new Blob([raw]),type=record.type;
     if(typeof CompressionStream==='function'&&raw.length>=128){
       const gzip=source=>new Response(new Blob([source]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
       let best=await gzip(raw);if(best.size<data.size){data=best;type=record.type|ZIP;}
@@ -12018,7 +12026,26 @@ function createFrameHashCodec(){
   function openSnapshot(bytes,reviver){const root=snapshotRecord(bytes);if(root.id!==K.parameters)throw Error('Invalid HASH snapshot root');const value=values.decode(root.data,reviver),seen=new Set();let at=root.end;while(at<bytes.length){const row=snapshotRecord(bytes,at),field=snapshotFields.find(([,id])=>id===row.id)?.[0];if(!field||seen.has(field)||!Array.isArray(value?.nodes))throw Error('Invalid HASH snapshot field');seen.add(field);value[field]=values.decode(row.data,reviver);at=row.end;}return value;}
   function sameSnapshotContent(a,b){return values.equal(snapshotPayload(a),snapshotPayload(b));}
   function references(bytes){let refs=snapshotReferences.get(bytes);if(!refs){refs=values.strings(snapshotPayload(bytes));snapshotReferences.set(bytes,refs);}return refs;}
-  return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,pack,index,read,reader,prepare,restore,MAX_RECORD,values,snapshot,openSnapshot,references,sameSnapshotContent});
+  return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,pack,packForWrite,index,read,reader,prepare,restore,MAX_RECORD,values,snapshot,openSnapshot,references,sameSnapshotContent});
+}
+function createFrameHashWriteBatch(write,limit=4*1024*1024){
+  let size=0,at=0,first=0,slab=null,parts=[];
+  function seal(){if(first<at){parts.push(slab.subarray(first,at));first=at;}}
+  return {
+    get size(){return size;},
+    append(packed){
+      size+=26+packed.storedBytes;
+      if(packed.head){
+        slab??=new Uint8Array(limit);
+        slab.set(packed.head,at);at+=26;slab.set(packed.inline,at);at+=packed.storedBytes;
+      }else{seal();parts.push(packed.blob);}
+    },
+    flush(){
+      if(!size)return;seal();
+      // Blob snapshots the views before the slab can be reused.
+      const blob=new Blob(parts);parts=[];size=at=first=0;return write(blob);
+    }
+  };
 }
 const FrameHash=createFrameHashCodec();
 const FrameValue=FrameHash.values;
@@ -16668,12 +16695,13 @@ function createFrameFileIndex() {
       }
       return finish();
     },
-    async record(record, packed, value) {
+    record(record, packed, value) {
       if (record.id === FrameHash.K.all) owners = Array.from(value);
       if (record.type === FrameHash.T.text) names.set(record.id,value);
       if (record.type === FrameHash.T.float64 && value.length === 12) positions.set(record.id,Array.from(value.slice(9,12)));
-      records.set(record.id, await signature(packed.type,packed.blob.size-26,(offset,size)=>
-        packed.inline || packed.blob.slice(26+offset,26+offset+size).arrayBuffer().then(b=>new Uint8Array(b))));
+      if(packed.inline){records.set(record.id,packed.type+':'+hex(packed.inline));return;}
+      return signature(packed.type,packed.storedBytes,(offset,size)=>
+        packed.blob.slice(26+offset,26+offset+size).arrayBuffer().then(b=>new Uint8Array(b))).then(value=>{records.set(record.id,value);});
     },
     async written() {
       const labels = new Map(names), frames = new Map(positions);
@@ -28370,8 +28398,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       if(!doc.meshes.length)throw Error('GLB needs a visible surface');doc.buffers.push({byteLength:length});const json=new TextEncoder().encode(JSON.stringify(doc)),jsonLength=Math.ceil(json.length/4)*4,header=new Uint32Array([0x46546c67,2,12+8+jsonLength+8+length]),jsonHeader=new Uint32Array([jsonLength,0x4e4f534a]),padding=new Uint8Array(jsonLength-json.length).fill(32),binHeader=new Uint32Array([length,0x004e4942]);const blob=new Blob([header,jsonHeader,json,padding,binHeader,...parts],{type:'model/gltf-binary'});if(blob.size>0xffffffff)throw Error('GLB exceeds 4 GiB');if(writable){await writable.write(blob);await writable.close();return {bytes:blob.size};}return blob;
     }
     async function saveHash(writable=null){await FramePlugins.flush({author:true});await FrameMorph.flush();await animationSerial;frameSyncEngineVisibility();await window.FrameSpline?.flush();const invalid=nodes.find(n=>n.splineError&&!n.params.file&&!n.fileSource);if(invalid)throw Error(invalid.name+': '+invalid.splineError);
-      await appearanceQueue;frameSyncMaterials();if(!scene)throw Error('There is no mesh scene to save.');const progress=nativeIOStart('Saving HASH…'),started=performance.now(),gpu=renderer,space=scene,parts=[],batch=[],batchLimit=4*1024*1024;let storedBytes=0,rawBytes=0,batchBytes=0,lastYield=started;
-      const flush=async()=>{if(!batch.length)return;const blob=new Blob(batch);batch.length=0;batchBytes=0;await writable.write(blob);};
+      await appearanceQueue;frameSyncMaterials();if(!scene)throw Error('There is no mesh scene to save.');const progress=nativeIOStart('Saving HASH…'),started=performance.now(),gpu=renderer,space=scene,parts=[],batchLimit=4*1024*1024,batch=writable?createFrameHashWriteBatch(blob=>writable.write(blob),batchLimit):null;let storedBytes=0,rawBytes=0,lastYield=started;
       try{
         await selectionQueue;await editSerial;if(lazyTask)await lazyTask;checkSession(gpu);
         for(const mesh of scene.meshes)ensureImportedUV(mesh);nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());if(displayUnitIndex!==2||rescaleUnitIndex!==2)nativePut(scene.records,FrameHash.K.units,null,FrameHash.T.bytes,new Uint8Array([displayUnitIndex,rescaleUnitIndex]));else scene.records.delete(FrameHash.K.units);const stock=nodes.filter(n=>!n.fileSource&&['car','tree','human'].includes(n.type)),excluded=new Set(stock.flatMap(n=>[...['positions','indices'].map(f=>FrameHash.address(n.nativeHash,f)),...n.tags.filter(t=>t.librarySlot).flatMap(t=>['material','faces','uv'].map(f=>FrameHash.address(t.uid,f)))])),stockTypes=new Set(stock.map(n=>FrameHash.address(n.nativeHash,'type'))),stockTags=new Map(stock.map(n=>[FrameHash.address(n.nativeHash,'tags'),new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid))]));
@@ -28379,12 +28406,14 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         for(const record of records){
           if(scene!==space)throw Error('Scene changed during HASH Save.');let value=record.value;
           if(value?.gpu){const reference=value.field==='positions'&&morphStates.get(value.mesh?.hashId)?.base;const raw=await nativeReadGPU(gpu,reference||value.resource,value.count);value=record.type===FrameHash.T.float32?new Float32Array(raw.buffer):record.type===FrameHash.T.bytes?raw.subarray(0,value.byteLength):new Uint32Array(raw.buffer);}
-          const packed=await FrameHash.pack({...record,value});if(writable?.indexRecord)await writable.indexRecord(record,packed,value);rawBytes+=packed.rawBytes;storedBytes+=packed.blob.size;
-          if(writable){if(batchBytes+packed.blob.size>batchLimit)await flush();if(packed.blob.size>batchLimit)await writable.write(packed.blob);else{batch.push(packed.blob);batchBytes+=packed.blob.size;}}else parts.push(packed.blob);
+          const input={...record,value};let packed=writable?FrameHash.packForWrite(input):FrameHash.pack(input);if(!packed.head)packed=await packed;
+          if(writable?.indexRecord){const indexed=writable.indexRecord(record,packed,value);if(indexed)await indexed;}
+          const size=26+packed.storedBytes;rawBytes+=packed.rawBytes;storedBytes+=size;
+          if(batch){if(batch.size&&batch.size+size>batchLimit)await batch.flush();if(size>batchLimit)await writable.write(packed.blob);else batch.append(packed);}else parts.push(packed.blob);
           progress('Saving HASH · '+(++done)+' / '+records.length);
           if(performance.now()-lastYield>=16){await new Promise(r=>setTimeout(r,0));lastYield=performance.now();}
         }
-        if(writable){await flush();await writable.close();}canvas.dataset.hashSave=JSON.stringify({objects:space.meshes.length,records:records.length,rawBytes,storedBytes,elapsedMs:performance.now()-started});
+        if(batch){if(batch.size)await batch.flush();await writable.close();}canvas.dataset.hashSave=JSON.stringify({objects:space.meshes.length,records:records.length,rawBytes,storedBytes,elapsedMs:performance.now()-started});
         return writable?null:new Blob(parts,{type:'application/x-frame-hash'});
       }catch(error){if(writable)await writable.abort().catch(()=>{});throw error;}finally{nativeIOEnd();}
     }

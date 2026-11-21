@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 13:37",
+  "version": "2026 21 nov 13:46",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -46,6 +46,8 @@
       "tests/scene-control-data-browser.mjs",
       "tests/scene-program-browser.mjs",
       "tests/hash-save-streaming.mjs",
+      "tests/hash-save-coalescer-cpu.mjs",
+      "tests/hash-save-coalescer-native.mjs",
       "tests/ai-collaboration.mjs",
       "tests/ai-collaboration-browser.mjs"
     ],
@@ -554,11 +556,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "9f72b16d4e6d4e62c3fd4930d34a527274acd14d46dd438618c64b8ccce78a95"
+      "sha256": "40f2a3c39e91d56d30e4e409d180a507342138e92b87014d30fe3301108fa688"
     },
     "index.html": {
-      "bytes": 3983713,
-      "sha256": "6499324449b364b8cd9449f0e06f4f1f22cb784135b308233b93ba36003b2eac"
+      "bytes": 3985088,
+      "sha256": "caaecbd2d2d4c084a512d02c0c4b9432641914f6088a12ee87369afb130e583e"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1181,8 +1183,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18307,
-      "sha256": "ef4fba52eb7897a38bf8e662aa3cac320c73af7900df4332eeae2707c9deb1c4"
+      "bytes": 18402,
+      "sha256": "0fa13a7d6a9f5c8112e109021612fabbcc244b55ab614b659d3cf23fe84b1095"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1225,8 +1227,8 @@
       "sha256": "ead9afce7140e9b632a9453592261bceb764b21f4480c143918d019c83481877"
     },
     "tests/hash-save-streaming.mjs": {
-      "bytes": 5346,
-      "sha256": "3cddbabf23b2c183c3520d2fa930ed15ce4357a5fb91f4956b18b8f730778619"
+      "bytes": 5478,
+      "sha256": "5b1249f65a092f90b45d44c1818e418fd69479a96c3bd1eaaff1317d19ef884c"
     },
     "tests/surface-wire-stability-browser.mjs": {
       "bytes": 16744,
@@ -1535,6 +1537,14 @@
     "tests/hash-object-browser-native.mjs": {
       "bytes": 14386,
       "sha256": "309b1b4b9b95227c3815281a479f496c0b1660cf9cbb566fc4fcdca7735794f7"
+    },
+    "tests/hash-save-coalescer-cpu.mjs": {
+      "bytes": 8296,
+      "sha256": "f005bd89a22a0088871bd1639be863897f9a561a40a65866007a27ae2844183c"
+    },
+    "tests/hash-save-coalescer-native.mjs": {
+      "bytes": 6746,
+      "sha256": "a13b1031de1273ce7bf4c522203aadd3dc51ad324e96c0adeffefc9dfb195ade"
     }
   }
 }

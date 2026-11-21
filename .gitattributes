@@ -456,3 +456,5 @@ tests/ai-workflows-browser.mjs text eol=lf
 tests/export-streaming-sha256-cpu.mjs text eol=lf
 tests/hash-object-browser-fixtures.mjs text eol=lf
 tests/hash-object-browser-native.mjs text eol=lf
+tests/hash-save-coalescer-cpu.mjs text eol=lf
+tests/hash-save-coalescer-native.mjs text eol=lf
