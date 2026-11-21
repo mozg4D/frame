@@ -441,3 +441,5 @@ tests/curvature-native-seams.mjs text eol=lf
 tests/curvature-live-surface-browser.mjs text eol=lf
 tests/curvature-library-angles-browser.mjs text eol=lf
 tests/curvature-single-instance-browser.mjs text eol=lf
+tests/curvature-derived-groups-cpu.mjs text eol=lf
+tests/curvature-derived-groups-browser.mjs text eol=lf
