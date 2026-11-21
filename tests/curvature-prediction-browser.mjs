@@ -117,7 +117,7 @@ export async function curvaturePredictionChecks(page){
  await page.mouse.move(...from);await page.mouse.down();
  try{await page.mouse.move(...to,{steps:12});}finally{await page.mouse.up();}
  const toast=page.locator('.frame-view-notice').filter({hasText:'Limit: 150,000 triangles'});
- await toast.waitFor({state:'visible',timeout:3000});
+ assert.equal(await toast.isVisible(),false,'A capacity-refused drop does not show a viewport notice');
  assert.equal((await limited()).enabled,false);
  // Seed an authored tag as a fixture (normal admission intentionally rejects
  // a fresh one), then exercise actual HASH serialization and restoration.
@@ -129,10 +129,12 @@ export async function curvaturePredictionChecks(page){
  assert.equal(over.enabled,true);assert.equal(over.pending,false);assert.equal(over.mode,'Surface Prediction');assert.equal(over.reason,'triangle-limit');assert.equal(over.maxCurvature,null);
  await page.locator('#row-'+restored.id+' .ob-tag.curvature').click();
  const notice=page.locator('#attrContent [data-curvature-limit]');
- await notice.waitFor({state:'visible'});
- assert.equal(await notice.textContent(),'Limit: 150,000 triangles');
+ assert.equal(await notice.isVisible(),false);
+ assert.equal(await notice.textContent(),'');
+ await field('Angle').click();
+ assert.equal((await limited()).mode,'Surface Prediction','An unavailable replacement leaves authored Curvature mode intact');
  assert.equal(await page.locator('#attrContent [data-field="mode"]').count(),2);
- checkpoint('150,001-triangle limit is explicit on direct drop and restored tag',{pre,over});
+ checkpoint('150,001-triangle refusals stay quiet while diagnostics and the authored tag are retained',{pre,over});
  await call('diagnostics.frame',{frames:2});
  const gpu=await page.evaluate(async()=>({validation:(await frameEngine.renderer.device.popErrorScope())?.message||null,uncaptured:__curvatureErrors}));
  assert.deepEqual(gpu,{validation:null,uncaptured:[]});assert.deepEqual(errors,[]);

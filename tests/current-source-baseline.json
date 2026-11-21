@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 12:49",
+  "version": "2026 21 nov 12:57",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "a4a463e1aba2fa96c14a3510403dcfa5cd6d1e3417e501ba98d90c0702c96759"
+      "sha256": "1ab89503bee910bcc96d6255743f7415c54c70888d61b723e9939afe3e9071c7"
     },
     "index.html": {
-      "bytes": 3970382,
-      "sha256": "fe1d86d38e6f48790f5d115fe6316c63848297ad548f7c326c124fdb1a78f4cf"
+      "bytes": 3971946,
+      "sha256": "ac870f049487093d682a74828fffa559e619b4f2506ff948e79235377e586ef7"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1437,8 +1437,8 @@
       "sha256": "ac54133e4faf854c190c23f5a08363366e579fa2bfb0a8dde5aeaf8c27458a76"
     },
     "tests/curvature-prediction-browser.mjs": {
-      "bytes": 9478,
-      "sha256": "290542316f59982b603a8912d307617a94ccee37f4cb1bbae6d28c706692d7dc"
+      "bytes": 9689,
+      "sha256": "82e4dfe56f85a28575808abd06ac4ed2a644b855a279b5102ad1c98a507dc321"
     },
     "tests/curvature-prediction-fixtures.mjs": {
       "bytes": 1732,
@@ -1481,8 +1481,8 @@
       "sha256": "7eca162f866a657cc39f2f27c18e627730dc7f72c2e1aeadb842a208a67155a5"
     },
     "tests/cloner-warning-dom.mjs": {
-      "bytes": 6357,
-      "sha256": "3ef7b751df0e9756399c31bdf16c5bb87230baa7a758b0c29efe8306046a90c1"
+      "bytes": 7117,
+      "sha256": "e8963b084eea834c1ceb06d2a3101ad9246d324cfe240d64c595012deee4ca8e"
     },
     "tests/cloner-large-counts-browser.mjs": {
       "bytes": 6236,
@@ -1493,12 +1493,12 @@
       "sha256": "747a5011075e598ea13c37aa10e509cb6692a9b4ff1faa396ddbb9750bbfc39d"
     },
     "tests/cloner-warning-browser.mjs": {
-      "bytes": 2639,
-      "sha256": "3b5da04545a7d0df4e17c5ff82e4be985e8d44f01a3d1cdc5e143701730d4ff9"
+      "bytes": 3549,
+      "sha256": "f5b92a7c60ef89b725e9d3c03afb26a9b1c53641808d533e0c4d68d677179f24"
     },
     "tests/cloner-device-capacity-browser.mjs": {
-      "bytes": 4388,
-      "sha256": "07231d1fe09c456fe3055e746b3fd4ff610063c9a7b88084557891f75c39a64f"
+      "bytes": 5348,
+      "sha256": "8e6f3f6790bd2168077064b2896e58f9af4e143ab5f7c1d35a92e99ca4548d92"
     },
     "tests/curvature-ordered-shared-cpu.mjs": {
       "bytes": 9654,

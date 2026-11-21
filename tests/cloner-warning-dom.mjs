@@ -28,10 +28,12 @@ const setup=new Function('stat',`
  let numericSession=null;
  const selected=new Set(['local']),owner={id:'local',nativeHash:'owner',type:'cloner',
   params:{count:15,step:25}},node=id=>id===owner.id?owner:null;
- const engine={scene:{},clonerPlacementCount(hash,changes){
-   stat.estimates.push({hash,changes});
-   if(Object.hasOwn(changes,'step'))return changes.step===10?10000001n:10000000n;
-   return BigInt(changes.count);
+ const engine={scene:{},clonerDraftFits(hashes,changes){
+   stat.estimates.push({hashes,changes});
+   if(stat.stale)engine.scene={};
+   if(stat.capacity)throw Object.assign(new RangeError('capacity'),{frameReplicaCapacity:true});
+   if(stat.otherError)throw Error('unrelated failure');
+   return !stat.reject;
  }};
  const window={frameEngine:engine},frameValueKey=JSON.stringify;
  const snapshot=()=>({...owner.params}),checkpoint=s=>stat.history.push(s),
@@ -40,71 +42,64 @@ const setup=new Function('stat',`
    frameEdgePointer=()=>{},getSelection=()=>null;
  const make=(key,opts={})=>{const input=new Control();
    bindNumber(input,{...opts,get:()=>owner.params[key],set:value=>{owner.params[key]=value;stat.attempts.push({key,value});},
-    deferText:true,stage:(value,apply)=>frameClonerApproveDraft(owner,key,value,apply)});
+    deferText:true,stage:(value,apply)=>frameClonerApplyDraft(owner,key,value,apply)});
    return input;
  };
- return {owner,selected,engine,controls,make,threshold:frameClonerWarningLimit};
+ return {owner,selected,engine,controls,make};
 `);
-const fresh=()=>{const stat={estimates:[],history:[],attempts:[],dialogs:0,restored:0,errors:[]};return {stat,...setup(stat)};};
+const fresh=x=>{const stat={estimates:[],history:[],attempts:[],dialogs:0,restored:0,errors:[],...x};return {stat,...setup(stat)};};
 const turn=()=>new Promise(resolve=>setImmediate(resolve));
 const type=(input,value)=>{input.focus();input.value=String(value);input.fire('input');};
 const key=(input,name)=>input.fire('keydown',{key:name});
-const modal=m=>m.controls.get('dialog');
-
-{
- const f=fresh(), input=f.make('count',{int:true,min:1});
- assert.equal(f.threshold,10000000n);
- type(input,9999999);type(input,10000000);
- assert.equal(f.owner.params.count,15);assert.equal(f.stat.estimates.length,0);assert.equal(f.stat.dialogs,0);
+for(const value of [9999999,10000000,10000001]){
+ const f=fresh(),input=f.make('count',{int:true,min:1});
+ type(input,value);assert.equal(f.owner.params.count,15);assert.equal(f.stat.estimates.length,0);
  key(input,'Enter');await turn();
- assert.deepEqual(f.stat.attempts,[{key:'count',value:10000000}]);
+ assert.deepEqual(f.stat.attempts,[{key:'count',value}]);
  assert.deepEqual(f.stat.history,[{count:15,step:25}]);assert.equal(f.stat.dialogs,0);
 }
-{
- const f=fresh(),input=f.make('count',{int:true});
- type(input,10000001);key(input,'Enter');
- assert.equal(modal(f).open,true);assert.match(f.controls.get('dialogBody').innerHTML,/10,000,001/);
- assert.equal(f.controls.get('dialogCancel').textContent,'No');assert.equal(f.controls.get('dialogOK').textContent,'Yes');
- assert.equal(f.owner.params.count,15);assert.deepEqual(f.stat.attempts,[]);assert.deepEqual(f.stat.history,[]);
- modal(f).close();await turn();
- assert.equal(f.owner.params.count,15);assert.equal(input.value,'15');assert.equal(f.stat.restored,0);
- assert.deepEqual(f.stat.attempts,[]);assert.deepEqual(f.stat.history,[]);assert.equal(f.controls.get('dialogCancel').textContent,'Cancel');
-}
-{
- const f=fresh(),input=f.make('count',{int:true});
- type(input,10000002);key(input,'Enter');
- assert.equal(modal(f).open,true);assert.deepEqual(f.stat.attempts,[]);
- f.controls.get('dialogOK').onclick();await turn();
- assert.equal(f.stat.dialogs,1);assert.deepEqual(f.stat.attempts,[{key:'count',value:10000002}]);
- assert.deepEqual(f.stat.history,[{count:15,step:25}]);assert.equal(input.value,'10000002');
-}
-{
- const f=fresh(),input=f.make('count',{int:true});
- type(input,10000001);key(input,'Escape');await turn();
- assert.equal(f.stat.dialogs,0);assert.deepEqual(f.stat.estimates,[]);assert.equal(input.value,'15');
- assert.deepEqual(f.stat.attempts,[]);assert.equal(f.stat.restored,0);
-}
-{
- const f=fresh(),input=f.make('count',{int:true,stepFixed:10000000});
- input._scrubStart({pointerId:1,clientX:0,clientY:0});
- input._scrubMove({pointerId:1,clientX:6,clientY:0,preventDefault(){}});
- assert.equal(input.value,'10000015');assert.equal(f.owner.params.count,15);assert.deepEqual(f.stat.attempts,[]);
- input._scrubEnd({pointerId:1});assert.equal(f.stat.dialogs,1);
- modal(f).close();await turn();assert.equal(input.value,'15');assert.deepEqual(f.stat.history,[]);
+for(const blocked of [{reject:true},{capacity:true},{stale:true},{otherError:true}]){
+ const f=fresh(blocked),input=f.make('count',{int:true});
+ type(input,10000001);key(input,'Enter');await turn();
+ assert.deepEqual(f.stat.attempts,[]);assert.deepEqual(f.stat.history,[]);assert.equal(input.value,'15');
+ assert.equal(f.stat.dialogs,0);assert.deepEqual(f.stat.errors,blocked.otherError?['unrelated failure']:[]);
 }
 {
  const f=fresh(),input=f.make('step',{length:true});
- type(input,1);key(input,'Enter');assert.equal(modal(f).open,true);
- assert.deepEqual(f.stat.estimates,[{hash:'owner',changes:{step:10}}]);
- f.controls.get('dialogOK').onclick();await turn();
- assert.deepEqual(f.stat.attempts,[{key:'step',value:10}]);assert.equal(input.value,'1');
+ type(input,1);key(input,'Enter');await turn();assert.equal(f.stat.dialogs,0);
+ assert.deepEqual(f.stat.estimates,[{hashes:['owner'],changes:{step:10}}]);
+ assert.deepEqual(f.stat.attempts,[{key:'step',value:10}]);
+ type(input,7);key(input,'Escape');await turn();assert.equal(f.stat.attempts.length,1);
 }
-{
- const f=fresh(),input=f.make('count',{int:true});
- type(input,10000001);key(input,'Enter');
- f.engine.scene={};f.controls.get('dialogOK').onclick();await turn();
- assert.deepEqual(f.stat.attempts,[]);assert.deepEqual(f.stat.history,[]);
- assert.match(f.stat.errors[0],/changed before confirmation/);
-}
-assert.equal((html.match(/frameClonerApproveDraft\(/g)||[]).length,2,'Only numeric Attributes call the UI gate');
-console.log('Cloner warning: real numeric/dialog functions exercised through a fake DOM. Exact boundary, No, Escape, scrub, Yes, native units and stale owner pass.');
+assert.equal((html.match(/frameClonerApplyDraft\(/g)||[]).length,2,'Only numeric Attributes call the UI gate');
+const notices=new Function(part('function frameCurvatureLimitText(','let frameCurvatureAttributeNotice=')+
+ '\nreturn frameCurvatureNoticeText;')();
+for(const reason of ['triangle-limit','vertex-limit','occurrence-limit','fit-limit','color-budget','occurrence-unsupported','compact-material','compact-pipeline','mesh-unavailable'])assert.equal(notices(reason),'');
+assert.equal(notices('fit-failed'),'Curvature could not fit this surface');
+assert.equal(notices('patch-seams-unavailable'),'Spline Patch seam data is unavailable');
+const renderer=new Function('notice',`
+ const section={dataset:{},querySelector:()=>notice},frameViewElement=()=>section,canvas={dataset:{}},viewIndex=0;
+ ${part('function frameReplicaViewportStale','function prepareOrderedReplicaFrame')}
+ return {error:frameOrderedReplicaError,stale:frameReplicaViewportStale,canvas};
+`);
+const notice={hidden:false,textContent:'Unrelated detach notice',dataset:{}},r=renderer(notice);
+r.error(Object.assign(new RangeError('GPU replica frame capacity'),{frameReplicaCapacity:true}));
+assert.equal(notice.textContent,'Unrelated detach notice');assert.equal(notice.hidden,false);
+assert.equal(r.canvas.dataset.replicaDrawError,'GPU replica frame capacity');assert.ok(r.stale());
+r.error(null);assert.equal(notice.textContent,'Unrelated detach notice');assert.equal(r.stale(),null);
+const blank={hidden:true,textContent:'',dataset:{}},q=renderer(blank);
+q.error(Object.assign(new RangeError('GPU replica frame capacity'),{frameReplicaCapacity:true}));assert.equal(blank.hidden,true);
+q.error(new RangeError('unexpected range'));assert.equal(blank.hidden,false);assert.match(blank.textContent,/unexpected range/);
+q.error(null);assert.equal(blank.hidden,true);
+const engineCase=new Function('p','budget','retained',`
+ const frameCurvatureQuietReasons=new Set(['triangle-limit','vertex-limit','occurrence-limit','fit-limit','color-budget']),
+  bendAdmission=(hash,mode)=>{if(hash!=='o'||mode!=='Surface Prediction')throw Error('Unexpected target');return p;},
+  bendColorBytes=budget,bendColorBudget=100,bendStates=new Map([['o',retained]]);
+ ${part('function bendModeFits(','function bendGroupSummary(')}
+ return bendModeFits('o','Surface Prediction');
+`);
+assert.equal(engineCase({reason:'vertex-limit'},0,{}),false);
+assert.equal(engineCase({reason:'patch-seams-unavailable'},0,{}),true);
+assert.equal(engineCase({group:true,bytes:40},90,{groupPlan:{bytes:29}}),false);
+assert.equal(engineCase({group:true,bytes:40},90,{groupPlan:{bytes:30}}),true);
+console.log('Quiet capacity: staged numeric DOM model, no warning below/at/above 10M, no attempt/history on real refusal; quiet renderer leaves stale guard, and Curvature preserves noncapacity errors.');

@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 12:49">
+<meta name="frame-version" content="2026 21 nov 12:57">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -14395,11 +14395,13 @@ function frameCurvatureLimitText(reason){
   if(reason==='mesh-unavailable')return 'No rasterized surface is currently available';
   return '';
 }
+const frameCurvatureQuietReasons=new Set(['triangle-limit','vertex-limit','occurrence-limit','fit-limit','color-budget','occurrence-unsupported','compact-material','compact-pipeline','mesh-unavailable']);
+const frameCurvatureNoticeText=reason=>frameCurvatureQuietReasons.has(reason)?'':frameCurvatureLimitText(reason);
 let frameCurvatureAttributeNotice=null;
 function framePaintCurvatureLimit(){
   const notice=frameCurvatureAttributeNotice;
   if(!notice?.isConnected)return;
-  const text=frameCurvatureLimitText(window.frameEngine?.bendNoticeReason?.(notice.dataset.curvatureLimit));
+  const text=frameCurvatureNoticeText(window.frameEngine?.bendNoticeReason?.(notice.dataset.curvatureLimit));
   if(notice.textContent!==text)notice.textContent=text;
   if(notice.hidden!==!text)notice.hidden=!text;
 }
@@ -15526,9 +15528,9 @@ function renderAttributes(){
   const pluginFields=!tag?FramePlugins.attributes(n):null;
   if(!tag)FramePlugins.renderActions(n,content);
   if(!tag)for(const key of FramePlugins.owner(n)?.manifest.objects.find(o=>o.type===n.type)?.breakAfter||[]){const input=[...content.querySelectorAll('[data-field]')].find(el=>el.dataset.field===key);if(input)input.closest('.attr-row').style.marginBottom='8px';}
-  const update=(key,value)=>{if(!tag&&key===frameCreaseAngleKey&&framePolygonCreaseType(n.type)){if(!validFrameCreaseAngle(value))return;values[key]=value;for(const id of selected){const other=node(id);if(other?.type===n.type)other.params[key]=value;}return;}if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
+  const update=(key,value)=>{if(tag?.kind==='curvature'&&key==='mode'&&value!==values[key]&&window.frameEngine?.bendModeFits?.(n.nativeHash,value)===false)return;if(!tag&&key===frameCreaseAngleKey&&framePolygonCreaseType(n.type)){if(!validFrameCreaseAngle(value))return;values[key]=value;for(const id of selected){const other=node(id);if(other?.type===n.type)other.params[key]=value;}return;}if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
   for(const input of all('input[type=checkbox][data-field]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.checked),false);
-  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),stage:!tag&&n.type==='cloner'&&frameClonerCountFields.has(key)?(value,apply)=>frameClonerApproveDraft(n,key,value,apply):null,get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&framePolygonCreaseType(n.type)&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type===n.type)window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
+  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),stage:!tag&&n.type==='cloner'&&frameClonerCountFields.has(key)?(value,apply)=>frameClonerApplyDraft(n,key,value,apply):null,get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&framePolygonCreaseType(n.type)&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type===n.type)window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
   for(const input of all('textarea,[data-textfield]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.value),false);
   for(const button of all('[data-value]',content)){button.onclick=()=>{const key=button.dataset.field;if(!tag&&n.type==='render'&&key==='environment'&&button.dataset.value==='image'){frameChooseEnvironment(n);return;}commit(()=>update(key,typeof fields[key]==='boolean'?button.dataset.value==='true':tagDefinitions[tag?.kind]?.plugin&&Array.isArray(fields[key])?fields[key].find(v=>String(v)===button.dataset.value):button.dataset.value),false);renderAttributes();};button.onkeydown=e=>{if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key))return;const key=button.dataset.field,spec=fields[key],direction=['ArrowUp','ArrowRight'].includes(e.key)?1:-1;if(typeof spec!=='boolean'&&!Array.isArray(spec))return;e.preventDefault();e.stopPropagation();const value=typeof spec==='boolean'?direction>0:spec[(spec.indexOf(values[key])+direction+spec.length)%spec.length];commit(()=>update(key,value),false);renderAttributes();const candidates=all('[data-field]',content).filter(el=>el.dataset.field===key);(candidates.find(el=>el.getAttribute('aria-pressed')==='true')||candidates[0])?.focus();};}
   for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'||n.type==='tree'?renderAttributes:()=>{});}
@@ -15556,7 +15558,7 @@ curvatureIcon.innerHTML='<svg xmlns="http://www.w3.org/2000/svg" width="32" heig
 function curvatureDropRow(e){return e.target.ownerDocument?.elementFromPoint(e.clientX,e.clientY)?.closest('#obInner .ob-row')||null;}
 let frameCurvatureDropNotices=new WeakMap();
 function frameReportCurvatureDrop(engine,hash,index){
-  const report=engine.dropCurvature(hash),text=frameCurvatureLimitText(report?.reason);
+  const report=engine.dropCurvature(hash),text=frameCurvatureNoticeText(report?.reason);
   if(!text||report.enabled)return;
   const notice=frameViewElement(index)?.querySelector('.frame-view-notice');
   if(!notice)return;
@@ -15626,29 +15628,17 @@ function showMenu(x,y,items,focus=true){
   menu.hidden=false;menu.style.left=Math.min(x,Math.max(0,menuWindow.innerWidth-menu.offsetWidth))+'px';menu.style.top=Math.min(y,Math.max(0,menuWindow.innerHeight-menu.offsetHeight))+'px';if(focus)menu.querySelector('button:not(:disabled)')?.focus();
 }
 function openDialog(title,html,accept=null,ok='OK'){FrameViewWindows.placeUI($('dialog'));$('dialogTitle').textContent=title;$('dialogBody').innerHTML=html;$('dialogOK').textContent=ok;$('dialogCancel').hidden=!accept;$('dialogOK').onclick=()=>{accept?.();$('dialog').close();};if(!$('dialog').open)$('dialog').showModal();}
-function frameConfirmLimit(title,message){
-  const dialog=$('dialog'),cancel=$('dialogCancel');if(dialog.open)return Promise.resolve(false);
-  return new Promise(resolve=>{let accepted=false;const label=cancel.textContent;
-    dialog.addEventListener('close',()=>{cancel.textContent=label;resolve(accepted);},{once:true});
-    cancel.textContent='No';openDialog(title,escapeHTML(message),()=>{accepted=true;},'Yes');
-  });
-}
-const frameClonerCountFields=new Set(['count','count x','count y','count z','step','offset']),frameClonerWarningLimit=10000000n;
-function frameClonerApproveDraft(owner,key,value,apply){
+const frameClonerCountFields=new Set(['count','count x','count y','count z','step','offset']);
+function frameClonerApplyDraft(owner,key,value,apply){
   const engine=window.frameEngine,space=engine?.scene,selection=[...selected],targets=[...new Set([owner.id,...selection])].map(node)
     .filter(n=>n?.type==='cloner'&&n.params[key]!==value).map(n=>({n,params:n.params,previous:frameValueKey(n.params)}));
   if(!targets.length)return;
-  const changes={[key]:value},estimate=n=>engine.clonerPlacementCount(n.nativeHash,changes);
-  let largest=0n;
-  for(const t of targets){t.count=estimate(t.n);if(t.count!==null&&t.count>largest)largest=t.count;}
-  const commit=verify=>{
-    if(window.frameEngine!==engine||engine.scene!==space||selected.size!==selection.length||selection.some(id=>!selected.has(id))||
-      targets.some(({n,params,previous,count})=>node(n.id)!==n||n.params!==params||frameValueKey(params)!==previous||verify&&estimate(n)!==count))
-      throw Error('The Cloner changed before confirmation. No count was changed.');
-    apply();
-  };
-  if(largest<=frameClonerWarningLimit)return commit(false);
-  return frameConfirmLimit('Large Cloner','Frame will attempt '+largest.toLocaleString('en-US')+' copies in one Cloner. This may make the scene unresponsive. Continue?').then(yes=>{if(yes)commit(true);});
+  const changes={[key]:value};
+  try{if(engine?.clonerDraftFits?.(targets.map(t=>t.n.nativeHash),changes)===false)return;}
+  catch(error){if(error?.frameReplicaCapacity)return;throw error;}
+  if(window.frameEngine!==engine||engine?.scene!==space||selected.size!==selection.length||selection.some(id=>!selected.has(id))||
+     targets.some(({n,params,previous})=>node(n.id)!==n||n.params!==params||frameValueKey(params)!==previous))return;
+  apply();
 }
 $('dialogClose').onclick=$('dialogCancel').onclick=()=>$('dialog').close();
 $('dialog').onclick=e=>{if(e.target===$('dialog')){const r=$('dialog').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('dialog').close();}};
@@ -21856,10 +21846,10 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function bendMode(owner){
       return owner?.tags.some(t=>t.kind==='curvature'&&t.params.mode===curvatureModes[1])?curvatureModes[1]:curvatureModes[0];
     }
-    function bendAdmission(hash){
-      const owner=hash&&frameNodeByHash(hash),mode=bendMode(owner);
+    function bendAdmission(hash,requestedMode){
+      const owner=hash&&frameNodeByHash(hash),mode=requestedMode??bendMode(owner);
       const meshes=scene?.meshes,current=meshes?.[owner?.engineIndex];
-      if(owner&&(owner.type==='cloner'||owner.type==='symmetry'))return bendGroupAdmission(owner,mode,bendStates.get(hash));
+      if(owner&&(owner.type==='cloner'||owner.type==='symmetry'))return bendGroupAdmission(owner,mode,requestedMode===undefined?bendStates.get(hash):null);
       const owns=m=>m?.hashId===hash&&!m.replicaSource&&!m.replicaMatrix;
       let mesh=owns(current)?current:meshes?.find(owns),source=mesh,derived=false;
       if(!mesh?.triangleCount&&meshes){
@@ -21941,7 +21931,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         }
         const a=first?.input.a,world=m.frameWorld;
         const sameAffine=p.compact&&a&&world&&a.every((value,j)=>value===world[j+Math.floor(j/3)]);
-        const input=sameAffine?first.input:bendInput(m,source);
+        const input=sameAffine?first.input:bendInput(m,source,mode);
         if(input.patch&&(source.creasePolicy!==2||!(input.hardEdges instanceof Uint32Array))){
           p.reason='patch-seams-unavailable';p.blocker=bendGroupStamp(source,input,m);break;
         }
@@ -21980,8 +21970,8 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const terms=[d(0,0),d(0,3),d(0,6),d(3,3),d(3,6),d(6,6)],scale=Math.max(terms[0],terms[3],terms[5])||1;
       return {a,scale,key:terms.map(t=>Math.round(t/scale*1e9)).join(':')};
     }
-    function bendInput(mesh,source=mesh){
-      const metric=bendMetric(mesh),owner=frameNodeByHash(mesh.hashId),mode=bendMode(owner);
+    function bendInput(mesh,source=mesh,requestedMode){
+      const metric=bendMetric(mesh),owner=frameNodeByHash(mesh.hashId),mode=requestedMode??bendMode(owner);
       if(mode===curvatureModes[0])return {mode,key:'angle:'+metric.key,a:metric.a};
       const patch=frameNodeByHash(source.hashId)?.type==='spline_patch'||source.creasePolicy===2,
         angle=patch?null:source.creasePolicy===1?source.creaseAngle:frameDefaultCreaseAngle;
@@ -22249,6 +22239,12 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const p=bendAdmission(hash);
       return bendEffectiveReason(p,bendStates.get(hash))||(p.compactOnly&&p.sharedViews.get(viewIndex)!=='ready'?p.sharedViews.get(viewIndex):null);
     }
+    function bendModeFits(hash,mode){
+      const p=bendAdmission(hash,mode);
+      if(p.reason)return !frameCurvatureQuietReasons.has(p.reason);
+      const b=bendStates.get(hash),retained=(b?.groupPlan?.bytes||0)+(b?.colorBytes||0);
+      return bendColorBytes-retained+(p.group?p.bytes:p.mesh.triangleCount*16)<=bendColorBudget;
+    }
     function bendGroupSummary(b,p){
       const reason=bendEffectiveReason(p,b),ready=!!(b&&b.groupPlan===p&&p.ready),extreme=(key,which)=>{const ns=ready?p.records.map(f=>f[key]).filter(Number.isFinite):[];return ns.length?Math[which](...ns):null;};
       const policies=new Set(ready?p.records.flatMap(f=>f.prediction?[f.prediction.policy]:[]):[]);
@@ -22299,6 +22295,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function dropCurvature(hash){
       if(!hash)return;
       const status=edgeAngleStatus(hash);
+      if(frameCurvatureQuietReasons.has(status.reason)||!status.enabled&&!bendModeFits(hash,curvatureModes[0]))return status;
       try{return setEdgeAngles(hash,!status.enabled);}catch{return status;}
     }
     function readGeometry(hash,{positionsOnly=false}={}){
@@ -24198,12 +24195,14 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     }
     const orderedReplicasPending=Symbol("ordered replica pipelines pending"),orderedReplicasUnavailable=Symbol("ordered replica capacity unavailable");
     function frameReplicaViewportStale(index=viewIndex){return frameViewElement(index)?.dataset.replicaDrawError||null;}
-    function frameOrderedReplicaNotice(error){
+    function frameOrderedReplicaError(error){
       const section=frameViewElement(viewIndex),notice=section?.querySelector(".frame-view-notice");
+      const quiet=error?.frameReplicaCapacity||error?.name==='GPUOutOfMemoryError'||/out.of.memory|could not allocate/i.test(error?.message||'');
       if(error){
         if(section)section.dataset.replicaDrawError=error.message;
         canvas.dataset.replicaDrawError=error.message;
-        if(notice){notice.dataset.replicaDrawError="";notice.textContent="Showing previous frame. "+error.message;notice.hidden=false;}
+        if(notice&&!quiet){notice.dataset.replicaDrawError="";notice.textContent="Showing previous frame. "+error.message;notice.hidden=false;}
+        else if(notice&&Object.hasOwn(notice.dataset,"replicaDrawError")){delete notice.dataset.replicaDrawError;notice.hidden=true;}
       }else{
         if(section)delete section.dataset.replicaDrawError;
         delete canvas.dataset.replicaDrawError;
@@ -24214,11 +24213,11 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
       try{
         const solid=shadingMode.startsWith("solid"),order=solid?prepareOrderedReplicaDraw(r):null;
         if(!solid&&r.wireRaster&&["wireframe","isoparms"].includes(shadingMode)&&elementMode==="object"&&scene.meshes.length>=256)orderedReplicaPlan(r);
-        if(order!==orderedReplicasPending)frameOrderedReplicaNotice(null);
+        if(order!==orderedReplicasPending)frameOrderedReplicaError(null);
         return order;
       }catch(error){
         if(!frameReplicaRecoverable(error))throw error;
-        frameOrderedReplicaNotice(error);return orderedReplicasUnavailable;
+        frameOrderedReplicaError(error);return orderedReplicasUnavailable;
       }
     }
     function prepareOrderedReplicaDraw(r){
@@ -27731,6 +27730,25 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         return p.align==='tangent'?placementFrame(point,FM.sub(points[lo],points[lo-1])):FM.translation(point);
       }};
     }
+    function clonerDraftFits(hashes,changes){
+      const plan=renderer?.orderedReplicas;
+      let instances=plan&&scene&&plan.meshes===scene.meshes&&plan.topology===scene.topologyRevision?BigInt(plan.instances):null,
+        faces=instances===null?null:BigInt(scene.triangleCount);
+      for(const hash of hashes){
+        const count=estimateClonerPlacementCount(hash,changes);
+        if(count===null)continue;
+        if(count>BigInt(frameReplicaArrayMax))return false;
+        if(instances===null||!plan.buffer)continue;
+        const prior=estimateClonerPlacementCount(hash);
+        if(prior===null||!prior)continue;
+        // Only charge runs proved to have one rendered row per placement.
+        for(const r of plan.runs)if(r.source&&r.first.hashId===hash&&BigInt(r.to-r.from)===prior){
+          instances+=count-prior;faces+=(count-prior)*BigInt(r.first.triangleCount);
+        }
+      }
+      if(instances===null||!plan.buffer)return true;
+      if(faces>BigInt(frameReplicaFaceMax))return false;orderedReplicaFrameBytes(Number(instances),renderer.device.limits);return true;
+    }
     function estimateClonerPlacementCount(hash,changes={}){
       const n=frameNodeByHash(hash);if(n?.type!=='cloner'||!scene)return null;
       const p={...n.params,...changes};
@@ -31080,7 +31098,7 @@ function FramePolygonKernel(d){
     window.frameEngine=api;
     setViewerMode('element','object');setViewerMode('shading','solid-isoparms');
     api.bendNoticeReason=bendNoticeReason;
-    api.clonerPlacementCount=estimateClonerPlacementCount;
+    api.clonerPlacementCount=estimateClonerPlacementCount;api.clonerDraftFits=clonerDraftFits;api.bendModeFits=bendModeFits;
     api.ready=start().catch(error=>{canvas.dataset.ready='error';fileOperationError(error);});
     initializeFrameAI();
     return api;

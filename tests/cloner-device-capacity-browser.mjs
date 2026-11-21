@@ -28,8 +28,9 @@ try{
    await page.evaluate(key=>{window.qaLimits={maxBufferSize:1e8,maxStorageBufferBindingSize:1e8,[key]:51200};},key);
    await call('scene.update',{id:owner.hash,params:{'count x':21}});
    const notice=page.locator('.frame-view-notice:visible').filter({hasText:'GPU replica frames'});
-   await notice.waitFor({state:'visible',timeout:5000});
-   assert.match(await notice.textContent(),/53,760 bytes.*51,200 bytes/);
+   await page.waitForFunction(()=>document.getElementById('frame-engine-canvas').dataset.replicaDrawError,undefined,{timeout:5000});
+   assert.equal(await notice.isVisible(),false,'Capacity refusal must not show a viewport banner');
+   assert.match(await page.locator('#frame-engine-canvas').getAttribute('data-replica-draw-error'),/53,760 bytes.*51,200 bytes/);
    assert.equal(await capture(),stable,key+' must retain previous complete frame');
    const guard=await page.evaluate(()=>{const r=frameEngine.renderer;return {same:r.orderedReplicas.buffer===qaPriorFrames,frames:r.orderedReplicas.instances,origins:frameEngine.scene.meshes.filter(m=>m.replicaMatrix&&m.objectFrame).length};});
    assert.deepEqual(guard,{same:true,frames:400,origins:1},'No fallback creates per-occurrence bindings or swaps the ordered table');
@@ -38,10 +39,19 @@ try{
    assert.deepEqual(await call('view.pick',point),{point:null});
    assert.equal((await call('diagnostics.replicas',{id:owner.hash,limit:0})).count,420,'Current authoring can retain attempted placements when only the renderer rejects');
    await call('scene.update',{id:owner.hash,params:{'count x':20}});
-   await notice.waitFor({state:'hidden',timeout:5000});
+   await page.waitForFunction(()=>!document.getElementById('frame-engine-canvas').dataset.replicaDrawError,undefined,{timeout:5000});
+   const row=page.locator('#row-'+owner.id);
+   await row.locator('.ob-name').click();await page.locator('#tabAttributes').click();
+   const input=page.locator('#attrContent input[data-field="count x"]');
+   await input.fill('21');await input.press('Enter');
+   assert.equal(await input.inputValue(),'20','Known device failure leaves the last authored value intact');
+   const after=await call('diagnostics.replicas',{id:owner.hash,limit:0});
+   assert.equal(after.count,400);assert.equal(await notice.isVisible(),false);
+   assert.equal(await page.locator('#dialog').isVisible(),false);
    await page.evaluate(()=>{delete window.qaLimits;});
+   await call('scene.select',{ids:[]});
    await call('diagnostics.frame',{frames:2});
-   console.log(key+' retains last cached image/buffer, reports real bytes, no new individual bindings and recovers.');
+   console.log(key+' silently retains the last cached image/buffer; diagnostic bytes remain and Attributes rejects without creating rows.');
  }
  const errorsGPU=await page.evaluate(async()=>({scope:(await qaCapacityGPU.d.popErrorScope())?.message??null,errors:qaCapacityGPU.errors}));
  assert.deepEqual(errorsGPU,{scope:null,errors:[]});assert.deepEqual(errors,[]);
