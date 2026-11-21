@@ -452,3 +452,5 @@ tests/cloner-warning-browser.mjs text eol=lf
 tests/cloner-device-capacity-browser.mjs text eol=lf
 tests/curvature-ordered-shared-cpu.mjs text eol=lf
 tests/curvature-ordered-shared-browser.mjs text eol=lf
+tests/ai-workflows-browser.mjs text eol=lf
+tests/export-streaming-sha256-cpu.mjs text eol=lf

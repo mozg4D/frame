@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 12:30">
+<meta name="frame-version" content="2026 21 nov 12:49">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -30890,12 +30890,103 @@ function FramePolygonKernel(d){
           clip.records=clipboardRecords(clip,new Set(stock.flatMap(n=>n.tags.filter(t=>t.librarySlot).map(t=>t.uid))));
           for(const n of stock){clip.records.set(FrameHash.address(n.nativeHash,'type'),nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0])));for(const field of ['positions','indices'])clip.records.delete(FrameHash.address(n.nativeHash,field));const tags=clip.records.get(FrameHash.address(n.nativeHash,'tags')),slots=new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid));if(tags)tags.value=tags.value.filter(id=>!slots.has(id));}return await clipboardBlob(clip);}finally{for(const resource of clip.appearanceResources||[])releaseGPU(resource);nativeIOEnd();}
       }
-      async function exportAsset(a){
-        const format=a.format||'hash',name=a.name||sceneFileName.replace(/\.[^.]*$/,'')+'.'+format;if(!name||/[\x00-\x1f\\/]/.test(name)||!name.toLowerCase().endsWith('.'+format))fail('INVALID_ARGUMENT','Expected a filename ending in .'+format);if(a.ids&&format!=='hash')fail('INVALID_ARGUMENT','Part export currently requires HASH');if(a.transfer&&exportTransfers.size>=8)fail('LIMIT','Release an export transfer before creating another');if(a.ids)refs(a.ids);
-        const blob=await(a.ids?exportPartHash(a.ids):format==='vtk'?saveVTK():format==='3mf'?save3MF():format==='ply'?savePLY():format==='stl'?saveSTL():format==='glb'?saveGLB():saveHash()),bytes=new Uint8Array(await blob.arrayBuffer()),sha256=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join(''),result={name,format,bytes:blob.size,sha256};if(a.includeData)result.base64=encodeBase64(bytes);
-        if(a.transfer||a.download){const id=crypto.randomUUID(),url=URL.createObjectURL(blob);exportTransfers.set(id,{blob,url,name});result.transfer={id,url,chunkBytes:1024*1024};if(a.download){const link=document.createElement('a');link.href=url;link.download=name;link.click();result.downloadRequested=true;}}return result;
+      // Standard SHA-256 (FIPS 180-4 §§4.2.2, 5.1.1, 6.2).
+      // WebCrypto digest is one-shot; keep the export receipt identical
+      // without materializing a second copy of a Blob just to hash it.
+      const frameExportSha256K=new Uint32Array([
+        0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+        0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+        0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+        0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+        0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+        0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+        0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+        0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2
+      ]);
+      function frameExportSha256(){
+        const state=new Uint32Array([0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19]),
+          words=new Uint32Array(64),tail=new Uint8Array(64),tailView=new DataView(tail.buffer),K=frameExportSha256K;
+        let used=0,length=0,digest=null;
+        const rotate=(x,n)=>(x>>>n)|(x<<(32-n));
+        function block(view,at){
+          for(let i=0;i<16;i++)words[i]=view.getUint32(at+4*i,false);
+          for(let i=16;i<64;i++){
+            const x=words[i-15],y=words[i-2];
+            words[i]=words[i-16]+(rotate(x,7)^rotate(x,18)^(x>>>3))+words[i-7]+(rotate(y,17)^rotate(y,19)^(y>>>10));
+          }
+          let a=state[0],b=state[1],c=state[2],d=state[3],e=state[4],f=state[5],g=state[6],h=state[7];
+          for(let i=0;i<64;i++){
+            const first=(h+(rotate(e,6)^rotate(e,11)^rotate(e,25))+((e&f)^(~e&g))+K[i]+words[i])|0,
+              second=((rotate(a,2)^rotate(a,13)^rotate(a,22))+((a&b)^(a&c)^(b&c)))|0;
+            h=g;g=f;f=e;e=(d+first)|0;d=c;c=b;b=a;a=(first+second)|0;
+          }
+          state[0]+=a;state[1]+=b;state[2]+=c;state[3]+=d;state[4]+=e;state[5]+=f;state[6]+=g;state[7]+=h;
+        }
+        return {
+          update(bytes){
+            if(digest!==null)throw Error('Export digest is already finalized');
+            length+=bytes.byteLength;
+            if(!Number.isSafeInteger(length))throw Error('Export digest byte length is not representable');
+            const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+            let at=0;
+            if(used){
+              at=Math.min(64-used,bytes.length);tail.set(bytes.subarray(0,at),used);used+=at;
+              if(used<64)return;
+              block(tailView,0);used=0;
+            }
+            for(;at+64<=bytes.length;at+=64)block(view,at);
+            if(at<bytes.length){tail.set(bytes.subarray(at));used=bytes.length-at;}
+          },
+          hex(){
+            if(digest!==null)return digest;
+            tail[used]=0x80;tail.fill(0,used+1);
+            if(used>=56){block(tailView,0);tail.fill(0);}
+            // Bit length as two big-endian words; do not use signed
+            // 32-bit byte offsets or multiply a large byte count by eight.
+            tailView.setUint32(56,Math.floor(length/0x20000000),false);
+            tailView.setUint32(60,(length%0x20000000)*8,false);
+            block(tailView,0);
+            return digest=Array.from(state,v=>v.toString(16).padStart(8,'0')).join('');
+          }
+        };
       }
-      register('scene.saveAs','Save HASH to an authorized local path and bind it. Set createOnly to require a new file. Omit path to hand a named HASH file to the AI as a chunk-readable Blob transfer. ids exports a part with descendants/dependencies; download optionally requests a browser download. No picker or 16 MiB limit.',obj({path:str,name:str,ids:exportIds,includeData:bool,download:bool,createOnly:bool}),false,a=>{if(a.path!==undefined){if(Object.keys(a).some(k=>!['path','createOnly'].includes(k)))fail('INVALID_ARGUMENT','Provide path and optional createOnly for a bound Save As');return frameSaveBoundFile(a.path,undefined,{createOnly:a.createOnly});}if(a.createOnly!==undefined)fail('INVALID_ARGUMENT','createOnly requires an authorized path');return exportAsset({...a,format:'hash',transfer:true});});
+      async function frameExportBlobDigest(blob,check){
+        const size=blob.size,hash=frameExportSha256(),step=1024*1024;
+        if(!Number.isSafeInteger(size)||size<0)throw Error('Export Blob byte length is not representable');
+        let last=performance.now();
+        for(let at=0;at<size;){
+          check();
+          const end=at+Math.min(size-at,step),bytes=new Uint8Array(await blob.slice(at,end).arrayBuffer());
+          check();
+          if(bytes.byteLength!==end-at)throw Error('Export Blob slice returned an unexpected byte length');
+          hash.update(bytes);at=end;
+          if(at<size&&performance.now()-last>=16){
+            await new Promise(resolve=>setTimeout(resolve,0));last=performance.now();
+          }
+        }
+        check();return hash.hex();
+      }
+      async function exportAsset(a,_,context){
+        const check=()=>{context?.signal?.throwIfAborted();context?.bridgeGuard?.();context?.sessionGuard?.();};
+        check();
+        const format=a.format||'hash',name=a.name||sceneFileName.replace(/\.[^.]*$/,'')+'.'+format;if(!name||/[\x00-\x1f\\/]/.test(name)||!name.toLowerCase().endsWith('.'+format))fail('INVALID_ARGUMENT','Expected a filename ending in .'+format);if(a.ids&&format!=='hash')fail('INVALID_ARGUMENT','Part export currently requires HASH');if(a.transfer&&exportTransfers.size>=8)fail('LIMIT','Release an export transfer before creating another');if(a.ids)refs(a.ids);
+        const blob=await(a.ids?exportPartHash(a.ids):format==='vtk'?saveVTK():format==='3mf'?save3MF():format==='ply'?savePLY():format==='stl'?saveSTL():format==='glb'?saveGLB():saveHash());
+        check();
+        const bytes=a.includeData?new Uint8Array(await blob.arrayBuffer()):null,
+          sha256=bytes?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join(''):await frameExportBlobDigest(blob,check),
+          result={name,format,bytes:blob.size,sha256};
+        check();
+        if(bytes)result.base64=encodeBase64(bytes);
+        if(a.transfer||a.download){
+          const id=crypto.randomUUID(),url=URL.createObjectURL(blob);
+          try{
+            exportTransfers.set(id,{blob,url,name});result.transfer={id,url,chunkBytes:1024*1024};
+            if(a.download){const link=document.createElement('a');link.href=url;link.download=name;link.click();result.downloadRequested=true;}
+          }catch(error){exportTransfers.delete(id);URL.revokeObjectURL(url);throw error;}
+        }
+        return result;
+      }
+      register('scene.saveAs','Save HASH to an authorized local path and bind it. Set createOnly to require a new file. Omit path to hand a named HASH file to the AI as a chunk-readable Blob transfer. ids exports a part with descendants/dependencies; download optionally requests a browser download. No picker or 16 MiB limit.',obj({path:str,name:str,ids:exportIds,includeData:bool,download:bool,createOnly:bool}),false,(a,_,context)=>{if(a.path!==undefined){if(Object.keys(a).some(k=>!['path','createOnly'].includes(k)))fail('INVALID_ARGUMENT','Provide path and optional createOnly for a bound Save As');return frameSaveBoundFile(a.path,undefined,{createOnly:a.createOnly});}if(a.createOnly!==undefined)fail('INVALID_ARGUMENT','createOnly requires an authorized path');return exportAsset({...a,format:'hash',transfer:true},_,context);});
       register('scene.export','Serialize HASH (default) or visible evaluated STL/PLY/VTK/3MF/GLB. ids exports only HASH parts, descendants and declared dependencies in world placement. includeData returns uncapped base64; transfer returns a Blob URL and chunk reader for large files. Release transfers after saving.',obj({includeData:bool,format:choice('hash','stl','glb','ply','vtk','3mf'),ids:exportIds,name:str,transfer:bool,download:bool}),true,exportAsset);
       register('scene.export.read','Read a retained export transfer as base64, up to 1 MiB per call. Pass the byte offset from the previous nextOffset. File length has no 16 MiB cap.',required(obj({id:str,offset:integer,length:{...integer,minimum:1,maximum:1024*1024}}),'id'),true,async a=>{const t=exportTransfers.get(a.id);if(!t)fail('NOT_FOUND','Export transfer not found');const offset=a.offset||0;if(offset>t.blob.size)fail('INVALID_ARGUMENT','Offset exceeds file size');const end=Math.min(t.blob.size,offset+(a.length||1024*1024));return {id:a.id,offset,nextOffset:end,bytes:end-offset,totalBytes:t.blob.size,eof:end===t.blob.size,base64:encodeBase64(new Uint8Array(await t.blob.slice(offset,end).arrayBuffer()))};});
       register('scene.export.release','Release an AI export Blob and revoke its download URL after the receiving chat has saved the file. Safe to repeat.',required(obj({id:str}),'id'),true,a=>{const t=exportTransfers.get(a.id);if(t){URL.revokeObjectURL(t.url);exportTransfers.delete(a.id);}return {released:!!t};});
@@ -30925,7 +31016,7 @@ function FramePolygonKernel(d){
         try{setViewerMode('element','object');commit(()=>{n=create('mesh',null,a.name||'Polygon object');n.params[frameCreaseAngleKey]=a.creaseAngle??frameDefaultCreaseAngle;n.nativeHash=FrameHash.newId();mesh.hashId=n.nativeHash;n.engineIndex=scene.meshes.length;scene.meshes.push(mesh);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});publishTopology(gpu,[]);nativeSceneStats('AI mesh');await choose([n]);return describe(n);}catch(e){if(!scene.meshes.includes(mesh))disposeMesh(mesh);throw e;}
       });
       register('diagnostics.frame','Render frames and collect CPU/GPU timing; no selection or scene changes.',obj({frames:{...integer,minimum:1,maximum:120}}),true,async a=>{const frames=[];for(let i=0;i<(a.frames||3);i++){const before=renderer.lastFrameRaw?.id??-1,started=performance.now();do{await draw(true);await renderer.device.queue.onSubmittedWorkDone();await new Promise(resolve=>setTimeout(resolve,0));if(performance.now()-started>30000)fail('TIMEOUT','No fresh rendered frame was measured');}while(!renderer.lastFrameRaw||renderer.lastFrameRaw.id<=before);frames.push({...renderer.lastFrameRaw});}return {frames,width:renderer.width,height:renderer.height,adapter:renderer.device.adapterInfo?Object.fromEntries(['vendor','architecture','device','description'].map(k=>[k,renderer.device.adapterInfo[k]])):null,timestampQueries:renderer.device.features.has('timestamp-query')};});
-      async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false,signal=null){sessionGuard?.();const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=copy(args);if(nativeIOBusy&&['scene.file','scene.file.changes'].includes(name))return copy(await tool.run(input));if(tool.coordination){sessionGuard?.();return copy(await tool.run(input,null,{bridgeGuard,sessionGuard,signal}));}if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}const execute=async seal=>{bridgeGuard?.();sessionGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export','scene.save','scene.saveAs'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();sessionGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{sessionGuard?.();value=await tool.run(input,interruption,{bridgeGuard,sessionGuard});handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=copy(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:copy(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}};return admitted?execute():enqueueCommand(execute,{documentation:['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(name)||name==='api.batch'&&input.commands.some(c=>['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(c.name))?'replace':['scene.share','scene.export','scene.save','scene.saveAs','api.batch'].includes(name)?'save':null,bridge:!!bridgeGuard});}
+      async function call(name,args={},bridgeGuard=null,sessionGuard=null,admitted=false,signal=null){sessionGuard?.();const tool=tools.get(name);if(!tool)fail('UNKNOWN_TOOL','Unknown Frame tool: '+name);if(tool.authoringData)args=FrameAuthorData.json(args);validate(tool.inputSchema,args);const input=copy(args);if(nativeIOBusy&&['scene.file','scene.file.changes'].includes(name))return copy(await tool.run(input));if(tool.coordination){sessionGuard?.();return copy(await tool.run(input,null,{bridgeGuard,sessionGuard,signal}));}if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(nativeIOBusy&&!bridgeGuard)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(name==='animation.pause')stop();let interruption;if(name==='plugins.command'){const n=resolve(input.id),operation=FramePlugins.owner(n)?.operations?.get(input.operation);if(operation?.interrupt){validate(operation.inputSchema,input.args||{});interruption=operation.interrupt(n.nativeHash,input.args||{});}}const execute=async seal=>{bridgeGuard?.();sessionGuard?.();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');if(['scene.new','scene.open','scene.merge','scene.share','scene.export','scene.save','scene.saveAs'].includes(name))await settleDocument(name==='scene.new'||name==='scene.open');else if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));if(nativeIOBusy)fail('BUSY','Finish the native file operation first');bridgeGuard?.();sessionGuard?.();if(seal)await seal();if(nativeIOBusy)fail('BUSY','Finish the native file operation first');if(scene&&FrameAuthorData.ready===false&&!['scene.new','scene.open'].includes(name))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(!scene||FrameAuthorData.ready===false))fail('NOT_READY','Native authoring document is not installed');if(tool.authoringData&&(FrameAuthorData.busy||undoBusy||frameUITransaction||numericSession||treeGesture||api.transforming||heldPointers.size||boxDrag||drag))fail('BUSY','Finish native authoring work first');const id=++sequence;window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'start'}}));let value,handlerCompleted=false;try{sessionGuard?.();value=await tool.run(input,interruption,{bridgeGuard,sessionGuard,signal:name==='scene.export'||name==='scene.saveAs'?signal:null});handlerCompleted=true;if(!tool.dataOnly)await settle(name==='view.window'&&input.action==='close'||tool.annotations.readOnlyHint&&!['scene.share','scene.export'].includes(name));const result=copy(value??null);window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'complete'}}));return result;}catch(error){if(tool.authoringData&&!tool.dataOnly&&handlerCompleted)error=Object.assign(new Error('Authoring operation completed before settlement failed; reread current state before retrying: '+(error.message||String(error)),{cause:error}),{code:'AUTHORING_POST_SETTLE_FAILED',completed:true,receipt:copy(value??null)});if(typeof error.code!=='string'){const wrapped=new Error(error.message||String(error),{cause:error});wrapped.code='COMMAND_FAILED';wrapped.stack=error.stack||wrapped.stack;error=wrapped;}window.dispatchEvent(new CustomEvent('frame-ai-call',{detail:{id,name,state:'error',code:error.code||'COMMAND_FAILED'}}));throw error;}};return admitted?execute():enqueueCommand(execute,{documentation:['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(name)||name==='api.batch'&&input.commands.some(c=>['scene.new','scene.open','scene.file.sync','scene.file.reload'].includes(c.name))?'replace':['scene.share','scene.export','scene.save','scene.saveAs','api.batch'].includes(name)?'save':null,bridge:!!bridgeGuard});}
       const collaboration=createFrameCollaboration({getDocument:()=>({id:FrameAuthorData.documentToken,epoch:FrameAuthorData.epoch,revision:FrameAuthorData.generation,ready:FrameAuthorData.ready}),getOwners:()=>nodes.map(n=>({id:n.id,hash:n.nativeHash,parent:n.parent})),invoke:(name,args,guard)=>call(name,args,null,guard),key:frameValueKey});
       const participantId={type:'string',maxLength:64},requestId={type:'string',maxLength:128},taskText={type:'string',maxLength:4096},ttlSeconds={...integer,minimum:1,maximum:86400},paging={offset:integer,limit:{...integer,minimum:1,maximum:1000}};
       const coordination=(name,description,schema,readOnly,run)=>{register(name,description,schema,readOnly,run);tools.get(name).coordination=true;};

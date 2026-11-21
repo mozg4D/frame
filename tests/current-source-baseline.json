@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 12:30",
+  "version": "2026 21 nov 12:49",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "45ca40cb99a2e1c87d2d70b89497b49dd07ee6d6dc2ac502f2a8657a2924846a"
+      "sha256": "a4a463e1aba2fa96c14a3510403dcfa5cd6d1e3417e501ba98d90c0702c96759"
     },
     "index.html": {
-      "bytes": 3965485,
-      "sha256": "0653e661b173996e172266f330abd0faae503d6a0e91c3e33c88334b13f279d0"
+      "bytes": 3970382,
+      "sha256": "fe1d86d38e6f48790f5d115fe6316c63848297ad548f7c326c124fdb1a78f4cf"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1181,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18114,
-      "sha256": "d5a2e61d9126db2fc4b1e87686a10eefd184db19847792ca921ea10479d1db75"
+      "bytes": 18207,
+      "sha256": "219c92d1ea18d3473e9b7d9da9ca174bff77c948b6e88c847a1c40d72b65b1b6"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1507,6 +1507,14 @@
     "tests/curvature-ordered-shared-browser.mjs": {
       "bytes": 13799,
       "sha256": "4d0d5a1fa06e72a256ed17b8efa826c06ccd9bc996ed8e6da5ca42e4a8e61830"
+    },
+    "tests/ai-workflows-browser.mjs": {
+      "bytes": 11938,
+      "sha256": "ebb9d202501851a97e781038952cbce3e76e89c04abd016eda2a186f9db61d9b"
+    },
+    "tests/export-streaming-sha256-cpu.mjs": {
+      "bytes": 9365,
+      "sha256": "55a3fa9c264291e60fe2f9737bb95e6fa4998c6887be2a56fedfedf9ff5a51f4"
     }
   }
 }
