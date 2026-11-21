@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 10:24",
+  "version": "2026 21 nov 10:36",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -554,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "74669147a0df4807186bfdac3e264a7989356b34d17fd654bf03e4fd8c29fee1"
+      "sha256": "e4a2d4a11ae5163e866fc4fa4689e70ff60dfc2cc1a0c42358ca00fb275957e9"
     },
     "index.html": {
-      "bytes": 3923600,
-      "sha256": "bb6648be243cdd5053c863e6907f16d7bb573e6a5db9a5266015f15709e0f314"
+      "bytes": 3927056,
+      "sha256": "0728a5fa9e9f0fa63b8c9104e7d0ae69674fafbef95411577d7751d2670117f7"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -961,8 +961,8 @@
       "sha256": "5e227b4740701e1290f2ae42de260b83a1ab19386af7dc3b2e4507b53e9e1432"
     },
     "tests/animation-transaction.mjs": {
-      "bytes": 25455,
-      "sha256": "8bf9a550f94ae4cbfdb72ee5bd0021b7df1ad036106ce7c90f1e041cfff1e215"
+      "bytes": 25871,
+      "sha256": "d55d5f9da24346a8002ad6f0215e14a96288b50cfac0dc89c78549ffba80c306"
     },
     "tests/animation-transaction-browser.mjs": {
       "bytes": 9297,
@@ -1181,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 17361,
-      "sha256": "a3761640182b659a4d2e12be2961e7396e0cccfddd304d9452a8223e40d201a1"
+      "bytes": 17514,
+      "sha256": "c6d03667462f16be5902fece8b7fe2945b631c6f4aeeb252f8de93f03d329054"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1447,6 +1447,18 @@
     "tests/curvature-prediction.mjs": {
       "bytes": 6948,
       "sha256": "60170b57325ac32c9c7dc976aecc2cb417a33394dae9d3e2f6eca876b4c73ea8"
+    },
+    "tests/curvature-native-seams.mjs": {
+      "bytes": 1547,
+      "sha256": "5a6e24c100398dbc221efbf6609de8a5da61666fea1d2d95f2508343ac7d65c2"
+    },
+    "tests/curvature-live-surface-browser.mjs": {
+      "bytes": 7013,
+      "sha256": "48e9d616199197478d4bac062307eabc8e2faeb35251824c2e2d573132938bd8"
+    },
+    "tests/curvature-library-angles-browser.mjs": {
+      "bytes": 8950,
+      "sha256": "3325dc2c8a44a3bf49ebaea7e74ded9decbddf3da3459d38fded5a07034d2f83"
     }
   }
 }

@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 21 nov 10:24">
+<meta name="frame-version" content="2026 21 nov 10:36">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12325,7 +12325,7 @@ function frameParameter(target,path){if(path.startsWith('tag:')){const [,id,...p
 function frameAttributeKind(h,path){const target=frameTarget(h);if(!target||FRAME_TRANSFORM_FIELDS.includes(path)||path.startsWith('material:')||frameIsPLAPath(path)||path.startsWith('pose:'))return 'number';const field=frameParameter(target,path);return typeof field?.spec==='boolean'||Array.isArray(field?.spec)?'discrete':numberOptions(target.type,field?.key||'').int?'integer':'number';}
 function frameReadAttribute(h,path){const target=frameTarget(h);if(!target||FramePlugins.dispatch('forbidAnimation',target,path))return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])return d.vertices[key].slice();const match=key.match(/^h:(.+):(h[ab])$/);return match&&d.segments[match[1]]?.[match[2]].slice();}return window.frameEngine?.animationVertex(target.nativeHash,+key)||frameGetTrack(h,path)?.base;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0)return window.frameEngine?.animationTransform(target.nativeHash,path);if(path.startsWith('material:')){const value=target[path.slice(9)];return typeof value==='number'?value:undefined;}const field=frameParameter(target,path);if(!field||field.spec===undefined)return;const value=field.container[field.key],spec=field.spec;return typeof value==='boolean'?+value:Array.isArray(spec)?spec.indexOf(value):typeof value==='number'?value:undefined;}
 function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid)target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});
-  if(path==='param:'+frameCreaseAngleKey){if(target.type!=='mesh'||!Number.isFinite(next))return;const v=Math.max(0,Math.min(180,next));if(container[key]!==v){container[key]=v;window.frameEngine?.setMeshCreaseAngle(target.nativeHash,v);}return;}
+  if(path==='param:'+frameCreaseAngleKey){if(!framePolygonCreaseType(target.type)||!Number.isFinite(next))return;const v=Math.max(0,Math.min(180,next));if(container[key]!==v){container[key]=v;window.frameEngine?.setMeshCreaseAngle(target.nativeHash,v);}return;}
   if(target.type==='tree'&&container===target.params){
     const opt=FramePlants.options[key],v=typeof next==='number'&&opt?Math.min(opt.maximum,Math.max(opt.minimum,opt.integer?Math.round(next):next)):next;
     if(container[key]!==v){
@@ -14338,10 +14338,13 @@ function bakeFoliage(device,p){
 
 const frameDefaultCreaseAngle=44,frameCreaseAngleKey='crease angle';
 const validFrameCreaseAngle=v=>Number.isFinite(v)&&v>=0&&v<=180;
-const framePolygonCreaseAngle=n=>n?.type==='mesh'&&validFrameCreaseAngle(n.params[frameCreaseAngleKey])?n.params[frameCreaseAngleKey]:frameDefaultCreaseAngle;
+const framePolygonCreaseType=type=>type==='mesh'||type==='car'||type==='human'||type==='tree';
+const framePolygonCreaseAngle=n=>framePolygonCreaseType(n?.type)&&validFrameCreaseAngle(n.params[frameCreaseAngleKey])?n.params[frameCreaseAngleKey]:frameDefaultCreaseAngle;
+const frameCreaseFields={[frameCreaseAngleKey]:frameDefaultCreaseAngle},frameCreaseOptions={[frameCreaseAngleKey]:{unit:'deg',minimum:0,maximum:180,access:'read-write'}};
+function frameLibraryAssetParams(params){const {[frameCreaseAngleKey]:_,...asset}=params;return asset;}
 const definitions = {
   group:['Group','ICO_BROWSER_UNFOLDED',{}],
-  mesh:['Polygon object','ICO_POLYGON_OBJECT',{[frameCreaseAngleKey]:frameDefaultCreaseAngle},{[frameCreaseAngleKey]:{unit:'deg',minimum:0,maximum:180,access:'read-write'}}],
+  mesh:['Polygon object','ICO_POLYGON_OBJECT',frameCreaseFields,frameCreaseOptions],
   cube:['Cube','ICO_OBJ_CUBE',{'size x':100,'size y':100,'size z':100},Object.fromEntries(['size x','size y','size z'].map(k=>[k,{unit:'mm',minimum:0,access:'read-write'}]))],
   cylinder:['Cylinder','ICO_OBJ_CYL',{diameter:100,height:100,...approximation}],
   tube:['Tube','ICO_OBJ_TUBE',{'outer diameter':100,'inner diameter':50,height:100,...approximation}],
@@ -14367,9 +14370,9 @@ const definitions = {
   symmetry:['Symmetry','ICO_SYMMETRY',{'Morph symmetry':true,X:true,Y:false,Z:false}],
   cloner:['Cloner','ICO_CLONER',{type:['radial','matrix','object'],count:5,radius:100,angle:360,'count x':3,'count y':3,'count z':3,'spacing x':100,'spacing y':100,'spacing z':100,object:'Drop object',step:100,offset:0,align:['parallel','tangent'],'random position x':0,'random position y':0,'random position z':0,'random angle x':0,'random angle y':0,'random angle z':0,'uniform scale':true,'random scale x':0,'random scale y':0,'random scale z':0,seed:1}],
   instance:['Instance','ICO_INSTANCE',{object:'',file:''}],
-  car:['Car','car',{'color preset':Object.keys(carPaintPresets)}],
-  tree:['Tree','tree',FramePlants.fields,FramePlants.options],
-  human:['Human','human',{type:['man','woman'],pose:['stand','sit','walk']}],
+  car:['Car','car',{'color preset':Object.keys(carPaintPresets),...frameCreaseFields},frameCreaseOptions],
+  tree:['Tree','tree',{...FramePlants.fields,...frameCreaseFields},{...FramePlants.options,...frameCreaseOptions}],
+  human:['Human','human',{type:['man','woman'],pose:['stand','sit','walk'],...frameCreaseFields},frameCreaseOptions],
   render:['Camera','camera',{renderer:['Path tracer','Viewport'],'resolution x':1920,'resolution y':1080,samples:128,realtime:['on','off'],'realtime during navigation':true,environment:['off','default','image'],'environment image':''}],
   target:['Target','target',{object:''}],
   infinite:['Infinite light','light',{intensity:100,'temperature K':6500,'angular size':30}],
@@ -14381,6 +14384,9 @@ const curvatureModes=['Angle','Surface Prediction'],frameCurvatureTriangleLimit=
 function frameCurvatureLimitText(reason){
   if(reason==='triangle-limit')return 'Limit: '+frameCurvatureTriangleLimit.toLocaleString('en-US')+' triangles';
   if(reason==='vertex-limit')return 'Limit: '+frameCurvatureVertexLimit.toLocaleString('en-US')+' vertices';
+  if(reason==='patch-seams-unavailable')return 'Spline Patch seam data is unavailable';
+  if(reason==='occurrence-unsupported')return 'Curvature is not supported on derived occurrences';
+  if(reason==='mesh-unavailable')return 'No rasterized surface is currently available';
   return '';
 }
 let frameCurvatureAttributeNotice=null;
@@ -15395,7 +15401,7 @@ function numberOptions(type,key){
   const o={};if(/size|diameter|height|offset|pitch|radius|spacing|step|module|length|fillet/.test(key)&&!['angular size','random scale x','random scale y','random scale z'].includes(key))o.length=true;
   if(/size|diameter|height|radius|module|pitch|fillet/.test(key)&&!key.startsWith('random'))o.min=0;
   if(key==='angle approximation')Object.assign(o,{min:1,max:180,prec:0});
-  if(type==='mesh'&&key===frameCreaseAngleKey)Object.assign(o,{min:0,max:180,prec:2,stepFixed:1});
+  if(framePolygonCreaseType(type)&&key===frameCreaseAngleKey)Object.assign(o,{min:0,max:180,prec:2,stepFixed:1});
   if(['count','faces','teeth','seed','count x','count y','count z','resolution x','resolution y','fps','samples'].includes(key))Object.assign(o,{int:true,min:key==='seed'?0:key==='faces'?3:key==='teeth'?type==='pulley'?8:4:1});
   if(key.startsWith('random'))Object.assign(o,{min:0,...key.startsWith('random scale')?{max:99.9}:{}});
   if(type==='render'&&key.startsWith('resolution'))Object.assign(o,{min:8,max:8192,int:true});
@@ -15468,13 +15474,13 @@ function renderAttributes(){
   }
   attributesNumberOwner=n;attributesNumberTag=tag;attributesRefreshPending=false;
   if(frameCurvesRenderAttributes())return;
-  if(!n||tag?.kind==='curvature'&&n.type!=='mesh'){content.replaceChildren();return;}
+  if(!n){content.replaceChildren();return;}
   if(!selectedTag&&(FrameGeometry.bevelAttributes(content,n)||FrameGeometry.attributes(content,n)||window.frameEngine?.polygonAttributes(content,n)))return;
   if(!selectedTag&&[...selected].some(id=>node(id)?.type!==n.type)){content.replaceChildren();return;}
   const values=tag?tag.params:n.params;if(tag?.kind==='curvature'&&!curvatureModes.includes(values.mode))values.mode=curvatureModes[0];if(FrameMorph.attributes(content,n,tag))return;if(frameSelectionAttributes(n,tag,content))return;
   let fields=tag?tag.kind==='morph'?{...tagDefinitions.morph.fields,...Object.fromEntries(Object.keys(tag.params).filter(k=>k!=='mode').map(k=>[k,0]))}:tagDefinitions[tag.kind].fields:definitions[n.type][2];
   if(!tag&&['nut','washer','bolt'].includes(n.type)&&window.FrameSpline){const options=FrameSpline.K().catalogue(n.type,values);values.size=options.size;if(options.length)values.length=options.length;fields={...fields,size:options.sizes,...options.lengths?{length:options.lengths}:{}};}
-  if(!tag&&n.type==='mesh'&&!Object.hasOwn(values,frameCreaseAngleKey))values[frameCreaseAngleKey]=frameDefaultCreaseAngle;
+  if(!tag&&framePolygonCreaseType(n.type)&&!Object.hasOwn(values,frameCreaseAngleKey))values[frameCreaseAngleKey]=frameDefaultCreaseAngle;
   let list=Object.entries(fields).filter(([k])=>tag||n.type!=='render'||k!=='environment image'),html='';
   const row=key=>fieldRow(key,values[key],fields[key]);
   const capRow=()=>'<div class="attr-row"><span class="attr-lab">Caps</span><div class="attr-ctrl" role="group" aria-label="Extrude caps">'+['start','end'].map(end=>{const key=end+' cap',enabled=values[key]!==false;return `<button class="attr-btn${enabled?' on':''}" data-field="${key}" data-value="${!enabled}" aria-label="${end==='start'?'Start':'End'} cap" aria-pressed="${enabled}">${end==='start'?'Start':'End'}</button>`;}).join('')+'</div></div>';
@@ -15486,12 +15492,12 @@ function renderAttributes(){
     else{html+=row('object');if(isSplineObject(objectReference(values.object)))html+=['step','offset','align'].map(row).join('');else html+=row('count');}
     html+='<div class="cloner-random-head"><span>±</span><span class="ax-x">x</span><span class="ax-y">y</span><span class="ax-z">z</span></div>';
     html+=triple('pos',['random position x','random position y','random position z'])+triple('angle',['random angle x','random angle y','random angle z'])+row('uniform scale')+(values['uniform scale']?fieldRow('scale %',values['random scale x'],fields['random scale x'],'random scale x'):triple('scale %',['random scale x','random scale y','random scale z']))+row('seed');
-  }else if(!tag&&n.type==='tree')html=FramePlants.presetButtons(values.type)+['seed','day of year','growth'].map(row).join('')+fieldRow('density',values['leaf density'],fields['leaf density'],'leaf density');
+  }else if(!tag&&n.type==='tree')html=FramePlants.presetButtons(values.type)+['seed','day of year','growth'].map(row).join('')+fieldRow('density',values['leaf density'],fields['leaf density'],'leaf density')+fieldRow('Crease Angle',values[frameCreaseAngleKey],fields[frameCreaseAngleKey],frameCreaseAngleKey);
   else if(!tag&&n.type==='symmetry')html=(descendants(n.id).some(id=>node(id)?.tags.some(t=>t.kind==='morph'))?`<div class="attr-row"><span class="attr-lab">Morph</span><div class="attr-ctrl"><button class="attr-btn${values['Morph symmetry']?' on':''}" data-field="Morph symmetry" data-value="${!values['Morph symmetry']}" aria-pressed="${values['Morph symmetry']}">symmetry</button></div></div>`:'')+'<div class="attr-row"><span class="attr-lab">axis</span><div class="attr-ctrl">'+['X','Y','Z'].map(k=>`<button class="attr-btn${values[k]?' on':''}" data-field="${k}" data-value="${!values[k]}">${k}</button>`).join('')+'</div></div>';
   else{
     if(!tag&&n.type==='extrude')list=list.filter(([k])=>k!=='end cap'&&(!k.includes('fillet')||values[k.split(' ')[0]+' cap']!==false&&(!k.endsWith('fillet type')||values[k.replace(' type','')]!==0)));
     if(tag?.kind==='morph'&&values.mode==='Modelling')list=list.filter(([k])=>k==='mode');
-    html=list.map(([k,spec])=>!tag&&n.type==='extrude'&&k==='start cap'?capRow():!tag&&n.type==='pulley'&&k==='profile'?'<div class="attr-row"><span class="attr-lab">profile</span><div class="attr-ctrl">'+spec.map(v=>`<button class="attr-btn${values[k]===v?' on':''}" data-field="profile" data-value="${v}" aria-pressed="${values[k]===v}">${v}</button>`).join('')+'</div></div>':fieldRow(tag?.kind==='morph'&&k==='mode'?'':!tag&&n.type==='mesh'&&k===frameCreaseAngleKey?'Crease Angle':k,values[k],spec,k)).join('');
+    html=list.map(([k,spec])=>!tag&&n.type==='extrude'&&k==='start cap'?capRow():!tag&&n.type==='pulley'&&k==='profile'?'<div class="attr-row"><span class="attr-lab">profile</span><div class="attr-ctrl">'+spec.map(v=>`<button class="attr-btn${values[k]===v?' on':''}" data-field="profile" data-value="${v}" aria-pressed="${values[k]===v}">${v}</button>`).join('')+'</div></div>':fieldRow(tag?.kind==='morph'&&k==='mode'?'':!tag&&framePolygonCreaseType(n.type)&&k===frameCreaseAngleKey?'Crease Angle':k,values[k],spec,k)).join('');
     if(!tag&&n.type==='render')html='<div class="attr-row"><span class="attr-lab">resolution</span><div class="attr-ctrl">'+['resolution x','resolution y'].map((key,i)=>`<input class="attr-inp" data-field="${key}" aria-label="Output ${i?'height':'width'}" value="${values[key]}">`).join('')+'</div></div>'+list.filter(([key])=>!['resolution x','resolution y'].includes(key)).map(([key,spec])=>fieldRow(key,values[key],spec)).join('');
 
     if(!tag&&n.type==='render')html+='<div class="attr-row"><span class="attr-lab" id="frameRenderSamples">render</span><div class="attr-ctrl">'+(values.renderer==='Viewport'?'':'<button class="attr-btn" id="frameRenderToggle" aria-label="Save viewport image">view</button>')+'<button class="attr-btn" id="frameRenderImage">image</button><button class="attr-btn" id="frameRenderVideo">video</button></div></div>';
@@ -15513,9 +15519,9 @@ function renderAttributes(){
   const pluginFields=!tag?FramePlugins.attributes(n):null;
   if(!tag)FramePlugins.renderActions(n,content);
   if(!tag)for(const key of FramePlugins.owner(n)?.manifest.objects.find(o=>o.type===n.type)?.breakAfter||[]){const input=[...content.querySelectorAll('[data-field]')].find(el=>el.dataset.field===key);if(input)input.closest('.attr-row').style.marginBottom='8px';}
-  const update=(key,value)=>{if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
+  const update=(key,value)=>{if(!tag&&key===frameCreaseAngleKey&&framePolygonCreaseType(n.type)){if(!validFrameCreaseAngle(value))return;values[key]=value;for(const id of selected){const other=node(id);if(other?.type===n.type)other.params[key]=value;}return;}if(!tag&&n.type==='target'&&key==='object'&&!frameTargetValid(n,value))throw Error('Target link would create a transform cycle');const prior=hardwareName(n),auto=prior===n.name;const patch=!tag?FramePlugins.parameterPatch(n,{[key]:value}):null;if(!tag)Object.assign(values,patch);else if(tagDefinitions[tag.kind]?.plugin)Object.assign(values,FramePluginTags.params(tagDefinitions[tag.kind],{...values,[key]:value}));else values[key]=value;if(auto)n.name=hardwareName(n);window.FrameSpline?.request();if(!tag)for(const id of selected){const other=node(id);if(other&&other.type===n.type){const auto=other.name===hardwareName(other);Object.assign(other.params,FramePlugins.parameterPatch(other,{[key]:value}));if(auto)other.name=hardwareName(other);}}if(patch&&Object.keys(patch).length>1)for(const field of all('input[data-field]',content))if(field.dataset.field!==key&&Object.hasOwn(patch,field.dataset.field))field._sync?.();if(!tag&&n.type==='tree')window.frameEngine?.requestLibrary();if(hardwareName(n))renderTree();if(n.type==='infinite')window.frameEngine?.syncLights(nodes.filter(n=>n.type==='infinite'&&n.nativeHash).map(n=>({hash:n.nativeHash,values:[n.params.intensity,n.params['temperature K'],n.params['angular size']]})));};
   for(const input of all('input[type=checkbox][data-field]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.checked),false);
-  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&n.type==='mesh'&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type==='mesh')window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
+  for(const input of all('input:not([data-textfield]):not([type=checkbox])',content)){const key=input.dataset.field;bindNumber(input,{...numberOptions(n.type,key),...pluginFields?.ranges?.[key],...tag?.kind==='morph'?{min:0,max:100,prec:1}:tag?.kind==='bevel'?{min:0}:{},deferText:!tag&&['cloner','tree'].includes(n.type),get:()=>values[key],set:v=>update(key,v),finish:()=>{if(!tag&&framePolygonCreaseType(n.type)&&key===frameCreaseAngleKey){for(const id of new Set([n.id,...selected])){const owner=node(id);if(owner?.type===n.type)window.frameEngine?.setMeshCreaseAngle(owner.nativeHash,framePolygonCreaseAngle(owner));}}else if(!tag&&n.type==='extrude'&&key.endsWith('fillet'))renderAttributes();},multiple:()=>!tag&&[...selected].some(id=>node(id)?.params[key]!==values[key])});}
   for(const input of all('textarea,[data-textfield]',content))input.onchange=()=>commit(()=>update(input.dataset.field,input.value),false);
   for(const button of all('[data-value]',content)){button.onclick=()=>{const key=button.dataset.field;if(!tag&&n.type==='render'&&key==='environment'&&button.dataset.value==='image'){frameChooseEnvironment(n);return;}commit(()=>update(key,typeof fields[key]==='boolean'?button.dataset.value==='true':tagDefinitions[tag?.kind]?.plugin&&Array.isArray(fields[key])?fields[key].find(v=>String(v)===button.dataset.value):button.dataset.value),false);renderAttributes();};button.onkeydown=e=>{if(!/^Arrow(Left|Right|Up|Down)$/.test(e.key))return;const key=button.dataset.field,spec=fields[key],direction=['ArrowUp','ArrowRight'].includes(e.key)?1:-1;if(typeof spec!=='boolean'&&!Array.isArray(spec))return;e.preventDefault();e.stopPropagation();const value=typeof spec==='boolean'?direction>0:spec[(spec.indexOf(values[key])+direction+spec.length)%spec.length];commit(()=>update(key,value),false);renderAttributes();const candidates=all('[data-field]',content).filter(el=>el.dataset.field===key);(candidates.find(el=>el.getAttribute('aria-pressed')==='true')||candidates[0])?.focus();};}
   for(const button of all('[data-cycle]',content)){const key=button.dataset.field;bindCycle(button,fields[key],()=>values[key],v=>update(key,v),n.type==='bolt'&&key==='length'?v=>v+' mm':String,n.type==='bolt'||n.type==='tree'?renderAttributes:()=>{});}
@@ -16184,8 +16190,8 @@ function restoreStockAuthoring(n,library){
   n.librarySlots=structuredClone(library.slots);
   if(n.type==='car')n.libraryPreset=n.params['color preset'];
 }
-function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));const creaseAngle=n.type==='mesh'?(tracks?.get('param:'+frameCreaseAngleKey)?.base??framePolygonCreaseAngle(n)):undefined;return n.authorData||tags.length||animation.length||creaseAngle!==undefined&&creaseAngle!==frameDefaultCreaseAngle||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...creaseAngle!==undefined&&creaseAngle!==frameDefaultCreaseAngle?{creaseAngle}:{},...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:stockCarAsset}:{},params:n.params,slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
-function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(n.type==='mesh')n.params[frameCreaseAngleKey]=a?.creaseAngle??frameDefaultCreaseAngle;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={[frameCreaseAngleKey]:a.creaseAngle??frameDefaultCreaseAngle};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library)restoreStockAuthoring(n,a.library);for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
+function frameAuthoring(n){if(frameCurves.morphPose?.owner===n.id)FrameMorph.syncTracks();const tracks=FrameMorph.sceneChannels().get(n.id),tags=n.tags.filter(t=>!['material','selection','uv'].includes(t.kind));for(const t of tags)if(t.kind==='morph')t.poses??=[];const animation=tracks?[...tracks].map(([path,t])=>[path,framePackTrack(t,false)]):[],ignored=n.ignoredAuthoring;for(const t of ignored?.tags||[])if(!tags.some(active=>active.uid&&active.uid===t.uid))tags.push(structuredClone(t));for(const row of ignored?.animation||[])if(!animation.some(active=>active[0]===row[0]))animation.push(structuredClone(row));const creaseAngle=framePolygonCreaseType(n.type)?(tracks?.get('param:'+frameCreaseAngleKey)?.base??framePolygonCreaseAngle(n)):undefined;return n.authorData||tags.length||animation.length||creaseAngle!==undefined&&creaseAngle!==frameDefaultCreaseAngle||n.emptyMesh||n.validFillet||n.pluginRecords||n.browserHidden||n.fileMount||n.fileSource||n.instanceCloud||ignored?.plugin||FramePlugins.owner(n)||['car','tree','human'].includes(n.type)?{version:1,...creaseAngle!==undefined&&creaseAngle!==frameDefaultCreaseAngle?{creaseAngle}:{},...n.authorData?{authorData:FrameAuthorData.envelope(n.authorData)}:{},...n.emptyMesh?{emptyMesh:true}:{},...n.validFillet?{fillet:{...n.validFillet}}:{},...n.browserHidden?{browserHidden:true}:{},...n.fileMount?{fileMount:n.fileMount}:{},...n.fileSource?{fileSource:n.fileSource}:{},...n.instanceCloud?{instanceCloud:structuredClone(n.instanceCloud)}:{},...n.pluginRecords?{recordValues:FramePluginRecords.native(n.pluginRecords),pluginRecords:Object.entries(n.pluginRecords).map(([key,r])=>({key,type:r.type}))}:{},...ignored?.plugin?{plugin:structuredClone(ignored.plugin),...ignored.pluginReferencesUnresolved?{pluginReferencesUnresolved:true}:{}}:FramePlugins.owner(n)?{plugin:{id:FramePlugins.owner(n).manifest.id,type:n.type,params:structuredClone(n.params)}}:{},tags:FrameMorph.serializedTags(n,tags),animation,...(['car','tree','human'].includes(n.type)?{library:{type:n.type,...n.type==='car'?{asset:stockCarAsset}:{},params:frameLibraryAssetParams(n.params),slots:n.librarySlots||stockMaterialSlots(n)}}:{})}:null;}
+function frameRestoreAuthoring(n,a){delete n.fileMount;delete n.fileSource;if(a?.fileMount)n.fileMount=a.fileMount;if(a?.fileSource)n.fileSource=a.fileSource;delete n.authorData;if(a?.authorData)n.authorData=FrameAuthorData.envelope(a.authorData);delete n.ignoredAuthoring;if(n.type==='mesh')n.params[frameCreaseAngleKey]=a?.creaseAngle??frameDefaultCreaseAngle;if(!a)return;const ignored={tags:[],animation:[]};if(a.emptyMesh){n.type='mesh';n.params={[frameCreaseAngleKey]:a.creaseAngle??frameDefaultCreaseAngle};n.emptyMesh=true;}if(n.type==='extrude'&&a.fillet)n.validFillet={...a.fillet};if(a.plugin){const entry=FramePlugins.owner({type:a.plugin.type});if(!entry||entry.manifest.id!==a.plugin.id||a.pluginReferencesUnresolved){ignored.plugin=structuredClone(a.plugin);if(a.pluginReferencesUnresolved)ignored.pluginReferencesUnresolved=true;if(FramePlugins.owner(n)){n.type='group';n.params={};}}else{n.type=a.plugin.type;n.params={...defaults(definitions[n.type][2]),...a.plugin.params};}}if(a.recordValues)n.pluginRecords=FramePluginRecords.restore(a.recordValues);if(a.browserHidden)n.browserHidden=true;if(a.instanceCloud)n.instanceCloud=structuredClone(a.instanceCloud);if(a.library){restoreStockAuthoring(n,a.library);n.params[frameCreaseAngleKey]=a.creaseAngle??frameDefaultCreaseAngle;}for(const t of structuredClone(a.tags||[])){if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)ignored.tags.push(t);else n.tags.push(tagDefinitions[t.kind].plugin?{...t,...t.uid===undefined&&Object.keys(tagDefinitions[t.kind].fields).length?{uid:FrameHash.newId()}:{},params:FramePluginTags.params(tagDefinitions[t.kind],t.params)}:t);}const animation=[];for(const row of a.animation||[]){const path=row[0],tag=path.startsWith('tag:')&&ignored.tags.some(t=>t.uid===path.split(':')[1]);if(tag||ignored.plugin&&!['position','rotation','scale'].includes(path))ignored.animation.push(structuredClone(row));else animation.push([n.id,...row]);}if(a.animation?.length)frameRestoreChannels(animation,[n.id]);if(ignored.plugin||ignored.tags.length||ignored.animation.length)n.ignoredAuthoring=ignored;}
 function frameValidateMorphRegions(regions){
   const vector=(v,n)=>Array.isArray(v)&&v.length===n&&v.every(x=>typeof x==='number'&&Number.isFinite(x));
   if(!Array.isArray(regions)||regions.length>10000)throw Error('Invalid Morph regions');
@@ -16206,7 +16212,7 @@ function validateStockCar(library){
     seen.add(index);
   }
 }
-function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.creaseAngle!==undefined&&!validFrameCreaseAngle(a.creaseAngle))throw Error('Invalid polygon crease angle');if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{const d=definitions[a.library.type][2][key];return Array.isArray(d)?!d.includes(value):a.library.type!=='tree'||typeof d!=='number'||!Number.isFinite(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');if(a.library?.type==='tree'){FrameParameters.validate('tree',a.library.params);for(const slot of a.library.slots)if(slot.foliage!==undefined&&(typeof slot.foliage!=='string'||slot.foliage.length>256))throw Error('Invalid foliage recipe');}if(a.library?.type==='car')validateStockCar(a.library);for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
+function frameValidateAuthoring(value){if(value===undefined)return null;const a=structuredClone(value);if(!a||typeof a!=='object'||Array.isArray(a))throw Error('Invalid authoring metadata');if(Array.isArray(a.tags))a.tags=a.tags.filter(t=>t?.kind!=='background');if(a.authorData!==undefined)a.authorData=FrameAuthorData.envelope(a.authorData);for(const k of ['fileMount','fileSource'])if(a[k]!==undefined&&(typeof a[k]!=='string'||a[k].length>128))throw Error('Invalid file source identity');if(a.version!==1||!Array.isArray(a.tags)||!Array.isArray(a.animation)||a.tags.length>10000||a.animation.length>10000)throw Error('Invalid authoring metadata');let items=0;function finite(v,depth=0){if(++items>5000000||depth>64||typeof v==='number'&&!Number.isFinite(v))throw Error('Invalid authoring data');if(v&&typeof v==='object')for(const x of Object.values(v))finite(x,depth+1);}finite(a);if(a.creaseAngle!==undefined&&!validFrameCreaseAngle(a.creaseAngle))throw Error('Invalid polygon crease angle');if(a.emptyMesh!==undefined&&a.emptyMesh!==true)throw Error('Invalid empty mesh metadata');if(a.fillet&&(!a.fillet||typeof a.fillet!=='object'||Array.isArray(a.fillet)||Object.entries(a.fillet).some(([k,v])=>!Object.hasOwn(definitions.extrude[2],k)||(Array.isArray(definitions.extrude[2][k])?!definitions.extrude[2][k].includes(v):typeof v!==typeof definitions.extrude[2][k]))))throw Error('Invalid fillet metadata');if(a.pluginReferencesUnresolved!==undefined&&(a.pluginReferencesUnresolved!==true||!a.plugin))throw Error('Invalid unresolved plugin metadata');if(a.plugin&&(!a.plugin||typeof a.plugin!=='object'||Array.isArray(a.plugin)||typeof a.plugin.id!=='string'||a.plugin.id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(a.plugin.id)||typeof a.plugin.type!=='string'||a.plugin.type.length>128||!/^[a-z][a-z0-9_]*$/.test(a.plugin.type)||!a.plugin.params||typeof a.plugin.params!=='object'||Array.isArray(a.plugin.params)))throw Error('Invalid plugin metadata');if(a.plugin&&FramePlugins.owner({type:a.plugin.type})?.manifest.id===a.plugin.id&&!a.pluginReferencesUnresolved){const fields=definitions[a.plugin.type][2];if(Array.isArray(a.plugin.params)||Object.entries(a.plugin.params).some(([key,value])=>!Object.hasOwn(fields,key)||(Array.isArray(fields[key])?!fields[key].includes(value):typeof value!==typeof fields[key])))throw Error('Invalid plugin parameters');}if(a.library&&(!['car','tree','human'].includes(a.library.type)||!a.library.params||Object.entries(a.library.params).some(([key,value])=>{if(key===frameCreaseAngleKey)return true;const d=definitions[a.library.type][2][key];return Array.isArray(d)?!d.includes(value):a.library.type!=='tree'||typeof d!=='number'||!Number.isFinite(value);})))throw Error('Invalid library metadata');if(a.library&&(!Array.isArray(a.library.slots)||a.library.slots.length>10000||a.library.slots.some(s=>!s||!['uid','materialUID'].every(k=>typeof s[k]==='string'&&/^[0-9a-f]{32}$/.test(s[k])))))throw Error('Invalid library slots');if(a.library?.type==='tree'){FrameParameters.validate('tree',a.library.params);for(const slot of a.library.slots)if(slot.foliage!==undefined&&(typeof slot.foliage!=='string'||slot.foliage.length>256))throw Error('Invalid foliage recipe');}if(a.library?.type==='car')validateStockCar(a.library);for(const t of a.tags){if(!t||typeof t.kind!=='string'||t.kind.length>128||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||!t.params||typeof t.params!=='object'||Array.isArray(t.params)||t.uid!==undefined&&(typeof t.uid!=='string'||!/^[0-9a-f]{32}$/.test(t.uid))||t.referencesUnresolved!==undefined&&t.referencesUnresolved!==true)throw Error('Invalid authored tag');if(!Object.hasOwn(tagDefinitions,t.kind)||t.referencesUnresolved)continue;if(tagDefinitions[t.kind].plugin)FramePluginTags.params(tagDefinitions[t.kind],t.params);if(t.kind==='morph'){if(t.domain&&!['spline','polygon'].includes(t.domain)||!['Modelling','Solve','Edit'].includes(t.params.mode||'Modelling')||!Array.isArray(t.poses)||t.poses.length>10000)throw Error('Invalid Morph metadata');if(t.domain==='spline'&&t.reference){FrameSpline.encodeShape({type:'spline',params:{},data:t.reference});const check=FrameSpline.K().validateSpline(t.reference);if(!check.ok)throw Error('Invalid Morph reference');}if(t.vertexIds!==undefined&&(!Array.isArray(t.vertexIds)||t.vertexIds.some(id=>typeof id!=='string')||new Set(t.vertexIds).size!==t.vertexIds.length))throw Error('Invalid Morph polygon map');const ids=new Set(),names=new Set();for(const p of t.poses){if(typeof p.id!=='string'||typeof p.name!=='string'||ids.has(p.id)||names.has(p.name)||!Array.isArray(p.deltas)||p.deltas.length>1000000)throw Error('Invalid Morph pose');ids.add(p.id);names.add(p.name);if(p.min!==undefined&&(!Number.isFinite(p.min)||!Number.isFinite(p.max)||p.max<=p.min)||p.interpolation!==undefined&&!['Arc','Linear','Spline'].includes(p.interpolation)||p.nativeCurves!==undefined&&typeof p.nativeCurves!=='boolean')throw Error('Invalid Morph trajectory options');if(p.curveMeta){if(typeof p.curveMeta!=='object'||Array.isArray(p.curveMeta))throw Error('Invalid Morph curve metadata');for(const rows of Object.values(p.curveMeta)){if(!Array.isArray(rows))throw Error('Invalid Morph curve metadata');for(const [frame,key]of rows)if(!Number.isInteger(frame)||frame<0||frame>100||!key||typeof key!=='object')throw Error('Invalid Morph curve key');}}if(p.keys!==undefined){if(p.deltas.length)throw Error('Region Morph cannot contain point deltas');frameValidateMorphKeys(p.keys);}const keys=new Set();for(const row of p.deltas){if(!Array.isArray(row)||row.length!==2||typeof row[0]!=='string'||keys.has(row[0])||!Array.isArray(row[1])||row[1].length!==3||row[1].some(v=>typeof v!=='number'||!Number.isFinite(v)))throw Error('Invalid Morph delta');keys.add(row[0]);}}}}for(const row of a.animation){if(!Array.isArray(row)||typeof row[0]!=='string'||!Array.isArray(row[1]?.keys)||row[1].keys.length>100000)throw Error('Invalid animation track');const t=row[1];if(!['number','integer','discrete'].includes(t.kind)||!Number.isInteger(t.dimensions)||t.dimensions<1||t.dimensions>3)throw Error('Invalid animation dimensions');const frames=new Set();for(const [f,k]of t.keys){if(!Number.isFinite(f)||frames.has(f)||!k||typeof k!=='object'||(Array.isArray(k.v)?k.v.length!==t.dimensions||k.v.some(v=>typeof v!=='number'):t.dimensions!==1||typeof k.v!=='number'))throw Error('Invalid animation key');frames.add(f);}}return a;}
 function frameUIMaterialSlots(){const slots=new Map();materials.forEach((m,i)=>{if(!slots.has(m.uid))slots.set(m.uid,i);});return slots;}
 function frameUITags(tags,slots){return (tags||[]).map(t=>t.kind==='material'?{...t,material:slots.get(t.materialUID)??0,params:{}}:{...t,params:{...t.params}});}
 function frameMaterialOwner(n,selection=true){return selection&&n?.type==='spline'&&FrameSpline.selection(n.nativeHash).size?FrameSpline.patchOwner(n)||n:n;}
@@ -17411,7 +17417,7 @@ function frameSyncEngineVisibility(){
   if(!window.frameEngine)return;const meshIndices=new Map(),canonicalIndices=new Map();for(const [i,m]of (window.frameEngine.scene?.meshes||[]).entries()){if(!meshIndices.has(m.hashId))meshIndices.set(m.hashId,i);if(!m.replicaMatrix&&!canonicalIndices.has(m.hashId))canonicalIndices.set(m.hashId,i);}const camera=nodes.find(n=>n.type==='render'&&n.enabled);if(camera)for(const n of nodes)if(n.type==='render'&&n!==camera)n.enabled=false;for(const n of nodes)if(window.FrameSpline?.supported.has(n.type)&&n.engineIndex!==undefined&&window.frameEngine.scene?.meshes[n.engineIndex]?.hashId!==n.nativeHash){const i=meshIndices.get(n.nativeHash)??-1;if(i<0)delete n.engineIndex;else n.engineIndex=i;}
   const visible=(n,child=false)=>n.visible&&(n.enabled||FramePlugins.owner(n)?.viewport?.enabledAffectsVisibility===false||child&&(window.FrameSpline?.generators.has(n.type)||['cloner','symmetry'].includes(n.type)))&&(!n.parent||visible(node(n.parent),true));
   const eligible=nodes.filter(n=>n.emptyMesh||FramePlugins.owner(n)||n.type==='group'||n.type==='infinite'||n.engineIndex!==undefined||window.FrameSpline?.supported.has(n.type)||['car','tree','human','render','instance','cloner','symmetry','target'].includes(n.type));for(const n of eligible){n.nativeHash??=FrameHash.newId();if(n.engineIndex!==undefined){const index=canonicalIndices.get(n.nativeHash)??-1;if(index>=0)n.engineIndex=index;}};
-  window.frameEngine?.syncObjects(eligible.map(n=>({hash:n.nativeHash,type:n.type==='infinite'?2:['instance','cloner','symmetry','target'].includes(n.type)?0:n.engineIndex!==undefined?1:0,spline:window.FrameSpline?.shape(n),authoring:frameAuthoring(n),polygonCreaseAngle:n.type==='mesh'?framePolygonCreaseAngle(n):undefined,matrix:n.creationFrame?Float64Array.from(n.creationFrame):undefined,pivot:n.creationPivot?Float64Array.from(n.creationPivot):undefined,light:n.type==='infinite'?new Float64Array([n.params.intensity,n.params['temperature K'],n.params['angular size']]):undefined,index:n.engineIndex,name:n.name,parent:node(n.parent)?.nativeHash||null,flags:(n.visible?1:0)|(n.enabled?2:0)|(n.folded?4:0),effectiveVisible:visible(n)&&frameSoloContains(n)})));for(const n of eligible){delete n.creationFrame;delete n.creationPivot;}
+  window.frameEngine?.syncObjects(eligible.map(n=>({hash:n.nativeHash,type:n.type==='infinite'?2:['instance','cloner','symmetry','target'].includes(n.type)?0:n.engineIndex!==undefined?1:0,spline:window.FrameSpline?.shape(n),authoring:frameAuthoring(n),polygonCreaseAngle:framePolygonCreaseType(n.type)?framePolygonCreaseAngle(n):undefined,matrix:n.creationFrame?Float64Array.from(n.creationFrame):undefined,pivot:n.creationPivot?Float64Array.from(n.creationPivot):undefined,light:n.type==='infinite'?new Float64Array([n.params.intensity,n.params['temperature K'],n.params['angular size']]):undefined,index:n.engineIndex,name:n.name,parent:node(n.parent)?.nativeHash||null,flags:(n.visible?1:0)|(n.enabled?2:0)|(n.folded?4:0),effectiveVisible:visible(n)&&frameSoloContains(n)})));for(const n of eligible){delete n.creationFrame;delete n.creationPivot;}
 }
 
 // SLP1: typed spline authoring data. Local IDs are strings; coordinates and parameters are Float64.
@@ -21522,7 +21528,15 @@ function frameBendAngles(vertices,indices,metric){
 function framePredictBend(localPositions, indices, metric, creaseAngle=44, options={}) {
   const C=indices.length,F=C/3,V=localPositions.length/3;
   if(!Number.isInteger(F)||!Number.isInteger(V)||F>150000||V>450000)throw Error('Curvature prediction mesh limit');
-  if(!Number.isFinite(creaseAngle)||creaseAngle<0||creaseAngle>180)throw Error('Invalid Crease Angle');
+  const hardPairs=options.patchHardEdges,patch=options.policy==='analytic-seams';
+  if(patch){
+    if(!(hardPairs instanceof Uint32Array)||hardPairs.length%2)throw Error('Missing or invalid spline seam data');
+    let a0=-1,b0=-1;
+    for(let i=0;i<hardPairs.length;i+=2){const a=hardPairs[i],b=hardPairs[i+1];
+      if(a>=b||b>=V||a<a0||a===a0&&b<=b0)throw Error('Invalid spline seam pair');
+      a0=a;b0=b;
+    }
+  }else if(!Number.isFinite(creaseAngle)||creaseAngle<0||creaseAngle>180)throw Error('Invalid Crease Angle');
   const M=metric??[1,0,0,0,1,0,0,0,1];
   if(M.length!==9||Array.from(M).some(x=>!Number.isFinite(x)))throw Error('Invalid curvature metric');
   if(options.raw&&F>10000)throw Error('Raw curvature fixture limit');
@@ -21533,7 +21547,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     p[i]=M[0]*x+M[3]*y+M[6]*z;p[i+1]=M[1]*x+M[4]*y+M[7]*z;p[i+2]=M[2]*x+M[5]*y+M[8]*z;
     if(!Number.isFinite(p[i]+p[i+1]+p[i+2]))throw Error('Nonfinite curvature positions');
   }
-  const fn=new Float64Array(3*F),ln=new Float64Array(3*F),area=new Float64Array(F);
+  const fn=new Float64Array(3*F),ln=patch?null:new Float64Array(3*F),area=new Float64Array(F);
   const parent=new Int32Array(C),fp=new Int32Array(F);
   const root=(P,k)=>{while(P[k]!==k){P[k]=P[P[k]];k=P[k];}return k;};
   const join=(P,a,b)=>{a=root(P,a);b=root(P,b);if(a!==b)P[Math.max(a,b)]=Math.min(a,b);};
@@ -21553,7 +21567,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
   for(let f=0;f<F;f++){
     const t=f*3,i=3*indices[t],j=3*indices[t+1],k=3*indices[t+2];fp[f]=f;
     const ar=normal(p,i,j,k,fn,t);
-    if(ar&&normal(localPositions,i,j,k,ln,t))area[f]=ar;
+    if(ar&&(patch||normal(localPositions,i,j,k,ln,t)))area[f]=ar;
     // Include nondegenerate-index incidence even for zero-area faces: never
     // smooth across an edge made nonmanifold by a third, degenerate face.
     for(let c=t;c<t+3;c++){
@@ -21572,7 +21586,16 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       }
     }
   }
-  const cut=Math.cos(creaseAngle*Math.PI/180);
+  const cut=patch?0:Math.cos(creaseAngle*Math.PI/180);
+  const seam=(u,v)=>{
+    const a=Math.min(u,v),b=Math.max(u,v);
+    let lo=0,hi=hardPairs.length/2;
+    while(lo<hi){const m=(lo+hi)>>>1,p=hardPairs[2*m],q=hardPairs[2*m+1];
+      if(p===a&&q===b)return true;
+      if(p<a||p===a&&q<b)lo=m+1;else hi=m;
+    }
+    return false;
+  };
   let hard=0,boundary=0,invalid=0;
   for(let k=0;k<H;k++){
     if(!degree[k])continue;
@@ -21580,8 +21603,8 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     if(degree[k]!==2){invalid++;continue;}
     const a=edge[k]-1,b=mate[k]-1,f=(a/3)|0,g=(b/3)|0,t=f*3,s=g*3;
     if(f===g||!area[f]||!area[g]||indices[a]!==indices[next(b)]){invalid++;continue;}
-    const d=Math.min(1,Math.max(-1,ln[t]*ln[s]+ln[t+1]*ln[s+1]+ln[t+2]*ln[s+2]));
-    if(d<cut){hard++;degree[k]=4;continue;}
+    const split=patch?seam(indices[a],indices[next(a)]):Math.min(1,Math.max(-1,ln[t]*ln[s]+ln[t+1]*ln[s+1]+ln[t+2]*ln[s+2]))<cut;
+    if(split){hard++;degree[k]=4;continue;}
     join(parent,a,next(b));join(parent,next(a),b);join(fp,f,g);
   }
   const n=new Float64Array(3*C),head=new Int32Array(C),links=new Int32Array(C);
@@ -21794,22 +21817,23 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     // Negative fourth lane distinguishes this mode from legacy Angle.
     values[4*f+3]=-(1+mask);
   }
-  return {values,maxCurvature:peak,minCurvature:validFans?floor:null,scaleHi:hi,diagnostics:{hard,boundary,invalid,recognizedCylinders:recognized,validFans,unknownFans,unknownCorners,retry},...(raw?{principals:raw}:{})};
+  return {values,maxCurvature:peak,minCurvature:validFans?floor:null,scaleHi:hi,diagnostics:{policy:patch?'analytic-seams':'polygon-angle',hardPairs:patch?hardPairs.length/2:null,hard,boundary,invalid,recognizedCylinders:recognized,validFans,unknownFans,unknownCorners,retry},...(raw?{principals:raw}:{})};
 }
     const bendStates=new Map();
     let lastBendHash=null,bendJob=null,bendOwners=null,bendOwnerScene=null,bendOwnerRenderer=null;
     function bendMode(owner){
-      return owner?.type==='mesh'&&owner.tags.some(t=>t.kind==='curvature'&&t.params.mode===curvatureModes[1])?curvatureModes[1]:curvatureModes[0];
+      return owner?.tags.some(t=>t.kind==='curvature'&&t.params.mode===curvatureModes[1])?curvatureModes[1]:curvatureModes[0];
     }
     function bendAdmission(hash){
       const owner=hash&&frameNodeByHash(hash),mode=bendMode(owner);
       const meshes=scene?.meshes,current=meshes?.[owner?.engineIndex];
       const owns=m=>m?.hashId===hash&&!m.replicaSource&&!m.replicaMatrix;
       const mesh=owns(current)?current:meshes?.find(owns);
-      const reason=!mesh?.triangleCount?'mesh-unavailable':
+      const reason=!mesh?.triangleCount?(meshes?.some(m=>m.hashId===hash&&m.replicaMatrix&&m.triangleCount)?'occurrence-unsupported':'mesh-unavailable'):
         mesh.triangleCount>frameCurvatureTriangleLimit?'triangle-limit':
         mode===curvatureModes[1]&&mesh.vertexCount>frameCurvatureVertexLimit?'vertex-limit':
-        mesh.paged||mesh.parts?'storage-unsupported':null;
+        mode===curvatureModes[1]&&(owner?.type==='spline_patch'||mesh.creasePolicy===2)&&
+          (mesh.creasePolicy!==2||!(mesh.patchHardEdges instanceof Uint32Array))?'patch-seams-unavailable':null;
       return {mesh,mode,reason};
     }
     function bendMesh(hash){const a=bendAdmission(hash);return a.reason?null:a.mesh;}
@@ -21829,14 +21853,17 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function bendInput(mesh){
       const metric=bendMetric(mesh),owner=frameNodeByHash(mesh.hashId),mode=bendMode(owner);
       if(mode===curvatureModes[0])return {mode,key:'angle:'+metric.key,a:metric.a};
-      const angle=framePolygonCreaseAngle(owner);
-      return {mode,angle,key:'surface:'+angle+':'+metric.scale.toPrecision(12)+':'+metric.key,a:metric.a};
+      const patch=owner?.type==='spline_patch'||mesh.creasePolicy===2,angle=patch?null:mesh.creasePolicy===1?mesh.creaseAngle:frameDefaultCreaseAngle;
+      const hardEdges=patch?mesh.patchHardEdges:null;
+      return {mode,angle,hardEdges,patch,key:'surface:'+(patch?'analytic-seams':angle)+':'+metric.scale.toPrecision(12)+':'+metric.key,a:metric.a};
     }
     function retireBend(b){
       bendStates.delete(b.hash);bendOwners=null;b.cancel?.();if(b.buffer)releaseGPU(b.buffer);
     }
     function bendValid(mesh,b=bendStates.get(mesh.hashId)){
-      return !!(b&&b.scene===scene&&b.renderer===renderer&&b.buffer&&b.mesh===mesh&&b.revision===(mesh.geometryRevision||0)&&b.positions===mesh.positions&&b.indices===mesh.indices&&b.metricKey===bendInput(mesh).key);
+      if(!(b&&b.scene===scene&&b.renderer===renderer&&b.buffer&&b.mesh===mesh&&b.revision===(mesh.geometryRevision||0)&&b.positions===mesh.positions&&b.indices===mesh.indices))return false;
+      const input=bendInput(mesh);
+      return b.metricKey===input.key&&b.hardEdges===input.hardEdges;
     }
     function beginBendPipelines(r){
       if(r.bendPipelines)return r.bendPipelines;
@@ -21845,7 +21872,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const code=r.shaderSource+`
         @group(2) @binding(0) var<storage,read> faceBend:array<vec4f>;
         fn bendColor(input:Output)->vec4f{
-          let angles=faceBend[input.triangleID-faceBase.x];
+          let angles=faceBend[faceBase.y+input.triangleID-faceBase.x];
           var t=0.;
           if(angles.w<0.){
             let known=angles.xyz>=vec3f(0.);
@@ -21880,15 +21907,16 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       })();
       r.bendPipelines=task;task.catch(()=>{if(r.bendPipelines===task)r.bendPipelines=null;});return task;
     }
-    function bendFit(b,raw,a,mode,creaseAngle){
-      const url=URL.createObjectURL(new Blob([mode===curvatureModes[1]?framePredictBend.toString():frameBendAngles.toString(),';onmessage=e=>{try{const d=e.data,r=(d.surface?framePredictBend:frameBendAngles)(d.vertices,d.indices,d.metric,d.creaseAngle);postMessage(r,[r.values.buffer]);}catch(error){postMessage({error:String(error)});}}'],{type:'text/javascript'}));
+    function bendFit(b,raw,{a,mode,angle,patch,hardEdges}){
+      const url=URL.createObjectURL(new Blob([mode===curvatureModes[1]?framePredictBend.toString():frameBendAngles.toString(),';onmessage=e=>{try{const d=e.data,r=(d.surface?framePredictBend:frameBendAngles)(d.vertices,d.indices,d.metric,d.creaseAngle,d.options);postMessage(r,[r.values.buffer]);}catch(error){postMessage({error:String(error)});}}'],{type:'text/javascript'}));
       let worker;try{worker=new Worker(url);}finally{URL.revokeObjectURL(url);}
       b.worker=worker;return new Promise((resolve,reject)=>{
         const finish=(fn,value)=>{b.cancel=null;b.worker=null;worker.terminate();fn(value);};
         b.cancel=()=>finish(reject,new DOMException('Preview cancelled','AbortError'));
         worker.onmessage=e=>e.data.error?finish(reject,Error(e.data.error)):finish(resolve,e.data);
         worker.onerror=e=>finish(reject,Error(e.message||'Edge angle worker failed'));
-        worker.postMessage({vertices:raw.vertices,indices:raw.indices,metric:a,surface:mode===curvatureModes[1],creaseAngle},[raw.vertices.buffer,raw.indices.buffer]);
+        worker.postMessage({vertices:raw.vertices,indices:raw.indices,metric:a,surface:mode===curvatureModes[1],creaseAngle:angle,
+          options:patch?{policy:'analytic-seams',patchHardEdges:hardEdges}:{}},[raw.vertices.buffer,raw.indices.buffer]);
       });
     }
     function requestBend(){
@@ -21898,20 +21926,21 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         const mesh=bendMesh(b.hash);
         if(!mesh){if(b.buffer){releaseGPU(b.buffer);Object.assign(b,{mesh:null,positions:null,indices:null,buffer:null,group:null});}b.failed=null;continue;}
         if(bendValid(mesh,b))continue;
-        const {a,key,mode,angle}=bendInput(mesh),{positions,indices}=mesh,revision=mesh.geometryRevision||0;
-        const f=b.failed;if(f&&f.positions===positions&&f.indices===indices&&f.revision===revision&&f.key===key)continue;
+        const input=bendInput(mesh),{key,mode,hardEdges}=input,{positions,indices}=mesh,revision=mesh.geometryRevision||0;
+        const f=b.failed;if(f&&f.positions===positions&&f.indices===indices&&f.revision===revision&&f.key===key&&f.hardEdges===hardEdges)continue;
         bendJob=b;b.pending=true;
         (async()=>{
           const raw=await readGeometry(mesh);if(bendStates.get(b.hash)!==b)return;
-          const [result,pipelines]=await Promise.all([bendFit(b,raw,a,mode,angle),beginBendPipelines(b.renderer)]);
+          const [result,pipelines]=await Promise.all([bendFit(b,raw,input),beginBendPipelines(b.renderer)]);
           if(bendStates.get(b.hash)!==b)return;
-          if(bendMesh(b.hash)!==mesh||positions!==mesh.positions||indices!==mesh.indices||revision!==(mesh.geometryRevision||0)||key!==bendInput(mesh).key)return;
+          const latest=bendInput(mesh);
+          if(bendMesh(b.hash)!==mesh||positions!==mesh.positions||indices!==mesh.indices||revision!==(mesh.geometryRevision||0)||key!==latest.key||hardEdges!==latest.hardEdges)return;
           const d=b.renderer.device,buffer=makeGPUBuffer(d,{label:'Edge angles per face',size:result.values.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});let group;
           try{d.queue.writeBuffer(buffer,0,result.values);group=d.createBindGroup({layout:pipelines.bind,entries:[{binding:0,resource:{buffer}}]});}catch(e){releaseGPU(buffer);throw e;}
           if(b.buffer)releaseGPU(b.buffer);
-          Object.assign(b,{mesh,positions,indices,revision,buffer,group,pipelines:pipelines.p,metricKey:key,maxDegrees:result.maxDegrees,mode,maxCurvature:result.maxCurvature,minCurvature:result.minCurvature,failed:null});
+          Object.assign(b,{mesh,positions,indices,revision,buffer,group,pipelines:pipelines.p,metricKey:key,hardEdges,maxDegrees:result.maxDegrees,mode,maxCurvature:result.maxCurvature,minCurvature:result.minCurvature,prediction:result.diagnostics,failed:null});
         })().catch(()=>{
-          if(bendStates.get(b.hash)===b)b.failed={positions,indices,revision,key};
+          if(bendStates.get(b.hash)===b)b.failed={positions,indices,revision,key,hardEdges};
         }).finally(()=>{b.pending=false;bendJob=null;if(bendStates.size||b.scene===scene)draw(true);});
         break;
       }
@@ -21922,6 +21951,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         target=b?.hash??hash,admission=target&&bendAdmission(target),mesh=b&&!admission.reason&&admission.mesh,valid=mesh&&bendValid(mesh,b);
       return {enabled:!!b,id:b?.hash??null,pending:!!(mesh&&(b.pending||!valid&&!b.failed)),maxDegrees:valid?b.maxDegrees??null:null,
         mode:b?admission.mode:null,maxCurvature:valid?b.maxCurvature??null:null,minCurvature:valid?b.minCurvature??null:null,
+        prediction:valid?b.prediction??null:null,displaySuspended:!!(mesh&&renderer?.patchPreview?.base===mesh),
         reason:admission?.reason??null,triangleCount:admission?.mesh?.triangleCount??null,triangleLimit:frameCurvatureTriangleLimit,
         vertexCount:admission?.mesh?.vertexCount??null,vertexLimit:b&&admission.mode===curvatureModes[1]?frameCurvatureVertexLimit:null};
     }
@@ -21929,7 +21959,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const n=hash&&frameNodeByHash(hash),tagged=!!n?.tags.some(t=>t.kind==='curvature');
       if(enabled&&!tagged&&(!n||!renderer||!bendMesh(hash))){
         const limit=frameCurvatureLimitText(bendAdmission(hash).reason);
-        throw Error(limit||'Choose a single polygon surface (up to 150k triangles)');
+        throw Error(limit||'Choose a single rasterized surface (up to 150k triangles)');
       }
       if(!n||enabled===tagged)return edgeAngleStatus(hash);
       commit(()=>{
@@ -24039,9 +24069,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     function opaqueMeshDraw(r,mesh,state={parts:[]},bundle=false){
       if(bendValid(mesh)){
         const b=bendStates.get(mesh.hashId),wire=polygonWire(mesh),key=[!!frameViewKind(viewIndex),!!mesh.posed,wire,wire&&!classifiedSurfaceWire(mesh)].join(':'),pipeline=b.pipelines.get(key);
-        if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);
-        const group=mesh.shadingBindGroup,prev=state.parts[0],changed=!state.active||state.pipeline!==pipeline||state.library!==b.group||state.indexed||state.filter||prev?.group!==group||prev?.count!==mesh.count;
-        Object.assign(state,{active:true,pipeline,library:b.group,indexed:false,filter:null,materialGuard:null,parts:[{part:mesh,group,indices:mesh.renderIndices,count:mesh.count}]});
+        const parts=mesh.parts||[mesh];
+        if(parts.some(part=>!part.shadingBindGroup))meshRenderGroups(r,mesh);
+        const changed=!state.active||state.pipeline!==pipeline||state.library!==b.group||state.indexed||state.filter||
+          state.parts.length!==parts.length||parts.some((part,i)=>{const prev=state.parts[i];return prev?.part!==part||prev?.group!==part.shadingBindGroup||prev?.count!==part.count;});
+        Object.assign(state,{active:true,pipeline,library:b.group,indexed:false,filter:null,materialGuard:null});
+        if(changed)state.parts=parts.map(part=>({part,group:part.shadingBindGroup,indices:part.renderIndices,count:part.count}));
         if(changed)state.revision=(state.revision||0)+1;
         return state;
       }
@@ -27589,7 +27622,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         if(authoring&&Object.hasOwn(authoring,'recordValues'))throw Error('Inline plugin record values are not supported');
         if(authoring?.pluginRecords){if(!Array.isArray(authoring.pluginRecords)||authoring.pluginRecords.length>64||new Set(authoring.pluginRecords.map(r=>r.key)).size!==authoring.pluginRecords.length)throw Error('Invalid plugin records');authoring.recordValues={};for(const r of authoring.pluginRecords){if(!/^[0-9a-f]{32}$/.test(r.key)||![0,3,4,5,6,7].includes(r.type))throw Error('Invalid plugin record');const address=FrameHash.address(hash,r.key);if(pluginAddresses.has(address))throw Error('Plugin records have conflicting owners');pluginAddresses.set(address,hash);const v=await read(address,r.type);if(v===undefined||v.some?.(v=>typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin record value');authoring.recordValues[r.key]={type:r.type,value:v};}}
         const kind=type?.[0]??1,p=map.get(FrameHash.address(hash,'positions')),ix=map.get(FrameHash.address(hash,'indices'));
-        if(authoring?.creaseAngle!==undefined&&(spline||authoring.library||authoring.plugin||kind!==1&&!authoring.emptyMesh))throw Error('Crease Angle belongs to polygon geometry');
+        if(authoring?.creaseAngle!==undefined&&(spline||authoring.plugin||!authoring.library&&kind!==1&&!authoring.emptyMesh))throw Error('Crease Angle belongs to polygon geometry');
         if(kind!==1&&!authoring?.library&&projection||kind!==2&&light)throw Error('Invalid HASH property owner');
         if(kind===1&&((!p||!ix)&&!spline||p&&p.type!==T.float32||ix&&ix.type!==T.uint32||!!p!==!!ix)||kind!==1&&(p||ix))throw Error('Invalid HASH mesh properties');
         if(p){records.set(p.id,{...p,gpu:true});records.set(ix.id,{...ix,gpu:true});meshes++;}
@@ -27610,7 +27643,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     async function nativeDecodeMesh(file,o){
       const p=await FrameHash.read(file,o.p),ix=await FrameHash.read(file,o.ix);
       if(!p.length||p.length%3||!ix.length||ix.length%3||p.some(v=>!Number.isFinite(v))||ix.some(i=>i>=p.length/3))throw Error('Invalid HASH geometry');
-      return {vertices:p,indices:ix,uv:o.uv?await FrameHash.read(file,o.uv.record):null,vertexCount:p.length/3,triangleCount:ix.length/3,nativeExact:true,...!o.spline&&!o.authoring?.library?{creaseAngle:o.authoring?.creaseAngle??frameDefaultCreaseAngle}:{}};
+      return {vertices:p,indices:ix,uv:o.uv?await FrameHash.read(file,o.uv.record):null,vertexCount:p.length/3,triangleCount:ix.length/3,nativeExact:true,...!o.spline?{creaseAngle:o.authoring?.creaseAngle??frameDefaultCreaseAngle}:{}};
     }
     function captureMergeAppearance(space){
       const ids=new Set([...(space.appearanceIds||[]),FrameHash.K.materials,FrameHash.K.assets]);return {ids:new Set(space.appearanceIds||[]),active:space.appearanceActive&&new Set(space.appearanceActive),records:new Map([...ids].filter(id=>space.records.has(id)).map(id=>[id,space.records.get(id)])),polygons:new Map(polygonResources),uvs:new Map(uvResources),activeMaterial,selectedMaterials:new Set(selectedMaterials)};
@@ -28226,7 +28259,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       }finally{preparedImages?.release();if(!published)for(const m of meshes)disposeMesh(m);nativeIOEnd();}
     }
     let libraryQueue=Promise.resolve(),libraryTimer=0;const libraryKeys=new Map();
-    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&FramePlants.empty(n.params);if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));n.type='mesh';n.params=defaults(definitions.mesh[2]);delete n.librarySlots;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh){delete mesh.plantGeometryKey;if(mesh.plantPreview){const {buffer}=mesh.plantPreview;mesh.buffers=mesh.buffers.filter(b=>b!==buffer);releaseGPU(buffer);delete mesh.plantPreview;}}libraryKeys.delete(n.nativeHash);});return n;}
+    async function bakeLibrary(n){await loadLibraryObjects();const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash&&!m.replicaMatrix);const empty=n.type==='tree'&&FramePlants.empty(n.params);if(!mesh&&!empty)throw Error('Library geometry is not ready');commit(()=>{if(empty)n.emptyMesh=true;n.creationPivot=Array.from(FM.pack(objectPivot(n.nativeHash)));const angle=framePolygonCreaseAngle(n);n.type='mesh';n.params={...defaults(definitions.mesh[2]),[frameCreaseAngleKey]:angle};delete n.librarySlots;delete n.libraryPreset;for(const t of n.tags){delete t.librarySlot;delete t.libraryIndex;delete t.foliage;delete t.foliageUID;delete t.foliageColor;delete t.foliageNormal;}removeSpline(n.nativeHash,true);if(mesh){delete mesh.plantGeometryKey;if(mesh.plantPreview){const {buffer}=mesh.plantPreview;mesh.buffers=mesh.buffers.filter(b=>b!==buffer);releaseGPU(buffer);delete mesh.plantPreview;}}libraryKeys.delete(n.nativeHash);});return n;}
     let libraryRequested=false,libraryBuilding=false;
     function requestLibrary(){
       if(libraryBuilding){libraryRequested=true;return;}
@@ -28237,6 +28270,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         finally{libraryBuilding=false;if(libraryRequested){libraryRequested=false;requestLibrary();}}
       },16);
     }
+    const libraryAssetKey=n=>FrameValue.key(frameLibraryAssetParams(n.params));
     function libraryFilename({type,params}){
       if(type==='car')return 'car';
       if(type==='tree')return 'procedural-tree';
@@ -28385,11 +28419,11 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             if(plant){const uv=n.tags.find(t=>t.kind==='uv');if(uv)uv.librarySlot=true;}
             delete n.librarySlots;
           }
-          const filename=libraryFilename(n),key=FrameValue.key(n.params),previous=libraryKeys.get(n.nativeHash);
+          const filename=libraryFilename(n),key=libraryAssetKey(n),previous=libraryKeys.get(n.nativeHash);
           if(previous?.filename===filename&&previous.key===key&&(mesh&&(!plant||mesh.plantGeometryKey)||plant&&!mesh&&FramePlants.empty(n.params)))continue;
           if(plant&&FramePlants.empty(n.params)){
             const space=scene;await selectionQueue;await editSerial;
-            if(space===scene&&nodes.includes(n)&&key===FrameValue.key(n.params))emptyPlant(n,mesh,filename,key);
+            if(space===scene&&nodes.includes(n)&&key===libraryAssetKey(n))emptyPlant(n,mesh,filename,key);
             continue;
           }
           const sameAsset=!!n.librarySlots||previous?.filename===filename||!previous&&n.tags.some(t=>t.librarySlot);
@@ -28413,7 +28447,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           const shape=plant?FramePlants.geometryKey(p):null,foliage=plant?FramePlants.foliageKey(p):null;
           const sameGeometry=plant&&mesh&&mesh.plantGeometryKey===shape&&slots.has(1)&&n.tags.some(t=>t.librarySlot&&t.kind==='uv');
           const bindings=plant?FrameValue.key(n.librarySlots||stockMaterialSlots(n)):null;
-          const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===FrameValue.key(n.params)
+          const alive=()=>scene===space&&!gpu.dead&&nodes.includes(n)&&filename===libraryFilename(n)&&key===libraryAssetKey(n)
             &&(!plant||bindings===FrameValue.key(n.librarySlots||stockMaterialSlots(n)));
           let raw,defaults,catalog,managed=false;
           if(plant){
@@ -28442,7 +28476,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
           }
           const appearance=raw&&warmImportedSurface(gpu,raw,catalog,objectWorld(n.nativeHash));
           const imageWork=plant?preparePlantAppearance(gpu,catalog,alive):null;
-          const geometry=raw?uploadAndCompute(gpu,{...raw}):null;
+          const geometry=raw?uploadAndCompute(gpu,{...raw,creaseAngle:framePolygonCreaseAngle(n)}):null;
           const jobs=await Promise.allSettled([imageWork,geometry,appearance]);
           let staged=jobs[0].value;
           const next=jobs[1].value;
@@ -30318,7 +30352,7 @@ function FramePolygonKernel(d){
       documentationWindow=installDocumentationWindow({button:$('btnDocs'),write:(args,guard)=>call('docs.update',args,guard),read:()=>docs.get()});
     }
 
-    const api={dropCurvature,bendAdmission:hash=>({reason:bendAdmission(hash).reason}),setMeshCreaseAngle:(hash,angle)=>{const n=frameNodeByHash(hash),m=scene?.meshes[n?.engineIndex];if(n?.type==='mesh'&&m?.hashId===hash&&!m.replicaMatrix)setPolygonCreaseAngle(m,angle);},get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
+    const api={dropCurvature,bendAdmission:hash=>({reason:bendAdmission(hash).reason}),setMeshCreaseAngle:(hash,angle)=>{const n=frameNodeByHash(hash);if(!framePolygonCreaseType(n?.type)||!scene)return;const owned=m=>m?.hashId===hash&&!m.replicaMatrix&&!m.replicaSource,candidate=scene.meshes[n.engineIndex],m=owned(candidate)?candidate:scene.meshes.find(owned);if(m)setPolygonCreaseAngle(m,angle);},get restoringSplines(){return splineLoadBatch;},get nativeLoading(){return splineLoadBatch||splineLoadFinalizing;},pluginCameraWGSL:CAMERA_RELATIVE_WGSL,materialHistoryReferences,snapshotComponents:()=>componentSnapshot(nodes.filter(n=>selected.has(n.id))),restoreComponents,animationFlush:async()=>{await animationSerial;await FrameMorph.flush();await FrameSpline.flush();},noteSplineTopology:(hash,edges)=>splineMaterialOrigins.set(hash,new Map([...edges].map(([a,b])=>[b,a]))),invertSelection,get polygonNavigation(){return !!polygonClickGesture;},bakeLibrary,cancelPolygonTool:()=>{if(polygonTools.mode){endPolygonTool();renderAttributes();}},polygonSelection:hash=>polygonSelection(scene.meshes.find(m=>m.hashId===hash)),splineDelta:(m,from,to)=>FM.mul(FM.inv(objectWorld(to)),FM.mul(FM.mul(objectWorld(from),m),FM.mul(FM.inv(objectWorld(from)),objectWorld(to)))),connectMeshes,connectReplicas,bakeCloner,unpackInstance,loadFileSource,retireFileSource,polygonTool,polygonAttributes,requestLibrary,loadLibraryObjects,instanceCreationFrame,orientEmptySpline:hash=>{const frame=FM.unpack(splineCreationFrame(true)),world=objectWorld(hash),parent=nativeValue(hash,'parent')?.[0];const pivot=splineCreationPivot(FM.pack(frame));frame.set(world.slice(12,15),12);putFrame(hash,'matrix',parent?FM.mul(FM.inv(objectWorld(parent)),frame):frame);putFrame(hash,'pivot',FM.unpack(pivot));syncPoseWorld();},copySelection,pasteSelection,morphInvalidate:hash=>{const state=morphStates.get(hash);if(state)state.signature=null;},duplicateRows,animationVertex,animationSelection,get animationQueue(){return animationSerial;},get replicaQueue(){return replicaQueue;},morphReferenceData,morphEnsure,morphReference,morphCapture,morphApply,syncReplicas,prepareBooleanReplicas,flushReplicaPublication,animationTransform,animationFinish,duplicateSelection,bakeBooleanMaterials,readGeometry,prepareRecognitionRemainder,evaluateBoolean,evaluateUnite,packLocalPivot:hash=>Array.from(FM.pack(objectPivot(hash))),packLocalFrame:hash=>Array.from(FM.pack(objectLocal(hash))),renderStart,renderStop,renderState,renderStatus,renderExport,reserveUIUndo,installSplineSurface,patchPreviewEligible,installPatchPreview,clearPatchPreview,setSplineDisplay,visibleSplinePoints,previewSplineData,removeSpline,updateSplineVisibility,splinePivotInFrame:(source,target)=>Array.from(FM.rigid(FM.mul(FM.inv(objectWorld(target)),FM.mul(objectWorld(source),objectPivot(source))))),splineInFrame,splineOccurrenceInFrame,splineOccurrencePivot,splineOccurrenceFrame,splineLocalFrame,splinePlanePoint,hitSpline,projectSplinePoint,refreshSplineSelection,focusSpline,focusSelection,cameraPlacement,pluginSnapshot,pluginAuthoringStamp,pluginPrepareAccuracy,pluginDisplayed,preparePluginViewport,startViewTransform,clearMotionSelection,get quantizing(){return quantize;},get dragOperation(){return lastGizmoOperation;},setSplineError,get splineDisplays(){return splineDisplays;},splineDisplaysForData:data=>splineDisplayLookup.get(data),splineCreationFrame,splineCreationPivot,initializeSplineCreation,hoverSplineAt,splineSnapPoint,infinitePlacement,initializeLight,setUVEditing,get uvEditing(){return uvEditing;},get navigationMenuSuppressed(){return navigationMenuSuppressed;},syncLights,materialDropTarget,noteUIUndo:()=>{releaseRedo();return ++transformSequence;},uiFrames:()=>poseObjects().map(o=>({hash:o.hash,navigation:cameraNavigationRevisions.get(o.hash)||0,matrix:o.matrix&&Array.from(o.matrix),pivot:o.pivot&&Array.from(o.pivot),projection:o.projection&&Array.from(o.projection)})),restoreUIFrames:(values,pivot)=>{componentPivot=pivot?Float64Array.from(pivot):null;if(!values||!scene)return;poseRecordCache=null;const owners=new Set(poseObjects().map(o=>o.hash));for(const o of values)if(owners.has(o.hash))for(const field of ['matrix','pivot','projection']){if(o[field])nativePut(scene.records,o.hash,field,FrameHash.T.float64,Float64Array.from(o[field]));else scene.records.delete(FrameHash.address(o.hash,field));}syncPoseWorld();notifyTransformUI();draw();},syncMaterials,beginSplineRecordBatch,capturePolygonSelection,restorePolygonSelection,selectMaterialPolygons,emptyMaterialMasks,copyPolygonSet,selectionName:uid=>nativeValue(uid,'name'),get materialQueue(){return appearanceQueue;},start,draw,setView,layoutChanged,setViewerMode,selectObjects,setVisibility,selectConnected,undoEdit:()=>requestHistory(true),saveHash,saveSTL,savePLY,saveVTK,save3MF,saveGLB,loadHash,syncObjects:syncNativeObjects,
       pluginHistoryRecords:()=>[...metaUndo,...metaRedo].flatMap(action=>[...action.before?.objects||[],...action.after?.objects||[]].flatMap(o=>Object.values(o.authoring?.recordValues||{}))),retirePluginHistory:()=>{const stack=metaUndo.length?metaUndo:metaRedo;if(!stack.length)return false;releaseMetadataAction(stack.shift());return true;},detachInstances,pluginPivot:hash=>Array.from(objectPivot(hash)),pluginSetPivot:(hash,m)=>{putFrame(hash,'pivot',Float64Array.from(m));notifyTransformUI();draw(true);},pluginMath:FM,pluginWorld:hash=>Array.from(objectWorld(hash)),pluginLocal:hash=>Array.from(objectLocal(hash)),pluginSetLocal:(hash,m)=>{putFrame(hash,'matrix',Float64Array.from(m));syncPoseWorld();},get pluginExporting(){return renderExporting;},
       pluginComponents:(hash,bounds)=>{selectionGeneration++;selectionScope='components';objectSelection=[];selectedMeshes=[];selectedMesh=null;componentPivot=null;measurementCache=coordinateCache=null;selectionBox=bounds?transformedBox(bounds,objectWorld(hash)):null;notifyTransformUI();draw(true);},
       pluginProject:p=>worldScreen(p),pluginView:()=>({index:frameViewKind(viewIndex),instance:viewIndex,depth:renderer.depth,camera:Array.from(new Float32Array(cameraUniform(renderer.width,renderer.height))),rect:(()=>{const r=canvas.getBoundingClientRect();return {left:r.left,top:r.top,width:r.width,height:r.height};})()}),
