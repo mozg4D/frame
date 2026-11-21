@@ -20,9 +20,10 @@ export async function october26EditorChecks(page){
   await page.context().grantPermissions(['clipboard-read','clipboard-write']);await call('scene.select',{ids:[n.hash]});await page.locator('#tabAttributes').click();await page.evaluate(()=>navigator.clipboard.writeText('0007'));const pasted=page.locator('#attrContent [data-field="count x"]');await pasted.focus();await pasted.press('Control+a');await pasted.press('Control+v');await pasted.press('Enter');check('Clipboard paste normalizes leading zeros',await pasted.inputValue()==='7');
   await clear();
   const trees=[];
-  for(const type of ['bush','spruce','oak','poplar']){
+  const treeNames={bush:'Large Bush',spruce:'Spruce',oak:'Oak',poplar:'Poplar'};
+  for(const [type,name] of Object.entries(treeNames)){
     const tree=await call('scene.create',{type:'tree',params:{type}});trees.push(tree.hash);
-    check('Library tree is named '+type,tree.name.toLowerCase()===type,tree.name);
+    check('Library tree is named '+name,tree.name===name&&tree.type==='tree'&&tree.params?.type===type,{name:tree.name,type:tree.type,preset:tree.params?.type});
   }
   const saved=await call('scene.export',{includeData:true}),stored=await page.evaluate(async({data,ids})=>{
     const H=FrameHash,file=new Blob([Uint8Array.fromBase64(data)]),records=await H.index(file);

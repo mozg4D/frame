@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 21 nov 01:19",
+  "version": "2026 21 nov 04:27",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -431,7 +431,11 @@
       "tests/spline-patch-normals.mjs",
       "tests/scenes/hgr15-normal-bug.hash",
       "tests/scenes/nema23-normals.hash",
-      ".gitattributes"
+      ".gitattributes",
+      "tests/polygon-crease-angle-browser.mjs",
+      "tests/curvature-prediction-browser.mjs",
+      "tests/curvature-prediction-fixtures.mjs",
+      "tests/curvature-prediction.mjs"
     ],
     "plain-polygon-lines": [
       "index.html",
@@ -550,11 +554,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "ca8e2c0f0ceaeb6fdcb57f38441cfc4e979df90d59e51fb5551d05ae1f9c4e83"
+      "sha256": "681d8ca777115cddfc778468b02d4433044e2084c3897b0bc45bcb80b361137e"
     },
     "index.html": {
-      "bytes": 3885827,
-      "sha256": "28d5ef4e8adca9c5fc2459f6f5315b4456e2001fe111d9757427ad6f0b743f61"
+      "bytes": 3923374,
+      "sha256": "76f1d1989642bb6dd0d5d4e3e9c182cbd0d34bdfe7cf70de09f058f9c828299f"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -617,8 +621,8 @@
       "sha256": "857db2641a067a7b0f656e88613eb3c63beee73de2a4b16c629e7d55c12fcceb"
     },
     "tests/scene-control-data.mjs": {
-      "bytes": 19964,
-      "sha256": "9b2e570ed93c71ebc3798ee3c7ad5b6e69d3be9c2bd98b6981013be96754570e"
+      "bytes": 20026,
+      "sha256": "9c3abe7dec61cf600adb8503126b630e5525c0ae5d7741ca5b35802380021773"
     },
     "tests/scene-data-docs-barrier.mjs": {
       "bytes": 6678,
@@ -697,8 +701,8 @@
       "sha256": "87c76aff4544f1fb620e64f05fe649e9952277a4c4edcbc57ac61136286e9369"
     },
     "tests/pwa.mjs": {
-      "bytes": 17915,
-      "sha256": "94a47b7def6614aab0894807664751671b1c0f1ee33deb208e95dccf8a23aba8"
+      "bytes": 18499,
+      "sha256": "91acb9470049e7c53f139b5a50cc7038d9e91d38c0e11e956dc7f5363eb90962"
     },
     "plugins/magneto/plugin.json": {
       "bytes": 832,
@@ -757,8 +761,8 @@
       "sha256": "c67b5ab8822d03702b3f2d689460f257a24bead7bfd9fded9466b87b00d79352"
     },
     "tests/pointer-return.mjs": {
-      "bytes": 11910,
-      "sha256": "02cb6b32ddaca5c60fa2ca7b235cbb451c865fadca214e886e2ee76bb37d2a28"
+      "bytes": 12579,
+      "sha256": "db13fa60ad2f938a36fc21f148242a786333b6b7d0572e0452c607dc5307bd8e"
     },
     "plugins/structural/icon.svg": {
       "bytes": 347,
@@ -817,8 +821,8 @@
       "sha256": "4bf550a66b4a8c73bca8a99989bebfa31987e468833c94337ab66d1edc1f2b6a"
     },
     "tests/file-permission-browser.mjs": {
-      "bytes": 10945,
-      "sha256": "58d5c6c770dbc7313564324d51369c7a729a499bfe64867edac4b02ea582df32"
+      "bytes": 11644,
+      "sha256": "02ce336b074da120fee12d304996f75e29cc4c8a38a1c64d2ac57f246cfdd3e7"
     },
     "tests/file-permission.mjs": {
       "bytes": 7232,
@@ -957,8 +961,8 @@
       "sha256": "5e227b4740701e1290f2ae42de260b83a1ab19386af7dc3b2e4507b53e9e1432"
     },
     "tests/animation-transaction.mjs": {
-      "bytes": 24345,
-      "sha256": "8e5feb4e0475dc3080cdd2368c60d755bb7c57fa0f5544f57ac7baa3620863b4"
+      "bytes": 25455,
+      "sha256": "8bf9a550f94ae4cbfdb72ee5bd0021b7df1ad036106ce7c90f1e041cfff1e215"
     },
     "tests/animation-transaction-browser.mjs": {
       "bytes": 9297,
@@ -1033,8 +1037,8 @@
       "sha256": "7ff162702e4d4502737aaf7fc076f40f00fd72c74ba0be8c3496b73735d6d01d"
     },
     "tests/plugin-loading.mjs": {
-      "bytes": 8215,
-      "sha256": "81b2b6196f181a76d724ab7e2b36f2b8b83bbed50e1055f0cc6deb35c928cff7"
+      "bytes": 10305,
+      "sha256": "d07b8f58a4c73f855ab54d6a95802cf447783b4e781ddc5d30c190016fce753f"
     },
     "tests/documentation-source.mjs": {
       "bytes": 2155,
@@ -1121,8 +1125,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 97471,
-      "sha256": "97b0e7102d379a4ebe3db41a09acd6b422b6f43248824ef163a3dd7cca6bcdc7"
+      "bytes": 97708,
+      "sha256": "7ad0f0569e05567cb4953f69c582b2c52d41984da8652dd2224e14d38dd5f44d"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1177,8 +1181,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 17072,
-      "sha256": "6b5c644d6cec5fdb0410143a5624289646f3c6e3d11d78176183175d45c390da"
+      "bytes": 17361,
+      "sha256": "a3761640182b659a4d2e12be2961e7396e0cccfddd304d9452a8223e40d201a1"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1209,8 +1213,8 @@
       "sha256": "62ad52a0bbc4125c5086854db77b263286678c50f361d1e5e01cfec39a867a30"
     },
     "tests/spline-patch-normals.mjs": {
-      "bytes": 12535,
-      "sha256": "5ce55ca31093ca3ab15412d9cb04d9ed4409bb3f9a44286aeda54b46c8431221"
+      "bytes": 20360,
+      "sha256": "611efe2cb179f5a45ecdbf45c0e20c4b2fff6f85c7fb0cd5436d8fd79baebc7d"
     },
     "tests/scenes/hgr15-normal-bug.hash": {
       "bytes": 14145,
@@ -1241,8 +1245,8 @@
       "sha256": "71dbe9e7a6b7640e7a4445836e3afe5c73aa7ca1b374c97d48dc53c6ae2514db"
     },
     "tests/plain-polygon-lines-browser.mjs": {
-      "bytes": 14295,
-      "sha256": "d827bbcfd93ff4b8d58a3f6a3657f5981eccfeb025b46fd11dacaee82af1e719"
+      "bytes": 14542,
+      "sha256": "2a0a2315f509cbd763fc11c436008660f951fba7fa3774227567be2b52c90a51"
     },
     "tests/polygon-line-mask.mjs": {
       "bytes": 2113,
@@ -1427,6 +1431,22 @@
     "tests/scene-insertion-browser.mjs": {
       "bytes": 11596,
       "sha256": "a957f95cd4aad16fc68a3416535cd8f9581175756b47515f2ff19956d0551092"
+    },
+    "tests/polygon-crease-angle-browser.mjs": {
+      "bytes": 6790,
+      "sha256": "5266cb28c128ba7ea6a7f0c472e71795388fff7f69700f68ff91fab647caa0d8"
+    },
+    "tests/curvature-prediction-browser.mjs": {
+      "bytes": 9478,
+      "sha256": "290542316f59982b603a8912d307617a94ccee37f4cb1bbae6d28c706692d7dc"
+    },
+    "tests/curvature-prediction-fixtures.mjs": {
+      "bytes": 1732,
+      "sha256": "617da2354a99ef5944d68bd17bf454c195cdd72bc09487f0a72efaf72f6c8b9d"
+    },
+    "tests/curvature-prediction.mjs": {
+      "bytes": 6948,
+      "sha256": "60170b57325ac32c9c7dc976aecc2cb417a33394dae9d3e2f6eca876b4c73ea8"
     }
   }
 }

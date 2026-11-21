@@ -22,10 +22,30 @@ export async function filePermissionBrowserChecks(page){
   let info=await call('scene.file');const first=await page.evaluate(async()=>({size:(await __permissionFixture.target.getFile()).size,epoch:FrameAuthorData.epoch,history:undoStack.length,picker:__permissionFixture.pickers.at(-1),options:__permissionFixture.options}));
   check('Save As retains scene/history and binds native file after close',info.request.state==='completed'&&info.bound&&!info.hostBound&&info.path===null&&first.size>0&&first.epoch===initial.epoch&&first.history===initial.history&&(await call('scene.inspect')).objects.some(n=>n.hash===cube.hash),{info,first});
   check('Existing Save click supplies real browser activation',first.picker.trusted&&first.picker.activation&&first.options.suggestedName==='reviewed.hash',first);
-  let count=await page.evaluate(()=>__permissionFixture.pickers.length);await timed('Repeated AI Save completes without picker',()=>call('scene.save'));await page.evaluate(()=>{window.__permissionSaveDone=false;const original=saveSceneFile;saveSceneFile=async(...args)=>{try{return await original(...args);}finally{saveSceneFile=original;window.__permissionSaveDone=true;}};});await timed('Repeated toolbar Save completes without picker',async()=>{await page.locator('#btnSave').click();await page.waitForFunction(()=>__permissionSaveDone);});check('Normal AI and native Save retain prior no-picker behavior',await page.evaluate(n=>__permissionFixture.pickers.length===n,count));
+  async function toolbarSave(){
+   await page.evaluate(()=>{
+    window.__permissionSaveResult=null;
+    const originalSave=saveSceneFile,originalBound=frameSaveBoundFile;
+    let result={ok:false,error:'Toolbar Save did not reach the bound native HASH writer'};
+    frameSaveBoundFile=async(...args)=>{
+     try{const value=await originalBound(...args);result={ok:true};return value;}
+     catch(error){result={ok:false,error:String(error?.message||error)};throw error;}
+    };
+    saveSceneFile=async(...args)=>{
+     try{return await originalSave(...args);}
+     catch(error){result={ok:false,error:String(error?.message||error)};throw error;}
+     finally{saveSceneFile=originalSave;frameSaveBoundFile=originalBound;window.__permissionSaveResult=result;}
+    };
+   });
+   await page.locator('#btnSave').click();
+   await page.waitForFunction(()=>window.__permissionSaveResult!==null);
+   const result=await page.evaluate(()=>window.__permissionSaveResult);
+   if(!result?.ok)throw Error('Toolbar Save failed: '+result?.error);
+  }
+  let count=await page.evaluate(()=>__permissionFixture.pickers.length);await timed('Repeated AI Save completes without picker',()=>call('scene.save'));await timed('Repeated toolbar Save completes without picker',toolbarSave);check('Normal AI and native Save retain prior no-picker behavior',await page.evaluate(n=>__permissionFixture.pickers.length===n,count));
   await page.evaluate(()=>{__permissionFixture.next=__permissionFixture.other;__permissionFixture.trusted=false;});const direct=await timed('Active API request returns directly',()=>call('scene.file.request',{action:'saveAs',name:'direct.hash'}),1000);await complete();info=await call('scene.file');check('Actual evaluation activation starts picker directly without button',direct.state==='selecting'&&info.request.state==='completed'&&info.name==='consent-copy.hash'&&await page.evaluate(()=>__permissionFixture.pickers.at(-1).activation&&!__permissionFixture.pickers.at(-1).trusted),{direct,info});
   await timed('Native write-permission renewal and save completes',async()=>{await call('scene.file.request',{action:'save'});await complete();});check('Renewal completes through current native handle',(await call('scene.file')).request.state==='completed');
-  pending=await requestInactive({action:'open'});check('Pending Open identifies existing Open button',pending.state==='pending'&&pending.button==='btnOpen');count=await raw('__permissionFixture.pickers.length');await page.locator('#btnSave').click();await call('scene.inspect');check('Pending Open does not redirect normal Save',await page.evaluate(n=>__permissionFixture.pickers.length===n,count)&&(await call('scene.file')).request.state==='pending');await timed('Cancel pending request completes',()=>call('scene.file.cancel'),1000);check('API cancellation preserves scene and target',(await call('scene.file')).request.state==='cancelled'&&(await call('scene.file')).name==='consent-copy.hash'&&(await call('scene.inspect')).objects.some(n=>n.hash===cube.hash));
+  pending=await requestInactive({action:'open'});check('Pending Open identifies existing Open button',pending.state==='pending'&&pending.button==='btnOpen');count=await raw('__permissionFixture.pickers.length');await toolbarSave();await call('scene.inspect');check('Pending Open does not redirect normal Save',await page.evaluate(n=>__permissionFixture.pickers.length===n,count)&&(await call('scene.file')).request.state==='pending');await timed('Cancel pending request completes',()=>call('scene.file.cancel'),1000);check('API cancellation preserves scene and target',(await call('scene.file')).request.state==='cancelled'&&(await call('scene.file')).name==='consent-copy.hash'&&(await call('scene.inspect')).objects.some(n=>n.hash===cube.hash));
   await page.evaluate(()=>__permissionFixture.mode='cancel');await call('scene.file.request',{action:'saveAs'});await complete();info=await call('scene.file');check('Native picker cancellation preserves current target',info.request.state==='cancelled'&&info.name==='consent-copy.hash');
   await page.evaluate(()=>__permissionFixture.mode='deny');await call('scene.file.request',{action:'saveAs'});await complete();info=await call('scene.file');check('Denied picker reports API failure without extra app UI',info.request.state==='failed'&&info.name==='consent-copy.hash'&&await page.locator('#frameFilePermissionDialog').count()===0);
   await page.evaluate(()=>__permissionFixture.mode='ok');await requestInactive({action:'saveAs'});await call('scene.new');check('New document automatically cancels pending request',(await call('scene.file')).request.state==='cancelled'&&!(await call('scene.file')).bound);

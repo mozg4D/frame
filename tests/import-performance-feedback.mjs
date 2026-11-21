@@ -33,8 +33,16 @@ export async function importPerformanceChecks(page){
   const curvedFinger=state.objects.find(n=>n.type==='spline_patch'&&n.name==='Finger - curved spline patch');
   const stock=state.objects.filter(n=>n.type==='tree'||n.type==='car');
   const tree=stock.find(n=>n.type==='tree'),car=stock.find(n=>n.type==='car');
+  const stockDetails=stock.map(({hash,type,params,mesh,buildError})=>({hash,type,params,mesh,buildError}));
   check('Current fixture copy rebuilds both retired stock references',
-    stock.length===2&&tree.params.type==='bush'&&tree.mesh?.triangles===5172&&car.mesh?.triangles===1744);
+    stock.length===2&&tree?.params?.type==='bush'&&tree.params.detail==='procedural'&&
+    tree.mesh?.triangles===1998&&car?.mesh?.triangles===1744&&!tree.buildError&&!car.buildError,stockDetails);
+  const stockGeometry=await Promise.all(stock.map(async({hash,type})=>{
+    const {finite,indicesValid}=await call('diagnostics.mesh',{id:hash,geometry:true});
+    return {type,finite,indicesValid};
+  }));
+  check('Both rebuilt stock meshes have finite positions and valid indices',
+    stockGeometry.every(o=>o.finite&&o.indicesValid),stockGeometry);
   const sha256=fixtureProfile==='task5-b01ddb1d-10026344'?createHash('sha256').update(await readFile(new URL('./scenes/release-1000-10m.hash',import.meta.url))).digest('hex'):null;
   // The original low Bush and sedan contributed 3000 and 754 triangles.
   const triangles=state.stats.triangles-tree.mesh.triangles-car.mesh.triangles+3000+754;

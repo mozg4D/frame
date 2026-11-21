@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 
 const oldAnchor='await editSerial;await appearanceQueue;await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag)';
 const newAnchor='await editSerial;await appearanceQueue;if(allowGesture){if(gizmoRAF){FrameViewWindows.cancelFrame(gizmoRAF);gizmoRAF=0;if(gizmoSession&&!gizmoSession.ending)applyGizmoEvent(gizmoSession,gizmoSession.event);}await editSerial;flushTransform();}await FrameMorph.flush();if(api.transforming||heldPointers.size||boxDrag||drag)';
-function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,session=true,ending=false,history=Promise.resolve()}={}){
+function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,session=true,ending=false,history=Promise.resolve(),creaseGate=Promise.resolve()}={}){
  const start=html.indexOf('      async function settle(allowGesture=false){'),end=html.indexOf('\n      function describe(',start);
  assert.ok(start>=0&&end>start,'Actual API settlement source is present');
  const settle=html.slice(start,end),moveStart=html.indexOf('    function gizmoPointerMove(event){'),moveEnd=html.indexOf('\n    async function finishGizmo(',moveStart);
@@ -24,6 +24,7 @@ function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,se
   const heldPointers=new Set(state.active?[1]:[]),boxDrag=null,drag=null,polygonClick=Promise.resolve();
   const loopSerial=Promise.resolve(),replicaQueue=Promise.resolve(),animationSerial=Promise.resolve(),measureQueue=Promise.resolve();
   const wheelBusy=false,pendingWheel=null,loadLibraryObjects=async()=>{};
+  const flushCreasePolicies=async()=>{trace.push('crease-flush');await state.creaseGate;trace.push('crease-ready');};
   const FrameFileSources={flush:async()=>{}};const FramePlugins={loadUsed:async()=>{},flush:async()=>{}},FrameGeometry={flush:async()=>{}},FrameSpline={flush:async()=>{}};
   const FrameMorph={flush:async()=>{trace.push('morph-flush');if(state.pendingWeight!==undefined){state.weight=state.pendingWeight;delete state.pendingWeight;trace.push('solve:'+state.weight);}},apply:async()=>{throw Error('No fixture owner should be applied outside the active gesture');}};
   const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
@@ -32,7 +33,7 @@ function harness(html,{active=true,ready=true,dirty=false,weight=40,target=50,se
   ${move}
   ${settle}
   return {settle,move:weight=>gizmoPointerMove({weight}),state,runFrame:async()=>{const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f();await editSerial;flushTransform();await FrameMorph.flush();},pending:()=>frames.size,gizmoRAF:()=>gizmoRAF,clearSession:()=>{gizmoSession=null;},drainFrameOnly:()=>{const callbacks=[...frames.values()];frames.clear();for(const f of callbacks)f();}};
- `)({active,ready,dirty,weight,target,session,ending,history,applied:0,transforms:0});
+ `)({active,ready,dirty,weight,target,session,ending,history,creaseGate,applied:0,transforms:0});
 }
 export async function morphInputSettlementChecks(html=null){
  html??=await readFile(process.env.FRAME_MORPH_SOURCE?pathToFileURL(process.env.FRAME_MORPH_SOURCE):new URL('../index.html',import.meta.url),'utf8');
@@ -70,6 +71,14 @@ export async function morphInputSettlementChecks(html=null){
  });
  await check('No pending or dirty input causes no duplicate native evaluation',async()=>{
   const p=harness(html);await p.settle(true);await p.settle(true);assert.equal(p.state.applied,0);assert.equal(p.state.transforms,0);assert.equal(p.state.weight,40);
+ });
+ if(html.includes('async function flushCreasePolicies()'))await check('Ordinary settlement awaits crease policies after Morph, active gestures bypass the drain',async()=>{
+  let release;const creaseGate=new Promise(resolve=>{release=resolve;});
+  const idle=harness(html,{active:false,session:false,creaseGate});let done=false;
+  const result=idle.settle().then(()=>{done=true;});await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(done,false);assert.deepEqual(idle.state.trace,['morph-flush','morph-flush','crease-flush']);
+  release();await result;assert.equal(idle.state.trace.at(-1),'crease-ready');
+  const active=harness(html);await active.settle(true);assert(!active.state.trace.includes('crease-flush'));
  });
  await check('Old source negative control returns the stale fourth-step weight40',async()=>{
   assert.equal(html.split(newAnchor).length,2,'Exactly one reviewed settlement insertion');const old=html.replace(newAnchor,oldAnchor),p=harness(old);p.move(50);await p.settle(true);assert.equal(p.state.weight,40);assert.equal(p.pending(),1);assert.equal(p.state.applied,0);

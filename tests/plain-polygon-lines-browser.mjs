@@ -67,8 +67,10 @@ async function adaptiveMaterialChecks(page,call,check){
  try{
   await page.evaluate(()=>{const r=frameEngine.renderer;window.__savedWireRaster=r.wireRaster;r.wireRaster=null;});
   await call('diagnostics.frame',{frames:2});const fallback=await readWire();
-  const visible=colors=>colors.some(c=>c[0]>=45&&c[0]<=65&&c[0]===c[1]&&c[1]===c[2]);
-  check('Wire keeps black material distinct from the dark background in both raster paths',visible(native)&&visible(fallback),{native,fallback});
+  const expectedLuma=await page.evaluate(()=>255*(frameOrthoMajorGrid+.09));
+  const isTint=c=>{const [r,g,b]=c,span=Math.max(r,g,b)-Math.min(r,g,b);return span>=32&&span<=40&&Math.abs(.2126*r+.7152*g+.0722*b-expectedLuma)<=3;};
+  const sameTint=native.some(a=>isTint(a)&&fallback.some(b=>isTint(b)&&a.slice(0,3).every((v,k)=>Math.abs(v-b[k])<=1)));
+  check('Black material retains the same muted visible wire tint in both raster paths',sameTint,{native,fallback,expectedLuma});
  }finally{await page.evaluate(()=>{frameEngine.renderer.wireRaster=window.__savedWireRaster;delete window.__savedWireRaster;});}
 
  await call('scene.new');

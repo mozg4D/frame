@@ -69,8 +69,35 @@ export async function creationSanityCPUChecks(){
    saved=FM.pack(FM.translation([12,23,34]));assert.deepEqual(Array.from(pivot('p').slice(12,15)),[12,23,34]);
   });
   check('Imported mesh and generator pivots retain measured behavior',()=>{for(const type of ['mesh','extrude','sweep','lathe','spline_patch','group'])assert.equal(K.primitivePivot(type,{}),null);});
-  check('All three native GPU crease classifiers use cos(44 degrees)',()=>{assert.equal(html.split('0.7193398').length-1,3);assert.ok(!html.includes('0.6946584'));for(const degrees of [43,45,47])assert.equal(Math.cos(degrees*Math.PI/180)<.7193398,degrees>44);});
-  check('Boolean worker uses 44 degree default',()=>{assert.ok(html.includes('creaseCos=Math.cos(44*Math.PI/180)'));assert.ok(html.includes("backend:'worker-polygon-44-degree-area'"));});
+  check('Native crease uniforms preserve strict polygon thresholds and route Patch seams independently',()=>{
+   const count=(source,pattern)=>[...source.matchAll(pattern)].length;
+   assert.equal(count(html,/dot\(a\.xyz,b\.xyz\)\s*<\s*creaseSettings\.x/g),3);
+   assert.equal(count(html,/\belse\s+if\s*\(creaseSettings\.y\s*==\s*2\.0\)\s*\{\s*if\(patchHard\(/g),3);
+   assert.equal(count(html,/0\.7193398/g),1);
+   assert.ok(!html.includes('0.6946584'));
+   const start=html.indexOf('    function writeCreaseSettings('),end=html.indexOf('\n    }',start);
+   const write=Function(html.slice(start,end+6)+';return writeCreaseSettings;')();
+   const payload=(policy,creaseAngle,patchHardEdges)=>{
+    let words;
+    const buffer={},gpu={device:{queue:{writeBuffer:(target,offset,values)=>{assert.equal(target,buffer);assert.equal(offset,0);words=values;}}}};
+    write(gpu,{creaseSettings:buffer,creasePolicy:policy,creaseAngle,patchHardEdges});
+    assert.equal(words.length,4);assert.equal(words[1],policy);
+    return {cos:words[0],edges:new Uint32Array(words.buffer)[2]};
+   };
+   assert.equal(payload(0,44).cos,Math.fround(Math.cos(44*Math.PI/180)));
+   for(const angle of [40,44,50,90]){
+    const {cos,edges}=payload(1,angle);
+    assert.equal(cos,angle===90?0:Math.fround(Math.cos(angle*Math.PI/180)));
+    assert.equal(edges,0);
+    for(const degrees of [angle-1,angle,angle+1])assert.equal(Math.fround(Math.cos(degrees*Math.PI/180))<cos,degrees>angle);
+   }
+   assert.equal(payload(2,44,Uint32Array.of(0,1,2,3)).edges,2);
+  });
+  check('Boolean worker defaults to 44 degrees and accepts an explicit polygon threshold',()=>{
+   assert.ok(html.includes("backend:'worker-polygon-crease-area'"));
+   const at=html.indexOf('if(data.prepareRender!==false&&report.trusted'),end=html.indexOf('report.renderPreparationMilliseconds=',at);
+   assert.match(html.slice(at,end),/},data\.creaseCos\)/);
+  });
   const workerStart=html.indexOf('function polygonCreaseData('),workerEnd=html.indexOf('\n}',html.indexOf('function prepareBooleanRender('))+2;
   const prepare=Function(html.slice(workerStart,workerEnd)+';return prepareBooleanRender;')();
   for(const degrees of [43,43.9,44.1,45,46,47])check('Actual Boolean normal aliases at '+degrees+' degrees',()=>{
