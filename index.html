@@ -20763,7 +20763,12 @@ window.frameEngine=(()=>{
       struct Counts { vertices: u32, triangles: u32, corners: u32, hashMask: u32 }
       fn linear(id: vec3u, groups: vec3u) -> u32 { return id.x + id.y * groups.x * 128u; }
     `;
-    const PATCH_HARD_WGSL=`fn patchHard(a:u32,b:u32)->bool{let key=vec2u(min(a,b),max(a,b));var lo=0u;var hi=bitcast<u32>(creaseSettings.z);loop{if(lo>=hi){return false;}let mid=lo+(hi-lo)/2u;let edge=patchHardEdges[mid];if(all(edge==key)){return true;}if(edge.x<key.x||(edge.x==key.x&&edge.y<key.y)){lo=mid+1u;}else{hi=mid;}}return false;}`;
+    const PAGED_SCALAR_WGSL=`
+      fn address(i:u32,d:vec2u,layers:u32)->vec3i{if(layers==1u){if(d.x==4096u){return vec3i(i32(i&4095u),i32(i>>12u),0);}return vec3i(i32(i),0,0);}let row=select(i/d.x,i>>12u,d.x==4096u);return vec3i(i32(select(i%d.x,i&4095u,d.x==4096u)),i32(row%d.y),i32(row/d.y));}
+      fn scalar(t:texture_2d_array<u32>,i:u32)->u32{let p=address(i,textureDimensions(t),textureNumLayers(t));return textureLoad(t,p.xy,p.z,0).x;}
+    `;
+    const PATCH_HARD_WGSL=`fn patchHard(a:u32,b:u32)->bool{let key=vec2u(min(a,b),max(a,b));var lo=0u;var hi=bitcast<u32>(creaseSettings.z);loop{if(lo>=hi){return false;}let mid=lo+(hi-lo)/2u;let edge=patchHardEdges[mid];if(all(edge==key)){return true;}if(edge.x<key.x||(edge.x==key.x&&edge.y<key.y)){lo=mid+1u;}else{hi=mid;}}return false;}
+    fn classifyEdgeCrease(a:vec4f,b:vec4f,u:u32,v:u32)->u32{if(a.w==0.0||b.w==0.0){return 8u;}if(creaseSettings.y==2.0){return select(0u,1u,patchHard(u,v));}return select(0u,1u,dot(a.xyz,b.xyz)<creaseSettings.x);}`;
     // Shared compute WGSL templates: one algorithm compiled for GPUBuffer or PagedTexture accessors without runtime branching.
     const boundsWGSL=(paged,part=false)=>{const vertex=part?'records[v].x':'v';return `${paged?'':computeCommon}
       @group(0) @binding(0) var ${paged?'positions:texture_2d_array<u32>':'<storage, read> positions: array<f32>'};
@@ -20930,6 +20935,146 @@ window.frameEngine=(()=>{
         normals[i]=vec2u(record.x,pack(normalize(mix(decode(unpack2x16snorm(record.y)),normalize(mat3x3f(cross(edit.matrix[1].xyz,edit.matrix[2].xyz),cross(edit.matrix[2].xyz,edit.matrix[0].xyz),cross(edit.matrix[0].xyz,edit.matrix[1].xyz))*decode(unpack2x16snorm(record.y))),w))));
       }`:''}
     `;
+    const smoothWGSL=paged=>`${paged?'':computeCommon}
+      ${paged?`
+      @group(0) @binding(0) var indices:texture_2d_array<u32>;
+      @group(0) @binding(1) var heads:texture_2d_array<u32>;
+      @group(0) @binding(2) var corners:texture_2d_array<u32>;
+      @group(0) @binding(3) var faces:texture_2d_array<u32>;
+      @group(0) @binding(4) var shading:texture_storage_2d_array<r32uint,read_write>;
+      @group(0) @binding(5) var<storage,read_write> stats:array<atomic<u32>>;
+      @group(0) @binding(6) var<uniform> counts:vec4u;
+      fn neighbor(c:u32,v:u32,side:u32)->u32{let edge=select(c,c/3u*3u+(c+2u)%3u,side==1u);let mate=scalar(corners,edge*4u);if(mate==0u||scalar(corners,edge*4u+2u)!=0u){return 0xffffffffu;}let m=mate-1u;return select(m/3u*3u+(m+1u)%3u,m,scalar(indices,m)==v);}
+      `:`
+      @group(0) @binding(0) var<storage,read> faces:array<vec4f>;
+      @group(0) @binding(1) var<storage,read> heads:array<u32>;
+      @group(0) @binding(2) var<storage,read> next:array<u32>;
+      @group(0) @binding(3) var<storage,read> links:array<vec2u>;
+      @group(0) @binding(4) var<storage,read_write> renderIndices:array<u32>;
+      @group(0) @binding(5) var<storage,read_write> normals:array<u32>;
+      @group(0) @binding(6) var<storage,read_write> stats:array<atomic<u32>>;
+      @group(0) @binding(7) var<uniform> counts:vec4u;
+      fn normalPack(n:vec3f)->u32{let l=abs(n.x)+abs(n.y)+abs(n.z);var oct=vec2f(0);if(l>0.0){oct=n.xy/l;if(n.z<0.0){oct=(vec2f(1)-abs(oct.yx))*select(vec2f(-1),vec2f(1),oct>=vec2f(0));}}return pack2x16snorm(oct);}
+      `}
+      fn weighted(c:u32)->vec3f{let f=${paged?'bitcast<vec4f>(vector(faces,c/3u))':'faces[c/3u]'};return f.xyz*f.w;}
+      fn readTag(c:u32)->u32{return ${paged?'getR(shading,c*2u)':'renderIndices[c]'};}
+      fn writeTag(c:u32,tag:u32){${paged?'putR(shading,c*2u,tag);':'renderIndices[c]=tag;'}}
+      var<workgroup> groupCount:atomic<u32>;
+      @compute @workgroup_size(128)
+      fn reset(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let c=linear(id,groups);if(c<counts.z){${paged?'putRG(shading,c,vec2u(0));':'renderIndices[c]=0u;'}}
+        ${paged?'':'if(c==0u){atomicStore(&stats[5],0u);}'}
+      }
+      @compute @workgroup_size(128)
+      fn main(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
+        if(lane==0u){atomicStore(&groupCount,0u);}workgroupBarrier();
+        let v=linear(id,groups);var found=0u;
+        if(v<counts.x){
+          var entry=${paged?'scalar(heads,v)':'heads[v]'};
+          loop{
+            if(entry==0u){break;}let root=entry-1u;
+            if(readTag(root)==0u){
+              let tag=root+1u;writeTag(root,tag);var sum=weighted(root);
+              for(var side=0u;side<2u;side++){
+                var previous=root;var current=${paged?'neighbor(root,v,side)':'links[root][side]'};
+                loop{
+                  if(current==0xffffffffu||readTag(current)!=0u){break;}
+                  writeTag(current,tag);sum+=weighted(current);
+                  ${paged?'let a=neighbor(current,v,0u);let b=neighbor(current,v,1u);':'let neighbors=links[current];let a=neighbors.x;let b=neighbors.y;'}
+                  let following=select(a,b,a==previous);
+                  previous=current;current=following;
+                }
+              }
+              ${paged?'putR(shading,root*2u+1u,normalPack(sum));':'normals[root]=normalPack(sum);'}found++;
+            }
+            entry=${paged?'scalar(corners,root*4u+1u)':'next[root]'};
+          }
+        }
+        if(found>0u){atomicAdd(&groupCount,found);}workgroupBarrier();
+        if(lane==0u){atomicAdd(&stats[5],atomicLoad(&groupCount));}
+      }
+    `;
+    const cleanupWGSL=paged=>`${paged?'':computeCommon}
+      const ulps=10u;
+      @group(0) @binding(0) var ${paged?'positions:texture_2d_array<u32>':'<storage,read> positions:array<u32>'};
+      @group(0) @binding(1) var ${paged?'indices:texture_2d_array<u32>':'<storage,read> indices:array<u32>'};
+      @group(0) @binding(2) var<storage,read_write> table:array<atomic<u32>>;
+      @group(0) @binding(3) var ${paged?'representative:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> representative:array<u32>'};
+      @group(0) @binding(4) var ${paged?'roots:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> roots:array<u32>'};
+      @group(0) @binding(5) var<storage,read_write> totals:array<atomic<u32>>;
+      @group(0) @binding(6) var<uniform> counts:vec4u;
+      @group(0) @binding(7) var ${paged?'dense:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> dense:array<u32>'};
+      @group(0) @binding(8) var ${paged?'outPositions:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> outPositions:array<u32>'};
+      @group(0) @binding(9) var ${paged?'outIndices:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> outIndices:array<u32>'};
+      @group(0) @binding(10) var ${paged?'next:texture_storage_2d_array<r32uint,read_write>':'<storage,read_write> next:array<u32>'};
+      ${paged?'@group(0) @binding(11) var<uniform> region:array<vec4u,4>;':''}
+      fn ordered(b:u32)->u32{return select(0x80000000u+b,0x80000000u-(b&0x7fffffffu),(b&0x80000000u)!=0u);}
+      fn posWord(i:u32)->u32{return ${paged?'scalar(positions,i)':'positions[i]'};}
+      fn idxWord(i:u32)->u32{return ${paged?'scalar(indices,i)':'indices[i]'};}
+      fn getRep(v:u32)->u32{return ${paged?'getR(representative,v)':'representative[v]'};}
+      fn setRep(v:u32,x:u32){${paged?'putR(representative,v,x);':'representative[v]=x;'}}
+      fn getRoot(v:u32)->u32{return ${paged?'getR(roots,v)':'roots[v]'};}
+      fn setRoot(v:u32,x:u32){${paged?'putR(roots,v,x);':'roots[v]=x;'}}
+      fn getNext(v:u32)->u32{return ${paged?'getR(next,v)':'next[v]'};}
+      fn setNext(v:u32,x:u32){${paged?'putR(next,v,x);':'next[v]=x;'}}
+      fn key(v:u32)->vec3u{let p=v*3u;return vec3u(ordered(posWord(p)),ordered(posWord(p+1u)),ordered(posWord(p+2u)));}
+      fn hash(k:vec3u)->u32{var h=(k.x*0x8da6b343u)^(k.y*0xd8163841u)^(k.z*0xcb1ab31fu);h=(h^(h>>16u))*0x85ebca6bu;return h^(h>>13u);}
+      fn cell(k:vec3u)->vec3u{return k/vec3u(ulps+1u);}
+      fn near(a:vec3u,b:vec3u)->bool{return all(max(a,b)-min(a,b)<=vec3u(ulps));}
+      fn lower(a:u32,b:u32)->bool{let x=hash(key(a));let y=hash(key(b));return x<y||(x==y&&a<b);}
+      fn lookup(k:vec3u)->u32{var slot=hash(k)&counts.z;loop{let e=atomicLoad(&table[slot]);if(e==0u){return 0u;}if(all(cell(key(e-1u))==k)){return e;}slot=(slot+1u)&counts.z;}}
+      ${paged?`
+      fn inside(k:vec3u,a:vec3u,b:vec3u)->bool{return all(k>=a)&&all(k<b);}
+      var<workgroup> localCount:atomic<u32>;var<workgroup> lo:array<vec3u,128>;var<workgroup> hi:array<vec3u,128>;
+      @compute @workgroup_size(128) fn bounds(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
+        let v=linear(id,groups);lo[lane]=vec3u(0xffffffffu);hi[lane]=vec3u(0u);if(v<counts.x){lo[lane]=cell(key(v));hi[lane]=lo[lane];}
+        for(var step=64u;step>0u;step/=2u){workgroupBarrier();if(lane<step){lo[lane]=min(lo[lane],lo[lane+step]);hi[lane]=max(hi[lane],hi[lane+step]);}}workgroupBarrier();if(lane==0u){for(var a=0u;a<3u;a++){atomicMin(&totals[a],lo[0][a]);atomicMax(&totals[a+3u],hi[0][a]);}}
+      }
+      @compute @workgroup_size(128) fn count(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
+        if(lane==0u){atomicStore(&localCount,0u);}workgroupBarrier();let v=linear(id,groups);if(v<counts.x&&inside(cell(key(v)),region[2].xyz,region[3].xyz)){atomicAdd(&localCount,1u);}workgroupBarrier();if(lane==0u){atomicAdd(&totals[0],atomicLoad(&localCount));}
+      }`:''}
+      @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let v=linear(id,groups);if(v>=counts.x){return;}let k=cell(key(v));
+        ${paged?'if(!inside(k,region[2].xyz,region[3].xyz)){return;}setNext(v,0u);':''}
+        var slot=hash(k)&counts.z;
+        loop{let r=atomicCompareExchangeWeak(&table[slot],0u,v+1u);if(r.exchanged){break;}if(r.old_value==0u){continue;}if(all(cell(key(r.old_value-1u))==k)){setNext(v,atomicExchange(&table[slot],v+1u));break;}slot=(slot+1u)&counts.z;}
+      }
+      @compute @workgroup_size(128) fn markRoots(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let v=linear(id,groups);if(v>=counts.x){return;}let k=key(v);let base=cell(k);
+        ${paged?'if(!inside(base,region[0].xyz,region[1].xyz)){return;}':''}
+        setRoot(v,0u);if(getRep(v)!=0u){return;}
+        for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){
+          var e=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));
+          loop{if(e==0u){break;}let n=e-1u;if(getRep(n)==0u&&near(k,key(n))&&lower(n,v)){return;}e=getNext(n);}
+        }}}
+        setRoot(v,1u);
+      }
+      @compute @workgroup_size(128) fn assign(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let v=linear(id,groups);if(v>=counts.x||getRep(v)!=0u){return;}
+        let k=key(v);let base=cell(k);
+        ${paged?'if(!inside(base,region[0].xyz,region[1].xyz)){return;}':''}
+        if(getRoot(v)!=0u){setRep(v,v+1u);return;}var chosen=0xffffffffu;
+        for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){
+          var e=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));
+          loop{if(e==0u){break;}let n=e-1u;if(getRoot(n)!=0u&&near(k,key(n))){if(chosen==0xffffffffu){chosen=n;}else if(lower(n,chosen)){chosen=n;}}e=getNext(n);}
+        }}}
+        if(chosen==0xffffffffu){atomicAdd(&totals[0],1u);return;}
+        setRep(v,chosen+1u);atomicAdd(&totals[1],1u);
+      }
+      @compute @workgroup_size(128) fn compactVertices(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let v=linear(id,groups);if(v>=counts.x||getRep(v)!=v+1u){return;}
+        let n=atomicAdd(&totals[2],1u);${paged?'putR(dense,v,n);':'dense[v]=n;'}
+        for(var a=0u;a<3u;a++){let w=posWord(v*3u+a);${paged?'putR(outPositions,n*3u+a,w);':'outPositions[n*3u+a]=w;'}}
+      }
+      @compute @workgroup_size(128) fn compactTriangles(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
+        let f=linear(id,groups);if(f>=counts.y){return;}
+        let r0=getRep(idxWord(f*3u))-1u;let r1=getRep(idxWord(f*3u+1u))-1u;let r2=getRep(idxWord(f*3u+2u))-1u;
+        let a=${paged?'getR(dense,r0)':'dense[r0]'};let b=${paged?'getR(dense,r1)':'dense[r1]'};let c=${paged?'getR(dense,r2)':'dense[r2]'};
+        if(a==b||a==c||b==c){atomicAdd(&totals[4],1u);return;}
+        let n=atomicAdd(&totals[3],1u)*3u;
+        ${paged?'putR(outIndices,n,a);putR(outIndices,n+1u,b);putR(outIndices,n+2u,c);':'outIndices[n]=a;outIndices[n+1u]=b;outIndices[n+2u]=c;'}
+      }
+    `;
     const computeSources = {
       bounds: boundsWGSL(false),
       faces: facesWGSL(false),
@@ -20988,60 +21133,7 @@ window.frameEngine=(()=>{
           links[c]=vec2u(neighbor(c,v),neighbor(previous,v));
         }
       `,
-      smooth: computeCommon + `
-        @group(0) @binding(0) var<storage,read> faces:array<vec4f>;
-        @group(0) @binding(1) var<storage,read> heads:array<u32>;
-        @group(0) @binding(2) var<storage,read> next:array<u32>;
-        @group(0) @binding(3) var<storage,read> links:array<vec2u>;
-        @group(0) @binding(4) var<storage,read_write> renderIndices:array<u32>;
-        @group(0) @binding(5) var<storage,read_write> normals:array<u32>;
-        @group(0) @binding(6) var<storage,read_write> stats:array<atomic<u32>>;
-        @group(0) @binding(7) var<uniform> counts:Counts;
-        var<workgroup> groupCount:atomic<u32>;
-        fn packNormal(n:vec3f)->u32 {
-          let l=abs(n.x)+abs(n.y)+abs(n.z);var oct=vec2f(0);
-          if(l>0.0){oct=n.xy/l;if(n.z<0.0){oct=(vec2f(1)-abs(oct.yx))*select(vec2f(-1),vec2f(1),oct>=vec2f(0));}}
-          return pack2x16snorm(oct);
-        }
-        @compute @workgroup_size(128)
-        fn reset(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let c=linear(id,groups);if(c<counts.corners){renderIndices[c]=0u;}
-          if(c==0u){atomicStore(&stats[5],0u);}
-        }
-        @compute @workgroup_size(128)
-        fn main(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
-          if(lane==0u){atomicStore(&groupCount,0u);}workgroupBarrier();
-          let v=linear(id,groups);var found=0u;
-          if(v<counts.vertices){
-            // Each invocation owns all corners of one logical vertex: no float atomics.
-            var entry=heads[v];
-            loop {
-              if(entry==0u){break;}
-              let root=entry-1u;
-              if(renderIndices[root]==0u){
-                let tag=root+1u;renderIndices[root]=tag;
-                let face=faces[root/3u];var sum=face.xyz*face.w;
-                for(var side=0u;side<2u;side++){
-                  var previous=root;var current=links[root][side];
-                  loop {
-                    if(current==0xffffffffu){break;}
-                    if(renderIndices[current]!=0u){break;}
-                    renderIndices[current]=tag;
-                    let f=faces[current/3u];sum+=f.xyz*f.w;
-                    let neighbors=links[current];
-                    let following=select(neighbors.x,neighbors.y,neighbors.x==previous);
-                    previous=current;current=following;
-                  }
-                }
-                normals[root]=packNormal(sum);found++;
-              }
-              entry=next[root];
-            }
-          }
-          if(found>0u){atomicAdd(&groupCount,found);}workgroupBarrier();
-          if(lane==0u){atomicAdd(&stats[5],atomicLoad(&groupCount));}
-        }
-      `,
+      smooth: smoothWGSL(false),
       edgeKinds: computeCommon + `
         @group(0) @binding(0) var<storage,read> representatives:array<u32>;
         @group(0) @binding(1) var<storage,read> degree:array<u32>;
@@ -21068,10 +21160,7 @@ window.frameEngine=(()=>{
           let c = linear(id,groups); if (c >= counts.corners || representatives[c] != c) { return; }
           var flag = flags[c] & 6u;
           if (flag == 0u) {
-            let a = faces[c/3u]; let b = faces[(other[c]-1u)/3u];
-            if (a.w == 0.0 || b.w == 0.0) { flag = 8u; }
-            else if(creaseSettings.y==2.0){if(patchHard(indices[c],indices[c/3u*3u+(c+1u)%3u])){flag=1u;}}
-            else if (dot(a.xyz,b.xyz) < creaseSettings.x) { flag = 1u; }
+            flag = classifyEdgeCrease(faces[c/3u], faces[(other[c]-1u)/3u], indices[c], indices[c/3u*3u+(c+1u)%3u]);
           }
           flags[c] = flag;
         }
@@ -21271,76 +21360,7 @@ window.frameEngine=(()=>{
     // New roots only claim directly adjacent unassigned vertices; claims never propagate.
     async function importCleanupPipelines(gpu){
       if(gpu.importCleanup)return gpu.importCleanup;
-      const code=`
-        const ulps=10u;
-        @group(0) @binding(0) var<storage,read> positions:array<u32>;
-        @group(0) @binding(1) var<storage,read> indices:array<u32>;
-        @group(0) @binding(2) var<storage,read_write> table:array<atomic<u32>>;
-        @group(0) @binding(3) var<storage,read_write> representative:array<u32>;
-        @group(0) @binding(4) var<storage,read_write> roots:array<u32>;
-        @group(0) @binding(5) var<storage,read_write> totals:array<atomic<u32>>;
-        @group(0) @binding(6) var<uniform> counts:vec4u;
-        @group(0) @binding(7) var<storage,read_write> dense:array<u32>;
-        @group(0) @binding(8) var<storage,read_write> outPositions:array<u32>;
-        @group(0) @binding(9) var<storage,read_write> outIndices:array<u32>;
-        @group(0) @binding(10) var<storage,read_write> next:array<u32>;
-        fn ordered(b:u32)->u32{return select(0x80000000u+b,0x80000000u-(b&0x7fffffffu),(b&0x80000000u)!=0u);}
-        fn key(v:u32)->vec3u{let p=v*3u;return vec3u(ordered(positions[p]),ordered(positions[p+1u]),ordered(positions[p+2u]));}
-        fn hash(k:vec3u)->u32{var h=(k.x*0x8da6b343u)^(k.y*0xd8163841u)^(k.z*0xcb1ab31fu);h=(h^(h>>16u))*0x85ebca6bu;return h^(h>>13u);}
-        fn cell(k:vec3u)->vec3u{return k/vec3u(ulps+1u);}
-        fn near(a:vec3u,b:vec3u)->bool{return all(max(a,b)-min(a,b)<=vec3u(ulps));}
-        fn lower(a:u32,b:u32)->bool{let x=hash(key(a));let y=hash(key(b));return x<y||(x==y&&a<b);}
-        fn lookup(k:vec3u)->u32{
-          var slot=hash(k)&counts.z;
-          loop{let entry=atomicLoad(&table[slot]);if(entry==0u){return 0u;}if(all(cell(key(entry-1u))==k)){return entry;}slot=(slot+1u)&counts.z;}
-        }
-        fn vertex(id:vec3u,groups:vec3u)->u32{return id.x+id.y*groups.x*128u;}
-        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=vertex(id,groups);if(v>=counts.x){return;}let k=cell(key(v));var slot=hash(k)&counts.z;
-          loop{
-            let result=atomicCompareExchangeWeak(&table[slot],0u,v+1u);
-            if(result.exchanged){break;}if(result.old_value==0u){continue;}
-            if(all(cell(key(result.old_value-1u))==k)){next[v]=atomicExchange(&table[slot],v+1u);break;}
-            slot=(slot+1u)&counts.z;
-          }
-        }
-        @compute @workgroup_size(128) fn markRoots(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=vertex(id,groups);if(v>=counts.x){return;}roots[v]=0u;if(representative[v]!=0u){return;}
-          let k=key(v);let base=cell(k);
-          for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){
-            var entry=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));
-            loop{if(entry==0u){break;}let candidate=entry-1u;
-              if(representative[candidate]==0u&&near(k,key(candidate))&&lower(candidate,v)){return;}entry=next[candidate];
-            }
-          }}}
-          roots[v]=1u;
-        }
-        @compute @workgroup_size(128) fn assign(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=vertex(id,groups);if(v>=counts.x||representative[v]!=0u){return;}
-          if(roots[v]!=0u){representative[v]=v+1u;return;}
-          let k=key(v);let base=cell(k);var chosen=0xffffffffu;
-          for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){
-            var entry=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));
-            loop{if(entry==0u){break;}let candidate=entry-1u;
-              if(roots[candidate]!=0u&&near(k,key(candidate))){if(chosen==0xffffffffu){chosen=candidate;}else if(lower(candidate,chosen)){chosen=candidate;}}entry=next[candidate];
-            }
-          }}}
-          if(chosen==0xffffffffu){atomicAdd(&totals[0],1u);return;}
-          representative[v]=chosen+1u;atomicAdd(&totals[1],1u);
-        }
-        @compute @workgroup_size(128) fn compactVertices(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=vertex(id,groups);if(v>=counts.x||representative[v]!=v+1u){return;}
-          let n=atomicAdd(&totals[2],1u);dense[v]=n;
-          for(var axis=0u;axis<3u;axis++){outPositions[n*3u+axis]=positions[v*3u+axis];}
-        }
-        @compute @workgroup_size(128) fn compactTriangles(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let f=vertex(id,groups);if(f>=counts.y){return;}
-          let a=dense[representative[indices[f*3u]]-1u];let b=dense[representative[indices[f*3u+1u]]-1u];let c=dense[representative[indices[f*3u+2u]]-1u];
-          if(a==b||a==c||b==c){atomicAdd(&totals[4],1u);return;}
-          let n=atomicAdd(&totals[3],1u)*3u;outIndices[n]=a;outIndices[n+1u]=b;outIndices[n+2u]=c;
-        }
-      `;
-      const module=gpu.device.createShaderModule({label:'float32 import cleanup',code}),info=await module.getCompilationInfo();
+      const code=cleanupWGSL(false),module=gpu.device.createShaderModule({label:'float32 import cleanup',code}),info=await module.getCompilationInfo();
       const errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.lineNum+': '+m.message).join('; '));
       const bindings={build:[0,2,6,10],markRoots:[0,2,3,4,6,10],assign:[0,2,3,4,5,6,10],compactVertices:[0,3,5,6,7,8],compactTriangles:[1,3,5,6,7,9]};
       const pipelines={};await Promise.all(Object.keys(bindings).map(async entryPoint=>{pipelines[entryPoint]=await gpu.device.createComputePipelineAsync({label:'cleanup '+entryPoint,layout:'auto',compute:{module,entryPoint}});}));
@@ -21387,9 +21407,7 @@ window.frameEngine=(()=>{
 
     // Large meshes use GPU textures for global arrays and bounded buffers for draw blocks.
     // All blocks retain the same canonical vertex IDs, adjacency and selection bitset.
-    const pagedReadWGSL=`
-      fn address(i:u32,d:vec2u,layers:u32)->vec3i{if(layers==1u){if(d.x==4096u){return vec3i(i32(i&4095u),i32(i>>12u),0);}return vec3i(i32(i),0,0);}let row=select(i/d.x,i>>12u,d.x==4096u);return vec3i(i32(select(i%d.x,i&4095u,d.x==4096u)),i32(row%d.y),i32(row/d.y));}
-      fn scalar(t:texture_2d_array<u32>,i:u32)->u32{let p=address(i,textureDimensions(t),textureNumLayers(t));return textureLoad(t,p.xy,p.z,0).x;}
+    const pagedReadWGSL=`${PAGED_SCALAR_WGSL}
       fn vector(t:texture_2d_array<u32>,i:u32)->vec4u{return vec4u(scalar(t,i*4u),scalar(t,i*4u+1u),scalar(t,i*4u+2u),scalar(t,i*4u+3u));}
       fn vector2(t:texture_2d_array<u32>,i:u32)->vec4u{return vec4u(scalar(t,i*2u),scalar(t,i*2u+1u),0u,0u);}
       fn pos(t:texture_2d_array<u32>,v:u32)->vec3f{return bitcast<vec3f>(vec3u(scalar(t,v*3u),scalar(t,v*3u+1u),scalar(t,v*3u+2u)));}
@@ -21434,32 +21452,21 @@ window.frameEngine=(()=>{
     async function pagedReadCounters(gpu,encoder,buffer,bytes=32,offset=0){
       const slot=acquireBounds(gpu,0);try{encoder.copyBufferToBuffer(buffer,offset,slot.read,0,bytes);gpu.device.queue.submit([encoder.finish()]);await slot.read.mapAsync(GPUMapMode.READ);const data=Array.from(new Uint32Array(slot.read.getMappedRange(),0,bytes/4));slot.read.unmap();checkSession(gpu);return data;}finally{slot.busy=false;}
     }
-    async function createPagedUploader(gpu,maxBytes=8*1024*1024){
-      const pipeline=await pagedPipeline(gpu,'paged upload',`
-        @group(0) @binding(0) var<storage,read> input:array<u32>;
-        @group(0) @binding(1) var output:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(2) var<uniform> range:vec4u;
-        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i<range.y){putR(output,range.x+i,input[i]);}}
-      `),d=gpu.device,capacity=Math.max(16,Math.min(maxBytes,8*1024*1024,powerOfTwoBelow(d.limits.maxStorageBufferBindingSize)));
-      const buffer=makeGPUBuffer(d,{label:'paged upload staging',size:capacity,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),params=makeGPUBuffer(d,{label:'paged upload range',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),groups=new WeakMap();
-      const groupFor=target=>{let g=groups.get(target);if(!g){g=pagedGroup(gpu,pipeline,{0:buffer,1:target,2:params});groups.set(target,g);}return g;};
-      return {
-        upload(array,target,baseWord=0){
-          const words=array instanceof Uint32Array?array:new Uint32Array(array.buffer,array.byteOffset,array.byteLength>>>2),group=groupFor(target),step=capacity>>>2;
-          for(let at=0;at<words.length;at+=step){
-            const n=Math.min(step,words.length-at);
-            d.queue.writeBuffer(buffer,0,words,at,n);
-            d.queue.writeBuffer(params,0,new Uint32Array([baseWord+at,n,0,0]));
-            const e=d.createCommandEncoder();dispatchOn(gpu,e,pipeline,group,n);d.queue.submit([e.finish()]);
-          }
-        },
-        dispose(){releaseGPU(buffer);releaseGPU(params);}
-      };
+    function writePagedTexture(device,array,target,baseWord=0){
+      const words=array instanceof Uint32Array?array:new Uint32Array(array.buffer,array.byteOffset,array.byteLength>>>2),w=target.width,h=target.height,plane=w*h;
+      for(let pos=0;pos<words.length;){
+        const at=baseWord+pos,z=Math.floor(at/plane),rem=at-z*plane,y=Math.floor(rem/w),x=rem-y*w,left=words.length-pos;
+        if(x>0||left<w){const n=Math.min(left,w-x);device.queue.writeTexture({texture:target.texture,origin:[x,y,z]},new Uint8Array(words.buffer,words.byteOffset+pos*4,n*4),{bytesPerRow:n*4,rowsPerImage:1},[n,1,1]);pos+=n;continue;}
+        const rows=Math.min(h-y,Math.floor(left/w));
+        if(y===0&&rows===h){const layers=Math.min(target.layers-z,Math.floor(left/plane)),n=layers*plane;device.queue.writeTexture({texture:target.texture,origin:[0,0,z]},new Uint8Array(words.buffer,words.byteOffset+pos*4,n*4),{bytesPerRow:w*4,rowsPerImage:h},[w,h,layers]);pos+=n;continue;}
+        const n=rows*w;device.queue.writeTexture({texture:target.texture,origin:[0,y,z]},new Uint8Array(words.buffer,words.byteOffset+pos*4,n*4),{bytesPerRow:w*4,rowsPerImage:rows},[w,rows,1]);pos+=n;
+      }
+    }
+    async function createPagedUploader(gpu){
+      return {upload(array,target,baseWord=0){writePagedTexture(gpu.device,array,target,baseWord);},dispose(){}};
     }
     async function uploadPagedArray(gpu,array,target){
-      const uploader=await createPagedUploader(gpu,array.byteLength);
-      try{uploader.upload(array,target,0);await gpu.device.queue.onSubmittedWorkDone();}
-      finally{uploader.dispose();}
+      writePagedTexture(gpu.device,array,target,0);
     }
     async function pagedBounds(gpu,mesh,selected,part=null){
       const code=boundsWGSL(true,!!part),p=await computePipeline(gpu,'paged bounds '+!!part,code,'boundsPart'),f=await computePipeline(gpu,'paged bounds '+!!part,code,'boundsFinal'),n=part?part.normalCount:mesh.vertexCount,counts=part?part.boundsCounts:mesh.counts,slot=acquireBounds(gpu,n),info=selected?slot.info:part?part.info:mesh.info;
@@ -21468,61 +21475,17 @@ window.frameEngine=(()=>{
     }
 
     async function cleanPagedImport(gpu,mesh,options={}){
-      const code=`
-        @group(0) @binding(0) var positions:texture_2d_array<u32>;
-        @group(0) @binding(1) var indices:texture_2d_array<u32>;
-        @group(0) @binding(2) var<storage,read_write> table:array<atomic<u32>>;
-        @group(0) @binding(3) var representatives:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(4) var roots:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(5) var links:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(6) var<storage,read_write> totals:array<atomic<u32>>;
-        @group(0) @binding(7) var<uniform> counts:vec4u;
-        @group(0) @binding(8) var<uniform> region:array<vec4u,4>;
-        @group(0) @binding(9) var mapping:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(10) var outputPositions:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(11) var outputIndices:texture_storage_2d_array<r32uint,read_write>;
-        fn ordered(b:u32)->u32{return select(0x80000000u+b,0x80000000u-(b&0x7fffffffu),(b&0x80000000u)!=0u);}
-        fn key(v:u32)->vec3u{return vec3u(ordered(scalar(positions,v*3u)),ordered(scalar(positions,v*3u+1u)),ordered(scalar(positions,v*3u+2u)));}
-        fn hash(k:vec3u)->u32{var h=(k.x*0x8da6b343u)^(k.y*0xd8163841u)^(k.z*0xcb1ab31fu);h=(h^(h>>16u))*0x85ebca6bu;return h^(h>>13u);}
-        fn cell(k:vec3u)->vec3u{return k/vec3u(11u);}
-        fn near(a:vec3u,b:vec3u)->bool{return all(max(a,b)-min(a,b)<=vec3u(10u));}
-        fn lower(a:u32,b:u32)->bool{let x=hash(key(a));let y=hash(key(b));return x<y||(x==y&&a<b);}
-        fn inside(k:vec3u,a:vec3u,b:vec3u)->bool{return all(k>=a)&&all(k<b);}
-        fn lookup(k:vec3u)->u32{var slot=hash(k)&counts.z;loop{let e=atomicLoad(&table[slot]);if(e==0u){return 0u;}if(all(cell(key(e-1u))==k)){return e;}slot=(slot+1u)&counts.z;}}
-        var<workgroup> localCount:atomic<u32>;var<workgroup> lo:array<vec3u,128>;var<workgroup> hi:array<vec3u,128>;
-        @compute @workgroup_size(128) fn bounds(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
-          let v=linear(id,groups);lo[lane]=vec3u(0xffffffffu);hi[lane]=vec3u(0u);if(v<counts.x){lo[lane]=cell(key(v));hi[lane]=lo[lane];}
-          for(var step=64u;step>0u;step/=2u){workgroupBarrier();if(lane<step){lo[lane]=min(lo[lane],lo[lane+step]);hi[lane]=max(hi[lane],hi[lane+step]);}}workgroupBarrier();if(lane==0u){for(var a=0u;a<3u;a++){atomicMin(&totals[a],lo[0][a]);atomicMax(&totals[a+3u],hi[0][a]);}}
-        }
-        @compute @workgroup_size(128) fn count(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
-          if(lane==0u){atomicStore(&localCount,0u);}workgroupBarrier();let v=linear(id,groups);if(v<counts.x&&inside(cell(key(v)),region[2].xyz,region[3].xyz)){atomicAdd(&localCount,1u);}workgroupBarrier();if(lane==0u){atomicAdd(&totals[0],atomicLoad(&localCount));}
-        }
-        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=linear(id,groups);if(v>=counts.x){return;}let k=cell(key(v));if(!inside(k,region[2].xyz,region[3].xyz)){return;}putR(links,v,0u);var slot=hash(k)&counts.z;
-          loop{let r=atomicCompareExchangeWeak(&table[slot],0u,v+1u);if(r.exchanged){break;}if(r.old_value==0u){continue;}if(all(cell(key(r.old_value-1u))==k)){putR(links,v,atomicExchange(&table[slot],v+1u));break;}slot=(slot+1u)&counts.z;}
-        }
-        @compute @workgroup_size(128) fn mark(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=linear(id,groups);if(v>=counts.x){return;}let k=key(v);let base=cell(k);if(!inside(base,region[0].xyz,region[1].xyz)){return;}putR(roots,v,0u);if(getR(representatives,v)!=0u){return;}
-          for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){var e=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));loop{if(e==0u){break;}let n=e-1u;if(getR(representatives,n)==0u&&near(k,key(n))&&lower(n,v)){return;}e=getR(links,n);}}}}putR(roots,v,1u);
-        }
-        @compute @workgroup_size(128) fn assign(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let v=linear(id,groups);if(v>=counts.x){return;}let k=key(v);let base=cell(k);if(!inside(base,region[0].xyz,region[1].xyz)||getR(representatives,v)!=0u){return;}if(getR(roots,v)!=0u){putR(representatives,v,v+1u);return;}var best=0xffffffffu;
-          for(var x=-1;x<=1;x++){for(var y=-1;y<=1;y++){for(var z=-1;z<=1;z++){var e=lookup(base+vec3u(bitcast<u32>(x),bitcast<u32>(y),bitcast<u32>(z)));loop{if(e==0u){break;}let n=e-1u;if(getR(roots,n)!=0u&&near(k,key(n))){if(best==0xffffffffu){best=n;}else if(lower(n,best)){best=n;}}e=getR(links,n);}}}}
-          if(best==0xffffffffu){atomicAdd(&totals[0],1u);}else{putR(representatives,v,best+1u);atomicAdd(&totals[1],1u);}
-        }
-        @compute @workgroup_size(128) fn vertices(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let v=linear(id,groups);if(v>=counts.x||getR(representatives,v)!=v+1u){return;}let n=atomicAdd(&totals[2],1u);putR(mapping,v,n);for(var a=0u;a<3u;a++){putR(outputPositions,n*3u+a,scalar(positions,v*3u+a));}}
-        @compute @workgroup_size(128) fn triangles(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let f=linear(id,groups);if(f>=counts.y){return;}let a=getR(mapping,getR(representatives,scalar(indices,f*3u))-1u);let b=getR(mapping,getR(representatives,scalar(indices,f*3u+1u))-1u);let c=getR(mapping,getR(representatives,scalar(indices,f*3u+2u))-1u);if(a==b||a==c||b==c){atomicAdd(&totals[4],1u);return;}let n=atomicAdd(&totals[3],1u)*3u;putR(outputIndices,n,a);putR(outputIndices,n+1u,b);putR(outputIndices,n+2u,c);}
-      `;
+      const code=cleanupWGSL(true);
       const d=gpu.device,V=mesh.vertexCount,T=mesh.triangleCount,start=performance.now(),temporary=[],keep=b=>{temporary.push(b);return b;},make=(label,size,usage)=>keep(makeGPUBuffer(d,{label,size:Math.max(16,size),usage})),storage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
       const slots=Math.min(powerOfTwoAbove(Math.max(1,V*2)),powerOfTwoBelow((options.cleanupTableBytes||d.limits.maxStorageBufferBindingSize)/4)),table=make('block cleanup hash',slots*4,storage),totals=make('block cleanup counters',32,storage),params=make('block cleanup counts',16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
       const representatives=keep(makePagedTexture(gpu,'global cleanup representatives',V)),roots=keep(makePagedTexture(gpu,'global cleanup roots',V)),links=keep(makePagedTexture(gpu,'cleanup hash chains',V));d.queue.writeBuffer(params,0,new Uint32Array([V,T,slots-1,10]));
-      const pipelines={};for(const entry of ['bounds','count','build','mark','assign','vertices','triangles'])pipelines[entry]=await pagedPipeline(gpu,'paged cleanup',code,entry);
+      const pipelines={};for(const entry of ['bounds','count','build','markRoots','assign','compactVertices','compactTriangles'])pipelines[entry]=await pagedPipeline(gpu,'paged cleanup',code,entry);
       const regionBuffer=region=>{const data=new Uint32Array(16),lo=region.min.map(v=>Math.max(0,v-1)),hi=region.max.map(v=>v+1);data.set(region.min,0);data.set(region.max,4);data.set(lo,8);data.set(hi,12);const p=make('cleanup region',64,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);d.queue.writeBuffer(p,0,data);return p;};
       let leaves=[{min:[0,0,0],max:[0x20000000,0x20000000,0x20000000]}];
       try{
         if(V&&(V*2>slots||options.forceCleanupStripes)){
-          d.queue.writeBuffer(totals,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));let e=d.createCommandEncoder();dispatchOn(gpu,e,pipelines.bounds,pagedGroup(gpu,pipelines.bounds,{0:mesh.positions,6:totals,7:params}),V);const bounds=await pagedReadCounters(gpu,e,totals,24),queue=[{min:bounds.slice(0,3),max:bounds.slice(3,6).map(v=>v+1)}];leaves=[];
-          while(queue.length){const region=queue.pop(),p=regionBuffer(region);e=d.createCommandEncoder();e.clearBuffer(totals);dispatchOn(gpu,e,pipelines.count,pagedGroup(gpu,pipelines.count,{0:mesh.positions,6:totals,7:params,8:p}),V);const n=(await pagedReadCounters(gpu,e,totals,4))[0];let volume=1;for(let a=0;a<3;a++)volume=Math.min(slots+1,volume*(region.max[a]-region.min[a]+2));
+          d.queue.writeBuffer(totals,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));let e=d.createCommandEncoder();dispatchOn(gpu,e,pipelines.bounds,pagedGroup(gpu,pipelines.bounds,{0:mesh.positions,5:totals,6:params}),V);const bounds=await pagedReadCounters(gpu,e,totals,24),queue=[{min:bounds.slice(0,3),max:bounds.slice(3,6).map(v=>v+1)}];leaves=[];
+          while(queue.length){const region=queue.pop(),p=regionBuffer(region);e=d.createCommandEncoder();e.clearBuffer(totals);dispatchOn(gpu,e,pipelines.count,pagedGroup(gpu,pipelines.count,{0:mesh.positions,5:totals,6:params,11:p}),V);const n=(await pagedReadCounters(gpu,e,totals,4))[0];let volume=1;for(let a=0;a<3;a++)volume=Math.min(slots+1,volume*(region.max[a]-region.min[a]+2));
             const force=!!options.forceCleanupStripes&&leaves.length+queue.length===0&&region.min.some((v,i)=>region.max[i]-v>1);
             if(!force&&(n*2<=slots||volume*2<=slots)){leaves.push({...region,params:p});continue;}
             const spans=region.min.map((v,i)=>region.max[i]-v),axis=spans.indexOf(Math.max(...spans));if(spans[axis]<=1)throw Error('Cleanup region cannot fit its GPU hash table.');const middle=region.min[axis]+Math.floor(spans[axis]/2),a={min:[...region.min],max:[...region.max]},b={min:[...region.min],max:[...region.max]};a.max[axis]=middle;b.min[axis]=middle;queue.push(b,a);
@@ -21530,14 +21493,14 @@ window.frameEngine=(()=>{
         }else leaves[0].params=regionBuffer(leaves[0]);
         d.queue.writeBuffer(totals,0,new Uint32Array(8));let rounds=0,result;
         do{const e=d.createCommandEncoder();e.clearBuffer(totals,0,4);
-          for(const phase of ['mark','assign'])for(const leaf of leaves){e.clearBuffer(table);const a=pagedGroup(gpu,pipelines.build,{0:mesh.positions,2:table,5:links,7:params,8:leaf.params});dispatchOn(gpu,e,pipelines.build,a,V);
-            const common={0:mesh.positions,2:table,3:representatives,4:roots,5:links,7:params,8:leaf.params};if(phase==='assign')common[6]=totals;dispatchOn(gpu,e,pipelines[phase],pagedGroup(gpu,pipelines[phase],common),V);
+          for(const phase of ['markRoots','assign'])for(const leaf of leaves){e.clearBuffer(table);const a=pagedGroup(gpu,pipelines.build,{0:mesh.positions,2:table,6:params,10:links,11:leaf.params});dispatchOn(gpu,e,pipelines.build,a,V);
+            const common={0:mesh.positions,2:table,3:representatives,4:roots,6:params,10:links,11:leaf.params};if(phase==='assign')common[5]=totals;dispatchOn(gpu,e,pipelines[phase],pagedGroup(gpu,pipelines[phase],common),V);
           }result=await pagedReadCounters(gpu,e,totals,24);rounds++;if(rounds>Math.max(V,1))throw Error('Paged cleanup failed to converge.');
         }while(result[0]);
         if(result[1]){
           const mapping=keep(makePagedTexture(gpu,'dense vertex mapping',V)),outPositions=keep(makePagedTexture(gpu,'clean global positions',V*3)),outIndices=keep(makePagedTexture(gpu,'clean global triangles',T*3)),e=d.createCommandEncoder();
-          dispatchOn(gpu,e,pipelines.vertices,pagedGroup(gpu,pipelines.vertices,{0:mesh.positions,3:representatives,6:totals,7:params,9:mapping,10:outPositions}),V);
-          dispatchOn(gpu,e,pipelines.triangles,pagedGroup(gpu,pipelines.triangles,{1:mesh.indices,3:representatives,6:totals,7:params,9:mapping,11:outIndices}),T);result=await pagedReadCounters(gpu,e,totals,24);
+          dispatchOn(gpu,e,pipelines.compactVertices,pagedGroup(gpu,pipelines.compactVertices,{0:mesh.positions,3:representatives,5:totals,6:params,7:mapping,8:outPositions}),V);
+          dispatchOn(gpu,e,pipelines.compactTriangles,pagedGroup(gpu,pipelines.compactTriangles,{1:mesh.indices,3:representatives,5:totals,6:params,7:mapping,9:outIndices}),T);result=await pagedReadCounters(gpu,e,totals,24);
           replaceMeshBuffer(mesh,'positions',outPositions);replaceMeshBuffer(mesh,'indices',outIndices);mesh.vertexCount=result[2];mesh.triangleCount=result[3];mesh.count=result[3]*3;
         }
         mesh.cleanup={inputVertices:V,inputTriangles:T,mergedVertices:result[1],removedTriangles:result[4],vertices:mesh.vertexCount,triangles:mesh.triangleCount,rounds,maxCoordinateULP:10,gpuMs:null,totalMs:performance.now()-start,regions:leaves.length};return mesh.cleanup;
@@ -21560,11 +21523,9 @@ window.frameEngine=(()=>{
         @group(0) @binding(2) var<storage,read_write> heads:array<atomic<u32>>;
         @group(0) @binding(3) var headTexture:texture_storage_2d_array<r32uint,read_write>;
         @group(0) @binding(4) var<uniform> range:vec4u;
-        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.z){return;}let v=scalar(indices,c);if(v<range.x||v>=range.x+range.y){return;}let next=atomicExchange(&heads[v-range.x],c+1u);putRGBA(corners,c,vec4u(0u,next,0u,0u));}
+        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.z){return;}let v=scalar(indices,c);if(v<range.x||v>=range.x+range.y){return;}let next=atomicExchange(&heads[v-range.x],c+1u);putR(corners,c*4u+1u,next);}
         @compute @workgroup_size(128) fn copy(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let v=linear(id,groups);if(v<range.y){putR(headTexture,range.x+v,atomicLoad(&heads[v]));}}
       `,headBuild=await pagedPipeline(gpu,'paged vertex heads',headCode,'build'),headCopy=await pagedPipeline(gpu,'paged vertex heads',headCode,'copy');
-      const headCapacity=Math.max(1,Math.min(mesh.vertexCount,options.vertexPageSize||Math.floor(d.limits.maxStorageBufferBindingSize/4))),headBuffer=makeGPUBuffer(d,{size:Math.max(16,headCapacity*4),usage}),params=[];
-      try{const e=d.createCommandEncoder();for(let base=0;base<mesh.vertexCount;base+=headCapacity){const n=Math.min(headCapacity,mesh.vertexCount-base),p=makeGPUBuffer(d,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});params.push(p);d.queue.writeBuffer(p,0,new Uint32Array([base,n,mesh.count,0]));e.clearBuffer(headBuffer);dispatchOn(gpu,e,headBuild,pagedGroup(gpu,headBuild,{0:mesh.indices,1:mesh.corners,2:headBuffer,4:p}),mesh.count);dispatchOn(gpu,e,headCopy,pagedGroup(gpu,headCopy,{2:headBuffer,3:mesh.heads,4:p}),n);}await pagedFaces(gpu,mesh,e);d.queue.submit([e.finish()]);await d.queue.onSubmittedWorkDone();}finally{releaseGPU(headBuffer);for(const p of params)releaseGPU(p);}
       const edgeCode=`
         struct Entry{corner:atomic<u32>,degree:atomic<u32>,sum:atomic<u32>}
         struct Settings{counts:vec4u,job:vec4u}
@@ -21588,20 +21549,24 @@ window.frameEngine=(()=>{
           }atomicAdd(&stats[6],1u);
         }
         @compute @workgroup_size(128) fn finish(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
-          let c=linear(id,groups);if(c>=settings.counts.z){return;}if(collapsed(c)){return;}let k=pair(c);let h=hash(k);if(((h>>settings.job.z)&settings.job.x)!=settings.job.y){return;}var slot=h&settings.counts.w;var found=false;
+          let c=linear(id,groups);if(c>=settings.counts.z){return;}if(collapsed(c)){if(settings.job.y==0u){putR(corners,c*4u,0u);putR(corners,c*4u+2u,0u);putR(corners,c*4u+3u,0u);}return;}let k=pair(c);let h=hash(k);if(((h>>settings.job.z)&settings.job.x)!=settings.job.y){return;}var slot=h&settings.counts.w;var found=false;
           for(var attempt=0u;attempt<512u;attempt++){let entry=atomicLoad(&table[slot].corner);if(entry==0u){break;}if(all(pair(entry-1u)==k)){found=true;break;}slot=(slot+1u)&settings.counts.w;}if(!found){return;}
           let rep=atomicLoad(&table[slot].corner);let degree=atomicLoad(&table[slot].degree);var flag=0u;var mate=0u;
-          if(degree==1u){flag=2u;}else if(degree!=2u){flag=4u;}else{mate=atomicLoad(&table[slot].sum)^(c+1u);let a=bitcast<vec4f>(vector(faces,c/3u));let b=bitcast<vec4f>(vector(faces,(mate-1u)/3u));if(a.w==0||b.w==0){flag=8u;}else if(creaseSettings.y==2.0){if(patchHard(k.x,k.y)){flag=1u;}}else if(dot(a.xyz,b.xyz)<creaseSettings.x){flag=1u;}}
-          let old=getRGBA(corners,c);putRGBA(corners,c,vec4u(mate,old.y,flag,rep));if(rep==c+1u){atomicAdd(&stats[0],1u);if((flag&1u)!=0u){atomicAdd(&stats[1],1u);}if((flag&2u)!=0u){atomicAdd(&stats[2],1u);}if((flag&4u)!=0u){atomicAdd(&stats[3],1u);}if((flag&8u)!=0u){atomicAdd(&stats[4],1u);}}
+          if(degree==1u){flag=2u;}else if(degree!=2u){flag=4u;}else{mate=atomicLoad(&table[slot].sum)^(c+1u);flag=classifyEdgeCrease(bitcast<vec4f>(vector(faces,c/3u)),bitcast<vec4f>(vector(faces,(mate-1u)/3u)),k.x,k.y);}
+          putRGBA(corners,c,vec4u(mate,getR(corners,c*4u+1u),flag,rep));if(rep==c+1u){atomicAdd(&stats[0],1u);if((flag&1u)!=0u){atomicAdd(&stats[1],1u);}if((flag&2u)!=0u){atomicAdd(&stats[2],1u);}if((flag&4u)!=0u){atomicAdd(&stats[3],1u);}if((flag&8u)!=0u){atomicAdd(&stats[4],1u);}}
         }
       `,build=await pagedPipeline(gpu,'paged edge topology',edgeCode,'build'),finish=await pagedPipeline(gpu,'paged edge topology',edgeCode,'finish');
+      const headCapacity=Math.max(1,Math.min(mesh.vertexCount,options.vertexPageSize||Math.floor(d.limits.maxStorageBufferBindingSize/4))),headBuffer=makeGPUBuffer(d,{size:Math.max(16,headCapacity*4),usage}),params=[];
       const slots=Math.min(powerOfTwoAbove(Math.max(1,mesh.count*2)),powerOfTwoBelow((options.edgeTableBytes||d.limits.maxStorageBufferBindingSize)/12)),shift=Math.log2(slots),table=makeGPUBuffer(d,{label:'bounded edge hash',size:Math.max(16,slots*12),usage});let buckets=powerOfTwoAbove(Math.max(options.edgeBuckets||1,Math.ceil(mesh.count*2/slots)));
       try{
+        let headEncoder=d.createCommandEncoder();
+        for(let base=0;base<mesh.vertexCount;base+=headCapacity){const n=Math.min(headCapacity,mesh.vertexCount-base),p=makeGPUBuffer(d,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});params.push(p);d.queue.writeBuffer(p,0,new Uint32Array([base,n,mesh.count,0]));headEncoder.clearBuffer(headBuffer);dispatchOn(gpu,headEncoder,headBuild,pagedGroup(gpu,headBuild,{0:mesh.indices,1:mesh.corners,2:headBuffer,4:p}),mesh.count);dispatchOn(gpu,headEncoder,headCopy,pagedGroup(gpu,headCopy,{2:headBuffer,3:mesh.heads,4:p}),n);}
+        await pagedFaces(gpu,mesh,headEncoder);
         for(let retry=0;;retry++){
-          if(retry>8||buckets>Math.pow(2,32-shift))throw Error('The bounded topology hash could not fit this mesh.');const uniforms=[],e=d.createCommandEncoder();e.clearBuffer(mesh.stats);
+          if(retry>8||buckets>Math.pow(2,32-shift))throw Error('The bounded topology hash could not fit this mesh.');const uniforms=[],e=headEncoder||d.createCommandEncoder();headEncoder=null;e.clearBuffer(mesh.stats);
           try{for(let bucket=0;bucket<buckets;bucket++){const p=makeGPUBuffer(d,{size:32,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});uniforms.push(p);d.queue.writeBuffer(p,0,new Uint32Array([mesh.vertexCount,mesh.triangleCount,mesh.count,slots-1,buckets-1,bucket,shift,0]));e.clearBuffer(table);dispatchOn(gpu,e,build,pagedGroup(gpu,build,{0:mesh.indices,3:table,4:mesh.stats,5:p}),mesh.count);dispatchOn(gpu,e,finish,pagedGroup(gpu,finish,{0:mesh.indices,1:pagedWorkspace(gpu,mesh.triangleCount,mesh.count).faces,2:mesh.corners,3:table,4:mesh.stats,5:p,6:mesh.creaseSettings,7:mesh.patchHardEdgeBuffer}),mesh.count);}const counts=await pagedReadCounters(gpu,e,mesh.stats,32);if(!counts[6]){mesh.edgeCounts=counts.slice(0,6);mesh.topologyBlocks=buckets;break;}buckets*=2;}finally{for(const p of uniforms)releaseGPU(p);}
         }
-      }finally{releaseGPU(table);}
+      }finally{releaseGPU(headBuffer);for(const p of params)releaseGPU(p);releaseGPU(table);}
     }
     async function refreshPagedCreases(gpu,mesh,encoder){
       await pagedFaces(gpu,mesh,encoder);const pipeline=await pagedPipeline(gpu,'paged crease update',`
@@ -21614,30 +21579,11 @@ window.frameEngine=(()=>{
         @group(0) @binding(6) var indices:texture_2d_array<u32>;
         ${PATCH_HARD_WGSL}
 
-        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=counts.z){return;}let old=getRGBA(corners,c);var flag=old.z&6u;if(flag==0u&&old.x!=0u){let a=bitcast<vec4f>(vector(faces,c/3u));let b=bitcast<vec4f>(vector(faces,(old.x-1u)/3u));if(a.w==0||b.w==0){flag=8u;}else if(creaseSettings.y==2.0){if(patchHard(scalar(indices,c),scalar(indices,c/3u*3u+(c+1u)%3u))){flag=1u;}}else if(dot(a.xyz,b.xyz)<creaseSettings.x){flag=1u;}}putRGBA(corners,c,vec4u(old.xy,flag,old.w));if(old.w==c+1u){atomicAdd(&stats[0],1u);if((flag&1u)!=0u){atomicAdd(&stats[1],1u);}if((flag&2u)!=0u){atomicAdd(&stats[2],1u);}if((flag&4u)!=0u){atomicAdd(&stats[3],1u);}if((flag&8u)!=0u){atomicAdd(&stats[4],1u);}}}
+        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=counts.z){return;}let mate=getR(corners,c*4u);let rep=getR(corners,c*4u+3u);var flag=getR(corners,c*4u+2u)&6u;if(flag==0u&&mate!=0u){flag=classifyEdgeCrease(bitcast<vec4f>(vector(faces,c/3u)),bitcast<vec4f>(vector(faces,(mate-1u)/3u)),scalar(indices,c),scalar(indices,c/3u*3u+(c+1u)%3u));}putR(corners,c*4u+2u,flag);if(rep==c+1u){atomicAdd(&stats[0],1u);if((flag&1u)!=0u){atomicAdd(&stats[1],1u);}if((flag&2u)!=0u){atomicAdd(&stats[2],1u);}if((flag&4u)!=0u){atomicAdd(&stats[3],1u);}if((flag&8u)!=0u){atomicAdd(&stats[4],1u);}}}
       `);encoder.clearBuffer(mesh.stats,0,20);dispatchOn(gpu,encoder,pipeline,pagedGroup(gpu,pipeline,{0:mesh.corners,1:pagedWorkspace(gpu,mesh.triangleCount,mesh.count).faces,2:mesh.counts,3:mesh.creaseSettings,4:mesh.stats,5:mesh.patchHardEdgeBuffer,6:mesh.indices}),mesh.count);
     }
     async function smoothPagedNormals(gpu,mesh,encoder){
-      const code=`
-        @group(0) @binding(0) var indices:texture_2d_array<u32>;
-        @group(0) @binding(1) var heads:texture_2d_array<u32>;
-        @group(0) @binding(2) var corners:texture_2d_array<u32>;
-        @group(0) @binding(3) var faces:texture_2d_array<u32>;
-        @group(0) @binding(4) var shading:texture_storage_2d_array<r32uint,read_write>;
-        @group(0) @binding(5) var<storage,read_write> stats:array<atomic<u32>>;
-        @group(0) @binding(6) var<uniform> counts:vec4u;
-        fn neighbor(c:u32,v:u32,side:u32)->u32{var edge=c;if(side==1u){edge=c/3u*3u+(c+2u)%3u;}let data=vector(corners,edge);if(data.z!=0u||data.x==0u){return 0xffffffffu;}let mate=data.x-1u;if(scalar(indices,mate)==v){return mate;}return mate/3u*3u+(mate+1u)%3u;}
-        fn weighted(c:u32)->vec3f{let f=bitcast<vec4f>(vector(faces,c/3u));return f.xyz*f.w;}
-        var<workgroup> groupCount:atomic<u32>;
-        @compute @workgroup_size(128) fn reset(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c<counts.z){putRG(shading,c,vec2u(0));}}
-        @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){
-          if(lane==0u){atomicStore(&groupCount,0u);}workgroupBarrier();let v=linear(id,groups);var found=0u;
-          if(v<counts.x){var entry=scalar(heads,v);loop{if(entry==0u){break;}let root=entry-1u;if(getRG(shading,root).x==0u){let tag=root+1u;putRG(shading,root,vec2u(tag,0));var sum=weighted(root);
-            for(var side=0u;side<2u;side++){var previous=root;var current=neighbor(root,v,side);loop{if(current==0xffffffffu||getRG(shading,current).x!=0u){break;}putRG(shading,current,vec2u(tag,0));sum+=weighted(current);let a=neighbor(current,v,0u);let b=neighbor(current,v,1u);let following=select(a,b,a==previous);previous=current;current=following;}}
-            putRG(shading,root,vec2u(tag,normalPack(sum)));found++;}entry=vector(corners,root).y;}}
-          if(found>0u){atomicAdd(&groupCount,found);}workgroupBarrier();if(lane==0u){atomicAdd(&stats[5],atomicLoad(&groupCount));}
-        }
-      `,reset=await pagedPipeline(gpu,'paged smoothing',code,'reset'),main=await pagedPipeline(gpu,'paged smoothing',code,'main'),w=pagedWorkspace(gpu,mesh.triangleCount,mesh.count);
+      const code=smoothWGSL(true),reset=await pagedPipeline(gpu,'paged smoothing',code,'reset'),main=await pagedPipeline(gpu,'paged smoothing',code,'main'),w=pagedWorkspace(gpu,mesh.triangleCount,mesh.count);
       encoder.clearBuffer(mesh.stats,20,4);dispatchOn(gpu,encoder,reset,pagedGroup(gpu,reset,{4:w.shading,6:mesh.counts}),mesh.count);dispatchOn(gpu,encoder,main,pagedGroup(gpu,main,{0:mesh.indices,1:mesh.heads,2:mesh.corners,3:w.faces,4:w.shading,5:mesh.stats,6:mesh.counts}),mesh.vertexCount);
     }
 
@@ -21654,10 +21600,10 @@ window.frameEngine=(()=>{
         @group(0) @binding(7) var<storage,read_write> counters:array<atomic<u32>>;
         @group(0) @binding(8) var<uniform> range:vec4u;
         fn hash(k:u32)->u32{var h=(k^(k>>16u))*0x7feb352du;h=(h^(h>>15u))*0x846ca68bu;return h^(h>>16u);}
-        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.y*3u){return;}let tag=vector2(shading,range.x*3u+c).x;var slot=hash(tag)&range.z;loop{let r=atomicCompareExchangeWeak(&table[slot].key,0u,tag);if(r.exchanged){return;}if(r.old_value==0u){continue;}if(r.old_value==tag){return;}slot=(slot+1u)&range.z;}}
-        @compute @workgroup_size(128) fn pack(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let slot=linear(id,groups);if(slot>range.z){return;}let tag=atomicLoad(&table[slot].key);if(tag==0u){return;}let n=atomicAdd(&counters[0],1u);table[slot].dense=n;records[n]=vec2u(scalar(indices,tag-1u),vector2(shading,tag-1u).y);}
-        @compute @workgroup_size(128) fn remap(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.y*3u){return;}let tag=vector2(shading,range.x*3u+c).x;var slot=hash(tag)&range.z;loop{if(atomicLoad(&table[slot].key)==tag){aliases[c]=table[slot].dense;return;}slot=(slot+1u)&range.z;}}
-        @compute @workgroup_size(128) fn wire(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=range.x*3u+linear(id,groups);if(c>=(range.x+range.y)*3u||vector(corners,c).w!=c+1u){return;}let n=atomicAdd(&counters[1],1u)*2u;lines[n]=scalar(indices,c);lines[n+1u]=scalar(indices,c/3u*3u+(c+1u)%3u);}
+        @compute @workgroup_size(128) fn build(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.y*3u){return;}let tag=scalar(shading,(range.x*3u+c)*2u);var slot=hash(tag)&range.z;loop{let r=atomicCompareExchangeWeak(&table[slot].key,0u,tag);if(r.exchanged){return;}if(r.old_value==0u){continue;}if(r.old_value==tag){return;}slot=(slot+1u)&range.z;}}
+        @compute @workgroup_size(128) fn pack(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let slot=linear(id,groups);if(slot>range.z){return;}let tag=atomicLoad(&table[slot].key);if(tag==0u){return;}let n=atomicAdd(&counters[0],1u);table[slot].dense=n;records[n]=vec2u(scalar(indices,tag-1u),scalar(shading,(tag-1u)*2u+1u));}
+        @compute @workgroup_size(128) fn remap(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=linear(id,groups);if(c>=range.y*3u){return;}let tag=scalar(shading,(range.x*3u+c)*2u);var slot=hash(tag)&range.z;loop{if(atomicLoad(&table[slot].key)==tag){aliases[c]=table[slot].dense;return;}slot=(slot+1u)&range.z;}}
+        @compute @workgroup_size(128) fn wire(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let c=range.x*3u+linear(id,groups);if(c>=(range.x+range.y)*3u||scalar(corners,c*4u+3u)!=c+1u){return;}let n=atomicAdd(&counters[1],1u)*2u;lines[n]=scalar(indices,c);lines[n+1u]=scalar(indices,c/3u*3u+(c+1u)%3u);}
       `,pipelines={};for(const entry of ['build','pack','remap','wire'])pipelines[entry]=await pagedPipeline(gpu,'paged draw blocks',code,entry);
       const d=gpu.device,limit=d.limits.maxStorageBufferBindingSize,maxTriangles=Math.max(1,Math.min(options.partTriangles||Infinity,Math.floor(limit/128))),parts=[],owned=[],make=(label,size,usage)=>{const b=makeGPUBuffer(d,{label,size:Math.max(16,size),usage:usage|GPUBufferUsage.COPY_SRC});owned.push(b);return b;},storage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
       try{
@@ -21873,7 +21819,7 @@ window.frameEngine=(()=>{
     function localMeshBox(mesh){return {min:mesh.localBoundsMin||mesh.boundsMin,max:mesh.localBoundsMax||mesh.boundsMax};}
     const animationSamples=new Map(),animationPending=new Map();let animationSerial=Promise.resolve();
     function animationVertex(hash,index,value){const mesh=scene?.meshes.find(m=>m.hashId===hash&&!m.replicaMatrix);if(!mesh||mesh.splineGenerated||!Number.isInteger(index)||index<0||index>=mesh.vertexCount)return;const key=hash+':'+index;if(value){if(value.length!==3||value.some(v=>!Number.isFinite(v)))throw Error('Invalid animated vertex');animationSamples.set(key,value.slice());let edits=animationPending.get(mesh);if(!edits)animationPending.set(mesh,edits=new Map());edits.set(index,value.slice());return value;}return animationSamples.get(key)?.slice();}
-    async function animationReadVertices(mesh,ids){if(!ids.length)return [];const gpu=renderer,d=gpu.device;const gather=await (gpu.animationGatherInit??=d.createComputePipelineAsync({layout:'auto',compute:{module:d.createShaderModule({code:'@group(0) @binding(0) var<storage,read> p:array<f32>;@group(0) @binding(1) var pages:texture_2d_array<u32>;@group(0) @binding(2) var<storage,read> ids:array<u32>;@group(0) @binding(3) var<storage,read_write> out:array<f32>;@group(0) @binding(4) var<uniform> cfg:vec4u;fn coordinate(i:u32)->f32{if(cfg.y==0u){return p[i];}let s=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%s.x,(i/s.x)%s.y)),i32(i/(s.x*s.y)),0).x);}@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*128u;if(i>=cfg.x){return;}for(var k=0u;k<3u;k++){out[i*3u+k]=coordinate(ids[i]*3u+k);}}'}),entryPoint:'main'}}));const buffers=[],make=(size,usage)=>{const b=makeGPUBuffer(d,{size:Math.max(16,size),usage});buffers.push(b);return b;},indices=make(ids.length*4,GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST),out=make(ids.length*12,GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC),cfg=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST),read=make(ids.length*12,GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST);try{d.queue.writeBuffer(indices,0,Uint32Array.from(ids));d.queue.writeBuffer(cfg,0,new Uint32Array([ids.length,mesh.paged?1:0,0,0]));const group=d.createBindGroup({layout:gather.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:indices}},{binding:3,resource:{buffer:out}},{binding:4,resource:{buffer:cfg}}]}),e=d.createCommandEncoder();dispatchOn(gpu,e,gather,group,ids.length);e.copyBufferToBuffer(out,0,read,0,ids.length*12);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const values=new Float32Array(read.getMappedRange()),result=ids.map((id,i)=>[id,Array.from(values.subarray(i*3,i*3+3))]);read.unmap();return result;}finally{for(const b of buffers)releaseGPU(b);}}
+    async function animationReadVertices(mesh,ids){if(!ids.length)return [];const gpu=renderer,d=gpu.device;const gather=await (gpu.animationGatherInit??=d.createComputePipelineAsync({layout:'auto',compute:{module:d.createShaderModule({code:`${PAGED_SCALAR_WGSL}@group(0) @binding(0) var<storage,read> p:array<f32>;@group(0) @binding(1) var pages:texture_2d_array<u32>;@group(0) @binding(2) var<storage,read> ids:array<u32>;@group(0) @binding(3) var<storage,read_write> out:array<f32>;@group(0) @binding(4) var<uniform> cfg:vec4u;fn coordinate(i:u32)->f32{if(cfg.y==0u){return p[i];}return bitcast<f32>(scalar(pages,i));}@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*128u;if(i>=cfg.x){return;}for(var k=0u;k<3u;k++){out[i*3u+k]=coordinate(ids[i]*3u+k);}}`}),entryPoint:'main'}}));const buffers=[],make=(size,usage)=>{const b=makeGPUBuffer(d,{size:Math.max(16,size),usage});buffers.push(b);return b;},indices=make(ids.length*4,GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST),out=make(ids.length*12,GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC),cfg=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST),read=make(ids.length*12,GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST);try{d.queue.writeBuffer(indices,0,Uint32Array.from(ids));d.queue.writeBuffer(cfg,0,new Uint32Array([ids.length,mesh.paged?1:0,0,0]));const group=d.createBindGroup({layout:gather.getBindGroupLayout(0),entries:[{binding:0,resource:{buffer:mesh.paged?gpu.dummyBuffer:mesh.positions}},{binding:1,resource:(mesh.paged?mesh.positions:gpu.dummyTexture).view},{binding:2,resource:{buffer:indices}},{binding:3,resource:{buffer:out}},{binding:4,resource:{buffer:cfg}}]}),e=d.createCommandEncoder();dispatchOn(gpu,e,gather,group,ids.length);e.copyBufferToBuffer(out,0,read,0,ids.length*12);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const values=new Float32Array(read.getMappedRange()),result=ids.map((id,i)=>[id,Array.from(values.subarray(i*3,i*3+3))]);read.unmap();return result;}finally{for(const b of buffers)releaseGPU(b);}}
     async function animationSelection(n,explicit){await selectionQueue;const meshes=n?scene.meshes.filter(m=>m.hashId===n.nativeHash):currentSelectionMeshes(),rows=[];for(const mesh of meshes){if(mesh.splineGenerated)continue;let ids=explicit;if(!ids){const flags=new Uint32Array((await nativeReadGPU(renderer,mesh.connected.flags,Math.ceil(mesh.vertexCount/32))).buffer);ids=[];for(let i=0;i<mesh.vertexCount;i++)if(flags[i>>5]>>>(i&31)&1){ids.push(i);if(ids.length>100000)throw Error('Capture at most 100000 animated vertices at once');}}if(ids.some(i=>!Number.isInteger(i)||i<0||i>=mesh.vertexCount))throw Error('Invalid animated vertex');const owner=frameNodeByHash(mesh.hashId);for(const [id,value]of await animationReadVertices(mesh,ids)){animationSamples.set(mesh.hashId+':'+id,value);rows.push({h:owner.id,path:'pla:'+id});}}return rows;}
     async function animationNormals(mesh){const gpu=renderer,d=gpu.device;if(mesh.paged){await lazyPagedCreases(gpu,mesh,mesh.version,()=>scene.meshes.includes(mesh));return;}return withNormalWorkspace(gpu,async()=>{const aliases=duplicateResource(gpu,mesh.renderIndices,'animated shading aliases'),proxy={...mesh,renderIndices:aliases};let normals;try{proxy.computeGroups=meshComputeGroups(gpu,proxy);const e=d.createCommandEncoder();for(const stage of ['faces','creases','links','smooth'])dispatchCompute(e,gpu,proxy,stage);const read=acquireBounds(gpu,0);e.copyBufferToBuffer(mesh.stats,20,read.read,0,4);d.queue.submit([e.finish()]);let count;try{await read.read.mapAsync(GPUMapMode.READ);count=new Uint32Array(read.read.getMappedRange())[0];read.read.unmap();}finally{read.busy=false;}normals=packDenseNormals(gpu,proxy,count,aliases);replaceMeshBuffer(mesh,'renderIndices',aliases);replaceMeshBuffer(mesh,'normals',normals);normals=null;mesh.normalCount=count;mesh.edgeCounts[5]=count;meshRenderGroups(gpu,mesh);}finally{if(mesh.renderIndices!==aliases)releaseGPU(aliases);if(normals)releaseGPU(normals);}});}
     function animationGeometry(){if(!animationPending.size)return;const pending=new Map(animationPending),space=scene;animationPending.clear();animationSerial=animationSerial.then(async()=>{if(scene!==space)return;for(const [mesh,edits]of pending){if(!scene.meshes.includes(mesh))continue;const priorError=mesh.deformationAccuracy&&mesh.deformationAccuracyVersion===deformationRevision(mesh)?mesh.deformationAccuracy.surfaceError:0;mesh.deformationAccuracy=null;mesh.deformationAccuracyVersion=null;mesh.deformationPending=true;mesh.deformationError=null;try{mesh.animationEvaluated=true;await ensureIndependentGeometry(mesh);for(const [id,p]of edits){const data=Float32Array.from(p);if(mesh.paged){for(let k=0;k<3;k++){const i=id*3+k,r=mesh.positions;renderer.device.queue.writeTexture({texture:r.texture,origin:[i%r.width,Math.floor(i/r.width)%r.height,Math.floor(i/(r.width*r.height))]},new Uint32Array(data.buffer,k*4,1),{},[1,1,1]);}}else renderer.device.queue.writeBuffer(mesh.positions,id*12,data);}let error=priorError;for(const p of edits.values())error=Math.max(error,Math.hypot(...p.map(v=>v-Math.fround(v))));mesh.version=(mesh.version||0)+1;await animationNormals(mesh);await readBounds(mesh);mesh.deformationAccuracy=polygonDeformationAccuracy(mesh,error,localMeshBox(mesh));mesh.deformationAccuracyVersion=deformationRevision(mesh);}catch(e){mesh.deformationError=e.message;throw e;}finally{mesh.deformationPending=false;}}syncPoseWorld();syncReplicas();sceneFrameDirty=true;draw(true);}).catch(fileOperationError);}
@@ -22139,8 +22085,8 @@ window.frameEngine=(()=>{
         return owners.every(o=>liveMeshes.has(o.mesh)&&(o.mesh.replicaMatrix||o.mesh.buffers.length)&&o.mesh.positions===o.positions&&o.mesh.connected.flags===o.flags);
       };
       if(!current())return null;
-      const code=`struct Config{matrix:mat4x4f,counts:vec4u};@group(0) @binding(0) var<storage,read> positions:array<f32>;@group(0) @binding(1) var pages:texture_2d_array<u32>;@group(0) @binding(2) var<storage,read> bits:array<u32>;@group(0) @binding(3) var<storage,read_write> partial:array<vec4f>;@group(0) @binding(4) var<storage,read_write> result:array<vec4f>;@group(0) @binding(5) var<uniform> cfg:Config;
-        fn coordinate(i:u32)->f32{if(cfg.counts.z==0u){return positions[i];}let d=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x);}
+      const code=`${PAGED_SCALAR_WGSL}struct Config{matrix:mat4x4f,counts:vec4u};@group(0) @binding(0) var<storage,read> positions:array<f32>;@group(0) @binding(1) var pages:texture_2d_array<u32>;@group(0) @binding(2) var<storage,read> bits:array<u32>;@group(0) @binding(3) var<storage,read_write> partial:array<vec4f>;@group(0) @binding(4) var<storage,read_write> result:array<vec4f>;@group(0) @binding(5) var<uniform> cfg:Config;
+        fn coordinate(i:u32)->f32{if(cfg.counts.z==0u){return positions[i];}return bitcast<f32>(scalar(pages,i));}
         var<workgroup> lo:array<vec3f,128>;var<workgroup> hi:array<vec3f,128>;fn reduce(lane:u32){for(var step=64u;step>0u;step/=2u){workgroupBarrier();if(lane<step){lo[lane]=min(lo[lane],lo[lane+step]);hi[lane]=max(hi[lane],hi[lane+step]);}}workgroupBarrier();}
         @compute @workgroup_size(128) fn part(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(num_workgroups) groups:vec3u){let v=id.x+id.y*groups.x*128u;lo[lane]=vec3f(3.402823e38);hi[lane]=-lo[lane];if(v<cfg.counts.x&&(cfg.counts.y==0u||((bits[v>>5u]>>(v&31u))&1u)!=0u)){let p=(cfg.matrix*vec4f(coordinate(v*3u),coordinate(v*3u+1u),coordinate(v*3u+2u),1)).xyz;lo[lane]=p;hi[lane]=p;}reduce(lane);if(lane==0u){partial[(v/128u)*2u]=vec4f(lo[0],0);partial[(v/128u)*2u+1u]=vec4f(hi[0],0);}}
         @compute @workgroup_size(128) fn finish(@builtin(local_invocation_index) lane:u32){lo[lane]=vec3f(3.402823e38);hi[lane]=-lo[lane];for(var g=lane;g<(cfg.counts.x+127u)/128u;g+=128u){lo[lane]=min(lo[lane],partial[g*2u].xyz);hi[lane]=max(hi[lane],partial[g*2u+1u].xyz);}reduce(lane);if(lane==0u){result[cfg.counts.w*2u]=vec4f(lo[0],0);result[cfg.counts.w*2u+1u]=vec4f(hi[0],0);}}`;
@@ -24024,8 +23970,8 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function releaseAppearance(space){invalidateRenderMaterials();for(const set of polygonResources.values())releaseGPU(set.resource);polygonResources.clear();for(const uv of uvResources.values())releaseGPU(uv.resource);uvResources.clear();if(space?.gpu)releaseMaterialState(space.gpu);}
     async function polygonSetPipelines(gpu){
       if(gpu.polygonSets)return gpu.polygonSets;if(gpu.polygonSetsInit)return gpu.polygonSetsInit;
-      return gpu.polygonSetsInit=(async()=>{const code=`struct Range{faces:u32,base:u32,hasBits:u32,paged:u32};@group(0) @binding(0) var<uniform> n:Range;@group(0) @binding(1) var<storage,read> indices:array<u32>;@group(0) @binding(2) var pages:texture_2d_array<u32>;@group(0) @binding(3) var<storage,read> source:array<u32>;@group(0) @binding(4) var<storage,read> flags:array<u32>;@group(0) @binding(5) var<storage,read_write> result:array<u32>;@group(0) @binding(6) var<storage,read_write> total:atomic<u32>;
-        fn index(i:u32)->u32{if(n.paged==0u){return indices[i];}let d=textureDimensions(pages);return textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x;}fn bit(i:u32)->bool{return ((source[i>>5u]>>(i&31u))&1u)!=0u;}fn picked(v:u32)->bool{return ((flags[v>>5u]>>(v&31u))&1u)!=0u;}
+      return gpu.polygonSetsInit=(async()=>{const code=`${PAGED_SCALAR_WGSL}struct Range{faces:u32,base:u32,hasBits:u32,paged:u32};@group(0) @binding(0) var<uniform> n:Range;@group(0) @binding(1) var<storage,read> indices:array<u32>;@group(0) @binding(2) var pages:texture_2d_array<u32>;@group(0) @binding(3) var<storage,read> source:array<u32>;@group(0) @binding(4) var<storage,read> flags:array<u32>;@group(0) @binding(5) var<storage,read_write> result:array<u32>;@group(0) @binding(6) var<storage,read_write> total:atomic<u32>;
+        fn index(i:u32)->u32{if(n.paged==0u){return indices[i];}return scalar(pages,i);}fn bit(i:u32)->bool{return ((source[i>>5u]>>(i&31u))&1u)!=0u;}fn picked(v:u32)->bool{return ((flags[v>>5u]>>(v&31u))&1u)!=0u;}
         @compute @workgroup_size(128) fn capture(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let word=id.x+id.y*groups.x*128u;if(word>=(n.faces+31u)/32u){return;}var bits=0u;for(var b=0u;b<32u;b++){let f=word*32u+b;if(f<n.faces){var on=false;if(n.hasBits!=0u){on=bit(n.base+f);}else{on=picked(index(f*3u))&&picked(index(f*3u+1u))&&picked(index(f*3u+2u));}if(on){bits|=1u<<b;}}}result[word]=bits;atomicAdd(&total,countOneBits(bits));}`;
         const module=gpu.device.createShaderModule({label:'capture named polygon set',code});const info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.filter(m=>m.type==='error').map(m=>m.lineNum+': '+m.message).join('; '));const capture=await gpu.device.createComputePipelineAsync({layout:'auto',compute:{module,entryPoint:'capture'}});
         const restoreModule=gpu.device.createShaderModule({code:`@group(0) @binding(0) var<uniform> n:vec4u;@group(0) @binding(1) var<storage,read> source:array<u32>;@group(0) @binding(2) var<storage,read_write> out:array<atomic<u32>>;@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let f=id.x+id.y*groups.x*128u;if(f<n.x&&((source[f>>5u]>>(f&31u))&1u)!=0u){let i=n.y+f;atomicOr(&out[i>>5u],1u<<(i&31u));}}`}),restore=await gpu.device.createComputePipelineAsync({layout:'auto',compute:{module:restoreModule,entryPoint:'main'}});return gpu.polygonSets={capture,restore};})();
@@ -24502,10 +24448,10 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
     function ensureWireRaster(r){
       if(r.wireRasterInit)return r.wireRasterInit;
       r.wireRasterInit=(async()=>{
-        const d=r.device,globalLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}),edgeLayout=d.createBindGroupLayout({entries:[...[0,1,2,3,5].map(binding=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:binding===2||binding===3?'uniform':'read-only-storage'}})),{binding:4,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}]}),module=d.createShaderModule({label:'wire diamond rasterization',code:`${CAMERA_RELATIVE_WGSL}struct Params{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};struct ObjectFrame{matrix:mat4x4f,nx:vec4f,ny:vec4f,nz:vec4f,flags:vec4u};
+        const d=r.device,globalLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.COMPUTE,buffer:{type:'uniform'}},{binding:1,visibility:GPUShaderStage.COMPUTE,buffer:{type:'storage'}}]}),edgeLayout=d.createBindGroupLayout({entries:[...[0,1,2,3,5].map(binding=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type:binding===2||binding===3?'uniform':'read-only-storage'}})),{binding:4,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}]}),module=d.createShaderModule({label:'wire diamond rasterization',code:`${CAMERA_RELATIVE_WGSL}${PAGED_SCALAR_WGSL}struct Params{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};struct ObjectFrame{matrix:mat4x4f,nx:vec4f,ny:vec4f,nz:vec4f,flags:vec4u};
  @group(0) @binding(0) var<uniform> c:Params;@group(0) @binding(1) var<storage,read_write> pixels:array<atomic<u32>>;
  @group(1) @binding(0) var<storage,read> pos:array<f32>;@group(1) @binding(1) var<storage,read> lines:array<vec2u>;@group(1) @binding(2) var<uniform> f:ObjectFrame;@group(1) @binding(3) var<uniform> count:vec4u;@group(1) @binding(4) var pages:texture_2d_array<u32>;@group(1) @binding(5) var<storage,read> splineEdges:array<u32>;
- fn coordinate(i:u32)->f32{let d=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x);}fn position(v:u32)->vec3f{let i=v*3u;if((count.y&1u)!=0u){return vec3f(coordinate(i),coordinate(i+1u),coordinate(i+2u));}return vec3f(pos[i],pos[i+1u],pos[i+2u]);}
+ fn coordinate(i:u32)->f32{return bitcast<f32>(scalar(pages,i));}fn position(v:u32)->vec3f{let i=v*3u;if((count.y&1u)!=0u){return vec3f(coordinate(i),coordinate(i+1u),coordinate(i+2u));}return vec3f(pos[i],pos[i+1u],pos[i+2u]);}
  fn projectFrame(v:u32,frame:ObjectFrame)->vec4f{let p=frame.matrix*vec4f(position(v),1);let q=frameCameraRelative(c.rotation)*vec4f((p.xyz-c.centerScale.xyz)*c.centerScale.w,1);let xy=q.xy+c.viewport.zw;let depth=-q.z;if(c.clip.z!=0.){return vec4f(xy.x*c.viewport.y/c.viewport.x,xy.y*c.viewport.y,(depth-c.clip.x)/(c.clip.y-c.clip.x),1);}return vec4f(xy.x*c.clip.w/c.viewport.x,xy.y*c.clip.w,(c.clip.y*depth-c.clip.x*c.clip.y)/(c.clip.y-c.clip.x),depth);}
  fn project(v:u32)->vec4f{return projectFrame(v,f);}
  fn diamond(a:vec2f,b:vec2f,p:vec2i)->bool{let center=vec2f(f32(p.x+p.y+1),f32(p.x-p.y));let u=vec2f(a.x+a.y,a.x-a.y)-center;let v=vec2f(b.x+b.y,b.x-b.y)-center;var lo=0.;var hi=1.;for(var i=0;i<2;i++){let delta=v[i]-u[i];if(abs(delta)<1e-10){if(abs(u[i])>=.5){return false;}}else{let t0=(-.5-u[i])/delta;let t1=(.5-u[i])/delta;lo=max(lo,min(t0,t1));hi=min(hi,max(t0,t1));}}return lo<hi&&hi<1.;}
@@ -24696,12 +24642,12 @@ fn lineVisible(input:Line)->bool{let p=vec2i(input.position.xy);let depth=textur
       // faces certify its own surface; unrelated surfaces still occlude it at true depth.
       if(r.nativeSurfaceLines)return r.nativeSurfaceLines;if(r.nativeSurfaceLinesInit)return r.nativeSurfaceLinesInit;
       return r.nativeSurfaceLinesInit=(async()=>{
-        const source=`${CAMERA_RELATIVE_WGSL}
+        const source=`${CAMERA_RELATIVE_WGSL}${PAGED_SCALAR_WGSL}
 override nativeInstances:bool=false;${NATIVE_LINE_GLOBALS}
 @group(1) @binding(0) var<storage,read> positions:array<f32>;@group(1) @binding(1) var<storage,read> lines:array<vec2u>;@group(1) @binding(2) var<uniform> f:ObjectFrame;@group(1) @binding(3) var<uniform> draw:array<vec4u,2>;@group(1) @binding(4) var pages:texture_2d_array<u32>;@group(1) @binding(5) var<storage,read> splineEdges:array<u32>;@group(1) @binding(6) var<storage,read> aliases:array<u32>;@group(1) @binding(7) var<storage,read> normals:array<vec2u>;
 @group(2) @binding(0) var<storage,read> replicaFrames:array<ObjectFrame>;
 fn frameAt(instance:u32)->ObjectFrame{if(nativeInstances){return replicaFrames[instance];}return f;}
-fn coordinate(i:u32)->f32{let d=textureDimensions(pages);return bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x);}
+fn coordinate(i:u32)->f32{return bitcast<f32>(scalar(pages,i));}
 fn point(v:u32)->vec3f{let i=v*3u;if(draw[0].y!=0u){return vec3f(coordinate(i),coordinate(i+1u),coordinate(i+2u));}return vec3f(positions[i],positions[i+1u],positions[i+2u]);}
 fn projectFrame(v:u32,frame:ObjectFrame)->vec4f{let p=frame.matrix*vec4f(point(v),1);let q=frameCameraRelative(c.rotation)*vec4f((p.xyz-c.centerScale.xyz)*c.centerScale.w,1);let xy=q.xy+c.viewport.zw;let depth=-q.z;if(c.clip.z!=0.){return vec4f(xy.x*c.viewport.y/c.viewport.x,xy.y*c.viewport.y,(depth-c.clip.x)/(c.clip.y-c.clip.x),1);}return vec4f(xy.x*c.clip.w/c.viewport.x,xy.y*c.clip.w,(c.clip.y*depth-c.clip.x*c.clip.y)/(c.clip.y-c.clip.x),depth);}
 fn project(v:u32,instance:u32)->vec4f{return projectFrame(v,frameAt(instance));}
@@ -25832,7 +25778,8 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           @group(1) @binding(6) var positionPages:texture_2d_array<u32>;
           @group(1) @binding(7) var<uniform> meshMode:vec4u;
           @group(1) @binding(8) var<uniform> faceBase:vec4u;
-          fn coordinate(i:u32)->f32{let d=textureDimensions(positionPages);let p=vec3i(vec3u(i%d.x,(i/d.x)%d.y,i/(d.x*d.y)));return bitcast<f32>(textureLoad(positionPages,p.xy,p.z,0).x);}
+          ${PAGED_SCALAR_WGSL}
+          fn coordinate(i:u32)->f32{return bitcast<f32>(scalar(positionPages,i));}
           fn loadPositionRaw(v:u32)->vec3f{let p=v*3u;if(meshMode.x!=0u){return vec3f(coordinate(p),coordinate(p+1u),coordinate(p+2u));}return vec3f(edgePositions[p],edgePositions[p+1u],edgePositions[p+2u]);}
           fn loadPosition(v:u32)->vec3f{let p=loadPositionRaw(v);if(posed){return(objectFrame.matrix*vec4f(p,1)).xyz;}return p;}
           @vertex fn vs(@builtin(vertex_index) renderId:u32)->Output {return surfaceVertex(renderId);}
@@ -26011,9 +25958,9 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
         @group(1) @binding(3) var positionPages:texture_2d_array<u32>;
         @group(1) @binding(4) var indexPages:texture_2d_array<u32>;
         @group(1) @binding(5) var<uniform> feature:Meta;
-        fn page(t:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(t);return textureLoad(t,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i/(d.x*d.y),0).x;}
-        fn coordinate(i:u32)->f32{if(feature.storage.x!=0u){return bitcast<f32>(page(positionPages,i));}return positions[i];}
-        fn logicalIndex(i:u32)->u32{if(feature.storage.x!=0u){return page(indexPages,i);}return indices[i];}
+        ${PAGED_SCALAR_WGSL}
+        fn coordinate(i:u32)->f32{if(feature.storage.x!=0u){return bitcast<f32>(scalar(positionPages,i));}return positions[i];}
+        fn logicalIndex(i:u32)->u32{if(feature.storage.x!=0u){return scalar(indexPages,i);}return indices[i];}
         fn project(v:u32)->vec4f{let j=v*3u;let world=objectPoint(vec3f(coordinate(j),coordinate(j+1u),coordinate(j+2u)),objectFrame);let p=frameCameraRelative(params.rotation)*vec4f((world-params.centerScale.xyz)*params.centerScale.w,1);let xy=p.xy+params.viewport.zw;let z=p.z;return frameProject(p.xyz);}
 
         fn vertexSample(v:u32,p:vec2i,z:f32)->bool{let dims=vec2i(textureDimensions(surfaceDepth));if(any(p<vec2i(0))||any(p>=dims)){return false;}if(z<=textureLoad(surfaceDepth,p,0)+0.0000002){return true;}if(params.modes.w==0.){return false;}let face=textureLoad(surfaceIds,p,0).x;if(face<=feature.ranges.z||face-feature.ranges.z>feature.ranges.w){return false;}let base=(face-feature.ranges.z-1u)*3u;return logicalIndex(base)==v||logicalIndex(base+1u)==v||logicalIndex(base+2u)==v;}
@@ -27302,7 +27249,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
           const corners=Uint32Array.from({length:raw.indices.length},(_,i)=>raw.faces[Math.floor(i/3)]*3+i%3+1);
           next.cornerSources=makePagedTexture(gpu,'recognition source corners',corners.length);next.buffers.push(next.cornerSources);
           next.alternateSources=makePagedTexture(gpu,'empty alternate faces',1);next.buffers.push(next.alternateSources);
-          await uploadPagedArray(gpu,corners,next.cornerSources);
+          writePagedTexture(gpu.device,corners,next.cornerSources);
           await remapTopologyAppearance(source,next,owner,staged);
         }
         return {attach(parent){
@@ -27370,9 +27317,9 @@ fn occupied(p:vec2i,channel:u32)->bool{
           @group(1) @binding(0) var<storage,read> positions:array<f32>;@group(1) @binding(1) var pages:texture_2d_array<u32>;
           @group(1) @binding(2) var<storage,read> selected:array<u32>;@group(1) @binding(3) var<uniform> pose:ObjectFrame;
           @group(1) @binding(4) var<uniform> search:Search;@group(1) @binding(5) var<storage,read> indices:array<u32>;@group(1) @binding(6) var indexPages:texture_2d_array<u32>;
-          fn word(p:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(p);return textureLoad(p,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x;}
-          fn coordinate(i:u32)->f32{if(search.range.z==0u){return positions[i];}return bitcast<f32>(word(pages,i));}
-          fn vertex(i:u32)->u32{if(search.range.z==0u){return indices[i];}return word(indexPages,i);}
+          ${PAGED_SCALAR_WGSL}
+          fn coordinate(i:u32)->f32{if(search.range.z==0u){return positions[i];}return bitcast<f32>(scalar(pages,i));}
+          fn vertex(i:u32)->u32{if(search.range.z==0u){return indices[i];}return scalar(indexPages,i);}
           fn world(v:u32)->vec3f{return objectPoint(vec3f(coordinate(v*3u),coordinate(v*3u+1u),coordinate(v*3u+2u)),pose);}
           fn visible(v:u32,pixel:vec2f,z:f32)->bool{
             if(camera.modes.y==0.){return true;}
@@ -27615,7 +27562,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
           let i=linear(id,groups);if(i>=cfg.x){return;}var entry=${load('heads','ids[i]')};var count=0u;
           while(entry!=0u){let c=entry-1u;let base=c/3u*3u;
             if(count<cfg.y){let at=cfg.x+count*4u;result[at]=c/3u;for(var k=0u;k<3u;k++){result[at+1u+k]=${load('indices','base+k')};}}
-            count++;entry=${paged?'vector(links,c).y':'links[c]'};}result[i]=count;
+            count++;entry=${paged?'scalar(links,c*4u+1u)':'links[c]'};}result[i]=count;
         }`,pipeline=await computePipeline(gpu,'weld incident corners '+(paged?'pages':'buffer'),code);
       const owned=[],make=(size,usage)=>{const v=makeGPUBuffer(d,{size:Math.max(16,size),usage});owned.push(v);return v;};
       try{
@@ -27651,14 +27598,14 @@ fn occupied(p:vec2i,channel:u32)->bool{
     async function weldMovedVertex(s){
       if(elementMode!=='vertex'||s.topologyKind||s.meshes.length!==1||!hasTransform(s))return false;
       const gpu=s.gpu,d=gpu.device,mesh=s.mesh;const morph=FrameMorph.tagOf(frameNodeByHash(mesh.hashId));if(mesh.splineGenerated||mesh.vertexCount<2||morph&&morph.params.mode!=='Modelling')return false;const counts=gpu.boxSelection?.mode==='vertex'?gpu.boxSelection.counts:null;if(counts&&counts.reduce((a,b)=>a+b,0)!==1)return false;
-      if(!gpu.vertexWeld){const code=`
+      if(!gpu.vertexWeld){const code=`${PAGED_SCALAR_WGSL}
         @group(0) @binding(0) var<storage,read> flags:array<u32>;
         @group(0) @binding(1) var<storage,read> positions:array<f32>;
         @group(0) @binding(2) var pages:texture_2d_array<u32>;
         @group(0) @binding(3) var<storage,read_write> hit:array<atomic<u32>>;
         @group(0) @binding(4) var<uniform> cfg:vec4u;
         fn linear(id:vec3u,g:vec3u)->u32{return id.x+id.y*g.x*128u;}
-        fn point(v:u32)->vec3f{var p:vec3f;for(var k=0u;k<3u;k++){let i=v*3u+k;if(cfg.z==0u){p[k]=positions[i];}else{let n=textureDimensions(pages);p[k]=bitcast<f32>(textureLoad(pages,vec2i(vec2u(i%n.x,(i/n.x)%n.y)),i32(i/(n.x*n.y)),0).x);}}return p;}
+        fn point(v:u32)->vec3f{var p:vec3f;for(var k=0u;k<3u;k++){let i=v*3u+k;if(cfg.z==0u){p[k]=positions[i];}else{p[k]=bitcast<f32>(scalar(pages,i));}}return p;}
         @compute @workgroup_size(128) fn selected(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) g:vec3u){let i=linear(id,g);if(i>=(cfg.x+31u)/32u){return;}var bits=flags[i];if(i==cfg.x/32u&&cfg.x%32u!=0u){bits&=(1u<<(cfg.x%32u))-1u;}let n=countOneBits(bits);if(n!=0u){atomicAdd(&hit[0],n);atomicMin(&hit[1],i*32u+firstTrailingBit(bits));}}
         @compute @workgroup_size(128) fn coincident(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) g:vec3u){let v=linear(id,g);let selected=atomicLoad(&hit[1]);if(v>=cfg.x||atomicLoad(&hit[0])!=1u||v==selected){return;}let a=point(v);let b=point(selected);if(all(abs(a-b)<=max(vec3f(1e-7),max(abs(a),abs(b))*2.3841858e-7))){atomicMin(&hit[2],v);}}
       `,module=d.createShaderModule({label:'single moved vertex weld',code});const info=await module.getCompilationInfo(),errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.message).join('; '));gpu.vertexWeld={selected:await d.createComputePipelineAsync({layout:'auto',compute:{module,entryPoint:'selected'}}),match:await d.createComputePipelineAsync({layout:'auto',compute:{module,entryPoint:'coincident'}})};}
@@ -27753,7 +27700,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
         @group(1) @binding(3) var positionPages:texture_2d_array<u32>;
         @group(1) @binding(4) var indexPages:texture_2d_array<u32>;
         @group(1) @binding(5) var<uniform> box:Box;
-        fn scalar(t:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(t);return textureLoad(t,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i32(i/(d.x*d.y)),0).x;}
+        ${PAGED_SCALAR_WGSL}
         fn index(i:u32)->u32{if(box.mesh.x!=0u){return scalar(indexPages,i);}return indices[i];}
         fn coordinate(i:u32)->f32{if(box.mesh.x!=0u){return bitcast<f32>(scalar(positionPages,i));}return positions[i];}
         fn project(v:u32)->vec4f{let j=v*3u;let w=objectPoint(vec3f(coordinate(j),coordinate(j+1u),coordinate(j+2u)),objectFrame);let p=frameCameraRelative(camera.rotation)*vec4f((w-camera.centerScale.xyz)*camera.centerScale.w,1);let xy=p.xy+camera.viewport.zw;let z=p.z;return frameProject(p.xyz);}
@@ -30672,7 +30619,8 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       @group(0) @binding(5) var pages:texture_2d_array<u32>;
       @group(0) @binding(6) var<uniform> settings:vec4u;
       @group(0) @binding(7) var<storage,read> lines:array<vec2u>;
-      fn coordinate(i:u32)->f32{let d=textureDimensions(pages);let p=vec3u(i%d.x,(i/d.x)%d.y,i/(d.x*d.y));return bitcast<f32>(textureLoad(pages,vec2i(p.xy),i32(p.z),0).x);}
+      ${PAGED_SCALAR_WGSL}
+      fn coordinate(i:u32)->f32{return bitcast<f32>(scalar(pages,i));}
       fn rawPoint(vertex:u32)->vec3u{let v=vertex*3u;var p:vec3f;if(settings.x!=0u){p=vec3f(coordinate(v),coordinate(v+1u),coordinate(v+2u));}else{p=vec3f(positions[v],positions[v+1u],positions[v+2u]);}return bitcast<vec3u>(select(p,vec3f(0),p==vec3f(0)));}
       fn point(corner:u32)->vec3u{return rawPoint(normals[aliases[corner]].x);}
       fn before(a:vec3u,b:vec3u)->bool{return a.x<b.x||(a.x==b.x&&(a.y<b.y||(a.y==b.y&&a.z<b.z)));}
@@ -31755,7 +31703,7 @@ function FramePolygonKernel(d){
       const pipelines=gpu.bridgeBoundaryPipelines??=[];
       if(!pipelines[+paged]){
         const declarations=paged?'var indices:texture_2d_array<u32>;@group(0) @binding(2) var heads:texture_2d_array<u32>;@group(0) @binding(3) var links:texture_2d_array<u32>;':'var<storage,read> indices:array<u32>;@group(0) @binding(2) var<storage,read> heads:array<u32>;@group(0) @binding(3) var<storage,read> links:array<u32>;';
-      const module=device.createShaderModule({label:'Bridge boundary edge',code:`fn scalar(tex:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(tex);return textureLoad(tex,vec2i(vec2u(i%d.x,(i/d.x)%d.y)),i/(d.x*d.y),0).x;}
+      const module=device.createShaderModule({label:'Bridge boundary edge',code:`${PAGED_SCALAR_WGSL}
         @group(0) @binding(0) var<storage,read> lines:array<vec2u>;
         @group(0) @binding(1) ${declarations}
         @group(0) @binding(4) var<storage,read_write> query:array<u32>;
