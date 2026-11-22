@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 22 nov 10:25">
+<meta name="frame-version" content="2026 22 nov 15:59">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -12164,25 +12164,25 @@ function createFrameHashCodec(){
   // Structured HASH values: typed binary trees with an interned UTF-8 string table.
   // These values never contain a textual copy of the document.
   function createValues(){
-    const encoder=new TextEncoder(),decoder=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}),maxBytes=536870912,maxItems=5000000,maxDepth=128;
+    const encoder=new TextEncoder(),decoder=new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}),maxDepth=128;
     const textCache=new Map();
     const constructors=[Uint8Array,Int8Array,Uint16Array,Int16Array,Uint32Array,Int32Array,Float32Array,Float64Array,Uint8ClampedArray];
     function encode(input,replacer){
-      let out=new Uint8Array(1024),at=0,items=0;const strings=new Map(),active=new Set();
-      function reserve(n){if(n>maxBytes-at)throw Error('HASH value byte limit');if(at+n<=out.length)return;const next=new Uint8Array(Math.min(maxBytes,Math.max(at+n,out.length*2)));next.set(out);out=next;}
+      let out=new Uint8Array(1024),at=0;const strings=new Map(),active=new Set();
+      function reserve(n){if(at+n<=out.length)return;const next=new Uint8Array(Math.max(at+n,out.length*2));next.set(out);out=next;}
       function byte(n){reserve(1);out[at++]=n;}
       function uint(n){do{const b=n%128;n=Math.floor(n/128);byte(b+(n?128:0));}while(n);}
       function raw(bytes){reserve(bytes.length);out.set(bytes,at);at+=bytes.length;}
       function text(value){const old=strings.get(value);if(old!==undefined){byte(8);uint(old);return;}strings.set(value,strings.size);if(!value.isWellFormed()){byte(12);uint(value.length);reserve(value.length*2);const view=new DataView(out.buffer);for(let i=0;i<value.length;i++)view.setUint16(at+i*2,value.charCodeAt(i),true);at+=value.length*2;return;}byte(7);let bytes=textCache.get(value);if(!bytes){bytes=encoder.encode(value);if(bytes.length<=256){if(textCache.size>=4096)textCache.delete(textCache.keys().next().value);textCache.set(value,bytes);}}uint(bytes.length);raw(bytes);}
       function visit(value,key,depth){
-        if(++items>maxItems||depth>maxDepth)throw Error('HASH value structure limit');if(replacer)value=replacer(key,value);
+        if(depth>maxDepth)throw Error('HASH value structure limit');if(replacer)value=replacer(key,value);
         if(value===null){byte(0);return;}if(value===undefined){byte(1);return;}
         if(value===false){byte(2);return;}if(value===true){byte(3);return;}
         if(typeof value==='number'){if(Number.isSafeInteger(value)&&!Object.is(value,-0)){byte(value>=0?4:5);uint(value>=0?value:-value-1);}else{byte(6);reserve(8);new DataView(out.buffer).setFloat64(at,value,true);at+=8;}return;}
         if(typeof value==='string'){text(value);return;}
         if(!value||typeof value!=='object'||active.has(value))throw Error('Invalid or cyclic HASH value');
         if(ArrayBuffer.isView(value)){const kind=constructors.findIndex(c=>c.name===value.constructor.name);if(kind<0)throw Error('Unsupported HASH typed value');byte(11);byte(kind);uint(value.byteLength);raw(new Uint8Array(value.buffer,value.byteOffset,value.byteLength));return;}
-        if(Array.isArray(value)&&value.length>=3&&value.every(v=>typeof v==='number')){if(items+value.length>maxItems)throw Error('HASH value structure limit');items+=value.length;const integers=value.every(v=>Number.isInteger(v)&&v>=-2147483648&&v<=2147483647&&!Object.is(v,-0));byte(integers?14:13);uint(value.length);if(integers){for(const v of value)uint(((v<<1)^(v>>31))>>>0);}else{reserve(value.length*8);const view=new DataView(out.buffer);for(let i=0;i<value.length;i++)view.setFloat64(at+i*8,value[i],true);at+=value.length*8;}return;}
+        if(Array.isArray(value)&&value.length>=3&&value.every(v=>typeof v==='number')){const integers=value.every(v=>Number.isInteger(v)&&v>=-2147483648&&v<=2147483647&&!Object.is(v,-0));byte(integers?14:13);uint(value.length);if(integers){for(const v of value)uint(((v<<1)^(v>>31))>>>0);}else{reserve(value.length*8);const view=new DataView(out.buffer);for(let i=0;i<value.length;i++)view.setFloat64(at+i*8,value[i],true);at+=value.length*8;}return;}
         active.add(value);
         if(Array.isArray(value)){byte(9);uint(value.length);for(let i=0;i<value.length;i++)visit(value[i],i,depth+1);}
         else{const proto=Object.getPrototypeOf(value);if(proto!==Object.prototype&&proto!==null&&Object.getPrototypeOf(proto)!==null)throw Error('HASH value requires a plain object');const keys=Object.keys(value).filter(k=>typeof value[k]!=='function'&&typeof value[k]!=='symbol');byte(10);uint(keys.length);for(const k of keys){text(k);visit(value[k],k,depth+1);}}
@@ -12191,21 +12191,21 @@ function createFrameHashCodec(){
       visit(input,'',0);return out.slice(0,at);
     }
     function decode(input,reviver,stringsOnly=false){
-      if(!(input instanceof Uint8Array)||input.length>maxBytes)throw Error('Invalid HASH value bytes');let at=0,items=0;const strings=[];
+      if(!(input instanceof Uint8Array))throw Error('Invalid HASH value bytes');let at=0;const strings=[];
       function need(n){if(n>input.length-at)throw Error('Truncated HASH value');}
       function byte(){need(1);return input[at++];}
       function uint(){let value=0,factor=1;for(let i=0;i<8;i++){const b=byte();value+=(b&127)*factor;if(!Number.isSafeInteger(value))throw Error('HASH value integer overflow');if(!(b&128)){if(i&&b===0)throw Error('Noncanonical HASH value integer');return value;}factor*=128;}throw Error('HASH value integer overflow');}
       function visit(key,depth){
-        if(++items>maxItems||depth>maxDepth)throw Error('HASH value structure limit');const tag=byte();let value;
+        if(depth>maxDepth)throw Error('HASH value structure limit');const tag=byte();let value;
         if(tag===0)value=null;else if(tag===1)value=undefined;else if(tag===2)value=false;else if(tag===3)value=true;
         else if(tag===4)value=uint();else if(tag===5)value=-uint()-1;
         else if(tag===6){need(8);value=new DataView(input.buffer,input.byteOffset+at,8).getFloat64(0,true);at+=8;}
         else if(tag===7){const n=uint();need(n);value=decoder.decode(input.subarray(at,at+n));at+=n;strings.push(value);}
         else if(tag===12){const n=uint();need(n*2);const view=new DataView(input.buffer,input.byteOffset+at,n*2),parts=[];for(let i=0;i<n;i+=8192){const units=[];for(let k=i;k<Math.min(n,i+8192);k++)units.push(view.getUint16(k*2,true));parts.push(String.fromCharCode(...units));}value=parts.join('');at+=n*2;strings.push(value);}
         else if(tag===8){const i=uint();if(i>=strings.length)throw Error('Unknown HASH value string');value=strings[i];}
-        else if(tag===9){const n=uint();if(n>maxItems-items||n>input.length-at)throw Error('HASH value item limit');value=new Array(n);for(let i=0;i<n;i++)value[i]=visit(i,depth+1);}
-        else if(tag===10){const n=uint();if(n>maxItems-items||n>input.length-at)throw Error('HASH value item limit');value={};for(let i=0;i<n;i++){const k=visit('',depth+1);if(typeof k!=='string'||Object.hasOwn(value,k))throw Error('Invalid HASH value property');const item=visit(k,depth+1);if(k==='__proto__')Object.defineProperty(value,k,{value:item,enumerable:true,writable:true,configurable:true});else value[k]=item;}}
-        else if(tag===13||tag===14){const n=uint();if(items+n>maxItems)throw Error('HASH value item limit');items+=n;need(tag===13?n*8:n);value=new Array(n);if(tag===13){const view=new DataView(input.buffer,input.byteOffset+at,n*8);for(let i=0;i<n;i++)value[i]=view.getFloat64(i*8,true);at+=n*8;}else for(let i=0;i<n;i++){const word=uint();if(word>4294967295)throw Error('HASH value vector overflow');value[i]=(word>>>1)^-(word&1);}}
+        else if(tag===9){const n=uint();if(n>input.length-at)throw Error('HASH value item limit');value=new Array(n);for(let i=0;i<n;i++)value[i]=visit(i,depth+1);}
+        else if(tag===10){const n=uint();if(n>input.length-at)throw Error('HASH value item limit');value={};for(let i=0;i<n;i++){const k=visit('',depth+1);if(typeof k!=='string'||Object.hasOwn(value,k))throw Error('Invalid HASH value property');const item=visit(k,depth+1);if(k==='__proto__')Object.defineProperty(value,k,{value:item,enumerable:true,writable:true,configurable:true});else value[k]=item;}}
+        else if(tag===13||tag===14){const n=uint();need(tag===13?n*8:n);value=new Array(n);if(tag===13){const view=new DataView(input.buffer,input.byteOffset+at,n*8);for(let i=0;i<n;i++)value[i]=view.getFloat64(i*8,true);at+=n*8;}else for(let i=0;i<n;i++){const word=uint();if(word>4294967295)throw Error('HASH value vector overflow');value[i]=(word>>>1)^-(word&1);}}
         else if(tag===11){const ctor=constructors[byte()],n=uint();if(!ctor||n%ctor.BYTES_PER_ELEMENT)throw Error('Invalid HASH typed value');need(n);const bytes=input.slice(at,at+n);value=new ctor(bytes.buffer);at+=n;}
         else throw Error('Unknown HASH value type');
         return reviver?reviver(key,value):value;
@@ -12221,7 +12221,8 @@ function createFrameHashCodec(){
   }
   const values=createValues(),snapshotReferences=new WeakMap();
   const K=Object.freeze({spline:'60ff567f12db4fbea03cf36d8170f725',version:'630553d3ae7e273caf69b0142abbe596',all:'b8a4755d5309d591a5331571e7ec726f',type:'7f520c9eb59d464e8cb97745b94a0082',name:'a11b9816f756a800d1fcbc6a5f4a7ff1',parent:'cc401e4abe821287039fbd452905dcbd',flags:'e31b5e0613f7442ca57583cd3c2c4231',positions:'dbc9f1fb6ce11c3a310e012c48d1c08e',indices:'7191d6b8934c1d0fe9d738501a1cb3ea',camera:'e232a3221094350ce29ff0d8c1a7e26e',matrix:'c4a7409e07c753d0cb865587fc5852e1',pivot:'c65c7e6852bff6990eb3c19f31d5b745',units:'acf0aee8c0d8335dc09a04216227dfb1',zero:'00000000000000000000000000000000',materials:'67d164dbd101f5ca0db1add13beaeef7',assets:'749425fe251c3a91968b8650fd7cce4f',tags:'8661478063a177cfb0e5cda17d195267',parameters:'e0da267de292f3ab1d79f94f29af87e7',maps:'de3d12e5d4132cd1def76275430be98b',path:'419e3c7b10852fc1416e551978b20b7d',image:'e6e0d442a151c3076d84b74d9f7051c3',material:'b8d7c9e881c4aa1855aa13e2d5352839',faces:'9b3809c5b3567cbc61b7590eec26ecc2',projection:'8a8a6c569a2b820b3cbe45b497a0016c',uv:'3e64885f6f32cce52badd0c106a30cbb',light:'6d1e2923a88b638b178c6653fdb6eead'});
-  const T=Object.freeze({bytes:0,uint32:3,ids:4,float32:5,float64:6,text:7,value:8}),ZIP=256,PREDICT=512,MAX_RECORD=536870912,enc=new TextEncoder(),dec=new TextDecoder('utf-8',{fatal:true});
+  const T=Object.freeze({bytes:0,uint32:3,ids:4,float32:5,float64:6,text:7,value:8}),ZIP=256,PREDICT=512,CHUNKED=1024,CHUNK_BYTES=1572864,MAX_RECORD=Number.MAX_SAFE_INTEGER,LITTLE_ENDIAN=new Uint8Array(new Uint32Array([1]).buffer)[0]===1,enc=new TextEncoder(),dec=new TextDecoder('utf-8',{fatal:true});
+  const TYPE_WIDTH=Object.freeze({0:1,3:4,4:16,5:4,6:8,7:1,8:1});
   const byteHex=Array.from({length:256},(_,i)=>i.toString(16).padStart(2,'0'));
   const hex=bytes=>{let value='';for(const b of bytes)value+=byteHex[b];return value;};
   function idBytes(id){if(typeof id!=='string'||!/^[0-9a-f]{32}$/.test(id))throw Error('Invalid HASH identifier');const bytes=new Uint8Array(16);for(let i=0;i<16;i++){const a=id.charCodeAt(i*2),b=id.charCodeAt(i*2+1);bytes[i]=((a<=57?a-48:a-87)<<4)|(b<=57?b-48:b-87);}return bytes;}
@@ -12256,26 +12257,115 @@ function createFrameHashCodec(){
     if(!ArrayBuffer.isView(value))throw Error('HASH numeric record requires a typed array');
     return bytes(value);
   }
+  function isPrecompressed(raw){
+    return raw.length>=12&&(
+      raw[0]===0x89&&raw[1]===0x50&&raw[2]===0x4e&&raw[3]===0x47&&raw[4]===0x0d&&raw[5]===0x0a&&raw[6]===0x1a&&raw[7]===0x0a||
+      raw[0]===0xff&&raw[1]===0xd8&&raw[2]===0xff||
+      raw[0]===0x52&&raw[1]===0x49&&raw[2]===0x46&&raw[3]===0x46&&raw[8]===0x57&&raw[9]===0x45&&raw[10]===0x42&&raw[11]===0x50
+    );
+  }
   function prepare(raw,type){
-    if(raw.byteLength%4)throw Error('Invalid HASH prediction input');const n=raw.length/4,v=new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
+    if(raw.byteLength%4)throw Error('Invalid HASH prediction input');const n=raw.length/4,aligned=LITTLE_ENDIAN&&(raw.byteOffset&3)===0,words=aligned?new Uint32Array(raw.buffer,raw.byteOffset,n):null,v=aligned?null:new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
     if(type===T.float32){
       // XOR same-axis Float32 bit patterns, then byte planes. No quantization.
-      const out=new Uint8Array(4+raw.length),o=new DataView(out.buffer);o.setUint32(0,n,true);const previous=new Uint32Array(3);
-      for(let i=0;i<n;i++){const axis=i%3,word=v.getUint32(i*4,true),delta=(word^previous[axis])>>>0;previous[axis]=word;for(let b=0;b<4;b++)out[4+b*n+i]=(delta>>>(8*b))&255;}return out;
+      const out=new Uint8Array(4+raw.length),o=new DataView(out.buffer);o.setUint32(0,n,true);
+      const o0=4,o1=4+n,o2=4+n*2,o3=4+n*3;let p0=0,p1=0,p2=0,i=0;
+      if(words){
+        const limit=n-2;
+        for(;i<limit;i+=3){
+          const w0=words[i],d0=(w0^p0)>>>0;p0=w0;out[o0+i]=d0&255;out[o1+i]=(d0>>>8)&255;out[o2+i]=(d0>>>16)&255;out[o3+i]=d0>>>24;
+          const w1=words[i+1],d1=(w1^p1)>>>0;p1=w1;out[o0+i+1]=d1&255;out[o1+i+1]=(d1>>>8)&255;out[o2+i+1]=(d1>>>16)&255;out[o3+i+1]=d1>>>24;
+          const w2=words[i+2],d2=(w2^p2)>>>0;p2=w2;out[o0+i+2]=d2&255;out[o1+i+2]=(d2>>>8)&255;out[o2+i+2]=(d2>>>16)&255;out[o3+i+2]=d2>>>24;
+        }
+        const prev=[p0,p1,p2];for(;i<n;i++){const a=i%3,w=words[i],d=(w^prev[a])>>>0;prev[a]=w;out[o0+i]=d&255;out[o1+i]=(d>>>8)&255;out[o2+i]=(d>>>16)&255;out[o3+i]=d>>>24;}
+      }else{
+        const prev=[0,0,0];for(;i<n;i++){const a=i%3,w=v.getUint32(i*4,true),d=(w^prev[a])>>>0;prev[a]=w;out[o0+i]=d&255;out[o1+i]=(d>>>8)&255;out[o2+i]=(d>>>16)&255;out[o3+i]=d>>>24;}
+      }
+      return out;
     }
     if(type!==T.uint32)throw Error('Unsupported HASH prediction type');
-    const out=new Uint8Array(4+n*5),o=new DataView(out.buffer);o.setUint32(0,n,true);let at=4,lastAnchor=0,anchor=0;
-    for(let i=0;i<n;i++){const word=v.getUint32(i*4,true),predictor=i%3?anchor:lastAnchor,d=(word-predictor)|0;let z=((d<<1)^(d>>31))>>>0;while(z>=128){out[at++]=(z&127)|128;z>>>=7;}out[at++]=z;if(i%3===0)anchor=lastAnchor=word;}return out.subarray(0,at);
+    const out=new Uint8Array(4+n*5),o=new DataView(out.buffer);o.setUint32(0,n,true);let at=4,lastAnchor=0,anchor=0,phase=0;
+    for(let i=0;i<n;i++){const word=words?words[i]:v.getUint32(i*4,true),predictor=phase?anchor:lastAnchor,d=(word-predictor)|0;let z=((d<<1)^(d>>31))>>>0;while(z>=128){out[at++]=(z&127)|128;z>>>=7;}out[at++]=z;if(phase===0){anchor=lastAnchor=word;phase=1;}else if(phase===1)phase=2;else phase=0;}return out.subarray(0,at);
   }
-  function restore(raw,type){
-    if(raw.length<4)throw Error('Truncated HASH prediction');const n=new DataView(raw.buffer,raw.byteOffset,raw.byteLength).getUint32(0,true);if(n*4>MAX_RECORD)throw Error('HASH restored record limit');
-    const out=new Uint8Array(n*4),v=new DataView(out.buffer);
-    if(type===T.float32){if(raw.length!==4+n*4)throw Error('Invalid HASH Float32 prediction length');const previous=new Uint32Array(3);for(let i=0;i<n;i++){let delta=0;for(let b=0;b<4;b++)delta|=raw[4+b*n+i]<<(8*b);const axis=i%3,word=(delta^previous[axis])>>>0;previous[axis]=word;v.setUint32(i*4,word,true);}return out;}
-    if(type!==T.uint32)throw Error('Unsupported HASH prediction type');let at=4,lastAnchor=0,anchor=0;
-    for(let i=0;i<n;i++){let z=0,done=false;for(let k=0;k<5;k++){if(at>=raw.length)throw Error('Truncated HASH integer prediction');const b=raw[at++];if(k===4&&(b&240))throw Error('HASH integer prediction overflow');z=(z|((b&127)<<(k*7)))>>>0;if(!(b&128)){if(k&&b===0)throw Error('Noncanonical HASH integer prediction');done=true;break;}}if(!done)throw Error('Invalid HASH integer prediction');const word=((i%3?anchor:lastAnchor)+((z>>>1)^-(z&1)))>>>0;v.setUint32(i*4,word,true);if(i%3===0)anchor=lastAnchor=word;}
-    if(at!==raw.length)throw Error('Trailing HASH integer prediction');return out;
+  function restore(raw,type,options=null){
+    if(raw.length<4)throw Error('Truncated HASH prediction');const len=raw.length,n=new DataView(raw.buffer,raw.byteOffset,4).getUint32(0,true);
+    if(type===T.float32){
+      if(len!==4+n*4)throw Error('Invalid HASH Float32 prediction length');
+      const out=new Uint8Array(n*4),words=LITTLE_ENDIAN?new Uint32Array(out.buffer):null,v=words?null:new DataView(out.buffer);
+      const o0=4,o1=4+n,o2=4+n*2,o3=4+n*3,checkFinite=!!options?.checkFinite;let p0=0,p1=0,p2=0,i=0,nonFinite=0;
+      if(words){
+        const limit=n-2;
+        for(;i<limit;i+=3){
+          p0=(p0^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;
+          p1=(p1^(raw[o0+i+1]|(raw[o1+i+1]<<8)|(raw[o2+i+1]<<16)|(raw[o3+i+1]<<24)))>>>0;
+          p2=(p2^(raw[o0+i+2]|(raw[o1+i+2]<<8)|(raw[o2+i+2]<<16)|(raw[o3+i+2]<<24)))>>>0;
+          words[i]=p0;words[i+1]=p1;words[i+2]=p2;
+          if(checkFinite&&(((p0&0x7f800000)===0x7f800000)|((p1&0x7f800000)===0x7f800000)|((p2&0x7f800000)===0x7f800000)))nonFinite=1;
+        }
+        const prev=[p0,p1,p2];for(;i<n;i++){const a=i%3,w=(prev[a]^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;prev[a]=w;words[i]=w;if(checkFinite&&(w&0x7f800000)===0x7f800000)nonFinite=1;}
+      }else{
+        const prev=[0,0,0];for(;i<n;i++){const a=i%3,w=(prev[a]^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;prev[a]=w;v.setUint32(i*4,w,true);if(checkFinite&&(w&0x7f800000)===0x7f800000)nonFinite=1;}
+      }
+      if(nonFinite)throw Error('Invalid HASH geometry');return out;
+    }
+    if(type!==T.uint32)throw Error('Unsupported HASH prediction type');
+    if(n>len-4)throw Error('Truncated HASH integer prediction');
+    const out=new Uint8Array(n*4),words=LITTLE_ENDIAN?new Uint32Array(out.buffer):null,v=words?null:new DataView(out.buffer);
+    const trackMax=!!options?.trackMax,hasCap=options?.maxExclusive!==undefined,cap=options?.maxExclusive??0;
+    let at=4,lastAnchor=0,anchor=0,phase=0,max=0,bad=0;
+    for(let i=0;i<n;i++){
+      if(at>=len)throw Error('Truncated HASH integer prediction');
+      let b=raw[at++],z=b;
+      if(b>=128){
+        if(at>=len)throw Error('Truncated HASH integer prediction');
+        const b1=raw[at++];
+        if(b1<128){if(b1===0)throw Error('Noncanonical HASH integer prediction');z=(b&127)|(b1<<7);}
+        else{
+          z=(b&127)|((b1&127)<<7);let done=false;
+          for(let k=2;k<5;k++){if(at>=len)throw Error('Truncated HASH integer prediction');const bk=raw[at++];if(k===4&&(bk&240))throw Error('HASH integer prediction overflow');z=(z|((bk&127)<<(k*7)))>>>0;if(bk<128){if(bk===0)throw Error('Noncanonical HASH integer prediction');done=true;break;}}
+          if(!done)throw Error('Invalid HASH integer prediction');
+        }
+      }
+      const word=((phase?anchor:lastAnchor)+((z>>>1)^-(z&1)))>>>0;
+      if(words)words[i]=word;else v.setUint32(i*4,word,true);
+      if(trackMax&&word>max)max=word;
+      if(hasCap&&word>=cap)bad=1;
+      if(phase===0){anchor=lastAnchor=word;phase=1;}else if(phase===1)phase=2;else phase=0;
+    }
+    if(at!==len)throw Error('Trailing HASH integer prediction');
+    if(bad)throw Error('Invalid HASH geometry');
+    if(trackMax&&options)options.max=n?max:-1;
+    return out;
   }
-  async function collect(stream,limit){const reader=stream.getReader(),parts=[];let total=0;try{for(;;){const {value,done}=await reader.read();if(done)break;total+=value.length;if(total>limit)throw Error('HASH record exceeds decoded limit');parts.push(value);}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}const out=new Uint8Array(total);let at=0;for(const part of parts){out.set(part,at);at+=part.length;}return out;}
+  async function collect(stream,limit){
+    if(!Number.isFinite(limit))return new Uint8Array(await new Response(stream).arrayBuffer());
+    const reader=stream.getReader(),parts=[];let total=0;try{for(;;){const {value,done}=await reader.read();if(done)break;total+=value.length;if(total>limit)throw Error('HASH record exceeds decoded limit');parts.push(value);}}finally{await reader.cancel().catch(()=>{});reader.releaseLock();}const out=new Uint8Array(total);let at=0;for(const part of parts){out.set(part,at);at+=part.length;}return out;
+  }
+  async function encodeBlock(raw,type){
+    let best=raw,bestSize=raw.byteLength,flags=0;
+    if(typeof CompressionStream==='function'&&raw.byteLength>=128&&!(type===T.bytes&&isPrecompressed(raw))){
+      const gzip=source=>new Response(new Blob([source]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
+      let candidate=await gzip(raw);if(candidate.size<bestSize){best=candidate;bestSize=candidate.size;flags=ZIP;}
+      if(type===T.float32||type===T.uint32){candidate=await gzip(prepare(raw,type));if(candidate.size<bestSize){best=candidate;bestSize=candidate.size;flags=ZIP|PREDICT;}}
+    }
+    return {bytes:best,storedBytes:bestSize,flags};
+  }
+  function buildChunkedRecord(id,type,rawByteLength,blockRawBytes,blocks){
+    const anyCompressed=blocks.some(b=>b.flags!==0);
+    if(!anyCompressed){
+      const parts=[header(type,id,rawByteLength)];for(const b of blocks)parts.push(b.bytes);
+      return {blob:new Blob(parts),storedBytes:rawByteLength,rawBytes:rawByteLength,type,inline:null};
+    }
+    const meta=new Uint8Array(16+blocks.length*8),dv=new DataView(meta.buffer);
+    dv.setBigUint64(0,BigInt(rawByteLength),true);dv.setUint32(8,blockRawBytes,true);dv.setUint32(12,blocks.length,true);
+    let storedBytes=meta.byteLength;const parts=[null,meta];
+    for(let i=0;i<blocks.length;i++){
+      const b=blocks[i],len=b.storedBytes??(b.bytes instanceof Blob?b.bytes.size:b.bytes.byteLength);
+      dv.setUint32(16+i*8,len,true);dv.setUint32(20+i*8,b.flags,true);storedBytes+=len;parts.push(b.bytes);
+    }
+    const encoding=type|CHUNKED;parts[0]=header(encoding,id,storedBytes);
+    return {blob:new Blob(parts),storedBytes,rawBytes:rawByteLength,type:encoding,inline:null};
+  }
   function packForWrite(record){
     const raw=typed(record.type,record.value);
     if(raw.length>=128)return pack(record,raw);
@@ -12285,17 +12375,55 @@ function createFrameHashCodec(){
       get blob(){return new Blob([this.head,this.inline]);}};
   }
   async function pack(record,encoded){
-    const raw=encoded??typed(record.type,record.value);if(raw.length>MAX_RECORD)throw Error('HASH record exceeds size limit');let data=new Blob([raw]),type=record.type;
-    if(typeof CompressionStream==='function'&&raw.length>=128){
+    const raw=encoded??typed(record.type,record.value);
+    if(typeof CompressionStream==='function'&&raw.length>CHUNK_BYTES&&[T.bytes,T.uint32,T.ids,T.float32,T.float64].includes(record.type)&&!(record.type===T.bytes&&isPrecompressed(raw))){
+      const blocks=[];
+      for(let at=0;at<raw.length;at+=CHUNK_BYTES)blocks.push(await encodeBlock(raw.subarray(at,Math.min(at+CHUNK_BYTES,raw.length)),record.type));
+      return buildChunkedRecord(record.id,record.type,raw.length,CHUNK_BYTES,blocks);
+    }
+    let data=new Blob([raw]),type=record.type;
+    if(typeof CompressionStream==='function'&&raw.length>=128&&!(record.type===T.bytes&&isPrecompressed(raw))){
       const gzip=source=>new Response(new Blob([source]).stream().pipeThrough(new CompressionStream('gzip'))).blob();
       let best=await gzip(raw);if(best.size<data.size){data=best;type=record.type|ZIP;}
       if(record.type===T.float32||record.type===T.uint32){best=await gzip(prepare(raw,record.type));if(best.size<data.size){data=best;type=record.type|ZIP|PREDICT;}}
     }
     return {blob:new Blob([header(type,record.id,data.size),data]),storedBytes:data.size,rawBytes:raw.length,type,inline:raw.length<128?raw:null};
   }
+  async function chunkedLayout(file,record,range){
+    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');
+    const width=TYPE_WIDTH[record.type];
+    if(!(record.encoding&(ZIP|PREDICT|CHUNKED))){
+      if(record.length%width)throw Error('Invalid HASH typed length');
+      const blocks=[];for(let rawAt=0;rawAt<record.length;rawAt+=CHUNK_BYTES){const len=Math.min(CHUNK_BYTES,record.length-rawAt);blocks.push({offset:record.offset+rawAt,length:len,flags:0,rawOffset:rawAt,rawLength:len});}
+      return {rawByteLength:record.length,blockRawBytes:CHUNK_BYTES,blockCount:blocks.length,blocks};
+    }
+    if(!(record.encoding&CHUNKED))return null;
+    if(record.length<16)throw Error('Truncated HASH chunk header');
+    const slice=range?(at,len)=>range(at,len):async(at,len)=>new Uint8Array(await file.slice(at,at+len).arrayBuffer());
+    const head=await slice(record.offset,16),dv=new DataView(head.buffer,head.byteOffset,16),rawBig=dv.getBigUint64(0,true);
+    if(rawBig>BigInt(Number.MAX_SAFE_INTEGER))throw Error('Invalid HASH chunk size');
+    const rawByteLength=Number(rawBig),blockRawBytes=dv.getUint32(8,true),blockCount=dv.getUint32(12,true);
+    if(rawByteLength%width||!blockRawBytes||blockRawBytes%width)throw Error('Invalid HASH chunk header');
+    const expectedBlocks=rawByteLength===0?0:Math.ceil(rawByteLength/blockRawBytes);
+    if(blockCount!==expectedBlocks||16+blockCount*8>record.length)throw Error('Invalid HASH chunk table');
+    const tableBytes=blockCount?await slice(record.offset+16,blockCount*8):new Uint8Array(0),tv=new DataView(tableBytes.buffer,tableBytes.byteOffset,tableBytes.byteLength);
+    const blocks=[],end=record.offset+record.length,canPredict=record.type===T.float32||record.type===T.uint32;
+    let fileAt=record.offset+16+blockCount*8,rawAt=0;
+    for(let i=0;i<blockCount;i++){
+      const storedLength=tv.getUint32(i*8,true),flags=tv.getUint32(i*8+4,true),rawLength=Math.min(blockRawBytes,rawByteLength-rawAt);
+      if(flags!==0&&flags!==ZIP&&!(canPredict&&flags===(ZIP|PREDICT)))throw Error('Unsupported HASH chunk encoding');
+      if(flags===0&&storedLength!==rawLength)throw Error('Invalid HASH chunk length');
+      if(fileAt+storedLength>end)throw Error('Invalid HASH chunk table');
+      blocks.push({offset:fileAt,length:storedLength,flags,rawOffset:rawAt,rawLength});
+      fileAt+=storedLength;rawAt+=rawLength;
+    }
+    if(fileAt!==end)throw Error('Trailing HASH chunk bytes');
+    return {rawByteLength,blockRawBytes,blockCount,blocks};
+  }
   function reader(file){
     if(!file||!Number.isSafeInteger(file.size)||file.size<0)throw Error('Invalid HASH file');
-    const whole=file.size<=16*1024*1024,pageSize=1024*1024,pages=new Map();let loaded=null;
+    const whole=file.size<=16*1024*1024,pageSize=1024*1024,pages=new Map(),inlineCache=new Map();let loaded=null,inlineBytes=0;
+    const inlineStore=whole?null:{put(id,bytes){if(inlineBytes+bytes.length>2*1024*1024)return;inlineCache.set(id,bytes);inlineBytes+=bytes.length;}};
     async function range(at,length){
       if(whole){loaded??=file.arrayBuffer().then(b=>new Uint8Array(b));return (await loaded).subarray(at,at+length);}
       const start=at-at%pageSize,offset=at-start;
@@ -12310,14 +12438,34 @@ function createFrameHashCodec(){
       try{return (await page).subarray(offset,offset+length);}
       catch(error){if(pages.get(start)===page)pages.delete(start);throw error;}
     }
-    return {file,range,read:record=>read(file,record,range),index:cooperate=>index(file,range,cooperate),ownerIds:rows=>ownerIds(file,rows,whole?range:undefined)};
+    function readRecord(record,maxDecoded=Infinity){
+      const cached=inlineCache.get(record?.id);
+      if(cached!==undefined){inlineCache.delete(record.id);inlineBytes-=cached.length;return decodeRecordBytes(record,cached,maxDecoded);}
+      return read(file,record,whole||record.length<=pageSize?range:undefined,maxDecoded);
+    }
+    return {file,range,read:readRecord,index:cooperate=>index(file,range,cooperate,inlineStore),ownerIds:rows=>ownerIds(file,rows,whole?range:undefined)};
   }
-  async function index(file,range=reader(file).range,cooperate=null){
-    const map=new Map();let at=0;
-    while(at<file.size){if(file.size-at<26)throw Error('Truncated HASH header');const h=await range(at,26),v=new DataView(h.buffer,h.byteOffset,h.byteLength),type=v.getUint16(0,true),base=type&255,id=hex(h.subarray(2,18)),large=v.getBigUint64(18,true);
-      const unsupported=!Object.values(T).includes(base)||!!(type&~(255|ZIP|PREDICT))||!!((type&PREDICT)&&(!(type&ZIP)||![T.uint32,T.float32].includes(base)));
-      if(large>BigInt(file.size-at-26)||large>BigInt(MAX_RECORD*2+64))throw Error('Invalid HASH record size');if(map.has(id))throw Error('Duplicate HASH property');const length=Number(large);
-      map.set(id,{id,type:base,encoding:type,offset:at+26,length,...unsupported?{unsupported:true}:{}});at+=26+length;
+  async function index(file,range=reader(file).range,cooperate=null,inlineStore=null){
+    const map=new Map();let at=0,winAt=-1,winBuf=null,useWindow=false,smallRun=0;
+    while(at<file.size){
+      if(file.size-at<26)throw Error('Truncated HASH header');
+      let h;
+      if(useWindow&&inlineStore){
+        if(!winBuf||at<winAt||at+26>winAt+winBuf.length){
+          const take=Math.min(4096,file.size-at);
+          winBuf=new Uint8Array(await file.slice(at,at+take).arrayBuffer());winAt=at;
+        }
+        h=winBuf.subarray(at-winAt,at-winAt+26);
+      }else h=await range(at,26);
+      const v=new DataView(h.buffer,h.byteOffset,h.byteLength),type=v.getUint16(0,true),base=type&255,id=hex(h.subarray(2,18)),large=v.getBigUint64(18,true);
+      const unsupported=!Object.values(T).includes(base)||!!(type&~(255|ZIP|PREDICT|CHUNKED))||((type&CHUNKED)?!!(type&(ZIP|PREDICT))||![T.bytes,T.uint32,T.ids,T.float32,T.float64].includes(base):!!((type&PREDICT)&&(!(type&ZIP)||![T.uint32,T.float32].includes(base))));
+      if(large>BigInt(file.size-at-26)||large>BigInt(Number.MAX_SAFE_INTEGER))throw Error('Invalid HASH record size');if(map.has(id))throw Error('Duplicate HASH property');const length=Number(large);
+      map.set(id,{id,type:base,encoding:type,offset:at+26,length,...unsupported?{unsupported:true}:{}});
+      if(inlineStore){
+        if(useWindow&&!unsupported&&length<=2048&&winBuf&&at+26+length<=winAt+winBuf.length)inlineStore.put(id,winBuf.slice(at+26-winAt,at+26+length-winAt));
+        if(length>=65536){useWindow=true;smallRun=0;}else if(useWindow&&++smallRun>=8){useWindow=false;winBuf=null;}
+      }
+      at+=26+length;
       if(cooperate&&(map.size&255)===0){const pause=cooperate();if(pause)await pause;}
     }
     if(!map.size)throw Error('Empty HASH file');return map;
@@ -12328,15 +12476,53 @@ function createFrameHashCodec(){
     // Every valid owner has a type, position or spline witness. Each field
     // address is injective within that field, even if different fields alias.
     // Bound decoding by indexed evidence, not by a fixed number of objects.
-    return read(file,all,range,Math.min(MAX_RECORD,rows.size*3*16));
+    return read(file,all,range,rows.size*3*16);
   }
-  async function read(file,record,range,maxDecoded=MAX_RECORD){
-    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');if(!(record.encoding&ZIP)&&record.length>maxDecoded)throw Error('HASH decoded record limit');const compressedLimit=maxDecoded===MAX_RECORD?MAX_RECORD*2+64:maxDecoded;let raw;
-    if(range){const packed=await range(record.offset,record.length);raw=record.encoding&ZIP?await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):packed.slice();}
-    else{const blob=file.slice(record.offset,record.offset+record.length);raw=record.encoding&ZIP?await collect(blob.stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):new Uint8Array(await blob.arrayBuffer());}
-    if(record.encoding&PREDICT)raw=restore(raw,record.type);if(raw.length>maxDecoded)throw Error('HASH decoded record limit');const width={0:1,3:4,4:16,5:4,6:8,7:1,8:1}[record.type];if(raw.length%width)throw Error('Invalid HASH typed length');
+  function finishTyped(record,raw){
+    const width=TYPE_WIDTH[record.type];if(raw.length%width)throw Error('Invalid HASH typed length');
     if(record.type===T.value)return values.decode(raw);if(record.type===T.text)return dec.decode(raw);if(record.type===T.ids)return Array.from({length:raw.length/16},(_,i)=>hex(raw.subarray(i*16,i*16+16)));
     if(raw.byteOffset%width)raw=raw.slice();return record.type===T.bytes?raw:record.type===T.uint32?new Uint32Array(raw.buffer,raw.byteOffset,raw.length/4):record.type===T.float32?new Float32Array(raw.buffer,raw.byteOffset,raw.length/4):new Float64Array(raw.buffer,raw.byteOffset,raw.length/8);
+  }
+  async function decodeRecordBytes(record,packed,maxDecoded=Infinity){
+    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');
+    if(!(record.encoding&(ZIP|CHUNKED))&&packed.length>maxDecoded)throw Error('HASH decoded record limit');
+    if(record.encoding&CHUNKED)return read(new Blob([packed]),{...record,offset:0,length:packed.length},undefined,maxDecoded);
+    const compressedLimit=Number.isFinite(maxDecoded)?(record.encoding&PREDICT?maxDecoded*2+64:maxDecoded):Infinity;
+    let raw=record.encoding&ZIP?await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):packed;
+    if(record.encoding&PREDICT)raw=restore(raw,record.type);
+    if(raw.length>maxDecoded)throw Error('HASH decoded record limit');
+    return finishTyped(record,raw);
+  }
+  async function read(file,record,range,maxDecoded=Infinity){
+    if(!record)throw Error('Missing HASH property');if(record.unsupported)throw Error('Unsupported HASH record type');
+    if(record.encoding&CHUNKED){
+      const layout=await chunkedLayout(file,record,range);if(layout.rawByteLength>maxDecoded)throw Error('HASH decoded record limit');
+      const out=new Uint8Array(layout.rawByteLength);
+      for(const b of layout.blocks){
+        let raw;
+        if(range){
+          const packed=await range(b.offset,b.length);
+          if(b.flags&ZIP){
+            const limit=b.flags&PREDICT?b.rawLength*2+64:b.rawLength;
+            raw=await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),limit);
+            if(b.flags&PREDICT)raw=restore(raw,record.type);
+          }else raw=packed;
+        }else if(b.flags&ZIP){
+          const limit=b.flags&PREDICT?b.rawLength*2+64:b.rawLength;
+          raw=await collect(file.slice(b.offset,b.offset+b.length).stream().pipeThrough(new DecompressionStream('gzip')),limit);
+          if(b.flags&PREDICT)raw=restore(raw,record.type);
+        }else raw=new Uint8Array(await file.slice(b.offset,b.offset+b.length).arrayBuffer());
+        if(raw.length!==b.rawLength)throw Error('Invalid HASH chunk length');
+        out.set(raw,b.rawOffset);
+      }
+      return finishTyped(record,out);
+    }
+    if(!(record.encoding&ZIP)&&record.length>maxDecoded)throw Error('HASH decoded record limit');
+    const compressedLimit=Number.isFinite(maxDecoded)?(record.encoding&PREDICT?maxDecoded*2+64:maxDecoded):Infinity;let raw;
+    if(range){const packed=await range(record.offset,record.length);raw=record.encoding&ZIP?await collect(new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):packed.slice();}
+    else{const blob=file.slice(record.offset,record.offset+record.length);raw=record.encoding&ZIP?await collect(blob.stream().pipeThrough(new DecompressionStream('gzip')),compressedLimit):new Uint8Array(await blob.arrayBuffer());}
+    if(record.encoding&PREDICT)raw=restore(raw,record.type);if(raw.length>maxDecoded)throw Error('HASH decoded record limit');
+    return finishTyped(record,raw);
   }
   const snapshotFields=[['nativeFrames',K.camera],['nativePivot',K.pivot],['preserveCameraFrames',K.flags]];
   function snapshot(value,replacer){
@@ -12349,7 +12535,7 @@ function createFrameHashCodec(){
   function openSnapshot(bytes,reviver){const root=snapshotRecord(bytes);if(root.id!==K.parameters)throw Error('Invalid HASH snapshot root');const value=values.decode(root.data,reviver),seen=new Set();let at=root.end;while(at<bytes.length){const row=snapshotRecord(bytes,at),field=snapshotFields.find(([,id])=>id===row.id)?.[0];if(!field||seen.has(field)||!Array.isArray(value?.nodes))throw Error('Invalid HASH snapshot field');seen.add(field);value[field]=values.decode(row.data,reviver);at=row.end;}return value;}
   function sameSnapshotContent(a,b){return values.equal(snapshotPayload(a),snapshotPayload(b));}
   function references(bytes){let refs=snapshotReferences.get(bytes);if(!refs){refs=values.strings(snapshotPayload(bytes));snapshotReferences.set(bytes,refs);}return refs;}
-  return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,hex,pack,packForWrite,index,read,reader,prepare,restore,MAX_RECORD,values,snapshot,openSnapshot,references,sameSnapshotContent});
+  return Object.freeze({K,T,ZIP,PREDICT,address,addressOwner,newId,hex,pack,packForWrite,index,read,reader,prepare,restore,MAX_RECORD,CHUNKED,CHUNK_BYTES,chunkedLayout,encodeBlock,buildChunkedRecord,values,snapshot,openSnapshot,references,sameSnapshotContent});
 }
 function createFrameHashWriteBatch(write,limit=4*1024*1024){
   let size=0,at=0,first=0,slab=null,parts=[];
@@ -21127,19 +21313,42 @@ window.frameEngine=(()=>{
     const pagedPipeline=(gpu,name,code,entryPoint='main')=>computePipeline(gpu,name,code,entryPoint,true);
     function powerOfTwoBelow(n){let p=1;while(p*2<=n)p*=2;return p;}
     function powerOfTwoAbove(n){let p=1;while(p<n)p*=2;return p;}
-    function needsPagedMesh(gpu,input){const c=input.indices.length,limit=gpu.device.limits.maxStorageBufferBindingSize;return location.search.includes('force-paged')||Math.max(input.vertices.byteLength,c*8,powerOfTwoAbove(Math.max(1,c*1.5))*4,powerOfTwoAbove(Math.max(1,input.vertexCount*2))*4)>limit;}
+    function needsPagedMeshCounts(gpu,vertexCount,cornerCount){const limit=gpu.device.limits.maxStorageBufferBindingSize;return location.search.includes('force-paged')||Math.max(vertexCount*12,cornerCount*8,powerOfTwoAbove(Math.max(1,cornerCount*1.5))*4,powerOfTwoAbove(Math.max(1,vertexCount*2))*4)>limit;}
+    function needsPagedMesh(gpu,input){return needsPagedMeshCounts(gpu,input.vertexCount,input.indices.length);}
+    function writeBufferChunked(device,buffer,byteOffset,array){
+      const bytes=array instanceof Uint8Array?array:new Uint8Array(array.buffer,array.byteOffset,array.byteLength);
+      const chunk=4*1024*1024;
+      for(let at=0;at<bytes.byteLength;at+=chunk){const len=Math.min(chunk,bytes.byteLength-at);device.queue.writeBuffer(buffer,byteOffset+at,bytes,at,len);}
+    }
     async function pagedReadCounters(gpu,encoder,buffer,bytes=32,offset=0){
       const slot=acquireBounds(gpu,0);try{encoder.copyBufferToBuffer(buffer,offset,slot.read,0,bytes);gpu.device.queue.submit([encoder.finish()]);await slot.read.mapAsync(GPUMapMode.READ);const data=Array.from(new Uint32Array(slot.read.getMappedRange(),0,bytes/4));slot.read.unmap();checkSession(gpu);return data;}finally{slot.busy=false;}
     }
-    async function uploadPagedArray(gpu,array,target){
+    async function createPagedUploader(gpu,maxBytes=8*1024*1024){
       const pipeline=await pagedPipeline(gpu,'paged upload',`
         @group(0) @binding(0) var<storage,read> input:array<u32>;
         @group(0) @binding(1) var output:texture_storage_2d_array<r32uint,read_write>;
         @group(0) @binding(2) var<uniform> range:vec4u;
         @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i<range.y){putR(output,range.x+i,input[i]);}}
-      `),d=gpu.device,capacity=Math.min(8*1024*1024,powerOfTwoBelow(d.limits.maxStorageBufferBindingSize)),buffer=makeGPUBuffer(d,{size:Math.max(16,Math.min(capacity,array.byteLength)),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),params=makeGPUBuffer(d,{size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),group=pagedGroup(gpu,pipeline,{0:buffer,1:target,2:params});
-      try{for(let base=0;base<array.length;base+=buffer.size/4){const n=Math.min(buffer.size/4,array.length-base);d.queue.writeBuffer(buffer,0,array.subarray(base,base+n));d.queue.writeBuffer(params,0,new Uint32Array([base,n,0,0]));const e=d.createCommandEncoder();dispatchOn(gpu,e,pipeline,group,n);d.queue.submit([e.finish()]);}await d.queue.onSubmittedWorkDone();}
-      finally{releaseGPU(buffer);releaseGPU(params);}
+      `),d=gpu.device,capacity=Math.max(16,Math.min(maxBytes,8*1024*1024,powerOfTwoBelow(d.limits.maxStorageBufferBindingSize)));
+      const buffer=makeGPUBuffer(d,{label:'paged upload staging',size:capacity,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST}),params=makeGPUBuffer(d,{label:'paged upload range',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),groups=new WeakMap();
+      const groupFor=target=>{let g=groups.get(target);if(!g){g=pagedGroup(gpu,pipeline,{0:buffer,1:target,2:params});groups.set(target,g);}return g;};
+      return {
+        upload(array,target,baseWord=0){
+          const words=array instanceof Uint32Array?array:new Uint32Array(array.buffer,array.byteOffset,array.byteLength>>>2),group=groupFor(target),step=capacity>>>2;
+          for(let at=0;at<words.length;at+=step){
+            const n=Math.min(step,words.length-at);
+            d.queue.writeBuffer(buffer,0,words,at,n);
+            d.queue.writeBuffer(params,0,new Uint32Array([baseWord+at,n,0,0]));
+            const e=d.createCommandEncoder();dispatchOn(gpu,e,pipeline,group,n);d.queue.submit([e.finish()]);
+          }
+        },
+        dispose(){releaseGPU(buffer);releaseGPU(params);}
+      };
+    }
+    async function uploadPagedArray(gpu,array,target){
+      const uploader=await createPagedUploader(gpu,array.byteLength);
+      try{uploader.upload(array,target,0);await gpu.device.queue.onSubmittedWorkDone();}
+      finally{uploader.dispose();}
     }
     async function pagedBounds(gpu,mesh,selected,part=null){
       const vertex=part?'records[v].x':'v';
@@ -21422,8 +21631,8 @@ window.frameEngine=(()=>{
       return mesh.paged?pagedGroup(gpu,mesh.connected.seed,{0:mesh.indices,1:pick.closest,2:mesh.connected.flags,3:mesh.connected.a,4:mesh.connected.control,5:mesh.connected.range}):computeGroup(gpu,gpu.connected.init,[mesh.indices,pick.closest,mesh.connected.flags,mesh.connected.a,mesh.connected.control,mesh.connected.range]);}
     async function uploadPagedAndCompute(gpu,input,options={}){
       const d=gpu.device,start=performance.now(),profile={},mesh={gpu,paged:true,buffers:[],vertexCount:input.vertexCount,triangleCount:input.triangleCount,count:input.triangleCount*3,faceBase:0,version:0,parts:[]},make=meshAllocator(gpu,mesh),storage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
-      const canonical=!!input.gpuCanonical,exact=!!input.nativeExact;if(canonical){mesh.positions=input.vertices;mesh.indices=input.indices;mesh.buffers.push(mesh.positions,mesh.indices);}
-      if(mesh.vertexCount>0x55555554||mesh.count>0x3fffffff){disposeMesh(mesh);throw Error('The mesh exceeds the 32-bit canonical-coordinate limit.');}d.pushErrorScope('out-of-memory');d.pushErrorScope('validation');let scopes=2;
+      const canonical=!!input.gpuCanonical,exact=!!input.nativeExact,batched=!!options.batchErrorScope;if(canonical){mesh.positions=input.vertices;mesh.indices=input.indices;mesh.buffers.push(mesh.positions,mesh.indices);}
+      if(mesh.vertexCount>0x55555554||mesh.count>0x3fffffff){disposeMesh(mesh);throw Error('The mesh exceeds the 32-bit canonical-coordinate limit.');}let scopes=0;if(!batched){d.pushErrorScope('out-of-memory');d.pushErrorScope('validation');scopes=2;}
       try{
         initializeCreaseSettings(gpu,mesh,input);
         if(!canonical){mesh.positions=makePagedTexture(gpu,'global positions',mesh.vertexCount*3);mesh.indices=makePagedTexture(gpu,'global triangle indices',mesh.count);mesh.buffers.push(mesh.positions,mesh.indices);await uploadPagedArray(gpu,input.vertices,mesh.positions);await uploadPagedArray(gpu,input.indices,mesh.indices);}input.vertices=null;input.indices=null;input=null;profile.upload=performance.now()-start;
@@ -21437,7 +21646,8 @@ window.frameEngine=(()=>{
         });
         for(const part of mesh.parts){const b=await pagedBounds(gpu,mesh,false,part);part.localBoundsMin=part.boundsMin=b.min;part.localBoundsMax=part.boundsMax=b.max;}
         mesh.connected=await createPagedConnectedState(gpu,mesh);await createPagedPicking(gpu);meshRenderGroups(gpu,mesh);profile.wireIndices=performance.now()-phase;
-        const validation=await d.popErrorScope();scopes--;const memory=await d.popErrorScope();scopes--;if(validation||memory)throw Error((validation||memory).message);profile.sourceOther=performance.now()-start-Object.values(profile).reduce((s,v)=>s+v,0);mesh.profile=profile;return mesh;
+        if(scopes){scopes=0;const [validation,memory]=await Promise.all([d.popErrorScope(),d.popErrorScope()]);if(validation||memory)throw Error((validation||memory).message);}
+        profile.sourceOther=performance.now()-start-Object.values(profile).reduce((s,v)=>s+v,0);mesh.profile=profile;return mesh;
       }catch(error){disposeMesh(mesh);while(scopes){await d.popErrorScope();scopes--;}throw error;}
     }
 
@@ -21508,17 +21718,17 @@ window.frameEngine=(()=>{
       }
     }
 
-    async function uploadAndCompute(gpu,input){
-      if(input.vertices.kind==='texture'||(!input.gpuCanonical&&needsPagedMesh(gpu,input)))return uploadPagedAndCompute(gpu,input);
-      return withNormalWorkspace(gpu,()=>uploadBufferAndCompute(gpu,input));
+    async function uploadAndCompute(gpu,input,options={}){
+      if(input.vertices.kind==='texture'||(!input.gpuCanonical&&needsPagedMesh(gpu,input)))return uploadPagedAndCompute(gpu,input,options);
+      return withNormalWorkspace(gpu,()=>uploadBufferAndCompute(gpu,input,options));
     }
-    async function uploadBufferAndCompute(gpu,input){
-      const device=gpu.device,sourceStart=performance.now(),profile={};let v=input.vertexCount,t=input.triangleCount,c=t*3;const canonical=!!input.gpuCanonical,exact=!!input.nativeExact;
+    async function uploadBufferAndCompute(gpu,input,options={}){
+      const device=gpu.device,sourceStart=performance.now(),profile={};let v=input.vertexCount,t=input.triangleCount,c=t*3;const canonical=!!input.gpuCanonical,exact=!!input.nativeExact,batched=!!options.batchErrorScope;
       const mesh={gpu,buffers:[],vertexCount:v,triangleCount:t,count:c,faceBase:0,version:0};
       if(canonical){mesh.positions=input.vertices;mesh.indices=input.indices;mesh.buffers.push(mesh.positions,mesh.indices);}
       const make=meshAllocator(gpu,mesh),storage=(label,size)=>make(label,size,GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST);
-      const upload=(label,array,usage)=>{const b=make(label,array.byteLength,usage|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST);if(array.byteLength)device.queue.writeBuffer(b,0,array);return b;};
-      device.pushErrorScope('out-of-memory');device.pushErrorScope('validation');let scopes=2;
+      const upload=(label,array,usage)=>{const b=make(label,array.byteLength,usage|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST);if(array.byteLength)writeBufferChunked(device,b,0,array);return b;};
+      let scopes=0;if(!batched){device.pushErrorScope('out-of-memory');device.pushErrorScope('validation');scopes=2;}
       try{
         initializeCreaseSettings(gpu,mesh,input);
         if(!canonical){mesh.positions=upload('positions',input.vertices,GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX);mesh.indices=upload('indices',input.indices,GPUBufferUsage.STORAGE|GPUBufferUsage.INDEX);}
@@ -21554,8 +21764,7 @@ window.frameEngine=(()=>{
         const copy=device.createCommandEncoder();if(edgeBytes)copy.copyBufferToBuffer(lines,0,mesh.lines,0,edgeBytes);device.queue.submit([copy.finish()]);
         for(const b of [metadata,partial,table,degree,lines,indirect]){releaseGPU(b);mesh.buffers.splice(mesh.buffers.indexOf(b),1);}
         mesh.computeGroups=null;meshRenderGroups(gpu,mesh);
-        const validation=await device.popErrorScope();scopes--;const memory=await device.popErrorScope();scopes--;
-        if(validation||memory)throw Error((validation||memory).message);
+        if(scopes){scopes=0;const [validation,memory]=await Promise.all([device.popErrorScope(),device.popErrorScope()]);if(validation||memory)throw Error((validation||memory).message);}
         profile.sourceOther=performance.now()-sourceStart-Object.values(profile).reduce((s,v)=>s+v,0);mesh.profile=profile;return mesh;
       }catch(error){disposeMesh(mesh);while(scopes){await device.popErrorScope();scopes--;}throw error;}
     }
@@ -23795,18 +24004,30 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       await draw(false);const gpu=renderer,space=scene,preferred=!surfaceOnly&&elementMode==='polygon'?currentSelectionMeshes().filter(m=>editableComponentMesh(m)&&nodes.some(n=>n.nativeHash===m.hashId&&(selected.has(n.id)||selectedTag?.owner===n.id))):null,pick=createRayPick(gpu,space,cameraRay(x,y),preferred?.length?preferred:null);try{const e=gpu.device.createCommandEncoder();pick.encode(e,true);e.copyBufferToBuffer(pick.closest,0,pick.read,0,16);gpu.device.queue.submit([e.finish()]);await pick.read.mapAsync(GPUMapMode.READ);const face=new Uint32Array(pick.read.getMappedRange())[1];pick.read.unmap();if(space!==scene)return null;return space.meshes.find(m=>face>=m.faceBase&&face<m.faceBase+m.triangleCount)?.hashId||null;}finally{releaseGPU(pick);}
     }
     async function decodeAppearancePlan(read,map,objects,records,cooperate=null,ownerAddress=null){
-      const {K,T}=FrameHash,before=new Set(records.keys()),library=await read(K.materials,T.ids),assets=await read(K.assets,T.ids),faces=[],uvs=[],tagOwners=new Set(),objectIDs=new Set(objects.map(o=>o.hash)),limit=ids=>ids&&ids.length<=100000&&new Set(ids).size===ids.length&&ids.every(id=>id!==K.zero&&!objectIDs.has(id));
+      const {K,T}=FrameHash,before=new Set(records.keys()),library=await read(K.materials,T.ids),assets=await read(K.assets,T.ids),faces=[],uvs=[],tagOwners=new Set(),objectIDs=new Set(objects.map(o=>o.hash)),limit=ids=>ids&&new Set(ids).size===ids.length&&ids.every(id=>id!==K.zero&&!objectIDs.has(id));
       if(library&&!limit(library)||assets&&!limit(assets))throw Error('Invalid HASH material library');const matIDs=new Set(library||[]),assetIDs=new Set(assets||[]);if([...matIDs].some(id=>assetIDs.has(id)))throw Error('Conflicting HASH appearance identifiers');
       const validName=name=>name===undefined||typeof name==='string'&&name.length<=16384&&!name.includes('\0');
       for(const uid of library||[]){const values=await read(appearanceId(uid,'parameters'),T.float64),name=await read(appearanceId(uid,'name'),T.text),maps=await read(appearanceId(uid,'maps'),T.ids);if(!values||![8,15,16,17,materialKeys.length].includes(values.length)||values.some(n=>!Number.isFinite(n))||values[0]<0||values[0]>360||[1,2,4,5,6].some(i=>values[i]<0||values[i]>100)||values[3]<0||values[7]<0||[8,9,10,11].some(i=>values[i]!==undefined&&(!Number.isInteger(values[i])||values[i]<0||values[i]>4))||values[12]!==undefined&&(!Number.isInteger(values[12])||values[12]<0||values[12]>3)||[13,14,17].some(i=>values[i]!==undefined&&(values[i]<0||values[i]>100))||values[16]!==undefined&&![1,-1].includes(values[16])||!validName(name)||maps&&(![2,4,8].includes(maps.length)||maps.some(id=>id!==K.zero&&!assetIDs.has(id))))throw Error('Invalid HASH material parameters');}
-      for(const uid of assets||[]){const path=await read(appearanceId(uid,'path'),T.text),image=await read(appearanceId(uid,'image'),T.bytes);if((path!==undefined)===(image!==undefined)||path!==undefined&&(!path||path.length>16384||path.includes('\0')||/^(blob:|javascript:|data:)/i.test(path))||image&&!image.length)throw Error('Invalid HASH texture source');}
-      let scanned=0;for(const o of objects){if(cooperate&&(++scanned&255)===0){const pause=cooperate();if(pause)await pause;}const tags=await read(ownerAddress?ownerAddress(o.hash)('tags'):appearanceId(o.hash,'tags'),T.ids);if(!tags)continue;if(tags.length>10000||new Set(tags).size!==tags.length)throw Error('Invalid HASH tag list');let hasUV=false;for(const uid of tags){if(tagOwners.has(uid)||matIDs.has(uid)||assetIDs.has(uid)||objectIDs.has(uid)||uid===K.zero)throw Error('Conflicting HASH tag identifier');tagOwners.add(uid);const refs=await read(appearanceId(uid,'material'),T.ids),mask=await read(appearanceId(uid,'faces'),T.bytes),uv=map.get(appearanceId(uid,'uv'));
+      const assetList=assets||[];
+      for(let first=0;first<assetList.length;first+=8){
+        await Promise.all(assetList.slice(first,first+8).map(async uid=>{const [path,image]=await Promise.all([read(appearanceId(uid,'path'),T.text),read(appearanceId(uid,'image'),T.bytes)]);if((path!==undefined)===(image!==undefined)||path!==undefined&&(!path||path.length>16384||path.includes('\0')||/^(blob:|javascript:|data:)/i.test(path))||image&&!image.length)throw Error('Invalid HASH texture source');}));
+        if(cooperate){const pause=cooperate();if(pause)await pause;}
+      }
+      let scanned=0;for(const o of objects){if(cooperate&&(++scanned&255)===0){const pause=cooperate();if(pause)await pause;}const tags=await read(ownerAddress?ownerAddress(o.hash)('tags'):appearanceId(o.hash,'tags'),T.ids);if(!tags)continue;if(new Set(tags).size!==tags.length)throw Error('Invalid HASH tag list');let hasUV=false;for(const uid of tags){if(tagOwners.has(uid)||matIDs.has(uid)||assetIDs.has(uid)||objectIDs.has(uid)||uid===K.zero)throw Error('Conflicting HASH tag identifier');tagOwners.add(uid);const refs=await read(appearanceId(uid,'material'),T.ids),mask=await read(appearanceId(uid,'faces'),T.bytes),uv=map.get(appearanceId(uid,'uv'));
         if(refs){if(refs.length!==1||!matIDs.has(refs[0])||uv||mask&&(o.type!==1||!mask.length))throw Error('Invalid HASH material tag');if(mask)faces.push({uid,owner:o.hash,bytes:mask});}
         else if(uv&&uv.type===T.float32&&o.type===1&&!mask&&!hasUV){hasUV=true;records.set(uv.id,{...uv,gpu:true});o.uv={uid,record:uv};uvs.push({uid,owner:o.hash});}
         else throw Error('Invalid HASH UV tag');
       }}return {faces,uvs,ids:new Set([...records.keys()].filter(id=>!before.has(id)))};
     }
-    function validatePolygonSets(plan,o,input){for(const s of plan.appearance.faces)if(s.owner===o.hash){const max=Math.ceil(input.triangleCount/8),tail=input.triangleCount%8;if(s.bytes.length>max||tail&&s.bytes.length===max&&(s.bytes.at(-1)>>tail)!==0)throw Error('HASH polygon selection exceeds its mesh');}if(input.uv&&(input.uv.length!==input.triangleCount*6||input.uv.some(n=>!Number.isFinite(n))))throw Error('Invalid imported UV coordinates');}
+    function validateOwnerPolygonMasks(masks,triangleCount){
+      if(!masks)return;
+      const max=Math.ceil(triangleCount/8),tail=triangleCount%8;
+      for(const s of masks)if(s.bytes.length>max||tail&&s.bytes.length===max&&(s.bytes.at(-1)>>tail)!==0)throw Error('HASH polygon selection exceeds its mesh');
+    }
+    function validatePolygonSets(plan,o,input){
+      for(const s of plan.appearance.faces)if(s.owner===o.hash){const max=Math.ceil(input.triangleCount/8),tail=input.triangleCount%8;if(s.bytes.length>max||tail&&s.bytes.length===max&&(s.bytes.at(-1)>>tail)!==0)throw Error('HASH polygon selection exceeds its mesh');}
+      if(input.uv){if(input.uv.length!==input.triangleCount*6)throw Error('Invalid imported UV coordinates');const words=new Uint32Array(input.uv.buffer,input.uv.byteOffset,input.uv.length);for(let i=0;i<words.length;i++)if((words[i]&0x7f800000)===0x7f800000)throw Error('Invalid imported UV coordinates');}
+    }
     function appearanceUVTag(hash){const cache=currentRenderMaterialCache();if(cache?.uvTags.has(hash))return cache.uvTags.get(hash);let found=null;for(const uid of appearanceValue(hash,'tags')||[])if(!appearanceValue(uid,'material')){found=uid;break;}cache?.uvTags.set(hash,found);return found;}
     function importedUV(mesh){const cache=currentRenderMaterialCache();if(cache?.uv.has(mesh))return cache.uv.get(mesh);const value=importedUVNow(mesh);currentRenderMaterialCache()?.uv.set(mesh,value);return value;}
     function importedUVNow(mesh){let source=mesh;while(source){const uid=appearanceUVTag(source.hashId);if(uid)return appearanceValue(uid,'uv');source=source.replicaSource;}return null;}
@@ -23816,8 +24037,8 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const old=appearanceValue(uid,'uv');if(!old||old.count===owner.count*2)return old;
       const count=owner.count*2,d=renderer.device,resource=makeGPUBuffer(d,{label:'resized canonical UV corners',size:count*4,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),e=d.createCommandEncoder();e.copyBufferToBuffer(old.resource,0,resource,0,Math.min(old.count,count)*4);d.queue.submit([e.finish()]);const uv={...old,resource,count};putAppearance(uid,'uv',FrameHash.T.float32,uv);owner.uvSource=uv;owner.materialBindings=null;releaseGPU(old.resource);return uv;
     }
-    function uploadImportedUV(gpu,mesh,uv){const resource=makeGPUBuffer(gpu.device,{label:'canonical imported UV corners',size:uv.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});gpu.device.queue.writeBuffer(resource,0,uv);mesh.uvSource={kind:'imported-uv',gpu:true,resource,count:uv.length};return mesh.uvSource;}
-    function uploadPolygonSets(plan,gpu){for(const s of plan.appearance.faces){const size=Math.ceil(s.bytes.length/4)*4,bytes=new Uint8Array(size);bytes.set(s.bytes);const resource=makeGPUBuffer(gpu.device,{label:'material polygon mask',size:Math.max(16,size),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});gpu.device.queue.writeBuffer(resource,0,bytes);setPolygonRecord(s.uid,resource,s.bytes.length);putAppearance(s.uid,'faces',FrameHash.T.bytes,polygonSet(s.uid));}for(const uv of plan.appearance.uvs){const mesh=scene.meshes.find(m=>m.hashId===uv.owner);putAppearance(uv.uid,'uv',FrameHash.T.float32,mesh.uvSource);}}
+    function uploadImportedUV(gpu,mesh,uv){const resource=makeGPUBuffer(gpu.device,{label:'canonical imported UV corners',size:uv.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});writeBufferChunked(gpu.device,resource,0,uv);mesh.uvSource={kind:'imported-uv',gpu:true,resource,count:uv.length};return mesh.uvSource;}
+    function uploadPolygonSets(plan,gpu){for(const s of plan.appearance.faces){const size=Math.ceil(s.bytes.length/4)*4,bytes=new Uint8Array(size);bytes.set(s.bytes);const resource=makeGPUBuffer(gpu.device,{label:'material polygon mask',size:Math.max(16,size),usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});writeBufferChunked(gpu.device,resource,0,bytes);setPolygonRecord(s.uid,resource,s.bytes.length);putAppearance(s.uid,'faces',FrameHash.T.bytes,polygonSet(s.uid));}if(plan.appearance.uvs.length){const byHash=new Map(scene.meshes.map(m=>[m.hashId,m]));for(const uv of plan.appearance.uvs)putAppearance(uv.uid,'uv',FrameHash.T.float32,byHash.get(uv.owner).uvSource);}}
     function copyAppearanceTags(tags){return (tags||[]).map(t=>{const uid=FrameHash.newId(),copy={...t,uid,params:{}};if(t.mask)copy.mask=copyPolygonSet(t.mask,FrameHash.newId());if(t.kind==='uv'){const source=appearanceValue(t.uid,'uv'),resource=duplicateResource(renderer,source.resource,'copied imported UV'),e=renderer.device.createCommandEncoder();copyResource(e,source.resource,resource);renderer.device.queue.submit([e.finish()]);putAppearance(uid,'uv',FrameHash.T.float32,{...source,resource});}return copy;});}
 
 // END native-materials-core
@@ -28766,6 +28987,366 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         return out;
       }finally{releaseGPU(read);}
     }
+    async function nativeReadGPUSlice(gpu,resource,byteOffset,byteLength,staging=null){
+      const d=gpu.device,out=new Uint8Array(byteLength);
+      if(!byteLength)return out;
+      const minStaging=resource.kind==='texture'?Math.ceil(resource.width*4/256)*256:Math.ceil(byteLength/4)*4;
+      const owned=!staging||staging.size<Math.min(4*1024*1024,Math.max(4,minStaging));
+      const read=owned?makeGPUBuffer(d,{label:'bounded HASH slice readback',size:Math.min(4*1024*1024,Math.max(4,minStaging)),usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST}):staging;
+      try{
+        let written=0;
+        while(written<byteLength){
+          checkSession(gpu);const e=d.createCommandEncoder(),pos=byteOffset+written,rem=byteLength-written;
+          if(resource.kind==='texture'){
+            const rowBytes=resource.width*4,pitch=Math.ceil(rowBytes/256)*256,row=Math.floor(pos/rowBytes),col=pos-row*rowBytes,layer=Math.floor(row/resource.height),y=row%resource.height;
+            const rows=Math.min(resource.height-y,Math.floor(read.size/pitch),Math.ceil((col+rem)/rowBytes));
+            e.copyTextureToBuffer({texture:resource.texture,origin:[0,y,layer]},{buffer:read,bytesPerRow:pitch,rowsPerImage:rows},[resource.width,rows,1]);
+            d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);const bytes=new Uint8Array(read.getMappedRange());
+            for(let r=0;r<rows&&written<byteLength;r++){
+              const srcStart=r*pitch+(r===0?col:0),n=Math.min(rowBytes-(r===0?col:0),byteLength-written);
+              out.set(bytes.subarray(srcStart,srcStart+n),written);written+=n;
+            }
+            read.unmap();
+          }else{
+            const n=Math.min(read.size,rem),aligned=Math.min(resource.size-pos,Math.ceil(n/4)*4);
+            e.copyBufferToBuffer(resource,pos,read,0,aligned);d.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);
+            out.set(new Uint8Array(read.getMappedRange(),0,n),written);read.unmap();written+=n;
+          }
+        }
+        return out;
+      }finally{if(owned)releaseGPU(read);}
+    }
+    const hashWorkerSource=`
+      const T={bytes:0,uint32:3,ids:4,float32:5,float64:6,text:7,value:8},ZIP=256,PREDICT=512,WIDTH={0:1,3:4,4:16,5:4,6:8,7:1,8:1};
+      const LE=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
+      function isPrecompressed(raw){return raw.length>=12&&(raw[0]===0x89&&raw[1]===0x50&&raw[2]===0x4e&&raw[3]===0x47&&raw[4]===0x0d&&raw[5]===0x0a&&raw[6]===0x1a&&raw[7]===0x0a||raw[0]===0xff&&raw[1]===0xd8&&raw[2]===0xff||raw[0]===0x52&&raw[1]===0x49&&raw[2]===0x46&&raw[3]===0x46&&raw[8]===0x57&&raw[9]===0x45&&raw[10]===0x42&&raw[11]===0x50);}
+      function prepare(raw,type){
+        if(raw.byteLength%4)throw Error('Invalid HASH prediction input');const n=raw.length/4,aligned=LE&&(raw.byteOffset&3)===0,words=aligned?new Uint32Array(raw.buffer,raw.byteOffset,n):null,v=aligned?null:new DataView(raw.buffer,raw.byteOffset,raw.byteLength);
+        if(type===T.float32){
+          const out=new Uint8Array(4+raw.length),o=new DataView(out.buffer);o.setUint32(0,n,true);
+          const o0=4,o1=4+n,o2=4+n*2,o3=4+n*3;let p0=0,p1=0,p2=0,i=0;
+          if(words){const limit=n-2;for(;i<limit;i+=3){const w0=words[i],d0=(w0^p0)>>>0;p0=w0;out[o0+i]=d0&255;out[o1+i]=(d0>>>8)&255;out[o2+i]=(d0>>>16)&255;out[o3+i]=d0>>>24;const w1=words[i+1],d1=(w1^p1)>>>0;p1=w1;out[o0+i+1]=d1&255;out[o1+i+1]=(d1>>>8)&255;out[o2+i+1]=(d1>>>16)&255;out[o3+i+1]=d1>>>24;const w2=words[i+2],d2=(w2^p2)>>>0;p2=w2;out[o0+i+2]=d2&255;out[o1+i+2]=(d2>>>8)&255;out[o2+i+2]=(d2>>>16)&255;out[o3+i+2]=d2>>>24;}const prev=[p0,p1,p2];for(;i<n;i++){const a=i%3,w=words[i],d=(w^prev[a])>>>0;prev[a]=w;out[o0+i]=d&255;out[o1+i]=(d>>>8)&255;out[o2+i]=(d>>>16)&255;out[o3+i]=d>>>24;}}
+          else{const prev=[0,0,0];for(;i<n;i++){const a=i%3,w=v.getUint32(i*4,true),d=(w^prev[a])>>>0;prev[a]=w;out[o0+i]=d&255;out[o1+i]=(d>>>8)&255;out[o2+i]=(d>>>16)&255;out[o3+i]=d>>>24;}}
+          return out;
+        }
+        if(type!==T.uint32)throw Error('Unsupported HASH prediction type');
+        const out=new Uint8Array(4+n*5),o=new DataView(out.buffer);o.setUint32(0,n,true);let at=4,lastAnchor=0,anchor=0,phase=0;
+        for(let i=0;i<n;i++){const word=words?words[i]:v.getUint32(i*4,true),predictor=phase?anchor:lastAnchor,d=(word-predictor)|0;let z=((d<<1)^(d>>31))>>>0;while(z>=128){out[at++]=(z&127)|128;z>>>=7;}out[at++]=z;if(phase===0){anchor=lastAnchor=word;phase=1;}else if(phase===1)phase=2;else phase=0;}return out.subarray(0,at);
+      }
+      function restore(raw,type,opts){
+        if(raw.length<4)throw Error('Truncated HASH prediction');const len=raw.length,n=new DataView(raw.buffer,raw.byteOffset,4).getUint32(0,true);
+        if(type===T.float32){
+          if(len!==4+n*4)throw Error('Invalid HASH Float32 prediction length');
+          const out=new Uint8Array(n*4),words=LE?new Uint32Array(out.buffer):null,v=words?null:new DataView(out.buffer);
+          const o0=4,o1=4+n,o2=4+n*2,o3=4+n*3,cf=!!opts.checkFinite;let p0=0,p1=0,p2=0,i=0,bad=0;
+          if(words){const limit=n-2;for(;i<limit;i+=3){p0=(p0^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;p1=(p1^(raw[o0+i+1]|(raw[o1+i+1]<<8)|(raw[o2+i+1]<<16)|(raw[o3+i+1]<<24)))>>>0;p2=(p2^(raw[o0+i+2]|(raw[o1+i+2]<<8)|(raw[o2+i+2]<<16)|(raw[o3+i+2]<<24)))>>>0;words[i]=p0;words[i+1]=p1;words[i+2]=p2;if(cf&&(((p0&0x7f800000)===0x7f800000)|((p1&0x7f800000)===0x7f800000)|((p2&0x7f800000)===0x7f800000)))bad=1;}const prev=[p0,p1,p2];for(;i<n;i++){const a=i%3,w=(prev[a]^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;prev[a]=w;words[i]=w;if(cf&&(w&0x7f800000)===0x7f800000)bad=1;}}
+          else{const prev=[0,0,0];for(;i<n;i++){const a=i%3,w=(prev[a]^(raw[o0+i]|(raw[o1+i]<<8)|(raw[o2+i]<<16)|(raw[o3+i]<<24)))>>>0;prev[a]=w;v.setUint32(i*4,w,true);if(cf&&(w&0x7f800000)===0x7f800000)bad=1;}}
+          if(bad)throw Error(opts.badMessage||'Invalid HASH geometry');return out;
+        }
+        if(type!==T.uint32)throw Error('Unsupported HASH prediction type');
+        if(n>len-4)throw Error('Truncated HASH integer prediction');
+        const out=new Uint8Array(n*4),words=LE?new Uint32Array(out.buffer):null,v=words?null:new DataView(out.buffer);
+        const tm=!!opts.trackMax,hc=opts.maxExclusive!==undefined,cap=opts.maxExclusive??0;let at=4,lastAnchor=0,anchor=0,phase=0,max=0,bad=0;
+        for(let i=0;i<n;i++){
+          if(at>=len)throw Error('Truncated HASH integer prediction');let b=raw[at++],z=b;
+          if(b>=128){if(at>=len)throw Error('Truncated HASH integer prediction');const b1=raw[at++];if(b1<128){if(b1===0)throw Error('Noncanonical HASH integer prediction');z=(b&127)|(b1<<7);}else{z=(b&127)|((b1&127)<<7);let done=false;for(let k=2;k<5;k++){if(at>=len)throw Error('Truncated HASH integer prediction');const bk=raw[at++];if(k===4&&(bk&240))throw Error('HASH integer prediction overflow');z=(z|((bk&127)<<(k*7)))>>>0;if(bk<128){if(bk===0)throw Error('Noncanonical HASH integer prediction');done=true;break;}}if(!done)throw Error('Invalid HASH integer prediction');}}
+          const word=((phase?anchor:lastAnchor)+((z>>>1)^-(z&1)))>>>0;if(words)words[i]=word;else v.setUint32(i*4,word,true);
+          if(tm&&word>max)max=word;if(hc&&word>=cap)bad=1;
+          if(phase===0){anchor=lastAnchor=word;phase=1;}else if(phase===1)phase=2;else phase=0;
+        }
+        if(at!==len)throw Error('Trailing HASH integer prediction');if(bad)throw Error(opts.badMessage||'Invalid HASH geometry');
+        if(tm)opts.max=n?max:-1;return out;
+      }
+      onmessage=async({data:m})=>{
+        try{
+          if(m.op==='decode'){
+            let raw=m.flags&ZIP?new Uint8Array(await new Response(m.blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()):new Uint8Array(await m.blob.arrayBuffer());
+            const opts={checkFinite:m.checkFinite,trackMax:m.trackMax,maxExclusive:m.maxExclusive,badMessage:m.badMessage};
+            let out;
+            if(m.flags&PREDICT)out=restore(raw,m.type,opts);
+            else{
+              out=raw;const w=WIDTH[m.type];if(out.byteLength%w)throw Error('Invalid HASH typed length');
+              if(opts.checkFinite||opts.trackMax||opts.maxExclusive!==undefined){
+                if(out.byteOffset&3)out=out.slice();const words=new Uint32Array(out.buffer,out.byteOffset,out.byteLength>>>2);
+                if(opts.checkFinite){for(let i=0;i<words.length;i++)if((words[i]&0x7f800000)===0x7f800000)throw Error(opts.badMessage||'Invalid HASH geometry');}
+                if(opts.trackMax||opts.maxExclusive!==undefined){let max=0;const cap=opts.maxExclusive;for(let i=0;i<words.length;i++){const v=words[i];if(opts.trackMax&&v>max)max=v;if(cap!==undefined&&v>=cap)throw Error(opts.badMessage||'Invalid HASH geometry');}if(opts.trackMax)opts.max=words.length?max:-1;}
+              }
+            }
+            if(m.expectedRaw!==undefined&&out.byteLength!==m.expectedRaw)throw Error('Invalid HASH chunk length');
+            if(out.byteOffset!==0||out.byteLength!==out.buffer.byteLength)out=out.slice();
+            postMessage({id:m.id,buffer:out.buffer,max:opts.max},[out.buffer]);
+          }else if(m.op==='encode'){
+            const raw=new Uint8Array(m.buffer);let best=raw,flags=0;
+            if(typeof CompressionStream==='function'&&raw.byteLength>=128&&!(m.type===T.bytes&&isPrecompressed(raw))){
+              const gzip=async src=>new Uint8Array(await new Response(new Blob([src]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+              let c=await gzip(raw);if(c.byteLength<best.byteLength){best=c;flags=ZIP;}
+              if(m.type===T.float32||m.type===T.uint32){c=await gzip(prepare(raw,m.type));if(c.byteLength<best.byteLength){best=c;flags=ZIP|PREDICT;}}
+            }
+            if(best.byteOffset!==0||best.byteLength!==best.buffer.byteLength)best=best.slice();
+            postMessage({id:m.id,buffer:best.buffer,flags},[best.buffer]);
+          }
+        }catch(error){postMessage({id:m.id,error:error?.message||String(error)});}
+      };
+    `;
+    let hashWorkerURL=null;
+    function createHashWorkerPool(count){
+      if(typeof Worker!=='function'||count<=0){
+        return {
+          size:1,
+          async run(msg){
+            if(msg.op==='decode'){
+              let raw=msg.flags&FrameHash.ZIP?new Uint8Array(await new Response(msg.blob.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer()):new Uint8Array(await msg.blob.arrayBuffer());
+              const opts={checkFinite:msg.checkFinite,trackMax:msg.trackMax,maxExclusive:msg.maxExclusive};
+              let out;
+              if(msg.flags&FrameHash.PREDICT){
+                try{out=FrameHash.restore(raw,msg.type,opts);}
+                catch(e){if(msg.badMessage&&e.message==='Invalid HASH geometry')throw Error(msg.badMessage);throw e;}
+              }else{
+                out=raw;const w={0:1,3:4,4:16,5:4,6:8,7:1,8:1}[msg.type];if(out.byteLength%w)throw Error('Invalid HASH typed length');
+                if(opts.checkFinite||opts.trackMax||opts.maxExclusive!==undefined){
+                  if(out.byteOffset&3)out=out.slice();const words=new Uint32Array(out.buffer,out.byteOffset,out.byteLength>>>2);
+                  if(opts.checkFinite)for(let i=0;i<words.length;i++)if((words[i]&0x7f800000)===0x7f800000)throw Error(msg.badMessage||'Invalid HASH geometry');
+                  if(opts.trackMax||opts.maxExclusive!==undefined){let max=0;const cap=opts.maxExclusive;for(let i=0;i<words.length;i++){const v=words[i];if(opts.trackMax&&v>max)max=v;if(cap!==undefined&&v>=cap)throw Error(msg.badMessage||'Invalid HASH geometry');}if(opts.trackMax)opts.max=words.length?max:-1;}
+                }
+              }
+              if(msg.expectedRaw!==undefined&&out.byteLength!==msg.expectedRaw)throw Error('Invalid HASH chunk length');
+              if(out.byteOffset!==0||out.byteLength!==out.buffer.byteLength)out=out.slice();
+              return {buffer:out.buffer,max:opts.max};
+            }
+            const res=await FrameHash.encodeBlock(new Uint8Array(msg.buffer),msg.type);
+            const buf=res.bytes instanceof Blob?await res.bytes.arrayBuffer():(res.bytes.byteOffset===0&&res.bytes.byteLength===res.bytes.buffer.byteLength?res.bytes.buffer:res.bytes.slice().buffer);
+            return {buffer:buf,flags:res.flags};
+          },
+          terminate(){}
+        };
+      }
+      hashWorkerURL??=URL.createObjectURL(new Blob([hashWorkerSource],{type:'text/javascript'}));
+      let nextId=1,closed=false;
+      const idle=[],queue=[],workers=[],pending=new Map();
+      function failAll(err){
+        if(closed)return;closed=true;
+        for(const p of pending.values())p.reject(err);pending.clear();
+        for(const item of queue)item.reject(err);queue.length=0;
+        for(const w of workers)w.terminate();workers.length=0;idle.length=0;
+      }
+      function dispatch(worker){
+        if(closed||!queue.length){if(!closed)idle.push(worker);return;}
+        const item=queue.shift();pending.set(item.id,{resolve:item.resolve,reject:item.reject,worker});
+        try{worker.postMessage({...item.msg,id:item.id},item.transfer||[]);}
+        catch(e){pending.delete(item.id);item.reject(e);dispatch(worker);}
+      }
+      for(let i=0;i<count;i++){
+        const w=new Worker(hashWorkerURL,{name:'Frame HASH codec'});
+        w.onmessage=({data:d})=>{
+          const p=pending.get(d.id);if(!p)return;pending.delete(d.id);
+          if(d.error)p.reject(Error(d.error));else p.resolve(d);
+          dispatch(w);
+        };
+        w.onerror=e=>failAll(Error(e.message||'HASH worker failed'));
+        workers.push(w);idle.push(w);
+      }
+      return {
+        size:count,
+        run(msg,transfer){
+          if(closed)return Promise.reject(Error('HASH worker pool closed'));
+          return new Promise((resolve,reject)=>{
+            const id=nextId++;
+            if(idle.length){const w=idle.pop();pending.set(id,{resolve,reject,worker:w});try{w.postMessage({...msg,id},transfer||[]);}catch(e){pending.delete(id);reject(e);dispatch(w);}}
+            else queue.push({id,msg,transfer,resolve,reject});
+          });
+        },
+        terminate(){failAll(Error('HASH worker pool terminated'));}
+      };
+    }
+    async function packStreamedGPURecord(gpu,resource,byteLength,recordId,recordType,pool,staging,checkValid){
+      const chunkBytes=FrameHash.CHUNK_BYTES,blockCount=Math.ceil(byteLength/chunkBytes),blocks=new Array(blockCount),inFlight=new Set(),maxInFlight=Math.max(2,pool.size*2);
+      let failed=null;
+      for(let b=0;b<blockCount;b++){
+        if(failed)throw failed;
+        checkValid();
+        while(inFlight.size>=maxInFlight){await Promise.race(inFlight);if(failed)throw failed;}
+        const offset=b*chunkBytes,len=Math.min(chunkBytes,byteLength-offset);
+        const slice=await nativeReadGPUSlice(gpu,resource,offset,len,staging);
+        checkValid();
+        const task=pool.run({op:'encode',buffer:slice.buffer,type:recordType},[slice.buffer]).then(res=>{
+          blocks[b]={bytes:new Blob([res.buffer]),storedBytes:res.buffer.byteLength,flags:res.flags};
+        },err=>{failed??=err;});
+        inFlight.add(task);task.finally(()=>inFlight.delete(task));
+      }
+      await Promise.all(inFlight);
+      if(failed)throw failed;
+      return FrameHash.buildChunkedRecord(recordId,recordType,byteLength,chunkBytes,blocks);
+    }
+    async function loadHashMeshes(file,gpu,plan,newMeshes,progress,cooperate){
+      const meshObjects=plan.objects.filter(o=>o.p);if(!meshObjects.length)return;
+      const device=gpu.device,facesByOwner=new Map();
+      for(const s of plan.appearance.faces){let list=facesByOwner.get(s.owner);if(!list){list=[];facesByOwner.set(s.owner,list);}list.push(s);}
+      const totalCompressed=meshObjects.reduce((sum,o)=>sum+o.p.length+o.ix.length+(o.uv?o.uv.record.length:0),0);
+      const useWorkers=typeof Worker==='function'&&(totalCompressed>=256*1024||meshObjects.length>=4);
+      const workerCount=useWorkers?Math.max(2,Math.min(8,(navigator.hardwareConcurrency||4)-1)):0;
+      const pool=createHashWorkerPool(workerCount);
+      let pagedUploader=null,scopes=0,inFlight=null;
+      const orphanGPU=new Set(),prefetched=new Map();
+      const pushScopes=()=>{device.pushErrorScope('out-of-memory');device.pushErrorScope('validation');scopes=2;};
+      const checkScopes=async()=>{if(!scopes)return;scopes=0;const [validation,memory]=await Promise.all([device.popErrorScope(),device.popErrorScope()]);if(validation||memory)throw Error((validation||memory).message);};
+      const recordStreamable=rec=>!(rec.encoding&FrameHash.ZIP);
+      const isPureLegacy=o=>!(o.p.encoding&FrameHash.CHUNKED)&&!(o.ix.encoding&FrameHash.CHUNKED)&&(!o.uv||!(o.uv.record.encoding&FrameHash.CHUNKED))&&((o.p.encoding&FrameHash.ZIP)||(o.ix.encoding&FrameHash.ZIP)||(o.uv&&(o.uv.record.encoding&FrameHash.ZIP)));
+      const decodeLegacy=o=>{
+        const pJob=pool.run({op:'decode',blob:file.slice(o.p.offset,o.p.offset+o.p.length),type:FrameHash.T.float32,flags:o.p.encoding,checkFinite:true});
+        const ixJob=pool.run({op:'decode',blob:file.slice(o.ix.offset,o.ix.offset+o.ix.length),type:FrameHash.T.uint32,flags:o.ix.encoding,trackMax:true});
+        const uvJob=o.uv?pool.run({op:'decode',blob:file.slice(o.uv.record.offset,o.uv.record.offset+o.uv.record.length),type:FrameHash.T.float32,flags:o.uv.record.encoding,checkFinite:true,badMessage:'Invalid imported UV coordinates'}):Promise.resolve(null);
+        const promise=Promise.all([pJob,ixJob,uvJob]);promise.catch(()=>{});
+        return {promise,bytes:o.p.length+o.ix.length+(o.uv?o.uv.record.length:0)};
+      };
+      let nextPrefetch=0,prefetchBytes=0;
+      const maxAhead=Math.min(8,Math.max(2,pool.size)),maxPrefetchBytes=96*1024*1024;
+      const fillPrefetch=from=>{
+        if(nextPrefetch<from)nextPrefetch=from;
+        while(nextPrefetch<meshObjects.length&&prefetched.size<maxAhead&&prefetchBytes<maxPrefetchBytes){
+          const candidate=meshObjects[nextPrefetch];
+          if(!isPureLegacy(candidate))break;
+          const entry=decodeLegacy(candidate);prefetched.set(nextPrefetch,entry);prefetchBytes+=entry.bytes;nextPrefetch++;
+        }
+      };
+      const finishInFlight=async()=>{
+        if(!inFlight)return;
+        const current=inFlight;inFlight=null;
+        const mesh=await current.promise;
+        mesh.hashId=current.o.hash;
+        if(current.uvRes){orphanGPU.delete(current.uvRes);mesh.uvSource={kind:'imported-uv',gpu:true,resource:current.uvRes,count:current.uvCount};}
+        newMeshes.push(mesh);current.o.index=current.index;
+        progress('Opening HASH · '+newMeshes.length+' / '+plan.meshes+' meshes');
+      };
+      let streamActive=0,aborted=false;const maxStreamJobs=Math.max(4,pool.size*2),streamSlots=[];
+      const acquireStreamSlot=()=>streamActive<maxStreamJobs?(streamActive++,Promise.resolve()):new Promise(resolve=>streamSlots.push(resolve));
+      const releaseStreamSlot=()=>{if(streamSlots.length)streamSlots.shift()();else streamActive--;};
+      const prepareStreamMesh=async(o,index)=>{
+        const sP=recordStreamable(o.p),sIx=recordStreamable(o.ix),sUv=!o.uv||recordStreamable(o.uv.record);
+        let [pInfo,ixInfo,uvInfo]=await Promise.all([
+          sP?FrameHash.chunkedLayout(file,o.p,plan.input?.range):pool.run({op:'decode',blob:file.slice(o.p.offset,o.p.offset+o.p.length),type:FrameHash.T.float32,flags:o.p.encoding,checkFinite:true}),
+          sIx?FrameHash.chunkedLayout(file,o.ix,plan.input?.range):pool.run({op:'decode',blob:file.slice(o.ix.offset,o.ix.offset+o.ix.length),type:FrameHash.T.uint32,flags:o.ix.encoding,trackMax:true}),
+          !o.uv?null:(sUv?FrameHash.chunkedLayout(file,o.uv.record,plan.input?.range):pool.run({op:'decode',blob:file.slice(o.uv.record.offset,o.uv.record.offset+o.uv.record.length),type:FrameHash.T.float32,flags:o.uv.record.encoding,checkFinite:true,badMessage:'Invalid imported UV coordinates'}))
+        ]);
+        if(aborted)throw Error('HASH load cancelled');
+        const pBytes=sP?pInfo.rawByteLength:pInfo.buffer.byteLength,ixBytes=sIx?ixInfo.rawByteLength:ixInfo.buffer.byteLength;
+        const uvBytes=!o.uv?0:(sUv?uvInfo.rawByteLength:uvInfo.buffer.byteLength);
+        if(!pBytes||pBytes%12||!ixBytes||ixBytes%12)throw Error('Invalid HASH geometry');
+        const vertexCount=pBytes/12,triangleCount=ixBytes/12,cornerCount=triangleCount*3;
+        if(!sIx&&ixInfo.max>=vertexCount)throw Error('Invalid HASH geometry');
+        if(o.uv&&uvBytes!==triangleCount*24)throw Error('Invalid imported UV coordinates');
+        validateOwnerPolygonMasks(facesByOwner.get(o.hash),triangleCount);
+        if(vertexCount>0x55555554||cornerCount>0x3fffffff)throw Error('The mesh exceeds the 32-bit canonical-coordinate limit.');
+        const paged=needsPagedMeshCounts(gpu,vertexCount,cornerCount);
+        if(paged)pagedUploader??=await createPagedUploader(gpu);
+        if(aborted)throw Error('HASH load cancelled');
+        const posRes=paged?makePagedTexture(gpu,'global positions',vertexCount*3):makeGPUBuffer(device,{label:'positions',size:pBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+        orphanGPU.add(posRes);
+        const idxRes=paged?makePagedTexture(gpu,'global triangle indices',cornerCount):makeGPUBuffer(device,{label:'indices',size:ixBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.INDEX|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+        orphanGPU.add(idxRes);
+        let uvRes=null,uvCount=0;
+        if(o.uv){uvCount=triangleCount*6;uvRes=makeGPUBuffer(device,{label:'canonical imported UV corners',size:uvBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});orphanGPU.add(uvRes);}
+        if(!sP){if(paged)pagedUploader.upload(new Uint32Array(pInfo.buffer),posRes,0);else writeBufferChunked(device,posRes,0,new Uint8Array(pInfo.buffer));pInfo=null;}
+        if(!sIx){if(paged)pagedUploader.upload(new Uint32Array(ixInfo.buffer),idxRes,0);else writeBufferChunked(device,idxRes,0,new Uint8Array(ixInfo.buffer));ixInfo=null;}
+        if(o.uv&&!sUv){writeBufferChunked(device,uvRes,0,new Uint8Array(uvInfo.buffer));uvInfo=null;}
+        const tasks=[];
+        if(sP)for(const b of pInfo.blocks)tasks.push({blob:file.slice(b.offset,b.offset+b.length),type:FrameHash.T.float32,flags:b.flags,expectedRaw:b.rawLength,checkFinite:true,target:posRes,paged,rawOffset:b.rawOffset});
+        if(sIx)for(const b of ixInfo.blocks)tasks.push({blob:file.slice(b.offset,b.offset+b.length),type:FrameHash.T.uint32,flags:b.flags,expectedRaw:b.rawLength,maxExclusive:vertexCount,target:idxRes,paged,rawOffset:b.rawOffset});
+        if(o.uv&&sUv)for(const b of uvInfo.blocks)tasks.push({blob:file.slice(b.offset,b.offset+b.length),type:FrameHash.T.float32,flags:b.flags,expectedRaw:b.rawLength,checkFinite:true,badMessage:'Invalid imported UV coordinates',target:uvRes,paged:false,rawOffset:b.rawOffset});
+        const jobs=[];let streamErr=null;
+        for(const task of tasks){
+          if(aborted||streamErr)throw streamErr||Error('HASH load cancelled');
+          await acquireStreamSlot();
+          if(aborted||streamErr){releaseStreamSlot();throw streamErr||Error('HASH load cancelled');}
+          const job=pool.run({op:'decode',blob:task.blob,type:task.type,flags:task.flags,expectedRaw:task.expectedRaw,checkFinite:task.checkFinite,maxExclusive:task.maxExclusive,badMessage:task.badMessage}).then(res=>{
+            if(aborted||streamErr)return;
+            if(task.paged)pagedUploader.upload(new Uint32Array(res.buffer),task.target,task.rawOffset>>>2);
+            else writeBufferChunked(device,task.target,task.rawOffset,new Uint8Array(res.buffer));
+          },err=>{streamErr??=err;}).finally(releaseStreamSlot);
+          jobs.push(job);
+        }
+        await Promise.all(jobs);
+        if(aborted||streamErr)throw streamErr||Error('HASH load cancelled');
+        return {posRes,idxRes,uvRes,uvCount,vertexCount,triangleCount};
+      };
+      const streamAhead=new Map();
+      const enqueueStreamAhead=i=>{
+        if(i>=meshObjects.length||streamAhead.has(i))return;
+        const cand=meshObjects[i];
+        if(isPureLegacy(cand)||cand.p.length+cand.ix.length>64*1024*1024)return;
+        const p=prepareStreamMesh(cand,i);p.catch(()=>{});streamAhead.set(i,p);
+      };
+      pushScopes();
+      try{
+        fillPrefetch(0);
+        for(let i=0;i<meshObjects.length;i++){
+          const o=meshObjects[i];
+          let posRes=null,idxRes=null,uvRes=null,vertexCount=0,triangleCount=0,uvCount=0;
+          if(!isPureLegacy(o)){
+            let p=streamAhead.get(i);if(p)streamAhead.delete(i);else p=prepareStreamMesh(o,i);
+            if(o.p.length+o.ix.length<=64*1024*1024)enqueueStreamAhead(i+1);
+            ({posRes,idxRes,uvRes,uvCount,vertexCount,triangleCount}=await p);
+          }else{
+            let entry=prefetched.get(i);
+            if(entry){prefetched.delete(i);prefetchBytes-=entry.bytes;}
+            else entry=decodeLegacy(o);
+            fillPrefetch(i+1);
+            let [pRes,ixRes,uvDecoded]=await entry.promise;
+            const pBytes=pRes.buffer.byteLength,ixBytes=ixRes.buffer.byteLength;
+            if(!pBytes||pBytes%12||!ixBytes||ixBytes%12)throw Error('Invalid HASH geometry');
+            vertexCount=pBytes/12;triangleCount=ixBytes/12;const cornerCount=triangleCount*3;
+            if(ixRes.max>=vertexCount)throw Error('Invalid HASH geometry');
+            if(uvDecoded&&uvDecoded.buffer.byteLength!==triangleCount*24)throw Error('Invalid imported UV coordinates');
+            validateOwnerPolygonMasks(facesByOwner.get(o.hash),triangleCount);
+            if(vertexCount>0x55555554||cornerCount>0x3fffffff)throw Error('The mesh exceeds the 32-bit canonical-coordinate limit.');
+            const paged=needsPagedMeshCounts(gpu,vertexCount,cornerCount);
+            if(paged)pagedUploader??=await createPagedUploader(gpu);
+            posRes=paged?makePagedTexture(gpu,'global positions',vertexCount*3):makeGPUBuffer(device,{label:'positions',size:pBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+            orphanGPU.add(posRes);
+            idxRes=paged?makePagedTexture(gpu,'global triangle indices',cornerCount):makeGPUBuffer(device,{label:'indices',size:ixBytes,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.INDEX|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+            orphanGPU.add(idxRes);
+            if(paged){
+              pagedUploader.upload(new Uint32Array(pRes.buffer),posRes,0);pRes=null;
+              pagedUploader.upload(new Uint32Array(ixRes.buffer),idxRes,0);ixRes=null;
+            }else{
+              writeBufferChunked(device,posRes,0,new Uint8Array(pRes.buffer));pRes=null;
+              writeBufferChunked(device,idxRes,0,new Uint8Array(ixRes.buffer));ixRes=null;
+            }
+            if(uvDecoded){
+              uvCount=triangleCount*6;
+              uvRes=makeGPUBuffer(device,{label:'canonical imported UV corners',size:uvDecoded.buffer.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+              orphanGPU.add(uvRes);
+              writeBufferChunked(device,uvRes,0,new Uint8Array(uvDecoded.buffer));uvDecoded=null;
+            }
+          }
+          // Mesh i is already uploaded to VRAM; wait for mesh i-1 compute before dispatching mesh i.
+          await finishInFlight();
+          if(newMeshes.length&&(newMeshes.length&15)===0){await checkScopes();pushScopes();}
+          orphanGPU.delete(posRes);orphanGPU.delete(idxRes);
+          const input={gpuCanonical:true,nativeExact:true,vertices:posRes,indices:idxRes,vertexCount,triangleCount,...!o.spline?{creaseAngle:o.authoring?.creaseAngle??frameDefaultCreaseAngle}:{}};
+          const computePromise=uploadAndCompute(gpu,input,{batchErrorScope:true});
+          inFlight={promise:computePromise,uvRes,uvCount,o,index:i};
+          fillPrefetch(i+1);
+          const pause=cooperate();if(pause)await pause;
+        }
+        await finishInFlight();
+        await checkScopes();
+      }catch(error){
+        aborted=true;pool.terminate();
+        while(streamSlots.length)streamSlots.shift()();
+        await Promise.allSettled([...streamAhead.values()]);streamAhead.clear();
+        if(inFlight){
+          const current=inFlight;inFlight=null;
+          try{const m=await current.promise;if(m&&!newMeshes.includes(m))disposeMesh(m);}catch{}
+          if(current.uvRes&&orphanGPU.has(current.uvRes)){orphanGPU.delete(current.uvRes);releaseGPU(current.uvRes);}
+        }
+        for(const r of orphanGPU)releaseGPU(r);orphanGPU.clear();
+        throw error;
+      }finally{
+        pagedUploader?.dispose();
+        pool.terminate();
+        while(scopes){await device.popErrorScope().catch(()=>{});scopes--;}
+      }
+    }
     async function saveSTL(writable=null){
       await FrameMorph.flush();await FrameSpline.flush();await selectionQueue;await editSerial;await replicaQueue;
       const space=scene,meshes=nativeSurfaceOccurrences().filter(m=>m.frameVisible!==false&&m.triangleCount),count=meshes.reduce((n,m)=>n+m.triangleCount,0);
@@ -28803,15 +29384,41 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       if(!doc.meshes.length)throw Error('GLB needs a visible surface');doc.buffers.push({byteLength:length});const json=new TextEncoder().encode(JSON.stringify(doc)),jsonLength=Math.ceil(json.length/4)*4,header=new Uint32Array([0x46546c67,2,12+8+jsonLength+8+length]),jsonHeader=new Uint32Array([jsonLength,0x4e4f534a]),padding=new Uint8Array(jsonLength-json.length).fill(32),binHeader=new Uint32Array([length,0x004e4942]);const blob=new Blob([header,jsonHeader,json,padding,binHeader,...parts],{type:'model/gltf-binary'});if(blob.size>0xffffffff)throw Error('GLB exceeds 4 GiB');if(writable){await writable.write(blob);await writable.close();return {bytes:blob.size};}return blob;
     }
     async function saveHash(writable=null){await FramePlugins.flush({author:true});await FrameMorph.flush();await animationSerial;frameSyncEngineVisibility();await window.FrameSpline?.flush();const invalid=nodes.find(n=>n.splineError&&!n.params.file&&!n.fileSource);if(invalid)throw Error(invalid.name+': '+invalid.splineError);
-      await appearanceQueue;frameSyncMaterials();if(!scene)throw Error('There is no mesh scene to save.');const progress=nativeIOStart('Saving HASH…'),started=performance.now(),gpu=renderer,space=scene,parts=[],batchLimit=4*1024*1024,batch=writable?createFrameHashWriteBatch(blob=>writable.write(blob),batchLimit):null;let storedBytes=0,rawBytes=0,lastYield=started;
+      await appearanceQueue;frameSyncMaterials();if(!scene)throw Error('There is no mesh scene to save.');const progress=nativeIOStart('Saving HASH…'),started=performance.now(),gpu=renderer,space=scene,parts=[],batchLimit=4*1024*1024,batch=writable?createFrameHashWriteBatch(blob=>writable.write(blob),batchLimit):null;let storedBytes=0,rawBytes=0,lastYield=started,savePool=null,saveStaging=null;
       try{
         await selectionQueue;await editSerial;if(lazyTask)await lazyTask;checkSession(gpu);
         for(const mesh of scene.meshes)ensureImportedUV(mesh);nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());if(displayUnitIndex!==2||rescaleUnitIndex!==2)nativePut(scene.records,FrameHash.K.units,null,FrameHash.T.bytes,new Uint8Array([displayUnitIndex,rescaleUnitIndex]));else scene.records.delete(FrameHash.K.units);const stock=nodes.filter(n=>!n.fileSource&&['car','tree','human'].includes(n.type)),excluded=new Set(stock.flatMap(n=>[...['positions','indices'].map(f=>FrameHash.address(n.nativeHash,f)),...n.tags.filter(t=>t.librarySlot).flatMap(t=>['material','faces','uv'].map(f=>FrameHash.address(t.uid,f)))])),stockTypes=new Set(stock.map(n=>FrameHash.address(n.nativeHash,'type'))),stockTags=new Map(stock.map(n=>[FrameHash.address(n.nativeHash,'tags'),new Set(n.tags.filter(t=>t.librarySlot).map(t=>t.uid))]));
-        const records=(window.frameFiles?.serialization(scene.records,writable?.projectPaths)||[...scene.records.values()]).filter(r=>!stockTypes.has(r.id)&&!excluded.has(r.id)&&(!scene.appearanceIds?.has(r.id)||scene.appearanceActive?.has(r.id))&&!(r.value?.gpu&&r.value.mesh?.splineGenerated&&['positions','indices'].includes(r.value.field))).flatMap(r=>{const slots=stockTags.get(r.id);if(slots){const value=r.value.filter(id=>!slots.has(id));return value.length?[{...r,value}]:[];}return [r];});records.push(...stock.map(n=>nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0]))));let done=0;
+        const rawRecords=(window.frameFiles?.serialization(scene.records,writable?.projectPaths)||[...scene.records.values()]).filter(r=>!stockTypes.has(r.id)&&!excluded.has(r.id)&&(!scene.appearanceIds?.has(r.id)||scene.appearanceActive?.has(r.id))&&!(r.value?.gpu&&r.value.mesh?.splineGenerated&&['positions','indices'].includes(r.value.field))).flatMap(r=>{const slots=stockTags.get(r.id);if(slots){const value=r.value.filter(id=>!slots.has(id));return value.length?[{...r,value}]:[];}return [r];});rawRecords.push(...stock.map(n=>nativeRecord(FrameHash.address(n.nativeHash,'type'),FrameHash.T.bytes,new Uint8Array([0]))));
+        // Keep metadata contiguous at the start, then embedded images, then bulk GPU geometry grouped by owner.
+        const assetIds=scene.records.get(FrameHash.K.assets)?.value||[],imageIds=assetIds.length?new Set(assetIds.map(uid=>FrameHash.address(uid,'image'))):null;
+        const metaRecords=[],imageRecords=[],geoRecords=[];
+        for(const r of rawRecords){
+          if(r.value?.gpu&&(r.value.field==='positions'||r.value.field==='indices'||r.value.kind==='imported-uv')&&(r.value.count||0)*4>=4096)geoRecords.push(r);
+          else if(imageIds?.has(r.id)&&r.value?.byteLength>=4096)imageRecords.push(r);
+          else metaRecords.push(r);
+        }
+        if(geoRecords.length>1){
+          const ownerOrder=new Map((scene.records.get(FrameHash.K.all)?.value||[]).map((h,i)=>[h,i])),uvOwner=new Map(scene.meshes.filter(m=>m.uvSource).map(m=>[m.uvSource,m.hashId]));
+          const geoRank=r=>{const owner=r.value.mesh?.hashId||uvOwner.get(r.value),oi=ownerOrder.has(owner)?ownerOrder.get(owner):ownerOrder.size,fi=r.value.field==='positions'?0:r.value.field==='indices'?1:2;return oi*3+fi;};
+          geoRecords.sort((a,b)=>geoRank(a)-geoRank(b));
+        }
+        const records=imageRecords.length||geoRecords.length?[...metaRecords,...imageRecords,...geoRecords]:rawRecords;
+        let done=0;
         for(const record of records){
-          if(scene!==space)throw Error('Scene changed during HASH Save.');let value=record.value;
-          if(value?.gpu){const reference=value.field==='positions'&&morphStates.get(value.mesh?.hashId)?.base;const raw=await nativeReadGPU(gpu,reference||value.resource,value.count);value=record.type===FrameHash.T.float32?new Float32Array(raw.buffer):record.type===FrameHash.T.bytes?raw.subarray(0,value.byteLength):new Uint32Array(raw.buffer);}
-          const input={...record,value};let packed=writable?FrameHash.packForWrite(input):FrameHash.pack(input);if(!packed.head)packed=await packed;
+          if(scene!==space)throw Error('Scene changed during HASH Save.');let value=record.value,packed;
+          if(value?.gpu){
+            const reference=value.field==='positions'&&morphStates.get(value.mesh?.hashId)?.base,res=reference||value.resource;
+            const byteLength=record.type===FrameHash.T.bytes?value.byteLength:value.count*4;
+            if(byteLength>FrameHash.CHUNK_BYTES&&[FrameHash.T.float32,FrameHash.T.uint32,FrameHash.T.bytes].includes(record.type)){
+              savePool??=createHashWorkerPool(typeof Worker==='function'?Math.max(2,Math.min(8,(navigator.hardwareConcurrency||4)-1)):0);
+              saveStaging??=makeGPUBuffer(gpu.device,{label:'streamed HASH save readback',size:4*1024*1024,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
+              packed=await packStreamedGPURecord(gpu,res,byteLength,record.id,record.type,savePool,saveStaging,()=>{if(scene!==space)throw Error('Scene changed during HASH Save.');});
+            }else{
+              const raw=await nativeReadGPU(gpu,res,value.count);
+              value=record.type===FrameHash.T.float32?new Float32Array(raw.buffer):record.type===FrameHash.T.bytes?raw.subarray(0,value.byteLength):new Uint32Array(raw.buffer);
+            }
+          }
+          if(!packed){const input={...record,value};packed=writable?FrameHash.packForWrite(input):FrameHash.pack(input);if(!packed.head)packed=await packed;}
           if(writable?.indexRecord){const indexed=writable.indexRecord(record,packed,value);if(indexed)await indexed;}
           const size=26+packed.storedBytes;rawBytes+=packed.rawBytes;storedBytes+=size;
           if(batch){if(batch.size&&batch.size+size>batchLimit)await batch.flush();if(size>batchLimit)await writable.write(packed.blob);else batch.append(packed);}else parts.push(packed.blob);
@@ -28820,7 +29427,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         }
         if(batch){if(batch.size)await batch.flush();await writable.close();}canvas.dataset.hashSave=JSON.stringify({objects:space.meshes.length,records:records.length,rawBytes,storedBytes,elapsedMs:performance.now()-started});
         return writable?null:new Blob(parts,{type:'application/x-frame-hash'});
-      }catch(error){if(writable)await writable.abort().catch(()=>{});throw error;}finally{nativeIOEnd();}
+      }catch(error){if(writable)await writable.abort().catch(()=>{});throw error;}finally{if(saveStaging)releaseGPU(saveStaging);savePool?.terminate();nativeIOEnd();}
     }
     function nativePlanningYield(){
       let slice=performance.now();
@@ -28875,9 +29482,12 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       return {objects,records,camera,meshes,savedUnits,appearance,importReport,input};
     }
     async function nativeDecodeMesh(file,o){
-      const p=await FrameHash.read(file,o.p),ix=await FrameHash.read(file,o.ix);
-      if(!p.length||p.length%3||!ix.length||ix.length%3||p.some(v=>!Number.isFinite(v))||ix.some(i=>i>=p.length/3))throw Error('Invalid HASH geometry');
-      return {vertices:p,indices:ix,uv:o.uv?await FrameHash.read(file,o.uv.record):null,vertexCount:p.length/3,triangleCount:ix.length/3,nativeExact:true,...!o.spline?{creaseAngle:o.authoring?.creaseAngle??frameDefaultCreaseAngle}:{}};
+      const [p,ix,uv]=await Promise.all([FrameHash.read(file,o.p),FrameHash.read(file,o.ix),o.uv?FrameHash.read(file,o.uv.record):null]);
+      if(!p.length||p.length%3||!ix.length||ix.length%3)throw Error('Invalid HASH geometry');
+      const vc=p.length/3,pw=new Uint32Array(p.buffer,p.byteOffset,p.length);
+      for(let i=0;i<pw.length;i++)if((pw[i]&0x7f800000)===0x7f800000)throw Error('Invalid HASH geometry');
+      for(let i=0;i<ix.length;i++)if(ix[i]>=vc)throw Error('Invalid HASH geometry');
+      return {vertices:p,indices:ix,uv,vertexCount:vc,triangleCount:ix.length/3,nativeExact:true,...!o.spline?{creaseAngle:o.authoring?.creaseAngle??frameDefaultCreaseAngle}:{}};
     }
     function captureMergeAppearance(space){
       const ids=new Set([...(space.appearanceIds||[]),FrameHash.K.materials,FrameHash.K.assets]);return {ids:new Set(space.appearanceIds||[]),active:space.appearanceActive&&new Set(space.appearanceActive),records:new Map([...ids].filter(id=>space.records.has(id)).map(id=>[id,space.records.get(id)])),polygons:new Map(polygonResources),uvs:new Map(uvResources),activeMaterial,selectedMaterials:new Set(selectedMaterials)};
@@ -28958,15 +29568,24 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       return images;
     }
     async function loadHash(file,name=file.name||'scene.hash'){
-      const progress=nativeIOStart('Checking HASH…'),started=performance.now(),stages={};let gpu,preparedImages,newMeshes=[],published=false;
+      const progress=nativeIOStart('Opening HASH…'),started=performance.now(),stages={};let gpu,preparedImages,newMeshes=[],published=false,disposedOld=false;
       try{
-        const plan=await nativeDecodePlan(file),cooperate=nativePlanningYield();stages.decodeMs=performance.now()-started;if(plan.records.has(FrameHash.K.assets)){preparedImages=stageHashMaterialImages(plan,renderer);if(!scene?.meshes.length)preparedImages?.start?.();}let i=0;
-        // Preflight all payloads before releasing the current GPU scene. Memory is one mesh.
-        for(const o of plan.objects)if(o.p){const input=await nativeDecodeMesh(file,o);validatePolygonSets(plan,o,input);progress('Checking HASH · '+(++i)+' / '+plan.meshes+' meshes');const pause=cooperate();if(pause)await pause;}
-        await selectionQueue;await editSerial;await clearEdits();gpu=await getRenderer();checkSession(gpu);
-        if(plan.objects.length>=256)warmAssemblyViews(gpu);
-        if(scene){disposeScene(scene);scene=null;}clearFeatureDraws(gpu);clearPickGroups(gpu);sceneFrameDirty=true;canvas.dataset.ready='loading';preparedImages?.start?.();
-        i=0;for(const o of plan.objects)if(o.p){const input=await nativeDecodeMesh(file,o),mesh=await uploadAndCompute(gpu,input);mesh.hashId=o.hash;if(input.uv)uploadImportedUV(gpu,mesh,input.uv);newMeshes.push(mesh);o.index=i++;progress('Opening HASH · '+i+' / '+plan.meshes+' meshes');const pause=cooperate();if(pause)await pause;}
+        const plan=await nativeDecodePlan(file),cooperate=nativePlanningYield();stages.decodeMs=performance.now()-started;if(plan.records.has(FrameHash.K.assets)){preparedImages=stageHashMaterialImages(plan,renderer);if(!scene?.meshes.length)preparedImages?.start?.();}
+        if(plan.meshes){
+          await selectionQueue;await editSerial;gpu=await getRenderer();checkSession(gpu);
+          let oldMeshBytes=0;if(scene?.meshes?.length){for(const m of scene.meshes)for(const b of m.buffers)oldMeshBytes+=gpuAllocations.get(b)||0;}
+          let estNewBytes=0;for(const o of plan.objects)if(o.p)estNewBytes+=(o.p.length+o.ix.length+(o.uv?o.uv.record.length:0))*12;
+          if(oldMeshBytes>0&&oldMeshBytes+estNewBytes>1024*1024*1024){
+            await clearEdits();if(plan.objects.length>=256)warmAssemblyViews(gpu);
+            if(scene){disposeScene(scene);scene=null;}clearFeatureDraws(gpu);clearPickGroups(gpu);sceneFrameDirty=true;canvas.dataset.ready='loading';disposedOld=true;preparedImages?.start?.();
+          }
+          await loadHashMeshes(file,gpu,plan,newMeshes,progress,cooperate);
+        }
+        if(!disposedOld){
+          await selectionQueue;await editSerial;await clearEdits();gpu??=await getRenderer();checkSession(gpu);
+          if(plan.objects.length>=256)warmAssemblyViews(gpu);
+          if(scene){disposeScene(scene);scene=null;}clearFeatureDraws(gpu);clearPickGroups(gpu);sceneFrameDirty=true;canvas.dataset.ready='loading';preparedImages?.start?.();
+        }
         let base=0;for(const mesh of newMeshes){mesh.faceBase=base;base+=mesh.triangleCount;if(mesh.connected.range)gpu.device.queue.writeBuffer(mesh.connected.range,0,new Uint32Array([mesh.faceBase,mesh.triangleCount,0,0]));for(const [start,b]of mesh.drawIds||[])gpu.device.queue.writeBuffer(b,0,new Uint32Array([mesh.faceBase+start+1,start,0,0]));meshRenderGroups(gpu,mesh);}
         // Validated plain Null descriptors have no shape, appearance or GPU
         // attachments to reconstruct from the freshly installed record map.
@@ -28981,7 +29600,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const evaluated=performance.now();await window.FrameSpline?.flush();stages.evaluateMs=performance.now()-evaluated;
         const finalizing=performance.now();splineLoadBatch=false;splineLoadFinalizing=true;publishTopology(gpu,[]);syncPoseWorld();frameSyncEngineVisibility();await replicaQueue;await updateSplineVisibility();nativeSceneStats(name);if(scene.materialPrefetch&&shadingMode.startsWith('solid')&&scene.meshes.some(m=>m.frameVisible!==false&&m.materialTags?.length))materialLibraryGPU(gpu);stages.finalizeSyncMs=performance.now()-finalizing;const firstDraw=performance.now();button.disabled=false;await draw();button.disabled=true;await gpu.device.queue.onSubmittedWorkDone();stages.firstDrawMs=performance.now()-firstDraw;
         canvas.dataset.hashLoad=JSON.stringify({objects:scene.meshes.length,triangles:scene.triangleCount,fileBytes:file.size,elapsedMs:performance.now()-started,stages});canvas.dataset.ready='true';status.hidden=true;
-      }catch(error){if(!published){for(const mesh of newMeshes)disposeMesh(mesh);}fileOperationError(error);throw error;}finally{if(preparedImages?.prefetch&&scene?.materialPrefetch===preparedImages.prefetch)delete scene.materialPrefetch;preparedImages?.prefetch?.release();preparedImages?.release();splineLoadBatch=false;splineLoadFinalizing=false;nativeIOEnd();}
+      }catch(error){if(!published){for(const mesh of newMeshes){if(mesh.uvSource?.resource)releaseGPU(mesh.uvSource.resource);disposeMesh(mesh);}}fileOperationError(error);throw error;}finally{if(preparedImages?.prefetch&&scene?.materialPrefetch===preparedImages.prefetch)delete scene.materialPrefetch;preparedImages?.prefetch?.release();preparedImages?.release();splineLoadBatch=false;splineLoadFinalizing=false;nativeIOEnd();}
     }
 
     async function newFile(){nativeIOStart('Creating scene…');try{stop();renderStop();await timelineWork;await FrameGeometry.endOutline();await FrameSpline.flush();await selectionQueue;await editSerial;await clearEdits();const gpu=await getRenderer();if(scene)disposeScene(scene);clearFeatureDraws(gpu);clearPickGroups(gpu);FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,[]);installNativeRecords([]);metaUndo=[];metaRedo=[];selectionScope='components';objectSelection=[];selectedMesh=null;selectedMeshes=[];selectionBox=componentPivot=coordinateCache=measurementCache=null;selectionSignature='';frameSoloIds=null;resetView();sceneFrameDirty=true;nativeSceneEvent('scene.hash');nativeSceneStats('scene.hash');lastSavedFormat='hash';setTimelineLoop(false);lastImportReport=null;delete canvas.dataset.operationError;delete canvas.dataset.splineError;canvas.dataset.ready='true';status.hidden=true;button.disabled=false;await draw(true);}finally{nativeIOEnd();}}
