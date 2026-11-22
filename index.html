@@ -20573,18 +20573,17 @@ const FrameUnite=(()=>{
       device.queue.writeBuffer(taskReset,0,new Uint32Array([0,1,1,0,0]));
       const bytesPerSlab=4*Math.ceil(capacity/2);
       const packed=buffer('signed field',bytesPerSlab,U.STORAGE|U.COPY_SRC);
-      const read=buffer('field readback',bytesPerSlab,U.COPY_DST|U.MAP_READ);
+      const reads=Array.from({length:nz-1>maxDepth?2:1},()=>buffer('field readback',bytesPerSlab,U.COPY_DST|U.MAP_READ));
       for(const group of groups)for(const chunk of group.chunks)chunk.axes=[0,1,2].map(()=>{
         const uniform=buffer('projection settings',48,U.UNIFORM|U.COPY_DST);
         const binding=device.createBindGroup({layout:pipes.layout,entries:[chunk.buffer,events,state,tasks,packed,uniform].map((b,i)=>({binding:i,resource:{buffer:b}}))});
         return {uniform,binding};
       });
       await request('begin',{dims,origin,pitch});cache.radius=0;
-      const preparedMs=performance.now()-started;
-      for(let first=0;first<nz-1;first+=maxDepth){
-        if(!valid())return null;
+      const preparedMs=performance.now()-started,data=new ArrayBuffer(48),u=new Uint32Array(data);
+      new Float32Array(data).set([...origin,inv],4);
+      function submitSlab(first,read){
         const depth=Math.min(maxDepth,nz-1-first),localZ=depth+extra,n=plane*localZ;
-        progress('Reconstructing volume');
         const encoder=device.createCommandEncoder();
         function launch(name,binding,items,explicit=false){
           const count=explicit?items:Math.ceil(items/64),pass=encoder.beginComputePass();
@@ -20595,9 +20594,9 @@ const FrameUnite=(()=>{
           for(let axis=0;axis<3;axis++){
             encoder.clearBuffer(events,0,n*8);
             for(const chunk of group.chunks){
-              const {uniform,binding}=chunk.axes[axis],data=new ArrayBuffer(48),u=new Uint32Array(data);
-              u.set([nx,ny,localZ,chunk.count]);new Float32Array(data).set([...origin,inv],4);
-              u.set([axis,fp,first+6-halo,group.level],8);device.queue.writeBuffer(uniform,0,data);
+              const {uniform,binding}=chunk.axes[axis];
+              u.set([nx,ny,localZ,chunk.count]);u.set([axis,fp,first+6-halo,group.level],8);
+              device.queue.writeBuffer(uniform,0,data);
               encoder.copyBufferToBuffer(taskReset,0,tasks,0,20);launch('small',binding,chunk.count);
               encoder.copyBufferToBuffer(tasks,0,taskIndirect,0,12);
               const lPass=encoder.beginComputePass();lPass.setPipeline(pipes.large);lPass.setBindGroup(0,binding);lPass.dispatchWorkgroupsIndirect(taskIndirect,0);lPass.end();
@@ -20608,11 +20607,25 @@ const FrameUnite=(()=>{
         }
         const length=plane*(depth+1),bytes=4*Math.ceil(length/2);
         encoder.copyBufferToBuffer(packed,2*halo*plane,read,0,bytes);
-        device.queue.submit([encoder.finish()]);await read.mapAsync(GPUMapMode.READ,0,bytes);
-        const field=new Int16Array(read.getMappedRange(0,bytes),0,length).slice();read.unmap();
-        if(!valid())return null;
-        await request('slab',{field,first,layers:first+depth===nz-1?depth+1:depth},[field.buffer]);
+        device.queue.submit([encoder.finish()]);
+        const mapped=read.mapAsync(GPUMapMode.READ,0,bytes);mapped.catch(()=>{});
+        return {first,layers:first+depth===nz-1?depth+1:depth,length,bytes,read,mapped};
       }
+      let nextSlab=nz>1?submitSlab(0,reads[0]):null,workerSlab=null;
+      for(let first=0,index=0;first<nz-1;first+=maxDepth,index++){
+        if(!valid())return null;
+        progress('Reconstructing volume');
+        const current=nextSlab;
+        if(first+maxDepth<nz-1)nextSlab=submitSlab(first+maxDepth,reads[(index+1)&1]);
+        await current.mapped;
+        const field=new Int16Array(current.read.getMappedRange(0,current.bytes),0,current.length).slice();
+        current.read.unmap();
+        if(workerSlab)await workerSlab;
+        if(!valid())return null;
+        workerSlab=request('slab',{field,first:current.first,layers:current.layers},[field.buffer]);
+        workerSlab.catch(()=>{});
+      }
+      if(workerSlab)await workerSlab;
       cache.metrics={backend:'WebGPU / WASM',grid:dims,preparedMs};
       for(const b of buffers)b.destroy();
       return await contour();

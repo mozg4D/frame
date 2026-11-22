@@ -142,6 +142,11 @@ export async function uniteGeneratorChecks(page){
   const skewProbes=probes.map(([x,y,z])=>[x+.07*y,y,z]);
   const generalResult=await audit(page,general.hash,skewProbes);
   assert.ok(generalResult.manifold);assert.deepEqual(generalResult.inside,expected);assert.ok(Math.abs(generalResult.volume/volume-1)<.005);
+  const multiSlab=await call('scene.update',{id:general.hash,params:{resolution:384}});
+  assert.ifError(multiSlab.buildError);assert.equal(multiSlab.evaluation.report.backend,'WebGPU / WASM');
+  assert.ok(multiSlab.evaluation.report.gpuScratchBytes>180*1024*1024,JSON.stringify(multiSlab.evaluation.report));
+  const multiSlabResult=await audit(page,general.hash,skewProbes);
+  assert.ok(multiSlabResult.manifold);assert.deepEqual(multiSlabResult.inside,expected);assert.ok(Math.abs(multiSlabResult.volume/volume-1)<.002);
   await call('transform.apply',{ids:[bodies[1]],position:[20,0,0]});
   const moved=await audit(page,general.hash,[skewProbes[4]]);
   assert.deepEqual(moved.inside,[false]);
