@@ -559,8 +559,8 @@
       "sha256": "ef503e70965e01a12702cebf0e6efaeaf97f3ba0cc0abf72b94461e5306c82b4"
     },
     "index.html": {
-      "bytes": 4022848,
-      "sha256": "4e293cb523be3a660f74350c43c1ba6b22808237db53f7832011cf48d0d881ab"
+      "bytes": 4014128,
+      "sha256": "b55bcb44b450cb4af0d210d47124b4fa20542e192adf1c9839534049f6f239d3"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1127,8 +1127,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 98438,
-      "sha256": "25d0efc66caa8e20b3017c5aa0224813e3f70331c9f716c6f6cfc1cc9f07df03"
+      "bytes": 98612,
+      "sha256": "dc1fa863418b6d0118394ec8f330b1f899963711609c55a9a9dff55598c48cbc"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1311,8 +1311,8 @@
       "sha256": "1654dc7847d6c159eed4c5afb258d06aabb60551d5a86e6e06c3d45b4ee79025"
     },
     "tests/boolean-threading.mjs": {
-      "bytes": 6121,
-      "sha256": "aaf52abbf9187b58adc8dfa601652f639de4ad1cdd283ca9c72bb93c5215afb7"
+      "bytes": 9431,
+      "sha256": "33762812861e839147c5aa626852e5a2f0e9428883c96f04e7d096cee22ebda7"
     },
     "tests/camera-realtime-frame.mjs": {
       "bytes": 9554,

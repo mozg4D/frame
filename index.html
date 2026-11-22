@@ -8159,7 +8159,7 @@ async function handleBooleanWorkerMessage(data = {}) {
 
 let affineTransform;try{affineTransform=FrameAffineSIMD();}catch{}
 function nativeOperandParts(parts){const positions=new Float32Array(parts.reduce((s,p)=>s+p.positions.length,0)),indices=new Uint32Array(parts.reduce((s,p)=>s+p.indices.length,0)),faceMaterials=new Uint32Array(indices.length/3);let vertex=0,corner=0;for(const p of parts){const m=p.matrix,a=p.positions,transformed=a.length>=120000&&affineTransform?affineTransform(a,m,false,positions,vertex*3):null;if(transformed){}else for(let i=0;i<a.length;i+=3){const x=a[i],y=a[i+1],z=a[i+2];for(let k=0;k<3;k++)positions[vertex*3+i+k]=m[k]*x+m[k+4]*y+m[k+8]*z+m[k+12];}const determinant=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);for(let i=0;i<p.indices.length;i+=3){indices[corner+i]=p.indices[i]+vertex;indices[corner+i+1]=p.indices[i+(determinant<0?2:1)]+vertex;indices[corner+i+2]=p.indices[i+(determinant<0?1:2)]+vertex;}if(p.faceMaterials)faceMaterials.set(p.faceMaterials,corner/3);vertex+=a.length/3;corner+=p.indices.length;}return {positions,indices,faceMaterials};}
-// One Boolean evaluation owns this worker. Transfer temporary grid bounds only.
+// One Boolean evaluation owns this worker at a time. Transfer temporary grid bounds only.
 let finishBooleanFilter,finishBooleanPreparation;
 function requestBooleanFilter(boxes){
   return new Promise(resolve=>{
@@ -8181,9 +8181,15 @@ self.onmessage = async (event) => {
   }
   if(data.parallelSide)data.parallelPreparation={side:data.parallelSide,ready:new Promise(resolve=>{finishBooleanPreparation=resolve;})};
   if('gridMasks' in event.data){const finish=finishBooleanFilter;finishBooleanFilter=null;finish?.(event.data.gridMasks);return;}
-  if(event.data.partsA){try{const a=nativeOperandParts(event.data.partsA),b=nativeOperandParts(event.data.partsB);Object.assign(event.data,{positionsA:a.positions,indicesA:a.indices,faceMaterialsA:a.faceMaterials,positionsB:b.positions,indicesB:b.indices,faceMaterialsB:b.faceMaterials});delete event.data.partsA;delete event.data.partsB;}catch(error){postMessage({id:event.data.id,ok:false,error:error.message});return;}}
-  let out = await handleBooleanWorkerMessage(event.data || {});
-  out && self.postMessage(out.message, out.transfer);
+  try{
+    if(event.data.partsA){const a=nativeOperandParts(event.data.partsA),b=nativeOperandParts(event.data.partsB);Object.assign(event.data,{positionsA:a.positions,indicesA:a.indices,faceMaterialsA:a.faceMaterials,positionsB:b.positions,indicesB:b.indices,faceMaterialsB:b.faceMaterials});delete event.data.partsA;delete event.data.partsB;}
+    let out = await handleBooleanWorkerMessage(event.data || {});
+    out && self.postMessage(out.message, out.transfer);
+  }catch(error){
+    postMessage({id:event.data.id,ok:false,error:error.message});
+  }finally{
+    finishBooleanFilter=finishBooleanPreparation=null;
+  }
 };
 </script>
 
@@ -18166,10 +18172,49 @@ const FrameGeometry=(()=>{
   let kernel;
   const text=id=>document.getElementById(id).textContent;
   const K=()=>kernel??=Function('return ('+text('frame-geometry-kernel')+')')()(FrameSpline.K());
-  let booleanWorkers=0;
-  const waitingBooleanWorkers=[];
+  const BOOLEAN_WORKER_IDLE_MS=15000;
+  let booleanWorkers=0,busyBooleanWorkers=0,booleanWorkerURL=null;
+  const booleanPool=[],waitingBooleanWorkers=[];
+  const booleanWorkerLimit=()=>Math.max(1,(navigator.hardwareConcurrency||2)-1);
+  function trimBooleanPool(maxIdle=Math.max(0,booleanWorkerLimit()-busyBooleanWorkers)){
+    for(let i=booleanPool.length-1;i>=0;i--)if(booleanPool[i].ctor!==Worker){
+      const [entry]=booleanPool.splice(i,1);clearTimeout(entry.timer);entry.worker.terminate();
+    }
+    while(booleanPool.length>maxIdle){
+      const entry=booleanPool.shift();clearTimeout(entry.timer);entry.worker.terminate();
+    }
+    if(!busyBooleanWorkers&&!booleanPool.length&&booleanWorkerURL){
+      URL.revokeObjectURL(booleanWorkerURL);booleanWorkerURL=null;
+    }
+  }
+  function acquireBooleanWorker(helper=false){
+    trimBooleanPool();
+    const entry=booleanPool.pop();
+    if(entry){
+      clearTimeout(entry.timer);busyBooleanWorkers++;
+      return entry.worker;
+    }
+    booleanWorkerURL??=URL.createObjectURL(new Blob([FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker')],{type:'text/javascript'}));
+    const w=new Worker(booleanWorkerURL,{name:helper?'Frame Boolean operand':'Frame Boolean'});
+    busyBooleanWorkers++;
+    return w;
+  }
+  function retireBooleanWorker(w,reusable=true){
+    if(!w)return;
+    w.onmessage=w.onerror=w.onmessageerror=null;
+    busyBooleanWorkers=Math.max(0,busyBooleanWorkers-1);
+    const idleMs=worker.booleanIdleMs??BOOLEAN_WORKER_IDLE_MS;
+    if(reusable&&w.constructor===Worker&&idleMs>0&&busyBooleanWorkers+booleanPool.length<booleanWorkerLimit()){
+      const entry={worker:w,ctor:Worker,timer:setTimeout(()=>{
+        const i=booleanPool.indexOf(entry);if(i>=0)booleanPool.splice(i,1);
+        w.terminate();trimBooleanPool();
+      },idleMs)};
+      booleanPool.push(entry);
+    }else w.terminate();
+    trimBooleanPool();
+  }
   function reserveBooleanWorker(wait){
-    const limit=Math.max(1,(navigator.hardwareConcurrency||2)-1);
+    const limit=booleanWorkerLimit();
     if(booleanWorkers<limit){booleanWorkers++;return true;}
     return wait?new Promise(resolve=>waitingBooleanWorkers.push(resolve)):false;
   }
@@ -18196,21 +18241,24 @@ const FrameGeometry=(()=>{
   async function worker(op,args,transfers=[],session=null,progress=null,booleanFilter=null){
     const boolean=op==='boolean',side=boolean?booleanHelperSide(args):null;
     if(boolean){const slot=reserveBooleanWorker(true);if(slot!==true)await slot;}
-    let w=session?.worker,helper=null,helperSlot=false,url=null;
-    function releaseHelper(){
-      helper?.terminate();helper=null;
+    let w=session?.worker,helper=null,helperSlot=false,url=null,reusable=false;
+    function releaseHelper(healthy=false){
+      if(helper){retireBooleanWorker(helper,healthy);helper=null;}
       if(helperSlot){helperSlot=false;releaseBooleanWorker();}
     }
     try{
       helperSlot=!!side&&reserveBooleanWorker(false);
-      if(!w||helperSlot){
-        const body=op==='boolean'?FrameAffineSIMD.toString()+'\n'+text('frame-boolean-worker'):
-          text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(r.parts&&d.op==='recognize'){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);for(const part of r.parts)transfers.push(part.faces.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){postMessage({error:e.message});}};`;
-        url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));
+      if(!w){
+        if(boolean)w=acquireBooleanWorker(false);
+        else{
+          const body=text('frame-spline-kernel')+'\n'+frameCellLoops.toString()+'\n'+text('frame-geometry-kernel')+`;const K=FrameSplineKernel(),G=FrameGeometryKernel(K);let base,ids,prepared;onmessage=({data:d})=>{const send=r=>{delete r.outline;const transfers=[];if(r.parts&&d.op==='recognize'){r.source={vertices:d.positions,indices:d.indices};transfers.push(d.positions.buffer,d.indices.buffer);for(const part of r.parts)transfers.push(part.faces.buffer);}postMessage({result:r},transfers);};try{const r=d.op==='distribute'?G.distribute(d.positions,d.indices,d.count,d.seed):d.op==='bevel'?G.bevel(d):d.op==='recognize'?G.recognize(d.positions,d.indices,d.options):(()=>{if(d.data){base=d.data;ids=d.segments;prepared=G.prepareOutline(base,ids,d.options);}return G.outline(base,ids,{...d.options,prepared});})();send(r);}catch(e){postMessage({error:e.message});}};`;
+          url=URL.createObjectURL(new Blob([body],{type:'text/javascript'}));
+          w=new Worker(url);
+        }
+        if(session)session.worker=w;
       }
-      if(!w){w=new Worker(url,boolean?{name:'Frame Boolean'}:undefined);if(session)session.worker=w;}
       return await new Promise((resolve,reject)=>{
-        const fail=msg=>{if(session?.worker===w){w.terminate();session.worker=null;}reject(Error(msg));};
+        const fail=msg=>{reusable=false;if(session?.worker===w){w.terminate();session.worker=null;}reject(Error(msg));};
         w.onerror=e=>fail(e.message||'Geometry worker failed');
         w.onmessageerror=()=>fail('Geometry worker message could not be read');
         w.onmessage=async({data:d})=>{
@@ -18219,33 +18267,35 @@ const FrameGeometry=(()=>{
             catch(error){reject(error);}return;
           }
           if(d.progress){progress?.(d.progress);return;}
+          reusable=!helper;
           d.error||d.ok===false?reject(Error(d.error)):resolve(op==='boolean'?d:d.result);
         };
         if(helperSlot){
-          function finish(prepared,buffers=[]){
+          function finish(prepared,buffers=[],healthy=false){
             if(!helper)return;
-            releaseHelper();
+            releaseHelper(healthy);
             try{w.postMessage({preparedOperand:prepared},buffers);}
             catch{try{w.postMessage({preparedOperand:null});}catch(error){reject(error);}}
           }
           try{
-            helper=new Worker(url,{name:'Frame Boolean operand'});
-            helper.onmessage=({data})=>finish(data.preparedOperand,data.buffers);
-            helper.onerror=e=>{e.preventDefault();finish(null);};
-            helper.onmessageerror=()=>finish(null);
+            helper=acquireBooleanWorker(true);
+            helper.onmessage=({data})=>finish(data.preparedOperand,data.buffers,true);
+            helper.onerror=e=>{e.preventDefault();finish(null,[],false);};
+            helper.onmessageerror=()=>finish(null,[],false);
             // Clone before transferring the originals to the coordinator. It can retry locally.
             helper.postMessage({cmd:'prepareOperand',parts:args['parts'+side],positions:args['positions'+side],indices:args['indices'+side],faceMaterials:args['faceMaterials'+side]});
-          }catch{releaseHelper();}
+          }catch{releaseHelper(false);}
         }
         if(url){URL.revokeObjectURL(url);url=null;}
         w.postMessage(boolean?{...args,id:1,prepareRender:false,gpuFilter:!!booleanFilter,parallelSide:helper?side:null}:{op,...args},transfers);
       });
     }finally{
-      if(!session)w?.terminate();
-      releaseHelper();if(url)URL.revokeObjectURL(url);
-      if(boolean)releaseBooleanWorker();
+      releaseHelper(false);if(url)URL.revokeObjectURL(url);
+      if(boolean){if(!session)retireBooleanWorker(w,reusable);releaseBooleanWorker();}
+      else if(!session)w?.terminate();
     }
   }
+  worker.clearBooleanPool=()=>trimBooleanPool(0);
   async function outline(n,distance,segments,inner=false){
     n=FrameSpline.sourceNode(n)||n;if(!FrameSpline.isEditable(n)||!n.splineData)throw Error('Choose an editable spline');
     if(!Number.isFinite(distance))throw Error('Outline distance must be finite');
@@ -19376,7 +19426,7 @@ window.FrameSpline=(()=>{
     if(coldBuilds&&!directSurfaces.has(data)){const result=Promise.all([buildSerial,coldBuilds.globalFence,...coldBuilds.groups.map(g=>g.tail)]).then(()=>buildNow(data,key,baseToken));buildSerial=result.then(()=>{},()=>{});coldBuilds.globalFence=buildSerial;return result;}
     const result=buildSerial.then(()=>buildNow(data,key,baseToken,null,changed));buildSerial=result.then(()=>{},()=>{});return result;
   }
-  function coldConstructible(n){return n.enabled&&(solids.has(n.type)||['extrude','sweep','lathe'].includes(n.type))&&!(bakedHashes.has(n.nativeHash)&&n.engineIndex!==undefined&&!states.has(n.id));}
+  function coldConstructible(n){return !!coldBuilds&&n.enabled&&(solids.has(n.type)||['extrude','sweep','lathe'].includes(n.type))&&!(bakedHashes.has(n.nativeHash)&&n.engineIndex!==undefined&&!states.has(n.id));}
   async function withColdConstruction(work){
     const batch=coldBuilds;if(!batch)throw new DOMException('Scene build ended','AbortError');const group=batch.groups[batch.next++%batch.groups.length],prior=group.tail,fence=batch.globalFence,ready=batch.ready;let unlock;group.tail=new Promise(resolve=>{unlock=resolve;});
     const construction={group,clean:false,finish:null};let finishing=null;
@@ -19509,7 +19559,7 @@ window.FrameSpline=(()=>{
   async function flush(live=false){await boxTask;if(!dirty&&!timer&&!running){window.frameEngine?.flushReplicaPublication?.();return;}if(isEditing()&&!live){dirty=true;window.frameEngine?.flushReplicaPublication?.();return;}if(running)return running;if(timer){clearTimeout(timer);timer=0;}const engine=window.frameEngine;if(!engine?.scene||!states.size&&!nodes.some(n=>supported.has(n.type)||special.has(n.type)))return;const evaluationSpace=engine.scene;
     if(engine.restoringSplines)beginColdBuilds();
     running=(async()=>{do{requireEvaluationScene(engine,evaluationSpace);dirty=false;const alive=new Set(nodes.filter(n=>supported.has(n.type)).map(n=>n.id));cageVersions.retain(alive);FrameUnite.retain();let publicationChanged=false;for(const [id,s]of states)if(!alive.has(id)){engine.removeSpline(s.hash);states.delete(id);publicationChanged=true;}
-      const seen=new Set(),evaluating=new Set(),pending=new Map(),graph=new Map();let parallel=!!coldBuilds,constructionSerial=Promise.resolve();
+      const seen=new Set(),evaluating=new Set(),pending=new Map(),graph=new Map(),booleanJobs=nodes.filter(n=>n.enabled&&n.type==='boolean').length;let parallel=!!coldBuilds||booleanJobs>1,constructionSerial=Promise.resolve();
       // Collect the ordered profile links together in one synchronous hierarchy
       // read. A new edit discards the scheduling hint. Publication independently
       // checks live source identities, controls, pivots and relative frames.
@@ -19579,7 +19629,8 @@ window.FrameSpline=(()=>{
       const finishRecordBatch=engine.beginSplineRecordBatch();try{
         const roots=nodes.filter(n=>supported.has(n.type)&&!supported.has(node(n.parent)?.type));
         if(parallel){
-          let cursor=0;const jobs=Array.from({length:coldBuilds.groups.length+1},async()=>{while(cursor<roots.length)await evaluate(roots[cursor++]);});
+          const limit=Math.max(coldBuilds?coldBuilds.groups.length+1:1,booleanJobs>1?Math.min(booleanJobs,(navigator.hardwareConcurrency||2)-1):1);
+          let cursor=0;const jobs=Array.from({length:limit},async()=>{while(cursor<roots.length)await evaluate(roots[cursor++]);});
           const failed=(await Promise.allSettled(jobs)).find(r=>r.status==='rejected');if(failed)throw failed.reason;
         }else for(const n of roots)await evaluate(n);
         for(const n of nodes)if(supported.has(n.type)&&!seen.has(n.id))await evaluate(n);
