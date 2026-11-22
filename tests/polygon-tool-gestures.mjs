@@ -93,14 +93,20 @@ try{
       assert.deepEqual(moved.vertices.slice(0,-3),g.vertices.slice(0,-3));assert.notDeepEqual(moved.vertices.slice(-3),g.vertices.slice(-3));
       assert.deepEqual((await state()).view.camera,view);
     });
-    await test(storage+' Ctrl click through a gizmo handle and just inside an edge',async()=>{
+    await test(storage+' Ctrl click through a gizmo handle and near an edge',async()=>{
       const n=await fixture(quad,'vertex',storage);await call('scene.select',{ids:[n.hash],mode:'vertex',components:[0,1,2,3]});await call('diagnostics.frame',{frames:1});
       const handle=await page.evaluate(()=>frameEngine.gizmoState.handles.find(h=>h.part==='move0').suggested);
-      for(const target of [handle,await project(n.hash,[-8,-6.6,0])]){
-        await page.keyboard.down('Control');await page.mouse.click(...target);await page.keyboard.up('Control');
-        const owner=(await state()).objects.find(o=>o.id===n.id),g=await geometry(owner.hash),xy=await project(owner.hash,g.vertices.slice(-3));
-        assert.equal(g.vertices.length,15);assert.ok(Math.hypot(xy[0]-target[0],xy[1]-target[1])<1.5);await call('edit.history',{action:'undo'});
-      }
+      await page.keyboard.down('Control');await page.mouse.click(...handle);await page.keyboard.up('Control');
+      let owner=(await state()).objects.find(o=>o.id===n.id),g=await geometry(owner.hash),xy=await project(owner.hash,g.vertices.slice(-3));
+      assert.equal(g.vertices.length,15);assert.ok(Math.hypot(xy[0]-handle[0],xy[1]-handle[1])<1.5);await call('edit.history',{action:'undo'});
+      const near=await project(n.hash,[-8,-6.6,0]),onEdge=await project(n.hash,[-7.3,-7.3,0]);
+      await page.mouse.move(...near);await page.keyboard.down('Control');
+      const marker=page.locator('#frame-spline-insert');await marker.waitFor({state:'visible',timeout:3000});
+      const box=await marker.boundingBox(),at=[box.x+box.width/2,box.y+box.height/2];
+      assert.ok(Math.hypot(at[0]-onEdge[0],at[1]-onEdge[1])<1.5,'preview snaps to edge '+at+' vs '+onEdge);
+      await page.mouse.click(...near);await page.keyboard.up('Control');
+      owner=(await state()).objects.find(o=>o.id===n.id);g=await geometry(owner.hash);xy=await project(owner.hash,g.vertices.slice(-3));
+      assert.equal(g.vertices.length,15);assert.equal(g.indices.length/3,4);assert.ok(Math.hypot(xy[0]-at[0],xy[1]-at[1])<1.5);await call('edit.history',{action:'undo'});
     });
     await test(storage+' component rotation, scale and geodesic soft move',async()=>{
       const data={vertices:[-60,-30,0,-20,-30,0,-60,10,0,40,0,0,60,0,0,40,20,0],indices:[0,1,2,3,4,5]},n=await fixture(data,'polygon',storage);

@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 22 nov 00:54",
+  "version": "2026 22 nov 10:25",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -556,11 +556,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "a114b9ef19ad10a91855eea73c10cd4478f8824cbb23c9bb42fe99c752e7eb32"
+      "sha256": "ae2b14cba26b9bab5fa5a3744a9c32afa6f0590aca30c66e880a6aa86d4f297d"
     },
     "index.html": {
-      "bytes": 4013893,
-      "sha256": "c569ef4c0538a26522e4e40d9a1ae99fe93b2fb4e9c9b64ee8756d9caa39a098"
+      "bytes": 3977751,
+      "sha256": "571b541c60f5ebf8a7d4705e6eb32be4faf8ade477f4d94b2d2b39cceef0b9b4"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -667,8 +667,8 @@
       "sha256": "bfd565dd29417feec88755dc74db5022649f8e287f93713d4cb9371282b50032"
     },
     "tests/selection-gizmo-state.mjs": {
-      "bytes": 5031,
-      "sha256": "618123b2f0586af64a734bea272d78c5fd1b2b9a8bd26e7197e4faa6742d3200"
+      "bytes": 5143,
+      "sha256": "b518de7bf34bd8e71014f752ae2960b574cf3faf0184e10f6f825b74077038fe"
     },
     "tests/viewport-pointer-priority.mjs": {
       "bytes": 5772,
@@ -1431,8 +1431,8 @@
       "sha256": "15b44094dd0955f811c5a04e2a89777c4f75cd60eaec03c18b44f80d2d83e3d8"
     },
     "tests/scene-insertion-browser.mjs": {
-      "bytes": 11596,
-      "sha256": "a957f95cd4aad16fc68a3416535cd8f9581175756b47515f2ff19956d0551092"
+      "bytes": 12372,
+      "sha256": "79146ad60eed80a32099f0dde9fcb7acbd44331c38bfc2dba50d91207c612fd7"
     },
     "tests/polygon-crease-angle-browser.mjs": {
       "bytes": 9461,

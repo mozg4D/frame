@@ -70,6 +70,17 @@ function geometry(type,overrides={}){
     assert.ok(sky/total>.8&&upward/total>.20&&sideways/total>.07,'Deciduous sprays cover elevated and oblique views');
     assert.ok(bent>cards*.67,'Most deciduous cards have a curved spine');
   }
+  if((wood&&type!=='palm'||type==='shrub')&&!Object.keys(overrides).length&&cards){
+    assert.equal(bent,cards,type+' foliage cards are all arched');
+  }
+  if(type==='spruce'&&!Object.keys(overrides).length){
+    for(const {root,last} of foliageCards(raw)){
+      const spans=(last-root+1)/2,a=(root+spans-1)*3,b=(root+spans)*3;
+      const sx=verts[b]-verts[a],sy=verts[b+1]-verts[a+1],sz=verts[b+2]-verts[a+2];
+      const sinRoll=Math.abs(sy)/Math.hypot(sx,sy,sz);
+      assert.ok(sinRoll<Math.sin(24*Math.PI/180),'Spruce branch roll stays bounded: '+(Math.asin(Math.min(1,sinRoll))*180/Math.PI).toFixed(1)+' deg');
+    }
+  }
   if(type==='pine'&&!Object.keys(overrides).length){
     const diameter=2*Math.hypot(verts[0],verts[2]);
     assert.ok(Math.abs(diameter-600)<25,'Mature basal diameter in mm: '+diameter);
@@ -167,7 +178,7 @@ try{
   assert.deepEqual(presets,Array.from({length:2},()=>Array.from({length:8},()=>[32,32])));
   assert.deepEqual(await page.locator('#attrContent .plant-presets').evaluateAll(rows=>rows.map(row=>new Set([...row.children].map(button=>button.offsetTop)).size)),[1,1]);
   const fields=await page.locator('#attrContent input[data-field]').evaluateAll(inputs=>inputs.map(input=>input.dataset.field));
-  assert.deepEqual(fields,['seed','day of year','growth','leaf density']);
+  assert.deepEqual(fields,['seed','day of year','growth','leaf density','crease angle']);
   await page.locator('#attrContent [data-field="type"][data-value="bush"]').click();
   tree=await object(id);assert.equal(tree.name,'Large Bush');assert.equal(tree.params.trunks,plants.presets.bush.trunks);assert.equal(tree.params.height,plants.presets.bush.height);
   await call('edit.history',{action:'undo'});tree=await object(id);assert.equal(tree.params.type,'oak');

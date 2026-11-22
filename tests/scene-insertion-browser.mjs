@@ -72,7 +72,7 @@ export async function sceneInsertionChecks(page){
   await call('scene.new');const mesh=await call('mesh.create',{vertices:[-60,-40,0,60,-40,0,60,40,0,-60,40,0],indices:[0,1,2,0,2,3]});
   await call('view.set',{index:2,single:true,mode:'vertex',shading:'solid-wire',focus:mesh.hash});
   await call('scene.select',{ids:[mesh.hash],mode:'vertex',components:[]});
-  for(const [name,point,bias] of [['face',[25,0,0],0],['edge',[-17,-40,0],0.7]]){
+  for(const [name,point,bias] of [['face',[25,0,0],0],['edge',[-17,-40,0],0.7],['near-outside edge',[-17,-40,0],5],['near-inside edge',[-17,-40,0],-5]]){
     const xy=await project(mesh.hash,point);await page.mouse.move(xy[0],xy[1]+bias);await page.keyboard.down('Control');
     await marker.waitFor({state:'visible',timeout:3000});const box=await marker.boundingBox(),at=[box.x+box.width/2,box.y+box.height/2];
     check('Ctrl hover marks the actual polygon '+name,Math.hypot(at[0]-xy[0],at[1]-xy[1])<1.2);
@@ -82,6 +82,14 @@ export async function sceneInsertionChecks(page){
     check('New '+name+' vertex projects onto the preview',Math.hypot(actual[0]-at[0],actual[1]-at[1])<1.2);
     await call('edit.history',{action:'undo'});
   }
+  await call('view.set',{shading:'wireframe'});
+  const wfFace=await project(mesh.hash,[25,0,0]),wfEdge=await project(mesh.hash,[-17,-40,0]);
+  await page.mouse.move(wfEdge[0],wfEdge[1]+5);await page.keyboard.down('Control');await marker.waitFor({state:'visible',timeout:3000});
+  const wfBox=await marker.boundingBox();
+  check('Wireframe Ctrl hover snaps onto the edge',Math.hypot(wfBox.x+wfBox.width/2-wfEdge[0],wfBox.y+wfBox.height/2-wfEdge[1])<1.2);
+  await page.mouse.move(...wfFace);await marker.waitFor({state:'hidden',timeout:3000});
+  check('Wireframe Ctrl hover hides marker inside empty face interior',true);
+  await page.keyboard.up('Control');await call('view.set',{shading:'solid-wire'});
   await call('view.set',{single:false,index:2,focus:mesh.hash});const passive=await project(mesh.hash,[25,0,0]);
   await call('view.set',{index:0});await page.mouse.move(...passive);await page.keyboard.down('Control');await marker.waitFor({state:'visible'});
   const box=await marker.boundingBox();
