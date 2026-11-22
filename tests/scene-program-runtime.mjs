@@ -3,10 +3,11 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Worker as NodeWorker } from 'node:worker_threads';
 import { performance } from 'node:perf_hooks';
 import { createHash } from 'node:crypto';
+import { keySource } from './hash-codec-fixture.mjs';
 
 const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),start=html.indexOf('function createSceneProgramRuntime('),end=html.indexOf('function createSceneProgramPlans(',start);
 assert.ok(start>=0&&end>start);const source=html.slice(start,end).trim();
-const createSceneProgramRuntime=Function(source+'\nreturn createSceneProgramRuntime;')();
+const createSceneProgramRuntime=Function(keySource+'\n'+source+'\nreturn createSceneProgramRuntime;')();
 const elapsed=()=>performance.now();
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let count=0,number=0;const timings=[],workerAdapters=new Set();

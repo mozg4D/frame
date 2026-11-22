@@ -113,8 +113,32 @@ try{
   await call(losing,'scene.open',{path:assembly});
   await call(losing,'scene.update',{id:holder.hash,name:'Local draft'});
   await call(winning,'scene.update',{id:holder.hash,name:'Published frame'});await call(winning,'scene.save');
-  await call(losing,'scene.file.sync');await losing.locator('#frame-project-reload').click();
-  await losing.waitForFunction(id=>frameNodeByHash(id)?.name==='Published frame',holder.hash);
+  const syncSaves=await losing.evaluate(async()=>{
+    let saves=0;const orig=frameEngine.saveHash;frameEngine.saveHash=function(...a){saves++;return orig.apply(this,a);};
+    try{await frameAI.call('scene.file.sync');return saves;}finally{frameEngine.saveHash=orig;}
+  });
+  assert.equal(syncSaves,0);
+  await losing.locator('#frame-project-reload').click();
+  await losing.waitForFunction(id=>FrameProjectFile.status().state==='current'&&frameNodeByHash(id)?.name==='Published frame',holder.hash);
+  const stampChecks=await losing.evaluate(async id=>{
+    const stamp=()=>frameEngine.fileEditStamp,clean=stamp();
+    if(FrameProjectFile.status().dirty)return {ok:false,step:'initial'};
+    await frameAI.call('edit.history',{action:'undo'});await frameAI.call('edit.history',{action:'redo'});
+    if(stamp()!==clean||FrameProjectFile.status().dirty)return {ok:false,step:'empty-undo-redo'};
+    await frameAI.call('scene.select',{ids:[id]});await frameAI.call('scene.select',{ids:[]});
+    if(stamp()!==clean||FrameProjectFile.status().dirty)return {ok:false,step:'selection'};
+    setTimelineFrame(4);
+    const afterFrame=stamp();if(afterFrame===clean||!FrameProjectFile.status().dirty)return {ok:false,step:'timeline-frame'};
+    setTimelineFrame(0);
+    if(stamp()!==clean||FrameProjectFile.status().dirty)return {ok:false,step:'timeline-frame-restore'};
+    document.getElementById('btnBrowser').click();
+    const afterFold=stamp();if(afterFold===clean||!FrameProjectFile.status().dirty)return {ok:false,step:'fold-all'};
+    document.getElementById('btnBrowser').click();
+    const afterUnfold=stamp();if(afterUnfold===afterFold||!FrameProjectFile.status().dirty)return {ok:false,step:'unfold-all'};
+    return {ok:true};
+  },holder.hash);
+  assert.deepEqual(stampChecks,{ok:true});
+  await call(losing,'scene.open',{path:assembly});
   pass('Explicit reload resolves the reviewed conflict through the human UI');
   const copy=await readFile(assembly);
   await rm(assembly);

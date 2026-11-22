@@ -559,8 +559,8 @@
       "sha256": "ef503e70965e01a12702cebf0e6efaeaf97f3ba0cc0abf72b94461e5306c82b4"
     },
     "index.html": {
-      "bytes": 4014128,
-      "sha256": "b55bcb44b450cb4af0d210d47124b4fa20542e192adf1c9839534049f6f239d3"
+      "bytes": 3987557,
+      "sha256": "d465ff0a8745a49968fa09e4d933a9040ca441c7c82816c860a5313fda32d785"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -647,12 +647,12 @@
       "sha256": "f8206ed805c790dae21c80d3f6644db7da45f98a0a4c56b37d296dadfb9def54"
     },
     "tests/scene-program-plans.mjs": {
-      "bytes": 6815,
-      "sha256": "6d9edd11d8dccfbf4dc1875488607022839e43dc21d8c76d3dd6eaf5441d1910"
+      "bytes": 7600,
+      "sha256": "87719ef940eea11b829c40f7a1158153ebcd9ee190b0065b380069b0220276ac"
     },
     "tests/scene-program-runtime.mjs": {
-      "bytes": 23814,
-      "sha256": "e8298d2e3e3807a3a2cbb2af00a3395530504f0aec0f50901bb08b0ff0f51866"
+      "bytes": 23883,
+      "sha256": "b651ac7ffe3f9b57e7165297df4134bf103d57242529756bc1e6cca285f0fa4d"
     },
     "tests/scene-reservations.mjs": {
       "bytes": 10609,
@@ -675,8 +675,8 @@
       "sha256": "408a26f13bcff1c30266168bdbd18e8d076749fd344f16a4a0d127ed87ab74da"
     },
     "plugins/atomic/plugin.js": {
-      "bytes": 3917415,
-      "sha256": "154a8bfe3cb0fefb41778b6d3be6f6d352923bd66d569b99eeb8ab04c2c862eb"
+      "bytes": 3917443,
+      "sha256": "6e7079a4c24be7d2b909f9ab9b37b3733538a65a0cfffc82622e50ba2d472170"
     },
     "plugins/atomic/tests/feedback.mjs": {
       "bytes": 8810,
@@ -1367,8 +1367,8 @@
       "sha256": "7283fdc8f04243fad7eb7fd37a6014b5b56a0285e5b7bee6d41fca5ff42890d4"
     },
     "tests/project-files-browser.mjs": {
-      "bytes": 13826,
-      "sha256": "ce71c3d0f7f56fcaed74debec243c0bd255d4cb86a2ef49403be45357e5b7dd8"
+      "bytes": 15480,
+      "sha256": "02862de84b89f153d29c7b0255c316ef4126e124baa671a363c5905eee969ae1"
     },
     "tests/step-import.mjs": {
       "bytes": 19578,

@@ -1244,6 +1244,7 @@ export async function activate(context) {
       elapsed+=h;steps+=g.lastSteps;w.steps+=g.lastSteps;
       if(steps%32===0)await g.yieldGpuWork();
     }
+    if(steps)D.changed?.();
     w.timeFs+=interval;w.lastPhysicalAdvanceFs=elapsed;w.lastAdvanceFs=interval;w.lastSubsteps=steps;w.visual=null;if(w.node.params.Color==='Charge')await charges(w);context.requestDraw();return status(w);
   }
   async function charges(w){if(w.gpu.n>GPUCharges.limit){w.chargeStatus={status:'limit',limit:GPUCharges.limit};w.chargeSerial=w.gpu.displaySerial;w.chargeAt=performance.now();return;}w.charge??=await GPUCharges.create(device,CHARGE_SHADER,CHARGE_PARAMETERS,Object.fromEntries(ELEMENTS.map(e=>[e.z,e.r])));w.chargeStatus=await w.charge.solve(w.gpu,w.gpu.atoms);w.chargeAt=performance.now();w.chargeSerial=w.gpu.displaySerial;w.visual=null;}
