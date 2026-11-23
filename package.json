@@ -11,6 +11,8 @@
     "test:ai-workflows": "node tests/syntax.mjs && node tests/ai-workflows-browser.mjs",
     "test:hash:cpu": "node tests/hash-native-state.mjs && node tests/hash-bulk-reader.mjs && node tests/hash-binary-contract.mjs && node tests/hash-save-streaming.mjs",
     "test:hash": "npm run test:hash:cpu && node tests/hash-native-state-browser.mjs",
+    "test:html-player:cpu": "node tests/html-player-package-cpu.mjs && node tests/html-player-runtime-cpu.mjs && node tests/html-player-environment-cpu.mjs",
+    "test:html-player": "npm run test:html-player:cpu && node tests/html-player-package.mjs && node tests/html-player-dom.mjs",
     "test:numeric-display:cpu": "node tests/numeric-display.mjs",
     "test:numeric-display": "node tests/numeric-display.mjs && node tests/numeric-display-browser.mjs --headless",
     "test:attributes-choice": "node tests/attributes-choice-browser.mjs",

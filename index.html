@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 22 nov 15:59">
+<meta name="frame-version" content="2026 23 nov 12:00">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -146,6 +146,11 @@ button.tabbtn.on{background:#101010!important;box-shadow:inset 0 1px #8fb8ff}.ob
 
 .view .frame-view-open{position:absolute;right:0;top:0;width:16px;height:16px;padding:0;margin:0;border:0;border-radius:0;display:block;color:#777!important;background:transparent;z-index:40;cursor:pointer}.view .frame-view-open:hover{color:#aaa!important;background:#444;outline:none}.view .frame-view-open:focus-visible{color:#ddd!important;background:#444;outline:1px solid #aaa;outline-offset:-1px}.frame-view-open svg{display:block;width:16px;height:16px}.frame-view-open svg,.frame-view-open svg *{color:inherit!important}
 .view .frame-view-notice{position:absolute;right:0;top:18px;max-width:min(300px,100%);box-sizing:border-box;padding:6px 8px;color:#ddd;background:#292929;font:12px/1.4 Arial,sans-serif;z-index:41;pointer-events:none}.view .frame-view-notice[hidden]{display:none}
+html[data-frame-player] :is(#panel,#frame-curves,#frame-engine-handles,#frame-engine-marquee,#frame-engine-stats,#frame-project-notice,.frame-view-open,.frame-gizmo,.frame-motion,.frame-light-helpers,.frame-plugin-overlay){display:none!important}
+#frame-player-control{position:fixed;inset:0;z-index:50;padding:20px;overflow:auto;pointer-events:none}
+#frame-player-control>section{width:fit-content;max-width:100%;pointer-events:auto}#frame-player-control>section+section{margin-top:20px}
+#frame-player-control :is(button,input,select,textarea){font:inherit;color:inherit;background:#303030;border:1px solid #555;border-radius:4px;padding:7px 10px}
+#frame-player-control button:hover{background:#414141}#frame-player-control :is(h1,h2){margin:0 0 12px}#frame-player-control p{margin:0 0 14px}
 </style>
 </head>
 <body>
@@ -10876,9 +10881,14 @@ async function imageEnvironment(url){
   if(/^data:application\/(octet-stream|x-hdr|hdr)|\.hdr(?:$|\?)/i.test(url)){
     return decodeRGBE(new Uint8Array(await (await fetch(url)).arrayBuffer()));
   }
-  const image=new Image();image.src=url;await image.decode();
+  let image;
+  if(/^blob:/i.test(url)){
+    const blob=await (await fetch(url)).blob();
+    if(/^#\?(?:RADIANCE|RGBE)(?:\s|$)/i.test(await blob.slice(0,16).text()))return decodeRGBE(new Uint8Array(await blob.arrayBuffer()));
+    image=await createImageBitmap(blob);
+  }else{image=new Image();image.src=url;await image.decode();}
   const scale=Math.min(1,2048/image.width),width=Math.max(1,Math.round(image.width*scale)),height=Math.max(1,Math.round(image.height*scale));
-  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0,width,height);
+  const canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d',{willReadFrequently:true});try{ctx.drawImage(image,0,0,width,height);}finally{image.close?.();}
   const bytes=ctx.getImageData(0,0,width,height).data,data=new Float32Array(bytes.length);
   const lut=new Float32Array(256);for(let i=0;i<256;i++)lut[i]=linear(i/255);
   for(let i=0;i<bytes.length;i+=4){data[i]=lut[bytes[i]];data[i+1]=lut[bytes[i+1]];data[i+2]=lut[bytes[i+2]];data[i+3]=1;}
@@ -12171,6 +12181,100 @@ fn normal(@builtin(global_invocation_id) id: vec3u) {
 }
 </script>
 <script>
+const framePlayer=!!globalThis.frameHTMLPlayer;
+document.documentElement.toggleAttribute('data-frame-player',framePlayer);
+function frameResourceURL(value){return globalThis.frameHTMLPlayer?globalThis.frameHTMLPlayer.resource(value):value;}
+
+// One-file export packaging. The native HASH and program sources stay unchanged.
+function createFrameHTMLPackage(){
+ const endScript='<'+ '/script>',blockBytes=192*1024;
+ const mime=path=>/\.(m?js)$/i.test(path)?'text/javascript':/\.json$/i.test(path)?'application/json':/\.svg$/i.test(path)?'image/svg+xml':/\.hash$/i.test(path)?'application/x-frame-hash':'';
+ function parsed(source){
+  if(typeof source!=='string'||!/^\s*<!doctype\s+html\s*>/i.test(source)||!/<\/html>\s*$/i.test(source))throw Error('Incomplete Frame HTML source');
+  const doc=new DOMParser().parseFromString(source,'text/html');
+  if(doc.querySelector('meta[name="frame-player"]'))throw Error('Use the original Frame build for HTML export');
+  return doc;
+ }
+ async function sourceIdentity(source){
+  const doc=typeof source==='string'?parsed(source):source;
+  if(!doc?.querySelectorAll)throw Error('Frame source is unavailable');
+  const values=[doc.querySelector('meta[name="frame-version"]')?.content||'',...Array.from(doc.querySelectorAll('script'),s=>[s.id,s.getAttribute('type')||'',s.getAttribute('src')||'',s.textContent]),...Array.from(doc.head.querySelectorAll('style'),s=>s.textContent)];
+  const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(values)));
+  return Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+ }
+ function start(){
+  const manifest=document.getElementById('frame-player-manifest'),info=JSON.parse(manifest.textContent),parts=info.files.map(()=>[]),urls=new Map(),files=new Map(),base=new URL('.',location.href),original=new URL('.',info.sourceURL);
+  function key(value){
+   const raw=String(value),url=new URL(raw,base);
+   for(const root of [base,original])if(url.origin===root.origin&&url.pathname.startsWith(root.pathname))return url.pathname.slice(root.pathname.length)+url.search;
+   throw Error('Resource is not embedded in this player: '+raw);
+  }
+  for(const block of document.querySelectorAll('script[data-frame-player-bytes]')){
+   const index=Number(block.dataset.framePlayerBytes);
+   if(!Number.isInteger(index)||!parts[index])throw Error('Invalid embedded player resource');
+   const bytes=atob(block.textContent.trim()),part=new Uint8Array(bytes.length);
+   for(let i=0;i<bytes.length;i++)part[i]=bytes.charCodeAt(i);
+   parts[index].push(part);block.remove();
+  }
+  const blobs=info.files.map((row,i)=>{
+   const blob=new Blob(parts[i],{type:row.type});parts[i]=null;
+   if(blob.size!==row.size)throw Error('Incomplete embedded player resource: '+(row.path||info.name));
+   if(row.path!==null)files.set(row.path,blob);
+   return blob;
+  });
+  const blob=value=>{const path=key(value),file=files.get(path);if(!file)throw Error('Resource is not embedded in this player: '+String(value));return file;};
+  const resource=value=>{
+   const raw=String(value);if(/^(data:|blob:)/i.test(raw))return raw;
+   const path=key(raw);if(!urls.has(path))urls.set(path,URL.createObjectURL(blob(raw)));return urls.get(path);
+  };
+  document.documentElement.setAttribute('data-frame-player','');
+  window.frameHTMLPlayer={scene:blobs[0],name:info.name,links:info.links,blob,resource};
+  manifest.remove();
+ }
+ async function build({source,scene,name='scene.hash',resources=[],sourceURL,expectedIdentity,links=null}){
+  const doc=parsed(source);
+  if(!(scene instanceof Blob)||typeof name!=='string'||!name||!Array.isArray(resources))throw Error('Invalid HTML export data');
+  if(expectedIdentity!==undefined&&await sourceIdentity(doc)!==await expectedIdentity)throw Error('Frame changed since this tab opened. Reload Frame before exporting HTML.');
+  const original=new URL('.',sourceURL),files=[{path:null,type:'application/x-frame-hash',size:scene.size}],blobs=[scene],seen=new Set();
+  for(const item of resources){
+   if(!item||typeof item.path!=='string'||!item.path||!(item.blob instanceof Blob))throw Error('Invalid HTML export resource');
+   const url=new URL(item.path,original);
+   if(url.origin!==original.origin||!url.pathname.startsWith(original.pathname)||url.hash)throw Error('Invalid embedded resource path: '+item.path);
+   const path=url.pathname.slice(original.pathname.length)+url.search;
+   if(!path||seen.has(path))throw Error('Duplicate embedded resource: '+item.path);
+   seen.add(path);files.push({path,type:mime(path)||item.blob.type||'application/octet-stream',size:item.blob.size});blobs.push(item.blob);
+  }
+  // The Frame shell has no external scripts/styles. Fail if this contract changes.
+  for(const el of doc.querySelectorAll('script[src],link[href],img[src],source[src],video[src],audio[src],iframe[src],object[data],embed[src]')){
+   if(el.tagName==='LINK'&&/^(?:icon|manifest)$/i.test(el.rel))continue;
+   const url=el.getAttribute('src')||el.getAttribute('href')||el.getAttribute('data');
+   if(url&&!/^(?:data:|blob:|#)/i.test(url))throw Error('The Frame shell has an external resource: '+url);
+  }
+  const head=source.match(/<head\b[^>]*>/i),end=head&&source.indexOf('</head>',head.index+head[0].length);
+  if(!head||end<0)throw Error('Frame HTML head is missing');
+  const startAt=head.index+head[0].length;
+  const cleanHead=source.slice(startAt,end).replace(/<link\b[^>]*>/gi,tag=>{const el=new DOMParser().parseFromString(tag,'text/html').querySelector('link');return el&&/^(?:icon|manifest)$/i.test(el.rel)?'':tag;});
+  const policy="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' blob: data:; style-src 'unsafe-inline' blob: data:; img-src blob: data:; font-src blob: data:; media-src blob: data:; connect-src blob: data:; worker-src blob: data:; frame-src blob: data:; base-uri 'none'; object-src 'none'; form-action 'none'";
+  const metadata=JSON.stringify({name,sourceURL:original.href,links,files}).replaceAll('<','\\u003c');
+  const parts=[source.slice(0,startAt),'\n<meta charset="utf-8">\n<meta name="frame-player" content="1">\n<meta http-equiv="Content-Security-Policy" content="'+policy+'">\n<link rel="icon" href="data:,">\n','\n<script id="frame-player-manifest" type="application/json">',metadata,endScript,'\n'];
+  for(let index=0;index<blobs.length;index++){
+   const blob=blobs[index];
+   for(let offset=0;offset<blob.size;offset+=blockBytes){
+    const bytes=new Uint8Array(await blob.slice(offset,offset+blockBytes).arrayBuffer()),text=[];
+    for(let i=0;i<bytes.length;i+=16384)text.push(String.fromCharCode(...bytes.subarray(i,i+16384)));
+    parts.push('<script type="application/octet-stream" data-frame-player-bytes="'+index+'">',btoa(text.join('')),endScript,'\n');
+   }
+  }
+  parts.push('<script>('+start.toString()+')();',endScript,'\n',cleanHead,source.slice(end));
+  return new Blob(parts,{type:'text/html'});
+ }
+ return {build,sourceIdentity};
+}
+// End self-contained HTML package.
+
+const FrameHTMLPackage=createFrameHTMLPackage();
+let frameHTMLSourceIdentity;
+
 function createFrameHashCodec(){
   // Structured HASH values: typed binary trees with an interned UTF-8 string table.
   // These values never contain a textual copy of the document.
@@ -13151,8 +13255,8 @@ function frameShowCurves(open=true){
     try{const saved=localStorage.getItem('frame-curves-height-px'),px=Number(saved),ratio=Number(localStorage.getItem('frame-curves-height-r71'));if(saved!==null&&Number.isFinite(px)&&px>=17)c.preferredHeight=px;else if(ratio>0&&ratio<1)c.preferredHeight=ratio*stack.clientHeight;}catch{}
     divider.addEventListener('pointerdown',frameCurvesStartResize);
     for(const type of ['pointermove','pointerup','pointercancel'])panel.addEventListener(type,e=>{e.stopPropagation();});
-    canvas.addEventListener('pointerdown',frameCurvesPointerDown);canvas.addEventListener('contextmenu',frameCurvesContext);canvas.addEventListener('wheel',frameCurvesWheel,{passive:false});canvas.addEventListener('keydown',frameCurvesKeyDown);canvas.addEventListener('keyup',e=>{if(frameShortcutKey(e)==='p'&&c.pivotKey){c.pivotKey=false;setEditPivot(c.pivotBefore);frameDrawCurves();e.preventDefault();e.stopPropagation();}});
-    canvas.addEventListener('pointermove',e=>{if(c.drag)return;const q=frameCurvesHit(e);c.hover=q.hit;c.canvas.style.cursor=q.hit?'pointer':'default';frameDrawCurves();});canvas.addEventListener('pointerleave',()=>{if(!c.drag){c.hover=null;frameDrawCurves();}});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',frameCurvesPointerDown);if(!globalThis.frameHTMLPlayer)canvas.addEventListener('contextmenu',frameCurvesContext);if(!globalThis.frameHTMLPlayer)canvas.addEventListener('wheel',frameCurvesWheel,{passive:false});if(!globalThis.frameHTMLPlayer)canvas.addEventListener('keydown',frameCurvesKeyDown);if(!globalThis.frameHTMLPlayer)canvas.addEventListener('keyup',e=>{if(frameShortcutKey(e)==='p'&&c.pivotKey){c.pivotKey=false;setEditPivot(c.pivotBefore);frameDrawCurves();e.preventDefault();e.stopPropagation();}});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',e=>{if(c.drag)return;const q=frameCurvesHit(e);c.hover=q.hit;c.canvas.style.cursor=q.hit?'pointer':'default';frameDrawCurves();});if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerleave',()=>{if(!c.drag){c.hover=null;frameDrawCurves();}});
     new ResizeObserver(frameCurvesResize).observe(stack);new ResizeObserver(frameDrawCurves).observe(vp);
   }
   c.open=!!open;c.panel.style.display=open?'block':'none';if(open){frameCurvesChooseContext();c.canvas.focus();}else{c.cancelDrag?.();c.cancelResize?.();c.editing=false;c.selection=[];lastAttrKey=null;refreshAttributesPanel();}frameCurvesRefreshPSRButtons();frameCurvesResize();
@@ -13591,10 +13695,10 @@ const FrameViewWindows=(()=>{
   function addView(r,i,source){const section=document.createElement('section');section.className='view';section.dataset.view=i;section.ariaLabel=frameViewNames[source];const c=document.createElement('canvas');c.className='frame-viewport-canvas';c.dataset.passiveView=i;c.getContext('webgpu');section.append(c);r.views.set(i,source);viewOwners.set(i,r);frameViewSections.set(i,section);frameViewCanvases.set(i,c);r.root.append(section);window.frameEngine.createView(i,source);}
   function layout(i,single){const r=record(i);if(!r||r.returning)return false;if(!single&&r.views.size===1){for(let kind=0;kind<4;kind++)if(kind!==r.source)addView(r,nextIndex(),kind);for(const [id]of [...r.views].sort((a,b)=>a[1]-b[1]))r.root.append(frameViewElement(id));}r.single=single;r.root.classList.toggle('quad',!single);refresh();return true;}
   const inputTypes=['pointerdown','pointermove','pointerup','pointercancel','wheel','keydown','keyup','contextmenu','focusin'];
-  const capture=e=>{inputDocument=e.currentTarget;if(Number.isFinite(e.clientX)&&Number.isFinite(e.clientY))pointerPositions.set(inputDocument,[e.clientX,e.clientY]);};const blockIO=e=>{if(ioBlocked){e.preventDefault();e.stopImmediatePropagation();return true;}return false;};for(const type of ['keydown','keyup'])window.addEventListener(type,e=>{inputDocument=document;if(blockIO(e))return;if(window.frameEngine&&!e.target.closest?.('input,textarea,select,[contenteditable],dialog,#menu')&&!activateFrameView(mainActiveView)){e.preventDefault();e.stopImmediatePropagation();}},true);window.addEventListener('focus',()=>{inputDocument=document;if(window.frameEngine)activateFrameView(mainActiveView);});
+  const capture=e=>{inputDocument=e.currentTarget;if(Number.isFinite(e.clientX)&&Number.isFinite(e.clientY))pointerPositions.set(inputDocument,[e.clientX,e.clientY]);};const blockIO=e=>{if(ioBlocked){e.preventDefault();e.stopImmediatePropagation();return true;}return false;};for(const type of ['keydown','keyup'])if(!globalThis.frameHTMLPlayer)window.addEventListener(type,e=>{inputDocument=document;if(blockIO(e))return;if(window.frameEngine&&!e.target.closest?.('input,textarea,select,[contenteditable],dialog,#menu')&&!activateFrameView(mainActiveView)){e.preventDefault();e.stopImmediatePropagation();}},true);window.addEventListener('focus',()=>{inputDocument=document;if(window.frameEngine)activateFrameView(mainActiveView);});
   for(const type of inputTypes)document.addEventListener(type,capture,true);
   function targets(kind){return [kind==='document'?document:window,...[...owned.values()].filter(r=>r.ready&&!r.returning).map(r=>kind==='document'?r.document:r.window)];}
-  function on(kind,type,listener,options){const row={kind,type,listener,options};subscriptions.push(row);for(const target of targets(kind))target.addEventListener(type,listener,options);}
+  function on(kind,type,listener,options){if(globalThis.frameHTMLPlayer&&/^(?:pointer|mouse|key|touch|drag|drop|wheel|click|dblclick|contextmenu|auxclick)/.test(type))return;const row={kind,type,listener,options};subscriptions.push(row);for(const target of targets(kind))target.addEventListener(type,listener,options);}
   function off(kind,type,listener,options){const capture=typeof options==='boolean'?options:!!options?.capture;for(let i=subscriptions.length-1;i>=0;i--){const r=subscriptions[i],c=typeof r.options==='boolean'?r.options:!!r.options?.capture;if(r.kind===kind&&r.type===type&&r.listener===listener&&c===capture)subscriptions.splice(i,1);}for(const target of targets(kind))target.removeEventListener(type,listener,options);}
   function find(id){const local=document.getElementById(id);if(local)return local;for(const r of owned.values()){const el=r.document?.getElementById(id);if(el)return el;}return ui.get(id)||null;}
   function allHidden(){return document.hidden&&[...owned.values()].every(r=>!r.ready||r.returning||r.document.hidden);}
@@ -15207,20 +15311,20 @@ let creating=Promise.resolve();
   function manifest(path,expected){
     const url=local(new URL('plugins/',location.href),path);
     if(manifests.has(url))return manifests.get(url);
-    const pending=(async()=>{const r=await fetch(url);if(!r.ok)throw Error('Plugin manifest HTTP '+r.status);const manifest=await r.json();if(!/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)||manifest.id!==expected||typeof manifest.name!=='string'||!Array.isArray(manifest.objects)||new Set(manifest.objects.map(o=>o.type)).size!==manifest.objects.length)throw Error('Invalid plugin manifest');if(manifest.recordTypes!==undefined&&(!manifest.recordTypes||typeof manifest.recordTypes!=='object'||Array.isArray(manifest.recordTypes)||Object.keys(manifest.recordTypes).length>64||Object.entries(manifest.recordTypes).some(([key,type])=>!/^[0-9a-f]{32}$/.test(key)||![0,3,4,5,6,7].includes(type))))throw Error('Invalid plugin record types');if(manifest.assets!==undefined&&(!Array.isArray(manifest.assets)||manifest.assets.length>64||manifest.assets.some(p=>typeof p!=='string')))throw Error('Invalid plugin assets');for(const asset of manifest.assets||[])local(url,asset);const entry={manifest,url,module:local(url,manifest.module),icon:local(url,manifest.icon),loaded:false,pending:null};if(manifest.tags!==undefined&&(!Array.isArray(manifest.tags)||manifest.tags.length>32||manifest.tags.some(t=>!t||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||tagDefinitions[t.kind]||typeof t.name!=='string'||!t.name.trim()||typeof t.text!=='string'||t.text.length>2)||new Set(manifest.tags.map(t=>t.kind)).size!==manifest.tags.length))throw Error('Invalid plugin tags');for(const t of manifest.tags||[])FramePluginTags.declaration(t);for(const object of manifest.objects){if(!/^[a-z][a-z0-9_]*$/.test(object.type)||definitions[object.type]||typeof object.name!=='string'||!object.name.trim()||!object.fields||typeof object.fields!=='object'||Array.isArray(object.fields))throw Error('Invalid plugin object type');FrameParameters.validateOptions(object.fields,object.fieldOptions);if(object.disable!==undefined&&typeof object.disable!=='boolean')throw Error('Invalid plugin disable control');if(object.textFields!==undefined&&(!Array.isArray(object.textFields)||object.textFields.some(k=>typeof k!=='string'||typeof object.fields[k]!=='string')))throw Error('Invalid plugin text fields');if(object.breakAfter!==undefined&&(!Array.isArray(object.breakAfter)||object.breakAfter.some(k=>typeof k!=='string'||!Object.hasOwn(object.fields,k))))throw Error('Invalid plugin spacing');if(object.parameterResets!==undefined){if(!object.parameterResets||typeof object.parameterResets!=='object'||Array.isArray(object.parameterResets))throw Error('Invalid plugin parameter resets');for(const [key,patch]of Object.entries(object.parameterResets)){if(!Object.hasOwn(object.fields,key)||!patch||typeof patch!=='object'||Array.isArray(patch)||Object.entries(patch).some(([k,v])=>!Object.hasOwn(object.fields,k)||typeof v!==typeof object.fields[k]||typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin parameter reset');}}for(const value of Object.values(object.fields))if(!(typeof value==='number'&&Number.isFinite(value)||typeof value==='boolean'||typeof value==='string'||Array.isArray(value)&&value.length&&value.every(v=>typeof v==='string'||typeof v==='number')))throw Error('Invalid plugin field');}entries.set(manifest.id,entry);for(const t of manifest.tags||[]){tagDefinitions[t.kind]={name:t.name,text:t.text,fields:FramePluginTags.declaration(t),plugin:manifest.id};tagOwners.set(t.kind,entry);}for(const object of manifest.objects){definitions[object.type]=[object.name,'plugin:'+manifest.id,object.fields];types.set(object.type,entry);}return entry;})();
+    const pending=(async()=>{const r=await fetch(frameResourceURL(url));if(!r.ok)throw Error('Plugin manifest HTTP '+r.status);const manifest=await r.json();if(!/^[a-z0-9][a-z0-9-]*$/.test(manifest.id)||manifest.id!==expected||typeof manifest.name!=='string'||!Array.isArray(manifest.objects)||new Set(manifest.objects.map(o=>o.type)).size!==manifest.objects.length)throw Error('Invalid plugin manifest');if(manifest.recordTypes!==undefined&&(!manifest.recordTypes||typeof manifest.recordTypes!=='object'||Array.isArray(manifest.recordTypes)||Object.keys(manifest.recordTypes).length>64||Object.entries(manifest.recordTypes).some(([key,type])=>!/^[0-9a-f]{32}$/.test(key)||![0,3,4,5,6,7].includes(type))))throw Error('Invalid plugin record types');if(manifest.assets!==undefined&&(!Array.isArray(manifest.assets)||manifest.assets.length>64||manifest.assets.some(p=>typeof p!=='string')))throw Error('Invalid plugin assets');for(const asset of manifest.assets||[])local(url,asset);const entry={manifest,url,module:local(url,manifest.module),icon:local(url,manifest.icon),loaded:false,pending:null};if(manifest.tags!==undefined&&(!Array.isArray(manifest.tags)||manifest.tags.length>32||manifest.tags.some(t=>!t||!/^[a-z][a-z0-9_-]*$/.test(t.kind)||tagDefinitions[t.kind]||typeof t.name!=='string'||!t.name.trim()||typeof t.text!=='string'||t.text.length>2)||new Set(manifest.tags.map(t=>t.kind)).size!==manifest.tags.length))throw Error('Invalid plugin tags');for(const t of manifest.tags||[])FramePluginTags.declaration(t);for(const object of manifest.objects){if(!/^[a-z][a-z0-9_]*$/.test(object.type)||definitions[object.type]||typeof object.name!=='string'||!object.name.trim()||!object.fields||typeof object.fields!=='object'||Array.isArray(object.fields))throw Error('Invalid plugin object type');FrameParameters.validateOptions(object.fields,object.fieldOptions);if(object.disable!==undefined&&typeof object.disable!=='boolean')throw Error('Invalid plugin disable control');if(object.textFields!==undefined&&(!Array.isArray(object.textFields)||object.textFields.some(k=>typeof k!=='string'||typeof object.fields[k]!=='string')))throw Error('Invalid plugin text fields');if(object.breakAfter!==undefined&&(!Array.isArray(object.breakAfter)||object.breakAfter.some(k=>typeof k!=='string'||!Object.hasOwn(object.fields,k))))throw Error('Invalid plugin spacing');if(object.parameterResets!==undefined){if(!object.parameterResets||typeof object.parameterResets!=='object'||Array.isArray(object.parameterResets))throw Error('Invalid plugin parameter resets');for(const [key,patch]of Object.entries(object.parameterResets)){if(!Object.hasOwn(object.fields,key)||!patch||typeof patch!=='object'||Array.isArray(patch)||Object.entries(patch).some(([k,v])=>!Object.hasOwn(object.fields,k)||typeof v!==typeof object.fields[k]||typeof v==='number'&&!Number.isFinite(v)))throw Error('Invalid plugin parameter reset');}}for(const value of Object.values(object.fields))if(!(typeof value==='number'&&Number.isFinite(value)||typeof value==='boolean'||typeof value==='string'||Array.isArray(value)&&value.length&&value.every(v=>typeof v==='string'||typeof v==='number')))throw Error('Invalid plugin field');}entries.set(manifest.id,entry);for(const t of manifest.tags||[]){tagDefinitions[t.kind]={name:t.name,text:t.text,fields:FramePluginTags.declaration(t),plugin:manifest.id};tagOwners.set(t.kind,entry);}for(const object of manifest.objects){definitions[object.type]=[object.name,'plugin:'+manifest.id,object.fields];types.set(object.type,entry);}return entry;})();
     manifests.set(url,pending);pending.catch(()=>manifests.delete(url));return pending;
   }
   function discover(id){if(typeof id!=='string'||id.length>128||!/^[a-z0-9][a-z0-9-]*$/.test(id))return Promise.reject(Error('Invalid plugin ID'));return entries.has(id)?Promise.resolve(entries.get(id)):manifest(id+'/plugin.json',id);}
   function catalogue(){
     if(cataloguePending)return cataloguePending;
-    cataloguePending=(async()=>{const response=await fetch(new URL('plugins/index.json',location.href));if(!response.ok)throw Error('Plugin catalogue HTTP '+response.status);const paths=await response.json();if(!Array.isArray(paths)||paths.length>256||new Set(paths).size!==paths.length||paths.some(path=>typeof path!=='string'||!/^([a-z0-9][a-z0-9-]*)\/plugin\.json$/.test(path)))throw Error('Invalid plugin catalogue');return installed=(await Promise.all(paths.map(async path=>{try{return await discover(path.split('/')[0]);}catch(error){errors.set(path,error.message);return null;}}))).filter(Boolean);})();
+    cataloguePending=(async()=>{const response=await fetch(frameResourceURL(new URL('plugins/index.json',location.href)));if(!response.ok)throw Error('Plugin catalogue HTTP '+response.status);const paths=await response.json();if(!Array.isArray(paths)||paths.length>256||new Set(paths).size!==paths.length||paths.some(path=>typeof path!=='string'||!/^([a-z0-9][a-z0-9-]*)\/plugin\.json$/.test(path)))throw Error('Invalid plugin catalogue');return installed=(await Promise.all(paths.map(async path=>{try{return await discover(path.split('/')[0]);}catch(error){errors.set(path,error.message);return null;}}))).filter(Boolean);})();
     cataloguePending.catch(()=>cataloguePending=null);return cataloguePending;
   }
   const pluginIconBytes=new Map(),pluginButtons=new Map();
   let iconCataloguePending=null;
   function readPluginIcon(url,background=false){
     if(pluginIconBytes.has(url))return pluginIconBytes.get(url);
-    const pending=(async()=>{const response=await fetch(url,background?{priority:'low'}:undefined);if(!response.ok)throw Error('Plugin icon HTTP '+response.status);return await response.text();})();
+    const pending=(async()=>{const response=await fetch(frameResourceURL(url),background?{priority:'low'}:undefined);if(!response.ok)throw Error('Plugin icon HTTP '+response.status);return await response.text();})();
     pluginIconBytes.set(url,pending);pending.catch(()=>{if(pluginIconBytes.get(url)===pending)pluginIconBytes.delete(url);});return pending;
   }
   async function icon(entry){
@@ -15230,7 +15334,7 @@ let creating=Promise.resolve();
     if(iconCataloguePending)return iconCataloguePending;
     const base=new URL('plugins/',location.href);
     const pending=(async()=>{
-      const response=await fetch(new URL('icons.json',base),background?{priority:'low'}:undefined);
+      const response=await fetch(frameResourceURL(new URL('icons.json',base)),background?{priority:'low'}:undefined);
       if(!response.ok)throw Error('Plugin icon catalogue HTTP '+response.status);
       const rows=await response.json(),ids=new Set();
       if(!Array.isArray(rows)||rows.length>256)throw Error('Invalid plugin icon catalogue');
@@ -15273,6 +15377,22 @@ let creating=Promise.resolve();
     const used=new Set();for(const a of authoring){const p=a.plugin,entry=p&&!a.pluginReferencesUnresolved&&owner({type:p.type});if(entry&&entry.manifest.id===p.id){used.add(entry);for(const r of a.pluginRecords||[])if(Object.hasOwn(entry.manifest.recordTypes||{},r.key)&&entry.manifest.recordTypes[r.key]!==r.type)throw Error('Wrong plugin HASH record type');}for(const t of a.tags)if(!t.referencesUnresolved&&tagOwners.has(t.kind))used.add(tagOwners.get(t.kind));frameValidateAuthoring({...a,recordValues:undefined});}
     await Promise.all([...used].map(entry=>icon(entry).catch(error=>errors.set(entry.manifest.id,error.message))));
   }
+  async function exportResources(add,extra=[]){
+    const used=new Set(nodes.flatMap(n=>[owner(n),...n.tags.map(t=>tagOwners.get(t.kind))]).filter(Boolean));
+    for(const e of entries.values())if(e.loaded)used.add(e);
+    for(const id of extra)used.add(await discover(id));
+    for(const n of nodes)if(n.ignoredAuthoring?.plugin||n.ignoredAuthoring?.tags?.some(t=>!tagDefinitions[t.kind]))throw Error('Unavailable plugin in '+n.name);
+    const paths=[],icons=[];
+    for(const e of used){
+      const path=e.manifest.id+'/plugin.json';paths.push(path);
+      await add('plugins/'+path,new Blob([JSON.stringify(e.manifest)],{type:'application/json'}));
+      await add(e.module);await add(e.icon);
+      for(const asset of e.manifest.assets||[])await add(local(e.url,asset));
+      icons.push({id:e.manifest.id,name:e.manifest.name,icon:e.manifest.id+'/'+e.manifest.icon});
+    }
+    await add('plugins/index.json',new Blob([JSON.stringify(paths)],{type:'application/json'}));
+    await add('plugins/icons.json',new Blob([JSON.stringify(icons)],{type:'application/json'}));
+  }
   function list(){return [...new Set([...(installed||[]),...entries.values()])].map(e=>({id:e.manifest.id,name:e.manifest.name,types:e.manifest.objects.map(o=>o.type),loaded:e.loaded,error:errors.get(e.manifest.id)||null}));}
   function owner(n){return types.get(n?.type);}
   function referenceField(type,key){const spec=types.get(type)?.manifest.objects.find(o=>o.type===type);return typeof spec?.fields[key]==='string'&&!spec.textFields?.includes(key);}
@@ -15296,7 +15416,7 @@ let creating=Promise.resolve();
     if(viewport.helpers!==undefined){if(!viewport.helpers||typeof viewport.helpers!=='object'||Array.isArray(viewport.helpers))throw Error('Invalid plugin helpers');for(const [type,helper]of Object.entries(viewport.helpers)){if(!types.has(type))throw Error('Unknown plugin helper type');helpers[type]=pluginHelperDescriptor(helper);length+=helpers[type].lines.length;if(length>60000)throw Error('Plugin helpers exceed 10000 segments');}}
     return Object.freeze({renderKind:'solid',...viewport,...base,helpers:Object.freeze(helpers)});
   }
-  function use(entry){if(entry.loaded)return Promise.resolve();if(entry.pending)return entry.pending;entry.pending=import(entry.module).then(async module=>{if(typeof module.activate!=='function')throw Error('Plugin must export activate(context)');await module.activate(Object.freeze({...bridge(entry),id:entry.manifest.id,version:1,get api(){return window.frameAI;},get device(){return window.frameEngine?.renderer?.device;},gpu:hash=>{const engine=window.frameEngine,mesh=engine?.scene?.meshes.find(m=>m.hashId===hash&&!m.replicaMatrix);if(!mesh)return null;return Object.freeze({device:engine.renderer.device,positions:mesh.positions,indices:mesh.indices,normals:mesh.normals,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount,storage:mesh.paged?'texture':'buffer',version:mesh.version});},viewport:Object.freeze({get cameraWGSL(){return window.frameEngine.pluginCameraWGSL;},isVisible:hash=>window.frameEngine.pluginDisplayed(hash),register:async viewport=>{entry.viewport=pluginViewportDescriptor(viewport,entry.manifest.objects);window.frameEngine?.preparePluginViewport(entry).catch(fileOperationError);}}),scene:Object.freeze({get transforming(){return !!window.frameEngine?.transforming;},prepareAccuracy:()=>window.frameEngine.pluginPrepareAccuracy(),capture:(hash,keys=[],options={})=>window.frameEngine.pluginSnapshot(hash,keys,true,options.includeHidden===true,options.bounds),signature:(hash,keys,options={})=>window.frameEngine.pluginSnapshot(hash,keys,false,options.includeHidden===true,options.bounds).signature}),
+  function use(entry){if(entry.loaded)return Promise.resolve();if(entry.pending)return entry.pending;entry.pending=import(frameResourceURL(entry.module)).then(async module=>{if(typeof module.activate!=='function')throw Error('Plugin must export activate(context)');await module.activate(Object.freeze({...bridge(entry),id:entry.manifest.id,version:1,get api(){return window.frameAI;},get device(){return window.frameEngine?.renderer?.device;},gpu:hash=>{const engine=window.frameEngine,mesh=engine?.scene?.meshes.find(m=>m.hashId===hash&&!m.replicaMatrix);if(!mesh)return null;return Object.freeze({device:engine.renderer.device,positions:mesh.positions,indices:mesh.indices,normals:mesh.normals,vertexCount:mesh.vertexCount,triangleCount:mesh.triangleCount,storage:mesh.paged?'texture':'buffer',version:mesh.version});},viewport:Object.freeze({get cameraWGSL(){return window.frameEngine.pluginCameraWGSL;},isVisible:hash=>window.frameEngine.pluginDisplayed(hash),register:async viewport=>{entry.viewport=pluginViewportDescriptor(viewport,entry.manifest.objects);window.frameEngine?.preparePluginViewport(entry).catch(fileOperationError);}}),scene:Object.freeze({get transforming(){return !!window.frameEngine?.transforming;},prepareAccuracy:()=>window.frameEngine.pluginPrepareAccuracy(),capture:(hash,keys=[],options={})=>window.frameEngine.pluginSnapshot(hash,keys,true,options.includeHidden===true,options.bounds),signature:(hash,keys,options={})=>window.frameEngine.pluginSnapshot(hash,keys,false,options.includeHidden===true,options.bounds).signature}),
       operations:Object.freeze({register:operations=>{if(!Array.isArray(operations)||operations.some(o=>!o||!/^[a-z][a-z0-9-]*$/.test(o.id)||typeof o.run!=='function'||typeof o.description!=='string'||o.inputSchema?.type!=='object'||typeof o.readOnly!=='boolean'||o.interrupt!=null&&typeof o.interrupt!=='function')||new Set(operations.map(o=>o.id)).size!==operations.length)throw Error('Invalid plugin operations');entry.operations=new Map(operations.map(o=>[o.id,Object.freeze({...o})]));}}),
       parameters:Object.freeze({schema:type=>{if(types.get(type)!==entry)throw Error('Invalid plugin type');return FrameParameters.schema(type);}}),
       attributes:Object.freeze({register:attributes=>{if(typeof attributes!=='function')throw Error('Invalid plugin attributes');entry.attributes=attributes;}}),
@@ -15311,14 +15431,14 @@ let creating=Promise.resolve();
   async function createObject(id,type){const entry=await discover(id);const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
   FrameViewWindows.onWindow('frame-engine-scene',()=>loadUsed().then(()=>window.frameEngine?.draw(true)).catch(fileOperationError));
   function drawOverlays(only=null){if(!only)for(const n of nodes)if(owner(n)){const color=dispatch('rowColor',n),el=$('row-'+n.id)?.querySelector('.ob-name');if(el)el.style.setProperty('--object-color',color||objectColor(n.type));}for(const entry of only?[only]:entries.values()){const data=entry.editor?.overlay?.(),id='frame-plugin-overlay-'+entry.manifest.id;let panel=$(id);if(!data){panel?.remove();continue;}const view=window.frameEngine.pluginView(),stamp=frameValueKey([data,view.instance,view.rect]);if(panel)framePlaceOverlay(panel,view.instance);if(panel?.dataset.stamp===stamp)continue;if(!panel){panel=document.createElement('div');panel.id=id;panel.className='frame-plugin-overlay';framePlaceOverlay(panel,view.instance);}panel.dataset.stamp=stamp;panel.style.cssText='position:fixed;z-index:15;display:grid;grid-template-columns:repeat('+data.columns+',20px);grid-auto-rows:20px;gap:1px;right:'+(panel.ownerDocument.defaultView.innerWidth-view.rect.left-view.rect.width+36)+'px;top:'+(view.rect.top+6)+'px';panel.replaceChildren();for(const cell of data.cells){const button=document.createElement('button');button.textContent=cell.label;button.dataset.pluginElement=cell.label;button.style.cssText='grid-column:'+cell.column+';grid-row:'+cell.row+';border:0;padding:0;background:transparent;font:12px Arial;cursor:pointer;color:'+cell.color;button.style.setProperty('color',cell.color,'important');button.classList.toggle('on',!!cell.active);button.setAttribute('aria-pressed',String(!!cell.active));button.onclick=()=>window.frameAI.call('plugins.command',{id:data.hash,operation:cell.action,args:cell.args||{}}).catch(fileOperationError);panel.append(button);}}}
-  return {drawOverlays,show,warmIcons,open,prepareAuthoring,list,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{if(!definitions[type])await open();const entry=types.get(type);if(entry)await use(entry);},create:createObject};
+  return {drawOverlays,show,warmIcons,open,prepareAuthoring,list,exportResources,owner,referenceField,remapAuthoring,canDisable,loadUsed,attributes,renderActions,operations,parameterPatch,dispatch,flush,hooks,ensureTag,setTags,tagPlan,readTags,tagMenu,tagList,ensureType:async type=>{if(!definitions[type])await open();const entry=types.get(type);if(entry)await use(entry);},create:createObject};
 })();window.framePlugins=Object.freeze({version:1,get ready(){return FramePlugins.open();},list:FramePlugins.list,create:FramePlugins.create});
 
 
-// Same-origin presentation window for arbitrary scene-owned JavaScript.
+// Scene-owned interfaces use a popup in the editor and the main viewport in Player.
 const FrameSceneControl=(()=>{
- const panels=new Set(),mounted=new Map(),geometry=createFrameDocumentationGeometry('frame-control-window-v1');
- let child=null,activeDocument=null;
+ const panels=new Set(),mounted=new Map(),geometry=createFrameDocumentationGeometry('frame-control-window-v1'),inline=!!globalThis.frameHTMLPlayer;
+ let child=inline?window:null,activeDocument=null;
  const instruction='Scene Control runs AI-written code that can extend any part of Frame: add interfaces, tools, custom objects and behavior. Tell Codex what you want and ask it to use Scene Control.';
  const report=error=>console.error('Scene Control panel failed',error);
  function release(slot){slot.live=false;try{slot.dispose?.();}catch(error){report(error);}slot.root.remove();}
@@ -15326,10 +15446,12 @@ const FrameSceneControl=(()=>{
  function sync(){
   if(!child||child.closed)return;
   let doc;try{doc=child.document;}catch{return;}
-  const root=doc.getElementById('frame-control-content');if(!root)return;
-  if(doc!==activeDocument){clear();activeDocument=doc;geometry.installDocumentationGeometry(child);}
+  let root=doc.getElementById(inline?'frame-player-control':'frame-control-content');
+  if(!root&&inline){root=doc.createElement('main');root.id='frame-player-control';root.setAttribute('aria-label','Scene Control');doc.body.append(root);}
+  if(!root)return;
+  if(doc!==activeDocument){clear();activeDocument=doc;if(!inline)geometry.installDocumentationGeometry(child);}
   for(const [panel,slot]of mounted)if(!panels.has(panel)){mounted.delete(panel);release(slot);}
-  const empty=doc.getElementById('frame-control-empty');empty.hidden=panels.size>0;empty.textContent=instruction;
+  const empty=doc.getElementById('frame-control-empty');if(empty){empty.hidden=panels.size>0;empty.textContent=instruction;}
   for(const panel of panels){
    if(mounted.has(panel))continue;
    const section=doc.createElement('section'),slot={root:section,live:true,dispose:null};root.append(section);mounted.set(panel,slot);
@@ -15340,6 +15462,7 @@ const FrameSceneControl=(()=>{
   }
  }
  function open(){
+  if(inline){child=window;sync();return inspect();}
   if(child&&!child.closed){child.focus();sync();return inspect();}
   clear();
   const url=framePopupDocumentURL('control',"window.opener?.postMessage({type:'frame-control-ready'},location.origin);window.addEventListener('pagehide',()=>window.opener?.postMessage({type:'frame-control-leaving'},location.origin));");child=window.open(url,'frame-control',geometry.documentationWindowFeatures(window));frameTrackPopupURL(window,child,url);
@@ -15354,9 +15477,10 @@ const FrameSceneControl=(()=>{
   return ()=>{if(!live)return;live=false;panels.delete(panel);sync();};
  }
  function inspect(){return {open:!!child&&!child.closed,panels:panels.size};}
- window.addEventListener('message',event=>{if(event.origin!==location.origin||event.source!==child)return;if(event.data?.type==='frame-control-ready')sync();else if(event.data?.type==='frame-control-leaving')clear();});
- window.addEventListener('pagehide',()=>{clear();panels.clear();child?.close();child=null;});
- return Object.freeze({register,open,inspect,reset(){panels.clear();sync();},close(){clear();child?.close();child=null;}});
+ window.addEventListener('message',event=>{if(inline||event.origin!==location.origin||event.source!==child)return;if(event.data?.type==='frame-control-ready')sync();else if(event.data?.type==='frame-control-leaving')clear();});
+ window.addEventListener('pagehide',()=>{clear();panels.clear();if(!inline)child?.close();child=null;});
+ if(inline)window.addEventListener('pageshow',event=>{if(event.persisted){child=window;sync();}});
+ return Object.freeze({register,open,inspect,reset(){panels.clear();sync();},close(){clear();if(!inline)child?.close();child=null;}});
 })();
 
 /* Scene Control runtime. Keep this factory self-contained when inlining it in index.html. */
@@ -15688,14 +15812,14 @@ const FrameScenePrograms=(()=>{
  let runtime=null,installed=false,hostActive=true,hostToken=crypto.randomUUID(),queued=false,nativeState=()=>({busy:true}),notifyVersion=0;
  const documentState=()=>({token:hostToken+':'+FrameAuthorData.documentToken,ready:installed&&hostActive&&FrameAuthorData.ready&&!FrameAuthorData.busy&&!nativeState().busy&&!frameUITransaction});
  const plans=createSceneProgramPlans({getDocument:documentState,owners:()=>FrameAuthorData.owners(),root:()=>FrameAuthorData.root()});
- const core={get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},window,document,definitions,control:FrameSceneControl,resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>render(),authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins};
+ const core={get engine(){return window.frameEngine;},get nodes(){return nodes;},get frame(){return timelineFrame;},get playing(){return !!playing;},window,document,definitions,control:FrameSceneControl,resourceURL:frameResourceURL,resolveOwner:hash=>FrameAuthorData.resolveOwner(hash),transaction:fn=>commit(fn),refresh:()=>render(),authorData:FrameAuthorData,fields:FrameFields,parameters:FrameParameters,plugins:FramePlugins};
  const capabilities=Object.freeze({version:1,contexts:['main','named-worker'],descriptor:{format:'frame.scene-control',version:1},arbitraryJavaScript:true,sandboxed:false,mainDOM:true,coreAccess:true,managedResources:true,jobExecution:true,structuredCloneMessaging:true,panel:true,customAttributes:false,fieldSubscriptions:false,frameLifecycle:false,testCopies:false});
  function changed(reason){plans.invalidate({document:reason==='document'});if(reason==='document'){FrameSceneControl.reset();runtime?.reconcile({reason});}if(queued)return;queued=true;queueMicrotask(()=>{queued=false;plans.invalidate();runtime?.reconcile({reason});});}
  FrameAuthorData.observe(changed);
  function address(a,optional=false){if(optional&&a.owner===undefined&&a.id===undefined)return a;if(!(a.owner==='scene'||typeof a.owner==='string'&&/^[a-f0-9]{32}$/.test(a.owner))||typeof a.id!=='string'||!/^[a-f0-9]{32}$/.test(a.id))FrameAuthorData.error('Canonical owner and program descriptor ID required');return a;}
  function current(){if(!runtime)FrameAuthorData.error('Scene program runtime is not initialized','NOT_READY');return runtime;}
- return Object.freeze({capabilities,changed,install({call,listTools,state,ready}){if(runtime)return;nativeState=state;runtime=createSceneProgramRuntime({getDocument:documentState,readPlans:()=>plans.read(),getPlan:a=>plans.get(a),call:(name,args,guard)=>{guard?.();return call(name,args,guard);},listTools,getCore:()=>core,getControl:()=>FrameSceneControl,onStatus:detail=>{notifyVersion++;window.dispatchEvent(new CustomEvent('frame-program-state',{detail:{version:notifyVersion,...detail}}));}});window.frameCore=core;window.frameControl=FrameSceneControl;window.framePrograms=runtime;window.frameProgramRefresh=changed;Promise.resolve(ready).then(()=>{installed=true;changed('api-ready');}).catch(error=>console.error('Scene program API readiness failed',error));window.addEventListener('pagehide',()=>{hostActive=false;hostToken=crypto.randomUUID();plans.invalidate({document:true});runtime.reconcile({reason:'host-retired'});});window.addEventListener('pageshow',e=>{if(e.persisted){hostActive=true;changed('host-restored');}});},
- describe(){return {capabilities,document:documentState(),descriptor:{format:'frame.scene-control',version:1,data:{source:'typed source-record reference index',context:'main or worker:<name>',start:'manual or ready',imports:'alias to typed source-record reference index',bindings:'alias to typed object, field or binding-record reference index',params:'JSON object'}},sourceInspection:'authorData.get/inspect; source records remain inert without a recognized descriptor',panel:{register:'ctx.control.register(({window,document,root,host}) => cleanup?)',native:'window.frameControl',window:'Same-origin popup; position and size are browser preferences'},scope:'Arbitrary JavaScript with native main-tab DOM/core access and optional named Workers. No sandbox or tool allowlist; lifecycle helpers are optional. Native browser rules apply.'};},
+ return Object.freeze({capabilities,changed,exportPlans:()=>createSceneProgramPlans({getDocument:()=>({ready:FrameAuthorData.ready}),owners:()=>FrameAuthorData.owners(),root:()=>FrameAuthorData.root()}).read(),install({call,listTools,state,ready}){if(runtime)return;nativeState=state;runtime=createSceneProgramRuntime({getDocument:documentState,readPlans:()=>plans.read(),getPlan:a=>plans.get(a),call:(name,args,guard)=>{guard?.();return call(name,args,guard);},listTools,getCore:()=>core,getControl:()=>FrameSceneControl,onStatus:detail=>{notifyVersion++;window.dispatchEvent(new CustomEvent('frame-program-state',{detail:{version:notifyVersion,...detail}}));}});window.frameCore=core;window.frameControl=FrameSceneControl;window.framePrograms=runtime;window.frameProgramRefresh=changed;Promise.resolve(ready).then(()=>{installed=true;changed('api-ready');}).catch(error=>console.error('Scene program API readiness failed',error));window.addEventListener('pagehide',()=>{hostActive=false;hostToken=crypto.randomUUID();plans.invalidate({document:true});runtime.reconcile({reason:'host-retired'});});window.addEventListener('pageshow',e=>{if(e.persisted){hostActive=true;changed('host-restored');}});},
+ describe(){return {capabilities,document:documentState(),player:{active:!!globalThis.frameHTMLPlayer,export:'scene.export with format html; keeps the HASH file binding',assets:{format:'frame.player-assets',version:1,data:{resources:'application-relative paths',plugins:'plugin IDs',stock:'car or human'}},resourceURL:'ctx.core.resourceURL(path) in main; pass the returned Blob URL to Workers',network:'External loads are blocked. Declare dynamic resources; source and static imports are not rewritten.'},descriptor:{format:'frame.scene-control',version:1,data:{source:'typed source-record reference index',context:'main or worker:<name>',start:'manual or ready',imports:'alias to typed source-record reference index',bindings:'alias to typed object, field or binding-record reference index',params:'JSON object'}},sourceInspection:'authorData.get/inspect; source records remain inert without a recognized descriptor',panel:{register:'ctx.control.register(({window,document,root,host}) => cleanup?)',native:'window.frameControl',window:globalThis.frameHTMLPlayer?'In-page Player interface':'Same-origin popup; position and size are browser preferences'},scope:'Arbitrary JavaScript with native main-tab DOM/core access and optional named Workers. No sandbox or tool allowlist; lifecycle helpers are optional. Native browser rules apply.'};},
  status:a=>current().status(address(a||{},true)),start:a=>current().start(address(a)),stop:a=>current().stop(address(a)),restart:a=>current().restart(address(a)),invoke:a=>current().invoke(address(a)),poll:a=>current().poll(a),terminateContext:a=>{if(!/^worker:[A-Za-z0-9_.-]{1,64}$/.test(a.context))FrameAuthorData.error('Named Worker context required');return current().terminateContext(a);}
  });
 })();
@@ -16803,7 +16927,7 @@ function frameDecodeMaterialImage(url,img){
   if(!task){task=img.decode().catch(error=>{frameMaterialImageError(url,img);throw error;}).finally(()=>frameImageDecodes.delete(img));frameImageDecodes.set(img,task);}
   return task;
 }
-function frameMaterialImage(url){let img=textureImages.get(url);if(!img){img=new Image();textureImages.set(url,img);img.onerror=()=>frameMaterialImageError(url,img);const card=[...$('texGrid').children].find(el=>el.dataset.texture===url);if(card){img.className='tex-img';img.alt=card.title;img.draggable=false;card.replaceChildren(img);}img.src=url;}return img;}
+function frameMaterialImage(url){let img=textureImages.get(url);if(!img){img=new Image();textureImages.set(url,img);img.onerror=()=>frameMaterialImageError(url,img);const card=[...$('texGrid').children].find(el=>el.dataset.texture===url);if(card){img.className='tex-img';img.alt=card.title;img.draggable=false;card.replaceChildren(img);}img.src=frameResourceURL(url);}return img;}
 function frameMaterialAsset(url,bytes=null,attach=true){let id=frameAssetURLs.get(url),asset=frameTextureSources.get(id);if(!asset){id=crypto.randomUUID().replaceAll('-','');asset={uid:id,path:bytes?'':url,bytes,url};frameAssetURLs.set(url,id);frameTextureSources.set(id,asset);}if(attach)frameMaterialAssets.set(id,asset);return id;}
 function frameMaterialState(){
   const owners=nodes.filter(n=>n.nativeHash).map(n=>({hash:n.nativeHash,parent:node(n.parent)?.nativeHash||null,tags:n.tags.filter(t=>['material','uv'].includes(t.kind)).map(t=>{t.uid??=crypto.randomUUID().replaceAll('-','');return t.kind==='material'?{uid:t.uid,kind:t.kind,materialUID:(materials[t.material||0]||materials[0]).uid,mask:t.mask||null,params:{}}:{uid:t.uid,kind:'uv',params:{}};})}));
@@ -17047,7 +17171,7 @@ for(const type of ['pointerdown','wheel'])FrameViewWindows.onDocument(type,e=>{
   e.preventDefault();e.stopImmediatePropagation();if(!activateFrameView(+view.dataset.view))return;
   $('frame-engine-canvas').dispatchEvent(type==='wheel'?new WheelEvent(type,e):new PointerEvent(type,e));
 },{capture:true,passive:false});
-$('vp').onauxclick=e=>e.preventDefault();
+if(!framePlayer)$('vp').onauxclick=e=>e.preventDefault();
 
 
 for(const [id,key]of [['btnQuant','quantize'],['btnSnap','snap'],['btnPivot','pivot']])$(id).onclick=()=>{const on=!$(id).classList.contains('on');window.frameEngine?.setTransformOptions({[key]:on});};
@@ -17510,7 +17634,7 @@ let frameNativeFileTask=async()=>{throw Error('Frame is not ready');};
 // Linked documents share the existing native scene/device. Only their references persist.
 const FrameFileSources=(()=>{
  const entries=new Map(),definitions=new Map(),mounts=new Map(),picked=new Map(),ownedMaterials=new Set(),ownedAssets=new Set();let busy=false,queued=false,defaultMount=null,documentToken=null,watcher=null;
- const database=new Promise(resolve=>{const r=indexedDB.open('frame-file-sources:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('mounts');r.onerror=()=>resolve(null);r.onsuccess=()=>resolve(r.result);});
+ const database=framePlayer?Promise.resolve(null):new Promise(resolve=>{const r=indexedDB.open('frame-file-sources:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('mounts');r.onerror=()=>resolve(null);r.onsuccess=()=>resolve(r.result);});
  const mountsReady=database.then(db=>db?new Promise(resolve=>{const r=db.transaction('mounts').objectStore('mounts').getAll();r.onsuccess=()=>{for(const row of r.result){
   if(row.handle.kind==='directory')mounts.set(row.id,row.handle);else picked.set(row.id,row);
  }resolve();};r.onerror=()=>resolve();}):null);
@@ -17529,6 +17653,11 @@ const FrameFileSources=(()=>{
  function descriptor(n){
   const file=n.params.file;if(typeof file!=='string'||!frameIsModelFile(file)&&!frameIsModelFile(file.split(/[?#]/)[0]))throw Error('Unsupported instance file');
   const containing=definitions.get(n.fileSource)?.descriptor;
+  if(framePlayer){
+   const links=window.frameHTMLPlayer.links,key=JSON.stringify([n.fileMount||'',file]),index=containing?.kind==='embedded'?links?.files[containing.index]?.children[key]:links?.roots[key],row=links?.files[index];
+   if(!row)throw Error('Linked file is not embedded: '+file);
+   return {kind:'embedded',index,path:row.name,key:'html:'+index};
+  }
   if(/^https?:/i.test(file)){const u=new URL(file);if(u.origin!==location.origin)throw Error('Linked URLs must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}
   const handle=FrameProjectFile.opening||sceneFileHandle,project=handle?.frameHostPath;
   if(file.startsWith('/')&&!file.startsWith('//')&&(containing?.kind==='host'||project?.startsWith('/'))){const path=decodeURIComponent(new URL('file://'+file).pathname);return {kind:'host',path,key:'host:'+path};}
@@ -17548,8 +17677,8 @@ const FrameFileSources=(()=>{
   if(mount||handle)return local('native',mount||null,mount?normalize(file):file);
   return descriptor({params:{file:new URL(file,location.href).href}});
  }
- function watch(){const linked=nodes.some(n=>!n.fileSource&&n.type==='instance'&&n.params.file);if(linked&&!watcher)watcher=setInterval(()=>void poll().catch(()=>{}),1500);else if(!linked&&watcher){clearInterval(watcher);watcher=null;}}
- function entry(n){if(!watcher&&!n.fileSource)watcher=setInterval(()=>void poll().catch(()=>{}),1500);const d=descriptor(n);if(d.kind==='native'&&!n.fileSource&&!n.fileMount&&!sceneFileHandle&&!FrameProjectFile.opening)n.fileMount=d.mount;let e=entries.get(d.key);if(!e){e={descriptor:d,root:null,token:null,version:null,signature:null,dependencies:[],error:null,dirty:true};entries.set(d.key,e);}return e;}
+ function watch(){if(framePlayer)return;const linked=nodes.some(n=>!n.fileSource&&n.type==='instance'&&n.params.file);if(linked&&!watcher)watcher=setInterval(()=>void poll().catch(()=>{}),1500);else if(!linked&&watcher){clearInterval(watcher);watcher=null;}}
+ function entry(n){if(!framePlayer&&!watcher&&!n.fileSource)watcher=setInterval(()=>void poll().catch(()=>{}),1500);const d=descriptor(n);if(d.kind==='native'&&!n.fileSource&&!n.fileMount&&!sceneFileHandle&&!FrameProjectFile.opening)n.fileMount=d.mount;let e=entries.get(d.key);if(!e){e={descriptor:d,root:null,token:null,version:null,signature:null,dependencies:[],error:null,dirty:true};entries.set(d.key,e);}return e;}
  function source(n){try{const e=entry(n);return e.root?frameNodeByHash(e.root)||null:null;}catch{return null;}}
  function state(n){try{const e=entry(n);return {file:n.params.file,source:e.descriptor.key,status:e.error?'error':e.root?'ready':'pending',error:e.error,version:e.version,root:e.root,...e.folderGrant?{folderGrant:e.folderGrant}:{}};}catch(error){return {file:n.params.file,status:'error',error:errorText(error)};}}
  function paintFolderButton(button,n){
@@ -17751,6 +17880,8 @@ const FrameFileSources=(()=>{
   return dir.getFileHandle(parts.at(-1));
  }
  async function fileAt(d){
+  if(d.kind==='embedded'){const row=window.frameHTMLPlayer.links.files[d.index];return new File([window.frameHTMLPlayer.blob(row.resource)],row.name);}
+  if(d.kind==='embedded-resource')return new File([window.frameHTMLPlayer.blob(d.resource)],d.path.split('/').pop());
   if(d.kind==='picked'){const item=pickedFile(d);return item.kind==='file'?item.getFile():item;}
   if(d.kind==='native')return (await nativeHandle(d)).getFile();
   if(d.kind==='host')return frameHostFileHandle(d.path).getFile();
@@ -17759,11 +17890,12 @@ const FrameFileSources=(()=>{
   return new File([await response.blob()],decodeURIComponent(new URL(d.path).pathname.split('/').pop()));
  }
  async function metadata(d){
+  if(d.kind==='embedded'||d.kind==='embedded-resource'||d.kind==='blob')return d.key;
   if(d.kind==='host'){if(typeof window.__frameFileHost!=='function')throw Error('Local file host is disconnected');const s=await window.__frameFileHost({op:'stat',path:d.path});return s.version;}
   if(d.kind==='native'||d.kind==='picked'){const f=await fileAt(d);return f.size+':'+f.lastModified;}
   const r=await fetch(d.path,{method:'HEAD',cache:'no-store',headers:{'X-Frame-Source':'1'}});if(!r.ok&&r.status!==405&&r.status!==501)throw Error('Linked file HTTP '+r.status);return r.ok&&(r.headers.get('etag')||r.headers.get('last-modified'))?[r.headers.get('etag'),r.headers.get('last-modified'),r.headers.get('content-length')].join(':'):null;
  }
- function resourceDescriptor(d,path){if(/^(data:|blob:)/i.test(path))return null;if(/^https?:/i.test(path)){const u=new URL(path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='url'){const u=new URL(path,d.path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='host'){const absolute=hostPath(path)?path:parent(d.path)+path;return {kind:'host',path:absolute,key:'host:'+absolute.toLowerCase()};}return relativeLocal(d,decodeURIComponent(path));}
+ function resourceDescriptor(d,path){if(/^data:/i.test(path))return null;if(d.kind==='embedded'){const resource=window.frameHTMLPlayer.links.files[d.index].dependencies[path];if(!resource)throw Error('Linked resource is not embedded: '+path);return {kind:'embedded-resource',path,resource,key:'html-resource:'+resource};}if(/^blob:/i.test(path))return {kind:'blob',path,key:path};if(/^https?:/i.test(path)){const u=new URL(path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='url'){const u=new URL(path,d.path);if(u.origin!==location.origin)throw Error('Linked resource must use the Frame origin');return {kind:'url',path:u.href,key:u.href};}if(d.kind==='host'){const absolute=hostPath(path)?path:parent(d.path)+path;return {kind:'host',path:absolute,key:'host:'+absolute.toLowerCase()};}return relativeLocal(d,decodeURIComponent(path));}
  async function sha256(bytes){
   return FrameHash.hex(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)));
  }
@@ -17785,7 +17917,7 @@ const FrameFileSources=(()=>{
    catch(error){e.error=errorText(error);e.folderGrant=error.grant||null;throw error;}
    return;
   }
-  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,primaryVersion:e.primaryVersion,signature:e.signature,dependencies:e.dependencies,index:e.index},document=FrameAuthorData.documentToken;
+  const token=crypto.randomUUID(),d=e.descriptor,prior={root:e.root,token:e.token,version:e.version,primaryVersion:e.primaryVersion,signature:e.signature,dependencies:e.dependencies,missing:e.missing,index:e.index},document=FrameAuthorData.documentToken;
   let signature;
   try{
    signature=await metadata(d);const file=await fileAt(d),fileIndex=/\.hash$/i.test(file.name)?await createFrameFileIndex().read(file):null;
@@ -17803,12 +17935,14 @@ const FrameFileSources=(()=>{
      await ensureChildren(e.token,chain,visited);e.signature=signature;e.dependencies=observed;e.dirty=false;visited.add(e);return;
     }
    }
-   const definition={descriptor:d,root:FrameHash.newId(),key:d.key};definitions.set(token,definition);const used=new Map();
+   const definition={descriptor:d,root:FrameHash.newId(),key:d.key};definitions.set(token,definition);const used=new Map(),missing=new Set();
    const readResource=async uri=>{
+    try{
     const rd=resourceDescriptor(d,uri);
     if(!rd){const r=await fetch(uri);return new Uint8Array(await r.arrayBuffer());}
     if(!reads.has(uri))reads.set(uri,metadata(rd).then(stamp=>readDependency(rd,uri,stamp)));
     const read=await reads.get(uri);used.set(uri,read.dependency);return read.bytes;
+    }catch(error){if(error.name==='NotFoundError')missing.add(uri);throw error;}
    };
    const imported=await window.frameEngine.loadFileSource(file,{token,root:definition.root,name:file.name,readResource});for(const id of imported.materials)ownedMaterials.add(id);for(const id of imported.assets)ownedAssets.add(id);
    await ensureChildren(token,chain,visited);
@@ -17817,7 +17951,7 @@ const FrameFileSources=(()=>{
    for(const dep of dependencies)if(dep.signature!==await metadata(dep.descriptor))throw Error('Linked resource changed while loading; retrying');
    const version=dependencies.length?await sha256(frameUTF8.encode(JSON.stringify([primaryVersion,...dependencies.map(r=>[r.uri,r.digest])]))):primaryVersion;
    const now=await metadata(d);if(signature!==now)throw Error('Linked file changed while loading; retrying');if(document!==FrameAuthorData.documentToken)throw new DOMException('Source document changed','AbortError');
-   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.primaryVersion=primaryVersion;e.signature=now;e.dependencies=dependencies;e.error=null;e.folderGrant=null;e.waitingGrant=null;e.permissionDenied=false;e.dirty=false;visited.add(e);
+   const old=e.token;e.token=token;e.root=definition.root;e.version=version;e.primaryVersion=primaryVersion;e.signature=now;e.dependencies=dependencies;e.missing=[...missing];e.error=null;e.folderGrant=null;e.waitingGrant=null;e.permissionDenied=false;e.dirty=false;visited.add(e);
    frameSyncEngineVisibility();FrameSpline.request();await FrameSpline.flush();await window.frameEngine.replicaQueue;
    if(old){window.frameEngine.retireFileSource(old);definitions.delete(old);}await window.frameEngine.draw(false);
    e.index=fileIndex;if(old&&prior.version!==version)FrameProjectFile.linked(d.path,prior.version,version,fileIndex&&prior.index?frameCompareFileIndexes(prior.index,fileIndex):[]);
@@ -17844,7 +17978,7 @@ const FrameFileSources=(()=>{
   return flushPromise;
  }
  function request(){if(busy){rerunFlush=true;return;}if(queued||!window.frameAI||!entries.size&&!nodes.some(n=>n.type==='instance'&&n.params.file))return;queued=true;queueMicrotask(()=>{window.frameAI.call('instance.files').catch(()=>{}).finally(()=>{queued=false;});});}
- async function poll(force=false){if(busy||queued||document.hidden&&!force&&!FrameProjectFile.waiting||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);if(e.waitingGrant&&e.waitingGrant.row===picked.get(e.descriptor.mount)&&e.waitingGrant.signature===signature)continue;let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies){const stamp=await metadata(resource.descriptor);if(stamp===null||stamp!==resource.signature)dirty=true;}if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
+ async function poll(force=false){if(framePlayer||busy||queued||document.hidden&&!force&&!FrameProjectFile.waiting||!window.frameAI||!nodes.some(n=>n.params.file))return;let changed=false;for(const e of entries.values()){try{const signature=await metadata(e.descriptor);if(e.waitingGrant&&e.waitingGrant.row===picked.get(e.descriptor.mount)&&e.waitingGrant.signature===signature)continue;let dirty=e.dirty||signature===null||signature!==e.signature;for(const resource of e.dependencies){const stamp=await metadata(resource.descriptor);if(stamp===null||stamp!==resource.signature)dirty=true;}if(dirty){e.dirty=true;changed=true;}}catch(error){const message=errorText(error);if(e.error!==message)changed=true;e.error=message;e.dirty=true;}}paint();if(changed)request();}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)void poll();});window.addEventListener('focus',()=>void poll());
  const persistentNodes=list=>list.filter(n=>!n.fileSource),withRuntimeNodes=list=>[...list.filter(n=>!n.fileSource),...nodes.filter(n=>n.fileSource)];
  const mergeRuntimeObjects=(list,current)=>{const out=list.filter(o=>!o.authoring?.fileSource||definitions.has(o.authoring.fileSource)),ids=new Set(out.map(o=>o.hash));return [...out,...current.filter(o=>o.authoring?.fileSource&&definitions.has(o.authoring.fileSource)&&!ids.has(o.hash))];};
@@ -17883,8 +18017,30 @@ const FrameFileSources=(()=>{
   const assetIDs=(records.get(K.assets)?.value||[]).filter(id=>!ownedAssets.has(id)||usedAssets.has(id)),assetSet=new Set(assetIDs);for(const id of ownedAssets)if(!assetSet.has(id))exclude(id,['image','path']);
   return [...records.values()].filter(r=>!blocked.has(r.id)).map(r=>r.id===K.all?{...r,value:persist.map(n=>n.nativeHash)}:r.id===K.materials?{...r,value:materialIDs}:r.id===K.assets?{...r,value:assetIDs}:r);
  }
+ async function exportResources(add){
+  await flush();const roots=Object.create(null),files=[],indices=new Map(),token=FrameAuthorData.documentToken;
+  const guard=()=>{if(token!==FrameAuthorData.documentToken)throw Error('Scene changed during HTML export');};
+  async function capture(n){
+   guard();const e=entry(n);if(e.error||!e.root||!e.primaryVersion)throw Error(e.error||'Linked file is not ready: '+n.params.file);
+   if(e.missing?.length)throw Error('Linked resources are missing: '+e.missing.join(', '));
+   if(indices.has(e))return indices.get(e);
+   const index=files.length,row={name:'',resource:'',children:Object.create(null),dependencies:Object.create(null)};indices.set(e,index);files.push(row);
+   const file=await fileAt(e.descriptor),version=/\.hash$/i.test(file.name)?(await createFrameFileIndex().read(file)).version:await fingerprint(file);
+   guard();if(version!==e.primaryVersion)throw Error('Linked file changed; reload it before HTML export: '+file.name);
+   row.name=file.name;row.resource='__frame_files__/'+index+'/'+encodeURIComponent(file.name);await add(row.resource,file);
+   for(const [i,dep]of e.dependencies.entries()){
+    const bytes=new Uint8Array(await (await fileAt(dep.descriptor)).arrayBuffer());guard();
+    if(await sha256(bytes)!==dep.digest)throw Error('Linked resource changed; reload it before HTML export: '+dep.uri);
+    const path='__frame_files__/'+index+'/resource-'+i;await add(path,new Blob([bytes]));row.dependencies[dep.uri]=path;
+   }
+   for(const child of nodes.filter(q=>q.fileSource===e.token&&q.type==='instance'&&q.params.file))row.children[JSON.stringify([child.fileMount||'',child.params.file])]=await capture(child);
+   guard();return index;
+  }
+  for(const n of nodes.filter(n=>!n.fileSource&&n.type==='instance'&&n.params.file))roots[JSON.stringify([n.fileMount||'',n.params.file])]=await capture(n);
+  return {roots,files};
+ }
  function inspect(){return {mounts:[...mounts].map(([id,h])=>({id,name:h.name})),instances:nodes.filter(n=>!n.fileSource&&n.type==='instance'&&n.params.file).map(n=>({hash:n.nativeHash,...state(n)}))};}
- const api={source,state,paint,choose,chooseSourceFolder,paintFolderButton,attachDirectory,prepareProject,linkProjectFolder,findProjectFolder,boundFolder:h=>projectFolder?.handle===h?projectFolder:null,projectPaths,applyPaths,get needsProjectFolder(){return needsProjectFolder();},flush,request,inspect,check:()=>poll(true),persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0'))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
+ const api={source,state,paint,choose,chooseSourceFolder,paintFolderButton,attachDirectory,prepareProject,linkProjectFolder,findProjectFolder,boundFolder:h=>projectFolder?.handle===h?projectFolder:null,projectPaths,applyPaths,get needsProjectFolder(){return needsProjectFolder();},flush,request,inspect,exportResources,check:()=>poll(true),persistentNodes,withRuntimeNodes,mergeRuntimeObjects,persistentMaterials,restoreMaterials,serialization,validate:(file,n={})=>{if(typeof file!=='string'||file.length>4096||file.includes('\0'))throw Error('Unsupported instance file');descriptor({...n,params:{file}});return file;},get busy(){return busy;}};window.frameFiles=Object.freeze(api);return api;
 })();
 
 // Native browser pickers own consent. Pending requests reuse the existing toolbar.
@@ -17940,11 +18096,11 @@ function frameRequestFileAccess({action,name}){
 }
 FrameViewWindows.onWindow('frame-engine-scene',()=>{if(frameFilePermissionRequest?.state==='pending')frameCancelFileRequest();});
 
-const recentFilesDB=new Promise((resolve,reject)=>{const r=indexedDB.open('frame-recent-files:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Recent files storage is blocked'));});
+const recentFilesDB=framePlayer?Promise.resolve(null):new Promise((resolve,reject)=>{const r=indexedDB.open('frame-recent-files:'+new URL('.',location.href).pathname,1);r.onupgradeneeded=()=>r.result.createObjectStore('files');r.onsuccess=()=>{r.result.onversionchange=()=>r.result.close();resolve(r.result);};r.onerror=()=>reject(r.error);r.onblocked=()=>reject(Error('Recent files storage is blocked'));});
 function trimRecentFiles(){for(const name of recentFileNames.splice(10)){recentSceneFiles.delete(name);recentFileCompanions.delete(name);}}
-const recentFilesReady=recentFilesDB.then(db=>new Promise((resolve,reject)=>{const r=db.transaction('files').objectStore('files').get('list');r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);})).then(records=>{for(const {name,source,files=[]}of records)if(!recentSceneFiles.has(name)){recentFileNames.push(name);recentSceneFiles.set(name,source?.frameHostPath?frameHostFileHandle(source.frameHostPath,source.name):source);recentFileCompanions.set(name,files);}trimRecentFiles();}).catch(fileOperationError);
+const recentFilesReady=framePlayer?Promise.resolve():recentFilesDB.then(db=>new Promise((resolve,reject)=>{const r=db.transaction('files').objectStore('files').get('list');r.onsuccess=()=>resolve(r.result||[]);r.onerror=()=>reject(r.error);})).then(records=>{for(const {name,source,files=[]}of records)if(!recentSceneFiles.has(name)){recentFileNames.push(name);recentSceneFiles.set(name,source?.frameHostPath?frameHostFileHandle(source.frameHostPath,source.name):source);recentFileCompanions.set(name,files);}trimRecentFiles();}).catch(fileOperationError);
 let recentFileWrites=Promise.resolve();
-function persistRecentFiles(){recentFileWrites=recentFileWrites.catch(()=>{}).then(()=>recentFilesReady).then(async()=>{const records=recentFileNames.map(name=>({name,source:recentSceneFiles.get(name)?.frameHostPath?{frameHostPath:recentSceneFiles.get(name).frameHostPath,name:recentSceneFiles.get(name).name}:recentSceneFiles.get(name),files:recentFileCompanions.get(name)||[]})).filter(r=>r.source?.frameHostPath||r.source instanceof Blob||typeof FileSystemFileHandle!=='undefined'&&r.source instanceof FileSystemFileHandle),db=await recentFilesDB;await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(records,'list');tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error||Error('Recent files storage failed'));});}).catch(fileOperationError);return recentFileWrites;}
+function persistRecentFiles(){if(framePlayer)return Promise.resolve();recentFileWrites=recentFileWrites.catch(()=>{}).then(()=>recentFilesReady).then(async()=>{const records=recentFileNames.map(name=>({name,source:recentSceneFiles.get(name)?.frameHostPath?{frameHostPath:recentSceneFiles.get(name).frameHostPath,name:recentSceneFiles.get(name).name}:recentSceneFiles.get(name),files:recentFileCompanions.get(name)||[]})).filter(r=>r.source?.frameHostPath||r.source instanceof Blob||typeof FileSystemFileHandle!=='undefined'&&r.source instanceof FileSystemFileHandle),db=await recentFilesDB;await new Promise((resolve,reject)=>{const tx=db.transaction('files','readwrite');tx.objectStore('files').put(records,'list');tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error||Error('Recent files storage failed'));});}).catch(fileOperationError);return recentFileWrites;}
 function rememberSceneFile(source,name=source.name,files=[]){recentSceneFiles.set(name,source);recentFileCompanions.set(name,files);const i=recentFileNames.indexOf(name);if(i>=0)recentFileNames.splice(i,1);recentFileNames.unshift(name);trimRecentFiles();return persistRecentFiles();}
 async function forgetSceneFile(name,source){if(recentSceneFiles.get(name)!==source)return;recentSceneFiles.delete(name);recentFileCompanions.delete(name);const i=recentFileNames.indexOf(name);if(i>=0)recentFileNames.splice(i,1);await persistRecentFiles();}
 async function openScenePlaceholder(name){await recentFilesReady;const source=recentSceneFiles.get(name);try{if(!source||source.queryPermission&&await source.queryPermission({mode:'read'})!=='granted'&&await source.requestPermission({mode:'read'})!=='granted'){await forgetSceneFile(name,source);return;}if(await openSceneFile(source.getFile?await source.getFile():source,recentFileCompanions.get(name)||[],false,source)===false)await forgetSceneFile(name,source);}catch(error){if(error.name!=='AbortError')await forgetSceneFile(name,source);fileOperationError(error);}}
@@ -17954,16 +18110,93 @@ else{await window.frameEngine.loadFile(file,{files,merge});if(!$('frame-engine-s
 FrameViewWindows.onWindow('dragover',e=>{if([...e.dataTransfer.types].includes('Files')){e.preventDefault();e.dataTransfer.dropEffect='copy';if(!e.dataTransfer.items?.length||[...e.dataTransfer.items].some(item=>item.kind==='file'&&(!item.type||item.type.startsWith('image/'))))frameTextureDragTab(e.target);}},true);
 FrameViewWindows.onWindow('drop',async e=>{const files=[...e.dataTransfer.files];if(!files.length)return;e.preventDefault();e.stopImmediatePropagation();closeMenu();const supported=files.filter(f=>frameIsModelFile(f.name));if(supported.length){const handles=[...e.dataTransfer.items].filter(item=>item.kind==='file').map(item=>item.getAsFileSystemHandle?.().catch(()=>null));const open=async merge=>{for(let i=0;i<supported.length;i++){const f=supported[i],handle=await handles[files.indexOf(f)];await openSceneFile(f,files,merge||i>0,handle?.kind==='file'?handle:f);}};if(nodes.length)showMenu(e.clientX,e.clientY,[['Open',()=>open(false)],['Merge',()=>open(true)]]);else await open(false);return;}const library=!!e.target.closest?.('#texturesPanel,#tabTextures'),material=materials[activeMaterial],slot=e.target.closest?.('.me-tex-btn')?.dataset.slot||'map',targetOwner=e.target.closest?.('.ob-row')?.dataset.id,viewport=!e.target.closest?.('#matEditorContent')&&!library&&frameViewportAt(e.clientX,e.clientY)!==null,documentNodes=nodes,pick=viewport&&!targetOwner?window.frameEngine?.materialDropTarget(e.clientX,e.clientY).then(hash=>({hash}),error=>({error})):null,anchor=$('texGrid').firstChild,imports=files.filter(f=>f.type.startsWith('image/')).map(file=>({file,ready:frameImportTexture(file,anchor).then(url=>({url}),error=>({error}))}));for(const {file,ready}of imports){try{const result=await ready;if(result.error)throw result.error;const url=result.url;if(library||nodes!==documentNodes)continue;let owner=targetOwner;if(pick){const target=await pick;if(target.error)throw target.error;if(nodes!==documentNodes)continue;owner=frameNodeByHash(target.hash)?.id;}if(owner)await assignTexture(owner,url);else if(!viewport)await loadMaterialTexture(url,slot,material,null,/(?:^|[_. -])(?:orm|arm)(?:[_. -]|$)/i.test(file.name));}catch(error){fileOperationError(error);}}},true);
 sceneInput.onchange=()=>{const files=[...sceneInput.files],file=files.find(f=>frameIsModelFile(f.name));sceneInput.value='';if(file)openSceneFile(file,files);};
-function frameEnvironmentURL(value){return frameMaterialAssets.get(value)?.url||value||'';}
+function frameEnvironmentURL(value){const url=frameMaterialAssets.get(value)?.url||value||'';return url?frameResourceURL(url):url;}
 function frameChooseEnvironment(n){const input=document.createElement('input');input.type='file';input.accept='image/*,.hdr,.rgbe';input.onchange=async()=>{const file=input.files[0];if(!file)return;try{const bytes=new Uint8Array(await file.arrayBuffer());if(bytes.length>16*1024*1024)throw Error('Environment image exceeds 16 MiB');if(!/\.(hdr|rgbe)$/i.test(file.name)){const bitmap=await createImageBitmap(file);bitmap.close();}if(!nodes.includes(n))return;const url=URL.createObjectURL(file),asset=frameMaterialAsset(url,bytes);commit(()=>{n.params.environment='image';n.params['environment image']=asset;});renderAttributes();}catch(error){fileOperationError(error);}};input.click();}
+// Optional opaque author records declare files used dynamically by Scene Control.
+function framePlayerAssets(root,owners){
+ const resources=new Set(),plugins=new Set(),stock=new Set();
+ for(const data of [root,...owners.filter(n=>!n.fileSource).map(n=>n.authorData)])for(const record of data?.records||[]){
+  if(record.kind!=='opaque'||record.payload?.format!=='frame.player-assets')continue;
+  const {version,data:value}=record.payload;
+  if(version!==1||!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).some(k=>!['resources','plugins','stock'].includes(k)))throw Error('Invalid Player assets declaration: '+record.name);
+  for(const [key,target]of [['resources',resources],['plugins',plugins],['stock',stock]]){
+   const list=value[key]===undefined?[]:value[key];
+   if(!Array.isArray(list)||list.some(s=>typeof s!=='string'||!s||/[\x00-\x1f\\]/.test(s)||key==='plugins'&&!/^[a-z0-9][a-z0-9-]*$/.test(s)||key==='stock'&&!['car','human'].includes(s)))throw Error('Invalid Player '+key+': '+record.name);
+   for(const item of list)target.add(item);
+  }
+ }
+ return {resources:[...resources],plugins:[...plugins],stock:[...stock]};
+}
+async function frameSaveHTML(name=sceneFileName){
+ if(globalThis.frameHTMLPlayer)throw Error('Export HTML from the Frame editor');
+ const base=new URL('.',document.baseURI),sourceURL=new URL('index.html',base).href,resources=new Map();
+ const key=value=>{
+  if(typeof value!=='string'||!value||/[\x00-\x1f\\]/.test(value))throw Error('Invalid Player resource path');
+  const url=new URL(value,base);
+  if(url.origin!==base.origin||url.protocol!==base.protocol||!url.pathname.startsWith(base.pathname)||url.hash||url.username||url.password)throw Error('Player resources must stay inside this Frame application: '+value);
+  const path=url.pathname.slice(base.pathname.length)+url.search;if(!path)throw Error('Player resource path is empty');
+  return {path,url};
+ };
+ async function add(value,supplied){
+  const {path,url}=key(String(value));
+  if(resources.has(path)){await resources.get(path);return path;}
+  const pending=(async()=>{
+   let blob=supplied;
+   if(blob===undefined){
+    const response=await fetch(url.href);
+    if(!response.ok||response.type==='opaque')throw Error('Cannot embed '+path+': HTTP '+response.status);
+    if(response.url)key(response.url);
+    blob=await response.blob();
+   }
+   if(!(blob instanceof Blob))throw Error('Invalid binary resource: '+path);
+   return {path,blob};
+  })();resources.set(path,pending);await pending;return path;
+ }
+ const expected=await frameHTMLSourceIdentity;let source=null,lastError=null;
+ async function accept(response){
+  if(!response?.ok)return false;
+  const text=await response.text();
+  if(await FrameHTMLPackage.sourceIdentity(text)!==expected){lastError=Error('Frame changed since this tab opened. Reload Frame before exporting HTML.');return false;}
+  source=text;return true;
+ }
+ try{await accept(await fetch(sourceURL,{cache:'no-cache'}));}catch(error){lastError=error;}
+ if(!source&&typeof caches!=='undefined')try{for(const id of await caches.keys())if(await accept(await (await caches.open(id)).match(sourceURL)))break;}catch(error){lastError=error;}
+ if(!source)throw lastError||Error('The current Frame source is unavailable. Reload Frame before exporting HTML.');
+ await FrameFileSources.flush();await window.frameEngine.animationFlush();await FramePlugins.flush({author:true});
+ const token=FrameAuthorData.documentToken,stamp=window.frameEngine.fileEditStamp,declared=framePlayerAssets(FrameAuthorData.root(),nodes);
+ const guard=()=>{if(token!==FrameAuthorData.documentToken||stamp!==window.frameEngine.fileEditStamp)throw Error('Scene changed during HTML export. Pause Scene Control and playback, then try again.');};
+ const plans=FrameScenePrograms.exportPlans();
+ for(const plan of plans)if(plan.availability==='unavailable')throw Error('Scene Control '+plan.name+': '+(plan.error?.message||'Program is unavailable'));
+ const scene=await window.frameEngine.saveHash();guard();
+ const links=await FrameFileSources.exportResources(add);guard();
+ await FramePlugins.exportResources(add,declared.plugins);guard();
+ const assets=frameMaterialState().assets;
+ for(const asset of assets){if(!asset)throw Error('A scene image is unavailable');if(asset.path&&!/^(data:|blob:)/i.test(asset.path))await add(asset.path);else if(/^blob:/i.test(asset.path||'')&&!asset.bytes)throw Error('A temporary image must be embedded in HASH before HTML export');}
+ for(const n of nodes)if(n.type==='render'){
+  const value=n.params['environment image'];
+  if(value&&!frameMaterialAssets.has(value)&&!/^data:/i.test(value)){if(/^blob:/i.test(value))throw Error('Choose the Camera environment image again before HTML export');await add(value);}
+ }
+ const stock=new Set([...declared.stock,...nodes.filter(n=>['car','human'].includes(n.type)).map(n=>n.type)]);
+ if(stock.has('car'))await add('models/car.hash');
+ if(stock.has('human'))for(const sex of ['male','female'])for(const pose of ['standing','sitting','walking'])await add('models/human-'+sex+'-1-'+pose+'.hash');
+ for(const path of declared.resources){if(key(path).path.startsWith('__frame_files__/'))throw Error('Reserved Player resource path');await add(path);}
+ guard();const blob=await FrameHTMLPackage.build({source,scene,name:name.replace(/\.[^.]*$/,'')+'.hash',sourceURL,expectedIdentity:expected,resources:await Promise.all(resources.values()),links});guard();return blob;
+}
+
 async function saveSceneFile({as=false,incremental=false,download=false,format}={}){
   closeMenu();format??=download||incremental?lastSavedFormat:'hash';let name=sceneFileName;if(format)name=name.replace(/\.[^.]+$/,'')+'.'+format;if(incremental){const m=/^(.*?)(?:_(\d+))?\.(hash|stl|glb|ply|vtk|3mf)$/i.exec(name);name=m[1]+'_'+String(+(m[2]||0)+1).padStart(3,'0')+'.'+m[3];}
   try{
     let handle=!as&&sceneFileHandle?.name.toLowerCase().endsWith('.'+format)?sceneFileHandle:null;
-    if(!download&&window.showSaveFilePicker&&(as||incremental||!handle))handle=showSaveFilePicker({suggestedName:name,excludeAcceptAllOption:true,types:[{description:'Frame scene',accept:{'application/x-frame-hash':['.hash']}},{description:'STL mesh (millimeters)',accept:{'model/stl':['.stl']}},{description:'glTF binary',accept:{'model/gltf-binary':['.glb']}},{description:'PLY mesh (millimeters)',accept:{'application/ply':['.ply']}},{description:'VTK surface (millimeters)',accept:{'application/vnd.vtk':['.vtk']}},{description:'3MF print model',accept:{'model/3mf':['.3mf']}}].filter(type=>as||incremental||Object.values(type.accept).flat().includes('.hash')).sort((a,b)=>Number(Object.values(b.accept).flat().includes('.'+format))-Number(Object.values(a.accept).flat().includes('.'+format)))});
+    if(!download&&window.showSaveFilePicker&&(as||incremental||!handle))handle=showSaveFilePicker({suggestedName:name,excludeAcceptAllOption:true,types:[{description:'Frame scene',accept:{'application/x-frame-hash':['.hash']}},{description:'HTML player',accept:{'text/html':['.html']}},{description:'STL mesh (millimeters)',accept:{'model/stl':['.stl']}},{description:'glTF binary',accept:{'model/gltf-binary':['.glb']}},{description:'PLY mesh (millimeters)',accept:{'application/ply':['.ply']}},{description:'VTK surface (millimeters)',accept:{'application/vnd.vtk':['.vtk']}},{description:'3MF print model',accept:{'model/3mf':['.3mf']}}].filter(type=>as||incremental||Object.values(type.accept).flat().includes('.hash')).sort((a,b)=>Number(Object.values(b.accept).flat().includes('.'+format))-Number(Object.values(a.accept).flat().includes('.'+format)))});
     // Reserve the existing command queue while the native picker is pending.
     const selectedHandle=Promise.resolve(handle);selectedHandle.catch(()=>{});
     await frameNativeFileTask(async()=>{
+    if(/\.html$/i.test(handle?.name||name)){
+      const blob=await frameSaveHTML();
+      if(handle&&!download){const writable=await handle.createWritable();try{await writable.write(blob);await writable.close();}catch(error){try{await writable.abort?.(error);}catch{}throw error;}}
+      else{const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download=name;link.hidden=true;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
+      return;
+    }
     frameSyncEngineVisibility();const save=/\.vtk$/i.test(handle?.name||name)?window.frameEngine.saveVTK:/\.3mf$/i.test(handle?.name||name)?window.frameEngine.save3MF:/\.ply$/i.test(handle?.name||name)?window.frameEngine.savePLY:/\.stl$/i.test(handle?.name||name)?window.frameEngine.saveSTL:/\.glb$/i.test(handle?.name||name)?window.frameEngine.saveGLB:window.frameEngine.saveHash;
     if(handle&&!download&&save===window.frameEngine.saveHash){await frameSaveBoundFile(undefined,handle);}
     else if(handle&&!download){const writable=await handle.createWritable();try{await save(writable);}catch(error){try{await writable.abort?.(error);}catch{}throw error;}FrameProjectFile.reset();sceneFileHandle=handle;frameSetSceneFileName(handle.name);lastSavedFormat=handle.name.split('.').pop().toLowerCase();await rememberSceneFile(handle);}
@@ -17984,7 +18217,7 @@ $('btnOpen').onclick=async()=>{
 };
 $('btnSave').onclick=()=>{closeMenu();if(!frameContinueFileRequest('btnSave'))saveSceneFile();};
 let saveFormatsLeaveTimer;
-function showSaveFormats(focus=false){const r=$('btnSave').getBoundingClientRect();showMenu(r.left,r.bottom,[['Frame scene (.hash)',()=>saveSceneFile({as:true,format:'hash'})],['Save incremental (+1)',()=>saveSceneFile({incremental:true})],['STL mesh (.stl)',()=>saveSceneFile({as:true,format:'stl'})],['glTF binary (.glb)',()=>saveSceneFile({as:true,format:'glb'})],['PLY mesh (.ply)',()=>saveSceneFile({as:true,format:'ply'})],['VTK surface (.vtk)',()=>saveSceneFile({as:true,format:'vtk'})],['3MF print model (.3mf)',()=>saveSceneFile({as:true,format:'3mf'})]],focus);$('menu').dataset.owner='save-formats';$('menu').querySelector('button').setAttribute('aria-current','true');}
+function showSaveFormats(focus=false){const r=$('btnSave').getBoundingClientRect();showMenu(r.left,r.bottom,[['Frame scene (.hash)',()=>saveSceneFile({as:true,format:'hash'})],['HTML player (.html)',()=>saveSceneFile({as:true,format:'html'})],['Save incremental (+1)',()=>saveSceneFile({incremental:true})],['STL mesh (.stl)',()=>saveSceneFile({as:true,format:'stl'})],['glTF binary (.glb)',()=>saveSceneFile({as:true,format:'glb'})],['PLY mesh (.ply)',()=>saveSceneFile({as:true,format:'ply'})],['VTK surface (.vtk)',()=>saveSceneFile({as:true,format:'vtk'})],['3MF print model (.3mf)',()=>saveSceneFile({as:true,format:'3mf'})]],focus);$('menu').dataset.owner='save-formats';$('menu').querySelector('button').setAttribute('aria-current','true');}
 $('btnSave').onpointerenter=e=>{if(e.pointerType!=='touch'){clearTimeout(saveFormatsLeaveTimer);showSaveFormats();}};
 $('btnSave').onpointerdown=e=>{if(e.button===0&&e.pointerType==='touch')showSaveFormats();};
 function leaveSaveFormats(){clearTimeout(saveFormatsLeaveTimer);saveFormatsLeaveTimer=setTimeout(()=>{if($('menu').dataset.owner==='save-formats'&&frameMenuPress?.origin!==$('btnSave')&&!$('menu').matches(':hover')&&!$('btnSave').matches(':hover'))closeMenu();},180);}
@@ -18016,7 +18249,7 @@ $('btnControl').onclick=()=>FrameSceneControl.open();
 $('helpDialog').onclick=e=>{const r=$('helpDialog').getBoundingClientRect();if(e.target===$('helpDialog')&&(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom))$('helpDialog').close();};
 
 // Keep the user's requested height; viewport constraints must never replace it.
-let preferredTreeHeight=parseFloat(localStorage.getItem('frame-ui.obwrap.h'));
+let preferredTreeHeight=framePlayer?NaN:parseFloat(localStorage.getItem('frame-ui.obwrap.h'));
 if(!Number.isFinite(preferredTreeHeight)||preferredTreeHeight<40)preferredTreeHeight=$('obWrap').getBoundingClientRect().height;
 function treeHeight(value){
   const height=id=>{const el=$(id),c=getComputedStyle(el);return el.getBoundingClientRect().height+(parseFloat(c.marginTop)||0)+(parseFloat(c.marginBottom)||0);};
@@ -18050,12 +18283,12 @@ FrameViewWindows.onDocument('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.t
 
 // BEGIN native-uv-lighting-hooks
 // UI/engine boundary: only small scene/selection metadata crosses this bridge.
-window.frameViewportKeyboardActive=()=>(selectionArea==='viewport'||FrameViewWindows.hovered())&&!$('dialog').open&&!$('helpDialog').open&&$('menu').hidden&&!FrameViewWindows.inputDocument.activeElement?.closest('#frame-curves');
-for(const type of ['pointerdown','pointermove','pointerup','pointercancel','dblclick','contextmenu','wheel','auxclick'])$('frame-engine-host').addEventListener(type,e=>e.stopPropagation());
+window.frameViewportKeyboardActive=()=>!framePlayer&&(selectionArea==='viewport'||FrameViewWindows.hovered())&&!$('dialog').open&&!$('helpDialog').open&&$('menu').hidden&&!FrameViewWindows.inputDocument.activeElement?.closest('#frame-curves');
+for(const type of ['pointerdown','pointermove','pointerup','pointercancel','dblclick','contextmenu','wheel','auxclick'])if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener(type,e=>e.stopPropagation());
 let frameEngineViewGesture=null;
-$('frame-engine-host').addEventListener('pointerdown',e=>{if(e.button===1)frameEngineViewGesture={x:e.clientX,y:e.clientY,time:performance.now(),distance:0,camera:frameEngine.viewCamera(activeView).camera};},true);
-$('frame-engine-host').addEventListener('pointerup',e=>{const g=frameEngineViewGesture;frameEngineViewGesture=null;if(g&&e.button===1&&performance.now()-g.time<=350&&Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y))<=(performance.now()-g.time<=180?72:24)){window.frameEngine.restoreViewState(g.camera);frameToggleViewLayout();}});
-$('frame-engine-host').addEventListener('pointercancel',()=>frameEngineViewGesture=null);$('frame-engine-host').addEventListener('pointermove',e=>{const g=frameEngineViewGesture;if(g)g.distance=Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y));});
+if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointerdown',e=>{if(e.button===1)frameEngineViewGesture={x:e.clientX,y:e.clientY,time:performance.now(),distance:0,camera:frameEngine.viewCamera(activeView).camera};},true);
+if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointerup',e=>{const g=frameEngineViewGesture;frameEngineViewGesture=null;if(g&&e.button===1&&performance.now()-g.time<=350&&Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y))<=(performance.now()-g.time<=180?72:24)){window.frameEngine.restoreViewState(g.camera);frameToggleViewLayout();}});
+if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointercancel',()=>frameEngineViewGesture=null);if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointermove',e=>{const g=frameEngineViewGesture;if(g)g.distance=Math.max(g.distance,Math.hypot(e.clientX-g.x,e.clientY-g.y));});
 FrameViewWindows.onWindow('frame-engine-objects',e=>{const old=new Map(nodes.map(n=>[n.nativeHash,n])),next=[],byHash=new Map(),slots=frameUIMaterialSlots();for(const o of e.detail.objects){const n=old.get(o.hash)||create(o.type===0?'group':o.type===2?'infinite':'mesh',null,o.name);n.nativeHash=o.hash;window.FrameSpline?.restore(n,o.spline);n.tags=frameUITags(o.tags,slots);frameRestoreAuthoring(n,o.authoring);if(o.light)n.params={intensity:o.light[0],'temperature K':o.light[1],'angular size':o.light[2]};n.name=o.name;n.engineIndex=o.index;next.push(n);byHash.set(o.hash,n);}nodes=next;for(const o of e.detail.objects)byHash.get(o.hash).parent=byHash.get(o.parent)?.id||null;selected=new Set(e.detail.selection.map(h=>byHash.get(h)?.id).filter(Boolean));focusId=anchorId=[...selected][0]||null;renderTree();renderAttributes();syncHUD();window.FrameSpline?.request();});
 FrameViewWindows.onWindow('frame-engine-transform',()=>syncHUD());
 FrameViewWindows.onWindow('frame-engine-parents',e=>{const byHash=new Map(nodes.map(n=>[n.nativeHash,n]));let changed=false;for(const o of e.detail){const n=byHash.get(o.hash),parent=byHash.get(o.parent)?.id||null;if(n&&n.parent!==parent){n.parent=parent;changed=true;}}if(changed){renderTree();window.FrameSpline?.request();}});
@@ -18297,9 +18530,9 @@ const FrameGeometry=(()=>{
   function endOutline(){if(!tool)return null;const t=tool,finish=()=>{t.worker?.terminate();if(tool===t){tool=null;renderAttributes();}};if(t.pending)return t.pending.then(finish);finish();return null;}
   let outlineDrag=null;
   const outlineCanvas=$('frame-engine-canvas');
-  outlineCanvas.addEventListener('pointerdown',e=>{if(!tool||e.button!==0)return;tool.inner=!!e.shiftKey;if(e.altKey||tool.used){endOutline();return;}const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,tool.n.nativeHash);if(!p)return;numericSession?.finish(true);outlineDrag={id:e.pointerId,t:tool,x:e.clientX,y:e.clientY,point:p,distance:tool.distance,before:snapshot()};outlineCanvas.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();},true);
-  outlineCanvas.addEventListener('pointermove',e=>{const g=outlineDrag;if(!g||e.pointerId!==g.id)return;const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,g.t.n.nativeHash,false,g.point);if(p){const dx=e.clientX-g.x,dy=e.clientY-g.y;g.t.distance=g.distance+(dx-dy)/Math.SQRT2*Math.hypot(...p.map((v,k)=>v-g.point[k]))/(Math.hypot(dx,dy)||1);g.t.error='';updateOutline(g.t);document.querySelector('input[aria-label="Outline distance"]')?._sync(true);}e.preventDefault();e.stopImmediatePropagation();},true);
-  for(const type of ['pointerup','pointercancel'])outlineCanvas.addEventListener(type,e=>{const g=outlineDrag;if(!g||e.pointerId!==g.id)return;outlineDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}if(type==='pointercancel'){g.t.distance=g.distance;updateOutline(g.t);}else{g.t.used=true;Promise.resolve(g.t.pending).then(()=>checkpoint(g.before));}e.preventDefault();e.stopImmediatePropagation();},true);
+  if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener('pointerdown',e=>{if(!tool||e.button!==0)return;tool.inner=!!e.shiftKey;if(e.altKey||tool.used){endOutline();return;}const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,tool.n.nativeHash);if(!p)return;numericSession?.finish(true);outlineDrag={id:e.pointerId,t:tool,x:e.clientX,y:e.clientY,point:p,distance:tool.distance,before:snapshot()};outlineCanvas.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();},true);
+  if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener('pointermove',e=>{const g=outlineDrag;if(!g||e.pointerId!==g.id)return;const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,g.t.n.nativeHash,false,g.point);if(p){const dx=e.clientX-g.x,dy=e.clientY-g.y;g.t.distance=g.distance+(dx-dy)/Math.SQRT2*Math.hypot(...p.map((v,k)=>v-g.point[k]))/(Math.hypot(dx,dy)||1);g.t.error='';updateOutline(g.t);document.querySelector('input[aria-label="Outline distance"]')?._sync(true);}e.preventDefault();e.stopImmediatePropagation();},true);
+  for(const type of ['pointerup','pointercancel'])if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener(type,e=>{const g=outlineDrag;if(!g||e.pointerId!==g.id)return;outlineDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}if(type==='pointercancel'){g.t.distance=g.distance;updateOutline(g.t);}else{g.t.used=true;Promise.resolve(g.t.pending).then(()=>checkpoint(g.before));}e.preventDefault();e.stopImmediatePropagation();},true);
   FrameViewWindows.onWindow('blur',()=>{if(outlineDrag){const g=outlineDrag;outlineDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}g.t.distance=g.distance;updateOutline(g.t);}if(bevelDrag){const g=bevelDrag;bevelDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}Promise.resolve(g.t.pending).then(()=>{restore(g.before);endBevel();});}});
   FrameViewWindows.onWindow('keydown',e=>{if(!tool||e.target.closest?.('input,textarea,[contenteditable]')||!['Escape','Enter'].includes(e.key))return;if(outlineDrag){const g=outlineDrag;outlineDrag=null;g.t.distance=g.distance;updateOutline(g.t);}endOutline();e.preventDefault();e.stopImmediatePropagation();},true);
   function attributes(content,n){
@@ -18327,9 +18560,9 @@ function endBevel(){const t=bevelTool;if(!t)return;bevelTool=null;bevelDrag=null
 function bevelDialog(n=current()){if(!(FrameSpline.sourceNode(n)||n)?.splineData)return;frameEngine.cancelPolygonTool?.();endOutline();endBevel();bevelTool={n,owner:current(),size:0,round:true,revision:0,base:bevelBase(n)};activateTab('tabAttributes');renderAttributes();}
 function updateBevel(t){if(!t.pending&&t.size===(t.appliedSize||0)&&t.round===(t.appliedRound||false))return Promise.resolve();t.revision++;if(t.pending)return t.pending;t.pending=(async()=>{let revision;const base=await t.base;base._preview=true;do{revision=t.revision;const size=t.size,round=t.round;base._gesture=t.gesture;await bevel(t.n,size,base.edges,round,base);t.appliedSize=size;t.appliedRound=round;}while(revision!==t.revision);})().catch(e=>{t.error=e.message;fileOperationError(e);}).finally(()=>{bevelTasks.delete(t.pending);t.pending=null;});bevelTasks.add(t.pending);return t.pending;}
 function bevelAttributes(content,n){if(!bevelTool||bevelTool.n!==n&&bevelTool.owner!==n){bevelTool=null;return false;}const t=bevelTool;content.innerHTML='<div class="attr-row"><span class="attr-lab">size</span><div class="attr-ctrl"><input class="attr-inp" aria-label="Bevel size"></div></div>';bindNumber(content.querySelector('input'),{length:true,min:0,diagonal:true,get:()=>t.size,set:v=>{t.size=v;updateBevel(t);},snap:()=>{t.gesture=(t.gesture||0)+1;return {before:snapshot(),size:t.size};},commit:async g=>{await t.pending;t.used=true;checkpoint(g.before);},revert:async g=>{await t.pending;restore(g.before);endBevel();},stepFixed:.1});return true;}
-outlineCanvas.addEventListener('pointerdown',e=>{if(!bevelTool||e.button!==0)return;if(e.altKey||bevelTool.used){endBevel();return;}const t=bevelTool,p=frameEngine.splinePlanePoint(e.clientX,e.clientY,t.n.nativeHash);if(!p)return;numericSession?.finish(true);t.gesture=(t.gesture||0)+1;bevelDrag={t,id:e.pointerId,x:e.clientX,y:e.clientY,point:p,size:t.size,before:snapshot()};outlineCanvas.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();},true);
-outlineCanvas.addEventListener('pointermove',e=>{const g=bevelDrag;if(!g||g.id!==e.pointerId)return;const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,g.t.n.nativeHash,false,g.point);if(p){const dx=e.clientX-g.x,dy=e.clientY-g.y;g.t.size=Math.max(0,g.size+(dx-dy)/Math.SQRT2*Math.hypot(...p.map((v,k)=>v-g.point[k]))/(Math.hypot(dx,dy)||1));updateBevel(g.t);document.querySelector('input[aria-label="Bevel size"]')?._sync(true);}e.preventDefault();e.stopImmediatePropagation();},true);
-for(const type of ['pointerup','pointercancel'])outlineCanvas.addEventListener(type,e=>{const g=bevelDrag;if(!g||e.pointerId!==g.id)return;bevelDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}if(type==='pointercancel'){Promise.resolve(g.t.pending).then(()=>{restore(g.before);endBevel();});}else{g.t.used=true;Promise.resolve(g.t.pending).then(()=>checkpoint(g.before));}e.preventDefault();e.stopImmediatePropagation();},true);
+if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener('pointerdown',e=>{if(!bevelTool||e.button!==0)return;if(e.altKey||bevelTool.used){endBevel();return;}const t=bevelTool,p=frameEngine.splinePlanePoint(e.clientX,e.clientY,t.n.nativeHash);if(!p)return;numericSession?.finish(true);t.gesture=(t.gesture||0)+1;bevelDrag={t,id:e.pointerId,x:e.clientX,y:e.clientY,point:p,size:t.size,before:snapshot()};outlineCanvas.setPointerCapture(e.pointerId);e.preventDefault();e.stopImmediatePropagation();},true);
+if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener('pointermove',e=>{const g=bevelDrag;if(!g||g.id!==e.pointerId)return;const p=frameEngine.splinePlanePoint(e.clientX,e.clientY,g.t.n.nativeHash,false,g.point);if(p){const dx=e.clientX-g.x,dy=e.clientY-g.y;g.t.size=Math.max(0,g.size+(dx-dy)/Math.SQRT2*Math.hypot(...p.map((v,k)=>v-g.point[k]))/(Math.hypot(dx,dy)||1));updateBevel(g.t);document.querySelector('input[aria-label="Bevel size"]')?._sync(true);}e.preventDefault();e.stopImmediatePropagation();},true);
+for(const type of ['pointerup','pointercancel'])if(!globalThis.frameHTMLPlayer)outlineCanvas.addEventListener(type,e=>{const g=bevelDrag;if(!g||e.pointerId!==g.id)return;bevelDrag=null;try{if(outlineCanvas.hasPointerCapture(g.id))outlineCanvas.releasePointerCapture(g.id);}catch{}if(type==='pointercancel'){Promise.resolve(g.t.pending).then(()=>{restore(g.before);endBevel();});}else{g.t.used=true;Promise.resolve(g.t.pending).then(()=>checkpoint(g.before));}e.preventDefault();e.stopImmediatePropagation();},true);
 FrameViewWindows.onWindow('keydown',e=>{if(!bevelTool||!['Enter','Escape'].includes(e.key)||e.target.closest?.('input,textarea'))return;const t=bevelTool;if(bevelDrag){const g=bevelDrag;Promise.resolve(t.pending).then(()=>restore(g.before));}endBevel();e.preventDefault();e.stopImmediatePropagation();},true);
 FrameViewWindows.onDocument('pointerdown',e=>{if(!e.target.closest('#frame-engine-host,#attrContent,#menu')){endBevel();endOutline();}},true);
 
@@ -19820,8 +20053,8 @@ if(drawing){let target=node(drawing.id);const draft=drawing.draft,before=snapsho
   function equalTangents(d,vertices){for(const v of vertices){const star=tangentStar(d,v).filter(([e,k])=>Math.hypot(...e[k])>1e-12);if(!star.length)continue;const mean=star.reduce((sum,[e,k])=>sum+Math.hypot(...e[k]),0)/star.length;if(star.length===2){const [a,b]=star,axis=a[0][a[1]].map((x,k)=>x-b[0][b[1]][k]),length=Math.hypot(...axis);if(length<1e-12)continue;a[0][a[1]]=axis.map(x=>x/2);b[0][b[1]]=axis.map(x=>-x/2);}else for(const [e,k]of star){const length=Math.hypot(...e[k]);e[k]=e[k].map(x=>x*mean/length);}}}
 
   function menuItems(vertices=tangentVertices()){const d=editable()?.splineData;if(!d||!vertices.length)return [];const stars=vertices.map(v=>tangentStar(d,v)),soft=stars.every(star=>star.length&&star.every(([e,k])=>Math.hypot(...e[k])>1e-12)),items=[[soft?'Hard':'Soft',()=>command(soft?'hard':'soft',vertices)]];const chosen=tangentVertices();if(chosen.some(v=>tangentStar(d,v).some(([e,k])=>Math.hypot(...e[k])>1e-12)))items.push(['Equal Tangents',()=>command('equal',chosen)]);return items;}
-  const canvas=$('frame-engine-canvas');canvas.addEventListener('pointerdown',e=>{window.frameEngine?.hoverSplineAt(-1,-1);if(down(e)){selectionArea='viewport';canvas.focus({preventScroll:true});e.preventDefault();e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);}},true);canvas.addEventListener('pointermove',e=>{if(box){boxMove(e);e.preventDefault();e.stopImmediatePropagation();return;}if(drawDrag||edit?.drag){pendingMove={pointerId:e.pointerId,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey};if(!moveFrame)moveFrame=FrameViewWindows.frame(()=>{moveFrame=0;const p=pendingMove;pendingMove=null;if(p)move(p);});e.preventDefault();e.stopImmediatePropagation();}},true);for(const type of ['pointerup','pointercancel'])canvas.addEventListener(type,e=>{if(up(e,type==='pointercancel')){e.preventDefault();e.stopImmediatePropagation();}},true);
-  canvas.addEventListener('contextmenu',e=>{if(window.frameEngine?.navigationMenuSuppressed){e.preventDefault();e.stopImmediatePropagation();return;}if(drawing){stopDraw();e.preventDefault();e.stopImmediatePropagation();return;}selectionArea='viewport';const n=editable(),mode=canvas.dataset.elementMode,h=window.frameEngine.hitSpline(e.clientX,e.clientY,false,false,true),items=[];if(!n)return;if(isActive(n)){const key=h?.vertex||h?.handle;if(mode==='vertex'&&key&&h.hash===n.nativeHash&&!selection().has(key)){edit={hash:h.hash,selection:new Set([key])};refresh();}if(mode==='object')edit=null;let vertices=tangentVertices();if(mode==='object'||!vertices.length&&mode==='vertex')vertices=Object.keys(n.splineData.vertices);items.push(...menuItems(vertices));}if(mode==='edge'||mode==='polygon')items.push(['Toggle Border',()=>command('border'),borderTargets().length>0]);if(mode!=='object')items.push(['Line Cut',()=>window.frameEngine.polygonTool('lineCut')],['Select Connected',()=>window.frameEngine.selectConnected(e.clientX,e.clientY)],['Invert Selection (I)',()=>window.frameEngine.invertSelection().catch(fileOperationError)]);if(['vertex','edge'].includes(mode)&&Object.keys(n.splineData.segments).length)items.push(['Loop Selection',()=>window.frameEngine.polygonTool('loop')]);if(n){const vertices=[...selection()].filter(v=>n.splineData.vertices[v]),eligible=mode==='vertex'&&vertices.length>0&&vertices.length===selection().size&&vertices.every(v=>Object.values(n.splineData.segments).filter(s=>s.a===v||s.b===v).length===2);if(mode!=='vertex'||eligible)items.unshift(['Bevel',()=>FrameGeometry.bevelDialog(n),!!selection().size]);items.unshift(['Outline',()=>FrameGeometry.outlineDialog(),FrameGeometry.outlineSegments(n).length>0]);}if(items.length){e.preventDefault();e.stopImmediatePropagation();showMenu(e.clientX,e.clientY,items);}},true);
+  const canvas=$('frame-engine-canvas');if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',e=>{window.frameEngine?.hoverSplineAt(-1,-1);if(down(e)){selectionArea='viewport';canvas.focus({preventScroll:true});e.preventDefault();e.stopImmediatePropagation();canvas.setPointerCapture(e.pointerId);}},true);if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',e=>{if(box){boxMove(e);e.preventDefault();e.stopImmediatePropagation();return;}if(drawDrag||edit?.drag){pendingMove={pointerId:e.pointerId,clientX:e.clientX,clientY:e.clientY,ctrlKey:e.ctrlKey,metaKey:e.metaKey,shiftKey:e.shiftKey};if(!moveFrame)moveFrame=FrameViewWindows.frame(()=>{moveFrame=0;const p=pendingMove;pendingMove=null;if(p)move(p);});e.preventDefault();e.stopImmediatePropagation();}},true);for(const type of ['pointerup','pointercancel'])if(!globalThis.frameHTMLPlayer)canvas.addEventListener(type,e=>{if(up(e,type==='pointercancel')){e.preventDefault();e.stopImmediatePropagation();}},true);
+  if(!globalThis.frameHTMLPlayer)canvas.addEventListener('contextmenu',e=>{if(window.frameEngine?.navigationMenuSuppressed){e.preventDefault();e.stopImmediatePropagation();return;}if(drawing){stopDraw();e.preventDefault();e.stopImmediatePropagation();return;}selectionArea='viewport';const n=editable(),mode=canvas.dataset.elementMode,h=window.frameEngine.hitSpline(e.clientX,e.clientY,false,false,true),items=[];if(!n)return;if(isActive(n)){const key=h?.vertex||h?.handle;if(mode==='vertex'&&key&&h.hash===n.nativeHash&&!selection().has(key)){edit={hash:h.hash,selection:new Set([key])};refresh();}if(mode==='object')edit=null;let vertices=tangentVertices();if(mode==='object'||!vertices.length&&mode==='vertex')vertices=Object.keys(n.splineData.vertices);items.push(...menuItems(vertices));}if(mode==='edge'||mode==='polygon')items.push(['Toggle Border',()=>command('border'),borderTargets().length>0]);if(mode!=='object')items.push(['Line Cut',()=>window.frameEngine.polygonTool('lineCut')],['Select Connected',()=>window.frameEngine.selectConnected(e.clientX,e.clientY)],['Invert Selection (I)',()=>window.frameEngine.invertSelection().catch(fileOperationError)]);if(['vertex','edge'].includes(mode)&&Object.keys(n.splineData.segments).length)items.push(['Loop Selection',()=>window.frameEngine.polygonTool('loop')]);if(n){const vertices=[...selection()].filter(v=>n.splineData.vertices[v]),eligible=mode==='vertex'&&vertices.length>0&&vertices.length===selection().size&&vertices.every(v=>Object.values(n.splineData.segments).filter(s=>s.a===v||s.b===v).length===2);if(mode!=='vertex'||eligible)items.unshift(['Bevel',()=>FrameGeometry.bevelDialog(n),!!selection().size]);items.unshift(['Outline',()=>FrameGeometry.outlineDialog(),FrameGeometry.outlineSegments(n).length>0]);}if(items.length){e.preventDefault();e.stopImmediatePropagation();showMenu(e.clientX,e.clientY,items);}},true);
   function clearHover(){if(hoverFrame)FrameViewWindows.cancelFrame(hoverFrame);hoverFrame=0;hoverPoint=null;pointerInside=false;window.frameEngine?.hoverSplineAt(-1,-1);}
   function currentHover(){return hoverPoint&&hoverPoint.doc===FrameViewWindows.inputDocument&&frameViewportAt(hoverPoint.x,hoverPoint.y,hoverPoint.doc)===hoverPoint.view;}
   FrameViewWindows.onDocument('pointermove',e=>{
@@ -20377,6 +20610,8 @@ fn blurZ(@builtin(global_invocation_id) g:vec3<u32>){
 
 </script>
 <script id="frame-native-engine">
+frameHTMLSourceIdentity=framePlayer?null:FrameHTMLPackage.sourceIdentity(document);
+frameHTMLSourceIdentity?.catch(()=>{});
 // A directional solid field on the renderer's device, with bounded Z slabs.
 const FrameUnite=(()=>{
   const pipelineCache=new WeakMap();
@@ -21942,6 +22177,7 @@ window.frameEngine=(()=>{
     FrameViewWindows.onWindow('keydown',e=>{if(e.key==='Escape'&&motionDrag){e.preventDefault();e.stopImmediatePropagation();motionUp({pointerId:motionDrag.id},true);}},true);
     FrameViewWindows.onWindow('blur',()=>{if(motionDrag)motionUp({pointerId:motionDrag.id},true);});
     function drawMotionPaths(){
+      if(globalThis.frameHTMLPlayer)return;
       const owners=frameCurves.morphPose||FrameSpline.drawing?[]:[...selected].map(node).filter(n=>n?.visible&&helperShown(n.nativeHash)&&motionTrack(n)?.keys.size);
       if(!owners.length){for(const svg of motionViews.values())svg.style.display='none';return;}
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas;
@@ -22250,7 +22486,7 @@ window.frameEngine=(()=>{
     }
     function cameraUniform(width,height){
       const clip=clippingPlanes(),x=rotatePoint([1,0,0]),y=rotatePoint([0,1,0]),z=rotatePoint([0,0,1]);
-      return new Float32Array([...x,0,...y,0,...z,0,...orbitOffset,1,...scene.center,scene.scale,width/height,zoom,panX,panY,...clip,frameViewKind(viewIndex),cameraFocal(),width,height,.5,width/Math.max(1,canvas.clientWidth),elementIds[elementMode],shadingIds[shadingMode],renderer.boxSelection?1:0,0]);
+      return new Float32Array([...x,0,...y,0,...z,0,...orbitOffset,1,...scene.center,scene.scale,width/height,zoom,panX,panY,...clip,frameViewKind(viewIndex),cameraFocal(),width,height,.5,width/Math.max(1,canvas.clientWidth),elementIds[elementMode],shadingIds[shadingMode],globalThis.frameHTMLPlayer||renderer.boxSelection?1:0,0]);
     }
     function orthoGridData(width,height){
       const cssHeight=Math.max(1,canvas.clientHeight),cssWidth=Math.max(1,canvas.clientWidth),pw=2/(zoom*scene.scale*cssHeight);
@@ -22278,6 +22514,7 @@ window.frameEngine=(()=>{
       return new Float32Array(data);
     }
     function drawViewGrid(pass,width,height){
+      if(globalThis.frameHTMLPlayer)return;
       const r=renderer;
       if(!frameViewKind(viewIndex)){pass.setPipeline(r.gridPipeline);pass.setBindGroup(0,r.gridBindGroup);pass.setVertexBuffer(0,scene.grid);pass.draw(scene.gridCount);return;}
       const data=orthoGridData(width,height);
@@ -23838,6 +24075,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       if(!(scene.lightObjects||[]).includes(hash))return null;const z=FM.unit(FM.point(m,[1,0,0],0)),x=FM.unit(FM.point(m,[0,0,1],0)),length=worldPerPixel(p)*62,tip=FM.add(p,FM.scale(z,length));return {points:[p,tip,FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,length*.08)),FM.add(FM.add(tip,FM.scale(z,-length*.2)),FM.scale(x,-length*.08))],edges:[[0,1],[1,2],[1,3]]};
     }
     function drawLightHelpers(){
+      if(globalThis.frameHTMLPlayer)return;
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas;
       try{for(const i of frameViewSections.keys()){
         let svg=lightHelperViews.get(i);const c=i===active?activeCanvas:frameViewCanvases.get(i);
@@ -25220,12 +25458,12 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     function renderPluginViewports(r,encoder,color,depth,stage='overlay'){
       if(frameNavigation&&(frameNavigation.ready||!r.pluginViewports?.size))return;
       for(const entry of new Set(nodes.filter(pluginViewport).map(n=>FramePlugins.owner(n))))if(!r.pluginViewports?.has(entry))preparePluginViewport(entry).catch(editError);if(!r.pluginViewports?.size)return;
-      for(const [entry,state]of r.pluginViewports){const v=entry.viewport,drawHelpers=(v.stage||'overlay')===stage,drawCallback=!!v.render&&(v.renderStage||v.stage||'overlay')===stage&&(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode)));if(!state.loaded||!drawHelpers&&!drawCallback)continue;const owners=nodes.filter(n=>FramePlugins.owner(n)===entry),alive=new Set(owners.map(n=>n.nativeHash));
+      for(const [entry,state]of r.pluginViewports){const v=entry.viewport,drawHelpers=!globalThis.frameHTMLPlayer&&(v.stage||'overlay')===stage,drawCallback=(!globalThis.frameHTMLPlayer||v.renderKind!=='helper')&&!!v.render&&(v.renderStage||v.stage||'overlay')===stage&&(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode)));if(!state.loaded||!drawHelpers&&!drawCallback)continue;const owners=nodes.filter(n=>FramePlugins.owner(n)===entry),alive=new Set(owners.map(n=>n.nativeHash));
         const eligible=owners.filter(pluginShown),active=eligible.find(n=>n.id===focusId);if(active)state.activeHash=active.nativeHash;if(!eligible.some(n=>n.nativeHash===state.activeHash))state.activeHash=eligible[0]?.nativeHash;
         for(const [hash,row]of state.nodes)if(!alive.has(hash)){releaseGPU(row.uniform);state.nodes.delete(hash);v.retire?.(hash);}
         for(const n of owners){const hash=n.nativeHash;if(!pluginShown(n))continue;
           let row=state.nodes.get(hash);if(!row){const uniform=makeGPUBuffer(r.device,{label:entry.manifest.id+' viewport frame',size:160,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});row={uniform,group:r.device.createBindGroup({layout:state.layout,entries:[{binding:0,resource:{buffer:uniform}}]})};state.nodes.set(hash,row);}
-          const values=new Float32Array(40),world=objectWorld(hash),settings=v.settings(n.params);values.set(world);values.set(FM.inv(world),16);values.set(v.colorFor?.(hash,n.params,selected.has(n.id))||(selected.has(n.id)?v.selectedColor:v.color),32);values.set(settings,36);r.device.queue.writeBuffer(row.uniform,0,values);
+          const values=new Float32Array(40),world=objectWorld(hash),settings=v.settings(n.params);values.set(world);values.set(FM.inv(world),16);values.set(v.colorFor?.(hash,n.params,!globalThis.frameHTMLPlayer&&selected.has(n.id))||(!globalThis.frameHTMLPlayer&&selected.has(n.id)?v.selectedColor:v.color),32);values.set(settings,36);r.device.queue.writeBuffer(row.uniform,0,values);
           const helper=pluginHelper(n),warning=drawHelpers&&shadingMode!=='off'&&v.surfaceWarnings!==false&&!!helper.lines.length&&(v.surfaceSelection!=='last-active'||hash===state.activeHash);
           if(warning&&['wireframe','isoparms'].includes(shadingMode)){const p=encoder.beginRenderPass({colorAttachments:[],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});p.setBindGroup(0,r.bindGroup);p.setBindGroup(2,row.group);for(const mesh of scene.meshes){if(!meshVisible(mesh))continue;if(!mesh.shadingBindGroup)meshRenderGroups(r,mesh);p.setPipeline(state.depths[(frameViewKind(viewIndex)?2:0)+(mesh.posed?1:0)]);for(const part of mesh.parts||[mesh]){if(mesh.paged&&!meshVisible(part))continue;p.setBindGroup(1,part.shadingBindGroup);p.setIndexBuffer(part.renderIndices,'uint32');p.drawIndexed(part.count);}}p.end();}
           const pass=encoder.beginRenderPass({label:entry.manifest.id+' viewport '+stage,colorAttachments:[{view:color.createView(),loadOp:'load',storeOp:'store'}],depthStencilAttachment:{view:depth.createView(),depthLoadOp:'load',depthStoreOp:'store'}});
@@ -26125,6 +26363,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
 
     function renderPolygonVertices(gpu,encoder,color=gpu.cachedColor,depth=gpu.depth,ids=gpu.triangleIds){
+      if(globalThis.frameHTMLPlayer)return;
       if(shadingMode==='off')return;
       gpu.vertexDisplay??=new Map();const display={objects:0,vertices:0};gpu.vertexDisplay.set(viewIndex,display);if(elementMode!=='vertex')return;const wanted=new Set(componentMeshes());if(!wanted.size)return;
       gpu.vertexGlobals??=new WeakMap();let bindings=gpu.vertexGlobals.get(depth);
@@ -26263,7 +26502,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(full){
         const clip=clippingPlanes();
         if(scene.records)nativePut(scene.records,FrameHash.K.camera,null,FrameHash.T.float64,nativeCamera());
-        canvas.dataset.viewIndex=String(viewIndex);canvas.ariaLabel=frameViewKind(viewIndex)?'2D '+frameViewNames[frameViewKind(viewIndex)]+': middle drag to pan, right drag or wheel to zoom, left drag to select':'Perspective: drag to orbit, middle drag to pan, right drag or wheel to zoom, Alt drag to select';
+        canvas.dataset.viewIndex=String(viewIndex);canvas.ariaLabel=globalThis.frameHTMLPlayer?'Scene':frameViewKind(viewIndex)?'2D '+frameViewNames[frameViewKind(viewIndex)]+': middle drag to pan, right drag or wheel to zoom, left drag to select':'Perspective: drag to orbit, middle drag to pan, right drag or wheel to zoom, Alt drag to select';
         canvas.dataset.camera=JSON.stringify({yaw,pitch,fov:perspectiveFov,view:viewIndex,offset:orbitOffset,pan:[panX,panY]});canvas.dataset.zoom=String(zoom);canvas.dataset.clip=JSON.stringify(clip);
         device.queue.writeBuffer(r.uniform,0,cameraUniform(width,height));
         const wireTiming=slot&&['wireframe','isoparms'].includes(shadingMode)&&r.wireRaster;if(wireTiming){const marker=encoder.beginComputePass({timestampWrites:{querySet:r.frameMeter.queries,beginningOfPassWriteIndex:slot.index*2}});marker.end();}
@@ -26868,7 +27107,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     let nativeClipboard=null,clipboardSerial=Promise.resolve();
     const clipboardScope='frame-clipboard:'+new URL('.',location.href).pathname,clipboardOwner=crypto.randomUUID(),clipboardRequests=new Map();let clipboardChannel=null;
-    try{clipboardChannel=new BroadcastChannel(clipboardScope);clipboardChannel.onmessage=async({data})=>{
+    if(!globalThis.frameHTMLPlayer)try{clipboardChannel=new BroadcastChannel(clipboardScope);clipboardChannel.onmessage=async({data})=>{
       if(data?.kind==='request'&&nativeClipboard?.token===data.token){clipboardChannel.postMessage({kind:'ack',request:data.request});try{const blob=await clipboardBlob(nativeClipboard);clipboardChannel.postMessage({kind:'reply',request:data.request,blob});}catch(error){clipboardChannel.postMessage({kind:'reply',request:data.request,error:error.message});}}
       else if(data?.kind==='ack')clipboardRequests.get(data.request)?.ack();else if(data?.kind==='reply')clipboardRequests.get(data.request)?.finish(data);
     };}catch{}
@@ -27468,6 +27707,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     function hideGizmo(){gizmoSignature='';lastGizmoState=null;gizmoViewStates.clear();for(const svg of gizmoViews.values()){svg.style.display='none';svg.replaceChildren();}}
     function drawGizmo(){
+      if(globalThis.frameHTMLPlayer){hideGizmo();return;}
       FramePlugins.drawOverlays();
       const frame=selectionFrame();if(!frame||handles.hidden||['loop','lineCut','bridge','closeHole'].includes(polygonTools.mode)){hideGizmo();return;}
       const active=viewIndex,saved=captureCamera(),activeCanvas=canvas,pivot=Array.from(frame.slice(12,15)),basis=gizmoBasis();lastGizmoState=null;
@@ -27963,6 +28203,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       return {min,max,center:min.map((v,i)=>(v+max[i])/2)};
     }
     function renderBoxSelection(gpu,encoder,color=gpu.cachedColor,depth=gpu.depth,ids=gpu.triangleIds){
+      if(globalThis.frameHTMLPlayer)return;
       if(shadingMode==='off')return;
       const s=gpu.boxSelection;if(s?.mode==='vertex'&&gpu.vertexDisplay?.get(viewIndex)?.screenRaster)return;if(!s||s.mode!==elementMode||s.space!==scene||!s.counts.some(Boolean))return;
       const draws=featureDrawGroups(gpu);
@@ -27981,22 +28222,22 @@ fn occupied(p:vec2i,channel:u32)->bool{
       const t=transformTransaction(prepared),pivot=Array.from(t.frame.slice(12,15)),normal=FM.unit(inverseView([0,0,1])),hit=pointerWorld(event,pivot,normal);if(!hit)return false;
       const kind=singleSelectedControl()&&!pivotEditing?'move':lastGizmoOperation,g=gizmoSession={...t,camera:captureCamera(),pivot,basis:gizmoBasis(),kind,axis:normal,axes:[FM.unit(inverseView([1,0,0])),FM.unit(inverseView([0,1,0]))],normal,hit,editPivot:pivotEditing,uniform:kind==='scale',screenPlane:true,extent:Math.max(...t.state.size),at:worldScreen(pivot),unit:worldPerPixel(pivot),startX:event.clientX,startY:event.clientY,event,ctrl:event.ctrlKey||event.metaKey,shift:event.shiftKey,turns:0,snapSequence:0,space:scene,id:event.pointerId,viewDrag:true,signsPerView:new Map([...gizmoViewStates].map(([i,s])=>[i,[...s.signs]]))};if(kind==='scale')g.scaleMinimum=Math.min(g.extent,minimumScaleSize());if(!released)canvas.setPointerCapture(event.pointerId);event.preventDefault();event.stopImmediatePropagation();return true;
     }
-    canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag||g.ending)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
-    canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;const click=!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6;finishGizmo(event).catch(editError);if(click)selectElement(event.clientX,event.clientY,frameSelectionOperation(event));});
-    canvas.addEventListener('pointercancel',event=>{if(gizmoSession?.viewDrag)finishGizmo(event,true).catch(editError);});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',event=>{const g=gizmoSession;if(!g?.viewDrag||g.ending)return;g.event=event;if(!gizmoRAF)gizmoRAF=FrameViewWindows.frame(()=>{gizmoRAF=0;if(gizmoSession===g)applyGizmoEvent(g,g.event);});});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>{const g=gizmoSession;if(!g?.viewDrag)return;const click=!g.moved&&Math.hypot(event.clientX-g.startX,event.clientY-g.startY)<6;finishGizmo(event).catch(editError);if(click)selectElement(event.clientX,event.clientY,frameSelectionOperation(event));});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointercancel',event=>{if(gizmoSession?.viewDrag)finishGizmo(event,true).catch(editError);});
     const pluginHost=$('frame-engine-host');
-    pluginHost.addEventListener('contextmenu',e=>{if(!navigationMenuSuppressed&&FramePlugins.dispatch('contextMenu',e.clientX,e.clientY)){e.preventDefault();e.stopImmediatePropagation();}},true);
+    if(!globalThis.frameHTMLPlayer)pluginHost.addEventListener('contextmenu',e=>{if(!navigationMenuSuppressed&&FramePlugins.dispatch('contextMenu',e.clientX,e.clientY)){e.preventDefault();e.stopImmediatePropagation();}},true);
     FrameViewWindows.onWindow('keydown',e=>{if(e.target.closest?.('input,textarea,select,[contenteditable]'))return;if(e.key==='Escape')FramePlugins.dispatch('cancelPlacement');if(['Delete','Backspace'].includes(e.key)&&selectionArea==='viewport'&&FramePlugins.dispatch('deleteSelection')){e.preventDefault();e.stopImmediatePropagation();}},true);
     const marquee=$('frame-engine-marquee');
     function hideMarquee(){marquee.hidden=true;boxDrag=null;}
-    canvas.addEventListener('pointerdown',event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',event=>{
       if(polygonClickGesture||!event.altKey&&FramePlugins.dispatch('interceptsPointer'))return;if(event.button!==0||!scene||selectionBusy||editDrag||editFinishing||button.disabled)return;if(!event.altKey&&frameViewKind(viewIndex)&&elementMode==='vertex'&&scene.meshes.some(m=>!m.splineGenerated)&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey)return;if(!event.altKey&&frameViewKind(viewIndex)&&startViewTransform(event))return;if(!event.altKey&&(!frameViewKind(viewIndex)||selected.size))return;
       event.preventDefault();event.stopImmediatePropagation();orbitGeneration++;pendingWheel=null;boxDrag={id:event.pointerId,start:[event.clientX,event.clientY],end:[event.clientX,event.clientY],operation:frameSelectionOperation(event)};canvas.setPointerCapture(event.pointerId);marquee.hidden=false;moveMarquee(event);hoverCursor.inside=false;draw(false);
     });
     function moveMarquee(event){if(!boxDrag||event.pointerId!==boxDrag.id)return;boxDrag.end=[event.clientX,event.clientY];const a=boxDrag.start,b=boxDrag.end;Object.assign(marquee.style,{left:Math.min(a[0],b[0])+'px',top:Math.min(a[1],b[1])+'px',width:Math.abs(a[0]-b[0])+'px',height:Math.abs(a[1]-b[1])+'px'});}
-    canvas.addEventListener('pointermove',moveMarquee);
-    canvas.addEventListener('pointerup',event=>{if(!boxDrag||event.pointerId!==boxDrag.id)return;moveMarquee(event);const a=boxDrag.start,b=boxDrag.end,operation=boxDrag.operation;hideMarquee();if(frameViewKind(viewIndex)&&Math.hypot(b[0]-a[0],b[1]-a[1])<3)selectElement(event.clientX,event.clientY,operation);else selectRectangle([Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])],operation);});
-    canvas.addEventListener('pointercancel',hideMarquee);canvas.addEventListener('lostpointercapture',hideMarquee);
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',moveMarquee);
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>{if(!boxDrag||event.pointerId!==boxDrag.id)return;moveMarquee(event);const a=boxDrag.start,b=boxDrag.end,operation=boxDrag.operation;hideMarquee();if(frameViewKind(viewIndex)&&Math.hypot(b[0]-a[0],b[1]-a[1])<3)selectElement(event.clientX,event.clientY,operation);else selectRectangle([Math.min(a[0],b[0]),Math.min(a[1],b[1]),Math.max(a[0],b[0]),Math.max(a[1],b[1])],operation);});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointercancel',hideMarquee);if(!globalThis.frameHTMLPlayer)canvas.addEventListener('lostpointercapture',hideMarquee);
     FrameViewWindows.onWindow('keydown',event=>{if(event.key==='Escape'&&boxDrag){hideMarquee();draw(false);}});
     FrameViewWindows.onWindow('blur',hideMarquee);
 
@@ -28058,19 +28299,19 @@ fn occupied(p:vec2i,channel:u32)->bool{
       hoverCursor.inside=event.clientX>=rect.left&&event.clientX<rect.right&&event.clientY>=rect.top&&event.clientY<rect.bottom;
       if(!event.buttons&&scene)draw(false);
     }
-    canvas.addEventListener('pointermove',hoverPointer);
-    canvas.addEventListener('pointerup',hoverPointer);
-    canvas.addEventListener('pointerleave',()=>{if(hoverCursor.inside){hoverCursor.inside=false;if(scene)draw(false);}});
-    canvas.addEventListener('pointerdown',()=>{canvas.focus({preventScroll:true});if(scene)draw(false);});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',hoverPointer);
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',hoverPointer);
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerleave',()=>{if(hoverCursor.inside){hoverCursor.inside=false;if(scene)draw(false);}});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',()=>{canvas.focus({preventScroll:true});if(scene)draw(false);});
     FrameViewWindows.onWindow('blur',()=>{hoverCursor.inside=false;if(scene)draw(false);});
     // Accept a new click while the preceding GPU selection or vertex weld is settling.
     let queuedComponentPress=null;
-    canvas.addEventListener('pointerdown',event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',event=>{
       if(event.button!==0||elementMode==='object'||!(selectionBusy||gizmoSession?.ending||editDrag?.released||editFinishing||drag?.vertexPending&&drag.releaseEvent))return;
       queuedComponentPress={id:event.pointerId,x:event.clientX,y:event.clientY,space:scene,view:viewIndex,mode:elementMode,operation:frameSelectionOperation(event)};
       canvas.setPointerCapture(event.pointerId);event.stopImmediatePropagation();
     },true);
-    canvas.addEventListener('pointerup',event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>{
       const press=queuedComponentPress;if(!press||press.id!==event.pointerId)return;
       queuedComponentPress=null;event.stopImmediatePropagation();
       if(Math.hypot(event.clientX-press.x,event.clientY-press.y)>3)return;
@@ -28080,8 +28321,8 @@ fn occupied(p:vec2i,channel:u32)->bool{
         if(scene===press.space&&viewIndex===press.view&&elementMode===press.mode){await selectElementNow(x,y,press.operation);await selectionQueue;}
       }).catch(editError);
     },true);
-    canvas.addEventListener('pointercancel',()=>{queuedComponentPress=null;},true);
-    canvas.addEventListener('pointerdown',async event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointercancel',()=>{queuedComponentPress=null;},true);
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerdown',async event=>{
       if((event.button!==0&&event.button!==1&&event.button!==2)||!scene||selectionBusy||boxDrag||gizmoSession||coreNumeric||editDrag||editFinishing)return;
       event.preventDefault();
       const state={id:event.pointerId,element:canvas,navigationBlocked:cameraNavigationOwned(),x:event.clientX,y:event.clientY,startX:event.clientX,startY:event.clientY,button:event.button,operation:frameSelectionOperation(event),
@@ -28126,7 +28367,7 @@ fn occupied(p:vec2i,channel:u32)->bool{
       if(state.button===2){state.zoomPoint=point||fallbackZoomPoint(state.startX,state.startY);zoomAt(state.zoomPoint,state.startX,state.startY,state.zoom*Math.exp(((state.x-state.startX)-(state.y-state.startY))*0.007/Math.SQRT2));}
       else if(state.button===0&&Math.hypot(state.x-state.startX,state.y-state.startY)>3)applyOrbit(state);
     });
-    canvas.addEventListener('pointermove',event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointermove',event=>{
       if(!drag)return;if(!drag.navigationBlocked&&cameraNavigationOwned()){cancelCameraNavigation();return;}
       const dx=event.clientX-drag.x,dy=event.clientY-drag.y;
       drag.x=event.clientX;drag.y=event.clientY;if(drag.button===2&&Math.hypot(drag.x-drag.startX,drag.y-drag.startY)>3)navigationMenuSuppressed=true;
@@ -28151,12 +28392,12 @@ fn occupied(p:vec2i,channel:u32)->bool{
     }
     FrameViewWindows.onWindow('blur',()=>{if(drag)finishDrag({type:'blur'},true);});
     FrameViewWindows.onWindow('keydown',event=>{if(event.key==='Escape'&&drag?.vertexPending){drag.cancelled=true;event.preventDefault();event.stopImmediatePropagation();}},true);
-    canvas.addEventListener('pointerup',event=>finishDrag(event));
-    canvas.addEventListener('pointercancel',event=>finishDrag(event,true));
-    canvas.addEventListener('lostpointercapture',event=>{if(framePointerLock?.element!==canvas)finishDrag(event,true);});
-    canvas.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
-    canvas.addEventListener('contextmenu',async event=>{event.preventDefault();if(navigationMenuSuppressed)return;if(elementMode==='object')return;const owner=current();if(owner&&owner.type!=='mesh'){objectMenu(event.clientX,event.clientY);return;}const editable=owner?.type==='mesh',build=available=>{const items=[['Line Cut',()=>polygonTool('lineCut'),editable]];if(elementMode==='vertex')items.push(['Loop Selection',()=>polygonTool('loop'),editable],['Soft Selection',()=>polygonTool('soft'),editable]);if(elementMode==='edge')items.push(['Bridge',()=>polygonTool('bridge'),editable],['Loop Selection',()=>polygonTool('loop'),editable]);if(['vertex','edge','polygon'].includes(elementMode))items.push(['Close Polygonal Hole',()=>polygonTool('closeHole'),editable&&!!available.closeHole]);items.push(['Select Connected',()=>selectConnected(event.clientX,event.clientY)],['Invert Selection (I)',()=>invertSelection().catch(editError)]);return items;};showMenu(event.clientX,event.clientY,build({}));const first=$('menu').firstChild,available=await polygonAvailability(owner);if(current()===owner&&!$('menu').hidden&&$('menu').firstChild===first)showMenu(event.clientX,event.clientY,build(available));});
-    canvas.addEventListener('wheel',event=>{
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointerup',event=>finishDrag(event));
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('pointercancel',event=>finishDrag(event,true));
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('lostpointercapture',event=>{if(framePointerLock?.element!==canvas)finishDrag(event,true);});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('auxclick',event=>{if(event.button===1)event.preventDefault();});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('contextmenu',async event=>{event.preventDefault();if(navigationMenuSuppressed)return;if(elementMode==='object')return;const owner=current();if(owner&&owner.type!=='mesh'){objectMenu(event.clientX,event.clientY);return;}const editable=owner?.type==='mesh',build=available=>{const items=[['Line Cut',()=>polygonTool('lineCut'),editable]];if(elementMode==='vertex')items.push(['Loop Selection',()=>polygonTool('loop'),editable],['Soft Selection',()=>polygonTool('soft'),editable]);if(elementMode==='edge')items.push(['Bridge',()=>polygonTool('bridge'),editable],['Loop Selection',()=>polygonTool('loop'),editable]);if(['vertex','edge','polygon'].includes(elementMode))items.push(['Close Polygonal Hole',()=>polygonTool('closeHole'),editable&&!!available.closeHole]);items.push(['Select Connected',()=>selectConnected(event.clientX,event.clientY)],['Invert Selection (I)',()=>invertSelection().catch(editError)]);return items;};showMenu(event.clientX,event.clientY,build({}));const first=$('menu').firstChild,available=await polygonAvailability(owner);if(current()===owner&&!$('menu').hidden&&$('menu').firstChild===first)showMenu(event.clientX,event.clientY,build(available));});
+    if(!globalThis.frameHTMLPlayer)canvas.addEventListener('wheel',event=>{
       event.preventDefault();if(cameraNavigationOwned()){cancelCameraNavigation();return;}if(drag||boxDrag||selectionBusy||gizmoSession||coreNumeric||editDrag||editFinishing||!scene)return;
       const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?canvas.clientHeight:1);
       if(pendingWheel){pendingWheel.delta+=delta;pendingWheel.x=event.clientX;pendingWheel.y=event.clientY;}else pendingWheel={x:event.clientX,y:event.clientY,delta};
@@ -28898,7 +29139,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
         const state=defaultCamera(i),c=rotatePoint(scene.center,state[0],state[1],i),j=12+(i-1)*3;
         state[2]=1/(v[j+2]*scene.scale);state[3]=(c[0]-v[j])*scene.scale;state[4]=(c[1]-v[j+1])*scene.scale;viewStates[i]=state;
       }
-      viewIndex=activeView=mainActiveView=v.length>=23?v[21]:0;if(v.length>=23)single=!!v[22];viewShadings.splice(0,4,...(v.length===27?Array.from(v.slice(23),i=>viewShadingNames[i]):defaultViewShadings));shadingMode=viewShadings[viewIndex];restoreCamera(viewStates[viewIndex]||defaultCamera(viewIndex));orbitGeneration++;renderViews();window.dispatchEvent(new CustomEvent('frame-engine-mode',{detail:{elementMode,shadingMode}}));
+      viewIndex=activeView=mainActiveView=globalThis.frameHTMLPlayer?0:v.length>=23?v[21]:0;if(globalThis.frameHTMLPlayer)single=true;else if(v.length>=23)single=!!v[22];viewShadings.splice(0,4,...(v.length===27?Array.from(v.slice(23),i=>viewShadingNames[i]):defaultViewShadings));shadingMode=viewShadings[viewIndex];restoreCamera(viewStates[viewIndex]||defaultCamera(viewIndex));orbitGeneration++;renderViews();window.dispatchEvent(new CustomEvent('frame-engine-mode',{detail:{elementMode,shadingMode}}));
     }
     function nativeSceneEvent(name,preparedImages,validatedGroups=null){FrameAuthorData.reset();cameraNavigationRevisions.clear();splineMaterialOrigins.clear();endPolygonTool();polygonTools.soft=false;frameSoloIds=null;$('btnSolo').classList.remove('on');$('btnSolo').ariaPressed='false';clearSplineDisplays();
       appearanceSignature='';
@@ -29552,6 +29793,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     async function newFile(){nativeIOStart('Creating scene…');try{stop();renderStop();await timelineWork;await FrameGeometry.endOutline();await FrameSpline.flush();await selectionQueue;await editSerial;await clearEdits();const gpu=await getRenderer();if(scene)disposeScene(scene);clearFeatureDraws(gpu);clearPickGroups(gpu);FrameAuthorData.invalidateDocument();scene=sceneFromMeshes(gpu,[]);installNativeRecords([]);metaUndo=[];metaRedo=[];selectionScope='components';objectSelection=[];selectedMesh=null;selectedMeshes=[];selectionBox=componentPivot=coordinateCache=measurementCache=null;selectionSignature='';frameSoloIds=null;resetView();sceneFrameDirty=true;nativeSceneEvent('scene.hash');nativeSceneStats('scene.hash');lastSavedFormat='hash';setTimelineLoop(false);lastImportReport=null;delete canvas.dataset.operationError;delete canvas.dataset.splineError;canvas.dataset.ready='true';status.hidden=true;button.disabled=false;await draw(true);}finally{nativeIOEnd();}}
 
     async function start(){
+      if(globalThis.frameHTMLPlayer){const player=globalThis.frameHTMLPlayer;await player.ready;await loadHash(await player.scene,player.name||'scene.hash');document.title=(player.name||'Frame').replace(/\.hash$/i,'');return;}
       const shared=new URLSearchParams(location.hash.slice(1)).get('scene');if(shared){const data=await frameDecodeShare(shared);sceneFileHandle=null;await loadHash(data,'shared.hash');return;}
 
       canvas.dataset.ready='loading';
@@ -30269,7 +30511,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
             if(managed)rememberPlantMaps(foliage,catalog[1]);
             defaults=catalog.slice();
           }else{
-            const response=await fetch('models/'+filename+'.hash');
+            const response=await fetch(frameResourceURL('models/'+filename+'.hash'));
             if(!response.ok)throw Error('Model HTTP '+response.status);
             ({raw,catalog:defaults}=await libraryData(await response.blob()));
             if(!alive())continue;
@@ -30716,7 +30958,7 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
     }
     let splineHighlightState=null;
     function syncSplineHighlights(){
-      if(!renderer||!scene)return;const edgeMode=elementMode==='edge'||elementMode==='polygon',last=splineHighlightState;
+      if(!renderer||!scene)return;const edgeMode=!globalThis.frameHTMLPlayer&&(elementMode==='edge'||elementMode==='polygon'),last=splineHighlightState;
       if(!edgeMode&&last&&last[0]===scene&&last.length===3+scene.meshes.length+3*splineDisplays.size&&last[1+scene.meshes.length]===null){
         let at=1;for(const mesh of scene.meshes){if(last[at]!==mesh)break;at++;}
         if(at===1+scene.meshes.length){
@@ -30920,9 +31162,9 @@ const positions=duplicateResource(renderer,state.base,'Morph evaluated positions
       for(const d of splineDisplays.values()){
         if(!d.visible||!d.controlCount)continue;
         const owner=frameNodeByHash(d.hash);if(!owner)continue;
-        const active=FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
-        const selected=selectedHashes.has(d.hash)||active,editable=FrameSpline.isEditable(owner);
-        const showControls=editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
+        const active=!globalThis.frameHTMLPlayer&&FrameSpline.isActive(owner);if(d.consumed&&(!active||shadingMode==='solid'&&elementMode==='object'))continue;
+        const selected=!globalThis.frameHTMLPlayer&&(selectedHashes.has(d.hash)||active),editable=FrameSpline.isEditable(owner);
+        const showControls=!globalThis.frameHTMLPlayer&&editable&&(selected&&elementMode==='vertex'||FrameSpline.drawing?.id===owner.id);
         const surface=surfaces.get(d.hash)||surfaces.get(FrameSpline.patchOwner(owner)?.nativeHash),covered=d.consumed||surface;
         const coverage=surface?.patchCage,source=coverage&&(d.hash===surface.hashId?coverage.instances:coverage.sources.get(d.hash));
         const loose=tintParts&&!solidCages&&!d.consumed&&source?patchCageLines(d,source):null;
@@ -31454,7 +31696,7 @@ function FramePolygonKernel(d){
     let bridgeGesture=null;let polygonToolGeneration=0;let loopPreview=null,loopSerial=Promise.resolve(),loopCursor=null,loopRevision=0;
     function endPolygonTool(){const hadToolGizmo=['loop','lineCut','bridge','closeHole'].includes(polygonTools.mode);if(bridgeGesture){try{polygonHost.releasePointerCapture(bridgeGesture.id);}catch{}bridgeGesture=null;}if(polygonTools.cutPress){try{polygonHost.releasePointerCapture(polygonTools.cutPress.id);}catch{}}polygonToolGeneration++;polygonTools.bridgeAnchor=null;polygonTools.bridgeHover=null;polygonTools.cutPress=null;polygonTools.cutOwner=null;polygonTools.cutUndo=0;polygonTools.pendingPoints=0;polygonClickGesture=null;polygonTools.mode=null;polygonTools.line=[];loopPreview=null;loopRevision++;loopCursor=null;drawPolygonGuide();if(hadToolGizmo)drawGizmo();}
     let polygonGuide=null;function drawPolygonGuide(cursor){if(!polygonTools.line.length||polygonTools.mode!=='lineCut'){polygonGuide?.remove();polygonGuide=null;return;}if(!polygonGuide){polygonGuide=document.createElementNS('http://www.w3.org/2000/svg','svg');polygonGuide.id='frame-polygon-guide';polygonGuide.style.cssText='position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:8';const line=document.createElementNS(polygonGuide.namespaceURI,'polyline');line.setAttribute('stroke','#00d4df');line.setAttribute('stroke-width','1.5');line.setAttribute('fill','none');polygonGuide.append(line);$('frame-engine-canvas').ownerDocument.body.append(polygonGuide);}polygonGuide.firstChild.setAttribute('points',[...polygonTools.line,...cursor?[cursor]:[]].map(p=>p.join(',')).join(' '));}
-    $('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='lineCut')drawPolygonGuide([e.clientX,e.clientY]);});
+    if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='lineCut')drawPolygonGuide([e.clientX,e.clientY]);});
     async function polygonLoop(n,edge,active=()=>true){const mesh=scene.meshes.find(m=>m.hashId===n.nativeHash);if(!mesh||n.type!=='mesh')throw Error('Convert to an editable polygon object');const version=mesh.version,raw=await readGeometry(mesh),result=await polygonWorker({...raw,op:'loop',edge});if(!active())return;if(!nodes.includes(n)||mesh.version!==version||mesh.hashId!==n.nativeHash)throw Error('Geometry changed during Loop Selection');selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();selectionArea='viewport';renderTree();await polygonSelect(mesh,elementMode==='vertex'?'vertex':'edge',elementMode==='vertex'?result.vertices:result.edges);return result;}
     async function visiblePolygonLines(mesh,line){
       const gpu=renderer,d=gpu.device;if(frameViewKind(viewIndex))await ensureOrthoPipelines(gpu);if(scene.meshes.some(m=>m.posed))await posedPipelines(gpu,!!frameViewKind(viewIndex));gpu.surfaceRequested=true;await draw(true);const rect=canvas.getBoundingClientRect(),requests=[],ranges=[];
@@ -31809,7 +32051,7 @@ function FramePolygonKernel(d){
         if(first&&target?.mesh===first.mesh&&target.id!==first.id)return joinBridge(first.n,[first.id,target.id],generation);
       }).catch(fileOperationError);
     }
-    $('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='bridge')previewBridge(e.clientX,e.clientY);else if(['loop','closeHole'].includes(polygonTools.mode)&&!e.buttons)previewPolygonLoop(e.clientX,e.clientY);},true);
+    if(!globalThis.frameHTMLPlayer)$('frame-engine-host').addEventListener('pointermove',e=>{if(polygonTools.mode==='bridge')previewBridge(e.clientX,e.clientY);else if(['loop','closeHole'].includes(polygonTools.mode)&&!e.buttons)previewPolygonLoop(e.clientX,e.clientY);},true);
     let polygonClickGesture=null,lineCutMenuUntil=0;
     function cancelPolygonTools(){lineCutMenuUntil=0;endPolygonTool();polygonTools.soft=false;for(const mesh of scene?.meshes||[])releaseSoftOverlay(mesh);renderAttributes();draw(true);}
     function addCutPoint(x,y){
@@ -31864,7 +32106,7 @@ function FramePolygonKernel(d){
       return [a[0]+t*dx,a[1]+t*dy];
     }
     const polygonHost=$('frame-engine-host');
-    polygonHost.addEventListener('pointerdown',event=>{
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('pointerdown',event=>{
       if(event.button===2&&(polygonTools.mode||polygonTools.soft)){const cut=polygonTools.mode==='lineCut',started=cut&&(polygonTools.line.length>0||polygonTools.pendingPoints>0);if(started){lineCutMenuUntil=performance.now()+400;event.preventDefault();event.stopImmediatePropagation();finishCutInput();}else cancelPolygonTools();return;}
       if(event.button!==0||!polygonTools.mode||event.altKey)return;
       const mode=polygonTools.mode,x=event.clientX,y=event.clientY;
@@ -31874,8 +32116,8 @@ function FramePolygonKernel(d){
       if(mode==='lineCut'){polygonTools.cutPress={id:event.pointerId,x,y};polygonHost.setPointerCapture(event.pointerId);addCutPoint(x,y);return;}
       polygonClick=polygonClick.then(()=>addPolygonPoint(x,y)).catch(fileOperationError);
     },true);
-    polygonHost.addEventListener('pointermove',event=>{const g=polygonClickGesture;if(g&&event.pointerId===g.id&&Math.hypot(event.clientX-g.x,event.clientY-g.y)>3){g.moved=true;loopRevision++;loopPreview=null;drawPolygonGuide();}if(event.buttons&&['loop','closeHole'].includes(polygonTools.mode)){loopRevision++;drawPolygonGuide();}},true);
-    polygonHost.addEventListener('pointerup',event=>{
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('pointermove',event=>{const g=polygonClickGesture;if(g&&event.pointerId===g.id&&Math.hypot(event.clientX-g.x,event.clientY-g.y)>3){g.moved=true;loopRevision++;loopPreview=null;drawPolygonGuide();}if(event.buttons&&['loop','closeHole'].includes(polygonTools.mode)){loopRevision++;drawPolygonGuide();}},true);
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('pointerup',event=>{
       const press=polygonTools.cutPress;
       if(press?.id===event.pointerId){polygonTools.cutPress=null;event.preventDefault();event.stopImmediatePropagation();if(Math.hypot(event.clientX-press.x,event.clientY-press.y)>3)addCutPoint(event.clientX,event.clientY);return;}
       if(bridgeGesture?.id===event.pointerId){releaseBridge(event);return;}const g=polygonClickGesture;if(!g||event.pointerId!==g.id)return;polygonClickGesture=null;if(g.moved||Math.hypot(event.clientX-g.x,event.clientY-g.y)>3)return;event.preventDefault();event.stopImmediatePropagation();finishDrag(event,true);
@@ -31893,10 +32135,10 @@ function FramePolygonKernel(d){
       const press=bridgeGesture||polygonTools.cutPress;
       if(press&&(event.type==='blur'||press.id===event.pointerId)){endPolygonTool();renderAttributes();}
     }
-    polygonHost.addEventListener('pointercancel',cancelToolPress,true);
-    polygonHost.addEventListener('lostpointercapture',cancelToolPress,true);
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('pointercancel',cancelToolPress,true);
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('lostpointercapture',cancelToolPress,true);
     FrameViewWindows.onWindow('blur',cancelToolPress);
-    polygonHost.addEventListener('contextmenu',event=>{if(performance.now()<lineCutMenuUntil){lineCutMenuUntil=0;event.preventDefault();event.stopImmediatePropagation();}},true);
+    if(!globalThis.frameHTMLPlayer)polygonHost.addEventListener('contextmenu',event=>{if(performance.now()<lineCutMenuUntil){lineCutMenuUntil=0;event.preventDefault();event.stopImmediatePropagation();}},true);
     FrameViewWindows.onWindow('keydown',event=>{if(event.key!=='Escape'&&event.target.closest?.('input,textarea,select,[contenteditable]'))return;if(event.key==='Escape'&&(polygonTools.mode||polygonTools.soft)){if(polygonTools.mode==='lineCut'&&!polygonTools.cutPress&&polygonTools.line.length>=2&&polygonTools.pendingPoints)finishCutInput();else cancelPolygonTools();event.preventDefault();event.stopImmediatePropagation();}else if(event.key==='Enter'&&polygonTools.mode==='lineCut'){finishCutInput();event.preventDefault();event.stopImmediatePropagation();}},true);
     FrameViewWindows.onDocument('pointerdown',e=>{if(polygonTools.mode&&!e.target.closest('#frame-engine-host')&&!(polygonTools.mode==='lineCut'&&e.target.closest('[aria-label="Line cut visible only"]'))){endPolygonTool();renderAttributes();}},true);
 
@@ -32325,7 +32567,7 @@ function FramePolygonKernel(d){
         const check=()=>{context?.signal?.throwIfAborted();context?.bridgeGuard?.();context?.sessionGuard?.();};
         check();
         const format=a.format||'hash',name=a.name||sceneFileName.replace(/\.[^.]*$/,'')+'.'+format;if(!name||/[\x00-\x1f\\/]/.test(name)||!name.toLowerCase().endsWith('.'+format))fail('INVALID_ARGUMENT','Expected a filename ending in .'+format);if(a.ids&&format!=='hash')fail('INVALID_ARGUMENT','Part export currently requires HASH');if(a.transfer&&exportTransfers.size>=8)fail('LIMIT','Release an export transfer before creating another');if(a.ids)refs(a.ids);
-        const blob=await(a.ids?exportPartHash(a.ids):format==='vtk'?saveVTK():format==='3mf'?save3MF():format==='ply'?savePLY():format==='stl'?saveSTL():format==='glb'?saveGLB():saveHash());
+        const blob=await(a.ids?exportPartHash(a.ids):format==='vtk'?saveVTK():format==='3mf'?save3MF():format==='ply'?savePLY():format==='stl'?saveSTL():format==='glb'?saveGLB():format==='html'?frameSaveHTML():saveHash());
         check();
         const bytes=a.includeData?new Uint8Array(await blob.arrayBuffer()):null,
           sha256=bytes?Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),v=>v.toString(16).padStart(2,'0')).join(''):await frameExportBlobDigest(blob,check),
@@ -32348,7 +32590,7 @@ function FramePolygonKernel(d){
         return result;
       }
       register('scene.saveAs','Save HASH to an authorized local path and bind it. Set createOnly to require a new file. Omit path to hand a named HASH file to the AI as a chunk-readable Blob transfer. ids exports a part with descendants/dependencies; download optionally requests a browser download. No picker or 16 MiB limit.',obj({path:str,name:str,ids:exportIds,includeData:bool,download:bool,createOnly:bool}),false,(a,_,context)=>{if(a.path!==undefined){if(Object.keys(a).some(k=>!['path','createOnly'].includes(k)))fail('INVALID_ARGUMENT','Provide path and optional createOnly for a bound Save As');return frameSaveBoundFile(a.path,undefined,{createOnly:a.createOnly});}if(a.createOnly!==undefined)fail('INVALID_ARGUMENT','createOnly requires an authorized path');return exportAsset({...a,format:'hash',transfer:true},_,context);});
-      register('scene.export','Serialize HASH (default) or visible evaluated STL/PLY/VTK/3MF/GLB. ids exports only HASH parts, descendants and declared dependencies in world placement. includeData returns uncapped base64; transfer returns a Blob URL and chunk reader for large files. Release transfers after saving.',obj({includeData:bool,format:choice('hash','stl','glb','ply','vtk','3mf'),ids:exportIds,name:str,transfer:bool,download:bool}),true,exportAsset);
+      register('scene.export','Serialize HASH (default), a self-contained HTML Player with Scene Control and bundled dependencies, or visible evaluated STL/PLY/VTK/3MF/GLB. HTML export preserves the current HASH file binding. ids exports only HASH parts, descendants and declared dependencies in world placement. includeData returns uncapped base64; transfer returns a Blob URL and chunk reader for large files. Release transfers after saving.',obj({includeData:bool,format:choice('hash','stl','glb','ply','vtk','3mf','html'),ids:exportIds,name:str,transfer:bool,download:bool}),true,exportAsset);
       register('scene.export.read','Read a retained export transfer as base64, up to 1 MiB per call. Pass the byte offset from the previous nextOffset. File length has no 16 MiB cap.',required(obj({id:str,offset:integer,length:{...integer,minimum:1,maximum:1024*1024}}),'id'),true,async a=>{const t=exportTransfers.get(a.id);if(!t)fail('NOT_FOUND','Export transfer not found');const offset=a.offset||0;if(offset>t.blob.size)fail('INVALID_ARGUMENT','Offset exceeds file size');const end=Math.min(t.blob.size,offset+(a.length||1024*1024));return {id:a.id,offset,nextOffset:end,bytes:end-offset,totalBytes:t.blob.size,eof:end===t.blob.size,base64:encodeBase64(new Uint8Array(await t.blob.slice(offset,end).arrayBuffer()))};});
       register('scene.export.release','Release an AI export Blob and revoke its download URL after the receiving chat has saved the file. Safe to repeat.',required(obj({id:str}),'id'),true,a=>{const t=exportTransfers.get(a.id);if(t){URL.revokeObjectURL(t.url);exportTransfers.delete(a.id);}return {released:!!t};});
       tools.get('scene.file').dataOnly=tools.get('scene.file.changes').dataOnly=true;
@@ -32442,7 +32684,7 @@ function FramePolygonKernel(d){
     setViewerMode('element','object');setViewerMode('shading','solid-isoparms');
     api.bendNoticeReason=bendNoticeReason;
     api.clonerPlacementCount=estimateClonerPlacementCount;api.clonerDraftFits=clonerDraftFits;api.bendModeFits=bendModeFits;
-    api.ready=start().catch(error=>{canvas.dataset.ready='error';fileOperationError(error);});
+    api.ready=start().catch(error=>{canvas.dataset.ready='error';fileOperationError(error);if(globalThis.frameHTMLPlayer){status.textContent=error.message;status.hidden=false;throw error;}});
     initializeFrameAI();
     return api;
 
@@ -32450,6 +32692,7 @@ function FramePolygonKernel(d){
 
 // Reuse the original worker URL so installed r248 clients also receive the new shell.
 (()=>{
+  if(framePlayer)return;
   const version=document.querySelector('meta[name="frame-version"]').content;
   let launchSerial=Promise.resolve();
   if('launchQueue' in window)launchQueue.setConsumer(({files})=>{const task=launchSerial.then(async()=>{for(const handle of files||[]){try{await frameEngine.ready;const file=await handle.getFile();if(!/\.hash$/i.test(file.name))continue;const merge=nodes.length>0;await frameNativeFileTask(async()=>{if(!merge&&files.length===1)await FrameProjectFile.open(handle,file);else await frameEngine.loadFile(file,{merge});await rememberSceneFile(handle);},{replace:!merge});}catch(error){fileOperationError(error);}}});launchSerial=task.catch(fileOperationError);return task;});
