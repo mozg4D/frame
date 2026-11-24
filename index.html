@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 20:01">
+<meta name="frame-version" content="2026 24 nov 20:09">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -11589,12 +11589,12 @@ fn giSpecular(@builtin(global_invocation_id) id:vec3u){
   let a=max(.025,ar.w)*max(.025,ar.w);
   let h=sampleGGXVNDF(nr.xyz,v,a,&seed);
   let rDir=reflect(-v,h);
-  // Balance a visible-GGX sample against a sample from the environment map.
-  // Bright studio panels are poorly sampled by a rough reflection alone.
+  // Cached output also samples bright environment panels. Navigation keeps
+  // one visibility ray per rough reflection.
   var envSpec=vec3f(0.);
   let nv=max(1e-5,dot(nr.xyz,v));
   let pdfScale=masking(nv,a)/(4.*nv);
-  let sampleEnv=params.counts.w>0u&&ar.w>.14;
+  let sampleEnv=params.giB.w>0.&&params.counts.w>0u&&ar.w>.14;
   if(sampleEnv){
     let ls=sampleDistantLight(0u,&seed);
     if(dot(nr.xyz,ls.direction)>0.&&ls.pdf>0.){
@@ -13320,7 +13320,7 @@ class FrameRenderer {
     u.set(this.pendingDirty,180);f.set([this.options.cacheFootprint??3,(environment.infiniteLights||[]).some(q=>q.angle<1e-5)?1:0,this.sceneFeatureBits(),cacheMode],196);
     const q=this.options.cachedOutput?giContracts.QUALITY_TIERS[0]:this.qualityController.settings;
     u.set([q.cacheTrainBudget,this.giAge>>>0,this.transportEpoch>>>0,q.glassMaxSegments],200);
-    f.set([q.rhoGather,q.tracedSpecMaxRough,q.secondaryAlphaMipBias,0],204);
+    f.set([q.rhoGather,q.tracedSpecMaxRough,q.secondaryAlphaMipBias,this.options.cachedOutput?1:0],204);
     const prev=prevCamera||camera,ptan=prev.ortho?prev.ortho/(2*scale):Math.tan(prev.fov*Math.PI/360);
     f.set(prev.position.map((v,i)=>(v-center[i])/scale),208);
     f.set([...prev.right,ptan*prev.aspect],212);f.set([...prev.up,ptan],216);f.set([...prev.forward,prev.ortho?1:0],220);
