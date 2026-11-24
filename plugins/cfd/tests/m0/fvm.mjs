@@ -1,7 +1,16 @@
 import {gridWGSL} from './fixtures.mjs';
 import {openBoundaries,pressureMultigrid} from './multigrid.mjs';
 
-export async function cartesianSolver(gpu,f,dt,wall,force){
+export const immersedFaceWGSL=`
+  fn projectFace(raw:f32,body:f32,mu:f32,pressureSlope:f32)->vec2f{
+    let free=raw-pressureSlope;
+    if(mu==1.){return vec2f(free,0.);}if(mu==0.){return vec2f(body,free-body);}
+    // Solid receives the equal and opposite constraint impulse. Including
+    // the pressure jump here is essential for a thin accelerating boundary.
+    return vec2f(mix(body,free,mu),(1.-mu)*(free-body));
+  }`;
+
+export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const base=gridWGSL(f)+openBoundaries(f)+`
@@ -14,20 +23,23 @@ export async function cartesianSolver(gpu,f,dt,wall,force){
   `;
   const s0=gpu.buffer('CFD momentum and SST',count*32), pred=gpu.buffer('CFD predicted state',count*32);
   const flux=gpu.buffer('CFD conservative corrected face flux',count*32);
-  const mg=await pressureMultigrid(gpu,f);
+  const loads=gpu.buffer('CFD wall pressure impulse and axial moment',count*16);
+  const mg=await pressureMultigrid(gpu,f,mobility);
   const decl=(b,name,type,write=false)=>`@group(0) @binding(${b}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
   const main=body=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}let p=point(i);${body}}`;
   const init=await gpu.kernel('CFD uniform initial flow',base+decl(0,'s','Cell',true)+decl(1,'flux','Flux',true)+main('s[i]=far();flux[i]=Flux(vec4f(U,0.,0.,0.),vec4f(U,0.,0.,0.));'));
   gpu.run(init,[s0,flux],grid);
   const momentum=await gpu.kernel('CFD finite-volume momentum and SST transport',base+
-    decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+decl(3,'out','Cell',true)+decl(4,'force','f32',true)+main(`
+    decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+decl(3,'out','Cell',true)+main(`
       let a=s[i];let solid=wall[i];let u=a.uk.xyz;let k=max(a.uk.w,1e-12);let omega=max(a.wt.x,1e-8);
       var adv=vec4f(0);var diff=vec3f(0);var grad:mat3x3f;var gk=vec3f(0);var gw=vec3f(0);
       var advW=0.;var dk=0.;var dw=0.;var edk=0.;var edw=0.;
       for(var axis=0u;axis<3u;axis++){var e=vec3i(0);e[axis]=1;
         for(var side=-1;side<=1;side+=2){
           let j=p+side*e;var b=s[bounded(j)];let dir=f32(side);
-          let q=select(flux[i].lo[axis],flux[i].hi[axis],side>0)*dir;
+          let faceSpeed=select(flux[i].lo[axis],flux[i].hi[axis],side>0);
+          let meshSpeed=${f.rotatingFrame?'vec3f(0.,solid.yz)[axis]':'0.'};
+          let q=(faceSpeed-meshSpeed)*dir;
           if(!inside(j)){
             if(floorFace(axis,side)){b.uk=vec4f(-u,k);b.wt=a.wt;}
             else if(!openFace(axis,side)||q<0.){b=far();}
@@ -59,36 +71,51 @@ export async function cartesianSolver(gpu,f,dt,wall,force){
       kn=mix(kn,1e-12,damping);wn=mix(wn,60.*NU/(0.075*0.25),damping);
       let nut=select(0.31*kn/max(0.31*wn,sqrt(ss)*f2),0.,${f.sphere});
       var tentative=u-adv.xyz+diff;
+      ${f.rotatingFrame?`let transverse=tentative.yz;
+        tentative.y=${Math.cos(f.omega*dt)}*transverse.x+${Math.sin(f.omega*dt)}*transverse.y;
+        tentative.z=${-Math.sin(f.omega*dt)}*transverse.x+${Math.cos(f.omega*dt)}*transverse.y;`:''}
       if(${f.rotor}){
         let depth=vec3f(min(p,DIMS-1-p))/vec3f(DIMS);let edge=1.-smoothstep(0.,0.11,min(depth.x,min(depth.y,depth.z)));
         let reservoir=1.-exp(-${cref}*edge);tentative=mix(tentative,vec3f(0),reservoir);
         kn=mix(kn,K0,reservoir);wn=mix(wn,O0,reservoir);}
-      let reaction=damping*(tentative-vec3f(0.,solid.yz));
-      force[i]+=reaction.x;out[i]=Cell(vec4f(tentative-reaction,kn),vec2f(wn,nut),vec2f(0));`));
-  const pressureRhs=decl(0,'s','Cell')+`
-    fn face(i:u32,p:vec3i,axis:u32,side:i32)->f32{var e=vec3i(0);e[axis]=side;let j=p+e;
-      if(inside(j)){return 0.5*(s[i].uk[axis]+s[index(j)].uk[axis]);}
-      if(!openFace(axis,side)){return select(0.,U,axis==0u);}return s[i].uk[axis];}`;
-  const rhs=await gpu.kernel('CFD flux imbalance',base+pressureRhs+decl(1,'b','f32',true)+main(`
-    var div=0.;for(var a=0u;a<3u;a++){div+=face(i,p,a,1)-face(i,p,a,-1);}b[i]=-div;`));
-  const project=await gpu.kernel('CFD conservative face correction',base+pressureRhs+decl(1,'pressure','f32')+
-    decl(2,'out','Cell',true)+decl(3,'flux','Flux',true)+main(`
-    let pi=pressure[i];var t=s[i];var hi=vec3f(0);var lo=vec3f(0);var grad=vec3f(0);
+      out[i]=Cell(vec4f(tentative,kn),vec2f(wn,nut),vec2f(0));`));
+  const pressureRhs=decl(0,'s','Cell')+decl(1,'wall','vec4f')+decl(2,'mu','vec4f')+immersedFaceWGSL+`
+    fn body(i:u32)->vec3f{return vec3f(0.,wall[i].yz);}
+    fn face(i:u32,p:vec3i,axis:u32,side:i32)->vec3f{var e=vec3i(0);e[axis]=side;let j=p+e;
+      if(inside(j)){let other=index(j);let owner=select(other,i,side>0);return vec3f(0.5*(s[i].uk[axis]+s[other].uk[axis]),body(owner)[axis],mu[owner][axis]);}
+      var v=s[i].uk[axis];if(!openFace(axis,side)){v=select(0.,U,axis==0u);}return vec3f(v,0.,1.);}`;
+  const rhs=await gpu.kernel('CFD immersed flux imbalance',base+pressureRhs+decl(3,'b','f32',true)+main(`
+    var div=0.;for(var a=0u;a<3u;a++){let hi=face(i,p,a,1);let lo=face(i,p,a,-1);
+      div+=projectFace(hi.x,hi.y,hi.z,0.).x-projectFace(lo.x,lo.y,lo.z,0.).x;}b[i]=-div;`));
+  const project=await gpu.kernel('CFD coupled wall and pressure projection',base+pressureRhs+decl(3,'pressure','f32')+
+    decl(4,'out','Cell',true)+decl(5,'flux','Flux',true)+decl(6,'force','f32',true)+decl(7,'load','vec4f',true)+main(`
+    let pi=pressure[i];var t=s[i];var hi=vec3f(0);var lo=vec3f(0);var rawAverage=vec3f(0);
+    var impulse=vec3f(0.);var pressureDrag=0.;
     for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){
       var e=vec3i(0);e[a]=side;let j=p+e;var delta=0.;
       if(inside(j)){delta=pressure[index(j)]-pi;}else if(openFace(a,side)){delta=-2.*pi;}
-      let slope=f32(side)*delta;let q=face(i,p,a,side)-slope;
-      if(side>0){hi[a]=q;}else{lo[a]=q;}grad[a]+=0.5*slope;
-    }}t.uk=vec4f(t.uk.xyz-grad,t.uk.w);out[i]=t;flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`));
-  const m=gpu.bind(momentum,[s0,flux,wall,pred,force]),r=gpu.bind(rhs,[pred,mg.rhs]),c=gpu.bind(project,[pred,mg.p,s0,flux]);
+      let slope=f32(side)*delta;let data=face(i,p,a,side);let q=projectFace(data.x,data.y,data.z,slope);
+      if(side>0){hi[a]=q.x;}else{lo[a]=q.x;}rawAverage[a]+=0.5*data.x;
+      impulse[a]+=0.5*q.y;if(a==0u){pressureDrag-=0.5*(1.-data.z)*slope;}
+    }}
+    // The cell-to-face average loses a subcell velocity component. Fluid keeps
+    // that component. Any part removed inside the solid acts on the body.
+    let subcell=t.uk.xyz-rawAverage;let fluidFraction=mu[i].w;
+    impulse+=(1.-fluidFraction)*subcell;
+    t.uk=vec4f(0.5*(hi+lo)+fluidFraction*subcell,t.uk.w);
+    let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+(vec3f(p)+.5)*${f.h};
+    out[i]=t;flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));force[i]+=impulse.x;
+    load[i]+=vec4f(pressureDrag,cross(arm,impulse).x,impulse.yz);`));
+  const m=gpu.bind(momentum,[s0,flux,wall,pred]),r=gpu.bind(rhs,[pred,wall,mobility,mg.rhs]),c=gpu.bind(project,[pred,wall,mobility,mg.p,s0,flux,force,loads]);
   const [nx,ny,nz]=f.dims,plane=gpu.buffer('CFD time-mean symmetry plane',nx*ny*4);
   const sample=await gpu.kernel('CFD sample planar velocity',decl(0,'s','vec4f')+decl(1,'plane','f32',true)+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<arrayLength(&plane)){
       let a=(i+${nx*ny*(nz/2-1)}u)*2u;plane[i]+=0.5*(s[a].x+s[a+${nx*ny*2}u].x);}}`);
   const sb=gpu.bind(sample,[s0,plane]);
-  return {state:s0,flux,plane,step(i,sampling){
-    const e=gpu.device.createCommandEncoder();gpu.dispatch(e,momentum,m,grid);gpu.dispatch(e,rhs,r,grid);
-    mg.solve(e);mg.solve(e);if(f.rotor)mg.solve(e);gpu.dispatch(e,project,c,grid);
+  return {state:s0,pressure:mg.p,flux,plane,loads,step(i,sampling){
+    const e=gpu.device.createCommandEncoder();if(!i||(f.rotor&&!f.rotatingFrame))mg.updateGeometry(e);
+    gpu.dispatch(e,momentum,m,grid);gpu.dispatch(e,rhs,r,grid);
+    mg.solve(e);mg.refine(e,i===0?24:f.rotor?10:6);gpu.dispatch(e,project,c,grid);
     if(sampling)gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]);
     gpu.device.queue.submit([e.finish()]);
   }};

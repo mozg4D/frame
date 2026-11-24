@@ -34,16 +34,21 @@ export function settledPeriods(windows){
   return Number.isFinite(scale)&&scale>0&&Math.max(...v)-Math.min(...v)<.02*scale;
 }
 
-export async function sumForce(gpu,force,count){
-  const n=Math.ceil(count/128),partials=gpu.buffer('CFD window force sums',n*4),stage=gpu.staging('CFD window sums readback',n*4);
+export async function sumForce(gpu,force,count,components=1){
+  const type=components===1?'f32':'vec4f';
+  const n=Math.ceil(count/128),partials=gpu.buffer('CFD window force sums',n*4*components),stage=gpu.staging('CFD window sums readback',n*4*components);
   const pipeline=await gpu.kernel('CFD force reduction',`
-    @group(0) @binding(0) var<storage,read> f:array<f32>; @group(0) @binding(1) var<storage,read_write> sums:array<f32>;
-    var<workgroup> w:array<f32,128>;
+    @group(0) @binding(0) var<storage,read> f:array<${type}>; @group(0) @binding(1) var<storage,read_write> sums:array<${type}>;
+    var<workgroup> w:array<${type},128>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u,@builtin(workgroup_id) id:vec3u,@builtin(local_invocation_index) j:u32){
-      var x=0.;if(g.x<${count}u){x=f[g.x];}w[j]=x;
+      var x:${type};if(g.x<${count}u){x=f[g.x];}w[j]=x;
       for(var k=64u;k>0u;k/=2u){workgroupBarrier();if(j<k){w[j]+=w[j+k];}}
       if(j==0u){sums[id.x]=w[0];}}`);
-  return async()=>{gpu.run(pipeline,[force,partials],[n]);return (await gpu.read(partials,stage,n)).reduce((a,b)=>a+b,0);};
+  return async()=>{
+    gpu.run(pipeline,[force,partials],[n]);const data=await gpu.read(partials,stage,n*components);
+    if(components===1)return data.reduce((a,b)=>a+b,0);
+    const total=Array(components).fill(0);for(let i=0;i<data.length;i++)total[i%components]+=data[i];return total;
+  };
 }
 
 async function sampleFlow(gpu,f,solver,dt,samplesTaken,wall){
@@ -74,34 +79,40 @@ async function sampleFlow(gpu,f,solver,dt,samplesTaken,wall){
 }
 
 async function runCase(device,f,kind,progress){
+  f={...f,rotatingFrame:f.rotor&&kind==='cartesian-fvm'&&!f.inertialRotor};
   const gpu=gpuScope(device),start=performance.now();
   const count=f.dims.reduce((a,b)=>a*b),cfl=kind==='cartesian-fvm'?(f.rotor?.12:.32):.065;
   const dt=cfl*f.h/f.maxSpeed, periodSteps=Math.round(f.period/dt), windows=[];
+  const budget=f.budgetMs??caseBudgetMs;
   const force=gpu.buffer('CFD window body impulse',count*4);
-  const clear=()=>{const e=device.createCommandEncoder();e.clearBuffer(force);device.queue.submit([e.finish()]);};
+  const clear=loads=>{const e=device.createCommandEncoder();e.clearBuffer(force);if(loads)e.clearBuffer(loads);device.queue.submit([e.finish()]);};
   let stopMonitor=viewportMonitor();
   try{
-    const geom=await geometryKernel(gpu,f,dt);geom.update(0);
-    const solver=await (kind==='cartesian-fvm'?cartesianSolver:momentSolver)(gpu,f,dt,geom.wall,force);
-    const reduce=await sumForce(gpu,force,count);await device.queue.onSubmittedWorkDone();
+    const finiteVolume=kind==='cartesian-fvm',geom=await geometryKernel(gpu,f,dt,finiteVolume);geom.update(0);
+    const solver=finiteVolume?await cartesianSolver(gpu,f,dt,geom.wall,force,geom.response):await momentSolver(gpu,f,dt,geom.wall,force);
+    const reduce=await sumForce(gpu,force,count),otherLoads=solver.loads?await sumForce(gpu,solver.loads,count,4):null;
+    await device.queue.onSubmittedWorkDone();
     const setupMs=performance.now()-start;
     let step=0,batch=1,maxBatchMs=0,samplesTaken=0;
     let budgetExhausted=false;
     periods: for(let window=0;window<12;window++){
-      clear();
+      clear(solver.loads);
       // Round cumulative times; each measured rotor window spans one revolution.
       const end=Math.round((window+1)*f.period/dt),first=step;
       while(step<end){
-        if(performance.now()-start>=caseBudgetMs){budgetExhausted=true;break periods;}
+        if(performance.now()-start>=budget){budgetExhausted=true;break periods;}
         const n=Math.min(batch,end-step),since=performance.now();
-        for(let j=0;j<n;j++,step++){if(f.rotor)geom.update(step);solver.step(step,window>=3);if(window>=3)samplesTaken++;}
+        for(let j=0;j<n;j++,step++){if(f.rotor&&!f.rotatingFrame)geom.update(step);solver.step(step,window>=3);if(window>=3)samplesTaken++;}
         await device.queue.onSubmittedWorkDone();
         const ms=performance.now()-since;maxBatchMs=Math.max(maxBatchMs,ms);
         batch=Math.max(1,Math.min(12,Math.round(0.5*batch+0.5*n*5/Math.max(ms,0.1))));
       }
-      const units=await reduce(), forceN=units/(step-first)*f.rho*f.h**4/dt**2;
+      const scale=f.rho*f.h**4/(dt**2*(step-first)),forceN=await reduce()*scale;
+      const load=otherLoads?(await otherLoads()).map(v=>v*scale):null;
       const coefficient=forceN/f.normalization;
-      windows.push({period:window+1,physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start});
+      windows.push({period:window+1,physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
+        ...load?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0],torqueXNm:load[1],transverseForcesInSolverFrameN:load.slice(2),
+          ...f.rotor?{shaftPowerToFluidW:-load[1]*f.omega,powerCoefficient:-load[1]*f.omega/f.powerNormalization}:{}}:{}});
       progress(f.id+' '+kind+' period '+(window+1)+' '+(f.rotor?'CT':'CD')+' '+coefficient.toFixed(4));
       if(!Number.isFinite(coefficient)||settledPeriods(windows))break;
     }
@@ -111,14 +122,16 @@ async function runCase(device,f,kind,progress){
     const diverged=windows.some(w=>!Number.isFinite(w.coefficient));
     const relativeError=ref.value?Math.abs(mean/ref.value-1):null,stable=settledPeriods(windows);
     const forcePassed=!!ref.value&&stable&&samples.every(v=>Math.abs(v/ref.value-1)<=.05);
+    const powers=windows.slice(-2).map(w=>w.powerCoefficient);
+    const powerRelativeError=ref.powerCoefficient&&powers.length===2&&powers.every(Number.isFinite)?Math.abs(.5*(powers[0]+powers[1])/ref.powerCoefficient-1):null;
     const expectedWake=ref.wakeM??(ref.wakeDiameters??0)*.08;
     const wakePassed=expectedWake?Number.isFinite(field?.wakeLengthM)&&Math.abs(field.wakeLengthM/expectedWake-1)<=.05:null;
     const qualified=stable&&(!ref.value||forcePassed)&&wakePassed!==false&&viewport.qualified&&(!solver.flux||(field&&field.relativeDivergenceMax<1e-6));
     const totalMs=performance.now()-start;
-    return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,geometry:f.geometry,dtS:dt,periodSteps,wakePassed,
-      setupMs,totalMs,caseBudgetMs,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,mean,relativeError,stable,field,
+    return {fixture:f.id,kind,dims:f.dims,cells:count,hM:f.h,geometry:f.geometry,rotatingFrame:f.rotatingFrame,dtS:dt,periodSteps,wakePassed,
+      setupMs,totalMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,ownedBufferBytes:gpu.allocatedBytes,windows,mean,relativeError,stable,field,
       timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
-      forcePassed,viewport,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
+      forcePassed,powerRelativeError,viewport,maxBatchMs,bytesPerStateNode:solver.bytesPerStateNode,residentStateBytes:solver.residentStateBytes,
       globalHaloBytes:solver.globalHaloBytes,sharedBytesPerWorkgroup:solver.tileBytes,diverged,timeToTargetMs:qualified?totalMs:null};
   }finally{stopMonitor?.();gpu.close();}
 }
@@ -137,14 +150,15 @@ export function scoreContests(cases){
   return {bodyAndRotor,staticBodies,qualified:!!bodyAndRotor&&!!staticBodies};
 }
 
-export async function benchmarkFlow(device,progress,graphOnly=false,tier=1){
+export async function benchmarkFlow(device,progress,graphOnly=false,tier=1,selection={}){
   const cases=[];
   await frameAI.call('scene.create',{type:'cube',name:'CFD viewport timing fixture'});
   await frameAI.call('diagnostics.frame',{frames:8});
   for(const name of ['sphere','ahmed','ahmed-wake','propeller']){
-    const f=flowFixture(name,tier);
+    if(selection.fixture&&selection.fixture!==name)continue;
+    const f={...flowFixture(name,tier),inertialRotor:selection.inertialRotor,budgetMs:selection.budgetMs};
     const kinds=name==='sphere'||name==='ahmed-wake'?['cartesian-fvm','sdf-graph']:name==='ahmed'?['cartesian-fvm','mr-lbm','sdf-graph']:['cartesian-fvm','mr-lbm'];
-    for(const kind of kinds.filter(k=>!graphOnly||k==='sdf-graph')){
+    for(const kind of kinds.filter(k=>(!graphOnly||k==='sdf-graph')&&(!selection.solver||selection.solver===k))){
       device.pushErrorScope('validation');
       try{cases.push(kind==='sdf-graph'?await (await import('./graph-flow.mjs')).benchmarkGraph(device,f,progress):await runCase(device,f,kind,progress));}
       catch(error){cases.push({fixture:name,kind,error:error.message,timeToTargetMs:null});progress(name+' '+kind+' failed: '+error.message);}

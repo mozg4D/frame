@@ -126,7 +126,7 @@ async function solver(gpu,f,g){
 }
 
 export async function benchmarkGraph(device,f,progress){
-  const start=performance.now(),gpu=gpuScope(device);let stop=null;
+  const start=performance.now(),gpu=gpuScope(device),budget=f.budgetMs??caseBudgetMs;let stop=null;
   try{
     stop=viewportMonitor();
     const sm=surfaceBand(f),metric=await fixtureMetric(device,sm);
@@ -141,7 +141,7 @@ export async function benchmarkGraph(device,f,progress){
       const e=device.createCommandEncoder();e.clearBuffer(s.force);device.queue.submit([e.finish()]);
       const end=Math.round(window*f.period/s.dt),first=step;
       while(step<end){
-        if(performance.now()-start>=caseBudgetMs){budgetExhausted=true;break periods;}
+        if(performance.now()-start>=budget){budgetExhausted=true;break periods;}
         const stop=Math.min(end,step+4);while(step<stop){s.step(window>=4);step++;if(window>=4)samplesTaken++;}
         await device.queue.onSubmittedWorkDone();
       }
@@ -158,7 +158,7 @@ export async function benchmarkGraph(device,f,progress){
     const totalMs=performance.now()-start;
     return {fixture:f.id,kind:'sdf-graph',dtS:s.dt,windows,mean,relativeError,forcePassed,stable,field,viewport,stats,wakePassed,diverged,
       metric:{source:metric.source,dims:sm.dims,pitchM:sm.h,ms:metric.ms,peakGpuBytes:metric.peakGpuBytes},
-      graphGenerationMs,setupMs,totalMs,caseBudgetMs,budgetExhausted,completedSteps:step,timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
+      graphGenerationMs,setupMs,totalMs,caseBudgetMs:budget,budgetExhausted,completedSteps:step,timeToStationaryMs:stable?windows.at(-1).elapsedMs:null,
       ownedBufferBytes:Math.max(metric.peakGpuBytes,stats.gpuWeights.peakGpuBytes,gpu.allocatedBytes),solverBufferBytes:gpu.allocatedBytes,
       timeToTargetMs:stable&&(!ref.value||forcePassed)&&wakePassed!==false&&viewport.qualified&&field?.relativeDivergenceMax<1e-6?totalMs:null};
   }finally{stop?.();gpu.close();}

@@ -9,6 +9,26 @@ import {crossesMetric} from './m0/metric.mjs';
 import {momentShell} from './m0/mr-lbm.mjs';
 import {scoreContests} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
+import {bladeStation} from './m0/rotor.mjs';
+import {boxMetric} from './m0/native-geometry.mjs';
+test('physical mesh lengths preserve owner shear, nonuniform scale and reflections in SI',()=>{
+  const axes=[0,2,0,0, -3,.5,0,0, -1,0,-4,0, 100,-200,800,1];
+  const frame=boxMetric(axes),source=[3,-4,5];
+  const delta=(m,i)=>source.reduce((v,a,k)=>v+m[4*k+i]*a,0);
+  assert.ok(Math.abs(Math.hypot(...[0,1,2].map(i=>delta(frame,i)))-.001*Math.hypot(...[0,1,2].map(i=>delta(axes,i))))<1e-14);
+  assert.ok(Math.abs(frame[0]-.002)<1e-14&&frame[10]<0);
+  assert.deepEqual(frame.slice(12),[0,0,0,1]);
+  assert.throws(()=>boxMetric(new Array(16).fill(0)),/Degenerate/);
+});
+test('APC design stations reproduce the independently tabulated projected blade area',()=>{
+  let area=0;const strips=2048;
+  for(let i=0;i<strips;i++){
+    const s=bladeStation((i+.5)/strips);area+=2*.127/strips*s.chord*Math.cos(s.twist);
+  }
+  assert.ok(Math.abs(area/(6.8742*.0254**2)-1)<.005);
+  assert.equal(bladeStation(.22).blend,0);assert.equal(bladeStation(.732).blend,1);
+  assert.ok(bladeStation(.75).thickness<.11);
+});
 test('a shared staggered face projects a circulation in the inverse-conductance norm',()=>{
   // Three fluid cells form a cycle; the last two incidences are a sealed sheet.
   const graph={offset:[0,3,5,8],linkFace:[0,~2,3,~0,1,~1,2,~3],nbr:[1,2,0,0,2,1,0,2],kind:[0,0,7,0,0,0,0,7]};
