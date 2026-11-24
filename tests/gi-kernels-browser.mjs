@@ -46,8 +46,8 @@ export async function giKernelsBrowserChecks(page){
         if(v)throw Error('WebGPU validation error: '+v);
       }
     });
-    assert.deepEqual(compileResult.counts,{common:9,realtime:2,independent:3,gi:19,mips:4});
-    checks.push({name:'All 37 WGSL pipelines compile and validate on RTX hardware',pass:true});
+    assert.deepEqual(compileResult.counts,{common:9,realtime:2,independent:3,gi:24,mips:5});
+    checks.push({name:'All 43 WGSL pipelines compile and validate on RTX hardware',pass:true});
 
     await call('scene.new');
     const car=await call('scene.create',{type:'car'});
@@ -62,6 +62,10 @@ export async function giKernelsBrowserChecks(page){
     await page.waitForFunction(()=>frameEngine.renderState().gi?.cacheSlots>0,{timeout:30000});
     const st=await call('render.inspect');
     assert.ok(st.gi.cacheSlots>=1024&&st.filmFaults===0,JSON.stringify(st.gi));
+    assert.equal(typeof st.gi.webnn?.available,'boolean',JSON.stringify(st.gi));
+    assert.equal(typeof st.gi.webnn?.active,'boolean',JSON.stringify(st.gi));
+    assert.equal(typeof st.gi.webnn?.backend,'string',JSON.stringify(st.gi));
+    assert.equal(typeof st.gi.webnn?.reason,'string',JSON.stringify(st.gi));
     assert.deepEqual(errors,[]);
     checks.push({name:'Host Interactive GI and Progressive PT execute with zero faults',pass:true});
     return {pass:true,counts:compileResult.counts,gi:st.gi,checks};

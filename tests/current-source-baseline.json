@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 25 nov 01:05",
+  "version": "2026 25 nov 02:30",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -572,11 +572,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "19e792b9ee346c74e3bd7b45d1eb8e73e37f8e396e4268eec1912cdfa35c04ac"
+      "sha256": "6bbd6aef94baba438dce8d7dbcd2161a4211b10fc627e34c4832894eca897e38"
     },
     "index.html": {
-      "bytes": 4234080,
-      "sha256": "0125d42aa527978636e8d0407adaab0eeb1cc757d99efc7d5fb71f9e8add0c08"
+      "bytes": 4308801,
+      "sha256": "6b6ccc58050f7531b12ad716eddadd69c96905a20df14ee83cf91fc34af0cf9d"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1143,8 +1143,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 105938,
-      "sha256": "b3a8e68f4c2814a25260f7b3f2a20aa7105850d3afb8dd2c0901373c1251163b"
+      "bytes": 107036,
+      "sha256": "c98e3035a8d5f3dbc3b6541596c0f7141ed0d72c1cc789e82e9847d2928b97e8"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1571,12 +1571,12 @@
       "sha256": "f76e29235964edbcd7127fc0f7ea6e5fcf55fe6b9b302ae5cc66e9aa7c61098b"
     },
     "tests/gi-contracts.mjs": {
-      "bytes": 7038,
-      "sha256": "f51562aaa845741c0f759fc48caf3a23b8a93ee6f9a42177e396ab11f0eff9f6"
+      "bytes": 7677,
+      "sha256": "e5bdd5a8cebeec61541d6573711f825dc53fb2ef3ce0d2639ee311bb4968f404"
     },
     "tests/gi-kernels-browser.mjs": {
-      "bytes": 3858,
-      "sha256": "43d0bea13a60883b3b74e69b9f23231d48ad83409a62c27857da0447c13d6c10"
+      "bytes": 4172,
+      "sha256": "79002ffb5261dfea7b69f043a9ed1f4e9f88395901638c856c93088eb7bde809"
     },
     "tests/gi-stage1-progressive-browser.mjs": {
       "bytes": 6904,

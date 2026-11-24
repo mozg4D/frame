@@ -136,6 +136,19 @@ export async function giContractsChecks(){
     qc.observe(16.0);assert.equal(qc.tier,1);
     for(let i=0;i<9;i++){qc.observe(10.0);assert.equal(qc.tier,1);}
     qc.observe(10.0);assert.equal(qc.tier,0);
+    for(let i=1;i<c.QUALITY_TIERS.length;i++){
+      assert.ok(c.QUALITY_TIERS[i].rhoGather<=c.QUALITY_TIERS[i-1].rhoGather);
+      assert.ok(c.QUALITY_TIERS[i].tracedSpecMaxRough<=c.QUALITY_TIERS[i-1].tracedSpecMaxRough);
+      assert.ok(c.QUALITY_TIERS[i].cacheTrainBudget<=c.QUALITY_TIERS[i-1].cacheTrainBudget);
+    }
+  });
+
+  const webnn=await c.probeWebNN(null);
+  check('probeWebNN returns bounded fallback telemetry without navigator.ml',()=>{
+    assert.equal(typeof webnn.available,'boolean');
+    assert.equal(webnn.active,false);
+    assert.equal(typeof webnn.backend,'string');
+    assert.equal(typeof webnn.reason,'string');
   });
 
   check('fresnelDielectric, thinSheetRT and atrousIterations satisfy physical laws',()=>{
