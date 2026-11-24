@@ -1,5 +1,6 @@
 import {rotorDistanceWGSL,rotorTable,rotorTriangles} from './rotor.mjs';
 import {pressureBarriers} from './pressure-barrier.mjs';
+import {metricWGSL,metricBuffer,rectilinearDomain} from './rectilinear.mjs';
 
 // Reference values are consulted by the scorer only. Both candidates sample
 // the same moving surface in metres and use the same fluid and physical time.
@@ -28,6 +29,23 @@ export function flowFixture(name,tier){
       sphere?'Sphere of diameter 80 mm':'Full-scale rounded forebody, 222 mm slant, 50 mm clearance, fixed floor; support tare omitted'};
 }
 
+export function gradedFixture(f,tier,bounds){
+  if(!bounds){
+    if(f.sphere)bounds={min:[-.04,-.04,-.04],max:[.04,.04,.04]};
+    else if(f.rotor){
+      const {vertices}=rotorTriangles();bounds={min:[-.008382,-.01016,-.01016],max:[.001778,.01016,.01016]};
+      for(let i=0;i<vertices.length;i++){const a=i%3;bounds.min[a]=Math.min(bounds.min[a],vertices[i]);bounds.max[a]=Math.max(bounds.max[a],vertices[i]);}
+    }else bounds={min:[0,.05,-.1945],max:[1.044,.338,.1945]};
+  }
+  const extent=bounds.max.map((v,i)=>v-bounds.min[i]),max=Math.max(...extent);
+  // Keep resolution across the short dimensions of a fixed thin body, while
+  // permitting a larger spanwise pitch. No measured force enters the mesh.
+  if(!(max>0))return f;
+  const spanPitch=Math.sqrt(max*Math.max(max/16,Math.min(...extent)))/22;
+  const pitch=extent.map(d=>Math.max(max/128,Math.min(spanPitch,Math.max(d,max/16)/16))/tier);
+  return rectilinearDomain(f,bounds,pitch,tier===1?750000:3000000);
+}
+
 export function surfaceBand(f){
   const h=f.h/2,min=f.sphere?[-.04,-.04,-.04]:[0,.05,-.1945],max=f.sphere?[.04,.04,.04]:[1.044,.338,.1945];
   const lo=min.map((v,k)=>Math.max(0,Math.floor((v-f.origin[k])/h)-10));
@@ -36,6 +54,13 @@ export function surfaceBand(f){
 }
 
 const floats=a=>a.map(v=>Number(v).toFixed(8)).join(',');
+
+// The truncated sine integral has an exactly closed solid endpoint. Evaluating
+// sin(-pi) in FP32 there would leave a small positive permeability in a solid.
+export const immersedMobilityWGSL=`fn fluidMobility(d:f32)->f32{
+  if(d<=-.5){return 0.;}if(d>=.5){return 1.;}let x=2.*d;
+  let m=.5*(1.+x+sin(3.14159265*x)/3.14159265);
+  return select(0.,min(1.,m),m>=.00001);}`;
 
 export function gridWGSL(f){
   const [x,y,z]=f.dims;
@@ -58,23 +83,20 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
       let slant=(p.x-(1.044-0.222*cos(a)))*sin(a)+roof*cos(a);
       return max(max(nose(p.x,p.y-0.194,0.144),nose(p.x,p.z,0.1945)),max(p.x-1.044,slant));
     }`;
-  const code=gridWGSL(f)+body+`
+  const code=gridWGSL(f)+metricWGSL(f)+body+immersedMobilityWGSL+`
     @group(0) @binding(0) var<uniform> phase:vec2f;
     @group(0) @binding(1) var<storage,read_write> wall:array<vec4f>;
     ${withPressure?`@group(0) @binding(2) var<storage,read_write> response:array<vec4f>;
       fn mobility(p:vec3f)->f32{
-        let s=distanceToBody(p,phase);
-        let x=clamp(s*${2/f.h},-1.,1.);
-        let mu=0.5*(1.+x+sin(3.14159265*x)/3.14159265);
-        if(mu<0.00001){return 0.;}return min(1.,mu);
+        return fluidMobility(distanceToBody(p,phase)/${f.h});
       }`:''}
     ${withPressure&&f.rotor?'@group(0) @binding(4) var<storage,read> cuts:array<u32>;':''}
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
       let i=g.x;if(i>=CELLS){return;}
-      let p=vec3f(${floats(f.origin)})+(vec3f(point(i))+0.5)*${f.h};
+      let p=vec3f(${floats(f.origin)})+cellCenters(point(i))*${f.h};
       let sdf=distanceToBody(p,phase);let w=1.-smoothstep(-0.7*${f.h},0.7*${f.h},sdf);
       wall[i]=vec4f(sdf/${f.h},-p.z*${f.omega*dt/f.h},p.y*${f.omega*dt/f.h},w);
-      ${withPressure?`let h=${f.h/2};var faces=vec3f(mobility(p+vec3f(h,0.,0.)),mobility(p+vec3f(0.,h,0.)),mobility(p+vec3f(0.,0.,h)));
+      ${withPressure?`let h=cellWidths(point(i))*${f.h/2};var faces=vec3f(mobility(p+vec3f(h.x,0.,0.)),mobility(p+vec3f(0.,h.y,0.)),mobility(p+vec3f(0.,0.,h.z)));
         ${f.rotor?'let flags=cuts[i];faces=select(faces,vec3f(0),(vec3u(flags)&vec3u(1u,2u,4u))!=vec3u(0));':''}
         response[i]=vec4f(faces,mobility(p));`:''}
     }`;
@@ -88,6 +110,7 @@ export async function geometryKernel(gpu,f,dt,withPressure=false){
   if(f.rotor)entries.push([3,gpu.buffer('CFD APC section coordinates',rotorTable())]);
   const barriers=withPressure&&f.rotor?await pressureBarriers(gpu,f,rotorTriangles(),phase):null;
   if(barriers)entries.push([4,barriers.mask]);
+  if(f.axes)entries.push([12,metricBuffer(gpu,f)]);
   const binding=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:entries.map(([binding,buffer])=>({binding,resource:{buffer}}))});
   return {wall,response,update(step){
     const a=f.rotatingFrame?0:f.omega*dt*(step+0.5);

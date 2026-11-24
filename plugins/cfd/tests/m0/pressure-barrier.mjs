@@ -1,3 +1,5 @@
+import {metricWGSL,metricBuffer} from './rectilinear.mjs';
+
 // Mark Cartesian pressure links whose center-to-center segment intersects
 // an evaluated triangle. Surface winding and physical sheet thickness have
 // no effect. Boundary-face storage has one bit for each positive axis.
@@ -27,7 +29,7 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
   const mask=gpu.buffer('CFD crossed Cartesian face bits',4*f.dims.reduce((a,b)=>a*b));
   const pipelines=new Map();
   for(const storage of new Set(meshes.map(m=>m.storage))){
-    const pipe=await gpu.kernel('CFD pressure crossings from '+storage,meshReader(storage)+`
+    const pipe=await gpu.kernel('CFD pressure crossings from '+storage,meshReader(storage)+metricWGSL(f)+`
     @group(0) @binding(2) var<storage,read_write> mask:array<atomic<u32>>;
     @group(0) @binding(3) var<uniform> phase:vec2f;
     struct Occurrence {matrix:mat4x4f,count:u32};
@@ -36,8 +38,10 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
     fn gridPoint(i:u32)->vec3f{
       let v=mesh.matrix*vec4f(sourcePoint(i),1.);
       let yz=vec2f(v.y*phase.x-v.z*phase.y,v.y*phase.y+v.z*phase.x);
-      return (vec3f(v.x,yz)-vec3f(${f.origin.map(x=>x.toFixed(9)).join(',')}))/${f.h}-.5;
+      return (vec3f(v.x,yz)-vec3f(${f.origin.map(x=>x.toFixed(9)).join(',')}))/${f.h};
     }
+    fn lower(a:u32,x:f32)->i32{${f.axes?`var lo=0;var hi=D[a];while(lo<hi){let mid=(lo+hi)/2;
+      if(axisMetric(a,mid).x<x){lo=mid+1;}else{hi=mid;}}return lo;`:'return i32(ceil(x-.5));'}}
     fn cross2(a:vec2f,b:vec2f)->f32{return a.x*b.y-a.y*b.x;}
     fn mark(p:vec3i,axis:u32){
       if(all(p>=vec3i(0))&&all(p<D)&&p[axis]+1<D[axis]){
@@ -51,13 +55,14 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
         let e1=vec2f(ab[u],ab[v]);let e2=vec2f(ac[u],ac[v]);let det=cross2(e1,e2);
         if(abs(det)<1e-10){continue;}
         let origin=vec2f(a[u],a[v]);let dim=vec2i(D[u],D[v]);
-        let low=max(vec2i(0),vec2i(ceil(origin+min(vec2f(0),min(e1,e2))-.00001)));
-        let high=min(dim-1,vec2i(floor(origin+max(vec2f(0),max(e1,e2))+.00001)));
+        let bmin=origin+min(vec2f(0),min(e1,e2))-.00001;let bmax=origin+max(vec2f(0),max(e1,e2))+.00001;
+        let low=max(vec2i(0),vec2i(lower(u,bmin.x),lower(v,bmin.y)));
+        let high=min(dim-1,vec2i(lower(u,bmax.x),lower(v,bmax.y))-1);
         for(var y=low.y;y<=high.y;y++){for(var x=low.x;x<=high.x;x++){
-          let diff=vec2f(f32(x),f32(y))-origin;let s=cross2(diff,e2)/det;let t=cross2(e1,diff)/det;
+          let diff=vec2f(axisMetric(u,x).x,axisMetric(v,y).x)-origin;let s=cross2(diff,e2)/det;let t=cross2(e1,diff)/det;
           if(s<-.00001||t<-.00001||s+t>1.00001){continue;}
-          let h=a[ax]+s*ab[ax]+t*ac[ax];var p=vec3i(0);p[u]=x;p[v]=y;p[ax]=i32(floor(h));
-          mark(p,ax);if(abs(h-round(h))<.00001){p[ax]=i32(round(h))-1;mark(p,ax);p[ax]++;mark(p,ax);}
+          let h=a[ax]+s*ab[ax]+t*ac[ax];var p=vec3i(0);p[u]=x;p[v]=y;p[ax]=lower(ax,h-.00001)-1;
+          mark(p,ax);let right=lower(ax,h+.00001)-1;if(p[ax]!=right){p[ax]=right;mark(p,ax);}
         }}
       }
     }`);
@@ -71,7 +76,9 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
   const draws=meshes.map((mesh,i)=>{
     const pipe=pipelines.get(mesh.storage);
     const resources=[...meshResources(mesh),{buffer:mask},{buffer:phase},{buffer:settings,offset:i*stride,size:80}];
-    const group=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:resources.map((resource,binding)=>({binding,resource}))});
+    const entries=resources.map((resource,binding)=>({binding,resource}));
+    if(f.axes)entries.push({binding:12,resource:{buffer:metricBuffer(gpu,f)}});
+    const group=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries});
     const count=Math.ceil(mesh.triangleCount/64),width=Math.min(count,gpu.device.limits.maxComputeWorkgroupsPerDimension);
     return {pipe,group,grid:[width,Math.ceil(count/width)]};
   });

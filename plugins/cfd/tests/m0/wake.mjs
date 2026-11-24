@@ -1,3 +1,5 @@
+import {cellCenter,cellWidth} from './rectilinear.mjs';
+
 // Averages span complete sampling windows. The sphere reference is on-axis.
 // The Ahmed reference is the downstream extent of the reversed-flow region
 // in the symmetry plane, not a zero crossing at an arbitrary body height.
@@ -6,12 +8,12 @@ export function wakeLength(f,nx,ny,at){
   const rear=f.sphere?.04:1.044;
   let length=null;
   for(let j=0;j<ny;j++){
-    const y=f.origin[1]+(j+.5)*f.h;
+    const y=cellCenter(f,1,j);
     if(f.sphere&&j!==Math.floor(ny/2))continue;
     if(!f.sphere&&(y<.01||y>.338))continue;
     let seen=false,previous=null;
     for(let i=0;i<nx;i++){
-      const x=f.origin[0]+(i+.5)*f.h;if(x<rear)continue;
+      const x=cellCenter(f,0,i);if(x<rear)continue;
       const u=at(i,j);if(!Number.isFinite(u)){previous=null;continue;}
       if(u<0)seen=true;
       if(seen&&previous&&previous.u<0&&u>=0){
@@ -19,7 +21,7 @@ export function wakeLength(f,nx,ny,at){
         length=Math.max(length??0,crossing-rear);break;
       }
       // Only the bubble connected to the base belongs to this measurement.
-      if(!seen&&x>rear+2*f.h)break;
+      if(!seen&&x>rear+2*f.h*cellWidth(f,0,i))break;
       previous={x,u};
     }
   }

@@ -1,4 +1,4 @@
-import {flowFixture} from './fixtures.mjs';
+import {flowFixture,gradedFixture} from './fixtures.mjs';
 import {boxAxes,boxMetric,captureFlowSurfaces,researchSceneContext} from './native-geometry.mjs';
 import {runCase} from './flow.mjs';
 import {mediumProperties} from './fluid.mjs';
@@ -6,7 +6,7 @@ import {LOCAL_BOX} from '../../plugin.js';
 
 // A native primitive is evaluated and converted to its renderer-backed mesh
 // by Frame. Only the scoring stage knows the analytic sphere reference.
-export async function benchmarkNativeSphere(device,tier,budgetMs,progress){
+export async function benchmarkNativeSphere(device,tier,budgetMs,progress,graded=false,trace=false){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const context=researchSceneContext(frameEngine);
   const box=await call('scene.create',{type:'cfd',name:'Sphere control volume'});
@@ -21,8 +21,8 @@ export async function benchmarkNativeSphere(device,tier,budgetMs,progress){
   if(extent.some(d=>Math.abs(d-.08)>.001))throw Error('Unexpected native sphere extent in metres: '+extent);
   const center=bounds.min.map((v,k)=>(v+bounds.max[k])*.5),capture=captureFlowSurfaces(device,context,box.hash,center);
   const f={...flowFixture('sphere',tier),U:speed,maxSpeed:speed,rho:air.rho,nu:air.nu,period:.08/speed,
-    normalization:.5*air.rho*speed**2*Math.PI*.04**2,budgetMs,geometry:'Frame Sphere primitive evaluated in a CFD Box'};
-  const result=await runCase(device,f,'cartesian-fvm',progress,capture);
+    normalization:.5*air.rho*speed**2*Math.PI*.04**2,budgetMs,trace,geometry:'Frame Sphere primitive evaluated in a CFD Box'};
+  const result=await runCase(device,graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent};
 }
 
@@ -48,10 +48,10 @@ function sceneDomain(ctx,hash,capture,tier){
   let h=scale/(tier*14),dims;
   do{h=Math.max(h,Math.cbrt(extent.reduce((a,b)=>a*b)/cap));dims=extent.map(v=>Math.max(8,8*Math.ceil(v/(8*h))));
     if(dims.reduce((a,b)=>a*b)<=cap)break;h*=1.025;}while(true);
-  return {origin,dims,h,scale,road};
+  return {origin,dims,h,scale,road,bodies};
 }
 
-export async function solveCapturedBoxes(device,tier,budgetMs,progress){
+export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=false){
   const ctx=researchSceneContext(frameEngine),scene=await frameAI.call('scene.inspect');
   const boxes=scene.objects.filter(n=>n.type==='cfd');if(!boxes.length)throw Error('The saved Frame scene has no CFD Box');
   const cases=[];
@@ -61,7 +61,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress){
     const f={id:'scene',name:'scene',origin:domain.origin,dims:domain.dims,h:domain.h,rho:fluid.rho,nu:fluid.nu,U,maxSpeed,omega:0,
       rotor:false,sphere:false,movingRoad:domain.road,laminar:U*domain.scale/fluid.nu<200,period:domain.scale/maxSpeed,
       budgetMs,normalization:1,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
-    const result=await runCase(device,f,'cartesian-fvm',progress,capture);
+    const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
+    const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);
     const windows=result.windows.slice(-2),axes=boxAxes(ctx.document.world(box.hash));
     const forceLocalN=windows.length?[0,1,2].map(k=>windows.reduce((sum,w)=>sum+(k===0?w.forceN:w.transverseForcesInSolverFrameN[k-1]),0)/windows.length):null;
     const forceWorldN=forceLocalN?.map((_,k)=>forceLocalN.reduce((sum,v,a)=>sum+v*axes[a][k],0))??null;

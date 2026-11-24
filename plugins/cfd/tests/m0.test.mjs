@@ -12,6 +12,29 @@ import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation} from './m0/rotor.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
 import {mediumProperties} from './m0/fluid.mjs';
+import {gradedAxis,rectilinearDomain,cellCenter,cellWidth} from './m0/rectilinear.mjs';
+test('graded orthogonal cells partition the same domain and integrate a linear pressure gradient',()=>{
+  const f={dims:[80,40,40],h:.01,origin:[-.2,-.2,-.2]};
+  const m=rectilinearDomain(f,{min:[0,-.03,-.08],max:[.07,.04,.08]},[.004,.003,.006],350000);
+  assert.ok(m.dims.every(d=>d%8===0)&&m.dims.reduce((a,b)=>a*b)<=350000);
+  let domainVolume=1;
+  for(const [k,axis] of m.axes.entries()){
+    assert.equal(axis[0],f.origin[k]);assert.equal(axis.at(-1),f.origin[k]+f.dims[k]*f.h);
+    let length=0,previous=null;
+    for(let i=0;i+1<axis.length;i++){
+      const w=cellWidth(m,k,i)*m.h;assert.ok(w>0);
+      if(previous)assert.ok(Math.max(w/previous,previous/w)<Math.exp(.16)+1e-12);
+      if(i+2<axis.length){
+        const x=cellCenter(m,k,i),next=cellCenter(m,k,i+1),right=axis[i+2]-axis[i+1];
+        assert.ok(Math.abs((next-x)-.5*(w+right))<1e-14);
+        const atFace=(right*x+w*next)/(w+right);assert.ok(Math.abs(atFace-axis[i+1])<1e-14);
+      }
+      previous=w;length+=w;
+    }domainVolume*=length;
+  }
+  assert.ok(Math.abs(domainVolume-.128)<1e-12);
+  assert.throws(()=>gradedAxis(0,1,0,1,0));
+});
 test('scene air uses geometric elevation and water uses its own material properties',()=>{
   const sea=mediumProperties('Air',0),tropopause=mediumProperties('Air',11019.1),water=mediumProperties('Water',8800);
   assert.ok(Math.abs(sea.rho-1.225)<.0001&&Math.abs(sea.nu-1.46e-5)<1e-7);

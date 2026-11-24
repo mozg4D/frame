@@ -17,9 +17,11 @@ export function gpuScope(device) {
       if(diagnostics.length)throw Error(label+'\n'+diagnostics.map(m=>m.lineNum+':'+m.linePos+' '+m.message).join('\n'));
       throw error;}
   }
-  function bind(pipeline, buffers) {
+  function bind(pipeline, buffers, gridMetrics) {
+    const entries=buffers.map((buffer,binding)=>({binding,resource:{buffer}}));
+    if(gridMetrics)entries.push({binding:12,resource:{buffer:gridMetrics}});
     return device.createBindGroup({layout: pipeline.getBindGroupLayout(0),
-      entries: buffers.map((buffer, binding) => ({binding, resource: {buffer}}))});
+      entries});
   }
   function dispatch(encoder, pipeline, group, grid) {
     const pass = encoder.beginComputePass();
@@ -28,9 +30,9 @@ export function gpuScope(device) {
     pass.dispatchWorkgroups(...grid);
     pass.end();
   }
-  function run(pipeline, buffers, grid) {
+  function run(pipeline, buffers, grid, gridMetrics) {
     const encoder = device.createCommandEncoder();
-    dispatch(encoder, pipeline, bind(pipeline, buffers), grid);
+    dispatch(encoder, pipeline, bind(pipeline, buffers,gridMetrics), grid);
     device.queue.submit([encoder.finish()]);
   }
   async function read(source, staging, length) {

@@ -18,7 +18,9 @@ if(scenePath&&(nativeSphere||resolve(scenePath)===reportPath))throw Error('Use a
 if(saveFixture&&resolve(saveFixture)===reportPath)throw Error('Use separate paths for the reference scene and its report');
 const sceneBytes=scenePath?await readFile(scenePath):null;
 const experimentalWebNN=args.includes('--experimental-webnn');
-const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor')};
+const selection={fixture:args.find(s=>s.startsWith('--case='))?.slice(7),solver:args.find(s=>s.startsWith('--solver='))?.slice(9),inertialRotor:args.includes('--inertial-rotor'),graded:args.includes('--graded')};
+selection.trace=args.includes('--trace-steps');
+if(selection.graded&&selection.inertialRotor)throw Error('Grading around fixed blades requires the rotating reference frame');
 const seconds=args.find(s=>s.startsWith('--budget-seconds='))?.slice(17);
 if(seconds!==undefined){selection.budgetMs=1000*Number(seconds);if(!Number.isFinite(selection.budgetMs)||selection.budgetMs<=0)throw Error('Expected a positive case budget in seconds');}
 if(selection.fixture&&!['sphere','ahmed','ahmed-wake','propeller'].includes(selection.fixture))throw Error('Unknown physical fixture');
@@ -66,10 +68,10 @@ try{
     const errors=[];let lost=null;
     device.addEventListener('uncapturederror',e=>errors.push(e.error.message));
     device.lost.then(e=>{lost={reason:e.reason,message:e.message};});
-    const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device);
+    const piston=await (await import('./plugins/cfd/tests/m0/piston.mjs')).verifyPiston(device,selection.graded);
     if(!piston.pass)throw Error('Immersed pressure/force reference failed: '+JSON.stringify(piston.checks));
     await window.cfdProgress('Frame piston: buffer mesh and paged instance passed pressure, force, visibility and source revision checks');
-    const momentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device);
+    const momentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded);
     if(!momentum.pass)throw Error('Fluid/body impulse mismatch: '+JSON.stringify(momentum));
     await window.cfdProgress('Body impulse agrees with an independent fluid momentum balance on every axis');
     const {benchmarkPressure}=await import('./plugins/cfd/tests/m0/pressure.mjs');
@@ -77,9 +79,9 @@ try{
     const progress=s=>window.cfdProgress(s);
     let flow=null;
     if(savedScene){await frameAI.call('scene.open',savedScene);await frameAI.call('diagnostics.frame',{frames:4});
-      const cases=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).solveCapturedBoxes(device,tier,selection.budgetMs,progress);
+      const cases=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).solveCapturedBoxes(device,tier,selection.budgetMs,progress,selection.graded);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases,contests:scoreContests(cases)};}
-    else if(nativeSphere){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeSphere(device,tier,selection.budgetMs,progress);
+    else if(nativeSphere){const c=await (await import('./plugins/cfd/tests/m0/native-case.mjs')).benchmarkNativeSphere(device,tier,selection.budgetMs,progress,selection.graded,selection.trace);
       const {scoreContests}=await import('./plugins/cfd/tests/m0/flow.mjs');flow={cases:[c],contests:scoreContests([c])};}
     else if(!wallOnly&&!pressureOnly)flow=await (await import('./plugins/cfd/tests/m0/flow.mjs')).benchmarkFlow(device,progress,graphOnly,tier,selection);
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');

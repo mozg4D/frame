@@ -1,6 +1,7 @@
 import {gridWGSL} from './fixtures.mjs';
 import {gpuBlocks} from './blocks.mjs';
 import {devicePressureCG} from './pressure-cg.mjs';
+import {metricBuffer,metricWGSL} from './rectilinear.mjs';
 
 export function openBoundaries(f){
   if(f.pressureOpen){
@@ -13,56 +14,83 @@ export function openBoundaries(f){
 const ro=(i,s)=>`@group(0) @binding(${i}) var<storage,read> ${s}:array<f32>;`;
 const rw=(i,s)=>`@group(0) @binding(${i}) var<storage,read_write> ${s}:array<f32>;`;
 // Reused by residual evaluation, multigrid and the Krylov operator.
-const weightedRow=`fn pressureRow(i:u32)->vec2f{
-  let p=point(i);let pi=pressure[i];var diagonal=0.;var value=0.;
+const weightedRow=integrated=>`fn pressureRow(i:u32)->vec2f{
+  let p=point(i);let pi=pressure[i];var diagonal=${integrated?'mobility[i].w':'0.'};var value=diagonal*pi;
   for(var axis=0u;axis<3u;axis++){var unit=vec3i(0);unit[axis]=1;
     for(var side=-1;side<=1;side+=2){let neighbour=p+side*unit;
       if(inside(neighbour)){let j=index(neighbour);let c=mobility[select(j,i,side>0)][axis];
         diagonal+=c;value+=c*(pi-pressure[j]);}
-      else if(openFace(axis,side)){diagonal+=2.;value+=2.*pi;}}}
+      ${integrated?'':'else if(openFace(axis,side)){diagonal+=2.;value+=2.*pi;}'}}}
   return vec2f(diagonal,value);}`;
+const boundaryWeight=`fn boundaryWeight(p:vec3i,width:vec3f,area:vec3f)->f32{
+  var diagonal=0.;for(var a=0u;a<3u;a++){
+    if((p[a]==0&&openFace(a,-1))||(p[a]+1==DIMS[a]&&openFace(a,1))){diagonal+=2.*area[a]/width[a];}
+  }return diagonal;}`;
 export async function pressureMultigrid(gpu,f,faceMobility){
-  const levels=[];
-  let dims=f.dims;
+  const levels=[],row=weightedRow(!!f.axes);
+  let dims=f.dims,axes=f.axes,childAxes=null;
   while(true){
     const count=dims.reduce((a,b)=>a*b),head=gridWGSL({dims})+openBoundaries(f);
     const body=code=>`@compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}let p=point(i);${code}}`;
     const rhs=gpu.buffer('CFD level RHS',count*4), p=gpu.buffer('CFD level pressure',count*4), scratch=gpu.buffer('CFD level residual',count*4);
-    const weight=levels.length?gpu.buffer('CFD level face mobility',count*16):faceMobility;
+    const metric={...f,dims,axes,childAxes};
+    const weight=levels.length||axes?gpu.buffer('CFD level face conductance',count*16):faceMobility;
     const group=[Math.ceil(count/128)],stencil='let row=pressureRow(i);let d=row.x;let residual=b[i]-row.y;let pi=pressure[i];';
-    const buffers=head+ro(0,'b')+ro(1,'pressure')+rw(2,'out')+'@group(0) @binding(3) var<storage,read> mobility:array<vec4f>;'+weightedRow;
+    const buffers=head+ro(0,'b')+ro(1,'pressure')+rw(2,'out')+'@group(0) @binding(3) var<storage,read> mobility:array<vec4f>;'+row;
     const op=await gpu.kernel('CFD immersed pressure residual',buffers+body(stencil+'out[i]=select(0.,residual,d>0.);'));
     const smooth=await gpu.kernel('CFD immersed Jacobi',buffers+body(stencil+'if(d>0.){out[i]=pi+0.72*residual/d;}else{out[i]=0.;}'));
     const residual=gpu.bind(op,[rhs,p,scratch,weight]),pair=[gpu.bind(smooth,[rhs,p,scratch,weight]),gpu.bind(smooth,[rhs,scratch,p,weight])];
-    levels.push({dims,rhs,p,scratch,weight,group,damp(encoder,times){
+    levels.push({dims,rhs,p,scratch,weight,group,metric,damp(encoder,times){
       for(let i=0;i<times;i++)for(const binding of pair)gpu.dispatch(encoder,smooth,binding,group);
     },residual(encoder){gpu.dispatch(encoder,op,residual,group);}});
     if(dims.some(n=>n%2)||Math.min(...dims)<=4)break;
-    dims=dims.map(n=>n/2);
+    dims=dims.map(n=>n/2);childAxes=axes;axes=axes?.map(a=>a.filter((_,i)=>i%2===0));
+  }
+  let updateFine;
+  if(f.axes){
+    const code=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+boundaryWeight+`
+      @group(0) @binding(0) var<storage,read> fraction:array<vec4f>;
+      @group(0) @binding(1) var<storage,read_write> coeff:array<vec4f>;
+      @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i>=CELLS){return;}
+        let p=point(i);let w=cellWidths(p);let area=faceAreas(w);
+        let invD=vec3f(axisMetric(0u,p.x).z,axisMetric(1u,p.y).z,axisMetric(2u,p.z).z);
+        coeff[i]=vec4f(fraction[i].xyz*area*invD,boundaryWeight(p,w,area));}`;
+    const op=await gpu.kernel('CFD integrated face conductance',code),fine=levels[0];
+    const bind=gpu.bind(op,[faceMobility,fine.weight],metricBuffer(gpu,f));
+    updateFine=e=>gpu.dispatch(e,op,bind,fine.group);
   }
   for(let l=0;l<levels.length-1;l++){
     const fine=levels[l],coarse=levels[l+1],[nx,ny]=fine.dims,[cx,cy,cz]=coarse.dims;
-    const geometry=await gpu.kernel('CFD coarsen face mobility',gridWGSL({dims:coarse.dims})+`
+    const geometry=await gpu.kernel('CFD coarsen face mobility',gridWGSL({dims:coarse.dims})+(f.axes?openBoundaries(f)+metricWGSL(coarse.metric)+boundaryWeight:'')+`
       @group(0) @binding(0) var<storage,read> fine:array<vec4f>;
       @group(0) @binding(1) var<storage,read_write> coarse:array<vec4f>;
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
         let start=2*point(i);var sum=vec3f(0);
         for(var k=0;k<8;k++){let off=vec3i(k&1,(k>>1)&1,k>>2);let p=start+off;
           sum+=vec3f(off)*fine[u32(p.x+${nx}*(p.y+${ny}*p.z))].xyz;}
-        coarse[i]=vec4f(.25*sum,0.);}`);
-    const geometryBind=gpu.bind(geometry,[fine.weight,coarse.weight]);
+        ${f.axes?`let p=point(i);let w=cellWidths(p);
+          let ratio=vec3f(axisMetric(0u,p.x).w,axisMetric(1u,p.y).w,axisMetric(2u,p.z).w);
+          coarse[i]=vec4f(ratio*sum,boundaryWeight(p,w,faceAreas(w)));`:'coarse[i]=vec4f(.25*sum,0.);'}}`);
+    const geometryBind=gpu.bind(geometry,[fine.weight,coarse.weight],metricBuffer(gpu,coarse.metric));
     fine.updateGeometry=e=>gpu.dispatch(e,geometry,geometryBind,coarse.group);
     const restrict=await gpu.kernel('CFD pressure restriction',gridWGSL({dims:coarse.dims})+ro(0,'r')+rw(1,'b')+`
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
       let p=2*point(i);var s=0.;for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
-        let q=p+vec3i(x,y,z);s+=r[u32(q.x+${nx}*(q.y+${ny}*q.z))];}}}b[i]=0.5*s;}`);
-    const prolong=await gpu.kernel('CFD pressure prolongation',gridWGSL({dims:fine.dims})+ro(0,'c')+rw(1,'p')+`
+        let q=p+vec3i(x,y,z);s+=r[u32(q.x+${nx}*(q.y+${ny}*q.z))];}}}b[i]=${f.axes?'s':'0.5*s'};}`);
+    const interpolation=f.axes?metricWGSL(fine.metric)+`
+      fn parentCenter(a:u32,j:i32)->f32{let l=axisMetric(a,2*j);let r=axisMetric(a,2*j+1);
+        return .5*(l.x-.5*l.y+r.x+.5*r.y);}
+      fn coarsePos(p:vec3i)->vec3f{var pos=vec3f(p/2);for(var a=0u;a<3u;a++){let j=p[a]/2;
+        let x=axisMetric(a,p[a]).x;let cp=parentCenter(a,j);let k=clamp(j+select(-1,1,x>=cp),0,DIMS[a]/2-1);
+        if(k!=j){pos[a]+=f32(k-j)*(x-cp)/(parentCenter(a,k)-cp);}}return pos;}`:
+      'fn coarsePos(p:vec3i)->vec3f{return (vec3f(p)+0.5)*0.5-0.5;}';
+    const prolong=await gpu.kernel('CFD pressure prolongation',gridWGSL({dims:fine.dims})+interpolation+ro(0,'c')+rw(1,'p')+`
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i>=CELLS){return;}
-      let pos=(vec3f(point(i))+0.5)*0.5-0.5;let base=vec3i(floor(pos));let t=fract(pos);var v=0.;
+      let pos=coarsePos(point(i));let base=vec3i(floor(pos));let t=fract(pos);var v=0.;
       for(var z=0;z<2;z++){for(var y=0;y<2;y++){for(var x=0;x<2;x++){
         let off=vec3i(x,y,z);let q=clamp(base+off,vec3i(0),vec3i(${cx-1},${cy-1},${cz-1}));
         let w=select(1.-t,t,off==vec3i(1));v+=w.x*w.y*w.z*c[u32(q.x+${cx}*(q.y+${cy}*q.z))];}}}p[i]+=v;}`);
-    const down=gpu.bind(restrict,[fine.scratch,coarse.rhs]),up=gpu.bind(prolong,[coarse.p,fine.p]);
+    const down=gpu.bind(restrict,[fine.scratch,coarse.rhs]),up=gpu.bind(prolong,[coarse.p,fine.p],metricBuffer(gpu,fine.metric));
     fine.down=e=>{gpu.dispatch(e,restrict,down,coarse.group);e.clearBuffer(coarse.p);};
     fine.up=e=>gpu.dispatch(e,prolong,up,fine.group);
   }
@@ -76,8 +104,8 @@ export async function pressureMultigrid(gpu,f,faceMobility){
     if(l===levels.length-1){level.damp(e,5);return;}
     level.damp(e,1);level.residual(e);level.down(e);cycle(e,l+1);level.up(e);level.damp(e,1);
   }
-  const refine=await devicePressureCG(gpu,fine,block,gridWGSL(f)+openBoundaries(f)+weightedRow);
-  return {p:fine.p,rhs:fine.rhs,refine,updateGeometry(e){for(const level of levels)level.updateGeometry?.(e);},solve(e){
-    fine.residual(e);block.encode(e,bb);gpu.dispatch(e,add,addBind,fine.group);cycle(e,0);
+  const refine=await devicePressureCG(gpu,fine,block,gridWGSL(f)+openBoundaries(f)+row);
+  return {p:fine.p,rhs:fine.rhs,refine,updateGeometry(e){updateFine?.(e);for(const level of levels)level.updateGeometry?.(e);},solve(e){
+    if(!f.axes){fine.residual(e);block.encode(e,bb);gpu.dispatch(e,add,addBind,fine.group);}cycle(e,0);
   }};
 }
