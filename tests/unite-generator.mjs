@@ -33,7 +33,7 @@ async function audit(page,id,probes){
 export async function uniteGeneratorChecks(page){
   const call=(name,args={})=>page.evaluate(([n,a])=>frameAI.call(n,a),[name,args]);
   const inspect=async()=>(await call('scene.inspect')).objects;
-  const controls=page.locator('#attrContent input[data-field]');
+  const controls=page.locator('#attrContent [data-field]');
   for(const tab of ['#tabObjects','#tabMaterials']){
     await page.locator(tab).click();await page.locator('#btnUnite').click();
     assert.equal(await page.locator('#tabAttributes').getAttribute('aria-selected'),'true');
@@ -71,7 +71,7 @@ export async function uniteGeneratorChecks(page){
   await page.locator('#btnUnite').click();
   rows=await inspect();const empty=rows.find(r=>r.type==='unite');assert.equal(empty.params.resolution,512);assert.equal(empty.sources.length,0);
   assert.equal(await page.locator('#tabAttributes').getAttribute('aria-selected'),'true');
-  assert.deepEqual(await page.locator('#attrContent input[data-field]').evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize','fast']);
+  assert.deepEqual(await page.locator('#attrContent [data-field]').evaluateAll(es=>es.map(e=>e.dataset.field)),['resolution','smoothing','optimize','fast']);
   assert.ok(!/cell size/i.test(await page.locator('#attrContent').innerText()));
   assert.ok(rows.every(r=>!r.parent));assert.equal(await page.locator('#btnBoolean + #btnUnite').count(),1);
   const operand=await call('mesh.create',{name:'Dragged box',...box([0,0,0],[5,5,5])});
@@ -372,8 +372,8 @@ async function surfaceControls(page,call){
   const exact=await audit(page,owner.hash,probes);assert.ok(exact.manifold);assert.deepEqual(exact.inside,inside);
   assert.ok(Math.abs(raw.volume-exact.volume)<raw.volume*.012,JSON.stringify({raw,exact}));assert.equal(exact.faces,redone.evaluation.report.triangles);
   assert.ok(exact.faces<redone.evaluation.report.rawTriangles);
-  const toggle=page.getByRole('checkbox',{name:'Fast',exact:true});
-  assert.ok(await toggle.isChecked());await toggle.uncheck();
+  const toggle=page.locator('#attrContent button[data-field="fast"]');
+  assert.equal(await toggle.getAttribute('aria-pressed'),'true');await toggle.click();
   const final=(await call('scene.inspect')).objects.find(n=>n.hash===owner.hash);
   assert.equal(final.params.fast,false);assert.ok(final.evaluation.report.reusedField);
   assert.ok(final.evaluation.report.triangles<=exact.faces);assert.ok((await audit(page,owner.hash,probes)).manifold);
