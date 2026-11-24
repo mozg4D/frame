@@ -56,6 +56,47 @@ export async function giStage5GlassAlphaBrowserChecks(page){
         const giStats={...t.stats.gi,faults:t.stats.filmFaults,meshStates:t.scene.meshStates};
         const giLin=await t.readLinearPixels([[0.5,0.5],[0.35,0.5],[0.65,0.5]]);
 
+        // Replay the presentation passes on the same lighting history. Every exposure
+        // tap must match the full image, including glass and edges on an odd-sized frame.
+        const width=191,height=117,pitch=Math.ceil(width*8/256)*256,plane=pitch*height;
+        const read=dev.createBuffer({size:plane*2,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+        const meter=t.meterExposure;
+        let meters=0,compared=0;
+        try{
+          t.meterExposure=function(enc){
+            if(++meters===2){
+              const gb=this.giBuffers;
+              const copy=offset=>enc.copyTextureToBuffer({texture:this.hdrFinalTex},{buffer:read,offset,bytesPerRow:pitch},[width,height]);
+              copy(0);
+              enc.clearBuffer(this.uniform,224*4,4); // Params.meterOnly
+              const run=(pipeline,scene,aux,dispatch)=>{
+                const pass=enc.beginComputePass();
+                pass.setPipeline(pipeline);pass.setBindGroup(0,scene);pass.setBindGroup(1,aux);dispatch(pass);pass.end();
+              };
+              run(this.giDiscontinuityDirect,this.sceneBindGroup,gb.directGroup,p=>p.dispatchWorkgroupsIndirect(gb.giIndirect,0));
+              run(this.giComposite,this.sceneBindGroup,gb.compAuxGroup,p=>p.dispatchWorkgroups(Math.ceil(width/8),Math.ceil(height/8)));
+              run(this.giGlass,this.sceneNoLightsGroup,gb.glassAuxGroup,p=>p.dispatchWorkgroupsIndirect(gb.giIndirect,16));
+              copy(plane);
+            }
+            meter.call(this,enc);
+          };
+          await t.start({...base,camera:{...cam,aspect:width/height},outputSize:[width,height],
+            interactivePreview:true,lightingReuse:true,cachedOutput:true,previewPresentation:false});
+          if(t.stats.phase!=='complete'||t.stats.gi.glassCount===0||t.stats.gi.discCount===0)throw Error('Missing cached edge or glass output');
+          if(meters!==32||t.stats.presentedFrames!==2)throw Error('Expected 32 metered passes and two complete presentations');
+          await read.mapAsync(GPUMapMode.READ);
+          const hdr=new Uint16Array(read.getMappedRange());
+          for(let y=0;y<32;y++)for(let x=0;x<32;x++){
+            const sx=Math.floor((2*x+1)*width/64),sy=Math.floor((2*y+1)*height/64),at=sy*pitch/2+sx*4;
+            for(let ch=0;ch<4;ch++)if(hdr[at+ch]!==hdr[plane/2+at+ch])throw Error('HDR exposure sample differs at '+sx+','+sy);
+            compared++;
+          }
+        }finally{
+          t.meterExposure=meter;
+          if(read.mapState==='mapped')read.unmap();
+          read.destroy();
+        }
+
         // Progressive PT through thin & solid glass + camera inside solid cube
         await t.start({...base,interactivePreview:false,lightingReuse:false,sampleLimit:4,maxBounces:6,viewKey:'s5_pt'});
         const ptFaults=t.stats.filmFaults;
@@ -66,10 +107,12 @@ export async function giStage5GlassAlphaBrowserChecks(page){
         await t.start({...base,camera:insideCam,interactivePreview:false,lightingReuse:false,sampleLimit:2,outputSize:[160,120],maxBounces:6,viewKey:'s5_in'});
         const insideFaults=t.stats.filmFaults;
         const insideLin=await t.readLinearPixels([[0.5,0.5],[0.25,0.5]]);
-        return {giStats,giLin,ptFaults,ptLin,insideFaults,insideLin};
+        return {giStats,giLin,ptFaults,ptLin,insideFaults,insideLin,compared};
       }finally{t.dispose();host.remove();}
     });
 
+    assert.equal(glassRes.compared,1024);
+    checks.push({name:'Cached exposure matches all 1024 full-resolution HDR samples on an odd-sized glass and edge fixture',pass:true});
     const states=glassRes.giStats.meshStates;
     const thinState=states.find(s=>s.thinWalled===true);
     const solidState=states.find(s=>s.thinWalled===false&&states.indexOf(s)>0);

@@ -74,6 +74,7 @@ export async function cameraIdleWarmupChecks(page){
     await wait(()=>cameraWarmTest.release.gatherSkyTiles);
     const quiet=await page.evaluate(()=>cameraWarmTest.calls.every((c,i,list)=>!i||c.start>=list[i-1].end));
     assert.ok(quiet,'idle work admits one program at a time');
+    assert.ok(await page.evaluate(()=>!cameraWarmTest.calls.some(c=>c.entry==='giGlass')),'Opaque camera programs warm before glass');
     await page.locator('#btnRender').click();
     await wait(()=>cameraWarmTest.frames.some(f=>f.preview));
     assert.ok(await page.evaluate(()=>cameraWarmTest.prefetch<=cameraWarmTest.frames[0].at),'stationary preview starts its refinement preparation before presentation');
@@ -136,6 +137,15 @@ export async function cameraIdleWarmupChecks(page){
       assert.ok(film.maxFilmError<.0001,JSON.stringify(film));
     }
     cases.push({name:'Warmed and specialized films',films});
+    const residentPrimary=await page.evaluate(async()=>{
+      const t=cameraWarmTest.tracer,bits=t.sceneFeatureBits(),include=name=>name==='giGBuffer';
+      const {exact}=t.cameraProgramSelection('gi',bits,false);
+      await exact.all(include);
+      const selection=t.cameraProgramSelection('gi',bits,false,false,include);
+      return selection.group===exact;
+    });
+    assert.ok(residentPrimary,'An already compiled primary pipeline survives partial GI warmup and unused glass/ray entries');
+    cases.push({name:'Resident GI primary pipeline reused',pass:true});
     const active=(await call('scene.inspect')).objects.find(o=>o.type==='render'&&o.enabled);
     await call('scene.delete',{ids:[active.hash]});
     await wait(()=>!document.querySelector('#frame-render-canvas'));

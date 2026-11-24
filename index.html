@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 21:15">
+<meta name="frame-version" content="2026 24 nov 21:55">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -9010,6 +9010,7 @@ struct Params {
   reuse:vec4u, dirty:array<vec4u,4>, cacheConfig:vec4f,
   giA:vec4u, giB:vec4f,
   prevOrigin:vec4f, prevRight:vec4f, prevUp:vec4f, prevForward:vec4f,
+  meterOnly:u32,
 };
 // 64-byte parent-child BVH2 node: count==0 internal child ref; 0xffffffff empty; >0 leaf [ref..ref+count).
 struct Node { lLo:vec4f, lHi:vec4f, rLo:vec4f, rHi:vec4f };
@@ -9065,6 +9066,12 @@ fn octDecode(e:vec2f)->vec3f{
   var n=vec3f(e,1.-abs(e.x)-abs(e.y));
   if(n.z<0.){let sx=select(-1.,1.,n.x>=0.);let sy=select(-1.,1.,n.y>=0.);n=vec3f((1.-abs(n.y))*sx,(1.-abs(n.x))*sy,n.z);}
   return normalize(n);
+}
+fn exposureMeterPixel(cell:vec2u,size:vec2u)->vec2u{return (cell*2u+1u)*size/64u;}
+fn isExposureMeterPixel(xy:vec2u,size:vec2u)->bool{
+  // First grid centre at or after this pixel, including on odd-sized images.
+  let cell=min((xy*64u+size-1u)/(size*2u),vec2u(31u));
+  return all(exposureMeterPixel(cell,size)==xy);
 }
 fn normalBin6(n:vec3f)->u32{
   let a=abs(n);
@@ -9567,6 +9574,7 @@ fn diffuseColor(s:Surface)->vec3f{return (1.-surfaceF0(s))*s.color*((1.-s.metal)
 
 // Unified 64B parent-child BVH2 + 48B hot tris + single-stack TLAS/BLAS + inline binary alpha cutout (with coverage mip!) + shadow early-out!
 const wgslIntersect=`
+override prunePendingInstances:bool=true;
 fn boxHit(lo:vec3f,hi:vec3f,negOrigInv:vec3f,invDir:vec3f,maxT:f32)->f32{
   let t0=fma(lo,invDir,negOrigInv);let t1=fma(hi,invDir,negOrigInv);
   let tmin=max(0.,max3(min(t0,t1)));let tmax=min(maxT,-max3(-max(t0,t1)));
@@ -9692,7 +9700,11 @@ fn intersectQuery(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool
   let invW=1./safeW;let negOW=-o*invW;
   let hotBase=bitcast<u32>(triangles[0].w);let coldBase=bitcast<u32>(triangles[0].z);
   // At most 32 instance levels and 20 geometry levels can be pending.
-  var stack:array<u32,54>;var top=1u;stack[0]=root;
+  var stack:array<u32,54>;var entryDistance:array<f32,34>;
+  // Keep entry distances only for the world-space tree. A closer hit can retire
+  // a pending instance before its inverse transform and geometry are loaded.
+  let entrySlack=4e-6*max(1.,max3(abs(o)));
+  var top=1u;stack[0]=root;entryDistance[0]=0.;
   var blasBase=0xffffffffu;
   var curO=o;var curD=d;var curInv=invW;var curNegO=negOW;
   var descriptor=0u;var curDirLen=1.;var curFirstVid=0u;var curTriOff=0u;var curMatBase=0u;
@@ -9700,7 +9712,9 @@ fn intersectQuery(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool
     if(blasBase!=0xffffffffu&&top==blasBase){
       blasBase=0xffffffffu;curO=o;curD=d;curInv=invW;curNegO=negOW;
     }
-    top--;let item=stack[top];
+    top--;
+    if(prunePendingInstances&&blasBase==0xffffffffu&&entryDistance[top]>hit.distance*1.000004+entrySlack){continue;}
+    let item=stack[top];
     if(blasBase==0xffffffffu&&(item&0x80000000u)!=0u){
       let inst=2u+(item&0x7fffffffu)*10u;let d9=triangles[inst+9u];
       if(d9.z>0.&&!background){continue;}
@@ -9720,8 +9734,8 @@ fn intersectQuery(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool
     var fRef=lRef;var fCnt=lCnt;var fD=dl;var sRef=rRef;var sCnt=rCnt;var sD=dr;
     if(dr<dl){fRef=rRef;fCnt=rCnt;fD=dr;sRef=lRef;sCnt=lCnt;sD=dl;}
     if(blasBase==0xffffffffu){
-      if(sD<hit.distance){stack[top]=select(sRef,sRef|0x80000000u,sCnt>0u);top++;}
-      if(fD<hit.distance){stack[top]=select(fRef,fRef|0x80000000u,fCnt>0u);top++;}
+      if(sD<hit.distance){stack[top]=select(sRef,sRef|0x80000000u,sCnt>0u);if(prunePendingInstances){entryDistance[top]=sD;}top++;}
+      if(fD<hit.distance){stack[top]=select(fRef,fRef|0x80000000u,fCnt>0u);if(prunePendingInstances){entryDistance[top]=fD;}top++;}
     }else if(fCnt==0u&&sCnt==0u){
       if(sD<hit.distance){stack[top]=sRef;top++;}
       if(fD<hit.distance){stack[top]=fRef;top++;}
@@ -10664,12 +10678,11 @@ var<workgroup> meterSums:array<vec4f,64>;
 fn meter(@builtin(local_invocation_index) id:u32){
   var sums=vec4f(0.);
   for(var i=id;i<1024u;i+=64u){
-    let x=min(params.image.x-1u,(2u*(i%32u)+1u)*params.image.x/64u);
-    let y=min(params.image.y-1u,(2u*(i/32u)+1u)*params.image.y/64u);
-    let c=textureLoad(hdrTex,vec2i(i32(x),i32(y)),0);
+    let xy=vec2i(exposureMeterPixel(vec2u(i%32u,i/32u),params.image.xy));
+    let c=textureLoad(hdrTex,xy,0);
     if(c.a>0.&&finiteBitsVec3(bitcast<vec3u>(c.rgb))){
       let light=max(0.,lum(c.rgb));
-      let g=textureLoad(guideTex,vec2i(i32(x),i32(y)),0);
+      let g=textureLoad(guideTex,xy,0);
       sums.z+=light;sums.w+=1.;
       let gf=guideFlags(g);if(gf!=255u&&(gf&8u)==0u){sums.x+=light;sums.y+=1.;}
     }
@@ -11446,6 +11459,7 @@ fn giDiscontinuityDirect(@builtin(global_invocation_id) gid:vec3u,@builtin(num_w
   if(index>=cnt){return;}
   let pixelIdx=discList.items[index];
   let xy=vec2i(i32(pixelIdx%params.image.x),i32(pixelIdx/params.image.x));
+  if(params.meterOnly!=0u&&!isExposureMeterPixel(vec2u(xy),params.image.xy)){return;}
   let idv=textureLoad(gbufId,xy,0);
   if(idv.x==0u){return;}
   let d=textureLoad(gbufDepth,xy,0);
@@ -11834,8 +11848,9 @@ ${wgslPackUtils}
 
 @compute @workgroup_size(8,8)
 fn giComposite(@builtin(global_invocation_id) id:vec3u){
-  if(any(id.xy>=params.image.xy)){return;}
-  let xy=vec2i(id.xy);
+  let pixel=select(id.xy,exposureMeterPixel(id.xy,params.image.xy),params.meterOnly!=0u);
+  if(any(pixel>=params.image.xy)){return;}
+  let xy=vec2i(pixel);
   let gid=textureLoad(gbufId,xy,0);
   let ray=giRayAtUV((vec2f(xy)+.5)/vec2f(params.image.xy));
   if(gid.x==0u){
@@ -12019,6 +12034,7 @@ fn giGlass(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups) gro
   if(index>=cnt){return;}
   let pIdx=glassList.items[index];
   let xy=vec2i(i32(pIdx%params.image.x),i32(pIdx/params.image.x));
+  if(params.meterOnly!=0u&&!isExposureMeterPixel(vec2u(xy),params.image.xy)){return;}
   var seed=Sampler(pIdx*1973u+params.giA.y*9277u+26699u,0u,sampleHash(pIdx^params.giA.y),pIdx%1024u);
   let ray=giRayAtUV((vec2f(xy)+.5)/vec2f(params.image.xy));
   var o=ray.origin;var d=ray.direction;
@@ -12334,21 +12350,28 @@ function cameraProgramGroup(entries,compile,isReadySync=null){
     }
     return job;
   }
+  function readyFor(include=null){
+    let ready=true;
+    for(const entry of entries){
+      if((include&&!include(entry))||Object.hasOwn(pipelines,entry))continue;
+      const existing=isReadySync?.(entry);
+      if(existing)pipelines[entry]=existing;else ready=false;
+    }
+    return ready;
+  }
   return {
     get started(){return jobs.size>0||Object.keys(pipelines).length>0;},
-    get ready(){
-      if(isReadySync)for(const e of entries)if(!Object.hasOwn(pipelines,e)){const p=isReadySync(e);if(p)pipelines[e]=p;}
-      return Object.keys(pipelines).length===entries.length;
-    },
+    get ready(){return readyFor();},
+    readyFor,
     async all(include=null){
       const wanted=include?entries.filter(include):entries;
-      if(!this.ready)await Promise.all(wanted.map(entry=>request(entry,false)));
+      if(!readyFor(include))await Promise.all(wanted.map(entry=>request(entry,false)));
       return include?Object.fromEntries(wanted.map(name=>[name,pipelines[name]])):pipelines;
     },
-    next(background=false){
-      if(isReadySync)for(const e of entries)if(!Object.hasOwn(pipelines,e)){const p=isReadySync(e);if(p)pipelines[e]=p;}
-      const entry=entries.find(name=>!Object.hasOwn(pipelines,name));
-      return entry?request(entry,background):null;
+    next(background=false,include=null){
+      if(readyFor(include))return null;
+      const entry=entries.find(name=>(!include||include(name))&&!Object.hasOwn(pipelines,name));
+      return request(entry,background);
     }
   };
 }
@@ -12469,15 +12492,15 @@ function cameraPrograms(){
     giCacheReduce:{module:mGiCacheCR,ep:'giCacheReduce',uses:'',pl:plGiCacheWork},
     giCacheResolve:{module:mGiCacheCR,ep:'giCacheResolve',uses:'',pl:plGiCacheWork},
     giCacheTrain:{module:mGiCacheTr,ep:'giCacheTrain',uses:'s',pl:plGiTrain},
-    giDirect:{module:mGiDirect,ep:'giDirect',uses:'s',pl:plGiDirect},
-    giDiscontinuityDirect:{module:mGiDirect,ep:'giDiscontinuityDirect',uses:'s',pl:plGiDirect},
+    giDirect:{module:mGiDirect,ep:'giDirect',uses:'s',compactUniversal:true,pl:plGiDirect},
+    giDiscontinuityDirect:{module:mGiDirect,ep:'giDiscontinuityDirect',uses:'s',compactUniversal:true,pl:plGiDirect},
     giGather:{module:mGiGather,ep:'giGather',uses:'s',pl:plGiGather},
     giSpecular:{module:mGiSpec,ep:'giSpecular',uses:'s',pl:plGiSpec},
     giTemporalDirectGather:{module:mGiDenoise,ep:'giTemporalDirectGather',uses:'',pl:'auto'},
     giTemporalSpecular:{module:mGiSpecDenoise,ep:'giTemporalSpecular',uses:'',pl:'auto'},
     giAtrousHalf:{module:mGiAtrous,ep:'giAtrousHalf',uses:'',pl:'auto'},
     giComposite:{module:mGiComp,ep:'giComposite',uses:'s',pl:plGiComposite},
-    giGlass:{module:mGiGlass,ep:'giGlass',uses:'s',pl:plGiGlass},
+    giGlass:{module:mGiGlass,ep:'giGlass',uses:'s',compactUniversal:true,pl:plGiGlass},
   };
 
   const sharedJobs=new Map(),sharedDone=new Map();
@@ -12497,6 +12520,9 @@ function cameraPrograms(){
     if(!job){
       const constants={},u=spec.uses;
       if(u.includes('s')){constants.sceneFeatures=sceneFeatures;constants.variableSceneFeatures=variableSceneFeatures;}
+      // Keep driver compilation of the general shadow and glass paths bounded.
+      // Scene-specialized pipelines prune pending instances on these paths too.
+      if(spec.compactUniversal&&variableSceneFeatures===allCameraFeatures)constants.prunePendingInstances=false;
       if(u.includes('t'))constants.cameraTiles=cameraTiles;
       if(u.includes('c'))constants.cachedFilm=cf;
       const run=fn=>background&&window.frameWithBackgroundShaderWarmup?window.frameWithBackgroundShaderWarmup(fn):fn();
@@ -12541,7 +12567,10 @@ function cameraPrograms(){
     cache.set(key,group);return group;
   }
   const universal=mode=>variant(mode,0,allCameraFeatures);
-  const warm=[common,universal('realtime'),universal('gi'),universal('independent')];
+  // Keep the glass-only kernel off the idle critical path for opaque scenes.
+  // Foreground glass renders still request it immediately through their program group.
+  const warm=[[common],[universal('realtime')],[universal('gi'),name=>name!=='giGlass'],
+    [universal('independent')],[universal('gi')]];
 
   function getMipPipelines(){
     if(shared.mipPipelines)return shared.mipPipelines;
@@ -12557,7 +12586,7 @@ function cameraPrograms(){
     sceneLayout,sceneNoLightsLayout,progressiveLayout,filmOpsLayout,giGuidesLayout,giCacheWorkLayout,gbufLayout,
     giTrainAuxLayout,giDirectAuxLayout,giGatherAuxLayout,giSpecAuxLayout,giCompositeAuxLayout,giGlassAuxLayout,
     common,variant,universal,getMipPipelines,
-    next(){for(const group of warm){const job=group.next(true);if(job)return job;}return null;}
+    next(){for(const [group,include] of warm){const job=group.next(true,include);if(job)return job;}return null;}
   };
 }
 
@@ -12687,13 +12716,13 @@ class FrameRenderer {
       (scene?.subsurface?cameraSceneFlags.subsurface:0);
   }
   useCameraTiles(){return !this.options.interactivePreview&&(this.options.sampleLimit||Infinity)>cameraPacketCapacity;}
-  cameraProgramSelection(mode,features,tiled,universalOnly=false){
+  cameraProgramSelection(mode,features,tiled,universalOnly=false,include=null){
     const universal=this.programs.universal(mode);
     const exact=mode==='realtime'||universalOnly?universal:this.programs.variant(mode,features,tiled?0:cameraSceneFlags.instances,this.cameraPipelines);
-    return {exact,group:universal.started&&!exact.ready?universal:exact};
+    return {exact,group:universal.started&&!exact.readyFor(include)?universal:exact};
   }
   async initCameraPipelines(mode,epoch,features,universalOnly=false,include=null){
-    const programs=this.programs,selection=this.cameraProgramSelection(mode,features,this.useCameraTiles(),universalOnly),exact=selection.exact;
+    const programs=this.programs,selection=this.cameraProgramSelection(mode,features,this.useCameraTiles(),universalOnly,include),exact=selection.exact;
     let group=selection.group,pipelines;
     try{pipelines=await group.all(include);}catch(error){
       if(group===exact||this.epoch!==epoch)throw error;
@@ -13306,7 +13335,7 @@ class FrameRenderer {
     ]});
     this.giBindDirty=false;
   }
-  parameters(camera,environment,sample,offset,count,denoise,queued=false,prevCamera=null){
+  parameters(camera,environment,sample,offset,count,denoise,queued=false,prevCamera=null,meterOnly=false){
     const f=new Float32Array(cameraParameterWords),u=new Uint32Array(f.buffer),{center,scale}=this.scene;
     f.set(camera.position.map((v,i)=>(v-center[i])/scale),0);
     const tan=camera.ortho?camera.ortho/(2*scale):Math.tan(camera.fov*Math.PI/360);f.set([...camera.right,tan*camera.aspect],4);f.set([...camera.up,tan],8);f.set([...camera.forward,camera.ortho?1:0],12);
@@ -13328,6 +13357,7 @@ class FrameRenderer {
     const prev=prevCamera||camera,ptan=prev.ortho?prev.ortho/(2*scale):Math.tan(prev.fov*Math.PI/360);
     f.set(prev.position.map((v,i)=>(v-center[i])/scale),208);
     f.set([...prev.right,ptan*prev.aspect],212);f.set([...prev.up,ptan],216);f.set([...prev.forward,prev.ortho?1:0],220);
+    u[224]=Number(meterOnly);
     return f;
   }
   meterExposure(encoder){
@@ -13356,6 +13386,7 @@ class FrameRenderer {
       const cp=this.computePass(encoder,'Compose progressive');cp.setPipeline(this.composeProgressive);cp.setBindGroup(0,comp.group);cp.dispatchWorkgroups(gx,gy);cp.end();
     }
     if(meter)this.meterExposure(encoder);
+    if(cfg.meterOnly)return;
     if(this.options.localExposure!==false)for(const group of this.localGroups){const local=this.computePass(encoder,'Local exposure');local.setPipeline(this.localExposure);local.setBindGroup(0,group);local.dispatchWorkgroups(Math.ceil(this.localCount/64));local.end();}
     const pass=encoder.beginRenderPass({...this.profiler?.descriptor(encoder,'Display'),colorAttachments:[{view:this.output.createView(),loadOp:'clear',storeOp:'store',clearValue:{r:0,g:0,b:0,a:1}}]});
     pass.setPipeline(this.display);pass.setBindGroup(0,this.displayGroup);pass.draw(3);pass.end();
@@ -13381,7 +13412,11 @@ class FrameRenderer {
     const camMoved=!this.lastCameraPose||frameValueKey([prevCam.position,prevCam.forward,prevCam.up,prevCam.right,prevCam.fov,prevCam.ortho,prevCam.aspect])!==frameValueKey([camera.position,camera.forward,camera.up,camera.right,camera.fov,camera.ortho,camera.aspect]);
     const resetHist=!gb.historyValid||this.hardInvalidation||this.giTransportReset||(this.options.cachedOutput&&pass===1&&!this.options.cachedContinuation);
     const cfgFlag=(resetHist?1:0)|(!camMoved&&this.giTransportReset?2:0)|(!camMoved?4:0);
-    device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,0,0,0,true,false,prevCam));
+    // Lighting history advances every pass. Between presentations only the exposure
+    // grid consumes the full-resolution edge shadows, glass and composed output.
+    const meterOnly=this.optimized()&&pass>1&&pass<passes&&width>=32&&height>=32&&
+      (this.options.previewPresentation===false||encodedAt-this.presentedAt<1000/Math.max(1,this.options.displayHz??20));
+    device.queue.writeBuffer(this.uniform,0,this.parameters(camera,environment,0,0,0,true,false,prevCam,meterOnly));
     device.queue.writeBuffer(gb.cfgTemp,0,new Uint32Array([cfgFlag,this.transportEpoch>>>0,this.options.cachedOutput&&!camMoved?32:8,0]));
     const read=this.acquireReadStaging(device,128);
     try{
@@ -13422,10 +13457,13 @@ class FrameRenderer {
       const pTD=this.computePass(encoder,'GI Temporal DG');pTD.setPipeline(this.giTemporalDirectGather);pTD.setBindGroup(0,gb.tempDGGroups[hi]);pTD.dispatchWorkgroups(hgx,hgy);pTD.end();
       const pTS=this.computePass(encoder,'GI Temporal Spec');pTS.setPipeline(this.giTemporalSpecular);pTS.setBindGroup(0,gb.tempSpecGroups[hi]);pTS.dispatchWorkgroups(hgx,hgy);pTS.end();
       for(let step=0;step<2;step++){const pAt=this.computePass(encoder,'GI Atrous');pAt.setPipeline(this.giAtrousHalf);pAt.setBindGroup(0,gb.atrousGroups[hi][step]);pAt.dispatchWorkgroups(hgx,hgy);pAt.end();}
-      const pCmp=this.computePass(encoder,'GI Composite');pCmp.setPipeline(this.giComposite);pCmp.setBindGroup(0,this.sceneBindGroup);pCmp.setBindGroup(1,gb.compAuxGroup);pCmp.dispatchWorkgroups(fgx,fgy);pCmp.end();
+      const pCmp=this.computePass(encoder,'GI Composite');pCmp.setPipeline(this.giComposite);pCmp.setBindGroup(0,this.sceneBindGroup);pCmp.setBindGroup(1,gb.compAuxGroup);pCmp.dispatchWorkgroups(meterOnly?4:fgx,meterOnly?4:fgy);pCmp.end();
       if(this.scene.glass){const pGl=this.computePass(encoder,'GI Glass');pGl.setPipeline(this.giGlass);pGl.setBindGroup(0,this.sceneNoLightsGroup);pGl.setBindGroup(1,gb.glassAuxGroup);pGl.dispatchWorkgroupsIndirect(gb.giIndirect,16);pGl.end();}
-      encoder.copyTextureToTexture({texture:this.hdrFinalTex},{texture:this.frozenPreviewTex},[width,height]);
-      this.displayFrame(encoder,true,{progressive:false});
+      if(meterOnly)this.meterExposure(encoder);
+      else{
+        encoder.copyTextureToTexture({texture:this.hdrFinalTex},{texture:this.frozenPreviewTex},[width,height]);
+        this.displayFrame(encoder,true,{progressive:false});
+      }
       encoder.copyBufferToBuffer(gb.giIndirect,32,read,0,16);
       encoder.copyBufferToBuffer(gb.cacheCounters,0,read,16,48);
       gb.historyValid=false;
@@ -13447,7 +13485,7 @@ class FrameRenderer {
       this.stats.gi={mode:this.options.cachedOutput?'cached':'interactive',passes,primaryVisibility:rayPrimary?'bvh':'raster',tier:this.options.cachedOutput?0:this.qualityController.tier,ageTick:this.giAge,transportEpoch:this.transportEpoch,cacheSlots:gb.slots,discCount,glassCount,fbUsed,fbStaleRejected:fbStale,evictions};
       const phase=this.options.cachedOutput?(this.completed?'complete':'rendering'):'preview';
       Object.assign(this.stats,{phase,samples:pass,dispatches:pass,filmFaults:0,width,height,activePixels:width*height,scheduledPixels:width*height,lastDispatchMs:gpuMs,maxDispatchMs:Math.max(this.stats.maxDispatchMs,gpuMs),elapsedMs:done-started});
-      this.markPresented(started);
+      if(meterOnly)this.onChange();else this.markPresented(started);
     }finally{this.releaseReadStaging(read,device);}
   }
   async prepareIndependentTiles(epoch){
@@ -13624,7 +13662,8 @@ class FrameRenderer {
         const final=sample===stage.samples;
         present=final||sample===1||(!options.presentationSamplesOnly&&options.previewPresentation!==false&&encodedAt-lastDisplay>=interval);
         const meterNow=final||sample===1||sample===2||sample===4||sample%8===0;
-        if(present||meterNow){this.displayFrame(encoder,meterNow,{progressive:true,completed:sample});lastDisplay=encodedAt;}
+        if(present||meterNow)this.displayFrame(encoder,meterNow,{progressive:true,completed:sample,meterOnly:!present});
+        if(present)lastDisplay=encodedAt;
         if(present||meterNow||adaptive||serial||!singlePage||performance.now()>=deadline)break;
       }
       if(slots)this.device.queue.writeBuffer(this.packetParameters,0,packed,0,slots*template.length);
@@ -13768,10 +13807,10 @@ class FrameRenderer {
   async readLinearPixels(points){
     if(!this.hasImage||(!this.filmPages?.length&&!this.hdrFinalTex))throw Error('Render an image before reading linear pixels.');
     const w=this.width,h=this.height;
-    if(!this.filmHasSamples&&this.giLastReady&&this.hdrFinalTex){
+    if(!this.filmHasSamples&&this.giLastReady&&this.frozenPreviewTex){
       const row=Math.ceil(w*8/256)*256,read=this.device.createBuffer({size:row*h,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
       try{
-        const enc=this.device.createCommandEncoder();enc.copyTextureToBuffer({texture:this.hdrFinalTex},{buffer:read,bytesPerRow:row},[w,h]);this.device.queue.submit([enc.finish()]);await read.mapAsync(GPUMapMode.READ);
+        const enc=this.device.createCommandEncoder();enc.copyTextureToBuffer({texture:this.frozenPreviewTex},{buffer:read,bytesPerRow:row},[w,h]);this.device.queue.submit([enc.finish()]);await read.mapAsync(GPUMapMode.READ);
         const raw=new Uint16Array(read.getMappedRange());
         return points.map(([u,v])=>{const x=Math.min(w-1,Math.max(0,Math.floor(u*w))),y=Math.min(h-1,Math.max(0,Math.floor(v*h))),at=(y*row/2)+x*4;return {x,y,color:[halfToFloat(raw[at]),halfToFloat(raw[at+1]),halfToFloat(raw[at+2])],samples:1};});
       }finally{if(read.mapState==='mapped')read.unmap();read.destroy();}
@@ -27620,6 +27659,23 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         surface.getContext('2d').putImageData(new ImageData(rgba,width,height),0,0);return surface;
       }finally{if(read.mapState==='mapped')read.unmap();read.destroy();output.destroy();color.destroy();depth.destroy();}
     }
+    let cameraImageFormats=null;
+    async function encodeCameraImage(surface){
+      if(!cameraImageFormats){
+        // Unsupported canvas encoders produce a PNG. Probe once on a small surface.
+        const probe=new OffscreenCanvas(16,16),formats=[];
+        probe.getContext('2d');
+        for(const type of ['image/avif','image/webp']){
+          if((await probe.convertToBlob({type})).type===type)formats.push(type);
+        }
+        cameraImageFormats=[...formats,'image/png'];
+      }
+      for(const type of cameraImageFormats){
+        const encoded=await surface.convertToBlob({type,quality:.98});
+        if(encoded.type===type)return encoded;
+      }
+      throw Error('Image encoding failed');
+    }
     let renderExporting=false,renderExportJob=null;
     async function renderExport(kind,{start=0,end=timelineTotal,download=true}={}){
       const config=cameraConfig();if(!config)throw Error('Create an enabled Camera first');if(renderExporting)throw Error('A render export is already running');if(!['image','video'].includes(kind)||!Number.isInteger(start)||!Number.isInteger(end)||start<0||end<start||end>timelineTotal)throw Error('Invalid render export range');
@@ -27639,7 +27695,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         for(let frame=kind==='video'?0:first;frame<=last;frame++){
           check();if(kind==='video'){setTimelineFrame(frame);await animationSerial;await FrameMorph.flush();await FrameSpline.flush();syncCameraView();}
           check();await FramePlugins.flush({output:true,simulation:kind==='video'&&frame>0,frame});if(frame<first)continue;let surface;if(config.params.renderer==='Viewport'){surface=await viewportImage(width,height);}else{await Promise.race([renderTick(true,true,0,kind==='video'&&frame>first),cancelled.then(()=>{throw new DOMException('Render cancelled','AbortError');})]);check();const state=renderState();if(state.phase!=='complete')throw Error(state.errors?.join('; ')||'Render did not complete');const image=await pathtracer.readImage(),surfacePath=new OffscreenCanvas(width,height),ctx=surfacePath.getContext('2d');ctx.putImageData(new ImageData(image.rgba,width,height),0,0);surface=surfacePath;}
-          if(kind==='image'){for(const type of ['image/avif','image/webp','image/png']){const encoded=await surface.convertToBlob({type,quality:.98});if(encoded.type===type){blob=encoded;break;}}if(!blob)throw Error('Image encoding failed');}
+          if(kind==='image')blob=await encodeCameraImage(surface);
           else{if(encoderError)throw encoderError;const i=frame-first,v=new VideoFrame(surface,{timestamp:Math.round(i*1000000/fps),duration:Math.round((i+1)*1000000/fps)-Math.round(i*1000000/fps)});try{encoder.encode(v,{keyFrame:i%Math.max(1,Math.round(fps*2))===0});}finally{v.close();}await encoder.flush();if(encoderError)throw encoderError;}
         }
         if(encoder){await encoder.flush();if(encoderError)throw encoderError;if(chunks.length!==last-first+1||chunks.some((c,i)=>i&&c.timestamp<=chunks[i-1].timestamp))throw Error('Video encoder returned missing or reordered frames');blob=renderMP4(chunks,videoConfig,decoderDescription);}

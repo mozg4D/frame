@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 24 nov 21:15",
+  "version": "2026 24 nov 21:55",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -572,11 +572,11 @@
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "d4d8af0b251e657a9e05efb7d9105de452fb364cbbefd1dc6f0fc636c8f046f9"
+      "sha256": "800c3efd2fc3f4ff1e22990af95605de89afba9d801e97b4cd4c5eba9abc0b01"
     },
     "index.html": {
-      "bytes": 4200393,
-      "sha256": "9db5be341cb36098e0be3e9df9a00bd1453c40dbf0eed0c05c1510b81344ab63"
+      "bytes": 4203295,
+      "sha256": "21dbb346ea5f831cb6e71a8c1651060e447242b31d4a47a1da85909776c66554"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -1143,8 +1143,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 105420,
-      "sha256": "de07140a81c58744b6c09bf211276ad42b405cd6aa4335333ce6c56d29ef5219"
+      "bytes": 105938,
+      "sha256": "b3a8e68f4c2814a25260f7b3f2a20aa7105850d3afb8dd2c0901373c1251163b"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1363,8 +1363,8 @@
       "sha256": "721addfb29bb1d32ca53d21a7cc5ac04ee863057f8b434e4bdb9f187ba6c6662"
     },
     "tests/camera-idle-warmup.mjs": {
-      "bytes": 10634,
-      "sha256": "293b0d09f49a0a5e8de62466272fa8600df6a4e2111c8830953a6f6b96b2726c"
+      "bytes": 11341,
+      "sha256": "ae29005ab240dcda4599fb24cd0760e98680f37a7f539fda3a6aa79e9e8f2957"
     },
     "tools/unite-surface.h": {
       "bytes": 4443,
@@ -1595,8 +1595,8 @@
       "sha256": "588fbc999f561d8e53cddefd163f5967cead6338fe6c62ea75786b84f6a9d748"
     },
     "tests/gi-stage5-glass-alpha-browser.mjs": {
-      "bytes": 9086,
-      "sha256": "0bbe276e6671397bd7a5837471e058bc569e6c35d24dfffb19f9d1bfb0ac4931"
+      "bytes": 11843,
+      "sha256": "1b36072d5093b16fe29ec26793500f92d136544688902fb24341391f47a906a1"
     },
     "tests/gi-benchmark-browser.mjs": {
       "bytes": 3995,
