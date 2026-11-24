@@ -94,7 +94,7 @@ export async function cameraProgressiveChecks(page){
               await tracer.start(settings);
             }
             const stats=tracer.stats;
-            if(stats.phase!=='complete'||stats.lightingReuse!==cached||stats.samples!==options.sampleLimit)
+            if(stats.phase!=='complete'||stats.lightingReuse!==false||stats.samples!==options.sampleLimit)
               throw Error(JSON.stringify({phase:stats.phase,reuse:stats.lightingReuse,samples:stats.samples,errors:stats.errors}));
             const film=await tracer.readFilm(),image=await tracer.readImage();
             return {film,image,checkpoint,meters,ms:performance.now()-started,queueBuilds:stats.queueBuilds,
@@ -187,8 +187,8 @@ export async function cameraProgressiveChecks(page){
           'Material specialization starts before geometry and texture uploads finish at '+samples+' samples');
         variants.push(await page.evaluate(()=>{
           const {camera}=progressiveFixture;
-          progressiveFixture.untexturedPipeline??=camera.gatherIrradiance;
-          return [camera.scene.materialMaps,camera.gatherIrradiance===progressiveFixture.untexturedPipeline];
+          progressiveFixture.untexturedPipeline??=camera.integrate;
+          return [camera.scene.materialMaps,camera.integrate===progressiveFixture.untexturedPipeline];
         }));
         await call('render.stop');
       }

@@ -71,7 +71,7 @@ try{
   await page.evaluate(()=>{
     const tracer=cameraTest.tracer,start=tracer.start.bind(tracer),compile=tracer.initCameraPipelines.bind(tracer);
     tracer.initCameraPipelines=(mode,...args)=>{
-      if(mode==='realtime')cameraTest.previewPipelineRequested=true;
+      if(mode==='realtime'||mode==='gi')cameraTest.previewPipelineRequested=true;
       return compile(mode,...args);
     };
     tracer.start=opts=>start({...opts,getScene:async cancelled=>{
@@ -104,6 +104,7 @@ try{
       await tracer.start({...options,viewKey:'reference'});
       if(tracer.stats.phase!=='complete')throw Error(tracer.stats.errors.join('\n'));
       const reference=await tracer.readFilm();
+      await tracer.programs.universal('realtime').all();
       let maxRGBError=0,min=Infinity,max=-Infinity;
       for(let frame=0;frame<6;frame++){
         await tracer.start({...options,interactivePreview:true,viewKey:'realtime'+frame});

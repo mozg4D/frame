@@ -3,12 +3,12 @@ import {fileURLToPath} from 'node:url';
 import {launch,ready} from '../tools/browser.mjs';
 
 function observeCameraPrograms(){
-  const probe=window.cameraWarmTest={calls:[],frames:[],holds:new Set(['renderRealtime','invalidateIrradiance']),release:{},pipelines:new WeakMap()};
+  const probe=window.cameraWarmTest={calls:[],frames:[],holds:new Set(['renderRealtime','gatherSkyTiles']),release:{},pipelines:new WeakMap()};
   for(const method of ['createComputePipelineAsync','createRenderPipelineAsync']){
     const native=GPUDevice.prototype[method];
     GPUDevice.prototype[method]=function(descriptor){
       const stage=descriptor.compute||descriptor.vertex,name=stage.module.label;
-      if(!['FRAME lighting','FRAME display','FRAME variance reconstruction','FRAME local exposure','FRAME preview presentation'].includes(name))return native.call(this,descriptor);
+      if(!name?.startsWith('FRAME '))return native.call(this,descriptor);
       const entry=stage.entryPoint,record={name,entry,features:stage.constants?.variableSceneFeatures,start:performance.now()};
       probe.calls.push(record);
       return native.call(this,descriptor).then(async pipeline=>{
@@ -47,7 +47,7 @@ export async function cameraIdleWarmupChecks(page){
         tracer.markPresented=function(started){
           const preview=!!this.options.interactivePreview;
           if(!probe.frames.some(frame=>frame.preview===preview)){
-            const pipeline=preview?this.renderRealtime:this.reuseLighting()?this.gatherIrradiance:this.integrate;
+            const pipeline=preview?(this.reuseLighting()?this.giComposite:this.renderRealtime):this.integrate;
             const compiled=probe.pipelines.get(pipeline);
             probe.frames.push({preview,at:performance.now(),features:compiled?.features,entry:compiled?.entry});
           }
@@ -71,7 +71,7 @@ export async function cameraIdleWarmupChecks(page){
     assert.notEqual(await page.evaluate(()=>frameEngine.viewCamera(0).camera[0]),before.yaw);
     assert.equal(await page.evaluate(()=>cameraWarmTest.calls.length),before.count,'no new compilation during a held orbit');
     await page.mouse.up();
-    await wait(()=>cameraWarmTest.release.invalidateIrradiance);
+    await wait(()=>cameraWarmTest.release.gatherSkyTiles);
     const quiet=await page.evaluate(()=>cameraWarmTest.calls.every((c,i,list)=>!i||c.start>=list[i-1].end));
     assert.ok(quiet,'idle work admits one program at a time');
     await page.locator('#btnRender').click();
@@ -79,8 +79,8 @@ export async function cameraIdleWarmupChecks(page){
     assert.ok(await page.evaluate(()=>cameraWarmTest.prefetch<=cameraWarmTest.frames[0].at),'stationary preview starts its refinement preparation before presentation');
     await wait(()=>cameraWarmTest.calls.some(c=>c.entry==='gatherSkyTiles'));
     assert.equal(await page.evaluate(()=>cameraWarmTest.frames.length),1,'preview is visible while progressive preparation is finishing');
-    assert.equal(await page.evaluate(()=>cameraWarmTest.calls.filter(c=>c.entry==='invalidateIrradiance').length),1,'foreground joins the in-flight idle program');
-    await page.evaluate(()=>cameraWarmTest.release.invalidateIrradiance());
+    assert.equal(await page.evaluate(()=>cameraWarmTest.calls.filter(c=>c.entry==='gatherSkyTiles').length),1,'foreground joins the in-flight idle program');
+    await page.evaluate(()=>cameraWarmTest.release.gatherSkyTiles());
     await wait(()=>cameraWarmTest.frames.some(f=>!f.preview));
     cases.push({name:'Camera added during warmup',frames:await page.evaluate(()=>cameraWarmTest.frames.map(f=>({preview:f.preview,uniformFlags:f.features,ms:f.at-cameraWarmTest.click})))});
     assert.equal(cases[0].frames[1].uniformFlags,7);
@@ -88,7 +88,7 @@ export async function cameraIdleWarmupChecks(page){
     const cameras=(await call('scene.inspect')).objects.filter(o=>o.type==='render');
     await call('scene.delete',{ids:cameras.map(o=>o.hash)});
     await wait(()=>frameEngine.renderer.cameraWarmup.done&&!document.querySelector('#frame-render-canvas'));
-    assert.ok(await page.evaluate(()=>['realtime','cached','independent'].every(mode=>frameEngine.renderer.cameraShaders.programs.universal(mode).ready)));
+    assert.ok(await page.evaluate(()=>['realtime','gi','independent'].every(mode=>frameEngine.renderer.cameraShaders.programs.universal(mode).ready)));
     const instance=await call('scene.create',{type:'instance',params:{object:cube.hash}});
     await call('transform.set',{ids:[instance.hash],channel:'position',axis:0,value:120});
     await page.locator('#btnRender').click();
@@ -113,23 +113,26 @@ export async function cameraIdleWarmupChecks(page){
           let firstFeatures;
           const present=tracer.markPresented;
           tracer.markPresented=function(started){
-            firstFeatures??=probe.pipelines.get(this.reuseLighting()?this.gatherIrradiance:this.integrate).features;
+            firstFeatures??=probe.pipelines.get(this.integrate).features;
             return present.call(this,started);
           };
           try{
+            const startCalls=probe.calls.length;
             await tracer.start(limits);
             if(tracer.stats.phase!=='complete')throw Error(tracer.stats.errors.join('\n')||tracer.stats.phase);
-            return {data:(await tracer.readFilm()).data,firstFeatures};
+            const compiles=probe.calls.slice(startCalls).filter(c=>c.entry==='integrate').length;
+            return {data:(await tracer.readFilm()).data,firstFeatures,compiles};
           }finally{tracer.dispose();}
         };
         const cold=await render({}),warm=await render(frameEngine.renderer.cameraShaders);
         let error=0;for(let i=0;i<cold.data.length;i++)error=Math.max(error,Math.abs(cold.data[i]-warm.data[i]));
-        results.push({...settings,coldFeatures:cold.firstFeatures,warmFeatures:warm.firstFeatures,maxFilmError:error});
+        results.push({...settings,coldFeatures:cold.firstFeatures,warmFeatures:warm.firstFeatures,warmCompiles:warm.compiles,maxFilmError:error});
       }
       return results;
     });
     for(const film of films){
-      assert.notEqual(film.coldFeatures,7);assert.equal(film.warmFeatures,7);
+      assert.notEqual(film.coldFeatures,7);assert.equal(film.warmCompiles,0,JSON.stringify(film));
+      assert.ok(film.warmFeatures===7||film.warmFeatures===0,JSON.stringify(film));
       assert.ok(film.maxFilmError<.0001,JSON.stringify(film));
     }
     cases.push({name:'Warmed and specialized films',films});

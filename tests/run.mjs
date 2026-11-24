@@ -81,6 +81,14 @@ import {cameraIdleWarmupChecks} from './camera-idle-warmup.mjs';
 import {cameraProgressiveChecks} from './camera-progressive.mjs';
 import {cameraAntialiasChecks} from './camera-antialias.mjs';
 import {cameraViewStateChecks} from './camera-view-state.mjs';
+import {giContractsChecks} from './gi-contracts.mjs';
+import {giKernelsBrowserChecks} from './gi-kernels-browser.mjs';
+import {giStage1ProgressiveBrowserChecks} from './gi-stage1-progressive-browser.mjs';
+import {giStage2DirectBrowserChecks} from './gi-stage2-direct-browser.mjs';
+import {giStage3CacheBrowserChecks} from './gi-stage3-cache-browser.mjs';
+import {giStage4InteractiveBrowserChecks} from './gi-stage4-interactive-browser.mjs';
+import {giStage5GlassAlphaBrowserChecks} from './gi-stage5-glass-alpha-browser.mjs';
+import {giBenchmarkBrowserChecks} from './gi-benchmark-browser.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
 import {creationSanityCPUChecks} from './creation-sanity.mjs';
@@ -232,7 +240,7 @@ try{
   report.animationTransactionCPU=await runStage('animationTransactionCPU',()=>animationTransactionChecks());
   report.booleanKernelCPU=await runStage('booleanKernelCPU',booleanKernelChecks);
   report.motionPathPerspectiveCPU=await runStage('motionPathPerspectiveCPU',()=>motionPathPerspectiveChecks());
-  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
+  report.cameraAnimationNavigation=await runStage('cameraAnimationNavigation',()=>cameraAnimationNavigationChecks());report.cameraViewState=await runStage('cameraViewState',()=>cameraViewStateChecks());report.giContractsCPU=await runStage('giContractsCPU',()=>giContractsChecks());report.pointerReturn=pointerReturnChecks(await readFile(join(root,'index.html'),'utf8'));report.pointerReturn.negativeControls=pointerReturnNegatives(await readFile(join(root,'index.html'),'utf8'));report.authoringStampCPU=await runStage('authoringStampCPU',()=>authoringStampCPUChecks());report.syntax=await runStage('syntax',()=>syntax());report.simd=await runStage('simd',()=>simdChecks());session=await launch({headless:args.includes('--headless')});const observeContext=async context=>{
     context.on('request',request=>{const match=/\/plugins\/([^/]+)\/plugin\.js$/.exec(new URL(request.url()).pathname);if(match){const id=match[1];report.pluginRuntimeLoads.push({id,url:request.url()});if(!pluginEnabled(id))report.errors.push('Unrequested plugin runtime requested: '+id);}});
     await context.route(/\/plugins\/([^/]+)\/plugin\.js(?:\?.*)?$/,route=>{const id=/\/plugins\/([^/]+)\/plugin\.js/.exec(route.request().url())[1];return pluginEnabled(id)?route.continue():route.abort('blockedbyclient');});
   };
@@ -340,6 +348,13 @@ try{
   report.cameraIdleWarmup=await isolated('cameraIdleWarmup',cameraIdleWarmupChecks);
   report.cameraProgressive=await isolated('cameraProgressive',cameraProgressiveChecks);
   report.cameraAntialias=await isolated('cameraAntialias',cameraAntialiasChecks);
+  report.giKernelsBrowser=await isolated('giKernelsBrowser',giKernelsBrowserChecks);
+  report.giStage1Progressive=await isolated('giStage1Progressive',giStage1ProgressiveBrowserChecks);
+  report.giStage2Direct=await isolated('giStage2Direct',giStage2DirectBrowserChecks);
+  report.giStage3Cache=await isolated('giStage3Cache',giStage3CacheBrowserChecks);
+  report.giStage4Interactive=await isolated('giStage4Interactive',giStage4InteractiveBrowserChecks);
+  report.giStage5GlassAlpha=await isolated('giStage5GlassAlpha',giStage5GlassAlphaBrowserChecks);
+  report.giBenchmark=await isolated('giBenchmark',giBenchmarkBrowserChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);
   report.editorFinal=await isolated('editorFinal',editorFinalChecks);
