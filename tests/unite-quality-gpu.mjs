@@ -387,6 +387,74 @@ export async function uniteQualityGpuChecks(page){
     check('Complex scene Quality smooth remains watertight with report metadata',cmsAudit.manifold&&!!inspected.evaluation?.report?.backend,[cmsAudit,inspected.evaluation?.report]);
     assert.deepEqual(cmsAudit.inside,[true,false,true,false,true,false]);
 
+    const auditId=id=>page.evaluate(async id=>{
+      const {vertices:v,indices}=await frameEngine.readGeometry(id),nv=v.length/3,invalid=0xffffffff;
+      const slots=new Uint32Array(2**Math.ceil(Math.log2(Math.max(4,indices.length)))),mate=new Uint32Array(indices.length),next=c=>c%3===2?c-2:c+1;
+      let sixVol=0,minArea2=Infinity;
+      for(let i=0;i<indices.length;i+=3){
+        for(let j=0;j<3;j++){
+          const c=i+j,a=indices[c],b=indices[next(c)],lo=Math.min(a,b),hi=Math.max(a,b);
+          let h=Math.imul(lo+1,0x9e3779b1)^Math.imul(hi+1,0x85ebca6b);h=Math.imul(h^(h>>>16),0x7feb352d);
+          let k=(h^(h>>>15))&(slots.length-1);
+          while(slots[k]){const p=slots[k]-1,x=indices[p],y=indices[next(p)];if(Math.min(x,y)===lo&&Math.max(x,y)===hi){if(mate[p]||x===a)mate[p]=invalid;else{mate[p]=c+1;mate[c]=p+1;}break;}k=(k+1)&(slots.length-1);}
+          if(!slots[k])slots[k]=c+1;
+        }
+        const a=indices[i]*3,b=indices[i+1]*3,c=indices[i+2]*3;
+        const ux=v[b]-v[a],uy=v[b+1]-v[a+1],uz=v[b+2]-v[a+2],vx=v[c]-v[a],vy=v[c+1]-v[a+1],vz=v[c+2]-v[a+2];
+        const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+        minArea2=Math.min(minArea2,nx*nx+ny*ny+nz*nz);
+        sixVol+=(v[a]-v[0])*nx+(v[a+1]-v[1])*ny+(v[a+2]-v[2])*nz;
+      }
+      let badEdges=0,badVertexLinks=0;
+      for(const e of slots)if(e&&(!mate[e-1]||mate[e-1]===invalid))badEdges++;
+      if(!badEdges){const seen=new Uint8Array(indices.length),fan=new Uint8Array(nv);for(let i=0;i<indices.length;i++)if(!seen[i]){const vv=indices[i];if(fan[vv])badVertexLinks++;fan[vv]=1;let c=i;do{seen[c]=1;c=next(mate[c]-1);}while(!seen[c]);}}
+      let lx=1e30,hx=-1e30,ly=1e30,hy=-1e30,lz=1e30,hz=-1e30;
+      for(let i=0;i<v.length;i+=3){const x=v[i],y=v[i+1],z=v[i+2];if(x<lx)lx=x;if(x>hx)hx=x;if(y<ly)ly=y;if(y>hy)hy=y;if(z<lz)lz=z;if(z>hz)hz=z;}
+      return {badEdges,badVertexLinks,minArea2,volume:sixVol/6,faces:indices.length/3,size:[hx-lx,hy-ly,hz-lz],manifold:badEdges===0&&badVertexLinks===0&&minArea2>0&&sixVol>0};
+    },id);
+
+    // 4. Stock Car under Unite (res 512): Hermite MDC + uniform clean reduction + Quality rounding relaxation.
+    await call('scene.new');
+    const car=await call('scene.create',{type:'car'});
+    const tCar0=performance.now();
+    const uCar0=await call('scene.create',{type:'unite',inputs:[car.hash],params:{resolution:512,smoothing:0,optimize:0,fast:true}});
+    timings.push({name:'Stock Car Unite (res 512, s=0, Hermite MDC)',ms:performance.now()-tCar0});
+    assert.ifError(uCar0.buildError);
+    const car0Audit=await auditId(uCar0.hash);
+    check('Stock Car res 512 s=0 uses Hermite GPU QEF cleanly without dense fallback',
+      uCar0.evaluation.report.extraction==='hermite-mdc-gpu-qef'&&car0Audit.manifold&&uCar0.evaluation.report.triangles<150000&&car0Audit.size[0]<=4196&&car0Audit.size[1]<=1522,
+      {report:uCar0.evaluation.report,audit:car0Audit});
+
+    const tCarQ=performance.now();
+    const uCarQual=await call('scene.update',{id:uCar0.hash,params:{smoothing:50,optimize:50,fast:false}});
+    timings.push({name:'Stock Car Unite (res 512, s=50, opt=50, Quality)',ms:performance.now()-tCarQ});
+    assert.ifError(uCarQual.buildError);
+    const carQAudit=await auditId(uCarQual.hash);
+    check('Stock Car res 512 Quality rounding accepts GPU relaxation cleanly',
+      carQAudit.manifold&&uCarQual.evaluation.report.relax?.acceptedIterations>=1&&uCarQual.evaluation.report.relax?.finalSampleValidationPassed,
+      {report:uCarQual.evaluation.report,audit:carQAudit});
+
+    // 5. Stock Sphere under Unite (res 512, s=5, Fast & Quality+Optimize).
+    await call('scene.new');
+    const stockSp=await call('scene.create',{type:'sphere'});
+    const tSp0=performance.now();
+    const uSp5=await call('scene.create',{type:'unite',inputs:[stockSp.hash],params:{resolution:512,smoothing:5,optimize:0,fast:true}});
+    timings.push({name:'Stock Sphere Unite (res 512, s=5, Fast)',ms:performance.now()-tSp0});
+    assert.ifError(uSp5.buildError);
+    const sp5Audit=await auditId(uSp5.hash);
+    check('Stock Sphere res 512 s=5 Fast completes under 4s and is watertight',
+      uSp5.evaluation.report.buildMs<4000&&sp5Audit.manifold,
+      {report:uSp5.evaluation.report,audit:sp5Audit});
+
+    const tSpQ=performance.now();
+    const uSpQ=await call('scene.update',{id:uSp5.hash,params:{optimize:50,fast:false}});
+    timings.push({name:'Stock Sphere Unite (res 512, s=5, opt=50, Quality)',ms:performance.now()-tSpQ});
+    assert.ifError(uSpQ.buildError);
+    const spQAudit=await auditId(uSpQ.hash);
+    check('Stock Sphere res 512 s=5 opt=50 Quality optimizes cleanly and accepts GPU relax',
+      uSpQ.evaluation.report.triangles<120000&&spQAudit.manifold&&uSpQ.evaluation.report.relax?.acceptedIterations>=1&&uSpQ.evaluation.report.relax?.finalSampleValidationPassed,
+      {report:uSpQ.evaluation.report,audit:spQAudit});
+
     const gpuErrors=await page.evaluate(()=>__qGpuErrs);
     check('Zero GPU uncaptured errors and zero page errors',gpuErrors.length===0&&errors.length===0,{gpuErrors,errors});
     return {pass:true,checks,timings};

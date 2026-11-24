@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 21:55">
+<meta name="frame-version" content="2026 25 nov 01:05">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -22038,6 +22038,7 @@ function qefSolveBoundedCPU(data,counts,id,halfSize,out,work,relCutoff=1e-5){
     let take=bestErr===Infinity;
     if(!take){const tie=qadd(absTie,qmul(QEF_EIGHT_EPS,Math.max(err,bestErr)));take=err<qsub(bestErr,tie)||(Math.abs(qsub(err,bestErr))<=tie&&dist<bestDist);}
     if(take){bestErr=err;bestDist=dist;work[BEST]=x;work[BEST+1]=y;work[BEST+2]=z;}
+    if(active===0&&bestErr<Infinity)break;
   }
   if(!Number.isFinite(bestErr)){out.fill(0,0,8);return -1;}
   out[0]=work[BEST];out[1]=work[BEST+1];out[2]=work[BEST+2];out[3]=bestErr;out[4]=qsqrt(qdiv(bestErr,count));out[5]=sigmaMax;out[6]=sigmaMin;out[7]=rank;
@@ -22066,65 +22067,80 @@ class SparseField {
     for(let i=1;i<512;i++)if(data[i]!==v){this.writable(k).set(data);return;}
     this.map[k]=v;
   }
-  writeSlab(field,first,layers){
-    const [nx,ny]=this.size,[tx,ty]=this.tiles,plane=nx*ny;
-    for(let bz=first>>3;bz<=((first+layers-1)>>3);bz++){
-      const z0=Math.max(first,bz*8),z1=Math.min(first+layers,(bz+1)*8);
-      for(let by=0;by<ty;by++){
-        const y0=by*8,y1=Math.min(ny,y0+8);
-        for(let bx=0;bx<tx;bx++){
-          const x0=bx*8,x1=Math.min(nx,x0+8),k=this.block(bx,by,bz),cur=this.map[k];
-          let diff=false;const ref=cur<32768?cur:field[(z0-first)*plane+y0*nx+x0];
-          if(cur>=32768)diff=true;
-          else{
-            outer:for(let z=z0;z<z1;z++){
-              const zp=(z-first)*plane;
-              for(let y=y0;y<y1;y++){const row=zp+y*nx;for(let x=x0;x<x1;x++)if(field[row+x]!==ref){diff=true;break outer;}}
-            }
-          }
-          if(!diff)continue;
-          const b=this.writable(k);
-          for(let z=z0;z<z1;z++){
-            const zp=(z-first)*plane,lz=(z&7)<<6;
-            for(let y=y0;y<y1;y++){const row=zp+y*nx,ly=lz|((y&7)<<3);for(let x=x0;x<x1;x++)b[ly|(x&7)]=field[row+x];}
-          }
-        }
-      }
-    }
-  }
-  writeTile(pos,size,tileField){
-    const [px,py,pz]=pos,[sx,sy,sz]=size,[nx,ny,nz]=this.size;
+  writeBox(pos,size,pRow,pPlane,baseOffset,field){
+    const [px,py,pz]=pos,[sx,sy,sz]=size,[nx,ny,nz]=this.size,[tx,ty,tz]=this.tiles;
     const xEnd=Math.min(nx,px+sx),yEnd=Math.min(ny,py+sy),zEnd=Math.min(nz,pz+sz);
-    for(let bz=pz>>3;bz<=((zEnd-1)>>3);bz++){
+    for(let bz=pz>>3;bz<tz&&bz<=((zEnd-1)>>3);bz++){
       const z0=Math.max(pz,bz*8),z1=Math.min(zEnd,(bz+1)*8);
-      for(let by=py>>3;by<=((yEnd-1)>>3);by++){
+      for(let by=py>>3;by<ty&&by<=((yEnd-1)>>3);by++){
         const y0=Math.max(py,by*8),y1=Math.min(yEnd,(by+1)*8);
-        for(let bx=px>>3;by<this.tiles[1]&&bx<=((xEnd-1)>>3);bx++){
-          const x0=Math.max(px,bx*8),x1=Math.min(xEnd,(bx+1)*8),k=this.block(bx,by,bz);
-          let diff=this.map[k]>=32768;const ref=this.map[k];
+        for(let bx=px>>3;bx<tx&&bx<=((xEnd-1)>>3);bx++){
+          const x0=Math.max(px,bx*8),x1=Math.min(xEnd,(bx+1)*8),k=this.block(bx,by,bz),cur=this.map[k];
+          let diff=cur>=32768;
+          const freshBrick=(x0&7)===0&&(y0&7)===0&&(z0&7)===0;
+          const ref=cur<32768?(freshBrick?field[baseOffset+(z0-pz)*pPlane+(y0-py)*pRow+(x0-px)]:cur):0;
           if(!diff){
-            outer:for(let z=z0;z<z1;z++)for(let y=y0;y<y1;y++){const tBase=(z-pz)*sx*sy+(y-py)*sx-px;for(let x=x0;x<x1;x++)if(tileField[tBase+x]!==ref){diff=true;break outer;}}
+            outer:for(let z=z0;z<z1;z++){
+              const zb=baseOffset+(z-pz)*pPlane-px;
+              for(let y=y0;y<y1;y++){const row=zb+(y-py)*pRow;for(let x=x0;x<x1;x++)if(field[row+x]!==ref){diff=true;break outer;}}
+            }
+            if(!diff){this.map[k]=ref;continue;}
           }
-          if(!diff)continue;
           const b=this.writable(k);
           for(let z=z0;z<z1;z++){
-            const lz=(z&7)<<6;
-            for(let y=y0;y<y1;y++){const tBase=(z-pz)*sx*sy+(y-py)*sx-px,ly=lz|((y&7)<<3);for(let x=x0;x<x1;x++)b[ly|(x&7)]=tileField[tBase+x];}
+            const zb=baseOffset+(z-pz)*pPlane-px,lz=(z&7)<<6;
+            for(let y=y0;y<y1;y++){const row=zb+(y-py)*pRow,ly=lz|((y&7)<<3);for(let x=x0;x<x1;x++)b[ly|(x&7)]=field[row+x];}
           }
         }
       }
     }
   }
-  different(x,y,z,width,reach){
+  writeSlab(field,first,layers){this.writeBox([0,0,first],[this.size[0],this.size[1],layers],this.size[0],this.size[0]*this.size[1],0,field);}
+  writeTile(pos,size,tileField){this.writeBox(pos,size,size[0],size[0]*size[1],0,tileField);}
+  writeTileCropped(pos,size,pad,paddedField){
+    const pRow=size[0]+2*pad,pPlane=pRow*(size[1]+2*pad);
+    this.writeBox(pos,size,pRow,pPlane,pad*(pPlane+pRow+1),paddedField);
+  }
+  fillTileUniform(pos,size,val){
+    const [px,py,pz]=pos,[sx,sy,sz]=size,[nx,ny,nz]=this.size,[tx,ty,tz]=this.tiles;
+    const xEnd=Math.min(nx,px+sx),yEnd=Math.min(ny,py+sy),zEnd=Math.min(nz,pz+sz);
+    for(let bz=pz>>3;bz<tz&&bz<=((zEnd-1)>>3);bz++)for(let by=py>>3;by<ty&&by<=((yEnd-1)>>3);by++)for(let bx=px>>3;bx<tx&&bx<=((xEnd-1)>>3);bx++){
+      this.map[this.block(bx,by,bz)]=val;
+    }
+  }
+  extractTile(pos,size){
+    const [px,py,pz]=pos,[sx,sy,sz]=size,[nx,ny,nz]=this.size,[tx,ty,tz]=this.tiles;
+    const out=new Int16Array(sx*sy*sz).fill(-4095),pRow=sx,pPlane=sx*sy;
+    const xEnd=Math.min(nx,px+sx),yEnd=Math.min(ny,py+sy),zEnd=Math.min(nz,pz+sz);
+    for(let bz=pz>>3;bz<tz&&bz<=((zEnd-1)>>3);bz++){
+      const z0=Math.max(pz,bz*8),z1=Math.min(zEnd,(bz+1)*8);
+      for(let by=py>>3;by<ty&&by<=((yEnd-1)>>3);by++){
+        const y0=Math.max(py,by*8),y1=Math.min(yEnd,(by+1)*8);
+        for(let bx=px>>3;bx<tx&&bx<=((xEnd-1)>>3);bx++){
+          const x0=Math.max(px,bx*8),x1=Math.min(xEnd,(bx+1)*8),m=this.map[this.block(bx,by,bz)];
+          if(m<32768){
+            if(m===-4095)continue;
+            for(let z=z0;z<z1;z++){const zb=(z-pz)*pPlane-px;for(let y=y0;y<y1;y++)out.fill(m,zb+(y-py)*pRow+x0,zb+(y-py)*pRow+x1);}
+          }else{
+            const br=this.bricks[m-32768];
+            for(let z=z0;z<z1;z++){const zb=(z-pz)*pPlane-px,lz=(z&7)<<6;for(let y=y0;y<y1;y++){const row=zb+(y-py)*pRow,ly=lz|((y&7)<<3);for(let x=x0;x<x1;x++)out[row+x]=br[ly|(x&7)];}}
+          }
+        }
+      }
+    }
+    return out;
+  }
+  differentBox(x,y,z,w,h,d,reach){
     const [nx,ny,nz]=this.size,[tx,ty,tz]=this.tiles;
-    const X=Math.min(tx-1,(x+width-1+reach)>>3),Y=Math.min(ty-1,(y+width-1+reach)>>3),Z=Math.min(tz-1,(z+width-1+reach)>>3);
-    const start=this.map[this.block(Math.min(tx-1,x>>3),Math.min(ty-1,y>>3),Math.min(tz-1,z>>3))];
+    const bx0=Math.max(0,(x-reach)>>3),by0=Math.max(0,(y-reach)>>3),bz0=Math.max(0,(z-reach)>>3);
+    const bx1=Math.min(tx-1,(x+w-1+reach)>>3),by1=Math.min(ty-1,(y+h-1+reach)>>3),bz1=Math.min(tz-1,(z+d-1+reach)>>3);
+    const start=this.map[this.block(Math.min(tx-1,Math.max(0,x>>3)),Math.min(ty-1,Math.max(0,y>>3)),Math.min(tz-1,Math.max(0,z>>3)))];
     if(start>=32768)return true;
-    if(start>0&&(x<reach||y<reach||z<reach||x+width+reach>=nx||y+width+reach>=ny||z+width+reach>=nz))return true;
-    for(let c=Math.max(0,z-reach)>>3;c<=Z;c++)for(let b=Math.max(0,y-reach)>>3;b<=Y;b++)for(let a=Math.max(0,x-reach)>>3;a<=X;a++)
-      if(this.map[this.block(a,b,c)]!==start)return true;
+    if(start>0&&(x<reach||y<reach||z<reach||x+w+reach>=nx||y+h+reach>=ny||z+d+reach>=nz))return true;
+    for(let c=bz0;c<=bz1;c++)for(let b=by0;b<=by1;b++)for(let a=bx0;a<=bx1;a++)if(this.map[this.block(a,b,c)]!==start)return true;
     return false;
   }
+  different(x,y,z,width,reach){return this.differentBox(x,y,z,width,width,width,reach);}
   sample(x,y,z){
     const a=Math.floor(x),b=Math.floor(y),c=Math.floor(z),fx=x-a,fy=y-b,fz=z-c;
     let v=0;
@@ -22159,31 +22175,38 @@ class SparseField {
     return out;
   }
 }
-function halfSparse(src){
-  const out=new SparseField((src.size[0]+1)>>1,(src.size[1]+1)>>1,(src.size[2]+1)>>1),data=new Int16Array(512);
-  for(let z=0;z<out.size[2];z+=8)for(let y=0;y<out.size[1];y+=8)for(let x=0;x<out.size[0];x+=8){
-    const k=out.block(x>>3,y>>3,z>>3);
-    if(!src.different(2*x,2*y,2*z,16,1)){out.map[k]=src.get(2*x,2*y,2*z);continue;}
-    for(let c=0;c<8;c++)for(let b=0;b<8;b++)for(let a=0;a<8;a++){
-      let q=0;
-      for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
-        const px=2*(a+x),py=2*(b+y)+i,pz=2*(c+z)+j;
-        q+=(1+(!i?1:0))*(1+(!j?1:0))*(src.get(px-1,py,pz)+2*src.get(px,py,pz)+src.get(px+1,py,pz));
-      }
-      data[a|((b|((c)<<3))<<3)]=(q/64)|0;
+function buildLocalRestoredSparse(raw,base,smoothed,step,vertices,indices,locks,origin,pitch){
+  const [nx,ny,nz]=raw.size,[tx,ty,tz]=raw.tiles,mark=new Uint8Array(tx*ty*tz);
+  const invP=1/pitch;
+  const markPt=(px,py,pz)=>{
+    const bx=Math.max(0,Math.min(tx-1,Math.floor((px-origin[0])*invP)>>3));
+    const by=Math.max(0,Math.min(ty-1,Math.floor((py-origin[1])*invP)>>3));
+    const bz=Math.max(0,Math.min(tz-1,Math.floor((pz-origin[2])*invP)>>3));
+    for(let dz=-1;dz<=1;dz++)for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      const x=bx+dx,y=by+dy,z=bz+dz;
+      if(x>=0&&x<tx&&y>=0&&y<ty&&z>=0&&z<tz)mark[raw.block(x,y,z)]=1;
     }
-    out.put(k,data);
+  };
+  if(indices?.length){
+    for(let f=0;f<indices.length;f+=3){
+      const ia=indices[f],ib=indices[f+1],ic=indices[f+2];
+      if(locks&&locks[ia]&&locks[ib]&&locks[ic])continue;
+      const ax=vertices[3*ia],ay=vertices[3*ia+1],az=vertices[3*ia+2];
+      const bx=vertices[3*ib],by=vertices[3*ib+1],bz=vertices[3*ib+2];
+      const cx=vertices[3*ic],cy=vertices[3*ic+1],cz=vertices[3*ic+2];
+      markPt(ax,ay,az);markPt(bx,by,bz);markPt(cx,cy,cz);
+      markPt((ax+bx)*0.5,(ay+by)*0.5,(az+bz)*0.5);
+      markPt((bx+cx)*0.5,(by+cy)*0.5,(bz+cz)*0.5);
+      markPt((cx+ax)*0.5,(cy+ay)*0.5,(cz+az)*0.5);
+      markPt((ax+bx+cx)/3,(ay+by+cy)/3,(az+bz+cz)/3);
+    }
+  }else{
+    for(let i=0;i<vertices.length;i+=3)markPt(vertices[i],vertices[i+1],vertices[i+2]);
   }
-  return out;
-}
-function restoreDetailSparse(raw,smoothed,step){
-  let base=raw;for(let s=step;s>1;s>>=1)base=halfSparse(base);
-  const out=new SparseField(...raw.size),inv=1/step,data=new Int16Array(512),reach=Math.ceil(8/step)+2;
-  for(let z=0;z<raw.size[2];z+=8)for(let y=0;y<raw.size[1];y+=8)for(let x=0;x<raw.size[0];x+=8){
-    const k=out.block(x>>3,y>>3,z>>3);
-    if(!smoothed.different(Math.floor(x*inv),Math.floor(y*inv),Math.floor(z*inv),reach,1)&&!raw.different(x,y,z,8,1)){
-      out.map[k]=smoothed.get(Math.floor(x*inv),Math.floor(y*inv),Math.floor(z*inv));continue;
-    }
+  const out=new SparseField(nx,ny,nz),inv=1/step,data=new Int16Array(512);
+  for(let bz=0;bz<tz;bz++)for(let by=0;by<ty;by++)for(let bx=0;bx<tx;bx++){
+    const k=out.block(bx,by,bz);if(!mark[k])continue;
+    const x=bx*8,y=by*8,z=bz*8;
     for(let c=0;c<8;c++)for(let b=0;b<8;b++)for(let a=0;a<8;a++){
       const X=x+a,Y=y+b,Z=z+c,px=X*inv,py=Y*inv,pz=Z*inv;
       let v=smoothed.sample(px,py,pz);const low=base.sample(px,py,pz),fine=raw.get(X,Y,Z);
@@ -22304,7 +22327,7 @@ class CellIndexMap {
   }
 }
 
-let rawSparse=null,filteredSparse=null,hermiteStore=null,filterWorking=null,filterStep=1,hermiteOverflowFlag=false,hermitePending=null;
+let rawSparse=null,filteredSparse=null,hermiteStore=null,filterWorking=null,coarseBase=null,filterStep=1,hermiteOverflowFlag=false,hermitePending=null;
 
 function prepareHermite({optimize,fast}){
   if(!rawSparse||hermiteOverflowFlag)return {status:'FALLBACK'};
@@ -22323,7 +22346,7 @@ function prepareHermite({optimize,fast}){
       let inside=0;
       for(let c=0;c<8;c++)if(rawSparse.get(x+(c&1),y+((c>>1)&1),z+(c>>2))>0)inside++;
       if(inside>0&&inside<8){
-        const ai=cxList.length;if(ai>500000)return {status:'FALLBACK'};
+        const ai=cxList.length;if(ai>1500000)return {status:'FALLBACK'};
         activeMap.set(x,y,z,ai);cxList.push(x);cyList.push(y);czList.push(z);
       }
     }
@@ -22345,7 +22368,7 @@ function prepareHermite({optimize,fast}){
   };
   const edgeVertices=new Int32Array(activeCells*12).fill(-1);
   const neighbors=new Int8Array(24),degree=new Uint8Array(12),visited=new Uint8Array(12),queue=new Uint8Array(12);
-  const edgeActive=new Uint8Array(12),edgePoints=new Float32Array(36),edgeNormals=new Float32Array(36),clusterNormals=new Float32Array(36);
+  const edgeActive=new Uint8Array(12),edgeDirect=new Uint8Array(12),edgePoints=new Float32Array(36),edgeNormals=new Float32Array(36),clusterNormals=new Float32Array(36);
   const corners=new Int32Array(8),localSigns=new Uint8Array(8),work=new Float32Array(64),metaU=new Uint32Array(1),metaF=new Float32Array(metaU.buffer);
   const half=F32(pitch*0.5),cosFeature=F32(Math.cos(44*Math.PI/180));
   metaF[0]=half;const halfBits=metaU[0];
@@ -22353,6 +22376,66 @@ function prepareHermite({optimize,fast}){
   metaF[0]=F32(0.1);const cutSmooth=metaU[0];
   let vertexCount=0,ambiguousFaces=0,directHits=0,fallbackHits=0,hermiteEdges=0;
   const connect=(a,b)=>{neighbors[2*a+degree[a]++]=b;neighbors[2*b+degree[b]++]=a;};
+  const gridFaceKey=(x,y,z,face)=>HermiteStore.key(face<2?2:(face<4?1:0),face===5?x+1:x,face===3?y+1:y,face===1?z+1:z);
+  const flipFaces=new Set();
+  {
+    const ambigCells=[],compId=new Int8Array(12);
+    for(let ai=0;ai<activeCells;ai++){
+      const x=cxList[ai],y=cyList[ai],z=czList[ai];
+      for(let c=0;c<8;c++)localSigns[c]=rawSparse.get(x+(c&1),y+((c>>1)&1),z+(c>>2))>0?1:0;
+      for(let face=0;face<6;face++){
+        const fc=4*face,s0=localSigns[FACE_CORNERS[fc]],s1=localSigns[FACE_CORNERS[fc+1]],s2=localSigns[FACE_CORNERS[fc+2]],s3=localSigns[FACE_CORNERS[fc+3]];
+        if(s0!==s1&&s1!==s2&&s2!==s3){ambigCells.push(ai);break;}
+      }
+    }
+    const inspectPinches=(ai)=>{
+      if(ai<0)return [];
+      const x=cxList[ai],y=cyList[ai],z=czList[ai];
+      for(let c=0;c<8;c++){const v=rawSparse.get(x+(c&1),y+((c>>1)&1),z+(c>>2));corners[c]=v;localSigns[c]=v>0?1:0;}
+      degree.fill(0);neighbors.fill(-1);edgeActive.fill(0);compId.fill(-1);
+      for(let e=0;e<12;e++){if(localSigns[EDGE_CORNERS[2*e]]!==localSigns[EDGE_CORNERS[2*e+1]])edgeActive[e]=1;}
+      const ambF=[];
+      for(let face=0;face<6;face++){
+        let count=0,first=-1,second=-1;const fc=4*face;
+        for(let k=0;k<4;k++){const e=FACE_EDGES[fc+k];if(edgeActive[e]){if(count===0)first=e;else second=e;count++;}}
+        if(count===2)connect(first,second);
+        else if(count===4){
+          ambF.push(face);
+          let sum=0;for(let k=0;k<4;k++)sum+=corners[FACE_CORNERS[fc+k]];
+          let same=(sum>0)===(localSigns[FACE_CORNERS[fc]]!==0);
+          if(flipFaces.has(gridFaceKey(x,y,z,face)))same=!same;
+          const e0=FACE_EDGES[fc],e1=FACE_EDGES[fc+1],e2=FACE_EDGES[fc+2],e3=FACE_EDGES[fc+3];
+          if(same){connect(e0,e1);connect(e2,e3);}else{connect(e3,e0);connect(e1,e2);}
+        }
+      }
+      let cid=0;
+      for(let seed=0;seed<12;seed++)if(edgeActive[seed]&&compId[seed]<0){
+        let h=0,t=1;queue[0]=seed;compId[seed]=cid;
+        while(h<t){
+          const e=queue[h++];if(degree[e]!==2)return null;
+          for(let k=0;k<2;k++){const nb=neighbors[2*e+k];if(compId[nb]<0){compId[nb]=cid;queue[t++]=nb;}}
+        }
+        cid++;
+      }
+      const pinched=[];
+      for(const f of ambF){const fc=4*f;if(compId[FACE_EDGES[fc]]===compId[FACE_EDGES[fc+2]])pinched.push(f);}
+      return pinched;
+    };
+    const nbOff=[[0,0,-1],[0,0,1],[0,-1,0],[0,1,0],[-1,0,0],[1,0,0]];
+    for(const ai of ambigCells){
+      const pinches=inspectPinches(ai);if(!pinches||!pinches.length)continue;
+      const x=cxList[ai],y=cyList[ai],z=czList[ai];
+      for(const f of pinches){
+        const fk=gridFaceKey(x,y,z,f),nb=activeMap.get(x+nbOff[f][0],y+nbOff[f][1],z+nbOff[f][2]);
+        const before=inspectPinches(ai)?.length+(nb>=0?(inspectPinches(nb)?.length||0):0);
+        if(flipFaces.has(fk))flipFaces.delete(fk);else flipFaces.add(fk);
+        const pSelf=inspectPinches(ai),pNb=nb>=0?inspectPinches(nb):[];
+        if(!pSelf||!pNb||(pSelf.length+pNb.length)>=before){
+          if(flipFaces.has(fk))flipFaces.delete(fk);else flipFaces.add(fk);
+        }
+      }
+    }
+  }
   for(let ai=0;ai<activeCells;ai++){
     const x=cxList[ai],y=cyList[ai],z=czList[ai];
     const cx=F32(origin[0]+(x+0.5)*pitch),cy=F32(origin[1]+(y+0.5)*pitch),cz=F32(origin[2]+(z+0.5)*pitch);
@@ -22362,7 +22445,7 @@ function prepareHermite({optimize,fast}){
       const a=EDGE_CORNERS[2*e],b=EDGE_CORNERS[2*e+1];if(localSigns[a]===localSigns[b])continue;
       const axis=EDGE_AXIS[e],st=EDGE_START[e],ex=x+(st&1),ey=y+((st>>1)&1),ez=z+(st>>2);
       const hit=lookupHermiteEdge(hermiteStore,rawSparse,axis,ex,ey,ez,corners[a],corners[b]);
-      edgeActive[e]=1;hermiteEdges++;if(hit.direct)directHits++;else fallbackHits++;
+      edgeActive[e]=1;edgeDirect[e]=hit.direct?1:0;hermiteEdges++;if(hit.direct)directHits++;else fallbackHits++;
       edgePoints[3*e]=F32(origin[0]+(ex+(axis===0?hit.t:0))*pitch);
       edgePoints[3*e+1]=F32(origin[1]+(ey+(axis===1?hit.t:0))*pitch);
       edgePoints[3*e+2]=F32(origin[2]+(ez+(axis===2?hit.t:0))*pitch);
@@ -22375,18 +22458,20 @@ function prepareHermite({optimize,fast}){
       else if(count===4){
         ambiguousFaces++;
         let sum=0;for(let k=0;k<4;k++)sum+=corners[FACE_CORNERS[fc+k]];
-        const same=(sum>0)===(localSigns[FACE_CORNERS[fc]]!==0);
+        let same=(sum>0)===(localSigns[FACE_CORNERS[fc]]!==0);
+        if(flipFaces.has(gridFaceKey(x,y,z,face)))same=!same;
         const e0=FACE_EDGES[fc],e1=FACE_EDGES[fc+1],e2=FACE_EDGES[fc+2],e3=FACE_EDGES[fc+3];
         if(same){connect(e0,e1);connect(e2,e3);}else{connect(e3,e0);connect(e1,e2);}
       }
     }
     for(let seed=0;seed<12;seed++)if(edgeActive[seed]&&!visited[seed]){
       if(vertexCount>=capV)growV();
-      let head=0,tail=1,clusters=0,snx=0,sny=0,snz=0;
+      let head=0,tail=1,clusters=0,snx=0,sny=0,snz=0,hasFb=false;
       queue[0]=seed;visited[seed]=1;qefReset(qefData,qefCounts,vertexCount,cx,cy,cz);
       while(head<tail){
         const e=queue[head++];
         if(degree[e]!==2)return {status:'FALLBACK'};
+        if(!edgeDirect[e])hasFb=true;
         const nx0=edgeNormals[3*e],ny0=edgeNormals[3*e+1],nz0=edgeNormals[3*e+2];
         qefAddPlane(qefData,qefCounts,vertexCount,edgePoints[3*e],edgePoints[3*e+1],edgePoints[3*e+2],nx0,ny0,nz0,work);
         snx+=nx0;sny+=ny0;snz+=nz0;
@@ -22401,7 +22486,7 @@ function prepareHermite({optimize,fast}){
       const nLen=Math.hypot(snx,sny,snz)||1;
       compNorms[3*vertexCount]=snx/nLen;compNorms[3*vertexCount+1]=sny/nLen;compNorms[3*vertexCount+2]=snz/nLen;
       const mb=4*vertexCount;
-      qefMeta[mb]=qefCounts[vertexCount];qefMeta[mb+1]=halfBits;qefMeta[mb+2]=clusters>=2?cutTight:cutSmooth;qefMeta[mb+3]=cls;
+      qefMeta[mb]=qefCounts[vertexCount];qefMeta[mb+1]=halfBits;qefMeta[mb+2]=(clusters>=2&&!hasFb)?cutTight:cutSmooth;qefMeta[mb+3]=cls;
       vertexCount++;
     }
   }
@@ -22435,7 +22520,7 @@ function collectLeafEdges(pending){
   return {quads:quads.subarray(0,qCount*4),edgeNormals:edgeNormals.subarray(0,qCount*3),qCount};
 }
 
-function clusterOctreeMDC(pending,solved,optimize){
+function clusterOctreeMDC(pending,solved,optimize,allowOctree=true){
   const {cxList,cyList,czList,compClass,compCell,compNorms,qefData,qefCounts,vertexCount}=pending;
   const leaf=collectLeafEdges(pending);if(!leaf)return null;
   const {quads,edgeNormals,qCount}=leaf;
@@ -22445,11 +22530,14 @@ function clusterOctreeMDC(pending,solved,optimize){
     positions[3*v]=px+solved[8*v];positions[3*v+1]=py+solved[8*v+1];positions[3*v+2]=pz+solved[8*v+2];
   }
   const rep=Int32Array.from({length:vertexCount},(_,i)=>i);
+  const findRep=x=>{while(rep[x]!==x){rep[x]=rep[rep[x]];x=rep[x];}return x;};
+  const members=Array.from({length:vertexCount},(_,i)=>[i]);
   const classes=new Uint8Array(compClass),curQefData=new Float32Array(qefData),curQefCounts=new Uint32Array(qefCounts);
   const curNorms=new Float32Array(compNorms),curPos=new Float32Array(positions);
   let merges=0,maxLevelUsed=0;
-  if(optimize>0){
-    const cosLim=Math.cos((4+10*(optimize/100))*Math.PI/180),rmsTol=pitch*(0.001+0.02*(optimize/100));
+  if(allowOctree&&optimize>0){
+    const cosLim=optimize>0?Math.cos((4+10*(optimize/100))*Math.PI/180):Math.cos(1.5*Math.PI/180);
+    const rmsTol=optimize>0?pitch*Math.max(0.008,0.001+0.02*(optimize/100)):pitch*0.008;
     const vQuadsOffsets=new Uint32Array(vertexCount+1);
     for(let q=0;q<qCount;q++)for(let k=0;k<4;k++)vQuadsOffsets[quads[4*q+k]+1]++;
     for(let v=0;v<vertexCount;v++)vQuadsOffsets[v+1]+=vQuadsOffsets[v];
@@ -22474,10 +22562,10 @@ function clusterOctreeMDC(pending,solved,optimize){
           const group=[seed];visited.add(seed);
           for(let h=0;h<group.length;h++){
             const v=group[h];
-            for(let i=vQuadsOffsets[v];i<vQuadsOffsets[v+1];i++){
+            for(const m of members[v])for(let i=vQuadsOffsets[m];i<vQuadsOffsets[m+1];i++){
               const q=vQuads[i];
               for(let k=0;k<4;k++){
-                const w=rep[quads[4*q+k]];
+                const w=findRep(quads[4*q+k]);
                 if(inGroup[w]&&!visited.has(w)){visited.add(w);group.push(w);}
               }
             }
@@ -22491,10 +22579,10 @@ function clusterOctreeMDC(pending,solved,optimize){
           // Verify boundary link of star(G) is one single simple cycle (chi === 1 disk collapse).
           const gSet=new Set(group),outerEdges=new Map();
           const incQ=new Set();
-          for(const v of group)for(let i=vQuadsOffsets[v];i<vQuadsOffsets[v+1];i++)incQ.add(vQuads[i]);
+          for(const v of group)for(const m of members[v])for(let i=vQuadsOffsets[m];i<vQuadsOffsets[m+1];i++)incQ.add(vQuads[i]);
           let validDisk=true;
           for(const q of incQ){
-            const r=[rep[quads[4*q]],rep[quads[4*q+1]],rep[quads[4*q+2]],rep[quads[4*q+3]]];
+            const r=[findRep(quads[4*q]),findRep(quads[4*q+1]),findRep(quads[4*q+2]),findRep(quads[4*q+3])];
             const ring=[];for(let k=0;k<4;k++)if(r[k]!==r[(k+1)&3])ring.push(r[k]);
             if(ring.length>1&&ring[0]===ring[ring.length-1])ring.pop();
             if(ring.length<3)continue;
@@ -22512,7 +22600,7 @@ function clusterOctreeMDC(pending,solved,optimize){
           // Trace outer boundary cycle count === 1.
           const adjB=new Map();
           for(const q of incQ){
-            const r=[rep[quads[4*q]],rep[quads[4*q+1]],rep[quads[4*q+2]],rep[quads[4*q+3]]];
+            const r=[findRep(quads[4*q]),findRep(quads[4*q+1]),findRep(quads[4*q+2]),findRep(quads[4*q+3])];
             const ring=[];for(let k=0;k<4;k++)if(r[k]!==r[(k+1)&3])ring.push(r[k]);
             if(ring.length>1&&ring[0]===ring[ring.length-1])ring.pop();
             if(ring.length<3)continue;
@@ -22536,56 +22624,118 @@ function clusterOctreeMDC(pending,solved,optimize){
           const rk=qefSolveBoundedCPU(scratchQef,scratchCount,0,halfParent,sol,work,F32(0.1));
           if(rk<0||!(sol[4]<=rmsTol))continue;
           const mx=F32(mcx+sol[0]),my=F32(mcy+sol[1]),mz=F32(mcz+sol[2]);
+          let gx0=1e30,gx1=-1e30,gy0=1e30,gy1=-1e30,gz0=1e30,gz1=-1e30;
+          for(const v of group){const vx=curPos[3*v],vy=curPos[3*v+1],vz=curPos[3*v+2];if(vx<gx0)gx0=vx;if(vx>gx1)gx1=vx;if(vy<gy0)gy0=vy;if(vy>gy1)gy1=vy;if(vz<gz0)gz0=vz;if(vz>gz1)gz1=vz;}
+          const padB=0.05*pitch;
+          if(mx<gx0-padB||mx>gx1+padB||my<gy0-padB||my>gy1+padB||mz<gz0-padB||mz>gz1+padB)continue;
           if(group.some(v=>Math.abs((curPos[3*v]-mx)*anX+(curPos[3*v+1]-my)*anY+(curPos[3*v+2]-mz)*anZ)>rmsTol))continue;
+          let flipQ=false;
+          const ptOf=u=>u<0?[mx,my,mz]:[curPos[3*u],curPos[3*u+1],curPos[3*u+2]];
+          const triDot=(pa,pb,pc,nx,ny,nz)=>((pb[1]-pa[1])*(pc[2]-pa[2])-(pb[2]-pa[2])*(pc[1]-pa[1]))*nx+((pb[2]-pa[2])*(pc[0]-pa[0])-(pb[0]-pa[0])*(pc[2]-pa[2]))*ny+((pb[0]-pa[0])*(pc[1]-pa[1])-(pb[1]-pa[1])*(pc[0]-pa[0]))*nz;
+          const minA=1e-6*pitch*pitch;
+          for(const q of incQ){
+            const r=[findRep(quads[4*q]),findRep(quads[4*q+1]),findRep(quads[4*q+2]),findRep(quads[4*q+3])].map(u=>gSet.has(u)?-1:u);
+            const rng=[];for(let k=0;k<4;k++)if(r[k]!==r[(k+1)&3])rng.push(r[k]);
+            if(rng.length>1&&rng[0]===rng[rng.length-1])rng.pop();
+            if(rng.length<3)continue;
+            const nx=edgeNormals[3*q],ny=edgeNormals[3*q+1],nz=edgeNormals[3*q+2];
+            if(rng.length===3){
+              if(!(triDot(ptOf(rng[0]),ptOf(rng[1]),ptOf(rng[2]),nx,ny,nz)>minA)){flipQ=true;break;}
+            }else if(rng.length===4){
+              const p0=ptOf(rng[0]),p1=ptOf(rng[1]),p2=ptOf(rng[2]),p3=ptOf(rng[3]);
+              const ok02=triDot(p0,p1,p2,nx,ny,nz)>minA&&triDot(p0,p2,p3,nx,ny,nz)>minA;
+              const ok13=triDot(p0,p1,p3,nx,ny,nz)>minA&&triDot(p1,p2,p3,nx,ny,nz)>minA;
+              if(!ok02&&!ok13){flipQ=true;break;}
+            }
+          }
+          if(flipQ)continue;
           const keepId=group[0];
           curPos[3*keepId]=mx;curPos[3*keepId+1]=my;curPos[3*keepId+2]=mz;
           curNorms[3*keepId]=anX;curNorms[3*keepId+1]=anY;curNorms[3*keepId+2]=anZ;
           curQefData.set(scratchQef,keepId*QEF_STRIDE);curQefCounts[keepId]=scratchCount[0];
-          for(let i=0;i<vertexCount;i++)if(gSet.has(rep[i]))rep[i]=keepId;
+          for(const v of group)if(v!==keepId){
+            rep[v]=keepId;
+            const mv=members[v];
+            for(let mi=0;mi<mv.length;mi++)members[keepId].push(mv[mi]);
+            members[v]=null;
+          }
           levelMerges++;merges++;maxLevelUsed=level;
         }
         for(const v of verts)inGroup[v]=0;
       }
       if(!levelMerges)break;
     }
+    for(let i=0;i<vertexCount;i++)rep[i]=findRep(i);
   }
   const remap=new Int32Array(vertexCount).fill(-1),outPos=[],outCls=[];
   const getV=v=>{const r=rep[v];if(remap[r]<0){remap[r]=outPos.length/3;outPos.push(curPos[3*r],curPos[3*r+1],curPos[3*r+2]);outCls.push(classes[r]);}return remap[r];};
-  const indices=[],ring=[];
-  const crossDot=(a,b,c,nx,ny,nz)=>{
-    const ax=curPos[3*a],ay=curPos[3*a+1],az=curPos[3*a+2];
-    const ux=curPos[3*b]-ax,uy=curPos[3*b+1]-ay,uz=curPos[3*b+2]-az;
-    const vx=curPos[3*c]-ax,vy=curPos[3*c+1]-ay,vz=curPos[3*c+2]-az;
-    return (uy*vz-uz*vy)*nx+(uz*vx-ux*vz)*ny+(ux*vy-uy*vx)*nz;
-  };
-  const area2=(a,b,c)=>{
-    const ax=curPos[3*a],ay=curPos[3*a+1],az=curPos[3*a+2];
-    const ux=curPos[3*b]-ax,uy=curPos[3*b+1]-ay,uz=curPos[3*b+2]-az;
-    const vx=curPos[3*c]-ax,vy=curPos[3*c+1]-ay,vz=curPos[3*c+2]-az;
-    const cx=uy*vz-uz*vy,cy=uz*vx-ux*vz,cz=ux*vy-uy*vx;return cx*cx+cy*cy+cz*cz;
-  };
+  const rKind=new Uint8Array(qCount),rVerts=new Uint32Array(qCount*4);
+  let rCount=0;
+  const ring=[];
   for(let q=0;q<qCount;q++){
     const r0=rep[quads[4*q]],r1=rep[quads[4*q+1]],r2=rep[quads[4*q+2]],r3=rep[quads[4*q+3]];
     ring.length=0;
     for(const r of [r0,r1,r2,r3])if(!ring.length||ring[ring.length-1]!==r)ring.push(r);
     if(ring.length>1&&ring[0]===ring[ring.length-1])ring.pop();
     if(ring.length===3){
-      indices.push(getV(ring[0]),getV(ring[1]),getV(ring[2]));
+      rKind[q]=3;const b=q*4;rVerts[b]=getV(ring[0]);rVerts[b+1]=getV(ring[1]);rVerts[b+2]=getV(ring[2]);rCount++;
     }else if(ring.length===4){
-      const [a,b,c,d]=ring,nx=edgeNormals[3*q],ny=edgeNormals[3*q+1],nz=edgeNormals[3*q+2];
-      const s02=Math.min(crossDot(a,b,c,nx,ny,nz),crossDot(a,c,d,nx,ny,nz));
-      const s13=Math.min(crossDot(a,b,d,nx,ny,nz),crossDot(b,c,d,nx,ny,nz));
-      const a02=Math.min(area2(a,b,c),area2(a,c,d)),a13=Math.min(area2(a,b,d),area2(b,c,d));
-      const use02=(!(a02>0)&&(a13>0))?false:((!(a13>0)&&(a02>0))?true:(s02>=s13));
-      const va=getV(a),vb=getV(b),vc=getV(c),vd=getV(d);
-      if(use02)indices.push(va,vb,vc,va,vc,vd);
-      else indices.push(va,vb,vd,vb,vc,vd);
+      rKind[q]=4;const b=q*4;rVerts[b]=getV(ring[0]);rVerts[b+1]=getV(ring[1]);rVerts[b+2]=getV(ring[2]);rVerts[b+3]=getV(ring[3]);rCount++;
     }
+  }
+  let eCap=1024;while(eCap<qCount*8)eCap*=2;
+  const eMask=eCap-1,eKeys=new Float64Array(eCap).fill(-1);
+  const edgeHas=(u,v)=>{const k=packEdgeKey(u,v);let s=CellIndexMap.hash(k)&eMask;while(eKeys[s]>=0){if(eKeys[s]===k)return true;s=(s+1)&eMask;}return false;};
+  const edgeAdd=(u,v)=>{const k=packEdgeKey(u,v);let s=CellIndexMap.hash(k)&eMask;while(eKeys[s]>=0&&eKeys[s]!==k)s=(s+1)&eMask;eKeys[s]=k;};
+  for(let q=0;q<qCount;q++){
+    const k=rKind[q];if(!k)continue;
+    const b=q*4;
+    for(let j=0;j<k;j++)edgeAdd(rVerts[b+j],rVerts[b+((j+1)%k)]);
+  }
+  const indices=[];
+  const crossDot=(a,b,c,nx,ny,nz)=>{
+    const ax=outPos[3*a],ay=outPos[3*a+1],az=outPos[3*a+2];
+    const ux=outPos[3*b]-ax,uy=outPos[3*b+1]-ay,uz=outPos[3*b+2]-az;
+    const vx=outPos[3*c]-ax,vy=outPos[3*c+1]-ay,vz=outPos[3*c+2]-az;
+    return (uy*vz-uz*vy)*nx+(uz*vx-ux*vz)*ny+(ux*vy-uy*vx)*nz;
+  };
+  const area2=(a,b,c)=>{
+    const ax=outPos[3*a],ay=outPos[3*a+1],az=outPos[3*a+2];
+    const ux=outPos[3*b]-ax,uy=outPos[3*b+1]-ay,uz=outPos[3*b+2]-az;
+    const vx=outPos[3*c]-ax,vy=outPos[3*c+1]-ay,vz=outPos[3*c+2]-az;
+    const cx=uy*vz-uz*vy,cy=uz*vx-ux*vz,cz=ux*vy-uy*vx;return cx*cx+cy*cy+cz*cz;
+  };
+  for(let q=0;q<qCount;q++){
+    const k=rKind[q];if(!k)continue;
+    const b=q*4,va=rVerts[b],vb=rVerts[b+1],vc=rVerts[b+2];
+    if(k===3){indices.push(va,vb,vc);continue;}
+    const vd=rVerts[b+3];
+    if(va===vc||vb===vd)continue;
+    const has02=edgeHas(va,vc),has13=edgeHas(vb,vd);
+    if(has02&&has13){
+      const vm=outPos.length/3;
+      outPos.push(F32((outPos[3*va]+outPos[3*vb]+outPos[3*vc]+outPos[3*vd])*0.25),F32((outPos[3*va+1]+outPos[3*vb+1]+outPos[3*vc+1]+outPos[3*vd+1])*0.25),F32((outPos[3*va+2]+outPos[3*vb+2]+outPos[3*vc+2]+outPos[3*vd+2])*0.25));
+      outCls.push(2);
+      indices.push(va,vb,vm,vb,vc,vm,vc,vd,vm,vd,va,vm);
+      continue;
+    }
+    let use02;
+    if(has02)use02=false;
+    else if(has13)use02=true;
+    else{
+      const nx=edgeNormals[3*q],ny=edgeNormals[3*q+1],nz=edgeNormals[3*q+2];
+      const s02=Math.min(crossDot(va,vb,vc,nx,ny,nz),crossDot(va,vc,vd,nx,ny,nz));
+      const s13=Math.min(crossDot(va,vb,vd,nx,ny,nz),crossDot(vb,vc,vd,nx,ny,nz));
+      const a02=Math.min(area2(va,vb,vc),area2(va,vc,vd)),a13=Math.min(area2(va,vb,vd),area2(vb,vc,vd));
+      use02=(!(a02>0)&&(a13>0))?false:((!(a13>0)&&(a02>0))?true:(s02>=s13));
+    }
+    if(use02){edgeAdd(va,vc);indices.push(va,vb,vc,va,vc,vd);}
+    else{edgeAdd(vb,vd);indices.push(va,vb,vd,vb,vc,vd);}
   }
   return {positions:new Float32Array(outPos),indices:new Uint32Array(indices),vertexClass:new Uint8Array(outCls),merges,maxLevelUsed};
 }
 
-function validateManifoldFast(positions,indices){
+function validateManifoldFast(positions,indices,allowDegenerate=false){
   const nv=positions.length/3,nt=indices.length/3;
   if(!nt||nv<4)return {valid:false,reason:'empty'};
   for(let i=0;i<positions.length;i++)if(!Number.isFinite(positions[i]))return {valid:false,reason:'nonfinite'};
@@ -22625,23 +22775,39 @@ function validateManifoldFast(positions,indices){
       let c=i;do{seen[c]=1;c=nextC(mate[c]-1);}while(!seen[c]);
     }
   }
-  if(degenerateTriangles||boundaryEdges||nonManifoldEdges||inconsistentWindingEdges||badVertexLinks||!(sixVol>0))
+  if((!allowDegenerate&&degenerateTriangles)||boundaryEdges||nonManifoldEdges||inconsistentWindingEdges||badVertexLinks||!(sixVol>0))
     return {valid:false,degenerateTriangles,boundaryEdges,nonManifoldEdges,inconsistentWindingEdges,badVertexLinks,signedVolume:sixVol/6};
-  return {valid:true,watertight:true,degenerateTriangles:0,boundaryEdges:0,nonManifoldEdges:0,inconsistentWindingEdges:0,badVertexLinks:0,signedVolume:sixVol/6};
+  return {valid:true,watertight:true,degenerateTriangles,boundaryEdges:0,nonManifoldEdges:0,inconsistentWindingEdges:0,badVertexLinks:0,signedVolume:sixVol/6};
 }
 
-function repairTinyEdgesFast(mesh,tol,maxCollapses=500){
+function repairTinyEdgesFast(mesh,tol,maxCollapses=4000,degenTol=0){
   const p=mesh.positions,nt=mesh.indices.length/3,nv=p.length/3;
-  const shortA=[],shortB=[],seenShort=new Set();
-  for(let f=0;f<nt;f++)for(let j=0;j<3;j++){
-    const u=mesh.indices[3*f+j],v=mesh.indices[3*f+(j+1)%3];
-    const lo=Math.min(u,v),hi=Math.max(u,v);
-    if(Math.hypot(p[3*lo]-p[3*hi],p[3*lo+1]-p[3*hi+1],p[3*lo+2]-p[3*hi+2])<=tol){
-      const k=packEdgeKey(lo,hi);if(!seenShort.has(k)){seenShort.add(k);shortA.push(lo);shortB.push(hi);}
+  const shortA=[],shortB=[],shortD=[],seenShort=new Set();
+  const pushEdge=(u,v,d)=>{
+    const lo=Math.min(u,v),hi=Math.max(u,v),k=packEdgeKey(lo,hi);
+    if(!seenShort.has(k)){seenShort.add(k);shortA.push(lo);shortB.push(hi);shortD.push(d);}
+  };
+  for(let f=0;f<nt;f++){
+    const ia=mesh.indices[3*f],ib=mesh.indices[3*f+1],ic=mesh.indices[3*f+2];
+    let triDegen=false;
+    if(degenTol>tol){
+      const ax=p[3*ia],ay=p[3*ia+1],az=p[3*ia+2];
+      const ux=p[3*ib]-ax,uy=p[3*ib+1]-ay,uz=p[3*ib+2]-az;
+      const vx=p[3*ic]-ax,vy=p[3*ic+1]-ay,vz=p[3*ic+2]-az;
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx;
+      triDegen=!(nx*nx+ny*ny+nz*nz>0);
+    }
+    const lim=triDegen?degenTol:tol;
+    const vs=[ia,ib,ic];
+    for(let j=0;j<3;j++){
+      const u=vs[j],v=vs[(j+1)%3];
+      const d=Math.hypot(p[3*u]-p[3*v],p[3*u+1]-p[3*v+1],p[3*u+2]-p[3*v+2]);
+      if(d<=lim)pushEdge(u,v,d);
     }
   }
-  if(!shortA.length)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass,collapsed:0};
-  const indices=new Uint32Array(mesh.indices),classes=new Uint8Array(mesh.vertexClass);
+  if(!shortA.length)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass||new Uint8Array(nv).fill(2),collapsed:0};
+  const order=Int32Array.from({length:shortA.length},(_,i)=>i).sort((i,j)=>shortD[i]-shortD[j]);
+  const indices=new Uint32Array(mesh.indices),classes=mesh.vertexClass?new Uint8Array(mesh.vertexClass):new Uint8Array(nv).fill(2);
   const alive=new Uint8Array(nt).fill(1),rep=Int32Array.from({length:nv},(_,i)=>i);
   const vFaces=Array.from({length:nv},()=>[]);
   for(let f=0;f<nt;f++){vFaces[indices[3*f]].push(f);vFaces[indices[3*f+1]].push(f);vFaces[indices[3*f+2]].push(f);}
@@ -22653,22 +22819,27 @@ function repairTinyEdgesFast(mesh,tol,maxCollapses=500){
     return [uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx];
   };
   let collapsed=0;
-  for(let idx=0;idx<shortA.length&&collapsed<maxCollapses;idx++){
+  for(let oi=0;oi<order.length&&collapsed<maxCollapses;oi++){
+    const idx=order[oi];
     let a=findRep(shortA[idx]),b=findRep(shortB[idx]);
     if(a===b)continue;
     if(classes[b]<classes[a]){const t=a;a=b;b=t;}
-    if(classes[b]===0)continue;
-    if(Math.hypot(p[3*a]-p[3*b],p[3*a+1]-p[3*b+1],p[3*a+2]-p[3*b+2])>tol)continue;
+    const d=Math.hypot(p[3*a]-p[3*b],p[3*a+1]-p[3*b+1],p[3*a+2]-p[3*b+2]);
+    if(d>tol&&!(degenTol>tol&&d<=degenTol))continue;
     const fA=vFaces[a],fB=vFaces[b],opp=[],nbrA=new Set(),nbrB=new Set(),linksA=new Set();
-    let shared=0,badFace=false;
+    let shared=0,badFace=false,sharedDegen=false;
     for(let i=0;i<fA.length;i++){
       const f=fA[i];if(!alive[f])continue;
       const x=indices[3*f],y=indices[3*f+1],z=indices[3*f+2];
       const o=[x,y,z].filter(v=>v!==a);if(o.length!==2){badFace=true;break;}
       nbrA.add(o[0]);nbrA.add(o[1]);linksA.add(packEdgeKey(o[0],o[1]));
-      if(o[0]===b||o[1]===b){shared++;opp.push(o[0]===b?o[1]:o[0]);}
+      if(o[0]===b||o[1]===b){
+        shared++;opp.push(o[0]===b?o[1]:o[0]);
+        const nf=triNormal(x,y,z);if(!(nf[0]*nf[0]+nf[1]*nf[1]+nf[2]*nf[2]>0))sharedDegen=true;
+      }
     }
     if(badFace||shared!==2||opp[0]===opp[1])continue;
+    if(!(d<=tol||(sharedDegen&&d<=degenTol)))continue;
     let badLink=false;
     for(let i=0;i<fB.length;i++){
       const f=fB[i];if(!alive[f])continue;
@@ -22681,35 +22852,104 @@ function repairTinyEdgesFast(mesh,tol,maxCollapses=500){
     let commonCnt=0;
     for(const v of nbrA)if(v!==b&&nbrB.has(v))commonCnt++;
     if(commonCnt!==2||!nbrB.has(opp[0])||!nbrB.has(opp[1]))continue;
-    let flip=false;
-    for(let i=0;i<fB.length;i++){
-      const f=fB[i];if(!alive[f])continue;
-      const oa=indices[3*f],ob=indices[3*f+1],oc=indices[3*f+2];
-      const x=oa===b?a:oa,y=ob===b?a:ob,z=oc===b?a:oc;
-      if(x===y||y===z||z===x)continue;
-      const n0=triNormal(oa,ob,oc),n1=triNormal(x,y,z);
-      if(n0[0]*n1[0]+n0[1]*n1[1]+n0[2]*n1[2]<=0){flip=true;break;}
+    const canCollapse=(dst,src)=>{
+      if(!sharedDegen&&classes[src]===0&&d>1e-5)return false;
+      const faces=vFaces[src];
+      for(let i=0;i<faces.length;i++){
+        const f=faces[i];if(!alive[f])continue;
+        const oa=indices[3*f],ob=indices[3*f+1],oc=indices[3*f+2];
+        const x=oa===src?dst:oa,y=ob===src?dst:ob,z=oc===src?dst:oc;
+        if(x===y||y===z||z===x)continue;
+        const n0=triNormal(oa,ob,oc),n1=triNormal(x,y,z);
+        const l0=n0[0]*n0[0]+n0[1]*n0[1]+n0[2]*n0[2],l1=n1[0]*n1[0]+n1[1]*n1[1]+n1[2]*n1[2];
+        if(l0===0&&l1===0)continue;
+        if(l0===0)return false;
+        if(n0[0]*n1[0]+n0[1]*n1[1]+n0[2]*n1[2]<=0)return false;
+      }
+      return true;
+    };
+    let dst=a,src=b;
+    if(!canCollapse(dst,src)){
+      if(sharedDegen&&canCollapse(b,a)){dst=b;src=a;}
+      else continue;
     }
-    if(flip)continue;
-    for(let i=0;i<fB.length;i++){
-      const f=fB[i];if(!alive[f])continue;
-      for(let k=0;k<3;k++)if(indices[3*f+k]===b)indices[3*f+k]=a;
+    const fDst=vFaces[dst],fSrc=vFaces[src];
+    for(let i=0;i<fSrc.length;i++){
+      const f=fSrc[i];if(!alive[f])continue;
+      for(let k=0;k<3;k++)if(indices[3*f+k]===src)indices[3*f+k]=dst;
       const x=indices[3*f],y=indices[3*f+1],z=indices[3*f+2];
-      if(x===y||y===z||z===x)alive[f]=0;else fA.push(f);
+      if(x===y||y===z||z===x)alive[f]=0;else fDst.push(f);
     }
-    fB.length=0;rep[b]=a;classes[a]=Math.min(classes[a],classes[b]);collapsed++;
+    fSrc.length=0;rep[src]=dst;classes[dst]=Math.min(classes[dst],classes[src]);collapsed++;
   }
-  if(!collapsed)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass,collapsed:0};
+  if(!collapsed)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass||new Uint8Array(nv).fill(2),collapsed:0};
   const live=new Uint32Array(nt*3);let lCnt=0;
   for(let f=0;f<nt;f++)if(alive[f]){live[lCnt++]=indices[3*f];live[lCnt++]=indices[3*f+1];live[lCnt++]=indices[3*f+2];}
   const cand=live.subarray(0,lCnt);
-  if(!validateManifoldFast(p,cand).valid)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass,collapsed:0};
+  if(!validateManifoldFast(p,cand,true).valid)return {positions:p,indices:mesh.indices,vertexClass:mesh.vertexClass||new Uint8Array(nv).fill(2),collapsed:0};
   const map=new Int32Array(nv).fill(-1);let c=0;
   for(let i=0;i<lCnt;i++)if(map[cand[i]]<0)map[cand[i]]=c++;
   const outP=new Float32Array(c*3),outC=new Uint8Array(c),outI=new Uint32Array(lCnt);
   for(let o=0;o<nv;o++)if(map[o]>=0){const v=map[o];outP.set(p.subarray(3*o,3*o+3),3*v);outC[v]=classes[o];}
   for(let i=0;i<lCnt;i++)outI[i]=map[cand[i]];
   return {positions:outP,indices:outI,vertexClass:outC,collapsed};
+}
+
+function repairDegenerateTrisFast(positions,indices){
+  const nt=indices.length/3;let fixed=0;
+  const nextC=c=>c%3===2?c-2:c+1,prevC=c=>c%3===0?c+2:c-1;
+  const triN=(a,b,c)=>{
+    const ax=positions[3*a],ay=positions[3*a+1],az=positions[3*a+2];
+    const ux=positions[3*b]-ax,uy=positions[3*b+1]-ay,uz=positions[3*b+2]-az;
+    const vx=positions[3*c]-ax,vy=positions[3*c+1]-ay,vz=positions[3*c+2]-az;
+    return [uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx];
+  };
+  for(let pass=0;pass<4;pass++){
+    let degen=0;
+    for(let f=0;f<nt;f++){
+      const n=triN(indices[3*f],indices[3*f+1],indices[3*f+2]);
+      if(!(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]>0)){degen++;break;}
+    }
+    if(!degen)break;
+    let cap=1024;while(cap<nt*6)cap*=2;
+    const mask=cap-1,keys=new Float64Array(cap).fill(-1),cA=new Int32Array(cap).fill(-1),cB=new Int32Array(cap).fill(-1);
+    const hasEdge=k=>{let s=CellIndexMap.hash(k)&mask;while(keys[s]>=0){if(keys[s]===k)return s;s=(s+1)&mask;}return -1;};
+    for(let f=0;f<nt;f++)for(let j=0;j<3;j++){
+      const u=indices[3*f+j],v=indices[3*f+(j+1)%3],k=packEdgeKey(u,v);
+      let s=CellIndexMap.hash(k)&mask;while(keys[s]>=0&&keys[s]!==k)s=(s+1)&mask;
+      if(keys[s]<0){keys[s]=k;cA[s]=3*f+j;}else if(cB[s]<0)cB[s]=3*f+j;
+    }
+    const lockedF=new Uint8Array(nt);
+    let flippedPass=0;
+    for(let f=0;f<nt;f++){
+      if(lockedF[f])continue;
+      const a=indices[3*f],b=indices[3*f+1],c=indices[3*f+2],nF=triN(a,b,c);
+      if(nF[0]*nF[0]+nF[1]*nF[1]+nF[2]*nF[2]>0)continue;
+      let bestJ=-1,bestL2=-1;
+      for(let j=0;j<3;j++){
+        const u=indices[3*f+j],v=indices[3*f+(j+1)%3];
+        const l2=(positions[3*u]-positions[3*v])**2+(positions[3*u+1]-positions[3*v+1])**2+(positions[3*u+2]-positions[3*v+2])**2;
+        if(l2>bestL2){bestL2=l2;bestJ=j;}
+      }
+      if(bestJ<0)continue;
+      const corner=3*f+bestJ,u=indices[corner],v=indices[nextC(corner)],w=indices[prevC(corner)];
+      const slot=hasEdge(packEdgeKey(u,v));
+      if(slot<0||cB[slot]<0)continue;
+      const mate=cA[slot]===corner?cB[slot]:cA[slot],g=Math.floor(mate/3);
+      if(g===f||lockedF[g])continue;
+      const mu=indices[mate],mv=indices[nextC(mate)],d=indices[prevC(mate)];
+      if(mu!==v||mv!==u||d===w||hasEdge(packEdgeKey(w,d))>=0)continue;
+      const nG=triN(indices[3*g],indices[3*g+1],indices[3*g+2]),lg2=nG[0]*nG[0]+nG[1]*nG[1]+nG[2]*nG[2];
+      const n0=triN(u,d,w),n1=triN(d,v,w),l0=n0[0]*n0[0]+n0[1]*n0[1]+n0[2]*n0[2],l1=n1[0]*n1[0]+n1[1]*n1[1]+n1[2]*n1[2];
+      if(!(l0>0&&l1>0))continue;
+      if(lg2>0?(n0[0]*nG[0]+n0[1]*nG[1]+n0[2]*nG[2]<=0||n1[0]*nG[0]+n1[1]*nG[1]+n1[2]*nG[2]<=0):(n0[0]*n1[0]+n0[1]*n1[1]+n0[2]*n1[2]<=0))continue;
+      indices[3*f]=u;indices[3*f+1]=d;indices[3*f+2]=w;
+      indices[3*g]=d;indices[3*g+1]=v;indices[3*g+2]=w;
+      lockedF[f]=1;lockedF[g]=1;flippedPass++;fixed++;
+    }
+    if(!flippedPass)break;
+  }
+  return fixed;
 }
 
 function snapCoplanarRegions(positions,indices,vertexClass,pitch){
@@ -22745,10 +22985,10 @@ function snapCoplanarRegions(positions,indices,vertexClass,pitch){
       const f=queue[qh++],rnx=snx,rny=sny,rnz=snz,rpd=pd;
       for(let j=0;j<3;j++){
         const nb=fAdj[3*f+j];if(nb<0||faceReg[nb]>=0||fa[nb]<1e-12)continue;
-        if(fn[3*nb]*rnx+fn[3*nb+1]*rny+fn[3*nb+2]*rnz<0.9998)continue;
+        if(fn[3*nb]*rnx+fn[3*nb+1]*rny+fn[3*nb+2]*rnz<0.9985)continue;
         let maxD=0;
         for(let k=0;k<3;k++){const p=3*indices[3*nb+k];maxD=Math.max(maxD,Math.abs(positions[p]*rnx+positions[p+1]*rny+positions[p+2]*rnz-rpd));}
-        if(maxD>0.12*pitch)continue;
+        if(maxD>0.14*pitch)continue;
         faceReg[nb]=pid;queue[qt++]=nb;
         const w=fa[nb],tot=areaSum+w;
         const tx=snx*areaSum+fn[3*nb]*w,ty=sny*areaSum+fn[3*nb+1]*w,tz=snz*areaSum+fn[3*nb+2]*w,tl=Math.hypot(tx,ty,tz)||1;
@@ -22757,40 +22997,111 @@ function snapCoplanarRegions(positions,indices,vertexClass,pitch){
         pd=((pd*(areaSum-w))+(snx*(cx/3)+sny*(cy/3)+snz*(cz/3))*w)/areaSum;
       }
     }
-    if(qt<4||areaSum<1.5*pitch*pitch){
+    if(qt<3||areaSum<0.5*pitch*pitch){
       for(let i=0;i<qt;i++)faceReg[queue[i]]=-1;
       continue;
     }
-    patches.push({nx:snx,ny:sny,nz:snz,d:pd,sumD:0,cnt:0});
+    patches.push({nx:snx,ny:sny,nz:snz,d:pd,sumD:0,cnt:0,avgD:pd});
   }
   if(!patches.length)return {planarPatches:0,snappedVertices:0};
-  const vPatch=new Int32Array(nv).fill(-1);
+  for(let pass=0;pass<2;pass++){
+    let absorbed=0;
+    for(let f=0;f<nt;f++){
+      if(faceReg[f]>=0)continue;
+      const r0=fAdj[3*f]>=0?faceReg[fAdj[3*f]]:-1;
+      const r1=fAdj[3*f+1]>=0?faceReg[fAdj[3*f+1]]:-1;
+      const r2=fAdj[3*f+2]>=0?faceReg[fAdj[3*f+2]]:-1;
+      let cand=-1;
+      if(r0>=0&&(r0===r1||r0===r2))cand=r0;
+      else if(r1>=0&&r1===r2)cand=r1;
+      if(cand<0)continue;
+      const pa=patches[cand];
+      let maxD=0;
+      for(let k=0;k<3;k++){const p=3*indices[3*f+k];maxD=Math.max(maxD,Math.abs(positions[p]*pa.nx+positions[p+1]*pa.ny+positions[p+2]*pa.nz-pa.d));}
+      if(maxD<=0.18*pitch){faceReg[f]=cand;absorbed++;}
+    }
+    if(!absorbed)break;
+  }
+  const vOff=new Uint32Array(nv+1);
+  for(let i=0;i<indices.length;i++)vOff[indices[i]+1]++;
+  for(let v=0;v<nv;v++)vOff[v+1]+=vOff[v];
+  const vFaces=new Uint32Array(vOff[nv]),vCur=new Uint32Array(vOff);
+  for(let f=0;f<nt;f++)for(let k=0;k<3;k++)vFaces[vCur[indices[3*f+k]]++]=f;
+  const vpCnt=new Uint8Array(nv),vp0=new Int32Array(nv).fill(-1),vp1=new Int32Array(nv).fill(-1),vp2=new Int32Array(nv).fill(-1);
   for(let f=0;f<nt;f++){
     const r=faceReg[f];
     for(let k=0;k<3;k++){
-      const v=indices[3*f+k];
-      if(r<0)vPatch[v]=-2;
-      else if(vPatch[v]===-1)vPatch[v]=r;
-      else if(vPatch[v]!==r)vPatch[v]=-2;
+      const v=indices[3*f+k],cnt=vpCnt[v];
+      if(r<0){vpCnt[v]=255;continue;}
+      if(cnt===255)continue;
+      if(cnt===0){vp0[v]=r;vpCnt[v]=1;}
+      else if(r!==vp0[v]&&(cnt<2||r!==vp1[v])&&(cnt<3||r!==vp2[v])){
+        if(cnt===1){vp1[v]=r;vpCnt[v]=2;}
+        else if(cnt===2){vp2[v]=r;vpCnt[v]=3;}
+        else vpCnt[v]=255;
+      }
     }
   }
   for(let v=0;v<nv;v++){
-    const r=vPatch[v];
-    if(r>=0&&vertexClass[v]===2){
-      const pa=patches[r],p=3*v;
+    if(vpCnt[v]===1&&vertexClass[v]===2){
+      const pa=patches[vp0[v]],p=3*v;
       pa.sumD+=pa.nx*positions[p]+pa.ny*positions[p+1]+pa.nz*positions[p+2];
       pa.cnt++;
     }
   }
+  for(const pa of patches)pa.avgD=pa.cnt?pa.sumD/pa.cnt:pa.d;
+  const canMove=(v,nxp,nyp,nzp)=>{
+    for(let i=vOff[v];i<vOff[v+1];i++){
+      const f=vFaces[i],ia=indices[3*f],ib=indices[3*f+1],ic=indices[3*f+2];
+      const ox0=positions[3*ia],oy0=positions[3*ia+1],oz0=positions[3*ia+2];
+      const ox1=positions[3*ib],oy1=positions[3*ib+1],oz1=positions[3*ib+2];
+      const ox2=positions[3*ic],oy2=positions[3*ic+1],oz2=positions[3*ic+2];
+      const ux0=ox1-ox0,uy0=oy1-oy0,uz0=oz1-oz0,vx0=ox2-ox0,vy0=oy2-oy0,vz0=oz2-oz0;
+      const nx0=uy0*vz0-uz0*vy0,ny0=uz0*vx0-ux0*vz0,nz0=ux0*vy0-uy0*vx0;
+      const ax=ia===v?nxp:ox0,ay=ia===v?nyp:oy0,az=ia===v?nzp:oz0;
+      const bx=ib===v?nxp:ox1,by=ib===v?nyp:oy1,bz=ib===v?nzp:oz1;
+      const cx=ic===v?nxp:ox2,cy=ic===v?nyp:oy2,cz=ic===v?nzp:oz2;
+      const ux=bx-ax,uy=by-ay,uz=bz-az,vx=cx-ax,vy=cy-ay,vz=cz-az;
+      const n1x=uy*vz-uz*vy,n1y=uz*vx-ux*vz,n1z=ux*vy-uy*vx;
+      if(!(n1x*n1x+n1y*n1y+n1z*n1z>1e-18)||!(nx0*n1x+ny0*n1y+nz0*n1z>0))return false;
+    }
+    return true;
+  };
   let snappedVertices=0;
-  for(const pa of patches){if(pa.cnt)pa.avgD=pa.sumD/pa.cnt;}
   for(let v=0;v<nv;v++){
-    const r=vPatch[v];
-    if(r>=0&&vertexClass[v]===2){
-      const pa=patches[r],p=3*v,err=pa.nx*positions[p]+pa.ny*positions[p+1]+pa.nz*positions[p+2]-pa.avgD;
-      if(Math.abs(err)<=0.1*pitch){
-        positions[p]=F32(positions[p]-pa.nx*err);positions[p+1]=F32(positions[p+1]-pa.ny*err);positions[p+2]=F32(positions[p+2]-pa.nz*err);
-        snappedVertices++;
+    const cnt=vpCnt[v],p=3*v,x=positions[p],y=positions[p+1],z=positions[p+2];
+    if(cnt===1&&vertexClass[v]===2){
+      const pa=patches[vp0[v]],err=pa.nx*x+pa.ny*y+pa.nz*z-pa.avgD;
+      if(Math.abs(err)<=0.12*pitch){
+        const nx=F32(x-pa.nx*err),ny=F32(y-pa.ny*err),nz=F32(z-pa.nz*err);
+        if(canMove(v,nx,ny,nz)){positions[p]=nx;positions[p+1]=ny;positions[p+2]=nz;snappedVertices++;}
+      }
+    }else if(cnt===2){
+      const p0=patches[vp0[v]],p1=patches[vp1[v]],c=p0.nx*p1.nx+p0.ny*p1.ny+p0.nz*p1.nz,denom=1-c*c;
+      if(denom>0.02){
+        const e0=p0.avgD-(p0.nx*x+p0.ny*y+p0.nz*z),e1=p1.avgD-(p1.nx*x+p1.ny*y+p1.nz*z);
+        const a=(e0-c*e1)/denom,b=(e1-c*e0)/denom;
+        const dx=a*p0.nx+b*p1.nx,dy=a*p0.ny+b*p1.ny,dz=a*p0.nz+b*p1.nz;
+        if(Math.hypot(dx,dy,dz)<=0.2*pitch){
+          const nx=F32(x+dx),ny=F32(y+dy),nz=F32(z+dz);
+          if(canMove(v,nx,ny,nz)){positions[p]=nx;positions[p+1]=ny;positions[p+2]=nz;snappedVertices++;}
+        }
+      }
+    }else if(cnt===3){
+      const p0=patches[vp0[v]],p1=patches[vp1[v]],p2=patches[vp2[v]];
+      const c0x=p1.ny*p2.nz-p1.nz*p2.ny,c0y=p1.nz*p2.nx-p1.nx*p2.nz,c0z=p1.nx*p2.ny-p1.ny*p2.nx;
+      const det=p0.nx*c0x+p0.ny*c0y+p0.nz*c0z;
+      if(Math.abs(det)>0.05){
+        const c1x=p2.ny*p0.nz-p2.nz*p0.ny,c1y=p2.nz*p0.nx-p2.nx*p0.nz,c1z=p2.nx*p0.ny-p2.ny*p0.nx;
+        const c2x=p0.ny*p1.nz-p0.nz*p1.ny,c2y=p0.nz*p1.nx-p0.nx*p1.nz,c2z=p0.nx*p1.ny-p0.ny*p1.nx;
+        const invD=1/det;
+        const tx=(p0.avgD*c0x+p1.avgD*c1x+p2.avgD*c2x)*invD;
+        const ty=(p0.avgD*c0y+p1.avgD*c1y+p2.avgD*c2y)*invD;
+        const tz=(p0.avgD*c0z+p1.avgD*c1z+p2.avgD*c2z)*invD;
+        if(Math.hypot(tx-x,ty-y,tz-z)<=0.3*pitch){
+          const nx=F32(tx),ny=F32(ty),nz=F32(tz);
+          if(canMove(v,nx,ny,nz)){positions[p]=nx;positions[p+1]=ny;positions[p+2]=nz;snappedVertices++;}
+        }
       }
     }
   }
@@ -22805,12 +23116,23 @@ function finishHermite({solved,optimize,fast,qefBytes=0}){
     if(reuseRes)reuseRes.details.extraction='hermite-mdc-gpu-qef';
     return reuseRes||{fallback:true};
   }
-  const runExtract=(opt)=>{
-    const mdc=clusterOctreeMDC(pending,solved,opt);
+  const runExtract=(opt,allowOctree=true)=>{
+    const mdc=clusterOctreeMDC(pending,solved,opt,allowOctree);
     if(!mdc)return null;
-    const tinyTol=Math.max(1e-5,pitch*1e-4);
-    const repaired=repairTinyEdgesFast(mdc,tinyTol,500);
+    const tinyTol=Math.max(1e-5,pitch*1e-4),degenTol=Math.max(tinyTol,pitch*0.25);
+    const maxCol=Math.max(4000,Math.floor((mdc.indices.length/3)*0.05));
+    let repaired=repairTinyEdgesFast(mdc,tinyTol,maxCol,degenTol);
+    repairDegenerateTrisFast(repaired.positions,repaired.indices);
+    if(validateManifoldFast(repaired.positions,repaired.indices).degenerateTriangles>0){
+      const mid=repairTinyEdgesFast(repaired,tinyTol,maxCol,degenTol);
+      if(mid.collapsed){repaired=mid;repairDegenerateTrisFast(repaired.positions,repaired.indices);}
+    }
     const snapped=snapCoplanarRegions(repaired.positions,repaired.indices,repaired.vertexClass,pitch);
+    const flippedDegen=repairDegenerateTrisFast(repaired.positions,repaired.indices);
+    if(flippedDegen||validateManifoldFast(repaired.positions,repaired.indices).degenerateTriangles>0){
+      const extra=repairTinyEdgesFast(repaired,tinyTol,maxCol,degenTol);
+      if(extra.collapsed){repaired=extra;repairDegenerateTrisFast(repaired.positions,repaired.indices);}
+    }
     const preCheck=validateManifoldFast(repaired.positions,repaired.indices);
     if(!preCheck.valid)return null;
     surface=api.begin_surface();
@@ -22820,17 +23142,26 @@ function finishHermite({solved,optimize,fast,qefBytes=0}){
       new Uint32Array(api.memory.buffer,api.surface_indices(surface),repaired.indices.length).set(repaired.indices);
       const qStart=performance.now();
       let collapsed=0,planarVerticesRemoved=0,stripVerticesRemoved=0;
-      const runOpt=fast?(snapped.planarPatches>0?Math.max(opt,3):0):(opt||(snapped.planarPatches>0?3:0));
+      const runOpt=snapped.planarPatches>0?Math.max(opt,22):(fast?opt:Math.max(opt,3));
       if(runOpt>0){
         const counts=allocate(8);
         try{
-          collapsed=api.refine_contour(surface,fast?0:volume,...(origin||[0,0,0]),pitch,runOpt,counts);
+          collapsed=api.refine_contour(surface,volume,...(origin||[0,0,0]),pitch,runOpt,counts);
           [planarVerticesRemoved,stripVerticesRemoved]=new Uint32Array(api.memory.buffer,counts,2);
         }finally{api.free(counts);}
       }
       const refineMs=performance.now()-qStart;
-      const result=finishSurface(pitch);
-      const postCheck=validateManifoldFast(result.vertices,result.indices);
+      let result=finishSurface(pitch);
+      let postCheck=validateManifoldFast(result.vertices,result.indices);
+      if(!postCheck.valid&&postCheck.degenerateTriangles>0&&!postCheck.boundaryEdges&&!postCheck.nonManifoldEdges&&!postCheck.inconsistentWindingEdges&&!postCheck.badVertexLinks&&postCheck.signedVolume>0){
+        repairDegenerateTrisFast(result.vertices,result.indices);
+        const postExtra=repairTinyEdgesFast({positions:result.vertices,indices:result.indices},tinyTol,maxCol,degenTol);
+        if(postExtra.collapsed){
+          repairDegenerateTrisFast(postExtra.positions,postExtra.indices);
+          result={...result,vertices:postExtra.positions,indices:postExtra.indices};
+        }
+        postCheck=validateManifoldFast(result.vertices,result.indices);
+      }
       if(!postCheck.valid)return null;
       Object.assign(result.details,{
         extraction:'hermite-mdc-gpu-qef',
@@ -22847,8 +23178,9 @@ function finishHermite({solved,optimize,fast,qefBytes=0}){
       return result;
     }finally{if(surface){api.end_surface(surface);surface=0;}}
   };
-  let out=runExtract(optimize);
-  if(!out&&optimize>0)out=runExtract(0);
+  let out=runExtract(optimize,true);
+  if(!out&&optimize>0)out=runExtract(0,true);
+  if(!out)out=runExtract(0,false);
   if(!out)return {fallback:true};
   if(fast&&out.vertices.byteLength+out.indices.byteLength<=48*1024*1024){
     fastMesh={hermite:true,smoothing:0,optimize,exactFacets:false,vertices:out.vertices.slice(),indices:out.indices.slice(),details:out.details};
@@ -22858,8 +23190,6 @@ function finishHermite({solved,optimize,fast,qefBytes=0}){
 }
 
 function exportRelaxInput({vertices,indices,vertexClass,smoothing,pitch:p}){
-  const field=smoothing>0&&filteredSparse?filteredSparse:rawSparse;
-  if(!field)return null;
   const nv=vertices.length/3,nt=indices.length/3;
   const fn=new Float64Array(nt*3),avg=new Float64Array(nv*3),edgeMax=new Float32Array(nv);
   for(let f=0;f<nt;f++){
@@ -22883,13 +23213,22 @@ function exportRelaxInput({vertices,indices,vertexClass,smoothing,pitch:p}){
     for(let k=0;k<3;k++){const v=indices[3*f+k],d=nx*avg[3*v]+ny*avg[3*v+1]+nz*avg[3*v+2];if(d<minDot[v])minDot[v]=d;}
   }
   const outCls=new Uint8Array(nv),locks=new Uint8Array(nv);
+  const flatDot=smoothing>0?0.99999:0.9999;
+  const maxRelaxEdge=smoothing>0?Math.max(6*p,smoothing*1.25):4*p;
   let freeVertices=0;
   for(let v=0;v<nv;v++){
     const c=vertexClass?vertexClass[v]:2;
     if(c===0||minDot[v]<0.72){outCls[v]=c===1?1:0;locks[v]=1;}
-    else if(minDot[v]>0.9985||edgeMax[v]>2.2*p){outCls[v]=2;locks[v]=1;}
+    else if(minDot[v]>flatDot||edgeMax[v]>maxRelaxEdge){outCls[v]=2;locks[v]=1;}
     else{outCls[v]=2;locks[v]=0;freeVertices++;}
   }
+  if(!freeVertices)return {freeVertices:0};
+  let field=rawSparse;
+  if(smoothing>0){
+    if(filteredSparse)field=filteredSparse;
+    else if(filterStep>1&&filterWorking&&coarseBase&&rawSparse)field=buildLocalRestoredSparse(rawSparse,coarseBase,filterWorking,filterStep,vertices,indices,locks,origin,p);
+  }
+  if(!field)return null;
   return {packedField:field.packForGPU(),dims:field.size,origin,pitch:p,vertexClass:outCls,vertexLocks:locks,freeVertices};
 }
 
@@ -23118,7 +23457,7 @@ self.onmessage=async({data})=>{
       if(volume){api.end_volume(volume);volume=0;}
       volume=api.begin_volume(...grid);
       rawSparse=new SparseField(...grid);filteredSparse=null;hermiteStore=new HermiteStore(...grid);
-      filterWorking=null;filterStep=1;hermiteOverflowFlag=false;hermitePending=null;fastMesh=null;lastRadius=-1;
+      filterWorking=null;coarseBase=null;filterStep=1;hermiteOverflowFlag=false;hermitePending=null;fastMesh=null;lastRadius=-1;
       postMessage({value:true});
     }else if(data.operation==='slab'){
       const ptr=allocate(data.field.byteLength);
@@ -23133,15 +23472,26 @@ self.onmessage=async({data})=>{
     }else if(data.operation==='filter'){
       filterStep=api.begin_filter(volume,data.radius);
       if(data.radius>0&&rawSparse){
-        filteredSparse=filterStep===1?new SparseField(...grid):null;
-        filterWorking=filterStep>1?new SparseField(Math.ceil(grid[0]/filterStep),Math.ceil(grid[1]/filterStep),Math.ceil(grid[2]/filterStep)):null;
-      }else{filteredSparse=null;filterWorking=null;}
+        if(filterStep===1){filteredSparse=new SparseField(...grid);filterWorking=null;coarseBase=null;}
+        else{
+          filteredSparse=null;
+          const wd=[Math.ceil(grid[0]/filterStep),Math.ceil(grid[1]/filterStep),Math.ceil(grid[2]/filterStep)];
+          filterWorking=new SparseField(...wd);coarseBase=new SparseField(...wd);
+        }
+      }else{filteredSparse=null;filterWorking=null;coarseBase=null;}
       postMessage({value:filterStep});
     }else if(data.operation==='tile'||data.operation==='accept'){
       const {pos,size,pad=0}=data,length=size.reduce((a,b)=>a*(b+2*pad),1),ptr=allocate(2*length);
       try{
         if(data.operation==='tile'){
           const active=api.filter_tile(volume,...pos,...size,pad,ptr),value=active?new Int16Array(api.memory.buffer,ptr,length).slice():null;
+          if(filterStep>1&&coarseBase){
+            if(value)coarseBase.writeTileCropped(pos,size,pad,value);
+            else if(rawSparse&&filterWorking){
+              const uVal=rawSparse.get(pos[0]*filterStep,pos[1]*filterStep,pos[2]*filterStep);
+              coarseBase.fillTileUniform(pos,size,uVal);filterWorking.fillTileUniform(pos,size,uVal);
+            }
+          }
           postMessage({value},value?[value.buffer]:[]);
         }else{
           new Int16Array(api.memory.buffer,ptr,length).set(data.field);api.accept_filter_tile(volume,...pos,...size,ptr);
@@ -23151,17 +23501,47 @@ self.onmessage=async({data})=>{
       }finally{api.free(ptr);}
     }else if(data.operation==='filterDone'){
       api.finish_filter(volume);
-      if(rawSparse){
-        if(filterStep>1&&filterWorking)filteredSparse=restoreDetailSparse(rawSparse,filterWorking,filterStep);
-        else if(filteredSparse){
-          const [tx,ty,tz]=filteredSparse.tiles;
-          for(let bz=0;bz<tz;bz++)for(let by=0;by<ty;by++)for(let bx=0;bx<tx;bx++){
-            const k=filteredSparse.block(bx,by,bz);
-            if(filteredSparse.map[k]===-4095&&!rawSparse.different(bx*8,by*8,bz*8,8,1))filteredSparse.map[k]=rawSparse.get(bx*8,by*8,bz*8);
+      if(filterStep===1&&rawSparse&&filteredSparse){
+        const [tx,ty,tz]=filteredSparse.tiles;
+        for(let bz=0;bz<tz;bz++)for(let by=0;by<ty;by++)for(let bx=0;bx<tx;bx++){
+          const k=filteredSparse.block(bx,by,bz);
+          if(filteredSparse.map[k]===-4095&&!rawSparse.different(bx*8,by*8,bz*8,8,1))filteredSparse.map[k]=rawSparse.get(bx*8,by*8,bz*8);
+        }
+      }
+      postMessage({value:true});
+    }else if(data.operation==='beginRestore'){
+      api.begin_filter(volume,0.5);
+      const basePacked=coarseBase.packForGPU(),smoothPacked=filterWorking.packForGPU();
+      postMessage({value:{basePacked,smoothPacked,workingDims:filterWorking.size}},[basePacked.buffer,smoothPacked.buffer]);
+    }else if(data.operation==='restoreTile'){
+      const {pos,size}=data,[x,y,z]=pos,[w,h,d]=size,s=filterStep;
+      const rawVar=rawSparse.differentBox(x,y,z,w,h,d,1);
+      const cx0=Math.floor(x/s),cy0=Math.floor(y/s),cz0=Math.floor(z/s);
+      const cw=Math.ceil(w/s)+2,ch=Math.ceil(h/s)+2,cd=Math.ceil(d/s)+2;
+      const smVar=filterWorking.differentBox(cx0,cy0,cz0,cw,ch,cd,1)||coarseBase.differentBox(cx0,cy0,cz0,cw,ch,cd,1);
+      let handled=false;
+      if(!rawVar&&!smVar){
+        const ux=Math.min(filterWorking.size[0]-1,cx0),uy=Math.min(filterWorking.size[1]-1,cy0),uz=Math.min(filterWorking.size[2]-1,cz0);
+        const uVal=filterWorking.get(ux,uy,uz),bVal=coarseBase.get(ux,uy,uz),rVal=rawSparse.get(x,y,z);
+        if(uVal===rVal||(bVal===rVal)){
+          if(uVal===-4095){handled=true;}
+          else if(uVal===4095){
+            const ptr=allocate(w*h*d*2);
+            try{new Int16Array(api.memory.buffer,ptr,w*h*d).fill(uVal);api.accept_filter_tile(volume,x,y,z,w,h,d,ptr);}
+            finally{api.free(ptr);}
+            handled=true;
           }
         }
-        filterWorking=null;
       }
+      if(handled){postMessage({value:null});}
+      else{const tile=rawSparse.extractTile(pos,size);postMessage({value:tile},[tile.buffer]);}
+    }else if(data.operation==='acceptRestore'){
+      const {pos,size,field}=data,ptr=allocate(field.byteLength);
+      try{new Int16Array(api.memory.buffer,ptr,field.length).set(field);api.accept_filter_tile(volume,...pos,...size,ptr);}
+      finally{api.free(ptr);}
+      postMessage({value:true});
+    }else if(data.operation==='finishRestore'){
+      api.finish_filter(volume);
       postMessage({value:true});
     }else if(data.operation==='prepareHermite'){
       const value=prepareHermite(data);
@@ -23174,7 +23554,7 @@ self.onmessage=async({data})=>{
       postMessage({value},transfers);
     }else if(data.operation==='exportRelaxInput'){
       const value=exportRelaxInput(data);
-      const transfers=value?[value.packedField.buffer,value.vertexClass.buffer,value.vertexLocks.buffer]:[];
+      const transfers=value?.packedField?[value.packedField.buffer,value.vertexClass.buffer,value.vertexLocks.buffer]:[];
       postMessage({value},transfers);
     }else if(data.operation==='mesh'){
       const value=mesh(data);postMessage({value},value?[value.vertices.buffer,value.indices.buffer]:[]);
@@ -23449,7 +23829,7 @@ fn filtered(i:u32)->u32{
                         let cosine=dot(firstNormal,lastNormal)*inverseSqrt(max(1e-12,dot(firstNormal,firstNormal)*dot(lastNormal,lastNormal)));
                         let near=max(0.,max(previous,-cut));
                         let strength=(1.-smoothstep(.65,1.75,near))*(1.-smoothstep(p.support.x,2.*p.support.x+1.,thickness));
-                        protect=max(protect,strength*smoothstep(.78,.94,-cosine));
+                        protect=max(protect,strength*smoothstep(.88,.97,-cosine));
                     }
                     firstNormal=grad(u32(i32(k)-2*t));previous=cut;
                 }
@@ -23463,6 +23843,69 @@ fn filtered(i:u32)->u32{
 @compute @workgroup_size(64)
 fn blurZ(@builtin(global_invocation_id) g:vec3<u32>){
     let i=2u*linear(g);if(i>=p.output.x*p.output.y*p.output.z){return;}result[i/2u]=filtered(i)|(filtered(i+1u)<<16u);
+}
+
+</script>
+<script id="frame-unite-restore-wgsl" type="text/plain">
+struct RestoreParams { tileOrigin: vec4<u32>, tileSize: vec4<u32>, coarseDims: vec4<u32>, invStep: vec4<f32> };
+@group(0) @binding(0) var<storage,read> rawTile: array<u32>;
+@group(0) @binding(1) var<storage,read> basePacked: array<i32>;
+@group(0) @binding(2) var<storage,read> smoothPacked: array<i32>;
+@group(0) @binding(3) var<storage,read_write> outTile: array<u32>;
+@group(0) @binding(4) var<uniform> rp: RestoreParams;
+
+fn unpackTileI16(i:u32)->f32{
+    let w=rawTile[i>>1u]>>((i&1u)*16u);
+    return f32(bitcast<i32>(w<<16u)>>16u);
+}
+fn readPackedAt(isSmooth:bool,x:i32,y:i32,z:i32)->f32{
+    if(x<0||y<0||z<0||u32(x)>=rp.coarseDims.x||u32(y)>=rp.coarseDims.y||u32(z)>=rp.coarseDims.z){return -4095.;}
+    let tx=u32(select(basePacked[0],smoothPacked[0],isSmooth));
+    let ty=u32(select(basePacked[1],smoothPacked[1],isSmooth));
+    let nTiles=u32(select(basePacked[3],smoothPacked[3],isSmooth));
+    let bx=u32(x)>>3u;let by=u32(y)>>3u;let bz=u32(z)>>3u;
+    let k=4u+bx+tx*(by+ty*bz);
+    let m=select(basePacked[k],smoothPacked[k],isSmooth);
+    if(m==-1){return -4095.;}
+    if(m==-2){return 4095.;}
+    let off=(u32(x)&7u)|((u32(y)&7u)<<3u)|((u32(z)&7u)<<6u);
+    let idx=4u+nTiles+(u32(m)<<8u)+(off>>1u);
+    let rawWord=u32(select(basePacked[idx],smoothPacked[idx],isSmooth));
+    let s=rawWord>>((off&1u)*16u);
+    return f32(bitcast<i32>(s<<16u)>>16u);
+}
+fn sampleCoarse(isSmooth:bool,px:f32,py:f32,pz:f32)->f32{
+    let fx0=floor(px);let fy0=floor(py);let fz0=floor(pz);
+    let a=i32(fx0);let b=i32(fy0);let c=i32(fz0);
+    let fx=px-fx0;let fy=py-fy0;let fz=pz-fz0;
+    var v=0.;
+    for(var k=0i;k<2i;k++){
+        let wz=select(1.-fz,fz,k!=0);
+        for(var j=0i;j<2i;j++){
+            let wy=select(1.-fy,fy,j!=0);
+            v+=wz*wy*((1.-fx)*readPackedAt(isSmooth,a,b+j,c+k)+fx*readPackedAt(isSmooth,a+1i,b+j,c+k));
+        }
+    }
+    return v;
+}
+fn evalRestore(idx:u32)->u32{
+    if(idx>=rp.tileSize.w){return 0u;}
+    let plane=rp.tileSize.x*rp.tileSize.y;
+    let lx=idx%rp.tileSize.x;let ly=(idx/rp.tileSize.x)%rp.tileSize.y;let lz=idx/plane;
+    let gx=rp.tileOrigin.x+lx;let gy=rp.tileOrigin.y+ly;let gz=rp.tileOrigin.z+lz;
+    let px=f32(gx)*rp.invStep.x;let py=f32(gy)*rp.invStep.x;let pz=f32(gz)*rp.invStep.x;
+    var v=sampleCoarse(true,px,py,pz);
+    let low=sampleCoarse(false,px,py,pz);
+    let fine=unpackTileI16(idx);
+    let retain=clamp((abs(low)/4095.-0.55)/0.4,0.,1.);
+    if(low*fine<0.||abs(fine)<4095.){v+=retain*(fine-low);}
+    return u32(i32(clamp(round(v),-4095.,4095.)))&65535u;
+}
+@compute @workgroup_size(64)
+fn restore(@builtin(global_invocation_id) g:vec3<u32>){
+    let i=g.x+g.y*4194240u;let idx=2u*i;
+    if(idx>=rp.tileSize.w){return;}
+    outTile[i]=evalRestore(idx)|(evalRestore(idx+1u)<<16u);
 }
 
 </script>
@@ -23591,6 +24034,7 @@ fn solveQef(@builtin(global_invocation_id) g:vec3<u32>){
             take=err<bestError-tie||(abs(err-bestError)<=tie&&dist<bestDist);
         }
         if(take){hasBest=true;bestError=err;bestDist=dist;bestPos=cand;}
+        if(act==0u&&hasBest){break;}
     }
     qefOut[ob]=bestPos.x;qefOut[ob+1u]=bestPos.y;qefOut[ob+2u]=bestPos.z;
     qefOut[ob+3u]=bestError;qefOut[ob+4u]=sqrt(bestError/f32(count));
@@ -23612,7 +24056,7 @@ struct RelaxParams {
 @group(0) @binding(2) var<storage,read_write> proposal: array<f32>;
 @group(0) @binding(3) var<storage,read_write> refNormals: array<vec4<f32>>;
 @group(0) @binding(4) var<storage,read_write> normals: array<vec4<f32>>;
-@group(0) @binding(5) var<storage,read_write> vertexState: array<u32>;
+@group(0) @binding(5) var<storage,read_write> vertexState: array<atomic<u32>>;
 @group(0) @binding(6) var<storage,read> adjBuf: array<u32>;
 @group(0) @binding(7) var<storage,read> indices: array<u32>;
 @group(0) @binding(8) var<storage,read> fieldBuf: array<i32>;
@@ -23699,7 +24143,7 @@ fn relaxPrepare(@builtin(global_invocation_id) g:vec3<u32>){
     limit=min(limit,refNormals[v].w);
     if(!(limit>0.)||!isFiniteF(limit)){limit=0.;}
     normals[v]=vec4<f32>(curN,limit);
-    let st=vertexState[v];let cls=st&3u;
+    let st=atomicLoad(&vertexState[v]);let cls=st&3u;
     var frozen=false;
     if(cls==0u){frozen=true;atomicAdd(&statusBuf[2],1u);}
     else if(cls==1u&&p.counts.w==0u){frozen=true;atomicAdd(&statusBuf[3],1u);}
@@ -23707,7 +24151,7 @@ fn relaxPrepare(@builtin(global_invocation_id) g:vec3<u32>){
         (!(mag>0.)||!isFiniteF(mag)||dot(refNormals[v].xyz,curN)<=p.relaxA.y))){
         frozen=true;atomicAdd(&statusBuf[4],1u);
     }
-    vertexState[v]=(st&0xffu)|(select(0u,1u,frozen)<<8u);
+    atomicStore(&vertexState[v],(st&0xffu)|(select(0u,1u,frozen)<<8u));
 }
 
 @compute @workgroup_size(64)
@@ -23715,7 +24159,7 @@ fn relaxPropose(@builtin(global_invocation_id) g:vec3<u32>){
     let v=linear(g);if(v>=p.counts.x){return;}
     let pos=loadPosA(v);
     let p3=3u*v;proposal[p3]=pos.x;proposal[p3+1u]=pos.y;proposal[p3+2u]=pos.z;
-    let st=vertexState[v];
+    let st=atomicLoad(&vertexState[v]);
     if(((st>>8u)&1u)!=0u){return;}
     let cls=st&3u;let deg=(st>>4u)&15u;
     let nw=normals[v];let n=nw.xyz;let limit=nw.w;
@@ -23746,11 +24190,31 @@ fn relaxPropose(@builtin(global_invocation_id) g:vec3<u32>){
     proposal[p3]=outP.x;proposal[p3+1u]=outP.y;proposal[p3+2u]=outP.z;
 }
 
+fn withinDistTol(pos:vec3<f32>)->bool{
+    let fg=sampleField(pos);
+    if(!isFiniteF(fg.w)||abs(fg.w)>=1e37){return false;}
+    var dist=abs(fg.w);
+    if(p.counts.z!=1u){
+        let mag=length(fg.xyz);
+        if(!(mag>0.)||!isFiniteF(mag)){return false;}
+        dist/=mag;
+    }
+    return isFiniteF(dist)&&dist<=p.relaxA.w;
+}
+fn sampleDistEst(pos:vec3<f32>)->f32{
+    let fg=sampleField(pos);
+    if(!isFiniteF(fg.w)||abs(fg.w)>=1e37){return 1e38;}
+    if(p.counts.z==1u){return abs(fg.w);}
+    let mag=length(fg.xyz);
+    if(!(mag>0.)||!isFiniteF(mag)){return 1e38;}
+    return abs(fg.w)/mag;
+}
+
 @compute @workgroup_size(64)
 fn relaxProject(@builtin(global_invocation_id) g:vec3<u32>){
     let v=linear(g);if(v>=p.counts.x){return;}
     let oldPos=loadPosA(v);
-    let st=vertexState[v];
+    let st=atomicLoad(&vertexState[v]);
     if(((st>>8u)&1u)!=0u){storePosB(v,oldPos);return;}
     let p3=3u*v;
     let prop=vec3<f32>(proposal[p3],proposal[p3+1u],proposal[p3+2u]);
@@ -23764,7 +24228,7 @@ fn relaxProject(@builtin(global_invocation_id) g:vec3<u32>){
             ok=isFinite3(cand);
         }
     }else{
-        let refN=refNormals[v].xyz;let start=cand;
+        let refN=refNormals[v].xyz;
         let maxIters=p.relaxC.x;
         for(var it=0u;it<=maxIters;it++){
             let fg=sampleField(cand);
@@ -23773,10 +24237,11 @@ fn relaxProject(@builtin(global_invocation_id) g:vec3<u32>){
             let mag=sqrt(mag2);
             if(dot(refN,fg.xyz)/mag<=p.relaxA.y){ok=false;break;}
             if(abs(fg.w)/mag<=p.relaxB.x){ok=true;break;}
-            if(it==maxIters){ok=false;break;}
+            if(it==maxIters){ok=p.relaxC.y!=0u&&abs(fg.w)/mag<=p.relaxA.w;break;}
             cand-=(fg.w/mag2)*fg.xyz;
-            if(length(cand-start)>maxTravel){ok=false;break;}
+            if(length(cand-oldPos)>maxTravel){ok=false;break;}
         }
+        if(ok&&p.relaxC.y!=0u&&!(length(cand-oldPos)<=maxTravel&&withinDistTol(cand))){ok=false;}
     }
     if(ok){storePosB(v,cand);}
     else if(p.relaxC.y!=0u){storePosB(v,oldPos);atomicAdd(&statusBuf[1],1u);}
@@ -23802,6 +24267,16 @@ fn checkDistSample(pos:vec3<f32>)->bool{
     recordMetric(6u,dist);
     return dist<=p.relaxA.w;
 }
+fn checkTriSample(oldPos:vec3<f32>,newPos:vec3<f32>)->bool{
+    if(p.relaxC.y==0u){return checkDistSample(newPos);}
+    let dist=sampleDistEst(newPos);
+    if(!(dist>=0.)||!isFiniteF(dist)||dist>=1e37){recordMetric(6u,dist);return false;}
+    if(dist<=p.relaxA.w){recordMetric(6u,dist);return true;}
+    let oldDist=sampleDistEst(oldPos);
+    if(isFiniteF(oldDist)&&oldDist<1e37&&dist<=max(p.relaxA.w,oldDist*1.02+0.01*p.fieldInfo.x)){recordMetric(6u,dist);return true;}
+    recordMetric(6u,dist);
+    return false;
+}
 
 @compute @workgroup_size(64)
 fn relaxValidateVerts(@builtin(global_invocation_id) g:vec3<u32>){
@@ -23810,19 +24285,21 @@ fn relaxValidateVerts(@builtin(global_invocation_id) g:vec3<u32>){
     if(!isFinite3(cand)){atomicOr(&statusBuf[0],1u);return;}
     let disp=length(cand-inp);
     recordMetric(7u,disp);
-    let st=vertexState[v];let frozen=(st>>8u)&1u;let cls=st&3u;
+    let st=atomicLoad(&vertexState[v]);let frozen=(st>>8u)&1u;let cls=st&3u;
     if(!isFiniteF(disp)||disp>normals[v].w||(frozen!=0u&&disp!=0.)){atomicOr(&statusBuf[0],2u);}
+    var badV=false;
     if(disp>0.){
         if(cls==1u&&p.counts.w==1u&&p.dims.w!=0u){
             let radial=abs(length(cand.xy-p.origin.xy)-p.fieldInfo.z);
-            if(radial>p.relaxA.w||abs(cand.z-p.origin.z)>p.relaxA.w){atomicOr(&statusBuf[0],4u);}
+            if(radial>p.relaxA.w||abs(cand.z-p.origin.z)>p.relaxA.w){atomicOr(&statusBuf[0],4u);badV=true;}
         }else{
             let fg=sampleField(cand);let mag=length(fg.xyz);
             let agree=select(-1.,dot(refNormals[v].xyz,fg.xyz)/mag,mag>0.&&isFiniteF(mag));
-            if(!(agree>p.relaxA.y)){atomicOr(&statusBuf[0],4u);}
+            if(!(agree>p.relaxA.y)){atomicOr(&statusBuf[0],4u);badV=true;}
         }
     }
-    if(!checkDistSample(cand)){atomicOr(&statusBuf[0],16u);}
+    if(disp>0.||p.relaxC.y==0u){if(!checkDistSample(cand)){atomicOr(&statusBuf[0],16u);badV=true;}}
+    if(badV&&p.relaxC.y!=0u&&p.relaxB.w<=0.25){atomicOr(&vertexState[v],256u);}
 }
 
 @compute @workgroup_size(64)
@@ -23831,14 +24308,19 @@ fn relaxValidateTris(@builtin(global_invocation_id) g:vec3<u32>){
     let ia=indices[3u*t];let ib=indices[3u*t+1u];let ic=indices[3u*t+2u];
     let oa=loadPosA(ia);let ob=loadPosA(ib);let oc=loadPosA(ic);
     let ca=loadPosB(ia);let cb=loadPosB(ib);let cc=loadPosB(ic);
+    if(p.relaxC.y!=0u&&all(ca==oa)&&all(cb==ob)&&all(cc==oc)){return;}
     let n=cross(ob-oa,oc-oa);let m=cross(cb-ca,cc-ca);
     let oldA2=dot(n,n);let newA2=dot(m,m);
     let minA2=oldA2*p.relaxB.y*p.relaxB.y;
-    if(!(oldA2>0.)||!(newA2>minA2)||!(dot(n,m)>0.)){atomicOr(&statusBuf[0],8u);}
-    if(!checkDistSample((ca+cb)*.5)){atomicOr(&statusBuf[0],16u);}
-    if(!checkDistSample((cb+cc)*.5)){atomicOr(&statusBuf[0],16u);}
-    if(!checkDistSample((cc+ca)*.5)){atomicOr(&statusBuf[0],16u);}
-    if(!checkDistSample((ca+cb+cc)/3.)){atomicOr(&statusBuf[0],16u);}
+    var badTri=false;
+    if(!(oldA2>0.)||!(newA2>minA2)||!(dot(n,m)>0.)){atomicOr(&statusBuf[0],8u);if(p.relaxC.y!=0u&&p.relaxB.w<=0.25){badTri=true;}}
+    var badDist=false;
+    if(!checkTriSample((oa+ob)*.5,(ca+cb)*.5)){badDist=true;}
+    if(!checkTriSample((ob+oc)*.5,(cb+cc)*.5)){badDist=true;}
+    if(!checkTriSample((oc+oa)*.5,(cc+ca)*.5)){badDist=true;}
+    if(!checkTriSample((oa+ob+oc)/3.,(ca+cb+cc)/3.)){badDist=true;}
+    if(badDist){atomicOr(&statusBuf[0],16u);if(p.relaxC.y!=0u){badTri=true;}}
+    if(badTri){atomicOr(&vertexState[ia],256u);atomicOr(&vertexState[ib],256u);atomicOr(&vertexState[ic],256u);}
 }
 </script>
 <script id="frame-native-engine">
@@ -23910,25 +24392,31 @@ const FrameUnite=(()=>{
     if(dataF32.length<count*16||metaU32.length<count*4)throw new RangeError('QEF buffer size mismatch');
     const pipe=await qefPipeline(device),U=GPUBufferUsage,allocated=[];
     const buf=(label,size,usage)=>{const b=device.createBuffer({label:'Unite QEF '+label,size:Math.max(4,size),usage});allocated.push(b);return b;};
+    const maxBytes=Math.min(96*1024*1024,device.limits.maxStorageBufferBindingSize,device.limits.maxBufferSize);
+    const chunkMax=Math.max(1024,Math.floor(maxBytes/64)),allocCount=Math.min(count,chunkMax);
     try{
-      const qefData=buf('data',count*64,U.STORAGE|U.COPY_DST);
-      const qefMeta=buf('meta',count*16,U.STORAGE|U.COPY_DST);
-      const qefOut=buf('out',count*32,U.STORAGE|U.COPY_SRC);
-      const qefRead=buf('read',count*32,U.COPY_DST|U.MAP_READ);
+      const qefData=buf('data',allocCount*64,U.STORAGE|U.COPY_DST);
+      const qefMeta=buf('meta',allocCount*16,U.STORAGE|U.COPY_DST);
+      const qefOut=buf('out',allocCount*32,U.STORAGE|U.COPY_SRC);
+      const qefRead=buf('read',allocCount*32,U.COPY_DST|U.MAP_READ);
       const qefUniform=buf('uniform',16,U.UNIFORM|U.COPY_DST);
-      device.queue.writeBuffer(qefData,0,dataF32.subarray(0,count*16));
-      device.queue.writeBuffer(qefMeta,0,metaU32.subarray(0,count*4));
-      device.queue.writeBuffer(qefUniform,0,new Uint32Array([count,0,0,0]));
-      const bg=device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[qefData,qefMeta,qefOut,qefUniform].map((b,binding)=>({binding,resource:{buffer:b}}))});
-      const enc=device.createCommandEncoder(),pass=enc.beginComputePass(),groups=Math.ceil(count/64);
-      pass.setPipeline(pipe);pass.setBindGroup(0,bg);
-      pass.dispatchWorkgroups(Math.min(65535,groups),Math.ceil(groups/65535));
-      pass.end();
-      enc.copyBufferToBuffer(qefOut,0,qefRead,0,count*32);
-      device.queue.submit([enc.finish()]);
-      await qefRead.mapAsync(GPUMapMode.READ,0,count*32);
-      const solutions=new Float32Array(qefRead.getMappedRange(0,count*32)).slice();
-      qefRead.unmap();
+      const solutions=new Float32Array(count*8);
+      for(let offset=0;offset<count;offset+=allocCount){
+        const n=Math.min(allocCount,count-offset);
+        device.queue.writeBuffer(qefData,0,dataF32.subarray(offset*16,(offset+n)*16));
+        device.queue.writeBuffer(qefMeta,0,metaU32.subarray(offset*4,(offset+n)*4));
+        device.queue.writeBuffer(qefUniform,0,new Uint32Array([n,0,0,0]));
+        const bg=device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:[qefData,qefMeta,qefOut,qefUniform].map((b,binding)=>({binding,resource:{buffer:b}}))});
+        const enc=device.createCommandEncoder(),pass=enc.beginComputePass(),groups=Math.ceil(n/64);
+        pass.setPipeline(pipe);pass.setBindGroup(0,bg);
+        pass.dispatchWorkgroups(Math.min(65535,groups),Math.ceil(groups/65535));
+        pass.end();
+        enc.copyBufferToBuffer(qefOut,0,qefRead,0,n*32);
+        device.queue.submit([enc.finish()]);
+        await qefRead.mapAsync(GPUMapMode.READ,0,n*32);
+        solutions.set(new Float32Array(qefRead.getMappedRange(0,n*32)),offset*8);
+        qefRead.unmap();
+      }
       return {solutions,gpuScratchBytes:allocated.reduce((s,b)=>s+b.size,0)};
     }finally{for(const b of allocated)b.destroy();}
   }
@@ -24006,9 +24494,10 @@ const FrameUnite=(()=>{
     if(!(minAreaRatio>0&&minAreaRatio<=1))throw new RangeError('Invalid triangle area ratio');
     if(!(curvatureWeight>=0)||!Number.isFinite(curvatureWeight))throw new RangeError('Invalid curvature weight');
     if(!(maxStepMm>=0))throw new RangeError('Invalid maximum step');
+    const vertexLocks=options.vertexLocks??mesh.vertexLocks;
     if(options.stepCapsMm&&options.stepCapsMm.length!==vertexCount)throw new RangeError('Step-cap buffer size mismatch');
     if(options.proposals&&options.proposals.length!==mesh.positions.length)throw new RangeError('Proposal buffer size mismatch');
-    const {adjBuf,vertexState,classes}=buildAdjacencyCSR(vertexCount,mesh.indices,mesh.vertexClass,options.vertexLocks,options.edgeConstraints);
+    const {adjBuf,vertexState,classes}=buildAdjacencyCSR(vertexCount,mesh.indices,mesh.vertexClass,vertexLocks,options.edgeConstraints);
     if(!vertexCount||!triangleCount){
       return {positions:new Float32Array(mesh.positions),indices:mesh.indices,vertexClass:classes,stats:{iterations,acceptedIterations:0,rolledBackIterations:0,attempts:0,frozenCorners:0,frozenCreases:0,frozenInvalid:0,distanceMode:'sampled-first-order-distance-estimate',certifiedHausdorff:false,maxAbsPhi:0,maxSampledDistance:0,maxStepMm:0,finalSampleValidationPassed:true,externalGeometryValidation:!!options.validateGeometry,failureCounts:[0,0,0,0,0,0],retainedProjectionAttempts:0,backend:'WebGPU',gpuScratchBytes:0}};
     }
@@ -24041,7 +24530,7 @@ const FrameUnite=(()=>{
         damping,normalAgreement,curvatureWeight,epsilonMm, projectionToleranceMm,minAreaRatio,maxStepMm,1],8);
       uu.set([projectionIterations,options.retainFailedProposals?1:0,0,0],24);
       const spec={relaxInit:[0,3,8,10],relaxPrepare:[0,3,4,5,6,8,9,10],relaxPropose:[0,2,4,5,6,10],
-        relaxProject:[0,1,2,3,4,5,8,9,10],relaxValidateVerts:[0,1,3,4,5,8,9,10],relaxValidateTris:[0,1,7,8,9,10]};
+        relaxProject:[0,1,2,3,4,5,8,9,10],relaxValidateVerts:[0,1,3,4,5,8,9,10],relaxValidateTris:[0,1,5,7,8,9,10]};
       const bindGroups=[0,1].map(p=>Object.fromEntries(Object.entries(spec).map(([name,slots])=>{
         const map=[posBuf[p],posBuf[1-p],proposalBuf,refNormalsBuf,normalsBuf,vertexStateBuf,adjGpu,indicesBuf,fieldGpu,statusBuf,uniformBuf];
         return [name,device.createBindGroup({layout:pipes[name].getBindGroupLayout(0),entries:slots.map(b=>({binding:b,resource:{buffer:map[b]}}))})];
@@ -24147,7 +24636,22 @@ const FrameUnite=(()=>{
       }};
     }finally{for(const b of allocated)b.destroy();}
   }
-  const filterPipelines=new WeakMap();
+  const filterPipelines=new WeakMap(),restoreCache=new WeakMap();
+  function restorePipeline(device){
+    let promise=restoreCache.get(device);
+    if(!promise){
+      promise=(async()=>{
+        const module=device.createShaderModule({label:'Unite restore detail',code:$('frame-unite-restore-wgsl').textContent});
+        try{
+          return await device.createComputePipelineAsync({label:'Unite restore',layout:'auto',compute:{module,entryPoint:'restore'}});
+        }catch(e){
+          const details=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');
+          throw details.length?Error(details.map(m=>'Unite restore line '+m.lineNum+' '+m.message).join(' / ')):e;
+        }
+      })().catch(e=>{restoreCache.delete(device);throw e;});
+      restoreCache.set(device,promise);
+    }return promise;
+  }
   async function smoothVolume(device,request,dims,radius,valid){
     const step=await request('filter',{radius});
     if(!radius)return 0;
@@ -24166,44 +24670,105 @@ const FrameUnite=(()=>{
     }
     const pipes=await task,working=dims.map(v=>Math.ceil(v/step)),support=Math.min(8,radius/step),r=Math.ceil(support);
     const iterations=Math.ceil(Math.sqrt(3)*(r+2))+1,pad=Math.max(r+iterations+2,Math.ceil(2*support)+4);
-    const width=96,limit=working.map(n=>Math.min(width,8*Math.ceil(n/8))),allocated=[];
+    const width=96,limit=working.map(n=>Math.min(width,8*Math.ceil(n/8))),U=GPUBufferUsage;
     const product=v=>v.reduce((a,b)=>a*b,1),capacity=product(limit.map(v=>v+2*pad)),output=product(limit);
-    const U=GPUBufferUsage;
-    function buffer(label,size,usage){const b=device.createBuffer({label:'Unite '+label,size,usage});allocated.push(b);return b;}
-    try{
-      const src=buffer('boundary tile',2*capacity,U.STORAGE|U.COPY_DST);
-      const fields=['distance A','distance B','filtered distance'].map(name=>buffer(name,4*capacity,U.STORAGE));
-      const packed=buffer('filtered tile',2*output,U.STORAGE|U.COPY_SRC),read=buffer('tile readback',2*output,U.COPY_DST|U.MAP_READ);
-      const settings=buffer('metric radius',128,U.UNIFORM|U.COPY_DST);
-      const groups=[0,1].map(i=>device.createBindGroup({layout:pipes.layout,entries:[src,fields[i],fields[1-i],fields[2],packed,settings].map((b,binding)=>({binding,resource:{buffer:b}}))}));
-      const params=new ArrayBuffer(128),u=new Uint32Array(params),f=new Float32Array(params);
-      // Compact parabolic kernel integrated against the linear sample basis.
-      const weights=new Float64Array(r+1);let sum=0;
-      for(let j=0;j<48;j++){
-        const t=(2*j+1)/48-1,at=Math.abs(t*support),a=Math.floor(at),d=at-a,w=1-t*t;
-        sum+=w;weights[a]+=w*(1-d);if(d)weights[a+1]+=w*d;
-      }
-      weights.forEach((v,k)=>{f[8+k]=v/(sum*(k?2:1));});f.set([support,r+2,step,r],28);
-      for(let z=0;z<working[2];z+=width)for(let y=0;y<working[1];y+=width)for(let x=0;x<working[0];x+=width){
-        if(!valid())return 0;
-        const pos=[x,y,z],size=working.map((n,i)=>Math.min(width,8*Math.ceil((n-pos[i])/8))),shape=size.map(v=>v+2*pad);
-        const field=await request('tile',{pos,size,pad});if(!field)continue;
-        const n=product(shape),out=product(size),bytes=2*out;
-        u.set([...shape,n,...size,pad]);device.queue.writeBuffer(settings,0,params);device.queue.writeBuffer(src,0,field);
-        const encoder=device.createCommandEncoder();
-        function launch(name,group,items=n){
-          const dispatch=Math.ceil(items/64),pass=encoder.beginComputePass();
-          pass.setPipeline(pipes[name]);pass.setBindGroup(0,groups[group]);pass.dispatchWorkgroups(Math.min(65535,dispatch),Math.ceil(dispatch/65535));pass.end();
+    let filterBytes=0,restoreBytes=0;
+    {
+      const allocated=[];
+      function buffer(label,size,usage){const b=device.createBuffer({label:'Unite '+label,size,usage});allocated.push(b);return b;}
+      try{
+        const src=buffer('boundary tile',2*capacity,U.STORAGE|U.COPY_DST);
+        const fields=['distance A','distance B','filtered distance'].map(name=>buffer(name,4*capacity,U.STORAGE));
+        const packed=buffer('filtered tile',2*output,U.STORAGE|U.COPY_SRC),read=buffer('tile readback',2*output,U.COPY_DST|U.MAP_READ);
+        const settings=buffer('metric radius',128,U.UNIFORM|U.COPY_DST);
+        const groups=[0,1].map(i=>device.createBindGroup({layout:pipes.layout,entries:[src,fields[i],fields[1-i],fields[2],packed,settings].map((b,binding)=>({binding,resource:{buffer:b}}))}));
+        const params=new ArrayBuffer(128),u=new Uint32Array(params),f=new Float32Array(params);
+        // Compact parabolic kernel integrated against the linear sample basis.
+        const weights=new Float64Array(r+1);let sum=0;
+        for(let j=0;j<48;j++){
+          const t=(2*j+1)/48-1,at=Math.abs(t*support),a=Math.floor(at),d=at-a,w=1-t*t;
+          sum+=w;weights[a]+=w*(1-d);if(d)weights[a+1]+=w*d;
         }
-        launch('seed',0);for(let k=0;k<iterations;k++)launch('extend',k%2);
-        const group=iterations%2;launch('blurX',group);launch('blurY',group);launch('blurZ',group,out/2);
-        encoder.copyBufferToBuffer(packed,0,read,0,bytes);device.queue.submit([encoder.finish()]);
-        await read.mapAsync(GPUMapMode.READ,0,bytes);const filtered=new Int16Array(read.getMappedRange(0,bytes)).slice();read.unmap();
-        await request('accept',{pos,size,field:filtered},[filtered.buffer]);
-      }
+        weights.forEach((v,k)=>{f[8+k]=v/(sum*(k?2:1));});f.set([support,r+2,step,r],28);
+        for(let z=0;z<working[2];z+=width)for(let y=0;y<working[1];y+=width)for(let x=0;x<working[0];x+=width){
+          if(!valid())return 0;
+          const pos=[x,y,z],size=working.map((n,i)=>Math.min(width,8*Math.ceil((n-pos[i])/8))),shape=size.map(v=>v+2*pad);
+          const field=await request('tile',{pos,size,pad});if(!field)continue;
+          const n=product(shape),out=product(size),bytes=2*out;
+          u.set([...shape,n,...size,pad]);device.queue.writeBuffer(settings,0,params);device.queue.writeBuffer(src,0,field);
+          const encoder=device.createCommandEncoder();
+          function launch(name,group,items=n){
+            const dispatch=Math.ceil(items/64),pass=encoder.beginComputePass();
+            pass.setPipeline(pipes[name]);pass.setBindGroup(0,groups[group]);pass.dispatchWorkgroups(Math.min(65535,dispatch),Math.ceil(dispatch/65535));pass.end();
+          }
+          launch('seed',0);for(let k=0;k<iterations;k++)launch('extend',k%2);
+          const group=iterations%2;launch('blurX',group);launch('blurY',group);launch('blurZ',group,out/2);
+          encoder.copyBufferToBuffer(packed,0,read,0,bytes);device.queue.submit([encoder.finish()]);
+          await read.mapAsync(GPUMapMode.READ,0,bytes);const filtered=new Int16Array(read.getMappedRange(0,bytes)).slice();read.unmap();
+          await request('accept',{pos,size,field:filtered},[filtered.buffer]);
+        }
+        filterBytes=allocated.reduce((s,b)=>s+b.size,0);
+      }finally{for(const b of allocated)b.destroy();}
+    }
+    if(step<=1){
       await request('filterDone');
-      return allocated.reduce((sum,b)=>sum+b.size,0);
-    }finally{for(const b of allocated)b.destroy();}
+      return filterBytes;
+    }
+    const rPipe=await restorePipeline(device);
+    if(!valid())return 0;
+    const {basePacked,smoothPacked,workingDims}=await request('beginRestore');
+    if(!valid())return 0;
+    const rWidth=128,rLimit=dims.map(n=>Math.min(rWidth,8*Math.ceil(n/8))),rOutMax=product(rLimit);
+    const rAllocated=[];
+    const rBuf=(label,size,usage)=>{const b=device.createBuffer({label:'Unite restore '+label,size:Math.max(4,size),usage});rAllocated.push(b);return b;};
+    try{
+      const rawGpu=rBuf('raw tile',2*rOutMax,U.STORAGE|U.COPY_DST);
+      const baseGpu=rBuf('coarse base',basePacked.byteLength,U.STORAGE|U.COPY_DST);
+      const smoothGpu=rBuf('coarse smooth',smoothPacked.byteLength,U.STORAGE|U.COPY_DST);
+      const outGpu=rBuf('out tile',2*rOutMax,U.STORAGE|U.COPY_SRC);
+      const uGpu=rBuf('uniform',64,U.UNIFORM|U.COPY_DST);
+      const reads=[rBuf('read 0',2*rOutMax,U.COPY_DST|U.MAP_READ),rBuf('read 1',2*rOutMax,U.COPY_DST|U.MAP_READ)];
+      device.queue.writeBuffer(baseGpu,0,basePacked);
+      device.queue.writeBuffer(smoothGpu,0,smoothPacked);
+      const bg=device.createBindGroup({layout:rPipe.getBindGroupLayout(0),entries:[rawGpu,baseGpu,smoothGpu,outGpu,uGpu].map((b,binding)=>({binding,resource:{buffer:b}}))});
+      const rpBuf=new ArrayBuffer(64),ru=new Uint32Array(rpBuf),rf=new Float32Array(rpBuf);
+      ru.set([...workingDims,0],8);rf[12]=1/step;
+      let slot=0,inFlight=null;
+      const drain=async()=>{
+        if(!inFlight)return;
+        const job=inFlight;inFlight=null;
+        await job.mapped;
+        const outField=new Int16Array(job.read.getMappedRange(0,job.bytes)).slice();
+        job.read.unmap();
+        if(!valid())return;
+        await request('acceptRestore',{pos:job.pos,size:job.size,field:outField},[outField.buffer]);
+      };
+      for(let z=0;z<dims[2];z+=rWidth)for(let y=0;y<dims[1];y+=rWidth)for(let x=0;x<dims[0];x+=rWidth){
+        if(!valid())return 0;
+        const pos=[x,y,z],size=dims.map((n,i)=>Math.min(rWidth,8*Math.ceil((n-pos[i])/8)));
+        const rawTile=await request('restoreTile',{pos,size});
+        if(!valid())return 0;
+        if(!rawTile)continue;
+        if(inFlight)await drain();
+        if(!valid())return 0;
+        const total=product(size),bytes=2*total;
+        ru.set([...pos,step],0);ru.set([...size,total],4);
+        device.queue.writeBuffer(uGpu,0,rpBuf);
+        device.queue.writeBuffer(rawGpu,0,rawTile);
+        const enc=device.createCommandEncoder(),pass=enc.beginComputePass(),groups=Math.ceil((total/2)/64);
+        pass.setPipeline(rPipe);pass.setBindGroup(0,bg);pass.dispatchWorkgroups(Math.min(65535,groups),Math.ceil(groups/65535));pass.end();
+        const read=reads[slot];slot^=1;
+        enc.copyBufferToBuffer(outGpu,0,read,0,bytes);
+        device.queue.submit([enc.finish()]);
+        const mapped=read.mapAsync(GPUMapMode.READ,0,bytes);mapped.catch(()=>{});
+        inFlight={pos,size,bytes,read,mapped};
+      }
+      await drain();
+      if(!valid())return 0;
+      await request('finishRestore');
+      restoreBytes=rAllocated.reduce((s,b)=>s+b.size,0);
+      return Math.max(filterBytes,restoreBytes);
+    }finally{for(const b of rAllocated)b.destroy();}
   }
 
   // Retain one completed source volume. During evaluation each request owns
@@ -24286,12 +24851,12 @@ const FrameUnite=(()=>{
           if(smoothing===0&&result?.details)result.details.extraction=cache.hermiteOverflow?'wasm-hermite-overflow':'wasm-contour-fallback';
         }
         if(!valid())return null;
-        if(!fast&&result&&result.vertices.length>=12&&result.indices.length>=12&&cache.metrics?.grid){
+        if(!fast&&result&&result.vertices.length>=12&&result.vertices.length<=400000*3&&result.indices.length>=12&&cache.metrics?.grid){
           const relaxPrep=await request('exportRelaxInput',{vertices:result.vertices,indices:result.indices,vertexClass:result.vertexClass||null,smoothing,pitch:cellSize});
           if(!valid())return null;
           if(relaxPrep&&relaxPrep.freeVertices>0){
             progress('Optimizing surface');
-            const relaxed=await relaxMeshGPU(device,{positions:result.vertices,indices:result.indices,vertexClass:relaxPrep.vertexClass,vertexLocks:relaxPrep.vertexLocks},{fieldMode:0,packedField:relaxPrep.packedField,dims:relaxPrep.dims,origin:relaxPrep.origin,pitch:relaxPrep.pitch},{iterations:smoothing>0?3:2,damping:0.33,epsilonMm:Math.max(1e-3,cellSize*(0.14+0.2*(optimize/100))),minAreaRatio:0.05,normalAgreement:0.5,maxBacktracks:6,retainFailedProposals:true});
+            const relaxed=await relaxMeshGPU(device,{positions:result.vertices,indices:result.indices,vertexClass:relaxPrep.vertexClass},{fieldMode:0,packedField:relaxPrep.packedField,dims:relaxPrep.dims,origin:relaxPrep.origin,pitch:relaxPrep.pitch},{iterations:smoothing>0?3:2,damping:0.33,epsilonMm:Math.max(1e-3,cellSize*(0.14+0.2*(optimize/100))),projectionIterations:4,projectionToleranceMm:Math.max(1e-5,cellSize*0.01),minAreaRatio:0.05,normalAgreement:0.5,maxBacktracks:6,maxStepMm:Math.max(cellSize*0.5,smoothing>0?smoothing*0.2:cellSize*0.5),vertexLocks:relaxPrep.vertexLocks,retainFailedProposals:true});
             relaxBytes=relaxed.stats.gpuScratchBytes||0;
             result.details.relax=relaxed.stats;
             if(relaxed.stats.acceptedIterations>0&&relaxed.stats.finalSampleValidationPassed){
@@ -24313,7 +24878,7 @@ const FrameUnite=(()=>{
       const cap=Math.min(device.limits.maxStorageBufferBindingSize,device.limits.maxBufferSize),U=GPUBufferUsage;
       const halo=2,extra=2*halo+1;
       const budgetDepth=Math.max(1,Math.floor(Math.min(108*1024*1024,cap)/(plane*12))-extra);
-      const maxDepth=Math.min(nz-1,budgetDepth>=16?16*Math.floor(budgetDepth/16):budgetDepth);
+      const maxDepth=Math.min(nz-1,budgetDepth>=8?8*Math.floor(budgetDepth/8):budgetDepth);
       const capacity=plane*(maxDepth+extra),fp=2**Math.floor(Math.log2(30000/Math.max(...dims)));
       function buffer(label,size,usage=U.STORAGE|U.COPY_DST){
         if(size>cap)throw Error('Unite '+label+' exceeds GPU buffer capacity');
@@ -24334,7 +24899,7 @@ const FrameUnite=(()=>{
       const tasks=buffer('large projections',20+4*Math.max(...groups.flatMap(r=>r.chunks.map(c=>c.count))),U.STORAGE|U.COPY_DST|U.COPY_SRC);
       const taskReset=buffer('task header',20,U.COPY_SRC|U.COPY_DST),taskIndirect=buffer('large indirect',12,U.INDIRECT|U.COPY_DST);
       device.queue.writeBuffer(taskReset,0,new Uint32Array([0,1,1,0,0]));
-      const maxHermiteRecords=Math.min(Math.floor(cap/12),Math.max(262144,Math.min(2097152,plane*6)));
+      const maxHermiteRecords=Math.min(Math.floor(cap/12),Math.max(262144,Math.min(1048576,Math.ceil(plane*3))));
       const hermiteOut=buffer('hermite crossings',maxHermiteRecords*12,U.STORAGE|U.COPY_SRC);
       const hermiteHead=buffer('hermite head',8,U.STORAGE|U.COPY_DST|U.COPY_SRC);
       const hermiteHeadReset=buffer('hermite head reset',8,U.COPY_SRC|U.COPY_DST);
