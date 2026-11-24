@@ -1,0 +1,83 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {blockBasis} from './m0/blocks.mjs';
+import {schurGeometry} from './m0/schur.mjs';
+import {verifyShape,verifyGoalRefinement} from './m0/shape.mjs';
+import {winningBackend} from './m0/pressure.mjs';
+import {verifyThinWalls} from './m0/graph-checks.mjs';
+import {crossesMetric} from './m0/metric.mjs';
+import {momentShell} from './m0/mr-lbm.mjs';
+import {scoreContests} from './m0/flow.mjs';
+import {faceOwners} from './m0/graph-weights.mjs';
+test('a shared staggered face projects a circulation in the inverse-conductance norm',()=>{
+  // Three fluid cells form a cycle; the last two incidences are a sealed sheet.
+  const graph={offset:[0,3,5,8],linkFace:[0,~2,3,~0,1,~1,2,~3],nbr:[1,2,0,0,2,1,0,2],kind:[0,0,7,0,0,0,0,7]};
+  assert.deepEqual([...faceOwners(graph,4)],[0,1,1,2,2,0,0,7<<28]);
+  const c=[2,3,7],circulation=1,p=[.25,-.8,0];
+  const incidence=(q,i)=>graph.linkFace.slice(graph.offset[i],graph.offset[i+1]).reduce((sum,id)=>sum+(id<0?-q[~id]:q[id]),0);
+  // Add and remove the same weighted potential gradient to a balanced cycle.
+  const qStar=c.map((v,i)=>circulation-v*(p[i]-p[(i+1)%3]));
+  const q=c.map((v,i)=>qStar[i]+v*(p[i]-p[(i+1)%3]));q.push(0);
+  for(let i=0;i<3;i++)assert.ok(Math.abs(incidence(q,i))<1e-14);
+  const energy=shift=>c.reduce((sum,v,i)=>sum+(q[i]+shift-qStar[i])**2/v,0);
+  for(const shift of [-3,-.01,.02,4])assert.ok(energy(shift)>energy(0));
+});
+test('each D3Q19 pull from an adjacent brick has a unique packed boundary address',()=>{
+  const {size,map}=momentShell(),occupied=map.filter(k=>k>=0);
+  assert.equal(size,104);assert.deepEqual(occupied,[...Array(size).keys()]);
+  const extent=[8,4,4];
+  for(let i=0;i<128;i++){
+    const dst=[i%8,(i>>3)%4,i>>5];
+    for(let z=-1;z<=1;z++)for(let y=-1;y<=1;y++)for(let x=-1;x<=1;x++){
+      if(x*x+y*y+z*z>2)continue;
+      const src=[x,y,z].map((d,k)=>dst[k]-d);
+      if(src.every((v,k)=>v>=0&&v<extent[k]))continue;
+      const [a,b,c]=src.map((v,k)=>(v+extent[k])%extent[k]);
+      assert.ok(map[a+8*(b+4*c)]>=0);
+    }
+  }
+});
+test('a moving-body win alone cannot qualify the static graph comparison',()=>{
+  const run=(kind,fixture,timeToTargetMs)=>({kind,fixture,timeToTargetMs});
+  const cases=[run('mr-lbm','ahmed',3),run('mr-lbm','propeller',6)];
+  assert.equal(scoreContests(cases).qualified,false);
+  cases.push(...['ahmed','sphere','ahmed-wake'].map(f=>run('sdf-graph',f,5)));
+  assert.deepEqual(scoreContests(cases),{bodyAndRotor:{kind:'mr-lbm',totalMs:9},staticBodies:{kind:'sdf-graph',totalMs:15},qualified:true});
+  cases.at(-1).timeToTargetMs=null;assert.equal(scoreContests(cases).qualified,false);
+});
+test('Dirichlet sine transform is orthonormal and diagonalizes the original stencil',()=>{
+  for(const n of [6,8,14,16]){
+    const {q,eigen}=blockBasis(n);
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      const v=q[i*n+j],lap=2*v-(j?q[i*n+j-1]:0)-(j+1<n?q[i*n+j+1]:0);
+      assert.ok(Math.abs(lap-eigen[i]*v)<2e-7);
+      let product=0;for(let l=0;l<n;l++)product+=q[i*n+l]*q[j*n+l];
+      assert.ok(Math.abs(product-Number(i===j))<2e-7);
+    }
+  }
+});
+test('Schur response and its restricted Green inverse recover independent interface vectors',()=>{
+  for(const n of [8,16]){
+    const {s,green,m}=schurGeometry(n);assert.equal(m,n**3-(n-2)**3);
+    const x=Float64Array.from({length:m},(_,i)=>Math.sin(i*.53)+Math.cos(i*.973));
+    const multiply=(a,v)=>Float64Array.from(v,(_,i)=>{let sum=0;for(let j=0;j<m;j++)sum+=a[i*m+j]*v[j];return sum;});
+    const b=multiply(s,x),y=multiply(green,b);
+    assert.ok(Math.max(...y.map((v,i)=>Math.abs(v-x[i])))<2e-6);
+    assert.ok(b.reduce((sum,v,i)=>sum+v*x[i],0)>0);
+  }
+});
+test('inaccurate or incompletely sampled accelerators cannot win',()=>{
+  const run=(ms,qualified=true)=>({ms,qualified});
+  const candidates=[{kind:'wrong',samples:[run(1,false),run(1),run(1)]},{kind:'missing',samples:[]},
+    {kind:'gpu',samples:[run(9),run(10),run(10)]},{kind:'neural',samples:[run(6),run(7),run(100)]}];
+  assert.equal(winningBackend(candidates).kind,'neural');assert.equal(winningBackend(candidates.slice(0,2)),null);
+});
+test('annular axial force and local Shape adjoint agree with analytic and displaced-wall solutions',()=>assert.ok(verifyShape().pass));
+test('dual-weighted refinement improves localized force at an equal sector budget',()=>assert.ok(verifyGoalRefinement().pass));
+test('reciprocal Voronoi weights seal thin walls and sharp edges across offsets',()=>assert.ok(verifyThinWalls().pass));
+test('segment certificate detects a negative interior extremum between positive samples',()=>{
+  // Along the diagonal xy is quadratic; endpoints and the usual midpoint miss the sheet.
+  const f={h:1,origin:[-.5,-.5,-.5]};
+  assert.equal(crossesMetric({f,sample:p=>(p[0]-.11)*(p[1]-.14)},[0,0,0],[1,1,1]),true);
+  assert.equal(crossesMetric({f,sample:p=>(p[0]-.11)*(p[1]-.14)+.01},[0,0,0],[1,1,1]),false);
+});
