@@ -88,6 +88,7 @@ import {giStage2DirectBrowserChecks} from './gi-stage2-direct-browser.mjs';
 import {giStage3CacheBrowserChecks} from './gi-stage3-cache-browser.mjs';
 import {giStage4InteractiveBrowserChecks} from './gi-stage4-interactive-browser.mjs';
 import {giStage5GlassAlphaBrowserChecks} from './gi-stage5-glass-alpha-browser.mjs';
+import {cameraMaterialOpticsChecks} from './camera-material-optics-browser.mjs';
 import {giBenchmarkBrowserChecks} from './gi-benchmark-browser.mjs';
 import {hardwareCatalogueChecks} from './hardware-catalogue.mjs';
 import {splineDisplaySampleChecks} from './spline-display-samples-browser.mjs';
@@ -354,6 +355,7 @@ try{
   report.giStage3Cache=await isolated('giStage3Cache',giStage3CacheBrowserChecks);
   report.giStage4Interactive=await isolated('giStage4Interactive',giStage4InteractiveBrowserChecks);
   report.giStage5GlassAlpha=await isolated('giStage5GlassAlpha',giStage5GlassAlphaBrowserChecks);
+  report.cameraMaterialOptics=await isolated('cameraMaterialOptics',cameraMaterialOpticsChecks);
   report.giBenchmark=await isolated('giBenchmark',giBenchmarkBrowserChecks);
   report.viewportFeedback=await isolated('viewportFeedback',viewportFeedbackChecks);
   report.modelingViewport=await isolated('modelingViewport',modelingViewportChecks);

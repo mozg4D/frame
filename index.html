@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 17:05">
+<meta name="frame-version" content="2026 24 nov 18:20">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -230,6 +230,10 @@ html[data-frame-player] :is(#panel,#frame-curves,#frame-engine-handles,#frame-en
 <button class="me-tex-btn" id="btnOpacityTex" data-map="opacityMap" aria-label="Opacity texture"></button><span class="me-plab">Opacity</span><input class="me-inp" id="inpOpac" value="0.0" spellcheck="false" autocomplete="off">
 <button class="me-tex-btn" id="btnNormalTex" data-map="normalAsset" aria-label="Normal texture"></button><span class="me-plab" id="bumpLab">Normal <button id="btnNormalY" type="button" title="Normal convention: OpenGL" aria-label="Normal convention: OpenGL">+Y</button></span><input class="me-inp" id="inpBump" value="100" spellcheck="false" autocomplete="off" hidden>
 <button class="me-tex-btn" id="btnAOTex" data-map="aoAsset" aria-label="AO texture"></button><span class="me-plab" id="aoLab">AO</span><span id="aoSpace"></span>
+<span class="me-plab" style="grid-column:2" title="Index of refraction">IOR</span><input class="me-inp" id="inpIor" value="1.500" spellcheck="false" autocomplete="off">
+<span class="me-plab" style="grid-column:2" title="Diffuse transmission through a surface (%)">Translucency</span><input class="me-inp" id="inpTranslucency" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab" style="grid-column:2" title="Subsurface scattering weight (%)">SSS</span><input class="me-inp" id="inpSss" value="0.0" spellcheck="false" autocomplete="off">
+<span class="me-plab" style="grid-column:2" title="Mean free path in millimetres">SSS radius</span><input class="me-inp" id="inpSssRadius" value="1.00" spellcheck="false" autocomplete="off">
 </div>
 
 </div>
@@ -8574,7 +8578,11 @@ function sceneWorker() {
         if(uv){
           const f0=f*2,f1=(flip?f+2:f+1)*2,f2=(flip?f+1:f+2)*2;
           coldRaw[ca+12]=uv[f0];coldRaw[ca+13]=uv[f0+1];coldRaw[ca+14]=uv[f1];coldRaw[ca+15]=uv[f1+1];
-          coldRaw[ca+16]=uv[f2];coldRaw[ca+17]=uv[f2+1];coldRaw[ca+18]=1;
+          coldRaw[ca+16]=uv[f2];coldRaw[ca+17]=uv[f2+1];
+          // UV area per normalized triangle area gives the ray cone's texture footprint.
+          const uvArea=Math.abs((uv[f1]-uv[f0])*(uv[f2+1]-uv[f0+1])-(uv[f1+1]-uv[f0+1])*(uv[f2]-uv[f0]));
+          const faceArea=Math.hypot(e1y*e2z-e1z*e2y,e1z*e2x-e1x*e2z,e1x*e2y-e1y*e2x);
+          coldRaw[ca+18]=faceArea>0?Math.max(1e-20,Math.sqrt(uvArea/faceArea)):1e-20;
         }
         coldRaw[ca+19]=hidFlag;
         if(powers&&!bgFlag)powers[id]=emission[mids[i]]*area;
@@ -8946,7 +8954,7 @@ function sceneWorker() {
 
 // Each 16x16 camera tile is dispatched as four 8x8 workgroups.
 const cameraTileSide=16;
-const cameraSceneFlags={instances:1,materialMaps:2,opaqueShadows:4};
+const cameraSceneFlags={instances:1,materialMaps:2,opaqueShadows:4,subsurface:8};
 const cameraMappedCoverageFlag=4;
 
 const cameraGuideWGSL=`
@@ -8964,6 +8972,7 @@ const cameraTileSide=${cameraTileSide}u;
 const instancedGeometry=${cameraSceneFlags.instances}u;
 const materialMaps=${cameraSceneFlags.materialMaps}u;
 const opaqueShadows=${cameraSceneFlags.opaqueShadows}u;
+const subsurfaceMedia=${cameraSceneFlags.subsurface}u;
 struct InfiniteLight { direction:vec4f, color:vec4f };
 struct Params {
   origin:vec4f, right:vec4f, up:vec4f, forward:vec4f,
@@ -8977,7 +8986,7 @@ struct Params {
 // 64-byte parent-child BVH2 node: count==0 internal child ref; 0xffffffff empty; >0 leaf [ref..ref+count).
 struct Node { lLo:vec4f, lHi:vec4f, rLo:vec4f, rHi:vec4f };
 struct Triangle { a:vec4f, b:vec4f, c:vec4f, na:vec4f, nb:vec4f, nc:vec4f, uvAB:vec4f, uvC:vec4f };
-struct Material { base:vec4f, emission:vec4f, misc:vec4f, projection:mat4x4f, normalProjection:mat4x4f, maps:vec4f, extra:vec4f, channels:vec4f, options:vec4f, flags:vec4f, opt2:vec4f };
+struct Material { base:vec4f, emission:vec4f, misc:vec4f, projection:mat4x4f, normalProjection:mat4x4f, maps:vec4f, extra:vec4f, channels:vec4f, options:vec4f, flags:vec4f, opt2:vec4f, scattering:vec4f };
 struct InstanceMeta { ids:vec4u, prevWorld:mat4x4f };
 struct CompactPixel { mean:vec3f, count:u32 };
 struct FilmHeader {
@@ -8991,12 +9000,15 @@ struct FilmHeader {
 };
 struct TraceResult { color:vec3f, gi:vec3f, diffuse:vec3f };
 struct DirectLight { value:vec3f, diffuse:vec3f };
-struct Hit { distance:f32, triangle:u32, u:f32, v:f32 };
-struct Surface { color:vec3f, normal:vec3f, geom:vec3f, rough:f32, metal:f32, transmission:f32, emission:vec3f, coverage:f32, ao:f32, translucency:f32, ior:f32, thinWalled:bool, coverageLayer:i32, maxCovMip:f32 };
-struct Scatter { direction:vec3f, specular:bool };
+struct Hit { distance:f32, triangle:u32, u:f32, v:f32, descriptor:u32 };
+struct Surface { color:vec3f, normal:vec3f, geom:vec3f, rough:f32, metal:f32, transmission:f32, emission:vec3f, coverage:f32, ao:f32, translucency:f32, ior:f32, thinWalled:bool, coverageLayer:i32, maxCovMip:f32, sss:f32, scatterLength:f32 };
+struct Scatter { direction:vec3f, subsurface:bool };
 struct Sampler { state:u32, dimension:u32, key:u32, index:u32 };
 struct CameraRay { origin:vec3f, direction:vec3f };
 fn lum(c:vec3f)->f32{return (c.x*.2126+c.y*.7152)+c.z*.0722;}
+fn dielectricF0(ior:f32)->f32{let r=(ior-1.)/(ior+1.);return r*r;}
+fn giBackWeight(packed:f32)->f32{return f32(u32(round(packed*255.))&127u)/127.;}
+fn backDiffuse(cosine:f32,weight:f32)->f32{return mix(max(0.,cosine),max(0.,-cosine),weight);}
 fn max3(v:vec3f)->f32{return max(v.x,max(v.y,v.z));}
 fn power(a:f32,b:f32)->f32{let m=max(a,b);if(m==0.){return 0.;}let x=a/m;let y=b/m;return x*x/(x*x+y*y);}
 fn sampleHash(value:u32)->u32{
@@ -9234,6 +9246,11 @@ fn triangleThinWalled(surfId:f32,matIdx:u32)->bool{
   return (instanceMeta[idx].ids.w&0x80000000u)!=0u;
 }
 fn renderTriangle(id:u32)->Triangle{
+  var descriptor=0u;
+  if(hasSceneFeature(instancedGeometry)){descriptor=renderInstance(findInstance(id));}
+  return renderTriangleAt(id,descriptor);
+}
+fn renderTriangleAt(id:u32,inst:u32)->Triangle{
   if(!hasSceneFeature(instancedGeometry)){
     let hb=id*3u;let cb=params.counts.x*3u+id*5u;
     let h0=triangles[hb];let h1=triangles[hb+1u];let h2=triangles[hb+2u];
@@ -9241,7 +9258,6 @@ fn renderTriangle(id:u32)->Triangle{
     let a=h0.xyz;let b=a+h1.xyz;let c=a+h2.xyz;
     return Triangle(vec4f(a,f32(bitcast<u32>(h1.w))),vec4f(b,c2.w),vec4f(c,c4.w),c0,c1,vec4f(c2.xyz,h0.w),c3,c4);
   }
-  let inst=renderInstance(findInstance(id));
   let d0=bitcast<vec4u>(triangles[inst]);let d9=triangles[inst+9u];
   let hotBase=bitcast<u32>(triangles[0].w);let coldBase=bitcast<u32>(triangles[0].z);
   let ti=d0.z+id-d0.x;let hb=hotBase+ti*3u;let cb=coldBase+ti*5u;
@@ -9343,6 +9359,10 @@ fn surface(t:Triangle,hit:Hit,p:vec3f,d:vec3f)->Surface{
   let ior=select(1.5,mOpt2.x,mOpt2.x>0.);
   let thinWalled=triangleThinWalled(t.nb.w,mIdx);
   let covLayer=i32(mOpt2.z);let maxCovMip=mOpt2.w;
+  let scattering=materials[mIdx].scattering.xy;
+  // A sheet has no interior for a volume walk. Diffuse exits can use either side.
+  let translucency=mix(mFlags.w,1.,select(0.,.5*scattering.x,thinWalled));
+  let sss=select(scattering.x,0.,thinWalled);
   let ng=normalize(cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz));
   let geom=select(ng,-ng,dot(ng,d)>0.);
   var n=t.na.xyz*(1.-hit.u-hit.v)+t.nb.xyz*hit.u+t.nc.xyz*hit.v;
@@ -9350,7 +9370,7 @@ fn surface(t:Triangle,hit:Hit,p:vec3f,d:vec3f)->Surface{
   if(dot(n,geom)<0.){n=-n;}
   if(!hasSceneFeature(materialMaps)){
     let cov=select(clamp(mFlags.z,0.,1.),select(0.,1.,mFlags.z>=mOpts.z),mOpts.y==2.);
-    return Surface(mBase.rgb,renderShadingNormal(n,geom,-d),geom,max(.025,mBase.w),mEm.w,mMisc.x,mEm.rgb,cov,1.,mFlags.w,ior,thinWalled,covLayer,maxCovMip);
+    return Surface(mBase.rgb,renderShadingNormal(n,geom,-d),geom,max(.025,mBase.w),mEm.w,mMisc.x,mEm.rgb,cov,1.,translucency,ior,thinWalled,covLayer,maxCovMip,sss,scattering.y);
   }
   let mMaps=materials[mIdx].maps;let mExtra=materials[mIdx].extra;let mChan=materials[mIdx].channels;
   let hasUV=t.uvC.z>0.;
@@ -9374,10 +9394,10 @@ fn surface(t:Triangle,hit:Hit,p:vec3f,d:vec3f)->Surface{
       let textureResolution=max(1.,mMisc.w);
       lod=clamp(log2(max(1.,pixelFootprint*projectionScale*textureResolution)),0.,floor(log2(textureResolution)));
     }
-    let sampled=sampleColorLayer(hasUV,uv,pos,pn,w,i32(mMisc.z),lod);
-    tex=select(vec4f(sampled.rgb,1.),sampled,hasUV);
+    tex=sampleColorLayer(hasUV,uv,pos,pn,w,i32(mMisc.z),lod);
   }
-  if(mMaps.w>=0.||(mMisc.z>=0.&&mExtra.w!=0.)){
+  let hasNormal=mMaps.w>=0.&&mMisc.y!=0.;
+  if(hasNormal||(mMisc.z>=0.&&mExtra.w!=0.)){
     if(hasUV){
       let du1=t.uvAB.zw-t.uvAB.xy;let du2=t.uvC.xy-t.uvAB.xy;let det=du1.x*du2.y-du1.y*du2.x;
       if(abs(det)>1e-12){
@@ -9386,14 +9406,14 @@ fn surface(t:Triangle,hit:Hit,p:vec3f,d:vec3f)->Surface{
         let tx=tangent-n*dot(n,tangent);
         if(dot(tx,tx)>1e-20){
           let T=normalize(tx);let B=cross(n,T)*select(-1.,1.,dot(cross(n,T),bitangent)>0.);
-          if(mMaps.w>=0.){let q=textureSampleLevel(materialDataTexture,repeatSampler,uv,i32(mMaps.w),0.).rgb*2.-1.;n=normalize(T*q.x*mMisc.y+B*q.y*mMisc.y*mFlags.y+n*q.z);}
+          if(hasNormal){let q=textureSampleLevel(materialDataTexture,repeatSampler,uv,i32(mMaps.w),0.).rgb*2.-1.;n=normalize(T*q.x*mMisc.y+B*q.y*mMisc.y*mFlags.y+n*q.z);}
           if(mMisc.z>=0.&&mExtra.w!=0.){n=heightPerturb(i32(mMisc.z),mExtra.w,n,tangent,bitangent,uv);}
         }
       }
     }else{
       let pnRaw=(materials[mIdx].normalProjection*vec4f(mappingNormal,0.)).xyz;
       let inv=inverseProjection(materials[mIdx].projection);
-      if(mMaps.w>=0.){
+      if(hasNormal){
         var res=vec3f(0.);
         for(var axis=0u;axis<3u;axis++){
           if(w[axis]<=0.){continue;}
@@ -9425,13 +9445,12 @@ fn surface(t:Triangle,hit:Hit,p:vec3f,d:vec3f)->Surface{
   if(mExtra.y>=0.){metal*=dataChannel(sampleDataLayer(hasUV,uv,pos,pn,w,i32(mExtra.y)),mChan.z);}
   var ao=1.;if(hasUV&&mExtra.z>=0.){ao=mix(1.,dataChannel(textureSampleLevel(materialDataTexture,repeatSampler,uv,i32(mExtra.z),0.),mChan.w),mOpts.x);}
   var alpha=mFlags.z;
-  if(hasUV&&mFlags.x!=0.){alpha*=tex.a;}
-  else{
-    if(mMisc.z>=0.&&mOpts.y!=1.&&mFlags.x==0.){alpha*=select(sampleColorLayer(false,uv,pos,pn,w,i32(mMisc.z),0.).a,tex.a,hasUV);}
-    if(mMaps.z>=0.){alpha*=dataChannel(sampleDataLayer(hasUV,uv,pos,pn,w,i32(mMaps.z)),mChan.x);}
+  if(mMisc.z>=0.&&(mFlags.x!=0.||mOpts.y!=1.)){
+    alpha*=select(tex.a,1.,!hasUV&&mFlags.x!=0.);
   }
+  if(mMaps.z>=0.&&(!hasUV||mFlags.x==0.)){alpha*=dataChannel(sampleDataLayer(hasUV,uv,pos,pn,w,i32(mMaps.z)),mChan.x);}
   let cov=select(clamp(alpha,0.,1.),select(0.,1.,alpha>=mOpts.z),mOpts.y==2.);
-  return Surface(mBase.rgb*tex.rgb,n,geom,max(.025,rough),metal,mMisc.x,emission,cov,ao,mFlags.w,ior,thinWalled,covLayer,maxCovMip);
+  return Surface(mBase.rgb*tex.rgb,n,geom,max(.025,rough),metal,mMisc.x,emission,cov,ao,translucency,ior,thinWalled,covLayer,maxCovMip,sss,scattering.y);
 }
 `;
 
@@ -9445,21 +9464,31 @@ fn dfgApprox(nv:f32,rough:f32,f0:vec3f)->vec3f{
   let ab=vec2f(-1.04,1.04)*a+r.zw;
   return max(vec3f(0.),f0*ab.x+ab.y);
 }
+fn surfaceF0(s:Surface)->vec3f{return mix(vec3f(dielectricF0(s.ior)),s.color,s.metal);}
+fn surfaceFresnel(s:Surface,c:f32)->vec3f{
+  if(s.ior==1.&&s.metal==0.){return vec3f(0.);}
+  return fresnel(c,surfaceF0(s));
+}
 fn specProbability(s:Surface,v:vec3f)->f32{
-  let f=fresnel(max(0.,dot(s.normal,v)),mix(vec3f(.04),s.color,s.metal));
-  let spec=lum(f);let diffuse=lum((1.-f)*s.color)*(1.-s.metal)*(1.-s.translucency);
+  let f=surfaceFresnel(s,max(0.,dot(s.normal,v)));
+  let spec=lum(f);let diffuse=lum((1.-f)*s.color)*(1.-s.metal);
+  if(diffuse<=0.){return 1.;}if(spec<=0.){return 0.;}
   return clamp(spec/max(spec+diffuse,1e-8),.05,.95);
 }
 fn bsdf(s:Surface,v:vec3f,l:vec3f)->vec3f{
-  let nl=dot(s.normal,l);let nv=dot(s.normal,v);if(nl<=0.||nv<=0.){return vec3f(0.);}
+  let nl=dot(s.normal,l);let nv=dot(s.normal,v);
+  if(dot(s.geom,l)<0.&&nl<0.&&nv>0.){
+    return (1.-surfaceFresnel(s,nv))*s.color*((1.-s.metal)*s.translucency*(1.-s.transmission)/PI);
+  }
+  if(nl<=0.||nv<=0.||dot(s.geom,l)<=0.){return vec3f(0.);}
   let h=normalize(v+l);let nh=max(0.,dot(s.normal,h));let vh=max(0.,dot(v,h));let a=s.rough*s.rough;
-  let f=fresnel(vh,mix(vec3f(.04),s.color,s.metal));
+  let f=surfaceFresnel(s,vh);
   let spec=distribution(nh,a)*masking(nv,a)*masking(nl,a)*f/max(4.*nl*nv,1e-8);
-  return (spec+(1.-f)*s.color*((1.-s.metal)*(1.-s.translucency)/PI))*(1.-s.transmission);
+  return (spec+(1.-f)*s.color*((1.-s.metal)*(1.-s.translucency)*(1.-s.sss)/PI))*(1.-s.transmission);
 }
 fn diffuseBSDF(s:Surface,v:vec3f,l:vec3f)->vec3f{
-  let f=fresnel(max(0.,dot(v,normalize(v+l))),mix(vec3f(.04),s.color,s.metal));
-  return (1.-f)*s.color*((1.-s.metal)*(1.-s.transmission)*(1.-s.translucency)/PI);
+  let f=surfaceFresnel(s,max(0.,dot(v,normalize(v+l))));
+  return (1.-f)*s.color*((1.-s.metal)*(1.-s.transmission)*(1.-s.translucency)*(1.-s.sss)/PI);
 }
 fn bsdfPDF(s:Surface,v:vec3f,l:vec3f)->f32{
   let nl=dot(s.normal,l);
@@ -9472,7 +9501,7 @@ fn bsdfPDF(s:Surface,v:vec3f,l:vec3f)->f32{
   let h=normalize(v+l);let nh=max(0.,dot(s.normal,h));let nv=max(1e-6,dot(s.normal,v));
   let spec=distribution(nh,s.rough*s.rough)*masking(nv,s.rough*s.rough)/(4.*nv);
   let sp=specProbability(s,v);
-  let diffW=(1.-sp)*(1.-s.translucency);
+  let diffW=(1.-sp)*(1.-s.translucency)*(1.-s.sss);
   return (diffW*(nl/PI)+sp*spec)*(1.-s.transmission);
 }
 fn sampleGGXVNDF(n:vec3f,v:vec3f,alpha:f32,seed:ptr<function,Sampler>)->vec3f{
@@ -9489,10 +9518,11 @@ fn sampleGGXVNDF(n:vec3f,v:vec3f,alpha:f32,seed:ptr<function,Sampler>)->vec3f{
 fn sampleOpaque(s:Surface,v:vec3f,seed:ptr<function,Sampler>)->Scatter{
   if(random(seed)>specProbability(s,v)){
     if(s.translucency>0.&&random(seed)<s.translucency){return Scatter(hemisphere(-s.normal,seed),false);}
+    if(hasSceneFeature(subsurfaceMedia)&&s.sss>0.&&random(seed)<s.sss){return Scatter(hemisphere(-s.geom,seed),true);}
     return Scatter(hemisphere(s.normal,seed),false);
   }
   let h=sampleGGXVNDF(s.normal,v,s.rough*s.rough,seed);
-  return Scatter(reflect(-v,h),true);
+  return Scatter(reflect(-v,h),false);
 }
 fn directCosine(s:Surface,d:vec3f)->f32{
   let side=dot(s.geom,d);
@@ -9500,7 +9530,7 @@ fn directCosine(s:Surface,d:vec3f)->f32{
   if(s.translucency>0.){return max(0.,-dot(s.normal,d));}
   return 0.;
 }
-fn diffuseColor(s:Surface)->vec3f{return (1.-mix(vec3f(.04),s.color,s.metal))*s.color*((1.-s.metal)*(1.-s.transmission))*s.ao;}
+fn diffuseColor(s:Surface)->vec3f{return (1.-surfaceF0(s))*s.color*((1.-s.metal)*(1.-s.transmission))*s.ao;}
 `;
 
 // Unified 64B parent-child BVH2 + 48B hot tris + single-stack TLAS/BLAS + inline binary alpha cutout (with coverage mip!) + shadow early-out!
@@ -9524,7 +9554,7 @@ fn fastLeafCoverage(matIdx:u32,coldBase:u32,ti:u32,u:f32,v:f32,dist:f32,raySprea
       let rawUV=c3.xy*(1.-u-v)+c3.zw*u+c4.xy*v;
       let uv=vec2f(rawUV.x,1.-rawUV.y);
       let texRes=max(1.,materials[matIdx].misc.w);
-      let lod=clamp(log2(max(1.,dist*raySpread*texRes/max(curScale,1e-4))),0.,opt2.w);
+      let lod=clamp(log2(max(1.,dist*raySpread*texRes*curScale*c4.z)),0.,opt2.w);
       let cov=textureSampleLevel(alphaCoverageTexture,repeatSampler,uv,covLayer,lod).r;
       return vec2f(cov,trans);
     }
@@ -9545,7 +9575,7 @@ fn fastLeafCoverage(matIdx:u32,coldBase:u32,ti:u32,u:f32,v:f32,dist:f32,raySprea
   let cov=select(clamp(alpha,0.,1.),select(0.,1.,alpha>=opts.z),opts.y==2.);
   return vec2f(cov,trans);
 }
-fn testLeaf(first:u32,cnt:u32,hotBase:u32,coldBase:u32,curO:vec3f,curD:vec3f,curDirLen:f32,curFirstVid:u32,curTriOff:u32,curMatBase:u32,background:bool,anyHit:bool,shadowQuery:bool,raySpread:f32,hit:ptr<function,Hit>,earlyOut:ptr<function,bool>)->bool{
+fn testLeaf(first:u32,cnt:u32,hotBase:u32,coldBase:u32,curO:vec3f,curD:vec3f,curDirLen:f32,curFirstVid:u32,curTriOff:u32,curMatBase:u32,descriptor:u32,background:bool,anyHit:bool,shadowQuery:bool,raySpread:f32,primaryCoverage:bool,hit:ptr<function,Hit>,earlyOut:ptr<function,bool>)->bool{
   let end=first+cnt;
   for(var ti=first;ti<end;ti++){
     let tb=hotBase+ti*3u;
@@ -9564,15 +9594,26 @@ fn testLeaf(first:u32,cnt:u32,hotBase:u32,coldBase:u32,curO:vec3f,curD:vec3f,cur
         let matIdx=curMatBase+bitcast<u32>(h1.w);
         let ct=fastLeafCoverage(matIdx,coldBase,ti,u,v,dist,raySpread,curDirLen);
         if(ct.x<=0.){continue;}
-        if(raySpread>0.&&ct.x<1.){
+        if(primaryCoverage){
+          if(ct.x<.5){continue;}
+          // Cubic projection needs the hit position and shading normal to resolve alpha.
+          if(ct.x==.5&&hasSceneFeature(materialMaps)&&triangles[coldBase+ti*5u+4u].z<=0.){
+            let h=Hit(dist,curFirstVid+(ti-curTriOff),u,v,descriptor);
+            let t=renderTriangleAt(h.triangle,descriptor);
+            let front=-cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz);
+            if(surface(t,h,renderHitPoint(t,h),front).coverage<.5){continue;}
+          }
+        }
+        let filteredCutout=raySpread>0.&&materials[matIdx].opt2.z>=0.&&triangles[coldBase+ti*5u+4u].z>0.;
+        if(filteredCutout&&ct.x<1.){
           let h=sampleHash(ti^(bitcast<u32>(dist)*0x9e3779b9u));
           if(f32(h)*(1./4294967296.)>=ct.x){continue;}
         }
-        if(shadowQuery&&ct.x>=.99999&&ct.y<.001){
-          (*hit)=Hit(dist,curFirstVid+(ti-curTriOff),u,v);(*earlyOut)=true;return true;
+        if(shadowQuery&&(ct.x>=.99999||filteredCutout)&&ct.y<.001){
+          (*hit)=Hit(dist,curFirstVid+(ti-curTriOff),u,v,descriptor);(*earlyOut)=true;return true;
         }
       }
-      (*hit)=Hit(dist,curFirstVid+(ti-curTriOff),u,v);
+      (*hit)=Hit(dist,curFirstVid+(ti-curTriOff),u,v,descriptor);
       if(anyHit){(*earlyOut)=true;return true;}
     }
   }
@@ -9582,7 +9623,10 @@ fn intersectGeometry(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:b
   return intersectGeometrySpread(root,o,d,limit,background,anyHit,shadowQuery,0.,earlyOut);
 }
 fn intersectGeometrySpread(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool,shadowQuery:bool,raySpread:f32,earlyOut:ptr<function,bool>)->Hit{
-  var hit=Hit(limit,0xffffffffu,0.,0.);(*earlyOut)=false;
+  return intersectQuery(root,o,d,limit,background,anyHit,shadowQuery,raySpread,false,earlyOut);
+}
+fn intersectQuery(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool,shadowQuery:bool,raySpread:f32,primaryCoverage:bool,earlyOut:ptr<function,bool>)->Hit{
+  var hit=Hit(limit,0xffffffffu,0.,0.,0u);(*earlyOut)=false;
   if(params.counts.y==0u||root==EMPTY_SLOT){return hit;}
   if(!hasSceneFeature(instancedGeometry)){
     let safe=select(vec3f(-1.),vec3f(1.),d>=vec3f(0.))*max(abs(d),vec3f(1e-15));
@@ -9604,7 +9648,7 @@ fn intersectGeometrySpread(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,an
       for(var li=0u;li<2u;li++){
         let cRef=select(sRef,fRef,li==0u);let cCnt=select(sCnt,fCnt,li==0u);let cD=select(sD,fD,li==0u);
         if(cD<hit.distance&&cCnt>0u){
-          if(testLeaf(cRef,cCnt,0u,coldBase,o,d,1.,0u,0u,0u,background,anyHit,shadowQuery,raySpread,&hit,earlyOut)){return hit;}
+          if(testLeaf(cRef,cCnt,0u,coldBase,o,d,1.,0u,0u,0u,0u,background,anyHit,shadowQuery,raySpread,primaryCoverage,&hit,earlyOut)){return hit;}
         }
       }
       if(sCnt==0u&&sD<hit.distance){stack[top]=sRef;top++;}
@@ -9615,10 +9659,11 @@ fn intersectGeometrySpread(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,an
   let safeW=select(vec3f(-1.),vec3f(1.),d>=vec3f(0.))*max(abs(d),vec3f(1e-30));
   let invW=1./safeW;let negOW=-o*invW;
   let hotBase=bitcast<u32>(triangles[0].w);let coldBase=bitcast<u32>(triangles[0].z);
-  var stack:array<u32,36>;var top=1u;stack[0]=root;
+  // At most 32 balanced instance levels and 20 geometry levels can be pending.
+  var stack:array<u32,54>;var top=1u;stack[0]=root;
   var blasBase=0xffffffffu;
   var curO=o;var curD=d;var curInv=invW;var curNegO=negOW;
-  var curDirLen=1.;var curFirstVid=0u;var curTriOff=0u;var curMatBase=0u;
+  var descriptor=0u;var curDirLen=1.;var curFirstVid=0u;var curTriOff=0u;var curMatBase=0u;
   while(top>0u){
     if(blasBase!=0xffffffffu&&top==blasBase){
       blasBase=0xffffffffu;curO=o;curD=d;curInv=invW;curNegO=negOW;
@@ -9632,7 +9677,7 @@ fn intersectGeometrySpread(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,an
       curO=(invM*vec4f(o,1.)).xyz;curD=(invM*vec4f(d,0.)).xyz;curDirLen=length(curD);
       let safeL=select(vec3f(-1.),vec3f(1.),curD>=vec3f(0.))*max(abs(curD),vec3f(1e-30));
       curInv=1./safeL;curNegO=-curO*curInv;
-      curFirstVid=d0.x;curTriOff=d0.z;curMatBase=bitcast<u32>(d9.x);
+      descriptor=inst;curFirstVid=d0.x;curTriOff=d0.z;curMatBase=bitcast<u32>(d9.x);
       blasBase=top;stack[top]=d0.w;top++;continue;
     }
     let node=nodes[item];
@@ -9652,7 +9697,7 @@ fn intersectGeometrySpread(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,an
       for(var li=0u;li<2u;li++){
         let cRef=select(sRef,fRef,li==0u);let cCnt=select(sCnt,fCnt,li==0u);let cD=select(sD,fD,li==0u);
         if(cD<hit.distance&&cCnt>0u){
-          if(testLeaf(cRef,cCnt,hotBase,coldBase,curO,curD,curDirLen,curFirstVid,curTriOff,curMatBase,background,anyHit,shadowQuery,raySpread,&hit,earlyOut)){return hit;}
+          if(testLeaf(cRef,cCnt,hotBase,coldBase,curO,curD,curDirLen,curFirstVid,curTriOff,curMatBase,descriptor,background,anyHit,shadowQuery,raySpread,primaryCoverage,&hit,earlyOut)){return hit;}
         }
       }
       if(sCnt==0u&&sD<hit.distance){stack[top]=sRef;top++;}
@@ -9718,7 +9763,7 @@ fn visibilityBudget(start:vec3f,d:vec3f,distance:f32,maxSegs:u32,raySpread:f32)-
     if(opaque){return select(vec3f(0.),vec3f(1.),hit.triangle==0xffffffffu);}
     if(eo){return vec3f(0.);}
     if(hit.triangle==0xffffffffu){return weight;}
-    let t=renderTriangle(hit.triangle);let mIdx=u32(t.a.w);let p=renderHitPoint(t,hit);
+    let t=renderTriangleAt(hit.triangle,hit.descriptor);let mIdx=u32(t.a.w);let p=renderHitPoint(t,hit);
     let ng=normalize(cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz));
     let alpha=shadowTriAlpha(mIdx,t,hit,p,ng);
     let trans=materials[mIdx].misc.x;
@@ -10129,6 +10174,7 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
   var hadRealScatter=false;
   var medStack=array<MediumEntry,4>(MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)),MediumEntry(1.,vec3f(0.)));
   var medDepth=0u;
+  var scatterOwner=0u;var scatterLength=0.;var scatterAlbedo=vec3f(0.);var volumeSteps=0u;
   var primaryOut=PrimaryInfo(false,vec3f(0.),0.,vec3f(0.),0.,0u,0u,255u);
   let maxB=max(1u,u32(params.tuning.y));
   let raySpread=select(2.*params.up.w/f32(max(1u,params.image.y)),0.,params.forward.w>0.);
@@ -10138,7 +10184,18 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
   loop{
     var eo=false;
     let useRoot=select(0u,root,bounce==0u&&nullSteps==0u);
-    let hit=intersectGeometrySpread(useRoot,o,d,1e20,bounce==0u&&!hadRealScatter,false,false,select(0.,raySpread,bounce>0u),&eo);
+    var flight=1e20;
+    if(hasSceneFeature(subsurfaceMedia)&&scatterOwner!=0u){flight=-log(max(1e-7,1.-random(seed)))*scatterLength;}
+    let hit=intersectGeometrySpread(select(useRoot,0u,scatterOwner!=0u),o,d,flight,bounce==0u&&!hadRealScatter,false,false,select(0.,raySpread,bounce>0u&&scatterOwner==0u),&eo);
+    if(hasSceneFeature(subsurfaceMedia)&&scatterOwner!=0u&&hit.triangle==EMPTY_SLOT){
+      // Homogeneous isotropic random walk in normalized scene coordinates.
+      o+=d*flight;throughput*=scatterAlbedo;volumeSteps++;
+      if(volumeSteps>=4u){
+        let survive=clamp(max3(throughput),.05,.9);
+        if(random(seed)>=survive){break;}throughput/=survive;
+      }
+      d=cone(vec3f(0.,0.,1.),-1.,seed);continue;
+    }
     if(hit.triangle==EMPTY_SLOT){
       if(medDepth>0u){throughput*=exp(-medStack[medDepth-1u].sigma*4.);}
       if(!hadRealScatter){let bg=throughput*cameraBackground(d);radiance+=bg;primary+=bg;}
@@ -10146,19 +10203,27 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
       if(firstSample&&!primaryOut.valid){textureStore(guideOut,vec2u(pixelIdx%params.image.x,pixelIdx/params.image.x),packCompactGuide(vec3f(0.),0.,vec3f(0.),0.,0u,0u,255u));}
       break;
     }
-    let t=renderTriangle(hit.triangle);
+    let t=renderTriangleAt(hit.triangle,hit.descriptor);
     let p=renderHitPoint(t,hit);
     let mIdx=u32(t.a.w);
     let ng=normalize(cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz));
     let entering=dot(ng,d)<0.;
-    let s=surface(t,hit,p,d);
-
+    var s=surface(t,hit,p,d);
+    // A filtered cutout has already accepted this ray during traversal.
+    if(bounce>0u&&scatterOwner==0u&&raySpread>0.&&s.coverageLayer>=0&&t.uvC.z>0.){s.coverage=1.;}
     if(s.coverage<1.&&random(seed)>=s.coverage){
       o=p+d*EPS;nullSteps++;
       if(nullSteps>=48u){break;}
       continue;
     }
 
+    if(hasSceneFeature(subsurfaceMedia)&&scatterOwner!=0u){
+      if(u32(t.nb.w)!=scatterOwner){break;}
+      // Evaluate diffuse exit lighting where the path actually leaves the solid.
+      s.normal=-s.geom;s.geom=s.normal;d=-s.normal;
+      s.sss=0.;s.translucency=0.;s.transmission=0.;s.metal=0.;s.ior=1.;
+      s.color=vec3f(1.);s.ao=1.;s.emission=vec3f(0.);scatterOwner=0u;
+    }
     if(medDepth>0u){
       throughput*=exp(-medStack[medDepth-1u].sigma*hit.distance);
     }else if(!entering&&!s.thinWalled&&s.transmission>=.001){
@@ -10186,12 +10251,15 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
 
     if(bounce>=maxB){break;}
 
+    let v=-d;
+    let dl=throughput*directLight(s,p,v,seed,select(0.,raySpread,bounce>0u));
+    radiance+=dl;if(!hadRealScatter){primary+=dl;}
     if(s.transmission>=.001&&random(seed)<s.transmission){
       if(s.thinWalled){
         let atten=thinMatAttenuation(mIdx,t,hit,p,ng);
         let smoothGlass=s.rough<=.05;
         let v=-d;
-        let h=select(sampleGGXVNDF(s.normal,v,s.rough*s.rough,seed),s.normal,!smoothGlass);
+        var h=s.normal;if(!smoothGlass){h=sampleGGXVNDF(s.normal,v,s.rough*s.rough,seed);}
         let cosI=abs(dot(v,h));
         let F=transport_fresnel(cosI,1.,s.ior);
         let rt=transport_thin_rt(F,atten);
@@ -10225,7 +10293,7 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
       }else{
         let v=-d;
         let smoothGlass=s.rough<=.05;
-        let h=select(sampleGGXVNDF(s.normal,v,s.rough*s.rough,seed),s.normal,!smoothGlass);
+        var h=s.normal;if(!smoothGlass){h=sampleGGXVNDF(s.normal,v,s.rough*s.rough,seed);}
         let sigmaMat=-log(clamp(s.color,vec3f(.02),vec3f(1.)))*3.;
         var eta_i=1.;var eta_t=s.ior;
         if(entering){
@@ -10262,19 +10330,18 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
       continue;
     }
 
-    let v=-d;
-    let dl=throughput*directLight(s,p,v,seed,select(0.,raySpread,bounce>0u));
-    radiance+=dl;if(!hadRealScatter){primary+=dl;}
-
     let sc=sampleOpaque(s,v,seed);
+    if(hasSceneFeature(subsurfaceMedia)&&sc.subsurface){
+      let f=surfaceFresnel(s,max(0.,dot(s.normal,v)));
+      throughput*=(1.-f)*s.color*(1.-s.metal)/max(1e-6,1.-specProbability(s,v));
+      scatterOwner=u32(t.nb.w);scatterLength=s.scatterLength;scatterAlbedo=clamp(s.color,vec3f(0.),vec3f(1.));volumeSteps=0u;
+      d=sc.direction;o=p-s.geom*min(EPS,.02*scatterLength);hadRealScatter=true;deltaEvent=true;
+      continue;
+    }
     let nl=directCosine(s,sc.direction);
     let pdf=bsdfPDF(s,v,sc.direction);
     if(nl<=0.||pdf<=1e-12){break;}
-    var f=bsdf(s,v,sc.direction);
-    if(dot(s.geom,sc.direction)<0.&&s.translucency>0.){
-      let baseF=fresnel(max(0.,dot(s.normal,v)),mix(vec3f(.04),s.color,s.metal));
-      f=(1.-baseF)*s.color*((1.-s.metal)*s.translucency*(1.-s.transmission)/PI);
-    }
+    let f=bsdf(s,v,sc.direction);
     throughput*=f*(nl/pdf)*s.ao;
     previousPDF=pdf;deltaEvent=false;lastRealPos=p;hadRealScatter=true;
     d=sc.direction;o=p+select(-s.geom,s.geom,dot(s.geom,d)>0.)*EPS;
@@ -10704,10 +10771,10 @@ ${fullscreenVertexWGSL}
 fn chVal(v:vec4f,ch:f32)->f32{if(ch<4.){return v[u32(ch)];}return dot(v.rgb,vec3f(.299,.587,.114))*v.a;}
 @fragment fn cutMip0(v:Vertex)->@location(0) vec4f {
   var a=cfg.factor;
-  let uv=vec2f(v.uv.x,1.-v.uv.y);
+  let uv=v.uv;
   let baseL=i32(cfg.baseL);let opL=i32(cfg.opL);
   if(baseL>=0){a*=textureSampleLevel(colorTex,samp,uv,baseL,0.).a;}
-  if(opL>=0){a*=chVal(textureSampleLevel(opTex,samp,uv,opL,0.),cfg.channel);}
+  if(opL>=0&&(opL!=baseL||cfg.channel!=3.)){a*=chVal(textureSampleLevel(opTex,samp,uv,opL,0.),cfg.channel);}
   let bin=select(0.,1.,a>=cfg.cutoff);
   return vec4f(bin,bin,bin,1.);
 }
@@ -10737,10 +10804,14 @@ ${wgslTypes}
 @group(0) @binding(4) var materialTexture:texture_2d_array<f32>;
 @group(0) @binding(5) var repeatSampler:sampler;
 @group(0) @binding(6) var materialDataTexture:texture_2d_array<f32>;
+@group(0) @binding(7) var<storage,read> nodes:array<Node>;
+@group(0) @binding(8) var alphaCoverageTexture:texture_2d_array<f32>;
 ${wgslSceneFeatures}
 ${wgslTriangles}
 ${wgslSurface}
+${wgslIntersect}
 ${wgslPackUtils}
+${fullscreenVertexWGSL}
 
 struct GBufVSOut {
   @builtin(position) clipPos:vec4f,
@@ -10780,27 +10851,57 @@ struct GBufMRT {
   return GBufVSOut(clip,p,triId,uvB,prevW);
 }
 
-@fragment fn fsMain(in:GBufVSOut)->GBufMRT{
-  let t=renderTriangle(in.triId);
+fn writeGBuffer(t:Triangle,s:Surface,triId:u32,curUV:vec2f,prevWorldPos:vec3f)->GBufMRT{
   let mIdx=u32(t.a.w);
   let surfId=u32(t.nb.w);
-  let hit=Hit(length(in.worldPos-params.origin.xyz),in.triId,in.bary.x,in.bary.y);
-  let ray=select(normalize(in.worldPos-params.origin.xyz),params.forward.xyz,params.forward.w>0.);
-  let s=surface(t,hit,in.worldPos,ray);
-  if(s.coverage<.5){discard;}
   let flag=select(0u,select(2u,1u,s.thinWalled),s.transmission>=.001);
   let packedInfo=(surfId&0xfffu)|((mIdx&0xfffu)<<12u)|((flag&0xffu)<<24u);
-  let gMat=vec4f(clamp(s.rough,0.,1.),clamp(s.metal,0.,1.),select(0.,1.,max3(s.emission)>0.),select(0.,select(.5,1.,!s.thinWalled),s.transmission>=.001));
-  let curUV=in.clipPos.xy/vec2f(params.image.xy);
-  let prevUV=giPrevUV(in.prevWorldPos);
+  let back=mix(s.translucency,1.,.5*s.sss);
+  let packed=(round(back*127.)+select(0.,128.,max3(s.emission)>0.))/255.;
+  let gMat=vec4f(clamp(s.rough,0.,1.),clamp(s.metal,0.,1.),packed,dielectricF0(s.ior));
+  let prevUV=giPrevUV(prevWorldPos);
   let motion=select(vec2f(0.),curUV-prevUV,prevUV.x>-1.);
   return GBufMRT(
-    vec2u(in.triId+1u,packedInfo),
+    vec2u(triId+1u,packedInfo),
     octEncode(s.normal),
     vec4f(clamp(s.color,vec3f(0.),vec3f(1.)),clamp(s.ao,0.,1.)),
     gMat,
     motion
   );
+}
+
+@fragment fn fsMain(in:GBufVSOut)->GBufMRT{
+  let t=renderTriangle(in.triId);
+  let hit=Hit(length(in.worldPos-params.origin.xyz),in.triId,in.bary.x,in.bary.y,0u);
+  let ray=select(normalize(in.worldPos-params.origin.xyz),params.forward.xyz,params.forward.w>0.);
+  let s=surface(t,hit,in.worldPos,ray);
+  if(s.coverage<.5){discard;}
+  return writeGBuffer(t,s,in.triId,in.clipPos.xy/vec2f(params.image.xy),in.prevWorldPos);
+}
+
+struct RayGBufMRT {
+  @location(0) id:vec2u, @location(1) normal:vec2f, @location(2) albedo:vec4f,
+  @location(3) material:vec4f, @location(4) motion:vec2f, @builtin(frag_depth) depth:f32,
+};
+@fragment fn fsRay(in:Vertex)->RayGBufMRT{
+  let uv=in.position.xy/vec2f(params.image.xy);
+  let ray=giRayAtUV(uv);
+  let ortho=params.forward.w>0.;
+  let forwardDot=dot(ray.direction,params.forward.xyz);
+  let nearT=select(1e-4/max(forwardDot,1e-8),-1e3,ortho);
+  let origin=ray.origin+ray.direction*(nearT-EPS);
+  var early=false;
+  let hit=intersectQuery(0u,origin,ray.direction,1e20,false,false,false,0.,true,&early);
+  if(hit.triangle==EMPTY_SLOT){discard;}
+  let t=renderTriangleAt(hit.triangle,hit.descriptor);
+  let p=renderHitPoint(t,hit);
+  let z=dot(p-params.origin.xyz,params.forward.xyz);
+  if(ortho&&z>=1e3){discard;}
+  let s=surface(t,hit,p,ray.direction);
+  let prev=(instanceMeta[max(1u,u32(t.nb.w))-1u].prevWorld*vec4f(p,1.)).xyz;
+  let g=writeGBuffer(t,s,hit.triangle,uv,prev);
+  let depth=select(1e-4/max(z,1e-4),1.-(z+1e3)*.0005,ortho);
+  return RayGBufMRT(g.gbufId,g.gbufNormal,g.gbufAlbedo,g.gbufMaterial,g.gbufMotion,clamp(depth,0.,1.));
 }
 `;
 
@@ -11128,7 +11229,7 @@ fn giCacheTrain(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups
       if(sid<instCount){
         let im=instanceMeta[sid].ids;
         if(im.x==fb.ids.x&&im.y==fb.ids.y&&(im.w&0x7fffffffu)==u32(fb.uvData.z)){
-          let hit=Hit(1.,fb.ids.z,fb.uvData.x,fb.uvData.y);
+          let hit=Hit(1.,fb.ids.z,fb.uvData.x,fb.uvData.y,0u);
           p=renderHitPoint(tri,hit);
           s=surface(tri,hit,p,fb.dirData.xyz);n=s.normal;ok=true;
           atomicAdd(&cacheCounters[8],1u);
@@ -11154,7 +11255,7 @@ fn giCacheTrain(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups
       let d00=dot(b0,b0);let d01=dot(b0,b1);let d11=dot(b1,b1);let d20=dot(rel,b0);let d21=dot(rel,b1);
       let invDen=1./max(d00*d11-d01*d01,1e-24);
       let bu=(d11*d20-d01*d21)*invDen;let bv=(d00*d21-d01*d20)*invDen;
-      s=surface(tri,Hit(rayT,gid.x-1u,bu,bv),p,ray.direction);n=s.normal;ok=true;
+      s=surface(tri,Hit(rayT,gid.x-1u,bu,bv,0u),p,ray.direction);n=s.normal;ok=true;
     }
   }
   if(!ok){return;}
@@ -11167,7 +11268,7 @@ fn giCacheTrain(@builtin(global_invocation_id) gid:vec3u,@builtin(num_workgroups
   if(hit2.triangle==EMPTY_SLOT){
     extra=cameraBackground(bDir)*PI;
   }else{
-    let t2=renderTriangle(hit2.triangle);let p2=renderHitPoint(t2,hit2);
+    let t2=renderTriangleAt(hit2.triangle,hit2.descriptor);let p2=renderHitPoint(t2,hit2);
     let s2=surface(t2,hit2,p2,bDir);
     extra=(s2.emission+(s2.color/PI)*trainDirectLight(s2,p2,&seed))*PI;
     pos2=vec4f(p2,1.);
@@ -11209,13 +11310,32 @@ struct GiListHeader { count:u32, cap:u32, pad0:u32, pad1:u32, items:array<u32> }
 @group(1) @binding(4) var gbufDepth:texture_depth_2d;
 @group(1) @binding(5) var hdrTempOut:texture_storage_2d<rgba16float,write>;
 
-fn evalSoftDirectIrradiance(p:vec3f,n:vec3f,geom:vec3f,seed:ptr<function,Sampler>)->vec4f{
+@group(1) @binding(6) var gbufMaterial:texture_2d<f32>;
+fn giDiffuseVisibility(p:vec3f,geom:vec3f,dir:vec3f,distance:f32,back:f32,triId:u32)->vec3f{
+  let side=dot(geom,dir);var origin=p+select(-geom,geom,side>0.)*EPS;
+  var remaining=distance;var attenuation=1.;
+  if(hasSceneFeature(subsurfaceMedia)&&back>0.&&side<0.){
+    let entry=renderTriangle(triId);let mid=u32(entry.a.w);
+    let scattering=materials[mid].scattering;
+    if(scattering.x>0.&&!triangleThinWalled(entry.nb.w,mid)){
+      var early=false;
+      let exitHit=intersectGeometry(0u,origin,dir,distance,false,false,false,&early);
+      if(exitHit.triangle==EMPTY_SLOT){return vec3f(0.);}
+      let exitTri=renderTriangleAt(exitHit.triangle,exitHit.descriptor);
+      if(exitTri.nb.w!=entry.nb.w){return vec3f(0.);}
+      attenuation=exp(-exitHit.distance/max(scattering.y,1e-12));
+      origin+=dir*(exitHit.distance+EPS);remaining-=exitHit.distance;
+    }
+  }
+  return visibilityBudget(origin,dir,remaining,16u,0.)*attenuation;
+}
+fn evalSoftDirectIrradiance(p:vec3f,n:vec3f,geom:vec3f,back:f32,triId:u32,seed:ptr<function,Sampler>)->vec4f{
   var sunVis=1.;
   if(params.infiniteCount.x>0u){
     let sun=params.infiniteLights[0];
     let dir=cone(sun.direction.xyz,cos(sun.direction.w),seed);
-    if(dot(n,dir)>0.){
-      let vis=visibilityBudget(p+select(-geom,geom,dot(geom,dir)>0.)*EPS,dir,1e20,16u,0.);
+    if(dot(n,dir)>0.||back>0.){
+      let vis=giDiffuseVisibility(p,geom,dir,1e20,back,triId);
       sunVis=lum(vis);
     }else{sunVis=0.;}
   }
@@ -11225,7 +11345,7 @@ fn evalSoftDirectIrradiance(p:vec3f,n:vec3f,geom:vec3f,seed:ptr<function,Sampler
     var cDir=vec3f(0.);var cDist=0.;var cCol=vec3f(0.);
     for(var m=0u;m<cands;m++){
       let ls=sampleEmitter(p,seed);
-      let nl=max(0.,dot(n,ls.direction));
+      let nl=backDiffuse(dot(n,ls.direction),back);
       let tval=select(0.,lum(ls.color)*nl,ls.pdf>0.&&nl>0.);
       let offered=transport_ris_offer(res,max(1e-20,ls.pdf),tval,m,random(seed));
       if(offered.winner==m&&offered.count!=res.count){cDir=ls.direction;cDist=ls.distance;cCol=ls.color;}
@@ -11233,23 +11353,23 @@ fn evalSoftDirectIrradiance(p:vec3f,n:vec3f,geom:vec3f,seed:ptr<function,Sampler
     }
     let rw=transport_ris_weight(res);
     if(rw.x>0.&&rw.z==0.){
-      let vis=visibilityBudget(p+select(-geom,geom,dot(geom,cDir)>0.)*EPS,cDir,cDist,16u,0.);
-      eSoft+=cCol*vis*(max(0.,dot(n,cDir))*rw.x);
+      let vis=giDiffuseVisibility(p,geom,cDir,cDist,back,triId);
+      eSoft+=cCol*vis*(backDiffuse(dot(n,cDir),back)*rw.x);
     }
   }
   for(var i=1u;i<params.infiniteCount.x;i++){
     let ls=sampleDistantLight(i+1u,seed);
-    let nl=max(0.,dot(n,ls.direction));
+    let nl=backDiffuse(dot(n,ls.direction),back);
     if(nl>0.&&ls.pdf>0.){
-      let vis=visibilityBudget(p+select(-geom,geom,dot(geom,ls.direction)>0.)*EPS,ls.direction,ls.distance,16u,0.);
+      let vis=giDiffuseVisibility(p,geom,ls.direction,ls.distance,back,triId);
       eSoft+=ls.color*vis*(nl/ls.pdf);
     }
   }
   if(params.counts.w>0u){
     let ls=sampleDistantLight(0u,seed);
-    let nl=max(0.,dot(n,ls.direction));
+    let nl=backDiffuse(dot(n,ls.direction),back);
     if(nl>0.&&ls.pdf>0.){
-      let vis=visibilityBudget(p+select(-geom,geom,dot(geom,ls.direction)>0.)*EPS,ls.direction,ls.distance,16u,0.);
+      let vis=giDiffuseVisibility(p,geom,ls.direction,ls.distance,back,triId);
       eSoft+=ls.color*vis*(nl/ls.pdf);
     }
   }
@@ -11269,7 +11389,7 @@ fn giDirect(@builtin(global_invocation_id) id:vec3u){
   let frameRot=(params.giA.y&3u);
   let pidx=id.y*halfSize.x+id.x;
   var seed=Sampler(pidx*1973u+params.giA.y*9277u+frameRot*26699u,0u,sampleHash(pidx^params.giA.y),pidx%1024u);
-  textureStore(lowDirectOut,vec2i(id.xy),evalSoftDirectIrradiance(p,nr.xyz,nr.xyz,&seed));
+  textureStore(lowDirectOut,vec2i(id.xy),evalSoftDirectIrradiance(p,nr.xyz,nr.xyz,giBackWeight(textureLoad(gbufMaterial,pix,0).z),textureLoad(gbufId,pix,0).x-1u,&seed));
 }
 
 @compute @workgroup_size(64)
@@ -11291,9 +11411,9 @@ fn giDiscontinuityDirect(@builtin(global_invocation_id) gid:vec3u){
   let d00=dot(b0,b0);let d01=dot(b0,b1);let d11=dot(b1,b1);let d20=dot(rel,b0);let d21=dot(rel,b1);
   let invDen=1./max(d00*d11-d01*d01,1e-24);
   let bu=clamp((d11*d20-d01*d21)*invDen,0.,1.);let bv=clamp((d00*d21-d01*d20)*invDen,0.,1.);
-  let s=surface(tri,Hit(rayT,idv.x-1u,bu,bv),p,ray.direction);
+  let s=surface(tri,Hit(rayT,idv.x-1u,bu,bv,0u),p,ray.direction);
   var seed=Sampler(pixelIdx*1973u+params.giA.y*9277u+89173u,0u,sampleHash(pixelIdx^params.giA.y),pixelIdx%1024u);
-  let res=evalSoftDirectIrradiance(p,s.normal,s.geom,&seed);
+  let res=evalSoftDirectIrradiance(p,s.normal,s.geom,giBackWeight(textureLoad(gbufMaterial,xy,0).z),idv.x-1u,&seed);
   textureStore(hdrTempOut,xy,res);
 }
 `;
@@ -11364,7 +11484,7 @@ fn giGather(@builtin(global_invocation_id) id:vec3u){
     textureStore(lowGatherOut,vec2i(id.xy),vec4f(environment(bDir)*PI*params.tuning.x,1.));
     return;
   }
-  let tri=renderTriangle(hit.triangle);let p2=renderHitPoint(tri,hit);
+  let tri=renderTriangleAt(hit.triangle,hit.descriptor);let p2=renderHitPoint(tri,hit);
   let s2=surface(tri,hit,p2,bDir);
   let q=querySharcGather(p2,s2.normal,params.giA.y);
   var irrX2=q.irradiance;
@@ -11473,7 +11593,7 @@ fn giSpecular(@builtin(global_invocation_id) id:vec3u){
     textureStore(lowReflMetaOut,vec2i(id.xy),vec4u(EMPTY_SLOT));
     return;
   }
-  let tri=renderTriangle(hit.triangle);let p2=renderHitPoint(tri,hit);
+  let tri=renderTriangleAt(hit.triangle,hit.descriptor);let p2=renderHitPoint(tri,hit);
   let s2=surface(tri,hit,p2,rDir);
   let q=querySharcSpec(p2,s2.normal,params.giA.y);
   var sunRefl=vec3f(0.);
@@ -11716,14 +11836,15 @@ fn giComposite(@builtin(global_invocation_id) id:vec3u){
   var eDI=softDir.rgb;
   var directSpec=vec3f(0.);
   let v=-ray.direction;
-  let f0=mix(vec3f(.04),alb.rgb,metal);
+  let f0=mix(vec3f(mat.w),alb.rgb,metal);
   let a=rough*rough;
   let nv=max(1e-4,dot(norm,v));
   if(params.infiniteCount.x>0u){
     let sun=params.infiniteLights[0];
-    let nl=max(0.,dot(norm,sun.direction.xyz));
+    let cosine=dot(norm,sun.direction.xyz);
+    eDI+=sun.color.rgb*softDir.a*backDiffuse(cosine,giBackWeight(mat.z));
+    let nl=max(0.,cosine);
     if(nl>0.){
-      eDI+=sun.color.rgb*softDir.a*nl;
       let h=normalize(v+sun.direction.xyz);
       let nh=max(0.,dot(norm,h));let vh=max(0.,dot(v,h));
       let specLobe=distribution(nh,a)*masking(nv,a)*masking(nl,a)*fresnel(vh,f0)/max(4.*nl*nv,1e-4);
@@ -11805,7 +11926,7 @@ fn evalHitLightGlass(p:vec3f,s:Surface,v:vec3f)->vec3f{
     }
   }
   let irr=select(environment(s.normal)*.35,q.irradiance,q.valid);
-  let f0=mix(vec3f(.04),s.color,s.metal);
+  let f0=surfaceF0(s);
   return s.emission+sunL+(1.-f0)*(s.color*(1.-s.metal)/PI)*(irr*params.tuning.x);
 }
 
@@ -11816,7 +11937,7 @@ fn traceGlassTail(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,startMedDepth
     var eo=false;
     let hit=intersectGeometry(0u,o,d,1e20,false,false,false,&eo);
     if(hit.triangle==EMPTY_SLOT){rad+=tp*cameraBackground(d);break;}
-    let t=renderTriangle(hit.triangle);let p=renderHitPoint(t,hit);
+    let t=renderTriangleAt(hit.triangle,hit.descriptor);let p=renderHitPoint(t,hit);
     let mIdx=u32(t.a.w);let ng=normalize(cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz));
     let entering=dot(ng,d)<0.;
     let s=surface(t,hit,p,d);
@@ -11872,7 +11993,7 @@ fn giGlass(@builtin(global_invocation_id) gid:vec3u){
   var eo=false;
   let hit=intersectGeometry(0u,o,d,1e20,false,false,false,&eo);
   if(hit.triangle==EMPTY_SLOT){textureStore(hdrOut,xy,vec4f(cameraBackground(d),1.));return;}
-  let t=renderTriangle(hit.triangle);let p=renderHitPoint(t,hit);
+  let t=renderTriangleAt(hit.triangle,hit.descriptor);let p=renderHitPoint(t,hit);
   let mIdx=u32(t.a.w);let ng=normalize(cross(t.b.xyz-t.a.xyz,t.c.xyz-t.a.xyz));
   let entering=dot(ng,d)<0.;
   let s=surface(t,hit,p,d);
@@ -11890,7 +12011,7 @@ fn giGlass(@builtin(global_invocation_id) gid:vec3u){
       let rDir=reflect(d,s.normal);
       let hitR=intersectGeometry(0u,p+s.geom*EPS,rDir,1e20,false,false,false,&eoR);
       var radR=cameraBackground(rDir);
-      if(hitR.triangle!=EMPTY_SLOT){let tr=renderTriangle(hitR.triangle);let pr=renderHitPoint(tr,hitR);radR=evalHitLightGlass(pr,surface(tr,hitR,pr,rDir),-rDir);}
+      if(hitR.triangle!=EMPTY_SLOT){let tr=renderTriangleAt(hitR.triangle,hitR.descriptor);let pr=renderHitPoint(tr,hitR);radR=evalHitLightGlass(pr,surface(tr,hitR,pr,rDir),-rDir);}
       rad=rt.r*radR+rt.t*traceGlassTail(p+d*EPS,d,&seed,0u,med,6u);
     }else{
       rad=traceGlassTail(o,d,&seed,0u,med,7u);
@@ -11905,7 +12026,7 @@ fn giGlass(@builtin(global_invocation_id) gid:vec3u){
     var eoR=false;
     let hitR=intersectGeometry(0u,p+s.geom*EPS,rDir,1e20,false,false,false,&eoR);
     var radR=cameraBackground(rDir);
-    if(hitR.triangle!=EMPTY_SLOT){let tr=renderTriangle(hitR.triangle);let pr=renderHitPoint(tr,hitR);radR=evalHitLightGlass(pr,surface(tr,hitR,pr,rDir),-rDir);}
+    if(hitR.triangle!=EMPTY_SLOT){let tr=renderTriangleAt(hitR.triangle,hitR.descriptor);let pr=renderHitPoint(tr,hitR);radR=evalHitLightGlass(pr,surface(tr,hitR,pr,rDir),-rDir);}
     let eta=eta_i/max(eta_t,1e-4);let k=1.-eta*eta*(1.-cosI*cosI);
     if(k<=0.){rad=tpInit*radR;}
     else{
@@ -12167,7 +12288,7 @@ function frameFastYield(){
 }
 
 const cameraParameterWords=240,cameraPacketCapacity=8;
-const allCameraFeatures=cameraSceneFlags.instances|cameraSceneFlags.materialMaps|cameraSceneFlags.opaqueShadows;
+const allCameraFeatures=cameraSceneFlags.instances|cameraSceneFlags.materialMaps|cameraSceneFlags.opaqueShadows|cameraSceneFlags.subsurface;
 
 function cameraProgramGroup(entries,compile,isReadySync=null){
   const jobs=new Map(),pipelines={};
@@ -12187,7 +12308,11 @@ function cameraProgramGroup(entries,compile,isReadySync=null){
       if(isReadySync)for(const e of entries)if(!Object.hasOwn(pipelines,e)){const p=isReadySync(e);if(p)pipelines[e]=p;}
       return Object.keys(pipelines).length===entries.length;
     },
-    async all(){if(!this.ready)await Promise.all(entries.map(request));return pipelines;},
+    async all(include=null){
+      const wanted=include?entries.filter(include):entries;
+      if(!this.ready)await Promise.all(wanted.map(request));
+      return include?Object.fromEntries(wanted.map(name=>[name,pipelines[name]])):pipelines;
+    },
     next(){
       if(isReadySync)for(const e of entries)if(!Object.hasOwn(pipelines,e)){const p=isReadySync(e);if(p)pipelines[e]=p;}
       const entry=entries.find(name=>!Object.hasOwn(pipelines,name));
@@ -12250,14 +12375,15 @@ function cameraPrograms(){
     st(1,true,GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT),
     st(2,true,GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT),
     st(3,true,GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT),
-    texArr(4,GPUShaderStage.FRAGMENT),samp(5,GPUShaderStage.FRAGMENT),texArr(6,GPUShaderStage.FRAGMENT)
+    texArr(4,GPUShaderStage.FRAGMENT),samp(5,GPUShaderStage.FRAGMENT),texArr(6,GPUShaderStage.FRAGMENT),
+    st(7,true,GPUShaderStage.FRAGMENT),texArr(8,GPUShaderStage.FRAGMENT)
   ]});
   const plGBuf=device.createPipelineLayout({bindGroupLayouts:[gbufLayout]});
 
   const giTrainAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,false),st(2,false),tex2d(3,GPUShaderStage.COMPUTE,'uint'),texDepth(4)]});
   const plGiTrain=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,giTrainAuxLayout]});
 
-  const giDirectAuxLayout=device.createBindGroupLayout({entries:[st(0,true),tex2d(1,GPUShaderStage.COMPUTE,'uint'),stTex(2,'rgba16float'),tex2d(3,GPUShaderStage.COMPUTE,'uint'),texDepth(4),stTex(5,'rgba16float')]});
+  const giDirectAuxLayout=device.createBindGroupLayout({entries:[st(0,true),tex2d(1,GPUShaderStage.COMPUTE,'uint'),stTex(2,'rgba16float'),tex2d(3,GPUShaderStage.COMPUTE,'uint'),texDepth(4),stTex(5,'rgba16float'),tex2d(6)]});
   const plGiDirect=device.createPipelineLayout({bindGroupLayouts:[sceneLayout,giDirectAuxLayout]});
 
   const giGatherAuxLayout=device.createBindGroupLayout({entries:[st(0,true),st(1,true),st(2,true),st(3,false),tex2d(4,GPUShaderStage.COMPUTE,'uint'),stTex(5,'rgba16float')]});
@@ -12301,6 +12427,7 @@ function cameraPrograms(){
     prepareCameraTiles:{module:mTiles,ep:'prepareCameraTiles',uses:'s',pl:plProgressive},
     gatherSkyTiles:{module:mTiles,ep:'gatherSkyTiles',uses:'sc',pl:plProgressive},
     giGBuffer:{module:mGiGBuf,ep:'vsMain',fs:'fsMain',uses:'s',pl:plGBuf,render:true},
+    giRayGBuffer:{module:mGiGBuf,ep:'vertexMain',fs:'fsRay',uses:'s',pl:plGBuf,render:true},
     giGuides:{module:mGiGuides,ep:'giGuides',uses:'',pl:plGiGuides},
     giPrepareIndirect:{module:mGiGuides,ep:'giPrepareIndirect',uses:'',pl:plGiGuides},
     giHiZMipNext:{module:mGiHiZ,ep:'giHiZMipNext',uses:'',pl:'auto'},
@@ -12373,7 +12500,7 @@ function cameraPrograms(){
     }else if(mode==='independent'){
       entries=['integrate','prepareCameraTiles','gatherSkyTiles'];
     }else{
-      entries=['giGBuffer','giGuides','giPrepareIndirect','giHiZMipNext','giCacheClear','giCacheTrain','giCacheBin','giCacheReduce','giCacheResolve','giDirect','giDiscontinuityDirect','giGather','giSpecular','giTemporalDirectGather','giTemporalSpecular','giAtrousHalf','giComposite','giGlass'];
+      entries=['giGBuffer','giRayGBuffer','giGuides','giPrepareIndirect','giHiZMipNext','giCacheClear','giCacheTrain','giCacheBin','giCacheReduce','giCacheResolve','giDirect','giDiscontinuityDirect','giGather','giSpecular','giTemporalDirectGather','giTemporalSpecular','giAtrousHalf','giComposite','giGlass'];
     }
     const isReadySync=name=>sharedDone.get(specKey(name,sceneFeatures,variableSceneFeatures,cameraTiles,mode).key)||null;
     const group=cameraProgramGroup(entries,name=>compileKernel(name,sceneFeatures,variableSceneFeatures,cameraTiles,mode),isReadySync);
@@ -12521,7 +12648,8 @@ class FrameRenderer {
   sceneFeatureBits(scene=this.scene){
     return (scene?.instances?cameraSceneFlags.instances:0)|
       (!this.optimized()||scene?.materialMaps?cameraSceneFlags.materialMaps:0)|
-      (this.optimized()&&scene?.opaqueShadows?cameraSceneFlags.opaqueShadows:0);
+      (this.optimized()&&scene?.opaqueShadows?cameraSceneFlags.opaqueShadows:0)|
+      (scene?.subsurface?cameraSceneFlags.subsurface:0);
   }
   useCameraTiles(){return !this.options.interactivePreview&&(this.options.sampleLimit||Infinity)>cameraPacketCapacity;}
   cameraProgramSelection(mode,features,tiled,universalOnly=false){
@@ -12529,12 +12657,12 @@ class FrameRenderer {
     const exact=mode==='realtime'||universalOnly?universal:this.programs.variant(mode,features,tiled?0:cameraSceneFlags.instances,this.cameraPipelines);
     return {exact,group:universal.started&&!exact.ready?universal:exact};
   }
-  async initCameraPipelines(mode,epoch,features,universalOnly=false){
+  async initCameraPipelines(mode,epoch,features,universalOnly=false,include=null){
     const programs=this.programs,selection=this.cameraProgramSelection(mode,features,this.useCameraTiles(),universalOnly),exact=selection.exact;
     let group=selection.group,pipelines;
-    try{pipelines=await group.all();}catch(error){
+    try{pipelines=await group.all(include);}catch(error){
       if(group===exact||this.epoch!==epoch)throw error;
-      group=exact;pipelines=await exact.all();
+      group=exact;pipelines=await exact.all(include);
     }
     if(this.epoch!==epoch||this.programs!==programs)return;
     Object.assign(this,pipelines);
@@ -12598,8 +12726,7 @@ class FrameRenderer {
     for(let i=0;i<input.materials.length;i++){
       const m=input.materials[i];
       const covFac=m.coverageFactor??1,opTex=m.opacityTexture??-1,alCode=m.alphaModeCode??0,baseTex=m.texture??-1;
-      const isOpaque=covFac>=.99999&&opTex<0&&(baseTex<0||alCode===1);
-      if(isOpaque||(baseTex<0&&opTex<0)){layersMeta.push(-1);continue;}
+      if(alCode!==2||(baseTex<0&&opTex<0)){layersMeta.push(-1);continue;}
       const ch=m.channels?.[0]??4,cutoff=m.alphaCutoff??.5;
       const key=`${baseTex}:${opTex}:${ch}:${covFac}:${cutoff}`;
       let entry=layerByKey.get(key);
@@ -12784,10 +12911,10 @@ class FrameRenderer {
     this.nodes=this.buffer(result.bvh);this.sceneResources.push(this.nodes);
     this.triangles=this.buffer(result.triangles);this.sceneResources.push(this.triangles);delete result.triangles;
     this.lights=null;this.lightTableDirty=true;
-    const materialData=new Float32Array(Math.max(1,input.materials.length)*68);
+    const materialData=new Float32Array(Math.max(1,input.materials.length)*72);
     const {center,scale}=result;
     for(let i=0;i<input.materials.length;i++){
-      const m=input.materials[i],at=i*68;
+      const m=input.materials[i],at=i*72;
       materialData.set([...m.color,m.rough,...m.emission,m.metal,m.transmission,m.bump,m.texture,materialTextureSize],at);
       const p=m.projection.slice();for(let row=0;row<4;row++){p[12+row]+=p[row]*center[0]+p[4+row]*center[1]+p[8+row]*center[2];for(let col=0;col<3;col++)p[col*4+row]*=scale;}
       const covFac=m.coverageFactor??1,opTex=m.opacityTexture??-1,alCode=m.alphaModeCode??0;
@@ -12801,19 +12928,25 @@ class FrameRenderer {
       materialData.set([opTex>=0&&opTex===m.texture&&m.channels?.[0]===3?1:0,m.normalY??1,covFac,m.translucency??0],at+60);
       const covLayer=this.alphaLayerMap?.[i]??-1;
       materialData.set([m.ior??1.5,m.thinWalled===true?1:m.thinWalled===false?2:0,covLayer,covLayer>=0?this.alphaMaxMip:0],at+64);
+      materialData.set([m.sss??0,(m.sssRadius??1)/scale],at+68);
     }
-    const maxSurf=Math.max(1,...input.meshes.map(m=>m.surfaceId||1),...(result.meshStates||[]).map(s=>s.id||1));
+    let maxSurf=1;
+    for(const mesh of input.meshes)maxSurf=Math.max(maxSurf,mesh.surfaceId||1);
+    for(const state of result.meshStates)maxSurf=Math.max(maxSurf,state.id||1);
     const imBuf=new ArrayBuffer(maxSurf*80),imF32=new Float32Array(imBuf),imU32=new Uint32Array(imBuf);
     const idMat=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
     for(let s=0;s<maxSurf;s++){imU32.set([s+1,1,1,1],s*20);imF32.set(idMat,s*20+4);}
     const prevC=previousScene?.center||center,prevS=previousScene?.scale||scale;
+    const normalizationChanged=prevS!==scale||prevC.some((v,k)=>v!==center[k]);
     const thinById=new Map((result.meshStates||[]).map(st=>[st.id,st]));
     for(const m of input.meshes){
       const sid=Math.max(1,m.surfaceId||1)-1,st=thinById.get(sid+1);
       const thin=m.thinWalled!==undefined?!!m.thinWalled:(st?.thinWalled||false);
       const topo=(m.topologyGeneration||st?.topologyGeneration||1)&0x7fffffff;
       imU32.set([m.stableId||st?.stableId||(sid+1),m.generation||st?.generation||1,m.transformRevision||st?.transformRevision||1,topo|(thin?0x80000000:0)],sid*20);
-      imF32.set(this._prevFromCurMatrix(m.prevMatrix,m.matrix,center,scale,prevC,prevS),sid*20+4);
+      if(m.prevMatrix!==m.matrix||normalizationChanged){
+        imF32.set(this._prevFromCurMatrix(m.prevMatrix,m.matrix,center,scale,prevC,prevS),sid*20+4);
+      }
     }
     this.instanceMeta=this.buffer(new Uint8Array(imBuf));this.sceneResources.push(this.instanceMeta);
     Object.assign(result,features);this.stats.opaqueVisibilityEligible=result.opaqueShadows;
@@ -13058,7 +13191,8 @@ class FrameRenderer {
       {binding:2,resource:{buffer:this.materials}},{binding:3,resource:{buffer:this.instanceMeta}},
       {binding:4,resource:this.materialTexture.createView({dimension:'2d-array'})},
       {binding:5,resource:this.sampler},
-      {binding:6,resource:this.materialTexture.createView({dimension:'2d-array',format:'rgba8unorm'})}
+      {binding:6,resource:this.materialTexture.createView({dimension:'2d-array',format:'rgba8unorm'})},
+      {binding:7,resource:{buffer:this.nodes}},{binding:8,resource:this.alphaCoverageTexture.createView({dimension:'2d-array'})}
     ];
     gb.gbufGroup=device.createBindGroup({layout:programs.gbufLayout,entries:gbufEntry});
     const dV=gb.gbufDepth.createView(),idV=gb.gbufId.createView(),nV=gb.gbufNormal.createView(),aV=gb.gbufAlbedo.createView(),mV=gb.gbufMaterial.createView(),motV=gb.gbufMotion.createView();
@@ -13092,7 +13226,7 @@ class FrameRenderer {
     ]}));
     gb.directGroup=device.createBindGroup({layout:programs.giDirectAuxLayout,entries:[
       {binding:0,resource:{buffer:gb.discList}},{binding:1,resource:lgV},{binding:2,resource:gb.lowDirWork.createView()},
-      {binding:3,resource:idV},{binding:4,resource:dV},{binding:5,resource:hdrTempW}
+      {binding:3,resource:idV},{binding:4,resource:dV},{binding:5,resource:hdrTempW},{binding:6,resource:mV}
     ]});
     gb.gatherGroups=[0,1].map(fi=>device.createBindGroup({layout:programs.giGatherAuxLayout,entries:[
       {binding:0,resource:{buffer:gb.cacheKeys}},{binding:1,resource:{buffer:gb.cacheResults}},{binding:2,resource:{buffer:gb.cacheSlotMeta}},
@@ -13195,6 +13329,11 @@ class FrameRenderer {
       blit.setPipeline(this.previewBlit);blit.setBindGroup(0,this.previewGroup);blit.draw(3);blit.end();
     }else encoder.copyTextureToTexture({texture:this.output},{texture:this.context.getCurrentTexture()},[this.width,this.height]);
   }
+  useRayGBuffer(width,height){
+    // Bound the vertex-pulling work of a single raster draw even on a large display.
+    const rasterBudget=Math.min(16*1024*1024,Math.max(262144,width*height*64));
+    return this.scene.triangleCount>rasterBudget;
+  }
   async renderInteractiveGIFrame(width,height,epoch,started){
     const {camera,environment}=this.options;
     this.allocateImage(width,height);this.allocateGiResources(width,height);
@@ -13224,7 +13363,10 @@ class FrameRenderer {
         ],
         depthStencilAttachment:{view:gb.gbufDepth.createView(),depthClearValue:0.0,depthLoadOp:'clear',depthStoreOp:'store'}
       });
-      rp.setPipeline(this.giGBuffer);rp.setBindGroup(0,gb.gbufGroup);rp.draw(this.scene.triangleCount*3);rp.end();
+      // For subpixel geometry, primary visibility scales with the image using the existing TLAS/BLAS.
+      const rayPrimary=this.useRayGBuffer(width,height);
+      rp.setPipeline(rayPrimary?this.giRayGBuffer:this.giGBuffer);rp.setBindGroup(0,gb.gbufGroup);
+      rp.draw(rayPrimary?3:this.scene.triangleCount*3);rp.end();
       const hgx=Math.ceil(gb.hw/8),hgy=Math.ceil(gb.hh/8),fgx=Math.ceil(width/8),fgy=Math.ceil(height/8);
       const pGuide=this.computePass(encoder,'GI Guides & HiZ');pGuide.setPipeline(this.giGuides);pGuide.setBindGroup(0,gb.guidesGroup);pGuide.dispatchWorkgroups(hgx,hgy);pGuide.end();
       for(const hm of gb.hizGroups){const ph=this.computePass(encoder,'HiZ mip');ph.setPipeline(this.giHiZMipNext);ph.setBindGroup(0,hm.group);ph.dispatchWorkgroups(Math.ceil(hm.w/8),Math.ceil(hm.h/8));ph.end();}
@@ -13243,7 +13385,7 @@ class FrameRenderer {
       const pTS=this.computePass(encoder,'GI Temporal Spec');pTS.setPipeline(this.giTemporalSpecular);pTS.setBindGroup(0,gb.tempSpecGroups[hi]);pTS.dispatchWorkgroups(hgx,hgy);pTS.end();
       for(let step=0;step<2;step++){const pAt=this.computePass(encoder,'GI Atrous');pAt.setPipeline(this.giAtrousHalf);pAt.setBindGroup(0,gb.atrousGroups[hi][step]);pAt.dispatchWorkgroups(hgx,hgy);pAt.end();}
       const pCmp=this.computePass(encoder,'GI Composite');pCmp.setPipeline(this.giComposite);pCmp.setBindGroup(0,this.sceneBindGroup);pCmp.setBindGroup(1,gb.compAuxGroup);pCmp.dispatchWorkgroups(fgx,fgy);pCmp.end();
-      const pGl=this.computePass(encoder,'GI Glass');pGl.setPipeline(this.giGlass);pGl.setBindGroup(0,this.sceneNoLightsGroup);pGl.setBindGroup(1,gb.glassAuxGroup);pGl.dispatchWorkgroupsIndirect(gb.giIndirect,16);pGl.end();
+      if(this.scene.glass){const pGl=this.computePass(encoder,'GI Glass');pGl.setPipeline(this.giGlass);pGl.setBindGroup(0,this.sceneNoLightsGroup);pGl.setBindGroup(1,gb.glassAuxGroup);pGl.dispatchWorkgroupsIndirect(gb.giIndirect,16);pGl.end();}
       encoder.copyTextureToTexture({texture:this.hdrFinalTex},{texture:this.frozenPreviewTex},[width,height]);
       this.displayFrame(encoder,true,{progressive:false});
       encoder.copyBufferToBuffer(gb.giIndirect,32,read,0,16);
@@ -13262,7 +13404,7 @@ class FrameRenderer {
       this.giHistIdx=1-hi;this.giFbIdx=1-fi;this.hardInvalidation=false;this.giTransportReset=false;
       this.lastCameraPose={position:[...camera.position],right:[...camera.right],forward:[...camera.forward],up:[...camera.up],fov:camera.fov,ortho:camera.ortho,aspect:camera.aspect};
       this.hasFrozenPreview=true;this.giLastReady=true;this.running=false;this.completed=true;this.imageReady=true;
-      this.stats.gi={mode:'interactive',tier:this.qualityController.tier,ageTick:this.giAge,transportEpoch:this.transportEpoch,cacheSlots:gb.slots,discCount,glassCount,fbUsed,fbStaleRejected:fbStale,evictions};
+      this.stats.gi={mode:'interactive',primaryVisibility:rayPrimary?'bvh':'raster',tier:this.qualityController.tier,ageTick:this.giAge,transportEpoch:this.transportEpoch,cacheSlots:gb.slots,discCount,glassCount,fbUsed,fbStaleRejected:fbStale,evictions};
       Object.assign(this.stats,{phase:'preview',samples:1,dispatches:1,filmFaults:0,width,height,activePixels:width*height,scheduledPixels:width*height,lastDispatchMs:gpuMs,maxDispatchMs:gpuMs,dispatchTimes:[gpuMs],elapsedMs:done-encodedAt});
       this.markPresented(started);
     }finally{this.releaseReadStaging(read,device);}
@@ -13469,7 +13611,7 @@ class FrameRenderer {
       const snapshot=!sameScene?Promise.resolve(options.getScene(()=>epoch!==this.epoch)).then(input=>{
         const coverageOpaque=input.materials.every(m=>m.opacityTexture<0&&(m.alphaModeCode===1||m.alphaMode==='OPAQUE'));
         const opaqueShadows=input.materials.length>0&&coverageOpaque&&input.materials.every(m=>Number.isFinite(m.transmission)&&Math.fround(m.transmission)<.001);
-        return {input,features:{coverageOpaque,opaqueShadows,materialMaps:input.textures.length>0}};
+        return {input,features:{coverageOpaque,opaqueShadows,materialMaps:input.textures.length>0,subsurface:input.materials.some(m=>m.sss>0),glass:input.materials.some(m=>m.transmission>=.001)}};
       }):null;
       snapshot?.catch(()=>{});
       this.stats.stage='Preparing WebGPU…';this.onChange();await this.init();if(epoch!==this.epoch)return;
@@ -13488,12 +13630,18 @@ class FrameRenderer {
       const pipelinesReady=(async()=>{
         if(options.interactivePreview){
           if(options.lightingReuse===false)return this.initCameraPipelines('realtime',epoch,0);
-          if(!snapshot)return this.initCameraPipelines('gi',epoch,this.sceneFeatureBits(this.scene));
-          const uReady=this.initCameraPipelines('gi',epoch,0,true);
-          const [,built]=await Promise.all([uReady,snapshot]);
-          if(epoch===this.epoch&&this.cameraProgramSelection('gi',this.sceneFeatureBits(built.features),false).exact.ready)
-            return this.initCameraPipelines('gi',epoch,this.sceneFeatureBits(built.features));
-          return uReady;
+          const features=snapshot?(await snapshot).features:this.scene;
+          if(epoch!==this.epoch)return;
+          // Instance layout stays dynamic. Compile shared lighting while the worker builds the BVH.
+          const bits=this.sceneFeatureBits(features),isPrimary=name=>name==='giGBuffer'||name==='giRayGBuffer';
+          const lights=this.initCameraPipelines('gi',epoch,bits,false,name=>!isPrimary(name)&&(name!=='giGlass'||features.glass));
+          const primary=sceneReady.then(scene=>{
+            if(epoch!==this.epoch||!scene)return;
+            const [w,h]=options.outputSize||[Math.round(options.rect.w),Math.round(options.rect.h)];
+            const entry=this.useRayGBuffer(w,h)?'giRayGBuffer':'giGBuffer';
+            return this.initCameraPipelines('gi',epoch,bits,false,name=>name===entry);
+          });
+          return Promise.all([lights,primary]);
         }
         const features=workerLayout?await Promise.race([workerLayout,sceneReady]):snapshot?(await snapshot).features:this.scene;
         if(epoch===this.epoch)return this.initCameraPipelines('independent',epoch,this.sceneFeatureBits(features));
@@ -14427,8 +14575,10 @@ var matPreview = document.getElementById("matPreview"), mpCtx = matPreview.getCo
 function renderBaseMatToCanvas(ctx, w, h, m) {
   let hv = m.h, s = m.s / 100, l = m.l / 100, emm = m.emm / 100, rough = m.rough / 100, metal = m.metal / 100, opac = m.opac / 100, [r, g, b] = hsl2rgb(hv, s, l), k = w / 53, blur = Math.pow(rough, 1.5) * 20 * k;
   ctx.save(), ctx.clearRect(0, 0, w, h), ctx.canvas === matPreview && (ctx.fillStyle = "#262626", ctx.fillRect(0, 0, w, h)), ctx.globalAlpha = Math.max(0, 1 - opac);
-  let att = 1 - metal * (1 - rough * 0.3);
-  ctx.fillStyle = `rgb(${Math.sqrt(r * 0.5) * 256 * att},${Math.sqrt(g * 0.5) * 256 * att},${Math.sqrt(b * 0.5) * 256 * att})`, ctx.fillRect(0, 0, w, h), ctx.globalCompositeOperation = "lighter", ctx.filter = `brightness(0.1) blur(${blur}px)`, ctx.drawImage(envImg, 0, 0, w, h);
+  const ior=m.ior??1.5,reflection=((ior-1)/(ior+1))**2;
+  const scatter=(m.sss??0)/100,translucency=(m.translucency??0)/100;
+  let att = (1 - metal * (1 - rough * 0.3))*(1-.35*translucency);
+  ctx.fillStyle = `rgb(${Math.sqrt(r * 0.5) * 256 * att},${Math.sqrt(g * 0.5) * 256 * att},${Math.sqrt(b * 0.5) * 256 * att})`, ctx.fillRect(0, 0, w, h), ctx.globalCompositeOperation = "lighter", ctx.filter = `brightness(${2.5*reflection}) blur(${blur}px)`, ctx.drawImage(envImg, 0, 0, w, h);
   if (metal > 0) ctx.filter = `brightness(${metal}) blur(${blur}px)`, ctx.drawImage(envImg, 0, 0, w, h);
   if (ctx.filter = "none", ctx.globalCompositeOperation = "multiply", ctx.fillStyle = `rgb(${256 * (1 + metal * (r - 1))},${256 * (1 + metal * (g - 1))},${256 * (1 + metal * (b - 1))})`, ctx.fillRect(0, 0, w, h), m.map && m.map.complete && m.map.naturalWidth)
     try {
@@ -14437,7 +14587,12 @@ function renderBaseMatToCanvas(ctx, w, h, m) {
     }
   ctx.globalCompositeOperation = "lighter";
   if (emm > 0) ctx.fillStyle = `rgb(${r * emm * 256},${g * emm * 256},${b * emm * 256})`, ctx.fillRect(0, 0, w, h);
-  let rad = (2 + 1e3 * Math.pow(rough, 5)) * k, hl = (1 - Math.pow(rough, 0.2)) * 256, gr = ctx.createRadialGradient(w * 0.396, h * 0.377, 0, w * 0.396, h * 0.377, rad);
+  if(scatter>0||translucency>0){
+    const rim=ctx.createRadialGradient(w*.5,h*.5,0,w*.5,h*.5,w*.5);
+    rim.addColorStop(0,'transparent');rim.addColorStop(1,`rgba(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)},${(1-metal)*(.28*scatter+.4*translucency)})`);
+    ctx.fillStyle=rim;ctx.fillRect(0,0,w,h);
+  }
+  let rad = (2 + 1e3 * Math.pow(rough, 5)) * k, hl = (1 - Math.pow(rough, 0.2)) * 256 * (metal+(1-metal)*reflection/.04), gr = ctx.createRadialGradient(w * 0.396, h * 0.377, 0, w * 0.396, h * 0.377, rad);
   gr.addColorStop(0, `rgb(${hl},${hl},${hl})`), gr.addColorStop(1, "rgb(0,0,0)"), ctx.fillStyle = gr, ctx.fillRect(0, 0, w, h), ctx.globalCompositeOperation = "source-over", ctx.globalAlpha = 1, ctx.filter = "none", ctx.restore();
 }
 const NUMERIC_CONSTANTS=Object.freeze({pi:Math.PI,e:Math.E,tau:Math.PI*2,phi:(1+Math.sqrt(5))/2});
@@ -14543,8 +14698,8 @@ function frameGetTrack(h,path){return frameChannels.get(h)?.get(path);}
 function frameTarget(h){return h.startsWith('mat:')?materials.find(m=>m.uid===h.slice(4)):node(h);}
 function frameParameter(target,path){if(path.startsWith('tag:')){const [,id,...parts]=path.split(':'),tag=target.tags.find(t=>t.uid===id),key=parts.join(':');return tag?{container:tag.params,key,spec:tagDefinitions[tag.kind]?.fields[key]??(tag.kind==='morph'?0:undefined),tagSpec:tagDefinitions[tag.kind]?.plugin?tagDefinitions[tag.kind]:null}:null;}const key=path.slice(6);return {container:target.params,key,spec:definitions[target.type]?.[2][key]};}
 function frameAttributeKind(h,path){const target=frameTarget(h);if(!target||FRAME_TRANSFORM_FIELDS.includes(path)||path.startsWith('material:')||frameIsPLAPath(path)||path.startsWith('pose:'))return 'number';const field=frameParameter(target,path);return typeof field?.spec==='boolean'||Array.isArray(field?.spec)?'discrete':numberOptions(target.type,field?.key||'').int?'integer':'number';}
-function frameReadAttribute(h,path){const target=frameTarget(h);if(!target||FramePlugins.dispatch('forbidAnimation',target,path))return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])return d.vertices[key].slice();const match=key.match(/^h:(.+):(h[ab])$/);return match&&d.segments[match[1]]?.[match[2]].slice();}return window.frameEngine?.animationVertex(target.nativeHash,+key)||frameGetTrack(h,path)?.base;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0)return window.frameEngine?.animationTransform(target.nativeHash,path);if(path.startsWith('material:')){const value=target[path.slice(9)];return typeof value==='number'?value:undefined;}const field=frameParameter(target,path);if(!field||field.spec===undefined)return;const value=field.container[field.key],spec=field.spec;return typeof value==='boolean'?+value:Array.isArray(spec)?spec.indexOf(value):typeof value==='number'?value:undefined;}
-function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid)target[path.slice(9)]=value;return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});
+function frameReadAttribute(h,path){const target=frameTarget(h);if(!target||FramePlugins.dispatch('forbidAnimation',target,path))return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])return d.vertices[key].slice();const match=key.match(/^h:(.+):(h[ab])$/);return match&&d.segments[match[1]]?.[match[2]].slice();}return window.frameEngine?.animationVertex(target.nativeHash,+key)||frameGetTrack(h,path)?.base;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0)return window.frameEngine?.animationTransform(target.nativeHash,path);if(path.startsWith('material:')){const key=path.slice(9),value=target[key]??frameMaterialDefaults[key];return typeof value==='number'?value:undefined;}const field=frameParameter(target,path);if(!field||field.spec===undefined)return;const value=field.container[field.key],spec=field.spec;return typeof value==='boolean'?+value:Array.isArray(spec)?spec.indexOf(value):typeof value==='number'?value:undefined;}
+function frameWriteAttribute(h,path,value){const target=frameTarget(h);if(!target)return;if(path.startsWith('pose:'))return FrameMorph.poseValue(target,path,value);if(frameIsPLAPath(path)){const key=path.slice(4),n=FrameSpline.sourceNode(target)||target,d=n.splineData;if(d){if(d.vertices[key])d.vertices[key]=value.slice();else{const match=key.match(/^h:(.+):(h[ab])$/);if(match&&d.segments[match[1]])d.segments[match[1]][match[2]]=value.slice();}FrameSpline.request();}else window.frameEngine?.animationVertex(target.nativeHash,+key,value);return;}const axis=FRAME_TRANSFORM_FIELDS.indexOf(path);if(axis>=0){window.frameEngine?.animationTransform(target.nativeHash,path,value);return;}if(path.startsWith('material:')){if(target.uid!==frameDefaultMaterials[0].uid){const key=path.slice(9);if(['ior','sss','sssRadius','translucency'].includes(key)){const {min,max}=materialNumericOptions(key);value=Math.max(min,Math.min(max,value));}target[key]=value;}return;}const field=frameParameter(target,path);if(!field)return;const {container,key,spec}=field,next=typeof spec==='boolean'?value>=.5:Array.isArray(spec)?spec[Math.max(0,Math.min(spec.length-1,Math.round(value)))]:value;if(field.tagSpec)FramePluginTags.params(field.tagSpec,{[key]:next});
   if(path==='param:'+frameCreaseAngleKey){if(!framePolygonCreaseType(target.type)||!Number.isFinite(next))return;const v=Math.max(0,Math.min(180,next));if(container[key]!==v){container[key]=v;window.frameEngine?.setMeshCreaseAngle(target.nativeHash,v);}return;}
   if(target.type==='tree'&&container===target.params){
     const opt=FramePlants.options[key],v=typeof next==='number'&&opt?Math.min(opt.maximum,Math.max(opt.minimum,opt.integer?Math.round(next):next)):next;
@@ -16637,7 +16792,7 @@ const tagDefinitions = {
   bevel:{name:'Bevel',text:'B',fields:{size:5}},
   morph:{name:'Morph Tag',text:'M',fields:{mode:['Solve','Modelling','Edit']}}
 };
-const materials = [{uid:crypto.randomUUID().replaceAll('-',''),name:'Default',h:0,s:0,l:50,emm:0,rough:50,metal:0,opac:0,bump:0,heightBump:0,map:null}];
+const materials = [{uid:crypto.randomUUID().replaceAll('-',''),name:'Default',h:0,s:0,l:50,emm:0,rough:50,metal:0,opac:0,bump:0,heightBump:0,ior:1.5,translucency:0,sss:0,sssRadius:1,map:null}];
 const tabs = {tabPlugins:'pluginsPanel',tabShaders:'shadersPanel',tabAttributes:'attributesPanel',tabObjects:'objectsPanel',tabMaterialMgr:'matEditorPanel',tabMaterials:'materialsPanel',tabTextures:'texturesPanel'};
 icons.newFile='<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="square" stroke-linejoin="miter"><path d="M9.5 6.5h8l5 5v14h-13zM17.5 6.5v5h5M13.5 18.5h6M16.5 15.5v6"/></svg>';
 const buttonIcons = {tabPlugins:'ICO_PLUGINS',tabShaders:'ICO_SHADERS',
@@ -16655,8 +16810,8 @@ let selectedTags=new Set(),anchorId=null,anchorTag=null,numericSession=null,tree
 let selectionArea='objects';
 const textureImages=new Map(),materialThumbnails=new Map();
 const frameMapFields=['colorAsset','opacityAsset','emissionAsset','metalRoughAsset','roughAsset','metalAsset','normalAsset','aoAsset'];
-const frameMaterialKeys=['h','s','l','emm','rough','metal','opac','bump','opacityChannel','roughChannel','metalChannel','aoChannel','alphaMode','alphaCutoff','aoStrength','heightBump','normalY','translucency'];
-const frameMaterialDefaults={opacityChannel:4,roughChannel:0,metalChannel:0,aoChannel:0,alphaMode:0,alphaCutoff:50,aoStrength:100,heightBump:0,normalY:1,translucency:0};
+const frameMaterialKeys=['h','s','l','emm','rough','metal','opac','bump','opacityChannel','roughChannel','metalChannel','aoChannel','alphaMode','alphaCutoff','aoStrength','heightBump','normalY','translucency','ior','sss','sssRadius'];
+const frameMaterialDefaults={opacityChannel:4,roughChannel:0,metalChannel:0,aoChannel:0,alphaMode:0,alphaCutoff:50,aoStrength:100,heightBump:0,normalY:1,translucency:0,ior:1.5,sss:0,sssRadius:1};
 const frameTextureSlots={map:['colorAsset'],opacityMap:['opacityAsset','opacityChannel'],emissionAsset:['emissionAsset'],roughAsset:['roughAsset','roughChannel'],metalAsset:['metalAsset','metalChannel'],normalAsset:['normalAsset'],aoAsset:['aoAsset','aoChannel']};
 const frameImageAlpha=new WeakMap();
 function frameHasAlpha(image){if(frameImageAlpha.has(image))return frameImageAlpha.get(image);const c=document.createElement('canvas'),scale=Math.min(1,1024/Math.max(image.naturalWidth,image.naturalHeight));c.width=Math.max(1,Math.ceil(image.naturalWidth*scale));c.height=Math.max(1,Math.ceil(image.naturalHeight*scale));const ctx=c.getContext('2d',{willReadFrequently:true});ctx.drawImage(image,0,0,c.width,c.height);const bytes=ctx.getImageData(0,0,c.width,c.height).data;let alpha=false;for(let i=3;i<bytes.length;i+=4)if(bytes[i]<255){alpha=true;break;}frameImageAlpha.set(image,alpha);return alpha;}
@@ -17477,7 +17632,7 @@ function visibleRows(parent=null,depth=0){
 }
 const measureContext=document.createElement('canvas').getContext('2d');
 measureContext.font='14px ui-monospace,Menlo,Consolas,monospace';
-function frameMaterialThumbnailStamp(m){return [m.h,m.s,m.l,m.emm,m.rough,m.metal,m.opac,m.bump,m.opacityChannel??4,...[m.map,m.opacityMap].flatMap(image=>[image,image?.complete,image?.naturalWidth,image?.naturalHeight,image?.currentSrc,image?.src])];}
+function frameMaterialThumbnailStamp(m){return [m.h,m.s,m.l,m.emm,m.rough,m.metal,m.opac,m.bump,m.ior??1.5,m.translucency??0,m.sss??0,m.opacityChannel??4,...[m.map,m.opacityMap].flatMap(image=>[image,image?.complete,image?.naturalWidth,image?.naturalHeight,image?.currentSrc,image?.src])];}
 function materialThumbnail(index){
   const m=materials[index]||materials[0],key=m.uid||m,stamp=frameMaterialThumbnailStamp(m),cached=materialThumbnails.get(key);
   if(cached&&stamp.length===cached.stamp.length&&stamp.every((v,i)=>v===cached.stamp[i]))return cached.url;
@@ -18371,7 +18526,12 @@ function renderMaterials(){
   }else for(const canvas of list.querySelectorAll('canvas'))paintMaterialCard(canvas);
   refreshTabActions();
 }
-const materialFields={inpH:'h',inpS:'s',inpL:'l',inpEmm:'emm',inpRough:'rough',inpMetal:'metal',inpOpac:'opac',inpBump:'bump'};
+const materialFields={inpH:'h',inpS:'s',inpL:'l',inpEmm:'emm',inpRough:'rough',inpMetal:'metal',inpOpac:'opac',inpBump:'bump',inpIor:'ior',inpTranslucency:'translucency',inpSss:'sss',inpSssRadius:'sssRadius'};
+function materialNumericOptions(key){
+  if(key==='ior')return {min:1,max:4,minStep:.01,stepFixed:.01,prec:3};
+  if(key==='sssRadius')return {min:.001,max:1e6,minStep:.01,prec:3};
+  return {min:key==='heightBump'?-Infinity:0,max:key==='h'?360:['emm','bump','heightBump'].includes(key)?Infinity:100,minStep:1,prec:1,...(key==='emm'?{}:{stepFixed:1})};
+}
 $('tabAddMaterial').onclick=()=>{
   numericSession?.input.blur();numericSession?.finish(true);
   commit(()=>{materials.push({...frameDefaultMaterials[0],...frameMaterialDefaults,...Object.fromEntries(frameMapFields.map(k=>[k,null])),uid:crypto.randomUUID().replaceAll('-',''),name:'mat'+(++materialSerial)});activeMaterial=materialAnchor=materials.length-1;selectedMaterials=new Set([activeMaterial]);selectedTag=null;selectedTags.clear();},false);
@@ -18431,8 +18591,8 @@ function syncMaterial(live=false){
 }
 $('btnNormalY').onclick=()=>{if(!materials[activeMaterial].normalAsset)return;commit(()=>{const m=editableMaterial();m.normalY=m.normalY===-1?1:-1;},false);syncMaterial();};
 for(const [id,key]of Object.entries(materialFields)){
-  $(id).ariaLabel={h:'Hue',s:'Saturation',l:'Lightness',emm:'Emissive',rough:'Roughness',metal:'Metalness',opac:'Opacity',bump:'Normal strength'}[key];
-  bindNumber($(id),{get:()=>materials[activeMaterial][key],set:value=>{if(value!==materials[activeMaterial][key])editableMaterial()[key]=value;},update:syncMaterial,diagonal:true,...(key==='emm'?{}:{stepFixed:1}),min:0,max:key==='h'?360:key==='emm'||key==='bump'?Infinity:100,minStep:1,prec:1});
+  $(id).ariaLabel={h:'Hue',s:'Saturation',l:'Lightness',emm:'Emissive',rough:'Roughness',metal:'Metalness',opac:'Opacity',bump:'Normal strength',ior:'Index of refraction',translucency:'Translucency',sss:'Subsurface scattering',sssRadius:'SSS radius (mm)'}[key];
+  bindNumber($(id),{get:()=>materials[activeMaterial][key]??frameMaterialDefaults[key],set:value=>{if(value!==materials[activeMaterial][key])editableMaterial()[key]=value;},update:syncMaterial,diagonal:true,...materialNumericOptions(key)});
 }
 for(const [id,key,sensitivity,span,max,wrap]of [['gradH','h',4,30,360,true],['gradS','s',3,50,100,false],['gradL','l',8,25,100,false]]){
   const el=$(id);let drag=null;const normalize=v=>wrap?((v%max)+max)%max:Math.max(0,Math.min(max,v));
@@ -25293,10 +25453,10 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     function readCameraSceneBuffers(visibleMeshes,uvCache,maskCache,guard){
       const task=editSerial.catch(()=>{}).then(async()=>{
         guard();
-        const ranges=new Map(),uvList=[],masks=[];
+        const ranges=new Map(),uvList=[],masks=[],members=new Set(scene.meshes);
         for(const mesh of visibleMeshes){
           if(mesh.replicaSource&&mesh.replicaSource.positions!==mesh.positions)continue;
-          if(!scene.meshes.includes(mesh.replicaSource||mesh)&&!scene.meshes.includes(mesh))throw new DOMException('Render mesh superseded','AbortError');
+          if(!members.has(mesh.replicaSource||mesh)&&!members.has(mesh))throw new DOMException('Render mesh superseded','AbortError');
           const add=(res,bytes)=>{if(!res||!bytes||res.kind==='texture'||bytes>4*1024*1024||ranges.has(res))return false;ranges.set(res,bytes);return true;};
           add(mesh.positions,mesh.vertexCount*12);
           for(const part of mesh.parts||[mesh]){add(part.normals,part.normalCount*8);add(part.renderIndices,part.count*4);}
@@ -25340,20 +25500,23 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
     }
     async function renderSnapshot(cancelled,readNormalCanvas=false){
       const started=performance.now(),input={meshes:[],materials:[],textures:[],gpuTextures:[],textureKeys:[],appearanceRevision},space=scene,canonical=new Map(),attributes=new Map(),uvCache=new Map(),maskCache=new Map(),normalImages=scene.meshes.some(m=>m.materialTags?.length)?await materialNormalImages(renderer,readNormalCanvas):new Map();
-      const occCounts=new Map(),occPending=[];
+      const occCounts=new Map(),occPending=new Map();
       const textureID=asset=>{if(!asset)return -1;const image=normalImages.get(asset)||textureImages.get(frameMaterialAssets.get(asset)?.url)||materials.find(m=>m.colorAsset===asset)?.map;if(!image)return -1;let id=input.textures.indexOf(image);if(id<0){id=input.textures.length;input.textures.push(image);const st=renderer?.materialState;input.gpuTextures.push(image.gpuTexture?image:(st?.atlas&&st.layers?.has(asset)?{gpuTexture:st.atlas,layer:st.layers.get(asset),width:st.atlas.width,height:st.atlas.height,flipY:true}:null));input.textureKeys.push(asset);}return id;};
       const guard=()=>{if(cancelled()||scene!==space)throw new DOMException('Render superseded','AbortError');};
       const mappedReplicas=new Map();
       function pushOccurrence(mesh,part,world,normalMatrix,layout){
         const baseKey=(mesh.hashId||'m')+':'+(part.faceStart||0),ord=occCounts.get(baseKey)||0;occCounts.set(baseKey,ord+1);
-        const occKey=baseKey+'#'+ord,matrix=Array.from(world),matrixKey=frameValueKey(matrix);
+        const occKey=baseKey+'#'+ord,rec=cameraInstReg.get(occKey);
+        const moved=!rec||!rec.matrix.every((value,i)=>value===world[i]);
+        const matrix=moved?Array.from(world):rec.matrix;
         const topoKey=frameValueKey([mesh.version,mesh.replicaSource?.version,mesh.positions?.id||0,part.renderIndices?.id||0,part.faceStart||0,part.triangleCount||0]);
-        let rec=cameraInstReg.get(occKey),prev=rec?rec.matrix:matrix,stableId,generation,transformRevision,topologyGeneration;
-        if(!rec){stableId=cameraNextStableId++;generation=1;transformRevision=1;topologyGeneration=1;}
-        else{stableId=rec.stableId;generation=rec.generation;transformRevision=rec.transformRevision;topologyGeneration=rec.topologyGeneration;if(rec.topoKey!==topoKey){topologyGeneration++;generation++;}else if(rec.matrixKey!==matrixKey){transformRevision++;}}
-        occPending.push({occKey,rec:{stableId,generation,transformRevision,topologyGeneration,topoKey,matrixKey,matrix}});
-        const revision=frameValueKey([mesh.hashId,mesh.version,mesh.replicaSource?.version,part.faceStart||0,world]);
-        input.meshes.push({...layout,matrix,prevMatrix:prev,normalMatrix,visible:true,background:false,surfaceId:input.meshes.length+1,stableId,generation,transformRevision,topologyGeneration,revision});
+        const changed=!!rec&&rec.topoKey!==topoKey;
+        const stableId=rec?.stableId??cameraNextStableId++,generation=(rec?.generation??1)+Number(changed);
+        const transformRevision=(rec?.transformRevision??1)+Number(!!rec&&moved);
+        const topologyGeneration=(rec?.topologyGeneration??1)+Number(changed);
+        occPending.set(occKey,{stableId,generation,transformRevision,topologyGeneration,topoKey,matrix});
+        const revision=stableId+':'+generation+':'+transformRevision;
+        input.meshes.push({...layout,matrix,prevMatrix:rec?.matrix??matrix,normalMatrix,visible:true,background:false,surfaceId:input.meshes.length+1,stableId,generation,transformRevision,topologyGeneration,revision});
       }
       const visibleMeshes=nativeSurfaceOccurrences().filter(m=>m.frameVisible!==false);
       const prefetched=await readCameraSceneBuffers(visibleMeshes,uvCache,maskCache,guard);guard();
@@ -25375,7 +25538,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
         const base=input.materials.length,projectionFrame=U?null:worldProjection(mesh,world);
         const projection=Array.from(U?FM.I():FM.inv(projectionFrame));
         const normalProjection=Array.from(U?FM.I():projectionNormalMatrix(projectionFrame));
-        const addMaterial=uid=>{const m=uid&&appearanceValue(uid,'parameters'),maps=uid&&appearanceValue(uid,'maps')||[],color=m?hsl2rgb(m[0],m[1]/100,m[2]/100).map(v=>v**2.2):[.21763764,.21763764,.21763764],id=input.materials.length;input.materials.push({name:uid?nativeValue(uid,'name'):'Default',alphaMode:(m&&m[6]>0||m?.[12]!==1&&renderer.materialState?.alphaAssets?.get(maps[0]))?'BLEND':'OPAQUE',color,rough:m?m[4]/100:.5,metal:m?m[5]/100:0,emission:color.map(v=>v*(m?m[3]/100:0)),transmission:m&&m[12]!==2&&m[12]!==3?m[6]/100:0,coverageFactor:m&&(m[12]===2||m[12]===3)?1-m[6]/100:1,bump:m?m[7]/100:0,heightBump:(m?.[15]??0)/100,normalY:maps[6]&&maps[6]!==FrameHash.K.zero?m?.[16]??1:1,translucency:(m?.[17]??0)/100,cubic:!U,texture:textureID(maps[0]),opacityTexture:textureID(maps[1]),emissionTexture:textureID(maps[2]),metalRoughTexture:textureID(maps[3]),roughTexture:textureID(maps[4]),metalTexture:textureID(maps[5]),normalTexture:textureID(maps[6]&&maps[6]!==FrameHash.K.zero?maps[6]:'normal:'+maps[0]),aoTexture:textureID(maps[7]),channels:[m?.[8]??4,m?.[9]??0,m?.[10]??0,m?.[11]??0],alphaModeCode:m?.[12]??0,alphaCutoff:(m?.[13]??50)/100,aoStrength:(m?.[14]??100)/100,projection,normalProjection,ior:m?.[18]??1.5});return id;};
+        const addMaterial=uid=>{const m=uid&&appearanceValue(uid,'parameters'),maps=uid&&appearanceValue(uid,'maps')||[],color=m?hsl2rgb(m[0],m[1]/100,m[2]/100).map(v=>v**2.2):[.21763764,.21763764,.21763764],id=input.materials.length;input.materials.push({name:uid?nativeValue(uid,'name'):'Default',alphaMode:(m&&m[6]>0||m?.[12]!==1&&renderer.materialState?.alphaAssets?.get(maps[0]))?'BLEND':'OPAQUE',color,rough:m?m[4]/100:.5,metal:m?m[5]/100:0,emission:color.map(v=>v*(m?m[3]/100:0)),transmission:m&&m[12]!==2&&m[12]!==3?m[6]/100:0,coverageFactor:m&&(m[12]===2||m[12]===3)?1-m[6]/100:1,bump:m?m[7]/100:0,heightBump:(m?.[15]??0)/100,normalY:maps[6]&&maps[6]!==FrameHash.K.zero?m?.[16]??1:1,translucency:(m?.[17]??0)/100,cubic:!U,texture:textureID(maps[0]),opacityTexture:textureID(maps[1]),emissionTexture:textureID(maps[2]),metalRoughTexture:textureID(maps[3]),roughTexture:textureID(maps[4]),metalTexture:textureID(maps[5]),normalTexture:textureID(maps[6]&&maps[6]!==FrameHash.K.zero?maps[6]:'normal:'+maps[0]),aoTexture:textureID(maps[7]),channels:[m?.[8]??4,m?.[9]??0,m?.[10]??0,m?.[11]??0],alphaModeCode:m?.[12]??0,alphaCutoff:(m?.[13]??50)/100,aoStrength:(m?.[14]??100)/100,projection,normalProjection,ior:m?.[18]??1.5,sss:(m?.[19]??0)/100,sssRadius:m?.[20]??1});return id;};
         const tags=mesh.materialTags||[],masked=tags.some(tag=>tag.mask);
         const faceIds=masked?await meshMaterialIds(mesh,addMaterial,maskCache):null;
         const uniformMaterial=masked?null:addMaterial(tags.at(-1)?.materialUID);
@@ -25409,7 +25572,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
           pushOccurrence(mesh,part,world,normalMatrix,layout);
         }
       }
-      cameraInstReg.clear();for(const o of occPending)cameraInstReg.set(o.occKey,o.rec);
+      cameraInstReg=occPending;
       input.snapshot={meshes:input.meshes.length,geometry:attributes.size,positions:canonical.size,uv:uvCache.size,masks:maskCache.size,materials:input.materials.length,bufferBatches,elapsedMs:performance.now()-started};return input;
     }
     function cameraSceneRevision(){
@@ -25630,11 +25793,14 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       @group(0) @binding(2) var specularEnvironment:texture_cube<f32>;
       @group(0) @binding(3) var environmentSampler:sampler;
       fn environmentShade(base:vec3f,normal:vec3f,view:vec3f,rough:f32,metal:f32,emission:f32,translucency:f32,pixel:vec2f)->vec3f{
+        return opticalEnvironmentShade(base,normal,view,rough,metal,emission,translucency,1.5,pixel);
+      }
+      fn opticalEnvironmentShade(base:vec3f,normal:vec3f,view:vec3f,rough:f32,metal:f32,emission:f32,translucency:f32,ior:f32,pixel:vec2f)->vec3f{
         let camera=transpose(mat3x3f(params.rotation[0].xyz,params.rotation[1].xyz,params.rotation[2].xyz));let n=camera*normal;let v=camera*view;
         var diffuse=textureSampleLevel(diffuseEnvironment,environmentSampler,n,0).rgb;
-        if(translucency>0.){diffuse+=textureSampleLevel(diffuseEnvironment,environmentSampler,-n,0).rgb*translucency;}
+        if(translucency>0.){diffuse=mix(diffuse,textureSampleLevel(diffuseEnvironment,environmentSampler,-n,0).rgb,translucency);}
         let specular=textureSampleLevel(specularEnvironment,environmentSampler,reflect(-v,n),rough*8.).rgb;
-        let nv=clamp(dot(normal,view),0.,1.);let f0=mix(vec3f(.04),base,metal);
+        let nv=clamp(dot(normal,view),0.,1.);let r0=(ior-1.)/(ior+1.);let f0=mix(vec3f(r0*r0),base,metal);
         // Integrated microfacet BRDF: grazing Fresnel is filtered over the rough lobe.
         let r=rough*vec4f(-1.,-.0275,-.572,.022)+vec4f(1.,.0425,1.04,-.04);let a=min(r.x*r.x,exp2(-9.28*nv))*r.x+r.y;let ab=vec2f(-1.04,1.04)*a+r.zw;let fresnel=max(vec3f(0),f0*ab.x+ab.y);
         var hash=u32(pixel.x)*1664525u+u32(pixel.y)*1013904223u;hash=(hash^(hash>>16u))*2246822519u;let dither=(f32(hash&65535u)/65535.-.5)/255.;
@@ -25880,7 +26046,7 @@ function framePredictBend(localPositions, indices, metric, creaseAngle=44, optio
       const {K,T}=FrameHash,before=new Set(records.keys()),library=await read(K.materials,T.ids),assets=await read(K.assets,T.ids),faces=[],uvs=[],tagOwners=new Set(),objectIDs=new Set(objects.map(o=>o.hash)),limit=ids=>ids&&new Set(ids).size===ids.length&&ids.every(id=>id!==K.zero&&!objectIDs.has(id));
       if(library&&!limit(library)||assets&&!limit(assets))throw Error('Invalid HASH material library');const matIDs=new Set(library||[]),assetIDs=new Set(assets||[]);if([...matIDs].some(id=>assetIDs.has(id)))throw Error('Conflicting HASH appearance identifiers');
       const validName=name=>name===undefined||typeof name==='string'&&name.length<=16384&&!name.includes('\0');
-      for(const uid of library||[]){const values=await read(appearanceId(uid,'parameters'),T.float64),name=await read(appearanceId(uid,'name'),T.text),maps=await read(appearanceId(uid,'maps'),T.ids);if(!values||![8,15,16,17,materialKeys.length].includes(values.length)||values.some(n=>!Number.isFinite(n))||values[0]<0||values[0]>360||[1,2,4,5,6].some(i=>values[i]<0||values[i]>100)||values[3]<0||values[7]<0||[8,9,10,11].some(i=>values[i]!==undefined&&(!Number.isInteger(values[i])||values[i]<0||values[i]>4))||values[12]!==undefined&&(!Number.isInteger(values[12])||values[12]<0||values[12]>3)||[13,14,17].some(i=>values[i]!==undefined&&(values[i]<0||values[i]>100))||values[16]!==undefined&&![1,-1].includes(values[16])||!validName(name)||maps&&(![2,4,8].includes(maps.length)||maps.some(id=>id!==K.zero&&!assetIDs.has(id))))throw Error('Invalid HASH material parameters');}
+      for(const uid of library||[]){const values=await read(appearanceId(uid,'parameters'),T.float64),name=await read(appearanceId(uid,'name'),T.text),maps=await read(appearanceId(uid,'maps'),T.ids);if(!values||![8,15,16,17,18,materialKeys.length].includes(values.length)||values.some(n=>!Number.isFinite(n))||values[0]<0||values[0]>360||[1,2,4,5,6].some(i=>values[i]<0||values[i]>100)||values[3]<0||values[7]<0||[8,9,10,11].some(i=>values[i]!==undefined&&(!Number.isInteger(values[i])||values[i]<0||values[i]>4))||values[12]!==undefined&&(!Number.isInteger(values[12])||values[12]<0||values[12]>3)||[13,14,17,19].some(i=>values[i]!==undefined&&(values[i]<0||values[i]>100))||[18,20].some(i=>{const v=values[i];if(v===undefined)return false;const {min,max}=materialNumericOptions(materialKeys[i]);return v<min||v>max;})||values[16]!==undefined&&![1,-1].includes(values[16])||!validName(name)||maps&&(![2,4,8].includes(maps.length)||maps.some(id=>id!==K.zero&&!assetIDs.has(id))))throw Error('Invalid HASH material parameters');}
       const assetList=assets||[];
       for(let first=0;first<assetList.length;first+=8){
         await Promise.all(assetList.slice(first,first+8).map(async uid=>{const [path,image]=await Promise.all([read(appearanceId(uid,'path'),T.text),read(appearanceId(uid,'image'),T.bytes)]);if((path!==undefined)===(image!==undefined)||path!==undefined&&(!path||path.length>16384||path.includes('\0')||/^(blob:|javascript:|data:)/i.test(path))||image&&!image.length)throw Error('Invalid HASH texture source');}));
@@ -25969,7 +26135,7 @@ fn materialBaseShade(input:MaterialOutput,front:bool)->ShadedMaterial{
  }
  if(m.options.y==2.){alpha=select(0.,1.,alpha>=m.options.z);}if(input.selected!=0u){base=vec3f(.95,.48,.12);}
  var color=vec3f(0.);
- if(alpha>0.){color=environmentShade(base,n,normalize(-input.viewPosition),clamp(rough,0.,1.),clamp(metal,0.,1.),0.,m.normalOptions.y,input.position.xy)*ao+base*m.colorEmission.a+emission;}
+ if(alpha>0.){color=opticalEnvironmentShade(base,n,normalize(-input.viewPosition),clamp(rough,0.,1.),clamp(metal,0.,1.),0.,mix(m.normalOptions.y,1.,.5*m.normalOptions.w),select(1.5,m.normalOptions.z,m.normalOptions.z>=1.),input.position.xy)*ao+base*m.colorEmission.a+emission;}
  // Use linear albedo before lighting, so a moving reflection never reverses an edge.
  return ShadedMaterial(vec4f(color,alpha),materialWire && dot(base,wireLuma)<.09);
 }
@@ -26199,7 +26365,7 @@ struct MaterialTransparency{@location(0) accumulation:vec4f,@location(1) reveal:
       for(const [i,uid]of library.entries()){
         const values=appearanceValue(uid,'parameters'),maps=appearanceValue(uid,'maps')||[],rgb=hsl2rgb(values[0],values[1]/100,values[2]/100).map(n=>Math.pow(n,2.2)),layers=frameMapFields.map((_,i)=>state.layers.get(maps[i])||0);
         if(!has(maps[6]))layers[6]=state.layers.get('normal:'+maps[0])||0;
-        data.set([...rgb,values[3]/100,values[4]/100,values[5]/100,1-values[6]/100,values[7]/100,...layers,values[8]??4,values[9]??0,values[10]??0,values[11]??0,(values[14]??100)/100,values[12]??0,(values[13]??50)/100,(values[15]??0)/100,has(maps[6])?values[16]??1:1,(values[17]??0)/100,0,0],(i+1)*28);
+        data.set([...rgb,values[3]/100,values[4]/100,values[5]/100,1-values[6]/100,values[7]/100,...layers,values[8]??4,values[9]??0,values[10]??0,values[11]??0,(values[14]??100)/100,values[12]??0,(values[13]??50)/100,(values[15]??0)/100,has(maps[6])?values[16]??1:1,(values[17]??0)/100,values[18]??1.5,(values[19]??0)/100],(i+1)*28);
       }
       if(!state.data||state.data.size<data.byteLength){releaseGPU(state.data);state.data=makeGPUBuffer(r.device,{label:'material library parameters',size:data.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST|GPUBufferUsage.COPY_SRC});}r.device.queue.writeBuffer(state.data,0,data);materialLibraryBindings(r,state);state.signature=signature;return state;
     }
@@ -33981,8 +34147,12 @@ function FramePolygonKernel(d){
         let name;try{name=FrameFields.validate('name',a.name.trim());}catch(error){fail('INVALID_ARGUMENT',error.message);}
         return {uid:m.uid,name:renameMaterial(m,name)};
       });
-      register('material.create','Create a material with native percentage parameters h/s/l/emm/rough/metal/opac/bump/heightBump/translucency, normalY (+1 OpenGL / -1 DirectX) and native Undo. Without a normal image, bump controls OpenGL normals estimated from base color.',obj({name:str,params:anyParams}),false,async a=>{
-        for(const [key,value]of Object.entries(a.params||{}))if(key==='normalY'?![1,-1].includes(value):!(['heightBump','translucency'].includes(key)||Object.values(materialFields).includes(key))||typeof value!=='number'||!Number.isFinite(value)||key!=='heightBump'&&value<0||value>(key==='h'?360:key==='emm'||key==='bump'||key==='heightBump'?Infinity:100))fail('INVALID_ARGUMENT','Invalid material parameter: '+key);
+      register('material.create','Create a material with native percentage parameters h/s/l/emm/rough/metal/opac/bump/heightBump/translucency/sss, ior (1 to 4), sssRadius (mean free path in mm) and normalY (+1 OpenGL / -1 DirectX) and native Undo. Without a normal image, bump controls OpenGL normals estimated from base color.',obj({name:str,params:anyParams}),false,async a=>{
+        for(const [key,value]of Object.entries(a.params||{})){
+          const {min,max}=materialNumericOptions(key);
+          const valid=key==='normalY'?[1,-1].includes(value):(key==='heightBump'||Object.values(materialFields).includes(key))&&Number.isFinite(value)&&value>=min&&value<=max;
+          if(!valid)fail('INVALID_ARGUMENT','Invalid material parameter: '+key);
+        }
         let material;commit(()=>{material={...frameDefaultMaterials[0],...frameMaterialDefaults,...Object.fromEntries(frameMapFields.map(k=>[k,null])),...a.params,uid:FrameHash.newId(),name:a.name||'Material',map:null,opacityMap:null,texture:null,opacityTexture:null};materials.push(material);activeMaterial=materials.length-1;selectedMaterials=new Set([activeMaterial]);});renderMaterials();frameSyncMaterials();await settle();return {uid:material.uid,name:material.name};
       });
       register('material.texture','Load, instance or remove a material image through the editor. asset reuses an existing image UID and preserves target slot settings. Packed ORM shares one asset; channel selects R/G/B/A or luminance.',required(obj({material:str,slot:choice('baseColor','emissive','roughness','metalness','opacity','normal','ao'),url:str,asset:str,base64:{type:'string',maxLength:24*1024*1024},name:str,channel:choice('r','g','b','a','luminance'),packed:bool,remove:bool}),'material','slot'),false,async a=>{

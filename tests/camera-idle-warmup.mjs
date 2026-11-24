@@ -83,7 +83,7 @@ export async function cameraIdleWarmupChecks(page){
     await page.evaluate(()=>cameraWarmTest.release.gatherSkyTiles());
     await wait(()=>cameraWarmTest.frames.some(f=>!f.preview));
     cases.push({name:'Camera added during warmup',frames:await page.evaluate(()=>cameraWarmTest.frames.map(f=>({preview:f.preview,uniformFlags:f.features,ms:f.at-cameraWarmTest.click})))});
-    assert.equal(cases[0].frames[1].uniformFlags,7);
+    assert.equal(cases[0].frames[1].uniformFlags,15);
     await call('render.stop');
     const cameras=(await call('scene.inspect')).objects.filter(o=>o.type==='render');
     await call('scene.delete',{ids:cameras.map(o=>o.hash)});
@@ -99,7 +99,7 @@ export async function cameraIdleWarmupChecks(page){
         newCompiles:p.calls.filter(c=>c.start>=p.click&&c.start<refined.at).length,instances:p.tracer.scene.instances};
     });
     assert.ok(measurements.instances>0,'shared geometry uses the instanced BVH');
-    assert.equal(measurements.refineFeatures,7);assert.equal(measurements.newCompiles,0);
+    assert.equal(measurements.refineFeatures,15);assert.equal(measurements.newCompiles,0);
     assert.ok(measurements.previewMs<1000&&measurements.transitionMs<1000,JSON.stringify(measurements));
     cases.push({name:'Camera added after warmup on changed geometry',...measurements});
     await call('render.stop');
@@ -131,8 +131,8 @@ export async function cameraIdleWarmupChecks(page){
       return results;
     });
     for(const film of films){
-      assert.notEqual(film.coldFeatures,7);assert.equal(film.warmCompiles,0,JSON.stringify(film));
-      assert.ok(film.warmFeatures===7||film.warmFeatures===0,JSON.stringify(film));
+      assert.notEqual(film.coldFeatures,15);assert.equal(film.warmCompiles,0,JSON.stringify(film));
+      assert.ok(film.warmFeatures===15||film.warmFeatures===0,JSON.stringify(film));
       assert.ok(film.maxFilmError<.0001,JSON.stringify(film));
     }
     cases.push({name:'Warmed and specialized films',films});
@@ -148,7 +148,7 @@ export async function cameraIdleWarmupChecks(page){
       return {entry:refined.entry,features:refined.features,transitionMs:refined.at-preview.at,
         compiles:p.calls.filter(c=>c.start>=p.click&&c.start<refined.at).length};
     });
-    assert.equal(transparent.entry,'integrate');assert.equal(transparent.features,7);assert.equal(transparent.compiles,0);
+    assert.equal(transparent.entry,'integrate');assert.equal(transparent.features,15);assert.equal(transparent.compiles,0);
     cases.push({name:'Transparent material added after warmup',...transparent});await call('render.stop');
     assert.equal(await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message),undefined);
     assert.deepEqual(errors,[]);return {pass:true,cases};

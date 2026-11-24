@@ -46,8 +46,8 @@ export async function giKernelsBrowserChecks(page){
         if(v)throw Error('WebGPU validation error: '+v);
       }
     });
-    assert.deepEqual(compileResult.counts,{common:9,realtime:2,independent:3,gi:18,mips:4});
-    checks.push({name:'All 36 WGSL pipelines compile and validate on RTX hardware',pass:true});
+    assert.deepEqual(compileResult.counts,{common:9,realtime:2,independent:3,gi:19,mips:4});
+    checks.push({name:'All 37 WGSL pipelines compile and validate on RTX hardware',pass:true});
 
     await call('scene.new');
     const car=await call('scene.create',{type:'car'});

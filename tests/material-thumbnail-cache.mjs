@@ -6,7 +6,7 @@ import {fileURLToPath} from 'node:url';
 export async function materialThumbnailCacheChecks(){
  const html=await readFile(new URL('../index.html',import.meta.url),'utf8'),checks=[],timings=[];const check=(name,fn)=>{fn();checks.push({name,pass:true});};
  try{
-  const a=html.indexOf('function frameMaterialThumbnailStamp('),b=html.indexOf('function renderTree(){',a);assert.ok(a>=0&&b>a);let encodes=0,draws=0;
+  const a=html.indexOf('function frameMaterialThumbnailStamp('),b=html.indexOf('\n}',html.indexOf('function materialThumbnail(index)',a))+2;assert.ok(a>=0&&b>a);let encodes=0,draws=0;
   const materials=[{uid:'default',name:'Default',h:0,s:0,l:50,emm:0,rough:50,metal:0,opac:0,bump:0},{uid:'metal',name:'Metal',h:30,s:80,l:40,emm:0,rough:10,metal:100,opac:0,bump:0}],cache=new Map();
   const document={createElement:()=>({getContext:()=>({}),toDataURL:()=>`data:image/png;fixture,${++encodes}`})};
   const api=Function('materials','materialThumbnails','document','renderMatToCanvas',html.slice(a,b)+';return {thumbnail:materialThumbnail};')(materials,cache,document,()=>{draws++;});
@@ -16,7 +16,7 @@ export async function materialThumbnailCacheChecks(){
   check('Undo/restoration object replacement preserves an unchanged visual fingerprint',()=>{materials[0]={...materials[0]};assert.equal(api.thumbnail(0),first);assert.equal(encodes,1);});
   const second=api.thumbnail(1);materials.reverse();
   check('Material reordering follows stable UIDs instead of stale numeric slots',()=>{assert.equal(api.thumbnail(0),second);assert.equal(api.thumbnail(1),first);assert.equal(encodes,2);});
-  check('Every numeric preview input invalidates only the edited material',()=>{for(const field of ['h','s','l','emm','rough','metal','opac','bump']){const previous=api.thumbnail(1);materials[1][field]++;assert.notEqual(api.thumbnail(1),previous);assert.equal(api.thumbnail(0),second);}});
+  check('Every numeric preview input invalidates only the edited material',()=>{for(const field of ['h','s','l','emm','rough','metal','opac','bump','ior','translucency','sss']){const previous=api.thumbnail(1);materials[1][field]=(materials[1][field]??(field==='ior'?1.5:0))+1;assert.notEqual(api.thumbnail(1),previous);assert.equal(api.thumbnail(0),second);}});
   check('Replacing a base-color image invalidates its preview',()=>{const before=api.thumbnail(1);materials[1].map={complete:false,naturalWidth:0,naturalHeight:0,currentSrc:'',src:'one.png'};assert.notEqual(api.thumbnail(1),before);});
   check('Asynchronous image completion invalidates the initially untextured preview',()=>{const before=api.thumbnail(1);Object.assign(materials[1].map,{complete:true,naturalWidth:128,naturalHeight:128,currentSrc:'one.png'});assert.notEqual(api.thumbnail(1),before);});
   check('Changing the source of the same decoded image invalidates the preview',()=>{const before=api.thumbnail(1);Object.assign(materials[1].map,{currentSrc:'two.png',src:'two.png'});assert.notEqual(api.thumbnail(1),before);});

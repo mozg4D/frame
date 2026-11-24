@@ -1,6 +1,6 @@
 {
   "format": "frame-current-source-baseline-v1",
-  "version": "2026 24 nov 17:05",
+  "version": "2026 24 nov 18:20",
   "scope": "Exact actual release bytes only. Source-binding checks do not replace native behavioral/GPU qualification.",
   "scopes": {
     "thermal-ui": [
@@ -565,17 +565,18 @@
       "tests/gi-stage3-cache-browser.mjs",
       "tests/gi-stage4-interactive-browser.mjs",
       "tests/gi-stage5-glass-alpha-browser.mjs",
-      "tests/gi-benchmark-browser.mjs"
+      "tests/gi-benchmark-browser.mjs",
+      "tests/camera-material-optics-browser.mjs"
     ]
   },
   "files": {
     "frame-sw.js": {
       "bytes": 5145,
-      "sha256": "2b9d8dd1ad1fa5f79021226c7ec5135fdf65824eb3f61baa1af8162d0970ebcd"
+      "sha256": "374bda93960b5b060bdc876f8dd66bfab388da696f33ea767651026059d657d4"
     },
     "index.html": {
-      "bytes": 4082263,
-      "sha256": "c1e61a6a6e90b11becb8d2aaa60f93911f7d374aa170f65d410f2ccb35c8a9fa"
+      "bytes": 4093643,
+      "sha256": "a59b4b1a330e92027c9a3d521ee699f9e52892a2ba3f81598c0be9a1a0eeaa16"
     },
     "plugins/index.json": {
       "bytes": 266,
@@ -770,8 +771,8 @@
       "sha256": "1ab09141cd60372376715ccb3efc749e9aa59501a202532a3e24e5d2dbd0973b"
     },
     "tests/run.mjs": {
-      "bytes": 41253,
-      "sha256": "415aad519dc70bca8798a247ae1697b782ce1db2b7a7f42e6921cb940b7a8b12"
+      "bytes": 41431,
+      "sha256": "c0b2f2b183442d32f3bdc7dbfeed68c1e3842639704f7129d52cdaa40684a5a9"
     },
     "tests/pointer-lock.mjs": {
       "bytes": 11026,
@@ -1142,8 +1143,8 @@
       "sha256": "bd0e9b47be390a6850210841bc95bf2e26874a7103a714781a4f2e9dab289be4"
     },
     "AGENTS.md": {
-      "bytes": 101155,
-      "sha256": "3441409a0227ad36648e429db4eed4b156f79ac2b0b5d610c25d7f2a878a9040"
+      "bytes": 102645,
+      "sha256": "3d521e4fd963d42fd3718f1e6c2d18b104306c602351523edea657bfcc26013c"
     },
     "plugins/3d-printer/AGENTS.md": {
       "bytes": 13024,
@@ -1198,8 +1199,8 @@
       "sha256": "29d4ac5c03a07d389671080cccee237a44a9db36b9806d1417e91e5820db4a18"
     },
     ".gitattributes": {
-      "bytes": 18501,
-      "sha256": "19bd6f74fcf971e7272c3a73e325789e1d27364dfc121d26534be0ce24fb839a"
+      "bytes": 18581,
+      "sha256": "1dd996c211cbdc14cd6b74236f2f8a409bf14a9c04d5c0c3feae8a750f833159"
     },
     "tests/object-click-selection.mjs": {
       "bytes": 10359,
@@ -1362,8 +1363,8 @@
       "sha256": "721addfb29bb1d32ca53d21a7cc5ac04ee863057f8b434e4bdb9f187ba6c6662"
     },
     "tests/camera-idle-warmup.mjs": {
-      "bytes": 10629,
-      "sha256": "7fd5273a11cb1af299c21b92acf5144280bf8d7755014f55a7b7ff1cdd5c0c84"
+      "bytes": 10634,
+      "sha256": "293b0d09f49a0a5e8de62466272fa8600df6a4e2111c8830953a6f6b96b2726c"
     },
     "tools/unite-surface.h": {
       "bytes": 4443,
@@ -1575,7 +1576,7 @@
     },
     "tests/gi-kernels-browser.mjs": {
       "bytes": 3858,
-      "sha256": "3c724380a5e4a89a3e2f8e0b7032492e2f85431174006847d273ccedfea2c416"
+      "sha256": "43d0bea13a60883b3b74e69b9f23231d48ad83409a62c27857da0447c13d6c10"
     },
     "tests/gi-stage1-progressive-browser.mjs": {
       "bytes": 6904,
@@ -1600,6 +1601,10 @@
     "tests/gi-benchmark-browser.mjs": {
       "bytes": 3995,
       "sha256": "7504c8f0647f3fb9b72c67713806152d7bdccc86cf69bb5d9e6fc4a9f7201ccb"
+    },
+    "tests/camera-material-optics-browser.mjs": {
+      "bytes": 7842,
+      "sha256": "207cfae852a432532604096a32e940a6ad9be46fbaba0fc21f462be93ec46d95"
     }
   }
 }
