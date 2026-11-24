@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 18:20">
+<meta name="frame-version" content="2026 24 nov 18:52">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -17118,7 +17118,9 @@ let creating=Promise.resolve();
   function pluginHelperDescriptor(value){
     const point=p=>(Array.isArray(p)||ArrayBuffer.isView(p))&&p.length===3&&Array.from(p).every(Number.isFinite);
     if(!value||!(value.lines instanceof Float32Array)||value.lines.length%6||value.lines.length>60000||!value.lines.every(Number.isFinite)||!point(value.bounds?.min)||!point(value.bounds?.max)||value.bounds.min.some((x,k)=>x>value.bounds.max[k])||value.pivot!==undefined&&!point(value.pivot))throw Error('Invalid plugin helper');
-    return Object.freeze({lines:value.lines.slice(),bounds:Object.freeze({min:Object.freeze([...value.bounds.min]),max:Object.freeze([...value.bounds.max])}),...(value.pivot===undefined?{}:{pivot:Object.freeze([...value.pivot])})});
+    const axes=value.axisLines;
+    if(axes!==undefined&&(!Array.isArray(axes)||axes.length!==3||new Set(axes).size!==3||!Array.from(axes).every(i=>Number.isInteger(i)&&i>=0&&i<value.lines.length/6)))throw Error('Invalid plugin helper axis lines');
+    return Object.freeze({lines:value.lines.slice(),...(axes?{axisLines:Object.freeze([...axes])}:{}),bounds:Object.freeze({min:Object.freeze([...value.bounds.min]),max:Object.freeze([...value.bounds.max])}),...(value.pivot===undefined?{}:{pivot:Object.freeze([...value.pivot])})});
   }
   function pluginViewportDescriptor(viewport,objects){
     if(!viewport||viewport.renderKind!==undefined&&!['solid','overlay','helper'].includes(viewport.renderKind)||viewport.stage!==undefined&&!['opaque','overlay'].includes(viewport.stage)||viewport.renderStage!==undefined&&!['opaque','overlay'].includes(viewport.renderStage)||viewport.enabledAffectsVisibility!==undefined&&typeof viewport.enabledAffectsVisibility!=='boolean'||viewport.surfaceSelection!==undefined&&viewport.surfaceSelection!=='last-active'||viewport.surfaceWarnings!==undefined&&typeof viewport.surfaceWarnings!=='boolean'||viewport.surfaceWarningBlend!==undefined&&typeof viewport.surfaceWarningBlend!=='boolean'||viewport.independentDepth!==undefined&&typeof viewport.independentDepth!=='boolean'||typeof viewport.shader!=='string'||typeof viewport.settings!=='function'||![viewport.color,viewport.selectedColor].every(c=>Array.isArray(c)&&c.length===4&&c.every(Number.isFinite)))throw Error('Invalid plugin viewport');
@@ -18837,11 +18839,15 @@ function frameViewportGuides(){
     line([-1000,0,offset],[1000,0,offset],grid);
     line([offset,0,-1000],[offset,0,1000],grid);
   }
-  line([0,0,0],[1000,0,0],[.75,.25,.25]);
-  line([0,0,0],[0,1000,0],[.25,.62,.32]);
-  line([0,0,0],[0,0,1000],[.3,.5,.85]);
+  line([0,0,0],[1000,0,0],frameViewportAxisColors.perspective[0]);
+  line([0,0,0],[0,1000,0],frameViewportAxisColors.perspective[1]);
+  line([0,0,0],[0,0,1000],frameViewportAxisColors.perspective[2]);
   return new Float32Array(data);
 }
+const frameViewportAxisColors={
+  perspective:[[.75,.25,.25],[.25,.62,.32],[.3,.5,.85]],
+  orthographic:[[.60,.23,.23],[.23,.48,.28],[.24,.38,.60]]
+};
 let activeView=0,mainActiveView=0,single=true;
 const frameViewNames=['Perspective','Top · XZ','Right · XY','Front · YZ'];
 const frameViewCanvases=new Map(),frameViewSections=new Map();
@@ -24219,7 +24225,7 @@ window.frameEngine=(()=>{
           if(vertical)line(position,-1,position,1,shade);else line(-1,position,1,position,shade);
         }
       }
-      const colors=[[.60,.23,.23],[.23,.48,.28],[.24,.38,.60]],horizontal=frameViewKind(viewIndex)===3?2:0,vertical=frameViewKind(viewIndex)===1?2:1;
+      const colors=frameViewportAxisColors.orthographic,horizontal=frameViewKind(viewIndex)===3?2:0,vertical=frameViewKind(viewIndex)===1?2:1;
       const axisLength=1000,horizontalSign=1;
       if(Math.abs(u)<=halfW&&v<=axisLength+halfH&&v>=-halfH)line(-u/halfW,Math.max(-1,-v/halfH),-u/halfW,Math.min(1,(axisLength-v)/halfH),colors[vertical]);
       const left=Math.max(-halfW,Math.min(0,horizontalSign*axisLength)-u),right=Math.min(halfW,Math.max(0,horizontalSign*axisLength)-u);
@@ -27156,8 +27162,23 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
     function pluginViewport(n){return FramePlugins.owner(n)?.viewport;}
     function pluginHelper(n){const v=pluginViewport(n);return v?.helpers?.[n.type]||v;}
     function pluginHelperVertices(viewport){
-      const helpers=[viewport,...Object.values(viewport.helpers||{})],offsets=new Map(),values=new Float32Array(helpers.reduce((sum,h)=>sum+h.lines.length,0));let offset=0;
-      for(const helper of helpers){offsets.set(helper,offset/3);values.set(helper.lines,offset);offset+=helper.lines.length;}return {values,offsets};
+      const helpers=[viewport,...Object.values(viewport.helpers||{})],offsets=new Map();
+      const vertexCount=helpers.reduce((sum,helper)=>sum+helper.lines.length/3,0);
+      const stride=helpers.some(h=>h.axisLines)?4:3,values=new Float32Array(vertexCount*stride);let cursor=0;
+      for(const helper of helpers){
+        offsets.set(helper,cursor/stride);
+        if(stride===3){values.set(helper.lines,cursor);cursor+=helper.lines.length;continue;}
+        const lines=helper.lines,axes=helper.axisLines||[];
+        const segment=(i,axis)=>{
+          for(const offset of [i*6,i*6+3]){
+            values[cursor++]=lines[offset];values[cursor++]=lines[offset+1];values[cursor++]=lines[offset+2];values[cursor++]=axis;
+          }
+        };
+        for(let i=0;i<lines.length/6;i++)if(!axes.includes(i))segment(i,0);
+        // Draw coordinate axes last when opposite box edges coincide in an orthographic view.
+        axes.forEach((i,axis)=>segment(i,axis+1));
+      }
+      return {values,offsets,stride};
     }
     function pluginShown(n){return helperShown(n.nativeHash)&&lightShown(n.nativeHash)&&frameSoloContains(n);}
     function pluginDisplayed(hash){const n=frameNodeByHash(hash);if(!n)return false;const v=pluginViewport(n);return !!v&&pluginShown(n)&&(v.renderKind==='helper'||(v.renderKind==='overlay'?shadingMode!=='off':!['off','wireframe','isoparms'].includes(shadingMode)));}
@@ -27192,16 +27213,27 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
             return vec4f(color.rgb,color.a*(1.-smoothstep(0.,.15,coverage.y)));
           }`;
         const surfaceModule=d.createShaderModule({label:entry.manifest.id+' surface overlay',code:fragment});
+        const axisPalette=colors=>'array<vec3f,3>('+colors.map(rgb=>'vec3f('+rgb.join(',')+')').join(',')+')';
         const lineModule=d.createShaderModule({label:entry.manifest.id+' helper lines',code:CAMERA_RELATIVE_WGSL+uniform+`
           struct Camera{rotation:mat4x4f,centerScale:vec4f,viewport:vec4f,clip:vec4f,frame:vec4f,modes:vec4f};
           @group(0) @binding(0) var<uniform> camera:Camera;@group(1) @binding(0) var<uniform> plugin:PluginFrame;
           override orthographic:bool=false;
-          @vertex fn vs(@location(0) point:vec3f)->@builtin(position) vec4f{
-            let world=(plugin.matrix*vec4f(point,1)).xyz;let p=frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1);
-            let xy=p.xy+camera.viewport.zw;let depth=-p.z;
-            if(orthographic){return vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/(camera.clip.y-camera.clip.x),1);}
-            return vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);
-          }@fragment fn fs()->@location(0) vec4f{return plugin.color;}`});
+          struct HelperVertex{@builtin(position) position:vec4f,@location(0) @interpolate(flat) color:vec4f};
+          @vertex fn vs(@location(0) point:vec${helpers.stride}f)->HelperVertex{
+            let world=(plugin.matrix*vec4f(point.xyz,1)).xyz;let p=frameCameraRelative(camera.rotation)*vec4f((world-camera.centerScale.xyz)*camera.centerScale.w,1);
+            let xy=p.xy+camera.viewport.zw;let depth=-p.z;var out:HelperVertex;
+            if(orthographic){out.position=vec4f(xy.x*camera.viewport.y/camera.viewport.x,xy.y*camera.viewport.y,(depth-camera.clip.x)/(camera.clip.y-camera.clip.x),1);}
+            else{out.position=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);}
+            out.color=plugin.color;
+            let role=${helpers.stride===4?'point.w':'0.'};
+            if(role>0.){
+              let axis=u32(role)-1u;
+              let perspective=${axisPalette(frameViewportAxisColors.perspective)};
+              let ortho=${axisPalette(frameViewportAxisColors.orthographic)};
+              out.color=vec4f(select(perspective[axis],ortho[axis],orthographic),1);
+            }
+            return out;
+          }@fragment fn fs(input:HelperVertex)->@location(0) vec4f{return input.color;}`});
         for(const module of [surfaceModule,lineModule]){const info=await module.getCompilationInfo();if(info.messages.some(m=>m.type==='error'))throw Error(info.messages.filter(m=>m.type==='error').map(m=>m.message).join('; '));}
         state.layout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX|GPUShaderStage.FRAGMENT,buffer:{type:'uniform'}}]});
         const cameraLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});
@@ -27212,7 +27244,7 @@ fn lineColor(input:Line)->vec4f{if(!lineVisible(input)){discard;}return vec4f(in
           for(const posed of [false,true]){const index=(orthographic?2:0)+(posed?1:0);compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' occlusion depth',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:true,depthCompare:'less-equal'}}).then(p=>state.depths[index]=p));compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' warning',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'vs',constants:{orthographic,posed}},fragment:{module:surfaceModule,entryPoint:'pluginFS',targets:warningTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.surfaces[index]=p));
             if(v.surfaceWarningBlend)for(let kind=0;kind<4;kind++){const plainSurfaceWire=kind===0||kind===3;compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' warning',layout:surfaceLayout,vertex:{module:surfaceModule,entryPoint:'wireSurfaceVS',constants:{orthographic,posed,plainSurfaceWire}},fragment:{module:surfaceModule,entryPoint:'pluginFS',constants:{plainSurfaceWire,pluginWarningLines:true,pluginWarningCagesOnly:kind===2,pluginWarningWireOnly:kind===3},targets:warningTargets},primitive:{topology:'triangle-list',cullMode:'none'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.warningLines[index*4+kind]=p));}
           }
-          compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' box',layout:lineLayout,vertex:{module:lineModule,entryPoint:'vs',constants:{orthographic},buffers:[{arrayStride:12,attributes:[{shaderLocation:0,offset:0,format:'float32x3'}]}]},fragment:{module:lineModule,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.lines[orthographic?1:0]=p));
+          compiles.push(d.createRenderPipelineAsync({label:entry.manifest.id+' box',layout:lineLayout,vertex:{module:lineModule,entryPoint:'vs',constants:{orthographic},buffers:[{arrayStride:helpers.stride*4,attributes:[{shaderLocation:0,offset:0,format:helpers.stride===4?'float32x4':'float32x3'}]}]},fragment:{module:lineModule,entryPoint:'fs',targets:[{format:r.format,blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}]},primitive:{topology:'line-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:false,depthCompare:'less-equal'}}).then(p=>state.lines[orthographic?1:0]=p));
         }
         await Promise.all(compiles);state.vertices=makeGPUBuffer(d,{label:entry.manifest.id+' local helper',size:helpers.values.byteLength,usage:GPUBufferUsage.VERTEX|GPUBufferUsage.COPY_DST});d.queue.writeBuffer(state.vertices,0,helpers.values);state.loaded=true;draw(true);
       })();return state.ready;

@@ -24,7 +24,11 @@ export async function sectionLifecycleChecks(page){
   await setup();const hollow=await call('mesh.create',{...combine(box(40,2,40),box(20,2,20))});s=await slice();const holes=(await command('inspect',{paths:true,layer:2,count:256})).paths;check('unshifted outer and hole perimeters retain their closed areas',holes.total===8&&Math.abs(area(holes.segments)-1200)<.02&&s.result.perimeters.firstOffset===0&&s.result.perimeters.count===1,{paths:holes,summary:s.result.perimeters});
   await call('view.set',{single:true,index:1,shading:'solid',focus:hollow.hash});await call('scene.update',{id:hollow.hash,visible:false});await call('scene.select',{ids:[]});await call('diagnostics.frame',{frames:2});
   const points=await page.evaluate(()=>[20,20.55,20.93,21.3].map(x=>frameEngine.pluginProject([x,1.5,5]))),colors=(await call('diagnostics.pixels',{points})).colors;check('beads use a calm tint and a softer broad edge gradient',colors[0][0]>110&&colors[0][0]<150&&colors[1][0]>60&&colors[1][0]<colors[0][0]-5&&colors[2][0]>20&&colors[2][0]<100&&colors[3][0]<60,colors);
-  await call('scene.delete',{ids:[hollow.hash]});await command('slice');s=await waitForSlice(call,printer.hash);check('an empty build clears progress and resets the layer range',s.state==='empty'&&s.total===0&&(await params())['Finish layer']===1&&(await params())['Start layer']===1,s);
+  await call('scene.delete',{ids:[hollow.hash]});
+  const sheet=await call('mesh.create',{vertices:[-5,5,-5,5,5,-5,5,5,5],indices:[0,1,2]});
+  await command('slice');s=await waitForSlice(call,printer.hash);
+  const emptyRange=await params();check('a nonempty mesh between layer planes clears the previous build range and progress',s.state==='empty'&&s.stage==='empty'&&s.completed===0&&s.total===0&&emptyRange['Start layer']===1&&emptyRange['Finish layer']===1,s);
+  await call('scene.delete',{ids:[sheet.hash]});await command('slice');s=await waitForSlice(call,printer.hash);check('an empty build clears progress and resets the layer range',s.state==='empty'&&s.total===0&&(await params())['Finish layer']===1&&(await params())['Start layer']===1,s);
   return {pass:true,checks,timings:[]};
  }catch(error){return {pass:false,checks,timings:[],error:error.stack};}
  finally{if(gated)await page.evaluate(()=>{__sectionGate.restore();__sectionGate.release?.();delete window.__sectionGate;}).catch(()=>{});}

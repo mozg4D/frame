@@ -10,16 +10,14 @@ const layerY=(i,o)=>i?o.initial+(i-.5)*o.height:o.initial*.5;
 const pathKey=p=>'perimeter:'+Math.max(.0001,Math.min(10,p['Max deviation']));
 const checkedModule=async(d,label,code)=>{const module=d.createShaderModule({label,code}),info=await module.getCompilationInfo(),errors=info.messages.filter(m=>m.type==='error');if(errors.length)throw Error(errors.map(m=>m.message).join('; '));return module;};
 
-// One bounded, reusable distance field for the requested layer, not a voxel volume.
-// The occupancy pyramid prunes exact segment-distance queries; no JFA error is added.
+// Reconstruct and link the zero-offset section directly at LDI crossings.
 const pathShader=`
-struct Config{size:vec4u,domain:vec4f,physical:vec4f,limits:vec4u,stage:vec4u,levels:array<vec4u,13>};
+struct Config{size:vec4u,domain:vec4f,physical:vec4f,limits:vec4u,stage:vec4u};
 struct Node{ends:vec4f,edges:vec2u,ring:u32,next:u32};
 @group(0) @binding(0) var<storage,read> headers:array<vec2u>;
 @group(0) @binding(1) var<storage,read> intervals:array<vec2f>;
 @group(0) @binding(2) var<storage,read_write> tree:array<atomic<u32>>;
 @group(0) @binding(3) var<storage,read_write> geometry:array<vec4f>;
-@group(0) @binding(4) var<storage,read_write> field:array<f32>;
 @group(0) @binding(5) var<storage,read_write> nodes:array<Node>;
 @group(0) @binding(6) var<storage,read_write> stats:array<atomic<u32>>;
 @group(0) @binding(7) var<uniform> cfg:Config;
@@ -39,86 +37,99 @@ fn edgeKey(c:vec2u,e:u32)->u32{let w=cfg.size.x+2u;switch(e){case 0u:{return (c.
 fn march(c:vec2u,v:vec4f){let iso=0.;var edges:array<u32,4>;var n=0u;for(var e=0u;e<4u;e++){if((v[e]>=iso)!=(v[(e+1u)%4u]>=iso)){edges[n]=e;n++;}}if(n==0u){return;}
  // Asymptotic decider: shared edge identities preserve touching/saddle topology.
  if(n==4u){let f=v-iso;let high=f.x*f.z-f.y*f.w;if(high<0.){edges=array<u32,4>(0,3,1,2);}}
- let sourceBase=atomicAdd(&stats[0],n);if(sourceBase+n>cfg.limits.y*2u){atomicStore(&stats[7],1u);return;}atomicStore(&tree[c.y*(cfg.size.x+1u)+c.x],(sourceBase+1u)*2u+u32(n==4u));
- for(var k=0u;k<n;k+=2u){let ea=edges[k];let eb=edges[k+1u];let a=crossing(c,ea);let b=crossing(c,eb);let at=sourceBase+k;geometry[at]=vec4f(a,b);geometry[at+1u]=vec4f(b,b);
-   // Recover a resolved polygon corner from neighbouring exact LDI crossings.
-   // Smooth curvature remains piecewise linear and is simplified within tolerance.
-   if(n==2u){let u=tangent(c,ea,a);let w=tangent(c,eb,b);let det=cross2(u,w);if(abs(det)>.05*length(u)*length(w)&&length(u)>0.&&length(w)>0.){let q=a+u*(cross2(b-a,w)/det);let low=point(c);let high=point(c+1u);if(all(q>=low-cfg.domain.zw)&&all(q<=high+cfg.domain.zw)){geometry[at]=vec4f(a,q);geometry[at+1u]=vec4f(q,b);}}}
+ let cell=c.y*(cfg.size.x+1u)+c.x;
+ let base=atomicAdd(&stats[0],n);
+ if(base+n>cfg.limits.y*2u){atomicStore(&stats[7],1u);return;}
+ let fits=base+n<=cfg.limits.y;
+ if(fits){
+  atomicStore(&tree[cell],(base+1u)*2u+u32(n==4u));
+  for(var k=0u;k<n;k++){nodes[base+k].ring=0xffffffffu;}
+ }else{atomicStore(&stats[7],1u);}
+ let corners=array<vec2u,4>(c,c+vec2u(1,0),c+1u,c+vec2u(0,1));
+ for(var k=0u;k<n;k+=2u){
+  let ea=edges[k];let eb=edges[k+1u];let a=crossing(c,ea);let b=crossing(c,eb);var corner=b;
+  if(n==2u){
+   let u=tangent(c,ea,a);let w=tangent(c,eb,b);let det=cross2(u,w);
+   if(abs(det)>.05*length(u)*length(w)){
+    let q=a+u*(cross2(b-a,w)/det);
+    if(all(q>=point(c)-cfg.domain.zw)&&all(q<=point(c+1u)+cfg.domain.zw)){corner=q;}
+   }
+  }
+  geometry[base+k]=vec4f(a,corner);geometry[base+k+1u]=vec4f(corner,b);
+  if(!fits){continue;}
+  var ends=vec4f(a,b);var keys=vec2u(edgeKey(c,ea),edgeKey(c,eb));
+  let midA=(point(corners[ea])+point(corners[(ea+1u)%4u]))*.5;
+  let midB=(point(corners[eb])+point(corners[(eb+1u)%4u]))*.5;
+  if((cross2(midB-midA,point(corners[ea])-midA)>0.)!=(v[ea]>=0.)){ends=ends.zwxy;keys=keys.yx;}
+  let slot=base+k/2u;
+  if(any(corner!=b)){
+   let internal=(cfg.size.x+2u)*(cfg.size.y+2u)*2u+cell;
+   nodes[slot]=Node(vec4f(ends.xy,corner),vec2u(keys.x,internal),0u,slot+1u);
+   nodes[slot+1u]=Node(vec4f(corner,ends.zw),vec2u(internal,keys.y),0u,0xffffffffu);
+   atomicAdd(&stats[1],2u);
+  }else{
+   nodes[slot]=Node(ends,keys,0u,0xffffffffu);atomicAdd(&stats[1],1u);
+  }
  }
 }
 @compute @workgroup_size(64) fn seed(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);let w=cfg.size.x+1u;if(i>=w*(cfg.size.y+1u)){return;}let c=vec2u(i%w,i/w);march(c,vec4f(occupancy(c),occupancy(c+vec2u(1,0)),occupancy(c+1u),occupancy(c+vec2u(0,1))));}
 @compute @workgroup_size(64) fn seedSparse(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=cfg.size.x+cfg.size.y){return;}let axis=u32(i>=cfg.size.y);let col=select(i+1u,i-cfg.size.y+1u,axis!=0u);let r=ray(axis,col);if((r.y&0x80000000u)!=0u){return;}
  for(var j=0u;j<r.y;j++){let interval=intervals[r.x+j];for(var end=0u;end<2u;end++){let crossing=i32(floor((interval[end]-cfg.domain[axis])/cfg.domain[axis+2u]+.5));for(var side=0;side<2;side++){for(var edge=0;edge<2;edge++){let along=crossing-edge;let across=i32(col)-side;if(along<0||across<0){continue;}let c=select(vec2u(u32(along),u32(across)),vec2u(u32(across),u32(along)),axis!=0u);if(c.x>cfg.size.x||c.y>cfg.size.y){continue;}if(atomicMax(&tree[c.y*(cfg.size.x+1u)+c.x],1u)!=0u){continue;}march(c,vec4f(occupancy(c),occupancy(c+vec2u(1,0)),occupancy(c+1u),occupancy(c+vec2u(0,1))));}}}}
 }
-@compute @workgroup_size(64) fn reduce(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);let level=cfg.stage.x;let p=cfg.levels[level];let q=cfg.levels[level-1u];if(i>=p.x*p.y){return;}let c=vec2u(i%p.x,i/p.x)*2u;var v=0u;for(var y=0u;y<2u;y++){for(var x=0u;x<2u;x++){let a=c+vec2u(x,y);if(all(a<q.xy)){let value=atomicLoad(&tree[q.z+a.y*q.x+a.x]);v|=select(0u,value,value>1u);}}}atomicStore(&tree[p.z+i],v);}
-fn nearestBound(p:vec2f,bound:f32)->vec4f{var best=bound;var closest=p;var stack:array<vec3u,40>;var top=1u;stack[0]=vec3u(0,0,cfg.limits.z-1u);
- loop{if(top==0u){break;}top--;let node=stack[top];let level=cfg.levels[node.z];let record=atomicLoad(&tree[level.z+node.y*level.x+node.x]);if(record<=1u){continue;}let low=point(node.xy*level.w)-cfg.domain.zw;let high=point(min((node.xy+1u)*level.w,vec2u(cfg.size.x+1u,cfg.size.y+1u)))+cfg.domain.zw;if(length(max(max(low-p,p-high),vec2f(0)))>=best){continue;}
-  if(node.z==0u){let at=record/2u-1u;let count=2u+(record%2u)*2u;for(var j=0u;j<count;j++){let a=geometry[at+j].xy;let b=geometry[at+j].zw;let v=b-a;let q=mix(a,b,clamp(dot(p-a,v)/max(dot(v,v),1e-30),0.,1.));let d=length(p-q);if(d<best){best=d;closest=q;}}}
-  else{let child=cfg.levels[node.z-1u];let near=vec2u(p>=(low+high)*.5);for(var k=0u;k<4u;k++){let a=node.xy*2u+(vec2u(k%2u,k/2u)^near^vec2u(1));if(all(a<child.xy)){stack[top]=vec3u(a,node.z-1u);top++;}}}
- }return vec4f(closest,best,0);
-}
-
-fn nearest(p:vec2f)->vec4f{return nearestBound(p,cfg.physical.x*(f32(cfg.limits.x)+.5)+length(cfg.domain.zw));}
-@compute @workgroup_size(64) fn distance(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);let w=cfg.size.x+2u;if(i>=w*(cfg.size.y+2u)){return;}let c=vec2u(i%w,i/w);let p=point(c);let occupied=occupancy(c);let radius=cfg.physical.x*(f32(cfg.limits.x)+.5)+length(cfg.domain.zw);
- // Range builds need exact distances only within the requested offset band.
- // Empty pyramid tiles certify the rest without one tree search per texel.
- if(cfg.physical.z>0.){let level=cfg.levels[u32(cfg.physical.w)];let span=vec2u(ceil(vec2f(radius)/cfg.domain.zw))+2u;let low=(c-min(c,span))/level.w;let high=min((c+span)/level.w,level.xy-1u);var near=false;for(var y=low.y;y<=high.y;y++){for(var x=low.x;x<=high.x;x++){near=near||atomicLoad(&tree[level.z+y*level.x+x])>1u;}}if(!near){field[i]=select(-radius,radius,occupied>=0.);return;}}
- if(occupied<0.){field[i]=-nearestBound(p,cfg.physical.x+length(cfg.domain.zw)*2.).z;return;}field[i]=nearest(p).z;
-}
-fn refined(p:vec2f,q:vec2f,first:f32,last:f32,iso:f32)->vec2f{var t=clamp((iso-first)/(last-first),0.,1.);if(first>0.&&last>0.){var lo=0.;var hi=1.;for(var i=0u;i<8u;i++){let x=mix(p,q,t);let n=nearest(x);let error=n.z-iso;if(abs(error)<=min(cfg.domain.z,cfg.domain.w)*.0001){break;}if((n.z>=iso)==(first>=iso)){lo=t;}else{hi=t;}let g=(x-n.xy)/max(n.z,1e-8);let slope=dot(g,q-p);var step=t-error/select(1e-8,slope,abs(slope)>1e-8);if(step<=lo||step>=hi){step=(lo+hi)*.5;}t=step;}}return mix(p,q,t);}
-@compute @workgroup_size(64) fn offset(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);let w=cfg.size.x+1u;if(i>=w*(cfg.size.y+1u)){return;}let c=vec2u(i%w,i/w);let stride=w+1u;let at=c.y*stride+c.x;let v=vec4f(field[at],field[at+1u],field[at+stride+1u],field[at+stride]);let lo=min(min(v.x,v.y),min(v.z,v.w));let hi=max(max(v.x,v.y),max(v.z,v.w));let first=u32(clamp(ceil(lo/cfg.physical.x-.5),0.,f32(cfg.limits.x)));let last=u32(clamp(floor(hi/cfg.physical.x-.5)+1.,0.,f32(cfg.limits.x)));
- // Each cell reserves its own bounded contiguous range.
- let count=(last-first)*2u;if(count==0u){return;}let base=atomicAdd(&stats[2],count);if(base+count>cfg.limits.y){atomicStore(&stats[7],1u);return;}links[i*2u]=base;links[i*2u+1u]=count;
- // Slots are deterministic per cell; unused slots have invalid ring identity.
- for(var k=0u;k<count;k++){nodes[base+k].ring=0xffffffffu;}
- for(var ring=first;ring<last;ring++){
-  let iso=(f32(ring)+.5)*cfg.physical.x;let corners=array<vec2u,4>(c,c+vec2u(1,0),c+1u,c+vec2u(0,1));var edges:array<u32,4>;var n=0u;for(var e=0u;e<4u;e++){if((v[e]>=iso)!=(v[(e+1u)%4u]>=iso)){edges[n]=e;n++;}}if(n==4u){let f=v-iso;if(f.x*f.z-f.y*f.w<0.){edges=array<u32,4>(0,3,1,2);}}
-  for(var k=0u;k<n;k+=2u){let ea=edges[k];let eb=edges[k+1u];let a=refined(point(corners[ea]),point(corners[(ea+1u)%4u]),v[ea],v[(ea+1u)%4u],iso);let b=refined(point(corners[eb]),point(corners[(eb+1u)%4u]),v[eb],v[(eb+1u)%4u],iso);let slot=base+(ring-first)*2u+k/2u;var ends=vec4f(a,b);var keys=vec2u(edgeKey(c,ea),edgeKey(c,eb));let midA=(point(corners[ea])+point(corners[(ea+1u)%4u]))*.5;let midB=(point(corners[eb])+point(corners[(eb+1u)%4u]))*.5;if((cross2(midB-midA,point(corners[ea])-midA)>0.)!=(v[ea]>=iso)){ends=ends.zwxy;keys=keys.yx;}nodes[slot]=Node(ends,keys,ring,0xffffffffu);atomicAdd(&stats[1],1u);
-   if(n==2u){let na=nearest(ends.xy);let nb=nearest(ends.zw);let ga=ends.xy-na.xy;let gb=ends.zw-nb.xy;let u=vec2f(-ga.y,ga.x);let w=vec2f(-gb.y,gb.x);let det=cross2(u,w);if(abs(det)>.1*length(u)*length(w)&&length(u)>0.&&length(w)>0.){let corner=ends.xy+u*(cross2(ends.zw-ends.xy,w)/det);if(all(corner>=point(c)-cfg.domain.zw)&&all(corner<=point(c+1u)+cfg.domain.zw)&&abs(nearest(corner).z-iso)<min(cfg.physical.x*.0025,min(cfg.domain.z,cfg.domain.w)*.01)){let internal=(cfg.size.x+2u)*(cfg.size.y+2u)*2u+i;nodes[slot]=Node(vec4f(ends.xy,corner),vec2u(keys.x,internal),ring,slot+1u);nodes[slot+1u]=Node(vec4f(corner,ends.zw),vec2u(internal,keys.y),ring,0xffffffffu);atomicAdd(&stats[1],1u);}}}
-}
- }
-}
-// Link the reconstructed section itself. Reuse exact LDI crossings/corners;
-// zero-distance interpolation through a sampled SDF would round polygon corners.
-@compute @workgroup_size(64) fn perimeter(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){
- let i=linear(id,groups);let w=cfg.size.x+1u;if(i>=w*(cfg.size.y+1u)){return;}let record=atomicLoad(&tree[i]);if(record<=1u){return;}let c=vec2u(i%w,i/w);
- let v=vec4f(occupancy(c),occupancy(c+vec2u(1,0)),occupancy(c+1u),occupancy(c+vec2u(0,1)));var edges:array<u32,4>;var n=0u;for(var e=0u;e<4u;e++){if((v[e]>=0.)!=(v[(e+1u)%4u]>=0.)){edges[n]=e;n++;}}if(n==0u){return;}if(n==4u&&v.x*v.z-v.y*v.w<0.){edges=array<u32,4>(0,3,1,2);}
- let base=atomicAdd(&stats[2],n);if(base+n>cfg.limits.y){atomicStore(&stats[7],1u);return;}links[i*2u]=base;links[i*2u+1u]=n;for(var k=0u;k<n;k++){nodes[base+k].ring=0xffffffffu;}
- let at=record/2u-1u;let corners=array<vec2u,4>(c,c+vec2u(1,0),c+1u,c+vec2u(0,1));
- for(var k=0u;k<n;k+=2u){let ea=edges[k];let eb=edges[k+1u];let first=geometry[at+k];let second=geometry[at+k+1u];var ends=vec4f(first.xy,second.zw);var keys=vec2u(edgeKey(c,ea),edgeKey(c,eb));let midA=(point(corners[ea])+point(corners[(ea+1u)%4u]))*.5;let midB=(point(corners[eb])+point(corners[(eb+1u)%4u]))*.5;if((cross2(midB-midA,point(corners[ea])-midA)>0.)!=(v[ea]>=0.)){ends=ends.zwxy;keys=keys.yx;}let slot=base+k/2u;nodes[slot]=Node(ends,keys,0u,0xffffffffu);atomicAdd(&stats[1],1u);
-  if(n==2u&&any(first.zw!=second.zw)){let internal=(cfg.size.x+2u)*(cfg.size.y+2u)*2u+i;nodes[slot]=Node(vec4f(ends.xy,first.zw),vec2u(keys.x,internal),0u,slot+1u);nodes[slot+1u]=Node(vec4f(first.zw,ends.zw),vec2u(internal,keys.y),0u,0xffffffffu);atomicAdd(&stats[1],1u);}
- }
-}
-fn labelBase()->u32{return (cfg.size.x+1u)*(cfg.size.y+1u)*2u;}
 @compute @workgroup_size(64) fn connect(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);let total=min(atomicLoad(&stats[2]),cfg.limits.y);if(i>=total||nodes[i].ring==0xffffffffu){return;}let e=nodes[i].edges.y;let w=cfg.size.x+2u;let p=vec2u((e/2u)%w,(e/2u)/w);var cells:array<vec2u,2>;cells[0]=p;cells[1]=p;if(e%2u==0u){cells[1].y--;}else{cells[1].x--;}
- var next=nodes[i].next;if(next==0xffffffffu){for(var k=0u;k<2u;k++){let c=cells[k];if(c.x>cfg.size.x||c.y>cfg.size.y){continue;}let at=(c.y*(w-1u)+c.x)*2u;let start=links[at];let n=links[at+1u];for(var j=start;j<min(start+n,cfg.limits.y);j++){if(j!=i&&nodes[j].ring==nodes[i].ring&&nodes[j].edges.x==e){next=j;}}}}nodes[i].next=next;let at=labelBase()+i*5u;links[at]=next;links[at+1u]=i;links[at+4u]=0u;
+ var next=nodes[i].next;if(next==0xffffffffu){for(var k=0u;k<2u;k++){let c=cells[k];if(c.x>cfg.size.x||c.y>cfg.size.y){continue;}let cell=atomicLoad(&tree[c.y*(w-1u)+c.x]);if(cell<=1u){continue;}let start=cell/2u-1u;let n=2u+(cell%2u)*2u;for(var j=start;j<min(start+n,cfg.limits.y);j++){if(j!=i&&nodes[j].ring==nodes[i].ring&&nodes[j].edges.x==e){next=j;}}}}nodes[i].next=next;let at=i*5u;links[at]=next;links[at+1u]=i;links[at+4u]=0u;
 }
-@compute @workgroup_size(64) fn label(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[2]),cfg.limits.y)||nodes[i].ring==0xffffffffu){return;}let a=labelBase()+i*5u;let src=cfg.stage.x;let dst=2u-src;let j=links[a+src];let r=links[a+src+1u];if(j==0xffffffffu){links[a+dst]=j;links[a+dst+1u]=r;return;}let b=labelBase()+j*5u;links[a+dst]=links[b+src];links[a+dst+1u]=min(r,links[b+src+1u]);}
-fn keep(i:u32){links[labelBase()+i*5u+4u]|=1u;}
-@compute @workgroup_size(64) fn simplify(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let root=linear(id,groups);let total=min(atomicLoad(&stats[2]),cfg.limits.y);if(root>=total||nodes[root].ring==0xffffffffu||links[labelBase()+root*5u+cfg.stage.x+1u]!=root){return;}
- var cursor=nodes[root].next;var count=1u;var far=root;var maximum=0.;var area=0.;loop{if(cursor==root||cursor==0xffffffffu||count>32768u){break;}let next=nodes[cursor].next;if(next!=0xffffffffu){area+=cross2(nodes[cursor].ends.xy-nodes[root].ends.xy,nodes[next].ends.xy-nodes[root].ends.xy);}let d=length(nodes[root].ends.xy-nodes[cursor].ends.xy);if(d>maximum){maximum=d;far=cursor;}cursor=nodes[cursor].next;count++;}
- if(cursor!=root){atomicAdd(&stats[6],1u);return;}if(far==root||abs(area)<cfg.physical.x*cfg.physical.x*1e-8){atomicAdd(&stats[9],1u);return;}atomicAdd(&stats[3],1u);let start=far;cursor=nodes[start].next;maximum=0.;loop{if(cursor==start){break;}let d=length(nodes[start].ends.xy-nodes[cursor].ends.xy);if(d>maximum){maximum=d;far=cursor;}cursor=nodes[cursor].next;}keep(start);keep(far);var stack:array<vec2u,64>;stack[0]=vec2u(start,far);stack[1]=vec2u(far,start);var top=2u;var work=0u;
- loop{if(top==0u){break;}top--;let range=stack[top];let a=nodes[range.x].ends.xy;let b=nodes[range.y].ends.xy;var best=min(cfg.physical.y,abs(area)/max(maximum*16.,1e-8));var split=0xffffffffu;cursor=nodes[range.x].next;
-  loop{if(cursor==range.y){break;}let d=segmentDistance(nodes[cursor].ends.xy,a,b);if(d>best){best=d;split=cursor;}cursor=nodes[cursor].next;work++;if(work>2000000u){break;}}
-  if(work>2000000u||top>60u){cursor=root;loop{keep(cursor);cursor=nodes[cursor].next;if(cursor==root){break;}}atomicAdd(&stats[8],1u);break;}
+@compute @workgroup_size(64) fn label(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[2]),cfg.limits.y)||nodes[i].ring==0xffffffffu){return;}let a=i*5u;let src=cfg.stage.x;let dst=2u-src;let j=links[a+src];let r=links[a+src+1u];if(j==0xffffffffu){links[a+dst]=j;links[a+dst+1u]=r;return;}let b=j*5u;links[a+dst]=links[b+src];links[a+dst+1u]=min(r,links[b+src+1u]);}
+fn keep(i:u32){links[i*5u+4u]|=1u;}
+@compute @workgroup_size(64) fn simplify(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let root=linear(id,groups);let total=min(atomicLoad(&stats[2]),cfg.limits.y);if(root>=total||nodes[root].ring==0xffffffffu||links[root*5u+cfg.stage.x+1u]!=root){return;}
+ // Choose the same geometric anchor regardless of the order GPU cells were appended.
+ // Removing monotone axis-aligned samples preserves the maximum distance to any chord.
+ var incoming=root;var first=0xffffffffu;var last=0xffffffffu;var start=root;var count=0u;
+ loop{
+  let middle=nodes[incoming].next;
+  if(middle==0xffffffffu||count>=32768u){atomicAdd(&stats[6],1u);return;}
+  let next=nodes[middle].next;if(next==0xffffffffu){atomicAdd(&stats[6],1u);return;}
+  let a=nodes[incoming].ends.xy;let b=nodes[middle].ends.xy;let c=nodes[next].ends.xy;
+  let straight=((a.x==b.x&&b.x==c.x)||(a.y==b.y&&b.y==c.y))&&all(b>=min(a,c))&&all(b<=max(a,c))&&any(a!=b)&&any(b!=c);
+  if(!straight){
+   if(first==0xffffffffu){first=middle;start=middle;}else{links[last*5u]=middle;}
+   let p=nodes[start].ends.xy;
+   if(b.x<p.x||(b.x==p.x&&(b.y<p.y||(b.y==p.y&&nodes[middle].edges.x<nodes[start].edges.x)))){start=middle;}
+   last=middle;
+  }
+  count++;incoming=middle;if(incoming==root){break;}
+ }
+ if(first==0xffffffffu){atomicAdd(&stats[9],1u);return;}
+ links[last*5u]=first;
+ var cursor=start;var far=start;var maximum=0.;var area=0.;let origin=nodes[start].ends.xy;
+ loop{
+  let next=links[cursor*5u];let p=nodes[cursor].ends.xy-origin;
+  area+=cross2(p,nodes[next].ends.xy-origin);let d=length(p);
+  if(d>maximum){maximum=d;far=cursor;}cursor=next;if(cursor==start){break;}
+ }
+ if(far==start||abs(area)<cfg.physical.x*cfg.physical.x*1e-8){atomicAdd(&stats[9],1u);return;}
+ atomicAdd(&stats[3],1u);keep(start);keep(far);var stack:array<vec2u,64>;stack[0]=vec2u(start,far);stack[1]=vec2u(far,start);var top=2u;var work=0u;
+ loop{if(top==0u){break;}top--;let range=stack[top];let a=nodes[range.x].ends.xy;let b=nodes[range.y].ends.xy;var best=min(cfg.physical.y,abs(area)/max(maximum*16.,1e-8));var split=0xffffffffu;cursor=links[range.x*5u];
+  loop{if(cursor==range.y){break;}let d=segmentDistance(nodes[cursor].ends.xy,a,b);if(d>best){best=d;split=cursor;}cursor=links[cursor*5u];work++;if(work>2000000u){break;}}
+  if(work>2000000u||top>60u){cursor=root;loop{keep(cursor);cursor=nodes[cursor].next;if(cursor==root){break;}}atomicAdd(&stats[8],1u);return;}
   if(split!=0xffffffffu){keep(split);stack[top]=vec2u(range.x,split);stack[top+1u]=vec2u(split,range.y);top+=2u;}
  }
  // A bounded farthest-feasible walk avoids RDP's power-of-two over-segmentation.
  // Keep the result only when every skipped source point was checked and it wins.
- var rdp=0u;cursor=root;loop{rdp+=links[labelBase()+cursor*5u+4u]&1u;cursor=nodes[cursor].next;if(cursor==root){break;}}
- var anchor=start;var previous=start;var candidate=nodes[start].next;var greedy=1u;work=0u;var complete=false;links[labelBase()+start*5u+4u]|=2u;
- loop{var error=0.;cursor=nodes[anchor].next;loop{if(cursor==candidate){break;}error=max(error,segmentDistance(nodes[cursor].ends.xy,nodes[anchor].ends.xy,nodes[candidate].ends.xy));cursor=nodes[cursor].next;work++;if(work>200000u||error>cfg.physical.y){break;}}
-  if(work>200000u){break;}if(error<=cfg.physical.y){if(candidate==start){complete=true;break;}previous=candidate;candidate=nodes[candidate].next;}
-  else{if(previous==anchor){break;}links[labelBase()+previous*5u+4u]|=2u;greedy++;anchor=previous;candidate=nodes[anchor].next;previous=anchor;}
+ var rdp=0u;cursor=start;loop{rdp+=links[cursor*5u+4u]&1u;cursor=links[cursor*5u];if(cursor==start){break;}}
+ var anchor=start;var previous=start;var candidate=links[start*5u];var greedy=1u;work=0u;var complete=false;links[start*5u+4u]|=2u;
+ loop{var error=0.;cursor=links[anchor*5u];loop{if(cursor==candidate){break;}error=max(error,segmentDistance(nodes[cursor].ends.xy,nodes[anchor].ends.xy,nodes[candidate].ends.xy));cursor=links[cursor*5u];work++;if(work>200000u||error>cfg.physical.y){break;}}
+  if(work>200000u){break;}if(error<=cfg.physical.y){if(candidate==start){complete=true;break;}previous=candidate;candidate=links[candidate*5u];}
+  else{if(previous==anchor){break;}links[previous*5u+4u]|=2u;greedy++;anchor=previous;candidate=links[anchor*5u];previous=anchor;}
  }
- if(complete&&greedy>=3u&&greedy<rdp){links[labelBase()+root*5u+4u]|=4u;}
+ if(complete&&greedy>=3u&&greedy<rdp){links[root*5u+4u]|=4u;}
 }
-@compute @workgroup_size(64) fn emit(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[2]),cfg.limits.y)||nodes[i].ring==0xffffffffu){return;}let root=links[labelBase()+i*5u+cfg.stage.x+1u];let mask=select(1u,2u,(links[labelBase()+root*5u+4u]&4u)!=0u);if((links[labelBase()+i*5u+4u]&mask)==0u){return;}var next=nodes[i].next;var steps=0u;loop{if(next==0xffffffffu||steps>32768u){return;}if((links[labelBase()+next*5u+4u]&mask)!=0u){break;}next=nodes[next].next;steps++;}let at=atomicAdd(&stats[4],1u);geometry[at*2u]=vec4f(nodes[i].ends.xy,nodes[next].ends.xy);geometry[at*2u+1u]=bitcast<vec4f>(vec4u(i,next,nodes[i].ring,links[labelBase()+i*5u+cfg.stage.x+1u]));}
+@compute @workgroup_size(64) fn emit(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[2]),cfg.limits.y)||nodes[i].ring==0xffffffffu){return;}let root=links[i*5u+cfg.stage.x+1u];let mask=select(1u,2u,(links[root*5u+4u]&4u)!=0u);if((links[i*5u+4u]&mask)==0u){return;}var next=nodes[i].next;var steps=0u;loop{if(next==0xffffffffu||steps>32768u){return;}if((links[next*5u+4u]&mask)!=0u){break;}next=nodes[next].next;steps++;}let at=atomicAdd(&stats[4],1u);geometry[at*2u]=vec4f(nodes[i].ends.xy,nodes[next].ends.xy);geometry[at*2u+1u]=bitcast<vec4f>(vec4u(i,next,nodes[i].ring,links[i*5u+cfg.stage.x+1u]));}
 // Label jump slots 0/2 are free after emission; preserve roots 1/3 and keep flags.
-@compute @workgroup_size(64) fn neighbours(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[4]),cfg.limits.y)){return;}let record=bitcast<vec4u>(geometry[i*2u+1u]);links[labelBase()+record.x*5u]=i;links[labelBase()+record.y*5u+2u]=i;}
-@compute @workgroup_size(64) fn remap(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[4]),cfg.limits.y)){return;}let record=bitcast<vec4u>(geometry[i*2u+1u]);geometry[i*2u+1u]=bitcast<vec4f>(vec4u(i,links[labelBase()+record.y*5u],links[labelBase()+record.x*5u+2u],record.w));}
-@compute @workgroup_size(64) fn unmark(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i<min(atomicLoad(&stats[2]),cfg.limits.y)){links[labelBase()+i*5u+4u]=0u;}}
-@compute @workgroup_size(1) fn prepare(){atomicStore(&stats[20],select(0u,(min(atomicLoad(&stats[2]),cfg.limits.y)+63u)/64u,atomicLoad(&stats[7])==0u));atomicStore(&stats[21],1u);atomicStore(&stats[22],1u);}
+@compute @workgroup_size(64) fn neighbours(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[4]),cfg.limits.y)){return;}let record=bitcast<vec4u>(geometry[i*2u+1u]);links[record.x*5u]=i;links[record.y*5u+2u]=i;}
+@compute @workgroup_size(64) fn remap(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i>=min(atomicLoad(&stats[4]),cfg.limits.y)){return;}let record=bitcast<vec4u>(geometry[i*2u+1u]);geometry[i*2u+1u]=bitcast<vec4f>(vec4u(i,links[record.y*5u],links[record.x*5u+2u],record.w));}
+@compute @workgroup_size(64) fn unmark(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=linear(id,groups);if(i<min(atomicLoad(&stats[2]),cfg.limits.y)){links[i*5u+4u]=0u;}}
+@compute @workgroup_size(1) fn prepare(){atomicStore(&stats[2],atomicLoad(&stats[0]));atomicStore(&stats[20],select(0u,(min(atomicLoad(&stats[2]),cfg.limits.y)+63u)/64u,atomicLoad(&stats[7])==0u));atomicStore(&stats[21],1u);atomicStore(&stats[22],1u);}
 @compute @workgroup_size(1) fn finish(){let valid=atomicLoad(&stats[7])==0u&&atomicLoad(&stats[6])==0u;let n=select(0u,atomicLoad(&stats[4]),valid);atomicStore(&stats[12],n*2u);atomicStore(&stats[13],1u);atomicStore(&stats[16],6u);atomicStore(&stats[17],n);}
 `;
 
@@ -317,6 +328,12 @@ fn beadJoin(previous:vec3f,position:vec3f,next:vec3f,incoming:vec2f,outgoing:vec
  if(denominator>1e-5){let first=dot(a.xz,n);let second=dot(b.xz,m);joined=(n*(first-cosine*second)+m*(second-cosine*first))/denominator;let limit=2.*max(length(a.xz),length(b.xz));joined*=min(1.,limit/max(length(joined),1e-20));}
  return beadViewOffset(vec3f(joined.x,select(a.y,b.y,abs(b.y)>abs(a.y)),joined.y),rotation,matrix,scale);
 }
+// A changing neighbour can move a miter. Keep its influence within one bead
+// width of the joint, so a long straight wall retains its own cross-section.
+fn beadInset(delta:vec2f,width:f32)->f32{return min(.5,width/max(length(delta),1e-10));}
+fn straightSupport(a:vec3f,b:vec3f,delta:vec2f,p:vec3f,rotation:mat4x4f,matrix:mat4x4f,scale:f32,pan:vec2f,ortho:bool,width:f32,height:f32)->vec3f{
+ return beadViewOffset(beadLocalSupport(b-a,delta,p,rotation,matrix,scale,pan,ortho,width,height),rotation,matrix,scale);
+}
 fn beadTriangleDepth(eye:vec3f,direction:vec3f,a:vec3f,b:vec3f,c:vec3f)->f32{let first=b-a;let second=c-a;let p=cross(direction,second);let determinant=dot(first,p);if(abs(determinant)<1e-20){return 1e30;}let inverse=1./determinant;let relative=eye-a;let u=dot(relative,p)*inverse;let q=cross(relative,first);let v=dot(direction,q)*inverse;if(u<0.||v<0.||u+v>1.){return 1e30;}let depth=dot(second,q)*inverse;return select(1e30,depth,depth>0.);}
 `;
 
@@ -331,9 +348,18 @@ fn screen(p:vec3f)->vec2f{let xy=p.xy+query.viewport.zw;var ndc=vec2f(xy.x*query
 @compute @workgroup_size(64) fn pick(@builtin(global_invocation_id) id:vec3u,@builtin(num_workgroups) groups:vec3u){let i=id.x+id.y*groups.x*64u;if(i>=query.range.z){return;}let layer=layers[i];if(layer+1u<query.range.x||layer+1u>query.range.y){return;}
  let segment=paths[i*2u];let a=view(segment.xy,layer);let b=view(segment.zw,layer);let za=-a.z;let zb=-b.z;let dz=zb-za;var low=0.;var high=1.;if(abs(dz)<1e-20){if(za<query.clip.x||za>query.clip.y){return;}}else{let near=(query.clip.x-za)/dz;let far=(query.clip.y-za)/dz;low=max(low,min(near,far));high=min(high,max(near,far));if(high<low){return;}}
  let first=mix(a,b,low);let last=mix(a,b,high);let sa=screen(first);let sb=screen(last);let delta=sb-sa;let t=clamp(dot(query.pointer.xy-sa,delta)/max(dot(delta,delta),1e-20),0.,1.);var u=t;if(query.range.w==0u){u=t*(-first.z)/max(1e-20,(1.-t)*(-last.z)+t*(-first.z));}let point=mix(first,last,u);
- var offset=vec3f(0);var offsetA=vec3f(0);var offsetB=vec3f(0);var radius=8.;if(query.heights.w==0.){let height=select(query.heights.y,query.heights.x,layer==0u);let record=bitcast<vec4u>(paths[i*2u+1u]);let base=i-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;offsetA=beadJoin(view(before,layer),a,b,segment.xy-before,segment.zw-segment.xy,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);offsetB=beadJoin(a,b,view(after,layer),segment.zw-segment.xy,after-segment.zw,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);offset=mix(offsetA,offsetB,mix(low,high,u));let projected=screen(point+offset)-screen(point);radius=max(radius,length(projected));}if(distance(query.pointer.xy,sa+t*delta)>radius){return;}
+ var centres:array<vec3f,4>;var widths:array<vec3f,4>;var spans=1u;var offset=vec3f(0);var offsetA=vec3f(0);var offsetB=vec3f(0);var radius=8.;if(query.heights.w!=1.){let height=select(query.heights.y,query.heights.x,layer==0u);let record=bitcast<vec4u>(paths[i*2u+1u]);let base=i-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;offsetA=beadJoin(view(before,layer),a,b,segment.xy-before,segment.zw-segment.xy,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);offsetB=beadJoin(a,b,view(after,layer),segment.zw-segment.xy,after-segment.zw,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);let t=mix(low,high,u);offset=mix(offsetA,offsetB,t);
+ if(query.heights.w==2.){
+  let delta=segment.zw-segment.xy;let inset=beadInset(delta,query.heights.z);
+  let left=mix(a,b,inset);let right=mix(a,b,1.-inset);
+  let leftOffset=straightSupport(a,b,delta,left,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);
+  let rightOffset=straightSupport(a,b,delta,right,query.rotation,query.matrix,query.centerScale.w,query.viewport.zw,query.range.w!=0u,query.heights.z,height);
+  if(t<inset){offset=mix(offsetA,leftOffset,t/inset);}else if(t>1.-inset){offset=mix(rightOffset,offsetB,(t+inset-1.)/inset);}else{offset=mix(leftOffset,rightOffset,(t-inset)/max(1.-2.*inset,1e-10));}
+  centres=array<vec3f,4>(a,left,right,b);widths=array<vec3f,4>(offsetA,leftOffset,rightOffset,offsetB);spans=3u;
+ }else{centres[0]=a;centres[1]=b;widths[0]=offsetA;widths[1]=offsetB;}let projected=screen(point+offset)-screen(point);radius=max(radius,length(projected));}if(distance(query.pointer.xy,sa+t*delta)>radius){return;}
  let cursor=query.pointer.xy/query.pointer.zw*vec2f(2,-2)+vec2f(-1,1);var eye=vec3f(-query.viewport.zw,0);var direction=vec3f(cursor.x*query.viewport.x/query.clip.w,cursor.y/query.clip.w,-1);if(query.range.w!=0u){eye=vec3f(cursor.x*query.viewport.x/query.viewport.y-query.viewport.z,cursor.y/query.viewport.y-query.viewport.w,-query.clip.x);direction=vec3f(0,0,-1);}
- var exactHit=true;var depth=dot(point-eye,direction)/dot(direction,direction);if(query.heights.w==0.){let exact=min(beadTriangleDepth(eye,direction,a-offsetA,a+offsetA,b-offsetB),beadTriangleDepth(eye,direction,b-offsetB,a+offsetA,b+offsetB));exactHit=exact<1e29;if(exactHit){depth=exact;}else{let normal=cross(b-a,offset);let denominator=dot(direction,normal);if(abs(denominator)>1e-20){depth=dot(a-eye,normal)/denominator;}}}if(depth>0.){atomicMin(&hit[0],bitcast<u32>(depth)|select(0x80000000u,0u,exactHit));}
+ var exactHit=true;var depth=dot(point-eye,direction)/dot(direction,direction);if(query.heights.w!=1.){var exact=1e30;
+ for(var j=0u;j<spans;j++){let p=centres[j];let q=centres[j+1u];let m=widths[j];let n=widths[j+1u];exact=min(exact,min(beadTriangleDepth(eye,direction,p-m,p+m,q-n),beadTriangleDepth(eye,direction,q-n,p+m,q+n)));}exactHit=exact<1e29;if(exactHit){depth=exact;}else{let normal=cross(b-a,offset);let denominator=dot(direction,normal);if(abs(denominator)>1e-20){depth=dot(a-eye,normal)/denominator;}}}if(depth>0.){atomicMin(&hit[0],bitcast<u32>(depth)|select(0x80000000u,0u,exactHit));}
 }`;
 
 const previewShader=beadShader+`
@@ -356,41 +382,81 @@ fn projectView(p:vec3f,color:vec3f,uv:vec2f)->Output{
  else{out.position=vec4f(xy.x*camera.clip.w/camera.viewport.x,xy.y*camera.clip.w,(camera.clip.y*depth-camera.clip.x*camera.clip.y)/(camera.clip.y-camera.clip.x),depth);}return out;
 }
 fn project(local:vec3f,color:vec3f,uv:vec2f)->Output{return projectView(cameraPoint(local),color,uv);}
-@vertex fn axes(@builtin(vertex_index) vertex:u32)->Output{let ends=array<vec3f,3>(vec3f(500,0,-500),vec3f(-500,1000,-500),vec3f(-500,0,500));let colors=array<vec3f,3>(vec3f(.82,.24,.22),vec3f(.28,.71,.34),vec3f(.28,.44,.85));return project(select(vec3f(-500,0,-500),ends[vertex/2u],vertex%2u!=0u),colors[vertex/2u],vec2f(0));}
 fn pathPoint(p:vec2f,i:u32,color:vec3f)->Output{let y=select(cfg.heights.x+(f32(i)-.5)*cfg.heights.y,cfg.heights.x*.5,i==0u);var out=project(vec3f(p.x,y,p.y),color,vec2f(0));if(f32(i+1u)<cfg.heights.z||f32(i+1u)>cfg.heights.w){out.position=vec4f(2,2,2,1);}return out;}
 @vertex fn perimeter(@builtin(vertex_index) vertex:u32)->Output{let s=paths[(vertex/2u)*2u];return pathPoint(select(s.xy,s.zw,vertex%2u!=0u),layers[vertex/2u],vec3f(1));}
 @vertex fn bead(@builtin(vertex_index) vertex:u32,@builtin(instance_index) instance:u32)->Output{
  let upward=(camera.rotation*vec4f((frame.matrix*vec4f(0,1,0,0)).xyz,0)).z>0.;let index=select(drawRange.x+instance,drawRange.y-1u-instance,upward);
  let s=paths[index*2u];let layer=layers[index];let y=select(cfg.heights.x+(f32(layer)-.5)*cfg.heights.y,cfg.heights.x*.5,layer==0u);let height=select(cfg.heights.y,cfg.heights.x,layer==0u);
- let record=bitcast<vec4u>(paths[index*2u+1u]);let base=index-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;let end=vertex>=2u;let previous=select(before,s.xy,end);let position=select(s.xy,s.zw,end);let next=select(s.zw,after,end);
- let p=cameraPoint(vec3f(position.x,y,position.y));let offset=beadJoin(cameraPoint(vec3f(previous.x,y,previous.y)),p,cameraPoint(vec3f(next.x,y,next.y)),position-previous,next-position,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);
- let side=select(-1.,1.,(vertex&1u)!=0u);return projectView(p+offset*side,vec3f(1),vec2f(0,side));
+ let record=bitcast<vec4u>(paths[index*2u+1u]);let base=index-record.x;let before=paths[(base+record.z)*2u].xy;let after=paths[(base+record.y)*2u].zw;let station=vertex/2u;let detailed=drawRange.z!=0u;
+ let end=station==select(1u,3u,detailed);let interior=detailed&&(station==1u||station==2u);
+ let delta=s.zw-s.xy;let inset=beadInset(delta,frame.settings.y);
+ let a=cameraPoint(vec3f(s.x,y,s.y));let b=cameraPoint(vec3f(s.z,y,s.w));
+ let previous=select(before,s.xy,end);let position=select(s.xy,s.zw,end);let next=select(s.zw,after,end);
+ var p=select(a,b,end);if(interior){p=mix(a,b,select(inset,1.-inset,station==2u));}
+ let tangent=b-a;
+ let support=straightSupport(a,b,delta,p,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);
+ var offset=support;if(!interior){offset=beadJoin(cameraPoint(vec3f(previous.x,y,previous.y)),p,cameraPoint(vec3f(next.x,y,next.y)),position-previous,next-position,camera.rotation,frame.matrix,camera.centerScale.w,camera.viewport.zw,orthographic,frame.settings.y,height);}
+ let side=select(-1.,1.,(vertex&1u)!=0u);
+ let localStep=beadViewOffset(vec3f(0,height,0),camera.rotation,frame.matrix,camera.centerScale.w);
+ // Project both supports on the same screen normal; their ratio is in bead half-widths.
+ let eye=select(p.xy+camera.viewport.zw,vec2f(0),orthographic);
+ let depth=max(-p.z,camera.clip.x);
+ let screenTangent=tangent.xy+eye*(tangent.z/depth);
+ let normal=vec2f(-screenTangent.y,screenTangent.x)*inverseSqrt(max(dot(screenTangent,screenTangent),1e-30));
+ let width=dot(normal,support.xy+eye*(support.z/depth));
+ let joinedWidth=dot(normal,offset.xy+eye*(offset.z/depth));
+ let plane=cross(tangent,offset);
+ let upperNear=dot(plane,localStep)*dot(plane,vec3f(-eye,depth))>0.;
+ var spacing=3.;
+ if(abs(width)>1e-12&&select(f32(layer+1u)>cfg.heights.z,f32(layer+1u)<cfg.heights.w,upperNear)){
+  spacing=clamp(dot(normal,localStep.xy+eye*(localStep.z/depth))/width*select(-1.,1.,upperNear),-2.,2.);
+ }
+ let u=side*select(1.,clamp(joinedWidth/width,-4.,4.),abs(width)>1e-12);
+ return projectView(p+offset*side,vec3f(1),vec2f(spacing,u));
 }
 @vertex fn control(@builtin(vertex_index) vertex:u32,@builtin(instance_index) instance:u32)->Output{let corners=array<vec2f,6>(vec2f(-1,-1),vec2f(1,-1),vec2f(-1,1),vec2f(-1,1),vec2f(1,-1),vec2f(1,1));var out=pathPoint(paths[instance*2u].xy,layers[instance],vec3f(.35,.8,1));out.position=vec4f(out.position.xy+corners[vertex]*3./camera.frame.xy*out.position.w,out.position.zw);return out;}
 @vertex fn map(@builtin(vertex_index) vertex:u32)->Output{let corners=array<vec2f,6>(vec2f(0,0),vec2f(1,0),vec2f(0,1),vec2f(0,1),vec2f(1,0),vec2f(1,1));let uv=corners[vertex];let xz=cfg.domain.xy+uv*cfg.domain.zw*vec2f(cfg.size.xy);let i=cfg.size.w;let y=select(cfg.heights.x+(f32(i)-.5)*cfg.heights.y,cfg.heights.x*.5,i==0u);return project(vec3f(xz.x,y,xz.y),vec3f(1),uv);}
 @fragment fn fs(input:Output)->@location(0) vec4f{return vec4f(input.color,1);}
-@fragment fn beadColor(input:Output)->@location(0) vec4f{let edge=smoothstep(.4,1.,abs(input.uv.y));return vec4f(mix(vec3f(.50,.54,.55),vec3f(.10,.13,.14),edge),1);}
+// Integral of the smooth transverse rim, extended with its endpoint shade.
+fn rimIntegral(u:f32)->f32{
+ let x=abs(u);let t=clamp((x-.4)/.6,0.,1.);
+ return sign(u)*(.6*t*t*t*(1.-.5*t)+max(0.,x-1.));
+}
+fn repeatedRimIntegral(x:f32,period:f32)->f32{
+ let cycles=floor(x/period);
+ return cycles*(rimIntegral(period-1.)+.3)+rimIntegral(x-cycles*period-1.)+.3;
+}
+@fragment fn beadColor(input:Output)->@location(0) vec4f{
+ let u=input.uv.y;let halfPixel=max(.001,.5*fwidth(u));
+ let single=(rimIntegral(u+halfPixel)-rimIntegral(u-halfPixel))/(2.*halfPixel);
+ // Overlapping layers expose just the outer part of each bead. Integrate
+ // that band over the pixel; visible interiors and end layers use their own profile.
+ let period=clamp(abs(input.uv.x),.01,2.);let x=1.+select(-u,u,input.uv.x>=0.);
+ let visibleBand=(repeatedRimIntegral(x+halfPixel,period)-repeatedRimIntegral(x-halfPixel,period))/(2.*halfPixel);
+ let mean=(rimIntegral(period-1.)+.3)/period;
+ let repeated=mix(mean,visibleBand,smoothstep(1.,2.,period/(2.*halfPixel)));
+ let edge=clamp(select(mix(repeated,single,smoothstep(period,period+halfPixel,x)),single,abs(input.uv.x)>2.),0.,1.);return vec4f(mix(vec3f(.50,.54,.55),vec3f(.10,.13,.14),edge),1);}
 @fragment fn coverage(input:Output)->@location(0) vec4f{let size=textureDimensions(image);let p=clamp(vec2i(input.uv*vec2f(size)),vec2i(0),vec2i(size)-1);let color=textureLoad(image,p,0);if(color.a==0.){discard;}return color;}
 `;
 
 async function createPreview(context,slicer){
- const d=context.device,module=await checkedModule(d,'Printer LDI coverage and axes',context.viewport.cameraWGSL+previewShader);
+ const d=context.device,module=await checkedModule(d,'Printer layer preview',context.viewport.cameraWGSL+previewShader);
  const uniformLayout=()=>d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]}),cameraLayout=uniformLayout(),frameLayout=uniformLayout();
  const imageLayout=d.createBindGroupLayout({entries:[{binding:0,visibility:GPUShaderStage.FRAGMENT,texture:{sampleType:'unfilterable-float'}},{binding:1,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}},{binding:2,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:3,visibility:GPUShaderStage.VERTEX,buffer:{type:'read-only-storage'}},{binding:4,visibility:GPUShaderStage.VERTEX,buffer:{type:'uniform'}}]});
- const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:entryPoint==='axes'?[cameraLayout,frameLayout]:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='map'?'coverage':entryPoint==='bead'?'beadColor':'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),...entryPoint==='bead'?{}:{blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}}]},primitive:{topology:entryPoint==='bead'?'triangle-strip':entryPoint==='axes'||entryPoint==='perimeter'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:entryPoint==='bead',depthCompare:'less-equal'}});
- const [axes,lines,points,beads]=await Promise.all(['axes','perimeter','control','bead'].map(entry=>Promise.all([false,true].map(o=>pipeline(entry,o)))));
+ const pipeline=(entryPoint,orthographic)=>d.createRenderPipelineAsync({label:'Printer '+entryPoint,layout:d.createPipelineLayout({bindGroupLayouts:[cameraLayout,frameLayout,imageLayout]}),vertex:{module,entryPoint,constants:{orthographic}},fragment:{module,entryPoint:entryPoint==='map'?'coverage':entryPoint==='bead'?'beadColor':'fs',targets:[{format:navigator.gpu.getPreferredCanvasFormat(),...entryPoint==='bead'?{}:{blend:{color:{srcFactor:'src-alpha',dstFactor:'one-minus-src-alpha'},alpha:{srcFactor:'one',dstFactor:'one-minus-src-alpha'}}}}]},primitive:{topology:entryPoint==='bead'?'triangle-strip':entryPoint==='perimeter'?'line-list':'triangle-list'},depthStencil:{format:'depth24plus',depthWriteEnabled:entryPoint==='bead',depthCompare:'less-equal'}});
+ const [lines,points,beads]=await Promise.all(['perimeter','control','bead'].map(entry=>Promise.all([false,true].map(o=>pipeline(entry,o)))));
  const groups=new WeakMap(),group=(buffer,layout)=>{let cache=groups.get(buffer);if(!cache)groups.set(buffer,cache=new Map());if(!cache.has(layout))cache.set(layout,d.createBindGroup({layout,entries:[{binding:0,resource:{buffer}}]}));return cache.get(layout);};
  return ({pass,camera,frame,orthographic,hash,params})=>{
-  pass.setPipeline(axes[orthographic?1:0]);pass.setBindGroup(0,group(camera,cameraLayout));pass.setBindGroup(1,group(frame,frameLayout));pass.draw(6);
   const job=slicer.jobs.get(hash);if(!job||job.state!=='complete')return;if(job.result&&!slicer.matches(job))slicer.invalidate(job);if(!job.result)return;
   slicer.reconstruct(job,Math.round(params['Finish layer']),params);slicer.ensurePreview(job,params);const r=job.result,v=r.preview;
   if(!v?.segments||v.error)return;
   if(!v.group){v.drawRange=d.createBuffer({label:'Printer preview draw range',size:16,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});v.resources.push(v.drawRange);v.bytes+=16;v.group=d.createBindGroup({layout:imageLayout,entries:[{binding:0,resource:r.image.createView()},{binding:1,resource:{buffer:r.config}},{binding:2,resource:{buffer:v.output}},{binding:3,resource:{buffer:v.layers}},{binding:4,resource:{buffer:v.drawRange}}]});}
   const first=v.ranges.find(a=>a.last>=r.previewStart),last=v.ranges.findLast(a=>a.first<=r.previewLayer);if(!first||!last)return;
   const offset=first.offset+Math.max(0,r.previewStart-first.first)*first.count,end=last.offset+(Math.min(r.previewLayer,last.last)-last.first+1)*last.count,n=Math.max(0,end-offset);if(!n)return;
-  if(v.firstDraw!==offset||v.endDraw!==end){d.queue.writeBuffer(v.drawRange,0,new Uint32Array([offset,end,0,0]));v.firstDraw=offset;v.endDraw=end;}pass.setBindGroup(2,v.group);
+  if(v.firstDraw!==offset||v.endDraw!==end){d.queue.writeBuffer(v.drawRange,0,new Uint32Array([offset,end,r.sections.length>1?1:0,0]));v.firstDraw=offset;v.endDraw=end;}
+  pass.setBindGroup(0,group(camera,cameraLayout));pass.setBindGroup(1,group(frame,frameLayout));pass.setBindGroup(2,v.group);
   if(slicer.polyline(hash)){pass.setPipeline(lines[orthographic?1:0]);pass.draw(n*2,1,offset*2);pass.setPipeline(points[orthographic?1:0]);pass.draw(6,n,0,offset);}
-  else{pass.setPipeline(beads[orthographic?1:0]);pass.draw(4,n);}
+  else{pass.setPipeline(beads[orthographic?1:0]);pass.draw(r.sections.length>1?8:4,n);}
  };
 }
 
@@ -417,7 +483,7 @@ class LDISlicer{
  navigation(x,y){if(![...this.jobs.values()].some(job=>job.state==='complete'&&job.result?.preview?.segments&&this.context.viewport.isVisible(job.hash)))return null;const request=++this.navigationSerial,run=()=>request===this.navigationSerial?this.pickNavigation(x,y,request):null;return this.navigationQueue=this.navigationQueue.catch(()=>null).then(run);}
  async pickNavigation(x,y,request){const context=this.context,d=context.device;await context.requestDraw();if(request!==this.navigationSerial||context.device!==d)return null;const view=context.editor.view(),{rect}=view;if(x<rect.left||y<rect.top||x>rect.left+rect.width||y>rect.top+rect.height)return null;
   const pipeline=(await this.kernels(d)).navigation;if(request!==this.navigationSerial||context.device!==d)return null;const jobs=[...this.jobs.values()].filter(job=>job.state==='complete'&&job.result?.preview?.segments&&!job.result.retired&&context.viewport.isVisible(job.hash)&&this.matches(job));if(!jobs.length)return null;const records=[],uniform=d.createBuffer({label:'Printer navigation query',size:256,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST}),out=d.createBuffer({label:'Printer navigation winner',size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST}),read=d.createBuffer({label:'Printer navigation depth',size:16,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-  try{d.queue.writeBuffer(out,0,new Uint32Array([0xffffffff,0,0,0]));for(const job of jobs){const r=job.result,v=r.preview,data=new Float32Array(64),world=Array.from(context.document.world(job.hash));data.set(view.camera);data.set(world,36);data.set([x-rect.left,y-rect.top,rect.width,rect.height],52);new Uint32Array(data.buffer).set([r.previewStart,r.previewLayer,v.segments,view.index?1:0],56);data.set([job.options.initial,job.options.height,job.options.width,this.polyline(job.hash)?1:0],60);d.queue.writeBuffer(uniform,0,data);const group=d.createBindGroup({layout:pipeline.layout,entries:[v.output,v.layers,uniform,out].map((buffer,binding)=>({binding,resource:{buffer}}))});this.dispatch(d,pipeline.pick,group,v.segments,64);records.push({job,r,v,world,first:r.previewStart,last:r.previewLayer,polyline:this.polyline(job.hash)});}
+  try{d.queue.writeBuffer(out,0,new Uint32Array([0xffffffff,0,0,0]));for(const job of jobs){const r=job.result,v=r.preview,data=new Float32Array(64),world=Array.from(context.document.world(job.hash));data.set(view.camera);data.set(world,36);data.set([x-rect.left,y-rect.top,rect.width,rect.height],52);new Uint32Array(data.buffer).set([r.previewStart,r.previewLayer,v.segments,view.index?1:0],56);data.set([job.options.initial,job.options.height,job.options.width,this.polyline(job.hash)?1:r.sections.length>1?2:0],60);d.queue.writeBuffer(uniform,0,data);const group=d.createBindGroup({layout:pipeline.layout,entries:[v.output,v.layers,uniform,out].map((buffer,binding)=>({binding,resource:{buffer}}))});this.dispatch(d,pipeline.pick,group,v.segments,64);records.push({job,r,v,world,first:r.previewStart,last:r.previewLayer,polyline:this.polyline(job.hash)});}
    const copy=d.createCommandEncoder();copy.copyBufferToBuffer(out,0,read,0,16);d.queue.submit([copy.finish()]);await read.mapAsync(GPUMapMode.READ);const bits=new Uint32Array(read.getMappedRange())[0],depth=new Float32Array(new Uint32Array([bits&0x7fffffff]).buffer)[0];read.unmap();if(request!==this.navigationSerial||context.device!==d||!Number.isFinite(depth)||depth<=0)return null;const current=context.editor.view();if(current.instance!==view.instance||current.rect.left!==rect.left||current.rect.top!==rect.top||current.rect.width!==rect.width||current.rect.height!==rect.height||current.camera.some((v,i)=>v!==view.camera[i]))return null;
    for(const {job,r,v,world,first,last,polyline}of records){const n=context.document.nodes.find(n=>n.nativeHash===job.hash);if(!n||job.result!==r||r.retired||r.preview!==v||r.previewStart!==first||r.previewLayer!==last||this.polyline(job.hash)!==polyline||!context.viewport.isVisible(job.hash)||!this.matches(job))return null;const finish=Math.max(1,Math.min(r.lastLayer,Math.round(n.params['Finish layer']))),start=Math.max(1,Math.min(finish,Math.round(n.params['Start layer']))),currentWorld=context.document.world(job.hash);if(start!==first||finish!==last||world.some((v,i)=>v!==currentWorld[i]))return null;}return {depth};
   }finally{if(read.mapState==='mapped')read.unmap();uniform.destroy();out.destroy();read.destroy();}
@@ -434,7 +500,7 @@ class LDISlicer{
   const buffer=(binding,type='storage')=>({binding,visibility:GPUShaderStage.COMPUTE,buffer:{type}});
   const source=texture=>compute('LDI source',sourceShader(texture),['bounds','count','emit','shellInit','shellJoin','shellCompress'],[0,1].map(binding=>texture?{binding,visibility:GPUShaderStage.COMPUTE,texture:{sampleType:'uint',viewDimension:'2d-array'}}:buffer(binding,'read-only-storage')).concat([buffer(2,'uniform'),buffer(3),buffer(4,'read-only-storage'),buffer(5),buffer(6),buffer(7),buffer(8)]));
   const [native,paged,scan,clean,coverage]=await Promise.all([source(false),source(true),compute('LDI prefix',scanShader,['scan','add'],[buffer(0,'read-only-storage'),buffer(1),buffer(2),buffer(3,'uniform'),buffer(4)]),compute('LDI sort and union',cleanShader,['clean'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2,'read-only-storage'),buffer(3),buffer(4),buffer(5),buffer(6,'uniform'),buffer(7)]),compute('LDI layer reconstruction',coverageShader,['reconstruct'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),{binding:2,visibility:GPUShaderStage.COMPUTE,storageTexture:{access:'write-only',format:'rgba8unorm'}},buffer(3,'uniform')])]);
-  const paths=await compute('Printer section perimeters',pathShader,['seed','seedSparse','perimeter','connect','label','simplify','emit','neighbours','remap','finish','prepare','unmark'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2),buffer(3),buffer(4),buffer(5),buffer(6),buffer(7,'uniform'),buffer(8)]);
+  const paths=await compute('Printer section perimeters',pathShader,['seed','seedSparse','connect','label','simplify','emit','neighbours','remap','finish','prepare','unmark'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2),buffer(3),buffer(5),buffer(6),buffer(7,'uniform'),buffer(8)]);
   const [layers,pack,navigation]=await Promise.all([compute('Printer identical layers',layerShader,['compare'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2),buffer(3,'uniform')]),compute('Printer all-layer compact preview',previewPackShader,['pack'],[buffer(0,'read-only-storage'),buffer(1),buffer(2),buffer(3,'uniform')]),compute('Printer polyline navigation',this.context.viewport.cameraWGSL+navigationShader,['pick'],[buffer(0,'read-only-storage'),buffer(1,'read-only-storage'),buffer(2,'uniform'),buffer(3)])]);return {native,paged,scan,clean,coverage,paths,layers,pack,navigation};
  })();this.pipelines.set(d,p);}return p;}
  dispatch(d,pipeline,bind,n,workgroup=128){if(!n)return;const e=d.createCommandEncoder(),pass=e.beginComputePass();pass.setPipeline(pipeline);pass.setBindGroup(0,bind);const blocks=Math.ceil(n/workgroup),x=Math.min(blocks,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(x,Math.ceil(blocks/x));pass.end();d.queue.submit([e.finish()]);}
@@ -473,23 +539,42 @@ class LDISlicer{
  buildPaths(job,count,deviation,fieldChanged){
   const r=job.result,d=this.context.device,start=performance.now(),g=r.grid,cells=(g.width+1)*(g.depth+1),capacity=Math.min(262144,Math.max(1024,cells*4));
   let v=r.paths;if(!v){const resources=[],make=(size,usage,label)=>{if(size>d.limits.maxStorageBufferBindingSize)throw failure('PATH_MEMORY_LIMIT','Perimeter scratch exceeds the GPU binding limit.');const b=d.createBuffer({size:Math.max(16,size),usage,label});resources.push(b);return b;},storage=GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST;
-   const levels=[];let w=g.width+1,h=g.depth+1,offset=0,scale=1;while(true){levels.push([w,h,offset,scale]);offset+=w*h;if(w===1&&h===1)break;w=Math.ceil(w/2);h=Math.ceil(h/2);scale*=2;}
-   v=r.paths={resources,levels,capacity,tree:make(offset*4,storage,'Perimeter boundary pyramid'),geometry:make(capacity*32,storage,'Perimeter source boundary'),output:make(capacity*32,storage,'Perimeter compact output'),field:make(16,storage,'Deferred offset field placeholder'),nodes:make(capacity*32,storage,'Perimeter linked vertices'),links:make((cells*2+capacity*5)*4,storage,'Perimeter cells and loop labels'),dispatch:make(16,GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST,'Perimeter bounded work dispatch'),stats:make(96,storage|GPUBufferUsage.INDIRECT,'Perimeter counters and indirect draws'),configs:[]};
-   for(let i=0;i<Math.max(levels.length,3);i++)v.configs.push(make(288,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'Perimeter pass config'));
-   v.groups=v.configs.map(config=>d.createBindGroup({layout:r.pathKernels.layout,entries:[r.headers,r.intervalBuffer,v.tree,v.geometry,v.field,v.nodes,v.stats,config,v.links].map((buffer,binding)=>({binding,resource:{buffer}}))}));v.outputGroups=v.configs.map(config=>d.createBindGroup({layout:r.pathKernels.layout,entries:[r.headers,r.intervalBuffer,v.tree,v.output,v.field,v.nodes,v.stats,config,v.links].map((buffer,binding)=>({binding,resource:{buffer}}))}));v.bytes=resources.reduce((n,b)=>n+b.size,0);
+   v=r.paths={resources,capacity,
+    tree:make(cells*4,storage,'Perimeter boundary cells'),geometry:make(capacity*32,storage,'Perimeter source boundary'),
+    output:make(capacity*32,storage,'Perimeter compact output'),nodes:make(capacity*32,storage,'Perimeter linked vertices'),
+    links:make(capacity*5*4,storage,'Perimeter loop labels'),dispatch:make(16,GPUBufferUsage.INDIRECT|GPUBufferUsage.COPY_DST,'Perimeter bounded work dispatch'),
+    stats:make(96,storage,'Perimeter counters'),configs:[0,1].map(()=>make(80,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'Perimeter pass config'))};
+   const groups=geometry=>v.configs.map(config=>{
+    const entries=[r.headers,r.intervalBuffer,v.tree,geometry,null,v.nodes,v.stats,config,v.links].flatMap((buffer,binding)=>buffer?[{binding,resource:{buffer}}]:[]);
+    return d.createBindGroup({layout:r.pathKernels.layout,entries});
+   });
+   v.groups=groups(v.geometry);v.outputGroups=groups(v.output);v.bytes=resources.reduce((n,b)=>n+b.size,0);
   }
-  const topologyChanged=fieldChanged;
   v.count=count;v.width=job.options.width;v.deviation=deviation;v.error=null;v.pending=true;v.counters=null;const revision=v.revision=(v.revision||0)+1;
-  const tileLevel=Math.min(v.levels.length-1,Math.max(4,Math.ceil(Math.log2((job.options.width*(count+.5)+Math.hypot(...g.pitch))/Math.min(...g.pitch)+2))));
-  for(let i=0;i<v.configs.length;i++){const data=new ArrayBuffer(288);new Uint32Array(data).set([g.width,g.depth,r.previewLayer-1,r.lastLayer]);new Float32Array(data).set([...g.min,...g.pitch,job.options.width,deviation,r.previewScratch?1:0,tileLevel],4);new Uint32Array(data).set([count,capacity,v.levels.length,0,i,0,0,0],12);v.levels.forEach((a,j)=>new Uint32Array(data).set(a,20+j*4));d.queue.writeBuffer(v.configs[i],0,data);}
-  const e=d.createCommandEncoder(),dispatch=(entry,n,config=0)=>{const pass=e.beginComputePass();pass.setPipeline(r.pathKernels[entry]);pass.setBindGroup(0,v.groups[config]);const blocks=Math.ceil(n/64),x=Math.min(blocks,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(x,Math.ceil(blocks/x));pass.end();};
-  if(topologyChanged){e.clearBuffer(v.stats);e.clearBuffer(v.links);}else{e.clearBuffer(v.stats,12,16);e.clearBuffer(v.stats,32,16);e.clearBuffer(v.stats,48,32);}
-  if(fieldChanged){e.clearBuffer(v.tree);dispatch(r.previewScratch?'seedSparse':'seed',r.previewScratch?g.width+g.depth:cells);r.fieldBuilds=(r.fieldBuilds||0)+1;}
-  // Separate config buffers prevent later writes changing an earlier queued pass.
-  d.queue.submit([e.finish()]);if(!fieldChanged&&v.sourceOverflow)d.queue.writeBuffer(v.stats,28,new Uint32Array([1]));for(let i=0;i<3;i++)d.queue.writeBuffer(v.configs[i],48,new Uint32Array([count,capacity,v.levels.length,0,i===1?2:0,0,0,0]));
-  const out=d.createCommandEncoder(),run=(entry,n,config=0)=>{const pass=out.beginComputePass();pass.setPipeline(r.pathKernels[entry]);pass.setBindGroup(0,(['emit','neighbours','remap'].includes(entry)?v.outputGroups:v.groups)[config]);const blocks=Math.ceil(n/64),x=Math.min(blocks,d.limits.maxComputeWorkgroupsPerDimension);if(['connect','label','simplify','emit','unmark'].includes(entry))pass.dispatchWorkgroupsIndirect(v.dispatch,0);else pass.dispatchWorkgroups(x,Math.ceil(blocks/x));pass.end();};
-  let ping=(Math.ceil(Math.log2(capacity))+1)%2;if(topologyChanged){run('perimeter',cells);run('prepare',1);out.copyBufferToBuffer(v.stats,80,v.dispatch,0,12);run('connect',capacity);ping=0;for(let i=0;i<Math.ceil(Math.log2(capacity))+1;i++){run('label',capacity,ping);ping=1-ping;}r.graphBuilds=(r.graphBuilds||0)+1;}else run('unmark',capacity);run('simplify',capacity,ping);run('emit',capacity,ping);run('neighbours',capacity,ping);run('remap',capacity,ping);run('finish',1);d.queue.submit([out.finish()]);r.pathBuilds=(r.pathBuilds||0)+1;
-  const read=d.createBuffer({label:'Printer perimeter metadata',size:48,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ}),copy=d.createCommandEncoder();copy.copyBufferToBuffer(v.stats,0,read,0,48);d.queue.submit([copy.finish()]);v.done=(async()=>{try{await read.mapAsync(GPUMapMode.READ);const counters=Array.from(new Uint32Array(read.getMappedRange()));read.unmap();if(job.result!==r||v.revision!==revision)return;v.counters=counters;if(fieldChanged){v.sourceSegments=counters[0];v.sourceOverflow=counters[0]>v.capacity*2;}v.ms=performance.now()-start;if(counters[7])v.error={code:'PATH_CAPACITY',message:'Perimeter segment capacity exceeded.'};else if(counters[6])v.error={code:'PATH_TOPOLOGY',message:'An open or oversized perimeter was rejected.'};v.pending=false;}finally{read.destroy();}})().catch(error=>{if(job.result===r&&v.revision===revision){v.error={code:'PATH_FAILED',message:error.message};v.pending=false;}});
+  const data=new ArrayBuffer(80),words=new Uint32Array(data);
+  words.set([g.width,g.depth,r.previewLayer-1,r.lastLayer]);new Float32Array(data).set([...g.min,...g.pitch,job.options.width,deviation],4);words.set([count,capacity],12);
+  for(let i=0;i<v.configs.length;i++){words[16]=i*2;d.queue.writeBuffer(v.configs[i],0,data);}
+  const encoder=d.createCommandEncoder();
+  const run=(entry,groups,config,direct)=>{
+   const pass=encoder.beginComputePass();pass.setPipeline(r.pathKernels[entry]);pass.setBindGroup(0,groups[config]);
+   if(direct===undefined){pass.dispatchWorkgroupsIndirect(v.dispatch,0);}
+   else{const blocks=Math.ceil(direct/64),x=Math.min(blocks,d.limits.maxComputeWorkgroupsPerDimension);pass.dispatchWorkgroups(x,Math.ceil(blocks/x));}
+   pass.end();
+  };
+  const rounds=Math.ceil(Math.log2(capacity))+1,ping=rounds%2;
+  if(fieldChanged){
+   encoder.clearBuffer(v.stats);encoder.clearBuffer(v.tree);
+   run(r.previewScratch?'seedSparse':'seed',v.groups,0,r.previewScratch?g.width+g.depth:cells);
+   run('prepare',v.groups,0,1);encoder.copyBufferToBuffer(v.stats,80,v.dispatch,0,12);
+   run('connect',v.groups,0);for(let i=0;i<rounds;i++)run('label',v.groups,i%2);
+   r.fieldBuilds=(r.fieldBuilds||0)+1;r.graphBuilds=(r.graphBuilds||0)+1;
+  }else{
+   encoder.clearBuffer(v.stats,12,16);encoder.clearBuffer(v.stats,32,16);encoder.clearBuffer(v.stats,48,32);
+   run('unmark',v.groups,0);
+  }
+  run('simplify',v.groups,ping);run('emit',v.outputGroups,ping);run('neighbours',v.outputGroups,ping);run('remap',v.outputGroups,ping);run('finish',v.groups,0,1);
+  r.pathBuilds=(r.pathBuilds||0)+1;
+  const read=d.createBuffer({label:'Printer perimeter metadata',size:48,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});encoder.copyBufferToBuffer(v.stats,0,read,0,48);d.queue.submit([encoder.finish()]);v.done=(async()=>{try{await read.mapAsync(GPUMapMode.READ);const counters=Array.from(new Uint32Array(read.getMappedRange()));read.unmap();if(job.result!==r||v.revision!==revision)return;v.counters=counters;if(fieldChanged)v.sourceSegments=counters[0];v.ms=performance.now()-start;if(counters[7])v.error={code:'PATH_CAPACITY',message:'Perimeter segment capacity exceeded.'};else if(counters[6])v.error={code:'PATH_TOPOLOGY',message:'An open or oversized perimeter was rejected.'};v.pending=false;}finally{read.destroy();}})().catch(error=>{if(job.result===r&&v.revision===revision){v.error={code:'PATH_FAILED',message:error.message};v.pending=false;}});
  }
  async run(job,snapshot){
   if(snapshot.meshes.length>256)throw failure('OWNER_LIMIT','LDI supports at most 256 evaluated solid occurrences.');
@@ -508,15 +593,15 @@ class LDISlicer{
    d.queue.writeBuffer(metrics,0,new Uint32Array([0xffffffff,0xffffffff,0xffffffff,0,0,0,0,0]));let started=performance.now();sourcePass('bounds');const rawBounds=new Uint32Array(await read(metrics,24));
    const unordered=v=>{const a=new Uint32Array([v&0x80000000?v^0x80000000:~v]);return new Float32Array(a.buffer)[0];},lo=Array.from(rawBounds.slice(0,3),unordered),hi=Array.from(rawBounds.slice(3),unordered);timings.boundsMs=performance.now()-started;
    if(!snapshot.meshes.length||!lo.every(Number.isFinite)||!hi.every(Number.isFinite)||hi[0]<=-500||lo[0]>=500||hi[2]<=-500||lo[2]>=500||hi[1]<layerY(0,options)){this.empty(job);return;}
-   last=0;while(last<MAX_LAYERS&&layerY(last,options)<Math.min(hi[1],1000))last++;if(last===MAX_LAYERS&&layerY(last,options)<Math.min(hi[1],1000))throw failure('LAYER_LIMIT','LDI exceeds 4096 layers.');if(!last){job.state='empty';return;}
-   this.progress(job,0,last);const min=[Math.max(-500,lo[0]),Math.max(-500,lo[2])],max=[Math.min(500,hi[0]),Math.min(500,hi[2])],span=max.map((v,i)=>v-min[i]);if(span.some(v=>!(v>0))){job.state='empty';return;}
+   last=0;while(last<MAX_LAYERS&&layerY(last,options)<Math.min(hi[1],1000))last++;if(last===MAX_LAYERS&&layerY(last,options)<Math.min(hi[1],1000))throw failure('LAYER_LIMIT','LDI exceeds 4096 layers.');if(!last){this.empty(job);return;}
+   this.progress(job,0,last);const min=[Math.max(-500,lo[0]),Math.max(-500,lo[2])],max=[Math.min(500,hi[0]),Math.min(500,hi[2])],span=max.map((v,i)=>v-min[i]);if(span.some(v=>!(v>0))){this.empty(job);return;}
    // Sampling is explicit and bounded; no full-resolution voxel volume exists.
    const target=options.width*.2;let nx=Math.min(2048,Math.max(1,Math.ceil(span[0]/target))),nz=Math.min(2048,Math.max(1,Math.ceil(span[1]/target)));const maxColumns=Math.floor(MAX_RAYS/last);if(nx+nz>maxColumns){const factor=maxColumns/(nx+nz);nx=Math.max(1,Math.floor(nx*factor));nz=Math.max(1,Math.floor(nz*factor));}
    grid={width:nx,depth:nz,min,pitch:[span[0]/nx,span[1]/nz],targetPitch:target,resolutionLimited:span[0]/nx>target*1.001||span[1]/nz>target*1.001};const rays=(nx+nz)*last;job.stage='ldi-count';
    counts=make(rays*4,storage,'LDI raw ray counts');offsets=make(rays*4,storage,'LDI raw ray offsets');d.queue.writeBuffer(metrics,0,new Uint32Array(8));started=performance.now();sourcePass('count');
    const scan=async(input,output,n,root=true)=>{const blocks=Math.ceil(n/256),sums=make(blocks*4,storage,'LDI scan block sums'),config=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI scan config');d.queue.writeBuffer(config,0,new Uint32Array([n,root?1:0,0,0]));this.dispatch(d,p.scan.scan,group(p.scan.layout,[input,output,sums,config,metrics]),n,256);if(blocks>1){const prefix=make(blocks*4,storage,'LDI scan block offsets');await scan(sums,prefix,blocks,false);this.dispatch(d,p.scan.add,group(p.scan.layout,[prefix,output,sums,config,metrics]),n,256);free(prefix);}free(sums);free(config);};
    await scan(counts,offsets,rays);const totals=new Uint32Array(await read(metrics,16)),rawEvents=totals[0];timings.countMs=performance.now()-started;
-   if(!rawEvents){job.state='empty';return;}if(rawEvents>Math.min(MAX_EVENTS,Math.floor(d.limits.maxStorageBufferBindingSize/8)))throw failure('LDI_EVENT_LIMIT','LDI depth events exceed the bounded GPU allocation.');if(totals[1]>MAX_HITS)throw failure('LDI_RAY_LIMIT','A ray exceeds 1024 depth events; split the source geometry.');
+   if(!rawEvents){this.empty(job);return;}if(rawEvents>Math.min(MAX_EVENTS,Math.floor(d.limits.maxStorageBufferBindingSize/8)))throw failure('LDI_EVENT_LIMIT','LDI depth events exceed the bounded GPU allocation.');if(totals[1]>MAX_HITS)throw failure('LDI_RAY_LIMIT','A ray exceeds 1024 depth events; split the source geometry.');
    job.stage='ldi-emit';started=performance.now();cursors=make(rays*4,storage,'LDI emit cursors');events=make(rawEvents*8,storage,'LDI raw depth and occurrence events');planes=make((shellWords+rawEvents*4)*4,storage,'LDI shell roots and crossing planes');sourcePass('shellInit');sourcePass('shellJoin');sourcePass('shellCompress');sourcePass('emit');await d.queue.onSubmittedWorkDone();this.check(job);timings.emitMs=performance.now()-started;free(cursors);for(const b of placeholders)free(b);
    const headers=make(rays*8,storage,'Clean X and Z LDI ray headers'),intervalBuffer=make(Math.floor(rawEvents/2)*8,storage,'Clean X and Z union depth intervals'),cleanConfig=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'LDI clean config');d.queue.writeBuffer(cleanConfig,0,new Uint32Array([rays,shellWords,0,0]));d.queue.writeBuffer(metrics,0,new Uint32Array(8));job.stage='ldi-clean';started=performance.now();const cleanGroup=group(p.clean.layout,[counts,offsets,events,headers,intervalBuffer,metrics,cleanConfig,planes]);d.queue.writeBuffer(cleanConfig,0,new Uint32Array([rays,shellWords,1,0]));this.dispatch(d,p.clean.clean,cleanGroup,rays*128);d.queue.writeBuffer(cleanConfig,0,new Uint32Array([rays,shellWords,0,0]));d.queue.writeBuffer(metrics,0,new Uint32Array(8));this.dispatch(d,p.clean.clean,cleanGroup,rays*128);const cleaned=new Uint32Array(await read(metrics,16));timings.cleanMs=performance.now()-started;free(counts);free(offsets);free(events);free(planes);free(cleanConfig);
    const changed=make(last*4,storage,'Printer distinct layer flags'),layerConfig=make(16,GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST,'Printer layer comparison');d.queue.writeBuffer(layerConfig,0,new Uint32Array([nx,nz,last,0]));this.dispatch(d,p.layers.compare,group(p.layers.layout,[headers,intervalBuffer,changed,layerConfig]),rays,64);const flags=new Uint32Array(await read(changed,last*4,false)),sections=[];for(let i=0;i<last;i++){if(i===0||flags[i])sections.push({first:i+1,last:i+1});else sections.at(-1).last=i+1;}free(changed);free(layerConfig);
@@ -557,8 +642,9 @@ export async function activate(context){
  context.editor.register({navigation:(x,y)=>slicer.navigation(x,y),documentChanged:()=>slicer.sync(),frames:()=>slicer.sync()});
  const corners=[[-500,0,-500],[500,0,-500],[500,0,500],[-500,0,500],[-500,1000,-500],[500,1000,-500],[500,1000,500],[-500,1000,500]],edges=[];
  for(let i=0;i<4;i++)edges.push(...corners[i],...corners[(i+1)%4],...corners[i+4],...corners[(i+1)%4+4],...corners[i],...corners[i+4]);
+ const boxColor=[.45,.62,.58,.65],selectedBoxColor=[.75,.65,.43,.65];
  slicer.preparePreview().then(()=>context.requestDraw());
- await context.viewport.register({renderStage:'opaque',renderKind:'overlay',surfaceWarningBlend:true,pivot:[-500,0,-500],bounds:{min:[-500,0,-500],max:[500,1000,500]},surfaceSelection:'last-active',lines:new Float32Array(edges),color:[.45,.62,.58,.65],selectedColor:[.75,.65,.43,.65],settings:params=>[Math.sin(Math.max(0,Math.min(90,params['Overhang angle']))*Math.PI/180),params['Line width'],0,0],retire:hash=>slicer.retire(hash),render:state=>{if(preview?.device!==state.device){slicer.preparePreview().then(()=>context.requestDraw());return;}preview.draw(state);},shader:`fn pluginSurface(local:vec3f,normal:vec3f,build:vec3f,settings:vec4f)->vec4f{
+ await context.viewport.register({renderStage:'opaque',renderKind:'overlay',surfaceWarningBlend:true,pivot:[-500,0,-500],bounds:{min:[-500,0,-500],max:[500,1000,500]},surfaceSelection:'last-active',lines:new Float32Array(edges),axisLines:[0,2,9],color:boxColor,selectedColor:selectedBoxColor,settings:params=>[Math.sin(Math.max(0,Math.min(90,params['Overhang angle']))*Math.PI/180),params['Line width'],0,0],retire:hash=>slicer.retire(hash),render:state=>{if(preview?.device!==state.device){slicer.preparePreview().then(()=>context.requestDraw());return;}preview.draw(state);},shader:`fn pluginSurface(local:vec3f,normal:vec3f,build:vec3f,settings:vec4f)->vec4f{
   if(local.y<=0.001||local.y>1000.||abs(local.x)>500.||abs(local.z)>500.){discard;}
   if(-dot(normal,build)<=settings.x+0.000001){discard;}return vec4f(1.,.12,.12,.3);
  }`});

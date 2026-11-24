@@ -34,6 +34,7 @@
 
 ## Rendering and operations
 
+- Optional `axisLines` gives three distinct zero-based segment indices in X, Y, Z order on a viewport or per-type helper. These lines share the world-axis colours for the active projection, including selection and guides-only views.
 - context.viewport.register owns local helper lines/bounds/pivot, settings/surface-warning shader and render/retire hooks on the shared bridge. Render borrows open pass/camera/frame/device; never end/destroy them. requestDraw schedules rendering; requestAttributes refreshes actions/plugin overlay.
 - context.viewport.isVisible(hash) reports the registered owner's effective viewport visibility, including ancestors, enabled policy, Solo and Solid/Lines mode. Reuse it for custom navigation queries instead of treating draw callbacks as a per-frame visibility ledger (cached views need not redraw).
 - renderKind: solid (default, Solid on), overlay (Solid or Lines), helper (also both off). stage selects opaque or overlay (default) for helpers/warnings and callbacks; optional renderStage overrides only the callback stage. Ordinary callbacks share scene depth. Visibility/enabled policy/ancestors/Solo still apply. Line-only warnings use evaluated depth; both off suppresses warnings.
