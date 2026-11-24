@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 24 nov 18:52">
+<meta name="frame-version" content="2026 24 nov 19:21">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -8594,7 +8594,8 @@ function sceneWorker() {
     // 64-byte parent-child BVH2 builder (16 floats per node: lLo(4), lHi(4), rLo(4), rHi(4))
     const leafMax=visibleCount>65536?6:4;
     let nodes=new Float32Array(Math.max(16,visibleCount*8)),nodeBits=new Uint32Array(nodes.buffer),nodeCount=0;
-    const BINS=8,binCounts=new Uint32Array(BINS),binLx=new Float32Array(BINS),binLy=new Float32Array(BINS),binLz=new Float32Array(BINS),binHx=new Float32Array(BINS),binHy=new Float32Array(BINS),binHz=new Float32Array(BINS),leftCost=new Float64Array(BINS);
+    // Upper splits affect every ray through the part. Search all three axes there.
+    const BINS=12,binCounts=new Uint32Array(BINS),binLx=new Float32Array(BINS),binLy=new Float32Array(BINS),binLz=new Float32Array(BINS),binHx=new Float32Array(BINS),binHy=new Float32Array(BINS),binHz=new Float32Array(BINS),leftCost=new Float64Array(BINS);
     function ensureNodes(needed){
       if(needed<=nodes.length)return;
       let cap=nodes.length;while(cap<needed)cap*=2;
@@ -8607,11 +8608,11 @@ function sceneWorker() {
       let best=Infinity,bestAxis=-1,bestSplit=0;
       const dx=cx1-cx0,dy=cy1-cy0,dz=cz1-cz0;
       const longest=dx>=dy&&dx>=dz?0:dy>=dz?1:2;
-      if(count<=24){
+      if(count<=16){
         const ext=longest===0?dx:longest===1?dy:dz;
         if(ext>=1e-12){bestAxis=longest;bestSplit=(longest===0?cx0:longest===1?cy0:cz0)+ext*.5;}
       }else{
-        const allAxes=depth<3;
+        const allAxes=depth<8;
         for(let k=0;k<3;k++){
           if(!allAxes&&k!==longest)continue;
           const lower=k===0?cx0:k===1?cy0:cz0,extent=k===0?dx:k===1?dy:dz;
@@ -8903,11 +8904,37 @@ function sceneWorker() {
       }
       let next=0;
       const boxOut=new Float32Array(tlasCount*6);
-      function buildTlas(first,end){
+      // A large enclosure can overlap many small parts in a median tree. Evaluate the
+      // area of both child bounds in the existing axis orders for assembly-sized trees.
+      const prefixCost=visible.length<=4096?new Float64Array(visible.length):null;
+      const emptyBounds=[Infinity,Infinity,Infinity,-Infinity,-Infinity,-Infinity];
+      const leftBounds=new Float64Array(6),rightBounds=new Float64Array(6);
+      function extendArea(box,b){
+        for(let axis=0;axis<3;axis++){
+          box[axis]=Math.min(box[axis],b[axis]);
+          box[axis+3]=Math.max(box[axis+3],b[axis+3]);
+        }
+        const x=box[3]-box[0],y=box[4]-box[1],z=box[5]-box[2];
+        return x*y+y*z+z*x;
+      }
+      function buildTlas(first,end,depth=0){
         const index=next++,at=index*16,bo=index*6;
         let axis=0,longest=-1;
         for(let k=0;k<3;k++){const ord=orders[k],span=centers[k][ord[end-1]]-centers[k][ord[first]];if(span>longest){longest=span;axis=k;}}
-        const middle=(first+end)>>1,rank=ranks[axis],cut=rank[orders[axis][middle]];
+        let middle=(first+end)>>1;
+        if(prefixCost&&end-first>2&&depth+Math.ceil(Math.log2(end-first))<32){
+          let best=Infinity,balance=Infinity;
+          for(let k=0;k<3;k++){
+            const order=orders[k];leftBounds.set(emptyBounds);rightBounds.set(emptyBounds);
+            for(let j=first;j<end-1;j++)prefixCost[j]=extendArea(leftBounds,meshStates[order[j]].bounds)*(j-first+1);
+            for(let j=end-1;j>first;j--){
+              const cost=prefixCost[j-1]+extendArea(rightBounds,meshStates[order[j]].bounds)*(end-j);
+              const skew=Math.abs((j-first)-(end-j));
+              if(cost<best||cost===best&&skew<balance){best=cost;balance=skew;axis=k;middle=j;}
+            }
+          }
+        }
+        const rank=ranks[axis],cut=rank[orders[axis][middle]];
         for(let k=0;k<3;k++)if(k!==axis){
           const ord=orders[k];let l=first,r=middle;
           for(let j=first;j<end;j++){const id=ord[j];if(rank[id]<cut)scratch[l++]=id;else scratch[r++]=id;}
@@ -8917,7 +8944,7 @@ function sceneWorker() {
           const id=orders[0][first],b=meshStates[id].bounds;
           bvh[at]=b[0];bvh[at+1]=b[1];bvh[at+2]=b[2];bvhBits[at+3]=id;bvh[at+4]=b[3];bvh[at+5]=b[4];bvh[at+6]=b[5];bvhBits[at+7]=1;
         }else{
-          const child=buildTlas(first,middle),cb=child*6;
+          const child=buildTlas(first,middle,depth+1),cb=child*6;
           bvh[at]=boxOut[cb];bvh[at+1]=boxOut[cb+1];bvh[at+2]=boxOut[cb+2];bvhBits[at+3]=child;
           bvh[at+4]=boxOut[cb+3];bvh[at+5]=boxOut[cb+4];bvh[at+6]=boxOut[cb+5];bvhBits[at+7]=0;
         }
@@ -8925,7 +8952,7 @@ function sceneWorker() {
           const id=orders[0][middle],b=meshStates[id].bounds;
           bvh[at+8]=b[0];bvh[at+9]=b[1];bvh[at+10]=b[2];bvhBits[at+11]=id;bvh[at+12]=b[3];bvh[at+13]=b[4];bvh[at+14]=b[5];bvhBits[at+15]=1;
         }else{
-          const child=buildTlas(middle,end),cb=child*6;
+          const child=buildTlas(middle,end,depth+1),cb=child*6;
           bvh[at+8]=boxOut[cb];bvh[at+9]=boxOut[cb+1];bvh[at+10]=boxOut[cb+2];bvhBits[at+11]=child;
           bvh[at+12]=boxOut[cb+3];bvh[at+13]=boxOut[cb+4];bvh[at+14]=boxOut[cb+5];bvhBits[at+15]=0;
         }
@@ -8953,7 +8980,7 @@ function sceneWorker() {
 }
 
 // Each 16x16 camera tile is dispatched as four 8x8 workgroups.
-const cameraTileSide=16;
+const cameraTileSide=16,cameraBlockOrderFlag=16;
 const cameraSceneFlags={instances:1,materialMaps:2,opaqueShadows:4,subsurface:8};
 const cameraMappedCoverageFlag=4;
 
@@ -9659,7 +9686,7 @@ fn intersectQuery(root:u32,o:vec3f,d:vec3f,limit:f32,background:bool,anyHit:bool
   let safeW=select(vec3f(-1.),vec3f(1.),d>=vec3f(0.))*max(abs(d),vec3f(1e-30));
   let invW=1./safeW;let negOW=-o*invW;
   let hotBase=bitcast<u32>(triangles[0].w);let coldBase=bitcast<u32>(triangles[0].z);
-  // At most 32 balanced instance levels and 20 geometry levels can be pending.
+  // At most 32 instance levels and 20 geometry levels can be pending.
   var stack:array<u32,54>;var top=1u;stack[0]=root;
   var blasBase=0xffffffffu;
   var curO=o;var curD=d;var curInv=invW;var curNegO=negOW;
@@ -10365,6 +10392,7 @@ fn traceProgressive(o_in:vec3f,d_in:vec3f,seed:ptr<function,Sampler>,pixelIdx:u3
 }
 
 var<workgroup> ptFaults:atomic<u32>;
+var<workgroup> ptSamples:atomic<u32>;
 fn accumulateCompactPixel(localIdx:u32,globalIdx:u32,sampleColor:vec3f){
   let sBits=bitcast<vec3u>(sampleColor);
   let valid=finiteBitsVec3(sBits)&&all(sampleColor>=vec3f(0.))&&max3(sampleColor)<=1e12;
@@ -10408,7 +10436,7 @@ fn renderRealtime(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocat
 
 @compute @workgroup_size(8,8)
 fn integrate(@builtin(workgroup_id) group:vec3u,@builtin(local_invocation_id) lane:vec3u,@builtin(local_invocation_index) local:u32,@builtin(num_workgroups) grid:vec3u){
-  if(local==0u){atomicStore(&ptFaults,0u);}
+  if(local==0u){atomicStore(&ptFaults,0u);atomicStore(&ptSamples,0u);}
   workgroupBarrier();
   var globalIdx=0u;var root=0u;var inBounds=false;
   if(cameraTiles&&(params.batch.z&8u)!=0u){
@@ -10428,7 +10456,14 @@ fn integrate(@builtin(workgroup_id) group:vec3u,@builtin(local_invocation_id) la
       let endPix=min(params.image.w+params.batch.x,frame.pageOffset+frame.pagePixels);
       let slot=startPix+linearOffset;
       inBounds=slot<endPix&&slot<params.image.x*params.image.y;
-      if(inBounds){globalIdx=slot;}
+      globalIdx=slot;
+      // Adjacent lanes trace an 8x8 patch even when a 4K image is split across submissions.
+      // Page and queue ranges keep their own addressing.
+      if((params.batch.z&${cameraBlockOrderFlag}u)!=0u){
+        let block=slot/64u;let columns=params.image.x/8u;
+        let xy=vec2u((block%columns)*8u+(slot&7u),(block/columns)*8u+((slot/8u)&7u));
+        globalIdx=xy.y*params.image.x+xy.x;
+      }
     }
     if(inBounds&&cameraTiles){
       let tile=vec2u(globalIdx%params.image.x,globalIdx/params.image.x)/cameraTileSide;
@@ -10450,10 +10485,13 @@ fn integrate(@builtin(workgroup_id) group:vec3u,@builtin(local_invocation_id) la
         workDone++;
       }
     }
-    if(workDone>0u){atomicAdd(&frame.counters[0],workDone);}
+    if(workDone>0u){atomicAdd(&ptSamples,workDone);}
   }
   workgroupBarrier();
-  if(local==0u){let f=atomicLoad(&ptFaults);if(f>0u){atomicAdd(&frame.filmFaults,f);}}
+  if(local==0u){
+    let count=atomicLoad(&ptSamples);if(count>0u){atomicAdd(&frame.counters[0],count);}
+    let faults=atomicLoad(&ptFaults);if(faults>0u){atomicAdd(&frame.filmFaults,faults);}
+  }
 }
 `;
 
@@ -13530,6 +13568,7 @@ class FrameRenderer {
     const adaptive=singlePage&&this.hasPixelQueue;
     const base=this.parameters(options.camera,options.environment,0,0,0,options.denoise!==false);
     const template=new Uint32Array(base.buffer),packed=new Uint32Array(capacity*template.length);
+    if(!serial&&singlePage&&this.width%8===0&&this.height%8===0)template[38]|=cameraBlockOrderFlag;
     const interval=1000/Math.max(1,options.displayHz??20);
     let sample=progress.sample,offset=progress.offset,lastDisplay=0;
     const window=new FrameWorkWindow(this,epoch,this.queueDepth(),'Camera',(info,elapsed,occupancy)=>{

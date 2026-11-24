@@ -41,7 +41,9 @@ export async function cameraProgressiveChecks(page){
       const result=await page.evaluate(async scene=>{
         const sky=scene==='unlit sky',cached=!sky&&scene!=='transmission';
         const {factory,camera}=progressiveFixture;
-        const options={...camera.options,outputSize:[157,101],sampleLimit:cached?19:sky?143:145,
+        // Split and resume an aligned 8x8 dispatch, and keep odd image edges in the other cases.
+        const size=scene==='opaque'?[160,104]:[157,101];
+        const options={...camera.options,outputSize:size,sampleLimit:cached?19:sky?143:145,
           frameSeed:4231,sampler:cached?'sobol':'random',viewKey:'fixed',previewPresentation:false};
         if(scene==='orthographic')options.camera={...options.camera,ortho:camera.scene.scale*1.1};
         if(scene==='inside bounds'){
@@ -72,7 +74,7 @@ export async function cameraProgressiveChecks(page){
               const dispatch=tracer.dispatchPixels;
               tracer.dispatchPixels=function(pass,count){
                 const limits={maxComputeWorkgroupsPerDimension:127};
-                return dispatch.call(count===157*101?{device:{limits}}:this,pass,count);
+                return dispatch.call(count===size[0]*size[1]?{device:{limits}}:this,pass,count);
               };
             }
             if(interrupt){
@@ -116,7 +118,7 @@ export async function cameraProgressiveChecks(page){
           if(reference.image.rgba[i]!==packed.image.rgba[i]||reference.image.rgba[i]!==resumed.image.rgba[i])
             throw Error('Display mismatch at byte '+i);
         }
-        return {scene,min,max,range:high-low,tiles:packed.tiles,queueBuilds:packed.queueBuilds,samples:packed.samples,
+        return {scene,size,min,max,range:high-low,tiles:packed.tiles,queueBuilds:packed.queueBuilds,samples:packed.samples,
           meters:[reference.meters,packed.meters,resumed.meters],
           referenceSamples:reference.samples,resumedSamples:resumed.samples,checkpoint:resumed.checkpoint,
           serial:reference.submissions,packed:packed.submissions,ms:packed.ms};
@@ -134,7 +136,7 @@ export async function cameraProgressiveChecks(page){
         if(result.tiles){
           assert.equal(result.min,19);assert.equal(result.max,19);
           const [surface,sky]=result.tiles;
-          assert.equal(surface+sky,Math.ceil(157/16)*Math.ceil(101/16));
+          assert.equal(surface+sky,Math.ceil(result.size[0]/16)*Math.ceil(result.size[1]/16));
           if(scene==='opaque')assert.ok(surface>0&&sky>0);
           if(scene==='sky and sun')assert.equal(surface,0);
         }
