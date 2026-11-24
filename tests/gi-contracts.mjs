@@ -62,7 +62,8 @@ export async function giContractsChecks(){
     assert.throws(()=>c.validateMRT(['rg32uint','rg16float','rgba8unorm','rgba8unorm','rgba16float']),RangeError);
     assert.throws(()=>c.validateMRT(Array(9).fill('r8uint')),RangeError);
     const gp=c.gbufferPlan(1280,720);
-    assert.equal(gp.colorAttachmentCost,32);
+    assert.equal(gp.colorAttachmentCost,28);
+    assert.equal(gp.bytes,1280*720*24);
     assert.equal(gp.pixels,1280*720);
     assert.ok(c.hiZMipBytes(640,360)>0);
   });

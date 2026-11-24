@@ -10,6 +10,7 @@ export async function giStage3CacheBrowserChecks(page){
     page.on('pageerror',e=>errors.push(e.message));
     page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
     await page.evaluate(()=>{
+      Object.defineProperty(navigator,'ml',{configurable:true,value:undefined});
       const device=frameEngine.renderer.device;
       if(device.adapterInfo?.isFallbackAdapter)throw Error('Hardware adapter required');
       device.pushErrorScope('validation');
@@ -44,7 +45,7 @@ export async function giStage3CacheBrowserChecks(page){
     await call('material.assign',{id:emCard.hash,material:emMat.uid});
 
     await call('view.set',{index:0,single:true,focus:back.hash});
-    await call('scene.create',{type:'render',params:{realtime:'on',samples:4,environment:'off'}});
+    const camera=await call('scene.create',{type:'render',params:{realtime:'on',samples:4,environment:'off'}});
     await page.waitForFunction(()=>!!giS3.tracer?.giBuffers&&frameEngine.renderState().hasImage,{timeout:45000});
 
     const staticRun=await page.evaluate(async()=>{
@@ -76,17 +77,15 @@ export async function giStage3CacheBrowserChecks(page){
     const epochBefore=staticRun.history[5].transportEpoch;
     await call('transform.set',{ids:[blocker.hash],channel:'position',axis:0,value:-30});
     const moveRun=await page.evaluate(async()=>{
-      const {t,host}=window.giS3Custom,orig=giS3.tracer;
-      try{
-        const cam={position:[20,110,260],right:[1,0,0],up:[0,1,0],forward:[0,0,-1],fov:45,aspect:240/160};
-        const movedOpts={...orig.options,camera:cam,sceneKey:'moved_scene',getScene:orig.options.getScene,onSamples:()=>{},interactivePreview:true,lightingReuse:true,outputSize:[240,160],viewKey:'s3_moved'};
-        await t.start(movedOpts);
-        const h1={...t.stats.gi,faults:t.stats.filmFaults};
-        await t.start(movedOpts);
-        const h2={...t.stats.gi,faults:t.stats.filmFaults};
-        const lin=await t.readLinearPixels([[0.5,0.5],[0.45,0.65]]);
-        return {h1,h2,lin};
-      }finally{t.dispose();host.remove();}
+      const {t}=window.giS3Custom,orig=giS3.tracer;
+      const cam={position:[20,110,260],right:[1,0,0],up:[0,1,0],forward:[0,0,-1],fov:45,aspect:240/160};
+      const movedOpts={...orig.options,camera:cam,sceneKey:'moved_scene',getScene:orig.options.getScene,onSamples:()=>{},interactivePreview:true,lightingReuse:true,outputSize:[240,160],viewKey:'s3_moved'};
+      await t.start(movedOpts);
+      const h1={...t.stats.gi,faults:t.stats.filmFaults};
+      await t.start(movedOpts);
+      const h2={...t.stats.gi,faults:t.stats.filmFaults};
+      const lin=await t.readLinearPixels([[0.5,0.5],[0.45,0.65]]);
+      return {h1,h2,lin};
     });
 
     assert.equal(moveRun.h1.cacheSlots,slotsBefore);
@@ -94,6 +93,60 @@ export async function giStage3CacheBrowserChecks(page){
     assert.equal(moveRun.h1.faults,0);assert.equal(moveRun.h2.faults,0);
     for(const pt of moveRun.lin)assert.ok(pt.color.every(v=>Number.isFinite(v)&&v>=0));
     checks.push({name:'Per-cell transportEpoch replacement preserves cache slots and finite output',pass:true});
+
+    await call('render.stop');
+    await call('material.assign',{id:emCard.hash,material:whiteMat.uid});
+    const afterOff=await page.evaluate(async()=>{
+      const {t,host}=giS3Custom;
+      try{
+        await t.start({...t.options,sceneKey:'extinguished'});
+        const grid=Array.from({length:32*20},(_,i)=>[((i%32)+.5)/32,(Math.floor(i/32)+.5)/20]);
+        const pixels=await t.readLinearPixels(grid);
+        const {giBuffers:gb,device}=t,count=3840*2160;
+        const read=device.createBuffer({size:32,usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+        try{
+          for(const list of [gb.discList,gb.glassList])device.queue.writeBuffer(list,0,new Uint32Array([count,count]));
+          const cmd=device.createCommandEncoder(),pass=cmd.beginComputePass();
+          pass.setPipeline(t.giPrepareIndirect);pass.setBindGroup(0,gb.guidesGroup);pass.dispatchWorkgroups(1);pass.end();
+          cmd.copyBufferToBuffer(gb.giIndirect,0,read,0,32);device.queue.submit([cmd.finish()]);
+          await read.mapAsync(GPUMapMode.READ);
+          return {peak:Math.max(...pixels.flatMap(p=>p.color)),epoch:t.stats.gi.transportEpoch,args:[...new Uint32Array(read.getMappedRange())]};
+        }finally{if(read.mapState==='mapped')read.unmap();read.destroy();}
+      }finally{t.dispose();host.remove();}
+    });
+    assert.ok(afterOff.epoch>moveRun.h2.transportEpoch);
+    assert.equal(afterOff.peak,0,'The first frame after removing the only emitter must already be dark');
+    assert.deepEqual(afterOff.args,[65535,2,1,8294400,65535,2,1,8294400]);
+    checks.push({name:'Light removal rejects old radiance immediately and dense 4K glass and edges fit WebGPU dispatch limits',pass:true});
+
+    await call('scene.update',{id:camera.hash,params:{renderer:'Cached GI',realtime:'off','resolution x':192,'resolution y':128}});
+    await call('material.assign',{id:emCard.hash,material:emMat.uid});
+    await call('render.stop');
+    await page.evaluate(()=>{
+      const t=giS3.tracer,original=t.markPresented;
+      giS3.frames=[];
+      t.markPresented=function(...args){
+        original.apply(this,args);
+        if(this.completed&&this.options.cachedOutput)giS3.frames.push({gi:{...this.stats.gi},position:[...this.options.camera.position]});
+      };
+    });
+    const still=await call('render.export',{kind:'image',download:false});
+    assert.equal(still.width,192);
+    const objects=(await call('scene.inspect')).objects;
+    const pos=id=>objects.find(o=>o.hash===id).worldMatrix.slice(12,15);
+    const eye=pos(camera.hash),box=pos(blocker.hash);
+    for(const [id,base,keys] of [[camera.hash,eye,[[0,0],[3,6]]],[blocker.hash,box,[[0,0],[1,0],[2,20],[3,20]]]]){
+      for(const [frame,delta] of keys)await call('animation.key',{id,path:'position',frame,value:[base[0]+delta,base[1],base[2]],interpolation:'hard'});
+    }
+    const video=await call('render.export',{kind:'video',start:0,end:3,download:false});
+    assert.equal(video.frames,4);assert.equal(video.mime,'video/mp4');
+    const frames=await page.evaluate(()=>giS3.frames);
+    assert.deepEqual(frames.map(f=>f.gi.passes),[32,32,4,32,4]);
+    assert.ok(frames.every(f=>f.gi.mode==='cached'));
+    assert.notDeepEqual(frames[1].position,frames[2].position);
+    assert.equal(frames[1].gi.transportEpoch,frames[2].gi.transportEpoch);
+    assert.ok(frames[3].gi.transportEpoch>frames[2].gi.transportEpoch);
+    checks.push({name:'Cached GI exports a still and a moving-camera MP4 and rebuilds lighting after an animated blocker moves',pass:true});
 
     await call('render.stop');
     const val=await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message);

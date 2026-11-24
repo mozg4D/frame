@@ -53,14 +53,14 @@ export async function giStage2DirectBrowserChecks(page){
           hizMips:gb.hizMips,
           hiZW:gb.hiZ.width,
           hiZH:gb.hiZ.height,
-          gbufFormats:[gb.gbufId.format,gb.gbufNormal.format,gb.gbufAlbedo.format,gb.gbufMaterial.format,gb.gbufMotion.format,gb.gbufDepth.format],
+          gbufFormats:[gb.gbufId.format,gb.gbufNormal.format,gb.gbufAlbedo.format,gb.gbufMaterial.format,gb.gbufDepth.format],
           st,orthoSt,lin,orthoLin,faults:t.stats.filmFaults,errors:t.stats.errors,
         };
       }finally{t.dispose();host.remove();}
     });
 
-    assert.equal(res.planCost,32);
-    assert.deepEqual(res.gbufFormats,['rg32uint','rg16float','rgba8unorm','rgba8unorm','rg16float','depth32float']);
+    assert.equal(res.planCost,28);
+    assert.deepEqual(res.gbufFormats,['rg32uint','rg16float','rgba8unorm','rgba8unorm','depth32float']);
     assert.ok(res.hizMips>1&&res.hiZW===160&&res.hiZH===90,JSON.stringify(res));
     assert.ok(res.st.discCount>0,'Discontinuity direct list must populate on lit silhouettes: '+res.st.discCount);
     assert.equal(res.faults,0);
@@ -71,7 +71,7 @@ export async function giStage2DirectBrowserChecks(page){
     const maxLum=Math.max(...res.lin.map(p=>p.color[0]+p.color[1]+p.color[2]));
     const orthoLum=Math.max(...res.orthoLin.map(p=>p.color[0]+p.color[1]+p.color[2]));
     assert.ok(maxLum>0.01&&orthoLum>0.01,'Both perspective and orthographic G-buffer direct passes produce light');
-    checks.push({name:'5-MRT reverse-Z G-Buffer, Hi-Z mips, giGuides and giDiscontinuityDirect verified',pass:true});
+    checks.push({name:'4-MRT reverse-Z G-Buffer, Hi-Z mips, giGuides and giDiscontinuityDirect verified',pass:true});
 
     await call('render.stop');
     const val=await page.evaluate(async()=>(await frameEngine.renderer.device.popErrorScope())?.message);
