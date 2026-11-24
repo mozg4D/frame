@@ -12,7 +12,10 @@ export function gpuScope(device) {
   }
   async function kernel(label, code, entryPoint = 'main') {
     const module = device.createShaderModule({label, code});
-    return device.createComputePipelineAsync({label, layout: 'auto', compute: {module, entryPoint}});
+    try{return await device.createComputePipelineAsync({label, layout:'auto',compute:{module,entryPoint}});}
+    catch(error){const diagnostics=(await module.getCompilationInfo()).messages.filter(m=>m.type==='error');
+      if(diagnostics.length)throw Error(label+'\n'+diagnostics.map(m=>m.lineNum+':'+m.linePos+' '+m.message).join('\n'));
+      throw error;}
   }
   function bind(pipeline, buffers) {
     return device.createBindGroup({layout: pipeline.getBindGroupLayout(0),

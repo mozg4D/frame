@@ -7,16 +7,31 @@ import {winningBackend} from './m0/pressure.mjs';
 import {verifyThinWalls} from './m0/graph-checks.mjs';
 import {crossesMetric} from './m0/metric.mjs';
 import {momentShell} from './m0/mr-lbm.mjs';
-import {scoreContests} from './m0/flow.mjs';
+import {scoreContests,settledPeriods} from './m0/flow.mjs';
 import {faceOwners} from './m0/graph-weights.mjs';
 import {bladeStation} from './m0/rotor.mjs';
 import {boxMetric} from './m0/native-geometry.mjs';
+import {mediumProperties} from './m0/fluid.mjs';
+test('scene air uses geometric elevation and water uses its own material properties',()=>{
+  const sea=mediumProperties('Air',0),tropopause=mediumProperties('Air',11019.1),water=mediumProperties('Water',8800);
+  assert.ok(Math.abs(sea.rho-1.225)<.0001&&Math.abs(sea.nu-1.46e-5)<1e-7);
+  assert.ok(Math.abs(tropopause.temperatureK-216.65)<.01&&Math.abs(tropopause.pressurePa-22632)<2);
+  assert.ok(water.rho>998&&water.nu>1e-6&&water.nu<1.01e-6);
+  assert.equal(mediumProperties('Air',100000).atmosphereInRange,false);
+});
+test('a slowly drifting force or developing wake cannot stop a native flow study',()=>{
+  const trace=Array.from({length:10},(_,i)=>({coefficient:1-.005*i,wakeLengthM:1}));
+  assert.equal(settledPeriods(trace),false);
+  trace.forEach((w,i)=>{w.coefficient=1;w.wakeLengthM=.1+i*.01;});assert.equal(settledPeriods(trace,true),false);
+  trace.forEach(w=>{w.wakeLengthM=.18;});assert.equal(settledPeriods(trace,true),true);
+});
 test('physical mesh lengths preserve owner shear, nonuniform scale and reflections in SI',()=>{
   const axes=[0,2,0,0, -3,.5,0,0, -1,0,-4,0, 100,-200,800,1];
   const frame=boxMetric(axes),source=[3,-4,5];
   const delta=(m,i)=>source.reduce((v,a,k)=>v+m[4*k+i]*a,0);
   assert.ok(Math.abs(Math.hypot(...[0,1,2].map(i=>delta(frame,i)))-.001*Math.hypot(...[0,1,2].map(i=>delta(axes,i))))<1e-14);
   assert.ok(Math.abs(frame[0]-.002)<1e-14&&frame[10]<0);
+  assert.ok(Math.abs(frame[1])+Math.abs(frame[9])<1e-14);
   assert.deepEqual(frame.slice(12),[0,0,0,1]);
   assert.throws(()=>boxMetric(new Array(16).fill(0)),/Degenerate/);
 });

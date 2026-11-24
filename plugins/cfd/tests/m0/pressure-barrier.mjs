@@ -10,11 +10,8 @@ export function pressureBarriers(gpu,f,triangles,phase){
 
 // Matrices map source positions to metres in the physical solver frame. Native
 // mesh resources are borrowed. Only fixture geometry uses the upload above.
-export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>{}){
-  const mask=gpu.buffer('CFD crossed Cartesian face bits',4*f.dims.reduce((a,b)=>a*b));
-  const pipelines=new Map();
-  for(const storage of new Set(meshes.map(m=>m.storage))){
-    const source=storage==='texture'?`
+export function meshReader(storage){
+    const access=storage==='texture'?`
       @group(0) @binding(0) var vertices:texture_2d_array<u32>;
       @group(0) @binding(1) var indices:texture_2d_array<u32>;
       fn scalar(t:texture_2d_array<u32>,i:u32)->u32{let d=textureDimensions(t);
@@ -23,14 +20,21 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
       @group(0) @binding(0) var<storage,read> vertices:array<f32>;
       @group(0) @binding(1) var<storage,read> indices:array<u32>;
       fn coord(i:u32)->f32{return vertices[i];}fn vertex(i:u32)->u32{return indices[i];}`;
-    const pipe=await gpu.kernel('CFD pressure crossings from '+storage,source+`
+    return access+`fn sourcePoint(i:u32)->vec3f{let k=3u*vertex(i);return vec3f(coord(k),coord(k+1u),coord(k+2u));}`;
+}
+export function meshResources(mesh){return mesh.storage==='texture'?[mesh.positions.view,mesh.indices.view]:[{buffer:mesh.positions},{buffer:mesh.indices}];}
+export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>{}){
+  const mask=gpu.buffer('CFD crossed Cartesian face bits',4*f.dims.reduce((a,b)=>a*b));
+  const pipelines=new Map();
+  for(const storage of new Set(meshes.map(m=>m.storage))){
+    const pipe=await gpu.kernel('CFD pressure crossings from '+storage,meshReader(storage)+`
     @group(0) @binding(2) var<storage,read_write> mask:array<atomic<u32>>;
     @group(0) @binding(3) var<uniform> phase:vec2f;
     struct Occurrence {matrix:mat4x4f,count:u32};
     @group(0) @binding(4) var<uniform> mesh:Occurrence;
     const D=vec3i(${f.dims.join(',')});
     fn gridPoint(i:u32)->vec3f{
-      let k=3u*vertex(i);let v=mesh.matrix*vec4f(coord(k),coord(k+1u),coord(k+2u),1.);
+      let v=mesh.matrix*vec4f(sourcePoint(i),1.);
       let yz=vec2f(v.y*phase.x-v.z*phase.y,v.y*phase.y+v.z*phase.x);
       return (vec3f(v.x,yz)-vec3f(${f.origin.map(x=>x.toFixed(9)).join(',')}))/${f.h}-.5;
     }
@@ -65,8 +69,8 @@ export async function meshPressureBarriers(gpu,f,meshes,phase,assertCurrent=()=>
   meshes.forEach((mesh,i)=>{new Float32Array(data,i*stride,16).set(mesh.matrix);new Uint32Array(data,i*stride+64,1)[0]=mesh.triangleCount;});
   const settings=gpu.buffer('CFD captured surface transforms',new Uint8Array(data),GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST);
   const draws=meshes.map((mesh,i)=>{
-    const pipe=pipelines.get(mesh.storage),paged=mesh.storage==='texture';
-    const resources=[paged?mesh.positions.view:{buffer:mesh.positions},paged?mesh.indices.view:{buffer:mesh.indices},{buffer:mask},{buffer:phase},{buffer:settings,offset:i*stride,size:80}];
+    const pipe=pipelines.get(mesh.storage);
+    const resources=[...meshResources(mesh),{buffer:mask},{buffer:phase},{buffer:settings,offset:i*stride,size:80}];
     const group=gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries:resources.map((resource,binding)=>({binding,resource}))});
     const count=Math.ceil(mesh.triangleCount/64),width=Math.min(count,gpu.device.limits.maxComputeWorkgroupsPerDimension);
     return {pipe,group,grid:[width,Math.ceil(count/width)]};

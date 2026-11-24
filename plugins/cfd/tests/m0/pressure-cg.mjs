@@ -43,14 +43,14 @@ export async function devicePressureCG(gpu,level,block,operator){
     reductions.push([pipe,gpu.bind(pipe,[partials,control])]);
   }
   const pre=block.binding(scaled,z);
-  return (encoder,iterations)=>{
-    const dispatch=(pipe,bind,g=groups)=>gpu.dispatch(encoder,pipe,bind,g);
-    const reduce=k=>dispatch(...reductions[k],[1]);
-    dispatch(initial,initialGroup);encoder.clearBuffer(d);block.encode(encoder,pre);
-    dispatch(rz,rzGroup);reduce(0);dispatch(direction,directionGroup);
-    for(let k=0;k<iterations;k++){
-      dispatch(multiply,productGroup);reduce(1);dispatch(advance,advanceGroup);
-      if(k+1<iterations){block.encode(encoder,pre);dispatch(rz,rzGroup);reduce(2);dispatch(direction,directionGroup);}
-    }
+  const prepare=e=>{
+    gpu.dispatch(e,initial,initialGroup,groups);e.clearBuffer(d);block.encode(e,pre);
+    gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[0],[1]);gpu.dispatch(e,direction,directionGroup,groups);
   };
+  const iterate=(e,last)=>{
+    gpu.dispatch(e,multiply,productGroup,groups);gpu.dispatch(e,...reductions[1],[1]);gpu.dispatch(e,advance,advanceGroup,groups);
+    if(!last){block.encode(e,pre);gpu.dispatch(e,rz,rzGroup,groups);gpu.dispatch(e,...reductions[2],[1]);gpu.dispatch(e,direction,directionGroup,groups);}
+  };
+  function refine(e,iterations){prepare(e);for(let i=0;i<iterations;i++)iterate(e,i+1===iterations);}
+  return Object.assign(refine,{prepare,iterate});
 }

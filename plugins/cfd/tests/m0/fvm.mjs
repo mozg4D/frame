@@ -10,6 +10,14 @@ export const immersedFaceWGSL=`
     return vec2f(mix(body,free,mu),(1.-mu)*(free-body));
   }`;
 
+// Accumulate the six signed face values before combining the correction.
+// Differencing three component pairs first can lose their cancellation.
+export const faceBalanceWGSL=`
+  fn faceBalance(hi:vec3f,lo:vec3f)->f32{
+    var sum=0.;var tail=0.;for(var k=0u;k<6u;k++){
+      let a=k%3u;let x=select(hi[a],-lo[a],k>=3u);let t=sum+x;
+      tail+=select((x-t)+sum,(sum-t)+x,abs(sum)>=abs(x));sum=t;}return sum+tail;}`;
+
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
@@ -19,10 +27,11 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
     struct Cell {uk:vec4f,wt:vec2f,padding:vec2f}
     struct Flux {hi:vec4f,lo:vec4f}
     fn far()->Cell{return Cell(vec4f(U,0.,0.,K0),vec2f(O0,0.),vec2f(0));}
-    fn floorFace(axis:u32,side:i32)->bool{return ${f.name==='ahmed'} && axis==1u && side<0;}
+    fn floorFace(axis:u32,side:i32)->bool{return ${f.name==='ahmed'||!!f.movingRoad} && axis==1u && side<0;}
   `;
   const s0=gpu.buffer('CFD momentum and SST',count*32), pred=gpu.buffer('CFD predicted state',count*32);
   const flux=gpu.buffer('CFD conservative corrected face flux',count*32);
+  const fluxTail=gpu.buffer('CFD conservative face flux correction',count*32);
   const loads=gpu.buffer('CFD wall pressure impulse and axial moment',count*16);
   const mg=await pressureMultigrid(gpu,f,mobility);
   const decl=(b,name,type,write=false)=>`@group(0) @binding(${b}) var<storage,${write?'read_write':'read'}> ${name}:array<${type}>;`;
@@ -30,18 +39,18 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
   const init=await gpu.kernel('CFD uniform initial flow',base+decl(0,'s','Cell',true)+decl(1,'flux','Flux',true)+main('s[i]=far();flux[i]=Flux(vec4f(U,0.,0.,0.),vec4f(U,0.,0.,0.));'));
   gpu.run(init,[s0,flux],grid);
   const momentum=await gpu.kernel('CFD finite-volume momentum and SST transport',base+
-    decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+decl(3,'out','Cell',true)+main(`
+    decl(0,'s','Cell')+decl(1,'flux','Flux')+decl(2,'wall','vec4f')+decl(3,'out','Cell',true)+decl(4,'tail','Flux')+main(`
       let a=s[i];let solid=wall[i];let u=a.uk.xyz;let k=max(a.uk.w,1e-12);let omega=max(a.wt.x,1e-8);
       var adv=vec4f(0);var diff=vec3f(0);var grad:mat3x3f;var gk=vec3f(0);var gw=vec3f(0);
       var advW=0.;var dk=0.;var dw=0.;var edk=0.;var edw=0.;
       for(var axis=0u;axis<3u;axis++){var e=vec3i(0);e[axis]=1;
         for(var side=-1;side<=1;side+=2){
           let j=p+side*e;var b=s[bounded(j)];let dir=f32(side);
-          let faceSpeed=select(flux[i].lo[axis],flux[i].hi[axis],side>0);
+          let faceSpeed=select(flux[i].lo[axis]+tail[i].lo[axis],flux[i].hi[axis]+tail[i].hi[axis],side>0);
           let meshSpeed=${f.rotatingFrame?'vec3f(0.,solid.yz)[axis]':'0.'};
           let q=(faceSpeed-meshSpeed)*dir;
           if(!inside(j)){
-            if(floorFace(axis,side)){b.uk=vec4f(-u,k);b.wt=a.wt;}
+            if(floorFace(axis,side)){b.uk=vec4f(vec3f(${f.movingRoad?'2.*U':'0.'},0.,0.)-u,k);b.wt=a.wt;}
             else if(!openFace(axis,side)||q<0.){b=far();}
           }
           var up=select(b.uk,a.uk,q>=0.);
@@ -57,7 +66,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
         }
       }
       let sym=0.5*(grad+transpose(grad));let ss=2.*(dot(sym[0],sym[0])+dot(sym[1],sym[1])+dot(sym[2],sym[2]));
-      let dist=max(0.5,select(solid.x,min(solid.x,f32(p.y)+0.5),${f.name==='ahmed'}));
+      let dist=max(0.5,select(solid.x,min(solid.x,f32(p.y)+0.5),${f.name==='ahmed'||!!f.movingRoad}));
       let cd=max(2.*0.856*dot(gk,gw)/omega,1e-14);
       let a1=sqrt(k)/(0.09*omega*dist);let a2=500.*NU/(dist*dist*omega);
       let f1=tanh(pow(min(10.,min(max(a1,a2),4.*0.856*k/(cd*dist*dist))),4.));
@@ -69,7 +78,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
         (1.-f1)*2.*0.856*dot(gk,gw)/omega)/(1.+beta*omega));
       let damping=1.-exp(-${10*cref}*solid.w);
       kn=mix(kn,1e-12,damping);wn=mix(wn,60.*NU/(0.075*0.25),damping);
-      let nut=select(0.31*kn/max(0.31*wn,sqrt(ss)*f2),0.,${f.sphere});
+      let nut=select(0.31*kn/max(0.31*wn,sqrt(ss)*f2),0.,${!!(f.sphere||f.laminar)});
       var tentative=u-adv.xyz+diff;
       ${f.rotatingFrame?`let transverse=tentative.yz;
         tentative.y=${Math.cos(f.omega*dt)}*transverse.x+${Math.sin(f.omega*dt)}*transverse.y;
@@ -106,17 +115,53 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility){
     let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+(vec3f(p)+.5)*${f.h};
     out[i]=t;flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));force[i]+=impulse.x;
     load[i]+=vec4f(pressureDrag,cross(arm,impulse).x,impulse.yz);`));
-  const m=gpu.bind(momentum,[s0,flux,wall,pred]),r=gpu.bind(rhs,[pred,wall,mobility,mg.rhs]),c=gpu.bind(project,[pred,wall,mobility,mg.p,s0,flux,force,loads]);
+  const m=gpu.bind(momentum,[s0,flux,wall,pred,fluxTail]),r=gpu.bind(rhs,[pred,wall,mobility,mg.rhs]),c=gpu.bind(project,[pred,wall,mobility,mg.p,s0,flux,force,loads]);
+  // Refine against the fluxes actually stored in FP32. The smaller correction
+  // retains its own word on each face and participates in the next advection.
+  const basePressure=gpu.buffer('CFD pressure before flux refinement',4*count);
+  const imbalance=await gpu.kernel('CFD stored flux defect',base+faceBalanceWGSL+decl(0,'flux','Flux')+decl(1,'b','f32',true)+
+    main('b[i]=-faceBalance(flux[i].hi.xyz,flux[i].lo.xyz);'));
+  const residualGroup=gpu.bind(imbalance,[flux,mg.rhs]);
+  const refineFlux=await gpu.kernel('CFD apply low-amplitude flux and pressure reaction',base+decl(0,'mu','vec4f')+decl(1,'pressure','f32')+
+    decl(2,'tail','Flux',true)+decl(3,'s','Cell',true)+decl(4,'force','f32',true)+decl(5,'load','vec4f',true)+main(`
+      let pi=pressure[i];var hi=vec3f(0);var lo=vec3f(0);var impulse=vec3f(0);
+      for(var a=0u;a<3u;a++){for(var side=-1;side<=1;side+=2){var e=vec3i(0);e[a]=side;let j=p+e;var slope=0.;var weight=1.;
+        if(inside(j)){let k=index(j);weight=mu[select(k,i,side>0)][a];slope=f32(side)*(pressure[k]-pi);}
+        else if(openFace(a,side)){slope=-2.*f32(side)*pi;}
+        let extra=-weight*slope;if(side>0){hi[a]=extra;}else{lo[a]=extra;}impulse[a]-=.5*(1.-weight)*slope;
+      }}tail[i]=Flux(vec4f(hi,0),vec4f(lo,0));s[i].uk=vec4f(s[i].uk.xyz+.5*(hi+lo),s[i].uk.w);
+      let arm=vec3f(${f.origin.map(v=>v.toFixed(8)).join(',')})+(vec3f(p)+.5)*${f.h};
+      force[i]+=impulse.x;load[i]+=vec4f(impulse.x,cross(arm,impulse).x,impulse.yz);`));
+  const refineGroup=gpu.bind(refineFlux,[mobility,mg.p,fluxTail,s0,force,loads]);
+  const accumulate=await gpu.kernel('CFD accumulate physical pressure',decl(0,'first','f32')+decl(1,'p','f32',true)+`
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i<arrayLength(&p)){p[i]+=first[i];}}`);
+  const pressureGroup=gpu.bind(accumulate,[basePressure,mg.p]);
   const [nx,ny,nz]=f.dims,plane=gpu.buffer('CFD time-mean symmetry plane',nx*ny*4);
   const sample=await gpu.kernel('CFD sample planar velocity',decl(0,'s','vec4f')+decl(1,'plane','f32',true)+`
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){let i=g.x;if(i<arrayLength(&plane)){
       let a=(i+${nx*ny*(nz/2-1)}u)*2u;plane[i]+=0.5*(s[a].x+s[a+${nx*ny*2}u].x);}}`);
   const sb=gpu.bind(sample,[s0,plane]);
-  return {state:s0,pressure:mg.p,flux,plane,loads,step(i,sampling){
-    const e=gpu.device.createCommandEncoder();if(!i||(f.rotor&&!f.rotatingFrame))mg.updateGeometry(e);
-    gpu.dispatch(e,momentum,m,grid);gpu.dispatch(e,rhs,r,grid);
-    mg.solve(e);mg.refine(e,i===0?24:f.rotor?10:6);gpu.dispatch(e,project,c,grid);
-    if(sampling)gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]);
-    gpu.device.queue.submit([e.finish()]);
+  // Different command-buffer boundaries leave the numerical iteration order
+  // intact. The interactive path can give the viewport the queue between them.
+  const phases=new Map();
+  function work(cold,sampling){
+    const key=Number(cold)+2*Number(sampling);if(phases.has(key))return phases.get(key);
+    const list=[],phase=(kind,encode)=>list.push({kind,encode});
+    function correct(iterations){
+      phase('V-cycle',mg.solve);phase('Krylov start',mg.refine.prepare);
+      for(let i=0;i<iterations;i++)phase('Krylov iteration',e=>mg.refine.iterate(e,i+1===iterations));
+    }
+    if(cold||(f.rotor&&!f.rotatingFrame))phase('geometry coarsening',mg.updateGeometry);
+    phase('momentum',e=>gpu.dispatch(e,momentum,m,grid));phase('flux imbalance',e=>gpu.dispatch(e,rhs,r,grid));
+    correct(cold?24:f.rotor?10:6);
+    phase('pressure reaction',e=>{gpu.dispatch(e,project,c,grid);e.copyBufferToBuffer(mg.p,0,basePressure,0,4*count);
+      e.clearBuffer(mg.p);gpu.dispatch(e,imbalance,residualGroup,grid);});
+    correct(24);
+    phase('flux correction',e=>{gpu.dispatch(e,refineFlux,refineGroup,grid);gpu.dispatch(e,accumulate,pressureGroup,grid);
+      if(sampling)gpu.dispatch(e,sample,sb,[Math.ceil(nx*ny/128)]);});
+    phases.set(key,list);return list;
+  }
+  return {state:s0,pressure:mg.p,flux,fluxTail,plane,loads,phases:(i,sampling)=>work(i===0,sampling),step(i,sampling){
+    const e=gpu.device.createCommandEncoder();for(const op of work(i===0,sampling))op.encode(e);gpu.device.queue.submit([e.finish()]);
   }};
 }

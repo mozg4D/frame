@@ -33,7 +33,18 @@ export async function verifyMomentum(device){
       reaction[0]+=axial[i];reaction[1]+=other[4*i+2];reaction[2]+=other[4*i+3];
     }
     const relativeError=reaction.map((v,k)=>Math.abs((v-fluidChange[k])/before[k]));
+    const faces=await gpu.read(solver.flux,stage,8*count),tail=await gpu.read(solver.fluxTail,stage,8*count);
+    let maxRawImbalance=0,maxCorrectedImbalance=0,maxPairMismatch=0;
+    for(let i=0;i<count;i++){
+      let raw=0,balance=0;const point=[i%32,(i>>5)%8,i>>8];
+      for(let k=0;k<3;k++){
+        const a=8*i+k,b=a+4;raw+=faces[a]-faces[b];balance+=(faces[a]+tail[a])-(faces[b]+tail[b]);
+        if(point[k]+1<dims[k]){const other=b+8*[1,32,256][k];maxPairMismatch=Math.max(maxPairMismatch,Math.abs((faces[a]+tail[a])-(faces[other]+tail[other])));}
+      }
+      maxRawImbalance=Math.max(maxRawImbalance,Math.abs(raw));maxCorrectedImbalance=Math.max(maxCorrectedImbalance,Math.abs(balance));
+    }
     return {fixture:'localized velocity beside a stationary immersed body',initialMomentum:before,fluidMomentumLoss:fluidChange,bodyImpulse:reaction,relativeError,
-      pass:relativeError.every(v=>v<2e-6)&&reaction.every(v=>Math.abs(v)>.001)};
+      maxRawImbalance,maxCorrectedImbalance,maxPairMismatch,
+      pass:relativeError.every(v=>v<2e-6)&&reaction.every(v=>Math.abs(v)>.001)&&maxPairMismatch===0&&maxCorrectedImbalance<1e-9};
   }finally{gpu.close();}
 }

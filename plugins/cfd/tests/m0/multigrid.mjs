@@ -8,7 +8,7 @@ export function openBoundaries(f){
     return `fn openFace(axis:u32,side:i32)->bool{return (${mask}u&(1u<<(axis*2u+select(0u,1u,side>0))))!=0u;}`;
   }
   return `fn openFace(axis:u32,side:i32)->bool{
-    return !((${!f.rotor} && axis==0u && side<0)||(${f.name==='ahmed'} && axis==1u && side<0));}`;
+    return !((${!f.rotor} && axis==0u && side<0)||(${f.name==='ahmed'||!!f.movingRoad} && axis==1u && side<0));}`;
 }
 const ro=(i,s)=>`@group(0) @binding(${i}) var<storage,read> ${s}:array<f32>;`;
 const rw=(i,s)=>`@group(0) @binding(${i}) var<storage,read_write> ${s}:array<f32>;`;

@@ -1,7 +1,7 @@
 import {gpuScope} from './gpu.mjs';
 import {pressureMultigrid} from './multigrid.mjs';
 import {immersedFaceWGSL} from './fvm.mjs';
-import {capturedPressureBarriers} from './native-geometry.mjs';
+import {capturedPressureBarriers,researchSceneContext} from './native-geometry.mjs';
 
 // A zero-thickness impermeable piston accelerates initially resting fluid
 // between two equal-pressure reservoirs. The independent one-dimensional
@@ -10,9 +10,7 @@ export async function verifyPiston(device){
   const gpu=gpuScope(device),dims=[32,8,8],[nx,ny,nz]=dims,n=nx*ny*nz;
   // This harness owns an isolated Frame document. These methods are the
   // native host methods behind the plugin geometry SDK.
-  const engine=frameEngine,context={get device(){return engine.renderer.device;},math:engine.pluginMath,
-    document:{world:hash=>engine.pluginWorld(hash)},scene:{capture:(hash,keys,opts)=>engine.pluginSnapshot(hash,keys,true,false,opts.bounds),
-      signature:(hash,keys,opts)=>engine.pluginSnapshot(hash,keys,false,false,opts.bounds).signature}};
+  const context=researchSceneContext(frameEngine);
   const call=(name,args={})=>frameAI.call(name,args);
   await call('scene.new');const owner=await call('scene.create',{type:'cfd',name:'Reservoir control volume'});
   try{
