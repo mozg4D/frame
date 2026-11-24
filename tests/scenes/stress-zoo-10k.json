@@ -60143,6 +60143,6 @@
     "optional simulation plugins"
   ],
   "description": "Editable native workload. Display geometry is regenerated from authoring; three stock model references are the only polygon-based families. 64 independent embedded textures and 128 shared custom materials, plus stock materials.",
-  "bytes": 7928896,
-  "sha256": "f32801a70d0381d97bf2c0959f52c09ae2e455ddbd590d673789a864aeec2b5c"
+  "bytes": 7929018,
+  "sha256": "e357c9b248d0c23c33943e5b8d355aa5100523155af2fc40d571d860a9f77469"
 }
