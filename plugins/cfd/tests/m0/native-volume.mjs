@@ -5,6 +5,7 @@ import {gridWGSL,immersedMobilityWGSL} from './fixtures.mjs';
 import {metricWGSL,metricBuffer} from './rectilinear.mjs';
 import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
 import {extendWallDistance} from './wall-distance.mjs';
+import {subcellMetricWGSL} from './subcell-metric.mjs';
 
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
@@ -15,7 +16,7 @@ function distanceBand(f,meshes,limit){
     lo[k]=Math.min(lo[k],m.bounds.min[k]);hi[k]=Math.max(hi[k],m.bounds.max[k]);
   }
   const extent=f.dims.map((d,k)=>f.axes?f.axes[k].at(-1)-f.origin[k]:d*f.h);
-  let h=f.h/2;
+  let h=f.h/(f.subcellSurface?6:2);
   for(;;){
     const limits=extent.map(v=>Math.max(3,Math.ceil(v/h)));
     const first=lo.map((v,k)=>Math.max(0,Math.min(limits[k]-3,Math.floor((v-f.origin[k])/h)-12)));
@@ -114,13 +115,17 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
       fn samplePoint(p:vec3i)->vec3f{return cellCenters(p)*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')});}
       ${f.cutCells?cutMetricWGSL+`@group(0) @binding(4) var<storage,read_write> faceCenters:array<FaceCenters>;
         ${rep?'@group(0) @binding(5) var<storage,read_write> rep:array<vec4f>;':''}
-        fn surfaceDistance(v:vec3f)->f32{return sample(v*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')}));}`+cutGridWGSL:''}
+        fn surfaceDistance(v:vec3f)->f32{return sample(v*${f.h/band.h}+vec3f(${f.origin.map((x,k)=>((x-band.origin[k])/band.h).toFixed(8)).join(',')}));}`+cutGridWGSL+(f.subcellSurface?subcellMetricWGSL:''):''}
       @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) gid:vec3u){let i=gid.x;if(i>=CELLS){return;}
         let cell=point(i);let p=samplePoint(cell);let d=sample(p);
         ${f.rotatingFrame?`let physical=vec3f(${f.origin.join(',')})+cellCenters(cell)*${f.h};
         wall[i]=vec4f(d,vec2f(-physical.z,physical.y)*${f.omega*dt/f.h},1.-smoothstep(-.7,.7,d));`:
           'wall[i]=vec4f(d,0.,0.,1.-smoothstep(-.7,.7,d));'}
-        ${f.cutCells?`let q=cellSamples(cell);let m=cutMetric(q);response[i]=m;faceCenters[i]=cutFaceCenters(q,m);
+        ${f.subcellSurface?`let halfWidth=.5*cellWidths(cell)*${f.h/band.h};
+          if(any(p+halfWidth<vec3f(0))||any(p-halfWidth>vec3f(BAND-1))){
+            response[i]=vec4f(1);${rep?'rep[i]=vec4f(cellCenters(cell),1.);':''}
+          }else{let cut=subcellCut(cell);response[i]=cut.metric;faceCenters[i]=cut.centers;${rep?'rep[i]=cut.representative;':''}}`:
+          f.cutCells?`let q=cellSamples(cell);let m=cutMetric(q);response[i]=m;faceCenters[i]=cutFaceCenters(q,m);
           ${rep?'rep[i]=fluidRepresentative(cell,q,m.w);':''}`:`let w=cellWidths(cell)*${.5*f.h/band.h};var m=vec3f(0);
         if(d>0.){for(var a=0u;a<3u;a++){
           var next=cell;next[a]=min(cell[a]+1,DIMS[a]-1);var face=p;face[a]+=w[a];
@@ -141,6 +146,6 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
     const wallDistance=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h):null;
     capture.assertCurrent();
     return {wall,response,centers,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
-      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
+      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,subdivisionsPerAxis:f.subcellSurface?4:1,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }

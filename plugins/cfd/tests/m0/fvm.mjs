@@ -158,6 +158,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
           let reaction=wallIncrement(${f.cutCells?'u':'tentative'}-movingWall,n,max(height,.5*normalPitch),
             ${f.cutCells?'length(normalHint)':'dot(cutArea,abs(n))'}/(volume*groupRatio));
           tentative-=reaction;force[i]+=volume*groupRatio*reaction.x;load[i]+=volume*groupRatio*vec4f(0.,cross(arm,reaction).x,reaction.yz);
+          ${f.profileViscousTorque?'force[CELLS+i]+=volume*groupRatio*cross(arm,reaction).x;':''}
         }
         if(p.y==0&&floorFace(1u,-1)){
           let road=vec3f(${f.movingRoad?'U':'0.'},0.,0.);

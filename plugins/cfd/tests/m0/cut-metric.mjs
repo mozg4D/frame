@@ -102,7 +102,7 @@ export async function cutFaceSeal(gpu,f,head,raw,response,flags){
 
 // Exact measure of the halfspace n.x >= t in the unit hypercube. This
 // inclusion-exclusion integral is independent of the GPU tetrahedra.
-function halfspace(n,t){
+export function halfspace(n,t){
   for(const a of n)if(a<0)t-=a;
   const axes=n.map(Math.abs).filter(x=>x>0);
   if(!axes.length)return Number(t<0);
@@ -117,7 +117,7 @@ function halfspace(n,t){
 }
 
 // Independent polygon clipping and shoelace first moments on a square.
-function squareMoment(a,b,t){
+export function squareMoment(a,b,t){
   const corners=[[0,0],[1,0],[1,1],[0,1]],polygon=[];
   for(let k=0;k<4;k++){
     const p=corners[k],q=corners[(k+1)%4],l=a*p[0]+b*p[1]-t,r=a*q[0]+b*q[1]-t;

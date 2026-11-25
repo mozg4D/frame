@@ -179,6 +179,7 @@ async function stepMonitor(gpu,solver,count){
 export async function runCase(device,f,kind,progress,capture=null){
   f={...f,rotatingFrame:f.rotor&&kind==='cartesian-fvm'&&!f.inertialRotor,wallModeled:kind==='cartesian-fvm'&&!f.sphere&&!f.laminar&&!(f.rotor&&f.inertialRotor)};
   f.cutCells=!!f.cutCells&&f.wallModeled;
+  f.subcellSurface=!!f.subcellSurface&&f.cutCells;
   f.faceHistory=!!f.faceHistory&&f.wallModeled;
   f.linearWallPressure=!!f.linearWallPressure&&f.cutCells;
   f.sstWall=!!f.sstWall&&f.cutCells;
@@ -196,7 +197,8 @@ export async function runCase(device,f,kind,progress,capture=null){
   let dt=kind==='cartesian-fvm'?Math.min(advectiveStep,.145*f.h**2/f.nu,f.axes?combinedStep:Infinity):advectiveStep;
   const windows=[];
   const budget=f.budgetMs??caseBudgetMs;
-  const force=gpu.buffer('CFD window body impulse',count*4);
+  f.profileViscousTorque=f.rotatingFrame&&f.sweptDiameterM>0;
+  const force=gpu.buffer('CFD window body impulse',count*(f.profileViscousTorque?8:4));
   const clear=(...buffers)=>{const e=device.createCommandEncoder();for(const b of buffers)if(b)e.clearBuffer(b);device.queue.submit([e.finish()]);};
   let stopMonitor=viewportMonitor();
   try{
@@ -267,8 +269,10 @@ export async function runCase(device,f,kind,progress,capture=null){
       let isolatedWake=null;
       if(complete&&measureWake&&window>=3){const steps=step-first,plane=await gpu.read(solver.plane,planeStage,solver.plane.size/4);
         isolatedWake=windowWake(f,dt,plane,steps);averagedWake=windowWake(f,dt,plane,steps,previousPlane);previousPlane={steps,plane};}
+      const radialProfile=annular&&complete?await annular(scale,forceN,load[1]):null;
       const measured={physicalTimeS:step*dt,forceN,coefficient,elapsedMs:performance.now()-start,
-        ...annular&&complete?{radialProfile:await annular(scale,forceN,load[1])}:{},
+        ...radialProfile?{radialProfile,shaftPowerFromViscousStressW:radialProfile.reduce((a,b)=>a-f.omega*b.viscousTorqueNm,0),
+          shaftPowerFromPressureW:radialProfile.reduce((a,b)=>a-f.omega*b.pressureTorqueNm,0)}:{},
         ...measureWake?{wakeLengthM:isolatedWake}:{},
         ...load?{...solver.hasPressureSplit!==false?{axialPressureForceN:load[0],axialMomentumForceN:forceN-load[0]}:{},torqueXNm:load[1],
           transverseForcesInSolverFrameN:lateral?lateral.slice(0,2):load.slice(2),transverseForcesInBoxN:lateral?lateral.slice(2):load.slice(2),

@@ -14,7 +14,7 @@ export async function radialLoads(gpu,f,force,loads){
     @compute @workgroup_size(64) fn main(@builtin(workgroup_id) id:vec3u,@builtin(local_invocation_index) k:u32){
       let column=id.x+${ny}u*id.y;var sum=vec4f(0);
       for(var x=k;x<${nx}u;x+=64u){
-        let i=x+${nx}u*column;sum+=vec4f(force[i],load[i].xy,0.);
+        let i=x+${nx}u*column;sum+=vec4f(force[i],load[i].xy,force[${nx*ny*nz}u+i]);
       }lanes[k]=sum;for(var d=32u;d>0u;d/=2u){
         workgroupBarrier();if(k<d){lanes[k]+=lanes[k+d];}
       }if(k==0u){out[column]=lanes[0];}
@@ -27,12 +27,12 @@ export async function radialLoads(gpu,f,force,loads){
     gpu.run(pipe,[force,loads,result],[ny,nz]);
     const values=await gpu.read(result,stage,4*columns);
     const profile=Array.from({length:bins+1},(_,i)=>({innerRadiusM:i*radius/bins,
-      outerRadiusM:i===bins?null:(i+1)*radius/bins,thrustN:0,pressureThrustN:0,torqueNm:0,shaftPowerToFluidW:0}));
+      outerRadiusM:i===bins?null:(i+1)*radius/bins,thrustN:0,pressureThrustN:0,torqueNm:0,viscousTorqueNm:0,pressureTorqueNm:0,shaftPowerToFluidW:0}));
     for(let i=0;i<columns;i++){
       const b=profile[index[i]];b.thrustN+=scale*values[4*i];
-      b.pressureThrustN+=scale*values[4*i+1];b.torqueNm+=scale*values[4*i+2];
+      b.pressureThrustN+=scale*values[4*i+1];b.torqueNm+=scale*values[4*i+2];b.viscousTorqueNm+=scale*values[4*i+3];
     }
-    for(const b of profile)b.shaftPowerToFluidW=-f.omega*b.torqueNm;
+    for(const b of profile){b.shaftPowerToFluidW=-f.omega*b.torqueNm;b.pressureTorqueNm=b.torqueNm-b.viscousTorqueNm;}
     for(const [key,total] of [['thrustN',thrust],['torqueNm',torque]]){
       const sum=profile.reduce((s,b)=>s+b[key],0),l1=profile.reduce((s,b)=>s+Math.abs(b[key]),0);
       if(!Number.isFinite(sum)||Math.abs(sum-total)>5e-5*Math.max(l1,Math.abs(total),1e-10))

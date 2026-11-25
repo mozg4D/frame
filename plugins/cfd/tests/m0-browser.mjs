@@ -34,6 +34,8 @@ selection.globalPressure=args.includes('--global-pressure')||Boolean(scenePath&&
 selection.cutCells=args.includes('--cut-cells');
 selection.mergeToFluid=args.includes('--merge-to-fluid');
 if(selection.mergeToFluid&&!selection.cutCells)throw Error('Finding connected full-fluid roots requires cut volumes');
+selection.subcellSurface=args.includes('--subcell-surface');
+if(selection.subcellSurface&&(!selection.cutCells||!wallOnly&&!(nativeAhmed||nativeRotor||scenePath)))throw Error('Subcell integration requires captured cut-volume geometry');
 selection.implicitOuterSpin=args.includes('--implicit-outer-spin');
 if(selection.implicitOuterSpin&&args.includes('--explicit-outer-spin'))throw Error('Choose a single exterior transport scheme');
 selection.autoOuterSpin=Boolean(scenePath&&selection.graded&&!args.includes('--explicit-outer-spin'));
@@ -113,6 +115,8 @@ try{
     if(!momentum.pass)throw Error('Fluid/body impulse mismatch: '+JSON.stringify(momentum));
     const latticeWall=selection.interpolatedWall?await (await import('./plugins/cfd/tests/m0/lattice-wall-check.mjs')).verifyLatticeWall(device):null;
     if(latticeWall&&!latticeWall.pass)throw Error('Interpolated lattice wall failed Couette velocity or shear: '+JSON.stringify(latticeWall));
+    const subcell=selection.subcellSurface?await (await import('./plugins/cfd/tests/m0/subcell-metric-check.mjs')).verifySubcellSurface(device):null;
+    if(subcell&&!subcell.pass)throw Error('Subcell slab measure or first moment mismatch: '+JSON.stringify(subcell));
     const exteriorMomentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true);
     if(!exteriorMomentum.pass)throw Error('Exterior traction or smooth-wall relation failed: '+JSON.stringify(exteriorMomentum));
     const cutMetric=selection.cutCells?await (await import('./plugins/cfd/tests/m0/cut-metric.mjs')).verifyCutMetric(device):null;
@@ -149,7 +153,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,spinningLoad,outerTransport,latticeWall,regularPressure,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,spinningLoad,outerTransport,latticeWall,subcell,regularPressure,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
