@@ -639,11 +639,15 @@ export async function activate(context){
       throw failure('STALE_CFD_GEOMETRY','The authored scene changed during the animation solve.');
     b.stamp??=s;
   }
-  async function seekSweep(b,frame){
+  async function seekSweep(b,frame,restoring=false){
     const from=context.document.frame;if(frame===from)return;
     b.expected=frame;
     for(;;){
-      try{const v=await context.animation.seek(frame,from);if(v.frame!==frame)throw failure('STALE_FRAME','The evaluated frame changed during the seek.');return;}
+      const guard=()=>{
+        if(sweeps.get(b.owner)!==b||b.moved||context.document.exporting||b.stop&&!restoring)
+          throw failure('CANCELLED','The animation solve released this playhead.');
+      };
+      try{const v=await context.animation.seek(frame,from,guard);if(v.frame!==frame)throw failure('STALE_FRAME','The evaluated frame changed during the seek.');return;}
       catch(e){
         if(e.code!=='BUSY'||b.stop||b.moved||context.document.frame!==from||context.document.playing)throw e;
         await new Promise(resolve=>setTimeout(resolve,100));
@@ -652,6 +656,7 @@ export async function activate(context){
   }
   function solveAnimation(hash,{firstFrame=0,lastFrame,fidelityBudget='standard'}={}){
     const node=find(hash),time=context.animation.timeline();lastFrame??=time.total;
+    if(context.document.exporting)throw failure('BUSY','The offline render is visiting animation frames.');
     if(!Object.hasOwn(flowBudgets,fidelityBudget)||!Number.isSafeInteger(firstFrame)||!Number.isSafeInteger(lastFrame)||
       firstFrame<0||lastFrame<firstFrame||lastFrame>time.total)throw failure('INVALID_ARGUMENT','Choose a valid interval inside the native timeline and a supported fidelity.');
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
@@ -683,7 +688,7 @@ export async function activate(context){
       }finally{
         const stamp=sweepStamp(),sameScene=!b.stamp||!stamp||b.stamp.epoch===stamp.epoch;
         if(sweeps.get(hash)===b&&sameScene&&!b.moved&&!context.document.playing&&context.document.frame===b.expected&&b.initial!==b.expected){
-          try{await seekSweep(b,b.initial);}catch(e){if(e.code!=='STALE_FRAME'&&!b.stop){b.state='failed';b.error={code:e.code,message:e.message};}}
+          try{await seekSweep(b,b.initial,true);}catch(e){if(e.code!=='STALE_FRAME'&&!b.stop){b.state='failed';b.error={code:e.code,message:e.message};}}
         }
         if(finalState&&b.state==='solving')b.state=finalState;
         b.job=null;activeSweep=null;refresh();
@@ -700,6 +705,51 @@ export async function activate(context){
   function results(hash){
     const s=status(hash),result=jobs.get(hash)?.result;
     return {state:s.state,job:s.job,result:result?structuredClone(result):null,...s.animation?{animation:s.animation}:{}};
+  }
+  async function flushOutput({output,present=true,frame,signal}={}){
+    if(!output)return;
+    // Export owns the playhead for its entire range, including simulation preroll.
+    for(const b of sweeps.values())if(sweepBusy(b)||b===activeSweep){
+      b.moved=b.stop=true;b.state='stopped';
+    }
+    if(!present)return;
+    const check=()=>{
+      signal?.throwIfAborted();
+      if(context.document.frame!==frame)throw failure('STALE_FRAME','The offline render frame changed.');
+    };
+    const visible=()=>context.document.nodes.filter(n=>n.type==='cfd'&&n.enabled!==false&&context.viewport.isVisible(n.nativeHash,'solid')).map(n=>n.nativeHash);
+    check();const owners=visible();if(!owners.length)return;
+    let owned=null,notify;
+    const cancelled=new Promise(resolve=>{notify=resolve;});
+    function cancel(){
+      if(owned&&jobs.get(owned.owner)===owned&&['queued','solving'].includes(owned.state)){
+        owned.stopped=true;owned.state='stopped';owned.result=null;refresh();
+      }
+      notify();
+    }
+    signal?.addEventListener('abort',cancel,{once:true});
+    async function finish(j){
+      if(j?.done)await Promise.race([j.done,cancelled]);
+      check();if(!j||j!==current(j.owner)||!j.result||!['ready','unconverged'].includes(j.state))
+        throw failure(j?.error?.code??'CFD_RESULT_UNAVAILABLE',j?.error?.message??'The offline frame has no current CFD result.');
+    }
+    const sufficient=j=>j?.state==='ready'&&j.result?.validity.stationary&&j.result.visualizationCache!=='evicted'&&
+      (j.fidelity!=='preview'||j.result.solver==='uniform-equilibrium');
+    try{
+      for(const hash of owners){
+        check();let j=current(hash);
+        if(j&&['queued','solving'].includes(j.state))await finish(j);
+        for(const fidelityBudget of ['standard','fine']){
+          if(sufficient(j))break;
+          if(j?.state==='unconverged'&&(j.fidelity===fidelityBudget||j.fidelity==='fine'))continue;
+          start(hash,{fidelityBudget});owned=j=jobs.get(hash);await finish(j);owned=null;
+        }
+        if(!sufficient(j))throw failure('CFD_NOT_STATIONARY','The computed force did not reach stationarity for the offline frame.');
+      }
+      check();const remaining=visible();
+      if(remaining.length!==owners.length||owners.some((hash,i)=>hash!==remaining[i]||!sufficient(current(hash))))
+        throw failure('STALE_CFD_GEOMETRY','The participating CFD inputs changed before the offline frame was drawn.');
+    }finally{signal?.removeEventListener('abort',cancel);}
   }
   function measuredFrames(hash){
     const job=current(hash),a=archive(hash),live=job?.result;
@@ -826,7 +876,7 @@ export async function activate(context){
     }
     sync();
   }
-  context.editor.register({documentChanged,frames:sync,animation:frame=>{
+  context.editor.register({documentChanged,frames:sync,flush:flushOutput,animation:frame=>{
     if(activeSweep&&frame!==activeSweep.expected)activeSweep.moved=true;sync();
   },parameters:(n,changes)=>{if(n.type!=='cfd')return null;validateParameters({...n.params,...changes});return {};}});
   context.attributes.register(hash=>{

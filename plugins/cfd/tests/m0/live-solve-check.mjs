@@ -1,5 +1,62 @@
 // Exercise the installed plugin through the same operations and Attributes
 // buttons as the editor. No benchmark fixture or solver export drives this run.
+export async function verifyOfflineRender(){
+  const call=(name,params={})=>frameAI.call(name,params);
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  await call('scene.new');
+  const {hash:id}=await call('scene.create',{type:'cfd',params:{Speed:.018258982159215297}});
+  const sphere=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':5}});
+  await call('transform.set',{ids:[sphere.hash],channel:'position',axis:1,value:100,coordinates:'world'});
+  await call('view.set',{index:0,single:true,focus:sphere.hash});
+  const camera=await call('scene.create',{type:'render',params:{renderer:'Viewport',realtime:'off','resolution x':96,'resolution y':96}});
+  const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+  const image=()=>call('render.export',{kind:'image',download:false});
+  const status=()=>op('results');
+  await call('view.set',{index:1,single:true,shading:'wireframe'});
+  await call('render.start');await call('render.stop');
+  const idle=await status();
+  if(idle.job)throw Error('A live camera preview initiated CFD.');
+  const first=await image(),firstResult=await status();
+  if(!first.bytes||firstResult.state!=='ready'||firstResult.result.solver!=='cartesian-fvm'||!firstResult.result.surfaceFields.available.includes('Shape'))
+    throw Error('Offline image did not await the steady solved surface: '+JSON.stringify({first,firstResult}));
+  const points=Array.from({length:64},(_,i)=>[(i%8+.5)/8,(Math.floor(i/8)+.5)/8]);
+  const pixels=async()=>(await call('render.pixels',{points})).colors;
+  const drag=await pixels();await op('pressure-map');const pressureImage=await image(),pressure=await pixels(),cached=await status();
+  const changed=drag.filter((c,i)=>c.slice(0,3).some((v,k)=>Math.abs(v-pressure[i][k])>12)).length;
+  if(!changed||cached.job.id!==firstResult.job.id)throw Error('Offline map or cache mismatch: '+JSON.stringify({changed,first,cached:cached.job,drag,pressure}));
+  await call('scene.update',{id,params:{Speed:0}});
+  await call('animation.key',{id,path:'param:Speed',frame:0,value:.018,interpolation:'hard'});
+  await call('animation.key',{id,path:'param:Speed',frame:2,value:0,interpolation:'hard'});
+  await call('animation.seek',{frame:7});
+  const video=await call('render.export',{kind:'video',start:2,end:4,download:false}),held=(await call('animation.inspect')).frame;
+  const history=await op('force-history');
+  if(video.frames!==3||held!==7||history.samples.map(s=>s.frame).join(',')!=='2,3,4'||history.samples.some(s=>s.magnitude!==0||!s.stationary))
+    throw Error('Offline interval solved an unencoded frame or lost its measured load: '+JSON.stringify({video,held,history}));
+  await call('animation.seek',{frame:0});await call('scene.select',{ids:[camera.hash]});document.querySelector('#tabAttributes').click();
+  // Stop on the ordinary editor button while the public export command is waiting.
+  async function cancelExport(useAPI){
+    const render=image();
+    const limit=performance.now()+30000;
+    while(frameEngine.renderState().exportKind!=='image'&&performance.now()<limit)await wait(10);
+    if(frameEngine.renderState().exportKind!=='image')throw Error('Export did not enter its physical readiness wait');
+    await wait(250);
+    if(useAPI)await call('render.stop');else document.getElementById('frameRenderImage').click();
+    const output=await render;if(!output.cancelled||output.bytes)throw Error('Cancelled output yielded a file');
+    return output;
+  }
+  const cancelled=await cancelExport(false),owned=await status();
+  if(owned.state!=='stopped')throw Error('Render-owned CFD work remained active: '+JSON.stringify(owned.job));
+  const interactive=await op('solve-frame');const interrupted=await cancelExport(true),joined=await status();
+  if(!['queued','solving','ready'].includes(joined.state)||joined.job?.id!==interactive.job.id)
+    throw Error('Cancelling an export lost the independent interactive solve: '+JSON.stringify({interactive:interactive.job,joined}));
+  await op('stop');await call('scene.update',{id,visible:false});
+  const hidden=await image(),ignored=await status();
+  return {pass:!!hidden.bytes&&ignored.state!=='solving'&&ignored.state!=='ready',first,pressureImage,changedPixels:changed,
+    solver:firstResult.result.solver,ready:firstResult.state,windows:firstResult.result.completeWindows,forceN:firstResult.result.forceWorld,
+    maps:firstResult.result.surfaceFields.available,job:firstResult.job.id,reused:cached.job.id,video,held,history,cancelled,owned:owned.state,
+    interrupted,joined:joined.state,hidden,ignored:ignored.state};
+}
+
 export async function verifyLiveSolve(){
   const call=(name,params={})=>frameAI.call(name,params);
   await call('scene.new');
