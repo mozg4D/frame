@@ -1250,16 +1250,26 @@ function atDomainWalls(f,formula){
       var normal=vec3f(0);normal[a]=${upper?'-1.':'1.'};${formula}}`;
   }).join('');
 }
+// Prescribed inlet data are sampled at physical row centres. Encode the
+// same SI velocity, k and omega in the donor state and in the face discharge.
+function inletRowsWGSL(f,dt){
+  if(!f.inletRows)return '';
+  if(f.inletRows.length!==f.dims[1]||f.inletRows.some(v=>v.length!==3||!v.every(Number.isFinite)||v[1]<0||v[2]<=0))
+    throw Error('An inlet profile needs a velocity, nonnegative k and positive omega on every row.');
+  const scale=dt/f.h,rows=f.inletRows.map(([u,k,omega])=>`vec3f(${u*scale},${k*scale**2},${omega*dt})`);
+  return `const INFLOW=array<vec3f,${rows.length}>(${rows.join(',')});fn inletRow(y:i32)->vec3f{return INFLOW[y];}`;
+}
 export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,centers=null,skin=null,fields=null){
   const count=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(count/128)];
   const nu=f.nu*dt/f.h**2, cref=f.maxSpeed*dt/f.h, inlet=f.U*dt/f.h;
   const coords=metricBuffer(gpu,f);
-  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+domainWallWGSL(f,dt)+`
+  const base=gridWGSL(f)+openBoundaries(f)+metricWGSL(f)+outerSpinWGSL(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
     const NU=${nu};const U=${inlet.toFixed(10)};const K0=${1.5*(.005*cref)**2};
     const O0=${1.5*(.005*cref)**2/(5*nu)};
     struct Cell {uk:vec4f,wt:vec2f,padding:vec2f}
     struct Flux {hi:vec4f,lo:vec4f}
-    fn far()->Cell{return Cell(vec4f(U,0.,0.,K0),vec2f(O0,0.),vec2f(0));}
+    fn far(p:vec3i)->Cell{let v=${f.inletRows?'inletRow(p.y)':'vec3f(U,K0,O0)'};
+      return Cell(vec4f(v.x,0.,0.,v.y),vec2f(v.z,0.),vec2f(0));}
   `;
   const s0=gpu.buffer('CFD momentum and SST',count*32), pred=gpu.buffer('CFD predicted state',count*32);
   const flux=gpu.buffer('CFD conservative corrected face flux',count*32);
@@ -1271,11 +1281,11 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
   if(f.cutCells)groups??=await cutGroups(gpu,f,mobility,wall);
   const init=await gpu.kernel('CFD initial velocity and face flow',base+decl(0,'s','Cell',true)+decl(1,'flux','Flux',true)+
     (f.cutCells?decl(2,'mu','vec4f')+decl(3,'wall','vec4f'):'')+main(f.cutCells?`
-    s[i]=far();let area=faceAreas(cellWidths(p));let relative=vec3f(U,0.,0.)-vec3f(0.,wall[i].yz);
+    let initial=far(p);s[i]=initial;let area=faceAreas(cellWidths(p));let relative=initial.uk.xyz-vec3f(0.,wall[i].yz);
     var hi=vec3f(0);var lo=vec3f(0);for(var a=0u;a<3u;a++){var l=p;l[a]--;var r=p;r[a]++;
       hi[a]=relative[a]*area[a]*select(1.,mu[i][a],inside(r));
       lo[a]=relative[a]*area[a]*select(1.,mu[bounded(l)][a],inside(l));}
-    flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`:'s[i]=far();let q=vec4f(U*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);'));
+    flux[i]=Flux(vec4f(hi,0),vec4f(lo,0));`:'let initial=far(p);s[i]=initial;let q=vec4f(initial.uk.x*faceAreas(cellWidths(p)).x,0.,0.,0.);flux[i]=Flux(q,q);'));
   gpu.run(init,[s0,flux,...f.cutCells?[mobility,wall]:[]],grid,coords);
   const apertures=f.apertureFlow?await aperturePredictor(gpu,f,dt,s0,pred,mobility,centers,flux,fluxTail):null;
   if(apertures){const e=gpu.device.createCommandEncoder();apertures.initial(e);gpu.device.queue.submit([e.finish()]);}
@@ -1307,7 +1317,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
             let faceWall=domainWall(axis,side);
             if(faceWall.w>0.){b.uk=vec4f(2.*faceWall.xyz-u,k);b.wt=a.wt;}
             ${f.tunnelSymmetry?'else if(axis!=0u){b=a;b.uk[axis]=-u[axis];}':''}
-            else if(!openFace(axis,side)||q<0.){b=far();}
+            else if(!openFace(axis,side)||q<0.){b=far(p);}
           }
           let donor=select(b.uk,a.uk,q>=0.);var up=donor;
           let behind=select(j+side*e,p-side*e,q>=0.);
@@ -1369,8 +1379,8 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(${f.rotor}){
         let domain=cellCenters(DIMS-1)+.5*cellWidths(DIMS-1);let x=cellCenters(p);
         let depth=min(x,domain-x)/domain;let edge=1.-smoothstep(0.,0.11,min(depth.x,min(depth.y,depth.z)));
-        let reservoir=1.-exp(-${cref}*edge);tentative=mix(tentative,share*vec3f(U,0.,0.),reservoir);
-        kn=mix(kn,share*K0,reservoir);wn=mix(wn,share*O0,reservoir);}
+        let reservoir=1.-exp(-${cref}*edge);let outside=far(p);tentative=mix(tentative,share*outside.uk.xyz,reservoir);
+        kn=mix(kn,share*outside.uk.w,reservoir);wn=mix(wn,share*outside.wt.x,reservoir);}
       ${f.wallModeled?`
       if(permeability[i].w>0.){
         if(any(cutArea>vec3f(0))){
@@ -1394,7 +1404,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       if(inside(j)){let other=index(j);let owner=select(other,i,side>0);let right=select(i,other,side>0);
         ${f.axes?`let m=axisMetric(axis,min(p[axis],j[axis]));let v=mix(s[owner].uk[axis],s[right].uk[axis],.5*m.y*m.z);`:'let v=.5*(s[owner].uk[axis]+s[right].uk[axis]);'}
         return ${f.cutCells?'vec3f(v-body(owner)[axis],0.,mu[owner][axis])':'vec3f(v,body(owner)[axis],mu[owner][axis])'};}
-      var v=s[i].uk[axis];if(!openFace(axis,side)){v=select(0.,U,axis==0u&&domainWall(axis,side).w==0.);}return vec3f(v${f.cutCells?'-body(i)[axis]':''},0.,1.);}`;
+      var v=s[i].uk[axis];if(!openFace(axis,side)){v=select(0.,far(p).uk.x,axis==0u&&domainWall(axis,side).w==0.);}return vec3f(v${f.cutCells?'-body(i)[axis]':''},0.,1.);}`;
   const rhs=await gpu.kernel('CFD immersed flux imbalance',base+pressureRhs+decl(3,'b','f32',true)+main(`
     let area=faceAreas(cellWidths(p));var div=0.;for(var a=0u;a<3u;a++){let hi=face(i,p,a,1);let lo=face(i,p,a,-1);
       div+=area[a]*(projectFace(hi.x,hi.y,hi.z,0.).x-projectFace(lo.x,lo.y,lo.z,0.).x);}b[i]=-div;`));
@@ -1522,7 +1532,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
         var reference=area[a]*${f.cutCells?'w*(u-moving)':'mix(moving,u,w)'};
         var change=w*area[a]*mix(pred[l].uk[a]-un,pred[r].uk[a]-vn,t);
         let diag=mix(pred[l].padding.x,pred[r].padding.x,t);let relax=diag/(1.+diag);
-        if(!insideFace&&!openFace(a,side)){reference=area[a]*select(0.,U,a==0u&&domainWall(a,side).w==0.);change=0.;}
+        if(!insideFace&&!openFace(a,side)){reference=area[a]*select(0.,far(p).uk.x,a==0u&&domainWall(a,side).w==0.);change=0.;}
         let high=select(primary[i].lo[a],primary[i].hi[a],side>0);
         let low=select(tail[i].lo[a],tail[i].hi[a],side>0);
         let v=addFlow(high,low,change-relax*((high-reference)+low));
@@ -1665,7 +1675,7 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
 // Keep the selected limiter branches fixed while differentiating that trace.
 export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
   const count=countOf(f.dims),grid=[Math.ceil(count/128)],coords=metricBuffer(gpu,f);
-  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+`
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
     struct Flux{hi:vec4f,lo:vec4f}
     struct Face{value:vec3f,branch:u32}
     struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
@@ -1708,7 +1718,7 @@ export async function laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse){
           var b=u;var db=1.;
           let faceWall=domainWall(a,s);
           if(faceWall.w>0.){b=2.*faceWall.xyz-u;db=-1.;}
-          else if(!openFace(a,s)||sign*flow<0.){b=vec3f(U,0.,0.);db=0.;}
+          else if(!openFace(a,s)||sign*flow<0.){b=vec3f(${f.inletRows?'inletRow(p.y).x':'U'},0.,0.);db=0.;}
           let donor=select(b,u,sign*flow>=0.);let dd=select(db,1.,sign*flow>=0.);
           flowAdj=-sign*dot(l,donor);
           adj+=l*(NU*area[a]/widths[a]*(db-1.)-sign*flow*dd);
@@ -1747,7 +1757,7 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
   const p0=gpu.buffer('CFD saved primal pressure',bytes),gradient=gpu.buffer('CFD steady force derivative per immersed fraction',4*bytes);
   const peak=gpu.buffer('CFD momentum and pressure adjoint defects',8),stage=gpu.staging('CFD adjoint residual readback',8);
   const momentum=await laminarMomentumAdjoint(gpu,f,dt,solved,lambda,reverse);
-  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+`
+  const base=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+`
     struct Reverse{velocity:vec4f,hi:vec4f,lo:vec4f}
     struct Face{rawAdj:f32,weight:f32,mu:f32,area:f32,invD:f32,share:f32,pressureAdj:f32}
     const OBJECTIVE=vec3f(${direction.join(',')});const U=f32(${(f.U*dt/f.h).toFixed(10)});
@@ -1792,7 +1802,7 @@ export async function steadyForceAdjoint(gpu,f,dt,solved,direction=[1,0,0]){
         let jump=f32(s)*(z[i]-select(0.,z[j],inside(q)));
         let corr=t.weight-t.area*jump;
         next[a]+=t.share*(t.rawAdj+t.mu*corr)/vol;
-        var raw=select(select(0.,U,a==0u&&domainWall(a,s).w==0.),v[a],openFace(a,s));
+        var raw=select(select(0.,${f.inletRows?'inletRow(p.y).x':'U'},a==0u&&domainWall(a,s).w==0.),v[a],openFace(a,s));
         if(inside(q)){raw=t.share*v[a]+(1.-t.share)*pred[2u*j][a];}
         rawMean[a]+=.5*raw;
         if(s>0&&inside(q)){deriv[a]=corr*(raw-t.invD*(primalP[j]-primalP[i]));}
@@ -2148,7 +2158,7 @@ export async function outerTransport(gpu,f,dt,predictor,flux,tail){
   const k0=1.5*(.005*uniform)**2,w0=k0/(5*f.nu*dt/f.h**2);
   const work=gpu.buffer('CFD outer implicit transport iterate',predictor.size);
   const peak=gpu.buffer('CFD outer transport residual',4),stage=gpu.staging('CFD outer transport residual readback',4);
-  const common=gridWGSL(f)+metricWGSL(f)+outerSpinWGSL(f)+`
+  const common=gridWGSL(f)+metricWGSL(f)+outerSpinWGSL(f)+inletRowsWGSL(f,dt)+`
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Flux{hi:vec4f,lo:vec4f}
     @group(0) @binding(2) var<storage,read> high:array<Flux>;
     @group(0) @binding(3) var<storage,read> low:array<Flux>;
@@ -2162,7 +2172,8 @@ export async function outerTransport(gpu,f,dt,predictor,flux,tail){
       let h=select(high[i].lo[a],high[i].hi[a],side>0);
       let l=select(low[i].lo[a],low[i].hi[a],side>0);
       let rate=(h+l)*f32(side)*inv;if(rate>=0.){t.outgoing+=rate;}
-      else{var v=FREE;var omega=OMEGA;if(inside(q)){let neighbour=guess[index(q)];v=neighbour.uk;omega=neighbour.wt.x;}
+      else{var v=FREE;var omega=OMEGA;${f.inletRows?'let row=inletRow(p.y);v=vec4f(row.x,0.,0.,row.y);omega=row.z;':''}
+        if(inside(q)){let neighbour=guess[index(q)];v=neighbour.uk;omega=neighbour.wt.x;}
         t.uk-=rate*v;t.omega-=rate*omega;}
     }}return t;}`;
   const data=(dst,src)=>`@group(0) @binding(0) var<storage,${dst}> rhs:array<Cell>;
@@ -2758,7 +2769,7 @@ export async function fluidCentreLinks(gpu,f,mu,wall,parents){
 // exact at the aperture centroid. All velocity samples stay on the fluid side.
 export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tail){
   const n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
-  const head=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+addFlowWGSL+`
+  const head=gridWGSL(f)+metricWGSL(f)+openBoundaries(f)+domainWallWGSL(f,dt)+inletRowsWGSL(f,dt)+addFlowWGSL+`
     struct Cell{uk:vec4f,wt:vec2f,padding:vec2f} struct Flux{hi:vec4f,lo:vec4f}
     struct Centers{t:array<vec2f,3>}
     @group(0) @binding(0) var<storage,read> star:array<Cell>;
@@ -2803,7 +2814,7 @@ export async function aperturePredictor(gpu,f,dt,old,pred,mu,centers,primary,tai
               let diag=mix(star[li].padding.x,star[ri].padding.x,t);
               v=addFlow(high,low,weight*(speed-oldSpeed)-(diag/(1.+diag))*((high-reference)+low));`:
               'v.x=weight*(speed-frame);'}
-            if(!internal&&!openFace(a,side)){v=vec2f(area[a]*(select(0.,${f.U*dt/f.h},a==0u&&domainWall(a,side).w==0.)-frame),0.);}
+            if(!internal&&!openFace(a,side)){v=vec2f(area[a]*(select(0.,${f.inletRows?'inletRow(p.y).x':f.U*dt/f.h},a==0u&&domainWall(a,side).w==0.)-frame),0.);}
           }
           if(side>0){primary[i].hi[a]=v.x;tail[i].hi[a]=v.y;}else{primary[i].lo[a]=v.x;tail[i].lo[a]=v.y;}
         }}
@@ -3054,7 +3065,7 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
     'struct WritableRoster{count:atomic<u32>,ids:array<u32>}'+storage(1,'roster','WritableRoster',true)+
     op('if(i<arrayLength(&link)&&link[i].head!=END){let j=atomicAdd(&roster.count,1u);roster.ids[j]=i;}'));
   gpu.run(roster,[links,merged],grid);
-  const base=(writeRhs,writeGuess)=>gridWGSL(f)+types+storage(0,'rhs','array<Cell>',writeRhs)+storage(1,'guess','array<Cell>',writeGuess)+
+  const base=(writeRhs,writeGuess)=>gridWGSL(f)+inletRowsWGSL(f,dt)+types+storage(0,'rhs','array<Cell>',writeRhs)+storage(1,'guess','array<Cell>',writeGuess)+
     storage(2,'link','array<Link>')+storage(3,'volume','array<f32>')+storage(4,'high','array<Flux>')+storage(5,'low','array<Flux>')+`
     fn transfers(root:u32)->Budget{
       var sums=Budget(vec4f(0),0.,0.);var i=root;let inv=1./volume[root];
@@ -3066,6 +3077,7 @@ export async function groupTransport(gpu,f,dt,rhs,high,low,groups){
           let l=select(low[i].lo[axis],low[i].hi[axis],side>0);let rate=f32(side)*(h+l)*inv;
           if(rate>=0.){sums.outgoing+=rate;}else{
             var u=vec4f(${free},0.,0.,${k0});var omega=f32(${omega0});
+            ${f.inletRows?'let row=inletRow(p.y);u=vec4f(row.x,0.,0.,row.y);omega=row.z;':''}
             if(internal){u=guess[neighbour].uk;omega=guess[neighbour].wt.x;}
             sums.incoming-=rate*u;sums.omega-=rate*omega;
           }

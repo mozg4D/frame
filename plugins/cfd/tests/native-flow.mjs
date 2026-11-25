@@ -15,6 +15,7 @@ const cases={
   'paired':['paired-check','verifyPairedSolve'],
   'surface-report':['surface-statistics-check','verifyLiveSurfaceReport'],
   'cavity':['cavity-check','verifyCavity'],
+  'backward-step':['backstep-check','verifyBackwardStep'],
   'towing-media':['translation-check','verifyTowingSimilarity'],
   'region-profiles':['load-profiles-check','verifyRegionalProfiles'],'shape-design':['shape-design-check','verifyShapeDesign']
 };
