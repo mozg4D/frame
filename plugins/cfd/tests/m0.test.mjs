@@ -277,6 +277,21 @@ test('paired drag propagates simultaneous marginal intervals through signed load
   assert.equal(pairedDrag(prior,5,{scope:'temporal sampling',ci975Drag:null}).ci95DeltaDragN,null);
   assert.deepEqual(pairedDrag(prior,0,{scope:'exact equilibrium',ci95Drag:[0,0]}).ci95DeltaDragN,[-8.5,-7.5]);
 });
+test('finite-time pairs require identical physical support for both drag averages',()=>{
+  const prior={id:8,finiteTime:{dtS:.125,initialization:'projected-uniform-inflow',windows:[
+    {endStep:4,averagedSteps:4,dragN:2},{endStep:8,averagedSteps:8,dragN:3},{endStep:12,averagedSteps:8,dragN:5}]}};
+  const sample={steps:36,averagedSteps:24,substeps:3};
+  const matched=pairedDrag(prior,6,{},sample);
+  assert.deepEqual(matched.timeRangeS,[.5,1.5]);
+  assert.equal(matched.deltaDragN,1);
+  assert.equal(matched.ci95DeltaDragN,null);
+  for(const partial of [{...sample,steps:35},{...sample,averagedSteps:12}]){
+    const comparison=pairedDrag(prior,6,{},partial);
+    assert.equal(comparison.deltaDragN,null);assert.equal(comparison.timeRangeS,null);
+  }
+  const exact=pairedDrag(prior,0,{scope:'exact equilibrium'});
+  assert.equal(exact.deltaDragN,-5);assert.deepEqual(exact.timeRangeS,matched.timeRangeS);
+});
 test('physical mesh lengths preserve owner shear, nonuniform scale and reflections in SI',()=>{
   const axes=[0,2,0,0, -3,.5,0,0, -1,0,-4,0, 100,-200,800,1];
   const frame=boxMetric(axes),source=[3,-4,5];

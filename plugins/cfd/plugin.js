@@ -589,11 +589,23 @@ export function forceUncertainty(windows,axes,dragAxis=[1,0,0],stationary=false)
     autocorrelationSteps:drag.varying?drag.correlation*blocks.reduce((s,w)=>s+w.steps,0)/n:null};
 }
 
-export function pairedDrag(prior,drag,uncertainty){
+export function pairedDrag(prior,drag,uncertainty,sample=null){
   const exact=uncertainty.scope==='exact equilibrium',level=exact?'ci95Drag':'ci975Drag';
+  const identity={baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
+    baselineMomentumTopologyHash:prior.momentumTopologyHash??null};
+  if(prior.finiteTime){
+    const {dtS,windows}=prior.finiteTime;
+    // At a partial startup window there is no common force integral yet.
+    // A body in exact equilibrium has zero force over any such interval.
+    const row=exact?windows.at(-1):windows.find(w=>w.endStep*sample?.substeps===sample?.steps&&
+      w.averagedSteps*sample.substeps===sample.averagedSteps);
+    return {...identity,scope:'matched physical time',timeRangeS:row?[(row.endStep-row.averagedSteps)*dtS,row.endStep*dtS]:null,
+      baselineDragN:row?.dragN??null,deltaDragN:row?drag-row.dragN:null,ci95DeltaDragN:null,
+      baselineDtS:dtS,substepsPerBaselineStep:sample?.substeps??null,
+      baselineInitialization:prior.finiteTime.initialization};
+  }
   const current=uncertainty[level],baseline=prior[level];
-  return {baselineJob:prior.id,baselineGridHash:prior.gridHash,baselineWallTopologyHash:prior.wallTopologyHash,
-    baselineMomentumTopologyHash:prior.momentumTopologyHash??null,deltaDragN:drag-prior.drag,
+  return {...identity,deltaDragN:drag-prior.drag,
     ci95DeltaDragN:current&&baseline?[current[0]-baseline[1],current[1]-baseline[0]]:null,
     intervalMethod:exact?'baseline temporal interval against exact equilibrium':'Bonferroni difference of two 97.5% marginal temporal intervals'};
 }
@@ -702,8 +714,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
   const omega=motion?.omega??0,maxSpeed=U+.5*diameter*Math.abs(omega),reynolds=maxSpeed*domain.scale/fluid.nu;
   if(!Number.isFinite(reynolds)||maxSpeed/fluid.soundSpeedMps>.25)throw failure('FLOW_REGIME','This solve requires an incompressible flow with reference Mach at most 0.25.');
   const wallModeled=!!motion||reynolds>=200,period=motion?2*Math.PI/Math.abs(omega):domain.scale/maxSpeed;
-  const stationaryWake=wallModeled&&!motion;
-  const windowLimit=wallModeled?budget.windows:budget.laminarWindows??budget.windows;
+  const stationaryWake=wallModeled&&!motion,matched=history.paired?history.prior?.finiteTime:null;
+  const windowLimit=matched?.windows.length??(wallModeled?budget.windows:budget.laminarWindows??budget.windows);
   const cap=Math.min(budget.cells,Math.floor(device.limits.maxStorageBufferBindingSize/48));
   const swept=motion?[{min:[domain.bodies.min[0],-.5*diameter,-.5*diameter],max:[domain.bodies.max[0],.5*diameter,.5*diameter]}]:capture.meshes.map(m=>m.bounds);
   const settings={origin:domain.origin,h:domain.h,dims:domain.dims,U,ambientSpeed:Speed,nu:fluid.nu,rho:fluid.rho,maxSpeed,rotor:!!motion,
@@ -745,7 +757,9 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     const hashes=await discretization(gpu,f,geom.response,source,groups);check();
     const sameGrid=prior?.gridHash===hashes.gridHash,sameWalls=prior?.wallTopologyHash===hashes.wallTopologyHash;
     const sameGroups=!!prior&&(prior.momentumTopologyHash??null)===hashes.momentumTopologyHash;
-    const stable=groups?factor*groups.stableStep:Infinity;
+    const stableLimit=Math.min(dt,groups?factor*groups.stableStep:Infinity);
+    const substeps=matched?Math.max(1,Math.ceil(matched.dtS/stableLimit)):1;
+    const stable=matched?matched.dtS/substeps:stableLimit;
     if(dt>stable){
       if(motion){
         const rescale=await gpu.kernel('CFD wall speed at the cut-volume timestep',`
@@ -771,7 +785,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     const reduceTransverse=solver.transverseImpulse?await sumForce(gpu,fixed,count,4):null;
     const scheduler=viewportBudget(device,()=>lastFrame);
     let restart=null;
-    if(f.laminar&&history.warmStart&&prior?.buffer&&(refinement||sameGrid&&prior.frameKey===source.frameKey&&(history.paired||prior.geometryKey===source.geometryKey))){
+    if(f.laminar&&!matched&&history.warmStart&&prior?.buffer&&(refinement||sameGrid&&prior.frameKey===source.frameKey&&(history.paired||prior.geometryKey===source.geometryKey))){
       restart=await solver.restart(prior.buffer,U*dt/f.h/prior.velocityScale,scheduler,check,refinement?prior.grid:null);check();
     }
     const gridValidity={...hashes,resolutionTier:budget.tier,backendUsed:'webgpu-fp32',sameGridAsPrevious:sameGrid,distanceField:geom.stats.distanceField,
@@ -783,7 +797,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
       sameDiscretizationAsPrev:sameGrid&&sameWalls&&sameGroups,previousJob:prior?.id??null,
       ...(refinement?{refinement:{parentJob:prior.id,parentGridHash:prior.gridHash,...refinement.details}}:{})};
     function publishSample(value){
-      const paired=history.paired?pairedDrag(prior,value.forceLocal.drag,value.uncertainty):null;
+      const paired=history.paired?pairedDrag(prior,value.forceLocal.drag,value.uncertainty,
+        {steps:value.steps,averagedSteps:value.averagedSteps,substeps}):null;
       publish({...value,validity:{...value.validity,...gridValidity,...(refinement?{spatialConvergence:'two-nested-grids',
         refinement:{...gridValidity.refinement,deltaDragN:value.forceLocal.drag-prior.drag,
           deltaObjectiveN:value.forceLocal[source.shapeObjective]-prior.objectiveValueN}}:{})},...(paired?{paired}:{}),
@@ -802,10 +817,14 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     }
     async function retain(result,transportWeights=null){
       const {origin,dims,h,axes,minPitch,domainEnd}=f;
-      const usable=f.laminar&&!(result.validity.stationaryMomentumDefect>.025)&&16*count<=checkpointBytes;
+      const usable=result.validity.stationary&&f.laminar&&!(result.validity.stationaryMomentumDefect>.025)&&16*count<=checkpointBytes;
       const buffer=usable?await savePredictor(gpu,solver,count,check):null;
       const {ci95Drag,ci975Drag}=result.uncertainty;
+      const finiteTime=matched||!result.validity.stationary?{dtS:dt,
+        initialization:solver.fluxConvergence.initialization?.kind??'uniform-inflow',
+        windows:windows.map(({endStep,averagedSteps,dragN})=>({endStep,averagedSteps,dragN}))}:null;
       try{check();history.save({...hashes,grid:{origin,dims,h,axes,minPitch,domainEnd},buffer,velocityScale:U*dt/h,
+        stationary:result.validity.stationary,finiteTime,
         drag:result.forceLocal.drag,objective:source.shapeObjective,objectiveValueN:result.forceLocal[source.shapeObjective],
         ci95Drag,ci975Drag,transportWeights,surfaceComponents});}
       catch(e){buffer?.destroy();throw e;}
@@ -814,7 +833,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
     for(let window=0;window<windowLimit;window++){
       check();const e=device.createCommandEncoder();for(const b of [force,solver.loads,solver.transverseImpulse])if(b)e.clearBuffer(b);
       regional?.begin(e);profiles.begin(e);fields.begin(e);device.queue.submit([e.finish()]);
-      const first=step,end=Math.max(first+1,Math.round((window+1)*period/dt));
+      const first=step,end=matched?matched.windows[window].endStep*substeps:Math.max(first+1,Math.round((window+1)*period/dt));
       while(step<end){
         if(regional&&motion){regional.angle(omega*(step+.5)*dt);const e=device.createCommandEncoder();regional.clearStep(e);device.queue.submit([e.finish()]);}
         await solver.advance(step,false,scheduler,check);check();step++;
@@ -839,6 +858,7 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
         const stationary=step===end&&settledPeriods(windows,false,domain.scale);
         const baseDefect=stationary&&geom.shape?await solver.steadyDefect():null;
         const physical=physicalLoads(ctx,source,fluid,diameter,step===end?windows:[value]);
+        if(step===end)Object.assign(value,{endStep:step,averagedSteps:physical.averagedSteps,dragN:physical.forceLocal.drag});
         physical.profiles=await profiles.measure(step-first,step===end,f.rho*f.h**4/dt**2);
         physical.profiles.originWorldM=physicalOrigin(ctx.document.world(source.owner),source.axes,source.motion);
         physical.profiles.axesWorld=source.boxAxes;
@@ -858,8 +878,11 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
             ...(baseDefect===null?{}:{stationaryMomentumDefect:baseDefect}),
             ...(motion?{rotorReferenceQualification:'pending'}:{})},method:wallModeled?'SST wall-modeled':'laminar'};
-        if(!stationary){
-          if(step===end&&window+1===windowLimit)await publishFinished(result);
+        if(!stationary||matched&&window+1<windowLimit){
+          if(step===end&&window+1===windowLimit){
+            await publishFinished(result);
+            if(wallModeled||matched)await retain(result);
+          }
           else publishSample(result);
           continue;
         }
@@ -984,9 +1007,9 @@ export async function activate(context){
     const epoch=context.fields.authoringStamp().epoch;
     const entries=[...checkpoints.values()].reverse().filter(c=>c.owner===job.owner&&c.epoch===epoch&&c.device===job.device);
     const parent=job.pairedWithJob??job.refineFromJob;
-    const prior=parent?entries.find(c=>c.id===parent):entries[0];
+    const prior=parent?entries.find(c=>c.id===parent):entries.find(c=>c.stationary);
     if(job.pairedWithJob&&(!prior||job.source.frameKey!==prior.frameKey))
-      throw failure('CFD_PAIR_UNAVAILABLE','Choose a retained stationary job of this box at the same physical frame and fidelity.');
+      throw failure('CFD_PAIR_UNAVAILABLE','Choose a retained flow solution of this box at the same physical frame and fidelity.');
     if(job.refineFromJob&&(!prior?.transportWeights||prior.operatingKey!==job.source.operatingKey||prior.objective!==job.source.shapeObjective))
       throw failure('CFD_REFINEMENT_UNAVAILABLE','Choose a retained stationary Shape solution with the same geometry, force objective and operating point.');
     const limits=job.device.limits;
