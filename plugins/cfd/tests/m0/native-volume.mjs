@@ -4,6 +4,7 @@ import {extendNativeMetric} from './metric.mjs';
 import {gridWGSL,immersedMobilityWGSL} from './fixtures.mjs';
 import {metricWGSL,metricBuffer} from './rectilinear.mjs';
 import {cutGridWGSL,cutMetricWGSL,cutFaceSeal} from './cut-metric.mjs';
+import {extendWallDistance} from './wall-distance.mjs';
 
 const countOf=dims=>dims.reduce((a,b)=>a*b);
 const workgroups=n=>{const g=Math.ceil(n/64);return [Math.min(65535,g),Math.ceil(g/65535)];};
@@ -137,7 +138,9 @@ export async function nativeFlowGeometry(gpu,f,capture,dt){
     scratch.dispatch(e,pipe,gpu.device.createBindGroup({layout:pipe.getBindGroupLayout(0),entries}),[Math.ceil(n/128)]);
     if(rep)crossed.encode(e);seal?.(e);
     gpu.device.queue.submit([e.finish()]);await gpu.device.queue.onSubmittedWorkDone();capture.assertCurrent();
+    const wallDistance=f.wakeDistance&&capture.meshes.length?await extendWallDistance(scratch,f,wall,12*band.h/f.h):null;
+    capture.assertCurrent();
     return {wall,response,centers,update:capture.assertCurrent,assertCurrent:capture.assertCurrent,stats:{source:'Frame evaluated surfaces / Unite directional volume and metric',
-      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
+      occurrences:capture.meshes.length,triangles:capture.meshes.reduce((s,m)=>s+m.triangleCount,0),bandDims:band.dims,bandPitchM:band.h,wallDistance,scratchBytes:scratch.allocatedBytes,geometryMs:performance.now()-start}};
   }finally{scratch.close();}
 }

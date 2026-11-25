@@ -64,7 +64,9 @@ export async function benchmarkNativeRotor(device,tier,progress,selection){
 export async function benchmarkNativeAhmed(device,tier,progress,selection){
   const call=(name,args={})=>frameAI.call(name,args);await call('scene.new');
   const ctx=researchSceneContext(frameEngine),box=await call('scene.create',{type:'cfd',name:'Ahmed control volume'});
-  await call('scene.update',{id:box.hash,params:{Speed:60}});
+  const reference=selection.fixture??'ahmed',air=mediumProperties('Air',0);
+  const speed=reference==='ahmed-wake'?768000*air.nu/.288:60;
+  await call('scene.update',{id:box.hash,params:{Speed:speed}});
   await call('transform.set',{ids:[box.hash],channel:'size',axis:0,value:1800,coordinates:'world'});
   const body=await call('mesh.create',ahmedMesh());
   await call('diagnostics.frame',{frames:4});
@@ -73,8 +75,8 @@ export async function benchmarkNativeAhmed(device,tier,progress,selection){
   const extent=mesh.bounds.max.map((x,k)=>x-mesh.bounds.min[k]);
   if(extent.some((v,k)=>Math.abs(v-[1.044,.288,.389][k])>.001))throw Error('Native Ahmed dimensions disagree with the reference: '+extent);
   const origin=[mesh.bounds.min[0],mesh.bounds.min[1]-.05,(mesh.bounds.min[2]+mesh.bounds.max[2])*.5];
-  const capture=captureFlowSurfaces(device,ctx,box.hash,origin),air=mediumProperties('Air',0);
-  const f={...flowFixture('ahmed',tier),...selection,rho:air.rho,nu:air.nu,normalization:.5*air.rho*60**2*.389*.288,
+  const capture=captureFlowSurfaces(device,ctx,box.hash,origin),U=capture.params.Speed;
+  const f={...flowFixture(reference,tier),...selection,U,maxSpeed:U,period:1.044/U,rho:air.rho,nu:air.nu,normalization:.5*air.rho*U**2*.389*.288,
     geometry:'Evaluated native Ahmed polygon surface; fixed wind-tunnel floor, support tare omitted'};
   const result=await runCase(device,selection.graded?gradedFixture(f,tier,mergedBounds(capture.meshes.map(m=>m.bounds))):f,'cartesian-fvm',progress,capture);
   return {...result,sourceExtentM:extent,sourceSignature:capture.signature};
@@ -116,7 +118,8 @@ export async function solveCapturedBoxes(device,tier,budgetMs,progress,graded=fa
       checkKinematics:assertCurrent,sweptDiameterM:diameter,implicitOuterSpin:!!motion&&graded&&(settings.implicitOuterSpin||settings.autoOuterSpin),pressureOpen:motion&&U>0?[false,true,true,true,true,true]:undefined,
       budgetMs,globalPressure,cutCells:!!motion||settings.cutCells,sheetLinks:!!motion||settings.sheetLinks,
       faceHistory:!!motion||settings.faceHistory,linearWallPressure:!!motion||settings.linearWallPressure,wallSpacing:settings.wallSpacing,sstWall:settings.sstWall,
-      faceReconstruction:settings.faceReconstruction,normalization:motion?fluid.rho*rps**2*diameter**4:1,
+      faceReconstruction:settings.faceReconstruction,mergeToFluid:settings.mergeToFluid,wakeDistance:settings.wakeDistance,ddes:settings.ddes,
+      normalization:motion?fluid.rho*rps**2*diameter**4:1,
       powerNormalization:motion?fluid.rho*rps**3*diameter**5:undefined,geometry:'Visible evaluated occurrences intersecting the saved CFD Box'};
     const mesh=graded&&capture.meshes.length?gradedFixture(f,tier,domain.bodies):f;
     const result=await runCase(device,mesh,'cartesian-fvm',progress,capture);

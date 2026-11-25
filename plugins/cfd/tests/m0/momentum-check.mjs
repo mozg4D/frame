@@ -21,11 +21,11 @@ function cutBox(p){
 // The pressure reservoirs have equal pressure and the perturbation is supported
 // away from the outer boundary. Total Cartesian fluid impulse lost in the first
 // step must equal the reported body reaction, including tangential components.
-export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false,sstWall=false,faceReconstruction=false){
+export async function verifyMomentum(device,graded=false,wallModeled=false,cutCells=false,linearWallPressure=false,sstWall=false,faceReconstruction=false,mergeToFluid=false){
   const gpu=gpuScope(device),dims=[32,8,8],count=dims.reduce((a,b)=>a*b);
   const h=.004,dt=.0004;
   const axes=graded?dims.map(d=>Float64Array.from({length:d+1},(_,i)=>h*i*(.7+.3*i/d))):undefined;
-  const fixture={name:'momentum',dims,axes,h,origin:[0,0,0],maxSpeed:1,U:0,omega:0,cutCells,linearWallPressure,sstWall,faceReconstruction,
+  const fixture={name:'momentum',dims,axes,h,origin:[0,0,0],maxSpeed:1,U:0,omega:0,cutCells,linearWallPressure,sstWall,faceReconstruction,mergeToFluid,
     nu:1.5e-5,sphere:!wallModeled,wallModeled,rotor:false,pressureOpen:[true,true,true,true,true,true]};
   try{
     const material=new Float32Array(4*count),wall=new Float32Array(4*count),initial=new Float32Array(8*count);
@@ -69,8 +69,26 @@ export async function verifyMomentum(device,graded=false,wallModeled=false,cutCe
     let groupCourant=null;
     if(cutCells){
       const strides=[1,32,256],roots=new Uint32Array(count),groupVolume=new Float64Array(count),flow=new Float64Array(count);
+      let fluidParents=null;
+      if(mergeToFluid){
+        const depth=new Int32Array(count).fill(-1),queue=[];
+        const neighbours=(i,visit)=>{
+          const p=[i%32,(i>>5)%8,i>>8],width=p.map((v,a)=>cellWidth(fixture,a,v));
+          for(const [a,s] of strides.entries())for(const side of [-1,1]){
+            if(p[a]+side<0||p[a]+side>=dims[a])continue;
+            const j=i+side*s,opening=material[4*Math.min(i,j)+a];
+            if(opening>0&&material[4*j+3]>0)visit(j,Math.fround(opening*Math.fround(width[(a+1)%3]*width[(a+2)%3])));
+          }
+        };
+        for(let i=0;i<count;i++)if(material[4*i+3]===1&&wall[4*i]>0){queue.push(i);depth[i]=0;}
+        for(let h=0;h<queue.length;h++){const i=queue[h];neighbours(i,j=>{if(depth[j]<0){depth[j]=depth[i]+1;queue.push(j);}});}
+        fluidParents=Int32Array.from({length:count},(_,i)=>i);
+        for(const i of queue)if(depth[i]>0){
+          let best=-1;neighbours(i,(j,opening)=>{if(depth[j]+1===depth[i]&&opening>best){best=opening;fluidParents[i]=fluidParents[j];}});
+        }
+      }
       for(let i=0;i<count;i++){
-        let j=i;
+        let j=fluidParents?.[i]??i;
         while(material[4*j+3]>0&&material[4*j+3]<.3){
           let next=j,bestOpening=0;const point=[j%32,(j>>5)%8,j>>8];
           for(const [a,stride] of strides.entries())for(const side of [-1,1]){

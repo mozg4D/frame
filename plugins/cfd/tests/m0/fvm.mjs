@@ -123,12 +123,19 @@ export async function cartesianSolver(gpu,f,dt,wall,force,mobility,groups=null,c
       let f1=tanh(pow(min(10.,min(max(a1,a2),4.*0.856*k/(cd*dist*dist))),4.));
       let f2=tanh(pow(min(10.,max(2.*a1,a2)),2.));
       let prod=min(a.wt.y*ss,10.*0.09*k*omega);
+      var decay=.09*omega;
+      ${f.ddes?`let rootK=sqrt(k);let rans=rootK/decay;
+      let gradNorm=sqrt(dot(grad[0],grad[0])+dot(grad[1],grad[1])+dot(grad[2],grad[2]));
+      let rd=(a.wt.y+NU)/max(1e-20,.41*.41*dist*dist*gradNorm);
+      let shield=1.-tanh(pow(min(8.,20.*rd),3.));
+      let les=mix(.61,.78,f1)*max(widths.x,max(widths.y,widths.z));
+      decay=rootK/max(1e-20,mix(rans,min(rans,les),shield));`:''}
       let beta=mix(0.0828,0.075,f1);let gamma=mix(0.44,5./9.,f1);
-      kn=(share*(k+prod)-adv.w+NU*dk+mix(1.,0.85,f1)*edk)/(1.+0.09*omega);
+      kn=(share*(k+prod)-adv.w+NU*dk+mix(1.,0.85,f1)*edk)/(1.+decay);
       wn=(share*omega-advW+NU*dw+mix(0.856,0.5,f1)*edw+share*(gamma*select(0.,prod/max(a.wt.y,1e-10),a.wt.y>0.)+
         (1.-f1)*2.*0.856*dot(gk,gw)/omega))/(1.+beta*omega);
       let damping=1.-exp(-${10*cref}*${f.cutCells?'(1.-smoothstep(-.7,.7,solid.x))':'solid.w'});
-      ${f.cutCells?`nut=share*${f.sstWall?'(prod/(1.+.09*omega))':'damping'};strainLimit=share*sqrt(ss)*f2;`:`
+      ${f.cutCells?`nut=share*${f.sstWall?'(prod/(1.+decay))':'damping'};strainLimit=share*sqrt(ss)*f2;`:`
       kn=mix(max(1e-12,kn),1e-12,damping);wn=mix(max(1e-8,wn),60.*NU/(0.075*0.25),damping);
       nut=0.31*kn/max(0.31*wn,sqrt(ss)*f2);`}}
       var tentative=share*u-adv.xyz+diff;

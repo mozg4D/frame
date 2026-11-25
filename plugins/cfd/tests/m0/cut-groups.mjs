@@ -1,6 +1,7 @@
 import {gridWGSL} from './fixtures.mjs';
 import {metricBuffer,metricWGSL} from './rectilinear.mjs';
 import {outerSpinWGSL} from './outer-transport.mjs';
+import {fluidCentreLinks} from './fluid-groups.mjs';
 
 // Every small fluid volume joins a more open neighbour through a nonzero
 // aperture. Strict growth makes the parent forest acyclic. Momentum is
@@ -34,13 +35,15 @@ export async function cutGroups(gpu,f,mobility,wall){
   const append=await gpu.kernel('CFD link cut cells to their common volume',head+forest+
     '@group(0) @binding(0) var<storage,read_write> link:array<Links>;'+
     main('let root=link[i].root;if(root!=i){link[i].next=atomicExchange(&link[root].head,i);}'));
+  const fluid=f.mergeToFluid?await fluidCentreLinks(gpu,f,mobility,wall,parents[0]):null;
   const e=gpu.device.createCommandEncoder(),dispatch=(op,buf)=>gpu.dispatch(e,op,gpu.bind(op,buf),grid);
   dispatch(select,[mobility,parents[0]]);
+  fluid?.encode(e);
   let slot=0;for(let i=1;i<n;i*=2){dispatch(jump,[parents[slot],parents[1-slot]]);slot=1-slot;}
   dispatch(setup,[parents[slot],links]);dispatch(append,[links]);
   const members='struct Members{root:u32,head:u32,next:u32};';
   const volumes=gpu.buffer('CFD agglomerated physical volumes',4*n);
-  const stats=gpu.buffer('CFD cut-volume stability bounds',new Uint32Array([0,0,0x3f800000,0,0,0]));
+  const stats=gpu.buffer('CFD cut-volume stability bounds',new Uint32Array([0,0,0x3f800000,0,0,0,0]));
   const size=await gpu.kernel('CFD effective cut volumes and explicit stability bound',head+metric+outerSpinWGSL(f)+members+material+`
     @group(0) @binding(1) var<storage,read> links:array<Members>;
     @group(0) @binding(2) var<storage,read_write> volume:array<f32>;
@@ -68,6 +71,7 @@ export async function cutGroups(gpu,f,mobility,wall){
     volume[i]=sum;let rate=((${f.maxSpeed}*length(surfaces)+rotation)/${f.h}+${f.nu/f.h**2}*diffusion)/sum;
     atomicMax(&stats[3],bitcast<u32>(rate));
     if(fraction<.3){atomicAdd(&stats[4],1u);}if(links[i].head!=0xffffffffu){atomicAdd(&stats[5],1u);}
+    if(fraction<1.){atomicAdd(&stats[6],1u);}
     `));
   gpu.dispatch(e,size,gpu.bind(size,[mobility,links,volumes,stats],coords),grid);
   const share=await gpu.kernel('CFD distribute group volume to cut cells',head+metric+members+`
@@ -77,7 +81,7 @@ export async function cutGroups(gpu,f,mobility,wall){
     main('let w=cellWidths(point(i));wall[i].w=volume[link[i].root]/(w.x*w.y*w.z);'));
   gpu.dispatch(e,share,gpu.bind(share,[links,volumes,wall],coords),grid);
   gpu.device.queue.submit([e.finish()]);
-  const buffer=await gpu.read(stats,gpu.staging('CFD cut geometry statistics',stats.size),6);
+  const buffer=await gpu.read(stats,gpu.staging('CFD cut geometry statistics',stats.size),7);
   const u=new Uint32Array(buffer.buffer),maximumRate=buffer[3];
   if(!Number.isFinite(maximumRate))throw Error('Nonfinite cut-volume stability bound');
   const stateDecl=head+members+`struct Cell{uk:vec4f,wt:vec2f,padding:vec2f};
@@ -88,7 +92,8 @@ export async function cutGroups(gpu,f,mobility,wall){
     var total=state[i];loop{total.uk+=state[j].uk;total.wt+=state[j].wt;total.padding+=state[j].padding;j=link[j].next;if(j==0xffffffffu){break;}}
     state[i]=total;`));
   const scatter=await gpu.kernel('CFD scatter stabilized cell state',stateDecl+main('let k=link[i].root;if(i!=k){state[i]=state[k];}'));
-  return {links,stats:{cutCells:u[0],mergedCells:u[1],minFluidFraction:buffer[2],smallRoots:u[4],groupsWithChildren:u[5],maxTransportRatePerS:maximumRate},
+  return {links,stats:{cutCells:u[0],mergedCells:u[1],minFluidFraction:buffer[2],smallRoots:u[4],groupsWithChildren:u[5],remainingCutRoots:u[6],
+    fluidRootSearchSweeps:fluid?.waves,maxTransportRatePerS:maximumRate},
     stableStep:maximumRate>0?.65/maximumRate:Infinity,
     async courant(flux,tail,explicitOnly=false){
       const peak=gpu.buffer('CFD maximum momentum-group Courant number',4);
