@@ -45,17 +45,24 @@ export async function verifyLiveSolve(){
   }
   const valid=samples.filter(s=>s.pressureCoverage>0);
   if(valid.length<5||!valid.some(s=>s.pressurePa>0)||!valid.some(s=>s.pressurePa<0)||
-    !valid.every(s=>Math.abs(s.pressurePa/(.5*r.medium.rho*.018**2)-s.Cp)<1e-5&&s.gammaRev>=0&&s.gammaRev<=1))
+    !valid.every(s=>Math.abs(s.pressurePa/(.5*r.medium.rho*.018**2)-s.Cp)<1e-5&&s.gammaRev>=0&&s.gammaRev<=1&&
+      s.areaM2>0&&s.lossDensityUnit==='N/m2'&&s.dragDensityNPerM2>=0&&s.attributedPowerW>=0))
     throw Error('Surface observations disagree with the flow units or coverage: '+JSON.stringify(samples));
   const separation=document.querySelector('[data-plugin-action-button="separation-map"]');
   if(!separation||!separation.getClientRects().length)throw Error('No Separation map in native Attributes');
+  const drag=document.querySelector('[data-plugin-action-button="drag-map"]');
+  if(!drag||drag.getAttribute('aria-pressed')!=='true')throw Error('Drag must be the initial field of a new solution');
   await call('view.set',{index:1,single:true,shading:'solid',focus:sphere.hash});
   await call('diagnostics.frame',{frames:2});
   const points=[];
   for(const offset of [-28,-14,0,14,28])for(const y of [-12,12]){
     const hit=await call('view.project',{point:[offset,110+y,y]});points.push(hit.screen);
   }
+  const dragColors=(await call('diagnostics.pixels',{points})).colors;
+  document.querySelector('[data-plugin-action-button="pressure-map"]').click();await call('diagnostics.frame',{frames:3});
   const pressureColors=(await call('diagnostics.pixels',{points})).colors;
+  const changedDragPixels=dragColors.filter((a,i)=>a.slice(0,3).some((v,k)=>Math.abs(v-pressureColors[i][k])>12)).length;
+  if(!changedDragPixels)throw Error('Drag density was not visible on the native model');
   separation.click();await call('diagnostics.frame',{frames:3});
   if(separation.getAttribute('aria-pressed')!=='true')throw Error('Map selection did not reach the native viewport');
   const separationColors=(await call('diagnostics.pixels',{points})).colors;
@@ -68,7 +75,7 @@ export async function verifyLiveSolve(){
   await call('transform.set',{ids:[sphere.hash],channel:'position',axis:1,value:130,coordinates:'world'});
   await call('diagnostics.frame',{frames:3});
   const stale=await waitUntil(v=>v.state==='stale'&&v.result===null);
-  return {pass:true,empty:exact.result,rest:rest.result,mid:r,samples,changedPixels,finalState:stale.state};
+  return {pass:true,empty:exact.result,rest:rest.result,mid:r,samples,changedPixels,changedDragPixels,finalState:stale.state};
 }
 
 export async function verifyLiveSphere(){
@@ -115,6 +122,7 @@ export async function verifyLiveRotating(device){
     for(const o of occ)probes.push(await op('probe',{occurrence:o.occurrence,triangle:Math.floor(o.triangles*.4)}));
     const shaftWorkErrorW=Math.abs(r.powerW+motion.omega*r.rotorMetrics.shaftTorqueNm);
     return {pass:r.steps>=4&&r.forceLocal.magnitude>0&&r.torque.every(Number.isFinite)&&
+      r.surfaceFields.loss.unit==='W/m2'&&r.surfaceFields.loss.attributedPowerW>0&&probes.every(p=>p.lossDensityUnit==='W/m2'&&p.dragDensityNPerM2===null)&&
       Number.isFinite(r.powerW)&&r.rotorMetrics.J===0&&shaftWorkErrorW<1e-6&&r.validity.maxDivergencePerS<1e-6,
       job:started.job,rpm:motion.rpm,shaftWorkErrorW,result:r,probes};
   }finally{await op('stop');}

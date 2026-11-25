@@ -36,7 +36,7 @@ export async function pluginChecks(parent){
   await timed('canonical native input update',1500,()=>call('scene.update',{id:A,params:{Altitude:120}}));
   const beforeReject=await rows();for(const params of [{Speed:-1},{Medium:'Oil'},{Ground:'Moving'}]){const rejected=await page.evaluate(async({id,params})=>{try{await frameAI.call('scene.update',{id,params});return false;}catch{return true;}},{id:A,params});check('invalid native input rejects '+JSON.stringify(params),rejected);}
   check('all invalid writes preserve authored scene',same(await rows(),beforeReject));
-  const desc=await call('plugins.describe',{plugin:'cfd'});check('native flow and surface operations registered',['status','wall-motion','solve-frame','stop','results','probe','pressure-map','separation-map'].every(id=>desc.operations.some(o=>o.id===id)),desc.operations);
+  const desc=await call('plugins.describe',{plugin:'cfd'});check('native flow and surface operations registered',['status','wall-motion','solve-frame','stop','results','probe','drag-map','pressure-map','separation-map'].every(id=>desc.operations.some(o=>o.id===id)),desc.operations);
   const badBudget=await page.evaluate(async id=>{try{await frameAI.call('plugins.command',{id,operation:'solve-frame',args:{fidelityBudget:'invalid'}});return false;}catch{return true;}},A);
   check('invalid fidelity rejected before work',badBudget);
   check('rejected numerical calls do not mutate scene',same(await rows(),beforeReject));

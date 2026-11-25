@@ -184,6 +184,9 @@ try{
     if(subcell&&!subcell.pass)throw Error('Subcell slab measure or first moment mismatch: '+JSON.stringify(subcell));
     const skinPressure=selection.surfacePressure?await (await import('./plugins/cfd/tests/m0/surface-pressure-check.mjs')).verifySurfacePressure(device):null;
     if(skinPressure&&!skinPressure.pass)throw Error('Native surface pressure disagrees with the analytic wrench: '+JSON.stringify(skinPressure));
+    const loss=selection.surfacePressure?await import('./plugins/cfd/tests/m0/loss-check.mjs'):null;
+    const surfaceLoss=loss?{bins:await loss.verifyClosestWallBins(device),dissipation:await loss.verifyDissipation(device)}:null;
+    if(surfaceLoss&&(!surfaceLoss.bins.pass||!surfaceLoss.dissipation.pass))throw Error('Surface loss assignment disagrees with physical balances: '+JSON.stringify(surfaceLoss));
     const exteriorMomentum=await (await import('./plugins/cfd/tests/m0/momentum-check.mjs')).verifyMomentum(device,selection.graded,true);
     if(!exteriorMomentum.pass)throw Error('Exterior traction or smooth-wall relation failed: '+JSON.stringify(exteriorMomentum));
     const cutMetric=selection.cutCells?await (await import('./plugins/cfd/tests/m0/cut-metric.mjs')).verifyCutMetric(device):null;
@@ -234,7 +237,7 @@ try{
     if(focused&&!flow?.cases.length)throw Error('No candidate matches the requested case');
     await device.queue.onSubmittedWorkDone();
     const fixture=saveFixture?await frameAI.call('scene.export',{includeData:true}):null;
-    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,pressure,flow,errors,lost,fixture};
+    return {hardware,deviceRequests:window.cfdDeviceRequests,features:[...device.features],webnn:!!navigator.ml,fixtureGeometry,physicalTime,piston,momentum,exteriorMomentum,cutMetric,cutMomentum,wallDistance,affineWall,sheet,faceTransport,nativeGraphLinks,spinningLoad,outerTransport,latticeWall,latticeMotion,latticeMass,latticeSurface,subcell,apertureFlow,skinPressure,surfaceLoss,coarsePressure,groupTransport,incremental,cutRelax,equilibrium,regularPressure,projectionShape,nativeProjectionShape,pressure,flow,errors,lost,fixture};
   },{pressureOnly,wallOnly,nativeSphere,nativeAhmed,nativeRotor,savedScene:sceneBytes?{name:basename(scenePath),base64:sceneBytes.toString('base64')}:null,saveFixture:!!saveFixture,graphOnly:args.includes('--graph-only'),tier,focused,selection});
   const {fixture}=result;delete result.fixture;
   Object.assign(report,result,{browser:browser.version(),pageErrors:errors});
