@@ -828,6 +828,8 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display,histor
           validity:{stationary,maxDivergencePerS:mass.maxDivergencePerS,relativeDivergenceMax:mass.maxRelativeDivergence,
             ...(mass.flowReconstruction?{pressureFluxReconstruction:{method:mass.flowReconstruction.subtreeMethod,
               depthLevels:mass.flowReconstruction.levels,subtreeDispatches:mass.flowReconstruction.subtreeDispatches,
+              sealedFluidCells:mass.flowReconstruction.sealedUnreached,sealedComponents:mass.flowReconstruction.sealedComponents,
+              maxAcceptedSealedCompatibilityPerS:mass.flowReconstruction.maxAcceptedSealedCompatibilityPerS,
               maxAcceptedRelativeSpeed:mass.flowReconstruction.maxAcceptedRelativeSpeed}}:{}),
             temporalConvergence:stationary?'window-stationary':step===end&&window+1===windowLimit?'window-limit':'sampling',
             spatialConvergence:'single-grid',partiallyContained,loadScope:'inside-cfd-box',
@@ -3504,7 +3506,7 @@ async function prefixSubtreeSums(gpu,f,common,parent,ordered,ranges,reached,flux
     @group(0) @binding(4) var<storage,read_write> next:array<atomic<u32>>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u){
       if(id.x>=block.y){return;}let i=ids[block.x+id.x];let p=point(i);var first=span[i].x;
-      if(!inside(neighbour(p,dir[i]))){first=atomicAdd(&next[0],span[i].y);atomicMax(&next[1],span[i].y);span[i].x=first;}
+      if(dir[i]==6u||!inside(neighbour(p,dir[i]))){first=atomicAdd(&next[0],span[i].y);atomicMax(&next[1],span[i].y);span[i].x=first;}
       var start=first+1u;for(var c=0u;c<6u;c++){let q=neighbour(p,c);if(inside(q)&&dir[bounded(q)]==(c^1u)){
         let j=index(q);span[j].x=start;start+=span[j].y;
       }}
@@ -3569,9 +3571,77 @@ async function prefixSubtreeSums(gpu,f,common,parent,ordered,ranges,reached,flux
   return {phases,largestRoot};
 }
 
-// Route only the remaining projection defect. An edge never crosses a closed
-// face. A root discharges through an actual pressure reservoir. Components
-// disconnected from all reservoirs retain the ordinary pressure correction.
+// Each closed component needs one internal root. Prefer the largest fluid
+// volume so rounding of its zero net discharge has the smallest effect on
+// divergence. Work on the compact list of cells outside the open forest.
+async function sealedPressureDepths(gpu,f,common,mu,depth,slot){
+  const device=gpu.device,n=countOf(f.dims),grid=[Math.ceil(n/128)];
+  const counters=gpu.buffer('CFD sealed pressure component counts',16),read=gpu.staging('CFD sealed component geometry',16);
+  const head=common+`
+    @group(0) @binding(0) var<storage,read> mu:array<vec4f>;
+    @group(0) @binding(1) var<storage,read> depth:array<u32>;
+    @group(0) @binding(2) var<storage,read_write> counts:array<atomic<u32>>;`;
+  const count=await gpu.kernel('CFD count sealed fluid cells',head+`
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      if(g.x<CELLS&&mu[g.x].w>0.&&depth[g.x]==NONE){atomicAdd(&counts[0],1u);}
+    }`);
+  gpu.run(count,[mu,depth,counters],grid);
+  const cells=new Uint32Array((await gpu.read(counters,read,4)).buffer)[0];
+  if(!cells){counters.destroy();read.destroy();return {cells,components:0,maxDepth:0};}
+  const ids=gpu.buffer('CFD sealed cell indices',4*cells),labels=[0,1].map(()=>gpu.buffer('CFD sealed root, volume and distance',16*cells));
+  const compact=[Math.ceil(cells/128)];
+  const pack=await gpu.kernel('CFD index sealed volumes',head+metricWGSL(f)+`
+    @group(0) @binding(3) var<storage,read_write> ids:array<u32>;
+    @group(0) @binding(4) var<storage,read_write> slot:array<u32>;
+    @group(0) @binding(5) var<storage,read_write> label:array<vec4u>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let i=g.x;if(i>=CELLS){return;}var k=NONE;
+      if(mu[i].w>0.&&depth[i]==NONE){
+        k=atomicAdd(&counts[0],1u);ids[k]=i;let w=cellWidths(point(i));
+        label[k]=vec4u(bitcast<u32>(mu[i].w*w.x*w.y*w.z),i,0u,0u);
+      }slot[i]=k;
+    }`);
+  const enc=device.createCommandEncoder();enc.clearBuffer(counters);
+  gpu.dispatch(enc,pack,gpu.bind(pack,[mu,depth,counters,ids,slot,labels[0]],metricBuffer(gpu,f)),grid);
+  device.queue.submit([enc.finish()]);
+  const relax=await gpu.kernel('CFD connect sealed pockets through open faces',common+`
+    @group(0) @binding(0) var<storage,read> ids:array<u32>;
+    @group(0) @binding(1) var<storage,read> slot:array<u32>;
+    @group(0) @binding(2) var<storage,read> mu:array<vec4f>;
+    @group(0) @binding(3) var<storage,read> old:array<vec4u>;
+    @group(0) @binding(4) var<storage,read_write> out:array<vec4u>;
+    @group(0) @binding(5) var<storage,read_write> counts:array<atomic<u32>>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let k=g.x;if(k>=arrayLength(&ids)){return;}let i=ids[k];let p=point(i);var best=old[k];
+      for(var c=0u;c<6u;c++){let q=neighbour(p,c);if(!inside(q)){continue;}let j=index(q);
+        if(slot[j]==NONE||mu[select(j,i,upper(c))][c/2u]<=0.){continue;}var v=old[slot[j]];v.z++;
+        if(v.x>best.x||(v.x==best.x&&(v.y<best.y||(v.y==best.y&&v.z<best.z)))){best=v;}
+      }out[k]=best;if(any(best!=old[k])){atomicOr(&counts[1],1u);}
+    }`);
+  const bindings=labels.map((v,k)=>gpu.bind(relax,[ids,slot,mu,v,labels[1-k],counters]));
+  let changed;
+  do{
+    const e=device.createCommandEncoder();e.clearBuffer(counters,4,4);
+    for(let k=0;k<8;k++)gpu.dispatch(e,relax,bindings[k%2],compact);
+    e.copyBufferToBuffer(counters,0,read,0,16);device.queue.submit([e.finish()]);await read.mapAsync(GPUMapMode.READ);
+    try{changed=new Uint32Array(read.getMappedRange())[1];}finally{read.unmap();}
+  }while(changed);
+  const save=await gpu.kernel('CFD retain closed pressure paths',`
+    @group(0) @binding(0) var<storage,read> ids:array<u32>;@group(0) @binding(1) var<storage,read> label:array<vec4u>;
+    @group(0) @binding(2) var<storage,read_write> depth:array<u32>;
+    @group(0) @binding(3) var<storage,read_write> counts:array<atomic<u32>>;
+    @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) g:vec3u){
+      let k=g.x;if(k>=arrayLength(&ids)){return;}let d=label[k].z;depth[ids[k]]=d;
+      if(d==0u){atomicAdd(&counts[2],1u);}atomicMax(&counts[3],d);
+    }`);
+  gpu.run(save,[ids,labels[0],depth,counters],compact);
+  const [, ,components,maxDepth]=new Uint32Array((await gpu.read(counters,read,4)).buffer);
+  for(const b of [ids,...labels,counters,read])b.destroy();
+  return {cells,components,maxDepth};
+}
+
+// A boundary tree discharges through its physical pressure reservoir. A
+// sealed tree balances interior faces and checks compatibility at its root.
 export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   const device=gpu.device,n=f.dims.reduce((a,b)=>a*b),grid=[Math.ceil(n/128)],axes=metricBuffer(gpu,f);
   const common=gridWGSL(f)+openBoundaries(f)+`
@@ -3603,6 +3673,8 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
     waves+=8;e.copyBufferToBuffer(changed,0,one,0,4);device.queue.submit([e.finish()]);await one.mapAsync(GPUMapMode.READ);
     try{expanded=new Uint32Array(one.getMappedRange())[0];}finally{one.unmap();}
   }while(expanded);
+  const sealed=await sealedPressureDepths(gpu,f,common,mu,distances[0],distances[1]);
+  waves=Math.max(waves,sealed.maxDepth);
   const bucket=gpu.buffer('CFD pressure forest level counts',4*(waves+2)),parent=gpu.buffer('CFD pressure discharge direction',4*n);
   const choose=await gpu.kernel('CFD widest shortest pressure paths',common+metricWGSL(f)+arr(0,'mu','vec4f')+
     arr(1,'dist','u32')+arr(2,'direction','u32',true)+st(3,'bucket','array<atomic<u32>>',true)+each(`
@@ -3613,7 +3685,7 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
             strength=mu[select(j,i,upper(c))][a]*area[a]*spacingInv(a,p[a],select(-1,1,upper(c)));
           }else{if(d!=0u||!openFace(a,select(-1,1,upper(c)))){continue;}strength=2.*area[a]/w[a];}
           if(strength>0.&&strength>best){best=strength;choice=c;}
-        }atomicAdd(&bucket[d],1u);
+        }if(choice==NONE&&d==0u){choice=6u;}atomicAdd(&bucket[d],1u);
       }else if(mu[i].w>0.){atomicAdd(&bucket[${waves+1}u],1u);}
       direction[i]=choice;`));
   gpu.run(choose,[mu,distances[0],parent,bucket],grid,axes);
@@ -3631,10 +3703,11 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   await device.queue.onSubmittedWorkDone();for(const b of [...distances,bucket,histogram,one,changed])b.destroy();
 
   const sum=gpu.buffer('CFD compensated subtree discharges',8*n);
-  const audit=gpu.buffer('CFD discharge reconstruction bounds',8),auditStage=gpu.staging('CFD conservative reconstruction limit',8);
+  const audit=gpu.buffer('CFD discharge reconstruction bounds',12),auditStage=gpu.staging('CFD conservative reconstruction limit',12);
   const energy=gpu.buffer('CFD face energy by workgroup',4*grid[0]);
-  const stats={levels:levels.subarray(0,-1).filter(v=>v>0).length,reached,sealedUnreached:levels.at(-1),
-    attempts:0,accepted:0,maxAcceptedRelativeSpeed:0,maxAcceptedRelativeRmsPressureGradientBound:0,maxTriedRelativeSpeed:0};
+  const stats={levels:levels.subarray(0,-1).filter(v=>v>0).length,reached:reached-sealed.cells,sealedUnreached:sealed.cells,
+    sealedComponents:sealed.components,maxSealedCompatibilityPerS:0,maxAcceptedSealedCompatibilityPerS:0,attempts:0,accepted:0,
+    maxAcceptedRelativeSpeed:0,maxAcceptedRelativeRmsPressureGradientBound:0,maxTriedRelativeSpeed:0};
   const fields='struct Flux{hi:vec4f,lo:vec4f} ';
   const collect=await gpu.kernel('CFD conservative subtree sum',common+fields+addFlowWGSL+
     arr(0,'h','Flux')+arr(1,'l','Flux')+arr(2,'dir','u32')+arr(3,'ids','u32')+arr(4,'sum','vec2f',true)+
@@ -3656,17 +3729,20 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   }
   const reference=f.maxSpeed*dt/f.h;
   const bound=await gpu.kernel('CFD bound the face velocity perturbation',common+metricWGSL(f)+arr(0,'mu','vec4f')+
-    arr(1,'dir','u32')+arr(2,'sum','vec2f')+st(3,'peak','atomic<u32>',true)+arr(4,'energy','f32',true)+`
+    arr(1,'dir','u32')+arr(2,'sum','vec2f')+st(3,'peak','array<atomic<u32>>',true)+arr(4,'energy','f32',true)+`
     var<workgroup> values:array<u32,128>;var<workgroup> energies:array<f32,128>;
     @compute @workgroup_size(128) fn main(@builtin(global_invocation_id) id:vec3u,@builtin(local_invocation_index) lane:u32,@builtin(workgroup_id) block:vec3u){
-      let i=id.x;var v=0.;var e=0.;if(i<CELLS&&dir[i]!=NONE){let c=dir[i];let a=c/2u;let p=point(i);let q=neighbour(p,c);
+      let i=id.x;var v=0.;var e=0.;if(i<CELLS&&dir[i]==6u){
+        let w=cellWidths(point(i));let residual=abs(sum[i].x+sum[i].y)/(mu[i].w*w.x*w.y*w.z*${dt});
+        atomicMax(&peak[2],bitcast<u32>(residual));
+      }else if(i<CELLS&&dir[i]<6u){let c=dir[i];let a=c/2u;let p=point(i);let q=neighbour(p,c);
         let width=cellWidths(p);var aperture=1.;var distance=.5*width[a];
         if(inside(q)){aperture=mu[select(index(q),i,upper(c))][a];distance=1./spacingInv(a,p[a],select(-1,1,upper(c)));}
         let area=aperture*faceAreas(width)[a];let flow=(sum[i].x+sum[i].y)/${reference};
         v=abs(flow)/area;e=flow*flow*distance/area;
       }values[lane]=bitcast<u32>(v);energies[lane]=e;
       for(var d=64u;d>0u;d/=2u){workgroupBarrier();if(lane<d){values[lane]=max(values[lane],values[lane+d]);energies[lane]+=energies[lane+d];}}
-      if(lane==0u){atomicMax(&peak,values[0]);energy[block.x]=energies[0];}
+      if(lane==0u){atomicMax(&peak[0],values[0]);energy[block.x]=energies[0];}
     }`);
   const boundGroup=gpu.bind(bound,[mu,parent,sum,audit,energy],axes);
   const volume=f.axes?f.axes.reduce((v,axis)=>v*(axis.at(-1)-axis[0])/f.h,1):n;
@@ -3702,15 +3778,18 @@ export async function fluxEquilibration(gpu,f,dt,mu,flux,tail){
   stats.subtreeDispatches=proposals.length;
   if(prefix)stats.largestRootCells=prefix.largestRoot;
   proposals.push({kind:'bound face perturbation',encode:e=>{
-    e.clearBuffer(audit);gpu.dispatch(e,bound,boundGroup,grid);gpu.dispatch(e,reduce,reduceGroup,[1]);e.copyBufferToBuffer(audit,0,auditStage,0,8);
+    e.clearBuffer(audit);gpu.dispatch(e,bound,boundGroup,grid);gpu.dispatch(e,reduce,reduceGroup,[1]);e.copyBufferToBuffer(audit,0,auditStage,0,12);
   }});
   const publish={kind:'equilibrate shared discharges',encode:e=>gpu.dispatch(e,apply,applyGroup,grid)};
   return {stats,async correct(scheduler,assertCurrent,limit=1e-5){
-    await scheduler.perform(proposals,assertCurrent);await auditStage.mapAsync(GPUMapMode.READ);let peak,rms;
-    try{[peak,rms]=new Float32Array(auditStage.getMappedRange());}finally{auditStage.unmap();}
+    await scheduler.perform(proposals,assertCurrent);await auditStage.mapAsync(GPUMapMode.READ);let peak,rms,compatibility;
+    try{[peak,rms,compatibility]=new Float32Array(auditStage.getMappedRange());}finally{auditStage.unmap();}
     stats.attempts++;stats.maxTriedRelativeSpeed=Math.max(peak,stats.maxTriedRelativeSpeed);
+    stats.maxSealedCompatibilityPerS=Math.max(stats.maxSealedCompatibilityPerS,compatibility);
+    if(!(compatibility<=7e-7/Math.max(1,f.period??1)))return false;
     if(!Number.isFinite(peak)||!Number.isFinite(rms)||peak>limit||rms>limit)return false;
     await scheduler.perform([publish],assertCurrent);stats.accepted++;
+    stats.maxAcceptedSealedCompatibilityPerS=Math.max(stats.maxAcceptedSealedCompatibilityPerS,compatibility);
     stats.maxAcceptedRelativeSpeed=Math.max(peak,stats.maxAcceptedRelativeSpeed);
     stats.maxAcceptedRelativeRmsPressureGradientBound=Math.max(rms,stats.maxAcceptedRelativeRmsPressureGradientBound);return true;
   }};

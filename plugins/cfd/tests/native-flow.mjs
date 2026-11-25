@@ -25,6 +25,7 @@ const cases={
   'cavity':['cavity-check','verifyCavity'],
   'flow-regime':['regime-check','verifyFlowRegime'],'modeled-regime':['regime-check','verifyModeledRegime'],
   'pressure-forest':['flux-equilibration-check','verifyPrefixForest'],
+  'sealed-pressure':['flux-equilibration-check','verifySealedPressure'],
   'temporal-interval':['time-statistics-check','verifyNativeTemporalInterval'],
   'frozen-eddy-shape':['steady-shape-check','verifyFrozenEddyForce'],
   'native-frozen-eddy-shape':['steady-shape-check','verifyNativeFrozenEddyForce'],

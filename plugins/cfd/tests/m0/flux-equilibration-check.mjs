@@ -112,3 +112,69 @@ export async function verifyPrefixForest(device){
       depth.subtreeMethod==='depth ordering'&&depth.subtreeDispatches>80,dims,runs};
   }finally{gpu.close();}
 }
+
+// Three chambers share the same mesh. Each wall is impermeable; only the
+// rightmost chamber can reach an outlet. A sealed chamber can carry both
+// circulation and a pressure defect, but cannot sustain a net mass source.
+export async function verifySealedPressure(device){
+  const dims=[24,12,8],[nx,ny,nz]=dims,n=nx*ny*nz,h=.003,dt=.00021;
+  const stride=[1,nx,nx*ny],at=(x,y,z)=>x+nx*(y+ny*z);
+  const axes=dims.map((d,a)=>Float64Array.from({length:d+1},(_,i)=>h*i*(.73+.23*i/d+.04*a)));
+  const f={dims,h,axes,origin:[0,0,0],maxSpeed:3,period:.12};
+  const mu=new Float32Array(4*n),high=new Float32Array(8*n),low=new Float32Array(8*n);
+  for(let z=0;z<nz;z++)for(let y=0;y<ny;y++)for(let x=0;x<nx;x++){
+    const p=[x,y,z],i=at(x,y,z);
+    mu[4*i+3]=x%5===0?.0008:.74+.01*(i%23);
+    for(let a=0;a<3;a++){
+      if(p[a]+1===dims[a]||a===0&&(x===7||x===15))continue;
+      mu[4*i+a]=.55+.01*((i+a)%41);
+      low[8*i+a]=low[8*(i+stride[a])+4+a]=1.2e-8*Math.sin(i*1.9+a);
+    }
+  }
+  for(const x of [2,11,18]){
+    for(const [i,a,v] of [[at(x,4,3),0,.1875],[at(x+1,4,3),1,.1875],[at(x,5,3),0,-.1875],[at(x,4,3),1,-.1875]])
+      high[8*i+a]=high[8*(i+stride[a])+4+a]=v;
+  }
+  const scheduler={async perform(ops){const e=device.createCommandEncoder();for(const op of ops)op.encode(e);device.queue.submit([e.finish()]);}};
+  const runs=[];
+  for(const closed of [false,true])for(const prefixForest of [false,true]){
+    const gpu=gpuScope(device);
+    try{
+      const hi=gpu.buffer('Sealed loop momentum',high),lo=gpu.buffer('Small chamber discharges',low);
+      const tree=await fluxEquilibration(gpu,{...f,prefixForest,pressureOpen:[false,!closed,false,false,false,false]},dt,
+        gpu.buffer('Three fluid chambers',mu),hi,lo);
+      const stage=gpu.staging('Independent chamber fluxes',32*n);
+      const accepted=await tree.correct(scheduler,null,1e-4);
+      const H=await gpu.read(hi,stage,8*n),L=await gpu.read(lo,stage,8*n);
+      let maxDivergence=0,initialDivergence=0,wallFlow=0,sharedError=0,circulationChange=0;
+      for(let i=0;i<n;i++){
+        const p=[i%nx,Math.floor(i/nx)%ny,Math.floor(i/(nx*ny))];let defect=0,initial=0;
+        for(let a=0;a<3;a++){
+          const k=8*i+a,v=H[k]+L[k],u=H[k+4]+L[k+4];defect+=v-u;
+          initial+=(high[k]-high[k+4])+(low[k]-low[k+4]);
+          if(high[k])circulationChange=Math.max(circulationChange,Math.abs(v-high[k]));
+          if(p[a]+1<dims[a]){
+            const other=8*(i+stride[a])+4+a;sharedError=Math.max(sharedError,Math.abs(v-(H[other]+L[other])));
+            if(mu[4*i+a]===0)wallFlow=Math.max(wallFlow,Math.abs(v));
+          }else if(closed||a!==0)wallFlow=Math.max(wallFlow,Math.abs(v));
+          if(p[a]===0)wallFlow=Math.max(wallFlow,Math.abs(u));
+        }
+        const volume=p.reduce((v,j,a)=>v*cellWidth(f,a,j),dt*mu[4*i+3]);
+        initialDivergence=Math.max(initialDivergence,Math.abs(initial)/volume);
+        maxDivergence=Math.max(maxDivergence,Math.abs(defect)/volume);
+      }
+      // Impose a unilateral inlet flux in a sealed chamber. It must survive
+      // the failed attempt unchanged and must not leak through either baffle.
+      const injected=L.slice();injected[8*at(0,4,3)+4]=.0002;
+      device.queue.writeBuffer(lo,0,injected);
+      const incompatibleRefused=!await tree.correct(scheduler,null,1);
+      const rejectedHi=await gpu.read(hi,stage,8*n),rejectedLo=await gpu.read(lo,stage,8*n);
+      const rejectedUnchanged=H.every((v,i)=>v===rejectedHi[i])&&injected.every((v,i)=>v===rejectedLo[i]);
+      runs.push({closed,prefixForest,applied:accepted,initialDivergence,maxDivergence,wallFlow,sharedError,circulationChange,
+        incompatibleRefused,rejectedUnchanged,...tree.stats});
+    }finally{gpu.close();}
+  }
+  return {pass:runs.every(r=>r.applied&&r.accepted===1&&r.initialDivergence>.001&&r.maxDivergence<1e-8&&r.sharedError===0&&
+    r.wallFlow===0&&r.circulationChange<1e-5&&r.incompatibleRefused&&r.rejectedUnchanged&&r.maxSealedCompatibilityPerS>.01&&
+    r.sealedComponents===(r.closed?3:2)&&r.sealedUnreached===(r.closed?n:2*n/3)),dims,runs};
+}
