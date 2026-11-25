@@ -318,3 +318,105 @@ export async function verifyCloudHover(){
   return {pass:Number.isFinite(p)&&Math.abs(p-expected.pressurePa)<Math.max(1e-12,Math.abs(p)*.00051),
     authoredOccurrences:meshes.length,participating:r.occurrences,occurrence,triangle,radius,screen:[x,y],expected,text};
 }
+
+export async function verifyFrameHistory(){
+  const call=(name,params={})=>frameAI.call(name,params);
+  const op=(id,operation,args={})=>call('plugins.command',{id,operation,args});
+  await call('scene.new');
+  const {hash:a}=await call('scene.create',{type:'cfd',name:'Wind'});
+  const {hash:b}=await call('scene.create',{type:'cfd',name:'Rest',params:{Speed:0}});
+  const body=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':15}});
+  await call('transform.apply',{ids:[body.hash],position:[0,100,0],coordinates:'world'});
+  for(const [frame,value] of [[0,.017],[1,0],[3,0]])await call('animation.key',{id:a,path:'param:Speed',frame,value,interpolation:'hard'});
+  const seek=async frame=>{await call('animation.seek',{frame});await call('diagnostics.frame',{frames:2});};
+  const solve=async id=>{
+    await op(id,'solve-frame',{fidelityBudget:'preview'});const until=performance.now()+180000;
+    for(;;){const s=await op(id,'results');if(['ready','unconverged'].includes(s.state))return s;
+      if(s.state==='failed'||s.state==='stale'||performance.now()>until)throw Error('No native sample: '+JSON.stringify(s));
+      await new Promise(resolve=>setTimeout(resolve,85));}
+  };
+  await seek(0);const first=await solve(a),third=Math.floor(first.result.surfaceFields.occurrences[0].triangles/3);
+  const field=await op(a,'probe',{occurrence:0,triangle:third});
+  await seek(1);const dirty=await op(a,'results');
+  if(dirty.result||['solving','queued'].includes(dirty.state))throw Error('Seeking started a solve or exposed another frame');
+  const rest=await solve(a);await solve(b);
+  await seek(2);const preceding=await op(a,'results');if(preceding.result)throw Error('Unexpected implicit frame solve');
+  const reused=await solve(a);
+  const history=await op(a,'force-history',{limit:2}),tail=await op(a,'force-history',{firstFrame:history.nextFrame,limit:1});
+  if(rest.result.solver!=='uniform-equilibrium'||reused.result.cache!=='hit'||reused.job.id!==rest.job.id||
+    history.total!==3||history.samples.length!==2||history.nextFrame!==2||tail.samples[0]?.frame!==2)throw Error('Invalid force/cache history: '+JSON.stringify({rest,reused,history,tail}));
+  await seek(0);const back=await op(a,'results'),again=await op(a,'probe',{occurrence:0,triangle:third});
+  if(back.result?.cache!=='hit'||back.job.id!==first.job.id||field.pressurePa!==again.pressurePa||field.lossDensity!==again.lossDensity)
+    throw Error('Returning to a solved frame did not restore its native fields');
+  await call('view.set',{index:1,single:true,shading:'solid',focus:body.hash});await call('diagnostics.frame',{frames:2});
+  if((await op(a,'force-history')).total!==3)throw Error('Camera navigation erased force history');
+  await call('scene.select',{ids:[a]});document.querySelector('#tabAttributes').click();await call('diagnostics.frame',{frames:2});
+  const click=(shift=false)=>document.querySelector('[data-plugin-readout="force"]').dispatchEvent(new MouseEvent('click',{bubbles:true,shiftKey:shift}));
+  const rendered=()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  const list=()=>frameCurves.channels.map(ch=>({name:ch.path,samples:ch.t.keys.size,measured:!!ch.readOnly}));
+  document.querySelector('[data-field="Speed"]').closest('.attr-row').querySelector('.attr-lab').click();await rendered();
+  const authored=list();click(true);await rendered();const appended=list();click();await rendered();const only=list();
+  const readOnlyHits=frameCurves.hits.filter(h=>h.ch?.readOnly).length;
+  const before=(await call('animation.inspect',{id:a})).channels;
+  frameCurves.canvas.dispatchEvent(new KeyboardEvent('keydown',{key:'a',code:'KeyA',ctrlKey:true,bubbles:true}));
+  frameCurves.canvas.dispatchEvent(new KeyboardEvent('keydown',{key:'Delete',code:'Delete',bubbles:true}));
+  const after=(await call('animation.inspect',{id:a})).channels;
+  const sampled=frameCurves.channels.map(ch=>[...ch.t.keys].map(([f,row])=>[f,row.v[ch.axis]]));
+  const h=(await op(a,'force-history')).samples;
+  if(sampled.some((rows,i)=>rows.length!==h.length||rows.some(([f,v],k)=>f!==h[k].frame||v!==(i<3?h[k].forceWorld[i]:h[k].magnitude))))
+    throw Error('Displayed Force channels disagree with physical samples');
+  await seek(1);await call('scene.select',{ids:[b]});await call('diagnostics.frame',{frames:2});click(true);await rendered();
+  const together=list();await call('transform.set',{ids:[body.hash],channel:'position',axis:0,value:25,coordinates:'world'});
+  await call('diagnostics.frame',{frames:2});const invalidated=(await op(a,'force-history')).total;
+  return {pass:authored.some(c=>!c.measured&&c.name==='param:Speed')&&appended.filter(c=>c.measured).length===4&&appended.length===5&&
+    only.length===4&&only.every(c=>c.measured&&c.samples===3)&&together.length===8&&readOnlyHits===0&&JSON.stringify(before)===JSON.stringify(after)&&invalidated===0,
+    first:first.result.forceWorld,history,tail,cache:{equilibrium:reused.job.id===rest.job.id,fields:back.job.id===first.job.id},
+    restoredProbe:again,authored,appended,only,together,readOnlyHits,invalidated};
+}
+
+export async function verifyAnimationSolve(){
+  const call=(name,params={})=>frameAI.call(name,params);
+  await call('scene.new');const {hash:id}=await call('scene.create',{type:'cfd',name:'Animation reference',params:{Speed:0}});
+  const body=await call('scene.create',{type:'sphere',params:{diameter:80,'angle approximation':15}});
+  await call('transform.apply',{ids:[body.hash],position:[0,100,0],coordinates:'world'});
+  const seek=async frame=>{await call('animation.seek',{frame});await call('diagnostics.frame',{frames:2});};
+  const op=(operation,args={})=>call('plugins.command',{id,operation,args});
+  const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  async function until(test){
+    const end=performance.now()+180000;
+    for(;;){const v=await op('status');if(test(v))return v;
+      if(v.animation?.state==='failed'||performance.now()>end)throw Error('Unexpected animation state: '+JSON.stringify(v));await wait(25);}
+  }
+  await seek(7);await call('scene.select',{ids:[id]});document.querySelector('#tabAttributes').click();
+  await call('diagnostics.frame',{frames:3});const button=()=>document.querySelector('[data-plugin-action-button="solve-animation"]');
+  if(button()?.textContent!=='Animation'||button().disabled)throw Error('Native Solve Animation button is unavailable');
+  button().click();const busy=await until(s=>s.animation?.state==='solving');
+  const shown=button()?.textContent,native=await until(s=>s.animation?.state==='ready');
+  const time=await call('animation.inspect'),series=await op('force-history',{limit:512});
+  if(time.frame!==7||native.animation.completedFrames!==time.total+1||native.animation.cachedFrames!==time.total||
+    series.samples.length!==time.total+1||series.samples.some(s=>s.magnitude!==0||!s.stationary))throw Error('Native timeline or cached samples disagree: '+JSON.stringify({time,native,series}));
+  await call('animation.key',{id,path:'param:Speed',frame:0,value:.017,interpolation:'hard'});
+  await call('animation.key',{id,path:'param:Speed',frame:1,value:0,interpolation:'hard'});
+  await call('animation.key',{id,path:'param:Speed',frame:3,value:0,interpolation:'hard'});
+  const measured=await op('solve-animation',{firstFrame:0,lastFrame:3,fidelityBudget:'preview'});
+  const duplicate=await op('solve-animation',{firstFrame:0,lastFrame:3,fidelityBudget:'preview'});
+  const done=await until(s=>s.animation?.id===measured.animation.id&&['ready','unconverged'].includes(s.animation.state));
+  const loads=await op('force-history'),restored=(await call('animation.inspect')).frame;
+  await seek(0);const final=await op('results');
+  if(final.result?.solver!=='cartesian-fvm'||final.result?.cache!=='hit')throw Error('Missing force and surface fields after revisiting solved frame');
+  await seek(7);
+  const stop=await op('solve-animation',{firstFrame:0,lastFrame:1,fidelityBudget:'standard'});
+  await until(s=>s.animation?.id===stop.animation.id&&s.job?.frame===0&&s.state==='solving');
+  const stopButton=button();if(stopButton.textContent!=='Stop')throw Error('Animation Stop unavailable');
+  stopButton.click();
+  for(let i=0;i<120&&(await call('animation.inspect')).frame!==7;i++)await wait(50);
+  const stopped=await op('status'),stopFrame=(await call('animation.inspect')).frame;
+  const override=await op('solve-animation',{firstFrame:0,lastFrame:1,fidelityBudget:'standard'});
+  await until(s=>s.animation?.id===override.animation.id&&s.job?.frame===0&&s.state==='solving');
+  await seek(11);const interrupted=await until(s=>s.animation?.state==='stale'||s.animation?.state==='stopped');
+  await wait(150);const held=(await call('animation.inspect')).frame,dirty=await op('results');
+  return {pass:shown==='Stop'&&busy.animation.state==='solving'&&duplicate.animation.id===measured.animation.id&&done.animation.completedFrames===4&&
+    done.animation.cachedFrames>=2&&loads.total===4&&loads.samples[0].magnitude>0&&loads.samples.slice(1).every(s=>s.magnitude===0)&&
+    restored===7&&stopped.animation.state==='stopped'&&stopFrame===7&&held===11&&dirty.result===null,
+    full:native.animation,totalFrames:time.total+1,physical:done.animation,loads,restored,stopped:stopped.animation,stopFrame,interrupted:interrupted.animation,held};
+}

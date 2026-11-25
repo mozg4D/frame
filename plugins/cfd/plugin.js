@@ -89,7 +89,7 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
       throw Error('Native animation or sample time changed during the CFD solve');
   }
   if(animation.objects.some(o=>o.plugin&&o.plugin!=='cfd'))throw Error('A physical plugin source requires evaluated surface velocities');
-  if(!channels.length&&allowStationary)return {capture:initial,motion:null,frame:animation.frame,fps:animation.fps,assertCurrent:()=>verifyAnimation(initial)};
+  if(!channels.length&&allowStationary)return {capture:initial,motion:null,animationSignature:signature,frame:animation.frame,fps:animation.fps,assertCurrent:()=>verifyAnimation(initial)};
   if(!ids.length||ids.length!==initial.meshes.length||ids.some(id=>doc.get(id)?.type!=='mesh'))
     throw Error('Rigid rotation requires directly evaluated polygon components');
   const boxOwners=new Set();
@@ -160,7 +160,7 @@ export function frozenWallMotion(device,ctx,owner,{allowStationary=false}={}){
   const capture=captureFlowSurfaces(device,ctx,owner,axisOrigin);
   const assertCurrent=()=>verifyAnimation(capture);
   assertCurrent();
-  return {capture,assertCurrent,frame:held,fps:animation.fps,motion:{omega:physical,rpm:physical*60/(2*Math.PI),fps:animation.fps,heldFrame:held,
+  return {capture,assertCurrent,animationSignature:signature,frame:held,fps:animation.fps,motion:{omega:physical,rpm:physical*60/(2*Math.PI),fps:animation.fps,heldFrame:held,
     firstFrame:first,lastFrame:last,axisOriginM:axisOrigin,verifiedFrames:samples,relativePoseError:Math.min(...errors),positionErrorM,signature}};
 }
 
@@ -494,14 +494,69 @@ async function solveNativeFrame(ctx,source,fidelity,check,publish,display){
 export async function activate(context){
   if(context.version!==1)throw failure('API_VERSION','Unsupported Frame plugin API.');
   const find=hash=>{const n=context.document.nodes.find(n=>n.nativeHash===hash&&n.type==='cfd');if(!n)throw failure('INVALID_OWNER','Select an existing CFD object.');return n;};
-  const jobs=new Map();let sequence=0,queue=Promise.resolve();
+  const jobs=new Map(),archives=new Map(),sweeps=new Map();
+  let sequence=0,queue=Promise.resolve(),sweepQueue=Promise.resolve(),activeSweep=null;
   const refresh=()=>{context.requestAttributes();context.requestDraw();};
+  const closeDisplay=d=>{if(d)setTimeout(()=>d.gpu.close(),0);};
   function release(job){
     if(job.running||!job.display)return;
-    const display=job.display;job.display=null;
-    setTimeout(()=>{display.gpu.close();},0);
+    const display=job.display;job.display=null;if(job.solution?.display!==display)closeDisplay(display);
   }
-  function retire(hash){const job=jobs.get(hash);if(job){job.stopped=true;jobs.delete(hash);release(job);}}
+  function discardArchive(hash){
+    const a=archives.get(hash);if(!a)return;
+    const active=jobs.get(hash);
+    for(const solution of a.solutions.values()){
+      if(active?.solution===solution){active.solution=null;}else closeDisplay(solution.display);
+      solution.display=null;
+    }
+    archives.delete(hash);
+  }
+  function archive(hash,create=false){
+    let a=archives.get(hash);if(!a&&!create)return null;
+    let stamp;try{stamp=context.fields.authoringStamp();}catch{return null;}
+    if(a&&(a.epoch!==stamp.epoch||a.revision!==stamp.revision||a.device!==context.device)){discardArchive(hash);a=null;}
+    if(!a&&create){a={...stamp,device:context.device,solutions:new Map(),frames:new Map(),version:0};archives.set(hash,a);}
+    return a;
+  }
+  function trimDisplays(){
+    // Keep active viewports visible. Off-frame displays share a bounded LRU.
+    const inactive=[];
+    for(const [hash,a] of archives)for(const solution of a.solutions.values()){
+      if(solution.display&&jobs.get(hash)?.solution!==solution)inactive.push(solution);
+    }
+    inactive.sort((a,b)=>b.used-a.used);
+    let bytes=0;for(const [i,s] of inactive.entries()){
+      bytes+=s.display.gpu.allocatedBytes;
+      if(i>=8||bytes>64*1024*1024){closeDisplay(s.display);s.display=null;s.fields=null;s.shape=null;}
+    }
+  }
+  function detach(hash){const job=jobs.get(hash);if(job){job.stopped=true;jobs.delete(hash);release(job);}}
+  function retire(hash){const sweep=sweeps.get(hash);if(sweep){sweep.stop=true;sweeps.delete(hash);}discardArchive(hash);detach(hash);}
+  function newJob(hash,fidelity){
+    const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
+    const world=context.document.world(hash),pivot=context.document.pivot(hash);
+    source.owner=hash;source.axes=boxAxes(world);
+    source.pivot=context.math.point(boxMetric(world),pivot.slice(12,15)).map((v,k)=>v-(source.motion?.axisOriginM[k]??0));
+    const key=JSON.stringify([fidelity,source.capture.signature,source.animationSignature,world,pivot,source.fps,
+      source.motion&&[source.motion.omega,source.motion.axisOriginM]]);
+    return {owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity,key,state:'queued',result:null,stopped:false};
+  }
+  function remember(job){
+    const a=archive(job.owner,true);if(!a)return;
+    const {surfaceFields,shape,...numbers}=job.result;
+    if(!surfaceFields){closeDisplay(job.display);job.display=null;}
+    const old=a.solutions.get(job.key);if(old?.display&&old.display!==job.display)closeDisplay(old.display);
+    const solution=old??{};Object.assign(solution,{key:job.key,id:job.id,fidelity:job.fidelity,state:job.state,
+      numbers,fields:surfaceFields,shape,display:job.display,hadFields:!!surfaceFields,used:performance.now()});
+    a.solutions.set(job.key,solution);a.frames.set(job.source.frame,solution);a.version++;job.solution=solution;trimDisplays();
+  }
+  function restoreSolution(job,solution){
+    job.state=solution.state;job.id=solution.id;job.solution=solution;job.display=solution.display;
+    job.result={...solution.numbers,frame:job.source.frame,timeSec:job.source.frame/job.source.fps,
+      ...(solution.fields?{surfaceFields:solution.fields}:{}),...(solution.shape?{shape:solution.shape}:{}),cache:'hit'};
+    if(solution.hadFields&&!solution.display)job.result.visualizationCache='evicted';
+    solution.used=performance.now();jobs.set(job.owner,job);
+  }
   function verify(job){
     if(jobs.get(job.owner)!==job||job.stopped)throw failure('CANCELLED','The CFD job was stopped.');
     if(job.state==='stale')throw failure('STALE_CFD_GEOMETRY','The inputs changed during this CFD solve.');
@@ -513,9 +568,22 @@ export async function activate(context){
     try{job.source.assertCurrent();}catch(e){throw failure('STALE_CFD_GEOMETRY',e.message);}
   }
   function current(hash){
-    const job=jobs.get(hash);
+    let job=jobs.get(hash);
+    if(job&&job.source.frame!==context.document.frame){
+      detach(hash);job=null;trimDisplays();
+    }
+    if(!job){
+      const a=archive(hash),solution=a?.frames.get(context.document.frame);
+      if(solution){
+        try{
+          const restored=newJob(hash,solution.fidelity);
+          if(restored.key===solution.key){restoreSolution(restored,solution);job=restored;}
+          else discardArchive(hash);
+        }catch{discardArchive(hash);}
+      }
+    }
     if(job&&!job.stopped&&job.state!=='stale'&&job.state!=='failed'){
-      try{verify(job);}catch(e){job.state='stale';job.result=null;job.error={code:e.code,message:e.message};release(job);}
+      try{verify(job);}catch(e){discardArchive(hash);job.state='stale';job.result=null;job.error={code:e.code,message:e.message};release(job);}
     }
     return job;
   }
@@ -526,20 +594,22 @@ export async function activate(context){
       localBox:{min:[...LOCAL_BOX.min],max:[...LOCAL_BOX.max],pivot:[...LOCAL_BOX.pivot],unit:'mm'},
       flow:{directionLocal:[1,0,0],inletLocalX:-500,outletLocalX:500,speedUnit:'m/s',markerOnly:true},
       geometryParticipation:'automatic-evaluated-box-intersection',geometryEvaluated:!!j&&j.state!=='stale',
-      job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,steps:j.result?.steps??0,error:j.error??null}:null};
+      job:j?{id:j.id,frame:j.source.frame,fidelityBudget:j.fidelity,steps:j.result?.steps??0,error:j.error??null}:null,
+      animation:sweepInfo(sweeps.get(hash))};
   }
-  function start(hash,{fidelityBudget='standard'}={}){
+  function start(hash,{fidelityBudget='standard'}={},sweep=null){
     const node=find(hash);
     if(!Object.hasOwn(flowBudgets,fidelityBudget))throw failure('INVALID_ARGUMENT','Choose preview, standard or fine fidelity.');
     if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
+    if(!sweep&&sweepBusy(sweeps.get(hash))){sweeps.get(hash).moved=true;stop(hash);}
     const old=current(hash);
-    if(old&&old.fidelity===fidelityBudget&&['queued','solving','ready'].includes(old.state))return status(hash);
-    const device=context.device,source=frozenWallMotion(device,context,hash,{allowStationary:true});
-    const world=context.document.world(hash),pivot=context.document.pivot(hash);
-    source.owner=hash;source.axes=boxAxes(world);
-    source.pivot=context.math.point(boxMetric(world),pivot.slice(12,15)).map((v,k)=>v-(source.motion?.axisOriginM[k]??0));
-    retire(hash);
-    const job={owner:hash,id:++sequence,device,world,inverse:context.math.inv(world),pivot,source,fidelity:fidelityBudget,state:'queued',result:null,stopped:false};
+    if(old&&old.fidelity===fidelityBudget&&(['queued','solving','ready'].includes(old.state)||sweep&&old.state==='unconverged')&&old.result?.visualizationCache!=='evicted')return status(hash);
+    const job=newJob(hash,fidelityBudget),{device,source}=job,a=archive(hash);
+    const cached=a?.solutions.get(job.key);
+    detach(hash);
+    if((cached?.state==='ready'||sweep&&cached?.state==='unconverged')&&(!cached.hadFields||cached.display)){
+      restoreSolution(job,cached);a.frames.set(source.frame,cached);a.version++;refresh();return status(hash);
+    }
     jobs.set(hash,job);
     async function run(){
       try{
@@ -548,7 +618,7 @@ export async function activate(context){
         const done=await solveNativeFrame(context,source,fidelityBudget,()=>verify(job),result=>{
           verify(job);job.result=result;refresh();
         },job.display);
-        verify(job);job.state=done?'ready':'unconverged';
+        verify(job);job.state=done?'ready':'unconverged';remember(job);
       }catch(e){
         if(job.stopped||jobs.get(hash)!==job)return;
         job.result=null;job.state=e.code==='STALE_CFD_GEOMETRY'?'stale':'failed';job.error={code:e.code??'CFD_SOLVE_FAILED',message:e.message};
@@ -556,16 +626,100 @@ export async function activate(context){
     }
     // One physical compute job at a time on the editor's shared queue.
     // Scheduling in a later task releases the native operation FIFO first.
-    queue=queue.then(()=>new Promise(resolve=>setTimeout(resolve,0))).then(run);refresh();return status(hash);
+    job.done=queue=queue.then(()=>new Promise(resolve=>setTimeout(resolve,0))).then(run);refresh();return status(hash);
+  }
+  function sweepBusy(b){return !!b&&!b.stop&&['queued','solving'].includes(b.state);}
+  function sweepInfo(b){return b?{id:b.id,state:b.state,firstFrame:b.first,lastFrame:b.last,currentFrame:b.frame,
+    completedFrames:b.completed,totalFrames:b.last-b.first+1,cachedFrames:b.cached,unconvergedFrames:b.unconverged,error:b.error??null}:null;}
+  function sweepStamp(){try{return context.fields.authoringStamp();}catch{return null;}}
+  function checkSweep(b){
+    if(b.stop||sweeps.get(b.owner)!==b)throw failure('CANCELLED','Animation solve stopped.');
+    if(context.document.playing||b.moved||context.document.frame!==b.expected)throw failure('STALE_FRAME','The playhead was moved during the animation solve.');
+    const s=sweepStamp();if(s&&b.stamp&&(s.epoch!==b.stamp.epoch||s.revision!==b.stamp.revision))
+      throw failure('STALE_CFD_GEOMETRY','The authored scene changed during the animation solve.');
+    b.stamp??=s;
+  }
+  async function seekSweep(b,frame){
+    const from=context.document.frame;if(frame===from)return;
+    b.expected=frame;
+    for(;;){
+      try{const v=await context.animation.seek(frame,from);if(v.frame!==frame)throw failure('STALE_FRAME','The evaluated frame changed during the seek.');return;}
+      catch(e){
+        if(e.code!=='BUSY'||b.stop||b.moved||context.document.frame!==from||context.document.playing)throw e;
+        await new Promise(resolve=>setTimeout(resolve,100));
+      }
+    }
+  }
+  function solveAnimation(hash,{firstFrame=0,lastFrame,fidelityBudget='standard'}={}){
+    const node=find(hash),time=context.animation.timeline();lastFrame??=time.total;
+    if(!Object.hasOwn(flowBudgets,fidelityBudget)||!Number.isSafeInteger(firstFrame)||!Number.isSafeInteger(lastFrame)||
+      firstFrame<0||lastFrame<firstFrame||lastFrame>time.total)throw failure('INVALID_ARGUMENT','Choose a valid interval inside the native timeline and a supported fidelity.');
+    if(node.enabled===false)throw failure('DISABLED','Enable the CFD box before solving.');
+    const previous=sweeps.get(hash);
+    if(sweepBusy(previous)&&previous.first===firstFrame&&previous.last===lastFrame&&previous.fidelity===fidelityBudget)return status(hash);
+    if(sweepBusy(previous))stop(hash);
+    context.document.pause();
+    const b={id:++sequence,owner:hash,first:firstFrame,last:lastFrame,fidelity:fidelityBudget,frame:null,completed:0,cached:0,unconverged:0,state:'queued',
+      stamp:sweepStamp(),stop:false,moved:false};sweeps.set(hash,b);
+    async function run(){
+      if(!sweepBusy(b))return;
+      activeSweep=b;b.initial=b.expected=context.document.frame;b.state='solving';let finalState;
+      try{
+        for(let frame=b.first;frame<=b.last;frame++){
+          checkSweep(b);await seekSweep(b,frame);checkSweep(b);b.frame=frame;
+          const before=current(hash);
+          start(hash,{fidelityBudget},b);
+          const job=jobs.get(hash);b.job=job;
+          const reused=job.result?.cache==='hit'||job===before&&['ready','unconverged'].includes(job.state);
+          await job.done;checkSweep(b);
+          if(jobs.get(hash)!==job||!job.result||!['ready','unconverged'].includes(job.state))
+            throw failure(job.error?.code??'CFD_SOLVE_FAILED',job.error?.message??'A frame has no physical result.');
+          b.completed++;if(reused)b.cached++;if(job.state==='unconverged')b.unconverged++;b.job=null;refresh();
+        }
+        finalState=b.unconverged?'unconverged':'ready';
+      }catch(e){
+        b.state=b.stop?'stopped':e.code==='STALE_FRAME'||e.code==='STALE_CFD_GEOMETRY'?'stale':'failed';
+        if(!b.stop)b.error={code:e.code??'CFD_SOLVE_FAILED',message:e.message};
+      }finally{
+        const stamp=sweepStamp(),sameScene=!b.stamp||!stamp||b.stamp.epoch===stamp.epoch;
+        if(sweeps.get(hash)===b&&sameScene&&!b.moved&&!context.document.playing&&context.document.frame===b.expected&&b.initial!==b.expected){
+          try{await seekSweep(b,b.initial);}catch(e){if(e.code!=='STALE_FRAME'&&!b.stop){b.state='failed';b.error={code:e.code,message:e.message};}}
+        }
+        if(finalState&&b.state==='solving')b.state=finalState;
+        b.job=null;activeSweep=null;refresh();
+      }
+    }
+    sweepQueue=sweepQueue.then(()=>new Promise(resolve=>setTimeout(resolve,0))).then(run);refresh();return status(hash);
   }
   function stop(hash){
-    find(hash);const job=current(hash);
+    find(hash);const b=sweeps.get(hash);if(sweepBusy(b)){b.stop=true;b.state='stopped';}
+    const job=current(hash);
     if(job&&['solving','queued'].includes(job.state)){job.stopped=true;job.state='stopped';job.result=null;refresh();}
     return status(hash);
   }
   function results(hash){
     const s=status(hash),result=jobs.get(hash)?.result;
-    return {state:s.state,job:s.job,result:result?structuredClone(result):null};
+    return {state:s.state,job:s.job,result:result?structuredClone(result):null,...s.animation?{animation:s.animation}:{}};
+  }
+  function measuredFrames(hash){
+    const job=current(hash),a=archive(hash),live=job?.result;
+    if(a?.series&&a.seriesVersion===a.version&&a.live===live)return a.series;
+    const frames=new Map();
+    for(const [frame,solution] of a?.frames??[])frames.set(frame,solution.numbers);
+    if(live)frames.set(live.frame,live);
+    const samples=[...frames].sort(([a],[b])=>a-b).map(([frame,r])=>({frame,values:[...r.forceWorld,r.forceLocal.magnitude],
+      torque:[...r.torque],powerW:r.powerW??null,stationary:r.validity.stationary,fidelity:r.fidelity}));
+    const series={labels:['Force.X','Force.Y','Force.Z','Force.Magnitude'],unit:'N',samples};
+    if(a){a.series=series;a.seriesVersion=a.version;a.live=live;}return series;
+  }
+  function forceHistory(hash,{firstFrame=0,limit=128}={}){
+    find(hash);
+    if(!Number.isSafeInteger(firstFrame)||firstFrame<0||!Number.isSafeInteger(limit)||limit<1||limit>512)
+      throw failure('INVALID_ARGUMENT','Choose a nonnegative first frame and one to 512 samples.');
+    const series=measuredFrames(hash),start=series.samples.findIndex(s=>s.frame>=firstFrame),samples=start<0?[]:series.samples.slice(start,start+limit);
+    return {units:{force:'N',torque:'N m',power:'W'},total:series.samples.length,nextFrame:start<0?null:series.samples[start+limit]?.frame??null,
+      samples:samples.map(s=>({frame:s.frame,forceWorld:s.values.slice(0,3),magnitude:s.values[3],torque:s.torque.slice(),
+        powerW:s.powerW,stationary:s.stationary,fidelity:s.fidelity}))};
   }
   async function probe(hash,{occurrence,triangle}){
     find(hash);
@@ -638,9 +792,15 @@ export async function activate(context){
         return wallMotionReport(context,hash,p);
       }},
     {id:'solve-frame',description:'Start a Cartesian finite-volume solve on the visible evaluated scene at this frame. Returns a job handle.',
-      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:start},
+      inputSchema:{type:'object',properties:{fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:(hash,args)=>start(hash,args)},
+    {id:'solve-animation',description:'Measure each native animation frame in an inclusive interval, preserving the held playhead on completion.',
+      inputSchema:{type:'object',properties:{firstFrame:{type:'integer',minimum:0},lastFrame:{type:'integer',minimum:0},
+        fidelityBudget:{type:'string',enum:Object.keys(flowBudgets)}},additionalProperties:false},readOnly:false,run:solveAnimation},
     {id:'stop',description:'Stop the calculation for this CFD box.',inputSchema:emptySchema,readOnly:false,run:stop},
     {id:'results',description:'Read source-current measured force, torque, units and numerical convergence.',inputSchema:emptySchema,readOnly:true,run:results},
+    {id:'force-history',description:'Read measured world forces, torque and power over solved animation frames.',
+      inputSchema:{type:'object',properties:{firstFrame:{type:'integer',minimum:0},limit:{type:'integer',minimum:1,maximum:512}},additionalProperties:false},
+      readOnly:true,run:forceHistory},
     {id:'probe',description:'Read averaged pressure, reversal fraction, allocated loss density and any resolved signed shape sensitivity at a native triangle.',
       inputSchema:{type:'object',properties:{occurrence:{type:'integer',minimum:0},triangle:{type:'integer',minimum:0}},required:['occurrence','triangle'],additionalProperties:false},readOnly:true,run:probe},
     {id:'shape-gradient',description:'Read the signed world-space drag derivative for physical displacements of logical mesh vertices.',
@@ -655,18 +815,31 @@ export async function activate(context){
   function sync(){
     let changed=false;
     for(const [hash,job] of jobs){
-      const before=job.state;current(hash);changed||=before!==job.state;
+      const before=job.state,now=current(hash);changed||=now!==job||before!==job.state;
     }
     if(changed)refresh();
   }
-  context.editor.register({documentChanged:sync,frames:sync,parameters:(n,changes)=>{if(n.type!=='cfd')return null;validateParameters({...n.params,...changes});return {};}});
+  function documentChanged(){
+    if(jobs.size||archives.size||sweeps.size){
+      const live=new Set(context.document.nodes.filter(n=>n.type==='cfd').map(n=>n.nativeHash));
+      for(const hash of new Set([...jobs.keys(),...archives.keys(),...sweeps.keys()]))if(!live.has(hash))retire(hash);
+    }
+    sync();
+  }
+  context.editor.register({documentChanged,frames:sync,animation:frame=>{
+    if(activeSweep&&frame!==activeSweep.expected)activeSweep.moved=true;sync();
+  },parameters:(n,changes)=>{if(n.type!=='cfd')return null;validateParameters({...n.params,...changes});return {};}});
   context.attributes.register(hash=>{
-    const n=find(hash),j=current(hash),result=j?.result;
+    const n=find(hash),j=current(hash),result=j?.result,b=sweeps.get(hash),sweeping=sweepBusy(b);
     return {hiddenFields:n.params.Medium==='Water'?['Ground','Altitude']:[],actions:[
-      {id:'solve-frame',row:'Solve',label:'Frame',cancel:'stop',busy:['queued','solving'].includes(j?.state)},
+      {id:'solve-frame',row:'Solve',label:'Frame',cancel:'stop',busy:!sweeping&&['queued','solving'].includes(j?.state),disabled:sweeping,
+        progress:!sweeping&&j?.state==='solving'&&result?result.steps+' steps':''},
+      {id:'solve-animation',row:'Solve',label:'Animation',cancel:'stop',busy:sweeping,
+        progress:sweeping?b.completed+'/'+(b.last-b.first+1):''},
       ...['Drag','Pressure','Separation','Shape'].map(mode=>({id:mode.toLowerCase()+'-map',row:'Result',label:mode,hidden:!result?.surfaceFields?.available.includes(mode),
         disabled:!result?.surfaceFields?.available.includes(mode),active:!!result?.surfaceFields&&j.display.mode===mode}))],
       readouts:[{id:'force',label:result&&!result.validity.stationary?'Force (N) ≈':'Force (N)',columns:['X','Y','Z','|F|'],
+        series:()=>measuredFrames(hash),
         values:result?[...result.forceWorld,result.forceLocal.magnitude].map(v=>v!==0&&(Math.abs(v)<.001||Math.abs(v)>=10000)?v.toExponential(2):String(Number(v.toPrecision(4)))):null}]};
   });
   await context.viewport.register({retire,renderStage:'opaque',surfaceWarnings:false,surfaceOrder:'selected-smallest',surfaceProbe,

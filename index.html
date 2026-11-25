@@ -6,7 +6,7 @@
 <link rel="icon" href="./frame-icon.svg" type="image/svg+xml">
 <link rel="manifest" href="./manifest.webmanifest">
 <meta name="theme-color" content="#000000">
-<meta name="frame-version" content="2026 25 nov 12:38">
+<meta name="frame-version" content="2026 25 nov 12:57">
 <title>Frame</title>
 <style>
 :root{color-scheme:dark;font:14px/16px ui-monospace,Menlo,Consolas,monospace;color:#cfcfcf}
@@ -16380,22 +16380,52 @@ function frameCurvesStartResize(e){
 function frameCurvesCandidates(){if(frameCurves.morphPose)return FrameMorph.descriptors(true).filter(d=>frameGetTrack(d.h,d.path)?.keys.size);if(frameChannelSelection.length)return frameChannelSelection.filter(d=>frameGetTrack(d.h,d.path)?.keys.size);return [...selected].flatMap(h=>[...(frameChannels.get(h)||[])].filter(([,t])=>t.keys.size).map(([path])=>({h,path})));}
 
 function frameCurvesChooseContext(descriptors=null){
+  if(frameCurves.readouts?.size){
+    if(!descriptors)return;
+    if(descriptors.some(d=>frameGetTrack(d.h,d.path)?.keys.size))frameCurves.readouts.clear();
+  }
   const c=frameCurves;if(!c||c.drag)return;const ds=(descriptors||frameCurvesCandidates()).filter(d=>frameGetTrack(d.h,d.path)?.keys.size),merged=new Map();
   for(const d of ds){const id=d.h+'|'+d.path,old=merged.get(id);if(!old)merged.set(id,{h:d.h,path:d.path,...(d.axes?{axes:d.axes.slice()}:{})});else if(!d.axes||!old.axes)delete old.axes;else old.axes=[...new Set(old.axes.concat(d.axes))].sort((a,b)=>a-b);}
   const next=[...merged.values()];if(!next.length){if(frameCurves.morphPose){c.context=[];c.signature="";c.selection=[];}return;}const sig=next.map(d=>d.h+'|'+d.path+'|'+(d.axes?.join(',')??'*')).join(';');
   if(sig!==c.signature){c.context=next;c.signature=sig;c.selection=[];c.pivot=null;c.activeId=null;c.editing=false;lastAttrKey=null;frameDrawCurves();}
 }
+function frameOpenReadoutCurves(n,id,append){
+  const c=frameCurves;if(c.morphPose)return;
+  if(!append){c.context=[];c.signature='';c.readouts=new Map();}
+  else{if(!c.open)frameCurvesChooseContext();c.readouts??=new Map();}
+  const key=n.nativeHash+'|'+id;
+  if(!c.readouts.has(key))c.readouts.set(key,{owner:n.nativeHash,id});
+  c.editing=false;c.selection=[];c.pivot=null;c.activeId=null;c.hover=null;
+  frameShowCurves(true);frameDrawCurves();
+}
+function frameReadoutChannels(){
+  const c=frameCurves,out=[];
+  for(const [key,row] of c.readouts||[]){
+    const owner=frameNodeByHash(row.owner);if(!owner){c.readouts.delete(key);continue;}
+    const item=FramePlugins.attributes(owner)?.readouts?.find(r=>r.id===row.id),data=item?.series?.();
+    if(!data?.samples?.length)continue;
+    if(row.data!==data){
+      const t={kind:'number',dimensions:data.labels.length,base:data.samples[0].values,keys:new Map()};
+      for(const s of data.samples)t.keys.set(s.frame,{v:s.values,interp:'hard'});
+      row.data=data;row.channels=data.labels.map((path,axis)=>({id:key+'|'+axis,h:owner.id,path,axis,t,readOnly:true,
+        ownerName:owner.name,unit:data.unit,color:['#e07070','#72b884','#759bcc','#d5a5ed'][axis%4]}));
+    }
+    out.push(...row.channels);
+  }
+  return out;
+}
 function frameCurvesChannels(){
   const c=frameCurves;if(!c.editing&&!c.drag)frameCurvesChooseContext();
   const out=[];for(const d of c.context||[]){if(FRAME_TRANSFORM_FIELDS.includes(d.path)&&!frameCurvesPSRVisible(d.h,d.path))continue;const t=frameGetTrack(d.h,d.path);if(!t?.keys.size)continue;
     for(let axis=0;axis<frameCurveDimensions(t);axis++){if(d.axes&&!d.axes.includes(axis)||!frameSortedFrames(t,axis).length)continue;out.push({h:d.h,path:d.path,axis,t,id:d.h+'|'+d.path+'|'+axis,color:frameCurvesColor(d.path,axis,frameCurveDimensions(t))});}
-  }return out;
+  }return c.morphPose?out:out.concat(frameReadoutChannels());
 }
 function frameCurvesResize(){
   const c=frameCurves;if(!c.panel)return;const H=document.getElementById('frame-views').clientHeight;
   c.height=Math.max(17,Math.min(Math.max(17,H-90),c.preferredHeight??H*.5));c.panel.style.height=c.height+'px';c.panel.classList.toggle('track-only',c.height<=25);frameDrawCurves();
 }
 function frameShowCurves(open=true){
+  if(!open)frameCurves.readouts?.clear();
   if(!open&&frameCurves.morphPose)FrameMorph.closePose();
   const c=frameCurves;if(!c.panel){const vp=document.getElementById('vp'),stack=document.getElementById('frame-views');const panel=document.createElement('div');panel.id='frame-curves';const divider=document.createElement('div');divider.id='frame-curves-divider';const canvas=document.createElement('canvas');canvas.id='frame-curves-canvas';canvas.tabIndex=0;canvas.setAttribute('aria-label','Animation curves');const close=document.createElement('button');close.id='frame-curves-close';close.type='button';close.title='Close curves';close.setAttribute('aria-label','Close curves');close.innerHTML='<svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 3l10 10M13 3L3 13" fill="none" stroke="#bdbdbd" stroke-width="1"/></svg>';close.onclick=()=>frameShowCurves(false);panel.append(divider,canvas,close);stack.appendChild(panel);Object.assign(c,{panel,canvas});
     try{const saved=localStorage.getItem('frame-curves-height-px'),px=Number(saved),ratio=Number(localStorage.getItem('frame-curves-height-r71'));if(saved!==null&&Number.isFinite(px)&&px>=17)c.preferredHeight=px;else if(ratio>0&&ratio<1)c.preferredHeight=ratio*stack.clientHeight;}catch{}
@@ -16471,7 +16501,7 @@ function frameCurvesPaintGrid(ctx,W,H){
 function frameCurveSelected(id,f,side=null){return frameCurves.selection.some(s=>s.id===id&&s.f===f&&(side===null?!s.side:s.side===side));}
 function frameCurvesPaintTrack(ctx,W,H){
   const c=frameCurves,top=c.plot.bottom,y=top+8,keyWidth=Math.max(8,W/(c.view.f1-c.view.f0));c.trackKeyWidth=keyWidth;ctx.fillStyle='#1b1b1b';ctx.fillRect(0,top,W,16);
-  const groups=new Map();for(const ch of c.channels)for(const f of frameSortedFrames(ch.t,ch.axis)){let g=groups.get(f);if(!g)groups.set(f,g=[]);g.push({id:ch.id,f});}
+  const groups=new Map();for(const ch of c.channels)if(!ch.readOnly)for(const f of frameSortedFrames(ch.t,ch.axis)){let g=groups.get(f);if(!g)groups.set(f,g=[]);g.push({id:ch.id,f});}
   for(const [f,items] of groups){const x=c.xy(f,0)[0];if(x< -keyWidth/2||x>W+keyWidth/2)continue;const selected=items.some(s=>frameCurveSelected(s.id,s.f)),all=items.every(s=>frameCurveSelected(s.id,s.f));ctx.fillStyle=selected?'#917544':'#565b63';ctx.fillRect(x-keyWidth/2,top,keyWidth,16);ctx.strokeStyle=all?'#d5b875':'#9299a3';if(keyWidth>=3)ctx.strokeRect(x-keyWidth/2+.5,top+.5,keyWidth-1,15);c.hits.push({kind:'track',f,items,x,y,w:keyWidth,h:16});}
   const pixelStep=c.steps.f/(c.view.f1-c.view.f0)*W,labelStep=c.steps.f*Math.max(1,Math.ceil(58/pixelStep));ctx.font='14px ui-monospace,Consolas,monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#b6b6b6';
   for(let f=Math.ceil(c.view.f0/labelStep)*labelStep;f<=c.view.f1;f+=labelStep)ctx.fillText(String(Math.round(f)),c.xy(f,0)[0],y+.5);ctx.textBaseline='alphabetic';
@@ -16485,6 +16515,11 @@ function framePaintCurves(){
   if(!c.view)c.view=frameCurvesInitialView(c.channels);let first=false;for(const ch of c.channels){if(!c.ranges.has(ch.id))c.ranges.set(ch.id,frameCurveValueBounds(ch));if(!c.timeSeen.has(ch.id)){c.timeSeen.add(ch.id);first=true;}}if(first&&!c.drag){const v=frameCurvesInitialView(c.channels);c.view.f0=v.f0;c.view.f1=v.f1;}frameCurvesClampView();frameCurvesUpdateMapping(W,H);const v=c.view,p=c.plot;
   frameCurvesPaintGrid(ctx,W,H);ctx.save();ctx.beginPath();ctx.rect(0,0,W,p.bottom);ctx.clip();
   const handleDraw=[];for(const ch of c.channels){const frames=frameSortedFrames(ch.t,ch.axis);if(!frames.length)continue;ctx.strokeStyle=ch.color;ctx.lineWidth=1;ctx.beginPath();const first=frames[0],last=frames.at(-1);ctx.moveTo(...c.xy(first,frameKeyNumbers(ch.t,ch.t.keys.get(first))[ch.axis],ch));
+    if(ch.readOnly){
+      const xy=f=>c.xy(f,ch.t.keys.get(f).v[ch.axis],ch);
+      for(let i=1;i<frames.length;i++){const [x,y]=xy(frames[i]);if(frames[i]===frames[i-1]+1)ctx.lineTo(x,y);else ctx.moveTo(x,y);}
+      ctx.stroke();ctx.fillStyle=ch.color;for(const f of frames){const [x,y]=xy(f);ctx.fillRect(x-2,y-2,4,4);}continue;
+    }
     for(let i=0;i+1<frames.length;i++){const a=frameSegmentControl(ch.t,frames,i,ch.axis);if(ch.t.kind==='discrete'){ctx.lineTo(...c.xy(a[6],a[1],ch));ctx.lineTo(...c.xy(a[6],a[7],ch));continue;}ctx.bezierCurveTo(...c.xy(a[2],a[3],ch),...c.xy(a[4],a[5],ch),...c.xy(a[6],a[7],ch));}ctx.stroke();
     for(const f of frames){const value=frameKeyNumbers(ch.t,ch.t.keys.get(f))[ch.axis],[x,y]=c.xy(f,value,ch),selected=frameCurveSelected(ch.id,f),handleSelected=c.selection.some(s=>s.id===ch.id&&s.f===f&&s.side);if(x< -EDIT_HIT_PX||x>W+EDIT_HIT_PX)continue;
       const hover=c.hover?.kind==='key'&&c.hover.ch?.id===ch.id&&c.hover.f===f,size=hover?12:selected?10:7;ctx.fillStyle=hover?'#ff4cff':selected?'#ffc400':'#a8c7dc';ctx.fillRect(x-size/2,y-size/2,size,size);c.hits.push({kind:'key',ch,f,x,y});
@@ -16492,6 +16527,13 @@ function framePaintCurves(){
     }
   }
   for(const q of handleDraw){ctx.strokeStyle='#6f8290';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(...q.from);ctx.lineTo(q.x,q.y);ctx.stroke();const selected=frameCurveSelected(q.ch.id,q.f,q.side),hover=c.hover?.kind==='handle'&&c.hover.ch?.id===q.ch.id&&c.hover.f===q.f&&c.hover.side===q.side,size=hover?12:selected?10:8;ctx.fillStyle=hover?'#72ff85':selected?'#ffc400':'#59d8ff';ctx.fillRect(q.x-size/2,q.y-size/2,size,size);c.hits.push(q);}
+  const measured=c.channels.filter(ch=>ch.readOnly);
+  if(measured.length){
+    const names=measured.map(ch=>(c.readouts.size>1?ch.ownerName+' · ':'')+ch.path+' ('+ch.unit+')');
+    canvas.setAttribute('aria-label','Animation curves · '+names.join(', '));ctx.font='12px Arial,sans-serif';ctx.textAlign='left';let x=8,y=15;
+    for(const [i,name] of names.entries()){const width=ctx.measureText(name).width+14;if(x+width>W&&x>8){x=8;y+=16;}
+      if(y>=p.bottom)break;ctx.fillStyle=measured[i].color;ctx.fillText(name,x,y);x+=width;}
+  }else canvas.setAttribute('aria-label','Animation curves');
   if(c.selection.length&&c.editing&&(frameCurves.selection.length>0))frameCurvesPaintGizmo(ctx);
   if(c.marquee){const m=c.marquee;ctx.strokeStyle='#6394ff';ctx.strokeRect(m.x+.5,m.y+.5,m.w,m.h);}
   const current=c.xy(timelineFrame,0)[0];ctx.strokeStyle='#a9a9a9';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(current,0);ctx.lineTo(current,p.bottom);ctx.stroke();ctx.restore();frameCurvesPaintTrack(ctx,W,H);frameCurvesSyncAttributeValues();frameCurvesRefreshPSRButtons();
@@ -16519,10 +16561,11 @@ function frameCurvesHit(e){
   return {x,y,hit,bottom};
 }
 function frameCurvesNearestCurve(x,y){
-  const c=frameCurves;if(!c.inv)return null;const frame=c.inv(x,y)[0];let best=null;for(const ch of c.channels){const frames=frameSortedFrames(ch.t,ch.axis);if(!frames.length||frame<frames[0]||frame>frames.at(-1))continue;const value=frameSampleCurveComponent(ch.t,frame,ch.axis),yy=c.xy(frame,value,ch)[1],d=Math.abs(yy-y);if(!best||d<best.distance)best={ch,frame,value,distance:d};}return best;
+  const c=frameCurves;if(!c.inv)return null;const frame=c.inv(x,y)[0];let best=null;for(const ch of c.channels){if(ch.readOnly)continue;const frames=frameSortedFrames(ch.t,ch.axis);if(!frames.length||frame<frames[0]||frame>frames.at(-1))continue;const value=frameSampleCurveComponent(ch.t,frame,ch.axis),yy=c.xy(frame,value,ch)[1],d=Math.abs(yy-y);if(!best||d<best.distance)best={ch,frame,value,distance:d};}return best;
 }
 function frameCurvesBeginSelection(){const c=frameCurves;c.editing=true;lastAttrKey=null;if(c.selection.length)activateTab('tabAttributes');refreshAttributesPanel();frameDrawCurves();}
 function frameCurvesSelect(items,add=false){
+  if(frameCurves.readouts?.size){const writable=new Set(frameCurves.channels.filter(ch=>!ch.readOnly).map(ch=>ch.id));items=items.filter(s=>writable.has(s.id));}
   const c=frameCurves;if(!add)c.selection=[];for(const s of items){const i=c.selection.findIndex(q=>q.id===s.id&&q.f===s.f&&q.side===s.side);if(i<0)c.selection.push({...s});else if(add)c.selection.splice(i,1);}c.pivot=null;if(items[0])c.activeId=items[0].id;frameCurvesBeginSelection();
 }
 function frameCurvesSelectionState(){
@@ -16599,6 +16642,7 @@ function frameCurvesSnap(point,exclude=[],handleOrigin=null,axis=null,ch=null){
 }
 
 function frameCurvesInsertAt(frame,channels,value=null){
+  channels=channels.filter(ch=>!ch.readOnly);
   const c=frameCurves;frame=Math.max(frameCurves.morphPose?0:-1000000,Math.min(frameCurves.morphPose?100:1000000,Math.round(frame)));const ds=channels.map(ch=>({h:ch.h,path:ch.path}));if(!ds.length)return;const added=[];
   frameAnimationTransaction(ds,()=>{for(const ch of channels){const t=frameGetTrack(ch.h,ch.path);if(!t)continue;frameInsertCurveKey(t,frame,ch.axis);if(value!==null)frameSetKeyComponent(t,t.keys.get(frame),ch.axis,value);delete t._frames;added.push({id:ch.id,f:frame});}});c.channels=frameCurvesChannels();frameCurvesSelect(added);return added;
 }
@@ -16696,7 +16740,7 @@ function frameCurvesContext(e){
   e.preventDefault();e.stopPropagation();const c=frameCurves;if(c.drag?.mode==='zoom')return;if(c.suppressContext){c.suppressContext=false;return;}const {hit}=frameCurvesHit(e);
   if(hit?.kind==='key'||hit?.kind==='handle'){const s={id:hit.ch.id,f:hit.f,...(hit.kind==='handle'?{side:hit.side}:{})};if(!c.selection.some(q=>q.id===s.id&&q.f===s.f&&q.side===s.side))frameCurvesSelect([s]);}else if(hit?.kind==='track'&&!hit.items.some(q=>c.selection.some(s=>s.id===q.id&&s.f===q.f)))frameCurvesSelect(hit.items);
   frameShowAnimationMenu(e.clientX,e.clientY,[]);const menu=frameAnimationMenu,menuWindow=menu.ownerDocument.defaultView;menu.replaceChildren();const add=(text,fn)=>{const row=document.createElement('div');row.className='obm-item';row.textContent=text;row.onclick=()=>{menu.hidden=true;fn();};menu.appendChild(row);};
-  if(c.selection.length){add('Soft',()=>frameCurvesSetInterpolation('soft'));add('Hard',()=>frameCurvesSetInterpolation('hard'));add('Equal tangents',frameCurvesEqualTangents);}else add('Set key',()=>frameCurvesInsertAt(c.inv(frameCurvesHit(e).x,0)[0],c.channels));
+  if(c.selection.length){add('Soft',()=>frameCurvesSetInterpolation('soft'));add('Hard',()=>frameCurvesSetInterpolation('hard'));add('Equal tangents',frameCurvesEqualTangents);}else if(c.channels.some(ch=>!ch.readOnly))add('Set key',()=>frameCurvesInsertAt(c.inv(frameCurvesHit(e).x,0)[0],c.channels));
   add('Fit',frameCurvesFit);
   menu.hidden=false;menu.style.display='flex';menu.style.left=Math.max(0,Math.min(e.clientX,menuWindow.innerWidth-menu.offsetWidth))+'px';menu.style.top=Math.max(0,Math.min(e.clientY,menuWindow.innerHeight-menu.offsetHeight))+'px';frameDrawCurves();
 }
@@ -18439,7 +18483,8 @@ const FramePlugins=(()=>{
   function bridge(entry){const own=hash=>{const n=frameNodeByHash(hash);if(owner(n)!==entry)throw Error('Invalid plugin owner');return n;};return {
     hash:FrameHash,math:window.frameEngine.pluginMath,
     fields:Object.freeze({authoringStamp:()=>window.frameEngine.pluginAuthoringStamp()}),
-    animation:Object.freeze({inspect:hashes=>window.frameEngine.pluginAnimationInputs(hashes),
+    animation:Object.freeze({inspect:hashes=>window.frameEngine.pluginAnimationInputs(hashes),timeline:()=>timelineStatus(),
+      seek:(frame,fromFrame)=>window.frameAI.call('animation.seek',{frame,fromFrame,includeObjects:false}),
       sampleTransforms:(hashes,timeSec)=>window.frameEngine.pluginSampleTransforms(hashes,timeSec)}),
     document:Object.freeze({codec:FrameValue,changed:()=>FrameAuthorData.changed(),detach:(hash,atoms)=>window.frameEngine.detachInstances(own(hash),atoms),get nodes(){return nodes;},get current(){return current();},get frame(){return timelineFrame;},get playing(){return !!playing;},pause:()=>stop(),get exporting(){return !!window.frameEngine?.pluginExporting;},get selected(){return [...selected].map(node).filter(Boolean);},object:own,world:hash=>window.frameEngine.pluginWorld(hash),local:hash=>window.frameEngine.pluginLocal(hash),pivot:hash=>window.frameEngine.pluginPivot(hash),setPivot:(hash,m)=>window.frameEngine.pluginSetPivot(hash,m),setLocal:(hash,m)=>window.frameEngine.pluginSetLocal(hash,m),
       transaction:action=>commit(action),snapshot,checkpoint,restore,refresh:()=>render(),
@@ -18589,7 +18634,7 @@ let creating=Promise.resolve();
       row.style.display=visible?'':'none';
     }
   }
-  function syncReadouts(content,readouts,create=false){
+  function syncReadouts(content,readouts,ownerNode,create=false){
     for(const item of readouts||[]){
       let row=content.querySelector('[data-plugin-readout="'+item.id+'"]');
       if(!row&&create){
@@ -18601,6 +18646,11 @@ let creating=Promise.resolve();
           cell.style.cssText='display:grid;text-align:right;min-width:0';label.textContent=name;value.setAttribute('aria-label',name);
           cell.append(label,value);row.append(cell);
         }
+        if(item.series){
+          row.setAttribute('role','button');row.tabIndex=0;row.title='Curves';row.style.cursor='pointer';
+          const show=e=>frameOpenReadoutCurves(ownerNode,item.id,e.shiftKey);
+          row.onclick=show;row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();show(e);}};
+        }
         content.append(row);
       }
       if(!row)continue;row.style.display=item.values?'grid':'none';
@@ -18608,8 +18658,8 @@ let creating=Promise.resolve();
       Array.from(row.querySelectorAll('output')).forEach((el,i)=>{el.textContent=item.values[i];});
     }
   }
-  function refreshAttributes(entry){const n=current();if(owner(n)!==entry)return;const state=attributes(n);syncActionVisibility($('attrContent'),state.actions);syncReadouts($('attrContent'),state.readouts);for(const input of $('attrContent').querySelectorAll('input[data-numeric][data-field]')){const range=state?.ranges?.[input.dataset.field];if(range)input._numericRange=range;input._sync?.();}for(const button of $('attrContent').querySelectorAll('[data-plugin-action-button]')){const action=state?.actions?.find(a=>a.id===button.dataset.pluginActionButton);if(!action)continue;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.classList.toggle('on',!!action.active);button.setAttribute('aria-pressed',String(!!action.active));button.setAttribute('aria-busy',String(!!action.busy));const progress=button.previousElementSibling;if(progress?.hasAttribute('data-plugin-progress'))progress.textContent=String(action.progress||'').slice(0,32);}}
-  function renderActions(n,content){const state=attributes(n);for(const key of state?.hiddenFields||[])content.querySelector('[data-field="'+key+'"]')?.closest('.attr-row')?.remove();for(const [key,label]of Object.entries(state?.labels||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field&&typeof label==='string')field.closest('.attr-row').querySelector('.attr-lab').textContent=label;}for(const [key,unit]of Object.entries(state?.units||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field){const label=field.closest('.attr-row').querySelector('.attr-lab');label.textContent+=' ('+unit+')';}}for(const vector of state?.vectors||[]){const fields=vector.fields.map(key=>content.querySelector('[data-field="'+key+'"]'));if(fields.some(f=>!f))continue;const row=fields[0].closest('.attr-row'),controls=row.querySelector('.attr-ctrl');row.querySelector('.attr-lab').textContent=vector.label+(vector.unit?' ('+vector.unit+')':'');fields.forEach((field,i)=>{field.classList.add('ax-'+['x','y','z'][i]);field.style.cssText='width:38px;min-width:0;flex:1';if(i){field.closest('.attr-row').remove();controls.append(field);}});}for(const group of state?.groups||[]){const section=document.createElement('div');section.className='frame-attribute-group';section.dataset.pluginGroup=group.label;const heading=document.createElement('div');heading.className='attr-row';const label=document.createElement('span');label.className='attr-lab';label.textContent=group.label;heading.append(label);const controls=document.createElement('div');controls.className='frame-attribute-grid';for(const action of group.actions){const button=document.createElement('button');button.className='attr-btn'+(action.active?' on':'');button.textContent=action.label;button.setAttribute('aria-pressed',String(!!action.active));button.dataset.pluginElement=action.label;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:action.id,args:action.args||{}}).catch(fileOperationError);controls.append(button);}section.append(heading,controls);content.append(section);}for(const action of [...state?.actions||[]].reverse()){const row=document.createElement('div');row.className='attr-row';row.dataset.pluginAction=action.id;if(action.row){row.dataset.pluginActionRow=action.row;const label=document.createElement('span');label.className='attr-lab';label.textContent=action.row;row.append(label);}const controls=document.createElement('div');controls.className='attr-ctrl';const progress=document.createElement('span');progress.dataset.pluginProgress='';if(action.progressAlign==='left')progress.style.cssText='flex:1;text-align:left';progress.textContent=String(action.progress||'').slice(0,32);const button=document.createElement('button');button.className='attr-btn frame-attribute-button'+(action.active?' on':'');button.setAttribute('aria-pressed',String(!!action.active));button.textContent=action.label;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.setAttribute('aria-busy',String(!!action.busy));button.dataset.pluginActionButton=action.id;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:(attributes(n)?.actions?.find(a=>a.id===action.id)?.busy&&action.cancel)||action.id,args:{}}).catch(fileOperationError);controls.append(progress,button);row.append(controls);if(action.row){const existing=content.querySelector('[data-plugin-action-row="'+action.row+'"]');if(existing){existing.querySelector('.attr-ctrl').prepend(...controls.children);continue;}}if(action.placement==='bottom')content.append(row);else content.prepend(row);}syncActionVisibility(content,state.actions);syncReadouts(content,state.readouts,true);}
+  function refreshAttributes(entry){const n=current();if(owner(n)!==entry)return;const state=attributes(n);syncActionVisibility($('attrContent'),state.actions);syncReadouts($('attrContent'),state.readouts,n);if(frameCurves.readouts?.size)frameDrawCurves();for(const input of $('attrContent').querySelectorAll('input[data-numeric][data-field]')){const range=state?.ranges?.[input.dataset.field];if(range)input._numericRange=range;input._sync?.();}for(const button of $('attrContent').querySelectorAll('[data-plugin-action-button]')){const action=state?.actions?.find(a=>a.id===button.dataset.pluginActionButton);if(!action)continue;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.classList.toggle('on',!!action.active);button.setAttribute('aria-pressed',String(!!action.active));button.setAttribute('aria-busy',String(!!action.busy));const progress=button.previousElementSibling;if(progress?.hasAttribute('data-plugin-progress'))progress.textContent=String(action.progress||'').slice(0,32);}}
+  function renderActions(n,content){const state=attributes(n);for(const key of state?.hiddenFields||[])content.querySelector('[data-field="'+key+'"]')?.closest('.attr-row')?.remove();for(const [key,label]of Object.entries(state?.labels||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field&&typeof label==='string')field.closest('.attr-row').querySelector('.attr-lab').textContent=label;}for(const [key,unit]of Object.entries(state?.units||{})){const field=content.querySelector('[data-field="'+key+'"]');if(field){const label=field.closest('.attr-row').querySelector('.attr-lab');label.textContent+=' ('+unit+')';}}for(const vector of state?.vectors||[]){const fields=vector.fields.map(key=>content.querySelector('[data-field="'+key+'"]'));if(fields.some(f=>!f))continue;const row=fields[0].closest('.attr-row'),controls=row.querySelector('.attr-ctrl');row.querySelector('.attr-lab').textContent=vector.label+(vector.unit?' ('+vector.unit+')':'');fields.forEach((field,i)=>{field.classList.add('ax-'+['x','y','z'][i]);field.style.cssText='width:38px;min-width:0;flex:1';if(i){field.closest('.attr-row').remove();controls.append(field);}});}for(const group of state?.groups||[]){const section=document.createElement('div');section.className='frame-attribute-group';section.dataset.pluginGroup=group.label;const heading=document.createElement('div');heading.className='attr-row';const label=document.createElement('span');label.className='attr-lab';label.textContent=group.label;heading.append(label);const controls=document.createElement('div');controls.className='frame-attribute-grid';for(const action of group.actions){const button=document.createElement('button');button.className='attr-btn'+(action.active?' on':'');button.textContent=action.label;button.setAttribute('aria-pressed',String(!!action.active));button.dataset.pluginElement=action.label;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:action.id,args:action.args||{}}).catch(fileOperationError);controls.append(button);}section.append(heading,controls);content.append(section);}for(const action of [...state?.actions||[]].reverse()){const row=document.createElement('div');row.className='attr-row';row.dataset.pluginAction=action.id;if(action.row){row.dataset.pluginActionRow=action.row;const label=document.createElement('span');label.className='attr-lab';label.textContent=action.row;row.append(label);}const controls=document.createElement('div');controls.className='attr-ctrl';const progress=document.createElement('span');progress.dataset.pluginProgress='';if(action.progressAlign==='left')progress.style.cssText='flex:1;text-align:left';progress.textContent=String(action.progress||'').slice(0,32);const button=document.createElement('button');button.className='attr-btn frame-attribute-button'+(action.active?' on':'');button.setAttribute('aria-pressed',String(!!action.active));button.textContent=action.label;button.textContent=action.busy&&action.cancel?'Stop':action.label;button.disabled=!!action.disabled||!!action.busy&&!action.cancel;button.setAttribute('aria-busy',String(!!action.busy));button.dataset.pluginActionButton=action.id;button.onclick=()=>window.frameAI.call('plugins.command',{id:n.nativeHash,operation:(attributes(n)?.actions?.find(a=>a.id===action.id)?.busy&&action.cancel)||action.id,args:{}}).catch(fileOperationError);controls.append(progress,button);row.append(controls);if(action.row){const existing=content.querySelector('[data-plugin-action-row="'+action.row+'"]');if(existing){existing.querySelector('.attr-ctrl').prepend(...controls.children);continue;}}if(action.placement==='bottom')content.append(row);else content.prepend(row);}syncActionVisibility(content,state.actions);syncReadouts(content,state.readouts,n,true);}
   async function operations(id){if(!entries.has(id))await open();const entry=entries.get(id);if(!entry)throw Error('Unknown plugin');await use(entry);return [...entry.operations?.values()||[]].map(({run,interrupt,...o})=>({...o,interruptible:typeof interrupt==='function'}));}
   async function loadUsed(){await creating;await Promise.all([...new Set(nodes.flatMap(n=>[owner(n),...n.tags.map(t=>tagOwners.get(t.kind))]).filter(Boolean))].map(use));}
   async function createObject(id,type){const entry=await discover(id);const spec=entry.manifest.objects.find(o=>!type||o.type===type);if(!spec)throw Error('Unknown plugin object');await use(entry);frameObjectSelectionAction();selectionArea='objects';window.frameEngine?.setViewerMode('element','object');let n;commit(()=>{n=create(spec.type);selected=new Set([n.id]);focusId=anchorId=n.id;selectedTag=null;selectedTags.clear();});activateTab('tabAttributes');await frameSelectEngineObjects();return n;}
@@ -38241,7 +38291,12 @@ function FramePolygonKernel(d){
 
       const animationOwner=id=>{if(!id.startsWith('mat:'))return resolve(id);const m=materials.find(m=>m.uid===id.slice(4));if(!m||m.uid===frameDefaultMaterials[0].uid)fail('INVALID_ARGUMENT','Address an editable material');return {id,nativeHash:m.uid};};
       register('animation.key','Set a native PSR or numeric attribute key using the shared curve editor and editor Undo.',required(obj({id:str,path:str,frame:integer,value:{type:['number','array'],items:num,maxItems:3},interpolation:choice('soft','hard')}),'id','path','frame','value'),false,async a=>{const n=animationOwner(a.id);if(FramePlugins.dispatch('forbidAnimation',n,a.path))fail('INVALID_ARGUMENT','Only Fixed selections can animate internal transforms');if(frameIsPLAPath(a.path)&&!n.splineData&&!FrameSpline.sourceNode(n))await animationSelection(n,[+a.path.slice(4)]);const value=frameReadAttribute(n.id,a.path);if(frameCurves.morphPose&&a.path.startsWith('pose:')&&(a.frame<0||a.frame>100))fail('INVALID_ARGUMENT','Morph pose keys use frames 0..100');if(value===undefined||Array.isArray(value)!==Array.isArray(a.value)||Array.isArray(value)&&value.length!==a.value.length)fail('INVALID_ARGUMENT','Unknown attribute or wrong key dimensions');if(frameAttributeKind(n.id,a.path)==='discrete'){const spec=frameParameter(frameTarget(n.id),a.path).spec,limit=Array.isArray(spec)?spec.length-1:1;if(!Number.isInteger(a.value)||a.value<0||a.value>limit)fail('INVALID_ARGUMENT','Invalid discrete attribute key');}if(a.path==='scale'&&a.value.some(v=>Math.abs(v)<1e-9))fail('INVALID_ARGUMENT','Scale must be nonzero');const before=snapshot();let tracks=frameChannels.get(n.id);if(!tracks)frameChannels.set(n.id,tracks=new Map());let t=tracks.get(a.path);if(!t){t={kind:frameAttributeKind(n.id,a.path),dimensions:Array.isArray(a.value)?a.value.length:1,base:structuredClone(value),keys:new Map()};tracks.set(a.path,t);}const values=Array.isArray(a.value)?a.value:[a.value];for(let i=0;i<values.length;i++)framePutAxisRecord(t,a.frame,i,{value:values[i],mode:a.interpolation||(FRAME_TRANSFORM_FIELDS.includes(a.path)?'soft':'hard'),auto:(a.interpolation||'soft')==='soft'});frameAnimationRevision++;timelineTotal=Math.max(timelineTotal,a.frame);frameEvaluateAnimation(timelineFrame);if(n.id.startsWith('mat:'))frameChangedMaterials.add(n.nativeHash);const canonical=checkpoint(before)?.get(n.id)||n.id;frameSyncEngineVisibility();await settle();return {id:canonical.startsWith('mat:')?canonical.slice(4):n.nativeHash,path:a.path,track:framePackTrack(frameGetTrack(canonical,a.path))};});
-      register('animation.seek','Evaluate all native transform, parameter, material and tag curves at a frame.',required(obj({frame:integer}),'frame'),false,async a=>{if(frameCurves.morphPose&&a.frame>100)fail('INVALID_ARGUMENT','Morph pose frames use 0..100');timelineTotal=Math.max(timelineTotal,a.frame);setTimelineFrame(a.frame);await settle();return {frame:timelineFrame,objects:describeMany(nodes)};});
+      register('animation.seek','Evaluate all native transform, parameter, material and tag curves at a frame. An optional fromFrame guards a paused playhead. Set includeObjects to false for a compact acknowledgement.',required(obj({frame:integer,fromFrame:integer,includeObjects:bool}),'frame'),false,async a=>{
+        if(a.fromFrame!==undefined&&(playing||timelineFrame!==a.fromFrame))fail('STALE_FRAME','The native playhead moved before this seek');
+        if(frameCurves.morphPose&&a.frame>100)fail('INVALID_ARGUMENT','Morph pose frames use 0..100');
+        timelineTotal=Math.max(timelineTotal,a.frame);setTimelineFrame(a.frame);await settle();
+        return {frame:timelineFrame,...a.includeObjects===false?{}:{objects:describeMany(nodes)}};
+      });
       register('animation.trajectory','Read position key vertices, spatial tangent vectors and evaluated world positions without creating scene objects.',required(obj({id:str,frame:integer}),'id'),true,a=>{const n=resolve(a.id),t=motionTrack(n);return {...motionInfo(n),...(a.frame!==undefined&&t?.keys.size?{sample:{frame:a.frame,position:frameSampleRaw(t,a.frame),world:motionPoint(n,t,a.frame)}}:{})};});
       register('animation.tangent','Edit a native position key spatial tangent in parent coordinates, preserving its time handles and editor Undo.',required(obj({id:str,frame:integer,side:choice('in','out'),vector,independent:bool}),'id','frame','side','vector'),false,async a=>{const n=resolve(a.id),t=motionTrack(n);if(!t?.keys.has(a.frame))fail('INVALID_ARGUMENT','Address an existing position key');const before=snapshot();for(let axis=0;axis<3;axis++)frameFreezeAxis(t,axis);motionEdit(t,a.frame,a.side,a.vector,a.independent);frameAnimationRevision++;frameEvaluateAnimation(timelineFrame);checkpoint(before);frameRefreshAnimationUI();await settle();return motionInfo(n);});
       register('animation.capture','Capture selected spline controls or selected/explicit mesh vertices into native XYZ curves at the current timeline frame.',obj({id:str,vertices:array(integer,100000)}),false,async a=>{let ds;if(frameCurves.morphPose){const e=frameCurves.morphPose,n=node(e.owner);if(a.id&&![n,FrameSpline.sourceNode(n)].includes(resolve(a.id)))fail('INVALID_ARGUMENT','Capture the active Morph owner');ds=FrameMorph.descriptors();if(a.vertices){const t=FrameMorph.tagOf(n);if(t.domain!=='polygon'||a.vertices.some(i=>i>=Object.keys(e.reference.vertices).length))fail('INVALID_ARGUMENT','Invalid Morph vertex');ds=a.vertices.map(i=>({h:n.id,path:FrameMorph.posePath(t.poses.find(p=>p.id===e.pose),t.vertexIds?.[i]||String(i))}));}}else if(a.id){const n=resolve(a.id);await choose([n]);if(FrameSpline.sourceNode(n)||n.splineData){const q=FrameSpline.sourceNode(n)||n;ds=Object.keys(q.splineData.vertices).map(id=>({h:q.id,path:'pla:'+id}));}else ds=await animationSelection(n,a.vertices);}else ds=frameCurrentDescriptors();await frameAddAttributeKeys(ds);await settle();return {frame:timelineFrame,channels:ds.map(d=>({id:node(d.h)?.nativeHash,path:d.path}))};});

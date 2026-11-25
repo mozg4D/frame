@@ -20,8 +20,8 @@ test('box/pivot and arrow use twelve native edges and face-to-face direction',()
 });
 test('native activation registers box authoring, wall kinematics and explicit flow availability',async()=>{
  const {context,registrations,nodes}=fixture();await activate(context);const {operations,viewport,editor,attributes}=registrations;
- assert.deepEqual(operations.filter(o=>o.readOnly).map(o=>o.id),['status','wall-motion','results','probe','shape-gradient']);
- assert.deepEqual(operations.filter(o=>!o.readOnly).map(o=>o.id),['solve-frame','stop','drag-map','pressure-map','separation-map','shape-map']);
+ assert.deepEqual(operations.filter(o=>o.readOnly).map(o=>o.id),['status','wall-motion','results','force-history','probe','shape-gradient']);
+ assert.deepEqual(operations.filter(o=>!o.readOnly).map(o=>o.id),['solve-frame','solve-animation','stop','drag-map','pressure-map','separation-map','shape-map']);
  assert.equal(viewport.lines.length,90);assert.deepEqual(viewport.pivot,[-500,0,-500]);assert.match(viewport.shader,/discard/);
  assert.equal(attributes('a').actions.find(a=>a.id==='solve-frame').cancel,'stop');
  nodes[1].params.Medium='Water';assert.deepEqual(attributes('b').hiddenFields,['Ground','Altitude']);
